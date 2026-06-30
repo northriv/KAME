@@ -26,7 +26,7 @@ Three complementary verification approaches covering the full stack.
 
 ### What it tests
 
-The core lock-free reference counting protocol from `kame/atomic_smart_ptr.h`, extracted into
+The core lock-free reference counting protocol from `kamepoolalloc/atomic_smart_ptr.h`, extracted into
 standalone C11 programs with all `memory_order` annotations exactly matching the original:
 
 | Operation | Ordering in original |
@@ -192,7 +192,7 @@ v0.17.0 binary installs at `build/bin/genmc/genmc` (nested).
 
 ### What it tests
 
-The full Layer 1 vocabulary of `kame/atomic_smart_ptr.h` under sequential
+The full Layer 1 vocabulary of `kamepoolalloc/atomic_smart_ptr.h` under sequential
 consistency.  Complements GenMC (which checks memory ordering) by exhaustively
 exploring all thread interleavings of:
 
@@ -212,15 +212,15 @@ exploring all thread interleavings of:
 
 | Operation | C++ source | Key detail |
 |---|---|---|
-| `acquire_tag_ref_()` | `atomic_smart_ptr.h:1058-1108` | Single atomic load of `m_ref` + CAS to +1 local tag |
-| `load_shared_()` (bulk) | `atomic_smart_ptr.h:1116-1128` | `fetch_add(rcnt)` to global + drain `release_tag_ref_(pref, rcnt)` |
-| `release_tag_ref_(pref, T)` | `atomic_smart_ptr.h:1158-1206` | Drain `min(local_rc, T)` tags in one CAS + fetch_sub the excess |
-| `compareAndSwap_()` (legacy) | `atomic_smart_ptr.h:550-650` | 6-phase: pre-inc, acquire, check, transfer, CAS, cleanup/undo |
-| `local_shared_ptr::swap(asp&)` | `atomic_smart_ptr.h:628-649` | Like CAS but unconditional and hold-transfer |
-| `compareAndSet_impl_<SCOPED>` | `atomic_smart_ptr.h:1240-1450` | No acquire (scope holds +1); step4 = +T (full); fetch_sub(2) on success |
-| `scoped_atomic_view` ctor | `atomic_smart_ptr.h:598-700` | Acquire → TagHeld |
-| `scoped_atomic_view` dtor | `atomic_smart_ptr.h:730-845` | `release_tag_ref_(pref, 1)` if TagHeld |
-| `local_shared_ptr::reset()` | `atomic_smart_ptr.h:433-444` | `fetch_sub(1, acq_rel)` + delete check |
+| `acquire_tag_ref_()` | `kamepoolalloc/atomic_smart_ptr.h:1632` | Single atomic load of `m_ref` + CAS to +1 local tag |
+| `load_shared_()` (bulk) | `kamepoolalloc/atomic_smart_ptr.h:1684` | `fetch_add(rcnt)` to global + drain `release_tag_ref_(pref, rcnt)` |
+| `release_tag_ref_(pref, T)` | `kamepoolalloc/atomic_smart_ptr.h:1730` | Drain `min(local_rc, T)` tags in one CAS + fetch_sub the excess |
+| `compareAndSet_impl_()` | `kamepoolalloc/atomic_smart_ptr.h:1811` (public `compareAndSwap()` decl `:981`) | Unified Set / Swap template (subsumes the former 6-phase `compareAndSwap_`): pre-inc, acquire, check, transfer, CAS, cleanup/undo |
+| `local_shared_ptr::swap(asp&)` | `kamepoolalloc/atomic_smart_ptr.h:2085` (decl `:717`) | Like CAS but unconditional and hold-transfer |
+| `compareAndSet_impl_<SCOPED>` | `kamepoolalloc/atomic_smart_ptr.h:1811` | No acquire (scope holds +1); step4 = +T (full); fetch_sub(2) on success |
+| `scoped_atomic_view` ctor | `kamepoolalloc/atomic_smart_ptr.h:1169` / `:1200` (class `:1139`) | Acquire → TagHeld |
+| `scoped_atomic_view` dtor | `kamepoolalloc/atomic_smart_ptr.h:1271` | `release_tag_ref_(pref, 1)` if TagHeld |
+| `local_shared_ptr::reset()` | `kamepoolalloc/atomic_smart_ptr.h:1597` (decl `:720`) | `fetch_sub(1, acq_rel)` + delete check |
 
 ### Key modeling decisions
 
@@ -311,8 +311,28 @@ plus the livelock-free (LL-free) priority mechanism. Models `bundle()`, `unbundl
 `priorityTag[n] ∈ {Null} ∪ ({0..MaxIter} × Threads)` per node. Older transaction (smaller
 iter, then smaller tid) wins. CAS failure → set own tag if older (`TagAfterFail`). Older tag
 blocks younger threads (`CanProceed`). `PreemptTag` lets an active older thread snatch a tag.
-Tags cleared only on commit success (`ClearMyTags`). Mirrors `m_priority_tidstamp` /
-`ScopedNegotiateLinkage` in `transaction_impl.h`.
+Tags cleared only on commit success (`ClearMyTags`).
+
+The TLA+ priority mechanism mirrors the **per-linkage privilege** path in
+`transaction.h` (`KAME_PER_LINKAGE_PRIVILEGE=1`, the default). The model's
+abstract symbols correspond to these C++ symbols (verified per-linkage
+correspondence):
+
+| TLA+ symbol | C++ symbol (`transaction.h`) |
+|---|---|
+| `MyTag(t) = <<iter(t), t>>` (a transaction's own tag) | `Snapshot::m_started_time` (tid-packed µs stamp from `now_us_tagged()`; kinded via `with_kind(m_started_time, …)`) — `:1515` / `:1662` |
+| `iter(t)` (transaction age) | the age component of `m_started_time`, compared by `signed_diff_us_packed` — `:1664` |
+| `priorityTag[n]` (the per-node registered tag) | `Linkage::m_transaction_started_time` (the per-linkage priority slot, atomic) — `:905` |
+| `TagAfterFail` (oldest-wins write on CAS contention) | `Snapshot::tag_as_contender(link)` (CAS: slot empty OR current tagger younger → overwrite; pushes onto `m_tagged_linkages`) — `:1630` |
+| `CanProceed` (the gate) | `i_am_privileged_now` / `fair_mode_blocks_me` — `:646` / `:634` |
+| `PreemptTag` (older preempts younger) | the symmetric preempt-window inside `tag_as_contender` — `:1669` |
+| `ClearMyTags` (release on commit success) | `Snapshot::drop_tags_n_privilege()` walking `m_tagged_linkages`, zeroing matching slots — `:1802` |
+| escalation to Reserved kind | `m_registered_privileged → StampKind::Reserved` — `:1659` |
+
+(The `KAME_PER_LINKAGE_PRIVILEGE=0` build instead uses a global
+fallback — `s_privileged_tidstamp` / `try_register_privileged_tidstamp` /
+`release_privileged_tidstamp` in `transaction_neg_impl.h` — which is not the
+default.)
 
 ### Specification generations
 
@@ -498,7 +518,7 @@ introduced by the global-root parameter).
 `reverseLookup` — necessary for hard-link Case B (where the
 hard-linked child's packet lives in a sibling sub-tree).  At the
 Phase 4 call site, `newpacket` aliases the global root for
-`is_bundle_root=true` (see `reverseLookup` line 1440 — when
+`is_bundle_root=true` (see `reverseLookup` line 1593 — when
 `&superpacket->node() == this` the function returns `superpacket`
 itself), so the default `globalroot = {}` is correct without
 explicit threading.
@@ -680,7 +700,7 @@ of R may execute, overwriting R's wrapper with `missing=FALSE`.  The
 bundling thread's Phase 4 CAS then fails; on retry, Phase 1 collects C
 via a now-stale `bundledBy=A` branch and writes `R.sub[A].sub[C] = Null`,
 losing the packet.  `SnapshotConsistency` (mirroring C++
-`Packet::checkConsistensy` at `transaction_impl.h:870-871`) is violated.
+`Packet::checkConsistensy` at `transaction_impl.h:1001`) is violated.
 
 **Proposed fix:** `BundlePhase3` should only CAS-tag child wrappers
 whose packets actually *move* into the parent's `sub[]`.  Hard-link

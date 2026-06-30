@@ -121,7 +121,7 @@ exploring all reachable states without artificial pruning.</p>
 </table>
 
 <div class="box-green">
-<p><strong>Reading tips:</strong> A TLA+ action (e.g., <code>ReserveScanCAS(t)</code>):
+<p><strong>Reading tips:</strong> A TLA+ action (e.g., <code>AcquireTagRefCAS(t)</code>):
 is a declaration: "when these conditions hold, change variables as follows."
 <code>/\</code>: all conjuncts must be true for the action to be enabled.
 <code>x'</code>is the next state; <code>UNCHANGED</code> means no change.</p>
@@ -199,7 +199,7 @@ Complements GenMC (memory-ordering checks) by exhausting all thread interleaving
 <!-- ===== Slide 2: acquire_tag_ref_ ===== -->
 <div class="slide">
 <h1>acquire_tag_ref_: Atomic Read + CAS</h1>
-<h3>C++ source: atomic_smart_ptr.h lines 462-488</h3>
+<h3>C++ source: kamepoolalloc/atomic_smart_ptr.h lines 1632-1682</h3>
 
 <div class="box">
 <p><code>m_ref.load()</code> in C++is a single atomic operation; pointer and local RC are
@@ -207,15 +207,15 @@ always derived from the same loaded value. TLA+ models this as a <strong>single 
 </div>
 
 <pre><code><span class="comment">(* Atomic read: read ptr and local_rc simultaneously *)</span>
-<span class="op">ReserveScanRead</span>(t) ==
-    /\ pc[t] = <span class="type">"rs_read"</span>
+<span class="op">AcquireTagRefRead</span>(t) ==
+    /\ pc[t] = <span class="type">"atr_read"</span>
     /\ thr_pref' = [thr_pref <span class="keyword">EXCEPT</span> ![t] = ptr]       <span class="comment">\* ← read ptr</span>
     /\ thr_rcnt' = [thr_rcnt <span class="keyword">EXCEPT</span> ![t] = local_rc]  <span class="comment">\* ← read local_rc (simultaneously)</span>
-    /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"rs_cas"</span>]
+    /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"atr_cas"</span>]
 
 <span class="comment">(* CAS — succeeds only if both ptr and RC match *)</span>
-<span class="op">ReserveScanCAS</span>(t) ==
-    /\ pc[t] = <span class="type">"rs_cas"</span>
+<span class="op">AcquireTagRefCAS</span>(t) ==
+    /\ pc[t] = <span class="type">"atr_cas"</span>
     /\ thr_pref[t] /= NULL
     /\ \/ <span class="comment">(* CAS succeeds: both ptr AND local_rc match *)</span>
           /\ ptr = thr_pref[t]
@@ -223,7 +223,7 @@ always derived from the same loaded value. TLA+ models this as a <strong>single 
           /\ local_rc' = thr_rcnt[t] + <span class="num">1</span>  <span class="comment">\* Pinned!</span>
        \/ <span class="comment">(* CAS fails: retry from read *)</span>
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
-          /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"rs_read"</span>]</code></pre>
+          /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"atr_read"</span>]</code></pre>
 
 <div class="box-green">
 <p><strong>Key point:</strong> Even if another thread changes ptr/local_rc between read and CAS,
@@ -234,36 +234,36 @@ the CAS performs <strong>full-word comparison</strong> (both ptr + local_rc), so
 <!-- ===== Slide 3: scan_ (load_shared_) ===== -->
 <div class="slide">
 <h1>scan_: load_shared_(): 3 Steps</h1>
-<h3>C++ source: lines 494-503</h3>
+<h3>C++ source: kamepoolalloc/atomic_smart_ptr.h lines 1684-1699</h3>
 
 <pre><code><span class="comment">(* Step 1: acquire_tag_ref_ → Atomic Read + CAS to increment local RC [see previous slide] *)</span>
 
 <span class="comment">(* Step 2: Increment global RC — safe with relaxed *)</span>
-<span class="op">ScanIncGlobal</span>(t) ==
-    /\ pc[t] = <span class="type">"scan_inc"</span>
+<span class="op">LoadSharedIncGlobal</span>(t) ==
+    /\ pc[t] = <span class="type">"ls_inc"</span>
     /\ global_rc' = [global_rc <span class="keyword">EXCEPT</span> ![thr_pref[t]] = @ + <span class="num">1</span>]
-    /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"scan_leave"</span>]
+    /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"ls_release"</span>]
 
 <span class="comment">(* Step 3: release_tag_ref_ → decrement local RC *)</span></code></pre>
 
 <div class="arrow">acquire_tag_ref_ → global_rc++ → release_tag_ref_</div>
 
 <h2>release_tag_ref_: Fallback Branch</h2>
-<pre><code><span class="op">LeaveScanCAS</span>(t) ==
+<pre><code><span class="op">ReleaseTagRefCAS</span>(t) ==
     \/ <span class="comment">(* CAS succeeds: ptr unchanged → decrement local RC *)</span>
        /\ ptr = thr_pref[t] /\ local_rc = thr_rcnt[t]
        /\ local_rc' = thr_rcnt[t] - <span class="num">1</span>
 
     \/ <span class="comment">(* CAS fails, ptr same → retry *)</span>
        /\ ptr = thr_pref[t]
-       /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"ls_read"</span>]
+       /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"rtr_read"</span>]
 
     \/ <span class="comment">(* CAS fails, ptr changed → fallback: global_rc-- *)</span>
        /\ ptr /= thr_pref[t]
-       /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"ls_global"</span>]
+       /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"rtr_global"</span>]
 
 <span class="comment">(* Fallback: the swapping thread already transferred the local RC *)</span>
-<span class="op">LeaveScanGlobal</span>(t) ==
+<span class="op">ReleaseTagRefGlobal</span>(t) ==
     /\ global_rc' = [global_rc <span class="keyword">EXCEPT</span> ![o] = @ - <span class="num">1</span>]
     /\ <span class="keyword">IF</span> global_rc[o] = <span class="num">1</span>
        <span class="keyword">THEN</span> freed' = [freed <span class="keyword">EXCEPT</span> ![o] = TRUE]  <span class="comment">\* → freed!</span></code></pre>
@@ -273,10 +273,10 @@ the CAS performs <strong>full-word comparison</strong> (both ptr + local_rc), so
 </div>
 </div>
 
-<!-- ===== Slide 4: compareAndSwap_ ===== -->
+<!-- ===== Slide 4: compareAndSet_impl_ ===== -->
 <div class="slide">
-<h1>compareAndSwap_: 6 Phases</h1>
-<h3>C++ source: lines 556-603</h3>
+<h1>compareAndSet_impl_ / compareAndSwap(): 6 Phases</h1>
+<h3>C++ source: kamepoolalloc/atomic_smart_ptr.h lines 1811-2034 (the legacy 6-phase compareAndSwap_ was subsumed into the unified compareAndSet_impl_ template)</h3>
 
 <table>
 <tr><th>Phase</th><th>TLA+ Action</th><th>Operation</th></tr>
@@ -367,19 +367,19 @@ and on CAS success <code>fetch_sub(2)</code> absorbs both the <code>m_ref</code>
 </div>
 
 <h2>State transitions (2-state TagHeld model)</h2>
-<pre><code><span class="op">ScopeAcquire</span>(t) ==                <span class="comment">\* scoped_atomic_view ctor</span>
+<pre><code><span class="op">ScopeStartAcquire</span>(t) ==           <span class="comment">\* scoped_atomic_view ctor (→ acquire_tag_ref_ → ScopeSetState sets tagheld)</span>
     /\ scope_state[t] = <span class="type">"none"</span>
     /\ <span class="comment">\* run acquire_tag_ref_ to grab a single tag</span>
     /\ scope_state' = [scope_state <span class="keyword">EXCEPT</span> ![t] = <span class="type">"tagheld"</span>]
     /\ scope_pref' = [scope_pref <span class="keyword">EXCEPT</span> ![t] = thr_pref[t]]
 
-<span class="op">ScopeCASConsume</span>(t) ==          <span class="comment">\* compareAndSet_impl_&lt;scoped&gt; success</span>
+<span class="op">ScopeCASCleanup</span>(t) ==          <span class="comment">\* compareAndSet_impl_&lt;scoped&gt; success (after ScopeCASSwap)</span>
     /\ scope_state[t] = <span class="type">"tagheld"</span>
     /\ <span class="comment">\* step4 = +T (full add); on CAS success fetch_sub(2) consumes tag+ref simultaneously</span>
     /\ local_rc' = local_rc - <span class="num">2</span>
     /\ scope_state' = [scope_state <span class="keyword">EXCEPT</span> ![t] = <span class="type">"none"</span>]
 
-<span class="op">ScopeDestruct</span>(t) ==            <span class="comment">\* scoped_atomic_view dtor</span>
+<span class="op">ScopeDtor</span>(t) ==               <span class="comment">\* scoped_atomic_view dtor</span>
     /\ scope_state[t] = <span class="type">"tagheld"</span>
     /\ <span class="comment">\* invoke release_tag_ref_(scope_pref, 1)</span>
     /\ thr_cas_rcnt' = <span class="num">1</span>
@@ -397,8 +397,8 @@ and on CAS success <code>fetch_sub(2)</code> absorbs both the <code>m_ref</code>
        \/ <span class="comment">\* CAS failure → retry or fallback to global path</span>
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
 
-<span class="comment">\* After drain: cancel excess global rcnt with fetch_sub</span>
-<span class="op">ReleaseTagRefExcess</span>(t) ==
+<span class="comment">\* Excess-undo branch (folded into ReleaseTagRefCAS): cancel excess global rcnt with fetch_sub</span>
+<span class="op">ReleaseTagRefCAS</span>(t) ==          <span class="comment">\* (excess-undo continuation of the same action)</span>
     /\ <span class="keyword">LET</span> excess == thr_added_grc[t] - thr_drained[t] <span class="keyword">IN</span>
        global_rc' = [global_rc <span class="keyword">EXCEPT</span> ![pref] = @ - excess]</code></pre>
 
@@ -484,14 +484,14 @@ not by the bare tagged-pointer protocol.</p>
 <h2>Action Mapping</h2>
 <table>
 <tr><th>TLA+ Action</th><th>C++ Function (atomic_smart_ptr.h)</th><th>memory_order</th></tr>
-<tr><td><code>AcquireTagRefRead</code> + <code>AcquireTagRefCAS</code></td><td><code>acquire_tag_ref_()</code> (lines 1058-1108)</td><td>relaxed → acq_rel</td></tr>
-<tr><td><code>LoadSharedBulkAdd</code> (new)</td><td><code>load_shared_()</code> bulk transfer<br><code>refcnt.fetch_add(rcnt)</code> + drain (lines 1116-1128)</td><td>relaxed</td></tr>
-<tr><td><code>ReleaseTagRefCAS</code> + <code>ReleaseTagRefExcess</code></td><td><code>release_tag_ref_(pref, T)</code> drain (lines 1158-1206)<br>min(local_rc, T) tags in one CAS + excess <code>fetch_sub</code></td><td>acq_rel</td></tr>
-<tr><td><code>CASPreInc</code> → <code>CASSwap</code> → <code>CASCleanup</code></td><td><code>compareAndSwap_()</code> 6 phases (legacy, lines 550-650)</td><td>relaxed / acq_rel</td></tr>
-<tr><td><code>compareAndSet_impl_</code> path</td><td><strong>Unified template</strong> <code>compareAndSet_impl_&lt;OldrT, NewrT, false, RETAIN_NEWR&gt;</code> (lines 1240-1450)<br>One implementation for both Set and Swap</td><td>relaxed / acq_rel</td></tr>
+<tr><td><code>AcquireTagRefRead</code> + <code>AcquireTagRefCAS</code></td><td><code>acquire_tag_ref_()</code> (lines 1632-1682)</td><td>relaxed → acq_rel</td></tr>
+<tr><td><code>LoadSharedIncGlobal</code></td><td><code>load_shared_()</code> bulk transfer<br><code>refcnt.fetch_add(rcnt)</code> + drain (lines 1693-1697)</td><td>relaxed</td></tr>
+<tr><td><code>ReleaseTagRefCAS</code> (incl. excess-undo branch)</td><td><code>release_tag_ref_(pref, T)</code> drain (lines 1730-1775)<br>min(local_rc, T) tags in one CAS + excess <code>fetch_sub</code></td><td>acq_rel</td></tr>
+<tr><td><code>CASPreInc</code> → <code>CASSwap</code> → <code>CASCleanup</code></td><td><code>compareAndSet_impl_()</code> 6 phases (legacy <code>compareAndSwap_</code> subsumed, lines 1811-2034)</td><td>relaxed / acq_rel</td></tr>
+<tr><td><code>compareAndSet_impl_</code> path</td><td><strong>Unified template</strong> <code>compareAndSet_impl_&lt;OldrT, NewrT, false, RETAIN_NEWR&gt;</code> (lines 1811-2034)<br>One implementation for both Set and Swap</td><td>relaxed / acq_rel</td></tr>
 <tr><td><code>compareAndSet_impl_&lt;SCOPED&gt;</code> path</td><td>Scope hold avoids acquire; step4 = +T (full add); on success <code>fetch_sub(2)</code></td><td>acq_rel</td></tr>
-<tr><td><code>ScopeAcquire</code> → <code>ScopeCASConsume</code> / <code>ScopeDestruct</code></td><td><code>scoped_atomic_view</code> ctor / CAS / dtor (lines 598-845)</td><td>acq_rel</td></tr>
-<tr><td><code>Reset</code></td><td><code>local_shared_ptr::reset()</code> <code>fetch_sub(1)</code> + delete check (lines 433-444)</td><td>acq_rel</td></tr>
+<tr><td><code>ScopeStartAcquire</code> → <code>ScopeCASSwap</code> / <code>ScopeCASCleanup</code> / <code>ScopeDtor</code></td><td><code>scoped_atomic_view</code> ctor (lines 1169 / 1200) / CAS (lines 1811-2034) / dtor (line 1271)</td><td>acq_rel</td></tr>
+<tr><td><code>Reset</code></td><td><code>local_shared_ptr::reset()</code> <code>fetch_sub(1)</code> + delete check (lines 1597-1614)</td><td>acq_rel</td></tr>
 </table>
 
 <div class="box-green">

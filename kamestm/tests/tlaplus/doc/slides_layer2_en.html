@@ -30,7 +30,7 @@ p{line-height:1.8}
 <!-- ===== Slide 1: Overview ===== -->
 <div class="slide">
 <h1>Layer 2: Bundle/Unbundle + Commit</h1>
-<h3>TLA+ Model — BundleUnbundle_2level.tla / BundleUnbundle.tla (3-level)</h3>
+<h3>TLA+ Model — 2-level / 3-level bundle/unbundle protocol (LLfree premise: <code>BundleUnbundle_2level_LLfree.tla</code> / <code>BundleUnbundle_3level_LLfree.tla</code>)</h3>
 
 <div class="box">
 <p>This deck covers the bundle/unbundle/commit protocol itself (LLfree assumed).
@@ -47,8 +47,10 @@ and optimistic commit on 2-level and 3-level trees. The single-node CAS commit f
 
 <h2>Tree Structure (Fixed)</h2>
 <div class="tree">
-Grand ── Parent ──┬── Child1<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── Child2
+&nbsp;&nbsp;&nbsp;&nbsp;Grand<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── Parent<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── Child1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── Child2
 </div>
 
 <h2>Data Structures</h2>
@@ -63,12 +65,12 @@ Grand ── Parent ──┬── Child1<br>
 <span class="op">BundledRefWrapper</span>(parentNode, ser) ==
     [packet |-> Null, hasPriority |-> FALSE, bundledBy |-> parentNode, serial |-> ser]</code></pre>
 
-<h2>Variables (7)</h2>
+<h2>Variables (6)</h2>
 <pre><code><span class="keyword">VARIABLES</span>
-    serial,        <span class="comment">\* per-thread serial counter</span>
-    globalSerial,  <span class="comment">\* latest global serial</span>
+    serial,        <span class="comment">\* per-thread Lamport serial (monotone Nat)</span>
     linkage,       <span class="comment">\* linkage[n]: PacketWrapper for each node</span>
     pc, op, target, local  <span class="comment">\* per-thread state</span></code></pre>
+<p style="color:#94a3b8;font-size:0.9em">LLfree has no <code>globalSerial</code> (the C++ has no such variable); the serial is a Lamport monotone Nat.</p>
 </div>
 
 <!-- ===== Slide 1b: 3-tier fidelity ===== -->
@@ -115,8 +117,7 @@ New notation introduced in these slides:</p>
 <tr><td><code>BundledRefWrapper(parentNode, ser)</code></td><td>Wrapper in bundled state. <code>hasPriority=FALSE, bundledBy=parentNode</code>.</td></tr>
 <tr><td><code>[n \in AllNodes |-> IF ... THEN ... ELSE ...]</code></td><td>Conditional function definition. Sets different initial values per node.</td></tr>
 <tr><td><code>r.field</code></td><td>Record field access. Examples: <code>w.hasPriority</code>, <code>w.packet.sub[c]</code></td></tr>
-<tr><td><code>% MaxSerial</code></td><td>Modular arithmetic. The serial wraps around at <code>MaxSerial</code>, making the state space structurally finite. This model does not use StateConstraint.</td></tr>
-<tr><td><code>ModGT(a, b)</code></td><td>Modular comparison. <code>LET diff == (a - b + MaxSerial) % MaxSerial IN diff > 0 /\ diff < MaxSerial \div 2</code>. Corresponds to signed difference comparison in C++.</td></tr>
+<tr><td><code>serial</code> comparison</td><td>The serial is a <strong>Lamport monotone Nat</strong>. LLfree does not finitize via modular wrapping — finiteness is structural (the priorityTag mechanism). The order comparison is a fixed-width <strong>signed difference</strong>: C++ <code>isOlderThan</code> (unsigned subtraction → signed reinterpretation), generated C11 <code>ser_gt</code>.</td></tr>
 </table>
 
 <div class="box-green">
@@ -187,8 +188,8 @@ to a priority wrapper.</p>
     <span class="comment">\* (matching the C++ traversal order: CAS from root → leaf)</span></code></pre>
 
 <h2>Step 2: UnbundleCASAncestors / UnbundleCASLoop — Set missing=TRUE on ancestors</h2>
-<pre><code><span class="op">UnbundleCASAncestors</span>(t)   <span class="comment">\* 2-level (BundleUnbundle_2level.tla)</span>
-<span class="op">UnbundleCASLoop</span>(t)         <span class="comment">\* 3-level (BundleUnbundle.tla)</span>
+<pre><code><span class="op">UnbundleCASAncestors</span>(t)   <span class="comment">\* 2-level (BundleUnbundle_2level_LLfree.tla)</span>
+<span class="op">UnbundleCASLoop</span>(t)         <span class="comment">\* 3-level (BundleUnbundle_3level_LLfree.tla)</span>
     <span class="comment">\* For each ancestor in casTargets, CAS its wrapper to a new wrapper</span>
     <span class="comment">\* with missing=TRUE. The child sub-slots sub[c] are KEPT (not nulled),</span>
     <span class="comment">\* so Phase3 rollback / recovery paths still have the references available.</span>
@@ -398,29 +399,29 @@ prove liveness (details: <code>doc/proof_semantics.md</code>).</p>
 
 <h2>Variable Mapping</h2>
 <table>
-<tr><th>TLA+ Variable</th><th>C++ (transaction_impl.h)</th><th>Generated C11 (test_bundle_3level.c)</th></tr>
+<tr><th>TLA+ Variable</th><th>C++ (transaction_impl.h)</th><th>Generated C11 (test_bundle_3level_LLfree.c)</th></tr>
 <tr><td><code>linkage[n]</code></td><td><code>atomic_shared_ptr&lt;PacketWrapper&gt; n->m_link</code></td><td><code>_Atomic(uint64_t) linkage[4]</code><br>64-bit packed (Wrapper struct)</td></tr>
 <tr><td><code>linkage[n].hasPriority</code></td><td><code>PacketWrapper::hasPriority()</code></td><td><code>Wrapper.has_priority</code> (bit field)</td></tr>
 <tr><td><code>linkage[n].bundledBy</code></td><td><code>PacketWrapper::bundledBy()</code></td><td><code>Wrapper.bundled_by</code></td></tr>
 <tr><td><code>linkage[n].packet.payload</code></td><td><code>Packet::payload()</code></td><td><code>Wrapper.payload</code></td></tr>
 <tr><td><code>linkage[n].packet.sub[c]</code></td><td><code>Packet::subpackets()[i]</code></td><td><code>Wrapper.sub_child1/2</code></td></tr>
 <tr><td><code>serial[t]</code></td><td><code>SerialGenerator</code> (Lamport clock)</td><td><code>uint8_t thread_ser</code> (local)</td></tr>
-<tr><td><code>ModGT(a,b)</code></td><td>Unsigned subtraction → signed reinterpretation</td><td><code>mod_gt(a,b)</code>: <code>(a-b+MAX)%MAX &lt; MAX/2</code></td></tr>
+<tr><td>serial comparison<br>(Lamport, no modular wrap)</td><td><code>isOlderThan</code><br>unsigned subtraction → signed reinterpretation</td><td><code>ser_gt(a,b)</code>: <code>(a-b)&amp;MASK, diff &lt; MOD/2</code></td></tr>
 </table>
 
 <h2>Action Mapping</h2>
 <table>
 <tr><th>TLA+ Action</th><th>C++ Code</th><th>Generated C11 Function</th></tr>
-<tr><td><code>SnapRead</code> + <code>SnapCheck</code><br>(3-level uses only <code>SnapCheck</code>)</td><td><code>snapshot()</code><br>transaction_impl.h:842-870</td><td><code>snapshot_grand()</code><br><code>load_wrapper()</code> → priority/missing decision</td></tr>
-<tr><td><code>BundlePhase1</code>–<code>4</code></td><td><code>bundle()</code><br>transaction_impl.h:1077-1171</td><td>Within <code>snapshot_grand()</code><br>collect → CAS parent → CAS children → finalize</td></tr>
-<tr><td><code>InnerPhase2</code>/<code>3</code>/<code>4</code><br>(3-level only)</td><td>Inner-bundle portion of <code>bundle()</code><br>transaction_impl.h:1100-1171</td><td>Within <code>snapshot_grand()</code><br>Inner bundle on Parent when Grand bundles (explicit in superfine; collapsed into <code>BundlePhase1</code> in fine)</td></tr>
-<tr><td><code>CommitParent</code> (2-level)<br><code>CommitGrand</code> (3-level)</td><td>Parent / grand-scope <code>commit()</code><br>transaction_impl.h:1245-1270</td><td><code>commit_parent()</code> / <code>commit_grand()</code><br>Deep commit: +1 to every child payload in the scope</td></tr>
-<tr><td><code>CommitRead</code></td><td>Reload just before CAS in <code>commit()</code><br>transaction_impl.h:1245-1260</td><td>Within <code>commit_child()</code><br><code>load_wrapper</code> immediately before the CAS attempt</td></tr>
-<tr><td><code>CommitTryCAS</code></td><td><code>commit()</code><br>transaction_impl.h:1245-1270</td><td><code>commit_child()</code><br>Direct CAS + single-node optimization</td></tr>
-<tr><td><code>CommitDone</code></td><td>Finalization tail of <code>commit()</code><br>transaction_impl.h:1265-1275</td><td>Tail of <code>commit_child()</code><br>Decrement <code>iterBudget</code>, advance to next child or idle</td></tr>
-<tr><td><code>UnbundleWalk</code></td><td><code>snapshotSupernode()</code><br>transaction_impl.h:696-755</td><td>Within <code>commit_child()</code><br>Walk <code>bundledBy</code> chain to build casTargets (superfine #5 is root-first)</td></tr>
-<tr><td><code>UnbundleCASAncestors</code> (2-level)<br><code>UnbundleCASLoop</code> (3-level)</td><td>transaction_impl.h:1367-1379</td><td>Within <code>commit_child()</code><br><code>cas_wrapper(anc, ... missing=TRUE)</code> per ancestor. Child sub-slots kept (not nulled)</td></tr>
-<tr><td><code>UnbundleCASChild</code></td><td>transaction_impl.h:1383-1389</td><td>Within <code>commit_child()</code><br>child → priority restoration with new payload</td></tr>
+<tr><td><code>SnapRead</code> + <code>SnapCheck</code><br>(3-level uses only <code>SnapCheck</code>)</td><td><code>snapshot()</code><br>transaction_impl.h:2038/2053</td><td><code>snapshot_grand()</code><br><code>load_wrapper()</code> → priority/missing decision</td></tr>
+<tr><td><code>BundlePhase1</code>–<code>4</code></td><td><code>bundle()</code><br>transaction_impl.h:2355</td><td>Within <code>snapshot_grand()</code><br>collect → CAS parent → CAS children → finalize</td></tr>
+<tr><td><code>InnerPhase2</code>/<code>3</code>/<code>4</code><br>(3-level only)</td><td>Inner-bundle portion of <code>bundle()</code><br>transaction_impl.h:2355</td><td>Within <code>snapshot_grand()</code><br>Inner bundle on Parent when Grand bundles (explicit in superfine; collapsed into <code>BundlePhase1</code> in fine)</td></tr>
+<tr><td><code>CommitParent</code> (2-level)<br><code>CommitGrand</code> (3-level)</td><td>Parent / grand-scope <code>commit()</code><br>transaction_impl.h:2757</td><td><code>commit_parent()</code> / <code>commit_grand()</code><br>Deep commit: +1 to every child payload in the scope</td></tr>
+<tr><td><code>CommitRead</code></td><td>Reload just before CAS in <code>commit()</code><br>transaction_impl.h:2757</td><td>Within <code>commit_child()</code><br><code>load_wrapper</code> immediately before the CAS attempt</td></tr>
+<tr><td><code>CommitTryCAS</code></td><td><code>commit()</code><br>transaction_impl.h:2757</td><td><code>commit_child()</code><br>Direct CAS + single-node optimization</td></tr>
+<tr><td><code>CommitDone</code></td><td>Finalization tail of <code>commit()</code><br>transaction_impl.h:2757</td><td>Tail of <code>commit_child()</code><br>Decrement <code>iterBudget</code>, advance to next child or idle</td></tr>
+<tr><td><code>UnbundleWalk</code></td><td><code>reverseLookup()</code><br>transaction_impl.h:1590/1665/1675</td><td>Within <code>commit_child()</code><br>Walk <code>bundledBy</code> chain to build casTargets (superfine #5 is root-first)</td></tr>
+<tr><td><code>UnbundleCASAncestors</code> (2-level)<br><code>UnbundleCASLoop</code> (3-level)</td><td><code>unbundle()</code><br>transaction_impl.h:2904</td><td>Within <code>commit_child()</code><br><code>cas_wrapper(anc, ... missing=TRUE)</code> per ancestor. Child sub-slots kept (not nulled)</td></tr>
+<tr><td><code>UnbundleCASChild</code></td><td><code>unbundle()</code><br>transaction_impl.h:2904</td><td>Within <code>commit_child()</code><br>child → priority restoration with new payload</td></tr>
 </table>
 
 <div class="box-green">

@@ -79,7 +79,8 @@ see also <code>slides_layer2_en.html</code>.
 LLfree does not rely on CONSTRAINT and instead bounds the state space
 <em>structurally</em> via the priority mechanism. That means TLC's full exhaustion <em>itself</em>
 is the formal proof of livelock-freedom. The spec directly mirrors
-<code>m_link-&gt;negotiate()</code> / <code>release_privileged_tidstamp()</code> from the C++.</p>
+<code>tag_as_contender()</code> / <code>drop_tags_n_privilege()</code> over the per-linkage
+<code>Linkage::m_transaction_started_time</code> slot from the C++.</p>
 <p style="margin-top:0.4em">Setting <strong><code>Privilege = FALSE</code></strong> disables the priority machinery,
 the state space diverges, and TLC fails to terminate — the most direct validation that
 the priority mechanism is required (detailed in the final slide).</p>
@@ -179,7 +180,7 @@ coarse/fine/superfine triple, LLfree carries the
 <span class="comment">\*     others see the tag and only proceed if it's Null or matches mine.</span>
 <span class="comment">\*   - Older transactions (smaller iter, then smaller tid) win.</span>
 <span class="comment">\*   - Tag cleared at Transaction boundaries via ClearMyTags —</span>
-<span class="comment">\*     mirroring C++ release_privileged_tidstamp().</span></code></pre>
+<span class="comment">\*     mirroring C++ drop_tags_n_privilege() (per-linkage default).</span></code></pre>
 
 <h2>TLC verification results</h2>
 <div class="box-green">
@@ -205,7 +206,8 @@ DISTURBED detection) likewise exhausts. The most C++-faithful mirror works.
 <h1><code>priorityTag</code> variable + helper operators</h1>
 <p style="color:#94a3b8">
 LLfree's single new variable <code>priorityTag[n]</code> and the helpers that manipulate it.
-They mirror C++'s <code>m_priority_tidstamp</code> / <code>negotiate()</code> directly.
+They mirror C++'s per-linkage <code>Linkage::m_transaction_started_time</code> /
+<code>tag_as_contender()</code> directly.
 </p>
 
 <h2>Variable declaration and Init</h2>
@@ -248,13 +250,13 @@ EncodeSerial(cnt, tid) == cnt * SerialBase + tid</code></pre>
 <tr><th>Operator</th><th>Meaning</th><th>C++ counterpart</th></tr>
 <tr><td><code>priorityTag[n]</code></td>
     <td>Registered tag for node n (<code>Null | &lt;&lt;iter, tid&gt;&gt;</code>)</td>
-    <td><code>Linkage::m_priority_tidstamp</code></td></tr>
+    <td><code>Linkage::m_transaction_started_time</code> (atomic per-linkage slot)</td></tr>
 <tr><td><code>iter(t)</code></td>
     <td>Derived: number of completed iterations (no extra variable)</td>
-    <td>Coarse approximation of the Lamport stamp from <code>now_us_tagged()</code></td></tr>
+    <td>Age component of <code>Snapshot::m_started_time</code>, compared by <code>signed_diff_us_packed</code></td></tr>
 <tr><td><code>MyTag(t)</code></td>
     <td>The tag t should register right now</td>
-    <td><code>Transaction::priority_tidstamp()</code></td></tr>
+    <td><code>Snapshot::m_started_time</code> (tid-packed µs stamp from <code>now_us_tagged()</code>)</td></tr>
 <tr><td><code>TagOlder(a, b)</code></td>
     <td>a is older (= wins contention)</td>
     <td>C++ lex compare (<code>iter</code>, <code>tid</code>)</td></tr>
@@ -304,10 +306,10 @@ proceed</em>. This is the heart of the priority mechanism.
 <tr><th>Condition</th><th>Meaning</th><th>C++ counterpart</th></tr>
 <tr><td><code>tag = Null</code></td>
     <td>No tag registered — free entry</td>
-    <td><code>m_priority_tidstamp.load() == 0</code></td></tr>
+    <td><code>Linkage::m_transaction_started_time.load() == 0</code></td></tr>
 <tr><td><code>tag[2] = t</code></td>
     <td>My own tag (any iter) — same Tx retry or a leftover from earlier</td>
-    <td><code>== priority_tidstamp()</code></td></tr>
+    <td>slot's tid == mine (<code>i_am_privileged_now</code> / <code>fair_mode_blocks_me</code> gate over <code>Snapshot::m_started_time</code>)</td></tr>
 </table>
 
 <h2>Where it applies (priority-gated CAS sites)</h2>
@@ -402,16 +404,16 @@ On failure/retry, tags persist into the next snapshot (matching C++ <code>operat
 not calling <code>drop_tags_n_privilege()</code>).</p>
 </div>
 
-<h2>Correspondence with C++ <code>ScopedNegotiateLinkage</code></h2>
+<h2>Correspondence with C++ per-linkage priority slot</h2>
 <table>
 <tr><th>C++</th><th>TLA+ LLfree</th></tr>
-<tr><td><code>ScopedNegotiateLinkage tag(*link)</code> at commit_xxx() outer scope</td>
+<tr><td><code>i_am_privileged_now</code> / <code>fair_mode_blocks_me</code> gate over <code>Linkage::m_transaction_started_time</code></td>
     <td><code>CanProceed</code> check at the head of SnapCheck / CommitParent / CommitTryCAS</td></tr>
-<tr><td><code>m_priority_tidstamp.store(my_stamp)</code> on CAS fail</td>
+<tr><td><code>tag_as_contender(link)</code> on CAS fail (CAS-writes the slot, oldest-wins; pushes onto <code>m_tagged_linkages</code>)</td>
     <td><code>priorityTag' = [priorityTag EXCEPT ![n] = TagAfterFail(t, n)]</code></td></tr>
 <tr><td>No store on CAS success</td>
     <td><code>TagAfterSuccess(t, n) == priorityTag[n]</code> (no-op)</td></tr>
-<tr><td>Destructor: <code>release_privileged_tidstamp()</code></td>
+<tr><td>On commit success: <code>drop_tags_n_privilege()</code> walks <code>m_tagged_linkages</code>, zeroing matching slots</td>
     <td><code>ClearMyTags(t)</code> at Transaction-end (see the <code>PreemptTag</code> / <code>ClearMyTags</code> slide)</td></tr>
 </table>
 </div>

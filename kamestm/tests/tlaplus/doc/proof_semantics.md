@@ -41,7 +41,7 @@ bundle/unbundle (Layer 2) の TLA+ 仕様は有限性の確保方法によって
 >
 > **形式検証の柱が立った**。残る作業は config 拡張 (MaxCommits>=2, |Threads|>=3) でのスケーラビリティ検証（ohtaka など）と、3-level への拡張。
 
-新世代は `BundleUnbundle_2level_LLfree.tla`。`priorityTag[n]: Null | <<iter, tid>>` を per-node に持ち、older transaction（小さい iter、次に小さい tid）が勝つ規律を C++ の `m_priority_tidstamp` / `negotiate()` から忠実に写している。「無限 retry を構造的に不可能にする」設計が、CONSTRAINT なし TLC 完走によって**実証**された。
+新世代は `BundleUnbundle_2level_LLfree.tla`。`priorityTag[n]: Null | <<iter, tid>>` を per-node に持ち、older transaction（小さい iter、次に小さい tid）が勝つ規律を C++ の per-linkage 優先度スロット `Linkage::m_transaction_started_time` (transaction.h:905) と、それを CAS する `Snapshot::tag_as_contender()` / `negotiate()` から忠実に写している（`KAME_PER_LINKAGE_PRIVILEGE=1` が既定）。「無限 retry を構造的に不可能にする」設計が、CONSTRAINT なし TLC 完走によって**実証**された。
 
 ---
 
@@ -94,7 +94,7 @@ bundle/unbundle (Layer 2) の TLA+ 仕様は有限性の確保方法によって
 - → serial 増加が有界 → 状態空間が有限 → TLC が終了
 - → §2 の議論で CONSTRAINT なしの終了が LL-free の証明になる
 
-C++ 実装の `m_priority_tidstamp` / `m_link->negotiate()` をミラーしているため、仕様の完走はそのまま実装の LL-free 性の根拠になる。**2026-04-29 に完走が達成された**ため、上記の論証チェーンは成立。priority 規律の穴と TLA+ 写しの不備、いずれの可能性も排除された (micro config の範囲で)。
+C++ 実装の per-linkage 優先度スロット `Linkage::m_transaction_started_time` (transaction.h:905) と、それを oldest-wins で CAS する `Snapshot::tag_as_contender()` (transaction.h:1630)・gate を判定する `i_am_privileged_now`/`fair_mode_blocks_me` (transaction.h:646/634)・commit 成功時にタグを落とす `drop_tags_n_privilege()` (transaction.h:1802) をミラーしているため、仕様の完走はそのまま実装の LL-free 性の根拠になる（既定の `KAME_PER_LINKAGE_PRIVILEGE=1` 経路。`KAME_PER_LINKAGE_PRIVILEGE=0` の場合のみ `transaction_neg_impl.h` のグローバル `s_privileged_tidstamp` 系へフォールバック）。**2026-04-29 に完走が達成された**ため、上記の論証チェーンは成立。priority 規律の穴と TLA+ 写しの不備、いずれの可能性も排除された (micro config の範囲で)。
 
 ---
 
@@ -186,7 +186,7 @@ C++ 実装 (commit `2d141d5`) との 1:1 対応も検証済み (8/8 priority-gat
 
 ### Gen 3 の達成内容
 
-- `priorityTag[n]: Null | <<iter, tid>>` を per-node に組み込み、older transaction が勝つ規律を C++ の `m_priority_tidstamp` から忠実に反映。
+- `priorityTag[n]: Null | <<iter, tid>>` を per-node に組み込み、older transaction が勝つ規律を C++ の per-linkage 優先度スロット `Linkage::m_transaction_started_time` (transaction.h:905) と `Snapshot::tag_as_contender()` (transaction.h:1630) から忠実に反映 (既定 `KAME_PER_LINKAGE_PRIVILEGE=1`)。
 - Transaction-scope 持続: tag は CAS 単位で clear せず、`CommitParent`/`CommitDone` (= C++ `drop_tags_n_privilege` 呼び出し点) でのみ release。これがないと unbundle/rebundle ping-pong による livelock が起きることを bound-60 violation トレースで実証。
 - `ActiveThread` 判定で zombie tag (終了スレッドの遺留 tag) 回収。
 - `PreemptTag` で older が younger を強制 preempt。
