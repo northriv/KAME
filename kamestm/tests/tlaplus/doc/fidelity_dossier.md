@@ -500,3 +500,70 @@ prose-doc hashes above were NOT verified this run and are the author's to confir
   ordering table name a **removed** C++ symbol and should be relabeled to `compareAndSet_impl_`.
 - All prose-doc git commit-hash references (listed in §6(d)) are not `file:line` citations and were
   not checked against git history.
+
+---
+
+## §7 — Author focus: action correspondence ranked by Claude's confidence (LOW first)
+
+§6 lists *what* the author must certify; this section says *where to spend the time*.
+The ranking below is **Claude's own self-assessed confidence** that each TLA+ action is a
+*sound abstraction* of the cited C++ — it is a model-introspection aid, **not** a verification
+result. Certify 🔴 first; 🟢 can be skimmed. (All `file:line` are in `kamestm/transaction.h`
+unless noted; bundle/commit code is `transaction_impl.h`.)
+
+### 🔴 Lowest confidence — certify first
+
+1. **`TagAfterFail` (3-stage ladder) + independent `PreemptTag`  ↔  `Snapshot::tag_as_contender()`**
+   (transaction.h:1630, preempt-window :1669)
+   *Concern:* the spec **splits** the mechanism into "CAS-fail ladder" + a *separate* preempt
+   action, whereas C++ does it in one CAS-loop and uses a **µs `signed_diff` preempt-window** that
+   has no analogue in the spec's pure lexicographic order. This is the area where the docs had
+   named a *phantom* C++ symbol — i.e. demonstrably under-examined.
+   *Certify:* (a) `tag_as_contender`'s real overwrite condition (slot empty ∨ current younger,
+   within the preempt-window) is faithfully covered by `TagAfterFail` + `PreemptTag`; (b) the
+   two-action decomposition introduces **no interleaving absent in C++** and loses none present.
+
+2. **`iter(t)=MaxCommits−iterBudget` / `TagOlder` lex  ↔  `m_started_time` / `signed_diff_us_packed`**
+   (transaction.h:1515, :1664)
+   *Concern:* `iter` (a commit counter that **increases** as a Tx progresses) and `started_time`
+   (a wall-clock µs stamp **fixed at construction**) are different quantities; the spec assumes
+   "older = smaller iter", the C++ "older = earlier µs". Whether these are order-isomorphic for
+   the oldest-wins arbitration the liveness proof needs is the subtlest abstraction in the model.
+   *Certify:* the **direction** of "older" matches in both, and the iter↔started_time mapping
+   preserves the total order used by the ranking argument.
+
+3. **Liveness §7.5 — bounded structural disturbance (acknowledged OPEN gap)**
+   (`parameterized_cutoff.md` §7.5)
+   *Concern:* the `(progress)` lemma assumes the privileged `t★` completes without unbounded
+   retry, but a peer on a *different* linkage can raise `DISTURBED`/`COLLIDED` through the bundle
+   chain. The "each disturbance removes a younger element from M ⇒ bounded" step is **not
+   mechanized**. This is a real proof gap, not doc drift.
+   *Certify:* whether the bounded-disturbance claim actually holds in the C++ (or scope it as
+   conjecture in the paper).
+
+### 🟠 Medium-low
+
+4. **superfine inner-bundle recursion + Phase-3 `DISTURBED`** — `InnerPhase2/3/4`, `BundlePhase3`
+   ↔ `bundle()` recursive inner bundle (transaction_impl.h:2355). Several `InnerPhase` restart
+   bugs surfaced *during modelling* (see verification_log.md) ⇒ intricate. *Certify:* the spec's
+   restart points match the C++ recursion's actual `DISTURBED` returns.
+5. **`ClearMyTags` (clears MY tag at *every* node)  ↔  `drop_tags_n_privilege()` walking
+   `m_tagged_linkages`** (transaction.h:1802). *Concern:* "all nodes" vs "only the linkages I
+   tagged", and "commit-success only" vs the dtor/abort path. *Certify:* cleared-set + timing.
+6. **Hard-link Phase-4 reachability gate** — `allSubReachable` / `checkConsistensy(globalroot)`
+   (transaction_impl.h:1050 / :1001, gate call :2645) ↔ the `_hardlink_*` models. *Certify:* the
+   `globalroot` threading and the DISTURBED-on-unreachable behaviour for cross-tree migration.
+
+### 🟡 Medium (local accounting — bounded)
+
+7. **`scoped_atomic_view` consume `fetch_sub(2)`** (atomic_smart_ptr.h:1811-2034) — the "tag +
+   m_ref release absorbed together" refcount accounting.
+8. **drain `release_tag_ref_` excess-undo** (atomic_smart_ptr.h:1730-1775) — the
+   `cas_rcnt`/`added_global_rcnt`/`drained` balance.
+
+### 🟢 High confidence — skim
+
+`acquire_tag_ref_` CAS-loop (`AcquireTagRef*`), `load_shared_` global `fetch_add`
+(`LoadSharedIncGlobal`), bundle 4-phase **coarse** structure (`BundlePhase1-4`), direct commit CAS
+(`CommitTryCAS`), `local_shared_ptr::reset` decAndTest (`Reset`), and the **memory_order** table
+(independently re-checked this run: 8/8 match — §3).
