@@ -547,12 +547,18 @@ unless noted; bundle/commit code is `transaction_impl.h`.)
    ↔ `bundle()` recursive inner bundle (transaction_impl.h:2355). Several `InnerPhase` restart
    bugs surfaced *during modelling* (see verification_log.md) ⇒ intricate. *Certify:* the spec's
    restart points match the C++ recursion's actual `DISTURBED` returns.
+   → **EXAMINED (AI cross-check), accepted** — see subsection below; restart-granularity divergence
+   shown sound by Phase-2/3 CAS re-validation, no extra run.
 5. **`ClearMyTags` (clears MY tag at *every* node)  ↔  `drop_tags_n_privilege()` walking
    `m_tagged_linkages`** (transaction.h:1802). *Concern:* "all nodes" vs "only the linkages I
    tagged", and "commit-success only" vs the dtor/abort path. *Certify:* cleared-set + timing.
+   → **EXAMINED (AI cross-check)** — see subsection below; commit-path matches, 2 author-certify
+   items remain (clear-predicate granularity; abort/dtor clear unmodelled).
 6. **Hard-link Phase-4 reachability gate** — `allSubReachable` / `checkConsistensy(globalroot)`
    (transaction_impl.h:1050 / :1001, gate call :2645) ↔ the `_hardlink_*` models. *Certify:* the
    `globalroot` threading and the DISTURBED-on-unreachable behaviour for cross-tree migration.
+   → **EXAMINED (AI cross-check)** — see subsection below; faithful only in `_4node`,
+   `globalroot` threading unmodelled (2 author-certify items).
 
 ### 🟡 Medium (local accounting — bounded)
 
@@ -628,3 +634,113 @@ declined** as unnecessary.
 still cite `bundle()` at lines `1249-1258 / 1260-1282 / 1286-1299 / 2487-2511`; current anchors are
 `bundle()` :2355, parent CAS :2525, Phase 3 :2530, `bundle_subpacket` :2226. (Spec-comment drift,
 not checked code — fix opportunistically.)
+
+### `ClearMyTags` ↔ `drop_tags_n_privilege` (🟠5) — EXAMINED (AI cross-check); 2 author-certify items
+
+*AI cross-check of `ClearMyTags` (`BundleUnbundle_2level_LLfree.tla:242`, 3level `:247`; C11
+`clear_my_tags` `test_bundle_3level_LLfree.c:340`) ↔ `Snapshot::drop_tags_n_privilege()`
+(`transaction.h:1802`, clear loop `:1808-1813`, privilege release `:1833-1846`).*
+
+**Commit-success path: matches.** Both fire `ClearMyTags`/`drop_tags` exactly once on a *successful*
+commit (TLA+ `CommitParent`/`CommitGrand` success disjuncts `:617`/`:942` + `CommitDone`
+`:836`/`:1619`, all guarded `IF commitOk="ok"`; C++ `finalizeCommitment` `:2370`). Both **keep tags
+across retries** — TLA+ `TagAfterSuccess` is a no-op and CAS-fail disjuncts leave `priorityTag`
+unchanged; C++ `operator++` (`:2296-2324`) re-tags but never drops. This is the path the model
+verifies, and it corresponds.
+
+**Three divergences (C++ does *more* than the model):**
+
+- **(form, non-issue) iteration domain.** TLA+/C11 scan **every node** and clear where the tag's tid
+  field matches (`priorityTag[n][2]=t`); C++ scans only `m_tagged_linkages` (the linkages *this*
+  snapshot actually tagged, recorded at `tag_as_contender` `:1788`). A node not in the C++ list is
+  one the thread never tagged → the TLA+ `[2]≠t` branch leaves it too. Same end-state; the all-nodes
+  scan is a superset narrowed by the per-node predicate. Equivalence rests on the granularity point ↓.
+- **🔶 (author-certify #1) clear predicate granularity.** C++ clears only on **full (stamp_us, tid)
+  identity** (`strip_kind(slot)==strip_kind(m_started_time)`, `:1808-1810`); TLA+/C11 clear on
+  **tid alone**. Under one-live-Tx-per-thread with `m_started_time` fixed at construction these
+  coincide (all of a Tx's tags carry the same stamp_us), and where they could differ — a slot bearing
+  *my tid* but a *stale stamp_us* from an earlier un-cleared Tx — C++ is **strictly more conservative**
+  (leaves it; the tid-only model would clear it). Leaving a stale own-tag is safe (it is overwritten
+  on next use), so this can only ever clear a **subset** of the model ⇒ no consistency violation.
+  *Author to certify:* that a reachable state with (my-tid, stale-stamp_us) in a slot at `drop_tags`
+  time cannot arise (one live Tx per thread; no re-stamp across snapshot serials within a live Tx).
+- **🔶 (author-certify #2) abort / dtor / bare-snapshot clear is unmodeled.** C++ also clears at
+  `~Transaction` (`:2206`, doc explicitly "covers the abort path") and at the read-only `Snapshot`
+  ctor scope-exit (`:1518`). The specs have **no abort/dtor transition** — a thread reaches idle
+  *only* via commit success. `iterate_commit` never exits un-committed, but `iterate_commit_if`/
+  `iterate_commit_while` **can give up** (lambda returns false) and exception unwind can fire the
+  dtor on a tagged subtree — there the dtor clear is **load-bearing and not exercised by the model**.
+  *Soundness argument (author to accept):* an aborting thread's `drop_tags` only *removes its own*
+  tags (monotone — commits no writes), which can only *reduce* contention; it cannot manufacture a
+  `SnapshotConsistency` violation a retrying thread wouldn't, nor a livelock (it is a thread *leaving*
+  the contended set). So omitting an abort action under-explores interleavings only in the safe
+  direction. *Author to certify:* that `iterate_commit_if/while` give-up on tagged subtrees is in
+  fact covered by this monotone-removal argument.
+
+*Out of item scope (flag only):* `drop_tags` also folds in the global fair-mode **privilege-slot**
+release (`release_priv_count_slot()` + `m_registered_privileged`, `:1833-1843`); the spec models
+privilege as a coarse `Privilege` boolean (3level `ClearMyTags` `:248`) with no count slot — not part
+of the tag-clearing correspondence, do not assume the privilege accounting is covered by 🟠5.
+
+*Anchors verified current:* `drop_tags_n_privilege` `:1802`; `m_tagged_linkages` decl `:2094`,
+add-site `:1788`; `m_transaction_started_time` (Linkage) `:905`; call sites `:1518`/`:2206`/`:2370`
+(snapshot-exit / dtor-abort / commit-success); `ClearMyTags` def `:242`(2lvl)/`:247`(3lvl); C11
+`clear_my_tags` `:340`. (All matched the §6 table — no drift in 🟠5's anchors.)
+
+### Hard-link Phase-4 reachability gate (🟠6) — EXAMINED (AI cross-check); coverage is partial-by-model
+
+*AI cross-check of the C++ Phase-4 gate (`transaction_impl.h`: gate block `:2626-2654`,
+`m_missing=false` `:2644`, `allSubReachable` gate `:2645`, restore+DISTURBED `:2649-2652`;
+`allSubReachable` def `:1050-1072`, `checkConsistensy` def `:1001-1046`) ↔ the six
+`BundleUnbundle_hardlink_*` models.*
+
+**C++ shape confirmed**, with two facts the §5 row understated: (i) the gate runs only under the
+`if(!missing)` guard (`:2628`), and `missing` is **forced false for the bundle root** (`is_bundle_root`
+⇒ `missing=false`, `:2508-2511`) — so the gate always runs for the root, is skipped for recursive
+non-root bundles; (ii) **only `allSubReachable` gates in production** — the adjacent
+`checkConsistensy` is wrapped in `STRICT_assert` (`:2646`), compiled out unless
+`TRANSACTIONAL_STRICT_assert` is defined (`:45-52`). `allSubReachable` is the *non-throwing Null-slot
+reachability subset* of `checkConsistensy` (it omits the Lamport-serial and missing-propagation
+checks). So the gate ↔ `allSubReachable`; `checkConsistensy` is a debug cross-check.
+
+**Coverage is faithful only in one model; the rest sidestep the gate.** This is the substantive
+finding — the gate's *failure action* is not uniformly modelled:
+
+| model | gate / failure action | DISTURBED-on-unreachable + cross-tree migration |
+|---|---|---|
+| `_4node` | **clear-before-gate + restore-on-fail + retry-to-phase1** — `BundlePhase4` `:239-262`, `ReachableFromRoot` `:145-154`, `SnapshotConsistency` `:449-452` | **Yes** — `~canFinalize`→phase1 retry, with peer `MigrateCToA` `:304-323`. **Sole faithful model of the C++ DISTURBED+retry path.** |
+| `_external_migration` | **stay-missing** — publishes `missing=targetMissing` (`:238-254`); retry is via separate `*Fail` CAS-mismatch actions, not the gate | cross-tree pull modelled (`BundlePullP1`/`BundleCASP2`/`BundleUpdateGN1`), but slot is populated by Phase-4 time ⇒ gate-fail branch not taken |
+| `_external` | **stay-missing** (`:281-301`); single-threaded bug-demo | migration only out-of-band (`ExternalMigration`); gate keeps `missing=TRUE`, DISTURBED **not** exercised |
+| `_self_collision` | **no gate** — Phase-4 clears unconditionally (`:285-299`); relies on **Phase-3 skip-null** (`:257-280`) | n/a — Null slot is a legitimate hard-link ref reachable via A→C |
+| `_dynamic` | **no gate** — Phase-4 clears unconditionally (`:543-571`); migration via pre-finalize `MigrateClearOther` | slot populated before finalize ⇒ gate never needed |
+| `_nonatomic` | **no gate / no packet structure** — boolean-flag liveness (limbo finalize) | n/a |
+
+**Author-certify items (ranked):**
+
+1. **🔶 DISTURBED+retry vs stay-missing.** C++ on `allSubReachable==false` does *restore
+   `m_missing=true` + `return DISTURBED`* (`:2649-2652`) — it never publishes `~missing` from the
+   fail path; the outer `snapshot()` retries. Only `_4node` models this. `_external`/`_external_migration`
+   instead **publish a still-missing wrapper** (stay-missing) and route retry through CAS-mismatch
+   `*Fail` actions. Both are *safe* (their `SnapshotConsistency` holds), but it is a **different
+   control flow**. *Certify:* either that "stay-missing" is an acceptable abstraction of
+   "restore+DISTURBED+retry," or that `_4node` is the designated faithful model and the others are
+   topology-specific safety checks not claiming to mirror the failure path.
+2. **🔶 `globalroot` threading is unmodeled.** At the Phase-4 call site `allSubReachable(newpacket)`
+   is **single-arg**, so `globalroot` defaults to `{}` and degenerates to `rootpacket`; correctness
+   relies on `newpacket` *aliasing the bundle's global root* for `is_bundle_root` (the
+   `&superpacket->node()==this` branch, `reverseLookup` `:1593`). All six models check reachability
+   *at the bundle root directly* and never project a sub-node down to a global root, so the
+   `globalroot` parameter / hard-link "Case B" sibling-subtree lookup (`:1009`/`:1055`) is
+   **certified by C++ reading only, not by any TLA+ check**. This is exactly the dossier's stated
+   concern and it is **not formally covered**.
+3. **(precision) "mirrors `checkConsistensy`" is imprecise.** The models' `SnapshotConsistency`
+   invariants are the Null-slot-reachability subset ⇒ they mirror **`allSubReachable`** (the
+   production gate), not the full `checkConsistensy` (which also checks Lamport serials +
+   missing-propagation, `:1012-1030`). Reword the invariant comments accordingly.
+
+*Stale anchors to fix opportunistically:* (a) C++ comment `transaction_impl.h:2642` "the reverseLookup
+at line ~1440" → actual aliasing branch `:1593`. (b) hard-link spec comments citing `checkConsistensy`
+"line 871" / "858-892" / "870-871" (`_4node:444`, `_external:34,335`, `_self_collision:47`,
+`_external_migration` by-ref) → current def `:1001-1046` (throws via `throw __LINE__`, no fixed
+line-871). `VERIFICATION.md:703` already cites `:1001` correctly — the in-spec comments are the stale
+ones.
