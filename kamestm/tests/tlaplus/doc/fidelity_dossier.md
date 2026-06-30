@@ -522,6 +522,10 @@ unless noted; bundle/commit code is `transaction_impl.h`.)
    *Certify:* (a) `tag_as_contender`'s real overwrite condition (slot empty ∨ current younger,
    within the preempt-window) is faithfully covered by `TagAfterFail` + `PreemptTag`; (b) the
    two-action decomposition introduces **no interleaving absent in C++** and loses none present.
+   → **EXAMINED (AI cross-check)** — see subsection below. Bounded-window/timeout premise supported
+   from source; reduces to 2 shared author-certify residuals (preempt-window asymmetry; iter↔µs
+   coarsening). *Anchor correction:* live C++ is **store-and-verify, not a CAS loop** (the CAS loop is
+   the dead Option-A comment `:1771-1778`); window constant `:1685-1687`, uses `:1700-1702/:1714-1716`.
 
 2. **`iter(t)=MaxCommits−iterBudget` / `TagOlder` lex  ↔  `m_started_time` / `signed_diff_us_packed`**
    (transaction.h:1515, :1664)
@@ -531,6 +535,10 @@ unless noted; bundle/commit code is `transaction_impl.h`.)
    the oldest-wins arbitration the liveness proof needs is the subtlest abstraction in the model.
    *Certify:* the **direction** of "older" matches in both, and the iter↔started_time mapping
    preserves the total order used by the ranking argument.
+   → **EXAMINED (AI cross-check)** — see subsection below. Finding: **not** an order-isomorphism
+   (different quantities), but the §7 ranking proof is robust to the choice of well-founded
+   oldest-wins order — both qualify and the proof uses only the *global minimum*. `signed_diff_us_packed`
+   def is `:502-508` (not `:1664`).
 
 3. **Liveness §7.5 — bounded structural disturbance (acknowledged OPEN gap)**
    (`parameterized_cutoff.md` §7.5)
@@ -744,3 +752,103 @@ at line ~1440" → actual aliasing branch `:1593`. (b) hard-link spec comments c
 `_external_migration` by-ref) → current def `:1001-1046` (throws via `throw __LINE__`, no fixed
 line-871). `VERIFICATION.md:703` already cites `:1001` correctly — the in-spec comments are the stale
 ones.
+
+### `TagAfterFail`+`PreemptTag` ↔ `tag_as_contender` (🔴1) — EXAMINED (AI cross-check); timeout premise supported
+
+*AI cross-check of `TagAfterFail` (`BundleUnbundle_2level_LLfree.tla:221-228`, 3level `:230-239`) +
+the separate `Next` disjunct `PreemptTag` (`:282-287`, in `Next` at `:869`) ↔ `Snapshot::tag_as_contender()`
+(`transaction.h:1630-1789`).* Author has fixed the semantic premise: **the µs window is bounded, certify
+on a timeout premise.** That premise is supported directly from source.
+
+**Structural facts (correcting the original concern wording):**
+- The live C++ is **store-and-verify (Option B): one relaxed load → branch → release-store + acquire
+  re-read** (`:1753-1755`), **not** a CAS loop. A lost store is dropped (`:1754` guard); the *whole
+  transaction's* outer retry re-invokes `tag_as_contender` at the next negotiate/`++tr`. The CAS-loop
+  ("Option A") survives only as a **dead comment** (`:1771-1778`) — and that dead comment is exactly the
+  spec's `TagOlder`-CAS, confirming the spec was written to mirror Option-A semantics. (The C11 test
+  `test_bundle_3level_LLfree.c` likewise uses a real CAS loop with no window/no priv bit — it mirrors
+  the *spec*, not production C++.)
+- The C++ overwrite predicate `_preempt` (`:1688-1723`) has **four** cases: empty→write; I'm-older
+  (`signed_diff>0`)→overwrite (immediately, except older-non-priv vs younger-**priv** waits out the
+  window `:1700-1702`); I'm-younger→leave (except younger-**priv** vs older-non-priv overwrites *inside*
+  its window `:1714-1716`); same-age→leave. The spec collapses the **priv/non-priv (`is_priv_stamp`)
+  dimension entirely** and has **no µs window** — `MyTag=⟨iter,tid⟩`, `TagOlder` pure lexicographic.
+
+**Coverage map:** `{TagAfterFail ladder + separate PreemptTag}` reproduces **every** C++ outcome that
+survives to window expiry. Only the **two window-transient rows** (older-non-priv *defers* to younger-priv
+while the window is open; younger-priv *preempts* older-non-priv inside its window) have no spec action.
+
+**Timeout-premise evidence (the author's framing, confirmed):**
+- **(i) window bounded & non-extendable** — `KAME_STM_PREEMPT_WINDOW_US` is a compile-time `#define`
+  (`:1685-1687`); the age compared is `diff_us(now_us(), stamp_us(·))` with `now_us()` monotonic
+  steady-clock (`:390-393`) against a `m_started_time` frozen at construction ⇒ crosses the threshold
+  exactly once, never returns. No thread action extends it.
+- **(ii) at expiry C++ ≡ spec order** — older side (`:1702`) flips to `_preempt=true` = `TagOlder`-overwrite;
+  younger side (`:1716`) flips to `_preempt=false` = spec's "keep older". Pointwise identical to the spec's
+  instantaneous lexicographic decision once every window closes.
+- **(iii) divergence is transient-only** — within `[0,100µs)` two rows flip the *holder of the tag*, but
+  resolve to the spec order at expiry. The window only ever changes **which thread holds a tag during a
+  bounded ≤100µs interval** — it never touches wrapper/packet/linkage state. So on its face a
+  *fairness/liveness* refinement, not a safety one (flagged, not asserted).
+
+**Decomposition (certify-b):** splitting one C++ call into `TagAfterFail` (fired inline after a failing
+CAS) + `PreemptTag` (free-standing `Next` disjunct) is a **sound over-approximation** — `PreemptTag` may
+fire whenever an older thread + younger holder coexist, even between C++ negotiate points, so the model
+explores *more* preemption interleavings than C++ can exhibit (good for safety; **not** a tight
+bisimulation). No C++ interleaving is lost except the two window-transient rows above.
+
+### `iter`/`TagOlder` ↔ `m_started_time`/`signed_diff_us_packed` (🔴2) — EXAMINED (AI cross-check); coarsening, not isomorphism
+
+*AI cross-check of `iter(t)=MaxCommits−iterBudget` / `MyTag=⟨iter,tid⟩` / `TagOlder` (lex)
+(`BundleUnbundle_2level_LLfree.tla:193-199`) ↔ `m_started_time` compared by `signed_diff_us_packed`
+(`transaction.h:2049` decl, set `:1515/2184/2195`, compare `:502-508`).*
+
+**Two ordering systems confirmed disjoint.** System (1) snapshot-serial — `m_serial` (`:2034`) /
+`isOlderThan` (`:1615-1617`) / `SerialGenerator::gen` (`:836-843`) ↔ `EncodeSerial`/`GenSerial`
+(`:169-175`) — uses a **different field and generator** from system (2) priority — `m_started_time` /
+`signed_diff_us_packed` ↔ `iter`/`TagOlder`. The (1) correspondence is clean (as the author noted: "C++
+にもシリアルはある"); 🔴2 is strictly about (2).
+
+**Direction matches; quantities do not.** Both are "smaller wins": C++ smaller-µs = earlier-started = older
+= wins; TLA+ smaller-iter = fewer-commits-done = older = wins. But the *quantities* behave oppositely in
+character — `started_time` is a **fixed start stamp** (frozen for the whole `iterate_commit` loop;
+`operator++` `:2296-2324` does **not** re-stamp), whereas `iter` **counts work done** and increases. They
+are therefore **not order-isomorphic**: in general they induce *different* total orders on live contenders
+(C++ by start-time; TLA+ by work-done-then-tid). TLA+ tie-breaks on tid; C++ compares µs only (tid masked,
+`:504`) and resolves a µs-tie by incumbent-keeps — immaterial because the packed tid makes distinct-thread
+stamps unique (`:355-360`), so a true cross-thread µs+tid tie cannot arise.
+
+**Why the proof survives the non-isomorphism.** The §7 ranking (`parameterized_cutoff.md:265-336`) never
+needs the two total orders to coincide element-for-element — it picks a **single global minimum**
+`t★ = argmin_{Active} MyTag` (`:294`), shows it is monotone-protected, wins, and exits, so a new minimum
+emerges. That argument holds for **any** well-founded oldest-wins discipline with (a) totality,
+(b) monotone-protected minimum, (c) winner-exits. The C++ `started_time` discipline supplies all three
+(unique stamps; yield-to-older at `:1720`; preempt-older at `:1705`; exit via `drop_tags_n_privilege`).
+The two schemes **agree exactly on the two cases the proof leans on**: (1) committing makes your *next*
+attempt younger (TLA+ iter↑; C++ a fresh `Transaction` re-stamps later `:2184` — the iterate_commit
+*re-construction*, not the inner CAS retry, is the iteration boundary); (2) a stuck thread keeps its rank
+(TLA+ iter constant; C++ start-µs frozen) ⇒ stays oldest ⇒ eventually wins. The cross-thread order among
+threads of *different* progress is where they differ, and that difference is exactly what the global-minimum
+argument is insensitive to.
+
+### 🔴1 + 🔴2 converge — two shared author-certify residuals
+
+Both items reduce to the **same two** open questions for the author (neither is unilaterally "accepted" — these are safety/liveness-bearing and the author's minimum to certify):
+
+1. **Preempt-window / priv-burst asymmetry is unmodelled.** The spec is a model of the *window→0,
+   no-priv-burst* limit; production C++ adds a bounded ≤100µs window in which a younger **privileged** tag
+   may transiently hold the slot over an older one. *Certify:* (a) **liveness** — that the bounded delay
+   cannot accumulate into starvation (the bound is per-event and the privilege machinery is the
+   anti-livelock device; but the relationship between the C++ µs window and the TLA+ coarse `Privilege`
+   boolean is itself an abstraction the author owns); (b) **safety** — that no checked invariant is
+   sensitive to *who holds a tag* during the window (the window touches only tag ownership, never
+   packet/linkage state).
+2. **`iter` (work-done) vs `started_time` (start-µs) is a coarsening, not an isomorphism.** *Certify:* the
+   §7 proof's reliance on only the **global minimum** `t★` (not the full order) is what makes the
+   coarsening sound, justified by the two agreement cases above; and the spec comment (`2level:188-192`)
+   asserting `iter` "mirrors `now_us_tagged` at the per-iteration level" should be reworded to "is a
+   coarser well-founded order sufficient for the global-minimum ranking," not "order-isomorphic."
+
+*(These also bound 🔴3: the same bounded-window argument is the per-event-bounded ingredient the §7.5
+structural-disturbance lemma would need mechanized — related but distinct; 🔴3 remains the author's open
+proof gap.)*
