@@ -567,3 +567,30 @@ unless noted; bundle/commit code is `transaction_impl.h`.)
 (`LoadSharedIncGlobal`), bundle 4-phase **coarse** structure (`BundlePhase1-4`), direct commit CAS
 (`CommitTryCAS`), `local_shared_ptr::reset` decAndTest (`Reset`), and the **memory_order** table
 (independently re-checked this run: 8/8 match — §3).
+
+### Thread-role / bundle-by-which-thread coverage — RESOLVED
+
+*Concern (anticipated reviewer question):* is `bundle` pinned to a fixed thread (e.g. thread 1),
+so the model never explores "thread 2 bundles while thread 1 commits"?
+
+*Resolution:* No pin exists. The bundle-triggering action is `SnapRead(t)` guarded by
+`t \in RootThreads` (spec :298) and all bundle machinery is `t`-indexed — there is no literal tid
+anywhere. Which threads bundle is purely the cfg's `RootThreads` set, and coverage is two-pronged:
+- **Structural / "every thread bundles":** the **symmetric** cfgs run it directly — `micro` /
+  `Is_bothroles` (`RootThreads = {1,2}`, `LeafThreads = {1,2}`) and `confC` / `Is_allroot`
+  (`RootThreads = {1,2,3}`). All threads share the root role, so every "who-bundles-when"
+  permutation is explicitly in the state graph (no symmetry argument needed); structural saturation
+  (σ = 6, `T=2 ≡ T=3`) is measured on these.
+- **Priority directions / asymmetric contention:** `confA` (`RootThreads = {2}`,
+  `LeafThreads = {1,3}`) places the lone bundler at the **middle** tid. Since `TagOlder` orders by
+  `(iter, tid)` (smaller tid = older ⇒ `t1 ≺ t2 ≺ t3`), the bundler `t2` contends with **both** an
+  older peer (`t1`) and a younger peer (`t3`). `tag_as_contender` compares **pairwise** (current
+  slot vs my stamp, one peer at a time), so "bundler older → preempt" **and** "bundler younger →
+  yield" are both exercised in this single run — the relabeling that would put a different tid as
+  the bundler adds no new pairwise priority relationship.
+
+Hence the asymmetric cfgs need **no** TLC `SYMMETRY` reduction (which is unavailable anyway, §"i"):
+`confC`/`micro` cover all-threads-bundle structurally, and `confA`'s middle-tid bundler covers both
+priority directions. The `iter`-axis relabelings (rank changing as a Tx advances) are unrolled by
+TLC within `MaxCommits`. (This supersedes the earlier "asymmetric cfgs check only one labelling"
+caveat — confA's placement closes it for the priority axis.)
