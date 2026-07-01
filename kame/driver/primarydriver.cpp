@@ -30,6 +30,14 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
     XKameError err;
     bool skipped = false;
     Snapshot shot = iterate_commit([=, &time_recorded, &err, &skipped](Transaction &tr){
+        //Reset reference-captured state on every CAS retry: iterate_commit
+        //re-invokes this closure on each retry and these variables outlive the
+        //lambda (they are read after commit for onVisualization/err.print), so
+        //a first-attempt skip/error must not latch and suppress record() on a
+        //subsequent successful retry.
+        skipped = false;
+        time_recorded = time_recorded_org;
+        err = XKameError();
         if(time_recorded.isSet()) {
 			try {
 				RawDataReader reader( *rawdata);
