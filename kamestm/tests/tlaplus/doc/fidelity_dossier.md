@@ -1054,3 +1054,35 @@ caught were exactly of the kind mechanical re-derivation is good at catching (ov
 generalization from a correct quote). For paper purposes: the §7/§8 cross-check is AI-prepared
 correspondence *location*, two-model-agreed on the mechanical layer; every soundness judgement
 remains the author's (§6 sign-off).
+
+### 8.7 New model `BundleUnbundle_hardlink_nested_external.tla` — settles §8.2-1 *conditionally*
+
+Built to check the §8.2-1 nested-scope hazard. Topology = sibling-parents hard-link (`_4node`
+style) **plus** one axis: the foster parent `M` is `missing`, so bundling recurses to a nested
+sub-bundle at `M`, degenerating the Phase-4 gate's root. `C` is homed at `A` (sibling of `M`),
+foster-referenced by `M.sub[C]=Null`. Because the defect is a *scope* bug (which root the gate's
+`reverseLookup` uses), the model abstracts `reverseLookup` to subtree membership over the static
+home-edge tree (`HomeChildren` / `Reach`) and A/Bs the gate root via `CONSTANT UseGlobalRoot`:
+`GateRoot == IF UseGlobalRoot THEN R ELSE M`. Single-threaded (the livelock needs no concurrency).
+
+**TLC verdicts (2026-07-02, both exhaustive, ≤7 states):**
+
+| cfg | `UseGlobalRoot` | `SnapshotConsistency` | `EventuallyAllDone` |
+|---|---|---|---|
+| `..._local_mc` (faithful to current single-arg gate) | `FALSE` | **PASS** | **VIOLATED** — lasso `outer_collect → inner_gate →(DISTURBED)→ outer_collect`, `bundleDone` never set |
+| `..._global_mc` (the fix: thread true global root) | `TRUE` | **PASS** | **HOLDS** |
+
+**What this establishes (conditional):** *given* the assumed topology, (i) the current local-root
+gate produces a genuine non-terminating retry loop — a **liveness** defect, mechanically confirmed
+as a lasso, not a bounded/eventually-resolving retry; (ii) `SnapshotConsistency` holds in **both**
+configs, so the local-root gate is over-strict but **never unsafe** (no inconsistent bundle is ever
+published) — the defect is liveness-only; (iii) threading the true global root **resolves** the
+livelock while preserving safety. Confirms the fix direction and the safety/liveness split.
+
+**What it does NOT establish (the open residual):** the topology — a `missing` `M` carrying an
+external hard-link, reached as a nested sub-bundle — is **assumed via `Init`**, not constructed from
+a clean tree by modelled STM operations. So "the STM can actually enter this state" remains the
+author's question (a constructive `InsertHardLink`+`make-M-missing` front-end, à la
+`_self_collision`, or a structural-invariant argument that it cannot). Until then the nested-gate
+hazard stands as **conditionally real** — safe regardless, but a potential livelock *if reachable*,
+and cheaply removable by the global-root fix even if reachability is left open.
