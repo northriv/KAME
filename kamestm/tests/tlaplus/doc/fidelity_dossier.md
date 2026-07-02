@@ -887,13 +887,46 @@ driver before recording (marked ✓src).
    `groot = newpacket` = the **local sub-bundle root**, not the global root. Consequence: a deeper
    hard-link Null slot inside a collected (non-missing) grandchild packet, homed *outside* the
    sub-bundle but inside the global tree, would fail the nested gate ⇒ spurious `DISTURBED` ⇒ the
-   outer bundle retries into the same state — a *potential* retry-forever. Mitigating conjecture:
-   such a state should be excluded inductively (a packet containing an externally-homed Null slot
-   should itself be `missing`, so Phase 1 sets `missing=true` and the nested gate is skipped) — but
-   that missing-propagation invariant is checked only under `STRICT_assert` (debug) and by **no**
-   hardlink model. *Author to certify:* the induction, or thread the true global root through the
-   recursion (`globalroot` parameter exists on both helpers precisely for this; the call site passes
-   single-arg).
+   outer bundle retries into the same state — a *potential* retry-forever. This is the **only
+   potential-liveness (not fairness/safety) item** in §7/§8: `DISTURBED` never publishes an
+   inconsistent bundle (safe), but a stable topology can retry without progress.
+
+   **Correction to the earlier mitigating conjecture (this file, prior revision): it is weaker than
+   stated and probably does NOT hold as written.** The conjecture was "an externally-homed Null slot
+   ⇒ its packet is `missing` ⇒ Phase 1 sets `missing=true` ⇒ nested gate skipped." But a Null slot
+   is a *hard-link reference*, and a hard-link node is **legitimately non-`missing`** precisely when
+   its child is reachable via the *other* parent — that is the defining case of a hard link. C++'s
+   `missing`-propagation (`transaction_impl.h:1027-1030`) forces self-`missing` only for a `missing()`
+   **subpacket**, which is a *different* check from Null-slot reachability (`:1015-1022`); a mere Null
+   slot with a valid external home does **not** make the node `missing`. So the node is collected
+   non-`missing`, the nested bundle reaches Phase 4 with `missing=false`, and the local-root gate
+   fails. The hazard is therefore **not** excluded by that induction.
+
+   What reachability actually hinges on is purely topological: **can a nested (recursive) `bundle()`
+   be scoped to a sub-root `M` that excludes a hard-link's home while including its Null-slot foster
+   parent?** Nested bundles are triggered by `bundle_subpacket` on a `missing()` child (`:2291`), so
+   the question is whether such a `missing` `M` can carry an external hard-link. Minimal candidate
+   topology (to be model-checked — `BundleUnbundle_hardlink_nested_external.tla`, §8.7):
+
+   ```
+        R (global root; top-level bundle)        R.sub = {A: pkt, M: pkt(missing)}
+       / \                                        A.sub = {C: pkt}      ← C's HOME
+      A   M  (missing ⇒ nested sub-bundle)        M.sub = {D: pkt, C: Null}  ← hard-link
+      │  / \                                      C reachable from R only via A
+      C D   C  (M.sub[C] = Null, foster)
+   ```
+   Outer bundle @R delegates `M` to `M->bundle(...,false)`; the nested gate uses `groot = M`;
+   `reverseLookup(C, M)` fails because `C`'s home `A` is a *sibling* of `M`, outside `M`'s subtree.
+   This is the existing sibling-parents hard-link (`_4node`/`_self_collision`) **plus** one axis:
+   the foster parent `M` is `missing`, so bundling happens at `M` (not `R`), degenerating `groot`.
+
+   *Author to certify (revised):* NOT the (false) induction, but either (a) that this nested-scope
+   topology is unreachable in the STM (e.g. some other invariant prevents a `missing` node from
+   carrying an external hard-link, or forces the outer bundle to absorb `M` rather than sub-bundle
+   it), or (b) apply the fix — thread the true global root through the `bundle`/`bundle_subpacket`
+   recursion into the `globalroot` parameter (which exists on both helpers precisely for this; the
+   Phase-4 call site currently passes single-arg, degenerating to the local root). The fix is
+   safe-side (only relaxes a too-strict gate) so it is low regression risk if reachability is unclear.
 2. **🔴2 — the µs-tie dismissal was wrong.** `:355-360` restores *value* uniqueness (identity), not
    *order* totality: `signed_diff_us_packed` strips the tid, so two contenders stamped in the same
    µs compare `=0` — neither can displace the other's tag (`_preempt=false` both ways) while
