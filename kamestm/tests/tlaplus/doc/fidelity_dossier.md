@@ -704,8 +704,10 @@ add-site `:1788`; `m_transaction_started_time` (Linkage) `:905`; call sites `:15
 
 **C++ shape confirmed**, with two facts the §5 row understated: (i) the gate runs only under the
 `if(!missing)` guard (`:2628`), and `missing` is **forced false for the bundle root** (`is_bundle_root`
-⇒ `missing=false`, `:2508-2511`) — so the gate always runs for the root, is skipped for recursive
-non-root bundles; (ii) **only `allSubReachable` gates in production** — the adjacent
+⇒ `missing=false`, `:2508-2511`) — so the gate always runs for the root ~~, is skipped for recursive
+non-root bundles~~ **[CORRECTED — §8.2: the guard is `!missing`, not `is_bundle_root`; a nested bundle
+whose Phase-1 collection fully succeeds reaches the gate too, with `groot` = the *local* sub-bundle
+root]**; (ii) **only `allSubReachable` gates in production** — the adjacent
 `checkConsistensy` is wrapped in `STRICT_assert` (`:2646`), compiled out unless
 `TRANSACTIONAL_STRICT_assert` is defined (`:45-52`). `allSubReachable` is the *non-throwing Null-slot
 reachability subset* of `checkConsistensy` (it omits the Lamport-serial and missing-propagation
@@ -815,8 +817,12 @@ character — `started_time` is a **fixed start stamp** (frozen for the whole `i
 `operator++` `:2296-2324` does **not** re-stamp), whereas `iter` **counts work done** and increases. They
 are therefore **not order-isomorphic**: in general they induce *different* total orders on live contenders
 (C++ by start-time; TLA+ by work-done-then-tid). TLA+ tie-breaks on tid; C++ compares µs only (tid masked,
-`:504`) and resolves a µs-tie by incumbent-keeps — immaterial because the packed tid makes distinct-thread
-stamps unique (`:355-360`), so a true cross-thread µs+tid tie cannot arise.
+`:504`) and resolves a µs-tie by incumbent-keeps ~~— immaterial because the packed tid makes distinct-thread
+stamps unique (`:355-360`), so a true cross-thread µs+tid tie cannot arise~~ **[CORRECTED — §8.2: the
+`:355-360` uniqueness is of the stored *value*, not of the *order*; equal-µs different-tid contenders DO
+tie in the comparator (tid stripped), and then *neither* can displace the other while **both** pass the
+`dt<=0` "I am oldest" test (`transaction_neg_impl.h:1377-1378`) — a mutual-freeze class with no spec
+counterpart; see §8.4-F4]**.
 
 **Why the proof survives the non-isomorphism.** The §7 ranking (`parameterized_cutoff.md:265-336`) never
 needs the two total orders to coincide element-for-element — it picks a **single global minimum**
@@ -852,3 +858,166 @@ Both items reduce to the **same two** open questions for the author (neither is 
 *(These also bound 🔴3: the same bounded-window argument is the per-event-bounded ingredient the §7.5
 structural-disturbance lemma would need mechanized — related but distinct; 🔴3 remains the author's open
 proof gap.)*
+
+## §8 — Independent blind re-check by a second model (Fable, 2026-07-02)
+
+All five §7 EXAMINED items (🟠4/5/6, 🔴1/2) were re-run **blind** on a second model
+(`claude-fable-5`): same task definitions and anchors, but each agent was forbidden to read this
+dossier, so the prior (Opus) findings could not contaminate the result. Outcome: **every prior
+finding was independently reproduced** (raising confidence in §7), **two §7 statements were
+refuted and corrected** (§8.2), and the second pass surfaced **new findings** (§8.3–8.4) that the
+first pass missed. Key mechanical claims below were re-verified against source by the session
+driver before recording (marked ✓src).
+
+### 8.1 Outcome summary
+
+| Item | Prior findings | Corrections | Major new findings |
+|---|---|---|---|
+| 🟠4 inner-bundle | reproduced | — | 3 restart levels (not 2); inner entry serial-CAS intermediate state; collection atomicity |
+| 🟠5 ClearMyTags | reproduced | — | **check-then-store race** (✓src, code-fix candidate); root-commit clear fused with CAS; Fix A mid-Tx drop |
+| 🟠6 Phase-4 gate | reproduced | **nested gate DOES run** (✓src) | Phase-3 "skip" is CAS-copy (✓src); `_external` stay-missing is counterfactual; gate-order regression unencoded |
+| 🔴1 tag_as_contender | reproduced (incl. timeout (i)(ii)) | — | **hard-vs-advisory gate** (✓src); **priv-claim age condition dropped ⇒ window chains** (✓src) |
+| 🔴2 iter↔started_time | reproduced (non-isomorphism, global-min argument) | **µs-tie NOT immaterial** (✓src) | winner-flip Scenario A (in-model reachable); iteration-granularity Scenario B |
+
+### 8.2 Corrections to §7 statements (both ✓src)
+
+1. **🟠6 — the Phase-4 gate is NOT skipped for nested bundles.** The guard is `if(!missing)`
+   (`transaction_impl.h:2628`) with no `is_bundle_root` condition; a recursive `bundle()` whose
+   Phase-1 collection fully succeeds (all grandchildren present) reaches the gate with
+   `groot = newpacket` = the **local sub-bundle root**, not the global root. Consequence: a deeper
+   hard-link Null slot inside a collected (non-missing) grandchild packet, homed *outside* the
+   sub-bundle but inside the global tree, would fail the nested gate ⇒ spurious `DISTURBED` ⇒ the
+   outer bundle retries into the same state — a *potential* retry-forever. Mitigating conjecture:
+   such a state should be excluded inductively (a packet containing an externally-homed Null slot
+   should itself be `missing`, so Phase 1 sets `missing=true` and the nested gate is skipped) — but
+   that missing-propagation invariant is checked only under `STRICT_assert` (debug) and by **no**
+   hardlink model. *Author to certify:* the induction, or thread the true global root through the
+   recursion (`globalroot` parameter exists on both helpers precisely for this; the call site passes
+   single-arg).
+2. **🔴2 — the µs-tie dismissal was wrong.** `:355-360` restores *value* uniqueness (identity), not
+   *order* totality: `signed_diff_us_packed` strips the tid, so two contenders stamped in the same
+   µs compare `=0` — neither can displace the other's tag (`_preempt=false` both ways) while
+   **both** pass the `dt<=0 ⇒ "I am the oldest"` break (`transaction_neg_impl.h:1374-1378`) and
+   keep full CAS pressure for the life of both Tx. Resolution falls to CAS atomicity + backoff
+   jitter — mechanisms *outside* the modeled order. The spec's tid tie-break (total order) has no
+   C++ counterpart; Lemma *(gate)* of §7 has no analogue inside a tie class. Sub-question: a tie
+   between two **Reserved** holders on overlapping linkages — the "age-ordered preempt breaks
+   cycles" argument (`transaction_neg_impl.h:1106-1109`) is undefined at `_diff=0`.
+
+### 8.3 New findings — code level (fix candidates, not just doc)
+
+- **F1 (🟠5, ✓src) `drop_tags_n_privilege` is check-then-store, not CAS.** `transaction.h:1810`
+  loads + identity-compares, `:1811` stores 0 **unconditionally**. A peer's preempt-store
+  (`tag_as_contender` `:1753`) landing between the two is silently erased. The C11 test's
+  `clear_my_tags` uses a guarded CAS (`test_bundle_3level_LLfree.c:343-347`) — **the test is
+  stronger than the production code it mirrors**; TLA+ `ClearMyTags` is likewise atomic-conditional.
+  Impact bounded to negotiation fairness (erased peer re-tags on next fail), not data safety.
+  *Options:* (a) certify as accepted gap; (b) change `:1810-1811` to CAS to match model+test.
+- **F2 (🔴1, related, already author-acknowledged in code)** Option B store-and-verify admits a
+  transient *younger-over-older* slot value (two concurrent `_preempt=true` taggers; last store
+  wins irrespective of age — comment `:1644-1646` concedes "eventually corrected by other Txs'
+  retries", which is a fairness assumption, not code). No spec state sequence can produce it.
+
+### 8.4 New findings — abstraction gaps (additions to the author-certify list)
+
+- **F3 (🔴1, ✓src) The `CanProceed` hard gate is a spec-only strengthening.** C++'s real gate
+  `fair_mode_blocks_me` (per-linkage arm, `transaction_neg_impl.h:283`) blocks **only on Reserved
+  (priv) stamps**, advisorily (bounded sleep, TOCTOU tolerated) — a plain tag **never hard-blocks a
+  CAS**. The spec forbids "younger commits at n while an older's tag stands"; C++ permits it with
+  no window involved. Certifying `PreemptTag`+`CanProceed` as the abstraction of the negotiate
+  layer rests on this gate strengthening **at least as much as on the timeout premise**. (The 🔴2
+  re-check independently re-derived the same point.)
+- **F4 (🔴1, ✓src) The per-episode window bound does not bound chains.** The privilege-claim age
+  condition was **dropped** (`transaction_neg_impl.h:372-374`: eligibility = tag-ownership + retry
+  count only) — a Tx younger than 100 µs *can* claim privilege and exercise the C4
+  younger-priv-preempts branch. Each episode is ≤100 µs, but a **sequence of fresh claimants** can
+  displace one older Tx's tag repeatedly; the chain is not bounded by `KAME_STM_PREEMPT_WINDOW_US`.
+  (The age floor used to exclude this; comment `:1191-1193` still describing the floor is stale.)
+  The §7 "certify liveness non-accumulation" residual now has a **concrete mechanism** to rule out
+  (probe preconditions: all-tags-owned + retries≥3 — an empirical argument, not an invariant).
+- **F5 (🟠6) `_external`/`_external_migration` gate failure is counterfactual.** They **publish**
+  `missing=targetMissing` and reach `bundleDone` — a give-up semantics the C++ does not have
+  (`snapshot()` retries unboundedly). `EventuallyAllDone` on those cfgs therefore certifies
+  termination of a semantics the implementation does not have; production in that topology instead
+  resolves via `bundle_subpacket`'s unbundle-migration (i.e. behaves like `_external_migration`'s
+  *success* path). Only `_4node` models the real retry-no-publish failure (and needed
+  `WF(MigrateCToA)` for liveness — the same fairness C++ needs from its migration path).
+- **F6 (🟠6, ✓src) Phase-3 "skip-null" is not a skip.** The Null-slot child's linkage **is CAS'd** —
+  to a *copy* of its original wrapper carrying the new `bundle_serial`
+  (`transaction_impl.h:2537-2541`): content-preserving but identity- and serial-changing, observable
+  to peers via pointer-equality fast paths and serial tags. The specs (`_self_collision`,
+  `_external`) model a literal skip (linkage untouched), and VERIFICATION.md's pseudo-diff shows
+  `continue`. The CAS-failure branch on a Null-slot child is unmodeled.
+- **F7 (🟠6) The clear-before-gate ordering hazard is encoded in no model.** All model gate
+  predicates ignore the missing flag of the packet under inspection, so the documented regression
+  (gate evaluated before `m_missing=false` ⇒ vacuously true ⇒ unchecked publish; VERIFICATION.md
+  §5, commit `b12e1895`) would not be caught by TLC if reintroduced.
+- **F8 (🟠6) Root-force can override a *missing-child* (not just Null-slot) state.**
+  `is_bundle_root ⇒ missing=false` (`:2508-2511`) also overrides `missing=true` accumulated from a
+  non-null but still-`missing()` child subpacket (`:2496-2499`); the gate checks **only Null-slot
+  reachability**, and missing-propagation is `STRICT_assert`-only. Whether that state is reachable
+  after `bundle_subpacket` recursion is established by no model.
+- **F9 (🟠4) C++ has THREE restart levels; the model has the coarsest only.** (i) inner-loop retry
+  (`changed_during_bundling → continue`, `:2617-2624` — Phase-3 weak-acquire-lost and
+  CAS-fail-with-serial-gate-pass re-collect grandchildren *without touching the outer bundle*);
+  (ii) outer same-child retry (`:2487`); (iii) full snapshot restart. §7's 🟠4 subsection described
+  (ii)/(iii); level (i) is new. Sharp historical note: the earlier *fine* model kept **stale**
+  subpackets (TLC found a violation → moved coarser), while C++'s fine restarts **re-collect** —
+  the current coarse model and the C++ bracket the true behavior *from opposite sides*; neither is
+  the C++ restart. Also new: the inner bundle's **entry serial-tag CAS** (`:2377-2423`) publishes an
+  intermediate wrapper (same packet, new serial) with no spec counterpart — narrows the modeled
+  race window for peers keying on `bundle_serial` (unbundle collision detection); and the inner
+  Phase-1 grandchild collection is atomic in the spec (folded into `BundlePhase1`) but interleavable
+  in C++. The §7 soundness argument (Phase-2/3 CAS re-validation ⇒ committed states coincide) is
+  *unchanged* by these — Fable's analysis independently reconstructed it — but the author-accepted
+  scope should be understood as covering all three levels.
+- **F10 (🟠5) Two more unmodeled clear paths.** (a) Spec root-commit actions fuse `ClearMyTags`
+  into the *same atomic step* as the winning CAS (`CommitParent:617`, `CommitGrand:942`), removing
+  the real C++ window "commit visible, tags still standing" (`finalizeCommitment` runs strictly
+  after); the child-commit path models the separation correctly — an asymmetry. (b) "Fix A
+  priv-no-sleep" (`transaction_neg_impl.h:1789-1806`) CASes own Reserved slots to 0 **mid-Tx**
+  before CV-sleep — a tag-clear on a non-success path that the spec's no-zombie argument
+  (`2level:206-209`) has no place for.
+- **F11 (🔴2) Concrete order-divergence scenarios.** *Scenario A (winner flips, in-model
+  reachable):* B commits 5 quick iterations then starts its 6th at t=50 and stalls; A starts its
+  *first* at t=100. C++: B older (t=50) wins. TLA+: `⟨0,A⟩ < ⟨5,B⟩` — A older, A preempts.
+  Opposite arbitration winner. *Scenario B (granularity):* one model iteration (parent + all child
+  commits) carries one `⟨iter,t⟩`, but in C++ each is a separate freshly-stamped Transaction —
+  the model treats mid-iteration threads as systematically older than C++ does; VERIFICATION.md's
+  row "`iter(t)` ↔ the age component of `m_started_time`" overstates a per-transaction
+  correspondence. Also: same-µs consecutive Transactions carry *equal* stamps — the DM ranking's
+  "strict decrease on success" is non-strict there (one-sentence certification). None of these
+  overturn the §7 global-minimum argument (independently reconstructed by the second model); they
+  sharpen what it does *not* cover: totality (tie classes), strictness (same-µs), and the hard-gate
+  lemma *(gate)* (F3).
+
+### 8.5 Additional stale-doc items found by the second pass
+
+- Spec comments cite the **global-mode/phantom** mechanism: `PreemptTag` "Mirrors C++
+  `try_register_privileged_tidstamp()`" (`2level:276-279`, `3level:322-324` — that function is
+  compiled out under the default `KAME_PER_LINKAGE_PRIVILEGE=1`); `priorityTag` doc references
+  "C++ `m_priority_tidstamp`" (`2level:138-140` — name does not exist; field is
+  `m_transaction_started_time`). `CanProceed`'s comment (`2level:202-204`) mislabels its C++
+  counterpart as `tag_as_contender` (the gate is `fair_mode_blocks_me`/negotiate).
+- C11 test header self-contradiction: `test_bundle_3level_LLfree.c:24-30` ("cleared at
+  Transaction-end (Tx success/fail)", `thread_active[]`) vs body `:287-291` (success-only, removed);
+  comment `:294` says "preempted an **older** active holder" — inverted (the code preempts a
+  *younger* holder).
+- `transaction.h:1666` "modular at STAMP_US_BITS = 46" — constant is 45 since the lowprio bit.
+- Spec comment `2level:191` calls `now_us_tagged()` a "Lamport stamp" — it is a steady-clock stamp;
+  the Lamport clock is the *other* system (`SerialGenerator`).
+- VERIFICATION.md §6 mapping table: the `TagAfterFail` row says "(CAS: …)" — production is
+  store-and-verify (Option B); the `iter(t)` row overstates per-transaction correspondence (F11).
+- `BundleUnbundle_hardlink_external_1thr_mc.cfg` header still says "Expected: SnapshotConsistency
+  violation" — the current gated spec passes.
+- `allSubReachable`'s recursive `rootpacket`-switch argument (`:1066`) is dead (only `groot` is
+  consumed) — harmless, but a reader may infer semantics it doesn't have.
+
+### 8.6 Method note
+
+A blind second-model pass reproduced 100% of the first pass's findings and additionally refuted
+two of its *inferences* (8.2) while confirming all of its *mechanical facts* — i.e. the errors it
+caught were exactly of the kind mechanical re-derivation is good at catching (overbroad
+generalization from a correct quote). For paper purposes: the §7/§8 cross-check is AI-prepared
+correspondence *location*, two-model-agreed on the mechanical layer; every soundness judgement
+remains the author's (§6 sign-off).
