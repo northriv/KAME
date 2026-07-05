@@ -1807,8 +1807,25 @@ public:
         // still has kind=NONE.
         const auto my_id = NC::strip_kind(m_started_time);
         for(auto &sp : m_tagged_linkages) {
-            if(NC::strip_kind(sp->m_transaction_started_time) == my_id) {
-                sp->m_transaction_started_time = 0;
+            // CAS-based mine-only clear, mirroring the global-mode
+            // release_privileged_tidstamp(): a plain store after the
+            // identity check could erase an older preemptor's stamp that
+            // landed on this slot between the load and the store, silently
+            // dropping its priority claim for one negotiation round (an
+            // adversarial-scheduler window — measure-zero in practice but
+            // not logically excluded, so the machine-checked "oldest
+            // completes in finite CASes" is otherwise idealised past it).
+            // expected = the raw read value `cur` (kind bits included), NOT
+            // the stripped `my_id`, so the CAS matches the exact stored word.
+            auto cur = sp->m_transaction_started_time.load(
+                std::memory_order_relaxed);
+            if(NC::strip_kind(cur) == my_id) {
+                sp->m_transaction_started_time.compare_exchange_strong(
+                    cur, 0,
+                    std::memory_order_seq_cst,
+                    std::memory_order_relaxed);
+                // CAS fail = an older Tx preempted our slot meanwhile;
+                // it clears the slot from its own destructor.
             }
         }
         // Note: there is no "if priv flag is true then some Linkage still
