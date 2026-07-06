@@ -84,7 +84,7 @@ p{line-height:1.7}
 <tr><th>アクション</th><th>linkage footprint</th><th>役割</th></tr>
 <tr><td><code>BundlePhase1</code> (collect)</td><td>self + 各直接子（孫は非葉子の再帰 inner-bundle 経由のみ）</td><td>bundle↓</td></tr>
 <tr><td><code>BundlePhase3</code> (per-child CAS)</td><td>self + 直接子（1アクション1子）</td><td>bundle↓</td></tr>
-<tr><td><code>UnbundleWalk</code> / <code>CASLoop</code> / <code>CASChild</code></td><td>self + 直接親 / 1祖先 + root anchor / self + 直接親</td><td>unbundle↑</td></tr>
+<tr><td><code>UnbundleWalk</code> / <code>UnbundleCASLoop</code> / <code>UnbundleCASChild</code></td><td>self + 直接親 / 1祖先 + root anchor / self + 直接親</td><td>unbundle↑</td></tr>
 <tr><td><code>BundlePhase2/4</code>, <code>CommitTryCAS</code>, <code>CommitGrand</code></td><td>self のみ（root anchor 読みを含む）</td><td>local</td></tr>
 </table>
 <p style="color:#94a3b8;font-size:0.9em">全アクションの footprint ⊆ <code>{self} ∪ {直接畳み込み近傍} ∪ {root anchor}</code>。obligation #1 放電済。</p>
@@ -213,7 +213,7 @@ well-founded <strong>ランキング関数</strong>で証明。論証は §§木
 <strong>無限 retry なし</strong>で完了すると仮定。ピアは <code>t★</code> の競合ノードから gate されるが、
 <em>別ノード</em>（鎖上の祖先/子）で動くピアが bundle 鎖越しに <code>DISTURBED</code>/<code>COLLIDED</code> を起こしうる。
 これら構造的擾乱が<strong>有界</strong>であること（各擾乱は若い要素を <code>M</code> から除くピアコミットに起因 → 無限反復不可）の一般証明が残る。
-有界 <code>EventuallyAllDone</code> 実行（2-thread all-roles superfine・3-thread confC・413M dynamic-release）がカットオフで放電済。</p>
+有界 <code>EventuallyAllDone</code> 実行（2-thread all-roles superfine・3-thread confC 両レベル・413M dynamic-release）がカットオフで放電済。</p>
 </div>
 </div>
 
@@ -222,7 +222,7 @@ well-founded <strong>ランキング関数</strong>で証明。論証は §§木
 <h1>スコープ + provenance + まとめ</h1>
 
 <h2>スコープ境界（静的・単一親木）</h2>
-<p>カットオフ（木軸）・飽和（スレッド軸）・派生する局所構造不変条件
+<p>カットオフ（木軸）・飽和（スレッド軸）・§7 活性ランキング・派生する局所構造不変条件
 （<code>SubNeverMissing</code> / <code>BundledHasCopy</code> / <code>StaleParentExcluded</code> / <code>SubPresenceUniform</code>、
 3-level superfine <code>T=3</code> all-root ＋ <code>T=2</code> both-roles まで無違反検証）は
 <strong>固定・単一親の rooted tree</strong> 前提（<code>Next</code> にノード挿入/削除なし、<code>ParentOf</code> 単一値）。

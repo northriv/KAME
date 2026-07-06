@@ -50,7 +50,7 @@ primitives memory-safe across tens of millions of states (66.5M at 2 threads) an
 shows the bare primitive is <em>NOT livelock-free</em>; Layer 2 proves the multi-phase
 bundle/unbundle STM protocol for 2- and 3-level trees, static and dynamic, both <strong>safe AND
 livelock-free</strong> via Lamport-clock priority arbitration, scaling past 1.1 billion states.
-A hard-link family of six topologies reproduces and fixes the real-world "30/30 abort"
+A hard-link family of seven topology/pattern variants reproduces and fixes the real-world "30/30 abort"
 production race. Finally, <strong>seven C++ stress tests</strong> (~27M iterations, 4-8 threads)
 run the actual implementation on real hardware to catch compiler-, layout-, and timing-dependent
 bugs the abstract models cannot. <strong>The result: the protocol is mathematically guaranteed and
@@ -89,7 +89,7 @@ the implementation is empirically hardened, with no daylight between them.</stro
 
 <tr>
 <td><span class="pill pill-l0">L0</span></td>
-<td><code>cds_test_*.c</code> (9)<br><code>tlaplus/test_*.c</code> (9)</td>
+<td><code>cds_test_*.c</code> (10)<br><code>tlaplus/test_*.c</code> (15; 6 are hardlink)</td>
 <td>GenMC v0.17<br>(RC11)</td>
 <td>Tagged-pointer reference counting; <code>memory_order</code> safety under weak memory</td>
 <td>multi_cas: 464,164 complete + 705,296 blocked (~270s)</td>
@@ -112,7 +112,7 @@ the implementation is empirically hardened, with no daylight between them.</stro
 <td><code>BundleUnbundle_2level_LLfree.tla</code></td>
 <td>TLC</td>
 <td>2-level bundle/unbundle + LL-free priority gating</td>
-<td>137,333,348 (3t confC live, 2:53)<br>127,586,599 (MaxCommits=2, 4:40)</td>
+<td>137,333,348 (3t confC live, 2h 57min)<br>127,586,599 (MaxCommits=2, 4:40)</td>
 <td style="color:#4ade80">Pass + liveness</td>
 <td><a href="slides_layer2_LLfree.html">slides_layer2_LLfree.html</a></td>
 </tr>
@@ -149,7 +149,7 @@ the implementation is empirically hardened, with no daylight between them.</stro
 
 <tr>
 <td><span class="pill pill-hl">HL</span></td>
-<td><code>BundleUnbundle_hardlink_*.tla</code> (6)</td>
+<td><code>BundleUnbundle_hardlink_*.tla</code> (7; incl. conditional <code>nested_external</code>)</td>
 <td>TLC</td>
 <td>2-parent / 1-child hard-link topologies; Phase 4 reachability gate; per-action fairness</td>
 <td>self_collision FAIL→114; 4node FAIL→531; external_migration 3t 1,202</td>
@@ -182,6 +182,7 @@ the implementation is empirically hardened, with no daylight between them.</stro
 <p><strong>Largest-run highlight:</strong> the largest state space across all verification is
 <span class="big">1,154,807,632</span> states (3-level static confC, safety-only, ohtaka 4:09).
 The largest including safety+liveness is <strong>640,894,951</strong> (3-level confC live, 15:25).
+<em>(These are spec-version-specific peaks; raw counts shift as the spec evolves — the current spec re-bases lower, confC ≈ 540,782,047 — so cross-version comparison isn't meaningful; see VERIFICATION.md §3–§4.)</em>
 The largest dynamic-spec run is <strong>921,351,233</strong> (3L-dyn release superfine, 3h24m).
 All are CONSTRAINT-free full exhaustions.</p>
 </div>
@@ -237,7 +238,7 @@ All are CONSTRAINT-free full exhaustions.</p>
 <div class="card" style="background:#0a1929">
 <h3><span class="pill pill-l0">L0</span> GenMC RC11 (no deck yet)</h3>
 <p><a href="../../VERIFICATION.md">VERIFICATION.md §1 →</a></p>
-<p style="font-size:0.9em;color:#94a3b8">18 programs (cds_test_*.c 9 + test_*.c 9), reference-counting safety under weak memory. No slide deck yet (raw data only).</p>
+<p style="font-size:0.9em;color:#94a3b8">25 programs (cds_test_*.c 10 + test_*.c 15; 6 of the latter are hardlink protocol tests), reference-counting safety under weak memory. No slide deck yet (raw data only).</p>
 </div>
 
 <div class="card" style="background:#0a1929">
@@ -269,7 +270,7 @@ All are CONSTRAINT-free full exhaustions.</p>
 <tr><td>fairness / starvation</td><td><code>transaction_negotiation_test</code></td><td>N/A</td><td>Modeled via per-action WF in hard-link</td></tr>
 <tr><td>Real compiler/hardware bugs</td><td><strong>Yes (actual binary)</strong></td><td>No (abstract)</td><td>No (abstract)</td></tr>
 </table>
-<p style="color:#94a3b8;font-size:0.88em">Note: the §6 complementarity table cites a stale "622M states"; the current largest is 1,154,807,632 (3L static confC).</p>
+<p style="color:#94a3b8;font-size:0.88em">Note: the §6 complementarity table cites a stale "622M states"; the peak across spec versions is 1,154,807,632 (3L static confC, spec 8d6026e3) — the current spec re-bases lower (confC ≈ 540,782,047, 924b6e63). Raw counts are spec-version-specific.</p>
 
 <h2>Appendix: superseded specs (footnote for full coverage)</h2>
 <div class="box">
