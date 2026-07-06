@@ -78,9 +78,11 @@ see also <code>slides_layer2_en.html</code>.
 <p><strong>Key property:</strong>
 LLfree does not rely on CONSTRAINT and instead bounds the state space
 <em>structurally</em> via the priority mechanism. That means TLC's full exhaustion <em>itself</em>
-is the formal proof of livelock-freedom. The spec directly mirrors
+is the formal proof of livelock-freedom. The spec mirrors
 <code>tag_as_contender()</code> / <code>drop_tags_n_privilege()</code> over the per-linkage
-<code>Linkage::m_transaction_started_time</code> slot from the C++.</p>
+<code>Linkage::m_transaction_started_time</code> slot from the C++ — at the coarse
+<em>per-iteration</em> granularity (<code>iter</code> is a work-done counter, not the C++ µs
+stamp, so this is a sound coarsening, not an order-isomorphism).</p>
 <p style="margin-top:0.4em">Setting <strong><code>Privilege = FALSE</code></strong> disables the priority machinery,
 the state space diverges, and TLC fails to terminate — the most direct validation that
 the priority mechanism is required (detailed in the final slide).</p>
@@ -103,10 +105,10 @@ the priority mechanism is required (detailed in the final slide).</p>
     <td>Lexicographic on <code>(a[1], a[2])</code>, a smaller</td></tr>
 <tr><td class="add"><code>CanProceed(t, n)</code></td>
     <td>Can t execute a CAS at node n?</td>
-    <td>Tag is Null or matches mine (same 2 conditions as C++ <code>tag_as_contender()</code>)</td></tr>
+    <td>Tag is Null or matches mine. (Spec hard-gates on <em>any</em> foreign tag; the C++ counterpart is the advisory <code>fair_mode_blocks_me</code> gate, hard only for Reserved stamps — the spec is deliberately stricter.)</td></tr>
 <tr><td class="add"><code>TagAfterFail(t, n)</code></td>
     <td><code>priorityTag[n]</code> after CAS fail</td>
-    <td>3-stage ladder (Null→mine, mine→refresh, older-wins overwrite)</td></tr>
+    <td>4-branch ladder (Null→mine, mine→refresh, older-wins overwrite, younger→keep)</td></tr>
 <tr><td class="add"><code>TagAfterSuccess(t, n)</code></td>
     <td><code>priorityTag[n]</code> after CAS success</td>
     <td><code>priorityTag[n]</code> ← unchanged (Transaction-scope persistence)</td></tr>
@@ -239,7 +241,7 @@ vars == &lt;&lt;serial, linkage, pc, op, target, local,
     \/ a[<span class="num">1</span>] &lt; b[<span class="num">1</span>]
     \/ (a[<span class="num">1</span>] = b[<span class="num">1</span>] /\ a[<span class="num">2</span>] &lt; b[<span class="num">2</span>])
 
-<span class="comment">\* Lamport serial helpers (C++ transaction.h:547-576)</span>
+<span class="comment">\* Lamport serial helpers (C++ SerialGenerator, transaction.h:816-844)</span>
 SerialBase == <span class="num">1</span> + Cardinality(Threads)
 SerialCounter(s) == s \div SerialBase
 SerialTID(s)     == s % SerialBase
@@ -259,7 +261,7 @@ EncodeSerial(cnt, tid) == cnt * SerialBase + tid</code></pre>
     <td><code>Snapshot::m_started_time</code> (tid-packed µs stamp from <code>now_us_tagged()</code>)</td></tr>
 <tr><td><code>TagOlder(a, b)</code></td>
     <td>a is older (= wins contention)</td>
-    <td>C++ lex compare (<code>iter</code>, <code>tid</code>)</td></tr>
+    <td>C++ compares started-time µs only (tid excluded); the spec adds a tid tie-break to totalize the order</td></tr>
 </table>
 
 <h2>Why <code>iter(t)</code> is a derived quantity</h2>
@@ -330,9 +332,10 @@ The 10 spec call sites:</p>
 </table>
 
 <h2>Typical CAS pattern</h2>
-<pre><code><span class="comment">\* CommitParent as example</span>
-<span class="op">CommitParent</span>(t) ==
-    /\ pc[t] = <span class="type">"commit_parent"</span>
+<pre><code><span class="comment">\* CommitTryCAS (a mid-transaction CAS) as example — keeps its tag on success.</span>
+<span class="comment">\* (CommitParent/CommitDone SUCCESS instead run ClearMyTags: Transaction end.)</span>
+<span class="op">CommitTryCAS</span>(t) ==
+    /\ pc[t] = <span class="type">"commit_try_cas"</span>
     /\ ...
     /\ <span class="add">CanProceed(t, Parent)</span>                  <span class="comment">\* ★ gate: blocked unless allowed</span>
     /\ <span class="keyword">LET</span> ser == GenSerial(t, pw.serial)    <span class="comment">\* Lamport serial</span>
@@ -373,7 +376,7 @@ Fail = 4-step ladder; success = <strong>unchanged</strong> (Transaction-scope pe
               <span class="keyword">THEN</span> <span class="op">MyTag</span>(t)
               <span class="keyword">ELSE</span> priorityTag[n]</code></pre>
 
-<h2>3-step ladder</h2>
+<h2>4-branch ladder</h2>
 <table>
 <tr><th>Condition</th><th>Action</th><th>Intent</th></tr>
 <tr><td>tag = <code>Null</code></td>
@@ -409,7 +412,7 @@ not calling <code>drop_tags_n_privilege()</code>).</p>
 <tr><th>C++</th><th>TLA+ LLfree</th></tr>
 <tr><td><code>i_am_privileged_now</code> / <code>fair_mode_blocks_me</code> gate over <code>Linkage::m_transaction_started_time</code></td>
     <td><code>CanProceed</code> check at the head of SnapCheck / CommitParent / CommitTryCAS</td></tr>
-<tr><td><code>tag_as_contender(link)</code> on CAS fail (CAS-writes the slot, oldest-wins; pushes onto <code>m_tagged_linkages</code>)</td>
+<tr><td><code>tag_as_contender(link)</code> on CAS fail (store-and-verify write, oldest-wins; pushes onto <code>m_tagged_linkages</code>; the spec/C11 model the CAS semantics)</td>
     <td><code>priorityTag' = [priorityTag EXCEPT ![n] = TagAfterFail(t, n)]</code></td></tr>
 <tr><td>No store on CAS success</td>
     <td><code>TagAfterSuccess(t, n) == priorityTag[n]</code> (no-op)</td></tr>
@@ -472,6 +475,9 @@ progress is guaranteed.</p>
 <tr><td><code>CommitDone</code> fail</td>
     <td><code>UNCHANGED priorityTag</code></td>
     <td>Tags persist into retry</td></tr>
+<tr><td><code>~Transaction()</code> (abort / RAII)</td>
+    <td>— (no spec action)</td>
+    <td>C++ <em>also</em> drops tags on abort / RAII and at standalone-<code>Snapshot</code> exit; the spec models only the commit-success release, so "only on commit success" is a <strong>spec</strong> property, not a C++ one</td></tr>
 </table>
 </div>
 
@@ -534,7 +540,7 @@ the proof of livelock-freedom?
 <tr><th>cfg</th><th>Threads</th><th>States</th><th>Depth</th><th>Time</th><th>Result</th></tr>
 <tr><td>micro / fine (MaxCommits=1)</td><td>2</td><td><strong>867,696</strong></td><td>89</td><td>~35s</td><td><strong>Pass + liveness</strong> (laptop)</td></tr>
 <tr><td>superfine</td><td>2</td><td>2,676,196</td><td>129</td><td>3:12</td><td><strong>Pass + liveness</strong></td></tr>
-<tr><td>superfine confC (all-root)</td><td>3</td><td>137,333,348</td><td>96</td><td>6:35</td><td><strong>Pass</strong> (ohtaka)</td></tr>
+<tr><td>superfine confC (all-root)</td><td>3</td><td>137,333,348</td><td>96</td><td>2h 57min</td><td><strong>Pass + liveness</strong> (ohtaka)</td></tr>
 <tr><td>MaxCommits=2 superfine</td><td>2</td><td>127,586,599</td><td>311</td><td>4:40</td><td><strong>Pass</strong> (ohtaka)</td></tr>
 <tr><td>dynamic release superfine live</td><td>2</td><td>413,884,516</td><td>320</td><td>7:13</td><td><strong>Pass + liveness</strong> (ohtaka)</td></tr>
 </table>
@@ -548,7 +554,7 @@ the proof of livelock-freedom?
 <tr><th>Spec</th><th>Difference</th><th>Deck</th></tr>
 <tr><td><code>BundleUnbundle_3level_LLfree.tla</code></td><td>3-level tree (Grand → Parent → Child); recursive inner bundle; multi-level unbundle walk</td><td><code>slides_layer2_LLfree_3level_en.html</code></td></tr>
 <tr><td><code>BundleUnbundle_2level_LLfree_dynamic.tla</code><br><code>BundleUnbundle_3level_LLfree_dynamic.tla</code></td><td>Online <code>insert(online=true)</code> / release; <code>InsertThreads</code> / <code>ReleaseThreads</code> role config</td><td><code>slides_layer2_LLfree_dynamic_en.html</code></td></tr>
-<tr><td><code>BundleUnbundle_hardlink_*.tla</code> (5 specs)</td><td>2-parent / 1-child hard-link topologies; Phase 4 reachability gate; bug repro + fix; per-action fairness</td><td><code>slides_hardlink_en.html</code></td></tr>
+<tr><td><code>BundleUnbundle_hardlink_*.tla</code> (7 specs)</td><td>2-parent / 1-child hard-link topologies; Phase 4 reachability gate; bug repro + fix; per-action fairness (incl. the conditional <code>nested_external</code> gate-scope model)</td><td><code>slides_hardlink_en.html</code></td></tr>
 </table>
 </div>
 
@@ -580,7 +586,7 @@ the state space diverges.
     <td class="del"><strong>Diverges</strong> — retries unbounded</td></tr>
 <tr><td><code>EventuallyAllDone</code></td>
     <td class="add"><strong>PASS</strong></td>
-    <td class="del">Violation (livelock present)</td></tr>
+    <td class="del">not checkable — state space diverges (no liveness run recorded)</td></tr>
 </table>
 <div class="box-orange">
 <p>Running TLC with <code>Privilege=FALSE</code> directly confirms that switching to Nat serial
