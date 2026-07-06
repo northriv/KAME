@@ -101,6 +101,7 @@ TLA+ atomic step corresponding 1:1 to a C atomic operation:
 | `test_stm_commit.c` | (legacy stm_commit layer) | Pass |
 | `test_bundle_2level.c`, `test_bundle_2level_LLfree.c` | `BundleUnbundle_2level*.tla` | Pass |
 | `test_bundle_3level.c`, `test_bundle_3level_LLfree.c` | `BundleUnbundle_3level*.tla` | Pass |
+| `test_bundle_hardlink_{4node,self_collision,external,external_migration,dynamic,nonatomic}.c` (6) | `BundleUnbundle_hardlink_*.tla` family | mechanically generated from the specs (each header: "C11 test generated mechanically from …"); run under GenMC |
 
 ### Key findings
 
@@ -304,7 +305,7 @@ except 1-thread and liveness configs.
 
 The multi-phase CAS bundle/unbundle protocol for a 2-level tree (Parent → {Child1, Child2}),
 plus the livelock-free (LL-free) priority mechanism. Models `bundle()`, `unbundle()`,
-`commit()`, and `snapshot()` from `kame/transaction_impl.h` for the 2-level case.
+`commit()`, and `snapshot()` from `kamestm/transaction_impl.h` for the 2-level case.
 
 ### Priority (LL-free) mechanism
 
@@ -968,7 +969,7 @@ schedulers do not strictly meet `WF` in finite time), not a logic
 gap.
 
 The optimization is gated by `KAME_STM_OPTIONAL_OPTIMIZATION`
-(defined to `1` by default in `kame/transaction_definitions.h`,
+(defined to `1` by default in `kamestm/transaction_definitions.h`,
 commits `ead762be`, `b7a4d882`).  Compile with
 `-DKAME_STM_OPTIONAL_OPTIMIZATION=0` to disable the self-promote
 shortcut and the related `bundle()` "peer-completed early return";

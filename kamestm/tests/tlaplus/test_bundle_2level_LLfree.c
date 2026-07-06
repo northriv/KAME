@@ -24,13 +24,14 @@
  *
  *   - priority_tag[n] : atomic <<iter, tid>> tag set on CAS failure at n
  *     and cleared on CAS success.  Other threads consult the tag before
- *     attempting a CAS at n; they may proceed only if the tag is null,
- *     theirs, or held by an inactive thread.  Older transactions
+ *     attempting a CAS at n; they may proceed only if the tag is null or
+ *     theirs, else they must first preempt.  Older transactions
  *     (smaller iter first, then smaller tid) win contention — older
  *     active threads preempt the tag (PreemptTag in TLA+, folded into
  *     the can_proceed_with_preempt path here).
- *   - thread_active[t] : flips to false after the thread's worker exits
- *     so that "zombie" tags from finished threads don't gate live ones.
+ *   - tags are cleared ONLY on commit success (clear_my_tags); no
+ *     thread_active[]/zombie tracking — a thread reaches inactive state
+ *     only via the success path, so no stale tag outlives its owner.
  *   - per-thread iter counter advances at the END of each iteration
  *     (mirrors TLA+ CommitDone -> iterBudget--, with iter(t) ==
  *     MaxCommits - iterBudget[t]).
@@ -253,7 +254,7 @@ static _Atomic(Tag)  priority_tag[NUM_NODES];
 
 /* can_proceed_with_preempt: TLA+ CanProceed merged with PreemptTag.
  * Returns true if (tag null) OR (tag mine) OR (we successfully preempted
- * an older active holder).  No zombie branch. */
+ * a younger active holder).  No zombie branch. */
 static bool can_proceed_with_preempt(int n, uint32_t my_iter, uint32_t my_tid) {
     Tag mine = make_tag(my_iter, my_tid);
     for (;;) {
