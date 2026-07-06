@@ -943,13 +943,19 @@ driver before recording (marked ✓src).
 
 ### 8.3 New findings — code level (fix candidates, not just doc)
 
-- **F1 (🟠5, ✓src) `drop_tags_n_privilege` is check-then-store, not CAS.** `transaction.h:1810`
-  loads + identity-compares, `:1811` stores 0 **unconditionally**. A peer's preempt-store
-  (`tag_as_contender` `:1753`) landing between the two is silently erased. The C11 test's
-  `clear_my_tags` uses a guarded CAS (`test_bundle_3level_LLfree.c:343-347`) — **the test is
-  stronger than the production code it mirrors**; TLA+ `ClearMyTags` is likewise atomic-conditional.
-  Impact bounded to negotiation fairness (erased peer re-tags on next fail), not data safety.
-  *Options:* (a) certify as accepted gap; (b) change `:1810-1811` to CAS to match model+test.
+- **F1 (🟠5) — RESOLVED (commit `c8f1ea7d`, 2026-07-05; author took option (b)).** *Historical
+  finding:* `drop_tags_n_privilege` cleared the slot with a plain store after an identity check
+  (`transaction.h:1810` load + `strip_kind` compare, `:1811` unconditional store 0), so a peer's
+  preempt-store (`tag_as_contender` `:1753`) landing between the two was silently erased — the C11
+  `clear_my_tags` and TLA+ `ClearMyTags` were atomic-conditional and thus *stronger than the
+  production code they mirrored*. Impact was bounded to negotiation fairness (erased peer re-tags on
+  next fail), never data safety. *Fix now in tree:* the clear is a CAS —
+  `cur = slot.load(relaxed); if(strip_kind(cur)==my_id) slot.compare_exchange_strong(cur, 0, seq_cst,
+  relaxed);` (`transaction.h:1811-1830`), mirroring the global-mode `release_privileged_tidstamp()`,
+  so C++ now matches the model + C11 test. c8f1ea7d's message confirms the analysis (livelock-freedom
+  was never at risk; only the "oldest completes in finite CASes" bound rested on the atomic-clear
+  idealisation the CAS now realises). **Any "check-then-store" wording elsewhere in this dossier (or
+  in a deck/README) is pre-c8f1ea7d and should read as historical.**
 - **F2 (🔴1, related, already author-acknowledged in code)** Option B store-and-verify admits a
   transient *younger-over-older* slot value (two concurrent `_preempt=true` taggers; last store
   wins irrespective of age — comment `:1644-1646` concedes "eventually corrected by other Txs'
