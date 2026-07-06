@@ -1334,14 +1334,22 @@ Done and pushed to `master`:
   the K6 build-instruction fix (`xthread.cpp` was missing → link error). Verified: ghost/`one-cpp`
   greps empty; `s_privileged_tidstamp` only in the fallback sentence.
 
-**NOT done — Stage 2 (all 16 decks, §9.1-9.3):** the deck-remediation agents repeatedly hit the
-account **session limit / watchdog stalls** and left **partial, JA/EN-asymmetric** edits (main
-LLfree pair 141-EN/88-JA; hardlink 53-EN/2-JA; 4 decks — `_3level`, `_dynamic`, overview,
-parameterized — untouched). Rather than ship unverified asymmetric content, **all deck edits were
-reverted to clean**; master's decks remain in the known (§9-documented) pre-fix state. **Queued for a
-clean redo** using §9.1-9.3 as the complete work-order — the Stage-1 source fixes mean the deck
-"quote" boxes can now legitimately match the corrected spec wording. Verification sweep to run after
-the redo: banned-token greps (`m_priority_tidstamp` outside dossier, `870-871`, `MaxPayload` in decks,
-`cas_rcnt`, `rs_*`, `scan_:`, `EnableRecycle`, `iterate_commit_negotiated`, `Linkage::negotiate()`,
-`InsertOnline`, `UninsertedChildren`, `_hardlink_2level_LLfree`, `6:35`/`14,109,731`-as-current,
-un-caveated `1,154,807,632`) + JA/EN numeric parity diff + add `_nested_external` coverage.
+**Stage 2 — all 16 decks (§9.1-9.3): DONE** (hand-applied, no agents; commits `40facf2a` layer1/2-base,
+`87246652b` main-LLfree, `b50da9b9a` 3level+dynamic, `d6b624c0c` hardlink/overview/parameterized).
+An earlier agent attempt (session-limit/watchdog stalls) had left partial JA/EN-asymmetric edits;
+those were **reverted to clean** and the whole of Stage 2 was then redone by hand, JA/EN-symmetric,
+group by group, each group verified before commit. Highlights: the fabricated dynamic-deck ghosts
+(`InsertOnline`/`Release` single actions, `UninsertedChildren`/`InsertedChildren`) replaced with the
+real Insert/Release pipelines (child = `InsertedRef`, parent slot `missing=TRUE` in a separate
+`InsertFinal`); the fabricated `Privilege=FALSE` "livelock Violation" cell corrected to
+"diverges/not-checkable"; store-and-verify (not CAS) tag; CanProceed = advisory Reserved-only C++
+gate vs stricter spec; `iter`↔µs coarsening (not isomorphism); `_nested_external` added as the 7th
+hardlink spec; all stale result rows/anchors/counts refreshed. **Final banned-token sweep across all
+16 decks: clean** (`m_priority_tidstamp`, `870-871`, deck-`MaxPayload` as *usage*, bare `cas_rcnt`,
+`rs_*`, `scan_:`, `iterate_commit_negotiated`, `Linkage::negotiate()`, `InsertOnline`,
+`UninsertedChildren`, `_hardlink_2level_LLfree`, `6:35`, `547-576`, `Variables (6)`, `(5 specs)`,
+`kame/transaction_definitions`, `try_register`/`release_privileged_tidstamp` — all absent; the only
+matches are legitimate "MaxSerial/MaxPayload **Unused**" rows and the "Recycle/EnableRecycle
+**removed**" note). Deferred cosmetics only: H8 (draw GN2 in the `_external` topology tree), H9
+(add `DoStep*` parenthetical to the ❶-❹ labels), O4 (add the parameterized deck to each overview's
+*cross-language* deck list). §9 remediation is otherwise complete.
