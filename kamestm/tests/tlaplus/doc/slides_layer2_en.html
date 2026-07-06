@@ -65,11 +65,14 @@ and optimistic commit on 2-level and 3-level trees. The single-node CAS commit f
 <span class="op">BundledRefWrapper</span>(parentNode, ser) ==
     [packet |-> Null, hasPriority |-> FALSE, bundledBy |-> parentNode, serial |-> ser]</code></pre>
 
-<h2>Variables (6)</h2>
+<h2>Variables (9)</h2>
 <pre><code><span class="keyword">VARIABLES</span>
     serial,        <span class="comment">\* per-thread Lamport serial (monotone Nat)</span>
     linkage,       <span class="comment">\* linkage[n]: PacketWrapper for each node</span>
-    pc, op, target, local  <span class="comment">\* per-thread state</span></code></pre>
+    pc, op, target, local,  <span class="comment">\* per-thread state</span>
+    iterBudget,    <span class="comment">\* per-thread remaining full iterations</span>
+    childQueue,    <span class="comment">\* per-thread children pending CommitChild</span>
+    priorityTag    <span class="comment">\* per-node LL-free negotiate tag (Null | &lt;&lt;iter, tid&gt;&gt;)</span></code></pre>
 <p style="color:#94a3b8;font-size:0.9em">LLfree has no <code>globalSerial</code> (the C++ has no such variable); the serial is a Lamport monotone Nat.</p>
 </div>
 
@@ -141,7 +144,7 @@ This corresponds to nested structs in C++. In TLA+, nested fields are updated wi
        IN
        <span class="keyword">IF</span> allCollected
        <span class="keyword">THEN</span> pc' → <span class="type">"bundle_phase2"</span>
-       <span class="keyword">ELSE</span> pc' → <span class="type">"snap_check"</span>  <span class="comment">\* restart</span></code></pre>
+       <span class="keyword">ELSE</span> pc' → <span class="type">"snap_read"</span>  <span class="comment">\* restart (2-level; 3-level uses "snap_check")</span></code></pre>
 
 <h2>Phase 2: CAS Parent — New PacketWrapper (missing=TRUE)</h2>
 <pre><code><span class="op">BundlePhase2</span>(t) ==
@@ -192,7 +195,7 @@ to a priority wrapper.</p>
 <span class="op">UnbundleCASLoop</span>(t)         <span class="comment">\* 3-level (BundleUnbundle_3level_LLfree.tla)</span>
     <span class="comment">\* For each ancestor in casTargets, CAS its wrapper to a new wrapper</span>
     <span class="comment">\* with missing=TRUE. The child sub-slots sub[c] are KEPT (not nulled),</span>
-    <span class="comment">\* so Phase3 rollback / recovery paths still have the references available.</span>
+    <span class="comment">\* so Phase-1 re-collection (bundledBy==node re-adoption) can still find the child packet.</span>
     /\ LET newPkt == <span class="op">MakePacket</span>(anc, anc.payload, anc.sub, <span class="type">TRUE</span>)
            newW   == <span class="op">PriorityWrapper</span>(newPkt, ser)
        IN linkage' = [linkage <span class="keyword">EXCEPT</span> ![anc] = newW]
@@ -208,7 +211,7 @@ to a priority wrapper.</p>
 <div class="box-orange">
 <p><strong>Unbundle flow (shared across depths):</strong><br>
 (1) <code>UnbundleWalk</code> builds the ancestor list <code>casTargets</code> → (2) CAS each ancestor to missing=TRUE (child slots preserved) → (3) CAS the target child back to Priority with the new payload.<br>
-<strong>Important:</strong> ancestor <code>sub[c]</code> slots are <em>not</em> nulled out. The missing=TRUE flag alone signals "this subtree is temporarily not snapshottable," and keeping <code>sub</code> intact allows Phase3 rollback or later recovery to find the references it needs.</p>
+<strong>Important:</strong> ancestor <code>sub[c]</code> slots are <em>not</em> nulled out. The missing=TRUE flag alone signals "this subtree is temporarily not snapshottable," and keeping <code>sub</code> intact lets Phase-1 re-collection (the <code>bundledBy==node</code> re-adoption path) and the unbundle walk find the child packet — there is no Phase-3 rollback in C++.</p>
 </div>
 
 <div class="box-green">
@@ -238,7 +241,7 @@ This stresses whether payload integrity is preserved through bundle/unbundle cha
 <pre><code><span class="op">CommitParent</span>(t)   <span class="comment">\* 2-level: parent-scope +1 propagated to every Child payload</span>
 <span class="op">CommitGrand</span>(t)    <span class="comment">\* 3-level: grand-scope +1 propagated to every Grandchild payload</span>
     <span class="comment">\* Single CAS against the parent / grand wrapper. Updates every payload inside</span>
-    <span class="comment">\* sub[c] to (p + 1) % MaxPayload and commits the whole scope in one action.</span>
+    <span class="comment">\* sub[c] to (p + 1) — payload is a monotone Nat — and commits the whole scope in one action.</span>
     <span class="comment">\* Even bundled subtrees must see their internal payloads advance by +1.</span></code></pre>
 
 <h2>Direct-commit pipeline (CommitRead → CommitTryCAS → CommitDone)</h2>
@@ -274,7 +277,7 @@ one direct commit per child (<code>CommitRead</code> / <code>TryCAS</code> / <co
 <code>iterBudget[t]</code> the remaining iterations.</p>
 <p><strong>TerminalPayloadCheck:</strong> in the terminal state where all threads have
 <code>iterBudget=0</code> and are idle, each direct child's payload must equal
-<code>(2 × MaxCommits × |Threads|) % MaxPayload</code>.
+<code>MaxCommits × (|RootThreads| + |LeafThreads|)</code> (= 2 × MaxCommits × |Threads| when both roles cover all threads; payload is a monotone Nat, no modulo).
 This guarantees that both the deep (+1) and direct (+1) commit streams were applied correctly.</p>
 </div>
 
@@ -287,7 +290,7 @@ another thread," adopt the new child packet, and retry the CAS. This reduces was
 
 <!-- ===== Slide 5: Invariants ===== -->
 <div class="slide">
-<h1>Verified Invariants (5 items)</h1>
+<h1>Verified Invariants (3-level set; 5 items)</h1>
 
 <pre><code><span class="comment">\* 1. If missing=FALSE then all child packets exist</span>
 <span class="op">SnapshotConsistency</span> ==
@@ -314,17 +317,18 @@ another thread," adopt the new child packet, and retry the CAS. This reduces was
 <span class="comment">\* 5. Root always has priority</span>
 <span class="op">GrandAlwaysPriority</span> ==
     linkage[Grand].hasPriority</code></pre>
+<p style="color:#94a3b8;font-size:0.9em">The five above are the <strong>3-level</strong> set (the <code>Grand</code> node and <code>bundledBy</code> chains are 3-level-only). The <strong>2-level</strong> spec verifies <code>SnapshotConsistency</code>, <code>NoPriorityLoss</code>, <code>BundleRefConsistency</code>, and <code>MissingPropagation</code> instead of INV3/4/5.</p>
 
 <h2>Verification Results (CONSTRAINT-free exhaustion)</h2>
 <table>
 <tr><th>Model</th><th>Fidelity</th><th>Threads</th><th>States</th><th>Depth</th><th>Time</th><th>Result</th></tr>
 <tr><td>2-level LLfree</td><td>micro (fine)</td><td>2</td><td>867,696</td><td>89</td><td>~35s</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
 <tr><td>2-level LLfree</td><td>superfine</td><td>2</td><td>2,676,196</td><td>129</td><td>3:12</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
-<tr><td>2-level LLfree</td><td>superfine confC (all-root)</td><td>3</td><td>137,333,348</td><td>96</td><td>6:35</td><td style="color:#4ade80">✅ Pass (ohtaka)</td></tr>
+<tr><td>2-level LLfree</td><td>superfine confC (all-root)</td><td>3</td><td>137,333,348</td><td>96</td><td>2h 57min</td><td style="color:#4ade80">✅ Pass + liveness (ohtaka)</td></tr>
 <tr><td>2-level LLfree</td><td>MaxCommits=2 superfine</td><td>2</td><td>127,586,599</td><td>311</td><td>4:40</td><td style="color:#4ade80">✅ Pass (ohtaka)</td></tr>
 <tr><td>2-level dynamic LLfree</td><td>release superfine live</td><td>2</td><td>413,884,516</td><td>320</td><td>7:13</td><td style="color:#4ade80">✅ Pass + liveness (ohtaka)</td></tr>
 <tr><td>3-level LLfree</td><td>coarse</td><td>2</td><td>1,497,098</td><td>98</td><td>1:35</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
-<tr><td>3-level LLfree</td><td>superfine</td><td>2</td><td>14,109,731</td><td>148</td><td>19:13</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>3-level LLfree</td><td>superfine</td><td>2</td><td>15,094,117</td><td>146</td><td>15m 11s</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
 <tr><td>3-level LLfree</td><td>superfine confC (all-root)</td><td>3</td><td>640,894,951</td><td>88</td><td>15:25</td><td style="color:#4ade80">✅ Pass + liveness (ohtaka)</td></tr>
 </table>
 
@@ -403,24 +407,24 @@ prove liveness (details: <code>doc/proof_semantics.md</code>).</p>
 <tr><td><code>linkage[n]</code></td><td><code>atomic_shared_ptr&lt;PacketWrapper&gt; n->m_link</code></td><td><code>_Atomic(uint64_t) linkage[4]</code><br>64-bit packed (Wrapper struct)</td></tr>
 <tr><td><code>linkage[n].hasPriority</code></td><td><code>PacketWrapper::hasPriority()</code></td><td><code>Wrapper.has_priority</code> (bit field)</td></tr>
 <tr><td><code>linkage[n].bundledBy</code></td><td><code>PacketWrapper::bundledBy()</code></td><td><code>Wrapper.bundled_by</code></td></tr>
-<tr><td><code>linkage[n].packet.payload</code></td><td><code>Packet::payload()</code></td><td><code>Wrapper.payload</code></td></tr>
-<tr><td><code>linkage[n].packet.sub[c]</code></td><td><code>Packet::subpackets()[i]</code></td><td><code>Wrapper.sub_child1/2</code></td></tr>
-<tr><td><code>serial[t]</code></td><td><code>SerialGenerator</code> (Lamport clock)</td><td><code>uint8_t thread_ser</code> (local)</td></tr>
+<tr><td><code>linkage[n].packet.payload</code></td><td><code>Packet::payload()</code></td><td>immutable slot <code>pkt_pack(payload,…)</code> via <code>Wrapper.packet_slot</code></td></tr>
+<tr><td><code>linkage[n].packet.sub[c]</code></td><td><code>Packet::subpackets()[i]</code></td><td><code>pkt_pack(…, s0, s1, …)</code> sub-slots (via <code>packet_slot</code>)</td></tr>
+<tr><td><code>serial[t]</code></td><td><code>SerialGenerator</code> (Lamport clock)</td><td><code>uint32_t thread_ser</code> (local)</td></tr>
 <tr><td>serial comparison<br>(Lamport, no modular wrap)</td><td><code>isOlderThan</code><br>unsigned subtraction → signed reinterpretation</td><td><code>ser_gt(a,b)</code>: <code>(a-b)&amp;MASK, diff &lt; MOD/2</code></td></tr>
 </table>
 
 <h2>Action Mapping</h2>
 <table>
 <tr><th>TLA+ Action</th><th>C++ Code</th><th>Generated C11 Function</th></tr>
-<tr><td><code>SnapRead</code> + <code>SnapCheck</code><br>(3-level uses only <code>SnapCheck</code>)</td><td><code>snapshot()</code><br>transaction_impl.h:2038/2053</td><td><code>snapshot_grand()</code><br><code>load_wrapper()</code> → priority/missing decision</td></tr>
+<tr><td><code>SnapRead</code> + <code>SnapCheck</code><br>(3-level uses only <code>SnapCheck</code>)</td><td><code>snapshot()</code><br>transaction_impl.h:2038/2053</td><td><code>snapshot_grand()</code><br><code>load_w()</code> → priority/missing decision</td></tr>
 <tr><td><code>BundlePhase1</code>–<code>4</code></td><td><code>bundle()</code><br>transaction_impl.h:2355</td><td>Within <code>snapshot_grand()</code><br>collect → CAS parent → CAS children → finalize</td></tr>
 <tr><td><code>InnerPhase2</code>/<code>3</code>/<code>4</code><br>(3-level only)</td><td>Inner-bundle portion of <code>bundle()</code><br>transaction_impl.h:2355</td><td>Within <code>snapshot_grand()</code><br>Inner bundle on Parent when Grand bundles (explicit in superfine; collapsed into <code>BundlePhase1</code> in fine)</td></tr>
 <tr><td><code>CommitParent</code> (2-level)<br><code>CommitGrand</code> (3-level)</td><td>Parent / grand-scope <code>commit()</code><br>transaction_impl.h:2757</td><td><code>commit_parent()</code> / <code>commit_grand()</code><br>Deep commit: +1 to every child payload in the scope</td></tr>
-<tr><td><code>CommitRead</code></td><td>Reload just before CAS in <code>commit()</code><br>transaction_impl.h:2757</td><td>Within <code>commit_child()</code><br><code>load_wrapper</code> immediately before the CAS attempt</td></tr>
+<tr><td><code>CommitRead</code></td><td>Reload just before CAS in <code>commit()</code><br>transaction_impl.h:2757</td><td>Within <code>commit_child()</code><br><code>load_w</code> immediately before the CAS attempt</td></tr>
 <tr><td><code>CommitTryCAS</code></td><td><code>commit()</code><br>transaction_impl.h:2757</td><td><code>commit_child()</code><br>Direct CAS + single-node optimization</td></tr>
 <tr><td><code>CommitDone</code></td><td>Finalization tail of <code>commit()</code><br>transaction_impl.h:2757</td><td>Tail of <code>commit_child()</code><br>Decrement <code>iterBudget</code>, advance to next child or idle</td></tr>
 <tr><td><code>UnbundleWalk</code></td><td><code>reverseLookup()</code><br>transaction_impl.h:1590/1665/1675</td><td>Within <code>commit_child()</code><br>Walk <code>bundledBy</code> chain to build casTargets (superfine #5 is root-first)</td></tr>
-<tr><td><code>UnbundleCASAncestors</code> (2-level)<br><code>UnbundleCASLoop</code> (3-level)</td><td><code>unbundle()</code><br>transaction_impl.h:2904</td><td>Within <code>commit_child()</code><br><code>cas_wrapper(anc, ... missing=TRUE)</code> per ancestor. Child sub-slots kept (not nulled)</td></tr>
+<tr><td><code>UnbundleCASAncestors</code> (2-level)<br><code>UnbundleCASLoop</code> (3-level)</td><td><code>unbundle()</code><br>transaction_impl.h:2904</td><td>Within <code>commit_child()</code><br><code>cas_w(anc, ... missing=TRUE)</code> per ancestor. Child sub-slots kept (not nulled)</td></tr>
 <tr><td><code>UnbundleCASChild</code></td><td><code>unbundle()</code><br>transaction_impl.h:2904</td><td>Within <code>commit_child()</code><br>child → priority restoration with new payload</td></tr>
 </table>
 

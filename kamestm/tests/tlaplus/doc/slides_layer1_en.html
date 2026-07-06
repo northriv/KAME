@@ -96,7 +96,7 @@ p{line-height:1.8}
 <table>
 <tr><th>Spec (.tla)</th><th>Config (.cfg)</th><th>Meaning</th></tr>
 <tr><td><code>CONSTANTS Threads, Objects</code></td><td><code>Threads = {t1, t2}<br>Objects = {o1, o2}</code></td><td>Set concrete values for model checking</td></tr>
-<tr><td><code>CONSTANTS EnableCAS, EnableRecycle</code></td><td><code>EnableCAS = TRUE<br>EnableRecycle = TRUE</code></td><td>Feature enable/disable flags</td></tr>
+<tr><td><code>CONSTANTS EnableCAS, EnableSwap</code></td><td><code>EnableCAS = TRUE<br>EnableSwap = TRUE</code></td><td>Feature enable/disable flags</td></tr>
 </table>
 <p>Increasing thread/object count causes exponential state space growth.
 Typically verified with 2-3 threads and 2 objects, with symmetry reduction.</p>
@@ -114,7 +114,7 @@ Typically verified with 2-3 threads and 2 objects, with symmetry reduction.</p>
 e.g., <code>global_rc[o] &lt;= 5</code> in <code>CONSTRAINT</code>: states where global_rc exceeds 5 are not explored (potential misses).
 Same expression in <code>INVARIANT</code>: reported as an error if global_rc exceeds 5.<br><br>
 <strong>This model does not use StateConstraint.</strong>
-State space is made structurally finite via C++ scope destruction and modular arithmetic,
+State space is made structurally finite via C++ scope destruction and bounded operation counts,
 exploring all reachable states without artificial pruning.</p>
 </div>
 <tr><td><code>{a, b, c}</code></td><td>Finite set</td><td><code>{"scan", "cas", "idle"}</code></td></tr>
@@ -148,7 +148,7 @@ liveness (livelock-freedom) is supplied by Layer 2's older-wins mechanism — se
 Complements GenMC (memory-ordering checks) by exhausting all thread interleavings:</p>
 <ul style="margin:0.3em 0 0 1.2em">
 <li>Tagged-pointer reference counting (<code>acquire_tag_ref_</code> / <code>load_shared_</code> / <code>release_tag_ref_</code>)</li>
-<li><strong>Drain release</strong>: <code>release_tag_ref_(pref, added_global_rcnt)</code> with <code>cas_rcnt</code> — frees K tags in a single CAS</li>
+<li><strong>Drain release</strong>: <code>release_tag_ref_(pref, added_global_rcnt)</code> — frees K tags in a single CAS (the spec splits this arg into <code>thr_cas_rcnt</code>/<code>thr_added_grc</code>, always equal in C++)</li>
 <li><strong>Bulk-transfer <code>load_shared_</code></strong>: <code>refcnt.fetch_add(rcnt)</code> + drain steals concurrent threads' tag IOUs</li>
 <li>Unified <code>compareAndSet_impl_&lt;OldrT, NewrT, false, RETAIN_NEWR&gt;</code> template (Set / Swap)</li>
 <li><strong><code>scoped_atomic_view&lt;T&gt;</code> RAII</strong>: acquire → TagHeld → CAS set (SCOPED, <code>fetch_sub(2)</code>) / dtor</li>
@@ -199,7 +199,7 @@ Complements GenMC (memory-ordering checks) by exhausting all thread interleaving
 <!-- ===== Slide 2: acquire_tag_ref_ ===== -->
 <div class="slide">
 <h1>acquire_tag_ref_: Atomic Read + CAS</h1>
-<h3>C++ source: kamepoolalloc/atomic_smart_ptr.h lines 1632-1682</h3>
+<h3>C++ source: kamepoolalloc/atomic_smart_ptr.h lines 1632-1681</h3>
 
 <div class="box">
 <p><code>m_ref.load()</code> in C++is a single atomic operation; pointer and local RC are
@@ -233,7 +233,7 @@ the CAS performs <strong>full-word comparison</strong> (both ptr + local_rc), so
 
 <!-- ===== Slide 3: scan_ (load_shared_) ===== -->
 <div class="slide">
-<h1>scan_: load_shared_(): 3 Steps</h1>
+<h1>load_shared_(): 3 Steps</h1>
 <h3>C++ source: kamepoolalloc/atomic_smart_ptr.h lines 1684-1699</h3>
 
 <pre><code><span class="comment">(* Step 1: acquire_tag_ref_ → Atomic Read + CAS to increment local RC [see previous slide] *)</span>
@@ -281,7 +281,7 @@ the CAS performs <strong>full-word comparison</strong> (both ptr + local_rc), so
 <table>
 <tr><th>Phase</th><th>TLA+ Action</th><th>Operation</th></tr>
 <tr><td>1</td><td><code>CASPreInc</code></td><td>Increment new object's <code>global_rc++</code></td></tr>
-<tr><td>2</td><td><code>CASReserve</code>→<code>rs_*</code></td><td>Pin via <code>acquire_tag_ref_</code></td></tr>
+<tr><td>2</td><td><code>CASReserve</code>→<code>atr_*</code></td><td>Pin via <code>acquire_tag_ref_</code></td></tr>
 <tr><td>3</td><td><code>CASCheck</code></td><td><code>pref != oldr</code>then return failure</td></tr>
 <tr><td>4</td><td><code>CASTransfer</code></td><td>Transfer local RC to <code>global_rc</code></td></tr>
 <tr><td>5</td><td><code>CASSwap</code></td><td>CAS (<code>acq_rel</code>): Swap pointer</td></tr>
@@ -304,8 +304,8 @@ the CAS performs <strong>full-word comparison</strong> (both ptr + local_rc), so
 <div class="box">
 <p><strong>Relation to ABA:</strong> Caller holds <code>oldr</code> via <code>local_shared_ptr</code>
 → <code>global_rc > 0</code> → never freed → ABA is structurally impossible.<br>
-However, in <code>load_shared_()</code> the thread holds no reference, so TLA+ models ABA recycling as
-a sound over-approximation.</p>
+However, in <code>load_shared_()</code> the thread holds no reference; ABA-by-recycling is <strong>not</strong> modeled
+(the <code>Recycle</code> action was removed, <code>686460d5</code>) — the ownership contract already prevents it (see the ABA-out-of-scope note below).</p>
 </div>
 </div>
 
@@ -376,7 +376,7 @@ and on CAS success <code>fetch_sub(2)</code> absorbs both the <code>m_ref</code>
 <span class="op">ScopeCASCleanup</span>(t) ==          <span class="comment">\* compareAndSet_impl_&lt;scoped&gt; success (after ScopeCASSwap)</span>
     /\ scope_state[t] = <span class="type">"tagheld"</span>
     /\ <span class="comment">\* step4 = +T (full add); on CAS success fetch_sub(2) consumes tag+ref simultaneously</span>
-    /\ local_rc' = local_rc - <span class="num">2</span>
+    /\ global_rc' = [global_rc <span class="keyword">EXCEPT</span> ![scope_pref[t]] = @ - <span class="num">2</span>]
     /\ scope_state' = [scope_state <span class="keyword">EXCEPT</span> ![t] = <span class="type">"none"</span>]
 
 <span class="op">ScopeDtor</span>(t) ==               <span class="comment">\* scoped_atomic_view dtor</span>
@@ -477,14 +477,14 @@ not by the bare tagged-pointer protocol.</p>
 <tr><td><code>freed[o]</code></td><td>delete call</td><td><code>int obj_freed[]</code></td></tr>
 <tr><td><code>thr_pref[t]</code> / <code>thr_rcnt[t]</code></td><td><code>Ref* pref</code> / <code>Refcnt rcnt</code> (local)</td><td>locals</td></tr>
 <tr><td><code>thr_holds[t][o]</code></td><td><code>local_shared_ptr</code> reference count</td><td>thread-local hold index</td></tr>
-<tr><td><code>thr_cas_rcnt</code> / <code>thr_added_grc</code> / <code>thr_drained</code></td><td><code>release_tag_ref_(pref, added_global_rcnt)</code> <code>cas_rcnt</code> arg</td><td><code>cds_test_multi_cas_excess.c</code></td></tr>
+<tr><td><code>thr_cas_rcnt</code> / <code>thr_added_grc</code> / <code>thr_drained</code></td><td><code>release_tag_ref_(pref, added_global_rcnt)</code> arg (spec split; equal in C++)</td><td><code>cds_test_multi_cas_excess.c</code></td></tr>
 <tr><td><code>scope_state[t]</code> / <code>scope_pref[t]</code></td><td><code>scoped_atomic_view&lt;T&gt;</code> <code>m_pref</code> + state</td><td><code>cds_test_scoped_weak.c</code></td></tr>
 </table>
 
 <h2>Action Mapping</h2>
 <table>
 <tr><th>TLA+ Action</th><th>C++ Function (atomic_smart_ptr.h)</th><th>memory_order</th></tr>
-<tr><td><code>AcquireTagRefRead</code> + <code>AcquireTagRefCAS</code></td><td><code>acquire_tag_ref_()</code> (lines 1632-1682)</td><td>relaxed → acq_rel</td></tr>
+<tr><td><code>AcquireTagRefRead</code> + <code>AcquireTagRefCAS</code></td><td><code>acquire_tag_ref_()</code> (lines 1632-1681)</td><td>relaxed → acq_rel</td></tr>
 <tr><td><code>LoadSharedIncGlobal</code></td><td><code>load_shared_()</code> bulk transfer<br><code>refcnt.fetch_add(rcnt)</code> + drain (lines 1693-1697)</td><td>relaxed</td></tr>
 <tr><td><code>ReleaseTagRefCAS</code> (incl. excess-undo branch)</td><td><code>release_tag_ref_(pref, T)</code> drain (lines 1730-1775)<br>min(local_rc, T) tags in one CAS + excess <code>fetch_sub</code></td><td>acq_rel</td></tr>
 <tr><td><code>CASPreInc</code> → <code>CASSwap</code> → <code>CASCleanup</code></td><td><code>compareAndSet_impl_()</code> 6 phases (legacy <code>compareAndSwap_</code> subsumed, lines 1811-2034)</td><td>relaxed / acq_rel</td></tr>
