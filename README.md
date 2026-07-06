@@ -92,8 +92,9 @@ libraries** (Apache 2.0 OR GPL-2.0-or-later) within this monorepo, intended to
 be carved out as their own subtrees for downstream embedding:
 
 - **[`kamestm/`](kamestm/) — Lock-free software transactional memory.**
-  The snapshot / transaction core (`Node<XN>`, `Snapshot<XN>`, `Transaction<XN>`,
-  `atomic_shared_ptr<T>`) extracted as a header-only library plus one small `.cpp`.
+  The snapshot / transaction core (`Node<XN>`, `Snapshot<XN>`, `Transaction<XN>`;
+  plus the `atomic_shared_ptr<T>` engine, homed in `kamepoolalloc/`) extracted as a
+  header-only library plus three small `.cpp` (`threadlocal` / `xthread` / `xtime`).
   TLA+ specs for the protocol; GenMC RC11-checked C translations.  Builds on
   macOS clang / Linux gcc/clang (64+32-bit) / Windows **MinGW + MSVC** — all
   11 standalone tests pass on each.  See [`kamestm/README.md`](kamestm/README.md).
@@ -293,10 +294,11 @@ release.
 **Multi-node consistency** is achieved through a *bundling* protocol: a parent packet absorbs child packets via multi-phase CAS protocol, making the entire subtree consistent under a single atomic pointer. A `m_missing` flag marks packets with stale children, driving re-bundling on demand.
 
 **Collision negotiation:** when concurrent transactions repeatedly collide,
-`Linkage::negotiate()` elects a single *privileged* transaction (age-ordered
-preemption + priority bands; non-privileged contenders **park** until the
-privileged one commits), so the oldest/highest-priority Tx always makes
-progress. Model-checked livelock-free in TLA+ (exhaustively for the checked
+the negotiate machinery (`ScopedNegotiateLinkage::_negotiate()`) lets the
+single *oldest* transaction win — each contended linkage is tagged with the
+tagger's start-time stamp (oldest-wins), a starved Tx escalating to a
+privileged Reserved tag; non-privileged contenders **park** until it commits,
+so the oldest/highest-priority Tx always makes progress. Model-checked livelock-free in TLA+ (exhaustively for the checked
 thread counts and tree shapes). Full details + the comparison
 against other STMs (Haskell `TVar` / Clojure `Ref` / ScalaSTM, HTM TSX/RTM,
 TinySTM / NOrec) live in [`kamestm/README.md`](kamestm/README.md) — KAME's
@@ -307,7 +309,7 @@ own design doc to avoid duplicating it here.
 
 > **Caution:** Taking a nested `Snapshot` inside a transaction can trigger bundling, which may cause the transaction's CAS to always fail. This is not a data corruption issue but a liveness issue — the transaction retries indefinitely. This occurs when the `Snapshot` target is an ancestor of the transaction target, or when hard links exist (a child with two parents) and a `Snapshot` on one parent's tree interferes with the other. Use `tr[*node]` instead of a nested `Snapshot` in these situations.
 >
-> The hard-link case is now formally modelled in `kamestm/tests/tlaplus/BundleUnbundle_hardlink_*.tla` (sibling-parents and root-with-intermediate self-collision); see `kamestm/tests/VERIFICATION.md` §5.
+> The hard-link case is now formally modelled in `kamestm/tests/tlaplus/BundleUnbundle_hardlink_*.tla` (seven topology/pattern variants, incl. the conditional nested-sub-bundle gate-scope model); see `kamestm/tests/VERIFICATION.md` §5.
 
 #### Why STM in a measurement framework
 
@@ -335,8 +337,8 @@ see the [comparison tables in `kamestm/README.md`](kamestm/README.md#comparison-
 The STM protocol is formally specified and model-checked with TLA+ / TLC:
 
 - **Layer 1 — `atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting, drain release, and `scoped_atomic_view` ([spec](kamestm/tests/tlaplus/atomic_shared_ptr.tla)). Safety only — the bare primitive is intentionally *not* livelock-free.
-- **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](kamestm/tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](kamestm/tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](kamestm/tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Exhaustively model-checked **safe + livelock-free** without `CONSTRAINT` (the LL-free design makes the state space naturally finite — no artificial bound); the largest single exhaustive run reaches **641 M distinct states** (3-level all-root, 15 h on the ISSP ohtaka supercomputer), over a billion across the LL-free configurations combined. These are exhaustive results for the checked configurations (fixed thread counts and tree shapes), not an unbounded ∀-thread proof.
-- **Hard-link topologies:** multi-parent / one-child races that reproduce and fix a production abort via a Phase-4 reachability gate (`kamestm/tests/tlaplus/BundleUnbundle_hardlink_*.tla`).
+- **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](kamestm/tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](kamestm/tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](kamestm/tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Exhaustively model-checked **safe + livelock-free** without `CONSTRAINT` (the LL-free design makes the state space naturally finite — no artificial bound); the largest single exhaustive run reaches **~641 M distinct states** (3-level all-root, 15 h on the ISSP ohtaka supercomputer), over a billion across the LL-free configurations combined. (Raw state counts are **spec-version-specific** and shift as the spec evolves — see [kamestm/tests/VERIFICATION.md](kamestm/tests/VERIFICATION.md) §3–§4 for current-spec figures.) These are exhaustive results for the checked configurations (fixed thread counts and tree shapes), not an unbounded ∀-thread proof.
+- **Hard-link topologies:** multi-parent / one-child races that reproduce and fix a production abort via a Phase-4 reachability gate and a Phase-3 skip-Null fix (`kamestm/tests/tlaplus/BundleUnbundle_hardlink_*.tla`).
 
 **Slide decks** — start at the **coverage overview** ([EN](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_overview_en.html) · [JA](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc_ja/slides_overview.html)), a hub linking every layer with a full coverage matrix. Individual decks (each with a Japanese counterpart under `doc_ja/`): [Layer 1](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer1_en.html), [Layer 2 base](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_en.html), [Layer 2 LLfree](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree.html), [3-level](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_3level_en.html), [dynamic](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_dynamic_en.html), [hard-link](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_hardlink_en.html).
 
