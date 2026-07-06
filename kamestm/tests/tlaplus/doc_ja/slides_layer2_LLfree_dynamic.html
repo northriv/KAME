@@ -68,36 +68,25 @@ Phase 1 で <code>insert</code> によって Parent に attach し、Phase 2 で
 <div class="slide">
 <h1>insert(online=true) と release のモデル化</h1>
 
-<h2>InsertOnline アクション</h2>
-<pre><code><span class="op">InsertOnline</span>(t) ==
-    /\ t \in InsertThreads
-    /\ pc[t] = <span class="type">"idle"</span>
-    /\ \E c \in <span class="op">UninsertedChildren</span> :
-        /\ <span class="comment">\* ① 親の wrapper を読む</span>
-        /\ <span class="op">CanProceed</span>(t, Parent)              <span class="comment">\* ★ priority gate</span>
-        /\ <span class="comment">\* ② 子のパケットを親の sub[c] に書き込んだ新 wrapper を CAS</span>
-        /\ <span class="keyword">LET</span> newSubs == [Parent.sub <span class="keyword">EXCEPT</span> ![c] = childPacket]
-               newW == <span class="op">PriorityWrapper</span>(<span class="op">MakePacket</span>(Parent, payload, newSubs, <span class="type">FALSE</span>), ser)
-           <span class="keyword">IN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![Parent] = newW,
-                                       ![c] = <span class="op">BundledRefWrapper</span>(Parent, ser)]
-    /\ <span class="op">ClearMyTags</span>(t)                       <span class="comment">\* commit success と同じく tag 解放</span></code></pre>
+<h2>insert(online=true) — 5 ステップの CAS パイプライン（単一アクションではない）</h2>
+<pre><code><span class="comment">\* insert は 5 アクションに分割され、TLC が「途中まで構築された insert」の</span>
+<span class="comment">\* 全 interleaving を探索できる（対象: \E c : ~inserted[c]）。</span>
+<span class="op">InsertStart</span> → <span class="op">InsertCASParent</span> → <span class="op">InsertReadChild</span> →
+<span class="op">InsertCASChild</span>(t):  linkage'[c] = <span class="op">InsertedRef</span>(Parent, ser, cpkt)   <span class="comment">\* パケット保持 ref</span>
+<span class="op">InsertFinal</span>(t):     linkage'[Parent] = <span class="op">PriorityWrapper</span>(
+                       <span class="op">MakePacket</span>(Parent, _, newSub, <span class="type">TRUE</span>), ser)   <span class="comment">\* 別 CAS、missing=TRUE</span>
+                     <span class="comment">\* 成功時: inserted'[c]=TRUE, ClearMyTags(t)</span></code></pre>
 
-<h2>Release アクション</h2>
-<pre><code><span class="op">Release</span>(t) ==
-    /\ t \in ReleaseThreads
-    /\ \E c \in <span class="op">InsertedChildren</span> :
-        /\ <span class="comment">\* 親の sub[c] を Null にし、子を own priority wrapper に戻す</span>
-        /\ <span class="op">CanProceed</span>(t, Parent)
-        /\ <span class="op">CanProceed</span>(t, c)
-        /\ ...
-        /\ linkage' = [linkage <span class="keyword">EXCEPT</span> ![Parent] = parentWithNullSlot,
-                                   ![c] = <span class="op">PriorityWrapper</span>(originalChildPkt, ser)]</code></pre>
+<h2>release — 4 ステップの CAS パイプライン</h2>
+<pre><code><span class="op">ReleaseStart</span> → <span class="op">ReleaseCASParent</span> → <span class="op">ReleaseReadChild</span> → <span class="op">ReleaseCASChild</span>
+    <span class="comment">\* 親スロット CAS と子スロット CAS は別アクション；</span>
+    <span class="comment">\* 2 つの CanProceed gate (Parent / c) は別ステップに存在。</span></code></pre>
 
 <div class="box-orange">
 <p><strong>insert と bundle/commit の干渉:</strong>
 他スレッドが <code>bundle(Parent)</code> 中に <code>insert(c)</code> が走ると、
-Phase 4 の <code>m_missing=false</code> finalise が Phase 4 reachability gate を発動して
-DISTURBED retry → bundling thread が見える「新しい子が増えた」状態で再収集。
+Phase-4 の CAS が freshness チェックに失敗（親 linkage が変化）して
+retry → bundling thread が見える「新しい子が増えた」状態で再収集。（dynamic spec に reachability gate は無い — それは hardlink 専用。）
 priority gating により、insert 側が old/young の関係で待たされる/勝つ。</p>
 </div>
 </div>
@@ -110,8 +99,8 @@ priority gating により、insert 側が old/young の関係で待たされる/
 <table>
 <tr><th>項目</th><th>static (<code>_LLfree.tla</code>)</th><th>dynamic (<code>_LLfree_dynamic.tla</code>)</th></tr>
 <tr><td>子ノード集合</td><td>初期から固定 (Child1, Child2)</td><td>動的に挿入/解放 (DynChild1, DynChild2)</td></tr>
-<tr><td>追加アクション</td><td>—</td><td><code>InsertOnline</code> / <code>Release</code></td></tr>
-<tr><td>thread role</td><td>全 thread 同等</td><td><code>InsertThreads</code> / <code>RootThreads</code> / <code>LeafThreads</code> / <code>ReleaseThreads</code> で構成</td></tr>
+<tr><td>追加アクション</td><td>—</td><td><code>Insert*</code>（5 ステップ）/ <code>Release*</code>（4 ステップ）パイプライン</td></tr>
+<tr><td>thread role</td><td>Root / Leaf ロール（<code>RootThreads</code> / <code>LeafThreads</code>）</td><td>+ Insert / Release ロール（<code>InsertThreads</code> / <code>ReleaseThreads</code>）</td></tr>
 <tr><td>commit ターゲット</td><td>hardcode</td><td>snapshot で動的 discovery</td></tr>
 <tr><td>不変条件</td><td>SnapshotConsistency 等 5 件</td><td>+ insert/release 整合性チェック</td></tr>
 </table>
@@ -119,7 +108,7 @@ priority gating により、insert 側が old/young の関係で待たされる/
 <h2>検証結果</h2>
 <table>
 <tr><th>cfg</th><th>Threads</th><th>States</th><th>Depth</th><th>Time</th><th>結果</th></tr>
-<tr><td>2-level dynamic 2-thread superfine</td><td>2</td><td>(~M)</td><td>—</td><td>—</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-level dynamic 2-thread superfine (release なし)</td><td>2</td><td>(~M)</td><td>—</td><td>—</td><td style="color:#4ade80">✅ Pass (safety); liveness は下の release 実行で</td></tr>
 <tr><td>2-level dynamic release superfine live</td><td>2</td><td><strong>413,884,516</strong></td><td>320</td><td>7:13</td><td style="color:#4ade80">✅ Pass + liveness (ohtaka)</td></tr>
 <tr><td>3-level dynamic 2-thread coarse</td><td>2</td><td>(M~)</td><td>—</td><td>—</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
 <tr><td>3-level dynamic 3-thread release</td><td>3</td><td>(大規模)</td><td>—</td><td>—</td><td style="color:#fbbf24">ohtaka 待ち</td></tr>
@@ -135,7 +124,7 @@ priority gating + dynamic discovery + bounded variable domain の組み合わせ
 <h2>大規模 cfg 実行コマンド</h2>
 <pre><code><span class="comment"># 2-level dynamic release superfine (ohtaka 推奨)</span>
 java -XX:+UseParallelGC -Xmx32g -cp tla2tools.jar tlc2.TLC \
-  -workers auto -config BundleUnbundle_2level_LLfree_dynamic_3thr_B_live_mc.cfg \
+  -workers auto -config BundleUnbundle_2level_LLfree_dynamic_release_superfine_live_mc.cfg \
   BundleUnbundle_2level_LLfree_dynamic.tla</code></pre>
 
 <h2>関連 spec / スライド</h2>

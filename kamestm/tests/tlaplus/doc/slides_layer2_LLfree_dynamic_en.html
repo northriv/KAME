@@ -67,36 +67,25 @@ is in flight" and "commit just before release."</p>
 <div class="slide">
 <h1>insert(online=true) and release</h1>
 
-<h2>InsertOnline action</h2>
-<pre><code><span class="op">InsertOnline</span>(t) ==
-    /\ t \in InsertThreads
-    /\ pc[t] = <span class="type">"idle"</span>
-    /\ \E c \in <span class="op">UninsertedChildren</span> :
-        /\ <span class="comment">\* ① read parent's wrapper</span>
-        /\ <span class="op">CanProceed</span>(t, Parent)              <span class="comment">\* ★ priority gate</span>
-        /\ <span class="comment">\* ② CAS a new wrapper that writes the child's packet into parent.sub[c]</span>
-        /\ <span class="keyword">LET</span> newSubs == [Parent.sub <span class="keyword">EXCEPT</span> ![c] = childPacket]
-               newW == <span class="op">PriorityWrapper</span>(<span class="op">MakePacket</span>(Parent, payload, newSubs, <span class="type">FALSE</span>), ser)
-           <span class="keyword">IN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![Parent] = newW,
-                                       ![c] = <span class="op">BundledRefWrapper</span>(Parent, ser)]
-    /\ <span class="op">ClearMyTags</span>(t)                       <span class="comment">\* same tag release as commit success</span></code></pre>
+<h2>insert(online=true) — a 5-step CAS pipeline (not one action)</h2>
+<pre><code><span class="comment">\* Insert is split into 5 actions so TLC explores every</span>
+<span class="comment">\* half-constructed-insert interleaving (target: \E c : ~inserted[c]).</span>
+<span class="op">InsertStart</span> → <span class="op">InsertCASParent</span> → <span class="op">InsertReadChild</span> →
+<span class="op">InsertCASChild</span>(t):  linkage'[c] = <span class="op">InsertedRef</span>(Parent, ser, cpkt)   <span class="comment">\* packet-carrying ref</span>
+<span class="op">InsertFinal</span>(t):     linkage'[Parent] = <span class="op">PriorityWrapper</span>(
+                       <span class="op">MakePacket</span>(Parent, _, newSub, <span class="type">TRUE</span>), ser)   <span class="comment">\* SEPARATE CAS, missing=TRUE</span>
+                     <span class="comment">\* on success: inserted'[c]=TRUE, ClearMyTags(t)</span></code></pre>
 
-<h2>Release action</h2>
-<pre><code><span class="op">Release</span>(t) ==
-    /\ t \in ReleaseThreads
-    /\ \E c \in <span class="op">InsertedChildren</span> :
-        /\ <span class="comment">\* Set parent.sub[c] to Null and restore the child to its own priority wrapper</span>
-        /\ <span class="op">CanProceed</span>(t, Parent)
-        /\ <span class="op">CanProceed</span>(t, c)
-        /\ ...
-        /\ linkage' = [linkage <span class="keyword">EXCEPT</span> ![Parent] = parentWithNullSlot,
-                                   ![c] = <span class="op">PriorityWrapper</span>(originalChildPkt, ser)]</code></pre>
+<h2>release — a 4-step CAS pipeline</h2>
+<pre><code><span class="op">ReleaseStart</span> → <span class="op">ReleaseCASParent</span> → <span class="op">ReleaseReadChild</span> → <span class="op">ReleaseCASChild</span>
+    <span class="comment">\* the Parent-slot CAS and the child-slot CAS are SEPARATE actions;</span>
+    <span class="comment">\* the two CanProceed gates (Parent / c) live in different steps.</span></code></pre>
 
 <div class="box-orange">
 <p><strong>Interference between insert and bundle/commit:</strong>
 If another thread runs <code>bundle(Parent)</code> while <code>insert(c)</code> fires,
-the Phase 4 <code>m_missing=false</code> finalise triggers the Phase 4 reachability gate
-→ DISTURBED retry; the bundling thread sees the newly inserted child on re-collect.
+the Phase-4 CAS fails its freshness check (the parent linkage changed)
+→ retry; the bundling thread sees the newly inserted child on re-collect. (No reachability gate exists in the dynamic specs — that is hardlink-only.)
 Priority gating arbitrates between the inserter and the bundler by transaction age.</p>
 </div>
 </div>
@@ -108,8 +97,8 @@ Priority gating arbitrates between the inserter and the bundler by transaction a
 <table>
 <tr><th>Item</th><th>Static (<code>_LLfree.tla</code>)</th><th>Dynamic (<code>_LLfree_dynamic.tla</code>)</th></tr>
 <tr><td>Child set</td><td>Fixed from init (Child1, Child2)</td><td>Dynamically inserted / released (DynChild1, DynChild2)</td></tr>
-<tr><td>New actions</td><td>—</td><td><code>InsertOnline</code> / <code>Release</code></td></tr>
-<tr><td>Thread roles</td><td>All threads symmetric</td><td>Configured via <code>InsertThreads</code> / <code>RootThreads</code> / <code>LeafThreads</code> / <code>ReleaseThreads</code></td></tr>
+<tr><td>New actions</td><td>—</td><td><code>Insert*</code> (5-step) / <code>Release*</code> (4-step) pipelines</td></tr>
+<tr><td>Thread roles</td><td>Root / Leaf roles (<code>RootThreads</code> / <code>LeafThreads</code>)</td><td>+ Insert / Release roles (<code>InsertThreads</code> / <code>ReleaseThreads</code>)</td></tr>
 <tr><td>Commit targets</td><td>Hardcoded</td><td>Discovered dynamically from snapshot</td></tr>
 <tr><td>Invariants</td><td>5 (SnapshotConsistency etc.)</td><td>+ insert/release consistency checks</td></tr>
 </table>
@@ -117,7 +106,7 @@ Priority gating arbitrates between the inserter and the bundler by transaction a
 <h2>Verification results</h2>
 <table>
 <tr><th>cfg</th><th>Threads</th><th>States</th><th>Depth</th><th>Time</th><th>Result</th></tr>
-<tr><td>2-level dynamic 2-thread superfine</td><td>2</td><td>(~M)</td><td>—</td><td>—</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-level dynamic 2-thread superfine (no release)</td><td>2</td><td>(~M)</td><td>—</td><td>—</td><td style="color:#4ade80">✅ Pass (safety); liveness via the release run below</td></tr>
 <tr><td>2-level dynamic release superfine live</td><td>2</td><td><strong>413,884,516</strong></td><td>320</td><td>7:13</td><td style="color:#4ade80">✅ Pass + liveness (ohtaka)</td></tr>
 <tr><td>3-level dynamic 2-thread coarse</td><td>2</td><td>(M~)</td><td>—</td><td>—</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
 <tr><td>3-level dynamic 3-thread release</td><td>3</td><td>(large)</td><td>—</td><td>—</td><td style="color:#fbbf24">ohtaka pending</td></tr>
@@ -133,7 +122,7 @@ include dynamic insert/release satisfy safety + liveness — proven by exhaustio
 <h2>Running large configs</h2>
 <pre><code><span class="comment"># 2-level dynamic release superfine (ohtaka recommended)</span>
 java -XX:+UseParallelGC -Xmx32g -cp tla2tools.jar tlc2.TLC \
-  -workers auto -config BundleUnbundle_2level_LLfree_dynamic_3thr_B_live_mc.cfg \
+  -workers auto -config BundleUnbundle_2level_LLfree_dynamic_release_superfine_live_mc.cfg \
   BundleUnbundle_2level_LLfree_dynamic.tla</code></pre>
 
 <h2>Related specs / decks</h2>
