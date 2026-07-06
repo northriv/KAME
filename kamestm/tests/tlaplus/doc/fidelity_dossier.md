@@ -1316,12 +1316,32 @@ Second generator: **results tables frozen at the first run** — later reruns (1
 updated. The parameterized deck (which carries the version-history table) was immune — decks that
 quote *point* numbers should either carry the version tag or defer to VERIFICATION.md.
 
-### 9.7 Remediation record
+### 9.7 Remediation record (actual, as of 2026-07-06)
 
-Executed on branch `docs/artifact-correspondence-remediation`: (1) spec/C++/C11 comment fixes per
-§9.5 + SANY parse of touched specs; (2) all 16 decks per §9.1-9.3 (JA/EN symmetric); (3) READMEs per
-§9.4; (4) VERIFICATION.md per S7. Verification sweep: banned-token greps (`m_priority_tidstamp`
-outside dossier, `870-871`, `MaxPayload` in decks, `cas_rcnt`, `rs_*`, `scan_:`, `EnableRecycle`,
-`iterate_commit_negotiated`, `Linkage::negotiate()`, `InsertOnline`, `UninsertedChildren`,
-`_hardlink_2level_LLfree`, stale `6:35`/`14,109,731`-as-current, un-caveated `1,154,807,632`,
-`kame/transaction_definitions.h`) + JA/EN numeric parity diff.
+Done and pushed to `master`:
+- **§9 recorded** (`f58acefc`).
+- **F1 resolved independently** by the author (`c8f1ea7d`, CAS-based mine-only clear in
+  `drop_tags_n_privilege`); dossier §8.3 F1 reframed as historical (`68f09123`).
+- **Stage 1 — source comment fixes** (`fe347f71`): §9.5 **S1-S4** (both LLfree specs: per-linkage
+  mechanism, phantom `m_priority_tidstamp`/global-mode ghosts removed, CanProceed relabelled),
+  **S6a** (transaction_impl.h reverseLookup :1593), **S7** (VERIFICATION.md two `kame/`→`kamestm/`
+  paths + §1 hardlink-C11 row + `_external_1thr` cfg header), **S8** (both C11 tests: header matched
+  to body, "older"→"younger"). SANY: both touched specs parse clean; all diffs comment-only.
+  **Deferred:** **S5** (line-number drift inside spec comments — low value, tedious) and **S6b**
+  (`atomic_smart_ptr.h:1788` step4 wording — the `:1788` vs `:1929` texts describe distinct SCOPED
+  sub-cases; needs author judgement, not a mechanical flip).
+- **Stage 3 — READMEs** (`92d4fad5`): §9.4 K1-K10 + T1-T5, incl. the K1/K2 per-linkage rewrite and
+  the K6 build-instruction fix (`xthread.cpp` was missing → link error). Verified: ghost/`one-cpp`
+  greps empty; `s_privileged_tidstamp` only in the fallback sentence.
+
+**NOT done — Stage 2 (all 16 decks, §9.1-9.3):** the deck-remediation agents repeatedly hit the
+account **session limit / watchdog stalls** and left **partial, JA/EN-asymmetric** edits (main
+LLfree pair 141-EN/88-JA; hardlink 53-EN/2-JA; 4 decks — `_3level`, `_dynamic`, overview,
+parameterized — untouched). Rather than ship unverified asymmetric content, **all deck edits were
+reverted to clean**; master's decks remain in the known (§9-documented) pre-fix state. **Queued for a
+clean redo** using §9.1-9.3 as the complete work-order — the Stage-1 source fixes mean the deck
+"quote" boxes can now legitimately match the corrected spec wording. Verification sweep to run after
+the redo: banned-token greps (`m_priority_tidstamp` outside dossier, `870-871`, `MaxPayload` in decks,
+`cas_rcnt`, `rs_*`, `scan_:`, `EnableRecycle`, `iterate_commit_negotiated`, `Linkage::negotiate()`,
+`InsertOnline`, `UninsertedChildren`, `_hardlink_2level_LLfree`, `6:35`/`14,109,731`-as-current,
+un-caveated `1,154,807,632`) + JA/EN numeric parity diff + add `_nested_external` coverage.
