@@ -405,6 +405,7 @@ macx {
     coremodulefiles.files += ../modules/levelmeter/core/liblevelmetercore.$${QMAKE_EXTENSION_SHLIB}
     coremodulefiles.files += ../modules/magnetps/core/libmagnetpscore.$${QMAKE_EXTENSION_SHLIB}
     coremodulefiles.files += ../modules/motor/core/libmotorcore.$${QMAKE_EXTENSION_SHLIB}
+    coremodulefiles.files += ../modules/relay/core/librelaycore.$${QMAKE_EXTENSION_SHLIB}
     coremodulefiles.files += ../modules/networkanalyzer/core/libnetworkanalyzercore.$${QMAKE_EXTENSION_SHLIB}
     coremodulefiles.files += ../modules/nmr/pulsercore/libnmrpulsercore.$${QMAKE_EXTENSION_SHLIB}
     coremodulefiles.files += ../modules/sg/core/libsgcore.$${QMAKE_EXTENSION_SHLIB}
@@ -439,6 +440,7 @@ macx {
     modulefiles.files += ../modules/arbfunc/libarbfunc.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/optics/liboptics.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/twoaxis/libtwoaxis.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/relay/librelay.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/python/libpython.$${QMAKE_EXTENSION_SHLIB}
 
     coremodulefiles.path = Contents/MacOS/$${KAME_COREMODULES}
