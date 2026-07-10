@@ -189,6 +189,28 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
 - **Bare layout in QVBoxLayout** — a bare `QLayout` (no wrapping widget) cannot have a size policy set on it; if placed alongside a `QWidget` in a `QVBoxLayout` it will consume all vertical space. Wrap in a `QWidget` if size policy control is needed.
 - **Prefer `setEnabled` over `setVisible`** for optional form sections — hiding a widget collapses the layout and makes the form look broken; disabling keeps layout stable and signals inactivity.
 
+### Form style conventions (when generating a new .ui)
+
+Surveyed from all 53 forms in the repo (`kame/forms/`, `kame/graph/`, `modules/**`). Three archetypes recur — pick the matching one and copy its exemplar rather than generating free-form:
+
+1. **Settings panel** (most driver forms) — exemplars: `modules/dcsource/core/dcsourceform.ui` (small, vertical), `modules/motor/core/motorform.ui` (dense). `QMainWindow` + central `QWidget` + top-level `QGridLayout` (`QVBoxLayout` for a simple stack). Rows are `QHBoxLayout`s of label + field + unit label. Section headers are `QGroupBox`es; use a `QToolBox` (accordion) when the same page repeats per channel/loop (`tempcontrolform.ui`). Large action buttons (`RVS`/`STOP`/`FWD`/`HOME`) sit in a row of plain `QPushButton`s.
+2. **Graph + controls** — exemplars: `modules/networkanalyzer/core/networkanalyzerform.ui` (controls column right of graph), `modules/nmr/nmrpulseform.ui` (controls left, analysis rows under the graph). Top-level `QHBoxLayout` with two columns: the graph column is a `QVBoxLayout` holding the dump-file row (`m_edDump` line edit + browse `QToolButton` + `m_btnDump` + optional `MATH` tool button) above an `XQGraph`, plus optional analysis rows below; the other column is a `QVBoxLayout` of `QGroupBox`es. `XQGraph` is a promoted custom widget (`<customwidget>`: class `XQGraph`, extends `QWidget`, header `graphwidget.h`; the instance carries `native="true"`), sizePolicy Expanding×Expanding with `minimumSize` width ~300; keep everything else Preferred/Fixed so the graph absorbs all resize.
+3. **Many-panel instrument** — exemplar: `modules/dso/core/dsoform.ui`. Central widget = graph + dump row; each control group (`Trigger Setup`, `Trace1`…) is a `QDockWidget` docked around it.
+
+Details, whichever archetype:
+- **Margins/spacing**: explicit 2–4 px margins on every layout (4 dominant, 2 for tight inner layouts), spacing 4 — do not rely on `<layoutdefault>`. Initial `geometry` compact: settings panels ~120–350 px wide, graph forms ~600–900 px.
+- **Window class by purpose**: driver forms are `QMainWindow` (no `QStatusBar` in the .ui — the C++ ctor calls `statusBar()->hide()`); panes embedded in the main KAME window (`kame/forms/*`) are plain `QWidget`; `QDialog` only for modal dialogs (`graphdialog.ui`, `drivercreate.ui`).
+- **Labels**: `QLabel` immediately left of its widget in the same `QHBoxLayout`/grid row, sizePolicy Preferred/Fixed (never Expanding — it steals space from the field). Unit labels (`ms`, `V`, `kHz`, `deg.`) go directly right of the field. `buddy` is not used in this codebase.
+- **Alignment**: end vertical stacks with a vertical spacer so controls stay top-aligned on resize. Live readouts are `QLCDNumber` (`m_lcd*`) + unit label; status LEDs are ~40 px wide `QPushButton`s named `m_led*`.
+- **Widget naming**: widgets referenced from C++ use `m_<prefix><Name>`: `m_ed` line edit, `m_cmb` combo, `m_ckb` checkbox, `m_btn` push button, `m_tb`/`m_tlb` tool button, `m_spb`/`m_dbl` spin boxes, `m_lcd`, `m_led`, `m_graph`/`m_graphwidget` (XQGraph), `m_lbl` label toggled/retexted from code. Purely decorative labels keep uic default names (`textLabelN`).
+- **Always emit `<tabstops>`** listing every interactive widget in visual order — two-thirds of existing forms carry them, and creation order is not a reliable tab order once grids are involved.
+- **Visually verify the result** — render the form to a PNG and look at it before finishing (alignment, margins, clipped labels):
+  ```bash
+  cd tools/uipreview && ~/Qt6/6.10.1/macos/bin/qmake && make   # once per session
+  QT_QPA_PLATFORM=offscreen ./uipreview.app/Contents/MacOS/uipreview <form.ui> /tmp/preview.png
+  ```
+  For forms containing `XQGraph`, substitute it first: `sed 's/class="XQGraph"/class="QWidget"/' form.ui > /tmp/f.ui`. Compare side-by-side with the exemplar rendered the same way.
+
 ## Code Conventions
 
 - All exported symbols use `DECLSPEC_KAME` macro

@@ -3,13 +3,14 @@
  <class>FrmLaserModule</class>
  <widget class="QMainWindow" name="FrmLaserModule">
   <property name="geometry">
-   <rect><x>0</x><y>0</y><width>540</width><height>440</height></rect>
+   <rect><x>0</x><y>0</y><width>520</width><height>420</height></rect>
   </property>
   <property name="windowTitle">
-   <string>LDC-3900 Modular Laser Diode Controller</string>
+   <string>Laser Module</string>
   </property>
   <widget class="QWidget" name="widget">
    <layout class="QVBoxLayout" name="vl_main">
+    <property name="spacing"><number>4</number></property>
     <property name="leftMargin"><number>4</number></property>
     <property name="topMargin"><number>4</number></property>
     <property name="rightMargin"><number>4</number></property>
@@ -17,750 +18,969 @@
     <item>
      <widget class="QLabel" name="m_lblStatus">
       <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
-      </property>
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
       <property name="text"><string/></property>
       <property name="wordWrap"><bool>true</bool></property>
      </widget>
     </item>
     <item>
      <layout class="QHBoxLayout" name="hl_panels">
+      <property name="spacing"><number>4</number></property>
       <item>
-       <widget class="QGroupBox" name="m_grpLaser">
-        <property name="title"><string>Laser channels</string></property>
-        <layout class="QVBoxLayout" name="vl_grpLaser">
-         <item>
-          <widget class="QToolBox" name="m_toolBoxLaser">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Preferred" vsizetype="Expanding"><horstretch>0</horstretch><verstretch>1</verstretch></sizepolicy>
-           </property>
-           <property name="currentIndex"><number>0</number></property>
-      <widget class="QWidget" name="m_pageLaser1">
-       <property name="geometry"><rect><x>0</x><y>0</y><width>240</width><height>360</height></rect></property>
-       <attribute name="label"><string>Laser 1</string></attribute>
-       <layout class="QVBoxLayout" name="vl_laser1">
-        <property name="leftMargin"><number>2</number></property>
-        <property name="topMargin"><number>2</number></property>
-        <property name="rightMargin"><number>2</number></property>
-        <property name="bottomMargin"><number>2</number></property>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lcurr1">
-             <item>
-              <widget class="QLabel" name="lbl_lcurr1">
-               <property name="text"><string>Current</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLCDNumber" name="m_lcdCurrentL1">
-               <property name="minimumSize"><size><width>0</width><height>26</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lcurr1">
-               <property name="text"><string>mA</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lpow1">
-             <item>
-              <widget class="QLabel" name="lbl_lpow1">
-               <property name="text"><string>Power</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLCDNumber" name="m_lcdPowerL1">
-               <property name="minimumSize"><size><width>0</width><height>26</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lpow1">
-               <property name="text"><string>mW</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lvolt1">
-             <item>
-              <widget class="QLabel" name="lbl_lvolt1">
-               <property name="text"><string>Voltage</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLCDNumber" name="m_lcdVoltageL1">
-               <property name="minimumSize"><size><width>0</width><height>26</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lvolt1">
-               <property name="text"><string>V</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lsetcurr1">
-             <item>
-              <widget class="QLabel" name="lbl_lsetcurr1">
-               <property name="text"><string>Set Current</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="m_edSetCurrentL1">
-               <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lsetcurr1">
-               <property name="text"><string>mA</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lsetpow1">
-             <item>
-              <widget class="QLabel" name="lbl_lsetpow1">
-               <property name="text"><string>Set Power</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="m_edSetPowerL1">
-               <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lsetpow1">
-               <property name="text"><string>mW</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <widget class="QCheckBox" name="m_ckbLaserL1">
-             <property name="text"><string>Laser Output</string></property>
-            </widget>
-           </item>
-           <item>
-            <spacer name="vs_laser1">
-             <property name="orientation"><enum>Qt::Vertical</enum></property>
-             <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
-            </spacer>
-           </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="m_pageLaser2">
-       <property name="geometry"><rect><x>0</x><y>0</y><width>240</width><height>360</height></rect></property>
-       <attribute name="label"><string>Laser 2</string></attribute>
-       <layout class="QVBoxLayout" name="vl_laser2">
-        <property name="leftMargin"><number>2</number></property>
-        <property name="topMargin"><number>2</number></property>
-        <property name="rightMargin"><number>2</number></property>
-        <property name="bottomMargin"><number>2</number></property>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lcurr2">
-             <item>
-              <widget class="QLabel" name="lbl_lcurr2">
-               <property name="text"><string>Current</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLCDNumber" name="m_lcdCurrentL2">
-               <property name="minimumSize"><size><width>0</width><height>26</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lcurr2">
-               <property name="text"><string>mA</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lpow2">
-             <item>
-              <widget class="QLabel" name="lbl_lpow2">
-               <property name="text"><string>Power</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLCDNumber" name="m_lcdPowerL2">
-               <property name="minimumSize"><size><width>0</width><height>26</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lpow2">
-               <property name="text"><string>mW</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lvolt2">
-             <item>
-              <widget class="QLabel" name="lbl_lvolt2">
-               <property name="text"><string>Voltage</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLCDNumber" name="m_lcdVoltageL2">
-               <property name="minimumSize"><size><width>0</width><height>26</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lvolt2">
-               <property name="text"><string>V</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lsetcurr2">
-             <item>
-              <widget class="QLabel" name="lbl_lsetcurr2">
-               <property name="text"><string>Set Current</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="m_edSetCurrentL2">
-               <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lsetcurr2">
-               <property name="text"><string>mA</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lsetpow2">
-             <item>
-              <widget class="QLabel" name="lbl_lsetpow2">
-               <property name="text"><string>Set Power</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="m_edSetPowerL2">
-               <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lsetpow2">
-               <property name="text"><string>mW</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <widget class="QCheckBox" name="m_ckbLaserL2">
-             <property name="text"><string>Laser Output</string></property>
-            </widget>
-           </item>
-           <item>
-            <spacer name="vs_laser2">
-             <property name="orientation"><enum>Qt::Vertical</enum></property>
-             <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
-            </spacer>
-           </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="m_pageLaser3">
-       <property name="geometry"><rect><x>0</x><y>0</y><width>240</width><height>360</height></rect></property>
-       <attribute name="label"><string>Laser 3</string></attribute>
-       <layout class="QVBoxLayout" name="vl_laser3">
-        <property name="leftMargin"><number>2</number></property>
-        <property name="topMargin"><number>2</number></property>
-        <property name="rightMargin"><number>2</number></property>
-        <property name="bottomMargin"><number>2</number></property>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lcurr3">
-             <item>
-              <widget class="QLabel" name="lbl_lcurr3">
-               <property name="text"><string>Current</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLCDNumber" name="m_lcdCurrentL3">
-               <property name="minimumSize"><size><width>0</width><height>26</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lcurr3">
-               <property name="text"><string>mA</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lpow3">
-             <item>
-              <widget class="QLabel" name="lbl_lpow3">
-               <property name="text"><string>Power</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLCDNumber" name="m_lcdPowerL3">
-               <property name="minimumSize"><size><width>0</width><height>26</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lpow3">
-               <property name="text"><string>mW</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lvolt3">
-             <item>
-              <widget class="QLabel" name="lbl_lvolt3">
-               <property name="text"><string>Voltage</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLCDNumber" name="m_lcdVoltageL3">
-               <property name="minimumSize"><size><width>0</width><height>26</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lvolt3">
-               <property name="text"><string>V</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lsetcurr3">
-             <item>
-              <widget class="QLabel" name="lbl_lsetcurr3">
-               <property name="text"><string>Set Current</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="m_edSetCurrentL3">
-               <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lsetcurr3">
-               <property name="text"><string>mA</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lsetpow3">
-             <item>
-              <widget class="QLabel" name="lbl_lsetpow3">
-               <property name="text"><string>Set Power</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="m_edSetPowerL3">
-               <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lsetpow3">
-               <property name="text"><string>mW</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <widget class="QCheckBox" name="m_ckbLaserL3">
-             <property name="text"><string>Laser Output</string></property>
-            </widget>
-           </item>
-           <item>
-            <spacer name="vs_laser3">
-             <property name="orientation"><enum>Qt::Vertical</enum></property>
-             <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
-            </spacer>
-           </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="m_pageLaser4">
-       <property name="geometry"><rect><x>0</x><y>0</y><width>240</width><height>360</height></rect></property>
-       <attribute name="label"><string>Laser 4</string></attribute>
-       <layout class="QVBoxLayout" name="vl_laser4">
-        <property name="leftMargin"><number>2</number></property>
-        <property name="topMargin"><number>2</number></property>
-        <property name="rightMargin"><number>2</number></property>
-        <property name="bottomMargin"><number>2</number></property>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lcurr4">
-             <item>
-              <widget class="QLabel" name="lbl_lcurr4">
-               <property name="text"><string>Current</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLCDNumber" name="m_lcdCurrentL4">
-               <property name="minimumSize"><size><width>0</width><height>26</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lcurr4">
-               <property name="text"><string>mA</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lpow4">
-             <item>
-              <widget class="QLabel" name="lbl_lpow4">
-               <property name="text"><string>Power</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLCDNumber" name="m_lcdPowerL4">
-               <property name="minimumSize"><size><width>0</width><height>26</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lpow4">
-               <property name="text"><string>mW</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lvolt4">
-             <item>
-              <widget class="QLabel" name="lbl_lvolt4">
-               <property name="text"><string>Voltage</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLCDNumber" name="m_lcdVoltageL4">
-               <property name="minimumSize"><size><width>0</width><height>26</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lvolt4">
-               <property name="text"><string>V</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lsetcurr4">
-             <item>
-              <widget class="QLabel" name="lbl_lsetcurr4">
-               <property name="text"><string>Set Current</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="m_edSetCurrentL4">
-               <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lsetcurr4">
-               <property name="text"><string>mA</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_lsetpow4">
-             <item>
-              <widget class="QLabel" name="lbl_lsetpow4">
-               <property name="text"><string>Set Power</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="m_edSetPowerL4">
-               <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_lsetpow4">
-               <property name="text"><string>mW</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <widget class="QCheckBox" name="m_ckbLaserL4">
-             <property name="text"><string>Laser Output</string></property>
-            </widget>
-           </item>
-           <item>
-            <spacer name="vs_laser4">
-             <property name="orientation"><enum>Qt::Vertical</enum></property>
-             <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
-            </spacer>
-           </item>
-       </layout>
-      </widget>
-          </widget>
-         </item>
-        </layout>
-       </widget>
+<widget class="QGroupBox" name="m_grpLaser">
+ <property name="title"><string>Laser channels</string></property>
+ <layout class="QVBoxLayout" name="vl_laser">
+  <property name="spacing"><number>4</number></property>
+  <property name="leftMargin"><number>2</number></property>
+  <property name="topMargin"><number>2</number></property>
+  <property name="rightMargin"><number>2</number></property>
+  <property name="bottomMargin"><number>2</number></property>
+  <item>
+<widget class="QToolBox" name="m_toolBoxLaser">
+ <property name="sizePolicy">
+  <sizepolicy hsizetype="Preferred" vsizetype="Expanding"><horstretch>0</horstretch><verstretch>1</verstretch></sizepolicy>
+ </property>
+ <property name="currentIndex"><number>0</number></property>
+<widget class="QWidget" name="m_pageLaser1">
+ <attribute name="label"><string>Laser 1</string></attribute>
+ <layout class="QVBoxLayout" name="vl_laser1">
+  <property name="spacing"><number>4</number></property>
+  <property name="leftMargin"><number>2</number></property>
+  <property name="topMargin"><number>2</number></property>
+  <property name="rightMargin"><number>2</number></property>
+  <property name="bottomMargin"><number>2</number></property>
+  <item>
+<layout class="QGridLayout" name="gl_laser1">
+ <property name="horizontalSpacing"><number>4</number></property>
+ <property name="verticalSpacing"><number>4</number></property>
+<item row="0" column="0">
+<widget class="QLabel" name="lbl_lcurr1">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Current</string></property>
+</widget>
+</item>
+<item row="0" column="1">
+<widget class="QLCDNumber" name="m_lcdCurrentL1">
+ <property name="sizePolicy">
+  <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+ </property>
+ <property name="minimumSize"><size><width>0</width><height>30</height></size></property>
+ <property name="digitCount"><number>6</number></property>
+ <property name="segmentStyle"><enum>QLCDNumber::Flat</enum></property>
+</widget>
+</item>
+<item row="0" column="2">
+<widget class="QLabel" name="lblu_lcurr1">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>mA</string></property>
+</widget>
+</item>
+<item row="1" column="0">
+<widget class="QLabel" name="lbl_lpow1">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Power</string></property>
+</widget>
+</item>
+<item row="1" column="1">
+<widget class="QLCDNumber" name="m_lcdPowerL1">
+ <property name="sizePolicy">
+  <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+ </property>
+ <property name="minimumSize"><size><width>0</width><height>30</height></size></property>
+ <property name="digitCount"><number>6</number></property>
+ <property name="segmentStyle"><enum>QLCDNumber::Flat</enum></property>
+</widget>
+</item>
+<item row="1" column="2">
+<widget class="QLabel" name="lblu_lpow1">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>mW</string></property>
+</widget>
+</item>
+<item row="2" column="0">
+<widget class="QLabel" name="lbl_lvolt1">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Voltage</string></property>
+</widget>
+</item>
+<item row="2" column="1">
+<widget class="QLCDNumber" name="m_lcdVoltageL1">
+ <property name="sizePolicy">
+  <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+ </property>
+ <property name="minimumSize"><size><width>0</width><height>30</height></size></property>
+ <property name="digitCount"><number>6</number></property>
+ <property name="segmentStyle"><enum>QLCDNumber::Flat</enum></property>
+</widget>
+</item>
+<item row="2" column="2">
+<widget class="QLabel" name="lblu_lvolt1">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>V</string></property>
+</widget>
+</item>
+<item row="3" column="0">
+<widget class="QLabel" name="lbl_lsetcurr1">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Set Current</string></property>
+</widget>
+</item>
+<item row="3" column="1">
+<widget class="QLineEdit" name="m_edSetCurrentL1">
+ <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
+</widget>
+</item>
+<item row="3" column="2">
+<widget class="QLabel" name="lblu_lsetcurr1">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>mA</string></property>
+</widget>
+</item>
+<item row="4" column="0">
+<widget class="QLabel" name="lbl_lsetpow1">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Set Power</string></property>
+</widget>
+</item>
+<item row="4" column="1">
+<widget class="QLineEdit" name="m_edSetPowerL1">
+ <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
+</widget>
+</item>
+<item row="4" column="2">
+<widget class="QLabel" name="lblu_lsetpow1">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>mW</string></property>
+</widget>
+</item>
+</layout>
+  </item>
+  <item>
+   <widget class="QCheckBox" name="m_ckbLaserL1">
+    <property name="text"><string>Laser Output</string></property>
+   </widget>
+  </item>
+  <item>
+   <spacer name="vs_laser1">
+    <property name="orientation"><enum>Qt::Vertical</enum></property>
+    <property name="sizeHint" stdset="0"><size><width>20</width><height>16</height></size></property>
+   </spacer>
+  </item>
+ </layout>
+</widget>
+<widget class="QWidget" name="m_pageLaser2">
+ <attribute name="label"><string>Laser 2</string></attribute>
+ <layout class="QVBoxLayout" name="vl_laser2">
+  <property name="spacing"><number>4</number></property>
+  <property name="leftMargin"><number>2</number></property>
+  <property name="topMargin"><number>2</number></property>
+  <property name="rightMargin"><number>2</number></property>
+  <property name="bottomMargin"><number>2</number></property>
+  <item>
+<layout class="QGridLayout" name="gl_laser2">
+ <property name="horizontalSpacing"><number>4</number></property>
+ <property name="verticalSpacing"><number>4</number></property>
+<item row="0" column="0">
+<widget class="QLabel" name="lbl_lcurr2">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Current</string></property>
+</widget>
+</item>
+<item row="0" column="1">
+<widget class="QLCDNumber" name="m_lcdCurrentL2">
+ <property name="sizePolicy">
+  <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+ </property>
+ <property name="minimumSize"><size><width>0</width><height>30</height></size></property>
+ <property name="digitCount"><number>6</number></property>
+ <property name="segmentStyle"><enum>QLCDNumber::Flat</enum></property>
+</widget>
+</item>
+<item row="0" column="2">
+<widget class="QLabel" name="lblu_lcurr2">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>mA</string></property>
+</widget>
+</item>
+<item row="1" column="0">
+<widget class="QLabel" name="lbl_lpow2">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Power</string></property>
+</widget>
+</item>
+<item row="1" column="1">
+<widget class="QLCDNumber" name="m_lcdPowerL2">
+ <property name="sizePolicy">
+  <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+ </property>
+ <property name="minimumSize"><size><width>0</width><height>30</height></size></property>
+ <property name="digitCount"><number>6</number></property>
+ <property name="segmentStyle"><enum>QLCDNumber::Flat</enum></property>
+</widget>
+</item>
+<item row="1" column="2">
+<widget class="QLabel" name="lblu_lpow2">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>mW</string></property>
+</widget>
+</item>
+<item row="2" column="0">
+<widget class="QLabel" name="lbl_lvolt2">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Voltage</string></property>
+</widget>
+</item>
+<item row="2" column="1">
+<widget class="QLCDNumber" name="m_lcdVoltageL2">
+ <property name="sizePolicy">
+  <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+ </property>
+ <property name="minimumSize"><size><width>0</width><height>30</height></size></property>
+ <property name="digitCount"><number>6</number></property>
+ <property name="segmentStyle"><enum>QLCDNumber::Flat</enum></property>
+</widget>
+</item>
+<item row="2" column="2">
+<widget class="QLabel" name="lblu_lvolt2">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>V</string></property>
+</widget>
+</item>
+<item row="3" column="0">
+<widget class="QLabel" name="lbl_lsetcurr2">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Set Current</string></property>
+</widget>
+</item>
+<item row="3" column="1">
+<widget class="QLineEdit" name="m_edSetCurrentL2">
+ <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
+</widget>
+</item>
+<item row="3" column="2">
+<widget class="QLabel" name="lblu_lsetcurr2">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>mA</string></property>
+</widget>
+</item>
+<item row="4" column="0">
+<widget class="QLabel" name="lbl_lsetpow2">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Set Power</string></property>
+</widget>
+</item>
+<item row="4" column="1">
+<widget class="QLineEdit" name="m_edSetPowerL2">
+ <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
+</widget>
+</item>
+<item row="4" column="2">
+<widget class="QLabel" name="lblu_lsetpow2">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>mW</string></property>
+</widget>
+</item>
+</layout>
+  </item>
+  <item>
+   <widget class="QCheckBox" name="m_ckbLaserL2">
+    <property name="text"><string>Laser Output</string></property>
+   </widget>
+  </item>
+  <item>
+   <spacer name="vs_laser2">
+    <property name="orientation"><enum>Qt::Vertical</enum></property>
+    <property name="sizeHint" stdset="0"><size><width>20</width><height>16</height></size></property>
+   </spacer>
+  </item>
+ </layout>
+</widget>
+<widget class="QWidget" name="m_pageLaser3">
+ <attribute name="label"><string>Laser 3</string></attribute>
+ <layout class="QVBoxLayout" name="vl_laser3">
+  <property name="spacing"><number>4</number></property>
+  <property name="leftMargin"><number>2</number></property>
+  <property name="topMargin"><number>2</number></property>
+  <property name="rightMargin"><number>2</number></property>
+  <property name="bottomMargin"><number>2</number></property>
+  <item>
+<layout class="QGridLayout" name="gl_laser3">
+ <property name="horizontalSpacing"><number>4</number></property>
+ <property name="verticalSpacing"><number>4</number></property>
+<item row="0" column="0">
+<widget class="QLabel" name="lbl_lcurr3">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Current</string></property>
+</widget>
+</item>
+<item row="0" column="1">
+<widget class="QLCDNumber" name="m_lcdCurrentL3">
+ <property name="sizePolicy">
+  <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+ </property>
+ <property name="minimumSize"><size><width>0</width><height>30</height></size></property>
+ <property name="digitCount"><number>6</number></property>
+ <property name="segmentStyle"><enum>QLCDNumber::Flat</enum></property>
+</widget>
+</item>
+<item row="0" column="2">
+<widget class="QLabel" name="lblu_lcurr3">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>mA</string></property>
+</widget>
+</item>
+<item row="1" column="0">
+<widget class="QLabel" name="lbl_lpow3">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Power</string></property>
+</widget>
+</item>
+<item row="1" column="1">
+<widget class="QLCDNumber" name="m_lcdPowerL3">
+ <property name="sizePolicy">
+  <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+ </property>
+ <property name="minimumSize"><size><width>0</width><height>30</height></size></property>
+ <property name="digitCount"><number>6</number></property>
+ <property name="segmentStyle"><enum>QLCDNumber::Flat</enum></property>
+</widget>
+</item>
+<item row="1" column="2">
+<widget class="QLabel" name="lblu_lpow3">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>mW</string></property>
+</widget>
+</item>
+<item row="2" column="0">
+<widget class="QLabel" name="lbl_lvolt3">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Voltage</string></property>
+</widget>
+</item>
+<item row="2" column="1">
+<widget class="QLCDNumber" name="m_lcdVoltageL3">
+ <property name="sizePolicy">
+  <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+ </property>
+ <property name="minimumSize"><size><width>0</width><height>30</height></size></property>
+ <property name="digitCount"><number>6</number></property>
+ <property name="segmentStyle"><enum>QLCDNumber::Flat</enum></property>
+</widget>
+</item>
+<item row="2" column="2">
+<widget class="QLabel" name="lblu_lvolt3">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>V</string></property>
+</widget>
+</item>
+<item row="3" column="0">
+<widget class="QLabel" name="lbl_lsetcurr3">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Set Current</string></property>
+</widget>
+</item>
+<item row="3" column="1">
+<widget class="QLineEdit" name="m_edSetCurrentL3">
+ <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
+</widget>
+</item>
+<item row="3" column="2">
+<widget class="QLabel" name="lblu_lsetcurr3">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>mA</string></property>
+</widget>
+</item>
+<item row="4" column="0">
+<widget class="QLabel" name="lbl_lsetpow3">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Set Power</string></property>
+</widget>
+</item>
+<item row="4" column="1">
+<widget class="QLineEdit" name="m_edSetPowerL3">
+ <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
+</widget>
+</item>
+<item row="4" column="2">
+<widget class="QLabel" name="lblu_lsetpow3">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>mW</string></property>
+</widget>
+</item>
+</layout>
+  </item>
+  <item>
+   <widget class="QCheckBox" name="m_ckbLaserL3">
+    <property name="text"><string>Laser Output</string></property>
+   </widget>
+  </item>
+  <item>
+   <spacer name="vs_laser3">
+    <property name="orientation"><enum>Qt::Vertical</enum></property>
+    <property name="sizeHint" stdset="0"><size><width>20</width><height>16</height></size></property>
+   </spacer>
+  </item>
+ </layout>
+</widget>
+<widget class="QWidget" name="m_pageLaser4">
+ <attribute name="label"><string>Laser 4</string></attribute>
+ <layout class="QVBoxLayout" name="vl_laser4">
+  <property name="spacing"><number>4</number></property>
+  <property name="leftMargin"><number>2</number></property>
+  <property name="topMargin"><number>2</number></property>
+  <property name="rightMargin"><number>2</number></property>
+  <property name="bottomMargin"><number>2</number></property>
+  <item>
+<layout class="QGridLayout" name="gl_laser4">
+ <property name="horizontalSpacing"><number>4</number></property>
+ <property name="verticalSpacing"><number>4</number></property>
+<item row="0" column="0">
+<widget class="QLabel" name="lbl_lcurr4">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Current</string></property>
+</widget>
+</item>
+<item row="0" column="1">
+<widget class="QLCDNumber" name="m_lcdCurrentL4">
+ <property name="sizePolicy">
+  <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+ </property>
+ <property name="minimumSize"><size><width>0</width><height>30</height></size></property>
+ <property name="digitCount"><number>6</number></property>
+ <property name="segmentStyle"><enum>QLCDNumber::Flat</enum></property>
+</widget>
+</item>
+<item row="0" column="2">
+<widget class="QLabel" name="lblu_lcurr4">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>mA</string></property>
+</widget>
+</item>
+<item row="1" column="0">
+<widget class="QLabel" name="lbl_lpow4">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Power</string></property>
+</widget>
+</item>
+<item row="1" column="1">
+<widget class="QLCDNumber" name="m_lcdPowerL4">
+ <property name="sizePolicy">
+  <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+ </property>
+ <property name="minimumSize"><size><width>0</width><height>30</height></size></property>
+ <property name="digitCount"><number>6</number></property>
+ <property name="segmentStyle"><enum>QLCDNumber::Flat</enum></property>
+</widget>
+</item>
+<item row="1" column="2">
+<widget class="QLabel" name="lblu_lpow4">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>mW</string></property>
+</widget>
+</item>
+<item row="2" column="0">
+<widget class="QLabel" name="lbl_lvolt4">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Voltage</string></property>
+</widget>
+</item>
+<item row="2" column="1">
+<widget class="QLCDNumber" name="m_lcdVoltageL4">
+ <property name="sizePolicy">
+  <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+ </property>
+ <property name="minimumSize"><size><width>0</width><height>30</height></size></property>
+ <property name="digitCount"><number>6</number></property>
+ <property name="segmentStyle"><enum>QLCDNumber::Flat</enum></property>
+</widget>
+</item>
+<item row="2" column="2">
+<widget class="QLabel" name="lblu_lvolt4">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>V</string></property>
+</widget>
+</item>
+<item row="3" column="0">
+<widget class="QLabel" name="lbl_lsetcurr4">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Set Current</string></property>
+</widget>
+</item>
+<item row="3" column="1">
+<widget class="QLineEdit" name="m_edSetCurrentL4">
+ <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
+</widget>
+</item>
+<item row="3" column="2">
+<widget class="QLabel" name="lblu_lsetcurr4">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>mA</string></property>
+</widget>
+</item>
+<item row="4" column="0">
+<widget class="QLabel" name="lbl_lsetpow4">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Set Power</string></property>
+</widget>
+</item>
+<item row="4" column="1">
+<widget class="QLineEdit" name="m_edSetPowerL4">
+ <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
+</widget>
+</item>
+<item row="4" column="2">
+<widget class="QLabel" name="lblu_lsetpow4">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>mW</string></property>
+</widget>
+</item>
+</layout>
+  </item>
+  <item>
+   <widget class="QCheckBox" name="m_ckbLaserL4">
+    <property name="text"><string>Laser Output</string></property>
+   </widget>
+  </item>
+  <item>
+   <spacer name="vs_laser4">
+    <property name="orientation"><enum>Qt::Vertical</enum></property>
+    <property name="sizeHint" stdset="0"><size><width>20</width><height>16</height></size></property>
+   </spacer>
+  </item>
+ </layout>
+</widget>
+</widget>
+  </item>
+ </layout>
+</widget>
       </item>
       <item>
-       <widget class="QGroupBox" name="m_grpTec">
-        <property name="title"><string>TEC channels</string></property>
-        <layout class="QVBoxLayout" name="vl_grpTec">
-         <item>
-          <widget class="QToolBox" name="m_toolBoxTec">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Preferred" vsizetype="Expanding"><horstretch>0</horstretch><verstretch>1</verstretch></sizepolicy>
-           </property>
-           <property name="currentIndex"><number>0</number></property>
-      <widget class="QWidget" name="m_pageTec1">
-       <property name="geometry"><rect><x>0</x><y>0</y><width>240</width><height>360</height></rect></property>
-       <attribute name="label"><string>TEC 1</string></attribute>
-       <layout class="QVBoxLayout" name="vl_tec1">
-        <property name="leftMargin"><number>2</number></property>
-        <property name="topMargin"><number>2</number></property>
-        <property name="rightMargin"><number>2</number></property>
-        <property name="bottomMargin"><number>2</number></property>
-           <item>
-            <layout class="QHBoxLayout" name="hl_ttemp1">
-             <item>
-              <widget class="QLabel" name="lbl_ttemp1">
-               <property name="text"><string>Temperature</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLCDNumber" name="m_lcdTempT1">
-               <property name="minimumSize"><size><width>0</width><height>26</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_ttemp1">
-               <property name="text"><string>&#176;C</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_tsettemp1">
-             <item>
-              <widget class="QLabel" name="lbl_tsettemp1">
-               <property name="text"><string>Set Temperature</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="m_edSetTempT1">
-               <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_tsettemp1">
-               <property name="text"><string>&#176;C</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <widget class="QCheckBox" name="m_ckbTecT1">
-             <property name="text"><string>TEC Output</string></property>
-            </widget>
-           </item>
-           <item>
-            <spacer name="vs_tec1">
-             <property name="orientation"><enum>Qt::Vertical</enum></property>
-             <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
-            </spacer>
-           </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="m_pageTec2">
-       <property name="geometry"><rect><x>0</x><y>0</y><width>240</width><height>360</height></rect></property>
-       <attribute name="label"><string>TEC 2</string></attribute>
-       <layout class="QVBoxLayout" name="vl_tec2">
-        <property name="leftMargin"><number>2</number></property>
-        <property name="topMargin"><number>2</number></property>
-        <property name="rightMargin"><number>2</number></property>
-        <property name="bottomMargin"><number>2</number></property>
-           <item>
-            <layout class="QHBoxLayout" name="hl_ttemp2">
-             <item>
-              <widget class="QLabel" name="lbl_ttemp2">
-               <property name="text"><string>Temperature</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLCDNumber" name="m_lcdTempT2">
-               <property name="minimumSize"><size><width>0</width><height>26</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_ttemp2">
-               <property name="text"><string>&#176;C</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_tsettemp2">
-             <item>
-              <widget class="QLabel" name="lbl_tsettemp2">
-               <property name="text"><string>Set Temperature</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="m_edSetTempT2">
-               <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_tsettemp2">
-               <property name="text"><string>&#176;C</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <widget class="QCheckBox" name="m_ckbTecT2">
-             <property name="text"><string>TEC Output</string></property>
-            </widget>
-           </item>
-           <item>
-            <spacer name="vs_tec2">
-             <property name="orientation"><enum>Qt::Vertical</enum></property>
-             <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
-            </spacer>
-           </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="m_pageTec3">
-       <property name="geometry"><rect><x>0</x><y>0</y><width>240</width><height>360</height></rect></property>
-       <attribute name="label"><string>TEC 3</string></attribute>
-       <layout class="QVBoxLayout" name="vl_tec3">
-        <property name="leftMargin"><number>2</number></property>
-        <property name="topMargin"><number>2</number></property>
-        <property name="rightMargin"><number>2</number></property>
-        <property name="bottomMargin"><number>2</number></property>
-           <item>
-            <layout class="QHBoxLayout" name="hl_ttemp3">
-             <item>
-              <widget class="QLabel" name="lbl_ttemp3">
-               <property name="text"><string>Temperature</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLCDNumber" name="m_lcdTempT3">
-               <property name="minimumSize"><size><width>0</width><height>26</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_ttemp3">
-               <property name="text"><string>&#176;C</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_tsettemp3">
-             <item>
-              <widget class="QLabel" name="lbl_tsettemp3">
-               <property name="text"><string>Set Temperature</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="m_edSetTempT3">
-               <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_tsettemp3">
-               <property name="text"><string>&#176;C</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <widget class="QCheckBox" name="m_ckbTecT3">
-             <property name="text"><string>TEC Output</string></property>
-            </widget>
-           </item>
-           <item>
-            <spacer name="vs_tec3">
-             <property name="orientation"><enum>Qt::Vertical</enum></property>
-             <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
-            </spacer>
-           </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="m_pageTec4">
-       <property name="geometry"><rect><x>0</x><y>0</y><width>240</width><height>360</height></rect></property>
-       <attribute name="label"><string>TEC 4</string></attribute>
-       <layout class="QVBoxLayout" name="vl_tec4">
-        <property name="leftMargin"><number>2</number></property>
-        <property name="topMargin"><number>2</number></property>
-        <property name="rightMargin"><number>2</number></property>
-        <property name="bottomMargin"><number>2</number></property>
-           <item>
-            <layout class="QHBoxLayout" name="hl_ttemp4">
-             <item>
-              <widget class="QLabel" name="lbl_ttemp4">
-               <property name="text"><string>Temperature</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLCDNumber" name="m_lcdTempT4">
-               <property name="minimumSize"><size><width>0</width><height>26</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_ttemp4">
-               <property name="text"><string>&#176;C</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="hl_tsettemp4">
-             <item>
-              <widget class="QLabel" name="lbl_tsettemp4">
-               <property name="text"><string>Set Temperature</string></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="m_edSetTempT4">
-               <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="lblu_tsettemp4">
-               <property name="text"><string>&#176;C</string></property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <widget class="QCheckBox" name="m_ckbTecT4">
-             <property name="text"><string>TEC Output</string></property>
-            </widget>
-           </item>
-           <item>
-            <spacer name="vs_tec4">
-             <property name="orientation"><enum>Qt::Vertical</enum></property>
-             <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
-            </spacer>
-           </item>
-       </layout>
-      </widget>
-          </widget>
-         </item>
-        </layout>
-       </widget>
+<widget class="QGroupBox" name="m_grpTec">
+ <property name="title"><string>TEC channels</string></property>
+ <layout class="QVBoxLayout" name="vl_tec">
+  <property name="spacing"><number>4</number></property>
+  <property name="leftMargin"><number>2</number></property>
+  <property name="topMargin"><number>2</number></property>
+  <property name="rightMargin"><number>2</number></property>
+  <property name="bottomMargin"><number>2</number></property>
+  <item>
+<widget class="QToolBox" name="m_toolBoxTec">
+ <property name="sizePolicy">
+  <sizepolicy hsizetype="Preferred" vsizetype="Expanding"><horstretch>0</horstretch><verstretch>1</verstretch></sizepolicy>
+ </property>
+ <property name="currentIndex"><number>0</number></property>
+<widget class="QWidget" name="m_pageTec1">
+ <attribute name="label"><string>TEC 1</string></attribute>
+ <layout class="QVBoxLayout" name="vl_tec1">
+  <property name="spacing"><number>4</number></property>
+  <property name="leftMargin"><number>2</number></property>
+  <property name="topMargin"><number>2</number></property>
+  <property name="rightMargin"><number>2</number></property>
+  <property name="bottomMargin"><number>2</number></property>
+  <item>
+<layout class="QGridLayout" name="gl_tec1">
+ <property name="horizontalSpacing"><number>4</number></property>
+ <property name="verticalSpacing"><number>4</number></property>
+<item row="0" column="0">
+<widget class="QLabel" name="lbl_ttemp1">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Temperature</string></property>
+</widget>
+</item>
+<item row="0" column="1">
+<widget class="QLCDNumber" name="m_lcdTempT1">
+ <property name="sizePolicy">
+  <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+ </property>
+ <property name="minimumSize"><size><width>0</width><height>30</height></size></property>
+ <property name="digitCount"><number>6</number></property>
+ <property name="segmentStyle"><enum>QLCDNumber::Flat</enum></property>
+</widget>
+</item>
+<item row="0" column="2">
+<widget class="QLabel" name="lblu_ttemp1">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>&#176;C</string></property>
+</widget>
+</item>
+<item row="1" column="0">
+<widget class="QLabel" name="lbl_tsettemp1">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Set Temperature</string></property>
+</widget>
+</item>
+<item row="1" column="1">
+<widget class="QLineEdit" name="m_edSetTempT1">
+ <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
+</widget>
+</item>
+<item row="1" column="2">
+<widget class="QLabel" name="lblu_tsettemp1">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>&#176;C</string></property>
+</widget>
+</item>
+</layout>
+  </item>
+  <item>
+   <widget class="QCheckBox" name="m_ckbTecT1">
+    <property name="text"><string>TEC Output</string></property>
+   </widget>
+  </item>
+  <item>
+   <spacer name="vs_tec1">
+    <property name="orientation"><enum>Qt::Vertical</enum></property>
+    <property name="sizeHint" stdset="0"><size><width>20</width><height>16</height></size></property>
+   </spacer>
+  </item>
+ </layout>
+</widget>
+<widget class="QWidget" name="m_pageTec2">
+ <attribute name="label"><string>TEC 2</string></attribute>
+ <layout class="QVBoxLayout" name="vl_tec2">
+  <property name="spacing"><number>4</number></property>
+  <property name="leftMargin"><number>2</number></property>
+  <property name="topMargin"><number>2</number></property>
+  <property name="rightMargin"><number>2</number></property>
+  <property name="bottomMargin"><number>2</number></property>
+  <item>
+<layout class="QGridLayout" name="gl_tec2">
+ <property name="horizontalSpacing"><number>4</number></property>
+ <property name="verticalSpacing"><number>4</number></property>
+<item row="0" column="0">
+<widget class="QLabel" name="lbl_ttemp2">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Temperature</string></property>
+</widget>
+</item>
+<item row="0" column="1">
+<widget class="QLCDNumber" name="m_lcdTempT2">
+ <property name="sizePolicy">
+  <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+ </property>
+ <property name="minimumSize"><size><width>0</width><height>30</height></size></property>
+ <property name="digitCount"><number>6</number></property>
+ <property name="segmentStyle"><enum>QLCDNumber::Flat</enum></property>
+</widget>
+</item>
+<item row="0" column="2">
+<widget class="QLabel" name="lblu_ttemp2">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>&#176;C</string></property>
+</widget>
+</item>
+<item row="1" column="0">
+<widget class="QLabel" name="lbl_tsettemp2">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Set Temperature</string></property>
+</widget>
+</item>
+<item row="1" column="1">
+<widget class="QLineEdit" name="m_edSetTempT2">
+ <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
+</widget>
+</item>
+<item row="1" column="2">
+<widget class="QLabel" name="lblu_tsettemp2">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>&#176;C</string></property>
+</widget>
+</item>
+</layout>
+  </item>
+  <item>
+   <widget class="QCheckBox" name="m_ckbTecT2">
+    <property name="text"><string>TEC Output</string></property>
+   </widget>
+  </item>
+  <item>
+   <spacer name="vs_tec2">
+    <property name="orientation"><enum>Qt::Vertical</enum></property>
+    <property name="sizeHint" stdset="0"><size><width>20</width><height>16</height></size></property>
+   </spacer>
+  </item>
+ </layout>
+</widget>
+<widget class="QWidget" name="m_pageTec3">
+ <attribute name="label"><string>TEC 3</string></attribute>
+ <layout class="QVBoxLayout" name="vl_tec3">
+  <property name="spacing"><number>4</number></property>
+  <property name="leftMargin"><number>2</number></property>
+  <property name="topMargin"><number>2</number></property>
+  <property name="rightMargin"><number>2</number></property>
+  <property name="bottomMargin"><number>2</number></property>
+  <item>
+<layout class="QGridLayout" name="gl_tec3">
+ <property name="horizontalSpacing"><number>4</number></property>
+ <property name="verticalSpacing"><number>4</number></property>
+<item row="0" column="0">
+<widget class="QLabel" name="lbl_ttemp3">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Temperature</string></property>
+</widget>
+</item>
+<item row="0" column="1">
+<widget class="QLCDNumber" name="m_lcdTempT3">
+ <property name="sizePolicy">
+  <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+ </property>
+ <property name="minimumSize"><size><width>0</width><height>30</height></size></property>
+ <property name="digitCount"><number>6</number></property>
+ <property name="segmentStyle"><enum>QLCDNumber::Flat</enum></property>
+</widget>
+</item>
+<item row="0" column="2">
+<widget class="QLabel" name="lblu_ttemp3">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>&#176;C</string></property>
+</widget>
+</item>
+<item row="1" column="0">
+<widget class="QLabel" name="lbl_tsettemp3">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Set Temperature</string></property>
+</widget>
+</item>
+<item row="1" column="1">
+<widget class="QLineEdit" name="m_edSetTempT3">
+ <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
+</widget>
+</item>
+<item row="1" column="2">
+<widget class="QLabel" name="lblu_tsettemp3">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>&#176;C</string></property>
+</widget>
+</item>
+</layout>
+  </item>
+  <item>
+   <widget class="QCheckBox" name="m_ckbTecT3">
+    <property name="text"><string>TEC Output</string></property>
+   </widget>
+  </item>
+  <item>
+   <spacer name="vs_tec3">
+    <property name="orientation"><enum>Qt::Vertical</enum></property>
+    <property name="sizeHint" stdset="0"><size><width>20</width><height>16</height></size></property>
+   </spacer>
+  </item>
+ </layout>
+</widget>
+<widget class="QWidget" name="m_pageTec4">
+ <attribute name="label"><string>TEC 4</string></attribute>
+ <layout class="QVBoxLayout" name="vl_tec4">
+  <property name="spacing"><number>4</number></property>
+  <property name="leftMargin"><number>2</number></property>
+  <property name="topMargin"><number>2</number></property>
+  <property name="rightMargin"><number>2</number></property>
+  <property name="bottomMargin"><number>2</number></property>
+  <item>
+<layout class="QGridLayout" name="gl_tec4">
+ <property name="horizontalSpacing"><number>4</number></property>
+ <property name="verticalSpacing"><number>4</number></property>
+<item row="0" column="0">
+<widget class="QLabel" name="lbl_ttemp4">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Temperature</string></property>
+</widget>
+</item>
+<item row="0" column="1">
+<widget class="QLCDNumber" name="m_lcdTempT4">
+ <property name="sizePolicy">
+  <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+ </property>
+ <property name="minimumSize"><size><width>0</width><height>30</height></size></property>
+ <property name="digitCount"><number>6</number></property>
+ <property name="segmentStyle"><enum>QLCDNumber::Flat</enum></property>
+</widget>
+</item>
+<item row="0" column="2">
+<widget class="QLabel" name="lblu_ttemp4">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>&#176;C</string></property>
+</widget>
+</item>
+<item row="1" column="0">
+<widget class="QLabel" name="lbl_tsettemp4">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>Set Temperature</string></property>
+</widget>
+</item>
+<item row="1" column="1">
+<widget class="QLineEdit" name="m_edSetTempT4">
+ <property name="minimumSize"><size><width>60</width><height>0</height></size></property>
+</widget>
+</item>
+<item row="1" column="2">
+<widget class="QLabel" name="lblu_tsettemp4">
+ <property name="sizePolicy">
+ <sizepolicy hsizetype="Preferred" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy>
+</property>
+ <property name="text"><string>&#176;C</string></property>
+</widget>
+</item>
+</layout>
+  </item>
+  <item>
+   <widget class="QCheckBox" name="m_ckbTecT4">
+    <property name="text"><string>TEC Output</string></property>
+   </widget>
+  </item>
+  <item>
+   <spacer name="vs_tec4">
+    <property name="orientation"><enum>Qt::Vertical</enum></property>
+    <property name="sizeHint" stdset="0"><size><width>20</width><height>16</height></size></property>
+   </spacer>
+  </item>
+ </layout>
+</widget>
+</widget>
+  </item>
+ </layout>
+</widget>
       </item>
      </layout>
     </item>
    </layout>
   </widget>
  </widget>
- <layoutdefault spacing="6" margin="11"/>
+ <layoutdefault spacing="4" margin="4"/>
+ <tabstops>
+  <tabstop>m_toolBoxLaser</tabstop>
+  <tabstop>m_edSetCurrentL1</tabstop>
+  <tabstop>m_edSetPowerL1</tabstop>
+  <tabstop>m_ckbLaserL1</tabstop>
+  <tabstop>m_edSetCurrentL2</tabstop>
+  <tabstop>m_edSetPowerL2</tabstop>
+  <tabstop>m_ckbLaserL2</tabstop>
+  <tabstop>m_edSetCurrentL3</tabstop>
+  <tabstop>m_edSetPowerL3</tabstop>
+  <tabstop>m_ckbLaserL3</tabstop>
+  <tabstop>m_edSetCurrentL4</tabstop>
+  <tabstop>m_edSetPowerL4</tabstop>
+  <tabstop>m_ckbLaserL4</tabstop>
+  <tabstop>m_toolBoxTec</tabstop>
+  <tabstop>m_edSetTempT1</tabstop>
+  <tabstop>m_ckbTecT1</tabstop>
+  <tabstop>m_edSetTempT2</tabstop>
+  <tabstop>m_ckbTecT2</tabstop>
+  <tabstop>m_edSetTempT3</tabstop>
+  <tabstop>m_ckbTecT3</tabstop>
+  <tabstop>m_edSetTempT4</tabstop>
+  <tabstop>m_ckbTecT4</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>
