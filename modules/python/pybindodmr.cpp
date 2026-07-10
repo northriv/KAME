@@ -21,11 +21,13 @@
 #include "chardevicedriver.h"
 
 #include "lasermodule.h"
+// XLaserModule is now multi-channel: the former single-channel Payload accessors
+// (temperature/current/power/voltage) are gone. Per-channel readings are exposed as ordinary
+// XScalarEntry nodes (Laser<n>.Current/Power/Voltage, TEC<n>.Temp) and read from Python via the
+// scalar-entry node tree; numLaserChannels()/numTecChannels() report how many exist.
 PyDriverExporter<XLaserModule, XPrimaryDriver> lasermodule([](auto node, auto payload){
-    payload.def("temperature", &XLaserModule::Payload::temperature)
-        .def("current", &XLaserModule::Payload::current)
-        .def("power", &XLaserModule::Payload::power)
-        .def("voltage", &XLaserModule::Payload::voltage);
+    node.def("numLaserChannels", &XLaserModule::numLaserChannels)
+        .def("numTecChannels", &XLaserModule::numTecChannels);
 });
 
 

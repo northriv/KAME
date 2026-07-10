@@ -13,6 +13,8 @@ Usage (stdio transport, launched by Claude Code):
     python kame_mcp_server.py
 """
 import base64
+import functools
+import inspect
 import json
 import os
 import re
@@ -24,6 +26,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 try:
@@ -45,6 +48,136 @@ MANUAL_DOC_PATHS = [
     Path(__file__).parent / "kame-8-en.md",  # deployed (e.g. Contents/Resources)
     Path(__file__).parent.parent.parent / "doc" / "manual" / "kame-8-en.md",  # source tree
 ]
+
+# ---------------------------------------------------------------------------
+# Tool-call logging (JSONL)
+#
+# The MCP server is the single choke point for every tool the assistant
+# invokes, so it is the right place to journal *what the assistant did* —
+# for experiment provenance (reconstructing a report's Methods section) and
+# a rough cost estimate. It CANNOT see the LLM's prompt, response, model, or
+# real token usage — those live entirely in the client. What is recorded is
+# the tool name, its arguments (the executed code is the provenance gold),
+# the result, timing, and a lightweight KAME-state tag captured passively
+# from the activity watcher (no kernel round-trip).
+#
+# The `est_tokens_*` figures are a bytes/4 heuristic of the TOOL PAYLOAD
+# ONLY — a relative "how heavy was this call" gauge, NOT the LLM's real
+# token accounting.
+#
+# Off/on and destination are controlled by env vars KAME_MCP_LOG_DIR /
+# KAME_MCP_NO_LOG and the CLI --log-dir / --no-log (see __main__).
+# ---------------------------------------------------------------------------
+_LOG_ENABLED = os.environ.get("KAME_MCP_NO_LOG") is None
+_LOG_DIR = Path(os.environ.get("KAME_MCP_LOG_DIR",
+                               str(Path.home() / ".kame_mcp_log")))
+_SESSION_ID = uuid.uuid4().hex[:8]
+_LOG_LOCK = threading.Lock()
+_LOG_SEQ = 0
+_ARG_CHARS_CAP = 200_000     # keep code args essentially whole (provenance)
+_RESULT_CHARS_CAP = 20_000   # truncate long result text stored in the log
+
+
+def _clip(s: str, cap: int) -> str:
+    return s if len(s) <= cap else s[:cap] + f"\n...[truncated {len(s) - cap} chars]"
+
+
+def _bound_args(fn, args, kwargs) -> dict:
+    """Map a call's positional/keyword args to their parameter names."""
+    try:
+        bound = inspect.signature(fn).bind(*args, **kwargs)
+        bound.apply_defaults()
+        out = {}
+        for k, v in bound.arguments.items():
+            out[k] = _clip(v, _ARG_CHARS_CAP) if isinstance(v, str) else v
+        return out
+    except Exception:
+        return {"args": [str(a)[:200] for a in args],
+                "kwargs": {k: str(v)[:200] for k, v in kwargs.items()}}
+
+
+def _summarize_result(res):
+    """Return (text, n_images) from a tool's return value."""
+    if isinstance(res, list):
+        texts, n_images = [], 0
+        for r in res:
+            (texts.append(r) if isinstance(r, str) else None)
+            n_images += 0 if isinstance(r, str) else 1
+        return "\n".join(texts), n_images
+    if res is None:
+        return "", 0
+    return (res if isinstance(res, str) else str(res)), 0
+
+
+def _kame_context() -> dict:
+    """Lightweight measurement-state tag from the passive activity watcher."""
+    a = globals().get("_activity")
+    if not isinstance(a, dict):
+        return {}
+    lines = (a.get("code") or "").strip().splitlines()
+    return {
+        "kernel_state": a.get("state"),
+        "cell_exec_count": a.get("execution_count"),
+        "running_cell_first_line": lines[0][:200] if lines else "",
+    }
+
+
+def _write_log(tool, arg_dict, result, t0, t1, error):
+    global _LOG_SEQ
+    text, n_images = _summarize_result(result)
+    chars_in = sum(len(v) for v in arg_dict.values() if isinstance(v, str))
+    chars_out = len(text)
+    with _LOG_LOCK:
+        _LOG_SEQ += 1
+        rec = {
+            "ts": datetime.now().astimezone().isoformat(timespec="milliseconds"),
+            "session_id": _SESSION_ID,
+            "seq": _LOG_SEQ,
+            "tool": tool,
+            "args": arg_dict,
+            "ok": error is None,
+            "error": error,
+            "duration_ms": int((t1 - t0) * 1000),
+            "result_text": _clip(text, _RESULT_CHARS_CAP),
+            "n_images": n_images,
+            "payload_chars_in": chars_in,
+            "payload_chars_out": chars_out,
+            # bytes/4 heuristic of the TOOL PAYLOAD only — NOT LLM tokens
+            "est_tokens_in": chars_in // 4,
+            "est_tokens_out": chars_out // 4,
+            "kame": _kame_context(),
+        }
+        try:
+            _LOG_DIR.mkdir(parents=True, exist_ok=True)
+            path = _LOG_DIR / f"mcp-{datetime.now().strftime('%Y-%m-%d')}.jsonl"
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        except Exception:
+            pass  # a full disk / bad path must not break the tool call
+
+
+def _logged(fn):
+    """Wrap a tool so every call is journaled to JSONL (never raises)."""
+    @functools.wraps(fn)  # preserves signature so FastMCP builds the schema
+    def wrapper(*args, **kwargs):
+        t0 = time.time()
+        result = None
+        error = None
+        try:
+            result = fn(*args, **kwargs)
+            return result
+        except Exception as e:
+            error = repr(e)
+            raise
+        finally:
+            if _LOG_ENABLED:
+                try:
+                    _write_log(fn.__name__, _bound_args(fn, args, kwargs),
+                               result, t0, time.time(), error)
+                except Exception:
+                    pass  # logging must never break a tool call
+    return wrapper
+
 
 server = FastMCP("kame", instructions="""You are connected to a running KAME measurement application
 via its embedded IPython kernel. The `kame` module is pre-imported:
@@ -245,6 +378,7 @@ def _nav_code(path: str) -> str:
 
 
 @server.tool()
+@_logged
 def kame_api() -> str:
     """Return the KAME Python API quick reference.
 
@@ -257,6 +391,7 @@ def kame_api() -> str:
 
 
 @server.tool()
+@_logged
 def kame_manual(section: str = "") -> str:
     """Return the KAME user's manual (Markdown), whole-section at a time.
 
@@ -302,6 +437,7 @@ def kame_manual(section: str = "") -> str:
 
 
 @server.tool()
+@_logged
 def execute_code(code: str) -> list:
     """Execute Python code in KAME's interpreter.
 
@@ -324,6 +460,7 @@ def execute_code(code: str) -> list:
 
 
 @server.tool()
+@_logged
 def execute_code_async(code: str) -> str:
     """Execute long-running Python code asynchronously.
 
@@ -399,6 +536,7 @@ _th.Thread(target=_mcp_run, daemon=True).start()
 
 
 @server.tool()
+@_logged
 def get_result(job_id: str) -> str:
     """Check the status of an async job started with execute_code_async.
 
@@ -417,6 +555,7 @@ _json.dumps(_mcp_jobs.get({repr(job_id)}, {{"status": "unknown"}}))
 
 
 @server.tool()
+@_logged
 def stop_job(job_id: str) -> str:
     """Request a cooperative stop of an async job.
 
@@ -443,6 +582,7 @@ _json.dumps(_r)
 
 
 @server.tool()
+@_logged
 def tree(path: str = "", depth: int = 2) -> str:
     """List child nodes at a given path as an indented tree.
 
@@ -486,6 +626,7 @@ def _mcp_tree(_node, _depth, _max_depth, _indent=0):
 
 
 @server.tool()
+@_logged
 def kame_status() -> str:
     """Check if KAME is running and show basic measurement info."""
     if not CONN_INFO_PATH.exists():
@@ -663,6 +804,7 @@ RELOAD_NOTICE = (
 
 
 @server.tool()
+@_logged
 def notebook_status() -> str:
     """KAME notebook overview: open notebooks, kernel busy/idle, and the
     currently (or last) started cell.
@@ -703,6 +845,7 @@ def notebook_status() -> str:
 
 
 @server.tool()
+@_logged
 def notebook_read(path: str = "", with_outputs: bool = False) -> str:
     """Read a notebook's cells with indices (for notebook_edit).
 
@@ -732,6 +875,7 @@ def notebook_read(path: str = "", with_outputs: bool = False) -> str:
 
 
 @server.tool()
+@_logged
 def notebook_edit(path: str, index: int, source: str = "",
                   mode: str = "replace", cell_type: str = "code") -> str:
     """Replace/insert/delete a notebook cell on disk via the Jupyter API.
@@ -839,7 +983,20 @@ if __name__ == "__main__":
                    help="port for sse/http (0 = OS-assigned)")
     p.add_argument("--token", default="",
                    help="bearer token for http transport (optional)")
+    p.add_argument("--log-dir", default="",
+                   help="directory for JSONL tool-call logs "
+                        "(default: ~/.kame_mcp_log; env KAME_MCP_LOG_DIR)")
+    p.add_argument("--no-log", action="store_true",
+                   help="disable tool-call logging (env KAME_MCP_NO_LOG)")
     args = p.parse_args()
+
+    if args.no_log:
+        _LOG_ENABLED = False
+    elif args.log_dir:
+        _LOG_DIR = Path(args.log_dir)
+    if _LOG_ENABLED:
+        print(f"kame-mcp: logging tool calls to {_LOG_DIR} "
+              f"(session {_SESSION_ID})", file=sys.stderr)
 
     if args.transport == "stdio":
         server.run(transport="stdio")
