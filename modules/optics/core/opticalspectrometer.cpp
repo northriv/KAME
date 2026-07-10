@@ -246,7 +246,10 @@ XOpticalSpectrometer::visualize(const Snapshot &shot) {
     if(shot[ *this].m_timeStrobeChanged.isSet() && driver) {
         bool strobe = shot[ *enableStrobe()]; //alredy inverted in analyze().
         if(auto d = dynamic_pointer_cast<XLaserModule>(driver)) {
-            trans( *d->enabled()) = strobe;
+            // XLaserModule is now multi-channel; strobe the first laser channel (the single
+            // laser in a typical spectrometer setup). Formerly d->enabled() (single-channel).
+            if(d->numLaserChannels())
+                trans( *d->laserChannel(1)->enabled()) = strobe;
         }
         if(auto d = dynamic_pointer_cast<XDCSource>(driver)) {
             trans( *d->output()) = strobe;
