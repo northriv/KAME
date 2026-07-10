@@ -278,7 +278,10 @@ public:
     virtual void drawNative(bool colorpicking) override;
     virtual void drawByPainter(QPainter *) override {}
 private:
-    void drawContourLines(const XGraph::ScrPoint s[4], bool colorpicking);
+    //! \a bgc: graph background color, resolved by drawNative() before
+    //! m_mutex is taken (no Snapshot may be taken under m_mutex).
+    void drawContourLines(const XGraph::ScrPoint s[4], bool colorpicking,
+        unsigned int bgc);
     void drawFilledTexture(const XGraph::ScrPoint s[4], bool colorpicking);
 
     XMutex m_mutex;
