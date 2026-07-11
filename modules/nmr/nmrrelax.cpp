@@ -84,7 +84,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
       m_p1Min(create<XDoubleNode>("P1Min", false)),
       m_p1Max(create<XDoubleNode>("P1Max", false)),
       m_p1Next(create<XDoubleNode>("P1Next", true)),
-      m_p1AltNext(create<XDoubleNode>("P1Next", true)),
+      m_p1AltNext(create<XDoubleNode>("P1AltNext", true)), //was mistakenly "P1Next", colliding with m_p1Next for name-based (Python) access.
       m_phase(create<XDoubleNode>("Phase", false, "%.2f")),
       m_freq(create<XDoubleNode>("Freq", false, "%.3f")),
       m_windowFunc(create<XComboNode>("WindowFunc", false, true)),
