@@ -103,18 +103,10 @@ PyDriverExporter<XFilterWheel, XSecondaryDriver> filterwheel([](auto node, auto 
 
 #include "imageprocessor.h"
 PyDriverExporter<XImageProcessor, XSecondaryDriver> imageprocessor([](auto node, auto payload){
-    payload.def("intensities", [](XImageProcessor::Payload &self, unsigned int ch){
-            using namespace Eigen;
-            using RMatrixXd = Matrix<double, Dynamic, Dynamic, RowMajor>;
-            auto cmatrix = Map<const RMatrixXd, 0, Stride<Dynamic, 1>>(
-                &self.intensities(ch).at(0),
-                self.height(), self.width(),
-                Stride<Dynamic, 1>(self.width(), 1));
-            return Ref<const RMatrixXd>(cmatrix);
-        })
-        .def("raw", &XImageProcessor::Payload::raw)
-        .def("numSamples", &XImageProcessor::Payload::numSamples)
-        .def("gainForDisp", &XImageProcessor::Payload::gainForDisp)
+    //intensities/raw/numSamples were removed: nothing ever filled
+    //m_intensities, so the whole accessor family was dead API that
+    //crashed or raised on every call from Python.
+    payload.def("gainForDisp", &XImageProcessor::Payload::gainForDisp)
         .def("width", &XImageProcessor::Payload::width)
         .def("height", &XImageProcessor::Payload::height);
 });

@@ -54,20 +54,6 @@ public:
     const shared_ptr<X2DImage> &rgbImage() const {return m_rgbImage;}
 
     struct Payload : public XSecondaryDriver::Payload {
-        const std::vector<double> &intensities(unsigned int i) const {
-            if(i >= 3)
-                throw std::out_of_range("Index beyond RGB.");
-            return m_intensities[i];
-        }
-        double raw(unsigned int idx_in_seq, unsigned int i) const {
-            const auto &v = intensities(idx_in_seq); //throws if idx_in_seq >= 3
-            if(i >= v.size())
-                //nothing fills m_intensities today, so the vectors are empty;
-                //an unchecked [i] from Python/MCP dereferences an empty vector.
-                throw std::out_of_range("no intensity data stored.");
-            return v[i];
-        }
-        unsigned int numSamples() const {return m_intensities[0].size();}
         double gainForDisp() const {return m_gainForDisp;}
         unsigned int width() const {return m_width;}
         unsigned int height() const {return m_height;}
@@ -78,7 +64,6 @@ public:
         double m_colorGains[3];
         local_shared_ptr<std::vector<uint32_t>> m_summedCounts[3];
         double m_coefficients[3];
-        std::vector<double> m_intensities[3];
         XTime m_timeClearRequested = {};
         unsigned int m_width, m_height;
         unsigned int accumulatedCountRGB() const {
