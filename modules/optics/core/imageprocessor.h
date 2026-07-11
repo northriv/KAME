@@ -60,10 +60,12 @@ public:
             return m_intensities[i];
         }
         double raw(unsigned int idx_in_seq, unsigned int i) const {
-            if(i >= 3)
-                throw std::out_of_range("Index beyond RGB.");
-            double pl__ = intensities(idx_in_seq)[i];
-            return pl__;
+            const auto &v = intensities(idx_in_seq); //throws if idx_in_seq >= 3
+            if(i >= v.size())
+                //nothing fills m_intensities today, so the vectors are empty;
+                //an unchecked [i] from Python/MCP dereferences an empty vector.
+                throw std::out_of_range("no intensity data stored.");
+            return v[i];
         }
         unsigned int numSamples() const {return m_intensities[0].size();}
         double gainForDisp() const {return m_gainForDisp;}

@@ -87,7 +87,11 @@ public:
 	const shared_ptr<XDoubleNode> &dRFFreq() const {return m_dRFFreq;}
 
     struct DECLSPEC_SHARED Payload : public XPrimaryDriver::Payload {
-		Payload() : m_rawDisplayOnly(false), m_numChannelsDisp(0) {}
+		//All scalars must be initialized: a fresh payload is visible to
+		//Python/MCP before the first record, and indeterminate m_numChannels
+		//feeds a division in length().
+		Payload() : m_trigPos(0.0), m_numChannels(0), m_timeInterval(0.0),
+			m_rawDisplayOnly(false), m_trigPosDisp(0.0), m_numChannelsDisp(0), m_timeIntervalDisp(0.0) {}
 		double trigPos() const {return m_trigPos;} ///< unit is interval
 		unsigned int numChannels() const {return m_numChannels;}
 		double timeInterval() const {return m_timeInterval;} //! [sec]

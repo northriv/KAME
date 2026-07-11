@@ -80,12 +80,18 @@ public:
             return m_referenceIntensities[i];
         }
         double plRaw(unsigned int idx_in_seq, unsigned int i) const {
-            double pl__ = sampleIntensities(idx_in_seq)[i];
-            return pl__;
+            const auto &v = sampleIntensities(idx_in_seq);
+            if(i >= v.size())
+                //the vectors stay empty until Sum/Average math tools fill them;
+                //an unchecked [i] from Python/MCP dereferences an empty vector.
+                throw std::out_of_range("sample index beyond stored intensities.");
+            return v[i];
         }
         double plCorr(unsigned int idx_in_seq, unsigned int i) const {
-            double pl__ = sampleIntensitiesCorrected(idx_in_seq)[i];
-            return pl__;
+            const auto &v = sampleIntensitiesCorrected(idx_in_seq);
+            if(i >= v.size())
+                throw std::out_of_range("sample index beyond stored intensities.");
+            return v[i];
         }
         double pl0(unsigned int i) const {
             return plRaw(sequenceLength() - 2, i);

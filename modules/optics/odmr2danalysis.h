@@ -99,6 +99,10 @@ public:
             if(i >= numSummedFrames())
                 throw std::out_of_range("index >= # of images!");
             auto p = m_summedCounts[i];
+            if( !p)
+                //null until the first analyzed frame pair; probing from
+                //Python/MCP before that must not dereference null.
+                throw std::runtime_error("no frame accumulated yet.");
             return *p; //alive as lnong as valid snapshot is held.
         }
     private:

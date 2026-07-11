@@ -218,11 +218,16 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def("isDisabled", [](XNode::Payload &self)->bool{return self.isDisabled();})
         .def("isUIEnabled", [](XNode::Payload &self)->bool{return self.isUIEnabled();});
     py::class_<Snapshot>(m, "Snapshot")
+        //Snapshot construction can trigger bundling, which enters STM negotiation.
+        //The GIL must be released while negotiating: XPythonDriver::analyzeRaw and
+        //Python math-tool functors acquire the GIL from inside an in-flight
+        //transaction, so holding the GIL here while parked in negotiation
+        //deadlocks the whole STM (HANG watchdog abort).
         .def(py::init([](const shared_ptr<XNode> &x){
             if( !x)
                 throw std::runtime_error("Error: not a node.");
             return Snapshot(*x);}
-        ), py::keep_alive<1, 2>())
+        ), py::keep_alive<1, 2>(), py::call_guard<py::gil_scoped_release>())
         .def("__repr__", [](Snapshot &self)->std::string{
             return formatString("<Snapshot@%p>", &self);
         })
@@ -251,27 +256,30 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         }, py::return_value_policy::reference_internal)
         .def("isUpperOf", &Snapshot::isUpperOf);
     py::class_<Transaction, Snapshot>(m, "Transaction")
+        //Construction and commit/commitOrNext enter STM negotiation — release the
+        //GIL for the same reason as the Snapshot constructor above (the
+        //iterate_commit bindings below already do this).
         .def(py::init([](const shared_ptr<XNode> &x){
             if( !x)
                 throw std::runtime_error("Error: not a node.");
             return Transaction(*x);
-        }), py::keep_alive<1, 2>())
+        }), py::keep_alive<1, 2>(), py::call_guard<py::gil_scoped_release>())
         .def("__iter__", [](Transaction &self)->Transaction &{ return self; })
         .def("__next__", [](Transaction &self)->Transaction &{
             if(self.isModified() && self.commitOrNext())
                 throw pybind11::stop_iteration();
             else
                 return self;
-        })
+        }, py::call_guard<py::gil_scoped_release>())
         .def("__repr__", [](Transaction &self)->std::string{
             return formatString("<Transaction@%p>", &self);
         })
         .def("commit", [](Transaction &self) {
             return self.commit();
-        })
+        }, py::call_guard<py::gil_scoped_release>())
         .def("commitOrNext", [](Transaction &self) {
             return self.commitOrNext();
-        })
+        }, py::call_guard<py::gil_scoped_release>())
         .def("__getitem__", [](Transaction &self, shared_ptr<XNode> &node)->py::object{
             if( !node)
                 throw std::runtime_error("Error: not a node.");

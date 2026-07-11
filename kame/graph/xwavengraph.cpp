@@ -152,6 +152,16 @@ XWaveNGraph::Payload::insertPlot(Transaction &tr, const XString &label, int x, i
     const auto &graph(static_cast<XWaveNGraph &>(node()).graph());
     if( !( (y1 < 0) || (y2 < 0) ))
         throw std::out_of_range("Invalid column selection.");
+    //Column indices may come straight from Python (insertPlot binding);
+    //validate every used index before it reaches m_labels[] below —
+    //an out-of-range or negative index reads past the vector (SEGV),
+    //and before setCols() m_labels is empty.
+    int colcnt = (int)m_labels.size();
+    if((x < 0) || (x >= colcnt))
+        throw std::out_of_range("x column out of range.");
+    for(int col: {y1, y2, weight, z})
+        if(col >= colcnt)
+            throw std::out_of_range("column index out of range.");
 
 	if(weight >= 0) {
 		if((m_colw >= 0) && (m_colw != weight))
