@@ -20,6 +20,7 @@
 #include <QStatusBar>
 #include "graph.h"
 #include "graphwidget.h"
+#include <array>
 
 REGISTER_TYPE(XDriverList, MonteCarloDriver, "Monte-Carlo simulation");
 
@@ -212,8 +213,27 @@ XMonteCarloDriver::start() {
     m_hdirx->setUIEnabled(false);
     m_hdiry->setUIEnabled(false);
     m_hdirz->setUIEnabled(false);
+    //FFTW free/alloc must stay OUTSIDE the transaction closure: iterate_commit
+    //re-invokes the closure on every CAS retry, but a free is a side effect the
+    //failed commit cannot roll back — re-running it against the re-read
+    //committed pointers double-frees (heap corruption) and leaks the previous
+    //attempt's buffers. Free once here, allocate once, and only assign inside.
+    int fftlen = MonteCarlo::length() * 4;
+    std::array<fftw_complex*, 3> fftin, fftout;
+    std::array<fftw_plan, 3> fftplan;
+    for(int d = 0; d < 3; d++) {
+        if(shot[ *this].m_fftlen > 0) {
+            fftw_destroy_plan(shot[ *this].m_fftplan[d]);
+            fftw_free(shot[ *this].m_pFFTin[d]);
+            fftw_free(shot[ *this].m_pFFTout[d]);
+        }
+        fftin[d] = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * fftlen * fftlen * fftlen);
+        fftout[d] = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * fftlen * fftlen * fftlen);
+        fftplan[d] = fftw_plan_dft_3d(fftlen, fftlen, fftlen,
+            fftin[d], fftout[d],
+            FFTW_FORWARD, FFTW_ESTIMATE);
+    }
     iterate_commit([=](Transaction &tr){
-    	const Snapshot &shot(tr);
         m_loop.reset(new MonteCarlo(8));
         tr[ *this].m_sumDU = m_loop->internalEnergy() * N_A;
         tr[ *this].m_sumDUav = tr[ *this].m_sumDU;
@@ -235,18 +255,10 @@ XMonteCarloDriver::start() {
         m_lsnGraphChanged = tr[ *m_graph3D].onValueChanged().connectWeakly(
     		shared_from_this(), &XMonteCarloDriver::onGraphChanged);
 
-        int fftlen = MonteCarlo::length() * 4;
         for(int d = 0; d < 3; d++) {
-            if(shot[ *this].m_fftlen > 0) {
-                fftw_destroy_plan(shot[ *this].m_fftplan[d]);
-                fftw_free(shot[ *this].m_pFFTin[d]);
-                fftw_free(shot[ *this].m_pFFTout[d]);
-            }
-            tr[ *this].m_pFFTin[d] = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * fftlen * fftlen * fftlen);
-            tr[ *this].m_pFFTout[d] = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * fftlen * fftlen * fftlen);
-            tr[ *this].m_fftplan[d] = fftw_plan_dft_3d(fftlen, fftlen, fftlen,
-            	shot[ *this].m_pFFTin[d], shot[ *this].m_pFFTout[d],
-            	FFTW_FORWARD, FFTW_ESTIMATE);
+            tr[ *this].m_pFFTin[d] = fftin[d];
+            tr[ *this].m_pFFTout[d] = fftout[d];
+            tr[ *this].m_fftplan[d] = fftplan[d];
         }
         tr[ *this].m_fftlen = fftlen;
     });
