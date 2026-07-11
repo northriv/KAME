@@ -34,36 +34,48 @@ REGISTER_TYPE(XDriverList, JAICameraOverGrablink, "JAI Camera via Euresys grabli
 //---------------------------------------------------------------------------
 XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, bool grablink) :
     XCustomCharInterface(name, runtime, driver) {
-    XScopedLock<XEGrabberInterface> lock( *this);
-    XScopedLock<XRecursiveMutex> slock( s_mutex);
-    if(s_refcnt++ == 0) {
+    std::deque<XString> names;
+    {
+        XScopedLock<XEGrabberInterface> lock( *this);
+        XScopedLock<XRecursiveMutex> slock( s_mutex);
+        if(s_refcnt++ == 0) {
+            try {
+                using namespace Euresys;
+                s_gentl = decltype(s_gentl)(grablink ?
+                            new EGenTL(Grablink()) :
+                            new EGenTL(Coaxlink()));
+                s_discovery = decltype(s_discovery)(new EGrabberDiscovery( *s_gentl));
+            }
+            catch (const std::exception &e) {                                                 // 7
+                gErrPrint(XString("error: ") + e.what());
+            }
+        }
         try {
             using namespace Euresys;
-            s_gentl = decltype(s_gentl)(grablink ?
-                        new EGenTL(Grablink()) :
-                        new EGenTL(Coaxlink()));
-            s_discovery = decltype(s_discovery)(new EGrabberDiscovery( *s_gentl));
+            s_discovery->discover();
+            fprintf(stderr, "eGrabber count:%i; camera count:%i\n", s_discovery->egrabberCount(), s_discovery->cameraCount());
+            for (int i = 0; i < s_discovery->cameraCount(); ++i) {
+                 EGrabberCameraInfo info = s_discovery->cameras(i);
+                 EGrabberInfo grabber = info.grabbers[0];
+                 if(grabber.isRemoteAvailable) {
+                     names.push_back(
+                        formatString("%i:", grabber.deviceIndex) + grabber.deviceModelName);
+                 }
+            }
         }
         catch (const std::exception &e) {                                                 // 7
             gErrPrint(XString("error: ") + e.what());
         }
     }
-    try {
-        using namespace Euresys;
-        s_discovery->discover();
-        fprintf(stderr, "eGrabber count:%i; camera count:%i\n", s_discovery->egrabberCount(), s_discovery->cameraCount());
-        for (int i = 0; i < s_discovery->cameraCount(); ++i) {
-             EGrabberCameraInfo info = s_discovery->cameras(i);
-             EGrabberInfo grabber = info.grabbers[0];
-             if(grabber.isRemoteAvailable) {
-                 trans( *device()).add(
-                    formatString("%i:", grabber.deviceIndex) + grabber.deviceModelName);
-             }
-        }
-    }
-    catch (const std::exception &e) {                                                 // 7
-        gErrPrint(XString("error: ") + e.what());
-    }
+    //Commits happen OUTSIDE the locks: this ctor runs inside the
+    //driver-creation transaction, and s_mutex is shared by every eGrabber
+    //interface — sleeping in nested trans() negotiation while holding it
+    //deadlocks a concurrent camera-driver creation (lock-vs-STM class).
+    if( !names.empty())
+        device()->iterate_commit([&](Transaction &tr){
+            for(auto &s: names)
+                tr[ *device()].add(s);
+        });
 }
 XEGrabberInterface::~XEGrabberInterface() {
     XScopedLock<XEGrabberInterface> lock( *this);
