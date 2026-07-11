@@ -157,14 +157,22 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
             shared_from_this(), &XMicroCAM::onEscapeTouched);
         m_lsnOnSetZeroTouched = tr[ *setZeroPositions()].onTouch().connectWeakly(
             shared_from_this(), &XMicroCAM::onSetZeroTouched);
+        //These four callbacks read/write m_form widgets (m_txtCode, m_btnFreeAll)
+        //— Qt UI work must run on the main thread; a Python/MCP touch() would
+        //otherwise fire them on the scripting thread (cross-thread QTextDocument
+        //access = UB/crash).
         m_lsnOnCutNowTouched = tr[ *cutNow()].onTouch().connectWeakly(
-            shared_from_this(), &XMicroCAM::onCutNowTouched);
+            shared_from_this(), &XMicroCAM::onCutNowTouched,
+            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
         m_lsnOnAppendToListTouched = tr[ *appendToList()].onTouch().connectWeakly(
-            shared_from_this(), &XMicroCAM::onAppendToListTouched);
+            shared_from_this(), &XMicroCAM::onAppendToListTouched,
+            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
         m_lsnOnExecuteTouched = tr[ *execute()].onTouch().connectWeakly(
-            shared_from_this(), &XMicroCAM::onExecuteTouched);
+            shared_from_this(), &XMicroCAM::onExecuteTouched,
+            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
         m_lsnOnFreeAllTouched = tr[ *freeAllAxes()].onTouch().connectWeakly(
-            shared_from_this(), &XMicroCAM::onFreeAllTouched);
+            shared_from_this(), &XMicroCAM::onFreeAllTouched,
+            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
         m_lsnOnTargetChanged = tr[ *targetValue(Axis::Z)].onValueChanged().connectWeakly(
             shared_from_this(), &XMicroCAM::onTargetChanged);
         tr[ *targetValue(Axis::X)].onValueChanged().connect(m_lsnOnTargetChanged);
