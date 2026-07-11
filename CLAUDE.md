@@ -242,6 +242,45 @@ Details, whichever archetype:
   }
   ```
 
+### Driver-authoring rules (from the 2026-07 crash audit — check EVERY new/modified driver against all five)
+
+1. **`iterate_commit` closures must be idempotent** — the closure re-runs on every CAS
+   retry. Never perform a non-rollbackable side effect inside: no `free`/`delete`/
+   `fftw_free` of pointers read from committed state (the failed commit rolls the
+   *pointer* back but not the *free* → double free on retry; `90b92913d`), no hardware
+   I/O, no `gErrPrint`/nested `trans().talk()` (fires once per retry), no conditional
+   writes to ref-captured locals read after commit unless they are reset at the TOP of
+   the closure (`4dcf84649`: a latched `skipped` flag silently dropped records).
+   Allocate/free/print/IO **before or after** the transaction; inside, only read
+   `tr`/`shot` and assign.
+2. **pybind11 Payload bindings must survive the "nothing recorded yet" state** —
+   Python/MCP can call any binding at any moment, including before the first record and
+   between `XSkippedRecordError` commits. Validate shared_ptr non-null, container size
+   against the exact index arithmetic, and dimensions nonzero, then throw
+   `std::runtime_error`/`std::out_of_range` (pybind11 → clean Python exception). Never
+   let a null deref, empty-vector `operator[]`, or Eigen dimension assert reach the C
+   level — that aborts the whole process from the Python thread (`8ebf656a8`,
+   `d5aefdc46`). If a Payload has a user-provided constructor, EVERY scalar member must
+   be in its init list (a fresh Payload without one is value-initialized; with one,
+   omitted scalars are indeterminate — XDSO `m_numChannels` fed 0/0 → SIGFPE).
+3. **Node name strings must be unique among siblings and match the accessor spelling** —
+   `create<>("Name")` collisions leave the later sibling unreachable via Python/.kam/
+   NodeBrowser, and when both are `runtime=false` they corrupt .kam round-trips
+   (`ebe414df6`: two "AnalysisMethod" siblings). After adding a driver, grep its
+   `create<` calls for duplicates and typos.
+4. **Never enter STM negotiation while holding the GIL** — `Snapshot`/`Transaction`
+   construction, `commit`, and `iterate_commit` in a pybind binding need
+   `py::call_guard<py::gil_scoped_release>` (or a manual scoped release): Python driver
+   overrides and math-tool functors acquire the GIL from *inside* in-flight
+   transactions, so GIL-held negotiation deadlocks the STM (HANG watchdog abort) —
+   the GIL is just another "plain mutex" for the rule above (`d5aefdc46`).
+5. **Poll loops and handles must tolerate concurrent close** — back off (`msecsleep`)
+   in the `catch(XInterfaceError&)` path of any `while(!terminated)` poll loop, and
+   null-check any device handle before passing it to a C API that asserts instead of
+   returning an error (libusb: `4cdc728c6`, `9c1e9e40f`). Also never call interface
+   I/O from inside a transaction lambda — it takes the interface mutex, which converts
+   ~30 currently-safe lock sites into the deadlock class above.
+
 ## Ohtaka (ISSP supercomputer) operating rules
 
 When this Claude session is running on the Ohtaka login node (System B at ISSP, U-Tokyo), the login node is a **shared resource** and benchmarks/long jobs must NOT execute there directly. The pool allocator and STM stress / soak tests are the workloads most likely to harm shared interactivity if mis-run.
