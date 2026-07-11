@@ -294,9 +294,13 @@
  <customwidgets>
  </customwidgets>
  <tabstops>
+  <tabstop>m_ledAlarm</tabstop>
+  <tabstop>m_ledWarning</tabstop>
   <tabstop>m_ckbControl</tabstop>
   <tabstop>m_btnOpenValve</tabstop>
   <tabstop>m_btnCloseValve</tabstop>
+  <tabstop>m_slTarget</tabstop>
+  <tabstop>m_dblTarget</tabstop>
   <tabstop>m_edRampTime</tabstop>
  </tabstops>
  <includes>

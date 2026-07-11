@@ -2187,6 +2187,7 @@
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <tabstops>
+  <tabstop>m_toolBox</tabstop>
   <tabstop>m_cmbHeaterMode</tabstop>
   <tabstop>m_cmbSourceChannel</tabstop>
   <tabstop>m_edTargetTemp</tabstop>
@@ -2213,8 +2214,38 @@
   <tabstop>m_cmbExtDevice2</tabstop>
   <tabstop>m_cmbExtDCSrcCh2</tabstop>
   <tabstop>m_ckbExtIsPositive2</tabstop>
+  <tabstop>m_cmbHeaterMode3</tabstop>
+  <tabstop>m_cmbSourceChannel3</tabstop>
+  <tabstop>m_edTargetTemp3</tabstop>
+  <tabstop>m_edManHeater3</tabstop>
+  <tabstop>m_cmbPowerRange3</tabstop>
+  <tabstop>m_edPowerMax3</tabstop>
+  <tabstop>m_edPowerMin3</tabstop>
+  <tabstop>m_edP3</tabstop>
+  <tabstop>m_edI3</tabstop>
+  <tabstop>m_edD3</tabstop>
+  <tabstop>m_cmbExtDevice3</tabstop>
+  <tabstop>m_cmbExtDCSrcCh3</tabstop>
+  <tabstop>m_ckbExtIsPositive3</tabstop>
+  <tabstop>m_cmbHeaterMode4</tabstop>
+  <tabstop>m_cmbSourceChannel4</tabstop>
+  <tabstop>m_edTargetTemp4</tabstop>
+  <tabstop>m_edManHeater4</tabstop>
+  <tabstop>m_cmbPowerRange4</tabstop>
+  <tabstop>m_edPowerMax4</tabstop>
+  <tabstop>m_edPowerMin4</tabstop>
+  <tabstop>m_edP4</tabstop>
+  <tabstop>m_edI4</tabstop>
+  <tabstop>m_edD4</tabstop>
+  <tabstop>m_cmbExtDevice4</tabstop>
+  <tabstop>m_cmbExtDCSrcCh4</tabstop>
+  <tabstop>m_ckbExtIsPositive4</tabstop>
   <tabstop>m_cmbSetupChannel</tabstop>
   <tabstop>m_cmbExcitation</tabstop>
+  <tabstop>m_cmbThermometerSoft</tabstop>
+  <tabstop>m_ckbChannelEnabled</tabstop>
+  <tabstop>m_dsbChannelDwellSec</tabstop>
+  <tabstop>m_txtChannelInfo</tabstop>
  </tabstops>
  <resources/>
  <connections/>

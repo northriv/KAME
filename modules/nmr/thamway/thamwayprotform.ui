@@ -420,7 +420,15 @@
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <tabstops>
   <tabstop>m_ckbRFON</tabstop>
+  <tabstop>m_ledWarn</tabstop>
   <tabstop>m_edFreq</tabstop>
+  <tabstop>m_slOutput</tabstop>
+  <tabstop>m_dblOutput</tabstop>
+  <tabstop>m_slRXGain</tabstop>
+  <tabstop>m_dblRXGain</tabstop>
+  <tabstop>m_slRXPhase</tabstop>
+  <tabstop>m_dblRXPhase</tabstop>
+  <tabstop>m_edRXLPFBW</tabstop>
  </tabstops>
  <resources/>
  <connections/>

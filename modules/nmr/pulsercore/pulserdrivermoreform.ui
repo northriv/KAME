@@ -1653,6 +1653,10 @@
   <tabstop>m_edQAMLevel2</tabstop>
   <tabstop>m_edQAMDelay1</tabstop>
   <tabstop>m_edQAMDelay2</tabstop>
+  <tabstop>m_edODMRReadPulseSetupTime</tabstop>
+  <tabstop>m_edODMRReadPulseHoldTime</tabstop>
+  <tabstop>m_edODMRSaturationPW</tabstop>
+  <tabstop>m_edODMRReadTimeOriginShift</tabstop>
  </tabstops>
  <resources/>
  <connections/>
