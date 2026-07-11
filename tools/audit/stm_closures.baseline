@@ -1,0 +1,9 @@
+# Grandfathered findings (ratchet): a (file, kind) pair may
+# not exceed its count here. Regenerate after fixing with:
+#   python3 tools/audit/check_stm_closures.py --update-baseline kame modules
+2	kame/driver/primarydriver.cpp	gErrPrint
+1	kame/graph/graphntoolbox.cpp	gErrPrint
+18	kame/script/xpythonmodule.cpp	gil
+1	kame/xnodeconnector.cpp	gErrPrint
+2	modules/nmr/nmrrelax.cpp	gErrPrint
+1	modules/nmr/pulseanalyzer.cpp	gErrPrint

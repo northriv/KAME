@@ -244,6 +244,14 @@ Details, whichever archetype:
 
 ### Driver-authoring rules (from the 2026-07 crash audit — check EVERY new/modified driver against all five)
 
+Rules 1, 3, and 4 are enforced mechanically by `tools/audit/run_audits.sh`
+(node-name collisions, iterate_commit side effects, pybind GIL) — run it after
+touching any driver; it also runs as a pre-commit hook (enable once per clone:
+`git config core.hooksPath .githooks`) and in CI (`.github/workflows/audit.yml`).
+Pre-existing findings are grandfathered in `tools/audit/stm_closures.baseline`
+(ratchet: counts may only go down; regenerate with `--update-baseline` after
+fixing some). Suppress a reviewed false positive with `// audit-ok: <reason>`.
+
 1. **`iterate_commit` closures must be idempotent** — the closure re-runs on every CAS
    retry. Never perform a non-rollbackable side effect inside: no `free`/`delete`/
    `fftw_free` of pointers read from committed state (the failed commit rolls the
