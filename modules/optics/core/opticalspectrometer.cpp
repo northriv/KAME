@@ -358,6 +358,8 @@ XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
 		}
 		catch (XKameError &e) {
 			e.print(getLabel());
+			if( !terminated)
+				msecsleep(1000); //back off on error (e.g. dead device) so the loop does not hammer.
 			continue;
 		}
 		finishWritingRaw(writer, time_awared, XTime::now());

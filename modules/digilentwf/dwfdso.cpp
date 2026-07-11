@@ -349,6 +349,8 @@ XDigilentWFDSO::executeReadAI(const atomic<bool> &terminated) {
         }
         catch (XInterface::XInterfaceError &e) {
             e.print(getLabel());
+            if( !terminated)
+                msecsleep(1000); //back off on error (e.g. dead device) so the loop does not hammer.
         }
     }
     return NULL;
