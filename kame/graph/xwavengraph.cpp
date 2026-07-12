@@ -306,7 +306,7 @@ XWaveNGraph::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, cons
         "%Y/%m/%d %H:%M:%S") << std::endl;
 
     auto &p(shot[ *this]);
-    shared_ptr<Payload::ColumnBase> colw;
+    shared_ptr<const Payload::ColumnBase> colw;
     if(p.m_colw >= 0) colw = p.m_cols[p.m_colw];
     int written_rows = 0;
     for(unsigned int i = 0; i < rowcnt; i++) {

@@ -96,7 +96,7 @@ public:
         unsigned int height() const {return m_height;}
         unsigned int stride() const {return m_stride;} //stride != width when antishake is on.
         unsigned int firstPixel() const {return m_firstPixel;} //not zero when antishake is on.
-        local_shared_ptr<std::vector<uint32_t>> rawCounts() const {return m_rawCounts;}
+        local_shared_ptr<const std::vector<uint32_t>> rawCounts() const {return m_rawCounts;}
         local_shared_ptr<const std::vector<uint32_t>> darkCounts() const {return m_darkCounts;}
 //    private:
 //        friend class XDigitalCamera;
@@ -110,7 +110,10 @@ public:
         unsigned int m_dark;
         unsigned int m_width, m_height;
         local_shared_ptr<const std::vector<uint32_t>> m_darkCounts;
-        local_shared_ptr<std::vector<uint32_t>> m_rawCounts;
+        //pointer-to-const: the pointee is shared with every live Snapshot
+        //(shallow Payload clone) — mutate only the local buffer in
+        //setGrayImage() before assigning a fresh pointer here.
+        local_shared_ptr<const std::vector<uint32_t>> m_rawCounts;
         shared_ptr<const QImage> m_qimage;
         double m_cogXOrig, m_cogYOrig; //for antishake.
         std::vector<uint32_t> m_histogram;

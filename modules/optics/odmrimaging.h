@@ -115,8 +115,8 @@ public:
         unsigned int height() const {return m_height;}
         unsigned int sequenceLength() const {return (unsigned int)m_sequence;}
         Sequence sequence() const {return m_sequence;}
-        local_shared_ptr<std::vector<uint32_t>> rawCountsPLOff() const {return m_summedCounts[sequenceLength() - 2];}
-        local_shared_ptr<std::vector<uint32_t>> rawCountsPLOn() const {return m_summedCounts[sequenceLength() - 1];}
+        local_shared_ptr<const std::vector<uint32_t>> rawCountsPLOff() const {return m_summedCounts[sequenceLength() - 2];}
+        local_shared_ptr<const std::vector<uint32_t>> rawCountsPLOn() const {return m_summedCounts[sequenceLength() - 1];}
         unsigned int accumulated() const {return std::min(
             m_accumulated[sequenceLength() - 1], m_accumulated[sequenceLength() - 2]);}
     protected:
@@ -125,7 +125,9 @@ public:
         double m_gainForDisp;
         unsigned int m_accumulated[4];
         unsigned int m_skippedFrames; //sa precedingSkips()
-        local_shared_ptr<std::vector<uint32_t>> m_summedCounts[4];//MW off and on.
+        //pointer-to-const: shared with every live Snapshot (shallow Payload
+        //clone) — accumulate into a local buffer, then assign a fresh pointer.
+        local_shared_ptr<const std::vector<uint32_t>> m_summedCounts[4];//MW off and on.
         double m_coefficients[4];
         std::vector<double> m_sampleIntensities[4];
         std::vector<double> m_sampleIntensitiesCorrected[4];

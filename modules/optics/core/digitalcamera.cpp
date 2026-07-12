@@ -410,8 +410,9 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
         uint64_t cogx = 0u, cogy = 0u, toti = 0u;
         {
             //ignores pixels darker than vignore value.
-            uint32_t *raw = &tr[ *this].m_rawCounts->at(0);
-            raw = &tr[ *this].m_rawCounts->at(0);
+            //reads/writes below go through the local fresh buffer (== the
+            //pointer just assigned to m_rawCounts), never the const member.
+            const uint32_t *raw = &rawCountsNext->at(0);
             for(unsigned int y = 0; y < height; ++y) {
                 for(unsigned int x  = 0; x < width; ++x) {
                    uint64_t v = *raw++;
@@ -471,7 +472,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                 x = llrint(x * frac);
             {
                 //convolution.
-                uint32_t *raw = &tr[ *this].m_rawCounts->at(tr[ *this].firstPixel());
+                uint32_t *raw = &rawCountsNext->at(tr[ *this].firstPixel());
                 unsigned int stride = tr[ *this].stride();
                 unsigned int width = tr[ *this].width();
                 unsigned int height = tr[ *this].height();
@@ -480,7 +481,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                 for(int k = 0; k < kernel_len; ++k) {
                     cache_orig_lines[k].resize(width + kernel_len - 1);
                     const uint32_t *bg = raw - (kernel_len - 1)/2 + (k - (int)(kernel_len - 1)/2) * (int)stride;
-                    assert(bg >= &tr[ *this].m_rawCounts->at(0));
+                    assert(bg >= &rawCountsNext->at(0));
                     std::copy(bg, bg + cache_orig_lines[k].size(), &cache_orig_lines[k][0]);
                 }
                 int64_t sum = 0;
@@ -506,7 +507,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                             std::copy(cache_orig_lines[k + 1].begin(), cache_orig_lines[k + 1].end(), &cache_orig_lines[k][0]);
                         }
                         const uint32_t *bg = raw - (kernel_len - 1)/2 + (kernel_len - 1 - (int)(kernel_len - 1)/2) * (int)stride;
-                        assert(bg + cache_orig_lines[0].size() <= &tr[ *this].m_rawCounts->at(0) + (height + 2*pixels_skip) * stride);
+                        assert(bg + cache_orig_lines[0].size() <= &rawCountsNext->at(0) + (height + 2*pixels_skip) * stride);
                         std::copy(bg, bg + cache_orig_lines[0].size(), &cache_orig_lines[kernel_len - 1][0]);
                     }
                 }

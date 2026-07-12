@@ -218,8 +218,9 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
     tr[ *this].m_height = height;
     if(clear) {
         for(unsigned int i = 0; i < seq_len; ++i) {
-            tr[ *this].m_summedCounts[i] = m_pool.allocate(width * height);
-            std::fill(tr[ *this].m_summedCounts[i]->begin(), tr[ *this].m_summedCounts[i]->end(), 0);
+            auto fresh = m_pool.allocate(width * height);
+            std::fill(fresh->begin(), fresh->end(), 0);
+            tr[ *this].m_summedCounts[i] = fresh; //the member is pointer-to-const; fill before assigning.
             tr[ *this].m_accumulated[i] = 0;
         }
         tr[ *this].m_skippedFrames = 0;

@@ -994,16 +994,20 @@ XNIDAQmxPulser::executeFillBuffer(const atomic<bool> &terminating) {
 void
 XNIDAQmxPulser::createNativePatterns(Transaction &tr) {
 	const Snapshot &shot(tr);
-	tr[ *this].m_genPatternListNext.reset(new std::vector<GenPattern>);
+	//Build into a local, then assign: writing through the payload member after
+	//publication would mutate a buffer shared with live Snapshots (the RT
+	//generation thread copies these pointers from its own Snapshot).
+	auto patlist_next = std::make_shared<std::vector<GenPattern>>();
 	uint32_t pat = shot[ *this].relPatList().back().pattern;
 	for(Payload::RelPatList::const_iterator it = shot[ *this].relPatList().begin();
 		it != shot[ *this].relPatList().end(); it++) {
 		uint64_t tonext = it->toappear;
 
 		GenPattern genpat(pat, tonext);
-		tr[ *this].m_genPatternListNext->push_back(genpat);
+		patlist_next->push_back(genpat);
 		pat = it->pattern;
 	}
+	tr[ *this].m_genPatternListNext = patlist_next;
 
 	if(hasQAMPorts()) {
 		double offset[] = { shot[ *qamOffset1()], shot[ *qamOffset2()]};
@@ -1024,12 +1028,13 @@ XNIDAQmxPulser::createNativePatterns(Transaction &tr) {
 		for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++) {
 			for(unsigned int qpsk = 0; qpsk < 4; qpsk++) {
 				const unsigned int pnum = i * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpsk;
-				tr[ *this].m_genPulseWaveNextAO[pnum].reset(new std::vector<tRawAOSet>);
+				auto wave_next = std::make_shared<std::vector<tRawAOSet>>();
 				for(std::vector<std::complex<double> >::const_iterator it =
 						shot[ *this].qamWaveForm(i).begin(); it != shot[ *this].qamWaveForm(i).end(); it++) {
 					std::complex<double> z( *it * c);
-					tr[ *this].m_genPulseWaveNextAO[pnum]->push_back(aoVoltToRaw(coeffAO, z));
+					wave_next->push_back(aoVoltToRaw(coeffAO, z));
 				}
+				tr[ *this].m_genPulseWaveNextAO[pnum] = wave_next; //build local, assign fresh (see above).
 				c *= std::complex<double>(0,1);
 			}
 		}
