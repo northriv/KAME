@@ -434,6 +434,24 @@ void kame_tls_init_fast() noexcept {
 // null → first allocation on this thread, plant the pointer).
 // `preserve_most` (matching the header decl) tells the caller that
 // this call preserves nearly all caller-saved registers.
+// Re-entrancy guard for the `&g_tls_page` touch in kame_page_cold below.
+// On a fresh thread the first GD-TLS access lazily instantiates this
+// image's per-thread TLV block via malloc -> our operator new ->
+// kame_page() -> kame_page_cold() AGAIN.  The fast-TSD parking below only
+// breaks that recursion when a TSD slot was discovered
+// (s_kame_page_tsd_offset != 0); in degraded mode (offset stayed 0 — e.g.
+// the pthread-key sentinel scan failed at init) there is no slot to park,
+// so the recursion re-enters `_tlv_get_addr` mid-instantiation, which
+// returns null -> kame_page() returns null -> the caller derefs null
+// (observed: iMac / macOS 13 / Qt 6.8 SandboxChecker worker thread ->
+// Security.framework SecRequirementCreate -> operator new, SIGSEGV at
+// m_slots offset).  An IE-TLS bool is in the static TLS template
+// (kernel-allocated at thread creation, never malloc'd), so reading it is
+// itself re-entrancy-safe.  On re-entry we return the teardown sentinel:
+// the inner malloc then routes to libsystem (as the parking intended),
+// _tlv_get_addr completes, and the outer call gets the real page.
+static ALLOC_TLS_IE bool tls_in_page_cold = false;
+
 [[clang::preserve_most]]
 __attribute__((cold, noinline))
 KameTlsPage *kame_page_cold() noexcept {
@@ -445,6 +463,11 @@ KameTlsPage *kame_page_cold() noexcept {
     // route to libsystem, exactly as during thread teardown.
     if(__builtin_expect(!s_kame_tls_ready, 0))
         return &g_teardown_page;
+    // Re-entrant `&g_tls_page` instantiation (see tls_in_page_cold above):
+    // route the inner malloc to libsystem without touching any TLV.
+    if(__builtin_expect(tls_in_page_cold, 0))
+        return &g_teardown_page;
+    tls_in_page_cold = true;
     // (dylib TLV-bootstrap leak fix) Park the fast-TSD slot at the teardown
     // sentinel BEFORE the general-dynamic `&g_tls_page` access below.
     //
@@ -479,6 +502,7 @@ KameTlsPage *kame_page_cold() noexcept {
         if(tp)
             *reinterpret_cast<KameTlsPage **>(tp + s_kame_page_tsd_offset) = p;
     }
+    tls_in_page_cold = false;
     return p;
 }
 #endif // KAME_FAST_TSD
