@@ -242,11 +242,13 @@ Details, whichever archetype:
   }
   ```
 
-### Driver-authoring rules (from the 2026-07 crash audit — check EVERY new/modified driver against all five)
+### Driver-authoring rules (from the 2026-07 crash audits — check EVERY new/modified driver against all six)
 
-Rules 1, 3, and 4 are enforced mechanically by `tools/audit/run_audits.sh`
-(node-name collisions, iterate_commit side effects, pybind GIL) — run it after
-touching any driver; it also runs as a pre-commit hook (enable once per clone:
+Rules 1, 3, 4, and 6 — plus the Payload pointer-to-const rule from the STM
+section — are enforced mechanically by `tools/audit/run_audits.sh`
+(node-name collisions, iterate_commit side effects, pybind GIL, UI-touching
+listeners, non-const Payload pointees) — run it after touching any driver; it
+also runs as a pre-commit hook (enable once per clone:
 `git config core.hooksPath .githooks`) and in CI (`.github/workflows/audit.yml`).
 Pre-existing findings are grandfathered in `tools/audit/stm_closures.baseline`
 (ratchet: counts may only go down; regenerate with `--update-baseline` after
@@ -288,6 +290,13 @@ fixing some). Suppress a reviewed false positive with `// audit-ok: <reason>`.
    returning an error (libusb: `4cdc728c6`, `9c1e9e40f`). Also never call interface
    I/O from inside a transaction lambda — it takes the interface mutex, which converts
    ~30 currently-safe lock sites into the deadlock class above.
+6. **Listener callbacks doing Qt UI work need `Listener::FLAG_MAIN_THREAD_CALL`** —
+   without it the callback runs inline on the committing thread, and Python/MCP
+   commits fire it on the scripting thread: any `m_form->` access, `xqcon_create`,
+   or widget method call is then a cross-thread Qt call (UB/crash; `b6d5f7e6b`:
+   tempcontrol connector rebuild, XMicroCAM QTextDocument access). Pair with
+   `FLAG_AVOID_DUP` unless every event matters. Conversely, callbacks that only do
+   STM/interface work should NOT take the flag (adds main-thread latency).
 
 ## Ohtaka (ISSP supercomputer) operating rules
 

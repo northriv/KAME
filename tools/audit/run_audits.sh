@@ -5,4 +5,6 @@ cd "$(dirname "$0")/../.." || exit 1
 status=0
 python3 tools/audit/check_node_names.py kame modules || status=1
 python3 tools/audit/check_stm_closures.py kame modules || status=1
+python3 tools/audit/check_payload_const.py kame modules || status=1
+python3 tools/audit/check_ui_listeners.py kame modules || status=1
 exit $status
