@@ -81,8 +81,13 @@ public:
     XScriptingThreadList(const char *name, bool runtime, const shared_ptr<XMeasure> &measure);
     virtual ~XScriptingThreadList() {}
 
-    void terminate() {m_thread->terminate();}
-    void join() {m_thread->join();}
+    //! Starts the execute() worker thread.  Call ONCE, after the derived
+    //! object is fully constructed (see the definition for why it must not
+    //! run from the constructor).
+    void startExecutionThread();
+
+    void terminate() {if(m_thread) m_thread->terminate();}
+    void join() {if(m_thread) m_thread->join();}
 
     //! Signal that a scripting thread action has changed (e.g. new thread created).
     void signalAction() {
