@@ -330,6 +330,9 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         }
         if(max_v > BaseOffset / 2) {
             //rounding by 2 to avoid overflow.
+            //No caught-and-committed exception (XSkipped/XRecordError) can occur
+            //in this block, so coeff and buffers need no publish choreography —
+            //an escaping exception (e.g. bad_alloc) abandons the tr uncommitted.
             coeff_PLOn_o_Off /= 2;
             tr[ *this].m_coeff_PLOn_o_Off = coeff_PLOn_o_Off; //for later accumulation.
             for(auto &&summed: tr[ *this].m_summedCounts) {
