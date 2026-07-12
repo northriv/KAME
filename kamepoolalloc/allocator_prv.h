@@ -2936,6 +2936,21 @@ static inline char *kame_thread_pointer() noexcept {
 //! tls_page_ie IE fallback in that case.
 extern std::size_t s_kame_page_tsd_offset;
 
+//! False until this image's `constructor(101)` (`kame_tls_init_fast`) has run.
+//! dyld runs initializers bottom-up, so ANOTHER image's static initializer
+//! (e.g. Qt 6.8's qcore_mac.mm) can call the weak-coalesced global
+//! `operator new` BEFORE ours — and on macOS (observed: x86_64, macOS 13
+//! dyld) this image's TLV machinery is not necessarily usable yet:
+//! `_tlv_get_addr` for `tls_page_ie` / `&g_tls_page` returned null and the
+//! allocator crashed dereferencing the page (SEGV at 0x18 in operator new
+//! during `_GLOBAL__sub_I_qcore_mac.mm`).  While false, `kame_page()` /
+//! `kame_page_cold()` return `&g_teardown_page` WITHOUT touching any TLV,
+//! which routes allocation and deallocation through the cold paths to
+//! libsystem (same proven mechanism as thread teardown / the dylib
+//! TLV-bootstrap fix).  Frees of those early libsystem blocks after the
+//! pool is up pass through radix-ABSENT -> libsystem free.
+extern bool s_kame_tls_ready;
+
 //! Out-of-line cold path invoked when either guard branch fails.
 //! Defined in allocator.cpp.  Plants the per-thread TSD slot if
 //! `s_kame_page_tsd_offset` is set, caches result in `tls_page_ie`,
@@ -2970,6 +2985,8 @@ inline KameTlsPage *kame_page() noexcept {
         if(__builtin_expect(p != nullptr, 1)) return p;
         return kame_page_cold();
     }
+    if(__builtin_expect(!s_kame_tls_ready, 0))
+        return &g_teardown_page;    // pre-ctor: no TLV access (see s_kame_tls_ready)
     KameTlsPage *p = tls_page_ie;
     return p ? p : kame_page_cold();
 #endif
