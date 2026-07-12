@@ -2962,6 +2962,23 @@ extern bool s_kame_tls_ready;
 //! shifts the burden into the cold callee (cheap — cold).
 [[clang::preserve_most]] KameTlsPage *kame_page_cold() noexcept;
 
+//! Clamp the cold-path result to a non-null page.  `kame_page_cold()` is
+//! `[[noinline]]`, so at THIS call site `q` is an opaque function return, not
+//! the address of an object — the compiler cannot assume it is non-null and
+//! therefore cannot delete this check (unlike a null test written *inside*
+//! kame_page_cold on `&g_tls_page`, which the optimizer folds away because the
+//! address of an object "is never null", and even mis-merges into a
+//! null-returning tail — both confirmed by disassembly, 2026-07 Intel iMac /
+//! Qt 6.8).  On this machine `_tlv_get_addr(&g_tls_page)` really does return
+//! null on early framework threads (SandboxChecker, GCD workers) that allocate
+//! before this image's TLS is instantiable; clamping to g_teardown_page makes
+//! kame_page() TOTAL, so neither new_redirected nor deallocate can fault on a
+//! null page.  The teardown sentinel routes those allocs to libsystem.
+KAME_ALWAYS_INLINE KameTlsPage *kame_page_cold_nonnull() noexcept {
+    KameTlsPage *q = kame_page_cold();
+    return q ? q : &g_teardown_page;   // q is a noinline-call result: not foldable
+}
+
 //! Hot accessor: returns this thread's KameTlsPage via fast-TSD bypass.
 //! macOS arm64: mrs TPIDRRO_EL0 + one load → zero _tlv_get_addr calls.
 inline KameTlsPage *kame_page() noexcept {
@@ -2976,19 +2993,19 @@ inline KameTlsPage *kame_page() noexcept {
     KameTlsPage *p = *reinterpret_cast<KameTlsPage **>(
         kame_thread_pointer() + (std::size_t)(KAME_FIXED_TSD_SLOT));
     if(__builtin_expect(p != nullptr, 1)) return p;
-    return kame_page_cold();
+    return kame_page_cold_nonnull();
 #else
     std::size_t off = s_kame_page_tsd_offset;
     if(__builtin_expect(off != 0, 1)) {
         KameTlsPage *p = *reinterpret_cast<KameTlsPage **>(
             kame_thread_pointer() + off);
         if(__builtin_expect(p != nullptr, 1)) return p;
-        return kame_page_cold();
+        return kame_page_cold_nonnull();
     }
     if(__builtin_expect(!s_kame_tls_ready, 0))
         return &g_teardown_page;    // pre-ctor: no TLV access (see s_kame_tls_ready)
     KameTlsPage *p = tls_page_ie;
-    return p ? p : kame_page_cold();
+    return p ? p : kame_page_cold_nonnull();
 #endif
 }
 //! Fast-read-only sibling of `kame_page()`: returns nullptr where
