@@ -305,6 +305,10 @@ static inline void stats_dec_large(std::size_t mmap_size) noexcept {
 // or calls `kame_page_cold()` in that state.
 std::size_t s_kame_page_tsd_offset = 0;
 
+// See allocator_prv.h: gates all TLV access until this image's
+// constructor(101) has run (dyld TLV setup ordering, macOS).
+bool s_kame_tls_ready = false;
+
 namespace {
 pthread_key_t s_kame_page_key;
 
@@ -320,6 +324,11 @@ pthread_key_t s_kame_page_key;
 // lazily on their first allocation via `kame_page_cold` below.
 __attribute__((constructor(101)))
 void kame_tls_init_fast() noexcept {
+    // dyld has reached THIS image's initializers, so its TLV machinery is
+    // usable from here on; unlock the TLV/IE paths.  Must be set FIRST —
+    // the early returns below (degraded mode) must not leave the allocator
+    // permanently on the pre-boot libsystem route.
+    s_kame_tls_ready = true;
     char *tp = kame_thread_pointer();
     if( !tp) {
 #if defined(KAME_FIXED_TSD_SLOT) && (KAME_FIXED_TSD_SLOT)
@@ -428,6 +437,14 @@ void kame_tls_init_fast() noexcept {
 [[clang::preserve_most]]
 __attribute__((cold, noinline))
 KameTlsPage *kame_page_cold() noexcept {
+    // (pre-ctor bootstrap) Before this image's constructor(101) has run,
+    // `_tlv_get_addr` may not be usable for this image's thread_locals
+    // (macOS dyld initializer ordering; another image's static initializer
+    // calling the coalesced operator new lands here).  Return the teardown
+    // sentinel WITHOUT touching any TLV: the cold alloc/dealloc paths then
+    // route to libsystem, exactly as during thread teardown.
+    if(__builtin_expect(!s_kame_tls_ready, 0))
+        return &g_teardown_page;
     // (dylib TLV-bootstrap leak fix) Park the fast-TSD slot at the teardown
     // sentinel BEFORE the general-dynamic `&g_tls_page` access below.
     //
