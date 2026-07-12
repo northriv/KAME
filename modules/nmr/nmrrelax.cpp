@@ -903,7 +903,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         }
         if(cond < 0) {
             cond = 0;
-            for(std::deque<shared_ptr<Payload::ConvolutionCache> >::const_iterator it
+            for(auto it
                 = shot_this[ *this].m_convolutionCache.begin();
                 it != shot_this[ *this].m_convolutionCache.end(); ++it) {
                 if((m_windowWidthList[std::max(0, (int)shot_this[ *windowWidth()])] == ( *it)->windowwidth) &&
