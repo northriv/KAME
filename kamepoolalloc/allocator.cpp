@@ -496,6 +496,23 @@ KameTlsPage *kame_page_cold() noexcept {
     if(tp)
         *reinterpret_cast<KameTlsPage **>(tp + s_kame_page_tsd_offset) = &g_teardown_page;
     KameTlsPage *p = &g_tls_page;   // one GD TLV — cold, paid once per thread
+    // `&g_tls_page` is `_tlv_get_addr(g_tls_page)`; on macOS it can return
+    // null when this thread's TLV block cannot be instantiated yet (observed:
+    // Intel iMac / macOS 13 / Qt 6.8 SandboxChecker worker thread, degraded
+    // mode with no fast-TSD slot — dyld's lazy GD-TLS allocation fails or
+    // returns null rather than re-entering our allocator, so the reentry
+    // guard above never trips).  kame_page() is dereferenced unconditionally
+    // by BOTH new_redirected and deallocate, so it must be TOTAL: never hand
+    // back null.  Fall to the teardown sentinel (libsystem route) and do NOT
+    // cache it — a later call retries `&g_tls_page` and recovers real pooling
+    // once dyld can satisfy it.  The restore-slot below must also revert the
+    // parked teardown pointer so the thread isn't pinned to libsystem.
+    if(__builtin_expect(p == nullptr, 0)) {
+        if(tp)
+            *reinterpret_cast<KameTlsPage **>(tp + s_kame_page_tsd_offset) = nullptr;
+        tls_in_page_cold = false;
+        return &g_teardown_page;
+    }
     tls_page_ie = p;
     if(s_kame_page_tsd_offset != 0) {
         pthread_setspecific(s_kame_page_key, p);
