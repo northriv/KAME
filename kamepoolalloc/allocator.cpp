@@ -507,6 +507,14 @@ KameTlsPage *kame_page_cold() noexcept {
     // cache it — a later call retries `&g_tls_page` and recovers real pooling
     // once dyld can satisfy it.  The restore-slot below must also revert the
     // parked teardown pointer so the thread isn't pinned to libsystem.
+    //
+    // The null test MUST launder `p` through an opaque asm first: the C++
+    // standard says the address of an object is never null, so the optimizer
+    // constant-folds `&g_tls_page == nullptr` to false and DELETES the check
+    // (confirmed by disassembly — the `_tlv_get_addr` result was used
+    // unchecked).  `asm volatile("" : "+r"(p))` erases the compile-time
+    // never-null fact so the runtime value is actually tested.
+    asm volatile("" : "+r"(p));
     if(__builtin_expect(p == nullptr, 0)) {
         if(tp)
             *reinterpret_cast<KameTlsPage **>(tp + s_kame_page_tsd_offset) = nullptr;
