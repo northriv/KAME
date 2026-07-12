@@ -332,9 +332,18 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
             coeff_PLOn_o_Off /= 2;
             tr[ *this].m_coeff_PLOn_o_Off = coeff_PLOn_o_Off; //for later accumulation.
             for(auto &&summed: tr[ *this].m_summedCounts) {
-                if(auto v = summed)
+                if(auto v = summed) {
+                    //Clone-on-write: past-result slots alias buffers committed by
+                    //earlier transactions (copy_prev above) and shared with live
+                    //Snapshots / Python rawImage() — halve into a fresh buffer
+                    //instead of mutating them. This also makes the rescale
+                    //idempotent when the enclosing commit retries.
+                    auto fresh = m_pool.allocate(v->size());
+                    auto it = fresh->begin();
                     for(auto &x: *v)
-                        x = (uint32_t)((int32_t)(x - BaseOffset) / 2) + BaseOffset;
+                        *it++ = (uint32_t)((int32_t)(x - BaseOffset) / 2) + BaseOffset;
+                    summed = fresh;
+                }
             }
         }
     }

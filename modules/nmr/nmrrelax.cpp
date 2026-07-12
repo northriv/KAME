@@ -479,6 +479,12 @@ XNMRT1::analyzeSpectrum(Transaction &tr,
             if((cache->windowwidth != *wit) || (cache->origin != origin) ||
                 (cache->windowfunc != *fit) || (cache->cfreq != cf) ||
                 (cache->wave.size() != wave.size())) {
+                //Clone-on-write: the existing entry is a committed pointee shared
+                //with live Snapshots — rebuilding it in place lets concurrent
+                //readers see a half-rewritten window (or a dangling buffer during
+                //wave.resize). Install a fresh entry and fill that instead.
+                cache = std::make_shared<Payload::ConvolutionCache>();
+                tr[ *this].m_convolutionCache[idx] = cache;
                 cache->windowwidth = *wit;
                 cache->origin = origin;
                 cache->windowfunc = *fit;
@@ -559,16 +565,24 @@ XNMRT1::storePulseForMapping(Transaction &tr, double p1_or_2tau,
     if((p1_or_2tau > shot_this[ *p1Max()]) || (p1_or_2tau < shot_this[ *p1Min()]))
         return;
     double min_reldiff = 1e10;
-    std::shared_ptr<Payload::Pulse> p;
-    for(auto x: shot_this[ *this].m_allPulses) {
+    int pidx = -1;
+    for(int i = 0; i < (int)shot_this[ *this].m_allPulses.size(); ++i) {
+        auto &x = shot_this[ *this].m_allPulses[i];
         double reldiff = std::abs(x->p1 / p1_or_2tau - 1.0);
         if(reldiff < min_reldiff) {
             min_reldiff = reldiff;
-            p = x;
+            pidx = i;
         }
     }
-    if(min_reldiff > shot_this[ *p1Max()]/shot_this[ *p1Min()] - 1.0)
+    if((pidx < 0) || (min_reldiff > shot_this[ *p1Max()]/shot_this[ *p1Min()] - 1.0))
         return;
+    //Clone-on-write: the matched Pulse is a committed pointee shared with every
+    //live Snapshot. Accumulating into it in place would (a) double-count this
+    //echo train when the enclosing commit retries (the += survives the rollback)
+    //and (b) let a concurrent visualize() read a summedTrace/ft buffer that is
+    //being reallocated. Replace the slot with a private copy and accumulate there.
+    auto p = std::make_shared<Payload::Pulse>( *shot_this[ *this].m_allPulses[pidx]);
+    tr[ *this].m_allPulses[pidx] = p;
 
     p->ftOrigin = shot_pulse[pulse].waveFTPos();
     if(p->summedTrace.size() != wave.size()) {
@@ -939,9 +953,13 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         //recalculates all FT.
         std::vector<std::complex<double> > fftout;
         std::vector<std::complex<double> > fftin;
-        for(auto &p: shot_this[ *this].m_allPulses) {
-            if(p->avgCount)
-                ZFFFT(tr, fftin, fftout, p, shot_pulse1[ *pulse1__].interval());
+        for(auto &slot: tr[ *this].m_allPulses) {
+            if(slot->avgCount) {
+                //Clone-on-write: ft is rewritten below; the slot holds a
+                //committed pointee shared with live Snapshots.
+                slot = std::make_shared<Payload::Pulse>( *slot);
+                ZFFFT(tr, fftin, fftout, slot, shot_pulse1[ *pulse1__].interval());
+            }
         }
         m_regularization.reset(); //for mode/relax fn. change.
     }
