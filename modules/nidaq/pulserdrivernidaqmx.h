@@ -51,8 +51,8 @@ public:
     	friend class XNIDAQmxPulser;
     	//! The pattern passed from \a XPulser to be output.
 		//! \sa createNativePatterns()
-    	shared_ptr<std::vector<GenPattern> > m_genPatternListNext;
-    	shared_ptr<std::vector<tRawAOSet> > m_genPulseWaveNextAO[PAT_QAM_MASK / PAT_QAM_PHASE];
+    	shared_ptr<std::vector<GenPattern> > m_genPatternListNext; // audit-ok: built local & assigned fresh (createNativePatterns); const cascades into RT iterator types
+    	shared_ptr<std::vector<tRawAOSet> > m_genPulseWaveNextAO[PAT_QAM_MASK / PAT_QAM_PHASE]; // audit-ok: built local & assigned fresh; RT thread reads via its own Snapshot
     	tRawAOSet m_genAOZeroLevelNext;
     };
 protected:

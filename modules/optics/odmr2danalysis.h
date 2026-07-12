@@ -112,7 +112,9 @@ public:
         //! C*PLon/PLoff-C, freq(unit of df)*C*on/off-fC, (freq(unit of df) - fmid)^2*C*on/off-f^2 C
         //!     or |f-fcog|*C*on/off-|f-fcog|*C, ||f-fcog|-fmd|*C*on/off-||f-fcog|-fmd|*C,
         //! (prev)C*PLon/PLoff-C, (prev)fcog C, (prev)fmd C
-        local_shared_ptr<std::vector<uint32_t>> m_summedCounts[MaxNumFrames];
+        //pointer-to-const: shared with every live Snapshot (shallow Payload
+        //clone) — accumulate/rescale into fresh pool buffers, then assign.
+        local_shared_ptr<const std::vector<uint32_t>> m_summedCounts[MaxNumFrames];
         //! avg counts, sum freq(unit of df), sum (freq(unit of df) - fmid)^2.
         uint64_t m_accumulatedCount;
         double m_coefficients[MaxNumFrames];

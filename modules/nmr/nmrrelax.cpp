@@ -475,28 +475,29 @@ XNMRT1::analyzeSpectrum(Transaction &tr,
                 tr[ *this].m_convolutionCache.push_back(
                     std::make_shared<Payload::ConvolutionCache>());
             }
-            shared_ptr<Payload::ConvolutionCache> cache = tr[ *this].m_convolutionCache[idx];
+            shared_ptr<const Payload::ConvolutionCache> cache = tr[ *this].m_convolutionCache[idx];
             if((cache->windowwidth != *wit) || (cache->origin != origin) ||
                 (cache->windowfunc != *fit) || (cache->cfreq != cf) ||
                 (cache->wave.size() != wave.size())) {
                 //Clone-on-write: the existing entry is a committed pointee shared
                 //with live Snapshots — rebuilding it in place lets concurrent
                 //readers see a half-rewritten window (or a dangling buffer during
-                //wave.resize). Install a fresh entry and fill that instead.
-                cache = std::make_shared<Payload::ConvolutionCache>();
-                tr[ *this].m_convolutionCache[idx] = cache;
-                cache->windowwidth = *wit;
-                cache->origin = origin;
-                cache->windowfunc = *fit;
-                cache->cfreq = cf;
-                cache->power = 0.0;
-                cache->wave.resize(wave.size());
+                //wave.resize). Build a fresh entry, then publish it.
+                auto fresh = std::make_shared<Payload::ConvolutionCache>();
+                fresh->windowwidth = *wit;
+                fresh->origin = origin;
+                fresh->windowfunc = *fit;
+                fresh->cfreq = cf;
+                fresh->power = 0.0;
+                fresh->wave.resize(wave.size());
                 double wk = 1.0 / FFTSolver::windowLength(wave.size(), -origin, *wit);
                 for(int i = 0; i < (int)wave.size(); i++) {
                     double w = ( *fit)((i - origin) * wk) / (double)wave.size();
-                    cache->wave[i] = std::polar(w, -2.0*M_PI*cf*(i - origin));
-                    cache->power += w*w;
+                    fresh->wave[i] = std::polar(w, -2.0*M_PI*cf*(i - origin));
+                    fresh->power += w*w;
                 }
+                cache = fresh;
+                tr[ *this].m_convolutionCache[idx] = fresh;
             }
 
             std::complex<double> z(0.0);
@@ -580,9 +581,8 @@ XNMRT1::storePulseForMapping(Transaction &tr, double p1_or_2tau,
     //live Snapshot. Accumulating into it in place would (a) double-count this
     //echo train when the enclosing commit retries (the += survives the rollback)
     //and (b) let a concurrent visualize() read a summedTrace/ft buffer that is
-    //being reallocated. Replace the slot with a private copy and accumulate there.
+    //being reallocated. Accumulate into a private copy, publish it at the end.
     auto p = std::make_shared<Payload::Pulse>( *shot_this[ *this].m_allPulses[pidx]);
-    tr[ *this].m_allPulses[pidx] = p;
 
     p->ftOrigin = shot_pulse[pulse].waveFTPos();
     if(p->summedTrace.size() != wave.size()) {
@@ -600,6 +600,7 @@ XNMRT1::storePulseForMapping(Transaction &tr, double p1_or_2tau,
     std::vector<std::complex<double> > fftout;
     std::vector<std::complex<double> > fftin;
     ZFFFT(tr, fftin, fftout, p, shot_pulse[pulse].interval());
+    tr[ *this].m_allPulses[pidx] = p; //publish the fully-built copy (pointer-to-const slot).
 }
 
 bool
@@ -694,9 +695,9 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
             int samples = std::min(200u, shot_this[ *smoothSamples()] * 10);
             tr[ *this].m_mapTCount = samples;
             for(long i = 0; i < shot_this[ *smoothSamples()]; ++i) {
-                tr[ *this].m_allPulses.push_back(std::make_shared<Payload::Pulse>());
-                auto p = tr[ *this].m_allPulses.back();
+                auto p = std::make_shared<Payload::Pulse>();
                 p->p1 = distributeP1(shot_this, (double)i / (shot_this[ *smoothSamples()] - 1));
+                tr[ *this].m_allPulses.push_back(p); //fill before publishing (pointer-to-const).
             }
         }
         tr[ *m_waveMap].clearPoints();
@@ -955,10 +956,12 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         std::vector<std::complex<double> > fftin;
         for(auto &slot: tr[ *this].m_allPulses) {
             if(slot->avgCount) {
-                //Clone-on-write: ft is rewritten below; the slot holds a
-                //committed pointee shared with live Snapshots.
-                slot = std::make_shared<Payload::Pulse>( *slot);
-                ZFFFT(tr, fftin, fftout, slot, shot_pulse1[ *pulse1__].interval());
+                //Clone-on-write: ft is rewritten; the slot holds a committed
+                //pointee shared with live Snapshots. Mutate the fresh copy,
+                //then publish it.
+                auto fresh = std::make_shared<Payload::Pulse>( *slot);
+                ZFFFT(tr, fftin, fftout, fresh, shot_pulse1[ *pulse1__].interval());
+                slot = fresh;
             }
         }
         m_regularization.reset(); //for mode/relax fn. change.

@@ -229,8 +229,9 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
 
     if(clear) {
         for(unsigned int i = 0; i < num_summed_frames; ++i) {
-            tr[ *this].m_summedCounts[i] = m_pool.allocate(width * height);
-            std::fill(tr[ *this].m_summedCounts[i]->begin(), tr[ *this].m_summedCounts[i]->end(), BaseOffset);
+            auto fresh = m_pool.allocate(width * height);
+            std::fill(fresh->begin(), fresh->end(), BaseOffset);
+            tr[ *this].m_summedCounts[i] = fresh; //the member is pointer-to-const; fill before assigning.
             tr[ *this].m_accumulatedCount = 0;
         }
         bool has_prev_frame = false;
