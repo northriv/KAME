@@ -581,8 +581,12 @@ XNMRT1::storePulseForMapping(Transaction &tr, double p1_or_2tau,
     //live Snapshot. Accumulating into it in place would (a) double-count this
     //echo train when the enclosing commit retries (the += survives the rollback)
     //and (b) let a concurrent visualize() read a summedTrace/ft buffer that is
-    //being reallocated. Accumulate into a private copy, publish it at the end.
+    //being reallocated. The fresh copy is installed right away — the tr state is
+    //private until commit, so mutations through p below stay isolated; a ZFFFT
+    //throw then commits an ft one record behind, which visualize() tolerates by
+    //bounding its reads with ft.size().
     auto p = std::make_shared<Payload::Pulse>( *shot_this[ *this].m_allPulses[pidx]);
+    tr[ *this].m_allPulses[pidx] = p;
 
     p->ftOrigin = shot_pulse[pulse].waveFTPos();
     if(p->summedTrace.size() != wave.size()) {
@@ -600,7 +604,6 @@ XNMRT1::storePulseForMapping(Transaction &tr, double p1_or_2tau,
     std::vector<std::complex<double> > fftout;
     std::vector<std::complex<double> > fftin;
     ZFFFT(tr, fftin, fftout, p, shot_pulse[pulse].interval());
-    tr[ *this].m_allPulses[pidx] = p; //publish the fully-built copy (pointer-to-const slot).
 }
 
 bool
@@ -957,11 +960,12 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         for(auto &slot: tr[ *this].m_allPulses) {
             if(slot->avgCount) {
                 //Clone-on-write: ft is rewritten; the slot holds a committed
-                //pointee shared with live Snapshots. Mutate the fresh copy,
-                //then publish it.
+                //pointee shared with live Snapshots. Mutations go to the fresh
+                //copy (tr-private until commit); a mid-loop ZFFFT throw leaves
+                //some ft one size behind, which visualize() bounds-checks.
                 auto fresh = std::make_shared<Payload::Pulse>( *slot);
-                ZFFFT(tr, fftin, fftout, fresh, shot_pulse1[ *pulse1__].interval());
                 slot = fresh;
+                ZFFFT(tr, fftin, fftout, fresh, shot_pulse1[ *pulse1__].interval());
             }
         }
         m_regularization.reset(); //for mode/relax fn. change.
@@ -1074,7 +1078,10 @@ XNMRT1::visualize(const Snapshot &shot) {
                         double f = shot[ *this].mapStartFreq() + j * shot[ *this].m_mapFreqRes;
                         colp1[k] = p->p1;
                         colf[k] = f * 1e-3;
-                        auto z = p->ft.coeff(j) * rot_ph;
+                        //ft can be one resize behind mapFreqCount() when a ZFFFT
+                        //throw was committed (XSkipped/XRecordError still commit);
+                        //coeff() is unchecked, so bound j explicitly.
+                        auto z = (j < p->ft.size()) ? p->ft.coeff(j) * rot_ph : std::complex<double>(0.0);
                         colre[k] = std::real(z);
                         colim[k] = std::imag(z);
                         relax_fdep.coeffRef(j, i) = colre[k];
