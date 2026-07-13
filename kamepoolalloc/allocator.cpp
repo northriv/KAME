@@ -423,9 +423,10 @@ void kame_tls_init_fast() noexcept {
 // Cold path for the fast-TSD accessor in the header.  Called when
 // either guard branch fails (offset == 0 → pre-init; or TSD slot
 // null → first allocation on this thread, plant the pointer).
-// `preserve_most` (matching the header decl) tells the caller that
-// this call preserves nearly all caller-saved registers.
-[[clang::preserve_most]]
+// NO [[clang::preserve_most]] — older Apple clang's x86-64 preserve_most
+// CSR set includes RAX, so the epilogue restored the caller's entry RAX
+// over the pointer return value (Intel-only Release startup crash; see
+// the header declaration for the full post-mortem).
 __attribute__((cold, noinline))
 KameTlsPage *kame_page_cold() noexcept {
     // (dylib TLV-bootstrap leak fix) Park the fast-TSD slot at the teardown
