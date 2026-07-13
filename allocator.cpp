@@ -305,10 +305,6 @@ static inline void stats_dec_large(std::size_t mmap_size) noexcept {
 // or calls `kame_page_cold()` in that state.
 std::size_t s_kame_page_tsd_offset = 0;
 
-// See allocator_prv.h: gates all TLV access until this image's
-// constructor(101) has run (dyld TLV setup ordering, macOS).
-bool s_kame_tls_ready = false;
-
 namespace {
 pthread_key_t s_kame_page_key;
 
@@ -324,11 +320,6 @@ pthread_key_t s_kame_page_key;
 // lazily on their first allocation via `kame_page_cold` below.
 __attribute__((constructor(101)))
 void kame_tls_init_fast() noexcept {
-    // dyld has reached THIS image's initializers, so its TLV machinery is
-    // usable from here on; unlock the TLV/IE paths.  Must be set FIRST —
-    // the early returns below (degraded mode) must not leave the allocator
-    // permanently on the pre-boot libsystem route.
-    s_kame_tls_ready = true;
     char *tp = kame_thread_pointer();
     if( !tp) {
 #if defined(KAME_FIXED_TSD_SLOT) && (KAME_FIXED_TSD_SLOT)
@@ -413,22 +404,13 @@ void kame_tls_init_fast() noexcept {
     }
 
     if(off1) {
-        // Publish `s_kame_page_tsd_offset` LAST.  Plant the real page into the
-        // key's TSD slot FIRST — this `&g_tls_page` touch triggers the lazy
-        // TLV instantiation, whose internal dyld malloc re-enters our
-        // allocator.  While the offset is still 0, that re-entrant malloc's
-        // `kame_page_or_null()` returns nullptr (off==0) and routes to the safe
-        // slow path.  If we published the offset first (as before), the
-        // re-entrant malloc would take the fast path and read *(tp+off1) — which
-        // still holds the scan sentinel until this setspecific completes — and
-        // dereference the sentinel as a page (SIGSEGV at 0xdead600d11aa...).
-        // This window was previously masked because pre-ctor allocations
-        // instantiated g_tls_page early; the s_kame_tls_ready gate (which routes
-        // pre-ctor allocs to libsystem) removed that masking, exposing the
-        // ordering bug on the dylib/test build.
+        s_kame_page_tsd_offset = off1;
+        // Plant THIS thread's (= typically the main thread's) TSD slot
+        // now so the next allocation hits the fast path on the first try.
+        // Touching the __thread struct triggers TLV lazy init; the
+        // resulting address is stable for this thread's life.
         pthread_setspecific(s_kame_page_key, &g_tls_page);
         tls_page_ie = &g_tls_page;
-        s_kame_page_tsd_offset = off1;
     }
     else {
         // Scan failed — leave offset at 0 (degraded TLV-only mode).
@@ -443,40 +425,9 @@ void kame_tls_init_fast() noexcept {
 // null → first allocation on this thread, plant the pointer).
 // `preserve_most` (matching the header decl) tells the caller that
 // this call preserves nearly all caller-saved registers.
-// Re-entrancy guard for the `&g_tls_page` touch in kame_page_cold below.
-// On a fresh thread the first GD-TLS access lazily instantiates this
-// image's per-thread TLV block via malloc -> our operator new ->
-// kame_page() -> kame_page_cold() AGAIN.  The fast-TSD parking below only
-// breaks that recursion when a TSD slot was discovered
-// (s_kame_page_tsd_offset != 0); in degraded mode (offset stayed 0 — e.g.
-// the pthread-key sentinel scan failed at init) there is no slot to park,
-// so the recursion re-enters `_tlv_get_addr` mid-instantiation, which
-// returns null -> kame_page() returns null -> the caller derefs null
-// (observed: iMac / macOS 13 / Qt 6.8 SandboxChecker worker thread ->
-// Security.framework SecRequirementCreate -> operator new, SIGSEGV at
-// m_slots offset).  An IE-TLS bool is in the static TLS template
-// (kernel-allocated at thread creation, never malloc'd), so reading it is
-// itself re-entrancy-safe.  On re-entry we return the teardown sentinel:
-// the inner malloc then routes to libsystem (as the parking intended),
-// _tlv_get_addr completes, and the outer call gets the real page.
-static ALLOC_TLS_IE bool tls_in_page_cold = false;
-
 [[clang::preserve_most]]
 __attribute__((cold, noinline))
 KameTlsPage *kame_page_cold() noexcept {
-    // (pre-ctor bootstrap) Before this image's constructor(101) has run,
-    // `_tlv_get_addr` may not be usable for this image's thread_locals
-    // (macOS dyld initializer ordering; another image's static initializer
-    // calling the coalesced operator new lands here).  Return the teardown
-    // sentinel WITHOUT touching any TLV: the cold alloc/dealloc paths then
-    // route to libsystem, exactly as during thread teardown.
-    if(__builtin_expect(!s_kame_tls_ready, 0))
-        return &g_teardown_page;
-    // Re-entrant `&g_tls_page` instantiation (see tls_in_page_cold above):
-    // route the inner malloc to libsystem without touching any TLV.
-    if(__builtin_expect(tls_in_page_cold, 0))
-        return &g_teardown_page;
-    tls_in_page_cold = true;
     // (dylib TLV-bootstrap leak fix) Park the fast-TSD slot at the teardown
     // sentinel BEFORE the general-dynamic `&g_tls_page` access below.
     //
@@ -505,38 +456,12 @@ KameTlsPage *kame_page_cold() noexcept {
     if(tp)
         *reinterpret_cast<KameTlsPage **>(tp + s_kame_page_tsd_offset) = &g_teardown_page;
     KameTlsPage *p = &g_tls_page;   // one GD TLV — cold, paid once per thread
-    // `&g_tls_page` is `_tlv_get_addr(g_tls_page)`; on macOS it can return
-    // null when this thread's TLV block cannot be instantiated yet (observed:
-    // Intel iMac / macOS 13 / Qt 6.8 SandboxChecker worker thread, degraded
-    // mode with no fast-TSD slot — dyld's lazy GD-TLS allocation fails or
-    // returns null rather than re-entering our allocator, so the reentry
-    // guard above never trips).  kame_page() is dereferenced unconditionally
-    // by BOTH new_redirected and deallocate, so it must be TOTAL: never hand
-    // back null.  Fall to the teardown sentinel (libsystem route) and do NOT
-    // cache it — a later call retries `&g_tls_page` and recovers real pooling
-    // once dyld can satisfy it.  The restore-slot below must also revert the
-    // parked teardown pointer so the thread isn't pinned to libsystem.
-    //
-    // The null test MUST launder `p` through an opaque asm first: the C++
-    // standard says the address of an object is never null, so the optimizer
-    // constant-folds `&g_tls_page == nullptr` to false and DELETES the check
-    // (confirmed by disassembly — the `_tlv_get_addr` result was used
-    // unchecked).  `asm volatile("" : "+r"(p))` erases the compile-time
-    // never-null fact so the runtime value is actually tested.
-    asm volatile("" : "+r"(p));
-    if(__builtin_expect(p == nullptr, 0)) {
-        if(tp)
-            *reinterpret_cast<KameTlsPage **>(tp + s_kame_page_tsd_offset) = nullptr;
-        tls_in_page_cold = false;
-        return &g_teardown_page;
-    }
     tls_page_ie = p;
     if(s_kame_page_tsd_offset != 0) {
         pthread_setspecific(s_kame_page_key, p);
         if(tp)
             *reinterpret_cast<KameTlsPage **>(tp + s_kame_page_tsd_offset) = p;
     }
-    tls_in_page_cold = false;
     return p;
 }
 #endif // KAME_FAST_TSD
