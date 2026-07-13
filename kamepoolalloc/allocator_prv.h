@@ -2936,21 +2936,6 @@ static inline char *kame_thread_pointer() noexcept {
 //! tls_page_ie IE fallback in that case.
 extern std::size_t s_kame_page_tsd_offset;
 
-//! False until this image's `constructor(101)` (`kame_tls_init_fast`) has run.
-//! dyld runs initializers bottom-up, so ANOTHER image's static initializer
-//! (e.g. Qt 6.8's qcore_mac.mm) can call the weak-coalesced global
-//! `operator new` BEFORE ours — and on macOS (observed: x86_64, macOS 13
-//! dyld) this image's TLV machinery is not necessarily usable yet:
-//! `_tlv_get_addr` for `tls_page_ie` / `&g_tls_page` returned null and the
-//! allocator crashed dereferencing the page (SEGV at 0x18 in operator new
-//! during `_GLOBAL__sub_I_qcore_mac.mm`).  While false, `kame_page()` /
-//! `kame_page_cold()` return `&g_teardown_page` WITHOUT touching any TLV,
-//! which routes allocation and deallocation through the cold paths to
-//! libsystem (same proven mechanism as thread teardown / the dylib
-//! TLV-bootstrap fix).  Frees of those early libsystem blocks after the
-//! pool is up pass through radix-ABSENT -> libsystem free.
-extern bool s_kame_tls_ready;
-
 //! Out-of-line cold path invoked when either guard branch fails.
 //! Defined in allocator.cpp.  Plants the per-thread TSD slot if
 //! `s_kame_page_tsd_offset` is set, caches result in `tls_page_ie`,
@@ -2962,21 +2947,20 @@ extern bool s_kame_tls_ready;
 //! shifts the burden into the cold callee (cheap — cold).
 [[clang::preserve_most]] KameTlsPage *kame_page_cold() noexcept;
 
-//! Clamp the cold-path result to a non-null page.  `kame_page_cold()` is
-//! `[[noinline]]`, so at THIS call site `q` is an opaque function return, not
-//! the address of an object — the compiler cannot assume it is non-null and
-//! therefore cannot delete this check (unlike a null test written *inside*
-//! kame_page_cold on `&g_tls_page`, which the optimizer folds away because the
-//! address of an object "is never null", and even mis-merges into a
-//! null-returning tail — both confirmed by disassembly, 2026-07 Intel iMac /
-//! Qt 6.8).  On this machine `_tlv_get_addr(&g_tls_page)` really does return
-//! null on early framework threads (SandboxChecker, GCD workers) that allocate
-//! before this image's TLS is instantiable; clamping to g_teardown_page makes
-//! kame_page() TOTAL, so neither new_redirected nor deallocate can fault on a
-//! null page.  The teardown sentinel routes those allocs to libsystem.
+//! Clamp the cold-path result to a non-null page so kame_page() is TOTAL.
+//! `kame_page_cold()` is [[noinline]], so at this call site `q` is an opaque
+//! function return, NOT the address of an object — the compiler cannot assume
+//! it non-null and therefore cannot delete this check (a null test written
+//! inside kame_page_cold on `&g_tls_page` is folded away, and even mis-merged
+//! into a null-returning tail — both confirmed by disassembly, 2026-07).  On
+//! macOS `_tlv_get_addr(&g_tls_page)` can return null on early framework
+//! threads that allocate before this image's TLS is instantiable (Intel iMac /
+//! Qt 6.8: SandboxChecker / GCD workers / qcore_mac.mm static init).  Clamping
+//! to g_teardown_page routes those allocs to libsystem via the cold paths, so
+//! neither new_redirected nor deallocate can fault on a null page.
 KAME_ALWAYS_INLINE KameTlsPage *kame_page_cold_nonnull() noexcept {
     KameTlsPage *q = kame_page_cold();
-    return q ? q : &g_teardown_page;   // q is a noinline-call result: not foldable
+    return q ? q : &g_teardown_page;
 }
 
 //! Hot accessor: returns this thread's KameTlsPage via fast-TSD bypass.
@@ -3002,8 +2986,6 @@ inline KameTlsPage *kame_page() noexcept {
         if(__builtin_expect(p != nullptr, 1)) return p;
         return kame_page_cold_nonnull();
     }
-    if(__builtin_expect(!s_kame_tls_ready, 0))
-        return &g_teardown_page;    // pre-ctor: no TLV access (see s_kame_tls_ready)
     KameTlsPage *p = tls_page_ie;
     return p ? p : kame_page_cold_nonnull();
 #endif
