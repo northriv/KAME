@@ -2958,22 +2958,6 @@ extern std::size_t s_kame_page_tsd_offset;
 //! function.  Do not re-add it to ANY function that returns a value.
 KameTlsPage *kame_page_cold() noexcept;
 
-//! Clamp the cold-path result to a non-null page so kame_page() is TOTAL.
-//! `kame_page_cold()` is [[noinline]], so at this call site `q` is an opaque
-//! function return, NOT the address of an object — the compiler cannot assume
-//! it non-null and therefore cannot delete this check (a null test written
-//! inside kame_page_cold on `&g_tls_page` is folded away, and even mis-merged
-//! into a null-returning tail — both confirmed by disassembly, 2026-07).  On
-//! macOS `_tlv_get_addr(&g_tls_page)` can return null on early framework
-//! threads that allocate before this image's TLS is instantiable (Intel iMac /
-//! Qt 6.8: SandboxChecker / GCD workers / qcore_mac.mm static init).  Clamping
-//! to g_teardown_page routes those allocs to libsystem via the cold paths, so
-//! neither new_redirected nor deallocate can fault on a null page.
-KAME_ALWAYS_INLINE KameTlsPage *kame_page_cold_nonnull() noexcept {
-    KameTlsPage *q = kame_page_cold();
-    return q ? q : &g_teardown_page;
-}
-
 //! Hot accessor: returns this thread's KameTlsPage via fast-TSD bypass.
 //! macOS arm64: mrs TPIDRRO_EL0 + one load → zero _tlv_get_addr calls.
 inline KameTlsPage *kame_page() noexcept {
@@ -2988,17 +2972,17 @@ inline KameTlsPage *kame_page() noexcept {
     KameTlsPage *p = *reinterpret_cast<KameTlsPage **>(
         kame_thread_pointer() + (std::size_t)(KAME_FIXED_TSD_SLOT));
     if(__builtin_expect(p != nullptr, 1)) return p;
-    return kame_page_cold_nonnull();
+    return kame_page_cold();
 #else
     std::size_t off = s_kame_page_tsd_offset;
     if(__builtin_expect(off != 0, 1)) {
         KameTlsPage *p = *reinterpret_cast<KameTlsPage **>(
             kame_thread_pointer() + off);
         if(__builtin_expect(p != nullptr, 1)) return p;
-        return kame_page_cold_nonnull();
+        return kame_page_cold();
     }
     KameTlsPage *p = tls_page_ie;
-    return p ? p : kame_page_cold_nonnull();
+    return p ? p : kame_page_cold();
 #endif
 }
 //! Fast-read-only sibling of `kame_page()`: returns nullptr where
