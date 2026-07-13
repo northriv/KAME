@@ -413,13 +413,22 @@ void kame_tls_init_fast() noexcept {
     }
 
     if(off1) {
-        s_kame_page_tsd_offset = off1;
-        // Plant THIS thread's (= typically the main thread's) TSD slot
-        // now so the next allocation hits the fast path on the first try.
-        // Touching the __thread struct triggers TLV lazy init; the
-        // resulting address is stable for this thread's life.
+        // Publish `s_kame_page_tsd_offset` LAST.  Plant the real page into the
+        // key's TSD slot FIRST — this `&g_tls_page` touch triggers the lazy
+        // TLV instantiation, whose internal dyld malloc re-enters our
+        // allocator.  While the offset is still 0, that re-entrant malloc's
+        // `kame_page_or_null()` returns nullptr (off==0) and routes to the safe
+        // slow path.  If we published the offset first (as before), the
+        // re-entrant malloc would take the fast path and read *(tp+off1) — which
+        // still holds the scan sentinel until this setspecific completes — and
+        // dereference the sentinel as a page (SIGSEGV at 0xdead600d11aa...).
+        // This window was previously masked because pre-ctor allocations
+        // instantiated g_tls_page early; the s_kame_tls_ready gate (which routes
+        // pre-ctor allocs to libsystem) removed that masking, exposing the
+        // ordering bug on the dylib/test build.
         pthread_setspecific(s_kame_page_key, &g_tls_page);
         tls_page_ie = &g_tls_page;
+        s_kame_page_tsd_offset = off1;
     }
     else {
         // Scan failed — leave offset at 0 (degraded TLV-only mode).
