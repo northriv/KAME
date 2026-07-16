@@ -220,6 +220,21 @@ XNMRFSpectrum::performTuning(const Snapshot &shot_this, double newf) {
 }
 void
 XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
+    //Never touch m_lsnOnTuningChanged while an auto-tuner is running: a stray
+    //pulse record analyzed during tuning (typically the acquisition already in
+    //flight when performTuning() turned the pulser off, attributed to the
+    //already-moved SG frequency and thus passing the m_lastFreqAcquired guard)
+    //can complete a step and reach here.  The unconditional reset below would
+    //then steal the tuning-finished event, and the pulser would never be
+    //turned back on after "succeeded" (2026-07 bug report).  Skipping is
+    //correct: with the pulser off such a record is noise, and instrument
+    //control resumes via onTuningChanged() once tuning finishes.
+    const shared_ptr<XAutoLCTuner> tuners[] = {
+        shot_this[ *autoTuner()], shot_this[ *autoTunerSecondary()]};
+    for(auto &&tuner: tuners) {
+        if(tuner && Snapshot( *tuner)[ *tuner->tuning()])
+            return;
+    }
     m_lsnOnTuningChanged.reset();
     shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
     if( ! sg1__)
