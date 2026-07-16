@@ -21,11 +21,13 @@
 #include "chardevicedriver.h"
 
 #include "lasermodule.h"
+// XLaserModule is now multi-channel: the former single-channel Payload accessors
+// (temperature/current/power/voltage) are gone. Per-channel readings are exposed as ordinary
+// XScalarEntry nodes (Laser<n>.Current/Power/Voltage, TEC<n>.Temp) and read from Python via the
+// scalar-entry node tree; numLaserChannels()/numTecChannels() report how many exist.
 PyDriverExporter<XLaserModule, XPrimaryDriver> lasermodule([](auto node, auto payload){
-    payload.def("temperature", &XLaserModule::Payload::temperature)
-        .def("current", &XLaserModule::Payload::current)
-        .def("power", &XLaserModule::Payload::power)
-        .def("voltage", &XLaserModule::Payload::voltage);
+    node.def("numLaserChannels", &XLaserModule::numLaserChannels)
+        .def("numTecChannels", &XLaserModule::numTecChannels);
 });
 
 
@@ -101,18 +103,10 @@ PyDriverExporter<XFilterWheel, XSecondaryDriver> filterwheel([](auto node, auto 
 
 #include "imageprocessor.h"
 PyDriverExporter<XImageProcessor, XSecondaryDriver> imageprocessor([](auto node, auto payload){
-    payload.def("intensities", [](XImageProcessor::Payload &self, unsigned int ch){
-            using namespace Eigen;
-            using RMatrixXd = Matrix<double, Dynamic, Dynamic, RowMajor>;
-            auto cmatrix = Map<const RMatrixXd, 0, Stride<Dynamic, 1>>(
-                &self.intensities(ch).at(0),
-                self.height(), self.width(),
-                Stride<Dynamic, 1>(self.width(), 1));
-            return Ref<const RMatrixXd>(cmatrix);
-        })
-        .def("raw", &XImageProcessor::Payload::raw)
-        .def("numSamples", &XImageProcessor::Payload::numSamples)
-        .def("gainForDisp", &XImageProcessor::Payload::gainForDisp)
+    //intensities/raw/numSamples were removed: nothing ever filled
+    //m_intensities, so the whole accessor family was dead API that
+    //crashed or raised on every call from Python.
+    payload.def("gainForDisp", &XImageProcessor::Payload::gainForDisp)
         .def("width", &XImageProcessor::Payload::width)
         .def("height", &XImageProcessor::Payload::height);
 });

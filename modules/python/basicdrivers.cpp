@@ -195,6 +195,10 @@ PyDriverExporter<XDSO, XPrimaryDriver> dso([](auto node, auto payload){
     .def("length", &XDSO::Payload::length)
     .def("wave", [](XDSO::Payload &self, unsigned int ch){
         using namespace Eigen;
+        if( !self.length())
+            throw std::runtime_error("wave: no waveform recorded yet.");
+        if(ch >= self.numChannels())
+            throw std::out_of_range("wave: channel index out of range.");
         auto cvector = Map<const VectorXd, 0>(
             self.wave(ch), self.length());
         return Ref<const VectorXd>(cvector);
@@ -203,6 +207,10 @@ PyDriverExporter<XDSO, XPrimaryDriver> dso([](auto node, auto payload){
     .def("lengthDisp", &XDSO::Payload::lengthDisp)
     .def("waveDisp", [](XDSO::Payload &self, unsigned int ch){
         using namespace Eigen;
+        if( !self.lengthDisp())
+            throw std::runtime_error("waveDisp: no trace acquired yet.");
+        if(ch >= self.numChannelsDisp())
+            throw std::out_of_range("waveDisp: channel index out of range.");
         auto cvector = Map<const VectorXd, 0>(
             self.waveDisp(ch), self.lengthDisp());
         return Ref<const VectorXd>(cvector);

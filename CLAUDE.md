@@ -189,6 +189,28 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
 - **Bare layout in QVBoxLayout** — a bare `QLayout` (no wrapping widget) cannot have a size policy set on it; if placed alongside a `QWidget` in a `QVBoxLayout` it will consume all vertical space. Wrap in a `QWidget` if size policy control is needed.
 - **Prefer `setEnabled` over `setVisible`** for optional form sections — hiding a widget collapses the layout and makes the form look broken; disabling keeps layout stable and signals inactivity.
 
+### Form style conventions (when generating a new .ui)
+
+Surveyed from all 53 forms in the repo (`kame/forms/`, `kame/graph/`, `modules/**`). Three archetypes recur — pick the matching one and copy its exemplar rather than generating free-form:
+
+1. **Settings panel** (most driver forms) — exemplars: `modules/dcsource/core/dcsourceform.ui` (small, vertical), `modules/motor/core/motorform.ui` (dense). `QMainWindow` + central `QWidget` + top-level `QGridLayout` (`QVBoxLayout` for a simple stack). Rows are `QHBoxLayout`s of label + field + unit label. Section headers are `QGroupBox`es; use a `QToolBox` (accordion) when the same page repeats per channel/loop (`tempcontrolform.ui`). Large action buttons (`RVS`/`STOP`/`FWD`/`HOME`) sit in a row of plain `QPushButton`s.
+2. **Graph + controls** — exemplars: `modules/networkanalyzer/core/networkanalyzerform.ui` (controls column right of graph), `modules/nmr/nmrpulseform.ui` (controls left, analysis rows under the graph). Top-level `QHBoxLayout` with two columns: the graph column is a `QVBoxLayout` holding the dump-file row (`m_edDump` line edit + browse `QToolButton` + `m_btnDump` + optional `MATH` tool button) above an `XQGraph`, plus optional analysis rows below; the other column is a `QVBoxLayout` of `QGroupBox`es. `XQGraph` is a promoted custom widget (`<customwidget>`: class `XQGraph`, extends `QWidget`, header `graphwidget.h`; the instance carries `native="true"`), sizePolicy Expanding×Expanding with `minimumSize` width ~300; keep everything else Preferred/Fixed so the graph absorbs all resize.
+3. **Many-panel instrument** — exemplar: `modules/dso/core/dsoform.ui`. Central widget = graph + dump row; each control group (`Trigger Setup`, `Trace1`…) is a `QDockWidget` docked around it.
+
+Details, whichever archetype:
+- **Margins/spacing**: explicit 2–4 px margins on every layout (4 dominant, 2 for tight inner layouts), spacing 4 — do not rely on `<layoutdefault>`. Initial `geometry` compact: settings panels ~120–350 px wide, graph forms ~600–900 px.
+- **Window class by purpose**: driver forms are `QMainWindow` (no `QStatusBar` in the .ui — the C++ ctor calls `statusBar()->hide()`); panes embedded in the main KAME window (`kame/forms/*`) are plain `QWidget`; `QDialog` only for modal dialogs (`graphdialog.ui`, `drivercreate.ui`).
+- **Labels**: `QLabel` immediately left of its widget in the same `QHBoxLayout`/grid row, sizePolicy Preferred/Fixed (never Expanding — it steals space from the field). Unit labels (`ms`, `V`, `kHz`, `deg.`) go directly right of the field. `buddy` is not used in this codebase.
+- **Alignment**: end vertical stacks with a vertical spacer so controls stay top-aligned on resize. Live readouts are `QLCDNumber` (`m_lcd*`) + unit label; status LEDs are ~40 px wide `QPushButton`s named `m_led*`.
+- **Widget naming**: widgets referenced from C++ use `m_<prefix><Name>`: `m_ed` line edit, `m_cmb` combo, `m_ckb` checkbox, `m_btn` push button, `m_tb`/`m_tlb` tool button, `m_spb`/`m_dbl` spin boxes, `m_lcd`, `m_led`, `m_graph`/`m_graphwidget` (XQGraph), `m_lbl` label toggled/retexted from code. Purely decorative labels keep uic default names (`textLabelN`).
+- **Always emit `<tabstops>`** listing every interactive widget in visual order — two-thirds of existing forms carry them, and creation order is not a reliable tab order once grids are involved.
+- **Visually verify the result** — render the form to a PNG and look at it before finishing (alignment, margins, clipped labels):
+  ```bash
+  cd tools/uipreview && ~/Qt6/6.10.1/macos/bin/qmake && make   # once per session
+  QT_QPA_PLATFORM=offscreen ./uipreview.app/Contents/MacOS/uipreview <form.ui> /tmp/preview.png
+  ```
+  For forms containing `XQGraph`, substitute it first: `sed 's/class="XQGraph"/class="QWidget"/' form.ui > /tmp/f.ui`. Compare side-by-side with the exemplar rendered the same way.
+
 ## Code Conventions
 
 - All exported symbols use `DECLSPEC_KAME` macro
@@ -196,6 +218,7 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
 - Node payload fields are public members of the nested `Payload` struct inside each node class
 - Prefer `iterate_commit` / `iterate_commit_if` over manual retry loops for transactions
 - Time-stamping: use `XTime` from `kamestm/xtime.h`; `m_recordTime` is set by the driver when data is captured
+- **Never hold a plain mutex across a `Snapshot`/`Transaction`** when driver threads can acquire that same mutex from *inside* an in-flight transaction. The GUI thread sleeping in STM negotiation while holding the mutex + the driver's Tx (tagged as oldest contender) blocking on the mutex = system-wide STM stall, terminated by the negotiation HANG watchdog (`abort()` after 3×5 s cap hits in `_negotiate_internal`). Observed cycle (2026-07-10 crash): `paintGL` → `OnAxisObject::toScreen()` held the OSO `m_mutex` (and `paintGL`'s draw loops held `m_mutexOSO`) across `Snapshot(*plot)`, vs. `XOpticalSpectrometer::analyzeRaw` → math-tool `placeObject()`/`createOnScreenObjectWeakly()` inside `finishWritingRaw`'s Tx. Fix pattern: copy the mutex-guarded fields (or OSO lists) under a short lock, release, then take the Snapshot / draw (`onscreenobject.cpp`, `graphpaintergl.cpp`). A racing writer only yields a one-frame-stale drawing; `requestRepaint()` redraws.
 - **Safe list release** — before calling `list->release(node)`, guard with `Snapshot shot(*list); if(shot.isUpperOf(*node))` to prevent double-release crashes at shutdown (the list may have already cleared the node before the owning object's destructor runs).
 - **Snapshot containment check** — use `shot.isUpperOf(*node)` to test whether a node is in a snapshot, **not** `try { shot.at(*node) } catch (NodeNotFoundError &)`. An inner catch masks any `NodeNotFoundError` that an outer catch block was meant to handle. `isUpperOf` is also the correct semantic: it is a direct O(1) containment predicate, not an exception-driven fallback.
 - **`QPointer` for widget references in async callbacks** — store `QPointer<QWidget>` (not a raw pointer) when a widget reference is held across asynchronous callbacks (e.g. `Talker`/`Listener` or `TalkerOnce` signals). `QPointer` auto-nullifies when Qt destroys the widget; a raw pointer becomes dangling. Check `if(!m_widget)` before use. Example: `XWaveNGraph::m_btnMathTool` was changed from `QToolButton *` to `QPointer<QToolButton>` to fix a crash during `.kam` loading under concurrent driver creation.
@@ -218,6 +241,62 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
       });
   }
   ```
+
+### Driver-authoring rules (from the 2026-07 crash audits — check EVERY new/modified driver against all six)
+
+Rules 1, 3, 4, and 6 — plus the Payload pointer-to-const rule from the STM
+section — are enforced mechanically by `tools/audit/run_audits.sh`
+(node-name collisions, iterate_commit side effects, pybind GIL, UI-touching
+listeners, non-const Payload pointees) — run it after touching any driver; it
+also runs as a pre-commit hook (enable once per clone:
+`git config core.hooksPath .githooks`) and in CI (`.github/workflows/audit.yml`).
+Pre-existing findings are grandfathered in `tools/audit/stm_closures.baseline`
+(ratchet: counts may only go down; regenerate with `--update-baseline` after
+fixing some). Suppress a reviewed false positive with `// audit-ok: <reason>`.
+
+1. **`iterate_commit` closures must be idempotent** — the closure re-runs on every CAS
+   retry. Never perform a non-rollbackable side effect inside: no `free`/`delete`/
+   `fftw_free` of pointers read from committed state (the failed commit rolls the
+   *pointer* back but not the *free* → double free on retry; `90b92913d`), no hardware
+   I/O, no `gErrPrint`/nested `trans().talk()` (fires once per retry), no conditional
+   writes to ref-captured locals read after commit unless they are reset at the TOP of
+   the closure (`4dcf84649`: a latched `skipped` flag silently dropped records).
+   Allocate/free/print/IO **before or after** the transaction; inside, only read
+   `tr`/`shot` and assign.
+2. **pybind11 Payload bindings must survive the "nothing recorded yet" state** —
+   Python/MCP can call any binding at any moment, including before the first record and
+   between `XSkippedRecordError` commits. Validate shared_ptr non-null, container size
+   against the exact index arithmetic, and dimensions nonzero, then throw
+   `std::runtime_error`/`std::out_of_range` (pybind11 → clean Python exception). Never
+   let a null deref, empty-vector `operator[]`, or Eigen dimension assert reach the C
+   level — that aborts the whole process from the Python thread (`8ebf656a8`,
+   `d5aefdc46`). If a Payload has a user-provided constructor, EVERY scalar member must
+   be in its init list (a fresh Payload without one is value-initialized; with one,
+   omitted scalars are indeterminate — XDSO `m_numChannels` fed 0/0 → SIGFPE).
+3. **Node name strings must be unique among siblings and match the accessor spelling** —
+   `create<>("Name")` collisions leave the later sibling unreachable via Python/.kam/
+   NodeBrowser, and when both are `runtime=false` they corrupt .kam round-trips
+   (`ebe414df6`: two "AnalysisMethod" siblings). After adding a driver, grep its
+   `create<` calls for duplicates and typos.
+4. **Never enter STM negotiation while holding the GIL** — `Snapshot`/`Transaction`
+   construction, `commit`, and `iterate_commit` in a pybind binding need
+   `py::call_guard<py::gil_scoped_release>` (or a manual scoped release): Python driver
+   overrides and math-tool functors acquire the GIL from *inside* in-flight
+   transactions, so GIL-held negotiation deadlocks the STM (HANG watchdog abort) —
+   the GIL is just another "plain mutex" for the rule above (`d5aefdc46`).
+5. **Poll loops and handles must tolerate concurrent close** — back off (`msecsleep`)
+   in the `catch(XInterfaceError&)` path of any `while(!terminated)` poll loop, and
+   null-check any device handle before passing it to a C API that asserts instead of
+   returning an error (libusb: `4cdc728c6`, `9c1e9e40f`). Also never call interface
+   I/O from inside a transaction lambda — it takes the interface mutex, which converts
+   ~30 currently-safe lock sites into the deadlock class above.
+6. **Listener callbacks doing Qt UI work need `Listener::FLAG_MAIN_THREAD_CALL`** —
+   without it the callback runs inline on the committing thread, and Python/MCP
+   commits fire it on the scripting thread: any `m_form->` access, `xqcon_create`,
+   or widget method call is then a cross-thread Qt call (UB/crash; `b6d5f7e6b`:
+   tempcontrol connector rebuild, XMicroCAM QTextDocument access). Pair with
+   `FLAG_AVOID_DUP` unless every event matters. Conversely, callbacks that only do
+   STM/interface work should NOT take the flag (adds main-thread latency).
 
 ## Ohtaka (ISSP supercomputer) operating rules
 

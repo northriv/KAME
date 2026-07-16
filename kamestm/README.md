@@ -7,7 +7,7 @@
 Lock-free software transactional memory (STM) primitives — the
 snapshot/transaction core from the [KAME](https://github.com/northriv/KAME)
 measurement framework, extracted as a stand-alone, **header-only**
-library plus one small `.cpp`.
+library plus three small `.cpp` (`threadlocal` / `xthread` / `xtime`).
 
 Dual-licensed under your choice of **Apache 2.0 OR GPL-2.0-or-later**
 so it embeds cleanly into permissive / proprietary projects (Apache
@@ -21,8 +21,8 @@ Windows MinGW64 + lld, and Windows MSVC.
 
 ## What's in here
 
-The library provides **Layer 1** (snapshot + transaction commit) of the KAME
-STM design.  It builds on the **Layer 0 atomic primitives — `atomic.h`,
+The library provides the **snapshot + transaction-commit core** of the KAME
+STM design.  It builds on the **atomic primitives — `atomic.h`,
 `atomic_mfence.h`, and `atomic_smart_ptr.h` (the tagged-pointer lock-free
 `atomic_shared_ptr` / `local_shared_ptr` that is the engine under every
 Snapshot) — which live in [`kamepoolalloc/`](../kamepoolalloc)**, their single
@@ -36,7 +36,7 @@ shared home (shared with the pool allocator), and are included header-only here
 | `threadlocal.h` + `threadlocal.cpp` | `XThreadLocal<T, Tag>` with deterministic per-thread teardown |
 | `xtime.h` + `xtime.cpp` | Monotonic time helpers used by Lamport-clock serial numbers |
 | `transaction.h`, `transaction_definitions.h`, `transaction_impl.h`, `transaction_signal.h` | The STM core: `Snapshot<XN>`, `Transaction<XN>`, `Node<XN>`, `Talker<...>` |
-| `transaction_negotiation.h`, `transaction_neg_impl.h` | Negotiated retries (`iterate_commit_negotiated`) |
+| `transaction_negotiation.h`, `transaction_neg_impl.h` | Negotiated retries (adaptive backoff used by the `iterate_commit` family) |
 
 Out of scope (lives in `kame/` proper): `XNode`, the higher-level
 node hierarchy on top of `Transactional::Node`.  Pull-out of that
@@ -100,31 +100,39 @@ The CAS primitives and memory barriers delegate to `std::atomic` and `std::atomi
 **Multi-node consistency** is achieved through a *bundling* protocol: a parent packet absorbs child packets via multi-phase CAS protocol, making the entire subtree consistent under a single atomic pointer. A `m_missing` flag marks packets with stale children, driving re-bundling on demand.
 
 **Collision negotiation (livelock-free, priority/age-ordered):** when two
-transactions repeatedly collide, `Linkage::negotiate()` elects a single
-*privileged* transaction that the others yield to, rather than letting them
-busy-retry against each other. Each transaction carries a `m_started_time`
-tidstamp (start time packed with its thread id); a global
-`s_privileged_tidstamp` slot holds the current winner. A contender registers
-via **age-ordered preemption** — an older transaction takes privilege from a
-younger holder (`try_register_privileged_tidstamp`), with a small
-`PRIV_PREEMPT_WINDOW_US` hysteresis to stop contemporaneous threads from
-cycling, and an initial-claim age floor scaled by ≈`numThreadsRunning()/4`
-to suppress churn at high thread counts. Priority bands modulate it: only
-LOW-priority holders (LOWEST / UI_DEFERRABLE / SCRIPTING) can be expired or
-evicted; NORMAL / HIGHEST (measurement / driver-critical) are immune.
-Non-privileged contenders **park** (`negotiate_sleep` / yield to the
-privileged Tx) instead of spinning, so the oldest/highest-priority
-transaction always makes progress — model-checked livelock-free in TLA+
-(the Layer-2 `BundleUnbundle_*_LLfree` specs below, which model exactly this
-privileged-TID negotiate; exhaustive for the checked thread counts and tree
-shapes). This replaces the earlier
-proportional-timestamp-wait backoff.
+transactions repeatedly collide, the negotiate machinery
+(`ScopedNegotiateLinkage::_negotiate()`) lets a single *oldest* transaction
+win rather than letting them busy-retry against each other. Each transaction
+carries a fixed `m_started_time` tidstamp (start time packed with its thread
+id, never re-stamped across retries); on contention it tags each contended
+linkage's own `m_transaction_started_time` slot via
+`Snapshot::tag_as_contender()` under an **oldest-wins** rule (older = earlier
+start), with a symmetric ~100 µs `KAME_STM_PREEMPT_WINDOW_US` burst window
+damping preemption between near-contemporaneous threads. A transaction that
+keeps losing escalates its tag to a *privileged* (Reserved-kind) stamp once
+the livelock probe fires (eligibility keyed on tag-ownership + retry count,
+not wall-clock age); only such Reserved stamps hard-block a peer's CAS
+(`fair_mode_blocks_me`) — a plain tag merely shortens the loser's adaptive
+backoff. Priority bands modulate expiry: only LOW-priority holders (LOWEST /
+UI_DEFERRABLE / SCRIPTING) can be expired or evicted; NORMAL / HIGHEST
+(measurement / driver-critical) are immune. Tags are released by
+`drop_tags_n_privilege()` (a CAS-based mine-only clear) at commit success, at
+`~Transaction()` (abort / RAII), and at standalone-`Snapshot` completion.
+Non-privileged contenders **park** (adaptive backoff / condition-variable
+wait) instead of spinning, so the oldest / highest-priority transaction
+always makes progress — model-checked livelock-free in TLA+ (the Layer-2
+`BundleUnbundle_*_LLfree` specs below model this per-linkage tag as a
+per-node `priorityTag`; see [tests/VERIFICATION.md](tests/VERIFICATION.md) §3
+— exhaustive for the checked thread counts and tree shapes). The global
+`s_privileged_tidstamp` / `try_register_privileged_tidstamp` slot is the
+`KAME_PER_LINKAGE_PRIVILEGE=0` fallback, compiled out by default. This
+replaces the earlier proportional-timestamp-wait backoff.
 
 `iterate_commit_while(lambda)` lets the caller abort the retry loop (return `false` from the lambda to stop), enabling conditional transactions.
 
 > **Caution:** Taking a nested `Snapshot` inside a transaction can trigger bundling, which may cause the transaction's CAS to always fail. This is not a data corruption issue but a liveness issue — the transaction retries indefinitely. This occurs when the `Snapshot` target is an ancestor of the transaction target, or when hard links exist (a child with two parents) and a `Snapshot` on one parent's tree interferes with the other. Use `tr[*node]` instead of a nested `Snapshot` in these situations.
 >
-> The hard-link case is formally modelled in `tests/tlaplus/BundleUnbundle_hardlink_*.tla` (sibling-parents and root-with-intermediate self-collision); see `tests/VERIFICATION.md` §5.
+> The hard-link case is formally modelled in `tests/tlaplus/BundleUnbundle_hardlink_*.tla` (seven topology/pattern variants, incl. the conditional nested-sub-bundle gate-scope model); see `tests/VERIFICATION.md` §5.
 
 ## Comparison with other STM designs
 
@@ -154,8 +162,8 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 The STM protocol is formally specified and model-checked with TLA+ / TLC:
 
 - **Layer 1 — `atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting, drain release, and `scoped_atomic_view` ([spec](tests/tlaplus/atomic_shared_ptr.tla)). Safety only — the bare primitive is intentionally *not* livelock-free.
-- **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Exhaustively model-checked **safe + livelock-free** without `CONSTRAINT` (the LL-free design makes the state space naturally finite — no artificial bound); the largest single exhaustive run reaches **641 M distinct states** (3-level all-root, 15 h on the ISSP ohtaka supercomputer), over a billion across the LL-free configurations combined. These are exhaustive results for the checked configurations (fixed thread counts and tree shapes), not an unbounded ∀-thread proof.
-- **Hard-link topologies:** multi-parent / one-child races that reproduce and fix a production abort via a Phase-4 reachability gate (`tests/tlaplus/BundleUnbundle_hardlink_*.tla`).
+- **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Exhaustively model-checked **safe + livelock-free** without `CONSTRAINT` (the LL-free design makes the state space naturally finite — no artificial bound); the largest single exhaustive run reaches **~641 M distinct states** (3-level all-root, 15 h on the ISSP ohtaka supercomputer), over a billion across the LL-free configurations combined. (Raw state counts are **spec-version-specific** — they shift as the spec evolves, so cross-version comparison isn't meaningful; see [tests/VERIFICATION.md](tests/VERIFICATION.md) §3–§4 for the current-spec figures.) These are exhaustive results for the checked configurations (fixed thread counts and tree shapes), not an unbounded ∀-thread proof.
+- **Hard-link topologies:** multi-parent / one-child races that reproduce and fix a production abort via a Phase-4 reachability gate and a Phase-3 skip-Null fix (`tests/tlaplus/BundleUnbundle_hardlink_*.tla`).
 
 **Slide decks** — start at the **coverage overview** ([EN](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_overview_en.html) · [JA](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc_ja/slides_overview.html)), a hub linking every layer with a full coverage matrix. Individual decks (each with a Japanese counterpart under `doc_ja/`): [Layer 1](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer1_en.html), [Layer 2 base](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_en.html), [Layer 2 LLfree](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree.html), [3-level](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_3level_en.html), [dynamic](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_dynamic_en.html), [hard-link](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_hardlink_en.html).
 
@@ -197,8 +205,8 @@ target_include_directories(your_target PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/path/to/kamepoolalloc)
 ```
 
-Compile `kamestm/threadlocal.cpp` + `kamestm/xtime.cpp` into your
-target.
+Compile `kamestm/threadlocal.cpp` + `kamestm/xthread.cpp` +
+`kamestm/xtime.cpp` into your target.
 
 A stand-alone `kamestm.pro` / `CMakeLists.txt` producing a
 `libkamestm.dylib` is on the roadmap.
@@ -207,6 +215,8 @@ A stand-alone `kamestm.pro` / `CMakeLists.txt` producing a
 
 Built by the `tests/` CMake scaffold and run with `ctest`
 (`cmake -S tests -B build && cmake --build build && ctest --test-dir build`).
+(The two `*_mixed` throughput drivers are built but not `ctest`-registered —
+they take command-line arguments and are run manually.)
 Four layers, from primitive to whole-protocol:
 
 **Atomic primitives** — exercise the lock-free building blocks directly:
@@ -224,7 +234,7 @@ Four layers, from primitive to whole-protocol:
 |---|---|
 | `transaction_test` | simultaneous transactions on tree-structured objects |
 | `transaction_dynamic_node_test` | transactions that **insert / remove / swap** node links concurrently |
-| `transaction_negotiation_test` | transactions of *different periodicities* — the slow loop never commits unless the fast loop yields to it via the privileged-Tx negotiation (`negotiate()`: the older/starved Tx is elected privileged and the fast loop parks) |
+| `transaction_negotiation_test` | transactions of *different periodicities* — the slow loop never commits unless the fast loop yields to it via the privileged-Tx negotiation (`ScopedNegotiateLinkage::_negotiate()`: the older/starved Tx escalates to a privileged Reserved tag and the fast loop parks) |
 
 **Payload-integrity stress** — Synchrobench-style mixed-contention throughput
 drivers that fill every payload with a per-writer **sentinel** and re-check it

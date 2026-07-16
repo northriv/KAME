@@ -101,6 +101,7 @@ TLA+ atomic step corresponding 1:1 to a C atomic operation:
 | `test_stm_commit.c` | (legacy stm_commit layer) | Pass |
 | `test_bundle_2level.c`, `test_bundle_2level_LLfree.c` | `BundleUnbundle_2level*.tla` | Pass |
 | `test_bundle_3level.c`, `test_bundle_3level_LLfree.c` | `BundleUnbundle_3level*.tla` | Pass |
+| `test_bundle_hardlink_{4node,self_collision,external,external_migration,dynamic,nonatomic}.c` (6) | `BundleUnbundle_hardlink_*.tla` family | mechanically generated from the specs (each header: "C11 test generated mechanically from …"); run under GenMC |
 
 ### Key findings
 
@@ -304,7 +305,7 @@ except 1-thread and liveness configs.
 
 The multi-phase CAS bundle/unbundle protocol for a 2-level tree (Parent → {Child1, Child2}),
 plus the livelock-free (LL-free) priority mechanism. Models `bundle()`, `unbundle()`,
-`commit()`, and `snapshot()` from `kame/transaction_impl.h` for the 2-level case.
+`commit()`, and `snapshot()` from `kamestm/transaction_impl.h` for the 2-level case.
 
 ### Priority (LL-free) mechanism
 
@@ -668,6 +669,7 @@ Wait-free is not claimed at either layer — CAS-retry-based with fairness
 - `BundleUnbundle_hardlink_external.tla` — minimal 4-node external-parent repro (`P2` hard-linked external to `P1`, `bundle(GN1)` triggers `SnapshotConsistency` violation without the fix)
 - `BundleUnbundle_hardlink_external_migration.tla` — cross-tree migration (bundle on `GN1` reaches into `P1`'s tree to pull `P2` into `GN2.sub[P2]`)
 - `BundleUnbundle_hardlink_nonatomic.tla` — *not a new topology*: a liveness investigation of the non-transactional `insert`/`release` test pattern (b23fa954) interleaved with transactional ops, comparing the master fall-through vs the self-promote fix under two fairness levels (see its own subsection below)
+- `BundleUnbundle_hardlink_nested_external.tla` — *conditional / investigative* (2026-07-02, from the fidelity-dossier §8.2-1 cross-check): the foster parent `M` is **`missing`**, so bundling recurses to a **nested** sub-bundle at `M`, degenerating the Phase-4 gate's root to the local sub-root instead of the global root. A/Bs the gate root via `CONSTANT UseGlobalRoot`: `FALSE` (faithful single-arg gate) → `EventuallyAllDone` **VIOLATED** (nested-scope livelock); `TRUE` (fix = thread the true global root) → **HOLDS**. `SnapshotConsistency` PASSES in **both** (over-strict, never unsafe). **Caveat:** the topology is *assumed via `Init`*, not constructed — it settles the conditional (if reachable, local-root gate livelocks; global-root fix resolves it) but not the topology's own reachability. See dossier §8.7.
 
 ### Background
 
@@ -679,7 +681,10 @@ prompted formal modelling of the protocol under hard-link topologies.
 
 Five complementary topologies are modelled (a sixth spec,
 `_hardlink_nonatomic`, is a non-transactional-pattern liveness
-investigation rather than a topology — covered in its own subsection):
+investigation rather than a topology — covered in its own subsection; a
+seventh, `_hardlink_nested_external`, is a *conditional* investigative
+model of the nested-sub-bundle gate-scope hazard — see the last row and
+dossier §8.7):
 
 | Spec | Topology | Bug surface |
 |---|---|---|
@@ -688,6 +693,7 @@ investigation rather than a topology — covered in its own subsection):
 | `_hardlink_4node` | Root → A, Root → B, A → C, B → C (C shared between A and B) | bundle(Root) Phase 4 reachability gating + outer `DISTURBED` retry; production-race repro |
 | `_hardlink_external` | GN1 → P2 (hardlink), P1 → P2 (external owner of P2's packet) | bundle(GN1) finalises `GN1 ~missing` while `GN2.sub[P2]=Null` is unreachable from GN1 → SnapshotConsistency violation without Phase 4 gating |
 | `_hardlink_external_migration` | as above, but the bundle is allowed to migrate P2 from P1's tree | bundle(GN1) must atomically pull P2 out of P1's `sub[]` and into GN2's `sub[]` while the peer races on P1 |
+| `_hardlink_nested_external` (conditional) | R → A → C (home) and R → M → {D, C-Null} with **M `missing`** | **nested** sub-bundle at `M` degenerates the Phase-4 gate root to local `M`; C's home `A` is outside `M` → spurious `DISTURBED` → livelock (liveness-only; safe). Global-root fix resolves it. Topology assumed via `Init` (reachability open) — see dossier §8.7 |
 
 ### Self-collision: bug repro and fix simulation
 
@@ -963,7 +969,7 @@ schedulers do not strictly meet `WF` in finite time), not a logic
 gap.
 
 The optimization is gated by `KAME_STM_OPTIONAL_OPTIMIZATION`
-(defined to `1` by default in `kame/transaction_definitions.h`,
+(defined to `1` by default in `kamestm/transaction_definitions.h`,
 commits `ead762be`, `b7a4d882`).  Compile with
 `-DKAME_STM_OPTIONAL_OPTIMIZATION=0` to disable the self-promote
 shortcut and the related `bundle()` "peer-completed early return";

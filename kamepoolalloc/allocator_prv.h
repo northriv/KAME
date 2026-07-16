@@ -2941,11 +2941,22 @@ extern std::size_t s_kame_page_tsd_offset;
 //! `s_kame_page_tsd_offset` is set, caches result in `tls_page_ie`,
 //! then returns a pointer to this thread's KameTlsPage.
 //!
-//! `[[clang::preserve_most]]`: caller-side register-spill avoidance.
-//! Without it, clang must spill live caller-saved regs across the call,
-//! bloating `operator new`'s prologue with 4-6 reg saves.  preserve_most
-//! shifts the burden into the cold callee (cheap — cold).
-[[clang::preserve_most]] KameTlsPage *kame_page_cold() noexcept;
+//! NO `[[clang::preserve_most]]` here — it MISCOMPILES on x86-64 with older
+//! Apple clang (observed: Xcode clang on macOS 13, Release -O2): the callee's
+//! CSR spill/restore under preserve_most includes RAX, so the epilogue
+//! `popq %rax` OVERWRITES the pointer return value with whatever RAX held at
+//! the call site (there: `s_kame_page_tsd_offset`, still live from the fast
+//! path's guard load).  The caller then dereferences that small integer as a
+//! KameTlsPage* — the Intel-only, Release-only startup crash on every
+//! thread's FIRST allocation (Intel iMac / Qt 6.8, 2026-07; lldb-proven:
+//! cold plants slot/tls_page_ie correctly, only its return is clobbered,
+//! fault address == the tsd offset value).  AArch64 preserve_most excludes
+//! x0 (return reg), and LLVM ≥~17 excludes RAX on x86-64 too, which is why
+//! arm64 and Linux/clang-20 builds never showed it.  The attribute only
+//! saved a few caller-side reg spills around a once-per-thread cold call —
+//! not worth a toolchain-version-dependent ABI hazard on a value-returning
+//! function.  Do not re-add it to ANY function that returns a value.
+KameTlsPage *kame_page_cold() noexcept;
 
 //! Hot accessor: returns this thread's KameTlsPage via fast-TSD bypass.
 //! macOS arm64: mrs TPIDRRO_EL0 + one load → zero _tlv_get_addr calls.
@@ -2979,8 +2990,8 @@ inline KameTlsPage *kame_page() noexcept {
 //! slot empty, i.e. this thread's very first touch).  Lets a lean hot path
 //! keep ALL of its off-ramps as TAIL-CALLS — no call, hence no stack frame —
 //! by bailing to its own cold function, which then runs the full kame_page()
-//! init.  (kame_page_cold is [[clang::preserve_most]], but a call is still a
-//! call: lr must be spilled, erecting exactly the frame this avoids.)
+//! init.  (Even a cheap call is still a call: lr must be spilled, erecting
+//! exactly the frame this avoids.)
 inline KameTlsPage *kame_page_or_null() noexcept {
 #if defined(KAME_FIXED_TSD_SLOT) && (KAME_FIXED_TSD_SLOT)
     return *reinterpret_cast<KameTlsPage **>(

@@ -1,0 +1,4 @@
+#!/bin/sh
+# KAME pre-commit: static crash-bug audits (fast, no build needed).
+# Enable once per clone with:  git config core.hooksPath .githooks
+exec tools/audit/run_audits.sh

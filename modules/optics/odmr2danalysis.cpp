@@ -40,7 +40,7 @@ XODMR2DAnalysis::XODMR2DAnalysis(const char *name, bool runtime,
     m_autoMinMaxForColorMap(create<XBoolNode>("AutoMinMaxForColorMap", false)),
     m_minForColorMap(create<XDoubleNode>("MinForColorMap", false)),
     m_maxForColorMap(create<XDoubleNode>("MaxForColorMap", false)),
-    m_colorMapMethod(create<XComboNode>("AnalysisMethod", false, true)),
+    m_colorMapMethod(create<XComboNode>("ColorMapMethod", false, true)), //was mistakenly "AnalysisMethod", colliding with m_analysisMethod and corrupting .kam round-trips.
     m_processedImage(create<X2DImage>("ProcessedImage", false,
                                       m_form->m_graphwidgetProcessed, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
                                       4, m_form->m_dblGamma,
@@ -229,8 +229,9 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
 
     if(clear) {
         for(unsigned int i = 0; i < num_summed_frames; ++i) {
-            tr[ *this].m_summedCounts[i] = m_pool.allocate(width * height);
-            std::fill(tr[ *this].m_summedCounts[i]->begin(), tr[ *this].m_summedCounts[i]->end(), BaseOffset);
+            auto fresh = m_pool.allocate(width * height);
+            std::fill(fresh->begin(), fresh->end(), BaseOffset);
+            tr[ *this].m_summedCounts[i] = fresh; //the member is pointer-to-const; fill before assigning.
             tr[ *this].m_accumulatedCount = 0;
         }
         bool has_prev_frame = false;
@@ -329,12 +330,24 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         }
         if(max_v > BaseOffset / 2) {
             //rounding by 2 to avoid overflow.
+            //No caught-and-committed exception (XSkipped/XRecordError) can occur
+            //in this block, so coeff and buffers need no publish choreography —
+            //an escaping exception (e.g. bad_alloc) abandons the tr uncommitted.
             coeff_PLOn_o_Off /= 2;
             tr[ *this].m_coeff_PLOn_o_Off = coeff_PLOn_o_Off; //for later accumulation.
             for(auto &&summed: tr[ *this].m_summedCounts) {
-                if(auto v = summed)
+                if(auto v = summed) {
+                    //Clone-on-write: past-result slots alias buffers committed by
+                    //earlier transactions (copy_prev above) and shared with live
+                    //Snapshots / Python rawImage() — halve into a fresh buffer
+                    //instead of mutating them. This also makes the rescale
+                    //idempotent when the enclosing commit retries.
+                    auto fresh = m_pool.allocate(v->size());
+                    auto it = fresh->begin();
                     for(auto &x: *v)
-                        x = (uint32_t)((int32_t)(x - BaseOffset) / 2) + BaseOffset;
+                        *it++ = (uint32_t)((int32_t)(x - BaseOffset) / 2) + BaseOffset;
+                    summed = fresh;
+                }
             }
         }
     }

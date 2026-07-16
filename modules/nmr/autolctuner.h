@@ -90,7 +90,7 @@ public:
                 stmDelta[i] = lastDirection(i) * 1e-10;
         }
         shared_ptr<const LCRFit> fitOrig; //snapshot-immutable: only rebuilt via make_shared and read via const accessors.
-        shared_ptr<LCRFit> fitRotated;
+        shared_ptr<const LCRFit> fitRotated; //pointer-to-const: shared with live Snapshots; publish fresh objects only.
         std::array<double, 2> stmBacklash; //[deg]
         std::array<double, 2> stmTrustArea; //[deg]
         XTime timeSTMChanged; //STM positions will move to \a targetSTMValues.

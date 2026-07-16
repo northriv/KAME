@@ -345,23 +345,43 @@ template class OnPlotObject<OnScreenTextObject>;
 template <class OSO, bool IsXAxis>
 void
 OnAxisObject<OSO, IsXAxis>::toScreen() {
-    XScopedLock<XMutex> lock( m_mutex);
-    if(auto plot = m_plot.lock()) {
+    // Copy the placement inputs under the lock, then RELEASE it before
+    // taking a Snapshot.  Holding m_mutex across STM negotiation
+    // deadlocks: a driver thread inside an in-flight Transaction
+    // (finishWritingRaw -> analyzeRaw -> math-tool update) calls
+    // placeObject(), which locks the same m_mutex, while the GUI thread
+    // sleeps in negotiate waiting for that very Transaction to finish
+    // (observed as an STM-wide stall aborted by the HANG watchdog).
+    // A racing placeObject() between the copy and the draw only yields
+    // a one-frame-stale rectangle; the subsequent requestRepaint()
+    // redraws with the new values.
+    shared_ptr<XPlot> plot;
+    XGraph::VFloat bg1, ed1;
+    XGraph::GFloat bg2, ed2;
+    XGraph::ScrPoint offset;
+    {
+        XScopedLock<XMutex> lock( m_mutex);
+        plot = m_plot.lock();
+        bg1 = m_bg1; ed1 = m_ed1;
+        bg2 = m_bg2; ed2 = m_ed2;
+        offset = m_offset;
+    }
+    if(plot) {
         XGraph::GFloat bgx, bgy, edx, edy;
         Snapshot shot( *plot);
         shared_ptr<XAxis> axisx = shot[ *plot->axisX()];
         shared_ptr<XAxis> axisy = shot[ *plot->axisY()];
         if(IsXAxis) {
-            bgx = axisx->valToAxis(m_bg1);
-            edx = axisx->valToAxis(m_ed1);
-            bgy = m_bg2;
-            edy = m_ed2;
+            bgx = axisx->valToAxis(bg1);
+            edx = axisx->valToAxis(ed1);
+            bgy = bg2;
+            edy = ed2;
         }
         else {
-            bgy = axisy->valToAxis(m_bg1);
-            edy = axisy->valToAxis(m_ed1);
-            bgx = m_bg2;
-            edx = m_ed2;
+            bgy = axisy->valToAxis(bg1);
+            edy = axisy->valToAxis(ed1);
+            bgx = bg2;
+            edx = ed2;
         }
         XGraph::GPoint g[4] = {{bgx, edy}, {edx, edy}, {edx, bgy}, {bgx, bgy}};
         std::array<XGraph::ScrPoint, 4> s;
@@ -372,7 +392,7 @@ OnAxisObject<OSO, IsXAxis>::toScreen() {
 //            return std::tie(a.x, a.y) < std::tie(b.x, b.y);
 //          });
         for(auto &p: s)
-            p += m_offset;
+            p += offset;
 //        OSO::placeObject(s[1], s[3], s[2], s[0], OSO::HowToEvade::Never, 0);
         OSO::placeObject(s[0], s[1], s[2], s[3], this->m_direction, this->m_space);
     }
@@ -418,8 +438,15 @@ void OnAxisFuncObject<IsXAxis>::drawNative(bool colorpicking) {
     m_yvec = this->func(m_xvec, std::move(m_yvec));
     if(m_yvec.size() != m_xvec.size())
         return;
-    XScopedLock<XMutex> lock( this->m_mutex);
-    if(auto plot = this->m_plot.lock()) {
+    // See OnAxisObject::toScreen(): never hold m_mutex across a Snapshot —
+    // placeObject() locks the same mutex from driver threads inside an
+    // in-flight Transaction, deadlocking the GUI thread's negotiation.
+    shared_ptr<XPlot> plot;
+    {
+        XScopedLock<XMutex> lock( this->m_mutex);
+        plot = this->m_plot.lock();
+    }
+    if(plot) {
         Snapshot shot( *plot);
         XGraph::ScrPoint s;
         double w = 0.85;
@@ -684,6 +711,15 @@ OnPlotMaskObject::setMask(const shared_ptr<XPlot> &plot,
 }
 void
 OnPlotMaskObject::drawNative(bool colorpicking) {
+    // Resolve the graph background color BEFORE locking m_mutex: taking a
+    // Snapshot while holding the mutex deadlocks against driver threads
+    // that call setMask() from inside an in-flight Transaction (see
+    // OnAxisObject::toScreen()).
+    unsigned int bgc = 0;
+    if( !colorpicking) {
+        Snapshot shot_graph( *painter()->graph());
+        bgc = shot_graph[ *painter()->graph()->backGround()];
+    }
     XScopedLock<XMutex> lock(m_mutex);
     auto plot = m_plot.lock();
     if( !plot) return;
@@ -752,8 +788,6 @@ OnPlotMaskObject::drawNative(bool colorpicking) {
     else if( !hasMask) {
         // No mask — filled rectangle highlight (two-pass bg+fg).
         unsigned int fgc = baseColor();
-        Snapshot shot_graph( *painter()->graph());
-        unsigned int bgc = shot_graph[ *painter()->graph()->backGround()];
         double w = 0.1;
         for(auto c: {bgc, fgc}) {
             painter()->beginQuad(true);
@@ -770,19 +804,20 @@ OnPlotMaskObject::drawNative(bool colorpicking) {
         drawFilledTexture(s, colorpicking);
     }
     else {
-        drawContourLines(s, colorpicking);
+        drawContourLines(s, colorpicking, bgc);
     }
     glEnable(GL_DEPTH_TEST);
 }
 
 void
-OnPlotMaskObject::drawContourLines(const XGraph::ScrPoint s[4], bool colorpicking) {
+OnPlotMaskObject::drawContourLines(const XGraph::ScrPoint s[4], bool colorpicking,
+    unsigned int bgc) {
     // Scan each row for [xmin, xmax] of mask, draw left and right contour lines.
+    // bgc is resolved by the caller (drawNative) BEFORE m_mutex is taken —
+    // do not take a Snapshot here; this runs under m_mutex (see drawNative).
     auto lerp = [](const XGraph::ScrPoint &a, const XGraph::ScrPoint &b, float t) -> XGraph::ScrPoint {
         return {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t};
     };
-    Snapshot shot_graph( *painter()->graph());
-    unsigned int bgc = shot_graph[ *painter()->graph()->backGround()];
     unsigned int fgc = baseColor();
 
     // Build left and right contour points from per-row-band boundaries.

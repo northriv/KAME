@@ -70,7 +70,7 @@ protocol body is identical to the outer bundle, but the inner pass is modelled a
 separate actions (<code>InnerPhase2/3/4</code>) to control state-space forking.</p>
 </div>
 
-<h2>InnerPhase structure (superfine splits phases; fine folds into <code>BundlePhase1</code>)</h2>
+<h2>InnerPhase structure (coarse folds into <code>BundlePhase1</code>; fine <em>and</em> superfine split into InnerPhase2/3/4)</h2>
 <pre><code><span class="op">InnerPhase2</span>(t) ==
     <span class="comment">\* CAS Parent to missing=TRUE wrapper</span>
     /\ <span class="op">CanProceed</span>(t, Parent)         <span class="comment">\* ★ priority gate</span>
@@ -78,9 +78,8 @@ separate actions (<code>InnerPhase2/3/4</code>) to control state-space forking.<
        <span class="keyword">IN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![Parent] = newW]
 
 <span class="op">InnerPhase3</span>(t) ==
-    <span class="comment">\* CAS every Child to BundledRefWrapper(Parent, ser)</span>
-    /\ \A c \in {Child1, Child2} : <span class="op">CanProceed</span>(t, c)
-    /\ ...
+    <span class="comment">\* CAS each grandchild to BundledRefWrapper(Parent, ser) — one per action</span>
+    /\ \E c \in {Child1, Child2} : <span class="op">CanProceed</span>(t, c) /\ ...
 
 <span class="op">InnerPhase4</span>(t) ==
     <span class="comment">\* Final CAS: Parent to missing=FALSE</span>
@@ -114,7 +113,7 @@ as <code>missing=TRUE</code> before restoring the child to priority.</p>
     <span class="comment">\* Walk from child upward via bundledBy and build casTargets</span>
     <span class="comment">\* casTargets = &lt;&lt;Grand, Parent&gt;&gt;  (root-first)</span>
     /\ local' = [local <span class="keyword">EXCEPT</span> ![t].casTargets = chain]
-    <span class="comment">\* superfine #5: 3-level uses root-first order (matches C++ traversal)</span></code></pre>
+    <span class="comment">\* root-first order, applied unconditionally (also fine mode; matches C++ traversal)</span></code></pre>
 
 <h2>Step 2: UnbundleCASLoop — mark each ancestor missing=TRUE</h2>
 <pre><code><span class="op">UnbundleCASLoop</span>(t) ==
@@ -147,7 +146,7 @@ as <code>missing=TRUE</code> before restoring the child to priority.</p>
 <tr><th>cfg</th><th>Threads</th><th>States</th><th>Depth</th><th>Time</th><th>Result</th></tr>
 <tr><td>1-thread superfine</td><td>1</td><td>(small)</td><td>—</td><td>&lt;1s</td><td style="color:#4ade80">✅ Pass (sanity)</td></tr>
 <tr><td>2-thread coarse</td><td>2</td><td>1,497,098</td><td>98</td><td>1:35</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
-<tr><td>2-thread superfine</td><td>2</td><td>14,109,731</td><td>148</td><td>19:13</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-thread superfine</td><td>2</td><td>15,094,117</td><td>146</td><td>15m 11s</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
 <tr><td>3-thread superfine confC (all-root)</td><td>3</td><td>640,894,951</td><td>88</td><td>15:25</td><td style="color:#4ade80">✅ Pass + liveness (ohtaka)</td></tr>
 </table>
 

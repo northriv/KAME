@@ -614,12 +614,17 @@
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <tabstops>
+  <tabstop>m_ledReady</tabstop>
+  <tabstop>m_ledSlipping</tabstop>
   <tabstop>m_ckbActive</tabstop>
+  <tabstop>m_edTarget</tabstop>
   <tabstop>m_ckbRound</tabstop>
   <tabstop>m_edRoundBy</tabstop>
+  <tabstop>m_ckbPushing</tabstop>
   <tabstop>m_btnRVS</tabstop>
   <tabstop>m_btnSTOP</tabstop>
   <tabstop>m_btnFWD</tabstop>
+  <tabstop>m_btnHOME</tabstop>
   <tabstop>m_edSpeed</tabstop>
   <tabstop>m_edAUXBits</tabstop>
   <tabstop>m_edStepMotor</tabstop>

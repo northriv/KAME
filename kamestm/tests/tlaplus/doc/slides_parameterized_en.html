@@ -89,7 +89,7 @@ a catamorphism — so the depth induction goes through without restructuring the
 <tr><th>Action</th><th>linkage footprint</th><th>role</th></tr>
 <tr><td><code>BundlePhase1</code> (collect)</td><td>self + each immediate child (grandchildren only via the recursive inner-bundle of a non-leaf child)</td><td>bundle↓</td></tr>
 <tr><td><code>BundlePhase3</code> (per-child CAS)</td><td>self + immediate children (one child / action)</td><td>bundle↓</td></tr>
-<tr><td><code>UnbundleWalk</code> / <code>CASLoop</code> / <code>CASChild</code></td><td>self + immediate parent / one ancestor + root anchor / self + immediate parent</td><td>unbundle↑</td></tr>
+<tr><td><code>UnbundleWalk</code> / <code>UnbundleCASLoop</code> / <code>UnbundleCASChild</code></td><td>self + immediate parent / one ancestor + root anchor / self + immediate parent</td><td>unbundle↑</td></tr>
 <tr><td><code>BundlePhase2/4</code>, <code>CommitTryCAS</code>, <code>CommitGrand</code></td><td>self only (incl. root-anchor read)</td><td>local</td></tr>
 </table>
 <p style="color:#94a3b8;font-size:0.9em">Every action's footprint ⊆ <code>{self} ∪ {immediate fold-neighbours} ∪ {root anchor}</code>. Obligation #1 discharged.</p>
@@ -239,7 +239,7 @@ discharge this at the cutoff; the general bound is the open liveness lemma.</p>
 <h1>Scope + provenance + summary</h1>
 
 <h2>Scope boundary (static, single-parent tree)</h2>
-<p>The cutoff (tree axis), the saturation (thread axis), and any derived local structural invariant
+<p>The cutoff (tree axis), the saturation (thread axis), the §7 liveness ranking, and any derived local structural invariant
 (<code>SubNeverMissing</code> / <code>BundledHasCopy</code> / <code>StaleParentExcluded</code> / <code>SubPresenceUniform</code>,
 validated with no violation up to 3-level superfine <code>T=3</code> all-root + <code>T=2</code> both-roles) are stated for a
 <strong>fixed, single-parent rooted tree</strong> (<code>Next</code> has no node-insert/remove; <code>ParentOf</code> is single-valued).

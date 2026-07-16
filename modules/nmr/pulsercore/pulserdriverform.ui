@@ -1192,6 +1192,7 @@
   <tabstop>m_edPW2</tabstop>
   <tabstop>m_dblP2Level</tabstop>
   <tabstop>m_cmbP2Func</tabstop>
+  <tabstop>m_slMasterLevel</tabstop>
   <tabstop>m_dblMasterLevel</tabstop>
   <tabstop>m_cmbCombMode</tabstop>
   <tabstop>m_edCombPW</tabstop>

@@ -84,7 +84,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
       m_p1Min(create<XDoubleNode>("P1Min", false)),
       m_p1Max(create<XDoubleNode>("P1Max", false)),
       m_p1Next(create<XDoubleNode>("P1Next", true)),
-      m_p1AltNext(create<XDoubleNode>("P1Next", true)),
+      m_p1AltNext(create<XDoubleNode>("P1AltNext", true)), //was mistakenly "P1Next", colliding with m_p1Next for name-based (Python) access.
       m_phase(create<XDoubleNode>("Phase", false, "%.2f")),
       m_freq(create<XDoubleNode>("Freq", false, "%.3f")),
       m_windowFunc(create<XComboNode>("WindowFunc", false, true)),
@@ -475,22 +475,29 @@ XNMRT1::analyzeSpectrum(Transaction &tr,
                 tr[ *this].m_convolutionCache.push_back(
                     std::make_shared<Payload::ConvolutionCache>());
             }
-            shared_ptr<Payload::ConvolutionCache> cache = tr[ *this].m_convolutionCache[idx];
+            shared_ptr<const Payload::ConvolutionCache> cache = tr[ *this].m_convolutionCache[idx];
             if((cache->windowwidth != *wit) || (cache->origin != origin) ||
                 (cache->windowfunc != *fit) || (cache->cfreq != cf) ||
                 (cache->wave.size() != wave.size())) {
-                cache->windowwidth = *wit;
-                cache->origin = origin;
-                cache->windowfunc = *fit;
-                cache->cfreq = cf;
-                cache->power = 0.0;
-                cache->wave.resize(wave.size());
+                //Clone-on-write: the existing entry is a committed pointee shared
+                //with live Snapshots — rebuilding it in place lets concurrent
+                //readers see a half-rewritten window (or a dangling buffer during
+                //wave.resize). Build a fresh entry, then publish it.
+                auto fresh = std::make_shared<Payload::ConvolutionCache>();
+                fresh->windowwidth = *wit;
+                fresh->origin = origin;
+                fresh->windowfunc = *fit;
+                fresh->cfreq = cf;
+                fresh->power = 0.0;
+                fresh->wave.resize(wave.size());
                 double wk = 1.0 / FFTSolver::windowLength(wave.size(), -origin, *wit);
                 for(int i = 0; i < (int)wave.size(); i++) {
                     double w = ( *fit)((i - origin) * wk) / (double)wave.size();
-                    cache->wave[i] = std::polar(w, -2.0*M_PI*cf*(i - origin));
-                    cache->power += w*w;
+                    fresh->wave[i] = std::polar(w, -2.0*M_PI*cf*(i - origin));
+                    fresh->power += w*w;
                 }
+                cache = fresh;
+                tr[ *this].m_convolutionCache[idx] = fresh;
             }
 
             std::complex<double> z(0.0);
@@ -559,16 +566,27 @@ XNMRT1::storePulseForMapping(Transaction &tr, double p1_or_2tau,
     if((p1_or_2tau > shot_this[ *p1Max()]) || (p1_or_2tau < shot_this[ *p1Min()]))
         return;
     double min_reldiff = 1e10;
-    std::shared_ptr<Payload::Pulse> p;
-    for(auto x: shot_this[ *this].m_allPulses) {
+    int pidx = -1;
+    for(int i = 0; i < (int)shot_this[ *this].m_allPulses.size(); ++i) {
+        auto &x = shot_this[ *this].m_allPulses[i];
         double reldiff = std::abs(x->p1 / p1_or_2tau - 1.0);
         if(reldiff < min_reldiff) {
             min_reldiff = reldiff;
-            p = x;
+            pidx = i;
         }
     }
-    if(min_reldiff > shot_this[ *p1Max()]/shot_this[ *p1Min()] - 1.0)
+    if((pidx < 0) || (min_reldiff > shot_this[ *p1Max()]/shot_this[ *p1Min()] - 1.0))
         return;
+    //Clone-on-write: the matched Pulse is a committed pointee shared with every
+    //live Snapshot. Accumulating into it in place would (a) double-count this
+    //echo train when the enclosing commit retries (the += survives the rollback)
+    //and (b) let a concurrent visualize() read a summedTrace/ft buffer that is
+    //being reallocated. The fresh copy is installed right away — the tr state is
+    //private until commit, so mutations through p below stay isolated; a ZFFFT
+    //throw then commits an ft one record behind, which visualize() tolerates by
+    //bounding its reads with ft.size().
+    auto p = std::make_shared<Payload::Pulse>( *shot_this[ *this].m_allPulses[pidx]);
+    tr[ *this].m_allPulses[pidx] = p;
 
     p->ftOrigin = shot_pulse[pulse].waveFTPos();
     if(p->summedTrace.size() != wave.size()) {
@@ -680,9 +698,9 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
             int samples = std::min(200u, shot_this[ *smoothSamples()] * 10);
             tr[ *this].m_mapTCount = samples;
             for(long i = 0; i < shot_this[ *smoothSamples()]; ++i) {
-                tr[ *this].m_allPulses.push_back(std::make_shared<Payload::Pulse>());
-                auto p = tr[ *this].m_allPulses.back();
+                auto p = std::make_shared<Payload::Pulse>();
                 p->p1 = distributeP1(shot_this, (double)i / (shot_this[ *smoothSamples()] - 1));
+                tr[ *this].m_allPulses.push_back(p); //fill before publishing (pointer-to-const).
             }
         }
         tr[ *m_waveMap].clearPoints();
@@ -888,7 +906,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         }
         if(cond < 0) {
             cond = 0;
-            for(std::deque<shared_ptr<Payload::ConvolutionCache> >::const_iterator it
+            for(auto it
                 = shot_this[ *this].m_convolutionCache.begin();
                 it != shot_this[ *this].m_convolutionCache.end(); ++it) {
                 if((m_windowWidthList[std::max(0, (int)shot_this[ *windowWidth()])] == ( *it)->windowwidth) &&
@@ -939,9 +957,16 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         //recalculates all FT.
         std::vector<std::complex<double> > fftout;
         std::vector<std::complex<double> > fftin;
-        for(auto &p: shot_this[ *this].m_allPulses) {
-            if(p->avgCount)
-                ZFFFT(tr, fftin, fftout, p, shot_pulse1[ *pulse1__].interval());
+        for(auto &slot: tr[ *this].m_allPulses) {
+            if(slot->avgCount) {
+                //Clone-on-write: ft is rewritten; the slot holds a committed
+                //pointee shared with live Snapshots. Mutations go to the fresh
+                //copy (tr-private until commit); a mid-loop ZFFFT throw leaves
+                //some ft one size behind, which visualize() bounds-checks.
+                auto fresh = std::make_shared<Payload::Pulse>( *slot);
+                slot = fresh;
+                ZFFFT(tr, fftin, fftout, fresh, shot_pulse1[ *pulse1__].interval());
+            }
         }
         m_regularization.reset(); //for mode/relax fn. change.
     }
@@ -1053,7 +1078,10 @@ XNMRT1::visualize(const Snapshot &shot) {
                         double f = shot[ *this].mapStartFreq() + j * shot[ *this].m_mapFreqRes;
                         colp1[k] = p->p1;
                         colf[k] = f * 1e-3;
-                        auto z = p->ft.coeff(j) * rot_ph;
+                        //ft can be one resize behind mapFreqCount() when a ZFFFT
+                        //throw was committed (XSkipped/XRecordError still commit);
+                        //coeff() is unchecked, so bound j explicitly.
+                        auto z = (j < p->ft.size()) ? p->ft.coeff(j) * rot_ph : std::complex<double>(0.0);
                         colre[k] = std::real(z);
                         colim[k] = std::imag(z);
                         relax_fdep.coeffRef(j, i) = colre[k];

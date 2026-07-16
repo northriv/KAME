@@ -47,6 +47,9 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
 
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
    virtual int64_t bulkWrite(uint8_t ep, const uint8_t *buf, int len) override {
+       if( !handle)
+           //Device was closed concurrently; a null dev_handle aborts inside libusb.
+           throw XInterface::XInterfaceError("USB: bulk write attempted on a closed device handle.\n", __FILE__, __LINE__);
        msecsleep(5);
        int actual_length;
        int ret = libusb_bulk_transfer(handle,
@@ -366,6 +369,9 @@ CyFXLibUSBDevice::close() {
 int
 CyFXLibUSBDevice::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, const uint8_t *wbuf, int len) {
+    if( !handle)
+        //Device was closed concurrently; a null dev_handle aborts inside libusb.
+        throw XInterface::XInterfaceError("USB: control write attempted on a closed device handle.\n", __FILE__, __LINE__);
     std::vector<uint8_t> buf(len);
     std::copy(wbuf, wbuf + len, buf.begin());
     int ret = libusb_control_transfer(handle,
@@ -381,6 +387,9 @@ CyFXLibUSBDevice::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value
 int
 CyFXLibUSBDevice::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, uint8_t *rdbuf, int len) {
+    if( !handle)
+        //Device was closed concurrently; a null dev_handle aborts inside libusb.
+        throw XInterface::XInterfaceError("USB: control read attempted on a closed device handle.\n", __FILE__, __LINE__);
     int ret = libusb_control_transfer(handle,
         LIBUSB_ENDPOINT_IN | (int8_t)type,
         (uint8_t)request,
@@ -395,6 +404,9 @@ CyFXLibUSBDevice::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
 XString
 CyFXLibUSBDevice::getString(int descid) {
     char s[128];
+    if( !handle)
+        //Device was closed concurrently; a null dev_handle aborts inside libusb.
+        throw XInterface::XInterfaceError("USB: get string desc. attempted on a closed device handle.\n", __FILE__, __LINE__);
     int ret = libusb_get_string_descriptor_ascii(handle, descid, (uint8_t*)s, sizeof(s) - 1);
     if(ret < 0) {
          throw XInterface::XInterfaceError(formatString("Error during USB get string desc.: %s\n", libusb_error_name(ret)), __FILE__, __LINE__);

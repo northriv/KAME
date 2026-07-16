@@ -45,7 +45,7 @@ a{color:#60a5fa}
 その上で <strong>TLA+/TLC</strong> が全スレッドインターリーブを網羅探索する: Layer 1 は <code>atomic_shared_ptr</code> + commit プリミティブを
 数千万状態 (2 スレッドで 6,653 万) でメモリ安全と証明し、<em>裸のプリミティブが livelock-free でないこと</em>を意図的に示す。
 Layer 2 は 2/3 レベル木の多段 bundle/unbundle STM プロトコルを、静的・動的の両方で <strong>safety かつ livelock-free</strong> と証明し、
-Lamport クロック優先度調停で 11.5 億状態超まで検証する。さらに hard-link 系 6 topology が
+Lamport クロック優先度調停で 11.5 億状態超まで検証する。さらに hard-link 系 7 topology/パターン変種が
 本番 race「30/30 abort」を <strong>再現・修正</strong>する。最後に <strong>C++ ストレステスト 7 本</strong> (~2,700 万反復、4-8 スレッド)
 が実装を実機で走らせ、抽象モデルでは捉えられないコンパイラ・レイアウト・タイミング依存バグを検出する。
 <strong>結論: プロトコルは数学的に保証され、実装は経験的に堅牢化されており、両者の間に隙間はない。</strong></p>
@@ -83,7 +83,7 @@ Lamport クロック優先度調停で 11.5 億状態超まで検証する。さ
 
 <tr>
 <td><span class="pill pill-l0">L0</span></td>
-<td><code>cds_test_*.c</code> (9)<br><code>tlaplus/test_*.c</code> (9)</td>
+<td><code>cds_test_*.c</code> (10)<br><code>tlaplus/test_*.c</code> (15; 6 は hardlink)</td>
 <td>GenMC v0.17<br>(RC11)</td>
 <td>タグ付きポインタ参照カウント、memory_order 安全性 (弱メモリ)</td>
 <td>multi_cas: 464,164 完了 + 705,296 blocked (~270s)</td>
@@ -106,7 +106,7 @@ Lamport クロック優先度調停で 11.5 億状態超まで検証する。さ
 <td><code>BundleUnbundle_2level_LLfree.tla</code></td>
 <td>TLC</td>
 <td>2-level bundle/unbundle + LL-free priority gating</td>
-<td>137,333,348 (3t confC live, 2:53)<br>127,586,599 (MaxCommits=2, 4:40)</td>
+<td>137,333,348 (3t confC live, 2h 57min)<br>127,586,599 (MaxCommits=2, 4:40)</td>
 <td style="color:#4ade80">Pass + liveness</td>
 <td><a href="slides_layer2_LLfree.html">slides_layer2_LLfree.html</a></td>
 </tr>
@@ -143,7 +143,7 @@ Lamport クロック優先度調停で 11.5 億状態超まで検証する。さ
 
 <tr>
 <td><span class="pill pill-hl">HL</span></td>
-<td><code>BundleUnbundle_hardlink_*.tla</code> (6)</td>
+<td><code>BundleUnbundle_hardlink_*.tla</code> (7; 条件付き <code>nested_external</code> 含む)</td>
 <td>TLC</td>
 <td>2-親/1-子 hard-link 6 topology、Phase 4 reachability gate、per-action fairness</td>
 <td>self_collision FAIL→114、4node FAIL→531、external_migration 3t 1,202</td>
@@ -175,7 +175,7 @@ Lamport クロック優先度調停で 11.5 億状態超まで検証する。さ
 <div class="box-orange">
 <p><strong>最大規模ハイライト:</strong> 全検証中の最大状態空間は <span class="big">1,154,807,632</span> 状態
 (3-level static confC, safety-only, ohtaka 4:09)。safety+liveness 込みの最大は <strong>640,894,951</strong>
-(3-level confC live, 15:25)。動的仕様の最大は <strong>921,351,233</strong> (3L-dyn release superfine, 3h24m)。
+(3-level confC live, 15:25)。<em>（これらは spec バージョン依存のピーク値；生の状態数は spec 進化で変動し、現行 spec は confC ≈ 540,782,047 に再基準化 — バージョン跨ぎ比較は無意味、VERIFICATION.md §3–§4 参照。）</em>動的仕様の最大は <strong>921,351,233</strong> (3L-dyn release superfine, 3h24m)。
 いずれも CONSTRAINT なし完全 exhaustion。</p>
 </div>
 </div>
@@ -230,7 +230,7 @@ Lamport クロック優先度調停で 11.5 億状態超まで検証する。さ
 <div class="card" style="background:#0a1929">
 <h3><span class="pill pill-l0">L0</span> GenMC RC11（デッキ未作成）</h3>
 <p><a href="../../VERIFICATION.md">VERIFICATION.md §1 →</a></p>
-<p style="font-size:0.9em;color:#94a3b8">18 プログラム (cds_test_*.c 9 + test_*.c 9)、弱メモリモデル下の参照カウント安全性。スライド未作成（生データのみ）。</p>
+<p style="font-size:0.9em;color:#94a3b8">25 プログラム (cds_test_*.c 10 + test_*.c 15; 後者の 6 は hardlink プロトコルテスト)、弱メモリモデル下の参照カウント安全性。スライド未作成（生データのみ）。</p>
 </div>
 
 <div class="card" style="background:#0a1929">
@@ -262,7 +262,7 @@ Lamport クロック優先度調停で 11.5 億状態超まで検証する。さ
 <tr><td>fairness / starvation</td><td><code>transaction_negotiation_test</code></td><td>N/A</td><td>hard-link で per-action WF モデル化</td></tr>
 <tr><td>実コンパイラ/実機バグ</td><td><strong>Yes (実バイナリ)</strong></td><td>No (抽象)</td><td>No (抽象)</td></tr>
 </table>
-<p style="color:#94a3b8;font-size:0.88em">※ VERIFICATION.md §6 の相補性表は「622M states」と古い値を記載。最新の最大は 1,154,807,632 (3L static confC)。</p>
+<p style="color:#94a3b8;font-size:0.88em">※ VERIFICATION.md §6 の相補性表は「622M states」と古い値を記載。spec バージョン跨ぎのピークは 1,154,807,632 (3L static confC, spec 8d6026e3) — 現行 spec は confC ≈ 540,782,047 (924b6e63) に再基準化。生の状態数は spec バージョン依存。</p>
 
 <h2>補遺: superseded 仕様 (完全カバレッジのための脚注)</h2>
 <div class="box">

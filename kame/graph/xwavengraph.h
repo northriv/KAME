@@ -96,7 +96,7 @@ public:
             virtual double max() const = 0;
             virtual bool moreThanZero(size_t i) const = 0;
             virtual const std::vector<XGraph::VFloat> &fillOrPointToGraphPoints(std::vector<XGraph::VFloat>& buf) const = 0;
-            virtual void toOFStream(std::fstream &s, size_t idx) = 0;
+            virtual void toOFStream(std::fstream &s, size_t idx) const = 0;
             unsigned int precision;
             template <typename VALUE>
             static const std::vector<XGraph::VFloat> &fillOrPointToGraphPointsBasic(std::vector<XGraph::VFloat>& buf,
@@ -124,12 +124,14 @@ public:
             virtual const std::vector<XGraph::VFloat> &fillOrPointToGraphPoints(std::vector<XGraph::VFloat>& buf) const {
                 return fillOrPointToGraphPointsBasic(buf, vector);
             }
-            virtual void toOFStream(std::fstream &s, size_t idx) {
+            virtual void toOFStream(std::fstream &s, size_t idx) const {
                 s << vector[idx];
             }
             std::vector<VALUE> vector;
         };
-        std::vector<shared_ptr<ColumnBase>> m_cols;
+        //pointer-to-const: column buffers are shared with every live Snapshot
+        //(shallow Payload clone); setColumn() installs fresh Column objects.
+        std::vector<shared_ptr<const ColumnBase>> m_cols;
 
         struct XPlotWrapper : public XPlot {
             XPlotWrapper(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph);

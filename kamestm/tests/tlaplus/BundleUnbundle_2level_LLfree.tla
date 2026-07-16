@@ -23,11 +23,12 @@
  *     priority-tag mechanism bounds total wrapper churn structurally.
  *   - New variable priorityTag[n]: per-node (Null | <<iter, tid>>) tag.
  *     Set by a thread when its CAS fails at a "negotiate point" (the
- *     places C++ calls m_link->negotiate()); other threads see the tag
- *     and only proceed if it's Null or matches their own (iter, tid).
+ *     ScopedNegotiateLinkage::_negotiate() sites); other threads see the
+ *     tag and only proceed if it's Null or matches their own (iter, tid).
  *     Older transactions (smaller iter, then smaller tid) win.
- *   - Tag is cleared by the holder when its CAS finally succeeds —
- *     mirroring C++ release_privileged_tidstamp().
+ *   - Tag is cleared at Transaction end via ClearMyTags — mirrors
+ *     C++ drop_tags_n_privilege() (per-linkage default,
+ *     KAME_PER_LINKAGE_PRIVILEGE=1).
  *   - C++ optimization to skip tag operations under low contention
  *     (count-based threshold) is omitted; the model always tags on
  *     failure, matching the worst-case behavior verifiable by TLC.
@@ -136,7 +137,8 @@ VARIABLES
                   \* gates other threads via CanProceed. Cleared on success
                   \* by the holder. Older transactions (smaller iter, then
                   \* smaller tid) preempt younger ones. Mirrors C++
-                  \* m_priority_tidstamp at every negotiate point — no
+                  \* Linkage::m_transaction_started_time (the per-linkage
+                  \* priority slot) at every negotiate point — no
                   \* count-based skip optimisation.
 
 vars == <<serial, linkage, pc, op, target, local, iterBudget, childQueue, priorityTag>>
@@ -199,9 +201,10 @@ TagOlder(a, b) ==
     \/ (a[1] = b[1] /\ a[2] < b[2])
 
 \* CanProceed: gate for any CAS attempt at node n by thread t.
-\* Matches C++ tag_as_contender(): a thread proceeds when:
-\*   (a) no privileged tidstamp registered, OR
-\*   (b) the registered tidstamp's tid is mine.
+\* Proceeds iff the node's tag is Null or already mine (by tid).
+\* C++ counterpart is the advisory fair_mode_blocks_me gate, which
+\* hard-blocks only on a foreign Reserved-kind stamp; this spec's
+\* CanProceed hard-gates on ANY foreign tag — deliberately stricter.
 \* Older threads preempt younger threads' tags via PreemptTag.
 \* No "zombie tag" check needed: tags are only cleared on commit
 \* success (ClearMyTags), and a thread reaches inactive state
@@ -275,8 +278,10 @@ Init ==
 
 \* @c11_action PreemptTag(t, n):
 \*   An older thread can replace a younger thread's tag at a node, allowing
-\*   it to subsequently proceed via CanProceed. Mirrors C++
-\*   try_register_privileged_tidstamp() succeeding for an older Transaction.
+\*   it to subsequently proceed via CanProceed. Mirrors the
+\*   older-preempts-younger branch of C++ tag_as_contender() (per-linkage
+\*   default; global-mode try_register_privileged_tidstamp() is the
+\*   KAME_PER_LINKAGE_PRIVILEGE=0 fallback).
 \*   Without this action, a younger thread that grabbed the tag first could
 \*   permanently lock out an older thread.
 PreemptTag(t, n) ==

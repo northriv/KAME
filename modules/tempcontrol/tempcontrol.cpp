@@ -388,7 +388,11 @@ XTempControl::XTempControl(const char *name, bool runtime,
 
     iterate_commit([=](Transaction &tr){
 		m_lsnOnSetupChannelChanged = tr[ *m_setupChannel].onValueChanged().connectWeakly(
-            shared_from_this(), &XTempControl::onSetupChannelChangedInternal);
+            shared_from_this(), &XTempControl::onSetupChannelChangedInternal,
+            //Rebuilds xqcon connectors (QComboBox::clear/addItem etc.) — Qt UI
+            //work must run on the main thread; a Python/MCP set on SetupChannel
+            //would otherwise fire this on the scripting thread.
+            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
         m_lsnOnLoopUpdated = m_tlkOnLoopUpdated.connectWeakly(shared_from_this(), &XTempControl::onLoopUpdated,
             Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
     });

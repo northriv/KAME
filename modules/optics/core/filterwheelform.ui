@@ -846,7 +846,30 @@
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <tabstops>
+  <tabstop>m_spbTarget</tabstop>
+  <tabstop>m_ckbGoAround</tabstop>
+  <tabstop>m_cmbCamera</tabstop>
+  <tabstop>m_cmbSTM</tabstop>
   <tabstop>m_edPhaseErrWithin</tabstop>
+  <tabstop>m_edWaitAfterMove</tabstop>
+  <tabstop>m_edLabel0</tabstop>
+  <tabstop>m_spbCounts0</tabstop>
+  <tabstop>m_edAngle0</tabstop>
+  <tabstop>m_edLabel1</tabstop>
+  <tabstop>m_spbCounts1</tabstop>
+  <tabstop>m_edAngle1</tabstop>
+  <tabstop>m_edLabel2</tabstop>
+  <tabstop>m_spbCounts2</tabstop>
+  <tabstop>m_edAngle2</tabstop>
+  <tabstop>m_edLabel3</tabstop>
+  <tabstop>m_spbCounts3</tabstop>
+  <tabstop>m_edAngle3</tabstop>
+  <tabstop>m_edLabel4</tabstop>
+  <tabstop>m_spbCounts4</tabstop>
+  <tabstop>m_edAngle4</tabstop>
+  <tabstop>m_edLabel5</tabstop>
+  <tabstop>m_spbCounts5</tabstop>
+  <tabstop>m_edAngle5</tabstop>
  </tabstops>
  <resources/>
  <connections/>

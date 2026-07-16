@@ -1968,17 +1968,25 @@
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <tabstops>
-  <tabstop>m_edRatioZ</tabstop>
-  <tabstop>m_edRatioX</tabstop>
-  <tabstop>m_edRatioA</tabstop>
+  <tabstop>m_btnSetZeroPos</tabstop>
+  <tabstop>m_btnFreeAll</tabstop>
+  <tabstop>m_edTargetZ</tabstop>
   <tabstop>m_edMaxSpeedZ</tabstop>
+  <tabstop>m_edRatioZ</tabstop>
+  <tabstop>m_cmbSTMZ</tabstop>
+  <tabstop>m_edTargetX</tabstop>
   <tabstop>m_edMaxSpeedX</tabstop>
+  <tabstop>m_edRatioX</tabstop>
+  <tabstop>m_cmbSTMX</tabstop>
+  <tabstop>m_edTargetA</tabstop>
   <tabstop>m_edMaxSpeedA</tabstop>
+  <tabstop>m_edRatioA</tabstop>
+  <tabstop>m_cmbSTMA</tabstop>
   <tabstop>m_edSpeedReturn</tabstop>
-  <tabstop>m_edCutDepthXY</tabstop>
-  <tabstop>m_edCutDepthZ</tabstop>
   <tabstop>m_edOffsetX</tabstop>
+  <tabstop>m_edCutDepthXY</tabstop>
   <tabstop>m_edFeedXY</tabstop>
+  <tabstop>m_edCutDepthZ</tabstop>
   <tabstop>m_edFeedZ</tabstop>
   <tabstop>m_edZ1</tabstop>
   <tabstop>m_edZ2</tabstop>
@@ -1992,7 +2000,10 @@
   <tabstop>m_btnAppend</tabstop>
   <tabstop>m_ledRunning</tabstop>
   <tabstop>m_ledSlipped</tabstop>
+  <tabstop>m_edAbortAfter</tabstop>
+  <tabstop>m_btnEscape</tabstop>
   <tabstop>m_txtCode</tabstop>
+  <tabstop>m_btnExec</tabstop>
  </tabstops>
  <resources/>
  <connections/>

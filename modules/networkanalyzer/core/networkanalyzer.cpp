@@ -254,6 +254,8 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 		}
 		catch (XKameError &e) {
 			e.print(getLabel());
+			if( !terminated)
+				msecsleep(1000); //back off on error (e.g. dead device) so the loop does not hammer.
 			continue;
 		}
 		writer->push((unsigned int)1); //# of traces.
@@ -272,6 +274,8 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 		}
 		catch (XKameError &e) {
 			e.print(getLabel());
+			if( !terminated)
+				msecsleep(1000); //back off on error (e.g. dead device) so the loop does not hammer.
 			continue;
 		}
 		writer->push((unsigned int)nummk); //# of markers.
@@ -288,6 +292,8 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 		}
 		catch (XKameError &e) {
 			e.print(getLabel());
+			if( !terminated)
+				msecsleep(1000); //back off on error (e.g. dead device) so the loop does not hammer.
 			continue;
 		}
 		finishWritingRaw(writer, time_awared, XTime::now());

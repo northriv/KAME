@@ -2639,8 +2639,9 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             // circuit their Null-slot reverseLookup when the observed
             // root is missing (mid-bundle).  Default globalroot is
             // correct: for `is_bundle_root=true` the reverseLookup
-            // at line ~1440 makes newpacket alias superwrapper's
-            // packet, i.e. the bundle's global root.
+            // self-alias branch (:1593, `&superpacket->node()==this`)
+            // makes newpacket alias superwrapper's packet, i.e. the
+            // bundle's global root.
             newpacket->m_missing = false;
             if(newpacket->allSubReachable(newpacket)) [[likely]] {
                 STRICT_assert(newpacket->checkConsistensy(newpacket));

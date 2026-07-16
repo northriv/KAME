@@ -282,7 +282,14 @@ void
 XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t width, uint32_t height, bool big_endian, bool mono16) {
     auto rawCountsNext = m_pool.allocate(width * height);
     if( !tr[ *this].m_rawCounts || (tr[ *this].m_rawCounts->size() != width * height)) {
+        //A truncated frame below still commits (XRecordError family), so keep
+        //the committed pair (buffer, geometry) consistent: publish a blank
+        //frame WITH its matching geometry, never a resized buffer alone.
         tr[ *this].m_rawCounts = make_local_shared<std::vector<uint32_t>>(width * height, 0);
+        tr[ *this].m_stride = width;
+        tr[ *this].m_width = width;
+        tr[ *this].m_height = height;
+        tr[ *this].m_firstPixel = 0;
     }
 //    std::fill(tr[ *this].m_rawCounts->begin(), tr[ *this].m_rawCounts->end(), 0);
 
@@ -378,7 +385,10 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
 
     assert(rawNext == &rawCountsNext->at(0) + width * height);
 //    fprintf(stderr, "gain %u vmin:vmax %u %u\n", gain_disp, vmin, vmax);
-    tr[ *this].m_rawCounts = rawCountsNext;
+    //m_rawCounts is published at the END of this function, together with its
+    //final geometry — the antishake path can throw (XSkippedRecordError) and
+    //rewrites stride/width/height/firstPixel, and a skipped record still
+    //commits; publishing early would pair the new buffer with old metadata.
     tr[ *this].m_electric_dark = 0;
     if(tr[ *this].m_storeDarkInvoked) { // && (cidx == 0)
         tr[ *this].m_storeDarkInvoked = false;
@@ -410,8 +420,9 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
         uint64_t cogx = 0u, cogy = 0u, toti = 0u;
         {
             //ignores pixels darker than vignore value.
-            uint32_t *raw = &tr[ *this].m_rawCounts->at(0);
-            raw = &tr[ *this].m_rawCounts->at(0);
+            //reads/writes below go through the local fresh buffer (== the
+            //pointer just assigned to m_rawCounts), never the const member.
+            const uint32_t *raw = &rawCountsNext->at(0);
             for(unsigned int y = 0; y < height; ++y) {
                 for(unsigned int x  = 0; x < width; ++x) {
                    uint64_t v = *raw++;
@@ -471,7 +482,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                 x = llrint(x * frac);
             {
                 //convolution.
-                uint32_t *raw = &tr[ *this].m_rawCounts->at(tr[ *this].firstPixel());
+                uint32_t *raw = &rawCountsNext->at(tr[ *this].firstPixel());
                 unsigned int stride = tr[ *this].stride();
                 unsigned int width = tr[ *this].width();
                 unsigned int height = tr[ *this].height();
@@ -480,7 +491,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                 for(int k = 0; k < kernel_len; ++k) {
                     cache_orig_lines[k].resize(width + kernel_len - 1);
                     const uint32_t *bg = raw - (kernel_len - 1)/2 + (k - (int)(kernel_len - 1)/2) * (int)stride;
-                    assert(bg >= &tr[ *this].m_rawCounts->at(0));
+                    assert(bg >= &rawCountsNext->at(0));
                     std::copy(bg, bg + cache_orig_lines[k].size(), &cache_orig_lines[k][0]);
                 }
                 int64_t sum = 0;
@@ -506,7 +517,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                             std::copy(cache_orig_lines[k + 1].begin(), cache_orig_lines[k + 1].end(), &cache_orig_lines[k][0]);
                         }
                         const uint32_t *bg = raw - (kernel_len - 1)/2 + (kernel_len - 1 - (int)(kernel_len - 1)/2) * (int)stride;
-                        assert(bg + cache_orig_lines[0].size() <= &tr[ *this].m_rawCounts->at(0) + (height + 2*pixels_skip) * stride);
+                        assert(bg + cache_orig_lines[0].size() <= &rawCountsNext->at(0) + (height + 2*pixels_skip) * stride);
                         std::copy(bg, bg + cache_orig_lines[0].size(), &cache_orig_lines[kernel_len - 1][0]);
                     }
                 }
@@ -517,6 +528,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
          tr[ *this].m_firstPixel = 0;
          tr[ *this].m_storeAntiShakeInvoked = false;
     }
+    tr[ *this].m_rawCounts = rawCountsNext; //publish the frame together with its finalized geometry.
 //    case (unsigned int)ColoringMethod::RGBWHEEL: {
 //        uint8_t *processed = reinterpret_cast<uint8_t*>(processedimage->bits());
 //        uint64_t gain_av[3];
@@ -612,6 +624,8 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
 		}
 		catch (XKameError &e) {
 			e.print(getLabel());
+			if( !terminated)
+				msecsleep(1000); //back off on error (e.g. dead device) so the loop does not hammer.
 			continue;
 		}
         if(time.diff_sec(time_awared) > ***exposureTime() + 0.1) {

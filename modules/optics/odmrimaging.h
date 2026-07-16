@@ -80,12 +80,18 @@ public:
             return m_referenceIntensities[i];
         }
         double plRaw(unsigned int idx_in_seq, unsigned int i) const {
-            double pl__ = sampleIntensities(idx_in_seq)[i];
-            return pl__;
+            const auto &v = sampleIntensities(idx_in_seq);
+            if(i >= v.size())
+                //the vectors stay empty until Sum/Average math tools fill them;
+                //an unchecked [i] from Python/MCP dereferences an empty vector.
+                throw std::out_of_range("sample index beyond stored intensities.");
+            return v[i];
         }
         double plCorr(unsigned int idx_in_seq, unsigned int i) const {
-            double pl__ = sampleIntensitiesCorrected(idx_in_seq)[i];
-            return pl__;
+            const auto &v = sampleIntensitiesCorrected(idx_in_seq);
+            if(i >= v.size())
+                throw std::out_of_range("sample index beyond stored intensities.");
+            return v[i];
         }
         double pl0(unsigned int i) const {
             return plRaw(sequenceLength() - 2, i);
@@ -109,8 +115,8 @@ public:
         unsigned int height() const {return m_height;}
         unsigned int sequenceLength() const {return (unsigned int)m_sequence;}
         Sequence sequence() const {return m_sequence;}
-        local_shared_ptr<std::vector<uint32_t>> rawCountsPLOff() const {return m_summedCounts[sequenceLength() - 2];}
-        local_shared_ptr<std::vector<uint32_t>> rawCountsPLOn() const {return m_summedCounts[sequenceLength() - 1];}
+        local_shared_ptr<const std::vector<uint32_t>> rawCountsPLOff() const {return m_summedCounts[sequenceLength() - 2];}
+        local_shared_ptr<const std::vector<uint32_t>> rawCountsPLOn() const {return m_summedCounts[sequenceLength() - 1];}
         unsigned int accumulated() const {return std::min(
             m_accumulated[sequenceLength() - 1], m_accumulated[sequenceLength() - 2]);}
     protected:
@@ -119,7 +125,9 @@ public:
         double m_gainForDisp;
         unsigned int m_accumulated[4];
         unsigned int m_skippedFrames; //sa precedingSkips()
-        local_shared_ptr<std::vector<uint32_t>> m_summedCounts[4];//MW off and on.
+        //pointer-to-const: shared with every live Snapshot (shallow Payload
+        //clone) — accumulate into a local buffer, then assign a fresh pointer.
+        local_shared_ptr<const std::vector<uint32_t>> m_summedCounts[4];//MW off and on.
         double m_coefficients[4];
         std::vector<double> m_sampleIntensities[4];
         std::vector<double> m_sampleIntensitiesCorrected[4];

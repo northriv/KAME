@@ -162,7 +162,8 @@ XDSO::showForms() {
 
 unsigned int
 XDSO::Payload::length() const {
-    return m_waves.size() / numChannels();
+    //numChannels()==0 until the first record; 0/0 raises SIGFPE on x86-64.
+    return numChannels() ? (m_waves.size() / numChannels()) : 0;
 }
 const double *
 XDSO::Payload::wave(unsigned int ch) const {
@@ -170,7 +171,8 @@ XDSO::Payload::wave(unsigned int ch) const {
 }
 unsigned int
 XDSO::Payload::lengthDisp() const {
-    return m_wavesDisp.size() / numChannelsDisp();
+    //numChannelsDisp()==0 until the first acquisition; 0/0 raises SIGFPE on x86-64.
+    return numChannelsDisp() ? (m_wavesDisp.size() / numChannelsDisp()) : 0;
 }
 double *
 XDSO::Payload::waveDisp(unsigned int ch) {
@@ -348,6 +350,8 @@ XDSO::execute(const atomic<bool> &terminated) {
 		}
 		catch (XKameError& e) {
 			e.print(getLabel());
+			if( !terminated)
+				msecsleep(1000); //back off on error (e.g. dead device) so the loop does not hammer.
 			continue;
 		}
       
@@ -361,6 +365,8 @@ XDSO::execute(const atomic<bool> &terminated) {
 		}
 		catch (XKameError &e) {
 			e.print(getLabel());
+			if( !terminated)
+				msecsleep(1000); //back off on error (e.g. dead device) so the loop does not hammer.
 			continue;
 		}
       
@@ -379,6 +385,8 @@ XDSO::execute(const atomic<bool> &terminated) {
 			}
 			catch (XKameError &e) {
 				e.print(getLabel());
+				if( !terminated)
+					msecsleep(1000); //back off on error (e.g. dead device) so the loop does not hammer.
 				continue;
 			}
 		}

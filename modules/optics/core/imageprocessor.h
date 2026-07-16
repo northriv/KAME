@@ -54,18 +54,6 @@ public:
     const shared_ptr<X2DImage> &rgbImage() const {return m_rgbImage;}
 
     struct Payload : public XSecondaryDriver::Payload {
-        const std::vector<double> &intensities(unsigned int i) const {
-            if(i >= 3)
-                throw std::out_of_range("Index beyond RGB.");
-            return m_intensities[i];
-        }
-        double raw(unsigned int idx_in_seq, unsigned int i) const {
-            if(i >= 3)
-                throw std::out_of_range("Index beyond RGB.");
-            double pl__ = intensities(idx_in_seq)[i];
-            return pl__;
-        }
-        unsigned int numSamples() const {return m_intensities[0].size();}
         double gainForDisp() const {return m_gainForDisp;}
         unsigned int width() const {return m_width;}
         unsigned int height() const {return m_height;}
@@ -74,9 +62,10 @@ public:
         double m_gainForDisp;
         unsigned int m_accumulated[3];
         double m_colorGains[3];
-        local_shared_ptr<std::vector<uint32_t>> m_summedCounts[3];
+        //pointer-to-const: shared with every live Snapshot (shallow Payload
+        //clone) — accumulate into a local buffer, then assign a fresh pointer.
+        local_shared_ptr<const std::vector<uint32_t>> m_summedCounts[3];
         double m_coefficients[3];
-        std::vector<double> m_intensities[3];
         XTime m_timeClearRequested = {};
         unsigned int m_width, m_height;
         unsigned int accumulatedCountRGB() const {

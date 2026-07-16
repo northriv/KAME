@@ -13,23 +13,39 @@ rsync --exclude "linux686" \
 	--exclude "FTGL" \
 	--exclude "/old" \
 	--exclude "*.~*" \
-	--exclude "*.user"\
+	--exclude "*.user*"\
 	 --exclude "*.*~"  \
 	--exclude "*.log" \
 	 --exclude "*.bin" \
 	 --exclude "*.dat" \
 	 --exclude "*.bix" \
+         --exclude "/states" \
+         --exclude "*tlaplus/states" \
+         --exclude "*tlaplus/doc" --exclude "*tlaplus/doc_ja" \
+         --exclude "*tlaplus/*.cfg" --exclude "*tlaplus/*.sh" \
+         --exclude "*tlaplus/*.md" --exclude "*tlaplus/*.html" --exclude "*tlaplus/*.py" \
 	 --exclude "attic" \
 	 --exclude "*.o" --exclude "*.a" --exclude "*.la"  \
 	 --exclude "*.cache" --exclude ".*" --exclude "*.log"\
+         --exclude "*.pyc" --exclude "*.rej" --exclude "*.orig"\
+         --exclude "~$*.docx" \
+         --exclude "/Testing" \
 	 --exclude ".libs" \
+         --exclude "bench_kame*" \
+         --exclude "bench_mi*" \
+         --exclude "bench_sys*" \
 	 --exclude "/html" \
 	 --exclude "memory" \
 	 --exclude "tla2tools.jar" \
 	 --exclude "cds_*/genmc" \
-	 --exclude "/build" \
+         --exclude "*tests/build*" \
+	 --exclude "/build*" \
 	 --exclude "CVS" \
 	 --exclude "odmrimagingng.*" \
+         --exclude "*.bak" --exclude "*.qm" \
+         --exclude "doc/manual/media" \
+         --exclude "tests/Makefile.dyn" --exclude "tests/Makefile.tx" \
+         --exclude "tests/Makefile.asp" --exclude "tests/Makefile.3level_mixed" \
 	 . $dir/$file -av --delete
 (cd $dir/$file/tests; make clean)
 (cd $dir/$file; cat ChangeLog >> kame.spec)

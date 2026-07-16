@@ -72,7 +72,7 @@ p{line-height:1.7}
 inner は別アクション (<code>InnerPhase2/3/4</code>) としてモデル化する。</p>
 </div>
 
-<h2>InnerPhase の構造 (superfine では Phase 分割; fine では <code>BundlePhase1</code> に畳む)</h2>
+<h2>InnerPhase の構造 (coarse は <code>BundlePhase1</code> に畳む; fine <em>と</em> superfine は InnerPhase2/3/4 に分割)</h2>
 <pre><code><span class="op">InnerPhase2</span>(t) ==
     <span class="comment">\* Parent の missing=TRUE wrapper を CAS で立てる</span>
     /\ <span class="op">CanProceed</span>(t, Parent)         <span class="comment">\* ★ priority gate</span>
@@ -80,9 +80,8 @@ inner は別アクション (<code>InnerPhase2/3/4</code>) としてモデル化
        <span class="keyword">IN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![Parent] = newW]
 
 <span class="op">InnerPhase3</span>(t) ==
-    <span class="comment">\* 全 Child を BundledRefWrapper(Parent, ser) に CAS</span>
-    /\ \A c \in {Child1, Child2} : <span class="op">CanProceed</span>(t, c)
-    /\ ...
+    <span class="comment">\* 各 grandchild を BundledRefWrapper(Parent, ser) に CAS — 1 アクションにつき 1 個</span>
+    /\ \E c \in {Child1, Child2} : <span class="op">CanProceed</span>(t, c) /\ ...
 
 <span class="op">InnerPhase4</span>(t) ==
     <span class="comment">\* Parent の missing=FALSE を最終 CAS で立てる</span>
@@ -118,7 +117,7 @@ TLA+ 化が C++ より細かい粒度で動作を追ったことの副産物。<
     <span class="comment">\* 子から bundledBy を辿って祖先 chain を構築</span>
     <span class="comment">\* casTargets = &lt;&lt;Grand, Parent&gt;&gt;  (root-first)</span>
     /\ local' = [local <span class="keyword">EXCEPT</span> ![t].casTargets = chain]
-    <span class="comment">\* superfine #5: 3-level では root-first 順 (C++ 走査順と一致)</span></code></pre>
+    <span class="comment">\* root-first 順を無条件適用 (fine モードでも; C++ 走査順と一致)</span></code></pre>
 
 <h2>Step 2: UnbundleCASLoop — 祖先を順に missing=TRUE に</h2>
 <pre><code><span class="op">UnbundleCASLoop</span>(t) ==
@@ -152,7 +151,7 @@ TLA+ 化が C++ より細かい粒度で動作を追ったことの副産物。<
 <tr><th>cfg</th><th>Threads</th><th>States</th><th>Depth</th><th>Time</th><th>結果</th></tr>
 <tr><td>1-thread superfine</td><td>1</td><td>(small)</td><td>—</td><td>&lt;1s</td><td style="color:#4ade80">✅ Pass (sanity)</td></tr>
 <tr><td>2-thread coarse</td><td>2</td><td>1,497,098</td><td>98</td><td>1:35</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
-<tr><td>2-thread superfine</td><td>2</td><td>14,109,731</td><td>148</td><td>19:13</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-thread superfine</td><td>2</td><td>15,094,117</td><td>146</td><td>15m 11s</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
 <tr><td>3-thread superfine confC (all-root)</td><td>3</td><td>640,894,951</td><td>88</td><td>15:25</td><td style="color:#4ade80">✅ Pass + liveness (ohtaka)</td></tr>
 </table>
 

@@ -783,10 +783,13 @@
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <tabstops>
+  <tabstop>m_ckbActivate</tabstop>
   <tabstop>m_ledWarning</tabstop>
   <tabstop>m_ledError</tabstop>
+  <tabstop>m_ckbStanby</tabstop>
   <tabstop>m_edStanbyRotationSpeed</tabstop>
-  <tabstop>m_ckbActivate</tabstop>
+  <tabstop>m_ckbHeat</tabstop>
+  <tabstop>m_edMaxDrivePower</tabstop>
  </tabstops>
  <resources/>
  <connections/>

@@ -320,8 +320,10 @@ Init ==
     /\ priorityTag = [n \in AllNodes |-> Null]
 
 \* @c11_action PreemptTag(t, n): older active thread takes over a younger
-\* active thread's tag at node n. Mirrors C++
-\* try_register_privileged_tidstamp() succeeding for an older Transaction.
+\* active thread's tag at node n. Mirrors the older-preempts-younger branch
+\* of C++ tag_as_contender() (per-linkage default; global-mode
+\* try_register_privileged_tidstamp() is the KAME_PER_LINKAGE_PRIVILEGE=0
+\* fallback).
 PreemptTag(t, n) ==
     /\ Privilege  \* disabled when Privilege = FALSE
     /\ priorityTag[n] /= Null

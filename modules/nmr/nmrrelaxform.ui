@@ -1365,13 +1365,14 @@
   <tabstop>m_dblPhase</tabstop>
   <tabstop>m_edSmoothSamples</tabstop>
   <tabstop>m_cmbP1Strategy</tabstop>
-  <tabstop>m_cmbP1Dist</tabstop>
   <tabstop>m_edP1Next</tabstop>
+  <tabstop>m_cmbP1Dist</tabstop>
   <tabstop>m_edP1Min</tabstop>
   <tabstop>m_edP1Max</tabstop>
   <tabstop>tabWidget</tabstop>
   <tabstop>m_ckbMInftyFit</tabstop>
   <tabstop>m_ckbAbsFit</tabstop>
+  <tabstop>m_ckbTrackPeak</tabstop>
   <tabstop>m_edFreq</tabstop>
   <tabstop>m_ckbAutoWindow</tabstop>
   <tabstop>m_cmbWindowFunc</tabstop>
@@ -1384,10 +1385,14 @@
   <tabstop>m_btnDump</tabstop>
   <tabstop>m_edRegularizationBW</tabstop>
   <tabstop>m_edRegularizationResolution</tabstop>
-  <tabstop>m_cmbTikhonovMatrix</tabstop>
+  <tabstop>m_cmbMapWindowFunc</tabstop>
+  <tabstop>m_slMapWindowWidth</tabstop>
+  <tabstop>m_dbMapWindowWidth</tabstop>
   <tabstop>m_edAllRelaxCurvesDump</tabstop>
   <tabstop>m_tbAllRelaxCurvesDump</tabstop>
   <tabstop>m_btnAllRelaxCurvesDump</tabstop>
+  <tabstop>m_cmbTikhonovMatrix</tabstop>
+  <tabstop>m_cmbRegularizationChoice</tabstop>
   <tabstop>m_edRelaxMapDump</tabstop>
   <tabstop>m_tbRelaxMapDump</tabstop>
   <tabstop>m_btnRelaxMapDump</tabstop>

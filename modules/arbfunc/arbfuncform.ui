@@ -593,6 +593,10 @@
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <tabstops>
   <tabstop>m_ckbOutput</tabstop>
+  <tabstop>m_ckbBurst</tabstop>
+  <tabstop>m_edBurstPhase</tabstop>
+  <tabstop>m_edBurstCycles</tabstop>
+  <tabstop>m_cmbTrigSrc</tabstop>
   <tabstop>m_cmbWaveform</tabstop>
   <tabstop>m_edFreq</tabstop>
   <tabstop>m_edAmpl</tabstop>

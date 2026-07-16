@@ -34,7 +34,7 @@ XPumpControl::XPumpControl(const char *name, bool runtime,
     m_rotationSpeed(create<XDoubleNode>("RotationSpeed", true)),
     m_runtime(create<XDoubleNode>("Runtime", true)),
     m_standbyRotationSpeed(create<XDoubleNode>("StandbyRotationSpeed", true)),
-    m_maxDrivePower(create<XDoubleNode>("MaxDriverPower", true)),
+    m_maxDrivePower(create<XDoubleNode>("MaxDrivePower", true)), //was "MaxDriverPower" (typo); accessor/UI/Pfeiffer terminology all say "drive power".
     m_form(new FrmPumpControl) {
 
     meas->scalarEntries()->insert(tr_meas, m_entryPressure);

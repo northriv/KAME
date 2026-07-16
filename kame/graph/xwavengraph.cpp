@@ -152,6 +152,16 @@ XWaveNGraph::Payload::insertPlot(Transaction &tr, const XString &label, int x, i
     const auto &graph(static_cast<XWaveNGraph &>(node()).graph());
     if( !( (y1 < 0) || (y2 < 0) ))
         throw std::out_of_range("Invalid column selection.");
+    //Column indices may come straight from Python (insertPlot binding);
+    //validate every used index before it reaches m_labels[] below —
+    //an out-of-range or negative index reads past the vector (SEGV),
+    //and before setCols() m_labels is empty.
+    int colcnt = (int)m_labels.size();
+    if((x < 0) || (x >= colcnt))
+        throw std::out_of_range("x column out of range.");
+    for(int col: {y1, y2, weight, z})
+        if(col >= colcnt)
+            throw std::out_of_range("column index out of range.");
 
 	if(weight >= 0) {
 		if((m_colw >= 0) && (m_colw != weight))
@@ -296,7 +306,7 @@ XWaveNGraph::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, cons
         "%Y/%m/%d %H:%M:%S") << std::endl;
 
     auto &p(shot[ *this]);
-    shared_ptr<Payload::ColumnBase> colw;
+    shared_ptr<const Payload::ColumnBase> colw;
     if(p.m_colw >= 0) colw = p.m_cols[p.m_colw];
     int written_rows = 0;
     for(unsigned int i = 0; i < rowcnt; i++) {

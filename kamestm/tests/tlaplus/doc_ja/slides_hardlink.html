@@ -33,7 +33,7 @@ p{line-height:1.7}
 <!-- ============================================================ Slide 0 -->
 <div class="slide">
 <h1>Hard-link 系 TLA+ 検証 — 概要</h1>
-<h3>5 つの topology + 非アトミックテストパターン + per-action fairness</h3>
+<h3>5 つの topology + 非アトミックパターン + 条件付き nested-gate モデル + per-action fairness</h3>
 
 <div class="box-purple">
 <p><strong>背景:</strong> 「hard-link」=「1 つの子ノードが <em>2 つの異なる親</em>から参照される」topology。
@@ -57,7 +57,8 @@ p{line-height:1.7}
 <div class="box-green">
 <p><strong>本層の位置づけ:</strong> 通常 (non-hard-link) topology は
 <code>slides_layer2_LLfree.html</code> + <code>slides_layer2_LLfree_3level.html</code> / <code>_dynamic.html</code>
-で完結。<strong>hard-link は別個の verification layer</strong>として、本スライド + 上記 6 spec で扱う。</p>
+で完結。<strong>hard-link は別個の verification layer</strong>として、本スライド + 上記 7 spec（条件付き <code>_nested_external</code> 含む）で扱う。</p>
+<p style="color:#94a3b8;font-size:0.9em"><strong>7 番目 — <code>BundleUnbundle_hardlink_nested_external.tla</code>（条件付き、2026-07-02）:</strong> foster 親が <em>missing</em> のため bundle が nested sub-bundle に再帰し、その Phase-4 gate が LOCAL sub-root を使う；sub-root 外にホームされた hard-link は gate に失敗。位相は <code>Init</code> で仮定（到達性は未決）。両 config で <code>SnapshotConsistency</code> PASS；<code>EventuallyAllDone</code> は忠実な local-root gate（<code>UseGlobalRoot=FALSE</code>）で VIOLATED、global-root fix（<code>TRUE</code>）で HOLDS。liveness のみ・不安全ではない — 開示済み DAG-liveness caveat の一例。</p>
 </div>
 </div>
 
@@ -82,7 +83,7 @@ p{line-height:1.7}
 ④ Phase 1 で C を <em>stale bundledBy=A 経由</em> で再収集<br>
 ⑤ <code>R.sub[A].sub[C] = Null</code> と書き込み → <strong>パケット消失</strong><br>
 ⑥ <code>SnapshotConsistency</code> 違反 (C++ <code>Packet::checkConsistensy</code>
-   transaction_impl.h:870-871 に対応)</p>
+   transaction_impl.h:1001-1046 に対応)</p>
 </div>
 
 <h2>提案される修正 (TLA+ で確認)</h2>
@@ -214,10 +215,13 @@ P1 上で race する状況を full モデル化。</p>
 
 <h2>blanket <code>WF_vars(NextStep)</code> が弱すぎる理由</h2>
 <div class="box">
-<p>本番忠実な retry セマンティクス (Phase 4 reachability 失敗 → <code>bundle_phase1</code> に戻る、
+<p><code>_4node</code> の本番忠実な retry セマンティクス (Phase 4 reachability 失敗 → <code>bundle_phase1</code> に戻る、
 C++ の <code>BundledStatus::DISTURBED</code> 返し → outer <code>snapshot()</code> retry loop)
 の下で、bundling thread が任意回 retry し続ける execution が許容される。
-そのリトライは peer の <code>MigrateCToA</code> が発火しない限り終わらない。</p>
+そのリトライは peer の <code>MigrateCToA</code> が発火しない限り終わらない。
+（この restore+DISTURBED+retry の失敗動作をモデル化するのは <code>_4node</code> のみ；
+<code>_external</code>/<code>_external_migration</code> は代わりに <em>stay-missing で publish し完了</em>する
+= C++ に無い give-up 意味論。実装は unbundle-migration で解決＝<code>_external_migration</code> の成功パス。）</p>
 <p style="margin-top:0.4em">disjunction 上の WF は「enabled なアクションのどれか」が永遠に無視されない
 ことしか保証しない。<code>BundlePhase1/2/4</code> ばかり無限に発火する trace でも条件を満たすが、
 これは production の fairness 仮定に反する。<strong>per-action WF</strong> なら
@@ -235,7 +239,7 @@ TLA+ では <code>WF_vars(MigrateCToA)</code> がこの OS 保証を抽象化す
 
 <div class="box-green">
 <p><strong>他の hardlink spec はなぜ per-action WF 不要か:</strong>
-<code>_hardlink_2level_LLfree</code>, <code>_3level_LLfree</code>, <code>_dynamic</code> 系,
+<code>_2level_LLfree</code>, <code>_3level_LLfree</code>, <code>_dynamic</code> 系,
 <code>atomic_shared_ptr.tla</code>, その他 hardlink spec の race surface は
 <strong>1 本の linkage chain 上</strong>にあり、LL-free priority gating が retry 数を
 構造的に bounded にする。<code>WF_vars(NextStep)</code> で十分。</p>
@@ -286,7 +290,7 @@ b23fa954 self-promote は <strong>CAS 数の最適化</strong>であって、mas
 real-OS スケジューラのアーティファクト (real schedulers do not strictly meet WF in finite time)
 として整合的。</p>
 <p style="margin-top:0.4em">最適化は <code>KAME_STM_OPTIONAL_OPTIMIZATION</code>
-(<code>kame/transaction_definitions.h</code> でデフォルト 1) でゲート。
+(<code>kamestm/transaction_definitions.h</code> でデフォルト 1) でゲート。
 <code>-DKAME_STM_OPTIONAL_OPTIMIZATION=0</code> で無効化すると、
 strictly TLA+-modelled master path に合致したビルドになる。</p>
 </div>
@@ -346,14 +350,14 @@ peer thread と race する migration race を網羅。</p>
 <tr><td><code>HardlinkExclusive</code></td><td>子の packet を <code>sub[]</code> に持つ親は同時に 1 つだけ (no duplicate homing)</td></tr>
 <tr><td><code>BundleRefConsistency</code></td><td>子の <code>bundledBy</code> 親は priority を持ち、packet か <code>InsertedRef</code> のいずれかを持つ</td></tr>
 <tr><td><code>NoPriorityLoss</code> / <code>NoMissingHole</code> / <code>MissingPropagation</code></td><td>構造的健全性</td></tr>
-<tr><td><code>EventuallyAllDone</code> (PROPERTY)</td><td>全 thread が eventually 完了 (2026-05-20 以降、全 hardlink cfg で safety+liveness uniform カバー)</td></tr>
+<tr><td><code>EventuallyAllDone</code> (PROPERTY)</td><td>全 thread が eventually 完了 — hardlink 各 cfg で検査（ただし <code>_nested_external</code> の local-root 版は nested-gate livelock を示すため<em>設計上</em> VIOLATED；global-root 版は HOLDS）</td></tr>
 </table>
 
 <h2>Phase 4 reachability gate の C++ 側コミット履歴</h2>
 <table>
 <tr><th>Commit</th><th>内容</th></tr>
 <tr><td><code>87892b35</code></td><td>初回 reachability gate 導入 (<code>Packet::allSubReachable</code>)</td></tr>
-<tr><td><code>92b15f62</code></td><td><code>checkConsistensy</code> も対応; mid-bundle 短絡対応</td></tr>
+<tr><td><code>92b15f62</code></td><td>gate 失敗が <code>DISTURBED</code>（<code>SUCCESS</code> でなく）を返し、outer <code>snapshot()</code> が retry</td></tr>
 <tr><td><code>404fa137</code></td><td>呼び出し順序の見直し (<code>m_missing</code> を先にクリア)</td></tr>
 <tr><td><code>b12e1895</code></td><td>global root parameter 導入による order-of-operations 修正</td></tr>
 <tr><td><code>1ffd8dce</code></td><td><code>allSubReachable</code> / <code>checkConsistensy</code> に optional <code>globalroot</code> 引数; hard-link Case B 対応</td></tr>
@@ -409,7 +413,7 @@ provably unreachable。</p>
 <ul style="margin:0.3em 0 0 1.2em">
 <li><code>kamestm/tests/VERIFICATION.md §5</code> — full results + per-cfg runs</li>
 <li><code>kamestm/tests/tlaplus/doc/verification_log.md</code> — run log</li>
-<li><code>kamestm/tests/tlaplus/BundleUnbundle_hardlink_*.tla</code> — spec 本体 (6 ファイル)</li>
+<li><code>kamestm/tests/tlaplus/BundleUnbundle_hardlink_*.tla</code> — spec 本体 (7 ファイル)</li>
 <li><code>slides_layer2_LLfree.html</code> — Layer 2 protocol (LLfree)</li>
 </ul>
 </div>

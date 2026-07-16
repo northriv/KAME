@@ -33,7 +33,7 @@ p{line-height:1.7}
 <!-- ============================================================ Slide 0 -->
 <div class="slide">
 <h1>Hard-link TLA+ Verification — Overview</h1>
-<h3>5 topologies + a non-atomic test pattern + per-action fairness</h3>
+<h3>5 topologies + a non-atomic pattern + a conditional nested-gate model + per-action fairness</h3>
 
 <div class="box-purple">
 <p><strong>Background:</strong> "Hard-link" = a single child node referenced from <em>two distinct parents</em>.
@@ -57,7 +57,8 @@ modelling of the protocol under hard-link topologies.</p>
 <div class="box-green">
 <p><strong>Where this layer sits:</strong> Standard (non-hard-link) topology verification is completed by
 <code>slides_layer2_LLfree.html</code> + <code>slides_layer2_LLfree_3level_en.html</code> / <code>_dynamic_en.html</code>.
-<strong>Hard-link is a separate verification layer</strong> covered by this deck and the 6 specs.</p>
+<strong>Hard-link is a separate verification layer</strong> covered by this deck and the 7 specs (incl. the conditional <code>_nested_external</code>).</p>
+<p style="color:#94a3b8;font-size:0.9em"><strong>7th spec — <code>BundleUnbundle_hardlink_nested_external.tla</code> (conditional, 2026-07-02):</strong> the foster parent is <em>missing</em>, so bundling recurses to a nested sub-bundle whose Phase-4 gate uses the LOCAL sub-root; a hard-link homed outside that sub-root fails the gate. Topology assumed via <code>Init</code> (reachability open). <code>SnapshotConsistency</code> PASS in both configs; <code>EventuallyAllDone</code> VIOLATED with the faithful local-root gate (<code>UseGlobalRoot=FALSE</code>), HOLDS with the global-root fix (<code>TRUE</code>). Liveness-only, never unsafe — an instance of the disclosed DAG-liveness caveat.</p>
 </div>
 </div>
 
@@ -81,7 +82,7 @@ modelling of the protocol under hard-link topologies.</p>
 ④ Phase 1 re-collects C via a now-stale <em><code>bundledBy=A</code> branch</em><br>
 ⑤ Writes <code>R.sub[A].sub[C] = Null</code> → <strong>packet loss</strong><br>
 ⑥ <code>SnapshotConsistency</code> violated (mirrors C++ <code>Packet::checkConsistensy</code> at
-   transaction_impl.h:870-871)</p>
+   transaction_impl.h:1001-1046)</p>
 </div>
 
 <h2>Proposed fix (confirmed via TLA+)</h2>
@@ -215,10 +216,11 @@ See next slide.</p>
 
 <h2>Why blanket <code>WF_vars(NextStep)</code> is too weak</h2>
 <div class="box">
-<p>With the production-faithful retry semantics (Phase 4 reachability failure → return to
+<p>With the production-faithful retry semantics of <code>_4node</code> (Phase 4 reachability failure → return to
 <code>bundle_phase1</code>, matching the C++ <code>BundledStatus::DISTURBED</code> outer
 <code>snapshot()</code> retry loop), executions are admitted where the bundling thread retries
-arbitrarily many times. The retry terminates only after the peer's <code>MigrateCToA</code> fires.</p>
+arbitrarily many times. The retry terminates only after the peer's <code>MigrateCToA</code> fires.
+(Note: only <code>_4node</code> models this restore+DISTURBED+retry failure action; <code>_external</code>/<code>_external_migration</code> instead <em>publish stay-missing and finish</em> — a give-up semantics the C++ does not have; production resolves that topology via unbundle-migration, i.e. <code>_external_migration</code>'s success path.)</p>
 <p style="margin-top:0.4em">WF on a disjunction only requires that "some enabled action fires." A trace that
 fires only <code>BundlePhase1/2/4</code> infinitely still satisfies the property, but this trace
 violates the production fairness assumption. <strong>Per-action WF</strong> forces
@@ -236,7 +238,7 @@ In TLA+, <code>WF_vars(MigrateCToA)</code> abstracts that OS guarantee.</p>
 
 <div class="box-green">
 <p><strong>Why the other hardlink specs don't need per-action WF:</strong>
-the race surface of <code>_hardlink_2level_LLfree</code>, <code>_3level_LLfree</code>,
+the race surface of <code>_2level_LLfree</code>, <code>_3level_LLfree</code>,
 <code>_dynamic</code> variants, <code>atomic_shared_ptr.tla</code>, and the other hardlink specs
 sits on a <strong>single linkage chain</strong>, where LL-free priority gating structurally bounds
 retries and <code>WF_vars(NextStep)</code> suffices.</p>
@@ -288,7 +290,7 @@ is not livelocked in principle. The ~10% residual hang reported on the remote br
 consistent with real-OS scheduling artefacts (real schedulers do not strictly meet WF in
 finite time), not a logic gap.</p>
 <p style="margin-top:0.4em">The optimization is gated by <code>KAME_STM_OPTIONAL_OPTIMIZATION</code>
-(default 1 in <code>kame/transaction_definitions.h</code>). Build with
+(default 1 in <code>kamestm/transaction_definitions.h</code>). Build with
 <code>-DKAME_STM_OPTIONAL_OPTIMIZATION=0</code> to disable the self-promote shortcut and obtain
 a build that matches the strictly TLA+-modeled master path.</p>
 </div>
@@ -347,14 +349,14 @@ false-negative liveness verdicts. Every spec terminates naturally on bounded var
 <tr><td><code>HardlinkExclusive</code></td><td>At most one parent's <code>sub[]</code> holds the child's packet (no duplicate homing)</td></tr>
 <tr><td><code>BundleRefConsistency</code></td><td>The <code>bundledBy</code> parent has priority and either holds the packet or the child wrapper carries an <code>InsertedRef</code></td></tr>
 <tr><td><code>NoPriorityLoss</code> / <code>NoMissingHole</code> / <code>MissingPropagation</code></td><td>Structural sanity</td></tr>
-<tr><td><code>EventuallyAllDone</code> (PROPERTY)</td><td>All threads eventually complete — uniform safety+liveness coverage across all hardlink cfgs as of 2026-05-20</td></tr>
+<tr><td><code>EventuallyAllDone</code> (PROPERTY)</td><td>All threads eventually complete — checked across the hardlink cfgs (except <code>_nested_external</code>'s local-root arm, which is VIOLATED <em>by design</em> to exhibit the nested-gate livelock; its global-root arm HOLDS)</td></tr>
 </table>
 
 <h2>C++-side commit history for the Phase 4 reachability gate</h2>
 <table>
 <tr><th>Commit</th><th>Content</th></tr>
 <tr><td><code>87892b35</code></td><td>Introduces reachability gate (<code>Packet::allSubReachable</code>)</td></tr>
-<tr><td><code>92b15f62</code></td><td>Also adds <code>checkConsistensy</code> handling; mid-bundle short-circuit handling</td></tr>
+<tr><td><code>92b15f62</code></td><td>Gate failure returns <code>DISTURBED</code> (not <code>SUCCESS</code>) so the outer <code>snapshot()</code> retries</td></tr>
 <tr><td><code>404fa137</code></td><td>Order-of-operations: clear <code>m_missing</code> first</td></tr>
 <tr><td><code>b12e1895</code></td><td>Restores order-of-operations subtlety from the global-root parameter introduction</td></tr>
 <tr><td><code>1ffd8dce</code></td><td>Adds optional <code>globalroot</code> parameter to <code>allSubReachable</code> / <code>checkConsistensy</code> for hard-link Case B</td></tr>
@@ -409,7 +411,7 @@ provably unreachable in non-hard-link topologies.</p>
 <ul style="margin:0.3em 0 0 1.2em">
 <li><code>kamestm/tests/VERIFICATION.md §5</code> — full results + per-cfg runs</li>
 <li><code>kamestm/tests/tlaplus/doc/verification_log.md</code> — run log</li>
-<li><code>kamestm/tests/tlaplus/BundleUnbundle_hardlink_*.tla</code> — spec files (6 files)</li>
+<li><code>kamestm/tests/tlaplus/BundleUnbundle_hardlink_*.tla</code> — spec files (7 files)</li>
 <li><code>slides_layer2_LLfree.html</code> — Layer 2 protocol (LLfree)</li>
 </ul>
 </div>

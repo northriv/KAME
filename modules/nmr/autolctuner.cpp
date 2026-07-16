@@ -943,7 +943,9 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         double testdelta = shot_this[ *this].stmDelta[target_stm];
         if( !shot_this[ *this].fitRotated) {
         //The stage just after +Delta rotation.
-            tr[ *this].fitRotated.swap(lcrfit);
+            //move leaves lcrfit null — the `if(lcrfit)` below relies on that,
+            //exactly as the old swap-with-null did.
+            tr[ *this].fitRotated = std::move(lcrfit);
         }
         else {
             //The stage just after -Delta rotation.

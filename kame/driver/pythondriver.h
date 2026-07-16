@@ -119,8 +119,8 @@ public:
         //     return m_dict ? *m_dict : pybind11::dict(); //shallow copy
         // }
     private:
-        std::shared_ptr<pybind11::dict> m_dict;
-        std::shared_ptr<pybind11::object> m_module_copy;
+        std::shared_ptr<pybind11::dict> m_dict; // audit-ok: manual copy-on-write — local() deep-copies before returning for mutation
+        std::shared_ptr<pybind11::object> m_module_copy; // audit-ok: same manual copy-on-write contract
     };
 
 protected:
