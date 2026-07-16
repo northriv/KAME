@@ -386,8 +386,23 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
             for(auto &n: self->typelabels()) ret.push_back(n);
             return ret;
         })
-        .def("createByTypename", [](shared_ptr<XListNodeBase> &self, const std::string &type, const std::string &name){
-            return self->createByTypename(type, name);
+        .def("createByTypename", [](shared_ptr<XListNodeBase> &self, const std::string &type, const std::string &name) -> shared_ptr<XNode> {
+            // Driver/Node construction may build Qt widgets (a QForm), which must run on
+            // the GUI main thread; otherwise qshared_ptr(Y*) trips assert(isMainThread())
+            // and the process aborts (SIGABRT). Lists reporting
+            // !isThreadSafeDuringCreationByTypename() are dispatched to the main thread
+            // via kame_mainthread(), mirroring the .kam loader's _KamNode.create() in
+            // xpythonsupport.py — so every python caller (interactive cells, MCP
+            // execute_code, asyncio tasks) is protected, not just the .kam path.
+            if(self->isThreadSafeDuringCreationByTypename() || isMainThread())
+                return self->createByTypename(type, name);
+            py::object child = XPython::bind.kame_module().attr("kame_mainthread")(
+                py::cpp_function([self, type, name]() -> shared_ptr<XNode> {
+                    return self->createByTypename(type, name);
+                }));
+            if(child.is_none())
+                return nullptr;
+            return child.cast<shared_ptr<XNode>>();
         })
         .def("isThreadSafeDuringCreationByTypename",
              [](shared_ptr<XListNodeBase> &self){ return self->isThreadSafeDuringCreationByTypename(); });}
