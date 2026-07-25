@@ -43,7 +43,7 @@ RUNS=${RUNS:-3}
 # M3/M4 Air/mini are 8–10 cores; keep the sweep small enough to finish in
 # a few minutes. Override via env for other hosts.
 THREADS_LIST=${THREADS_LIST:-"1 2 4 8 16 32 64 128"}
-K_LIST=${K_LIST:-"1 2 10 0"}  # K=0 = leaf-only (no bundle); K=1 = all grand (CR=∞); K=2 = CR=2; K=10 = CR=10
+K_LIST=${K_LIST:-"1 2 10 0"}  # K=0 = leaf-only, fully disjoint (written CR=∞ in the paper); K=1 = every iteration parent/grand scope (CR=1); K=2 = CR=2; K=10 = CR=10
 TESTS=${TESTS:-"payload_integrity_mixed payload_integrity_3level_mixed"}
 
 # Sanity check.
@@ -122,7 +122,7 @@ run_one() {
     #   (1) extract_all parses the rate line regardless of which fd
     #       the binary used (defends against the regex missing the
     #       `leaf_tx=…` line if a build accidentally routes it to
-    #       stderr — exactly the empirical move kitag asked for).
+    #       stderr).
     #   (2) On any anomaly we can persist the EXACT bytes the binary
     #       wrote, so post-mortem grep / diff can answer "did
     #       leaf_tx= even appear?" without having to reproduce.
@@ -191,9 +191,9 @@ run_one() {
     if [ -s "$logfile" ]; then
         n_ll=$(grep -c 'verdict=LIVELOCK' "$logfile" 2>/dev/null || echo 0)
         n_mode=$(grep -c '\[ll-probe\] mode:' "$logfile" 2>/dev/null || echo 0)
-        # Always persist the combined log when non-empty — kitag's
-        # directive: keep the raw bytes around so we can post-mortem
-        # any cell, not just the ones the dump heuristic flagged.
+        # Always persist the combined log when non-empty: keep the
+        # raw bytes around so any cell can be post-mortemed, not
+        # just the ones the dump heuristic flagged.
         # Append with a per-run banner so `tail -100 …K10_N8.log`
         # extracts the latest run cleanly even when RUNS independent
         # stress measurements share one log per K,N cell.

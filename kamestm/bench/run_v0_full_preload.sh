@@ -3,7 +3,7 @@
 # run_v0_full_preload.sh — measure the legacy v0 STM with a runtime-injected
 # modern allocator, the SIMPLE way (no header overlay, no composability hell).
 #
-# IDEA (kitag's): instead of grafting v0's transaction.{h,_impl.h} onto the
+# IDEA: instead of grafting v0's transaction.{h,_impl.h} onto the
 # current split tree (which fails: force_intrusive_ref / ProcessCounter), check
 # out v0 in FULL so everything is self-consistent, add ONLY the mixed-test
 # source, build with -DUSE_KAME_ALLOCATOR=OFF (STM allocates via operator new ->
@@ -47,7 +47,13 @@ VARIANT=$(strip_ws "${VARIANT:-v0}")
 KAME_V0_FULL=$(strip_ws "${KAME_V0_FULL:-1d49b07c}")
 FULL_REF=$(strip_ws "${FULL_REF:-HEAD}")   # ref to use for VARIANT=full
 BENCH=$(cd "$(dirname "$0")" && pwd)
-TEST_PATCH=${TEST_PATCH:-$BENCH/../cpp_test_drafts/kame_payload_integrity_mixed_test.patch}
+# Patch supplying the mixed-test sources for pre-split (v0) checkouts.
+# Looked up next to this script first (the published kamestm/bench layout),
+# then in ../cpp_test_drafts (the paper-repository layout).
+if [ -z "${TEST_PATCH:-}" ]; then
+    TEST_PATCH=$BENCH/kame_payload_integrity_mixed_test.patch
+    [ -f "$TEST_PATCH" ] || TEST_PATCH=$BENCH/../cpp_test_drafts/kame_payload_integrity_mixed_test.patch
+fi
 # no_backoff uses the same source tree as full (same ref, different compile flags),
 # so they share a worktree to avoid git's "commit already checked out" error.
 _wt_variant=$VARIANT; [ "$VARIANT" = no_backoff ] && _wt_variant=full
