@@ -278,9 +278,9 @@ private:
         //! child's packet lives in a sibling sub-tree).  When omitted
         //! (default `{}`), the global root degenerates to the local
         //! root, matching the original pre-2026-05-21 semantics.
-        bool checkConsistensy(const local_shared_ptr<Packet> &rootpacket,
+        bool checkConsistency(const local_shared_ptr<Packet> &rootpacket,
                               const local_shared_ptr<Packet> &globalroot = {}) const;
-        //! Non-throwing reachability check.  Mirrors `checkConsistensy`'s
+        //! Non-throwing reachability check.  Mirrors `checkConsistency`'s
         //! Null-slot reverseLookup test but returns `false` instead of
         //! throwing.  Used by `bundle` Phase 4 to gate the
         //! `is_bundle_root` `m_missing=false` override: if any Null

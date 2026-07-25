@@ -998,7 +998,7 @@ Node<XN>::Packet::print_() const {
 
 template <class XN>
 bool
-Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket,
+Node<XN>::Packet::checkConsistency(const local_shared_ptr<Packet> &rootpacket,
                                    const local_shared_ptr<Packet> &globalroot) const {
     // `rootpacket` switches on recursion (local sub-bundle root) for
     // the "sub missing → self missing" propagation; `groot` stays
@@ -1030,7 +1030,7 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket,
                 }
                 // Recurse with groot UNCHANGED (always the original
                 // top-level root) — only the local root switches.
-                if( !subpackets()->at(i)->checkConsistensy(
+                if( !subpackets()->at(i)->checkConsistency(
                     subpackets()->at(i)->missing() ? rootpacket : subpackets()->at(i),
                     groot))
                     return false;
@@ -1049,9 +1049,9 @@ template <class XN>
 bool
 Node<XN>::Packet::allSubReachable(const local_shared_ptr<Packet> &rootpacket,
                                   const local_shared_ptr<Packet> &globalroot) const {
-    // Non-throwing mirror of checkConsistensy's Null-slot path.  Used
+    // Non-throwing mirror of checkConsistency's Null-slot path.  Used
     // by bundle Phase 4 to gate the `is_bundle_root` `m_missing=false`
-    // publish.  `globalroot` follows checkConsistensy's semantics.
+    // publish.  `globalroot` follows checkConsistency's semantics.
     const local_shared_ptr<Packet> &groot = globalroot ? globalroot : rootpacket;
     if(groot->missing()) return true;  // root missing → no Null-slot check fires
     for(int i = 0; i < size(); i++) {
@@ -1262,7 +1262,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
     }
     tr[ *this].catchEvent(var, packet->size() - 1);
     tr[ *this].listChangeEvent();
-    STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
+    STRICT_assert(tr.m_packet->checkConsistency(tr.m_packet));
     return true;
 //		printf("i");
 }
@@ -1426,7 +1426,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
         return false; // destructor tags
     }
     // scope auto-committed + tagged successful_cas via the call.
-    STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
+    STRICT_assert(tr.m_packet->checkConsistency(tr.m_packet));
     return true;
 }
 template <class XN>
@@ -1476,7 +1476,7 @@ Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN
     packet->subnodes()->at(y_idx) = x;
     tr[ *this].moveEvent(x_idx, y_idx);
     tr[ *this].listChangeEvent();
-    STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
+    STRICT_assert(tr.m_packet->checkConsistency(tr.m_packet));
     return true;
 }
 
@@ -2100,7 +2100,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                 return;
             }
             if( !scope->packet()->missing()) {
-                STRICT_assert(scope->packet()->checkConsistensy(scope->packet()));
+                STRICT_assert(scope->packet()->checkConsistency(scope->packet()));
                 snapshot.m_packet = scope->packet();
                 scope.commit();
                 return;
@@ -2121,7 +2121,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
             case SnapshotStatus::SUCCESS: {
                     if( !( *foundpacket)->missing() || !multi_nodal) {
                         snapshot.m_packet = *foundpacket;
-                        STRICT_assert(snapshot.m_packet->checkConsistensy(snapshot.m_packet));
+                        STRICT_assert(snapshot.m_packet->checkConsistency(snapshot.m_packet));
                         scope.commit();
                         return;
                     }
@@ -2192,7 +2192,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
         switch (status) {
         case BundledStatus::SUCCESS:
             assert( !scope->packet()->missing());
-            STRICT_assert(scope->packet()->checkConsistensy(scope->packet()));
+            STRICT_assert(scope->packet()->checkConsistency(scope->packet()));
             snapshot.m_serial = SerialGenerator::gen(); //Capture Lamport advances from bundle().
             snapshot.m_packet = scope->packet();
             scope.commit();
@@ -2644,7 +2644,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             // bundle's global root.
             newpacket->m_missing = false;
             if(newpacket->allSubReachable(newpacket)) [[likely]] {
-                STRICT_assert(newpacket->checkConsistensy(newpacket));
+                STRICT_assert(newpacket->checkConsistency(newpacket));
             }
             else {
                 newpacket->m_missing = true;
@@ -2814,7 +2814,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
             }
 //			STRICT_TEST(std::deque<local_shared_ptr<PacketWrapper> > subwrappers);
 //			STRICT_TEST(fetchSubpackets(subwrappers, wrapper->packet()));
-            STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
+            STRICT_assert(tr.m_packet->checkConsistency(tr.m_packet));
 
             // CAS via the scope: success → auto-commit + priority hint;
             // failure → m_contention_observed → dtor tag.
