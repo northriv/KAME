@@ -290,6 +290,15 @@ if(USE_KAME_ALLOCATOR)
     add_executable(bench_xthread_pool bench/bench_xthread.cpp)
     target_compile_definitions(bench_xthread_pool PRIVATE XTHREAD_USE_KAME_POOL)
     target_link_libraries(bench_xthread_pool kamepoolalloc Threads::Threads)
+
+    # (§75 / RT_READINESS G7) Per-op WCET TAIL harness — the other benches
+    # measure throughput, which is the statistic that hides a syscall.  Reports
+    # max / p99.9999 for malloc and free per size band, RT arm vs OFF arm
+    # interleaved per repetition, under interferer load.  Registered as a test
+    # in smoke mode: the hard assertion is rt_violations() == 0 (machine-
+    # independent), not any absolute latency.  Run with --full to measure.
+    add_executable(bench_rt_wcet bench/bench_rt_wcet.cpp)
+    target_link_libraries(bench_rt_wcet kamepoolalloc Threads::Threads)
 endif()
 
 # --- CTest registration ---
@@ -325,6 +334,8 @@ if(USE_KAME_ALLOCATOR)
     add_test(NAME alloc_stats_test COMMAND alloc_stats_test)
     add_test(NAME alloc_realtime_mode_test COMMAND alloc_realtime_mode_test)
     add_test(NAME alloc_rt_thread_test COMMAND alloc_rt_thread_test)
+    # smoke args: seconds, enough samples for p99.99
+    add_test(NAME bench_rt_wcet_smoke COMMAND bench_rt_wcet --reps 2 --iters 150)
     add_test(NAME test_ros2_allocator COMMAND test_ros2_allocator)
     add_test(NAME test_pmr_resource COMMAND test_pmr_resource)
     add_test(NAME test_aligned_allocator COMMAND test_aligned_allocator)
