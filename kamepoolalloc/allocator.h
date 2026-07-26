@@ -142,6 +142,9 @@
     inline unsigned long long kame_pool_rt_deferred_reclaims() noexcept { return 0; }
     inline unsigned long long kame_pool_rt_deferred_unmaps() noexcept { return 0; }
     inline std::size_t kame_pool_rt_pending_bytes() noexcept { return 0; }
+    inline void kame_pool_set_rt_pending_cap(std::size_t) noexcept {}
+    inline std::size_t kame_pool_get_rt_pending_cap() noexcept { return 0; }
+    inline unsigned long long kame_pool_rt_forced_releases() noexcept { return 0; }
     inline void kame_pool_rt_reset_counters() noexcept {}
     inline void kame_pool_rt_report_violations(unsigned long long) noexcept {}
     inline void kame_pool_rt_drain() noexcept {}
