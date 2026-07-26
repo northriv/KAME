@@ -346,6 +346,30 @@ unsigned kame_pool_reserve_regions(unsigned n_regions,
                                    int prefault) KAMEPOOLALLOC_NOEXCEPT;
 
 /*
+ * (G6) Pin the pool's own regions into RAM (mlock / VirtualLock), or
+ * release the pins.  Returns the byte count actually (un)locked; a short
+ * return means the RLIMIT_MEMLOCK / working-set quota was reached partway,
+ * which is reported rather than treated as fatal.
+ *
+ * Why this is an allocator API: every other allocator leaves pinning to
+ * the application, whose only tool is mlockall(MCL_CURRENT|MCL_FUTURE) —
+ * blunt, because it also pins every FUTURE mapping made by every
+ * non-realtime thread, so one background worker's large buffer can blow
+ * the RSS budget.  The pool keeps a ledger of its own regions, so it can
+ * pin exactly the pool and nothing else.
+ *
+ * mlock also POPULATES the range, so locking prefaults it too.
+ *
+ * Covers only regions mapped at call time (regions are never unmapped, so
+ * nothing dangles).  Call AFTER kame_pool_prewarm / reserve_regions, and
+ * again if the working set later grows.  Note this pins POOL memory only —
+ * the realtime checklist for stacks, code pages and other libraries is
+ * still the application's (see "The realtime contract" in README.md).
+ */
+size_t kame_pool_mlock_regions(void) KAMEPOOLALLOC_NOEXCEPT;
+size_t kame_pool_munlock_regions(void) KAMEPOOLALLOC_NOEXCEPT;
+
+/*
  * Observability — snapshot of pool counters at the moment of the call.
  *
  * ABI versioning: callers set `version = KAME_POOL_STATS_VERSION` before

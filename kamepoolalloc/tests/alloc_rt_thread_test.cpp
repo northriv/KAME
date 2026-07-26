@@ -201,6 +201,38 @@ static void test_pending_is_bounded() {
     kame_pool_set_rt_pending_cap(saved);
 }
 
+// ------------------------------------------------------------------ 2d
+static void test_mlock_regions() {
+    std::printf("(2d) region-scoped mlock pins (and populates) pool memory\n");
+
+    // Deliberately tolerant of a low RLIMIT_MEMLOCK: CI containers often cap
+    // it at a few MiB (or 64 KiB), and a partial lock is a reported outcome,
+    // not a failure.  What we assert is CONSISTENCY, not success.
+    kame_pool_reserve_regions(2, /*prefault=*/0);
+    const size_t reserved = kame_pool_reserved_bytes();
+
+    const size_t locked = kame_pool_mlock_regions();
+    if(locked == 0) {
+        std::printf("  [ok] skipped: RLIMIT_MEMLOCK / working-set quota "
+                    "allows nothing\n");
+        return;
+    }
+    check(locked <= reserved,
+          "locked bytes never exceed the pool's mapped regions");
+    check(locked % (32u * 1024u * 1024u) == 0,
+          "locked in whole 32 MiB regions");
+
+    // Allocation must still work while pinned — pinning is not a lock in the
+    // mutual-exclusion sense, but it is worth proving it did not wedge
+    // anything.
+    void *p = kame_pool_malloc(4096);
+    check(p != nullptr, "allocation still works while regions are pinned");
+    if(p) { std::memset(p, 3, 4096); kame_pool_free(p); }
+
+    const size_t unlocked = kame_pool_munlock_regions();
+    check(unlocked == locked, "munlock releases exactly what mlock took");
+}
+
 // -------------------------------------------------------------------- 3
 static void test_os_fail_policy() {
     std::printf("(3) KAME_RT_OS_FAIL still yields usable memory\n");
@@ -271,6 +303,7 @@ int main() {
     test_deferred_reclaim();
     test_deferred_unmap();
     test_pending_is_bounded();
+    test_mlock_regions();
     test_os_fail_policy();
     test_rt_section_nesting();
     test_flag_is_per_thread();

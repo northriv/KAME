@@ -151,6 +151,8 @@
     inline int  kame_pool_prewarm(const std::size_t *, const unsigned *,
                                   unsigned) noexcept { return 0; }
     inline unsigned kame_pool_reserve_regions(unsigned, int) noexcept { return 0; }
+    inline std::size_t kame_pool_mlock_regions() noexcept { return 0; }
+    inline std::size_t kame_pool_munlock_regions() noexcept { return 0; }
     } // extern "C"
 #else
     #include "allocator_prv.h"

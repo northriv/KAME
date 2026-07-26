@@ -6635,6 +6635,51 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 // too), so the usual recipe is prewarm alone, with this as the belt-and-
 // braces option when the working-set size is known but its size classes are
 // not.  Returns the number of regions actually created (< n on cap / OOM).
+// (§75 / G6) Pin the pool's own regions into RAM, or release the pins.
+//
+// Why this exists as an allocator API at all: every other allocator leaves
+// page pinning to the application, which then has only `mlockall(MCL_CURRENT |
+// MCL_FUTURE)` — a blunt instrument that also pins every future mapping made
+// by every non-realtime thread, so one background worker's large buffer can
+// blow the RSS budget.  We keep a ledger of our own regions, so we can pin
+// exactly the pool and nothing else.
+//
+// Bonus property worth knowing: `mlock` POPULATES the range, so locking also
+// prefaults it — this subsumes `reserve_regions(prefault=true)` for the
+// regions it covers.
+//
+// Only regions mapped at call time are covered (regions are push-only and
+// never unmapped, so nothing here can dangle).  Call AFTER prewarm /
+// reserve_regions; call again if the working set later grows.
+std::size_t
+PoolAllocatorBase::mlock_regions(bool lock) noexcept {
+	std::size_t done = 0;
+	for(int node = 0; node < KAME_MAX_NUMA_NODES; node++) {
+		for(RegionMeta *rm = s_region_dll_heads[node].load(
+		        std::memory_order_acquire);
+		    rm; rm = rm->dll_next.load(std::memory_order_acquire)) {
+			// region_meta() is a plain cast, so rm IS the region base.
+			void *base = static_cast<void *>(rm);
+			const std::size_t len = (std::size_t)ALLOC_MIN_MMAP_SIZE;
+#if defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32)
+			// VirtualLock's working-set quota is per-process and small by
+			// default; a failure here is the same "quota reached" signal as
+			// RLIMIT_MEMLOCK, so treat it identically.
+			if(lock ? VirtualLock(base, len) : VirtualUnlock(base, len))
+				done += len;
+			else
+				return done;      // quota reached — report what we managed
+#else
+			if((lock ? mlock(base, len) : munlock(base, len)) == 0)
+				done += len;
+			else
+				return done;      // RLIMIT_MEMLOCK reached — partial success
+#endif
+		}
+	}
+	return done;
+}
+
 unsigned
 PoolAllocatorBase::reserve_regions(unsigned n, bool prefault) noexcept {
 	unsigned made = 0;
@@ -7523,6 +7568,13 @@ extern "C" int kame_pool_prewarm(const size_t *sizes, const unsigned *counts,
 extern "C" unsigned kame_pool_reserve_regions(unsigned n_regions,
                                              int prefault) noexcept {
 	return PoolAllocatorBase::reserve_regions(n_regions, prefault != 0);
+}
+
+extern "C" size_t kame_pool_mlock_regions(void) noexcept {
+	return PoolAllocatorBase::mlock_regions(/*lock=*/true);
+}
+extern "C" size_t kame_pool_munlock_regions(void) noexcept {
+	return PoolAllocatorBase::mlock_regions(/*lock=*/false);
 }
 
 // =====================================================================
