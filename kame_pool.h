@@ -285,6 +285,27 @@ unsigned long long kame_pool_rt_violations(void) KAMEPOOLALLOC_NOEXCEPT;
 unsigned long long kame_pool_rt_deferred_reclaims(void) KAMEPOOLALLOC_NOEXCEPT;
 unsigned long long kame_pool_rt_deferred_unmaps(void) KAMEPOOLALLOC_NOEXCEPT;
 size_t kame_pool_rt_pending_bytes(void) KAMEPOOLALLOC_NOEXCEPT;
+
+/*
+ * (G5) Ceiling on the VA the realtime munmap deferral may park.  An
+ * UNBOUNDED deferral queue would trade a bounded free() tail for
+ * unbounded memory — measured, 40 deferred 300 MiB frees park 12.6 GB.
+ * Past the cap a realtime free releases INLINE instead of parking more
+ * (bounded memory beats a bounded tail) and kame_pool_rt_forced_releases()
+ * counts it, so the trade is never silent.  Default 1 GiB, matching the
+ * large-recycle cache's own default appetite; lower it for tighter RSS, or
+ * simply call kame_pool_rt_drain() once per control cycle.
+ *
+ * A program with both realtime and ordinary threads also settles the
+ * backlog by itself: each non-realtime large free releases at most ONE
+ * parked block (bounded, so no single free inherits the queue).
+ *
+ * A strict realtime check asserts BOTH rt_violations() == 0 AND
+ * rt_forced_releases() == 0 over the critical section.
+ */
+void   kame_pool_set_rt_pending_cap(size_t bytes) KAMEPOOLALLOC_NOEXCEPT;
+size_t kame_pool_get_rt_pending_cap(void) KAMEPOOLALLOC_NOEXCEPT;
+unsigned long long kame_pool_rt_forced_releases(void) KAMEPOOLALLOC_NOEXCEPT;
 void   kame_pool_rt_reset_counters(void) KAMEPOOLALLOC_NOEXCEPT;
 
 /* One-line "this realtime section mapped memory N times" warning on

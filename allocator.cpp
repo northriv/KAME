@@ -1015,6 +1015,25 @@ struct RtPendingUnmap {
 };
 std::atomic<RtPendingUnmap *> g_rt_pending_unmap{nullptr};
 
+//! (§75 / G5) Ceiling on the VA parked by the deferral above.  An UNBOUNDED
+//! deferral queue would trade a bounded free() tail for unbounded RSS/VA —
+//! measured: 40 deferred 300 MiB frees park 12.6 GB.  Past the cap a realtime
+//! free unmaps inline instead of parking more: bounded memory beats a bounded
+//! tail, and `g_rt_forced_releases` makes the trade visible.  Default matches
+//! the large-recycle cache's own default appetite (1 GiB).
+std::atomic<std::size_t> g_rt_pending_cap{(std::size_t)1 << 30};
+//! Times a realtime free had to release inline because the cap was reached.
+//! A strict realtime check asserts BOTH this and `g_rt_violations` are zero.
+std::atomic<unsigned long long> g_rt_forced_releases{0};
+
+//! Exclusive-popper gate for the pending stack.  Pushes stay lock-free, but
+//! POPS must be serialised: a Treiber pop has to read `head->next`, and that
+//! word lives in the very page a concurrent popper may already have unmapped
+//! (use-after-unmap → SIGSEGV).  Only poppers take the gate, so a push racing
+//! a pop merely makes the popper's CAS retry against the new head.
+std::atomic<bool> g_rt_settle_gate{false};
+
+
 //! True iff the calling thread is marked realtime.
 inline bool rt_thread() noexcept { return g_rt_thread; }
 
@@ -7367,6 +7386,15 @@ extern "C" unsigned long long kame_pool_rt_deferred_unmaps(void) noexcept {
 extern "C" size_t kame_pool_rt_pending_bytes(void) noexcept {
 	return g_rt_pending_bytes.load(std::memory_order_relaxed);
 }
+extern "C" void kame_pool_set_rt_pending_cap(size_t bytes) noexcept {
+	g_rt_pending_cap.store(bytes, std::memory_order_relaxed);
+}
+extern "C" size_t kame_pool_get_rt_pending_cap(void) noexcept {
+	return g_rt_pending_cap.load(std::memory_order_relaxed);
+}
+extern "C" unsigned long long kame_pool_rt_forced_releases(void) noexcept {
+	return g_rt_forced_releases.load(std::memory_order_relaxed);
+}
 extern "C" void kame_pool_rt_report_violations(unsigned long long count) noexcept {
 	fprintf(stderr,
 	    "kamepoolalloc: realtime section made %llu new mapping(s) — "
@@ -7377,6 +7405,7 @@ extern "C" void kame_pool_rt_reset_counters(void) noexcept {
 	g_rt_violations.store(0, std::memory_order_relaxed);
 	g_rt_deferred_reclaim.store(0, std::memory_order_relaxed);
 	g_rt_deferred_unmap.store(0, std::memory_order_relaxed);
+	g_rt_forced_releases.store(0, std::memory_order_relaxed);
 }
 
 // The `mi_collect` / `malloc_trim` / `arena.N.purge` analogue: perform every
@@ -7559,6 +7588,35 @@ PoolAllocatorBase::allocate_large_va(std::size_t size) noexcept {
 	return base + ALLOC_PAGE_SIZE;
 }
 
+//! Release at most ONE parked block.  O(1) by construction: no single free
+//! may inherit the whole backlog — that is exactly the amortized-to-
+//! worst-case conversion this bound exists to prevent.  Called from the
+//! NON-realtime large-free path, so a mixed-thread program (an RT worker plus
+//! ordinary threads — e.g. KAME's measurement thread beside its GUI and driver
+//! threads) settles the backlog on its own without an explicit drain.
+inline void rt_settle_one_pending() noexcept {
+	if(g_rt_pending_unmap.load(std::memory_order_relaxed) == nullptr)
+		return;                                   // common case: nothing owed
+	// Never spin here: a busy gate means another thread is already settling.
+	if(g_rt_settle_gate.exchange(true, std::memory_order_acquire))
+		return;
+	RtPendingUnmap *head = g_rt_pending_unmap.load(std::memory_order_acquire);
+	while(head) {
+		// Safe: we hold the gate, so no other thread can unmap `head`.
+		RtPendingUnmap *next = head->next;
+		std::size_t sz = head->mmap_size;
+		if(g_rt_pending_unmap.compare_exchange_weak(
+		       head, next, std::memory_order_acq_rel,
+		       std::memory_order_acquire)) {
+			g_rt_pending_bytes.fetch_sub(sz, std::memory_order_relaxed);
+			large_va_raw_unmap(reinterpret_cast<char *>(head), sz);
+			break;
+		}
+		// CAS failed: `head` was reloaded with the current top (a push landed).
+	}
+	g_rt_settle_gate.store(false, std::memory_order_release);
+}
+
 void
 PoolAllocatorBase::deallocate_large_va(void *p) noexcept {
 	char *base = reinterpret_cast<char *>(
@@ -7591,20 +7649,39 @@ PoolAllocatorBase::deallocate_large_va(void *p) noexcept {
 		// Trade-off: VA/RSS is held until the drain, which
 		// `kame_pool_rt_pending_bytes()` reports.
 		if(__builtin_expect(g_rt_thread, 0)) {
-			RtPendingUnmap *node = reinterpret_cast<RtPendingUnmap *>(base);
-			node->mmap_size = mmap_size;
-			RtPendingUnmap *old =
-			    g_rt_pending_unmap.load(std::memory_order_relaxed);
-			do {
-				node->next = old;
-			} while( !g_rt_pending_unmap.compare_exchange_weak(
-			             old, node, std::memory_order_release,
-			             std::memory_order_relaxed));
-			g_rt_pending_bytes.fetch_add(mmap_size, std::memory_order_relaxed);
-			g_rt_deferred_unmap.fetch_add(1, std::memory_order_relaxed);
+			// (§75 / G5) Park only while the backlog stays under the cap.  An
+			// unbounded queue would swap a bounded free() tail for unbounded
+			// VA/RSS (measured: 40 deferred 300 MiB frees park 12.6 GB), so
+			// past the cap we release inline and record it — bounded memory
+			// beats a bounded tail, and the trade stays visible.
+			std::size_t cur =
+			    g_rt_pending_bytes.load(std::memory_order_relaxed);
+			if(cur + mmap_size
+			   <= g_rt_pending_cap.load(std::memory_order_relaxed)) {
+				RtPendingUnmap *node = reinterpret_cast<RtPendingUnmap *>(base);
+				node->mmap_size = mmap_size;
+				RtPendingUnmap *old =
+				    g_rt_pending_unmap.load(std::memory_order_relaxed);
+				do {
+					node->next = old;
+				} while( !g_rt_pending_unmap.compare_exchange_weak(
+				             old, node, std::memory_order_release,
+				             std::memory_order_relaxed));
+				g_rt_pending_bytes.fetch_add(mmap_size,
+				                             std::memory_order_relaxed);
+				g_rt_deferred_unmap.fetch_add(1, std::memory_order_relaxed);
+				return;
+			}
+			g_rt_forced_releases.fetch_add(1, std::memory_order_relaxed);
+			large_va_raw_unmap(base, mmap_size);
 			return;
 		}
 		large_va_raw_unmap(base, mmap_size);
+		// (§75 / G5) Not a realtime thread — settle at most ONE parked block
+		// on the way out, so a program with both realtime and ordinary threads
+		// drains the backlog by itself.  Bounded (one block per call), so this
+		// free cannot inherit the whole queue.
+		rt_settle_one_pending();
 	}
 }
 

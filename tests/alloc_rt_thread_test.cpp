@@ -159,6 +159,48 @@ static void test_deferred_unmap() {
 
 }
 
+// ------------------------------------------------------------------ 2c
+static void test_pending_is_bounded() {
+    std::printf("(2c) the deferral backlog is BOUNDED and self-settling\n");
+
+    // Before the G5 cap this loop parked 12.6 GB of VA for 40 frees and only
+    // an explicit rt_drain() ever gave it back — deferring without a ceiling
+    // trades a bounded free() tail for unbounded memory.
+    const size_t kHuge = 300u * 1024u * 1024u;   // > LRC_HI: cache bypassed
+    const size_t kCap  = 600u * 1024u * 1024u;   // room for ~1 block
+
+    const size_t saved = kame_pool_get_rt_pending_cap();
+    kame_pool_set_rt_pending_cap(kCap);
+    kame_pool_rt_reset_counters();
+
+    for(int i = 0; i < 40; i++) {
+        kame::rt_section rt(/*check=*/false);
+        void *p = kame_pool_malloc(kHuge);
+        if(p) { std::memset(p, 5, 4096); kame_pool_free(p); }
+    }
+    size_t pending = kame_pool_rt_pending_bytes();
+    check(pending <= kCap,
+          "parked VA never exceeds the cap (was unbounded before G5)");
+    check(kame_pool_rt_forced_releases() > 0,
+          "over-cap frees released inline, and said so");
+
+    // A non-realtime large free settles one parked block per call, so a
+    // mixed-thread program drains itself without an explicit rt_drain().
+    size_t before = kame_pool_rt_pending_bytes();
+    if(before) {
+        for(int i = 0; i < 4; i++) {
+            void *p = kame_pool_malloc(kHuge);
+            if(p) { std::memset(p, 6, 4096); kame_pool_free(p); }
+        }
+        check(kame_pool_rt_pending_bytes() < before,
+              "non-realtime frees settled part of the backlog on their own");
+    }
+
+    kame_pool_rt_drain();
+    check(kame_pool_rt_pending_bytes() == 0, "rt_drain settles the remainder");
+    kame_pool_set_rt_pending_cap(saved);
+}
+
 // -------------------------------------------------------------------- 3
 static void test_os_fail_policy() {
     std::printf("(3) KAME_RT_OS_FAIL still yields usable memory\n");
@@ -228,6 +270,7 @@ int main() {
     test_prewarm_then_no_mappings();
     test_deferred_reclaim();
     test_deferred_unmap();
+    test_pending_is_bounded();
     test_os_fail_policy();
     test_rt_section_nesting();
     test_flag_is_per_thread();
