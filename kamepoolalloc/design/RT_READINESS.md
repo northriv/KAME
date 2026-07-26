@@ -177,13 +177,53 @@ T, prewarmed, RT mode) as a documented theorem; optionally add
 bounded-retry + per-thread emergency-reserve fallback for the paranoid
 hard-RT profile.
 
-### G5 — bound the deferred work a single free() can inherit
+### G5 — bound the work one operation inherits — **DONE**
 
-Cross-thread dealloc batches (BMWIN multi-word claim) and orphan-chunk
-adoption mean one `free()` can inherit accumulated cleanup.  Adoption
-pop is O(1)-CAS, but batch drains need an audit: cap the per-op inherited
-work (drain at most K words / adopt at most one chunk per call), pushing
-the remainder to the next op or to `kame_pool_rt_drain()`.
+Audited the three amortization sites; each is now bounded or shown
+unreachable for a prewarmed realtime thread.
+
+**(a) The realtime deferral backlog itself — was genuinely unbounded.**
+Measured: 40 deferred 300 MiB frees parked **12.6 GB** of VA, recoverable only
+by an explicit `rt_drain()`. Deferring without a ceiling swaps a bounded
+`free()` tail for unbounded memory — the same trap in the other direction.
+Fixed by two bounds: a **pending cap**
+(`kame_pool_set_rt_pending_cap`, default 1 GiB = what the recycle cache is
+already allowed) past which a realtime free releases inline and
+`rt_forced_releases()` counts it; and **opportunistic settlement**, where each
+non-realtime large free releases at most **one** parked block, so a
+mixed-thread program drains itself. Re-measured: 944 MB instead of 12.6 GB,
+and zero once ordinary threads run. Pushes stay lock-free; *pops* take an
+exclusive gate, because a Treiber pop must read `head->next` and that word
+lives in the page a concurrent popper may already have unmapped.
+
+**(b) Cross-thread dealloc batch — bounded, and now bypassed in RT mode.**
+`CrossDeallocBatch` accumulates `CAP = 1024` entries (16.4 KiB, L1d-resident
+by design) and then **one** free pays for sorting, adjacent-merging and
+CAS-ing the whole buffer: a per-op worst case ~1024× the average. Bounded, but
+not acceptable inside a deadline. A realtime thread now takes the existing
+single-slot `push_direct` path for every ALIGN class, so its free does its own
+bitmap CAS and nothing else. This matters because cross-thread free *is* the
+STM shape — a Payload cloned on one thread and released on another.
+Consequence to know: entries pushed before the section stay unflushed for its
+duration (≤ 1024 slots, ≤ ~240 KB — bounded, settled by ordinary activity or
+at thread exit), and throughput drops slightly for RT threads in exchange for
+the bound.
+
+**(c) `orphan_chain_scrub` — unbounded, but unreachable when prewarmed.**
+It walks the whole orphan chain and **restarts from the head whenever its
+unlink CAS loses**, so it is O(chain) and worse under contention. It is called
+only from `allocate_chunk_path` immediately before mmap'ing a fresh region —
+i.e. on the cold claim path that prewarm removes and `KAME_RT_OS_FAIL` refuses
+outright. Left as-is deliberately: bounding it would cost throughput on the
+path where it pays for itself (it is avoiding an mmap), and no realtime thread
+that honours the contract reaches it. **This is a contract dependency, not a
+proof** — it belongs in the G10 write-up as an explicit precondition.
+
+**Honest gap in the measurement:** `bench_rt_wcet` has the measured thread
+allocate *and* free its own blocks, so it never exercises the cross-thread
+class (b) at all. The bound there rests on code reading, not on a measured
+tail. A cross-thread arm (thread A allocates, thread B frees) is the obvious
+next addition to the harness.
 
 ### G6 — page-fault class (kernel-side latency without syscalls)
 
@@ -301,17 +341,16 @@ G7 (the tail harness) followed, and its numbers are in that section.
 **Remaining:**
 
 ```
-G5 (per-op inherited-work cap: bound the drain / adoption
-    work a single free() can inherit)
-  →  G4 + G10 (CAS-retry bound statement + the RT contract in
-                the README — now writable against G7's measured
-                numbers rather than the design argument alone)
+G4 + G10 (CAS-retry bound statement + the RT contract in the
+          README — now writable against G7's measured numbers,
+          and G5(c) supplies an explicit precondition)
+  →  a cross-thread arm for bench_rt_wcet (measures G5(b),
+          which currently rests on code reading)
   →  G9's owed manifesting regression test, on Linux
   →  G6 as the target platform demands (THP / MADV_NOHUGEPAGE,
           mlockall guidance)
 ```
 
-G5 is the last mechanism gap: G7 measured the *steady* tail, but a single
-`free()` can still inherit accumulated drain / adoption work, which is
-exactly how a good median turns into a bad tail under churn.  After that the
-G4/G10 write-ups rest on measurement.
+The mechanisms are in place and measured; what remains is one measurement gap
+(cross-thread frees) and the write-ups, which should now rest on the numbers
+rather than on the design argument alone.

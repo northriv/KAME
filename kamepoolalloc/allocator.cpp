@@ -2253,8 +2253,21 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// worse, and their chunks repeat less frequently in realistic
 	// STM workloads (allocation distribution is heavy-tailed
 	// toward smallest classes).
+	//
+	// (§75 / G5) A realtime thread takes the DIRECT path regardless of ALIGN.
+	// Batching is an amortization: `CAP = 1024` entries accumulate and then
+	// ONE free pays for sorting + merging + CAS-ing the whole buffer, so the
+	// per-op worst case is ~1024× the average — precisely the
+	// amortized-to-worst-case conversion a realtime bound cannot accept.  The
+	// direct path does this free's own bitmap CAS and nothing else, giving a
+	// bounded per-op cost at some throughput cost.  Cross-thread frees are
+	// exactly the STM shape (a Payload cloned on one thread, released on
+	// another), so this is reachable, not hypothetical.
 	if constexpr (ALIGN <= 48) {
-		tls_cross_dealloc_batch.push(this, p);
+		if(__builtin_expect(g_rt_thread, 0))
+			tls_cross_dealloc_batch.template push_direct<ALIGN>(this, p);
+		else
+			tls_cross_dealloc_batch.push(this, p);
 	} else {
 		tls_cross_dealloc_batch.template push_direct<ALIGN>(this, p);
 	}
