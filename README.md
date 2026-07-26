@@ -112,6 +112,13 @@ this library.
   model-only catch (runtime stress can't reproduce it), kept as a standing
   regression guard.  Builds 64-bit and 32-bit,
   on macOS / Linux / Windows (MinGW + MSVC).
+- **Realtime mode with a written contract** — per-thread gating so a marked
+  thread's `free()` never enters the kernel, `kame_pool_prewarm()` (which
+  page-touches, unlike the allocate+free idiom), an explicit
+  `kame_pool_rt_drain()`, and runtime-checkable violation counters.  Measured
+  128 ns vs 20.5 µs median free (and 792 ns vs 678 µs max) on the band where
+  the recycle cache cannot help.  Preconditions and exclusions are stated in
+  [The realtime contract](#the-realtime-contract) — not implied.
 
 ## Status
 
@@ -642,6 +649,101 @@ See the header for full per-function semantics.
 | `void   kame_pool_set_thread_exit_reclaim(int)` | on | §21 madvise(MADV_DONTNEED) at worker exit |
 | `void   kame_pool_set_realtime_mode(int)` | off | §30 one-shot preset: silences all three of the above |
 
+**Realtime (§75) — per-thread gating, prewarm, drain:**
+
+| Symbol | Default | Purpose |
+|---|---|---|
+| `void   kame_pool_set_realtime_thread(int)` | off | mark THIS thread realtime: its `free()` never enters the kernel (see contract below) |
+| `int    kame_pool_get_realtime_thread(void)` | — | current thread's flag |
+| `int    kame_pool_prewarm(const size_t*, const unsigned*, unsigned)` | — | allocate + **page-touch** + free the given size classes, per realtime thread |
+| `unsigned kame_pool_reserve_regions(unsigned n, int prefault)` | — | create `n` 32-MiB regions up front (permanent — regions never unmap) |
+| `void   kame_pool_rt_drain(void)` | — | perform all deferred reclaim (the `mi_collect` / `malloc_trim` analogue). **Never call inside the critical section** |
+| `void   kame_pool_set_rt_os_policy(int)` | `KAME_RT_OS_ALLOW` | `ALLOW` / `COUNT` / `FAIL` (refuse → degrade to libc) / `ABORT` (report + abort) |
+| `void   kame_pool_set_rt_pending_cap(size_t)` | 1 GiB | ceiling on VA parked by deferred unmaps; past it a realtime free releases inline |
+| `unsigned long long kame_pool_rt_violations(void)` | — | times a realtime thread entered the kernel for a **new mapping** |
+| `unsigned long long kame_pool_rt_forced_releases(void)` | — | times the pending cap forced an inline release |
+| `size_t kame_pool_rt_pending_bytes(void)` | — | VA currently parked, awaiting a drain |
+| `kame::rt_section` (C++ RAII) | — | marks the thread for a scope, nests, reports its own violation delta in debug builds |
+
+### The realtime contract
+
+Stated as preconditions → guarantees → exclusions, because a realtime claim
+without its assumptions written down is not a claim.
+
+**Preconditions** (all of them; the contract is void otherwise):
+
+1. `kame_pool_set_realtime_mode(1)` once at startup (silences background
+   maintenance — the only paths that map/unmap outside an explicit call).
+2. `kame_pool_prewarm(...)` from **each** realtime thread, covering every size
+   class it will use, before entering the time-critical section. The allocator's
+   state is per-thread, so prewarming on another thread does not count.
+3. The realtime thread is marked (`kame_pool_set_realtime_thread(1)` or
+   `kame::rt_section`).
+4. The **working set does not grow** during the section: a request that needs
+   capacity nobody prewarmed must map, and mapping is unbounded by nature.
+5. `kame_pool_rt_drain()` is called from a *non*-critical phase (between control
+   cycles, or on a housekeeping thread) — it is exactly the syscall batch the
+   gating keeps out of the section.
+6. Thread count is bounded and known (see the interference caveat below).
+
+**Guarantees**, given the above:
+
+* **No syscall on the free path.** Chunk page-reclaim (`madvise`) is skipped —
+  the chunk is still released and immediately recyclable, its pages just stay
+  warm. A large-tier `munmap` is parked (bounded by `rt_pending_cap`) and
+  settled later by `rt_drain()`, or by any ordinary thread's next large free
+  (one block per call).
+* **No lock, no sleep, no yield** anywhere in the allocator — all
+  synchronisation is CAS/atomics/seqlock.
+* **No unbounded internal loop**: every loop is either statically bounded or
+  bounded by interfering successes (see `design/RT_READINESS.md` §G4 for the
+  loop-by-loop statement).
+* **Runtime-checkable**: the contract held over a section iff
+  `kame_pool_rt_violations() == 0 && kame_pool_rt_forced_releases() == 0`.
+  A realtime test should assert exactly that. `kame::rt_section` checks it for
+  you in debug builds.
+
+**Exclusions** — what is *not* covered, stated plainly:
+
+* **No numeric WCET.** Lock-free is not wait-free; there is no machine-checked
+  bound and no static-analysis budget. Measured tails are evidence for one
+  machine and load, not a proof.
+* **Multiprocessor interference is a system property.** CAS retries are bounded
+  by *interfering successes*, so converting that to wall-clock needs a bound on
+  peer allocation rate or core partitioning — an argument about your task set,
+  which this allocator cannot make for you.
+* **Blocks above 256 MiB cannot be cached** (the recycle cache is bypassed by
+  construction), so each such allocation maps and each free unmaps. Realtime
+  code should not size-class there; the gate defers the *free* side, which
+  measured 128 ns vs 20.5 µs median, but the alloc side still maps.
+* **Radix-leaf mappings are counted, never refused**, even under
+  `KAME_RT_OS_FAIL`: a region without its leaf would route later frees of
+  pointers inside it to libc `free()` — corruption, not degradation. Prewarm is
+  what keeps this off the path.
+* **The cold chunk-claim path calls `orphan_chain_scrub()`**, which walks the
+  orphan chain and restarts on CAS loss — unbounded. Precondition 2/4 keep it
+  unreachable; `KAME_RT_OS_FAIL` refuses that path outright.
+* **Page-fault class is the OS's, not ours**: transparent hugepages
+  (khugepaged/compaction), first-touch faults on anything prewarm missed, and
+  `MADV_FREE`'d pages refaulting. Consider `mlockall` and
+  `MADV_NOHUGEPAGE` for the arena on Linux.
+* **Hard-realtime (avionics/automotive) wants a different design**: a fixed
+  arena the allocator never grows (TLSF-style) plus bounded-retry with an
+  emergency reserve. That is not a tuning of this allocator.
+
+**Measured** (Apple M3, Release, 3 interferer threads — see
+`tests/bench/bench_rt_wcet.cpp`, and reproduce with `--pressure` / `--xt`):
+
+| Path | realtime | default |
+|---|---:|---:|
+| free, > 256 MiB band — median | **128 ns** | 20,480 ns |
+| free, > 256 MiB band — max | **792 ns** | 677,917 ns |
+| free, 32 B cross-thread — max | **27 µs** | 107 µs |
+
+For every band at or below 256 MiB the two are *statistically identical*: the
+recycle cache already absorbs those releases without a syscall, so the gating is
+a safety net for the cases above rather than a steady-state necessity.
+
 **Observability:**
 
 | Symbol | Purpose |
@@ -912,6 +1014,7 @@ four-tier general allocator.  Selected milestones (full history in `git log`):
 | 30    | `kame_pool_set_realtime_mode()` — one-call silence of all background maintenance |
 | 31    | Windows free-family IAT redirect — pool coexists with Qt / libc++ on PE/COFF |
 | 36 / S7 | lock-free orphan-chunk reclaim — `atomic_shared_ptr` chain (owner-exit push, sweep-reclaim, adopt + chunk self-ref owner-ref) replaces the leak-prone ABA Treiber stack; TLA+-verified, now the default |
+| 75    | Realtime per-thread gating (deferred reclaim + capped backlog), `kame_pool_prewarm()` (page-touching), `kame_pool_rt_drain()`, `kame::rt_section`, violation counters, and the written contract |
 
 ## Acknowledgements
 

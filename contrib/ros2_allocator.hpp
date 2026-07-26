@@ -38,11 +38,19 @@
 //     (ELF strong symbol on Linux, Mach-O __interpose on macOS, IAT redirect
 //     on Windows) reconciles a pool-allocated message handed to a libc-
 //     bound DDS stack, so no manual lifetime juggling is needed.
+//   * `kame_pool_set_realtime_thread(1)` (or the `kame::rt_section` RAII
+//     guard) additionally stops this thread's own `free()` from entering the
+//     kernel: chunk page-reclaim is skipped and a large-tier munmap is parked
+//     until `kame_pool_rt_drain()`.  Measured on M3: 128 ns vs 20.5 us median
+//     free, 792 ns vs 678 us max, on the >256 MiB band.
 //   * Bounded chunk-claim latency in steady state.  Cold-claim is *not*
 //     formally bounded (it can mmap a 32 MiB region on first touch), so for
-//     a hard-RT loop you should pre-warm by allocating + freeing the
-//     working-set sizes BEFORE entering the time-critical section — same
-//     idiom you'd use with TLSF.
+//     a hard-RT loop call `kame_pool_prewarm(sizes, counts, n)` from EACH
+//     realtime thread before the time-critical section — it allocates,
+//     PAGE-TOUCHES and frees, which the old allocate+free idiom did not do
+//     (pages stayed mapped-but-unfaulted, so the first RT write still
+//     faulted).  Verify with `kame_pool_rt_violations() == 0`.  Full
+//     precondition list: README.md "The realtime contract".
 //
 // Quick usage:
 //
