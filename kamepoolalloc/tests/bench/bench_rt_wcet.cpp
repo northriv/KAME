@@ -169,6 +169,79 @@ static const char *elevate_this_thread() {
 #endif
 }
 
+
+// ==================================================================
+// Cross-thread arm: producer allocates, the MEASURED thread frees.
+// ==================================================================
+// This is the class the same-thread bands above cannot reach, and the one
+// that matters most for the STM: a Payload cloned on one thread and released
+// on another.  It is also where `CrossDeallocBatch` lives — CAP=1024 entries
+// accumulate and then ONE free pays for sorting + merging + CAS-ing the whole
+// buffer, so the OFF arm should show a periodic spike that the RT arm (routed
+// to the single-slot `push_direct` path) does not.
+//
+// SIZE MATTERS HERE: only FS=true ALIGN <= 48 uses the batch — sizes 64 B and
+// up already take the direct path — so the band must be <= 48 B or the arm
+// measures nothing.  32 B it is.
+static const std::size_t kXtSize = 32u;
+
+// Fixed-capacity SPSC ring.  Deliberately allocation-free: a queue that
+// allocated would pollute the very measurement it feeds.
+struct SpscRing {
+	enum { N = 8192 };
+	void *buf[N];
+	std::atomic<unsigned> head{0};      // producer publishes
+	std::atomic<unsigned> tail{0};      // consumer consumes
+	bool push(void *p) {
+		unsigned h = head.load(std::memory_order_relaxed);
+		if(h - tail.load(std::memory_order_acquire) >= (unsigned)N)
+			return false;               // full
+		buf[h % N] = p;
+		head.store(h + 1, std::memory_order_release);
+		return true;
+	}
+	void *pop() {
+		unsigned t = tail.load(std::memory_order_relaxed);
+		if(t == head.load(std::memory_order_acquire)) return nullptr;
+		void *p = buf[t % N];
+		tail.store(t + 1, std::memory_order_release);
+		return p;
+	}
+};
+
+static SpscRing        g_ring;
+static std::atomic<bool> g_xt_stop{false};
+
+static void xt_producer() {
+	while( !g_xt_stop.load(std::memory_order_relaxed)) {
+		void *p = kame_pool_malloc(kXtSize);
+		if( !p) continue;
+		*static_cast<char *>(p) = 1;
+		while( !g_ring.push(p)) {
+			if(g_xt_stop.load(std::memory_order_relaxed)) {
+				kame_pool_free(p);      // ring full at shutdown: don't leak it
+				return;
+			}
+		}
+	}
+}
+
+// Frees `n` blocks from the ring, timing each.  Runs on the measured thread.
+static void xt_consume(Hist &h, bool realtime, unsigned n) {
+	if(realtime) kame_pool_set_realtime_thread(1);
+	unsigned done = 0;
+	while(done < n) {
+		void *p = g_ring.pop();
+		if( !p) continue;               // producer behind; not counted
+		std::uint64_t t0 = now_ns();
+		kame_pool_free(p);
+		std::uint64_t t1 = now_ns();
+		h.add(t1 - t0);
+		done++;
+	}
+	if(realtime) kame_pool_set_realtime_thread(0);
+}
+
 // ---------------------------------------------------------------- measure
 struct Arm {
 	Hist alloc[NBANDS];
@@ -225,9 +298,12 @@ static void report_hist(const char *label, const Hist &h) {
 int main(int argc, char **argv) {
 	bool full = false, pressure = false;
 	unsigned reps = 4, iters = 200, nthreads = 3;
+	unsigned xt = 0;   // cross-thread sample count (0 = derive from mode)
 	for(int i = 1; i < argc; i++) {
 		if( !std::strcmp(argv[i], "--full")) full = true;
 		else if( !std::strcmp(argv[i], "--pressure")) pressure = true;
+		else if( !std::strcmp(argv[i], "--xt") && i + 1 < argc)
+			xt = (unsigned)std::atoi(argv[++i]);
 		else if( !std::strcmp(argv[i], "--reps") && i + 1 < argc)
 			reps = (unsigned)std::atoi(argv[++i]);
 		else if( !std::strcmp(argv[i], "--iters") && i + 1 < argc)
@@ -342,6 +418,33 @@ int main(int argc, char **argv) {
 		report_hist("OFF malloc",  off.alloc[bi]);
 		report_hist("RT  free",    rt.free_[bi]);
 		report_hist("OFF free",    off.free_[bi]);
+	}
+
+	// ---- cross-thread arm ----
+	{
+		const unsigned n = xt ? xt : (full ? 2000000u : 120000u);  // >> CAP=1024
+		Hist xt_rt, xt_off;
+		xt_rt.reset();
+		xt_off.reset();
+		std::thread prod(xt_producer);
+		for(unsigned r = 0; r < reps; r++) {
+			if(r & 1u) { xt_consume(xt_off, false, n / reps);
+			             xt_consume(xt_rt,  true,  n / reps); }
+			else       { xt_consume(xt_rt,  true,  n / reps);
+			             xt_consume(xt_off, false, n / reps); }
+		}
+		g_xt_stop.store(true, std::memory_order_relaxed);
+		// Drain so the producer's final push cannot block forever.
+		while(void *p = g_ring.pop()) kame_pool_free(p);
+		prod.join();
+		while(void *p = g_ring.pop()) kame_pool_free(p);
+
+		std::printf("\n  %zu B cross-thread free (producer allocs, we free)\n",
+		            kXtSize);
+		report_hist("RT  free", xt_rt);
+		report_hist("OFF free", xt_off);
+		std::printf("    (OFF batches CAP=1024 then one free pays for the "
+		            "whole buffer; RT takes push_direct)\n");
 	}
 
 	std::printf("\nrt_violations=%llu  deferred_reclaims=%llu  "
