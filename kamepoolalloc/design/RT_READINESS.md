@@ -407,22 +407,31 @@ its own region walk / mmap / bitmap-CAS — it is LRC-pop → `claim_chunk`
 of the achieved state, not a TODO.  See §1.1 for the resulting four-site
 audit surface — G1–G3 gate those directly, with no refactor first.
 
-### G9 — teardown L1-stranding — **fix DONE; only a regression test is owed**
+### G9 — teardown L1-stranding — **fix and test both DONE; only a Linux negative control is owed**
 
-Closed by `3145e139a`: both L1 entry points now gate on
-`kame_thread_torn_down()` — `l1_push` (beside the pre-existing
-`s_l1_drained` check, so never-armed threads are covered too) and
-`l1_pop_fit` (no re-arm, closing the symmetric `g_lrc_l1_threads`
-counter drift).  Verified in the current tree
-(`s_l1_drained || kame_thread_torn_down()` at `allocator.cpp:6803`,
-`kame_thread_torn_down()` at `:6770`).
+Fix landed in `3145e139a`: both L1 entry points gate on
+`kame_thread_torn_down()` — `l1_push` (beside the pre-existing `s_l1_drained`
+check, so never-armed threads are covered too) and `l1_pop_fit` (no re-arm,
+closing the symmetric `g_lrc_l1_threads` counter drift). Verified present in the
+current tree (`allocator.cpp:6803`, `:6770`).
 
-Residual is **test coverage, not a fix**: a manifesting regression test
-(cross-thread > 32 KiB block freed from a *non-allocating* thread's
-`pthread_key` destructor — the same-thread scenario B does not catch it)
-plus Linux verification.  macOS cannot trigger it (dyld runs key dtors
-before C++ `thread_local` dtors, unlike glibc), so it belongs to a Linux
-run.  Worth doing alongside G7's harness, but it does not block G1.
+The "manifesting regression test" that commit said it owed **also already
+exists**: `tests/alloc_thread_exit_unarmed_test.cpp` forces exactly the
+sufficient condition — a producer allocates a 48 KiB dedicated block and hands
+it to a consumer thread that performs **no allocations of its own** (so its L1
+is never armed and `s_l1_drained` stays false), whose only pool interaction is
+freeing that foreign block **from its own `pthread_key` destructor** at thread
+exit. The cycle repeats and asserts `chunks_live` / `units_live` plateau instead
+of growing +1/cycle. Built both ways (static + `_dynamic`) and registered in
+ctest, both passing.
+
+**What is actually still owed is a *negative control*, on Linux.** The test
+passes on macOS, but macOS *cannot* trigger the bug (glibc runs C++
+`thread_local` destructors before `pthread_key` destructors; dyld's order does
+not open the window), so a pass there proves nothing about the test's teeth. The
+outstanding question is narrow and answerable: **with the `3145e139a` guard
+reverted, does this test fail on Linux?** If it does not, the test does not
+cover the fix and needs strengthening. See `design/RT_LINUX_HANDOFF.md`.
 
 ### G10 — the RT contract, stated in the README
 
@@ -443,12 +452,13 @@ G7 (the tail harness) followed, and its numbers are in that section.
 **Remaining:**
 
 ```
-G6(a)  MADV_NOHUGEPAGE for the arena (Linux; we have only the
-       pro-THP knob today, which is asymmetric for a library
-       that now claims realtime support)
-  →  G9's owed manifesting regression test, on Linux
+G6(a)  MADV_NOHUGEPAGE for the arena (Linux only; we ship the
+       pro-THP knob and not the anti-THP one, which is
+       asymmetric now that realtime is claimed)
+G9-nc  Negative control on Linux: revert 3145e139a and confirm
+       alloc_thread_exit_unarmed_test actually FAILS
 ```
 
 Everything else is done and measured on both the same-thread and cross-thread
 paths, with the claims and their exclusions written down (G4, G10).  Both
-remaining items are Linux-side work and want a Linux host to verify on.
+remaining items need a Linux host — handoff in `design/RT_LINUX_HANDOFF.md`.
