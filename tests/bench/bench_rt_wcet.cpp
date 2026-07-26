@@ -246,9 +246,17 @@ static void xt_consume(Hist &h, bool realtime, unsigned n) {
 struct Arm {
 	Hist alloc[NBANDS];
 	Hist free_[NBANDS];
+	// (G6a) The USER's first write to the returned block, timed separately.
+	// It is not part of malloc's cost, but it is part of the caller's
+	// deadline, and it is the only place a transparent-hugepage fault can
+	// show up: under THP the kernel may allocate AND ZERO 2 MiB here instead
+	// of 4 KiB.  Measured so `--thp never` has something to prove.
+	Hist touch[NBANDS];
 	unsigned long long violations;
 	void reset() {
-		for(int i = 0; i < NBANDS; i++) { alloc[i].reset(); free_[i].reset(); }
+		for(int i = 0; i < NBANDS; i++) {
+			alloc[i].reset(); free_[i].reset(); touch[i].reset();
+		}
 		violations = 0;
 	}
 };
@@ -267,7 +275,12 @@ static void run_rep(Arm &arm, bool realtime, unsigned iters,
 				std::uint64_t t1 = now_ns();
 				arm.alloc[bi].add(t1 - t0);
 				slots[k] = p;
-				if(p) *static_cast<char *>(p) = (char)k;   // first-touch cost
+				if(p) {                                    // first-touch cost
+					std::uint64_t t2 = now_ns();
+					*static_cast<char *>(p) = (char)k;
+					std::uint64_t t3 = now_ns();
+					arm.touch[bi].add(t3 - t2);
+				}
 			}
 			for(unsigned k = 0; k < live; k++) {
 				std::uint64_t t0 = now_ns();
@@ -295,10 +308,60 @@ static void report_hist(const char *label, const Hist &h) {
 	std::printf("  MAX=%llu ns\n", (unsigned long long)h.max);
 }
 
+// ------------------------------------------------- (G6a) cold-fault mode
+// The steady-state loop above cannot see a transparent-hugepage fault: it is
+// prewarmed, so its pages are already resident, and the large tier hands back
+// a pointer whose first page the allocator itself already wrote a header
+// into.  The THP hazard lives on COLD memory — the case a realtime program
+// hits when its working set outgrows what it prewarmed.
+//
+// So: take a block above LRC_HI (the recycle cache is bypassed there by
+// construction, so every round is a genuinely fresh mmap), and time ONE WRITE
+// PER 4 KiB PAGE across it.  Under THP the first touch inside each 2 MiB span
+// makes the kernel allocate and zero 2 MiB — a handful of very expensive
+// samples and a lot of free ones; under KAME_THP_NEVER every page is its own
+// cheap 4 KiB fault.  Mean and tail therefore move in OPPOSITE directions,
+// which is precisely the trade the policy exists to let you choose.
+static void run_faults(unsigned rounds, std::size_t touch_bytes) {
+	const std::size_t BLOCK = 300u * 1024u * 1024u;      // > LRC_HI
+	const std::size_t PAGE  = 4096u;
+	if(touch_bytes > BLOCK) touch_bytes = BLOCK;
+	Hist h; h.reset();
+	std::uint64_t worst_span = 0;                        // slowest single page
+	for(unsigned r = 0; r < rounds; r++) {
+		char *p = static_cast<char *>(kame_pool_malloc(BLOCK));
+		if( !p) { std::printf("  (fault mode: allocation failed)\n"); return; }
+		for(std::size_t off = 0; off < touch_bytes; off += PAGE) {
+			std::uint64_t t0 = now_ns();
+			p[off] = (char)r;
+			std::uint64_t t1 = now_ns();
+			h.add(t1 - t0);
+			if(t1 - t0 > worst_span) worst_span = t1 - t0;
+		}
+		kame_pool_free(p);
+		kame_pool_rt_drain();          // give the VA back before the next round
+	}
+	std::printf("\n  cold first-touch, one write per 4 KiB page on fresh "
+	            "(> LRC_HI) memory\n");
+	report_hist("cold touch", h);
+	// The count of samples far above the 4 KiB-fault cost is the number of
+	// hugepage zeroings; printing it makes the mechanism visible rather than
+	// inferred from the tail alone.
+	std::uint64_t big = 0;
+	for(unsigned i = 0; i < (unsigned)HB; i++)
+		if(Hist::value(i) > 8000) big += h.bucket[i];
+	std::printf("    samples > 8 us: %llu of %llu (%.3f%%)  worst=%llu ns\n",
+	            (unsigned long long)big, (unsigned long long)h.n,
+	            h.n ? 100.0 * (double)big / (double)h.n : 0.0,
+	            (unsigned long long)worst_span);
+}
+
 int main(int argc, char **argv) {
 	bool full = false, pressure = false;
 	unsigned reps = 4, iters = 200, nthreads = 3;
 	unsigned xt = 0;   // cross-thread sample count (0 = derive from mode)
+	int thp = -1;      // (G6a) -1 = leave the policy alone
+	unsigned faults = 0;   // (G6a) cold-fault rounds; 0 = skip that mode
 	for(int i = 1; i < argc; i++) {
 		if( !std::strcmp(argv[i], "--full")) full = true;
 		else if( !std::strcmp(argv[i], "--pressure")) pressure = true;
@@ -310,10 +373,22 @@ int main(int argc, char **argv) {
 			iters = (unsigned)std::atoi(argv[++i]);
 		else if( !std::strcmp(argv[i], "--threads") && i + 1 < argc)
 			nthreads = (unsigned)std::atoi(argv[++i]);
+		else if( !std::strcmp(argv[i], "--faults") && i + 1 < argc)
+			faults = (unsigned)std::atoi(argv[++i]);
+		else if( !std::strcmp(argv[i], "--thp") && i + 1 < argc) {
+			const char *a = argv[++i];
+			thp = !std::strcmp(a, "always") ? KAME_THP_ALWAYS
+			    : !std::strcmp(a, "never")  ? KAME_THP_NEVER
+			    : !std::strcmp(a, "system") ? KAME_THP_SYSTEM : -1;
+			if(thp < 0) {
+				std::fprintf(stderr, "--thp takes system|always|never\n");
+				return 2;
+			}
+		}
 		else {
 			std::fprintf(stderr,
 			    "usage: %s [--full] [--pressure] [--reps N] [--iters M] "
-			    "[--threads T]\n",
+			    "[--threads T] [--thp system|always|never] [--faults R]\n",
 			    argv[0]);
 			return 2;
 		}
@@ -366,6 +441,20 @@ int main(int argc, char **argv) {
 	// only difference between them is the per-thread gating under test.
 	kame_pool_set_realtime_mode(1);
 
+	// (G6a) THP policy, applied BEFORE prewarm — it has to be, since
+	// MADV_NOHUGEPAGE prevents future hugepage faults and khugepaged
+	// collapses but does NOT split hugepages that are already established.
+	// Both arms share it: it is a process-wide property, not part of the
+	// per-thread gating under test, so the A/B for it is across PROCESSES.
+	if(thp >= 0) {
+		std::size_t re = kame_pool_set_thp_policy(thp);
+		std::printf("thp policy=%d (%s), re-advised %zu MiB of existing "
+		            "regions\n", thp,
+		            thp == KAME_THP_NEVER ? "never"
+		            : thp == KAME_THP_ALWAYS ? "always" : "system",
+		            re >> 20);
+	}
+
 	// Prewarm every band on this thread (the allocator TLS is per-thread).
 	{
 		// Prewarm the cacheable bands only.  The > LRC_HI band is deliberately
@@ -383,6 +472,14 @@ int main(int argc, char **argv) {
 		if(kame_pool_prewarm(sizes, counts, (unsigned)nw) != 0)
 			std::printf("WARNING: prewarm did not fit — the RT arm will show "
 			            "cold-path outliers\n");
+	}
+
+	// (G6a) Cold-fault mode runs BEFORE the interferers start and instead of
+	// the steady-state arms: it measures page faults, and the whole point is
+	// that nothing else is perturbing the page tables.
+	if(faults) {
+		run_faults(faults, 32u * 1024u * 1024u);
+		return 0;
 	}
 
 	std::vector<std::thread> noise;
@@ -416,6 +513,8 @@ int main(int argc, char **argv) {
 		std::printf("\n  %s\n", kBands[bi].name);
 		report_hist("RT  malloc",  rt.alloc[bi]);
 		report_hist("OFF malloc",  off.alloc[bi]);
+		report_hist("RT  1st-touch", rt.touch[bi]);
+		report_hist("OFF 1st-touch", off.touch[bi]);
 		report_hist("RT  free",    rt.free_[bi]);
 		report_hist("OFF free",    off.free_[bi]);
 	}

@@ -23,6 +23,8 @@ Targets produced (all under `bench/`):
 | `bench_loop_pool`    | single-thread hot     | `kame_pool_malloc`/free |
 | `bench_xthread`      | producer/consumer x-T | `malloc`/`free`         |
 | `bench_xthread_pool` | producer/consumer x-T | `kame_pool_malloc`/free |
+| `bench_rt_wcet`      | per-op WCET tail (§75) | `kame_pool_malloc`/free |
+| `bench_tlb`          | TLB reach of the THP policy (§75 / G6a) | `kame_pool_malloc`/free |
 
 `bench_loop_pool` is the single-thread analog of `bench_xthread_pool`: the
 same hot loop, but calling `kame_pool_malloc`/`kame_pool_free` directly.  It
@@ -33,6 +35,22 @@ entry for the §31 redirect to patch), so on Windows `bench_compare.sh` runs
 `bench_loop`.  On Linux/macOS the preload path is still used (so the kame
 column there measures malloc-override **+** pool; on Windows it measures the
 pool core only).
+
+The last two are **not** throughput benches and do not belong in an
+allocator-vs-allocator table.  `bench_rt_wcet` measures the per-operation
+TAIL (max / p99.9999), which is the statistic a throughput mean hides; its
+`--faults` mode times one write per 4 KiB page on freshly-mapped memory, which
+is where a transparent-hugepage fault shows up.  `bench_tlb` measures the
+*application's* cost of the THP policy rather than the allocator's — a
+dependent random pointer chase over a pool-allocated working set, deliberately
+the worst case for TLB reach:
+
+    ./bench_tlb 512 1024 6000000                      # THP as the system has it
+    KAME_POOL_NOHUGEPAGE=1 ./bench_tlb 512 1024 6000000
+
+The policy has to differ *between processes*: `MADV_NOHUGEPAGE` does not split
+hugepages that already exist, so an in-process A/B would compare an arm
+against itself.  See `design/RT_READINESS.md` §G6(a).
 
 `bench_loop` and `bench_xthread` route through `malloc/free`, so they pick
 up whatever allocator the dynamic linker resolves first.  Run with

@@ -138,6 +138,8 @@
     inline int  kame_pool_get_realtime_thread() noexcept { return 0; }
     inline void kame_pool_set_rt_os_policy(int /*policy*/) noexcept {}
     inline int  kame_pool_get_rt_os_policy() noexcept { return 0; }
+    inline std::size_t kame_pool_set_thp_policy(int /*policy*/) noexcept { return 0; }
+    inline int  kame_pool_get_thp_policy() noexcept { return 0; }
     inline unsigned long long kame_pool_rt_violations() noexcept { return 0; }
     inline unsigned long long kame_pool_rt_deferred_reclaims() noexcept { return 0; }
     inline unsigned long long kame_pool_rt_deferred_unmaps() noexcept { return 0; }

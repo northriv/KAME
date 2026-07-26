@@ -995,6 +995,41 @@ bool g_sys_image_loaded = false;
 ALLOC_TLS_IE bool g_rt_thread = false;
 std::atomic<int> g_rt_os_policy{0};                    // KAME_RT_OS_ALLOW
 
+// (§75 / G6a) Transparent-hugepage policy for the pool's own regions.
+// -1 = not yet resolved (consult the environment on first read), then
+// 0 = KAME_THP_SYSTEM / 1 = KAME_THP_ALWAYS / 2 = KAME_THP_NEVER.
+//
+// Deliberately NOT a plain `static const bool` env read like the one it
+// replaces: regions are created LAZILY, so a program that enables realtime
+// mode after the first allocation would leave every already-mapped region
+// on the old policy.  A settable global plus a re-advise walk over the
+// region lists (`thp_advise_regions`) closes that gap.
+std::atomic<int> g_thp_policy{-1};
+
+//! Resolve the THP policy, consulting the environment exactly once if no
+//! explicit `kame_pool_set_thp_policy()` call has happened yet.  Lazy rather
+//! than a static initializer so the C API can win a race against the first
+//! region claim regardless of static-init order; the CAS makes concurrent
+//! first-readers agree, and re-resolution after an explicit set is impossible
+//! because the stored value is then >= 0.
+static int thp_policy_resolved() noexcept {
+	int p = g_thp_policy.load(std::memory_order_relaxed);
+	if(__builtin_expect(p >= 0, 1)) return p;
+	int v = 0;                                         // KAME_THP_SYSTEM
+	const char *e = std::getenv("KAME_POOL_HUGEPAGE");
+	if(e && e[0] != '\0' && e[0] != '0')
+		v = 1;                                         // KAME_THP_ALWAYS
+	else {
+		e = std::getenv("KAME_POOL_NOHUGEPAGE");
+		if(e && e[0] != '\0' && e[0] != '0')
+			v = 2;                                     // KAME_THP_NEVER
+	}
+	int expect = -1;
+	g_thp_policy.compare_exchange_strong(expect, v, std::memory_order_relaxed,
+	                                     std::memory_order_relaxed);
+	return g_thp_policy.load(std::memory_order_relaxed);
+}
+
 //! Times an RT thread actually entered the kernel for a NEW mapping.
 //! This is the number an RT test asserts is zero after prewarming.
 std::atomic<unsigned long long> g_rt_violations{0};
@@ -6532,12 +6567,12 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 		s_region_count.fetch_sub(1, std::memory_order_relaxed);
 		return nullptr;
 	}
-	// (§14B) Opt-in transparent hugepages on the slot range (skip the
-	// metadata page at offset 0).  The region is 32 MiB / 32 MiB-aligned
+	// (§14B / §75 G6a) Transparent-hugepage policy on the slot range (skip
+	// the metadata page at offset 0).  The region is 32 MiB / 32 MiB-aligned
 	// = 16 hugepages worth, ideal for the kernel's THP promoter on
 	// TLB-bound HPC workloads with large working sets.
 	//
-	// Opt-in (env `KAME_POOL_HUGEPAGE=1`) because the microbenchmark
+	// THP is NOT the default (`KAME_THP_SYSTEM`), because the microbenchmark
 	// pattern (1-2 chunks per region, tight loop, ≤ 1 MiB working set)
 	// REGRESSES under THP: a freshly faulted hugepage zero-fills 2 MiB
 	// of physical pages even though only a few hundred KiB is touched,
@@ -6553,18 +6588,29 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 	// misses on the application's data access — independent of (and
 	// not modeled by) the alloc/free hot path.
 	//
-	// Read the env var ONCE (atomic ifd init, region claim is rare).
-	// THP `/sys/kernel/mm/transparent_hugepage/enabled` must be
-	// `always` or `madvise` for the advise to have effect; otherwise
-	// the call is a no-op (we ignore the return regardless).
+	// The mirror policy `KAME_THP_NEVER` exists for realtime callers, where
+	// that same 2 MiB zeroing is a first-touch latency spike and khugepaged's
+	// collapse pass is an unrelated-thread stall — see
+	// `kame_pool_set_thp_policy` for the full argument.  The policy is read
+	// per region claim (rare, and it must be, since the policy is settable at
+	// runtime and regions are created lazily).
+	//
+	// THP `/sys/kernel/mm/transparent_hugepage/enabled` must be `always` (for
+	// KAME_THP_NEVER to have anything to suppress) or `madvise`/`always` (for
+	// KAME_THP_ALWAYS to have effect); otherwise the call is a no-op, and we
+	// ignore the return regardless.
 #  if defined(__linux__) && defined(MADV_HUGEPAGE)
-	static const bool hugepage_enabled = [] {
-		const char *e = std::getenv("KAME_POOL_HUGEPAGE");
-		return e && e[0] != '\0' && e[0] != '0';
-	}();
-	if(hugepage_enabled)
-		(void)madvise(p + ALLOC_PAGE_SIZE,
-		              mmap_size - ALLOC_PAGE_SIZE, MADV_HUGEPAGE);
+	{
+		const int pol = thp_policy_resolved();
+		if(pol == 1)
+			(void)madvise(p + ALLOC_PAGE_SIZE,
+			              mmap_size - ALLOC_PAGE_SIZE, MADV_HUGEPAGE);
+#    if defined(MADV_NOHUGEPAGE)
+		else if(pol == 2)
+			(void)madvise(p + ALLOC_PAGE_SIZE,
+			              mmap_size - ALLOC_PAGE_SIZE, MADV_NOHUGEPAGE);
+#    endif
+	}
 #  endif
 #endif
 	// (§14C) Bind the region to this thread's NUMA node — physical pages
@@ -6680,6 +6726,53 @@ PoolAllocatorBase::mlock_regions(bool lock) noexcept {
 	return done;
 }
 
+// (§75 / G6a) Re-apply the current THP policy to every region that already
+// exists.  Same walk as `mlock_regions` above, same reason it has to exist:
+// regions are created LAZILY, so `mmap_new_region`'s per-claim advise only
+// ever covers regions claimed AFTER the policy was set.  Without this pass a
+// program that prewarms and then enables the policy — which is the normal
+// realtime start-up order — would leave its whole working set on the kernel
+// default.
+//
+// Returns the byte count advised (whole regions), so the caller can see that
+// the walk reached something rather than trusting that a call was made.
+// A `madvise` failure is skipped rather than fatal (an old kernel without
+// MADV_NOHUGEPAGE returns EINVAL; nothing is broken, the advice just did not
+// take), and the count reflects only what succeeded.
+std::size_t
+PoolAllocatorBase::thp_advise_regions(int policy) noexcept {
+#if defined(__linux__) && defined(MADV_HUGEPAGE) && defined(MADV_NOHUGEPAGE)
+	// KAME_THP_SYSTEM cannot be re-applied: Linux has no "clear" advice.
+	// MADV_HUGEPAGE and MADV_NOHUGEPAGE each clear the other's VMA flag, but
+	// neither restores the neutral state, so returning to the system default
+	// on an already-advised region is impossible.  Report 0 rather than
+	// pretending.  (New regions DO get the neutral treatment — no madvise at
+	// all — so policy 0 is not a lie for them.)
+	const int adv = (policy == 1) ? MADV_HUGEPAGE
+	              : (policy == 2) ? MADV_NOHUGEPAGE : -1;
+	if(adv < 0) return 0;
+	std::size_t done = 0;
+	for(int node = 0; node < KAME_MAX_NUMA_NODES; node++) {
+		for(RegionMeta *rm = s_region_dll_heads[node].load(
+		        std::memory_order_acquire);
+		    rm; rm = rm->dll_next.load(std::memory_order_acquire)) {
+			// region_meta() is a plain cast, so rm IS the region base.
+			char *base = reinterpret_cast<char *>(rm);
+			// Skip page 0 (the metadata page) exactly as mmap_new_region
+			// does, so flipping the policy never reshapes the VMA split.
+			const std::size_t len =
+			    (std::size_t)ALLOC_MIN_MMAP_SIZE - ALLOC_PAGE_SIZE;
+			if(madvise(base + ALLOC_PAGE_SIZE, len, adv) == 0)
+				done += len;
+		}
+	}
+	return done;
+#else
+	(void)policy;
+	return 0;                     // no THP concept on this platform
+#endif
+}
+
 unsigned
 PoolAllocatorBase::reserve_regions(unsigned n, bool prefault) noexcept {
 	unsigned made = 0;
@@ -6737,6 +6830,26 @@ inline char *large_va_raw_map(std::size_t mmap_size) noexcept {
 		munmap(base, mmap_size);
 		return nullptr;
 	}
+	// (§75 / G6a) Same THP policy as the 32 MiB regions.  This tier needs it
+	// MORE, not less: these spans are the largest and coldest memory the pool
+	// hands out, above LRC_HI they are a fresh mmap on every allocation, and
+	// they are 32 MiB-aligned — so under THP=always every one of their 2 MiB
+	// spans faults as a hugepage, zeroing 2 MiB at a time.  Measured, that is
+	// the single biggest first-touch spike the allocator can produce.
+	// Unlike a region there is no metadata page to skip: the whole span is
+	// the user's.  Nothing to re-advise later — the mapping is created and
+	// destroyed per allocation, so it always sees the current policy.
+#  if defined(__linux__) && defined(MADV_HUGEPAGE)
+	{
+		const int pol = thp_policy_resolved();
+		if(pol == 1)
+			(void)madvise(base, mmap_size, MADV_HUGEPAGE);
+#    if defined(MADV_NOHUGEPAGE)
+		else if(pol == 2)
+			(void)madvise(base, mmap_size, MADV_NOHUGEPAGE);
+#    endif
+	}
+#  endif
 	return base;
 #endif
 }
@@ -7431,6 +7544,15 @@ extern "C" void kame_pool_set_rt_os_policy(int policy) noexcept {
 }
 extern "C" int kame_pool_get_rt_os_policy(void) noexcept {
 	return g_rt_os_policy.load(std::memory_order_relaxed);
+}
+extern "C" size_t kame_pool_set_thp_policy(int policy) noexcept {
+	if(policy < 0 || policy > 2) return 0;       // ignore out-of-range
+	g_thp_policy.store(policy, std::memory_order_relaxed);
+	// Cover the regions that already exist, not just the ones to come.
+	return PoolAllocatorBase::thp_advise_regions(policy);
+}
+extern "C" int kame_pool_get_thp_policy(void) noexcept {
+	return thp_policy_resolved();
 }
 extern "C" unsigned long long kame_pool_rt_violations(void) noexcept {
 	return g_rt_violations.load(std::memory_order_relaxed);

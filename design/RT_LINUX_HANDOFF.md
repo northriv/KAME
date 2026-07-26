@@ -1,184 +1,147 @@
-# kamepoolalloc §75 realtime work — Linux-side handoff
+# kamepoolalloc §75 realtime work — Linux-side handoff (**CLOSED**)
 
-Two items remain from the RT-readiness programme (`design/RT_READINESS.md`) and
-both need a **Linux host**; everything else is done and measured on macOS.
-Self-contained: you should not need the originating session's context.
+Both items are done. The results live in `design/RT_READINESS.md` — §G9 for
+item 1, §G6(a) for item 2 — which is the permanent home; this file is kept
+for the *method*, and in particular for the environment traps below, which
+cost real time to find and which anyone re-running these measurements on
+Linux will hit again.
 
-Repo conventions: work on **KAME `master`** (the standalone
-`northriv/kamepoolalloc` repo is a read-only subtree mirror — never commit
-there). The git remote is named **`GitHub`**, not `origin`. Pull before push,
-never force-push. Commit trailer:
+Host used: 4 vCPU Intel Xeon @ 2.80 GHz (KVM guest, 16 GiB), Ubuntu 24.04,
+glibc 2.39, kernel 6.18.5, GCC 13.3, Release, `ctest` 18/18 green.
 
-```
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
-```
+---
 
-Build + test:
+## Item 1 — G9 negative control: does the regression test have teeth? — **YES**
+
+The question was narrow: with the `3145e139a` guard reverted, does
+`alloc_thread_exit_unarmed_test` fail on Linux? If not, the test is toothless
+and needed strengthening rather than closing.
+
+It fails, with exactly the predicted signature.
+
+| | `units_live` | `chunks_live` |
+|---|---|---|
+| guard present (both linkages) | 6 → 10, plateau from cycle 40 | 5 → 6, plateau |
+| guard reverted (both linkages) | 26 → 129 | **25 → 125 over 100 cycles = +1/cycle** |
+
+The revert was minimal — `|| kame_thread_torn_down()` dropped from the
+`l1_push` guard and nothing else, restoring exactly the pre-`3145e139a` gap.
+`l1_pop_fit`'s guard (which is about `g_lrc_l1_threads` counter drift, not
+stranding) was left alone. Guard restored afterwards; nothing reverted was
+committed.
+
+Two things confirmed rather than assumed, both recorded in §G9:
+
+* **glibc ordering.** A probe registering both a C++ `thread_local` destructor
+  and a `pthread_key` destructor on one thread shows the `thread_local` one
+  running first on glibc 2.39 — the window is real, and it is the window macOS
+  does not open.
+* **Which term is load-bearing.** Instrumenting `l1_push` at the moment the
+  consumer's `pthread_key` destructor frees the foreign block shows
+  `s_l1_drained == 0` but `kame_thread_torn_down() == 1`. The consumer never
+  armed its L1, so the pre-existing `s_l1_drained` check cannot fire; its
+  *bucket-tier* TLS was armed, so `AllocThreadExitCleanup`'s `thread_local`
+  destructor had already set `s_alloc_tls_off`. The added term is the only
+  thing closing the window, which is what makes the test a real regression
+  test for `3145e139a` and not a coincidence.
+
+---
+
+## Item 2 — G6(a) `MADV_NOHUGEPAGE` — **implemented, opt-in, measured**
+
+Shipped as `kame_pool_set_thp_policy()` / `kame_pool_get_thp_policy()` with
+`KAME_THP_SYSTEM` / `ALWAYS` / `NEVER`. Full rationale, numbers and the
+"should realtime mode imply it?" decision (**no**, and the measurement backs
+the instinct: up to +58 % on a TLB-bound working set is too surprising for a
+knob documented as silencing background maintenance) are in §G6(a).
+
+Three things the original plan did not anticipate, all found by measuring:
+
+1. **The large-VA tier needed the advice more than the regions did.** The plan
+   named only `mmap_new_region()`. But blocks above `LRC_HI` are a fresh
+   32 MiB-aligned mmap per allocation and are the coldest, largest memory the
+   pool hands out — advising only regions left every one of their 2 MiB spans
+   faulting as a hugepage. `large_va_raw_map()` now carries the same policy.
+2. **`MADV_NOHUGEPAGE` does not split hugepages that already exist.** It stops
+   future hugepage faults and future khugepaged collapses, which is what
+   matters for latency, but a range already backed by THP stays backed. Hence
+   the documented call order: policy **before** prewarm.
+3. **`KAME_THP_SYSTEM` cannot be re-applied.** Linux has no "clear" advice;
+   `MADV_HUGEPAGE` and `MADV_NOHUGEPAGE` each clear the other's flag and
+   neither restores neutral. Policy 0 returns 0 from the re-advise walk and
+   affects new regions only.
+
+### Traps to know before re-running any of this on Linux
+
+* **Containers commonly set `PR_SET_THP_DISABLE` on the whole process tree.**
+  This one invalidates everything silently: every VMA reports
+  `THPeligible: 0`, `AnonHugePages` stays 0 no matter what you advise, and
+  both the "policy 2 holds it at 0" check and every latency arm pass for the
+  wrong reason. `/sys/kernel/mm/transparent_hugepage/enabled` says `[always]`
+  the whole time and tells you nothing.
+  Check `THP_enabled:` in `/proc/self/status` (0 = disabled). Clear it with a
+  tiny wrapper that calls `prctl(PR_SET_THP_DISABLE, 0)` and then `execvp`s
+  the real binary — the flag is in `MMF_INIT_MASK`, so the cleared state
+  survives the `exec`. **Always run a control first**: a plain
+  `mmap` + `MADV_HUGEPAGE` + `memset` should show `AnonHugePages` equal to the
+  touched size. If the control is 0, nothing downstream means anything.
+  (Sub-test (2e) in `alloc_rt_thread_test` encodes this: it measures a
+  baseline and *skips* rather than asserting when the host backs no THP.)
+* **`bench_rt_wcet` could not see a hugepage fault at all**, for two reasons
+  worth knowing: its first touch was outside the timed window (the
+  `now_ns()` pair bracketed only `kame_pool_malloc`), and even once timed, the
+  steady-state loop is prewarmed and the large tier hands back a pointer whose
+  first page the allocator itself has already written a header into. Fixed by
+  timing the touch (`1st-touch` histograms) and adding `--faults`, which times
+  one write per 4 KiB page across freshly-mapped `> LRC_HI` memory. `--thp
+  system|always|never` selects the arm.
+* **The arms cannot be interleaved inside one process** — see (2) above, the
+  policy cannot be un-applied to faulted memory. A/B across *processes*,
+  alternating order, median of ≥ 7. On a 4-vCPU shared VM the max is dominated
+  by preemption (single-run maxima ranged 0.98–32.8 ms for the same arm), but
+  p50/p99.9/p99.99 medians were stable to within a bucket across independent
+  sessions.
+* **`bench_loop` cannot measure the THP cost** — it keeps one block live, so
+  its working set is TLB-trivial. `tests/bench/bench_tlb.c` was added for
+  this: a dependent random pointer chase over a pool-allocated working set,
+  which is deliberately the *worst* case for TLB reach.
+
+### Reproducing
 
 ```bash
-cd kamepoolalloc && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
-cd build && ctest --output-on-failure          # 18 tests, all should pass
+cd kamepoolalloc && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  && cmake --build build -j && (cd build && ctest --output-on-failure)
+
+# THP must be available AND not prctl-disabled — see the traps above.
+echo always | sudo tee /sys/kernel/mm/transparent_hugepage/enabled
+
+./build/tests/bench_rt_wcet --faults 24 --thp system   # tail, THP arm
+./build/tests/bench_rt_wcet --faults 24 --thp never    # tail, anti-THP arm
+./build/tests/bench_tlb 512 1024 6000000               # TLB cost, default
+KAME_POOL_NOHUGEPAGE=1 ./build/tests/bench_tlb 512 1024 6000000
 ```
-
----
-
-## Item 1 — G9 negative control: does the regression test have teeth?
-
-**Status: the fix and the test both already exist. What is missing is proof the
-test can fail.**
-
-- Fix: `3145e139a` gates both L1 recycle entry points on
-  `kame_thread_torn_down()` — `l1_push` (`allocator.cpp:6803`, beside the
-  pre-existing `s_l1_drained` check) and `l1_pop_fit` (`:6770`).
-- Test: `tests/alloc_thread_exit_unarmed_test.cpp`, built both statically and
-  against the dylib (`alloc_thread_exit_unarmed_test{,_dynamic}`), both in
-  ctest, both passing.
-
-The problem: **macOS cannot trigger the bug at all.** glibc runs C++
-`thread_local` destructors *before* `pthread_key` destructors, which is what
-opens the window; dyld's ordering does not. So the test passing on macOS says
-nothing about whether it actually covers the fix.
-
-### What to do
-
-1. Run `ctest` on Linux as-is — both linkages should pass. (If they *fail*,
-   stop: that is a live bug, not a test problem. Capture the
-   `chunks_live` / `units_live` progression it prints.)
-2. **Revert the guard and confirm the test fails.** The minimal revert is to
-   drop `|| kame_thread_torn_down()` from the `l1_push` guard in
-   `allocator.cpp` (around `:6803`, the line reading
-   `if(__builtin_expect(s_l1_drained || kame_thread_torn_down(), 0)) return false;`)
-   — that alone restores the exact pre-`3145e139a` narrow gap. Rebuild, run
-   `alloc_thread_exit_unarmed_test` and `_dynamic`.
-   - **Expected:** monotonic growth, ~ +1 chunk per cycle, and a FAIL.
-   - **If it still passes:** the test does not cover the fix. Most likely cause
-     is that the consumer thread's `pthread_key` destructor is not running
-     after the C++ `thread_local` dtors in your libc, or the consumer is
-     inadvertently arming its L1. Strengthen the test rather than declaring the
-     item done, and record what you found.
-3. Restore the guard (`git checkout -- kamepoolalloc/allocator.cpp`) and record
-   the outcome in `design/RT_READINESS.md` §G9 — replacing the "negative
-   control owed" paragraph with the result, either way.
-
-Do **not** commit the reverted state.
-
----
-
-## Item 2 — G6(a) `MADV_NOHUGEPAGE` for the arena
-
-**Why:** we ship the *pro*-THP knob and not the anti-THP one, which is
-asymmetric now that the README claims realtime support. Transparent hugepages
-hurt realtime three ways:
-
-1. a first touch inside a 2 MiB-aligned range can make the kernel allocate
-   **and zero a whole 2 MiB page** instead of 4 KiB — a single fault costing
-   orders of magnitude more;
-2. `khugepaged` may run **memory compaction** to find a contiguous 2 MiB block,
-   stalling an unrelated thread's fault for milliseconds;
-3. prewarming does not protect you — khugepaged can collapse the range
-   afterwards, and the collapse itself takes the page-table lock.
-
-jemalloc offers `opt.thp = never` for essentially these reasons (plus RSS
-bloat); tcmalloc went the other way and manages hugepages deliberately
-(Temeraire, OSDI'21). For realtime, jemalloc's side is the right one.
-
-### Current state
-
-`mmap_new_region()` in `allocator.cpp` (search `KAME_POOL_HUGEPAGE`, ~`:6560`)
-has an opt-in block:
-
-```cpp
-#  if defined(__linux__) && defined(MADV_HUGEPAGE)
-        static const bool hp = /* getenv("KAME_POOL_HUGEPAGE") */;
-        if(hp) madvise(p + ALLOC_PAGE_SIZE, mmap_size - ALLOC_PAGE_SIZE,
-                       MADV_HUGEPAGE);
-#  endif
-```
-
-i.e. per-region, at creation, env-gated, default off.
-
-### Suggested shape (not prescriptive — your call after measuring)
-
-A bare `KAME_POOL_NOHUGEPAGE=1` mirror is the two-line version, but it has a
-real gap: **regions are created lazily**, so a region that already exists when
-realtime mode is enabled never receives the advice. Prefer a runtime policy that
-also re-advises existing regions:
-
-```c
-/* 0 = leave to the system (default), 1 = MADV_HUGEPAGE, 2 = MADV_NOHUGEPAGE */
-void kame_pool_set_thp_policy(int policy);
-int  kame_pool_get_thp_policy(void);
-```
-
-- Store the policy in a global; apply it in `mmap_new_region()` for future
-  regions (replacing the env-only path, keeping `KAME_POOL_HUGEPAGE=1` working
-  as an initial value for compatibility).
-- Apply it to **existing** regions by walking the per-NUMA region lists — the
-  walk already exists, copy `PoolAllocatorBase::mlock_regions()` in
-  `allocator.cpp` (added for G6(b)); it is the same loop over
-  `s_region_dll_heads[node]` / `dll_next`, and `region_meta()` is a plain cast
-  so `rm` *is* the region base. Skip page 0 (the metadata page) exactly as the
-  `MADV_HUGEPAGE` block does.
-- Decide whether `kame_pool_set_realtime_mode(1)` should imply policy 2. My
-  instinct is **no** — silently costing TLB performance on a knob documented as
-  "silences background maintenance" would be surprising — but measure first and
-  document whichever you choose. If you do wire it up, mention it in the
-  README's realtime contract.
-- Non-Linux: no-op (macOS has no THP; keep the stub in `allocator.h` for
-  `USE_STD_ALLOCATOR` builds consistent with the other `kame_pool_rt_*` stubs).
-
-### How to verify on Linux (please do all three)
-
-1. **The advice takes effect.** With
-   `/sys/kernel/mm/transparent_hugepage/enabled` = `[always]`, allocate enough
-   to create a few regions, touch them, and read `AnonHugePages:` for the
-   region ranges in `/proc/self/smaps`. Policy 2 should hold it at 0 kB;
-   default/policy 1 should show it growing. This is the check that the call is
-   actually doing something — do not skip it in favour of the latency numbers
-   alone.
-2. **It removes the fault spike.** `tests/bench/bench_rt_wcet.cpp` already times
-   a first touch after each `malloc` (`*static_cast<char*>(p) = k`). Run it
-   under `THP=always` with policy default vs policy 2 and compare the **max /
-   p99.99** of the malloc histograms, not the means. Interleave the two arms
-   (the harness's own A/B does this per repetition — extend it, or run
-   alternating processes) because machine state drifts. Expect the huge-page
-   zeroing spike to disappear from policy 2.
-3. **The throughput cost.** Run `tests/bench/bench_loop_pool` and the
-   mimalloc-bench comparison you normally use, policy 2 vs default, on a
-   TLB-bound (large working set) case. If the cost is large, that is an argument
-   for keeping it opt-in — record the number either way, since the README will
-   need to state the trade.
-
-Then update: `design/RT_READINESS.md` §G6(a) (status + numbers), the README
-realtime-contract exclusion that currently says THP "remains a hazard we do not
-yet gate", and the API table.
 
 ---
 
 ## Context you may want
 
 - `design/RT_READINESS.md` — the whole programme, G1–G10, with what is claimed
-  and what explicitly is not.
+  and what explicitly is not. G6(a) and G9 carry these results.
 - README §"The realtime contract" — preconditions → guarantees → exclusions.
 - `tests/alloc_rt_thread_test.cpp` — asserts each RT claim by observing a
-  counter move rather than trusting that a call was made; sub-test (2d) is the
-  G6(b) `mlock` one and is written to tolerate a low `RLIMIT_MEMLOCK`, which
-  CI containers often impose. Worth checking what your host's limit is
-  (`ulimit -l`) — if it is small, `kame_pool_mlock_regions()` will return a
-  short count, and that is the documented behaviour, not a failure.
-- Measured on macOS M3 for reference (yours will differ): free on the
-  > 256 MiB band, realtime vs default — median 128 ns vs 20,480 ns, max 792 ns
-  vs 677,917 ns; 32 B cross-thread free max 27 µs vs 107 µs.
+  counter move rather than trusting that a call was made; (2d) is the G6(b)
+  `mlock` one and (2e) the G6(a) THP one. Both are written to tolerate a
+  hostile CI environment (low `RLIMIT_MEMLOCK`; no THP) by skipping visibly
+  rather than passing vacuously. This host: `ulimit -l` = 8192 kB, so `mlock`
+  returns a short count — documented behaviour, not a failure.
 
-## Two methodology traps already paid for
+## Two methodology traps already paid for (from the macOS side)
 
 - **Deep-tail comparisons need ~10⁶ samples.** At 120 k the cross-thread arms
   ordered *backwards* at p99.9; at 4 M they were equal and the RT arm won the
   deep tail. Below ~10⁶ the deep-tail buckets hold single digits and the
   ordering is noise.
 - **`p50 = 0 ns` is the clock floor, not a sub-nanosecond free.** Apple
-  Silicon's `steady_clock` ticks at ~41.7 ns. Check your host's granularity
-  before reading anything into sub-100 ns figures; on x86 with a TSC-backed
-  clock you will have far finer resolution, which is an advantage worth using —
-  the macOS numbers above are floor-limited in the small bands and yours need
-  not be.
+  Silicon's `steady_clock` ticks at ~41.7 ns. On this x86 host the floor is
+  far finer (clock-overhead mean 22 ns), which is why the 27 ns vs 2,048 ns
+  p50 split in the fault measurements is readable at all.
