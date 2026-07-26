@@ -129,6 +129,25 @@
     //! (§30) Realtime-mode toggle stub.  Pool background maintenance
     //! doesn't exist in this build, so silencing it is a no-op.
     inline void kame_pool_set_realtime_mode(int /*enable*/) noexcept {}
+    //! (§75) Realtime per-thread / policy / drain / prewarm stubs.  With no
+    //! pool there is no deferred reclaim to gate or settle, and libc's
+    //! allocator owns the mapping decisions — so every call is a no-op and
+    //! every counter reads zero (which is also the honest answer: this build
+    //! makes no realtime guarantee at all).
+    inline void kame_pool_set_realtime_thread(int /*enable*/) noexcept {}
+    inline int  kame_pool_get_realtime_thread() noexcept { return 0; }
+    inline void kame_pool_set_rt_os_policy(int /*policy*/) noexcept {}
+    inline int  kame_pool_get_rt_os_policy() noexcept { return 0; }
+    inline unsigned long long kame_pool_rt_violations() noexcept { return 0; }
+    inline unsigned long long kame_pool_rt_deferred_reclaims() noexcept { return 0; }
+    inline unsigned long long kame_pool_rt_deferred_unmaps() noexcept { return 0; }
+    inline std::size_t kame_pool_rt_pending_bytes() noexcept { return 0; }
+    inline void kame_pool_rt_reset_counters() noexcept {}
+    inline void kame_pool_rt_report_violations(unsigned long long) noexcept {}
+    inline void kame_pool_rt_drain() noexcept {}
+    inline int  kame_pool_prewarm(const std::size_t *, const unsigned *,
+                                  unsigned) noexcept { return 0; }
+    inline unsigned kame_pool_reserve_regions(unsigned, int) noexcept { return 0; }
     } // extern "C"
 #else
     #include "allocator_prv.h"

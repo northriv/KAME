@@ -1057,6 +1057,7 @@ protected:
 	static void deallocate_chunk(char *chunk_base, size_t chunk_size,
 	                             bool reclaim_pages = true);
 
+
 	//! (§34) Re-stamp `back_offset[]` for every unit of the chunk at
 	//! `chunk_base` (size `chunk_size`) with `u | back_off_flag`.  Used
 	//! when a chunk is popped from the large-recycle cache for reuse by
@@ -1084,6 +1085,13 @@ protected:
 	                                 size_t chunk_size) noexcept;
 
 public:
+	//! (§75) RT pre-reserve: create `n` fully-published regions up front
+	//! (optionally prefaulting their slot pages) so no realtime-path
+	//! allocation has to mmap one.  Public because the `kame_pool_*` C API
+	//! forwards to it, same as `recycle_release_chunk`.  Returns how many
+	//! were created (< n on region cap / mmap refusal).
+	static unsigned reserve_regions(unsigned n, bool prefault) noexcept;
+
 	//! Cache-line-isolated hot block for the deallocate owner-free fast
 	//! path (follow-up "(1b)", tests/CHUNK_CLAIM_TLA_NOTES.md §12.3).  All
 	//! members are write-once at `allocate_chunk` and immutable for the
