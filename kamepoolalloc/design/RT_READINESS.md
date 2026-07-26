@@ -143,12 +143,22 @@ its own region walk / mmap / bitmap-CAS — it is LRC-pop → `claim_chunk`
 of the achieved state, not a TODO.  See §1.1 for the resulting four-site
 audit surface — G1–G3 gate those directly, with no refactor first.
 
-### G9 — close the teardown L1-stranding OPEN first
+### G9 — teardown L1-stranding — **fix DONE; only a regression test is owed**
 
-The known narrow OPEN (dedicated/large post-teardown L1 stranding:
-`30ea1daa` guards `s_l1_drained` but not `kame_thread_torn_down()`)
-lives in the same drain machinery G1/G5 modify.  Fix it before or with
-the RT work to avoid churning that code twice.
+Closed by `3145e139a`: both L1 entry points now gate on
+`kame_thread_torn_down()` — `l1_push` (beside the pre-existing
+`s_l1_drained` check, so never-armed threads are covered too) and
+`l1_pop_fit` (no re-arm, closing the symmetric `g_lrc_l1_threads`
+counter drift).  Verified in the current tree
+(`s_l1_drained || kame_thread_torn_down()` at `allocator.cpp:6803`,
+`kame_thread_torn_down()` at `:6770`).
+
+Residual is **test coverage, not a fix**: a manifesting regression test
+(cross-thread > 32 KiB block freed from a *non-allocating* thread's
+`pthread_key` destructor — the same-thread scenario B does not catch it)
+plus Linux verification.  macOS cannot trigger it (dyld runs key dtors
+before C++ `thread_local` dtors, unlike glibc), so it belongs to a Linux
+run.  Worth doing alongside G7's harness, but it does not block G1.
 
 ### G10 — the RT contract, stated in the README
 
@@ -160,19 +170,22 @@ counters.
 
 ## 3. Suggested order
 
+Both items originally listed as prerequisites turned out to be already
+done (G8 = `c04a7975d`, G9 = `3145e139a`), so the RT work starts directly
+at G1:
+
 ```
-(G8 already done — §74)
-G9 (teardown L1-stranding OPEN)
-  →  G1 (RT-gate free-path reclaim, + rt_drain)
+G1 (RT-gate free-path reclaim, + rt_drain)      ← start here
   →  G2 (prewarm API + violation counters)
   →  G5 (per-op inherited-work cap)
-  →  G7 (WCET tail harness — validates G1..G5 empirically)
+  →  G7 (WCET tail harness — validates G1..G5 empirically;
+          fold in G9's owed regression test on Linux)
   →  G4 + G10 (bound theorem + contract docs)
   →  G3 / G6 as the target platform demands
 ```
 
-Rationale: the mapping surface is already minimal (§1.1), so G9 just
-clears the one known OPEN in the drain machinery G1/G5 will touch; G1/G2
-remove the actual syscalls and make violations observable; G5 bounds the
-amortized-to-worst-case conversion; G7 provides the numbers; only then
-are the G4/G10 claims worth writing down.
+Rationale: the mapping surface is already minimal (§1.1) and the drain
+machinery has no open correctness gap, so G1/G2 — removing the actual
+syscalls and making violations observable — is the first real work.  G5
+bounds the amortized-to-worst-case conversion; G7 provides the numbers;
+only then are the G4/G10 claims worth writing down.
