@@ -299,6 +299,15 @@ if(USE_KAME_ALLOCATOR)
     # independent), not any absolute latency.  Run with --full to measure.
     add_executable(bench_rt_wcet bench/bench_rt_wcet.cpp)
     target_link_libraries(bench_rt_wcet kamepoolalloc Threads::Threads)
+
+    # (§75 / RT_READINESS G6a) TLB-reach cost of the THP policy — a dependent
+    # pointer chase over a pool-allocated working set.  The other benches
+    # cannot see this: bench_loop keeps one block live, and bench_rt_wcet
+    # measures the allocator rather than the application's access to what it
+    # allocated.  Not a ctest: it is a measurement, with no pass/fail.
+    add_executable(bench_tlb bench/bench_tlb.c)
+    set_property(TARGET bench_tlb PROPERTY C_STANDARD 99)
+    target_link_libraries(bench_tlb kamepoolalloc Threads::Threads)
 endif()
 
 # --- CTest registration ---

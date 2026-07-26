@@ -1102,6 +1102,16 @@ public:
 	//! so call it AFTER `prewarm` / `reserve_regions`.
 	static std::size_t mlock_regions(bool lock) noexcept;
 
+	//! (§75 / G6a) Re-apply the transparent-hugepage `policy` (0 = system,
+	//! 1 = MADV_HUGEPAGE, 2 = MADV_NOHUGEPAGE) to every region mapped so far.
+	//! `mmap_new_region` applies the policy at claim time, but regions are
+	//! created LAZILY — this walk is what stops a policy set after the first
+	//! allocation from missing everything already mapped.  Returns the bytes
+	//! advised; 0 for policy 0 (Linux has no "clear" advice, so the neutral
+	//! state cannot be restored on an already-advised region) and 0 on
+	//! platforms with no THP.
+	static std::size_t thp_advise_regions(int policy) noexcept;
+
 	//! Cache-line-isolated hot block for the deallocate owner-free fast
 	//! path (follow-up "(1b)", tests/CHUNK_CLAIM_TLA_NOTES.md §12.3).  All
 	//! members are write-once at `allocate_chunk` and immutable for the

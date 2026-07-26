@@ -14,11 +14,16 @@
  *      pointer is valid and freeable either way.
  *   4. rt_section nests (restores the previous flag, does not clear it)
  *      and reports its own violation delta.
+ *   5. (G6a) the THP policy round-trips, its re-advise walk really reaches
+ *      already-mapped regions, and KAME_THP_NEVER measurably holds
+ *      AnonHugePages at zero — skipped, not faked, on a host that backs no
+ *      transparent hugepages in the first place.
  *
  * Licensed under Apache-2.0 OR GPL-2.0-or-later, as the rest of the tree.
  */
 #include "../kame_pool.h"
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -233,6 +238,105 @@ static void test_mlock_regions() {
     check(unlocked == locked, "munlock releases exactly what mlock took");
 }
 
+// ------------------------------------------------------------------ 2e
+#if defined(__linux__)
+// Sum AnonHugePages over the smaps VMAs OVERLAPPING [lo, hi).  -1 if
+// unreadable.  Overlap, not containment: the allocation we are asked about
+// starts a header inside its mapping, so the VMA begins below `lo`.
+static long anon_hugepages_in(uintptr_t lo, uintptr_t hi) {
+    std::FILE *f = std::fopen("/proc/self/smaps", "r");
+    if( !f) return -1;
+    char line[512];
+    long huge = 0;
+    bool inside = false;
+    while(std::fgets(line, sizeof line, f)) {
+        uintptr_t a, b;
+        if(std::sscanf(line, "%lx-%lx", &a, &b) == 2 && !std::strstr(line, "kB")) {
+            inside = (a < hi && b > lo);
+            continue;
+        }
+        long v;
+        if(inside && std::sscanf(line, "AnonHugePages: %ld kB", &v) == 1) huge += v;
+    }
+    std::fclose(f);
+    return huge;
+}
+#endif
+
+static void test_thp_policy() {
+    std::printf("(2e) THP policy round-trips, reaches existing regions, and "
+                "actually suppresses hugepages\n");
+
+    const int saved = kame_pool_get_thp_policy();
+
+    // The API half — true on every platform.  An out-of-range value must be
+    // ignored rather than stored, or a typo would silently disable the pool's
+    // hugepage handling.
+    kame_pool_set_thp_policy(KAME_THP_NEVER);
+    check(kame_pool_get_thp_policy() == KAME_THP_NEVER, "policy round-trips");
+    kame_pool_set_thp_policy(99);
+    check(kame_pool_get_thp_policy() == KAME_THP_NEVER,
+          "out-of-range policy is ignored, not stored");
+
+    // The re-advise walk is the reason this is a policy and not a flag read
+    // at region-claim time: regions are created LAZILY, so a policy set after
+    // the first allocation has to reach what is already mapped.  Assert it
+    // covered whole regions minus their metadata page — i.e. that it really
+    // walked the region lists rather than returning a plausible constant.
+    kame_pool_reserve_regions(2, /*prefault=*/0);
+    const size_t re = kame_pool_set_thp_policy(KAME_THP_NEVER);
+#if defined(__linux__)
+    const size_t kRegion = 32u * 1024u * 1024u, kPage = 4096u;
+    check(re >= kRegion - kPage, "re-advise reached existing regions");
+    check(re % (kRegion - kPage) == 0, "re-advised in whole regions");
+    check(kame_pool_set_thp_policy(KAME_THP_SYSTEM) == 0,
+          "KAME_THP_SYSTEM re-advises nothing (Linux has no 'clear' advice)");
+#else
+    check(re == 0, "non-Linux: THP policy is a no-op returning 0");
+#endif
+
+#if defined(__linux__)
+    // The behavioural half.  A block above LRC_HI is a fresh mmap every time
+    // (the recycle cache is bypassed there), so each arm below gets memory
+    // that has never been faulted — which is what makes an in-process A/B
+    // valid at all: MADV_NOHUGEPAGE does not split hugepages that already
+    // exist, so the two arms MUST NOT share pages.
+    const size_t kHuge = 300u * 1024u * 1024u, kTouch = 8u * 1024u * 1024u;
+
+    auto touch_and_measure = [&](int policy) -> long {
+        kame_pool_set_thp_policy(policy);
+        char *p = static_cast<char *>(kame_pool_malloc(kHuge));
+        if( !p) return -1;
+        for(size_t off = 0; off < kTouch; off += 4096u) p[off] = 0x5a;
+        long huge = anon_hugepages_in((uintptr_t)p, (uintptr_t)p + kTouch);
+        kame_pool_free(p);
+        kame_pool_rt_drain();
+        return huge;
+    };
+
+    // Baseline first: if this host cannot produce transparent hugepages at
+    // all (THP=never/madvise, a THP-less kernel, or PR_SET_THP_DISABLE set on
+    // the process tree — containers do this), then "0 kB under NEVER" would
+    // pass for the wrong reason.  Skip rather than claim a result.
+    const long base = touch_and_measure(KAME_THP_SYSTEM);
+    if(base <= 0) {
+        std::printf("  [ok] skipped: this host backs no transparent hugepages "
+                    "(baseline AnonHugePages=%ld kB) — nothing to suppress\n",
+                    base);
+    }
+    else {
+        const long never = touch_and_measure(KAME_THP_NEVER);
+        check(never == 0,
+              "KAME_THP_NEVER holds AnonHugePages at 0 on fresh pool memory");
+        std::printf("      (baseline %ld kB over %zu MiB touched, "
+                    "KAME_THP_NEVER %ld kB)\n",
+                    base, kTouch >> 20, never);
+    }
+#endif
+
+    kame_pool_set_thp_policy(saved);
+}
+
 // -------------------------------------------------------------------- 3
 static void test_os_fail_policy() {
     std::printf("(3) KAME_RT_OS_FAIL still yields usable memory\n");
@@ -304,6 +408,7 @@ int main() {
     test_deferred_unmap();
     test_pending_is_bounded();
     test_mlock_regions();
+    test_thp_policy();
     test_os_fail_policy();
     test_rt_section_nesting();
     test_flag_is_per_thread();
