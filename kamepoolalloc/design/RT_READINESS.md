@@ -158,24 +158,68 @@ Cold-claim on the alloc path is inherently unbounded: fresh-region mmap
 
 </details>
 
-### G4 — WCET bound argument for the lock-free retries (docs/theory)
+### G4 — the per-op bound, stated with its assumptions — **DONE (as a statement, not a proof)**
 
-Lock-free ≠ wait-free.  The unbounded-in-principle loops:
+**Lock-free ≠ wait-free**, and no amount of prose changes that: a CAS loop has
+no *unconditional* iteration bound. What can be stated honestly is a bound that
+separates into two kinds, and it is worth keeping them apart because only one of
+them is a property of this code alone.
 
-- bitmap word CAS claims, alloc side (`:1373/:1405/:1580`) and free side
-  `batch_clear_impl` (`:1962`) — each CAS failure implies another
-  thread's *success* on that 64-slot word, so per-word failures are
-  bounded by interfering ops, giving an O(T)-style envelope under
-  bounded thread count;
-- seqlock `lookup_chunk` reader retry — writers are cold-path only
-  (chunk claim/release), so reader retries are bounded by cold-path
-  frequency, which RT mode + prewarm drives to zero;
-- orphan-chain push/pop CAS (`:7371/:7412`) — thread-exit path only.
+#### (i) Static bounds — hold unconditionally
 
-**Work:** write the per-op bound statement with its assumptions (bounded
-T, prewarmed, RT mode) as a documented theorem; optionally add
-bounded-retry + per-thread emergency-reserve fallback for the paranoid
-hard-RT profile.
+| Loop | Bound |
+|---|---|
+| FS=false `allocate_pooled` walk (`:1580`) | **walk-once-bail**: at most `m_count` bitmap words per call, then the tier is abandoned. A compile-time-shaped bound. |
+| Word-cache alloc (default ON) | 1 CAS to steal a word, then **one `ctz`** per allocation until the word is spent. Steal frequency is 1/64 allocations. |
+| `CrossDeallocBatch` flush | ≤ `CAP` = 1024 entries. Bounded, but 1024× the average — which is why an RT thread bypasses it entirely (G5(b)). |
+| Deferred-unmap backlog | ≤ `rt_pending_cap` bytes; settlement is ≤ **one** block per non-RT free (G5(a)). |
+| Orphan-chain push/pop | Thread-exit path only; adoption pops **one** node. |
+
+#### (ii) Interference-conditional bounds — need an assumption about the *system*
+
+The bitmap-word CAS loops (alloc `:1373/:1405`, free `batch_clear_impl` `:1962`)
+retry only on CAS failure, and **every failure is another thread's success on
+that same 64-slot word**. So retries per operation are bounded by the number of
+*successful interfering operations on that word* during our attempt — never by
+anything unbounded internal to the loop. Converting that into wall-clock WCET
+requires a bound on interference, which is a property of the *task set and the
+machine*, not of the allocator:
+
+- On a uniprocessor with priority scheduling, interference is bounded by the
+  number of preemptions by higher-priority tasks — the classical lock-free RT
+  result (Anderson–Ramamurthy–Jeffay, *Real-time computing with lock-free
+  shared objects*, 1997), which is why lock-free objects are schedulable there
+  at all.
+- On a multiprocessor, interference is bounded by the number of contenders
+  actually executing, i.e. by the core count and the peers' op rate. This is
+  where a hard bound needs a system-level argument (partitioning, or bounding
+  the peers' allocation rate) that we do not make.
+
+The same shape covers the seqlock `lookup_chunk` reader retry: its writers are
+**cold-path only** (chunk claim / release), so under the RT contract
+(prewarmed → no cold claims) the expected retry count is *zero*, not merely
+bounded. That is a conditional guarantee, and the condition is exactly the G10
+precondition.
+
+#### What is therefore claimed — and what is not
+
+**Claimed:** every loop on the alloc/free path is either statically bounded (i)
+or bounded by interfering successes (ii); nothing waits, sleeps, yields, or
+takes a lock; and the deferred-work queues are capped. Under the G10
+preconditions the syscall count on the free path is **zero**, which is checkable
+at runtime (`rt_violations() == 0 && rt_forced_releases() == 0`).
+
+**Not claimed:** a numeric WCET. There is no machine-checked bound, no
+wait-free variant, and no static-analysis budget. The G7 tails are *empirical
+evidence for a specific machine and load*, not a proof — and their small-op
+figures are additionally limited by a ~41.7 ns clock floor (see G7).
+
+**If a hard bound is ever required** (avionics/automotive-grade), the route is
+the one this document declined in §1: a **fixed arena** (TLSF-style, P1), where
+the allocator never touches the OS and the free lists are private, plus
+bounded-retry + a per-thread emergency reserve so a contended CAS can give up
+rather than retry. That is a different allocator design, not a tuning of this
+one.
 
 ### G5 — bound the work one operation inherits — **DONE**
 
