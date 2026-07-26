@@ -195,12 +195,65 @@ the remainder to the next op or to `kame_pool_rt_drain()`.
   fault — offer `MADV_NOHUGEPAGE` opt-in for RT arenas, or document
   `mlockall` + `vm.compaction_proactiveness` guidance.
 
-### G7 — WCET tail harness (measurement)
+### G7 — WCET tail harness — **DONE** (`tests/bench/bench_rt_wcet.cpp`)
 
-Existing benches are throughput-oriented.  RT claims need a per-op
-latency harness: RT-priority thread + N interferer threads, per size
-band, RT mode on, prewarmed — reporting **max and p99.9999**, not means;
-plus the G2 violation counters asserted zero.  CI-able smoke variant.
+Per-op harness: measured thread (best-effort priority elevation — macOS
+`QOS_CLASS_USER_INTERACTIVE`, Linux `SCHED_FIFO` where permitted) + N
+interferers, per size band, **RT arm vs OFF arm interleaved per repetition**
+(alternating which goes first, so neither owns the warmer cache), log-scale
+histogram (4 buckets/octave, allocation-free), reporting **max and
+percentiles — never only a mean**, which is the statistic that hides a
+syscall.  A percentile is printed only when the sample count can support it
+(≥ 10 samples beyond it).  Registered as a ctest smoke; `--full` /
+`--pressure` for measurement.  Hard assertion: `rt_violations() == 0`
+(machine-independent) rather than any absolute latency.
+
+#### Result 1 — the RT gate, measured (Apple M3, Release, 3 interferers)
+
+`--pressure` measures the > `LRC_HI` (256 MiB) band, where the recycle cache
+is bypassed *by construction* so every free really reaches `munmap`.  With
+n = 900 samples/arm:
+
+| arm | free p50 | free MAX |
+|---|---:|---:|
+| **RT** (deferred to `rt_drain`) | **128 ns** | **792 ns** |
+| OFF (inline `munmap`) | 20,480 ns | **677,917 ns** |
+
+**160× better median, 856× better tail.** The OFF arm's 678 µs outlier alone
+would blow a 1 kHz control budget; `deferred_unmaps = 900` confirms all 900
+frees took the deferred path. This is the empirical validation of G1.
+
+Honest counter-entry: the RT arm's *malloc* is ~27 % slower on the mean
+(6.4 µs vs 5.1 µs) because holding the VA until the drain means fresh
+mappings instead of reuse. The trade is explicit — a slightly worse mmap
+mean for a 160×–856× better free tail — and a real RT design would not be
+mapping 300 MiB inside the loop anyway.
+
+#### Result 2 — the structural finding (more important than Result 1)
+
+For **every band at or below `LRC_HI`** the two arms are *statistically
+identical* (p99.9 equal to the nanosecond), because the recycle cache absorbs
+the release outright: no `madvise`, no `munmap`, nothing to defer.  Verified
+by probe that this holds **even with the cache cap forced to zero** — zeroing
+the cap is *not* a way to manufacture pressure (a chunk still lands in the
+per-thread L1, whose byte cut is fixed when the thread *arms*, and the
+smallest size class fits at idx 0 regardless).
+
+So in steady state the allocator is already syscall-free across 1 B – 256 MiB,
+and the RT gate is a **safety net** for three specific regimes rather than a
+steady-state necessity:
+  1. the > `LRC_HI` band (Result 1);
+  2. cross-thread / fresh-thread release patterns (covered by
+     `alloc_rt_thread_test`, where a fresh thread under a zeroed cap *does*
+     reach the `madvise` path);
+  3. thread exit (§21, already gated by §30).
+
+Caveat on the deep tail: p99.9999 needs ~10⁷ samples, which the huge band
+cannot reach in reasonable time — the harness prints only the percentiles its
+sample count supports, so no reported figure is an artefact of a single
+outlier. The small bands do reach p99.99+ under `--full`.
+
+Still owed here: G9's manifesting regression test, on Linux (see G9).
 
 ### G8 — §74 single mmap+radix site — **DONE, no work remaining**
 
@@ -243,21 +296,22 @@ counters.
 this audit; G1 + G2 + G3 landed with the §75 realtime work
 (`tests/alloc_rt_thread_test.cpp`).
 
+G7 (the tail harness) followed, and its numbers are in that section.
+
 **Remaining:**
 
 ```
 G5 (per-op inherited-work cap: bound the drain / adoption
     work a single free() can inherit)
-  →  G7 (WCET tail harness: max & p99.9999 under interference,
-          asserting rt_violations()==0; fold in G9's owed
-          manifesting regression test on Linux)
   →  G4 + G10 (CAS-retry bound statement + the RT contract in
-                the README, written against G7's numbers)
+                the README — now writable against G7's measured
+                numbers rather than the design argument alone)
+  →  G9's owed manifesting regression test, on Linux
   →  G6 as the target platform demands (THP / MADV_NOHUGEPAGE,
           mlockall guidance)
 ```
 
-Rationale: the syscalls are now gated and observable, so what is left is
-bounding the *amortized-to-worst-case* conversion (G5), then measuring
-(G7) — and only then writing the G4/G10 claims, which should rest on
-measured numbers rather than on the design argument alone.
+G5 is the last mechanism gap: G7 measured the *steady* tail, but a single
+`free()` can still inherit accumulated drain / adoption work, which is
+exactly how a good median turns into a bad tail under churn.  After that the
+G4/G10 write-ups rest on measurement.
