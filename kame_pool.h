@@ -232,6 +232,98 @@ void   kame_pool_set_thread_exit_reclaim(int enable) KAMEPOOLALLOC_NOEXCEPT;
  */
 void   kame_pool_set_realtime_mode(int enable) KAMEPOOLALLOC_NOEXCEPT;
 
+/* ===================================================================
+ * (§75) Realtime: per-thread gating, OS policy, drain, prewarm
+ * ===================================================================
+ * `kame_pool_set_realtime_mode` above is PROCESS-wide and silences
+ * background maintenance.  The calls below are the complementary
+ * per-thread half and are ORTHOGONAL to it — a realtime program calls
+ * both: set_realtime_mode(1) once at startup, then mark each
+ * time-critical thread (or use the kame::rt_section RAII guard below).
+ *
+ * A thread marked realtime never enters the kernel to RETURN memory
+ * from its own free() calls: the chunk madvise is skipped (pages stay
+ * warm, the chunk is still immediately recyclable) and a large-tier
+ * munmap is parked on a pending list.  Both are settled later by
+ * kame_pool_rt_drain().  Gating is per-thread because the reclaim
+ * syscall runs on the freeing thread, so this confines the extra RSS
+ * to the realtime thread's own working set.
+ *
+ * The ALLOCATION side cannot be deferred, so it takes a policy.
+ */
+void   kame_pool_set_realtime_thread(int enable) KAMEPOOLALLOC_NOEXCEPT;
+int    kame_pool_get_realtime_thread(void) KAMEPOOLALLOC_NOEXCEPT;
+
+/* What to do when a realtime thread's allocation needs a NEW mapping. */
+enum {
+    KAME_RT_OS_ALLOW = 0,  /* map anyway, do not even count (default) */
+    KAME_RT_OS_COUNT = 1,  /* map anyway, count it (observability)    */
+    KAME_RT_OS_FAIL  = 2,  /* refuse: the allocation degrades to libc */
+    KAME_RT_OS_ABORT = 3   /* count, print the site, abort (CI/debug) */
+};
+/*
+ * NOTE on coverage: FAIL/ABORT are honoured at the two sites where a
+ * refusal degrades safely — the 32 MiB region mmap and the large-tier
+ * mmap, both of which already have a "fall back to libc" nullptr path.
+ * A radix-leaf mapping is COUNTED but never refused: without its leaf a
+ * region goes unregistered and later frees of pointers inside it would
+ * be routed to libc free() — corruption rather than degradation.
+ * Prewarming is what actually keeps all three off the realtime path.
+ */
+void   kame_pool_set_rt_os_policy(int policy) KAMEPOOLALLOC_NOEXCEPT;
+int    kame_pool_get_rt_os_policy(void) KAMEPOOLALLOC_NOEXCEPT;
+
+/*
+ * Violation counter: times a realtime thread actually entered the kernel
+ * for a NEW mapping.  This is the number a realtime test asserts stays
+ * zero across its critical section after prewarming.  The deferred_*
+ * counters are informational (realtime mode working as designed), and
+ * pending_bytes is the VA still held by deferred unmaps — the growth
+ * traded for determinism, visible rather than silent.
+ */
+unsigned long long kame_pool_rt_violations(void) KAMEPOOLALLOC_NOEXCEPT;
+unsigned long long kame_pool_rt_deferred_reclaims(void) KAMEPOOLALLOC_NOEXCEPT;
+unsigned long long kame_pool_rt_deferred_unmaps(void) KAMEPOOLALLOC_NOEXCEPT;
+size_t kame_pool_rt_pending_bytes(void) KAMEPOOLALLOC_NOEXCEPT;
+void   kame_pool_rt_reset_counters(void) KAMEPOOLALLOC_NOEXCEPT;
+
+/* One-line "this realtime section mapped memory N times" warning on
+ * stderr.  Exists as a C entry point so the kame::rt_section guard below
+ * can report without pulling <cstdio> into this header; callable
+ * directly as well. */
+void   kame_pool_rt_report_violations(unsigned long long count)
+                                                 KAMEPOOLALLOC_NOEXCEPT;
+
+/*
+ * Perform all reclaim work the realtime paths deferred (the mi_collect /
+ * malloc_trim / arena.N.purge analogue): pending large-tier unmaps, this
+ * thread's L1 recycle cache, and the global L2 cache.  Call from a
+ * non-critical phase — never inside the time-critical section, since
+ * this is precisely the syscall batch realtime mode exists to keep out.
+ */
+void   kame_pool_rt_drain(void) KAMEPOOLALLOC_NOEXCEPT;
+
+/*
+ * Prewarm: allocate + page-TOUCH + free `counts[i]` blocks of `sizes[i]`
+ * so the chunks, their regions, the radix leaves and this thread's
+ * allocator TLS all exist before the time-critical section.  Touching is
+ * the point: allocate/free alone leaves pages mapped-but-unfaulted, so
+ * the first realtime write would still take a minor fault.  Call from
+ * EACH realtime thread (the allocator TLS is per-thread).
+ * Returns 0 on success, -1 if the working set does not fit.
+ */
+int    kame_pool_prewarm(const size_t *sizes, const unsigned *counts,
+                         unsigned n) KAMEPOOLALLOC_NOEXCEPT;
+
+/*
+ * Pre-reserve `n_regions` 32 MiB regions up front (prefault != 0 also
+ * touches their slot pages).  Regions never unmap, so this is permanent.
+ * Belt-and-braces companion to prewarm for when the working-set SIZE is
+ * known but its size classes are not.  Returns how many were created.
+ */
+unsigned kame_pool_reserve_regions(unsigned n_regions,
+                                   int prefault) KAMEPOOLALLOC_NOEXCEPT;
+
 /*
  * Observability — snapshot of pool counters at the moment of the call.
  *
@@ -316,6 +408,71 @@ void kame_pool_get_stats(kame_pool_stats_t *out) KAMEPOOLALLOC_NOEXCEPT;
 
 #ifdef __cplusplus
 }  /* extern "C" */
+
+/* ===================================================================
+ * (§75) C++ RAII guard for a realtime section
+ * ===================================================================
+ * Marks the calling thread realtime for the scope, and — in a debug
+ * build, or whenever `check` is passed explicitly — verifies on exit
+ * that the section entered the kernel for no new mapping.  The check is
+ * a counter comparison, so it costs nothing inside the section itself:
+ *
+ *     kame_pool_set_realtime_mode(1);                 // once, startup
+ *     const size_t  sz[] = { 64, 4096, 1u << 20 };
+ *     const unsigned ct[] = { 4096, 256, 8 };
+ *     kame_pool_prewarm(sz, ct, 3);                   // per RT thread
+ *     for(;;) {
+ *         {
+ *             kame::rt_section rt;                    // critical section
+ *             ...                                     // no mmap/madvise
+ *         }                                           // violations checked
+ *         kame_pool_rt_drain();                       // in the trough
+ *     }
+ *
+ * The guard nests correctly (it restores the previous flag, it does not
+ * blindly clear it), so a helper that opens its own section inside an
+ * already-realtime thread behaves.
+ */
+namespace kame {
+
+class rt_section {
+public:
+    /* `check`: report to stderr if the section caused a new mapping.
+     * Defaults to on in debug builds only.  `violations()` is always
+     * available regardless, for a test to assert on. */
+    explicit rt_section(bool check =
+#ifdef NDEBUG
+                        false
+#else
+                        true
+#endif
+                       ) KAMEPOOLALLOC_NOEXCEPT
+        : m_prev(kame_pool_get_realtime_thread() != 0),
+          m_base(kame_pool_rt_violations()),
+          m_check(check) {
+        kame_pool_set_realtime_thread(1);
+    }
+    ~rt_section() KAMEPOOLALLOC_NOEXCEPT {
+        unsigned long long v = violations();
+        kame_pool_set_realtime_thread(m_prev ? 1 : 0);
+        if(m_check && v != 0ull)
+            kame_pool_rt_report_violations(v);
+    }
+    /* New mappings made since this guard was entered. */
+    unsigned long long violations() const KAMEPOOLALLOC_NOEXCEPT {
+        return kame_pool_rt_violations() - m_base;
+    }
+
+    rt_section(const rt_section &) = delete;
+    rt_section &operator=(const rt_section &) = delete;
+
+private:
+    bool               m_prev;
+    unsigned long long m_base;
+    bool               m_check;
+};
+
+}  /* namespace kame */
 #endif
 
 #endif  /* KAMEPOOLALLOC_KAME_POOL_H_ */

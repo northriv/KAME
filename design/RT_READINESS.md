@@ -44,7 +44,40 @@ Plus the page-reclaim syscalls (`madvise`) in `deallocate_chunk` (`:3264/:3273`)
 
 ## 2. Gaps (the remaining work), prioritized
 
-### G1 — free() can still madvise/munmap inline, even in RT mode  ★the real hole
+### G1 — free-path reclaim on a realtime thread — **DONE**
+
+Implemented as a **per-thread** gate (`kame_pool_set_realtime_thread`, or the
+`kame::rt_section` RAII guard), because the reclaim syscall runs on the
+*freeing* thread — so gating per-thread confines the extra RSS to the RT
+thread's own working set instead of switching reclaim off process-wide:
+
+- **`madvise`**: demoted at the single choke point inside `deallocate_chunk`
+  (all four release paths funnel there, so one gate covers every one). Only
+  step 3 is skipped — header clear, `back_offset` clear and claim-bit release
+  still happen, so the chunk stays immediately recyclable with its pages warm.
+- **`munmap`** (§19 large tier): parked on a lock-free pending stack whose
+  link lives in the block's own dead meta page — **no allocation on a free
+  path**. `kame_pool_rt_pending_bytes()` reports the VA so held.
+- **`kame_pool_rt_drain()`** settles both (pending unmaps → this thread's L1 →
+  global L2), clearing its own RT flag for the duration so the releases
+  actually reach the kernel instead of being re-deferred by the gate that
+  queued them.
+
+**Measured while testing, worth recording:** in *steady state* the madvise
+gate is never even reached — a freed chunk is parked warm in the §34 recycle
+cache and `deallocate_chunk` is not called at all. The gate matters under
+cache pressure (over cap / eviction / thread exit). So the original hole was
+narrower than stated below, but real. Note also that a thread's L1 keeps the
+byte cut it computed when it *armed*, so shrinking the cache cap does not
+affect already-armed threads (this is why `alloc_rt_thread_test` drives the
+path from fresh threads).
+
+Verified by `tests/alloc_rt_thread_test.cpp` — each claim by observing a
+counter move, not by trusting that a call was made: reclaim deferred on an RT
+thread but **immediate for identical churn off it** (the per-thread proof),
+munmap deferred and reported, `rt_drain` settling to zero.
+
+<details><summary>original G1 write-up (what the hole was)</summary>
 
 §30 gates the *background* and *thread-exit* paths only.  A live-thread
 `free()` in steady state can still reach page-reclaim syscalls:
@@ -65,6 +98,46 @@ depends on an *unstated* "working set never shrinks" assumption.
 (documented RSS growth) **or** defer reclaim onto an explicit
 `kame_pool_rt_drain()` the application calls outside its critical loop.
 This is the single highest-value change.
+</details>
+
+### G2 — prewarm API + violation counters — **DONE**
+
+- **`kame_pool_prewarm(sizes, counts, n)`** allocates, **page-touches** and
+  frees each class, holding `counts[i]` blocks concurrently so that much
+  capacity is genuinely forced into existence.  Touching is the point: the
+  previously-documented allocate/free idiom leaves pages mapped-but-unfaulted,
+  so the first RT write still took a minor fault.  Call per RT thread (the
+  allocator TLS is per-thread).
+- **`kame_pool_rt_violations()`** counts the times an RT thread actually
+  entered the kernel for a *new* mapping — the number a test asserts is zero.
+  `rt_deferred_reclaims` / `rt_deferred_unmaps` / `rt_pending_bytes` are
+  informational (RT mode working as designed, and the growth traded for it,
+  visible rather than silent).
+- **`kame_pool_set_rt_os_policy()`** — `ALLOW` (default, backward-compatible)
+  / `COUNT` / `FAIL` (refuse; the allocation degrades to libc) / `ABORT`
+  (report the site and abort — CI/debug).
+  **Coverage is deliberately partial:** FAIL/ABORT are honoured at the region
+  mmap and the large-tier mmap, both of which have a safe nullptr→libc path.
+  A **radix leaf is counted but never refused** — without its leaf a region
+  goes unregistered and later frees of pointers inside it would be routed to
+  libc `free()`, i.e. corruption rather than degradation.
+- **`kame::rt_section`** (C++ RAII) marks the thread, nests correctly
+  (restores the previous flag rather than clearing it), and in debug builds
+  reports its own violation delta on exit.
+
+### G3 — pre-reserve — **DONE** (`reserve_regions` + `FAIL`)
+
+`kame_pool_reserve_regions(n, prefault)` creates `n` fully-published regions
+up front through `mmap_new_region` (metadata init → `radix_insert` → region
+list push), optionally touching every slot page.  Combined with
+`KAME_RT_OS_FAIL` this *is* the "commit up front, then never map again" mode:
+reserve, then any further mapping attempt is refused and degrades to libc
+instead of stalling the RT path.  Regions never unmap, so the reservation is
+permanent.  Prewarm remains the recommended primary tool (it also reaches the
+radix and TLS-bootstrap paths); this is the belt-and-braces option for when
+the working-set *size* is known but its size classes are not.
+
+<details><summary>original G2 write-up</summary>
 
 ### G2 — pre-warm is an idiom, not an API, and nothing *enforces* it
 
@@ -83,11 +156,7 @@ Cold-claim on the alloc path is inherently unbounded: fresh-region mmap
    Turns the contract from "hope" into a measurable — an RT test asserts
    the counter stayed 0 across the critical section.
 
-### G3 — pre-reserve mode (cap is only a ceiling)
-
-`kame_pool_set_memory_cap` bounds growth but does not *commit* memory up
-front.  **Work:** a hard mode that mmaps + touches N regions at init and
-then never maps again (fail or libc-fallback + counter past it).
+</details>
 
 ### G4 — WCET bound argument for the lock-free retries (docs/theory)
 
@@ -170,22 +239,25 @@ counters.
 
 ## 3. Suggested order
 
-Both items originally listed as prerequisites turned out to be already
-done (G8 = `c04a7975d`, G9 = `3145e139a`), so the RT work starts directly
-at G1:
+**Done:** G8 (`c04a7975d`) and G9 (`3145e139a`) were already landed before
+this audit; G1 + G2 + G3 landed with the §75 realtime work
+(`tests/alloc_rt_thread_test.cpp`).
+
+**Remaining:**
 
 ```
-G1 (RT-gate free-path reclaim, + rt_drain)      ← start here
-  →  G2 (prewarm API + violation counters)
-  →  G5 (per-op inherited-work cap)
-  →  G7 (WCET tail harness — validates G1..G5 empirically;
-          fold in G9's owed regression test on Linux)
-  →  G4 + G10 (bound theorem + contract docs)
-  →  G3 / G6 as the target platform demands
+G5 (per-op inherited-work cap: bound the drain / adoption
+    work a single free() can inherit)
+  →  G7 (WCET tail harness: max & p99.9999 under interference,
+          asserting rt_violations()==0; fold in G9's owed
+          manifesting regression test on Linux)
+  →  G4 + G10 (CAS-retry bound statement + the RT contract in
+                the README, written against G7's numbers)
+  →  G6 as the target platform demands (THP / MADV_NOHUGEPAGE,
+          mlockall guidance)
 ```
 
-Rationale: the mapping surface is already minimal (§1.1) and the drain
-machinery has no open correctness gap, so G1/G2 — removing the actual
-syscalls and making violations observable — is the first real work.  G5
-bounds the amortized-to-worst-case conversion; G7 provides the numbers;
-only then are the G4/G10 claims worth writing down.
+Rationale: the syscalls are now gated and observable, so what is left is
+bounding the *amortized-to-worst-case* conversion (G5), then measuring
+(G7) — and only then writing the G4/G10 claims, which should rest on
+measured numbers rather than on the design argument alone.

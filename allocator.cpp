@@ -973,6 +973,68 @@ inline void free_munmap(void *p) {
 
 bool g_sys_image_loaded = false;
 
+// =====================================================================
+// (§75) Realtime (RT) mode — per-thread opt-in half
+// =====================================================================
+// §30's `kame_pool_set_realtime_mode` is a PROCESS-wide preset that
+// silences *background* maintenance (lazy drain, auto-tune probe,
+// thread-exit reclaim).  This is the complementary PER-THREAD half: a
+// thread marked realtime never enters the kernel to *return* memory
+// (`madvise` / `munmap`) from its own free calls — the pages stay warm
+// and the work is deferred to `kame_pool_rt_drain()` (or performed by
+// any non-RT thread that later releases the same block).
+//
+// Why per-thread and not another global: the reclaim syscall runs on
+// the *freeing* thread, so gating per-thread confines the RSS cost to
+// the RT thread's own working set instead of switching reclaim off for
+// every worker in the process.  Costs one predicted-not-taken IE-TLS
+// load, and only on cold release paths.
+//
+// The allocation side cannot simply be deferred (the caller needs the
+// memory now), so it gets a *policy* instead — see kame_rt_os_policy_t.
+ALLOC_TLS_IE bool g_rt_thread = false;
+std::atomic<int> g_rt_os_policy{0};                    // KAME_RT_OS_ALLOW
+
+//! Times an RT thread actually entered the kernel for a NEW mapping.
+//! This is the number an RT test asserts is zero after prewarming.
+std::atomic<unsigned long long> g_rt_violations{0};
+//! Deferred-work counters — RT mode working as designed, not violations.
+std::atomic<unsigned long long> g_rt_deferred_reclaim{0};   // madvise skipped
+std::atomic<unsigned long long> g_rt_deferred_unmap{0};     // munmap deferred
+//! VA still held by deferred unmaps.  Without this the growth an RT
+//! thread trades for determinism would be invisible.
+std::atomic<std::size_t> g_rt_pending_bytes{0};
+
+//! Pending-unmap stack for the §19 large tier.  A deferred block is
+//! still mapped but already radix-cleared, so its first page (the dead
+//! `LargeAllocMeta`) carries the link — the stack needs no allocation of
+//! its own, which is what makes it usable from a free path.
+struct RtPendingUnmap {
+	RtPendingUnmap *next;
+	std::size_t     mmap_size;
+};
+std::atomic<RtPendingUnmap *> g_rt_pending_unmap{nullptr};
+
+//! True iff the calling thread is marked realtime.
+inline bool rt_thread() noexcept { return g_rt_thread; }
+
+//! Call at every site about to create a NEW mapping.  Returns false iff
+//! the caller must fail the allocation instead (`KAME_RT_OS_FAIL`), which
+//! is only safe where a nullptr degrades to the libc fallback.  No-op
+//! unless the caller is an RT thread.
+inline bool rt_allow_new_mapping(const char *site) noexcept {
+	if(__builtin_expect( !g_rt_thread, 1)) return true;
+	g_rt_violations.fetch_add(1, std::memory_order_relaxed);
+	int pol = g_rt_os_policy.load(std::memory_order_relaxed);
+	if(pol == 2 /*KAME_RT_OS_FAIL*/)  return false;
+	if(pol == 3 /*KAME_RT_OS_ABORT*/) {
+		fprintf(stderr, "kamepoolalloc: RT violation — %s from a realtime "
+		                "thread (KAME_RT_OS_ABORT)\n", site);
+		abort();
+	}
+	return true;
+}
+
 #if defined(KAMEPOOLALLOC_DYLIB)
 // Dylib mode: auto-activate at dylib load.  `__attribute__((constructor))`
 // with the priority slot we already use for `kame_tls_init_fast` (101)
@@ -3146,6 +3208,20 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 	//
 	// chunk_size determines the unit count (CHUNK_UNITS = chunk_size /
 	// ALLOC_MIN_CHUNK_SIZE).  Region size is uniform 32 MiB.
+	//
+	// (§75) RT gate — the single choke point for free-side page reclaim.
+	// All four release paths (`deallocate_cold`, `recycle_release_chunk`,
+	// `bucket_release_chunk`, `release_dll_chunks_for_thread`) funnel here,
+	// so demoting `reclaim_pages` once covers every one of them.  Only the
+	// `madvise` (step 3) is skipped: the header clear, back_offset clear and
+	// claim-bit release all still happen, so the chunk is immediately
+	// recyclable — its pages simply stay resident (warm) instead of being
+	// handed back.  `kame_pool_rt_drain()` returns them later; so does any
+	// non-RT thread that releases the same chunk.
+	if(reclaim_pages && __builtin_expect(g_rt_thread, 0)) {
+		reclaim_pages = false;
+		g_rt_deferred_reclaim.fetch_add(1, std::memory_order_relaxed);
+	}
 	unsigned int chunk_units =
 	    static_cast<unsigned int>(chunk_size >> ALLOC_MIN_CHUNK_SHIFT);
 	// (§13.3) Derive the owning region directly from chunk_base — regions
@@ -6275,6 +6351,17 @@ int PoolAllocatorBase::radix_lookup_slow(uintptr_t up) noexcept {
 // 2-level radix tree implementation (§13).  L2 nodes allocated lazily
 // via mmap to avoid recursion through our own interposed libc malloc.
 RadixL2Node *PoolAllocatorBase::radix_alloc_l2() noexcept {
+	// (§75) COUNTED but never refused, even under KAME_RT_OS_FAIL.  A radix
+	// leaf backs the presence map: if `radix_insert` cannot install one it
+	// returns having silently left the region unregistered, and every later
+	// free of a pointer inside it misses the lookup and is routed to libc
+	// `free()` — corruption, not a graceful degradation.  So the RT-strict
+	// policy stops at the two sites that DO degrade safely
+	// (`mmap_new_region`, `large_va_raw_map`); here we only record that an
+	// RT thread touched the kernel.  Prewarming the RT working set
+	// (`kame_pool_prewarm`) is what actually keeps this off the RT path.
+	if(__builtin_expect(g_rt_thread, 0))
+		g_rt_violations.fetch_add(1, std::memory_order_relaxed);
 #if defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32)
 	void *p = VirtualAlloc(nullptr, sizeof(RadixL2Node),
 	                       MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -6358,6 +6445,12 @@ void PoolAllocatorBase::radix_clear(char *mp) noexcept {
 // or nullptr on cap-exceeded / mmap failure.
 PoolAllocatorBase::RegionMeta *
 PoolAllocatorBase::mmap_new_region() noexcept {
+	// (§75) RT policy gate — BEFORE the count reservation below, so a
+	// refusal cannot leak a region slot.  Failing here is safe: the caller
+	// (`claim_chunk`) propagates nullptr and the allocation degrades to the
+	// libc fallback, exactly as it does on a genuine region-cap refusal.
+	if( !rt_allow_new_mapping("32 MiB region mmap"))
+		return nullptr;
 	// Runtime cap: reserve a slot first so a concurrent racer can't
 	// overshoot.  Default cap is INT_MAX (VA-limited); a tighter value
 	// comes from kame_pool_set_max_bytes.
@@ -6498,6 +6591,38 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 	return rm;
 }
 
+// (§75) RT pre-reserve.  Creates `n` fresh regions up front so no RT-path
+// allocation has to mmap one.  Goes through `mmap_new_region` — the fully
+// published path (metadata init, radix_insert, region-list push) — so the
+// regions are indistinguishable from lazily-created ones and are found by
+// `claim_chunk`'s Pass 1.  Regions never unmap, so this is permanent.
+//
+// `prefault` additionally touches every slot page, converting the RT path's
+// first-touch minor faults into startup cost.  It does NOT pre-claim chunks;
+// `kame_pool_prewarm` does that (and reaches the radix / TLS-bootstrap paths
+// too), so the usual recipe is prewarm alone, with this as the belt-and-
+// braces option when the working-set size is known but its size classes are
+// not.  Returns the number of regions actually created (< n on cap / OOM).
+unsigned
+PoolAllocatorBase::reserve_regions(unsigned n, bool prefault) noexcept {
+	unsigned made = 0;
+	for(unsigned i = 0; i < n; i++) {
+		RegionMeta *rm = mmap_new_region();
+		if( !rm) break;                  // region cap or mmap refusal
+		if(prefault) {
+			// region_meta() is a plain cast, so rm IS the region base.
+			// Skip page 0 (the metadata page, already written above).
+			volatile char *b = reinterpret_cast<volatile char *>(rm);
+			for(std::size_t off = ALLOC_PAGE_SIZE;
+			    off < (std::size_t)ALLOC_MIN_MMAP_SIZE;
+			    off += ALLOC_PAGE_SIZE)
+				b[off] = 0;
+		}
+		made++;
+	}
+	return made;
+}
+
 // =====================================================================
 // (§19/§21) Large-alloc tier — single-mmap, radix-registered, munmap-able,
 //           with a per-thread LIFO recycle cache.
@@ -6505,6 +6630,10 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 namespace {
 // Raw 32-MiB-aligned mmap of `mmap_size` bytes.  Returns base or nullptr.
 inline char *large_va_raw_map(std::size_t mmap_size) noexcept {
+	// (§75) RT policy gate.  Safe to refuse: callers treat nullptr as "tier
+	// unavailable" and fall through to the libc path.
+	if( !rt_allow_new_mapping("large-tier mmap"))
+		return nullptr;
 #if defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32)
 	return static_cast<char *>(_aligned_malloc(mmap_size, ALLOC_MIN_MMAP_SIZE));
 #else
@@ -7205,6 +7334,156 @@ extern "C" void kame_pool_set_realtime_mode(int enable) noexcept {
 }
 
 // =====================================================================
+// (§75) Realtime C API — per-thread flag, OS policy, drain, prewarm
+// =====================================================================
+// Deliberately ORTHOGONAL to §30's process-wide `set_realtime_mode`: that
+// one silences background maintenance for the whole process, this one marks
+// *which threads* must not enter the kernel.  A typical RT program calls
+// both — `set_realtime_mode(1)` once at startup, then `set_realtime_thread(1)`
+// from each time-critical thread (or lets `kame::rt_section` do it).
+
+extern "C" void kame_pool_set_realtime_thread(int enable) noexcept {
+	g_rt_thread = (enable != 0);
+}
+extern "C" int kame_pool_get_realtime_thread(void) noexcept {
+	return g_rt_thread ? 1 : 0;
+}
+extern "C" void kame_pool_set_rt_os_policy(int policy) noexcept {
+	if(policy < 0 || policy > 3) return;         // ignore out-of-range
+	g_rt_os_policy.store(policy, std::memory_order_relaxed);
+}
+extern "C" int kame_pool_get_rt_os_policy(void) noexcept {
+	return g_rt_os_policy.load(std::memory_order_relaxed);
+}
+extern "C" unsigned long long kame_pool_rt_violations(void) noexcept {
+	return g_rt_violations.load(std::memory_order_relaxed);
+}
+extern "C" unsigned long long kame_pool_rt_deferred_reclaims(void) noexcept {
+	return g_rt_deferred_reclaim.load(std::memory_order_relaxed);
+}
+extern "C" unsigned long long kame_pool_rt_deferred_unmaps(void) noexcept {
+	return g_rt_deferred_unmap.load(std::memory_order_relaxed);
+}
+extern "C" size_t kame_pool_rt_pending_bytes(void) noexcept {
+	return g_rt_pending_bytes.load(std::memory_order_relaxed);
+}
+extern "C" void kame_pool_rt_report_violations(unsigned long long count) noexcept {
+	fprintf(stderr,
+	    "kamepoolalloc: realtime section made %llu new mapping(s) — "
+	    "prewarm the working set (kame_pool_prewarm) to remove them.\n",
+	    count);
+}
+extern "C" void kame_pool_rt_reset_counters(void) noexcept {
+	g_rt_violations.store(0, std::memory_order_relaxed);
+	g_rt_deferred_reclaim.store(0, std::memory_order_relaxed);
+	g_rt_deferred_unmap.store(0, std::memory_order_relaxed);
+}
+
+// The `mi_collect` / `malloc_trim` / `arena.N.purge` analogue: perform every
+// piece of reclaim work the RT paths deferred.  Call it from a non-critical
+// phase (between control cycles, on a housekeeping thread) — never from
+// inside the time-critical section, since it is exactly the syscall batch
+// that RT mode exists to keep out of there.
+//
+// The calling thread's own RT flag is cleared for the duration, so the
+// releases below actually reach `madvise` / `munmap` instead of being
+// re-deferred by the very gate that queued them (and so the counters do not
+// tick for our own work).
+extern "C" void kame_pool_rt_drain(void) noexcept {
+	const bool saved_rt = g_rt_thread;
+	g_rt_thread = false;
+
+	// (1) Deferred large-tier unmaps — exact, we hold the list.  Copy the
+	// node out before unmapping: it LIVES in the page about to go away.
+	RtPendingUnmap *head =
+	    g_rt_pending_unmap.exchange(nullptr, std::memory_order_acq_rel);
+	while(head) {
+		RtPendingUnmap cur = *head;
+		g_rt_pending_bytes.fetch_sub(cur.mmap_size, std::memory_order_relaxed);
+		large_va_raw_unmap(reinterpret_cast<char *>(head), cur.mmap_size);
+		head = cur.next;
+	}
+
+	// (2) This thread's L1 recycle cache.  Emptied but left ARMED (unlike
+	// `l1_drain`, which is the thread-exit path and also clears `tls_l1` /
+	// sets `s_l1_drained`) — an RT thread keeps allocating after the drain.
+	if(L1KArray *l1 = tls_l1) {
+		for(int k = 0; k < LRC_K_L1; k++) {
+			for(int idx = 0; idx <= LRC_N_MAX_L1; idx++) {
+				char *b = l1[k].slots[idx];
+				if( !b) continue;
+				l1[k].slots[idx] = nullptr;
+				unsigned kind = lrc_kind_from_idx(idx);
+				lrc_release(b, lrc_block_size(b, kind), kind);
+			}
+		}
+	}
+
+	// (3) The global L2 cache.  CAS-steal each slot so a concurrent popper
+	// either gets the block (and owns it) or misses — never both.
+	for(int k = 0; k < LRC_K_MAX; k++) {
+		for(int idx = 0; idx <= LRC_N_MAX; idx++) {
+			char *b = g_lrc[k].slots[idx].exchange(
+			    nullptr, std::memory_order_acq_rel);
+			if( !b) continue;
+			unsigned kind = lrc_kind_from_idx(idx);
+			std::size_t sz = lrc_block_size(b, kind);
+			g_lrc_bytes.fetch_sub(sz, std::memory_order_relaxed);
+			lrc_release(b, sz, kind);
+		}
+	}
+
+	g_rt_thread = saved_rt;
+}
+
+// Prewarm: allocate + PAGE-TOUCH + free the given size classes so that the
+// chunks, their regions, the radix leaves and this thread's allocator TLS all
+// exist before the time-critical section starts.  Touching matters — the
+// allocate/free idiom alone leaves the pages mapped-but-unfaulted, so the
+// first RT write would still take a minor fault.
+//
+// Blocks are held in batches (not freed one-by-one) so that `counts[i]`
+// distinct blocks coexist and genuinely force that much capacity into
+// existence.  Returns 0 on success, -1 if any allocation failed (the
+// working set does not fit under the current cap).
+extern "C" int kame_pool_prewarm(const size_t *sizes, const unsigned *counts,
+                                unsigned n) noexcept {
+	if( !sizes || !counts) return -1;
+	enum { BATCH = 128 };
+	void *buf[BATCH];
+	int rc = 0;
+	for(unsigned i = 0; i < n && rc == 0; i++) {
+		const size_t sz = sizes[i];
+		if(sz == 0) continue;
+		unsigned remaining = counts[i];
+		while(remaining) {
+			unsigned want = remaining < (unsigned)BATCH
+			                ? remaining : (unsigned)BATCH;
+			unsigned got = 0;
+			for(; got < want; got++) {
+				void *p = kame_pool_malloc(sz);
+				if( !p) break;
+				volatile char *q = static_cast<volatile char *>(p);
+				for(size_t off = 0; off < sz; off += ALLOC_PAGE_SIZE)
+					q[off] = 0;
+				q[sz - 1] = 0;            // last partial page
+				buf[got] = p;
+			}
+			for(unsigned j = 0; j < got; j++)
+				kame_pool_free(buf[j]);
+			if(got < want) { rc = -1; break; }
+			remaining -= want;
+		}
+	}
+	return rc;
+}
+
+extern "C" unsigned kame_pool_reserve_regions(unsigned n_regions,
+                                             int prefault) noexcept {
+	return PoolAllocatorBase::reserve_regions(n_regions, prefault != 0);
+}
+
+// =====================================================================
 // (§19) Large-alloc tier — single-mmap, radix-registered, munmap-able.
 // =====================================================================
 // Each large_va allocation is its own 32-MiB-aligned mmap of size
@@ -7304,8 +7583,29 @@ PoolAllocatorBase::deallocate_large_va(void *p) noexcept {
 	// (§27) Huge allocs (mmap_size > LRC_HI) bypass the cache — see
 	// allocate_large_va.  The `||` short-circuits so recycle_push (hence
 	// lrc_idx) is NEVER called with a > 32 MiB size.
-	if(mmap_size > LRC_HI || !recycle_push(base, mmap_size, LRC_MMAP))
+	if(mmap_size > LRC_HI || !recycle_push(base, mmap_size, LRC_MMAP)) {
+		// (§75) An RT thread must not munmap here.  The block is already
+		// radix-cleared and owned by nobody, so we park it on the pending
+		// stack — the link lives in its own (now dead) meta page, so this
+		// costs no allocation.  `kame_pool_rt_drain()` unmaps it later.
+		// Trade-off: VA/RSS is held until the drain, which
+		// `kame_pool_rt_pending_bytes()` reports.
+		if(__builtin_expect(g_rt_thread, 0)) {
+			RtPendingUnmap *node = reinterpret_cast<RtPendingUnmap *>(base);
+			node->mmap_size = mmap_size;
+			RtPendingUnmap *old =
+			    g_rt_pending_unmap.load(std::memory_order_relaxed);
+			do {
+				node->next = old;
+			} while( !g_rt_pending_unmap.compare_exchange_weak(
+			             old, node, std::memory_order_release,
+			             std::memory_order_relaxed));
+			g_rt_pending_bytes.fetch_add(mmap_size, std::memory_order_relaxed);
+			g_rt_deferred_unmap.fetch_add(1, std::memory_order_relaxed);
+			return;
+		}
 		large_va_raw_unmap(base, mmap_size);
+	}
 }
 
 // single consolidated TLS struct holds all per-thread state

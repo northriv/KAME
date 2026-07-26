@@ -208,6 +208,13 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_realtime_mode_test alloc_realtime_mode_test.cpp)
     target_link_libraries(alloc_realtime_mode_test kamepoolalloc Threads::Threads)
 
+    # (§75) Realtime PER-THREAD half: prewarm leaves the critical section
+    # mapping-free (violation counter does not move), realtime free() defers
+    # page reclaim and rt_drain() settles it, KAME_RT_OS_FAIL degrades to libc
+    # instead of returning null, and rt_section nests / is per-thread.
+    add_executable(alloc_rt_thread_test alloc_rt_thread_test.cpp)
+    target_link_libraries(alloc_rt_thread_test kamepoolalloc Threads::Threads)
+
     # (§31/§32) Strong-symbol / interpose override correctness — asserts that
     # a bare libc malloc/calloc/realloc/free (and C++ operator new/delete)
     # actually route through the pool when the library is linked.  Oracle is
@@ -317,6 +324,7 @@ if(USE_KAME_ALLOCATOR)
     add_test(NAME alloc_evict_test COMMAND alloc_evict_test)
     add_test(NAME alloc_stats_test COMMAND alloc_stats_test)
     add_test(NAME alloc_realtime_mode_test COMMAND alloc_realtime_mode_test)
+    add_test(NAME alloc_rt_thread_test COMMAND alloc_rt_thread_test)
     add_test(NAME test_ros2_allocator COMMAND test_ros2_allocator)
     add_test(NAME test_pmr_resource COMMAND test_pmr_resource)
     add_test(NAME test_aligned_allocator COMMAND test_aligned_allocator)
