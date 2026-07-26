@@ -343,14 +343,12 @@ G7 (the tail harness) followed, and its numbers are in that section.
 ```
 G4 + G10 (CAS-retry bound statement + the RT contract in the
           README — now writable against G7's measured numbers,
-          and G5(c) supplies an explicit precondition)
-  →  a cross-thread arm for bench_rt_wcet (measures G5(b),
-          which currently rests on code reading)
+          with G5(c) as an explicit precondition)
   →  G9's owed manifesting regression test, on Linux
   →  G6 as the target platform demands (THP / MADV_NOHUGEPAGE,
           mlockall guidance)
 ```
 
-The mechanisms are in place and measured; what remains is one measurement gap
-(cross-thread frees) and the write-ups, which should now rest on the numbers
+The mechanisms are in place and measured on both the same-thread and
+cross-thread paths.  What remains is the write-ups, which now rest on numbers
 rather than on the design argument alone.
