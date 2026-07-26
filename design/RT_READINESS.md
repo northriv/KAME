@@ -269,15 +269,73 @@ class (b) at all. The bound there rests on code reading, not on a measured
 tail. A cross-thread arm (thread A allocates, thread B frees) is the obvious
 next addition to the harness.
 
-### G6 — page-fault class (kernel-side latency without syscalls)
+### G6 — page-fault class — **(b) DONE; (a)/(c) remain**
 
-- First-touch faults on mapped-but-untouched pages → prewarm must touch
-  (G2.1).
-- macOS `MADV_FREE`'d pages re-fault with lazy zeroing on reuse — another
-  reason G1 must keep pages warm in RT mode.
-- Linux THP (`THP=always` hosts): khugepaged/compaction can stall any
-  fault — offer `MADV_NOHUGEPAGE` opt-in for RT arenas, or document
-  `mlockall` + `vm.compaction_proactiveness` guidance.
+How the field handles this, since it is the one area where every allocator has
+had to take a position:
+
+| Concern | glibc | jemalloc | mimalloc | tcmalloc | TLSF / RT practice | kamepoolalloc |
+|---|---|---|---|---|---|---|
+| **THP** | `glibc.malloc.hugetlb` tunable | `opt.thp = always/auto/never`, `metadata_thp` — explicitly *disableable* | `allow_large_os_pages` (opt-in), `reserve_huge_os_pages_N` | hugepage-aware **by design** (Temeraire, OSDI'21) — manages huge granularity itself rather than leaving it to khugepaged | n/a (fixed arena) | `MADV_HUGEPAGE` opt-in only → **gap (a)** |
+| **Don't return pages** | `M_TRIM_THRESHOLD`, `M_MMAP_MAX=0` | `dirty_decay_ms:-1`, `muzzy_decay_ms:-1`, `retain` | `purge_delay=-1` | release-rate knobs | n/a | §30 + §75 per-thread gate |
+| **Explicit purge** | `malloc_trim()` | `arena.N.purge` | `mi_collect()` | `ReleaseMemoryToSystem` | n/a | `rt_drain()` |
+| **Prefault / pre-commit** | application | **no API** (application) | `reserve_os_memory(commit=true)`, `eager_commit` | prealloc paths | application touches its arena | **`prewarm()` page-touches per size class; `reserve_regions(prefault)`** |
+| **Page pinning** | application (`mlockall`) | application | application | application | application (`mlockall` + stack prefault) | **`mlock_regions()` — pool-scoped** |
+
+Two observations from that survey:
+
+* **No allocator prefaults by size class** — it is universally left to the
+  application. `mi_option_reserve_os_memory(commit=true)` is the nearest thing,
+  and it commits pages rather than provisioning size-class capacity. So
+  `kame_pool_prewarm()` is ahead of the field here, not catching up.
+* **The RT world's recipe is uniform**: `mlockall(MCL_CURRENT|MCL_FUTURE)` +
+  "don't return memory" + "don't grow" (ROS 2's real-time tutorial and the
+  `pendulum_control` demo; the PREEMPT_RT / cyclictest community does the same).
+  It is established as *application* practice, not an allocator feature.
+* THP splits the field: jemalloc offers `never` because a 2 MiB huge page held
+  by one small live allocation bloats RSS; tcmalloc went the other way and
+  manages hugepages deliberately for TLB. **For realtime, jemalloc's side is
+  the right one** — khugepaged/compaction can stall an unrelated fault.
+
+#### (b) Pool-scoped page pinning — **DONE**
+
+`kame_pool_mlock_regions()` / `kame_pool_munlock_regions()` walk the per-NUMA
+region lists and `mlock` / `VirtualLock` each 32 MiB region, returning the byte
+count actually pinned (a short return = `RLIMIT_MEMLOCK` / working-set quota
+reached partway, reported rather than fatal).
+
+This is the one place the pool can beat established practice rather than match
+it: `mlockall(MCL_FUTURE)` is the only tool an application otherwise has, and it
+pins **every future mapping by every thread**, so one background worker's large
+buffer blows the RSS budget. We keep a ledger of our own regions, so we can pin
+exactly the pool.
+
+Verified: 5 regions → 167,772,160 bytes pinned, exactly equal to
+`reserved_bytes`; `maxrss` moved 3.4 MB → 165.8 MB, i.e. `mlock` genuinely
+**populated** the range (so it subsumes `prefault` for the regions it covers),
+and `munlock` returned the same count. Covered by
+`alloc_rt_thread_test` sub-test (2d), written to tolerate a low quota — CI
+containers often cap `RLIMIT_MEMLOCK` at a few MiB — asserting consistency
+rather than success.
+
+#### (a) `MADV_NOHUGEPAGE` — still open
+
+We have the *pro*-THP knob (`KAME_POOL_HUGEPAGE=1` → `MADV_HUGEPAGE`) and not
+the anti-THP one, which is asymmetric for a library that now claims realtime
+support. What is missing: `madvise(MADV_NOHUGEPAGE)` over the slot range of each
+region, ideally default-on once a thread is marked realtime (or at least
+available as a knob). Linux-only — macOS has no THP. Cost is TLB pressure on
+large working sets, which is exactly why it must not be unconditional.
+
+#### (c) The application's half of the checklist — documented, not code
+
+Written into the README contract's exclusions: the realtime thread's **stack**
+must be pre-faulted (touch a worst-case local array, or recurse), **code pages**
+are demand-paged from the binary on first execution — a *major* fault, possibly
+disk I/O — so the loop body should be warmed once before going live, and
+memory owned by other libraries (Qt, libc, the driver stack) is outside our
+ledger entirely. Stated as scope honesty: `mlock_regions()` covers pool memory,
+and pool memory only.
 
 ### G7 — WCET tail harness — **DONE** (`tests/bench/bench_rt_wcet.cpp`)
 
@@ -385,14 +443,12 @@ G7 (the tail harness) followed, and its numbers are in that section.
 **Remaining:**
 
 ```
-G4 + G10 (CAS-retry bound statement + the RT contract in the
-          README — now writable against G7's measured numbers,
-          with G5(c) as an explicit precondition)
+G6(a)  MADV_NOHUGEPAGE for the arena (Linux; we have only the
+       pro-THP knob today, which is asymmetric for a library
+       that now claims realtime support)
   →  G9's owed manifesting regression test, on Linux
-  →  G6 as the target platform demands (THP / MADV_NOHUGEPAGE,
-          mlockall guidance)
 ```
 
-The mechanisms are in place and measured on both the same-thread and
-cross-thread paths.  What remains is the write-ups, which now rest on numbers
-rather than on the design argument alone.
+Everything else is done and measured on both the same-thread and cross-thread
+paths, with the claims and their exclusions written down (G4, G10).  Both
+remaining items are Linux-side work and want a Linux host to verify on.

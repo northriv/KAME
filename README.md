@@ -657,6 +657,7 @@ See the header for full per-function semantics.
 | `int    kame_pool_get_realtime_thread(void)` | — | current thread's flag |
 | `int    kame_pool_prewarm(const size_t*, const unsigned*, unsigned)` | — | allocate + **page-touch** + free the given size classes, per realtime thread |
 | `unsigned kame_pool_reserve_regions(unsigned n, int prefault)` | — | create `n` 32-MiB regions up front (permanent — regions never unmap) |
+| `size_t kame_pool_mlock_regions(void)` / `munlock` | — | pin **only the pool's** regions into RAM (`mlock`/`VirtualLock`); also populates them.  Surgical where `mlockall(MCL_FUTURE)` is blunt |
 | `void   kame_pool_rt_drain(void)` | — | perform all deferred reclaim (the `mi_collect` / `malloc_trim` analogue). **Never call inside the critical section** |
 | `void   kame_pool_set_rt_os_policy(int)` | `KAME_RT_OS_ALLOW` | `ALLOW` / `COUNT` / `FAIL` (refuse → degrade to libc) / `ABORT` (report + abort) |
 | `void   kame_pool_set_rt_pending_cap(size_t)` | 1 GiB | ceiling on VA parked by deferred unmaps; past it a realtime free releases inline |
@@ -723,10 +724,25 @@ without its assumptions written down is not a claim.
 * **The cold chunk-claim path calls `orphan_chain_scrub()`**, which walks the
   orphan chain and restarts on CAS loss — unbounded. Precondition 2/4 keep it
   unreachable; `KAME_RT_OS_FAIL` refuses that path outright.
-* **Page-fault class is the OS's, not ours**: transparent hugepages
-  (khugepaged/compaction), first-touch faults on anything prewarm missed, and
-  `MADV_FREE`'d pages refaulting. Consider `mlockall` and
-  `MADV_NOHUGEPAGE` for the arena on Linux.
+* **Page-fault class is only partly ours.** `kame_pool_mlock_regions()` pins
+  (and populates) the pool's own regions, which is the part we can see — and it
+  is deliberately narrower than `mlockall(MCL_CURRENT|MCL_FUTURE)`, which would
+  also pin every future mapping made by every non-realtime thread. Everything
+  else is still the application's checklist, and skipping it will produce
+  faults this contract cannot prevent:
+    * the realtime **thread's stack** (pre-fault it once — touch a large local
+      array, or recurse to your worst-case depth);
+    * **code pages**, which are demand-paged from the binary on first execution
+      — a *major* fault, potentially disk I/O; warm the loop body once before
+      going live;
+    * memory owned by **other libraries** (Qt, libc buffers, the driver stack).
+  On Linux, transparent hugepages remain a hazard we do not yet gate: a
+  first touch inside a 2 MiB-aligned range can make the kernel allocate and
+  zero a whole huge page, and khugepaged may run compaction that stalls an
+  unrelated fault. `MADV_NOHUGEPAGE` support for the arena is not implemented
+  (`design/RT_READINESS.md` §G6); today the mitigation is the system-wide
+  `transparent_hugepage=madvise` setting, since our own `MADV_HUGEPAGE` is
+  opt-in (`KAME_POOL_HUGEPAGE=1`) and off by default.
 * **Hard-realtime (avionics/automotive) wants a different design**: a fixed
   arena the allocator never grows (TLSF-style) plus bounded-retry with an
   emergency reserve. That is not a tuning of this allocator.

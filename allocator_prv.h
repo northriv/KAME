@@ -1092,6 +1092,16 @@ public:
 	//! were created (< n on region cap / mmap refusal).
 	static unsigned reserve_regions(unsigned n, bool prefault) noexcept;
 
+	//! (§75 / G6) Pin every currently-mapped pool region into RAM
+	//! (`mlock` / `VirtualLock`), or release the pins (`lock == false`).
+	//! Walks the per-NUMA region lists — which is why this can be *surgical*
+	//! where `mlockall(MCL_FUTURE)` cannot: it pins the pool's own memory and
+	//! nothing else.  Returns the byte count actually (un)locked; a short
+	//! return means `RLIMIT_MEMLOCK` was hit partway, which is reported rather
+	//! than treated as fatal.  Only regions existing at call time are covered,
+	//! so call it AFTER `prewarm` / `reserve_regions`.
+	static std::size_t mlock_regions(bool lock) noexcept;
+
 	//! Cache-line-isolated hot block for the deallocate owner-free fast
 	//! path (follow-up "(1b)", tests/CHUNK_CLAIM_TLA_NOTES.md §12.3).  All
 	//! members are write-once at `allocate_chunk` and immutable for the
