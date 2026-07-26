@@ -24,7 +24,23 @@ of that snapshot; prefer the §-tags when they drift.
 | **Chunks park warm on release** | §34 `bucket_release_chunk` parks a fully-freed bucket chunk for re-claim instead of unmapping — re-acquire is a bitmap CAS, not an mmap. |
 | **Pre-warm idiom documented** | `contrib/README.md` "When NOT to use these on a hard-real-time path" + `contrib/ros2_allocator.hpp`: TLSF-style allocate+free of the working-set sizes before entering the RT loop. |
 | **Memory cap API** | `kame_pool_set_memory_cap` (`allocator.h:168`) — refuses fresh regions past the cap (upper bound, not a pre-reserve). |
+| **Single pool-region mmap + bitmap-claim site** (§74, done — `c04a7975d`) | `allocate_chunk<ALLOC>()` is LRC-pop → `claim_chunk` → header-stamp only; `mmap_new_region()` has exactly one caller, `claim_chunk` (`allocator.cpp:3957`). Both the bucket templates and the dedicated large path share it. |
 | **Protocol correctness machine-checked** | chunk-claim / recycle / orphan-chain protocols TLA+ + GenMC (RC11) verified (see `tests/`); this doc is about *latency bounds*, not correctness. |
+
+### 1.1 The RT audit surface: every mapping site
+
+Because of §74 the whole allocator has only four places that can enter the
+kernel for memory, which is what makes the G1–G3 gating tractable:
+
+| Site | Tier | Reached from | RT status |
+|---|---|---|---|
+| `mmap_new_region()` (`:6360`) ← `claim_chunk` (`:3957`) | pool regions (32 MiB) | cold chunk claim (bucket + dedicated) | unbounded by nature → must be pushed out of the RT section by prewarm (G2) / pre-reserve (G3) |
+| `radix_alloc_l2()` (`:6277`) | radix L2 leaf (8 KiB) | first insert into an uncovered VA band | same — prewarm must touch the radix path (G2.1) |
+| `large_va_raw_map()` (`:6507`) ← §19 large tier (`:7258`) | > dedicated, ≤ 32 MiB | large alloc missing the LRC | LRC hit avoids it; free-side `munmap` is G1 |
+| `lrc_auto_tune_lazy_interval()` (`:6936`) | one-shot probe | first LRC_MMAP push | **already gated** by §30 (`g_lazy_auto_tune_done`) |
+
+Plus the page-reclaim syscalls (`madvise`) in `deallocate_chunk` (`:3264/:3273`)
+— the G1 hole.
 
 ## 2. Gaps (the remaining work), prioritized
 
@@ -117,12 +133,15 @@ latency harness: RT-priority thread + N interferer threads, per size
 band, RT mode on, prewarmed — reporting **max and p99.9999**, not means;
 plus the G2 violation counters asserted zero.  CI-able smoke variant.
 
-### G8 — prerequisite refactor: §74 single mmap+radix site
+### G8 — §74 single mmap+radix site — **DONE, no work remaining**
 
-Task #74 (de-dup `allocate_chunk` via `claim_chunk`,
-`allocator_prv.h:1031`) is still pending.  Doing it first leaves **one**
-audited mmap site, which G1–G3 then gate — materially simplifies both
-the implementation and the argument.
+Already landed in `c04a7975d`: `allocate_chunk<ALLOC>()` no longer carries
+its own region walk / mmap / bitmap-CAS — it is LRC-pop → `claim_chunk`
+→ header-stamp, and `mmap_new_region()` has exactly one caller
+(`claim_chunk`, `allocator.cpp:3957`).  The `(§74) The SINGLE region-walk
++ mmap + bitmap-claim site` note at `allocator_prv.h:1031` is a statement
+of the achieved state, not a TODO.  See §1.1 for the resulting four-site
+audit surface — G1–G3 gate those directly, with no refactor first.
 
 ### G9 — close the teardown L1-stranding OPEN first
 
@@ -142,7 +161,8 @@ counters.
 ## 3. Suggested order
 
 ```
-G8 (§74 single-site refactor)  →  G9 (teardown OPEN)
+(G8 already done — §74)
+G9 (teardown L1-stranding OPEN)
   →  G1 (RT-gate free-path reclaim, + rt_drain)
   →  G2 (prewarm API + violation counters)
   →  G5 (per-op inherited-work cap)
@@ -151,7 +171,8 @@ G8 (§74 single-site refactor)  →  G9 (teardown OPEN)
   →  G3 / G6 as the target platform demands
 ```
 
-Rationale: G8/G9 shrink the surface; G1/G2 remove the actual syscalls
-and make violations observable; G5 bounds the amortized-to-worst-case
-conversion; G7 provides the numbers; only then are the G4/G10 claims
-worth writing down.
+Rationale: the mapping surface is already minimal (§1.1), so G9 just
+clears the one known OPEN in the drain machinery G1/G5 will touch; G1/G2
+remove the actual syscalls and make violations observable; G5 bounds the
+amortized-to-worst-case conversion; G7 provides the numbers; only then
+are the G4/G10 claims worth writing down.
