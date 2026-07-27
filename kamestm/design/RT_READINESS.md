@@ -916,3 +916,53 @@ against B=4's 2,560, the deep tail nobody currently observes, and KAME's
 deadlines are instrument I/O at millisecond scale. B=4 earns its place in a
 deployment that has a realtime thread on its own core — where, per the previous
 section, its throughput cost also nearly vanishes.
+
+## (D) "The oldest returns and tags" — principled, and the tightest bound yet
+
+Two objections to B, both correct: **4 is not a meaningful number**, and the
+tail does not cap at ~1 ms the way a return rule should. The second has a clean
+explanation — B fires at most *once*. Its condition is
+`m_tagged_linkages.empty()`, so the first failed attempt tags the transaction
+and B never applies again; escalation resumes. B is a one-shot escape, not a
+ceiling.
+
+The principled replacement is the design's own rule: **the oldest contender
+returns and tags.** No constant, no timeout — `signed_diff_us_packed(cur, mine)
+> 0` is the same oldest-wins comparison `tag_as_contender` already uses. A
+sleeper READS the linkage stamp first and acts only if it would win, so the
+shared word sees many readers and few writers — the distinction from tagging
+unconditionally before every sleep, which made 128 writers and cost 97 %.
+
+    metric            base          B=4            D
+    p99.999        67–84 ms      12.6 ms        8.4 ms
+    MAX           254–290 ms    63–66 ms     12.5–14.6 ms
+    throughput 4t       —         −1.3 %       neutral
+    throughput 128t     —         −3 %          −66 %
+
+**MAX collapses 290 → 14 ms, a factor of 20** — the first result in this whole
+sequence that looks like a bound rather than a smaller number. And at four
+threads, at or under the core count, it is free.
+
+The −66 % at 128 threads is where the "one writer" reasoning breaks: as the
+starved transactions age, *many* of them are older than a recently-placed young
+tag, so many write and many return; and every time a tag clears, the whole
+population sees an empty slot at once. It is a storm again, just a
+demographically-driven one.
+
+p99.9 is also unstable under D (14 µs and 2.6 ms in consecutive repeats), which
+wants explaining before D could be a default anywhere.
+
+### What this means
+
+D and B are for different deployments, and the split is the same one the
+allocator's contract landed on:
+
+* **oversubscribed, throughput-first** (KAME today, 128 threads on 8 cores):
+  neither — base is best, and nobody observes the deep tail.
+* **cores to spare, latency-first** (the PREEMPT_RT recipe: realtime thread on
+  its own core): **D**, free at that thread count and with a 14 ms worst case
+  against base's 290 ms.
+
+Which also answers the earlier question about B's throughput cost being a
+scheduling cost: so is D's, only more so. Both knobs are cheap exactly where
+their benefit is wanted, and expensive exactly where it is not.

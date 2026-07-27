@@ -2105,6 +2105,32 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
            && !_fair_blocks)
             break;
 #endif
+#if KAME_STM_OLDEST_RETURNS
+        // (D) If we are the oldest contender on this linkage, register that
+        // fact and go try.  Read first: `signed_diff_us_packed(cur, mine) > 0`
+        // means the current tagger is younger, i.e. we would win the same
+        // oldest-wins comparison `tag_as_contender` applies — so only the
+        // oldest writes, and everyone else has done a shared load and nothing
+        // more.  A younger sleeper keeps sleeping, which is the correct answer
+        // for it.
+        if( !_fair_blocks) {
+            const auto _cur = self->m_transaction_started_time.load(
+                                  std::memory_order_relaxed);
+            if(_cur == 0 ||
+               NegotiationCounter::signed_diff_us_packed(_cur, started_time) > 0) {
+                snap.tag_as_contender(m_link);
+                break;
+            }
+        }
+#endif
+#if KAME_STM_RETURN_CEILING_MS
+        // (C) A ceiling, not a one-shot escape: applies whether or not we hold
+        // a tag, so the negotiator cannot hold a transaction past it.  Still
+        // yields to a privilege holder — that is the one case where continuing
+        // to wait is the correct answer.
+        if(ms >= KAME_STM_RETURN_CEILING_MS && !_fair_blocks)
+            break;
+#endif
     }
 _exit_cv_sleep:;
   } // end adaptive-path scope

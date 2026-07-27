@@ -355,6 +355,28 @@
 #define KAME_STM_UNTAGGED_RETURN_MS 0
 #endif
 
+//! (C) Hand control back once the accumulated sleep budget reaches this many
+//! ms, REGARDLESS of tag state — i.e. an actual ceiling on how long the
+//! negotiator may hold a transaction before letting it try.  Unlike (B), whose
+//! `empty()` condition stops applying the moment a failed attempt tags the Tx
+//! (so it grants one early return and then escalation resumes), this is a
+//! bound, and the number has units: the latency you are willing to accept
+//! before spending an attempt.  0 disables.
+#ifndef KAME_STM_RETURN_CEILING_MS
+#define KAME_STM_RETURN_CEILING_MS 0
+#endif
+
+//! (D) The OLDEST sleeper returns and tags.  Not an arbitrary timeout: it is
+//! the design's own oldest-wins rule, applied to the population it was missing.
+//! A sleeper first READS the linkage stamp and only acts when it would win the
+//! oldest-wins comparison, so the shared word takes 128 readers and at most one
+//! writer — the distinction from tagging unconditionally before every sleep,
+//! which turned it into 128 writers and cost 97 %.  Self-limiting: exactly one
+//! transaction per linkage returns, so there is no return storm either.
+#ifndef KAME_STM_OLDEST_RETURNS
+#define KAME_STM_OLDEST_RETURNS 0
+#endif
+
 #ifndef KAME_STM_NEG_DIAG
 #define KAME_STM_NEG_DIAG 0
 #endif
