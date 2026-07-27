@@ -660,6 +660,7 @@ See the header for full per-function semantics.
 | `size_t kame_pool_mlock_regions(void)` / `munlock` | — | pin **only the pool's** regions into RAM (`mlock`/`VirtualLock`); also populates them.  Surgical where `mlockall(MCL_FUTURE)` is blunt |
 | `void   kame_pool_rt_drain(void)` | — | perform all deferred reclaim (the `mi_collect` / `malloc_trim` analogue). **Never call inside the critical section** |
 | `void   kame_pool_set_rt_os_policy(int)` | `KAME_RT_OS_ALLOW` | `ALLOW` / `COUNT` / `FAIL` (refuse → degrade to libc) / `ABORT` (report + abort) |
+| `size_t kame_pool_set_thp_policy(int)` / `get` | `KAME_THP_SYSTEM` | Linux transparent hugepages for pool memory: `SYSTEM` / `ALWAYS` (`MADV_HUGEPAGE`) / `NEVER` (`MADV_NOHUGEPAGE`).  Covers the 32 MiB regions *and* the large-VA tier, and re-advises regions already mapped (returns the bytes it reached).  Set it **before** prewarm; **not** implied by realtime mode — see the contract below |
 | `void   kame_pool_set_rt_pending_cap(size_t)` | 1 GiB | ceiling on VA parked by deferred unmaps; past it a realtime free releases inline |
 | `unsigned long long kame_pool_rt_violations(void)` | — | times a realtime thread entered the kernel for a **new mapping** |
 | `unsigned long long kame_pool_rt_forced_releases(void)` | — | times the pending cap forced an inline release |
@@ -736,13 +737,21 @@ without its assumptions written down is not a claim.
       — a *major* fault, potentially disk I/O; warm the loop body once before
       going live;
     * memory owned by **other libraries** (Qt, libc buffers, the driver stack).
-  On Linux, transparent hugepages remain a hazard we do not yet gate: a
-  first touch inside a 2 MiB-aligned range can make the kernel allocate and
-  zero a whole huge page, and khugepaged may run compaction that stalls an
-  unrelated fault. `MADV_NOHUGEPAGE` support for the arena is not implemented
-  (`design/RT_READINESS.md` §G6); today the mitigation is the system-wide
-  `transparent_hugepage=madvise` setting, since our own `MADV_HUGEPAGE` is
-  opt-in (`KAME_POOL_HUGEPAGE=1`) and off by default.
+  On Linux, transparent hugepages are a hazard you must opt out of
+  **explicitly**: a first touch inside a 2 MiB-aligned range can make the
+  kernel allocate and zero a whole huge page, and khugepaged may run
+  compaction that stalls an unrelated fault. `kame_pool_set_thp_policy(
+  KAME_THP_NEVER)` gates it for the pool's own memory — regions *and* the
+  large-VA tier, including regions already mapped. It is **not** implied by
+  `kame_pool_set_realtime_mode(1)`, because it is a real trade rather than a
+  free win: measured, it cuts the cold first-touch tail from 459 µs to 41 µs
+  at p99.9 (and from tens of ms to 224 µs at the max), while costing up to
+  **+58 %** on a TLB-bound 512 MiB random-access working set. Two ordering
+  rules: set it **before** prewarm (it prevents future hugepage faults and
+  khugepaged collapses, but does not split hugepages that already exist), and
+  note that returning to `KAME_THP_SYSTEM` cannot un-advise a region — Linux
+  has no "clear" advice. Numbers and method in `design/RT_READINESS.md`
+  §G6(a).
 * **Hard-realtime (avionics/automotive) wants a different design**: a fixed
   arena the allocator never grows (TLSF-style) plus bounded-retry with an
   emergency reserve. That is not a tuning of this allocator.
@@ -931,10 +940,13 @@ host's core count).
   allocations) are mmap'd push-only — once warmed up there is no munmap on
   them.  The munmap cost is paid only by the §19/§27 large-tier path on cache
   miss/eviction.
-- `madvise(MADV_HUGEPAGE)` is NOT currently requested.  If THP is enabled on
-  the system, the kernel may transparently coalesce 2 MiB huge pages anyway;
-  explicit `MADV_HUGEPAGE` could reduce page-table footprint and TLB-shootdown
-  cost.  Not yet measured.
+- Transparent hugepages are neither requested nor refused by default: if THP
+  is enabled system-wide the kernel coalesces pool memory into 2 MiB pages on
+  its own.  `kame_pool_set_thp_policy()` takes either side explicitly —
+  `KAME_THP_ALWAYS` for TLB reach (measured worth up to **+58 %** on a
+  512 MiB random-access working set), `KAME_THP_NEVER` for a bounded
+  first-touch fault.  See "The realtime contract" above and
+  `design/RT_READINESS.md` §G6(a) for the full trade.
 
 ## License
 

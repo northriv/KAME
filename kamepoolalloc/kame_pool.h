@@ -273,6 +273,48 @@ enum {
 void   kame_pool_set_rt_os_policy(int policy) KAMEPOOLALLOC_NOEXCEPT;
 int    kame_pool_get_rt_os_policy(void) KAMEPOOLALLOC_NOEXCEPT;
 
+/* (G6a) Transparent-hugepage policy for the pool's own 32 MiB regions. */
+enum {
+    KAME_THP_SYSTEM = 0,  /* leave it to the kernel (default)         */
+    KAME_THP_ALWAYS = 1,  /* MADV_HUGEPAGE  — throughput / TLB        */
+    KAME_THP_NEVER  = 2   /* MADV_NOHUGEPAGE — realtime               */
+};
+/*
+ * Why the anti-THP direction is a realtime knob, and why it is separate
+ * from kame_pool_set_realtime_mode():
+ *
+ *   1. Under /sys/kernel/mm/transparent_hugepage/enabled = always, a first
+ *      touch anywhere in a 2 MiB-aligned range can make the kernel allocate
+ *      AND ZERO a whole 2 MiB page instead of 4 KiB — one fault costing
+ *      orders of magnitude more than the 4 KiB one it replaced.
+ *   2. khugepaged may run memory COMPACTION to find a contiguous 2 MiB
+ *      block, stalling an unrelated thread's fault for milliseconds.
+ *   3. Prewarming does not protect you: khugepaged can collapse the range
+ *      afterwards, and the collapse itself takes the page-table lock.
+ *
+ * jemalloc ships opt.thp=never for essentially these reasons; tcmalloc went
+ * the other way and manages hugepages deliberately (Temeraire, OSDI'21).
+ * For realtime, jemalloc's side is the right one — but it is a TRADE, not a
+ * free win: NEVER costs TLB reach on large working sets, so it is opt-in and
+ * kame_pool_set_realtime_mode(1) does NOT imply it.  Ask for it explicitly
+ * when your deadline matters more than your throughput.
+ *
+ * Regions are created LAZILY, so this call does two things: it sets the
+ * policy for regions claimed later, AND re-advises every region already
+ * mapped.  It returns the bytes re-advised on existing regions — 0 is
+ * expected before the first allocation, and is also what you get for
+ * KAME_THP_SYSTEM (Linux has no "clear" advice: MADV_HUGEPAGE and
+ * MADV_NOHUGEPAGE each clear the other's flag, but neither restores the
+ * neutral state on a region that was already advised — new regions do get
+ * the neutral treatment).  Non-Linux: no-op returning 0.
+ *
+ * Env `KAME_POOL_HUGEPAGE=1` / `KAME_POOL_NOHUGEPAGE=1` set the initial
+ * value, for LD_PRELOAD / DYLD_INSERT_LIBRARIES use where there is no call
+ * site; an explicit call always wins over the environment.
+ */
+size_t kame_pool_set_thp_policy(int policy) KAMEPOOLALLOC_NOEXCEPT;
+int    kame_pool_get_thp_policy(void) KAMEPOOLALLOC_NOEXCEPT;
+
 /*
  * Violation counter: times a realtime thread actually entered the kernel
  * for a NEW mapping.  This is the number a realtime test asserts stays
@@ -463,9 +505,11 @@ void kame_pool_get_stats(kame_pool_stats_t *out) KAMEPOOLALLOC_NOEXCEPT;
  * a counter comparison, so it costs nothing inside the section itself:
  *
  *     kame_pool_set_realtime_mode(1);                 // once, startup
+ *     kame_pool_set_thp_policy(KAME_THP_NEVER);       // BEFORE prewarm
  *     const size_t  sz[] = { 64, 4096, 1u << 20 };
  *     const unsigned ct[] = { 4096, 256, 8 };
  *     kame_pool_prewarm(sz, ct, 3);                   // per RT thread
+ *     kame_pool_mlock_regions();                      // after prewarm
  *     for(;;) {
  *         {
  *             kame::rt_section rt;                    // critical section

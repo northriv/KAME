@@ -269,14 +269,14 @@ class (b) at all. The bound there rests on code reading, not on a measured
 tail. A cross-thread arm (thread A allocates, thread B frees) is the obvious
 next addition to the harness.
 
-### G6 — page-fault class — **(b) DONE; (a)/(c) remain**
+### G6 — page-fault class — **DONE** ((a), (b) code; (c) documented)
 
 How the field handles this, since it is the one area where every allocator has
 had to take a position:
 
 | Concern | glibc | jemalloc | mimalloc | tcmalloc | TLSF / RT practice | kamepoolalloc |
 |---|---|---|---|---|---|---|
-| **THP** | `glibc.malloc.hugetlb` tunable | `opt.thp = always/auto/never`, `metadata_thp` — explicitly *disableable* | `allow_large_os_pages` (opt-in), `reserve_huge_os_pages_N` | hugepage-aware **by design** (Temeraire, OSDI'21) — manages huge granularity itself rather than leaving it to khugepaged | n/a (fixed arena) | `MADV_HUGEPAGE` opt-in only → **gap (a)** |
+| **THP** | `glibc.malloc.hugetlb` tunable | `opt.thp = always/auto/never`, `metadata_thp` — explicitly *disableable* | `allow_large_os_pages` (opt-in), `reserve_huge_os_pages_N` | hugepage-aware **by design** (Temeraire, OSDI'21) — manages huge granularity itself rather than leaving it to khugepaged | n/a (fixed arena) | **`kame_pool_set_thp_policy()` — `SYSTEM`/`ALWAYS`/`NEVER`, and re-advises regions already mapped** |
 | **Don't return pages** | `M_TRIM_THRESHOLD`, `M_MMAP_MAX=0` | `dirty_decay_ms:-1`, `muzzy_decay_ms:-1`, `retain` | `purge_delay=-1` | release-rate knobs | n/a | §30 + §75 per-thread gate |
 | **Explicit purge** | `malloc_trim()` | `arena.N.purge` | `mi_collect()` | `ReleaseMemoryToSystem` | n/a | `rt_drain()` |
 | **Prefault / pre-commit** | application | **no API** (application) | `reserve_os_memory(commit=true)`, `eager_commit` | prealloc paths | application touches its arena | **`prewarm()` page-touches per size class; `reserve_regions(prefault)`** |
@@ -318,14 +318,122 @@ and `munlock` returned the same count. Covered by
 containers often cap `RLIMIT_MEMLOCK` at a few MiB — asserting consistency
 rather than success.
 
-#### (a) `MADV_NOHUGEPAGE` — still open
+#### (a) `MADV_NOHUGEPAGE` — **DONE**, opt-in, measured
 
-We have the *pro*-THP knob (`KAME_POOL_HUGEPAGE=1` → `MADV_HUGEPAGE`) and not
-the anti-THP one, which is asymmetric for a library that now claims realtime
-support. What is missing: `madvise(MADV_NOHUGEPAGE)` over the slot range of each
-region, ideally default-on once a thread is marked realtime (or at least
-available as a knob). Linux-only — macOS has no THP. Cost is TLB pressure on
-large working sets, which is exactly why it must not be unconditional.
+`kame_pool_set_thp_policy(int)` / `kame_pool_get_thp_policy(void)`, with
+`KAME_THP_SYSTEM` (0, default) / `KAME_THP_ALWAYS` (1) / `KAME_THP_NEVER` (2).
+This replaces the old env-only `KAME_POOL_HUGEPAGE` read; that variable, plus
+a new `KAME_POOL_NOHUGEPAGE`, now merely seeds the initial value for
+`LD_PRELOAD` use, and an explicit call always wins.
+
+Three things were needed beyond the two-line mirror of the `MADV_HUGEPAGE`
+block:
+
+* **Regions are created lazily**, so a policy set after the first allocation
+  would miss everything already mapped. `PoolAllocatorBase::thp_advise_regions()`
+  walks the per-NUMA region lists (the same walk as `mlock_regions()`) and
+  re-advises; `set_thp_policy` returns the bytes it covered, so the caller can
+  see the walk reached something. Measured: with 6 regions reserved but
+  untouched and the policy set afterwards, `AnonHugePages` over those regions
+  is **202,752 kB (100 % of Rss) by default vs 0 kB under `NEVER`** — the walk
+  is doing the work, not the per-claim advise.
+* **The large-VA tier needed it more than the regions did.** `mmap_new_region`
+  was the only site the handoff note identified, but blocks above `LRC_HI` are
+  a *fresh 32 MiB-aligned mmap on every allocation* and are the coldest, largest
+  memory the pool hands out. Advising only regions left every one of those spans
+  faulting as a hugepage; `large_va_raw_map` now carries the same policy. This
+  was caught by measurement, not review — see the fault numbers below.
+* **`KAME_THP_SYSTEM` cannot be re-applied to an already-advised region.**
+  Linux has no "clear" advice: `MADV_HUGEPAGE` and `MADV_NOHUGEPAGE` each clear
+  the other's VMA flag, neither restores the neutral state. Policy 0 therefore
+  returns 0 from the walk and applies to new regions only. Documented rather
+  than papered over.
+
+Also worth stating, because it changes the recommended call order: **`NEVER`
+does not split hugepages that already exist.** It prevents future hugepage
+faults and future khugepaged collapses. So set the policy *before* prewarm,
+not after — `set_thp_policy(NEVER)` → `prewarm` → `mlock_regions`. Pages
+already huge are already resident, so they are an RSS and TLB fact rather than
+a latency one, but the RSS is not small: THP inflated the same working set
+from 152,868 kB to 202,752 kB (+33 %) in the measurement above.
+
+##### Measured: what it buys and what it costs
+
+Host: 4 vCPU Intel Xeon @ 2.80 GHz (KVM guest, avx512, 16 GiB), Ubuntu 24.04,
+glibc 2.39, kernel 6.18.5, GCC 13.3, Release,
+`transparent_hugepage/enabled = always`, `defrag = madvise`. A noisy shared
+VM: every figure is a **median of 9 interleaved cross-process repetitions**
+(the arms cannot be interleaved *within* a process, since `NEVER` does not
+split existing hugepages).
+
+**The tail** — `bench_rt_wcet --faults`, a new mode added for this: one timed
+write per 4 KiB page across freshly-mapped `> LRC_HI` memory, 196,608 samples
+per run.
+
+| policy | mean | p50 | p99 | p99.9 | p99.99 | MAX |
+|---|---:|---:|---:|---:|---:|---:|
+| `SYSTEM` (default) | 2,580 ns | 27 ns | 320 ns | 459 µs | 918 µs | 32.8 ms |
+| `ALWAYS` | 1,268 ns | 27 ns | 384 ns | 524 µs | 918 µs | 19.9 ms |
+| **`NEVER`** | 2,352 ns | **2,048 ns** | **6,144 ns** | **41 µs** | **98 µs** | **224 µs** |
+
+Read it as a redistribution, not a win: under THP 511 of every 512 page
+touches are free and the 512th zeroes 2 MiB; under `NEVER` every page pays its
+own ~2 µs fault. The **mean is a wash** (2,580 vs 2,352 ns), the p50 gets 95×
+*worse*, and the deep tail gets **11× better at p99.9, 9× at p99.99, and two
+orders of magnitude at the max**. That is exactly the trade a realtime caller
+wants and a throughput caller does not. The count of samples above 8 µs makes
+the mechanism visible: 24 rounds × 16 hugepage spans ≈ 400 such samples under
+THP, matching the 2 MiB span count almost exactly.
+
+**The throughput cost** — the allocator does not care; the application does.
+
+| bench | default | `NEVER` | |
+|---|---:|---:|---|
+| `bench_loop_pool` 64 B / 4 KiB / 64 KiB (M ops/s) | 272 / 151 / 74 | 271 / 162 / 75 | **neutral** (0.99×–1.07×) |
+| `bench_tlb` 32 MiB working set (ns/hop) | 111.9 | 128.0 | +14 % |
+| `bench_tlb` 128 MiB | 115.3 | 151.8 | +32 % |
+| `bench_tlb` 512 MiB | 128.9 | 203.3 | **+58 %** |
+
+`bench_tlb` (new, `tests/bench/bench_tlb.c`) is a dependent random pointer
+chase over a pool-allocated working set — deliberately the *worst* case for
+TLB reach, with no memory-level parallelism to hide a page walk behind. Real
+workloads sit between it and zero. The existing benches could not see this at
+all: `bench_loop` keeps one block live, and `bench_rt_wcet` measures the
+allocator rather than the application's access to what it allocated.
+
+##### Should `set_realtime_mode(1)` imply policy 2? — **No**
+
+Decided after measuring, and the measurement supports the prior. A knob
+documented as "silences background maintenance" that also slowed a 512 MiB
+working set by 58 % would be a genuinely surprising side effect, and the win it
+buys (a bounded first-touch fault) is only reachable by callers who also
+prewarm and pin — i.e. callers who are already reading this section and can
+make the call themselves. It stays opt-in, one explicit line in the realtime
+recipe.
+
+##### Test
+
+`alloc_rt_thread_test` sub-test (2e): API round-trip, out-of-range rejection,
+the re-advise walk covering whole regions, and — on a fresh `> LRC_HI` block —
+`AnonHugePages` held at 0 under `NEVER`. It establishes a **baseline first**
+and skips the behavioural half if the host backs no transparent hugepages at
+all, so it cannot pass for the wrong reason. Negative control run the same way
+as G9's: with the `large_va_raw_map` advise disabled the sub-test FAILS
+(10,240 kB instead of 0), so it has teeth.
+
+Note for anyone re-running this in a container: many sandboxes set
+`PR_SET_THP_DISABLE` on the whole process tree, which makes every VMA report
+`THPeligible: 0` no matter what `/sys/kernel/mm/transparent_hugepage/enabled`
+says. Check `THP_enabled:` in `/proc/self/status`; if it is 0, clear it with
+`prctl(PR_SET_THP_DISABLE, 0)` in a wrapper that then `exec`s the benchmark
+(the flag is in `MMF_INIT_MASK`, so the cleared state survives `exec`).
+Otherwise the (2e) skip and every `NEVER` measurement are vacuous.
+
+Incidentally, `PR_SET_THP_DISABLE` is the third way to get anti-THP, and the
+reason it is not what we do: it is process-wide, so it would disable
+hugepages for the application's own non-pool memory too — the same
+blunt-instrument problem `mlockall(MCL_FUTURE)` has versus `mlock_regions()`
+in (b).
 
 #### (c) The application's half of the checklist — documented, not code
 
@@ -395,7 +503,8 @@ cannot reach in reasonable time — the harness prints only the percentiles its
 sample count supports, so no reported figure is an artefact of a single
 outlier. The small bands do reach p99.99+ under `--full`.
 
-Still owed here: G9's manifesting regression test, on Linux (see G9).
+G9's negative control, which this section previously flagged as owed, has
+now been run on Linux — see G9.
 
 ### G8 — §74 single mmap+radix site — **DONE, no work remaining**
 
@@ -407,7 +516,7 @@ its own region walk / mmap / bitmap-CAS — it is LRC-pop → `claim_chunk`
 of the achieved state, not a TODO.  See §1.1 for the resulting four-site
 audit surface — G1–G3 gate those directly, with no refactor first.
 
-### G9 — teardown L1-stranding — **fix and test both DONE; only a Linux negative control is owed**
+### G9 — teardown L1-stranding — **DONE, negative control passed on Linux**
 
 Fix landed in `3145e139a`: both L1 entry points gate on
 `kame_thread_torn_down()` — `l1_push` (beside the pre-existing `s_l1_drained`
@@ -425,13 +534,36 @@ exit. The cycle repeats and asserts `chunks_live` / `units_live` plateau instead
 of growing +1/cycle. Built both ways (static + `_dynamic`) and registered in
 ctest, both passing.
 
-**What is actually still owed is a *negative control*, on Linux.** The test
-passes on macOS, but macOS *cannot* trigger the bug (glibc runs C++
-`thread_local` destructors before `pthread_key` destructors; dyld's order does
-not open the window), so a pass there proves nothing about the test's teeth. The
-outstanding question is narrow and answerable: **with the `3145e139a` guard
-reverted, does this test fail on Linux?** If it does not, the test does not
-cover the fix and needs strengthening. See `design/RT_LINUX_HANDOFF.md`.
+**The negative control has now been run on Linux, and the test has teeth.**
+It was owed because macOS *cannot* trigger the bug — glibc runs C++
+`thread_local` destructors before `pthread_key` destructors, which is what
+opens the window, and dyld's order does not — so a pass there proved nothing.
+
+Host: Ubuntu 24.04, glibc 2.39, kernel 6.18.5, x86-64, GCC 13.3, Release.
+
+1. **As-is, both linkages pass** (`alloc_thread_exit_unarmed_test` and
+   `_dynamic`): `units_live` / `chunks_live` plateau at 10 / 6 from cycle 40
+   through cycle 119.
+2. **Guard reverted** — dropping `|| kame_thread_torn_down()` from `l1_push`
+   and nothing else — **both linkages FAIL**, with exactly the predicted
+   signature: `chunks_live` 25 → 125 across 100 measured cycles, i.e. +1
+   chunk per cycle, monotonic, no plateau.
+3. Guard restored; both pass again; full ctest 18/18.
+
+The ordering assumption was confirmed directly rather than assumed: a probe
+registering both a C++ `thread_local` destructor and a `pthread_key`
+destructor on the same thread shows the `thread_local` one running **first**
+on glibc 2.39.
+
+Worth recording, because it is what makes the guard load-bearing rather than
+redundant: instrumenting `l1_push` at the moment the consumer's `pthread_key`
+destructor frees the foreign block shows `s_l1_drained == 0` and
+`kame_thread_torn_down() == 1`. The consumer never armed its L1 (so the
+pre-existing `s_l1_drained` check cannot fire — this is the never-armed case
+`3145e139a` was written for), but its allocator TLS *was* armed, so
+`AllocThreadExitCleanup`'s `thread_local` destructor had already set
+`s_alloc_tls_off`. The `kame_thread_torn_down()` term is therefore the only
+one that closes the window, and the test exercises precisely that.
 
 ### G10 — the RT contract, stated in the README
 
@@ -449,16 +581,18 @@ this audit; G1 + G2 + G3 landed with the §75 realtime work
 
 G7 (the tail harness) followed, and its numbers are in that section.
 
-**Remaining:**
+**Remaining: none.**  The last two items both needed a Linux host and have
+now been done there:
 
 ```
-G6(a)  MADV_NOHUGEPAGE for the arena (Linux only; we ship the
-       pro-THP knob and not the anti-THP one, which is
-       asymmetric now that realtime is claimed)
-G9-nc  Negative control on Linux: revert 3145e139a and confirm
-       alloc_thread_exit_unarmed_test actually FAILS
+G6(a)  DONE — kame_pool_set_thp_policy(), covering the 32 MiB regions AND
+       the large-VA tier, re-advising regions already mapped.  Opt-in;
+       set_realtime_mode(1) deliberately does NOT imply it.  Numbers in G6(a).
+G9-nc  DONE — guard reverted on Linux, alloc_thread_exit_unarmed_test FAILS
+       +1 chunk/cycle exactly as predicted; guard restored, 18/18 green.
 ```
 
-Everything else is done and measured on both the same-thread and cross-thread
-paths, with the claims and their exclusions written down (G4, G10).  Both
-remaining items need a Linux host — handoff in `design/RT_LINUX_HANDOFF.md`.
+Everything is done and measured on both the same-thread and cross-thread
+paths, with the claims and their exclusions written down (G4, G10).  The
+Linux-side working notes, including the container traps worth knowing before
+re-running any of it, are in `design/RT_LINUX_HANDOFF.md`.
