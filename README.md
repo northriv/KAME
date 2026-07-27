@@ -763,7 +763,8 @@ without its assumptions written down is not a claim.
 |---|---:|---:|
 | free, > 256 MiB band — median | **128 ns** | 20,480 ns |
 | free, > 256 MiB band — max | **792 ns** | 677,917 ns |
-| free, 32 B cross-thread — max | **27 µs** | 107 µs |
+| free, 32 B cross-thread — p99.9 | **96 ns** | 1,792 ns |
+| free, 32 B cross-thread — p99.99 | **256 ns** | 10,240 ns |
 
 For every band at or below 256 MiB the two are *statistically identical*: the
 recycle cache already absorbs those releases without a syscall, so the gating is

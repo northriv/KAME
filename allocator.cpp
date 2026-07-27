@@ -677,11 +677,22 @@ struct CrossDeallocBatch {
     static constexpr int CAP = 1024;
     CrossDeallocEntry buf[CAP + 1];   // +1 = sentinel slot
     int               count = 0;
+    //! (§75 / G5) Flush threshold — CAP normally, 1 while this thread is
+    //! marked realtime, so each free settles its own slot instead of one
+    //! free in CAP paying for the whole buffer.
+    //!
+    //! Why a member rather than a `g_rt_thread` test in `deallocate_pooled`:
+    //! that test cost a MEASURED ~4 % of cross-thread 32 B free throughput
+    //! (285.9 -> 271.8 M free/s, base vs branch, 5/5 reps), because on a
+    //! macOS dylib a `thread_local` access goes through the `_tlv_get_addr`
+    //! thunk — a call, on a ~3.5 ns operation.  This field lives in a struct
+    //! `push` already dereferences, so reading it adds no TLS access at all.
+    int               cap = CAP;
 
     //! FS=true path: hold and batch.  Caller passes its own `this`
     //! as `c` (the chunk).
     void push(PoolAllocatorBase *c, void *s) noexcept {
-        if(count == CAP) flush();
+        if(count >= cap) flush();
         buf[count++] = {c, s};
     }
 
@@ -2289,20 +2300,16 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// STM workloads (allocation distribution is heavy-tailed
 	// toward smallest classes).
 	//
-	// (§75 / G5) A realtime thread takes the DIRECT path regardless of ALIGN.
-	// Batching is an amortization: `CAP = 1024` entries accumulate and then
-	// ONE free pays for sorting + merging + CAS-ing the whole buffer, so the
-	// per-op worst case is ~1024× the average — precisely the
-	// amortized-to-worst-case conversion a realtime bound cannot accept.  The
-	// direct path does this free's own bitmap CAS and nothing else, giving a
-	// bounded per-op cost at some throughput cost.  Cross-thread frees are
-	// exactly the STM shape (a Payload cloned on one thread, released on
-	// another), so this is reachable, not hypothetical.
+	// (§75 / G5) On a realtime thread the batch's own `cap` is 1, so `push`
+	// flushes this slot immediately rather than letting ONE free in CAP pay
+	// for sorting + merging + CAS-ing 1024 entries — the
+	// amortized-to-worst-case conversion a realtime bound cannot accept.
+	// Cross-thread free is exactly the STM shape (a Payload cloned on one
+	// thread, released on another), so that spike is reachable, not
+	// hypothetical.  The decision lives in the batch (see `cap`) precisely so
+	// this hot path needs no realtime test of its own.
 	if constexpr (ALIGN <= 48) {
-		if(__builtin_expect(g_rt_thread, 0))
-			tls_cross_dealloc_batch.template push_direct<ALIGN>(this, p);
-		else
-			tls_cross_dealloc_batch.push(this, p);
+		tls_cross_dealloc_batch.push(this, p);
 	} else {
 		tls_cross_dealloc_batch.template push_direct<ALIGN>(this, p);
 	}
@@ -7534,6 +7541,19 @@ extern "C" void kame_pool_set_realtime_mode(int enable) noexcept {
 
 extern "C" void kame_pool_set_realtime_thread(int enable) noexcept {
 	g_rt_thread = (enable != 0);
+	// (§75 / G5) Drop the cross-thread batch to per-free flushing while
+	// realtime, and settle whatever ordinary work left in it — otherwise the
+	// section's FIRST free would inherit up to CAP entries, which is the
+	// spike this exists to remove.  Paying it here puts the cost on the
+	// boundary call, where a caller can hoist it out of the loop by marking
+	// the thread once instead of per cycle.
+	if(enable) {
+		tls_cross_dealloc_batch.flush();
+		tls_cross_dealloc_batch.cap = 1;
+	}
+	else {
+		tls_cross_dealloc_batch.cap = CrossDeallocBatch::CAP;
+	}
 }
 extern "C" int kame_pool_get_realtime_thread(void) noexcept {
 	return g_rt_thread ? 1 : 0;

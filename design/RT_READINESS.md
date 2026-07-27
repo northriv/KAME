@@ -240,18 +240,51 @@ and zero once ordinary threads run. Pushes stay lock-free; *pops* take an
 exclusive gate, because a Treiber pop must read `head->next` and that word
 lives in the page a concurrent popper may already have unmapped.
 
-**(b) Cross-thread dealloc batch — bounded, and now bypassed in RT mode.**
-`CrossDeallocBatch` accumulates `CAP = 1024` entries (16.4 KiB, L1d-resident
-by design) and then **one** free pays for sorting, adjacent-merging and
-CAS-ing the whole buffer: a per-op worst case ~1024× the average. Bounded, but
-not acceptable inside a deadline. A realtime thread now takes the existing
-single-slot `push_direct` path for every ALIGN class, so its free does its own
-bitmap CAS and nothing else. This matters because cross-thread free *is* the
-STM shape — a Payload cloned on one thread and released on another.
-Consequence to know: entries pushed before the section stay unflushed for its
-duration (≤ 1024 slots, ≤ ~240 KB — bounded, settled by ordinary activity or
-at thread exit), and throughput drops slightly for RT threads in exchange for
-the bound.
+**(b) Cross-thread dealloc batch — bounded by a per-thread flush threshold.**
+`CrossDeallocBatch` accumulates `CAP = 1024` entries (16.4 KiB, L1d-resident by
+design) and then **one** free pays for sorting, adjacent-merging and CAS-ing the
+whole buffer: a per-op worst case ~1024× the average. Bounded, but not
+acceptable inside a deadline. Marking a thread realtime sets **that thread's
+batch `cap` to 1**, so each free settles its own slot. This matters because
+cross-thread free *is* the STM shape — a Payload cloned on one thread and
+released on another.
+
+Measured, 4 M samples per arm (32 B, producer allocates / measured thread
+frees):
+
+| | p99.9 | p99.99 | p99.999 | MAX |
+|---|---:|---:|---:|---:|
+| **RT** (`cap = 1`) | **96 ns** | **256 ns** | 10,240 ns | 31,791 ns |
+| OFF (batched, `CAP` 1024) | 1,792 ns | 10,240 ns | 16,384 ns | 96,709 ns |
+| *(first attempt, `push_direct`)* | *1,792 ns* | *7,168 ns* | *14,336 ns* | *27,000 ns* |
+
+**19× at p99.9, 40× at p99.99**; max 3× (97 µs → 32 µs, but that is one sample
+— read the percentiles).
+
+Two things were learned getting here, both by measurement, and the first
+attempt's row is kept because the contrast is the point:
+
+* **The first attempt cost 4 % of throughput.** Routing realtime threads to
+  `push_direct` via an `if(g_rt_thread)` test in `deallocate_pooled` put a
+  `thread_local` read on the cross-thread free hot path — and on a macOS dylib
+  that is a `_tlv_get_addr` **call**, on a ~3.5 ns operation. Interleaved A/B
+  against the pre-§75 tree: **285.9 → 271.8 M free/s, base winning 6/6 reps**;
+  deleting just that branch recovered it (5/5). Moving the decision into the
+  batch object — which `push` already dereferences — makes it free. Residual is
+  −1.75 % at 1/10 reps, and a control that removed even the `cap` load measured
+  *slower* (−6.4 %), which is physically implausible and marks where this
+  benchmark's attribution power ends.
+* **`push_direct` was never reliably direct.** It is *adaptive*: it reads the
+  chunk's coalesce hint and routes to HOLD above a threshold, with an
+  epsilon-greedy explore that force-holds periodically. So the first fix still
+  accumulated and still spiked — which is exactly why its p99.9 came out
+  *identical* to the batched arm. Only the unconditional `cap = 1` removes the
+  mid-tail.
+
+Consequence to know: entering realtime mode flushes whatever ordinary work left
+in the batch (otherwise the section's first free would inherit up to `CAP`
+entries), so mark the thread once rather than per cycle if that boundary cost
+matters.
 
 **(c) `orphan_chain_scrub` — unbounded, but unreachable when prewarmed.**
 It walks the whole orphan chain and **restarts from the head whenever its
@@ -263,11 +296,13 @@ path where it pays for itself (it is avoiding an mmap), and no realtime thread
 that honours the contract reaches it. **This is a contract dependency, not a
 proof** — it belongs in the G10 write-up as an explicit precondition.
 
-**Honest gap in the measurement:** `bench_rt_wcet` has the measured thread
-allocate *and* free its own blocks, so it never exercises the cross-thread
-class (b) at all. The bound there rests on code reading, not on a measured
-tail. A cross-thread arm (thread A allocates, thread B frees) is the obvious
-next addition to the harness.
+**Methodology notes**, both of which cost a wrong conclusion once:
+  * At 120 k samples the RT arm looked *worse* at p99.9; at 4 M it wins by 19×.
+    This comparison needs ~10⁶ samples — below that the deep-tail buckets hold
+    single digits and the ordering is noise.
+  * `p50 = 0 ns` is not a sub-nanosecond free, it is the **clock floor**:
+    `steady_clock` on Apple Silicon ticks at ~41.7 ns, so per-op latencies below
+    that quantize to {0, 42}. Only tails ≳ 100 ns are meaningful here.
 
 ### G6 — page-fault class — **DONE** ((a), (b) code; (c) documented)
 
