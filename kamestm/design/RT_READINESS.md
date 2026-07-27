@@ -1190,10 +1190,40 @@ better than C=8 alone at −23 %, and B=4+C=16 loses C=16's reproducibility
 sized from the deadline by the formula above; C=8 is the reasonable middle on
 this host. All knobs stay default OFF.
 
-### One unrelated win found on the way
+### The "uncapped numThreadsRunning" win is not one — retracted
 
-The chunk loop calls the **uncapped** `numThreadsRunning()` once per chunk
-(:1938), and VTune measured that function at 30 % of CPU at 128 threads on
-x86_64 NUMA. At 128 threads `ms_actual` reaches 153 ms, i.e. ~100 chunks per
-round, so this is ~100 uncapped scans per round. Passing `min_r` as the ceiling
-is a one-line, semantics-preserving change independent of everything above.
+Reported above as a free optimisation: the chunk loop calls the **uncapped**
+`numThreadsRunning()` once per chunk (:1938), so passing `min_r` as the ceiling
+should cut a 128-entry list walk. Implemented and measured; it is not a win, and
+the premise was wrong twice over.
+
+**It does not measure faster.** Per-rep interleaved, medians of 3:
+
+    threads   uncapped   ceiling = min_r
+      128      9.60 M       9.70 M
+       64      9.44 M       9.15 M
+        8      6.94 M       6.94 M
+        4      6.12 M       6.13 M
+
+**The walk is not a bottleneck at all here.** A semantics-breaking diagnostic
+build that forces `ceiling = 2` — pruning the walk to about two entries — is
+also indistinguishable from base (128t 9.68 M vs 9.70 M; 64t 9.39 M vs 9.18 M).
+There is nothing to reclaim on this host.
+
+**The ceiling cannot prune even in principle.** `effective_min_runners()`
+returns `hardware_concurrency()` when `KAME_STM_MIN_RUNNERS = -1` (:643-647), so
+`min_r` is the same order as the entry-list length, and under contention the
+running sum is 1-2 because sleepers hold `ReleaseOneCount`. The sum therefore
+never reaches the ceiling and the full list is walked regardless. On a 128-core
+host `min_r` is 128 and the ceiling is exactly the list length.
+
+**The 30 % figure was an already-fixed hotspot.** The only recorded number for
+this function is 27.8 %, and `transaction_detail.h:305-308` records it as
+*eliminated*: the current per-thread heap-entry design "Replaces the
+heap-vector+atomic_shared_ptr design (eliminated the 27.8% hotspot on x86_64
+NUMA and the TLS-teardown race)". Reusing that figure as a live cost was a
+misreading.
+
+The change is reverted. If per-chunk runner accounting ever does show up in a
+profile, the fix is not a ceiling — it would have to be caching the value across
+chunks or lowering the refill cadence, both of which change behaviour.
