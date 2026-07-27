@@ -482,3 +482,64 @@ across cells, and the linkage carries the small amount of state needed to find
 them — which means adding state to `Linkage`, itself a hot structure. That is a
 real design change, not a re-keying, and it should be costed before it is
 attempted.
+
+## Candidate "just place the tag" — −97 %, and it completes the picture
+
+Fair question after the previous attempt: if the problem is that no tag exists,
+place one. And it had genuinely not been tried — the earlier yield-site tag was
+never reached (`fair_blocks` 0.00), so no tag was ever placed and that
+experiment never actually ran.
+
+Placed it at the site that *is* reached: unconditionally, immediately before
+entering the sleep path. The expectation was specific and reasonable — the
+existing tenant-verified wake matches the **linkage's stamp** against a
+sleeper's published stamp, so a tag would make the sleeper findable *without*
+re-keying the slots, avoiding the concentration that cost 75 %.
+
+**Throughput at 128 threads: 9.6 M/s → 0.32 M/s. −97 %.** Reverted (9.60 M/s).
+
+`tag_as_contender` CAS-loops on the linkage's `m_transaction_started_time`.
+Turning that from a word written only on retry into one written by every
+sleeper puts 128 threads on a single cache line — and once tagged, peers'
+`fair_mode_blocks_me` starts returning true, so more of them yield, sleep, and
+tag. The tag is rare **by design**.
+
+### The synthesis — three failures, one cause
+
+| attempt | what it made visible | cost |
+|---|---|---|
+| age-reachable promotion | the age of a waiter | −54 % |
+| linkage-keyed sleep slots | which linkage a waiter waits on | −75 % |
+| tag before sleeping | the waiter itself, on the linkage | −97 % |
+
+Every one of them fails for the same reason, and it is not a tuning problem:
+
+> **Making a waiter visible means writing shared state, and at 128 threads that
+> write is the bottleneck. This STM buys its throughput by keeping waiters
+> invisible — and the latency tail is exactly what that costs.**
+
+Which is why the mechanism found earlier is self-consistent rather than a bug:
+no tag → nothing for the wake to target → the escalating backoff runs to its
+full budget. Each piece is doing what it was designed to do.
+
+### What that means for the realtime goal
+
+"`Priority::NORMAL` becomes bounded, with no throughput regression" is not
+reachable by making the existing machinery fairer — the three cheapest ways to
+do that cost 54–97 %. The remaining directions all change the *shape* rather
+than the tuning:
+
+1. **Waiter state that is not shared.** A per-linkage list of waiter slots
+   keeps waiters spread across cells while making them findable, but it adds
+   state to `Linkage` (hot) and still needs one shared write per waiter — cost
+   to be measured before it is built, not after.
+2. **Bound the budget instead of fixing the wake.** Cap `ms_actual`; pay in
+   spin/CPU exactly what the backoff exists to save. Cheap to try, and the
+   honest fallback if (1) prices out.
+3. **Bound the contention instead.** Fewer contenders per linkage, or less
+   per-commit work, so the wait never grows large enough to need rescuing —
+   the (contenders × work) product, which is a property of how the tree is
+   *used* and therefore a contract precondition rather than an STM change.
+
+(3) is the direction the allocator's contract took, and on this evidence it is
+the one most likely to survive a throughput gate.
