@@ -821,3 +821,19 @@ visible.
   arrival, for a 1 kHz deadline.
 * Anyone enabling either does so per-build, and the latency bench plus the
   128-thread gate are the acceptance tests, as throughout.
+
+### A's tail, measured properly (3 repeats per arm)
+
+    grand:  p99.99 identical (2,621,440 both, 3/3).  p99.999 base 67.1 ms 3/3,
+            A 83.9/67.1/83.9 — one histogram bucket, and base itself has sat in
+            that upper bucket in earlier sessions, so this is drift across a
+            bucket boundary, not an effect.  MAX overlapping (235-328 ms).
+    mixed:  p99.9 / p99.99 / p99.999 BIT-IDENTICAL in all 3 repeats
+            (1,792 / 3,670,016 / 12,582,912).  MAX overlapping
+            (base 68.6-79.8 ms, A 48.5-76.1 ms).
+
+So **A is latency-neutral** — and the earlier single-run note that A worsened
+the mixed MAX was noise; retracted. The refined picture: the tags that 38 % of
+mixed sleepers held were costing *peer throughput* through `fair_mode_blocks_me`
+(hence A's +10 %), but they were never a cause of the tail. A is purely a
+throughput knob; B=4 remains the only latency knob.
