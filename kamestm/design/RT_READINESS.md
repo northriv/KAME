@@ -1079,3 +1079,121 @@ else's oldest-wins arbitration**, so D is structurally incapable of the
 interaction that made A+B cost 28 %, and A has nothing extra to clear. D is now
 purely a "when to stop waiting" rule, and the numbers above are what it costs to
 be sure of that: nothing.
+
+## The wait is the wrong thing to bound — knob C is the right one, and its value is derivable
+
+The proposal examined here (user): stop sleeping in fixed 1 ms chunks and give
+`cell.wait` an upper bound instead, on the reasoning that every wake-up turns a
+thread into a running contender and extra concurrent runners are measurably
+expensive.
+
+The physics behind that reasoning is right and is recorded: the spin-admission
+sweep measured cap=1 at 965 k/s against cap=2 at 616 k/s, −36 %, and an
+independent warm-spinner prototype put one extra full-time runner at 0.81–0.90×.
+Two mechanical details, both verified in the source, redirect it.
+
+**The sleeper is not a runner between chunks.** `ReleaseOneCount onedown` is
+constructed at `transaction_neg_impl.h:1925`, *before* the `#if
+KAME_STM_MIN_RUNNERS != 0` that opens the chunk loop, and lives to the end of the
+block. The sleeper is out of `numThreadsRunning()` for the whole round, so chunk
+boundaries create no runners; only round boundaries do. Capping the wait below
+`ms_actual` therefore multiplies round boundaries and *increases* running-runner
+time — the opposite of the intent. (What the chunk loop does pump is *other*
+threads: the per-chunk `notify_n_contenders` refill targets
+`min_r = hardware_concurrency`.)
+
+**`KAME_STM_MAX_RUNNERS = 2` is already a cap of one.** The gate is
+`numThreadsRunning((unsigned)max_r) < (unsigned)max_r` (:1582) and the caller
+counts itself, so 2 means "proceed only when no peer is running" and 1 would be
+unsatisfiable. The shipping default is already the one-runner setting that the
+sweeps favour; there is no 2-vs-1 regression to remove.
+
+**Bounding one wait bounds nothing a caller sees.** The round loop `for(int ms =
+0;;)` (:1395) has no iteration limit, and 99.7 % of waits at N=8 already end by
+timeout rather than by a wake — verified independently here: every `wake_one()`
+and `notify_n_contenders` call site in `kamestm/` is inside `_negotiate_internal`
+or its two notify helpers, and `drop_tags_n_privilege` (`transaction.h:1809`)
+frees the linkage stamp with a bare CAS to 0 and wakes nobody. The wait is a
+*polling period*, not a backstop. Shortening it was already measured as a net
+loss (1000→50 µs chunks: 0.94–0.97×), and lengthening it changes a round's
+wall-clock not at all, because `t_end = now + ms_actual*1000` is a hard time
+budget that an early wake merely restarts.
+
+### The 1 ms chunk is already the derived-correct value
+
+    B = max(KAME_STM_PRIV_PREEMPT_WINDOW_US,
+            effective_runners() × KAME_LEASE_US_MAX)
+
+— one arbitration-coherence window, or the time for every servable contender to
+take its legitimate lease, whichever is longer. On the 8-core M3 that is
+max(1000 µs, 8 × 10 µs) = **1.00 ms**; on a 128-core host 1.28 ms; on Windows
+16 ms, which is the timer tick and the floor below which any bound is fiction.
+Both terms are existing tuned constants, so the expression tracks them. The
+existing constant is not arbitrary and should not change.
+
+### Knob C is the bound, and R follows from the deadline
+
+`KAME_STM_RETURN_CEILING_MS` (:2142, default 0) bounds the *hand-back to the
+caller*, which is the quantity a deadline is actually about. It had never been
+measured. Measured now, 3 reps, grand arm at 8 threads for the tail and the
+3-level mixed test for throughput:
+
+    R        128t thr.   4t thr.   p99.999        MAX (3 reps)         reproducible?
+    base        —           —      67–84 ms     183 / 234 / 277 ms      no
+    C=3      −58 %          —          —              —                  —
+    C=4      −45 %      neutral   12.6 ms (3/3) 15.7 / 16.8 / 18.0 ms   yes
+    C=8      −23 %      neutral   41.9 ms (3/3) 44.0 / 45.8 / 51.9 ms   yes
+    C=16      −7 %      neutral   58.7–67.1 ms  138 / 150 / 154 ms      yes
+
+The ladder is `ms = max(dt2*mult_wait/10000, ms + 1)` (:1616), so in the +1-ramp
+regime the accumulated sleep after R rounds is R(R+1)/2 ms, and one commit makes
+`entries/commit` ≈ 1.56 negotiator calls:
+
+    MAX  ≈  R(R+1)/2 × entries_per_commit  [ms]
+
+      R=4  → 10 × 1.56 = 15.6 ms   (measured 15.7–18.0)
+      R=8  → 36 × 1.56 = 56   ms   (measured 44.0–51.9)
+      R=16 → 136 × 1.56 = 212 ms   (measured 138–154)
+
+Invert it for a deadline D: **R = ceil((sqrt(1 + 8D/e) − 1) / 2)**, e ≈ 1.56.
+D = 20 ms → R = 4; D = 50 ms → R = 7; D = 150 ms → R = 13.
+
+This also retires the objection that B=4's "4" was a number without meaning. The
+same arithmetic gives it one: R(R+1)/2 = 10 ms is the first rung at or above the
+unbounded system's own p99.999 (8.39 ms), so R = 4 is the smallest ceiling that
+does not truncate the legitimate distribution.
+
+### Why C is the realtime knob even though it does not measure best
+
+    config    128t     p99.999    MAX (3 reps)              MAX reproducible?
+    B=4       −3 %     12.6 ms    54.7 / 55.4 / 224.3 ms    NO — blows out
+    D+A      −44 %      8.4 ms    11.3 / 12.4 / 14.7 ms     yes
+    C=4      −45 %     12.6 ms    15.7 / 16.8 / 18.0 ms     yes
+    C=8      −23 %     41.9 ms    44.0 / 45.8 / 51.9 ms     yes
+
+B=4 is by far the cheapest and D+A has the lowest MAX, so on the raw numbers C is
+dominated. **This measurement also corrects B=4's earlier entry**: its MAX was
+recorded as 63–66 ms, but a third rep produced 224 ms. That is structural, not
+noise — B returns only an *untagged* Tx, so once a Tx acquires a tag it is back
+on the unbounded ladder. Its good MAX was a tendency, not a bound.
+
+C is the only knob whose worst case is both reproducible across runs and
+computable in closed form before running anything. For a deadline that is the
+whole requirement: you need the bound you can *state*, not the one that happens
+to measure well. B and D produce an emergent MAX; C produces a designed one.
+
+Composing them does not help — B=4+C=8 gives −24 % and MAX 44.8–67.5 ms, no
+better than C=8 alone at −23 %, and B=4+C=16 loses C=16's reproducibility
+(59.3 / 62.9 / 115.7 ms).
+
+**Recommendation.** Leave the CV wait at 1 ms and leave chunking alone. Use C,
+sized from the deadline by the formula above; C=8 is the reasonable middle on
+this host. All knobs stay default OFF.
+
+### One unrelated win found on the way
+
+The chunk loop calls the **uncapped** `numThreadsRunning()` once per chunk
+(:1938), and VTune measured that function at 30 % of CPU at 128 threads on
+x86_64 NUMA. At 128 threads `ms_actual` reaches 153 ms, i.e. ~100 chunks per
+round, so this is ~100 uncapped scans per round. Passing `min_r` as the ceiling
+is a one-line, semantics-preserving change independent of everything above.
