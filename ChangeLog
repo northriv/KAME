@@ -1,3 +1,153 @@
+* Mon Jul 27 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Linux builds and runs again (Qt 6, qmake, GCC 13, Ubuntu 24.04). It is still
+  NOT a supported platform -- no instrument hardware has been exercised and the
+  GUI is only smoke-tested offscreen -- but the tree compiles warning-clean,
+  loads all 43 driver modules and runs the embedded Python engine. Most of the
+  work was in the .pro files: kame.pri had no eigen3 include path off
+  macOS/Windows; the Ruby branch still pointed at /usr/lib/ruby/1.8/i386-linux/
+  and now asks the interpreter via RbConfig; and there was NO pybind11 branch
+  for Linux at all, so USE_PYBIND11 was never defined -- meaning no Python
+  scripting, no Jupyter, no MCP server, and .kam files silently falling back to
+  the legacy Ruby loader. See INSTALL.linux for the recipe and the remaining
+  gaps.
+- GPIB: the usermode NI USB-GPIB driver now builds on Linux too, so
+  `Device = GPIB` works there without a kernel module when linux-gpib is absent
+  and libusb is present. osx_compat.h keeps its historical name but is plain
+  POSIX; the only thing that had blocked Linux was its kernel-style min/max
+  FUNCTION macros colliding with <limits> in C++ (libstdc++ strict where libc++
+  tolerated it), now guarded. Also fixes a macOS-side build bug: HAS_LIBUSB held
+  the string "false" when MacPorts libusb was missing, which is non-empty and
+  would read as "yes".
+- Python: a KAME script with both a function and a script-level variable failed
+  with NameError on every platform. loadSequence() ran user scripts with a bare
+  exec() inside a function, which hands the script that function's locals, so a
+  script-level `x = ...` landed where the script's own top-level defs could not
+  see it. Tracebacks now also name the file instead of "<string>".
+- Python: a host merely missing numpy reported "no IPython", which silently
+  disabled the Jupyter menu, the notebook and the MCP server -- and then told
+  you to install ipykernel, which was already there. numpy is a convenience
+  import for user scripts and is referenced nowhere in KAME itself; it no longer
+  takes IPython support down with it.
+- Ruby: a startup exception used to leave nothing on the terminal but
+  "exception(s) occurred" -- printErrorInfo() wrote through rb_p to Ruby's
+  $stdout, which xrubysupport.rb has already redirected into the GUI pane.
+  Class, message and backtrace now also go to stderr. A SIGTERM/SIGINT
+  shutdown is no longer reported as a Ruby error (SignalException and
+  SystemExit derive from Exception, not StandardError, so the support script's
+  own rescue could not catch them).
+- New tools/iftest_serial_gpib.py: hardware-free smoke test driving
+  XCharInterface's own Device/Port/Control/Query nodes -- serial and Prologix
+  over a real pty (including a *IDN? round trip and the full adapter-init
+  sequence on the wire), plus the usermode GPIB path's libusb enumeration.
+
+* Sat Jul 25 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamepoolalloc (Jul 25-27): realtime support, as a written contract rather than
+  a claim -- see kamepoolalloc/design/RT_READINESS.md and the README's "The
+  realtime contract" (preconditions -> guarantees -> exclusions, with the
+  exclusions stated plainly, including that there is no numeric WCET).
+  * Per-thread realtime levels. KAME_RT_DEFER stops a thread's free() from
+    entering the kernel -- chunk page-reclaim is skipped (the chunk stays
+    immediately recyclable, its pages just stay warm) and a large-tier munmap is
+    parked for kame_pool_rt_drain(). All of it is on cold release paths, so it
+    measured within noise (-2.8 % median, individual reps positive), and on the
+    band the recycle cache cannot absorb (> 256 MiB) it moves free latency from
+    a 20.5 us median / 678 us max to 128 ns / 792 ns. KAME enables this
+    process-wide via the new kame_pool_set_realtime_default().
+  * KAME_RT_STRICT additionally bounds the cross-thread batch's amortization
+    spike (p99.9 96 ns vs 1,792 ns) but costs ~48 % of cross-thread small-free
+    throughput, so it is per-thread only and KAME deliberately does not enable
+    it -- KAME's deadlines are instrument I/O at millisecond scale.
+  * kame_pool_prewarm() allocates, PAGE-TOUCHES and frees given size classes;
+    the previously documented allocate/free idiom left pages mapped but
+    unfaulted, so the first realtime write still took a fault.
+    kame_pool_reserve_regions(), kame_pool_mlock_regions() (pins the pool's own
+    regions -- surgical where mlockall(MCL_FUTURE) is blunt), and
+    kame_pool_set_thp_policy() (Linux transparent hugepages: first touch inside
+    a 2 MiB range can make the kernel zero a whole hugepage, and khugepaged's
+    compaction can stall an unrelated fault) round it out.
+  * Observability: kame_pool_rt_violations() counts times a realtime thread
+    entered the kernel for a new mapping -- a test can assert it stayed zero.
+    The deferral backlog is capped (kame_pool_set_rt_pending_cap, default 1
+    GiB); an early version was unbounded and parked 12.6 GB of VA for 40 frees.
+  * Verified with a new per-op WCET tail harness (tests/bench/bench_rt_wcet.cpp)
+    reporting max and percentiles rather than means -- means are exactly the
+    statistic that hides a syscall -- on both same-thread and cross-thread
+    paths.
+* Thu Jul 16 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Python: creating a driver from a Python cell / MCP / an asyncio task could
+  abort the process. Node construction may build Qt widgets, which must happen
+  on the GUI thread; createByTypename now dispatches through kame_mainthread()
+  for lists that report they are not thread-safe during creation, mirroring
+  what the .kam loader already did -- so every Python caller is protected, not
+  just the .kam path.
+- NMR frequency spectrum: don't kill the tuning-finished listener from
+  rearrangeInstrum while the auto-tuner is running.
+
+* Mon Jul 13 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Fix the startup crash on Intel Macs (x86-64), which turned out not to be our
+  bug: older Apple clang's `preserve_most` calling convention clobbers the
+  RETURN register on x86-64, so kame_page_cold() handed back garbage. The
+  attribute is removed from value-returning functions. The defensive null-clamp
+  added while chasing it is also removed -- experiment showed the TLV-null it
+  guarded against was a phantom.
+- Fix a rare abort at startup (__cxa_pure_virtual): the scripting worker thread
+  was started from the base constructor, so it could dispatch through a vtable
+  that still pointed at the pure-virtual placeholder. Qt 6.8's earlier
+  startup-thread scheduling began winning that race on some macOS setups.
+- kamepoolalloc: publish the fast-TSD slot offset only after planting the slot
+  (scan race), and make kame_page() total.
+
+* Sun Jul 12 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- STM snapshot isolation, second pass: NMR T1 double-counted and ODMR halved
+  their data because a Payload's pointee was mutated in place while other
+  snapshots still held it. Those sites now clone-on-write, and the remaining
+  latent cases were converted to pointer-to-const so the compiler refuses the
+  mutation instead of it being a silent isolation violation.
+- digitalcamera: publish the frame buffer together with its geometry, so a
+  reader can never pair a new buffer with stale dimensions.
+
+* Sat Jul 11 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Crash audit of the 2026-07 reports, and the rules it produced. Fixed: Python
+  bindings entering STM negotiation while holding the GIL (deadlock, ending in
+  the negotiation watchdog abort) and reading Payloads before the first record;
+  the recorder holding file mutexes across STM operations (deadlock); MonteCarlo
+  freeing FFTW buffers inside an iterate_commit closure, which re-runs on every
+  CAS retry (double free); libusb entry points called with a null handle, which
+  asserts and aborts the process instead of returning an error; acquisition poll
+  loops spinning without backoff after an interface error; sibling node-name
+  collisions that made the later node unreachable from Python/.kam/NodeBrowser;
+  and listeners doing Qt UI work inline on whichever thread committed.
+- Five of those rules are now mechanically checked by tools/audit/run_audits.sh,
+  wired into a pre-commit hook and CI, with pre-existing findings grandfathered
+  under a ratchet. The rules themselves are written up in CLAUDE.md for anyone
+  adding a driver.
+
+* Fri Jul 10 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- graph: fix a system-wide STM stall (ending in the negotiation HANG watchdog's
+  abort) when the on-screen-object paint path held its mutex across a Snapshot
+  while a driver thread took the same mutex from inside an in-flight
+  transaction. The paint path now copies what it needs under a short lock and
+  releases it before snapshotting; a racing writer only costs one stale frame.
+- New modules/relay: relay / digital-output driver (LCUS-1 family, and an
+  XRelayViaSTM variant driving relays through other drivers' STM nodes).
+- Laser driver refactor; lasermoduleform aligned to the house UI style, and the
+  .ui conventions that survey produced are documented in CLAUDE.md.
+- ui: add or fix tab stops across the driver forms.
+
+* Sun Jul 05 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- STM: close a preempt window in the negotiation tag teardown. Clearing a
+  linkage's tag used a plain store after checking it was ours, so an older
+  transaction's stamp landing between the check and the store was erased,
+  dropping its priority claim for a round. It is now a mine-only
+  compare-and-swap, mirroring what the global-mode release already did after the
+  same bug class caused an observed hang. Livelock-freedom was never at risk;
+  what this restores is the "oldest completes in finitely many CASes" bound,
+  which the machine-checked model had been assuming.
+- verification (Jul 2-6): pre-submission TLA+ fidelity work -- a second-model
+  re-check of every previously examined item, a new hard-link nested-external
+  model, and a correspondence pass over the 16 slide decks and the READMEs that
+  corrected mechanism and verification wording in several places.
+
 * Wed Jul 01 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - Fix NMR T1 / phase-inversion-cycling timing regression (introduced 8.1,
   commit 5185cd09). In XPrimaryDriver::finishWritingRaw the `skipped` latch was
