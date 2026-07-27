@@ -860,3 +860,34 @@ Verified to be the no-op the reasoning predicts, which is the point of running
 it: throughput 8.86 vs 9.06 M/s (within spread) and grand p99.99 / p99.999
 bit-identical across repeats. Had it changed anything, the claim that privilege
 is dormant would have been wrong.
+
+### Why B costs throughput — it is a scheduling cost, not wasted work
+
+The obvious guess was wasted work: B returns, attempts, and a failed grand
+attempt throws away a whole bundle. **Measured, wrong** — the retry rate does
+not rise, it falls: attempts/commit over ALL commits is 1.000 under B=4 against
+1.019 for base's grand arm. When the returned transaction attempts, it mostly
+succeeds.
+
+The cost tracks oversubscription instead (host: `hw.ncpu` 8, 4 performance
+cores):
+
+    threads     base        B=4        delta
+      4        6.20 M/s   6.12 M/s    −1.3 %   (fits the P-cores)
+      8        6.94       6.43        −7 %
+     16        7.11       6.35        −11 %
+    128        9.68       8.81        −9 %
+
+So: **the backoff is not only a CAS-storm damper, it is a scheduling device.**
+A contender that sleeps hands its core to a thread that can make progress. B
+stops it sleeping and puts it back on the runqueue, and the aggregate loss is
+the CPU time taken from everyone else. With cores to spare the effect nearly
+vanishes.
+
+That reframes B's price in a way that matters for the realtime goal. −3 to
+−11 % is not an intrinsic cost of the mechanism; it is what it costs *on an
+oversubscribed machine*. The standard PREEMPT_RT deployment discussed earlier —
+the realtime thread pinned to its own core, so it never competes with the
+workers — is precisely the configuration in which B is close to free, and it is
+also the configuration in which its latency benefit is wanted. The knob and the
+deployment fit each other.
