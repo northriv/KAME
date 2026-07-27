@@ -21,13 +21,24 @@ else:
 	except Exception:
 		pass #allowed only once.
 
+#Convenience imports for user scripts.  Kept SEPARATE from the IPython probe
+#below on purpose: `np` is not referenced anywhere in this file, yet having it
+#in the same try meant that a host merely missing numpy reported "no IPython"
+#— which silently disables the Jupyter menu actions, the notebook and the MCP
+#server, while the error text tells you to install ipykernel, which is already
+#there.  One missing optional package should not take the others down with it.
+try:
+	import ctypes
+	import pdb
+except (ImportError, ModuleNotFoundError) as e:
+	sys.stderr.write("KAME: a stdlib module is unavailable (%s)\n" % e)
+try:
+	import numpy as np
+except (ImportError, ModuleNotFoundError):
+	sys.stderr.write("KAME: numpy is not installed; scripts using `np` will fail.\n")
+
 HasIPython = False
 try:
-	#optional imports.
-	import ctypes
-	import numpy as np
-	import pdb
-
 	from ipykernel.eventloops import register_integration
 	import IPython #this import hinders from freeing XPython/XMeasure normally.
 	from IPython.display import display
@@ -36,8 +47,13 @@ try:
 #	import matplotlib
 #	matplotlib.use('Agg') #GUI does not work yet
 #	import matplotlib.pyplot as plt
-except (ImportError, ModuleNotFoundError):
-	pass
+except (ImportError, ModuleNotFoundError) as e:
+	#Name the module that actually failed — "IPython is not installed" when it
+	#IS installed sends you looking in the wrong place.
+	sys.stderr.write(
+		"KAME: IPython/Jupyter support disabled (%s).\n"
+		"      Install into THIS interpreter: %s -m pip install ipykernel ipython jupyter\n"
+		% (e, sys.executable))
 from kame import *
 _deferred_done = False
 STDOUT = sys.stdout
