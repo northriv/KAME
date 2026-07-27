@@ -228,7 +228,9 @@ static void xt_producer() {
 
 // Frees `n` blocks from the ring, timing each.  Runs on the measured thread.
 static void xt_consume(Hist &h, bool realtime, unsigned n) {
-	if(realtime) kame_pool_set_realtime_thread(1);
+	// The cross-thread arm is about the BATCH, so it needs STRICT — DEFER
+	// leaves the batch alone by design.
+	if(realtime) kame_pool_set_realtime_thread(KAME_RT_STRICT);
 	unsigned done = 0;
 	while(done < n) {
 		void *p = g_ring.pop();
@@ -239,7 +241,7 @@ static void xt_consume(Hist &h, bool realtime, unsigned n) {
 		h.add(t1 - t0);
 		done++;
 	}
-	if(realtime) kame_pool_set_realtime_thread(0);
+	if(realtime) kame_pool_set_realtime_thread(KAME_RT_OFF);
 }
 
 // ---------------------------------------------------------------- measure
@@ -264,7 +266,8 @@ struct Arm {
 // One repetition of one arm.  `realtime` selects the arm.
 static void run_rep(Arm &arm, bool realtime, unsigned iters,
                     std::vector<void *> &slots) {
-	if(realtime) kame_pool_set_realtime_thread(1);
+	// Bands measure the syscall half, so DEFER is the arm under test here.
+	if(realtime) kame_pool_set_realtime_thread(KAME_RT_DEFER);
 	for(int bi = 0; bi < g_nbands; bi++) {
 		const Band &b = kBands[bi];
 		const unsigned live = b.live;
@@ -290,7 +293,7 @@ static void run_rep(Arm &arm, bool realtime, unsigned iters,
 			}
 		}
 	}
-	if(realtime) kame_pool_set_realtime_thread(0);
+	if(realtime) kame_pool_set_realtime_thread(KAME_RT_OFF);
 }
 
 static void report_hist(const char *label, const Hist &h) {

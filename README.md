@@ -653,7 +653,8 @@ See the header for full per-function semantics.
 
 | Symbol | Default | Purpose |
 |---|---|---|
-| `void   kame_pool_set_realtime_thread(int)` | off | mark THIS thread realtime: its `free()` never enters the kernel (see contract below) |
+| `void   kame_pool_set_realtime_thread(int level)` | off | `KAME_RT_DEFER` — this thread's `free()` never enters the kernel; costs nil (cold paths only).  `KAME_RT_STRICT` — additionally flushes the cross-thread batch per free: bounds the p99.9 mid-tail but **−48 % throughput** on cross-thread small frees |
+| `void   kame_pool_set_realtime_default(int level)` | off | process-wide floor for `DEFER`, so every thread stops making free-path syscalls without being marked individually.  `STRICT` is per-thread only — its cost is on a hot path |
 | `int    kame_pool_get_realtime_thread(void)` | — | current thread's flag |
 | `int    kame_pool_prewarm(const size_t*, const unsigned*, unsigned)` | — | allocate + **page-touch** + free the given size classes, per realtime thread |
 | `unsigned kame_pool_reserve_regions(unsigned n, int prefault)` | — | create `n` 32-MiB regions up front (permanent — regions never unmap) |
@@ -665,7 +666,7 @@ See the header for full per-function semantics.
 | `unsigned long long kame_pool_rt_violations(void)` | — | times a realtime thread entered the kernel for a **new mapping** |
 | `unsigned long long kame_pool_rt_forced_releases(void)` | — | times the pending cap forced an inline release |
 | `size_t kame_pool_rt_pending_bytes(void)` | — | VA currently parked, awaiting a drain |
-| `kame::rt_section` (C++ RAII) | — | marks the thread for a scope, nests, reports its own violation delta in debug builds |
+| `kame::rt_section` (C++ RAII) | `rt_level::defer` | marks the thread for a scope, nests without ever weakening an enclosing section, reports its own violation delta in debug builds |
 
 ### The realtime contract
 
@@ -687,6 +688,14 @@ without its assumptions written down is not a claim.
    cycles, or on a housekeeping thread) — it is exactly the syscall batch the
    gating keeps out of the section.
 6. Thread count is bounded and known (see the interference caveat below).
+
+**Two levels, and the difference is not cosmetic.** `KAME_RT_DEFER` removes
+the syscalls and is free: measured −2.8 % (median, with individual reps
+*positive* — i.e. within noise) on the cross-thread small-free path.
+`KAME_RT_STRICT` additionally bounds the batch-flush spike, and that costs
+**−48 %** (6/6 reps) on the same path, because per-free flushing gives up the
+batch's coalesced-CAS win.  Take DEFER unless a deadline actually needs the
+p99.9; that is why only DEFER can be a process-wide default.
 
 **Guarantees**, given the above:
 

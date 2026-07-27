@@ -78,7 +78,7 @@ static void test_prewarm_then_no_mappings() {
     kame_pool_rt_reset_counters();
     unsigned long long defer0 = kame_pool_rt_deferred_reclaims();
     {
-        kame::rt_section rt(/*check=*/false);
+        kame::rt_section rt(kame::rt_level::defer, /*check=*/false);
         for(int iter = 0; iter < 200; iter++) {
             volatile unsigned long s = rt_loop_body();
             (void)s;
@@ -94,12 +94,12 @@ static void test_prewarm_then_no_mappings() {
 
 // Churn `n` dedicated-tier blocks; optionally as a realtime thread.
 static void dedicated_churn(bool realtime, int n) {
-    if(realtime) kame_pool_set_realtime_thread(1);
+    if(realtime) kame_pool_set_realtime_thread(KAME_RT_DEFER);
     for(int i = 0; i < n; i++) {
         void *p = kame_pool_malloc(300u * 1024u);   // > 32 KiB ⇒ dedicated
         if(p) { std::memset(p, 7, 4096); kame_pool_free(p); }
     }
-    if(realtime) kame_pool_set_realtime_thread(0);
+    if(realtime) kame_pool_set_realtime_thread(KAME_RT_OFF);
 }
 
 // ------------------------------------------------------------------ 2
@@ -144,7 +144,7 @@ static void test_deferred_unmap() {
 
     unsigned long long u0 = kame_pool_rt_deferred_unmaps();
     {
-        kame::rt_section rt(/*check=*/false);
+        kame::rt_section rt(kame::rt_level::defer, /*check=*/false);
         void *p = kame_pool_malloc(kHuge);
         if(p) {
             std::memset(p, 0x3c, 4096);
@@ -179,7 +179,7 @@ static void test_pending_is_bounded() {
     kame_pool_rt_reset_counters();
 
     for(int i = 0; i < 40; i++) {
-        kame::rt_section rt(/*check=*/false);
+        kame::rt_section rt(kame::rt_level::defer, /*check=*/false);
         void *p = kame_pool_malloc(kHuge);
         if(p) { std::memset(p, 5, 4096); kame_pool_free(p); }
     }
@@ -363,7 +363,7 @@ static void test_os_fail_policy() {
     // it from cache, the contract is the same: a valid, freeable pointer.
     bool all_usable = true;
     {
-        kame::rt_section rt(/*check=*/false);
+        kame::rt_section rt(kame::rt_level::defer, /*check=*/false);
         for(int i = 0; i < 16; i++) {
             size_t sz = (size_t)(1u << 20) * (size_t)(3 + i);   // 3..18 MiB
             void *p = kame_pool_malloc(sz);
@@ -386,13 +386,13 @@ static void test_rt_section_nesting() {
 
     check(kame_pool_get_realtime_thread() == 0, "thread starts non-realtime");
     {
-        kame::rt_section outer(/*check=*/false);
-        check(kame_pool_get_realtime_thread() == 1, "outer marks realtime");
+        kame::rt_section outer(kame::rt_level::defer, /*check=*/false);
+        check(kame_pool_get_realtime_thread() == KAME_RT_DEFER, "outer marks realtime");
         {
-            kame::rt_section inner(/*check=*/false);
-            check(kame_pool_get_realtime_thread() == 1, "inner keeps it set");
+            kame::rt_section inner(kame::rt_level::defer, /*check=*/false);
+            check(kame_pool_get_realtime_thread() == KAME_RT_DEFER, "inner keeps it set");
         }
-        check(kame_pool_get_realtime_thread() == 1,
+        check(kame_pool_get_realtime_thread() == KAME_RT_DEFER,
               "inner's exit RESTORES realtime (does not clear it)");
     }
     check(kame_pool_get_realtime_thread() == 0, "outer's exit clears it");
@@ -404,7 +404,7 @@ static void test_flag_is_per_thread() {
 
     int seen_in_worker = -1;
     {
-        kame::rt_section rt(/*check=*/false);
+        kame::rt_section rt(kame::rt_level::defer, /*check=*/false);
         std::thread t([&] { seen_in_worker = kame_pool_get_realtime_thread(); });
         t.join();
     }
