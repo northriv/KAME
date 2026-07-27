@@ -570,6 +570,87 @@ outlier. The small bands do reach p99.99+ under `--full`.
 G9's negative control, which this section previously flagged as owed, has
 now been run on Linux — see G9.
 
+#### Result 3 — what a STOCK allocator's worst case actually is
+
+The survey table above says what each allocator *offers*; this is what they
+*do*.  `bench_rt_wcet_malloc` is the same harness built against plain
+malloc/free and not linked to kamepoolalloc, so the allocator under test is
+whichever one `LD_PRELOAD` supplies.  One harness, one clock, one histogram —
+without that a cross-allocator tail comparison is not worth printing.
+
+Host: the non-realtime `PREEMPT_DYNAMIC` Firecracker VM described in G6(a).
+`--pressure --reps 5 --iters 2000 --threads 3`, medians of **9 interleaved
+repetitions** with the arm order rotated each time.  Every allocator at its
+DEFAULT settings — none of the RT knobs from the survey table
+(`dirty_decay_ms:-1`, `purge_delay=-1`, …) was applied to any of them,
+including ours.
+
+| band | allocator | malloc p99.9 | malloc MAX | free p99.9 | free MAX |
+|---|---|---:|---:|---:|---:|
+| 64 B | glibc | 192 ns | 142 µs | 96 ns | 160 µs |
+| | mimalloc | 96 ns | 24 µs | 80 ns | 32 µs |
+| | jemalloc | 12 µs | 149 µs | 12 µs | 253 µs |
+| | kamepool | 80 ns | 122 µs | 80 ns | 82 µs |
+| 4 KiB | glibc | 192 ns | 74 µs | 112 ns | 85 µs |
+| | mimalloc | 384 ns | 28 µs | 192 ns | 31 µs |
+| | jemalloc | 16 µs | 220 µs | 14 µs | 210 µs |
+| | kamepool | 112 ns | 82 µs | 80 ns | 78 µs |
+| 256 KiB | glibc | 192 ns | 42 µs | 112 ns | 25 µs |
+| | mimalloc | 640 ns | 40 µs | 320 ns | 20 µs |
+| | jemalloc | 16 µs | 72 µs | 16 µs | 83 µs |
+| | kamepool | 192 ns | 29 µs | 224 ns | 23 µs |
+| **8 MiB** | glibc | 29 µs | 252 µs | 98 µs | 312 µs |
+| | mimalloc | **3 µs** | **21 µs** | **320 ns** | **17 µs** |
+| | jemalloc | 98 µs | 445 µs | 328 µs | **39.9 ms** |
+| | kamepool | 4 µs | 48 µs | 4 µs | 22 µs |
+| **300 MiB** | glibc | 33 µs | 385 µs | 164 µs | 688 µs |
+| | mimalloc | 41 µs | **64 µs** | **2 µs** | **16 µs** |
+| | jemalloc | 115 µs | 1.2 ms | 328 µs | 1.8 ms |
+| | kamepool | 57 µs | 169 µs | 98 µs | 236 µs |
+| 32 B x-thread free | glibc | — | — | 4 µs | 103 µs |
+| | mimalloc | — | — | **768 ns** | **23 µs** |
+| | jemalloc | — | — | 1 µs | 84 µs |
+| | kamepool | — | — | 10 µs | 66 µs |
+
+Reading it honestly:
+
+* **The small-band MAX column is the environment, not the allocator.**  A
+  64 B `malloc` cannot spend 100 µs of CPU; 24–160 µs maxima appear for all
+  four, which is the signature of this VM's scheduler and steal time.  Use
+  p99.9 in those rows and treat MAX as the noise floor.  The large bands are
+  where MAX starts meaning something, because the work there is real.
+* **A stock allocator's honest worst case, in one sentence:** sub-microsecond
+  at p99.9 for small blocks, and **hundreds of microseconds to milliseconds
+  once the block is big enough to reach `mmap`/`munmap`** — glibc 312 µs /
+  688 µs on the 8 MiB and 300 MiB frees, jemalloc worse.
+* **jemalloc at defaults has the worst tail here by a wide margin** — 39.9 ms
+  on an 8 MiB free, and a p99.9 of 12–16 µs even on 64 B.  That is
+  decay-based purging (`dirty_decay_ms` / `muzzy_decay_ms`) running on the
+  calling thread.  It is also the allocator with the most explicit knob for
+  it, so this is a statement about defaults, not about jemalloc's ceiling.
+* **mimalloc has the best tail of the stock three, and beats us** on the
+  large bands and on cross-thread free.  Worth saying plainly rather than
+  burying: on this host it is the allocator to beat, and its 17 µs / 16 µs
+  large-block free maxima are better than our 22 µs / 236 µs.
+* **kamepool as a plain `LD_PRELOAD` drop-in** — i.e. with none of §75's
+  realtime API called — sits with mimalloc on the small bands and between
+  mimalloc and glibc on the large ones.
+
+##### And the realtime mode, at these parameters, did not help
+
+Measured the same way with the direct API (`bench_rt_wcet`, RT arm vs OFF arm,
+median of 9), the 300 MiB free is 131 µs p99.9 in BOTH arms.  The counter says
+why: `deferred_unmaps=15` out of 10,000 frees.  At 300 MiB a block, the G5
+pending cap (1 GiB default) is exhausted after three deferrals and every
+subsequent free is forced inline — which is G5 working exactly as designed
+("bounded memory beats a bounded tail"), and it means the macOS headline
+figure (128 ns vs 20,480 ns median free) is only reachable when the cap is
+large relative to the block size.  Anyone quoting that number should also
+quote `kame_pool_get_rt_pending_cap()`, or raise it for the block size in
+play.  In the same runs the RT arm's *malloc* was slower on the 300 MiB band
+(p99.9 115 µs vs 57 µs), consistent with the trade already recorded in
+Result 1: holding VA means fresh mappings instead of reuse.
+
 ### G8 — §74 single mmap+radix site — **DONE, no work remaining**
 
 Already landed in `c04a7975d`: `allocate_chunk<ALLOC>()` no longer carries

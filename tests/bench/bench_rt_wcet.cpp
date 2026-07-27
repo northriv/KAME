@@ -31,7 +31,57 @@
  *
  * Licensed under Apache-2.0 OR GPL-2.0-or-later, as the rest of the tree.
  */
-#include "../../kame_pool.h"
+// ------------------------------------------------------- allocator backend
+// Default: call kamepoolalloc directly, so the §75 realtime API is available.
+// -DWCET_USE_MALLOC: call plain malloc/free instead, so THE SAME harness can
+// measure whatever allocator is LD_PRELOADed (glibc, mimalloc, jemalloc, or
+// kamepoolalloc's own drop-in).  Comparing worst cases across allocators is
+// only meaningful with one harness, one clock and one histogram.
+#ifdef WCET_USE_MALLOC
+#  include <cstdlib>
+#  include <cstring>
+#  include <vector>
+#  define WCET_MALLOC(sz) std::malloc(sz)
+#  define WCET_FREE(p)    std::free(p)
+static const char *kWcetBackend = "malloc/free (allocator chosen by LD_PRELOAD)";
+// Stand-ins for the realtime API, which is kamepoolalloc's alone.  A stock
+// allocator has no equivalent, so the "RT" arm degenerates into a second
+// untuned arm — which is the correct control, not a defect.
+static inline void kame_pool_set_realtime_thread(int) {}
+static inline void kame_pool_set_realtime_mode(int) {}
+static inline void kame_pool_rt_drain() {}
+static inline void kame_pool_rt_reset_counters() {}
+static inline unsigned long long kame_pool_rt_violations() { return 0; }
+static inline std::size_t kame_pool_set_thp_policy(int) { return 0; }
+static inline unsigned long long kame_pool_rt_deferred_reclaims() { return 0; }
+static inline unsigned long long kame_pool_rt_deferred_unmaps() { return 0; }
+static inline std::size_t kame_pool_rt_pending_bytes() { return 0; }
+enum { KAME_THP_SYSTEM = 0, KAME_THP_ALWAYS = 1, KAME_THP_NEVER = 2 };
+//! Portable equivalent of kame_pool_prewarm(): hold `counts[i]` blocks of
+//! `sizes[i]` live at once and touch each, so the arena really has to grow,
+//! then free them.  Without this the stock arms would be measured cold and
+//! the comparison would flatter kamepoolalloc.
+static int kame_pool_prewarm(const std::size_t *sizes, const unsigned *counts,
+                             unsigned n) {
+	for(unsigned i = 0; i < n; i++) {
+		std::vector<void *> v;
+		v.reserve(counts[i]);
+		for(unsigned k = 0; k < counts[i]; k++) {
+			void *p = std::malloc(sizes[i]);
+			if( !p) break;
+			std::memset(p, 0, sizes[i] < 4096 ? sizes[i] : 4096);
+			v.push_back(p);
+		}
+		for(void *p : v) std::free(p);
+	}
+	return 0;
+}
+#else
+#  include "../../kame_pool.h"
+#  define WCET_MALLOC(sz) kame_pool_malloc(sz)
+#  define WCET_FREE(p)    kame_pool_free(p)
+static const char *kWcetBackend = "kame_pool_malloc/free (direct)";
+#endif
 
 #include <atomic>
 #include <chrono>
@@ -140,11 +190,11 @@ static void interferer() {
 		unsigned n = b.live < 16u ? b.live : 16u;
 		unsigned got = 0;
 		for(; got < n; got++) {
-			p[got] = kame_pool_malloc(b.size);
+			p[got] = WCET_MALLOC(b.size);
 			if( !p[got]) break;
 			*static_cast<char *>(p[got]) = 1;
 		}
-		for(unsigned j = 0; j < got; j++) kame_pool_free(p[j]);
+		for(unsigned j = 0; j < got; j++) WCET_FREE(p[j]);
 	}
 }
 
@@ -214,12 +264,12 @@ static std::atomic<bool> g_xt_stop{false};
 
 static void xt_producer() {
 	while( !g_xt_stop.load(std::memory_order_relaxed)) {
-		void *p = kame_pool_malloc(kXtSize);
+		void *p = WCET_MALLOC(kXtSize);
 		if( !p) continue;
 		*static_cast<char *>(p) = 1;
 		while( !g_ring.push(p)) {
 			if(g_xt_stop.load(std::memory_order_relaxed)) {
-				kame_pool_free(p);      // ring full at shutdown: don't leak it
+				WCET_FREE(p);      // ring full at shutdown: don't leak it
 				return;
 			}
 		}
@@ -234,7 +284,7 @@ static void xt_consume(Hist &h, bool realtime, unsigned n) {
 		void *p = g_ring.pop();
 		if( !p) continue;               // producer behind; not counted
 		std::uint64_t t0 = now_ns();
-		kame_pool_free(p);
+		WCET_FREE(p);
 		std::uint64_t t1 = now_ns();
 		h.add(t1 - t0);
 		done++;
@@ -271,7 +321,7 @@ static void run_rep(Arm &arm, bool realtime, unsigned iters,
 		for(unsigned it = 0; it < iters; it++) {
 			for(unsigned k = 0; k < live; k++) {
 				std::uint64_t t0 = now_ns();
-				void *p = kame_pool_malloc(b.size);
+				void *p = WCET_MALLOC(b.size);
 				std::uint64_t t1 = now_ns();
 				arm.alloc[bi].add(t1 - t0);
 				slots[k] = p;
@@ -284,7 +334,7 @@ static void run_rep(Arm &arm, bool realtime, unsigned iters,
 			}
 			for(unsigned k = 0; k < live; k++) {
 				std::uint64_t t0 = now_ns();
-				kame_pool_free(slots[k]);
+				WCET_FREE(slots[k]);
 				std::uint64_t t1 = now_ns();
 				arm.free_[bi].add(t1 - t0);
 			}
@@ -329,7 +379,7 @@ static void run_faults(unsigned rounds, std::size_t touch_bytes) {
 	Hist h; h.reset();
 	std::uint64_t worst_span = 0;                        // slowest single page
 	for(unsigned r = 0; r < rounds; r++) {
-		char *p = static_cast<char *>(kame_pool_malloc(BLOCK));
+		char *p = static_cast<char *>(WCET_MALLOC(BLOCK));
 		if( !p) { std::printf("  (fault mode: allocation failed)\n"); return; }
 		for(std::size_t off = 0; off < touch_bytes; off += PAGE) {
 			std::uint64_t t0 = now_ns();
@@ -338,7 +388,7 @@ static void run_faults(unsigned rounds, std::size_t touch_bytes) {
 			h.add(t1 - t0);
 			if(t1 - t0 > worst_span) worst_span = t1 - t0;
 		}
-		kame_pool_free(p);
+		WCET_FREE(p);
 		kame_pool_rt_drain();          // give the VA back before the next round
 	}
 	std::printf("\n  cold first-touch, one write per 4 KiB page on fresh "
@@ -396,6 +446,7 @@ int main(int argc, char **argv) {
 	if(full) { reps = 10; iters = 4000; }
 
 	std::printf("== bench_rt_wcet (§75 / G7) ==\n");
+	std::printf("backend: %s\n", kWcetBackend);
 	std::printf("mode=%s%s reps=%u iters=%u interferers=%u\n",
 	            full ? "full" : "smoke", pressure ? " +pressure" : "",
 	            reps, iters, nthreads);
@@ -534,9 +585,9 @@ int main(int argc, char **argv) {
 		}
 		g_xt_stop.store(true, std::memory_order_relaxed);
 		// Drain so the producer's final push cannot block forever.
-		while(void *p = g_ring.pop()) kame_pool_free(p);
+		while(void *p = g_ring.pop()) WCET_FREE(p);
 		prod.join();
-		while(void *p = g_ring.pop()) kame_pool_free(p);
+		while(void *p = g_ring.pop()) WCET_FREE(p);
 
 		std::printf("\n  %zu B cross-thread free (producer allocs, we free)\n",
 		            kXtSize);
