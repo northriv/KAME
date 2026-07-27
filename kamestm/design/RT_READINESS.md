@@ -1002,3 +1002,44 @@ timescales — a µs spin/lease layer and a ms sleep layer — and a mechanism a
 at one cannot govern the other. Every attempt in this sequence that tried to fix
 the ms-scale tail with µs-scale machinery (lease here; slot keying and tagging
 earlier, both µs-scale writes) failed for a variant of that reason.
+
+### D + A composes — same tail, a third of the cost recovered
+
+A (release tags before sleeping) fought with B: A strips the tag, B's
+`empty()` condition then holds for every sleeper, and the return storm cost
+−28 %. With D there is no such coupling, and the two compose cleanly.
+
+    128t throughput (5 reps, medians)      grand tail (2 reps)
+      D      3.40 M/s  (−63 %)               p99.999 8.4 ms, MAX 11.3–14.7 ms
+      D+A    5.47 M/s  (−44 %)               p99.999 8.4 ms, MAX 11.3–14.7 ms
+
+The tail is *identical* — p99.99 6,291,456 and p99.999 8,388,608 in 4 of 4
+measurements across both configurations — and a third of D's throughput cost is
+gone. **D+A dominates D.** At four threads, both are indistinguishable from base.
+
+The reason A helps here and hurt with B is that A's benefit is independent of
+the return rule: a sleeper that has dropped its tag stops blocking peers through
+`fair_mode_blocks_me`, which is where A's +10 % came from in the first place. B
+*consumed* A's tag-clearing as a trigger; D only reads the tag to decide who is
+oldest, so A removes a source of peer blocking without multiplying D's returns.
+
+## Where the knobs stand
+
+    config    4 threads     128 threads    p99.999      MAX
+    base          —              —        67–84 ms   254–290 ms
+    A          neutral        +10 %       unchanged   unchanged
+    B=4        −1.3 %          −3 %        12.6 ms    63–66 ms
+    D          neutral        −63 %         8.4 ms    12.5–14.6 ms
+    D+A        neutral        −44 %         8.4 ms    11.3–14.7 ms
+
+* **Throughput-first, oversubscribed** (KAME as it ships): **A alone**, or
+  nothing. A is +10 % and latency-neutral; the deep tail nobody currently
+  observes.
+* **Latency-first with cores to spare** (a realtime thread on its own core —
+  the PREEMPT_RT recipe): **D+A**. Free at that thread count, and a 14 ms worst
+  case against base's 290 ms.
+* **B=4** occupies the middle: the only option that improves the tail while
+  staying near base throughput *under oversubscription*. If a deployment cannot
+  give the realtime work its own core, B=4 is what remains.
+
+All three default OFF; none is proposed as a default here.
