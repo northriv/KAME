@@ -95,7 +95,12 @@ set(kamestm_test_names
     transaction_payload_integrity_test
     transaction_payload_integrity_3level_test
     transaction_payload_integrity_mixed_test
-    transaction_payload_integrity_3level_mixed_test)
+    transaction_payload_integrity_3level_mixed_test
+    # Per-commit LATENCY tail (not throughput).  Pure observation: it times
+    # iterate_commit from outside and changes nothing in kamestm, so it can
+    # neither regress the library nor bias what it measures.  Not a ctest --
+    # absolute latencies are machine-specific; run it deliberately.
+    transaction_latency_bench)
 
 foreach(t IN LISTS kamestm_test_names)
     add_executable(${t} ${t}.cpp ${support_SRCS})
