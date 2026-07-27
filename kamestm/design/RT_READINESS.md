@@ -162,14 +162,10 @@ first move.
 
     S1'  DONE — the promotion is gated on a retry-count livelock verdict that
          a purely-waiting transaction never trips.
-    S2   Make promotion reachable by WAITING, not only by retrying: the age
-         floor already exists and is already the right quantity, it is simply
-         unreachable behind `_ll_saw`.  This is a change to the arbitration,
-         costs nothing on the fast path (the check is already in the slow
-         negotiation path), is not realtime-specific, and fixes NORMAL rather
-         than adding a privileged bypass.  Re-measure the tail after it.
-    S3   Bound per-commit work (bundle churn is O(subtree)) — any waiting
-         bound is stated in terms of it.
+    S2   TRIED AND REJECTED — see below.  Age-reachable promotion works
+         mechanically but trades throughput for tail at every setting.
+    S3   Bound the (contenders x per-commit work) product, which S2 showed is
+         what actually sets the tail.
     S4   Verify the commit path is syscall-free under the allocator's
          KAME_RT_DEFER (assert kame_pool_rt_violations() == 0 in this harness).
     S5   The bound statement and contract, once there are numbers to state.
@@ -185,3 +181,62 @@ for t in 1 2 4 8; do build/transaction_latency_bench -t $t -s 2 -m grand; done
 cmake -S . -B b250 -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_CXX_FLAGS="-DKAME_NEG_SLEEP_US_PER_MS=250"
 ```
+
+## S2 — tried, measured, rejected (and what it proved)
+
+Implemented exactly as designed: reach the *existing* privilege claim by AGE as
+well as by the livelock verdict (`(_ll_saw || aged)`), plus leave the chunked
+sleep early once aged so the outer round — where the claim lives — is re-entered
+promptly rather than every ~6.6 ms. The verdict's own condition was untouched,
+so retry-driven promotion behaved exactly as before, and nothing was added to
+any fast path. Deliberately no expiry: the model moves `priorityTag` only
+towards an older thread and KEEPS it on success, so a rank that could lapse is
+what its ranking argument cannot have.
+
+**The mechanism fired, verifiably.** With `KAME_STM_NEG_DIAG=1`, grand slow
+commits went from `priv tries 0.000 / grants 0.000` to `0.118 / 0.116`, sleeps
+per commit 15.41 → 2.93, and time slept per commit 25.9 ms → 4.96 ms. That is
+direct evidence the intended path was taken, not an inference from the outcome.
+
+**And it still fails the acceptance gate.** Interleaved A/B on the established
+throughput test (`transaction_payload_integrity_3level_mixed_test 3 128 10 10`),
+against a worktree built at the pre-change commit:
+
+| age floor | throughput @128t | grand p99.9 | p99.99 | p99.999 | MAX |
+|---|---:|---:|---:|---:|---:|
+| *pre-S2* | *9.6 M/s* | *1,024 ns* | *2.6 ms* | *83.9 ms* | *272 ms* |
+| 300 µs | 4.4 M/s (**−54 %**) | 4,096 ns | 8.4 ms | 21.0 ms | 43.9 ms |
+| 3 ms | 6.4 M/s (−33 %) | 2,560 ns | 10.5 ms | 21.0 ms | 40.3 ms |
+| 30 ms | 8.7 M/s (−9.5 %) | 1,024 ns | 12.6 ms | 41.9 ms | 67.3 ms |
+
+Every setting costs throughput, and p99.99 is *worse* at all of them. The
+mechanism does not remove waiting — it redistributes it: mean latency (3,294 →
+3,313 ns) and total work are unchanged, so cutting rare 272 ms starvation
+simply makes more commits wait moderately (slow-commit count 808 → 4,232).
+300 µs is strictly dominated by 3 ms (same tail, half the cost). Reverted; the
+committed instrumentation stays.
+
+### What the failure proves, which is the useful part
+
+Perfect arbitration ordering cannot beat the product
+
+    wait  ≈  (contenders on the node)  ×  (per-commit work)
+
+because a promoted transaction still has to wait for the current holder, and
+the holders form a chain. Fairness decides *who* waits and in what order; it
+cannot reduce *how much* waiting exists. At 8–128 threads committing at
+grand scope, that product is inherently tens of milliseconds, which is exactly
+the tail measured — and no amount of promotion tuning moved it below 21 ms.
+
+So the bound stated earlier is not merely a way to *describe* the wait, it is
+the thing that has to be attacked:
+
+* reduce **contenders per node** — scope, so that unrelated commits do not
+  serialise on one linkage; or
+* reduce **per-commit work** — bundle churn is O(subtree), so a grand-scope
+  commit pays for every child.
+
+That is S3, and S2's rejection is what establishes it is not optional. It also
+sharpens the realtime contract: a bounded commit will require a bounded
+*scope*, in the same way the allocator's contract required a stable working set
+— a precondition on the caller, not something the arbitration can supply.
