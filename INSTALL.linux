@@ -34,6 +34,20 @@ sudo apt-get install -y \
   Python scripting, no Jupyter/IPython console, no MCP server, and `.kam`
   files fall back to the (legacy) Ruby loader.  It must be importable by the
   interpreter qmake picks — `python3 -m pybind11 --includes` must succeed.
+* **Jupyter / IPython** is a separate, runtime-only dependency, and it must be
+  installed into the interpreter KAME *embeds* (the one qmake reported), not
+  merely into some python3 on the box:
+
+  ```bash
+  python3 -m pip install ipykernel ipython jupyter nest_asyncio numpy
+  ```
+
+  `nest_asyncio` is easy to miss — ipykernel's event-loop integration needs it
+  and without it the kernel starts and then throws `ModuleNotFoundError` from
+  a tornado callback.  `numpy` is not needed by KAME itself but user scripts
+  expect `np`.  With these present the "Script" menu's three Jupyter entries
+  (Notebook / Console / Qt Console) list every `jupyter` found on `PATH`, and
+  the embedded kernel writes its connection file to the Jupyter runtime dir.
 * **linux-gpib** is optional; when its headers are present `HAVE_LINUX_GPIB`
   is defined and the native `XNIGPIBPort` implementation is compiled in.
   Without it, `Device = GPIB` falls back to the **usermode NI USB-GPIB
@@ -118,6 +132,28 @@ missing device; SERIAL on a pty opens and completes a `*IDN?` round trip;
 cleanly with no adapter attached; `PrologixGPIBUSB` on a pty opens, emits the
 full adapter initialisation (`++mode 1`, `++eoi 1`, `++auto 0`, `++ifc`, …)
 and completes a `++spoll` / `++read eoi` query round trip.
+
+## Jupyter / IPython
+
+Verified working: KAME's embedded IPython kernel starts, registers a
+connection file, and an external client attached to that file drives the live
+measurement tree.  Executed through the kernel from a separate process —
+which is exactly what the menu's `jupyter console --existing` does:
+
+```
+Root().getName()                                   -> 'Measurement'
+len(Root()['Drivers'].dynamic_cast().typenames())  -> 103
+[c.getName() for c in Snapshot(Root()).list(Root())][:4]
+                        -> ['Thermometers', 'ScalarEntries', 'GraphList', 'ChartList']
+Root()['Drivers'].dynamic_cast()
+     .createByTypename('KE2000','JUPTEST').getName()   -> 'JUPTEST'   (driver created live)
+listOfJupyterPrograms()                            -> ['/usr/local/bin/jupyter']
+```
+
+The last line is what fills the menus, so with a `jupyter` on `PATH` all three
+entries appear.  Creating a driver from the kernel prints "QOpenGLWidget is
+not supported on this platform" under `offscreen`; that is the headless QPA,
+not the port.
 
 ## Known gaps
 
