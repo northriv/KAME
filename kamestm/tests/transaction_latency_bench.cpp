@@ -81,6 +81,26 @@ static inline std::uint64_t now_ns() {
 // 1 ns resolution below 64 ns, then 4 buckets per octave: O(1) memory and no
 // allocation, so the harness cannot perturb the allocator under the STM.
 enum { HB = 256 };
+//! Retry accounting for the slow tail.  `iterate_commit` invokes its lambda
+//! once per ATTEMPT, so the retry count is observable from outside with no
+//! change to kamestm — worth exhausting before instrumenting the library.
+struct Retries {
+    std::uint64_t slow_n = 0, slow_attempts = 0, slow_max = 0;   // >= threshold
+    std::uint64_t all_n = 0, all_attempts = 0;
+    void add(std::uint64_t ns, std::uint64_t att, std::uint64_t thresh) {
+        all_n++; all_attempts += att;
+        if(ns >= thresh) {
+            slow_n++; slow_attempts += att;
+            if(att > slow_max) slow_max = att;
+        }
+    }
+    void merge(const Retries &o) {
+        slow_n += o.slow_n; slow_attempts += o.slow_attempts;
+        if(o.slow_max > slow_max) slow_max = o.slow_max;
+        all_n += o.all_n; all_attempts += o.all_attempts;
+    }
+};
+
 struct Hist {
     std::uint64_t bucket[HB];
     std::uint64_t n, max, sum;
@@ -150,8 +170,13 @@ static void report(const char *label, const Hist &h, double secs) {
 // ------------------------------------------------------------------ run
 enum Mode { M_LEAF = 0, M_GRAND = 1, M_MIXED = 2 };
 
+//! A commit at or above this is "slow" for the retry breakdown.  100 us is
+//! comfortably past p99.9 in every arm measured so far, and well under the
+//! millisecond-scale tail being diagnosed.
+static const std::uint64_t kSlowNs = 100000ull;
+
 static Hist run_arm(Mode mode, int threads, double secs, double warmup,
-                    int grand_pct, double *out_secs) {
+                    int grand_pct, double *out_secs, Retries *out_r) {
     shared_ptr<MyNode> grand(MyNode::create<MyNode>());
     shared_ptr<MyNode> parent(MyNode::create<MyNode>());
     std::vector<shared_ptr<MyNode>> children((size_t)threads);
@@ -166,11 +191,13 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
 
     std::vector<Hist> per_thread((size_t)threads);
     for(auto &h : per_thread) h.reset();
+    std::vector<Retries> per_thread_r((size_t)threads);
     std::atomic<int> ready{0};
     std::atomic<bool> go{false}, stop{false}, timing{false};
 
     auto worker = [&](int tid) {
         Hist local; local.reset();
+        Retries lr;
         shared_ptr<MyNode> leaf = children[(size_t)tid];
         unsigned seq = 0;
         ready.fetch_add(1);
@@ -180,17 +207,24 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
             bool do_grand = (mode == M_GRAND) ||
                 (mode == M_MIXED && (int)(seq++ % 100u) < grand_pct);
             const bool measure = timing.load(std::memory_order_relaxed);
+            std::uint64_t attempts = 0;
             std::uint64_t t0 = measure ? now_ns() : 0;
             if(do_grand)
                 grand->iterate_commit([&](Tr &tr) {
+                    ++attempts;
                     for(int c = 0; c < threads; c++)
                         tr[*children[(size_t)c]].m_x++;
                 });
             else
-                leaf->iterate_commit([&](Tr &tr) { tr[*leaf].m_x++; });
-            if(measure) local.add(now_ns() - t0);
+                leaf->iterate_commit([&](Tr &tr) { ++attempts; tr[*leaf].m_x++; });
+            if(measure) {
+                std::uint64_t dt = now_ns() - t0;
+                local.add(dt);
+                lr.add(dt, attempts, kSlowNs);
+            }
         }
         per_thread[(size_t)tid] = local;
+        per_thread_r[(size_t)tid] = lr;
     };
 
     std::vector<std::thread> ts;
@@ -212,6 +246,7 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
 
     Hist all; all.reset();
     for(auto &h : per_thread) all.merge(h);
+    if(out_r) { out_r->merge(Retries()); for(auto &r : per_thread_r) out_r->merge(r); }
     if(out_secs) *out_secs = elapsed;
     return all;
 }
@@ -262,8 +297,18 @@ int main(int argc, char **argv) {
     for(auto &a : arms) {
         if( !all && std::strncmp(mode, a.name, std::strlen(mode))) continue;
         double el = 0;
-        Hist h = run_arm(a.m, threads, secs, warmup, grand_pct, &el);
+        Retries r;
+        Hist h = run_arm(a.m, threads, secs, warmup, grand_pct, &el, &r);
         report(a.name, h, el);
+        // If slow commits show ~1 attempt, the time is spent INSIDE one
+        // attempt (negotiation: spinning or sleeping), not in retrying —
+        // which is what tells us where to instrument next.
+        std::printf("  %-22s attempts/commit: all=%.3f   slow(>=%llu ns): "
+                    "n=%llu mean=%.3f max=%llu\n", "",
+                    r.all_n ? (double)r.all_attempts / (double)r.all_n : 0.0,
+                    (unsigned long long)kSlowNs, (unsigned long long)r.slow_n,
+                    r.slow_n ? (double)r.slow_attempts / (double)r.slow_n : 0.0,
+                    (unsigned long long)r.slow_max);
     }
     std::printf("== done ==\n");
     return 0;

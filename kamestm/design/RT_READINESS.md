@@ -40,16 +40,29 @@ Not a ctest: absolute latencies are machine-specific. Run it deliberately.
 **The ordinary path is already fast**: p50 128–256 ns, p99.9 under 1.6 µs, at
 tens of millions of commits/s. The problem is entirely in the deep tail.
 
-## What the tail is NOT — two hypotheses killed by measurement
+## What the tail is NOT
 
-**Not the sleep chunk.** A contender that loses the spin band waits on a
-condition variable for `KAME_NEG_SLEEP_US_PER_MS` µs (compile-time, default
-1000). The obvious reading of a millisecond-scale tail is "it slept". Rebuilt
-at 250 µs — a 4× cut — and the tail did not move at all: grand p99.999 stayed
-at `25,165,824 ns` and mixed p99.99/p99.999 at `2,621,440` / `6,291,456`,
-*bit-identical* (same histogram bucket, and a 4× change would have moved it two
-octaves). Nor is it a *count* of chunks: only 0.006 % (grand) / 0.017 % (mixed)
-of commits even reach one chunk's duration.
+**Not the sleep chunk size — and the reason matters.** A contender that loses
+the spin band waits on a condition variable for `KAME_NEG_SLEEP_US_PER_MS` µs
+(compile-time, default 1000). Rebuilt at 250 µs — a 4× cut — and the tail did
+not move at all: grand p99.999 stayed at `25,165,824 ns` and mixed
+p99.99/p99.999 at `2,621,440` / `6,291,456`, *bit-identical*.
+
+The first reading of that was "so the sleep is not involved", and it was
+**wrong**. The wait does not end when a chunk expires — it ends when the
+contended node becomes winnable. Shrinking the chunk therefore changes the
+polling granularity (4× as many, 4× shorter) and not the wall time. The sleep
+is still the mechanism; what sets the duration is **how long the transaction is
+denied its turn**. Recorded because the wrong inference points somewhere very
+different (tune the chunk / replace it with a spin) from the right one (fix the
+arbitration).
+
+**Not a retry storm.** `iterate_commit` invokes its lambda once per attempt, so
+the retry count is observable with no library change. Counted per commit and
+correlated with its latency: **attempts/commit = 1.000** overall, and for
+commits ≥ 100 µs the mean is 1.000 (leaf) / 1.264 (grand) / 1.445 (mixed),
+max 1–10. So even the slowest commits mostly finish in ONE attempt — the time
+goes *inside* a single attempt, which is what localises it to negotiation.
 
 **Not the bundle work.** The grand arm is the 3-level bundle,
 `1 + 2(N+1)` CAS per commit — the expensive shape. Its p50/p99.9 (256/768 ns)
@@ -100,8 +113,14 @@ the point where promotion was supposed to bite.
 At **1 thread — no contention at all — MAX is still 15.8 ms.** Nothing in the
 STM can starve a sole committer, so that is external (scheduler preemption, or
 a one-off allocator region growth). **MAX is contaminated on this host; read
-p99.99 / p99.999.** Those are clean: they move with contention, MAX does not
-move much beyond the floor.
+p99.99 / p99.999.**
+
+The same floor shows in the *leaf* arm, and it is the control that keeps the
+grand result honest: at 8 threads leaf reaches p99.999 = 786 µs with
+**1.000 attempts** on every slow commit, on a node nobody else touches. That is
+the OS descheduling the measuring thread, not the STM. Grand at the same thread
+count is p99.999 = 84 ms — **two orders of magnitude above that floor**, which
+is what makes it a real STM effect rather than noise.
 
 ## Where this leaves the plan
 
