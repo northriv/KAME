@@ -346,3 +346,46 @@ blocking?** That is `_neg_spin_block`'s band gate, `ms_actual`, the runner
 lottery and `effective_min_runners` — and it should be attacked the same way,
 by instrumenting which branch selects the sleep and with what computed
 duration, before changing anything.
+
+## Is the sleep the OS preempting us? — No. The STM asks for it.
+
+The obvious competing explanation for a millisecond tail: the thread is not
+sleeping, it is *descheduled*, and the time lands inside `cell.wait()` because
+that is where it happens to be. If so there would be nothing in the STM to fix.
+
+Settled by accumulating, alongside the measured wait, the duration actually
+**requested** of `cell.wait()`:
+
+    arm     asked / sleep   got / sleep   ratio
+    grand    1,498,458 ns   1,683,828 ns  1.12x
+    mixed    1,504,616 ns     284,489 ns  0.19x
+
+**grand sleeps because it asked to.** 1.12× is ordinary wake-up latency on top
+of a fully-served request, not scheduling delay. (1.5 ms per sleep, not 1 ms,
+because the call site randomises `1 + (seed>>31)` ms.)
+
+An unplanned contrast fell out of the same measurement, and it is the sharper
+result:
+
+* **mixed 0.19× — woken early four times out of five.** The notify path works
+  there.
+* **grand 1.12× — never woken early at all.** Every one of the ~14.5 sleeps in
+  a slow commit runs to its full timeout. The `wake_one` targeting that the
+  code documents as best-effort ("mis-target → natural timeout") is missing
+  this sleeper every single time.
+
+### And this finally explains the flat chunk sweep, correctly
+
+`t_end = now_us() + ms_actual * 1000` is a **time budget**, not a chunk count.
+Halving `KAME_NEG_SLEEP_US_PER_MS` therefore doubles the number of chunks
+inside the same budget and leaves the total untouched — which is exactly the
+bit-identical tail observed, and neither of the two explanations offered
+earlier in this document (first "the sleep is not involved", then "the wait
+ends when the node becomes winnable"). The second was closer but still wrong:
+the wait ends when **`ms_actual` elapses**, because nothing wakes it.
+
+So the quantity that sets the tail is `ms_actual` — how much sleep the adaptive
+backoff budgets per round — together with the number of rounds, and with wakes
+that never arrive to cut either short. That is what to instrument next:
+which branch computes `ms_actual`, what value it produces, and why
+`notify_n_contenders` never reaches a grand-arm sleeper.

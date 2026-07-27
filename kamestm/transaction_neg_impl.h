@@ -421,6 +421,11 @@ struct NegDiag {
     //! Sum of m_tagged_linkages.size() at each sleep.  Distinguishes "owned 0
     //! of N tags" (displaced) from "had tagged nothing yet" (vacuous).
     std::uint64_t tagged_list_at_sleep;
+    //! Sum of the durations we ASKED cell.wait() for.  Compared against
+    //! slept_ns (what actually elapsed), this separates "the STM chose to
+    //! sleep this long" from "the OS did not run us again for this long":
+    //! actual ~= requested means the former, actual >> requested the latter.
+    std::uint64_t req_ns;
 };
 inline NegDiag &neg_diag() { static thread_local NegDiag d{}; return d; }
 }
@@ -465,6 +470,7 @@ void Node<XN>::NegotiationCounter::negotiate_sleep(
     {
         auto &d = detail::neg_diag();
         ++d.sleeps;
+        d.req_ns += (std::uint64_t)us * 1000ull;
         auto t0 = std::chrono::steady_clock::now();
         st.cell.wait(g, us);
         d.slept_ns += (std::uint64_t)std::chrono::duration_cast<
