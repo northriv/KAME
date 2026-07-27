@@ -329,7 +329,21 @@ def loadSequence(xpythread, filename):
 			with open(filename + ".log", mode='a') as logfile:
 				TLS.logfile = logfile
 				print("#" + str(threading.current_thread()) + " started.")
-				exec(open(filename).read())
+				#Run the script with ONE dict serving as both globals and
+				#locals.  A bare exec(src) inside this function hands the
+				#script THIS function's locals, so a script-level `x = ...`
+				#lands in a namespace the script's own top-level `def`s
+				#cannot see -- every helper that touches a script-level
+				#variable then dies with NameError.  Seeded from our globals
+				#so Root()/Snapshot()/Transaction()/sleep() stay available,
+				#and copied so a script cannot clobber them for everyone
+				#else.  compile() with the real path also puts the filename
+				#and correct lines in tracebacks instead of "<string>".
+				_src = open(filename, encoding="utf-8").read()
+				_ns = dict(globals())
+				_ns["__name__"] = "__main__"
+				_ns["__file__"] = filename
+				exec(compile(_src, filename, "exec"), _ns)
 				print(str(threading.current_thread()) + " Finished.")
 				TLS.logfile = None
 	except Exception:
