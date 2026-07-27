@@ -337,6 +337,24 @@
 //! differently when it is on.  Kept separate from KAME_ADAPT_INSTRUMENT, which
 //! feeds the adaptive logic and is NOT throughput-neutral, so the two must not
 //! share a measurement run.
+//! (A) Release our linkage tags before going to sleep.  Measured, 38 % of
+//! sleeps in the mixed arm happen while still owning >=1 tag: the sleeper is
+//! blocking peers through `fair_mode_blocks_me` while making no progress
+//! itself.  Clearing trades that away against losing our place in the age
+//! ordering.  0 = keep the current behaviour.
+#ifndef KAME_STM_CLEAR_TAGS_BEFORE_SLEEP
+#define KAME_STM_CLEAR_TAGS_BEFORE_SLEEP 0
+#endif
+
+//! (B) Hand control back to the caller — so the CAS is actually attempted —
+//! once an UNTAGGED transaction has accumulated this much sleep budget in the
+//! negotiator.  0 disables.  1 is the aggressive form (return after the first
+//! round), which halved the deep tail but cost 12x at p99.9; larger values
+//! trade that back.
+#ifndef KAME_STM_UNTAGGED_RETURN_MS
+#define KAME_STM_UNTAGGED_RETURN_MS 0
+#endif
+
 #ifndef KAME_STM_NEG_DIAG
 #define KAME_STM_NEG_DIAG 0
 #endif

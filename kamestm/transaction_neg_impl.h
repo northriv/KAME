@@ -1907,6 +1907,14 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             }
         }
         else {
+#if KAME_STM_CLEAR_TAGS_BEFORE_SLEEP
+            // (A) Do not block peers while we are not running.  A sleeper
+            // holding a tag keeps `fair_mode_blocks_me` true for everyone else
+            // on that linkage; measured at 38 % of sleeps in the mixed arm.
+            // Mine-only clear, so a tag another Tx took from us is untouched.
+            if( !snap.m_tagged_linkages.empty())
+                snap.drop_tags_n_privilege();
+#endif
             int ms_actual = ms;
 #if KAME_STM_NEG_DIAG
             { auto &_d = detail::neg_diag();
@@ -2076,6 +2084,16 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             NegotiationCounter::negotiate_sleep(ms_actual, started_time);
 #endif
         }
+#if KAME_STM_UNTAGGED_RETURN_MS
+        // (B) No tag => never failed a CAS => no evidence we would lose, so
+        // escalating the wait is backwards.  Return and let the attempt
+        // happen: it either succeeds, or fails and tags, which switches this
+        // Tx onto the normal escalating path.  Cannot weaken the storm
+        // protection — a storm is a run of failures, failures tag.
+        if(snap.m_tagged_linkages.empty()
+           && ms >= KAME_STM_UNTAGGED_RETURN_MS)
+            break;
+#endif
     }
 _exit_cv_sleep:;
   } // end adaptive-path scope

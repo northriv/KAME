@@ -772,3 +772,52 @@ or only once older than the age floor — should recover most of the p99.9 cost
 while keeping the deep-tail win, and is a tuning question now that the
 mechanism is known to work. That is the obvious next experiment, and the first
 one in this sequence that starts from something that functions.
+
+## Two knobs, measured separately and together — and B4 is the trade
+
+Both shipped compile-time, **default OFF**, so the shipping build is
+byte-identical to before. `KAME_STM_CLEAR_TAGS_BEFORE_SLEEP` (A) releases our
+linkage tags before the chunked sleep — aimed at the measured 38 % of mixed-arm
+sleeps that held tags while blocking peers. `KAME_STM_UNTAGGED_RETURN_MS` (B)
+is the softened return: an untagged transaction hands control back once `ms`
+reaches the knob, instead of after the first round (B=1, the aggressive form
+measured earlier) or never (base).
+
+Throughput at 128 threads (median of 3, interleaved):
+
+    base    9.16 M/s
+    A      10.12 M/s   (+10 %)
+    B=4     8.87 M/s   (−3 %)
+    A+B     6.59 M/s   (−28 %)  — the knobs are INCOMPATIBLE: A strips tags,
+                                  so B's "untagged" condition holds for every
+                                  sleeper and the return storm arrives.
+
+Tail at 8 threads, grand:
+
+    metric        base        B=1 (earlier)   B=4
+    p99.9         1,024 ns    12,288 ns       1,536 ns
+    p99.99        2.6 ms       8.4 ms        10.5 ms
+    p99.999      83.9 ms      41.9 ms        12.6 ms
+    MAX          ~253-333 ms      —          ~73-94 ms
+
+Reproducibility: B4's p99.999 = 12,582,912 ns bit-identical 3/3 (base's
+83,886,080 likewise 3/3). The deep-tail improvement is real and stable.
+
+**B=4 is the balance the B=1 note predicted**: deep tail 6.7× better, MAX ~4×
+better, p99.9 essentially recovered (1.5× vs 12×), −3 % throughput. A is +10 %
+throughput with the grand tail untouched (the predicted no-op — grand holds no
+tags) and mixed MAX slightly worse, which is the losing-your-place cost made
+visible.
+
+### Status: knobs exist, defaults unchanged — the decision is a judgement call
+
+* **A** is a throughput knob, not a latency knob. +10 % is worth considering on
+  its own merits, but it needs soak beyond one benchmark (the mixed-MAX
+  degradation says the age ordering does lose information), and it must never
+  ship together with B.
+* **B=4** is the realtime knob: the only mechanism in this whole sequence that
+  cut the deep tail at acceptable cost, with the mechanism verified (returns →
+  attempts → tags) rather than inferred. Still 12.6 ms — direction, not
+  arrival, for a 1 kHz deadline.
+* Anyone enabling either does so per-build, and the latency bench plus the
+  128-thread gate are the acceptance tests, as throughout.
