@@ -891,3 +891,28 @@ the realtime thread pinned to its own core, so it never competes with the
 workers — is precisely the configuration in which B is close to free, and it is
 also the configuration in which its latency benefit is wanted. The knob and the
 deployment fit each other.
+
+### Choosing the B value — B=1 is dominated; B=4 is the optimum
+
+The earlier B=1 and B=4 figures came from different sessions, which is the
+comparison this document keeps warning against. Re-run head to head, grand arm,
+3 repeats, medians:
+
+    knob     p99.9        p99.99     p99.999
+    base     1,280 ns     3.67 ms    67.1 ms
+    B=1     16,384 ns    10.5 ms     41.9 ms
+    B=4      2,560 ns    10.5 ms     12.6 ms   (bit-identical 3/3)
+    B=8      1,024 ns    12.6 ms     41.9 ms
+
+**B=1 is dominated by B=4** — 6.4× worse at p99.9 *and* 3.3× worse at p99.999,
+for the same ~3 % throughput. It returns too eagerly and thrashes. B=8 is the
+opposite failure: p99.9 is back to baseline but so is the deep tail, so it buys
+nothing. **B=4 sits at the minimum**, and its p99.999 was identical in all three
+repeats.
+
+So if B is enabled at all, the value is 4. Whether to enable it is the separate
+question, and for KAME today the answer is probably not: base p99.9 is 1,280 ns
+against B=4's 2,560, the deep tail nobody currently observes, and KAME's
+deadlines are instrument I/O at millisecond scale. B=4 earns its place in a
+deployment that has a realtime thread on its own core — where, per the previous
+section, its throughput cost also nearly vanishes.
