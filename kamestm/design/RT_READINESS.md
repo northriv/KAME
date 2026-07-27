@@ -303,3 +303,46 @@ the slow path).
 Stated as a candidate, not a fix: it must be measured against the same gate that
 rejected S2 (throughput at 128 threads, interleaved A/B), and hold-and-wait in
 the mixed arm (38 %) says tagging more will interact with holders that sleep.
+
+## S3 candidate "tag on yield" — implemented, and it is never reached
+
+The candidate above rested on a premise I had not checked: that the starving
+transaction sleeps *because a peer's tag blocks it*, so registering its own tag
+at that point would make it visible to oldest-wins. Implemented it at the
+obvious place — right after `fair_mode_blocks_me` in `_negotiate_internal`,
+tagging only when the gate says yield.
+
+Throughput was neutral (9.67 vs 9.73 M/s at 128 threads, interleaved — nothing
+like S2's −54 %), and the tail moved from p99.999 84 → 67 ms and MAX 272 →
+209 ms. Both are inside this metric's run-to-run spread, so on their own they
+prove nothing — which is why the mechanism check matters:
+
+    tagged-list size at sleep : 0.00   (unchanged)
+    fair_blocks               : 0.00 per commit
+    yield-site tag calls      : 0.00 per commit
+
+**`fair_mode_blocks_me` is never true, so the site is never reached.** The
+change is inert; the small tail movement was noise. Reverted.
+
+### What that establishes
+
+In the grand arm **no tag exists at all**, from either source: the retry tag
+never fires because the Tx never retries, and the yield tag never fires because
+the gate never blocks. The entire fairness machinery — tags, oldest-wins
+displacement, the livelock verdict, the age floor, privilege — is **dormant**
+in the workload that produces the 84 ms tail.
+
+So the tail is not starvation in the "someone holds the node and I queue behind
+them" sense. Nobody holds anything. It is produced by the **adaptive
+negotiation backoff itself** deciding to sleep, ~14 times, ~25 ms in total, per
+slow commit, with no arbitration involved. Three successive hypotheses —
+sleep-chunk size, retry-gated promotion, tag invisibility — were each refuted
+the same way: by checking whether the mechanism fired rather than whether the
+number moved.
+
+The next question is therefore about the backoff, not about fairness: **why
+does the adaptive path choose to sleep for tens of milliseconds when nothing is
+blocking?** That is `_neg_spin_block`'s band gate, `ms_actual`, the runner
+lottery and `effective_min_runners` — and it should be attacked the same way,
+by instrumenting which branch selects the sleep and with what computed
+duration, before changing anything.
