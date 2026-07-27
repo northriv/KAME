@@ -869,7 +869,7 @@ XNIDAQmxPulser::fillBuffer() {
 	uint64_t pausing_cnt_blank_before = PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER;
 	uint64_t pausing_cnt_blank_after = 1;
 	uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
-	uint64_t pausing_cost = std::max(16uLL, pausing_cnt_blank_before + pausing_cnt_blank_after);
+	uint64_t pausing_cost = std::max<uint64_t>(16u, pausing_cnt_blank_before + pausing_cnt_blank_after);
 
 	tRawDO *pDO = m_patBufDO.curWritePos();
     tRawDO *pDOorg = pDO;

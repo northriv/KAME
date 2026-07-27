@@ -11,7 +11,7 @@ orchestration across compatible instruments.
 
 **License:** GPL v2 or later (prior to 8.0: LGPL v2 or later)
 **Authors:** Kentaro Kitagawa, Shota Suetsugu
-**Platforms:** macOS, Windows (64-bit); Linux support discontinued
+**Platforms:** macOS, Windows (64-bit); Linux builds and runs (see `INSTALL.linux`) but is unsupported
 **Manual:** [日本語](https://kitag.issp.u-tokyo.ac.jp/%e8%87%aa%e5%8b%95%e5%8c%96%e5%af%be%e5%bf%9c%e6%b8%ac%e5%ae%9a%e3%83%97%e3%83%ad%e3%82%b0%e3%83%a9%e3%83%a0kame/) · [English](https://kitag.issp.u-tokyo.ac.jp/web/kame/kame-7-en.pdf)
 
 ![KAME screenshot](https://kitag.issp.u-tokyo.ac.jp/wordpress/wp-content/uploads/2025/01/dd21dff192ba7bde3beb0830a80d886c-930x620.png)

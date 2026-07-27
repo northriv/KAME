@@ -85,10 +85,21 @@
 //                 correct realization (matches the test harness shim).
 //   * shared_ptr / weak_ptr — `XThread`'s ctor takes `shared_ptr<X>`
 //                 (xthread.h); `transaction.h` uses both.
+//   * static_pointer_cast / dynamic_pointer_cast — `XThread`'s member-
+//                 function ctor calls `dynamic_pointer_cast<T>(r)`
+//                 unqualified (xthread.h).  A call with an EXPLICIT
+//                 template argument needs the name visible to ordinary
+//                 unqualified lookup before C++20's P0846, which clang
+//                 grants as an extension but GCC does not — so without
+//                 these the standalone library fails to build on
+//                 Linux/GCC while building fine on macOS/clang.  Present
+//                 in `kame/support.h`; the shim was missing them.
 #include <string>
 #include <memory>
 typedef std::string XString;
 using std::shared_ptr;
 using std::weak_ptr;
+using std::static_pointer_cast;
+using std::dynamic_pointer_cast;
 
 #endif /* supportH */

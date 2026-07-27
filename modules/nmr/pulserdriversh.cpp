@@ -284,7 +284,7 @@ XSHPulser::pulseAdd(Transaction &tr, uint64_t term, uint32_t pattern, bool first
 		}
 		}
 		mtu_term -= ulen*0x10000uL + dlen;
-		mtu_term = max(0LL, mtu_term);
+		mtu_term = max<int64_t>(0, mtu_term);
 		tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_SET);
 		tr[ *this].m_zippedPatterns.push_back((unsigned char)(shot[ *this].m_lastPattern / 0x100) );
 		tr[ *this].m_zippedPatterns.push_back((unsigned char)(shot[ *this].m_lastPattern % 0x100) );

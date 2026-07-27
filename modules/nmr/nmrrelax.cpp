@@ -711,8 +711,8 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
     //Reads spectra from NMRPulseAnalyzers
     if( emitter != this) {
         assert( pulse1__ );
-        assert( shot_pulse1[ *pulse1__].time() );
-        assert( shot_pulser[ *pulser__].time() );
+        assert( shot_pulse1[ *pulse1__].time().isSet() );
+        assert( shot_pulser[ *pulser__].time().isSet() );
         assert( emitter != pulser__.get() );
 
         if(shot_pulse1[ *pulse1__->exAvgIncr()] && mode__ != MeasMode::T2_Multi) {

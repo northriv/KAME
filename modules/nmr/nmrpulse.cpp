@@ -364,7 +364,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
     assert(dso__);
 
     const Snapshot &shot_dso((emitter == dso__.get()) ? shot_emitter : shot_others);
-    assert(shot_dso[ *dso__].time() );
+    assert(shot_dso[ *dso__].time().isSet() );
 
     if(shot_dso[ *dso__].numChannels() < 1) {
         throw XSkippedRecordError(i18n("No record in DSO"), __FILE__, __LINE__);

@@ -44,9 +44,32 @@ STDOUT = sys.stdout
 STDERR = sys.stderr
 STDIN = sys.stdin
 
-#For osx, module files are in kame.app/Contents/MacOSX/../Resources
-#For win, module files are in Resources
-KAME_ResourceDir = os.path.join(os.path.dirname(sys.executable), '../Resources' if sys.platform == 'darwin' else 'Resources')
+#Where the deployed script files (kame_mcp_server.py, the notebook config,
+#the user's manual, pythonlineshell.py) live, relative to the executable:
+#  osx  : kame.app/Contents/MacOS/../Resources
+#  win  : Resources\
+#  linux: next to the binary in a build tree, or $prefix/share/kame once
+#         installed (matching kame.pro's `scriptfile.path`).
+#Probe the candidates instead of assuming, and key on a file that is always
+#deployed, so a layout that does not exist is skipped rather than silently
+#becoming an unusable sys.path entry.
+def _kame_resource_dir():
+	_exedir = os.path.dirname(sys.executable)
+	if sys.platform == 'darwin':
+		_cands = [os.path.join(_exedir, '../Resources')]
+	elif sys.platform.startswith('win'):
+		_cands = [os.path.join(_exedir, 'Resources')]
+	else:
+		_cands = [_exedir,
+		          os.path.join(_exedir, 'Resources'),
+		          os.path.join(_exedir, '../share/kame'),
+		          '/usr/local/share/kame', '/usr/share/kame']
+	for _c in _cands:
+		if os.path.isfile(os.path.join(_c, 'kame_mcp_server.py')):
+			return os.path.normpath(_c)
+	return os.path.normpath(_cands[0])   #keep the platform default
+
+KAME_ResourceDir = _kame_resource_dir()
 sys.path.insert(0, KAME_ResourceDir) #adds resource folder for importable modules.
 
 print("Hello! KAME Python support.")

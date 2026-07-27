@@ -293,7 +293,7 @@ XImageProcessor::visualize(const Snapshot &shot) {
         for(unsigned int i  = 0; i < width * height; ++i) {
             for(unsigned int cidx = 0; cidx < seq_len; ++cidx) {
                 int64_t v = ((int64_t)(*summed[cidx] * gain_av[cidx]))  / 0x100000000LL;
-                *processed++ = std::max(0LL, std::min(v, 0xffffLL));
+                *processed++ = std::max<int64_t>(0, std::min<int64_t>(v, 0xffff));
                 (summed[cidx])++;
             }
             *processed++ = 0xffffu;

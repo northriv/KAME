@@ -475,7 +475,7 @@ template class OnAxisFuncObject<true>;
 template class OnAxisFuncObject<false>;
 
 
-OnScreenTextObject::OnScreenTextObject(XQGraphPainter* p, const std::__1::shared_ptr<XNode> &pickable_node) :
+OnScreenTextObject::OnScreenTextObject(XQGraphPainter* p, const shared_ptr<XNode> &pickable_node) :
     OnScreenPickableObject(p, pickable_node),
     m_minX(0xffff), m_minY(0xffff), m_maxX(-0xffff), m_maxY(-0xffff) {
     defaultFont();
