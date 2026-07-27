@@ -7,7 +7,8 @@ cost real time to find and which anyone re-running these measurements on
 Linux will hit again.
 
 Host used: 4 vCPU Intel Xeon @ 2.80 GHz (KVM guest, 16 GiB), Ubuntu 24.04,
-glibc 2.39, kernel 6.18.5, GCC 13.3, Release, `ctest` 18/18 green.
+glibc 2.39, kernel 6.18.5, GCC 13.3, Release. `ctest` 18/18 green on **both
+x86-64 and `-m32`** (see the ILP32 note below).
 
 ---
 
@@ -105,6 +106,32 @@ Three things the original plan did not anticipate, all found by measuring:
   its working set is TLB-trivial. `tests/bench/bench_tlb.c` was added for
   this: a dependent random pointer chase over a pool-allocated working set,
   which is deliberately the *worst* case for TLB reach.
+* **Do not use an *unadvised* range as the "THP is on" baseline.** Under the
+  common `defrag = madvise` setting the kernel will not compact to find a
+  2 MiB block for a range nobody asked about, so a `KAME_THP_SYSTEM` baseline
+  reads 0 kB as soon as memory is mildly fragmented — and a check written as
+  "baseline > 0, then assert NEVER == 0" then skips itself for no reason.
+  With a `SYSTEM` baseline, sub-test (2e) passed 64-bit and skipped 32-bit on
+  the same host and kernel. Use `MADV_HUGEPAGE` as the baseline arm; it earns
+  the compaction effort and makes the A/B deterministic.
+
+### ILP32
+
+Worth doing, since the standalone library claims Linux 32-bit support and
+this work touches page-level code. `apt-get install gcc-multilib
+g++-multilib`, then configure with `-DCMAKE_C_FLAGS=-m32
+-DCMAKE_CXX_FLAGS=-m32 -DCMAKE_EXE_LINKER_FLAGS=-m32
+-DCMAKE_SHARED_LINKER_FLAGS=-m32`. Result: 18/18, warning-free, and (2e)'s
+behavioural half passes with the same 10,240 kB vs 0 kB figures as 64-bit —
+THP is a kernel page-table property, not a function of pointer width, so an
+ILP32 process on an x86-64 kernel gets hugepages normally.
+
+The two defects that build found were both in the new test/bench code, not
+the library: a `%lx`-into-`uintptr_t` scan in (2e)'s smaps parser (ILP32
+`uintptr_t` is `unsigned int`), and a `size_t` overflow in `bench_tlb` for a
+multi-GiB working set that surfaced as a misleading "working set too small".
+Both fixed. The library itself needed nothing — its ILP32 handling
+(`ALLOC_MAX_REGIONS = 96` = 3 GiB, `RADIX_VA_LIMIT = ~0`) predates this work.
 
 ### Reproducing
 
