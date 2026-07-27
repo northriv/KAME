@@ -6,9 +6,20 @@ for the *method*, and in particular for the environment traps below, which
 cost real time to find and which anyone re-running these measurements on
 Linux will hit again.
 
-Host used: 4 vCPU Intel Xeon @ 2.80 GHz (KVM guest, 16 GiB), Ubuntu 24.04,
-glibc 2.39, kernel 6.18.5, GCC 13.3, Release. `ctest` 18/18 green on **both
-x86-64 and `-m32`** (see the ILP32 note below).
+Host used: 4 vCPU Intel Xeon @ 2.80 GHz (Firecracker microVM, 16 GiB),
+Ubuntu 24.04, glibc 2.39, kernel 6.18.5, GCC 13.3, Release. `ctest` 18/18
+green on **both x86-64 and `-m32`** (see the ILP32 note below).
+
+**Not a realtime kernel.** `PREEMPT_DYNAMIC`, not `PREEMPT_RT`
+(`/sys/kernel/realtime` absent); no `isolcpus` / `nohz_full` / `rcu_nocbs`;
+`sched_rt_runtime_us` at the default 950 ms/1 s, so the `SCHED_FIFO prio 80`
+the harness reports getting is still throttled and preemptible; 4-vCPU guest,
+so steal time is in every sample.  The G6(a) mechanism results (does
+`MADV_NOHUGEPAGE` actually stop 2 MiB zeroing) are unaffected by that — they
+are page-fault-path facts — but the `MAX` / `p99.99` cells are not WCET
+numbers and §G6(a) says so explicitly.  Anyone re-running this to establish a
+bound needs a `PREEMPT_RT` host with the measured thread on an isolated,
+`nohz_full` core.
 
 ---
 

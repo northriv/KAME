@@ -359,13 +359,40 @@ from 152,868 kB to 202,752 kB (+33 %) in the measurement above.
 
 ##### Measured: what it buys and what it costs
 
-Host: 4 vCPU Intel Xeon @ 2.80 GHz (KVM guest, avx512, 16 GiB), Ubuntu 24.04,
-glibc 2.39, kernel 6.18.5, GCC 13.3, Release **x86-64** (the `-m32` build is
-covered separately below),
+Host: 4 vCPU Intel Xeon @ 2.80 GHz (Firecracker microVM, avx512, 16 GiB),
+Ubuntu 24.04, glibc 2.39, kernel 6.18.5, GCC 13.3, Release **x86-64** (the
+`-m32` build is covered separately below),
 `transparent_hugepage/enabled = always`, `defrag = madvise`. A noisy shared
 VM: every figure is a **median of 9 interleaved cross-process repetitions**
 (the arms cannot be interleaved *within* a process, since `NEVER` does not
 split existing hugepages).
+
+**This host is NOT a realtime kernel, and it matters for how far the numbers
+below can be pushed.** `PREEMPT_DYNAMIC`, not `PREEMPT_RT`
+(`/sys/kernel/realtime` is absent); no `isolcpus`, `nohz_full` or `rcu_nocbs`;
+`sched_rt_runtime_us` left at the default 950 ms/1 s, so even the
+`SCHED_FIFO prio 80` the harness reports getting is throttled at 95 % and
+preemptible; and it is a 4-vCPU guest, so steal time is in every sample.
+Split the results accordingly:
+
+* **Mechanism — trustworthy here.** Whether `MADV_NOHUGEPAGE` stops the kernel
+  zeroing 2 MiB at a time is a property of the page-fault path, not of
+  scheduling. The p50 moving 27 ns → 2,048 ns (every page now paying its own
+  4 KiB fault instead of 511 of 512 riding free on a hugepage) and
+  `AnonHugePages` going 100 % → 0 are direct observations of that mechanism,
+  and the `> 8 µs` sample count matching the 2 MiB span count exactly is the
+  arithmetic confirming it.
+* **Absolute WCET — NOT trustworthy here.** The `MAX` column, and to a lesser
+  extent `p99.99`, measure this hypervisor and this scheduler at least as much
+  as they measure the allocator. The same-arm max ranging 0.98–32.8 ms across
+  repetitions is the tell. Treat those cells as upper bounds contaminated by
+  the environment, and re-take them on a `PREEMPT_RT` host with the realtime
+  thread on an isolated, `nohz_full` core before quoting any of them as a
+  worst-case execution time.
+
+The *ratios and directions* are what this environment can establish, and they
+are what the opt-in decision below rests on; nothing here is offered as a
+measured WCET bound.
 
 **The tail** — `bench_rt_wcet --faults`, a new mode added for this: one timed
 write per 4 KiB page across freshly-mapped `> LRC_HI` memory, 196,608 samples
