@@ -966,3 +966,39 @@ allocator's contract landed on:
 Which also answers the earlier question about B's throughput cost being a
 scheduling cost: so is D's, only more so. Both knobs are cheap exactly where
 their benefit is wanted, and expensive exactly where it is not.
+
+### Throttling D with the existing lease — diagnosis confirmed, configuration not
+
+D's cost at 128 threads is a return storm, so the obvious throttle is the one
+already there: `PriorityState` carries a per-Linkage `{tid, start_us, lease_us}`
+and "a claimant is mid-turn" is exactly what a live lease means. Gated D's
+return on it.
+
+    128t throughput   base 9.8 M/s
+      D (no lease)          3.6 M/s   (−63 %)
+      D + lease (1–10 µs)   3.4 M/s   (−65 %)   no effect
+      D + lease (≤100 µs)   3.5 M/s   (−64 %)   no effect
+      D + lease (2–5 ms)    5.4 M/s   (−45 %)   helps
+
+**Timescale mismatch**, and the sweep says so cleanly: the lease is designed for
+µs-scale spin arbitration (1–10 µs adaptive), while the sleeps it would have to
+serialise are ~1,500 µs. By the time a sleeper wakes and looks, the lease has
+long expired — a 10 or 100 µs window cannot order events spaced 1.5 ms apart.
+Scaling it to the sleep timescale does help, which confirms the diagnosis.
+
+But it is not a usable configuration: at 2–5 ms the lease throttles D's returns
+so effectively that it throttles away D's whole point —
+
+    knob            128t        MAX            p99.999
+    D                −63 %    12.5–14.6 ms      8.4 ms
+    D + lease 2–5ms  −45 %    79.6 ms          16.8 ms
+    B=4              −3 %     63–66 ms         12.6 ms
+
+— landing worse than B=4 on *both* axes. Dominated. The lease gate is removed;
+plain D stands as the "cores to spare" knob it was measured to be.
+
+The lesson generalises past this knob: the negotiator has two arbitration
+timescales — a µs spin/lease layer and a ms sleep layer — and a mechanism aimed
+at one cannot govern the other. Every attempt in this sequence that tried to fix
+the ms-scale tail with µs-scale machinery (lease here; slot keying and tagging
+earlier, both µs-scale writes) failed for a variant of that reason.
