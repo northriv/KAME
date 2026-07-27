@@ -837,3 +837,26 @@ the mixed MAX was noise; retracted. The refined picture: the tags that 38 % of
 mixed sleepers held were costing *peer throughput* through `fair_mode_blocks_me`
 (hence A's +10 %), but they were never a cause of the tail. A is purely a
 throughput knob; B=4 remains the only latency knob.
+
+### B respects privilege (it did not, and the omission was latent)
+
+B as first written returned unconditionally — it did not consult the privilege
+stamp. That matters specifically *because of B*: returning leads to an attempt,
+an attempt can fail, failing tags, and `tags_total > 0` is exactly the condition
+the livelock verdict had been missing. B is what makes privilege reachable, and
+it would then have barged straight past the holder.
+
+Measured, the situation has not arisen: with B=4, `priv tries` is still 0.000
+(and tagged-list at sleep is only 0.03 — the returned transaction usually
+commits rather than sleeping again tagged). So this is not a fix for an observed
+defect; it is refusing to let B's correctness rest on privilege happening to stay
+dormant.
+
+The guard is free: `_fair_blocks` — `fair_mode_blocks_me` — is already computed
+earlier in the same loop iteration, so the condition gains one already-live
+boolean.
+
+Verified to be the no-op the reasoning predicts, which is the point of running
+it: throughput 8.86 vs 9.06 M/s (within spread) and grand p99.99 / p99.999
+bit-identical across repeats. Had it changed anything, the claim that privilege
+is dormant would have been wrong.

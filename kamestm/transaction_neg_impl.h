@@ -2090,8 +2090,19 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // happen: it either succeeds, or fails and tags, which switches this
         // Tx onto the normal escalating path.  Cannot weaken the storm
         // protection — a storm is a run of failures, failures tag.
+        // ...but never barge past a peer that HOLDS PRIVILEGE.  `_fair_blocks`
+        // is `fair_mode_blocks_me` from earlier in this same iteration — the
+        // predicate for "a peer's Reserved stamp says yield" — so the guard is
+        // free.  It matters because B itself is what makes privilege reachable:
+        // returning leads to an attempt, an attempt can fail, failing tags, and
+        // `tags_total > 0` is the condition the livelock verdict was missing.
+        // Measured today the guard never fires (priv tries 0.000 even with
+        // B=4), so this is not a fix for an observed defect — it is refusing to
+        // let the correctness of B depend on privilege happening to stay
+        // dormant.
         if(snap.m_tagged_linkages.empty()
-           && ms >= KAME_STM_UNTAGGED_RETURN_MS)
+           && ms >= KAME_STM_UNTAGGED_RETURN_MS
+           && !_fair_blocks)
             break;
 #endif
     }
