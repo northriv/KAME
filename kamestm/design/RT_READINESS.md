@@ -86,27 +86,58 @@ Consistent with the earlier finding that the mixed-scope penalty is bundle
 churn plus *negotiation waiting* rather than a retry storm: the waiting is now
 quantified, and it is the whole story at the tail.
 
-### The open question, stated precisely
+### S1' — diagnosed: the escape hatch never arms
 
-Age-based promotion exists: a transaction older than
-`KAME_STM_PRIV_AGE_NORMAL_US` (**300 µs** on macOS/Linux; 10 ms on Windows for
-the scheduler quantum) becomes eligible for privilege. **The measured tail is
-70–200× that threshold.** So one of the following is true, and which one is not
-yet diagnosed:
+Instrumented with `-DKAME_STM_NEG_DIAG=1` (compile-time, default off, purely a
+diagnostic — nothing in the library behaves differently when it is on, and it
+is kept separate from the non-throughput-neutral `KAME_ADAPT_INSTRUMENT`).
+Counters are snapshot per commit and accumulated for slow ones only.
 
-1. promotion is never reached — the transaction's age never accumulates,
-   e.g. if the attempt's start stamp is refreshed on retry, so a repeatedly
-   losing transaction stays permanently "young";
-2. promotion is reached but the promoted transaction still loses the slot;
-3. promotion is granted and effective, but the *number* of rounds before it is
-   large enough that 300 µs × rounds reaches tens of ms.
+Slow commits (≥ 100 µs), 8 threads:
 
-(1) touches a known fidelity item: the TLA+ liveness argument ranks by an
-*iteration counter* that only increases, while the C++ ranks by a start
-timestamp — recorded in the pre-submission dossier as examined and argued sound
-via the global minimum, but not isomorphic. The measurement does not settle
-that argument; it does say the observed waiting is two orders of magnitude past
-the point where promotion was supposed to bite.
+    arm      n      rounds/commit   sleeps/commit   slept/commit   priv tries/grants
+    leaf    2436     0.00 (max 0)        0.00            0 ns         0.000 / 0.000
+    grand    808     3.91 (max 17)      15.41        25.9 ms          0.000 / 0.000
+    mixed   5676     3.26 (max 10)       6.27         3.7 ms          0.004 / 0.004
+
+Three things fall out at once:
+
+* **The leaf tail is entirely the OS.** Zero rounds, zero sleeps, zero
+  negotiation — those 2436 slow commits never entered the negotiator. The
+  control was right, and `MAX` on this host is not an STM number.
+* **The grand tail is sleeping**, and it is essentially all of it: 25.9 ms slept
+  out of a ~26 ms mean slow commit. So the earlier correction holds — the sleep
+  is the mechanism, the duration is set by not being able to win.
+* **Privilege is never even attempted.** `priv tries = 0.000` while waiting
+  25.9 ms, on the very path whose comment calls it the "fair-mode escape".
+
+The cause, and it is sharper than any of the three candidates guessed above.
+The claim is gated on a livelock verdict:
+
+    verdict = LIVELOCK  iff  tags_total > 0 && tags_owned == tags_total
+                             && my_tx_retries >= clamp(sig_C*2, 3, hw_procs)
+
+and the age floor (`min_privilege_age_us`, 300 µs) is checked *inside* that
+branch. But the starved transaction **does not retry** — measured
+attempts/commit 1.000, and 1.233 even for the slow ones. It waits inside a
+single attempt. So `my_tx_retries` stays below the threshold, the verdict is
+never `LIVELOCK`, the branch is never entered, and the age floor is never
+evaluated at all.
+
+> **A transaction that waits without retrying is invisible to a
+> retry-counting livelock detector — so the escape hatch built for exactly
+> this situation never arms.**
+
+Every measurement follows from that: attempts 1.000, priv tries 0.000, tens of
+ms slept, tail scaling with contention. Note the failure mode is specific:
+under a workload with genuine CAS conflicts the detector *does* arm; it is the
+waiting-dominated mode — the realtime-relevant one — that it misses.
+
+This is also a fidelity item for the paper. The TLA+ liveness argument ranks by
+an ageing tag and concludes the oldest eventually wins; the C++ only *claims*
+that rank behind a retry-count detector. Whether the model's `ClearMyTags`-era
+argument still covers the implementation when the promotion is unreachable is a
+question the dossier should carry, separately from what the ranking proves.
 
 ### Measurement caveat, so nobody chases it
 
@@ -129,15 +160,16 @@ bounded spin — **would not have fixed the tail**, and would have cost CPU on a
 machine where KAME already runs more threads than cores. It is dropped as the
 first move.
 
-    S1'  Diagnose which of (1)/(2)/(3) above produces the tail.  Cheap:
-         instrument rounds-before-promotion in a throwaway build (the existing
-         KAME_ADAPT_INSTRUMENT is not throughput-neutral, so it must not share
-         a run with the latency numbers above).
-    S2   Bound per-commit work (bundle churn is O(subtree)), which any
-         waiting bound is stated in terms of.
-    S3   Whatever S1' finds: make NORMAL's waiting bounded rather than merely
-         eventual, as a change to the arbitration itself — not a fast-path
-         branch and not a privileged bypass.
+    S1'  DONE — the promotion is gated on a retry-count livelock verdict that
+         a purely-waiting transaction never trips.
+    S2   Make promotion reachable by WAITING, not only by retrying: the age
+         floor already exists and is already the right quantity, it is simply
+         unreachable behind `_ll_saw`.  This is a change to the arbitration,
+         costs nothing on the fast path (the check is already in the slow
+         negotiation path), is not realtime-specific, and fixes NORMAL rather
+         than adding a privileged bypass.  Re-measure the tail after it.
+    S3   Bound per-commit work (bundle churn is O(subtree)) — any waiting
+         bound is stated in terms of it.
     S4   Verify the commit path is syscall-free under the allocator's
          KAME_RT_DEFER (assert kame_pool_rt_violations() == 0 in this harness).
     S5   The bound statement and contract, once there are numbers to state.

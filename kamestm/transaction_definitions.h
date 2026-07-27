@@ -331,6 +331,16 @@
 // when tx_age > floor) and (b) the age-preempt threshold in
 // try_register_privileged_tidstamp (preemptor must be older than
 // holder by floor µs).
+//! (diag) Per-thread negotiation breakdown for latency diagnosis.  OFF by
+//! default and compiled out entirely, so it costs nothing in production; it is
+//! a DIAGNOSTIC, not a realtime mechanism — nothing in the library behaves
+//! differently when it is on.  Kept separate from KAME_ADAPT_INSTRUMENT, which
+//! feeds the adaptive logic and is NOT throughput-neutral, so the two must not
+//! share a measurement run.
+#ifndef KAME_STM_NEG_DIAG
+#define KAME_STM_NEG_DIAG 0
+#endif
+
 #ifndef KAME_STM_PRIV_AGE_NORMAL_US
 #  if defined(_WIN32) || defined(WINDOWS) || defined(__WIN32__)
 #    define KAME_STM_PRIV_AGE_NORMAL_US 10'000   // 10 ms — Windows scheduler quantum

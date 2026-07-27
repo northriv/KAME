@@ -84,6 +84,30 @@ enum { HB = 256 };
 //! Retry accounting for the slow tail.  `iterate_commit` invokes its lambda
 //! once per ATTEMPT, so the retry count is observable from outside with no
 //! change to kamestm — worth exhausting before instrumenting the library.
+#if KAME_STM_NEG_DIAG
+//! Negotiation breakdown for SLOW commits only (built with
+//! -DKAME_STM_NEG_DIAG=1).  Answers where a slow commit's time went: waiting
+//! in cell.wait(), or looping without sleeping — and whether age promotion was
+//! ever attempted, let alone granted.  Not throughput-neutral: run separately
+//! from the latency tables.
+struct NegDiagAcc {
+    std::uint64_t n = 0, rounds = 0, sleeps = 0, slept_ns = 0;
+    std::uint64_t tries = 0, grants = 0, max_rounds = 0, max_slept = 0;
+    void add(const Transactional::detail::NegDiag &d) {
+        n++; rounds += d.rounds; sleeps += d.sleeps; slept_ns += d.slept_ns;
+        tries += d.priv_tries; grants += d.priv_grants;
+        if(d.rounds > max_rounds) max_rounds = d.rounds;
+        if(d.slept_ns > max_slept) max_slept = d.slept_ns;
+    }
+    void merge(const NegDiagAcc &o) {
+        n += o.n; rounds += o.rounds; sleeps += o.sleeps; slept_ns += o.slept_ns;
+        tries += o.tries; grants += o.grants;
+        if(o.max_rounds > max_rounds) max_rounds = o.max_rounds;
+        if(o.max_slept > max_slept) max_slept = o.max_slept;
+    }
+};
+#endif
+
 struct Retries {
     std::uint64_t slow_n = 0, slow_attempts = 0, slow_max = 0;   // >= threshold
     std::uint64_t all_n = 0, all_attempts = 0;
@@ -176,7 +200,11 @@ enum Mode { M_LEAF = 0, M_GRAND = 1, M_MIXED = 2 };
 static const std::uint64_t kSlowNs = 100000ull;
 
 static Hist run_arm(Mode mode, int threads, double secs, double warmup,
-                    int grand_pct, double *out_secs, Retries *out_r) {
+                    int grand_pct, double *out_secs, Retries *out_r
+#if KAME_STM_NEG_DIAG
+                    , NegDiagAcc *out_d
+#endif
+                    ) {
     shared_ptr<MyNode> grand(MyNode::create<MyNode>());
     shared_ptr<MyNode> parent(MyNode::create<MyNode>());
     std::vector<shared_ptr<MyNode>> children((size_t)threads);
@@ -192,12 +220,18 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
     std::vector<Hist> per_thread((size_t)threads);
     for(auto &h : per_thread) h.reset();
     std::vector<Retries> per_thread_r((size_t)threads);
+#if KAME_STM_NEG_DIAG
+    std::vector<NegDiagAcc> per_thread_d((size_t)threads);
+#endif
     std::atomic<int> ready{0};
     std::atomic<bool> go{false}, stop{false}, timing{false};
 
     auto worker = [&](int tid) {
         Hist local; local.reset();
         Retries lr;
+#if KAME_STM_NEG_DIAG
+        NegDiagAcc ld;
+#endif
         shared_ptr<MyNode> leaf = children[(size_t)tid];
         unsigned seq = 0;
         ready.fetch_add(1);
@@ -208,6 +242,11 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
                 (mode == M_MIXED && (int)(seq++ % 100u) < grand_pct);
             const bool measure = timing.load(std::memory_order_relaxed);
             std::uint64_t attempts = 0;
+#if KAME_STM_NEG_DIAG
+            // Zero the per-thread counters so what we read back belongs to
+            // THIS commit alone.
+            if(measure) (void)Transactional::neg_diag_snapshot(true);
+#endif
             std::uint64_t t0 = measure ? now_ns() : 0;
             if(do_grand)
                 grand->iterate_commit([&](Tr &tr) {
@@ -221,10 +260,17 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
                 std::uint64_t dt = now_ns() - t0;
                 local.add(dt);
                 lr.add(dt, attempts, kSlowNs);
+#if KAME_STM_NEG_DIAG
+                auto d = Transactional::neg_diag_snapshot(false);
+                if(dt >= kSlowNs) ld.add(d);
+#endif
             }
         }
         per_thread[(size_t)tid] = local;
         per_thread_r[(size_t)tid] = lr;
+#if KAME_STM_NEG_DIAG
+        per_thread_d[(size_t)tid] = ld;
+#endif
     };
 
     std::vector<std::thread> ts;
@@ -247,6 +293,9 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
     Hist all; all.reset();
     for(auto &h : per_thread) all.merge(h);
     if(out_r) { out_r->merge(Retries()); for(auto &r : per_thread_r) out_r->merge(r); }
+#if KAME_STM_NEG_DIAG
+    if(out_d) for(auto &d : per_thread_d) out_d->merge(*&d);
+#endif
     if(out_secs) *out_secs = elapsed;
     return all;
 }
@@ -298,7 +347,12 @@ int main(int argc, char **argv) {
         if( !all && std::strncmp(mode, a.name, std::strlen(mode))) continue;
         double el = 0;
         Retries r;
+#if KAME_STM_NEG_DIAG
+        NegDiagAcc dg;
+        Hist h = run_arm(a.m, threads, secs, warmup, grand_pct, &el, &r, &dg);
+#else
         Hist h = run_arm(a.m, threads, secs, warmup, grand_pct, &el, &r);
+#endif
         report(a.name, h, el);
         // If slow commits show ~1 attempt, the time is spent INSIDE one
         // attempt (negotiation: spinning or sleeping), not in retrying —
@@ -309,6 +363,20 @@ int main(int argc, char **argv) {
                     (unsigned long long)kSlowNs, (unsigned long long)r.slow_n,
                     r.slow_n ? (double)r.slow_attempts / (double)r.slow_n : 0.0,
                     (unsigned long long)r.slow_max);
+#if KAME_STM_NEG_DIAG
+        if(dg.n)
+            std::printf("  %-22s SLOW n=%llu | rounds/commit %.2f (max %llu)"
+                        " | sleeps/commit %.2f | slept/commit %.0f ns"
+                        " (max %llu) | priv tries %.3f grants %.3f\n",
+                        "", (unsigned long long)dg.n,
+                        (double)dg.rounds  / (double)dg.n,
+                        (unsigned long long)dg.max_rounds,
+                        (double)dg.sleeps  / (double)dg.n,
+                        (double)dg.slept_ns / (double)dg.n,
+                        (unsigned long long)dg.max_slept,
+                        (double)dg.tries   / (double)dg.n,
+                        (double)dg.grants  / (double)dg.n);
+#endif
     }
     std::printf("== done ==\n");
     return 0;

@@ -400,6 +400,28 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
     return saw_livelock;
 }
 
+#if KAME_STM_NEG_DIAG
+namespace detail {
+//! Plain (non-atomic) per-thread counters: only the owning thread writes, and
+//! a reader snapshots between commits.  See `neg_diag_snapshot`.
+struct NegDiag {
+    std::uint64_t rounds;      //!< negotiation wait-loop iterations
+    std::uint64_t sleeps;      //!< times we actually entered cell.wait()
+    std::uint64_t slept_ns;    //!< wall time inside cell.wait()
+    std::uint64_t priv_tries;  //!< privilege claims attempted
+    std::uint64_t priv_grants; //!< privilege claims that succeeded
+};
+inline NegDiag &neg_diag() { static thread_local NegDiag d{}; return d; }
+}
+//! Snapshot this thread's negotiation breakdown (and optionally zero it).
+//! Only compiled when KAME_STM_NEG_DIAG=1; callers guard on the same macro.
+inline detail::NegDiag neg_diag_snapshot(bool reset) {
+    detail::NegDiag out = detail::neg_diag();
+    if(reset) detail::neg_diag() = detail::NegDiag{};
+    return out;
+}
+#endif
+
 template <class XN>
 void Node<XN>::NegotiationCounter::negotiate_sleep(
     int ms_timeout, cnt_t my_stamp) noexcept
@@ -428,7 +450,19 @@ void Node<XN>::NegotiationCounter::negotiate_sleep(
     // notify cadence now that __ulock makes sub-ms waits cheap).
     unsigned us = (ms_timeout > 0)
         ? (unsigned)ms_timeout * (unsigned)KAME_NEG_SLEEP_US_PER_MS : 0u;
+#if KAME_STM_NEG_DIAG
+    {
+        auto &d = detail::neg_diag();
+        ++d.sleeps;
+        auto t0 = std::chrono::steady_clock::now();
+        st.cell.wait(g, us);
+        d.slept_ns += (std::uint64_t)std::chrono::duration_cast<
+            std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - t0).count();
+    }
+#else
     st.cell.wait(g, us);
+#endif
     // Clear the tenant stamp on exit so the next sleeper's stamp is not
     // preceded by a stale value that could match a target.
     st.stamp.store(0, std::memory_order_relaxed);
@@ -1234,6 +1268,10 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             claimed = NegotiationCounter::try_register_privileged_tidstamp(
                           entry_pr, snap.m_started_time);
 #endif
+#if KAME_STM_NEG_DIAG
+            ++detail::neg_diag().priv_tries;
+            if(claimed) ++detail::neg_diag().priv_grants;
+#endif
             if (claimed) {
                 snap.m_registered_privileged = true;
                 // Pair with the decrement in
@@ -1329,6 +1367,9 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     int _hang_hits = 0;
 
     for(int ms = 0;;) {
+#if KAME_STM_NEG_DIAG
+        ++detail::neg_diag().rounds;
+#endif
         if(entry_pr == Priority::HIGHEST)
             break;
         // Single-contender fast path: only this thread is visible in
