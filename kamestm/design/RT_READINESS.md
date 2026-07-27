@@ -720,3 +720,55 @@ before forcing an attempt, and the gate is the same one — throughput at 128
 threads, interleaved — plus the mechanism check that `attempts` and
 `tags_total` actually become non-zero, which is what tells us the attempt
 happened rather than the number merely moving.
+
+## "Return after one sleep if untagged" — the first candidate that works as designed
+
+The rule, and it is better than the "N denials or T elapsed" I had proposed:
+**if this transaction holds no tag, break out of the negotiator after a single
+sleep.** No new parameter — `m_tagged_linkages.empty()` is already there — and
+self-limiting: no tag means it has never failed, so it goes and tries; if the
+attempt fails it tags, and from that point the unchanged escalation applies.
+
+It also cannot weaken the protection the gate exists for. A CAS storm *is* a
+run of failures, and failures tag, so a storming transaction is tagged and
+keeps the old path. Only the never-attempted population changes, and for it the
+gate is not preventing a storm — it is preventing the one attempt that would
+end the wait.
+
+**Every predicted consequence happened.** grand, slow commits:
+
+    metric                    before        after
+    negotiator entries/rounds  1.24 / 3.86   2.54 / 2.75   (now ~1:1: it returns)
+    attempts / commit          1.233         2.452 (max 8) (it attempts, and fails)
+    tagged-list at sleep       0.00          0.66          (failing tags it)
+
+Returns → attempts → fails → tags → the dormant machinery engages. This is the
+first mechanism in the sequence that demonstrably does what it was designed to.
+
+**And the latency is a redistribution, not an improvement:**
+
+    grand          before        after
+      p99.9        1,024 ns     12,288 ns   (12x WORSE)
+      p99.99        2.62 ms      8.39 ms    (3.2x worse)
+      p99.999      83.9 ms      41.9 ms     (2x better)
+      throughput        —        −2.9 %
+
+The cost is finally in the acceptable range — −2.9 % against 54 / 75 / 97 / 38 /
+8 % for everything before it — and the deep tail halves. But p99.9 degrades 12×,
+because commits that used to wait quietly now attempt, fail, and pay for the
+failed attempt; and 42 ms is still nowhere near a deadline.
+
+So it is not committed. The judgement it needs is not technical:
+
+* **for realtime**, the worst case is what counts, and 84 → 42 ms with −2.9 %
+  is the best trade found — but it is still two orders of magnitude from
+  usable, so it buys direction rather than arrival;
+* **for KAME as it runs today**, p99.9 is what users feel, and 1 → 12 µs is a
+  real regression for a benefit nobody currently needs.
+
+Worth noting for whoever picks this up: the rule as written fires for *every*
+untagged sleeper on its first sleep. Softening it — return only after k sleeps,
+or only once older than the age floor — should recover most of the p99.9 cost
+while keeping the deep-tail win, and is a tuning question now that the
+mechanism is known to work. That is the obvious next experiment, and the first
+one in this sequence that starts from something that functions.
