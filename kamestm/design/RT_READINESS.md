@@ -438,3 +438,47 @@ nothing to aim at, and the budget becomes the latency.
 Both must pass the gate that rejected S2: throughput at 128 threads,
 interleaved, plus a mechanism check that the wake actually lands rather than
 the number merely moving.
+
+## Candidate 1 "wake by linkage" — implemented, and it costs 75 %
+
+The design was futex-shaped and, I still think, diagnostically right: the sleep
+slot is keyed by `ProcessCounter::id()`, i.e. by *who* is waiting, so a wake
+requires knowing who — and the only registries of "who is contending" (tags,
+`tid_bitset`) are populated by CAS failure, which the starving transaction never
+incurs. Re-keying the slot to the contended **linkage address** removes the
+information asymmetry: the waker knows what it contended for, always.
+
+Implemented exactly that — `negotiate_sleep(..., key)` selecting
+`slot_of_key(linkage)`, a `wake_on_linkage()`, and a call to it beside each of
+the negotiator's three existing `notify_n_contenders` sites (the tid wakes kept,
+so the path that demonstrably works in the mixed arm was untouched). No new
+state, ctest 9/9.
+
+**Throughput at 128 threads: 9.5 M/s → 2.4 M/s, −75 %, 4/4 reps.** Reverted.
+
+### Why, and what it teaches
+
+Keying by address **concentrates** the waiters: every thread contending for the
+same linkage now sleeps on the *same* cell, where before `ProcessCounter::id() %
+NEGOTIATE_SLEEP_SLOTS` spread them across the slot array. At 128 threads on a
+few hot linkages that turns a de-phased set of sleepers into a single hammered
+userspace cell.
+
+That is the difference between this and a real futex: a futex also keys by
+address, but the queue lives in the kernel, where concentration is the design.
+Here the cell is a shared userspace atomic, so **the slot spreading is
+load-bearing for throughput** — it is not incidental, and any address-keyed
+scheme has to preserve it.
+
+So the tension is structural, and worth stating before the next attempt:
+
+* to wake by *what is contended*, waiters must be findable **by** what is
+  contended;
+* grouping them that way concentrates them, which is what costs the throughput;
+* keeping them spread (by tid) is exactly what makes them unfindable.
+
+Resolving it needs a per-linkage **list** of waiter slots — waiters stay spread
+across cells, and the linkage carries the small amount of state needed to find
+them — which means adding state to `Linkage`, itself a hot structure. That is a
+real design change, not a re-keying, and it should be costed before it is
+attempted.
