@@ -26,9 +26,11 @@ unix {
     # macOS finds libusb under MacPorts' prefix; elsewhere on Unix it is a
     # normal pkg-config package.  Probing only the MacPorts path meant Linux
     # silently lost the whole Cypress FX2/FX3 USB interface.
-    macx: HAS_LIBUSB = $$exists("/opt/local/include/libusb-1.0/libusb.h")
-    else: HAS_LIBUSB = $$system(pkg-config --exists libusb-1.0 && echo 1)
-    !isEmpty(HAS_LIBUSB):!equals(HAS_LIBUSB, false) {
+    # HAS_LIBUSB is set to 1 or left UNSET — never to the string "false",
+    # which is non-empty and would read as "yes" to !isEmpty() below.
+    macx:exists("/opt/local/include/libusb-1.0/libusb.h"): HAS_LIBUSB = 1
+    !macx:system(pkg-config --exists libusb-1.0): HAS_LIBUSB = 1
+    !isEmpty(HAS_LIBUSB) {
         macx: LIBS += -lusb-1.0
         else: PKGCONFIG += libusb-1.0
         HEADERS += \
@@ -107,18 +109,22 @@ unix:!macx {
         message("Using linux-gpib for GPIB (/usr/include/gpib/ib.h).")
     }
     else {
-        message("linux-gpib not found — GPIB support disabled.")
+        message("linux-gpib not found — falling back to the usermode NI USB-GPIB driver.")
     }
 }
 
-# Usermode NI USB-GPIB driver.  It exists because macOS and Windows have no
-# kernel GPIB module; on Linux the kernel driver handled above is the right
-# path, and building this here is actively wrong — compat.h routes every
-# non-_WIN32 target to osx_compat.h, whose kernel-style `min`/`max` FUNCTION
-# MACROS then collide with <limits> ("macro \"min\" requires 2 arguments"),
-# and nothing links libusb for it either.  Restrict it to the two platforms
-# it was written for.
-macx|win32:!contains(DEFINES, HAVE_NI4882) {
+# Usermode NI USB-GPIB driver — the fallback for every platform that has no
+# kernel GPIB module available: macOS and Windows always, and Linux when
+# linux-gpib is not installed (checked just above).  It talks to NI USB-B /
+# USB-HS / USB-HS+ / KUSB-488A / MC USB-488 through libusb, so it needs
+# libusb and nothing else; `osx_compat.h` keeps its historical name but is
+# plain POSIX (see its header comment), so no Linux-specific shim is needed.
+# macOS and Windows have no kernel GPIB module at all, so they always want it
+# (their libusb comes from MacPorts / msys64 and is assumed, as before).
+# Linux only wants it when linux-gpib is absent AND libusb is actually there.
+macx|win32: USERMODE_NI_GPIB = 1
+unix:!macx:!contains(DEFINES, HAVE_LINUX_GPIB):!isEmpty(HAS_LIBUSB): USERMODE_NI_GPIB = 1
+!contains(DEFINES, HAVE_NI4882):!isEmpty(USERMODE_NI_GPIB) {
     DEFINES += HAVE_USERMODE_NI_GPIB
     INCLUDEPATH += usermode-linux-gpib usermode-linux-gpib/linux-gpib
     QMAKE_CFLAGS += -Wno-unused-function -Wno-visibility

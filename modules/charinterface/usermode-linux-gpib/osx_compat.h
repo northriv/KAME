@@ -1,5 +1,12 @@
 /*
- * osx_compat.h — Linux kernel API shim for the macOS userspace GPIB port.
+ * osx_compat.h — Linux kernel API shim for the userspace GPIB port.
+ *
+ * Named for macOS because that is where the port started, but the contents
+ * are plain POSIX: the only headers it needs are stdint/stdlib/stdio/string/
+ * errno/pthread/unistd/sys-time/stdbool and libusb.  Nothing Darwin-specific
+ * is referenced, so it serves Linux (where a kernel linux-gpib is not
+ * installed) and any other POSIX host equally.  `compat.h` therefore selects
+ * it for every non-_WIN32 target on purpose, not by accident.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -691,11 +698,20 @@ struct task_struct { int pid; };
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
-#ifndef min
-#define min(x, y) ((x) < (y) ? (x) : (y))
-#endif
-#ifndef max
-#define max(x, y) ((x) > (y) ? (x) : (y))
+/* C ONLY.  These exist for the kernel-style C sources compiled unchanged
+ * from linux-gpib.  As function-like macros they collide with <limits>
+ * (`std::numeric_limits<T>::min()` becomes `::min()` — "macro \"min\"
+ * requires 2 arguments"), which broke every C++ translation unit that
+ * included this header before a standard header on libstdc++.  libc++
+ * happened to tolerate it, so the fault only appeared on Linux/GCC.
+ * C++ callers should use std::min / std::max. */
+#ifndef __cplusplus
+#  ifndef min
+#    define min(x, y) ((x) < (y) ? (x) : (y))
+#  endif
+#  ifndef max
+#    define max(x, y) ((x) > (y) ? (x) : (y))
+#  endif
 #endif
 
 /* Hex dump */

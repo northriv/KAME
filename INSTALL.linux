@@ -36,10 +36,13 @@ sudo apt-get install -y \
   interpreter qmake picks — `python3 -m pybind11 --includes` must succeed.
 * **linux-gpib** is optional; when its headers are present `HAVE_LINUX_GPIB`
   is defined and the native `XNIGPIBPort` implementation is compiled in.
-  Without it, GPIB falls back to `XPrologixGPIBPort` (TCP/serial).  The
-  usermode NI USB-GPIB port under `modules/charinterface/usermode-linux-gpib/`
-  is deliberately **not** built here — it exists because macOS and Windows have
-  no kernel GPIB module.
+  Without it, `Device = GPIB` falls back to the **usermode NI USB-GPIB
+  driver** under `modules/charinterface/usermode-linux-gpib/` (needs libusb),
+  which drives NI USB-B / USB-HS / USB-HS+ / KUSB-488A / MC USB-488 with no
+  kernel module — the same path macOS and Windows use.  `PrologixGPIBUSB`
+  remains available as a separate `Device` option either way.  Note the
+  shim's `osx_compat.h` keeps its historical name but is plain POSIX; no
+  Linux-specific compat header is needed.
 * NI-DAQmx (`modules/nidaq`) and the Cypress/Digilent vendor SDKs are not
   packaged; those modules build only if you provide the SDKs yourself.
 
@@ -98,9 +101,28 @@ so the coremodules/modules split above is a convenience, not a requirement.
 scripts in `$PREFIX/share/kame` (`PREFIX` defaults to `/usr/local`), which is
 where `QStandardPaths::AppDataLocation` finds them.
 
+## Interface smoke test (no hardware)
+
+`tools/iftest_serial_gpib.py` exercises the serial and GPIB open paths against
+a pty pair and a device that cannot exist, so a failed open is proven to be
+reported rather than to crash:
+
+```bash
+./bin/kame --moduledir "$PWD/mods" ../tools/iftest_serial_gpib.py
+cat /tmp/kame_iftest.txt
+```
+
+Verified results on this port: SERIAL and Prologix both fail cleanly on a
+missing device; SERIAL on a pty opens and completes a `*IDN?` round trip;
+`Device = GPIB` reaches the usermode driver's libusb enumeration and fails
+cleanly with no adapter attached; `PrologixGPIBUSB` on a pty opens, emits the
+full adapter initialisation (`++mode 1`, `++eoi 1`, `++auto 0`, `++ifc`, …)
+and completes a `++spoll` / `++read eoi` query round trip.
+
 ## Known gaps
 
-* **No hardware testing.**  Serial (`termios`) and TCP already had POSIX
-  paths; neither has been exercised against a real instrument here.
+* **No hardware testing.**  Serial, GPIB and TCP are exercised only against
+  ptys and simulators (see above); no real instrument, and no NI USB-GPIB
+  adapter, has been attached.
 * The GUI has only been run under `offscreen`.  OpenGL plotting
   (`graphpaintergl.cpp`) is untested on a real X11/Wayland session.
