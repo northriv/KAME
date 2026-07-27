@@ -661,3 +661,62 @@ it means the realtime question is not "make the negotiator fairer" but **"how
 much throughput is a bounded wide commit worth, and can the workload avoid
 needing one?"** — which puts scope back at the centre, not as a fallback but as
 the only lever that does not pay the tax.
+
+## The missing piece: the timed-out sleeper never returns to try
+
+Question that closed the loop: is the problem that a sleeper which times out
+without a tag *does not return* — i.e. it re-evaluates inside the negotiator
+rather than going back to attempt its CAS?
+
+Measured, slow commits at 8 threads:
+
+    arm      negotiator ENTRIES / commit    internal rounds / commit
+    grand              1.24                          3.86
+    mixed              2.81                          3.26
+
+**Yes.** `_negotiate_internal` is entered ~1.24 times and loops ~3.9 times
+inside, sleeping with an escalating budget between iterations. The timed-out
+sleeper does not hand control back; it asks the gate again, later.
+
+### Everything else follows, and two of my own conclusions were wrong
+
+Never returning means never attempting, which means **never failing**:
+
+* no CAS failure → `tag_as_contender` is never called → `tags_total == 0`,
+  exactly as measured;
+* `attempts/commit` stays 1.000, exactly as measured;
+* the wake fix could not help — it wakes, the gate still refuses, it sleeps;
+* arbitration could not help — **the transaction is not participating in
+  arbitration at all**;
+* and my reading of the 56,000 system commits was wrong too. It did not lose
+  56,000 races. It was held at the **admission gate** while 56,000 commits
+  that were admitted went through. There is no contention loss to be fairer
+  about.
+
+And the escalation makes it self-reinforcing:
+
+> **Denied → back off longer → ask less often → stay denied.** The backoff
+> escalates the *waiting* rather than the *applicant's priority*, which is the
+> opposite of what progress requires.
+
+mixed, with entries 2.81 against rounds 3.26, returns far more often — and has
+the smaller tail. The two arms differ in exactly the predicted direction.
+
+### The candidate this implies is different in kind from the five that failed
+
+**After N denials (or T elapsed), return to the caller and simply attempt the
+CAS.** Then either it succeeds and the wait is over, or it fails — and failing
+is what tags the transaction, registers it, and engages the whole existing
+fairness machinery that has been dormant for want of a single failure.
+
+Why this does not pay the tax the other five paid: it does not hold the narrow
+commits back, add shared state, or write anything on the fast path. It only
+stops *suppressing* the wide transaction's attempt. The five previous
+mechanisms all tried to make the wide transaction win; this one lets it play.
+
+Risk to measure, not assume: attempting under contention is what the admission
+gate exists to prevent (CAS storms). So the parameter is how long to wait
+before forcing an attempt, and the gate is the same one — throughput at 128
+threads, interleaved — plus the mechanism check that `attempts` and
+`tags_total` actually become non-zero, which is what tells us the attempt
+happened rather than the number merely moving.

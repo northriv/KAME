@@ -431,6 +431,7 @@ struct NegDiag {
     //! the tail is the sum of an escalating backoff this is where it shows.
     std::uint64_t ms_sum;
     std::uint64_t ms_max;
+    std::uint64_t entries;   //!< calls into _negotiate_internal
 };
 inline NegDiag &neg_diag() { static thread_local NegDiag d{}; return d; }
 }
@@ -1146,6 +1147,9 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
 template <class XN>
 void
 ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
+#if KAME_STM_NEG_DIAG
+    ++detail::neg_diag().entries;
+#endif
     using NegotiationCounter = typename Node<XN>::NegotiationCounter;
     using Linkage = typename Node<XN>::Linkage;
     Linkage *const self = m_link.get();

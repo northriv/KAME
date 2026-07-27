@@ -93,7 +93,7 @@ enum { HB = 256 };
 struct NegDiagAcc {
     std::uint64_t n = 0, rounds = 0, sleeps = 0, slept_ns = 0;
     std::uint64_t tries = 0, grants = 0, max_rounds = 0, max_slept = 0;
-    std::uint64_t sl_hold = 0, tags_held = 0, sl_priv = 0, tag_list = 0, req = 0, ms_sum = 0, ms_max = 0;
+    std::uint64_t sl_hold = 0, tags_held = 0, sl_priv = 0, tag_list = 0, req = 0, ms_sum = 0, ms_max = 0, entries = 0;
     void add(const Transactional::detail::NegDiag &d) {
         n++; rounds += d.rounds; sleeps += d.sleeps; slept_ns += d.slept_ns;
         tries += d.priv_tries; grants += d.priv_grants;
@@ -101,6 +101,7 @@ struct NegDiagAcc {
         sl_priv += d.sleeps_priv; tag_list += d.tagged_list_at_sleep;
         req += d.req_ns; ms_sum += d.ms_sum;
         if(d.ms_max > ms_max) ms_max = d.ms_max;
+        entries += d.entries;
         if(d.rounds > max_rounds) max_rounds = d.rounds;
         if(d.slept_ns > max_slept) max_slept = d.slept_ns;
     }
@@ -110,6 +111,7 @@ struct NegDiagAcc {
         sl_hold += o.sl_hold; tags_held += o.tags_held; sl_priv += o.sl_priv;
         tag_list += o.tag_list; req += o.req; ms_sum += o.ms_sum;
         if(o.ms_max > ms_max) ms_max = o.ms_max;
+        entries += o.entries;
         if(o.max_rounds > max_rounds) max_rounds = o.max_rounds;
         if(o.max_slept > max_slept) max_slept = o.max_slept;
     }
@@ -429,7 +431,12 @@ int main(int argc, char **argv) {
             std::printf("  %-22s   BACKOFF budget ms_actual: %.2f ms summed per "
                         "commit, max single round %llu ms\n", "",
                         (double)dg.ms_sum / (double)dg.n,
-                        (unsigned long long)dg.ms_max);
+                        (unsigned long long)dg.ms_max),
+            std::printf("  %-22s   negotiator ENTRIES %.2f vs internal rounds "
+                        "%.2f per commit  (entries ~1 with rounds >1 => it "
+                        "loops inside instead of returning to retry the CAS)\n",
+                        "", (double)dg.entries / (double)dg.n,
+                        (double)dg.rounds / (double)dg.n);
 #endif
     }
     std::printf("== done ==\n");
