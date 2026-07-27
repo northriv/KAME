@@ -23,8 +23,14 @@ SOURCES += \
     modbusrtuinterface.cpp
 
 unix {
-    exists("/opt/local/include/libusb-1.0/libusb.h") {
-        LIBS += -lusb-1.0
+    # macOS finds libusb under MacPorts' prefix; elsewhere on Unix it is a
+    # normal pkg-config package.  Probing only the MacPorts path meant Linux
+    # silently lost the whole Cypress FX2/FX3 USB interface.
+    macx: HAS_LIBUSB = $$exists("/opt/local/include/libusb-1.0/libusb.h")
+    else: HAS_LIBUSB = $$system(pkg-config --exists libusb-1.0 && echo 1)
+    !isEmpty(HAS_LIBUSB):!equals(HAS_LIBUSB, false) {
+        macx: LIBS += -lusb-1.0
+        else: PKGCONFIG += libusb-1.0
         HEADERS += \
             cyfxusb.h \
             cyfxusbinterface_impl.h \
@@ -85,8 +91,34 @@ macx{
         }
     }
 }
-# Usermode NI USB-GPIB driver (macOS, used when NI4882 framework is unavailable)
-!contains(DEFINES, HAVE_NI4882) {
+# Linux/BSD: use the REAL linux-gpib kernel driver when its headers are
+# present.  `HAVE_LINUX_GPIB` is read by gpib.h / gpib.cpp (which is where
+# XNIGPIBPort's ib.h implementation lives) but was defined by nothing since
+# the autotools build went away, so the native GPIB path was dead code.
+unix:!macx {
+    system(pkg-config --exists libgpib) {
+        PKGCONFIG += libgpib
+        DEFINES += HAVE_LINUX_GPIB
+        message("Using linux-gpib for GPIB (pkg-config).")
+    }
+    else:exists("/usr/include/gpib/ib.h") {
+        LIBS += -lgpib
+        DEFINES += HAVE_LINUX_GPIB
+        message("Using linux-gpib for GPIB (/usr/include/gpib/ib.h).")
+    }
+    else {
+        message("linux-gpib not found — GPIB support disabled.")
+    }
+}
+
+# Usermode NI USB-GPIB driver.  It exists because macOS and Windows have no
+# kernel GPIB module; on Linux the kernel driver handled above is the right
+# path, and building this here is actively wrong — compat.h routes every
+# non-_WIN32 target to osx_compat.h, whose kernel-style `min`/`max` FUNCTION
+# MACROS then collide with <limits> ("macro \"min\" requires 2 arguments"),
+# and nothing links libusb for it either.  Restrict it to the two platforms
+# it was written for.
+macx|win32:!contains(DEFINES, HAVE_NI4882) {
     DEFINES += HAVE_USERMODE_NI_GPIB
     INCLUDEPATH += usermode-linux-gpib usermode-linux-gpib/linux-gpib
     QMAKE_CFLAGS += -Wno-unused-function -Wno-visibility

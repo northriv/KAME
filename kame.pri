@@ -103,6 +103,11 @@ unix {
     }
     else {
         PKGCONFIG += gsl
+        # Linux/BSD: eigen3 is header-only and ships eigen3.pc.  macOS and
+        # Windows hard-code their include path above (MacPorts / msys64);
+        # this is the missing third case — without it every translation unit
+        # that includes <Eigen/Core> fails to find it.
+        PKGCONFIG += eigen3
     }
 }
 

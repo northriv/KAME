@@ -109,6 +109,30 @@ macx {
         }
     }
 }
+unix:!macx {
+    # Linux/BSD.  Missing entirely, so every PyDriverExporter in
+    # basicdrivers.cpp / pybindnmr.cpp / pybindodmr.cpp was #ifdef'd out and
+    # libpython.so loaded successfully while exporting NOTHING — which shows
+    # up much later as `NameError: name 'XPythonCharDeviceDriverWithThread'
+    # is not defined` from pytestdriver.py, with no hint of the cause.
+    # Only the compile flags are needed: the symbols resolve against the
+    # kame executable, which does the embedding and the linking.
+    greaterThan(QT_MAJOR_VERSION, 5) {
+        pythons=$$system(which python3) $$files("/usr/bin/python3.[0-9]") $$files("/usr/bin/python3.[0-9][0-9]")
+        for(PYTHON, pythons) {
+            system("$${PYTHON} -m pybind11 --includes > /dev/null 2>&1") {
+                QMAKE_CXXFLAGS += $$system("$${PYTHON} -m pybind11 --includes")
+                DEFINES += USE_PYBIND11
+                DEFINES += PYBIND11_NO_ASSERT_GIL_HELD_INCREF_DECREF #For mainthread call.
+                message("Python scripting support enabled ($${PYTHON}).")
+                break()
+            }
+        }
+        !contains(DEFINES, USE_PYBIND11): \
+            warning("pybind11 not found — modules/python will export NO driver \
+classes to Python.  Keep this consistent with kame/kame.pro's own probe.")
+    }
+}
 win32-*g++ {
     greaterThan(QT_MAJOR_VERSION, 5) {
         pythons="c:/msys64/mingw64/bin/python.exe"

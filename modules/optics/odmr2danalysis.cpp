@@ -530,7 +530,7 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
         const auto &coloroffsets = (cmvalue > thres) ? coloroffsets_high : coloroffsets_low;
         for(unsigned int cidx: {0,1,2}) {
             int64_t v = (cmvalue * color_gain[cidx] + coloroffsets[cidx]) / 0x100000000LL;
-            *processed++ = std::max(0LL, std::min(v, 0xffffLL));
+            *processed++ = std::max<int64_t>(0, std::min<int64_t>(v, 0xffff));
         }
         *processed++ = 0xffffu;
     }
@@ -542,7 +542,7 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
         const auto &coloroffsets = (dcog > thres) ? coloroffsets_high : coloroffsets_low;
         for(unsigned int cidx: {0,1,2}) {
             int64_t v = (dcog * color_gain[cidx] + coloroffsets[cidx]) / 0x100000000LL;
-            *processed++ = std::max(0LL, std::min(v, 0xffffLL));
+            *processed++ = std::max<int64_t>(0, std::min<int64_t>(v, 0xffff));
         }
         *processed++ = 0xffffu;
     }

@@ -1,0 +1,92 @@
+# Building KAME on Linux
+
+Linux support was dropped when KAME moved from autotools to qmake, and the
+tree accumulated a decade of macOS/Windows-only assumptions.  It builds and
+runs again as of 2026-07.
+
+**Status: unsupported.**  What has been verified is that it compiles, links,
+starts, loads all 43 driver modules, and runs the embedded Python/pybind11
+engine.  No instrument hardware has been exercised, and the GUI has only been
+smoke-tested with `QT_QPA_PLATFORM=offscreen`.  Treat it as a development
+platform, not a deployment one.
+
+Verified on Ubuntu 24.04 / Qt 6.4.2 / GCC 13.3 / glibc 2.39, x86-64.
+
+## Dependencies
+
+```bash
+sudo apt-get install -y \
+    qt6-base-dev qt6-base-dev-tools qt6-5compat-dev qt6-tools-dev \
+    qt6-tools-dev-tools libgl1-mesa-dev libglu1-mesa-dev \
+    libgsl-dev libfftw3-dev libltdl-dev libeigen3-dev zlib1g-dev \
+    libusb-1.0-0-dev ruby-dev python3-dev python3-pybind11
+```
+
+* **Qt 6** needs the `core5compat` (QTextCodec) and `uitools` modules; Qt 5
+  works too, minus the Qt 6-only `QT +=` lines in `kame.pri`.
+* **Ruby** headers are mandatory — `script/xrubysupport.cpp` is compiled
+  unconditionally.  `kame/kame.pro` asks the interpreter for its header path
+  via `RbConfig`, so any packaged or rbenv/rvm Ruby works.
+* **pybind11** is optional but strongly recommended: without it there is no
+  Python scripting, no Jupyter/IPython console, no MCP server, and `.kam`
+  files fall back to the (legacy) Ruby loader.  It must be importable by the
+  interpreter qmake picks — `python3 -m pybind11 --includes` must succeed.
+* **linux-gpib** is optional; when its headers are present `HAVE_LINUX_GPIB`
+  is defined and the native `XNIGPIBPort` implementation is compiled in.
+  Without it, GPIB falls back to `XPrologixGPIBPort` (TCP/serial).  The
+  usermode NI USB-GPIB port under `modules/charinterface/usermode-linux-gpib/`
+  is deliberately **not** built here — it exists because macOS and Windows have
+  no kernel GPIB module.
+* NI-DAQmx (`modules/nidaq`) and the Cypress/Digilent vendor SDKs are not
+  packaged; those modules build only if you provide the SDKs yourself.
+
+## Build
+
+```bash
+mkdir build && cd build
+qmake6 ../kame.pro          # or /usr/lib/qt6/bin/qmake
+make -j$(nproc)
+```
+
+qmake prints which Ruby and which Python it selected; check those lines if
+scripting is missing.  The executable lands in `build/bin/kame` (not
+`build/kame` — that path is the subproject's build directory, and on Linux the
+bare target name would collide with it).  The deployed script files
+(`pythonlineshell.py`, `kame_mcp_server.py`, the manual, …) are copied next to
+the binary, which is where `xpythonsupport.py` and `LINESHELL_DIR` look for
+them in a build tree.
+
+## Running from the build tree
+
+Modules are not installed by `make`, and KAME searches
+`<dir>/coremodules`, `<dir>/coremodules2` and `<dir>/modules` under each
+`--moduledir`.  Stage them once:
+
+```bash
+mkdir -p mods/coremodules mods/coremodules2 mods/modules
+for f in $(find modules -name 'lib*.so' -o -name 'lib*.so.1.0.0'); do
+    b=$(basename "$f")
+    case "$b" in *core.so*) d=mods/coremodules;; *) d=mods/modules;; esac
+    cp "$f" "$d/"
+    case "$b" in *.so.1.0.0) ln -sf "$b" "$d/${b%.so.1.0.0}.so";; esac
+done
+./bin/kame --moduledir "$PWD/mods"
+```
+
+The loader is order-independent (it retries until no further module opens),
+so the coremodules/modules split above is a convenience, not a requirement.
+
+`make install` puts the modules in `$$[QT_INSTALL_LIBS]/modules` and the
+scripts in `$PREFIX/share/kame` (`PREFIX` defaults to `/usr/local`), which is
+where `QStandardPaths::AppDataLocation` finds them.
+
+## Known gaps
+
+* **Ruby 3.x**: the legacy `xrubysupport` monitor script fails to eval on
+  Ruby 3.3 ("Ruby, exception(s) occurred." at startup).  Harmless when
+  pybind11 is present, since `.kam` loading and scripting both route to
+  Python then, but the Ruby line shell will not work.
+* **No hardware testing.**  Serial (`termios`) and TCP already had POSIX
+  paths; neither has been exercised against a real instrument here.
+* The GUI has only been run under `offscreen`.  OpenGL plotting
+  (`graphpaintergl.cpp`) is untested on a real X11/Wayland session.

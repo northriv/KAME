@@ -589,7 +589,7 @@ XODMRImaging::visualize(const Snapshot &shot) {
             for(unsigned int cidx: {0,1,2}) {
                 int64_t v = ((int64_t)(pl0 * gains[cidx]) + dpl * dpl_gain[cidx])  / 0x100000000LL;
 //                *processed++ = std::max(0LL, std::min(v, 0xffLL));
-                *processed++ = std::max(0LL, std::min(v, 0xffffLL));
+                *processed++ = std::max<int64_t>(0, std::min<int64_t>(v, 0xffff));
             }
             *processed++ = 0xffffu;
         }
@@ -606,7 +606,7 @@ XODMRImaging::visualize(const Snapshot &shot) {
             for(unsigned int cidx: {0,1,2}) {
                 int64_t v = ((int64_t)(pl0 * gains[cidx]) + dpl * dpl_gain[cidx])  / 0x100000000LL;
 //                *processed++ = std::max(0LL, std::min(v, 0xffLL));
-                *processed++ = std::max(0LL, std::min(v, 0xffffLL));
+                *processed++ = std::max<int64_t>(0, std::min<int64_t>(v, 0xffff));
             }
             *processed++ = 0xffffu;
         }

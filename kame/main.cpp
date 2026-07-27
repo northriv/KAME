@@ -73,6 +73,9 @@ int load_module(const char *filename, lt_ptr data) {
     static_cast<std::deque<XString> *>(data)->push_back(QString::fromLocal8Bit(filename));
 	return 0;
 }
+//! Shared dlopen options for every module — see the lt_dladvise_global()
+//! call in main() for why RTLD_GLOBAL is required rather than merely nice.
+static lt_dladvise g_dl_advise;
 #endif
 
 int main(int argc, char *argv[]) {
@@ -217,9 +220,30 @@ int main(int argc, char *argv[]) {
 #ifdef USE_LIBTOOL
     fprintf(stderr, "Initializing LTDL.\n");
     lt_dlinit();
-    #ifdef __linux__
-        LTDL_SET_PRELOADED_SYMBOLS();
-    #endif
+    // NOTE: no LTDL_SET_PRELOADED_SYMBOLS() here.  That macro registers
+    // modules linked STATICALLY into the executable, and it expands to a
+    // reference to `lt__PROGRAM__LTX_preloaded_symbols`, a symbol only
+    // libtool itself emits when it drives the link.  KAME's autotools build
+    // did; the qmake build does not, so on Linux the call was an undefined
+    // reference at link time.  Every KAME module is a real shared object
+    // opened from disk by lt_dlopenext() below, so there is nothing to
+    // preload and nothing is lost by leaving it out.
+
+    // Open every module with RTLD_GLOBAL, so a module's symbols are visible
+    // to the modules loaded AFTER it.  This is not an optimisation — it is
+    // what the coremodules -> coremodules2 -> modules load order exists for:
+    // the leaf drivers genuinely reference symbols defined in their core
+    // module and in charinterface (e.g. libdmm needs 7 symbols from
+    // libdmmcore and 5 from libcharinterface).  ltdl's default is
+    // RTLD_LOCAL, under which those stay unresolved and every dependent
+    // module fails to open — and ltdl reports that as the unhelpful "file
+    // not found", so the whole leaf half of the driver set silently
+    // disappears.  macOS gets the same effect today from `-undefined
+    // dynamic_lookup` + flat lookup; stating it explicitly makes the two
+    // platforms agree rather than leaving one of them accidental.
+    lt_dladvise_init( &g_dl_advise);
+    lt_dladvise_global( &g_dl_advise);
+    lt_dladvise_ext( &g_dl_advise);       //!< try each platform's suffixes, like lt_dlopenext
 #endif
     if(module_dir.isEmpty())
         module_dir = app.libraryPaths();
@@ -276,7 +300,31 @@ int main(int argc, char *argv[]) {
 
     int num_loaded_modules = 0;
     //loads modules.
-    for(auto it = modules.begin(); it != modules.end(); it++) {
+    //
+    // MULTI-PASS.  A module may depend on symbols defined in ANOTHER module
+    // (leaf drivers on their `*core` module and on charinterface; nidaq on
+    // dsocore + nmrpulsercore), and vtables/typeinfo are DATA symbols, so
+    // they must resolve at load time — a dependency loaded later is too
+    // late.  The coremodules -> coremodules2 -> modules directory order
+    // expresses the coarse layering, but not the order WITHIN a directory,
+    // which is whatever the filesystem hands back: alphabetically `dsocore`
+    // precedes the `sgcore` it needs, and `arbfunc` precedes charinterface.
+    // Rather than encode a dependency graph, just repeat the pass while any
+    // module still succeeds; a module whose provider loaded in pass N opens
+    // in pass N+1.  Failures are only reported once the passes stop making
+    // progress, so a merely-out-of-order module never looks like an error.
+    // (macOS does not need this — `-undefined dynamic_lookup` defers the
+    // lookup — but an order-independent loader is right on every platform.)
+    std::deque<XString> pending = modules;
+    std::size_t prev_pending = 0;
+    bool last_pass = false;
+    while( !pending.empty()) {
+    //! No module opened during the previous pass ⇒ nothing will change now;
+    //! run one final pass that REPORTS the failures instead of deferring them.
+    last_pass = (pending.size() == prev_pending);
+    prev_pending = pending.size();
+    std::deque<XString> retry;
+    for(auto it = pending.begin(); it != pending.end(); it++) {
         app.processEvents(); //displays message.
         std::cerr <<  "Loading module \"" + *it + "\" " << std::endl;
 
@@ -296,7 +344,8 @@ int main(int argc, char *argv[]) {
             continue;
 
 #ifdef USE_LIBTOOL
-        lt_dlhandle handle = lt_dlopenext(QString( *it).toLocal8Bit().data());
+        lt_dlhandle handle =
+            lt_dlopenadvise(QString( *it).toLocal8Bit().data(), g_dl_advise);
 #endif
 #ifdef USE_LOADLIBRARY
         DWORD currerrmode = GetThreadErrorMode();
@@ -311,9 +360,29 @@ int main(int argc, char *argv[]) {
             ++num_loaded_modules;
         }
         else {
+            const char *why =
+#ifdef USE_LIBTOOL
+                lt_dlerror();
+#else
+                nullptr;
+#endif
+            if( !last_pass) {
+                retry.push_back( *it);      //!< maybe a provider is not up yet
+                continue;
+            }
+            // Also to stderr, and WITH the loader's reason.  The success path
+            // above already logs to stderr, so a failure that only reached the
+            // GUI message pane was the one event you could not see from a
+            // terminal — and "module silently absent" surfaces much later as a
+            // missing driver type or an unresolved Python name.
+            std::cerr << "Failure during loading module \"" + *it + "\""
+                      << (why ? XString(": ") + why : XString()) << std::endl;
             XMessageBox::post("Failure during loading module \"" + *it + "\"", *g_pIconError);
         }
 
+    }
+    if(last_pass) break;
+    pending.swap(retry);
     }
 
     // All modules including Python modules are now loaded.
