@@ -93,13 +93,14 @@ enum { HB = 256 };
 struct NegDiagAcc {
     std::uint64_t n = 0, rounds = 0, sleeps = 0, slept_ns = 0;
     std::uint64_t tries = 0, grants = 0, max_rounds = 0, max_slept = 0;
-    std::uint64_t sl_hold = 0, tags_held = 0, sl_priv = 0, tag_list = 0, req = 0;
+    std::uint64_t sl_hold = 0, tags_held = 0, sl_priv = 0, tag_list = 0, req = 0, ms_sum = 0, ms_max = 0;
     void add(const Transactional::detail::NegDiag &d) {
         n++; rounds += d.rounds; sleeps += d.sleeps; slept_ns += d.slept_ns;
         tries += d.priv_tries; grants += d.priv_grants;
         sl_hold += d.sleeps_holding; tags_held += d.tags_held_at_sleep;
         sl_priv += d.sleeps_priv; tag_list += d.tagged_list_at_sleep;
-        req += d.req_ns;
+        req += d.req_ns; ms_sum += d.ms_sum;
+        if(d.ms_max > ms_max) ms_max = d.ms_max;
         if(d.rounds > max_rounds) max_rounds = d.rounds;
         if(d.slept_ns > max_slept) max_slept = d.slept_ns;
     }
@@ -107,7 +108,8 @@ struct NegDiagAcc {
         n += o.n; rounds += o.rounds; sleeps += o.sleeps; slept_ns += o.slept_ns;
         tries += o.tries; grants += o.grants;
         sl_hold += o.sl_hold; tags_held += o.tags_held; sl_priv += o.sl_priv;
-        tag_list += o.tag_list; req += o.req;
+        tag_list += o.tag_list; req += o.req; ms_sum += o.ms_sum;
+        if(o.ms_max > ms_max) ms_max = o.ms_max;
         if(o.max_rounds > max_rounds) max_rounds = o.max_rounds;
         if(o.max_slept > max_slept) max_slept = o.max_slept;
     }
@@ -397,7 +399,11 @@ int main(int argc, char **argv) {
                         "chose it, >>1x means the OS did not run us)\n", "",
                         (double)dg.req / (double)dg.sleeps,
                         (double)dg.slept_ns / (double)dg.sleeps,
-                        dg.req ? (double)dg.slept_ns / (double)dg.req : 0.0);
+                        dg.req ? (double)dg.slept_ns / (double)dg.req : 0.0),
+            std::printf("  %-22s   BACKOFF budget ms_actual: %.2f ms summed per "
+                        "commit, max single round %llu ms\n", "",
+                        (double)dg.ms_sum / (double)dg.n,
+                        (unsigned long long)dg.ms_max);
 #endif
     }
     std::printf("== done ==\n");

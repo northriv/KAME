@@ -389,3 +389,52 @@ backoff budgets per round — together with the number of rounds, and with wakes
 that never arrive to cut either short. That is what to instrument next:
 which branch computes `ms_actual`, what value it produces, and why
 `notify_n_contenders` never reaches a grand-arm sleeper.
+
+## The mechanism, complete: an escalating budget that nothing cuts short
+
+Instrumented `ms_actual` — the per-round sleep budget — alongside everything
+else. Slow commits, 8 threads:
+
+    arm     ms_actual summed/commit   max single round   actual/requested
+    grand          26.51 ms                153 ms              1.12x
+    mixed           3.27 ms                 52 ms              0.09x
+
+grand's 26.51 ms of budget against ~25 ms measured sleeping: **the tail is the
+backoff budget, spent in full.** And a single round can budget **153 ms**,
+which is where MAX 200–380 ms comes from.
+
+The escalation is by construction:
+
+    ms = std::max((int)(dt2 * mult_wait / 10000), ms + 1);   // capped at 5000
+
+`ms` grows every round — at least +1, far more via the `dt2` term — and the
+round's sleep is served as ~1.5 ms `cell.wait()` chunks until `t_end = now +
+ms_actual * 1000`.
+
+### The difference between the two arms is not the backoff — it is the wake
+
+mixed budgets the same *kind* of escalation (3.27 ms/commit, single rounds up
+to 52 ms) and **serves 9 % of it** (0.09×), because wakes arrive and cut each
+chunk short. grand serves **112 %** — every chunk to full timeout, never woken
+once.
+
+So the escalating budget is not by itself the defect: it is a backoff that
+assumes a wake will cut it short, and that assumption holds in mixed and fails
+completely in grand. Combined with the earlier finding that the grand arm has
+no tags at all, the picture is consistent — a transaction that never tags is in
+no target set, so `notify_n_contenders` and the tenant-verified `wake_one` have
+nothing to aim at, and the budget becomes the latency.
+
+### Two candidate directions, in preference order
+
+1. **Make the wake reach the sleeper.** mixed is the existence proof that the
+   mechanism works when it lands; the grand arm's sleeper is simply
+   untargetable. This is the fix that removes the tail without touching the
+   backoff's throughput role.
+2. **Cap the budget when no wake can be expected.** Weaker — it trades tail for
+   the spin/CPU the backoff exists to avoid, and 153 ms says the cap would have
+   to be aggressive.
+
+Both must pass the gate that rejected S2: throughput at 128 threads,
+interleaved, plus a mechanism check that the wake actually lands rather than
+the number merely moving.

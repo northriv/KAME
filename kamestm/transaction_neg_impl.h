@@ -426,6 +426,11 @@ struct NegDiag {
     //! sleep this long" from "the OS did not run us again for this long":
     //! actual ~= requested means the former, actual >> requested the latter.
     std::uint64_t req_ns;
+    //! Distribution of the per-round sleep BUDGET (`ms_actual`).  `ms` grows
+    //! every round (`ms = max(dt2*mult/10000, ms+1)`, capped at 5000), so if
+    //! the tail is the sum of an escalating backoff this is where it shows.
+    std::uint64_t ms_sum;
+    std::uint64_t ms_max;
 };
 inline NegDiag &neg_diag() { static thread_local NegDiag d{}; return d; }
 }
@@ -1899,6 +1904,12 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         }
         else {
             int ms_actual = ms;
+#if KAME_STM_NEG_DIAG
+            { auto &_d = detail::neg_diag();
+              _d.ms_sum += (std::uint64_t)ms_actual;
+              if((std::uint64_t)ms_actual > _d.ms_max)
+                  _d.ms_max = (std::uint64_t)ms_actual; }
+#endif
             typename NegotiationCounter::ReleaseOneCount onedown;
 #if KAME_STM_MIN_RUNNERS != 0
             // Sleep in 1 ms chunks so the MIN_RUNNERS check fires after this
