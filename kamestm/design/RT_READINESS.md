@@ -543,3 +543,68 @@ than the tuning:
 
 (3) is the direction the allocator's contract took, and on this evidence it is
 the one most likely to survive a throughput gate.
+
+## Candidate "mark a bit on yield" — the wake gets fixed, and the tail does not move
+
+The remaining cheap way to become findable: not a tag (semantic, and it made
+peers yield — the feedback that cost 97 %), but a **bit in a shared sleeper
+registry**. `m_tid_bitset` is per-Snapshot — it records peers a thread has
+*observed* — so a waiter that writes nothing observable is in nobody's set.
+A shared `std::atomic<uint64_t>[8]`, one `fetch_or` before the wait and one
+`fetch_and` after, carries no semantics at all: it does not make anyone yield.
+
+Waking every recorded sleeper cost **−38 %** — the wake was indiscriminate,
+since the registry knows *that* a thread sleeps but not *what for*. Waking at
+most one recovered nearly all of it: **−8 %** (9.85 → 8.94 M/s). And the
+mechanism check was emphatic:
+
+    actual/requested sleep, grand:  1.12x  →  0.01x
+
+The wake now lands, cutting 99 % of every sleep budget. **And the tail did not
+move**: grand p99.999 84 → 59 ms, MAX 272 → 269 ms, p99.99 *worse*.
+
+The breakdown says exactly why:
+
+    grand, slow commits        before      after
+      sleeps / commit           14.53    2,268.53      (156x more)
+      slept / commit           24.9 ms     20.0 ms     (unchanged)
+      rounds / commit            3.89        3.81      (unchanged)
+      ms_actual budget         26.51 ms    21.75 ms    (unchanged)
+
+**The thread is woken 156× more often and sleeps for the same total time.** It
+wakes after 13 µs, re-checks, cannot proceed, and sleeps again.
+
+### This settles the question the whole sequence was asking
+
+Fixing the wake does not reduce the wait. The transaction genuinely cannot make
+progress for ~20 ms; the sleep was only *how that time was spent*. Which
+restores — now on much stronger evidence than the S2 rejection could give,
+because here the mechanism demonstrably works and the outcome still does not
+change — the conclusion:
+
+> The tail is `(contenders on the node) × (per-commit work)`. Arbitration
+> decides who waits and in what order; wake-up decides how the waiting is
+> spent; **neither reduces how much waiting exists.**
+
+Reverted: −8 % throughput and 156× the wakeups, for no latency benefit, is not
+a trade worth making.
+
+### Where this leaves the realtime goal, concretely
+
+Five mechanisms were implemented and measured — age promotion, linkage-keyed
+slots, tag-before-sleep, sleeper-registry broadcast, sleeper-registry wake-one.
+Every one either cost throughput (54 / 75 / 97 / 38 / 8 %) or left the tail
+where it was, and the last one did both at once while proving the wake works.
+
+So a bounded `Priority::NORMAL` is not reachable inside the negotiator. What
+remains is to attack the product itself:
+
+* **fewer contenders per linkage** — commit at a narrower scope, so unrelated
+  work does not serialise on one node;
+* **less per-commit work** — bundle churn is O(subtree), so a grand-scope
+  commit pays for every child.
+
+Both are properties of *how the tree is used*, which makes a bounded commit a
+**contract precondition on the caller** — a bounded scope — exactly as the
+allocator's contract required a stable working set rather than a cleverer
+allocator.
