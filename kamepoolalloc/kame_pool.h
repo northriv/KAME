@@ -251,8 +251,48 @@ void   kame_pool_set_realtime_mode(int enable) KAMEPOOLALLOC_NOEXCEPT;
  *
  * The ALLOCATION side cannot be deferred, so it takes a policy.
  */
-void   kame_pool_set_realtime_thread(int enable) KAMEPOOLALLOC_NOEXCEPT;
+/* Realtime LEVEL for a thread.  The two levels buy different things at very
+ * different prices, which is why they are separate:
+ *
+ *   KAME_RT_DEFER  — the free path makes no syscalls: chunk page-reclaim
+ *       (madvise) is skipped and a large-tier munmap is parked for
+ *       kame_pool_rt_drain().  All of it sits on cold release paths, so the
+ *       cost is nil.  Measured benefit on the band the recycle cache cannot
+ *       absorb (> 256 MiB): free median 128 ns vs 20,480 ns, max 792 ns vs
+ *       677,917 ns.  This is what almost every caller wants.
+ *
+ *   KAME_RT_STRICT — additionally drops this thread's cross-thread dealloc
+ *       batch to per-free flushing, so no single free inherits the batch's
+ *       CAP=1024 sort+merge+CAS.  Bounds the mid-tail (p99.9 96 ns vs
+ *       1,792 ns; p99.99 256 ns vs 10,240 ns) but COSTS ~47 % of
+ *       cross-thread small-free throughput (60.8 -> 32.6 M free/s, 8/8
+ *       interleaved reps), because per-free flushing gives up the batch's
+ *       coalesced-CAS win on exactly the pattern it was tuned for.
+ *       Worth it for a hard deadline; a bad trade for anything else.
+ *
+ * Not implied by kame_pool_set_realtime_mode(), and STRICT is never implied
+ * by DEFER.  Returns/takes the level, so get() != 0 means "deferring".
+ */
+enum {
+    KAME_RT_OFF    = 0,
+    KAME_RT_DEFER  = 1,
+    KAME_RT_STRICT = 2
+};
+void   kame_pool_set_realtime_thread(int level) KAMEPOOLALLOC_NOEXCEPT;
 int    kame_pool_get_realtime_thread(void) KAMEPOOLALLOC_NOEXCEPT;
+
+/* Process-wide floor for the DEFER behaviour: every thread stops making
+ * free-path syscalls without having to be marked individually.  Only DEFER
+ * can be a process default — STRICT's cost is on a hot path and is per-thread
+ * by nature, so a value of 2 here is clamped to 1.
+ *
+ * Cheap because the deferral gates are all on cold release paths, so the
+ * extra global load costs nothing on any hot path.  This is the setting a
+ * soft-realtime application (measurement, audio, robotics) actually wants;
+ * reach for per-thread STRICT only where a deadline demands it.
+ */
+void   kame_pool_set_realtime_default(int level) KAMEPOOLALLOC_NOEXCEPT;
+int    kame_pool_get_realtime_default(void) KAMEPOOLALLOC_NOEXCEPT;
 
 /* What to do when a realtime thread's allocation needs a NEW mapping. */
 enum {
@@ -524,26 +564,43 @@ void kame_pool_get_stats(kame_pool_stats_t *out) KAMEPOOLALLOC_NOEXCEPT;
  */
 namespace kame {
 
+/* Level as a SCOPED enum on purpose.  The ctor's first parameter used to be
+ * `bool check`, so a plain `int level` would let an existing `rt_section(false)`
+ * keep compiling while silently meaning "level OFF" — a section that guards
+ * nothing.  `bool` does not convert to a scoped enum, so that call is now a
+ * compile error instead of a silent no-op. */
+enum class rt_level : int {
+    off    = KAME_RT_OFF,
+    defer  = KAME_RT_DEFER,     /* free path makes no syscalls; costs nil */
+    strict = KAME_RT_STRICT     /* + per-free batch flush; ~47% throughput */
+};
+
 class rt_section {
 public:
     /* `check`: report to stderr if the section caused a new mapping.
      * Defaults to on in debug builds only.  `violations()` is always
      * available regardless, for a test to assert on. */
-    explicit rt_section(bool check =
+    /* `level` defaults to DEFER — the cheap half.  Pass KAME_RT_STRICT only
+     * when a hard deadline justifies ~47 % of cross-thread small-free
+     * throughput (see kame_pool_set_realtime_thread). */
+    explicit rt_section(rt_level level = rt_level::defer, bool check =
 #ifdef NDEBUG
                         false
 #else
                         true
 #endif
                        ) KAMEPOOLALLOC_NOEXCEPT
-        : m_prev(kame_pool_get_realtime_thread() != 0),
+        : m_prev(kame_pool_get_realtime_thread()),
           m_base(kame_pool_rt_violations()),
           m_check(check) {
-        kame_pool_set_realtime_thread(1);
+        /* Never weaken an enclosing section: a helper opening a DEFER scope
+         * inside a STRICT one must not silently drop the outer guarantee. */
+        const int lv = static_cast<int>(level);
+        kame_pool_set_realtime_thread(lv > m_prev ? lv : m_prev);
     }
     ~rt_section() KAMEPOOLALLOC_NOEXCEPT {
         unsigned long long v = violations();
-        kame_pool_set_realtime_thread(m_prev ? 1 : 0);
+        kame_pool_set_realtime_thread(m_prev);
         if(m_check && v != 0ull)
             kame_pool_rt_report_violations(v);
     }
@@ -556,7 +613,7 @@ public:
     rt_section &operator=(const rt_section &) = delete;
 
 private:
-    bool               m_prev;
+    int                m_prev;
     unsigned long long m_base;
     bool               m_check;
 };

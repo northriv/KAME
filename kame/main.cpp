@@ -432,6 +432,37 @@ int main(int argc, char *argv[]) {
     //! realtime mode.
     kame_pool_set_realtime_mode(1);
 
+#ifndef USE_STD_ALLOCATOR
+    //! (§75) The per-thread half, process-wide at its CHEAP level.
+    //! `KAME_RT_DEFER` stops every thread's `free()` from entering the kernel:
+    //! chunk page-reclaim is skipped (the chunk stays immediately recyclable,
+    //! its pages just stay warm) and a large-tier `munmap` is parked, bounded
+    //! by `kame_pool_set_rt_pending_cap`.  All of that sits on cold release
+    //! paths, so it costs nothing measurable, and it removes the spikes §30
+    //! cannot reach — the ones a live thread's own free can still produce.
+    //! Measured on the band the recycle cache cannot absorb (> 256 MiB):
+    //! free median 128 ns vs 20,480 ns, max 792 ns vs 677,917 ns.
+    //!
+    //! Nothing drains the parked backlog here, deliberately: KAME has no
+    //! natural "trough" like a control loop's inter-cycle gap, the cap bounds
+    //! the VA, and any non-realtime large free settles one parked block on its
+    //! way out.  A driver that wants a hard bound can call
+    //! `kame_pool_rt_drain()` between acquisitions.
+    //!
+    //! `KAME_RT_STRICT` is deliberately NOT enabled — this is not an oversight
+    //! to be "completed" later.  It additionally drops the cross-thread
+    //! dealloc batch to per-free flushing, which measured **-47 %** of
+    //! cross-thread small-free throughput (60.8 -> 32.6 M free/s, 8/8
+    //! interleaved reps) because it gives up the batch's coalesced-CAS win —
+    //! on exactly KAME's dominant pattern, an STM Payload cloned on one thread
+    //! and released on another.  What it buys is the p99.9 mid-tail
+    //! (96 ns vs 1,792 ns), which KAME cannot use: its deadlines are
+    //! instrument I/O at millisecond scale.  A future driver with a genuine
+    //! sub-millisecond software loop should call
+    //! `kame_pool_set_realtime_thread(KAME_RT_STRICT)` on that thread alone.
+    kame_pool_set_realtime_default(KAME_RT_DEFER);
+#endif
+
 #if defined __MACOSX__ || defined __APPLE__
     while(form->running()) {
         void *p = autoReleasePoolInit(); //may be needed to release OpenGL related objects.

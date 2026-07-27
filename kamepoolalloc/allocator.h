@@ -134,7 +134,9 @@
     //! allocator owns the mapping decisions — so every call is a no-op and
     //! every counter reads zero (which is also the honest answer: this build
     //! makes no realtime guarantee at all).
-    inline void kame_pool_set_realtime_thread(int /*enable*/) noexcept {}
+    inline void kame_pool_set_realtime_thread(int /*level*/) noexcept {}
+    inline void kame_pool_set_realtime_default(int /*level*/) noexcept {}
+    inline int  kame_pool_get_realtime_default() noexcept { return 0; }
     inline int  kame_pool_get_realtime_thread() noexcept { return 0; }
     inline void kame_pool_set_rt_os_policy(int /*policy*/) noexcept {}
     inline int  kame_pool_get_rt_os_policy() noexcept { return 0; }

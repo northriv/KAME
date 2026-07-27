@@ -281,10 +281,20 @@ attempt's row is kept because the contrast is the point:
   *identical* to the batched arm. Only the unconditional `cap = 1` removes the
   mid-tail.
 
-Consequence to know: entering realtime mode flushes whatever ordinary work left
-in the batch (otherwise the section's first free would inherit up to `CAP`
-entries), so mark the thread once rather than per cycle if that boundary cost
-matters.
+Consequence to know: entering STRICT flushes whatever ordinary work left in the
+batch (otherwise the section's first free would inherit up to `CAP` entries), so
+mark the thread once rather than per cycle if that boundary cost matters.
+
+**This is why the level is split.** Measuring the throughput cost of the batch
+change on the STM shape gave **−48 %** (6/6 reps, 60.8 → 31.2 M free/s), against
+**−2.8 %** for the syscall deferral alone (median; individual reps came out
+*positive*, i.e. within noise). Bundling them would have forced every soft-realtime
+caller to buy a p99.9 improvement they cannot use at half their free throughput.
+So `KAME_RT_DEFER` is the cheap half and can be a process-wide default
+(`kame_pool_set_realtime_default`), while `KAME_RT_STRICT` stays per-thread —
+its cost is on a hot path, so it is never implied and never global. KAME itself
+enables DEFER process-wide and deliberately does not enable STRICT: its deadlines
+are instrument I/O at millisecond scale.
 
 **(c) `orphan_chain_scrub` — unbounded, but unreachable when prewarmed.**
 It walks the whole orphan chain and **restarts from the head whenever its

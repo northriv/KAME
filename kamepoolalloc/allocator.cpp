@@ -1003,7 +1003,16 @@ bool g_sys_image_loaded = false;
 //
 // The allocation side cannot simply be deferred (the caller needs the
 // memory now), so it gets a *policy* instead — see kame_rt_os_policy_t.
-ALLOC_TLS_IE bool g_rt_thread = false;
+// Per-thread realtime LEVEL (0 = off, 1 = KAME_RT_DEFER, 2 = KAME_RT_STRICT).
+// An int rather than a bool because the two levels buy different things at
+// very different prices — see `kame_pool_set_realtime_thread`.
+ALLOC_TLS_IE int g_rt_thread = 0;
+// Process-wide floor for the DEFER behaviour, so a program can have every
+// thread stop making free-path syscalls without reaching into each one.  Read
+// only from cold release paths (`rt_defer_active`), so this costs nothing on
+// any hot path — which is exactly why the cheap half can be a process default
+// and the expensive half cannot.
+std::atomic<int> g_rt_default{0};
 std::atomic<int> g_rt_os_policy{0};                    // KAME_RT_OS_ALLOW
 
 // (§75 / G6a) Transparent-hugepage policy for the pool's own regions.
@@ -1080,15 +1089,20 @@ std::atomic<unsigned long long> g_rt_forced_releases{0};
 std::atomic<bool> g_rt_settle_gate{false};
 
 
-//! True iff the calling thread is marked realtime.
-inline bool rt_thread() noexcept { return g_rt_thread; }
+//! True iff this thread must defer free-path reclaim — either because it was
+//! marked realtime itself, or because the process default says so.  Cold
+//! paths only, so the extra global load is free.
+inline bool rt_defer_active() noexcept {
+	return g_rt_thread != 0
+	    || g_rt_default.load(std::memory_order_relaxed) != 0;
+}
 
 //! Call at every site about to create a NEW mapping.  Returns false iff
 //! the caller must fail the allocation instead (`KAME_RT_OS_FAIL`), which
 //! is only safe where a nullptr degrades to the libc fallback.  No-op
 //! unless the caller is an RT thread.
 inline bool rt_allow_new_mapping(const char *site) noexcept {
-	if(__builtin_expect( !g_rt_thread, 1)) return true;
+	if(__builtin_expect( !rt_defer_active(), 1)) return true;
 	g_rt_violations.fetch_add(1, std::memory_order_relaxed);
 	int pol = g_rt_os_policy.load(std::memory_order_relaxed);
 	if(pol == 2 /*KAME_RT_OS_FAIL*/)  return false;
@@ -3292,7 +3306,7 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 	// recyclable — its pages simply stay resident (warm) instead of being
 	// handed back.  `kame_pool_rt_drain()` returns them later; so does any
 	// non-RT thread that releases the same chunk.
-	if(reclaim_pages && __builtin_expect(g_rt_thread, 0)) {
+	if(reclaim_pages && __builtin_expect(rt_defer_active(), 0)) {
 		reclaim_pages = false;
 		g_rt_deferred_reclaim.fetch_add(1, std::memory_order_relaxed);
 	}
@@ -6434,7 +6448,7 @@ RadixL2Node *PoolAllocatorBase::radix_alloc_l2() noexcept {
 	// (`mmap_new_region`, `large_va_raw_map`); here we only record that an
 	// RT thread touched the kernel.  Prewarming the RT working set
 	// (`kame_pool_prewarm`) is what actually keeps this off the RT path.
-	if(__builtin_expect(g_rt_thread, 0))
+	if(__builtin_expect(rt_defer_active(), 0))
 		g_rt_violations.fetch_add(1, std::memory_order_relaxed);
 #if defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32)
 	void *p = VirtualAlloc(nullptr, sizeof(RadixL2Node),
@@ -7539,15 +7553,21 @@ extern "C" void kame_pool_set_realtime_mode(int enable) noexcept {
 // both — `set_realtime_mode(1)` once at startup, then `set_realtime_thread(1)`
 // from each time-critical thread (or lets `kame::rt_section` do it).
 
-extern "C" void kame_pool_set_realtime_thread(int enable) noexcept {
-	g_rt_thread = (enable != 0);
-	// (§75 / G5) Drop the cross-thread batch to per-free flushing while
-	// realtime, and settle whatever ordinary work left in it — otherwise the
-	// section's FIRST free would inherit up to CAP entries, which is the
-	// spike this exists to remove.  Paying it here puts the cost on the
-	// boundary call, where a caller can hoist it out of the loop by marking
-	// the thread once instead of per cycle.
-	if(enable) {
+extern "C" void kame_pool_set_realtime_thread(int level) noexcept {
+	if(level < 0 || level > 2) return;                  // ignore out-of-range
+	g_rt_thread = level;
+	// (§75 / G5) STRICT only: drop the cross-thread batch to per-free
+	// flushing, and settle whatever ordinary work left in it — otherwise the
+	// section's FIRST free would inherit up to CAP entries, which is the very
+	// spike this removes.  Paying it at the boundary lets a caller hoist it
+	// out of the loop by marking the thread once instead of per cycle.
+	//
+	// DEFER deliberately leaves the batch alone.  Measured, per-free flushing
+	// costs ~47 % of cross-thread small-free throughput (60.8 -> 32.6 M
+	// free/s, 8/8 reps) because it gives up the batch's coalesced-CAS win —
+	// on exactly the pattern the batch was tuned for.  That is the right
+	// trade only for a thread with a hard deadline, so it is never implied.
+	if(level >= 2) {
 		tls_cross_dealloc_batch.flush();
 		tls_cross_dealloc_batch.cap = 1;
 	}
@@ -7555,8 +7575,18 @@ extern "C" void kame_pool_set_realtime_thread(int enable) noexcept {
 		tls_cross_dealloc_batch.cap = CrossDeallocBatch::CAP;
 	}
 }
+extern "C" void kame_pool_set_realtime_default(int level) noexcept {
+	// Only the DEFER half can be a process default: STRICT's cost lives on a
+	// hot path and is per-thread by nature, so it is clamped out here rather
+	// than silently applied process-wide.
+	if(level < 0 || level > 2) return;
+	g_rt_default.store(level >= 1 ? 1 : 0, std::memory_order_relaxed);
+}
+extern "C" int kame_pool_get_realtime_default(void) noexcept {
+	return g_rt_default.load(std::memory_order_relaxed);
+}
 extern "C" int kame_pool_get_realtime_thread(void) noexcept {
-	return g_rt_thread ? 1 : 0;
+	return g_rt_thread;
 }
 extern "C" void kame_pool_set_rt_os_policy(int policy) noexcept {
 	if(policy < 0 || policy > 3) return;         // ignore out-of-range
@@ -7619,8 +7649,9 @@ extern "C" void kame_pool_rt_reset_counters(void) noexcept {
 // re-deferred by the very gate that queued them (and so the counters do not
 // tick for our own work).
 extern "C" void kame_pool_rt_drain(void) noexcept {
-	const bool saved_rt = g_rt_thread;
-	g_rt_thread = false;
+	const int saved_rt  = g_rt_thread;
+	const int saved_def = g_rt_default.exchange(0, std::memory_order_relaxed);
+	g_rt_thread = 0;
 
 	// (1) Deferred large-tier unmaps — exact, we hold the list.  Copy the
 	// node out before unmapping: it LIVES in the page about to go away.
@@ -7663,6 +7694,7 @@ extern "C" void kame_pool_rt_drain(void) noexcept {
 	}
 
 	g_rt_thread = saved_rt;
+	g_rt_default.store(saved_def, std::memory_order_relaxed);
 }
 
 // Prewarm: allocate + PAGE-TOUCH + free the given size classes so that the
@@ -7855,7 +7887,7 @@ PoolAllocatorBase::deallocate_large_va(void *p) noexcept {
 		// costs no allocation.  `kame_pool_rt_drain()` unmaps it later.
 		// Trade-off: VA/RSS is held until the drain, which
 		// `kame_pool_rt_pending_bytes()` reports.
-		if(__builtin_expect(g_rt_thread, 0)) {
+		if(__builtin_expect(rt_defer_active(), 0)) {
 			// (§75 / G5) Park only while the backlog stays under the cap.  An
 			// unbounded queue would swap a bounded free() tail for unbounded
 			// VA/RSS (measured: 40 deferred 300 MiB frees park 12.6 GB), so
