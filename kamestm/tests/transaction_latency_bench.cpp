@@ -93,15 +93,20 @@ enum { HB = 256 };
 struct NegDiagAcc {
     std::uint64_t n = 0, rounds = 0, sleeps = 0, slept_ns = 0;
     std::uint64_t tries = 0, grants = 0, max_rounds = 0, max_slept = 0;
+    std::uint64_t sl_hold = 0, tags_held = 0, sl_priv = 0, tag_list = 0;
     void add(const Transactional::detail::NegDiag &d) {
         n++; rounds += d.rounds; sleeps += d.sleeps; slept_ns += d.slept_ns;
         tries += d.priv_tries; grants += d.priv_grants;
+        sl_hold += d.sleeps_holding; tags_held += d.tags_held_at_sleep;
+        sl_priv += d.sleeps_priv; tag_list += d.tagged_list_at_sleep;
         if(d.rounds > max_rounds) max_rounds = d.rounds;
         if(d.slept_ns > max_slept) max_slept = d.slept_ns;
     }
     void merge(const NegDiagAcc &o) {
         n += o.n; rounds += o.rounds; sleeps += o.sleeps; slept_ns += o.slept_ns;
         tries += o.tries; grants += o.grants;
+        sl_hold += o.sl_hold; tags_held += o.tags_held; sl_priv += o.sl_priv;
+        tag_list += o.tag_list;
         if(o.max_rounds > max_rounds) max_rounds = o.max_rounds;
         if(o.max_slept > max_slept) max_slept = o.max_slept;
     }
@@ -376,6 +381,16 @@ int main(int argc, char **argv) {
                         (unsigned long long)dg.max_slept,
                         (double)dg.tries   / (double)dg.n,
                         (double)dg.grants  / (double)dg.n);
+        if(dg.n && dg.sleeps)
+            std::printf("  %-22s HOLD-AND-WAIT: %.1f%% of sleeps happen while "
+                        "still owning >=1 tag (%.2f tags avg); %.1f%% while "
+                        "holding privilege\n", "",
+                        100.0 * (double)dg.sl_hold / (double)dg.sleeps,
+                        dg.sl_hold ? (double)dg.tags_held / (double)dg.sl_hold : 0.0,
+                        100.0 * (double)dg.sl_priv / (double)dg.sleeps),
+            std::printf("  %-22s   (tagged-list size at sleep: %.2f — 0 means "
+                        "nothing was tagged yet, so 'owns none' would be vacuous)\n",
+                        "", (double)dg.tag_list / (double)dg.sleeps);
 #endif
     }
     std::printf("== done ==\n");

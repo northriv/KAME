@@ -240,3 +240,66 @@ That is S3, and S2's rejection is what establishes it is not optional. It also
 sharpens the realtime contract: a bounded commit will require a bounded
 *scope*, in the same way the allocator's contract required a stable working set
 — a precondition on the caller, not something the arbitration can supply.
+
+## S2 post-mortem — the waiter is invisible, and that is the real constraint
+
+Prompted by the question "is the privilege/tag holder itself sleeping?" —
+hold-and-wait would mean peers queue behind a *sleeping* holder, and the wait
+would be set by the sleep rather than by anyone's work. Measured it instead of
+reasoning about it, by counting, at every sleep, how many of this Tx's tagged
+linkages still carry its stamp.
+
+First answer looked like a clean refutation: **grand — 0.0 % of sleeps hold any
+tag.** It was vacuous. Adding the tagged-list size to the same probe:
+
+    arm     sleeps holding >=1 tag   tags/sleep   tagged-list size at sleep
+    grand         0.0 %                 0.00              0.00
+    mixed        38.2 %                 1.80              1.14
+
+**The grand sleeper has tagged nothing at all.** So "owns none" said nothing
+about hold-and-wait — there was nothing to hold. (In mixed, where leaf commits
+do tag, hold-and-wait is real at 38 % of sleeps and worth revisiting.)
+
+Why nothing is tagged closes the chain. `tag_as_contender` has exactly **one**
+call site: the *pre-commit retry tag* in `operator++`, and only
+`if(isMultiNodal())`. A transaction tags when it **retries**. Measured,
+attempts/commit is 1.000 — the starving Tx does not retry. So:
+
+* it never tags → `tags_total == 0`;
+* the livelock verdict requires `tags_total > 0 && tags_owned == tags_total`,
+  so it **can never fire, whatever the retry count** — the retry threshold I
+  identified in S1' is real but is not even the first blocker;
+* privilege is therefore unclaimable — and in per-linkage mode the claim
+  *walks `m_tagged_linkages`*, so with an empty list there is nothing to
+  upgrade even once the branch is entered (which is why S2 needed such an
+  aggressive floor to move anything, and why it mostly perturbed);
+* and, most important, **its age is never registered anywhere**, so the
+  oldest-wins comparison that the whole design rests on never has this
+  transaction as an operand.
+
+> A transaction that waits without retrying is invisible to the fairness
+> machinery. It sleeps, wakes, finds the node still taken, sleeps again —
+> with nothing recording that it is waiting, or for how long.
+
+### This corrects the S2 lesson recorded above
+
+That section concluded the tail is set by `(contenders × per-commit work)` and
+that ordering cannot beat it. That inference was drawn from S2 failing — but S2
+was, for the grand arm, largely a **no-op on an empty tag list**, so its failure
+is weak evidence about ordering in general. The product bound is still the right
+*form* of a bound; it is not established as the binding constraint here.
+
+### The candidate that follows, and it is a fidelity fix
+
+Tag when a transaction **yields**, not only when it retries. The model places
+its tag on failure-to-proceed and orders by age from that moment
+(`TagAfterFail`: an older tag displaces a younger one); the C++ places it only
+on a transaction-level retry, which is a far coarser trigger and misses the
+population that blocks without ever attempting. Making the waiter visible would
+give the existing machinery — oldest-wins displacement, the verdict, the age
+floor — something to work with, at no fast-path cost (the yield path is already
+the slow path).
+
+Stated as a candidate, not a fix: it must be measured against the same gate that
+rejected S2 (throughput at 128 threads, interleaved A/B), and hold-and-wait in
+the mixed arm (38 %) says tagging more will interact with holders that sleep.

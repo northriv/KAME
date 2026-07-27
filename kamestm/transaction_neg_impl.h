@@ -410,6 +410,17 @@ struct NegDiag {
     std::uint64_t slept_ns;    //!< wall time inside cell.wait()
     std::uint64_t priv_tries;  //!< privilege claims attempted
     std::uint64_t priv_grants; //!< privilege claims that succeeded
+    //! Sleeps entered while this Tx still OWNS the tag on >=1 linkage.  A
+    //! multi-linkage Tx (a grand-scope commit tags parent + every child) can
+    //! hold some tags and be blocked on another — hold-and-wait.  If that is
+    //! where the sleeps are, peers are queued behind a SLEEPING holder and the
+    //! wait is set by the sleep, not by anyone's work.
+    std::uint64_t sleeps_holding;
+    std::uint64_t tags_held_at_sleep;   //!< sum of tags owned at those sleeps
+    std::uint64_t sleeps_priv;          //!< ... and while holding privilege
+    //! Sum of m_tagged_linkages.size() at each sleep.  Distinguishes "owned 0
+    //! of N tags" (displaced) from "had tagged nothing yet" (vacuous).
+    std::uint64_t tagged_list_at_sleep;
 };
 inline NegDiag &neg_diag() { static thread_local NegDiag d{}; return d; }
 }
@@ -1977,13 +1988,70 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     }
                 }
 #if KAME_STM_DISABLE_JITTER
+#if KAME_STM_NEG_DIAG
+                {   // (diag) do we still own tags while going to sleep?
+                    int _held = 0;
+                    const auto _mine = NegotiationCounter::strip_kind(
+                                            snap.m_started_time);
+                    for(auto &&_l : snap.m_tagged_linkages) {
+                        if( !_l) continue;
+                        if(NegotiationCounter::strip_kind(
+                               _l->m_transaction_started_time.load(
+                                   std::memory_order_relaxed)) == _mine)
+                            ++_held;
+                    }
+                    auto &_d = detail::neg_diag();
+                    _d.tagged_list_at_sleep += snap.m_tagged_linkages.size();
+                    if(_held > 0) { ++_d.sleeps_holding;
+                                    _d.tags_held_at_sleep += (unsigned)_held; }
+                    if(snap.m_registered_privileged) ++_d.sleeps_priv;
+                }
+#endif
                 NegotiationCounter::negotiate_sleep(1, started_time);
 #else
+#if KAME_STM_NEG_DIAG
+                {   // (diag) do we still own tags while going to sleep?
+                    int _held = 0;
+                    const auto _mine = NegotiationCounter::strip_kind(
+                                            snap.m_started_time);
+                    for(auto &&_l : snap.m_tagged_linkages) {
+                        if( !_l) continue;
+                        if(NegotiationCounter::strip_kind(
+                               _l->m_transaction_started_time.load(
+                                   std::memory_order_relaxed)) == _mine)
+                            ++_held;
+                    }
+                    auto &_d = detail::neg_diag();
+                    _d.tagged_list_at_sleep += snap.m_tagged_linkages.size();
+                    if(_held > 0) { ++_d.sleeps_holding;
+                                    _d.tags_held_at_sleep += (unsigned)_held; }
+                    if(snap.m_registered_privileged) ++_d.sleeps_priv;
+                }
+#endif
                 NegotiationCounter::negotiate_sleep(
                     1 + (int)(s_backoff_seed >> 31), started_time);
 #endif
             } while(Node<XN>::NegotiationCounter::now_us() < t_end);
 #else
+#if KAME_STM_NEG_DIAG
+                {   // (diag) do we still own tags while going to sleep?
+                    int _held = 0;
+                    const auto _mine = NegotiationCounter::strip_kind(
+                                            snap.m_started_time);
+                    for(auto &&_l : snap.m_tagged_linkages) {
+                        if( !_l) continue;
+                        if(NegotiationCounter::strip_kind(
+                               _l->m_transaction_started_time.load(
+                                   std::memory_order_relaxed)) == _mine)
+                            ++_held;
+                    }
+                    auto &_d = detail::neg_diag();
+                    _d.tagged_list_at_sleep += snap.m_tagged_linkages.size();
+                    if(_held > 0) { ++_d.sleeps_holding;
+                                    _d.tags_held_at_sleep += (unsigned)_held; }
+                    if(snap.m_registered_privileged) ++_d.sleeps_priv;
+                }
+#endif
             NegotiationCounter::negotiate_sleep(ms_actual, started_time);
 #endif
         }
