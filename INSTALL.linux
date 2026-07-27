@@ -5,8 +5,8 @@ tree accumulated a decade of macOS/Windows-only assumptions.  It builds and
 runs again as of 2026-07.
 
 **Status: unsupported.**  What has been verified is that it compiles, links,
-starts, loads all 43 driver modules, and runs the embedded Python/pybind11
-engine.  No instrument hardware has been exercised, and the GUI has only been
+starts, loads all 43 driver modules with zero failures, and runs BOTH script
+engines — the embedded Python/pybind11 one and the Ruby one.  No instrument hardware has been exercised, and the GUI has only been
 smoke-tested with `QT_QPA_PLATFORM=offscreen`.  Treat it as a development
 platform, not a deployment one.
 
@@ -26,7 +26,10 @@ sudo apt-get install -y \
   works too, minus the Qt 6-only `QT +=` lines in `kame.pri`.
 * **Ruby** headers are mandatory — `script/xrubysupport.cpp` is compiled
   unconditionally.  `kame/kame.pro` asks the interpreter for its header path
-  via `RbConfig`, so any packaged or rbenv/rvm Ruby works.
+  via `RbConfig`, so any packaged or rbenv/rvm Ruby works.  Verified working
+  on **Ruby 3.3.6**: the support script and `rubylineshell.rb` both evaluate,
+  and a `.rb` passed on the command line runs through the Ruby engine and
+  walks the measurement tree over the C++ node bridge.
 * **pybind11** is optional but strongly recommended: without it there is no
   Python scripting, no Jupyter/IPython console, no MCP server, and `.kam`
   files fall back to the (legacy) Ruby loader.  It must be importable by the
@@ -56,6 +59,21 @@ bare target name would collide with it).  The deployed script files
 the binary, which is where `xpythonsupport.py` and `LINESHELL_DIR` look for
 them in a build tree.
 
+## Checking the script engines
+
+Both engines are reachable from the command line, which is the easiest way to
+confirm they work without a display.  `FrmKameMain::runNewScript()` routes by
+extension: `.py` and `.kam` go to Python, everything else to Ruby.
+
+```bash
+./bin/kame --moduledir "$PWD/mods" /path/to/script.py    # Python engine
+./bin/kame --moduledir "$PWD/mods" /path/to/script.rb    # Ruby engine
+```
+
+Note that `xrubysupport.rb` redirects **both** `$stdout` and `$stderr` into
+KAME's GUI message pane, so a Ruby test script that prints to either produces
+nothing on the terminal even when it ran perfectly.  Write to a file instead.
+
 ## Running from the build tree
 
 Modules are not installed by `make`, and KAME searches
@@ -82,10 +100,6 @@ where `QStandardPaths::AppDataLocation` finds them.
 
 ## Known gaps
 
-* **Ruby 3.x**: the legacy `xrubysupport` monitor script fails to eval on
-  Ruby 3.3 ("Ruby, exception(s) occurred." at startup).  Harmless when
-  pybind11 is present, since `.kam` loading and scripting both route to
-  Python then, but the Ruby line shell will not work.
 * **No hardware testing.**  Serial (`termios`) and TCP already had POSIX
   paths; neither has been exercised against a real instrument here.
 * The GUI has only been run under `offscreen`.  OpenGL plotting

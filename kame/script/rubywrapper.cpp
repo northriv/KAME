@@ -158,9 +158,52 @@ Ruby::Value Ruby::convertToRuby(bool v) {
     return v ? Qtrue : Qfalse;
 }
 
+bool
+Ruby::isTerminationError() {
+    VALUE err = rb_errinfo();
+    if(NIL_P(err)) return false;
+    return rb_obj_is_kind_of(err, rb_eSignal) == Qtrue
+        || rb_obj_is_kind_of(err, rb_eSystemExit) == Qtrue;
+}
+
 void
 Ruby::printErrorInfo() {
-    rb_p(rb_errinfo());
+    VALUE err = rb_errinfo();
+    if(NIL_P(err)) {
+        fprintf(stderr, "Ruby: exception state set but $! is nil.\n");
+        return;
+    }
+    // `rb_p` alone writes to Ruby's `$stdout`, which XRuby has already
+    // redirected into the GUI message pane by the time anything can fail —
+    // so a startup exception used to leave literally nothing on the terminal
+    // but "Ruby, exception(s) occurred.".  Report class, message and
+    // backtrace on stderr as well.
+    //
+    // Clear the pending exception first: everything below runs Ruby code, and
+    // doing that with `$!` still set makes a second failure indistinguishable
+    // from the first.  Each call is wrapped in rb_protect so a broken
+    // exception object cannot raise out of the error path.
+    rb_set_errinfo(Qnil);
+
+    const char *cls = rb_obj_classname(err);
+    int state = 0;
+    VALUE str = rb_protect(rb_obj_as_string, err, &state);
+    if( !state && RB_TYPE_P(str, T_STRING))
+        fprintf(stderr, "Ruby error (%s): %.*s\n", cls,
+                (int)RSTRING_LEN(str), RSTRING_PTR(str));
+    else
+        fprintf(stderr, "Ruby error (%s): <message unprintable>\n", cls);
+
+    state = 0;
+    VALUE bt = rb_protect([](VALUE e)->VALUE {
+        VALUE a = rb_funcall(e, rb_intern("backtrace"), 0);
+        return NIL_P(a) ? Qnil : rb_ary_join(a, rb_str_new_cstr("\n  from "));
+    }, err, &state);
+    if( !state && RB_TYPE_P(bt, T_STRING))
+        fprintf(stderr, "  from %.*s\n", (int)RSTRING_LEN(bt), RSTRING_PTR(bt));
+
+    rb_set_errinfo(err);   //!< restore, then the historical $stdout copy
+    rb_p(err);
 }
 
 template <class P, class T>

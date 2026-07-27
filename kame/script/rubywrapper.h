@@ -28,6 +28,13 @@ public:
 
     void printErrorInfo();
 
+    //! True when the pending exception is a SignalException / SystemExit,
+    //! i.e. the interpreter is unwinding because the PROCESS is going away
+    //! rather than because a script is wrong.  Both derive from Exception,
+    //! not StandardError, so the support script's own `rescue` cannot see
+    //! them and they surface here as an ordinary eval failure.
+    bool isTerminationError();
+
     using Value = uintptr_t; //has to be identical to VALUE
     static const Value Nil;
     static const Value False;
