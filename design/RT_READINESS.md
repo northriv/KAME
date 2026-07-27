@@ -360,7 +360,8 @@ from 152,868 kB to 202,752 kB (+33 %) in the measurement above.
 ##### Measured: what it buys and what it costs
 
 Host: 4 vCPU Intel Xeon @ 2.80 GHz (KVM guest, avx512, 16 GiB), Ubuntu 24.04,
-glibc 2.39, kernel 6.18.5, GCC 13.3, Release,
+glibc 2.39, kernel 6.18.5, GCC 13.3, Release **x86-64** (the `-m32` build is
+covered separately below),
 `transparent_hugepage/enabled = always`, `defrag = madvise`. A noisy shared
 VM: every figure is a **median of 9 interleaved cross-process repetitions**
 (the arms cannot be interleaved *within* a process, since `NEVER` does not
@@ -421,6 +422,17 @@ all, so it cannot pass for the wrong reason. Negative control run the same way
 as G9's: with the `large_va_raw_map` advise disabled the sub-test FAILS
 (10,240 kB instead of 0), so it has teeth.
 
+The baseline arm is `KAME_THP_ALWAYS`, deliberately, not `KAME_THP_SYSTEM`.
+An *unadvised* range is only opportunistically backed by hugepages: under the
+common `defrag = madvise` setting the kernel will not compact to find a 2 MiB
+block for it, so a `SYSTEM` baseline reads 0 as soon as memory is mildly
+fragmented and the check skips itself for no good reason. That is not
+hypothetical — with a `SYSTEM` baseline this sub-test passed 64-bit and
+skipped 32-bit on the *same host and kernel*. `MADV_HUGEPAGE` does earn the
+compaction effort, so `ALWAYS`-vs-`NEVER` is both deterministic and the
+sharper test: it exercises each direction of the policy rather than one
+direction against the kernel's whim.
+
 Note for anyone re-running this in a container: many sandboxes set
 `PR_SET_THP_DISABLE` on the whole process tree, which makes every VMA report
 `THPeligible: 0` no matter what `/sys/kernel/mm/transparent_hugepage/enabled`
@@ -434,6 +446,31 @@ reason it is not what we do: it is process-wide, so it would disable
 hugepages for the application's own non-pool memory too — the same
 blunt-instrument problem `mlockall(MCL_FUTURE)` has versus `mlock_regions()`
 in (b).
+
+##### 32-bit (ILP32)
+
+Checked, because the standalone library claims Linux 32-bit support and this
+work touches page-level code. Built `-m32` (GCC 13.3 multilib, same host):
+**ctest 18/18, warning-free**, and sub-test (2e)'s behavioural half passes
+there too — `MADV_HUGEPAGE` 10,240 kB vs `MADV_NOHUGEPAGE` 0 kB, identical to
+the 64-bit figures. Transparent hugepages are a property of the kernel's page
+tables, not of the process's pointer width, so an ILP32 process on an x86-64
+kernel gets them normally; a plain `mmap` + `MADV_HUGEPAGE` control confirms
+it.
+
+Nothing in the policy itself is width-sensitive: the region walk is over the
+same `s_region_dll_heads` list, and the `madvise` length is
+`(size_t)ALLOC_MIN_MMAP_SIZE - ALLOC_PAGE_SIZE`, cast before the subtraction.
+The pool's own ILP32 handling was already in place (`ALLOC_MAX_REGIONS = 96`
+= 3 GiB, `RADIX_VA_LIMIT = ~0`).
+
+Two ILP32-only defects were found and fixed by building it, both in the new
+test/bench code rather than the library: (2e)'s smaps parser scanned `%lx`
+into a `uintptr_t`, which is `unsigned int` on ILP32 (a `-Wformat` warning,
+benign where `long` is also 32-bit but wrong in principle — now scans
+`unsigned long long` and casts); and `bench_tlb` silently overflowed
+`size_t` for a multi-GiB working set, surfacing as a misleading "working set
+too small" — it now range-checks and says which it is.
 
 #### (c) The application's half of the checklist — documented, not code
 

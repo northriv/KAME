@@ -250,9 +250,12 @@ static long anon_hugepages_in(uintptr_t lo, uintptr_t hi) {
     long huge = 0;
     bool inside = false;
     while(std::fgets(line, sizeof line, f)) {
-        uintptr_t a, b;
-        if(std::sscanf(line, "%lx-%lx", &a, &b) == 2 && !std::strstr(line, "kB")) {
-            inside = (a < hi && b > lo);
+        // Scan into unsigned long long, not uintptr_t: on ILP32 `uintptr_t`
+        // is `unsigned int` and `%lx` would be a type mismatch (harmless in
+        // practice where long is also 32-bit, but a real one where it is not).
+        unsigned long long a, b;
+        if(std::sscanf(line, "%llx-%llx", &a, &b) == 2 && !std::strstr(line, "kB")) {
+            inside = ((uintptr_t)a < hi && (uintptr_t)b > lo);
             continue;
         }
         long v;
@@ -315,10 +318,20 @@ static void test_thp_policy() {
     };
 
     // Baseline first: if this host cannot produce transparent hugepages at
-    // all (THP=never/madvise, a THP-less kernel, or PR_SET_THP_DISABLE set on
-    // the process tree — containers do this), then "0 kB under NEVER" would
-    // pass for the wrong reason.  Skip rather than claim a result.
-    const long base = touch_and_measure(KAME_THP_SYSTEM);
+    // all (THP=never, a THP-less kernel, or PR_SET_THP_DISABLE set on the
+    // process tree — containers do this), then "0 kB under NEVER" would pass
+    // for the wrong reason.  Skip rather than claim a result.
+    //
+    // The baseline arm is KAME_THP_ALWAYS, not KAME_THP_SYSTEM.  An unadvised
+    // range is only opportunistically backed by hugepages: under the common
+    // `defrag = madvise` setting the kernel will NOT compact to find a 2 MiB
+    // block for it, so a SYSTEM baseline reads 0 whenever memory is even
+    // mildly fragmented and the whole check skips itself for no good reason
+    // (observed: passes 64-bit, skips 32-bit, same host, same kernel).
+    // MADV_HUGEPAGE does earn the compaction effort, so ALWAYS-vs-NEVER is
+    // both deterministic and the sharper test — it exercises each direction
+    // of the policy rather than one direction against the kernel's whim.
+    const long base = touch_and_measure(KAME_THP_ALWAYS);
     if(base <= 0) {
         std::printf("  [ok] skipped: this host backs no transparent hugepages "
                     "(baseline AnonHugePages=%ld kB) — nothing to suppress\n",
@@ -328,7 +341,7 @@ static void test_thp_policy() {
         const long never = touch_and_measure(KAME_THP_NEVER);
         check(never == 0,
               "KAME_THP_NEVER holds AnonHugePages at 0 on fresh pool memory");
-        std::printf("      (baseline %ld kB over %zu MiB touched, "
+        std::printf("      (KAME_THP_ALWAYS %ld kB over %zu MiB touched, "
                     "KAME_THP_NEVER %ld kB)\n",
                     base, kTouch >> 20, never);
     }

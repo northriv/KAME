@@ -57,6 +57,16 @@ int main(int argc, char **argv) {
     size_t blk_kib = (argc > 2) ? (size_t)atol(argv[2]) : 1024;
     long   hops    = (argc > 3) ? atol(argv[3])         : 20000000L;
 
+    /* On ILP32 a working set of a few GiB overflows size_t and would come out
+     * as a nonsense (usually tiny) byte count.  Say so, rather than letting it
+     * surface as the "too small" complaint below. */
+    if(ws_mib == 0 || blk_kib == 0
+       || ws_mib > (size_t)-1 / (1024u * 1024u)
+       || blk_kib > (size_t)-1 / 1024u) {
+        fprintf(stderr, "working set / block size out of range for this "
+                        "build (size_t is %zu bits)\n", sizeof(size_t) * 8);
+        return 2;
+    }
     const size_t blk    = blk_kib * 1024u;
     const size_t nblk   = (ws_mib * 1024u * 1024u) / blk;
     const size_t nlines = nblk * (blk / LINE);
