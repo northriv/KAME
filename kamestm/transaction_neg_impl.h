@@ -2106,21 +2106,37 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             break;
 #endif
 #if KAME_STM_OLDEST_RETURNS
-        // (D) If we are the oldest contender on this linkage, register that
-        // fact and go try.  Read first: `signed_diff_us_packed(cur, mine) > 0`
-        // means the current tagger is younger, i.e. we would win the same
-        // oldest-wins comparison `tag_as_contender` applies — so only the
-        // oldest writes, and everyone else has done a shared load and nothing
-        // more.  A younger sleeper keeps sleeping, which is the correct answer
-        // for it.
+        // (D) If we are the oldest contender on this linkage, stop waiting and
+        // go try.  `signed_diff_us_packed(cur, mine) > 0` means the current
+        // tagger is younger, i.e. we would win the same oldest-wins comparison
+        // `tag_as_contender` applies.  A younger sleeper keeps sleeping, which
+        // is the correct answer for it.
+        //
+        // This is a PURE READ — D writes nothing.  An earlier version tagged
+        // here, on the theory that publishing our older stamp is what stops
+        // the other sleepers from returning too.  That theory was wrong and
+        // measured so: with the write removed, entries/rounds 1.57/2.00 vs
+        // 1.56/2.01, sleeps/commit 1.82 vs 1.82, slept/commit 3.033 vs 3.026
+        // Mns, throughput and tail indistinguishable at 4 and 128 threads.
+        // The slot is not maintained by D; it is maintained by the existing
+        // tagging traffic from `operator++`, which tags on every retry of
+        // every multi-nodal Tx, so under contention it is essentially always
+        // non-zero and always carries the oldest contender's stamp.  D's read
+        // finds a live, correctly ordered stamp whether or not D ever writes,
+        // and the `_cur == 0` branch that would storm is rare.  The tag was
+        // also redundant for this Tx: it is about to attempt, and a failed
+        // attempt tags at the one production site.
+        //
+        // Keeping D read-only is worth more than the CAS it saves: a policy
+        // that cannot mutate negotiation state cannot perturb anyone else's
+        // oldest-wins arbitration, so D is structurally incapable of the
+        // interaction that made A+B cost 28 %.
         if( !_fair_blocks) {
             const auto _cur = self->m_transaction_started_time.load(
                                   std::memory_order_relaxed);
             if(_cur == 0 ||
-               NegotiationCounter::signed_diff_us_packed(_cur, started_time) > 0) {
-                snap.tag_as_contender(m_link);
+               NegotiationCounter::signed_diff_us_packed(_cur, started_time) > 0)
                 break;
-            }
         }
 #endif
 #if KAME_STM_RETURN_CEILING_MS

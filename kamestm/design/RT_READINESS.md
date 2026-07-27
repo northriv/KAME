@@ -1043,3 +1043,39 @@ oldest, so A removes a source of peer blocking without multiplying D's returns.
   give the realtime work its own core, B=4 is what remains.
 
 All three default OFF; none is proposed as a default here.
+
+### D writes nothing — the tag inside it was redundant (user)
+
+D as first written tagged the linkage before breaking out. Two arguments were
+offered for that write, and both were wrong.
+
+*"The tag is how this Tx gets tagged."* No — it is about to attempt, and a
+failed attempt tags at the one production site (`operator++`'s pre-commit retry
+tag). The in-loop write only made it earlier.
+
+*"Earliness is what stops the other sleepers from returning too."* This was my
+hypothesis, and the measurement refuted it. With the write removed:
+
+    entries/rounds   1.57 / 2.00   vs   1.56 / 2.01
+    sleeps/commit    1.82          vs   1.82
+    slept/commit     3.034 Mns     vs   3.026 Mns
+    throughput       within noise at 4 and 128 threads
+    grand tail       p99.99 6,291,456 and p99.999 8,388,608 in both
+
+The slot is not maintained by D. It is maintained by the existing tagging
+traffic: `operator++` tags on every retry of every multi-nodal Tx, so under
+contention the linkage stamp is essentially always non-zero and always carries
+the oldest contender's stamp (the CAS is oldest-wins). D's read therefore finds
+a live, correctly ordered stamp whether or not D itself ever writes, and the
+`_cur == 0` branch — the one that would let everybody return at once — is rare.
+
+Reading the condition also shows D never fires for a Tx that already holds the
+tag: `_cur` is then its own stamp, `signed_diff` is 0, not > 0. D fires only
+when the slot is empty or held by someone younger. It was always a read.
+
+Keeping it a read is worth more than the CAS and the `m_tagged_linkages` push it
+saves. **A policy that cannot mutate negotiation state cannot perturb anyone
+else's oldest-wins arbitration**, so D is structurally incapable of the
+interaction that made A+B cost 28 %, and A has nothing extra to clear. D is now
+purely a "when to stop waiting" rule, and the numbers above are what it costs to
+be sure of that: nothing.
