@@ -118,16 +118,21 @@ struct NegDiagAcc {
 
 struct Retries {
     std::uint64_t slow_n = 0, slow_attempts = 0, slow_max = 0;   // >= threshold
+    std::uint64_t slow_sys = 0, slow_sys_max = 0;   // system commits during it
     std::uint64_t all_n = 0, all_attempts = 0;
-    void add(std::uint64_t ns, std::uint64_t att, std::uint64_t thresh) {
+    void add(std::uint64_t ns, std::uint64_t att, std::uint64_t thresh,
+             std::uint64_t sysd = 0) {
         all_n++; all_attempts += att;
         if(ns >= thresh) {
-            slow_n++; slow_attempts += att;
+            slow_n++; slow_attempts += att; slow_sys += sysd;
             if(att > slow_max) slow_max = att;
+            if(sysd > slow_sys_max) slow_sys_max = sysd;
         }
     }
     void merge(const Retries &o) {
         slow_n += o.slow_n; slow_attempts += o.slow_attempts;
+        slow_sys += o.slow_sys;
+        if(o.slow_sys_max > slow_sys_max) slow_sys_max = o.slow_sys_max;
         if(o.slow_max > slow_max) slow_max = o.slow_max;
         all_n += o.all_n; all_attempts += o.all_attempts;
     }
@@ -172,6 +177,18 @@ struct Hist {
         return acc;
     }
 };
+
+//! (diag) System-wide commit counter, bumped by every worker after every
+//! commit.  For a slow commit, the delta across its own duration answers the
+//! question no amount of STM instrumentation can: while I was waiting, was
+//! anyone else making progress?
+//!   delta ~ 0  -> nobody progressed: the holder was stuck (e.g. the OS
+//!                 descheduled it) and everyone queued behind it;
+//!   delta big  -> others committed freely while I waited: genuine
+//!                 unfairness, and I simply kept losing.
+//! Costs a contended fetch_add per commit, so this perturbs throughput — it is
+//! a diagnostic run, never mixed with the latency tables.
+static std::atomic<std::uint64_t> g_sys_commits{0};
 
 static const std::uint64_t kSleepChunkNs =
     (std::uint64_t)KAME_NEG_SLEEP_US_PER_MS * 1000ull;   // one CV chunk
@@ -255,6 +272,7 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
             // THIS commit alone.
             if(measure) (void)Transactional::neg_diag_snapshot(true);
 #endif
+            std::uint64_t c0 = measure ? g_sys_commits.load(std::memory_order_relaxed) : 0;
             std::uint64_t t0 = measure ? now_ns() : 0;
             if(do_grand)
                 grand->iterate_commit([&](Tr &tr) {
@@ -264,10 +282,12 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
                 });
             else
                 leaf->iterate_commit([&](Tr &tr) { ++attempts; tr[*leaf].m_x++; });
+            g_sys_commits.fetch_add(1, std::memory_order_relaxed);
             if(measure) {
                 std::uint64_t dt = now_ns() - t0;
                 local.add(dt);
-                lr.add(dt, attempts, kSlowNs);
+                lr.add(dt, attempts, kSlowNs,
+                       g_sys_commits.load(std::memory_order_relaxed) - c0);
 #if KAME_STM_NEG_DIAG
                 auto d = Transactional::neg_diag_snapshot(false);
                 if(dt >= kSlowNs) ld.add(d);
@@ -371,6 +391,12 @@ int main(int argc, char **argv) {
                     (unsigned long long)kSlowNs, (unsigned long long)r.slow_n,
                     r.slow_n ? (double)r.slow_attempts / (double)r.slow_n : 0.0,
                     (unsigned long long)r.slow_max);
+        if(r.slow_n)
+            std::printf("  %-22s SYSTEM commits completed DURING a slow commit:"
+                        " mean=%.0f max=%llu  (~0 => the holder was stuck;"
+                        " large => others progressed and I kept losing)\n", "",
+                        (double)r.slow_sys / (double)r.slow_n,
+                        (unsigned long long)r.slow_sys_max);
 #if KAME_STM_NEG_DIAG
         if(dg.n)
             std::printf("  %-22s SLOW n=%llu | rounds/commit %.2f (max %llu)"

@@ -608,3 +608,56 @@ Both are properties of *how the tree is used*, which makes a bounded commit a
 **contract precondition on the caller** — a bounded scope — exactly as the
 allocator's contract required a stable working set rather than a cleverer
 allocator.
+
+## "Is the holder just OS-preempted?" — no. And the answer overturns my conclusion too.
+
+The hypothesis: the winner is descheduled while holding the node, everyone
+queues behind it, and the wait is the OS rather than the STM. It fits the
+evidence up to this point — no arbitration change helped, and fixing the wake
+did not help, both of which are explained if the node is simply not available.
+
+Answered without touching the library: a system-wide commit counter, sampled
+before and after each measured commit, gives the one number that separates the
+two worlds — **while I was waiting, did anyone else make progress?**
+
+    arm     system commits completed DURING one slow commit
+    grand         55,846  (max 616,133)
+    mixed         21,017
+    leaf          11,245
+
+**The holder is not stuck.** During a ~20 ms wait the system completes ~56,000
+commits: the node turns over constantly and exactly one transaction keeps
+losing. (leaf is the control and confirms itself: its slow commits do zero
+negotiation, so their 11,245 is what elapses while the *measuring* thread is
+descheduled.)
+
+### Which also refutes what I concluded two sections ago
+
+I wrote that the tail is `(contenders × per-commit work)` and that neither
+arbitration nor wake-up can reduce it. That is wrong, and these numbers are
+what shows it: with 8 threads and a 384 ns p50, a fair turn would arrive after
+~8 commits, about 3 µs. This transaction waited through **56,000**. The waiting
+is not work that has to happen — it is one transaction being passed over, tens
+of thousands of times.
+
+So arbitration *is* the right lever in principle. The corrected statement is
+sharper and less comfortable:
+
+> A **wide** transaction (grand scope: bundle Parent + every child) is starved
+> by **narrow** ones. It needs a quiet window across many nodes; the leaf
+> commits need one node for 384 ns and never stop arriving. Nothing ever holds
+> them back, so the wide one loses indefinitely.
+
+And that is why all five mechanisms failed the throughput gate while behaving
+exactly as designed: the only way to give the wide transaction its window is to
+**hold the narrow ones back** — privilege, yielding, tagging all do precisely
+that — and the narrow ones are where the 9.7 M commits/s comes from. The 54 /
+75 / 97 / 38 / 8 % were not implementation clumsiness; they are the price of
+the window, showing up in proportion to how effectively each mechanism actually
+imposed it.
+
+This is the classic wide-transaction starvation of optimistic concurrency, and
+it means the realtime question is not "make the negotiator fairer" but **"how
+much throughput is a bounded wide commit worth, and can the workload avoid
+needing one?"** — which puts scope back at the centre, not as a fallback but as
+the only lever that does not pay the tax.
