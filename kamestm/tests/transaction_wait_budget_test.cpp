@@ -63,20 +63,29 @@
 //! the control run did not itself breach that arm's limit.  A 10 ms slack
 //! marks every arm no-power on this host.
 //!
-//! **This is deliberately the worst configuration.**  Every thread carries a
-//! budget, which is not how a budget is meant to be deployed — a thread that
-//! stops waiting returns and retries, adding CAS contention for everyone, the
-//! same effect that makes several `Priority::HIGHEST` threads collapse.  It
-//! shows up here as ~21 % fewer commits and, with the tightest budget, p99
-//! rising from 0.50 µs to 118 µs.  The intended use is a budget on the few
-//! threads that have a deadline, where neither cost appears.  The test uses
-//! the hostile shape on purpose: if the bound holds here it holds anywhere.
+//! **By default every thread carries a budget, which is deliberately the
+//! worst configuration and not how a budget is meant to be deployed.**  Set
+//! `KAME_WB_TEST_NBUDGET=1` for the intended shape — one deadline-carrying
+//! thread among ordinary ones.  The difference is not a detail; measured on
+//! 8 threads with a 100 µs budget:
 //!
-//! Note what the budget does and does not touch.  Commits faster than the
-//! budget are unaffected — p99 stays at 0.54 µs under the 1 ms and 10 ms
-//! budgets.  The clamp only becomes visible at the percentile where the
-//! natural distribution crosses the budget: p99 at 100 µs, p99.9 at 1 ms,
-//! p99.99 at 10 ms.  What changes is the *shape*: from "almost everything
+//!                        p99      p99.9    p99.99   system throughput
+//!     no budget        0.50 µs   0.58 µs   3380 µs        —
+//!     1 of 8 budgeted  0.50 µs   0.92 µs    118 µs      −4.9 %
+//!     8 of 8 budgeted   118 µs    139 µs    162 µs      −21 %
+//!
+//! With one budgeted thread the budget is invisible below p99.99 — p99 is
+//! bit-for-bit the unbudgeted value.  With all eight it lifts p99 by 130×.
+//! That cost is not a property of the budget but of every thread having one:
+//! a thread that stops waiting returns and retries, adding CAS contention for
+//! its peers, which pushes more of them to their own budgets — the same
+//! positive feedback that collapses several `Priority::HIGHEST` threads.  The
+//! hostile default is on purpose: if the bound holds there it holds anywhere.
+//!
+//! What the budget touches, in either shape: only commits that would have
+//! waited longer than it.  The clamp becomes visible at the percentile where
+//! the natural distribution crosses the budget — p99.99 at 100 µs here, p99.9
+//! at 1 ms, p99.99 at 10 ms — and the shape changes from "almost everything
 //! 0.5 µs, rarely 400 ms" to something with a ceiling.
 //!
 //! Set `KAME_WB_TEST_SECS` to lengthen each arm (default 2 s).
@@ -116,10 +125,16 @@ static int env_int(const char *name, int dflt) {
 
 //! \param budget_us 0 = no budget (control arm).
 //! \return max observed per-commit latency in ns.
+//! \param n_budget how many of the `threads` threads carry the budget.  The
+//!        default (all of them) is the hostile shape; 1 is the intended
+//!        deployment.  Percentiles are reported for the budgeted group only,
+//!        so the two can be compared directly.
 static std::int64_t run_arm(int threads, double secs, int budget_us,
+                            int n_budget,
                             std::int64_t *out_pct_ns,   //!< [3]: p99, p99.9, p99.99
                             std::uint64_t *out_commits,
-                            std::uint64_t *out_attempts_at_max) {
+                            std::uint64_t *out_attempts_at_max,
+                            std::uint64_t *out_commits_all = nullptr) {
     shared_ptr<MyNode> grand(MyNode::create<MyNode>());
     shared_ptr<MyNode> parent(MyNode::create<MyNode>());
     std::vector<shared_ptr<MyNode>> children((size_t)threads);
@@ -156,12 +171,13 @@ static std::int64_t run_arm(int threads, double secs, int budget_us,
             std::int64_t t0 = now_ns();
             {
 #if KAME_STM_WAIT_BUDGET
+                const int my_budget = (tid < n_budget) ? budget_us : 0;
                 // Constructed inside the timed region: the scope's own cost
                 // (one clock read, two TLS accesses) is part of what a caller
                 // pays and so belongs inside the bound being asserted.
                 std::unique_ptr<Transactional::ScopedWaitBudget> wb;
-                if(budget_us)
-                    wb.reset(new Transactional::ScopedWaitBudget(budget_us));
+                if(my_budget)
+                    wb.reset(new Transactional::ScopedWaitBudget(my_budget));
 #endif
                 grand->iterate_commit([&](Tr &tr) {
                     ++attempts;
@@ -193,8 +209,13 @@ static std::int64_t run_arm(int threads, double secs, int budget_us,
     std::int64_t mx = 0;
     std::uint64_t n = 0;
     std::vector<std::int64_t> all;
-    std::uint64_t att_at_mx = 0;
-    for(int t = 0; t < threads; t++) {
+    std::uint64_t att_at_mx = 0, n_all = 0;
+    for(int t = 0; t < threads; t++) n_all += per_thread_n[(size_t)t];
+    if(out_commits_all) *out_commits_all = n_all;
+    // Only the budgeted threads' samples feed the percentiles and the max: the
+    // assertion is about what a budget-carrying thread experiences, and mixing
+    // in unbudgeted peers would dilute exactly the population under test.
+    for(int t = 0; t < (n_budget > 0 ? n_budget : threads); t++) {
         if(per_thread_max[(size_t)t] > mx) {
             mx = per_thread_max[(size_t)t];
             att_at_mx = per_thread_att_at_max[(size_t)t];
@@ -224,22 +245,29 @@ int main(int argc, char **argv) {
     std::printf("KAME_STM_WAIT_BUDGET=0 — wait budget compiled out, skipping\n");
     return 0;
 #else
-    const int threads = std::max(4, std::min(8,
-        (int)std::thread::hardware_concurrency()));
+    // Oversubscribe with KAME_WB_TEST_THREADS on a host whose core count is
+    // too low to generate a tail worth clamping (see the no-power note below).
+    const int threads = env_int("KAME_WB_TEST_THREADS",
+        std::max(4, std::min(8, (int)std::thread::hardware_concurrency())));
     const double secs = (double)env_int("KAME_WB_TEST_SECS", 2);
+    // How many threads carry a budget.  Default = all, which is the hostile
+    // shape (see the header).  KAME_WB_TEST_NBUDGET=1 is the intended
+    // deployment: one deadline-carrying thread among ordinary ones.
+    int n_budget = env_int("KAME_WB_TEST_NBUDGET", threads);
+    if(n_budget > threads) n_budget = threads;
     const std::int64_t slack_ns =
         (std::int64_t)env_int("KAME_WB_TEST_SLACK_US", 1000) * 1000;
 
-    std::printf("wait-budget test: %d threads, %.1f s per arm, "
+    std::printf("wait-budget test: %d threads (%d budgeted), %.1f s per arm, "
                 "slack %lld us\n",
-                threads, secs, (long long)(slack_ns / 1000));
+                threads, n_budget, secs, (long long)(slack_ns / 1000));
 
     // Control arm: no budget.  Not asserted — it exists to show that the
     // workload really does produce a tail far above the slack, so a pass in
     // the budgeted arms means something.
     std::uint64_t n0 = 0, a0 = 0;
     std::int64_t p0[3] = {0, 0, 0};
-    std::int64_t max0 = run_arm(threads, secs, 0, p0, &n0, &a0);
+    std::int64_t max0 = run_arm(threads, secs, 0, threads, p0, &n0, &a0);
     // Latencies in µs with two decimals: the fast path is a few hundred ns,
     // and integer-µs truncation printed that as a bare "0", which reads as a
     // missing measurement rather than "under a microsecond".
@@ -254,7 +282,9 @@ int main(int argc, char **argv) {
     for(int b : kBudgetsUs) {
         std::uint64_t n = 0, att = 0;
         std::int64_t p[3] = {0, 0, 0};
-        std::int64_t mx = run_arm(threads, secs, b, p, &n, &att);
+        std::uint64_t n_all = 0;
+        std::int64_t mx = run_arm(threads, secs, b, n_budget, p, &n, &att,
+                                  &n_all);
         const std::int64_t limit_ns = (std::int64_t)b * 1000 + slack_ns;
         // Power check: if the unbudgeted run did not itself breach the limit
         // at this percentile, a pass proves nothing.
@@ -262,14 +292,31 @@ int main(int argc, char **argv) {
         const bool ok = (p[2] <= limit_ns);
         std::printf("  budget %6d us: %9llu commits  p99 %9.2f  p99.9 %9.2f  "
                     "p99.99 %9.2f us   MAX %9.2f us (att %llu)  "
-                    "[limit %lld us] %s%s\n",
+                    "[limit %lld us] %s%s%s\n",
                     b, (unsigned long long)n, (double)p[0] / 1000.0,
                     (double)p[1] / 1000.0, (double)p[2] / 1000.0,
                     (double)mx / 1000.0, (unsigned long long)att,
                     (long long)(limit_ns / 1000),
-                    ok ? "ok" : "FAIL", has_power ? "" : " (no power)");
+                    ok ? "ok" : "FAIL", has_power ? "" : " (no power)",
+                    "");
+        if(n_budget < threads)
+            std::printf("  %-16s system-wide %llu commits vs %llu unbudgeted "
+                        "(%+.1f %%)\n", "", (unsigned long long)n_all,
+                        (unsigned long long)n0,
+                        100.0 * ((double)n_all - (double)n0) / (double)n0);
         if( !ok && has_power) failed = true;
     }
+
+    if( !failed && p0[2] <= (std::int64_t)kBudgetsUs[0] * 1000 + slack_ns)
+        std::printf("  NOTE: every arm is (no power) — this host's unbudgeted "
+                    "p99.99 is %.2f us, below the smallest budget + slack "
+                    "(%lld us), so there is no tail for a budget to clamp and "
+                    "the run cannot falsify anything.  It is not a property of "
+                    "the library: the workload simply is not contended here.  "
+                    "Raise contention with KAME_WB_TEST_THREADS (e.g. 4x the "
+                    "core count) to get a meaningful check.\n",
+                    (double)p0[2] / 1000.0,
+                    (long long)((std::int64_t)kBudgetsUs[0] + slack_ns / 1000));
 
     if(failed) {
         std::printf("FAILED: p99.99 exceeded budget + slack.  The budget "
