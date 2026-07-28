@@ -146,7 +146,12 @@ X2DImage::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, const s
     else {
         QByteArray ba;
         QBuffer buffer(&ba);
-        buffer.open(QIODevice::WriteOnly);
+        // Same reasoning as to_png(): an in-memory buffer that failed to open
+        // would silently produce an empty image file rather than an error.
+        if( !buffer.open(QIODevice::WriteOnly)) {
+            gErrPrint(i18n("Failed to open the image buffer."));
+            return;
+        }
         {
             const auto &image_org = shot[ *plot()].image();
             QImage image;

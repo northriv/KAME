@@ -814,8 +814,13 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
                 out.setColorSpace(QColorSpace());
             QByteArray ba;
             QBuffer buf(&ba);
-            buf.open(QIODevice::WriteOnly);
-            out.save(&buf, "PNG");
+            // Cannot realistically fail on an in-memory buffer, but if it ever
+            // did, save() would write nowhere and this would hand Python a
+            // zero-byte PNG that looks like a valid result.
+            if( !buf.open(QIODevice::WriteOnly))
+                throw std::runtime_error("to_png: cannot open the PNG buffer");
+            if( !out.save(&buf, "PNG"))
+                throw std::runtime_error("to_png: PNG encoding failed");
             return py::bytes(ba.constData(), ba.size());
         })
         .def("imageWidth", [](X2DImagePlot::Payload &self) -> int {

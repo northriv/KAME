@@ -17,6 +17,7 @@
 #ifdef USE_PYBIND11
 
 #include "xpythonsupport.h"
+#include <stdexcept>
 #include "driver.h"
 #include <QWidget>
 #include <QtUiTools>
@@ -51,11 +52,25 @@ public:
     //! \sa showForms(), form().
     void loadUIFile(const std::string &loc) {
         QFile file(loc.c_str());
-        file.open(QIODevice::ReadOnly);
+        // QFile::open is [[nodiscard]] for a reason here: `loc` comes from
+        // Python.  With the result dropped, a wrong path left the QFile closed,
+        // QUiLoader::load() returned nullptr, and the driver simply had no form
+        // — no exception, nothing in the Script pane, only a Qt warning on
+        // stderr.  This is called from a pybind def that already throws for the
+        // main-thread check, so a std::runtime_error surfaces as a clean Python
+        // exception naming the path.
+        if( !file.open(QIODevice::ReadOnly))
+            throw std::runtime_error(
+                "loadUIFile: cannot open \"" + loc + "\": "
+                + file.errorString().toStdString());
 
         QUiLoader loader;
         m_form.reset(loader.load(&file));//, g_pFrmMain
-        if(g_pFrmMain && m_form && m_form->isWindow())
+        if( !m_form)
+            throw std::runtime_error(
+                "loadUIFile: \"" + loc
+                + "\" is not a loadable Qt Designer form");
+        if(g_pFrmMain && m_form->isWindow())
             m_form->installEventFilter(g_pFrmMain);
     }
     QWidget *form() const {return m_form.get();}
