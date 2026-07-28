@@ -185,19 +185,28 @@ XThamwayPROT<tInterface>::fetchStatus(const atomic<bool>& terminated, bool singl
     for(;;) {
         try {
             msecsleep(200); //waits for possible collision.
-            XScopedLock<XInterface> lock( *this->interface());
 
-            double olevel = query("ATT1R");
-        //    olevel = log10(olevel / 1023.0) * 20.0;
-            double gain = query("GAINR");
-            double phase = query("PHASR");
-            double bw = query("LPF1R");
-            bw *= 1e-3;
-            int sw = (int)lrint(query("RFSWR"));
-            double fwd = query("FWDPR");
-            double bwd = query("BWDPR");
-            int warn = (int)lrint(query("STTSR"));
-            double f = getFreq();
+            double olevel, gain, phase, bw, fwd, bwd, f;
+            int sw, warn;
+            {
+                //the lock keeps the query batch atomic against other drivers on
+                //the same FX2 box, but must be released before the transaction:
+                //holding it while sleeping in STM negotiation deadlocks against a
+                //driver whose in-flight commit needs this same device mutex.
+                XScopedLock<XInterface> lock( *this->interface());
+
+                olevel = query("ATT1R");
+            //    olevel = log10(olevel / 1023.0) * 20.0;
+                gain = query("GAINR");
+                phase = query("PHASR");
+                bw = query("LPF1R");
+                bw *= 1e-3;
+                sw = (int)lrint(query("RFSWR"));
+                fwd = query("FWDPR");
+                bwd = query("BWDPR");
+                warn = (int)lrint(query("STTSR"));
+                f = getFreq();
+            }
 
             Transaction tr( *this);
             for(;;){
