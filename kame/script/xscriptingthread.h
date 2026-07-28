@@ -53,11 +53,17 @@ public:
     const shared_ptr<XStringNode> &threadID() const {return m_threadID;}
 
 	struct Payload : public XNode::Payload {
-        using Talker = Talker<shared_ptr<XString>>;
-        Talker &onMessageOut() {return m_tlkOnMessageOut;}
-        const Talker &onMessageOut() const {return m_tlkOnMessageOut;}
+        // NOT `using Talker = Talker<...>`: re-using the name of the
+        // enclosing-scope alias template inside the class changes the meaning
+        // of `Talker` in class scope, which [basic.scope.class]/2 makes
+        // ill-formed.  GCC 13 only downgraded it to -Wchanges-meaning; GCC 11
+        // and 12 (Ubuntu 22.04, Debian 12, RHEL/Alma 9) reject it outright and
+        // the whole kame/script build stops.  clang never diagnosed it.
+        using MessageTalker = Talker<shared_ptr<XString>>;
+        MessageTalker &onMessageOut() {return m_tlkOnMessageOut;}
+        const MessageTalker &onMessageOut() const {return m_tlkOnMessageOut;}
 	private:
-        Talker m_tlkOnMessageOut;
+        MessageTalker m_tlkOnMessageOut;
 	};
 private:
 	const shared_ptr<XStringNode> m_filename;
@@ -108,11 +114,11 @@ public:
             XCondition cond;
             shared_ptr<XNode> child;
         };
-        using Talker = Talker<shared_ptr<tCreateChild>>;
-        Talker &onChildCreated() {return m_tlkOnChildCreated;}
-        const Talker &onChildCreated() const {return m_tlkOnChildCreated;}
+        using ChildCreatedTalker = Talker<shared_ptr<tCreateChild>>;  //!< see MessageTalker above
+        ChildCreatedTalker &onChildCreated() {return m_tlkOnChildCreated;}
+        const ChildCreatedTalker &onChildCreated() const {return m_tlkOnChildCreated;}
     private:
-        Talker m_tlkOnChildCreated;
+        ChildCreatedTalker m_tlkOnChildCreated;
     };
 protected:
     virtual void *execute(const atomic<bool> &) = 0;

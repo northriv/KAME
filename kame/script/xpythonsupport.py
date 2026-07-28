@@ -948,7 +948,11 @@ def kame_handle_link(action):
 			elif _sys == 'Windows':
 				_sp.Popen(['cmd', '/c', 'start', '', 'Claude'])
 			else:
-				_sp.Popen(['claude'])
+				# There is no Claude desktop app on Linux.  Running the bare
+				# `claude` CLI with inherited stdio and no tty (which is what
+				# this used to do) does nothing visible, so fall through to the
+				# terminal path instead of pretending it worked.
+				return kame_handle_link('claude-cli')
 			MYDEFOUT.write("#Launched Claude app.")
 		elif action == 'claude-cli':
 			_wd = _kame_workspace_dir()
@@ -960,8 +964,34 @@ def kame_handle_link(action):
 			elif _sys == 'Windows':
 				_sp.Popen(['cmd', '/c', 'start', 'cmd', '/k', 'cd /d "{}" && claude'.format(_wd)])
 			else:
+				# `x-terminal-emulator` is a Debian/Ubuntu alternatives symlink
+				# — absent on Fedora, RHEL, openSUSE, Arch and most container
+				# images — and not every terminal accepts `-e`.  Probe a list,
+				# each with the flag it actually wants, honouring $TERMINAL.
+				import shutil as _shutil
 				_inner = 'cd {} && claude; exec bash'.format(_shlex.quote(_wd))
-				_sp.Popen(['x-terminal-emulator', '-e', 'bash', '-lc', _inner])
+				_cands = []
+				if os.environ.get('TERMINAL'):
+					_cands.append((os.environ['TERMINAL'], '-e'))
+				_cands += [('x-terminal-emulator', '-e'), ('gnome-terminal', '--'),
+						   ('konsole', '-e'), ('xfce4-terminal', '-x'),
+						   ('kitty', '--'), ('alacritty', '-e'),
+						   ('wezterm', 'start'), ('foot', ''), ('xterm', '-e')]
+				for _term, _flag in _cands:
+					_path = _shutil.which(_term)
+					if not _path:
+						continue
+					_argv = [_path] + ([_flag] if _flag else []) + ['bash', '-lc', _inner]
+					try:
+						_sp.Popen(_argv)
+						break
+					except OSError:
+						continue
+				else:
+					MYDEFOUT.write_html('<font color="#cc0000">No terminal emulator found. '
+						'Set $TERMINAL, or run <tt>claude</tt> yourself in {}.</font>'.format(
+						html.escape(_wd)))
+					return
 			MYDEFOUT.write("#Launching Claude Code (terminal) in {} ...".format(_wd))
 		else:
 			MYDEFOUT.write_html('<font color="#cc0000">Unknown link action: {}</font>'.format(
@@ -1006,11 +1036,20 @@ else:
 						+ self.logfilename + r'">' + html.escape(self.logfilename) + '</a></font>')
 				TLS.logfile = open(self.logfilename, mode='a')
 				self.func = func
+				# The kernel's shell ZMQ stream, used by start() to notice a
+				# pending request and yield control back (see there).
+				self.shell_stream = None
+				try:
+					from ipykernel.eventloops import get_shell_stream
+					self.shell_stream = get_shell_stream(kernel)
+				except Exception:
+					self.shell_stream = getattr(kernel, 'shell_stream', None)
 
 			def on_timer(self):
 				loop = asyncio.get_event_loop()
 				try:
-					loop.run_until_complete(self.func())
+					if self.func is not None:
+						loop.run_until_complete(self.func())
 					if self.serverapp:
 						s = ''
 						for server in list(self.serverapp.list_running_servers()):
@@ -1047,7 +1086,32 @@ else:
 				self.on_timer()  # Call it once to get things going.
 				while not is_main_terminated():
 					self.on_timer()
+					# YIELD BACK TO THE KERNEL when a shell message is waiting.
+					#
+					# A `%gui` loop hook owns the kernel's thread while it runs,
+					# so it must hand control back for the kernel to service
+					# requests -- that is what every stock loop_* in
+					# ipykernel.eventloops does (`if shell_stream.flush(limit=1):
+					# exit the toolkit main loop`).  ipykernel <= 6 let us get
+					# away with never returning because `kernel.do_one_iteration()`
+					# pumped one message per tick from inside the loop; ipykernel
+					# 7 removed that method, so without this check an external
+					# `jupyter console --existing` (and the MCP server, which
+					# uses the same channel) never gets an answer.
+					#
+					# Returning is safe and cheap: ipykernel re-enters the hook
+					# via enter_eventloop() after each message, and the teardown
+					# below is guarded on is_main_terminated() so it only runs
+					# when KAME is really quitting.
+					if self.shell_stream is not None:
+						try:
+							if self.shell_stream.flush(limit=1):
+								return
+						except Exception:
+							pass
+				self.finish()
 
+			def finish(self):
 				TLS.logfile.close()
 				TLS.logfile = None
 
@@ -1134,10 +1198,26 @@ else:
 					TLS.xscrthread["Status"] = "idle (Cell In[{}] {})".format(n, ok)
 			except Exception:
 				pass
-		kernel.shell.events.register('pre_run_cell', _kame_pre_run_cell)
-		kernel.shell.events.register('post_run_cell', _kame_post_run_cell)
-
-		kernel.timer = Timer(kernel.do_one_iteration)
+		# ONE-TIME SETUP.  Everything from here to Timer() must run exactly once
+		# per kernel, but loop_kamepysupport() itself is re-entered by ipykernel
+		# after every message it processes (see Timer.start()).  Without this
+		# guard the pre/post_run_cell hooks get registered again on each
+		# re-entry, the startup banner is reprinted into the Script pane, and
+		# the console log file is reopened -- all visible within seconds of the
+		# first external client connecting.
+		if getattr(kernel, 'timer', None) is None:
+			kernel.shell.events.register('pre_run_cell', _kame_pre_run_cell)
+			kernel.shell.events.register('post_run_cell', _kame_post_run_cell)
+			# `Kernel.do_one_iteration` is the ipykernel <= 6 coroutine that
+			# pumped one shell message per call.  ipykernel 7 removed it (the
+			# kernel drives its own anyio task and a `%gui` hook is expected
+			# only to pump the TOOLKIT), so calling it unconditionally raised
+			# AttributeError from a tornado callback on every tick -- a fresh
+			# `pip install ipykernel` gets 7.x.  Pass None and let on_timer()
+			# skip it; the KAME-side work (kame_pybind_one_iteration, notebook
+			# detection, stdout rebinding) still runs every tick, and
+			# Timer.start() yields to the kernel when a message is pending.
+			kernel.timer = Timer(getattr(kernel, 'do_one_iteration', None))
 		kernel.timer.start()
 
 	@loop_kamepysupport.exit

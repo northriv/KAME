@@ -69,8 +69,17 @@ XQGraph::setGraph(const shared_ptr<XGraph> &graph) {
     m_conDialog.reset();
     m_painter.reset();
     m_graph = graph;
-    if(graph && isVisible()) {
-        // initializeGL()/resizeGL() are only called once by Qt; if already visible, recreate painter now.
+    // isValid(), not isVisible(): the painter's initializeGL() calls
+    // initializeOpenGLFunctions() and raw GL, all of which need a *created*
+    // context.  isVisible() only means the widget is mapped-or-about-to-be —
+    // on X11/Wayland the show → map → expose round trip through the window
+    // manager can be delayed arbitrarily, so "visible but no context yet" is a
+    // normal reachable state, and the Q_ASSERT that would have caught it is
+    // compiled out by -DQT_NO_DEBUG.  QOpenGLWidget::isValid() is exactly
+    // "context created and initializeGL() has run"; when it is false, Qt's own
+    // initializeGL()/resizeGL() below build the painter anyway.
+    if(graph && isValid()) {
+        // initializeGL()/resizeGL() are only called once by Qt; if already initialized, recreate painter now.
         makeCurrent();
         new XQGraphPainter(graph, this);
         m_painter->initializeGL();

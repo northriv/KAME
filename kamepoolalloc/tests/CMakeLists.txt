@@ -300,6 +300,15 @@ if(USE_KAME_ALLOCATOR)
     add_executable(bench_rt_wcet bench/bench_rt_wcet.cpp)
     target_link_libraries(bench_rt_wcet kamepoolalloc Threads::Threads)
 
+    # Same harness, plain malloc/free, NOT linked against kamepoolalloc — so
+    # the allocator under test is whatever LD_PRELOAD supplies (glibc when
+    # nothing is preloaded, mimalloc, jemalloc, or kamepoolalloc's drop-in).
+    # A worst-case comparison across allocators is only meaningful with one
+    # harness, one clock and one histogram; this is that one.
+    add_executable(bench_rt_wcet_malloc bench/bench_rt_wcet.cpp)
+    target_compile_definitions(bench_rt_wcet_malloc PRIVATE WCET_USE_MALLOC)
+    target_link_libraries(bench_rt_wcet_malloc Threads::Threads)
+
     # (§75 / RT_READINESS G6a) TLB-reach cost of the THP policy — a dependent
     # pointer chase over a pool-allocated working set.  The other benches
     # cannot see this: bench_loop keeps one block live, and bench_rt_wcet

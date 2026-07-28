@@ -5024,7 +5024,17 @@ kame_interpose_entry kame_interposers[]
           reinterpret_cast<const void *>(&free) },
 };
 } // namespace
-#elif defined(__linux__)
+#elif defined(__linux__) && !defined(KAMEPOOLALLOC_NO_LIBC_INTERPOSE)
+// NOTE (escape hatch): unlike the macOS branch above — where the interpose
+// section is inert unless the image is an MH_DYLIB — these are ordinary ELF
+// strong symbols, so they take effect even when allocator.cpp is compiled
+// *into an executable*, and (with -rdynamic) preempt libc for every shared
+// library in the process.  That is intended for the LD_PRELOAD / drop-in
+// contract this file is soaked against, but a host that wants macOS-like
+// parity (operator new/delete pooled, libc malloc untouched) can define
+// KAMEPOOLALLOC_NO_LIBC_INTERPOSE.  See kame/kame.pro's note at the
+// `SOURCES += ../kamepoolalloc/allocator.cpp` line.
+//
 // Linux: emit `free` as a strong symbol so our dylib's own consumers
 // resolve to the pool-aware version.  Also emit `malloc` / `calloc` here
 // so a `-l kamepoolalloc` (or LD_PRELOAD) consumer gets a *complete* pool
@@ -5613,7 +5623,10 @@ kame_interpose_entry kame_interposers_full[]
 } // namespace
 #  endif // KAMEPOOLALLOC_FULL_INTERCEPT
 
-#elif defined(__linux__)
+#elif defined(__linux__) && !defined(KAMEPOOLALLOC_NO_LIBC_INTERPOSE)
+// Same escape hatch as the malloc/free/calloc block above — these three MUST
+// be gated together with it: intercepting `realloc` without `malloc`, or the
+// reverse, hands pool pointers to libc heap metadata (and vice versa).
 extern "C" __attribute__((noinline))
 void *realloc(void *p, std::size_t n) {
 	return kame_realloc(p, n);

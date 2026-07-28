@@ -52,19 +52,25 @@ void
 XNodeBrowser::process() {
 	QWidget *widget;
 	shared_ptr<XNode> node;
-	//	widget = KApplication::kApplication()->focusWidget();
-	//		node = connectedNode(widget);
-	if( !node) {
-        widget = QApplication::widgetAt(QCursor::pos());
-		node = connectedNode(widget);
-		if( !node && widget) {
-			widget = widget->parentWidget();
-			node = connectedNode(widget);
-			if( !node && widget) {
-				widget = widget->parentWidget();
-				node = connectedNode(widget);
-			}
+	// Resolve the node under the mouse, walking up at most two parents.
+	auto resolve = [this](QWidget *w) -> shared_ptr<XNode> {
+		shared_ptr<XNode> n = connectedNode(w);
+		for(int i = 0; !n && w && (i < 2); ++i) {
+			w = w->parentWidget();
+			n = connectedNode(w);
 		}
+		return n;
+	};
+	widget = QApplication::widgetAt(QCursor::pos());
+	node = resolve(widget);
+	if( !node) {
+		// QApplication::widgetAt() is built on QGuiApplication::topLevelAt(),
+		// which the Qt wayland plugin does not implement — Wayland has no
+		// global coordinate space — so under a Wayland session it always
+		// returns nullptr and this pane stayed permanently empty.  Fall back
+		// to the keyboard-focus widget (the KDE-era code path that was
+		// commented out here).
+		node = resolve(QApplication::focusWidget());
 	}
 
     shared_ptr<XMeasure> rootnode(m_root);

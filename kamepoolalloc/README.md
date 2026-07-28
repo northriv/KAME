@@ -755,7 +755,10 @@ p99.9; that is why only DEFER can be a process-wide default.
   `kame_pool_set_realtime_mode(1)`, because it is a real trade rather than a
   free win: measured, it cuts the cold first-touch tail from 459 µs to 41 µs
   at p99.9 (and from tens of ms to 224 µs at the max), while costing up to
-  **+58 %** on a TLB-bound 512 MiB random-access working set. Two ordering
+  **+58 %** on a TLB-bound 512 MiB random-access working set. Those figures
+  come from a `PREEMPT_DYNAMIC` VM, not a `PREEMPT_RT` host — the direction
+  and the ratios are the point; the max is an upper bound contaminated by the
+  scheduler, not a WCET. Two ordering
   rules: set it **before** prewarm (it prevents future hugepage faults and
   khugepaged collapses, but does not split hugepages that already exist), and
   note that returning to `KAME_THP_SYSTEM` cannot un-advise a region — Linux

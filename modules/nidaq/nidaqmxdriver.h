@@ -30,6 +30,13 @@
 		if(CHECK_DAQMX_ERROR(code__) > 0) {gWarnPrint(XNIDAQmxInterface::getNIDAQmxErrMessage(code__)); } }
 #else
 	#define CHECK_DAQMX_ERROR(ret) (0)
+	// This MUST expand to nothing: without the SDK there are no DAQmx*
+	// declarations, so the call passed as `ret` would not compile.  The
+	// consequence is that in a no-SDK build every hardware call in this
+	// module is *deleted* and the drivers run to completion on output
+	// parameters nothing ever wrote — which is why the REGISTER_TYPE calls in
+	// nidaqdso.cpp / pulserdrivernidaq.cpp are gated on HAVE_NI_DAQMX.  Do not
+	// register anything from this module outside that guard.
 	#define CHECK_DAQMX_RET(ret)
 	typedef unsigned int TaskHandle;
 	typedef int64_t int64;

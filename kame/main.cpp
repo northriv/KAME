@@ -38,13 +38,14 @@
 #  include "kame_pool.h"  // (§30) kame_pool_set_realtime_mode — extern "C" decl
 #endif
 #include <QFile>
-#include <QTextCodec>
 #include <QTranslator>
 #include <QLibraryInfo>
-#ifndef WITH_KDE
-    #include <QStandardPaths>
-#endif
+#include <QStandardPaths>
 #include <errno.h>
+#include <signal.h>
+#include <set>
+#include <deque>
+#include <QFileInfo>
 
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
     #define NOMINMAX
@@ -80,6 +81,17 @@ static lt_dladvise g_dl_advise;
 
 int main(int argc, char *argv[]) {
     char dummy_for_mlock[8192];
+
+#if !defined __WIN32__ && !defined WINDOWS && !defined _WIN32
+    // A TCP instrument that drops the connection makes the next send() raise
+    // SIGPIPE, and its default action terminates the process.  Nothing in
+    // KAME installed a handler; the only thing that has been ignoring it is
+    // whichever embedded interpreter happens to be compiled in (CPython and
+    // Ruby both set SIG_IGN at init), and a script can undo that.  Make the
+    // guarantee unconditional — every send()/write() site already reports
+    // EPIPE through the normal XCommError path.
+    signal(SIGPIPE, SIG_IGN);
+#endif
 
 	Q_INIT_RESOURCE(kame);
 
@@ -151,12 +163,29 @@ int main(int argc, char *argv[]) {
 
 
     QTranslator qtTranslator;
+    // QLibraryInfo::location() is deprecated in Qt 6 and gone in Qt 7.
+#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
+    qtTranslator.load("qt_" + QLocale::system().name(), QLibraryInfo::path(QLibraryInfo::TranslationsPath));
+#else
     qtTranslator.load("qt_" + QLocale::system().name(), QLibraryInfo::location(QLibraryInfo::TranslationsPath));
+#endif
     app.installTranslator(&qtTranslator); //transaltions for QT.
 
     QTranslator appTranslator;
-    if( !appTranslator.load("kame_" + QLocale::system().name())) {
-        appTranslator.load("kame_" + QLocale::system().name(), app.applicationDirPath());
+    // The first load() searches the current working directory, the second the
+    // directory of the executable.  On Linux the .qm is installed to
+    // $PREFIX/share/kame, which is neither — so add the XDG data dirs.  (On
+    // macOS the bundle's Contents/MacOS is applicationDirPath, so the second
+    // attempt already succeeds; nothing changes there.)
+    {
+        QString qm = "kame_" + QLocale::system().name();
+        if( !appTranslator.load(qm) &&
+            !appTranslator.load(qm, app.applicationDirPath())) {
+            QString found = QStandardPaths::locate(QStandardPaths::AppDataLocation, qm + ".qm");
+            if(found.isEmpty() || !appTranslator.load(found))
+                fprintf(stderr, "kame: no translation for locale %s (UI stays English).\n",
+                    QLocale::system().name().toLocal8Bit().data());
+        }
     }
     app.installTranslator(&appTranslator); //translations for KAME.
 #endif
@@ -176,9 +205,11 @@ int main(int argc, char *argv[]) {
             if(isMemLockAvailable())
                 mlock(dummy_for_mlock, sizeof(dummy_for_mlock)); //reserve stack of main thread.
 
-            // Use UTF8 conversion from std::string to QString.
-//            QTextCodec::setCodecForLocale(QTextCodec::codecForName("utf8") );
-            
+            // (Qt 6 converts std::string <-> QString as UTF-8 by default; the
+            // Qt 5 QTextCodec::setCodecForLocale() call that used to live here
+            // is gone, along with the core5compat dependency it required.)
+
+
 #ifdef __SSE2__
 			// Check CPU specs.
 			if(cg_cpuSpec.verSSE < 2) {
@@ -245,8 +276,22 @@ int main(int argc, char *argv[]) {
     lt_dladvise_global( &g_dl_advise);
     lt_dladvise_ext( &g_dl_advise);       //!< try each platform's suffixes, like lt_dlopenext
 #endif
-    if(module_dir.isEmpty())
+    if(module_dir.isEmpty()) {
         module_dir = app.libraryPaths();
+#if defined KAME_MODULE_INSTALL_DIR
+        // On Linux, libraryPaths() is {<Qt plugin dir>, applicationDirPath()},
+        // and nothing installs KAME's drivers into either — so a `make
+        // install`ed KAME loaded zero modules.  macOS finds them because the
+        // bundle's Contents/MacOS IS a libraryPath and QMAKE_BUNDLE_DATA puts
+        // them there; Windows because they sit next to the .exe.  Add the
+        // configured install prefix, plus the XDG data dirs so a per-user
+        // (~/.local/share/kame) or packaged (/usr/share/kame) install works
+        // without --moduledir.
+        module_dir += QString(KAME_MODULE_INSTALL_DIR);
+        module_dir += QStandardPaths::standardLocations(QStandardPaths::AppDataLocation);
+        module_dir.removeDuplicates();
+#endif
+    }
     std::deque<XString> modules;
     for(auto it = module_dir.begin(); it != module_dir.end(); it++) {
         QStringList paths;
@@ -276,17 +321,44 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    //defers loading python modules.
-    for(auto it = modules.begin(); it != modules.end();) {
-        if(it->find("python") != std::string::npos) {
-            auto f = *it;
-            if(f == modules.back())
-                break;
-            it = modules.erase(it);
-            modules.push_back(f);
+    // Drop duplicates.  The search list now covers several roots (every
+    // libraryPath, the install prefix, the XDG data dirs), and a machine that
+    // has both a build tree and a `make install`ed copy legitimately finds the
+    // same driver under two of them.  Loading a driver twice would run its
+    // REGISTER_TYPE static constructors twice and register every type name a
+    // second time, so key on the file's BASE name, not the full path, and keep
+    // the first (highest-priority) directory that had it.
+    {
+        std::set<XString> seen;
+        std::deque<XString> uniq;
+        for(auto &f : modules) {
+            XString base = QFileInfo(QString::fromStdString(f)).fileName().toStdString();
+            if(seen.insert(base).second)
+                uniq.push_back(f);
+            else
+                std::cerr << "Skipping duplicate module \"" << f << "\"" << std::endl;
         }
-        else
-            it++;
+        modules.swap(uniq);
+    }
+
+    // Defers loading python modules — they must come last (their global
+    // PyDriverExporter constructors need the other drivers registered).
+    //
+    // This was an in-place erase/push_back loop over the deque with a
+    // `f == modules.back()` break.  Two problems: `std::deque::push_back`
+    // invalidates all iterators, so continuing to use `it` afterwards was UB;
+    // and with more than one matching entry the break condition never held, so
+    // it spun forever (reachable as soon as the search list produced two
+    // libpython entries — see the dedup above).  Do it as a stable partition
+    // instead, which needs no iterator survival and no termination argument.
+    {
+        std::deque<XString> head, tail;
+        for(auto &f : modules) {
+            if(f.find("python") != std::string::npos) tail.push_back(f);
+            else head.push_back(f);
+        }
+        head.insert(head.end(), tail.begin(), tail.end());
+        modules.swap(head);
     }
 
     // Known-deprecated module substrings — installs sometimes leave

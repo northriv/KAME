@@ -13,8 +13,14 @@ QT       += core gui
 greaterThan(QT_MAJOR_VERSION, 5): QT += uitools
 
 greaterThan(QT_MAJOR_VERSION, 5): QT += opengl openglwidgets
-#For QTextCodec
-greaterThan(QT_MAJOR_VERSION, 5): QT += core5compat
+# NOTE: `QT += core5compat` used to be here "for QTextCodec".  Nothing in
+# kame/ or modules/ uses QTextCodec, QRegExp, QStringRef or QLinkedList any
+# more — the only reference left was a dead #include plus a commented-out
+# setCodecForLocale() call in main.cpp (Qt 6 is UTF-8 by default, so the call
+# was redundant even when it was live).  Requiring the module made
+# qt6-5compat-dev a mandatory extra package on Linux, and made qmake fail
+# outright ("Unknown module(s) in QT: core5compat") on any Qt 6 install that
+# does not ship it.  Do not re-add it without a real user.
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -41,6 +47,18 @@ DEFINES += KAME_COREMODULE2_DIR_SURFIX=\"quotedefined(/$${KAME_COREMODULES2}/)\"
 
 KAME_MODULES = modules
 DEFINES += KAME_MODULE_DIR_SURFIX=\"quotedefined(/$${KAME_MODULES}/)\"
+
+unix:!macx {
+    # Linux/BSD: unlike macOS (app bundle) and Windows (modules next to the
+    # .exe), there is no location that QApplication::libraryPaths() reports
+    # AND that anything ever installs modules into — so a `make install`ed
+    # KAME found zero drivers.  Fix both ends: install under
+    # $$PREFIX/lib/kame/{coremodules,coremodules2,modules} (modules.pri /
+    # modules-shared.pri) and tell main.cpp to search there (below).
+    isEmpty(PREFIX): PREFIX = /usr/local
+    KAME_LIBDIR = $${PREFIX}/lib/kame
+    DEFINES += KAME_MODULE_INSTALL_DIR=\"quotedefined($${KAME_LIBDIR})\"
+}
 
 greaterThan(QT_MAJOR_VERSION, 4) {
 }

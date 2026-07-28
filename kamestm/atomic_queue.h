@@ -26,6 +26,15 @@
 #include "atomic.h"
 #include <memory>
 #include <string.h>
+// abort() and assert() are used inside class templates below.  They only ever
+// reached this header transitively through libc++'s <memory>; libstdc++ does
+// not pull them in, and because both calls are non-dependent inside a template
+// GCC's two-phase lookup rejects them at definition time — a hard error, not a
+// warning.  KAME itself happens to include <cstdlib> earlier, so this only
+// bites a standalone consumer of the dual-licensed kamestm library (or any
+// include reordering).
+#include <cstdlib>
+#include <cassert>
 
 //! Atomic FIFO with a pre-defined size for POD-type data of non-zero values (e.g. pointers).
 //! \sa atomic_queue, atomic_pointer_queue

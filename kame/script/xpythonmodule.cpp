@@ -360,7 +360,8 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def("__int__", [](XULongNode::Payload &self)->unsigned long{return self;});}
     {   auto [node, payload] = XPython::bind.export_xvaluenode<XHexNode, unsigned long, XValueNodeBase>("XHexNode");
         (*payload)
-        .def("__int__", [](XHexNode::Payload &self)->unsigned int{return self;});}
+        //!< `unsigned long`, not `unsigned int` — the node's value type (see XHexNode's str_).
+        .def("__int__", [](XHexNode::Payload &self)->unsigned long{return self;});}
     {   auto [node, payload] = XPython::bind.export_xvaluenode<XBoolNode, bool, XValueNodeBase>("XBoolNode");
         (*payload)
         .def("__bool__", [](XBoolNode::Payload &self)->bool{return self;});}

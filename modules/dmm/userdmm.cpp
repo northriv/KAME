@@ -194,14 +194,24 @@ XSanwaPC500::fetch() {
 	const int funcs[] = {0x05, 0x06, 0x07, 0x08, 0x04, 0x14, 0x00, 0x20, 0x40, 0x80,
 		0x180, 0x201, 0x202, 0x203, 0x400, 0x800, 0x802, 0x2000
 	};
-	int f = (int)interface()->buffer()[4] + (int)interface()->buffer()[5] * 256u;
+	// buffer() is std::vector<char> and `char` is signed on x86: reading the
+	// protocol bytes directly sign-extended them, so e.g. {0x80,0x01} decoded
+	// to 0x80 instead of 0x180 — silently selecting a different, valid entry
+	// of funcs[] — and {0x80,0x00} decoded to -128 and matched nothing.
+	int f = (int)(unsigned char)interface()->buffer()[4]
+	      + (int)(unsigned char)interface()->buffer()[5] * 256;
 	for(int i = 0; i < (int)sizeof(funcs) / (int)sizeof(int); i++) {
 		if(funcs[i] == f) {
 			trans( *function()) = i;
 		}
 	}
 
-	int dlen = interface()->buffer()[3] - 1;
+	// Length byte, likewise unsigned on the wire.  Read through signed char it
+	// went negative for >= 0x80 and then converted to ~4.29e9 at receive()'s
+	// `unsigned int` parameter — a 4 GiB resize() plus an unbounded read loop.
+	int dlen = (int)(unsigned char)interface()->buffer()[3] - 1;
+	if((dlen < 6) || (dlen > 0xff))
+		throw XInterface::XInterfaceError(i18n("Format Error!"), __FILE__, __LINE__);
 	interface()->receive(dlen);
 	std::vector<char> buf(dlen);
 	memcpy(&buf[0], &interface()->buffer()[0], dlen);

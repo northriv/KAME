@@ -22,6 +22,14 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#ifdef __linux__
+    // Arbitrary line speeds via termios2/BOTHER.  Implemented in
+    // serial_custombaud_linux.c because <asm/termbits.h> and <termios.h>
+    // cannot share a translation unit.
+    #define SERIAL_HAS_CUSTOM_BAUD 1
+    extern "C" int kame_serial_set_custom_baud(int fd, unsigned int rate);
+#endif
+
 XSerialPort::XSerialPort(XCharInterface *interface)
 	: XPort(interface), m_scifd(-1) {
 
@@ -60,11 +68,26 @@ XSerialPort::open(const XCharInterface *pInterface) {
 		throw XInterface::XCommError(i18n("tty open failed"), __FILE__, __LINE__);
 	}
     
-	tcsetpgrp(m_scifd, getpgrp());
+	// (No tcsetpgrp() here.  The fd is opened O_NOCTTY above, so it can never
+	// be this process's controlling terminal and tcsetpgrp() always failed
+	// with ENOTTY — the return value was discarded, so it was pure dead code.
+	// In the one situation where it could have succeeded — KAME launched from
+	// a serial console that IS the device being opened, from a background
+	// process group — the kernel delivers SIGTTOU, whose default action stops
+	// every thread in the process.)
       
 	bzero( &ttyios, sizeof(ttyios));
 //      tcgetattr(m_scifd, &ttyios);
 
+    // Rates above the requested one need no B-constant when the platform
+    // supports arbitrary speeds (see custom_baud below), but prefer the
+    // standard constant whenever there is one.  Everything past B230400 is
+    // #ifdef-guarded because Darwin's <termios.h> stops there while Linux
+    // goes to B4000000 — the unguarded table used to make every KAME serial
+    // driver that asks for a faster rate fail at open with "Invalid
+    // Baudrate", which is two of the shipped drivers (userlockinamp 921600,
+    // userdcsource 256000).
+    unsigned int custom_baud = 0;
     if( !m_forceDefaultSetting) {
         switch(static_cast<int>(pInterface->serialBaudRate())) {
         case 2400: baudrate = B2400; break;
@@ -75,8 +98,44 @@ XSerialPort::open(const XCharInterface *pInterface) {
         case 57600: baudrate = B57600; break;
         case 115200: baudrate = B115200; break;
         case 230400: baudrate = B230400; break;
+#ifdef B460800
+        case 460800: baudrate = B460800; break;
+#endif
+#ifdef B500000
+        case 500000: baudrate = B500000; break;
+#endif
+#ifdef B576000
+        case 576000: baudrate = B576000; break;
+#endif
+#ifdef B921600
+        case 921600: baudrate = B921600; break;
+#endif
+#ifdef B1000000
+        case 1000000: baudrate = B1000000; break;
+#endif
+#ifdef B1152000
+        case 1152000: baudrate = B1152000; break;
+#endif
+#ifdef B1500000
+        case 1500000: baudrate = B1500000; break;
+#endif
+#ifdef B2000000
+        case 2000000: baudrate = B2000000; break;
+#endif
+#ifdef B3000000
+        case 3000000: baudrate = B3000000; break;
+#endif
         default:
+#if defined SERIAL_HAS_CUSTOM_BAUD
+            // No B-constant for this rate (e.g. 256000, which is a
+            // Windows-only speed).  Ask the driver for it directly after
+            // tcsetattr(); baudrate stays at a legal placeholder until then.
+            custom_baud = static_cast<unsigned int>(pInterface->serialBaudRate());
+            baudrate = B9600;
+            break;
+#else
             throw XInterface::XCommError(i18n("Invalid Baudrate"), __FILE__, __LINE__);
+#endif
         }
     }
 
@@ -109,7 +168,16 @@ XSerialPort::open(const XCharInterface *pInterface) {
 	ttyios.c_cc[VTIME] = 30; //3sec time-out
 	if(tcsetattr(m_scifd, TCSAFLUSH, &ttyios ) < 0)
 		throw XInterface::XCommError(i18n("stty failed"), __FILE__, __LINE__);
-	
+
+#if defined SERIAL_HAS_CUSTOM_BAUD
+    // Must come after tcsetattr(), which would otherwise put the placeholder
+    // speed back.
+    if(custom_baud && (kame_serial_set_custom_baud(m_scifd, custom_baud) < 0))
+        throw XInterface::XCommError(i18n("Invalid Baudrate"), __FILE__, __LINE__);
+#else
+    (void)custom_baud;
+#endif
+
     if(fcntl(m_scifd, F_SETFL, (~O_NONBLOCK) & fcntl(m_scifd, F_GETFL)) == - 1) {
 		throw XInterface::XCommError(i18n("tty open failed"), __FILE__, __LINE__);
 	}
@@ -188,7 +256,9 @@ XSerialPort::send(const char *str) {
 }
 void
 XSerialPort::write(const char *sendbuf, int size) {
-    if(m_serialHasEchoBack && (size >= 2) && isprint(sendbuf[0])) {
+    // isprint() with a negative argument is UB; `char` is signed here.
+    if(m_serialHasEchoBack && (size >= 2) &&
+       isprint(static_cast<unsigned char>(sendbuf[0]))) {
 		for(int cnt = 0; cnt < size; ++cnt) {
 		//sends 1 char.
 #ifdef SERIAL_POSIX

@@ -10,6 +10,11 @@ CONFIG += c++17
 
 CONFIG += console
 CONFIG += testcase
+# ...but do NOT let `make install` deploy the test binaries.  `CONFIG +=
+# testcase` alone gives every test a default target.path of
+# $$[QT_INSTALL_TESTS]/<name>, so a plain `make install` scattered 15 unit-test
+# executables into /usr/tests/ alongside the application.
+CONFIG += no_testcase_installs
 CONFIG -= app_bundle #macosx
 
 # Standalone tests use `support_standalone.{h,cpp}` instead of the real

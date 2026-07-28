@@ -45,3 +45,23 @@ win32 {
 PRI_DIR = $${PRI_DIR}../
 include(../kame.pri)
 
+unix:!macx {
+    # Linux/BSD deployment.  macOS collects the built .so files into the app
+    # bundle from kame/kame.pro (QMAKE_BUNDLE_DATA) and Windows sets DESTDIR
+    # in the win32 blocks above; Linux had neither, so every core module was
+    # left in its own build subdirectory — a location no search path in
+    # main.cpp ever looks at — and `make install` produced an empty rule.
+    #
+    # `unversioned_libname unversioned_soname`: these are dlopen()ed plugins,
+    # not link-time libraries.  Without this, `CONFIG += shared` emits
+    # libfoo.so plus three versioned symlinks, and lt_dlforeachfile() then
+    # hands every one of them to lt_dlopenext().
+    CONFIG += unversioned_libname unversioned_soname
+    isEmpty(KAME_MODULE_TIER): KAME_MODULE_TIER = $${KAME_COREMODULES}
+    DESTDIR = $$OUT_PWD/$${PRI_DIR}bin/$${KAME_MODULE_TIER}
+    modulefiles.files = $${DESTDIR}/$${QMAKE_PREFIX_SHLIB}$${TARGET}.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.path = $${KAME_LIBDIR}/$${KAME_MODULE_TIER}
+    modulefiles.CONFIG += no_check_exist   # built by this very Makefile
+    INSTALLS += modulefiles
+}
+
