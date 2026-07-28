@@ -28,7 +28,7 @@ public:
 	virtual void changeValue(int ch, double x, bool autorange);
 	virtual void changeRange(int, int);
 	virtual double max(int ch, bool autorange) const;
-	virtual void queryStatus(Transaction &, int) {}
+	virtual Status queryStatus(int) override {return {};}
 protected:
 	virtual void open();
 };
@@ -43,7 +43,7 @@ public:
 	virtual void changeValue(int ch, double x, bool autorange);
 	virtual void changeRange(int, int);
 	virtual double max(int ch, bool autorange) const;
-	virtual void queryStatus(Transaction &, int) {}
+	virtual Status queryStatus(int) override {return {};}
 protected:
 	virtual void open();
 };
@@ -58,7 +58,7 @@ public:
 	virtual void changeValue(int ch, double x, bool autorange);
 	virtual void changeRange(int ch, int x);
 	virtual double max(int ch, bool autorange) const;
-	virtual void queryStatus(Transaction &tr, int ch);
+	virtual Status queryStatus(int ch) override;
 protected:
 	virtual void open();
 };
@@ -73,7 +73,7 @@ public:
     virtual void changeValue(int ch, double x, bool autorange);
     virtual void changeRange(int , int x) {}
     virtual double max(int ch, bool autorange) const;
-    virtual void queryStatus(Transaction &tr, int ch);
+    virtual Status queryStatus(int ch) override;
 protected:
     virtual void open();
 };

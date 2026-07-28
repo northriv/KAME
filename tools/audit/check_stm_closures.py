@@ -39,6 +39,90 @@ SIDE_EFFECT_RE = re.compile(
     r'(?:send|receive|query|write|readRegister|burstRead)\w*\s*\(')
 ITERATE_RE = re.compile(r'\biterate_commit(?:_if|_while)?\s*\(')
 
+# --- Check 1b: interface I/O one call away from the closure -----------------
+# The literal scan above only sees I/O written inside the closure.  The same
+# hazard reached through a helper is invisible to it, and that is how
+# `queryStatus(Transaction &tr, int ch)` -- a pure virtual whose whole job was
+# to read the device and store the result in the caller's transaction -- sat in
+# modules/dcsource for as long as it did.
+#
+# Discriminator, chosen to keep false positives at zero: flag a call only when
+# the callee is a method whose own body does interface I/O AND the call receives
+# the closure's Transaction.  "Takes the transaction and talks to the device" is
+# exactly the shape of the bug; matching on the callee name alone collides with
+# std::max/get/control and friends.
+#
+# Known gaps, both from matching on names rather than resolving types:
+#   * a no-argument I/O helper called inside a closure is not caught;
+#   * the I/O-method set is collected tree-wide by NAME, so a
+#     `foo(tr, ...)` whose own class does no I/O is still flagged when some
+#     other class has an I/O-performing `foo`.  That is how the relay driver's
+#     then-empty `queryStatus(Transaction&)` got flagged via dcsource's -- which
+#     was the right answer for the wrong reason: the signature was a trap
+#     waiting for its first implementation.  Suppress a genuine mismatch with
+#     `// audit-ok: <reason>`.
+# Widening either would need real name resolution, and a precise checker beats a
+# noisy one -- the literal scan still covers I/O written directly in a closure.
+IO_BODY_RE = re.compile(
+    r'\binterface\s*\(\s*\)\s*->\s*'
+    r'(?:send|sendf|receive|query|queryf|write|read|readRegister|burstRead)\w*\s*\('
+    r'|\bm_interface\s*->\s*'
+    r'(?:send|sendf|receive|query|queryf|write|read)\w*\s*\(')
+METHOD_DEF_RE = re.compile(r'^[\w:<>,\s\*&]*?\b(\w+)::(\w+)\s*\([^;]*$', re.M)
+LAMBDA_TR_RE = re.compile(r'\[[^\]]*\]\s*\(\s*(?:const\s+)?'
+                          r'(?:Transactional::)?(?:Single)?Transaction\s*'
+                          r'(?:<[^>]*>\s*)?&\s*(\w+)')
+
+
+def io_method_names(files):
+    """Method names whose own body performs interface I/O."""
+    names = set()
+    for path, text in files:
+        lines = text.splitlines()
+        for m in METHOD_DEF_RE.finditer(text):
+            i0 = text.count('\n', 0, m.start())
+            depth, started = 0, False
+            for j in range(i0, min(i0 + 400, len(lines))):
+                depth += lines[j].count('{') - lines[j].count('}')
+                if '{' in lines[j]:
+                    started = True
+                if started and depth <= 0:
+                    if any(IO_BODY_RE.search(lines[k]) for k in range(i0, j + 1)):
+                        names.add(m.group(2))
+                    break
+    return names
+
+
+def check_indirect_io(path, text, io_names):
+    findings = []
+    lines = text.splitlines()
+    for m in ITERATE_RE.finditer(text):
+        open_pos = text.index('(', m.end() - 1)
+        end = balanced_span(text, open_pos)
+        body = text[open_pos:end]
+        lm = LAMBDA_TR_RE.search(body)
+        if not lm:
+            continue
+        trvar = lm.group(1)
+        call_re = re.compile(r'\b(\w+)\s*\(([^;()]*)\)')
+        for cm in call_re.finditer(body):
+            fn, args = cm.group(1), cm.group(2)
+            if fn not in io_names:
+                continue
+            if not re.search(r'\b%s\b' % re.escape(trvar), args):
+                continue
+            ln = lineno_of(text, open_pos + cm.start())
+            if SUPPRESS in lines[ln - 1]:
+                continue
+            findings.append((
+                f'{path}:{ln}: "{fn}({args.strip()})" takes the closure\'s '
+                f'transaction and its body does interface I/O -- I/O inside a '
+                f'transaction (CLAUDE.md driver rule 5, and it re-queries the '
+                f'device on every CAS retry).  Split it: read outside, store '
+                f'inside, or mark // audit-ok: <reason>',
+                (str(path), 'indirect-interface-io')))
+    return findings
+
 STM_ENTRY_RE = re.compile(
     r'\bSnapshot\s+\w+\s*\(\s*\*|\bSnapshot\s*\(\s*\*'
     r'|\bTransaction\s+\w+\s*\(\s*\*|\bTransaction\s*\(\s*\*'
@@ -168,13 +252,20 @@ def main(argv):
             for pat in ('*.cpp', '*.h'):
                 files.extend(p for p in root.rglob(pat)
                              if 'tests' not in p.parts)
-    findings = []
+    # Read once: check 1b needs a whole-tree pass to learn which methods do
+    # interface I/O before it can judge any single closure.
+    loaded = []
     for f in sorted(set(files)):
         try:
-            text = f.read_text(errors='replace')
+            loaded.append((f, f.read_text(errors='replace')))
         except OSError:
             continue
+    io_names = io_method_names(loaded)
+
+    findings = []
+    for f, text in loaded:
         findings.extend(check_closures(f, text))
+        findings.extend(check_indirect_io(f, text, io_names))
         findings.extend(check_pybind_gil(f, text))
 
     counts = {}

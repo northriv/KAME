@@ -64,9 +64,14 @@ XRelayDriver::start() {
             m_lsnOutputs.push_back(tr[ *ch].onValueChanged().connectWeakly(
                 shared_from_this(), &XRelayDriver::onOutputChanged));
     });
-    //Syncs UI with the hardware states if readback is supported.
+    //Syncs UI with the hardware states if readback is supported.  The device
+    //read happens HERE, outside the transaction — see queryStatus().
+    std::optional<unsigned int> bits = queryStatus();
     iterate_commit([=](Transaction &tr){
-        queryStatus(tr);
+        if(bits) {
+            for(unsigned int i = 0; i < numChannels(); i++)
+                tr[ *m_channelOutputs[i]] = (bool)(( *bits >> i) & 1u);
+        }
         for(auto &lsn: m_lsnOutputs)
             tr.unmark(lsn);
     });

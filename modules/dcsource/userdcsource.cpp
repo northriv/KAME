@@ -236,13 +236,16 @@ XOptotuneICC4C2000::XOptotuneICC4C2000(const char *name, bool runtime,
         tr[ *interface()->device()] = "SERIAL";
     });
 }
-void
-XOptotuneICC4C2000::queryStatus(Transaction &tr, int ch) {
+XDCSource::Status
+XOptotuneICC4C2000::queryStatus(int ch) {
+    Status st;
     XScopedLock<XInterface> lock( *interface());
-    if( !interface()->isOpened()) return;
+    if( !interface()->isOpened()) return st;
     interface()->queryf("SETCHANNEL=%i", ch);
     interface()->query("GETCURRENT");
-    tr[ *value()] = interface()->toDouble();
+    st.value = interface()->toDouble();
+    st.valid = true;
+    return st;
 }
 void
 XOptotuneICC4C2000::changeValue(int ch, double x, bool autorange) {
@@ -283,14 +286,15 @@ XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime,
         tr[ *range()].add("99mA");
     });
 }
-void
-XMicroTaskTCS::queryStatus(Transaction &tr, int ch) {
+XDCSource::Status
+XMicroTaskTCS::queryStatus(int ch) {
+    Status st;
     unsigned int ran[3];
     unsigned int v[3];
     unsigned int o[3];
     {
         XScopedLock<XInterface> lock( *interface());
-        if( !interface()->isOpened()) return;
+        if( !interface()->isOpened()) return st;
         interface()->query("STATUS?");
         if(interface()->scanf("%*u%*u,%u,%u,%u,%*u,%u,%u,%u,%*u,%u,%u,%u,%*u",
             &ran[0], &v[0], &o[0],
@@ -298,9 +302,11 @@ XMicroTaskTCS::queryStatus(Transaction &tr, int ch) {
             &ran[2], &v[2], &o[2]) != 9)
             throw XInterface::XConvError(__FILE__, __LINE__);
     }
-    tr[ *value()] = pow(10.0, (double)ran[ch] - 1) * 1e-6 * v[ch];
-    tr[ *output()] = o[ch];
-    tr[ *range()] = ran[ch] - 1;
+    st.value  = pow(10.0, (double)ran[ch] - 1) * 1e-6 * v[ch];
+    st.output = (bool)o[ch];
+    st.range  = (int)ran[ch] - 1;
+    st.valid  = true;
+    return st;
 }
 void
 XMicroTaskTCS::changeOutput(int ch, bool x) {

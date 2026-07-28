@@ -15,6 +15,7 @@
 #define relaydriverH
 
 #include "primarydriver.h"
+#include <optional>
 #include "xnodeconnector.h"
 
 class QMainWindow;
@@ -41,8 +42,18 @@ public:
     //! driver specific part below
     //! \arg ch [0, numChannels() - 1]
     virtual void changeOutput(unsigned int ch, bool on) = 0;
-    //! Reads the current states back from the device if supported, during start().
-    virtual void queryStatus(Transaction &tr) {}
+    //! Reads the current states back from the device if supported, during
+    //! start().  Bit \a i corresponds to channel \a i; an empty optional means
+    //! readback is unsupported, which is the default.
+    //!
+    //! Called with **no transaction in flight**, so it may take the interface
+    //! lock and talk to the device.  It deliberately does NOT receive a
+    //! Transaction: a helper that both takes the transaction and does I/O puts
+    //! interface I/O inside a transaction, which (a) re-runs on every CAS retry
+    //! — re-querying the device — and (b) takes the interface mutex from inside
+    //! an in-flight transaction, the deadlock class documented in CLAUDE.md's
+    //! driver-authoring rule 5.  Read here, store in the caller's transaction.
+    virtual std::optional<unsigned int> queryStatus() { return {}; }
 
     struct Payload : public XPrimaryDriver::Payload {
         //! Recorded states; bit0 corresponds to the first channel.

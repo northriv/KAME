@@ -15,6 +15,7 @@
 #define dcsourceH
 
 #include "primarydriver.h"
+#include <optional>
 #include "xnodeconnector.h"
 #include "analyzer.h"
 
@@ -37,7 +38,25 @@ public:
 	virtual void changeOutput(int ch, bool x) = 0;
 	virtual void changeValue(int ch, double x, bool autorange) = 0;
 	virtual void changeRange(int ch, int x) = 0;
-	virtual void queryStatus(Transaction &tr, int ch) = 0;
+	//! Device state read back from the hardware.  Plain data — no STM.
+	struct Status {
+		bool valid = false;   //!< false when the interface was not open
+		std::optional<double> value;
+		std::optional<bool> output;
+		std::optional<int> range;
+	};
+	//! Read the device.  Called with **no transaction in flight**, so it may
+	//! take the interface lock and do I/O; the caller stores the result.
+	//!
+	//! It deliberately does NOT receive a Transaction.  A helper that both
+	//! takes the transaction and does I/O puts interface I/O inside a
+	//! transaction, which (a) re-runs on every CAS retry — re-querying the
+	//! device — and (b) takes the interface mutex from inside an in-flight
+	//! transaction, the deadlock class in CLAUDE.md's driver-authoring rule 5.
+	//! The previous signature `queryStatus(Transaction&, int)` did exactly
+	//! that, and it was invisible to tools/audit/check_stm_closures.py because
+	//! the I/O was one call away from the closure rather than inside it.
+	virtual Status queryStatus(int ch) = 0;
 	virtual double max(int ch, bool autorange) const = 0;
 
 	const shared_ptr<XComboNode> &function() const {

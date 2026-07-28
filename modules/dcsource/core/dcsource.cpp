@@ -166,9 +166,18 @@ XDCSource::onRangeChanged(const Snapshot &shot, XValueNodeBase *) {
 void 
 XDCSource::onChannelChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
+        // Device read happens HERE, outside the transaction — see
+        // XDCSource::queryStatus().  `channel()` is read with its own snapshot
+        // because the value is needed before the transaction exists.
+        const int ch_now = ***channel();
+        const Status st = queryStatus(ch_now);
     	iterate_commit([=](Transaction &tr){
     		int ch = tr[ *channel()];
-            queryStatus(tr, ch);
+            if(st.valid && ch == ch_now) {
+                if(st.value)  tr[ *value()]  = *st.value;
+                if(st.output) tr[ *output()] = *st.output;
+                if(st.range)  tr[ *range()]  = *st.range;
+            }
             tr.unmark(m_lsnOutput);
             tr.unmark(m_lsnFunction);
             tr.unmark(m_lsnRange);
