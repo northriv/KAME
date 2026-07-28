@@ -827,9 +827,15 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         tr[ *m_wave].clearPoints();
         tr[ *m_fitStatus] = "";
         if( !shot_pulse1[ *pulse1__->exAvgIncr()] || mode__ != MeasMode::T2_Multi) {
-            trans( *pulse1__->avgClear()).touch();
-            if(pulse2__)
-                trans( *pulse2__->avgClear()).touch();
+            //NOT trans( *pulseN__->avgClear()).touch() here: that commits
+            //immediately and restarts the DSO sequence through
+            //onAvgClear/onRestartTouched, a side effect this transaction cannot
+            //roll back.  analyze() re-runs on every commit retry -- and the
+            //m_timeClearRequested reset above is rolled back with it -- which
+            //would restart the hardware once per failed commit.  visualize()
+            //does it exactly once.  The condition is decided here, where
+            //shot_pulse1/mode__ are available.
+            m_isAvgClearRequested = true;
         }
         throw XSkippedRecordError(__FILE__, __LINE__);
     }
@@ -996,6 +1002,20 @@ XNMRT1::setNextP1(const Snapshot &shot) {
 }
 void
 XNMRT1::visualize(const Snapshot &shot) {
+    //Deferred from analyze(); runs outside any transaction, so the DSO restart
+    //this triggers may block on the interface mutex.  Must precede setNextP1()
+    //below -- the average is cleared before the pulser is moved -- and precedes
+    //the !time() early return so a clear requested on the first record is not
+    //held over to the next cycle.
+    if(m_isAvgClearRequested.compare_set_strong((int)true, (int)false)) {
+        shared_ptr<XNMRPulseAnalyzer> pulse1__ = shot[ *pulse1()];
+        shared_ptr<XNMRPulseAnalyzer> pulse2__ = shot[ *pulse2()];
+        if(pulse1__)
+            trans( *pulse1__->avgClear()).touch();
+        if(pulse2__)
+            trans( *pulse2__->avgClear()).touch();
+    }
+
     if( !shot[ *this].time()) {
         iterate_commit([=](Transaction &tr){
             tr[ *m_wave].clearPoints();

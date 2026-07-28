@@ -269,6 +269,10 @@ private:
 	std::deque<double> m_windowWidthList;
 
 	atomic<int> m_isPulserControlRequested;
+	//! Set by analyze() instead of touching the pulse analyzers' avgClear()
+	//! there: that touch commits at once and restarts the DSO through the
+	//! listener chain, which analyze() must not do. visualize() performs it.
+	atomic<int> m_isAvgClearRequested{0};
 
 	const static int CONVOLUTION_CACHE_SIZE = (3 * 10);
 

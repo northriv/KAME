@@ -139,6 +139,10 @@ private:
 	void onCondChanged(const Snapshot &shot, XValueNodeBase *);
 
 	atomic<int> m_isInstrumControlRequested;
+	//! Set by analyze() instead of touching the pulse analyzer's avgClear()
+	//! there: that touch commits at once and restarts the DSO through the
+	//! listener chain, which analyze() must not do. visualize() performs it.
+	atomic<int> m_isAvgClearRequested{0};
 protected:
 	const qshared_ptr<FRM> m_form;
 	const shared_ptr<XStatusPrinter> m_statusPrinter;
