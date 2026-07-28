@@ -16,6 +16,7 @@
 #endif
 
 #include "primarydriver.h"
+#include <chrono>
 
 XPrimaryDriver::XPrimaryDriver(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -29,6 +30,10 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
     XTime time_recorded = time_recorded_org;
     XKameError err;
     bool skipped = false;
+    // Telemetry only — see the counters' doc block in primarydriver.h.  Two
+    // steady_clock reads and one comparison per record, against a commit that
+    // already does a tree walk; nothing is printed here.
+    const auto _t0 = std::chrono::steady_clock::now();
     Snapshot shot = iterate_commit([=, &time_recorded, &err, &skipped](Transaction &tr){
         //Reset reference-captured state on every CAS retry: iterate_commit
         //re-invokes this closure on each retry and these variables outlive the
@@ -77,6 +82,18 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
 		if( !skipped)
 			record(tr, time_awared, time_recorded);
     });
+    {
+        const auto _dt = (std::uint64_t)
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - _t0).count();
+        m_recordCommits.fetch_add(1, std::memory_order_relaxed);
+        if(_dt > SLOW_RECORD_COMMIT_NS)
+            m_slowRecordCommits.fetch_add(1, std::memory_order_relaxed);
+        auto prev = m_maxRecordCommitNS.load(std::memory_order_relaxed);
+        while(_dt > prev &&
+              !m_maxRecordCommitNS.compare_exchange_weak(prev, _dt,
+                  std::memory_order_relaxed, std::memory_order_relaxed)) {}
+    }
     if(err.msg().length())
         err.print(getLabel() + ": ");
     try {

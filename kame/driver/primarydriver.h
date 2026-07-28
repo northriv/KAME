@@ -16,6 +16,8 @@
 
 #include "driver.h"
 #include "interface.h"
+#include <atomic>
+#include <cstdint>
 
 class DECLSPEC_KAME XPrimaryDriver : public XDriver {
 public:
@@ -100,6 +102,41 @@ protected:
 	//! \sa Payload::time()
 	void finishWritingRaw(const shared_ptr<const RawData> &rawdata,
 		const XTime &time_awared, const XTime &time_recorded);
+public:
+    //! \name Record-commit latency telemetry
+    //!
+    //! An acquisition thread's `finishWritingRaw` is where the hardware loop
+    //! meets the STM, so it is the one commit whose latency can stall
+    //! acquisition.  These count how often that commit was slow, so the
+    //! question "does this driver ever wait on the STM at all?" can be
+    //! answered from a real session instead of extrapolated from a synthetic
+    //! benchmark (where the whole-tree arm shows 250 ms tails and the
+    //! per-subtree arm shows 1.5 us).
+    //!
+    //! Counted, never printed on the hot path — the same discipline as
+    //! `kame_pool_rt_violations()`: one comparison per record, and a single
+    //! summary line at thread exit if the count is nonzero.  Threshold is
+    //! deliberately coarse; a driver that never trips it needs no realtime
+    //! treatment at all.
+    //! \{
+    static constexpr std::uint64_t SLOW_RECORD_COMMIT_NS = 1000000ull; //!< 1 ms
+    //! Records whose finishWritingRaw commit exceeded SLOW_RECORD_COMMIT_NS.
+    std::uint64_t slowRecordCommits() const noexcept {
+        return m_slowRecordCommits.load(std::memory_order_relaxed);
+    }
+    //! Longest finishWritingRaw commit seen, in ns.
+    std::uint64_t maxRecordCommitNS() const noexcept {
+        return m_maxRecordCommitNS.load(std::memory_order_relaxed);
+    }
+    //! Total records committed through finishWritingRaw.
+    std::uint64_t recordCommits() const noexcept {
+        return m_recordCommits.load(std::memory_order_relaxed);
+    }
+    //! \}
+private:
+    std::atomic<std::uint64_t> m_slowRecordCommits{0};
+    std::atomic<std::uint64_t> m_maxRecordCommitNS{0};
+    std::atomic<std::uint64_t> m_recordCommits{0};
 public:
     struct DECLSPEC_KAME Payload : public XDriver::Payload {
 		const RawData &rawData() const {return *m_rawData;}

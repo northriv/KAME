@@ -130,6 +130,39 @@ enum class Priority {NORMAL = 0, LOWEST, UI_DEFERRABLE, HIGHEST, SCRIPTING};
 DECLSPEC_KAME void setCurrentPriorityMode(Priority pr);
 DECLSPEC_KAME Priority getCurrentPriorityMode();
 
+//! RAII priority change, restored on scope exit including by exception.
+//!
+//! Exists because `setCurrentPriorityMode` is a persistent thread mode: the
+//! only other user in the tree (`strict_escalate_if_oldest`) saves and restores
+//! by hand, and a hand-rolled restore is exactly what gets skipped on an early
+//! return or a throw.  Scope it instead.
+//!
+//! The `Priority` enumerators are NOT ordered by urgency (NORMAL is 0 and
+//! SCRIPTING is 4), so this deliberately does not try to "never weaken an
+//! enclosing scope" the way `kame::rt_section` does for RT levels — there is no
+//! meaningful max.  Plain save and restore; nesting is the caller's business.
+//!
+//! One exception is enforced: a thread already at SCRIPTING is left alone.
+//! That mirrors the one-way trapdoor the Python binding applies, so an
+//! external-scripting thread cannot be lifted out of SCRIPTING by C++ code it
+//! happens to call into.
+class ScopedPriority {
+public:
+    explicit ScopedPriority(Priority pr) noexcept
+        : m_saved(getCurrentPriorityMode()),
+          m_armed(m_saved != Priority::SCRIPTING) {
+        if(m_armed) setCurrentPriorityMode(pr);
+    }
+    ~ScopedPriority() noexcept { if(m_armed) setCurrentPriorityMode(m_saved); }
+    ScopedPriority(const ScopedPriority &) = delete;
+    ScopedPriority &operator=(const ScopedPriority &) = delete;
+    //! False when the scope was suppressed (thread is at SCRIPTING).
+    bool armed() const noexcept { return m_armed; }
+private:
+    Priority m_saved;
+    bool m_armed;
+};
+
 //! \name Wait budget
 //!
 //! A soft, per-thread bound on how long transactional negotiation may

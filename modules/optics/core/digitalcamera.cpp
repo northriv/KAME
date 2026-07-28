@@ -612,6 +612,14 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
 
     XTime time_awared = XTime::now();
     XTime time;
+    // Acquisition loop only — deliberately after the setup commit above.  See
+    // XPrimaryDriverWithThread::acqHighestEnabled() for what this buys and what
+    // it risks.  This is the first driver wired up; measure with the
+    // slowRecordCommits() counters before extending it to the other 17.
+    std::unique_ptr<Transactional::ScopedPriority> acq_priority;
+    if(acqHighestEnabled())
+        acq_priority.reset(
+            new Transactional::ScopedPriority(Transactional::Priority::HIGHEST));
     while( !terminated) {
 		auto writer = std::make_shared<RawData>();
 		// try/catch exception of communication errors
