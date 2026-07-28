@@ -1305,3 +1305,71 @@ gets a compile error rather than a silent no-op.
 The general lesson, third time in this programme: **on macOS, "just one more
 thread-local read" is a TLS-wrapper call, not a load.** Put the new field in a
 slot something already reads.
+
+## HIGHEST is not a priority — it is an exemption from politeness
+
+Asked whether HIGHEST can claim privilege, and whether a thread that does not
+hold privilege can be yielded to at all.
+
+**Only privilege buys deference.** In the default per-Linkage mode
+`fair_mode_blocks_me` returns false immediately unless the linkage slot carries
+someone else's unexpired **Reserved** stamp — there is no priority term. The one
+other form of yielding, a younger transaction sleeping for an older tag, is
+priority-blind too. So a HIGHEST transaction that has not claimed privilege gets
+exactly zero deference from anyone.
+
+**HIGHEST's actual special case is that it never negotiates.**
+`if(entry_pr == Priority::HIGHEST) break;` is the first statement of the round
+loop (`transaction_neg_impl.h:1429`). It never spins and never sleeps.
+
+**The privilege claim itself is priority-blind.** The claim block sits *before*
+that loop, so HIGHEST does pass through it — but `#if KAME_PER_LINKAGE_PRIVILEGE`
+(default) opens with a literal `(void)entry_pr;` (`:1306`), and the verdict
+threshold is `clamp(sig_C*2, 3, hw_procs)` (`:369`), not the per-priority one.
+The per-priority thresholds from `priority_probe_info()` — HIGHEST 2, NORMAL 3,
+the rest 4 — are **dead**: `pinfo` is consumed only as `pinfo.name` in a
+diagnostic printf (`:389`).
+
+### Measured, per priority (grand arm, 8 threads, 4 s, NEG_DIAG)
+
+An earlier aggregate reading here said HIGHEST claims privilege at 0.381 grants
+per slow commit. **That was wrong** — the aggregate cannot attribute a grant to a
+thread, and adding a HIGHEST thread raises everyone else's retry count. Split by
+priority:
+
+    -P 1        slow n   rounds/cmt  sleeps/cmt   priv grants
+      HIGHEST        5        0.20        0.00        0.000
+      NORMAL      1869        4.88        8.77        0.541
+
+    -P 2        slow n   rounds/cmt  sleeps/cmt   priv grants
+      HIGHEST     1334        2.71        0.00        0.988
+      NORMAL      5119        3.95        2.78        0.231
+
+With one HIGHEST thread it claims privilege **never**, and does not need to: it
+has 5 slow commits in four seconds against the NORMAL group's 1869, because the
+NORMAL threads are asleep (8.77 sleeps/commit) and the CAS field is clear.
+
+With two, that collapses. The two impolite threads collide, HIGHEST slow commits
+go 5 → 1334, and only then does the livelock verdict fire (0.988 grants ≈ one per
+slow commit) — the reactive, late mechanism, reached only after starvation.
+
+**So HIGHEST is a positional advantage that exists only while exactly one thread
+takes it.** That is the same curve as the earlier -P sweep: 1 HIGHEST costs 4 %,
+4 cost 10×, 8 cost 42×.
+
+### What this means for the wait budget
+
+There is no proactive route to being yielded to. Privilege is granted only to a
+transaction that is *already starving* and still owns every tag it took. For a
+thread that has declared a wait budget, that is exactly backwards — it wants
+deference *before* it misses, not after.
+
+This is what step 3 has to supply, and it confirms the user's constraint that it
+must not apply to NORMAL generally: if every thread could claim privilege on
+budget expiry, a deployment where budgets are common converges on the -P 8 case
+(0.06 M/s). The host for step 3 is "the few threads that declared a budget", not
+a priority level — and notably **not** HIGHEST, for which a wait budget is inert
+because HIGHEST never waits.
+
+`transaction_latency_bench` gains `-P N` (first N threads at HIGHEST) and, under
+NEG_DIAG, a per-priority split of the negotiator counters.

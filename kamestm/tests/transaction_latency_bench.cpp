@@ -228,7 +228,7 @@ enum Mode { M_LEAF = 0, M_GRAND = 1, M_MIXED = 2 };
 static const std::uint64_t kSlowNs = 100000ull;
 
 static Hist run_arm(Mode mode, int threads, double secs, double warmup,
-                    int grand_pct, int wait_budget_us,
+                    int grand_pct, int wait_budget_us, int highest_n,
                     double *out_secs, Retries *out_r
 #if KAME_STM_NEG_DIAG
                     , NegDiagAcc *out_d
@@ -262,6 +262,14 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
         NegDiagAcc ld;
 #endif
         shared_ptr<MyNode> leaf = children[(size_t)tid];
+        // -P N: the first N threads run at HIGHEST.  HIGHEST breaks out of the
+        // negotiator's round loop on its first iteration
+        // (transaction_neg_impl.h `if(entry_pr == Priority::HIGHEST) break;`),
+        // so this arm answers whether that path still reaches the privilege
+        // claim, which sits BEFORE the loop.
+        if(tid < highest_n)
+            Transactional::setCurrentPriorityMode(
+                Transactional::Priority::HIGHEST);
         unsigned seq = 0;
         ready.fetch_add(1);
         while( !go.load(std::memory_order_acquire)) { }
@@ -337,13 +345,33 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
     if(out_r) { out_r->merge(Retries()); for(auto &r : per_thread_r) out_r->merge(r); }
 #if KAME_STM_NEG_DIAG
     if(out_d) for(auto &d : per_thread_d) out_d->merge(*&d);
+    // Per-priority attribution.  The aggregate cannot say WHICH thread claimed
+    // privilege, and adding a HIGHEST thread raises everyone's retry count, so
+    // an aggregate rise proves nothing about HIGHEST itself.
+    if(highest_n > 0) {
+        NegDiagAcc hi, lo;
+        for(int t = 0; t < threads; t++)
+            (t < highest_n ? hi : lo).merge(per_thread_d[(size_t)t]);
+        auto line = [](const char *tag, const NegDiagAcc &d) {
+            if( !d.n) { std::printf("  %-22s   %-8s slow n=0\n", "", tag); return; }
+            std::printf("  %-22s   %-8s slow n=%llu | rounds/commit %.2f | "
+                        "sleeps/commit %.2f | priv tries %.3f grants %.3f\n",
+                        "", tag, (unsigned long long)d.n,
+                        (double)d.rounds / (double)d.n,
+                        (double)d.sleeps / (double)d.n,
+                        (double)d.tries  / (double)d.n,
+                        (double)d.grants / (double)d.n);
+        };
+        line("HIGHEST", hi);
+        line("NORMAL", lo);
+    }
 #endif
     if(out_secs) *out_secs = elapsed;
     return all;
 }
 
 int main(int argc, char **argv) {
-    int threads = 4, grand_pct = 10, wait_budget_us = 0;
+    int threads = 4, grand_pct = 10, wait_budget_us = 0, highest_n = 0;
     double secs = 2.0, warmup = 0.5;
     const char *mode = "all";
     for(int i = 1; i < argc; i++) {
@@ -353,10 +381,11 @@ int main(int argc, char **argv) {
         else if( !std::strcmp(argv[i], "-x") && i + 1 < argc) grand_pct = std::atoi(argv[++i]);
         else if( !std::strcmp(argv[i], "-m") && i + 1 < argc) mode = argv[++i];
         else if( !std::strcmp(argv[i], "-b") && i + 1 < argc) wait_budget_us = std::atoi(argv[++i]);
+        else if( !std::strcmp(argv[i], "-P") && i + 1 < argc) highest_n = std::atoi(argv[++i]);
         else {
             std::fprintf(stderr,
                 "usage: %s [-t THREADS] [-s SEC] [-w WARMUP] [-x GRAND%%] "
-                "[-m leaf|grand|mixed|all] [-b WAIT_BUDGET_US]\n", argv[0]);
+                "[-m leaf|grand|mixed|all] [-b WAIT_BUDGET_US] [-P N_HIGHEST]\n", argv[0]);
             return 2;
         }
     }
@@ -393,10 +422,10 @@ int main(int argc, char **argv) {
 #if KAME_STM_NEG_DIAG
         NegDiagAcc dg;
         Hist h = run_arm(a.m, threads, secs, warmup, grand_pct,
-                         wait_budget_us, &el, &r, &dg);
+                         wait_budget_us, highest_n, &el, &r, &dg);
 #else
         Hist h = run_arm(a.m, threads, secs, warmup, grand_pct,
-                         wait_budget_us, &el, &r);
+                         wait_budget_us, highest_n, &el, &r);
 #endif
         report(a.name, h, el);
         // If slow commits show ~1 attempt, the time is spent INSIDE one
