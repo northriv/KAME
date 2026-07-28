@@ -1373,3 +1373,84 @@ because HIGHEST never waits.
 
 `transaction_latency_bench` gains `-P N` (first N threads at HIGHEST) and, under
 NEG_DIAG, a per-priority split of the negotiator counters.
+
+## Closing the wait-budget holes, and what the budget can honestly promise
+
+The first cut of the budget escape sat only at the loop tail. Measured against
+a 1 µs budget it produced **14.23 rounds/commit and 0.18 sleeps/commit** — it was
+being bypassed. Three fixes, all pure logic:
+
+* **The check moved to the top of the round loop.** That is the only point every
+  path through a round passes; the fair-spin `continue` (`:1867`) skips the tail
+  entirely.
+* **The fair spin is clamped to the budget.** A 2 ms busy-spin is longer than
+  most budgets; it now ends at whichever of the two comes first.
+* **Expiry no longer yields to a privilege holder.** Gating the escape on
+  `fair_mode_blocks_me` meant a budget could be exceeded without limit whenever a
+  peer held privilege. Returning is not barging — the caller attempts its CAS and
+  loses to a committing holder like any other loser. What we decline to do is
+  sleep.
+
+Result, grand arm at 8 threads: with a 100 µs budget, **p99.999 262 µs and MAX
+559 µs**, against 83.9 ms and 257.6 ms unbudgeted.
+
+### A rejected fix: an OS-derived minimum sleep
+
+The diagnostic that found the remaining sleeps was one line:
+
+    REQUESTED vs ACTUAL sleep: asked 1000 ns/sleep, got 209530 ns/sleep (209.53x)
+
+The clamp was working — the negotiator asked for 1 µs — and the OS returned in
+210 µs. Measured across requests on this host (Apple M-series, `__ulock_wait`):
+
+    asked    1 µs -> 159 µs (159x)      asked   99 µs -> 113 µs (1.14x)
+    asked    4 µs ->  34 µs (8.4x)      asked  199 µs -> 224 µs (1.13x)
+    asked   18 µs ->  45 µs (2.45x)     asked  998 µs -> 1113 µs (1.11x)
+    asked   48 µs ->  90 µs (1.87x)
+
+The obvious fix — a `KAME_NEG_MIN_SLEEP_US` floor below which we skip the wait —
+was **rejected by the user, correctly**: that number is undocumented platform
+behaviour, not a contract. It moves with the OS version, the hardware, the QoS
+class and the power state, and baking it into the general non-realtime path
+makes every KAME build depend on it. The library bounds what it *chooses* to
+wait; the platform's wake latency is the platform's, and the caller's margin
+covers it. The table above is documentation, not a constant.
+
+### The regression test, and why it asserts p99.99 rather than the max
+
+`transaction_wait_budget_test` (ctest) runs the contended grand pattern with a
+budget on every commit and fails if latency exceeds `budget + slack`.
+
+The first version asserted on the **max** and failed about half the time. The
+attempt count says why: the commit that produced the max had **one or two
+attempts** — including the unbudgeted 220 ms and 411 ms maxima, which had
+exactly one. One attempt means no retry storm, and with an absolute budget
+shared across the commit's negotiator entries it means no overlong wait either.
+What is left is the OS not scheduling the thread. A max-based assertion tests the
+platform scheduler, not this library.
+
+At p99.99 the budget is tracked almost exactly, and the overshoot is a **fixed
+~200 µs independent of budget size**:
+
+    budget   100 µs -> p99.99  150 / 165 / 214 / 263 µs
+    budget  1000 µs -> p99.99  1157 / 1163 / 1174 µs
+    budget 10000 µs -> p99.99  10128 / 10129 / 10129 µs
+
+So the slack defaults to **1 ms** — about five times the overshoot the mechanism
+actually produces, and still below the unbudgeted p99.99 of 2–5 ms, which is what
+gives the assertion power. Each arm prints `(no power)` when the control run did
+not itself breach that arm's limit; a 10 ms slack marks every arm no-power on
+this host, i.e. makes the test unfalsifiable. Overridable via
+`KAME_WB_TEST_SLACK_US` for slow or loaded machines. The max is still printed
+with its attempt count, because that pair is what separates the two causes.
+
+Non-regression re-checked after all of this: 8 threads, 11 interleaved reps, no
+budget set — **−1.22 %, ON lower in 5 of 11**. Coin flip. All ten tests pass.
+
+### Is step 3 still needed?
+
+Less clearly than before. The user's observation — that not going to CV on expiry
+is simpler than granting privilege — is supported: one HIGHEST thread (which is
+exactly "never waits") measured 5 slow commits in four seconds without ever
+claiming privilege. If only a few threads carry budgets, step 2 alone may be
+enough. Step 3 stays unbuilt until a workload shows it is needed.

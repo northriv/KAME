@@ -96,6 +96,7 @@ set(kamestm_test_names
     transaction_payload_integrity_3level_test
     transaction_payload_integrity_mixed_test
     transaction_payload_integrity_3level_mixed_test
+    transaction_wait_budget_test
     # Per-commit LATENCY tail (not throughput).  Pure observation: it times
     # iterate_commit from outside and changes nothing in kamestm, so it can
     # neither regress the library nor bias what it measures.  Not a ctest --
@@ -118,6 +119,10 @@ add_test(NAME transaction_dynamic_node_test COMMAND transaction_dynamic_node_tes
 add_test(NAME transaction_negotiation_test COMMAND transaction_negotiation_test)
 add_test(NAME transaction_payload_integrity_test COMMAND transaction_payload_integrity_test)
 add_test(NAME transaction_payload_integrity_3level_test COMMAND transaction_payload_integrity_3level_test)
+# Asserts that a ScopedWaitBudget commit finishes within budget + slack.  The
+# slack (default 10 ms, KAME_WB_TEST_SLACK_US) covers OS scheduling and
+# post-expiry retries — everything the library deliberately does NOT model.
+add_test(NAME transaction_wait_budget_test COMMAND transaction_wait_budget_test)
 
 # Long-running tests
 set_tests_properties(

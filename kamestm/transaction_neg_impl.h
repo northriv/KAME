@@ -1426,6 +1426,19 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #if KAME_STM_NEG_DIAG
         ++detail::neg_diag().rounds;
 #endif
+        // Wait budget, checked at the TOP because that is the only point every
+        // path through a round passes.  A tail-only check is bypassed by the
+        // fair-spin `continue` below, which measured 14.23 rounds/commit and
+        // 0.18 sleeps/commit against a 1 us budget.
+        //
+        // Deliberately NOT gated on fair_mode_blocks_me: an expired budget must
+        // stop waiting even while a peer holds privilege, or the budget is not
+        // a bound at all.  Returning is not barging — the caller simply
+        // attempts its CAS, which loses to a committing privilege holder the
+        // same as any other loser and comes back.  What we decline to do is
+        // sleep.
+        if(_wb_limit && NegotiationCounter::now_us() >= _wb_limit)
+            break;
         if(entry_pr == Priority::HIGHEST)
             break;
         // Single-contender fast path: only this thread is visible in
@@ -1848,6 +1861,13 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif
                 const int64_t _spin_start_us =
                     (int64_t)NegotiationCounter::now_us();
+                // A 2 ms busy-spin is longer than most budgets; end it at
+                // whichever comes first.
+                const int64_t _spin_deadline_us =
+                    (_wb_limit && _wb_limit - _spin_start_us
+                                  < KAME_STM_FAIR_SPIN_MAX_US)
+                        ? _wb_limit
+                        : _spin_start_us + KAME_STM_FAIR_SPIN_MAX_US;
                 unsigned iter = 0;
                 bool _spin_timed_out = false;
                 do {
@@ -1855,7 +1875,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     if((++iter & 0x3FFFFu) == 0) {
                         std::this_thread::yield();
                         if((int64_t)NegotiationCounter::now_us()
-                           - _spin_start_us > KAME_STM_FAIR_SPIN_MAX_US) {
+                           > _spin_deadline_us) {
                             _spin_timed_out = true;
                             break;
                         }
@@ -2076,7 +2096,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     if(_wb_limit) {
                         const int64_t _rem =
                             _wb_limit - NegotiationCounter::now_us();
-                        if(_rem <= 0) { if( !_fair_blocks) goto _exit_cv_sleep; }
+                        if(_rem <= 0) goto _exit_cv_sleep;
                         else if(_rem < (int64_t)KAME_NEG_SLEEP_US_PER_MS)
                             _chunk_us_ov = (unsigned)_rem;
                     }
@@ -2109,17 +2129,8 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     if(_wb_limit) {
                         const int64_t _rem =
                             _wb_limit - NegotiationCounter::now_us();
-                        if(_rem <= 0) {
-                            // Budget spent.  Stop waiting and go attempt —
-                            // unless a peer holds privilege, in which case
-                            // barging would break the arbitration and the only
-                            // correct answer today is to keep waiting.  That is
-                            // the one way a budget can be exceeded, and it is
-                            // what the privilege-claim-on-exhaustion step is
-                            // for; until then, fall through unclamped.
-                            if( !_fair_blocks)
-                                goto _exit_cv_sleep;
-                        }
+                        if(_rem <= 0)
+                            goto _exit_cv_sleep;   // budget spent: never sleep
                         else if(_rem < (int64_t)_chunk_ms
                                        * (int64_t)KAME_NEG_SLEEP_US_PER_MS)
                             _chunk_us_ov = (unsigned)_rem;
@@ -2154,7 +2165,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 if(_wb_limit) {
                     const int64_t _rem =
                         _wb_limit - NegotiationCounter::now_us();
-                    if(_rem <= 0) { if( !_fair_blocks) goto _exit_cv_sleep; }
+                    if(_rem <= 0) goto _exit_cv_sleep;
                     else if(_rem < (int64_t)ms_actual
                                    * (int64_t)KAME_NEG_SLEEP_US_PER_MS)
                         _us_ov = (unsigned)_rem;
@@ -2164,12 +2175,9 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             }
 #endif
         }
-        // Wait budget: the caller said how long it is willing to wait, so this
-        // escape comes before the tuning knobs below — those are policy we
-        // chose, this is an instruction we were given.  Yields to a privilege
-        // holder like every other escape here.
-        if(_wb_limit && !_fair_blocks
-           && NegotiationCounter::now_us() >= _wb_limit)
+        // Wait budget, again at the tail: the round may have expired it after
+        // the top-of-loop check.  Same unconditional rule as the top.
+        if(_wb_limit && NegotiationCounter::now_us() >= _wb_limit)
             break;
 #if KAME_STM_UNTAGGED_RETURN_MS
         // (B) No tag => never failed a CAS => no evidence we would lose, so
