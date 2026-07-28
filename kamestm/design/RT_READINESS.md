@@ -1454,3 +1454,47 @@ is simpler than granting privilege — is supported: one HIGHEST thread (which i
 exactly "never waits") measured 5 slow commits in four seconds without ever
 claiming privilege. If only a few threads carry budgets, step 2 alone may be
 enough. Step 3 stays unbuilt until a workload shows it is needed.
+
+## The four knobs are gone; the measurements stay
+
+A, B, C and D are removed from the code. Every finding above stands — this
+section records why none of them was worth carrying as a `#if`.
+
+**They were untested.** Nothing in `kamestm/tests/` or `.github/` ever built
+with one enabled. Four preprocessor branches in the hottest function in the
+library that no build compiles will rot, and the reproducibility that made C
+attractive would rot with them.
+
+**A (`CLEAR_TAGS_BEFORE_SLEEP`) was actively harmful, which the earlier
+measurements did not show.** It calls `snap.drop_tags_n_privilege()`, emptying
+`m_tagged_linkages` — and the livelock verdict's `tags_total` *is*
+`snap.m_tagged_linkages.size()`. So after A fires, the next negotiator entry
+cannot satisfy `tags_total > 0` and privilege can never be claimed. A trades the
+only escape from starvation for +10 % at 128 threads, having measured no benefit
+at 4. It also explains A+B's −28 %: B's condition is `empty()`, which A makes
+permanently true, so every sleeper returns at once. The constraint is now a
+comment at the sleep site.
+
+**B (`UNTAGGED_RETURN_MS`) never had a bound.** It returns only an *untagged*
+Tx, so a Tx that has acquired a tag is back on the unbounded ladder — the
+54.7 / 55.4 / 224.3 ms MAX triple. `ScopedWaitBudget` bounds the wait without
+that hole and per caller.
+
+**C (`RETURN_CEILING_MS`) is the one with a real claim** — the only knob whose
+worst case is both reproducible (3/3 within a few ms) and computable in closed
+form before running anything. It loses on shape: the cost falls on every thread
+(−23 % for a 44–52 ms MAX at R=8) whereas the budget costs −4.9 % and gets
+MAX 608 µs on the one thread that asked. It remains the right answer for a
+deployment that cannot add call sites; that deployment does not exist yet, and
+the formula above reconstructs it in about five lines.
+
+**D (`OLDEST_RETURNS`) is dominated.** Best tail of the four (MAX 11.3–14.7 ms)
+but −44 % even with A, against the budget's 608 µs at −4.9 %. Its p99.9 also
+swung between 14 µs and 2.6 ms across repeats and was never explained.
+
+Removing all four left the shipping binary **byte-identical**
+(`663136d0…` before and after), which is the proof that they were dead in the
+default build and that nothing else came out with them.
+
+What remains in the negotiator is one realtime affordance,
+`ScopedWaitBudget` — tested in ctest, default on, and measured free when unused.

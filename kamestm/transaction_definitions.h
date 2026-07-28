@@ -327,33 +327,7 @@
 #  endif
 #endif
 
-// Floor used for both (a) the LIVELOCK verdict gate (probe fires only
-// when tx_age > floor) and (b) the age-preempt threshold in
-// try_register_privileged_tidstamp (preemptor must be older than
-// holder by floor µs).
-//! (diag) Per-thread negotiation breakdown for latency diagnosis.  OFF by
-//! default and compiled out entirely, so it costs nothing in production; it is
-//! a DIAGNOSTIC, not a realtime mechanism — nothing in the library behaves
-//! differently when it is on.  Kept separate from KAME_ADAPT_INSTRUMENT, which
-//! feeds the adaptive logic and is NOT throughput-neutral, so the two must not
-//! share a measurement run.
-//! (A) Release our linkage tags before going to sleep.  Measured, 38 % of
-//! sleeps in the mixed arm happen while still owning >=1 tag: the sleeper is
-//! blocking peers through `fair_mode_blocks_me` while making no progress
-//! itself.  Clearing trades that away against losing our place in the age
-//! ordering.  0 = keep the current behaviour.
-#ifndef KAME_STM_CLEAR_TAGS_BEFORE_SLEEP
-#define KAME_STM_CLEAR_TAGS_BEFORE_SLEEP 0
-#endif
 
-//! (B) Hand control back to the caller — so the CAS is actually attempted —
-//! once an UNTAGGED transaction has accumulated this much sleep budget in the
-//! negotiator.  0 disables.  1 is the aggressive form (return after the first
-//! round), which halved the deep tail but cost 12x at p99.9; larger values
-//! trade that back.
-#ifndef KAME_STM_UNTAGGED_RETURN_MS
-#define KAME_STM_UNTAGGED_RETURN_MS 0
-#endif
 
 //! (C) Hand control back once the accumulated sleep budget reaches this many
 //! ms, REGARDLESS of tag state — i.e. an actual ceiling on how long the
@@ -372,20 +346,7 @@
 #define KAME_STM_WAIT_BUDGET 1
 #endif
 
-#ifndef KAME_STM_RETURN_CEILING_MS
-#define KAME_STM_RETURN_CEILING_MS 0
-#endif
 
-//! (D) The OLDEST sleeper returns and tags.  Not an arbitrary timeout: it is
-//! the design's own oldest-wins rule, applied to the population it was missing.
-//! A sleeper first READS the linkage stamp and only acts when it would win the
-//! oldest-wins comparison, so the shared word takes 128 readers and at most one
-//! writer — the distinction from tagging unconditionally before every sleep,
-//! which turned it into 128 writers and cost 97 %.  Self-limiting: exactly one
-//! transaction per linkage returns, so there is no return storm either.
-#ifndef KAME_STM_OLDEST_RETURNS
-#define KAME_STM_OLDEST_RETURNS 0
-#endif
 
 #ifndef KAME_STM_NEG_DIAG
 #define KAME_STM_NEG_DIAG 0

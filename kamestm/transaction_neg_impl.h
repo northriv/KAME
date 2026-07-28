@@ -1957,14 +1957,18 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             }
         }
         else {
-#if KAME_STM_CLEAR_TAGS_BEFORE_SLEEP
-            // (A) Do not block peers while we are not running.  A sleeper
-            // holding a tag keeps `fair_mode_blocks_me` true for everyone else
-            // on that linkage; measured at 38 % of sleeps in the mixed arm.
-            // Mine-only clear, so a tag another Tx took from us is untouched.
-            if( !snap.m_tagged_linkages.empty())
-                snap.drop_tags_n_privilege();
-#endif
+            // Do NOT drop this Tx's tags before sleeping.  It looks free —
+            // a sleeper holding a tag keeps `fair_mode_blocks_me` true for
+            // every peer on that linkage, measured at 38 % of sleeps in the
+            // mixed arm, and clearing them measured +10 % at 128 threads.  It
+            // is not free: the livelock verdict reads `tags_total` from
+            // `snap.m_tagged_linkages` (see `_ll_total` above), so a Tx that
+            // arrives at its next negotiator entry with an empty tag list can
+            // never satisfy `tags_total > 0` and can therefore never claim
+            // privilege.  Clearing here trades away the only escape from
+            // starvation for throughput in a regime (128 contending threads)
+            // that measured no benefit at all at 4.  This was knob
+            // KAME_STM_CLEAR_TAGS_BEFORE_SLEEP; removed, see design/RT_READINESS.md.
             int ms_actual = ms;
 #if KAME_STM_NEG_DIAG
             { auto &_d = detail::neg_diag();
@@ -2179,69 +2183,6 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // the top-of-loop check.  Same unconditional rule as the top.
         if(_wb_limit && NegotiationCounter::now_us() >= _wb_limit)
             break;
-#if KAME_STM_UNTAGGED_RETURN_MS
-        // (B) No tag => never failed a CAS => no evidence we would lose, so
-        // escalating the wait is backwards.  Return and let the attempt
-        // happen: it either succeeds, or fails and tags, which switches this
-        // Tx onto the normal escalating path.  Cannot weaken the storm
-        // protection — a storm is a run of failures, failures tag.
-        // ...but never barge past a peer that HOLDS PRIVILEGE.  `_fair_blocks`
-        // is `fair_mode_blocks_me` from earlier in this same iteration — the
-        // predicate for "a peer's Reserved stamp says yield" — so the guard is
-        // free.  It matters because B itself is what makes privilege reachable:
-        // returning leads to an attempt, an attempt can fail, failing tags, and
-        // `tags_total > 0` is the condition the livelock verdict was missing.
-        // Measured today the guard never fires (priv tries 0.000 even with
-        // B=4), so this is not a fix for an observed defect — it is refusing to
-        // let the correctness of B depend on privilege happening to stay
-        // dormant.
-        if(snap.m_tagged_linkages.empty()
-           && ms >= KAME_STM_UNTAGGED_RETURN_MS
-           && !_fair_blocks)
-            break;
-#endif
-#if KAME_STM_OLDEST_RETURNS
-        // (D) If we are the oldest contender on this linkage, stop waiting and
-        // go try.  `signed_diff_us_packed(cur, mine) > 0` means the current
-        // tagger is younger, i.e. we would win the same oldest-wins comparison
-        // `tag_as_contender` applies.  A younger sleeper keeps sleeping, which
-        // is the correct answer for it.
-        //
-        // This is a PURE READ — D writes nothing.  An earlier version tagged
-        // here, on the theory that publishing our older stamp is what stops
-        // the other sleepers from returning too.  That theory was wrong and
-        // measured so: with the write removed, entries/rounds 1.57/2.00 vs
-        // 1.56/2.01, sleeps/commit 1.82 vs 1.82, slept/commit 3.033 vs 3.026
-        // Mns, throughput and tail indistinguishable at 4 and 128 threads.
-        // The slot is not maintained by D; it is maintained by the existing
-        // tagging traffic from `operator++`, which tags on every retry of
-        // every multi-nodal Tx, so under contention it is essentially always
-        // non-zero and always carries the oldest contender's stamp.  D's read
-        // finds a live, correctly ordered stamp whether or not D ever writes,
-        // and the `_cur == 0` branch that would storm is rare.  The tag was
-        // also redundant for this Tx: it is about to attempt, and a failed
-        // attempt tags at the one production site.
-        //
-        // Keeping D read-only is worth more than the CAS it saves: a policy
-        // that cannot mutate negotiation state cannot perturb anyone else's
-        // oldest-wins arbitration, so D is structurally incapable of the
-        // interaction that made A+B cost 28 %.
-        if( !_fair_blocks) {
-            const auto _cur = self->m_transaction_started_time.load(
-                                  std::memory_order_relaxed);
-            if(_cur == 0 ||
-               NegotiationCounter::signed_diff_us_packed(_cur, started_time) > 0)
-                break;
-        }
-#endif
-#if KAME_STM_RETURN_CEILING_MS
-        // (C) A ceiling, not a one-shot escape: applies whether or not we hold
-        // a tag, so the negotiator cannot hold a transaction past it.  Still
-        // yields to a privilege holder — that is the one case where continuing
-        // to wait is the correct answer.
-        if(ms >= KAME_STM_RETURN_CEILING_MS && !_fair_blocks)
-            break;
-#endif
     }
 _exit_cv_sleep:;
   } // end adaptive-path scope
