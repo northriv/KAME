@@ -63,6 +63,22 @@
 //! the control run did not itself breach that arm's limit.  A 10 ms slack
 //! marks every arm no-power on this host.
 //!
+//! **This is deliberately the worst configuration.**  Every thread carries a
+//! budget, which is not how a budget is meant to be deployed — a thread that
+//! stops waiting returns and retries, adding CAS contention for everyone, the
+//! same effect that makes several `Priority::HIGHEST` threads collapse.  It
+//! shows up here as ~21 % fewer commits and, with the tightest budget, p99
+//! rising from 0.50 µs to 118 µs.  The intended use is a budget on the few
+//! threads that have a deadline, where neither cost appears.  The test uses
+//! the hostile shape on purpose: if the bound holds here it holds anywhere.
+//!
+//! Note what the budget does and does not touch.  Commits faster than the
+//! budget are unaffected — p99 stays at 0.54 µs under the 1 ms and 10 ms
+//! budgets.  The clamp only becomes visible at the percentile where the
+//! natural distribution crosses the budget: p99 at 100 µs, p99.9 at 1 ms,
+//! p99.99 at 10 ms.  What changes is the *shape*: from "almost everything
+//! 0.5 µs, rarely 400 ms" to something with a ceiling.
+//!
 //! Set `KAME_WB_TEST_SECS` to lengthen each arm (default 2 s).
 
 #include "support_standalone.h"
@@ -224,11 +240,14 @@ int main(int argc, char **argv) {
     std::uint64_t n0 = 0, a0 = 0;
     std::int64_t p0[3] = {0, 0, 0};
     std::int64_t max0 = run_arm(threads, secs, 0, p0, &n0, &a0);
-    std::printf("  no budget      : %9llu commits  p99 %6lld  p99.9 %7lld  "
-                "p99.99 %8lld us   MAX %9lld us (att %llu)\n",
-                (unsigned long long)n0, (long long)(p0[0] / 1000),
-                (long long)(p0[1] / 1000), (long long)(p0[2] / 1000),
-                (long long)(max0 / 1000), (unsigned long long)a0);
+    // Latencies in µs with two decimals: the fast path is a few hundred ns,
+    // and integer-µs truncation printed that as a bare "0", which reads as a
+    // missing measurement rather than "under a microsecond".
+    std::printf("  no budget      : %9llu commits  p99 %9.2f  p99.9 %9.2f  "
+                "p99.99 %9.2f us   MAX %9.2f us (att %llu)\n",
+                (unsigned long long)n0, (double)p0[0] / 1000.0,
+                (double)p0[1] / 1000.0, (double)p0[2] / 1000.0,
+                (double)max0 / 1000.0, (unsigned long long)a0);
 
     static const int kBudgetsUs[] = {100, 1000, 10000};
     bool failed = false;
@@ -241,12 +260,12 @@ int main(int argc, char **argv) {
         // at this percentile, a pass proves nothing.
         const bool has_power = (p0[2] > limit_ns);
         const bool ok = (p[2] <= limit_ns);
-        std::printf("  budget %6d us: %9llu commits  p99 %6lld  p99.9 %7lld  "
-                    "p99.99 %8lld us   MAX %9lld us (att %llu)  "
+        std::printf("  budget %6d us: %9llu commits  p99 %9.2f  p99.9 %9.2f  "
+                    "p99.99 %9.2f us   MAX %9.2f us (att %llu)  "
                     "[limit %lld us] %s%s\n",
-                    b, (unsigned long long)n, (long long)(p[0] / 1000),
-                    (long long)(p[1] / 1000), (long long)(p[2] / 1000),
-                    (long long)(mx / 1000), (unsigned long long)att,
+                    b, (unsigned long long)n, (double)p[0] / 1000.0,
+                    (double)p[1] / 1000.0, (double)p[2] / 1000.0,
+                    (double)mx / 1000.0, (unsigned long long)att,
                     (long long)(limit_ns / 1000),
                     ok ? "ok" : "FAIL", has_power ? "" : " (no power)");
         if( !ok && has_power) failed = true;
