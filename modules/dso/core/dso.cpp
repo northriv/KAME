@@ -308,6 +308,18 @@ XDSO::execute(const atomic<bool> &terminated) {
 			shared_from_this(), &XDSO::onRestartTouched);
     });
 
+	// Acquisition loop only — deliberately after the two setup commits above,
+	// which run once at driver start (often while a .kam load is starting many
+	// drivers at once, the one case where several impolite threads hurt).
+	// Everything inside this loop belongs to the record: the Snapshot below and
+	// the per-iteration settings reads, the hardware I/O, the
+	// `trans(*this).m_rawDisplayOnly` one-liner and finishWritingRaw.  None of
+	// it should be polite.  Gated by KAME_ACQ_HIGHEST=1 — see
+	// XPrimaryDriverWithThread::acqHighestEnabled().
+	std::unique_ptr<Transactional::ScopedPriority> acq_priority;
+	if(acqHighestEnabled())
+		acq_priority.reset(
+			new Transactional::ScopedPriority(Transactional::Priority::HIGHEST));
 	while( !terminated) {
 		Snapshot shot( *this);
 		const int fetch_mode = shot[ *fetchMode()];

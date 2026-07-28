@@ -15,6 +15,7 @@
 #define PRIMARYDRIVERWITHTHREAD_H_
 
 #include "primarydriver.h"
+#include <cstdlib>
 
 class XPrimaryDriverWithThread : public XPrimaryDriver {
 public:
@@ -54,7 +55,7 @@ protected:
     //! Set `KAME_ACQ_HIGHEST=1` to enable.  Read once per process.
     static bool acqHighestEnabled() {
         static const bool s_enabled = []{
-            const char *v = getenv("KAME_ACQ_HIGHEST");
+            const char *v = std::getenv("KAME_ACQ_HIGHEST");
             return v && *v && *v != '0';
         }();
         return s_enabled;
