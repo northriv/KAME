@@ -314,12 +314,9 @@ XDSO::execute(const atomic<bool> &terminated) {
 	// Everything inside this loop belongs to the record: the Snapshot below and
 	// the per-iteration settings reads, the hardware I/O, the
 	// `trans(*this).m_rawDisplayOnly` one-liner and finishWritingRaw.  None of
-	// it should be polite.  Gated by KAME_ACQ_HIGHEST=1 — see
-	// XPrimaryDriverWithThread::acqHighestEnabled().
-	std::unique_ptr<Transactional::ScopedPriority> acq_priority;
-	if(acqHighestEnabled())
-		acq_priority.reset(
-			new Transactional::ScopedPriority(Transactional::Priority::HIGHEST));
+	// it should be polite.  See
+	// XPrimaryDriverWithThread::AcquisitionPriority.
+	AcquisitionPriority acq_priority;
 	while( !terminated) {
 		Snapshot shot( *this);
 		const int fetch_mode = shot[ *fetchMode()];

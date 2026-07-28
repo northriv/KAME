@@ -15,7 +15,6 @@
 #define PRIMARYDRIVERWITHTHREAD_H_
 
 #include "primarydriver.h"
-#include <cstdlib>
 
 class XPrimaryDriverWithThread : public XPrimaryDriver {
 public:
@@ -35,31 +34,46 @@ protected:
 
 	virtual void *execute(const atomic<bool> &terminated) = 0;
 
-    //! Whether an acquisition loop should raise itself to
-    //! `Priority::HIGHEST` for the duration of the loop (NOT for the setup
-    //! commit that precedes it — that one runs once at driver start, often
-    //! while a .kam load is starting many drivers at once, and is exactly the
-    //! case where several impolite threads hurt).
+protected:
+    //! RAII guard raising an acquisition loop to `Priority::HIGHEST`.
     //!
-    //! HIGHEST is not a priority: it only stops this thread from waiting, and
-    //! nothing makes its peers wait for it.  For an acquisition loop that is
-    //! the right shape anyway — the record commit has no give-up path, so
-    //! "keep attempting" beats "sleep", and a wait budget would only convert
-    //! waiting into retrying without releasing the loop.  The risk is
-    //! entirely in the count: one such thread among polite peers measured
-    //! 5 slow commits in 4 s, two collided and went to 1334, four cost 10x
-    //! throughput.  Real drivers commit disjoint subtrees so they should not
-    //! collide, but that has not been measured on real hardware, which is why
-    //! this is opt-in per driver AND gated at runtime.
+    //! Construct it immediately before the `while( !terminated)` loop — never
+    //! around the setup commit that precedes it.  That commit runs once at
+    //! driver start, often while a .kam load is starting many drivers at once,
+    //! which is the one case where several impolite threads hurt each other.
+    //! Everything inside the loop, by contrast, belongs to the record: the
+    //! settings Snapshots (`***someNode()` expands to a SingleSnapshot, see
+    //! kame/xnode.h, so those negotiate too), the hardware I/O, and the record
+    //! commit(s).  None of it should be polite.
     //!
-    //! Set `KAME_ACQ_HIGHEST=1` to enable.  Read once per process.
-    static bool acqHighestEnabled() {
-        static const bool s_enabled = []{
-            const char *v = std::getenv("KAME_ACQ_HIGHEST");
-            return v && *v && *v != '0';
-        }();
-        return s_enabled;
-    }
+    //! **Unconditional on purpose.**  This is a safeguard against unforeseen
+    //! contention — a .kam load, a script or an MCP session snapshotting the
+    //! measurement root, a graph redraw bundling an ancestor — and a safeguard
+    //! that has to be switched on ahead of time is not one, because nobody
+    //! predicts the unforeseen.  It is also free until it is needed:
+    //! `ScopedNegotiateLinkage::_negotiate()` returns `[[likely]]` early when
+    //! no peer has tagged the linkage, so `_negotiate_internal()` — the only
+    //! place that looks at the priority at all — is reached only under real
+    //! contention.  Until then a HIGHEST acquisition thread behaves bit-for-bit
+    //! like a NORMAL one.
+    //!
+    //! **What it costs when it does act, stated plainly.**  HIGHEST breaks out
+    //! of the negotiator's round loop before the sleep path, which is where
+    //! `fair_mode_blocks_me` gates on a peer's privilege stamp — so a HIGHEST
+    //! thread ignores privilege entirely.  An ancestor-scope operation can
+    //! therefore no longer be protected by privilege against acquisition
+    //! threads, and with several drivers acquiring it can be starved for as
+    //! long as they keep acquiring.  That is a deliberate policy choice:
+    //! measurement beats UI and scripting.  Note the record-commit counters
+    //! above do NOT see it — they only count the acquisition side — so a
+    //! starved .kam load or redraw has to be noticed by other means.
+    class AcquisitionPriority : public Transactional::ScopedPriority {
+    public:
+        AcquisitionPriority()
+            : Transactional::ScopedPriority(
+                  Transactional::Priority::HIGHEST) {}
+    };
+
 private:
     unique_ptr<XThread> m_thread;
 	void *execute_internal(const atomic<bool> &terminated) {
