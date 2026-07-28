@@ -1227,3 +1227,81 @@ misreading.
 The change is reverted. If per-chunk runner accounting ever does show up in a
 profile, the fix is not a ceiling — it would have to be caching the value across
 chunks or lowering the refill cadence, both of which change behaviour.
+
+## ScopedWaitBudget — a caller-supplied soft bound on waiting
+
+Implemented (steps 1 and 2 of the four sketched with the user). Not called a
+deadline, deliberately: nothing here guarantees a transaction *completes* by the
+limit. What it bounds is the **waiting**.
+
+    Transactional::ScopedWaitBudget wb(1000);   // 1 ms for this cycle
+    node.iterate_commit_while([&](Transaction<XN> &tr) -> bool { ... });
+
+The API takes a **duration** because that is how a driver thinks, and converts
+once at construction to an **absolute** µs limit. Absolute is required, not
+stylistic: the negotiator is re-entered ~1.56 times per slow commit and `ms`
+restarts at 0 each time, so a relative budget re-armed per entry would bound
+nothing. One scope covers every transaction inside it. Nesting takes the tighter
+of the two limits — a callee must not be able to grant itself more time than its
+caller allowed.
+
+In the negotiator: `t_end` is clamped to the limit, each chunk is clamped to the
+remaining budget (via a new `us_override` parameter on `negotiate_sleep`, because
+the ms ladder cannot express "300 µs left"), and a loop-tail escape returns at
+expiry. All five sites are guarded on the limit being nonzero, and the escape
+yields to a privilege holder like every other escape here.
+
+### It works
+
+Grand arm, 8 threads, one budget per commit:
+
+    budget      p99.9      p99.99     p99.999      MAX
+    none        1.3 µs     5.24 ms    67.1 ms    275.3 ms
+    2000 µs     2.62 ms    2.62 ms     3.67 ms    32.4 ms
+    1000 µs     1.31 ms    1.31 ms     8.39 ms    33.3 ms
+    500 µs       655 µs     655 µs     1.31 ms    16.6 ms
+    200 µs       262 µs     459 µs     2.10 ms    11.0 ms
+    100 µs       164 µs     229 µs      459 µs     1.75 ms
+
+The percentiles track the budget (500 µs → p99.9 at the 655 µs bucket), and the
+100 µs budget cuts the worst case 156×. All nine STM tests pass.
+
+The residual is honest: a 100 µs budget still shows a 1.75 ms max. That is not
+waiting — it is the **unbounded retry count** after the budget expires, plus OS
+jitter, plus the cases where a privilege holder blocks the escape. Bounding that
+is step 3 (claim privilege on exhaustion so the attempt that follows wins), which
+is what turns "stops waiting on time" into "overshoots by one attempt".
+
+### Two rejected implementations, both caught by measurement
+
+**`Snapshot::m_wait_limit`, filled by the ctors that stamp `m_started_time`.** The
+reasoning was that the negotiator should read a member rather than TLS. Measured
+−1.9 % at 8 threads and −0.9 % at 4 (7 interleaved reps; lower in 6 of 7 at 4
+threads). The ctors are the hot path and the negotiator is not — and the member
+bought nothing anyway, because the value was already hoisted into a local once
+per negotiator call, so the sleep loop never touched TLS in either version.
+
+**A separate `XThreadLocal<int64_t>` read once per negotiator call.** Cleaner, and
+still wrong: **−2.36 % at 8 threads, lower in 7 of 7.** `XThreadLocal<T>::operator*`
+caches its pointer in a function-local `thread_local` that is distinct per
+instantiation, so a second `XThreadLocal` of a different type is a second TLS
+wrapper call — on macOS a `_tlv_get_addr`, the same call that cost 4 % on the pool
+allocator's cross-thread free path earlier in this programme.
+
+**What shipped**: priority and wait limit share one slot (`detail::TxContext`), so
+`_negotiate_internal`'s existing single read serves both and the budget costs one
+extra load from a cache line it already has. Re-measured with the same
+same-source two-build-dir A/B:
+
+    threads   OFF        ON         delta     ON lower in
+       8      6.895 M    6.914 M    +0.27 %      6 / 11
+       4      6.106 M    6.099 M    −0.11 %       3 / 7
+     128      9.396 M    9.666 M    +2.88 %       1 / 7
+
+No measurable cost when unused. `KAME_STM_WAIT_BUDGET` (default 1) compiles the
+whole thing out; with 0 the API is not declared, so a caller expecting a budget
+gets a compile error rather than a silent no-op.
+
+The general lesson, third time in this programme: **on macOS, "just one more
+thread-local read" is a TLS-wrapper call, not a load.** Put the new field in a
+slot something already reads.

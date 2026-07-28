@@ -715,7 +715,14 @@ private:
         static constexpr int NEGOTIATE_SLEEP_SLOTS = 512;
         static inline NegotiateSleepSlot s_sleep_slots[NEGOTIATE_SLEEP_SLOTS]{};
 
-        static void negotiate_sleep(int ms_timeout, cnt_t my_stamp) noexcept;
+        //! \param us_override When nonzero, the physical wait length in µs,
+        //!        used instead of `ms_timeout * KAME_NEG_SLEEP_US_PER_MS`.
+        //!        Exists so a wait budget can clamp a sleep to sub-millisecond
+        //!        precision: the budget is a µs quantity and the ms ladder
+        //!        cannot express "300 µs left".  Zero (the default) reproduces
+        //!        the previous behaviour exactly.
+        static void negotiate_sleep(int ms_timeout, cnt_t my_stamp,
+                                    unsigned us_override = 0) noexcept;
 
         //! Wake up to `n` sleeping threads whose TIDs are set in
         //! `tid_bitset`.  When `preferred_kind` is in {1,2}, prefer

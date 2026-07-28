@@ -130,6 +130,60 @@ enum class Priority {NORMAL = 0, LOWEST, UI_DEFERRABLE, HIGHEST, SCRIPTING};
 DECLSPEC_KAME void setCurrentPriorityMode(Priority pr);
 DECLSPEC_KAME Priority getCurrentPriorityMode();
 
+//! \name Wait budget
+//!
+//! A soft, per-thread bound on how long transactional negotiation may
+//! spend **waiting** for contention to clear.  Deliberately NOT called a
+//! deadline: nothing here guarantees that a transaction *completes* by
+//! the limit.  What it bounds is the waiting — the negotiator will not
+//! sleep past the limit, and on reaching it stops being patient.  The
+//! overshoot is one commit attempt (measured p99.9 768 ns for a
+//! whole-tree scope) plus whatever scheduling jitter the OS adds; on a
+//! non-realtime kernel there is no worst-case execution time to make a
+//! stronger promise from.
+//!
+//! Stored as an **absolute** µs value on `LivelockProbe::now_us()`'s
+//! steady clock, because the negotiator is re-entered ~1.56 times per
+//! slow commit and a relative budget would restart on each entry and so
+//! bound nothing.  Callers do not see the absolute form — they set a
+//! duration via `ScopedWaitBudget` and the scope converts it once.
+//!
+//! 0 means "no budget", which is the default and is exactly the
+//! pre-existing behaviour: every predicate is guarded on the value being
+//! nonzero, so a thread that never sets one runs the same code as before.
+//!
+//! **Invariant to preserve:** a wait budget may only make the negotiator
+//! stop waiting earlier (and, later, claim privilege so the attempt that
+//! follows wins).  It must never throw and never abort a transaction.
+//! Because the value is ambient it is inherited by callees, including
+//! library code the caller does not own; that is safe only as long as
+//! its sole effect is impatience.  Ending a job is the caller's own
+//! decision, expressed by returning false from `iterate_commit_while`.
+//! \{
+#if KAME_STM_WAIT_BUDGET
+DECLSPEC_KAME int64_t currentWaitLimit() noexcept;
+DECLSPEC_KAME void setCurrentWaitLimit(int64_t abs_us) noexcept;
+
+//! Per-thread negotiation context: the priority and the wait limit share
+//! ONE thread-local slot on purpose.
+//!
+//! `XThreadLocal<T>::operator*` caches its pointer in a function-local
+//! `thread_local` that is distinct per instantiation, so a second
+//! `XThreadLocal` of a different type is a second TLS-wrapper call — on
+//! macOS a `_tlv_get_addr`, the same call that cost 4 % on the pool
+//! allocator's hot path.  Adding `XThreadLocal<int64_t>` alongside
+//! `XThreadLocal<Priority>` measured -2.36 % at 8 threads, lower in 7 of 7
+//! interleaved reps.  Packed together, `_negotiate_internal`'s existing
+//! single read serves both and the budget costs one extra load from a
+//! cache line it already has.
+struct TxContext {
+    Priority priority   = Priority::NORMAL;
+    int64_t  wait_limit = 0;   //!< absolute µs on LivelockProbe::now_us(); 0 = none
+};
+DECLSPEC_KAME const TxContext &currentTxContext() noexcept;
+#endif
+//! \}
+
 namespace detail {
     //! Per-thread nesting depth of Transaction/Snapshot scopes.  The
     //! per-thread runner counter (RunnerCounterEntry below) picks up
@@ -740,6 +794,66 @@ public:
     LivelockProbe()  = delete;
     ~LivelockProbe() = delete;
 };
+
+//! Scoped wait budget — see the `currentWaitLimit` block above for what
+//! is and is not promised.
+//!
+//! The public form takes a **duration**, which is how a driver thinks
+//! ("this cycle has 1 ms; don't spend more than that waiting"), and
+//! converts to the absolute limit once at construction.  That mirrors
+//! `std::condition_variable::wait_for`, which is specified in terms of
+//! `wait_until` for the same reason: the primitive wants an absolute
+//! time, people want a duration.
+//!
+//! One scope covers every transaction inside it, so the natural place is
+//! the top of a driver's cycle:
+//! \code
+//!     void MyDriver::oneCycle() {
+//!         Transactional::ScopedWaitBudget wb(1000);   // 1 ms, absolute from here
+//!         node.iterate_commit_while([&](Transaction<XN> &tr) -> bool {
+//!             ...
+//!             return Transactional::currentWaitLimit()
+//!                  > Transactional::LivelockProbe::now_us();  // give up on expiry
+//!         });
+//!         other.iterate_commit_while(...);            // shares the same limit
+//!     }
+//! \endcode
+//!
+//! Nesting takes the **tighter** of the two limits.  A callee must not be
+//! able to grant itself more time than its caller allowed, or the
+//! caller's budget would mean nothing.
+#if KAME_STM_WAIT_BUDGET
+class ScopedWaitBudget {
+public:
+    //! \param max_wait_us Duration, µs from now.  Values <= 0 arm an
+    //!        already-expired budget (never wait), which is a legitimate
+    //!        state, not an error.
+    explicit ScopedWaitBudget(int64_t max_wait_us) noexcept
+        : m_saved(currentWaitLimit()) {
+        arm_(LivelockProbe::now_us() + max_wait_us);
+    }
+    //! Tag for the absolute-time overload.
+    struct absolute_t { explicit absolute_t() = default; };
+    //! Absolute variant, for the rare caller that genuinely holds a time
+    //! (an external trigger, a hardware-synchronised cycle) rather than a
+    //! duration.  `abs_us` is on `LivelockProbe::now_us()`'s clock.
+    ScopedWaitBudget(absolute_t, int64_t abs_us) noexcept
+        : m_saved(currentWaitLimit()) { arm_(abs_us); }
+    ~ScopedWaitBudget() noexcept { setCurrentWaitLimit(m_saved); }
+    ScopedWaitBudget(const ScopedWaitBudget &) = delete;
+    ScopedWaitBudget &operator=(const ScopedWaitBudget &) = delete;
+private:
+    void arm_(int64_t abs_us) noexcept {
+        // 0 is the "no budget" sentinel, so an armed budget must never be
+        // 0.  A limit in the past is fine and means "never wait".
+        if(abs_us <= 0) abs_us = 1;
+        // Tighter-wins: never extend an outer budget.
+        if(m_saved != 0 && m_saved < abs_us) abs_us = m_saved;
+        setCurrentWaitLimit(abs_us);
+    }
+    int64_t m_saved;
+};
+#endif // KAME_STM_WAIT_BUDGET
 
 // Portable 64-bit popcount. Visible in transaction.h so inline member
 // functions (e.g. negotiate()) can use it. GCC/Clang/MSVC intrinsics.

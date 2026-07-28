@@ -966,11 +966,30 @@ ProcessCounter::ProcessCounter() noexcept {
 ProcessCounter::cnt_t ProcessCounter::id() noexcept { return *stl_processID; }
 #endif
 
+#if KAME_STM_WAIT_BUDGET
+//! One slot for priority + wait limit — see TxContext for why they share.
+//! Value-initialised by XThreadLocal's placement `new(mem) T()`, so an
+//! untouched thread reads {NORMAL, 0} and takes every pre-existing path.
+XThreadLocal<TxContext> stl_currentTxContext;
+
+const TxContext &currentTxContext() noexcept { return *stl_currentTxContext; }
+
+Priority getCurrentPriorityMode() { return stl_currentTxContext->priority; }
+
+int64_t currentWaitLimit() noexcept {
+    return stl_currentTxContext->wait_limit;
+}
+
+void setCurrentWaitLimit(int64_t abs_us) noexcept {
+    stl_currentTxContext->wait_limit = abs_us;
+}
+#else
 XThreadLocal<Priority> stl_currentPriority;
 
 Priority getCurrentPriorityMode() {
     return *stl_currentPriority;
 }
+#endif // KAME_STM_WAIT_BUDGET
 
 template <class XN>
 void
@@ -3040,7 +3059,11 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
 #endif
 
 void setCurrentPriorityMode(Priority pr) {
+#if KAME_STM_WAIT_BUDGET
+    stl_currentTxContext->priority = pr;
+#else
     *stl_currentPriority = pr;
+#endif
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
     SetThreadPriority(GetCurrentThread(),
         (pr == Priority::HIGHEST) ? THREAD_PRIORITY_TIME_CRITICAL : THREAD_PRIORITY_NORMAL);

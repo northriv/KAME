@@ -446,7 +446,7 @@ inline detail::NegDiag neg_diag_snapshot(bool reset) {
 
 template <class XN>
 void Node<XN>::NegotiationCounter::negotiate_sleep(
-    int ms_timeout, cnt_t my_stamp) noexcept
+    int ms_timeout, cnt_t my_stamp, unsigned us_override) noexcept
 {
     int slot = (int)((unsigned)ProcessCounter::id() % NEGOTIATE_SLEEP_SLOTS);
     auto &st = s_sleep_slots[slot];
@@ -470,8 +470,9 @@ void Node<XN>::NegotiationCounter::negotiate_sleep(
     // Physical chunk length = ms_timeout * KAME_NEG_SLEEP_US_PER_MS µs
     // (default 1000 → the original 1 ms; smaller tightens the re-check /
     // notify cadence now that __ulock makes sub-ms waits cheap).
-    unsigned us = (ms_timeout > 0)
-        ? (unsigned)ms_timeout * (unsigned)KAME_NEG_SLEEP_US_PER_MS : 0u;
+    unsigned us = us_override ? us_override
+        : ((ms_timeout > 0)
+           ? (unsigned)ms_timeout * (unsigned)KAME_NEG_SLEEP_US_PER_MS : 0u);
 #if KAME_STM_NEG_DIAG
     {
         auto &d = detail::neg_diag();
@@ -1175,6 +1176,29 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif
     const float mult_wait = m_mult_wait;
     auto &started_time = snap.m_started_time;
+    //! Wait budget (absolute µs, 0 = none) — see Transactional::ScopedWaitBudget.
+    //!
+    //! Read here, once per call, and NOT captured in the Snapshot.  An earlier
+    //! version stored it in a `Snapshot::m_wait_limit` filled by the ctors that
+    //! stamp `m_started_time`, on the theory that the sleep loop should read a
+    //! member rather than TLS.  Measured, that cost 1.9 % at 8 threads and
+    //! 0.9 % at 4 (7 interleaved reps; lower in 6 of 7 at 4 threads) — because
+    //! the ctors are the hot path and this function is not.  The member bought
+    //! nothing anyway: the value is hoisted into this local once per call, so
+    //! the loop never touched TLS in either version.  Reading live is also the
+    //! more honest semantics for an ambient budget.
+    //!
+    //! Every use below is guarded on it being nonzero, so a thread that never
+    //! constructs a ScopedWaitBudget executes exactly the pre-existing code.
+#if KAME_STM_WAIT_BUDGET
+    // Filled from the same single TLS read that yields `entry_pr` below.
+    int64_t _wb_limit = 0;
+#else
+    // Compiled out: every `if(_wb_limit && ...)` below folds to nothing, so
+    // one gate covers all five use sites without scattering #if through the
+    // sleep loop.
+    constexpr int64_t _wb_limit = 0;
+#endif
     auto &tid_bitset = snap.m_tid_bitset;
     // Single now_us() snapshot: livelock-probe window, livelock age and
     // the per-call-site adaptive NORMAL-lease expiry check below all
@@ -1185,7 +1209,13 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     // Priority is a per-thread/per-Tx invariant for the duration of this
     // call: read it once and reuse for both the livelock-probe block and
     // the per-call-site adaptive gate decision below.
+#if KAME_STM_WAIT_BUDGET
+    const Priority entry_pr = [&]{ const auto &c = currentTxContext();
+                                   _wb_limit = c.wait_limit;
+                                   return c.priority; }();
+#else
     const Priority entry_pr = getCurrentPriorityMode();
+#endif
 
     // Compute popcount once per call; the live tid_bitset is unchanged
     // until the loop body's first iteration adds new entries.
@@ -1932,6 +1962,11 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             const int min_r = effective_min_runners(C_obs);
             auto t_end = Node<XN>::NegotiationCounter::now_us()
                          + (int64_t)ms_actual * 1000;
+            // A round may not outlive the caller's wait budget.  This alone is
+            // not enough — a chunk can still overshoot by its own length — so
+            // the per-chunk clamp below handles the sub-millisecond tail.
+            if(_wb_limit && t_end > _wb_limit)
+                t_end = _wb_limit;
             do {
                 // Advance seed for de-phasing; chunk sleep = 1 or 2 ms.
                 s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
@@ -2036,7 +2071,18 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     if(snap.m_registered_privileged) ++_d.sleeps_priv;
                 }
 #endif
-                NegotiationCounter::negotiate_sleep(1, started_time);
+                {
+                    unsigned _chunk_us_ov = 0;
+                    if(_wb_limit) {
+                        const int64_t _rem =
+                            _wb_limit - NegotiationCounter::now_us();
+                        if(_rem <= 0) { if( !_fair_blocks) goto _exit_cv_sleep; }
+                        else if(_rem < (int64_t)KAME_NEG_SLEEP_US_PER_MS)
+                            _chunk_us_ov = (unsigned)_rem;
+                    }
+                    NegotiationCounter::negotiate_sleep(1, started_time,
+                                                        _chunk_us_ov);
+                }
 #else
 #if KAME_STM_NEG_DIAG
                 {   // (diag) do we still own tags while going to sleep?
@@ -2057,8 +2103,30 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     if(snap.m_registered_privileged) ++_d.sleeps_priv;
                 }
 #endif
-                NegotiationCounter::negotiate_sleep(
-                    1 + (int)(s_backoff_seed >> 31), started_time);
+                {
+                    int _chunk_ms = 1 + (int)(s_backoff_seed >> 31);
+                    unsigned _chunk_us_ov = 0;
+                    if(_wb_limit) {
+                        const int64_t _rem =
+                            _wb_limit - NegotiationCounter::now_us();
+                        if(_rem <= 0) {
+                            // Budget spent.  Stop waiting and go attempt —
+                            // unless a peer holds privilege, in which case
+                            // barging would break the arbitration and the only
+                            // correct answer today is to keep waiting.  That is
+                            // the one way a budget can be exceeded, and it is
+                            // what the privilege-claim-on-exhaustion step is
+                            // for; until then, fall through unclamped.
+                            if( !_fair_blocks)
+                                goto _exit_cv_sleep;
+                        }
+                        else if(_rem < (int64_t)_chunk_ms
+                                       * (int64_t)KAME_NEG_SLEEP_US_PER_MS)
+                            _chunk_us_ov = (unsigned)_rem;
+                    }
+                    NegotiationCounter::negotiate_sleep(
+                        _chunk_ms, started_time, _chunk_us_ov);
+                }
 #endif
             } while(Node<XN>::NegotiationCounter::now_us() < t_end);
 #else
@@ -2081,9 +2149,28 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     if(snap.m_registered_privileged) ++_d.sleeps_priv;
                 }
 #endif
-            NegotiationCounter::negotiate_sleep(ms_actual, started_time);
+            {
+                unsigned _us_ov = 0;
+                if(_wb_limit) {
+                    const int64_t _rem =
+                        _wb_limit - NegotiationCounter::now_us();
+                    if(_rem <= 0) { if( !_fair_blocks) goto _exit_cv_sleep; }
+                    else if(_rem < (int64_t)ms_actual
+                                   * (int64_t)KAME_NEG_SLEEP_US_PER_MS)
+                        _us_ov = (unsigned)_rem;
+                }
+                NegotiationCounter::negotiate_sleep(ms_actual, started_time,
+                                                    _us_ov);
+            }
 #endif
         }
+        // Wait budget: the caller said how long it is willing to wait, so this
+        // escape comes before the tuning knobs below — those are policy we
+        // chose, this is an instruction we were given.  Yields to a privilege
+        // holder like every other escape here.
+        if(_wb_limit && !_fair_blocks
+           && NegotiationCounter::now_us() >= _wb_limit)
+            break;
 #if KAME_STM_UNTAGGED_RETURN_MS
         // (B) No tag => never failed a CAS => no evidence we would lose, so
         // escalating the wait is backwards.  Return and let the attempt

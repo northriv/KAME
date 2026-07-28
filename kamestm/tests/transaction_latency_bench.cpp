@@ -55,6 +55,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <thread>
 #include <vector>
 
@@ -227,7 +228,8 @@ enum Mode { M_LEAF = 0, M_GRAND = 1, M_MIXED = 2 };
 static const std::uint64_t kSlowNs = 100000ull;
 
 static Hist run_arm(Mode mode, int threads, double secs, double warmup,
-                    int grand_pct, double *out_secs, Retries *out_r
+                    int grand_pct, int wait_budget_us,
+                    double *out_secs, Retries *out_r
 #if KAME_STM_NEG_DIAG
                     , NegDiagAcc *out_d
 #endif
@@ -276,6 +278,16 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
 #endif
             std::uint64_t c0 = measure ? g_sys_commits.load(std::memory_order_relaxed) : 0;
             std::uint64_t t0 = measure ? now_ns() : 0;
+            // One budget per commit: the analogue of a driver cycle.  Declared
+            // inside the timed region on purpose — its cost (one clock read +
+            // two TLS accesses) is part of what the caller pays.
+#if KAME_STM_WAIT_BUDGET
+            std::unique_ptr<Transactional::ScopedWaitBudget> _wb;
+            if(wait_budget_us)
+                _wb.reset(new Transactional::ScopedWaitBudget(wait_budget_us));
+#else
+            (void)wait_budget_us;
+#endif
             if(do_grand)
                 grand->iterate_commit([&](Tr &tr) {
                     ++attempts;
@@ -331,7 +343,7 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
 }
 
 int main(int argc, char **argv) {
-    int threads = 4, grand_pct = 10;
+    int threads = 4, grand_pct = 10, wait_budget_us = 0;
     double secs = 2.0, warmup = 0.5;
     const char *mode = "all";
     for(int i = 1; i < argc; i++) {
@@ -340,10 +352,11 @@ int main(int argc, char **argv) {
         else if( !std::strcmp(argv[i], "-w") && i + 1 < argc) warmup = std::atof(argv[++i]);
         else if( !std::strcmp(argv[i], "-x") && i + 1 < argc) grand_pct = std::atoi(argv[++i]);
         else if( !std::strcmp(argv[i], "-m") && i + 1 < argc) mode = argv[++i];
+        else if( !std::strcmp(argv[i], "-b") && i + 1 < argc) wait_budget_us = std::atoi(argv[++i]);
         else {
             std::fprintf(stderr,
                 "usage: %s [-t THREADS] [-s SEC] [-w WARMUP] [-x GRAND%%] "
-                "[-m leaf|grand|mixed|all]\n", argv[0]);
+                "[-m leaf|grand|mixed|all] [-b WAIT_BUDGET_US]\n", argv[0]);
             return 2;
         }
     }
@@ -379,9 +392,11 @@ int main(int argc, char **argv) {
         Retries r;
 #if KAME_STM_NEG_DIAG
         NegDiagAcc dg;
-        Hist h = run_arm(a.m, threads, secs, warmup, grand_pct, &el, &r, &dg);
+        Hist h = run_arm(a.m, threads, secs, warmup, grand_pct,
+                         wait_budget_us, &el, &r, &dg);
 #else
-        Hist h = run_arm(a.m, threads, secs, warmup, grand_pct, &el, &r);
+        Hist h = run_arm(a.m, threads, secs, warmup, grand_pct,
+                         wait_budget_us, &el, &r);
 #endif
         report(a.name, h, el);
         // If slow commits show ~1 attempt, the time is spent INSIDE one

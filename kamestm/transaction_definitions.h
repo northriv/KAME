@@ -362,6 +362,16 @@
 //! (so it grants one early return and then escalation resumes), this is a
 //! bound, and the number has units: the latency you are willing to accept
 //! before spending an attempt.  0 disables.
+// Wait budget (Transactional::ScopedWaitBudget): a caller-supplied soft
+// bound on how long negotiation may WAIT.  Default ON — it is a feature,
+// not a tuning knob.  The gate exists so a build can prove the negotiator
+// is byte-identical without it, and so a minimal embedding can drop it.
+// With 0 the API is not declared at all, so a caller that expects a budget
+// gets a compile error rather than a silent no-op.
+#ifndef KAME_STM_WAIT_BUDGET
+#define KAME_STM_WAIT_BUDGET 1
+#endif
+
 #ifndef KAME_STM_RETURN_CEILING_MS
 #define KAME_STM_RETURN_CEILING_MS 0
 #endif
