@@ -268,6 +268,42 @@ inline uint64_t XPrimaryDriver::RawDataReader::pop() {
     if(it + sizeof(int64_t) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
     return static_cast<uint64_t>(pop_int64_t());
 }
+// `int64_t` is `long` on LP64 Linux but `long long` on macOS (and on Windows),
+// so the specialization tables here cover a DIFFERENT pair of C++ types on each
+// platform: `push<long long>` / `pop<size_t>` compiles on exactly one of them
+// and is an undefined symbol on the other.  Add the OTHER 8-byte spelling —
+// whichever of {long, long long} is not already int64_t — so driver source is
+// portable either way.  Naming it with conditional_t rather than an #ifdef is
+// what keeps this from becoming a duplicate specialization on the platform
+// where the two spellings coincide.
+//
+// Guarded on __SIZEOF_LONG__ == 8: under Windows LLP64 `long` is 32-bit, so
+// there is no second 8-byte spelling to add (and pushing a 32-bit `long`
+// through push_int64_t would be wrong).
+#include <type_traits>
+#if defined __SIZEOF_LONG__ && (__SIZEOF_LONG__ == 8)
+//! The 8-byte signed/unsigned integer type that is NOT int64_t/uint64_t.
+using kame_alt_int64_t = std::conditional<
+    std::is_same<int64_t, long long>::value, long, long long>::type;
+using kame_alt_uint64_t = std::conditional<
+    std::is_same<uint64_t, unsigned long long>::value,
+    unsigned long, unsigned long long>::type;
+#endif
+
+// See the matching note next to RawData::push(uint64_t): int64_t is `long` on
+// LP64 Linux and `long long` on macOS, so cover the other 64-bit spelling too.
+#if defined __SIZEOF_LONG__ && (__SIZEOF_LONG__ == 8)
+template <>
+inline kame_alt_int64_t XPrimaryDriver::RawDataReader::pop() {
+    if(it + sizeof(int64_t) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+    return static_cast<kame_alt_int64_t>(pop_int64_t());
+}
+template <>
+inline kame_alt_uint64_t XPrimaryDriver::RawDataReader::pop() {
+    if(it + sizeof(int64_t) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+    return static_cast<kame_alt_uint64_t>(pop_int64_t());
+}
+#endif
 template <>
 inline float XPrimaryDriver::RawDataReader::pop() {
 	if(it + sizeof(float) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
@@ -318,6 +354,17 @@ template <>
 inline void XPrimaryDriver::RawData::push(uint64_t x) {
     push_int64_t(static_cast<int64_t>(x));
 }
+// kame_alt_int64_t / kame_alt_uint64_t: see the note above the pop() pair.
+#if defined __SIZEOF_LONG__ && (__SIZEOF_LONG__ == 8)
+template <>
+inline void XPrimaryDriver::RawData::push(kame_alt_int64_t x) {
+    push_int64_t(static_cast<int64_t>(x));
+}
+template <>
+inline void XPrimaryDriver::RawData::push(kame_alt_uint64_t x) {
+    push_int64_t(static_cast<int64_t>(x));
+}
+#endif
 template <>
 inline void XPrimaryDriver::RawData::push(float f) {
 	union {

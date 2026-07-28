@@ -709,12 +709,19 @@ int ni_usb_read(gpib_board_t *board, uint8_t *buffer, size_t length, int *end, s
 		kfree(in_data);
 		return parse_retval;
 	}
-	kfree(in_data);
+	/* KAME: upstream linux-gpib 4.3.6 frees in_data here and then hands the
+	   same pointer to ni_usb_dump_raw_block() a few lines below — a heap
+	   use-after-free on the length-mismatch error path.  Harmless-looking in
+	   the kernel driver (it only reads), but this file is now compiled into
+	   the userspace port, where the freed block is immediately recycled by
+	   the process allocator.  Free after the last read instead.  Reported by
+	   GCC as -Wuse-after-free. */
 	if(actual_length != length - status.count)
 	{
 		printk("%s: %s: actual_length=%i expected=%li\n", __FILE__, __FUNCTION__, actual_length, (long)(length - status.count));
 		ni_usb_dump_raw_block(in_data, usb_bytes_read);
 	}
+	kfree(in_data);
 	switch(status.error_code)
 	{
 	case NIUSB_NO_ERROR:

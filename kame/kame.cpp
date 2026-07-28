@@ -159,22 +159,34 @@ FrmKameMain::FrmKameMain()
 
     //rearranges window positions, sizes.
     QRect rect = dockLeft->window()->windowHandle()->screen()->availableGeometry();
-    dockLeft->setFloating(true);
-    dockLeft->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
-        Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
-    dockLeft->setWindowOpacity(0.8);
-    dockLeft->resize(std::max(rect.width() / 5, XMessageBox::form()->width() + 80),
-        std::max(rect.height() / 2, 360));
-    dockLeft->move(0, rect.top());
-    dockRight->setFloating(true);
-    dockRight->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
-        Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
-    dockRight->setWindowOpacity(0.8);
-    dockRight->resize(std::max(rect.width() / 5, 450), dockLeft->height());
-    dockRight->move(rect.right() - dockRight->frameSize().width() - 6, rect.top());
+    // The three-pane layout below detaches both toolboxes into free-floating
+    // always-on-top tool windows and positions them by hand.  Wayland's
+    // xdg-shell has no client-side positioning: move(), raise() and
+    // WindowStaysOnTopHint are all silently ignored by Qt's wayland plugin, so
+    // the two toolboxes would be dumped wherever the compositor felt like —
+    // typically stacked over the main window.  Keep them docked there; the
+    // result is a conventional single-window layout instead of a broken
+    // floating one.  X11/XWayland, macOS and Windows are unaffected.
+    bool can_place_windows = !QGuiApplication::platformName().startsWith("wayland");
+    if(can_place_windows) {
+        dockLeft->setFloating(true);
+        dockLeft->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
+            Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
+        dockLeft->setWindowOpacity(0.8);
+        dockLeft->resize(std::max(rect.width() / 5, XMessageBox::form()->width() + 80),
+            std::max(rect.height() / 2, 360));
+        dockLeft->move(0, rect.top());
+        dockRight->setFloating(true);
+        dockRight->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
+            Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
+        dockRight->setWindowOpacity(0.8);
+        dockRight->resize(std::max(rect.width() / 5, 450), dockLeft->height());
+        dockRight->move(rect.right() - dockRight->frameSize().width() - 6, rect.top());
+    }
     //The following 2 lines should be after setting up docks. Otherwise, crashes in windows.
     resize(QSize(std::max(rect.width() / 4, 500), minimumHeight()));
-    move((rect.width() - frameSize().width()) / 2, rect.top());
+    if(can_place_windows)
+        move((rect.width() - frameSize().width()) / 2, rect.top());
 
     // The root for all nodes.
     m_measure = XNode::createOrphan<XMeasure>("Measurement", false);

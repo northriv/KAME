@@ -16,14 +16,16 @@ Verified on Ubuntu 24.04 / Qt 6.4.2 / GCC 13.3 / glibc 2.39, x86-64.
 
 ```bash
 sudo apt-get install -y \
-    qt6-base-dev qt6-base-dev-tools qt6-5compat-dev qt6-tools-dev \
+    qt6-base-dev qt6-base-dev-tools qt6-tools-dev \
     qt6-tools-dev-tools libgl1-mesa-dev libglu1-mesa-dev \
     libgsl-dev libfftw3-dev libltdl-dev libeigen3-dev zlib1g-dev \
     libusb-1.0-0-dev ruby-dev python3-dev python3-pybind11
 ```
 
-* **Qt 6** needs the `core5compat` (QTextCodec) and `uitools` modules; Qt 5
-  works too, minus the Qt 6-only `QT +=` lines in `kame.pri`.
+* **Qt 6** needs only `qt6-base-dev` plus `uitools` (`qt6-tools-dev`); Qt 5
+  works too, minus the Qt 6-only `QT +=` lines in `kame.pri`.  `core5compat`
+  used to be required and no longer is — the only thing that pulled it in was
+  a dead `#include <QTextCodec>`.
 * **Ruby** headers are mandatory — `script/xrubysupport.cpp` is compiled
   unconditionally.  `kame/kame.pro` asks the interpreter for its header path
   via `RbConfig`, so any packaged or rbenv/rvm Ruby works.  Verified working
@@ -57,8 +59,29 @@ sudo apt-get install -y \
   remains available as a separate `Device` option either way.  Note the
   shim's `osx_compat.h` keeps its historical name but is plain POSIX; no
   Linux-specific compat header is needed.
-* NI-DAQmx (`modules/nidaq`) and the Cypress/Digilent vendor SDKs are not
-  packaged; those modules build only if you provide the SDKs yourself.
+* **Vendor SDKs.**  `modules/nidaq` (NI-DAQmx), `modules/digilentwf`
+  (WaveForms) and the Euresys eGrabber camera backend now have real Linux
+  probes: install the vendor package and the drivers appear; without it the
+  module still builds but registers nothing (rather than registering drivers
+  whose hardware calls have been compiled away, which is what happened
+  before).  `libdc1394` (IIDC cameras) and `libusb` (Ocean Optics, Thamway
+  Cypress FX2/FX3) are probed with pkg-config.
+* **USB device permissions.**  Every USB path goes through libusb from an
+  unprivileged process, so `/dev/bus/usb` must be writable by the user.
+  Install the shipped rules:
+
+  ```bash
+  sudo install -m 644 kame/70-kame.rules /etc/udev/rules.d/70-kame.rules
+  sudo udevadm control --reload-rules && sudo udevadm trigger
+  ```
+
+  For RS-232 and Prologix GPIB-USB adapters (`/dev/ttyUSB*`, `/dev/ttyACM*`)
+  add yourself to `dialout` instead: `sudo usermod -aG dialout $USER`.
+* **mlock.**  KAME pins realtime acquisition buffers.  The default
+  `RLIMIT_MEMLOCK` on systemd distros is 8 MB, which is not enough; KAME now
+  says so on stderr at startup and disables pinning rather than silently
+  failing.  Raise it (`/etc/security/limits.d/`, or `LimitMEMLOCK=` in a
+  systemd unit) or pass `--nomlock`.
 
 ## Build
 
@@ -93,27 +116,34 @@ nothing on the terminal even when it ran perfectly.  Write to a file instead.
 
 ## Running from the build tree
 
-Modules are not installed by `make`, and KAME searches
-`<dir>/coremodules`, `<dir>/coremodules2` and `<dir>/modules` under each
-`--moduledir`.  Stage them once:
+The build now groups the driver modules the way KAME searches for them, under
+`build/bin/{coremodules,coremodules2,modules}`, and `build/bin` is
+`applicationDirPath()` — which is one of `QApplication::libraryPaths()`.  So
+the build tree just runs:
 
 ```bash
-mkdir -p mods/coremodules mods/coremodules2 mods/modules
-for f in $(find modules -name 'lib*.so' -o -name 'lib*.so.1.0.0'); do
-    b=$(basename "$f")
-    case "$b" in *core.so*) d=mods/coremodules;; *) d=mods/modules;; esac
-    cp "$f" "$d/"
-    case "$b" in *.so.1.0.0) ln -sf "$b" "$d/${b%.so.1.0.0}.so";; esac
-done
-./bin/kame --moduledir "$PWD/mods"
+./bin/kame
 ```
 
-The loader is order-independent (it retries until no further module opens),
-so the coremodules/modules split above is a convenience, not a requirement.
+`--moduledir <path>` still overrides the search, and the loader is
+order-independent (it retries until no further module opens), so the
+coremodules/modules split is a convenience rather than a requirement.
 
-`make install` puts the modules in `$$[QT_INSTALL_LIBS]/modules` and the
-scripts in `$PREFIX/share/kame` (`PREFIX` defaults to `/usr/local`), which is
-where `QStandardPaths::AppDataLocation` finds them.
+## Installing
+
+```bash
+qmake6 ../kame.pro PREFIX=/usr/local
+make -j$(nproc) && sudo make install
+```
+
+This installs the executable to `$PREFIX/bin`, the driver modules to
+`$PREFIX/lib/kame/{coremodules,coremodules2,modules}`, the deployed scripts,
+manual, `kame_ja.qm` and Thamway firmware to `$PREFIX/share/kame`, the
+`.desktop` entry to `$PREFIX/share/applications`, the icons into the hicolor
+theme, and the udev rules to `$PREFIX/lib/udev/rules.d`.  `main.cpp` searches
+`$PREFIX/lib/kame` and the XDG data dirs in addition to
+`QApplication::libraryPaths()`, so an installed KAME finds its drivers with no
+`--moduledir`.
 
 ## Interface smoke test (no hardware)
 
@@ -123,7 +153,7 @@ reported rather than to crash:
 
 ```bash
 ./bin/kame --moduledir "$PWD/mods" ../tools/iftest_serial_gpib.py
-cat /tmp/kame_iftest.txt
+cat "${TMPDIR:-/tmp}/kame_iftest.txt"
 ```
 
 Verified results on this port: SERIAL and Prologix both fail cleanly on a
@@ -161,4 +191,17 @@ not the port.
   ptys and simulators (see above); no real instrument, and no NI USB-GPIB
   adapter, has been attached.
 * The GUI has only been run under `offscreen`.  OpenGL plotting
-  (`graphpaintergl.cpp`) is untested on a real X11/Wayland session.
+  (`graphpaintergl.cpp`) is untested on a real X11/Wayland session.  Two known
+  Linux-specific rendering issues are *not* fixed, because neither can be
+  judged without a real display:
+  * `kame/graph/x2dimage.cpp` `applyDisplayGamma()` compensates for the macOS
+    Metal/sRGB framebuffer applying 1/2.2 automatically.  Desktop GL only does
+    that with `GL_FRAMEBUFFER_SRGB`, which KAME never enables — so camera /
+    ODMR images are likely to render too dark on Linux.
+  * `USE_PBO` (`kame/graph/graphpainter.h`) is gated on `__APPLE__`, so the
+    graph-persistence feature falls back to a per-frame
+    `glReadPixels`/`glDrawPixels` round trip through host memory.  PBOs are
+    core GL 2.1 and universally available on Linux; the gate is historical.
+  * Under a **Wayland** session the two toolbox panes stay docked instead of
+    floating beside the main window (xdg-shell has no client-side window
+    positioning).  X11/XWayland gets the original three-pane layout.

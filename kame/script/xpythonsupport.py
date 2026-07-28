@@ -948,7 +948,11 @@ def kame_handle_link(action):
 			elif _sys == 'Windows':
 				_sp.Popen(['cmd', '/c', 'start', '', 'Claude'])
 			else:
-				_sp.Popen(['claude'])
+				# There is no Claude desktop app on Linux.  Running the bare
+				# `claude` CLI with inherited stdio and no tty (which is what
+				# this used to do) does nothing visible, so fall through to the
+				# terminal path instead of pretending it worked.
+				return kame_handle_link('claude-cli')
 			MYDEFOUT.write("#Launched Claude app.")
 		elif action == 'claude-cli':
 			_wd = _kame_workspace_dir()
@@ -960,8 +964,34 @@ def kame_handle_link(action):
 			elif _sys == 'Windows':
 				_sp.Popen(['cmd', '/c', 'start', 'cmd', '/k', 'cd /d "{}" && claude'.format(_wd)])
 			else:
+				# `x-terminal-emulator` is a Debian/Ubuntu alternatives symlink
+				# — absent on Fedora, RHEL, openSUSE, Arch and most container
+				# images — and not every terminal accepts `-e`.  Probe a list,
+				# each with the flag it actually wants, honouring $TERMINAL.
+				import shutil as _shutil
 				_inner = 'cd {} && claude; exec bash'.format(_shlex.quote(_wd))
-				_sp.Popen(['x-terminal-emulator', '-e', 'bash', '-lc', _inner])
+				_cands = []
+				if os.environ.get('TERMINAL'):
+					_cands.append((os.environ['TERMINAL'], '-e'))
+				_cands += [('x-terminal-emulator', '-e'), ('gnome-terminal', '--'),
+						   ('konsole', '-e'), ('xfce4-terminal', '-x'),
+						   ('kitty', '--'), ('alacritty', '-e'),
+						   ('wezterm', 'start'), ('foot', ''), ('xterm', '-e')]
+				for _term, _flag in _cands:
+					_path = _shutil.which(_term)
+					if not _path:
+						continue
+					_argv = [_path] + ([_flag] if _flag else []) + ['bash', '-lc', _inner]
+					try:
+						_sp.Popen(_argv)
+						break
+					except OSError:
+						continue
+				else:
+					MYDEFOUT.write_html('<font color="#cc0000">No terminal emulator found. '
+						'Set $TERMINAL, or run <tt>claude</tt> yourself in {}.</font>'.format(
+						html.escape(_wd)))
+					return
 			MYDEFOUT.write("#Launching Claude Code (terminal) in {} ...".format(_wd))
 		else:
 			MYDEFOUT.write_html('<font color="#cc0000">Unknown link action: {}</font>'.format(
@@ -1010,7 +1040,8 @@ else:
 			def on_timer(self):
 				loop = asyncio.get_event_loop()
 				try:
-					loop.run_until_complete(self.func())
+					if self.func is not None:
+						loop.run_until_complete(self.func())
 					if self.serverapp:
 						s = ''
 						for server in list(self.serverapp.list_running_servers()):
@@ -1137,7 +1168,17 @@ else:
 		kernel.shell.events.register('pre_run_cell', _kame_pre_run_cell)
 		kernel.shell.events.register('post_run_cell', _kame_post_run_cell)
 
-		kernel.timer = Timer(kernel.do_one_iteration)
+		# `Kernel.do_one_iteration` is the ipykernel <= 6 coroutine that pumps a
+		# single shell message.  ipykernel 7 removed it — the kernel runs its
+		# own anyio task and a `%gui` loop hook is only expected to pump the
+		# TOOLKIT's events — so calling it unconditionally raised
+		# AttributeError from a tornado callback on every tick (a fresh
+		# `pip install ipykernel` on Linux gets 7.x; macOS installs here are
+		# pinned to 6.x, which is why this never showed there).  Pass None and
+		# let on_timer() skip the call; the KAME-side work it also does
+		# (kame_pybind_one_iteration, notebook detection, stdout rebinding)
+		# still runs every tick, which is the part KAME actually needs.
+		kernel.timer = Timer(getattr(kernel, 'do_one_iteration', None))
 		kernel.timer.start()
 
 	@loop_kamepysupport.exit

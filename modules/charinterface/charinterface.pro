@@ -22,6 +22,10 @@ SOURCES += \
     tcp.cpp \
     modbusrtuinterface.cpp
 
+# Arbitrary serial line speeds (termios2/BOTHER).  Must be a separate TU:
+# <asm/termbits.h> and <termios.h> cannot coexist.  See the file header.
+unix:!macx: SOURCES += serial_custombaud_linux.c
+
 unix {
     # macOS finds libusb under MacPorts' prefix; elsewhere on Unix it is a
     # normal pkg-config package.  Probing only the MacPorts path meant Linux

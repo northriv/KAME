@@ -142,8 +142,13 @@ XFlowControllerDriver::onControlChanged(const Snapshot &shot, XValueNodeBase *) 
 }
 void *
 XFlowControllerDriver::execute(const atomic<bool> &terminated) {
-	double fs;
-	bool unit_in_slm;
+	// Both used to be uninitialized, and the catch below does not return — so
+	// a GPIB/serial timeout on driver start committed an indeterminate
+	// full-scale into the Payload (which then scales every subsequent
+	// reading) and an indeterminate unit label.  GCC's -Wmaybe-uninitialized
+	// flags it; clang does not.
+	double fs = 0.0;
+	bool unit_in_slm = false;
 	// try/catch exception of communication errors
 	try {
 		fs = getFullScale();
@@ -160,6 +165,7 @@ XFlowControllerDriver::execute(const atomic<bool> &terminated) {
 	}
 	catch (XKameError &e) {
 		e.print(getLabel() + " " + i18n("Read Error, "));
+		return NULL; //!< do not publish a fabricated full scale / unit.
 	}
 
 	iterate_commit([=](Transaction &tr){

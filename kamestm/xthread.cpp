@@ -116,14 +116,17 @@ void XCondition::broadcast() {
         if(usec > 0) {
             struct timespec abstime;
             timeval tv;
-            long nsec;
             gettimeofday(&tv, NULL);
-            abstime.tv_sec = tv.tv_sec;
-            nsec = (tv.tv_usec + usec) * 1000;
-            if(nsec >= 1000000000) {
-                nsec -= 1000000000; abstime.tv_sec++;
-            }
-            abstime.tv_nsec = nsec;
+            // Normalize by division, not by a single conditional subtraction.
+            // The old code computed `long nsec = (tv.tv_usec + usec) * 1000`
+            // and subtracted 1e9 at most once, so any usec >= ~1 s left
+            // tv_nsec >= 1e9 — pthread_cond_timedwait then returns EINVAL
+            // *immediately*, turning the timed wait into a busy spin.  On
+            // ILP32 the `long` multiply also overflowed above ~2.1 s.
+            // Compute in microseconds in a 64-bit type first.
+            int64_t total_usec = (int64_t)tv.tv_usec + (int64_t)usec;
+            abstime.tv_sec = tv.tv_sec + (time_t)(total_usec / 1000000);
+            abstime.tv_nsec = (long)((total_usec % 1000000) * 1000);
             ret = pthread_cond_timedwait(&m_cond, &m_mutex, &abstime);
         }
         else {

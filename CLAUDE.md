@@ -112,7 +112,7 @@ parent.iterate_commit_if([&](Transaction<NodeA> &tr) -> bool {
 - Each module subdirectory contains one or more drivers and registers them with the framework
 - Communication with hardware is abstracted in `modules/charinterface/` (serial, TCP, GPIB, USB)
 - Drivers are registered with `REGISTER_TYPE(XDriverList, ClassName, "Human-readable label")` — this is what populates the driver selection UI
-- `modules/charinterface/usermode-linux-gpib/` — userspace port of the NI USB-GPIB kernel driver (linux-gpib 4.3.6); compiles `ni_usb_gpib.c` unchanged, replacing all kernel APIs via `osx_compat.h` / `win_compat.h` shims (libusb + pthreads / Win32). Supports NI USB-B, USB-HS, USB-HS+, KUSB-488A, MC USB-488 without a kernel module. On macOS this is the only USB-GPIB path on Apple Silicon.
+- `modules/charinterface/usermode-linux-gpib/` — userspace port of the NI USB-GPIB kernel driver (linux-gpib 4.3.6); compiles `ni_usb_gpib.c` essentially unchanged, replacing all kernel APIs via `osx_compat.h` / `win_compat.h` shims (libusb + pthreads / Win32). Supports NI USB-B, USB-HS, USB-HS+, KUSB-488A, MC USB-488 without a kernel module. On macOS this is the only USB-GPIB path on Apple Silicon; on Linux it is used when libgpib is absent (`charinterface.pro` prefers `HAVE_LINUX_GPIB` when the kernel driver's headers are installed). The single deviation from upstream is a `kfree()` moved past its last read in `ni_usb_read()` — an upstream use-after-free that is benign in-kernel but not in userspace; mark any further deviation the same way (`/* KAME: … */`) so re-basing on a newer linux-gpib stays mechanical.
 
 ### Key Subsystems
 

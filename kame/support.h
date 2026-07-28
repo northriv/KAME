@@ -35,10 +35,22 @@
 #include <config.h>
 #endif
 
-#ifdef WORDS_BIGENDIAN
-#ifndef __BIG_ENDIAN__
-#define __BIG_ENDIAN__
-#endif
+// Byte order.  `__BIG_ENDIAN__` is predefined by clang/Apple GCC only; plain
+// GCC never defines it, and the only other thing that used to (autoconf's
+// WORDS_BIGENDIAN via config.h) went away with the autotools build.  So on
+// Linux/GCC every `#ifdef __BIG_ENDIAN__` in the raw-stream layer
+// (kame/driver/primarydriver.h push_*/pop_*, whose documented file format is
+// little-endian, and the camera mono16 swap in digitalcamera.cpp) was dead
+// code with no branch covering the platform at all — correct by accident on
+// x86-64/aarch64, silently wrong on s390x or ppc64be.  Derive it from the
+// compiler's own macros, which GCC, clang and MSVC (little-endian only) all
+// provide, and keep WORDS_BIGENDIAN honoured for anyone still passing it.
+#if defined WORDS_BIGENDIAN || \
+    (defined __BYTE_ORDER__ && defined __ORDER_BIG_ENDIAN__ && \
+     __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+    #ifndef __BIG_ENDIAN__
+        #define __BIG_ENDIAN__
+    #endif
 #endif
 
 #define _USE_MATH_DEFINES

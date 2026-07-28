@@ -1,12 +1,13 @@
-# KDE Config File  
 [Desktop Entry]
-Encoding=UTF-8
 Type=Application
-Exec=kame -caption "%c" %i %m  
-Icon=kame.png
-DocPath=kame/index.html
-Comment=
-Comment[de]=
-Terminal=0
 Name=KAME
-Name[de]=KAME
+GenericName=Measurement Engine
+GenericName[ja]=計測エンジン
+Comment=Scientific instrument control and measurement
+Comment[ja]=科学計測・装置制御
+Exec=kame %f
+Icon=kame
+Terminal=false
+Categories=Science;Physics;Education;Qt;
+MimeType=application/x-kame;
+Keywords=measurement;instrument;NMR;acquisition;

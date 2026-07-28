@@ -14,9 +14,17 @@
 #include "dummyport.h"
 
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
-	#define DUMMYPORT_FILENAME "kamedummyport.log"
+	static XString dummyPortFilename() {return "kamedummyport.log";}
 #else
-	#define DUMMYPORT_FILENAME "/tmp/kamedummyport.log"
+	#include <unistd.h>
+	// Same reasoning as kame/support.cpp's debug log: a fixed name in a
+	// world-writable /tmp cannot be opened by a second user on a shared
+	// machine, and the failure is silent.  Qualify by uid.
+	static XString dummyPortFilename() {
+		const char *tmp = getenv("TMPDIR");
+		if( !tmp || !tmp[0]) tmp = "/tmp";
+		return formatString("%s/kamedummyport-%lu.log", tmp, (unsigned long)getuid());
+	}
 #endif
 
 XDummyPort::XDummyPort(XCharInterface *interface) :
@@ -30,7 +38,7 @@ XDummyPort::~XDummyPort()
 }
 shared_ptr<XPort> XDummyPort::open(const XCharInterface *pInterface)
 {
-    m_stream.open(DUMMYPORT_FILENAME, std::ios::out);
+    m_stream.open(dummyPortFilename().c_str(), std::ios::out);
     return shared_from_this();
 }
 void

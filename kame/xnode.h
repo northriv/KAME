@@ -272,7 +272,12 @@ template <>
 inline void
 XIntNodeBase<unsigned long, 16>::Payload::str_(const XString &str) {
     bool ok;
-    unsigned int var = QString(str).toULong(&ok, 16);
+    // Was `unsigned int var`: QString::toULong() returns ulong (64-bit on
+    // LP64) and the node stores `unsigned long`, so a hex string above
+    // 0xFFFFFFFF was silently reduced mod 2^32 on the way in while to_str()
+    // printed the full width on the way out.  Matches the XULongNode
+    // specialisation now.
+    unsigned long var = QString(str).toULong(&ok, 16);
     if( !ok)
         throw XKameError(i18n("Ill string conversion to hex."), __FILE__, __LINE__);
     *this = var;
