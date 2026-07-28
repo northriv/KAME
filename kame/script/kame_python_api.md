@@ -180,7 +180,7 @@ to force forward progress; a longer threshold = more deferential.
 
 | Level | Threshold | Use case |
 |---|---|---|
-| `HIGHEST` / `NORMAL` | ~300 µs | Measurement, driver activity |
+| `NORMAL` | ~300 µs | Measurement, driver activity |
 | `UI_DEFERRABLE` | 50 ms | Interactive UI updates |
 | `LOWEST` | 30 ms | Bulk / analysis |
 | `SCRIPTING` | **1 s** | **External scripting (MCP / AI / ZMQ)** — yields to *everything* for the first second of contention before escalating; ensures the script command eventually completes without disrupting a live measurement |

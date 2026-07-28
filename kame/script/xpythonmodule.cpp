@@ -569,7 +569,21 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .value("NORMAL",        Transactional::Priority::NORMAL)
         .value("LOWEST",        Transactional::Priority::LOWEST)
         .value("UI_DEFERRABLE", Transactional::Priority::UI_DEFERRABLE)
-        .value("HIGHEST",       Transactional::Priority::HIGHEST)
+        //! HIGHEST is deliberately NOT exposed.  It is not a priority: the
+        //! negotiator's only special case for it is
+        //! `if(entry_pr == Priority::HIGHEST) break;` at the top of the round
+        //! loop, so the thread stops waiting for anyone — but nothing makes
+        //! anyone wait for IT.  Deference comes solely from a Reserved
+        //! (privilege) stamp, which `fair_mode_blocks_me` checks and which is
+        //! granted priority-blind.  Measured: one HIGHEST thread among seven
+        //! NORMAL claims privilege never (0.000/slow commit) and needs it
+        //! never (5 slow commits in 4 s) because its peers are asleep; two
+        //! HIGHEST threads collide and slow commits go 5 -> 1334, and four
+        //! cost 10x throughput, eight 42x.  A name that reads as "go faster"
+        //! for something that mainly makes everyone else slower does not
+        //! belong in a scripting API.  A script that wants bounded latency
+        //! wants `ScopedWaitBudget`, which says how long it is willing to wait
+        //! instead of refusing to wait at all.
         .value("SCRIPTING",     Transactional::Priority::SCRIPTING)
         .export_values();
     //! `setCurrentPriorityMode` enforces a one-way trapdoor at
@@ -586,6 +600,17 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
     //! and can switch freely among the non-SCRIPTING levels, since
     //! the trapdoor only triggers once SCRIPTING has been set.
     m.def("setCurrentPriorityMode", [](Transactional::Priority pr){
+        // The enum value is not exported, but pybind11 will still construct a
+        // Priority from an int, so reject it here too rather than rely on the
+        // name being absent.
+        if(pr == Transactional::Priority::HIGHEST)
+            throw std::runtime_error(
+                "Priority::HIGHEST is not available from scripts.  It does not "
+                "prioritise the caller — it only stops the caller from waiting, "
+                "while nothing makes its peers wait for it, and two such "
+                "threads starve each other.  Use a wait budget "
+                "(Transactional::ScopedWaitBudget on the C++ side) to bound "
+                "latency instead.");
         auto cur = Transactional::getCurrentPriorityMode();
         if(cur == Transactional::Priority::SCRIPTING
            && pr != Transactional::Priority::SCRIPTING) {
