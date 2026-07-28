@@ -47,6 +47,11 @@ static const char *kWcetBackend = "malloc/free (allocator chosen by LD_PRELOAD)"
 // Stand-ins for the realtime API, which is kamepoolalloc's alone.  A stock
 // allocator has no equivalent, so the "RT" arm degenerates into a second
 // untuned arm — which is the correct control, not a defect.
+// Mirrors the levels in ../../kame_pool.h, which this arm deliberately does
+// not include (the whole point is to run the harness against whatever
+// allocator LD_PRELOAD supplies).  Kept as named constants rather than bare
+// 1/0 at the call sites so both arms read the same.
+enum { KAME_RT_OFF = 0, KAME_RT_DEFER = 1, KAME_RT_STRICT = 2 };
 static inline void kame_pool_set_realtime_thread(int) {}
 static inline void kame_pool_set_realtime_mode(int) {}
 static inline void kame_pool_rt_drain() {}
