@@ -1036,6 +1036,14 @@ else:
 						+ self.logfilename + r'">' + html.escape(self.logfilename) + '</a></font>')
 				TLS.logfile = open(self.logfilename, mode='a')
 				self.func = func
+				# The kernel's shell ZMQ stream, used by start() to notice a
+				# pending request and yield control back (see there).
+				self.shell_stream = None
+				try:
+					from ipykernel.eventloops import get_shell_stream
+					self.shell_stream = get_shell_stream(kernel)
+				except Exception:
+					self.shell_stream = getattr(kernel, 'shell_stream', None)
 
 			def on_timer(self):
 				loop = asyncio.get_event_loop()
@@ -1078,7 +1086,32 @@ else:
 				self.on_timer()  # Call it once to get things going.
 				while not is_main_terminated():
 					self.on_timer()
+					# YIELD BACK TO THE KERNEL when a shell message is waiting.
+					#
+					# A `%gui` loop hook owns the kernel's thread while it runs,
+					# so it must hand control back for the kernel to service
+					# requests -- that is what every stock loop_* in
+					# ipykernel.eventloops does (`if shell_stream.flush(limit=1):
+					# exit the toolkit main loop`).  ipykernel <= 6 let us get
+					# away with never returning because `kernel.do_one_iteration()`
+					# pumped one message per tick from inside the loop; ipykernel
+					# 7 removed that method, so without this check an external
+					# `jupyter console --existing` (and the MCP server, which
+					# uses the same channel) never gets an answer.
+					#
+					# Returning is safe and cheap: ipykernel re-enters the hook
+					# via enter_eventloop() after each message, and the teardown
+					# below is guarded on is_main_terminated() so it only runs
+					# when KAME is really quitting.
+					if self.shell_stream is not None:
+						try:
+							if self.shell_stream.flush(limit=1):
+								return
+						except Exception:
+							pass
+				self.finish()
 
+			def finish(self):
 				TLS.logfile.close()
 				TLS.logfile = None
 
@@ -1165,20 +1198,26 @@ else:
 					TLS.xscrthread["Status"] = "idle (Cell In[{}] {})".format(n, ok)
 			except Exception:
 				pass
-		kernel.shell.events.register('pre_run_cell', _kame_pre_run_cell)
-		kernel.shell.events.register('post_run_cell', _kame_post_run_cell)
-
-		# `Kernel.do_one_iteration` is the ipykernel <= 6 coroutine that pumps a
-		# single shell message.  ipykernel 7 removed it — the kernel runs its
-		# own anyio task and a `%gui` loop hook is only expected to pump the
-		# TOOLKIT's events — so calling it unconditionally raised
-		# AttributeError from a tornado callback on every tick (a fresh
-		# `pip install ipykernel` on Linux gets 7.x; macOS installs here are
-		# pinned to 6.x, which is why this never showed there).  Pass None and
-		# let on_timer() skip the call; the KAME-side work it also does
-		# (kame_pybind_one_iteration, notebook detection, stdout rebinding)
-		# still runs every tick, which is the part KAME actually needs.
-		kernel.timer = Timer(getattr(kernel, 'do_one_iteration', None))
+		# ONE-TIME SETUP.  Everything from here to Timer() must run exactly once
+		# per kernel, but loop_kamepysupport() itself is re-entered by ipykernel
+		# after every message it processes (see Timer.start()).  Without this
+		# guard the pre/post_run_cell hooks get registered again on each
+		# re-entry, the startup banner is reprinted into the Script pane, and
+		# the console log file is reopened -- all visible within seconds of the
+		# first external client connecting.
+		if getattr(kernel, 'timer', None) is None:
+			kernel.shell.events.register('pre_run_cell', _kame_pre_run_cell)
+			kernel.shell.events.register('post_run_cell', _kame_post_run_cell)
+			# `Kernel.do_one_iteration` is the ipykernel <= 6 coroutine that
+			# pumped one shell message per call.  ipykernel 7 removed it (the
+			# kernel drives its own anyio task and a `%gui` hook is expected
+			# only to pump the TOOLKIT), so calling it unconditionally raised
+			# AttributeError from a tornado callback on every tick -- a fresh
+			# `pip install ipykernel` gets 7.x.  Pass None and let on_timer()
+			# skip it; the KAME-side work (kame_pybind_one_iteration, notebook
+			# detection, stdout rebinding) still runs every tick, and
+			# Timer.start() yields to the kernel when a message is pending.
+			kernel.timer = Timer(getattr(kernel, 'do_one_iteration', None))
 		kernel.timer.start()
 
 	@loop_kamepysupport.exit

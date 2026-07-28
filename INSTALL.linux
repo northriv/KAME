@@ -5,9 +5,10 @@ tree accumulated a decade of macOS/Windows-only assumptions.  It builds and
 runs again as of 2026-07.
 
 **Status: unsupported.**  What has been verified is that it compiles, links,
-starts, loads all 43 driver modules with zero failures, and runs BOTH script
-engines — the embedded Python/pybind11 one and the Ruby one.  No instrument hardware has been exercised, and the GUI has only been
-smoke-tested with `QT_QPA_PLATFORM=offscreen`.  Treat it as a development
+installs, starts, loads all 43 driver modules with zero failures, runs BOTH
+script engines — the embedded Python/pybind11 one and the Ruby one — and
+renders its OpenGL graphs correctly on a real X11 server (see "GUI" below).
+No instrument hardware has been exercised.  Treat it as a development
 platform, not a deployment one.
 
 Verified on Ubuntu 24.04 / Qt 6.4.2 / GCC 13.3 / glibc 2.39, x86-64.
@@ -190,10 +191,11 @@ not the port.
 * **No hardware testing.**  Serial, GPIB and TCP are exercised only against
   ptys and simulators (see above); no real instrument, and no NI USB-GPIB
   adapter, has been attached.
-* The GUI has only been run under `offscreen`.  OpenGL plotting
-  (`graphpaintergl.cpp`) is untested on a real X11/Wayland session.  Two known
-  Linux-specific rendering issues are *not* fixed, because neither can be
-  judged without a real display:
+* **Wayland is untested.**  The GUI was verified on X11 only (Xvfb, see
+  below); under a Wayland session the toolbox panes stay docked by design (see
+  the last bullet).  Remaining Linux-specific rendering issues are *not*
+  fixed, because neither can be judged without real hardware or real image
+  data:
   * `kame/graph/x2dimage.cpp` `applyDisplayGamma()` compensates for the macOS
     Metal/sRGB framebuffer applying 1/2.2 automatically.  Desktop GL only does
     that with `GL_FRAMEBUFFER_SRGB`, which KAME never enables — so camera /
@@ -205,3 +207,26 @@ not the port.
   * Under a **Wayland** session the two toolbox panes stay docked instead of
     floating beside the main window (xdg-shell has no client-side window
     positioning).  X11/XWayland gets the original three-pane layout.
+
+## GUI
+
+Verified on a real X server.  No GPU is required — Mesa's llvmpipe software
+rasteriser drives `XQGraph`/`QOpenGLWidget` fine, which is also the easiest
+way to check the GUI on a headless box:
+
+```bash
+sudo apt-get install -y xvfb
+Xvfb :99 -screen 0 1600x1000x24 +extension GLX +render &
+DISPLAY=:99 QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 kame
+```
+
+What this exercises end to end: the three-pane layout, the driver/graph/
+calibration/node-browser toolboxes, `Measure` → create `TestDriver` → start it
+from the Interfaces pane, then Graph → New → pick the driver's X/Y scalar
+entries.  The graph window opens and plots live data; axis tics, tic labels,
+the legend box and window resize (`resizeGL`) all render correctly under
+software GL.
+
+To capture the result there is no need for a screenshot utility — Qt itself
+can grab the root window in ~10 lines
+(`QGuiApplication::primaryScreen()->grabWindow(0).save(path)`).
