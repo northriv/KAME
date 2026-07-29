@@ -55,10 +55,46 @@ public:
 	//! True if interface is opened. Start/stop interface.
 	const shared_ptr<XBoolNode> &control() const {return m_control;}
 
-    virtual void lock() {m_mutex.lock();}
+    //! Taking this lock while a Transaction is alive on the calling thread is
+    //! CLAUDE.md driver-authoring rule 5: interface I/O inside a transaction.
+    //! It re-runs on every CAS retry (re-issuing device commands), and it takes
+    //! a plain mutex from inside an in-flight transaction, which is the
+    //! deadlock class behind the 2026-07-10 negotiation stall.
+    //!
+    //! This is the one place that catches it completely.  Every I/O path passes
+    //! here: the 185 explicit `XScopedLock<XInterface>` sites in drivers, and
+    //! the verbs' own internal locks (e.g. XCharInterface::send).  So the check
+    //! sees arbitrary indirection depth and virtual dispatch, which no static
+    //! analysis of ours can — tools/audit/check_stm_closures.py only reaches
+    //! one call from the closure, and "am I inside a transaction" is a dynamic
+    //! property of the call stack that C++ has no way to express in a type.
+    //!
+    //! The predicate is exact rather than approximate: `detail::s_tx_nest` is
+    //! held for a Transaction's whole lifetime (its AcquireOneCount is a value
+    //! member) but only during a Snapshot's *construction* (a ctor local), so
+    //! ordinary `Snapshot shot(*this); ... interface()->query(...)` driver code
+    //! — the XDSO acquisition loop, for one — does not trip it.
+    virtual void lock() {
+#ifndef NDEBUG
+        reportIfInTransaction_();
+#endif
+        m_mutex.lock();
+    }
     virtual void unlock() {m_mutex.unlock();}
 
 	XRecursiveMutex &mutex() {return m_mutex;}
+
+#ifndef NDEBUG
+    //! Debug-only diagnostic for lock().  Reports once per (driver, priority)
+    //! and counts; set KAME_STM_ABORT_IO_IN_TX=1 to abort on the first hit.
+    //!
+    //! Reports rather than aborting by default because this is a diagnostic and
+    //! not a safeguard: an unknown number of sites may still reach it through
+    //! indirection the audit cannot see, and a debug build that aborts on the
+    //! first one is a debug build nobody runs.  The abort is there for whoever
+    //! is actually hunting one.
+    void reportIfInTransaction_() const noexcept;
+#endif
     
 	virtual bool isOpened() const = 0;
 

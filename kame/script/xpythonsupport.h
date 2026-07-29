@@ -111,6 +111,9 @@ public:
     virtual ~XPython();
 
     void launchJupyterConsole(const std::string &execpath, const std::string &console);
+    //! Dispatch a "kame:" hyperlink action (e.g. Jupyter / Claude launch)
+    //! to the Python helper kame_handle_link().
+    void handleLink(const std::string &action);
     std::vector<std::string> listOfJupyterPrograms();
 
     //! Called by the main thread after all driver modules (incl. Python modules) are loaded.

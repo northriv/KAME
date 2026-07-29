@@ -30,8 +30,15 @@ win32: {
 }
 
 unix {
-    exists("/opt/local/include/libusb-1.0/libusb.h") {
-        LIBS += -lusb-1.0
+    # The probe used to be the MacPorts absolute path only, inside a plain
+    # `unix { }` block — so on Linux the whole Thamway Cypress FX2/FX3 USB
+    # family (pulser, DSO, realtime DSO) was dropped even with libusb
+    # installed.  Same pattern as charinterface.pro.
+    macx:exists("/opt/local/include/libusb-1.0/libusb.h"): HAS_LIBUSB = 1
+    !macx:system(pkg-config --exists libusb-1.0): HAS_LIBUSB = 1
+    !isEmpty(HAS_LIBUSB) {
+        macx: LIBS += -lusb-1.0
+        else: PKGCONFIG += libusb-1.0
         HEADERS += \
             fx2fw.h\
             thamwayusbinterface.h \

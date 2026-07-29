@@ -14,6 +14,12 @@ Carved out of the [KAME](https://github.com/northriv/KAME) measurement framework
 and **dual-licensed under Apache 2.0 OR GPL-2.0-or-later** at your choice — so
 it can be embedded into permissive / proprietary projects (Apache 2.0 path) or
 linked into GPLv2-only projects such as KAME itself (GPL path).
+Its sibling library
+[**kamestm**](https://github.com/northriv/KAME/tree/master/kamestm) — the
+lock-free software transactional memory this allocator was born to serve —
+is maintained the same way (dual-licensed, TLA+/GenMC verified) and shares
+the `atomic_smart_ptr.h` lock-free smart-pointer header that ships with
+this library.
 
 ## Highlights
 
@@ -106,6 +112,13 @@ linked into GPLv2-only projects such as KAME itself (GPL path).
   model-only catch (runtime stress can't reproduce it), kept as a standing
   regression guard.  Builds 64-bit and 32-bit,
   on macOS / Linux / Windows (MinGW + MSVC).
+- **Realtime mode with a written contract** — per-thread gating so a marked
+  thread's `free()` never enters the kernel, `kame_pool_prewarm()` (which
+  page-touches, unlike the allocate+free idiom), an explicit
+  `kame_pool_rt_drain()`, and runtime-checkable violation counters.  Measured
+  128 ns vs 20.5 µs median free (and 792 ns vs 678 µs max) on the band where
+  the recycle cache cannot help.  Preconditions and exclusions are stated in
+  [The realtime contract](#the-realtime-contract) — not implied.
 
 ## Status
 
@@ -118,15 +131,17 @@ dedicated / large-`mmap` / huge (> 32 MiB) tiers with a two-level recycle cache,
 pool-routed aligned allocation, and standards-conformant OOM.
 
 **Targets:** macOS and Windows (64-bit) for KAME itself; the standalone library
-also builds and is tested on Linux (64-bit and 32-bit).  Requires a host with
-`mmap` (or `VirtualAlloc`) and threads — not an MCU / bare-metal allocator.
+also builds and is tested on Linux (64-bit and 32-bit) under both **glibc and
+musl** — continuously build-and-run-checked on **Ubuntu, Fedora, and
+Alpine/musl** (the mimalloc-bench CI matrix).  Requires a host with `mmap`
+(or `VirtualAlloc`) and threads — not an MCU / bare-metal allocator.
 
 **Per-toolchain status of the live pool:**
 
 | Toolchain | Live pool | Notes |
 |---|---|---|
 | macOS clang (x86-64 / arm64) | ✅ default | `__DATA,__interpose` `free` redirect; dylib build also interposes the full `malloc` family + `malloc_size` by default (Swift/ObjC-safe drop-in), opt out with `-DKAMEPOOLALLOC_CONSERVATIVE_INTERCEPT`; primary target |
-| Linux gcc/clang (x86-64, 32-bit) | ✅ default | strong-symbol `free` redirect; primary CI target |
+| Linux gcc/clang (x86-64, 32-bit), **glibc & musl** | ✅ default | strong-symbol redirect of the full family — `free` / `malloc` / `calloc` / `realloc` / `reallocarray` and the aligned set (`memalign` / `posix_memalign` / `aligned_alloc`); on musl the aligned/teardown paths get explicit handling (musl implements `memalign` on the public `malloc`, and frees TLS during `__pthread_tsd_run_dtors`).  mimalloc-bench CI runs the full suite (incl. rptest / rocksdb) crash-free (`signal 11` = 0) on **Ubuntu, Fedora, and Alpine/musl**; primary CI target |
 | Windows **MinGW64 + lld** | ✅ default | §31 free-family IAT redirect lets the pool coexist with Qt / libc++ (PE/COFF has no cross-module `operator new` interposition); verified on-target with Qt 6.10.1 |
 | Windows **MSVC** (cl) | ✅ default | runs the full live pool — the `_MSC_VER` shim in `allocator_prv.h` bridges the GCC-isms (`_Interlocked*` atomics, `<intrin.h>` bit-scan / overflow, static-init constructor hook) and the §31 redirect handles Qt/CRT coexistence; opt OUT with `KAME_DISABLE_POOL_MSVC` |
 
@@ -218,6 +233,24 @@ STM regression.  Zen 2 (Ohtaka) numbers pending machine maintenance — by
 construction the design carries none of the per-slot stores that capped the
 earlier dependency-cut experiments at ~300 M ops/s on that core.
 
+### Third-party suite cross-check (mimalloc-bench, M3)
+
+An independent run of the contention-heavy multi-thread benches from
+[mimalloc-bench](https://github.com/daanx/mimalloc-bench) (M3, median of 5,
+mimalloc 3.3.2 / jemalloc 5.3.0).  kame is the FS=true word-cache build.
+
+| bench (M ops/s, ↑) | system | mimalloc | jemalloc |      kame |
+|--------------------|--------|----------|----------|-----------|
+| larson             |   21.4 |    108.3 |    108.6 | **113.0** |
+| xmalloc-test       |    150 |  **245** |      118 |       210 |
+| rptest             |   2.86 | **3.95** |     3.97 |      2.75 |
+
+kame leads `larson` (the alloc-on-one-thread / free-on-another pattern that
+mirrors the STM Snapshot handoff — kame's design target) and clears system /
+jemalloc on `xmalloc-test`.  On `rptest`'s mixed cross-thread churn the
+segment-based allocators (mimalloc / jemalloc) still lead, and kame sits with
+system malloc — the same contention tier flagged as a weaker spot on x86.
+
 **Intel Xeon E5-1630 v4 (x86-64, 4-core / 8-thread, Windows), single thread,
 M ops/s** — kame at `8f2e6980` (post hot/cold-split + 32 KiB bucket LUT +
 word-cache), llvm-mingw clang 17, median of 5 via `bench_compare.sh`.  On
@@ -261,6 +294,26 @@ size regressed.
 tables below, all measured on the same `i8cpu` node `c15u01n1` (the
 `alloc_tune_report` table further down was not re-run and remains at the
 earlier `0e9413a6`).  mimalloc/jemalloc versions same as the competitive tables:
+
+**Architecture note — memory renaming**: kamepoolalloc's LIFO freelist
+creates a tight store-then-load chain on every alloc/free pair
+(`free`: `*p = head; head = p` → next `malloc`: `head = *head`).  On
+CPUs with **memory renaming** — Intel Sunny Cove (Ice Lake, 2019) and
+AMD Zen 3 (Milan, 2020) onward, plus Apple A12+ / M-series — the
+rename stage forwards the just-stored value to the load via the
+register file, dispatch-free.  AMD Zen 2 (Ohtaka's EPYC 7702)
+**predates this optimization** and pays store-to-load forwarding
+latency (~5 cycles) per hot iteration instead.  This is the
+structural reason the Ohtaka margins over `mimalloc` / `jemalloc` are
+smaller than the M3 figures — most visible at the **64 B tier** where
+the freelist hot path dominates (Ohtaka kame 260 vs mi 331, M3 kame
+651 vs mi 503 — a 50 % flip in relative position).  Larger tiers
+where the freelist is not the bottleneck (16 KiB, 1 MiB+) are not
+affected and kame retains its lead on both CPUs.  The 64 B gap is
+expected to narrow on Zen 3 / Zen 4 (Milan, Genoa, Bergamo) and on
+Sapphire Rapids / Granite Rapids Intel parts; Cascade Lake-SP cloud
+VMs (e.g. AWS C5 / GCP N2) inherit the same Skylake-derived non-
+renaming microarchitecture and behave like Zen 2 in this respect.
 
 ## 1T (median of 5, M ops/s)
 
@@ -596,6 +649,139 @@ See the header for full per-function semantics.
 | `void   kame_pool_set_thread_exit_reclaim(int)` | on | §21 madvise(MADV_DONTNEED) at worker exit |
 | `void   kame_pool_set_realtime_mode(int)` | off | §30 one-shot preset: silences all three of the above |
 
+**Realtime (§75) — per-thread gating, prewarm, drain:**
+
+| Symbol | Default | Purpose |
+|---|---|---|
+| `void   kame_pool_set_realtime_thread(int level)` | off | `KAME_RT_DEFER` — this thread's `free()` never enters the kernel; costs nil (cold paths only).  `KAME_RT_STRICT` — additionally flushes the cross-thread batch per free: bounds the p99.9 mid-tail but **−48 % throughput** on cross-thread small frees |
+| `void   kame_pool_set_realtime_default(int level)` | off | process-wide floor for `DEFER`, so every thread stops making free-path syscalls without being marked individually.  `STRICT` is per-thread only — its cost is on a hot path |
+| `int    kame_pool_get_realtime_thread(void)` | — | current thread's flag |
+| `int    kame_pool_prewarm(const size_t*, const unsigned*, unsigned)` | — | allocate + **page-touch** + free the given size classes, per realtime thread |
+| `unsigned kame_pool_reserve_regions(unsigned n, int prefault)` | — | create `n` 32-MiB regions up front (permanent — regions never unmap) |
+| `size_t kame_pool_mlock_regions(void)` / `munlock` | — | pin **only the pool's** regions into RAM (`mlock`/`VirtualLock`); also populates them.  Surgical where `mlockall(MCL_FUTURE)` is blunt |
+| `void   kame_pool_rt_drain(void)` | — | perform all deferred reclaim (the `mi_collect` / `malloc_trim` analogue). **Never call inside the critical section** |
+| `void   kame_pool_set_rt_os_policy(int)` | `KAME_RT_OS_ALLOW` | `ALLOW` / `COUNT` / `FAIL` (refuse → degrade to libc) / `ABORT` (report + abort) |
+| `size_t kame_pool_set_thp_policy(int)` / `get` | `KAME_THP_SYSTEM` | Linux transparent hugepages for pool memory: `SYSTEM` / `ALWAYS` (`MADV_HUGEPAGE`) / `NEVER` (`MADV_NOHUGEPAGE`).  Covers the 32 MiB regions *and* the large-VA tier, and re-advises regions already mapped (returns the bytes it reached).  Set it **before** prewarm; **not** implied by realtime mode — see the contract below |
+| `void   kame_pool_set_rt_pending_cap(size_t)` | 1 GiB | ceiling on VA parked by deferred unmaps; past it a realtime free releases inline |
+| `unsigned long long kame_pool_rt_violations(void)` | — | times a realtime thread entered the kernel for a **new mapping** |
+| `unsigned long long kame_pool_rt_forced_releases(void)` | — | times the pending cap forced an inline release |
+| `size_t kame_pool_rt_pending_bytes(void)` | — | VA currently parked, awaiting a drain |
+| `kame::rt_section` (C++ RAII) | `rt_level::defer` | marks the thread for a scope, nests without ever weakening an enclosing section, reports its own violation delta in debug builds |
+
+### The realtime contract
+
+Stated as preconditions → guarantees → exclusions, because a realtime claim
+without its assumptions written down is not a claim.
+
+**Preconditions** (all of them; the contract is void otherwise):
+
+1. `kame_pool_set_realtime_mode(1)` once at startup (silences background
+   maintenance — the only paths that map/unmap outside an explicit call).
+2. `kame_pool_prewarm(...)` from **each** realtime thread, covering every size
+   class it will use, before entering the time-critical section. The allocator's
+   state is per-thread, so prewarming on another thread does not count.
+3. The realtime thread is marked (`kame_pool_set_realtime_thread(1)` or
+   `kame::rt_section`).
+4. The **working set does not grow** during the section: a request that needs
+   capacity nobody prewarmed must map, and mapping is unbounded by nature.
+5. `kame_pool_rt_drain()` is called from a *non*-critical phase (between control
+   cycles, or on a housekeeping thread) — it is exactly the syscall batch the
+   gating keeps out of the section.
+6. Thread count is bounded and known (see the interference caveat below).
+
+**Two levels, and the difference is not cosmetic.** `KAME_RT_DEFER` removes
+the syscalls and is free: measured −2.8 % (median, with individual reps
+*positive* — i.e. within noise) on the cross-thread small-free path.
+`KAME_RT_STRICT` additionally bounds the batch-flush spike, and that costs
+**−48 %** (6/6 reps) on the same path, because per-free flushing gives up the
+batch's coalesced-CAS win.  Take DEFER unless a deadline actually needs the
+p99.9; that is why only DEFER can be a process-wide default.
+
+**Guarantees**, given the above:
+
+* **No syscall on the free path.** Chunk page-reclaim (`madvise`) is skipped —
+  the chunk is still released and immediately recyclable, its pages just stay
+  warm. A large-tier `munmap` is parked (bounded by `rt_pending_cap`) and
+  settled later by `rt_drain()`, or by any ordinary thread's next large free
+  (one block per call).
+* **No lock, no sleep, no yield** anywhere in the allocator — all
+  synchronisation is CAS/atomics/seqlock.
+* **No unbounded internal loop**: every loop is either statically bounded or
+  bounded by interfering successes (see `design/RT_READINESS.md` §G4 for the
+  loop-by-loop statement).
+* **Runtime-checkable**: the contract held over a section iff
+  `kame_pool_rt_violations() == 0 && kame_pool_rt_forced_releases() == 0`.
+  A realtime test should assert exactly that. `kame::rt_section` checks it for
+  you in debug builds.
+
+**Exclusions** — what is *not* covered, stated plainly:
+
+* **No numeric WCET.** Lock-free is not wait-free; there is no machine-checked
+  bound and no static-analysis budget. Measured tails are evidence for one
+  machine and load, not a proof.
+* **Multiprocessor interference is a system property.** CAS retries are bounded
+  by *interfering successes*, so converting that to wall-clock needs a bound on
+  peer allocation rate or core partitioning — an argument about your task set,
+  which this allocator cannot make for you.
+* **Blocks above 256 MiB cannot be cached** (the recycle cache is bypassed by
+  construction), so each such allocation maps and each free unmaps. Realtime
+  code should not size-class there; the gate defers the *free* side, which
+  measured 128 ns vs 20.5 µs median, but the alloc side still maps.
+* **Radix-leaf mappings are counted, never refused**, even under
+  `KAME_RT_OS_FAIL`: a region without its leaf would route later frees of
+  pointers inside it to libc `free()` — corruption, not degradation. Prewarm is
+  what keeps this off the path.
+* **The cold chunk-claim path calls `orphan_chain_scrub()`**, which walks the
+  orphan chain and restarts on CAS loss — unbounded. Precondition 2/4 keep it
+  unreachable; `KAME_RT_OS_FAIL` refuses that path outright.
+* **Page-fault class is only partly ours.** `kame_pool_mlock_regions()` pins
+  (and populates) the pool's own regions, which is the part we can see — and it
+  is deliberately narrower than `mlockall(MCL_CURRENT|MCL_FUTURE)`, which would
+  also pin every future mapping made by every non-realtime thread. Everything
+  else is still the application's checklist, and skipping it will produce
+  faults this contract cannot prevent:
+    * the realtime **thread's stack** (pre-fault it once — touch a large local
+      array, or recurse to your worst-case depth);
+    * **code pages**, which are demand-paged from the binary on first execution
+      — a *major* fault, potentially disk I/O; warm the loop body once before
+      going live;
+    * memory owned by **other libraries** (Qt, libc buffers, the driver stack).
+  On Linux, transparent hugepages are a hazard you must opt out of
+  **explicitly**: a first touch inside a 2 MiB-aligned range can make the
+  kernel allocate and zero a whole huge page, and khugepaged may run
+  compaction that stalls an unrelated fault. `kame_pool_set_thp_policy(
+  KAME_THP_NEVER)` gates it for the pool's own memory — regions *and* the
+  large-VA tier, including regions already mapped. It is **not** implied by
+  `kame_pool_set_realtime_mode(1)`, because it is a real trade rather than a
+  free win: measured, it cuts the cold first-touch tail from 459 µs to 41 µs
+  at p99.9 (and from tens of ms to 224 µs at the max), while costing up to
+  **+58 %** on a TLB-bound 512 MiB random-access working set. Those figures
+  come from a `PREEMPT_DYNAMIC` VM, not a `PREEMPT_RT` host — the direction
+  and the ratios are the point; the max is an upper bound contaminated by the
+  scheduler, not a WCET. Two ordering
+  rules: set it **before** prewarm (it prevents future hugepage faults and
+  khugepaged collapses, but does not split hugepages that already exist), and
+  note that returning to `KAME_THP_SYSTEM` cannot un-advise a region — Linux
+  has no "clear" advice. Numbers and method in `design/RT_READINESS.md`
+  §G6(a).
+* **Hard-realtime (avionics/automotive) wants a different design**: a fixed
+  arena the allocator never grows (TLSF-style) plus bounded-retry with an
+  emergency reserve. That is not a tuning of this allocator.
+
+**Measured** (Apple M3, Release, 3 interferer threads — see
+`tests/bench/bench_rt_wcet.cpp`, and reproduce with `--pressure` / `--xt`):
+
+| Path | realtime | default |
+|---|---:|---:|
+| free, > 256 MiB band — median | **128 ns** | 20,480 ns |
+| free, > 256 MiB band — max | **792 ns** | 677,917 ns |
+| free, 32 B cross-thread — p99.9 | **96 ns** | 1,792 ns |
+| free, 32 B cross-thread — p99.99 | **256 ns** | 10,240 ns |
+
+For every band at or below 256 MiB the two are *statistically identical*: the
+recycle cache already absorbs those releases without a syscall, so the gating is
+a safety net for the cases above rather than a steady-state necessity.
+
 **Observability:**
 
 | Symbol | Purpose |
@@ -606,8 +792,13 @@ See the header for full per-function semantics.
 
 `atomic_smart_ptr.h` (an installed public header) provides a lock-free
 `atomic_shared_ptr<T>` (atomic, CAS-able shared owner), `local_shared_ptr<T>`
-(thread-local owner), and `local_weak_ptr<T>`.  It underpins KAME's STM and the
-pool's own orphan-chunk reclaim chain, and is usable on its own.
+(thread-local owner), and `local_weak_ptr<T>`.  It underpins
+[KAME's STM (kamestm)](https://github.com/northriv/KAME/tree/master/kamestm) and the
+pool's own orphan-chunk reclaim chain, and is usable on its own.  A technique
+deep-dive (local + global refcount, the intrusive `atomic_countable` path, and
+a comparison against the libstdc++ / MSVC / libc++ `std::atomic<shared_ptr>`
+implementations) lives in
+[`kamestm/README.md` § Lock-free atomic shared pointer](https://github.com/northriv/KAME/blob/master/kamestm/README.md#lock-free-atomic-shared-pointer).
 
 The control-block layout is chosen at compile time from `ref_traits<T>`, driven
 by an **opt-in marker you inherit on `T`** — no other wiring:
@@ -647,9 +838,26 @@ struct MyNode {
 };
 ```
 
-Full trait reference: the **USAGE** header block + `ref_traits` / `force_intrusive_ref`
-in `atomic_smart_ptr.h`.  Working self-referential examples:
-`tests/atomic_intrusive_dispose_test.cpp` and `tests/atomic_intrusive_chain_test.cpp`.
+**Circular / incomplete template-id member** — `local_shared_ptr<T>` resolves
+its control-block category (`ref_traits<T>`) at *member-declaration* time, since
+the method signatures reference the chosen `Ref` (unlike `std::shared_ptr`, which
+type-erases the deleter at construction).  The `sizeof(T)` marker probe then
+*instantiates* `T`.  A plain incomplete class (`struct N;`) soft-fails to the
+non-intrusive fallback, but a not-yet-instantiated class **template-id** —
+`local_shared_ptr<Holder<A>>` as a member of `A`, where `Holder<A>` transitively
+needs `A` complete — makes the probe force `Holder<A>`'s instantiation, and the
+failure is a *hard* error, not soft SFINAE.  Opt out of the probe (the type then
+takes the default non-intrusive control block, `local_weak_ptr<T>` still works):
+
+```cpp
+template <class X> struct force_incomplete_ref<Holder<X>> : std::true_type {};
+struct A { local_shared_ptr<Holder<A>> m; };   // now compiles, like std::shared_ptr
+```
+
+Full trait reference: the **USAGE** header block + `ref_traits` /
+`force_intrusive_ref` / `force_incomplete_ref` in `atomic_smart_ptr.h`.  Working
+self-referential examples: `tests/atomic_intrusive_dispose_test.cpp` and
+`tests/atomic_intrusive_chain_test.cpp`.
 
 ## Tuning
 
@@ -745,10 +953,13 @@ host's core count).
   allocations) are mmap'd push-only — once warmed up there is no munmap on
   them.  The munmap cost is paid only by the §19/§27 large-tier path on cache
   miss/eviction.
-- `madvise(MADV_HUGEPAGE)` is NOT currently requested.  If THP is enabled on
-  the system, the kernel may transparently coalesce 2 MiB huge pages anyway;
-  explicit `MADV_HUGEPAGE` could reduce page-table footprint and TLB-shootdown
-  cost.  Not yet measured.
+- Transparent hugepages are neither requested nor refused by default: if THP
+  is enabled system-wide the kernel coalesces pool memory into 2 MiB pages on
+  its own.  `kame_pool_set_thp_policy()` takes either side explicitly —
+  `KAME_THP_ALWAYS` for TLB reach (measured worth up to **+58 %** on a
+  512 MiB random-access working set), `KAME_THP_NEVER` for a bounded
+  first-touch fault.  See "The realtime contract" above and
+  `design/RT_READINESS.md` §G6(a) for the full trade.
 
 ## License
 
@@ -844,6 +1055,7 @@ four-tier general allocator.  Selected milestones (full history in `git log`):
 | 30    | `kame_pool_set_realtime_mode()` — one-call silence of all background maintenance |
 | 31    | Windows free-family IAT redirect — pool coexists with Qt / libc++ on PE/COFF |
 | 36 / S7 | lock-free orphan-chunk reclaim — `atomic_shared_ptr` chain (owner-exit push, sweep-reclaim, adopt + chunk self-ref owner-ref) replaces the leak-prone ABA Treiber stack; TLA+-verified, now the default |
+| 75    | Realtime per-thread gating (deferred reclaim + capped backlog), `kame_pool_prewarm()` (page-touching), `kame_pool_rt_drain()`, `kame::rt_section`, violation counters, and the written contract |
 
 ## Acknowledgements
 

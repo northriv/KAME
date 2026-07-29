@@ -180,7 +180,7 @@ to force forward progress; a longer threshold = more deferential.
 
 | Level | Threshold | Use case |
 |---|---|---|
-| `HIGHEST` / `NORMAL` | ~300 µs | Measurement, driver activity |
+| `NORMAL` | ~300 µs | Measurement, driver activity |
 | `UI_DEFERRABLE` | 50 ms | Interactive UI updates |
 | `LOWEST` | 30 ms | Bulk / analysis |
 | `SCRIPTING` | **1 s** | **External scripting (MCP / AI / ZMQ)** — yields to *everything* for the first second of contention before escalating; ensures the script command eventually completes without disrupting a live measurement |
@@ -251,6 +251,44 @@ for full STM consistency guarantees.
 | External side effect alongside write | `iterate_commit` for the write, then act on the returned Snapshot |
 
 ## Driver Patterns
+
+> ⚠️ **Motion safety (motor / positioner / LC tuner).** Writing a motor
+> driver's `Target` *starts a physical move*, and the move may be
+> **irreversible**: many stages report only an open-loop estimated
+> position (`HasEncoder` false) or none at all (piezo positioners), and
+> a probe, coil, sample, or tuning capacitor can be driven somewhere it
+> cannot be brought back from. Do **not** jump a motor to an arbitrary
+> `Target` from generated code. First confirm the axis, direction,
+> magnitude, and safe range with the user; then move in **small
+> increments**, checking another driver's response (reflection, signal
+> amplitude, optical reading) as feedback after each step, and stop the
+> moment it diverges. For LC tuning prefer the Auto LC Tuner driver
+> (closed loop on a VNA) over commanding the motors directly.
+>
+> **Never touch `GoHomeMotor` unprompted.** Homing runs until a home
+> sensor triggers; with **no home sensor it spins forever**, and neither
+> KAME nor the hardware knows whether a sensor exists — only the user.
+> Always ask the user to confirm a home sensor is present on that axis
+> before issuing `GoHomeMotor`. See the manual's "Motor Controller"
+> section (`kame_manual`).
+
+> ⚠️ **Temperature safety (cryogenic setups).** Raising a temperature
+> controller's `TargetTemp` **above ~295 K (room temperature) needs
+> explicit user confirmation** — warming a cold cryostat can boil off
+> cryogen or exceed equipment limits. The loop **can overshoot ≥10%**
+> (a 300 K target may peak near 330 K), so leave margin below any
+> threshold. Only approach higher temperatures by **monitoring the real
+> temperature** (read the Scalar Entry / poll `Stabilized`) while
+> waiting — step `TargetTemp` up gradually and watch it converge —
+> never set a high target and walk away.
+
+> ⚠️ **NMR RF-power safety (pulser & PROT).** Excess average RF power
+> destroys the power amplifier/probe. Unless the user directs otherwise:
+> keep pulser pulse widths `PW1`/`PW2`/`CombPW` ≤ `min(Tau*0.3, 15)` µs
+> (≤30 % of `Tau`, max 15 µs), and never set `RT` below 15 ms (`Tau`/PW
+> in µs, `RT` in ms). On a Thamway PROT, once `OutputLevel` is ≥100 do
+> not raise it past the most-recently-used value without confirming with
+> the user. See the manual's "NMR Pulser" / "Signal Generator" sections.
 
 ```python
 # List all drivers

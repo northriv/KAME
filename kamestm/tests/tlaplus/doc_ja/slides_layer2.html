@@ -29,16 +29,12 @@ p{line-height:1.8}
 
 <!-- ===== Slide 1: Overview ===== -->
 <div class="slide">
-<h1>Layer 2: Bundle/Unbundle + Commit (基本仕様)</h1>
-<h3>TLA+モデル解説 — BundleUnbundle_2level.tla / BundleUnbundle.tla (3-level)</h3>
+<h1>Layer 2: Bundle/Unbundle + Commit</h1>
+<h3>TLA+モデル解説 — 2-level / 3-level bundle/unbundle プロトコル（LLfree 前提: <code>BundleUnbundle_2level_LLfree.tla</code> / <code>BundleUnbundle_3level_LLfree.tla</code>）</h3>
 
-<div class="box-red">
-<p><strong>本スライドは Gen 1/2 (modular serial 系) の基本仕様解説です。</strong>
-現行の参照仕様は <strong>Gen 3 LLfree</strong> — privilege-TID negotiate 機構で livelock-free を
-構造的に証明する版に移行済。bundle/unbundle/commit プロトコル本体は両世代で完全同一なので、
-本スライドは現在も基本仕様の解説として有効ですが、
-<strong>検証結果と参照モデルは <code>slides_layer2_LLfree.html</code> を見てください</strong>。</p>
-<p style="margin-top:0.5em">関連スライド: LLfree (Gen 3) / 3-level LLfree / dynamic LLfree / hard-link 系 (slides_hardlink.html — 別途公開)。</p>
+<div class="box">
+<p>本スライドは bundle/unbundle/commit プロトコル本体を解説します（LLfree 前提）。
+hard-link / dynamic / 3-level の各トピックは別スライドで扱います。</p>
 </div>
 
 <div class="box-purple">
@@ -50,8 +46,10 @@ p{line-height:1.8}
 
 <h2>木構造（固定）</h2>
 <div class="tree">
-Grand ── Parent ──┬── Child1<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── Child2
+&nbsp;&nbsp;&nbsp;&nbsp;Grand<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── Parent<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── Child1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── Child2
 </div>
 
 <h2>データ構造</h2>
@@ -66,12 +64,15 @@ Grand ── Parent ──┬── Child1<br>
 <span class="op">BundledRefWrapper</span>(parentNode, ser) ==
     [packet |-> Null, hasPriority |-> FALSE, bundledBy |-> parentNode, serial |-> ser]</code></pre>
 
-<h2>変数 (7個)</h2>
+<h2>変数 (9個)</h2>
 <pre><code><span class="keyword">VARIABLES</span>
-    serial,        <span class="comment">\* per-thread シリアルカウンタ</span>
-    globalSerial,  <span class="comment">\* 最新グローバルシリアル</span>
+    serial,        <span class="comment">\* per-thread Lamport シリアル (単調 Nat)</span>
     linkage,       <span class="comment">\* linkage[n]: 各ノードのPacketWrapper</span>
-    pc, op, target, local  <span class="comment">\* per-thread 状態</span></code></pre>
+    pc, op, target, local,  <span class="comment">\* per-thread 状態</span>
+    iterBudget,    <span class="comment">\* per-thread 残り full iteration 数</span>
+    childQueue,    <span class="comment">\* per-thread CommitChild 待ちの子</span>
+    priorityTag    <span class="comment">\* per-node LL-free negotiate タグ (Null | &lt;&lt;iter, tid&gt;&gt;)</span></code></pre>
+<p style="color:#94a3b8;font-size:0.9em">LLfree には <code>globalSerial</code> はない（C++ にも対応物なし）。serial は Lamport 単調 Nat。</p>
 </div>
 
 <!-- ===== Slide 1b: 3-tier fidelity ===== -->
@@ -117,8 +118,7 @@ C++実装では全子に対してCASを実行し「既にbundled済みならス�
 <tr><td><code>BundledRefWrapper(parentNode, ser)</code></td><td>bundleされた状態のwrapper。<code>hasPriority=FALSE, bundledBy=parentNode</code>。</td></tr>
 <tr><td><code>[n \in AllNodes |-> IF ... THEN ... ELSE ...]</code></td><td>条件付き関数定義。ノードごとに異なる初期値を設定。</td></tr>
 <tr><td><code>r.field</code></td><td>レコードのフィールドアクセス。例: <code>w.hasPriority</code>, <code>w.packet.sub[c]</code></td></tr>
-<tr><td><code>% MaxSerial</code></td><td>モジュラー算術。シリアルが<code>MaxSerial</code>で周回し、状態空間を構造的に有限にする。StateConstraintは使用しない。</td></tr>
-<tr><td><code>ModGT(a, b)</code></td><td>モジュラー大小比較。<code>LET diff == (a - b + MaxSerial) % MaxSerial IN diff > 0 /\ diff < MaxSerial \div 2</code>。C++の符号付き差分比較に対応。</td></tr>
+<tr><td><code>serial</code> 比較</td><td>serial は <strong>Lamport 単調 Nat</strong>。LLfree は modular wrap で有限化せず、priorityTag 機構で構造的に有限化する。順序比較は固定幅の<strong>符号付き差分</strong>に対応 — C++ <code>isOlderThan</code>（符号なし減算→符号付き再解釈）、生成C11 <code>ser_gt</code>。</td></tr>
 </table>
 
 <div class="box-green">
@@ -142,7 +142,7 @@ C++の構造体のネストに対応する。TLA+では<code>[local EXCEPT ![t].
        IN
        <span class="keyword">IF</span> allCollected
        <span class="keyword">THEN</span> pc' → <span class="type">"bundle_phase2"</span>
-       <span class="keyword">ELSE</span> pc' → <span class="type">"snap_check"</span>  <span class="comment">\* リスタート</span></code></pre>
+       <span class="keyword">ELSE</span> pc' → <span class="type">"snap_read"</span>  <span class="comment">\* リスタート (2-level; 3-level は "snap_check")</span></code></pre>
 
 <h2>Phase 2: CAS親 — 新PacketWrapper (missing=TRUE)</h2>
 <pre><code><span class="op">BundlePhase2</span>(t) ==
@@ -188,11 +188,11 @@ C++の構造体のネストに対応する。TLA+では<code>[local EXCEPT ![t].
     <span class="comment">\* (C++順に合わせ、root→leaf順でCASする)</span></code></pre>
 
 <h2>Step 2: UnbundleCASAncestors / UnbundleCASLoop — 祖先の missing=TRUE 化</h2>
-<pre><code><span class="op">UnbundleCASAncestors</span>(t)   <span class="comment">\* 2レベル版 (BundleUnbundle_2level.tla)</span>
-<span class="op">UnbundleCASLoop</span>(t)         <span class="comment">\* 3レベル版 (BundleUnbundle.tla)</span>
+<pre><code><span class="op">UnbundleCASAncestors</span>(t)   <span class="comment">\* 2レベル版 (BundleUnbundle_2level_LLfree.tla)</span>
+<span class="op">UnbundleCASLoop</span>(t)         <span class="comment">\* 3レベル版 (BundleUnbundle_3level_LLfree.tla)</span>
     <span class="comment">\* casTargets の各祖先について、wrapper を新しい wrapper に CAS。</span>
     <span class="comment">\* missing=TRUE にするだけで、子スロット sub[c] はそのまま保持する</span>
-    <span class="comment">\* (Phase3 のロールバックや後続の復旧に必要なため Null 化しない)</span>
+    <span class="comment">\* (Phase-1 再収集の bundledBy==node 再養子縁組が子パケットを見つけるため Null 化しない)</span>
     /\ LET newPkt == <span class="op">MakePacket</span>(anc, anc.payload, anc.sub, <span class="type">TRUE</span>)
            newW   == <span class="op">PriorityWrapper</span>(newPkt, ser)
        IN linkage' = [linkage <span class="keyword">EXCEPT</span> ![anc] = newW]
@@ -208,7 +208,7 @@ C++の構造体のネストに対応する。TLA+では<code>[local EXCEPT ![t].
 <div class="box-orange">
 <p><strong>Unbundle 流れ（多段共通）:</strong><br>
 ① UnbundleWalk で祖先リスト casTargets を構築 → ② 各祖先を missing=TRUE に CAS（子スロットは保持） → ③ コミット対象子を Priority+新payload に CAS。<br>
-<strong>重要:</strong> 祖先の sub[c] スロットは <em>Null 化しない</em>。missing=TRUE フラグだけで「この部分木は一時的にスナップショット不可」を表し、Phase3 ロールバック時の参照元として残す。</p>
+<strong>重要:</strong> 祖先の sub[c] スロットは <em>Null 化しない</em>。missing=TRUE フラグだけで「この部分木は一時的にスナップショット不可」を表し、<code>sub</code> を保持することで Phase-1 再収集（<code>bundledBy==node</code> 再養子縁組パス）と unbundle walk が子パケットを見つけられる（C++ に Phase-3 ロールバックは存在しない）。</p>
 </div>
 
 <div class="box-green">
@@ -238,7 +238,7 @@ bundle/unbundle 経由でも payload の整合性が保たれるかを検証す�
 <pre><code><span class="op">CommitParent</span>(t)   <span class="comment">\* 2レベル: Parent スコープで +1 を全 Child payload に伝播</span>
 <span class="op">CommitGrand</span>(t)    <span class="comment">\* 3レベル: Grand スコープで +1 を全 Grandchild payload に伝播</span>
     <span class="comment">\* Parent/Grand の wrapper に対する単発CAS。sub[c] 内の各 payload を</span>
-    <span class="comment">\* (p + 1) % MaxPayload に更新し、スコープ全体を 1 アクションで確定する。</span>
+    <span class="comment">\* (p + 1) に更新し（payload は単調 Nat）、スコープ全体を 1 アクションで確定する。</span>
     <span class="comment">\* bundle 状態の部分木でも、その内部 payload が連動して +1 されることを検査する。</span></code></pre>
 
 <h2>直接コミットのパイプライン (CommitRead → CommitTryCAS → CommitDone)</h2>
@@ -272,7 +272,7 @@ bundle/unbundle 経由でも payload の整合性が保たれるかを検証す�
 から構成される。<code>childQueue[t]</code> はそのイテレーション内で未コミットの子リスト、
 <code>iterBudget[t]</code> は残りイテレーション数。</p>
 <p><strong>TerminalPayloadCheck:</strong> 全スレッドが <code>iterBudget=0</code> かつ idle になった終端状態で、
-各直接子の payload が <code>(2 × MaxCommits × |Threads|) % MaxPayload</code> と一致することを検査。
+各直接子の payload が <code>MaxCommits × (|RootThreads| + |LeafThreads|)</code>（両ロールが全スレッドのとき 2 × MaxCommits × |Threads|。payload は単調 Nat、剰余なし）と一致することを検査。
 深いコミット(+1) と直接コミット(+1) の両系統が正しく反映されたことを保証する。</p>
 </div>
 
@@ -285,7 +285,7 @@ payload が自分の期待値と同じなら、子スロットだけが他スレ
 
 <!-- ===== Slide 5: Invariants ===== -->
 <div class="slide">
-<h1>検証された不変条件 (5件)</h1>
+<h1>検証された不変条件 (3レベルの5件)</h1>
 
 <pre><code><span class="comment">\* 1. missing=FALSEなら全子パケットが存在</span>
 <span class="op">SnapshotConsistency</span> ==
@@ -312,27 +312,26 @@ payload が自分の期待値と同じなら、子スロットだけが他スレ
 <span class="comment">\* 5. ルートは常にpriority</span>
 <span class="op">GrandAlwaysPriority</span> ==
     linkage[Grand].hasPriority</code></pre>
+<p style="color:#94a3b8;font-size:0.9em">上記5件は<strong>3レベル</strong>の集合（<code>Grand</code> ノードと <code>bundledBy</code> 連鎖は3レベル専用）。<strong>2レベル</strong>版は INV3/4/5 の代わりに <code>SnapshotConsistency</code>・<code>NoPriorityLoss</code>・<code>BundleRefConsistency</code>・<code>MissingPropagation</code> を検証。</p>
 
-<h2>検証結果 (Gen 3 LLfree、CONSTRAINT なし完全 exhaustion)</h2>
+<h2>検証結果 (CONSTRAINT なし完全 exhaustion)</h2>
 <table>
 <tr><th>モデル</th><th>粒度</th><th>スレッド</th><th>状態数</th><th>Depth</th><th>時間</th><th>結果</th></tr>
-<tr><td>2-level LLfree</td><td>coarse</td><td>2</td><td>665,218</td><td>89</td><td>28s</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-level LLfree</td><td>micro (fine)</td><td>2</td><td>867,696</td><td>89</td><td>~35s</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
 <tr><td>2-level LLfree</td><td>superfine</td><td>2</td><td>2,676,196</td><td>129</td><td>3:12</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
-<tr><td>2-level LLfree</td><td>superfine confC (all-root)</td><td>3</td><td>137,333,348</td><td>96</td><td>6:35</td><td style="color:#4ade80">✅ Pass (ohtaka)</td></tr>
+<tr><td>2-level LLfree</td><td>superfine confC (all-root)</td><td>3</td><td>137,333,348</td><td>96</td><td>2h 57min</td><td style="color:#4ade80">✅ Pass + liveness (ohtaka)</td></tr>
 <tr><td>2-level LLfree</td><td>MaxCommits=2 superfine</td><td>2</td><td>127,586,599</td><td>311</td><td>4:40</td><td style="color:#4ade80">✅ Pass (ohtaka)</td></tr>
 <tr><td>2-level dynamic LLfree</td><td>release superfine live</td><td>2</td><td>413,884,516</td><td>320</td><td>7:13</td><td style="color:#4ade80">✅ Pass + liveness (ohtaka)</td></tr>
 <tr><td>3-level LLfree</td><td>coarse</td><td>2</td><td>1,497,098</td><td>98</td><td>1:35</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
-<tr><td>3-level LLfree</td><td>superfine</td><td>2</td><td>14,109,731</td><td>148</td><td>19:13</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>3-level LLfree</td><td>superfine</td><td>2</td><td>15,094,117</td><td>146</td><td>15m 11s</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
 <tr><td>3-level LLfree</td><td>superfine confC (all-root)</td><td>3</td><td>640,894,951</td><td>88</td><td>15:25</td><td style="color:#4ade80">✅ Pass + liveness (ohtaka)</td></tr>
-<tr><td colspan="7" style="font-size:0.85em; color:#94a3b8;">Gen 1/2 (modular serial) 時代の旧 BundleUnbundle_2level.tla の結果 (906K, 3.2M 等) は本表から外しました。
-LLfree で priority-TID 機構を組み込むことで CONSTRAINT 不要かつ liveness 込みで verify 可能になっています。詳細: <code>VERIFICATION.md §3, §4</code>。</td></tr>
 </table>
 
 <div class="box-purple">
 <p><strong>検証の意味:</strong> 2〜3 スレッドが同時に snapshot / commit / bundle / unbundle を任意の組み合わせで
 実行するすべてのインターリーブで、不変条件が保持されることを TLC が exhaustion で証明。
 coarse は単一ステップで最速、fine は子ごとに CAS 分離、superfine は C++ 最適化パスを忠実に再現する。
-Gen 3 (LLfree) は CONSTRAINT を使わず priority-TID 機構で構造的に状態空間を有限化することで、
+LLfree は CONSTRAINT を使わず priority-TID 機構で構造的に状態空間を有限化することで、
 <strong>safety + liveness (<code>EventuallyAllDone</code>) が同時に証明</strong>される。</p>
 </div>
 
@@ -367,7 +366,7 @@ gate が効くのは hard-link topology のみで、その検証は別途
 <table>
 <tr><th>層</th><th>仕様</th><th>何を検証</th><th>状態数 (最大確認済)</th></tr>
 <tr><td style="color:#0891b2"><strong>Layer 1</strong></td><td><code>atomic_shared_ptr.tla</code><br>+ commit primitives</td><td>tagged-pointer 参照カウント, drain release, <code>scoped_atomic_view</code>; safety only</td><td>66.5M (2-thread MaxOps=3 full)</td></tr>
-<tr><td style="color:#7c3aed"><strong>Layer 2</strong> (LLfree)</td><td><code>BundleUnbundle_2level_LLfree</code><br><code>BundleUnbundle_3level_LLfree</code><br>+ <code>_dynamic</code> variants</td><td>4-phase bundle / unbundle / commit + LL-free priority gating; <strong>safety + liveness</strong></td><td>2L: 413M (dynamic release superfine)<br>3L: 640M (3-thread superfine confC)</td></tr>
+<tr><td style="color:#7c3aed"><strong>Layer 2</strong></td><td><code>BundleUnbundle_2level_LLfree</code><br><code>BundleUnbundle_3level_LLfree</code><br>+ <code>_dynamic</code> 系</td><td>4-phase bundle / unbundle / commit + LL-free priority gating; <strong>safety + liveness</strong></td><td>2L: 413M (dynamic release superfine)<br>3L: 640M (3-thread superfine confC)</td></tr>
 <tr><td style="color:#dc2626"><strong>Layer 2</strong> (hard-link)</td><td><code>BundleUnbundle_hardlink_*</code><br>(5 topologies)</td><td>multi-parent / 1-child; Phase 4 reachability gate; bug repro + fix; per-action fairness</td><td>~1k–10k (small-scale, complete)</td></tr>
 </table>
 
@@ -376,16 +375,15 @@ gate が効くのは hard-link topology のみで、その検証は別途
 Layer 2 の <code>CommitTryCAS</code> 直接パス（単一ノードCASコミット）に自然に統合できるため、
 独立層としては不要と判断。bundle/unbundleと楽観的commitを同じ仕様内で検証することで、
 干渉パターンの網羅性が向上した。</p>
-<p style="margin-top:0.4em"><strong>Gen 3 (LLfree) への移行:</strong> 旧 Gen 1 (modular serial) 系には livelock-free 性を保証する
-構造が無く、Gen 2 (Nat+CONSTRAINT) では人為的な探索打ち切りに依存していた。
-Gen 3 LLfree は <code>priorityTag</code> + <code>PreemptTag</code> + <code>ClearMyTags</code> で
+<p style="margin-top:0.4em"><strong>LLfree priority 機構:</strong> Layer 2 仕様は
+<code>priorityTag</code> + <code>PreemptTag</code> + <code>ClearMyTags</code> で
 older-wins を構造化し、CONSTRAINT なしで TLC が exhaustion 完走 → liveness を構造的に証明する
 (詳細: <code>doc/proof_semantics.md</code>)。</p>
 </div>
 
 <h2>関連スライド</h2>
 <ul style="margin:0.3em 0 0 1.2em">
-<li><strong>Layer 2 LLfree (2-level)</strong> — <code>../doc/slides_layer2_LLfree.html</code> (Gen 3 LLfree の中核解説)</li>
+<li><strong>Layer 2 LLfree (2-level)</strong> — <code>../doc/slides_layer2_LLfree.html</code> (LLfree priority 機構 + 検証結果の解説)</li>
 <li><strong>Hardlink 系</strong> — <code>slides_hardlink.html</code> (5 topology + Phase 4 reachability gate)</li>
 <li><strong>3-level / dynamic LLfree</strong> — <code>slides_layer2_LLfree_3level.html</code> / <code>slides_layer2_LLfree_dynamic.html</code></li>
 </ul>
@@ -397,29 +395,29 @@ older-wins を構造化し、CONSTRAINT なしで TLC が exhaustion 完走 → 
 
 <h2>変数の対応</h2>
 <table>
-<tr><th>TLA+ 変数</th><th>C++ (transaction_impl.h)</th><th>生成C11 (test_bundle_3level.c)</th></tr>
+<tr><th>TLA+ 変数</th><th>C++ (transaction_impl.h)</th><th>生成C11 (test_bundle_3level_LLfree.c)</th></tr>
 <tr><td><code>linkage[n]</code></td><td><code>atomic_shared_ptr&lt;PacketWrapper&gt; n->m_link</code></td><td><code>_Atomic(uint64_t) linkage[4]</code><br>64bitパック（Wrapper構造体）</td></tr>
 <tr><td><code>linkage[n].hasPriority</code></td><td><code>PacketWrapper::hasPriority()</code></td><td><code>Wrapper.has_priority</code> (bit field)</td></tr>
 <tr><td><code>linkage[n].bundledBy</code></td><td><code>PacketWrapper::bundledBy()</code></td><td><code>Wrapper.bundled_by</code></td></tr>
-<tr><td><code>linkage[n].packet.payload</code></td><td><code>Packet::payload()</code></td><td><code>Wrapper.payload</code></td></tr>
-<tr><td><code>linkage[n].packet.sub[c]</code></td><td><code>Packet::subpackets()[i]</code></td><td><code>Wrapper.sub_child1/2</code></td></tr>
-<tr><td><code>serial[t]</code></td><td><code>SerialGenerator</code> (Lamport clock)</td><td><code>uint8_t thread_ser</code> (local)</td></tr>
-<tr><td><code>ModGT(a,b)</code></td><td>符号なし減算→符号付き再解釈</td><td><code>mod_gt(a,b)</code>: <code>(a-b+MAX)%MAX &lt; MAX/2</code></td></tr>
+<tr><td><code>linkage[n].packet.payload</code></td><td><code>Packet::payload()</code></td><td>不変 slot <code>pkt_pack(payload,…)</code>（<code>Wrapper.packet_slot</code> 経由）</td></tr>
+<tr><td><code>linkage[n].packet.sub[c]</code></td><td><code>Packet::subpackets()[i]</code></td><td><code>pkt_pack(…, s0, s1, …)</code> の sub スロット（<code>packet_slot</code> 経由）</td></tr>
+<tr><td><code>serial[t]</code></td><td><code>SerialGenerator</code> (Lamport clock)</td><td><code>uint32_t thread_ser</code> (local)</td></tr>
+<tr><td>serial 比較<br>(Lamport, modular wrap なし)</td><td><code>isOlderThan</code><br>符号なし減算→符号付き再解釈</td><td><code>ser_gt(a,b)</code>: <code>(a-b)&amp;MASK, diff &lt; MOD/2</code></td></tr>
 </table>
 
 <h2>アクションの対応</h2>
 <table>
 <tr><th>TLA+ アクション</th><th>C++ コード</th><th>生成C11 関数</th></tr>
-<tr><td><code>SnapRead</code> + <code>SnapCheck</code><br>（3レベルでは SnapCheck のみ）</td><td><code>snapshot()</code><br>transaction_impl.h:842-870</td><td><code>snapshot_grand()</code><br><code>load_wrapper()</code> → priority/missing判定</td></tr>
-<tr><td><code>BundlePhase1</code>〜<code>4</code></td><td><code>bundle()</code><br>transaction_impl.h:1077-1171</td><td><code>snapshot_grand()</code>内<br>collect → CAS親 → CAS子 → finalize</td></tr>
-<tr><td><code>InnerPhase2</code>/<code>3</code>/<code>4</code><br>（3レベルのみ）</td><td><code>bundle()</code> の内側 bundle 部分<br>transaction_impl.h:1100-1171</td><td><code>snapshot_grand()</code>内<br>Grand bundle 時の Parent 側 inner bundle（superfine ではフェーズ分割、fine では <code>BundlePhase1</code> に畳み込む）</td></tr>
-<tr><td><code>CommitParent</code>（2レベル）<br><code>CommitGrand</code>（3レベル）</td><td><code>commit()</code> の親/祖父スコープ版<br>transaction_impl.h:1245-1270</td><td><code>commit_parent()</code> / <code>commit_grand()</code><br>内側の全 child payload を +1 する「深い」コミット</td></tr>
-<tr><td><code>CommitRead</code></td><td><code>commit()</code> の CAS 直前リロード<br>transaction_impl.h:1245-1260</td><td><code>commit_child()</code>内<br>CAS 試行直前の <code>load_wrapper</code></td></tr>
-<tr><td><code>CommitTryCAS</code></td><td><code>commit()</code><br>transaction_impl.h:1245-1270</td><td><code>commit_child()</code><br>直接CAS + single-node optimization</td></tr>
-<tr><td><code>CommitDone</code></td><td><code>commit()</code> 完了処理<br>transaction_impl.h:1265-1275</td><td><code>commit_child()</code> の末尾<br><code>iterBudget</code> を減算し、次の子または idle へ遷移</td></tr>
-<tr><td><code>UnbundleWalk</code></td><td><code>snapshotSupernode()</code><br>transaction_impl.h:696-755</td><td><code>commit_child()</code>内<br>bundledBy チェーンを辿って casTargets を構築（superfine #5 は root-first）</td></tr>
-<tr><td><code>UnbundleCASAncestors</code>（2レベル）<br><code>UnbundleCASLoop</code>（3レベル）</td><td>transaction_impl.h:1367-1379</td><td><code>commit_child()</code>内<br>各祖先に対して <code>cas_wrapper(anc, ... missing=TRUE)</code>。子スロット <code>sub</code> は Null 化せず保持</td></tr>
-<tr><td><code>UnbundleCASChild</code></td><td>transaction_impl.h:1383-1389</td><td><code>commit_child()</code>内<br>child → priority復元（新 payload 載せ）</td></tr>
+<tr><td><code>SnapRead</code> + <code>SnapCheck</code><br>（3レベルでは SnapCheck のみ）</td><td><code>snapshot()</code><br>transaction_impl.h:2038/2053</td><td><code>snapshot_grand()</code><br><code>load_w()</code> → priority/missing判定</td></tr>
+<tr><td><code>BundlePhase1</code>〜<code>4</code></td><td><code>bundle()</code><br>transaction_impl.h:2355</td><td><code>snapshot_grand()</code>内<br>collect → CAS親 → CAS子 → finalize</td></tr>
+<tr><td><code>InnerPhase2</code>/<code>3</code>/<code>4</code><br>（3レベルのみ）</td><td><code>bundle()</code> の内側 bundle 部分<br>transaction_impl.h:2355</td><td><code>snapshot_grand()</code>内<br>Grand bundle 時の Parent 側 inner bundle（superfine ではフェーズ分割、fine では <code>BundlePhase1</code> に畳み込む）</td></tr>
+<tr><td><code>CommitParent</code>（2レベル）<br><code>CommitGrand</code>（3レベル）</td><td><code>commit()</code> の親/祖父スコープ版<br>transaction_impl.h:2757</td><td><code>commit_parent()</code> / <code>commit_grand()</code><br>内側の全 child payload を +1 する「深い」コミット</td></tr>
+<tr><td><code>CommitRead</code></td><td><code>commit()</code> の CAS 直前リロード<br>transaction_impl.h:2757</td><td><code>commit_child()</code>内<br>CAS 試行直前の <code>load_w</code></td></tr>
+<tr><td><code>CommitTryCAS</code></td><td><code>commit()</code><br>transaction_impl.h:2757</td><td><code>commit_child()</code><br>直接CAS + single-node optimization</td></tr>
+<tr><td><code>CommitDone</code></td><td><code>commit()</code> 完了処理<br>transaction_impl.h:2757</td><td><code>commit_child()</code> の末尾<br><code>iterBudget</code> を減算し、次の子または idle へ遷移</td></tr>
+<tr><td><code>UnbundleWalk</code></td><td><code>reverseLookup()</code><br>transaction_impl.h:1590/1665/1675</td><td><code>commit_child()</code>内<br>bundledBy チェーンを辿って casTargets を構築（superfine #5 は root-first）</td></tr>
+<tr><td><code>UnbundleCASAncestors</code>（2レベル）<br><code>UnbundleCASLoop</code>（3レベル）</td><td><code>unbundle()</code><br>transaction_impl.h:2904</td><td><code>commit_child()</code>内<br>各祖先に対して <code>cas_w(anc, ... missing=TRUE)</code>。子スロット <code>sub</code> は Null 化せず保持</td></tr>
+<tr><td><code>UnbundleCASChild</code></td><td><code>unbundle()</code><br>transaction_impl.h:2904</td><td><code>commit_child()</code>内<br>child → priority復元（新 payload 載せ）</td></tr>
 </table>
 
 <div class="box-green">

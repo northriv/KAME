@@ -75,6 +75,7 @@
   </customwidget>
  </customwidgets>
  <tabstops>
+  <tabstop>m_btnMathTool</tabstop>
   <tabstop>m_edUrl</tabstop>
   <tabstop>m_btnUrl</tabstop>
   <tabstop>m_btnDump</tabstop>

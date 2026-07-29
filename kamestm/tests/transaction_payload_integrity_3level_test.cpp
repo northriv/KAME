@@ -44,9 +44,21 @@ typedef Transactional::Snapshot<MyNode> Shot;
 typedef Transactional::Transaction<MyNode> Tr;
 
 int main(int argc, char** argv) {
-    int StressSeconds = (argc > 1) ? std::atoi(argv[1]) : 0;
-    int NumThreads    = (argc > 2) ? std::atoi(argv[2]) : 4;
-    int MaxPayload    = (argc > 3) ? std::atoi(argv[3]) : 3;
+    // Strict arg-count guard: accept ONLY no args (ctest correctness
+    // default) or EXACTLY 3 args.  1-2 args are rejected so a mistyped
+    // invocation fails loudly instead of silently defaulting.
+    if(argc != 1 && argc != 4) {
+        std::fprintf(stderr,
+            "usage: %s [StressSeconds NumThreads MaxPayload]\n"
+            "  no args        : defaults (StressSeconds=0 correctness mode, "
+            "NumThreads=4, MaxPayload=3)\n"
+            "  EXACTLY 3 args : StressSeconds NumThreads MaxPayload\n",
+            argv[0]);
+        return 2;
+    }
+    int StressSeconds = (argc == 4) ? std::atoi(argv[1]) : 0;
+    int NumThreads    = (argc == 4) ? std::atoi(argv[2]) : 4;
+    int MaxPayload    = (argc == 4) ? std::atoi(argv[3]) : 3;
     int MaxCommits    = (StressSeconds > 0) ? 0x7fffffff : 10000;
 
     fprintf(stderr, "[3level] StressSeconds=%d NumThreads=%d MaxPayload=%d\n",
@@ -63,8 +75,8 @@ int main(int argc, char** argv) {
 
     std::atomic<int> barrier{0};
     std::atomic<bool> stop{false};
-    std::atomic<long long> total_child1_commits{0};
-    std::atomic<long long> total_child2_commits{0};
+    std::atomic<int_cas_max> total_child1_commits{0};
+    std::atomic<int_cas_max> total_child2_commits{0};
 
     auto worker = [&](int tid) {
         (void)tid;

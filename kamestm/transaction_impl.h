@@ -966,11 +966,30 @@ ProcessCounter::ProcessCounter() noexcept {
 ProcessCounter::cnt_t ProcessCounter::id() noexcept { return *stl_processID; }
 #endif
 
+#if KAME_STM_WAIT_BUDGET
+//! One slot for priority + wait limit — see TxContext for why they share.
+//! Value-initialised by XThreadLocal's placement `new(mem) T()`, so an
+//! untouched thread reads {NORMAL, 0} and takes every pre-existing path.
+XThreadLocal<TxContext> stl_currentTxContext;
+
+const TxContext &currentTxContext() noexcept { return *stl_currentTxContext; }
+
+Priority getCurrentPriorityMode() { return stl_currentTxContext->priority; }
+
+int64_t currentWaitLimit() noexcept {
+    return stl_currentTxContext->wait_limit;
+}
+
+void setCurrentWaitLimit(int64_t abs_us) noexcept {
+    stl_currentTxContext->wait_limit = abs_us;
+}
+#else
 XThreadLocal<Priority> stl_currentPriority;
 
 Priority getCurrentPriorityMode() {
     return *stl_currentPriority;
 }
+#endif // KAME_STM_WAIT_BUDGET
 
 template <class XN>
 void
@@ -998,7 +1017,7 @@ Node<XN>::Packet::print_() const {
 
 template <class XN>
 bool
-Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket,
+Node<XN>::Packet::checkConsistency(const local_shared_ptr<Packet> &rootpacket,
                                    const local_shared_ptr<Packet> &globalroot) const {
     // `rootpacket` switches on recursion (local sub-bundle root) for
     // the "sub missing → self missing" propagation; `groot` stays
@@ -1030,7 +1049,7 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket,
                 }
                 // Recurse with groot UNCHANGED (always the original
                 // top-level root) — only the local root switches.
-                if( !subpackets()->at(i)->checkConsistensy(
+                if( !subpackets()->at(i)->checkConsistency(
                     subpackets()->at(i)->missing() ? rootpacket : subpackets()->at(i),
                     groot))
                     return false;
@@ -1049,9 +1068,9 @@ template <class XN>
 bool
 Node<XN>::Packet::allSubReachable(const local_shared_ptr<Packet> &rootpacket,
                                   const local_shared_ptr<Packet> &globalroot) const {
-    // Non-throwing mirror of checkConsistensy's Null-slot path.  Used
+    // Non-throwing mirror of checkConsistency's Null-slot path.  Used
     // by bundle Phase 4 to gate the `is_bundle_root` `m_missing=false`
-    // publish.  `globalroot` follows checkConsistensy's semantics.
+    // publish.  `globalroot` follows checkConsistency's semantics.
     const local_shared_ptr<Packet> &groot = globalroot ? globalroot : rootpacket;
     if(groot->missing()) return true;  // root missing → no Null-slot check fires
     for(int i = 0; i < size(); i++) {
@@ -1193,7 +1212,7 @@ bool
 Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_after_insertion) {
     ScopedLookupMemoInvalidate<XN> _memo_guard(tr);
     local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
-    packet->subpackets() = packet->size() ? std::make_shared<PacketList>( *packet->subpackets()) : std::make_shared<PacketList>();
+    packet->subpackets() = packet->size() ? make_local_shared<PacketList>( *packet->subpackets()) : make_local_shared<PacketList>(SerialGenerator::gen());
     packet->subpackets()->m_serial = tr.m_serial;
     packet->m_missing = true;
     packet->subnodes() = packet->size() ? std::make_shared<NodeList>( *packet->subnodes()) : std::make_shared<NodeList>();
@@ -1262,7 +1281,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
     }
     tr[ *this].catchEvent(var, packet->size() - 1);
     tr[ *this].listChangeEvent();
-    STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
+    STRICT_assert(tr.m_packet->checkConsistency(tr.m_packet));
     return true;
 //		printf("i");
 }
@@ -1426,7 +1445,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
         return false; // destructor tags
     }
     // scope auto-committed + tagged successful_cas via the call.
-    STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
+    STRICT_assert(tr.m_packet->checkConsistency(tr.m_packet));
     return true;
 }
 template <class XN>
@@ -1453,7 +1472,7 @@ bool
 Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN> &y) {
     ScopedLookupMemoInvalidate<XN> _memo_guard(tr);
     local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
-    packet->subpackets().reset(packet->size() ? (new PacketList( *packet->subpackets())) : (new PacketList));
+    packet->subpackets().reset(packet->size() ? (new PacketList( *packet->subpackets())) : (new PacketList(SerialGenerator::gen())));
     packet->subpackets()->m_serial = tr.m_serial;
     packet->m_missing = true;
     packet->subnodes().reset(packet->size() ? (new NodeList( *packet->subnodes())) : (new NodeList));
@@ -1476,7 +1495,7 @@ Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN
     packet->subnodes()->at(y_idx) = x;
     tr[ *this].moveEvent(x_idx, y_idx);
     tr[ *this].listChangeEvent();
-    STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
+    STRICT_assert(tr.m_packet->checkConsistency(tr.m_packet));
     return true;
 }
 
@@ -1498,13 +1517,22 @@ Node<XN>::reverseLookupWithHint(local_shared_ptr<Linkage> &linkage,
     if( !wrapper) return nullptr;
     if(wrapper->hasPriority())
         return nullptr;
-    local_shared_ptr<Linkage> linkage_upper(wrapper->bundledBy());
-    if( !linkage_upper)
-        return nullptr;
     local_shared_ptr<Packet> *foundpacket;
-    if(linkage_upper == superpacket->node().m_link)
+    // Fast path: when the back-reference already names the lookup root's
+    // linkage we need only its identity, not a live reference — skip the
+    // weak->strong promotion (try_promote + release RMW pair).  Safe: the
+    // comparison target (the root linkage) is held alive by the caller's
+    // Snapshot/Transaction, and on a match we use `superpacket` and never
+    // touch the upper linkage.  See PacketWrapper::bundledBySameAs.
+    if(wrapper->bundledBySameAs(superpacket->node().m_link)) {
         foundpacket = &superpacket;
+    }
     else {
+        // Parent is an intermediate node: the recursion dereferences it,
+        // so a genuine owning reference is required here.
+        local_shared_ptr<Linkage> linkage_upper(wrapper->bundledBy());
+        if( !linkage_upper)
+            return nullptr;
         foundpacket = reverseLookupWithHint(linkage_upper,
             superpacket, copy_branch, tr_serial, set_missing, nullptr, nullptr);
         if( !foundpacket)
@@ -2091,7 +2119,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                 return;
             }
             if( !scope->packet()->missing()) {
-                STRICT_assert(scope->packet()->checkConsistensy(scope->packet()));
+                STRICT_assert(scope->packet()->checkConsistency(scope->packet()));
                 snapshot.m_packet = scope->packet();
                 scope.commit();
                 return;
@@ -2112,7 +2140,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
             case SnapshotStatus::SUCCESS: {
                     if( !( *foundpacket)->missing() || !multi_nodal) {
                         snapshot.m_packet = *foundpacket;
-                        STRICT_assert(snapshot.m_packet->checkConsistensy(snapshot.m_packet));
+                        STRICT_assert(snapshot.m_packet->checkConsistency(snapshot.m_packet));
                         scope.commit();
                         return;
                     }
@@ -2183,7 +2211,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
         switch (status) {
         case BundledStatus::SUCCESS:
             assert( !scope->packet()->missing());
-            STRICT_assert(scope->packet()->checkConsistensy(scope->packet()));
+            STRICT_assert(scope->packet()->checkConsistency(scope->packet()));
             snapshot.m_serial = SerialGenerator::gen(); //Capture Lamport advances from bundle().
             snapshot.m_packet = scope->packet();
             scope.commit();
@@ -2441,7 +2469,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
 
         //--- Phase 1: collect sub-packets from child nodes ---
         newpacket->subpackets().reset(new PacketList( *newpacket->subpackets()));
-        shared_ptr<PacketList> &subpackets(newpacket->subpackets());
+        local_shared_ptr<PacketList> &subpackets(newpacket->subpackets());
         shared_ptr<NodeList> &subnodes(newpacket->subnodes());
 
         bool missing = false;
@@ -2630,11 +2658,12 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             // circuit their Null-slot reverseLookup when the observed
             // root is missing (mid-bundle).  Default globalroot is
             // correct: for `is_bundle_root=true` the reverseLookup
-            // at line ~1440 makes newpacket alias superwrapper's
-            // packet, i.e. the bundle's global root.
+            // self-alias branch (:1593, `&superpacket->node()==this`)
+            // makes newpacket alias superwrapper's packet, i.e. the
+            // bundle's global root.
             newpacket->m_missing = false;
             if(newpacket->allSubReachable(newpacket)) [[likely]] {
-                STRICT_assert(newpacket->checkConsistensy(newpacket));
+                STRICT_assert(newpacket->checkConsistency(newpacket));
             }
             else {
                 newpacket->m_missing = true;
@@ -2804,7 +2833,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
             }
 //			STRICT_TEST(std::deque<local_shared_ptr<PacketWrapper> > subwrappers);
 //			STRICT_TEST(fetchSubpackets(subwrappers, wrapper->packet()));
-            STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
+            STRICT_assert(tr.m_packet->checkConsistency(tr.m_packet));
 
             // CAS via the scope: success → auto-commit + priority hint;
             // failure → m_contention_observed → dtor tag.
@@ -3030,7 +3059,11 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
 #endif
 
 void setCurrentPriorityMode(Priority pr) {
+#if KAME_STM_WAIT_BUDGET
+    stl_currentTxContext->priority = pr;
+#else
     *stl_currentPriority = pr;
+#endif
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
     SetThreadPriority(GetCurrentThread(),
         (pr == Priority::HIGHEST) ? THREAD_PRIORITY_TIME_CRITICAL : THREAD_PRIORITY_NORMAL);

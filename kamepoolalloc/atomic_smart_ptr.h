@@ -30,6 +30,7 @@
 #include <functional>
 #include <utility>
 #include <type_traits>
+#include <cstdint>   // uintptr_t — tagged-pointer local refcount (not transitive under libstdc++ 14+)
 #include <assert.h>
 
 //! Trait to disable load_shared_() for specific types at compile time.
@@ -103,6 +104,50 @@ private:
 //! `gref_weakable_<T>` (emplaced) inherit from this, enabling
 //! `local_weak_ptr<T>` to store a type-erased `gref_weak_base_*`
 //! without needing T to be complete at class-definition time.
+//=============================================================================
+// §biased refcount  —  OPT-IN, PER-TYPE.  ***Auditing the lock-free core?  SKIP
+// this whole section and every `if constexpr (is_biased_directpublish<T>::value)`
+// one-liner below — they fold to NOTHING for every type that does not inherit the
+// marker (i.e. ALL types today; nothing opts in), leaving the plain atomic path.***
+//
+// A type T that inherits `atomic_biased_directpublish` stores its strong refcount
+// NEGATED while owner-private (born -1; copy/reset mutate it non-atomically via
+// relaxed load+store), and PUBLISH negates it to +count.  ~3.3× on owner-private
+// churn (micro).  CONTRACT — sound ONLY for a DIRECT-PUBLISH control block: one
+// that is exclusively the value of an `atomic_shared_ptr<T>` slot and is NEVER
+// transitively contained in another control block (a `local_shared_ptr<T>` member
+// of some other CB).  Marking a transitively-shared type (e.g. the STM's Packet /
+// PacketList / Linkage) is UNSOUND (a reader copying the nested handle races the
+// owner's non-atomic store).  Verified by GenMC test 10; see
+// [[project_biased_refcount_planA]].  No KAME type opts in (measured: no net win).
+struct atomic_biased_directpublish {};
+template<class T> struct is_biased_directpublish : std::is_base_of<atomic_biased_directpublish, T> {};
+
+//! All biased refcount logic lives here so the hot paths stay a single skippable
+//! `if constexpr` line each.  `rc` is the control block's strong refcnt.
+static inline void biased_born_(atomic<uintptr_t> &rc) noexcept {                 //!< fresh CB → private -1
+    rc.store((uintptr_t)(-(intptr_t)1), std::memory_order_relaxed);
+}
+static inline void biased_inc_(atomic<uintptr_t> &rc) noexcept {                  //!< copy: ++count
+    uintptr_t v = rc.load(std::memory_order_relaxed);
+    if((intptr_t)v < 0) rc.store(v - 1, std::memory_order_relaxed);   //!< private: non-atomic
+    else                rc.fetch_add(1, std::memory_order_relaxed);   //!< shared: atomic
+}
+static inline bool biased_dec_is_dead_(atomic<uintptr_t> &rc) noexcept {          //!< reset: --count → dead?
+    uintptr_t v = rc.load(std::memory_order_relaxed);
+    if((intptr_t)v < 0) { uintptr_t nv = v + 1;                       //!< private: branchless add+cbz
+        rc.store(nv, std::memory_order_relaxed); return nv == 0; }
+    return rc.decAndTest();                                           //!< shared: atomic acq_rel
+}
+static inline void biased_publish_(atomic<uintptr_t> &rc) noexcept {              //!< publish: -count → +count
+    uintptr_t v = rc.load(std::memory_order_relaxed);
+    if((intptr_t)v < 0) rc.store((uintptr_t)(-(intptr_t)v), std::memory_order_release); //!< idempotent on +
+}
+static inline uintptr_t biased_count_(uintptr_t v) noexcept {                     //!< magnitude (use_count)
+    return (intptr_t)v < 0 ? (uintptr_t)(-(intptr_t)v) : v;
+}
+//=============================================================================
+
 struct gref_weak_base_ {
     typedef uintptr_t Refcnt;
     atomic<Refcnt> refcnt;
@@ -365,6 +410,27 @@ template <typename X> class local_weak_ptr;
 //! verification is unaffected).
 template <typename T> struct force_intrusive_ref : std::false_type {};
 
+//! (§36c) Opt-out of marker AUTO-detection for a NON-intrusive type that is
+//! INCOMPLETE — or whose instantiation would be CIRCULAR — at the first use of
+//! `local_shared_ptr<T>` / `atomic_shared_ptr<T>`.  The `sizeof(T)` completeness
+//! probe in `ref_traits_auto` instantiates `T`; for a plain incomplete class
+//! (`struct N;`) that soft-fails and the incomplete fallback is chosen, but for
+//! a not-yet-instantiated class TEMPLATE id (e.g. `Holder<A>` used while `A` is
+//! still being defined, where `Holder<A>` transitively needs `A` complete) the
+//! probe forces `Holder<A>`'s instantiation and the resulting error is a HARD
+//! error, NOT soft SFINAE — so `local_shared_ptr<Holder<A>>` cannot be a member
+//! of `A` the way `std::shared_ptr<Holder<A>>` can.  Specialise this to
+//! `std::true_type` (before that first use) to skip the probe and take the
+//! default non-intrusive two-alloc `gref_<T>` control block — identical to the
+//! auto-detected incomplete fallback, and the only `T` usage is `T *ptr;` which
+//! is valid on an incomplete T.  `local_weak_ptr<T>` stays available.
+//!
+//!     template <class X> struct force_incomplete_ref<Holder<X>> : std::true_type {};
+//!
+//! Mutually exclusive with `force_intrusive_ref<T>` (intrusive wins).  Pure
+//! compile-time trait dispatch — does NOT touch the lock-free SMR core.
+template <typename T> struct force_incomplete_ref : std::false_type {};
+
 //! AUTO-detection traits (used only for NON-forced types).  A `sizeof(T)`
 //! completeness gate distinguishes the two: incomplete T → non-intrusive
 //! gref_<T> fallback; complete T → marker-base (`is_base_of`) detection.
@@ -404,11 +470,19 @@ struct ref_traits_auto<T, std::void_t<decltype(sizeof(T))>> {
     static constexpr bool has_weak = !is_intrusive && !is_strict;
 };
 
-//! Dispatcher.  The `bool Forced` second parameter — defaulted from
-//! `force_intrusive_ref<T>` (which needs only T's template-id, NOT a complete
-//! T) — picks between the forced-intrusive partial spec (NO `sizeof` anywhere,
-//! safe for incomplete self-referential types) and the auto-detection path.
-template <typename T, bool Forced = force_intrusive_ref<T>::value>
+//! Dispatcher.  The `int Mode` second parameter — defaulted from the two
+//! force traits (each needs only T's template-id, NOT a complete T) — picks:
+//!   0 = AUTO-detection (`sizeof(T)` marker probe; requires T completable),
+//!   1 = forced INTRUSIVE   (`force_intrusive_ref<T>`; NO `sizeof` anywhere),
+//!   2 = forced INCOMPLETE  (`force_incomplete_ref<T>`; non-intrusive gref_<T>
+//!       fallback, NO `sizeof` — for circular/incomplete template-id members).
+//! Intrusive wins if both are (mis)specialised.
+template <typename T>
+constexpr int ref_force_mode() noexcept {
+    return force_intrusive_ref<T>::value ? 1
+         : (force_incomplete_ref<T>::value ? 2 : 0);
+}
+template <typename T, int Mode = ref_force_mode<T>()>
 struct ref_traits : ref_traits_auto<T> {};
 
 //! (§36b) Forced-intrusive — `Ref = T` (no separate control block; disposal via
@@ -427,13 +501,26 @@ struct ref_traits : ref_traits_auto<T> {};
 //! the type; a template specialisation has no such escape.  All control blocks
 //! in this header use `uintptr_t` for the count, so the trait fixes it here.
 template <typename T>
-struct ref_traits<T, true> {
+struct ref_traits<T, 1> {
     static constexpr bool is_intrusive = true;
     static constexpr bool is_emplaced  = false;
     static constexpr bool is_strict    = false;
     using Ref = T;
     using Refcnt = uintptr_t;
     static constexpr bool has_weak = false;
+};
+
+//! (§36c) Forced-incomplete — default non-intrusive two-alloc `gref_<T>`
+//! control block (its only T usage is `T *ptr;`, valid on incomplete T), NO
+//! `sizeof(T)` probe.  Mirrors the auto-detected incomplete fallback so a
+//! circular/incomplete template-id can be a `local_shared_ptr<T>` member.
+template <typename T>
+struct ref_traits<T, 2> {
+    static constexpr bool is_intrusive = false;
+    static constexpr bool is_emplaced  = false;
+    static constexpr bool is_strict    = false;
+    using Ref = atomic_shared_ptr_gref_<T>;
+    static constexpr bool has_weak = true;
 };
 
 //! (§36b) Opt-in custom disposer for the INTRUSIVE mode (`atomic_countable`).
@@ -519,6 +606,8 @@ protected:
         } else {
             m_ref = (reflocal_t)new Ref(y);           //!< Wrap y in a fresh CB.
         }
+        if constexpr (is_biased_directpublish<T>::value)   //!< §biased — skippable: born private (-1)
+            biased_born_(((Ref*)(reflocal_t)m_ref)->refcnt);
     }
 
     T *get() noexcept {
@@ -537,7 +626,9 @@ protected:
     }
 
     int _use_count_() const noexcept {
-        return ((const Ref*)(reflocal_t)this->m_ref)->refcnt;
+        uintptr_t v = ((const Ref*)(reflocal_t)this->m_ref)->refcnt;
+        if constexpr (is_biased_directpublish<T>::value) return (int)biased_count_(v); //!< §biased — skippable
+        return (int)v;
     }
 
     reflocal_var_t m_ref;
@@ -597,8 +688,13 @@ public:
         return *this;
     }
     template<typename Y, typename Z> local_shared_ptr &operator=(local_shared_ptr<Y, Z> &&y) noexcept {
-        y.swap( *this);
-        y.reset();
+        //! Build a destination-typed temporary from \a y (move-converting
+        //! ctor, nulls \a y), then same-type swap — mirrors the copy
+        //! converting assignment above. A direct `y.swap(*this)` only
+        //! compiles for Y==T, but that case uses the non-template overload;
+        //! this enables qualification-converting moves such as
+        //! `local_shared_ptr<const T> = make_local_shared<T>(...)`.
+        local_shared_ptr(std::move(y)).swap( *this);
         return *this;
     }
     //! \param[in] t The pointer held by this instance is replaced with that of \a t.
@@ -715,6 +811,9 @@ public:
             m_ref = static_cast<gref_weak_base_ *>(
                 reinterpret_cast<Ref *>(static_cast<uintptr_t>(sp.m_ref)));
             m_ref->weak_refcnt.fetch_add(1, std::memory_order_acq_rel);
+            //!< §biased — skippable: taking a weak handle (promotable cross-thread)
+            //!< is a publish point, so a biased CB is negated -count→+count here.
+            if constexpr (is_biased_directpublish<T>::value) biased_publish_(m_ref->refcnt);
         }
     }
 
@@ -768,6 +867,25 @@ public:
         }
     }
 
+    //! Control-block identity test against a LIVE \a sp WITHOUT a
+    //! weak->strong promotion — zero refcount traffic (lock() costs a
+    //! try_promote + a release RMW).  This never dereferences the weak
+    //! side; it only compares control-block addresses.  m_ref is a bare
+    //! CB pointer (the weak handle carries no local-count tag) and
+    //! sp.ref_ptr_() returns sp's masked CB pointer, so equality is
+    //! exact for any tag layout of \a sp.
+    //!
+    //! Correctness contract: the caller must pass a sp that is KNOWN
+    //! ALIVE (refcnt >= 1).  A live CB's address is occupied, so a true
+    //! result means genuine identity — no freed-and-reused-CB ABA.  A
+    //! dead-but-weakly-pinned CB on THIS side simply won't match a
+    //! distinct live CB, degrading to a normal miss.  Returns false when
+    //! either side is empty (null != a live CB; matches only null==null).
+    template <typename Z>
+    bool same_control_block(const local_shared_ptr<T, Z> &sp) const noexcept {
+        return m_ref == static_cast<const gref_weak_base_ *>(sp.ref_ptr_());
+    }
+
     //! Promote to `local_shared_ptr<T>`; returns empty when expired.
     //! T must be complete when instantiated.
     local_shared_ptr<T> lock() const noexcept {
@@ -808,11 +926,11 @@ class atomic_shared_ptr : protected local_shared_ptr<T, atomic<uintptr_t>> {
 public:
     atomic_shared_ptr() noexcept : local_shared_ptr<T, atomic<uintptr_t>>() {}
 
-    template<typename Y> explicit atomic_shared_ptr(Y *y) : local_shared_ptr<T, atomic<uintptr_t>>(y) {}
-    atomic_shared_ptr(const atomic_shared_ptr<T> &t) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(t) {}
-    template<typename Y> atomic_shared_ptr(const atomic_shared_ptr<Y> &y) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(y) {}
-    atomic_shared_ptr(const local_shared_ptr<T> &t) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(t) {}
-    template<typename Y> atomic_shared_ptr(const local_shared_ptr<Y> &y) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(y) {}
+    template<typename Y> explicit atomic_shared_ptr(Y *y) : local_shared_ptr<T, atomic<uintptr_t>>(y) { publish_clear_priv_(); }
+    atomic_shared_ptr(const atomic_shared_ptr<T> &t) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(t) {} //!< source already shared (PRIV clear)
+    template<typename Y> atomic_shared_ptr(const atomic_shared_ptr<Y> &y) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(y) {} //!< source already shared
+    atomic_shared_ptr(const local_shared_ptr<T> &t) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(t) { publish_clear_priv_(); }
+    template<typename Y> atomic_shared_ptr(const local_shared_ptr<Y> &y) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(y) { publish_clear_priv_(); }
     atomic_shared_ptr(atomic_shared_ptr<T> &&t) noexcept {
         operator=(std::move(t));
     }
@@ -838,8 +956,12 @@ public:
         return *this;
     }
     template<typename Y> atomic_shared_ptr &operator=(local_shared_ptr<Y> &&y) noexcept {
-        y.swap( *this);
-        y.reset();
+        //! Mirror the copy converting assignment above: build a
+        //! local_shared_ptr<T> from \a y (move-converting ctor, nulls \a y)
+        //! then atomic-swap. A direct `y.swap(*this)` only binds for Y==T
+        //! (handled by the non-template overload), so this enables
+        //! qualification-converting moves like atomic_shared_ptr<const T> = make_local_shared<T>().
+        local_shared_ptr<T>(std::move(y)).swap( *this);
         return *this;
     }
     //! The pointer held by this instance is atomically reset to null pointer.
@@ -916,6 +1038,18 @@ protected:
     Ref* ref_ptr_() const noexcept {
         auto ref = this->m_ref.load(std::memory_order_relaxed);
         return (Ref*)(ref & (~(uintptr_t)(this->LOCAL_REF_CAPACITY - 1)));
+    }
+    //! (§biased) PUBLISH from a value/copy constructor that installs a CB
+    //! straight into this atomic slot (so it is NOT routed through
+    //! swap()/compareAndSet_impl_, the two RMW publish points).  Negates a still
+    //! private (-count) CB to +count (release) so the now-shared CB uses the
+    //! atomic refcnt path henceforth; idempotent on an already-shared (+) CB.
+    //! At construction *this is not yet reachable by other threads, so the
+    //! base copy-ctor's owner-side bump preceding this is sound.  Folds away
+    //! (empty) when the gate is OFF — off-path codegen stays byte-identical.
+    void publish_clear_priv_() noexcept {
+        if constexpr (is_biased_directpublish<T>::value)         //!< §biased — skippable
+            if(Ref *p = ref_ptr_()) biased_publish_(p->refcnt);
     }
     //! Single atomic load returning both the pointer and the local refcount.
     std::pair<Ref*, Refcnt> load_tagged_() const noexcept {
@@ -1436,8 +1570,10 @@ template <typename T, typename reflocal_var_t>
 inline local_shared_ptr<T, reflocal_var_t>::local_shared_ptr(const local_shared_ptr &y) noexcept {
     static_assert(sizeof(static_cast<const T*>(y.get())), "");
     this->m_ref = (TaggedPtr)y.m_ref;
-    if(ref_ptr_())
-        ref_ptr_()->refcnt.fetch_add(1, std::memory_order_relaxed);
+    if(Ref *p = ref_ptr_()) {
+        if constexpr (is_biased_directpublish<T>::value) biased_inc_(p->refcnt); //!< §biased — skippable
+        else p->refcnt.fetch_add(1, std::memory_order_relaxed);
+    }
 }
 
 template <typename T, typename reflocal_var_t>
@@ -1445,8 +1581,10 @@ template<typename Y, typename Z>
 inline local_shared_ptr<T, reflocal_var_t>::local_shared_ptr(const local_shared_ptr<Y, Z> &y) noexcept {
     static_assert(sizeof(static_cast<const T*>(y.get())), "");
     this->m_ref = (TaggedPtr)y.m_ref;
-    if(ref_ptr_())
-        ref_ptr_()->refcnt.fetch_add(1, std::memory_order_relaxed);
+    if(Ref *p = ref_ptr_()) {
+        if constexpr (is_biased_directpublish<T>::value) biased_inc_(p->refcnt); //!< §biased — skippable
+        else p->refcnt.fetch_add(1, std::memory_order_relaxed);
+    }
 }
 
 template <typename T, typename reflocal_var_t>
@@ -1459,6 +1597,11 @@ inline void
 local_shared_ptr<T, reflocal_var_t>::reset() noexcept {
     Ref *pref = ref_ptr_();
     if( !pref) return;
+    if constexpr (is_biased_directpublish<T>::value) {        //!< §biased — skippable block
+        if(biased_dec_is_dead_(pref->refcnt)) this->deleter(pref);
+        this->m_ref = (TaggedPtr)nullptr;
+        return;
+    }
     // decreases global reference counter.
     if(unique()) {
         pref->refcnt.store(0, std::memory_order_relaxed);
@@ -1707,6 +1850,10 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
         }
     };
 
+    //!< §biased — skippable: newr is about to be installed into this atomic slot,
+    //!< so a biased CB is negated -count→+count BEFORE the optimistic count bump.
+    if constexpr (is_biased_directpublish<T>::value)
+        if(Ref *np = newr_pref()) biased_publish_(np->refcnt);
     // Optimistic +NEWR_ADD for m_ref's implicit ref (+ scoped's Owned
     // ref when RETAIN_NEWR) on success; will undo on WEAK-failure or
     // pointer-mismatch.
@@ -1936,6 +2083,10 @@ local_shared_ptr<T, reflocal_var_t>::swap(local_shared_ptr &r) noexcept {
 template <typename T, typename reflocal_var_t>
 void
 local_shared_ptr<T, reflocal_var_t>::swap(atomic_shared_ptr<T> &r) noexcept {
+    //!< §biased — skippable: this's CB is about to enter the atomic slot r, so a
+    //!< biased CB is negated -count→+count (release) before the install CAS.
+    if constexpr (is_biased_directpublish<T>::value)
+        if(Ref *sp = ref_ptr_()) biased_publish_(sp->refcnt);
     for(int spins = 1;; spins *= 2) {
         Refcnt rcnt_old, rcnt_new;
         auto [pref, success] = r.acquire_tag_ref_( &rcnt_old);

@@ -1494,7 +1494,7 @@ x << x.last["Drivers"]
 		x.last["AllowPersistent"]	# .value = "false"
 		x.last["Stabilized"]	# .value = "0"
 		x.last["MagnetField"]	# .value = "0"
-		x.last["OutpuField"]	# .value = "0"
+		x.last["OutputField"]	# .value = "0"
 		x.last["OutputCurrent"]	# .value = "0"
 		x.last["OutputVolt"]	# .value = "0"
 		x.last["PCSHeater"]	# .value = "false"

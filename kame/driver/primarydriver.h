@@ -16,6 +16,8 @@
 
 #include "driver.h"
 #include "interface.h"
+#include <atomic>
+#include <cstdint>
 
 class DECLSPEC_KAME XPrimaryDriver : public XDriver {
 public:
@@ -100,6 +102,41 @@ protected:
 	//! \sa Payload::time()
 	void finishWritingRaw(const shared_ptr<const RawData> &rawdata,
 		const XTime &time_awared, const XTime &time_recorded);
+public:
+    //! \name Record-commit latency telemetry
+    //!
+    //! An acquisition thread's `finishWritingRaw` is where the hardware loop
+    //! meets the STM, so it is the one commit whose latency can stall
+    //! acquisition.  These count how often that commit was slow, so the
+    //! question "does this driver ever wait on the STM at all?" can be
+    //! answered from a real session instead of extrapolated from a synthetic
+    //! benchmark (where the whole-tree arm shows 250 ms tails and the
+    //! per-subtree arm shows 1.5 us).
+    //!
+    //! Counted, never printed on the hot path — the same discipline as
+    //! `kame_pool_rt_violations()`: one comparison per record, and a single
+    //! summary line at thread exit if the count is nonzero.  Threshold is
+    //! deliberately coarse; a driver that never trips it needs no realtime
+    //! treatment at all.
+    //! \{
+    static constexpr std::uint64_t SLOW_RECORD_COMMIT_NS = 1000000ull; //!< 1 ms
+    //! Records whose finishWritingRaw commit exceeded SLOW_RECORD_COMMIT_NS.
+    std::uint64_t slowRecordCommits() const noexcept {
+        return m_slowRecordCommits.load(std::memory_order_relaxed);
+    }
+    //! Longest finishWritingRaw commit seen, in ns.
+    std::uint64_t maxRecordCommitNS() const noexcept {
+        return m_maxRecordCommitNS.load(std::memory_order_relaxed);
+    }
+    //! Total records committed through finishWritingRaw.
+    std::uint64_t recordCommits() const noexcept {
+        return m_recordCommits.load(std::memory_order_relaxed);
+    }
+    //! \}
+private:
+    std::atomic<std::uint64_t> m_slowRecordCommits{0};
+    std::atomic<std::uint64_t> m_maxRecordCommitNS{0};
+    std::atomic<std::uint64_t> m_recordCommits{0};
 public:
     struct DECLSPEC_KAME Payload : public XDriver::Payload {
 		const RawData &rawData() const {return *m_rawData;}
@@ -268,6 +305,42 @@ inline uint64_t XPrimaryDriver::RawDataReader::pop() {
     if(it + sizeof(int64_t) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
     return static_cast<uint64_t>(pop_int64_t());
 }
+// `int64_t` is `long` on LP64 Linux but `long long` on macOS (and on Windows),
+// so the specialization tables here cover a DIFFERENT pair of C++ types on each
+// platform: `push<long long>` / `pop<size_t>` compiles on exactly one of them
+// and is an undefined symbol on the other.  Add the OTHER 8-byte spelling —
+// whichever of {long, long long} is not already int64_t — so driver source is
+// portable either way.  Naming it with conditional_t rather than an #ifdef is
+// what keeps this from becoming a duplicate specialization on the platform
+// where the two spellings coincide.
+//
+// Guarded on __SIZEOF_LONG__ == 8: under Windows LLP64 `long` is 32-bit, so
+// there is no second 8-byte spelling to add (and pushing a 32-bit `long`
+// through push_int64_t would be wrong).
+#include <type_traits>
+#if defined __SIZEOF_LONG__ && (__SIZEOF_LONG__ == 8)
+//! The 8-byte signed/unsigned integer type that is NOT int64_t/uint64_t.
+using kame_alt_int64_t = std::conditional<
+    std::is_same<int64_t, long long>::value, long, long long>::type;
+using kame_alt_uint64_t = std::conditional<
+    std::is_same<uint64_t, unsigned long long>::value,
+    unsigned long, unsigned long long>::type;
+#endif
+
+// See the matching note next to RawData::push(uint64_t): int64_t is `long` on
+// LP64 Linux and `long long` on macOS, so cover the other 64-bit spelling too.
+#if defined __SIZEOF_LONG__ && (__SIZEOF_LONG__ == 8)
+template <>
+inline kame_alt_int64_t XPrimaryDriver::RawDataReader::pop() {
+    if(it + sizeof(int64_t) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+    return static_cast<kame_alt_int64_t>(pop_int64_t());
+}
+template <>
+inline kame_alt_uint64_t XPrimaryDriver::RawDataReader::pop() {
+    if(it + sizeof(int64_t) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+    return static_cast<kame_alt_uint64_t>(pop_int64_t());
+}
+#endif
 template <>
 inline float XPrimaryDriver::RawDataReader::pop() {
 	if(it + sizeof(float) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
@@ -318,6 +391,17 @@ template <>
 inline void XPrimaryDriver::RawData::push(uint64_t x) {
     push_int64_t(static_cast<int64_t>(x));
 }
+// kame_alt_int64_t / kame_alt_uint64_t: see the note above the pop() pair.
+#if defined __SIZEOF_LONG__ && (__SIZEOF_LONG__ == 8)
+template <>
+inline void XPrimaryDriver::RawData::push(kame_alt_int64_t x) {
+    push_int64_t(static_cast<int64_t>(x));
+}
+template <>
+inline void XPrimaryDriver::RawData::push(kame_alt_uint64_t x) {
+    push_int64_t(static_cast<int64_t>(x));
+}
+#endif
 template <>
 inline void XPrimaryDriver::RawData::push(float f) {
 	union {

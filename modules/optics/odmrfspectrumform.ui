@@ -551,13 +551,19 @@
  </customwidgets>
  <tabstops>
   <tabstop>m_ckbActive</tabstop>
+  <tabstop>m_ckbRepeatedly</tabstop>
   <tabstop>m_edCenterFreq</tabstop>
   <tabstop>m_edFreqSpan</tabstop>
   <tabstop>m_edFreqStep</tabstop>
+  <tabstop>m_ckbAltUpdateSubRegion</tabstop>
+  <tabstop>m_edSubRegionMinFreq</tabstop>
+  <tabstop>m_edSubRegionMaxFreq</tabstop>
   <tabstop>m_cmbCamera</tabstop>
+  <tabstop>m_cmbSG1</tabstop>
   <tabstop>m_edDump</tabstop>
   <tabstop>m_tbDump</tabstop>
   <tabstop>m_btnDump</tabstop>
+  <tabstop>m_tlbMath</tabstop>
  </tabstops>
  <resources/>
  <connections/>

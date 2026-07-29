@@ -166,9 +166,34 @@ PyDriverExporter<XDCSource, XPrimaryDriver> dcsource([](auto node, auto payload)
             pybind11::gil_scoped_release unguard;
             self->changeRange(ch, x);
         })
-        .def("queryStatus", [](shared_ptr<XDCSource> &self, Transaction &tr, int ch){
-            pybind11::gil_scoped_release unguard;
-            self->queryStatus(tr, ch);
+        //! Reads the device and RETURNS what it read; it no longer takes a
+        //! Transaction.  The old binding handed a live transaction to a method
+        //! that does interface I/O, which put I/O inside a transaction — the
+        //! deadlock class in CLAUDE.md driver rule 5 — and made it reachable
+        //! from a script.  Store the result yourself:
+        //!
+        //!     st = src.queryStatus(ch)
+        //!     if st["valid"]:
+        //!         with Transaction(src) as tr: tr[src.value()] = st["value"]
+        //!
+        //! Returned as a dict rather than a bound struct so no new type or
+        //! <pybind11/stl.h> optional conversion is needed; absent fields are
+        //! None.
+        .def("queryStatus", [](shared_ptr<XDCSource> &self, int ch){
+            XDCSource::Status st;
+            {
+                pybind11::gil_scoped_release unguard;
+                st = self->queryStatus(ch);
+            }
+            pybind11::dict d;
+            d["valid"]  = st.valid;
+            d["value"]  = st.value  ? pybind11::cast( *st.value)
+                                    : pybind11::object(pybind11::none());
+            d["output"] = st.output ? pybind11::cast( *st.output)
+                                    : pybind11::object(pybind11::none());
+            d["range"]  = st.range  ? pybind11::cast( *st.range)
+                                    : pybind11::object(pybind11::none());
+            return d;
         })
         .def("max", [](shared_ptr<XDCSource> &self, int ch, bool autorange){
             pybind11::gil_scoped_release unguard;
@@ -195,6 +220,10 @@ PyDriverExporter<XDSO, XPrimaryDriver> dso([](auto node, auto payload){
     .def("length", &XDSO::Payload::length)
     .def("wave", [](XDSO::Payload &self, unsigned int ch){
         using namespace Eigen;
+        if( !self.length())
+            throw std::runtime_error("wave: no waveform recorded yet.");
+        if(ch >= self.numChannels())
+            throw std::out_of_range("wave: channel index out of range.");
         auto cvector = Map<const VectorXd, 0>(
             self.wave(ch), self.length());
         return Ref<const VectorXd>(cvector);
@@ -203,6 +232,10 @@ PyDriverExporter<XDSO, XPrimaryDriver> dso([](auto node, auto payload){
     .def("lengthDisp", &XDSO::Payload::lengthDisp)
     .def("waveDisp", [](XDSO::Payload &self, unsigned int ch){
         using namespace Eigen;
+        if( !self.lengthDisp())
+            throw std::runtime_error("waveDisp: no trace acquired yet.");
+        if(ch >= self.numChannelsDisp())
+            throw std::out_of_range("waveDisp: channel index out of range.");
         auto cvector = Map<const VectorXd, 0>(
             self.waveDisp(ch), self.lengthDisp());
         return Ref<const VectorXd>(cvector);

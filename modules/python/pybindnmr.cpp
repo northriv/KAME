@@ -22,14 +22,22 @@
 PyDriverExporter<XNMRPulseAnalyzer, XSecondaryDriver> nmrpulse("XNMRPulseAnalyzer", [](auto node, auto payload){
     payload.def("wave", [](XNMRPulseAnalyzer::Payload &self){
         using namespace Eigen;
+        if(self.wave().empty())
+            throw std::runtime_error("wave: no record yet.");
         auto cvector = Map<const VectorXcd, 0>(
             &self.wave()[0], self.waveWidth());
         return Ref<const VectorXcd>(cvector);
     })
     .def("darkPSD", [](XNMRPulseAnalyzer::Payload &self){
         using namespace Eigen;
+        //Size by the buffer itself, not ftWidth(): after an fftLen decrease
+        //plus avg-clear (or a volt-limit XRecordError) the committed state can
+        //have m_ftWave larger than m_darkPSD — sizing by ftWidth() over-reads.
+        size_t len = std::min(self.darkPSD().size(), (size_t)self.ftWidth());
+        if( !len)
+            throw std::runtime_error("darkPSD: no record yet.");
         auto cvector = Map<const VectorXd, 0>(
-            &self.darkPSD()[0], self.ftWidth());
+            &self.darkPSD()[0], len);
         return Ref<const VectorXd>(cvector);
     })
     .def("darkPSDFactorToVoltSq", [](XNMRPulseAnalyzer::Payload &self){return self.darkPSDFactorToVoltSq();})
@@ -41,6 +49,8 @@ PyDriverExporter<XNMRPulseAnalyzer, XSecondaryDriver> nmrpulse("XNMRPulseAnalyze
     .def("waveFTPos", [](XNMRPulseAnalyzer::Payload &self){return self.waveFTPos();})
     .def("ftWave", [](XNMRPulseAnalyzer::Payload &self){
         using namespace Eigen;
+        if(self.ftWave().empty())
+            throw std::runtime_error("ftWave: no record yet.");
         auto cvector = Map<const VectorXcd, 0>(
             &self.ftWave()[0], self.ftWidth());
         return Ref<const VectorXcd>(cvector);

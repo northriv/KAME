@@ -1026,7 +1026,36 @@
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <tabstops>
+  <tabstop>m_toolBox</tabstop>
+  <tabstop>m_ckbActivateEngine</tabstop>
   <tabstop>m_edTargetTemp</tabstop>
+  <tabstop>m_edRampRate</tabstop>
+  <tabstop>m_edZoneHysteresis</tabstop>
+  <tabstop>m_ckbMixTempOnChange</tabstop>
+  <tabstop>m_btnZoneDup</tabstop>
+  <tabstop>m_btnZoneDelete</tabstop>
+  <tabstop>m_tblZone</tabstop>
+  <tabstop>m_cmbMainDevice</tabstop>
+  <tabstop>m_cmbExtDevice</tabstop>
+  <tabstop>m_ckbExtIsPositive</tabstop>
+  <tabstop>m_cmbSubDevice1</tabstop>
+  <tabstop>m_cmbSubDev1Ch</tabstop>
+  <tabstop>m_cmbSubDev1Mode</tabstop>
+  <tabstop>m_cmbSubDevice2</tabstop>
+  <tabstop>m_cmbSubDev2Ch</tabstop>
+  <tabstop>m_cmbSubDev2Mode</tabstop>
+  <tabstop>m_cmbSubDevice3</tabstop>
+  <tabstop>m_cmbSubDev3Ch</tabstop>
+  <tabstop>m_cmbSubDev3Mode</tabstop>
+  <tabstop>m_cmbSubDevice4</tabstop>
+  <tabstop>m_cmbSubDev4Ch</tabstop>
+  <tabstop>m_cmbSubDev4Mode</tabstop>
+  <tabstop>m_cmbSubDevice5</tabstop>
+  <tabstop>m_cmbSubDev5Ch</tabstop>
+  <tabstop>m_cmbSubDev5Mode</tabstop>
+  <tabstop>m_cmbSubDevice6</tabstop>
+  <tabstop>m_cmbSubDev6Ch</tabstop>
+  <tabstop>m_cmbSubDev6Mode</tabstop>
  </tabstops>
  <resources/>
  <connections/>

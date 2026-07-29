@@ -15,9 +15,13 @@
 
 #include "interface.h"
 
+#ifdef HAVE_NI_DAQMX
+// See nidaqdso.cpp: with no NI-DAQmx SDK these drivers would run entirely on
+// stubbed-out hardware calls, so they must not be offered in the driver list.
 REGISTER_TYPE(XDriverList, NIDAQAODOPulser, "NMR pulser NI-DAQ analog/digital output");
 REGISTER_TYPE(XDriverList, NIDAQDOPulser, "NMR pulser NI-DAQ digital output only");
 REGISTER_TYPE(XDriverList, NIDAQMSeriesWithSSeriesPulser, "NMR pulser NI-DAQ M Series with S Series");
+#endif
 
 XNIDAQMSeriesWithSSeriesPulser::XNIDAQMSeriesWithSSeriesPulser(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :

@@ -55,6 +55,24 @@ static int s_failures = 0;
 
 int main() {
     {
+        // --- 0. local_weak_ptr::same_control_block primitive -----------
+        // (Underpins reverseLookupWithHint's promotion-free fast path.)
+        {
+            struct W { int v = 0; };
+            local_shared_ptr<W> p(make_local_shared<W>());
+            local_shared_ptr<W> q(make_local_shared<W>());
+            local_weak_ptr<W> wp(p);
+            VERIFY(wp.same_control_block(p));        // same CB
+            local_shared_ptr<W> p2(p);               // shares p's CB
+            VERIFY(wp.same_control_block(p2));        // identity, not handle eq
+            VERIFY( !wp.same_control_block(q));       // distinct CB
+            local_shared_ptr<W> empty;
+            VERIFY( !wp.same_control_block(empty));    // live weak vs null
+            local_weak_ptr<W> empty_wp;
+            VERIFY( !empty_wp.same_control_block(p));  // null weak vs live
+            VERIFY(empty_wp.same_control_block(empty)); // null == null
+        }
+
         shared_ptr<LongNode> root(LongNode::create<LongNode>());
         shared_ptr<LongNode> a(LongNode::create<LongNode>());
         shared_ptr<LongNode> b(LongNode::create<LongNode>());
@@ -143,30 +161,61 @@ int main() {
             VERIFY(thrown);
         }
 
-        // --- 6. one Snapshot instance, many concurrent readers ----------
+        // (No concurrent-shared-Snapshot test: the lookup memo is plain,
+        // non-atomic, by design.  A Snapshot is single-threaded by
+        // construction — m_packet is a local_shared_ptr (non-atomic) — so
+        // reading one instance from two threads is a data race regardless of
+        // the memo, i.e. caller misuse, not behaviour to verify.)
+
+        // --- 7. multi-slot: const view must see the clone, not a stale
+        // committed payload left in another slot (set() uniqueness).
         root->iterate_commit([&](Transaction &tr) {
-            tr[ *a].m_x = 0x0a0a;
-            tr[ *b].m_x = 0x0b0b;
+            const Snapshot &shot(tr);
+            long before = shot[ *a].m_x;     // caches the COMMITTED payload
+            tr[ *a].m_x = before + 5000;     // clone; set() must overwrite, not append
+            VERIFY(shot[ *a].m_x == before + 5000);  // stale-slot regression
         });
+
+        // --- 7b. displacement archive must not resurface a pre-clone
+        // payload: a stale tier-1 entry is shadowed by the MRU and must be
+        // OVERWRITTEN (not duplicated) when the clone gets displaced.
         {
-            Snapshot shot( *root);
-            atomic<int> mismatches = 0;
-            std::vector<std::thread> threads;
-            for(int t = 0; t < 8; ++t) {
-                threads.emplace_back([&shot, &a, &b, &mismatches, t]() {
-                    for(int i = 0; i < 200000; ++i) {
-                        // interleave so peers keep replacing the memo
-                        if((i + t) % 2) {
-                            if(shot[ *a].m_x != 0x0a0a) ++mismatches;
-                        }
-                        else {
-                            if(shot[ *b].m_x != 0x0b0b) ++mismatches;
-                        }
-                    }
-                });
+            shared_ptr<LongNode> c(LongNode::create<LongNode>());
+            root->insert(c);
+            root->iterate_commit([&](Transaction &tr) {
+                const Snapshot &shot(tr);
+                long a0 = shot[ *a].m_x;       // MRU := committed(a)
+                (void)shot[ *b].m_x;           // displace: tier 1 archives committed(a)
+                tr[ *a].m_x = a0 + 70;         // clone; MRU := clone(a); tier-1 entry now stale
+                VERIFY(shot[ *a].m_x == a0 + 70);  // MRU shadows the stale entry
+                (void)tr[ *c];                 // displace clone(a): archive must overwrite in place
+                VERIFY(shot[ *a].m_x == a0 + 70);  // now served from tier 1 — must be the clone
+            });
+            root->release(c);
+        }
+
+        // --- 8. multi-slot: rotations within and beyond capacity ---------
+        {
+            shared_ptr<LongNode> more[6];
+            for(int i = 0; i < 6; ++i) {
+                more[i] = shared_ptr<LongNode>(LongNode::create<LongNode>());
+                root->insert(more[i]);
             }
-            for(auto &th: threads) th.join();
-            VERIFY(mismatches == 0);
+            root->iterate_commit([&](Transaction &tr) {
+                for(int rep = 0; rep < 3; ++rep)      // 6 nodes > SLOTS: evictions
+                    for(int i = 0; i < 6; ++i)
+                        tr[ *more[i]].m_x = 10 * (i + 1) + rep;
+            });
+            Snapshot shot( *root);
+            for(int rep = 0; rep < 3; ++rep)          // reads through evictions
+                for(int i = 0; i < 6; ++i)
+                    VERIFY(shot[ *more[i]].m_x == 10 * (i + 1) + 2);
+            // 4-node rotation (== SLOTS) must stay coherent across repeats
+            for(int rep = 0; rep < 8; ++rep)
+                for(int i = 0; i < 4; ++i)
+                    VERIFY(shot[ *more[i]].m_x == 10 * (i + 1) + 2);
+            for(int i = 0; i < 6; ++i)
+                root->release(more[i]);
         }
 
         (void)outside;

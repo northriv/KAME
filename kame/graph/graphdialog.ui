@@ -763,8 +763,6 @@
   <tabstop>ckbColorPlot</tabstop>
   <tabstop>clrColorPlotLow</tabstop>
   <tabstop>clrColorPlotHigh</tabstop>
-  <tabstop>buttonHelp</tabstop>
-  <tabstop>buttonOk</tabstop>
   <tabstop>lbAxes</tabstop>
   <tabstop>ckbAutoScale</tabstop>
   <tabstop>edAxisMax</tabstop>
@@ -778,6 +776,8 @@
   <tabstop>m_ckbDrawLegends</tabstop>
   <tabstop>m_slPersistence</tabstop>
   <tabstop>m_dblPersistence</tabstop>
+  <tabstop>buttonHelp</tabstop>
+  <tabstop>buttonOk</tabstop>
  </tabstops>
  <resources/>
  <connections>

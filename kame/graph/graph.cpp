@@ -1079,6 +1079,11 @@ XAxis::screenToAxis(const Snapshot &shot, const XGraph::ScrPoint &scr) const {
     case AxisDirection::Weight:
         return 0;
     }
+    // The switch is exhaustive over AxisDirection, but GCC still models the
+    // fall-off path as reachable and at -O2 compiles it as unreachable — so an
+    // out-of-range m_direction (a cast from a stale combo index, a torn read)
+    // would run off the end of the function.  clang does not even warn.
+    return 0;
 }
 XGraph::VFloat
 XAxis::screenToVal(const Snapshot &shot, const XGraph::ScrPoint &scr) const {

@@ -533,22 +533,43 @@ XQGraphPainter::storePersistentFrame() {
 
 void
 XQGraphPainter::drawAdditionalOnScreenObjNative(bool colorpicking) {
-    XScopedLock<XMutex> lock(m_mutexOSO);
+    // Copy the OSO lists under the lock, then draw WITHOUT holding
+    // m_mutexOSO.  The drawNative() paths take STM Snapshots (which can
+    // block in negotiation), while driver threads inside an in-flight
+    // Transaction call createOnScreenObjectWeakly(), which locks
+    // m_mutexOSO — holding the lock across a Snapshot deadlocks: the GUI
+    // thread waits for the Tx to finish, the Tx waits for the lock
+    // (observed as an STM-wide stall aborted by the HANG watchdog).
+    // m_mutexOSO guards list membership only; OSOs synchronize their own
+    // state.  Expired weak entries are pruned here (main thread only)
+    // so pick-ids (selectOSO) keep matching the member deque.
+    std::vector<shared_ptr<OnScreenObject>> weak_locked, painted, listed;
+    {
+        XScopedLock<XMutex> lock(m_mutexOSO);
+        for(auto it = m_weakptrOSOs.begin(); it != m_weakptrOSOs.end();) {
+            if(auto o = it->lock()) {
+                weak_locked.push_back(o);
+                it++;
+            }
+            else
+                it = m_weakptrOSOs.erase(it);
+        }
+        painted.assign(m_paintedOSOs.begin(), m_paintedOSOs.end());
+        listed.assign(m_listedOSOs.begin(), m_listedOSOs.end());
+    }
     //texture objects
     uint16_t objid = 0;
-    for(auto &&oso: m_weakptrOSOs) {
-        if(auto o = oso.lock()) {
-            if(o->hasTexture()) {
-                if(colorpicking)
-                    glColor4f((int)ObjClassColorR::OSO_weakptr/256.0f,
-                        (objid/256u)/256.0f, (objid % 256u)/256.0f, 1.0f);
-                o->drawNative(colorpicking);
-            }
-            objid++;
+    for(auto &&o: weak_locked) {
+        if(o->hasTexture()) {
+            if(colorpicking)
+                glColor4f((int)ObjClassColorR::OSO_weakptr/256.0f,
+                    (objid/256u)/256.0f, (objid % 256u)/256.0f, 1.0f);
+            o->drawNative(colorpicking);
         }
+        objid++;
     }
     objid = 0;
-    for(auto &&osobj: m_paintedOSOs) {
+    for(auto &&osobj: painted) {
         if(osobj->hasTexture()) {
             if(colorpicking)
                 glColor4f((int)ObjClassColorR::OSO_painted/256.0f,
@@ -558,7 +579,7 @@ XQGraphPainter::drawAdditionalOnScreenObjNative(bool colorpicking) {
         objid++;
     }
     objid = 0;
-    for(auto &&osobj: m_listedOSOs) {
+    for(auto &&osobj: listed) {
         if(osobj->hasTexture()) {
             if(colorpicking)
                 glColor4f((int)ObjClassColorR::OSO_listed/256.0f,
@@ -570,22 +591,17 @@ XQGraphPainter::drawAdditionalOnScreenObjNative(bool colorpicking) {
 
     //better to be drawn after textures
     objid = 0;
-    for(auto it = m_weakptrOSOs.begin(); it != m_weakptrOSOs.end();) {
-        if(auto o = it->lock()) {
-            if( !o->hasTexture()) {
-                if(colorpicking)
-                    glColor4f((int)ObjClassColorR::OSO_weakptr/256.0f,
-                              (objid/256u)/256.0f, (objid % 256u)/256.0f, 1.0f);
-                o->drawNative(colorpicking);
-            }
-            it++;
-            objid++;
+    for(auto &&o: weak_locked) {
+        if( !o->hasTexture()) {
+            if(colorpicking)
+                glColor4f((int)ObjClassColorR::OSO_weakptr/256.0f,
+                          (objid/256u)/256.0f, (objid % 256u)/256.0f, 1.0f);
+            o->drawNative(colorpicking);
         }
-        else
-            it = m_weakptrOSOs.erase(it);
+        objid++;
     }
     objid = 0;
-    for(auto &&osobj: m_paintedOSOs) {
+    for(auto &&osobj: painted) {
         if( !osobj->hasTexture()) {
             if(colorpicking)
                 glColor4f((int)ObjClassColorR::OSO_painted/256.0f,
@@ -595,7 +611,7 @@ XQGraphPainter::drawAdditionalOnScreenObjNative(bool colorpicking) {
         objid++;
     }
     objid = 0;
-    for(auto &&osobj: m_listedOSOs) {
+    for(auto &&osobj: listed) {
         if( !osobj->hasTexture()) {
             if(colorpicking)
                 glColor4f((int)ObjClassColorR::OSO_listed/256.0f,
@@ -839,27 +855,35 @@ XQGraphPainter::paintGL () {
     QPainter qpainter(m_pItem);
 #endif
     {
-        XScopedLock<XMutex> lock(m_mutexOSO);
-        for(auto &&osobj: m_paintedOSOs) {
-            osobj->drawByPainter( &qpainter);
+        // Copy under the lock, draw outside it — drawByPainter() paths can
+        // take STM Snapshots; see drawAdditionalOnScreenObjNative().
+        std::vector<shared_ptr<OnScreenObject>> osos;
+        {
+            XScopedLock<XMutex> lock(m_mutexOSO);
+            osos.assign(m_paintedOSOs.begin(), m_paintedOSOs.end());
+            m_paintedOSOs.clear();
+            osos.insert(osos.end(), m_listedOSOs.begin(), m_listedOSOs.end());
+            for(auto &&w: m_weakptrOSOs) {
+                if(auto o = w.lock())
+                    osos.push_back(o);
+            }
         }
-        m_paintedOSOs.clear();
-        for(auto &&osobj: m_listedOSOs) {
+        for(auto &&osobj: osos) {
             osobj->drawByPainter( &qpainter);
-        }
-        for(auto &&osobj: m_weakptrOSOs) {
-            if(auto o = osobj.lock())
-                o->drawByPainter( &qpainter);
         }
     }
     if(m_bReqHelp) {
         //native drawing is not supported here.
         drawOnScreenHelp(shot, &qpainter);
-        XScopedLock<XMutex> lock(m_mutexOSO);
-        for(auto &&osobj: m_paintedOSOs) {
+        std::vector<shared_ptr<OnScreenObject>> osos;
+        {
+            XScopedLock<XMutex> lock(m_mutexOSO);
+            osos.assign(m_paintedOSOs.begin(), m_paintedOSOs.end());
+            m_paintedOSOs.clear();
+        }
+        for(auto &&osobj: osos) {
             osobj->drawByPainter( &qpainter);
         }
-        m_paintedOSOs.clear();
     }
 //    qpainter.end();
 

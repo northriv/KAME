@@ -96,7 +96,7 @@ p{line-height:1.8}
 <table>
 <tr><th>仕様 (.tla)</th><th>設定 (.cfg)</th><th>意味</th></tr>
 <tr><td><code>CONSTANTS Threads, Objects</code></td><td><code>Threads = {t1, t2}<br>Objects = {o1, o2}</code></td><td>モデルチェック時の具体的な値を設定</td></tr>
-<tr><td><code>CONSTANTS EnableCAS, EnableRecycle</code></td><td><code>EnableCAS = TRUE<br>EnableRecycle = TRUE</code></td><td>機能のON/OFFフラグ</td></tr>
+<tr><td><code>CONSTANTS EnableCAS, EnableSwap</code></td><td><code>EnableCAS = TRUE<br>EnableSwap = TRUE</code></td><td>機能のON/OFFフラグ</td></tr>
 </table>
 <p>スレッド数・オブジェクト数を増やすと状態空間が指数的に増大する。
 通常は2〜3スレッド、2オブジェクトで検証し、対称性（<code>SYMMETRY</code>）で縮約する。</p>
@@ -114,14 +114,14 @@ p{line-height:1.8}
 例: <code>global_rc[o] &lt;= 5</code> を<code>CONSTRAINT</code>に書くと、global_rcが5を超える状態は探索されない（見逃す可能性）。
 同じ式を<code>INVARIANT</code>に書くと、global_rcが5を超えたらエラーとして報告される。<br><br>
 <strong>本モデルではStateConstraintを使用しない。</strong>
-C++のスコープ破棄やモジュラー算術により状態空間を構造的に有限にし、
+C++のスコープ破棄や有界な操作回数により状態空間を構造的に有限にし、
 人為的な枝刈りなしで全到達可能状態を探索する。</p>
 </div>
 <tr><td><code>{a, b, c}</code></td><td>有限集合</td><td><code>{"scan", "cas", "idle"}</code></td></tr>
 </table>
 
 <div class="box-green">
-<p><strong>読み方のコツ:</strong> TLA+のアクション（例: <code>ReserveScanCAS(t)</code>）は
+<p><strong>読み方のコツ:</strong> TLA+のアクション（例: <code>AcquireTagRefCAS(t)</code>）は
 「この条件が成り立つとき、変数をこう変える」という宣言。
 <code>/\</code>で並んだ条件がすべて真のときに実行可能。
 <code>x'</code>が次の状態、<code>UNCHANGED</code>は変えないもの。</p>
@@ -148,7 +148,7 @@ Layer 2 = bundle/unbundle + LL-free negotiate。Layer 1 は <strong>safety only<
 GenMC (RC11) と相補的に、全スレッドインターリーブを TLC で exhaustion する。</p>
 <ul style="margin:0.3em 0 0 1.2em">
 <li>タグ付きポインタ参照カウント (<code>acquire_tag_ref_</code> / <code>load_shared_</code> / <code>release_tag_ref_</code>)</li>
-<li><strong>drain release</strong>: <code>release_tag_ref_(pref, added_global_rcnt)</code> + <code>cas_rcnt</code> 引数で K-tag を 1 回の CAS で解放</li>
+<li><strong>drain release</strong>: <code>release_tag_ref_(pref, added_global_rcnt)</code> で K-tag を 1 回の CAS で解放（この引数を spec は <code>thr_cas_rcnt</code>/<code>thr_added_grc</code> に分割、C++ では常に一致）</li>
 <li><strong>bulk-transfer <code>load_shared_</code></strong>: <code>refcnt.fetch_add(rcnt)</code> + drain で他スレッドの tag IOU を回収</li>
 <li>統一 <code>compareAndSet_impl_&lt;OldrT, NewrT, false, RETAIN_NEWR&gt;</code> テンプレート (Set / Swap)</li>
 <li><strong><code>scoped_atomic_view&lt;T&gt;</code> RAII</strong>: acquire → TagHeld → CAS set (SCOPED, fetch_sub(2)) / dtor</li>
@@ -199,7 +199,7 @@ GenMC (RC11) と相補的に、全スレッドインターリーブを TLC で e
 <!-- ===== Slide 2: acquire_tag_ref_ ===== -->
 <div class="slide">
 <h1>acquire_tag_ref_: アトミック読み取り + CAS</h1>
-<h3>C++ソース: atomic_smart_ptr.h 行462-488</h3>
+<h3>C++ソース: kamepoolalloc/atomic_smart_ptr.h 行1632-1681</h3>
 
 <div class="box">
 <p>C++の<code>m_ref.load()</code>は単一アトミック操作であり、ポインタとローカルRCは
@@ -207,15 +207,15 @@ GenMC (RC11) と相補的に、全スレッドインターリーブを TLC で e
 </div>
 
 <pre><code><span class="comment">(* アトミック読み取り: ptrとlocal_rcを同時に読む *)</span>
-<span class="op">ReserveScanRead</span>(t) ==
-    /\ pc[t] = <span class="type">"rs_read"</span>
+<span class="op">AcquireTagRefRead</span>(t) ==
+    /\ pc[t] = <span class="type">"atr_read"</span>
     /\ thr_pref' = [thr_pref <span class="keyword">EXCEPT</span> ![t] = ptr]       <span class="comment">\* ← ptrを読む</span>
     /\ thr_rcnt' = [thr_rcnt <span class="keyword">EXCEPT</span> ![t] = local_rc]  <span class="comment">\* ← local_rcを読む（同時）</span>
-    /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"rs_cas"</span>]
+    /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"atr_cas"</span>]
 
 <span class="comment">(* CAS — ポインタとRCの両方が一致する場合のみ成功 *)</span>
-<span class="op">ReserveScanCAS</span>(t) ==
-    /\ pc[t] = <span class="type">"rs_cas"</span>
+<span class="op">AcquireTagRefCAS</span>(t) ==
+    /\ pc[t] = <span class="type">"atr_cas"</span>
     /\ thr_pref[t] /= NULL
     /\ \/ <span class="comment">(* CAS成功: ptr AND local_rc の両方が一致 *)</span>
           /\ ptr = thr_pref[t]
@@ -223,7 +223,7 @@ GenMC (RC11) と相補的に、全スレッドインターリーブを TLC で e
           /\ local_rc' = thr_rcnt[t] + <span class="num">1</span>  <span class="comment">\* ピン留め！</span>
        \/ <span class="comment">(* CAS失敗: 読み取りに戻ってリトライ *)</span>
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
-          /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"rs_read"</span>]</code></pre>
+          /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"atr_read"</span>]</code></pre>
 
 <div class="box-green">
 <p><strong>ポイント:</strong> 読み取りからCASまでの間に他スレッドがptr/local_rcを変更しても、
@@ -233,37 +233,37 @@ CASが<strong>フルワード比較</strong>（ptr + local_rc の両方）する
 
 <!-- ===== Slide 3: scan_ (load_shared_) ===== -->
 <div class="slide">
-<h1>scan_: load_shared_() の3ステップ</h1>
-<h3>C++ソース: 行494-503</h3>
+<h1>load_shared_() の3ステップ</h1>
+<h3>C++ソース: kamepoolalloc/atomic_smart_ptr.h 行1684-1699</h3>
 
 <pre><code><span class="comment">(* Step 1: acquire_tag_ref_ → アトミック読み取り + CASでローカルRCを+1 [上のスライド参照] *)</span>
 
 <span class="comment">(* Step 2: グローバルRCを+1 — relaxedで安全 *)</span>
-<span class="op">ScanIncGlobal</span>(t) ==
-    /\ pc[t] = <span class="type">"scan_inc"</span>
+<span class="op">LoadSharedIncGlobal</span>(t) ==
+    /\ pc[t] = <span class="type">"ls_inc"</span>
     /\ global_rc' = [global_rc <span class="keyword">EXCEPT</span> ![thr_pref[t]] = @ + <span class="num">1</span>]
-    /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"scan_leave"</span>]
+    /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"ls_release"</span>]
 
 <span class="comment">(* Step 3: release_tag_ref_ → ローカルRCを-1 *)</span></code></pre>
 
 <div class="arrow">acquire_tag_ref_ → global_rc++ → release_tag_ref_</div>
 
 <h2>release_tag_ref_: フォールバック分岐</h2>
-<pre><code><span class="op">LeaveScanCAS</span>(t) ==
+<pre><code><span class="op">ReleaseTagRefCAS</span>(t) ==
     \/ <span class="comment">(* CAS成功: ptrが変わっていない → ローカルRCを-1 *)</span>
        /\ ptr = thr_pref[t] /\ local_rc = thr_rcnt[t]
        /\ local_rc' = thr_rcnt[t] - <span class="num">1</span>
 
     \/ <span class="comment">(* CAS失敗, ptrが同じ → リトライ *)</span>
        /\ ptr = thr_pref[t]
-       /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"ls_read"</span>]
+       /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"rtr_read"</span>]
 
     \/ <span class="comment">(* CAS失敗, ptrが変わった → フォールバック: global_rc-- *)</span>
        /\ ptr /= thr_pref[t]
-       /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"ls_global"</span>]
+       /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"rtr_global"</span>]
 
 <span class="comment">(* フォールバック: 入れ替えたスレッドがローカルRC分を転送済み *)</span>
-<span class="op">LeaveScanGlobal</span>(t) ==
+<span class="op">ReleaseTagRefGlobal</span>(t) ==
     /\ global_rc' = [global_rc <span class="keyword">EXCEPT</span> ![o] = @ - <span class="num">1</span>]
     /\ <span class="keyword">IF</span> global_rc[o] = <span class="num">1</span>
        <span class="keyword">THEN</span> freed' = [freed <span class="keyword">EXCEPT</span> ![o] = TRUE]  <span class="comment">\* → 解放！</span></code></pre>
@@ -273,15 +273,15 @@ CASが<strong>フルワード比較</strong>（ptr + local_rc の両方）する
 </div>
 </div>
 
-<!-- ===== Slide 4: compareAndSwap_ ===== -->
+<!-- ===== Slide 4: compareAndSet_impl_ ===== -->
 <div class="slide">
-<h1>compareAndSwap_: 6フェーズ</h1>
-<h3>C++ソース: 行556-603</h3>
+<h1>compareAndSet_impl_ / compareAndSwap(): 6 フェーズ</h1>
+<h3>C++ソース: kamepoolalloc/atomic_smart_ptr.h 行1811-2034（レガシーの6フェーズ compareAndSwap_ は統一テンプレート compareAndSet_impl_ に吸収）</h3>
 
 <table>
 <tr><th>Phase</th><th>TLA+ Action</th><th>動作</th></tr>
 <tr><td>1</td><td><code>CASPreInc</code></td><td>新オブジェクトの<code>global_rc++</code></td></tr>
-<tr><td>2</td><td><code>CASReserve</code>→<code>rs_*</code></td><td><code>acquire_tag_ref_</code>でピン留め</td></tr>
+<tr><td>2</td><td><code>CASReserve</code>→<code>atr_*</code></td><td><code>acquire_tag_ref_</code>でピン留め</td></tr>
 <tr><td>3</td><td><code>CASCheck</code></td><td><code>pref != oldr</code>なら失敗を返す</td></tr>
 <tr><td>4</td><td><code>CASTransfer</code></td><td>ローカルRC分を<code>global_rc</code>に転送</td></tr>
 <tr><td>5</td><td><code>CASSwap</code></td><td>CAS (<code>acq_rel</code>): ポインタ入れ替え</td></tr>
@@ -304,8 +304,8 @@ CASが<strong>フルワード比較</strong>（ptr + local_rc の両方）する
 <div class="box">
 <p><strong>ABAとの関係:</strong> 呼び出し元は<code>local_shared_ptr</code>で<code>oldr</code>を保持
 → <code>global_rc &gt; 0</code> → 解放されない → ABAは構造的に不可能。<br>
-ただし<code>load_shared_()</code>ではスレッドが参照を持たないため、TLA+ではABAリサイクルを
-sound over-approximationとしてモデル化。</p>
+ただし<code>load_shared_()</code>ではスレッドが参照を持たないが、ABAリサイクルは<strong>モデル化しない</strong>
+（<code>Recycle</code>アクションは削除済み、<code>686460d5</code>）— 所有権契約が既にこれを防ぐ（下の「ABAはscope外」注記参照）。</p>
 </div>
 </div>
 
@@ -368,19 +368,19 @@ CAS 成功時に <code>fetch_sub(2)</code> で「<code>m_ref</code> の release 
 </div>
 
 <h2>状態遷移 (TagHeld の 2 状態モデル)</h2>
-<pre><code><span class="op">ScopeAcquire</span>(t) ==                <span class="comment">\* scoped_atomic_view ctor</span>
+<pre><code><span class="op">ScopeStartAcquire</span>(t) ==           <span class="comment">\* scoped_atomic_view ctor (→ acquire_tag_ref_ → ScopeSetState が tagheld をセット)</span>
     /\ scope_state[t] = <span class="type">"none"</span>
     /\ <span class="comment">\* acquire_tag_ref_ で tag を 1 つ握る</span>
     /\ scope_state' = [scope_state <span class="keyword">EXCEPT</span> ![t] = <span class="type">"tagheld"</span>]
     /\ scope_pref' = [scope_pref <span class="keyword">EXCEPT</span> ![t] = thr_pref[t]]
 
-<span class="op">ScopeCASConsume</span>(t) ==          <span class="comment">\* compareAndSet_impl_&lt;scoped&gt; 成功</span>
+<span class="op">ScopeCASCleanup</span>(t) ==          <span class="comment">\* compareAndSet_impl_&lt;scoped&gt; 成功 (ScopeCASSwap の後)</span>
     /\ scope_state[t] = <span class="type">"tagheld"</span>
     /\ <span class="comment">\* step4 = +T (full add), CAS 成功で fetch_sub(2) → tag 1 + ref 1 を同時消費</span>
-    /\ local_rc' = local_rc - <span class="num">2</span>
+    /\ global_rc' = [global_rc <span class="keyword">EXCEPT</span> ![scope_pref[t]] = @ - <span class="num">2</span>]
     /\ scope_state' = [scope_state <span class="keyword">EXCEPT</span> ![t] = <span class="type">"none"</span>]
 
-<span class="op">ScopeDestruct</span>(t) ==            <span class="comment">\* scoped_atomic_view dtor</span>
+<span class="op">ScopeDtor</span>(t) ==               <span class="comment">\* scoped_atomic_view dtor</span>
     /\ scope_state[t] = <span class="type">"tagheld"</span>
     /\ <span class="comment">\* release_tag_ref_(scope_pref, 1) を呼ぶ</span>
     /\ thr_cas_rcnt' = <span class="num">1</span>
@@ -398,8 +398,8 @@ CAS 成功時に <code>fetch_sub(2)</code> で「<code>m_ref</code> の release 
        \/ <span class="comment">\* CAS 失敗 → リトライ or fallback global path</span>
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
 
-<span class="comment">\* drain 完了後: 余剰の global rcnt を fetch_sub で打ち消す</span>
-<span class="op">ReleaseTagRefExcess</span>(t) ==
+<span class="comment">\* 余剰undo分岐 (ReleaseTagRefCAS に統合): 余剰の global rcnt を fetch_sub で打ち消す</span>
+<span class="op">ReleaseTagRefCAS</span>(t) ==          <span class="comment">\* (同一アクションの余剰undo継続)</span>
     /\ <span class="keyword">LET</span> excess == thr_added_grc[t] - thr_drained[t] <span class="keyword">IN</span>
        global_rc' = [global_rc <span class="keyword">EXCEPT</span> ![pref] = @ - excess]</code></pre>
 
@@ -481,21 +481,21 @@ adversarial scheduler が無限ループを維持できる。<strong>これは�
 <tr><td><code>freed[o]</code></td><td>delete 呼び出し</td><td><code>int obj_freed[]</code></td></tr>
 <tr><td><code>thr_pref[t]</code> / <code>thr_rcnt[t]</code></td><td><code>Ref* pref</code> / <code>Refcnt rcnt</code> (local)</td><td>local 変数</td></tr>
 <tr><td><code>thr_holds[t][o]</code></td><td><code>local_shared_ptr</code> の生存数</td><td>thread-local hold index</td></tr>
-<tr><td><code>thr_cas_rcnt</code> / <code>thr_added_grc</code> / <code>thr_drained</code></td><td><code>release_tag_ref_(pref, added_global_rcnt)</code> の <code>cas_rcnt</code> 引数</td><td><code>cds_test_multi_cas_excess.c</code></td></tr>
+<tr><td><code>thr_cas_rcnt</code> / <code>thr_added_grc</code> / <code>thr_drained</code></td><td><code>release_tag_ref_(pref, added_global_rcnt)</code> の引数（spec 分割、C++ では一致）</td><td><code>cds_test_multi_cas_excess.c</code></td></tr>
 <tr><td><code>scope_state[t]</code> / <code>scope_pref[t]</code></td><td><code>scoped_atomic_view&lt;T&gt;</code> の <code>m_pref</code> + state</td><td><code>cds_test_scoped_weak.c</code></td></tr>
 </table>
 
 <h2>アクションの対応</h2>
 <table>
 <tr><th>TLA+ アクション</th><th>C++ 関数 (atomic_smart_ptr.h)</th><th>memory_order</th></tr>
-<tr><td><code>AcquireTagRefRead</code> + <code>AcquireTagRefCAS</code></td><td><code>acquire_tag_ref_()</code> (行 1058-1108)</td><td>relaxed → acq_rel</td></tr>
-<tr><td><code>LoadSharedBulkAdd</code> (新)</td><td><code>load_shared_()</code> bulk transfer<br><code>refcnt.fetch_add(rcnt)</code> + drain (行 1116-1128)</td><td>relaxed</td></tr>
-<tr><td><code>ReleaseTagRefCAS</code> + <code>ReleaseTagRefExcess</code></td><td><code>release_tag_ref_(pref, T)</code> drain (行 1158-1206)<br><code>min(local_rc, T)</code> tag を 1 CAS で抜く + 余剰 <code>fetch_sub</code></td><td>acq_rel</td></tr>
-<tr><td><code>CASPreInc</code> → <code>CASSwap</code> → <code>CASCleanup</code></td><td><code>compareAndSwap_()</code> 6 phases (legacy, 行 550-650)</td><td>relaxed / acq_rel</td></tr>
-<tr><td><code>compareAndSet_impl_</code> パス</td><td><strong>統一テンプレ</strong> <code>compareAndSet_impl_&lt;OldrT, NewrT, false, RETAIN_NEWR&gt;</code> (行 1240-1450)<br>Set / Swap を 1 つの実装に統合</td><td>relaxed / acq_rel</td></tr>
+<tr><td><code>AcquireTagRefRead</code> + <code>AcquireTagRefCAS</code></td><td><code>acquire_tag_ref_()</code> (行 1632-1681)</td><td>relaxed → acq_rel</td></tr>
+<tr><td><code>LoadSharedIncGlobal</code></td><td><code>load_shared_()</code> bulk transfer<br><code>refcnt.fetch_add(rcnt)</code> + drain (行 1693-1697)</td><td>relaxed</td></tr>
+<tr><td><code>ReleaseTagRefCAS</code> (余剰undo分岐を含む)</td><td><code>release_tag_ref_(pref, T)</code> drain (行 1730-1775)<br><code>min(local_rc, T)</code> tag を 1 CAS で抜く + 余剰 <code>fetch_sub</code></td><td>acq_rel</td></tr>
+<tr><td><code>CASPreInc</code> → <code>CASSwap</code> → <code>CASCleanup</code></td><td><code>compareAndSet_impl_()</code> 6 phases (legacy <code>compareAndSwap_</code> を吸収, 行 1811-2034)</td><td>relaxed / acq_rel</td></tr>
+<tr><td><code>compareAndSet_impl_</code> パス</td><td><strong>統一テンプレ</strong> <code>compareAndSet_impl_&lt;OldrT, NewrT, false, RETAIN_NEWR&gt;</code> (行 1811-2034)<br>Set / Swap を 1 つの実装に統合</td><td>relaxed / acq_rel</td></tr>
 <tr><td><code>compareAndSet_impl_&lt;SCOPED&gt;</code> パス</td><td>scope hold で acquire 不要; step4 = +T (full add); 成功時 <code>fetch_sub(2)</code></td><td>acq_rel</td></tr>
-<tr><td><code>ScopeAcquire</code> → <code>ScopeCASConsume</code> / <code>ScopeDestruct</code></td><td><code>scoped_atomic_view</code> ctor / CAS / dtor (行 598-845)</td><td>acq_rel</td></tr>
-<tr><td><code>Reset</code></td><td><code>local_shared_ptr::reset()</code> <code>fetch_sub(1)</code> + delete check (行 433-444)</td><td>acq_rel</td></tr>
+<tr><td><code>ScopeStartAcquire</code> → <code>ScopeCASSwap</code> / <code>ScopeCASCleanup</code> / <code>ScopeDtor</code></td><td><code>scoped_atomic_view</code> ctor (行 1169 / 1200) / CAS (行 1811-2034) / dtor (行 1271)</td><td>acq_rel</td></tr>
+<tr><td><code>Reset</code></td><td><code>local_shared_ptr::reset()</code> <code>fetch_sub(1)</code> + delete check (行 1597-1614)</td><td>acq_rel</td></tr>
 </table>
 
 <div class="box-green">

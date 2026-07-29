@@ -250,12 +250,21 @@ XTextWriter::onVisualization(const Snapshot &shot, bool afterRecorded, XDriver *
 
 void
 XTextWriter::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
-	XScopedLock<XRecursiveMutex> lock(m_filemutex);  
-	if(m_stream.is_open()) m_stream.close();
-	m_stream.clear();
-	m_stream.open((const char*)QString(shot[ *filename()].to_str()).toLocal8Bit().data(), OFSMODE);
-
-	if(m_stream.good()) {
+    bool opened;
+    {
+        //Stream ops only under the lock. Never hold m_filemutex across the
+        //Snapshot/commit ops below: onLastLineChanged takes this same mutex
+        //from inside a recording driver's in-flight transaction (via
+        //onVisualization -> trans(*lastLine())), so sleeping in STM negotiation
+        //while holding it stalls the whole STM until the HANG watchdog aborts
+        //(same lock-vs-STM class as the OSO paint fix, 543f5a6ea).
+        XScopedLock<XRecursiveMutex> lock(m_filemutex);
+        if(m_stream.is_open()) m_stream.close();
+        m_stream.clear();
+        m_stream.open((const char*)QString(shot[ *filename()].to_str()).toLocal8Bit().data(), OFSMODE);
+        opened = m_stream.good();
+    }
+    if(opened) {
         iterate_commit([=](Transaction &tr){
 			m_lsnOnFlush = tr[ *recording()].onValueChanged().connectWeakly(
 				shared_from_this(), &XTextWriter::onFlush);
@@ -314,27 +323,34 @@ XTextWriter::addCalibratedEntrySource(const shared_ptr<XCalibratedEntryList> &ca
 void
 XTextWriter::onLogFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
     Snapshot shot_entries( *m_entries);
-    XScopedLock<XRecursiveMutex> lock(m_logFilemutex);
-	if(m_logStream.is_open()) m_logStream.close();
-	m_logStream.clear();
-	m_logStream.open((const char*)QString(shot[ *logFilename()].to_str()).toLocal8Bit().data(), OFSMODE);
-
-	if(m_logStream.good()) {
-		XString buf;
-		buf = "#";
-		if(shot_entries.size()) {
-			const XNode::NodeList &entries_list( *shot_entries.list());
-			for(auto it = entries_list.begin(); it != entries_list.end(); it++) {
-				auto entry = static_pointer_cast<XScalarEntry>( *it);
-				buf.append(entry->getLabel());
-                buf.append(KAME_DATAFILE_DELIMITER);
-			}
-		}
-        buf.append("Date" KAME_DATAFILE_DELIMITER "Time" KAME_DATAFILE_DELIMITER "msec");
-        m_logStream << buf
-				 << std::endl;
-	}
-	else {
+    bool opened;
+    {
+        //Stream ops only under the lock; the STM ops on the failure path run
+        //after release. onVisualization locks this same mutex from inside a
+        //recording driver's in-flight transaction, so holding it across
+        //Snapshot/commit can deadlock the STM (HANG watchdog abort).
+        XScopedLock<XRecursiveMutex> lock(m_logFilemutex);
+        if(m_logStream.is_open()) m_logStream.close();
+        m_logStream.clear();
+        m_logStream.open((const char*)QString(shot[ *logFilename()].to_str()).toLocal8Bit().data(), OFSMODE);
+        opened = m_logStream.good();
+        if(opened) {
+            XString buf;
+            buf = "#";
+            if(shot_entries.size()) {
+                const XNode::NodeList &entries_list( *shot_entries.list());
+                for(auto it = entries_list.begin(); it != entries_list.end(); it++) {
+                    auto entry = static_pointer_cast<XScalarEntry>( *it);
+                    buf.append(entry->getLabel());
+                    buf.append(KAME_DATAFILE_DELIMITER);
+                }
+            }
+            buf.append("Date" KAME_DATAFILE_DELIMITER "Time" KAME_DATAFILE_DELIMITER "msec");
+            m_logStream << buf
+                     << std::endl;
+        }
+    }
+    if( !opened) {
         gWarnPrint(i18n("All-entry logger: Failed to open file."));
         if(***logRecording())
             trans( *logRecording()) = false;

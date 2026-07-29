@@ -84,6 +84,18 @@ m_measure(measure) {
         m_lsnChildCreated = tr[ *this].onChildCreated().connectWeakly(shared_from_this(),
             &XScriptingThreadList::onChildCreated, Listener::FLAG_MAIN_THREAD_CALL);
     });
+    // NOTE: the execute() thread is NOT started here — see startExecutionThread().
+}
+void
+XScriptingThreadList::startExecutionThread() {
+    // Must run AFTER the most-derived object (XPython / XRuby) is fully
+    // constructed and owned by a shared_ptr.  execute() is pure virtual in
+    // this base; starting the thread from the base constructor raced the
+    // derived constructor, so the worker could dispatch through a vtable that
+    // still pointed at the pure-virtual placeholder -> __cxa_pure_virtual
+    // abort.  The race was rare until Qt 6.8's early startup-thread scheduling
+    // began winning it on some macOS setups.  Callers (see XMeasure) invoke
+    // this immediately after createOrphan<XPython/XRuby>().
     m_thread.reset(new XThread(shared_from_this(), &XScriptingThreadList::execute));
 }
 void

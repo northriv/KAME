@@ -17,6 +17,11 @@
 #ifndef _MSC_VER
     #include <unistd.h>
 #endif
+#ifdef __linux__
+    #include <sys/resource.h>
+    #include <stdlib.h>
+    #include <atomic>
+#endif
 
 #include "support.h"
 
@@ -24,7 +29,51 @@ bool g_bLogDbgPrint;
 bool g_bUseOverpaint;
 bool g_bUseMLock;
 
-bool isMemLockAvailable() noexcept {return g_bUseMLock;}
+bool isMemLockAvailable() noexcept {
+    if( !g_bUseMLock) return false;
+#if defined __linux__
+    // --nomlock was the ONLY thing this used to consult, so every caller
+    // believed page pinning had happened when in fact all five mlock() call
+    // sites discard their return value.  On Linux an unprivileged process is
+    // capped by RLIMIT_MEMLOCK — commonly 8 MiB on systemd distros, 64 KiB on
+    // older ones and in many containers — and anything past that fails with
+    // ENOMEM, so the realtime DSO record buffers were quietly pageable while
+    // this function still reported success.  Probe for real, once, and report
+    // the limit so the user can act on it.  (The probe cannot tell whether a
+    // *particular* later pin will fit; announcing the ceiling is the honest
+    // thing this function can do.)
+    static std::atomic<int> s_probed{-1};
+    int p = s_probed.load(std::memory_order_relaxed);
+    if(p < 0) {
+        long pg = sysconf(_SC_PAGESIZE);
+        if(pg <= 0) pg = 4096;
+        void *probe = nullptr;
+        p = 0;
+        if(posix_memalign( &probe, (std::size_t)pg, (std::size_t)pg) == 0) {
+            if(::mlock(probe, (std::size_t)pg) == 0) {
+                ::munlock(probe, (std::size_t)pg);
+                p = 1;
+            }
+            free(probe);
+        }
+        struct rlimit rl = {};
+        if( !p) {
+            fprintf(stderr, "kame: mlock() is unavailable (%s); realtime buffers will not be"
+                " pinned.  Pass --nomlock to silence this.\n", strerror(errno));
+        }
+        else if((getrlimit(RLIMIT_MEMLOCK, &rl) == 0) && (rl.rlim_cur != RLIM_INFINITY)
+                && (rl.rlim_cur < 64u * 1024 * 1024)) {
+            fprintf(stderr, "kame: RLIMIT_MEMLOCK is only %lu bytes — pins larger than that"
+                " will fail silently.  Raise it (ulimit -l, /etc/security/limits.d, or"
+                " LimitMEMLOCK= in a systemd unit).\n", (unsigned long)rl.rlim_cur);
+        }
+        s_probed.store(p, std::memory_order_relaxed);
+    }
+    return p != 0;
+#else
+    return true;
+#endif
+}
 
 #include <iostream>
 #include <fstream>
@@ -33,11 +82,25 @@ bool isMemLockAvailable() noexcept {return g_bUseMLock;}
 
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
 	#define KAME_LOG_FILENAME "kame.log"
+	static std::ofstream g_debugofs(KAME_LOG_FILENAME, std::ios::out);
 #else
-	#define KAME_LOG_FILENAME "/tmp/kame.log"
+	#include <unistd.h>
+	#include <string>
+	// Was a fixed "/tmp/kame.log".  In a world-writable sticky directory that
+	// is one shared name for every user on the machine: the second user
+	// cannot truncate the first user's file, the ofstream silently enters
+	// failbit, and every --logging write after that is discarded with no
+	// diagnostic.  (It is also a classic symlink-in-/tmp target.)  Qualify by
+	// uid — not by pid, so the path stays predictable for someone who just
+	// wants to tail it — and honour $TMPDIR.  This runs during static
+	// initialization, so it must not touch Qt.
+	static std::string kameLogFilename() {
+		const char *tmp = getenv("TMPDIR");
+		if( !tmp || !tmp[0]) tmp = "/tmp";
+		return std::string(tmp) + "/kame-" + std::to_string((unsigned long)getuid()) + ".log";
+	}
+	static std::ofstream g_debugofs(kameLogFilename().c_str(), std::ios::out);
 #endif
-
-static std::ofstream g_debugofs(KAME_LOG_FILENAME, std::ios::out);
 static XMutex g_debug_mutex;
 
 #include "xtime.h"
@@ -154,9 +217,14 @@ gErrPrint_redirected(const XString &str, const char *file, int line) {
                              .arg(line)
                              .arg(str)).toUtf8().data()
             << std::endl;
-#if !defined __WIN32__ && !defined WINDOWS && !defined _WIN32
-        sync(); //ensures disk writing.
-#endif
+        // Was sync(2) here.  That flushes EVERY mounted filesystem, not this
+        // log — on Linux it blocks the calling thread (holding g_debug_mutex,
+        // which every dbgPrint/gWarnPrint also wants) until the whole page
+        // cache is written back, so one error during a large write stalls the
+        // acquisition threads for as long as the disk takes.  `std::endl`
+        // above already flushed the stream into the kernel, which is what
+        // actually protects the log against a KAME crash; surviving a power
+        // cut is not worth a system-wide writeback per error message.
 	}
 	shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
     if(statusprinter) statusprinter->printError(str, true, file, line);
@@ -249,15 +317,29 @@ void formatDoubleValidator(XString &fmt) {
 		if(arg_cnt > 1) {
             throw XKameError(i18n_noncontext("Illegal Format, too many %s."), __FILE__, __LINE__);
 		}
-		char conv;
-		if((sscanf(buf.c_str() + pos, "%*[+-'0# ]%*f%c", &conv) != 1) &&
-		   (sscanf(buf.c_str() + pos, "%*[+-'0# ]%c", &conv) != 1) &&
-		   (sscanf(buf.c_str() + pos, "%*f%c", &conv) != 1) &&
-		   (sscanf(buf.c_str() + pos, "%c", &conv) != 1)) {
-            throw XKameError(i18n_noncontext("Illegal Format."), __FILE__, __LINE__);
+		// Parse the printf conversion spec explicitly:
+		//     %[flags][width][.precision][length]<conv>
+		// This used to be a chain of four sscanf() attempts, which depended on
+		// how far the C library pushes back a partially-matched %f.  glibc and
+		// Darwin libc differ there, and on glibc every precision-bearing
+		// exponent format (%.3e, %.5e, %12.4e, %.3E) fell through all four
+		// attempts and was rejected as "no float conversion" — so a graph tic
+		// label format that works on macOS was refused on Linux, including
+		// when it arrived from an existing .kam file.
+		const char *p = buf.c_str() + pos;
+		p += strspn(p, "+-'0# ");                       //!< flags
+		p += strspn(p, "0123456789");                   //!< width
+		if( *p == '.') {
+			p++;
+			p += strspn(p, "0123456789");               //!< precision
 		}
-		if(std::string("eEgGf").find(conv) == std::string::npos)
+		p += strspn(p, "lLhqjzt");                      //!< length modifier
+		char conv = *p;
+		if( !conv)
+            throw XKameError(i18n_noncontext("Illegal Format."), __FILE__, __LINE__);
+		if(std::string("eEgGfFaA").find(conv) == std::string::npos)
             throw XKameError(i18n_noncontext("Illegal Format, no float conversion."), __FILE__, __LINE__);
+		pos = p - buf.c_str();
 	}
 	if(arg_cnt == 0)
         throw XKameError(i18n_noncontext("Illegal Format, no %."), __FILE__, __LINE__);
@@ -266,11 +348,19 @@ void formatDoubleValidator(XString &fmt) {
 XString dumpCString(const char *cstr) {
 	XString buf;
 	for(; *cstr; cstr++) {
-		if(isprint(*cstr))
+		// `char` is signed on x86 Linux/macOS, so every byte >= 0x80 was a
+		// negative int here.  isprint() with a negative argument other than
+		// EOF is undefined behaviour, and `(unsigned int)(int)*cstr` produced
+		// e.g. 0xffffff80 for 0x80, which "%02x" then printed as "ffffff80"
+		// — the interface debug log showed the wrong value for every
+		// non-ASCII byte of binary instrument traffic.  Widen through
+		// `unsigned char` first.
+		unsigned char c = static_cast<unsigned char>( *cstr);
+		if(isprint(c))
 			buf.append(1, *cstr);
 		else {
             char s[5] = {};
-			snprintf(s, 5, "\\x%02x", (unsigned int)(int)*cstr);
+			snprintf(s, sizeof(s), "\\x%02x", (unsigned int)c);
 			buf.append(s);
 		}
 	}

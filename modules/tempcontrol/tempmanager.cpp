@@ -833,7 +833,17 @@ XTempManager::sanityCheckOfZones(const Snapshot &shot) {
 void
 XTempManager::onDupTouched(const Snapshot &shot, XTouchableNode *) {
     sanityCheckOfZones(Snapshot( *this));
-    zones()->thermometers()->iterate_commit_if([=](Transaction &tr_th){
+    shared_ptr<XZone> zone_committed; //survives outer retries
+    zones()->thermometers()->iterate_commit_if([=, &zone_committed](Transaction &tr_th){
+        //The inner tr.commit() below is NOT rolled back when the outer tr_th
+        //commit fails and this closure re-runs — without the undo here one
+        //"Duplicate Zone" click could publish two or more zones.
+        if(zone_committed) {
+            Snapshot shot_zones( *zones());
+            if(shot_zones.isUpperOf( *zone_committed))
+                zones()->release(zone_committed);
+            zone_committed.reset();
+        }
         Transaction tr( *this);
         //nameless
         auto zone = zones()->create<XZone>(
@@ -851,7 +861,10 @@ XTempManager::onDupTouched(const Snapshot &shot, XTouchableNode *) {
                 tr[ *zone->auxDeviceValues(i)] = (double)tr[ *zone_old->auxDeviceValues(i)];
             zones()->swap(tr, zone, tr.list(zones())->at(i + 1));
         }
-        return tr.commit();
+        if( !tr.commit())
+            return false;
+        zone_committed = zone;
+        return true;
     });
     refreshZoneUIs();
 }

@@ -162,7 +162,8 @@ XDSO::showForms() {
 
 unsigned int
 XDSO::Payload::length() const {
-    return m_waves.size() / numChannels();
+    //numChannels()==0 until the first record; 0/0 raises SIGFPE on x86-64.
+    return numChannels() ? (m_waves.size() / numChannels()) : 0;
 }
 const double *
 XDSO::Payload::wave(unsigned int ch) const {
@@ -170,7 +171,8 @@ XDSO::Payload::wave(unsigned int ch) const {
 }
 unsigned int
 XDSO::Payload::lengthDisp() const {
-    return m_wavesDisp.size() / numChannelsDisp();
+    //numChannelsDisp()==0 until the first acquisition; 0/0 raises SIGFPE on x86-64.
+    return numChannelsDisp() ? (m_wavesDisp.size() / numChannelsDisp()) : 0;
 }
 double *
 XDSO::Payload::waveDisp(unsigned int ch) {
@@ -306,6 +308,15 @@ XDSO::execute(const atomic<bool> &terminated) {
 			shared_from_this(), &XDSO::onRestartTouched);
     });
 
+	// Acquisition loop only — deliberately after the two setup commits above,
+	// which run once at driver start (often while a .kam load is starting many
+	// drivers at once, the one case where several impolite threads hurt).
+	// Everything inside this loop belongs to the record: the Snapshot below and
+	// the per-iteration settings reads, the hardware I/O, the
+	// `trans(*this).m_rawDisplayOnly` one-liner and finishWritingRaw.  None of
+	// it should be polite.  See
+	// XPrimaryDriverWithThread::AcquisitionPriority.
+	AcquisitionPriority acq_priority;
 	while( !terminated) {
 		Snapshot shot( *this);
 		const int fetch_mode = shot[ *fetchMode()];
@@ -348,6 +359,8 @@ XDSO::execute(const atomic<bool> &terminated) {
 		}
 		catch (XKameError& e) {
 			e.print(getLabel());
+			if( !terminated)
+				msecsleep(1000); //back off on error (e.g. dead device) so the loop does not hammer.
 			continue;
 		}
       
@@ -361,6 +374,8 @@ XDSO::execute(const atomic<bool> &terminated) {
 		}
 		catch (XKameError &e) {
 			e.print(getLabel());
+			if( !terminated)
+				msecsleep(1000); //back off on error (e.g. dead device) so the loop does not hammer.
 			continue;
 		}
       
@@ -379,6 +394,8 @@ XDSO::execute(const atomic<bool> &terminated) {
 			}
 			catch (XKameError &e) {
 				e.print(getLabel());
+				if( !terminated)
+					msecsleep(1000); //back off on error (e.g. dead device) so the loop does not hammer.
 				continue;
 			}
 		}
@@ -468,13 +485,17 @@ XDSO::demodulateDisp(Transaction &tr) {
 	unsigned int num_channels = shot[ *this].numChannelsDisp();
 	unsigned int length = shot[ *this].lengthDisp();
 	if( !shot[ *this].m_dRFRefWave) {
-		tr[ *this].m_dRFRefWave.reset(new std::vector<std::complex<double> >(length));
-		auto *vec = &shot[ *this].m_dRFRefWave->at(0);
+		//Build the reference wave in a local, then store it as shared_ptr<const>:
+		//snapshots then share an immutable buffer instead of one that could be
+		//mutated in place through the Payload pointer.
+		auto refwave = std::make_shared<std::vector<std::complex<double> > >(length);
+		auto *vec = &refwave->at(0);
 		double omega = phaseOfRF(shot, 1, shot[ *this].timeIntervalDisp());
 		double trigpos = shot[ *this].trigPosDisp();
 		for(int i = 0; i < length; ++i) {
 			vec[i] = std::polar(1.0, - omega * (i - trigpos)); // exp( -i omega t)
 		}
+		tr[ *this].m_dRFRefWave = std::move(refwave);
 	}
 
 	auto *wave_ref = &shot[ *this].m_dRFRefWave->at(0);

@@ -236,7 +236,7 @@ public:
     protected:
         virtual void str_(const XString &) override;
     private:
-        shared_ptr<std::deque<XString> > m_strings;
+        shared_ptr<const std::deque<XString> > m_strings; //immutable published list; add()/clear() rebuild it (copy+modify) so snapshots share it safely.
         std::pair<XString, int> m_var;
     };
 };

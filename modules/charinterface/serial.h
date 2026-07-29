@@ -46,8 +46,14 @@ protected:
 #ifdef SERIAL_WIN32
     void *m_handle;
 #endif /*SERIAL_WIN32*/
-    bool m_serialFlushBeforeWrite;
-    bool m_serialHasEchoBack;
+    // These are copied from the XCharInterface settings in open(), but ONLY
+    // when m_forceDefaultSetting is false.  XSerialPortWithDefaultSetting —
+    // i.e. every Prologix GPIB-USB adapter — sets that flag, so both members
+    // used to be read uninitialized on that path (send() consults
+    // m_serialHasEchoBack before gpib.cpp has assigned anything).  Default
+    // them here to the same values XCharInterface's constructor uses.
+    bool m_serialFlushBeforeWrite = true;
+    bool m_serialHasEchoBack = false;
 
     bool m_forceDefaultSetting = false;
 };

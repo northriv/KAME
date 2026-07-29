@@ -62,6 +62,9 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
 
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
    virtual int64_t bulkWrite(uint8_t ep, const uint8_t *buf, int len) override {
+       if( !handle)
+           //Device was closed concurrently; a null dev_handle aborts inside libusb.
+           throw XInterface::XInterfaceError("USB: bulk write attempted on a closed device handle.\n", __FILE__, __LINE__);
        msecsleep(5);
        int actual_length;
        int ret = libusb_bulk_transfer(handle,
@@ -330,26 +333,30 @@ CyFXLibUSBDevice::open() {
         fprintf(stderr, "USB: VID=0x%x, PID=0x%x,BUS#%d,ADDR=%d;%s;%s;%s.\n",
             desc.idVendor, desc.idProduct, bus_num, addr, manu, prod, serial);
 
-    //    ret = libusb_set_auto_detach_kernel_driver( *h, 1);
-    //    if(ret) {
-    //        fprintf(stderr, "USB %d: Warning auto detach is not supported: %s\n", n, libusb_error_name(ret));
-    //    }
-//        ret = libusb_kernel_driver_active(handle, 0);
-//        if(ret < 0) {
-////            libusb_close(handle); handle = nullptr;
-////            throw XInterface::XInterfaceError(formatString("Error opening dev. in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
-//        }
-//        if(ret == 1) {
-//            fprintf(stderr, "USB: kernel driver is active, detaching...\n");
-//            ret = libusb_detach_kernel_driver(handle, 0);
-//            if(ret < 0) {
-//                libusb_close(handle); handle = nullptr;
-//                throw XInterface::XInterfaceError(formatString("Error opening dev. in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
-//            }
-//        }
+        // Linux binds a kernel driver (usbserial/ftdi_sio/cdc_acm, depending
+        // on the device's descriptors) to the interface as soon as it is
+        // plugged in, and libusb_claim_interface() then fails with
+        // LIBUSB_ERROR_BUSY.  This detach step is a no-op on macOS and
+        // Windows — which is why it has been commented out since the port —
+        // but on Linux it is mandatory.  Ask libusb to do it around
+        // claim/release; if the backend cannot, say so and carry on so the
+        // claim below still produces the real error.
+        ret = libusb_set_auto_detach_kernel_driver(handle, 1);
+        if(ret && (ret != LIBUSB_ERROR_NOT_SUPPORTED)) {
+            fprintf(stderr, "USB: warning, auto detach of kernel driver failed: %s\n",
+                libusb_error_name(ret));
+        }
     //    ret = libusb_set_configuration( *h, 1);
         ret = libusb_claim_interface(handle, 0);
         if(ret) {
+            if(ret == LIBUSB_ERROR_ACCESS) {
+                fprintf(stderr, "USB: permission denied.  On Linux, install a udev rule granting"
+                    " access to this device (see INSTALL.linux); on macOS, check Privacy settings.\n");
+            }
+            if(ret == LIBUSB_ERROR_BUSY) {
+                fprintf(stderr, "USB: interface is claimed by a kernel driver that could not be"
+                    " detached.  Unbind it, or blacklist the module.\n");
+            }
             libusb_close(handle); handle = nullptr;
             throw XInterface::XInterfaceError(formatString("Error opening dev. in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
         }
@@ -381,6 +388,9 @@ CyFXLibUSBDevice::close() {
 int
 CyFXLibUSBDevice::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, const uint8_t *wbuf, int len) {
+    if( !handle)
+        //Device was closed concurrently; a null dev_handle aborts inside libusb.
+        throw XInterface::XInterfaceError("USB: control write attempted on a closed device handle.\n", __FILE__, __LINE__);
     std::vector<uint8_t> buf(len);
     std::copy(wbuf, wbuf + len, buf.begin());
     int ret = libusb_control_transfer(handle,
@@ -396,6 +406,9 @@ CyFXLibUSBDevice::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value
 int
 CyFXLibUSBDevice::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, uint8_t *rdbuf, int len) {
+    if( !handle)
+        //Device was closed concurrently; a null dev_handle aborts inside libusb.
+        throw XInterface::XInterfaceError("USB: control read attempted on a closed device handle.\n", __FILE__, __LINE__);
     int ret = libusb_control_transfer(handle,
         LIBUSB_ENDPOINT_IN | (int8_t)type,
         (uint8_t)request,
@@ -410,6 +423,9 @@ CyFXLibUSBDevice::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
 XString
 CyFXLibUSBDevice::getString(int descid) {
     char s[128];
+    if( !handle)
+        //Device was closed concurrently; a null dev_handle aborts inside libusb.
+        throw XInterface::XInterfaceError("USB: get string desc. attempted on a closed device handle.\n", __FILE__, __LINE__);
     int ret = libusb_get_string_descriptor_ascii(handle, descid, (uint8_t*)s, sizeof(s) - 1);
     if(ret < 0) {
          throw XInterface::XInterfaceError(formatString("Error during USB get string desc.: %s\n", libusb_error_name(ret)), __FILE__, __LINE__);
@@ -420,6 +436,12 @@ CyFXLibUSBDevice::getString(int descid) {
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
 CyFXLibUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len, unsigned int timeout_ms) {
+    if( !handle)
+        //Device was closed (e.g. USB link lost / interface stopped) concurrently with a write.
+        //Throw a catchable error here instead of submitting a transfer on a null dev_handle,
+        //which makes libusb_submit_transfer() hit an internal assertion and abort() the whole
+        //process (observed via the XThamwayPROT status-poll thread).
+        throw XInterface::XInterfaceError("USB: bulk write attempted on a closed device handle.\n", __FILE__, __LINE__);
     unique_ptr<AsyncIO> async(new AsyncIO);
     async->buf.resize(len);
     std::memcpy( &async->buf[0], buf, len);
@@ -436,6 +458,12 @@ CyFXLibUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len, unsign
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
 CyFXLibUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len, unsigned int timeout_ms) {
+    if( !handle)
+        //Device was closed (e.g. USB link lost / interface stopped) concurrently with a read.
+        //Throw a catchable error here instead of submitting a transfer on a null dev_handle,
+        //which makes libusb_submit_transfer() hit an internal assertion and abort() the whole
+        //process (observed via the XThamwayPROT status-poll thread).
+        throw XInterface::XInterfaceError("USB: bulk read attempted on a closed device handle.\n", __FILE__, __LINE__);
     unique_ptr<AsyncIO> async(new AsyncIO);
     async->buf.resize(len);
     async->rdbuf = buf;

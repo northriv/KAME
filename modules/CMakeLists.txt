@@ -22,6 +22,7 @@ add_subdirectory(nidaq)
 add_subdirectory(networkanalyzer)
 add_subdirectory(motor)
 add_subdirectory(flowcontroller)
+add_subdirectory(relay)
 
 add_dependencies(testdriver kame)
 ########### install files ###############

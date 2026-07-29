@@ -786,6 +786,9 @@
   <tabstop>m_ledSucceeded</tabstop>
   <tabstop>m_edTarget</tabstop>
   <tabstop>m_btnAbortTuning</tabstop>
+  <tabstop>m_txtDescPresetAngles</tabstop>
+  <tabstop>m_dblTrustPresetAnglesInPercent</tabstop>
+  <tabstop>m_btnAddPresetAngles</tabstop>
   <tabstop>m_edReflectionTargeted</tabstop>
   <tabstop>m_edReflectionRequired</tabstop>
   <tabstop>m_txtStatus</tabstop>
@@ -794,6 +797,7 @@
   <tabstop>m_ckbUseSTM2</tabstop>
   <tabstop>m_cmbSTM2</tabstop>
   <tabstop>m_cmbNetAna</tabstop>
+  <tabstop>m_cmbRelayDriver</tabstop>
   <tabstop>m_edBacklushMinusTh</tabstop>
   <tabstop>m_edBacklushPlusTh</tabstop>
   <tabstop>m_edOrigBackMax</tabstop>

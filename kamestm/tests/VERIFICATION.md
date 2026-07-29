@@ -26,7 +26,7 @@ Three complementary verification approaches covering the full stack.
 
 ### What it tests
 
-The core lock-free reference counting protocol from `kame/atomic_smart_ptr.h`, extracted into
+The core lock-free reference counting protocol from `kamepoolalloc/atomic_smart_ptr.h`, extracted into
 standalone C11 programs with all `memory_order` annotations exactly matching the original:
 
 | Operation | Ordering in original |
@@ -101,6 +101,7 @@ TLA+ atomic step corresponding 1:1 to a C atomic operation:
 | `test_stm_commit.c` | (legacy stm_commit layer) | Pass |
 | `test_bundle_2level.c`, `test_bundle_2level_LLfree.c` | `BundleUnbundle_2level*.tla` | Pass |
 | `test_bundle_3level.c`, `test_bundle_3level_LLfree.c` | `BundleUnbundle_3level*.tla` | Pass |
+| `test_bundle_hardlink_{4node,self_collision,external,external_migration,dynamic,nonatomic}.c` (6) | `BundleUnbundle_hardlink_*.tla` family | mechanically generated from the specs (each header: "C11 test generated mechanically from …"); run under GenMC |
 
 ### Key findings
 
@@ -192,7 +193,7 @@ v0.17.0 binary installs at `build/bin/genmc/genmc` (nested).
 
 ### What it tests
 
-The full Layer 1 vocabulary of `kame/atomic_smart_ptr.h` under sequential
+The full Layer 1 vocabulary of `kamepoolalloc/atomic_smart_ptr.h` under sequential
 consistency.  Complements GenMC (which checks memory ordering) by exhaustively
 exploring all thread interleavings of:
 
@@ -212,15 +213,15 @@ exploring all thread interleavings of:
 
 | Operation | C++ source | Key detail |
 |---|---|---|
-| `acquire_tag_ref_()` | `atomic_smart_ptr.h:1058-1108` | Single atomic load of `m_ref` + CAS to +1 local tag |
-| `load_shared_()` (bulk) | `atomic_smart_ptr.h:1116-1128` | `fetch_add(rcnt)` to global + drain `release_tag_ref_(pref, rcnt)` |
-| `release_tag_ref_(pref, T)` | `atomic_smart_ptr.h:1158-1206` | Drain `min(local_rc, T)` tags in one CAS + fetch_sub the excess |
-| `compareAndSwap_()` (legacy) | `atomic_smart_ptr.h:550-650` | 6-phase: pre-inc, acquire, check, transfer, CAS, cleanup/undo |
-| `local_shared_ptr::swap(asp&)` | `atomic_smart_ptr.h:628-649` | Like CAS but unconditional and hold-transfer |
-| `compareAndSet_impl_<SCOPED>` | `atomic_smart_ptr.h:1240-1450` | No acquire (scope holds +1); step4 = +T (full); fetch_sub(2) on success |
-| `scoped_atomic_view` ctor | `atomic_smart_ptr.h:598-700` | Acquire → TagHeld |
-| `scoped_atomic_view` dtor | `atomic_smart_ptr.h:730-845` | `release_tag_ref_(pref, 1)` if TagHeld |
-| `local_shared_ptr::reset()` | `atomic_smart_ptr.h:433-444` | `fetch_sub(1, acq_rel)` + delete check |
+| `acquire_tag_ref_()` | `kamepoolalloc/atomic_smart_ptr.h:1632` | Single atomic load of `m_ref` + CAS to +1 local tag |
+| `load_shared_()` (bulk) | `kamepoolalloc/atomic_smart_ptr.h:1684` | `fetch_add(rcnt)` to global + drain `release_tag_ref_(pref, rcnt)` |
+| `release_tag_ref_(pref, T)` | `kamepoolalloc/atomic_smart_ptr.h:1730` | Drain `min(local_rc, T)` tags in one CAS + fetch_sub the excess |
+| `compareAndSet_impl_()` | `kamepoolalloc/atomic_smart_ptr.h:1811` (public `compareAndSwap()` decl `:981`) | Unified Set / Swap template (subsumes the former 6-phase `compareAndSwap_`): pre-inc, acquire, check, transfer, CAS, cleanup/undo |
+| `local_shared_ptr::swap(asp&)` | `kamepoolalloc/atomic_smart_ptr.h:2085` (decl `:717`) | Like CAS but unconditional and hold-transfer |
+| `compareAndSet_impl_<SCOPED>` | `kamepoolalloc/atomic_smart_ptr.h:1811` | No acquire (scope holds +1); step4 = +T (full); fetch_sub(2) on success |
+| `scoped_atomic_view` ctor | `kamepoolalloc/atomic_smart_ptr.h:1169` / `:1200` (class `:1139`) | Acquire → TagHeld |
+| `scoped_atomic_view` dtor | `kamepoolalloc/atomic_smart_ptr.h:1271` | `release_tag_ref_(pref, 1)` if TagHeld |
+| `local_shared_ptr::reset()` | `kamepoolalloc/atomic_smart_ptr.h:1597` (decl `:720`) | `fetch_sub(1, acq_rel)` + delete check |
 
 ### Key modeling decisions
 
@@ -304,15 +305,35 @@ except 1-thread and liveness configs.
 
 The multi-phase CAS bundle/unbundle protocol for a 2-level tree (Parent → {Child1, Child2}),
 plus the livelock-free (LL-free) priority mechanism. Models `bundle()`, `unbundle()`,
-`commit()`, and `snapshot()` from `kame/transaction_impl.h` for the 2-level case.
+`commit()`, and `snapshot()` from `kamestm/transaction_impl.h` for the 2-level case.
 
 ### Priority (LL-free) mechanism
 
 `priorityTag[n] ∈ {Null} ∪ ({0..MaxIter} × Threads)` per node. Older transaction (smaller
 iter, then smaller tid) wins. CAS failure → set own tag if older (`TagAfterFail`). Older tag
 blocks younger threads (`CanProceed`). `PreemptTag` lets an active older thread snatch a tag.
-Tags cleared only on commit success (`ClearMyTags`). Mirrors `m_priority_tidstamp` /
-`ScopedNegotiateLinkage` in `transaction_impl.h`.
+Tags cleared only on commit success (`ClearMyTags`).
+
+The TLA+ priority mechanism mirrors the **per-linkage privilege** path in
+`transaction.h` (`KAME_PER_LINKAGE_PRIVILEGE=1`, the default). The model's
+abstract symbols correspond to these C++ symbols (verified per-linkage
+correspondence):
+
+| TLA+ symbol | C++ symbol (`transaction.h`) |
+|---|---|
+| `MyTag(t) = <<iter(t), t>>` (a transaction's own tag) | `Snapshot::m_started_time` (tid-packed µs stamp from `now_us_tagged()`; kinded via `with_kind(m_started_time, …)`) — `:1515` / `:1662` |
+| `iter(t)` (transaction age) | the age component of `m_started_time`, compared by `signed_diff_us_packed` — `:1664` |
+| `priorityTag[n]` (the per-node registered tag) | `Linkage::m_transaction_started_time` (the per-linkage priority slot, atomic) — `:905` |
+| `TagAfterFail` (oldest-wins write on CAS contention) | `Snapshot::tag_as_contender(link)` (CAS: slot empty OR current tagger younger → overwrite; pushes onto `m_tagged_linkages`) — `:1630` |
+| `CanProceed` (the gate) | `i_am_privileged_now` / `fair_mode_blocks_me` — `:646` / `:634` |
+| `PreemptTag` (older preempts younger) | the symmetric preempt-window inside `tag_as_contender` — `:1669` |
+| `ClearMyTags` (release on commit success) | `Snapshot::drop_tags_n_privilege()` walking `m_tagged_linkages`, zeroing matching slots — `:1802` |
+| escalation to Reserved kind | `m_registered_privileged → StampKind::Reserved` — `:1659` |
+
+(The `KAME_PER_LINKAGE_PRIVILEGE=0` build instead uses a global
+fallback — `s_privileged_tidstamp` / `try_register_privileged_tidstamp` /
+`release_privileged_tidstamp` in `transaction_neg_impl.h` — which is not the
+default.)
 
 ### Specification generations
 
@@ -349,13 +370,132 @@ Thread roles configurable via `InsertThreads`, `RootThreads`, `LeafThreads`, `Re
 
 | Config | Threads | Distinct states | Depth | Time | Result |
 |---|---|---|---|---|---|
-| 2-thread coarse | 2 | 665,218 | 89 | 28 s | **Pass + liveness** |
-| 2-thread superfine | 2 | 2,676,196 | 129 | 3:12 | **Pass + liveness** |
-| 3-thread superfine confC (all-root) | 3 | 137,333,348 | 96 | 6:35 | **Pass** (ohtaka) |
-| MaxCommits=2 superfine | 2 | 127,586,599 | 311 | 4:40 | **Pass** (ohtaka) |
-| dynamic release superfine live | 2 | 413,884,516 | 320 | 7:13 | **Pass + liveness** (ohtaka) |
+| 2-thread micro (fine) | 2 | 867,696 | 89 | ~35s | **Pass + liveness** |
+| 2-thread superfine | 2 | 2,676,196 | 129 | 3m 12s | **Pass + liveness** |
+| 3-thread superfine confC (all-root) | 3 | 137,333,348 | 96 | 2h 57min | **Pass + liveness** (ohtaka, /dev/shm) |
+| MaxCommits=2 superfine | 2 | 127,586,599 | 311 | 4h 40min | **Pass** (ohtaka) |
+| dynamic release superfine live | 2 | 413,884,516 | 320 | 7h 13min | **Pass + liveness** (ohtaka) |
 
-Full results: `tests/tlaplus/doc/verification_log.md`
+The 3-thread confC (all-root) row is now a full **liveness** pass
+(`BundleUnbundle_2level_LLfree_3thr_superfine_C_live_mc.cfg`, 2026-06-22,
+/dev/shm 126 workers): 443,332,503 generated / 137,333,348 distinct /
+depth 96, `EventuallyAllDone` PASS, temporal SCC 20min 19s, 2h 57min
+total.  This matches the 3-level confC liveness (640 M, below), so
+**3-thread liveness (all-root) holds at both the 2- and 3-level tree**.
+The leaf-containing 3-thread splits (confA/B/D) remain safety-frontier
+only — intractable for liveness in the 12–24 h budget (CommitChild
+interleavings blow the state count past the all-root 137 M / 640 M).
+
+The micro/fine row is `BundleUnbundle_2level_LLfree_micro_mc.cfg` (re-run
+2026-06-20: 2,083,827 generated / 867,696 distinct / depth 89, queue 0,
+`EventuallyAllDone` PASS). It was **665,218** at the first LL-free proof
+(commit `a35c4310`, see `verification_log.md`); the spec has since gained
+reachable interleavings at the same depth 89, so the current figure is
+867,696. Full / historical results: `tests/tlaplus/doc/verification_log.md`.
+
+### Thread-axis saturation (T-scaling experiment, 2026-06-23/24)
+
+A direct probe of the thread-axis cutoff *conjecture*
+(`tests/tlaplus/doc/parameterized_cutoff.md` §5.1): do more threads create new
+safety-relevant behaviour, or only more interleavings? 2-level, `MaxCommits=1`,
+**no** symmetry (raw reachable sets — the LL-free `TagOlder` tid-`<` forces
+ordered-natural thread ids, which TLC `SYMMETRY` rejects, §5.1 (i)). Each config
+reports the **raw** distinct-state count and the **structural σ** count — the
+reachable set projected onto the identity-free bundle structure (per node:
+`hasPriority`/`bundledBy`/`missing`/which `sub` slots are populated; `serial` and
+payload value dropped — exactly the fields the structural invariants read). The
+headline result is in the **superfine** (most-interleaved, C++-faithful) model.
+
+| Atomicity | Workload | T | Raw distinct states | Structural σ | Safety |
+|---|---|---|---|---|---|
+| **superfine** | all-root | 2 | 124,244 | **6** | Pass |
+| **superfine** | all-root | 3 | **137,333,348** | **6 — set-identical to T=2** (`diff` empty; σ=6 across all 137 M) | **Pass** (ohtaka F1cpu: TLC 5h08m + 736 GB dump + projection 3h08m) |
+| coarse | all-root | 2 | 1,093 | 4 | Pass |
+| coarse | all-root | 3 | 339,744 | 4 — set-identical to T=2 (`diff` empty) | Pass |
+| coarse | all-root | 4 | 136,366,732 | — (136 M, not dumped) | **Pass** (28 min) |
+| coarse | both-roles | 2 | 350,281 | 6 (4 bundle + 2 partial-unbundle) | Pass |
+
+- **Superfine saturation — the faithful result.** In the most-interleaved,
+  C++-faithful model the all-root structural set is **6** and is **set-identical
+  at `T = 2` and `T = 3`**, verified by dumping the *complete* 137 M-state `T = 3`
+  exhaustion (736 GB) and projecting — σ held at 6 across all 137,333,348 states.
+  The superfine 6 = the coarse 4 **plus the two within-operation Phase-3
+  intermediates** (one child re-pointed to a bundled-ref, the other not yet) that
+  coarse's atomic Phase-3 collapses away — i.e. exactly the genuinely-concurrent
+  interleavings where a hazard could hide. They saturate at `T = 2` as well, so a
+  third thread reaches **no new safety-relevant structure even in the faithful
+  model**.
+- **Raw state count explodes** with `T` (superfine all-root ~10⁵ → 1.37×10⁸): the
+  combinatorial interleaving/serial/payload growth that makes brute-force ∀`T`
+  hopeless; the safety-relevant *structure* does not grow.
+- The `T = 4` *coarse* all-root run (all 4-thread interleavings, 136 M states)
+  finds **no invariant violation**: a direct larger-`T` check that no dangerous
+  4-thread CAS pattern exists at that instance (TLC would emit a counterexample
+  trace otherwise).
+
+This **supports the ∀`T` conjecture** (§5.1) — a *faithful-model* measurement that
+the identity-free safety structure is finite and stable across checked thread
+counts, **not** a ∀`T` proof. Scope: 2-level, all-root (bundle-side; the
+multi-level *unbundle* structures need a leaf workload, and superfine `T = 4` /
+3-level superfine saturation are intractable to dump). The 3-level case is reached
+by extrapolation via the tree-independence of the commit-role structure (§5.1
+Facts A–C). (3-level *coarse* `T = 2` already reaches ≥ 9 structures; its
+exhaustion was not completed.)
+
+#### Scope of the saturation / structural-invariant argument
+
+The saturation result — and the candidate *local structural invariant* that
+characterizes the saturated σ-set (the conjuncts `SubNeverMissing`,
+`BundledHasCopy`, `StaleParentExcluded`, `SubPresenceUniform`, validated with no
+violation up to **3-level superfine `T = 3` all-root** and **3-level superfine
+`T = 2` both-roles**, i.e. the most-interleaved model on both the bundle and the
+multi-level-unbundle paths) — are stated for a **static, single-parent rooted
+tree**: `Next` has no node-insert/remove action and `ParentOf` is single-valued.
+Two regimes lie outside this argument and are verified *separately*, not by
+extension of it:
+
+- **Dynamic topology** (online insertion/release). Covered by the dynamic specs
+  (`BundleUnbundle_{2,3}level_LLfree_dynamic.tla` and their `*_dynamic_*` cfgs —
+  e.g. the 413 M-state *dynamic-release superfine liveness* run above) and the
+  `transaction_dynamic_node_test` C++ stress (§6). `SubPresenceUniform` (a node's
+  child-slots present-or-absent together) is an invariant of a *fixed* topology
+  only: inserting a child into an already-bundled parent leaves the new slot
+  `Null` while its siblings are non-`Null`, breaking it transiently.
+- **Hard links / DAG** (a child with ≥ 2 parents). Covered by §5
+  (`BundleUnbundle_hardlink_*`) and the bundle-Phase-3 fix. The conjuncts that
+  name *the* parent (`StaleParentExcluded`, `BundledHasCopy`) are ill-formed when
+  `ParentOf` is multi-valued, and `SubPresenceUniform` can be broken by an
+  independent second parent's unbundle; they are not claimed on a DAG.
+
+#### Raw state counts are spec-version-specific (determinism / provenance)
+
+Raw distinct-state counts are **not comparable across spec versions**. TLC's
+breadth-first search is a *deterministic* exhaustion: for a fixed (`.tla`, cfg)
+the reachable set — and hence every reported count and each variable's maximum
+(e.g. `PrintTerminalMaxCounter`) — is reproducible exactly; fingerprint seed and
+worker count change only *discovery order* and a negligible *collision
+probability* (≈ `N²/2⁶⁵`, < 1 collided state at `5×10⁸`). A changed count
+therefore signals a **changed model**, never run-to-run nondeterminism. Over this
+project's development the same confC superfine `T = 3` configuration (3-level,
+*identical* cfg constants throughout — `MaxCommits=1`, all-`superfine`,
+`Privilege=TRUE`, all-root) moved as protocol fixes landed in the `.tla`:
+
+| Date | Distinct | Depth | maxctr | Coinciding `.tla` fix (git) |
+|---|---:|:--:|:--:|---|
+| 2026-05-02 | 514,070,136 | 76 | 12 | `1d9820bc` Fix InnerPhase3 restart |
+| 2026-05-02 | 1,154,807,632 | 89 | 15 | `8d6026e3` Fix InnerPhase4 restart |
+| 2026-05-03 | 640,894,951 | 88 | 15 | `73bcef3a` Fix InnerPhase2 restart |
+| 2026-06-26 | 540,782,047 | 88 | — | `924b6e63` Fix for TLA+ model (current) |
+
+(Per-run HEAD inferred from commit vs run dates; each `Fix …` commit changed
+`Init`/`Next`, hence the reachable set and the counter.) **Only same-version runs
+are cross-comparable**; the paper reports current-spec numbers, and the
+version-independent quantity is the σ-projection (the saturated structure set),
+not any raw count. The current-spec `540,782,047` is the safety + structural-conjunct
+σ-closure run (this session, dump-free); a matching current-spec **liveness** run
+is in flight, expected to report the same `540,782,047` distinct (liveness adds
+only a temporal pass over the same graph — confirmed at 2-thread, where the
+3-level superfine liveness count equals the safety+conjunct count exactly).
 
 ### Equivalence of the existing models with the new C++ Phase 4 reachability gate
 
@@ -379,7 +519,7 @@ introduced by the global-root parameter).
 `reverseLookup` — necessary for hard-link Case B (where the
 hard-linked child's packet lives in a sibling sub-tree).  At the
 Phase 4 call site, `newpacket` aliases the global root for
-`is_bundle_root=true` (see `reverseLookup` line 1440 — when
+`is_bundle_root=true` (see `reverseLookup` line 1593 — when
 `&superpacket->node() == this` the function returns `superpacket`
 itself), so the default `globalroot = {}` is correct without
 explicit threading.
@@ -470,9 +610,15 @@ multi-level unbundle walk.
 
 | Config | Threads | Distinct states | Depth | Time | Result |
 |---|---|---|---|---|---|
-| 2-thread coarse | 2 | 1,497,098 | 98 | 1:35 | **Pass + liveness** |
-| 2-thread superfine | 2 | 14,109,731 | 148 | 19:13 | **Pass + liveness** |
-| 3-thread superfine confC (all-root) | 3 | 640,894,951 | 88 | 15:25 | **Pass + liveness** (ohtaka) |
+| 2-thread coarse | 2 | 1,497,098 | 98 | 1m 35s | **Pass + liveness** |
+| 2-thread superfine | 2 | 15,094,117 | 146 | 15m 11s | **Pass + liveness** (ohtaka, /dev/shm) |
+| 3-thread superfine confC (all-root) | 3 | 640,894,951 | 88 | 15h 25min | **Pass + liveness** (ohtaka) |
+
+The 2-thread superfine row is a 2026-06-21 re-run (`/dev/shm`, 126 workers):
+35,271,006 generated / 15,094,117 distinct / depth 146, queue 0,
+`EventuallyAllDone` PASS. It was 14,109,731 / depth 148 earlier; the spec
+has since gained reachable interleavings at ~the same depth (the same
+drift as the 2-level micro 665,218 → 867,696), not a regression.
 
 Full results: `tests/tlaplus/doc/verification_log.md`
 
@@ -522,6 +668,8 @@ Wait-free is not claimed at either layer — CAS-retry-based with fairness
 - `BundleUnbundle_hardlink_4node.tla` — Root-A-B-C topology with C hard-linked under both A and B (production-race repro, mirrors the C++ Phase 4 reachability-gating fix)
 - `BundleUnbundle_hardlink_external.tla` — minimal 4-node external-parent repro (`P2` hard-linked external to `P1`, `bundle(GN1)` triggers `SnapshotConsistency` violation without the fix)
 - `BundleUnbundle_hardlink_external_migration.tla` — cross-tree migration (bundle on `GN1` reaches into `P1`'s tree to pull `P2` into `GN2.sub[P2]`)
+- `BundleUnbundle_hardlink_nonatomic.tla` — *not a new topology*: a liveness investigation of the non-transactional `insert`/`release` test pattern (b23fa954) interleaved with transactional ops, comparing the master fall-through vs the self-promote fix under two fairness levels (see its own subsection below)
+- `BundleUnbundle_hardlink_nested_external.tla` — *conditional / investigative* (2026-07-02, from the fidelity-dossier §8.2-1 cross-check): the foster parent `M` is **`missing`**, so bundling recurses to a **nested** sub-bundle at `M`, degenerating the Phase-4 gate's root to the local sub-root instead of the global root. A/Bs the gate root via `CONSTANT UseGlobalRoot`: `FALSE` (faithful single-arg gate) → `EventuallyAllDone` **VIOLATED** (nested-scope livelock); `TRUE` (fix = thread the true global root) → **HOLDS**. `SnapshotConsistency` PASSES in **both** (over-strict, never unsafe). **Caveat:** the topology is *assumed via `Init`*, not constructed — it settles the conditional (if reachable, local-root gate livelocks; global-root fix resolves it) but not the topology's own reachability. See dossier §8.7.
 
 ### Background
 
@@ -531,7 +679,12 @@ The "hard-link" case — one child node referenced from two distinct parents
 reports of low-frequency dyn_node aborts ("30/30 abort on another env")
 prompted formal modelling of the protocol under hard-link topologies.
 
-Five complementary topologies are modelled:
+Five complementary topologies are modelled (a sixth spec,
+`_hardlink_nonatomic`, is a non-transactional-pattern liveness
+investigation rather than a topology — covered in its own subsection; a
+seventh, `_hardlink_nested_external`, is a *conditional* investigative
+model of the nested-sub-bundle gate-scope hazard — see the last row and
+dossier §8.7):
 
 | Spec | Topology | Bug surface |
 |---|---|---|
@@ -540,6 +693,7 @@ Five complementary topologies are modelled:
 | `_hardlink_4node` | Root → A, Root → B, A → C, B → C (C shared between A and B) | bundle(Root) Phase 4 reachability gating + outer `DISTURBED` retry; production-race repro |
 | `_hardlink_external` | GN1 → P2 (hardlink), P1 → P2 (external owner of P2's packet) | bundle(GN1) finalises `GN1 ~missing` while `GN2.sub[P2]=Null` is unreachable from GN1 → SnapshotConsistency violation without Phase 4 gating |
 | `_hardlink_external_migration` | as above, but the bundle is allowed to migrate P2 from P1's tree | bundle(GN1) must atomically pull P2 out of P1's `sub[]` and into GN2's `sub[]` while the peer races on P1 |
+| `_hardlink_nested_external` (conditional) | R → A → C (home) and R → M → {D, C-Null} with **M `missing`** | **nested** sub-bundle at `M` degenerates the Phase-4 gate root to local `M`; C's home `A` is outside `M` → spurious `DISTURBED` → livelock (liveness-only; safe). Global-root fix resolves it. Topology assumed via `Init` (reachability open) — see dossier §8.7 |
 
 ### Self-collision: bug repro and fix simulation
 
@@ -552,7 +706,7 @@ of R may execute, overwriting R's wrapper with `missing=FALSE`.  The
 bundling thread's Phase 4 CAS then fails; on retry, Phase 1 collects C
 via a now-stale `bundledBy=A` branch and writes `R.sub[A].sub[C] = Null`,
 losing the packet.  `SnapshotConsistency` (mirroring C++
-`Packet::checkConsistensy` at `transaction_impl.h:870-871`) is violated.
+`Packet::checkConsistensy` at `transaction_impl.h:1001`) is violated.
 
 **Proposed fix:** `BundlePhase3` should only CAS-tag child wrappers
 whose packets actually *move* into the parent's `sub[]`.  Hard-link
@@ -592,13 +746,19 @@ no `Null` sub-slot occurs in steady state — so the fix is a no-op.
 
 ### Results
 
-`_hardlink_dynamic` (sibling parents, superfine):
+`_hardlink_dynamic` (sibling parents, superfine) — liveness re-verified
+2026-06-20 (TLC / OpenJDK 24, `EventuallyAllDone` checked on every row):
 
-| Config | Threads | Distinct states | Result |
-|---|---|---|---|
-| 1-thread, MaxCommits=1 | 1 | 7 | **Pass** + liveness |
-| 2-thread, MaxCommits=1 | 2 | 62 | **Pass** + liveness |
-| 2-thread, MaxCommits=2 | 2 | 703 | **Pass** |
+| Config | Threads | Generated | Distinct | Depth | Result |
+|---|---|---|---|---|---|
+| MaxCommits=1 (`_1thr_mc.cfg`) | 1 | 10 | 7 | 4 | **Pass + liveness** |
+| MaxCommits=1 (`_2thr_mc.cfg`) | 2 | 152 | 62 | 9 | **Pass + liveness** |
+| MaxCommits=2 (`_2thr_commits2_mc.cfg`) | 2 | 1,818 | 703 | 16 | **Pass + liveness** |
+
+The MaxCommits=2 row was previously recorded safety-only ("Pass"); the
+dedicated `_2thr_commits2_mc.cfg` (added 2026-06-20) reproduces the same
+703 distinct states / depth 16 and confirms `<>AllDone` holds, so every
+dynamic config now carries the uniform safety+liveness verdict.
 
 `_hardlink_self_collision` (R-A-C, before fix):
 
@@ -777,14 +937,27 @@ The spec models:
 * Two fairness levels: `Spec` (per-action WF on every progress
   step) and `WeakSpec` (only blanket `WF_vars(NextStep)`).
 
-Result (all four configurations):
+Result (all four configurations — re-verified 2026-06-20, TLC on
+OpenJDK 24, 2 threads, `MaxIter = 2`, no `CONSTRAINT`):
 
-| Spec / Variant | Distinct states | Result |
-|---|---|---|
-| `Spec` + master | 308 | **Pass + liveness** |
-| `Spec` + fix | 308 | **Pass + liveness** |
-| `WeakSpec` + master | 308 | **Pass + liveness** |
-| `WeakSpec` + fix | 308 | **Pass + liveness** |
+| Spec / Variant | States generated | Distinct | Depth | `RootMutex` | `EventuallyAllDone` | Time |
+|---|---|---|---|---|---|---|
+| `Spec` (per-action WF) + master | 534 | 308 | 35 | ✅ holds | ✅ PASS | <1 s |
+| `Spec` (per-action WF) + fix | 550 | 308 | 35 | ✅ holds | ✅ PASS | <1 s |
+| `WeakSpec` (blanket WF) + master | 534 | 308 | 35 | ✅ holds | ✅ PASS | <1 s |
+| `WeakSpec` (blanket WF) + fix | 550 | 308 | 35 | ✅ holds | ✅ PASS | <1 s |
+
+All four exhaust completely (queue 0). The reachable state graph is
+**identical across fairness levels** — 308 distinct states at depth 35
+whether `Spec` (per-action WF) or `WeakSpec` (blanket WF), because the
+fairness constraint affects only the liveness check, not the set of
+reachable states. `master` vs `fix` differ only in *generated* states
+(534 vs 550), reflecting the variant's distinct finalize transitions
+(`fin_*_walk` chain-walk vs `fin_*_cas` self-promote), and converge to
+the same 308 distinct states. Crucially, **even `WeakSpec` + master**
+(the weakest fairness on the unoptimised path) satisfies
+`<>AllDone` — so the master path is live at this modelling abstraction
+under blanket weak fairness alone.
 
 **Conclusion:** at this modelling abstraction, both paths are
 theoretically live.  The b23fa954 self-promote is a **CAS-count
@@ -796,7 +969,7 @@ schedulers do not strictly meet `WF` in finite time), not a logic
 gap.
 
 The optimization is gated by `KAME_STM_OPTIONAL_OPTIMIZATION`
-(defined to `1` by default in `kame/transaction_definitions.h`,
+(defined to `1` by default in `kamestm/transaction_definitions.h`,
 commits `ead762be`, `b7a4d882`).  Compile with
 `-DKAME_STM_OPTIONAL_OPTIMIZATION=0` to disable the self-promote
 shortcut and the related `bundle()` "peer-completed early return";
@@ -846,18 +1019,19 @@ java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
   -workers auto -config BundleUnbundle_hardlink_external_migration_3thr_mc.cfg \
   BundleUnbundle_hardlink_external_migration.tla
 
-# Dynamic 2-thread (sibling parents, with liveness)
-java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
-  -workers auto -config BundleUnbundle_hardlink_dynamic_2thr_mc.cfg \
-  BundleUnbundle_hardlink_dynamic.tla
+# Dynamic (sibling parents, with liveness) — MaxCommits=1 and =2
+for cfg in dynamic_1thr dynamic_2thr dynamic_2thr_commits2; do
+  java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
+    -workers auto -config BundleUnbundle_hardlink_${cfg}_mc.cfg \
+    BundleUnbundle_hardlink_dynamic.tla
+done
 
-# Non-atomic test pattern — master vs b23fa954 fix comparison
-java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
-  -workers auto -config BundleUnbundle_hardlink_nonatomic_master_mc.cfg \
-  BundleUnbundle_hardlink_nonatomic.tla
-java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
-  -workers auto -config BundleUnbundle_hardlink_nonatomic_fix_mc.cfg \
-  BundleUnbundle_hardlink_nonatomic.tla
+# Non-atomic test pattern — all four configs (master/fix × Spec/WeakSpec, each <1 s)
+for cfg in master fix weak_master weak_fix; do
+  java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
+    -workers auto -config BundleUnbundle_hardlink_nonatomic_${cfg}_mc.cfg \
+    BundleUnbundle_hardlink_nonatomic.tla
+done
 ```
 
 To reproduce the original bug, revert the Phase 3 `subpackets[c] == Null`

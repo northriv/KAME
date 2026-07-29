@@ -6,6 +6,12 @@ include(../kame.pri)
 
 macx: SCRIPT_DIR = Resources
 win32: SCRIPT_DIR = resources
+# Linux/BSD: the deployed scripts sit next to the executable in a build tree
+# (and in $$PREFIX/share/kame once installed, which QStandardPaths finds on
+# its own).  Without this, LINESHELL_DIR expanded to a bare "/" and
+# FrmKameMain::scriptLineShellAction_activated() could never locate
+# rubylineshell.rb / pythonlineshell.py.
+unix:!macx: SCRIPT_DIR = .
 DEFINES += LINESHELL_DIR=\"quotedefined($${SCRIPT_DIR}/)\"
 DEFINES += USE_STD_RANDOM
 
@@ -51,6 +57,7 @@ HEADERS += \
     ../kamestm/transaction_neg_impl.h \
     ../kamestm/transaction_definitions.h \
     ../kamestm/xthread.h \
+    ../kamestm/xwaitcell.h \
     ../kamestm/xtime.h \
     ../kamestm/atomic_queue.h \
     ../kamestm/fast_vector.h \
@@ -168,6 +175,20 @@ SOURCES += icons/icon.cpp \
 # dyld only honours interpose from MH_DYLIB — so the inline path is
 # functionally identical to the previous in-kame `kame/allocator.cpp`
 # layout.)
+#
+# CAUTION, LINUX: the "interpose is inert in the executable" reasoning
+# above is Mach-O-specific and does NOT carry over to ELF.  allocator.cpp's
+# `#elif defined(__linux__)` block emits malloc / free / calloc /
+# posix_memalign / aligned_alloc / memalign as ordinary strong symbols,
+# and the executable is first in ELF's global symbol scope — so with
+# `-rdynamic` (added below for the ltdl modules) the kame binary becomes
+# the process-wide allocator for Qt, Mesa, libpython, libruby, libusb,
+# libgsl and everything else, not just for KAME's own new/delete.  That is
+# the same configuration kamepoolalloc is soaked in under LD_PRELOAD
+# (mimalloc-bench), so it is believed sound, but it IS a different runtime
+# shape from macOS and Windows.  Build with
+# `DEFINES += KAMEPOOLALLOC_NO_LIBC_INTERPOSE` to get macOS-like parity
+# (operator new/delete pooled, libc malloc untouched).
 SOURCES += ../kamepoolalloc/allocator.cpp
 
 unix {
@@ -198,6 +219,13 @@ RESOURCES += \
     kame.qrc
 
 DESTDIR=$$OUT_PWD/../
+# On Linux/BSD the target is a bare executable called `kame`, and the build
+# tree already contains a DIRECTORY called `kame` (this subproject) in exactly
+# that place — so `ld` fails with "cannot open output file ...: Is a
+# directory".  macOS escapes it because the target is the `kame.app` bundle
+# and Windows because it is `kame.exe`; only the Unix name collides.  Put the
+# executable one level down instead.
+unix:!macx: DESTDIR = $$OUT_PWD/../bin
 
 scriptfile.files = script/rubylineshell.rb \
     script/pythonlineshell.py \
@@ -223,7 +251,70 @@ else {
         icons/kame-24x24-png.c
 
     unix {
+        # `scriptfile.path` was only ever set inside the macx branch above, so
+        # this INSTALLS entry produced nothing but qmake's "scriptfile.path is
+        # not defined: install target not created" warning.  Install to
+        # $$PREFIX/share/kame, which is where QStandardPaths::AppDataLocation
+        # looks for applicationName "kame".
+        isEmpty(PREFIX): PREFIX = /usr/local
+        scriptfile.files += ../kame_ja.qm     # main.cpp looks next to the binary
+        # Thamway EZ-USB firmware / GPIF images.  These were deployed only via
+        # the macx QMAKE_BUNDLE_DATA block below, yet libthamway.so does build
+        # on Linux — so opening the interface failed with "USB GPIF/firmware
+        # file fx2fw.bix not found" and there was nowhere the build had put
+        # it.  XCyFXUSBInterface looks in QStandardPaths::AppDataLocation
+        # (= $$PREFIX/share/kame) and then applicationDirPath(); the staging
+        # loop below covers the second.
+        exists(../modules/nmr/thamway/fx2fw.bix) {
+            scriptfile.files += ../modules/nmr/thamway/fx2fw.bix \
+                ../modules/nmr/thamway/slow_dat.bin \
+                ../modules/nmr/thamway/fullspec_dat.bin
+        }
+        scriptfile.path = $${PREFIX}/share/kame
         INSTALLS += scriptfile
+        # Also stage them beside the binary so an uninstalled build tree is
+        # directly runnable — the equivalent of QMAKE_BUNDLE_DATA on macOS.
+        for(f, scriptfile.files): \
+            QMAKE_POST_LINK += $$quote(cp -f $${_PRO_FILE_PWD_}/$${f} $${DESTDIR}/ &&) \
+
+        QMAKE_POST_LINK += true
+
+        # The executable itself was never in INSTALLS, so `make install`
+        # deployed data files and no program.  (macOS installs the .app
+        # bundle, Windows copies by hand.)
+        target.path = $${PREFIX}/bin
+        INSTALLS += target
+
+        # Desktop integration (Linux-only files that nothing ever installed).
+        desktopfile.files = kame.desktop
+        desktopfile.path = $${PREFIX}/share/applications
+        INSTALLS += desktopfile
+
+        # udev rules for the libusb instrument drivers.  Not installed into
+        # /etc by default (a --prefix build must not write outside its prefix);
+        # ship them where a packager or the user can pick them up.
+        udevrules.files = 70-kame.rules
+        udevrules.path = $${PREFIX}/lib/udev/rules.d
+        INSTALLS += udevrules
+        # The PNGs are named hi{16,32}-app-kame.png (the old KDE icon naming);
+        # the hicolor theme requires the basename to equal the `Icon=` key, so
+        # install them renamed via .extra rather than .files.  (Written out
+        # twice rather than looped: qmake's for() cannot assign to a computed
+        # variable name without eval(), and silently does nothing.)
+        icon16.path = $${PREFIX}/share/icons/hicolor/16x16/apps
+        icon16.extra = \
+            mkdir -p $(INSTALL_ROOT)$${PREFIX}/share/icons/hicolor/16x16/apps && \
+            $(INSTALL_FILE) $${_PRO_FILE_PWD_}/hi16-app-kame.png \
+                $(INSTALL_ROOT)$${PREFIX}/share/icons/hicolor/16x16/apps/kame.png
+        icon16.CONFIG += no_check_exist
+        icon32.path = $${PREFIX}/share/icons/hicolor/32x32/apps
+        icon32.extra = \
+            mkdir -p $(INSTALL_ROOT)$${PREFIX}/share/icons/hicolor/32x32/apps && \
+            $(INSTALL_FILE) $${_PRO_FILE_PWD_}/hi32-app-kame.png \
+                $(INSTALL_ROOT)$${PREFIX}/share/icons/hicolor/32x32/apps/kame.png
+        icon32.CONFIG += no_check_exist
+        exists($${_PRO_FILE_PWD_}/hi16-app-kame.png): INSTALLS += icon16
+        exists($${_PRO_FILE_PWD_}/hi32-app-kame.png): INSTALLS += icon32
     }
     else {
         DISTFILES += script/rubylineshell.rb  \
@@ -282,8 +373,84 @@ macx {
     }
 }
 else:unix {
-    INCLUDEPATH += /usr/lib/ruby/1.8/i386-linux/
-    LIBS += -lruby
+    # Linux/BSD.  The previous hard-coded `/usr/lib/ruby/1.8/i386-linux/`
+    # was a Ruby-1.8, 32-bit-x86 path and had not existed on any current
+    # distribution for many years; ask the interpreter instead, exactly as
+    # the macOS branch above globs MacPorts.  `rubyhdrdir` holds ruby.h and
+    # `rubyarchhdrdir` the per-arch ruby/config.h — BOTH are required.
+    RUBY_BIN = $$system(which ruby)
+    !isEmpty(RUBY_BIN) {
+        RUBY_HDRDIR = $$system($${RUBY_BIN} -rrbconfig -e \'print RbConfig::CONFIG[\"rubyhdrdir\"]\')
+        RUBY_ARCHHDRDIR = $$system($${RUBY_BIN} -rrbconfig -e \'print RbConfig::CONFIG[\"rubyarchhdrdir\"]\')
+        RUBY_LIBDIR = $$system($${RUBY_BIN} -rrbconfig -e \'print RbConfig::CONFIG[\"libdir\"]\')
+        RUBY_SONAME = $$system($${RUBY_BIN} -rrbconfig -e \'print RbConfig::CONFIG[\"RUBY_SO_NAME\"]\')
+    }
+    exists($${RUBY_HDRDIR}/ruby.h) {
+        INCLUDEPATH += $${RUBY_HDRDIR} $${RUBY_ARCHHDRDIR}
+        LIBS += -L$${RUBY_LIBDIR} -l$${RUBY_SONAME}
+        # `-L` is link-time only for GNU ld — nothing is recorded in the ELF.
+        # Without a RUNPATH the binary dies at exec with "libruby.so.N: cannot
+        # open shared object file" for every rbenv/rvm/MacPorts-style Ruby,
+        # i.e. exactly the non-system installs this RbConfig probe exists to
+        # support.  macOS is immune (dylibs carry an install_name).  Skip the
+        # standard system dirs so distro packages stay RUNPATH-free.
+        !contains(RUBY_LIBDIR, "^/usr/lib.*"): !equals(RUBY_LIBDIR, /lib): \
+            QMAKE_RPATHDIR += $${RUBY_LIBDIR}
+        message("using ruby headers from $${RUBY_HDRDIR}.")
+    }
+    else {
+        error("No Ruby development headers found (install ruby-dev / ruby-devel).  \
+KAME compiles script/xrubysupport.cpp unconditionally.")
+    }
+
+    # Python / pybind11.  The macOS and win32-g++ branches each grow their
+    # own copy of this block; Linux never had one, so USE_PYBIND11 was never
+    # defined here — which silently disabled the Python scripting engine, the
+    # Jupyter/IPython console, the MCP server AND the preferred .kam loader
+    # (xrubysupport is then the only reader left).  Same probe as the others.
+    greaterThan(QT_MAJOR_VERSION, 5) {
+        pythons=$$system(which python3) $$files("/usr/bin/python3.[0-9]") $$files("/usr/bin/python3.[0-9][0-9]")
+        for(PYTHON, pythons) {
+            system("$${PYTHON} -m pybind11 --includes > /dev/null 2>&1") {
+                # Take the LINKER flags from the versioned `pythonX.Y-config`
+                # belonging to this very interpreter, never from a bare
+                # `python3-config`.  On Linux those are separate alternatives
+                # and routinely disagree — on this host `python3` is 3.11
+                # while `python3-config` reports 3.12 — which yields headers
+                # from one version linked against the library of another.
+                PYVER = $$system("$${PYTHON} -c \'import sys; print(\"%d.%d\" % sys.version_info[:2])\'")
+                PYCFG = $$dirname(PYTHON)/python$${PYVER}-config
+                !exists($${PYCFG}): PYCFG = python$${PYVER}-config
+                system("$${PYCFG} --embed --ldflags > /dev/null 2>&1") {
+                    QMAKE_CXXFLAGS += $$system("$${PYTHON} -m pybind11 --includes")
+                    # LIBS, not QMAKE_LFLAGS: qmake emits QMAKE_LFLAGS BEFORE
+                    # the object files, and GNU ld resolves left-to-right with
+                    # --as-needed on by default, so -lpython3.x placed there is
+                    # discarded and every Py* symbol comes out undefined.  The
+                    # macOS branch gets away with QMAKE_LFLAGS; GNU ld does not.
+                    LIBS += $$system("$${PYCFG} --embed --ldflags")
+                    # Same RUNPATH problem as Ruby above: a pyenv/conda
+                    # libpython3.x.so is only found at run time if its
+                    # directory is recorded in the ELF.
+                    PYLIBDIR = $$system("$${PYTHON} -c \'import sysconfig; print(sysconfig.get_config_var(\"LIBDIR\") or \"\")\'")
+                    !isEmpty(PYLIBDIR): !contains(PYLIBDIR, "^/usr/lib.*"): !equals(PYLIBDIR, /lib): \
+                        QMAKE_RPATHDIR += $${PYLIBDIR}
+                    DEFINES += USE_PYBIND11
+                    DEFINES += PYBIND11_NO_ASSERT_GIL_HELD_INCREF_DECREF #For mainthread call.
+                    SOURCES += script/xpythonmodule.cpp \
+                        script/xpythonsupport.cpp
+                    HEADERS += script/xpythonmodule.h \
+                        script/xpythonsupport.h \
+                        driver/pythondriver.h
+                    message("Python scripting support enabled ($${PYTHON}, $${PYCFG}).")
+                    break()
+                }
+            }
+        }
+        !contains(DEFINES, USE_PYBIND11): \
+            message("pybind11 not found for any python3 — Python scripting, \
+Jupyter and the MCP server are DISABLED, and .kam files fall back to the Ruby loader.")
+    }
 }
 win32-*g++ {
     exists($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include/ruby.h) {
@@ -359,6 +526,10 @@ unix {
     else {
         PKGCONFIG += fftw3
         PKGCONFIG += zlib
+        # GLU (gluProject / gluUnProject in graphpaintergl.cpp).  macOS gets
+        # it from the OpenGL framework and win32-g++ links -lglu32 below;
+        # Linux/BSD needs it named explicitly.
+        PKGCONFIG += glu
     }
     LIBS += -lltdl
 }
@@ -366,6 +537,20 @@ unix {
 #exports symbols from the executable for plugins.
 macx {
   QMAKE_LFLAGS += -all_load -dynamic
+}
+unix:!macx {
+  # The Linux counterpart of the two branches below, and it was missing.
+  # By default GNU ld puts only what the executable itself needs into
+  # .dynsym (40 defined symbols, none of them KAME's), so every module
+  # carries unresolved references to the app — including DATA symbols such
+  # as `XDriverList::s_types` and Transactional::Node<XNode>'s statics.
+  # Modules still `dlopen` under RTLD_LAZY, which is what makes this so
+  # easy to miss: they load, and then either fail at first call or, worse,
+  # bind to a private per-.so copy of a singleton the whole design assumes
+  # is process-wide (the type registries, the STM node statics, the pool
+  # allocator's region list).  --export-dynamic is what makes the
+  # executable a real symbol provider for its plugins.
+  QMAKE_LFLAGS += -rdynamic
 }
 win32-g++ {
   QMAKE_LFLAGS += -Wl,--export-all-symbols -Wl,--out-implib,$${TARGET}.a #failed in debug config. cannot hold all of debug symbols.
@@ -404,6 +589,7 @@ macx {
     coremodulefiles.files += ../modules/levelmeter/core/liblevelmetercore.$${QMAKE_EXTENSION_SHLIB}
     coremodulefiles.files += ../modules/magnetps/core/libmagnetpscore.$${QMAKE_EXTENSION_SHLIB}
     coremodulefiles.files += ../modules/motor/core/libmotorcore.$${QMAKE_EXTENSION_SHLIB}
+    coremodulefiles.files += ../modules/relay/core/librelaycore.$${QMAKE_EXTENSION_SHLIB}
     coremodulefiles.files += ../modules/networkanalyzer/core/libnetworkanalyzercore.$${QMAKE_EXTENSION_SHLIB}
     coremodulefiles.files += ../modules/nmr/pulsercore/libnmrpulsercore.$${QMAKE_EXTENSION_SHLIB}
     coremodulefiles.files += ../modules/sg/core/libsgcore.$${QMAKE_EXTENSION_SHLIB}
@@ -438,6 +624,7 @@ macx {
     modulefiles.files += ../modules/arbfunc/libarbfunc.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/optics/liboptics.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/twoaxis/libtwoaxis.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/relay/librelay.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/python/libpython.$${QMAKE_EXTENSION_SHLIB}
 
     coremodulefiles.path = Contents/MacOS/$${KAME_COREMODULES}

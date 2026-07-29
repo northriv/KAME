@@ -59,8 +59,8 @@ public:
         int codeLinePos;
         XTime estFinishTime;
         XTime lineStartedTime;
-        shared_ptr<XString> codeLines;
-        shared_ptr<XString> lastLine;
+        shared_ptr<const XString> codeLines;
+        shared_ptr<const XString> lastLine;
         XTime slipMark;
         XTime labelMark = {};
     };

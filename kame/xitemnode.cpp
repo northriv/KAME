@@ -76,8 +76,11 @@ XComboNode::Payload::operator=(int t) {
 
 void
 XComboNode::Payload::add(const XString &str) {
-    m_strings = std::make_shared<std::deque<XString>>( *m_strings);
-	m_strings->push_back(str);
+    //Rebuild the list in a local, then publish as shared_ptr<const>: older
+    //snapshots keep their immutable deque instead of seeing an in-place push.
+    auto strings = std::make_shared<std::deque<XString>>( *m_strings);
+	strings->push_back(str);
+	m_strings = std::move(strings);
     tr().mark(onListChanged(), ListChangeEvent({tr(), static_cast<XItemNodeBase*>( &node())}));
 	if(str == m_var.first) {
 		m_var.second = m_strings->size() - 1;

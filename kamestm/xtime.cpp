@@ -61,7 +61,19 @@ timestamp_t timeStamp() noexcept {
     #ifdef _MSC_VER
         r =  __rdtsc();
     #else
-        asm volatile("rdtsc" : "=A" (r));
+        // `asm volatile("rdtsc" : "=A" (r))` is only correct on i386, where
+        // the "A" constraint means the EDX:EAX *pair*.  On x86-64 "A" means a
+        // single 64-bit register (rax or rdx), so the compiler took just rax
+        // — i.e. the low 32 bits of the TSC, which wrap about every 1.4 s at
+        // 3 GHz.  Everything derived from timeStamp() (the negotiation
+        // watchdog, the RT WCET histograms) then saw random negative deltas.
+        #if defined __x86_64__
+            uint32_t lo, hi;
+            asm volatile("rdtsc" : "=a" (lo), "=d" (hi));
+            r = ((uint64_t)hi << 32) | lo;
+        #else
+            asm volatile("rdtsc" : "=A" (r));
+        #endif
     #endif
     memoryBarrier();
     return r;

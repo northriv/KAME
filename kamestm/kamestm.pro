@@ -76,6 +76,7 @@ HEADERS += \
     transaction_neg_impl.h \
     transaction_signal.h \
     xthread.h \
+    xwaitcell.h \
     xtime.h
 
 macx {

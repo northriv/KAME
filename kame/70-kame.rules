@@ -1,0 +1,41 @@
+# udev rules for KAME's userspace USB instrument drivers (Linux).
+#
+# All of KAME's USB support goes through libusb from an unprivileged process,
+# so the device nodes under /dev/bus/usb must be writable by the user running
+# KAME.  Without this file every open fails with LIBUSB_ERROR_ACCESS.
+#
+# Install:
+#     sudo install -m 644 kame/70-kame.rules /etc/udev/rules.d/70-kame.rules
+#     sudo udevadm control --reload-rules && sudo udevadm trigger
+#
+# TAG+="uaccess" grants access to the user of the active local login session
+# (systemd-logind), which is what you want on a workstation.  On a headless
+# machine, or for a service account, replace it with GROUP="plugdev", MODE="0660"
+# and add the account to that group.
+
+# --- National Instruments GPIB-USB (usermode-linux-gpib port) ----------------
+# NI USB-B, NI USB-B pre-firmware, NI USB-HS, NI USB-HS+, Keithley KUSB-488A,
+# Measurement Computing MC USB-488.  Note KAME only uses these when the
+# linux-gpib KERNEL driver is absent; if you have linux-gpib installed, use its
+# own rules and its /dev/gpib* nodes instead.
+SUBSYSTEM=="usb", ATTR{idVendor}=="3923", ATTR{idProduct}=="702a", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="3923", ATTR{idProduct}=="702b", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="3923", ATTR{idProduct}=="709b", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="3923", ATTR{idProduct}=="7618", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="3923", ATTR{idProduct}=="725c", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="3923", ATTR{idProduct}=="725d", TAG+="uaccess"
+
+# --- Cypress EZ-USB FX2 / FX3 (Thamway pulser, DSO, realtime DSO) -----------
+# 04b4:8613 is an un-programmed FX2 (KAME uploads fx2fw.bix into it), 04b4:00f1
+# an un-programmed FX3; 0547:1002 is the Thamway device after enumeration.
+SUBSYSTEM=="usb", ATTR{idVendor}=="04b4", ATTR{idProduct}=="8613", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="04b4", ATTR{idProduct}=="00f1", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="0547", ATTR{idProduct}=="1002", TAG+="uaccess"
+
+# --- Ocean Optics spectrometers ---------------------------------------------
+SUBSYSTEM=="usb", ATTR{idVendor}=="2457", TAG+="uaccess"
+
+# --- USB serial adapters (Prologix GPIB-USB and plain RS-232 instruments) ---
+# These enumerate as /dev/ttyUSB* or /dev/ttyACM* and are normally owned by the
+# `dialout` group already; add your user to it rather than loosening this:
+#     sudo usermod -aG dialout $USER

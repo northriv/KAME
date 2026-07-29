@@ -621,7 +621,28 @@
   </customwidget>
  </customwidgets>
  <tabstops>
+  <tabstop>m_dblGamma</tabstop>
+  <tabstop>m_tbROI</tabstop>
+  <tabstop>m_tbMathMenu</tabstop>
+  <tabstop>m_edDump</tabstop>
+  <tabstop>m_tbDump</tabstop>
+  <tabstop>m_btnDump</tabstop>
+  <tabstop>m_cmbVideomode</tabstop>
+  <tabstop>m_cmbTrigger</tabstop>
+  <tabstop>m_cmbTriggerSrc</tabstop>
+  <tabstop>m_cmbFrameRate</tabstop>
+  <tabstop>m_dblCameraGain</tabstop>
+  <tabstop>m_dblEMGain</tabstop>
+  <tabstop>m_spbBrightness</tabstop>
   <tabstop>m_edExposure</tabstop>
+  <tabstop>m_spbAntiVibrationPixels</tabstop>
+  <tabstop>m_ckbAutoGainProcessed</tabstop>
+  <tabstop>m_dblGainProcessed</tabstop>
+  <tabstop>m_ckbSubtractDark</tabstop>
+  <tabstop>m_btnStoreDark</tabstop>
+  <tabstop>m_edHistDump</tabstop>
+  <tabstop>m_tbHistDump</tabstop>
+  <tabstop>m_btnHistDump</tabstop>
  </tabstops>
  <includes>
   <include location="local">graphwidget.h</include>

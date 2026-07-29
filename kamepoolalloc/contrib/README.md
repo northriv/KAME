@@ -47,18 +47,35 @@ All three end with a `kame_pool_get_stats()` sanity check (regions > 0) so
 ## When NOT to use these on a hard-real-time path
 
 The pool's cold-claim path can mmap a fresh 32 MiB region (one-shot per
-working-set growth) which is NOT bounded for hard-RT.  Same idiom as
-TLSF: **pre-warm before entering the time-critical loop**:
+working-set growth) which is NOT bounded for hard-RT.  Prewarm before
+entering the time-critical loop — and use the API, not the old
+allocate-and-free idiom: that idiom leaves the pages mapped but
+**unfaulted**, so the first realtime write still took a minor fault.
+`kame_pool_prewarm()` touches every page.
 
 ```cpp
-kame_pool_set_realtime_mode(1);   // silence background maintenance
-for (std::size_t sz : your_RT_size_classes)
-    if (void *p = kame_pool_malloc(sz)) kame_pool_free(p);
-// ... now enter your 1 kHz control loop ...
+kame_pool_set_realtime_mode(1);                    // once, at startup
+const std::size_t sz[] = { 64, 4096, 1u << 20 };   // your size classes
+const unsigned    ct[] = { 4096, 256, 8 };         // how many live at once
+kame_pool_prewarm(sz, ct, 3);                      // per realtime thread
+
+for (;;) {
+    {
+        kame::rt_section rt;      // marks this thread; checks itself in debug
+        ...                       // your 1 kHz control loop body
+    }
+    kame_pool_rt_drain();         // settle deferred reclaim in the trough
+}
 ```
 
+Assert `kame_pool_rt_violations() == 0 && kame_pool_rt_forced_releases() == 0`
+to verify the contract actually held.  The full precondition list is in the
+main [README](../README.md#the-realtime-contract) — the guarantee is void
+without it (notably: prewarm is per-thread, and the working set must not grow
+inside the section).
+
 For soft-RT and AD perception (33 ms / frame) the lock-free TLS freelist
-pop is fast enough without pre-warm.
+pop is fast enough without prewarm.
 
 ## Recipes that don't ship as files
 

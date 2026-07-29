@@ -34,15 +34,27 @@ win32 {
     }
 }
 
-unix {
-    modulefiles.files = $${TARGET}.$${QMAKE_EXTENSION_SHLIB}
-    modulefiles.path = $$[QT_INSTALL_LIBS]/$${KAME_MODULES}
-    INSTALLS += modulefiles
-}
-
 win32: LIBS += -L$${PRI_DIR}../coremodules/
 win32: LIBS += -L$${PRI_DIR}../coremodules2/
 
 PRI_DIR = $${PRI_DIR}../
 include(../kame.pri)
+
+unix:!macx {
+    # This block used to sit ABOVE `include(../kame.pri)` and read
+    #     modulefiles.files = $${TARGET}.$${QMAKE_EXTENSION_SHLIB}
+    #     modulefiles.path  = $$[QT_INSTALL_LIBS]/$${KAME_MODULES}
+    # Both were broken: KAME_MODULES is defined by kame.pri and so was still
+    # empty (the path collapsed to Qt's own libdir), and `.files` named
+    # `dmm.so` while the artefact is `libdmm.so`, which made qmake emit an
+    # install rule with no commands at all.  It also never set DESTDIR, so the
+    # leaf modules stayed scattered one-per-build-subdirectory where no module
+    # search path could find them.  See modules-shared.pri for the core-module
+    # counterpart.
+    DESTDIR = $$OUT_PWD/$${PRI_DIR}bin/$${KAME_MODULES}
+    modulefiles.files = $${DESTDIR}/$${QMAKE_PREFIX_SHLIB}$${TARGET}.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.path = $${KAME_LIBDIR}/$${KAME_MODULES}
+    modulefiles.CONFIG += no_check_exist   # built by this very Makefile
+    INSTALLS += modulefiles
+}
 

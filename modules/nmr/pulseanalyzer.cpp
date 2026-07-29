@@ -328,7 +328,7 @@ XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitte
 	shared_ptr<XDSO> dso = shot_this[ *m_dso];
     shared_ptr<XSG> sg = shot_this[ *m_sg];
 
-	assert(shot_dso[ *dso].time() );
+	assert(shot_dso[ *dso].time().isSet() );
 
 	if(shot_dso[ *dso].numChannels() < 1) {
 		throw XSkippedRecordError(i18n("No record in DSO"), __FILE__, __LINE__);

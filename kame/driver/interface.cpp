@@ -17,6 +17,10 @@
 #include "xnodeconnector.h"
 #include <string>
 #include "driver.h"
+#ifndef NDEBUG
+    #include <cstdlib>
+    #include <set>
+#endif
 
 //---------------------------------------------------------------------------
 
@@ -126,3 +130,30 @@ XInterface::stop() {
     }
     //g_statusPrinter->clear();
 }
+
+#ifndef NDEBUG
+void
+XInterface::reportIfInTransaction_() const noexcept {
+    if( *Transactional::detail::s_tx_nest == 0) return;
+    static XMutex s_mutex;
+    static std::set<std::string> s_reported;
+    static const bool s_abort = []{
+        const char *v = std::getenv("KAME_STM_ABORT_IO_IN_TX");
+        return v && *v && *v != '0';
+    }();
+    XString label;
+    try { label = getLabel(); } catch(...) { label = "?"; }
+    {
+        XScopedLock<XMutex> lock(s_mutex);
+        if( !s_reported.insert(std::string(label.c_str())).second) return;
+    }
+    gErrPrint(formatString(
+        "%s: interface lock taken while a Transaction is alive on this thread "
+        "— interface I/O inside a transaction (driver rule 5). It re-issues "
+        "device commands on every CAS retry and takes a plain mutex inside an "
+        "in-flight transaction. Read outside the transaction and store the "
+        "result inside. Set KAME_STM_ABORT_IO_IN_TX=1 to abort here.",
+        label.c_str()));
+    if(s_abort) std::abort();
+}
+#endif

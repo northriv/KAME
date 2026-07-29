@@ -58,6 +58,11 @@ if(USE_KAME_ALLOCATOR AND NOT TARGET kamepoolalloc)
     set_target_properties(kamepoolalloc PROPERTIES
         INSTALL_NAME_DIR "@rpath"
         BUILD_WITH_INSTALL_RPATH TRUE)
+    # CMAKE_DL_LIBS: empty on glibc >= 2.34 (dlsym in libc); -ldl on
+    # older glibc — needed by the Linux malloc_usable_size co-interpose's
+    # RTLD_NEXT (allocator.cpp:5376).  Mirrors the same link in the
+    # standalone kamepoolalloc/CMakeLists.txt:54.
+    target_link_libraries(kamepoolalloc PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
 endif()
 if(NOT USE_KAME_ALLOCATOR)
     add_compile_definitions(DISABLE_POOL_ALLOCATOR)
@@ -148,7 +153,7 @@ if(USE_KAME_ALLOCATOR)
     target_compile_definitions(alloc_thread_exit_free_test PRIVATE KAMEPOOLALLOC_DYLIB)
     target_include_directories(alloc_thread_exit_free_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/..)
-    target_link_libraries(alloc_thread_exit_free_test Threads::Threads)
+    target_link_libraries(alloc_thread_exit_free_test Threads::Threads ${CMAKE_DL_LIBS})
 
     add_executable(alloc_thread_exit_free_test_dynamic alloc_thread_exit_free_test.cpp)
     target_link_libraries(alloc_thread_exit_free_test_dynamic kamepoolalloc Threads::Threads)
@@ -169,7 +174,7 @@ if(USE_KAME_ALLOCATOR)
     target_compile_definitions(alloc_thread_exit_unarmed_test PRIVATE KAMEPOOLALLOC_DYLIB)
     target_include_directories(alloc_thread_exit_unarmed_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/..)
-    target_link_libraries(alloc_thread_exit_unarmed_test Threads::Threads)
+    target_link_libraries(alloc_thread_exit_unarmed_test Threads::Threads ${CMAKE_DL_LIBS})
 
     add_executable(alloc_thread_exit_unarmed_test_dynamic alloc_thread_exit_unarmed_test.cpp)
     target_link_libraries(alloc_thread_exit_unarmed_test_dynamic kamepoolalloc Threads::Threads)
@@ -202,6 +207,13 @@ if(USE_KAME_ALLOCATOR)
     # together and restore on enable=0.
     add_executable(alloc_realtime_mode_test alloc_realtime_mode_test.cpp)
     target_link_libraries(alloc_realtime_mode_test kamepoolalloc Threads::Threads)
+
+    # (§75) Realtime PER-THREAD half: prewarm leaves the critical section
+    # mapping-free (violation counter does not move), realtime free() defers
+    # page reclaim and rt_drain() settles it, KAME_RT_OS_FAIL degrades to libc
+    # instead of returning null, and rt_section nests / is per-thread.
+    add_executable(alloc_rt_thread_test alloc_rt_thread_test.cpp)
+    target_link_libraries(alloc_rt_thread_test kamepoolalloc Threads::Threads)
 
     # (§31/§32) Strong-symbol / interpose override correctness — asserts that
     # a bare libc malloc/calloc/realloc/free (and C++ operator new/delete)
@@ -278,6 +290,33 @@ if(USE_KAME_ALLOCATOR)
     add_executable(bench_xthread_pool bench/bench_xthread.cpp)
     target_compile_definitions(bench_xthread_pool PRIVATE XTHREAD_USE_KAME_POOL)
     target_link_libraries(bench_xthread_pool kamepoolalloc Threads::Threads)
+
+    # (§75 / RT_READINESS G7) Per-op WCET TAIL harness — the other benches
+    # measure throughput, which is the statistic that hides a syscall.  Reports
+    # max / p99.9999 for malloc and free per size band, RT arm vs OFF arm
+    # interleaved per repetition, under interferer load.  Registered as a test
+    # in smoke mode: the hard assertion is rt_violations() == 0 (machine-
+    # independent), not any absolute latency.  Run with --full to measure.
+    add_executable(bench_rt_wcet bench/bench_rt_wcet.cpp)
+    target_link_libraries(bench_rt_wcet kamepoolalloc Threads::Threads)
+
+    # Same harness, plain malloc/free, NOT linked against kamepoolalloc — so
+    # the allocator under test is whatever LD_PRELOAD supplies (glibc when
+    # nothing is preloaded, mimalloc, jemalloc, or kamepoolalloc's drop-in).
+    # A worst-case comparison across allocators is only meaningful with one
+    # harness, one clock and one histogram; this is that one.
+    add_executable(bench_rt_wcet_malloc bench/bench_rt_wcet.cpp)
+    target_compile_definitions(bench_rt_wcet_malloc PRIVATE WCET_USE_MALLOC)
+    target_link_libraries(bench_rt_wcet_malloc Threads::Threads)
+
+    # (§75 / RT_READINESS G6a) TLB-reach cost of the THP policy — a dependent
+    # pointer chase over a pool-allocated working set.  The other benches
+    # cannot see this: bench_loop keeps one block live, and bench_rt_wcet
+    # measures the allocator rather than the application's access to what it
+    # allocated.  Not a ctest: it is a measurement, with no pass/fail.
+    add_executable(bench_tlb bench/bench_tlb.c)
+    set_property(TARGET bench_tlb PROPERTY C_STANDARD 99)
+    target_link_libraries(bench_tlb kamepoolalloc Threads::Threads)
 endif()
 
 # --- CTest registration ---
@@ -312,6 +351,9 @@ if(USE_KAME_ALLOCATOR)
     add_test(NAME alloc_evict_test COMMAND alloc_evict_test)
     add_test(NAME alloc_stats_test COMMAND alloc_stats_test)
     add_test(NAME alloc_realtime_mode_test COMMAND alloc_realtime_mode_test)
+    add_test(NAME alloc_rt_thread_test COMMAND alloc_rt_thread_test)
+    # smoke args: seconds, enough samples for p99.99
+    add_test(NAME bench_rt_wcet_smoke COMMAND bench_rt_wcet --reps 2 --iters 150)
     add_test(NAME test_ros2_allocator COMMAND test_ros2_allocator)
     add_test(NAME test_pmr_resource COMMAND test_pmr_resource)
     add_test(NAME test_aligned_allocator COMMAND test_aligned_allocator)

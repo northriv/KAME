@@ -48,10 +48,26 @@ typedef Transactional::Snapshot<MyNode> Shot;
 typedef Transactional::Transaction<MyNode> Tr;
 
 int main(int argc, char** argv) {
-    int StressSeconds = (argc > 1) ? std::atoi(argv[1]) : 0;
-    int NumThreads    = (argc > 2) ? std::atoi(argv[2]) : 4;
-    int MaxPayload    = (argc > 3) ? std::atoi(argv[3]) : 3;
-    int CrossRatio    = (argc > 4) ? std::atoi(argv[4]) : 0;
+    // Strict arg-count guard: accept ONLY no args (quick defaults) or
+    // EXACTLY 4 args.  1-3 args are rejected so a mistyped / quoted
+    // invocation — e.g. a single "128 128 1" string collapsing to
+    // NumThreads-only with MaxPayload/CrossRatio silently defaulting,
+    // or a forgotten CrossRatio — fails loudly instead of quietly
+    // running the wrong workload (CrossRatio=0 pure-leaf).
+    if(argc != 1 && argc != 5) {
+        std::fprintf(stderr,
+            "usage: %s [StressSeconds NumThreads MaxPayload CrossRatio]\n"
+            "  no args        : defaults (StressSeconds=1 => 1s warmup + 1s timed,\n"
+            "                   NumThreads=4, MaxPayload=3, CrossRatio=0)\n"
+            "  EXACTLY 4 args : StressSeconds NumThreads MaxPayload CrossRatio\n"
+            "  (1-3 args are rejected to avoid silent wrong-default runs)\n",
+            argv[0]);
+        return 2;
+    }
+    int StressSeconds = (argc == 5) ? std::atoi(argv[1]) : 1;
+    int NumThreads    = (argc == 5) ? std::atoi(argv[2]) : 4;
+    int MaxPayload    = (argc == 5) ? std::atoi(argv[3]) : 3;
+    int CrossRatio    = (argc == 5) ? std::atoi(argv[4]) : 0;
     int MaxCommits    = (StressSeconds > 0) ? 0x7fffffff : 10000;
 
     if(NumThreads < 1) NumThreads = 1;
@@ -100,8 +116,8 @@ int main(int argc, char** argv) {
     // when no warmup is done).
     std::vector<long long> leaf_count(NumThreads, 0);
     std::vector<long long> leaf_count_timed(NumThreads, 0);
-    std::atomic<long long> grand_count_total{0};
-    std::atomic<long long> grand_count_timed{0};
+    std::atomic<int_cas_max> grand_count_total{0};
+    std::atomic<int_cas_max> grand_count_timed{0};
 
     auto worker = [&](int tid) {
         if(FirstTouch) {
@@ -131,6 +147,14 @@ int main(int argc, char** argv) {
             }
 
             bool do_grand = (CrossRatio > 0) && ((iter % CrossRatio) == 0);
+            // KAME_GRAND_ONLY_REPLACE_LEAF=1: replace leaf branch with a
+            // grand-scope tx that touches only this thread's leaf — same
+            // child-update count as the leaf path (1), but goes through
+            // the 3-level bundle. Isolates the bundle-CAS cost from the
+            // leaf-vs-grand interleave behaviour.
+            static const bool grand_only =
+                std::getenv("KAME_GRAND_ONLY_REPLACE_LEAF") &&
+                std::getenv("KAME_GRAND_ONLY_REPLACE_LEAF")[0] == '1';
             if(do_grand) {
                 // Grand-scope tx — 3-level bundle: bundle Parent + all
                 // children up into Grand, CAS Grand, unbundle back.
@@ -142,6 +166,14 @@ int main(int argc, char** argv) {
                 });
                 ++my_grand;
                 if(!warming) ++my_grand_t;
+            } else if(grand_only) {
+                // Hypothetical: leaf-replacement using grand bundle but
+                // only touching this thread's own leaf (1 child-update).
+                grand->iterate_commit([&](Tr& tr) {
+                    tr[*my_leaf_node].m_x = (tr[*my_leaf_node].m_x + 1) % mp;
+                });
+                ++my_leaf;
+                if(!warming) ++my_leaf_t;
             } else {
                 my_leaf_node->iterate_commit([&](Tr& tr) {
                     tr[*my_leaf_node].m_x = (tr[*my_leaf_node].m_x + 1) % mp;

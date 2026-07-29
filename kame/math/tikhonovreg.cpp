@@ -113,6 +113,11 @@ TikhonovRegular::testLambda(double lambda, Method method, const Vector &vec_y, V
         fprintf(stderr, "min x=%.3g, lambda=%.3g; ", vec_x.minCoeff(), lambda);
         return (vec_x.array() < 0.0).any();
     }
+    // Exhaustive over Method, but GCC still warns "control reaches end of
+    // non-void function" and at -O2 treats the path as unreachable; an
+    // out-of-range Method (odmr2danalysis.cpp casts an int combo index) would
+    // then fall off the end.  clang does not warn.
+    return false;
 }
 
 TikhonovRegular::Vector

@@ -400,31 +400,96 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
     return saw_livelock;
 }
 
+#if KAME_STM_NEG_DIAG
+namespace detail {
+//! Plain (non-atomic) per-thread counters: only the owning thread writes, and
+//! a reader snapshots between commits.  See `neg_diag_snapshot`.
+struct NegDiag {
+    std::uint64_t rounds;      //!< negotiation wait-loop iterations
+    std::uint64_t sleeps;      //!< times we actually entered cell.wait()
+    std::uint64_t slept_ns;    //!< wall time inside cell.wait()
+    std::uint64_t priv_tries;  //!< privilege claims attempted
+    std::uint64_t priv_grants; //!< privilege claims that succeeded
+    //! Sleeps entered while this Tx still OWNS the tag on >=1 linkage.  A
+    //! multi-linkage Tx (a grand-scope commit tags parent + every child) can
+    //! hold some tags and be blocked on another — hold-and-wait.  If that is
+    //! where the sleeps are, peers are queued behind a SLEEPING holder and the
+    //! wait is set by the sleep, not by anyone's work.
+    std::uint64_t sleeps_holding;
+    std::uint64_t tags_held_at_sleep;   //!< sum of tags owned at those sleeps
+    std::uint64_t sleeps_priv;          //!< ... and while holding privilege
+    //! Sum of m_tagged_linkages.size() at each sleep.  Distinguishes "owned 0
+    //! of N tags" (displaced) from "had tagged nothing yet" (vacuous).
+    std::uint64_t tagged_list_at_sleep;
+    //! Sum of the durations we ASKED cell.wait() for.  Compared against
+    //! slept_ns (what actually elapsed), this separates "the STM chose to
+    //! sleep this long" from "the OS did not run us again for this long":
+    //! actual ~= requested means the former, actual >> requested the latter.
+    std::uint64_t req_ns;
+    //! Distribution of the per-round sleep BUDGET (`ms_actual`).  `ms` grows
+    //! every round (`ms = max(dt2*mult/10000, ms+1)`, capped at 5000), so if
+    //! the tail is the sum of an escalating backoff this is where it shows.
+    std::uint64_t ms_sum;
+    std::uint64_t ms_max;
+    std::uint64_t entries;   //!< calls into _negotiate_internal
+};
+inline NegDiag &neg_diag() { static thread_local NegDiag d{}; return d; }
+}
+//! Snapshot this thread's negotiation breakdown (and optionally zero it).
+//! Only compiled when KAME_STM_NEG_DIAG=1; callers guard on the same macro.
+inline detail::NegDiag neg_diag_snapshot(bool reset) {
+    detail::NegDiag out = detail::neg_diag();
+    if(reset) detail::neg_diag() = detail::NegDiag{};
+    return out;
+}
+#endif
+
 template <class XN>
 void Node<XN>::NegotiationCounter::negotiate_sleep(
-    int ms_timeout, uint64_t my_stamp) noexcept
+    int ms_timeout, cnt_t my_stamp, unsigned us_override) noexcept
 {
     int slot = (int)((unsigned)ProcessCounter::id() % NEGOTIATE_SLEEP_SLOTS);
     auto &st = s_sleep_slots[slot];
     // Snapshot the kind this thread is about to commit; the notifier
-    // reads this field under the slot lock to bias wake-up toward the
-    // same kind as the linkage's most recent commit (see
-    // `notify_n_contenders` preferred_kind argument).
+    // reads this field (lock-free) to bias wake-up toward the same kind
+    // as the linkage's most recent commit (see `notify_n_contenders`
+    // preferred_kind argument).
     const uint8_t my_kind = (uint8_t)*detail::s_current_op_kind & 0x3u;
-    std::unique_lock<std::mutex> lock(st.mtx);
-    st.op_kind = my_kind;
-    // Publish the tenant stamp under the lock so wakers (also holding
-    // the lock) can verify they are notifying the intended thread on a
-    // `tid % N_SLOTS` hash collision.
-    st.stamp = my_stamp;
-    // Reset under the lock so a notify delivered between the previous
-    // call's wake and this reset is not silently consumed.
-    st.notified = false;
-    st.cv.wait_for(lock, std::chrono::milliseconds(ms_timeout),
-                   [&]{ return st.notified; });
-    // Clear the tenant stamp on exit so the next sleeper's stamp
-    // is not preceded by a stale value that could match a target.
-    st.stamp = 0;
+    // Read the cell generation BEFORE publishing op_kind/stamp.  A
+    // wake_one() racing in after this read advances the generation, so
+    // the value-compare in cell.wait() returns at once — the
+    // lost-wakeup window is closed without a mutex, and the generation
+    // subsumes the former `notified` flag + its reset race.
+    uint32_t g = st.cell.gen();
+    // Publish op_kind/stamp for the waker's lock-free, best-effort
+    // tenant/kind targeting.  A racy read only changes WHICH sleeper a
+    // waker picks (mis-target → natural timeout; spurious wake →
+    // re-check + re-sleep), never correctness.
+    st.op_kind.store(my_kind, std::memory_order_relaxed);
+    st.stamp.store(my_stamp, std::memory_order_release);
+    // Physical chunk length = ms_timeout * KAME_NEG_SLEEP_US_PER_MS µs
+    // (default 1000 → the original 1 ms; smaller tightens the re-check /
+    // notify cadence now that __ulock makes sub-ms waits cheap).
+    unsigned us = us_override ? us_override
+        : ((ms_timeout > 0)
+           ? (unsigned)ms_timeout * (unsigned)KAME_NEG_SLEEP_US_PER_MS : 0u);
+#if KAME_STM_NEG_DIAG
+    {
+        auto &d = detail::neg_diag();
+        ++d.sleeps;
+        d.req_ns += (std::uint64_t)us * 1000ull;
+        auto t0 = std::chrono::steady_clock::now();
+        st.cell.wait(g, us);
+        d.slept_ns += (std::uint64_t)std::chrono::duration_cast<
+            std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - t0).count();
+    }
+#else
+    st.cell.wait(g, us);
+#endif
+    // Clear the tenant stamp on exit so the next sleeper's stamp is not
+    // preceded by a stale value that could match a target.
+    st.stamp.store(0, std::memory_order_relaxed);
 }
 
 template <class XN>
@@ -439,9 +504,7 @@ void Node<XN>::NegotiationCounter::notify_n_contenders(
     int priv_slot = -1;
     if (priv_tid != 0 && n > 0) {
         priv_slot = (int)(((unsigned)priv_tid) % NEGOTIATE_SLEEP_SLOTS);
-        auto &st = s_sleep_slots[priv_slot];
-        { std::lock_guard<std::mutex> lk(st.mtx); st.notified = true; }
-        st.cv.notify_one();
+        s_sleep_slots[priv_slot].cell.wake_one();
         --n;
     }
     // Two-pass walk when a preferred kind is supplied: pass 1 wakes
@@ -466,12 +529,9 @@ void Node<XN>::NegotiationCounter::notify_n_contenders(
                 if (slot == priv_slot) continue;
                 if (is_woken(slot)) continue;
                 auto &st = s_sleep_slots[slot];
-                {
-                    std::lock_guard<std::mutex> lk(st.mtx);
-                    if(st.op_kind != preferred_kind) continue;
-                    st.notified = true;
-                }
-                st.cv.notify_one();
+                if(st.op_kind.load(std::memory_order_relaxed) != preferred_kind)
+                    continue;
+                st.cell.wake_one();
                 mark_woken(slot);
                 --n;
             }
@@ -485,15 +545,21 @@ void Node<XN>::NegotiationCounter::notify_n_contenders(
             int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
             if (slot == priv_slot) continue;
             if (has_pref && is_woken(slot)) continue;
-            auto &st = s_sleep_slots[slot];
-            { std::lock_guard<std::mutex> lk(st.mtx); st.notified = true; }
-            st.cv.notify_one();
+            s_sleep_slots[slot].cell.wake_one();
             if(has_pref) mark_woken(slot);
             --n;
         }
     }
 }
 
+// Historically `try_*` differed from notify_n_contenders by taking the
+// slot lock with std::try_to_lock and SKIPPING any slot whose lock was
+// momentarily held (to keep the notifier off the critical path).  With
+// the mutex-less XWaitCell wake_one() that distinction is gone — the
+// wake never blocks — so this now reliably delivers every wake the
+// kind/bitset selects (an improvement: it no longer drops wakes on lock
+// contention).  Kept as a distinct entry point (no privileged-TID first
+// pass) for its call sites.
 template <class XN>
 void Node<XN>::NegotiationCounter::try_notify_n_contenders(
     const TidBitset &tid_bitset, int n, uint8_t preferred_kind) noexcept
@@ -515,12 +581,9 @@ void Node<XN>::NegotiationCounter::try_notify_n_contenders(
                 int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
                 if (is_woken(slot)) continue;
                 auto &st = s_sleep_slots[slot];
-                std::unique_lock<std::mutex> lk(st.mtx, std::try_to_lock);
-                if( !lk.owns_lock()) continue;
-                if(st.op_kind != preferred_kind) continue;
-                st.notified = true;
-                lk.unlock();
-                st.cv.notify_one();
+                if(st.op_kind.load(std::memory_order_relaxed) != preferred_kind)
+                    continue;
+                st.cell.wake_one();
                 mark_woken(slot);
                 --n;
             }
@@ -533,12 +596,7 @@ void Node<XN>::NegotiationCounter::try_notify_n_contenders(
             word &= word - 1;
             int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
             if (has_pref && is_woken(slot)) continue;
-            auto &st = s_sleep_slots[slot];
-            std::unique_lock<std::mutex> lk(st.mtx, std::try_to_lock);
-            if( !lk.owns_lock()) continue;
-            st.notified = true;
-            lk.unlock();
-            st.cv.notify_one();
+            s_sleep_slots[slot].cell.wake_one();
             if(has_pref) mark_woken(slot);
             --n;
         }
@@ -1090,6 +1148,9 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
 template <class XN>
 void
 ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
+#if KAME_STM_NEG_DIAG
+    ++detail::neg_diag().entries;
+#endif
     using NegotiationCounter = typename Node<XN>::NegotiationCounter;
     using Linkage = typename Node<XN>::Linkage;
     Linkage *const self = m_link.get();
@@ -1115,6 +1176,29 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif
     const float mult_wait = m_mult_wait;
     auto &started_time = snap.m_started_time;
+    //! Wait budget (absolute µs, 0 = none) — see Transactional::ScopedWaitBudget.
+    //!
+    //! Read here, once per call, and NOT captured in the Snapshot.  An earlier
+    //! version stored it in a `Snapshot::m_wait_limit` filled by the ctors that
+    //! stamp `m_started_time`, on the theory that the sleep loop should read a
+    //! member rather than TLS.  Measured, that cost 1.9 % at 8 threads and
+    //! 0.9 % at 4 (7 interleaved reps; lower in 6 of 7 at 4 threads) — because
+    //! the ctors are the hot path and this function is not.  The member bought
+    //! nothing anyway: the value is hoisted into this local once per call, so
+    //! the loop never touched TLS in either version.  Reading live is also the
+    //! more honest semantics for an ambient budget.
+    //!
+    //! Every use below is guarded on it being nonzero, so a thread that never
+    //! constructs a ScopedWaitBudget executes exactly the pre-existing code.
+#if KAME_STM_WAIT_BUDGET
+    // Filled from the same single TLS read that yields `entry_pr` below.
+    int64_t _wb_limit = 0;
+#else
+    // Compiled out: every `if(_wb_limit && ...)` below folds to nothing, so
+    // one gate covers all five use sites without scattering #if through the
+    // sleep loop.
+    constexpr int64_t _wb_limit = 0;
+#endif
     auto &tid_bitset = snap.m_tid_bitset;
     // Single now_us() snapshot: livelock-probe window, livelock age and
     // the per-call-site adaptive NORMAL-lease expiry check below all
@@ -1125,7 +1209,13 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     // Priority is a per-thread/per-Tx invariant for the duration of this
     // call: read it once and reuse for both the livelock-probe block and
     // the per-call-site adaptive gate decision below.
+#if KAME_STM_WAIT_BUDGET
+    const Priority entry_pr = [&]{ const auto &c = currentTxContext();
+                                   _wb_limit = c.wait_limit;
+                                   return c.priority; }();
+#else
     const Priority entry_pr = getCurrentPriorityMode();
+#endif
 
     // Compute popcount once per call; the live tid_bitset is unchanged
     // until the loop body's first iteration adds new entries.
@@ -1234,6 +1324,10 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             claimed = NegotiationCounter::try_register_privileged_tidstamp(
                           entry_pr, snap.m_started_time);
 #endif
+#if KAME_STM_NEG_DIAG
+            ++detail::neg_diag().priv_tries;
+            if(claimed) ++detail::neg_diag().priv_grants;
+#endif
             if (claimed) {
                 snap.m_registered_privileged = true;
                 // Pair with the decrement in
@@ -1329,6 +1423,22 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     int _hang_hits = 0;
 
     for(int ms = 0;;) {
+#if KAME_STM_NEG_DIAG
+        ++detail::neg_diag().rounds;
+#endif
+        // Wait budget, checked at the TOP because that is the only point every
+        // path through a round passes.  A tail-only check is bypassed by the
+        // fair-spin `continue` below, which measured 14.23 rounds/commit and
+        // 0.18 sleeps/commit against a 1 us budget.
+        //
+        // Deliberately NOT gated on fair_mode_blocks_me: an expired budget must
+        // stop waiting even while a peer holds privilege, or the budget is not
+        // a bound at all.  Returning is not barging — the caller simply
+        // attempts its CAS, which loses to a committing privilege holder the
+        // same as any other loser and comes back.  What we decline to do is
+        // sleep.
+        if(_wb_limit && NegotiationCounter::now_us() >= _wb_limit)
+            break;
         if(entry_pr == Priority::HIGHEST)
             break;
         // Single-contender fast path: only this thread is visible in
@@ -1751,6 +1861,13 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif
                 const int64_t _spin_start_us =
                     (int64_t)NegotiationCounter::now_us();
+                // A 2 ms busy-spin is longer than most budgets; end it at
+                // whichever comes first.
+                const int64_t _spin_deadline_us =
+                    (_wb_limit && _wb_limit - _spin_start_us
+                                  < KAME_STM_FAIR_SPIN_MAX_US)
+                        ? _wb_limit
+                        : _spin_start_us + KAME_STM_FAIR_SPIN_MAX_US;
                 unsigned iter = 0;
                 bool _spin_timed_out = false;
                 do {
@@ -1758,7 +1875,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     if((++iter & 0x3FFFFu) == 0) {
                         std::this_thread::yield();
                         if((int64_t)NegotiationCounter::now_us()
-                           - _spin_start_us > KAME_STM_FAIR_SPIN_MAX_US) {
+                           > _spin_deadline_us) {
                             _spin_timed_out = true;
                             break;
                         }
@@ -1815,12 +1932,50 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // hot-spinning the CAS, which loses the alternation; yield
         // gives the OS scheduler the opportunity to swap to the
         // other contender, allowing it to commit cleanly.
-        if(NegotiationCounter::numThreadsRunning(3) <= 2 && ms <= 1) {
-            typename NegotiationCounter::ReleaseOneCount onedown;
-            std::this_thread::yield();
+        const unsigned _nrun_y = NegotiationCounter::numThreadsRunning(3);
+        if(_nrun_y <= 2 && ms <= 1) {
+            if(_nrun_y <= 1) {
+                // Sole runner: every other contender is CV-asleep, so a
+                // yield hands the core to no STM-runnable thread AND the
+                // ReleaseOneCount would drop the running count to 0 —
+                // risking a scheduler gap where nobody makes progress
+                // (the asleep peers only wake on a notify we are not
+                // sending here, or on their ~1 ms CV timeout).  We are
+                // the only thread that can make forward progress, so keep
+                // the running slot and stay on-CPU with a brief pause,
+                // then retry the CAS — no voluntary yield.  (This does
+                // NOT defend against the OS *involuntarily* time-slicing
+                // the sole runner; that stall is bounded only by the
+                // sleepers' CV-chunk timeout / privilege expiry.)
+                pause4spin();
+            }
+            else {
+                // Genuine 2-thread alternation: yield so the OS can swap
+                // to the other runnable contender, which then commits.
+                typename NegotiationCounter::ReleaseOneCount onedown;
+                std::this_thread::yield();
+            }
         }
         else {
+            // Do NOT drop this Tx's tags before sleeping.  It looks free —
+            // a sleeper holding a tag keeps `fair_mode_blocks_me` true for
+            // every peer on that linkage, measured at 38 % of sleeps in the
+            // mixed arm, and clearing them measured +10 % at 128 threads.  It
+            // is not free: the livelock verdict reads `tags_total` from
+            // `snap.m_tagged_linkages` (see `_ll_total` above), so a Tx that
+            // arrives at its next negotiator entry with an empty tag list can
+            // never satisfy `tags_total > 0` and can therefore never claim
+            // privilege.  Clearing here trades away the only escape from
+            // starvation for throughput in a regime (128 contending threads)
+            // that measured no benefit at all at 4.  This was knob
+            // KAME_STM_CLEAR_TAGS_BEFORE_SLEEP; removed, see design/RT_READINESS.md.
             int ms_actual = ms;
+#if KAME_STM_NEG_DIAG
+            { auto &_d = detail::neg_diag();
+              _d.ms_sum += (std::uint64_t)ms_actual;
+              if((std::uint64_t)ms_actual > _d.ms_max)
+                  _d.ms_max = (std::uint64_t)ms_actual; }
+#endif
             typename NegotiationCounter::ReleaseOneCount onedown;
 #if KAME_STM_MIN_RUNNERS != 0
             // Sleep in 1 ms chunks so the MIN_RUNNERS check fires after this
@@ -1831,6 +1986,11 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             const int min_r = effective_min_runners(C_obs);
             auto t_end = Node<XN>::NegotiationCounter::now_us()
                          + (int64_t)ms_actual * 1000;
+            // A round may not outlive the caller's wait budget.  This alone is
+            // not enough — a chunk can still overshoot by its own length — so
+            // the per-chunk clamp below handles the sub-millisecond tail.
+            if(_wb_limit && t_end > _wb_limit)
+                t_end = _wb_limit;
             do {
                 // Advance seed for de-phasing; chunk sleep = 1 or 2 ms.
                 s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
@@ -1898,32 +2058,131 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                         int _idx = (int)((unsigned)_blocker_tid
                             % NegotiationCounter::NEGOTIATE_SLEEP_SLOTS);
                         auto &_st = NegotiationCounter::s_sleep_slots[_idx];
-                        std::lock_guard<std::mutex> _lk(_st.mtx);
                         // Tenant verification: only wake when the slot's
                         // current tenant matches the blocker (same tid +
                         // same started_us).  Comparison strips the kind
                         // bits because the linkage slot is stamped via
                         // `with_kind(started_time, op_kind)` in
                         // `tag_as_contender` while the sleep slot stores
-                        // the bare `started_time` (kind=NONE).
-                        if(NegotiationCounter::strip_kind(_st.stamp)
+                        // the bare `started_time` (kind=NONE).  The stamp
+                        // is read lock-free (acquire) — a racy mismatch
+                        // only mis-targets this wake; the blocker falls
+                        // back to its natural timeout.
+                        if(NegotiationCounter::strip_kind(
+                               _st.stamp.load(std::memory_order_acquire))
                            == NegotiationCounter::strip_kind(_slot_val)) {
-                            _st.notified = true;
-                            _st.cv.notify_one();
+                            _st.cell.wake_one();
                         }
                     }
                 }
 #if KAME_STM_DISABLE_JITTER
-                NegotiationCounter::negotiate_sleep(1, started_time);
+#if KAME_STM_NEG_DIAG
+                {   // (diag) do we still own tags while going to sleep?
+                    int _held = 0;
+                    const auto _mine = NegotiationCounter::strip_kind(
+                                            snap.m_started_time);
+                    for(auto &&_l : snap.m_tagged_linkages) {
+                        if( !_l) continue;
+                        if(NegotiationCounter::strip_kind(
+                               _l->m_transaction_started_time.load(
+                                   std::memory_order_relaxed)) == _mine)
+                            ++_held;
+                    }
+                    auto &_d = detail::neg_diag();
+                    _d.tagged_list_at_sleep += snap.m_tagged_linkages.size();
+                    if(_held > 0) { ++_d.sleeps_holding;
+                                    _d.tags_held_at_sleep += (unsigned)_held; }
+                    if(snap.m_registered_privileged) ++_d.sleeps_priv;
+                }
+#endif
+                {
+                    unsigned _chunk_us_ov = 0;
+                    if(_wb_limit) {
+                        const int64_t _rem =
+                            _wb_limit - NegotiationCounter::now_us();
+                        if(_rem <= 0) goto _exit_cv_sleep;
+                        else if(_rem < (int64_t)KAME_NEG_SLEEP_US_PER_MS)
+                            _chunk_us_ov = (unsigned)_rem;
+                    }
+                    NegotiationCounter::negotiate_sleep(1, started_time,
+                                                        _chunk_us_ov);
+                }
 #else
-                NegotiationCounter::negotiate_sleep(
-                    1 + (int)(s_backoff_seed >> 31), started_time);
+#if KAME_STM_NEG_DIAG
+                {   // (diag) do we still own tags while going to sleep?
+                    int _held = 0;
+                    const auto _mine = NegotiationCounter::strip_kind(
+                                            snap.m_started_time);
+                    for(auto &&_l : snap.m_tagged_linkages) {
+                        if( !_l) continue;
+                        if(NegotiationCounter::strip_kind(
+                               _l->m_transaction_started_time.load(
+                                   std::memory_order_relaxed)) == _mine)
+                            ++_held;
+                    }
+                    auto &_d = detail::neg_diag();
+                    _d.tagged_list_at_sleep += snap.m_tagged_linkages.size();
+                    if(_held > 0) { ++_d.sleeps_holding;
+                                    _d.tags_held_at_sleep += (unsigned)_held; }
+                    if(snap.m_registered_privileged) ++_d.sleeps_priv;
+                }
+#endif
+                {
+                    int _chunk_ms = 1 + (int)(s_backoff_seed >> 31);
+                    unsigned _chunk_us_ov = 0;
+                    if(_wb_limit) {
+                        const int64_t _rem =
+                            _wb_limit - NegotiationCounter::now_us();
+                        if(_rem <= 0)
+                            goto _exit_cv_sleep;   // budget spent: never sleep
+                        else if(_rem < (int64_t)_chunk_ms
+                                       * (int64_t)KAME_NEG_SLEEP_US_PER_MS)
+                            _chunk_us_ov = (unsigned)_rem;
+                    }
+                    NegotiationCounter::negotiate_sleep(
+                        _chunk_ms, started_time, _chunk_us_ov);
+                }
 #endif
             } while(Node<XN>::NegotiationCounter::now_us() < t_end);
 #else
-            NegotiationCounter::negotiate_sleep(ms_actual, started_time);
+#if KAME_STM_NEG_DIAG
+                {   // (diag) do we still own tags while going to sleep?
+                    int _held = 0;
+                    const auto _mine = NegotiationCounter::strip_kind(
+                                            snap.m_started_time);
+                    for(auto &&_l : snap.m_tagged_linkages) {
+                        if( !_l) continue;
+                        if(NegotiationCounter::strip_kind(
+                               _l->m_transaction_started_time.load(
+                                   std::memory_order_relaxed)) == _mine)
+                            ++_held;
+                    }
+                    auto &_d = detail::neg_diag();
+                    _d.tagged_list_at_sleep += snap.m_tagged_linkages.size();
+                    if(_held > 0) { ++_d.sleeps_holding;
+                                    _d.tags_held_at_sleep += (unsigned)_held; }
+                    if(snap.m_registered_privileged) ++_d.sleeps_priv;
+                }
+#endif
+            {
+                unsigned _us_ov = 0;
+                if(_wb_limit) {
+                    const int64_t _rem =
+                        _wb_limit - NegotiationCounter::now_us();
+                    if(_rem <= 0) goto _exit_cv_sleep;
+                    else if(_rem < (int64_t)ms_actual
+                                   * (int64_t)KAME_NEG_SLEEP_US_PER_MS)
+                        _us_ov = (unsigned)_rem;
+                }
+                NegotiationCounter::negotiate_sleep(ms_actual, started_time,
+                                                    _us_ov);
+            }
 #endif
         }
+        // Wait budget, again at the tail: the round may have expired it after
+        // the top-of-loop check.  Same unconditional rule as the top.
+        if(_wb_limit && NegotiationCounter::now_us() >= _wb_limit)
+            break;
     }
 _exit_cv_sleep:;
   } // end adaptive-path scope

@@ -303,8 +303,12 @@
  <layoutdefault spacing="6" margin="11"/>
  <tabstops>
   <tabstop>m_gamma2pi</tabstop>
-  <tabstop>m_edPhaseErrWithin</tabstop>
+  <tabstop>m_spbAverage</tabstop>
   <tabstop>m_edFMPhaseOrigin</tabstop>
+  <tabstop>m_cmbLIA</tabstop>
+  <tabstop>m_ckbControl</tabstop>
+  <tabstop>m_edPhaseErrWithin</tabstop>
+  <tabstop>m_cmbSG</tabstop>
  </tabstops>
  <resources/>
  <connections/>

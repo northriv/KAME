@@ -100,7 +100,7 @@ public:
 
 
 		//for FFT/MEM.
-		shared_ptr<FFT> m_ftDark;
+		shared_ptr<const FFT> m_ftDark;
 
 		XTime m_timeClearRequested;
 	};

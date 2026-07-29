@@ -131,11 +131,16 @@ m_conNodeBrowser(xqcon_create<XNodeBrowser>(
 #ifdef USE_PYBIND11
     m_python = createOrphan<XPython>("PythonSupport", true,
         dynamic_pointer_cast<XMeasure>(shared_from_this()));
+    //Start the worker AFTER the object is fully constructed (vtable installed
+    //and owned by m_python) — execute() is pure virtual in the base, so
+    //starting it from the base ctor raced into __cxa_pure_virtual.
+    m_python->startExecutionThread();
 #endif
     m_pyInfoForNodeBrowser = XNode::createOrphan<XStringNode>("PyInfoForNodeBrowser", true);
 
     m_ruby = createOrphan<XRuby>("RubySupport", true,
         dynamic_pointer_cast<XMeasure>(shared_from_this()));
+    m_ruby->startExecutionThread();
 
     initialize();
 }

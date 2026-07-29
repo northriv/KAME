@@ -42,7 +42,7 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
     m_trigMode(create<XComboNode>("TrigMode", true, false)),
     m_delayFromExtTrig(create<XDoubleNode>("DelayFromExtTrig", true)),
     m_enableStrobe(create<XBoolNode>("EnableStrobe", true)),
-    m_timeToStrobeSignal(create<XDoubleNode>("TimeTorStrobeSignal", true)),
+    m_timeToStrobeSignal(create<XDoubleNode>("TimeToStrobeSignal", true)),
     m_strobeSignalDuration(create<XDoubleNode>("StrobeSignalDuration", true)),
     m_analogOutput(create<XDoubleNode>("AnalogOutput", true)),
     m_acquireTrig(create<XTouchableNode>("AcquireTrig", true)),
@@ -254,7 +254,10 @@ XOpticalSpectrometer::visualize(const Snapshot &shot) {
     if(shot[ *this].m_timeStrobeChanged.isSet() && driver) {
         bool strobe = shot[ *enableStrobe()]; //alredy inverted in analyze().
         if(auto d = dynamic_pointer_cast<XLaserModule>(driver)) {
-            trans( *d->enabled()) = strobe;
+            // XLaserModule is now multi-channel; strobe the first laser channel (the single
+            // laser in a typical spectrometer setup). Formerly d->enabled() (single-channel).
+            if(d->numLaserChannels())
+                trans( *d->laserChannel(1)->enabled()) = strobe;
         }
         if(auto d = dynamic_pointer_cast<XDCSource>(driver)) {
             trans( *d->output()) = strobe;
@@ -375,6 +378,8 @@ XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
 		}
 		catch (XKameError &e) {
 			e.print(getLabel());
+			if( !terminated)
+				msecsleep(1000); //back off on error (e.g. dead device) so the loop does not hammer.
 			continue;
 		}
 		finishWritingRaw(writer, time_awared, XTime::now());

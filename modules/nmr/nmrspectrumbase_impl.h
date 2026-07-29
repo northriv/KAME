@@ -38,7 +38,7 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	m_solverList(create<XComboNode>("SpectrumSolver", false, true)),
 	m_windowFunc(create<XComboNode>("WindowFunc", false, true)),
 	m_windowWidth(create<XDoubleNode>("WindowWidth", false)),
-	m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, m_solverList, m_windowFunc, m_windowWidth)),
+	m_solver(create<SpectrumSolverWrapper>("SpectrumSolverWrapper", true, m_solverList, m_windowFunc, m_windowWidth)), //was "SpectrumSolver", colliding with the m_solverList combo; matches the XNMRPulseAnalyzer convention.
     m_form(new FRM),
 	m_statusPrinter(XStatusPrinter::create(m_form.get())),
     m_spectrum(create<XWaveNGraph>("Spectrum", false, m_form->m_graph, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
@@ -257,7 +257,13 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 	if(clear) {
 		tr[ *m_spectrum].clearPoints();
 		tr[ *this].m_peaks.clear();
-		trans( *pulse__->avgClear()).touch();
+		//NOT trans( *pulse__->avgClear()).touch() here: that commits immediately
+		//and restarts the DSO sequence through onAvgClear/onRestartTouched, a
+		//side effect this transaction cannot roll back.  analyze() re-runs on
+		//every commit retry -- and the m_timeClearRequested reset above is rolled
+		//back with it, so `clear` is true again -- which would restart the
+		//hardware once per failed commit.  visualize() does it exactly once.
+		m_isAvgClearRequested = true;
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 
@@ -289,6 +295,17 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 template <class FRM>
 void
 XNMRSpectrumBase<FRM>::visualize(const Snapshot &shot) {
+	//Deferred from analyze(); runs outside any transaction, so the DSO restart
+	//this triggers may block on the interface mutex.  Must precede
+	//rearrangeInstrum() below -- the average is cleared before the pulser/SG is
+	//moved -- and precedes the !time() early return so a clear requested on the
+	//first record is not held over to the next cycle.
+	if(m_isAvgClearRequested.compare_set_strong((int)true, (int)false)) {
+		shared_ptr<XNMRPulseAnalyzer> pulse__ = shot[ *pulse()];
+		if(pulse__)
+			trans( *pulse__->avgClear()).touch();
+	}
+
 	if( !shot[ *this].time()) {
 		iterate_commit([=](Transaction &tr){
 			tr[ *m_spectrum].clearPoints();

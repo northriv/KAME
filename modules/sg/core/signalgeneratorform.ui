@@ -780,8 +780,20 @@
   <tabstop>m_ckbRFON</tabstop>
   <tabstop>m_edOLevel</tabstop>
   <tabstop>m_edFreq</tabstop>
+  <tabstop>tabWidget</tabstop>
   <tabstop>m_ckbAMON</tabstop>
+  <tabstop>m_edAMDepth</tabstop>
+  <tabstop>m_edAMIntSrcFreq</tabstop>
   <tabstop>m_ckbFMON</tabstop>
+  <tabstop>m_edFMDev</tabstop>
+  <tabstop>m_edFMIntSrcFreq</tabstop>
+  <tabstop>m_cmbSweepMode</tabstop>
+  <tabstop>m_edSweepFreqStart</tabstop>
+  <tabstop>m_edSweepFreqStop</tabstop>
+  <tabstop>m_edSweepAmplStart</tabstop>
+  <tabstop>m_edSweepAmplStop</tabstop>
+  <tabstop>m_edSweepDwellTime</tabstop>
+  <tabstop>m_edSweepPoints</tabstop>
  </tabstops>
  <resources/>
  <connections/>

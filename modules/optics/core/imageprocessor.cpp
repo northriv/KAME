@@ -181,8 +181,9 @@ XImageProcessor::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
     tr[ *this].m_height = height;
     if(clear) {
         for(unsigned int i = 0; i < seq_len; ++i) {
-            tr[ *this].m_summedCounts[i] = summedCountsFromPool(width * height);
-            std::fill(tr[ *this].m_summedCounts[i]->begin(), tr[ *this].m_summedCounts[i]->end(), 0);
+            auto fresh = summedCountsFromPool(width * height);
+            std::fill(fresh->begin(), fresh->end(), 0);
+            tr[ *this].m_summedCounts[i] = fresh; //the member is pointer-to-const; fill before assigning.
             tr[ *this].m_accumulated[i] = 0;
         }
     }
@@ -292,7 +293,7 @@ XImageProcessor::visualize(const Snapshot &shot) {
         for(unsigned int i  = 0; i < width * height; ++i) {
             for(unsigned int cidx = 0; cidx < seq_len; ++cidx) {
                 int64_t v = ((int64_t)(*summed[cidx] * gain_av[cidx]))  / 0x100000000LL;
-                *processed++ = std::max(0LL, std::min(v, 0xffffLL));
+                *processed++ = std::max<int64_t>(0, std::min<int64_t>(v, 0xffff));
                 (summed[cidx])++;
             }
             *processed++ = 0xffffu;

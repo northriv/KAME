@@ -1175,7 +1175,6 @@
   </customwidget>
  </customwidgets>
  <tabstops>
-  <tabstop>m_btnAvgClear</tabstop>
   <tabstop>m_cmbDSO</tabstop>
   <tabstop>m_edPos</tabstop>
   <tabstop>m_edWidth</tabstop>
@@ -1204,6 +1203,7 @@
   <tabstop>m_edFFTLen</tabstop>
   <tabstop>m_ckbIncrAvg</tabstop>
   <tabstop>m_numExtraAvg</tabstop>
+  <tabstop>m_btnAvgClear</tabstop>
  </tabstops>
  <resources/>
  <connections/>

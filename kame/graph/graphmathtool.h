@@ -144,7 +144,7 @@ public:
     void setArbitraryMask(const std::vector<uint8_t> &mask);
 
     struct DECLSPEC_KAME Payload : public XNode::Payload {
-        shared_ptr<std::vector<uint8_t>> m_mask; //!< stored mask bitmap; null or empty = all included (Rectangle).
+        shared_ptr<const std::vector<uint8_t>> m_mask; //!< stored mask bitmap; null or empty = all included (Rectangle). regenerateMask/setArbitraryMask/Python publish a fresh vector.
     };
 
     virtual XString getMenuLabel() const override;

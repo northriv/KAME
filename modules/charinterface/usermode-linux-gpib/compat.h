@@ -23,6 +23,8 @@
 #ifdef _WIN32
 #  include "win_compat.h"
 #else
+/* Every POSIX host — macOS, Linux, BSD.  osx_compat.h keeps its historical
+ * name but contains no Darwin-specific code; see its header comment. */
 #  include "osx_compat.h"
 #endif
 

@@ -367,6 +367,19 @@ XRuby::execute(const atomic<bool> &terminated) {
         while( !terminated) {
             int state = m_ruby->evalProtect(data.c_str());
             if(state) {
+                // A SignalException / SystemExit here is the PROCESS going
+                // away, not a broken script: both derive from Exception
+                // rather than StandardError, so the support script's own
+                // `rescue` cannot catch them and they arrive as an ordinary
+                // eval failure.  Reporting them as "exception(s) occurred"
+                // made every normal shutdown (SIGTERM, SIGINT) look like a
+                // Ruby fault — convincingly enough to be mistaken for a
+                // Ruby-3.x incompatibility.
+                if(m_ruby->isTerminationError()) {
+                    fprintf(stderr,
+                        "Ruby scripting monitor stopped by a termination signal.\n");
+                    break;
+                }
                 fprintf(stderr, "Ruby, exception(s) occurred.\n");
                 m_ruby->printErrorInfo();
                 break;

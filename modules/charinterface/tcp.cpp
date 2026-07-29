@@ -189,7 +189,19 @@ XTCPSocketPort::write(const char *sendbuf, int size) {
         int ret = ::select(m_socket + 1, NULL, &fs, NULL, &timeout); //awaiting.
         if(ret <= 0)
             throw XInterface::XCommError(i18n("tcp writing failed"), __FILE__, __LINE__);
+        // MSG_NOSIGNAL: writing to a socket whose peer has closed raises
+        // SIGPIPE, whose default action kills the process.  Nothing in KAME
+        // installs a handler or ignores it; on Linux the only reason this
+        // has not killed anyone is that CPython/Ruby set SIGPIPE to SIG_IGN
+        // when they initialise, and both interpreters are optional
+        // (USE_PYBIND11 / Ruby) and a script can reset the disposition.  The
+        // macOS idiom SO_NOSIGPIPE does not exist on Linux; this flag does
+        // (and main.cpp also ignores SIGPIPE process-wide).
+#if defined MSG_NOSIGNAL
+        ret = ::send(m_socket, sendbuf, size - wlen, MSG_NOSIGNAL);
+#else
         ret = ::send(m_socket, sendbuf, size - wlen, 0);
+#endif
         if(ret <= 0) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();

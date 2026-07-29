@@ -83,6 +83,38 @@ namespace Transactional {
 //! \tparam XN a class type used in the smart pointers of NodeList. \a XN must be a derived class of Node<XN> itself.
 //! \sa Snapshot, Transaction.
 //! \sa XNode.
+
+//! (§8B) Top-level so `force_intrusive_ref` can target it (a nested type is a
+//! non-deduced context; a deducible template-id skips the `sizeof` marker probe
+//! that would otherwise force `Packet` to complete mid-definition).  INTRUSIVE
+//! control block (refcnt + dispose from the `atomic_countable` base) ⇒
+//! `local_shared_ptr<PacketList>` is one tagged pointer (8 B) instead of
+//! `std::shared_ptr`'s 16 B, shrinking `Packet`.  Parameterised on the Packet /
+//! NodeList types (used only as smart-pointer targets) so it needs NO access to
+//! `Node`'s private nested types — hence no `friend`.  The serial is passed in
+//! (callers have `SerialGenerator`), keeping this type Node-agnostic.
+template <class PacketT, class NodeListT>
+struct DECLSPEC_KAME PacketList_
+    : public fast_vector<local_shared_ptr<PacketT>>,
+      public atomic_countable {
+    shared_ptr<NodeListT> m_subnodes;
+    int64_t m_serial;
+    explicit PacketList_(int64_t serial) noexcept
+        : fast_vector<local_shared_ptr<PacketT>>(), m_serial(serial) {}
+    PacketList_(const PacketList_ &) = default;   //!< refcnt=1 via atomic_countable copy ctor
+    ~PacketList_() { this->clear(); }             //!< destroys payloads prior to nodes.
+};
+} // namespace Transactional
+
+//! `force_intrusive_ref` is global; this deducible spec selects the intrusive
+//! (Ref = PacketList_) block with NO `sizeof` probe — safe while Packet is
+//! incomplete.
+template <class PacketT, class NodeListT>
+struct force_intrusive_ref<Transactional::PacketList_<PacketT, NodeListT>>
+    : std::true_type {};
+
+namespace Transactional {
+
 template <class XN>
 class DECLSPEC_KAME Node {
     template <class> friend class ScopedNegotiateLinkage;
@@ -114,6 +146,16 @@ public:
     //! Removes all links to the subnodes.
     //! \sa insert(), release(), swap().
     void releaseAll();
+    //! Number of successful Transactions committed at this node's own
+    //! linkage (\sa Linkage::m_tx_commit_count, bumped once per committed
+    //! Transaction in finalizeCommitment()). Summing this over the whole
+    //! node tree gives the aggregate STM commit count; differencing two
+    //! readings against wall-clock time yields the commit throughput
+    //! (commits/s). Read is a plain load of a mutable counter — racy by
+    //! design, adequate for coarse-grained monitoring.
+    uint64_t numTransactionsCommitted() const noexcept {
+        return m_link->m_tx_commit_count;
+    }
     //! Swaps orders in the subnode list.
     //! \return True if succeeded.
     //! \sa insert(), release(), releaseAll().
@@ -179,13 +221,9 @@ public:
 private:
     struct Packet;
 
-    struct DECLSPEC_KAME PacketList : public fast_vector<local_shared_ptr<Packet> > {
-        shared_ptr<NodeList> m_subnodes;
-        PacketList() : fast_vector<local_shared_ptr<Packet>>(), m_serial(SerialGenerator::gen()) {}
-        ~PacketList() {this->clear();} //destroys payloads prior to nodes.
-        //! Serial number of the transaction.
-        int64_t m_serial;
-    };
+    //! (§8B) The top-level intrusive PacketList_ (above), bound to this Node's
+    //! Packet / NodeList.  Internal code keeps using the name `PacketList`.
+    using PacketList = PacketList_<Packet, NodeList>;
 
     template <class P>
     struct PayloadWrapper : public P::Payload {
@@ -215,9 +253,9 @@ private:
         local_shared_ptr<Payload> &payload() noexcept { return m_payload;}
         const local_shared_ptr<Payload> &payload() const noexcept { return m_payload;}
         shared_ptr<NodeList> &subnodes() noexcept { return subpackets()->m_subnodes;}
-        shared_ptr<PacketList> &subpackets() noexcept { return m_subpackets;}
+        local_shared_ptr<PacketList> &subpackets() noexcept { return m_subpackets;}
         const shared_ptr<NodeList> &subnodes() const noexcept { return subpackets()->m_subnodes;}
-        const shared_ptr<PacketList> &subpackets() const noexcept { return m_subpackets;}
+        const local_shared_ptr<PacketList> &subpackets() const noexcept { return m_subpackets;}
 
         //! Points to the corresponding node.
         Node &node() noexcept {return payload()->node();}
@@ -240,9 +278,9 @@ private:
         //! child's packet lives in a sibling sub-tree).  When omitted
         //! (default `{}`), the global root degenerates to the local
         //! root, matching the original pre-2026-05-21 semantics.
-        bool checkConsistensy(const local_shared_ptr<Packet> &rootpacket,
+        bool checkConsistency(const local_shared_ptr<Packet> &rootpacket,
                               const local_shared_ptr<Packet> &globalroot = {}) const;
-        //! Non-throwing reachability check.  Mirrors `checkConsistensy`'s
+        //! Non-throwing reachability check.  Mirrors `checkConsistency`'s
         //! Null-slot reverseLookup test but returns `false` instead of
         //! throwing.  Used by `bundle` Phase 4 to gate the
         //! `is_bundle_root` `m_missing=false` override: if any Null
@@ -256,7 +294,7 @@ private:
                              const local_shared_ptr<Packet> &globalroot = {}) const;
 
         local_shared_ptr<Payload> m_payload;
-        shared_ptr<PacketList> m_subpackets;
+        local_shared_ptr<PacketList> m_subpackets;
         bool m_missing;
     };
 
@@ -639,29 +677,52 @@ private:
         //! correct on x86 and Apple Silicon but oversized for x86 and
         //! undersized for A64FX.
         struct alignas(KAME_CACHE_LINE) NegotiateSleepSlot {
-            std::mutex mtx;
-            std::condition_variable cv;
-            bool notified = false;
+            //! Futex-style timed wait-on-address (mutex-less on macOS;
+            //! std mutex+condvar fallback elsewhere).  Replaces the
+            //! former {std::mutex + std::condition_variable + bool
+            //! notified} trio: the kernel value-compare on the cell's
+            //! generation closes the lost-wakeup window the mutex used
+            //! to guard, and the generation subsumes the `notified`
+            //! flag (no reset race).  See xwaitcell.h and
+            //! negotiate_sleep for the gen()/wait()/wake_one() protocol.
+            XWaitCell cell;
             //! Kind (0=NONE/Reserved, 1=BUNDLE, 2=UNBUNDLE, 3=Reserved)
-            //! the sleeping thread is going to commit.  Stored under
-            //! the lock right before sleeping; read under the lock by
+            //! the sleeping thread is going to commit.  Published right
+            //! before sleeping; read (lock-free, best-effort) by
             //! `notify_n_contenders` to bias wake-up toward the same
             //! kind as the linkage's most recent commit.
-            uint8_t op_kind = 0;
+            std::atomic<uint8_t> op_kind{0};
             //! Tenant verification stamp = sleeper's started_time
-            //! (tid+kind+us packed).  Set under the lock right before
-            //! `cv.wait_for`, cleared to 0 right after.  Wakers compare
+            //! (tid+kind+us packed).  Published right before
+            //! `cell.wait`, cleared to 0 right after.  Wakers compare
             //! this against their intended target (the linkage slot
             //! value for targeted wake, or the tid bit for bitset wake)
             //! to avoid notifying the wrong thread on `tid % N_SLOTS`
-            //! hash collisions.  On mismatch we skip the notify and
-            //! accept the intended target's natural 1 ms timeout.
-            uint64_t stamp = 0;
+            //! hash collisions.  Read lock-free: a racy mismatch only
+            //! mis-targets a wake (the intended thread falls back to its
+            //! natural timeout), never corrupts state — exactly the
+            //! tolerance the mutex'd version already accepted.
+            //!
+            //! Type is `cnt_t` (NOT a fixed uint64_t): in
+            //! KAME_STM_COMPACT_STATE mode cnt_t is int32_t, so this
+            //! atomic is lock-free on i486 (no CMPXCHG8B).  A hardcoded
+            //! atomic<uint64_t> here would emit __atomic_store_8 /
+            //! __atomic_load_8 libcalls on i486 and break the
+            //! libatomic-free build (the stamp only ever holds a
+            //! `started_time`, which is cnt_t, so no range is lost).
+            std::atomic<cnt_t> stamp{0};
         };
         static constexpr int NEGOTIATE_SLEEP_SLOTS = 512;
         static inline NegotiateSleepSlot s_sleep_slots[NEGOTIATE_SLEEP_SLOTS]{};
 
-        static void negotiate_sleep(int ms_timeout, uint64_t my_stamp) noexcept;
+        //! \param us_override When nonzero, the physical wait length in µs,
+        //!        used instead of `ms_timeout * KAME_NEG_SLEEP_US_PER_MS`.
+        //!        Exists so a wait budget can clamp a sleep to sub-millisecond
+        //!        precision: the budget is a µs quantity and the ms ladder
+        //!        cannot express "300 µs left".  Zero (the default) reproduces
+        //!        the previous behaviour exactly.
+        static void negotiate_sleep(int ms_timeout, cnt_t my_stamp,
+                                    unsigned us_override = 0) noexcept;
 
         //! Wake up to `n` sleeping threads whose TIDs are set in
         //! `tid_bitset`.  When `preferred_kind` is in {1,2}, prefer
@@ -709,30 +770,33 @@ private:
         //! With release/acquire pairing the staleness window collapses
         //! to the hardware cache coherency RTT (sub-µs).
         struct DECLSPEC_KAME AcquireOneCount {
-            // Move-aware so this can live as a value member (inside
-            // std::optional<>) of Transaction without paying a per-Tx
-            // heap alloc. A moved-from instance must skip the
-            // s_tx_nest decrement in its dtor; m_active=false marks
-            // that ownership has been transferred.
-            bool m_active;
-            AcquireOneCount() : m_active(true) {
+            AcquireOneCount() {
                 if(++*detail::s_tx_nest == 1 && *detail::s_sleep_nest == 0)
                     detail::my_runner_counter().v
                         .fetch_add(1, std::memory_order_release);
             }
-            AcquireOneCount(AcquireOneCount&& other) noexcept
-                : m_active(other.m_active) {
-                other.m_active = false;
+            //! Move disarms the source so the running-slot release fires
+            //! exactly once.  This lets Transaction hold an AcquireOneCount
+            //! BY VALUE (no per-Tx heap allocation) yet stay movable.
+            AcquireOneCount(AcquireOneCount &&o) noexcept : m_armed(o.m_armed) {
+                o.m_armed = false;
             }
-            AcquireOneCount(const AcquireOneCount&) = delete;
-            AcquireOneCount& operator=(const AcquireOneCount&) = delete;
-            AcquireOneCount& operator=(AcquireOneCount&&) = delete;
-            ~AcquireOneCount() {
-                if( !m_active) return;
+            ~AcquireOneCount() { release(); }
+            //! Release the running slot now (idempotent).  finalizeCommitment
+            //! calls this to yield the slot before the post-commit messaging,
+            //! the way it formerly reset the unique_ptr.
+            void release() noexcept {
+                if( !m_armed) return;
+                m_armed = false;
                 if(--*detail::s_tx_nest == 0 && *detail::s_sleep_nest == 0)
                     detail::my_runner_counter().v
                         .fetch_sub(1, std::memory_order_release);
             }
+            AcquireOneCount(const AcquireOneCount &) = delete;
+            AcquireOneCount &operator=(const AcquireOneCount &) = delete;
+            AcquireOneCount &operator=(AcquireOneCount &&) = delete;
+        private:
+            bool m_armed = true;
         };
         //! RAII yield of the running slot for the duration of a sleep
         //! inside negotiate_internal. Pairs with the TLS nest counters
@@ -803,6 +867,15 @@ private:
 
         //! Points to the upper node that should have the up-to-date Packet when this lacks priority.
         local_shared_ptr<Linkage> bundledBy() const noexcept {return m_bundledBy.lock();}
+        //! True iff the bundled-by back-reference names \a l's control
+        //! block, tested WITHOUT a weak->strong promotion (see
+        //! local_weak_ptr::same_control_block).  \a l must be a live
+        //! handle (refcnt >= 1); the reverseLookupWithHint fast path uses
+        //! this to recognise "parent is the lookup root" and short-circuit
+        //! to the root packet without paying the promote/release RMW pair.
+        bool bundledBySameAs(const local_shared_ptr<Linkage> &l) const noexcept {
+            return m_bundledBy.same_control_block(l);
+        }
         //! The index for this node in the list of the upper node.
         int reverseIndex() const noexcept {return m_reverse_index;}
         void setReverseIndex(int i) noexcept {m_reverse_index = i;}
@@ -1465,16 +1538,16 @@ public:
     //! may raise NodeNotFoundError;
     template <class T>
     const typename T::Payload &at(const T &node) const {
-        // Memo hit: revalidate the pair via the packet's back-pointer —
-        // see the LookupMemo doc-block for validity and tear-safety.
-        typename Node<XN>::Packet *cp =
-            m_lookup_memo.packet.load(std::memory_order_relaxed);
-        if((m_lookup_memo.node.load(std::memory_order_relaxed) == &node)
-                && cp && ( &cp->node() == &node)) [[likely]]
-            return *static_cast<const typename T::Payload*>(cp->payload().get());
+        // Memo hit: find() validates via the payload's immutable m_node
+        // back-pointer — see the LookupMemo doc-block.
+        typename Node<XN>::Payload *p = m_lookup_memo.find_mru( &node);
+        if(p) [[likely]]                                   // tier 0, inlined
+            return *static_cast<const typename T::Payload*>(p);
+        if((p = m_lookup_memo.find_slow_( &node, m_lookup_slots))) // tier 1
+            return *static_cast<const typename T::Payload*>(p);
         const local_shared_ptr<typename Node<XN>::Packet> &packet(node.reverseLookup(m_packet));
-        m_lookup_memo.set( &node, packet.get());
         const local_shared_ptr<typename Node<XN>::Payload> &payload(packet->payload());
+        m_lookup_memo.set( &node, payload.get(), m_lookup_slots);
         return *static_cast<const typename T::Payload*>(payload.get());
     }
     //! # of child nodes.
@@ -1741,8 +1814,25 @@ public:
         // still has kind=NONE.
         const auto my_id = NC::strip_kind(m_started_time);
         for(auto &sp : m_tagged_linkages) {
-            if(NC::strip_kind(sp->m_transaction_started_time) == my_id) {
-                sp->m_transaction_started_time = 0;
+            // CAS-based mine-only clear, mirroring the global-mode
+            // release_privileged_tidstamp(): a plain store after the
+            // identity check could erase an older preemptor's stamp that
+            // landed on this slot between the load and the store, silently
+            // dropping its priority claim for one negotiation round (an
+            // adversarial-scheduler window — measure-zero in practice but
+            // not logically excluded, so the machine-checked "oldest
+            // completes in finite CASes" is otherwise idealised past it).
+            // expected = the raw read value `cur` (kind bits included), NOT
+            // the stripped `my_id`, so the CAS matches the exact stored word.
+            auto cur = sp->m_transaction_started_time.load(
+                std::memory_order_relaxed);
+            if(NC::strip_kind(cur) == my_id) {
+                sp->m_transaction_started_time.compare_exchange_strong(
+                    cur, 0,
+                    std::memory_order_seq_cst,
+                    std::memory_order_relaxed);
+                // CAS fail = an older Tx preempted our slot meanwhile;
+                // it clears the slot from its own destructor.
             }
         }
         // Note: there is no "if priv flag is true then some Linkage still
@@ -1789,40 +1879,179 @@ protected:
     //! on, degrading to an O(tree) forwardLookup scan once the live tree
     //! has moved past this snapshot).
     //!
-    //! Validity: a node found in this snapshot is owned by the snapshot's
-    //! packet tree (NodeList holds shared_ptr), so a cached {node, packet}
-    //! pair can neither dangle nor suffer address reuse while the snapshot
-    //! lives.  For a Transaction, structural mutators (insert/release/swap)
-    //! invalidate via ScopedLookupMemoInvalidate, and the snapshot-refill
-    //! entry (Node::snapshot) clears before replacing m_packet.
+    //! Two tiers.  Tier 0 (`mru`) is byte-identical to the original
+    //! single-slot memo: one atomic Payload*, hit = 1 load + the immutable
+    //! m_node back-pointer compare.  Repeated same-node access — and, just
+    //! as importantly, the miss-dominated commit workload (a fresh
+    //! Transaction whose every subscript misses) — costs exactly what the
+    //! single-slot design did.  A naive flat 4-slot scan regressed the
+    //! payload-integrity commit stress by ~5 %: with one subscript per
+    //! transaction the memo never hits, so the extra scan/clear/copy/init
+    //! traffic was pure overhead.
     //!
-    //! Tear-safety: one Snapshot instance may be read from two threads at
-    //! once (e.g. a Talker message processed by a direct listener while a
-    //! main-thread-deferred listener holds the same object).  The two
-    //! fields are relaxed atomics; a torn pair (node from one at() call,
-    //! packet from another) is rejected by the &packet->node() == &node
-    //! revalidation on the hit path, degrading to a plain miss.
+    //! Tier 1 (`slots`) is a fully associative, FIFO-replaced history that
+    //! is populated ONLY when a different node displaces the MRU (set()
+    //! archives the outgoing payload).  The `used` flag gates the tier-1
+    //! scan, clear() and copy_(), so single-node transactions never touch
+    //! it.  Together the tiers memoize a working set of up to 1 + SLOTS
+    //! alternating nodes — the dominant driver idiom, e.g. consecutive
+    //! tr[*a]/tr[*b] field assignments.  (A direct-mapped address hash was
+    //! rejected: pool-allocator size-class strides make it brittle, and
+    //! with 4 keys in 4 slots the birthday collisions drop a 4-node
+    //! rotation to ~40 % hits.)
+    //!
+    //! Concurrency: the memo is single-threaded, so its members are PLAIN
+    //! (non-atomic).  This is not a new constraint — a Snapshot is ALREADY
+    //! single-threaded by construction: m_packet is a `local_shared_ptr`,
+    //! the non-atomic smart pointer whose embedded local refcount is unsafe
+    //! to touch from two threads (the whole reason `atomic_shared_ptr`
+    //! exists as the separate cross-thread variant).  One Snapshot object
+    //! has therefore never been usable from two threads; the plain memo
+    //! merely matches what the enclosing type already is.  (Talker confirms
+    //! this in practice: it stores the Snapshot BY VALUE in its Event and
+    //! re-copies it for each deferred listener — transaction_signal.h — so
+    //! each thread holds its own copy.)  Atomics were deliberately NOT used:
+    //! they would imply a cross-thread sharing the type does not support,
+    //! misleading future readers, while the relaxed loads/stores also
+    //! blocked the compiler from caching the memo across repeated subscripts.
+    //!
+    //! find() recovers identity from the payload itself: a hit requires
+    //! &payload->node() == node (tier 0 stores no node; m_node is immutable —
+    //! set once at construction, copied verbatim by clone()).  Staleness
+    //! invariant: a node's tier-1 entry can lag its latest payload only while
+    //! the MRU holds that latest payload (find checks tier 0 first, shadowing
+    //! the stale entry), and the next displacement archives the latest
+    //! payload over the stale slot (archive_ overwrites in place — one entry
+    //! per node), so a tier-1 hit always returns the node's current payload.
+    //!
+    //! Validity: a node found in this snapshot is owned by the snapshot's
+    //! packet tree (NodeList holds shared_ptr), so a cached Payload can
+    //! neither dangle nor see address reuse while the snapshot lives.  For a
+    //! Transaction, structural mutators (insert/release/swap) invalidate via
+    //! ScopedLookupMemoInvalidate, and the snapshot-refill entry
+    //! (Node::snapshot) clears before replacing m_packet.  The Transaction hit
+    //! path additionally checks p->serial() == m_serial so only this
+    //! transaction's clone is returned without a lookup; m_serial is reset
+    //! in place only by eraseSerials() inside release(), which is memo-guarded.
+    //! Layout note: the tier-0 head (mru / used / cursor) is the FIRST
+    //! Snapshot member, so on a miss-dominated commit cycle every memo access
+    //! lands on the same cache line as m_packet / m_serial / m_started_time —
+    //! exactly like the original single-slot memo, whose "free ride" on the
+    //! hot head line turned out to matter more than the operation counts
+    //! (giving the memo its own line cost ~10 ns per commit).  The cold
+    //! tier-1 slot array is a SEPARATE member (m_lookup_slots) placed at the
+    //! tail of Snapshot; thanks to the lazy initialisation its cache line is
+    //! never touched unless a displacement actually occurs.  Tier 1
+    //! deliberately does NOT survive Snapshot copies (Slot's copy/assign are
+    //! no-ops; copy_() drops `used`): copies re-warm on their first
+    //! displacement, and copying the slots would tax every message /
+    //! return-value Snapshot copy on the commit path.
     struct LookupMemo {
-        std::atomic<const Node<XN>*> node{nullptr};
-        std::atomic<typename Node<XN>::Packet*> packet{nullptr};
+        enum : unsigned {SLOTS = 4};
+        //! Tier 0 — the original single-slot memo, checked first.
+        typename Node<XN>::Payload *mru = nullptr;
+        bool used = false;
+        unsigned cursor = 0;
+        //! One tier-1 entry.  Members are deliberately NOT initialised:
+        //! zeroing them would tax every Snapshot/Transaction construction for
+        //! a tier most transactions never touch.  Lifecycle discipline
+        //! instead: find() reads the slots only when `used` is set, and
+        //! `used` is set only after archive_() has null-initialised every
+        //! node gate (first use after construction, clear() or copy) and
+        //! written its entry — so no indeterminate value is ever read.
+        //! Copy/assign are no-ops (see the layout note).
+        struct Slot {
+            const Node<XN> *node;                  // no init — see above
+            typename Node<XN>::Payload *payload;   // no init — see above
+            Slot() noexcept {}
+            Slot(const Slot &) noexcept {}
+            Slot &operator=(const Slot &) noexcept { return *this; }
+        };
         LookupMemo() noexcept = default;
-        //! Copy carries the memo over — the copy shares m_packet's tree.
-        LookupMemo(const LookupMemo &x) noexcept
-            : node(x.node.load(std::memory_order_relaxed)),
-              packet(x.packet.load(std::memory_order_relaxed)) {}
+        //! Copy carries tier 0 over (the copy shares m_packet's tree); the
+        //! tier-1 slots are NOT copied, so `used` drops — the copy's own
+        //! (indeterminate or stale) slots stay unreachable until its first
+        //! archive_() re-initialises them.
+        LookupMemo(const LookupMemo &x) noexcept { copy_(x); }
         LookupMemo &operator=(const LookupMemo &x) noexcept {
-            packet.store(x.packet.load(std::memory_order_relaxed), std::memory_order_relaxed);
-            node.store(x.node.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            copy_(x);
             return *this;
         }
-        void clear() noexcept { node.store(nullptr, std::memory_order_relaxed); }
-        //! \a p stored before \a n so a racing reader matching on \a n
-        //! likely sees the paired packet; mismatches fail revalidation.
-        void set(const Node<XN> *n, typename Node<XN>::Packet *p) noexcept {
-            packet.store(p, std::memory_order_relaxed);
-            node.store(n, std::memory_order_relaxed);
+        void copy_(const LookupMemo &x) noexcept {
+            mru = x.mru;
+            used = false;
+        }
+        //! O(1): stale slots are left in place but unreachable (`used` gates
+        //! them) and re-initialised by the next archive_().
+        void clear() noexcept {
+            mru = nullptr;
+            used = false;
+        }
+        //! Tier-0 fast path — kept tiny so it inlines into operator[] / at()
+        //! byte-identically to the original single-slot memo: one load + the
+        //! immutable m_node back-pointer compare.  A miss (including
+        //! single-node transactions, which never set `used`) returns nullptr;
+        //! the caller then consults find_slow_().
+        typename Node<XN>::Payload *find_mru(const Node<XN> *n) const noexcept {
+            auto *p = mru;
+            if(p && ( &p->node() == n))
+                return p;
+            return nullptr;
+        }
+        //! Tier-1 path — outlined so its scan never bloats the inlined hot
+        //! site.  `used` gates it: an unused memo (the common single-node-Tx
+        //! case) returns after one load.  A slot whose node matches yields
+        //! its payload directly: the uniqueness + staleness invariants
+        //! guarantee it is the node's current payload (see doc-block).
+        KAME_STM_NOINLINE typename Node<XN>::Payload *find_slow_(
+            const Node<XN> *n, const Slot *slotv) const noexcept {
+            // NOTE: parameter is `slotv`, NOT `slots` — `slots` is a Qt
+            // moc macro (`#define slots`); using it as an identifier here
+            // makes `slots[i]` expand to `[i]` (a stray lambda) and breaks
+            // every Qt TU that transitively includes this header.
+            if( !used)
+                return nullptr;
+            for(unsigned i = 0; i < SLOTS; ++i)
+                if(slotv[i].node == n)
+                    return slotv[i].payload;
+            return nullptr;
+        }
+        void set(const Node<XN> *n, typename Node<XN>::Payload *p,
+            Slot *slotv) noexcept {
+            auto *old = mru;
+            mru = p;
+            // Archive the displaced payload so alternating working sets stay
+            // memoized.  Same-node replacement (e.g. committed -> clone) must
+            // NOT archive: the outgoing payload is outdated for that node and
+            // tier 1 may hold no fresher entry.
+            if(old && ( &old->node() != n))
+                archive_(old, slotv);
+        }
+    private:
+        // `slotv` (not `slots`): see find_slow_ — `slots` is a Qt macro.
+        KAME_STM_NOINLINE void archive_(typename Node<XN>::Payload *old, Slot *slotv) noexcept {
+            const Node<XN> *on = &old->node();
+            if( !used) {
+                // First use since construction, clear() or copy: the slots
+                // are indeterminate or stale.  Null every node gate before
+                // matching/inserting below.
+                for(unsigned i = 0; i < SLOTS; ++i)
+                    slotv[i].node = nullptr;
+            }
+            for(unsigned i = 0; i < SLOTS; ++i) {
+                if(slotv[i].node == on) {
+                    slotv[i].payload = old;
+                    return;   // in-place: keeps one entry per node.
+                }
+            }
+            auto &s = slotv[cursor++ % SLOTS];   // FIFO replacement
+            s.payload = old;
+            s.node = on;
+            used = true;
         }
     };
+    //! Tier-0 memo head — FIRST member, sharing the hot cache line with
+    //! m_packet / m_serial / m_started_time (see the layout note above).
     mutable LookupMemo m_lookup_memo;
     //! The snapshot.
     local_shared_ptr<typename Node<XN>::Packet> m_packet;
@@ -1905,6 +2134,11 @@ protected:
     //   success.  Saturates at KAME_GATE_RETURN_MAX_TIGHTEN.
     bool     m_last_gate_returned = false;
     uint8_t  m_gate_return_tighten = 0;
+
+    //! Tier-1 memo slots — LAST member so the cold 64 B stay off the hot
+    //! head cache line; lazily initialised, not copied (see LookupMemo's
+    //! layout note).
+    mutable typename LookupMemo::Slot m_lookup_slots[LookupMemo::SLOTS];
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
     // INSTRUMENT: wall-clock (low 32 bits) at the most recent
     // gate-return decision.  Read in ScopedNeg::_on_cas_success to
@@ -1972,7 +2206,8 @@ public:
         // `now_us_tagged()` auto-folds the lowprio bit — see
         // Snapshot ctor above for the priority-gated timeout rationale.
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
-        m_oneup.emplace();
+        // m_oneup (the running-slot acquire) is a by-value member, bumped in
+        // the member-init list above — no per-Tx heap allocation.
         node.snapshot( *this, multi_nodal);
         assert( &m_packet->node() == &node);
         assert( &m_oldpacket->node() == &node);
@@ -1982,7 +2217,7 @@ public:
     explicit Transaction(const Snapshot<XN> &x, bool multi_nodal = true) noexcept : Snapshot<XN>(x),
         m_oldpacket(m_packet), m_multi_nodal(multi_nodal) {
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
-        m_oneup.emplace();
+        // m_oneup bumped by its by-value member-init — no heap allocation.
     }
     Transaction(Transaction&&x) = default;
     //! Releases any tagged linkages (clearing m_transaction_started_time
@@ -2004,24 +2239,20 @@ public:
     template <class T>
     typename T::Payload &operator[](T &node) {
         assert(isMultiNodal() || ( &node == &this->m_packet->node()));
-        // Memo hit: only when the payload was already cloned for THIS
-        // transaction (serial match) — a serial mismatch means the
-        // copy-on-write below must run.  Validity/tear notes on
-        // Snapshot::LookupMemo.  Transactions are single-threaded, so
-        // unlike at() there is no concurrent-reader subtlety here.
-        typename Node<XN>::Packet *cp =
-            this->m_lookup_memo.packet.load(std::memory_order_relaxed);
-        if((this->m_lookup_memo.node.load(std::memory_order_relaxed) == &node)
-                && cp && ( &cp->node() == &node)) {
-            auto &payload(cp->payload());
-            if(payload->m_serial == this->m_serial) [[likely]]
-                return *static_cast<typename T::Payload *>(payload.get());
-        }
+        // Memo hit only when the cached Payload is THIS transaction's clone
+        // (serial match) — a mismatch means the copy-on-write below must run.
+        // find_mru/find_slow_ validate node identity; see Snapshot::LookupMemo.
+        typename Node<XN>::Payload *p = this->m_lookup_memo.find_mru( &node);
+        if(p && (p->serial() == this->m_serial)) [[likely]]    // tier 0, inlined
+            return *static_cast<typename T::Payload *>(p);
+        if((p = this->m_lookup_memo.find_slow_( &node, this->m_lookup_slots))
+                && (p->serial() == this->m_serial))            // tier 1
+            return *static_cast<typename T::Payload *>(p);
         auto &packet(node.reverseLookup(this->m_packet, true, this->m_serial));
         auto &payload(packet->payload());
         if(payload->m_serial != this->m_serial)
             payload = payload->clone( *this, this->m_serial);
-        this->m_lookup_memo.set( &node, packet.get());
+        this->m_lookup_memo.set( &node, payload.get(), this->m_lookup_slots);
         return *static_cast<typename T::Payload *>(payload.get());
     }
     bool isMultiNodal() const noexcept {return m_multi_nodal;}
@@ -2125,10 +2356,11 @@ private:
     // Transaction-specific members below.
     using MessageList = fast_vector<shared_ptr<Message_<Snapshot<XN>>>, 16>;
     MessageList m_messages;
-    // std::optional avoids the per-Tx heap alloc that the old
-    // std::unique_ptr<> demanded; AcquireOneCount is now move-aware
-    // so the defaulted Transaction(Transaction&&) stays correct.
-    std::optional<typename Node<XN>::NegotiationCounter::AcquireOneCount> m_oneup;
+    //! Running-slot RAII held BY VALUE (movable, disarm-on-move) — formerly
+    //! a std::unique_ptr, which cost one heap allocation per Transaction
+    //! (~26 % of a single-node commit's instructions were malloc/free in a
+    //! system-allocator profile; this removes one alloc/free pair).
+    typename Node<XN>::NegotiationCounter::AcquireOneCount m_oneup;
 };
 
 //! \brief Transaction which does not care of contents (Payload) of subnodes.\n
@@ -2161,7 +2393,7 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
     // zeroing m_started_time; drop_tags_n_privilege() matches on the current value.
     this->drop_tags_n_privilege();
     m_started_time = 0;
-    m_oneup.reset();
+    m_oneup.release();   // yield the running slot before messaging
 
     m_oldpacket.reset();
     //Messaging.

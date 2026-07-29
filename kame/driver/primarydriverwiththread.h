@@ -33,6 +33,47 @@ protected:
     virtual void start() override;
 
 	virtual void *execute(const atomic<bool> &terminated) = 0;
+
+protected:
+    //! RAII guard raising an acquisition loop to `Priority::HIGHEST`.
+    //!
+    //! Construct it immediately before the `while( !terminated)` loop — never
+    //! around the setup commit that precedes it.  That commit runs once at
+    //! driver start, often while a .kam load is starting many drivers at once,
+    //! which is the one case where several impolite threads hurt each other.
+    //! Everything inside the loop, by contrast, belongs to the record: the
+    //! settings Snapshots (`***someNode()` expands to a SingleSnapshot, see
+    //! kame/xnode.h, so those negotiate too), the hardware I/O, and the record
+    //! commit(s).  None of it should be polite.
+    //!
+    //! **Unconditional on purpose.**  This is a safeguard against unforeseen
+    //! contention — a .kam load, a script or an MCP session snapshotting the
+    //! measurement root, a graph redraw bundling an ancestor — and a safeguard
+    //! that has to be switched on ahead of time is not one, because nobody
+    //! predicts the unforeseen.  It is also free until it is needed:
+    //! `ScopedNegotiateLinkage::_negotiate()` returns `[[likely]]` early when
+    //! no peer has tagged the linkage, so `_negotiate_internal()` — the only
+    //! place that looks at the priority at all — is reached only under real
+    //! contention.  Until then a HIGHEST acquisition thread behaves bit-for-bit
+    //! like a NORMAL one.
+    //!
+    //! **What it costs when it does act, stated plainly.**  HIGHEST breaks out
+    //! of the negotiator's round loop before the sleep path, which is where
+    //! `fair_mode_blocks_me` gates on a peer's privilege stamp — so a HIGHEST
+    //! thread ignores privilege entirely.  An ancestor-scope operation can
+    //! therefore no longer be protected by privilege against acquisition
+    //! threads, and with several drivers acquiring it can be starved for as
+    //! long as they keep acquiring.  That is a deliberate policy choice:
+    //! measurement beats UI and scripting.  Note the record-commit counters
+    //! above do NOT see it — they only count the acquisition side — so a
+    //! starved .kam load or redraw has to be noticed by other means.
+    class AcquisitionPriority : public Transactional::ScopedPriority {
+    public:
+        AcquisitionPriority()
+            : Transactional::ScopedPriority(
+                  Transactional::Priority::HIGHEST) {}
+    };
+
 private:
     unique_ptr<XThread> m_thread;
 	void *execute_internal(const atomic<bool> &terminated) {
@@ -46,6 +87,19 @@ private:
 			e.print(getLabel() + i18n(" Error: "));
 		}
 		closeInterface(); //closes interface if any.
+        // One summary line per acquisition thread, and only when the driver
+        // actually saw a slow record commit.  Off the hot path by construction
+        // (the thread is exiting), and silent on a healthy driver — the same
+        // report-at-scope-exit shape as kame::rt_section.
+        if(slowRecordCommits())
+            dbgPrint(formatString(
+                "%s: %llu of %llu record commits took over %llu us "
+                "(max %llu us) in the STM",
+                getLabel().c_str(),
+                (unsigned long long)slowRecordCommits(),
+                (unsigned long long)recordCommits(),
+                (unsigned long long)(SLOW_RECORD_COMMIT_NS / 1000ull),
+                (unsigned long long)(maxRecordCommitNS() / 1000ull)));
 		return ret;
 	}
 };

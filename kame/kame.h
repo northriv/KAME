@@ -42,6 +42,7 @@ class XMeasure;
 class XScriptingThread;
 class QMdiArea;
 class QMdiSubWindow;
+class QUrl;
 
 /*! Main window widget of KAME.
  * use \a g_pFrmMain to access this.
@@ -108,6 +109,8 @@ public slots:
     virtual void jupyterConsoleAction_activated( QAction *act );
     virtual void jupyterQtConsoleAction_activated( QAction *act );
     virtual void jupyterNotebookAction_activated( QAction *act );
+    //! Handle clicks on hyperlinks in a script / IPython output pane.
+    void onScriptLinkClicked(const QUrl &url);
     virtual void fileLogAction_toggled( bool var );
     virtual void graphThemeNightAction_toggled( bool var );
 //    virtual void graphThemeDayightAction_toggled( bool var );

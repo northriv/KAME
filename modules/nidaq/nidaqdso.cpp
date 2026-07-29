@@ -26,7 +26,14 @@
 #include <qmessagebox.h>
 #include "xwavengraph.h"
 
+#ifdef HAVE_NI_DAQMX
 REGISTER_TYPE(XDriverList, NIDAQmxDSO, "National Instruments DAQ as DSO");
+#endif
+// Without the NI-DAQmx SDK every DAQmx* symbol in this file is a stub, so
+// registering the driver would offer the user a device that reports success
+// and returns nothing.  NI-DAQmx exists for Linux and Windows only, and
+// nidaq.pro probes for it on both; on any host where the probe fails, the
+// driver simply must not appear in the driver list.
 
 #define TASK_UNDEF ((TaskHandle)-1)
 #define NUM_MAX_CH 4

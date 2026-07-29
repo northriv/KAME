@@ -173,7 +173,13 @@ XFujikinInterface::communicate_once(uint8_t classid, uint8_t instanceid, uint8_t
             throw XInterfaceError(
                 formatString("Fujikin Protocol Command Error ret=%4s.", (const char*)&buffer()[0]),
                 __FILE__, __LINE__);
-        int len = buffer()[3];
+        // buffer() is std::vector<char>; on x86 `char` is signed, so a length
+        // byte >= 0x80 came out negative and then converted to ~4.29e9 at
+        // receive()'s `unsigned int` parameter — a 4 GiB buffer resize and an
+        // unbounded byte-at-a-time read loop.
+        int len = (unsigned char)buffer()[3];
+        if((len < 3) || (len + 2 > 0x100))
+            throw XInterfaceError("Fujikin Protocol Format Error.", __FILE__, __LINE__);
         uint8_t checksum = 0;
         for(auto it = buffer().begin(); it != buffer().end(); ++it)
             checksum += *it;

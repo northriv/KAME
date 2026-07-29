@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>FrmRelay</class>
+ <widget class="QMainWindow" name="FrmRelay">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>180</width>
+    <height>320</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Relay Controller</string>
+  </property>
+  <widget class="QWidget" name="widget">
+   <layout class="QVBoxLayout">
+    <property name="leftMargin">
+     <number>4</number>
+    </property>
+    <property name="topMargin">
+     <number>4</number>
+    </property>
+    <property name="rightMargin">
+     <number>4</number>
+    </property>
+    <property name="bottomMargin">
+     <number>4</number>
+    </property>
+    <item>
+     <layout class="QHBoxLayout">
+      <item>
+       <widget class="QLabel" name="m_lblMaster">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Master Device</string>
+        </property>
+        <property name="wordWrap">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QComboBox" name="m_cmbMaster"/>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <widget class="QCheckBox" name="m_ckbCh1">
+      <property name="text">
+       <string>Channel 1</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QCheckBox" name="m_ckbCh2">
+      <property name="text">
+       <string>Channel 2</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QCheckBox" name="m_ckbCh3">
+      <property name="text">
+       <string>Channel 3</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QCheckBox" name="m_ckbCh4">
+      <property name="text">
+       <string>Channel 4</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QCheckBox" name="m_ckbCh5">
+      <property name="text">
+       <string>Channel 5</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QCheckBox" name="m_ckbCh6">
+      <property name="text">
+       <string>Channel 6</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QCheckBox" name="m_ckbCh7">
+      <property name="text">
+       <string>Channel 7</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QCheckBox" name="m_ckbCh8">
+      <property name="text">
+       <string>Channel 8</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <spacer>
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>20</width>
+        <height>16</height>
+       </size>
+      </property>
+     </spacer>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <layoutdefault spacing="4" margin="4"/>
+ <tabstops>
+  <tabstop>m_cmbMaster</tabstop>
+  <tabstop>m_ckbCh1</tabstop>
+  <tabstop>m_ckbCh2</tabstop>
+  <tabstop>m_ckbCh3</tabstop>
+  <tabstop>m_ckbCh4</tabstop>
+  <tabstop>m_ckbCh5</tabstop>
+  <tabstop>m_ckbCh6</tabstop>
+  <tabstop>m_ckbCh7</tabstop>
+  <tabstop>m_ckbCh8</tabstop>
+ </tabstops>
+ <resources/>
+ <connections/>
+</ui>

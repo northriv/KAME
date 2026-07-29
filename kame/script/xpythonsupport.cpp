@@ -76,6 +76,22 @@ void XPython::launchJupyterConsole(const std::string &execpath, const std::strin
     }
 }
 
+void XPython::handleLink(const std::string &action) {
+    pybind11::gil_scoped_acquire guard;
+    try {
+        py::eval("kame_handle_link(r\'" + action + "\')");
+    }
+    catch (pybind11::error_already_set& e) {
+        gErrPrint(i18n("Python error: ") + e.what());
+    }
+    catch (std::runtime_error &e) {
+        gErrPrint(i18n("Python KAME binding error: ") + e.what());
+    }
+    catch (...) {
+        gErrPrint(i18n("Unknown python error."));
+    }
+}
+
 void XPython::mainthread_callback(py::object *scrthread, py::object *func, py::object *ret, py::object *status) {
     {
         pybind11::gil_scoped_acquire guard;

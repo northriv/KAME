@@ -6,7 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 KAME is a scientific instrument control and measurement software framework written in C++11/Qt. It provides a plugin-based architecture for controlling laboratory instruments (oscilloscopes, lock-in amplifiers, temperature controllers, magnet power supplies, etc.) with Python and Ruby scripting support. Version 8.0.
 
-**Platforms:** macOS, Windows (64-bit). Linux support is discontinued.
+**Platforms:** macOS, Windows (64-bit). **Linux builds and runs again** as of
+the 2026-07 port (Qt 6, qmake, GCC 13, Ubuntu 24.04) — see `INSTALL.linux` —
+but it is *not* a supported platform: no instrument hardware has been
+exercised there, and the GUI has only been smoke-tested offscreen.
 
 ## Build System
 
@@ -28,6 +31,37 @@ Tests live in `kamestm/tests/` and cover the core STM framework: `atomic_shared_
 
 **Memory-model verification (TLA+-derived)** (`kamestm/tests/tlaplus/test_*.c`): GenMC tests mechanically generated from the TLA+ specifications. `test_atomic_shared_ptr.c` (Layer 0), `test_stm_commit.c` (Layer 1), `test_bundle_2level.c` and `test_bundle_3level.c` (Layer 2). These verify that the formal specs are realizable under the RC11 memory model.
 
+## Standalone `kamepoolalloc` repository (subtree mirror)
+
+The pool allocator is also published as a self-contained repo,
+[`northriv/kamepoolalloc`](https://github.com/northriv/kamepoolalloc) — a
+**read-only downstream mirror** of `KAME/kamepoolalloc/`, not an independent
+fork.  **Always edit on KAME `master`** (the monorepo is the single source of
+truth, including `kamepoolalloc/contrib/MIMALLOC_BENCH_PR.md` and the README
+that ships standalone); never commit directly to the standalone repo.
+
+Sync procedure (after the `kamepoolalloc/` changes are on KAME `master`):
+
+```bash
+# 1. (Re)generate the subtree-split branch on KAME from the prefix.
+git subtree split --prefix=kamepoolalloc -b standalone/kamepoolalloc
+git push GitHub standalone/kamepoolalloc       # publish the split on KAME
+
+# 2. Mirror that branch onto the standalone repo's master.
+git fetch https://github.com/northriv/KAME.git \
+    standalone/kamepoolalloc:standalone/kamepoolalloc
+git push https://github.com/northriv/kamepoolalloc.git \
+    standalone/kamepoolalloc:master
+```
+
+Then tag a release on the standalone repo when cutting a version (e.g.
+`v1.0.1` must carry the dylib banner gating, the Linux
+`malloc_usable_size` co-interpose, and word-cache default ON — the
+mimalloc-bench `version_kp` pin tracks this; see
+`kamepoolalloc/contrib/MIMALLOC_BENCH_PR.md`).  The standalone top-level
+`CMakeLists.txt` builds `out/libkamepoolalloc.{so,dylib}` with the full
+malloc interpose default-on for `LD_PRELOAD` / `DYLD_INSERT_LIBRARIES` use.
+
 ## Architecture
 
 ### Software Transactional Memory (STM) Framework
@@ -41,7 +75,9 @@ The core abstraction is a lock-free, snapshot-based STM in `kamestm/transaction.
   - `iterate_commit_if(lambda)` — commits only when the lambda returns `true`; returning `false` skips the commit and retries unconditionally
   - `iterate_commit_while(lambda)` — retries as long as the lambda returns `true`; returning `false` aborts the loop (gives up)
 - **Online insertion** — `insert(tr, child, true)` commits the child to the live tree immediately and makes it accessible via `tr[*child]` within the same transaction. Without the `true` flag, the child is only visible after the transaction commits.
-- **`XNode::Payload`** — the data a node holds; subclass this in each driver/node to add fields. Payloads are **copy-on-write**: every `Transaction::operator[]` deep-copies the Payload, and every `Snapshot` retains its copy until released. For small scalar fields this is fine, but **large or variable-size data** (images, waveforms, masks, buffers) should be stored as `shared_ptr<const T>` (or `shared_ptr<T>` if mutation is needed before sharing). This way snapshots share the data cheaply — only the pointer is copied. When writing new data, create a *new* `shared_ptr` (`make_shared<T>(...)`) so older snapshots keep their immutable view. Example: `shared_ptr<std::vector<uint8_t>> m_mask` in `XGraph2DMathTool::Payload`.
+- **`XNode::Payload`** — the data a node holds; subclass this in each driver/node to add fields. Payloads are **copy-on-write**: `Transaction::operator[]` **shallow-copies** the Payload on first write — scalar fields are copied by value, but `shared_ptr` / `local_shared_ptr` members are copied by reference count, so the cloned Payload and every live `Snapshot` **share the same heap object** (the pointee is *not* duplicated). For small scalar fields this is fine. **Large or variable-size heap data** (images, waveforms, masks, buffers) **must** be stored as `shared_ptr<const T>` (or `local_shared_ptr<const T>`): the `const` turns any in-place mutation of the shared pointee into a **compile error**, which is the only thing preventing a silent snapshot-isolation violation — another `Snapshot` holding the same pointer would otherwise observe the change. To publish new data, build it locally then assign a *fresh* pointer (`tr[*node].m_x = make_shared<T>(...)`); older snapshots keep their immutable view. **Do not store mutable heap data as `shared_ptr<T>` (non-const) in a Payload** — a write through it (`tr[*node].m_x->mutate()`) is a latent STM consistency bug. Example: `shared_ptr<const QImage> m_qimage` in `XDigitalCamera::Payload`, `local_shared_ptr<const std::vector<uint32_t>> m_darkCounts` likewise.
+  - **Exception — nested STM nodes:** a `shared_ptr<XSomeNode>` kept in a Payload purely as a *navigation handle* (e.g. `XAxis`/`XXYPlot` in `XWaveNGraph`/`XValGraph`) must stay **non-const** — those nodes manage their own isolation through their own Payloads via `tr[*child]`, and `const` would wrongly forbid that. The pointer-to-const rule is for *plain data* pointees only. (Stateful compute objects like `FFT`/`FIR` are made safe a different way: their `exec()` is `const` with per-call scratch, so they too can be `shared_ptr<const T>` — see `kame/math/fft.h`.)
+  - **Enforcement** is by convention today (the type system catches mutation through the pointer, but `const_cast` / `mutable` can still circumvent it). A future clang-tidy check or C++26 reflection-based concept could verify mechanically that Payload heap members are pointer-to-const.
 - `atomic_shared_ptr` (in `kamepoolalloc/atomic_smart_ptr.h` — relocated there as the single home shared by the STM and the pool allocator) is the lock-free primitive underpinning STM snapshots/commits **and** the pool allocator's lock-free orphan-chunk reclaim chain (a chunk orphaned by an exited thread is pushed onto an `atomic_shared_ptr` chain, adopted/sweep-reclaimed; a re-owned chunk holds a self-referential owner-ref — see `kamepoolalloc/`). It uses a **tagged-pointer** scheme: the lower bits of the heap pointer (guaranteed zero by allocator alignment) store a small local reference counter. `LOCAL_REF_CAPACITY` is the alignment value — it defines the pointer mask, the refcnt mask, and the max refcnt. **Do not use `alignas(N)` or `alignof(Ref)` for this constant.** Use `sizeof(intptr_t)` (non-intrusive) or `sizeof(double)` (intrusive) instead: both equal 8 on 64-bit and reflect the minimum alignment any conforming allocator guarantees. `alignas(N > max_align_t)` on the struct does *not* force `operator new` to honour that alignment pre-C++17, so the lower bits may not be zero — causing silent pointer corruption and rare crashes.
 - **Control block modes** (via marker inheritance on `T`):
   - **Default (no marker)**: separate alloc (`new T` + `new gref_<T>`), `weak_refcnt` included — `local_weak_ptr<T>` works out of the box.
@@ -76,7 +112,7 @@ parent.iterate_commit_if([&](Transaction<NodeA> &tr) -> bool {
 - Each module subdirectory contains one or more drivers and registers them with the framework
 - Communication with hardware is abstracted in `modules/charinterface/` (serial, TCP, GPIB, USB)
 - Drivers are registered with `REGISTER_TYPE(XDriverList, ClassName, "Human-readable label")` — this is what populates the driver selection UI
-- `modules/charinterface/usermode-linux-gpib/` — userspace port of the NI USB-GPIB kernel driver (linux-gpib 4.3.6); compiles `ni_usb_gpib.c` unchanged, replacing all kernel APIs via `osx_compat.h` / `win_compat.h` shims (libusb + pthreads / Win32). Supports NI USB-B, USB-HS, USB-HS+, KUSB-488A, MC USB-488 without a kernel module. On macOS this is the only USB-GPIB path on Apple Silicon.
+- `modules/charinterface/usermode-linux-gpib/` — userspace port of the NI USB-GPIB kernel driver (linux-gpib 4.3.6); compiles `ni_usb_gpib.c` essentially unchanged, replacing all kernel APIs via `osx_compat.h` / `win_compat.h` shims (libusb + pthreads / Win32). Supports NI USB-B, USB-HS, USB-HS+, KUSB-488A, MC USB-488 without a kernel module. On macOS this is the only USB-GPIB path on Apple Silicon; on Linux it is used when libgpib is absent (`charinterface.pro` prefers `HAVE_LINUX_GPIB` when the kernel driver's headers are installed). The single deviation from upstream is a `kfree()` moved past its last read in `ni_usb_read()` — an upstream use-after-free that is benign in-kernel but not in userspace; mark any further deviation the same way (`/* KAME: … */`) so re-basing on a newer linux-gpib stays mechanical.
 
 ### Key Subsystems
 
@@ -156,12 +192,36 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
 - **Bare layout in QVBoxLayout** — a bare `QLayout` (no wrapping widget) cannot have a size policy set on it; if placed alongside a `QWidget` in a `QVBoxLayout` it will consume all vertical space. Wrap in a `QWidget` if size policy control is needed.
 - **Prefer `setEnabled` over `setVisible`** for optional form sections — hiding a widget collapses the layout and makes the form look broken; disabling keeps layout stable and signals inactivity.
 
+### Form style conventions (when generating a new .ui)
+
+Surveyed from all 53 forms in the repo (`kame/forms/`, `kame/graph/`, `modules/**`). Three archetypes recur — pick the matching one and copy its exemplar rather than generating free-form:
+
+1. **Settings panel** (most driver forms) — exemplars: `modules/dcsource/core/dcsourceform.ui` (small, vertical), `modules/motor/core/motorform.ui` (dense). `QMainWindow` + central `QWidget` + top-level `QGridLayout` (`QVBoxLayout` for a simple stack). Rows are `QHBoxLayout`s of label + field + unit label. Section headers are `QGroupBox`es; use a `QToolBox` (accordion) when the same page repeats per channel/loop (`tempcontrolform.ui`). Large action buttons (`RVS`/`STOP`/`FWD`/`HOME`) sit in a row of plain `QPushButton`s.
+2. **Graph + controls** — exemplars: `modules/networkanalyzer/core/networkanalyzerform.ui` (controls column right of graph), `modules/nmr/nmrpulseform.ui` (controls left, analysis rows under the graph). Top-level `QHBoxLayout` with two columns: the graph column is a `QVBoxLayout` holding the dump-file row (`m_edDump` line edit + browse `QToolButton` + `m_btnDump` + optional `MATH` tool button) above an `XQGraph`, plus optional analysis rows below; the other column is a `QVBoxLayout` of `QGroupBox`es. `XQGraph` is a promoted custom widget (`<customwidget>`: class `XQGraph`, extends `QWidget`, header `graphwidget.h`; the instance carries `native="true"`), sizePolicy Expanding×Expanding with `minimumSize` width ~300; keep everything else Preferred/Fixed so the graph absorbs all resize.
+3. **Many-panel instrument** — exemplar: `modules/dso/core/dsoform.ui`. Central widget = graph + dump row; each control group (`Trigger Setup`, `Trace1`…) is a `QDockWidget` docked around it.
+
+Details, whichever archetype:
+- **Margins/spacing**: explicit 2–4 px margins on every layout (4 dominant, 2 for tight inner layouts), spacing 4 — do not rely on `<layoutdefault>`. Initial `geometry` compact: settings panels ~120–350 px wide, graph forms ~600–900 px.
+- **Window class by purpose**: driver forms are `QMainWindow` (no `QStatusBar` in the .ui — the C++ ctor calls `statusBar()->hide()`); panes embedded in the main KAME window (`kame/forms/*`) are plain `QWidget`; `QDialog` only for modal dialogs (`graphdialog.ui`, `drivercreate.ui`).
+- **Labels**: `QLabel` immediately left of its widget in the same `QHBoxLayout`/grid row, sizePolicy Preferred/Fixed (never Expanding — it steals space from the field). Unit labels (`ms`, `V`, `kHz`, `deg.`) go directly right of the field. `buddy` is not used in this codebase.
+- **Alignment**: end vertical stacks with a vertical spacer so controls stay top-aligned on resize. Live readouts are `QLCDNumber` (`m_lcd*`) + unit label; status LEDs are ~40 px wide `QPushButton`s named `m_led*`.
+- **Widget naming**: widgets referenced from C++ use `m_<prefix><Name>`: `m_ed` line edit, `m_cmb` combo, `m_ckb` checkbox, `m_btn` push button, `m_tb`/`m_tlb` tool button, `m_spb`/`m_dbl` spin boxes, `m_lcd`, `m_led`, `m_graph`/`m_graphwidget` (XQGraph), `m_lbl` label toggled/retexted from code. Purely decorative labels keep uic default names (`textLabelN`).
+- **Always emit `<tabstops>`** listing every interactive widget in visual order — two-thirds of existing forms carry them, and creation order is not a reliable tab order once grids are involved.
+- **Visually verify the result** — render the form to a PNG and look at it before finishing (alignment, margins, clipped labels):
+  ```bash
+  cd tools/uipreview && ~/Qt6/6.10.1/macos/bin/qmake && make   # once per session
+  QT_QPA_PLATFORM=offscreen ./uipreview.app/Contents/MacOS/uipreview <form.ui> /tmp/preview.png
+  ```
+  For forms containing `XQGraph`, substitute it first: `sed 's/class="XQGraph"/class="QWidget"/' form.ui > /tmp/f.ui`. Compare side-by-side with the exemplar rendered the same way.
+
 ## Code Conventions
 
 - All exported symbols use `DECLSPEC_KAME` macro
+- **Never use `slots`, `signals`, or `emit` as C++ identifiers** (variable / parameter / member / function names) in any header reachable from a Qt translation unit — i.e. anything `kame/` includes, which includes the entire `kamestm/` STM core (`transaction.h` etc.). Qt's `<QObject>` does `#define slots`, `#define signals public`, `#define emit`, so a parameter named `slots` makes `slots[i]` expand to `[i]` — parsed as a stray lambda → `error: expected body of lambda expression`. These build fine in the Qt-free standalone `kamestm/tests/` harness, so the breakage only surfaces when a Qt module (e.g. `modules/levelmeter/`) is compiled. Use a distinct name (e.g. `slotv` for a slot array — see `Snapshot::LookupMemo::find_slow_`/`set`/`archive_`). The uppercase `SLOTS` constant and prefixed names like `s_sleep_slots` / `m_lookup_slots` / `NEGOTIATE_SLEEP_SLOTS` are safe (the macro is the bare lowercase token). To check a header in isolation: `clang++ -fsyntax-only -D slots= -D 'signals=public' -D emit= ...`.
 - Node payload fields are public members of the nested `Payload` struct inside each node class
 - Prefer `iterate_commit` / `iterate_commit_if` over manual retry loops for transactions
 - Time-stamping: use `XTime` from `kamestm/xtime.h`; `m_recordTime` is set by the driver when data is captured
+- **Never hold a plain mutex across a `Snapshot`/`Transaction`** when driver threads can acquire that same mutex from *inside* an in-flight transaction. The GUI thread sleeping in STM negotiation while holding the mutex + the driver's Tx (tagged as oldest contender) blocking on the mutex = system-wide STM stall, terminated by the negotiation HANG watchdog (`abort()` after 3×5 s cap hits in `_negotiate_internal`). Observed cycle (2026-07-10 crash): `paintGL` → `OnAxisObject::toScreen()` held the OSO `m_mutex` (and `paintGL`'s draw loops held `m_mutexOSO`) across `Snapshot(*plot)`, vs. `XOpticalSpectrometer::analyzeRaw` → math-tool `placeObject()`/`createOnScreenObjectWeakly()` inside `finishWritingRaw`'s Tx. Fix pattern: copy the mutex-guarded fields (or OSO lists) under a short lock, release, then take the Snapshot / draw (`onscreenobject.cpp`, `graphpaintergl.cpp`). A racing writer only yields a one-frame-stale drawing; `requestRepaint()` redraws.
 - **Safe list release** — before calling `list->release(node)`, guard with `Snapshot shot(*list); if(shot.isUpperOf(*node))` to prevent double-release crashes at shutdown (the list may have already cleared the node before the owning object's destructor runs).
 - **Snapshot containment check** — use `shot.isUpperOf(*node)` to test whether a node is in a snapshot, **not** `try { shot.at(*node) } catch (NodeNotFoundError &)`. An inner catch masks any `NodeNotFoundError` that an outer catch block was meant to handle. `isUpperOf` is also the correct semantic: it is a direct O(1) containment predicate, not an exception-driven fallback.
 - **`QPointer` for widget references in async callbacks** — store `QPointer<QWidget>` (not a raw pointer) when a widget reference is held across asynchronous callbacks (e.g. `Talker`/`Listener` or `TalkerOnce` signals). `QPointer` auto-nullifies when Qt destroys the widget; a raw pointer becomes dangling. Check `if(!m_widget)` before use. Example: `XWaveNGraph::m_btnMathTool` was changed from `QToolButton *` to `QPointer<QToolButton>` to fix a crash during `.kam` loading under concurrent driver creation.
@@ -184,6 +244,80 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
       });
   }
   ```
+
+### Driver-authoring rules (from the 2026-07 crash audits — check EVERY new/modified driver against all six)
+
+Rules 1, 3, 4, and 6 — plus the Payload pointer-to-const rule from the STM
+section — are enforced mechanically by `tools/audit/run_audits.sh`
+(node-name collisions, iterate_commit side effects, pybind GIL, UI-touching
+listeners, non-const Payload pointees) — run it after touching any driver; it
+also runs as a pre-commit hook (enable once per clone:
+`git config core.hooksPath .githooks`) and in CI (`.github/workflows/audit.yml`).
+Pre-existing findings are grandfathered in `tools/audit/stm_closures.baseline`
+(ratchet: counts may only go down; regenerate with `--update-baseline` after
+fixing some). Suppress a reviewed false positive with `// audit-ok: <reason>`.
+
+`run_audits.sh` also runs `tools/audit/check_no_dcas.sh`, which guards
+**kamepoolalloc's no-DCAS invariant**: the allocator deliberately supports
+hosts where `atomic<uint64_t>` is *not* lock-free (RV32, ARMv5/v6, MIPS32,
+i386/i486), where a 64-bit atomic becomes a **locked** libatomic call — one in
+a free path silently destroys lock-freedom. Two phases: the
+`KAME_FORCE_UINT32_BITMAP` fallback in `allocator_prv.h` still compiles, and a
+`-m32 -march=i486` compile of `allocator.cpp` exports no `__atomic_*_8`
+(CMPXCHG8B is i586/Pentium+, **not** i486 — so an i486 build is the cheapest
+mechanical probe for this without RV32/ARMv6 hardware). Phase 2 needs
+`gcc-multilib g++-multilib` and skips with a notice when absent (macOS always
+skips it) — a skip is not a failure. It costs ~20 s, so the pre-commit hook
+runs it only when `kamepoolalloc/` is staged; set `KAME_AUDIT_SKIP_NO_DCAS=1`
+to skip it by hand. **New counters in `allocator.cpp` must be pointer-width**
+(`rt_counter_t`), not `unsigned long long` — this check caught the §75 RT
+counters after they put a CMPXCHG8B loop into `deallocate_chunk`. A counter
+that genuinely needs 64 bits (`g_alloc_size_histo`, bumped per allocation)
+must say so in a comment and accept that it cannot build on a no-DCAS host.
+
+1. **`iterate_commit` closures must be idempotent** — the closure re-runs on every CAS
+   retry. Never perform a non-rollbackable side effect inside: no `free`/`delete`/
+   `fftw_free` of pointers read from committed state (the failed commit rolls the
+   *pointer* back but not the *free* → double free on retry; `90b92913d`), no hardware
+   I/O, no `gErrPrint`/nested `trans().talk()` (fires once per retry), no conditional
+   writes to ref-captured locals read after commit unless they are reset at the TOP of
+   the closure (`4dcf84649`: a latched `skipped` flag silently dropped records).
+   Allocate/free/print/IO **before or after** the transaction; inside, only read
+   `tr`/`shot` and assign.
+2. **pybind11 Payload bindings must survive the "nothing recorded yet" state** —
+   Python/MCP can call any binding at any moment, including before the first record and
+   between `XSkippedRecordError` commits. Validate shared_ptr non-null, container size
+   against the exact index arithmetic, and dimensions nonzero, then throw
+   `std::runtime_error`/`std::out_of_range` (pybind11 → clean Python exception). Never
+   let a null deref, empty-vector `operator[]`, or Eigen dimension assert reach the C
+   level — that aborts the whole process from the Python thread (`8ebf656a8`,
+   `d5aefdc46`). If a Payload has a user-provided constructor, EVERY scalar member must
+   be in its init list (a fresh Payload without one is value-initialized; with one,
+   omitted scalars are indeterminate — XDSO `m_numChannels` fed 0/0 → SIGFPE).
+3. **Node name strings must be unique among siblings and match the accessor spelling** —
+   `create<>("Name")` collisions leave the later sibling unreachable via Python/.kam/
+   NodeBrowser, and when both are `runtime=false` they corrupt .kam round-trips
+   (`ebe414df6`: two "AnalysisMethod" siblings). After adding a driver, grep its
+   `create<` calls for duplicates and typos.
+4. **Never enter STM negotiation while holding the GIL** — `Snapshot`/`Transaction`
+   construction, `commit`, and `iterate_commit` in a pybind binding need
+   `py::call_guard<py::gil_scoped_release>` (or a manual scoped release): Python driver
+   overrides and math-tool functors acquire the GIL from *inside* in-flight
+   transactions, so GIL-held negotiation deadlocks the STM (HANG watchdog abort) —
+   the GIL is just another "plain mutex" for the rule above (`d5aefdc46`).
+5. **Poll loops and handles must tolerate concurrent close** — back off (`msecsleep`)
+   in the `catch(XInterfaceError&)` path of any `while(!terminated)` poll loop, and
+   null-check any device handle before passing it to a C API that asserts instead of
+   returning an error (libusb: `4cdc728c6`, `9c1e9e40f`). Also never call interface
+   I/O from inside a transaction lambda — it takes the interface mutex, which converts
+   ~30 currently-safe lock sites into the deadlock class above.
+6. **Listener callbacks doing Qt UI work need `Listener::FLAG_MAIN_THREAD_CALL`** —
+   without it the callback runs inline on the committing thread, and Python/MCP
+   commits fire it on the scripting thread: any `m_form->` access, `xqcon_create`,
+   or widget method call is then a cross-thread Qt call (UB/crash; `b6d5f7e6b`:
+   tempcontrol connector rebuild, XMicroCAM QTextDocument access). Pair with
+   `FLAG_AVOID_DUP` unless every event matters. Conversely, callbacks that only do
+   STM/interface work should NOT take the flag (adds main-thread latency).
 
 ## Ohtaka (ISSP supercomputer) operating rules
 

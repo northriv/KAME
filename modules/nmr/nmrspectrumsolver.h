@@ -55,7 +55,7 @@ public:
 			Wrapper();
 			unique_ptr<T> m_solver;
 		};
-        shared_ptr<WrapperBase> m_wrapper;
+        shared_ptr<WrapperBase> m_wrapper; // audit-ok: deep-cloned by the user-defined Payload copy ctor; each transaction execs on its private clone
 	};
 	  
 	static const char SPECTRUM_SOLVER_ZF_FFT[];

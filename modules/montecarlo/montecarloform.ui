@@ -438,6 +438,24 @@
  <includes>
   <include location="local">graphwidget.h</include>
  </includes>
+ <tabstops>
+  <tabstop>m_edLength</tabstop>
+  <tabstop>m_edDump</tabstop>
+  <tabstop>m_tbDump</tabstop>
+  <tabstop>m_btnDump</tabstop>
+  <tabstop>m_edCutoffReal</tabstop>
+  <tabstop>m_edCutoffRec</tabstop>
+  <tabstop>m_edAlpha</tabstop>
+  <tabstop>m_edTargetTemp</tabstop>
+  <tabstop>m_edTargetField</tabstop>
+  <tabstop>m_edHDirX</tabstop>
+  <tabstop>m_edHDirY</tabstop>
+  <tabstop>m_edHDirZ</tabstop>
+  <tabstop>m_edMinTests</tabstop>
+  <tabstop>m_edMinFlips</tabstop>
+  <tabstop>m_btnStep</tabstop>
+  <tabstop>m_cmbGraph3D</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>

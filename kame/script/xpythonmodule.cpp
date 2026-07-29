@@ -199,18 +199,22 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
                     "If you indexed a missing child (`node[\"Foo\"]` returned None), "
                     "guard with `if child is not None` before release().");
             self->release(child);
-        })
-        .def("__len__", [](shared_ptr<XNode> &self){return Snapshot( *self).size();})
+        }, py::call_guard<py::gil_scoped_release>())
+        //Everything entering STM (Snapshot/trans/commit, incl. inside getChild/
+        //release/disable/setUIEnabled) must run without the GIL: negotiation can
+        //sleep behind a Python driver's Tx that is itself waiting for the GIL
+        //(see CLAUDE.md driver-authoring rule #4).
+        .def("__len__", [](shared_ptr<XNode> &self){return Snapshot( *self).size();}, py::call_guard<py::gil_scoped_release>())
         .def("__eq__", [](shared_ptr<XNode> &self, shared_ptr<XNode> &other){return self == other;}) //for self == other
         .def("__ne__", [](shared_ptr<XNode> &self, shared_ptr<XNode> &other){return self != other;}) //for self != other
         .def("getLabel", [](shared_ptr<XNode> &self)->std::string{return self->getLabel();})
         .def("getName", [](shared_ptr<XNode> &self)->std::string{return self->getName();})
         .def("getTypename", [](shared_ptr<XNode> &self)->std::string{return self->getTypename();})
-        .def("isRuntime", [](shared_ptr<XNode> &self)->bool{return Snapshot( *self)[ *self].isRuntime();})
-        .def("isDisabled", [](shared_ptr<XNode> &self)->bool{return Snapshot( *self)[ *self].isDisabled();})
-        .def("disable", [](shared_ptr<XNode> &self) {self->disable();})
-        .def("setUIEnabled", [](shared_ptr<XNode> &self, bool v) {self->setUIEnabled(v);})
-        .def("isUIEnabled", [](shared_ptr<XNode> &self)->bool{return Snapshot( *self)[ *self].isUIEnabled();});
+        .def("isRuntime", [](shared_ptr<XNode> &self)->bool{return Snapshot( *self)[ *self].isRuntime();}, py::call_guard<py::gil_scoped_release>())
+        .def("isDisabled", [](shared_ptr<XNode> &self)->bool{return Snapshot( *self)[ *self].isDisabled();}, py::call_guard<py::gil_scoped_release>())
+        .def("disable", [](shared_ptr<XNode> &self) {self->disable();}, py::call_guard<py::gil_scoped_release>())
+        .def("setUIEnabled", [](shared_ptr<XNode> &self, bool v) {self->setUIEnabled(v);}, py::call_guard<py::gil_scoped_release>())
+        .def("isUIEnabled", [](shared_ptr<XNode> &self)->bool{return Snapshot( *self)[ *self].isUIEnabled();}, py::call_guard<py::gil_scoped_release>());
     py::class_<XNode::Payload>(m, "Node::Payload")
         .def("disable", [](XNode::Payload &self) {self.disable();})
         .def("setUIEnabled", [](XNode::Payload &self, bool v) {self.setUIEnabled(v);})
@@ -218,11 +222,16 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def("isDisabled", [](XNode::Payload &self)->bool{return self.isDisabled();})
         .def("isUIEnabled", [](XNode::Payload &self)->bool{return self.isUIEnabled();});
     py::class_<Snapshot>(m, "Snapshot")
+        //Snapshot construction can trigger bundling, which enters STM negotiation.
+        //The GIL must be released while negotiating: XPythonDriver::analyzeRaw and
+        //Python math-tool functors acquire the GIL from inside an in-flight
+        //transaction, so holding the GIL here while parked in negotiation
+        //deadlocks the whole STM (HANG watchdog abort).
         .def(py::init([](const shared_ptr<XNode> &x){
             if( !x)
                 throw std::runtime_error("Error: not a node.");
             return Snapshot(*x);}
-        ), py::keep_alive<1, 2>())
+        ), py::keep_alive<1, 2>(), py::call_guard<py::gil_scoped_release>())
         .def("__repr__", [](Snapshot &self)->std::string{
             return formatString("<Snapshot@%p>", &self);
         })
@@ -251,27 +260,30 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         }, py::return_value_policy::reference_internal)
         .def("isUpperOf", &Snapshot::isUpperOf);
     py::class_<Transaction, Snapshot>(m, "Transaction")
+        //Construction and commit/commitOrNext enter STM negotiation — release the
+        //GIL for the same reason as the Snapshot constructor above (the
+        //iterate_commit bindings below already do this).
         .def(py::init([](const shared_ptr<XNode> &x){
             if( !x)
                 throw std::runtime_error("Error: not a node.");
             return Transaction(*x);
-        }), py::keep_alive<1, 2>())
+        }), py::keep_alive<1, 2>(), py::call_guard<py::gil_scoped_release>())
         .def("__iter__", [](Transaction &self)->Transaction &{ return self; })
         .def("__next__", [](Transaction &self)->Transaction &{
             if(self.isModified() && self.commitOrNext())
                 throw pybind11::stop_iteration();
             else
                 return self;
-        })
+        }, py::call_guard<py::gil_scoped_release>())
         .def("__repr__", [](Transaction &self)->std::string{
             return formatString("<Transaction@%p>", &self);
         })
         .def("commit", [](Transaction &self) {
             return self.commit();
-        })
+        }, py::call_guard<py::gil_scoped_release>())
         .def("commitOrNext", [](Transaction &self) {
             return self.commitOrNext();
-        })
+        }, py::call_guard<py::gil_scoped_release>())
         .def("__getitem__", [](Transaction &self, shared_ptr<XNode> &node)->py::object{
             if( !node)
                 throw std::runtime_error("Error: not a node.");
@@ -326,14 +338,14 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
     //XValueNodeBase and cousins.
     {   auto [node, payload] = XPython::bind.export_xnode<XValueNodeBase, XNode>();
         (*node)
-        .def("__str__", [](shared_ptr<XValueNodeBase> &self)->std::string{return Snapshot( *self)[*self].to_str();})
-        .def("set", [](shared_ptr<XValueNodeBase> &self, const std::string &s){trans(*self).str(s);})
+        .def("__str__", [](shared_ptr<XValueNodeBase> &self)->std::string{return Snapshot( *self)[*self].to_str();}, py::call_guard<py::gil_scoped_release>())
+        .def("set", [](shared_ptr<XValueNodeBase> &self, const std::string &s){trans(*self).str(s);}, py::call_guard<py::gil_scoped_release>())
         .def("load", [](shared_ptr<XValueNodeBase> &self, const std::string &s){
             // Priority-boosted set for .kam loading — same as XRuby::rvaluenode_load.
             Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
             try { trans(*self).str(s); } catch(...) {}
             Transactional::setCurrentPriorityMode(Transactional::Priority::UI_DEFERRABLE);
-        });}
+        }, py::call_guard<py::gil_scoped_release>());}
     {   auto [node, payload] = XPython::bind.export_xvaluenode<XIntNode, int, XValueNodeBase>("XIntNode");
         (*payload)
         .def("__int__", [](XIntNode::Payload &self)->int{return self;});}
@@ -348,7 +360,8 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def("__int__", [](XULongNode::Payload &self)->unsigned long{return self;});}
     {   auto [node, payload] = XPython::bind.export_xvaluenode<XHexNode, unsigned long, XValueNodeBase>("XHexNode");
         (*payload)
-        .def("__int__", [](XHexNode::Payload &self)->unsigned int{return self;});}
+        //!< `unsigned long`, not `unsigned int` — the node's value type (see XHexNode's str_).
+        .def("__int__", [](XHexNode::Payload &self)->unsigned long{return self;});}
     {   auto [node, payload] = XPython::bind.export_xvaluenode<XBoolNode, bool, XValueNodeBase>("XBoolNode");
         (*payload)
         .def("__bool__", [](XBoolNode::Payload &self)->bool{return self;});}
@@ -362,15 +375,15 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def("autoSetAny", &XItemNodeBase::autoSetAny);}
     {   auto [node, payload] = XPython::bind.export_xnode<XComboNode, XItemNodeBase, bool>("XComboNode");
         (*node)
-        .def("add", [](shared_ptr<XComboNode> &self, const std::string &s){trans(*self).add(s);})
+        .def("add", [](shared_ptr<XComboNode> &self, const std::string &s){trans(*self).add(s);}, py::call_guard<py::gil_scoped_release>())
         .def("add", [](shared_ptr<XComboNode> &self, const std::vector<std::string> &strlist){
             self->iterate_commit([=](Transaction &tr){
                 for(auto &s: strlist)
                     tr[ *self].add(s);
             });
-        })
-        .def("set", [](shared_ptr<XComboNode> &self, const std::string &s){trans(*self) = s;})
-        .def("set", [](shared_ptr<XComboNode> &self, int x){trans(*self) = x;});}
+        }, py::call_guard<py::gil_scoped_release>())
+        .def("set", [](shared_ptr<XComboNode> &self, const std::string &s){trans(*self) = s;}, py::call_guard<py::gil_scoped_release>())
+        .def("set", [](shared_ptr<XComboNode> &self, int x){trans(*self) = x;}, py::call_guard<py::gil_scoped_release>());}
 
     {   auto [node, payload] = XPython::bind.export_xnode<XListNodeBase, XNode>();
         (*node)
@@ -386,24 +399,42 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
             for(auto &n: self->typelabels()) ret.push_back(n);
             return ret;
         })
-        .def("createByTypename", [](shared_ptr<XListNodeBase> &self, const std::string &type, const std::string &name){
-            return self->createByTypename(type, name);
+        .def("createByTypename", [](shared_ptr<XListNodeBase> &self, const std::string &type, const std::string &name) -> shared_ptr<XNode> {
+            // Driver/Node construction may build Qt widgets (a QForm), which must run on
+            // the GUI main thread; otherwise qshared_ptr(Y*) trips assert(isMainThread())
+            // and the process aborts (SIGABRT). Lists reporting
+            // !isThreadSafeDuringCreationByTypename() are dispatched to the main thread
+            // via kame_mainthread(), mirroring the .kam loader's _KamNode.create() in
+            // xpythonsupport.py — so every python caller (interactive cells, MCP
+            // execute_code, asyncio tasks) is protected, not just the .kam path.
+            if(self->isThreadSafeDuringCreationByTypename() || isMainThread())
+                return self->createByTypename(type, name);
+            py::object child = XPython::bind.kame_module().attr("kame_mainthread")(
+                py::cpp_function([self, type, name]() -> shared_ptr<XNode> {
+                    return self->createByTypename(type, name);
+                }));
+            if(child.is_none())
+                return nullptr;
+            return child.cast<shared_ptr<XNode>>();
         })
         .def("isThreadSafeDuringCreationByTypename",
              [](shared_ptr<XListNodeBase> &self){ return self->isThreadSafeDuringCreationByTypename(); });}
     {   auto [node, payload] = XPython::bind.export_xnode<XTouchableNode, XNode>();
         (*node)
-        .def("touch", [](shared_ptr<XTouchableNode> &self){trans(*self).touch();});}
+        .def("touch", [](shared_ptr<XTouchableNode> &self){trans(*self).touch();}, py::call_guard<py::gil_scoped_release>());}
 
     bound_xnode.def("__getitem__", [](shared_ptr<XNode> &self, unsigned int pos)->py::object {
-            Snapshot shot( *self);
+            //Snapshot construction negotiates (release the GIL for it), but
+            //cast_to_pyobject needs the GIL — hence no call_guard here.
+            auto shot = [&]{ py::gil_scoped_release rel; return Snapshot( *self); }();
             if( !shot.size())
                 throw pybind11::index_error("no child");
             return XPython::bind.cast_to_pyobject(shot.list()->at(pos));
         })
         .def("dynamic_cast", [](shared_ptr<XNode> &self)->py::object {return XPython::bind.cast_to_pyobject(self);})
         .def("__getitem__", [](shared_ptr<XNode> &self, const std::string &str)->py::object{
-            auto y = self->getChild(str);
+            //getChild takes a Snapshot internally; same split as above.
+            auto y = [&]{ py::gil_scoped_release rel; return self->getChild(str); }();
             return XPython::bind.cast_to_pyobject(y);
         })
         .def("__setitem__", [](shared_ptr<XNode> &self, const std::string &str, int v){
@@ -429,20 +460,20 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
             }
             else
                 throw std::runtime_error("Error: not a value node.");
-        })
+        }, py::call_guard<py::gil_scoped_release>())
         .def("__setitem__", [](shared_ptr<XNode> &self, const std::string &str, bool v){
             auto y = self->getChild(str);
             if(auto x = dynamic_pointer_cast<XBoolNode>(y))
                 trans( *x) = v;
             else throw std::runtime_error("Error: type mismatch.");
-        })
+        }, py::call_guard<py::gil_scoped_release>())
         .def("__setitem__", [](shared_ptr<XNode> &self, const std::string &str, const std::string &v){
             auto y = self->getChild(str);
             if(auto x = dynamic_pointer_cast<XValueNodeBase>(y))
                 trans( *x).str(v);
             else
                 throw std::runtime_error("Error: not a value node.");
-        })
+        }, py::call_guard<py::gil_scoped_release>())
         .def("__setitem__", [](shared_ptr<XNode> &self, const std::string &str, double v){
             auto y = self->getChild(str);
             if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
@@ -453,7 +484,7 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
             }
             else
                 throw std::runtime_error("Error: not a value node.");
-        })
+        }, py::call_guard<py::gil_scoped_release>())
         //! Closure-style transaction.  The Python callable is invoked
         //! with the Transaction; the closure may be re-invoked any
         //! number of times on CAS conflict, so keep it idempotent.
@@ -538,7 +569,21 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .value("NORMAL",        Transactional::Priority::NORMAL)
         .value("LOWEST",        Transactional::Priority::LOWEST)
         .value("UI_DEFERRABLE", Transactional::Priority::UI_DEFERRABLE)
-        .value("HIGHEST",       Transactional::Priority::HIGHEST)
+        //! HIGHEST is deliberately NOT exposed.  It is not a priority: the
+        //! negotiator's only special case for it is
+        //! `if(entry_pr == Priority::HIGHEST) break;` at the top of the round
+        //! loop, so the thread stops waiting for anyone — but nothing makes
+        //! anyone wait for IT.  Deference comes solely from a Reserved
+        //! (privilege) stamp, which `fair_mode_blocks_me` checks and which is
+        //! granted priority-blind.  Measured: one HIGHEST thread among seven
+        //! NORMAL claims privilege never (0.000/slow commit) and needs it
+        //! never (5 slow commits in 4 s) because its peers are asleep; two
+        //! HIGHEST threads collide and slow commits go 5 -> 1334, and four
+        //! cost 10x throughput, eight 42x.  A name that reads as "go faster"
+        //! for something that mainly makes everyone else slower does not
+        //! belong in a scripting API.  A script that wants bounded latency
+        //! wants `ScopedWaitBudget`, which says how long it is willing to wait
+        //! instead of refusing to wait at all.
         .value("SCRIPTING",     Transactional::Priority::SCRIPTING)
         .export_values();
     //! `setCurrentPriorityMode` enforces a one-way trapdoor at
@@ -555,6 +600,17 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
     //! and can switch freely among the non-SCRIPTING levels, since
     //! the trapdoor only triggers once SCRIPTING has been set.
     m.def("setCurrentPriorityMode", [](Transactional::Priority pr){
+        // The enum value is not exported, but pybind11 will still construct a
+        // Priority from an int, so reject it here too rather than rely on the
+        // name being absent.
+        if(pr == Transactional::Priority::HIGHEST)
+            throw std::runtime_error(
+                "Priority::HIGHEST is not available from scripts.  It does not "
+                "prioritise the caller — it only stops the caller from waiting, "
+                "while nothing makes its peers wait for it, and two such "
+                "threads starve each other.  Use a wait budget "
+                "(Transactional::ScopedWaitBudget on the C++ side) to bound "
+                "latency instead.");
         auto cur = Transactional::getCurrentPriorityMode();
         if(cur == Transactional::Priority::SCRIPTING
            && pr != Transactional::Priority::SCRIPTING) {
@@ -717,7 +773,19 @@ void export_mathtool(const char *name) {
     (*node)
         .def_static("exportClass", &PyMathTool::exportClass)
         .def("setFunctor", [](shared_ptr<PyMathTool> &self, py::object f){
-            trans( *self).functor.pyfunc = std::make_shared<py::object>(f);
+            //Copy the py::object under the GIL, release it for the STM commit
+            //(negotiation can sleep behind a Python driver's Tx waiting for the
+            //GIL), and keep the OLD functor alive until the GIL is back — its
+            //final decref must not happen GIL-less inside the commit.
+            auto pf = std::make_shared<py::object>(std::move(f));
+            shared_ptr<py::object> old;
+            {
+                py::gil_scoped_release rel;
+                self->iterate_commit([&](Transaction &tr){
+                    old = tr[ *self].functor.pyfunc;
+                    tr[ *self].functor.pyfunc = pf;
+                });
+            }
         });
     (*payload)
         .def("setFunctor", [](typename PyMathTool::Payload &self, py::object f){
@@ -746,8 +814,13 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
                 out.setColorSpace(QColorSpace());
             QByteArray ba;
             QBuffer buf(&ba);
-            buf.open(QIODevice::WriteOnly);
-            out.save(&buf, "PNG");
+            // Cannot realistically fail on an in-memory buffer, but if it ever
+            // did, save() would write nowhere and this would hand Python a
+            // zero-byte PNG that looks like a valid result.
+            if( !buf.open(QIODevice::WriteOnly))
+                throw std::runtime_error("to_png: cannot open the PNG buffer");
+            if( !out.save(&buf, "PNG"))
+                throw std::runtime_error("to_png: PNG encoding failed");
             return py::bytes(ba.constData(), ba.size());
         })
         .def("imageWidth", [](X2DImagePlot::Payload &self) -> int {
@@ -766,7 +839,21 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
         .def("drawGraph", &XWaveNGraph::drawGraph)
         .def("clearPlots", &XWaveNGraph::clearPlots);
     (*payload)
-        .def("clearPoints", &XWaveNGraph::Payload::clearPoints)
+        .def("clearPoints", [](XWaveNGraph::Payload &self){
+            //Payload::tr() is null/dangling unless this payload came from a live
+            //Transaction (clearPoints/setRowCount write through it). Best-effort
+            //guard: the committed payload (what Snapshot[node] hands out) is
+            //rejected with a clean error instead of a use-after-free.
+            auto &node = static_cast<XWaveNGraph &>(self.node());
+            bool is_committed = [&]{
+                py::gil_scoped_release rel;
+                return &Snapshot(node)[node] == &self;
+            }();
+            if(is_committed)
+                throw std::runtime_error("clearPoints() needs a Transaction payload: "
+                    "use `for tr in Transaction(node): tr[node].clearPoints()`.");
+            self.clearPoints();
+        })
         .def("insertPlot", [](XWaveNGraph::Payload &self,
              Transaction &tr, const std::string &label, int colx, int coly1, int coly2, int colw, int colz){
             return self.insertPlot(tr, label, colx, coly1, coly2, colw, colz);

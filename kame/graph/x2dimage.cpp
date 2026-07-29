@@ -146,7 +146,12 @@ X2DImage::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, const s
     else {
         QByteArray ba;
         QBuffer buffer(&ba);
-        buffer.open(QIODevice::WriteOnly);
+        // Same reasoning as to_png(): an in-memory buffer that failed to open
+        // would silently produce an empty image file rather than an error.
+        if( !buffer.open(QIODevice::WriteOnly)) {
+            gErrPrint(i18n("Failed to open the image buffer."));
+            return;
+        }
         {
             const auto &image_org = shot[ *plot()].image();
             QImage image;
@@ -158,7 +163,7 @@ X2DImage::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, const s
                     image = QImage(image_org->width(),
                         image_org->height() + blanks + barimage.height(), image_org->format()); //scaled copy to add a colorbar.
                     //writes original image.
-                    std::copy(image_org->bits(), image_org->bits() + image_org->bytesPerLine() * image_org->height(), image.bits());
+                    std::copy(image_org->constBits(), image_org->constBits() + image_org->bytesPerLine() * image_org->height(), image.bits());
                     //writes colorbar pixels.
                     uchar *bits = image.bits() + image.bytesPerLine() * (image_org->height() + blanks);
                     std::copy(barimage.bits(), barimage.bits() + barimage.bytesPerLine() * barimage.height(), bits);

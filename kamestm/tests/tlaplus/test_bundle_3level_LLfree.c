@@ -22,12 +22,14 @@
  * Adds the LL-free priority-tag mechanism per node (mirrors
  * test_bundle_2level_LLfree.c):
  *   - priority_tag[n] : atomic <<iter, tid>> tag set on CAS failure at n
- *     and cleared at Transaction-end (Tx success/fail) via clear_my_tags.
- *     Other threads consult the tag before CAS-ing at n; only proceed if
- *     null, theirs, or held by an inactive thread.  Older Tx (smaller
- *     iter, then smaller tid) preempt younger active holders.
- *   - thread_active[t] flips false after worker exit, so "zombie" tags
- *     from finished threads stop gating live ones.
+ *     and cleared ONLY on commit success via clear_my_tags (matches C++
+ *     operator++ not calling drop_tags across retries).  Other threads
+ *     consult the tag before CAS-ing at n; a younger thread proceeds only
+ *     if the tag is null or already theirs, else it must first preempt.
+ *     Older Tx (smaller iter, then smaller tid) preempt younger holders.
+ *   - No thread_active[]/zombie-tag tracking: a thread reaches inactive
+ *     state only through the commit-success path, so no stale tag can
+ *     outlive its owner (the TLA+ no-zombie simplification).
  *   - Per-thread iter advances at end of each iteration (= CommitDone
  *     iterBudget--).
  *
@@ -292,7 +294,7 @@ static _Atomic(Tag)  priority_tag[NUM_NODES];
 
 #if LLFREE_PRIVILEGE
 /* CanProceed + PreemptTag fused: returns true if (tag null) OR (tag mine)
- * OR (we successfully preempted an older active holder).  TLA+ literal
+ * OR (we successfully preempted a younger active holder).  TLA+ literal
  * (no zombie branch). */
 static bool can_proceed_with_preempt(int n, uint32_t my_iter, uint32_t my_tid) {
     Tag mine = make_tag(my_iter, my_tid);

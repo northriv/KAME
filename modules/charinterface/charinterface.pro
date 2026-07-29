@@ -22,9 +22,21 @@ SOURCES += \
     tcp.cpp \
     modbusrtuinterface.cpp
 
+# Arbitrary serial line speeds (termios2/BOTHER).  Must be a separate TU:
+# <asm/termbits.h> and <termios.h> cannot coexist.  See the file header.
+unix:!macx: SOURCES += serial_custombaud_linux.c
+
 unix {
-    exists("/opt/local/include/libusb-1.0/libusb.h") {
-        LIBS += -lusb-1.0
+    # macOS finds libusb under MacPorts' prefix; elsewhere on Unix it is a
+    # normal pkg-config package.  Probing only the MacPorts path meant Linux
+    # silently lost the whole Cypress FX2/FX3 USB interface.
+    # HAS_LIBUSB is set to 1 or left UNSET — never to the string "false",
+    # which is non-empty and would read as "yes" to !isEmpty() below.
+    macx:exists("/opt/local/include/libusb-1.0/libusb.h"): HAS_LIBUSB = 1
+    !macx:system(pkg-config --exists libusb-1.0): HAS_LIBUSB = 1
+    !isEmpty(HAS_LIBUSB) {
+        macx: LIBS += -lusb-1.0
+        else: PKGCONFIG += libusb-1.0
         HEADERS += \
             cyfxusb.h \
             cyfxusbinterface_impl.h \
@@ -85,8 +97,38 @@ macx{
         }
     }
 }
-# Usermode NI USB-GPIB driver (macOS, used when NI4882 framework is unavailable)
-!contains(DEFINES, HAVE_NI4882) {
+# Linux/BSD: use the REAL linux-gpib kernel driver when its headers are
+# present.  `HAVE_LINUX_GPIB` is read by gpib.h / gpib.cpp (which is where
+# XNIGPIBPort's ib.h implementation lives) but was defined by nothing since
+# the autotools build went away, so the native GPIB path was dead code.
+unix:!macx {
+    system(pkg-config --exists libgpib) {
+        PKGCONFIG += libgpib
+        DEFINES += HAVE_LINUX_GPIB
+        message("Using linux-gpib for GPIB (pkg-config).")
+    }
+    else:exists("/usr/include/gpib/ib.h") {
+        LIBS += -lgpib
+        DEFINES += HAVE_LINUX_GPIB
+        message("Using linux-gpib for GPIB (/usr/include/gpib/ib.h).")
+    }
+    else {
+        message("linux-gpib not found — falling back to the usermode NI USB-GPIB driver.")
+    }
+}
+
+# Usermode NI USB-GPIB driver — the fallback for every platform that has no
+# kernel GPIB module available: macOS and Windows always, and Linux when
+# linux-gpib is not installed (checked just above).  It talks to NI USB-B /
+# USB-HS / USB-HS+ / KUSB-488A / MC USB-488 through libusb, so it needs
+# libusb and nothing else; `osx_compat.h` keeps its historical name but is
+# plain POSIX (see its header comment), so no Linux-specific shim is needed.
+# macOS and Windows have no kernel GPIB module at all, so they always want it
+# (their libusb comes from MacPorts / msys64 and is assumed, as before).
+# Linux only wants it when linux-gpib is absent AND libusb is actually there.
+macx|win32: USERMODE_NI_GPIB = 1
+unix:!macx:!contains(DEFINES, HAVE_LINUX_GPIB):!isEmpty(HAS_LIBUSB): USERMODE_NI_GPIB = 1
+!contains(DEFINES, HAVE_NI4882):!isEmpty(USERMODE_NI_GPIB) {
     DEFINES += HAVE_USERMODE_NI_GPIB
     INCLUDEPATH += usermode-linux-gpib usermode-linux-gpib/linux-gpib
     QMAKE_CFLAGS += -Wno-unused-function -Wno-visibility

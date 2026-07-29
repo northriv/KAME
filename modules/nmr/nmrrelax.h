@@ -85,7 +85,8 @@ public:
 			std::deque<std::complex<double> > value_by_cond;
 			double p1;
 		};
-		std::deque<shared_ptr<ConvolutionCache> > m_convolutionCache;
+		//pointer-to-const: entries are shared with live Snapshots; rebuild via a fresh object (83bb9ffaf).
+		std::deque<shared_ptr<const ConvolutionCache> > m_convolutionCache;
 		//! Stores all measured points.
 		std::deque<RawPt> m_pts;
 		//! Stores reduced points to manage fitting and display.
@@ -108,7 +109,8 @@ public:
             double ftOrigin = 0.0;
             double summedDarkPSDSq = 0.0; //! sum sq. of dark spectral power density.
         };
-        std::vector<shared_ptr<Pulse>> m_allPulses;
+        //pointer-to-const: accumulate via clone-on-write of the slot (83bb9ffaf).
+        std::vector<shared_ptr<const Pulse>> m_allPulses;
 
         XTime m_timeMapFTCalcRequested; //!< updated if any condition for Pulse::ft has been changed.
         XTime m_timeMapClearRequested;
@@ -267,6 +269,10 @@ private:
 	std::deque<double> m_windowWidthList;
 
 	atomic<int> m_isPulserControlRequested;
+	//! Set by analyze() instead of touching the pulse analyzers' avgClear()
+	//! there: that touch commits at once and restarts the DSO through the
+	//! listener chain, which analyze() must not do. visualize() performs it.
+	atomic<int> m_isAvgClearRequested{0};
 
 	const static int CONVOLUTION_CACHE_SIZE = (3 * 10);
 

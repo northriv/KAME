@@ -108,6 +108,30 @@
 #define KAME_STM_OPTIONAL_OPTIMIZATION 1
 #endif
 
+// --- Negotiate sleep-chunk granularity -------------------------------
+
+// Microseconds of actual sleep per nominal millisecond requested of
+// negotiate_sleep().  The adaptive negotiate loop sleeps in nominal
+// "1 ms" (or 2 ms jittered) chunks until a wall-clock deadline
+// (t_end = now + ms_actual*1000 µs), re-checking runner count and
+// re-issuing targeted/min-runner notifies between chunks.  The PHYSICAL
+// chunk length is `ms_timeout * KAME_NEG_SLEEP_US_PER_MS` µs.
+//
+// Historically this was a hard 1000 (1 ms) because the sleep ran on
+// std::condition_variable -> __psynch_cvwait, whose per-wait syscall is
+// expensive and whose practical granularity is milliseconds — sub-ms
+// chunks were pointless (heavy syscall, coarse timer).  With XWaitCell's
+// __ulock wait-on-address (microsecond timeout, cheap syscall) a shorter
+// chunk is viable: it tightens the re-check / notify cadence and cuts a
+// missed targeted-wake's recovery latency from ~1 ms to this value,
+// without changing t_end (total wait is still bounded by ms_actual).
+// The trade-off is more wakeups/syscalls per unit time; sweep to find
+// the knee.  Default 1000 reproduces the original 1 ms chunk exactly.
+// Override e.g. -DKAME_NEG_SLEEP_US_PER_MS=100 for a 100 µs chunk.
+#ifndef KAME_NEG_SLEEP_US_PER_MS
+#define KAME_NEG_SLEEP_US_PER_MS 1000u
+#endif
+
 // --- Per-Linkage priority / lease ------------------------------------
 
 // Initial per-Linkage lease (ns). Stored as µs in the packed priority
@@ -303,10 +327,31 @@
 #  endif
 #endif
 
-// Floor used for both (a) the LIVELOCK verdict gate (probe fires only
-// when tx_age > floor) and (b) the age-preempt threshold in
-// try_register_privileged_tidstamp (preemptor must be older than
-// holder by floor µs).
+
+
+//! (C) Hand control back once the accumulated sleep budget reaches this many
+//! ms, REGARDLESS of tag state — i.e. an actual ceiling on how long the
+//! negotiator may hold a transaction before letting it try.  Unlike (B), whose
+//! `empty()` condition stops applying the moment a failed attempt tags the Tx
+//! (so it grants one early return and then escalation resumes), this is a
+//! bound, and the number has units: the latency you are willing to accept
+//! before spending an attempt.  0 disables.
+// Wait budget (Transactional::ScopedWaitBudget): a caller-supplied soft
+// bound on how long negotiation may WAIT.  Default ON — it is a feature,
+// not a tuning knob.  The gate exists so a build can prove the negotiator
+// is byte-identical without it, and so a minimal embedding can drop it.
+// With 0 the API is not declared at all, so a caller that expects a budget
+// gets a compile error rather than a silent no-op.
+#ifndef KAME_STM_WAIT_BUDGET
+#define KAME_STM_WAIT_BUDGET 1
+#endif
+
+
+
+#ifndef KAME_STM_NEG_DIAG
+#define KAME_STM_NEG_DIAG 0
+#endif
+
 #ifndef KAME_STM_PRIV_AGE_NORMAL_US
 #  if defined(_WIN32) || defined(WINDOWS) || defined(__WIN32__)
 #    define KAME_STM_PRIV_AGE_NORMAL_US 10'000   // 10 ms — Windows scheduler quantum
@@ -352,6 +397,17 @@
 // stderr and syscalls, even when the message itself is infrequent.
 #ifndef KAME_STM_PRIV_DIAG
 #define KAME_STM_PRIV_DIAG 0
+#endif
+
+// Cold-path outlining hint.  Used to keep rarely-executed bodies (e.g.
+// the lookup memo's tier-1 scan/archive) out of the inline expansion of
+// hot call sites: leaving them inline measurably degraded the commit
+// cycle (~12 ns, ~2.5%) through code bloat alone, even when the cold
+// branch never executed.
+#if defined(_MSC_VER) && !defined(__GNUC__)
+#  define KAME_STM_NOINLINE __declspec(noinline)
+#else
+#  define KAME_STM_NOINLINE __attribute__((noinline))
 #endif
 
 // Per-Priority retry threshold for the livelock probe's verdict (NORMAL

@@ -632,9 +632,22 @@
   <tabstop>m_edDump</tabstop>
   <tabstop>m_tbDump</tabstop>
   <tabstop>m_btnDump</tabstop>
+  <tabstop>m_tbMath</tabstop>
+  <tabstop>m_tbSpectralTool</tabstop>
   <tabstop>m_edStart</tabstop>
   <tabstop>m_edStop</tabstop>
+  <tabstop>m_spbAverage</tabstop>
   <tabstop>m_edIntegrationTime</tabstop>
+  <tabstop>tabWidget</tabstop>
+  <tabstop>m_ckbSubtractDark</tabstop>
+  <tabstop>m_btnStoreDark</tabstop>
+  <tabstop>m_cmbAltOnOffSrc</tabstop>
+  <tabstop>m_cmbTriggerMode</tabstop>
+  <tabstop>m_edDelayFromExtTrig</tabstop>
+  <tabstop>m_ckbEnableStrobe</tabstop>
+  <tabstop>m_edTimeToStrobeSignal</tabstop>
+  <tabstop>m_edStrobeSignalDuration</tabstop>
+  <tabstop>m_edAnalogOutput</tabstop>
  </tabstops>
  <includes>
   <include location="local">graphwidget.h</include>

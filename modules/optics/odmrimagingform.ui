@@ -511,6 +511,31 @@
  <includes>
   <include location="local">graphwidget.h</include>
  </includes>
+ <tabstops>
+  <tabstop>m_dblGamma</tabstop>
+  <tabstop>m_tbMathMenu</tabstop>
+  <tabstop>m_tbSmplObjMenu</tabstop>
+  <tabstop>m_tbRefObjMenu</tabstop>
+  <tabstop>m_tbDarkObjMenu</tabstop>
+  <tabstop>m_edDump</tabstop>
+  <tabstop>m_tbDump</tabstop>
+  <tabstop>m_btnDump</tabstop>
+  <tabstop>m_cmbCamera</tabstop>
+  <tabstop>m_cmbFilterWheel</tabstop>
+  <tabstop>m_spbFilterIndex</tabstop>
+  <tabstop>m_spbBinning</tabstop>
+  <tabstop>m_cmbSequence</tabstop>
+  <tabstop>m_spbRefIntensFrames</tabstop>
+  <tabstop>m_cmbDispMethod</tabstop>
+  <tabstop>m_ckbAutoGainForDisp</tabstop>
+  <tabstop>m_dblGainForDisp</tabstop>
+  <tabstop>m_dblMinDPL</tabstop>
+  <tabstop>m_dblMaxDPL</tabstop>
+  <tabstop>m_spbAverage</tabstop>
+  <tabstop>m_spbSkipPreceding</tabstop>
+  <tabstop>m_ckbIncrementalAverage</tabstop>
+  <tabstop>m_btnClearAverage</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>

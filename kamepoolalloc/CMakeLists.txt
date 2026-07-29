@@ -49,7 +49,9 @@ target_compile_definitions(kamepoolalloc PUBLIC KAMEPOOLALLOC_DYLIB)
 target_compile_options(kamepoolalloc PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-fvisibility-inlines-hidden;-fno-semantic-interposition>
     $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
-target_link_libraries(kamepoolalloc PUBLIC Threads::Threads)
+# CMAKE_DL_LIBS: empty on glibc >= 2.34 (dlsym lives in libc); -ldl on older
+# glibc — needed by the Linux malloc_usable_size co-interpose's RTLD_NEXT.
+target_link_libraries(kamepoolalloc PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
 set_target_properties(kamepoolalloc PROPERTIES
     INSTALL_NAME_DIR "@rpath"
     BUILD_WITH_INSTALL_RPATH TRUE

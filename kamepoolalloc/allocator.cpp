@@ -63,6 +63,7 @@
 #include <assert.h>
 #include <cerrno>
 #include <chrono>           // (§28.1) lazy-drain wall clock for LRC_MMAP push
+#include <cstdint>          // uint8_t/uint32_t/uintptr_t (not transitive under libstdc++ 14+)
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>          // std::memset / std::memcpy
@@ -74,6 +75,11 @@
                             //  libstdc++ does not.  `<cstring>` is the
                             //  portable C++ way.)
 #include <type_traits>
+#if defined(__linux__)
+    #include <dlfcn.h>           // RTLD_NEXT resolve of libc
+                                 // malloc_usable_size (strong-symbol
+                                 // co-interpose forwards foreign pointers)
+#endif
 #if defined(__APPLE__)
     #include <malloc/malloc.h>   // for malloc_zone_from_ptr / malloc_zone_free
 #elif defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
@@ -417,9 +423,10 @@ void kame_tls_init_fast() noexcept {
 // Cold path for the fast-TSD accessor in the header.  Called when
 // either guard branch fails (offset == 0 → pre-init; or TSD slot
 // null → first allocation on this thread, plant the pointer).
-// `preserve_most` (matching the header decl) tells the caller that
-// this call preserves nearly all caller-saved registers.
-[[clang::preserve_most]]
+// NO [[clang::preserve_most]] — older Apple clang's x86-64 preserve_most
+// CSR set includes RAX, so the epilogue restored the caller's entry RAX
+// over the pointer return value (Intel-only Release startup crash; see
+// the header declaration for the full post-mortem).
 __attribute__((cold, noinline))
 KameTlsPage *kame_page_cold() noexcept {
     // (dylib TLV-bootstrap leak fix) Park the fast-TSD slot at the teardown
@@ -670,11 +677,22 @@ struct CrossDeallocBatch {
     static constexpr int CAP = 1024;
     CrossDeallocEntry buf[CAP + 1];   // +1 = sentinel slot
     int               count = 0;
+    //! (§75 / G5) Flush threshold — CAP normally, 1 while this thread is
+    //! marked realtime, so each free settles its own slot instead of one
+    //! free in CAP paying for the whole buffer.
+    //!
+    //! Why a member rather than a `g_rt_thread` test in `deallocate_pooled`:
+    //! that test cost a MEASURED ~4 % of cross-thread 32 B free throughput
+    //! (285.9 -> 271.8 M free/s, base vs branch, 5/5 reps), because on a
+    //! macOS dylib a `thread_local` access goes through the `_tlv_get_addr`
+    //! thunk — a call, on a ~3.5 ns operation.  This field lives in a struct
+    //! `push` already dereferences, so reading it adds no TLS access at all.
+    int               cap = CAP;
 
     //! FS=true path: hold and batch.  Caller passes its own `this`
     //! as `c` (the chunk).
     void push(PoolAllocatorBase *c, void *s) noexcept {
-        if(count == CAP) flush();
+        if(count >= cap) flush();
         buf[count++] = {c, s};
     }
 
@@ -745,7 +763,20 @@ struct CrossDeallocBatch {
             cached_force_walk->store(true, std::memory_order_relaxed);
     }
 
-    void flush() noexcept {
+    // `at_teardown`: set by the dtor (we are running inside this thread's
+    // TLS-destructor chain).  When true, SKIP the owner-`force_walk` poke
+    // below.  That poke dereferences `chunk->m_owner_dll_force_walk_ptr`,
+    // a raw pointer into the OWNER thread's TLS.  Its safety relies on the
+    // owner nullifying that pointer (release-store) before its TLS storage
+    // is reclaimed.  glibc honours that ordering; **musl's
+    // `__pthread_tsd_run_dtors` reclaims a thread's dynamic TLS on a
+    // schedule that can free the owner's `force_walk` slot before the
+    // nullification lands** — so at process/thread shutdown (rocksdb joins
+    // its whole thread pool at exit) the cached pointer dangles and the
+    // store SIGSEGVs (observed only on Alpine/musl; glibc CI is clean).
+    // The poke is a pure slot-reuse hint, worthless at teardown, so we
+    // simply drop it there — the slots are still returned to the bitmap.
+    void flush(bool at_teardown = false) noexcept {
         if(count == 0) return;
         // Sort by (chunk, slot) lex — chunk primary key for grouping,
         // slot pointer secondary key so each chunk run is pointer-
@@ -783,7 +814,11 @@ struct CrossDeallocBatch {
         int i = 0;
         while(i < count) {
             PoolAllocatorBase *chunk = buf[i].chunk;
-            std::atomic<bool> *cached_force_walk =
+            // At teardown, do NOT load/deref the owner's TLS force-walk
+            // pointer (it may dangle under musl's TSD-dtor ordering — see
+            // the function comment).  Returning the slots is all that
+            // matters there.
+            std::atomic<bool> *cached_force_walk = at_teardown ? nullptr :
                 chunk->m_owner_dll_force_walk_ptr.load(
                     std::memory_order_acquire);
             i += chunk->batch_return_to_bitmap(&buf[i]);
@@ -792,7 +827,7 @@ struct CrossDeallocBatch {
         }
         count = 0;
     }
-    ~CrossDeallocBatch() noexcept { flush(); }
+    ~CrossDeallocBatch() noexcept { flush(/*at_teardown=*/true); }
 };
 thread_local CrossDeallocBatch tls_cross_dealloc_batch;
 
@@ -948,6 +983,149 @@ inline void free_munmap(void *p) {
 }
 
 bool g_sys_image_loaded = false;
+
+// =====================================================================
+// (§75) Realtime (RT) mode — per-thread opt-in half
+// =====================================================================
+// §30's `kame_pool_set_realtime_mode` is a PROCESS-wide preset that
+// silences *background* maintenance (lazy drain, auto-tune probe,
+// thread-exit reclaim).  This is the complementary PER-THREAD half: a
+// thread marked realtime never enters the kernel to *return* memory
+// (`madvise` / `munmap`) from its own free calls — the pages stay warm
+// and the work is deferred to `kame_pool_rt_drain()` (or performed by
+// any non-RT thread that later releases the same block).
+//
+// Why per-thread and not another global: the reclaim syscall runs on
+// the *freeing* thread, so gating per-thread confines the RSS cost to
+// the RT thread's own working set instead of switching reclaim off for
+// every worker in the process.  Costs one predicted-not-taken IE-TLS
+// load, and only on cold release paths.
+//
+// The allocation side cannot simply be deferred (the caller needs the
+// memory now), so it gets a *policy* instead — see kame_rt_os_policy_t.
+// Per-thread realtime LEVEL (0 = off, 1 = KAME_RT_DEFER, 2 = KAME_RT_STRICT).
+// An int rather than a bool because the two levels buy different things at
+// very different prices — see `kame_pool_set_realtime_thread`.
+ALLOC_TLS_IE int g_rt_thread = 0;
+// Process-wide floor for the DEFER behaviour, so a program can have every
+// thread stop making free-path syscalls without reaching into each one.  Read
+// only from cold release paths (`rt_defer_active`), so this costs nothing on
+// any hot path — which is exactly why the cheap half can be a process default
+// and the expensive half cannot.
+std::atomic<int> g_rt_default{0};
+std::atomic<int> g_rt_os_policy{0};                    // KAME_RT_OS_ALLOW
+
+// (§75 / G6a) Transparent-hugepage policy for the pool's own regions.
+// -1 = not yet resolved (consult the environment on first read), then
+// 0 = KAME_THP_SYSTEM / 1 = KAME_THP_ALWAYS / 2 = KAME_THP_NEVER.
+//
+// Deliberately NOT a plain `static const bool` env read like the one it
+// replaces: regions are created LAZILY, so a program that enables realtime
+// mode after the first allocation would leave every already-mapped region
+// on the old policy.  A settable global plus a re-advise walk over the
+// region lists (`thp_advise_regions`) closes that gap.
+std::atomic<int> g_thp_policy{-1};
+
+//! Resolve the THP policy, consulting the environment exactly once if no
+//! explicit `kame_pool_set_thp_policy()` call has happened yet.  Lazy rather
+//! than a static initializer so the C API can win a race against the first
+//! region claim regardless of static-init order; the CAS makes concurrent
+//! first-readers agree, and re-resolution after an explicit set is impossible
+//! because the stored value is then >= 0.
+static int thp_policy_resolved() noexcept {
+	int p = g_thp_policy.load(std::memory_order_relaxed);
+	if(__builtin_expect(p >= 0, 1)) return p;
+	int v = 0;                                         // KAME_THP_SYSTEM
+	const char *e = std::getenv("KAME_POOL_HUGEPAGE");
+	if(e && e[0] != '\0' && e[0] != '0')
+		v = 1;                                         // KAME_THP_ALWAYS
+	else {
+		e = std::getenv("KAME_POOL_NOHUGEPAGE");
+		if(e && e[0] != '\0' && e[0] != '0')
+			v = 2;                                     // KAME_THP_NEVER
+	}
+	int expect = -1;
+	g_thp_policy.compare_exchange_strong(expect, v, std::memory_order_relaxed,
+	                                     std::memory_order_relaxed);
+	return g_thp_policy.load(std::memory_order_relaxed);
+}
+
+//! Width of the RT event counters below.  Pointer-width, NOT `unsigned long
+//! long`: on a 32-bit host a 64-bit atomic has no single instruction (i486
+//! lacks `cmpxchg8b` entirely, so `fetch_add` degrades to a LOCKED libatomic
+//! call — a lock in the free path is precisely what RT mode exists to avoid;
+//! i686 has it but pays a CAS loop).  These count mmap/munmap/madvise-class
+//! events, never allocations, and the one consumer that must be exact —
+//! `rt_section::violations()` in kame_pool.h — is a *delta* under unsigned
+//! arithmetic, hence wrap-safe for any span below 2^32.  The rest are pure
+//! diagnostics (see below), and 32-bit hosts cap their own address space at
+//! 4 GiB anyway, which is why `g_rt_pending_bytes` is already `size_t`.
+//! On 64-bit this is `unsigned long long`-wide, so nothing changes there.
+using rt_counter_t = std::size_t;
+
+//! Times an RT thread actually entered the kernel for a NEW mapping.
+//! This is the number an RT test asserts is zero after prewarming.
+std::atomic<rt_counter_t> g_rt_violations{0};
+//! Deferred-work counters — RT mode working as designed, not violations.
+std::atomic<rt_counter_t> g_rt_deferred_reclaim{0};   // madvise skipped
+std::atomic<rt_counter_t> g_rt_deferred_unmap{0};     // munmap deferred
+//! VA still held by deferred unmaps.  Without this the growth an RT
+//! thread trades for determinism would be invisible.
+std::atomic<std::size_t> g_rt_pending_bytes{0};
+
+//! Pending-unmap stack for the §19 large tier.  A deferred block is
+//! still mapped but already radix-cleared, so its first page (the dead
+//! `LargeAllocMeta`) carries the link — the stack needs no allocation of
+//! its own, which is what makes it usable from a free path.
+struct RtPendingUnmap {
+	RtPendingUnmap *next;
+	std::size_t     mmap_size;
+};
+std::atomic<RtPendingUnmap *> g_rt_pending_unmap{nullptr};
+
+//! (§75 / G5) Ceiling on the VA parked by the deferral above.  An UNBOUNDED
+//! deferral queue would trade a bounded free() tail for unbounded RSS/VA —
+//! measured: 40 deferred 300 MiB frees park 12.6 GB.  Past the cap a realtime
+//! free unmaps inline instead of parking more: bounded memory beats a bounded
+//! tail, and `g_rt_forced_releases` makes the trade visible.  Default matches
+//! the large-recycle cache's own default appetite (1 GiB).
+std::atomic<std::size_t> g_rt_pending_cap{(std::size_t)1 << 30};
+//! Times a realtime free had to release inline because the cap was reached.
+//! A strict realtime check asserts BOTH this and `g_rt_violations` are zero.
+std::atomic<rt_counter_t> g_rt_forced_releases{0};
+
+//! Exclusive-popper gate for the pending stack.  Pushes stay lock-free, but
+//! POPS must be serialised: a Treiber pop has to read `head->next`, and that
+//! word lives in the very page a concurrent popper may already have unmapped
+//! (use-after-unmap → SIGSEGV).  Only poppers take the gate, so a push racing
+//! a pop merely makes the popper's CAS retry against the new head.
+std::atomic<bool> g_rt_settle_gate{false};
+
+
+//! True iff this thread must defer free-path reclaim — either because it was
+//! marked realtime itself, or because the process default says so.  Cold
+//! paths only, so the extra global load is free.
+inline bool rt_defer_active() noexcept {
+	return g_rt_thread != 0
+	    || g_rt_default.load(std::memory_order_relaxed) != 0;
+}
+
+//! Call at every site about to create a NEW mapping.  Returns false iff
+//! the caller must fail the allocation instead (`KAME_RT_OS_FAIL`), which
+//! is only safe where a nullptr degrades to the libc fallback.  No-op
+//! unless the caller is an RT thread.
+inline bool rt_allow_new_mapping(const char *site) noexcept {
+	if(__builtin_expect( !rt_defer_active(), 1)) return true;
+	g_rt_violations.fetch_add(1, std::memory_order_relaxed);
+	int pol = g_rt_os_policy.load(std::memory_order_relaxed);
+	if(pol == 2 /*KAME_RT_OS_FAIL*/)  return false;
+	if(pol == 3 /*KAME_RT_OS_ABORT*/) {
+		fprintf(stderr, "kamepoolalloc: RT violation — %s from a realtime "
+		                "thread (KAME_RT_OS_ABORT)\n", site);
+		abort();
+	}
+	return true;
+}
 
 #if defined(KAMEPOOLALLOC_DYLIB)
 // Dylib mode: auto-activate at dylib load.  `__attribute__((constructor))`
@@ -2148,6 +2326,15 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// worse, and their chunks repeat less frequently in realistic
 	// STM workloads (allocation distribution is heavy-tailed
 	// toward smallest classes).
+	//
+	// (§75 / G5) On a realtime thread the batch's own `cap` is 1, so `push`
+	// flushes this slot immediately rather than letting ONE free in CAP pay
+	// for sorting + merging + CAS-ing 1024 entries — the
+	// amortized-to-worst-case conversion a realtime bound cannot accept.
+	// Cross-thread free is exactly the STM shape (a Payload cloned on one
+	// thread, released on another), so that spike is reachable, not
+	// hypothetical.  The decision lives in the batch (see `cap`) precisely so
+	// this hot path needs no realtime test of its own.
 	if constexpr (ALIGN <= 48) {
 		tls_cross_dealloc_batch.push(this, p);
 	} else {
@@ -3122,6 +3309,20 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 	//
 	// chunk_size determines the unit count (CHUNK_UNITS = chunk_size /
 	// ALLOC_MIN_CHUNK_SIZE).  Region size is uniform 32 MiB.
+	//
+	// (§75) RT gate — the single choke point for free-side page reclaim.
+	// All four release paths (`deallocate_cold`, `recycle_release_chunk`,
+	// `bucket_release_chunk`, `release_dll_chunks_for_thread`) funnel here,
+	// so demoting `reclaim_pages` once covers every one of them.  Only the
+	// `madvise` (step 3) is skipped: the header clear, back_offset clear and
+	// claim-bit release all still happen, so the chunk is immediately
+	// recyclable — its pages simply stay resident (warm) instead of being
+	// handed back.  `kame_pool_rt_drain()` returns them later; so does any
+	// non-RT thread that releases the same chunk.
+	if(reclaim_pages && __builtin_expect(rt_defer_active(), 0)) {
+		reclaim_pages = false;
+		g_rt_deferred_reclaim.fetch_add(1, std::memory_order_relaxed);
+	}
 	unsigned int chunk_units =
 	    static_cast<unsigned int>(chunk_size >> ALLOC_MIN_CHUNK_SHIFT);
 	// (§13.3) Derive the owning region directly from chunk_base — regions
@@ -4563,8 +4764,23 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
     return nullptr;
 #else
     void *p = nullptr;
+#  if defined(__linux__)
+    // On Linux we now emit a strong-symbol `posix_memalign` (routes to the
+    // pool) — calling the plain name here would recurse
+    // posix_memalign -> kame_pool_posix_memalign -> new_redirected_aligned
+    // -> here -> ... forever.  Resolve the REAL libc entry via RTLD_NEXT.
+    // (This huge / >256 KiB-aligned fallback is essentially unreached by
+    // normal workloads — the bucket and dedicated-chunk tiers above cover
+    // every alignment up to 256 KiB and every poolable size.)
+    using pma_t = int (*)(void **, std::size_t, std::size_t);
+    static pma_t real_pma =
+        reinterpret_cast<pma_t>(dlsym(RTLD_NEXT, "posix_memalign"));
+    if( !real_pma || real_pma(&p, alignment, size) != 0)
+        return nullptr;
+#  else
     if(posix_memalign(&p, alignment, size) != 0)
         return nullptr;
+#  endif
     return p;
 #endif
 }
@@ -4642,8 +4858,22 @@ static void libsystem_free_for_pool(void *p) noexcept {
 	// `std::free` / `::free` lookup re-binds to `kame_free` and we
 	// recurse forever (the call ends up tail-jumping under -O3).
 	__libc_free(p);
+#elif defined(__linux__)
+	// Non-glibc Linux (musl): there is no `__libc_free` alias, so resolve
+	// the real libc `free` once via dlsym(RTLD_NEXT, ...) — the same
+	// mechanism `malloc_usable_size` (below) uses, and which the comment
+	// there documents as safe on Linux (ELF has no dyld-style bind-time
+	// interposing).  Without this bypass the old `std::free` fallback
+	// re-bound to our own strong-symbol `free` and tail-recursed forever
+	// under -O3 — the Alpine/musl CI hang (job ran to the 6 h timeout).
+	// dlsym's own (tiny) allocations are served by the pool, not libc, so
+	// resolving here does not recurse.
+	using free_fn_t = void (*)(void *);
+	static free_fn_t s_libc_free =
+	    reinterpret_cast<free_fn_t>(dlsym(RTLD_NEXT, "free"));
+	if(s_libc_free) s_libc_free(p);   // unresolved (never): leak, don't recurse
 #else
-	// Other platforms (musl, Windows).
+	// Windows / other.
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
 	// Windows: the genuine UCRT free resolved by kame_resolve_real_crt —
 	// NOT std::free, which the IAT redirect has repointed back into the
@@ -4651,9 +4881,6 @@ static void libsystem_free_for_pool(void *p) noexcept {
 	// the pre-install window, when nothing is patched yet.
 	if(g_real_free) { g_real_free(p); return; }
 #endif
-	// musl: the strong-symbol shadowing rule is the same as glibc, so
-	// this will recurse if KAME's pool is active — Linux non-glibc builds
-	// must add their own bypass before this branch is reachable.
 	std::free(p);
 #endif
 }
@@ -4810,7 +5037,17 @@ kame_interpose_entry kame_interposers[]
           reinterpret_cast<const void *>(&free) },
 };
 } // namespace
-#elif defined(__linux__)
+#elif defined(__linux__) && !defined(KAMEPOOLALLOC_NO_LIBC_INTERPOSE)
+// NOTE (escape hatch): unlike the macOS branch above — where the interpose
+// section is inert unless the image is an MH_DYLIB — these are ordinary ELF
+// strong symbols, so they take effect even when allocator.cpp is compiled
+// *into an executable*, and (with -rdynamic) preempt libc for every shared
+// library in the process.  That is intended for the LD_PRELOAD / drop-in
+// contract this file is soaked against, but a host that wants macOS-like
+// parity (operator new/delete pooled, libc malloc untouched) can define
+// KAMEPOOLALLOC_NO_LIBC_INTERPOSE.  See kame/kame.pro's note at the
+// `SOURCES += ../kamepoolalloc/allocator.cpp` line.
+//
 // Linux: emit `free` as a strong symbol so our dylib's own consumers
 // resolve to the pool-aware version.  Also emit `malloc` / `calloc` here
 // so a `-l kamepoolalloc` (or LD_PRELOAD) consumer gets a *complete* pool
@@ -4846,6 +5083,33 @@ extern "C" __attribute__((noinline)) void *calloc(std::size_t n_elem, std::size_
 	// `kame_calloc` is libc-spec compliant (overflow check, calloc(0,*)
 	// returns unique freeable ptr, ENOMEM on fail) — just expose it.
 	return kame_calloc(n_elem, sz);
+}
+// Aligned-allocation family.  MUST be intercepted whenever `malloc` is:
+// on musl, `memalign` / `aligned_alloc` / `posix_memalign` are implemented
+// *on top of the public `malloc`* — so under LD_PRELOAD they call OUR
+// `malloc`, get a pool pointer, then musl wraps it with libc-style header
+// bookkeeping and hands back a pointer the pool does not own → the
+// returned block is corrupt and the next free()/realloc() SIGSEGVs.
+// (glibc's variants use internal arena entries, not the public `malloc`,
+// which is why this only crashed on Alpine/musl — rptest + rocksdb, which
+// allocate via `memalign`.)  Routing them through the pool's own aligned
+// path keeps ownership consistent (pool pointers freed via the pool free),
+// exactly as mimalloc / tcmalloc do.  Helpers declared in kame_pool.h,
+// defined later in this TU.
+extern "C" __attribute__((noinline))
+int posix_memalign(void **memptr, std::size_t al, std::size_t sz) noexcept {
+	return kame_pool_posix_memalign(memptr, al, sz);
+}
+extern "C" __attribute__((noinline))
+void *aligned_alloc(std::size_t al, std::size_t sz) noexcept {
+	return kame_pool_aligned_alloc(al, sz);
+}
+extern "C" __attribute__((noinline))
+void *memalign(std::size_t al, std::size_t sz) noexcept {
+	// Legacy GNU memalign: same (alignment, size) order as aligned_alloc,
+	// no size-multiple-of-alignment requirement — kame_pool_aligned_alloc
+	// is already lenient about size, so route straight to it.
+	return kame_pool_aligned_alloc(al, sz);
 }
 #else
 // Windows / others: no `free` interpose.
@@ -4915,6 +5179,17 @@ static void *libsystem_malloc_for_pool(std::size_t n) {
 	// the same address libc's malloc resolves to, under a name we do
 	// not shadow.  Same trick as `__libc_free` / `__libc_realloc`.
 	return __libc_malloc(n);
+#elif defined(__linux__)
+	// Non-glibc Linux (musl): the strong-symbol `malloc` override IS
+	// emitted (the block below is gated on `__linux__`, not `__GLIBC__`),
+	// so `std::malloc` would recurse — resolve the real libc malloc via
+	// dlsym(RTLD_NEXT) instead (mirrors the free path above).  This is the
+	// fallback only for sizes the pool does not bucket; dlsym's own tiny
+	// allocations are pool-served, so no recursion through here.
+	using malloc_fn_t = void *(*)(std::size_t);
+	static malloc_fn_t s_libc_malloc =
+	    reinterpret_cast<malloc_fn_t>(dlsym(RTLD_NEXT, "malloc"));
+	return s_libc_malloc ? s_libc_malloc(n) : nullptr;
 #else
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
 	// Windows §31 by default doesn't redirect `malloc` — `std::malloc` is
@@ -4925,8 +5200,6 @@ static void *libsystem_malloc_for_pool(std::size_t n) {
 	// the patch is installed AFTER resolve_real_crt resolves these).
 	if(g_real_malloc) return g_real_malloc(n);
 #endif
-	// Other Unix (musl, etc.): no strong-symbol malloc override is emitted
-	// below, so std::malloc is safe.
 	return std::malloc(n);
 #endif
 }
@@ -4947,6 +5220,13 @@ static void *libsystem_realloc_for_pool(void *p, std::size_t n) {
 	return malloc_zone_realloc(zone, p, n);
 #elif defined(__linux__) && defined(__GLIBC__)
 	return __libc_realloc(p, n);
+#elif defined(__linux__)
+	// Non-glibc Linux (musl): real libc realloc via dlsym(RTLD_NEXT) —
+	// `std::realloc` would re-bind to our own strong symbol and recurse.
+	using realloc_fn_t = void *(*)(void *, std::size_t);
+	static realloc_fn_t s_libc_realloc =
+	    reinterpret_cast<realloc_fn_t>(dlsym(RTLD_NEXT, "realloc"));
+	return s_libc_realloc ? s_libc_realloc(p, n) : nullptr;
 #else
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
 	// Genuine UCRT realloc — NOT the redirected one (would recurse).
@@ -4963,6 +5243,18 @@ static void *libsystem_calloc_for_pool(std::size_t n_elem, std::size_t sz) {
 	return malloc_zone_calloc(zone, n_elem, sz);
 #elif defined(__linux__) && defined(__GLIBC__)
 	return __libc_calloc(n_elem, sz);
+#elif defined(__linux__)
+	// Non-glibc Linux (musl): deliberately NOT dlsym(RTLD_NEXT,"calloc") —
+	// a dlsym implementation may itself call calloc, which would
+	// recursively re-enter this function's local static initialiser and
+	// deadlock.  Compose from the (separately resolved) real malloc +
+	// zero-fill.  Overflow-checked multiply mirrors libc's contract
+	// (return NULL on wrap, no errno).
+	std::size_t total;
+	if(__builtin_mul_overflow(n_elem, sz, &total)) return nullptr;
+	void *m = libsystem_malloc_for_pool(total);
+	if(m) std::memset(m, 0, total);
+	return m;
 #else
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
 	// Genuine UCRT calloc — NOT the redirected path.
@@ -5344,10 +5636,49 @@ kame_interpose_entry kame_interposers_full[]
 } // namespace
 #  endif // KAMEPOOLALLOC_FULL_INTERCEPT
 
-#elif defined(__linux__)
+#elif defined(__linux__) && !defined(KAMEPOOLALLOC_NO_LIBC_INTERPOSE)
+// Same escape hatch as the malloc/free/calloc block above — these three MUST
+// be gated together with it: intercepting `realloc` without `malloc`, or the
+// reverse, hands pool pointers to libc heap metadata (and vice versa).
 extern "C" __attribute__((noinline))
 void *realloc(void *p, std::size_t n) {
 	return kame_realloc(p, n);
+}
+// `reallocarray` (glibc 2.26+, musl): realloc with an overflow-checked
+// nmemb*size.  MUST be intercepted alongside `realloc` — otherwise a
+// pool pointer handed to libc's reallocarray is reallocated against
+// libc heap metadata it does not own (same hazard as an un-intercepted
+// realloc).  Overflow → NULL + ENOMEM, ptr untouched (POSIX contract).
+extern "C" __attribute__((noinline))
+void *reallocarray(void *p, std::size_t nmemb, std::size_t size) noexcept {
+	std::size_t total;
+	if(__builtin_mul_overflow(nmemb, size, &total)) {
+		errno = ENOMEM;
+		return nullptr;
+	}
+	return kame_realloc(p, total);
+}
+// Linux mirror of the macOS `malloc_size` co-interpose above.  glibc
+// consumers — redis `zmalloc`, systemd, BIND — call
+// `malloc_usable_size(p)` right after `malloc(p)`; with our strong-symbol
+// `malloc` those are POOL pointers, and glibc's `__malloc_usable_size`
+// walks its own heap metadata on them → SEGV (reproduced: redis-server
+// 6.2.7 crashes in initServerConfig's first zstrdup).  Serve pool
+// pointers from `size_of` (the same "non-zero ⇔ pool-owned" oracle as
+// `kame_pool_malloc_usable_size`); forward foreign pointers to the real
+// libc implementation.  glibc does NOT export a `__`-prefixed alias for
+// this one (unlike `__libc_free`), so resolve it once via
+// `dlsym(RTLD_NEXT, ...)` — safe on Linux (no dyld-style bind-time
+// interposing; see the `libsystem_free_for_pool` comment block).
+extern "C" __attribute__((noinline))
+std::size_t malloc_usable_size(void *p) noexcept {
+	if( !p) return 0;
+	if(std::size_t s = PoolAllocatorBase::size_of(p))
+		return s;
+	using usable_fn_t = std::size_t (*)(void *);
+	static usable_fn_t s_libc_usable = reinterpret_cast<usable_fn_t>(
+	    dlsym(RTLD_NEXT, "malloc_usable_size"));
+	return s_libc_usable ? s_libc_usable(p) : 0;
 }
 #else
 // Windows: `realloc` is not interposed via a strong symbol (PE/COFF has
@@ -5628,6 +5959,11 @@ extern "C" void kame_pool_win_install_redirect() noexcept {
 // 16..16384 directly; sizes above 16384 fold into the top bucket.
 namespace {
 constexpr int KAME_HISTO_SIZE = 1024;
+// Deliberately 64-bit, unlike `rt_counter_t`: this one is bumped per
+// ALLOCATION, so a 32-bit counter would wrap within minutes.  The cost is
+// that enabling KAME_SIZE_HISTOGRAM on a 32-bit host without DCAS (i486)
+// fails to link (`__atomic_fetch_add_8`) — acceptable for an opt-in
+// profiling knob that is never compiled into a production build.
 std::atomic<uint64_t> g_alloc_size_histo[KAME_HISTO_SIZE];
 
 void kame_print_histo() noexcept {
@@ -6134,6 +6470,17 @@ int PoolAllocatorBase::radix_lookup_slow(uintptr_t up) noexcept {
 // 2-level radix tree implementation (§13).  L2 nodes allocated lazily
 // via mmap to avoid recursion through our own interposed libc malloc.
 RadixL2Node *PoolAllocatorBase::radix_alloc_l2() noexcept {
+	// (§75) COUNTED but never refused, even under KAME_RT_OS_FAIL.  A radix
+	// leaf backs the presence map: if `radix_insert` cannot install one it
+	// returns having silently left the region unregistered, and every later
+	// free of a pointer inside it misses the lookup and is routed to libc
+	// `free()` — corruption, not a graceful degradation.  So the RT-strict
+	// policy stops at the two sites that DO degrade safely
+	// (`mmap_new_region`, `large_va_raw_map`); here we only record that an
+	// RT thread touched the kernel.  Prewarming the RT working set
+	// (`kame_pool_prewarm`) is what actually keeps this off the RT path.
+	if(__builtin_expect(rt_defer_active(), 0))
+		g_rt_violations.fetch_add(1, std::memory_order_relaxed);
 #if defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32)
 	void *p = VirtualAlloc(nullptr, sizeof(RadixL2Node),
 	                       MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -6217,6 +6564,12 @@ void PoolAllocatorBase::radix_clear(char *mp) noexcept {
 // or nullptr on cap-exceeded / mmap failure.
 PoolAllocatorBase::RegionMeta *
 PoolAllocatorBase::mmap_new_region() noexcept {
+	// (§75) RT policy gate — BEFORE the count reservation below, so a
+	// refusal cannot leak a region slot.  Failing here is safe: the caller
+	// (`claim_chunk`) propagates nullptr and the allocation degrades to the
+	// libc fallback, exactly as it does on a genuine region-cap refusal.
+	if( !rt_allow_new_mapping("32 MiB region mmap"))
+		return nullptr;
 	// Runtime cap: reserve a slot first so a concurrent racer can't
 	// overshoot.  Default cap is INT_MAX (VA-limited); a tighter value
 	// comes from kame_pool_set_max_bytes.
@@ -6266,12 +6619,12 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 		s_region_count.fetch_sub(1, std::memory_order_relaxed);
 		return nullptr;
 	}
-	// (§14B) Opt-in transparent hugepages on the slot range (skip the
-	// metadata page at offset 0).  The region is 32 MiB / 32 MiB-aligned
+	// (§14B / §75 G6a) Transparent-hugepage policy on the slot range (skip
+	// the metadata page at offset 0).  The region is 32 MiB / 32 MiB-aligned
 	// = 16 hugepages worth, ideal for the kernel's THP promoter on
 	// TLB-bound HPC workloads with large working sets.
 	//
-	// Opt-in (env `KAME_POOL_HUGEPAGE=1`) because the microbenchmark
+	// THP is NOT the default (`KAME_THP_SYSTEM`), because the microbenchmark
 	// pattern (1-2 chunks per region, tight loop, ≤ 1 MiB working set)
 	// REGRESSES under THP: a freshly faulted hugepage zero-fills 2 MiB
 	// of physical pages even though only a few hundred KiB is touched,
@@ -6287,18 +6640,29 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 	// misses on the application's data access — independent of (and
 	// not modeled by) the alloc/free hot path.
 	//
-	// Read the env var ONCE (atomic ifd init, region claim is rare).
-	// THP `/sys/kernel/mm/transparent_hugepage/enabled` must be
-	// `always` or `madvise` for the advise to have effect; otherwise
-	// the call is a no-op (we ignore the return regardless).
+	// The mirror policy `KAME_THP_NEVER` exists for realtime callers, where
+	// that same 2 MiB zeroing is a first-touch latency spike and khugepaged's
+	// collapse pass is an unrelated-thread stall — see
+	// `kame_pool_set_thp_policy` for the full argument.  The policy is read
+	// per region claim (rare, and it must be, since the policy is settable at
+	// runtime and regions are created lazily).
+	//
+	// THP `/sys/kernel/mm/transparent_hugepage/enabled` must be `always` (for
+	// KAME_THP_NEVER to have anything to suppress) or `madvise`/`always` (for
+	// KAME_THP_ALWAYS to have effect); otherwise the call is a no-op, and we
+	// ignore the return regardless.
 #  if defined(__linux__) && defined(MADV_HUGEPAGE)
-	static const bool hugepage_enabled = [] {
-		const char *e = std::getenv("KAME_POOL_HUGEPAGE");
-		return e && e[0] != '\0' && e[0] != '0';
-	}();
-	if(hugepage_enabled)
-		(void)madvise(p + ALLOC_PAGE_SIZE,
-		              mmap_size - ALLOC_PAGE_SIZE, MADV_HUGEPAGE);
+	{
+		const int pol = thp_policy_resolved();
+		if(pol == 1)
+			(void)madvise(p + ALLOC_PAGE_SIZE,
+			              mmap_size - ALLOC_PAGE_SIZE, MADV_HUGEPAGE);
+#    if defined(MADV_NOHUGEPAGE)
+		else if(pol == 2)
+			(void)madvise(p + ALLOC_PAGE_SIZE,
+			              mmap_size - ALLOC_PAGE_SIZE, MADV_NOHUGEPAGE);
+#    endif
+	}
 #  endif
 #endif
 	// (§14C) Bind the region to this thread's NUMA node — physical pages
@@ -6357,6 +6721,130 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 	return rm;
 }
 
+// (§75) RT pre-reserve.  Creates `n` fresh regions up front so no RT-path
+// allocation has to mmap one.  Goes through `mmap_new_region` — the fully
+// published path (metadata init, radix_insert, region-list push) — so the
+// regions are indistinguishable from lazily-created ones and are found by
+// `claim_chunk`'s Pass 1.  Regions never unmap, so this is permanent.
+//
+// `prefault` additionally touches every slot page, converting the RT path's
+// first-touch minor faults into startup cost.  It does NOT pre-claim chunks;
+// `kame_pool_prewarm` does that (and reaches the radix / TLS-bootstrap paths
+// too), so the usual recipe is prewarm alone, with this as the belt-and-
+// braces option when the working-set size is known but its size classes are
+// not.  Returns the number of regions actually created (< n on cap / OOM).
+// (§75 / G6) Pin the pool's own regions into RAM, or release the pins.
+//
+// Why this exists as an allocator API at all: every other allocator leaves
+// page pinning to the application, which then has only `mlockall(MCL_CURRENT |
+// MCL_FUTURE)` — a blunt instrument that also pins every future mapping made
+// by every non-realtime thread, so one background worker's large buffer can
+// blow the RSS budget.  We keep a ledger of our own regions, so we can pin
+// exactly the pool and nothing else.
+//
+// Bonus property worth knowing: `mlock` POPULATES the range, so locking also
+// prefaults it — this subsumes `reserve_regions(prefault=true)` for the
+// regions it covers.
+//
+// Only regions mapped at call time are covered (regions are push-only and
+// never unmapped, so nothing here can dangle).  Call AFTER prewarm /
+// reserve_regions; call again if the working set later grows.
+std::size_t
+PoolAllocatorBase::mlock_regions(bool lock) noexcept {
+	std::size_t done = 0;
+	for(int node = 0; node < KAME_MAX_NUMA_NODES; node++) {
+		for(RegionMeta *rm = s_region_dll_heads[node].load(
+		        std::memory_order_acquire);
+		    rm; rm = rm->dll_next.load(std::memory_order_acquire)) {
+			// region_meta() is a plain cast, so rm IS the region base.
+			void *base = static_cast<void *>(rm);
+			const std::size_t len = (std::size_t)ALLOC_MIN_MMAP_SIZE;
+#if defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32)
+			// VirtualLock's working-set quota is per-process and small by
+			// default; a failure here is the same "quota reached" signal as
+			// RLIMIT_MEMLOCK, so treat it identically.
+			if(lock ? VirtualLock(base, len) : VirtualUnlock(base, len))
+				done += len;
+			else
+				return done;      // quota reached — report what we managed
+#else
+			if((lock ? mlock(base, len) : munlock(base, len)) == 0)
+				done += len;
+			else
+				return done;      // RLIMIT_MEMLOCK reached — partial success
+#endif
+		}
+	}
+	return done;
+}
+
+// (§75 / G6a) Re-apply the current THP policy to every region that already
+// exists.  Same walk as `mlock_regions` above, same reason it has to exist:
+// regions are created LAZILY, so `mmap_new_region`'s per-claim advise only
+// ever covers regions claimed AFTER the policy was set.  Without this pass a
+// program that prewarms and then enables the policy — which is the normal
+// realtime start-up order — would leave its whole working set on the kernel
+// default.
+//
+// Returns the byte count advised (whole regions), so the caller can see that
+// the walk reached something rather than trusting that a call was made.
+// A `madvise` failure is skipped rather than fatal (an old kernel without
+// MADV_NOHUGEPAGE returns EINVAL; nothing is broken, the advice just did not
+// take), and the count reflects only what succeeded.
+std::size_t
+PoolAllocatorBase::thp_advise_regions(int policy) noexcept {
+#if defined(__linux__) && defined(MADV_HUGEPAGE) && defined(MADV_NOHUGEPAGE)
+	// KAME_THP_SYSTEM cannot be re-applied: Linux has no "clear" advice.
+	// MADV_HUGEPAGE and MADV_NOHUGEPAGE each clear the other's VMA flag, but
+	// neither restores the neutral state, so returning to the system default
+	// on an already-advised region is impossible.  Report 0 rather than
+	// pretending.  (New regions DO get the neutral treatment — no madvise at
+	// all — so policy 0 is not a lie for them.)
+	const int adv = (policy == 1) ? MADV_HUGEPAGE
+	              : (policy == 2) ? MADV_NOHUGEPAGE : -1;
+	if(adv < 0) return 0;
+	std::size_t done = 0;
+	for(int node = 0; node < KAME_MAX_NUMA_NODES; node++) {
+		for(RegionMeta *rm = s_region_dll_heads[node].load(
+		        std::memory_order_acquire);
+		    rm; rm = rm->dll_next.load(std::memory_order_acquire)) {
+			// region_meta() is a plain cast, so rm IS the region base.
+			char *base = reinterpret_cast<char *>(rm);
+			// Skip page 0 (the metadata page) exactly as mmap_new_region
+			// does, so flipping the policy never reshapes the VMA split.
+			const std::size_t len =
+			    (std::size_t)ALLOC_MIN_MMAP_SIZE - ALLOC_PAGE_SIZE;
+			if(madvise(base + ALLOC_PAGE_SIZE, len, adv) == 0)
+				done += len;
+		}
+	}
+	return done;
+#else
+	(void)policy;
+	return 0;                     // no THP concept on this platform
+#endif
+}
+
+unsigned
+PoolAllocatorBase::reserve_regions(unsigned n, bool prefault) noexcept {
+	unsigned made = 0;
+	for(unsigned i = 0; i < n; i++) {
+		RegionMeta *rm = mmap_new_region();
+		if( !rm) break;                  // region cap or mmap refusal
+		if(prefault) {
+			// region_meta() is a plain cast, so rm IS the region base.
+			// Skip page 0 (the metadata page, already written above).
+			volatile char *b = reinterpret_cast<volatile char *>(rm);
+			for(std::size_t off = ALLOC_PAGE_SIZE;
+			    off < (std::size_t)ALLOC_MIN_MMAP_SIZE;
+			    off += ALLOC_PAGE_SIZE)
+				b[off] = 0;
+		}
+		made++;
+	}
+	return made;
+}
+
 // =====================================================================
 // (§19/§21) Large-alloc tier — single-mmap, radix-registered, munmap-able,
 //           with a per-thread LIFO recycle cache.
@@ -6364,6 +6852,10 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 namespace {
 // Raw 32-MiB-aligned mmap of `mmap_size` bytes.  Returns base or nullptr.
 inline char *large_va_raw_map(std::size_t mmap_size) noexcept {
+	// (§75) RT policy gate.  Safe to refuse: callers treat nullptr as "tier
+	// unavailable" and fall through to the libc path.
+	if( !rt_allow_new_mapping("large-tier mmap"))
+		return nullptr;
 #if defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32)
 	return static_cast<char *>(_aligned_malloc(mmap_size, ALLOC_MIN_MMAP_SIZE));
 #else
@@ -6390,6 +6882,26 @@ inline char *large_va_raw_map(std::size_t mmap_size) noexcept {
 		munmap(base, mmap_size);
 		return nullptr;
 	}
+	// (§75 / G6a) Same THP policy as the 32 MiB regions.  This tier needs it
+	// MORE, not less: these spans are the largest and coldest memory the pool
+	// hands out, above LRC_HI they are a fresh mmap on every allocation, and
+	// they are 32 MiB-aligned — so under THP=always every one of their 2 MiB
+	// spans faults as a hugepage, zeroing 2 MiB at a time.  Measured, that is
+	// the single biggest first-touch spike the allocator can produce.
+	// Unlike a region there is no metadata page to skip: the whole span is
+	// the user's.  Nothing to re-advise later — the mapping is created and
+	// destroyed per allocation, so it always sees the current policy.
+#  if defined(__linux__) && defined(MADV_HUGEPAGE)
+	{
+		const int pol = thp_policy_resolved();
+		if(pol == 1)
+			(void)madvise(base, mmap_size, MADV_HUGEPAGE);
+#    if defined(MADV_NOHUGEPAGE)
+		else if(pol == 2)
+			(void)madvise(base, mmap_size, MADV_NOHUGEPAGE);
+#    endif
+	}
+#  endif
 	return base;
 #endif
 }
@@ -7064,6 +7576,213 @@ extern "C" void kame_pool_set_realtime_mode(int enable) noexcept {
 }
 
 // =====================================================================
+// (§75) Realtime C API — per-thread flag, OS policy, drain, prewarm
+// =====================================================================
+// Deliberately ORTHOGONAL to §30's process-wide `set_realtime_mode`: that
+// one silences background maintenance for the whole process, this one marks
+// *which threads* must not enter the kernel.  A typical RT program calls
+// both — `set_realtime_mode(1)` once at startup, then `set_realtime_thread(1)`
+// from each time-critical thread (or lets `kame::rt_section` do it).
+
+extern "C" void kame_pool_set_realtime_thread(int level) noexcept {
+	if(level < 0 || level > 2) return;                  // ignore out-of-range
+	g_rt_thread = level;
+	// (§75 / G5) STRICT only: drop the cross-thread batch to per-free
+	// flushing, and settle whatever ordinary work left in it — otherwise the
+	// section's FIRST free would inherit up to CAP entries, which is the very
+	// spike this removes.  Paying it at the boundary lets a caller hoist it
+	// out of the loop by marking the thread once instead of per cycle.
+	//
+	// DEFER deliberately leaves the batch alone.  Measured, per-free flushing
+	// costs ~47 % of cross-thread small-free throughput (60.8 -> 32.6 M
+	// free/s, 8/8 reps) because it gives up the batch's coalesced-CAS win —
+	// on exactly the pattern the batch was tuned for.  That is the right
+	// trade only for a thread with a hard deadline, so it is never implied.
+	if(level >= 2) {
+		tls_cross_dealloc_batch.flush();
+		tls_cross_dealloc_batch.cap = 1;
+	}
+	else {
+		tls_cross_dealloc_batch.cap = CrossDeallocBatch::CAP;
+	}
+}
+extern "C" void kame_pool_set_realtime_default(int level) noexcept {
+	// Only the DEFER half can be a process default: STRICT's cost lives on a
+	// hot path and is per-thread by nature, so it is clamped out here rather
+	// than silently applied process-wide.
+	if(level < 0 || level > 2) return;
+	g_rt_default.store(level >= 1 ? 1 : 0, std::memory_order_relaxed);
+}
+extern "C" int kame_pool_get_realtime_default(void) noexcept {
+	return g_rt_default.load(std::memory_order_relaxed);
+}
+extern "C" int kame_pool_get_realtime_thread(void) noexcept {
+	return g_rt_thread;
+}
+extern "C" void kame_pool_set_rt_os_policy(int policy) noexcept {
+	if(policy < 0 || policy > 3) return;         // ignore out-of-range
+	g_rt_os_policy.store(policy, std::memory_order_relaxed);
+}
+extern "C" int kame_pool_get_rt_os_policy(void) noexcept {
+	return g_rt_os_policy.load(std::memory_order_relaxed);
+}
+extern "C" size_t kame_pool_set_thp_policy(int policy) noexcept {
+	if(policy < 0 || policy > 2) return 0;       // ignore out-of-range
+	g_thp_policy.store(policy, std::memory_order_relaxed);
+	// Cover the regions that already exist, not just the ones to come.
+	return PoolAllocatorBase::thp_advise_regions(policy);
+}
+extern "C" int kame_pool_get_thp_policy(void) noexcept {
+	return thp_policy_resolved();
+}
+extern "C" unsigned long long kame_pool_rt_violations(void) noexcept {
+	return g_rt_violations.load(std::memory_order_relaxed);
+}
+extern "C" unsigned long long kame_pool_rt_deferred_reclaims(void) noexcept {
+	return g_rt_deferred_reclaim.load(std::memory_order_relaxed);
+}
+extern "C" unsigned long long kame_pool_rt_deferred_unmaps(void) noexcept {
+	return g_rt_deferred_unmap.load(std::memory_order_relaxed);
+}
+extern "C" size_t kame_pool_rt_pending_bytes(void) noexcept {
+	return g_rt_pending_bytes.load(std::memory_order_relaxed);
+}
+extern "C" void kame_pool_set_rt_pending_cap(size_t bytes) noexcept {
+	g_rt_pending_cap.store(bytes, std::memory_order_relaxed);
+}
+extern "C" size_t kame_pool_get_rt_pending_cap(void) noexcept {
+	return g_rt_pending_cap.load(std::memory_order_relaxed);
+}
+extern "C" unsigned long long kame_pool_rt_forced_releases(void) noexcept {
+	return g_rt_forced_releases.load(std::memory_order_relaxed);
+}
+extern "C" void kame_pool_rt_report_violations(unsigned long long count) noexcept {
+	fprintf(stderr,
+	    "kamepoolalloc: realtime section made %llu new mapping(s) — "
+	    "prewarm the working set (kame_pool_prewarm) to remove them.\n",
+	    count);
+}
+extern "C" void kame_pool_rt_reset_counters(void) noexcept {
+	g_rt_violations.store(0, std::memory_order_relaxed);
+	g_rt_deferred_reclaim.store(0, std::memory_order_relaxed);
+	g_rt_deferred_unmap.store(0, std::memory_order_relaxed);
+	g_rt_forced_releases.store(0, std::memory_order_relaxed);
+}
+
+// The `mi_collect` / `malloc_trim` / `arena.N.purge` analogue: perform every
+// piece of reclaim work the RT paths deferred.  Call it from a non-critical
+// phase (between control cycles, on a housekeeping thread) — never from
+// inside the time-critical section, since it is exactly the syscall batch
+// that RT mode exists to keep out of there.
+//
+// The calling thread's own RT flag is cleared for the duration, so the
+// releases below actually reach `madvise` / `munmap` instead of being
+// re-deferred by the very gate that queued them (and so the counters do not
+// tick for our own work).
+extern "C" void kame_pool_rt_drain(void) noexcept {
+	const int saved_rt  = g_rt_thread;
+	const int saved_def = g_rt_default.exchange(0, std::memory_order_relaxed);
+	g_rt_thread = 0;
+
+	// (1) Deferred large-tier unmaps — exact, we hold the list.  Copy the
+	// node out before unmapping: it LIVES in the page about to go away.
+	RtPendingUnmap *head =
+	    g_rt_pending_unmap.exchange(nullptr, std::memory_order_acq_rel);
+	while(head) {
+		RtPendingUnmap cur = *head;
+		g_rt_pending_bytes.fetch_sub(cur.mmap_size, std::memory_order_relaxed);
+		large_va_raw_unmap(reinterpret_cast<char *>(head), cur.mmap_size);
+		head = cur.next;
+	}
+
+	// (2) This thread's L1 recycle cache.  Emptied but left ARMED (unlike
+	// `l1_drain`, which is the thread-exit path and also clears `tls_l1` /
+	// sets `s_l1_drained`) — an RT thread keeps allocating after the drain.
+	if(L1KArray *l1 = tls_l1) {
+		for(int k = 0; k < LRC_K_L1; k++) {
+			for(int idx = 0; idx <= LRC_N_MAX_L1; idx++) {
+				char *b = l1[k].slots[idx];
+				if( !b) continue;
+				l1[k].slots[idx] = nullptr;
+				unsigned kind = lrc_kind_from_idx(idx);
+				lrc_release(b, lrc_block_size(b, kind), kind);
+			}
+		}
+	}
+
+	// (3) The global L2 cache.  CAS-steal each slot so a concurrent popper
+	// either gets the block (and owns it) or misses — never both.
+	for(int k = 0; k < LRC_K_MAX; k++) {
+		for(int idx = 0; idx <= LRC_N_MAX; idx++) {
+			char *b = g_lrc[k].slots[idx].exchange(
+			    nullptr, std::memory_order_acq_rel);
+			if( !b) continue;
+			unsigned kind = lrc_kind_from_idx(idx);
+			std::size_t sz = lrc_block_size(b, kind);
+			g_lrc_bytes.fetch_sub(sz, std::memory_order_relaxed);
+			lrc_release(b, sz, kind);
+		}
+	}
+
+	g_rt_thread = saved_rt;
+	g_rt_default.store(saved_def, std::memory_order_relaxed);
+}
+
+// Prewarm: allocate + PAGE-TOUCH + free the given size classes so that the
+// chunks, their regions, the radix leaves and this thread's allocator TLS all
+// exist before the time-critical section starts.  Touching matters — the
+// allocate/free idiom alone leaves the pages mapped-but-unfaulted, so the
+// first RT write would still take a minor fault.
+//
+// Blocks are held in batches (not freed one-by-one) so that `counts[i]`
+// distinct blocks coexist and genuinely force that much capacity into
+// existence.  Returns 0 on success, -1 if any allocation failed (the
+// working set does not fit under the current cap).
+extern "C" int kame_pool_prewarm(const size_t *sizes, const unsigned *counts,
+                                unsigned n) noexcept {
+	if( !sizes || !counts) return -1;
+	enum { BATCH = 128 };
+	void *buf[BATCH];
+	int rc = 0;
+	for(unsigned i = 0; i < n && rc == 0; i++) {
+		const size_t sz = sizes[i];
+		if(sz == 0) continue;
+		unsigned remaining = counts[i];
+		while(remaining) {
+			unsigned want = remaining < (unsigned)BATCH
+			                ? remaining : (unsigned)BATCH;
+			unsigned got = 0;
+			for(; got < want; got++) {
+				void *p = kame_pool_malloc(sz);
+				if( !p) break;
+				volatile char *q = static_cast<volatile char *>(p);
+				for(size_t off = 0; off < sz; off += ALLOC_PAGE_SIZE)
+					q[off] = 0;
+				q[sz - 1] = 0;            // last partial page
+				buf[got] = p;
+			}
+			for(unsigned j = 0; j < got; j++)
+				kame_pool_free(buf[j]);
+			if(got < want) { rc = -1; break; }
+			remaining -= want;
+		}
+	}
+	return rc;
+}
+
+extern "C" unsigned kame_pool_reserve_regions(unsigned n_regions,
+                                             int prefault) noexcept {
+	return PoolAllocatorBase::reserve_regions(n_regions, prefault != 0);
+}
+
+extern "C" size_t kame_pool_mlock_regions(void) noexcept {
+	return PoolAllocatorBase::mlock_regions(/*lock=*/true);
+}
+extern "C" size_t kame_pool_munlock_regions(void) noexcept {
+	return PoolAllocatorBase::mlock_regions(/*lock=*/false);
+}
+
+// =====================================================================
 // (§19) Large-alloc tier — single-mmap, radix-registered, munmap-able.
 // =====================================================================
 // Each large_va allocation is its own 32-MiB-aligned mmap of size
@@ -7139,6 +7858,35 @@ PoolAllocatorBase::allocate_large_va(std::size_t size) noexcept {
 	return base + ALLOC_PAGE_SIZE;
 }
 
+//! Release at most ONE parked block.  O(1) by construction: no single free
+//! may inherit the whole backlog — that is exactly the amortized-to-
+//! worst-case conversion this bound exists to prevent.  Called from the
+//! NON-realtime large-free path, so a mixed-thread program (an RT worker plus
+//! ordinary threads — e.g. KAME's measurement thread beside its GUI and driver
+//! threads) settles the backlog on its own without an explicit drain.
+inline void rt_settle_one_pending() noexcept {
+	if(g_rt_pending_unmap.load(std::memory_order_relaxed) == nullptr)
+		return;                                   // common case: nothing owed
+	// Never spin here: a busy gate means another thread is already settling.
+	if(g_rt_settle_gate.exchange(true, std::memory_order_acquire))
+		return;
+	RtPendingUnmap *head = g_rt_pending_unmap.load(std::memory_order_acquire);
+	while(head) {
+		// Safe: we hold the gate, so no other thread can unmap `head`.
+		RtPendingUnmap *next = head->next;
+		std::size_t sz = head->mmap_size;
+		if(g_rt_pending_unmap.compare_exchange_weak(
+		       head, next, std::memory_order_acq_rel,
+		       std::memory_order_acquire)) {
+			g_rt_pending_bytes.fetch_sub(sz, std::memory_order_relaxed);
+			large_va_raw_unmap(reinterpret_cast<char *>(head), sz);
+			break;
+		}
+		// CAS failed: `head` was reloaded with the current top (a push landed).
+	}
+	g_rt_settle_gate.store(false, std::memory_order_release);
+}
+
 void
 PoolAllocatorBase::deallocate_large_va(void *p) noexcept {
 	char *base = reinterpret_cast<char *>(
@@ -7163,8 +7911,48 @@ PoolAllocatorBase::deallocate_large_va(void *p) noexcept {
 	// (§27) Huge allocs (mmap_size > LRC_HI) bypass the cache — see
 	// allocate_large_va.  The `||` short-circuits so recycle_push (hence
 	// lrc_idx) is NEVER called with a > 32 MiB size.
-	if(mmap_size > LRC_HI || !recycle_push(base, mmap_size, LRC_MMAP))
+	if(mmap_size > LRC_HI || !recycle_push(base, mmap_size, LRC_MMAP)) {
+		// (§75) An RT thread must not munmap here.  The block is already
+		// radix-cleared and owned by nobody, so we park it on the pending
+		// stack — the link lives in its own (now dead) meta page, so this
+		// costs no allocation.  `kame_pool_rt_drain()` unmaps it later.
+		// Trade-off: VA/RSS is held until the drain, which
+		// `kame_pool_rt_pending_bytes()` reports.
+		if(__builtin_expect(rt_defer_active(), 0)) {
+			// (§75 / G5) Park only while the backlog stays under the cap.  An
+			// unbounded queue would swap a bounded free() tail for unbounded
+			// VA/RSS (measured: 40 deferred 300 MiB frees park 12.6 GB), so
+			// past the cap we release inline and record it — bounded memory
+			// beats a bounded tail, and the trade stays visible.
+			std::size_t cur =
+			    g_rt_pending_bytes.load(std::memory_order_relaxed);
+			if(cur + mmap_size
+			   <= g_rt_pending_cap.load(std::memory_order_relaxed)) {
+				RtPendingUnmap *node = reinterpret_cast<RtPendingUnmap *>(base);
+				node->mmap_size = mmap_size;
+				RtPendingUnmap *old =
+				    g_rt_pending_unmap.load(std::memory_order_relaxed);
+				do {
+					node->next = old;
+				} while( !g_rt_pending_unmap.compare_exchange_weak(
+				             old, node, std::memory_order_release,
+				             std::memory_order_relaxed));
+				g_rt_pending_bytes.fetch_add(mmap_size,
+				                             std::memory_order_relaxed);
+				g_rt_deferred_unmap.fetch_add(1, std::memory_order_relaxed);
+				return;
+			}
+			g_rt_forced_releases.fetch_add(1, std::memory_order_relaxed);
+			large_va_raw_unmap(base, mmap_size);
+			return;
+		}
 		large_va_raw_unmap(base, mmap_size);
+		// (§75 / G5) Not a realtime thread — settle at most ONE parked block
+		// on the way out, so a program with both realtime and ordinary threads
+		// drains the backlog by itself.  Bounded (one block per call), so this
+		// free cannot inherit the whole queue.
+		rt_settle_one_pending();
+	}
 }
 
 // single consolidated TLS struct holds all per-thread state

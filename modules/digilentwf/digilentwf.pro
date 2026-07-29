@@ -28,6 +28,21 @@ macx: exists("/Library/Frameworks/dwf.framework") {
     dwf_found = true
 }
 
+unix:!macx {
+    # There was no Linux branch at all, so this module always built as an
+    # empty stub and XDWFDSO never registered — even though Digilent ships a
+    # Linux WaveForms SDK (dwf.h in /usr/include, libdwf.so in the default
+    # library path; the .deb also uses /usr/share/digilent/waveforms).
+    DWF_H = /usr/include/digilent/waveforms/dwf.h
+    !exists($${DWF_H}): DWF_H = /usr/include/dwf.h
+    !exists($${DWF_H}): DWF_H = /usr/local/include/dwf.h
+    exists($${DWF_H}) {
+        INCLUDEPATH += $$dirname(DWF_H)
+        LIBS += -ldwf
+        dwf_found = true
+    }
+}
+
 equals(dwf_found, true) {
     HEADERS += dwfdso.h
     SOURCES += dwfdso.cpp
