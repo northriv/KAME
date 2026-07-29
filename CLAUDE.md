@@ -257,6 +257,24 @@ Pre-existing findings are grandfathered in `tools/audit/stm_closures.baseline`
 (ratchet: counts may only go down; regenerate with `--update-baseline` after
 fixing some). Suppress a reviewed false positive with `// audit-ok: <reason>`.
 
+`run_audits.sh` also runs `tools/audit/check_no_dcas.sh`, which guards
+**kamepoolalloc's no-DCAS invariant**: the allocator deliberately supports
+hosts where `atomic<uint64_t>` is *not* lock-free (RV32, ARMv5/v6, MIPS32,
+i386/i486), where a 64-bit atomic becomes a **locked** libatomic call — one in
+a free path silently destroys lock-freedom. Two phases: the
+`KAME_FORCE_UINT32_BITMAP` fallback in `allocator_prv.h` still compiles, and a
+`-m32 -march=i486` compile of `allocator.cpp` exports no `__atomic_*_8`
+(CMPXCHG8B is i586/Pentium+, **not** i486 — so an i486 build is the cheapest
+mechanical probe for this without RV32/ARMv6 hardware). Phase 2 needs
+`gcc-multilib g++-multilib` and skips with a notice when absent (macOS always
+skips it) — a skip is not a failure. It costs ~20 s, so the pre-commit hook
+runs it only when `kamepoolalloc/` is staged; set `KAME_AUDIT_SKIP_NO_DCAS=1`
+to skip it by hand. **New counters in `allocator.cpp` must be pointer-width**
+(`rt_counter_t`), not `unsigned long long` — this check caught the §75 RT
+counters after they put a CMPXCHG8B loop into `deallocate_chunk`. A counter
+that genuinely needs 64 bits (`g_alloc_size_histo`, bumped per allocation)
+must say so in a comment and accept that it cannot build on a no-DCAS host.
+
 1. **`iterate_commit` closures must be idempotent** — the closure re-runs on every CAS
    retry. Never perform a non-rollbackable side effect inside: no `free`/`delete`/
    `fftw_free` of pointers read from committed state (the failed commit rolls the
