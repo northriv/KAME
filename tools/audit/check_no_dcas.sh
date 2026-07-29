@@ -51,6 +51,20 @@ elif ! "$CXX" -m32 -march=i486 -std=c++17 -O2 -DKAMEPOOLALLOC_DYLIB \
     echo "FAILED (compile)"
     sed 's/^/    /' "$tmp/i486.log" | head -20
     status=1
+elif [ -z "$(nm "$tmp/i486.o" 2>/dev/null | sed -n 's/^.* T \(.*\)$/\1/p')" ]; then
+    # The compile "succeeded" but produced no code, so the symbol scan below
+    # would find no __atomic_*_8 no matter what the source did — a green result
+    # that proves nothing, which is worse than an honest skip.
+    #
+    # This is not hypothetical: on arm64 macOS the default CXX is Apple clang,
+    # `-m32 -E` succeeds (preprocessing does not care about the target), and
+    # `-m32 -march=i486 -c allocator.cpp` then exits 0 having emitted a
+    # 176-byte `Mach-O object arm_v4t` with no symbol table at all — clang read
+    # the flags as 32-bit ARMv4T.  Phase 2 reported "ok" on the primary dev
+    # platform while checking nothing.
+    echo "SKIPPED (toolchain accepted -m32 -march=i486 but emitted no code for"
+    echo "         that target: $( (file "$tmp/i486.o" 2>/dev/null || echo '?') | sed 's/.*: //')"
+    echo "         — needs a real i386 multilib toolchain, e.g. Linux g++ -m32)"
 else
     # `nm` prints undefined symbols as "U <name>".  Any __atomic_*_8 here is a
     # 64-bit atomic the CPU cannot do in one instruction.
