@@ -1050,12 +1050,25 @@ static int thp_policy_resolved() noexcept {
 	return g_thp_policy.load(std::memory_order_relaxed);
 }
 
+//! Width of the RT event counters below.  Pointer-width, NOT `unsigned long
+//! long`: on a 32-bit host a 64-bit atomic has no single instruction (i486
+//! lacks `cmpxchg8b` entirely, so `fetch_add` degrades to a LOCKED libatomic
+//! call — a lock in the free path is precisely what RT mode exists to avoid;
+//! i686 has it but pays a CAS loop).  These count mmap/munmap/madvise-class
+//! events, never allocations, and the one consumer that must be exact —
+//! `rt_section::violations()` in kame_pool.h — is a *delta* under unsigned
+//! arithmetic, hence wrap-safe for any span below 2^32.  The rest are pure
+//! diagnostics (see below), and 32-bit hosts cap their own address space at
+//! 4 GiB anyway, which is why `g_rt_pending_bytes` is already `size_t`.
+//! On 64-bit this is `unsigned long long`-wide, so nothing changes there.
+using rt_counter_t = std::size_t;
+
 //! Times an RT thread actually entered the kernel for a NEW mapping.
 //! This is the number an RT test asserts is zero after prewarming.
-std::atomic<unsigned long long> g_rt_violations{0};
+std::atomic<rt_counter_t> g_rt_violations{0};
 //! Deferred-work counters — RT mode working as designed, not violations.
-std::atomic<unsigned long long> g_rt_deferred_reclaim{0};   // madvise skipped
-std::atomic<unsigned long long> g_rt_deferred_unmap{0};     // munmap deferred
+std::atomic<rt_counter_t> g_rt_deferred_reclaim{0};   // madvise skipped
+std::atomic<rt_counter_t> g_rt_deferred_unmap{0};     // munmap deferred
 //! VA still held by deferred unmaps.  Without this the growth an RT
 //! thread trades for determinism would be invisible.
 std::atomic<std::size_t> g_rt_pending_bytes{0};
@@ -1079,7 +1092,7 @@ std::atomic<RtPendingUnmap *> g_rt_pending_unmap{nullptr};
 std::atomic<std::size_t> g_rt_pending_cap{(std::size_t)1 << 30};
 //! Times a realtime free had to release inline because the cap was reached.
 //! A strict realtime check asserts BOTH this and `g_rt_violations` are zero.
-std::atomic<unsigned long long> g_rt_forced_releases{0};
+std::atomic<rt_counter_t> g_rt_forced_releases{0};
 
 //! Exclusive-popper gate for the pending stack.  Pushes stay lock-free, but
 //! POPS must be serialised: a Treiber pop has to read `head->next`, and that
@@ -5946,6 +5959,11 @@ extern "C" void kame_pool_win_install_redirect() noexcept {
 // 16..16384 directly; sizes above 16384 fold into the top bucket.
 namespace {
 constexpr int KAME_HISTO_SIZE = 1024;
+// Deliberately 64-bit, unlike `rt_counter_t`: this one is bumped per
+// ALLOCATION, so a 32-bit counter would wrap within minutes.  The cost is
+// that enabling KAME_SIZE_HISTOGRAM on a 32-bit host without DCAS (i486)
+// fails to link (`__atomic_fetch_add_8`) — acceptable for an opt-in
+// profiling knob that is never compiled into a production build.
 std::atomic<uint64_t> g_alloc_size_histo[KAME_HISTO_SIZE];
 
 void kame_print_histo() noexcept {
