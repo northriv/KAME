@@ -1498,3 +1498,67 @@ default build and that nothing else came out with them.
 
 What remains in the negotiator is one realtime affordance,
 `ScopedWaitBudget` — tested in ctest, default on, and measured free when unused.
+
+## Why the sleeper is invisible: the ctor tags *after* it negotiates
+
+The starvation chain diagnosed earlier ends at `tags_total == 0`. This is the
+mechanism, and it is an ordering inversion rather than a missing call.
+
+`ScopedNegotiateLinkage`'s constructor does, in this order
+(`transaction_negotiation.h`):
+
+    :404    _negotiate();                     // or _negotiate_after_retry_pause
+            ...                               // 83 lines
+    :487    m_snap->tag_as_contender(m_link);
+
+`_negotiate()` is what reaches `_negotiate_internal()` and therefore
+`negotiate_sleep()`. So **the CV wait always happens before the tag**. This holds
+for all twelve construction sites and for both `TagMode`s — `OnEntry` vs
+`OnExit` only selects *which* of ctor/dtor tags, not whether the tag precedes the
+ctor's own negotiation.
+
+The destructor gets it right, and says so:
+
+    // Tag is performed BEFORE the wait below so that any subsequent
+    // notify_n_contenders walking tid_bitset can find us and wake our
+    // sleep slot.
+
+So the rule is stated in the code and followed in one of the two places.
+
+### Measured (grand/mixed/leaf arms, 8 threads, 3 s)
+
+    arm     tagged-list size at sleep    sleeps holding >= 1 tag
+    leaf    — (never sleeps: uncontended)
+    grand   0.00                         0.0 %
+    mixed   1.05                         39.9 %
+
+Grand-scope is 100 % untagged at sleep. Mixed is roughly 60 % untagged, and the
+tags that *are* present belong to **other** linkages the same transaction already
+walked (a multi-nodal commit visits several, and `Transaction::operator++` tags on
+retry) — not to the linkage about to be slept on. The invariant is therefore:
+
+  **a thread is never tagged on the linkage it is about to sleep on.**
+
+That is exactly why `notify_n_contenders`, which walks `tid_bitset` for the
+linkage it is waking, cannot find the sleeper, and why the livelock verdict's
+`tags_total > 0` was unsatisfiable in the grand arm.
+
+### Not fixed here, deliberately
+
+Moving the ctor's tag above `_negotiate()` is a two-line edit and a core
+semantics change: every scope construction would then tag before negotiating,
+which alters the contention estimate (`sig_C` feeds `retry_thresh_dyn`), makes
+the livelock verdict reachable on paths where it currently never fires, and
+changes who `fair_mode_blocks_me` blocks. The knob-A experiment removed earlier
+is a warning here — clearing tags before sleeping looked free and silently made
+privilege unclaimable. This is the opposite direction and deserves the same
+measurement discipline rather than an obvious-looking edit.
+
+### Correction recorded
+
+A first pass at this concluded that `OnEntry` sites with `retry != 0` never tag
+at all, from the dtor condition `!(m_eager && m_should_tag)` plus an apparent
+absence of any tag in the constructor. The constructor does tag — the call is at
+the end of a long ctor body, in each of three overloads, and the first reading
+covered only the first overload's opening lines. The dtor comment claiming "ctor
+already tagged" is accurate. The defect is the ordering, not a missing tag.
