@@ -1980,3 +1980,57 @@ not *depend* on it for their bounds — HIGHEST never waits, NORMAL's escape is 
 budget and is deliberately ungated on `fair_mode_blocks_me`, and the lowprio
 timeout reads only age and retry count. But privilege is the separate pillar that
 makes progress hold at all. Independent, not redundant.
+
+## HIGHEST's invariant is broken by the standard secondary-driver pattern
+
+The three-tier design rests HIGHEST on a deployment invariant: **realtime threads
+must not share a Linkage.** Empirically it held — KAME has run five HIGHEST sites
+(the NMR pulser, the realtime DSOs, NI-DAQ, DigilentWF) without the collapse the
+`-P` sweep shows, because those threads commit disjoint subtrees.
+
+It does not hold. `XSecondaryDriverInterface::onConnectedRecorded`
+(`kame/driver/secondarydriverinterface.h`) breaks it by construction:
+
+* it is connected to `onRecord` **with no flags** (`:215`), so it is an immediate
+  listener;
+* `XDriver::record()` marks the talker (`driver.cpp:52`
+  `tr.mark(tr[*this].onRecord(), this)`), so the dispatch happens when
+  `finishWritingRaw`'s transaction commits — **inline, on the primary driver's
+  acquisition thread**;
+* that thread is at HIGHEST (`AcquisitionPriority`, plus the five pre-existing
+  sites);
+* and the function's first act is `Snapshot shot_all_drivers(*m_drivers.lock())`
+  — **the entire driver list** — re-taken on every iteration of its `for(;;)`
+  retry loop via `newTransactionUsingSnapshotFor`.
+
+So two acquisition threads each running a secondary driver's analysis — an NMR
+pulse analyzer on a DSO, an ODMR analysis on a camera, i.e. exactly the two
+drivers wired for `AcquisitionPriority` — contend at whole-driver-list scope at
+HIGHEST. That is the regime measured at 10x throughput loss for four such threads
+and 42x for eight.
+
+### Fix: the fan-out point lowers itself
+
+`onConnectedRecorded` now opens with
+`Transactional::ScopedPriority(Priority::NORMAL)`. The commit dispatch cannot be
+separated from the commit (`tr.mark` sends on `commit()`), so the priority has to
+drop on the *other* side of the boundary — and that is the right side anyway:
+**secondary-driver analysis is not realtime work and should not inherit HIGHEST
+merely because a realtime thread invoked it.**
+
+The general rule this instantiates: **a listener that widens the scope it touches
+should drop the priority it was entered at.** Worth applying to any future
+immediate listener that snapshots an ancestor.
+
+Audited the other `onRecord` listeners for the same shape:
+
+    kame/forms/driverlistconnector.cpp:101      FLAG_MAIN_THREAD_CALL — deferred, safe
+    modules/nmr/.../pulserdriverconnector.cpp:31 FLAG_MAIN_THREAD_CALL — safe
+    kame/analyzer/recorder.cpp:60               immediate, but uses the passed
+                                                shot; no ancestor snapshot
+    kame/analyzer/analyzer.cpp:398              immediate; snapshots itself and
+                                                the source entry, both leaf-ish,
+                                                not the driver list
+
+Only the secondary-driver interface fans out to the list, so it is the only site
+that needed this.

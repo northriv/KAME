@@ -36,6 +36,34 @@ XSecondaryDriverInterface<T>::requestAnalysis() {
 template <class T>
 void
 XSecondaryDriverInterface<T>::onConnectedRecorded(const Snapshot &shot_emitter, XDriver *driver) {
+	// Drop to NORMAL for the whole analysis, however we were entered.
+	//
+	// This runs INLINE ON THE COMMITTING THREAD: the onRecord listener below is
+	// connected with no flags, and XDriver::record() marks the talker so the
+	// dispatch happens when finishWritingRaw's transaction commits.  So the
+	// thread here is the primary driver's acquisition thread — which is at
+	// Priority::HIGHEST (XPrimaryDriverWithThread::AcquisitionPriority, plus the
+	// five pre-existing sites in the pulser and the realtime DSOs).
+	//
+	// HIGHEST is safe only under a deployment invariant: realtime threads must
+	// not share a Linkage.  This function breaks it by construction — it
+	// snapshots the ENTIRE driver list, and re-snapshots it on every iteration
+	// of the retry loop below.  Two acquisition threads each running a secondary
+	// driver's analysis (an NMR pulse analyzer on a DSO, an ODMR analysis on a
+	// camera) then contend at whole-driver-list scope at HIGHEST, which is the
+	// regime measured at 10x throughput loss for four such threads and 42x for
+	// eight.
+	//
+	// So the fan-out point lowers itself.  Secondary-driver analysis is not
+	// realtime work; it should not inherit HIGHEST merely because a realtime
+	// thread happened to invoke it.  The general rule this is an instance of: a
+	// listener that widens the scope it touches should drop the priority it was
+	// entered at.
+	//
+	// ScopedPriority leaves a SCRIPTING thread alone, which is correct — that
+	// trapdoor is a safety property, not an optimisation.
+	Transactional::ScopedPriority _analysis_priority(
+		Transactional::Priority::NORMAL);
 	Snapshot shot_all_drivers( *m_drivers.lock());
 	if( !shot_all_drivers.isUpperOf( *this))
 		return;
