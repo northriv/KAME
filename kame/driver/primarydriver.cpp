@@ -96,6 +96,21 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
     }
     if(err.msg().length())
         err.print(getLabel() + ": ");
+    // Realtime ends with the record.  Everything below is downstream work --
+    // visualize() touches graphs, and the onVisualization listeners are other
+    // people's code -- and at HIGHEST it would inherit an exemption from
+    // politeness it has no claim to, on paths that widen scope (a graph object
+    // snapshots its plot; the secondary-driver chain snapshots the whole driver
+    // list).  Two acquisition threads doing that concurrently put two realtime
+    // threads on one Linkage, which is the invariant HIGHEST rests on.
+    //
+    // The onRecord listeners are NOT covered here: XDriver::record() marks the
+    // talker, so they are dispatched inside the commit above.  kamestm demotes
+    // there, at Transaction::finalizeCommitment's messaging loop.
+    //
+    // Demotes HIGHEST only.  A NORMAL driver is unaffected, and a lowprio
+    // committer must not be raised.
+    Transactional::ScopedDemoteRealtime _no_realtime_downstream;
     try {
         visualize(shot);
         trans( *this).onVisualization().talk(shot, !skipped, this);

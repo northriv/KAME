@@ -2034,3 +2034,34 @@ Audited the other `onRecord` listeners for the same shape:
 
 Only the secondary-driver interface fans out to the list, so it is the only site
 that needed this.
+
+### The general fix: realtime ends with the record
+
+Patching the secondary-driver interface was treating a symptom. The rule (user) is
+that a primary driver must be back at NORMAL after `record()` — everything
+downstream is somebody else's work. Two places implement that, because the
+downstream work is split across the commit boundary:
+
+* **`Transaction::finalizeCommitment`'s messaging loop** (kamestm). `XDriver::record()`
+  *marks* the talker, so `onRecord` listeners are dispatched inside the commit and
+  cannot be reached from outside it. The loop is now wrapped in
+  `ScopedDemoteRealtime`. Two lines above it, this function already does
+  `m_oneup.release(); // yield the running slot before messaging` — shedding a
+  realtime priority is the same idea, for a sharper reason. This one guard covers
+  every marked-message listener at once: the secondary-driver chain, the
+  scalar/calibrated entries, the recorders, `onVisualization`.
+* **`XPrimaryDriver::finishWritingRaw`** after the commit, for `visualize()` and
+  the `onVisualization` talk, which are plain calls outside it.
+
+`ScopedDemoteRealtime` is **one-directional by design**: it demotes HIGHEST and
+leaves everything else alone. Raising a lowprio committer to NORMAL would be an
+escalation path, not a fix — a script or a redraw would dispatch its listeners at
+a priority it cannot claim itself.
+
+That is not hypothetical. The first version of the secondary-driver patch used
+`ScopedPriority(Priority::NORMAL)`, which raises as readily as it lowers, and
+`requestAnalysis()` is reachable from `xpythonmodule.cpp:972` — i.e. from the
+Python thread. It would have escalated script-initiated analysis on every call.
+The secondary-driver guard is still needed alongside the general one, because
+`requestAnalysis()` calls `onConnectedRecorded` directly rather than through a
+marked message.

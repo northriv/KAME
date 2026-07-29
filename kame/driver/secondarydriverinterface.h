@@ -60,10 +60,17 @@ XSecondaryDriverInterface<T>::onConnectedRecorded(const Snapshot &shot_emitter, 
 	// listener that widens the scope it touches should drop the priority it was
 	// entered at.
 	//
-	// ScopedPriority leaves a SCRIPTING thread alone, which is correct — that
-	// trapdoor is a safety property, not an optimisation.
-	Transactional::ScopedPriority _analysis_priority(
-		Transactional::Priority::NORMAL);
+	// Demote HIGHEST only.  An earlier version used
+	// ScopedPriority(Priority::NORMAL) here, which was wrong in the other
+	// direction: entered from a UI or script thread via requestAnalysis() it
+	// would have RAISED the caller to NORMAL, handing lowprio work a priority it
+	// cannot claim itself.
+	//
+	// This is still needed after kamestm demotes at
+	// Transaction::finalizeCommitment's messaging loop, because
+	// requestAnalysis() calls this directly rather than through a marked
+	// message, so that demotion does not cover it.
+	Transactional::ScopedDemoteRealtime _no_realtime_in_analysis;
 	Snapshot shot_all_drivers( *m_drivers.lock());
 	if( !shot_all_drivers.isUpperOf( *this))
 		return;

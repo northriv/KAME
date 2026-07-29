@@ -2408,8 +2408,18 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
 
     m_oldpacket.reset();
     //Messaging.
-    for(auto &&msg: m_messages)
-        msg->talk( *this);
+    // The listeners below are other people's code.  Two lines up, this function
+    // already sheds the running slot "before messaging"; shedding a realtime
+    // priority is the same idea and for a sharper reason — an immediate listener
+    // that widens scope (the secondary-driver interface snapshots the whole
+    // driver list) would otherwise do it at HIGHEST, putting two realtime
+    // acquisition threads on one Linkage.  Demotes HIGHEST only; see
+    // ScopedDemoteRealtime for why raising a lowprio committer would be wrong.
+    {
+        ScopedDemoteRealtime _no_realtime_in_listeners;
+        for(auto &&msg: m_messages)
+            msg->talk( *this);
+    }
     m_messages.clear();
 }
 

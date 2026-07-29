@@ -230,6 +230,38 @@ private:
     bool m_armed;
 };
 
+//! Demotes a realtime committer for the duration of a scope, and ONLY a
+//! realtime one.
+//!
+//! Used where a commit hands control to other people's code: the listeners of a
+//! marked message.  The committer's priority must not leak into them — a
+//! secondary driver's analysis, a scalar-entry update or a recorder write is not
+//! realtime work, and at HIGHEST it inherits an exemption from politeness it has
+//! no claim to.  Worse, those listeners widen scope: the secondary-driver
+//! interface snapshots the entire driver list, which puts two realtime
+//! acquisition threads on one Linkage and breaks the invariant HIGHEST rests on.
+//!
+//! **One-directional on purpose.**  A lowprio committer must NOT be raised to
+//! NORMAL here: a script or a UI redraw committing something would then dispatch
+//! its listeners at a priority it cannot claim itself, which is an escalation
+//! path, not a fix.
+class ScopedDemoteRealtime {
+public:
+    ScopedDemoteRealtime() noexcept
+        : m_saved(getCurrentPriorityMode()),
+          m_armed(m_saved == Priority::HIGHEST) {
+        if(m_armed) setCurrentPriorityMode(Priority::NORMAL);
+    }
+    ~ScopedDemoteRealtime() noexcept {
+        if(m_armed) setCurrentPriorityMode(m_saved);
+    }
+    ScopedDemoteRealtime(const ScopedDemoteRealtime &) = delete;
+    ScopedDemoteRealtime &operator=(const ScopedDemoteRealtime &) = delete;
+private:
+    Priority m_saved;
+    bool m_armed;
+};
+
 //! \name Foreign-lock guard (debug builds only)
 //!
 //! Detects the OTHER direction of the lock/transaction hazard: holding a plain
