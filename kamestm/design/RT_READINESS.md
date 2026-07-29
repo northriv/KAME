@@ -1543,16 +1543,43 @@ That is exactly why `notify_n_contenders`, which walks `tid_bitset` for the
 linkage it is waking, cannot find the sleeper, and why the livelock verdict's
 `tags_total > 0` was unsatisfiable in the grand arm.
 
-### Not fixed here, deliberately
+### Not a defect to fix — it is the −97 % result, already on record above
 
-Moving the ctor's tag above `_negotiate()` is a two-line edit and a core
-semantics change: every scope construction would then tag before negotiating,
-which alters the contention estimate (`sig_C` feeds `retry_thresh_dyn`), makes
-the livelock verdict reachable on paths where it currently never fires, and
-changes who `fair_mode_blocks_me` blocks. The knob-A experiment removed earlier
-is a warning here — clearing tags before sleeping looked free and silently made
-privilege unclaimable. This is the opposite direction and deserves the same
-measurement discipline rather than an obvious-looking edit.
+**Correction to how this section was first written.** It framed "the ctor tags
+after it negotiates" as an ordering defect awaiting a two-line fix. That fix is
+§"Candidate *just place the tag*" earlier in this file: the tag was placed
+unconditionally immediately before entering the sleep path — the site that *is*
+reached — and throughput at 128 threads went **9.6 M/s → 0.32 M/s, −97 %**.
+Reverted. The ordering is a *consequence* of the throughput constraint, not an
+oversight, and the same applies to the intuitive "the sleeper should register
+itself": sleeper-registry broadcast cost −38 %, wake-one −8 % with a worse tail.
+
+The reason is structural and stated with the −97 % result: the sleep cell is a
+shared **userspace** atomic, not a kernel futex queue. Spreading waiters across
+512 cells by tid is load-bearing for throughput, so any scheme that makes a
+waiter findable *by the contended address* concentrates waiters onto that
+address's cell — which is the cost. Findable implies concentrated implies slow;
+spread implies fast implies unfindable.
+
+What this section does add is the second half of the picture, which the earlier
+entries did not spell out: the wake machinery can only ever target
+
+  * previous successful **owners** — `observe()` has one call site
+    (`transaction_neg_impl.h:1394`) and it records `loadPriority().tid`, written
+    by `tags_successful_cas()`, i.e. by whoever's CAS succeeded;
+  * the current **blocker** — the chunk loop's direct `stamp_tid` wake;
+  * the **privileged** TID — woken unconditionally, outside any bitset.
+
+Both passes of `notify_n_contenders` iterate only the waker's bitset; there is no
+catch-all sweep of the 512 slots. So a thread that has never yet committed on a
+linkage belongs to none of the three sets, and its only exit from `cv.wait` is
+the timeout. That is not a missing bit to set — a waiter has no bit that
+identifies *itself* anywhere, by design.
+
+The one direction not yet costed remains the one named with the −97 % result: a
+per-linkage **list** of waiter slots, keeping waiters spread across cells while
+the Linkage carries the state to enumerate them. That adds state to `Linkage`, a
+hot structure, and should be costed before it is attempted.
 
 ### Correction recorded
 
