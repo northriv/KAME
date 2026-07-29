@@ -1749,7 +1749,23 @@ slow below-NORMAL work on a node they touch can be retried indefinitely. The
 only pre-existing exit was the HANG watchdog `abort()`ing the whole process after
 3 x 5 s.
 
-`KAME_STM_LOWPRIO_STARVE_MS` defaults to **1000**, which has provenance rather
+**`KAME_STM_LOWPRIO_STARVE_MS` ships as 0 (off).** Shipping it on was a
+regression I introduced and then caught: KAME catches `XKameError` at its
+connector boundaries (`kame/xnodeconnector.cpp`, five-plus sites) and
+`StarvationTimeoutError` derives from `std::runtime_error`, so it slips past all
+of them; there is no `QApplication::notify` override and no try/catch around
+`app.exec()` / `processEvents()`, so an escape from a Qt slot terminates the
+process — and `main.cpp:220` puts the whole GUI thread at UI_DEFERRABLE, squarely
+in the revocable set. **A crash is a worse outcome than the freeze it prevents.**
+
+Turning it on needs, at minimum: a top-level guard that reports rather than
+terminates (a `QApplication::notify` override is the one place covering every
+slot, and would also catch the `std::runtime_error`s that already escape today
+from pybind paths, `to_png` and `loadUIFile`); a catch in `XPython::execute`
+(the Python thread — pybind translates only at its own boundary); and one in the
+graph dump path. Driver threads need nothing: NORMAL/HIGHEST cannot throw it.
+
+The value to use once handlers exist is **1000 ms**, which has provenance rather
 than being invented: the Priority enum's original doc-comment promised SCRIPTING
 "yields to *everything* for the first second of any contention, then claims
 privilege so the request still eventually completes". Privilege never fires

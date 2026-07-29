@@ -367,8 +367,33 @@
 // eventually completes".  Privilege never fires (grants measured 0.000 in every
 // configuration), so that promise was never kept.  This keeps it by the other
 // route — instead of "then claims privilege", "then gives up cleanly".
+// DEFAULT 0 (OFF) UNTIL THE HOST HAS HANDLERS.  Enabling it without them is
+// worse than the starvation it prevents: KAME catches XKameError at its
+// connector boundaries (kame/xnodeconnector.cpp, five-plus sites) and
+// StarvationTimeoutError derives from std::runtime_error, so it slips past every
+// one of them.  There is no QApplication::notify override and no try/catch
+// around app.exec()/processEvents(), so an escape from a Qt slot terminates the
+// process — and main.cpp:220 puts the whole GUI thread at UI_DEFERRABLE, i.e.
+// squarely in the revocable set.  A crash is a worse outcome than a freeze.
+//
+// To turn it on, the host needs, at minimum:
+//   * a top-level guard that reports rather than terminates — a
+//     QApplication::notify override is the one place that covers every slot,
+//     and it would also catch the std::runtime_errors that already escape
+//     today (pybind paths, to_png, loadUIFile);
+//   * a catch in XPython::execute (kame/script/xpythonsupport.cpp:149, the
+//     Python thread) — pybind translates only at its own boundary;
+//   * a catch in the graph dump path (kame/graph/graphntoolbox.cpp:122).
+// Driver threads need nothing: they run NORMAL/HIGHEST and cannot throw this.
+//
+// The value to use once handlers exist is 1000 ms, which has provenance rather
+// than being invented: the Priority enum's original doc promised SCRIPTING
+// "yields to *everything* for the first second of any contention, then claims
+// privilege so the request still eventually completes".  Privilege never fires
+// (grants measured 0.000 in every configuration), so the promise was never kept;
+// a 1 s bound keeps it by the other route — "then gives up cleanly".
 #ifndef KAME_STM_LOWPRIO_STARVE_MS
-#define KAME_STM_LOWPRIO_STARVE_MS 1000
+#define KAME_STM_LOWPRIO_STARVE_MS 0
 #endif
 // Retries before the age is even looked at, so an uncontended commit pays one
 // integer compare and never reads the clock.
