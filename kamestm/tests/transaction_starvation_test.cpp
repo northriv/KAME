@@ -90,6 +90,31 @@ static bool age_one_transaction(Transactional::Priority pr, int retries) {
     return false;
 }
 
+//! Pins the pattern kame/script/starvation_probe.py depends on: modify, commit a
+//! NESTED transaction on the same node, and the outer commit really does fail so
+//! the retry count advances.
+//!
+//! The probe needs that because Python has no `iterate_commit_if`: its retry loop
+//! is `Transaction.__next__`, which calls `commitOrNext()` only when the
+//! transaction was modified, and `commitOrNext()` reaches `++(*this)` -- the
+//! increment the bound gates on -- only when that commit FAILS.  A body that just
+//! sleeps never increments anything, so the probe has to invalidate itself.
+//! Verified here because the probe cannot be run on a host without the Qt build.
+//! \return closure invocations; > 1 means the outer commit failed and retried.
+static int nested_invalidation_retries() {
+    shared_ptr<MyNode> node(MyNode::create<MyNode>());
+    int outer = 0;
+    node->iterate_commit_if([&](Tr &tr) -> bool {
+        ++outer;
+        tr[ *node].m_x++;
+        if(outer > 4)
+            return true;                    // stop invalidating; let it commit
+        node->iterate_commit([&](Tr &inner){ inner[ *node].m_x += 100; });
+        return true;                        // attempt the now-stale commit
+    });
+    return outer;
+}
+
 int main() {
 #if KAME_STM_LOWPRIO_STARVE_MS <= 0
     std::printf("KAME_STM_LOWPRIO_STARVE_MS=0 - bound compiled out, skipping\n");
@@ -132,6 +157,18 @@ int main() {
     if(early) {
         std::printf("    FAIL: threw before "
                     "KAME_STM_LOWPRIO_STARVE_MIN_RETRIES retries\n");
+        ++failures;
+    }
+
+    // The pattern the Python probe relies on.
+    int nested = nested_invalidation_retries();
+    std::printf("  %-14s nested-invalidation retries : %d (want > 1)\n",
+                "probe pattern", nested);
+    if(nested <= 1) {
+        std::printf("    FAIL: a nested commit on the same node did not "
+                    "invalidate the outer transaction, so "
+                    "kame/script/starvation_probe.py cannot accumulate retries "
+                    "and would silently measure nothing.\n");
         ++failures;
     }
 

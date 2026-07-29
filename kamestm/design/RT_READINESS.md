@@ -1901,12 +1901,31 @@ implying the coverage is complete.
 
 ### Probing it from inside KAME
 
-`kame/script/starvation_probe.py` provokes and measures it against a live tree:
-several threads at a revocable priority committing at whole-tree scope, counting
-`kame.KAMEError` (which is what KAME's handler's `XKameError` becomes in Python).
-It encodes the three things that determine whether starvation happens at all —
-two or more lowprio threads (one does not starve), whole-tree scope (bundle churn
-is O(subtree)), and that a fresh `threading.Thread` starts at NORMAL and must set
-its own priority or the probe silently measures the wrong thing. It refuses to
-pick a write target automatically unless told to, because every attempt writes and
-listeners fire, which on a driver-owned node can reach an instrument.
+`kame/script/starvation_probe.py`. The first version manufactured real contention
+— several threads at a revocable priority committing at whole-tree scope for ten
+seconds. Replaced (user) with a **single slow transaction**, which is
+deterministic, needs no other threads and no drivers, and writes about a dozen
+times instead of thousands.
+
+Two details make it work, and neither is obvious:
+
+* **Slow is not enough.** The bound needs an age past the limit *and* at least
+  `KAME_STM_LOWPRIO_STARVE_MIN_RETRIES` (8) retries — the gate is what keeps the
+  clock off the fast path. A transaction that merely takes two seconds has a retry
+  count of 0 and does not fire.
+* **In Python the retry count only advances on a FAILED commit.**
+  `Transaction.__next__` calls `commitOrNext()` only when the transaction was
+  modified, and `commitOrNext()` reaches `++(*this)` — the increment, and the
+  bound — only when that commit fails. A body that just sleeps loops without
+  incrementing anything, because Python has no `iterate_commit_if` whose
+  `continue` would drive `++tr`.
+
+So each iteration modifies the target and then commits a **nested** transaction on
+the same node, invalidating itself. `transaction_starvation_test` now pins that
+pattern (measured: 5 retries, deterministic over 3 runs) precisely because the
+probe cannot be run on a host without the Qt build — the script rests on
+something verified rather than on reasoning.
+
+`Priority.NORMAL` is the control: not revocable, so it must not throw however long
+it retries. And the probe still writes — same value, but listeners fire — so it
+takes the target as a required argument rather than guessing one.
