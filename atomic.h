@@ -62,11 +62,17 @@ typedef int_cas_max uint_cas_max;
 // The STM transaction framework packs multiple fields into atomic<uint64_t>
 // (m_priority_state, m_recent_ops_state, RunnerCounterEntry::v, stamps, ...).
 // On 64-bit targets this is trivially lock-free; on 32-bit targets the
-// compiler maps it to a DCAS instruction (CMPXCHG8B on i486+, LDREXD/STREXD
-// on ARMv7-A) when available — std::atomic<uint64_t> stays lock-free.
-// Targets without hardware DCAS (i386, ARMv5/v6) previously used the
-// in-tree DCAS fallback; that path should be revived rather than blocked
-// here, hence no static_assert.
+// compiler maps it to a DCAS instruction (CMPXCHG8B on i586/Pentium+,
+// LDREXD/STREXD on ARMv7-A) when available — std::atomic<uint64_t> stays
+// lock-free.  Targets without hardware DCAS (i386/i486, ARMv5/v6, RV32,
+// MIPS32) previously used the in-tree DCAS fallback; that path should be
+// revived rather than blocked here, hence no static_assert.
+//
+// NOTE: CMPXCHG8B is a Pentium (i586) instruction, NOT i486 — `-march=i486`
+// reports ATOMIC_LLONG_LOCK_FREE == 1 and lowers every 64-bit atomic to a
+// LOCKED libatomic call.  That makes an i486 build the cheapest mechanical
+// probe for "did an unguarded 64-bit atomic reach a hot path?" without
+// needing RV32/ARMv6 hardware — see tools/audit/check_no_dcas.sh.
 
 template <typename T>
 class atomic<T, typename std::enable_if<std::is_integral<T>::value || std::is_pointer<T>::value>::type>
