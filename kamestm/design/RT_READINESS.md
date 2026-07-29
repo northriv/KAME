@@ -1929,3 +1929,54 @@ something verified rather than on reasoning.
 `Priority.NORMAL` is the control: not revocable, so it must not throw however long
 it retries. And the probe still writes — same value, but listeners fire — so it
 takes the target as a required argument rather than guessing one.
+
+## "grants 0.000" is a frequency measurement, not a verdict on necessity
+
+This file says several times that the privilege claim never fires — grants
+measured 0.000 in every configuration, across arms, thread counts and
+NORMAL/SCRIPTING mixes. That is accurate and it is easy to misread, as I did:
+I proposed that the per-linkage privilege machinery was therefore dead weight and
+a removal candidate. **That is wrong, and it would break a verified property.**
+
+`kamestm/tests/VERIFICATION.md:317` is explicit: *"The TLA+ priority mechanism
+mirrors the per-linkage privilege path in `transaction.h`
+(`KAME_PER_LINKAGE_PRIVILEGE=1`, the default)"*, with a symbol-by-symbol
+correspondence —
+
+    TLA+                 C++
+    priorityTag[n]       Linkage::m_transaction_started_time
+    MyTag(t)             Snapshot::m_started_time
+    TagAfterFail         Snapshot::tag_as_contender(link)
+    CanProceed           i_am_privileged_now / fair_mode_blocks_me
+    PreemptTag           the preempt window inside tag_as_contender
+    ClearMyTags          drop_tags_n_privilege()
+
+— and `Privilege = TRUE` is set in the model-checked configs, the liveness one
+included. The machinery **is** the implementation of the verified
+livelock-freedom mechanism. Removing it severs the spec-to-code correspondence
+and deletes the mechanism whose absence TLC says produces livelock.
+
+The error has a name worth remembering: **for a livelock-freedom mechanism, the
+cases that matter are exactly the rare adversarial interleavings that measurement
+does not reach.** Never observing it fire at eight threads says something about
+frequency and nothing about necessity — covering what measurement cannot is what
+the model checking is for. Treating an absence of observations as an absence of
+need inverts the relationship between the two.
+
+### Two guarantees, two mechanisms, and they are not substitutes
+
+    property                        mechanism                     verified by
+    bounded waiting / failure       ScopedWaitBudget, the          measurement
+                                    starvation timeout             (ctest, bench)
+    livelock freedom (progress)     per-linkage privilege          TLA+ TLC
+
+So a NORMAL transaction carrying no budget is not unguaranteed — it has
+**progress**, just not a *time* bound. The earlier framing ("NORMAL with no budget
+is still unbounded") was about time and is correct about time; it silently implied
+there was no guarantee at all, which is not.
+
+That also settles the three-tier design's relationship to privilege. The tiers do
+not *depend* on it for their bounds — HIGHEST never waits, NORMAL's escape is the
+budget and is deliberately ungated on `fair_mode_blocks_me`, and the lowprio
+timeout reads only age and retry count. But privilege is the separate pillar that
+makes progress hold at all. Independent, not redundant.
