@@ -869,20 +869,28 @@ namespace detail {
 
     // Fires the livelock probe. The caller (negotiate_internal, which
     // has access to Snapshot's protected members via enclosing-class
-    // friendship) pre-computes the tag-ownership counts, the
-    // retry-threshold (chosen from Priority), and the priority label,
-    // then passes plain values here.
+    // friendship) pre-computes the tag-ownership counts and the priority
+    // label, then passes plain values here.
     //
     // Verdict:
     //   tags_owned == tags_total > 0                  AND
-    //   my_tx_retries >= retry_threshold              AND
-    //   tx_age_us > KAME_STM_LIVELOCK_MIN_AGE_US (20 ms default)
+    //   my_tx_retries >= clamp(sig_C*2, 3, hardware_concurrency())
     //
-    // retry_threshold is priority-dependent:
-    //   HIGHEST         → 2  (real-time, must not retry)
-    //   NORMAL          → 3
-    //   UI_DEFERRABLE   → 5  (deferred UI repaint — retries tolerated)
-    //   LOWEST          → 5  (background — tolerates yielding)
+    // The threshold is derived from observed CONTENTION, not priority: each
+    // peer contributes roughly two expected CAS retries, capped at
+    // hardware_concurrency() because beyond that count the threads cannot all
+    // be running CAS at once.  It was priority-derived until 30a0ab0a5
+    // (2026-05-10); the per-priority table that used to be described here is
+    // gone, along with the struct field that carried it.
+    //
+    // Note what this costs: priority no longer decides when privilege becomes
+    // claimable.  Priority still separates HIGHEST (skips negotiation) and the
+    // lowprio set (evictable privilege stamps) — see the Priority enum's
+    // doc-comment in transaction_detail.h — but not the claim timing.
+    //
+    // The age condition that used to sit here (tx_age_us >
+    // KAME_STM_LIVELOCK_MIN_AGE_US) was also dropped; tx_age_us is still
+    // printed for diagnosis.
     //
     // Two unrelated time scales appear in the printout:
     //   tx_age_us  = age of the current Tx/Snapshot (set by Snapshot or
