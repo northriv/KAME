@@ -1589,3 +1589,67 @@ absence of any tag in the constructor. The constructor does tag — the call is 
 the end of a long ctor body, in each of three overloads, and the first reading
 covered only the first overload's opening lines. The dtor comment claiming "ctor
 already tagged" is accurate. The defect is the ordering, not a missing tag.
+
+## The uncosted direction, costed: waking the waiter is neutral and useless
+
+The section above named one direction still worth trying — publish the waiter's
+identity so a committer can wake it, without touching either the arbitration
+stamp (that was the −97 %) or `m_tid_bitset` (whose popcount is `sig_C`, feeding
+`retry_thresh_dyn = sig_C*2`, the adaptive lease growth, and
+effective_min/max_runners; inflating it moves every consumer the wrong way).
+
+Implemented as the cheapest possible form, mirroring the one wake that already
+bypasses the bitset (the chunk loop's `stamp_tid` → slot → `wake_one()`):
+
+* `Linkage::m_waiter_tid`, one 16-bit word.  One **relaxed store** of the
+  sleeper's tid immediately before the sleep section — no tag, no bitset, no RMW.
+* A wake from `Linkage::tags_successful_cas()`, i.e. **on release** — the wake
+  the system never had: `drop_tags_n_privilege` zero-stores the stamp and
+  notifies nobody, and `_negotiate()` returns before `_negotiate_internal` (which
+  owns every wake site) once the stamp is clear.  Load, `exchange(0)` only when
+  somebody is asleep, `wake_one()`.
+
+### The mechanism fires, abundantly
+
+    WAITER: published 2.82/commit, woken by a committer 3.17/commit
+            (112.6 % of publishes)
+
+Waiters are found and woken. And:
+
+    metric                OFF        ON
+    sleeps/commit         14.21      17.49
+    slept/commit          23.9 ms    27.0 ms
+    rounds/commit          3.81       4.01
+    priv grants            0.000      0.000
+    asked/got per sleep    1.12x      1.03x
+
+    throughput 128t         —        −0.8 %
+    throughput 8t           —        −0.3 %
+    grand p99.99        2 621 440  2 621 440   (identical)
+    grand p99.999      83 886 080 83 886 080   (identical)
+    grand MAX             332 ms     330 ms
+
+It wakes, the gate refuses, it sleeps again — so the sleep *count* rises while
+the total sleep time rises with it, and the tail does not move by one bucket.
+
+### Why this is the decisive one
+
+Every earlier attempt in this line was confounded by its own cost: at −97 %,
+−38 % or −8 % a null tail result could always be blamed on the damage rather than
+on the hypothesis. This one costs 0.3–0.8 % — it touches neither the arbitration
+nor the contention estimate — and is *still* null. So the wake is not the binding
+constraint; the sleeper is refused at the **admission gate**, exactly as the
+56,000 system-wide commits completing during one slow commit's wait already
+suggested.
+
+That also closes the per-linkage waiter-list design named above as the one
+uncosted option. Its only advantage over this experiment is waking *more*
+waiters, and waking one produced no tail movement while adding sleeps and rounds.
+There is no version of "make the waiter findable" left to try.
+
+Reverted, as A/B/C/D were, and for the same reason: an untested `#if` in the
+hottest function in the library will rot, and the value is in the measurement.
+
+**What remains is unchanged and is not inside the negotiator**: fewer contenders
+per linkage (commit at a narrower scope) and less per-commit work (bundle churn
+is O(subtree)). A bounded commit is a contract precondition on the caller.
