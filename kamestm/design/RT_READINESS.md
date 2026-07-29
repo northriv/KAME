@@ -1827,3 +1827,37 @@ three-level one did (bundle churn is O(subtree), and the intermediate level is
 what makes a root commit heavy enough), and once the starved *peers* caught their
 own exceptions and restarted, the victim stopped starving too. Contention
 dynamics are what the bench is for.
+
+### There is no "time for HIGHEST to take privilege back"
+
+Asked whether the budget should set it. It cannot, because HIGHEST never concedes
+privilege in the first place.
+
+`_negotiate_after_retry_pause` (`transaction_neg_impl.h:697-703`) does route a
+thread into negotiation when a peer holds privilege, even at `retry == 0`:
+
+    if(retry == 0 && !NC::fair_mode_blocks_me(...)) [[likely]] return;
+    retry_pause(retry);
+    _negotiate();
+
+But `_negotiate()` reaches `_negotiate_internal()`, whose round loop opens with
+`if(entry_pr == Priority::HIGHEST) break;`, so HIGHEST returns without spinning
+or sleeping — it pays `retry_pause(0)`'s CPU relax and nothing else. Measured: one
+HIGHEST thread among seven NORMAL shows **sleeps/commit 0.00** and 5 slow commits
+in four seconds.
+
+So the times that exist, and who they bind:
+
+    party      waits for a privilege holder      budget-settable?
+    HIGHEST    never                             no — a budget is inert on it
+    NORMAL     51 ms (stamp_is_expired_lowprio)  not in the predicate (the
+    lowprio    51 ms                             three-way agreement), but a
+                                                 budget-carrying thread leaves
+                                                 earlier via its own ungated
+                                                 escape
+
+"How long until I stop deferring to a privilege holder" **is** budget-settable —
+for the threads that defer. HIGHEST is not one of them, and that immunity is
+exactly why it does not scale past one such thread (the -P sweep: 1 costs 4 %,
+4 cost 10x, 8 cost 42x) and why `AcquisitionPriority` is scoped to the
+acquisition loop rather than the thread.
