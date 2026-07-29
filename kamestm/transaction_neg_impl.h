@@ -86,6 +86,16 @@ struct Node<XN>::WalkUpResult {
 // (age-ordered preemption window + per-priority floor) live in
 // transaction_definitions.h.
 
+//! Per-priority claim-age floor.
+//!
+//! Reachable with a per-level `pr` ONLY from `try_register_privileged_tidstamp`,
+//! which is the `#else` arm of `KAME_PER_LINKAGE_PRIVILEGE` — i.e. the
+//! non-default global-privilege mode.  In the default per-Linkage mode the claim
+//! path opens with a literal `(void)entry_pr;`, and the only calls that survive
+//! pass `Priority::SCRIPTING` explicitly (`stamp_is_expired_lowprio`, and one
+//! diagnostic print), so the LOWEST / UI_DEFERRABLE / NORMAL branches are dead
+//! there.  Kept because the global mode still compiles, not because the
+//! graduated ladder is operative by default.
 template <class XN>
 int64_t Node<XN>::NegotiationCounter::min_privilege_age_us(Priority pr) noexcept {
     switch (pr) {
@@ -310,12 +320,12 @@ template <class XN>
 typename Node<XN>::NegotiationCounter::PriorityProbeInfo
 Node<XN>::NegotiationCounter::priority_probe_info(Priority pr) noexcept {
     switch (pr) {
-        case Priority::HIGHEST:       return { 2, "HIGHEST" };
-        case Priority::NORMAL:        return { KAME_STM_RETRY_THRESH_NORMAL, "NORMAL" };
-        case Priority::UI_DEFERRABLE: return { 4, "UI_DEFERRABLE" };
-        case Priority::LOWEST:        return { 4, "LOWEST" };
-        case Priority::SCRIPTING:     return { 4, "SCRIPTING" };
-        default:                      return { 3, "?" };
+        case Priority::HIGHEST:       return { "HIGHEST" };
+        case Priority::NORMAL:        return { "NORMAL" };
+        case Priority::UI_DEFERRABLE: return { "UI_DEFERRABLE" };
+        case Priority::LOWEST:        return { "LOWEST" };
+        case Priority::SCRIPTING:     return { "SCRIPTING" };
+        default:                      return { "?" };
     }
 }
 

@@ -648,8 +648,14 @@ private:
                            const Linkage *link = nullptr) noexcept;
 
         //! Per-priority livelock-probe parameters (retry threshold + label).
+        //! Only the name survives.  The `retry_threshold` field that used to
+        //! sit here was the per-priority livelock-probe threshold, and it has
+        //! been dead since 30a0ab0a5 (2026-05-10) replaced it in the verdict
+        //! with `retry_thresh_dyn = clamp(sig_C*2, 3, hardware_concurrency())`
+        //! — a contention-derived bound rather than a priority-derived one.
+        //! The field stayed behind and was still being printed, which read as
+        //! though priority governed claim eligibility when it no longer does.
         struct PriorityProbeInfo {
-            int retry_threshold;
             const char *name;
         };
         static PriorityProbeInfo priority_probe_info(Priority pr) noexcept;

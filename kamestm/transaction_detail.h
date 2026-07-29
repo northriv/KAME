@@ -104,28 +104,48 @@ class ScopedNegotiateLinkage;
 template <class XN>
 struct ScopedLookupMemoInvalidate;
 
-//! Per-Tx priority used by the privilege ("fair-mode oldest-Tx
-//! escape") mechanism in `negotiate_internal`.
+//! Per-Tx priority, consumed by the negotiator.
 //!
-//! The privilege machinery promotes a Tx to "stuck oldest" status
-//! after it has been waiting longer than `min_privilege_age_us(pr)`,
-//! allowing it to preempt forward progress.  Lower priorities use
-//! a larger age threshold so they yield to measurement traffic
-//! by default and only escalate on prolonged starvation.
+//! **What this actually does in a default build**, which is less than the five
+//! levels suggest.  The description below used to promise a graduated ladder of
+//! per-priority age thresholds; that ladder only operates when
+//! `KAME_PER_LINKAGE_PRIVILEGE=0` (the non-default global-privilege mode).  In
+//! the default per-Linkage mode the privilege claim opens with a literal
+//! `(void)entry_pr;` and the livelock verdict uses
+//! `clamp(sig_C*2, 3, hardware_concurrency())` — contention, not priority — so
+//! priority does not decide *when* privilege becomes claimable at all.
 //!
-//!   HIGHEST / NORMAL  — production measurement and driver activity
-//!   UI_DEFERRABLE     — interactive UI updates (50 ms threshold)
-//!   LOWEST            — bulk/analysis (30 ms threshold)
-//!   SCRIPTING         — external scripting / inspection callers:
-//!                       MCP server / AI agents, Python or Ruby
-//!                       user scripts via the IPython kernel,
-//!                       future ZMQ command handlers.  1-second
-//!                       threshold: yields to *everything* for the
-//!                       first second of any contention, then
-//!                       claims privilege so the request still
-//!                       eventually completes.  Prevents scripted
-//!                       inspection from disrupting a live
-//!                       measurement loop while bounding starvation.
+//! What it does decide:
+//!
+//!   HIGHEST        — skips negotiation entirely: `if(entry_pr ==
+//!                    Priority::HIGHEST) break;` is the first statement of the
+//!                    round loop, so the thread never spins and never sleeps.
+//!                    Note this buys no deference — nothing makes peers wait
+//!                    for it, since only a Reserved (privilege) stamp does that
+//!                    and privilege is granted priority-blind.  It is an
+//!                    exemption from politeness, and it stops scaling past one
+//!                    such thread.  Deliberately not exposed to Python.
+//!   LOWEST,        — the "low set".  `now_us_tagged()` folds a lowprio bit
+//!   UI_DEFERRABLE,   into their stamps, which makes a privilege stamp they hold
+//!   SCRIPTING        *evictable on timeout* (`stamp_is_expired_lowprio`) while
+//!                    NORMAL / HIGHEST stamps are immune, and which excludes
+//!                    them from the per-Linkage owner-skip lease
+//!                    (`_neg_apply_lease`).  This is what keeps a script or a
+//!                    UI redraw from pinning privilege against a measurement
+//!                    loop.  LOWEST is additionally excluded from the jittered
+//!                    gate / lottery in `_negotiate_internal`.
+//!   NORMAL         — the baseline: production measurement and driver activity.
+//!
+//! Intended callers, unchanged: NORMAL for drivers, UI_DEFERRABLE for
+//! interactive UI, LOWEST for bulk/analysis, SCRIPTING for external scripting
+//! (MCP / AI agents, Python or Ruby via the IPython kernel, future ZMQ
+//! handlers) — the last being a one-way trapdoor once set, so a script cannot
+//! elevate itself.
+//!
+//! (The old text also gave SCRIPTING a "1-second threshold".  The value is
+//! `min_privilege_age_us(Priority::SCRIPTING) == 1'000` µs = 1 ms — the doc was
+//! out by a factor of 1000, and it described a path that the default build does
+//! not take.)
 enum class Priority {NORMAL = 0, LOWEST, UI_DEFERRABLE, HIGHEST, SCRIPTING};
 DECLSPEC_KAME void setCurrentPriorityMode(Priority pr);
 DECLSPEC_KAME Priority getCurrentPriorityMode();

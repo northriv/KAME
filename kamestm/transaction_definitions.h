@@ -410,12 +410,6 @@
 #  define KAME_STM_NOINLINE __attribute__((noinline))
 #endif
 
-// Per-Priority retry threshold for the livelock probe's verdict (NORMAL
-// row; HIGHEST/UI_DEFERRABLE/LOWEST are hard-coded in
-// priority_probe_info()).
-#ifndef KAME_STM_RETRY_THRESH_NORMAL
-#define KAME_STM_RETRY_THRESH_NORMAL 3
-#endif
 
 // Floor for the live-contender estimate used in negotiate_internal's
 // √C lottery: C_obs = max(C, KAME_STM_C_OBS_MIN).
