@@ -2065,3 +2065,54 @@ Python thread. It would have escalated script-initiated analysis on every call.
 The secondary-driver guard is still needed alongside the general one, because
 `requestAnalysis()` calls `onConnectedRecorded` directly rather than through a
 marked message.
+
+## What HIGHEST actually buys, and the budget that closes the hole it left
+
+Demotion shrinks HIGHEST's reach, and the observation that follows (user) is
+correct: with the listeners still on the acquisition thread, HIGHEST buys much
+less than it looks like.
+
+What is left is **the contention window** — loop top through CAS success: the
+settings Snapshots (`***node()`), `Node::snapshot()` for the ctor and each retry,
+and the bundle/commit chain. That is where starvation lives, so nothing the thread
+*needed* was given up: the demotion only releases the part after it has already
+won.
+
+What was given up is **the period**. The dispatch runs on this thread at NORMAL, so
+a slow secondary-driver analysis delays the loop's next iteration, and at NORMAL it
+can wait. HIGHEST protects the contention window; it does not protect cadence.
+(Not a regression — before `AcquisitionPriority` those threads were NORMAL and the
+dispatch was NORMAL too. HIGHEST is a strict improvement on NORMAL, just a smaller
+one than it appears.)
+
+### The wait budget closes it, and this corrects an earlier claim
+
+Earlier in this file: *"a budget is inert on HIGHEST"*. That holds only **while it
+is HIGHEST**. The moment `ScopedDemoteRealtime` drops the thread to NORMAL, the
+budget binds — so a budget on a realtime acquisition thread is not useless, it is
+precisely the tool for the demoted region.
+
+And because the budget is an **absolute thread-local limit** rather than a
+per-scope duration, one guard at the top of `finishWritingRaw` covers both demoted
+regions at once: the marked-message dispatch inside the commit
+(`finalizeCommitment`'s messaging loop, which kamestm cannot give a policy value
+to) and `visualize()` / `onVisualization` after it.
+
+    XPrimaryDriver::downstreamWaitBudgetUS()     virtual, default 0 = unbounded
+
+So the two mechanisms now do exactly what each is for, and neither substitutes for
+the other:
+
+    demote HIGHEST     downstream does not impose on others
+    wait budget        downstream does not block the realtime loop's period
+
+**No driver overrides it yet.** The value has to come from the acquisition cycle —
+comfortably under the period, so a blown budget costs a late record rather than a
+lost one — and that is a number the deployment knows and this side does not. Same
+stopping point as the starvation bound waiting for its handler: the mechanism is in
+place and default-inert.
+
+This is also the first real user of `ScopedWaitBudget`, which had zero call sites
+and was recorded as a feature without a consumer. Its consumer turns out to be the
+realtime loop bounding the non-realtime work it must wait for — not, as first
+guessed, a driver bounding its own commit.

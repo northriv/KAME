@@ -102,6 +102,31 @@ protected:
 	//! \sa Payload::time()
 	void finishWritingRaw(const shared_ptr<const RawData> &rawdata,
 		const XTime &time_awared, const XTime &time_recorded);
+
+    //! How long this driver is willing to spend WAITING inside one
+    //! finishWritingRaw, in µs.  0 (the default) = unbounded, i.e. today's
+    //! behaviour.
+    //!
+    //! Only realtime acquisition loops need this, and the reason is specific.
+    //! An acquisition loop at Priority::HIGHEST is demoted to NORMAL for
+    //! everything downstream of the record -- the marked-message dispatch inside
+    //! the commit, then visualize() and onVisualization -- because that is other
+    //! people's work and must not inherit an exemption from politeness.  But once
+    //! demoted it can WAIT, so the loop's period becomes exposed to whatever
+    //! downstream contends with, which is the one thing HIGHEST was supposed to
+    //! protect.
+    //!
+    //! A wait budget closes that without handing downstream any privilege: the
+    //! loop declares how much of its period it will lend, and beyond that the
+    //! negotiator stops waiting.  The budget is a thread-local ABSOLUTE limit, so
+    //! one guard at the top of finishWritingRaw covers both demoted regions --
+    //! and it is inert during the HIGHEST part, since HIGHEST leaves the round
+    //! loop before it can sleep.  (An earlier note here claimed a budget was
+    //! simply inert on a HIGHEST thread; that holds only while it IS HIGHEST.)
+    //!
+    //! Pick it from the cycle: comfortably less than the acquisition period, so a
+    //! blown budget costs a late record rather than a lost one.
+    virtual unsigned int downstreamWaitBudgetUS() const {return 0;}
 public:
     //! \name Record-commit latency telemetry
     //!

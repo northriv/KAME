@@ -17,6 +17,7 @@
 
 #include "primarydriver.h"
 #include <chrono>
+#include <memory>
 
 XPrimaryDriver::XPrimaryDriver(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -30,6 +31,16 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
     XTime time_recorded = time_recorded_org;
     XKameError err;
     bool skipped = false;
+    // Bounds the WAITING this call may do.  Inert while the thread is at
+    // HIGHEST (it leaves the negotiator's round loop before sleeping) and live
+    // the moment ScopedDemoteRealtime drops it to NORMAL for the marked-message
+    // dispatch below and for visualize()/onVisualization after -- which is
+    // exactly where an acquisition loop's period would otherwise be exposed.
+    // One guard covers both, because the budget is an absolute thread-local
+    // limit rather than a per-scope duration.  Default 0 = unbounded = unchanged.
+    std::unique_ptr<Transactional::ScopedWaitBudget> _downstream_budget;
+    if(unsigned int _b = downstreamWaitBudgetUS())
+        _downstream_budget.reset(new Transactional::ScopedWaitBudget((int64_t)_b));
     // Telemetry only — see the counters' doc block in primarydriver.h.  Two
     // steady_clock reads and one comparison per record, against a commit that
     // already does a tree walk; nothing is printed here.
