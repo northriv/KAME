@@ -67,6 +67,9 @@ typedef Transactional::Transaction<MyNode> Tr;
 //! Ages one transaction past the bound by skipping the commit, and reports
 //! whether StarvationTimeoutError came out.
 static bool age_one_transaction(Transactional::Priority pr, int retries) {
+    // The bound calls a host-installed handler; with none, nothing happens.
+    // Install kamestm's ready-made one so there is something to observe.
+    Transactional::setStarvationHandler(&Transactional::throwStarvationTimeout);
     Transactional::ScopedPriority guard(pr);
     shared_ptr<MyNode> node(MyNode::create<MyNode>());
     const auto per_retry = std::chrono::microseconds(

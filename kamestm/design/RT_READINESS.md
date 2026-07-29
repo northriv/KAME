@@ -1749,24 +1749,39 @@ slow below-NORMAL work on a node they touch can be retried indefinitely. The
 only pre-existing exit was the HANG watchdog `abort()`ing the whole process after
 3 x 5 s.
 
-**`KAME_STM_LOWPRIO_STARVE_MS` ships as 0 (off).** Shipping it on was a
-regression I introduced and then caught: KAME catches `XKameError` at its
-connector boundaries (`kame/xnodeconnector.cpp`, five-plus sites) and
-`StarvationTimeoutError` derives from `std::runtime_error`, so it slips past all
-of them; there is no `QApplication::notify` override and no try/catch around
-`app.exec()` / `processEvents()`, so an escape from a Qt slot terminates the
-process — and `main.cpp:220` puts the whole GUI thread at UI_DEFERRABLE, squarely
-in the revocable set. **A crash is a worse outcome than the freeze it prevents.**
+### The throw is a host-installed hook, which is why it is one line in KAME
 
-Turning it on needs, at minimum: a top-level guard that reports rather than
-terminates (a `QApplication::notify` override is the one place covering every
-slot, and would also catch the `std::runtime_error`s that already escape today
-from pybind paths, `to_png` and `loadUIFile`); a catch in `XPython::execute`
-(the Python thread — pybind translates only at its own boundary); and one in the
-graph dump path. Driver threads need nothing: NORMAL/HIGHEST cannot throw it.
+The first cut threw a new `StarvationTimeoutError` unconditionally. That was a
+crash risk, caught by asking whether KAME catches it — it does not. KAME catches
+`XKameError` at its connector boundaries (`kame/xnodeconnector.cpp`, six sites)
+and nowhere catches `std::runtime_error`; there is no `QApplication::notify`
+override and no try/catch around `app.exec()` / `processEvents()`; and
+`main.cpp:220` puts the whole GUI thread at UI_DEFERRABLE, squarely in the
+revocable set. A new type escaping a Qt slot terminates the process, which is a
+worse outcome than the freeze the bound prevents.
 
-The value to use once handlers exist is **1000 ms**, which has provenance rather
-than being invented: the Priority enum's original doc-comment promised SCRIPTING
+Covering a new type meant catches at **seven** UI_DEFERRABLE thread entry points
+— `main.cpp:220`, `graphntoolbox.cpp:122`, `xpythonmodule.cpp:347`,
+`xpythonsupport.cpp:149`, `xrubysupport.cpp:179` and `:317`,
+`xscriptingthread.cpp:108` — plus the six connector chains, and anything missed
+is fatal.
+
+So kamestm calls a hook instead:
+
+    using StarvationHandler = void (*)(unsigned retries, long long age_us);
+    setStarvationHandler(h);
+
+**No handler is the default and means no throw** — the transaction keeps
+retrying exactly as before, so enabling the bound cannot by itself introduce an
+unhandled exception. KAME installs one handler in `main.cpp` that throws
+`XKameError`, and every catch site it already has works unchanged. Starvation
+becomes an ordinary reported KAME error on the same footing, and with the same
+coverage, as every other `XKameError` — no new unhandled class. A handler that
+returns instead of throwing is also allowed, for hosts that want to count and log
+and let the retry continue.
+
+The bound itself is **1000 ms**, which has provenance rather than being
+invented: the Priority enum's original doc-comment promised SCRIPTING
 "yields to *everything* for the first second of any contention, then claims
 privilege so the request still eventually completes". Privilege never fires
 (grants measured 0.000 in every configuration), so the promise was never kept.

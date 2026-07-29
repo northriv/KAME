@@ -980,6 +980,25 @@ ProcessCounter::cnt_t ProcessCounter::id() noexcept { return *stl_processID; }
 //! untouched thread reads {NORMAL, 0} and takes every pre-existing path.
 XThreadLocal<TxContext> stl_currentTxContext;
 
+//! Null by default: no handler means no throw, so enabling the starvation bound
+//! cannot by itself introduce an unhandled exception.  See StarvationHandler.
+static std::atomic<StarvationHandler> s_starvation_handler{nullptr};
+
+void setStarvationHandler(StarvationHandler h) noexcept {
+    s_starvation_handler.store(h, std::memory_order_relaxed);
+}
+StarvationHandler starvationHandler() noexcept {
+    return s_starvation_handler.load(std::memory_order_relaxed);
+}
+void throwStarvationTimeout(unsigned retries, long long age_us) {
+    throw StarvationTimeoutError(
+        "Transactional: a transaction at a revocable priority retried "
+        + std::to_string(retries) + " times over " + std::to_string(age_us / 1000)
+        + " ms without committing.  Its privilege can be taken away, so it is "
+          "given a way to fail rather than retrying forever; retry the operation "
+          "or run it at Priority::NORMAL if it must complete.");
+}
+
 #ifndef NDEBUG
 namespace detail { XThreadLocal<int, SForeignLockTag> s_foreign_lock_nest; }
 void enterForeignLock() noexcept { ++*detail::s_foreign_lock_nest; }

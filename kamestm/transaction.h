@@ -2435,12 +2435,9 @@ inline void Node<XN>::throw_if_starved_(const Transaction<XN> &tr) {
         (typename NC::cnt_t)NC::now_us(), tr.m_started_time);
     if(age <= (int64_t)KAME_STM_LOWPRIO_STARVE_MS * 1000) [[likely]]
         return;
-    throw StarvationTimeoutError(
-        "Transactional: a low-priority transaction retried for over "
-        + std::to_string(KAME_STM_LOWPRIO_STARVE_MS)
-        + " ms without committing. Its privilege is revocable, so it is given a "
-          "way to fail rather than retrying forever; retry the operation or run "
-          "it at Priority::NORMAL if it must complete.");
+    // Null handler = no throw = today's behaviour.  See StarvationHandler.
+    if(StarvationHandler h = starvationHandler())
+        h((unsigned)tr.m_tx_retry_count, (long long)age);
 #else
     (void)tr;
 #endif

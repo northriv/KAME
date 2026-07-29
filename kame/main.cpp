@@ -220,6 +220,35 @@ int main(int argc, char *argv[]) {
             Transactional::setCurrentPriorityMode(Priority::UI_DEFERRABLE);
 //            Transactional::setCurrentPriorityMode(Priority::NORMAL);
 
+            // The one place KAME opts into the STM's starvation bound
+            // (KAME_STM_LOWPRIO_STARVE_MS).  A priority whose privilege can be
+            // revoked — LOWEST / UI_DEFERRABLE / SCRIPTING, and this very thread
+            // is UI_DEFERRABLE — must have a way to fail, or it retries forever
+            // with no protection; the only pre-existing exit was the negotiation
+            // HANG watchdog aborting the process after 3 x 5 s.
+            //
+            // It throws XKameError deliberately, and that is why this is one
+            // line rather than thirteen: every catch site KAME already has works
+            // unchanged (the connector boundaries in xnodeconnector.cpp, the
+            // driver threads, the scripting threads).  A new exception type would
+            // have needed catches added at seven UI_DEFERRABLE thread entry
+            // points plus six connector chains, and anything missed escapes a Qt
+            // slot and terminates the process — worse than the freeze this
+            // prevents.
+            //
+            // Note this makes starvation an ordinary reported KAME error, on the
+            // same footing (and with the same coverage) as every other
+            // XKameError. It does not create a new unhandled class.
+            Transactional::setStarvationHandler(
+                [](unsigned retries, long long age_us) {
+                    throw XKameError(formatString_tr(I18N_NOOP(
+                        "STM starvation: gave up after %u retries over %lld ms. "
+                        "This operation runs at a priority whose privilege can "
+                        "be revoked; retry it, or run it at NORMAL priority if "
+                        "it must complete."), retries, age_us / 1000),
+                        __FILE__, __LINE__);
+                });
+
             app.setStyleSheet(
                 "QGroupBox {"
                 "  border: 1px solid palette(mid);"

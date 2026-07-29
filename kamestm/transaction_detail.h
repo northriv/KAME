@@ -169,6 +169,33 @@ public:
         : std::runtime_error(what) {}
 };
 
+//! Called when a transaction at a revocable priority passes the starvation
+//! bound.  \a retries and \a age_us describe the victim.
+//!
+//! A hook rather than a hard throw, because the type the host wants is the
+//! host's business and getting it wrong is fatal.  KAME catches `XKameError` at
+//! its connector boundaries and nowhere catches `std::runtime_error`; there is no
+//! `QApplication::notify` override and no try/catch around `app.exec()`, so
+//! throwing a NEW type from a GUI thread — and `main.cpp` puts the whole GUI
+//! thread at UI_DEFERRABLE — terminates the process.  Adding catch sites for a
+//! new type meant seven thread entry points plus six connector chains.  Instead
+//! the host installs ONE handler that throws its own error type, and every
+//! catch site it already has works unchanged.
+//!
+//! **No handler installed is the default, and means no throw** — the transaction
+//! keeps retrying exactly as before.  That way enabling
+//! `KAME_STM_LOWPRIO_STARVE_MS` can never introduce an unhandled exception on
+//! its own; the host opts in by installing a handler it knows it can catch.
+//!
+//! A handler that returns rather than throwing is allowed and useful: count and
+//! log, and let the retry continue.
+using StarvationHandler = void (*)(unsigned retries, long long age_us);
+DECLSPEC_KAME void setStarvationHandler(StarvationHandler h) noexcept;
+DECLSPEC_KAME StarvationHandler starvationHandler() noexcept;
+//! Ready-made handler throwing `StarvationTimeoutError`, for hosts (and tests)
+//! that want kamestm's own type.
+DECLSPEC_KAME void throwStarvationTimeout(unsigned retries, long long age_us);
+
 //! RAII priority change, restored on scope exit including by exception.
 //!
 //! Exists because `setCurrentPriorityMode` is a persistent thread mode, and a
