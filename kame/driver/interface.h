@@ -79,8 +79,22 @@ public:
         reportIfInTransaction_();
 #endif
         m_mutex.lock();
+#ifndef NDEBUG
+        // ...and the other direction: tell the STM it must not sleep in
+        // negotiation while this is held.  A driver transaction blocking on this
+        // mutex cannot finish, and neither can the holder if it goes to sleep in
+        // the negotiator — the 2026-07-10 stall.  See the foreign-lock block in
+        // kamestm/transaction_detail.h; the check itself fires in
+        // _negotiate_internal, the only point where the sleep actually happens.
+        Transactional::enterForeignLock();
+#endif
     }
-    virtual void unlock() {m_mutex.unlock();}
+    virtual void unlock() {
+#ifndef NDEBUG
+        Transactional::leaveForeignLock();
+#endif
+        m_mutex.unlock();
+    }
 
 	XRecursiveMutex &mutex() {return m_mutex;}
 

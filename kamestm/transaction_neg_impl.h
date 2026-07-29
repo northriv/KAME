@@ -1176,6 +1176,26 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif
     const float mult_wait = m_mult_wait;
     auto &started_time = snap.m_started_time;
+#ifndef NDEBUG
+    // Reached only under real contention, i.e. exactly when this call may sleep.
+    // Sleeping here while holding a plain lock that a peer's transaction can
+    // block on is the 2026-07-10 deadlock; see the foreign-lock block in
+    // transaction_detail.h.  Reported once per thread, never fatal — a
+    // diagnostic has no business aborting a measurement.
+    if(foreignLockDepth() > 0) [[unlikely]] {
+        static thread_local bool s_told = false;
+        if( !s_told) {
+            s_told = true;
+            std::fprintf(stderr,
+                "kamestm: negotiating (and possibly sleeping) while holding %d "
+                "foreign lock(s).  A peer transaction blocking on that lock "
+                "cannot finish, and neither can this one — the 2026-07-10 "
+                "negotiation stall.  Copy what you need under a short lock, "
+                "release it, then take the Snapshot/Transaction.\n",
+                foreignLockDepth());
+        }
+    }
+#endif
     //! Wait budget (absolute µs, 0 = none) — see Transactional::ScopedWaitBudget.
     //!
     //! Read here, once per call, and NOT captured in the Snapshot.  An earlier

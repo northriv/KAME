@@ -972,6 +972,13 @@ ProcessCounter::cnt_t ProcessCounter::id() noexcept { return *stl_processID; }
 //! untouched thread reads {NORMAL, 0} and takes every pre-existing path.
 XThreadLocal<TxContext> stl_currentTxContext;
 
+#ifndef NDEBUG
+namespace detail { XThreadLocal<int, SForeignLockTag> s_foreign_lock_nest; }
+void enterForeignLock() noexcept { ++*detail::s_foreign_lock_nest; }
+void leaveForeignLock() noexcept { --*detail::s_foreign_lock_nest; }
+int  foreignLockDepth() noexcept { return *detail::s_foreign_lock_nest; }
+#endif
+
 const TxContext &currentTxContext() noexcept { return *stl_currentTxContext; }
 
 Priority getCurrentPriorityMode() { return stl_currentTxContext->priority; }

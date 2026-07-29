@@ -132,10 +132,11 @@ DECLSPEC_KAME Priority getCurrentPriorityMode();
 
 //! RAII priority change, restored on scope exit including by exception.
 //!
-//! Exists because `setCurrentPriorityMode` is a persistent thread mode: the
-//! only other user in the tree (`strict_escalate_if_oldest`) saves and restores
-//! by hand, and a hand-rolled restore is exactly what gets skipped on an early
-//! return or a throw.  Scope it instead.
+//! Exists because `setCurrentPriorityMode` is a persistent thread mode, and a
+//! hand-rolled save/restore is exactly what gets skipped on an early return or
+//! a throw.  Scope it instead.  (The one previous hand-rolled user,
+//! `strict_escalate_if_oldest`, was removed — it had been dead since its gate
+//! macro stopped being defined anywhere.)
 //!
 //! The `Priority` enumerators are NOT ordered by urgency (NORMAL is 0 and
 //! SCRIPTING is 4), so this deliberately does not try to "never weaken an
@@ -162,6 +163,37 @@ private:
     Priority m_saved;
     bool m_armed;
 };
+
+//! \name Foreign-lock guard (debug builds only)
+//!
+//! Detects the OTHER direction of the lock/transaction hazard: holding a plain
+//! mutex *across* a Snapshot or Transaction, rather than doing I/O inside one.
+//! This is the direction that actually deadlocked KAME on 2026-07-10 — the GUI
+//! thread slept in STM negotiation while holding an on-screen-object mutex, and
+//! a driver's transaction blocked on that same mutex from inside
+//! `finishWritingRaw`, so neither could finish and the negotiation HANG
+//! watchdog aborted the process.
+//!
+//! Why a counter in kamestm that kame/ increments, rather than a check in
+//! kame/: the hazard is only realised when the STM *sleeps*, and only the STM
+//! knows when that happens.  Putting the predicate here keeps the dependency
+//! one-way — kamestm exposes a counter and never looks at kame/ — while the
+//! check fires at exactly the point where holding the lock becomes fatal
+//! (`_negotiate_internal`, the slow path), not at every Snapshot construction,
+//! most of which never wait and are perfectly safe under a lock.
+//!
+//! Debug builds only, on both sides, so a release build is untouched.
+//! \{
+#ifndef NDEBUG
+namespace detail { struct SForeignLockTag; }
+//! Tell the STM this thread now holds a plain lock that it must not sleep
+//! under.  Nests; pair each call with `leaveForeignLock()`.
+DECLSPEC_KAME void enterForeignLock() noexcept;
+DECLSPEC_KAME void leaveForeignLock() noexcept;
+//! Nesting depth of the above; 0 = safe to negotiate.
+DECLSPEC_KAME int foreignLockDepth() noexcept;
+#endif
+//! \}
 
 //! \name Wait budget
 //!

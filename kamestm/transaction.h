@@ -2409,52 +2409,15 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
 //  saved_pr     — [out] previous priority to restore on success.
 // Returns true if this call flipped priority up (caller must restore
 // on commit). No-op when threshold == 0 (paper-ablation row).
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-inline void strict_escalate_if_oldest(bool at_threshold, int64_t my_time,
-                                      bool &escalated, Priority &saved_pr) {
-    if(!at_threshold || escalated) return;
-    // Min-CAS: update watermark if my_time is smaller.
-    int64_t prev = g_strict_watermark.load(std::memory_order_relaxed);
-    while(my_time < prev &&
-          !g_strict_watermark.compare_exchange_weak(prev, my_time,
-              std::memory_order_relaxed)) {}
-    // Escalate only if we actually own the watermark.
-    if(g_strict_watermark.load(std::memory_order_relaxed) == my_time) {
-        saved_pr = getCurrentPriorityMode();
-        setCurrentPriorityMode(Priority::HIGHEST);
-        escalated = true;
-    }
-}
-inline void strict_release(bool escalated, int64_t my_time, Priority saved_pr) {
-    if(!escalated) return;
-    setCurrentPriorityMode(saved_pr);
-    int64_t expected = my_time;
-    // CAS-release the watermark (strong so we don't leak it on spurious
-    // failure; no-op if some other thread already replaced our value).
-    g_strict_watermark.compare_exchange_strong(expected,
-        (int64_t)0x7fffffffffffffffLL, std::memory_order_relaxed);
-}
-#endif
 
 template <class XN>
 template <typename Closure>
 Snapshot<XN> Node<XN>::iterate_commit_if(Closure &&closure) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-    int n = 0; Priority saved_pr = Priority::NORMAL; bool escalated = false;
-#endif
     for(Transaction<XN> tr( *this);;++tr) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-        ++n;
-        strict_escalate_if_oldest(n >= KAME_STM_STRICT_RETRY_THRESHOLD,
-                                  tr.m_started_time, escalated, saved_pr);
-#endif
         try {
             if( !closure(tr))
                 continue; //skipping.
             if(tr.commit()) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-                strict_release(escalated, tr.m_started_time, saved_pr);
-#endif
                 return std::move(tr);
             }
         }
@@ -2466,21 +2429,10 @@ Snapshot<XN> Node<XN>::iterate_commit_if(Closure &&closure) {
 template <class XN>
 template <typename Closure>
 Snapshot<XN> Node<XN>::iterate_commit(Closure &&closure) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-    int n = 0; Priority saved_pr = Priority::NORMAL; bool escalated = false;
-#endif
     for(Transaction<XN> tr( *this);;++tr) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-        ++n;
-        strict_escalate_if_oldest(n >= KAME_STM_STRICT_RETRY_THRESHOLD,
-                                  tr.m_started_time, escalated, saved_pr);
-#endif
           try {
               closure(tr);
               if(tr.commit()) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-                  strict_release(escalated, tr.m_started_time, saved_pr);
-#endif
                   return std::move(tr);
               }
           }
@@ -2492,26 +2444,12 @@ Snapshot<XN> Node<XN>::iterate_commit(Closure &&closure) {
 template <class XN>
 template <typename Closure>
 void Node<XN>::iterate_commit_while(Closure &&closure) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-    int n = 0; Priority saved_pr = Priority::NORMAL; bool escalated = false;
-#endif
     for(Transaction<XN> tr( *this);;++tr) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-        ++n;
-        strict_escalate_if_oldest(n >= KAME_STM_STRICT_RETRY_THRESHOLD,
-                                  tr.m_started_time, escalated, saved_pr);
-#endif
         try {
             if( !closure(tr)) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-                strict_release(escalated, tr.m_started_time, saved_pr);
-#endif
                  return;
             }
             if(tr.commit()) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-                strict_release(escalated, tr.m_started_time, saved_pr);
-#endif
                 return;
             }
         }
