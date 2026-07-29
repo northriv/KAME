@@ -176,7 +176,7 @@ public:
     template <typename Closure>
     Snapshot<XN> iterate_commit_if(Closure&&);
     //! \sa KAME_STM_LOWPRIO_STARVE_MS
-    static void throw_if_starved_(const Transaction<XN> &tr);
+    static void throw_if_starved_(const Snapshot<XN> &shot);
     //! Iterates a transaction covering the node and children, as long as the closure returns true.
     //! \param Closure Typical: [=](Transaction<Node1> &tr){ somecode...; return ret; }
     template <typename Closure>
@@ -2326,6 +2326,9 @@ private:
 //	}
     //! Takes another snapshot and prepares for a next transaction.
     Transaction &operator++() {
+        // The one commit-side site; see throw_if_starved_ for why here and not
+        // in the three iterate_commit variants.
+        Node<XN>::throw_if_starved_( *this);
         // Tx-layer retry counter feeding the livelock probe. Counts outer
         // iterate_commit iterations. The same field (m_tx_retry_count on
         // the Snapshot base, zero-initialised by default) is also bumped
@@ -2419,27 +2422,43 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
 // on commit). No-op when threshold == 0 (paper-ablation row).
 
 //! Starvation check for the revocable priorities — see
-//! KAME_STM_LOWPRIO_STARVE_MS.  Reads the lowprio bit off the Tx's own stamp
+//! KAME_STM_LOWPRIO_STARVE_MS.
+//!
+//! Called from exactly two places, which between them cover every unbounded
+//! retry loop in the STM:
+//!
+//!   * `Transaction::operator++` — the commit retry step.  `iterate_commit`,
+//!     `_if` and `_while` all reach it through `for(...;;++tr)`, and Python's
+//!     `Transaction.__next__` reaches it through `commitOrNext()`, which calls
+//!     `++(*this)` when the commit fails.  One site instead of four.
+//!   * `Node::snapshot()`'s `for(int retry = 0;; ++retry)` — a Snapshot is
+//!     read-only and has no `operator++`, so its retry loop would otherwise be
+//!     unbounded.  This is the path a graph redraw takes when it snapshots an
+//!     ancestor, i.e. the GUI-freeze case, so it matters at least as much as
+//!     the commit side.
+//!
+//! Takes a `Snapshot` rather than a `Transaction` for that reason: both fields
+//! it reads live on the base.  The lowprio bit comes off the object's own stamp
 //! (folded at construction by `now_us_tagged`) rather than the thread-local
-//! priority, so it reflects what the transaction started as and costs no TLS
-//! access.  The retry-count gate keeps the clock out of the fast path.
+//! priority, so it reflects what the operation started as and costs no TLS
+//! access, and the retry-count gate keeps the clock out of the fast path.
 template <class XN>
-inline void Node<XN>::throw_if_starved_(const Transaction<XN> &tr) {
+inline void Node<XN>::throw_if_starved_(const Snapshot<XN> &shot) {
 #if KAME_STM_LOWPRIO_STARVE_MS > 0
     using NC = typename Node<XN>::NegotiationCounter;
-    if(tr.m_tx_retry_count < (uint32_t)KAME_STM_LOWPRIO_STARVE_MIN_RETRIES)
+    if(shot.m_tx_retry_count < (uint32_t)KAME_STM_LOWPRIO_STARVE_MIN_RETRIES)
         return;
-    if( !NC::stamp_is_lowprio(tr.m_started_time)) [[likely]]
+    if( !NC::stamp_is_lowprio(shot.m_started_time)) [[likely]]
         return;
     const int64_t age = (int64_t)NC::diff_us_packed(
-        (typename NC::cnt_t)NC::now_us(), tr.m_started_time);
+        (typename NC::cnt_t)NC::now_us(), shot.m_started_time);
     if(age <= (int64_t)KAME_STM_LOWPRIO_STARVE_MS * 1000) [[likely]]
         return;
     // Null handler = no throw = today's behaviour.  See StarvationHandler.
     if(StarvationHandler h = starvationHandler())
-        h((unsigned)tr.m_tx_retry_count, (long long)age);
+        h((unsigned)shot.m_tx_retry_count, (long long)age);
 #else
-    (void)tr;
+    (void)shot;
 #endif
 }
 
@@ -2447,7 +2466,6 @@ template <class XN>
 template <typename Closure>
 Snapshot<XN> Node<XN>::iterate_commit_if(Closure &&closure) {
     for(Transaction<XN> tr( *this);;++tr) {
-        throw_if_starved_(tr);
         try {
             if( !closure(tr))
                 continue; //skipping.
@@ -2464,8 +2482,7 @@ template <class XN>
 template <typename Closure>
 Snapshot<XN> Node<XN>::iterate_commit(Closure &&closure) {
     for(Transaction<XN> tr( *this);;++tr) {
-          throw_if_starved_(tr);
-        try {
+          try {
               closure(tr);
               if(tr.commit()) {
                   return std::move(tr);
@@ -2480,7 +2497,6 @@ template <class XN>
 template <typename Closure>
 void Node<XN>::iterate_commit_while(Closure &&closure) {
     for(Transaction<XN> tr( *this);;++tr) {
-        throw_if_starved_(tr);
         try {
             if( !closure(tr)) {
                  return;

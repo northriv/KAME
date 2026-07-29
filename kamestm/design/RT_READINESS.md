@@ -1861,3 +1861,52 @@ for the threads that defer. HIGHEST is not one of them, and that immunity is
 exactly why it does not scale past one such thread (the -P sweep: 1 costs 4 %,
 4 cost 10x, 8 cost 42x) and why `AcquisitionPriority` is scoped to the
 acquisition loop rather than the thread.
+
+### Where the check belongs: two sites, not four
+
+First placed in `iterate_commit` / `_if` / `_while`. Wrong on both counts.
+
+**Too many sites, and it missed Python entirely.** The commit retry step is
+`Transaction::operator++`; all three `iterate_commit` variants reach it through
+`for(...;;++tr)`, and Python's `Transaction.__next__` reaches it through
+`commitOrNext()`, which calls `++(*this)` when the commit fails. So one site
+replaces four — and the fourth was the one that mattered, because the Python
+retry loop lives in the binding, not in `iterate_commit`, so the priorities most
+likely to starve (the interpreter thread is UI_DEFERRABLE, and a script may raise
+itself to SCRIPTING) were the only ones with no bound at all.
+
+**And it missed Snapshots, which is arguably the more important path.** A
+`Snapshot` is read-only and has no `operator++`; its retry loop is
+`for(int retry = 0;; ++retry)` inside `Node::snapshot()`
+(`transaction_impl.h:2125`), unbounded. That is the path a graph redraw takes when
+it snapshots an ancestor — the GUI-freeze case that motivated the bound in the
+first place.
+
+So `throw_if_starved_` now takes a `Snapshot` (both fields it reads live on the
+base) and is called from exactly those two places. `Node::snapshot()`'s loop body
+runs on *every* snapshot, so this is now a hot path; the retry-count gate keeps it
+to one integer compare there, and it measures free:
+
+    threads   OFF        ON         delta      ON lower in
+       8      6.772 M    6.809 M    +0.54 %       2 / 9
+       4      5.990 M    6.005 M    +0.26 %       2 / 5
+     128      9.423 M    9.337 M    −0.91 %       3 / 5
+    leaf p50  192 ns     192 ns     identical
+
+`transaction_starvation_test` covers the commit side deterministically (it drives
+`iterate_commit_if`'s retry path). **The Snapshot side is not covered by a test**:
+that loop only retries on a genuinely DISTURBED CAS, which cannot be forced on
+demand, and the same shared helper is what both call. Worth stating rather than
+implying the coverage is complete.
+
+### Probing it from inside KAME
+
+`kame/script/starvation_probe.py` provokes and measures it against a live tree:
+several threads at a revocable priority committing at whole-tree scope, counting
+`kame.KAMEError` (which is what KAME's handler's `XKameError` becomes in Python).
+It encodes the three things that determine whether starvation happens at all —
+two or more lowprio threads (one does not starve), whole-tree scope (bundle churn
+is O(subtree)), and that a fresh `threading.Thread` starts at NORMAL and must set
+its own priority or the probe silently measures the wrong thing. It refuses to
+pick a write target automatically unless told to, because every attempt writes and
+listeners fire, which on a driver-owned node can reach an instrument.

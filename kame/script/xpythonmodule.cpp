@@ -270,6 +270,9 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         }), py::keep_alive<1, 2>(), py::call_guard<py::gil_scoped_release>())
         .def("__iter__", [](Transaction &self)->Transaction &{ return self; })
         .def("__next__", [](Transaction &self)->Transaction &{
+            // No starvation check needed here: commitOrNext() below calls
+            // ++(*this) when the commit fails, and Transaction::operator++ is
+            // where the bound lives.  See Node::throw_if_starved_.
             if(self.isModified() && self.commitOrNext())
                 throw pybind11::stop_iteration();
             else

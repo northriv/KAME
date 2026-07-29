@@ -2125,6 +2125,10 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
     for(int retry = 0;; ++retry) {
         if(retry)
             ++snapshot.m_tx_retry_count;
+        // A Snapshot has no operator++, so this loop is the only place its
+        // retries can be bounded — and it is the path a graph redraw takes when
+        // it snapshots an ancestor.  See Node::throw_if_starved_.
+        Node<XN>::throw_if_starved_(snapshot);
         // First iter: if caller supplied a pre-loaded view (e.g. from
         // the outer ScopedNeg in snapshot(Transaction&, ...) wrap),
         // use the move-in ctor (zero negotiate, zero view-acquire).
