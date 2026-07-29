@@ -1,4 +1,14 @@
 #!/bin/sh
 # KAME pre-commit: static crash-bug audits (fast, no build needed).
 # Enable once per clone with:  git config core.hooksPath .githooks
+#
+# The no-DCAS invariant check compiles allocator.cpp twice (~20 s), so it runs
+# only when this commit actually touches kamepoolalloc/ — the common case
+# (driver work) stays build-free.
+if git diff --cached --name-only | grep -q '^kamepoolalloc/'; then
+    echo "pre-commit: kamepoolalloc/ touched — including the no-DCAS check."
+else
+    KAME_AUDIT_SKIP_NO_DCAS=1
+    export KAME_AUDIT_SKIP_NO_DCAS
+fi
 exec tools/audit/run_audits.sh
