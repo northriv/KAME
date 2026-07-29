@@ -1,6 +1,24 @@
 # Grandfathered findings (ratchet): a (file, kind) pair may
 # not exceed its count here. Regenerate after fixing with:
 #   python3 tools/audit/check_stm_closures.py --update-baseline kame modules
+#
+# The gErrPrint entries below are accepted, not merely tolerated, and the reason
+# is specific enough to re-check if either half changes (2026-07-29):
+#
+#   * gErrPrint_redirected takes g_debug_mutex but RELEASES it before returning
+#     (kame/support.cpp), so the thread never negotiates while holding it —
+#     this is not the mutex-across-negotiation deadlock class.
+#   * It then calls XStatusPrinter::printError -> m_tlkTalker.talk(), whose only
+#     listener is connected with Listener::FLAG_MAIN_THREAD_CALL
+#     (kame/xnodeconnector.cpp:816), so talk() enqueues and returns.  No inline
+#     listener, hence no nested transaction on the committing thread.
+#
+# What remains is a blocking stderr+ofstream flush re-run once per CAS retry, on
+# an error path only: duplicated log lines and one syscall.  Not worth a fix.
+#
+# This is NOT a general licence for gErrPrint inside a closure.  If the mutex
+# were ever held across the talk(), or that listener lost
+# FLAG_MAIN_THREAD_CALL, these become the hazard the rest of rule 1 is about.
 2	kame/driver/primarydriver.cpp	gErrPrint
 1	kame/graph/graphntoolbox.cpp	gErrPrint
 1	kame/xnodeconnector.cpp	gErrPrint
