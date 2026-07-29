@@ -1698,3 +1698,32 @@ grants in a real session, the 51 ms figure becomes worth tuning; until then it i
 a correct mechanism with no observed trigger.
 
 `transaction_latency_bench` gains `-L N` alongside `-P N`.
+
+### Should the 51 ms be capped by the wait budget?
+
+Right instinct, and it is already satisfied — in the waiter, not in the predicate.
+
+A budget-carrying thread never waits 51 ms for a lowprio holder's privilege to
+expire, because the budget escape is **deliberately ungated** on
+`fair_mode_blocks_me` (`transaction_neg_impl.h:1464-1470`): "an expired budget
+must stop waiting even while a peer holds privilege, or the budget is not a bound
+at all." Whatever the eviction deadline is, the budget thread has already left.
+
+Putting the cap inside `stamp_is_expired_lowprio` would break the invariant that
+makes the mechanism safe. That predicate is documented as a single source of
+truth for three consumers that must agree, and their positions differ:
+
+    try_register_privileged_tidstamp   challenger    its own budget is meaningful
+    i_am_privileged_now                HOLDER        has no wait to bound
+    fair_mode_blocks_me                yielding peer its own budget is meaningful
+
+Making it caller-dependent puts the holder and its peers in structural
+disagreement — a budget peer would read "expired" while the holder still reads
+"valid" — and that disagreement is precisely what the comment says makes a
+per-Linkage Reserved stamp go stuck. The predicate is shared by a party that has
+no waiting to bound, so a waiting-derived cap cannot live there.
+
+What 51 ms still governs for a budget thread is only whether it may *take over* a
+stale holder's privilege, which it does not need. For a thread **without** a
+budget the full 51 ms applies; whether that is too long is a tuning question that
+cannot be answered while grants are 0.000 in every configuration measured.
