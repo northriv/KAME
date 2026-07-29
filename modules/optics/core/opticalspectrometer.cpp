@@ -45,6 +45,7 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
     m_timeToStrobeSignal(create<XDoubleNode>("TimeTorStrobeSignal", true)),
     m_strobeSignalDuration(create<XDoubleNode>("StrobeSignalDuration", true)),
     m_analogOutput(create<XDoubleNode>("AnalogOutput", true)),
+    m_acquireTrig(create<XTouchableNode>("AcquireTrig", true)),
     m_form(new FrmOpticalSpectrometer),
 	m_waveForm(create<XWaveNGraph>("WaveForm", false, 
                                    m_form->m_graphwidget, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
@@ -139,6 +140,7 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
         timeToStrobeSignal(),
         strobeSignalDuration(),
         analogOutput(),
+        acquireTrig(),
     };
     iterate_commit([=](Transaction &tr){
         tr[ *average()] = 1;
@@ -166,6 +168,12 @@ XOpticalSpectrometer::onStrobeChnagedInternal(const Snapshot &shot, XValueNodeBa
 void
 XOpticalSpectrometer::onStoreDarkTouched(const Snapshot &shot, XTouchableNode *) {
     trans( *this).m_storeDarkInvoked = true;
+}
+void
+XOpticalSpectrometer::onAcquireTrigTouched(const Snapshot &, XTouchableNode *) {
+    //Request one on-demand triggered acquisition; execute() picks it up. Only meaningful in
+    //a trigger mode (ignored in Free Run).
+    m_acquireRequested = true;
 }
 
 void
@@ -312,10 +320,12 @@ XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
         timeToStrobeSignal(),
         strobeSignalDuration(),
         analogOutput(),
+        acquireTrig(),
         };
 
     trans( *this).m_storeDarkInvoked = false;
     trans( *this).m_timeStrobeChanged = {};
+    m_acquireRequested = false; //discard any stale on-demand request
 
 	iterate_commit([=](Transaction &tr){
         m_lsnOnStartWavelenChanged = tr[ *startWavelen()].onValueChanged().connectWeakly(
@@ -328,6 +338,8 @@ XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
                     shared_from_this(), &XOpticalSpectrometer::onIntegrationTimeChanged);
         m_lsnOnStoreDarkTouched = tr[ *storeDark()].onTouch().connectWeakly(
             shared_from_this(), &XOpticalSpectrometer::onStoreDarkTouched, Listener::FLAG_MAIN_THREAD_CALL);
+        m_lsnOnAcquireTrig = tr[ *acquireTrig()].onTouch().connectWeakly(
+            shared_from_this(), &XOpticalSpectrometer::onAcquireTrigTouched);
         m_lsnOnTrigCondChanged = tr[ *trigMode()].onValueChanged().connectWeakly(
             shared_from_this(), &XOpticalSpectrometer::onTrigCondChnaged);
         tr[ *delayFromExtTrig()].onValueChanged().connect(m_lsnOnTrigCondChanged);
@@ -343,6 +355,14 @@ XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
     });
 
 	while( !terminated) {
+        //On-demand acquisition for trigger modes: between explicit requests, do not touch
+        //the device at all (no arm/abort), so it emits no stray strobe and cannot wedge.
+        //Free Run (trigMode index 0) is unaffected — it keeps acquiring continuously.
+        if(((unsigned int)Snapshot( *this)[ *trigMode()] != 0) && !m_acquireRequested) {
+            msecsleep(20);
+            continue;
+        }
+        m_acquireRequested = false; //consume the request (no effect in Free Run)
 		XTime time_awared = XTime::now();
 		auto writer = std::make_shared<RawData>();
 		// try/catch exception of communication errors
@@ -370,6 +390,7 @@ XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
 	m_lsnOnAverageChanged.reset();
     m_lsnOnIntegrationTimeChanged.reset();
     m_lsnOnStoreDarkTouched.reset();
+    m_lsnOnAcquireTrig.reset();
     m_lsnOnEnableStrobeChanged.reset();
     m_lsnOnTrigCondChanged.reset();
     m_lsnOnStrobeCondChanged.reset();

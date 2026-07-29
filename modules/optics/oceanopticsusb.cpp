@@ -78,10 +78,9 @@ XOceanOpticsUSBInterface::setIntegrationTime(unsigned int us) {
     uint8_t ll = us % 0x100uL;
     uint8_t cmds[] = {(uint8_t)CMD::SET_INTEGRATION_TIME, ll, lh, hl, hh}; //littleendian
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
-
-    unsigned int clk = readRegInfo(Register::IntegrationPeriodBaseClock);
-    unsigned int div = readRegInfo(Register::IntegrationClockTimeDivisor);
-    fprintf(stderr, "CLK=%u, DIV=%u\n", clk, div);
+    //(Removed debug-only readRegInfo(CLK)/readRegInfo(DIV): those extra register reads on
+    // every integration-time change can time out and wedge the device when it is armed/busy
+    // in external-trigger mode.)
 }
 
 void

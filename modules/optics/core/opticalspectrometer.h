@@ -98,6 +98,11 @@ protected:
     const shared_ptr<XDoubleNode> &strobeSignalDuration() const {return m_strobeSignalDuration;}
 
     const shared_ptr<XDoubleNode> &analogOutput() const {return m_analogOutput;}
+    //! In an external/software trigger mode, requests exactly ONE triggered acquisition.
+    //! Touch this (e.g. from a script) right before issuing the hardware/software trigger.
+    //! Between requests the driver stays idle and never arms the device, so it emits no
+    //! stray strobe and cannot wedge. Ignored in Free Run (which acquires continuously).
+    const shared_ptr<XTouchableNode> &acquireTrig() const {return m_acquireTrig;}
 protected:
     virtual void onStartWavelenChanged(const Snapshot &shot, XValueNodeBase *) = 0;
     virtual void onStopWavelenChanged(const Snapshot &shot, XValueNodeBase *) = 0;
@@ -108,6 +113,7 @@ protected:
     virtual void onTrigCondChnaged(const Snapshot &shot, XValueNodeBase *) = 0;
     virtual void onAnalogOutputChnaged(const Snapshot &shot, XValueNodeBase *) = 0;
     void onStoreDarkTouched(const Snapshot &shot, XTouchableNode *);
+    void onAcquireTrigTouched(const Snapshot &shot, XTouchableNode *);
 
     //! This function will be called when raw data are written.
     //! Implement this function to convert the raw data to the record (Payload).
@@ -138,6 +144,11 @@ private:
 
     const shared_ptr<XDoubleNode> m_analogOutput;
 
+    const shared_ptr<XTouchableNode> m_acquireTrig;
+    //!< Set by touching acquireTrig(); consumed by execute() to perform one on-demand
+    //!< triggered acquisition. Atomic: written from a listener thread, read in execute().
+    atomic<bool> m_acquireRequested{false};
+
     const qshared_ptr<FrmOpticalSpectrometer> m_form;
 	const shared_ptr<XWaveNGraph> m_waveForm;
 
@@ -148,6 +159,7 @@ private:
 	shared_ptr<Listener> m_lsnOnAverageChanged;
     shared_ptr<Listener> m_lsnOnIntegrationTimeChanged;
     shared_ptr<Listener> m_lsnOnStoreDarkTouched;
+    shared_ptr<Listener> m_lsnOnAcquireTrig;
     shared_ptr<Listener> m_lsnOnTrigCondChanged;
     shared_ptr<Listener> m_lsnOnEnableStrobeChanged;
     shared_ptr<Listener> m_lsnOnStrobeCondChanged;

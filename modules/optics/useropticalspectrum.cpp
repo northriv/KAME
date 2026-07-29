@@ -179,14 +179,20 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer, const ato
     }
 
     // External/software trigger mode (HR4000-class): the spectrometer yields a spectrum only
-    // after a trigger edge. We arm (requestSpectrum) and then read with an *interruptible*,
-    // polled async read (readSpectrumInterruptible). While triggers keep arriving the read
-    // completes as soon as data is ready — no transfer is cancelled, so the device is not
-    // wedged and the UI is not frozen. The read aborts immediately on thread termination, or
-    // after a long no-trigger timeout (the record is then skipped; if triggers never resume,
-    // the device may need a USB reconnect, i.e. toggling the interface Control off/on).
+    // after a trigger edge. acquireSpectrum() is reached here ONLY on an on-demand request
+    // (the base execute() loop stays idle between requests in trigger modes), so we arm
+    // (requestSpectrum) and read with an interruptible, polled async read
+    // (readSpectrumInterruptible): it returns as soon as the triggered data is ready, aborts
+    // on thread termination, and only times out (then skips) if no trigger ever arrives.
     bool trig_mode = !isusb2000 && !dev_freerun;
-    if( !trig_mode && !acq_ready) {
+    if(trig_mode) {
+        //DEBUG: log the device's actual trigger mode and integration time at read time, to
+        //confirm the exposure length the device will use for this triggered read.
+        fprintf(stderr, "HR4000 trigACQ: dev_trigmode[7]=%u dev_IT=%uus acq[8]=%u\n",
+            (unsigned)(status.size() > 7 ? status[7] : 0u), integration_time_us,
+            (unsigned)(status.size() > 8 ? status[8] : 0u));
+    }
+    else if( !acq_ready) {
         //waits for completion
         msecsleep(std::min(100.0, integration_time_us * 1e-3 / 4));
         throw XSkippedRecordError(__FILE__, __LINE__);
@@ -211,10 +217,9 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer, const ato
 
     int len;
     if(trig_mode) {
-        //Wait for the next external trigger; thread stop aborts immediately. Keep this
-        //modest so a trigger-mode change (which serializes on the interface lock) is not
-        //delayed long while a read is pending.
-        double trig_timeout = std::max(2.0, integration_time_us * 1e-6 * 4 + 1.0);
+        //On-demand: wait for the requested trigger (its edge then the exposure). Generous,
+        //since the loop is idle between requests; thread stop aborts immediately.
+        double trig_timeout = std::max(15.0, integration_time_us * 1e-6 * 2 + 10.0);
         len = interface()->readSpectrumInterruptible(m_spectrumBuffer, pixels,
             usb_speed == 0x80u, terminated, trig_timeout);
     }
