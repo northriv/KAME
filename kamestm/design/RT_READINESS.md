@@ -1653,3 +1653,48 @@ hottest function in the library will rot, and the value is in the measurement.
 **What remains is unchanged and is not inside the negotiator**: fewer contenders
 per linkage (commit at a narrower scope) and less per-commit work (bundle churn
 is O(subtree)). A bounded commit is a contract precondition on the caller.
+
+## "Take privilege away from a slow below-NORMAL Tx" — already there, and unreachable
+
+The lever exists and is coherent. `stamp_is_expired_lowprio` treats a
+lowprio-tagged privilege stamp older than
+`min_privilege_age_us(SCRIPTING) + KAME_STM_PRIV_MAX_HOLD_US` = 1 ms + 50 ms =
+**51 ms** as expired, and all five consumers agree, which is what stops a
+Reserved stamp going stuck:
+
+    :165  try_register_privileged_tidstamp  a challenger may take it over
+    :223  i_am_privileged_now               the holder stops believing it has it
+    :235  i_am_privileged_now
+    :295  fair_mode_blocks_me               peers stop yielding to it
+    :313  fair_mode_blocks_me
+
+It is never reached. Grand arm, 8 threads, 4 s, with `-L N` putting N threads at
+`Priority::SCRIPTING`:
+
+    SCRIPTING 1 / NORMAL 7    both groups: priv tries 0.000  grants 0.000
+    SCRIPTING 2 / NORMAL 6    both groups: priv tries 0.000  grants 0.000
+    SCRIPTING 4 / NORMAL 4    both groups: priv tries 0.000  grants 0.000
+
+Nobody claims privilege at any mix, so there is nothing to evict. The claim needs
+the livelock verdict — `tags_total > 0 && tags_owned == tags_total &&
+retries >= clamp(sig_C*2, 3, hw_procs)` — and `tags_total` is 0 at sleep. The
+eviction sits downstream of a gate that does not open.
+
+### But the bench is symmetric and the real case is not
+
+Every thread here does the same whole-tree commit. In KAME the below-NORMAL work
+is shaped differently: a UI redraw or a Python/MCP session takes a **Snapshot of
+an ancestor** (often the measurement root) while drivers commit their own
+subtrees. That asymmetry is the documented bundling collision — an ancestor
+snapshot absorbs the target's packet — and it is precisely the case where a
+SCRIPTING thread could plausibly hold privilege long enough for the 51 ms
+eviction to matter. This bench cannot produce it.
+
+So the question "does a below-NORMAL thread ever hold privilege in KAME" is open,
+and only the application answers it. The instrumentation is now in place:
+`XPrimaryDriver`'s record-commit counters on the acquisition side, and
+`[ll-probe]` under `KAME_STM_PRIV_DIAG` for the verdict itself. If those show
+grants in a real session, the 51 ms figure becomes worth tuning; until then it is
+a correct mechanism with no observed trigger.
+
+`transaction_latency_bench` gains `-L N` alongside `-P N`.
