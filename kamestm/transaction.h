@@ -175,6 +175,8 @@ public:
     //! \param Closure Typical: [=](Transaction<Node1> &tr){ somecode...; return ret; }
     template <typename Closure>
     Snapshot<XN> iterate_commit_if(Closure&&);
+    //! \sa KAME_STM_LOWPRIO_STARVE_MS
+    static void throw_if_starved_(const Transaction<XN> &tr);
     //! Iterates a transaction covering the node and children, as long as the closure returns true.
     //! \param Closure Typical: [=](Transaction<Node1> &tr){ somecode...; return ret; }
     template <typename Closure>
@@ -2416,10 +2418,39 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
 // Returns true if this call flipped priority up (caller must restore
 // on commit). No-op when threshold == 0 (paper-ablation row).
 
+//! Starvation check for the revocable priorities — see
+//! KAME_STM_LOWPRIO_STARVE_MS.  Reads the lowprio bit off the Tx's own stamp
+//! (folded at construction by `now_us_tagged`) rather than the thread-local
+//! priority, so it reflects what the transaction started as and costs no TLS
+//! access.  The retry-count gate keeps the clock out of the fast path.
+template <class XN>
+inline void Node<XN>::throw_if_starved_(const Transaction<XN> &tr) {
+#if KAME_STM_LOWPRIO_STARVE_MS > 0
+    using NC = typename Node<XN>::NegotiationCounter;
+    if(tr.m_tx_retry_count < (uint32_t)KAME_STM_LOWPRIO_STARVE_MIN_RETRIES)
+        return;
+    if( !NC::stamp_is_lowprio(tr.m_started_time)) [[likely]]
+        return;
+    const int64_t age = (int64_t)NC::diff_us_packed(
+        (typename NC::cnt_t)NC::now_us(), tr.m_started_time);
+    if(age <= (int64_t)KAME_STM_LOWPRIO_STARVE_MS * 1000) [[likely]]
+        return;
+    throw StarvationTimeoutError(
+        "Transactional: a low-priority transaction retried for over "
+        + std::to_string(KAME_STM_LOWPRIO_STARVE_MS)
+        + " ms without committing. Its privilege is revocable, so it is given a "
+          "way to fail rather than retrying forever; retry the operation or run "
+          "it at Priority::NORMAL if it must complete.");
+#else
+    (void)tr;
+#endif
+}
+
 template <class XN>
 template <typename Closure>
 Snapshot<XN> Node<XN>::iterate_commit_if(Closure &&closure) {
     for(Transaction<XN> tr( *this);;++tr) {
+        throw_if_starved_(tr);
         try {
             if( !closure(tr))
                 continue; //skipping.
@@ -2436,7 +2467,8 @@ template <class XN>
 template <typename Closure>
 Snapshot<XN> Node<XN>::iterate_commit(Closure &&closure) {
     for(Transaction<XN> tr( *this);;++tr) {
-          try {
+          throw_if_starved_(tr);
+        try {
               closure(tr);
               if(tr.commit()) {
                   return std::move(tr);
@@ -2451,6 +2483,7 @@ template <class XN>
 template <typename Closure>
 void Node<XN>::iterate_commit_while(Closure &&closure) {
     for(Transaction<XN> tr( *this);;++tr) {
+        throw_if_starved_(tr);
         try {
             if( !closure(tr)) {
                  return;

@@ -342,6 +342,40 @@
 // is byte-identical without it, and so a minimal embedding can drop it.
 // With 0 the API is not declared at all, so a caller that expects a budget
 // gets a compile error rather than a silent no-op.
+// Starvation bound for the priorities whose privilege can be REVOKED.
+//
+// The rule (user): a priority that can have its privilege taken away must be
+// given a way to fail.  Revocability without a failure path is not fairness, it
+// is a starvation guarantee — the thread keeps retrying with no protection and
+// no exit.  The revocable set is exactly the one `stamp_is_expired_lowprio`
+// acts on, i.e. `lowprio_mask_for_current_priority()`: LOWEST, UI_DEFERRABLE,
+// SCRIPTING.  NORMAL and HIGHEST are excluded by the same symmetry — their
+// privilege never expires, so they are never revoked and need no failure path,
+// and a driver record must not be lost to STM contention.
+//
+// The risk is not theoretical, and this codebase just increased it: a HIGHEST
+// acquisition loop never negotiates (XPrimaryDriverWithThread::
+// AcquisitionPriority) and a budget-carrying thread stops waiting, so slow
+// below-NORMAL work on a node those touch — a graph redraw, a script reading
+// it — can be retried indefinitely.  The only existing exit is the negotiation
+// HANG watchdog, which `abort()`s the whole process after 3 x 5 s; an exception
+// in the starved thread is strictly better than that.
+//
+// 1000 ms has provenance rather than being invented: the Priority enum's
+// original doc-comment promised SCRIPTING "yields to *everything* for the first
+// second of any contention, then claims privilege so the request still
+// eventually completes".  Privilege never fires (grants measured 0.000 in every
+// configuration), so that promise was never kept.  This keeps it by the other
+// route — instead of "then claims privilege", "then gives up cleanly".
+#ifndef KAME_STM_LOWPRIO_STARVE_MS
+#define KAME_STM_LOWPRIO_STARVE_MS 1000
+#endif
+// Retries before the age is even looked at, so an uncontended commit pays one
+// integer compare and never reads the clock.
+#ifndef KAME_STM_LOWPRIO_STARVE_MIN_RETRIES
+#define KAME_STM_LOWPRIO_STARVE_MIN_RETRIES 8
+#endif
+
 #ifndef KAME_STM_WAIT_BUDGET
 #define KAME_STM_WAIT_BUDGET 1
 #endif

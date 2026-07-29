@@ -55,6 +55,8 @@
 #include <support.h>
 #include "threadlocal.h"
 #include "atomic_smart_ptr.h"
+#include <stdexcept>
+#include <string>
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -149,6 +151,23 @@ struct ScopedLookupMemoInvalidate;
 enum class Priority {NORMAL = 0, LOWEST, UI_DEFERRABLE, HIGHEST, SCRIPTING};
 DECLSPEC_KAME void setCurrentPriorityMode(Priority pr);
 DECLSPEC_KAME Priority getCurrentPriorityMode();
+
+//! Thrown by `iterate_commit*` when a transaction at a priority whose privilege
+//! can be revoked (LOWEST / UI_DEFERRABLE / SCRIPTING) has been retrying for
+//! longer than `KAME_STM_LOWPRIO_STARVE_MS`.
+//!
+//! Derives from `std::runtime_error` rather than KAME's XKameError so kamestm
+//! stays Qt-free, and so pybind11 translates it to a plain Python exception for
+//! the SCRIPTING caller, which is the one that can most reasonably retry.
+//!
+//! NORMAL and HIGHEST never see this: their privilege never expires, so they are
+//! never revoked, and losing a driver record to STM contention is a semantic no
+//! driver expects.
+class StarvationTimeoutError : public std::runtime_error {
+public:
+    explicit StarvationTimeoutError(const std::string &what)
+        : std::runtime_error(what) {}
+};
 
 //! RAII priority change, restored on scope exit including by exception.
 //!

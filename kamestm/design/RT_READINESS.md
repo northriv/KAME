@@ -1727,3 +1727,72 @@ What 51 ms still governs for a budget thread is only whether it may *take over* 
 stale holder's privilege, which it does not need. For a thread **without** a
 budget the full 51 ms applies; whether that is too long is a tuning question that
 cannot be answered while grants are 0.000 in every configuration measured.
+
+## A revocable priority must be given a way to fail
+
+The rule (user): **a priority that can have its privilege taken away must have a
+timeout.** Revocability without a failure path is not fairness — the thread keeps
+retrying with no protection and no exit. The revocable set is exactly what
+`stamp_is_expired_lowprio` acts on, i.e. `lowprio_mask_for_current_priority()`
+(`transaction.h:517-524`): **LOWEST, UI_DEFERRABLE, SCRIPTING**. NORMAL and
+HIGHEST are excluded by the same symmetry — their privilege never expires, so
+they are never revoked, and losing a driver record to STM contention is a
+semantic no driver expects.
+
+That is a better rule than the per-level reasoning it replaced (which weighed
+"a frozen GUI is worse than a failed .kam load"), because it is derived rather
+than judged.
+
+The risk is not theoretical and this programme increased it: a HIGHEST
+acquisition loop never negotiates and a budget-carrying thread stops waiting, so
+slow below-NORMAL work on a node they touch can be retried indefinitely. The
+only pre-existing exit was the HANG watchdog `abort()`ing the whole process after
+3 x 5 s.
+
+`KAME_STM_LOWPRIO_STARVE_MS` defaults to **1000**, which has provenance rather
+than being invented: the Priority enum's original doc-comment promised SCRIPTING
+"yields to *everything* for the first second of any contention, then claims
+privilege so the request still eventually completes". Privilege never fires
+(grants measured 0.000 in every configuration), so the promise was never kept.
+This keeps it by the other route — "then gives up cleanly" instead of "then
+claims privilege". `StarvationTimeoutError` derives from `std::runtime_error`, so
+pybind11 hands the SCRIPTING caller a clean Python exception.
+
+    default 1000 ms, 4 SCRIPTING threads, grand arm, 5 s : 0 firings
+    fast-path cost, 8 threads, 11 interleaved reps       : +0.78 %, lower 4/11
+    128 threads / 4 threads                              : +2.08 % / +0.82 %
+
+So it neither hair-triggers nor costs anything measurable.
+
+### One lowprio thread does not starve; two do
+
+Measured with the bench at a 2 ms bound, grand arm, 8 threads:
+
+    -L 1   does not fire        -L 4   fires
+    -L 2   fires                -L 8   fires
+
+A lone lowprio thread gets through. Lowprio threads starve **each other** —
+they are excluded from the per-Linkage owner-skip lease (`_neg_apply_lease`) and,
+for LOWEST, from the jittered gate, so neither can inherit its way past the
+other.
+
+**KAME is already in that regime.** It runs three UI_DEFERRABLE threads: the
+main/GUI thread (`main.cpp:220`), the graph toolbox
+(`graphntoolbox.cpp:122`) and the Python interpreter
+(`xpythonsupport.cpp:149`). And `Priority::LOWEST` is set nowhere in the tree, so
+the revocable set in practice is UI_DEFERRABLE (three threads) plus SCRIPTING
+(MCP/AI, opt-in behind the sticky trapdoor).
+
+### The test pins the mechanism, not the contention
+
+`transaction_starvation_test` drives `iterate_commit_if`'s retry path directly —
+returning false retries unconditionally, so one thread ages one transaction past
+the bound with no contention at all — and asserts all five priorities plus the
+retry-gate case. Deterministic: 3/3 runs, 6/6 cases.
+
+Manufacturing real starvation was tried first and is not usable as a ctest. It
+was flaky in both directions: a two-level tree never starved where the bench's
+three-level one did (bundle churn is O(subtree), and the intermediate level is
+what makes a root commit heavy enough), and once the starved *peers* caught their
+own exceptions and restarted, the victim stopped starving too. Contention
+dynamics are what the bench is for.

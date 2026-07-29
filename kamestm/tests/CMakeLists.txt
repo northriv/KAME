@@ -97,6 +97,7 @@ set(kamestm_test_names
     transaction_payload_integrity_mixed_test
     transaction_payload_integrity_3level_mixed_test
     transaction_wait_budget_test
+    transaction_starvation_test
     # Per-commit LATENCY tail (not throughput).  Pure observation: it times
     # iterate_commit from outside and changes nothing in kamestm, so it can
     # neither regress the library nor bias what it measures.  Not a ctest --
@@ -123,6 +124,14 @@ add_test(NAME transaction_payload_integrity_3level_test COMMAND transaction_payl
 # slack (default 10 ms, KAME_WB_TEST_SLACK_US) covers OS scheduling and
 # post-expiry retries — everything the library deliberately does NOT model.
 add_test(NAME transaction_wait_budget_test COMMAND transaction_wait_budget_test)
+# Starvation bound on revocable priorities.  Built at 2 ms rather than the
+# production 1000 ms so a 4 s arm reliably reaches it: measured, 20 ms fired only
+# 1 of 3 runs while 2 ms — the value the latency bench fired at consistently —
+# is dependable.  The production value is exercised by NOT firing, which the
+# uncontended arm covers.
+add_test(NAME transaction_starvation_test COMMAND transaction_starvation_test)
+target_compile_definitions(transaction_starvation_test PRIVATE
+    KAME_STM_LOWPRIO_STARVE_MS=2 KAME_STM_LOWPRIO_STARVE_MIN_RETRIES=2)
 
 # Long-running tests
 set_tests_properties(
