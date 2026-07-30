@@ -2667,3 +2667,18 @@ So the demotion is **not load-bearing for starvation-freedom**; it is a
 policy choice about whether unvouched code runs in the RT tier. Whether to
 keep it, drop it, or turn it into a per-driver vouch is the deployment's
 call, not a correctness requirement.
+
+**Decision (user): status quo — the demotion stays.** The deciding fact is
+Python: the downstream can reach it (secondary drivers invoking a Python
+driver's analysis, `onVisualization` callbacks, math-tool functors), and the
+GIL is a lock structurally inside those transactions, so the clean-TX
+antecedent cannot be made true for the downstream *as a class* — no audit or
+detector can vouch it. Code that can reach the GIL does not run in the RT
+tier; that is now the demotion's one justification on record, replacing both
+withdrawn ones. No per-driver vouch virtual either — same reason, a driver
+author cannot vouch what their listeners' listeners do.
+
+Known residual, accepted as-is: `analyzeRaw`'s math-tool functors take the GIL
+at HIGHEST *upstream* of the demote, inside the record commit. That is the
+driver author's own vouched zone — the caller-side-time-management contract —
+and unchanged by this decision.
