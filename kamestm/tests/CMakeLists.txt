@@ -100,6 +100,7 @@ set(kamestm_test_names
     transaction_starvation_test
     transaction_sleep_in_tx_test
     transaction_priv_strip_test
+    transaction_priority_mixed_test
     # Per-commit LATENCY tail (not throughput).  Pure observation: it times
     # iterate_commit from outside and changes nothing in kamestm, so it can
     # neither regress the library nor bias what it measures.  Not a ctest --
@@ -150,6 +151,13 @@ target_compile_options(transaction_sleep_in_tx_test PRIVATE -UNDEBUG)
 # API, and the benchmarks prove only that the rule stays silent when healthy.
 add_test(NAME transaction_priv_strip_test COMMAND transaction_priv_strip_test)
 target_compile_options(transaction_priv_strip_test PRIVATE -fno-access-control)
+
+# HIGHEST + NORMAL + UI_DEFERRABLE role mix (acquisition / demoted downstream
+# with a 20 ms budget / main-thread snapshots+transactions+structural churn),
+# with a stall watchdog: any thread stuck >5 s = livelock = FAIL.  10 s here;
+# soak with KAME_MIX_SECS=60+ when hunting.
+add_test(NAME transaction_priority_mixed_test
+         COMMAND transaction_priority_mixed_test)
 
 # Long-running tests
 set_tests_properties(
