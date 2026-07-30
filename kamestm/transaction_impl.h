@@ -1071,6 +1071,18 @@ void setStarvationHandler(StarvationHandler h) noexcept {
 StarvationHandler starvationHandler() noexcept {
     return s_starvation_handler.load(std::memory_order_relaxed);
 }
+
+//! Null by default: see the doc block in transaction_detail.h.  Same idiom as
+//! the starvation handler above -- the host installs policy, the library only
+//! provides the call site.
+static std::atomic<OSPriorityHook> s_os_priority_hook{nullptr};
+
+void setOSPriorityHook(OSPriorityHook h) noexcept {
+    s_os_priority_hook.store(h, std::memory_order_relaxed);
+}
+OSPriorityHook osPriorityHook() noexcept {
+    return s_os_priority_hook.load(std::memory_order_relaxed);
+}
 void throwStarvationTimeout(unsigned retries, long long age_us) {
     throw StarvationTimeoutError(
         "Transactional: a transaction at a revocable priority retried "
@@ -3178,20 +3190,20 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
     return UnbundledStatus::W_NEW_SUBVALUE;
 }
 
-#if defined __WIN32__ || defined WINDOWS || defined _WIN32
-    #include <windows.h>
-#endif
-
 void setCurrentPriorityMode(Priority pr) {
 #if KAME_STM_WAIT_BUDGET
     stl_currentTxContext->priority = pr;
 #else
     *stl_currentPriority = pr;
 #endif
-#if defined __WIN32__ || defined WINDOWS || defined _WIN32
-    SetThreadPriority(GetCurrentThread(),
-        (pr == Priority::HIGHEST) ? THREAD_PRIORITY_TIME_CRITICAL : THREAD_PRIORITY_NORMAL);
-#endif
+    // No OS-scheduler coupling here.  A SetThreadPriority(TIME_CRITICAL) call
+    // used to sit in a Windows-only arm at this point, which made kamestm
+    // silently promote any host thread that used Priority::HIGHEST -- and would
+    // have hardcoded a mapping that on PREEMPT_RT belongs to the deployment.
+    // The mapping is now a host-installed hook (KAME installs the historic
+    // Windows one in kame/main.cpp); see OSPriorityHook in transaction_detail.h.
+    if(auto h = s_os_priority_hook.load(std::memory_order_relaxed))
+        h(pr);
 }
 
 } //namespace Transactional

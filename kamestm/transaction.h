@@ -2415,12 +2415,15 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
     // driver list) would otherwise do it at HIGHEST, putting two realtime
     // acquisition threads on one Linkage.  Demotes HIGHEST only; see
     // ScopedDemoteRealtime for why raising a lowprio committer would be wrong.
-    {
+    // Gated on emptiness: with an OS hook installed (kame on Windows) the
+    // demote/restore pair is two syscalls, and a commit with no listeners --
+    // most settings commits -- should not pay them for an empty loop.
+    if( !m_messages.empty()) {
         ScopedDemoteRealtime _no_realtime_in_listeners;
         for(auto &&msg: m_messages)
             msg->talk( *this);
+        m_messages.clear();
     }
-    m_messages.clear();
 }
 
 // Helper: strict-retry escalation arbiter.

@@ -2271,3 +2271,64 @@ The test also pins that a **Snapshot** alone does not trip the detector. That is
 the intended semantics — a Snapshot blocks nothing — and it is exactly what
 `s_tx_nest` gives, being held for a Transaction's whole lifetime but only during a
 Snapshot's construction.
+
+## OS priority is policy, not mechanism: `setOSPriorityHook`
+
+Asked (user), with PREEMPT_RT support on the horizon: *shouldn't the current
+STM-priority → OS-priority coupling change?* Yes — and the Windows measurement
+above already showed why in miniature. `setCurrentPriorityMode` contained a
+Windows-only arm (pre-existing, `59d942f36`) mapping HIGHEST ↔
+`THREAD_PRIORITY_TIME_CRITICAL` inside kamestm itself. Three things are wrong
+with that once an RT Linux port is real:
+
+* **The mapping is a deployment decision a library cannot make.** On PREEMPT_RT
+  the numeric level is chosen relative to the kernel's threaded irqs (default 50)
+  and ksoftirqd; the policy might be `SCHED_FIFO`, `SCHED_RR` or
+  `SCHED_DEADLINE` (which has no static priority at all); and raising it needs
+  `CAP_SYS_NICE` or an `RLIMIT_RTPRIO` grant, so the call can *fail* and policy
+  decides what that means. Hardcoding any of it into the STM would be exactly the
+  "RT-only design mixed into the general code" this work is required to avoid.
+* **Documented RT practice is set-once, not toggle-per-record.** POSIX RT
+  scheduling attributes are set at thread setup (`pthread_attr_setschedparam`,
+  explicit-sched); Windows' own low-latency path (MMCSS) likewise registers a
+  thread once. A hidden per-record `pthread_setschedparam` issued from inside an
+  STM commit would be a surprise to anyone auditing an RT deployment.
+* **A standalone library silently promoting host threads was already a smell.**
+  Any Windows program linking kamestm and using `Priority::HIGHEST` got
+  TIME_CRITICAL whether it wanted it or not.
+
+The change mirrors `setStarvationHandler` exactly — the host installs policy,
+the library provides the call site:
+
+    Transactional::setOSPriorityHook(hook)   null by default; called by
+                                             setCurrentPriorityMode with the new
+                                             priority, on the changing thread
+
+The hook type is a `noexcept` function pointer because it is reached from
+`ScopedDemoteRealtime`'s noexcept destructor. With it, the STM core's only
+`<windows.h>` dependency is gone.
+
+**Windows behaviour is preserved where it belongs**: `kame/main.cpp` installs the
+historic mapping as the hook, with a `thread_local` skip — every priority except
+HIGHEST maps to `THREAD_PRIORITY_NORMAL`, so transitions among NORMAL / SCRIPTING
+/ UI_DEFERRABLE / LOWEST no longer pay a no-op syscall (previously *every*
+`setCurrentPriorityMode` call on Windows was one). One deliberate subtlety: the
+skip means an OS priority set externally on a thread is left alone until HIGHEST
+is involved, where the old arm forced NORMAL on every call.
+
+**The PREEMPT_RT plan this enables** (a plan, not an implementation — no RT host
+here): leave the hook null. The acquisition thread's OS class is set once at
+thread start by the deployment; `ScopedDemoteRealtime` then moves only the STM
+priority, and whether downstream listeners may run at FIFO for their (bounded by
+the wait budget, at NORMAL STM priority) duration — or whether a hook should
+toggle the OS class too — is the deployment's call, made in one visible place.
+
+Also gated in the same commit: `finalizeCommitment`'s demote guard now skips when
+`m_messages` is empty, so a listener-less commit — most settings commits — pays
+neither the guard nor, with a hook installed, its two syscalls.
+
+Non-RT regression check: with a null hook `setCurrentPriorityMode` is the same
+TLS store as before on macOS/Linux (12/12 ctest, audits clean); on Windows the
+KAME application installs the old mapping before any driver thread exists. The
+hook install and the mapping itself sit in an `#if _WIN32` arm this host cannot
+compile — same standing caveat as every Windows-side line in this work.
