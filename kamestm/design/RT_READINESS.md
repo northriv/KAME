@@ -2450,3 +2450,42 @@ commit invalidates a HIGHEST snapshot all the same. The invariant buys
 throughput and tightens the tail; it does not buy the liveness it was earlier
 assumed to carry. A debug-time detector for two HIGHEST negotiating one linkage
 is accordingly a *performance*-bug detector, and still worth having.
+
+### Does a privileged NORMAL yield to a HIGHEST tag? — the interaction matrix
+
+Asked (user) as the natural follow-up to the verdict above. The letter-answer is
+**no — and it could not**: the stamp carries exactly one priority bit
+(`STAMP_LOWPRIO_MASK`, set for the three revocable levels, sealed entirely under
+`KAME_STM_COMPACT_STATE`), so a HIGHEST tag is bit-identical to a NORMAL tag.
+Nothing on the linkage can key on "the contender is HIGHEST". But the intent
+behind the question — *can NORMAL privilege delay an acquisition thread?* — is
+answered by construction, in four layers:
+
+1. **Privilege never blocks HIGHEST.** `fair_mode_blocks_me` is consulted below
+   the round-loop-top HIGHEST breakout. A privileged NORMAL vs a HIGHEST is two
+   non-sleeping CAS racers — the same benign alternation measured in the
+   two-spinner run (p99.99 = 57–98 µs). The privilege does not need to be
+   yielded because it was never in HIGHEST's way.
+2. **A NORMAL's privilege actually helps the HIGHEST.** It blocks the *other*
+   NORMAL/lowprio contenders via fair-mode, reducing the HIGHEST's opposition to
+   one thread and lowering `sig_C` churn.
+3. **Age arbitrates the stamp slot, not priority** — the symmetric preempt
+   window (user-designed, `KAME_STM_PREEMPT_WINDOW_US` = 100 µs): an *older*
+   HIGHEST's tag respects a younger privilege holder's burst window, then
+   preempts the Reserved stamp; the holder's preempt-recovery clears
+   `m_registered_privileged` — privilege revoked by age, the TLA+ older-wins
+   axis. A *younger* HIGHEST leaves the slot alone and just keeps racing.
+4. **The structural subordination exists — dormant, probe-gated.** HIGHEST is
+   not excluded from the livelock probe or the claim path (its age floor is
+   `KAME_STM_PRIV_AGE_NORMAL_US`, same as NORMAL). A HIGHEST that genuinely
+   stalled would claim Reserved, and `fair_mode_blocks_me` is priority-blind
+   (TID compare; non-lowprio stamps never expire), so every NORMAL would then
+   yield to it structurally. Measured grants = 0.000 means this ladder has
+   never been needed, not that it is missing.
+
+Making the privileged NORMAL *actively* step aside on a HIGHEST tag would
+require adding a HIGHEST bit to the stamp (five consumers plus the
+COMPACT_STATE seal to re-verify) in order to void the privilege exactly when
+the probe had just certified its holder as stalling — re-creating the
+starvation privilege exists to cure, to speed up a race the HIGHEST is not
+delayed by in the first place.
