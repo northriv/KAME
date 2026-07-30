@@ -2601,3 +2601,28 @@ window; holder marked HIGHEST → untouched; side-word tid mismatch → untouche
 
 Also fixed while here: `g_priv_strips` (always-on relaxed counter) so a plain
 build can verify the mechanism fired; the latency bench prints it with `-P/-L`.
+
+### NORMAL-only workloads: unchanged in principle, and what "in principle" means
+
+Asked (user). The *decision logic* is structurally unreachable without a
+HIGHEST thread: Rule 0 is gated on `getCurrentPriorityMode() == HIGHEST`, so in
+a NORMAL-only process no strip, no counter bump and no side-word read can
+occur, and rules 1–4 / fair-mode / claim / expiry execute exactly the old
+instructions. What is *not* zero is the executed-instruction delta, and each
+item is incapable of changing a branch outcome:
+
+* two zero-initialisations (+16 B) per Snapshot construction — the patience
+  memory, read only inside the HIGHEST-gated block;
+* one release-store per tagged linkage at privilege claim — **NORMAL claimants
+  write the side word too**, deliberately: the word must already be correct at
+  the instant a HIGHEST first appears, which is what makes the tid validation
+  sound (a write-when-HIGHEST-appears scheme would race against exactly the
+  reader it serves);
+* one TLS read + store when a privileged transaction extends Reserved to a new
+  linkage, and one TLS read when any tagger meets a Reserved stamp (the
+  short-circuited right operand of `_cur_is_priv && ...`);
+* +4 B (8 B with padding) per Linkage.
+
+Under `KAME_STM_COMPACT_STATE`, `is_priv_stamp` is constant-false and Rule 0 is
+dead-code-eliminated entirely. Empirical cross-check of precisely this
+question: the `-P 0` interleaved A/B (parity) and 13/13 ctest.
