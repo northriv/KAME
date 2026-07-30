@@ -2332,3 +2332,56 @@ TLS store as before on macOS/Linux (12/12 ctest, audits clean); on Windows the
 KAME application installs the old mapping before any driver thread exists. The
 hook install and the mapping itself sit in an `#if _WIN32` arm this host cannot
 compile — same standing caveat as every Windows-side line in this work.
+
+**Superseded the same day, before ever being pushed — see the next section: the
+hook is gone again.** The layering argument above stands; what was wrong is the
+behaviour any installed hook would produce.
+
+## Correction: OS priority is a thread property, not a transaction property
+
+The hook was the right *layering* and the wrong *behaviour* (user): an OS
+scheduling class should be **permanent for the thread**, not toggled with STM
+priority changes — and once it is permanent, there is nothing for kamestm to
+call, so the implementation belongs to KAME. The hook lasted one commit and was
+removed unused rather than left as an attractive nuisance (the A/B/C/D lesson:
+an API whose only use case has been judged wrong will rot).
+
+The argument is not just "set-once is the documented practice" (it is — POSIX
+RT attributes at thread setup, MMCSS one-time registration). It is an RT
+argument: with the OS class coupled to `ScopedDemoteRealtime`, every
+acquisition cycle handed the CPU to arbitrary threads for its entire demoted
+downstream half — listeners, `visualize()` — right when the loop is racing the
+next trigger. Being preempted there eats period margin unpredictably, which is
+backwards: the loop should finish its whole iteration at acquisition priority
+and yield *naturally* in the device wait, where it blocks and the CPU frees
+anyway. The demotion's real job was never CPU allocation:
+
+    ScopedDemoteRealtime   STM-level.  Stays.  Prevents an immediate listener
+                           that widens scope from negotiating at HIGHEST and
+                           putting two realtime threads on one Linkage.
+    OS scheduling class    thread-level, thread-lifetime.  KAME-side.
+
+So now:
+
+* `Transactional::setCurrentPriorityMode` is a pure TLS store on every
+  platform. kamestm has **zero** OS-scheduler awareness — no windows.h, no
+  hook. (The brief hook, `eab100ec8`, never reached the remote.)
+* `AcquisitionPriority` (kame/driver/primarydriverwiththread.h) raises the OS
+  class in its constructor and restores it in its destructor — the RAII spans
+  the acquisition loop, which spans the thread, so this *is* set-once. The OS
+  half lives in `raiseAcquisitionOSPriority_()` / `restoreAcquisitionOSPriority_()`
+  (primarydriver.h/.cpp): Windows `THREAD_PRIORITY_TIME_CRITICAL`, no-op
+  elsewhere, and the single visible place where PREEMPT_RT's
+  SCHED_FIFO/RR/DEADLINE decision goes when it comes.
+
+**Deliberate Windows behaviour change** (the historic arm toggled): the demoted
+downstream now runs at TIME_CRITICAL. That is the point — the STM priority
+drops, the CPU stays. A listener too long to tolerate at acquisition priority
+was already too long for the acquisition loop, and the wait budget, the
+`FLAG_MAIN_THREAD_CALL` rule and the record-commit telemetry are the tools for
+noticing it.
+
+Restore goes to `THREAD_PRIORITY_NORMAL` rather than a saved value, on the
+grounds that acquisition threads are created for the loop and die with it. The
+same reasoning says nesting `AcquisitionPriority` twice on one thread would
+restore early — it has no reason to ever nest.

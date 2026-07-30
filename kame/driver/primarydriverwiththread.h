@@ -67,11 +67,20 @@ protected:
     //! measurement beats UI and scripting.  Note the record-commit counters
     //! above do NOT see it — they only count the acquisition side — so a
     //! starved .kam load or redraw has to be noticed by other means.
+    //! Also raises the OS scheduling class for the thread's lifetime -- the
+    //! RAII spans the acquisition loop, which spans the thread.  The OS half is
+    //! permanent-by-scope like this, NOT toggled per record with the STM
+    //! priority; see raiseAcquisitionOSPriority_ (primarydriver.h) for why.
     class AcquisitionPriority : public Transactional::ScopedPriority {
     public:
         AcquisitionPriority()
             : Transactional::ScopedPriority(
-                  Transactional::Priority::HIGHEST) {}
+                  Transactional::Priority::HIGHEST) {
+            raiseAcquisitionOSPriority_();
+        }
+        ~AcquisitionPriority() {
+            restoreAcquisitionOSPriority_();
+        }
     };
 
 private:

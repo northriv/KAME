@@ -217,30 +217,6 @@ int main(int argc, char *argv[]) {
 				return -1;
             }
 #endif
-#if defined __WIN32__ || defined WINDOWS || defined _WIN32
-            // The STM -> OS priority coupling that used to live inside kamestm
-            // (HIGHEST <-> THREAD_PRIORITY_TIME_CRITICAL, 59d942f36).  It is
-            // application policy, so KAME installs it as the OS-priority hook;
-            // on PREEMPT_RT the plan is the opposite -- leave the hook null and
-            // set the acquisition thread's SCHED_FIFO class once at thread
-            // start (see OSPriorityHook in kamestm/transaction_detail.h).
-            //
-            // The thread_local skip: every priority except HIGHEST maps to
-            // THREAD_PRIORITY_NORMAL, so changes among NORMAL / SCRIPTING /
-            // UI_DEFERRABLE / LOWEST would otherwise each pay a no-op syscall.
-            // Side effect of skipping: an OS priority set externally on a
-            // thread is left alone until HIGHEST is involved, where the old
-            // in-library arm used to force NORMAL on every call.
-            Transactional::setOSPriorityHook(
-                [](Transactional::Priority pr) noexcept {
-                    thread_local int s_last = THREAD_PRIORITY_NORMAL;
-                    const int lvl = (pr == Transactional::Priority::HIGHEST)
-                        ? THREAD_PRIORITY_TIME_CRITICAL : THREAD_PRIORITY_NORMAL;
-                    if(lvl == s_last) return;
-                    s_last = lvl;
-                    SetThreadPriority(GetCurrentThread(), lvl);
-                });
-#endif
             Transactional::setCurrentPriorityMode(Priority::UI_DEFERRABLE);
 //            Transactional::setCurrentPriorityMode(Priority::NORMAL);
 

@@ -196,28 +196,6 @@ DECLSPEC_KAME StarvationHandler starvationHandler() noexcept;
 //! that want kamestm's own type.
 DECLSPEC_KAME void throwStarvationTimeout(unsigned retries, long long age_us);
 
-//! Host-installable bridge from STM priority to the OS scheduler, called by
-//! `setCurrentPriorityMode` with the new priority, on the thread being changed.
-//! **Null by default: kamestm itself never touches OS scheduling.**
-//!
-//! The mapping is deployment policy, not library mechanism.  On PREEMPT_RT the
-//! numeric level must be chosen relative to the kernel's threaded irqs (default
-//! 50) and ksoftirqd, the policy might be SCHED_FIFO, SCHED_RR or
-//! SCHED_DEADLINE, and raising it at all needs CAP_SYS_NICE or an RLIMIT_RTPRIO
-//! grant -- none of which a library can know.  Documented RT practice is also to
-//! set a thread's scheduling class ONCE at thread setup, not to toggle it per
-//! work item, so on an RT host the expected configuration is: leave this null
-//! and set the acquisition thread's OS class at thread start; `ScopedPriority` /
-//! `ScopedDemoteRealtime` then move only the STM priority.  A deployment that
-//! does want OS-level toggling installs a hook (a bounded syscall; allowed,
-//! just not the default).
-//!
-//! The hook must not throw: it is reached from `ScopedDemoteRealtime`'s
-//! noexcept destructor, hence the noexcept function-pointer type.
-using OSPriorityHook = void (*)(Priority pr) noexcept;
-DECLSPEC_KAME void setOSPriorityHook(OSPriorityHook h) noexcept;
-DECLSPEC_KAME OSPriorityHook osPriorityHook() noexcept;
-
 //! RAII priority change, restored on scope exit including by exception.
 //!
 //! Exists because `setCurrentPriorityMode` is a persistent thread mode, and a

@@ -19,6 +19,25 @@
 #include <atomic>
 #include <cstdint>
 
+//! OS half of \a AcquisitionPriority (primarydriverwiththread.h): marks the
+//! CALLING thread as an acquisition thread for the OS scheduler, for the
+//! thread's lifetime.  Deliberately not coupled to STM priority changes -- an
+//! OS scheduling class is a per-thread property, set once at thread setup
+//! (POSIX RT and MMCSS practice alike), while STM priority toggles with
+//! transaction phases.  Toggling the OS class along with it (the historic
+//! Windows behaviour) handed the CPU to arbitrary threads for the demoted
+//! downstream half of every acquisition cycle, which is backwards for meeting
+//! the next trigger: the loop should finish its iteration at acquisition
+//! priority and yield naturally in the device wait.
+//!
+//! Windows: THREAD_PRIORITY_TIME_CRITICAL (level 15 in the normal class,
+//! documented, no privilege needed).  PREEMPT_RT, when it comes, goes HERE and
+//! only here -- SCHED_FIFO/RR/DEADLINE and the numeric level are deployment
+//! decisions (relative to threaded irqs, needing RLIMIT_RTPRIO), so this is a
+//! single visible place to make them.  Elsewhere: no-op.
+DECLSPEC_KAME void raiseAcquisitionOSPriority_() noexcept;
+DECLSPEC_KAME void restoreAcquisitionOSPriority_() noexcept;
+
 class DECLSPEC_KAME XPrimaryDriver : public XDriver {
 public:
 	XPrimaryDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);

@@ -16,6 +16,24 @@
 #endif
 
 #include "primarydriver.h"
+
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+    #include <windows.h>
+#endif
+
+// See the doc block in primarydriver.h.  Restore goes to NORMAL rather than to
+// a saved value: acquisition threads are created for the loop and die with it,
+// so the thread was at the default when it started.
+void raiseAcquisitionOSPriority_() noexcept {
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
+#endif
+}
+void restoreAcquisitionOSPriority_() noexcept {
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_NORMAL);
+#endif
+}
 #include <chrono>
 #include <memory>
 
