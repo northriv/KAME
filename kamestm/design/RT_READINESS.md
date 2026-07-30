@@ -2489,3 +2489,45 @@ COMPACT_STATE seal to re-verify) in order to void the privilege exactly when
 the probe had just certified its holder as stalling — re-creating the
 starvation privilege exists to cure, to speed up a race the HIGHEST is not
 delayed by in the first place.
+
+### "If LOWPRIO is unused, make it the HIGHEST bit"? — it is not spare
+
+Proposed (user) against the section above. The premise does not hold: in the
+deployed (64-bit) build the lowprio bit is load-bearing for two shipped
+mechanisms —
+
+* **The 51 ms privilege revocation.** `stamp_is_expired_lowprio` keys on it,
+  with three consumers that must agree (`fair_mode_blocks_me`,
+  `try_register_privileged_tidstamp`, `i_am_privileged_now`). Remove it and a
+  stuck SCRIPTING / UI_DEFERRABLE / LOWEST holder leaves what the code's own
+  comment calls "a frozen Linkage nobody can overwrite" — the failure whose
+  terminal form is the HANG-watchdog abort, and the property that made those
+  priorities "revocable" in the first place.
+* **The starvation bound's gate.** `throw_if_starved_` reads
+  `stamp_is_lowprio(shot.m_started_time)` off the transaction's own stamp —
+  chosen deliberately over TLS so the check costs nothing on the fast path and
+  reflects the priority the operation *started* at. The revocation and the
+  timeout are two halves of one design: privilege can be taken away, therefore
+  there is a way to fail.
+
+The bit is "unused" only under `KAME_STM_COMPACT_STATE` — and that mode exists
+for 32-bit no-DCAS hosts where the stamp is `[us:24|tid:8]` in an `int32_t`:
+no priority bit of any kind fits there, HIGHEST included.
+
+Nor is there a spare bit to add instead: the 64-bit stamp is exactly full,
+`45 (µs) + 1 (lowprio) + 2 (kind) + 16 (tid) = 64`, and all four kind values
+are taken — `Reserved` (= 3) *was* the spare, already reclaimed for per-Linkage
+privilege. Sharing the lowprio bit ("set = not NORMAL") corrupts both
+consumers: HIGHEST privilege would expire at 51 ms and, worse,
+`throw_if_starved_` would throw on HIGHEST — the one tier that must never get a
+starvation timeout.
+
+If a justified consumer ever materialises, the honest door is stealing one µs
+bit (45 → 44 still wraps at ~200 days, modular comparisons safe far below
+half-range). Today there is no such consumer: the only proposed use — NORMAL
+yielding structurally to HIGHEST — was measured and rejected above, and the
+two-HIGHEST *detector* does not need a stamp bit either. `Linkage`'s
+`PriorityState` is `{tid, lease_us, start_us}` — despite the accessor's name
+(`loadPriority`) it records no `Priority` — so the detector's natural shape is
+a debug-only (`#ifndef NDEBUG`) per-Linkage field written by HIGHEST
+contenders, costing the release layout nothing.
