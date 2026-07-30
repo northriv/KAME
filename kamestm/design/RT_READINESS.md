@@ -2824,3 +2824,49 @@ whether anything auto-retries:
 
 No auto-retry-on-timeout loop remains; every landing site either consumes the
 failure or backs off.
+
+## The 2026-07-31 freeze investigation: what the lab settled and what it could not
+
+Field: with PNR on, MCP traffic at 30–47 writes/s and idle pollers, a
+privilege-holding transaction on the acquisition thread pins every negotiator
+for 33+ s; one episode self-recovered at 11 s with NO starvation message.
+A parallel assistant session attributed it to "one 35 s PNR call"; measured
+here (solver extracted standalone, M4, -O2, IC early-stop active):
+
+    n=16k: 11 ms   n=32k: 19 ms   n=128k: 99 ms   n=1M: 1.2 s
+    n=4M: 5.1 s    n=16M: 22.5 s  n=64M: 108 s
+
+The wave was ~30 k points → ~19 ms/call: a single 35 s call is off by three
+orders (it would need a ≥30 M-point wave; a briefly reported "50 M" retracted
+to "30 k" flipped the verdict twice — first-hand parameters before theories).
+The loop caps the user remembered are real: 32 IC-gated outer iterations,
+10 inner.
+
+Harness reproduction with the exact field parameters (22 ms closure,
+40 writes/s, 3 idle pollers, 30/s root snapshots, up to 384 nodes):
+
+  * a fresh writer INSIDE the analyze scope is throttled from 40/s to ~4/s —
+    fresh commits on a bundled subtree DO negotiate (unbundle path) and DO
+    respect privilege.  The "fresh ops bypass fair-mode" asymmetry applies
+    only to paths that never need an unbundle;
+  * the field COUPLING is the shared entries list: when the analyze
+    transaction also writes its scalar entry (root-scope commit spanning its
+    subtree + the shared list), victims degrade ×50 (max gap 9 ms → 459 ms)
+    and the MCP-like writer is throttled to ~15 %, while the analyze itself
+    stays healthy (1.1 closure runs per commit);
+  * but 33 s was NOT reached at any size tried — the quantitative pin needs
+    an ingredient outside the pure-STM harness (interface mutexes interleaved
+    with negotiation, the real listener topology, main-thread event-loop
+    granularity...).  Decisive artifact: the field is reproducible on demand
+    now, so `sample kame 5` DURING the pin (not the post-mortem .ips) will
+    name the holder and its blockage directly.
+
+Also explained from code: 33 s of pinning without the HANG abort is expected —
+`_hang_hits` is local to one `_negotiate_internal` call, so only a thread that
+sits in ONE call for 3 x 5 s caps aborts; threads cycling in and out of
+negotiation can be pinned indefinitely without tripping it.  And the 11 s
+recovery without a starvation message means the bound did not fire there
+(lucky gap instead); MIN_RETRIES=8 with 5 s sleep caps can defer the bound
+past any realistic freeze — the proposed MIN_RETRIES=2 remains open, as does
+the release-default KAME_STM_HANG_ABORT_N=0 (the 11 s self-recovery was 4 s
+short of today's abort).
