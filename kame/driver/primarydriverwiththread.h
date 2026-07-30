@@ -67,15 +67,31 @@ protected:
     //! measurement beats UI and scripting.  Note the record-commit counters
     //! above do NOT see it — they only count the acquisition side — so a
     //! starved .kam load or redraw has to be noticed by other means.
-    //! Also raises the OS scheduling class for the thread's lifetime -- the
-    //! RAII spans the acquisition loop, which spans the thread.  The OS half is
-    //! permanent-by-scope like this, NOT toggled per record with the STM
-    //! priority; see raiseAcquisitionOSPriority_ (primarydriver.h) for why.
+    //! **STM-HIGHEST is retired for KAME (user verdict, 2026-07-31)** — this
+    //! RAII now grants only the OS-level elevation.  The field and the lab
+    //! converged on a structural incompatibility at the tier contracts'
+    //! meeting point: HIGHEST never waits (its fair-mode immunity IS the
+    //! contract), so it is the one contender a NORMAL transaction's privilege
+    //! cannot stop.  When any privilege-holding transaction's closure takes
+    //! longer than the HIGHEST commit period (closure x rate >= 1 — e.g. a
+    //! 20 ms PNR analysis against a 50 /s record stream), it resonates into
+    //! quasi-starvation, re-running its closure every record (measured: 1.1
+    //! -> 15.5 closure runs per commit) while its privilege pins every OTHER
+    //! negotiator — a system-wide freeze that ends in the HANG watchdog.
+    //! At NORMAL the acquisition commits negotiate like everyone, fair-mode
+    //! works on them, and the same load runs clean.
+    //!
+    //! The OS half stays: CPU preference is a thread property with no
+    //! fair-mode immunity, so it keeps the acquisition thread scheduled
+    //! without letting it starve anyone at the STM level.  The kamestm
+    //! HIGHEST tier itself remains available to hosts that can honour its
+    //! deployment precondition (HIGHEST commit rate x longest peer closure
+    //! << 1); KAME with per-record analyses cannot.
     class AcquisitionPriority : public Transactional::ScopedPriority {
     public:
         AcquisitionPriority()
             : Transactional::ScopedPriority(
-                  Transactional::Priority::HIGHEST) {
+                  Transactional::Priority::NORMAL) {
             raiseAcquisitionOSPriority_();
         }
         ~AcquisitionPriority() {

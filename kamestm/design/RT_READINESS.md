@@ -2870,3 +2870,45 @@ recovery without a starvation message means the bound did not fire there
 past any realistic freeze — the proposed MIN_RETRIES=2 remains open, as does
 the release-default KAME_STM_HANG_ABORT_N=0 (the 11 s self-recovery was 4 s
 short of today's abort).
+
+## The verdict: KAME retires STM-HIGHEST (user, 2026-07-31)
+
+The arc's measurements reached their terminus. Each tier contract is sound in
+isolation — HIGHEST never waits; NORMAL privilege never expires (completion
+guarantee); revocable tiers time out — but their **meeting point** is a
+structural hole:
+
+    HIGHEST's fair-mode immunity is its defining contract,
+    so it is the ONE contender privilege cannot stop.
+    When closure_time x HIGHEST_rate >= 1 on a shared linkage,
+    the privilege holder resonates into quasi-starvation
+    while its privilege pins every other negotiator.
+
+Lab (field parameters, 22 ms closure, shared entries list): adding a 50 /s
+HIGHEST commit stream took the analysis transaction from 1.1 to **15.5
+closure re-runs per commit** (Rule 0 acquitted: 1 strip per 30 s).  Field:
+"PNR ON alone hangs it, OFF recovers" — the ON action itself starts a ~20 ms
+closure racing the record stream; every freeze, recovery and abort of
+2026-07-30/31 fits this one mechanism.  No bounded arbitration can bridge it:
+letting HIGHEST wait for the holder breaks HIGHEST's bound; expiring the
+holder breaks NORMAL's completion guarantee (both already ruled out).
+
+So `AcquisitionPriority` now grants only the **OS-level** elevation (CPU
+preference is a thread property with no fair-mode immunity), and the STM tier
+of the acquisition loop is NORMAL again.  What stays, and why:
+
+* the kamestm HIGHEST tier, Rule 0, the side word, the priority tests — the
+  machinery is correct for hosts honouring the deployment precondition
+  `HIGHEST_rate x longest_peer_closure << 1`; KAME with per-record analyses
+  cannot;
+* `ScopedDemoteRealtime` sites — armed only at HIGHEST, now no-ops that
+  document intent and re-arm if a future deployment restores the tier;
+* the 20 ms downstream budget, the starvation bound (10 s), the exemptions
+  and nets — all priority-independent;
+* the OS-priority split (thread property vs transaction property), which this
+  verdict retroactively justifies: the two were never the same thing.
+
+With fair-mode effective against ALL contenders again, the long-closure
+holder completes promptly (lab: 1.1 re-runs), freezes end in well under a
+second, and the watchdog/starvation-bound tuning questions lose their
+urgency (defaults left as shipped).
