@@ -21,6 +21,13 @@
         CONDITIONS OF ANY KIND, either express or implied
 ***************************************************************************/
 #include "transaction.h"
+#ifndef NDEBUG
+    // For the debug-only sleep-in-transaction reporter below.  At file scope:
+    // a standard header cannot be included inside a namespace.
+    #include <set>
+    #include <mutex>
+    #include <cstdlib>
+#endif
 #include "transaction_definitions.h"
 #include <vector>
 #include <thread>
@@ -77,6 +84,80 @@ DECLSPEC_KAME XThreadLocal<RunnerCounterEntry*, TlsRunnerCounterPtrTag>
                                                 tls_runner_counter_ptr;
 DECLSPEC_KAME XThreadLocal<StampKind, SCurrentOpKindTag>
                                                 s_current_op_kind;
+
+#ifndef NDEBUG
+DECLSPEC_KAME std::atomic<int> s_in_tx_reports{0};
+#endif
+
+} // namespace detail
+
+bool isInTransaction() noexcept {return *detail::s_tx_nest != 0;}
+
+#ifndef NDEBUG
+void warnIfInTransaction(const char *what, const char *where,
+                         const void *site) noexcept {
+    if( !isInTransaction()) return;
+    // std::mutex / std::set rather than XMutex: this header is also compiled in
+    // the Qt-free standalone harness, where XMutex does not exist.  Debug-only
+    // path, so the choice costs nothing.
+    static std::mutex s_mutex;
+    static std::set<const void *> s_reported;
+    static const bool s_abort = []{
+        const char *v = std::getenv("KAME_STM_ABORT_IN_TX");
+        return v && *v && *v != '0';
+    }();
+    const void *key = where ? (const void *)where : site;
+    {
+        std::lock_guard<std::mutex> lock(s_mutex);
+        if(s_reported.size() >= 64u) return;   // cap the bookkeeping, not the bug
+        if( !s_reported.insert(key).second) return;
+    }
+    ++detail::s_in_tx_reports;
+    char loc[64];
+    if(where) snprintf(loc, sizeof(loc), "%s", where);
+    else      snprintf(loc, sizeof(loc), "%p", site);
+#ifdef gErrPrint
+    gErrPrint(formatString("%s (%s). Set KAME_STM_ABORT_IN_TX=1 to abort here.",
+                           what, loc));
+#else
+    fprintf(stderr, "%s (%s)\n", what, loc);
+#endif
+    if(s_abort) std::abort();
+}
+#endif
+
+namespace detail {
+
+#ifndef NDEBUG
+// The msecsleep detector.  xtime cannot call warnIfInTransaction directly -- it
+// must know nothing about transactions, and binaries that never instantiate the
+// STM (mutex_test, atomic_queue_test, the pool-allocator tests) would then fail
+// to link against s_tx_nest -- so xtime exposes a function pointer and this is
+// the adapter that fills in the message.  Deduplicated by the CALLER's address,
+// there being no source location to use: resolve it with
+// `atos -o <binary> <addr>` or `addr2line -e <binary> <addr>`.
+static void report_sleep_in_transaction_(
+    unsigned int ms, const void *caller) noexcept {
+    if( !isInTransaction()) return;     // before formatting anything
+    char what[320];
+    snprintf(what, sizeof(what),
+        "msecsleep(%u) was called while a Transaction is alive on this thread. "
+        "The transaction stays open for the whole sleep, so every thread "
+        "negotiating against it waits; inside an iterate_commit closure it also "
+        "re-sleeps on every CAS retry, and it exceeds any ScopedWaitBudget. "
+        "Sleep outside the transaction", ms);
+    warnIfInTransaction(what, nullptr, caller);
+}
+
+// One TU per binary (see the note at the top of this namespace), so a plain
+// namespace-scope object is the right installer; it runs before any driver
+// thread exists.
+static const struct SleepReporterInstaller {
+    SleepReporterInstaller() noexcept {
+        ::g_sleep_in_transaction_reporter = &report_sleep_in_transaction_;
+    }
+} s_sleep_reporter_installer;
+#endif
 #if KAME_ENABLE_RUNNER_DIGEST
 DECLSPEC_KAME XThreadLocal<RunnerDigest>        tls_runner_digest;
 #endif
@@ -1173,6 +1254,11 @@ Node<XN>::print_recoverable_error(const char* reason) {
 #endif
         fprintf(stderr, "Memory allocation has failed: %s\nTransaction is delaying...\n", reason);
     }
+    // Legitimate: this IS the out-of-memory backoff, and it is called from inside
+    // the transaction it is delaying.
+#ifndef NDEBUG
+    ScopedSleepInTransactionOK _sleep_ok;
+#endif
     msecsleep(1000);
 }
 

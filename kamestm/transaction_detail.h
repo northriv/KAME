@@ -355,9 +355,56 @@ namespace detail {
     struct STxNestTag;
     DECLSPEC_KAME extern XThreadLocal<int, STxNestTag> s_tx_nest;
 
+#ifndef NDEBUG
+    //! Debug-only, for `transaction_sleep_in_tx_test`: counts reports actually
+    //! emitted by `Transactional::warnIfInTransaction`.  Exists because the gate
+    //! that matters -- `*s_tx_nest == 0` -- is inside that function, so a test
+    //! cannot pin it by substituting a hook of its own.
+    DECLSPEC_KAME extern std::atomic<int> s_in_tx_reports;
+#endif
+
     //! Per-thread nesting depth of ReleaseOneCount (sleeping) scopes.
     struct SSleepNestTag;
     DECLSPEC_KAME extern XThreadLocal<int, SSleepNestTag> s_sleep_nest;
+
+} // namespace detail
+
+//! True while a `Transaction` is alive on this thread — the exact predicate for
+//! "we are inside a transaction", and the one place that knowledge is published.
+//!
+//! Exact rather than approximate: `detail::s_tx_nest` is held for a Transaction's
+//! whole lifetime (its `AcquireOneCount` is a value member) but only during a
+//! Snapshot's *construction* (a ctor local).  So ordinary
+//! `Snapshot shot(*this); ... interface()->query(...)` driver code does not
+//! register as being in a transaction, which is correct: a Snapshot blocks
+//! nothing.
+DECLSPEC_KAME bool isInTransaction() noexcept;
+
+#ifndef NDEBUG
+//! Debug-only diagnostic: report, once per `where`/`site`, that something
+//! happened while a transaction was alive.  No-op outside a transaction.
+//!
+//! This is the single implementation behind every such check — `XInterface::lock`
+//! (interface I/O inside a transaction, driver rule 5) and `msecsleep` (sleeping
+//! with a transaction open) both land here rather than each carrying its own copy
+//! of the gate, the deduplication and the abort switch.  `kame/support.h` wraps it
+//! as `gWarnIfInTransaction(what)`, which fills in `where` from `__FILE__:__LINE__`.
+//!
+//! Reports rather than aborting by default, because this is a diagnostic and not a
+//! safeguard: an unknown number of sites may still reach it through indirection
+//! the audit cannot see, and a debug build that aborts on the first one is a debug
+//! build nobody runs.  Set `KAME_STM_ABORT_IN_TX=1` when actually hunting one.
+//!
+//! \param what  a full sentence for a driver author, stating what was done and
+//!              why it is wrong; the location and the abort hint are appended.
+//! \param where source location, or nullptr; deduplicates and is printed.
+//! \param site  fallback deduplication key when there is no source location
+//!              (`msecsleep` has only its caller's return address).
+DECLSPEC_KAME void warnIfInTransaction(const char *what, const char *where,
+                                       const void *site = nullptr) noexcept;
+#endif
+
+namespace detail {
 
     //! Payload-creator slot: create<T>() stores the typed creator
     //! here; Node<XN>::Node() reads and clears it.

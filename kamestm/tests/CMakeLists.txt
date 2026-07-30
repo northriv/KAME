@@ -98,6 +98,7 @@ set(kamestm_test_names
     transaction_payload_integrity_3level_mixed_test
     transaction_wait_budget_test
     transaction_starvation_test
+    transaction_sleep_in_tx_test
     # Per-commit LATENCY tail (not throughput).  Pure observation: it times
     # iterate_commit from outside and changes nothing in kamestm, so it can
     # neither regress the library nor bias what it measures.  Not a ctest --
@@ -132,6 +133,14 @@ add_test(NAME transaction_wait_budget_test COMMAND transaction_wait_budget_test)
 add_test(NAME transaction_starvation_test COMMAND transaction_starvation_test)
 target_compile_definitions(transaction_starvation_test PRIVATE
     KAME_STM_LOWPRIO_STARVE_MS=2 KAME_STM_LOWPRIO_STARVE_MIN_RETRIES=2)
+
+# Debug-only detector for msecsleep() inside a Transaction.  -UNDEBUG is not
+# optional: this tree is configured Release, and without it the whole detector
+# and the whole test compile to nothing and the test passes having checked
+# nothing.  Ordered after the definitions above so the flag applies to
+# ${support_SRCS} compiled into this target too.
+add_test(NAME transaction_sleep_in_tx_test COMMAND transaction_sleep_in_tx_test)
+target_compile_options(transaction_sleep_in_tx_test PRIVATE -UNDEBUG)
 
 # Long-running tests
 set_tests_properties(

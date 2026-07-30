@@ -5,6 +5,26 @@
 #include "support_standalone.h"
 #include "atomic.h"
 
+#ifndef NDEBUG
+// Debug-only sleep-in-transaction detector; see support_standalone.h.
+void (*g_sleep_in_transaction_reporter)(
+    unsigned int ms, const void *caller) noexcept = nullptr;
+static thread_local int s_sleep_in_tx_ok = 0;
+int _sleep_in_tx_ok_depth() noexcept {return s_sleep_in_tx_ok;}
+void enterSleepInTransactionOK() noexcept {++s_sleep_in_tx_ok;}
+void leaveSleepInTransactionOK() noexcept {--s_sleep_in_tx_ok;}
+#endif
+
+// Not inline (see support_standalone.h) so the detector's return-address key is
+// the caller's.
+void msecsleep(unsigned int ms) noexcept {
+#ifndef NDEBUG
+    if(g_sleep_in_transaction_reporter && !s_sleep_in_tx_ok)
+        g_sleep_in_transaction_reporter(ms, __builtin_return_address(0));
+#endif
+    std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+}
+
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
 // The KAME pool allocator lives in its own TU (tests/allocator.cpp) when
 // USE_KAME_ALLOCATOR=ON (CMake) or unconditionally in the qmake build.

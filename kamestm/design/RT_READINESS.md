@@ -2200,3 +2200,74 @@ Result — all 15 touched translation units pass with no errors (two pre-existin
 match their bases across every module, nor that anything *runs*. It does close
 the class of error that has actually bitten here — a missed call site, a
 mistyped member, a wrong signature — for every file this work touched.
+
+## One detector, two call sites: `isInTransaction()` / `gWarnIfInTransaction()`
+
+`XInterface::lock()` got a debug-only "you are inside a transaction" report
+earlier in this work. Adding `msecsleep()` to the list, I wrote the machinery a
+second time — its own gate, its own deduplicating set, its own abort environment
+variable, its own message assembly. Correctly called out (user) as inelegant: the
+remedy is to publish the *predicate* and share the *reporter*, not to copy them.
+
+    Transactional::isInTransaction()               the predicate, published once
+    Transactional::warnIfInTransaction(what, ...)  the one report body (debug-only)
+    gWarnIfInTransaction(what)                     kame/support.h wrapper, fills in
+                                                   __FILE__:__LINE__
+
+On the naming, which was asked about: `isDuringTX` is not idiomatic English —
+"during" wants an event, not a state, and `TX` reads as an abbreviation nobody
+outside this file would expand. `isInTransaction()` is the ordinary phrasing.
+The kame-side wrapper follows `gErrPrint`/`gWarnPrint`, and is a macro for the
+same reason `gErrPrint` is: only a macro can capture the caller's source line.
+
+Deduplication key: the wrapper passes `__FILE__ ":" __LINE__`, which is both the
+key and a printable location. `msecsleep` has no source location to offer, so it
+passes its caller's return address instead, printed as a pointer for `atos` /
+`addr2line`.
+
+### Why `msecsleep` still goes through a function pointer
+
+It cannot call `isInTransaction()` directly. `xtime` must know nothing about
+transactions, and more concretely: `detail::s_tx_nest` is *defined* in
+`transaction_impl.h`, which `mutex_test`, `atomic_queue_test` and the
+pool-allocator tests never include. A direct call would make those binaries fail
+to link. So `xtime.h` exposes `g_sleep_in_transaction_reporter` plus a
+`ScopedSleepInTransactionOK` suppression, `transaction_impl.h` installs a
+three-line adapter into it at static-init time, and the adapter calls the shared
+reporter. The pointer stays null in binaries without the STM.
+
+kamestm has two legitimate in-transaction sleeps, both suppressed at the call
+site: the out-of-memory backoff in `print_recoverable_error` (it *is* the delay,
+and it is called from inside the transaction it delays) and lazy TSC calibration
+in `timeStampCountsPerMilliSec` (one-time, and the first `timeStamp()` can fall
+inside a transaction).
+
+### The static and the dynamic check cover different things
+
+`tools/audit/check_stm_closures.py` already flags a literal `msecsleep(` inside an
+`iterate_commit` closure — that was there before, in `SIDE_EFFECT_RE`. The runtime
+detector exists for the two cases a source scan cannot reach: a sleep several call
+levels *below* the closure, and a sleep anywhere else in a transaction's lifetime.
+Neither subsumes the other; the static one needs no debug build and no execution,
+the dynamic one needs no call-graph.
+
+### Two ways the verification of this nearly fooled me
+
+* **A debug-only check in a Release test tree tests nothing.** The first build of
+  the new `transaction_sleep_in_tx_test` "passed" — `CMAKE_BUILD_TYPE=Release`
+  means `NDEBUG`, so the detector and the whole test compiled to nothing. The
+  target now carries `-UNDEBUG`, and the `#ifdef NDEBUG` arm of the test *fails*
+  rather than skipping, so the flag cannot be silently lost.
+* **`__builtin_return_address(0)` is only the caller's address while the frame is
+  real.** The standalone harness had `msecsleep` `inline` in
+  `support_standalone.h`; at `-O3` it inlined, and every call site reported the
+  same libsystem address — two distinct sites counted as one. Fixed by making the
+  harness's `msecsleep` out-of-line, matching the shape of the real `xtime.cpp`.
+  Then the deduplication case *still* failed at +2, because `-O3` **unrolled** the
+  two-iteration loop into two distinct return addresses. There the detector was
+  right and the test was wrong: the case now calls one `noinline` function twice.
+
+The test also pins that a **Snapshot** alone does not trip the detector. That is
+the intended semantics — a Snapshot blocks nothing — and it is exactly what
+`s_tx_nest` gives, being held for a Transaction's whole lifetime but only during a
+Snapshot's construction.

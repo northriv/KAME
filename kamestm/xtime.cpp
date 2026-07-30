@@ -35,7 +35,26 @@
     #include <errno.h>
 #endif
 
+#ifndef NDEBUG
+void (*g_sleep_in_transaction_reporter)(
+    unsigned int ms, const void *caller) noexcept = nullptr;
+static thread_local int s_sleep_in_tx_ok = 0;
+void enterSleepInTransactionOK() noexcept {++s_sleep_in_tx_ok;}
+void leaveSleepInTransactionOK() noexcept {--s_sleep_in_tx_ok;}
+#endif
+
 void msecsleep(unsigned int ms) noexcept {
+#ifndef NDEBUG
+    if(g_sleep_in_transaction_reporter && !s_sleep_in_tx_ok) {
+    #ifdef _MSC_VER
+        g_sleep_in_transaction_reporter(ms, nullptr);
+    #else
+        // The caller's address, not ours: msecsleep is out-of-line in this TU, so
+        // this identifies the offending site for atos / addr2line.
+        g_sleep_in_transaction_reporter(ms, __builtin_return_address(0));
+    #endif
+    }
+#endif
     using namespace std::chrono;
     auto start = steady_clock::now();
 #ifdef __WIN32__
@@ -93,6 +112,11 @@ DECLSPEC_KAME timestamp_t timeStampCountsPerMilliSec() noexcept {
             s_time_stamp_calc = time_stamp_start;
             XTime time_start(XTime::now());
             timestamp_t time_stamp_start2 = timeStamp();
+            // Legitimate: one-time TSC calibration, and it can be triggered
+            // lazily by the first timeStamp() inside a transaction.
+#ifndef NDEBUG
+            ScopedSleepInTransactionOK _sleep_ok;
+#endif
             msecsleep(20);
             timestamp_t dt = timeStamp() - time_stamp_start2;
             unsigned int msec = XTime::now().diff_msec(time_start);

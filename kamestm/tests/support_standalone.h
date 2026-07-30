@@ -89,9 +89,28 @@ private:
 
 using namespace std::chrono;
 
-inline void msecsleep(unsigned int ms) noexcept {
-    std::this_thread::sleep_for(std::chrono::milliseconds(ms));
-}
+#ifndef NDEBUG
+//! Mirrors the debug-only sleep-in-transaction detector in the real xtime.h --
+//! see its doc block there.  Needed here and not merely stubbed out, because
+//! this harness is the only place the mechanism can actually be exercised: the
+//! Qt build is not available in every environment, and transaction_impl.h
+//! installs the reporter unconditionally in debug builds.
+extern void (*g_sleep_in_transaction_reporter)(
+    unsigned int ms, const void *caller) noexcept;
+void enterSleepInTransactionOK() noexcept;
+void leaveSleepInTransactionOK() noexcept;
+struct ScopedSleepInTransactionOK {
+    ScopedSleepInTransactionOK() noexcept {enterSleepInTransactionOK();}
+    ~ScopedSleepInTransactionOK() noexcept {leaveSleepInTransactionOK();}
+};
+int _sleep_in_tx_ok_depth() noexcept;
+#endif
+
+//! Deliberately NOT inline, matching the real xtime.cpp: the detector above
+//! deduplicates on `__builtin_return_address(0)`, which names the caller only
+//! while this stays a real out-of-line frame.  Inlined at -O3 it named a
+//! libsystem frame instead and every call site collapsed onto one key.
+void msecsleep(unsigned int ms) noexcept;
 
 using timestamp_t = uint64_t;
 

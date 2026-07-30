@@ -132,6 +132,26 @@ DECLSPEC_KAME void
 dbgPrint_redirected(const XString &str, const char *file, int line, bool force_dump);
 //! Global Error Message/Printing.
 #define gErrPrint(msg) gErrPrint_redirected(msg, __FILE__, __LINE__)
+
+//! Debug-only: warn if this line is reached while a `Transaction` is alive on
+//! this thread — interface I/O, a sleep, or anything else that must not sit
+//! inside a transaction (see the driver-authoring rules).  Reports once per
+//! source line; set `KAME_STM_ABORT_IN_TX=1` to abort on the first hit.
+//!
+//! Compiles to nothing in release builds.  The single implementation lives in
+//! `Transactional::warnIfInTransaction` (kamestm), so the gate, the
+//! deduplication and the abort switch exist once; this only supplies the source
+//! location, the way `gErrPrint` supplies `__FILE__`/`__LINE__`.  Requires a
+//! kamestm header (e.g. `transaction.h`) to be in scope.
+#define KAME_STRINGIZE_(x) #x
+#define KAME_TOSTRING_(x) KAME_STRINGIZE_(x)
+#ifndef NDEBUG
+    #define gWarnIfInTransaction(what) \
+        Transactional::warnIfInTransaction( \
+            what, __FILE__ ":" KAME_TOSTRING_(__LINE__))
+#else
+    #define gWarnIfInTransaction(what) ((void)0)
+#endif
 #define gWarnPrint(msg) gWarnPrint_redirected(msg, __FILE__, __LINE__)
 DECLSPEC_KAME void
 gErrPrint_redirected(const XString &str, const char *file, int line);
