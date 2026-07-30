@@ -2627,27 +2627,43 @@ Under `KAME_STM_COMPACT_STATE`, `is_priv_stamp` is constant-false and Rule 0 is
 dead-code-eliminated entirely. Empirical cross-check of precisely this
 question: the `-P 0` interleaved A/B (parity) and 13/13 ctest.
 
-### Rule 0 does not obsolete `ScopedDemoteRealtime` — they compose
+### Rule 0 and `ScopedDemoteRealtime`: the demotion's justification, corrected
 
 Asked (user): with Rule 0, does KAME's HIGHEST still need the demotion to
-NORMAL after the record? Yes — the two mechanisms handle different pairings,
-and each covers the other's blind spot:
+NORMAL after the record? My first answer defended it with the 3× aggregate and
+the 8 → 163–327 µs tail from the `-P 2` runs. **Rejected (user), correctly: the
+3× has no basis here.** Those are 100 %-duty synthetic-spin numbers; a real
+deployment's collision probability scales with duty (µs commits × kHz rates ≈
+10⁻²–10⁻³) and each collision costs one peer-TX length. The numbers do not
+transfer, and quoting them as the demotion's justification was wrong.
 
-* **Demotion handles HIGHEST ↔ HIGHEST.** Undemoted listeners on the shared
-  linkages (drivers list, entryList) would pair with every other driver's
-  acquisition thread: measured, that costs the *other* thread's p99.99
-  8 µs → 163–327 µs and 3× aggregate. Rule 0 cannot help there — its safety
-  condition exempts HIGHEST holders, and undemoted listeners would not hold
-  privilege anyway (HIGHEST claims measured 0.000): it is plain two-spinner
-  churn. Demotion also keeps *unvouched* code — listeners are other people's
-  code — out of a tier whose contract is caller-side time management.
-* **Rule 0 handles the pair that demotion creates.** The demoted downstream
-  runs at NORMAL; if it stalls 300 µs it claims privilege and becomes exactly
-  the no-breaker pair — an old privileged NORMAL sitting in front of another
-  driver's young HIGHEST bundle. Rule 0 caps that at 100 µs.
+The correct principle (user): **if it is clear a HIGHEST TX contains no
+msecsleep, no lock and the like, it cannot starve anything and cannot be
+starved.** Optimistic STM holds nothing during a transaction — a clean TX is
+visible to others only as a CAS loss at its commit instant, so the loser's
+delay is bounded by the peer's TX length, at any priority. The two-spinner
+measurement (balanced alternation) was this principle observed, not a
+surprising discovery.
 
-Composed, they yield the property neither has alone: **after the record, the
-downstream cannot obstruct any other acquisition thread for more than 100 µs,
-in any pathology.** Removing the demotion would require either every listener
-to have vouched execution time, or within-HIGHEST arbitration — measured and
-rejected above.
+What the demotion's justification then reduces to: **making the antecedent
+constructively true for code the driver author cannot vouch for.** Split by
+tier:
+
+* C++ listeners: the antecedent is machine-checkable — rule-5 static audit,
+  `gWarnIfInTransaction` on interface locks, the msecsleep detector, the
+  foreign-lock guard. "明確" is achievable.
+* Python-involved paths: the GIL is a lock structurally inside the TX, so the
+  antecedent cannot hold — **but the demotion does not guard that boundary
+  anyway**: math-tool functors run inside `analyzeRaw`, upstream of the
+  demote, at HIGHEST today. And a GIL-holding TX at HIGHEST never sleeps in
+  negotiation, so the rule-4 deadlock shape (GIL holder blocking in
+  negotiation) becomes less reachable, not more.
+
+Rule 0's role is unchanged by this correction: it caps the demoted-NORMAL
+(or any privileged-NORMAL) holder at 100 µs in the no-winner pathology, and
+is indifferent to whether kame demotes.
+
+So the demotion is **not load-bearing for starvation-freedom**; it is a
+policy choice about whether unvouched code runs in the RT tier. Whether to
+keep it, drop it, or turn it into a per-driver vouch is the deployment's
+call, not a correctness requirement.
