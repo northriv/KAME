@@ -2098,7 +2098,7 @@ regions at once: the marked-message dispatch inside the commit
 (`finalizeCommitment`'s messaging loop, which kamestm cannot give a policy value
 to) and `visualize()` / `onVisualization` after it.
 
-    XPrimaryDriver::downstreamWaitBudgetUS()     virtual, default 0 = unbounded
+    XPrimaryDriver::downstreamWaitBudgetUS()     virtual, default 20 ms
 
 So the two mechanisms now do exactly what each is for, and neither substitutes for
 the other:
@@ -2106,13 +2106,95 @@ the other:
     demote HIGHEST     downstream does not impose on others
     wait budget        downstream does not block the realtime loop's period
 
-**No driver overrides it yet.** The value has to come from the acquisition cycle —
-comfortably under the period, so a blown budget costs a late record rather than a
-lost one — and that is a number the deployment knows and this side does not. Same
-stopping point as the starvation bound waiting for its handler: the mechanism is in
-place and default-inert.
-
 This is also the first real user of `ScopedWaitBudget`, which had zero call sites
 and was recorded as a feature without a consumer. Its consumer turns out to be the
 realtime loop bounding the non-realtime work it must wait for — not, as first
 guessed, a driver bounding its own commit.
+
+### Why the default is 20 ms and not 0, and not gated on HIGHEST
+
+Shipped first as `default 0 = unbounded`, with the reasoning that the value comes
+from the acquisition cycle and is therefore the deployment's to pick. Then, offered
+a 20 ms default, I proposed arming it **only** for a thread that entered at
+HIGHEST — since on a NORMAL thread the guard binds the record commit too, not just
+the demoted downstream, and the measurement below shows that is not free.
+
+Both were wrong, and the correction is a domain fact, not a tuning preference
+(user): **past roughly 20 ms a stalled record starts to distort the measurement,
+and that is as true at NORMAL as at HIGHEST.** KAME is an instrument. A record whose
+commit sat for a third of a second is a bad data point, not a slow one. So the bound
+is not a realtime feature to be gated on priority — it is the acquisition path's
+contract, unconditional, 20 ms.
+
+Grand-scope arm, 8 threads:
+
+                   throughput   p99.99    p99.999   MAX
+        no budget    2.36 M/s   3.67 ms   67.1 ms   326.6 ms
+        20 ms        2.25 M/s   16.8 ms   21.0 ms    20.3 ms
+
+−4.7 % of commit throughput: a clipped commit stops waiting and retries, and the
+retry adds CAS pressure. 8-of-8 and 1-of-8 budgeted measured 2.25 vs 2.26 M/s, so
+that cost is the clipping itself and not a cascade through the other threads.
+
+**And my reading of the p99.99 was wrong too.** I reported "4.6× worse p99.99
+(3.67 → 16.8 ms)" as a cost. Against the criterion that matters — nothing over
+20 ms — 16.8 ms is *inside* the budget. The budget does not thicken the tail past
+its own line; it compresses everything above it down onto it. Read correctly, the
+budgeted row has **every percentile including MAX under 20 ms**, which is the whole
+property being bought. Throughput is the only thing actually traded, and for a
+measurement path that is the right direction to trade.
+
+Generalisable: a percentile moving *within* a declared bound is not a regression
+against that bound, and quoting it as one argues against the very guarantee being
+added. Compare against the requirement, not against the unbounded baseline.
+
+No record is lost either way — the budget bounds *waiting*, and the clipped commit
+retries through `iterate_commit` until it succeeds. The failure mode is CPU spent
+retrying instead of sleeping, which is why the number wants to stay comfortably
+under the acquisition period: then a blown budget costs a late record rather than a
+lost one. A driver with a period near or under 20 ms should override it downward;
+`return 0` disables.
+
+## The `kame/` side now at least compiles — and how, since there is no build here
+
+Every `kame/` and `modules/` change in this file shipped **uncompiled**: this
+session has no Qt Creator build, and `kamestm/tests/` is a Qt-free harness, so
+`ctest` passing said nothing about the host side. The starvation handler in
+`main.cpp`, `AcquisitionPriority`, the in-transaction interface detector, the
+`queryStatus` refactor, the pybind changes, the `ScopedDemoteRealtime` sites and
+`downstreamWaitBudgetUS()` were all reasoned-about, not built. One of them
+(`modules/python/basicdrivers.cpp`, missed by a directory-scoped grep during the
+`queryStatus` refactor) had already broken the build once.
+
+A full build is not needed to close most of that — `clang++ -fsyntax-only` is,
+once three build-system inputs are supplied:
+
+* `-DVERSION=... -DKAME_MODULE_DIR_SURFIX=... -DPACKAGE=...` — qmake passes these;
+  without them `main.cpp` fails with *undeclared identifier* and then a cascade.
+* **uic output.** `#include "ui_*.h"` is generated, so run it first:
+  `for ui in $(find kame modules -name '*.ui'); do
+  $QTDIR/libexec/uic "$ui" -o gen/ui_$(basename ${ui%.ui}).h; done` (54 headers).
+* **Qt as frameworks on macOS**: `-iframework $QTDIR/lib` plus one
+  `-I $QTDIR/lib/Qt<Module>.framework/Headers` per module. Plain `-I $QTDIR/include`
+  does not resolve `<QString>`.
+
+And one trap worth recording: do **not** pass `-D slots= -D 'signals=public'`
+here, even though CLAUDE.md gives them for checking a header in isolation.
+CPython's `object.h` has a real member named `slots`, so with pybind11 in the
+translation unit those defines produce *expected member name* errors in
+`Python.h` — the mirror image of the hazard they exist to catch. The defines are
+for Qt-free headers; a TU that includes `<QObject>` for real does not need them.
+
+Result — all 15 touched translation units pass with no errors (two pre-existing
+`-Winconsistent-missing-override` warnings from `DEFINE_TYPE_HOLDER`, unrelated):
+
+    kame/       main, primarydriver, secondarydriver, interface, xpythonmodule,
+                xpythonsupport, x2dimage, analyzer
+    modules/    optics/core/digitalcamera, dso/core/dso, dcsource/core/dcsource,
+                dcsource/userdcsource, relay/core/relaydriver,
+                python/basicdrivers, tempcontrol/tempcontrol
+
+`-fsyntax-only` is not a link, so it does not prove the `queryStatus` overrides
+match their bases across every module, nor that anything *runs*. It does close
+the class of error that has actually bitten here — a missed call site, a
+mistyped member, a wrong signature — for every file this work touched.
