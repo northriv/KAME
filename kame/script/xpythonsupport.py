@@ -1243,13 +1243,73 @@ else:
 	sys.stderr = STDERR
 	sys.stdin = STDIN
 
+	# WHY A WATCHDOG THREAD IS NEEDED TO QUIT.
+	#
+	# Timer.start() polls is_main_terminated() and exits through finish(), but
+	# it only gets to do so while the %gui hook is running, and the hook
+	# returns to the kernel whenever a shell message is pending.  Once
+	# ipykernel parks in its own event loop waiting for the next message
+	# (blocked in kevent) the hook is not re-entered, so the flag is never read
+	# again and embed_kernel() never returns.  XMeasure::terminate_all() then
+	# blocks forever in m_python->join() and closing KAME hangs -- reproduced
+	# twice on 2026-07-30, always when quitting after stopping a measurement
+	# (FrmKameMain::closeEvent refuses to close while an interface is open, so
+	# this is the only path that reaches it).
+	#
+	# Stopping the kernel's io_loop from another thread does not depend on the
+	# hook at all.  add_callback() is thread-safe, and the loop thread has
+	# released the GIL while it sits in kevent, so this thread runs.  The guard
+	# is is_main_terminated() -- the same condition Timer.start() uses -- so
+	# this can never fire while KAME is still running.
+	def _kame_kernel_terminator():
+		from ipykernel.kernelapp import IPKernelApp
+		while not is_main_terminated():
+			time.sleep(0.2)
+		for _ in range(50):
+			try:
+				if IPKernelApp.initialized():
+					loop = IPKernelApp.instance().io_loop
+					if loop is not None:
+						loop.add_callback(loop.stop)
+						STDERR.write("kame: stopped the kernel event loop to quit.\n")
+						return
+			except Exception:
+				pass
+			time.sleep(0.2)
+		STDERR.write("kame: could not reach the kernel event loop; "
+					 "quitting may hang.\n")
+
+	threading.Thread(target=_kame_kernel_terminator,
+					 name="kame-kernel-terminator", daemon=True).start()
+
 	try:
 		# Now starting ipython kernel.
 		IPython.embed_kernel(config=c) #, interrupt_mode='signal'
 	except Exception:
 		sys.stderr.write(str(traceback.format_exc()))
 
-#With IPython, these lines cannot be reached.
+#Reached either through Timer.finish() (hook path) or after the watchdog above
+#stopped the event loop.  The MCP hand-off files are removed here as well as in
+#finish(), because a stale ~/.kame_kernel_connection.json left by a previous run
+#points the MCP bridge at a dead kernel; removal is idempotent.
+try:
+	for _f in (NOTEBOOK_MCP_URL_FILE,
+			   os.path.join(os.path.expanduser('~'), '.kame_kernel_connection.json')):
+		if _f:
+			try:
+				os.remove(_f)
+			except OSError:
+				pass
+	if NOTEBOOK_MCP_HTTP_PROC is not None:
+		try:
+			NOTEBOOK_MCP_HTTP_PROC.terminate()
+			NOTEBOOK_MCP_HTTP_PROC.wait(timeout=5)
+		except Exception:
+			try: NOTEBOOK_MCP_HTTP_PROC.kill()
+			except Exception: pass
+except Exception:
+	sys.stderr.write(str(traceback.format_exc()))
+
 sys.stdout = STDOUT
 sys.stderr = STDERR
 sys.stdin = STDIN

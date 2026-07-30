@@ -70,11 +70,20 @@ public:
     const shared_ptr<XIntNode> &origBackMax() const {return m_origBackMax;}
     const shared_ptr<XComboNode> &fitFunc() const {return m_fitFunc;}
     const shared_ptr<XDoubleNode> &backlashRecoveryFactor() const {return m_backlashRecoveryFactor;}
+    //! Time to wait for the external RF relays to throw before tuning() is
+    //! cleared, i.e. before a sweep is allowed to switch the pulser back on. [ms]
+    const shared_ptr<XIntNode> &relaySettleTime() const {return m_relaySettleTime;}
 
     //holds preset angles for faster tuning.
     const shared_ptr<XTouchableNode> &addPresetAngles() const {return m_addPresetAngles;}
     const shared_ptr<XDoubleNode> &trustPresetAnglesInPercent() const {return m_trustPresetAnglesInPercent;} //[%]
     const shared_ptr<XStringNode> &descPresetAngles() const {return m_descPresetAngles;}
+    //! Record the achieved angles into descPresetAngles() after every
+    //! successful tune, keeping at most presetMaxRows() roughly evenly spaced
+    //! entries.  Off by default: it rewrites descPresetAngles(), which is
+    //! otherwise entirely under the user's control.
+    const shared_ptr<XBoolNode> &presetAutoSave() const {return m_presetAutoSave;}
+    const shared_ptr<XUIntNode> &presetMaxRows() const {return m_presetMaxRows;}
 
 	class Payload : public XSecondaryDriver::Payload {
 	public:
@@ -129,12 +138,22 @@ private:
     const shared_ptr<XIntNode> m_timeMax, m_origBackMax;
     const shared_ptr<XComboNode> m_fitFunc;
     const shared_ptr<XDoubleNode> m_backlashRecoveryFactor;
+    const shared_ptr<XIntNode> m_relaySettleTime;
     const shared_ptr<XStringNode> m_l1, m_r1, m_r2, m_c1, m_c2;
 
     //holds preset angles for faster tuning.
     const shared_ptr<XTouchableNode> m_addPresetAngles;
     const shared_ptr<XDoubleNode> m_trustPresetAnglesInPercent;
     const shared_ptr<XStringNode> m_descPresetAngles;
+    const shared_ptr<XBoolNode> m_presetAutoSave;
+    const shared_ptr<XUIntNode> m_presetMaxRows;
+
+    //! Insert (freq, angles) into a preset-angle table, drop near-duplicates,
+    //! and thin it back to `maxrows` while keeping the spacing as even as
+    //! possible.  Pure text in, text out, so it can be reasoned about on its
+    //! own; see the comment on the definition for why each rule is there.
+    static XString updatePresetAngleTable(const XString &table, double freq,
+        double stm1, double stm2, bool has_stm2, unsigned int maxrows);
 
 
     std::deque<xqcon_ptr> m_conUIs;

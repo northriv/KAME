@@ -429,6 +429,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         m_origBackMax(create<XIntNode>("OrigBackMax", false)),
         m_fitFunc(create<XComboNode>("FitFunc", false, true)),
         m_backlashRecoveryFactor(create<XDoubleNode>("BacklashRecoveryFactor", false)),
+        m_relaySettleTime(create<XIntNode>("RelaySettleTime", false)),
         m_l1(create<XStringNode>("L1", true)),
         m_r1(create<XStringNode>("R1", true)),
         m_r2(create<XStringNode>("R2", true)),
@@ -437,6 +438,8 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         m_addPresetAngles(create<XTouchableNode>("AddPresetAngles", true)),
         m_trustPresetAnglesInPercent(create<XDoubleNode>("TrustPresetAnglesInPercent", false)),
         m_descPresetAngles(create<XStringNode>("DescPresetAngles", false)),
+        m_presetAutoSave(create<XBoolNode>("PresetAutoSave", false)),
+        m_presetMaxRows(create<XUIntNode>("PresetMaxRows", false)),
         m_form(new FrmAutoLCTuner)  {
     connect(stm1());
     connect(stm2());
@@ -488,6 +491,9 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         tr[ *fitFunc()].add({"Abs.&Gaussian", "Abs.&Lorentzian", "Smith&Gaussian", "Smith&Lorentzian"});
         tr[ *m_fitFunc] = 3;
         tr[ *m_backlashRecoveryFactor] = 0.0;
+        tr[ *m_relaySettleTime] = 500; //[ms] generous default; see visualize().
+        tr[ *m_presetAutoSave] = false; //rewrites descPresetAngles(); opt in.
+        tr[ *m_presetMaxRows] = 6;
         tr[ *abortTuning()].setUIEnabled(false);
         m_lsnOnTargetChanged = tr[ *m_target].onValueChanged().connectWeakly(
             shared_from_this(), &XAutoLCTuner::onTargetChanged);
@@ -588,6 +594,64 @@ void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) 
         tr[ *this].timeSTMChanged = {};
         return true;
     });
+}
+XString
+XAutoLCTuner::updatePresetAngleTable(const XString &table, double freq,
+    double stm1, double stm2, bool has_stm2, unsigned int maxrows) {
+    struct Row {double f, stms[2];};
+    std::deque<Row> rows;
+    {
+        std::stringstream ss;
+        ss << table;
+        std::string line;
+        while(std::getline(ss, line)) {
+            if(line.empty())
+                break; //the reader in analyze() stops here too.
+            Row r; r.stms[0] = 0.0; r.stms[1] = 0.0;
+            int ret = sscanf(line.c_str(), "%lf %lf %lf", &r.f, &r.stms[0], &r.stms[1]);
+            if(ret >= 2)
+                rows.push_back(r);
+        }
+    }
+    //Drop rows at (nearly) the same frequency as the new one.  Two rows with
+    //equal frequencies would make the interpolation in analyze() divide by
+    //zero, fall through its bracketing test and use uninitialized angles.
+    const double merge = 5e-3; //[MHz]
+    for(auto it = rows.begin(); it != rows.end();)
+        it = (fabs(it->f - freq) < merge) ? rows.erase(it) : it + 1;
+
+    Row nr; nr.f = freq; nr.stms[0] = stm1; nr.stms[1] = stm2;
+    rows.push_back(nr);
+    std::sort(rows.begin(), rows.end(),
+        [](const Row &a, const Row &b){return a.f < b.f;});
+
+    //Thin out to maxrows.  Repeatedly drop one of the closest neighbouring
+    //pair, never the row just recorded: that keeps the spacing as even as the
+    //measured frequencies allow, and even spacing is what sets how far outside
+    //the table analyze() will still extrapolate (half of the end interval).
+    while((maxrows >= 2) && (rows.size() > maxrows)) {
+        unsigned int drop = 0;
+        double best = -1.0;
+        for(unsigned int i = 0; i + 1 < rows.size(); ++i) {
+            double gap = rows[i + 1].f - rows[i].f;
+            if((best < 0.0) || (gap < best)) {
+                //of the too-close pair, discard the one that is not the new row
+                unsigned int cand = (fabs(rows[i].f - freq) < merge) ? i + 1 : i;
+                best = gap;
+                drop = cand;
+            }
+        }
+        rows.erase(rows.begin() + drop);
+    }
+
+    XString out;
+    for(auto &&r: rows) {
+        if(has_stm2)
+            out += formatString("%.4f %.3f %.3f\n", r.f, r.stms[0], r.stms[1]);
+        else
+            out += formatString("%.4f %.3f\n", r.f, r.stms[0]);
+    }
+    return out;
 }
 void XAutoLCTuner::onAddPresetAnglesTouched(const Snapshot &shot, XTouchableNode *) {
     // Freq[MHz] STM1[deg] STM2[deg]
@@ -1145,9 +1209,33 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
                 relay->iterate_commit([=](Transaction &tr){
                     tr[ *relay->auxBits()] = tunebits; //For external RF relays.
                 });
-            msecsleep(50); //waits for relays.
+            //XMotorDriver::onAUXChanged is an immediate (non-main-thread) listener,
+            //so setAUXBits() has already blocked until the bits were written by the
+            //time the commit above returns: this wait is purely for the external
+            //relays to physically throw.  A sweep switches the pulser back on the
+            //instant tuning() goes false (XNMRFSpectrum::onTuningChanged), so if
+            //this is too short the first pulse goes into the still-selected VNA
+            //path -- which reads back as a bogus FWD/BWD spike, not as a mismatch.
+            {
+                int settle_ms = shot_this[ *m_relaySettleTime];
+                msecsleep((settle_ms > 0) ? settle_ms : 0);
+            }
             iterate_commit([=](Transaction &tr){
                 tr[ *tuning()] = false;//finishes tuning successfully.
+                //Record the angles that just worked, so a later tune nearby can
+                //be fed forward from them instead of hunting.  Done here, in the
+                //same commit that ends a SUCCESSFUL tune, because this is the
+                //only place where both "it worked" and the final
+                //targetSTMValues are known.  A failed or aborted tune must not
+                //be recorded: its angles are wherever the search gave up.
+                if(tr[ *m_presetAutoSave]) {
+                    tr[ *m_descPresetAngles] = updatePresetAngleTable(
+                        tr[ *m_descPresetAngles].to_str(),
+                        (double)tr[ *target()],
+                        tr[ *this].targetSTMValues[0],
+                        tr[ *this].targetSTMValues[1],
+                        (bool)stm2__, (unsigned int)tr[ *m_presetMaxRows]);
+                }
                 clearUIAndPlot(tr);
             });
         }

@@ -321,7 +321,20 @@ XNMRFSpectrum::onTuningChanged(const Snapshot &shot, XValueNodeBase *node) {
                 return; //awaiting manual tuning.
             //Primary tuning just finished.
             if(shared_ptr<XAutoLCTuner> autotuner2 = shot_this[ *autoTunerSecondary()]) {
-                trans( *autotuner2->target()) = (double)shot_tuner[ *autotuner->target()];
+                if(autotuner2 != autotuner) {
+                    //Starting the secondary tuner puts the RF relay back on the
+                    //tuning path, so the pulser must stay off until the secondary
+                    //has finished too.  Keep m_lsnOnTuningChanged connected and
+                    //leave: its own tuning-finished event resumes the sweep.
+                    //Falling through to "Pulse on." below would fire into the
+                    //VNA path while the capacitors are still moving.
+                    trans( *autotuner2->target()) = (double)shot_tuner[ *autotuner->target()];
+                    if(Snapshot( *autotuner2)[ *autotuner2->tuning()])
+                        return;
+                }
+                //Same driver as the primary: the write above would be a no-op
+                //(onTargetChanged only fires on an actual value change), so there
+                //is no second tuning to wait for.
             }
         }
         else if(shared_ptr<XAutoLCTuner> autotuner2 = shot_this[ *autoTunerSecondary()]) {
