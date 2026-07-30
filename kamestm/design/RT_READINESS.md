@@ -2531,3 +2531,73 @@ two-HIGHEST *detector* does not need a stamp bit either. `Linkage`'s
 (`loadPriority`) it records no `Priority` — so the detector's natural shape is
 a debug-only (`#ifndef NDEBUG`) per-Linkage field written by HIGHEST
 contenders, costing the release layout nothing.
+
+## Rule 0: HIGHEST strips a stuck foreign privilege — the bundle-protocol hole
+
+The interaction matrix above said a privileged NORMAL was never in HIGHEST's
+way. Objected to (user), correctly: that conclusion came from the *leaf-
+symmetric* measurement. In the **bundle protocol** the pair is asymmetric — a
+wide-scope HIGHEST must re-bundle O(N) on every disturbance while the holder
+redoes O(1) — and it is the one pairing with **no yielding mechanism at all**:
+HIGHEST never consults fair-mode (round-loop breakout), the holder never sleeps
+(that is what privilege means), its privilege ends only with its own commit,
+and the tag rules 1–4 key on age, so a *younger* HIGHEST never preempts. In the
+no-winner pathology (mutual bundle/unbundle invalidation, the hard-link
+CAS-never-succeeds shape) nothing breaks the tie. The remedy (user): HIGHEST
+forcibly strips the privilege and tags itself — **which requires knowing the
+holder is not HIGHEST**, since stripping a fellow HIGHEST's probe-gated
+escalation would invite strip wars inside the RT tier. One turn earlier this
+file said the HIGHEST bit had "no justified consumer"; this is the consumer.
+
+### The mechanism is a side word, not a stamp bit (user's design)
+
+The stamp cannot carry it (layout full, lowprio bit load-bearing — previous
+section), and stealing a µs bit would touch every stamp consumer. Instead:
+`Linkage::m_priv_owner_prio`, `[15:0] = holder tid, bit 16 = claimed at
+HIGHEST`. The race analysis that makes it sound, and answers "tid を CAS して
+から prio を CAS? race ある?":
+
+* Two separate atomics would race — a reader could pair A's tid with B's
+  priority. **One packed word removes the pairing race, and no CAS is needed
+  at all**: only the thread whose own plain stamp occupies the slot may
+  upgrade it to Reserved, so writers are already serialized by slot ownership.
+* The claimant release-stores the word **before** its Reserved CAS. A reader
+  that acquire-loads the stamp and sees Reserved(A) therefore sees A's word.
+* The reader validates `tid(word) == tid(stamp)`; any mismatch — claim gap,
+  epoch change, global-privilege mode (which never writes the word) — reads as
+  "unknown: do not strip". Every residual race degrades toward not stripping;
+  none can strip a HIGHEST holder.
+
+### Stripping on sight measured NET NEGATIVE — the patience gate
+
+The first implementation stripped on first encounter. Interleaved A/B (grand,
+`-t 8 -P 1`, 5 reps): aggregate 2.37 → 2.26 Mcommit/s (−4.6 %), HIGHEST p99.9
+1.5 → 2.6 µs, **no** tail win, 183 k strips per 4 s. The reason was already
+written in the interaction matrix and I failed to apply it: *a NORMAL's
+privilege helps the HIGHEST* — while held, fair-mode silences every other
+NORMAL, thinning the HIGHEST's opposition to one thread. Stripping on sight
+destroyed exactly that thinning and returned the pack to churn. And the common
+case needs no strip at all: privilege is per-transaction, ends at its commit —
+a healthy holder holds for microseconds; base HIGHEST p99.99 was already
+7–12 µs.
+
+So Rule 0 is **patience-gated**: a HIGHEST strips only a holder it has been
+stuck behind — same Reserved episode, tracked per-transaction — for
+`KAME_STM_PREEMPT_WINDOW_US` (100 µs, the constant the burst window already
+uses). Re-measured: parity with base on every metric (p99.9, p99.99, MAX,
+aggregate, `-P 0`, `-t 2 -P 2`), and **zero strips in every benchmark run** —
+the healthy holder is never touched, and 100 µs bounds HIGHEST's exposure to
+the pathological one.
+
+### Proving both halves
+
+Zero strips proves the zero-cost half only. The insurance half cannot be
+manufactured through the public API (claims are probe-gated), so
+`transaction_priv_strip_test` — built with `-fno-access-control`, deliberately
+white-box — plants a synthetic foreign Reserved stamp plus side word on the
+Linkage and pins all four arms: stuck non-HIGHEST holder → stripped after the
+window; holder marked HIGHEST → untouched; side-word tid mismatch → untouched
+(unknown is conservative); patience not elapsed → untouched. 13/13 ctest.
+
+Also fixed while here: `g_priv_strips` (always-on relaxed counter) so a plain
+build can verify the mechanism fired; the latency bench prints it with `-P/-L`.

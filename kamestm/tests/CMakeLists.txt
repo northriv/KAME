@@ -99,6 +99,7 @@ set(kamestm_test_names
     transaction_wait_budget_test
     transaction_starvation_test
     transaction_sleep_in_tx_test
+    transaction_priv_strip_test
     # Per-commit LATENCY tail (not throughput).  Pure observation: it times
     # iterate_commit from outside and changes nothing in kamestm, so it can
     # neither regress the library nor bias what it measures.  Not a ctest --
@@ -141,6 +142,14 @@ target_compile_definitions(transaction_starvation_test PRIVATE
 # ${support_SRCS} compiled into this target too.
 add_test(NAME transaction_sleep_in_tx_test COMMAND transaction_sleep_in_tx_test)
 target_compile_options(transaction_sleep_in_tx_test PRIVATE -UNDEBUG)
+
+# White-box test of tag_as_contender's Rule 0 (HIGHEST strips a stuck foreign
+# non-HIGHEST privilege stamp).  -fno-access-control because it must plant a
+# synthetic Reserved stamp on Node's private Linkage: privilege claims are
+# probe-gated and cannot be manufactured deterministically through the public
+# API, and the benchmarks prove only that the rule stays silent when healthy.
+add_test(NAME transaction_priv_strip_test COMMAND transaction_priv_strip_test)
+target_compile_options(transaction_priv_strip_test PRIVATE -fno-access-control)
 
 # Long-running tests
 set_tests_properties(

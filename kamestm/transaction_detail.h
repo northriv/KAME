@@ -355,6 +355,12 @@ namespace detail {
     struct STxNestTag;
     DECLSPEC_KAME extern XThreadLocal<int, STxNestTag> s_tx_nest;
 
+    //! Foreign non-HIGHEST Reserved stamps stripped by a HIGHEST tagger
+    //! (tag_as_contender Rule 0).  Always-on so a plain build can verify the
+    //! mechanism actually fired — a strip is rare by construction (it needs a
+    //! Reserved stamp in the way), so one relaxed fetch_add costs nothing.
+    DECLSPEC_KAME extern std::atomic<std::uint64_t> g_priv_strips;
+
 #ifndef NDEBUG
     //! Debug-only, for `transaction_sleep_in_tx_test`: counts reports actually
     //! emitted by `Transactional::warnIfInTransaction`.  Exists because the gate

@@ -1333,15 +1333,25 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif
             bool claimed = false;
 #if KAME_PER_LINKAGE_PRIVILEGE
-            (void)entry_pr;
             const auto my_id = NegotiationCounter::strip_kind(snap.m_started_time);
             const auto my_priv = NegotiationCounter::with_kind(
                 snap.m_started_time, detail::StampKind::Reserved);
+            // Pre-publish the holder-class side word BEFORE each Reserved CAS
+            // (release/release ordering): a reader that sees Reserved(me) is
+            // then guaranteed to see my word.  Single writer — only the slot
+            // owner reaches this — so a plain store suffices; see
+            // Linkage::m_priv_owner_prio.
+            const uint32_t my_owner_word =
+                (uint32_t)NegotiationCounter::stamp_tid(my_priv)
+                | ((entry_pr == Priority::HIGHEST)
+                       ? Linkage::PRIV_OWNER_HIGHEST : 0u);
             for (auto &l : snap.m_tagged_linkages) {
                 auto cur = l->m_transaction_started_time.load(
                     std::memory_order_relaxed);
                 if (cur != 0
                     && NegotiationCounter::strip_kind(cur) == my_id) {
+                    l->m_priv_owner_prio.store(my_owner_word,
+                                               std::memory_order_release);
                     if (l->m_transaction_started_time.compare_exchange_strong(
                             cur, my_priv,
                             std::memory_order_release,
@@ -1351,6 +1361,9 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 }
             }
 #else
+            // Global mode never writes any Linkage's m_priv_owner_prio, so
+            // tag_as_contender's Rule 0 fails its tid validation and stays
+            // inert — conservative by construction.
             claimed = NegotiationCounter::try_register_privileged_tidstamp(
                           entry_pr, snap.m_started_time);
 #endif

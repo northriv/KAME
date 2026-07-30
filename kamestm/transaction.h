@@ -914,10 +914,34 @@ private:
         using atomic_shared_ptr<PacketWrapper>::operator=;
         Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(),
             m_transaction_started_time(0),
+            m_priv_owner_prio(0),
             m_priority_state(packPriority(0, KAME_LEASE_NS_BASE / 1000, 0)),
             m_recent_ops_state(0) {}
         ~Linkage() {this->reset(); } //Packet should be freed before memory pools.
         atomic<typename NegotiationCounter::cnt_t> m_transaction_started_time;
+
+        //! Side word for the Reserved stamp above: [15:0] = holder tid,
+        //! bit 16 (PRIV_OWNER_HIGHEST) = the holder claimed at
+        //! Priority::HIGHEST.  Consumed by exactly one reader,
+        //! tag_as_contender's Rule 0 (a HIGHEST tagger forcibly strips a
+        //! non-HIGHEST Reserved) — the stamp itself cannot carry this: its one
+        //! priority bit is lowprio, load-bearing for expiry and the starvation
+        //! bound, and the 64-bit layout is full.
+        //!
+        //! No CAS is needed (user's design): only the thread whose own plain
+        //! stamp occupies the slot may upgrade it to Reserved, so writers are
+        //! already serialized by slot ownership.  The claimant release-stores
+        //! this word BEFORE its Reserved CAS; a reader that acquire-loads the
+        //! stamp and sees Reserved(A) therefore sees A's word — it validates
+        //! tid(word) == tid(stamp) and treats a mismatch (claim gap, epoch
+        //! change, global-privilege mode where this word is never written) as
+        //! "unknown": fall through to the age rules, i.e. do not strip.  Every
+        //! residual race degrades toward not-stripping, never toward stripping
+        //! a HIGHEST holder.  Left stale on release/preempt on purpose — a
+        //! stale word fails the tid check.  tid 0 cannot occur
+        //! (ProcessCounter::id() skips 0), so 0 is a safe initial value.
+        atomic<uint32_t> m_priv_owner_prio;
+        static constexpr uint32_t PRIV_OWNER_HIGHEST = 1u << 16;
 
         //! Non-atomic Transaction-commit counter — bumped in
         //! `Transaction<XN>::finalizeCommitment()` (only the
@@ -1642,6 +1666,13 @@ public:
     //! Transaction::operator++; this is just the extraction into a
     //! Snapshot-level helper so snapshot()/bundle() can adopt it too in
     //! later refactor passes.
+    //! True iff this thread is at Priority::HIGHEST right now — Rule 0 and
+    //! the side-word publish read the LIVE mode (one TLS read), matching the
+    //! claim loop's use of entry_pr; a Tx's stamp deliberately has no HIGHEST
+    //! bit (see m_priv_owner_prio).
+    static bool highest_mask_current_() noexcept {
+        return getCurrentPriorityMode() == Priority::HIGHEST;
+    }
     void tag_as_contender(const local_shared_ptr<typename Node<XN>::Linkage> &link) noexcept {
         // CAS-loop variant (Option A). Atomically claim the linkage's
         // priority slot iff the slot is empty OR the current tagger is
@@ -1707,7 +1738,57 @@ public:
             int64_t _diff = NC::signed_diff_us_packed(cur, my_stamp);
             const bool _i_am_priv  = NC::is_priv_stamp(my_stamp);
             const bool _cur_is_priv = NC::is_priv_stamp(cur);
-            if(_diff > 0) {
+            // Rule 0 (per user; patience-gated): a HIGHEST tagger strips a
+            // non-HIGHEST Reserved stamp it has been stuck behind for
+            // KAME_STM_PREEMPT_WINDOW_US.  A privileged NORMAL is the one
+            // contender with no yielding mechanism against HIGHEST — HIGHEST
+            // never consults fair_mode (round-loop breakout), the holder never
+            // sleeps (that is what privilege means) and its privilege only
+            // ends with its commit — so in the no-winner pathology (mutual
+            // bundle/unbundle invalidation, the hard-link CAS-never-succeeds
+            // shape) the pair HIGHEST vs privileged-NORMAL had no breaker:
+            // rules 2/4 below key on age only, and a younger HIGHEST never
+            // preempts.
+            //
+            // The patience gate is not caution, it is measurement: stripping
+            // UNCONDITIONALLY on sight was built first and measured NET
+            // NEGATIVE (grand, -t 8 -P 1, 5 interleaved reps: HIGHEST p99.9
+            // 1.5 -> 2.6 us, aggregate -4.6%, no tail win, 183 k strips/4 s).
+            // A privileged NORMAL normally holds for ONE commit — µs — and
+            // while it holds, fair-mode silences every other NORMAL, thinning
+            // the HIGHEST's opposition to a single thread; stripping on sight
+            // destroyed exactly that thinning and returned the whole pack to
+            // churn.  So the strip fires only for a holder that has sat on
+            // the SAME Reserved episode past the window — the stall it
+            // insures against, never the healthy µs-holder.
+            //
+            // The strip demotes the holder to an ordinary contender (its
+            // preempt-recovery clears m_registered_privileged; it may
+            // re-claim).  It must never hit a fellow HIGHEST — that would
+            // undo the probe-gated escalation inside the RT tier and invite
+            // strip wars — which is what the validated side word decides:
+            // tid mismatch or HIGHEST bit ⇒ fall through ⇒ do not strip.
+            bool _strip_foreign_priv = false;
+            if(_cur_is_priv
+                    && getCurrentPriorityMode() == Priority::HIGHEST) {
+                const uint32_t _ow = link->m_priv_owner_prio.load(
+                    std::memory_order_acquire);
+                if((_ow & 0xffffu) == (uint32_t)NC::stamp_tid(cur)
+                        && !(_ow & Node<XN>::Linkage::PRIV_OWNER_HIGHEST)) {
+                    const int64_t _now = (int64_t)NC::now_us();
+                    if(cur != m_seen_priv_stamp) {
+                        m_seen_priv_stamp = cur;      // new holder episode
+                        m_seen_priv_first_us = _now;
+                    }
+                    else if(_now - m_seen_priv_first_us
+                                >= (int64_t)KAME_STM_PREEMPT_WINDOW_US)
+                        _strip_foreign_priv = true;
+                }
+            }
+            if(_strip_foreign_priv) {
+                detail::g_priv_strips.fetch_add(1, std::memory_order_relaxed);
+                _preempt = true;
+            } else if(_diff > 0) {
                 // I'm older.  cur is younger.
                 if(!_i_am_priv && _cur_is_priv) {
                     // Older non-priv vs younger priv: respect the
@@ -1737,6 +1818,15 @@ public:
             }
         }
         if(_preempt) {
+            // Publishing a Reserved stamp (privilege extension to a new
+            // Linkage) must pre-publish the side word first — same ordering
+            // as the claim loop, see m_priv_owner_prio.
+            if(my_kind == detail::StampKind::Reserved)
+                link->m_priv_owner_prio.store(
+                    (uint32_t)NC::stamp_tid(my_stamp)
+                        | (highest_mask_current_()
+                               ? Node<XN>::Linkage::PRIV_OWNER_HIGHEST : 0u),
+                    std::memory_order_release);
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
             // ====== PREEMPT-RESERVED DIAGNOSTIC (opt-in) ======
             // If we are about to overwrite a Reserved-kind slot (= we
@@ -2113,6 +2203,14 @@ protected:
     //! m_registered_privileged stays false and its dtor will not steal
     //! the outer's privilege.
     bool m_registered_privileged = false;
+    //! Rule-0 patience (see tag_as_contender): the foreign Reserved stamp this
+    //! Tx is currently waiting behind, and when it first saw it.  Single slot:
+    //! if a grand-scope Tx alternates between different holders on different
+    //! Linkages the memory thrashes and the patience never elapses — that is
+    //! the conservative direction, and the pathological case this exists for
+    //! is being stuck behind ONE holder.
+    typename Node<XN>::NegotiationCounter::cnt_t m_seen_priv_stamp = 0;
+    int64_t m_seen_priv_first_us = 0;
     //! Linkages whose m_transaction_started_time this attempt has tagged
     //! (or intends to tag). Held as shared_ptr to keep the Linkage alive
     //! until clear_tags() runs; otherwise dynamic-node release could leave

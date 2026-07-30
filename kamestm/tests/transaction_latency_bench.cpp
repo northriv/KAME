@@ -369,6 +369,8 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
         for(int t = pn; t < threads; t++)
             rest.merge(per_thread[(size_t)t]);
         report("  others (NORMAL)", rest, elapsed);
+        std::printf("    priv strips by HIGHEST (Rule 0, cumulative): %llu\n",
+            (unsigned long long)Transactional::detail::g_priv_strips.load());
     }
     if(out_r) { out_r->merge(Retries()); for(auto &r : per_thread_r) out_r->merge(r); }
 #if KAME_STM_NEG_DIAG
