@@ -20,9 +20,10 @@
         distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
         CONDITIONS OF ANY KIND, either express or implied
 ***************************************************************************/
-//! Reproduces the 2026-07-30 field crash shape (SIGABRT via the negotiation
-//! HANG watchdog while operating T1Mode during an NMR measurement), and pins
-//! the fix: **privilege held by a transaction that cannot win must expire**.
+//! Keeps the 2026-07-30 field crash shape (SIGABRT via the negotiation HANG
+//! watchdog while operating T1Mode during an NMR measurement) as a behavioural
+//! regression net: **no thread may ever be pinned for a watchdog-class
+//! stretch**.
 //!
 //! The field chain, reconstructed from the crash report:
 //!   * an ms-scale analysis transaction (NMR pulse analyzer / T1) is
@@ -32,21 +33,27 @@
 //!   * on the DSO thread the same loop runs under the 20 ms downstream wait
 //!     budget, whose expiry deliberately bypasses fair-mode — a second
 //!     fair-mode-immune contender;
-//!   * the stalling analysis transaction claims privilege (300 µs floor) and,
-//!     being NORMAL, its Reserved stamp NEVER expired — so every third-party
-//!     thread that does negotiate (Thamway fetchStatus, tempcontrol, motor in
-//!     the report) was pinned behind it for 3 x 5 s -> abort().
+//!   * the true blocker was an OWNERLESS Reserved stamp orphaned by a
+//!     starvation throw during Snapshot/Transaction construction — every
+//!     third-party thread that does negotiate (Thamway fetchStatus,
+//!     tempcontrol, motor in the report) waited behind a ghost for
+//!     3 x 5 s -> abort().  Fixed at the source (ctor exception safety).
 //!
 //! Roles here: D = budgeted ms-analysis on devA (the pulse analyzer),
 //! U = fresh-commit burst on devA's leaf (the connector storm), M =
 //! UI_DEFERRABLE ms-transactions at root scope (the T1 side, keeps the root
 //! bundled), T = the third-party NORMAL driver on devB whose progress is the
-//! assertion.  T must never stall for KAME_PIN_STALL_SECS (default 5 — below
-//! the 15 s watchdog, far above any healthy pause).
+//! assertion.  T must never stall for KAME_PIN_STALL_SECS (default 12 —
+//! just below the 15 s watchdog).
 //!
-//! Without the expiry fix this test STALLS (reproduces the field bug); with
-//! non-lowprio privilege expiring after the same ~51 ms bound as lowprio, T
-//! is pinned for at most one expiry window per episode.
+//! What this asserts, after the tier ruling (NORMAL/HIGHEST privilege never
+//! expires — it is the completion guarantee): a live NORMAL holder MAY
+//! legitimately shield for multi-second stretches while it retries, so the
+//! stall threshold is 12 s — just under the field watchdog's 15 s — and what
+//! must never happen is the GHOST-class eternal pin (an ownerless stamp),
+//! which the constructor exception-safety fix guarantees against.  A briefly
+//! shipped 5 s threshold encoded the rejected expiry design and was flaky by
+//! construction.
 
 #include "support_standalone.h"
 #include "transaction.h"
@@ -80,8 +87,8 @@ static void busy_us(long us) {
 }
 
 int main() {
-    const long secs       = env_long("KAME_PIN_SECS", 20);
-    const long stall_secs = env_long("KAME_PIN_STALL_SECS", 5);
+    const long secs       = env_long("KAME_PIN_SECS", 25);
+    const long stall_secs = env_long("KAME_PIN_STALL_SECS", 12);
     const long analyze_us = env_long("KAME_PIN_ANALYZE_US", 2000);
     std::printf("privilege-pin repro: %lds, stall>%lds fails, "
                 "analysis %ldus/attempt\n", secs, stall_secs, analyze_us);

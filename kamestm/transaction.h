@@ -610,19 +610,6 @@ private:
         //! Keeping all three in sync is critical — a divergence would
         //! leave per-Linkage stamps that no peer can overwrite.
         static bool    stamp_is_expired_lowprio(cnt_t stamp) noexcept;
-        //! Expiry for ANY Reserved stamp, superseding the lowprio-only rule at
-        //! the fair-mode / self-check consumers (2026-07-30 field abort: a
-        //! NORMAL analysis Tx that could not win held never-expiring privilege
-        //! and pinned every negotiating peer into the HANG watchdog).  lowprio
-        //! keeps its bound; non-lowprio now expires on the SAME wall-clock
-        //! bound unless \a link's side word (m_priv_owner_prio) confirms the
-        //! holder is HIGHEST — the one tier that never sleeps and never claims
-        //! in practice.  Unknown holder class expires: wrongly expiring costs
-        //! a healthy holder a few tens of ms of shield, wrongly not expiring
-        //! reproduces the abort.  \a link may be null (global mode): then no
-        //! confirmation exists and non-lowprio expires unconditionally.
-        static bool    stamp_is_expired_priv(cnt_t stamp,
-                                             const Linkage *link) noexcept;
         static bool    try_register_privileged_tidstamp(Priority pr,
                                                         cnt_t tidstamp,
                                                         int sig_C = 1) noexcept;

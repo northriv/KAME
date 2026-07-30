@@ -2778,3 +2778,49 @@ matrix on both agreeing consumers (it FAILED before the fix — aged NORMAL
 blocked forever); `transaction_priv_pin_test` keeps the field shape
 (budget-expired spinner + fresh-commit burst + third-party NORMAL) as a
 behavioural regression net.
+
+## Corrections and decisions after the T1Mode fix landed
+
+**The NORMAL-privilege expiry is reverted (user ruling: 「privilege expiryは
+NORMAL/HIGHESTに適用してはダメだ」).** My `stamp_is_expired_priv` — shipped as
+"defence in depth" — changed the meaning of the tier table: NORMAL's
+never-expiring privilege *is* the completion guarantee. The revocable tiers
+have the starvation timeout as their exit; NORMAL has no exit **by design**,
+so its shield must outlast any wall clock, and the TLA+ liveness argument
+assumes privilege persists until its holder finishes. The field abort's
+blocker was an OWNERLESS stamp — a leak, not a live holder — and leaks are
+fixed at the source (ctor exception safety), not by taxing live holders.
+"NORMAL priv never expires was falsified" in e5b27bf4e's message was wrong:
+what was falsified was only the assumption that a Reserved stamp always has an
+owner. `transaction_priv_expiry_test` now pins the restored tier rule (aged
+NORMAL **still shields**) and would catch the rejected design as a regression;
+`transaction_priv_pin_test`'s stall bound moved 5 s → 12 s, since a live
+NORMAL holder may legitimately shield for multi-second stretches — only the
+ghost-class (watchdog-class) pin is a failure.
+
+**The starvation bound is 10 s now (user: 「１０秒程度にして、ユーザーがデータ
+保存する機会を与える」).** The throw lands in constructors and Qt-adjacent
+paths that cannot all be made exception-safe, so firing must be rare; the
+bound's role shifts from responsiveness to a **last exit before the 3 × 5 s
+HANG watchdog aborts the process** — the UI thread unfreezes with an error
+telling the user to save, instead of the app dying with the data. Transient
+1–2 s stalls now resolve by seniority (older-wins) rather than by a throw
+that restarts the transaction forever-young.
+
+**The timeout-retry-loop audit (user: 「タイムアウトでリトライループに陥る
+ところがないかのチェックが必要だ」).** Where a thrown XKameError lands, and
+whether anything auto-retries:
+
+| path | state |
+|---|---|
+| main-thread listeners (`SignalBuffer::synchronize__`) | already caught, event consumed — no retry loop |
+| connector value slots (`xnodeconnector.cpp`, 7 sites) | already caught per-slot, red text, human-paced retry only |
+| connector construction (`xqcon_create`) | exempted from the throw entirely (UAF + Qt-dispatch hazard) |
+| `XNodeBrowser::process` (QTimer) | caught + 10-tick backoff (was the retry engine) |
+| driver threads (`execute_internal`) | caught → thread exits; no loop |
+| Ruby (`evalProtect`) / Python (`mainthread_callback`, pybind) | caught / marshalled to script exceptions |
+| graph dump XThread (`graphntoolbox`, UI_DEFERRABLE) | **was uncaught → terminate; now caught, dump lost with a message** |
+| paint handlers, menus, stray timers | **now backstopped by `KameApplication::notify`** — a last-resort catch at the Qt event boundary, since Qt does not support exceptions crossing dispatch |
+
+No auto-retry-on-timeout loop remains; every landing site either consumes the
+failure or backs off.

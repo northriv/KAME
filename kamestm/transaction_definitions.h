@@ -383,13 +383,19 @@
 // entry points plus six connector chains; one host-installed handler is one
 // place.
 //
-// 1000 ms has provenance rather than being invented: the Priority enum's original doc promised SCRIPTING
-// "yields to *everything* for the first second of any contention, then claims
-// privilege so the request still eventually completes".  Privilege never fires
-// (grants measured 0.000 in every configuration), so the promise was never kept;
-// a 1 s bound keeps it by the other route — "then gives up cleanly".
+// Was 1000 ms (provenance: the Priority enum's original doc promised SCRIPTING
+// "yields to everything for the first second, then claims privilege" — grants
+// measured 0.000, so a 1 s give-up kept the promise by the other route).
+// Raised to 10 s (user, 2026-07-30, after the T1Mode incident): the throw
+// lands in constructors and Qt-adjacent paths that cannot all be made
+// exception-safe, so firing must be RARE — the bound's role is no longer
+// responsiveness but a last exit BEFORE the 3 x 5 s HANG watchdog aborts the
+// process: the UI thread unfreezes with an error and the user gets the chance
+// to SAVE DATA.  Transient bursts that starve the UI for 1-2 s now resolve by
+// seniority (older-wins) instead of by a throw that restarts the transaction
+// forever-young.
 #ifndef KAME_STM_LOWPRIO_STARVE_MS
-#define KAME_STM_LOWPRIO_STARVE_MS 1000
+#  define KAME_STM_LOWPRIO_STARVE_MS 10000   // 10 s (user, 2026-07-30)
 #endif
 // Retries before the age is even looked at, so an uncontended commit pays one
 // integer compare and never reads the clock.

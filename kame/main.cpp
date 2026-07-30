@@ -128,7 +128,27 @@ int main(int argc, char *argv[]) {
     XString mesfile = args->count() ? args->arg(0) : "";
     args->clear();
 #else
-    QApplication app(argc, argv);
+    // Last-resort net for XKameError crossing a Qt event boundary — paint
+    // handlers snapshot graphs, menu actions and stray timers commit, and the
+    // STM starvation timeout (rare by design at 10 s, but reachable) must not
+    // escape into Qt dispatch, which does not support exceptions.  The two
+    // structured paths (SignalBuffer::synchronize__ for main-thread listeners,
+    // the connectors' per-slot catches) stay the first line; this catches
+    // whatever they do not enclose.
+    class KameApplication : public QApplication {
+    public:
+        using QApplication::QApplication;
+        bool notify(QObject *receiver, QEvent *event) override {
+            try {
+                return QApplication::notify(receiver, event);
+            }
+            catch (XKameError &e) {
+                e.print();
+                return false;
+            }
+        }
+    };
+    KameApplication app(argc, argv);
     QApplication::setApplicationName("kame");
     QApplication::setApplicationVersion(VERSION);
     app.setAttribute(Qt::AA_DontShowIconsInMenus, false); //In recent Mac/Qt, icons hidden by default.
@@ -250,9 +270,10 @@ int main(int argc, char *argv[]) {
                         return;
                     throw XKameError(formatString_tr(I18N_NOOP(
                         "STM starvation: gave up after %u retries over %lld ms. "
-                        "This operation runs at a priority whose privilege can "
-                        "be revoked; retry it, or run it at NORMAL priority if "
-                        "it must complete."), retries, age_us / 1000),
+                        "Consider SAVING YOUR DATA now, then retry the "
+                        "operation. It runs at a priority whose privilege can "
+                        "be revoked; run it at NORMAL priority if it must "
+                        "complete."), retries, age_us / 1000),
                         __FILE__, __LINE__);
                 });
 

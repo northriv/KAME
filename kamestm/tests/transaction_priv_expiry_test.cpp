@@ -20,32 +20,23 @@
         distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
         CONDITIONS OF ANY KIND, either express or implied
 ***************************************************************************/
-//! Pins the privilege-expiry rules on the negotiation predicates directly —
-//! the deterministic half of the 2026-07-30 field-crash fix
-//! (transaction_priv_pin_test is the behavioural half).
+//! Pins the privilege-expiry TIER RULE (user ruling, 2026-07-30): **expiry is
+//! a lowprio-only mechanism.  NORMAL / HIGHEST privilege never expires.**
 //!
-//! The field abort: a NORMAL analysis transaction claimed privilege, could
-//! not win (fresh first-attempt commits never negotiate, and a budget-expired
-//! peer bypasses fair-mode — privilege cannot stop either), and its Reserved
-//! stamp **never expired**, so every thread that did negotiate was pinned
-//! until the 3 x 5 s HANG watchdog called abort().  "NORMAL / HIGHEST priv
-//! never expires — measurement / driver-critical Tx must not be disrupted"
-//! was the design; the field falsified it: what must not happen is a holder
-//! that blocks others without a wall-clock bound.
+//! Their privilege is the completion guarantee — the revocable tiers
+//! (LOWEST / UI_DEFERRABLE / SCRIPTING) get the starvation timeout as their
+//! exit, NORMAL has no exit by design, so its shield must outlast any wall
+//! clock; the TLA+ liveness argument assumes privilege persists until its
+//! holder finishes.  A briefly-shipped change expired NORMAL Reserved stamps
+//! after ~51 ms as "defence in depth" for the 2026-07-30 T1Mode abort; it was
+//! rejected because the abort's blocker was an OWNERLESS stamp (a
+//! mid-construction-throw leak, fixed at the source in the ctors), not a live
+//! NORMAL holder — and bounding live NORMAL holders trades away the
+//! completion guarantee the tier exists for.  This test would have caught
+//! that change as a regression, and now does.
 //!
-//! New rules, checked here against BOTH agreeing consumers
-//! (`fair_mode_blocks_me` and `i_am_privileged_now` — they must never
-//! diverge, or per-Linkage stamps go stuck):
-//!   * lowprio Reserved: expires after ~51 ms (unchanged);
-//!   * NORMAL Reserved: now expires on the same bound — the holder loses its
-//!     shield but nothing else (it is NOT thrown at, unlike the revocable
-//!     tiers; it just negotiates like everyone again);
-//!   * HIGHEST Reserved: exempt, but only when the side word
-//!     (Linkage::m_priv_owner_prio) confirms the holder — an unknown or
-//!     mismatched holder class expires, because wrongly expiring costs a
-//!     healthy holder a few tens of ms of shield while wrongly NOT expiring
-//!     reproduces the 15 s abort.
-//!
+//! Checked against BOTH agreeing consumers (`fair_mode_blocks_me` and
+//! `i_am_privileged_now` — a divergence leaves per-Linkage stamps stuck).
 //! White-box (-fno-access-control): privilege claims are probe-gated and
 //! cannot be planted deterministically through the public API.
 
@@ -91,17 +82,15 @@ int main() {
         bool want_blocks;    // fair_mode_blocks_me(peer) — and the holder's
                              // i_am_privileged_now must agree exactly.
     } cases[] = {
-        { "fresh NORMAL holder        -> shields", kFresh, false,
+        { "fresh NORMAL holder      -> shields",         kFresh, false,
           (uint32_t)kHolder,                                true  },
-        { "aged NORMAL holder         -> expires", kOld,   false,
+        { "aged NORMAL holder       -> STILL shields",   kOld,   false,
+          (uint32_t)kHolder,                                true  },
+        { "aged HIGHEST (side word) -> shields",         kOld,   false,
+          (uint32_t)kHolder | Linkage::PRIV_OWNER_HIGHEST, true  },
+        { "aged lowprio holder      -> expires",         kOld,   true,
           (uint32_t)kHolder,                                false },
-        { "aged HIGHEST (side word)   -> shields", kOld,   false,
-          (uint32_t)kHolder | Linkage::PRIV_OWNER_HIGHEST,  true  },
-        { "aged, unknown holder class -> expires", kOld,   false,
-          (uint32_t)(kHolder + 7),                          false },
-        { "aged lowprio holder        -> expires", kOld,   true,
-          (uint32_t)kHolder,                                false },
-        { "fresh lowprio holder       -> shields", kFresh, true,
+        { "fresh lowprio holder     -> shields",         kFresh, true,
           (uint32_t)kHolder,                                true  },
     };
     for(const auto &c : cases) {

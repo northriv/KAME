@@ -121,7 +121,15 @@ XGraphNToolBox::onDumpTouched(const Snapshot &, XTouchableNode *) {
         }
         Transactional::setCurrentPriorityMode(Priority::UI_DEFERRABLE);
 
-        dumpToFileThreaded(m_stream, shot, m_ext);
+        try {
+            dumpToFileThreaded(m_stream, shot, m_ext);
+        }
+        catch (XKameError &e) {
+            // UI_DEFERRABLE can hit the STM starvation timeout under heavy
+            // measurement contention; an uncaught exception in this XThread
+            // would terminate the process.  The dump is simply lost.
+            e.print(i18n("Dump failed: "));
+        }
 
         m_stream.flush();
     }, Snapshot( *this)});
