@@ -88,6 +88,16 @@ py::object KAMEPyBind::cast_to_pyobject(XNode::Payload *y) {
     //manages to use its downmost base class.
     std::map<size_t, decltype(casters->begin()->second.second)> cand;
     for(auto &c: *casters) {
+        //Cached results (serial >= SerialBaseForCache) serve the exact-match
+        //find() above only.  They must not vote here: the election below picks
+        //the LARGEST serial as "most derived", relying on declaration order
+        //(base declared before derived), and cache serials sit above every
+        //declaration.  Worst is the trivial cache a hopeless type leaves
+        //behind (plain py::cast, succeeds for anything): one such entry made
+        //every later fallback resolve to bare XNode/Payload for the rest of
+        //the session (2026-07-30, RelaxFunc).
+        if(c.second.first >= SerialBaseForCache)
+            continue;
         try {
             auto x = (c.second.second)(y);
             if(x.cast<XNode::Payload*>()) {
@@ -122,6 +132,12 @@ py::object KAMEPyBind::cast_to_pyobject(shared_ptr<XNode> y) {
     //manages to use its downmost base class.
     std::map<size_t, decltype(casters->begin()->second.second)> cand;
     for(auto &c: *casters) {
+        //Same rule as the Payload overload above: cached results are for the
+        //exact-match find() only and carry no declaration order — letting them
+        //vote hands the election to a trivial cache entry and everything
+        //resolves to bare XNode.
+        if(c.second.first >= SerialBaseForCache)
+            continue;
         auto x = (c.second.second)(y);
         if(x.cast<shared_ptr<XNode>>())
             cand.emplace(c.second.first, c.second.second);
