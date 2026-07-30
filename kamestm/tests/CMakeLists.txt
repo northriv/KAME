@@ -101,6 +101,7 @@ set(kamestm_test_names
     transaction_sleep_in_tx_test
     transaction_priv_strip_test
     transaction_priv_expiry_test
+    transaction_reanchor_test
     transaction_priv_pin_test
     transaction_priority_mixed_test
     # Per-commit LATENCY tail (not throughput).  Pure observation: it times
@@ -169,6 +170,11 @@ add_test(NAME transaction_priority_mixed_test
 # test and for the same reason.
 add_test(NAME transaction_priv_expiry_test COMMAND transaction_priv_expiry_test)
 target_compile_options(transaction_priv_expiry_test PRIVATE -fno-access-control)
+
+# newTransactionUsingSnapshotFor must not orphan planted stamps when it
+# re-anchors the snapshot base (the 2026-07-31 field freeze).  White-box.
+add_test(NAME transaction_reanchor_test COMMAND transaction_reanchor_test)
+target_compile_options(transaction_reanchor_test PRIVATE -fno-access-control)
 
 add_test(NAME transaction_priv_pin_test COMMAND transaction_priv_pin_test)
 

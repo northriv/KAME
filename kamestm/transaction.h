@@ -2437,7 +2437,31 @@ public:
         supernode.snapshot( *this, true);
         Snapshot<XN> shot_super( *this);
         Snapshot<XN> shot_this(node, shot_super);
+        // Re-anchor the snapshot CONTENT only; preserve the negotiation
+        // bookkeeping EXPLICITLY.  Before this change the bookkeeping
+        // (m_started_time — the stamp identity; m_tagged_linkages — the
+        // ledger of stamps planted by the ++ above and by
+        // supernode.snapshot()'s bundling; m_registered_privileged) survived
+        // only by accident: Snapshot::operator= is the default member-wise
+        // copy, and shot_this happens to be copy-chained from *this via
+        // shot_super, so the same values flowed back in.  Any future change
+        // to either constructor on that chain would have severed the ledger
+        // from the planted stamps and made them ownerless — a ghost every
+        // negotiator waits behind (verified FAIL-first while investigating
+        // the 2026-07-31 freeze: the accident currently holds, so this was
+        // NOT that bug — transaction_reanchor_test now pins the invariant
+        // rather than trusting the accident).
+        const auto saved_started = this->m_started_time;
+        auto saved_tags = std::move(this->m_tagged_linkages);
+        const auto saved_priv = this->m_registered_privileged;
+        const auto saved_retry = this->m_tx_retry_count;
+        const auto saved_bits = this->m_tid_bitset;
         this->Snapshot<XN>::operator=(shot_this);
+        this->m_started_time = saved_started;
+        this->m_tagged_linkages = std::move(saved_tags);
+        this->m_registered_privileged = saved_priv;
+        this->m_tx_retry_count = saved_retry;
+        this->m_tid_bitset = saved_bits;
         this->m_oldpacket = this->m_packet;
         return shot_super;
     }
