@@ -127,6 +127,33 @@ bool Node<XN>::NegotiationCounter::stamp_is_expired_lowprio(cnt_t stamp) noexcep
 }
 
 template <class XN>
+bool Node<XN>::NegotiationCounter::stamp_is_expired_priv(
+        cnt_t stamp, const Linkage *link) noexcept {
+    // See the declaration for the field-abort rationale.  Shares the exact
+    // wall-clock bound with the lowprio rule (one number to reason about);
+    // what differs per class is only the exemption:
+    //   lowprio        expire past the bound (the pre-existing rule)
+    //   NORMAL         expire past the bound (NEW - the fix)
+    //   HIGHEST        exempt, iff the side word confirms the holder
+    // The holder loses only its shield on expiry.  Nothing throws here -
+    // throw_if_starved_ stays gated on the lowprio bit as before.
+    if(stamp_is_lowprio(stamp))
+        return stamp_is_expired_lowprio(stamp);
+    if(link) {
+        const uint32_t ow =
+            link->m_priv_owner_prio.load(std::memory_order_acquire);
+        if((ow & 0xffffu) == (uint32_t)stamp_tid(stamp)
+                && (ow & Linkage::PRIV_OWNER_HIGHEST))
+            return false;   // confirmed HIGHEST holder: never expires
+    }
+    int64_t now_us  = LivelockProbe::now_us();
+    int64_t age     = (int64_t)diff_us_packed(now_us, stamp);
+    int64_t max_age = min_privilege_age_us(Priority::SCRIPTING)
+                    + (int64_t)KAME_STM_PRIV_MAX_HOLD_US;
+    return age > max_age;
+}
+
+template <class XN>
 bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     Priority pr, cnt_t tidstamp, int sig_C) noexcept
 {
@@ -162,7 +189,7 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
         // that would otherwise be blocked by the older-only
         // preemption rule.
         bool holder_expired =
-            (expected != (cnt_t)0) && stamp_is_expired_lowprio(expected);
+            (expected != (cnt_t)0) && stamp_is_expired_priv(expected, nullptr);
         if (expected != (cnt_t)0 && !holder_expired) {
             // Live holder. Preempt only if the challenger (us) is older
             // than the holder by at least PRIV_PREEMPT_WINDOW_US.
@@ -199,11 +226,13 @@ template <class XN>
 bool Node<XN>::NegotiationCounter::i_am_privileged_now(
         cnt_t my_tidstamp,
         const Linkage *link) noexcept {
-    // Expiration check delegated to `stamp_is_expired_lowprio`: a
-    // LOW-priority priv stamp older than `min_privilege_age_us(SCRIPTING)
-    // + PRIV_MAX_HOLD_US` is considered expired (holder lost privilege
-    // by timeout).  NORMAL / HIGHEST priv never expires — measurement
-    // / driver-critical Tx must not be disrupted.
+    // Expiration check delegated to `stamp_is_expired_priv`: any priv
+    // stamp older than `min_privilege_age_us(SCRIPTING) + PRIV_MAX_HOLD_US`
+    // is expired (holder lost privilege by timeout), except a side-word-
+    // confirmed HIGHEST holder.  This used to exempt NORMAL ("measurement /
+    // driver-critical Tx must not be disrupted") - falsified in the field
+    // 2026-07-30: an analysis Tx that cannot win pins every negotiating
+    // peer into the HANG watchdog; see stamp_is_expired_priv.
 #if KAME_PER_LINKAGE_PRIVILEGE
     // Per-Linkage: "mine" iff this Linkage's slot carries a Reserved-
     // kind stamp with matching TID.  Compare by TID alone (NOT
@@ -220,7 +249,7 @@ bool Node<XN>::NegotiationCounter::i_am_privileged_now(
     // privilege.  Peers see the matching update via `fair_mode_blocks_me`,
     // which uses the same `stamp_is_expired_lowprio` predicate to
     // treat the per-Linkage Reserved stamp as unblocking.
-    if(stamp_is_expired_lowprio(slot)) return false;
+    if(stamp_is_expired_priv(slot, link)) return false;
     return true;
 #else
     (void)link;
@@ -232,7 +261,7 @@ bool Node<XN>::NegotiationCounter::i_am_privileged_now(
     // block all other priv-claimants forever.  Critical for SCRIPTING
     // (two stuck SCRIPTING Tx could otherwise deadlock each other
     // under the older-only preemption rule).
-    if(stamp_is_expired_lowprio(priv)) return false;
+    if(stamp_is_expired_priv(priv, nullptr)) return false;
     return true;
 #endif
 }
@@ -292,7 +321,7 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !is_priv_stamp(slot)) return false;
     if(stamp_tid(slot) == stamp_tid(tidstamp)) return false;
-    if(stamp_is_expired_lowprio(slot)) { report_expired(slot); return false; }
+    if(stamp_is_expired_priv(slot, link)) { report_expired(slot); return false; }
     return true;
 #else
     (void)link;
@@ -310,7 +339,7 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // transaction_dynamic_node_test backtrace (~Node->releaseAll on
     // frame #15-16, negotiate_sleep on frame #9).
     if(stamp_tid(priv) == stamp_tid(tidstamp)) return false;
-    if(stamp_is_expired_lowprio(priv)) { report_expired(priv); return false; }
+    if(stamp_is_expired_priv(priv, nullptr)) { report_expired(priv); return false; }
     return true;
 #endif
 }

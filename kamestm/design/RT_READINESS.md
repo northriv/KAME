@@ -2725,3 +2725,56 @@ remaining modelled-vs-field gaps: tree size (a real root bundle is ms-scale,
 the test's 16-node one is µs — `KAME_MIX_LEAVES` added for this), and
 everything the standalone harness cannot host (Qt event loop, GIL, interface
 mutexes) — which is exactly the class that a missing timeout points at.
+
+## The T1Mode field abort: the user's diagnosis was right twice
+
+Crash report analysed (SIGABRT, thread 23, `_negotiate_internal` → `abort()` =
+the HANG watchdog; every other STM thread asleep in `negotiate_sleep`; main
+thread mid-`XNodeBrowser::process()` building connectors). My first two
+readings — "seconds-long FFT inside the Tx" (refuted by the user: the stack
+only proves where the thread was at the snapshot instant), then "retry storm ×
+never-expiring NORMAL privilege" — each contributed a hardening but missed the
+trigger. The user's questions found it: *did the UI timeout cause this?* and
+*why would RAII not run the destructor?*
+
+**The ghost-stamp leak.** `throw_if_starved_` sits inside `Node::snapshot()`'s
+retry loop, which runs during `Snapshot`/`Transaction` **construction**. A
+throw there means the object never began its lifetime: unwinding destroys the
+fully-constructed members (`~vector` frees the list of linkage pointers), but
+the *stamps those linkages carry* are external side effects whose release
+exists only in `~Transaction()`'s body and at the constructor's tail — both
+unreachable. The orphaned stamp ages forever, is always the oldest contender,
+is never preempted (older-wins) and never cleared (only its owner clears it;
+`tags_successful_cas` writes the lease word, not the stamp slot) — and the
+negotiation protocol lets contenders CV-sleep waiting for an older peer to
+finish. Everyone on that linkage waits for a ghost until the watchdog kills
+the process. This explains 以前は起こらなかった (the starvation check is new),
+the T1Mode reproducibility (it reliably drives the UI past the 1 s bound), and
+HIGHEST's irrelevance. Fixed by catch → `drop_tags_n_privilege()` → rethrow in
+the two constructors; `operator++` throws were always safe (complete object,
+destructor runs).
+
+**The engine, and why connectors must not throw at all.** The timeout's
+throw-and-restart cycle is *forever young* under older-wins arbitration — each
+restart discards the seniority that would have won — so a contended UI
+operation that used to be slow-but-completing became never-completing at
+maximal churn. Worse, `XQConnector`'s constructor pushes `shared_ptr(this)`
+onto `s_conCreating` before its STM work: a throw shifts the holder pairing
+(the next `XQConnectorHolder_` pops the dead entry — use-after-free) and then
+escapes into Qt's event dispatch, which does not support exceptions. So for
+connector construction the throw is not merely unhelpful, it is a crash of its
+own. kame now (a) suppresses the starvation throw for the duration of
+`xqcon_create` (`XQConnector_StarvationExempt`, consulted by main.cpp's
+handler — construction retries with accumulated seniority, the pre-timeout
+behaviour), and (b) gives `XNodeBrowser::process()` a catch-and-back-off (10
+ticks) so any remaining XKameError from its snapshots reports once instead of
+retrying at timer cadence or reaching Qt.
+
+The privilege-expiry change earlier in this arc stays as defence in depth:
+`stamp_is_expired_priv` bounds ANY Reserved holder (NORMAL included, ~51 ms;
+side-word-confirmed HIGHEST exempt) so no future not-winning holder can pin
+peers into the watchdog. `transaction_priv_expiry_test` pins the predicate
+matrix on both agreeing consumers (it FAILED before the fix — aged NORMAL
+blocked forever); `transaction_priv_pin_test` keeps the field shape
+(budget-expired spinner + fresh-commit burst + third-party NORMAL) as a
+behavioural regression net.

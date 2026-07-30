@@ -610,6 +610,19 @@ private:
         //! Keeping all three in sync is critical — a divergence would
         //! leave per-Linkage stamps that no peer can overwrite.
         static bool    stamp_is_expired_lowprio(cnt_t stamp) noexcept;
+        //! Expiry for ANY Reserved stamp, superseding the lowprio-only rule at
+        //! the fair-mode / self-check consumers (2026-07-30 field abort: a
+        //! NORMAL analysis Tx that could not win held never-expiring privilege
+        //! and pinned every negotiating peer into the HANG watchdog).  lowprio
+        //! keeps its bound; non-lowprio now expires on the SAME wall-clock
+        //! bound unless \a link's side word (m_priv_owner_prio) confirms the
+        //! holder is HIGHEST — the one tier that never sleeps and never claims
+        //! in practice.  Unknown holder class expires: wrongly expiring costs
+        //! a healthy holder a few tens of ms of shield, wrongly not expiring
+        //! reproduces the abort.  \a link may be null (global mode): then no
+        //! confirmation exists and non-lowprio expires unconditionally.
+        static bool    stamp_is_expired_priv(cnt_t stamp,
+                                             const Linkage *link) noexcept;
         static bool    try_register_privileged_tidstamp(Priority pr,
                                                         cnt_t tidstamp,
                                                         int sig_C = 1) noexcept;
@@ -1553,7 +1566,26 @@ public:
         // / HIGHEST stamps are immune.
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
         typename Node<XN>::NegotiationCounter::AcquireOneCount oneup{};
-        node.snapshot( *this, multi_nodal);
+        // Exception safety is NOT free RAII here, and the gap was a field
+        // abort (2026-07-30, T1Mode; diagnosed by the user).  If
+        // node.snapshot() throws — throw_if_starved_ sits inside its retry
+        // loop — this object never began its lifetime, so no destructor BODY
+        // ever runs; unwinding destroys the fully-constructed members, but
+        // ~vector on m_tagged_linkages frees a list of pointers, it does not
+        // zero the stamps those linkages carry.  The stamps are an EXTERNAL
+        // side effect whose release lives only in ~Transaction()'s body and
+        // in the line below — both unreachable from a mid-construction
+        // throw.  The orphaned stamp then ages forever, is always the oldest
+        // contender, is never preempted (older-wins) and never cleared (only
+        // its owner clears it), and every later contender on that linkage
+        // CV-waits for a ghost until the HANG watchdog aborts the process.
+        try {
+            node.snapshot( *this, multi_nodal);
+        }
+        catch(...) {
+            drop_tags_n_privilege();
+            throw;
+        }
         drop_tags_n_privilege();
     }
 
@@ -2314,7 +2346,18 @@ public:
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
         // m_oneup (the running-slot acquire) is a by-value member, bumped in
         // the member-init list above — no per-Tx heap allocation.
-        node.snapshot( *this, multi_nodal);
+        //
+        // Same mid-construction-throw gap as the plain Snapshot ctor above
+        // (see its comment): ~Transaction() — the only other place that drops
+        // tags — is never invoked for an object whose constructor did not
+        // complete.  The base ~Snapshot() DOES run, but carries no drop.
+        try {
+            node.snapshot( *this, multi_nodal);
+        }
+        catch(...) {
+            this->drop_tags_n_privilege();
+            throw;
+        }
         assert( &m_packet->node() == &node);
         assert( &m_oldpacket->node() == &node);
     }

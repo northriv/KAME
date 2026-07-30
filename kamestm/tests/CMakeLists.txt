@@ -100,6 +100,8 @@ set(kamestm_test_names
     transaction_starvation_test
     transaction_sleep_in_tx_test
     transaction_priv_strip_test
+    transaction_priv_expiry_test
+    transaction_priv_pin_test
     transaction_priority_mixed_test
     # Per-commit LATENCY tail (not throughput).  Pure observation: it times
     # iterate_commit from outside and changes nothing in kamestm, so it can
@@ -158,6 +160,17 @@ target_compile_options(transaction_priv_strip_test PRIVATE -fno-access-control)
 # soak with KAME_MIX_SECS=60+ when hunting.
 add_test(NAME transaction_priority_mixed_test
          COMMAND transaction_priority_mixed_test)
+
+# Field-crash repro (2026-07-30 T1Mode SIGABRT): a stalling ms-analysis Tx
+# holding never-expiring NORMAL privilege pins third parties into the HANG
+# watchdog.  FAILS without the privilege-expiry fix; the fix bounds the pin.
+# Deterministic half of the same fix: the expiry rules on the negotiation
+# predicates themselves, both agreeing consumers.  White-box, like the strip
+# test and for the same reason.
+add_test(NAME transaction_priv_expiry_test COMMAND transaction_priv_expiry_test)
+target_compile_options(transaction_priv_expiry_test PRIVATE -fno-access-control)
+
+add_test(NAME transaction_priv_pin_test COMMAND transaction_priv_pin_test)
 
 # Long-running tests
 set_tests_properties(
