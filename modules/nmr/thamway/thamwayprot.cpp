@@ -188,6 +188,14 @@ XThamwayPROT<tInterface>::fetchStatus(const atomic<bool>& terminated, bool singl
 
             double olevel, gain, phase, bw, fwd, bwd, f;
             int sw, warn;
+            //What the settings hold BEFORE the query batch.  The batch is a dozen
+            //USB round trips with 20 ms settling waits, and the interface lock has
+            //to be dropped again before the transaction below, so a write from the
+            //GUI or a script can land in between: its listener has already pushed
+            //it to the device, and writing our now-stale reading back (with
+            //unmark, so no device write follows) would leave the node disagreeing
+            //with the hardware until the next poll.  Hence acceptReading() below.
+            Snapshot shot_pre( *this);
             {
                 //the lock keeps the query batch atomic against other drivers on
                 //the same FX2 box, but must be released before the transaction:
@@ -209,28 +217,30 @@ XThamwayPROT<tInterface>::fetchStatus(const atomic<bool>& terminated, bool singl
             }
 
             Transaction tr( *this);
+            //Take a reading into a setting node only while the node still holds
+            //the value that reading was taken against; if it moved, a GUI/script
+            //write won the race and its listener has already programmed the
+            //device, so ours is stale and must be dropped.  `tol` is also the
+            //"did the device actually change" threshold, as before.
+            auto acceptReading = [&](const shared_ptr<XDoubleNode> &node,
+                                     double reading, double tol,
+                                     const shared_ptr<Listener> &lsn) {
+                double cur = tr[ *node];
+                if((fabs(cur - (double)shot_pre[ *node]) < tol) &&
+                   (fabs(cur - reading) > tol)) {
+                    tr[ *node] = reading;
+                    tr.unmark(lsn);
+                }
+            };
             for(;;){
-                if(fabs(tr[ *this->freq()] - f) > 1e-6) {
-                    tr[ *this->freq()] = f;
-                    tr.unmark(m_lsnFreq);
-                }
-                if(fabs(tr[ *this->oLevel()] - olevel) > 1e-3) {
-                    tr[ *this->oLevel()] = olevel;
-                    tr.unmark(m_lsnOLevel);
-                }
-                if(fabs(tr[ *this->rxGain()] - gain) > 1e-3) {
-                    tr[ *this->rxGain()] = gain;
-                    tr.unmark(m_lsnRXGain);
-                }
-                if(fabs(tr[ *this->rxPhase()] - phase) > 1e-3) {
-                    tr[ *this->rxPhase()] = phase;
-                    tr.unmark(m_lsnRXPhase);
-                }
-                if(fabs(tr[ *this->rxLPFBW()] - bw) > 1e-3) {
-                    tr[ *this->rxLPFBW()] = bw;
-                    tr.unmark(m_lsnRXLPFBW);
-                }
-                if(tr[ *this->rfON()] != sw) {
+                acceptReading(this->freq(), f, 1e-6, m_lsnFreq);
+                acceptReading(this->oLevel(), olevel, 1e-3, m_lsnOLevel);
+                acceptReading(this->rxGain(), gain, 1e-3, m_lsnRXGain);
+                acceptReading(this->rxPhase(), phase, 1e-3, m_lsnRXPhase);
+                acceptReading(this->rxLPFBW(), bw, 1e-3, m_lsnRXLPFBW);
+                //Same rule for the one boolean setting; no tolerance involved.
+                if((shot_pre[ *this->rfON()] == tr[ *this->rfON()]) &&
+                   (tr[ *this->rfON()] != sw)) {
                     tr[ *this->rfON()] = sw;
                     tr.unmark(m_lsnRFON);
                 }
