@@ -2626,3 +2626,28 @@ item is incapable of changing a branch outcome:
 Under `KAME_STM_COMPACT_STATE`, `is_priv_stamp` is constant-false and Rule 0 is
 dead-code-eliminated entirely. Empirical cross-check of precisely this
 question: the `-P 0` interleaved A/B (parity) and 13/13 ctest.
+
+### Rule 0 does not obsolete `ScopedDemoteRealtime` — they compose
+
+Asked (user): with Rule 0, does KAME's HIGHEST still need the demotion to
+NORMAL after the record? Yes — the two mechanisms handle different pairings,
+and each covers the other's blind spot:
+
+* **Demotion handles HIGHEST ↔ HIGHEST.** Undemoted listeners on the shared
+  linkages (drivers list, entryList) would pair with every other driver's
+  acquisition thread: measured, that costs the *other* thread's p99.99
+  8 µs → 163–327 µs and 3× aggregate. Rule 0 cannot help there — its safety
+  condition exempts HIGHEST holders, and undemoted listeners would not hold
+  privilege anyway (HIGHEST claims measured 0.000): it is plain two-spinner
+  churn. Demotion also keeps *unvouched* code — listeners are other people's
+  code — out of a tier whose contract is caller-side time management.
+* **Rule 0 handles the pair that demotion creates.** The demoted downstream
+  runs at NORMAL; if it stalls 300 µs it claims privilege and becomes exactly
+  the no-breaker pair — an old privileged NORMAL sitting in front of another
+  driver's young HIGHEST bundle. Rule 0 caps that at 100 µs.
+
+Composed, they yield the property neither has alone: **after the record, the
+downstream cannot obstruct any other acquisition thread for more than 100 µs,
+in any pathology.** Removing the demotion would require either every listener
+to have vouched execution time, or within-HIGHEST arbitration — measured and
+rejected above.
