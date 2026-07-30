@@ -348,6 +348,28 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
 
     Hist all; all.reset();
     for(auto &h : per_thread) all.merge(h);
+    // Per-priority histograms, one line per priority-group thread.  A group
+    // merge alone can hide one starved member behind a healthy peer -- which is
+    // the exact question when two HIGHEST threads share a linkage -- so with
+    // -P/-L the group members are reported individually (N is small there).
+    if(highest_n > 0 || lowprio_n > 0) {
+        const char *tag = highest_n ? "HIGHEST" : "SCRIPTING";
+        const int pn = highest_n + lowprio_n;
+        char lbl[48];
+        Hist grp; grp.reset();
+        for(int t = 0; t < pn && t < threads; t++)
+            grp.merge(per_thread[(size_t)t]);
+        std::snprintf(lbl, sizeof(lbl), "  %s group", tag);
+        report(lbl, grp, elapsed);
+        for(int t = 0; t < pn && t < threads; t++) {
+            std::snprintf(lbl, sizeof(lbl), "  %s thr#%d", tag, t);
+            report(lbl, per_thread[(size_t)t], elapsed);
+        }
+        Hist rest; rest.reset();
+        for(int t = pn; t < threads; t++)
+            rest.merge(per_thread[(size_t)t]);
+        report("  others (NORMAL)", rest, elapsed);
+    }
     if(out_r) { out_r->merge(Retries()); for(auto &r : per_thread_r) out_r->merge(r); }
 #if KAME_STM_NEG_DIAG
     if(out_d) for(auto &d : per_thread_d) out_d->merge(*&d);

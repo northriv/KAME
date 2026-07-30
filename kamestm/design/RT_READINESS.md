@@ -2385,3 +2385,68 @@ Restore goes to `THREAD_PRIORITY_NORMAL` rather than a saved value, on the
 grounds that acquisition threads are created for the loop and die with it. The
 same reasoning says nesting `AcquisitionPriority` twice on one thread would
 restore early — it has no reason to ever nest.
+
+## Should HIGHEST use privilege among its own tier? Measured: no — tags suffice
+
+Asked (user), given that KAME now really deploys HIGHEST: *should tag/privilege
+work between HIGHEST threads, with NORMAL subordinated to HIGHEST's
+tag/privilege — or, since HIGHEST is not supposed to starve, are tags alone
+enough?*
+
+**What the code already does.** Tags are unconditional on the retry path
+(`transaction_impl.h`: "the retry-path tag_as_contender call sites are now
+unconditional") — a HIGHEST contender is counted in `sig_C`, participates in the
+age-ordered stamp preemption (older-always-wins), and is seen by the owner-skip
+lease. The privilege *claim* is on a path HIGHEST can reach in principle, but
+gated behind the livelock probe (`_ll_saw`), which a promptly-winning spinner
+never trips — measured 0.000 claims. And `fair_mode_blocks_me` is consulted
+below the round-loop-top HIGHEST breakout, so HIGHEST ignores everyone's
+privilege. So "tags only" is not a proposal; it is the present design.
+
+**The measurement** — the *forbidden* deployment (two+ HIGHEST on one linkage),
+worst-case grand scope at 100 % duty, M3, 4 s runs, per-thread split added to
+the latency bench for this question:
+
+    -t 2 -P 2 (two spinners, nothing else; 3 reps)
+        thr#0 / thr#1 balanced within 1 % (e.g. 3.48 vs 3.45 Mcommit/s)
+        p99.99 = 57–98 µs, STM-attributable MAX sub-ms
+        (one rep showed 60–68 ms MAX on BOTH threads at once: OS preemption,
+        not STM starvation — correlated across threads.)
+    -t 8 -P 2 (plus six NORMAL)
+        HIGHEST thr#0/#1 balanced within 5 % (0.41 / 0.39 Mcommit/s),
+        p99.99 = 163–327 µs
+        NORMAL group: ~8 k commits per 4 s vs HIGHEST's 3.2 M — mean ~3 ms,
+        MAX 81–183 ms
+    aggregate cost of the violation: 2.40 -> 0.80 Mcommit/s (3x)
+
+**Verdict: tags suffice; privilege for HIGHEST would make it worse.**
+
+* Privilege is a shield for a thread that *yields* — it protects a sleeper from
+  being starved while it waits its turn. HIGHEST never yields, so it has
+  nothing to shield. Between exactly-two spinners, CAS linearization already
+  hands one of them the win each collision round; the measured alternation is
+  the theory working.
+* Granting HIGHEST privilege would convert "loser retries and usually lands in
+  the winner's gap" into **strict serialization behind the holder — including
+  any OS preemption of the holder**. Today a 60 ms preemption of one spinner is
+  60 ms of free run for the other; under privilege it would be 60 ms of spinning
+  behind a stamp. On a normal OS that worsens the RT tier's tail, and it adds a
+  waiting relation inside the RT tier that the TLA+ liveness model does not
+  have — re-verification surface spent on the case the deployment contract
+  forbids anyway.
+* Structural NORMAL subordination (wait on a HIGHEST stamp) has the same trap:
+  NORMAL's ~8 k commits above are exactly the gap-sneaking that a stamp wait
+  would forbid. NORMAL's *bound* never depended on beating HIGHEST — it is the
+  wait budget; its *completion* depends on HIGHEST's duty cycle either way, and
+  100 % duty is synthetic (real acquisition loops block in device waits).
+
+**One consequence for the doctrine.** The "no two HIGHEST on one linkage"
+deployment invariant is hereby *downgraded*: it is not a liveness precondition
+(no starvation, no livelock — measured), it is a **throughput contract** (3x).
+HIGHEST between spinners is lock-free, not wait-free; its per-thread bound is
+statistical (geometric tail, p99.99 in the 10^2 µs range) — which is also its
+exact status against NORMAL churn even *with* the invariant, since a NORMAL
+commit invalidates a HIGHEST snapshot all the same. The invariant buys
+throughput and tightens the tail; it does not buy the liveness it was earlier
+assumed to carry. A debug-time detector for two HIGHEST negotiating one linkage
+is accordingly a *performance*-bug detector, and still worth having.
