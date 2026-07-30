@@ -166,6 +166,10 @@ protected:
     //!
     //! No record is lost: the budget bounds *waiting*, and the clipped commit
     //! retries through iterate_commit until it succeeds.
+    //! One wait is exempt from the bound (2026-07-31): the wait behind a
+    //! LIVE privileged peer — privilege is the completion guarantee and a
+    //! budget that declined it froze the whole system in the field.  A record
+    //! can therefore be late by that holder's closure; still never lost.
     //!
     //! Override to pick it from the cycle -- comfortably less than the
     //! acquisition period, so a blown budget costs a late record rather than a

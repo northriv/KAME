@@ -1039,6 +1039,16 @@ public:
 //! able to grant itself more time than its caller allowed, or the
 //! caller's budget would mean nothing.
 #if KAME_STM_WAIT_BUDGET
+//!
+//! **Exemption (2026-07-31, measured):** the budget may not decline the wait
+//! behind a LIVE privileged peer.  Privilege is the system's completion
+//! guarantee and nothing may be immune to it — a budget-expired thread that
+//! barged past fair-mode became a fair-mode-immune spinner, the same disease
+//! that retired STM-HIGHEST, re-invalidating a long-closure holder while
+//! honest negotiators pinned behind its privilege for 12+ s (372 HANG dumps
+//! vs 0 in the field-parameter harness).  The budget bounds every OTHER wait;
+//! expired-lowprio stamps still unblock inside fair_mode_blocks_me, so a dead
+//! holder cannot pin a budgeted thread.
 class ScopedWaitBudget {
 public:
     //! \param max_wait_us Duration, µs from now.  Values <= 0 arm an

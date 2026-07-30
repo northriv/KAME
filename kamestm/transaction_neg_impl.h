@@ -1482,13 +1482,25 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // fair-spin `continue` below, which measured 14.23 rounds/commit and
         // 0.18 sleeps/commit against a 1 us budget.
         //
-        // Deliberately NOT gated on fair_mode_blocks_me: an expired budget must
-        // stop waiting even while a peer holds privilege, or the budget is not
-        // a bound at all.  Returning is not barging — the caller simply
-        // attempts its CAS, which loses to a committing privilege holder the
-        // same as any other loser and comes back.  What we decline to do is
-        // sleep.
-        if(_wb_limit && NegotiationCounter::now_us() >= _wb_limit)
+        // GATED on fair_mode_blocks_me since 2026-07-31 — this reverses the
+        // original rule, and the reversal is measurement, not caution.  The
+        // old rationale ("returning is not barging — the caller's CAS loses
+        // to a committing holder the same as any other loser") assumed the
+        // holder commits in microseconds.  A privilege holder with a long
+        // closure (the 20 ms PNR analysis) broke it: budget-expired record
+        // paths became fair-mode-IMMUNE spinners — the same disease that
+        // retired STM-HIGHEST the same day — re-invalidating the holder every
+        // closure (re-runs 1.1 -> 2.3) while honest negotiators pinned behind
+        // its privilege for 12+ s (372 HANG dumps vs 0 without budgets, in
+        // the field-parameter harness).  Principle: privilege is the
+        // completion guarantee, and NOTHING may be immune to it.  The budget
+        // bounds every OTHER wait (lottery, runner gate, ladder); the wait
+        // behind a live privileged peer is contractually exempt — declining
+        // it is what freezes the system.  (Expired-lowprio stamps unblock
+        // inside fair_mode_blocks_me as always, so a dead holder cannot pin
+        // a budgeted thread either.)
+        if(_wb_limit && NegotiationCounter::now_us() >= _wb_limit
+                && !NegotiationCounter::fair_mode_blocks_me(started_time, self))
             break;
         if(entry_pr == Priority::HIGHEST)
             break;
@@ -1562,6 +1574,11 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // / spin work).
         const bool _fair_blocks =
             NegotiationCounter::fair_mode_blocks_me(started_time, self);
+        // The budget's sleep clamps are suspended while fair-blocked (see the
+        // loop-top comment): otherwise an expired budget shrinks the CV waits
+        // to zero and the thread busy-spins behind the holder instead of
+        // waiting — cheaper than barging, but still a wasted core.
+        const int64_t _wb_round = _fair_blocks ? 0 : _wb_limit;
 
 #if KAME_NEGSITE_ENABLED
         NegSite::last_was_gate_return() = false;
@@ -1915,9 +1932,9 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 // A 2 ms busy-spin is longer than most budgets; end it at
                 // whichever comes first.
                 const int64_t _spin_deadline_us =
-                    (_wb_limit && _wb_limit - _spin_start_us
+                    (_wb_round && _wb_round - _spin_start_us
                                   < KAME_STM_FAIR_SPIN_MAX_US)
-                        ? _wb_limit
+                        ? _wb_round
                         : _spin_start_us + KAME_STM_FAIR_SPIN_MAX_US;
                 unsigned iter = 0;
                 bool _spin_timed_out = false;
@@ -2040,8 +2057,8 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             // A round may not outlive the caller's wait budget.  This alone is
             // not enough — a chunk can still overshoot by its own length — so
             // the per-chunk clamp below handles the sub-millisecond tail.
-            if(_wb_limit && t_end > _wb_limit)
-                t_end = _wb_limit;
+            if(_wb_round && t_end > _wb_round)
+                t_end = _wb_round;
             do {
                 // Advance seed for de-phasing; chunk sleep = 1 or 2 ms.
                 s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
@@ -2148,9 +2165,9 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif
                 {
                     unsigned _chunk_us_ov = 0;
-                    if(_wb_limit) {
+                    if(_wb_round) {
                         const int64_t _rem =
-                            _wb_limit - NegotiationCounter::now_us();
+                            _wb_round - NegotiationCounter::now_us();
                         if(_rem <= 0) goto _exit_cv_sleep;
                         else if(_rem < (int64_t)KAME_NEG_SLEEP_US_PER_MS)
                             _chunk_us_ov = (unsigned)_rem;
@@ -2181,9 +2198,9 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 {
                     int _chunk_ms = 1 + (int)(s_backoff_seed >> 31);
                     unsigned _chunk_us_ov = 0;
-                    if(_wb_limit) {
+                    if(_wb_round) {
                         const int64_t _rem =
-                            _wb_limit - NegotiationCounter::now_us();
+                            _wb_round - NegotiationCounter::now_us();
                         if(_rem <= 0)
                             goto _exit_cv_sleep;   // budget spent: never sleep
                         else if(_rem < (int64_t)_chunk_ms
@@ -2217,9 +2234,9 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif
             {
                 unsigned _us_ov = 0;
-                if(_wb_limit) {
+                if(_wb_round) {
                     const int64_t _rem =
-                        _wb_limit - NegotiationCounter::now_us();
+                        _wb_round - NegotiationCounter::now_us();
                     if(_rem <= 0) goto _exit_cv_sleep;
                     else if(_rem < (int64_t)ms_actual
                                    * (int64_t)KAME_NEG_SLEEP_US_PER_MS)
@@ -2231,8 +2248,10 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif
         }
         // Wait budget, again at the tail: the round may have expired it after
-        // the top-of-loop check.  Same unconditional rule as the top.
-        if(_wb_limit && NegotiationCounter::now_us() >= _wb_limit)
+        // the top-of-loop check.  Same rule as the top — the wait behind a
+        // live privileged peer is exempt (_wb_round is zeroed while
+        // fair-blocked).
+        if(_wb_round && NegotiationCounter::now_us() >= _wb_round)
             break;
     }
 _exit_cv_sleep:;

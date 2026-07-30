@@ -2912,3 +2912,33 @@ With fair-mode effective against ALL contenders again, the long-closure
 holder completes promptly (lab: 1.1 re-runs), freezes end in well under a
 second, and the watchdog/starvation-bound tuning questions lose their
 urgency (defaults left as shipped).
+
+## The budget was the second immunity — the wait behind privilege is now exempt
+
+With STM-HIGHEST retired, the field still froze under PNR (user: 「PNRだとまだ
+ダメです。budgetのせい？」).  Correct: the wait budget's expiry escape was
+deliberately not gated on fair-mode ("returning is not barging — the caller's
+CAS loses to a committing holder like any other"), a rationale that assumed
+µs holders.  A 20 ms-closure privilege holder breaks it: every primary
+driver's record path carries the 20 ms budget, so any driver fair-blocked
+longer than that became a **fair-mode-immune spinner — the exact disease that
+retired HIGHEST the same day**, re-invalidating the holder each closure while
+honest negotiators pinned behind its privilege.
+
+Field-parameter A/B in the harness (no HIGHEST anywhere):
+
+                        analyze re-runs   HANG dumps   longest pin
+    budgets on (KAME)        2.3             372         12.5+ s   ← the field freeze
+    budgets off              1.1               0         none
+    budgets on + fix         2.2               0         none
+
+The fix: the loop-top and tail budget escapes are gated on
+`fair_mode_blocks_me`, and the budget's sleep clamps are suspended for the
+round while fair-blocked (else the expired thread busy-spins through
+zero-length waits instead of waiting).  The principle, now stated once for
+both incidents: **privilege is the completion guarantee, and nothing may be
+immune to it** — not a priority tier, not a budget.  The budget still bounds
+every other wait (the fixed arm's writers pass 425 vs 83 unbudgeted), and
+expired-lowprio stamps still unblock, so a dead holder cannot pin a budgeted
+thread.  A record can now be late by one holder's closure; it is never lost,
+and the system never freezes for it.
