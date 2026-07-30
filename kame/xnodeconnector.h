@@ -62,9 +62,34 @@ public:
 
 using xqcon_ptr = qshared_ptr<XQConnectorHolder_>;
 
+//! \name Starvation exemption during connector construction.
+//!
+//! The STM starvation timeout (main.cpp's handler) must NOT fire while an
+//! XQConnector chain is being constructed: a throw out of a connector
+//! constructor (a) shifts the s_conCreating pairing — the next
+//! XQConnectorHolder_ pops the dead entry instead of its own, a
+//! use-after-free — and (b) escapes into Qt's event dispatch, which does not
+//! support exceptions.  Both were on the 2026-07-30 T1Mode crash path
+//! (NodeBrowser rebuilding connectors on its timer during measurement).
+//! Connectors want the pre-timeout behaviour anyway: keep retrying with the
+//! transaction's accumulated seniority until the STM lets them through —
+//! a timeout-and-restart cycle is forever young under older-wins arbitration
+//! and never completes.
+//! @{
+class DECLSPEC_KAME XQConnector_StarvationExempt {
+public:
+    XQConnector_StarvationExempt();
+    ~XQConnector_StarvationExempt();
+};
+//! True while any XQConnector_StarvationExempt is alive on this thread;
+//! consulted by the starvation handler installed in main.cpp.
+DECLSPEC_KAME bool xqcon_starvationExempted();
+//! @}
+
 //! function for creating XQConnector instances
 template <class T, class A, class B, typename...Args>
 xqcon_ptr xqcon_create(const shared_ptr<A> &a, B *b, Args&&...args) {
+    XQConnector_StarvationExempt _no_starvation_throw_in_ctors;
     return xqcon_ptr(new XQConnectorHolder_( new T(a, b, std::forward<Args>(args)...)));
 }
 

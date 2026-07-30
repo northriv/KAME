@@ -50,6 +50,27 @@ XNodeBrowser::connectedNode(QWidget *widget) {
 
 void
 XNodeBrowser::process() {
+    if(m_backoffTicks) {
+        // Backing off after an XKameError below: retrying at full timer
+        // cadence keeps the very contention alive that made the STM throw.
+        --m_backoffTicks;
+        return;
+    }
+    try {
+        process_();
+    }
+    catch (XKameError &e) {
+        // Typically the STM starvation timeout during a measurement burst
+        // (the browser snapshots and connects whatever node is under the
+        // mouse).  Report once and go quiet for a while; the next successful
+        // pass rebuilds everything from scratch anyway.
+        e.print();
+        m_backoffTicks = 10;
+    }
+}
+
+void
+XNodeBrowser::process_() {
 	QWidget *widget;
 	shared_ptr<XNode> node;
 	// Resolve the node under the mouse, walking up at most two parents.

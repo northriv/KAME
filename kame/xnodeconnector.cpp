@@ -51,6 +51,19 @@ static std::deque<shared_ptr<XStatusPrinter> > s_statusPrinterCreating;
 static std::deque<shared_ptr<XQConnector> > s_conCreating;
 static std::map<const QWidget*, weak_ptr<XNode> > s_widgetMap;
 
+// See the doc block in xnodeconnector.h.  Depth-counted so nested connector
+// creation (forms building forms) stays exempt until the outermost scope ends.
+static thread_local int stl_starvationExemptDepth = 0;
+XQConnector_StarvationExempt::XQConnector_StarvationExempt() {
+    ++stl_starvationExemptDepth;
+}
+XQConnector_StarvationExempt::~XQConnector_StarvationExempt() {
+    --stl_starvationExemptDepth;
+}
+bool xqcon_starvationExempted() {
+    return stl_starvationExemptDepth > 0;
+}
+
 void sharedPtrQDeleter_(QObject *obj) {
     if(isMainThread())
         delete obj;

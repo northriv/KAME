@@ -241,6 +241,13 @@ int main(int argc, char *argv[]) {
             // XKameError. It does not create a new unhandled class.
             Transactional::setStarvationHandler(
                 [](unsigned retries, long long age_us) {
+                    // Never throw while a connector chain is under
+                    // construction — a throw there is a use-after-free and an
+                    // exception into Qt dispatch; see xnodeconnector.h.  The
+                    // construction keeps retrying with its accumulated
+                    // seniority instead, the pre-timeout behaviour.
+                    if(xqcon_starvationExempted())
+                        return;
                     throw XKameError(formatString_tr(I18N_NOOP(
                         "STM starvation: gave up after %u retries over %lld ms. "
                         "This operation runs at a priority whose privilege can "
