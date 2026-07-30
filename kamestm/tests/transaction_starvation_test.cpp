@@ -90,16 +90,18 @@ static bool age_one_transaction(Transactional::Priority pr, int retries) {
     return false;
 }
 
-//! Pins the pattern kame/script/starvation_probe.py depends on: modify, commit a
-//! NESTED transaction on the same node, and the outer commit really does fail so
-//! the retry count advances.
+//! Pins how a retry count can be made to advance from OUTSIDE `iterate_commit_if`:
+//! modify, commit a NESTED transaction on the same node, and the outer commit
+//! really does fail.
 //!
-//! The probe needs that because Python has no `iterate_commit_if`: its retry loop
-//! is `Transaction.__next__`, which calls `commitOrNext()` only when the
-//! transaction was modified, and `commitOrNext()` reaches `++(*this)` -- the
-//! increment the bound gates on -- only when that commit FAILS.  A body that just
-//! sleeps never increments anything, so the probe has to invalidate itself.
-//! Verified here because the probe cannot be run on a host without the Qt build.
+//! That matters for anything driving the STM from Python, which has no
+//! `iterate_commit_if`.  Its retry loop is `Transaction.__next__`, which calls
+//! `commitOrNext()` only when the transaction was modified, and `commitOrNext()`
+//! reaches `++(*this)` -- the increment the starvation bound gates on -- only when
+//! that commit FAILS.  So a Python body that merely takes a long time increments
+//! nothing and can never reach the bound however long it runs; it has to
+//! invalidate itself.  Pinned here because no Python-side test can run on a host
+//! without the Qt build.
 //! \return closure invocations; > 1 means the outer commit failed and retried.
 static int nested_invalidation_retries() {
     shared_ptr<MyNode> node(MyNode::create<MyNode>());
@@ -166,9 +168,9 @@ int main() {
                 "probe pattern", nested);
     if(nested <= 1) {
         std::printf("    FAIL: a nested commit on the same node did not "
-                    "invalidate the outer transaction, so "
-                    "kame/script/starvation_probe.py cannot accumulate retries "
-                    "and would silently measure nothing.\n");
+                    "invalidate the outer transaction, so a caller outside "
+                    "iterate_commit_if (e.g. Python) cannot make the retry "
+                    "count advance and could never reach the bound.\n");
         ++failures;
     }
 

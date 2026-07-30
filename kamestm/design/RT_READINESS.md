@@ -1899,15 +1899,15 @@ that loop only retries on a genuinely DISTURBED CAS, which cannot be forced on
 demand, and the same shared helper is what both call. Worth stating rather than
 implying the coverage is complete.
 
-### Probing it from inside KAME
+### Probing it from inside KAME — attempted, then dropped
 
-`kame/script/starvation_probe.py`. The first version manufactured real contention
-— several threads at a revocable priority committing at whole-tree scope for ten
-seconds. Replaced (user) with a **single slow transaction**, which is
-deterministic, needs no other threads and no drivers, and writes about a dozen
-times instead of thousands.
-
-Two details make it work, and neither is obvious:
+A `kame/script/starvation_probe.py` existed briefly. Its first version
+manufactured real contention — several threads at a revocable priority committing
+at whole-tree scope for ten seconds — and was replaced (user) with a **single slow
+transaction**: deterministic, no other threads, no drivers, a dozen writes instead
+of thousands. Then the script itself was dropped (user: not needed). What it taught
+is kept here, because both points are properties of the bound rather than of the
+script, and the second one is a trap for anyone driving the STM from Python:
 
 * **Slow is not enough.** The bound needs an age past the limit *and* at least
   `KAME_STM_LOWPRIO_STARVE_MIN_RETRIES` (8) retries — the gate is what keeps the
@@ -1920,15 +1920,17 @@ Two details make it work, and neither is obvious:
   incrementing anything, because Python has no `iterate_commit_if` whose
   `continue` would drive `++tr`.
 
-So each iteration modifies the target and then commits a **nested** transaction on
-the same node, invalidating itself. `transaction_starvation_test` now pins that
-pattern (measured: 5 retries, deterministic over 3 runs) precisely because the
-probe cannot be run on a host without the Qt build — the script rests on
-something verified rather than on reasoning.
+So reaching the bound from outside `iterate_commit_if` means modifying the target
+and then committing a **nested** transaction on the same node, invalidating
+itself. `transaction_starvation_test` pins that (measured: 5 retries,
+deterministic over 3 runs) and keeps doing so now that the script is gone — no
+Python-side test can run on a host without the Qt build, so this is the only place
+the fact is checked rather than merely asserted.
 
-`Priority.NORMAL` is the control: not revocable, so it must not throw however long
-it retries. And the probe still writes — same value, but listeners fire — so it
-takes the target as a required argument rather than guessing one.
+The consequence worth remembering: **a Python transaction that is merely slow can
+never hit the starvation bound**, however long it runs, because nothing increments
+its retry count. The bound protects against being *starved by others*, not against
+being slow on your own.
 
 ## "grants 0.000" is a frequency measurement, not a verdict on necessity
 
