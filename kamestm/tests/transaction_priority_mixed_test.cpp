@@ -64,6 +64,11 @@
 //!                            threads starve each *other* at 2+, not at 1
 //!   KAME_MIX_UI_WIDE         every Nth UI action is a root-scope Tx,
 //!                            default 8; 1 = hostile (every action wide)
+//!   KAME_MIX_LEAVES          leaves per subtree, default 4.  The field root
+//!                            has ~10^3 nodes, so a root bundle costs ms and
+//!                            the invalidation window for a wide UI Tx is
+//!                            enormous — a 16-node tree cannot reproduce that.
+//!                            Set 64-256 to model a real measurement tree
 //!   KAME_MIX_ACQ_NORMAL      1 = acquisition thread runs at NORMAL instead of
 //!                            HIGHEST: the control arm that attributes any
 //!                            stall to the HIGHEST-ification or acquits it
@@ -104,12 +109,13 @@ int main() {
     const long n_normals   = env_long("KAME_MIX_NORMALS", 1);
     const long n_scripting = env_long("KAME_MIX_SCRIPTING", 1);
     const long ui_wide     = env_long("KAME_MIX_UI_WIDE", 8);
+    const long n_leaves    = env_long("KAME_MIX_LEAVES", 4);
     const bool acq_normal  = env_long("KAME_MIX_ACQ_NORMAL", 0) != 0;
     std::printf("mixed-priority livelock hunt: %lds, stall>%lds fails, "
                 "acq=%s duty %ldus, UI period %ldus, +%ld NORMAL, "
-                "+%ld SCRIPTING\n",
+                "+%ld SCRIPTING, %ld leaves/subtree\n",
                 secs, stall_secs, acq_normal ? "NORMAL(control)" : "HIGHEST",
-                hi_duty_us, ui_period_us, n_normals, n_scripting);
+                hi_duty_us, ui_period_us, n_normals, n_scripting, n_leaves);
 
     // The measurement tree: root -> {devA, devB, panel}, four leaves each.
     // devA is the acquiring driver's subtree; entriesA models its scalar
@@ -120,7 +126,7 @@ int main() {
     shared_ptr<MyNode> panel(MyNode::create<MyNode>());
     root->insert(devA); root->insert(devB); root->insert(panel);
     std::vector<shared_ptr<MyNode>> leavesA, leavesB, leavesP;
-    for(int i = 0; i < 4; ++i) {
+    for(long i = 0; i < n_leaves; ++i) {
         shared_ptr<MyNode> a(MyNode::create<MyNode>());
         shared_ptr<MyNode> b(MyNode::create<MyNode>());
         shared_ptr<MyNode> p(MyNode::create<MyNode>());
@@ -179,8 +185,8 @@ int main() {
                 (void)shot[ *devA].m_x;
             }
             // widget edit: leaf write.
-            leavesP[i % 4]->iterate_commit([&](Tr &tr){
-                tr[ *leavesP[i % 4]].m_x++;
+            leavesP[i % leavesP.size()]->iterate_commit([&](Tr &tr){
+                tr[ *leavesP[i % leavesP.size()]].m_x++;
             });
             if(i % (uint64_t)ui_wide == 0) {
                 // settings apply: root-scope transaction.
@@ -227,7 +233,7 @@ int main() {
                     });
                 if(i % 16 == 0)
                     panel->iterate_commit([&](Tr &tr){
-                        tr[ *leavesP[(i / 16 + (uint64_t)k) % 4]].m_x++;
+                        tr[ *leavesP[(i / 16 + (uint64_t)k) % leavesP.size()]].m_x++;
                     });
                 progress[T_SCRIPT0 + (size_t)k].fetch_add(
                     1, std::memory_order_relaxed);
@@ -243,7 +249,7 @@ int main() {
             while( !stop.load(std::memory_order_relaxed)) {
                 ++i;
                 devB->iterate_commit([&](Tr &tr){
-                    tr[ *leavesB[(i + (uint64_t)k) % 4]].m_x++;
+                    tr[ *leavesB[(i + (uint64_t)k) % leavesB.size()]].m_x++;
                 });
                 progress[T_NORMAL0 + (size_t)k].fetch_add(
                     1, std::memory_order_relaxed);

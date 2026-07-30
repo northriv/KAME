@@ -2682,3 +2682,46 @@ Known residual, accepted as-is: `analyzeRaw`'s math-tool functors take the GIL
 at HIGHEST *upstream* of the demote, inside the record commit. That is the
 driver author's own vouched zone — the caller-side-time-management contract —
 and unchanged by this decision.
+
+## Field-livelock triage: why "no starvation timeout" is itself a clue
+
+Field report: rare livelock when operating the UI during an NMR measurement,
+HIGHEST-ification suspected. Asked (user): why did the UI's starvation timeout
+not fire? Verified in code first: **both sides of the bound are armed** — the
+plain-Snapshot constructor stamps `m_started_time` with the lowprio bit
+(transaction.h:1554) and `Node::snapshot()`'s retry loop bumps
+`m_tx_retry_count` and calls `throw_if_starved_` per retry, alongside the
+Transaction-side check in `operator++`; and the `XInterface::start()/stop()`
+plain `setCurrentPriorityMode(NORMAL)` calls run on their own freshly spawned
+XThread, so the main thread's UI_DEFERRABLE (and with it the lowprio stamp
+bit) is not clobbered. So on current code a UI transaction or snapshot loop
+that starves ≥1 s at ≥8 retries throws XKameError into KAME's existing catch
+boundaries.
+
+A hang with *no* timeout therefore means one of exactly three things:
+
+1. the running binary predates the bound or the main.cpp handler (commits are
+   from the same arc but not the same push);
+2. the stuck point is not an STM retry loop at all — the mutex/GIL class
+   (graph OSO mutexes, `kame_mainthread` handshake against a stuck Python
+   thread, interface mutex from a rule-6 listener). The bound sees only STM
+   retries, and the HANG watchdog needs a single negotiate call to sleep 5 s,
+   which spin-retry loops never do. **A silent hang points at non-STM
+   blocking**;
+3. it fired and a boundary swallowed it into a retry loop — then the message
+   log shows the XKameError once per second.
+
+Triage recipe for the next occurrence: `sample kame 5 -file /tmp/hang.txt` —
+`_negotiate_internal`/CV frames = STM negotiation, hot `iterate_commit`/
+`bundle` frames = CAS livelock, `psynch_mutexwait` = mutex deadlock,
+`PyEval_*` = GIL; plus check the message log for the starvation XKameError
+and record the build's commit.
+
+The hunt tool (`transaction_priority_mixed_test`) has so far NOT reproduced
+any stall: 120 s flat-out with both lowprio threads, and 300 s with every UI
+action a root-scope Tx plus four NORMAL drivers, on the field-equivalent
+build (pushed tip, no Rule 0) — all PASSED on this M-series host. The
+remaining modelled-vs-field gaps: tree size (a real root bundle is ms-scale,
+the test's 16-node one is µs — `KAME_MIX_LEAVES` added for this), and
+everything the standalone harness cannot host (Qt event loop, GIL, interface
+mutexes) — which is exactly the class that a missing timeout points at.
