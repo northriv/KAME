@@ -2942,3 +2942,19 @@ every other wait (the fixed arm's writers pass 425 vs 83 unbudgeted), and
 expired-lowprio stamps still unblock, so a dead holder cannot pin a budgeted
 thread.  A record can now be late by one holder's closure; it is never lost,
 and the system never freezes for it.
+
+## The watchdog reports; it no longer kills (release)
+
+`KAME_STM_HANG_ABORT_N` release default 3 → 0 (user, after the arc's root
+causes landed).  The abort was tuned for true deadlocks and instead executed
+recoverable states twice in the field: an 11 s self-recovery had a 4 s margin
+on it, and a live holder grinding 33+ s — contract-legitimate waiting — took
+the unsaved measurement with it.  With ghosts structurally prevented and both
+fair-mode immunities gone, the remaining >15 s waits are live-holder waits;
+the [HANG] dumps keep naming the blocker, the starvation bound frees the UI
+tiers, and a genuine deadlock is the operator's call after saving.  Debug
+builds keep 3 — there the core dump is the point.
+
+Residual corner, noted: with no abort, a lowprio thread already sunk in 5 s
+sleep caps accrues retries at ≥5 s each, so its starvation exit can lag to
+~40 s (MIN_RETRIES=8).  MIN_RETRIES=2 would cap that at ~bound+ε; still open.

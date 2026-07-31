@@ -1465,11 +1465,29 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     int C_obs = sig_C < KAME_STM_C_OBS_MIN ? KAME_STM_C_OBS_MIN : sig_C;
 
     // Per-call hang counter (counts how many times we've hit the
-    // "ms > 5000" sleep-cap branch).  After KAME_STM_HANG_ABORT_N
-    // such hits we abort() so we can get a core dump + stack trace
-    // for offline analysis (set =0 to disable abort, keeping dump).
+    // "ms > 5000" sleep-cap branch).  After KAME_STM_HANG_ABORT_N such hits
+    // we abort() for a core dump + stack trace; 0 disables the abort while
+    // keeping the [HANG] dumps.
+    //
+    // **Release default is 0 — the watchdog reports, it does not kill —
+    // since 2026-07-31 (user).**  The abort was tuned for true deadlocks,
+    // but the 2026-07-30/31 field incidents showed it executing recoverable
+    // states: one freeze self-recovered at 11 s (4 s short of the abort),
+    // another was a LIVE privilege holder legitimately grinding for 33+ s —
+    // waiting behind it is the completion guarantee working, and killing the
+    // process took the unsaved measurement with it.  With the orphaned-stamp
+    // class fixed at the source (ctor exception safety) and the fair-mode
+    // immunities removed (STM-HIGHEST retired, budget exempted), a >15 s
+    // wait behind a live holder is contract-legitimate; a true deadlock is
+    // diagnosed from the [HANG] dumps + `sample` and killed by the operator,
+    // who first gets to save.  Debug builds keep 3: there the core dump IS
+    // the point.
 #ifndef KAME_STM_HANG_ABORT_N
-#define KAME_STM_HANG_ABORT_N 3
+    #ifdef NDEBUG
+        #define KAME_STM_HANG_ABORT_N 0
+    #else
+        #define KAME_STM_HANG_ABORT_N 3
+    #endif
 #endif
     int _hang_hits = 0;
 
