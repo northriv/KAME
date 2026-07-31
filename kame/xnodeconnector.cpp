@@ -81,10 +81,15 @@ XQConnectorHolder_::XQConnectorHolder_(XQConnector *con) :
     // investigation found by reading, not by crashing.  Cheap and exact:
     // compare against the raw pointer we were handed.
     if(s_conCreating.empty() || (s_conCreating.back().get() != con)) {
-        // Drop every stale entry (they own nothing else) and fail loudly
-        // rather than adopting the wrong object.
-        while( !s_conCreating.empty() && (s_conCreating.back().get() != con))
+        // Stale entries are BOTH dangling and owning — a constructor that
+        // threw after its push had its memory freed by `new T` while the
+        // entry kept a refcount — so popping them would double-free.
+        // Neutralise by leaking the control block (a few dozen bytes on an
+        // error path) and then fail loudly rather than adopting a stranger.
+        while( !s_conCreating.empty() && (s_conCreating.back().get() != con)) {
+            new shared_ptr<XQConnector>(std::move(s_conCreating.back()));
             s_conCreating.pop_back();
+        }
         if(s_conCreating.empty())
             throw std::runtime_error(
                 "XQConnectorHolder_: connector construction was abandoned "
@@ -855,8 +860,13 @@ XStatusPrinter::create(QMainWindow *window) {
     // pushes shared_ptr(this) and this pops it, so a throw in between would
     // hand the next caller someone else's entry.  Pop by identity.
     XStatusPrinter *raw = new XStatusPrinter(window);
-    if(s_statusPrinterCreating.empty()
-            || (s_statusPrinterCreating.back().get() != raw))
+    while( !s_statusPrinterCreating.empty()
+            && (s_statusPrinterCreating.back().get() != raw)) {
+        //Dangling-and-owning; leak rather than double-free.  See above.
+        new shared_ptr<XStatusPrinter>(std::move(s_statusPrinterCreating.back()));
+        s_statusPrinterCreating.pop_back();
+    }
+    if(s_statusPrinterCreating.empty())
         throw std::runtime_error(
             "XStatusPrinter::create: construction was abandoned.");
     shared_ptr<XStatusPrinter> ptr = s_statusPrinterCreating.back();

@@ -2985,6 +2985,28 @@ latent before the throw existed and both reachable after it:
   constructor can throw).  Both pops now verify identity against the object
   they were handed and fail loudly instead of adopting a stranger.
 
+**Sweep for the same pattern (user: 「stl_creatingのようなものは他にはもうない？」)
+found the biggest one, and a defect in my own first fix.**
+`XNode::stl_thisCreating` is the same positional hand-off, one layer deeper
+and on the path of EVERY node — so every driver constructor, and node
+constructors run transactions by design (the documented child-init pattern),
+which is exactly where the starvation throw lands.  Worse, the failure mode
+here is not just mis-adoption: when `new T` unwinds it runs the base
+destructor and frees the memory, while the pushed `shared_ptr(this)` keeps a
+refcount — the entry is **dangling AND owning**.  Popping it double-frees;
+leaving it hands the next `createOrphan` freed memory.  My first connector fix
+had precisely that bug (it popped stale entries).  All three sites now
+neutralise stale entries by leaking the control block — refcount never reaches
+zero, so the deleter never runs on freed memory, a few dozen bytes on an error
+path against a double free — and `createOrphan` additionally verifies the pop
+by identity against the pointer `create<T>()` returned, cleaning up by
+construction depth so a child created inside a failing parent is handled too.
+
+Everything else with a thread-local or file-static slot was checked and is
+unrelated: `s_tlBuffer` / `stl_bufferGarbage` (per-thread scratch buffers),
+`stl_rand`, `g_daqmx_sync_routes` (a live registry, not a hand-off),
+`stl_starvationExemptDepth` (a counter).
+
 Verified sound without changes: `Node()` itself (clears the slot before
 using it, and its `make_local_shared` members unwind normally);
 `XDriverList::createByTypename` (the whole creation is inside

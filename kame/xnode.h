@@ -314,7 +314,41 @@ XIntNodeBase<bool, 10>::Payload::to_str() const {
 template <class T, typename... Args>
 shared_ptr<T>
 XNode::createOrphan(const char *name, bool runtime, Args&&... args) {
-    Transactional::Node<XNode>::create<T>(name, runtime, std::forward<Args>(args)...);
+    // XNode's constructor pushes shared_ptr(this) so that constructors can use
+    // shared_from_this(); this pops it.  A constructor that throws after that
+    // push leaves an entry that is BOTH dangling and owning: `new T` has
+    // already run the base destructor and freed the memory, yet the entry's
+    // shared_ptr still holds a refcount on it.  Popping such an entry
+    // double-frees; leaving it makes the next createOrphan adopt freed memory.
+    // Node constructors can throw for real — they run transactions (the
+    // documented child-init pattern), so the STM starvation throw reaches
+    // them, as do XKameError and bad_alloc.
+    const size_t depth = XNode::stl_thisCreating->size();
+    T *raw;
+    try {
+        raw = Transactional::Node<XNode>::create<T>(
+            name, runtime, std::forward<Args>(args)...);
+    }
+    catch(...) {
+        // Neutralise every entry the failed construction left (its own, plus
+        // any child it had created and not yet popped) by leaking the control
+        // block: refcount never reaches zero, so the deleter never runs on the
+        // freed memory.  A few dozen bytes on an error path, versus a double
+        // free.
+        while(XNode::stl_thisCreating->size() > depth) {
+            new shared_ptr<XNode>(std::move(XNode::stl_thisCreating->back()));
+            XNode::stl_thisCreating->pop_back();
+        }
+        throw;
+    }
+    // Positional pop verified by identity: if these ever disagree the deque
+    // has been desynchronised and adopting the back() entry would hand out
+    // someone else's object.
+    if(XNode::stl_thisCreating->empty() ||
+        (XNode::stl_thisCreating->back().get() != static_cast<XNode *>(raw)))
+        throw std::runtime_error(
+            "XNode::createOrphan: the creation stack is desynchronised "
+            "(an exception escaped a node constructor).");
     shared_ptr<T> ptr = dynamic_pointer_cast<T>(XNode::stl_thisCreating->back());
     XNode::stl_thisCreating->pop_back();
     return ptr;
