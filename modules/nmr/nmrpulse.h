@@ -221,6 +221,24 @@ private:
 	void onSpectrumShow(const Snapshot &shot, XTouchableNode *);
 	void onAvgClear(const Snapshot &shot, XTouchableNode *);
   
+	//! Single-slot memo for the PNR solver inside backgroundSub().  The PNR
+	//! block is a pure function (background segment + bgpos + solver choice
+	//! -> ifft vector), and an iterate_commit retry re-runs it verbatim while
+	//! the invalidation almost always came from an UNRELATED node — measured
+	//! 2.2 closure runs per commit under MCP churn, and 15+ during spikes.
+	//! The memo turns every re-run into a hash (a few us) + the subtraction
+	//! loop, so retries cost microseconds instead of the 10-20 ms solve.
+	//! Non-Payload deliberately: it is not state, it is a compute cache; the
+	//! mutex guards only the slot swap (never held across STM ops or the
+	//! solver), so concurrent analyze() invocations at worst duplicate one
+	//! solve (last store wins).
+	struct PNRMemo {
+		uint64_t key = 0;
+		shared_ptr<const std::vector<std::complex<double>>> ifft;
+	};
+	PNRMemo m_pnrMemo;
+	XMutex m_pnrMemoMutex;
+
 	void backgroundSub(Transaction &tr,
 		std::vector<std::complex<double> > &wave, int pos, int length, int bgpos, int bglength);
   
