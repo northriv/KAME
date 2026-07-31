@@ -399,8 +399,19 @@
 #endif
 // Retries before the age is even looked at, so an uncontended commit pays one
 // integer compare and never reads the clock.
+//
+// 2 rather than 8 (user, 2026-07-31): once a fair-blocked thread has sunk
+// into the deep sleep state, one negotiate call sleeps up to the 5 s cap, so
+// retries accrue at one per <=5 s and eight of them defer the exit to ~40 s.
+// The HANG watchdog's 15 s abort used to mask that corner by killing the
+// process first; with the abort disabled in release builds the exit must arm
+// itself.  At 2, the retry gate only certifies "genuinely contended, not a
+// first attempt" and the 10 s age condition is the real clock, so the exit
+// opens at ~bound + one sleep.  A 2-retry transaction older than 10 s is
+// starved or glacial either way, and handing the revocable tiers an
+// exception to save data on is exactly the designed treatment.
 #ifndef KAME_STM_LOWPRIO_STARVE_MIN_RETRIES
-#define KAME_STM_LOWPRIO_STARVE_MIN_RETRIES 8
+#define KAME_STM_LOWPRIO_STARVE_MIN_RETRIES 2
 #endif
 
 #ifndef KAME_STM_WAIT_BUDGET

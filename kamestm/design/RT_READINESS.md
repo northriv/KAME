@@ -2955,6 +2955,9 @@ the [HANG] dumps keep naming the blocker, the starvation bound frees the UI
 tiers, and a genuine deadlock is the operator's call after saving.  Debug
 builds keep 3 — there the core dump is the point.
 
-Residual corner, noted: with no abort, a lowprio thread already sunk in 5 s
-sleep caps accrues retries at ≥5 s each, so its starvation exit can lag to
-~40 s (MIN_RETRIES=8).  MIN_RETRIES=2 would cap that at ~bound+ε; still open.
+Residual corner, closed the same day: with no abort, a lowprio thread already
+sunk in 5 s sleep caps accrues retries at ≥5 s each, so with MIN_RETRIES=8 the
+starvation exit could lag to ~40 s — masked before only because the watchdog
+killed the process at 15 s first.  MIN_RETRIES is now 2 (user): the age
+condition (10 s) is the real clock, and two retries merely certify genuine
+contention, so the exit opens at ~bound + one sleep.
