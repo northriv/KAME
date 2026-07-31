@@ -73,6 +73,23 @@ void sharedPtrQDeleter_(QObject *obj) {
 
 XQConnectorHolder_::XQConnectorHolder_(XQConnector *con) :
     QObject(0L) {
+    // Pairing check: the entry XQConnector's constructor pushed must be for
+    // THIS object.  A constructor that throws after the push (the STM
+    // starvation throw made that reachable, and xqcon_create's exemption
+    // covers only that one source) leaves its entry behind, and the next
+    // holder would adopt the dead one -- a use-after-free that the 2026-07-30
+    // investigation found by reading, not by crashing.  Cheap and exact:
+    // compare against the raw pointer we were handed.
+    if(s_conCreating.empty() || (s_conCreating.back().get() != con)) {
+        // Drop every stale entry (they own nothing else) and fail loudly
+        // rather than adopting the wrong object.
+        while( !s_conCreating.empty() && (s_conCreating.back().get() != con))
+            s_conCreating.pop_back();
+        if(s_conCreating.empty())
+            throw std::runtime_error(
+                "XQConnectorHolder_: connector construction was abandoned "
+                "(an exception escaped a connector constructor).");
+    }
     m_connector = s_conCreating.back();
     s_conCreating.pop_back();
     connect(con->m_pWidget, SIGNAL( destroyed() ), this, SLOT( destroyed() ) );
@@ -834,7 +851,14 @@ XStatusPrinter::~XStatusPrinter() {
 }
 shared_ptr<XStatusPrinter>
 XStatusPrinter::create(QMainWindow *window) {
-    new XStatusPrinter(window);
+    // Same pairing hazard as XQConnectorHolder_ above: the constructor
+    // pushes shared_ptr(this) and this pops it, so a throw in between would
+    // hand the next caller someone else's entry.  Pop by identity.
+    XStatusPrinter *raw = new XStatusPrinter(window);
+    if(s_statusPrinterCreating.empty()
+            || (s_statusPrinterCreating.back().get() != raw))
+        throw std::runtime_error(
+            "XStatusPrinter::create: construction was abandoned.");
     shared_ptr<XStatusPrinter> ptr = s_statusPrinterCreating.back();
     s_statusPrinterCreating.pop_back();
     return ptr;

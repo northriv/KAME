@@ -1511,7 +1511,31 @@ T *Node<XN>::create(Args&&... args) {
 #else
     *T::stl_funcPayloadCreator = [](XN &node)->local_shared_ptr<Payload>{ return make_local_shared<PayloadWrapper<T>>(node); };
 #endif
-    return new T(std::forward<Args>(args)...);
+    // The slot is armed for exactly one Node<XN> constructor, which consumes
+    // and clears it.  If T's constructor throws BEFORE reaching the Node base
+    // -- a derived member's initialiser, or an argument-forwarded expression
+    // -- the slot stays armed with T's creator and the NEXT create<U>() on
+    // this thread... would in fact re-arm it, but any bare `new SomeNode`
+    // reaching Node() in between would be handed T's creator and silently
+    // build a PayloadWrapper<T> for a U node: a type-confused Payload, the
+    // worst outcome the constructor throw could produce.  Starvation throws
+    // (throw_if_starved_ fires inside snapshot(), which node constructors
+    // reach through create<>-time transactions) made that reachable, so the
+    // arming is scope-guarded rather than argued about.
+    struct CreatorGuard {
+        bool armed = true;
+        ~CreatorGuard() {
+            if( !armed) return;
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+            *detail::tls_payload_creator_ptr = nullptr;
+#else
+            *T::stl_funcPayloadCreator = nullptr;
+#endif
+        }
+    } _creator_guard;
+    T *ret = new T(std::forward<Args>(args)...);
+    _creator_guard.armed = false;   // Node() consumed it
+    return ret;
 }
 
 //! \brief This class takes a snapshot for a subtree.\n

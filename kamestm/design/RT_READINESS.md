@@ -2961,3 +2961,35 @@ starvation exit could lag to ~40 s — masked before only because the watchdog
 killed the process at 15 s first.  MIN_RETRIES is now 2 (user): the age
 condition (10 s) is the real clock, and two retries merely certify genuine
 contention, so the exit opens at ~bound + one sleep.
+
+## Constructor exception-safety audit of the base machinery
+
+Asked (user) once the starvation throw had been introduced into paths that
+run during construction: is the foundational layer — `create<>`, connector
+constructors — exception-tolerant?  Audited end to end; two real defects, both
+latent before the throw existed and both reachable after it:
+
+* **`Node<XN>::create<T>()` armed a thread-local Payload creator** that the
+  `Node()` base constructor consumes and clears.  A throw between the arming
+  and that base — a derived member's initialiser, an argument expression —
+  left the slot armed.  A bare `new SomeNode` reaching `Node()` before the
+  next `create<>()` re-armed it would then be handed T's creator and build a
+  `PayloadWrapper<T>` for a different node type: a type-confused Payload, the
+  worst outcome available here.  Now scope-guarded (disarmed only after the
+  constructor returns).
+* **The `s_conCreating` / `s_statusPrinterCreating` hand-off is positional**:
+  the constructor pushes `shared_ptr(this)` and the holder pops the back.  A
+  constructor that throws after its push leaves its entry, and the NEXT
+  holder adopts the dead one — use after free.  `xqcon_create`'s starvation
+  exemption removes one source but not the class (any driver's connector
+  constructor can throw).  Both pops now verify identity against the object
+  they were handed and fail loudly instead of adopting a stranger.
+
+Verified sound without changes: `Node()` itself (clears the slot before
+using it, and its `make_local_shared` members unwind normally);
+`XDriverList::createByTypename` (the whole creation is inside
+`iterate_commit_if`, so a throw simply leaves the node uninserted — the STM
+rolls the tree back and the `Transaction` destructor drops the tags);
+`driverlistconnector`'s call site (already catches `runtime_error`,
+`pybind11::error_already_set` and `...`); the `.kam` Python loader (throws
+propagate through `kame_mainthread` to `loadKam`'s handler).
