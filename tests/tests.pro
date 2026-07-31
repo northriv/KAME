@@ -21,7 +21,8 @@ SUBDIRS += \
     transaction_lookup_memo_test\
     alloc_stress_test\
     malloc_intercept_test\
-    xnode_typename_test
+    xnode_typename_test\
+    xnode_ctorthrow_test
 
 # kamestm tests (../kamestm/tests/*.pro)
 atomic_shared_ptr_test.file                       = ../kamestm/tests/atomic_shared_ptr_test.pro
@@ -43,3 +44,4 @@ malloc_intercept_test.file = ../kamepoolalloc/tests/malloc_intercept_test.pro
 
 # kame-specific tests (stay in tests/ — XNode lives in kame/)
 xnode_typename_test.file = xnode_typename_test.pro
+xnode_ctorthrow_test.file = xnode_ctorthrow_test.pro
