@@ -243,7 +243,8 @@ void XNMRPulseAnalyzer::showForms() {
 
 void XNMRPulseAnalyzer::backgroundSub(Transaction &tr,
     std::vector<std::complex<double> > &wave,
-    int pos, int length, int bgpos, int bglength) {
+    int pos, int length, int bgpos, int bglength,
+    const XTime &stamp, bool inverted) {
     Snapshot &shot(tr);
 
     std::complex<double> bg = 0;
@@ -266,54 +267,39 @@ void XNMRPulseAnalyzer::backgroundSub(Transaction &tr,
     SpectrumSolver &solverPNR(tr[ *m_solverPNR].solver());
     if(bglength) {
         if(shot[ *usePNR()] && (bgpos > 0)) { //PNR is disabled if bg is before echo train.
-            int dnrlength = FFT::fitLength((bglength + bgpos) * 4);
-            std::vector<std::complex<double> > memin(bglength);
-            for(unsigned int i = 0; i < bglength; i++) {
-                memin[i] = wave[pos + i + bgpos];
-            }
-            //Memoized across iterate_commit retries: the solve is a pure
-            //function of (memin, bgpos, dnrlength, solver choice), and a
-            //retry re-enters here with identical inputs whenever the
-            //invalidation came from an unrelated node — which is nearly
-            //always.  See PNRMemo in the header.
-            uint64_t key = 0xcbf29ce484222325uLL; //FNV-1a
-            auto fnv = [&key](const void *p, size_t n) {
-                auto *b = static_cast<const unsigned char *>(p);
-                for(size_t i = 0; i < n; ++i) {
-                    key ^= b[i];
-                    key *= 0x100000001b3uLL;
-                }
-            };
-            fnv(memin.data(), memin.size() * sizeof(memin[0]));
-            fnv( &bgpos, sizeof(bgpos));
-            fnv( &dnrlength, sizeof(dnrlength));
+            //Memoized across iterate_commit retries (and across re-analyses
+            //of the same record): the background segment is rebuilt from the
+            //same DSO record every retry, so the solve is a pure function of
+            //the provenance key below.  See PNRMemo in the header.
             int solversel = shot[ *pnrSolverList()];
-            fnv( &solversel, sizeof(solversel));
-            shared_ptr<const std::vector<std::complex<double>>> ifft;
-            {
-                XScopedLock<XMutex> lock(m_pnrMemoMutex);
-                if(m_pnrMemo.key == key)
-                    ifft = m_pnrMemo.ifft;
-            }
-            if( !ifft) {
-                std::vector<std::complex<double> > memout(dnrlength);
+            local_shared_ptr<const PNRMemo> memo(m_pnrMemo);
+            if(memo && !((memo->stamp == stamp) && (memo->inverted == inverted)
+                    && (memo->pos == pos) && (memo->bgpos == bgpos)
+                    && (memo->bglength == bglength)
+                    && (memo->solversel == solversel)))
+                memo.reset();
+            if( !memo) {
+                int dnrlength = FFT::fitLength((bglength + bgpos) * 4);
+                std::vector<std::complex<double> > memin(bglength), memout(dnrlength);
+                for(unsigned int i = 0; i < bglength; i++) {
+                    memin[i] = wave[pos + i + bgpos];
+                }
                 try {
                     solverPNR.exec(memin, memout, bgpos, 0.5e-2, &FFT::windowFuncRect, 1.0);
-                    ifft = make_shared<const std::vector<std::complex<double>>>(
-                        solverPNR.ifft());
-                    XScopedLock<XMutex> lock(m_pnrMemoMutex);
-                    m_pnrMemo.key = key;
-                    m_pnrMemo.ifft = ifft;
+                    local_shared_ptr<PNRMemo> m(new PNRMemo{stamp, inverted,
+                        pos, bgpos, bglength, solversel, solverPNR.ifft()});
+                    m_pnrMemo = m;  //lock-free single-slot swap.
+                    memo = m;
                 }
                 catch (XKameError &e) {
                     e.print();
 //				    throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
                 }
             }
-            if(ifft) {
-                int imax = std::min((int)wave.size() - pos, (int)ifft->size());
+            if(memo) {
+                int imax = std::min((int)wave.size() - pos, (int)memo->ifft.size());
                 for(int i = 0; i < imax; i++) {
-                    wave[i + pos] -= ( *ifft)[i];
+                    wave[i + pos] -= memo->ifft[i];
                 }
             }
         }
@@ -569,7 +555,8 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
     //Background subtraction or dynamic noise reduction
     if(bg_off_echotrain)
-        backgroundSub(tr, tr[ *this].m_dsoWave, pos, length, bgpos, bglength);
+        backgroundSub(tr, tr[ *this].m_dsoWave, pos, length, bgpos, bglength,
+            shot_dso[ *dso__].time(), inverted);
     for(int i = 0; i < numechoes_pulse; i++){
         int rpos = pos + i * echoperiod;
         std::complex<double> *pechoesT2(&echoesT2[i][0]);

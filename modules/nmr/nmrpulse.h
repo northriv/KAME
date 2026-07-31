@@ -222,25 +222,32 @@ private:
 	void onAvgClear(const Snapshot &shot, XTouchableNode *);
   
 	//! Single-slot memo for the PNR solver inside backgroundSub().  The PNR
-	//! block is a pure function (background segment + bgpos + solver choice
-	//! -> ifft vector), and an iterate_commit retry re-runs it verbatim while
-	//! the invalidation almost always came from an UNRELATED node — measured
-	//! 2.2 closure runs per commit under MCP churn, and 15+ during spikes.
-	//! The memo turns every re-run into a hash (a few us) + the subtraction
-	//! loop, so retries cost microseconds instead of the 10-20 ms solve.
-	//! Non-Payload deliberately: it is not state, it is a compute cache; the
-	//! mutex guards only the slot swap (never held across STM ops or the
-	//! solver), so concurrent analyze() invocations at worst duplicate one
-	//! solve (last store wins).
+	//! block is a pure function of its provenance — the background segment is
+	//! rebuilt from the SAME DSO record on every iterate_commit retry — so
+	//! the key is the record's time() plus the scalar inputs (user design:
+	//! provenance key + atomic_shared_ptr, replacing a content hash + mutex).
+	//! Keying on time() rather than the emitter snapshot also reuses the
+	//! solve ACROSS invocations: a re-analysis triggered by a PNR-unrelated
+	//! setting (phase, FT window...) hits as long as the record and the
+	//! PNR inputs are unchanged.  Retries cost the field comparison plus the
+	//! subtraction loop instead of the 10-20 ms solve (measured 2.2 closure
+	//! runs per commit under MCP churn, 15+ during spikes).
+	//! Non-Payload deliberately: a compute cache, not state.  The slot is an
+	//! atomic_shared_ptr — lock-free single-slot swap, KAME's own primitive —
+	//! so concurrent analyze() invocations at worst duplicate one solve
+	//! (last store wins) and never contend on a mutex inside a transaction.
 	struct PNRMemo {
-		uint64_t key = 0;
-		shared_ptr<const std::vector<std::complex<double>>> ifft;
+		XTime stamp;    //!< time() of the DSO record the wave was built from
+		bool inverted;
+		int pos, bgpos, bglength;
+		int solversel;  //!< pnrSolverList() selection
+		std::vector<std::complex<double>> ifft; //!< solver output consumed
 	};
-	PNRMemo m_pnrMemo;
-	XMutex m_pnrMemoMutex;
+	atomic_shared_ptr<const PNRMemo> m_pnrMemo;
 
 	void backgroundSub(Transaction &tr,
-		std::vector<std::complex<double> > &wave, int pos, int length, int bgpos, int bglength);
+		std::vector<std::complex<double> > &wave, int pos, int length, int bgpos, int bglength,
+		const XTime &stamp, bool inverted);
   
 	void rotNFFT(Transaction &tr, int ftpos, double ph,
 				 std::vector<std::complex<double> > &wave, std::vector<std::complex<double> > &ftwave);
