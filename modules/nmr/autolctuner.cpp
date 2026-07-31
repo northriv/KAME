@@ -491,7 +491,10 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         tr[ *fitFunc()].add({"Abs.&Gaussian", "Abs.&Lorentzian", "Smith&Gaussian", "Smith&Lorentzian"});
         tr[ *m_fitFunc] = 3;
         tr[ *m_backlashRecoveryFactor] = 0.0;
-        tr[ *m_relaySettleTime] = 500; //[ms] generous default; see visualize().
+        tr[ *m_relaySettleTime] = 1000; //[ms] see visualize().  500 proved
+        //insufficient in the field (2026-07-31): the first pulses after a tune
+        //cycle hit the still-switching external relay and the reflected spike
+        //tripped the amplifier protection, which cut the drive level.
         tr[ *m_presetAutoSave] = false; //rewrites descPresetAngles(); opt in.
         tr[ *m_presetMaxRows] = 6;
         tr[ *abortTuning()].setUIEnabled(false);
@@ -530,6 +533,18 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
     shared_ptr<XMotorDriver> relay = shot_this [*relayDriver()];
     const shared_ptr<XMotorDriver> stms[] = {stm1__, stm2__};
     const unsigned int tunebits = 0x1u;
+    //Entry-side settle, symmetric with the exit-side wait in visualize().
+    //Every caller turns the pulser off just before writing Target, but that
+    //stops the pattern at a boundary: emission can continue for up to one
+    //repetition period after the commit.  Flipping the relay to the VNA path
+    //below while the tail is still transmitting is a hot switch -- the
+    //reflected spike trips the amplifier protection, which cuts the drive
+    //level in hardware (intermittent, observed 2026-07-31; the entry side had
+    //no wait at all, which is why raising the exit-side settle did not cure it).
+    {
+        int settle_ms = shot_this[ *m_relaySettleTime];
+        msecsleep((settle_ms > 0) ? settle_ms : 0);
+    }
     for(auto &&stm: stms) {
         if(stm) {
             stm->iterate_commit([=](Transaction &tr){
