@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>423</width>
-    <height>822</height>
+    <height>833</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -150,6 +150,9 @@
        <string>Preset Positions for STMs</string>
       </property>
       <layout class="QGridLayout" name="gridLayout">
+       <property name="leftMargin">
+        <number>4</number>
+       </property>
        <property name="topMargin">
         <number>4</number>
        </property>
@@ -740,14 +743,14 @@
      <layout class="QHBoxLayout" name="horizontalLayoutRelaySettle">
       <item>
        <widget class="QLabel" name="textLabelRelaySettle">
-        <property name="text">
-         <string>Relay Settle Time</string>
-        </property>
         <property name="sizePolicy">
          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Relay Settle Time</string>
         </property>
        </widget>
       </item>
