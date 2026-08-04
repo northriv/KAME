@@ -350,7 +350,7 @@ C11 translations of each layer are verified with [GenMC](https://github.com/MPI-
 
 | Library | Notes |
 |---|---|
-| **Qt** ≥ 5.7 or Qt 6 | Qt 5 compatibility module required for Qt 6 |
+| **Qt** ≥ 5.7 or Qt 6 | Qt 6 needs `uitools`; the Qt5 compatibility module is **no longer** required |
 | **Ruby** | scripting |
 | **pybind11** | Python scripting |
 | **GSL** | |
@@ -392,8 +392,60 @@ Additional notes:
 - Add `/opt/local/bin` to PATH in the Qt Creator build-environment pane if needed.
 - In Qt Creator's **executable environment** pane, **deactivate** "Add build library search path to DYLD_LIBRARY_PATH …", otherwise KAME crashes on launch.
 - If `ruby.h` is not found, reinstall Xcode command-line tools: `xcode-select --install`.
-- Qt 6: the **Qt5 compatibility module** must be selected during Qt installation.
+- Qt 6: the **Qt5 compatibility module is no longer needed** — the last user of it was a dead `QTextCodec` include, now removed.
 - NI 488.2 is not supported on Apple Silicon; use the built-in usermode NI USB-GPIB driver instead (no kernel module required).
+
+---
+
+### Linux (x86-64, Qt 6 / GCC) — *unsupported, but it builds and runs*
+
+> No instrument hardware has been exercised on Linux and there is no packaged
+> release. Treat it as a development platform. Full notes, including the
+> serial/GPIB smoke test and the known gaps, are in **`INSTALL.linux`**.
+
+Verified on Ubuntu 24.04 / Qt 6.4.2 / GCC 13.3 / glibc 2.39.
+
+```sh
+sudo apt install -y \
+    qt6-base-dev qt6-base-dev-tools qt6-tools-dev qt6-tools-dev-tools \
+    libgl1-mesa-dev libglu1-mesa-dev \
+    libgsl-dev libfftw3-dev libltdl-dev libeigen3-dev zlib1g-dev \
+    libusb-1.0-0-dev ruby-dev python3-dev python3-pybind11
+```
+
+```sh
+mkdir build && cd build
+qmake6 ../kame.pro          # prints which Ruby and which Python it picked
+make -j$(nproc)
+./bin/kame                  # modules are found automatically; no --moduledir needed
+```
+
+Notes:
+
+- The executable lands in **`build/bin/kame`**, and the driver modules are
+  grouped beside it under `bin/{coremodules,coremodules2,modules}` — which is
+  where `QApplication::libraryPaths()` looks, so the build tree runs as-is.
+- **Ruby headers are mandatory** (`script/xrubysupport.cpp` is compiled
+  unconditionally). `kame.pro` asks the interpreter via `RbConfig`, so any
+  packaged or rbenv/rvm Ruby works and its libdir is recorded as a RUNPATH.
+- **pybind11 is optional but strongly recommended**: without it there is no
+  Python scripting, no Jupyter/IPython console, no MCP server, and `.kam`
+  files fall back to the legacy Ruby loader. `python3 -m pybind11 --includes`
+  must succeed for the interpreter qmake selects.
+- Jupyter is a separate runtime dependency and must be installed into the
+  interpreter KAME *embeds*:
+  `python3 -m pip install ipykernel ipython jupyter nest_asyncio numpy`.
+- **Installing:** `qmake6 ../kame.pro PREFIX=/usr/local && make && sudo make install`
+  deploys the binary, the modules to `$PREFIX/lib/kame/`, the scripts, manual
+  and translations to `$PREFIX/share/kame/`, a `.desktop` entry, hicolor icons,
+  and udev rules for the libusb instruments (`kame/70-kame.rules`).
+- **GPIB:** with linux-gpib headers present, `HAVE_LINUX_GPIB` selects the
+  native kernel-driver path; without them, `Device = GPIB` falls back to the
+  bundled usermode NI USB-GPIB driver (libusb, no kernel module).
+  `PrologixGPIBUSB` is available either way.
+- **Vendor SDKs** (NI-DAQmx, Digilent WaveForms, Euresys eGrabber) are probed
+  and enable their drivers when installed; when absent, those modules build but
+  register nothing.
 
 ---
 
