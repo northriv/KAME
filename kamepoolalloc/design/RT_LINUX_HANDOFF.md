@@ -203,24 +203,36 @@ no disk inside the measured region.
   damage the macOS install.  Create an ESP on the external SSD and set "device
   for boot loader installation" to that disk explicitly.
 
-### Ubuntu + the realtime kernel
+### Ubuntu + the realtime kernel — use 26.04 LTS, not 24.04
 
-Canonical ships a `PREEMPT_RT` build; it is behind Ubuntu Pro, which is free
-for personal use on up to 5 machines.
+Now that `PREEMPT_RT` is fully upstream, **Ubuntu 26.04 LTS ships the realtime
+kernel (7.0) in the main archive** — no Ubuntu Pro, no token, no `pro attach`:
 
 ```bash
-sudo pro attach <token>
-sudo pro enable realtime-kernel
+sudo apt update && sudo apt install ubuntu-realtime
 sudo reboot
-# Confirm you actually got RT — do not skip this, a non-RT kernel still boots:
+# Confirm you actually got RT — do not skip this, a non-RT kernel still boots
+# happily and every number below would then be meaningless:
 cat /sys/kernel/realtime        # must print 1
 uname -v | grep -o PREEMPT_RT
 ```
 
-(Debian's `linux-image-rt-amd64` needs no subscription and is the alternative;
-either is fine.  What matters more than the distro is that the kernel does not
-change under you mid-campaign — do not use a rolling release for a machine
-whose purpose is reproducible numbers.)
+Pick 26.04 specifically.  On **24.04 and earlier the realtime kernel is behind
+Ubuntu Pro** (free for personal use on ≤ 5 machines, but it is an account, a
+token and an attach step).  That subscription gate used to be the one good
+argument for Debian's `linux-image-rt-amd64` here; on 26.04 it is gone, so
+there is no longer a reason to split the distro from whatever else you run.
+
+Kernel 7.0 is new but buys nothing to fear on 2017 hardware: `rt-tests` is
+ftrace plus userspace, and Polaris/`amdgpu` has been settled for a decade.
+
+What *does* still matter more than the distro: the kernel must not change
+under you mid-campaign.  Do not use a rolling release for a machine whose
+whole purpose is reproducible numbers.
+
+Refs: <https://ubuntu.com/real-time>,
+<https://documentation.ubuntu.com/real-time/latest/reference/releases/>,
+<https://documentation.ubuntu.com/real-time/latest/how-to/enable-real-time-ubuntu/>
 
 **This host does not need to build KAME.** Only the CMake test/bench tree is
 required — no Qt, no Ruby, no pybind11:
