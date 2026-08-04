@@ -19,7 +19,8 @@ so steal time is in every sample.  The G6(a) mechanism results (does
 are page-fault-path facts — but the `MAX` / `p99.99` cells are not WCET
 numbers and §G6(a) says so explicitly.  Anyone re-running this to establish a
 bound needs a `PREEMPT_RT` host with the measured thread on an isolated,
-`nohz_full` core.
+`nohz_full` core.  **A recipe for standing one up is at the end of this file**
+("Standing up the `PREEMPT_RT` host").
 
 ---
 
@@ -160,6 +161,165 @@ KAME_POOL_NOHUGEPAGE=1 ./build/tests/bench_tlb 512 1024 6000000
 ```
 
 ---
+
+## Standing up the `PREEMPT_RT` host
+
+This converts the one caveat the two items above could not remove — "the `MAX`
+and `p99.99` cells are not WCET numbers" — into numbers that are.  Nothing
+here changes a result already recorded; it is the missing *instrument*.
+
+The target written up here is a **spare Intel iMac 27" (Retina 5K, 2017)**,
+booting **Ubuntu 24.04 from an external SSD**, because that is the machine
+this project has.  Everything except the Apple-specific parts applies to any
+x86-64 box with ≥ 4 cores.  Speed is irrelevant — WCET work measures
+determinism, not throughput.
+
+Why x86-64 rather than an ARM host, given ARM has no SMM/SMI and is the more
+likely long-term realtime target: the entire G6(a) analysis is built on 4 KiB
+base pages with a 2 MiB PMD hugepage, and distro aarch64 kernels are split
+between 4 K and 64 K base pages (with a 512 MiB PMD).  The existing numbers
+are x86 and `timeStamp()`'s rdtsc path is x86.  Measure on the architecture
+the corpus is in; port the corpus afterwards if the target moves.
+
+### Boot medium — external SSD, and why not the internal disk
+
+The machine has a **Fusion Drive**, which Linux does not understand: Apple's
+CoreStorage / APFS Fusion is a macOS logical volume, so Linux sees two
+unrelated devices (a small NVMe blade — 32 GB on 1 TB Fusion, 128 GB on
+2/3 TB — and a 3.5" HDD).  Installing to either one breaks or strands the
+other half.
+
+Boot a USB 3 / Thunderbolt 3 external SSD instead: the internal disks are
+never touched, macOS stays bootable, and the whole experiment is reversible by
+unplugging.  Root-filesystem latency does not enter a measurement that touches
+no disk inside the measured region.
+
+* Hold **⌥ Option** at the chime → pick `EFI Boot`.  Boot Camp Assistant is a
+  *Windows* tool and must not be used: it can leave a hybrid MBR, which is a
+  GPT/MBR inconsistency Linux tooling then has to fight.
+* **Use manual partitioning and point the bootloader at the external disk.**
+  Left to itself, Ubuntu's installer will happily write GRUB into the
+  *internal* EFI System Partition — that is the one way this procedure can
+  damage the macOS install.  Create an ESP on the external SSD and set "device
+  for boot loader installation" to that disk explicitly.
+
+### Ubuntu + the realtime kernel — use 26.04 LTS, not 24.04
+
+Now that `PREEMPT_RT` is fully upstream, **Ubuntu 26.04 LTS ships the realtime
+kernel (7.0) in the main archive** — no Ubuntu Pro, no token, no `pro attach`:
+
+```bash
+sudo apt update && sudo apt install ubuntu-realtime
+sudo reboot
+# Confirm you actually got RT — do not skip this, a non-RT kernel still boots
+# happily and every number below would then be meaningless:
+cat /sys/kernel/realtime        # must print 1
+uname -v | grep -o PREEMPT_RT
+```
+
+Pick 26.04 specifically.  On **24.04 and earlier the realtime kernel is behind
+Ubuntu Pro** (free for personal use on ≤ 5 machines, but it is an account, a
+token and an attach step).  That subscription gate used to be the one good
+argument for Debian's `linux-image-rt-amd64` here; on 26.04 it is gone, so
+there is no longer a reason to split the distro from whatever else you run.
+
+Kernel 7.0 is new but buys nothing to fear on 2017 hardware: `rt-tests` is
+ftrace plus userspace, and Polaris/`amdgpu` has been settled for a decade.
+
+What *does* still matter more than the distro: the kernel must not change
+under you mid-campaign.  Do not use a rolling release for a machine whose
+whole purpose is reproducible numbers.
+
+Refs: <https://ubuntu.com/real-time>,
+<https://documentation.ubuntu.com/real-time/latest/reference/releases/>,
+<https://documentation.ubuntu.com/real-time/latest/how-to/enable-real-time-ubuntu/>
+
+**This host does not need to build KAME.** Only the CMake test/bench tree is
+required — no Qt, no Ruby, no pybind11:
+
+```bash
+sudo apt install build-essential cmake git rt-tests
+cd kamepoolalloc && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
+```
+
+### Tuning — all of it from the kernel command line, because it is a Mac
+
+A Mac has **no BIOS setup screen**: Turbo, C-states and SMT cannot be disabled
+in firmware.  Everything below is `GRUB_CMDLINE_LINUX_DEFAULT` in
+`/etc/default/grub`, then `sudo update-grub && sudo reboot`.
+
+```
+isolcpus=nohz,domain,2-3 nohz_full=2-3 rcu_nocbs=2-3 irqaffinity=0-1
+intel_pstate=disable tsc=reliable nmi_watchdog=0
+```
+
+Then, per boot (or via a unit):
+
+```bash
+# performance governor on every CPU
+echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+# SCHED_FIFO must not be throttled — the default is 950 ms out of every 1 s
+echo -1 | sudo tee /proc/sys/kernel/sched_rt_runtime_us
+# mlock: the default 8 MB cap silently defeats page pinning (KAME now warns)
+printf '* soft memlock unlimited\n* hard memlock unlimited\n' \
+    | sudo tee /etc/security/limits.d/99-kame.conf
+```
+
+Deliberately **not** in the list above, and why:
+
+* `nosmt` — only relevant if it is the i7-7700K (4C/8T).  The i5-7500/7600 are
+  4C/4T and there is nothing to disable.
+* `intel_idle.max_cstate=1 processor.max_cstate=1 idle=poll` — these are the
+  usual next step when `cyclictest` shows C-state exit latency, but on this
+  machine they make two cores spin at 100 % *before* you have confirmed the
+  fans respond under Linux.  Add them after the fan check below, not before.
+
+**Fans.** macOS drives the fans from the SMC; Linux may not ramp them, and a
+30-minute WCET run that thermally throttles produces numbers that are about
+the cooling, not the allocator.  Check `sensors` (the `applesmc` module), and
+either install `macfanctld` or raise the floor by hand via
+`/sys/devices/platform/applesmc.*/fan1_min`.  Run measurements from a text
+console with the GUI stopped — the 5K panel and the Radeon Pro are a
+meaningful share of the thermal budget.
+
+### The gate: measure the platform before measuring the allocator
+
+```bash
+sudo hwlatdetect --duration=30m --threshold=10
+sudo cyclictest -m -p99 -t1 -a2 -i200 -d0 -D30m -h400 --quiet
+```
+
+`hwlatdetect` measures stalls where the kernel loses the CPU entirely — SMIs
+and firmware.  **Whatever it reports is a floor no kernel setting can lower**,
+and on a Mac there is no BIOS knob to attack it with.  If it reports 200 µs
+spikes, then no allocator claim below 200 µs is meaningful on this box and the
+honest move is to say so rather than to publish a number the platform
+manufactured.  `cyclictest` on the isolated core (`-a2`) gives the scheduling
+floor on top of that.
+
+Record both.  They belong in any §G6(a) revision alongside the allocator
+numbers, exactly as the Ohtaka rules in `CLAUDE.md` require the partition,
+node ID, governor and turbo state.
+
+### Running the measurement
+
+```bash
+# pin to an isolated core and take the RT priority the harness asks for
+sudo chrt -f 80 taskset -c 2 ./build/tests/bench_rt_wcet --faults 24 --thp system
+sudo chrt -f 80 taskset -c 2 ./build/tests/bench_rt_wcet --faults 24 --thp never
+sudo chrt -f 80 taskset -c 2 ./build/tests/bench_rt_wcet --faults 24 --thp always
+```
+
+Same protocol as everywhere else in this project: **interleave the arms inside
+one session**, median of ≥ 5, report min/max beside it, and ≥ 10⁶ samples
+before reading anything at p99.9 or deeper (see the two methodology traps at
+the end of this file).  THP state is runtime-settable, so the three arms need
+no reboot — but re-read the `PR_SET_THP_DISABLE` trap above before trusting an
+`AnonHugePages: 0`.
+
+What this campaign is expected to produce: §G6(a)'s "mechanism trustworthy /
+absolute WCET not trustworthy" split collapses into a single set of numbers
+carrying the `hwlatdetect` floor as their stated resolution.
 
 ## Context you may want
 
