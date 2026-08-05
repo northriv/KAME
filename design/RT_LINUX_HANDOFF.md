@@ -168,11 +168,16 @@ This converts the one caveat the two items above could not remove — "the `MAX`
 and `p99.99` cells are not WCET numbers" — into numbers that are.  Nothing
 here changes a result already recorded; it is the missing *instrument*.
 
-The target written up here is a **spare Intel iMac 27" (Retina 5K, 2017)**,
-booting **Ubuntu 24.04 from an external SSD**, because that is the machine
-this project has.  Everything except the Apple-specific parts applies to any
+The target written up here is a **spare Intel iMac 27" (Retina 5K, 2017)**
+running **Ubuntu Server 26.04 on its own internal SSD**, because that is the
+machine this project has and because it turned out to be good enough — see the
+gate result below.  Everything except the Apple-specific parts applies to any
 x86-64 box with ≥ 4 cores.  Speed is irrelevant — WCET work measures
 determinism, not throughput.
+
+Total spend: nothing.  Read the gate section first; it is designed to tell you
+whether a candidate machine is usable *before* you install anything on it or
+buy anything for it.
 
 Why x86-64 rather than an ARM host, given ARM has no SMM/SMI and is the more
 likely long-term realtime target: the entire G6(a) analysis is built on 4 KiB
@@ -181,27 +186,92 @@ between 4 K and 64 K base pages (with a 512 MiB PMD).  The existing numbers
 are x86 and `timeStamp()`'s rdtsc path is x86.  Measure on the architecture
 the corpus is in; port the corpus afterwards if the target moves.
 
-### Boot medium — external SSD, and why not the internal disk
+### The gate — run this from a live USB, before installing or buying anything
+
+**`hwlatdetect` does not need `PREEMPT_RT`.**  It drives ftrace's `hwlat`
+tracer, which busy-polls the TSC with interrupts disabled and reports the gaps
+— i.e. the intervals where firmware (SMI/SMM) took the CPU away from the
+kernel entirely.  That is a property of the *machine*, not of the kernel, which
+is why the number it gives from an ordinary live session is final.  Boot an
+Ubuntu Desktop live USB (⌥ Option at the chime → `EFI Boot`; the live user is
+`ubuntu` with an empty password, and `sudo` needs none):
+
+```bash
+grep HWLAT /boot/config-$(uname -r)     # CONFIG_HWLAT_TRACER must be =y
+sudo apt install -y rt-tests lm-sensors
+sudo hwlatdetect --duration=30m --threshold=10
+```
+
+If the tracer is not compiled in, the free gate is not available on that ISO
+and you have to install the RT kernel first — so spend the 30 seconds on that
+`grep` before anything else.  (A counter-example exists: the Firecracker
+kernel this project's cloud sessions run on has `# CONFIG_HWLAT_TRACER is not
+set`.)
+
+Whatever it reports is a **floor no kernel setting can lower**, and on a Mac
+there is no BIOS knob to attack it with.  If it is 200 µs then no allocator
+claim below 200 µs is meaningful on that box, and saying so is the honest
+outcome rather than publishing a number the platform manufactured.
+
+**Result on this iMac:**
+
+```
+Latency threshold: 10us
+Max Latency: 13us
+Samples recorded: 1
+Samples exceeding threshold: 1
+```
+
+One 13 µs excursion for the whole run; everything else below 10 µs.  Better
+than a consumer x86 box has any right to be — Apple's EFI/SMC is not doing
+anything pathological.  Note `hwlatdetect`'s default duty cycle is 50 %
+(1 s window, 0.5 s width), so the true event rate is around twice the observed
+one; raise it with `--window=1000000 --width=900000` if a tighter bound on the
+*rate* is wanted.  It does not change the amplitude, which is what matters
+here.
+
+**So: 13 µs is this project's measurement floor on this host, and it belongs
+next to every number the campaign produces.**  For scale, the phenomena being
+chased are an order of magnitude above it — a 2 MiB huge-page zeroing fault is
+~100–200 µs, and the deferred-unmap / RT-gate effects are milliseconds.
+
+### Boot medium — the internal blade, and what to do about the Fusion Drive
 
 The machine has a **Fusion Drive**, which Linux does not understand: Apple's
 CoreStorage / APFS Fusion is a macOS logical volume, so Linux sees two
 unrelated devices (a small NVMe blade — 32 GB on 1 TB Fusion, 128 GB on
-2/3 TB — and a 3.5" HDD).  Installing to either one breaks or strands the
-other half.
+2/3 TB — and a 3.5" HDD).
 
-Boot a USB 3 / Thunderbolt 3 external SSD instead: the internal disks are
-never touched, macOS stays bootable, and the whole experiment is reversible by
-unplugging.  Root-filesystem latency does not enter a measurement that touches
-no disk inside the measured region.
+Since macOS on this machine is stuck at Ventura and therefore out of security
+support, the resolution is to stop keeping it: **wipe, and install to the
+blade.**  An external SSD keeps macOS bootable and is the alternative if you
+want that, but then the unpatched OS is a liability that depends on nobody ever
+booting it, and a Thunderbolt enclosure plus a drive costs about what a used
+small-form-factor PC does — at which point buying the PC dominates.
 
-* Hold **⌥ Option** at the chime → pick `EFI Boot`.  Boot Camp Assistant is a
-  *Windows* tool and must not be used: it can leave a hybrid MBR, which is a
-  GPT/MBR inconsistency Linux tooling then has to fight.
-* **Use manual partitioning and point the bootloader at the external disk.**
-  Left to itself, Ubuntu's installer will happily write GRUB into the
-  *internal* EFI System Partition — that is the one way this procedure can
-  damage the macOS install.  Create an ESP on the external SSD and set "device
-  for boot loader installation" to that disk explicitly.
+* **Update macOS fully *before* wiping.** Mac EFI/SMC firmware ships only
+  inside macOS updates, so whatever is installed at wipe time is frozen
+  forever.  Since the firmware is exactly what `hwlatdetect` measures, take the
+  last one available.
+* Check the blade's wear first — on a Fusion Drive it has spent years as the
+  *write cache*, the highest-write-amplification role there is:
+  `sudo nvme smart-log /dev/nvme0 | grep -E 'percentage_used|data_units_written'`.
+* 32 GB is enough.  **Install Ubuntu Server, not Desktop** — no GUI is needed
+  (everything here is CLI), it is a third of the size, and it removes the
+  compositor from a thermal budget that already worries us.  Measured
+  footprint: the repo is 52 MB and the whole `kamepoolalloc` CMake build is
+  **7.6 MB**; the disk goes to the OS and toolchain, ~8–9 GB in total.
+* **No swap.**  A page fault that reaches swap is unbounded, which is the
+  opposite of the property being measured — and it saves the couple of GB the
+  installer would otherwise take.
+* **Leave the 3.5" HDD out of `/etc/fstab` entirely.**  Nothing needs it, and a
+  spinning disk is interrupts and heat.
+* Boot Camp Assistant is a *Windows* tool and must not be used: it can leave a
+  hybrid MBR, a GPT/MBR inconsistency Linux tooling then has to fight.
+* If you do go the external route after all, **use manual partitioning and
+  point the bootloader at the external disk.**  Left to itself the installer
+  writes GRUB into the *internal* ESP — the one way this procedure can damage
+  a macOS install you meant to keep.
 
 ### Ubuntu + the realtime kernel — use 26.04 LTS, not 24.04
 
@@ -282,24 +352,24 @@ either install `macfanctld` or raise the floor by hand via
 console with the GUI stopped — the 5K panel and the Radeon Pro are a
 meaningful share of the thermal budget.
 
-### The gate: measure the platform before measuring the allocator
+### The scheduling floor — `cyclictest`, once the tuning above is in place
+
+The firmware floor was already established from the live USB (the gate section
+near the top of this chapter).  What the installed and tuned system adds is the
+*scheduling* component on top of it:
 
 ```bash
-sudo hwlatdetect --duration=30m --threshold=10
 sudo cyclictest -m -p99 -t1 -a2 -i200 -d0 -D30m -h400 --quiet
 ```
 
-`hwlatdetect` measures stalls where the kernel loses the CPU entirely — SMIs
-and firmware.  **Whatever it reports is a floor no kernel setting can lower**,
-and on a Mac there is no BIOS knob to attack it with.  If it reports 200 µs
-spikes, then no allocator claim below 200 µs is meaningful on this box and the
-honest move is to say so rather than to publish a number the platform
-manufactured.  `cyclictest` on the isolated core (`-a2`) gives the scheduling
-floor on top of that.
+on the isolated core (`-a2`).  Only this run counts: a `cyclictest` taken from
+the live session is a non-RT kernel with no `isolcpus` and a desktop running,
+so it says nothing about the tuned machine.  The `hwlatdetect` number, by
+contrast, is kernel-independent and does not need repeating.
 
-Record both.  They belong in any §G6(a) revision alongside the allocator
-numbers, exactly as the Ohtaka rules in `CLAUDE.md` require the partition,
-node ID, governor and turbo state.
+Record both floors.  They belong in any §G6(a) revision alongside the
+allocator numbers, exactly as the Ohtaka rules in `CLAUDE.md` require the
+partition, node ID, governor and turbo state.
 
 ### Running the measurement
 
