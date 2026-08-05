@@ -213,27 +213,61 @@ there is no BIOS knob to attack it with.  If it is 200 µs then no allocator
 claim below 200 µs is meaningful on that box, and saying so is the honest
 outcome rather than publishing a number the platform manufactured.
 
-**Result on this iMac:**
+**Result on this iMac** — Ubuntu 26.04 live session, `7.0.0-14-generic`:
 
 ```
-Latency threshold: 10us
+hwlatdetect:  test duration 1800 seconds
+	detector: tracer
+	parameters:
+		Latency threshold: 10us
+		Sample window:     1000000us
+		Sample width:      500000us
+	     Non-sampling period:  500000us
 Max Latency: 13us
 Samples recorded: 1
 Samples exceeding threshold: 1
+ts: 1785918598.514060378, inner:0, outer:13, cpu:0
 ```
 
-One 13 µs excursion for the whole run; everything else below 10 µs.  Better
-than a consumer x86 box has any right to be — Apple's EFI/SMC is not doing
-anything pathological.  Note `hwlatdetect`'s default duty cycle is 50 %
-(1 s window, 0.5 s width), so the true event rate is around twice the observed
-one; raise it with `--window=1000000 --width=900000` if a tighter bound on the
-*rate* is wanted.  It does not change the amplitude, which is what matters
-here.
+One 13 µs excursion in a full 1800 s run; everything else below 10 µs.
+`inner:0, outer:13` places it *between* iterations of the sampling loop rather
+than inside one — the ordinary shape of an SMI.  Better than a consumer x86
+box has any right to be; Apple's EFI/SMC is not doing anything pathological.
 
-**So: 13 µs is this project's measurement floor on this host, and it belongs
-next to every number the campaign produces.**  For scale, the phenomena being
+Note the default duty cycle is 50 % (1 s window, 0.5 s width), so ~900 s was
+actually observed and the true event *rate* is around twice what is seen.
+Raise it with `--window=1000000 --width=900000` if the rate matters.  It does
+not change the amplitude, which is the part that does.
+
+**13 µs is this project's measurement floor on this host, and it belongs next
+to every number the campaign produces.**  For scale, the phenomena being
 chased are an order of magnitude above it — a 2 MiB huge-page zeroing fault is
 ~100–200 µs, and the deferred-unmap / RT-gate effects are milliseconds.
+
+#### The untuned `cyclictest` baseline, and why it is worth keeping
+
+Taken in the same live session — so **generic kernel, no `isolcpus`, no
+affinity, desktop running**.  It is not an RT result and must not be recorded
+as one; it is the *before* picture.
+
+`cyclictest -m -p99 -t1 -i200 -d0 -D10m -h400 --quiet`, 3,000,000 samples:
+
+| min | avg | p99.99 | p99.999 | max |
+|---|---|---|---|---|
+| 1 µs | **2 µs** | ~11 µs | ~21 µs | **97 µs** |
+
+with 2,987,492 samples (99.58 %) landing in the 2 µs bucket.
+
+Keep it because the pair decomposes the tail: firmware can account for at most
+13 µs of that 97 µs max, so **~84 µs is software — scheduling and preemption
+— which is exactly what the RT kernel, `isolcpus` and pinning attack.**
+Neither number alone tells you how much of the tail is reachable.
+
+One detail from the output, `# /dev/cpu_dma_latency set to 0us`: cyclictest
+holds a PM-QoS request that forbids deep C-states for its own duration.  So
+C-state exit latency is *already* excluded from the 97 µs above — but
+`bench_rt_wcet` does not do this, which is where the `intel_idle.max_cstate=1`
+family in the tuning section earns its place (after the fan check, not before).
 
 ### Boot medium — the internal blade, and what to do about the Fusion Drive
 
