@@ -287,9 +287,19 @@ small-form-factor PC does — at which point buying the PC dominates.
   inside macOS updates, so whatever is installed at wipe time is frozen
   forever.  Since the firmware is exactly what `hwlatdetect` measures, take the
   last one available.
-* Check the blade's wear first — on a Fusion Drive it has spent years as the
-  *write cache*, the highest-write-amplification role there is:
-  `sudo nvme smart-log /dev/nvme0 | grep -E 'percentage_used|data_units_written'`.
+* Check the blade's wear first — it is an 8-year-old drive that has been the
+  SSD half of a Fusion pair:
+  `sudo apt install nvme-cli && sudo nvme smart-log /dev/nvme0 | grep -E 'percentage_used|data_units_written'`.
+  On this machine it reads **`percentage_used: 1%`** — effectively unworn, so
+  the blade is fine as the system disk.  (Worth knowing *why* the fear was
+  misplaced: Apple's Fusion is a **tiering** scheme where blocks migrate by
+  access frequency, with only a small write buffer — not a write-through cache
+  that funnels every write through the SSD.  Expect wear closer to an ordinary
+  boot drive's than to a cache device's.)
+  Note the blade may enumerate as AHCI rather than NVMe on some models, in
+  which case it is `/dev/sda` and `smartctl -a` is the tool; `lsblk -o
+  NAME,SIZE,MODEL,TRAN,ROTA` settles it. If the `nvme` command itself is
+  missing, that is just `nvme-cli` not being installed in the live session.
 * 32 GB is enough.  **Install Ubuntu Server, not Desktop** — no GUI is needed
   (everything here is CLI), it is a third of the size, and it removes the
   compositor from a thermal budget that already worries us.  Measured
