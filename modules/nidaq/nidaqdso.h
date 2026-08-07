@@ -15,6 +15,7 @@
 #define nidaqdsoH
 
 #include "dsorealtimeacq.h"
+#include <cstdint>
 #include "nidaqmxdriver.h"
 
 //! Software DSO w/ NI DAQmx

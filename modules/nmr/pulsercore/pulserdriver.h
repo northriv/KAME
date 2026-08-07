@@ -16,6 +16,7 @@
 #define pulserdriverH
 //---------------------------------------------------------------------------
 #include "primarydriver.h"
+#include <cstdint>
 #include "xitemnode.h"
 #include "xnodeconnector.h"
 #include "softtrigger.h"

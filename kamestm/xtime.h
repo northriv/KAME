@@ -24,6 +24,7 @@
 #define XTIME_H_
 
 #include <support.h>  // angle: INCLUDEPATH-priority (kame/ full vs kamestm/ standalone) — see transaction_detail.h
+#include <cstdint>
 #include <math.h>
 
 #include <chrono>

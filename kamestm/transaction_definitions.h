@@ -24,6 +24,7 @@
 #define TRANSACTION_DEFINITIONS_H
 
 #include <atomic>   // ATOMIC_LLONG_LOCK_FREE for KAME_STM_COMPACT_STATE
+#include <cstdint>
 
 // --- 32-bit platform fallback: compact STM state ---------------------
 //

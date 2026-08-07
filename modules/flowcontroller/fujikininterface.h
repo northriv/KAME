@@ -15,6 +15,7 @@
 #define FUJIKININTERFACE_H_
 
 #include "charinterface.h"
+#include <cstdint>
 #include "chardevicedriver.h"
 
 class XFujikinInterface : public XCharInterface {

@@ -15,6 +15,7 @@
 #define OCEANOPTICSUSB_H
 
 #include "cyfxusb.h"
+#include <cstdint>
 #include <vector>
 
 struct OceanOpticsUSBDevice : public CyFXUSBDevice {};

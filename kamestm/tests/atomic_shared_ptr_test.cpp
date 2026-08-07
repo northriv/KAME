@@ -71,6 +71,10 @@ start_routine() {
         gp1 = std::move(p2);
         assert( !p2);
     	p2 = gp1;
+    	//! Self-assignment, on purpose: the classic way to break a refcounted
+    	//! pointer is release-then-acquire, which destroys the pointee.  clang
+    	//! flags it as -Wself-assign-overloaded, which is exactly the shape we
+    	//! want to keep exercising — do not "fix" it.
     	gp1 = gp1;
     	p2.swap(p3);
 

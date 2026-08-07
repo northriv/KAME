@@ -12,6 +12,7 @@
         see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "cyfxusb.h"
+#include <cstdint>
 #include <QFile>
 #include <QDir>
 #include <QApplication>

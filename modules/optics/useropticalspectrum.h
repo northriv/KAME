@@ -15,6 +15,7 @@
 #define usernetworkanalyerH
 
 #include "opticalspectrometer.h"
+#include <cstdint>
 #include "chardevicedriver.h"
 //---------------------------------------------------------------------------
 

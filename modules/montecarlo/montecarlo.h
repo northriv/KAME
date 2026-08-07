@@ -15,6 +15,7 @@
 #define MONTECARLO_H_
 
 #include "xthread.h"
+#include <cstdint>
 
 #include "support.h"
 #include "atomic.h"

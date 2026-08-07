@@ -30,6 +30,7 @@
 // Transaction below.  Pulled out into transaction_detail.h to
 // keep transaction.h focused on the public API.
 #include "transaction_detail.h"
+#include <cstdint>
 
 namespace Transactional {
 

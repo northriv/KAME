@@ -12,6 +12,7 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "pulserdriver.h"
+#include <cstdint>
 #include "chardevicedriver.h"
 #include "charinterface.h"
 #include <vector>

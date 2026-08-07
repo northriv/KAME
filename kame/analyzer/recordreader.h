@@ -15,6 +15,7 @@
 #define RECORDREADER_H_
 
 #include "recorder.h"
+#include <cstdint>
 
 class XRawStreamRecordReader : public XRawStream {
 public:

@@ -17,6 +17,7 @@
 #define digitalcameraH
 //---------------------------------------------------------------------------
 #include "primarydriverwiththread.h"
+#include <cstdint>
 #include "xnodeconnector.h"
 #include "xwavengraph.h"
 

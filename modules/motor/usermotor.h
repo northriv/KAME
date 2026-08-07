@@ -16,6 +16,7 @@
 #define USERMOTOR_H_
 
 #include "motor.h"
+#include <cstdint>
 #include "modbusrtuinterface.h"
 #include "chardevicedriver.h"
 

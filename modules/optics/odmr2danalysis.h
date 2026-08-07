@@ -17,6 +17,7 @@
 
 
 #include "graph.h"
+#include <cstdint>
 #include "graphwidget.h"
 #include "xwavengraph.h"
 #include "secondarydriver.h"

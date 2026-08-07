@@ -113,7 +113,7 @@ XH8Pulser::changeOutput(const Snapshot &shot, bool output, unsigned int blankpat
 		return;
 
 	if(output) {
-		if(shot[ *this].m_zippedPatterns.empty() |
+		if(shot[ *this].m_zippedPatterns.empty() ||
 		   (shot[ *this].m_zippedPatterns.size() >= MAX_PATTERN_SIZE ))
 			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
 		for(unsigned int retry = 0; ; retry++) {

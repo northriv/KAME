@@ -1,4 +1,5 @@
 #include <memory>
+#include <cstdint>
 #include <string>
 #ifdef _MSC_VER
     #ifndef snprintf

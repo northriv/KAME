@@ -18,6 +18,7 @@
 //---------------------------------------------------------------------------
 
 #include "graph.h"
+#include <cstdint>
 #include "analyzer.h"
 #include <cmath>
 

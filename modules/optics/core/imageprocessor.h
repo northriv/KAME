@@ -17,6 +17,7 @@
 #define imageProcessorH
 //---------------------------------------------------------------------------
 #include "secondarydriver.h"
+#include <cstdint>
 #include "xnodeconnector.h"
 
 class XDigitalCamera;

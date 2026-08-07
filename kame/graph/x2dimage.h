@@ -18,6 +18,7 @@
 //---------------------------------------------------------------------------
 
 #include "xnodeconnector.h"
+#include <cstdint>
 #include "graphntoolbox.h"
 
 class XDriver;
