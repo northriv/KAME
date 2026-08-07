@@ -17,7 +17,6 @@
 #define dsoH
 //---------------------------------------------------------------------------
 #include "primarydriverwiththread.h"
-#include <cstdint>
 #include "xnodeconnector.h"
 #include <complex>
 

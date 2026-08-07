@@ -24,7 +24,10 @@
 #define TRANSACTION_DEFINITIONS_H
 
 #include <atomic>   // ATOMIC_LLONG_LOCK_FREE for KAME_STM_COMPACT_STATE
-#include <cstdint>
+#include <cstdint>   //!< Kept locally: this is a public header of the
+                     //!< standalone kamestm library and does not go
+                     //!< through kamestm/support.h, so a downstream
+                     //!< consumer must not depend on our include order.
 
 // --- 32-bit platform fallback: compact STM state ---------------------
 //

@@ -17,7 +17,6 @@
 #define odmrImagingH
 //---------------------------------------------------------------------------
 #include "secondarydriver.h"
-#include <cstdint>
 #include "xnodeconnector.h"
 #include "digitalcamera.h"
 

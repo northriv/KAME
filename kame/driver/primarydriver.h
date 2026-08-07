@@ -15,7 +15,6 @@
 #define PRIMARYDRIVER_H_
 
 #include "driver.h"
-#include <cstdint>
 #include "interface.h"
 
 class DECLSPEC_KAME XPrimaryDriver : public XDriver {

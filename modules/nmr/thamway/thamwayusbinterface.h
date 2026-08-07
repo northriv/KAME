@@ -16,7 +16,6 @@
 #define THAMWAYUSBINTERFACE_H
 
 #include "chardevicedriver.h"
-#include <cstdint>
 #include "charinterface.h"
 #include "cyfxusb.h"
 #include <vector>

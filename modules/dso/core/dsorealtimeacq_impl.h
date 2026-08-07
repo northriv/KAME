@@ -13,7 +13,6 @@
 ***************************************************************************/
 
 #include "dsorealtimeacq.h"
-#include <cstdint>
 #include <qmessagebox.h>
 #include "xwavengraph.h"
 

@@ -16,7 +16,8 @@
 #define USERMOTOR_H_
 
 #include "motor.h"
-#include <cstdint>
+#include <cstdint>   //!< Kept locally: this header's include chain does
+                     //!< not reach support.h.
 #include "modbusrtuinterface.h"
 #include "chardevicedriver.h"
 

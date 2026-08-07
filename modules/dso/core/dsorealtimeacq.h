@@ -16,7 +16,6 @@
 #define DSOREALTIMEACQ_H
 
 #include "dso.h"
-#include <cstdint>
 #include "softtrigger.h"
 
 //! Software DSO using continuous AD read.

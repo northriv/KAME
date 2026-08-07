@@ -15,7 +15,6 @@
 #define CYFXUSB_H
 
 #include "chardevicedriver.h"
-#include <cstdint>
 #include "charinterface.h"
 #include <vector>
 

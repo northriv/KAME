@@ -15,7 +15,6 @@
 #define XRUBYWRITER_H_
 
 #include "xnode.h"
-#include <cstdint>
 
 class XRubyWriter  {
 public:

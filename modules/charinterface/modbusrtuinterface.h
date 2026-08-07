@@ -15,7 +15,6 @@
 #define MODBUSRTUINTERFACE_H_
 
 #include "charinterface.h"
-#include <cstdint>
 #include "chardevicedriver.h"
 
 class XModbusRTUInterface : public XCharInterface {

@@ -15,7 +15,6 @@
 #define PULSERDRIVERNIDAQMX_H_
 
 #include "pulserdriver.h"
-#include <cstdint>
 
 #include "nidaqmxdriver.h"
 

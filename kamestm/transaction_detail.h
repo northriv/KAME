@@ -53,7 +53,6 @@
 // via the shared `supportH` guard, block kame/support.h from ever loading
 // — dropping XString-the-class / QString / XKameError / enable_shared_from_this.
 #include <support.h>
-#include <cstdint>
 #include "threadlocal.h"
 #include "atomic_smart_ptr.h"
 #include <algorithm>

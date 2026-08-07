@@ -15,7 +15,6 @@
 #define THAMWAYREALTIMEDSO_H
 
 #include "dsorealtimeacq.h"
-#include <cstdint>
 #include "thamwayusbinterface.h"
 
 //! Software DSO as a frontend for Thamway PROT NMR receiver USB3 interface.

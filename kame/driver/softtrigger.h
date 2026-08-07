@@ -16,7 +16,6 @@
 #define SOFTTRIGGER_H
 
 #include "transaction.h"
-#include <cstdint>
 #include "xthread.h"
 #include <deque>
 #include "atomic_queue.h"

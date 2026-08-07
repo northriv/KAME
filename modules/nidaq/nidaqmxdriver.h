@@ -15,7 +15,6 @@
 #define NIDAQMXDRIVER_H_
 
 #include "interface.h"
-#include <cstdint>
 #include "driver.h"
 #include "atomic_queue.h"
 #include "softtrigger.h"

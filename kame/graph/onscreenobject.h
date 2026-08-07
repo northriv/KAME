@@ -15,7 +15,6 @@
 #define ONSCREENOBJECT_H
 
 #include "graph.h"
-#include <cstdint>
 #include "graphwidget.h"
 
 #include <Qt>
