@@ -15,6 +15,8 @@
 #define CYFXUSB_WIN32_H
 
 #include "cyfxusb.h"
+#include <cstdint>   //!< Kept locally: the Windows-only path reaches
+                     //!< <windows.h> but never support.h.
 
 #define _WIN32_WINNT 0x0600 //vista or later is required for CancelIoEx
 #define NOMINMAX

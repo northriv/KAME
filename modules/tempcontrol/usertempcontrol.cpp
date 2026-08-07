@@ -620,7 +620,11 @@ void XNeoceraLTC21::open() {
 	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
 		if( !hasExtDevice(shot, idx)) {
 			interface()->queryf("QOUT?%u;", idx + 1);
-			int sens, cmode, range;
+			// `range` is only scanned for idx == 0, but the lambda below
+			// captures by value — which copies it either way, and copying an
+			// indeterminate int is UB.  clang's -Wsometimes-uninitialized
+			// catches it; GCC does not.
+			int sens, cmode, range = 0;
 			if(idx == 0) {
 				if(interface()->scanf("%1d;%1d;%1d;", &sens, &cmode, &range) != 3)
 					throw XInterface::XConvError(__FILE__, __LINE__);

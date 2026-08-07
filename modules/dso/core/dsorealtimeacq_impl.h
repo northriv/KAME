@@ -625,10 +625,22 @@ XRealTimeAcqDSO<tDriver>::convertRaw(typename tDriver::RawDataReader &reader, Tr
     const unsigned int accumCount = reader.template pop<uint32_t>();
     const double interval = reader.template pop<double>();
 
+    // Everything above came off the raw stream — i.e. out of a recorded .dat
+    // that this build did not necessarily write, and may be truncated or
+    // corrupt.  Validate BEFORE sizing anything from it.  `wave`/`coeff` used
+    // to be variable-length arrays dimensioned straight from `num_ch`, so a
+    // bad channel count in a replayed file was an unbounded stack allocation.
+    // (VLAs are also a GCC/clang extension that MSVC does not implement, so
+    // the fixed bound is what lets this header compile there at all.)
+    if((num_ch == 0) || (num_ch > MAX_NUM_CH_ON_WIRE))
+        throw XDriver::XRecordError(i18n("Invalid channel count in the raw stream"), __FILE__, __LINE__);
+    if(accumCount == 0)
+        throw XDriver::XRecordError(i18n("Invalid accumulation count in the raw stream"), __FILE__, __LINE__);
+
     tr[ *this].setParameters(num_ch, - (double)pretrig * interval, interval, len);
 
-    double *wave[num_ch * 2];
-    double coeff[num_ch * 2][CAL_POLY_ORDER];
+    double *wave[MAX_NUM_CH_ON_WIRE];
+    double coeff[MAX_NUM_CH_ON_WIRE][CAL_POLY_ORDER];
     for(unsigned int j = 0; j < num_ch; j++) {
         for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
             coeff[j][i] = reader.template pop<double>();

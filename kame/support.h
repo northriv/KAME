@@ -59,6 +59,10 @@
     #define M_PI 3.1415926535897932385
 #endif
 
+#include <cstdint>   //!< Fixed-width integer types are used all over the
+                     //!< tree.  They used to arrive only by leaking out of
+                     //!< <string>, which newer libstdc++ no longer does —
+                     //!< guarantee them here instead of in every header.
 #include <cassert>
 #ifdef NDEBUG
 #define DEBUG_XTHREAD 0
