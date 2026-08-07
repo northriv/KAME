@@ -422,10 +422,23 @@ FrmKameMain::createMenus() {
 void
 FrmKameMain::processSignals() {
     bool idle = Transactional::SignalBuffer::synchronize();
-	if(idle) {
-        msecsleep(5);
-    }
-    msecsleep(0);
+    // Never block in here.  This slot is driven by a QTimer, so it runs inside
+    // whatever event loop happens to be current -- including a *foreign* GLib
+    // loop.  Qt's GTK3 platform theme, which Linux desktops that ship
+    // qt6-gtk-platformtheme select by default, implements the native file and
+    // colour dialogs with gtk_dialog_run(); that spins g_main_loop_run() on the
+    // same GMainContext as Qt's event dispatcher.  Sleeping 5 ms inside the
+    // callback of a *zero-interval* timer makes Qt's timer source permanently
+    // ready at G_PRIORITY_DEFAULT, and GLib then never reaches GDK's redraw
+    // source (GDK_PRIORITY_REDRAW is numerically larger, i.e. lower priority).
+    // Result on Linux: QFileDialog and QColorDialog map as an empty frame that
+    // never paints and never accepts input, while Qt's own dialogs
+    // (QMessageBox) are unaffected because they run Qt's event loop.
+    // Express the same pacing as the timer interval instead, so the thread
+    // blocks in poll() -- where the other sources get their turn.
+    int interval = idle ? 5 : 0;
+    if(m_pTimer->interval() != interval)
+        m_pTimer->setInterval(interval); //restarts the running timer.
 }
 
 void
@@ -466,9 +479,11 @@ void FrmKameMain::fileExitAction_activated() {
 void FrmKameMain::fileOpenAction_activated() {
     QString filename = QFileDialog::getOpenFileName (
         this, i18n("Open Measurement File"), "",
+        //! No trailing ";;": it appends an empty name filter, which shows up as a
+        //! blank row in the file-type combo of Qt's own widget dialog.
         "KAME2 Measurement files (*.kam);;"
         "KAME1 Measurement files (*.mes);;"
-        "All files (*.*);;"
+        "All files (*.*)"
         );
 	openMes(filename);
 }
@@ -635,7 +650,7 @@ void FrmKameMain::scriptRunAction_activated() {
 #endif
         "KAME Script files (*.seq);;"
         "Ruby Script files (*.rb);;"
-        "All files (*.*);;"
+        "All files (*.*)"
     );
 	if( !filename.isEmpty()) {
 		static unsigned int thread_no = 1;
