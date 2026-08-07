@@ -85,6 +85,7 @@ if(USE_KAME_ALLOCATOR)
 endif()
 
 set(kamestm_test_names
+    fast_vector_test
     atomic_shared_ptr_test
     atomic_scoped_ptr_test
     atomic_queue_test
@@ -117,6 +118,12 @@ endforeach()
 
 # --- CTest registration ---
 enable_testing()
+# Union discipline of fast_vector<T,N>: the inline m_array and the heap
+# m_vector are union'd, so any method reaching for the inactive member is
+# UB.  Pins the inverted is_fixed() test in shrink_to_fit() that produced a
+# sporadic SIGSEGV via Talker::disconnect.  Byte-pattern dependent by
+# nature -- run under -fsanitize=address,undefined for full strength.
+add_test(NAME fast_vector_test COMMAND fast_vector_test)
 add_test(NAME atomic_shared_ptr_test COMMAND atomic_shared_ptr_test)
 add_test(NAME atomic_scoped_ptr_test COMMAND atomic_scoped_ptr_test)
 add_test(NAME atomic_queue_test COMMAND atomic_queue_test)
