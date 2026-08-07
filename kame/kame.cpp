@@ -466,9 +466,11 @@ void FrmKameMain::fileExitAction_activated() {
 void FrmKameMain::fileOpenAction_activated() {
     QString filename = QFileDialog::getOpenFileName (
         this, i18n("Open Measurement File"), "",
+        //! No trailing ";;": it appends an empty name filter, which shows up as a
+        //! blank row in the file-type combo of Qt's own widget dialog.
         "KAME2 Measurement files (*.kam);;"
         "KAME1 Measurement files (*.mes);;"
-        "All files (*.*);;"
+        "All files (*.*)"
         );
 	openMes(filename);
 }
@@ -635,7 +637,7 @@ void FrmKameMain::scriptRunAction_activated() {
 #endif
         "KAME Script files (*.seq);;"
         "Ruby Script files (*.rb);;"
-        "All files (*.*);;"
+        "All files (*.*)"
     );
 	if( !filename.isEmpty()) {
 		static unsigned int thread_no = 1;

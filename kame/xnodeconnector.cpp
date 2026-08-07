@@ -30,6 +30,8 @@
 #include <QSlider>
 #include <QToolButton>
 #include <QFileDialog>
+#include <QFileInfo>
+#include <QDir>
 #include <QColorDialog>
 #include <QPainter>
 #include <QMainWindow>
@@ -377,15 +379,55 @@ XFilePathConnector::onClick() {
     //old qt cannot make native dialog in this mode.
     QFileDialog dialog(m_pItem);
     dialog.setViewMode(QFileDialog::Detail);
-    dialog.setNameFilter(m_filter);
 //    dialog.setConfirmOverwrite(false);
-    int perpos = m_filter.find_first_of('.');
-    assert(perpos != std::string::npos);
-    XString suf = m_filter.substr(perpos + 1, 3);
-    dialog.setDefaultSuffix(suf);
-    dialog.setDirectory(m_pItem->text());
+    // m_filter is a ";;"-separated *list* ("Data files (*.dat);;All files (*.*)").
+    // setNameFilter() is singular and does NOT split on ";;": it took the whole
+    // string as one filter, so the type combo showed the raw ";;" text as a single
+    // garbled entry and only the trailing glob ("*.*") was ever applied.  The
+    // native macOS/Windows helpers do not show the combo, which is why this
+    // survived unnoticed until Qt's own widget dialog was used on Linux.
+    QStringList filters;
+    for(const QString &s: QString(m_filter).split(";;")) {
+        QString t = s.trimmed();
+        if(t.length())
+            filters.push_back(t);
+    }
+    if( !filters.isEmpty())
+        dialog.setNameFilters(filters);
+    // Default suffix comes from the first extension of the *first* filter,
+    // e.g. "Data files (*.dat)" -> "dat".  Skip it when that filter is a
+    // catch-all ("*.*"), which has no meaningful suffix.
+    if( !filters.isEmpty()) {
+        const QString &head = filters.front();
+        QString suf;
+        for(int i = head.indexOf('.') + 1; (i > 0) && (i < head.length()); ++i) {
+            if( !head.at(i).isLetterOrNumber())
+                break;
+            suf += head.at(i);
+        }
+        if(suf.length())
+            dialog.setDefaultSuffix(suf);
+    }
+    // The line edit holds a *file* path, not a directory.  Handing it straight
+    // to setDirectory() makes Qt's widget dialog root itself at a non-directory
+    // and list nothing at all; the native helpers silently treated it as a
+    // preselected file instead.  Do that split explicitly.
+    QString curpath = m_pItem->text();
+    if(curpath.length()) {
+        QFileInfo fi(curpath);
+        if(fi.isDir())
+            dialog.setDirectory(fi.absoluteFilePath());
+        else {
+            if(QDir(fi.absolutePath()).exists())
+                dialog.setDirectory(fi.absolutePath());
+            if(fi.fileName().length())
+                dialog.selectFile(fi.fileName());
+        }
+    }
     dialog.setAcceptMode(m_saving ? QFileDialog::AcceptSave: QFileDialog::AcceptOpen);
     if( !dialog.exec())
+        return;
+    if(dialog.selectedFiles().isEmpty())
         return;
     QString str = dialog.selectedFiles().at(0);
 #endif
