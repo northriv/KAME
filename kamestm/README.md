@@ -225,7 +225,8 @@ terms are the deployment's to bound:
 1. **Isolate the deadline-bearing thread** (`isolcpus`), everything else
    together on the housekeeping cores.
 2. **`SCHED_FIFO` only on top of (1).**
-3. **A wait budget sized to the deadline** — MAX = budget + ~200 µs.
+3. **A wait budget sized to the deadline**, and kept well above the 300 µs
+   reserve — MAX = budget + ~7 µs, or ~3 µs with (1), (2) and PM-QoS.
 4. **`kame_pool_prewarm()` from that thread** before the time-critical
    section: a commit clones a payload, so the allocator is on the deadline
    path, and the unwarmed first commit measured ~400 µs.

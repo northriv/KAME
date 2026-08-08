@@ -85,9 +85,15 @@
 //!     against 20.5 us (179x) and MAX 20.19 ms against 95.1 us (212x).  The
 //!     other roles completed a mean of 2,004 commits during each slow one
 //!     against 13 in the HIGHEST arm: a thread asleep while the system works.
-//!     SCHED_FIFO changes none of it (43.8k/s and MAX 20.15 ms with, 43.3k/s
-//!     and 20.19 ms without) — negotiate_sleep is a VOLUNTARY wait and no
-//!     scheduling class shortens one.
+//!     SCHED_FIFO changed nothing in THIS measurement (43.8k/s and MAX 20.15 ms
+//!     with, 43.3k/s and 20.19 ms without) — but do not read the inference that
+//!     came with it ("no scheduling class shortens a voluntary wait"), because
+//!     it is false.  Both arms are budget-dominated at 20 ms, so a wake-up cost
+//!     of a few hundred microseconds cannot show up in either MAX; and the two
+//!     arms are not the same measurement at that scale anyway, since Linux
+//!     applies 50 us of timer slack to every futex timeout a SCHED_OTHER task
+//!     arms and none to an RT one.  On the wake-up cost itself the scheduling
+//!     class is the DOMINANT term (5.3x) — see the correction below.
 //!   * So at NORMAL the wait budget is the only bound the record commit has,
 //!     and — pinned — it delivers exactly its value.  Sweep on the RT host,
 //!     FIFO + pin, 60 s each:
@@ -108,14 +114,40 @@
 //!     Confirmed at length: 300 s, FIFO + pin, 1 ms budget, **38,303,308
 //!     commits, MAX 1.288 ms, ZERO over a 3 ms deadline**, with every other
 //!     role healthy (UI 42.3k/s, SCRIPTING 129.7k/s, NORMAL 100.6k/s).
+//!   * **CORRECTION to the table above, from the NegDiag instrumentation this
+//!     file now carries (see SlowDiag).**  The ~200 us was real and the
+//!     attribution was wrong.  It is not the budget-exempt wait: `rounds_exempt`
+//!     is ZERO across 17,274 slow commits, under every scheduling class,
+//!     C-state setting and budget tried.  It is the timed wait's own WAKE-UP
+//!     cost — the worst commit of a 200 us-budget run is one cell.wait() asked
+//!     for 198,000 ns that returned 695,599 ns later, with 6,195 ns unaccounted,
+//!     and that remainder is the STM's entire share.  Decomposed as the worst
+//!     single overshoot: plain 662 us, PM-QoS alone 605, FIFO alone 124,
+//!     PM-QoS + FIFO 20 — the scheduling class dominates at 5.3x and PM-QoS
+//!     buys its 6x only on top of it, super-additively, which is why the
+//!     earlier single-knob arms concluded the residue was irreducible.
+//!     Fixed at the source: a budgeted sleep now stops KAME_NEG_SPIN_TAIL_US
+//!     (300) short of the deadline and polls the remainder, so MAX - budget is
+//!     7.1 us at 20 ms and 3.0 us in the ship configuration — below this host's
+//!     own 17 us floor.  The sweep above is therefore PRE-RESERVE data; its
+//!     shape (linear in the budget, throughput rising as it falls, clip rate
+//!     invariant) still holds, its constant does not.  Note the cliff: once the
+//!     reserve approaches the whole budget the thread never sleeps and starves
+//!     the deferrable tiers (-94 %/-98 % at a 200 us budget), so keep the budget
+//!     well above 300 us.
 //!   * **Pinning is what makes the budget work, and FIFO without it is
 //!     catastrophic.**  Unpinned, MAX sticks at 12-13 ms for every budget from
-//!     5 ms down to 500 us while the clip count saturates — that residue is the
-//!     wait behind a LIVE PRIVILEGED PEER, which is contractually budget-exempt,
-//!     so its length is the holder's scheduling delay and nothing else.  Pinning
-//!     the contenders together (acq alone on cpu3, everyone else on cpu0) means
-//!     a holder is always promptly scheduled among its peers, and the exempt
-//!     residue disappears entirely.  Take the isolation away while keeping FIFO
+//!     5 ms down to 500 us while the clip count saturates.  The standing
+//!     explanation is the wait behind a LIVE PRIVILEGED PEER, which is
+//!     contractually budget-exempt and therefore bounded by the holder's
+//!     completion time rather than by the budget — but treat it as a HYPOTHESIS,
+//!     because it is the same hypothesis the instrumentation above just refuted
+//!     for the pinned arm, and nobody has yet run the instrumented build
+//!     UNPINNED.  `rounds_exempt` over an unpinned arm settles it in one run;
+//!     until then the 12-13 ms could equally be more late wake-ups.  Pinning
+//!     the contenders together (acq alone on cpu3, everyone else on cpu0) does
+//!     make a holder promptly scheduled among its peers, and the residue
+//!     disappears entirely.  Take the isolation away while keeping FIFO
 //!     and the same run FAILS the watchdog: only the acq thread is put on
 //!     SCHED_FIFO here, so it preempts the very CFS holders it then waits
 //!     behind — UI fell to 144 commits/s and SCRIPTING to 176 (from 42.3k and
