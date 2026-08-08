@@ -417,12 +417,49 @@ partition, node ID, governor and turbo state.
 
 ### Running the measurement
 
+`--faults` is a *mode*, not an extra band: it "runs BEFORE the interferers
+start and instead of the steady-state arms … the whole point is that nothing
+else is perturbing the page tables".  So the campaign is two families, not one
+command.
+
 ```bash
-# pin to an isolated core and take the RT priority the harness asks for
-sudo chrt -f 80 taskset -c 2 ./build/tests/bench_rt_wcet --faults 24 --thp system
-sudo chrt -f 80 taskset -c 2 ./build/tests/bench_rt_wcet --faults 24 --thp never
-sudo chrt -f 80 taskset -c 2 ./build/tests/bench_rt_wcet --faults 24 --thp always
+# sudo for the privilege, taskset for the isolated cores — and NOT chrt.
+
+# (a) G6(a) cold-fault arms — the THP question.  Rounds x 32 MiB / 4 KiB is
+#     the sample count, so 128 rounds is ~1.05 M; each arm takes seconds.
+sudo taskset -c 2,3 ./build/tests/bench_rt_wcet --faults 128 --thp system
+sudo taskset -c 2,3 ./build/tests/bench_rt_wcet --faults 128 --thp never
+sudo taskset -c 2,3 ./build/tests/bench_rt_wcet --faults 128 --thp always
+
+# (b) steady-state RT-vs-OFF bands, interferers running — the WCET question.
+#     This is the long one; --full is reps=10 iters=4000 and 2 M cross-thread.
+sudo taskset -c 2,3 ./build/tests/bench_rt_wcet --full
 ```
+
+`--full` has no effect in family (a) — it sets `reps`/`iters`, which only the
+steady-state arms read — and `--thp` has no effect in family (b) beyond the
+process-wide policy it sets before prewarm.  Keep them separate so the run log
+says which question each number answers.
+
+Three things about that command line are load-bearing:
+
+* **No `chrt`.**  The harness promotes its own measuring thread with
+  `pthread_setschedparam(…, SCHED_FIFO, 80)` — `sudo` supplies the privilege
+  and the banner tells you whether it got it.  The interferer threads are
+  "deliberately NOT realtime": they are the contention the RT thread has to
+  tolerate.  Launching under `chrt -f 80` makes the whole process SCHED_FIFO,
+  the interferers inherit it, and three spinning FIFO threads plus the
+  measuring one on two isolated cores starve each other — with
+  `sched_rt_runtime_us` = -1 there is no throttle left to break the tie.
+* **Two isolated cores, not one.**  On a single core the FIFO measuring
+  thread starves the `SCHED_OTHER` interferers outright and the run measures
+  an uncontended allocator, which is not the question being asked.
+* **`--full`.**  The default is the CI smoke run — `reps=4 iters=200` and
+  120 k cross-thread samples.  That is exactly the count at which the
+  cross-thread arms ordered *backwards* at p99.9 (see the methodology traps
+  at the end of this file).  `--full` gives `reps=10 iters=4000` and 2 M.
+
+Time one arm before committing to a rep count; `--full` is not a few seconds.
 
 Same protocol as everywhere else in this project: **interleave the arms inside
 one session**, median of ≥ 5, report min/max beside it, and ≥ 10⁶ samples
@@ -434,6 +471,396 @@ no reboot — but re-read the `PR_SET_THP_DISABLE` trap above before trusting an
 What this campaign is expected to produce: §G6(a)'s "mechanism trustworthy /
 absolute WCET not trustworthy" split collapses into a single set of numbers
 carrying the `hwlatdetect` floor as their stated resolution.
+
+### As built (2026-08) — the host, and what the measurements actually said
+
+Everything above this point was the plan.  This subsection is the outcome: the
+machine exists, the RT kernel boots, and the host characterisation is complete.
+The allocator campaign itself is **not** run yet — see "still open" at the end.
+
+#### The machine
+
+`ssp-iMac18-3`, iMac 27" 2017, **i5, 4 cores / 4 threads** (`lscpu -e` shows
+CPU 0-3 on CORE 0-3, one socket), 800–3800 MHz, 16 GB.  Confirms the guess in
+the tuning section: `nosmt` has nothing to disable here.
+
+Ubuntu 26.04 LTS, `7.0.0-29-realtime` (`#29.1-Ubuntu SMP PREEMPT_RT`,
+`/sys/kernel/realtime` = 1), installed from `ubuntu-realtime` with no Pro
+subscription.
+
+Storage — this **departs from the recommendation above**, and the departure is
+the better answer for a machine that is administered remotely:
+
+| device | role | note |
+|---|---|---|
+| NVMe blade (Fusion SSD half), 24.5 GiB | `/` **including `/boot`** | only `/boot/efi` is separate |
+| external **USB 3.1 Gen2 SSD**, 824 GiB, `uas` driver | `/home` | sources, build trees, data |
+| internal 1 TB HDD | **unused** | keep for backups, `noauto`, spun down |
+
+Three things follow from that layout and are not optional:
+
+* **`/home` must be mounted by UUID with `nofail`.**  Across the first RT
+  reboot the external SSD moved from `/dev/sda1` to `/dev/sdb1` — the internal
+  HDD enumerated first that time.  A device-name entry would have dropped the
+  machine into emergency mode, which on an iMac (no BMC, no IPMI, no console)
+  means a site visit.  Verify the generator honoured it, because `nofail` is a
+  directive the generator consumes and never appears in the mount options:
+  `home.mount` must land in `/run/systemd/generator/local-fs.target.wants/`,
+  **not** in `…requires/`.  Set the fsck pass to 0 as well, so a dirty 824 GB
+  ext4 cannot add minutes to a remote boot.
+* **`/` is small and `/boot` lives in it.**  Installing the RT kernel needs
+  room there.  Deleting Ubuntu's 4 GB `/swap.img` — which an RT host does not
+  want anyway — plus `apt clean`, a snap trim and 1 GB of stale
+  `/var/lib/apport` cores took it from 6.4 to 12 GiB free.
+* **`GRUB_RECORDFAIL_TIMEOUT=5`.**  Ubuntu's default is to wait at the menu
+  *indefinitely* after a failed boot; on a headless machine that alone is a
+  site visit.  With `GRUB_DEFAULT=saved`, keeping `saved_entry` on a known-good
+  kernel and entering the tuned one with `grub-reboot` (one-shot) means any
+  unexpected power cycle returns to something that works.
+
+Pre-reboot checks worth repeating on any similar host: `dkms status` (**empty
+here** — nothing to fail to build against the RT kernel), and that the NIC
+driver exists in the new kernel (`modinfo -k 7.0.0-29-realtime tg3` — in-tree,
+so it does).  Those two are how you lose a remote machine.
+
+#### Firmware floor
+
+`hwlatdetect --duration=300 --threshold=10` on the installed RT kernel:
+**0 samples recorded, 0 exceeding threshold.**  The live-USB gate had reported
+one sample at 13 µs.  Taken together: the SMI/SMM floor on this machine is at
+most ~13 µs and is rarely reached, so it is **not** the limiting term at the
+scale anything below cares about.
+
+#### Scheduling floor, and the C-state result
+
+All runs: `-m -S -p 90 -h`, 10 min, no load, CRD and `gdm3` stopped, all four
+CPUs (no `isolcpus` yet).  **Every `cyclictest` number in this file, here and
+in the gate section, is a PM-QoS-0 number unless the row says otherwise** —
+cyclictest writes 0 to `/dev/cpu_dma_latency` by default and prints
+`# /dev/cpu_dma_latency set to 0us` when it does.
+
+`-i 200` (CPU never idles long enough to go deep):
+
+| governor | C3–C8 in sysfs | min | avg | max (per thread) |
+|---|---|---|---|---|
+| powersave | enabled | 2 | 2 | 12 / **35** / 12 / 15 |
+| performance | disabled | 2 | 2 | 12 / 12 / **16** / 13 |
+
+~97 % of 3 M samples per thread land in the 2 µs bucket.  The two rows differ
+only in the governor, **not** in C-states — cyclictest had suppressed those in
+both.  This also settles the live-USB baseline: its 97 µs max was likewise a
+PM-QoS-0 number, so the drop to 12–16 µs came from removing background load
+(swap, `gdm3`, snaps, CRD), which is exactly the "~84 µs is software" split the
+gate section predicted.
+
+`-i 50000`, performance governor, C3–C8 **enabled**, PM-QoS varied with
+`--latency=` — this is the case KAME actually lives in, idle between
+acquisitions and then woken:
+
+| PM-QoS target | min | avg | max |
+|---|---|---|---|
+| unconstrained (`--latency=1000000`) | 4 | **165** | **235** |
+| 10 µs (C1E and shallower) | 2 | 13–14 | 31–**64** |
+| **0 µs** | 2 | **2** | **11–13** |
+
+The unconstrained row is not a tail effect: avg 165 µs sits right up against
+max 235 µs, i.e. at a 50 ms idle period the CPU reaches **C8 on essentially
+every wake-up** and pays its 200 µs exit.  Installed idle states and their
+advertised exit latencies: POLL 0, C1 2, C1E 10, C3 70, C6 85, C7s 124,
+C8 200 µs.
+
+So: **235 µs is the measured, unmitigated bound for a wake-from-idle response
+on this host, and PM-QoS 0 buys it down to 13 µs — a factor of ~18.**  The
+intermediate 10 µs target is a poor bargain: its average is fine but its max
+scatters to 64 µs, which is the wrong property when the claim is about a bound.
+
+#### Decision: PM-QoS at runtime, not `intel_idle.max_cstate` on the cmdline
+
+The tuning section above defers `intel_idle.max_cstate=1` until after a fan
+check.  The fan check passed with room to spare: package 40 °C with C1E
+allowed, and **51 °C sustained over four minutes with PM-QoS pinned at 0** —
+29 °C below the 80 °C `high`, 49 °C below `crit`.  Holding all four cores out
+of deep idle therefore costs about **+11 °C** on this machine, and thermals
+are **not** the reason to avoid `intel_idle.max_cstate=1`.  Prefer the runtime
+knob anyway:
+
+* the effect is the same, but PM-QoS is reversible without a reboot;
+* it is **per-run and therefore recordable**, which matters more than it
+  sounds — the whole reason the two `-i 200` rows above were nearly identical
+  is that a tool silently changed the condition being measured;
+* a boot-time limit keeps every core out of deep idle for the whole session,
+  including the hours a lab machine spends doing nothing.
+
+Hold it from outside the measured binary, so the binary stays unmodified:
+
+```bash
+sudo tee /usr/local/bin/with-pmqos >/dev/null <<'EOF'
+#!/usr/bin/env python3
+"""Hold /dev/cpu_dma_latency at <us> for the lifetime of the wrapped command."""
+import os, struct, subprocess, sys
+fd = os.open("/dev/cpu_dma_latency", os.O_WRONLY)
+os.write(fd, struct.pack("i", int(sys.argv[1])))
+try:    sys.exit(subprocess.run(sys.argv[2:]).returncode)
+finally: os.close(fd)
+EOF
+sudo chmod +x /usr/local/bin/with-pmqos
+```
+
+The constraint lives exactly as long as the descriptor is open; closing it
+releases it, and the kernel takes the minimum over all open requests.
+
+A `--cpulatency` option doing this inside KAME was written and then reverted.
+Held for the process lifetime it is indistinguishable from the wrapper, so it
+bought nothing; it would only have earned its place by scoping the request to
+the acquisition window, which a wrapper cannot do.  Recorded here so the
+question is not re-opened without that scoping attached to it.
+
+#### The tuned cmdline goes in a *separate* GRUB entry
+
+Isolating 2 of 4 cores leaves KAME two for its GUI, Python and driver threads,
+which is not a configuration to boot into by accident.  Put the tuning in one
+extra entry and leave the generated ones alone — copy the generated realtime
+`menuentry` out of `grub.cfg` into `/etc/grub.d/40_custom` (which emits
+everything from line 3 verbatim), retitle it, and append to its `linux` line:
+
+```
+isolcpus=2,3 nohz_full=2,3 rcu_nocbs=2,3 irqaffinity=0,1
+```
+
+`nohz_full` and `rcu_nocbs` are the reason a boot parameter is needed at all —
+cpusets and IRQ affinity are settable at runtime, the tick and RCU offload are
+not, and at an allocator's sub-µs scale the 250/1000 Hz tick is not a rounding
+error.  No C-state flag here, per the decision above.  Enter it for a campaign
+with `grub-reboot "<title>"`; `saved_entry` stays on the plain RT entry.
+
+Verify the isolation actually took, rather than assuming the parameters were
+accepted — `isolcpus` in particular is silently ignored on a typo:
+
+```bash
+cat /sys/devices/system/cpu/isolated /sys/devices/system/cpu/nohz_full   # 2-3, 2-3
+# every IRQ pinned to the housekeeping cores: this must print nothing
+awk '{print FILENAME": "$0}' /proc/irq/*/smp_affinity_list | grep -vE ': *0-1$| *0,1$'
+# nothing but kernel per-cpu threads on the isolated cores
+ps -eLo pid,tid,psr,rtprio,comm --no-headers | awk '$3>=2'
+# the decisive one: LOC must not advance on the isolated cores
+grep -E '^ *LOC' /proc/interrupts; sleep 10; grep -E '^ *LOC' /proc/interrupts
+```
+
+Measured here: the isolated cores took **zero local timer interrupts in ten
+seconds** (112 → 112, all of them from early boot) while CPU 0 advanced by
+~1,000/s.  Left on cores 2-3 are only `cpuhp`, `idle_inject`, `irq_work`,
+`migration`, `rcuc`, `ktimers`, `ksoftirqd`, `kworker` and `backlog_napi`.
+`idle_inject` runs at RT priority 50 and only when thermal throttling engages,
+so a bench taken at `chrt -f 80` outranks it — one more reason to read the
+`thermal_throttle` counters rather than trust that it stayed asleep.
+
+Settings that do **not** survive the reboot into this entry, and that a
+campaign is wrong without: the `performance` governor,
+`/proc/sys/kernel/sched_rt_runtime_us` = -1 (the default throttles SCHED_FIFO
+to 950 ms of every second, which is not a subtle way to ruin a `chrt -f 80`
+run) and the `memlock` limit.  Note also that only two cores remain for
+everything else, so build the tests *before* entering this entry, or accept
+`-j2`.
+
+#### Found on the way, and fixed in KAME
+
+Standing the host up surfaced two defects that the native macOS/Windows paths
+had been hiding, both now on `master`'s history:
+
+* `FrmKameMain::processSignals()` — the timeout slot of a **zero-interval**
+  `QTimer` — slept 5 ms in `msecsleep()` whenever the STM signal buffer was
+  idle.  Qt's GTK3 platform theme runs the native file and colour dialogs
+  through `gtk_dialog_run()`, i.e. `g_main_loop_run()` on the *same*
+  `GMainContext` as Qt's dispatcher, so an always-ready `G_PRIORITY_DEFAULT`
+  timer source whose callback blocks starves GDK's redraw source outright:
+  both dialogs mapped an empty frame that never painted and never took input.
+  Diagnosed from a live backtrace of the stuck main thread.  A GUI thread that
+  sleeps inside a timer callback is a hazard of the same family as the
+  "never hold a plain mutex across a Snapshot/Transaction" rule in `CLAUDE.md`.
+* `XFilePathConnector::onClick()` passed a `";;"`-separated filter *list* to
+  the singular `QFileDialog::setNameFilter()`, and handed the line edit's
+  *file* path straight to `setDirectory()` — under Qt's widget dialog the
+  first shows the raw `";;"` as one garbled combo row and the second lists
+  nothing at all.
+
+#### The steady-state campaign — measured
+
+`bench_rt_wcet --full` under `with-pmqos 0` + `sudo taskset -c 2,3`, five
+repetitions, `thermal_throttle` counters 0 before and after, PREEMPT_RT with
+cores 2-3 isolated and taking no local timer interrupts.  Medians of the five;
+one repetition (the second) was perturbed system-wide — every band reported
+`p99.999 = 2048 ns` in that run alone — which is exactly what taking a median
+of five is for.
+
+| band | RT malloc MAX | RT free MAX |
+|---|---|---|
+| 64 B (bucket) | **449 ns** | 332 ns |
+| 4 KiB (bucket) | **415 ns** | 301 ns |
+| 256 KiB (dedicated) | 673 ns | 237 ns |
+| 8 MiB (large) | 16,087 ns | 239 ns |
+
+Cross-thread free — a producer thread allocates, the measured thread frees —
+is where the realtime gating is supposed to show, and does:
+
+| | mean | p50 | p99.99 | p99.999 | **MAX** |
+|---|---|---|---|---|---|
+| **RT** | 55 | 55 | **160** | **192** | **352 ns** |
+| OFF | 43 | 31 | 20,480 | 32,768 | **42,356 ns** |
+| ratio | 1.3× | 1.8× | **128×** | **171×** | **120×** |
+
+**1.8× on the median buys 120× on the worst case.**  The mechanism is in the
+harness's own footnote: OFF batches to `CAP=1024` and then one unlucky free
+pays for the whole buffer, while RT takes `push_direct` every time.  This is
+the realtime contract stated as a measurement rather than as an intention, and
+it is the number §G6(a)'s "absolute WCET not trustworthy" caveat was waiting
+for.
+
+**Resolution.**  The host's own noise floor is `hwlatdetect` < 10 µs and
+`cyclictest` max 12–16 µs (above).  So the bucket-band maxima at ~0.45 µs sit
+a factor of 30 below the floor and are allocator numbers; the 8 MiB malloc
+max at ~16 µs sits *at* the floor and cannot be attributed to the allocator.
+Quote both together or neither.
+
+**Do not compare these against the pre-2026-08 runs.** Everything measured
+before the `demote_this_thread()` fix had the interferers and the cross-thread
+producer running at `SCHED_FIFO` 80 by inheritance; on this host the same
+cross-thread RT max read 1,988 ns under that regime versus 352 ns after.
+
+#### `rt_violations` — a real residue, characterised
+
+Every `--full` run reports `rt_violations=8` and fails the harness's own
+assertion.  It is not noise and not the measurement setup: the count is
+unchanged by dropping the interferers (`--threads 0`) or by pinning to four
+cores instead of two, and it tracks the repetition count exactly —
+
+| `--reps` | 2 | 3 | 4 | 6 | 10 | 20 |
+|---|---|---|---|---|---|---|
+| `rt_violations` | **0** | 2 | 2 | 4 | 8 | 18 |
+
+— i.e. **`reps − 2` at even `reps`**, one large-tier mapping per repetition
+beyond what prewarm covers.  Odd counts do not fit it (3 gives 2, not 1), so
+the RT/OFF alternation — `run_rep` swaps which arm goes first on odd `r` — is
+part of the mechanism, not just the repetition count.
+
+Note where that leaves the registered ctest.  `bench_rt_wcet_smoke` runs
+`--reps 2 --iters 150`, which is **exactly the point where the count is zero**,
+so the assertion passes and CI has never seen this.  Raising the test's
+repetitions would turn it red — correctly, but it should be a deliberate act
+with the residue understood, not a side effect of wanting more samples.  `--rt-os-policy 3` names the site: **`large_va_raw_map`**, not
+the radix leaf.  That matters, because `large_va_raw_map` is one of the two
+sites that degrade safely — under `KAME_RT_OS_FAIL` it returns nullptr and the
+allocation falls back to libc — so the bound is not what breaks here.
+
+The 8 MiB band is far below `LRC_HI` (256 MiB), so the large recycle cache is
+meant to absorb it; the 300 MiB band that bypasses the cache by construction is
+`--pressure`-only and was not run.  So this is a prewarm/recycle shortfall
+rather than designed behaviour, and it is left open deliberately: G7 can
+report "the bucket tiers enter no mapping after prewarm; the large tier
+retains a known `reps − 1`-shaped residue at a safely-degrading site" without
+waiting on an allocator change.
+
+#### THP arms — a `PREEMPT_RT` kernel has no THP to act on
+
+`--faults 128 --thp system|never|always`, seven repetitions, ~1.05 M samples
+each.  All three arms are **statistically identical**: p50 1792, p99 5120,
+p99.9 5120, p99.99 6144, p99.999 8192 ns in every run of every arm, with only
+the single-sample `MAX` wandering (medians 13,494 / 7,999 / 8,068 ns for
+system / never / always) and `samples > 8 µs` at 0.002–0.003 % throughout.
+
+`always` and `never` cannot agree to the bucket if THP is doing anything, and
+`p50 = 1792 ns` is one plain 4 KiB fault where a 2 MiB-backed range would be
+bimodal — 511 near-free touches and one very expensive one.  The cause is not
+a mis-set arm:
+
+```
+$ cat /sys/kernel/mm/transparent_hugepage/enabled
+cat: … No such file or directory          # not "[never]" — the knob is absent
+$ grep -i thp /proc/self/status
+THP_enabled:    0
+$ grep TRANSPARENT_HUGEPAGE /boot/config-7.0.0-29-realtime
+CONFIG_HAVE_ARCH_TRANSPARENT_HUGEPAGE=y                 # arch can do it
+CONFIG_HAVE_ARCH_TRANSPARENT_HUGEPAGE_PUD=y
+                                          # CONFIG_TRANSPARENT_HUGEPAGE: absent
+$ grep TRANSPARENT_HUGEPAGE /boot/config-7.0.0-29-generic
+CONFIG_TRANSPARENT_HUGEPAGE=y
+CONFIG_TRANSPARENT_HUGEPAGE_MADVISE=y
+```
+
+The symbol is **absent** from the realtime config rather than `is not set`,
+which is what an unsatisfied `depends on` looks like — upstream `mm/Kconfig`
+gates `TRANSPARENT_HUGEPAGE` on `HAVE_ARCH_TRANSPARENT_HUGEPAGE && !PREEMPT_RT`.
+So this is not an Ubuntu packaging choice to be worked around: **a `PREEMPT_RT`
+kernel has no transparent hugepages, by construction.**  Which is coherent —
+`khugepaged` collapses and compaction stalls are precisely the class of spike
+such a kernel exists to remove.
+
+Three consequences:
+
+* **G6(a) cannot be measured on an RT host**, and the arms above should not be
+  quoted as a null result for the knob.  Its evidence stays the generic-kernel
+  measurement already in §G6(a).
+* **`kame_pool_set_thp_policy()` is a silent no-op there.**
+  `madvise(MADV_NOHUGEPAGE)` returns `EINVAL` when the kernel has no THP, and
+  the re-advise walk reports `0 MiB` — indistinguishable from "nothing to
+  re-advise".  Harmless (there are no hugepages to prevent) but worth stating
+  rather than letting a caller infer the policy took.
+* **This is good news for the realtime contract, not a gap.**  The fault-path
+  spike G6(a) exists to suppress *cannot occur* on an RT kernel.  The knob is
+  for general-purpose kernels — someone running soft-realtime acquisition on a
+  stock kernel — and the contract can now say so conditionally, which it could
+  not before.
+
+For anyone re-running G6(a) on a generic kernel, one more thing this comparison
+turned up: Ubuntu's generic build is `CONFIG_TRANSPARENT_HUGEPAGE_MADVISE=y`,
+not `_ALWAYS`.  Unadvised ranges therefore get no hugepages there either, so
+`KAME_THP_SYSTEM` ≈ `NEVER` and the only informative A/B is `ALWAYS` against
+`NEVER`.  This is the same hazard as the "do not use an unadvised range as the
+THP-is-on baseline" trap earlier in this chapter, reached from the kernel
+config rather than from `defrag`.
+
+An earlier single run at `--faults 24` showed a 140 µs maximum that looked
+like a 2 MiB zeroing, and it does not survive the larger sample: at
+`--faults 128` it never recurs in any arm — nor could it, on this kernel — so
+it was a one-off system event of the same family as the 85,904 ns outlier in
+one `system` repetition here.
+
+#### Still open
+
+* `cyclictest` under load (`stress-ng`) — every number above is unloaded and
+  therefore optimistic.
+* `cyclictest -a2` on an isolated core, once the tuned entry exists.
+* Thermal headroom under the *campaign's* load.  The 51 °C above is a nearly
+  idle CPU merely held awake, not `bench_rt_wcet` at full tilt on four cores.
+  Read `/sys/devices/system/cpu/cpu*/thermal_throttle/*count` before and after
+  each arm and report it: a run that throttled measured the cooling, not the
+  allocator.
+* **G6(a) on a host that actually has THP** — a generic kernel, with the
+  `ALWAYS` vs `NEVER` arms, since `SYSTEM` is uninformative under
+  `TRANSPARENT_HUGEPAGE_MADVISE`.  Nothing about it can be measured on this
+  machine.
+* **The `reps − 2` large-tier residue**: whether `kame_pool_prewarm` can be
+  made to cover the large recycle cache across repetitions, or whether the
+  shortfall is inherent to alternating the RT and OFF arms in one process.
+
+  Configure the tree as **`-DCMAKE_BUILD_TYPE=Release`**, which is `-O3
+  -DNDEBUG` and matches the flags Ohtaka's tree effectively compiles with:
+
+  ```bash
+  cmake -S tests -B build/tests -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_EXE_LINKER_FLAGS="-Wl,--no-as-needed -lpthread" \
+        -DUSE_KAME_ALLOCATOR=ON
+  grep -E '^CXX_FLAGS' build/tests/kamepoolalloc-tests/CMakeFiles/kamepoolalloc.dir/flags.make
+  ```
+
+  Do **not** transplant the `-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=""` recipe from
+  the Ohtaka rules in `CLAUDE.md` without also carrying `-O3` in
+  `CMAKE_CXX_FLAGS`.  There it exists to match a pre-existing cache whose
+  optimisation level comes from `CMAKE_CXX_FLAGS`; on a fresh tree, emptying
+  the per-config flags leaves no `-O` at all, because neither
+  `tests/CMakeLists.txt` nor `kamepoolalloc/tests/CMakeLists.txt` supplies one
+  — the result is a silent **`-O0`** build.  Read `flags.make`; do not judge
+  by `libkamepoolalloc.so`'s size, since the ~0.6 MB / ~2.1 MB figures in
+  `CLAUDE.md` are clang-on-Ohtaka numbers and do not transfer to GCC.
 
 ## Context you may want
 

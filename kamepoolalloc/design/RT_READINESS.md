@@ -337,6 +337,22 @@ Two observations from that survey:
   "don't return memory" + "don't grow" (ROS 2's real-time tutorial and the
   `pendulum_control` demo; the PREEMPT_RT / cyclictest community does the same).
   It is established as *application* practice, not an allocator feature.
+* **A `PREEMPT_RT` kernel has no THP at all, so (a) is a general-purpose-kernel
+  knob.** Upstream `mm/Kconfig` gates `TRANSPARENT_HUGEPAGE` on
+  `HAVE_ARCH_TRANSPARENT_HUGEPAGE && !PREEMPT_RT`, and Ubuntu's
+  `7.0.0-29-realtime` confirms it: the symbol is *absent* from the config
+  (`/sys/kernel/mm/transparent_hugepage/enabled` does not exist) while the
+  matching generic build has `CONFIG_TRANSPARENT_HUGEPAGE=y`.  Coherent —
+  khugepaged collapses are the class of spike such a kernel exists to remove.
+  Consequences: the fault-path spike (a) suppresses **cannot occur** on an RT
+  kernel, so the knob is aimed at soft-realtime work on a stock kernel;
+  `kame_pool_set_thp_policy()` there is a silent no-op (`MADV_NOHUGEPAGE`
+  returns `EINVAL`, and the re-advise walk's `0 MiB` cannot be told apart from
+  "nothing to re-advise"); and (a)'s evidence must stay the generic-kernel
+  measurement below, since the arms are unmeasurable on an RT host.  Note also
+  that Ubuntu's generic build is `TRANSPARENT_HUGEPAGE_MADVISE`, not
+  `_ALWAYS` — unadvised ranges get no hugepages there either, so `SYSTEM` ≈
+  `NEVER` and the only informative A/B is `ALWAYS` against `NEVER`.
 * THP splits the field: jemalloc offers `never` because a 2 MiB huge page held
   by one small live allocation bloats RSS; tcmalloc went the other way and
   manages hugepages deliberately for TLB. **For realtime, jemalloc's side is
@@ -695,6 +711,70 @@ quote `kame_pool_get_rt_pending_cap()`, or raise it for the block size in
 play.  In the same runs the RT arm's *malloc* was slower on the 300 MiB band
 (p99.9 115 µs vs 57 µs), consistent with the trade already recorded in
 Result 1: holding VA means fresh mappings instead of reuse.
+
+#### Result — a real `PREEMPT_RT` host (Ubuntu 26.04, i5-7500, isolated cores)
+
+Everything above was measured on a non-realtime kernel, which is why G7's
+absolute numbers carried a caveat.  This is the same harness on a host that
+removes it: `7.0.0-29-realtime` (`CONFIG_PREEMPT_RT=y`), cores 2-3 isolated
+with `isolcpus`/`nohz_full`/`rcu_nocbs`, all IRQs steered to 0-1, PM-QoS held
+at 0 µs, `performance` governor, `sched_rt_runtime_us = -1`, no thermal
+throttling.  `--full`, five repetitions, medians.  Setup and provenance are in
+`design/RT_LINUX_HANDOFF.md`.
+
+**Cross-thread free** — a producer thread allocates, the measured thread frees:
+
+| | mean | p50 | p99.99 | p99.999 | **MAX** |
+|---|---|---|---|---|---|
+| **RT** | 55 ns | 55 ns | **160 ns** | **192 ns** | **352 ns** |
+| OFF | 43 ns | 31 ns | 20,480 ns | 32,768 ns | **42,356 ns** |
+| ratio | 1.3× | 1.8× | **128×** | **171×** | **120×** |
+
+**1.8× on the median buys 120× on the worst case.**  The mechanism is the one
+the harness footnotes: OFF batches to `CAP=1024` and one unlucky free then
+pays for the whole buffer, while RT takes `push_direct` every time.  Unlike
+the 300 MiB result above, the pending cap is not in play here — the band is
+32 B — so this is the gate working in the regime it was designed for.
+
+Steady-state maxima, same runs:
+
+| band | RT malloc MAX | RT free MAX |
+|---|---|---|
+| 64 B (bucket) | 449 ns | 332 ns |
+| 4 KiB (bucket) | 415 ns | 301 ns |
+| 256 KiB (dedicated) | 673 ns | 237 ns |
+| 8 MiB (large) | 16,087 ns | 239 ns |
+
+**Stated with the host's resolution, which is the point of measuring on an RT
+box at all**: `hwlatdetect` recorded no sample above 10 µs in 300 s and
+`cyclictest` maxed at 12–16 µs, so the bucket-band figures sit a factor of ~30
+below the floor and are allocator numbers, while the 8 MiB malloc max sits *at*
+the floor and must not be attributed to the allocator.  Quote them together.
+
+**The hard assertion fails on this host, with a characterised cause.**
+`rt_violations` is deterministic and `reps`-shaped — 0 / 2 / 2 / 4 / 8 / 18 at
+`--reps` 2 / 3 / 4 / 6 / 10 / 20, i.e. `reps − 2` at even counts, with odd ones
+not fitting (3 gives 2) — and is unchanged by removing the interferers or by
+pinning to four cores.  The registered `bench_rt_wcet_smoke` ctest runs
+`--reps 2`, which is exactly the zero of that sequence, which is why CI has
+never seen it.  `--rt-os-policy 3` names the site as `large_va_raw_map`, not the radix
+leaf — one of the two sites that degrade safely to libc under
+`KAME_RT_OS_FAIL`, so the bound is not what breaks.  The 8 MiB band is far
+below `LRC_HI`, so the large recycle cache is meant to absorb it: this is a
+prewarm/recycle shortfall of one mapping per repetition, open and tracked in
+the handoff document rather than papered over here.
+
+**One harness bug was found by running on two cores instead of four.**
+`interferer()` and `xt_producer()` are documented as deliberately not
+realtime, but `pthread_create` defaults to `PTHREAD_INHERIT_SCHED` and both
+are started after the measuring thread promotes itself, so they were running
+at `SCHED_FIFO` 80 as well.  Beyond measuring the wrong contention, that
+deadlocks outright once runnable threads exceed CPUs — equal-priority FIFO
+threads never preempt each other, and `sched_rt_runtime_us = -1` has already
+removed the throttle.  It hid for as long as threads ≤ CPUs, which was true of
+every host used before.  Fixed by `demote_this_thread()`; **numbers taken
+before that fix are not comparable** — the same cross-thread RT max read
+1,988 ns under the old regime against 352 ns after.
 
 ### G8 — §74 single mmap+radix site — **DONE, no work remaining**
 

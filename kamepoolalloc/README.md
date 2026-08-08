@@ -718,7 +718,9 @@ p99.9; that is why only DEFER can be a process-wide default.
 
 * **No numeric WCET.** Lock-free is not wait-free; there is no machine-checked
   bound and no static-analysis budget. Measured tails are evidence for one
-  machine and load, not a proof.
+  machine and load, not a proof — including the `PREEMPT_RT` figures below,
+  which are quoted against that host's own noise floor precisely so the part
+  that is *not* the allocator stays visible.
 * **Multiprocessor interference is a system property.** CAS retries are bounded
   by *interfering successes*, so converting that to wall-clock needs a bound on
   peer allocation rate or core partitioning — an argument about your task set,
@@ -763,7 +765,12 @@ p99.9; that is why only DEFER can be a process-wide default.
   khugepaged collapses, but does not split hugepages that already exist), and
   note that returning to `KAME_THP_SYSTEM` cannot un-advise a region — Linux
   has no "clear" advice. Numbers and method in `design/RT_READINESS.md`
-  §G6(a).
+  §G6(a).  **On a `PREEMPT_RT` kernel none of this applies**: upstream
+  `mm/Kconfig` gates `TRANSPARENT_HUGEPAGE` on `!PREEMPT_RT`, so the hazard
+  cannot arise and `kame_pool_set_thp_policy()` is a silent no-op there
+  (`MADV_NOHUGEPAGE` returns `EINVAL`, and the re-advise walk's `0 MiB` cannot
+  be told apart from "nothing to re-advise").  This paragraph is for
+  soft-realtime work on a stock kernel.
 * **Hard-realtime (avionics/automotive) wants a different design**: a fixed
   arena the allocator never grows (TLSF-style) plus bounded-retry with an
   emergency reserve. That is not a tuning of this allocator.
@@ -781,6 +788,25 @@ p99.9; that is why only DEFER can be a process-wide default.
 For every band at or below 256 MiB the two are *statistically identical*: the
 recycle cache already absorbs those releases without a syscall, so the gating is
 a safety net for the cases above rather than a steady-state necessity.
+
+**On a `PREEMPT_RT` host** (Ubuntu 26.04 `7.0.0-29-realtime`, i5-7500, cores
+2-3 isolated with `isolcpus`/`nohz_full`/`rcu_nocbs`, IRQs steered away, PM-QoS
+0 µs, `--full`, median of 5):
+
+| 32 B cross-thread free | realtime | default | ratio |
+|---|---:|---:|---:|
+| median | 55 ns | 31 ns | 1.8× *slower* |
+| p99.99 | **160 ns** | 20,480 ns | 128× |
+| max | **352 ns** | 42,356 ns | **120×** |
+
+1.8× on the median buys 120× on the worst case — the trade the gate exists to
+make, on a host quiet enough to see it.  Read it against that machine's own
+floor: `hwlatdetect` saw no sample above 10 µs in 300 s and `cyclictest` maxed
+at 12–16 µs, which puts these figures a factor of ~30 clear of the OS noise,
+while the same runs' 8 MiB malloc max (16 µs) sits *on* the floor and is not
+an allocator number.  Setup, provenance and the two findings the campaign
+turned up are in `design/RT_LINUX_HANDOFF.md`; the full tables are in
+`design/RT_READINESS.md` §G7.
 
 **Observability:**
 
