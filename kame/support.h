@@ -169,6 +169,48 @@ DECLSPEC_KAME extern bool g_bUseMLock;
 
 DECLSPEC_KAME bool isMemLockAvailable() noexcept;
 
+//! CPU idle-latency (PM-QoS) request, held for the lifetime of the object.
+//!
+//! On Linux, holding \c /dev/cpu_dma_latency open with a target written into it
+//! tells the cpuidle governor to use only C-states whose *exit* latency is at
+//! or below that target; the kernel aggregates every open request system-wide
+//! and takes the minimum, and the constraint is dropped the moment the file
+//! descriptor is closed.  This is the standard way for an acquisition program
+//! to buy back deep-C-state wake-up latency for the duration of a measurement
+//! without disabling idle states globally (which costs power and, on a
+//! thermally tight machine, invites throttling that makes the numbers worse).
+//!
+//! Typical exit latencies on a Kaby Lake desktop part: C1 2 us, C1E 10 us,
+//! C3 70 us, C6 85 us, C7s 124 us, C8 200 us.  A target of 10 leaves POLL, C1
+//! and C1E; 0 pins the CPUs awake.
+//!
+//! This matters when a completion has to reach a sleeping thread promptly --
+//! notably when instrument IRQs are steered to housekeeping cores and the
+//! acquisition thread lives on an isolated core, so the wake-up crosses cores
+//! into an idle CPU.  It does *not* help buffered streaming, where the host
+//! controller keeps transferring while the CPU sleeps.
+//!
+//! \c /dev/cpu_dma_latency is root-writable by default; \c kame/70-kame.rules
+//! opens it to the instrument group.  A request that cannot be established
+//! says so once on stderr and stays inactive rather than pretending.
+//! Non-Linux platforms compile to a no-op that reports isActive() == false.
+class DECLSPEC_KAME XCPULatencyRequest {
+public:
+    //! \arg target_us largest tolerable C-state exit latency, in microseconds.
+    explicit XCPULatencyRequest(int32_t target_us) noexcept;
+    ~XCPULatencyRequest();
+    XCPULatencyRequest(const XCPULatencyRequest&) = delete;
+    XCPULatencyRequest &operator=(const XCPULatencyRequest&) = delete;
+    //! \return true if the kernel is actually honouring this request.
+    bool isActive() const noexcept {return m_fd >= 0;}
+private:
+    int m_fd = -1;
+};
+
+//! Latency target, in microseconds, requested on the command line
+//! (\c --cpulatency).  Negative means "leave the governor alone", the default.
+DECLSPEC_KAME extern int32_t g_cpuLatencyTargetUS;
+
 //! round value to the nearest 10s. ex. 42.3 to 10, 120 to 100
 DECLSPEC_KAME double roundlog10(double val);
 //! round value within demanded precision.
