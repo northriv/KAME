@@ -90,6 +90,7 @@ set(kamestm_test_names
     atomic_scoped_ptr_test
     atomic_queue_test
     mutex_test
+    xwaitcell_test
     transaction_test
     transaction_dynamic_node_test
     transaction_negotiation_test
@@ -128,6 +129,9 @@ add_test(NAME atomic_shared_ptr_test COMMAND atomic_shared_ptr_test)
 add_test(NAME atomic_scoped_ptr_test COMMAND atomic_scoped_ptr_test)
 add_test(NAME atomic_queue_test COMMAND atomic_queue_test)
 add_test(NAME mutex_test COMMAND mutex_test)
+# The backend behind negotiate_sleep's parking is chosen at compile time
+# (__ulock / futex / mutex+condvar) and nothing else exercises it directly.
+add_test(NAME xwaitcell_test COMMAND xwaitcell_test)
 add_test(NAME transaction_test COMMAND transaction_test)
 add_test(NAME transaction_dynamic_node_test COMMAND transaction_dynamic_node_test)
 add_test(NAME transaction_negotiation_test COMMAND transaction_negotiation_test)
