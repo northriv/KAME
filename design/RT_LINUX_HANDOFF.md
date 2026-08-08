@@ -751,7 +751,7 @@ report "the bucket tiers enter no mapping after prewarm; the large tier
 retains a known `reps − 1`-shaped residue at a safely-degrading site" without
 waiting on an allocator change.
 
-#### THP arms — vacuous on this host, and that is the finding
+#### THP arms — a `PREEMPT_RT` kernel has no THP to act on
 
 `--faults 128 --thp system|never|always`, seven repetitions, ~1.05 M samples
 each.  All three arms are **statistically identical**: p50 1792, p99 5120,
@@ -759,33 +759,62 @@ p99.9 5120, p99.99 6144, p99.999 8192 ns in every run of every arm, with only
 the single-sample `MAX` wandering (medians 13,494 / 7,999 / 8,068 ns for
 system / never / always) and `samples > 8 µs` at 0.002–0.003 % throughout.
 
-`always` and `never` cannot agree to the bucket if THP is doing anything.
-`p50 = 1792 ns` is one plain 4 KiB fault; a 2 MiB-backed range would be
-bimodal — 511 near-free touches and one very expensive one — and every arm
-reports `re-advised 0 MiB of existing regions`.  The conclusion is that **no
-hugepage is being faulted in any arm**, which is the first trap in this
-chapter's list ("if the control is 0, nothing downstream means anything")
-arriving from a direction it did not anticipate: not a container's
-`PR_SET_THP_DISABLE`, but the realtime kernel itself.
+`always` and `never` cannot agree to the bucket if THP is doing anything, and
+`p50 = 1792 ns` is one plain 4 KiB fault where a 2 MiB-backed range would be
+bimodal — 511 near-free touches and one very expensive one.  The cause is not
+a mis-set arm:
 
-A `PREEMPT_RT` kernel disabling or restricting THP is a reasonable thing for it
-to do — `khugepaged` collapses are precisely the kind of latency spike such a
-kernel exists to avoid — and if that is what happened here it is worth
-recording in its own right: **on the RT kernel the G6(a) knob may have nothing
-to act on.**  Confirm before quoting any of the numbers above:
-
-```bash
-cat /sys/kernel/mm/transparent_hugepage/enabled   # [never] settles it
-cat /sys/kernel/mm/transparent_hugepage/defrag
-grep -i thp /proc/self/status                     # THP_enabled: 0 = disabled
-grep -iE 'AnonHugePages|Hugepagesize' /proc/meminfo
-grep -o 'transparent_hugepage=[a-z]*' /proc/cmdline
 ```
+$ cat /sys/kernel/mm/transparent_hugepage/enabled
+cat: … No such file or directory          # not "[never]" — the knob is absent
+$ grep -i thp /proc/self/status
+THP_enabled:    0
+$ grep TRANSPARENT_HUGEPAGE /boot/config-7.0.0-29-realtime
+CONFIG_HAVE_ARCH_TRANSPARENT_HUGEPAGE=y                 # arch can do it
+CONFIG_HAVE_ARCH_TRANSPARENT_HUGEPAGE_PUD=y
+                                          # CONFIG_TRANSPARENT_HUGEPAGE: absent
+$ grep TRANSPARENT_HUGEPAGE /boot/config-7.0.0-29-generic
+CONFIG_TRANSPARENT_HUGEPAGE=y
+CONFIG_TRANSPARENT_HUGEPAGE_MADVISE=y
+```
+
+The symbol is **absent** from the realtime config rather than `is not set`,
+which is what an unsatisfied `depends on` looks like — upstream `mm/Kconfig`
+gates `TRANSPARENT_HUGEPAGE` on `HAVE_ARCH_TRANSPARENT_HUGEPAGE && !PREEMPT_RT`.
+So this is not an Ubuntu packaging choice to be worked around: **a `PREEMPT_RT`
+kernel has no transparent hugepages, by construction.**  Which is coherent —
+`khugepaged` collapses and compaction stalls are precisely the class of spike
+such a kernel exists to remove.
+
+Three consequences:
+
+* **G6(a) cannot be measured on an RT host**, and the arms above should not be
+  quoted as a null result for the knob.  Its evidence stays the generic-kernel
+  measurement already in §G6(a).
+* **`kame_pool_set_thp_policy()` is a silent no-op there.**
+  `madvise(MADV_NOHUGEPAGE)` returns `EINVAL` when the kernel has no THP, and
+  the re-advise walk reports `0 MiB` — indistinguishable from "nothing to
+  re-advise".  Harmless (there are no hugepages to prevent) but worth stating
+  rather than letting a caller infer the policy took.
+* **This is good news for the realtime contract, not a gap.**  The fault-path
+  spike G6(a) exists to suppress *cannot occur* on an RT kernel.  The knob is
+  for general-purpose kernels — someone running soft-realtime acquisition on a
+  stock kernel — and the contract can now say so conditionally, which it could
+  not before.
+
+For anyone re-running G6(a) on a generic kernel, one more thing this comparison
+turned up: Ubuntu's generic build is `CONFIG_TRANSPARENT_HUGEPAGE_MADVISE=y`,
+not `_ALWAYS`.  Unadvised ranges therefore get no hugepages there either, so
+`KAME_THP_SYSTEM` ≈ `NEVER` and the only informative A/B is `ALWAYS` against
+`NEVER`.  This is the same hazard as the "do not use an unadvised range as the
+THP-is-on baseline" trap earlier in this chapter, reached from the kernel
+config rather than from `defrag`.
 
 An earlier single run at `--faults 24` showed a 140 µs maximum that looked
 like a 2 MiB zeroing, and it does not survive the larger sample: at
-`--faults 128` it never recurs in any arm, so it was a one-off system event of
-the same family as the 85,904 ns outlier in one `system` repetition here.
+`--faults 128` it never recurs in any arm — nor could it, on this kernel — so
+it was a one-off system event of the same family as the 85,904 ns outlier in
+one `system` repetition here.
 
 #### Still open
 
@@ -797,9 +826,10 @@ the same family as the 85,904 ns outlier in one `system` repetition here.
   Read `/sys/devices/system/cpu/cpu*/thermal_throttle/*count` before and after
   each arm and report it: a run that throttled measured the cooling, not the
   allocator.
-* **Whether THP is available at all on this kernel** — the arms above are
-  vacuous until the control says it is, and if it is not, G6(a) needs a host
-  that has it.
+* **G6(a) on a host that actually has THP** — a generic kernel, with the
+  `ALWAYS` vs `NEVER` arms, since `SYSTEM` is uninformative under
+  `TRANSPARENT_HUGEPAGE_MADVISE`.  Nothing about it can be measured on this
+  machine.
 * **The `reps − 2` large-tier residue**: whether `kame_pool_prewarm` can be
   made to cover the large recycle cache across repetitions, or whether the
   shortfall is inherent to alternating the RT and OFF arms in one process.
