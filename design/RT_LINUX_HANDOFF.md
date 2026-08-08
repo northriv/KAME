@@ -418,11 +418,31 @@ partition, node ID, governor and turbo state.
 ### Running the measurement
 
 ```bash
-# pin to an isolated core and take the RT priority the harness asks for
-sudo chrt -f 80 taskset -c 2 ./build/tests/bench_rt_wcet --faults 24 --thp system
-sudo chrt -f 80 taskset -c 2 ./build/tests/bench_rt_wcet --faults 24 --thp never
-sudo chrt -f 80 taskset -c 2 ./build/tests/bench_rt_wcet --faults 24 --thp always
+# sudo for the privilege, taskset for the isolated cores — and NOT chrt.
+sudo taskset -c 2,3 ./build/tests/bench_rt_wcet --full --faults 24 --thp system
+sudo taskset -c 2,3 ./build/tests/bench_rt_wcet --full --faults 24 --thp never
+sudo taskset -c 2,3 ./build/tests/bench_rt_wcet --full --faults 24 --thp always
 ```
+
+Three things about that command line are load-bearing:
+
+* **No `chrt`.**  The harness promotes its own measuring thread with
+  `pthread_setschedparam(…, SCHED_FIFO, 80)` — `sudo` supplies the privilege
+  and the banner tells you whether it got it.  The interferer threads are
+  "deliberately NOT realtime": they are the contention the RT thread has to
+  tolerate.  Launching under `chrt -f 80` makes the whole process SCHED_FIFO,
+  the interferers inherit it, and three spinning FIFO threads plus the
+  measuring one on two isolated cores starve each other — with
+  `sched_rt_runtime_us` = -1 there is no throttle left to break the tie.
+* **Two isolated cores, not one.**  On a single core the FIFO measuring
+  thread starves the `SCHED_OTHER` interferers outright and the run measures
+  an uncontended allocator, which is not the question being asked.
+* **`--full`.**  The default is the CI smoke run — `reps=4 iters=200` and
+  120 k cross-thread samples.  That is exactly the count at which the
+  cross-thread arms ordered *backwards* at p99.9 (see the methodology traps
+  at the end of this file).  `--full` gives `reps=10 iters=4000` and 2 M.
+
+Time one arm before committing to a rep count; `--full` is not a few seconds.
 
 Same protocol as everywhere else in this project: **interleave the arms inside
 one session**, median of ≥ 5, report min/max beside it, and ≥ 10⁶ samples
@@ -656,8 +676,9 @@ had been hiding, both now on `master`'s history:
   Read `/sys/devices/system/cpu/cpu*/thermal_throttle/*count` before and after
   each arm and report it: a run that throttled measured the cooling, not the
   allocator.
-* **The campaign itself**: `bench_rt_wcet --thp system|never|always` under
-  `with-pmqos 0` + `chrt -f 80 taskset -c 2,3`, interleaved, median of ≥ 5.
+* **The campaign itself**: `bench_rt_wcet --full --faults 24 --thp
+  system|never|always` under `with-pmqos 0` + `sudo taskset -c 2,3` — no
+  `chrt`, see the invocation notes above — interleaved, median of ≥ 5.
 
   Configure the tree as **`-DCMAKE_BUILD_TYPE=Release`**, which is `-O3
   -DNDEBUG` and matches the flags Ohtaka's tree effectively compiles with:
