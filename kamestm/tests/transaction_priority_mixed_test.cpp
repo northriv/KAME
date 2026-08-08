@@ -48,10 +48,19 @@
 //! Reading the OS arm's results (measured 2026-08, 4-CPU x86-64, non-RT
 //! kernel, so treat the numbers as shape rather than as a bound):
 //!
-//!   * `KAME_MIX_NORMAL_XSUBTREE=1` alone cost the acquisition thread **8x**
-//!     its commit rate (252k -> 30.5k /s).  That is the role's whole point:
-//!     without it the NORMAL peers only ever touch their own subtree and
-//!     cannot contend with the acquiring driver at all.
+//!   * The clean 2x2, on a PREEMPT_RT host (i5-7500, isolcpus=2,3), acq
+//!     commits/s: neither 146.9k; FIFO+pin only 155.0k; XSUBTREE only 89.4k;
+//!     both 57.8k.  So **FIFO+pin costs nothing** (+6 %), the cross-subtree
+//!     role costs **1.64x** on its own — that is the role's whole point,
+//!     since without it the NORMAL peers only ever touch their own subtree and
+//!     cannot contend with the acquiring driver at all — and the two together
+//!     cost **2.54x**, well past the 1.54x their product predicts.  Something
+//!     is super-additive; the standing hypothesis is that a `nohz_full`
+//!     isolated core is more expensive to WAKE, and the cross-subtree role is
+//!     what makes the acquisition thread lose a CAS and sleep often enough for
+//!     that to show.  `taskset -c 0,1` versus `taskset -c 0,<isolated>` with
+//!     the same knobs separates "crossing cores" from "crossing onto a
+//!     nohz_full core".
 //!   * Starving that same NORMAL peer did NOT pin the acquisition thread —
 //!     acquisition sped back up, because a contender that is not running is
 //!     not contending.  The never-expiring-privilege pin was NOT reproduced
@@ -235,11 +244,23 @@ int main() {
 
     // Probe the OS arm up front so an unprivileged run says so instead of
     // reporting a green RT result it never ran.
-    long ncpu = 1;
+    //! Derive the CPUs from this process's AFFINITY MASK, not from the online
+    //! count: `taskset -c 0,1 ./test` then chooses which cores the arm uses,
+    //! which is the discriminator for "is the penalty about crossing cores, or
+    //! about crossing onto a nohz_full one" — no extra knob needed.
+    std::vector<long> cpus;
 #if defined(__linux__)
-    ncpu = sysconf(_SC_NPROCESSORS_ONLN);
-    if(ncpu < 1) ncpu = 1;
+    {
+        cpu_set_t set;
+        CPU_ZERO( &set);
+        if(sched_getaffinity(0, sizeof(set), &set) == 0) {
+            for(int c = 0; c < CPU_SETSIZE; ++c)
+                if(CPU_ISSET(c, &set)) cpus.push_back(c);
+        }
+    }
 #endif
+    if(cpus.empty()) cpus.push_back(0);
+    const long ncpu = (long)cpus.size();
     bool fifo_ok = false;
     if(os_fifo > 0) {
         fifo_ok = os_set_policy(SCHED_FIFO, (int)os_fifo);
@@ -251,14 +272,14 @@ int main() {
                         "throughout.\n", os_fifo);
     }
     if(os_pin_on && (ncpu < 2)) {
-        std::printf("  NOTE: KAME_MIX_OS_PIN needs >= 2 online CPUs (have "
+        std::printf("  NOTE: KAME_MIX_OS_PIN needs >= 2 usable CPUs (have "
                     "%ld) — pinning SKIPPED.\n", ncpu);
     }
     const bool pin_ok = os_pin_on && (ncpu >= 2);
-    //! Acquisition alone on the last CPU, everyone else on 0..n-2: the shape
-    //! `isolcpus` produces, without needing the kernel parameter.
-    const long cpu_acq   = pin_ok ? (ncpu - 1) : -1;
-    const long cpu_house = pin_ok ? 0 : -1;
+    //! Acquisition alone on the LAST allowed CPU, everyone else on the first:
+    //! the shape `isolcpus` produces, without needing the kernel parameter.
+    const long cpu_acq   = pin_ok ? cpus.back()  : -1;
+    const long cpu_house = pin_ok ? cpus.front() : -1;
     if(os_fifo > 0 || os_starve || pin_ok)
         std::printf("  OS arm: fifo=%s starve(SCHED_IDLE lowprio)=%s "
                     "pin=%s (acq->cpu%ld, others->cpu%ld), %ld CPUs\n",
