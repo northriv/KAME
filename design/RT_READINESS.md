@@ -822,6 +822,75 @@ at least one 1 ms negotiation sleep chunk while the rest of the system
 completed a mean of 15,708 commits.  That is a thread losing and sleeping.  The
 acquisition thread, at HIGHEST under the deployment's roles, never gets there.
 
+#### …but KAME does not ship HIGHEST, and the shipped arm answers differently
+
+Everything above is the **library's ceiling**.
+`XPrimaryDriverWithThread::AcquisitionPriority` is `ScopedPriority(NORMAL)`
+plus an OS elevation — the kamestm HIGHEST tier was retired for KAME because
+per-record analyses cannot honour its precondition — and the two tiers are not
+a matter of degree.  `if(entry_pr == Priority::HIGHEST) break;` sits at the top
+of the negotiator's round loop, above both `negotiate_sleep` call sites, so
+HIGHEST cannot park; NORMAL parks in 1–2 ms chunks.  Same host, same roles,
+120 s, only the tier:
+
+| tier | p50 | p99 | p99.9 | **MAX** |
+|---|---|---|---|---|
+| HIGHEST | 768 ns | 2.05 µs | 20.5 µs | **95.1 µs** |
+| NORMAL (shipped), 20 ms budget | 768 ns | 1.28 µs | 3.67 ms | **20.15 ms** |
+
+Identical median, 200× apart in the tail, and the signature is unambiguous:
+the other roles completed a mean of 2,004 commits during each slow NORMAL
+commit against 13 in the HIGHEST arm.  `SCHED_FIFO` changes none of it
+(43.8 k/s and MAX 20.15 ms with, 43.3 k/s and 20.19 ms without) — a
+`negotiate_sleep` is a **voluntary** wait and no scheduling class shortens one.
+
+**At NORMAL the wait budget is the only bound the record commit has, and —
+isolated — it delivers exactly its value.**  `SCHED_FIFO` + pin, 60 s each:
+
+| budget | commits/s | mean | **MAX** | MAX − budget | clipped |
+|---|---|---|---|---|---|
+| 2 ms | 76,904 | 7.99 µs | 2.179 ms | 179 µs | 0.333 % |
+| 1 ms | 131,721 | 4.10 µs | 1.223 ms | 223 µs | 0.320 % |
+| 500 µs | 185,700 | 2.41 µs | 0.662 ms | 162 µs | 0.304 % |
+| 200 µs | 251,933 | 1.53 µs | **0.408 ms** | 208 µs | 0.334 % |
+
+MAX = budget + a constant ~200 µs, **no floor down to 200 µs**, and throughput
+*rises* 3.3× as the budget falls because a clipped commit stops sleeping and
+retries; the clip rate is invariant at ~0.32 %, i.e. the same population caught
+earlier and cheaper.  (`XPrimaryDriver::downstreamWaitBudgetUS()`'s documented
+"20 ms costs 4.7 %" came from the grand-scope 8-thread arm and does not hold
+here.)  Confirmed at length — 300 s, 1 ms budget: **38,303,308 commits, MAX
+1.288 ms, zero over a 3 ms deadline**, every other role healthy.
+
+**Isolation is what makes the budget work — and this corrects the reading
+above.**  §G7's earlier note that isolation is "marginally faster, and nothing
+argues against it" was a *throughput* observation at a 20 ms budget.  In the
+latency dimension it is not marginal and not optional:
+
+* **Unpinned**, MAX sticks at **12–13 ms for every budget from 5 ms down to
+  500 µs** while the clipped count saturates.  That residue is the wait behind
+  a **live privileged peer**, which is contractually budget-exempt, so its
+  length is the holder's scheduling delay and nothing else.
+* **Pinned** — acquisition alone on the isolated core, all contenders together
+  on the housekeeping core — the holder is always promptly scheduled among its
+  peers and the exempt residue vanishes entirely (table above).
+* **`SCHED_FIFO` without isolation FAILS the livelock watchdog.**  Only the
+  acquisition thread is elevated, so it preempts the very CFS holders it then
+  waits behind: UI fell to 144 commits/s and SCRIPTING to 176 (from 42.3 k and
+  129.7 k), both flagged at 6,001 ms, while acquisition ran away at 337 k/s and
+  still took 50.9 ms on its own worst commit.  A textbook priority inversion.
+  **FIFO and isolation ship together or neither ships.**
+
+Refuted along the way, since it was the obvious suspect: the cross-subtree
+`XSecondaryDriver` role is not what the 12–13 ms residue is made of — turning
+it off halves the clipped population (0.077 % → 0.039 %) and leaves MAX at
+12.0 → 13.0 ms.
+
+**Consequence for `raiseAcquisitionOSPriority_()`**, whose Linux implementation
+was waiting on exactly this measurement: it must not raise to `SCHED_FIFO`
+unless the thread is also isolated from the threads it will negotiate with.
+Raising alone is the failing arm above, not a partial win.
+
 ### G8 — §74 single mmap+radix site — **DONE, no work remaining**
 
 Already landed in `c04a7975d`: `allocate_chunk<ALLOC>()` no longer carries
