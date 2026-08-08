@@ -128,6 +128,9 @@
 #include "transaction.h"
 #include "transaction_impl.h"
 #include "latency_hist.h"
+#ifndef DISABLE_POOL_ALLOCATOR
+#  include "kame_pool.h"
+#endif
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -260,6 +263,19 @@ int main() {
     //! running trace is hopeless, while catching it in the act is routine.
     //! Needs tracefs mounted and root; says so and stays disarmed otherwise.
     const long trace_us = env_long("KAME_MIX_TRACE_US", 0);
+    //! Samples in the first this-many milliseconds are counted but kept OUT of
+    //! the histogram and cannot fire the breaktrace.  Without it the largest
+    //! sample of every run is a cold-start artefact and the breaktrace can
+    //! never catch anything else — the 2026-08 RT investigation had to disable
+    //! the allocator's pre-fill entirely to get past it.
+    const long warmup_ms = env_long("KAME_MIX_WARMUP_MS", 500);
+    //! Precondition 2 of the realtime contract: prewarm from the realtime
+    //! thread, before the time-critical section.  On by default because the
+    //! contract requires it and because this test previously did not do it —
+    //! which is exactly how it came to measure a 400 us first-commit spike
+    //! (the pool's per-slot next-pointer pre-fill faulting 5 size classes x 64
+    //! pages) and mistake it for a recurring event.  Set 0 to reproduce that.
+    const bool do_prewarm  = env_long("KAME_MIX_PREWARM", 1) != 0;
     const bool os_pin_on   = env_long("KAME_MIX_OS_PIN", 0) != 0;
     std::printf("mixed-priority livelock hunt: %lds, stall>%lds fails, "
                 "acq=%s duty %ldus, UI period %ldus, +%ld NORMAL, "
@@ -341,6 +357,7 @@ int main() {
     //! Written only by the acquisition thread, read only after join().
     Hist acq_hist;
     acq_hist.reset();
+    std::atomic<uint64_t> cold_n{0};   //!< commits dropped as warm-up
 
     // Breaktrace plumbing.  Both descriptors are opened up front so the hot
     // path only ever does two write()s, and only once.
@@ -379,6 +396,23 @@ int main() {
         if(fifo_ok) os_set_policy(SCHED_FIFO, (int)os_fifo);
         else        os_be_ordinary();
         os_pin(cpu_acq);
+#ifndef DISABLE_POOL_ALLOCATOR
+        if(do_prewarm) {
+            //! Cover the small classes the STM's Payload clones land in.
+            //! Over-covering is free; missing one puts its first chunk claim
+            //! back on the measured path.
+            static const std::size_t kSizes[] =
+                {16, 32, 48, 64, 96, 128, 192, 256, 512, 1024};
+            unsigned counts[sizeof(kSizes) / sizeof(kSizes[0])];
+            for(auto &c : counts) c = 64u;
+            if(kame_pool_prewarm(kSizes, counts,
+                                 (unsigned)(sizeof(kSizes) / sizeof(kSizes[0]))))
+                std::printf("  NOTE: kame_pool_prewarm did not fit — the first "
+                            "commits will show cold-path outliers.\n");
+        }
+#endif
+        const std::uint64_t t_warm_end = now_ns() +
+            (std::uint64_t)warmup_ms * 1000000ull;
         Transactional::ScopedPriority pr(acq_normal
             ? Transactional::Priority::NORMAL
             : Transactional::Priority::HIGHEST);
@@ -394,10 +428,13 @@ int main() {
                     tr[ *devA].m_x++;
                     for(auto &l : leavesA) tr[ *l].m_x++;
                 });
-                const std::uint64_t dt_rec = now_ns() - t_rec;
-                acq_hist.add(dt_rec);
+                const std::uint64_t t_end = now_ns();
+                const std::uint64_t dt_rec = t_end - t_rec;
+                const bool warm = (t_end >= t_warm_end);
+                if(warm) acq_hist.add(dt_rec);
+                else     cold_n.fetch_add(1, std::memory_order_relaxed);
 #if defined(__linux__)
-                if((tracing_on_fd >= 0) &&
+                if(warm && (tracing_on_fd >= 0) &&
                    (dt_rec >= (std::uint64_t)trace_us * 1000ull) &&
                    !trace_fired.exchange(true, std::memory_order_relaxed)) {
                     char m[96];
@@ -599,7 +636,10 @@ int main() {
     // The realtime question: not "did it keep up" but "did any one record take
     // too long".  Percentiles are printed only where the sample count can
     // support them.
-    std::printf("  acq record-commit latency  n=%llu  mean=%llu ns  p50=%llu",
+    std::printf("  acq record-commit latency  (warm; %llu cold commit(s) in the "
+                "first %ld ms dropped)\n", (unsigned long long)cold_n.load(),
+                warmup_ms);
+    std::printf("    n=%llu  mean=%llu ns  p50=%llu",
                 (unsigned long long)acq_hist.n,
                 (unsigned long long)(acq_hist.n ? acq_hist.sum / acq_hist.n : 0),
                 (unsigned long long)acq_hist.pct(0.50));
