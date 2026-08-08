@@ -658,9 +658,26 @@ had been hiding, both now on `master`'s history:
   allocator.
 * **The campaign itself**: `bench_rt_wcet --thp system|never|always` under
   `with-pmqos 0` + `chrt -f 80 taskset -c 2,3`, interleaved, median of ≥ 5.
-  Build from `tests/` with `-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=""` or the
-  default `-O2 -g` silently overrides `-O3` and the numbers stop being
-  comparable with Ohtaka's.
+
+  Configure the tree as **`-DCMAKE_BUILD_TYPE=Release`**, which is `-O3
+  -DNDEBUG` and matches the flags Ohtaka's tree effectively compiles with:
+
+  ```bash
+  cmake -S tests -B build/tests -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_EXE_LINKER_FLAGS="-Wl,--no-as-needed -lpthread" \
+        -DUSE_KAME_ALLOCATOR=ON
+  grep -E '^CXX_FLAGS' build/tests/kamepoolalloc-tests/CMakeFiles/kamepoolalloc.dir/flags.make
+  ```
+
+  Do **not** transplant the `-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=""` recipe from
+  the Ohtaka rules in `CLAUDE.md` without also carrying `-O3` in
+  `CMAKE_CXX_FLAGS`.  There it exists to match a pre-existing cache whose
+  optimisation level comes from `CMAKE_CXX_FLAGS`; on a fresh tree, emptying
+  the per-config flags leaves no `-O` at all, because neither
+  `tests/CMakeLists.txt` nor `kamepoolalloc/tests/CMakeLists.txt` supplies one
+  — the result is a silent **`-O0`** build.  Read `flags.make`; do not judge
+  by `libkamepoolalloc.so`'s size, since the ~0.6 MB / ~2.1 MB figures in
+  `CLAUDE.md` are clang-on-Ohtaka numbers and do not transfer to GCC.
 
 ## Context you may want
 
