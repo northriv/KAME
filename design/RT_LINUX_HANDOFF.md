@@ -683,6 +683,110 @@ had been hiding, both now on `master`'s history:
   first shows the raw `";;"` as one garbled combo row and the second lists
   nothing at all.
 
+#### The steady-state campaign — measured
+
+`bench_rt_wcet --full` under `with-pmqos 0` + `sudo taskset -c 2,3`, five
+repetitions, `thermal_throttle` counters 0 before and after, PREEMPT_RT with
+cores 2-3 isolated and taking no local timer interrupts.  Medians of the five;
+one repetition (the second) was perturbed system-wide — every band reported
+`p99.999 = 2048 ns` in that run alone — which is exactly what taking a median
+of five is for.
+
+| band | RT malloc MAX | RT free MAX |
+|---|---|---|
+| 64 B (bucket) | **449 ns** | 332 ns |
+| 4 KiB (bucket) | **415 ns** | 301 ns |
+| 256 KiB (dedicated) | 673 ns | 237 ns |
+| 8 MiB (large) | 16,087 ns | 239 ns |
+
+Cross-thread free — a producer thread allocates, the measured thread frees —
+is where the realtime gating is supposed to show, and does:
+
+| | mean | p50 | p99.99 | p99.999 | **MAX** |
+|---|---|---|---|---|---|
+| **RT** | 55 | 55 | **160** | **192** | **352 ns** |
+| OFF | 43 | 31 | 20,480 | 32,768 | **42,356 ns** |
+| ratio | 1.3× | 1.8× | **128×** | **171×** | **120×** |
+
+**1.8× on the median buys 120× on the worst case.**  The mechanism is in the
+harness's own footnote: OFF batches to `CAP=1024` and then one unlucky free
+pays for the whole buffer, while RT takes `push_direct` every time.  This is
+the realtime contract stated as a measurement rather than as an intention, and
+it is the number §G6(a)'s "absolute WCET not trustworthy" caveat was waiting
+for.
+
+**Resolution.**  The host's own noise floor is `hwlatdetect` < 10 µs and
+`cyclictest` max 12–16 µs (above).  So the bucket-band maxima at ~0.45 µs sit
+a factor of 30 below the floor and are allocator numbers; the 8 MiB malloc
+max at ~16 µs sits *at* the floor and cannot be attributed to the allocator.
+Quote both together or neither.
+
+**Do not compare these against the pre-2026-08 runs.** Everything measured
+before the `demote_this_thread()` fix had the interferers and the cross-thread
+producer running at `SCHED_FIFO` 80 by inheritance; on this host the same
+cross-thread RT max read 1,988 ns under that regime versus 352 ns after.
+
+#### `rt_violations` — a real residue, characterised
+
+Every `--full` run reports `rt_violations=8` and fails the harness's own
+assertion.  It is not noise and not the measurement setup: the count is
+unchanged by dropping the interferers (`--threads 0`) or by pinning to four
+cores instead of two, and it tracks the repetition count exactly —
+
+| `--reps` | 4 | 6 | 10 | 20 |
+|---|---|---|---|---|
+| `rt_violations` | 2 | 4 | 8 | 18 |
+
+— i.e. **`reps − 2`**, one large-tier mapping per repetition beyond what
+prewarm covers.  `--rt-os-policy 3` names the site: **`large_va_raw_map`**, not
+the radix leaf.  That matters, because `large_va_raw_map` is one of the two
+sites that degrade safely — under `KAME_RT_OS_FAIL` it returns nullptr and the
+allocation falls back to libc — so the bound is not what breaks here.
+
+The 8 MiB band is far below `LRC_HI` (256 MiB), so the large recycle cache is
+meant to absorb it; the 300 MiB band that bypasses the cache by construction is
+`--pressure`-only and was not run.  So this is a prewarm/recycle shortfall
+rather than designed behaviour, and it is left open deliberately: G7 can
+report "the bucket tiers enter no mapping after prewarm; the large tier
+retains a known `reps − 1`-shaped residue at a safely-degrading site" without
+waiting on an allocator change.
+
+#### THP arms — vacuous on this host, and that is the finding
+
+`--faults 128 --thp system|never|always`, seven repetitions, ~1.05 M samples
+each.  All three arms are **statistically identical**: p50 1792, p99 5120,
+p99.9 5120, p99.99 6144, p99.999 8192 ns in every run of every arm, with only
+the single-sample `MAX` wandering (medians 13,494 / 7,999 / 8,068 ns for
+system / never / always) and `samples > 8 µs` at 0.002–0.003 % throughout.
+
+`always` and `never` cannot agree to the bucket if THP is doing anything.
+`p50 = 1792 ns` is one plain 4 KiB fault; a 2 MiB-backed range would be
+bimodal — 511 near-free touches and one very expensive one — and every arm
+reports `re-advised 0 MiB of existing regions`.  The conclusion is that **no
+hugepage is being faulted in any arm**, which is the first trap in this
+chapter's list ("if the control is 0, nothing downstream means anything")
+arriving from a direction it did not anticipate: not a container's
+`PR_SET_THP_DISABLE`, but the realtime kernel itself.
+
+A `PREEMPT_RT` kernel disabling or restricting THP is a reasonable thing for it
+to do — `khugepaged` collapses are precisely the kind of latency spike such a
+kernel exists to avoid — and if that is what happened here it is worth
+recording in its own right: **on the RT kernel the G6(a) knob may have nothing
+to act on.**  Confirm before quoting any of the numbers above:
+
+```bash
+cat /sys/kernel/mm/transparent_hugepage/enabled   # [never] settles it
+cat /sys/kernel/mm/transparent_hugepage/defrag
+grep -i thp /proc/self/status                     # THP_enabled: 0 = disabled
+grep -iE 'AnonHugePages|Hugepagesize' /proc/meminfo
+grep -o 'transparent_hugepage=[a-z]*' /proc/cmdline
+```
+
+An earlier single run at `--faults 24` showed a 140 µs maximum that looked
+like a 2 MiB zeroing, and it does not survive the larger sample: at
+`--faults 128` it never recurs in any arm, so it was a one-off system event of
+the same family as the 85,904 ns outlier in one `system` repetition here.
+
 #### Still open
 
 * `cyclictest` under load (`stress-ng`) — every number above is unloaded and
@@ -693,10 +797,12 @@ had been hiding, both now on `master`'s history:
   Read `/sys/devices/system/cpu/cpu*/thermal_throttle/*count` before and after
   each arm and report it: a run that throttled measured the cooling, not the
   allocator.
-* **The campaign itself**, two families under `with-pmqos 0` + `sudo taskset
-  -c 2,3` and no `chrt` (see the invocation notes above), interleaved, median
-  of ≥ 5: the cold-fault THP arms `--faults 128 --thp system|never|always`,
-  and the steady-state bands `--full`.
+* **Whether THP is available at all on this kernel** — the arms above are
+  vacuous until the control says it is, and if it is not, G6(a) needs a host
+  that has it.
+* **The `reps − 2` large-tier residue**: whether `kame_pool_prewarm` can be
+  made to cover the large recycle cache across repetitions, or whether the
+  shortfall is inherent to alternating the RT and OFF arms in one process.
 
   Configure the tree as **`-DCMAKE_BUILD_TYPE=Release`**, which is `-O3
   -DNDEBUG` and matches the flags Ohtaka's tree effectively compiles with:
