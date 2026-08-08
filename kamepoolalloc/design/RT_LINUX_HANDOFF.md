@@ -435,6 +435,198 @@ What this campaign is expected to produce: §G6(a)'s "mechanism trustworthy /
 absolute WCET not trustworthy" split collapses into a single set of numbers
 carrying the `hwlatdetect` floor as their stated resolution.
 
+### As built (2026-08) — the host, and what the measurements actually said
+
+Everything above this point was the plan.  This subsection is the outcome: the
+machine exists, the RT kernel boots, and the host characterisation is complete.
+The allocator campaign itself is **not** run yet — see "still open" at the end.
+
+#### The machine
+
+`ssp-iMac18-3`, iMac 27" 2017, **i5, 4 cores / 4 threads** (`lscpu -e` shows
+CPU 0-3 on CORE 0-3, one socket), 800–3800 MHz, 16 GB.  Confirms the guess in
+the tuning section: `nosmt` has nothing to disable here.
+
+Ubuntu 26.04 LTS, `7.0.0-29-realtime` (`#29.1-Ubuntu SMP PREEMPT_RT`,
+`/sys/kernel/realtime` = 1), installed from `ubuntu-realtime` with no Pro
+subscription.
+
+Storage — this **departs from the recommendation above**, and the departure is
+the better answer for a machine that is administered remotely:
+
+| device | role | note |
+|---|---|---|
+| NVMe blade (Fusion SSD half), 24.5 GiB | `/` **including `/boot`** | only `/boot/efi` is separate |
+| external **USB 3.1 Gen2 SSD**, 824 GiB, `uas` driver | `/home` | sources, build trees, data |
+| internal 1 TB HDD | **unused** | keep for backups, `noauto`, spun down |
+
+Three things follow from that layout and are not optional:
+
+* **`/home` must be mounted by UUID with `nofail`.**  Across the first RT
+  reboot the external SSD moved from `/dev/sda1` to `/dev/sdb1` — the internal
+  HDD enumerated first that time.  A device-name entry would have dropped the
+  machine into emergency mode, which on an iMac (no BMC, no IPMI, no console)
+  means a site visit.  Verify the generator honoured it, because `nofail` is a
+  directive the generator consumes and never appears in the mount options:
+  `home.mount` must land in `/run/systemd/generator/local-fs.target.wants/`,
+  **not** in `…requires/`.  Set the fsck pass to 0 as well, so a dirty 824 GB
+  ext4 cannot add minutes to a remote boot.
+* **`/` is small and `/boot` lives in it.**  Installing the RT kernel needs
+  room there.  Deleting Ubuntu's 4 GB `/swap.img` — which an RT host does not
+  want anyway — plus `apt clean`, a snap trim and 1 GB of stale
+  `/var/lib/apport` cores took it from 6.4 to 12 GiB free.
+* **`GRUB_RECORDFAIL_TIMEOUT=5`.**  Ubuntu's default is to wait at the menu
+  *indefinitely* after a failed boot; on a headless machine that alone is a
+  site visit.  With `GRUB_DEFAULT=saved`, keeping `saved_entry` on a known-good
+  kernel and entering the tuned one with `grub-reboot` (one-shot) means any
+  unexpected power cycle returns to something that works.
+
+Pre-reboot checks worth repeating on any similar host: `dkms status` (**empty
+here** — nothing to fail to build against the RT kernel), and that the NIC
+driver exists in the new kernel (`modinfo -k 7.0.0-29-realtime tg3` — in-tree,
+so it does).  Those two are how you lose a remote machine.
+
+#### Firmware floor
+
+`hwlatdetect --duration=300 --threshold=10` on the installed RT kernel:
+**0 samples recorded, 0 exceeding threshold.**  The live-USB gate had reported
+one sample at 13 µs.  Taken together: the SMI/SMM floor on this machine is at
+most ~13 µs and is rarely reached, so it is **not** the limiting term at the
+scale anything below cares about.
+
+#### Scheduling floor, and the C-state result
+
+All runs: `-m -S -p 90 -h`, 10 min, no load, CRD and `gdm3` stopped, all four
+CPUs (no `isolcpus` yet).  **Every `cyclictest` number in this file, here and
+in the gate section, is a PM-QoS-0 number unless the row says otherwise** —
+cyclictest writes 0 to `/dev/cpu_dma_latency` by default and prints
+`# /dev/cpu_dma_latency set to 0us` when it does.
+
+`-i 200` (CPU never idles long enough to go deep):
+
+| governor | C3–C8 in sysfs | min | avg | max (per thread) |
+|---|---|---|---|---|
+| powersave | enabled | 2 | 2 | 12 / **35** / 12 / 15 |
+| performance | disabled | 2 | 2 | 12 / 12 / **16** / 13 |
+
+~97 % of 3 M samples per thread land in the 2 µs bucket.  The two rows differ
+only in the governor, **not** in C-states — cyclictest had suppressed those in
+both.  This also settles the live-USB baseline: its 97 µs max was likewise a
+PM-QoS-0 number, so the drop to 12–16 µs came from removing background load
+(swap, `gdm3`, snaps, CRD), which is exactly the "~84 µs is software" split the
+gate section predicted.
+
+`-i 50000`, performance governor, C3–C8 **enabled**, PM-QoS varied with
+`--latency=` — this is the case KAME actually lives in, idle between
+acquisitions and then woken:
+
+| PM-QoS target | min | avg | max |
+|---|---|---|---|
+| unconstrained (`--latency=1000000`) | 4 | **165** | **235** |
+| 10 µs (C1E and shallower) | 2 | 13–14 | 31–**64** |
+| **0 µs** | 2 | **2** | **11–13** |
+
+The unconstrained row is not a tail effect: avg 165 µs sits right up against
+max 235 µs, i.e. at a 50 ms idle period the CPU reaches **C8 on essentially
+every wake-up** and pays its 200 µs exit.  Installed idle states and their
+advertised exit latencies: POLL 0, C1 2, C1E 10, C3 70, C6 85, C7s 124,
+C8 200 µs.
+
+So: **235 µs is the measured, unmitigated bound for a wake-from-idle response
+on this host, and PM-QoS 0 buys it down to 13 µs — a factor of ~18.**  The
+intermediate 10 µs target is a poor bargain: its average is fine but its max
+scatters to 64 µs, which is the wrong property when the claim is about a bound.
+
+#### Decision: PM-QoS at runtime, not `intel_idle.max_cstate` on the cmdline
+
+The tuning section above defers `intel_idle.max_cstate=1` until after a fan
+check.  The fan check passed with room to spare — package 40 °C against a
+80 °C `high` and 100 °C `crit` — so thermals are **not** the reason to avoid
+it.  Prefer the runtime knob anyway:
+
+* the effect is the same, but PM-QoS is reversible without a reboot;
+* it is **per-run and therefore recordable**, which matters more than it
+  sounds — the whole reason the two `-i 200` rows above were nearly identical
+  is that a tool silently changed the condition being measured;
+* a boot-time limit keeps every core out of deep idle for the whole session,
+  including the hours a lab machine spends doing nothing.
+
+Hold it from outside the measured binary, so the binary stays unmodified:
+
+```bash
+sudo tee /usr/local/bin/with-pmqos >/dev/null <<'EOF'
+#!/usr/bin/env python3
+"""Hold /dev/cpu_dma_latency at <us> for the lifetime of the wrapped command."""
+import os, struct, subprocess, sys
+fd = os.open("/dev/cpu_dma_latency", os.O_WRONLY)
+os.write(fd, struct.pack("i", int(sys.argv[1])))
+try:    sys.exit(subprocess.run(sys.argv[2:]).returncode)
+finally: os.close(fd)
+EOF
+sudo chmod +x /usr/local/bin/with-pmqos
+```
+
+The constraint lives exactly as long as the descriptor is open; closing it
+releases it, and the kernel takes the minimum over all open requests.
+
+A `--cpulatency` option doing this inside KAME was written and then reverted.
+Held for the process lifetime it is indistinguishable from the wrapper, so it
+bought nothing; it would only have earned its place by scoping the request to
+the acquisition window, which a wrapper cannot do.  Recorded here so the
+question is not re-opened without that scoping attached to it.
+
+#### The tuned cmdline goes in a *separate* GRUB entry
+
+Isolating 2 of 4 cores leaves KAME two for its GUI, Python and driver threads,
+which is not a configuration to boot into by accident.  Put the tuning in one
+extra entry and leave the generated ones alone — copy the generated realtime
+`menuentry` out of `grub.cfg` into `/etc/grub.d/40_custom` (which emits
+everything from line 3 verbatim), retitle it, and append to its `linux` line:
+
+```
+isolcpus=2,3 nohz_full=2,3 rcu_nocbs=2,3 irqaffinity=0,1
+```
+
+`nohz_full` and `rcu_nocbs` are the reason a boot parameter is needed at all —
+cpusets and IRQ affinity are settable at runtime, the tick and RCU offload are
+not, and at an allocator's sub-µs scale the 250/1000 Hz tick is not a rounding
+error.  No C-state flag here, per the decision above.  Enter it for a campaign
+with `grub-reboot "<title>"`; `saved_entry` stays on the plain RT entry.
+
+#### Found on the way, and fixed in KAME
+
+Standing the host up surfaced two defects that the native macOS/Windows paths
+had been hiding, both now on `master`'s history:
+
+* `FrmKameMain::processSignals()` — the timeout slot of a **zero-interval**
+  `QTimer` — slept 5 ms in `msecsleep()` whenever the STM signal buffer was
+  idle.  Qt's GTK3 platform theme runs the native file and colour dialogs
+  through `gtk_dialog_run()`, i.e. `g_main_loop_run()` on the *same*
+  `GMainContext` as Qt's dispatcher, so an always-ready `G_PRIORITY_DEFAULT`
+  timer source whose callback blocks starves GDK's redraw source outright:
+  both dialogs mapped an empty frame that never painted and never took input.
+  Diagnosed from a live backtrace of the stuck main thread.  A GUI thread that
+  sleeps inside a timer callback is a hazard of the same family as the
+  "never hold a plain mutex across a Snapshot/Transaction" rule in `CLAUDE.md`.
+* `XFilePathConnector::onClick()` passed a `";;"`-separated filter *list* to
+  the singular `QFileDialog::setNameFilter()`, and handed the line edit's
+  *file* path straight to `setDirectory()` — under Qt's widget dialog the
+  first shows the raw `";;"` as one garbled combo row and the second lists
+  nothing at all.
+
+#### Still open
+
+* `cyclictest` under load (`stress-ng`) — every number above is unloaded and
+  therefore optimistic.
+* `cyclictest -a2` on an isolated core, once the tuned entry exists.
+* Sustained-load temperature under PM-QoS 0 (the 40 °C above was sampled after
+  a light run, not during a hot one).
+* **The campaign itself**: `bench_rt_wcet --thp system|never|always` under
+  `with-pmqos 0` + `chrt -f 80 taskset -c 2,3`, interleaved, median of ≥ 5.
+  Build from `tests/` with `-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=""` or the
+  default `-O2 -g` silently overrides `-O3` and the numbers stop being
+  comparable with Ohtaka's.
+
 ## Context you may want
 
 - `design/RT_READINESS.md` — the whole programme, G1–G10, with what is claimed
