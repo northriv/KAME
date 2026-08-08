@@ -596,6 +596,35 @@ not, and at an allocator's sub-µs scale the 250/1000 Hz tick is not a rounding
 error.  No C-state flag here, per the decision above.  Enter it for a campaign
 with `grub-reboot "<title>"`; `saved_entry` stays on the plain RT entry.
 
+Verify the isolation actually took, rather than assuming the parameters were
+accepted — `isolcpus` in particular is silently ignored on a typo:
+
+```bash
+cat /sys/devices/system/cpu/isolated /sys/devices/system/cpu/nohz_full   # 2-3, 2-3
+# every IRQ pinned to the housekeeping cores: this must print nothing
+awk '{print FILENAME": "$0}' /proc/irq/*/smp_affinity_list | grep -vE ': *0-1$| *0,1$'
+# nothing but kernel per-cpu threads on the isolated cores
+ps -eLo pid,tid,psr,rtprio,comm --no-headers | awk '$3>=2'
+# the decisive one: LOC must not advance on the isolated cores
+grep -E '^ *LOC' /proc/interrupts; sleep 10; grep -E '^ *LOC' /proc/interrupts
+```
+
+Measured here: the isolated cores took **zero local timer interrupts in ten
+seconds** (112 → 112, all of them from early boot) while CPU 0 advanced by
+~1,000/s.  Left on cores 2-3 are only `cpuhp`, `idle_inject`, `irq_work`,
+`migration`, `rcuc`, `ktimers`, `ksoftirqd`, `kworker` and `backlog_napi`.
+`idle_inject` runs at RT priority 50 and only when thermal throttling engages,
+so a bench taken at `chrt -f 80` outranks it — one more reason to read the
+`thermal_throttle` counters rather than trust that it stayed asleep.
+
+Settings that do **not** survive the reboot into this entry, and that a
+campaign is wrong without: the `performance` governor,
+`/proc/sys/kernel/sched_rt_runtime_us` = -1 (the default throttles SCHED_FIFO
+to 950 ms of every second, which is not a subtle way to ruin a `chrt -f 80`
+run) and the `memlock` limit.  Note also that only two cores remain for
+everything else, so build the tests *before* entering this entry, or accept
+`-j2`.
+
 #### Found on the way, and fixed in KAME
 
 Standing the host up surfaced two defects that the native macOS/Windows paths
