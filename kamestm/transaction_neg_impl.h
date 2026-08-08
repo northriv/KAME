@@ -450,6 +450,31 @@ struct NegDiag {
     std::uint64_t ms_sum;
     std::uint64_t ms_max;
     std::uint64_t entries;   //!< calls into _negotiate_internal
+    //! Rounds entered while a peer's privilege blocks us — the rounds in which
+    //! `_wb_round` is forced to 0, i.e. the wait budget is CONTRACTUALLY
+    //! SUSPENDED.  Any latency past the budget has to live in these, so this
+    //! is the field that decides whether an overshoot is the exemption or a
+    //! defect in the clamping.
+    std::uint64_t rounds_exempt;
+    //! Wall time inside the `_fair_blocks` busy-spin (bounded by
+    //! KAME_STM_FAIR_SPIN_MAX_US, but its deadline is only re-checked every
+    //! 2^18 PAUSEs, so it can overshoot its own cap).
+    std::uint64_t spin_ns;
+    std::uint64_t spins;        //!< entries into that spin
+    //! `slept_ns` split by whether the round was exempt.  budgeted + exempt
+    //! == slept_ns; the interesting one is `slept_exempt_ns`.
+    std::uint64_t slept_exempt_ns;
+    //! Worst single `cell.wait()` OVERSHOOT (actual − requested).  The one
+    //! number that separates "the STM chose to wait this long" from "the OS
+    //! did not run us again for this long", per wait rather than summed —
+    //! a sum cannot tell one 700 us late wake-up from seventy 10 us ones.
+    std::uint64_t late_max_ns;
+    //! The deadline-tail spin that replaces the last KAME_NEG_SPIN_TAIL_US of
+    //! a budget: how often it fired and how long it actually held the core.
+    std::uint64_t tail_spins;
+    std::uint64_t tail_spin_ns;
+    //! Set by the round loop, read by negotiate_sleep — not a counter.
+    std::uint8_t  exempt_round;
 };
 inline NegDiag &neg_diag() { static thread_local NegDiag d{}; return d; }
 }
@@ -498,9 +523,14 @@ void Node<XN>::NegotiationCounter::negotiate_sleep(
         d.req_ns += (std::uint64_t)us * 1000ull;
         auto t0 = std::chrono::steady_clock::now();
         st.cell.wait(g, us);
-        d.slept_ns += (std::uint64_t)std::chrono::duration_cast<
+        const std::uint64_t _dt = (std::uint64_t)std::chrono::duration_cast<
             std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now() - t0).count();
+        d.slept_ns += _dt;
+        if(d.exempt_round) d.slept_exempt_ns += _dt;
+        const std::uint64_t _want = (std::uint64_t)us * 1000ull;
+        if(_dt > _want && _dt - _want > d.late_max_ns)
+            d.late_max_ns = _dt - _want;
     }
 #else
     st.cell.wait(g, us);
@@ -1597,6 +1627,11 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // to zero and the thread busy-spins behind the holder instead of
         // waiting — cheaper than barging, but still a wasted core.
         const int64_t _wb_round = _fair_blocks ? 0 : _wb_limit;
+#if KAME_STM_NEG_DIAG
+        {   auto &_d = detail::neg_diag();
+            _d.exempt_round = (_wb_limit && !_wb_round) ? 1u : 0u;
+            if(_d.exempt_round) ++_d.rounds_exempt; }
+#endif
 
 #if KAME_NEGSITE_ENABLED
         NegSite::last_was_gate_return() = false;
@@ -1969,6 +2004,13 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 } while(NegotiationCounter::fair_mode_blocks_me(
                                 started_time, self));
                 s_fair_spinners.fetch_sub(1, std::memory_order_relaxed);
+#if KAME_STM_NEG_DIAG
+                {   auto &_d = detail::neg_diag();
+                    ++_d.spins;
+                    _d.spin_ns += (std::uint64_t)
+                        ((int64_t)NegotiationCounter::now_us()
+                         - _spin_start_us) * 1000ull; }
+#endif
                 if( !_spin_timed_out)
                     continue;
                 // Timed out: fall through to CV-sleep section so we
@@ -2043,6 +2085,124 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             }
         }
         else {
+            // ---- Deadline tail: do not sleep through the end of a budget.
+            //
+            // A timed wait cannot deliver a wake-up more precisely than the
+            // host's idle-exit + timer-slack cost, and near the end of a
+            // budget that cost is LARGER THAN THE WAIT ITSELF.  Measured on
+            // the PREEMPT_RT reference host (i5-7500, acquisition thread
+            // alone on an isolated core, 200 us budget): the last chunk was
+            // clamped to 198 us exactly as designed, and `cell.wait()`
+            // returned 695 us later, with 6 us of STM work in the whole
+            // commit.  The "MAX = budget + ~200 us constant" recorded in
+            // design/RT_READINESS.md was never the STM and never the
+            // documented budget-exempt wait behind a privileged peer —
+            // `rounds_exempt` is 0 across 17,274 slow commits, and stays 0
+            // under every scheduling class, C-state setting and budget tried.
+            //
+            // What the wake-up is made of, measured directly as the worst
+            // single cell.wait() overshoot (20 s arms, 20 ms budget, root):
+            //
+            //     plain        662 us     fifo            124 us
+            //     slack 1 us   475 us     pmqos + fifo     20 us
+            //     pmqos        605 us   (pm-qos verified: cpu3 C8 entries 0)
+            //
+            // Read the ordering, because it is counter-intuitive and the
+            // obvious guess is wrong: the SCHEDULING CLASS dominates (5.3x),
+            // and holding PM-QoS at 0 buys almost nothing on its own
+            // (662 -> 605) while buying 6x on top of SCHED_FIFO
+            // (124 -> 20).  The two are super-additive, so testing either
+            // alone understates it.  An earlier reading of this attributed
+            // the constant to the deepest C-state's 200 us exit latency
+            // because that number matches the observed overshoot almost
+            // exactly; the pmqos row above refutes it.  Timer slack (50 us by
+            // default, and zero for any RT class) is a component of what FIFO
+            // buys, but not most of it.
+            //
+            // So spend the remainder on-CPU instead.  Polling is strictly
+            // better than waiting here on every axis that matters:
+            //   * it observes the blocker clearing IMMEDIATELY rather than at
+            //     the next wake-up, so the common case gets FASTER, not just
+            //     more predictable;
+            //   * the cost is bounded by the threshold and paid only by a
+            //     thread that has already declared a deadline;
+            //   * it removes both the C-state and the slack from the deadline
+            //     path without needing root, a PM-QoS hold, or a tuned kernel.
+            //
+            // Gated on `_wb_round` — i.e. on the caller having constructed a
+            // ScopedWaitBudget AND on not being fair-blocked — so ordinary
+            // throughput callers, who have no deadline to protect and would
+            // only lose a core to this, are untouched.
+            //
+            // Measured (same host, 25 s arms, acq at NORMAL — the shipped
+            // tier — pinned alone on the isolated core), MAX-budget with the
+            // reserve off -> on:
+            //
+            //     budget    MAX-budget          acq/s        UI/s   SCRIPT/s
+            //      20 ms   122 us -> 7.1 us   +2 %          -2 %     +2 %
+            //       1 ms   216 us -> 34 us    +10 %        -13 %    -15 %
+            //     200 us   721 us -> 19 us    +1 %       **-94 %** **-98 %**
+            //
+            // …and in the configuration KAME should actually ship
+            // (SCHED_FIFO + isolation + PM-QoS held at 0, 20 ms budget):
+            // **76 us -> 3.0 us**, with UI and SCRIPTING both slightly UP.
+            // 3 us is below this host's own 17 us floor (rtla osnoise), i.e.
+            // the STM's contribution to the record commit's tail is now
+            // smaller than the machine's noise.
+            //
+            // THE 200 us ROW IS A CLIFF, NOT A TREND, and it is the reason
+            // this constant may not simply be raised.  Once the reserve
+            // reaches the whole budget the thread never sleeps at all: it
+            // stops backing off the linkage, wins every CAS from its own
+            // uncontended core, and the deferrable roles stop committing (UI
+            // 24.1k -> 1.5k /s, SCRIPTING 67.5k -> 1.1k /s).  A budget is the
+            // deadline-bearer's patience, and spending all of it on-CPU is
+            // indistinguishable from having none.  So: keep this WELL BELOW
+            // the smallest budget in play, and before recommending budgets
+            // near it, cap the reserve at a FRACTION of the budget span
+            // (which means plumbing the span, not just the deadline, through
+            // ScopedWaitBudget).  At KAME's shipped 20 ms the reserve is
+            // 1.5 % of the budget and the row above is free.
+#ifndef KAME_NEG_SPIN_TAIL_US
+#define KAME_NEG_SPIN_TAIL_US 300
+#endif
+#if KAME_NEG_SPIN_TAIL_US > 0
+            if(_wb_round) {
+                int64_t _rem = _wb_round
+                    - (int64_t)NegotiationCounter::now_us();
+                if(_rem <= 0) goto _exit_cv_sleep;
+                if(_rem <= (int64_t)KAME_NEG_SPIN_TAIL_US) {
+                    // Keep the running-count slot: we ARE running.  (The
+                    // sleep path below releases it precisely because it is
+                    // about to stop running.)
+                    unsigned _it = 0;
+                    for(;;) {
+                        pause4spin();
+                        // Leave the moment the blocker is gone or we became
+                        // the oldest — the whole point of not sleeping.
+                        auto _v = self->m_transaction_started_time.load(
+                            std::memory_order_relaxed);
+                        if( !NegotiationCounter::is_active_stamp(_v)
+                            || NegotiationCounter::signed_diff_us_packed(
+                                   started_time, _v) <= 0)
+                            break;
+                        // now_us() is far dearer than a PAUSE; amortise it.
+                        if((++_it & 0x3Fu) == 0
+                           && (int64_t)NegotiationCounter::now_us()
+                              >= _wb_round)
+                            break;
+                    }
+#if KAME_STM_NEG_DIAG
+                    {   auto &_d = detail::neg_diag();
+                        ++_d.tail_spins;
+                        _d.tail_spin_ns += (std::uint64_t)
+                            (((int64_t)NegotiationCounter::now_us()
+                              - (_wb_round - _rem)) * 1000); }
+#endif
+                    goto _exit_cv_sleep;
+                }
+            }
+#endif
             // Do NOT drop this Tx's tags before sleeping.  It looks free —
             // a sleeper holding a tag keeps `fair_mode_blocks_me` true for
             // every peer on that linkage, measured at 38 % of sleeps in the
@@ -2075,8 +2235,13 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             // A round may not outlive the caller's wait budget.  This alone is
             // not enough — a chunk can still overshoot by its own length — so
             // the per-chunk clamp below handles the sub-millisecond tail.
-            if(_wb_round && t_end > _wb_round)
-                t_end = _wb_round;
+            // Both stop KAME_NEG_SPIN_TAIL_US SHORT of the budget, leaving
+            // that much for the deadline-tail spin above to cover: a wait
+            // clamped to land exactly ON the deadline hands its own wake-up
+            // latency straight to the caller's tail, which is the entire
+            // measured overshoot (see the tail-spin comment).
+            if(_wb_round && t_end > _wb_round - KAME_NEG_SPIN_TAIL_US)
+                t_end = _wb_round - KAME_NEG_SPIN_TAIL_US;
             do {
                 // Advance seed for de-phasing; chunk sleep = 1 or 2 ms.
                 s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
@@ -2184,8 +2349,9 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 {
                     unsigned _chunk_us_ov = 0;
                     if(_wb_round) {
-                        const int64_t _rem =
-                            _wb_round - NegotiationCounter::now_us();
+                        const int64_t _rem = _wb_round
+                            - KAME_NEG_SPIN_TAIL_US
+                            - (int64_t)NegotiationCounter::now_us();
                         if(_rem <= 0) goto _exit_cv_sleep;
                         else if(_rem < (int64_t)KAME_NEG_SLEEP_US_PER_MS)
                             _chunk_us_ov = (unsigned)_rem;
@@ -2217,8 +2383,11 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     int _chunk_ms = 1 + (int)(s_backoff_seed >> 31);
                     unsigned _chunk_us_ov = 0;
                     if(_wb_round) {
-                        const int64_t _rem =
-                            _wb_round - NegotiationCounter::now_us();
+                        // …minus the tail reserve, so this wait's wake-up
+                        // jitter lands INSIDE the budget rather than past it.
+                        const int64_t _rem = _wb_round
+                            - KAME_NEG_SPIN_TAIL_US
+                            - (int64_t)NegotiationCounter::now_us();
                         if(_rem <= 0)
                             goto _exit_cv_sleep;   // budget spent: never sleep
                         else if(_rem < (int64_t)_chunk_ms
@@ -2253,8 +2422,9 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             {
                 unsigned _us_ov = 0;
                 if(_wb_round) {
-                    const int64_t _rem =
-                        _wb_round - NegotiationCounter::now_us();
+                    const int64_t _rem = _wb_round
+                        - KAME_NEG_SPIN_TAIL_US
+                        - (int64_t)NegotiationCounter::now_us();
                     if(_rem <= 0) goto _exit_cv_sleep;
                     else if(_rem < (int64_t)ms_actual
                                    * (int64_t)KAME_NEG_SLEEP_US_PER_MS)

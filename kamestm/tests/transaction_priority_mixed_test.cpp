@@ -222,6 +222,7 @@
 #  include <sched.h>
 #  include <unistd.h>
 #  include <fcntl.h>
+#  include <sys/prctl.h>
 #endif
 
 class MyNode : public Transactional::Node<MyNode> {
@@ -358,6 +359,13 @@ int main() {
     //! (the pool's per-slot next-pointer pre-fill faulting 5 size classes x 64
     //! pages) and mistake it for a recurring event.  Set 0 to reproduce that.
     const bool do_prewarm  = env_long("KAME_MIX_PREWARM", 1) != 0;
+    //! Per-thread timer slack for the acquisition thread, in ns.  Linux
+    //! defaults to 50 us and applies it to every `futex` timeout a
+    //! SCHED_OTHER task arms — which is the negotiator's CV chunk, i.e. it
+    //! lands directly on the record commit's tail.  (RT scheduling classes
+    //! get zero slack, which is one reason a FIFO arm and a SCHED_OTHER arm
+    //! are not the same measurement.)  0 = leave the default alone.
+    const long timerslack  = env_long("KAME_MIX_TIMERSLACK_NS", 0);
     const bool os_pin_on   = env_long("KAME_MIX_OS_PIN", 0) != 0;
     std::printf("mixed-priority livelock hunt: %lds, stall>%lds fails, "
                 "acq=%s duty %ldus, UI period %ldus, +%ld NORMAL, "
@@ -455,6 +463,37 @@ int main() {
     //! host class's OS floor (rtla osnoise put it at 17 us) and below the
     //! ~90 us residue the RT investigation left unexplained.
     const long slow_ns = env_long("KAME_MIX_SLOW_NS", 50000);
+#if KAME_STM_NEG_DIAG
+    //! Where a slow commit's time actually went, from inside the negotiator.
+    //! The measurement this test could not make until now: MAX = budget +
+    //! ~200 us was reproducible but unattributed, and "the budget-exempt wait
+    //! behind a live privileged peer" was a hypothesis with the right shape
+    //! and no evidence.  `rounds_exempt` / `slept_exempt_ns` are that
+    //! evidence, because the exemption is the ONLY route by which a wait can
+    //! outlive the budget: every other sleep site clamps its chunk to the
+    //! remaining budget and every round re-checks it at the top.
+    struct SlowDiag {
+        std::uint64_t n = 0, rounds = 0, rounds_exempt = 0, sleeps = 0,
+                      slept_ns = 0, slept_exempt_ns = 0, req_ns = 0,
+                      spins = 0, spin_ns = 0, entries = 0, sleeps_priv = 0,
+                      late_max_ns = 0, tail_spins = 0, tail_spin_ns = 0;
+        //! …and the single worst commit of the run, kept whole: a mean over
+        //! the slow population cannot say whether the MAX was one long exempt
+        //! sleep or a hundred short budgeted ones.
+        std::uint64_t max_dt = 0;
+        Transactional::detail::NegDiag max_d{};
+        void add(std::uint64_t dt, const Transactional::detail::NegDiag &d) {
+            ++n; rounds += d.rounds; rounds_exempt += d.rounds_exempt;
+            sleeps += d.sleeps; slept_ns += d.slept_ns;
+            slept_exempt_ns += d.slept_exempt_ns; req_ns += d.req_ns;
+            spins += d.spins; spin_ns += d.spin_ns; entries += d.entries;
+            sleeps_priv += d.sleeps_priv;
+            if(d.late_max_ns > late_max_ns) late_max_ns = d.late_max_ns;
+            tail_spins += d.tail_spins; tail_spin_ns += d.tail_spin_ns;
+            if(dt > max_dt) { max_dt = dt; max_d = d; }
+        }
+    } slow_diag;
+#endif
 
     // Breaktrace plumbing.  Both descriptors are opened up front so the hot
     // path only ever does two write()s, and only once.
@@ -493,6 +532,9 @@ int main() {
         if(fifo_ok) os_set_policy(SCHED_FIFO, (int)os_fifo);
         else        os_be_ordinary();
         os_pin(cpu_acq);
+#if defined(__linux__)
+        if(timerslack > 0) ::prctl(PR_SET_TIMERSLACK, (unsigned long)timerslack);
+#endif
 #ifndef DISABLE_POOL_ALLOCATOR
         if(do_prewarm) {
             //! Cover the small classes the STM's Payload clones land in.
@@ -536,6 +578,12 @@ int main() {
                 std::uint64_t sys0 = 0;
                 for(int t = T_UI; t < nthreads; ++t)
                     sys0 += progress[t].load(std::memory_order_relaxed);
+#if KAME_STM_NEG_DIAG
+                //! Zero the thread's counters so what we read after the commit
+                //! is this commit's, not the downstream half's of the previous
+                //! cycle.
+                (void)Transactional::neg_diag_snapshot(true);
+#endif
                 devA->iterate_commit([&](Tr &tr){
                     ++attempts;
                     tr[ *devA].m_x++;
@@ -551,6 +599,11 @@ int main() {
                         sys1 += progress[t].load(std::memory_order_relaxed);
                     acq_retries.add(dt_rec, attempts, (std::uint64_t)slow_ns,
                                     sys1 - sys0);
+#if KAME_STM_NEG_DIAG
+                    if(dt_rec >= (std::uint64_t)slow_ns)
+                        slow_diag.add(dt_rec,
+                                      Transactional::neg_diag_snapshot(false));
+#endif
                 }
                 else     cold_n.fetch_add(1, std::memory_order_relaxed);
 #if defined(__linux__)
@@ -792,6 +845,46 @@ int main() {
                 acq_retries.slow_n
                     ? (double)acq_retries.slow_attempts / (double)acq_retries.slow_n : 0.0,
                 (unsigned long long)acq_retries.slow_max);
+#if KAME_STM_NEG_DIAG
+    if(slow_diag.n) {
+        const double N = (double)slow_diag.n;
+        std::printf("    slow-commit negotiator breakdown (n=%llu):\n"
+                    "      per commit: entries=%.2f rounds=%.2f "
+                    "(exempt=%.2f) sleeps=%.2f (priv=%.2f) spins=%.2f\n"
+                    "      per commit: slept=%.0f ns (exempt=%.0f, %.1f %%)  "
+                    "requested=%.0f ns  spin=%.0f ns\n"
+                    "      worst SINGLE wait overshoot (actual-requested) "
+                    "over all slow commits: %llu ns\n"
+                    "      deadline-tail spin: %.2f /commit, %.0f ns/commit\n",
+                    (unsigned long long)slow_diag.n,
+                    slow_diag.entries / N, slow_diag.rounds / N,
+                    slow_diag.rounds_exempt / N, slow_diag.sleeps / N,
+                    slow_diag.sleeps_priv / N, slow_diag.spins / N,
+                    slow_diag.slept_ns / N, slow_diag.slept_exempt_ns / N,
+                    slow_diag.slept_ns
+                        ? 100.0 * (double)slow_diag.slept_exempt_ns
+                                / (double)slow_diag.slept_ns : 0.0,
+                    slow_diag.req_ns / N, slow_diag.spin_ns / N,
+                    (unsigned long long)slow_diag.late_max_ns,
+                    slow_diag.tail_spins / N, slow_diag.tail_spin_ns / N);
+        const auto &m = slow_diag.max_d;
+        std::printf("      the MAX commit itself (%llu ns): entries=%llu "
+                    "rounds=%llu (exempt=%llu) sleeps=%llu slept=%llu ns "
+                    "(exempt=%llu) requested=%llu ns spin=%llu ns\n"
+                    "        unaccounted = %lld ns\n",
+                    (unsigned long long)slow_diag.max_dt,
+                    (unsigned long long)m.entries,
+                    (unsigned long long)m.rounds,
+                    (unsigned long long)m.rounds_exempt,
+                    (unsigned long long)m.sleeps,
+                    (unsigned long long)m.slept_ns,
+                    (unsigned long long)m.slept_exempt_ns,
+                    (unsigned long long)m.req_ns,
+                    (unsigned long long)m.spin_ns,
+                    (long long)slow_diag.max_dt - (long long)m.slept_ns
+                        - (long long)m.spin_ns);
+    }
+#endif
     std::printf("    other roles' commits DURING a slow one: mean=%llu max=%llu"
                 "  (~0 => the holder was stuck; large => they progressed and "
                 "this thread kept losing)\n",
