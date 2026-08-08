@@ -162,111 +162,11 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 
 ## Realtime behaviour
 
-The STM has **no WCET bound to offer**: CAS retry counts are not bounded, and
-the design deliberately does not bound how long a privilege holder takes to
-finish.  What it has instead is a measurement, under the role mix an
-instrument-control deployment actually runs, on a `PREEMPT_RT` host, quoted
-against that host's own floor.
-
-### "Unbounded retries" and "model-checked livelock-free" are both true
-
-The precise word for what is proven is **starvation-freedom**, not bounded
-wait-freedom, and the difference is narrower than "not bounded" makes it sound.
-Taking the concessions first, because both are real:
-
-* **Every terminating execution retries finitely often.**  That is what
-  `<>AllDone` says, and on a machine of finite speed it is true by
-  construction.  Divergence is not on the table.
-* **For each checked configuration a bound even exists.**  The state space is
-  finite and contains no progress-free lasso, so any progress-free stretch is
-  shorter than the state count and the total is that times the finite number of
-  progress events.  "Unbounded" is not a statement about the model.
-
-What is missing is a bound for the **deployed** system, and two things stand in
-the way:
-
-* **The checking is per-configuration** — three threads, two children,
-  `MaxCommits = 1` — with no ∀-thread result, so nothing transfers to a tree of
-  dozens of drivers.  And the number would not be usable if it did: it is in
-  TLA+ steps over ~10⁸–10⁹ states, and a step is not a CAS attempt.
-* **The models drain, and a deployment does not.**  `Threads` is a fixed set,
-  each thread holds a finite `iterBudget`, and `AllDone` *is* "every budget
-  exhausted" — so a retrying transaction is guaranteed to run out of
-  competitors.  The quantity an instrument cares about is retries against a
-  *continuing* arrival stream, which the specs do not represent at all.  This
-  is the load-bearing gap, not the thread count.
-
-So read "not bounded" as **no bound is established for the deployed
-configuration**, not as "retries can diverge".
-
-What livelock-freedom does buy is real, and is exactly what Layer 1 lacks — its
-`<>AllDone` check fails with a lasso, which is why Layer 2 exists.  A
-transaction that keeps losing escalates to a privileged stamp its peers must
-yield to, including first-attempt peers (`retry == 0` still checks
-`fair_mode_blocks_me`).  The escalation is probe-gated, so the guarantee is
-about *what eventually happens* rather than *when* — the textbook gap between
-starvation-freedom and a constant.
-
-For scale, measured rather than argued: **1.002 attempts per commit over
-38.3 M commits, 1.45 on the slow ones, maximum 5.**
-
-### What was measured
-
-All of it comes from `transaction_priority_mixed_test`, which times the
-acquisition thread's record commit — the deadline-bearing half of an
-acquisition cycle — while NORMAL driver peers, a UI thread taking root
-Snapshots and a SCRIPTING thread contend against it.  Host throughout: Ubuntu
-26.04 `7.0.0-29-realtime` (`CONFIG_PREEMPT_RT=y`), i5-7500, cores 2–3 under
-`isolcpus`/`nohz_full`/`rcu_nocbs`, IRQs steered to 0–1, `performance`
-governor.  **Quote every number below against the host's own floor of 17 µs**
-(`rtla osnoise`, 120 s, Max Single — C-states, SMIs and `nohz_full` wake-ups in
-one number); an absolute latency is a property of the machine, which is why
-`KAME_MIX_DEADLINE_US` turns MAX into a pass/fail assertion only when asked.
-
-### Two tiers, and the difference is not a matter of degree
-
-`Priority::HIGHEST` leaves the negotiator's round loop before it can sleep —
-`if(entry_pr == Priority::HIGHEST) break;` sits at the top of the loop, above
-both `negotiate_sleep` call sites — so a HIGHEST commit never parks.  NORMAL
-does, in 1–2 ms chunks.  Same host, same roles, only the tier (120 s):
-
-| tier | p50 | p99 | p99.9 | **MAX** |
-|---|---|---|---|---|
-| HIGHEST (the library's ceiling) | 768 ns | 2.05 µs | 20.5 µs | **95.1 µs** |
-| NORMAL, 20 ms budget | 768 ns | 1.28 µs | 3.67 ms | **20.15 ms** |
-
-The median is identical and the tail is 200× apart.  "It kept up on average"
-was never the question.  The signature is unambiguous: the other roles
-completed a mean of 2,004 commits during each slow NORMAL commit against 13 in
-the HIGHEST arm — a thread asleep while the system works, the same shape
-`transaction_latency_bench`'s four-symmetric-thread control shows when it
-reaches 3.1 ms at p99.99 with a 32.6 ms max.
-
-`SCHED_FIFO` changes none of it (43.8 k/s and MAX 20.15 ms with it, 43.3 k/s
-and 20.19 ms without): `negotiate_sleep` is a **voluntary** wait, and no
-scheduling class shortens one.
-
-HIGHEST's number carries a precondition the table cannot show, because the
-measurement satisfies it: **HIGHEST commit rate × longest peer closure ≪ 1.**
-Never parking cuts both ways — a HIGHEST commit is also immune to fair-mode,
-so it does not yield to a *privileged* peer either, and each of its commits
-that lands inside that peer's closure invalidates the whole closure.  With
-µs-scale closures (this table) the collision window is negligible; when a
-peer runs ms-scale closures past the meeting point, the peer's privilege
-stops converging — reproduced at 22 ms closures against a flat-out HIGHEST
-churner as 1.1 → 15.5 closure re-runs per commit, a privilege holder pinned
-not by the scheduler but by arithmetic.  Everything waiting behind that
-holder waits through every re-run, exempt from any budget.  KAME itself now
-runs acquisition at NORMAL with OS-level elevation only, for exactly this
-reason: its analysis closures are ms-scale.  Use HIGHEST where the
-precondition is a property of the design, not a hope about the load.
-
-### At NORMAL the wait budget is the only bound — and it delivers its value
-
-`ScopedWaitBudget` (`XPrimaryDriver::downstreamWaitBudgetUS()`, default 20 ms)
-is inert at HIGHEST and binding at NORMAL.  Swept with the acquisition thread
-at `SCHED_FIFO` on the isolated core and every other thread together on the
-housekeeping core, 60 s each:
+**A commit's worst-case time is a number you choose.**  Declare a wait budget
+(`ScopedWaitBudget`; KAME sets it from `XPrimaryDriver::downstreamWaitBudgetUS()`,
+default 20 ms) and every wait inside the commit is clipped to it.  Measured on
+a `PREEMPT_RT` host with the acquisition thread isolated and every contender
+on the housekeeping core, 60 s per row:
 
 | budget | commits/s | mean | **MAX** | MAX − budget | clipped |
 |---|---|---|---|---|---|
@@ -275,93 +175,86 @@ housekeeping core, 60 s each:
 | 500 µs | 185,700 | 2.41 µs | 0.662 ms | 162 µs | 0.304 % |
 | 200 µs | 251,933 | 1.53 µs | **0.408 ms** | 208 µs | 0.334 % |
 
-**MAX = budget + a constant ~200 µs, with no floor down to 200 µs** — and
-throughput *rises* 3.3× as the budget falls, because a clipped commit stops
-sleeping and retries.  The clip rate is invariant at ~0.32 %: the same
-population of commits is caught, just earlier and more cheaply.  (The 4.7 %
-throughput cost documented for the 20 ms default was measured on a different
-arm and does not hold here; here smaller is better on both axes.)
+**MAX = budget + ~200 µs, with no floor down to 200 µs.**  Throughput *rises*
+3.3× as the budget falls (a clipped commit stops sleeping and retries), and
+the clip rate stays at ~0.32 % — the same commits are caught, earlier and more
+cheaply — so size the budget from the deadline, not from a throughput fear.
+Confirmed at length (300 s, `SCHED_FIFO` + isolation, 1 ms budget):
+**38,303,308 commits, MAX 1.288 ms, zero over a 3 ms deadline**, every other
+role healthy (UI 42.3 k/s, SCRIPTING 129.7 k/s, NORMAL 100.6 k/s).  Attempts
+per commit: mean 1.002, worst 5.
 
-Confirmed at length — 300 s, `SCHED_FIFO` + isolation, 1 ms budget:
-**38,303,308 commits, MAX 1.288 ms, zero over a 3 ms deadline**, with every
-other role healthy (UI 42.3 k/s, SCRIPTING 129.7 k/s, NORMAL 100.6 k/s).
+The workload behind all numbers here is `transaction_priority_mixed_test` —
+the acquisition thread's record commit timed against NORMAL driver peers, a
+UI thread taking root Snapshots and a SCRIPTING thread.  Host: Ubuntu 26.04
+`7.0.0-29-realtime`, i5-7500, cores 2–3 under `isolcpus`/`nohz_full`/
+`rcu_nocbs`, IRQs steered away, `performance` governor.  Quote every number
+against the host's own floor of **17 µs** (`rtla osnoise`, 120 s, Max Single);
+an absolute latency is a property of the machine.
 
-### Isolation is what makes the budget work, and FIFO without it is worse than nothing
+### The one wait the budget cannot clip
 
-The budget bounds every wait *except* the one behind a live privileged peer,
-which is contractually exempt — so that one's length is the holder's
-scheduling delay, plus the holder's closure re-runs if a fair-mode-immune
-contender keeps colliding with it (the HIGHEST precondition above; absent a
-HIGHEST role only the scheduling term remains, which is the case measured
-here).  It shows up exactly there:
+The budget bounds every wait *except* the one behind a **live privileged
+peer**: privilege is the completion guarantee (NORMAL/HIGHEST privilege never
+expires; only the LOW band — LOWEST / UI_DEFERRABLE / SCRIPTING — can be
+expired), so waiting a holder out is correctness, not a defect.  That wait has
+two terms, and the deployment supplies the bound for both:
 
-* **Unpinned**, MAX sticks at **12–13 ms for every budget from 5 ms down to
-  500 µs** while the clipped count saturates.  The budget is not what is being
-  measured any more.
-* **Pinned** — acquisition alone on the isolated core, every contender together
-  on the housekeeping core — a holder is always promptly scheduled among its
-  peers and the exempt residue vanishes (the table above).
-* **`SCHED_FIFO` without isolation FAILS.**  Only the acquisition thread is
-  elevated, so it preempts the very CFS holders it then waits behind: UI fell
-  to 144 commits/s and SCRIPTING to 176 (from 42.3 k and 129.7 k), both flagged
-  by the livelock watchdog at 6,001 ms, while the acquisition thread ran away
-  at 337 k/s and *still* took 50.9 ms on its own worst commit.  A textbook
-  priority inversion.  **FIFO and isolation ship together or neither ships.**
+* **The holder's scheduling delay** — bounded by isolation.  Unpinned, MAX
+  sticks at 12–13 ms for every budget from 5 ms down to 500 µs; pinned as in
+  the table above, the residue vanishes.  `SCHED_FIFO` **without** isolation
+  is worse than nothing: the elevated thread preempts the very CFS holders it
+  then waits behind — UI fell to 144 commits/s, SCRIPTING to 176, and the
+  runaway acquisition thread still took 50.9 ms on its own worst commit.
+  FIFO and isolation ship together or neither ships.  (FIFO on top of
+  isolation is otherwise inert here: `negotiate_sleep` is a voluntary wait,
+  and no scheduling class shortens one.)
+* **The holder's closure re-runs under a fair-mode-immune contender** — see
+  the HIGHEST precondition below.  Not a scheduling problem; isolation does
+  not touch it.
 
-Also refuted, since it was the obvious suspect: the cross-subtree
-`XSecondaryDriver` role is not what the 12–13 ms residue is made of.  Turning
-it off halves the clipped population and leaves MAX where it was.  Narrowing
-that scope is worth doing for throughput; it does not buy the tail.
-
-### What the STM does not bound
-
-Each of these is a design decision rather than a gap, and a realtime deployment
-has to supply the missing bound itself:
-
-* **A privilege holder's completion time.**  NORMAL and HIGHEST privilege
-  never expire — that immunity *is* the completion guarantee — and the wait
-  behind a live privilege is exempt from the wait budget.  Two things can
-  stretch it, and the STM bounds neither: the holder's **scheduling delay**
-  (if the OS does not run the holder, nothing in the STM rescues the waiter —
-  the bound the section above measures from both sides: supply isolation and
-  the exempt wait disappears, withhold it and no budget can reach the tail),
-  and the holder's **closure re-runs under a fair-mode-immune contender**
-  (the HIGHEST rate precondition — isolation does not help there, since it is
-  not a scheduling problem).  (Only the LOW band — LOWEST / UI_DEFERRABLE /
-  SCRIPTING — can be expired or evicted.)
-* **Transaction scope**, the dominant *throughput* term and the caller's to
-  choose.  Measured 2×2 at HIGHEST on the RT host, acquisition commits/s:
-  neither 146.9k · `SCHED_FIFO` + pinning only 155.0k · one NORMAL peer whose
-  scope spans the acquiring driver's subtree (the `XSecondaryDriver` role)
-  89.4k · both 57.8k.  FIFO and pinning cost nothing here (+6 %); the
-  cross-subtree peer costs 1.64× on its own, and the pair is super-additive.
-  It does not follow through to latency — see the refutation above.
-* **Allocation.**  Every commit clones a payload, so the allocator sits on the
-  deadline path and its preconditions are inherited — in particular
-  [`kamepoolalloc`](../kamepoolalloc)'s `kame_pool_prewarm()`, called from the
-  realtime thread before the time-critical section.  Skipping it cost the
-  measurement above a **~400 µs first commit** (the pool's freelist pre-fill
-  faulting five size classes' first chunks at once), immovable across every
-  other knob until the precondition was honoured.
+(Also refuted while hunting the 12–13 ms residue: the cross-subtree
+`XSecondaryDriver` role is not what it is made of — removing it halves the
+clipped population and moves MAX not at all.  Narrow scope buys throughput,
+not the tail: measured 2×2 at HIGHEST, a peer whose scope spans the acquiring
+subtree costs 1.64× in commits/s on its own, FIFO+pinning a mere +6 %.)
 
 ### The configuration that follows
 
-Everything above collapses into four requirements.  They are not independent —
-each of the first three is what makes the next one mean anything:
-
 1. **Isolate the deadline-bearing thread** (`isolcpus`) and put **every other
-   STM thread together** on the housekeeping cores.  Not for cache or for
-   tick-freedom: so that a privilege holder is always promptly scheduled, since
-   the wait behind one is the bound the budget cannot reach.
-2. **`SCHED_FIFO` only on top of (1).**  On its own it is a priority inversion
-   generator, and it buys nothing measurable even when correct.
-3. **A wait budget sized to the deadline.**  MAX lands at budget + ~200 µs, so
-   pick the budget and read off the guarantee.  Smaller is better on both axes
-   here, so size it from the deadline rather than from a throughput fear.
-4. **Prewarm the allocator from that thread** before the time-critical section
-   (see below), or pay ~400 µs on the first commit.
+   STM thread together** on the housekeeping cores — so a privilege holder is
+   always promptly scheduled.
+2. **`SCHED_FIFO` only on top of (1)**; alone it is a priority-inversion
+   generator.
+3. **A wait budget sized to the deadline** — MAX lands at budget + ~200 µs.
+4. **Prewarm the allocator from that thread** (`kame_pool_prewarm()`) before
+   the time-critical section: every commit clones a payload, so the allocator
+   sits on the deadline path, and the unwarmed first commit measured ~400 µs.
 
-Measured end to end at 1 ms: **38.3 M commits, MAX 1.288 ms, zero over 3 ms.**
+### Priority tiers, and HIGHEST's precondition
+
+The tier of everything above is NORMAL — the deployment configuration.
+`Priority::HIGHEST` additionally never parks at all (it leaves the
+negotiator's round loop before either sleep site), which is worth this much,
+same host and roles, 120 s:
+
+| tier | p50 | p99 | p99.9 | **MAX** |
+|---|---|---|---|---|
+| HIGHEST (the library's ceiling) | 768 ns | 2.05 µs | 20.5 µs | **95.1 µs** |
+| NORMAL, 20 ms budget | 768 ns | 1.28 µs | 3.67 ms | **20.15 ms** |
+
+That ceiling carries a precondition: **HIGHEST commit rate × longest peer
+closure ≪ 1.**  Never parking cuts both ways — HIGHEST is also immune to
+fair-mode, so each of its commits that lands inside a privileged peer's
+closure re-runs the whole closure.  At the µs closures of this table the
+collision window is negligible; past the meeting point the peer's privilege
+stops converging — reproduced at 22 ms closures against a flat-out churner as
+1.1 → 15.5 closure re-runs per commit, a privilege holder pinned by
+arithmetic rather than by the scheduler, and everything behind it waits
+through every re-run, exempt from any budget.  KAME itself runs acquisition
+at NORMAL with OS-level elevation only, because its analysis closures are
+ms-scale.  Use HIGHEST where the precondition is a property of the design,
+not a hope about the load.
 
 ### No lock on the negotiation route
 
@@ -382,12 +275,28 @@ because the sleep path is reached in 0.0001–0.05 % of commits.  Force the
 fallback with `-DKAME_XWAITCELL_ULOCK=0` / `-DKAME_XWAITCELL_FUTEX=0`;
 `xwaitcell_test` passes on all three backends.
 
+### Note: retry counts vs time
+
+What the model checking proves is **starvation-freedom** (`<>AllDone`), not a
+retry-count bound — and for a user that is the right way around, since the
+budget bounds *time* directly and the measured attempts per commit sit at
+1.002 mean / 5 worst.  For each checked configuration a finite bound does
+exist (finite state space, no progress-free lasso); what does not exist is a
+bound for the *deployed* system, because the checking is per-configuration
+(no ∀-thread result) and the specs drain a fixed workload while a deployment
+faces a continuing arrival stream.  So read "retries are not bounded" as *no
+deployed-configuration bound is established*, not as "retries can diverge":
+a transaction that keeps losing escalates to a privileged stamp its peers —
+including first-attempt peers — must yield to, and the escalation is
+probe-gated, so the guarantee is about what eventually happens rather than
+when.  Details in [tests/VERIFICATION.md](tests/VERIFICATION.md).
+
 ## Formal verification (TLA+)
 
 The STM protocol is formally specified and model-checked with TLA+ / TLC:
 
 - **Layer 1 — `atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting, drain release, and `scoped_atomic_view` ([spec](tests/tlaplus/atomic_shared_ptr.tla)). Safety only — the bare primitive is intentionally *not* livelock-free.
-- **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Exhaustively model-checked **safe + livelock-free** without `CONSTRAINT` (the LL-free design makes the state space naturally finite — no artificial bound); the largest single exhaustive run reaches **~641 M distinct states** (3-level all-root, 15 h on the ISSP ohtaka supercomputer), over a billion across the LL-free configurations combined. (Raw state counts are **spec-version-specific** — they shift as the spec evolves, so cross-version comparison isn't meaningful; see [tests/VERIFICATION.md](tests/VERIFICATION.md) §3–§4 for the current-spec figures.) These are exhaustive results for the checked configurations (fixed thread counts and tree shapes), not an unbounded ∀-thread proof. The property is `<>AllDone` over a *draining* workload, so it is starvation-freedom, **not** a bound on retry counts — [Realtime behaviour](#unbounded-retries-and-model-checked-livelock-free-are-both-true) sets the two side by side.
+- **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Exhaustively model-checked **safe + livelock-free** without `CONSTRAINT` (the LL-free design makes the state space naturally finite — no artificial bound); the largest single exhaustive run reaches **~641 M distinct states** (3-level all-root, 15 h on the ISSP ohtaka supercomputer), over a billion across the LL-free configurations combined. (Raw state counts are **spec-version-specific** — they shift as the spec evolves, so cross-version comparison isn't meaningful; see [tests/VERIFICATION.md](tests/VERIFICATION.md) §3–§4 for the current-spec figures.) These are exhaustive results for the checked configurations (fixed thread counts and tree shapes), not an unbounded ∀-thread proof. The property is `<>AllDone` over a *draining* workload, so it is starvation-freedom, **not** a bound on retry counts — [Realtime behaviour](#note-retry-counts-vs-time) sets the two side by side.
 - **Hard-link topologies:** multi-parent / one-child races that reproduce and fix a production abort via a Phase-4 reachability gate and a Phase-3 skip-Null fix (`tests/tlaplus/BundleUnbundle_hardlink_*.tla`).
 
 **Slide decks** — start at the **coverage overview** ([EN](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_overview_en.html) · [JA](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc_ja/slides_overview.html)), a hub linking every layer with a full coverage matrix. Individual decks (each with a Japanese counterpart under `doc_ja/`): [Layer 1](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer1_en.html), [Layer 2 base](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_en.html), [Layer 2 LLfree](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree.html), [3-level](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_3level_en.html), [dynamic](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_dynamic_en.html), [hard-link](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_hardlink_en.html).
