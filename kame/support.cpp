@@ -75,43 +75,6 @@ bool isMemLockAvailable() noexcept {
 #endif
 }
 
-int32_t g_cpuLatencyTargetUS = -1;
-
-XCPULatencyRequest::XCPULatencyRequest(int32_t target_us) noexcept {
-#if defined __linux__
-    if(target_us < 0) return; //!< Explicitly disabled; leave the governor alone.
-    // The constraint lives for exactly as long as this descriptor is open, so
-    // the fd -- not the write -- is the request.  O_CLOEXEC matters: KAME
-    // spawns Jupyter consoles and terminal emulators, and an inherited copy
-    // would keep the CPUs awake long after KAME exited.
-    int fd = ::open("/dev/cpu_dma_latency", O_WRONLY | O_CLOEXEC);
-    if(fd < 0) {
-        fprintf(stderr, "kame: cannot open /dev/cpu_dma_latency (%s); CPU idle states are"
-            " left as-is.  It is root-writable by default — install"
-            " kame/70-kame.rules and join the instrument group to use --cpulatency.\n",
-            strerror(errno));
-        return;
-    }
-    if(::write(fd, &target_us, sizeof(target_us)) != (ssize_t)sizeof(target_us)) {
-        fprintf(stderr, "kame: cannot write the PM-QoS target (%s); CPU idle states are"
-            " left as-is.\n", strerror(errno));
-        ::close(fd);
-        return;
-    }
-    m_fd = fd;
-    fprintf(stderr, "kame: CPU idle exit-latency capped at %d us for this process.\n",
-        (int)target_us);
-#else
-    (void)target_us; //!< No equivalent knob on macOS/Windows.
-#endif
-}
-XCPULatencyRequest::~XCPULatencyRequest() {
-#if defined __linux__
-    if(m_fd >= 0)
-        ::close(m_fd); //!< Releases the constraint.
-#endif
-}
-
 #include <iostream>
 #include <fstream>
 

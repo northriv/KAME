@@ -150,28 +150,12 @@ int main(int argc, char *argv[]) {
             QCoreApplication::translate("main", "path"));
     parser.addOption(moduleDirectoryOption);
 
-    QCommandLineOption cpuLatencyOption("cpulatency",
-            QCoreApplication::translate("main", "cap the CPU idle exit latency at <us> microseconds"
-                " for as long as KAME runs (Linux PM-QoS; 0 keeps the CPUs awake)"),
-            QCoreApplication::translate("main", "us"));
-    parser.addOption(cpuLatencyOption);
-
     parser.process(app); //processes args.
 
     QStringList args = parser.positionalArguments();
 
     g_bLogDbgPrint = parser.isSet(logOption);
     g_bUseMLock = !parser.isSet(noMLockOption);
-    if(parser.isSet(cpuLatencyOption)) {
-        bool ok = false;
-        int v = parser.value(cpuLatencyOption).toInt( &ok);
-        if( !ok || (v < 0)) {
-            fprintf(stderr, "kame: --cpulatency expects a non-negative integer"
-                " (microseconds).\n");
-            return -1;
-        }
-        g_cpuLatencyTargetUS = v;
-    }
 	QStringList  module_dir = parser.values(moduleDirectoryOption);
 
     XString mesfile = args.count() ? args.at(0) : "";
@@ -212,13 +196,6 @@ int main(int argc, char *argv[]) {
 //        freopen("CONOUT$", "w", stderr);
 //    }
 //#endif
-
-    //! Held for the whole run when --cpulatency was given, and released by the
-    //! destructor as main() returns.  Declared out here, not next to the mlock
-    //! call below, because the kernel honours the request only while the file
-    //! descriptor is open -- it has to outlive app.exec().  A negative target
-    //! (the default, and every non-Linux build) makes this a no-op.
-    XCPULatencyRequest cpu_latency(g_cpuLatencyTargetUS);
 
     FrmKameMain *form;
     {

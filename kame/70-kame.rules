@@ -35,15 +35,6 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="0547", ATTR{idProduct}=="1002", TAG+="uaccess
 # --- Ocean Optics spectrometers ---------------------------------------------
 SUBSYSTEM=="usb", ATTR{idVendor}=="2457", TAG+="uaccess"
 
-# --- CPU idle-latency control (PM-QoS), for --cpulatency -------------------
-# KAME's --cpulatency option holds /dev/cpu_dma_latency open to keep the
-# cpuidle governor out of the deep C-states while a measurement runs (a C8 exit
-# costs ~200 us on a Kaby Lake part).  The node is root-writable by default.
-# uaccess does not apply to it, so grant it to a group instead; `dialout` is
-# used here because every KAME user already needs it for serial instruments.
-# Substitute a dedicated group if you would rather not couple the two.
-KERNEL=="cpu_dma_latency", SUBSYSTEM=="misc", GROUP="dialout", MODE="0660"
-
 # --- USB serial adapters (Prologix GPIB-USB and plain RS-232 instruments) ---
 # These enumerate as /dev/ttyUSB* or /dev/ttyACM* and are normally owned by the
 # `dialout` group already; add your user to it rather than loosening this:
