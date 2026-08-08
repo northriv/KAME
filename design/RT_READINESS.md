@@ -840,9 +840,13 @@ HIGHEST cannot park; NORMAL parks in 1–2 ms chunks.  Same host, same roles,
 
 Identical median, 200× apart in the tail, and the signature is unambiguous:
 the other roles completed a mean of 2,004 commits during each slow NORMAL
-commit against 13 in the HIGHEST arm.  `SCHED_FIFO` changes none of it
-(43.8 k/s and MAX 20.15 ms with, 43.3 k/s and 20.19 ms without) — a
-`negotiate_sleep` is a **voluntary** wait and no scheduling class shortens one.
+commit against 13 in the HIGHEST arm.  `SCHED_FIFO` changed nothing in *this*
+measurement (43.8 k/s and MAX 20.15 ms with, 43.3 k/s and 20.19 ms without) —
+but the inference published with it, "no scheduling class shortens a voluntary
+wait", is **false**; see the correction at the end of this subsection.  Both
+arms are budget-dominated at 20 ms, and Linux gives a `SCHED_OTHER` task 50 µs
+of timer slack on a futex timeout and an RT task none, so they were never the
+same measurement at the scale where the difference lives.
 
 **At NORMAL the wait budget is the only bound the record commit has, and —
 isolated — it delivers exactly its value.**  `SCHED_FIFO` + pin, 60 s each:
@@ -862,15 +866,40 @@ earlier and cheaper.  (`XPrimaryDriver::downstreamWaitBudgetUS()`'s documented
 here.)  Confirmed at length — 300 s, 1 ms budget: **38,303,308 commits, MAX
 1.288 ms, zero over a 3 ms deadline**, every other role healthy.
 
+> **The ~200 µs constant's attribution was wrong, and the constant is gone.**
+> This subsection credited it to the budget-exempt wait.  Instrumenting the
+> negotiator refuted that — `rounds_exempt` is **zero across 17,274 slow
+> commits** under every scheduling class, C-state setting and budget — and
+> located it in the timed wait's own **wake-up**: scheduling class 5.3×
+> dominant, PM-QoS 6× only on top, super-additive, which is why the single-knob
+> arms in this document called the residue irreducible.  Budgeted sleeps now
+> stop `KAME_NEG_SPIN_TAIL_US` (300 µs) short of the deadline and poll the
+> remainder, taking MAX − budget to **7.1 µs at 20 ms and 3.0 µs in the ship
+> configuration** — under this host's 17 µs floor.  So the table and the soak
+> above are **pre-reserve** data: their shape holds, their constant does not.
+> The full entry, including the open item (the reserve is not yet capped to a
+> fraction of the budget *span*, so budgets at or below 300 µs starve the
+> deferrable tiers) lives in
+> [`kamestm/design/RT_READINESS.md`](../../kamestm/design/RT_READINESS.md) —
+> this is the allocator's readiness record, and the STM's commit latency is
+> quoted here only as the context G7's bands sit in.
+
 **Isolation is what makes the budget work — and this corrects the reading
 above.**  §G7's earlier note that isolation is "marginally faster, and nothing
 argues against it" was a *throughput* observation at a 20 ms budget.  In the
 latency dimension it is not marginal and not optional:
 
 * **Unpinned**, MAX sticks at **12–13 ms for every budget from 5 ms down to
-  500 µs** while the clipped count saturates.  That residue is the wait behind
-  a **live privileged peer**, which is contractually budget-exempt, so its
-  length is the holder's scheduling delay and nothing else.
+  500 µs** while the clipped count saturates.  The standing explanation is the
+  wait behind a **live privileged peer**, which is contractually budget-exempt
+  and therefore bounded by the holder's completion time — but this is a
+  **hypothesis, not a measurement**: it is the same one the instrumentation
+  above refuted for the *pinned* arm, and the instrumented build has not been
+  run unpinned.  One `rounds_exempt` reading over an unpinned arm settles it.
+  (And "the holder's scheduling delay and nothing else", as this subsection
+  first put it, is one term short in any case — a HIGHEST peer's commits
+  re-run a privileged holder's closure, which isolation does not touch.  See
+  the precondition in `kamestm/README.md`.)
 * **Pinned** — acquisition alone on the isolated core, all contenders together
   on the housekeeping core — the holder is always promptly scheduled among its
   peers and the exempt residue vanishes entirely (table above).
