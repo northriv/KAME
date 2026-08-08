@@ -185,12 +185,42 @@ enum { NBANDS = sizeof(kBands) / sizeof(kBands[0]) };
 // Bands actually measured: the huge one only under --pressure.
 static int g_nbands = NBANDS - 1;
 
+// --------------------------------------------------------- de-elevation
+//! Drop the scheduling class inherited from the measuring thread.
+//!
+//! `pthread_create` defaults to `PTHREAD_INHERIT_SCHED`, and every helper
+//! thread here is started *after* `elevate_this_thread()` has promoted the
+//! measuring thread — so without this they all come up `SCHED_FIFO` 80 too.
+//! Two consequences, both wrong:
+//!
+//!  * they stop being the *non*-realtime contention they are documented to
+//!    be, so the arms no longer measure what they claim to;
+//!  * once the runnable count exceeds the available CPUs the run **deadlocks**.
+//!    Equal-priority `SCHED_FIFO` threads never preempt one another, so two
+//!    spinning interferers can hold both CPUs of a `taskset -c 2,3` pinning
+//!    while the measuring thread — the only one that ever sets `g_stop` —
+//!    never runs again.  A realtime host makes this worse, not better:
+//!    `sched_rt_runtime_us = -1`, which such a host wants, removes the
+//!    throttle that would otherwise have broken the tie.  It stayed hidden
+//!    for as long as threads ≤ CPUs.
+static void demote_this_thread() noexcept {
+#if defined(__APPLE__)
+	pthread_set_qos_class_self_np(QOS_CLASS_DEFAULT, 0);
+#elif defined(__linux__)
+	sched_param sp;
+	std::memset( &sp, 0, sizeof(sp));
+	sp.sched_priority = 0;
+	pthread_setschedparam(pthread_self(), SCHED_OTHER, &sp);
+#endif
+}
+
 // ------------------------------------------------------- interferer noise
 static std::atomic<bool> g_stop{false};
 
 static void interferer() {
 	// Deliberately NOT realtime: this is the contention the RT thread must
 	// tolerate (bitmap CAS, recycle cache slots, region list walk).
+	demote_this_thread();
 	void *p[16];
 	unsigned i = 0;
 	while( !g_stop.load(std::memory_order_relaxed)) {
@@ -271,6 +301,9 @@ static SpscRing        g_ring;
 static std::atomic<bool> g_xt_stop{false};
 
 static void xt_producer() {
+	// The producer is the *other* thread in "producer allocs, we free": it is
+	// not the thread under test, so it must not inherit its priority either.
+	demote_this_thread();
 	while( !g_xt_stop.load(std::memory_order_relaxed)) {
 		void *p = WCET_MALLOC(kXtSize);
 		if( !p) continue;
