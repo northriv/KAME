@@ -127,6 +127,7 @@
 #include "support_standalone.h"
 #include "transaction.h"
 #include "transaction_impl.h"
+#include "latency_hist.h"
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -243,6 +244,13 @@ int main() {
     //! (the XSecondaryDriver / ms-analysis role).  Off by default so the
     //! existing arms are unchanged.
     const bool normal_xsub = env_long("KAME_MIX_NORMAL_XSUBTREE", 0) != 0;
+    //! >0 turns the record-commit distribution into an assertion: any record
+    //! commit longer than this many microseconds fails the run.  0 (default)
+    //! reports the distribution and asserts nothing, because an absolute
+    //! latency is a property of the host, not of the STM — the same split
+    //! bench_rt_wcet makes between its machine-independent violation count and
+    //! its machine-specific histogram.
+    const long deadline_us = env_long("KAME_MIX_DEADLINE_US", 0);
     const bool os_pin_on   = env_long("KAME_MIX_OS_PIN", 0) != 0;
     std::printf("mixed-priority livelock hunt: %lds, stall>%lds fails, "
                 "acq=%s duty %ldus, UI period %ldus, +%ld NORMAL, "
@@ -321,6 +329,9 @@ int main() {
     for(auto &p : progress) p.store(0);
     std::atomic<bool> stop{false};
     std::vector<std::thread> ts;
+    //! Written only by the acquisition thread, read only after join().
+    Hist acq_hist;
+    acq_hist.reset();
 
     // --- The acquisition thread, oscillating exactly like finishWritingRaw:
     // record commit at HIGHEST, then the demoted downstream at NORMAL under
@@ -334,11 +345,17 @@ int main() {
             : Transactional::Priority::HIGHEST);
         while( !stop.load(std::memory_order_relaxed)) {
             {   // the record commit (multi-nodal, driver scope).
+                //! Timed, because "the acquisition thread kept up on average"
+                //! and "no record took longer than X" are different claims and
+                //! only the second one is a realtime one.  The counters below
+                //! answer the first; this histogram answers the second.
                 Transactional::ScopedWaitBudget budget((int64_t)20'000);
+                const std::uint64_t t_rec = now_ns();
                 devA->iterate_commit([&](Tr &tr){
                     tr[ *devA].m_x++;
                     for(auto &l : leavesA) tr[ *l].m_x++;
                 });
+                acq_hist.add(now_ns() - t_rec);
                 progress[T_HIGHEST].fetch_add(1, std::memory_order_relaxed);
                 // the demoted downstream: entry writes + visualize snapshot.
                 Transactional::ScopedDemoteRealtime _demoted;
@@ -525,6 +542,34 @@ int main() {
                     progress[t].load() / el);
     std::printf("  priv strips (Rule 0): %llu\n",
         (unsigned long long)Transactional::detail::g_priv_strips.load());
+
+    // The realtime question: not "did it keep up" but "did any one record take
+    // too long".  Percentiles are printed only where the sample count can
+    // support them.
+    std::printf("  acq record-commit latency  n=%llu  mean=%llu ns  p50=%llu",
+                (unsigned long long)acq_hist.n,
+                (unsigned long long)(acq_hist.n ? acq_hist.sum / acq_hist.n : 0),
+                (unsigned long long)acq_hist.pct(0.50));
+    static const double kP[] = {0.99, 0.999, 0.9999, 0.99999};
+    static const char *kPN[] = {"p99", "p99.9", "p99.99", "p99.999"};
+    for(int i = 0; i < 4; ++i)
+        if(acq_hist.supports(kP[i]))
+            std::printf(" %s=%llu", kPN[i],
+                        (unsigned long long)acq_hist.pct(kP[i]));
+    std::printf("  MAX=%llu ns\n", (unsigned long long)acq_hist.max);
+    if(deadline_us > 0) {
+        const std::uint64_t over =
+            acq_hist.at_or_above((std::uint64_t)deadline_us * 1000ull);
+        std::printf("  over the %ld us deadline: %llu of %llu\n",
+                    deadline_us, (unsigned long long)over,
+                    (unsigned long long)acq_hist.n);
+        if(over) ++failures;
+    }
+    else {
+        std::printf("  (no deadline asserted; set KAME_MIX_DEADLINE_US to make "
+                    "the MAX above a pass/fail — and quote it against the "
+                    "host's own floor, e.g. cyclictest max)\n");
+    }
     std::printf(failures ? "FAILED\n" : "PASSED\n");
     return failures ? 1 : 0;
 }
