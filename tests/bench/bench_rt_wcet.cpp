@@ -57,6 +57,9 @@ static inline void kame_pool_set_realtime_mode(int) {}
 static inline void kame_pool_rt_drain() {}
 static inline void kame_pool_rt_reset_counters() {}
 static inline unsigned long long kame_pool_rt_violations() { return 0; }
+static inline void kame_pool_set_rt_os_policy(int) {}
+enum { KAME_RT_OS_ALLOW = 0, KAME_RT_OS_COUNT = 1,
+       KAME_RT_OS_FAIL  = 2, KAME_RT_OS_ABORT = 3 };
 static inline std::size_t kame_pool_set_thp_policy(int) { return 0; }
 static inline unsigned long long kame_pool_rt_deferred_reclaims() { return 0; }
 static inline unsigned long long kame_pool_rt_deferred_unmaps() { return 0; }
@@ -420,6 +423,12 @@ int main(int argc, char **argv) {
 	unsigned xt = 0;   // cross-thread sample count (0 = derive from mode)
 	int thp = -1;      // (G6a) -1 = leave the policy alone
 	unsigned faults = 0;   // (G6a) cold-fault rounds; 0 = skip that mode
+	// (§75) -1 = leave the library default.  Diagnostic, and a discriminator:
+	// only `mmap_new_region` and `large_va_raw_map` consult this policy, so
+	// KAME_RT_OS_ABORT (3) aborts *naming the site* if a violation came from
+	// one of them, and completes normally if every violation came from
+	// `radix_alloc_l2` — which is counted but deliberately never refused.
+	int rt_os_policy = -1;
 	for(int i = 1; i < argc; i++) {
 		if( !std::strcmp(argv[i], "--full")) full = true;
 		else if( !std::strcmp(argv[i], "--pressure")) pressure = true;
@@ -433,6 +442,14 @@ int main(int argc, char **argv) {
 			nthreads = (unsigned)std::atoi(argv[++i]);
 		else if( !std::strcmp(argv[i], "--faults") && i + 1 < argc)
 			faults = (unsigned)std::atoi(argv[++i]);
+		else if( !std::strcmp(argv[i], "--rt-os-policy") && i + 1 < argc) {
+			rt_os_policy = std::atoi(argv[++i]);
+			if((rt_os_policy < 0) || (rt_os_policy > 3)) {
+				std::fprintf(stderr, "--rt-os-policy takes 0..3 "
+				    "(allow|count|fail|abort)\n");
+				return 2;
+			}
+		}
 		else if( !std::strcmp(argv[i], "--thp") && i + 1 < argc) {
 			const char *a = argv[++i];
 			thp = !std::strcmp(a, "always") ? KAME_THP_ALWAYS
@@ -446,7 +463,8 @@ int main(int argc, char **argv) {
 		else {
 			std::fprintf(stderr,
 			    "usage: %s [--full] [--pressure] [--reps N] [--iters M] "
-			    "[--threads T] [--thp system|always|never] [--faults R]\n",
+			    "[--threads T] [--thp system|always|never] [--faults R] "
+			    "[--rt-os-policy 0..3]\n",
 			    argv[0]);
 			return 2;
 		}
@@ -495,6 +513,14 @@ int main(int argc, char **argv) {
 
 	const char *prio = elevate_this_thread();
 	std::printf("measured-thread priority: %s\n", prio);
+
+	if(rt_os_policy >= 0) {
+		static const char *const kPolName[] =
+		    {"allow", "count", "fail", "abort"};
+		kame_pool_set_rt_os_policy(rt_os_policy);
+		std::printf("rt-os-policy=%d (%s)\n", rt_os_policy,
+		            kPolName[rt_os_policy]);
+	}
 
 	// Process-wide: silence background maintenance for BOTH arms, so the
 	// only difference between them is the per-thread gating under test.
