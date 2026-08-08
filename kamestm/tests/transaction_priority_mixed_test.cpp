@@ -55,12 +55,20 @@
 //!     since without it the NORMAL peers only ever touch their own subtree and
 //!     cannot contend with the acquiring driver at all — and the two together
 //!     cost **2.54x**, well past the 1.54x their product predicts.  Something
-//!     is super-additive; the standing hypothesis is that a `nohz_full`
-//!     isolated core is more expensive to WAKE, and the cross-subtree role is
-//!     what makes the acquisition thread lose a CAS and sleep often enough for
-//!     that to show.  `taskset -c 0,1` versus `taskset -c 0,<isolated>` with
-//!     the same knobs separates "crossing cores" from "crossing onto a
-//!     nohz_full core".
+//!     is super-additive.
+//!   * That "something" is NOT the isolation.  Same knobs, same two-CPU shape,
+//!     only the acquisition core changed: `taskset -c 0,1` (both housekeeping)
+//!     gave 49.8k, `taskset -c 0,3` (onto the `nohz_full` isolated core) gave
+//!     **53.9k** — the isolated core is marginally *faster*, so the
+//!     wake-a-tickless-core hypothesis is refuted.  What is left is ordinary
+//!     SMP: pinning forces the cross-subtree contention to be cross-core on
+//!     every single conflict, where an unpinned CFS may co-locate the two
+//!     threads and settle some conflicts in one cache.  Nothing RT-specific,
+//!     and nothing that argues against isolating the acquisition core.
+//!   * Note in passing that cramming the three housekeeping threads onto one
+//!     core made them *collectively faster* (1.22M vs 911k commits/s spread
+//!     over four), which is the same coherence effect seen from the other
+//!     side.
 //!   * Starving that same NORMAL peer did NOT pin the acquisition thread —
 //!     acquisition sped back up, because a contender that is not running is
 //!     not contending.  The never-expiring-privilege pin was NOT reproduced
