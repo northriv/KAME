@@ -3015,3 +3015,25 @@ rolls the tree back and the `Transaction` destructor drops the tags);
 `driverlistconnector`'s call site (already catches `runtime_error`,
 `pybind11::error_already_set` and `...`); the `.kam` Python loader (throws
 propagate through `kame_mainthread` to `loadKam`'s handler).
+
+## The +200 µs was the wake-up, not the exemption — refuted by instrumentation
+
+The record used to credit the fixed ~200 µs budget overshoot to the one wait
+the budget contractually exempts (behind a live privileged peer).
+Instrumenting the negotiator (NegDiag `rounds_exempt` / `late_max_ns`,
+branch rt-linux-handoff-verify, merged 2026-08-09) refuted that: exempt
+rounds are **zero across 17,274 slow commits** under every scheduling class,
+C-state setting and budget tried; the overshoot is one late `cell.wait()`
+wake-up (worst case: asked 198 µs, returned 696 µs later, 6 µs of STM work in
+the commit).  Decomposition of the wake-up: scheduling class 5.3×, PM-QoS 6×
+only on top of it — super-additive, which is why single-knob tests had
+called the residue irreducible.  Fix shipped in the same commit: budgeted
+sleeps stop `KAME_NEG_SPIN_TAIL_US` (300 µs) short of the deadline, the
+remainder polls.  MAX − budget 122 → 7.1 µs at 20 ms, 3.0 µs in the ship
+config (below the 17 µs host floor); unbudgeted paths byte-identical
+(interleaved A/B on M-series: −0.8 %, noise).  Open: the reserve is not yet
+capped to a fraction of the budget *span*, so budgets at or below 300 µs
+starve the deferrable tiers (measured −94 %/−98 % at 200 µs) — keep budgets
+well above the reserve until the span is plumbed through ScopedWaitBudget.
+The exemption itself remains contractual (fair-block still zeroes the
+budget); what changed is only the attribution of the measured constant.

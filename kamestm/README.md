@@ -152,7 +152,7 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 | Retry primitive | `retry` / `orElse` (Haskell) | `iterate_commit` / `iterate_commit_while` |
 | Blocking | `retry` suspends on read-set change | No data-structure locks; a repeatedly-colliding Tx yields/parks to the privileged (oldest / highest-priority) Tx |
 | Memory management | GC | Lock-free `atomic_shared_ptr` (ref-counted) |
-| Hard real-time suitability | Limited (GC pauses) | No GC pauses, and a declared wait budget converts the tail into a chosen number — **measured** on a `PREEMPT_RT` host, MAX = budget + ~200 µs, 38.3 M commits with zero over 3 ms at a 1 ms budget ([below](#realtime-behaviour)). Still not hard-RT in a strict WCET sense: CAS retry *counts* are not bounded, and the budget cannot bound the wait behind a live privilege holder — that one is the deployment's to bound, with core isolation |
+| Hard real-time suitability | Limited (GC pauses) | No GC pauses, and a declared wait budget converts the tail into a chosen number — **measured** on a `PREEMPT_RT` host, MAX − budget = 3–7 µs at the shipped 20 ms budget (below the host's own 17 µs noise floor), 38.3 M commits with zero over 3 ms at a 1 ms budget ([below](#realtime-behaviour)). Still not hard-RT in a strict WCET sense: CAS retry *counts* are not bounded, and the budget cannot bound the wait behind a live privilege holder — that one is the deployment's to bound, with core isolation |
 
 **Compared to Hardware Transactional Memory (Intel TSX/RTM):** HTM aborts on cache-line conflicts regardless of logical independence, and has strict capacity limits. KAME's STM aborts only on semantic conflicts (packet identity change), tolerates large read sets, and degrades gracefully to age-ordered privileged-Tx negotiation (the colliding losers yield to the oldest transaction) rather than falling back to a global lock.
 
@@ -167,27 +167,47 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 default 20 ms) and every wait inside the commit is clipped to it.  Measured
 under contention on a `PREEMPT_RT` host — i5-7500, isolated core, the host's
 own `rtla osnoise` floor 17 µs; workload `transaction_priority_mixed_test`,
-the record commit against NORMAL / UI / SCRIPTING peers — 60 s per row:
+the record commit against NORMAL / UI / SCRIPTING peers — MAX − budget:
 
-| budget | commits/s | mean | **MAX** | MAX − budget | clipped |
-|---|---|---|---|---|---|
-| 2 ms | 76,904 | 7.99 µs | 2.179 ms | 179 µs | 0.333 % |
-| 1 ms | 131,721 | 4.10 µs | 1.223 ms | 223 µs | 0.320 % |
-| 500 µs | 185,700 | 2.41 µs | 0.662 ms | 162 µs | 0.304 % |
-| 200 µs | 251,933 | 1.53 µs | **0.408 ms** | 208 µs | 0.334 % |
+| budget | MAX − budget | acquisition | UI | SCRIPTING |
+|---|---|---|---|---|
+| 20 ms | **7.1 µs** | +2 % | −2 % | +2 % |
+| 1 ms | 34 µs | +10 % | −13 % | −15 % |
+| 200 µs | 19 µs | +1 % | **−94 %** | **−98 %** |
 
-**MAX = budget + ~200 µs, with no floor down to 200 µs.**  Throughput *rises*
-3.3× as the budget falls (a clipped commit stops sleeping and retries; the
-clip rate stays ~0.32 %) — so size the budget from the deadline, not from a
-throughput fear.  At length, 300 s at a 1 ms budget: **38.3 M commits,
-MAX 1.288 ms, zero over a 3 ms deadline**, every other role healthy.
-Attempts per commit: mean 1.002, worst 5.
+In the shipping configuration (`SCHED_FIFO` + isolation + PM-QoS, 20 ms
+budget) MAX − budget is **3.0 µs — below the host's own 17 µs floor**: the
+STM's contribution to the tail is smaller than the machine's noise.
+
+Two things earned those numbers.  First, instrumentation: the previous
+constant (~200 µs of overshoot at every budget) was **the timed wait's
+wake-up cost, not the STM** — the worst commit was one `cell.wait()` asked
+for 198 µs that returned 696 µs later with 6 µs of STM work in the whole
+commit, and the scheduling class dominates the cost (5.3×) with C-state
+exit buying its 6× only on top of it.  Second, the consequence: a timed
+wait must never be armed to land *on* the deadline, so every budgeted sleep
+now stops `KAME_NEG_SPIN_TAIL_US` (300 µs) short and the remainder is
+polled — which also observes the blocker clearing immediately.  Unbudgeted
+callers run the pre-existing code unchanged (measured −0.8 %, noise).
+
+**Keep the budget well above the 300 µs reserve** — the percentages in the
+table's last row are the cliff: a budget at or below the reserve never
+sleeps, never backs off the linkage, and starves the deferrable tiers.  At
+the shipped 20 ms the reserve is 1.5 % of the budget and free.  Throughput
+otherwise *rises* as the budget falls (a clipped commit stops sleeping and
+retries; the clip rate stays ~0.32 %).  At length, 300 s at a 1 ms budget
+(measured before the reserve, so with the old +216 µs tail): **38.3 M
+commits, MAX 1.288 ms, zero over a 3 ms deadline**, every other role
+healthy.  Attempts per commit: mean 1.002, worst 5.
 
 ### The one wait the budget cannot clip
 
 The exception is the wait behind a **live privileged peer** — privilege is
 the completion guarantee (it never expires above the LOW band of LOWEST /
-UI_DEFERRABLE / SCRIPTING), so waiting a holder out is correctness.  Its two
+UI_DEFERRABLE / SCRIPTING), so waiting a holder out is correctness.  (It is
+also rarer than it looks: instrumentation found **zero** exempt rounds
+across 17,274 slow commits of the pinned workload above — the overshoot
+those commits carried was the wake-up cost, not this wait.)  Its two
 terms are the deployment's to bound:
 
 * **The holder's scheduling delay** — bound it with isolation: every other
