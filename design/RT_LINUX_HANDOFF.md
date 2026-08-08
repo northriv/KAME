@@ -540,9 +540,12 @@ scatters to 64 µs, which is the wrong property when the claim is about a bound.
 #### Decision: PM-QoS at runtime, not `intel_idle.max_cstate` on the cmdline
 
 The tuning section above defers `intel_idle.max_cstate=1` until after a fan
-check.  The fan check passed with room to spare — package 40 °C against a
-80 °C `high` and 100 °C `crit` — so thermals are **not** the reason to avoid
-it.  Prefer the runtime knob anyway:
+check.  The fan check passed with room to spare: package 40 °C with C1E
+allowed, and **51 °C sustained over four minutes with PM-QoS pinned at 0** —
+29 °C below the 80 °C `high`, 49 °C below `crit`.  Holding all four cores out
+of deep idle therefore costs about **+11 °C** on this machine, and thermals
+are **not** the reason to avoid `intel_idle.max_cstate=1`.  Prefer the runtime
+knob anyway:
 
 * the effect is the same, but PM-QoS is reversible without a reboot;
 * it is **per-run and therefore recordable**, which matters more than it
@@ -619,8 +622,11 @@ had been hiding, both now on `master`'s history:
 * `cyclictest` under load (`stress-ng`) — every number above is unloaded and
   therefore optimistic.
 * `cyclictest -a2` on an isolated core, once the tuned entry exists.
-* Sustained-load temperature under PM-QoS 0 (the 40 °C above was sampled after
-  a light run, not during a hot one).
+* Thermal headroom under the *campaign's* load.  The 51 °C above is a nearly
+  idle CPU merely held awake, not `bench_rt_wcet` at full tilt on four cores.
+  Read `/sys/devices/system/cpu/cpu*/thermal_throttle/*count` before and after
+  each arm and report it: a run that throttled measured the cooling, not the
+  allocator.
 * **The campaign itself**: `bench_rt_wcet --thp system|never|always` under
   `with-pmqos 0` + `chrt -f 80 taskset -c 2,3`, interleaved, median of ≥ 5.
   Build from `tests/` with `-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=""` or the
