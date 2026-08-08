@@ -358,6 +358,15 @@ int main() {
     Hist acq_hist;
     acq_hist.reset();
     std::atomic<uint64_t> cold_n{0};   //!< commits dropped as warm-up
+    //! Retry accounting for the slow tail.  Written only by the acquisition
+    //! thread; `sysd` comes from the other roles' progress counters, so a slow
+    //! commit reports whether the rest of the tree kept committing while it
+    //! was stuck.
+    Retries acq_retries;
+    //! Threshold for "slow", in ns.  Default 50 us: comfortably above this
+    //! host class's OS floor (rtla osnoise put it at 17 us) and below the
+    //! ~90 us residue the RT investigation left unexplained.
+    const long slow_ns = env_long("KAME_MIX_SLOW_NS", 50000);
 
     // Breaktrace plumbing.  Both descriptors are opened up front so the hot
     // path only ever does two write()s, and only once.
@@ -424,14 +433,29 @@ int main() {
                 //! answer the first; this histogram answers the second.
                 Transactional::ScopedWaitBudget budget((int64_t)20'000);
                 const std::uint64_t t_rec = now_ns();
+                //! Counted inside the lambda, because iterate_commit re-runs
+                //! it on every conflict: attempts == 1 on a slow commit means
+                //! one long pass, not a retry storm.
+                std::uint64_t attempts = 0;
+                std::uint64_t sys0 = 0;
+                for(int t = T_UI; t < nthreads; ++t)
+                    sys0 += progress[t].load(std::memory_order_relaxed);
                 devA->iterate_commit([&](Tr &tr){
+                    ++attempts;
                     tr[ *devA].m_x++;
                     for(auto &l : leavesA) tr[ *l].m_x++;
                 });
                 const std::uint64_t t_end = now_ns();
                 const std::uint64_t dt_rec = t_end - t_rec;
                 const bool warm = (t_end >= t_warm_end);
-                if(warm) acq_hist.add(dt_rec);
+                if(warm) {
+                    acq_hist.add(dt_rec);
+                    std::uint64_t sys1 = 0;
+                    for(int t = T_UI; t < nthreads; ++t)
+                        sys1 += progress[t].load(std::memory_order_relaxed);
+                    acq_retries.add(dt_rec, attempts, (std::uint64_t)slow_ns,
+                                    sys1 - sys0);
+                }
                 else     cold_n.fetch_add(1, std::memory_order_relaxed);
 #if defined(__linux__)
                 if(warm && (tracing_on_fd >= 0) &&
@@ -650,6 +674,20 @@ int main() {
             std::printf(" %s=%llu", kPN[i],
                         (unsigned long long)acq_hist.pct(kP[i]));
     std::printf("  MAX=%llu ns\n", (unsigned long long)acq_hist.max);
+    std::printf("    attempts/commit: all=%.3f   slow(>=%ld ns): n=%llu "
+                "mean=%.3f max=%llu\n",
+                acq_retries.all_n
+                    ? (double)acq_retries.all_attempts / (double)acq_retries.all_n : 0.0,
+                slow_ns, (unsigned long long)acq_retries.slow_n,
+                acq_retries.slow_n
+                    ? (double)acq_retries.slow_attempts / (double)acq_retries.slow_n : 0.0,
+                (unsigned long long)acq_retries.slow_max);
+    std::printf("    other roles' commits DURING a slow one: mean=%llu max=%llu"
+                "  (~0 => the holder was stuck; large => they progressed and "
+                "this thread kept losing)\n",
+                (unsigned long long)(acq_retries.slow_n
+                    ? acq_retries.slow_sys / acq_retries.slow_n : 0),
+                (unsigned long long)acq_retries.slow_sys_max);
     if(deadline_us > 0) {
         const std::uint64_t over =
             acq_hist.at_or_above((std::uint64_t)deadline_us * 1000ull);

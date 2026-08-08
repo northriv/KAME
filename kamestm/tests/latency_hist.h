@@ -49,6 +49,34 @@ static inline std::uint64_t now_ns() {
 
 enum { HB = 256 };
 
+//! Retry accounting for the slow tail.  `iterate_commit` re-runs its lambda on
+//! every conflict, so a slow commit with `attempts == 1` is one long pass, not
+//! a retry storm — a distinction that changes what to fix.  `sysd` is how many
+//! commits the rest of the world completed meanwhile: ~0 means whoever held
+//! the linkage was stuck, large means everyone else progressed and this thread
+//! kept losing.
+struct Retries {
+    std::uint64_t slow_n = 0, slow_attempts = 0, slow_max = 0;   // >= threshold
+    std::uint64_t slow_sys = 0, slow_sys_max = 0;   // system commits during it
+    std::uint64_t all_n = 0, all_attempts = 0;
+    void add(std::uint64_t ns, std::uint64_t att, std::uint64_t thresh,
+             std::uint64_t sysd = 0) {
+        all_n++; all_attempts += att;
+        if(ns >= thresh) {
+            slow_n++; slow_attempts += att; slow_sys += sysd;
+            if(att > slow_max) slow_max = att;
+            if(sysd > slow_sys_max) slow_sys_max = sysd;
+        }
+    }
+    void merge(const Retries &o) {
+        slow_n += o.slow_n; slow_attempts += o.slow_attempts;
+        slow_sys += o.slow_sys;
+        if(o.slow_sys_max > slow_sys_max) slow_sys_max = o.slow_sys_max;
+        if(o.slow_max > slow_max) slow_max = o.slow_max;
+        all_n += o.all_n; all_attempts += o.all_attempts;
+    }
+};
+
 struct Hist {
     std::uint64_t bucket[HB];
     std::uint64_t n, max, sum;
