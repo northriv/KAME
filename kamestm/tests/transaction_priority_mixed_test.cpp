@@ -139,6 +139,7 @@
 #  include <pthread.h>
 #  include <sched.h>
 #  include <unistd.h>
+#  include <fcntl.h>
 #endif
 
 class MyNode : public Transactional::Node<MyNode> {
@@ -251,6 +252,14 @@ int main() {
     //! bench_rt_wcet makes between its machine-independent violation count and
     //! its machine-specific histogram.
     const long deadline_us = env_long("KAME_MIX_DEADLINE_US", 0);
+    //! >0 arms a breaktrace: the FIRST record commit longer than this many
+    //! microseconds writes a marker into ftrace and switches tracing off, so
+    //! the buffer freezes holding whatever ran just before it.  The same
+    //! instrument cyclictest's --breaktrace is, aimed at a commit instead of a
+    //! timer wake-up — because hunting a rare fixed-cost event by reading a
+    //! running trace is hopeless, while catching it in the act is routine.
+    //! Needs tracefs mounted and root; says so and stays disarmed otherwise.
+    const long trace_us = env_long("KAME_MIX_TRACE_US", 0);
     const bool os_pin_on   = env_long("KAME_MIX_OS_PIN", 0) != 0;
     std::printf("mixed-priority livelock hunt: %lds, stall>%lds fails, "
                 "acq=%s duty %ldus, UI period %ldus, +%ld NORMAL, "
@@ -333,6 +342,36 @@ int main() {
     Hist acq_hist;
     acq_hist.reset();
 
+    // Breaktrace plumbing.  Both descriptors are opened up front so the hot
+    // path only ever does two write()s, and only once.
+    int trace_marker_fd = -1, tracing_on_fd = -1;
+    std::atomic<bool> trace_fired{false};
+#if defined(__linux__)
+    if(trace_us > 0) {
+        static const char *kRoots[] = {"/sys/kernel/tracing",
+                                       "/sys/kernel/debug/tracing"};
+        for(const char *r : kRoots) {
+            char buf[128];
+            std::snprintf(buf, sizeof(buf), "%s/trace_marker", r);
+            trace_marker_fd = ::open(buf, O_WRONLY | O_CLOEXEC);
+            if(trace_marker_fd < 0) continue;
+            std::snprintf(buf, sizeof(buf), "%s/tracing_on", r);
+            tracing_on_fd = ::open(buf, O_WRONLY | O_CLOEXEC);
+            if(tracing_on_fd >= 0) {
+                std::printf("  breaktrace armed at %ld us via %s\n",
+                            trace_us, r);
+                break;
+            }
+            ::close(trace_marker_fd);
+            trace_marker_fd = -1;
+        }
+        if(tracing_on_fd < 0)
+            std::printf("  NOTE: KAME_MIX_TRACE_US needs tracefs and root — "
+                        "breaktrace DISARMED (mount it and re-run as root; "
+                        "the latency histogram below is unaffected).\n");
+    }
+#endif
+
     // --- The acquisition thread, oscillating exactly like finishWritingRaw:
     // record commit at HIGHEST, then the demoted downstream at NORMAL under
     // the 20 ms budget, every cycle.
@@ -355,7 +394,21 @@ int main() {
                     tr[ *devA].m_x++;
                     for(auto &l : leavesA) tr[ *l].m_x++;
                 });
-                acq_hist.add(now_ns() - t_rec);
+                const std::uint64_t dt_rec = now_ns() - t_rec;
+                acq_hist.add(dt_rec);
+#if defined(__linux__)
+                if((tracing_on_fd >= 0) &&
+                   (dt_rec >= (std::uint64_t)trace_us * 1000ull) &&
+                   !trace_fired.exchange(true, std::memory_order_relaxed)) {
+                    char m[96];
+                    int n = std::snprintf(m, sizeof(m),
+                        "KAME_MIX: record commit took %llu ns\n",
+                        (unsigned long long)dt_rec);
+                    ssize_t w = ::write(trace_marker_fd, m, (size_t)n);
+                    w = ::write(tracing_on_fd, "0\n", 2);   // freeze the buffer
+                    (void)w;
+                }
+#endif
                 progress[T_HIGHEST].fetch_add(1, std::memory_order_relaxed);
                 // the demoted downstream: entry writes + visualize snapshot.
                 Transactional::ScopedDemoteRealtime _demoted;
@@ -570,6 +623,18 @@ int main() {
                     "the MAX above a pass/fail — and quote it against the "
                     "host's own floor, e.g. cyclictest max)\n");
     }
+#if defined(__linux__)
+    if(tracing_on_fd >= 0) {
+        std::printf(trace_fired.load()
+            ? "  breaktrace FIRED — tracing is off and the buffer holds the "
+              "run-up; read it with `cat /sys/kernel/tracing/trace`, then "
+              "`echo 1 > .../tracing_on` to re-arm.\n"
+            : "  breaktrace did not fire (no commit reached %ld us).\n",
+            trace_us);
+        ::close(tracing_on_fd);
+        ::close(trace_marker_fd);
+    }
+#endif
     std::printf(failures ? "FAILED\n" : "PASSED\n");
     return failures ? 1 : 0;
 }
