@@ -122,7 +122,26 @@
 //!                            driver's subtree (XSecondaryDriver's shape)
 //!   KAME_MIX_ACQ_NORMAL      1 = acquisition thread runs at NORMAL instead of
 //!                            HIGHEST: the control arm that attributes any
-//!                            stall to the HIGHEST-ification or acquits it
+//!                            stall to the HIGHEST-ification or acquits it.
+//!                            **This is the arm KAME actually ships** —
+//!                            XPrimaryDriverWithThread::AcquisitionPriority is
+//!                            ScopedPriority(NORMAL) plus an OS elevation; the
+//!                            kamestm HIGHEST tier was retired for KAME because
+//!                            per-record analyses cannot honour its
+//!                            precondition.  So the HIGHEST arm measures the
+//!                            library's ceiling and this one measures the
+//!                            product.
+//!   KAME_MIX_WB_US           the ScopedWaitBudget over the record commit, µs.
+//!                            Default 20000, mirroring
+//!                            XPrimaryDriver::downstreamWaitBudgetUS().  0
+//!                            removes it.  Sweepable because at NORMAL it is
+//!                            the ONLY thing bounding the record commit —
+//!                            HIGHEST leaves the negotiator's round loop before
+//!                            it can sleep, NORMAL does not — so the measured
+//!                            MAX pins to this value, and what a deployment can
+//!                            actually buy is read off the throughput it costs
+//!                            to lower it.  (Not a hard cap: the wait behind a
+//!                            live privileged peer stays budget-exempt.)
 
 #include "support_standalone.h"
 #include "transaction.h"
@@ -135,6 +154,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 #include <thread>
 #include <vector>
 #include <cstring>
@@ -234,6 +254,9 @@ int main() {
     const long ui_wide     = env_long("KAME_MIX_UI_WIDE", 8);
     const long n_leaves    = env_long("KAME_MIX_LEAVES", 4);
     const bool acq_normal  = env_long("KAME_MIX_ACQ_NORMAL", 0) != 0;
+    //! \sa the KAME_MIX_WB_US block in the header comment.  Default mirrors
+    //! XPrimaryDriver::downstreamWaitBudgetUS(); 0 removes the budget.
+    const long wb_us       = env_long("KAME_MIX_WB_US", 20000);
     const long os_fifo     = env_long("KAME_MIX_OS_FIFO", 0);
     //! 0 = off, 1 = the lowprio tiers (UI + SCRIPTING) go SCHED_IDLE,
     //! 2 = the NORMAL peers as well.  The two levels ask different questions.
@@ -279,9 +302,15 @@ int main() {
     const bool os_pin_on   = env_long("KAME_MIX_OS_PIN", 0) != 0;
     std::printf("mixed-priority livelock hunt: %lds, stall>%lds fails, "
                 "acq=%s duty %ldus, UI period %ldus, +%ld NORMAL, "
-                "+%ld SCRIPTING, %ld leaves/subtree\n",
-                secs, stall_secs, acq_normal ? "NORMAL(control)" : "HIGHEST",
+                "+%ld SCRIPTING, %ld leaves/subtree, record wait budget ",
+                secs, stall_secs,
+                acq_normal ? "NORMAL(SHIPPED)" : "HIGHEST(library ceiling)",
                 hi_duty_us, ui_period_us, n_normals, n_scripting, n_leaves);
+    //! Printed on the banner because at NORMAL the MAX below pins to it, so a
+    //! run's headline number is unreadable without knowing which budget
+    //! produced it.
+    if(wb_us) std::printf("%ldus\n", wb_us);
+    else      std::printf("NONE\n");
 
     // Probe the OS arm up front so an unprivileged run says so instead of
     // reporting a green RT result it never ran.
@@ -431,7 +460,15 @@ int main() {
                 //! and "no record took longer than X" are different claims and
                 //! only the second one is a realtime one.  The counters below
                 //! answer the first; this histogram answers the second.
-                Transactional::ScopedWaitBudget budget((int64_t)20'000);
+                //! At HIGHEST this is inert — the round loop breaks out before
+                //! it can sleep — and at NORMAL it is the only bound the record
+                //! commit has.  Constructed unconditionally at the default so
+                //! the shape matches finishWritingRaw; wb_us == 0 opts out, to
+                //! show what the budget is worth.
+                std::unique_ptr<Transactional::ScopedWaitBudget> budget;
+                if(wb_us)
+                    budget.reset(new Transactional::ScopedWaitBudget(
+                        (int64_t)wb_us));
                 const std::uint64_t t_rec = now_ns();
                 //! Counted inside the lambda, because iterate_commit re-runs
                 //! it on every conflict: attempts == 1 on a slow commit means
@@ -674,6 +711,20 @@ int main() {
             std::printf(" %s=%llu", kPN[i],
                         (unsigned long long)acq_hist.pct(kP[i]));
     std::printf("  MAX=%llu ns\n", (unsigned long long)acq_hist.max);
+    //! How many commits reached the budget.  Without this the tail is
+    //! ambiguous: a MAX that sits ON the budget can be a distribution that
+    //! happens to end there or a distribution CLIPPED there, and only the
+    //! second means "the budget is what you are measuring, lower it and the
+    //! number follows".  Bucketed, so it is a floor on the true count.
+    if(wb_us && acq_hist.n) {
+        std::uint64_t clipped =
+            acq_hist.at_or_above((std::uint64_t)wb_us * 1000ull);
+        std::printf("    reached the %ld us budget: >=%llu commit(s) "
+                    "(%.4f %%)%s\n", wb_us, (unsigned long long)clipped,
+                    100.0 * (double)clipped / (double)acq_hist.n,
+                    clipped ? "  <= the MAX above is the BUDGET, not the STM"
+                            : "");
+    }
     std::printf("    attempts/commit: all=%.3f   slow(>=%ld ns): n=%llu "
                 "mean=%.3f max=%llu\n",
                 acq_retries.all_n
