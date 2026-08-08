@@ -246,6 +246,21 @@ reaches 3.1 ms at p99.99 with a 32.6 ms max.
 and 20.19 ms without): `negotiate_sleep` is a **voluntary** wait, and no
 scheduling class shortens one.
 
+HIGHEST's number carries a precondition the table cannot show, because the
+measurement satisfies it: **HIGHEST commit rate × longest peer closure ≪ 1.**
+Never parking cuts both ways — a HIGHEST commit is also immune to fair-mode,
+so it does not yield to a *privileged* peer either, and each of its commits
+that lands inside that peer's closure invalidates the whole closure.  With
+µs-scale closures (this table) the collision window is negligible; when a
+peer runs ms-scale closures past the meeting point, the peer's privilege
+stops converging — reproduced at 22 ms closures against a flat-out HIGHEST
+churner as 1.1 → 15.5 closure re-runs per commit, a privilege holder pinned
+not by the scheduler but by arithmetic.  Everything waiting behind that
+holder waits through every re-run, exempt from any budget.  KAME itself now
+runs acquisition at NORMAL with OS-level elevation only, for exactly this
+reason: its analysis closures are ms-scale.  Use HIGHEST where the
+precondition is a property of the design, not a hope about the load.
+
 ### At NORMAL the wait budget is the only bound — and it delivers its value
 
 `ScopedWaitBudget` (`XPrimaryDriver::downstreamWaitBudgetUS()`, default 20 ms)
@@ -275,7 +290,10 @@ other role healthy (UI 42.3 k/s, SCRIPTING 129.7 k/s, NORMAL 100.6 k/s).
 
 The budget bounds every wait *except* the one behind a live privileged peer,
 which is contractually exempt — so that one's length is the holder's
-scheduling delay and nothing else.  It shows up exactly there:
+scheduling delay, plus the holder's closure re-runs if a fair-mode-immune
+contender keeps colliding with it (the HIGHEST precondition above; absent a
+HIGHEST role only the scheduling term remains, which is the case measured
+here).  It shows up exactly there:
 
 * **Unpinned**, MAX sticks at **12–13 ms for every budget from 5 ms down to
   500 µs** while the clipped count saturates.  The budget is not what is being
@@ -300,14 +318,17 @@ that scope is worth doing for throughput; it does not buy the tail.
 Each of these is a design decision rather than a gap, and a realtime deployment
 has to supply the missing bound itself:
 
-* **A privilege holder's scheduling delay.**  NORMAL and HIGHEST privilege
+* **A privilege holder's completion time.**  NORMAL and HIGHEST privilege
   never expire — that immunity *is* the completion guarantee — and the wait
-  behind a live privilege is exempt from the wait budget.  If the OS does not
-  run the holder, nothing in the STM rescues the waiter.  This is the bound the
-  section above measures from both sides: supply it with isolation and the
-  exempt wait disappears; withhold it and no budget can reach the tail.  (Only
-  the LOW band — LOWEST / UI_DEFERRABLE / SCRIPTING — can be expired or
-  evicted.)
+  behind a live privilege is exempt from the wait budget.  Two things can
+  stretch it, and the STM bounds neither: the holder's **scheduling delay**
+  (if the OS does not run the holder, nothing in the STM rescues the waiter —
+  the bound the section above measures from both sides: supply isolation and
+  the exempt wait disappears, withhold it and no budget can reach the tail),
+  and the holder's **closure re-runs under a fair-mode-immune contender**
+  (the HIGHEST rate precondition — isolation does not help there, since it is
+  not a scheduling problem).  (Only the LOW band — LOWEST / UI_DEFERRABLE /
+  SCRIPTING — can be expired or evicted.)
 * **Transaction scope**, the dominant *throughput* term and the caller's to
   choose.  Measured 2×2 at HIGHEST on the RT host, acquisition commits/s:
   neither 146.9k · `SCHED_FIFO` + pinning only 155.0k · one NORMAL peer whose
@@ -470,7 +491,7 @@ cannot be manufactured deterministically through the public API:
 | test | covers |
 |---|---|
 | `transaction_wait_budget_test` | a `ScopedWaitBudget` commit finishes within budget + slack (the slack covers OS scheduling and post-expiry retries — everything the library deliberately does not model) |
-| `transaction_starvation_test` | the starvation bound on revocable (LOW-band) priorities; the production 1000 ms value is exercised by *not* firing in the uncontended arm |
+| `transaction_starvation_test` | the starvation bound on revocable (LOW-band) priorities; the production default (10 s, `KAME_STM_LOWPRIO_STARVE_MS`, arming after `KAME_STM_LOWPRIO_STARVE_MIN_RETRIES = 2` retries) is exercised by *not* firing in the uncontended arm |
 | `transaction_sleep_in_tx_test` | debug-only detector for `msecsleep()` inside a Transaction (built `-UNDEBUG`, or it would pass having checked nothing) |
 | `transaction_priv_strip_test` | white-box: `tag_as_contender`'s Rule 0 — HIGHEST strips a stuck foreign non-HIGHEST privilege stamp |
 | `transaction_priv_expiry_test` | white-box: the expiry rules on the negotiation predicates themselves, both agreeing consumers |
