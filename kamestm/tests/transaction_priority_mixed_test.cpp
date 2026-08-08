@@ -65,10 +65,69 @@
 //!     every single conflict, where an unpinned CFS may co-locate the two
 //!     threads and settle some conflicts in one cache.  Nothing RT-specific,
 //!     and nothing that argues against isolating the acquisition core.
+//!     (Read this as the THROUGHPUT effect it is, at the 20 ms budget these
+//!     runs used.  The latency picture below is the opposite way round:
+//!     isolating the acquisition core is what removes the budget-exempt tail,
+//!     and it is not optional.)
 //!   * Note in passing that cramming the three housekeeping threads onto one
 //!     core made them *collectively faster* (1.22M vs 911k commits/s spread
 //!     over four), which is the same coherence effect seen from the other
 //!     side.
+//!   * **All of the above is the HIGHEST arm, which KAME does not ship.**
+//!     `XPrimaryDriverWithThread::AcquisitionPriority` is
+//!     `ScopedPriority(NORMAL)` plus an OS elevation — the kamestm HIGHEST tier
+//!     was retired for KAME because per-record analyses cannot honour its
+//!     precondition — and the difference is not a matter of degree.  HIGHEST
+//!     cannot sleep (`if(entry_pr == Priority::HIGHEST) break;` sits at the TOP
+//!     of the negotiator's round loop, above both negotiate_sleep call sites);
+//!     NORMAL sleeps in 1-2 ms chunks.  Same host, same knobs, only the tier:
+//!     p50 unchanged at 768 ns, p99 1.28 us against 2.05, then p99.9 3.67 ms
+//!     against 20.5 us (179x) and MAX 20.19 ms against 95.1 us (212x).  The
+//!     other roles completed a mean of 2,004 commits during each slow one
+//!     against 13 in the HIGHEST arm: a thread asleep while the system works.
+//!     SCHED_FIFO changes none of it (43.8k/s and MAX 20.15 ms with, 43.3k/s
+//!     and 20.19 ms without) — negotiate_sleep is a VOLUNTARY wait and no
+//!     scheduling class shortens one.
+//!   * So at NORMAL the wait budget is the only bound the record commit has,
+//!     and — pinned — it delivers exactly its value.  Sweep on the RT host,
+//!     FIFO + pin, 60 s each:
+//!
+//!         budget   commits/s     mean       MAX    MAX-budget   clipped
+//!         2000 us     76,904   7991 ns   2.179 ms     179 us     0.333 %
+//!         1000 us    131,721   4101 ns   1.223 ms     223 us     0.320 %
+//!          500 us    185,700   2409 ns   0.662 ms     162 us     0.304 %
+//!          200 us    251,933   1534 ns   0.408 ms     208 us     0.334 %
+//!
+//!     MAX = budget + a constant ~200 us of overshoot, with NO floor down to
+//!     200 us, and throughput RISES 3.3x as the budget falls because a clipped
+//!     commit stops sleeping and retries.  The clip rate is invariant at
+//!     ~0.32 %: the same population of commits is caught, just earlier and
+//!     cheaper.  (XPrimaryDriver::downstreamWaitBudgetUS()'s documented "20 ms
+//!     costs 4.7 % of throughput" came from the grand-scope 8-thread arm and
+//!     does NOT hold here — here smaller is better on both axes.)
+//!     Confirmed at length: 300 s, FIFO + pin, 1 ms budget, **38,303,308
+//!     commits, MAX 1.288 ms, ZERO over a 3 ms deadline**, with every other
+//!     role healthy (UI 42.3k/s, SCRIPTING 129.7k/s, NORMAL 100.6k/s).
+//!   * **Pinning is what makes the budget work, and FIFO without it is
+//!     catastrophic.**  Unpinned, MAX sticks at 12-13 ms for every budget from
+//!     5 ms down to 500 us while the clip count saturates — that residue is the
+//!     wait behind a LIVE PRIVILEGED PEER, which is contractually budget-exempt,
+//!     so its length is the holder's scheduling delay and nothing else.  Pinning
+//!     the contenders together (acq alone on cpu3, everyone else on cpu0) means
+//!     a holder is always promptly scheduled among its peers, and the exempt
+//!     residue disappears entirely.  Take the isolation away while keeping FIFO
+//!     and the same run FAILS the watchdog: only the acq thread is put on
+//!     SCHED_FIFO here, so it preempts the very CFS holders it then waits
+//!     behind — UI fell to 144 commits/s and SCRIPTING to 176 (from 42.3k and
+//!     129.7k), both flagged at 6,001 ms, while acq ran away at 337k/s and
+//!     still took 50.9 ms on its own worst commit.  A classic priority
+//!     inversion, and the reason `isolcpus` is not optional: **FIFO and
+//!     isolation ship together or neither ships.**
+//!   * Refuted: the cross-subtree role is NOT what the 12-13 ms residue is made
+//!     of.  Unpinned at a 1 ms budget, turning it off halves the clipped
+//!     population (0.077 % -> 0.039 %) and leaves MAX at 12.0 -> 13.0 ms.
+//!     Narrowing XSecondaryDriver's scope is worth doing for throughput; it
+//!     does not buy the tail.
 //!   * Starving that same NORMAL peer did NOT pin the acquisition thread —
 //!     acquisition sped back up, because a contender that is not running is
 //!     not contending.  The never-expiring-privilege pin was NOT reproduced
@@ -122,7 +181,26 @@
 //!                            driver's subtree (XSecondaryDriver's shape)
 //!   KAME_MIX_ACQ_NORMAL      1 = acquisition thread runs at NORMAL instead of
 //!                            HIGHEST: the control arm that attributes any
-//!                            stall to the HIGHEST-ification or acquits it
+//!                            stall to the HIGHEST-ification or acquits it.
+//!                            **This is the arm KAME actually ships** —
+//!                            XPrimaryDriverWithThread::AcquisitionPriority is
+//!                            ScopedPriority(NORMAL) plus an OS elevation; the
+//!                            kamestm HIGHEST tier was retired for KAME because
+//!                            per-record analyses cannot honour its
+//!                            precondition.  So the HIGHEST arm measures the
+//!                            library's ceiling and this one measures the
+//!                            product.
+//!   KAME_MIX_WB_US           the ScopedWaitBudget over the record commit, µs.
+//!                            Default 20000, mirroring
+//!                            XPrimaryDriver::downstreamWaitBudgetUS().  0
+//!                            removes it.  Sweepable because at NORMAL it is
+//!                            the ONLY thing bounding the record commit —
+//!                            HIGHEST leaves the negotiator's round loop before
+//!                            it can sleep, NORMAL does not — so the measured
+//!                            MAX pins to this value, and what a deployment can
+//!                            actually buy is read off the throughput it costs
+//!                            to lower it.  (Not a hard cap: the wait behind a
+//!                            live privileged peer stays budget-exempt.)
 
 #include "support_standalone.h"
 #include "transaction.h"
@@ -135,6 +213,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 #include <thread>
 #include <vector>
 #include <cstring>
@@ -234,6 +313,9 @@ int main() {
     const long ui_wide     = env_long("KAME_MIX_UI_WIDE", 8);
     const long n_leaves    = env_long("KAME_MIX_LEAVES", 4);
     const bool acq_normal  = env_long("KAME_MIX_ACQ_NORMAL", 0) != 0;
+    //! \sa the KAME_MIX_WB_US block in the header comment.  Default mirrors
+    //! XPrimaryDriver::downstreamWaitBudgetUS(); 0 removes the budget.
+    const long wb_us       = env_long("KAME_MIX_WB_US", 20000);
     const long os_fifo     = env_long("KAME_MIX_OS_FIFO", 0);
     //! 0 = off, 1 = the lowprio tiers (UI + SCRIPTING) go SCHED_IDLE,
     //! 2 = the NORMAL peers as well.  The two levels ask different questions.
@@ -279,9 +361,15 @@ int main() {
     const bool os_pin_on   = env_long("KAME_MIX_OS_PIN", 0) != 0;
     std::printf("mixed-priority livelock hunt: %lds, stall>%lds fails, "
                 "acq=%s duty %ldus, UI period %ldus, +%ld NORMAL, "
-                "+%ld SCRIPTING, %ld leaves/subtree\n",
-                secs, stall_secs, acq_normal ? "NORMAL(control)" : "HIGHEST",
+                "+%ld SCRIPTING, %ld leaves/subtree, record wait budget ",
+                secs, stall_secs,
+                acq_normal ? "NORMAL(SHIPPED)" : "HIGHEST(library ceiling)",
                 hi_duty_us, ui_period_us, n_normals, n_scripting, n_leaves);
+    //! Printed on the banner because at NORMAL the MAX below pins to it, so a
+    //! run's headline number is unreadable without knowing which budget
+    //! produced it.
+    if(wb_us) std::printf("%ldus\n", wb_us);
+    else      std::printf("NONE\n");
 
     // Probe the OS arm up front so an unprivileged run says so instead of
     // reporting a green RT result it never ran.
@@ -431,7 +519,15 @@ int main() {
                 //! and "no record took longer than X" are different claims and
                 //! only the second one is a realtime one.  The counters below
                 //! answer the first; this histogram answers the second.
-                Transactional::ScopedWaitBudget budget((int64_t)20'000);
+                //! At HIGHEST this is inert — the round loop breaks out before
+                //! it can sleep — and at NORMAL it is the only bound the record
+                //! commit has.  Constructed unconditionally at the default so
+                //! the shape matches finishWritingRaw; wb_us == 0 opts out, to
+                //! show what the budget is worth.
+                std::unique_ptr<Transactional::ScopedWaitBudget> budget;
+                if(wb_us)
+                    budget.reset(new Transactional::ScopedWaitBudget(
+                        (int64_t)wb_us));
                 const std::uint64_t t_rec = now_ns();
                 //! Counted inside the lambda, because iterate_commit re-runs
                 //! it on every conflict: attempts == 1 on a slow commit means
@@ -674,6 +770,20 @@ int main() {
             std::printf(" %s=%llu", kPN[i],
                         (unsigned long long)acq_hist.pct(kP[i]));
     std::printf("  MAX=%llu ns\n", (unsigned long long)acq_hist.max);
+    //! How many commits reached the budget.  Without this the tail is
+    //! ambiguous: a MAX that sits ON the budget can be a distribution that
+    //! happens to end there or a distribution CLIPPED there, and only the
+    //! second means "the budget is what you are measuring, lower it and the
+    //! number follows".  Bucketed, so it is a floor on the true count.
+    if(wb_us && acq_hist.n) {
+        std::uint64_t clipped =
+            acq_hist.at_or_above((std::uint64_t)wb_us * 1000ull);
+        std::printf("    reached the %ld us budget: >=%llu commit(s) "
+                    "(%.4f %%)%s\n", wb_us, (unsigned long long)clipped,
+                    100.0 * (double)clipped / (double)acq_hist.n,
+                    clipped ? "  <= the MAX above is the BUDGET, not the STM"
+                            : "");
+    }
     std::printf("    attempts/commit: all=%.3f   slow(>=%ld ns): n=%llu "
                 "mean=%.3f max=%llu\n",
                 acq_retries.all_n
