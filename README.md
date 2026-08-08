@@ -117,7 +117,10 @@ this library.
   page-touches, unlike the allocate+free idiom), an explicit
   `kame_pool_rt_drain()`, and runtime-checkable violation counters.  Measured
   128 ns vs 20.5 µs median free (and 792 ns vs 678 µs max) on the band where
-  the recycle cache cannot help.  Preconditions and exclusions are stated in
+  the recycle cache cannot help; and on a `PREEMPT_RT` host with isolated
+  cores — quiet enough for the figure to mean something — **352 ns vs 42.4 µs
+  worst case** on cross-thread small free, bought with 1.8× on the median.
+  Preconditions and exclusions are stated in
   [The realtime contract](#the-realtime-contract) — not implied.
 
 ## Status
@@ -725,6 +728,22 @@ p99.9; that is why only DEFER can be a process-wide default.
   by *interfering successes*, so converting that to wall-clock needs a bound on
   peer allocation rate or core partitioning — an argument about your task set,
   which this allocator cannot make for you.
+* **Your threads' priorities are part of that task set, and Linux propagates
+  them behind your back.** `pthread_create` defaults to
+  `PTHREAD_INHERIT_SCHED`, so every thread spawned *after* one promotes itself
+  to `SCHED_FIFO` inherits that policy **and priority** — worker, logging and
+  producer threads included, however ordinary you meant them to be.  Two ways
+  that breaks a realtime design.  The interference bound in precondition 6 is
+  no longer the one you reasoned about.  And once the runnable count of
+  equal-priority `SCHED_FIFO` threads exceeds the CPUs available to them they
+  never preempt one another, so a spinning helper can starve the very thread
+  it was meant to feed — permanently, because `sched_rt_runtime_us = -1`,
+  which a realtime host wants, is exactly the throttle that would otherwise
+  have broken the tie.  Pass `PTHREAD_EXPLICIT_SCHED` in the attribute, or
+  have the helper demote itself on entry (`std::thread` gives you no attribute,
+  so it has to be the latter).  This project's own WCET harness had the bug,
+  and it stayed invisible for as long as threads ≤ CPUs — which was true of
+  every host it had ever run on.
 * **Blocks above 256 MiB cannot be cached** (the recycle cache is bypassed by
   construction), so each such allocation maps and each free unmaps. Realtime
   code should not size-class there; the gate defers the *free* side, which
