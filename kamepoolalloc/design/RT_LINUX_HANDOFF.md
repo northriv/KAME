@@ -824,6 +824,75 @@ like a 2 MiB zeroing, and it does not survive the larger sample: at
 it was a one-off system event of the same family as the 85,904 ns outlier in
 one `system` repetition here.
 
+#### The STM's own commit latency, and the 400 us that was not the OS
+
+Measured on the same host with `transaction_priority_mixed_test`, which models
+the deployment's roles (a HIGHEST acquisition thread oscillating like
+`finishWritingRaw`, NORMAL driver peers, a UI thread taking root Snapshots, a
+SCRIPTING thread) rather than symmetric load.  Acquisition at `SCHED_FIFO` 20
+on an isolated core, 120 s, **6,568,736 record commits**:
+
+| | mean | p50 | p99 | p99.9 | p99.99 | p99.999 | **MAX** |
+|---|---|---|---|---|---|---|---|
+| record commit | 800 ns | 768 ns | 2.05 µs | 20.5 µs | 32.8 µs | 81.9 µs | **95.1 µs** |
+
+Against this host's floor — `rtla osnoise -c 3 -P f:20 -d 120` reported **Max
+Single 17 µs** over 120 s with `-s 200` never firing, which bounds C-states,
+SMIs and `nohz_full` wake-ups together — the worst case is **5.6x the floor**,
+and everything to p99 is a factor of eight *below* it.
+
+**That number only exists because the contract is honoured.**  Before the test
+called `kame_pool_prewarm()` its MAX was ~400 µs in every run, immovable across
+four workloads, two run lengths, both core choices and PM-QoS on or off.  A
+local investigation on the machine found why, and it is worth recording in full
+because four hypotheses died on the way:
+
+* **It is the pool's §29 freelist pre-fill, once, at process start.**
+  `PoolAllocator::create_allocator()` writes an 8-byte next pointer into every
+  slot of a freshly claimed chunk, so one 256 KiB chunk is 64 minor faults, and
+  the first record commit claims a first chunk for five `FS=true` size classes
+  at once.  Page-fault tracing confined to the acquisition core: **321 faults
+  at t=0** (a 772 µs storm), three at teardown, **none in the 56 s between**.
+  The faulting IPs resolve to five `create_allocator()` template
+  instantiations in `libkamepoolalloc.so`.  The pre-fill touches 320 pages
+  where the workload goes on to use 197 — about 60 % of it is wasted here.
+* **Refuted with tracepoints, not argument.**  `stop_machine` / jump-label /
+  `text_poke`: a 415 µs commit window contains **no `sched_switch` at all**,
+  and `stop_machine` cannot run without scheduling a stopper thread.  TLB
+  shootdown IPIs: `tlb:tlb_flush` fired once (a task switch) and
+  `irq_vectors:call_function*` zero — though `/proc/interrupts` confirms the
+  isolated core *does* receive IPIs in general, so the route exists and simply
+  was not used.  C-state: PM-QoS held at 0 changed nothing.  `nohz_full` wake:
+  the isolated core measured marginally *faster* than a housekeeping one.
+* **The fix is precondition 2, which nothing was honouring.**
+  `kame_pool_prewarm()` is specified as "from each realtime thread, covering
+  every size class it will use, before entering the time-critical section" —
+  exactly this.  The test now calls it and the 400 µs is gone.
+  `KAME_POOL_DISABLE_PREFILL=1` also removes it but costs ~2.8 % throughput,
+  which is the wrong trade when the contract already has the right answer.
+* ★ **`kame_pool_prewarm()` is called nowhere in `kame/` or `modules/`.**  The
+  same first-record spike is therefore live in the application, and giving
+  `XPrimaryDriver`'s acquisition thread that one call is an outstanding fix,
+  not a hypothetical.
+
+**What the remaining 95 µs is, and is not.**  It is not the negotiation sleep:
+the sleep chunk is 1 ms and nothing came near it.  It is not a retry storm
+either — slow commits (>= 50 µs) averaged **2.08 attempts, max 4**, and two
+passes of an 800 ns commit is 1.6 µs, so the *passes themselves* are long,
+~25 µs each.  Nor was anyone stuck: the other roles completed a mean of 13
+commits during each slow one, about their normal rate.  Tracing the window
+shows no syscall, no fault, no context switch and no IRQ.  It is user-space
+work inside a single commit pass, and locating it needs instrumentation inside
+`commit()` rather than anything the kernel can see.
+
+**And the priority machinery is visibly working.**  `transaction_latency_bench`
+on the same host — four symmetric threads, no priority differentiation, no OS
+arm — shows the opposite shape in its leaf band: flat at 384 ns all the way to
+p99.9, then **3.1 ms at p99.99 and a 32.6 ms max**, with 1,217 of its 1,234
+slow commits having reached at least one 1 ms sleep chunk while the rest of the
+system completed a mean of 15,708 commits.  That is losing and sleeping.  The
+acquisition thread under the deployment's role mix never gets there.
+
 #### Still open
 
 * `cyclictest` under load (`stress-ng`) — every number above is unloaded and

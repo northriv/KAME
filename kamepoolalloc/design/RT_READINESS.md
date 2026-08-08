@@ -776,6 +776,52 @@ every host used before.  Fixed by `demote_this_thread()`; **numbers taken
 before that fix are not comparable** — the same cross-thread RT max read
 1,988 ns under the old regime against 352 ns after.
 
+#### Result — the STM's commit latency under the deployment's roles
+
+G7's bands measure the allocator.  What an acquisition deadline actually asks
+about is the *transaction*, and `transaction_priority_mixed_test` now reports
+it: the HIGHEST record commit, timed, under the role mix that deployment
+actually has (NORMAL driver peers, a UI thread taking root Snapshots, a
+SCRIPTING thread), with the acquisition thread at `SCHED_FIFO` 20 on an
+isolated core.  120 s, **6,568,736 commits**, on the PREEMPT_RT host:
+
+| mean | p50 | p99 | p99.9 | p99.99 | p99.999 | **MAX** |
+|---|---|---|---|---|---|---|
+| 800 ns | 768 ns | 2.05 µs | 20.5 µs | 32.8 µs | 81.9 µs | **95.1 µs** |
+
+The host's floor is **17 µs** (`rtla osnoise`, 120 s, Max Single, which bounds
+C-states, SMIs and `nohz_full` wake-ups in one number).  So the worst case is
+5.6x the floor and everything through p99 is a factor of eight below it.
+
+Three things about that number are worth stating with it.
+
+**It requires precondition 2.**  Before the test called `kame_pool_prewarm()`
+the MAX was ~400 µs, and immovably so — unchanged across four workload
+configurations, two run lengths, isolated versus housekeeping cores, and
+PM-QoS held at 0 or not.  It was the pool's §29 freelist pre-fill faulting five
+`FS=true` size classes' first chunks in the first commit: 321 page faults at
+t=0 and none for the next 56 s.  Not a bound, a cold-start artefact.  **Nothing
+in `kame/` or `modules/` calls `kame_pool_prewarm()`**, so that spike is live
+in the application; one call on `XPrimaryDriver`'s acquisition thread removes
+it, and unlike `KAME_POOL_DISABLE_PREFILL=1` it costs no throughput.
+
+**It is not the negotiation sleep, and not a retry storm.**  The sleep chunk is
+1 ms and nothing approached it.  Slow commits (>= 50 µs) averaged 2.08 attempts
+with a maximum of 4, and two passes of an 800 ns commit is 1.6 µs — so the
+passes are long, ~25 µs each, rather than numerous.  The other roles completed
+a mean of 13 commits during each slow one, i.e. their normal rate: nobody was
+stuck.  Kernel tracing of such a window finds no syscall, no fault, no context
+switch and no IRQ.  Locating the remaining ~25 µs needs instrumentation inside
+`commit()`; the kernel cannot see it.
+
+**The priority machinery is what keeps it there.**  `transaction_latency_bench`
+on the same host, four symmetric threads with no priority differentiation, is
+the control: its leaf band is flat at 384 ns to p99.9 and then jumps to 3.1 ms
+at p99.99 with a 32.6 ms max, and 1,217 of its 1,234 slow commits had reached
+at least one 1 ms negotiation sleep chunk while the rest of the system
+completed a mean of 15,708 commits.  That is a thread losing and sleeping.  The
+acquisition thread, at HIGHEST under the deployment's roles, never gets there.
+
 ### G8 — §74 single mmap+radix site — **DONE, no work remaining**
 
 Already landed in `c04a7975d`: `allocate_chunk<ALLOC>()` no longer carries
