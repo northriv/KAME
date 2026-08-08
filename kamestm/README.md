@@ -15,8 +15,8 @@ path) or links into GPLv2-only projects such as KAME itself (GPL path).
 
 **Production-stable in KAME since 2008** — the STM core has been the
 foundation of the KAME node tree under 24/7 research-lab operation on
-every release from that year onwards.  Builds and passes all 11
-standalone tests on macOS clang, Linux gcc/clang (64-bit + 32-bit),
+every release from that year onwards.  Builds and passes the standalone
+test suite on macOS clang, Linux gcc/clang (64-bit + 32-bit),
 Windows MinGW64 + lld, and Windows MSVC.
 
 ## What's in here
@@ -33,6 +33,7 @@ shared home (shared with the pool allocator), and are included header-only here
 |---|---|
 | `atomic_queue.h` | Lock-free MPMC queue |
 | `xthread.h` + `xthread.cpp` | `XMutex` / `XCondition` / `XRecursiveMutex` wrappers around `std::mutex` |
+| `xwaitcell.h` | `XWaitCell` — timed wait-on-address, the primitive a losing transaction parks on. **Mutex-less** on macOS (`__ulock_wait`) and Linux (`futex(FUTEX_WAIT_PRIVATE)`); portable mutex + condvar fallback elsewhere (see [Realtime behaviour](#realtime-behaviour)) |
 | `threadlocal.h` + `threadlocal.cpp` | `XThreadLocal<T, Tag>` with deterministic per-thread teardown |
 | `xtime.h` + `xtime.cpp` | Monotonic time helpers used by Lamport-clock serial numbers |
 | `transaction.h`, `transaction_definitions.h`, `transaction_impl.h`, `transaction_signal.h` | The STM core: `Snapshot<XN>`, `Transaction<XN>`, `Node<XN>`, `Talker<...>` |
@@ -118,8 +119,10 @@ UI_DEFERRABLE / SCRIPTING) can be expired or evicted; NORMAL / HIGHEST
 (measurement / driver-critical) are immune. Tags are released by
 `drop_tags_n_privilege()` (a CAS-based mine-only clear) at commit success, at
 `~Transaction()` (abort / RAII), and at standalone-`Snapshot` completion.
-Non-privileged contenders **park** (adaptive backoff / condition-variable
-wait) instead of spinning, so the oldest / highest-priority transaction
+Non-privileged contenders **park** (adaptive backoff, then a timed
+wait-on-address — `XWaitCell`, mutex-less on macOS and Linux; see
+[Realtime behaviour](#realtime-behaviour)) instead of spinning, so the
+oldest / highest-priority transaction
 always makes progress — model-checked livelock-free in TLA+ (the Layer-2
 `BundleUnbundle_*_LLfree` specs below model this per-linkage tag as a
 per-node `priorityTag`; see [tests/VERIFICATION.md](tests/VERIFICATION.md) §3
@@ -149,13 +152,99 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 | Retry primitive | `retry` / `orElse` (Haskell) | `iterate_commit` / `iterate_commit_while` |
 | Blocking | `retry` suspends on read-set change | No data-structure locks; a repeatedly-colliding Tx yields/parks to the privileged (oldest / highest-priority) Tx |
 | Memory management | GC | Lock-free `atomic_shared_ptr` (ref-counted) |
-| Hard real-time suitability | Limited (GC pauses) | Better (no GC pauses); livelock-free negotiation keeps the oldest Tx progressing — though CAS retry *counts* are not hard-bounded, so not hard-RT in a strict WCET sense |
+| Hard real-time suitability | Limited (GC pauses) | No GC pauses, and priority-ordered negotiation keeps the deadline-bearing Tx off the sleep path — **measured**, 95.1 µs worst case over 6.6 M commits on a `PREEMPT_RT` host ([below](#realtime-behaviour)). Still not hard-RT in a strict WCET sense: CAS retry *counts* are not bounded, and the STM deliberately does not bound a privilege holder's scheduling delay |
 
 **Compared to Hardware Transactional Memory (Intel TSX/RTM):** HTM aborts on cache-line conflicts regardless of logical independence, and has strict capacity limits. KAME's STM aborts only on semantic conflicts (packet identity change), tolerates large read sets, and degrades gracefully to age-ordered privileged-Tx negotiation (the colliding losers yield to the oldest transaction) rather than falling back to a global lock.
 
 **Compared to TinySTM / NOrec (C libraries):** Both use a global version clock and keep a read/write log per transaction, but differ on per-object metadata — TinySTM uses per-object version locks, whereas NOrec deliberately keeps *none* (it validates the read set by value against the global clock; the name is "No Ownership Records"). KAME avoids the read log entirely — a `Snapshot` is just an immutable pointer, so reads outside a transaction are truly zero-overhead. The trade-off is that KAME's write path must clone the payload upfront (copy-on-write), whereas log-based STMs defer that cost to commit time.
 
 **What makes KAME's design distinctive** is the *bundling* protocol: rather than tracking which variables a transaction touched, it tracks whether the packet at the subtree root has been replaced since the transaction started. This is efficient for KAME's access pattern (many readers of a stable tree, infrequent writes from acquisition threads) but would be coarser than necessary for workloads with many independent fine-grained variables.
+
+## Realtime behaviour
+
+The STM has **no WCET bound to offer**: CAS retry counts are not bounded, and
+the design deliberately does not bound how long a privilege holder takes to
+finish.  What it has instead is a measurement, under the role mix an
+instrument-control deployment actually runs, on a `PREEMPT_RT` host, quoted
+against that host's own floor.
+
+**What was measured.**  `transaction_priority_mixed_test` times the HIGHEST
+record commit — the deadline-bearing half of an acquisition cycle — while
+NORMAL driver peers, a UI thread taking root Snapshots and a SCRIPTING thread
+contend against it, with the acquisition thread at `SCHED_FIFO` 20 on an
+isolated core.  Ubuntu 26.04 `7.0.0-29-realtime` (`CONFIG_PREEMPT_RT=y`),
+i5-7500, cores 2–3 under `isolcpus`/`nohz_full`/`rcu_nocbs`, IRQs steered to
+0–1, `performance` governor.  120 s, **6,568,736 commits**:
+
+| mean | p50 | p99 | p99.9 | p99.99 | p99.999 | **MAX** |
+|---|---|---|---|---|---|---|
+| 800 ns | 768 ns | 2.05 µs | 20.5 µs | 32.8 µs | 81.9 µs | **95.1 µs** |
+
+The host's floor is **17 µs** — `rtla osnoise`, 120 s, Max Single, which bounds
+C-states, SMIs and `nohz_full` wake-ups in one number.  So the worst case is
+5.6× the floor and everything through p99 is a factor of eight below it.
+**Quote the two together**: an absolute latency is a property of the host, not
+of the STM, which is why `KAME_MIX_DEADLINE_US` turns MAX into a pass/fail
+assertion only when you ask for it and the test otherwise just reports.
+
+**What the tail is, and is not.**  Not the negotiation sleep — the chunk is
+1 ms and nothing approached it.  Not a retry storm — slow commits (≥ 50 µs)
+averaged 2.08 attempts with a maximum of 4, so the passes are long (~25 µs
+each) rather than numerous.  Not a stuck holder — the other roles completed
+their normal ~13 commits during each slow one.  Kernel tracing of such a window
+finds no syscall, no fault, no context switch and no IRQ; locating the
+remaining ~25 µs needs instrumentation inside `commit()`.
+
+**The priority machinery is what keeps it there**, and the control shows it.
+`transaction_latency_bench` on the same host — four *symmetric* threads, no
+priority differentiation — is flat at 384 ns to p99.9 and then jumps to 3.1 ms
+at p99.99 with a 32.6 ms max, 1,217 of its 1,234 slow commits having reached at
+least one 1 ms sleep chunk.  That is a thread losing and sleeping.  The
+acquisition thread, at HIGHEST under the deployment's roles, never gets there.
+
+### What the STM does not bound
+
+Each of these is a design decision rather than a gap, and a realtime deployment
+has to supply the missing bound itself:
+
+* **A privilege holder's scheduling delay.**  NORMAL and HIGHEST privilege
+  never expire — that immunity *is* the completion guarantee — and the wait
+  behind a live privilege is exempt from the wait budget.  If the OS does not
+  run the holder, nothing in the STM rescues the waiter.  Whether that matters
+  is a property of the deployment's scheduling configuration.  (Only the LOW
+  band — LOWEST / UI_DEFERRABLE / SCRIPTING — can be expired or evicted.)
+* **Transaction scope**, which is the dominant term by a wide margin and is the
+  caller's to choose.  Measured 2×2 on the RT host, acquisition commits/s:
+  neither 146.9k · `SCHED_FIFO` + pinning only 155.0k · one NORMAL peer whose
+  scope spans the acquiring driver's subtree (the `XSecondaryDriver` role)
+  89.4k · both 57.8k.  FIFO and pinning cost *nothing* (+6 %); the
+  cross-subtree peer costs 1.64× on its own, and the pair is super-additive.
+* **Allocation.**  Every commit clones a payload, so the allocator sits on the
+  deadline path and its preconditions are inherited — in particular
+  [`kamepoolalloc`](../kamepoolalloc)'s `kame_pool_prewarm()`, called from the
+  realtime thread before the time-critical section.  Skipping it cost the
+  measurement above a **~400 µs first commit** (the pool's freelist pre-fill
+  faulting five size classes' first chunks at once), immovable across every
+  other knob until the precondition was honoured.
+
+### No lock on the negotiation route
+
+A losing transaction parks on `XWaitCell` (`xwaitcell.h`) rather than spinning,
+and on macOS and Linux that park is **mutex-less** — `__ulock_wait` and
+`futex(FUTEX_WAIT_PRIVATE)` respectively, the kernel's value-compare on a
+generation word closing the lost-wakeup window a condition variable would need
+a mutex for.  This matters only under a scheduler that enforces priority: the
+fallback's `std::mutex` is a plain `pthread_mutex` with no priority
+inheritance, so a high-priority committer can be made to wait on a preempted
+low-priority one — bounded, since the block itself yields, but unbounded once a
+medium-priority thread interposes.  Removing the mutex removes the question;
+`PTHREAD_PRIO_INHERIT` would only have bounded it.
+
+It is **not** a throughput change and does not claim to be: interleaved against
+a forced-fallback build it measures identical in commits/s and in p50/p99/p99.9,
+because the sleep path is reached in 0.0001–0.05 % of commits.  Force the
+fallback with `-DKAME_XWAITCELL_ULOCK=0` / `-DKAME_XWAITCELL_FUTEX=0`;
+`xwaitcell_test` passes on all three backends.
 
 ## Formal verification (TLA+)
 
@@ -171,9 +260,13 @@ C11 translations of each layer are verified with [GenMC](https://github.com/MPI-
 
 ## Dependencies
 
-- C++17 toolchain — gcc 9+, clang 10+, **and MSVC (cl)**.  All 11
-  standalone tests build and pass on macOS clang, Linux gcc/clang
+- C++17 toolchain — gcc 9+, clang 10+, **and MSVC (cl)**.  The standalone
+  tests build and pass on macOS clang, Linux gcc/clang
   (64-bit + 32-bit), Windows MinGW64 + lld, and Windows MSVC (cl 19.51).
+  Nothing in the library is POSIX-only; the one platform-gated *test*
+  feature is `transaction_priority_mixed_test`'s OS-scheduling arm
+  (`#if defined(__linux__)`, and `SKIPPED` rather than silently green
+  when the process may not set `SCHED_FIFO`).
   The MSVC build needs no opt-in flag: kamestm already used
   `std::atomic` / `thread_local` and carried `_MSC_VER` branches for
   the few primitives (popcount, fences, rdtsc); commit `60cfc7dc`
@@ -214,12 +307,13 @@ A stand-alone `kamestm.pro` / `CMakeLists.txt` producing a
 ## Tests
 
 Built by the `tests/` CMake scaffold and run with `ctest`
-(`cmake -S tests -B build && cmake --build build && ctest --test-dir build`).
-(The two `*_mixed` throughput drivers are built but not `ctest`-registered —
-they take command-line arguments and are run manually.)
-Four layers, from primitive to whole-protocol:
+(`cmake -S tests -B build && cmake --build build && ctest --test-dir build`):
+**19 registered tests**, plus three drivers that are built but deliberately not
+registered because they take command-line arguments and are run on purpose (the
+two `*_mixed` throughput drivers and `transaction_latency_bench`).
+Five layers, from primitive to whole-protocol:
 
-**Atomic primitives** — exercise the lock-free building blocks directly:
+**Primitives** — the lock-free building blocks, exercised directly:
 
 | test | covers |
 |---|---|
@@ -227,6 +321,8 @@ Four layers, from primitive to whole-protocol:
 | `atomic_scoped_ptr_test` | single-owner scoped pointer + `local_weak_ptr` promotion |
 | `atomic_queue_test` | lock-free MPMC queue |
 | `mutex_test` | the `std::mutex` / `shared_mutex` wrappers |
+| `xwaitcell_test` | the timed wait-on-address primitive negotiation parks on — the ordinary timeout, `usec == 0` meaning poll rather than forever, the lost-wakeup window, a real cross-thread wake, and eight sleepers none stranded. Passes on all three backends, so a compile-time backend choice cannot drift unnoticed |
+| `fast_vector_test` | union discipline of `fast_vector<T,N>` — the inline array and the heap vector are union'd, so any method reaching for the inactive member is UB |
 
 **STM functional** — concurrent transactions on the node tree:
 
@@ -250,6 +346,23 @@ on each read, so any torn / lost / stale commit is caught immediately:
 The `3level_mixed` driver takes `seconds threads max_payload cross_ratio` and
 reports commits/s; because it is dominated by small per-payload allocations it
 also doubles as the STM-workload allocator benchmark (vs `kamepoolalloc`).
+
+**Negotiation, priority and realtime** — who wins a collision, whether the
+loser is ever pinned, and how long the winner takes.  The three white-box tests
+build with `-fno-access-control` because privilege claims are probe-gated and
+cannot be manufactured deterministically through the public API:
+
+| test | covers |
+|---|---|
+| `transaction_wait_budget_test` | a `ScopedWaitBudget` commit finishes within budget + slack (the slack covers OS scheduling and post-expiry retries — everything the library deliberately does not model) |
+| `transaction_starvation_test` | the starvation bound on revocable (LOW-band) priorities; the production 1000 ms value is exercised by *not* firing in the uncontended arm |
+| `transaction_sleep_in_tx_test` | debug-only detector for `msecsleep()` inside a Transaction (built `-UNDEBUG`, or it would pass having checked nothing) |
+| `transaction_priv_strip_test` | white-box: `tag_as_contender`'s Rule 0 — HIGHEST strips a stuck foreign non-HIGHEST privilege stamp |
+| `transaction_priv_expiry_test` | white-box: the expiry rules on the negotiation predicates themselves, both agreeing consumers |
+| `transaction_priv_pin_test` | the behavioural net over the same fix: **no thread may ever be pinned for a watchdog-class stretch**, keeping a 2026-07-30 field crash (SIGABRT via the negotiation HANG watchdog) as a regression |
+| `transaction_reanchor_test` | white-box: `newTransactionUsingSnapshotFor` must not orphan planted stamps when it re-anchors the snapshot base |
+| `transaction_priority_mixed_test` | the deployment's role mix — HIGHEST acquisition, a budgeted NORMAL downstream, a main-thread UI doing snapshots + structural churn, SCRIPTING — under a stall watchdog (any thread stuck > 5 s = livelock = FAIL). `KAME_MIX_*` add an OS-scheduling arm (`SCHED_FIFO`, pinning from the affinity mask, SCHED_IDLE starvation; Linux, and `SKIPPED` when unprivileged), the cross-subtree `XSecondaryDriver` role, and the record-commit latency distribution with an optional deadline assertion |
+| `transaction_latency_bench` | the per-commit latency *tail* (not throughput) under four symmetric threads; not registered, because absolute latencies are machine-specific. Pure observation — it times `iterate_commit` from outside |
 
 **Formal / memory-model verification** — see *Formal verification* above and
 [`tests/VERIFICATION.md`](tests/VERIFICATION.md).  GenMC RC11-model-checks both
