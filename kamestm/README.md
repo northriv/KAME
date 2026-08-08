@@ -168,6 +168,50 @@ finish.  What it has instead is a measurement, under the role mix an
 instrument-control deployment actually runs, on a `PREEMPT_RT` host, quoted
 against that host's own floor.
 
+### "Unbounded retries" and "model-checked livelock-free" are both true
+
+The precise word for what is proven is **starvation-freedom**, not bounded
+wait-freedom, and the difference is narrower than "not bounded" makes it sound.
+Taking the concessions first, because both are real:
+
+* **Every terminating execution retries finitely often.**  That is what
+  `<>AllDone` says, and on a machine of finite speed it is true by
+  construction.  Divergence is not on the table.
+* **For each checked configuration a bound even exists.**  The state space is
+  finite and contains no progress-free lasso, so any progress-free stretch is
+  shorter than the state count and the total is that times the finite number of
+  progress events.  "Unbounded" is not a statement about the model.
+
+What is missing is a bound for the **deployed** system, and two things stand in
+the way:
+
+* **The checking is per-configuration** — three threads, two children,
+  `MaxCommits = 1` — with no ∀-thread result, so nothing transfers to a tree of
+  dozens of drivers.  And the number would not be usable if it did: it is in
+  TLA+ steps over ~10⁸–10⁹ states, and a step is not a CAS attempt.
+* **The models drain, and a deployment does not.**  `Threads` is a fixed set,
+  each thread holds a finite `iterBudget`, and `AllDone` *is* "every budget
+  exhausted" — so a retrying transaction is guaranteed to run out of
+  competitors.  The quantity an instrument cares about is retries against a
+  *continuing* arrival stream, which the specs do not represent at all.  This
+  is the load-bearing gap, not the thread count.
+
+So read "not bounded" as **no bound is established for the deployed
+configuration**, not as "retries can diverge".
+
+What livelock-freedom does buy is real, and is exactly what Layer 1 lacks — its
+`<>AllDone` check fails with a lasso, which is why Layer 2 exists.  A
+transaction that keeps losing escalates to a privileged stamp its peers must
+yield to, including first-attempt peers (`retry == 0` still checks
+`fair_mode_blocks_me`).  The escalation is probe-gated, so the guarantee is
+about *what eventually happens* rather than *when* — the textbook gap between
+starvation-freedom and a constant.
+
+For scale, measured rather than argued: **1.002 attempts per commit over
+38.3 M commits, 1.45 on the slow ones, maximum 5.**
+
+### What was measured
+
 All of it comes from `transaction_priority_mixed_test`, which times the
 acquisition thread's record commit — the deadline-bearing half of an
 acquisition cycle — while NORMAL driver peers, a UI thread taking root
@@ -322,7 +366,7 @@ fallback with `-DKAME_XWAITCELL_ULOCK=0` / `-DKAME_XWAITCELL_FUTEX=0`;
 The STM protocol is formally specified and model-checked with TLA+ / TLC:
 
 - **Layer 1 — `atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting, drain release, and `scoped_atomic_view` ([spec](tests/tlaplus/atomic_shared_ptr.tla)). Safety only — the bare primitive is intentionally *not* livelock-free.
-- **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Exhaustively model-checked **safe + livelock-free** without `CONSTRAINT` (the LL-free design makes the state space naturally finite — no artificial bound); the largest single exhaustive run reaches **~641 M distinct states** (3-level all-root, 15 h on the ISSP ohtaka supercomputer), over a billion across the LL-free configurations combined. (Raw state counts are **spec-version-specific** — they shift as the spec evolves, so cross-version comparison isn't meaningful; see [tests/VERIFICATION.md](tests/VERIFICATION.md) §3–§4 for the current-spec figures.) These are exhaustive results for the checked configurations (fixed thread counts and tree shapes), not an unbounded ∀-thread proof.
+- **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Exhaustively model-checked **safe + livelock-free** without `CONSTRAINT` (the LL-free design makes the state space naturally finite — no artificial bound); the largest single exhaustive run reaches **~641 M distinct states** (3-level all-root, 15 h on the ISSP ohtaka supercomputer), over a billion across the LL-free configurations combined. (Raw state counts are **spec-version-specific** — they shift as the spec evolves, so cross-version comparison isn't meaningful; see [tests/VERIFICATION.md](tests/VERIFICATION.md) §3–§4 for the current-spec figures.) These are exhaustive results for the checked configurations (fixed thread counts and tree shapes), not an unbounded ∀-thread proof. The property is `<>AllDone` over a *draining* workload, so it is starvation-freedom, **not** a bound on retry counts — [Realtime behaviour](#unbounded-retries-and-model-checked-livelock-free-are-both-true) sets the two side by side.
 - **Hard-link topologies:** multi-parent / one-child races that reproduce and fix a production abort via a Phase-4 reachability gate and a Phase-3 skip-Null fix (`tests/tlaplus/BundleUnbundle_hardlink_*.tla`).
 
 **Slide decks** — start at the **coverage overview** ([EN](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_overview_en.html) · [JA](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc_ja/slides_overview.html)), a hub linking every layer with a full coverage matrix. Individual decks (each with a Japanese counterpart under `doc_ja/`): [Layer 1](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer1_en.html), [Layer 2 base](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_en.html), [Layer 2 LLfree](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree.html), [3-level](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_3level_en.html), [dynamic](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_dynamic_en.html), [hard-link](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_hardlink_en.html).
