@@ -417,12 +417,29 @@ partition, node ID, governor and turbo state.
 
 ### Running the measurement
 
+`--faults` is a *mode*, not an extra band: it "runs BEFORE the interferers
+start and instead of the steady-state arms … the whole point is that nothing
+else is perturbing the page tables".  So the campaign is two families, not one
+command.
+
 ```bash
 # sudo for the privilege, taskset for the isolated cores — and NOT chrt.
-sudo taskset -c 2,3 ./build/tests/bench_rt_wcet --full --faults 24 --thp system
-sudo taskset -c 2,3 ./build/tests/bench_rt_wcet --full --faults 24 --thp never
-sudo taskset -c 2,3 ./build/tests/bench_rt_wcet --full --faults 24 --thp always
+
+# (a) G6(a) cold-fault arms — the THP question.  Rounds x 32 MiB / 4 KiB is
+#     the sample count, so 128 rounds is ~1.05 M; each arm takes seconds.
+sudo taskset -c 2,3 ./build/tests/bench_rt_wcet --faults 128 --thp system
+sudo taskset -c 2,3 ./build/tests/bench_rt_wcet --faults 128 --thp never
+sudo taskset -c 2,3 ./build/tests/bench_rt_wcet --faults 128 --thp always
+
+# (b) steady-state RT-vs-OFF bands, interferers running — the WCET question.
+#     This is the long one; --full is reps=10 iters=4000 and 2 M cross-thread.
+sudo taskset -c 2,3 ./build/tests/bench_rt_wcet --full
 ```
+
+`--full` has no effect in family (a) — it sets `reps`/`iters`, which only the
+steady-state arms read — and `--thp` has no effect in family (b) beyond the
+process-wide policy it sets before prewarm.  Keep them separate so the run log
+says which question each number answers.
 
 Three things about that command line are load-bearing:
 
@@ -676,9 +693,10 @@ had been hiding, both now on `master`'s history:
   Read `/sys/devices/system/cpu/cpu*/thermal_throttle/*count` before and after
   each arm and report it: a run that throttled measured the cooling, not the
   allocator.
-* **The campaign itself**: `bench_rt_wcet --full --faults 24 --thp
-  system|never|always` under `with-pmqos 0` + `sudo taskset -c 2,3` — no
-  `chrt`, see the invocation notes above — interleaved, median of ≥ 5.
+* **The campaign itself**, two families under `with-pmqos 0` + `sudo taskset
+  -c 2,3` and no `chrt` (see the invocation notes above), interleaved, median
+  of ≥ 5: the cold-fault THP arms `--faults 128 --thp system|never|always`,
+  and the steady-state bands `--full`.
 
   Configure the tree as **`-DCMAKE_BUILD_TYPE=Release`**, which is `-O3
   -DNDEBUG` and matches the flags Ohtaka's tree effectively compiles with:
