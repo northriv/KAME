@@ -65,10 +65,69 @@
 //!     every single conflict, where an unpinned CFS may co-locate the two
 //!     threads and settle some conflicts in one cache.  Nothing RT-specific,
 //!     and nothing that argues against isolating the acquisition core.
+//!     (Read this as the THROUGHPUT effect it is, at the 20 ms budget these
+//!     runs used.  The latency picture below is the opposite way round:
+//!     isolating the acquisition core is what removes the budget-exempt tail,
+//!     and it is not optional.)
 //!   * Note in passing that cramming the three housekeeping threads onto one
 //!     core made them *collectively faster* (1.22M vs 911k commits/s spread
 //!     over four), which is the same coherence effect seen from the other
 //!     side.
+//!   * **All of the above is the HIGHEST arm, which KAME does not ship.**
+//!     `XPrimaryDriverWithThread::AcquisitionPriority` is
+//!     `ScopedPriority(NORMAL)` plus an OS elevation — the kamestm HIGHEST tier
+//!     was retired for KAME because per-record analyses cannot honour its
+//!     precondition — and the difference is not a matter of degree.  HIGHEST
+//!     cannot sleep (`if(entry_pr == Priority::HIGHEST) break;` sits at the TOP
+//!     of the negotiator's round loop, above both negotiate_sleep call sites);
+//!     NORMAL sleeps in 1-2 ms chunks.  Same host, same knobs, only the tier:
+//!     p50 unchanged at 768 ns, p99 1.28 us against 2.05, then p99.9 3.67 ms
+//!     against 20.5 us (179x) and MAX 20.19 ms against 95.1 us (212x).  The
+//!     other roles completed a mean of 2,004 commits during each slow one
+//!     against 13 in the HIGHEST arm: a thread asleep while the system works.
+//!     SCHED_FIFO changes none of it (43.8k/s and MAX 20.15 ms with, 43.3k/s
+//!     and 20.19 ms without) — negotiate_sleep is a VOLUNTARY wait and no
+//!     scheduling class shortens one.
+//!   * So at NORMAL the wait budget is the only bound the record commit has,
+//!     and — pinned — it delivers exactly its value.  Sweep on the RT host,
+//!     FIFO + pin, 60 s each:
+//!
+//!         budget   commits/s     mean       MAX    MAX-budget   clipped
+//!         2000 us     76,904   7991 ns   2.179 ms     179 us     0.333 %
+//!         1000 us    131,721   4101 ns   1.223 ms     223 us     0.320 %
+//!          500 us    185,700   2409 ns   0.662 ms     162 us     0.304 %
+//!          200 us    251,933   1534 ns   0.408 ms     208 us     0.334 %
+//!
+//!     MAX = budget + a constant ~200 us of overshoot, with NO floor down to
+//!     200 us, and throughput RISES 3.3x as the budget falls because a clipped
+//!     commit stops sleeping and retries.  The clip rate is invariant at
+//!     ~0.32 %: the same population of commits is caught, just earlier and
+//!     cheaper.  (XPrimaryDriver::downstreamWaitBudgetUS()'s documented "20 ms
+//!     costs 4.7 % of throughput" came from the grand-scope 8-thread arm and
+//!     does NOT hold here — here smaller is better on both axes.)
+//!     Confirmed at length: 300 s, FIFO + pin, 1 ms budget, **38,303,308
+//!     commits, MAX 1.288 ms, ZERO over a 3 ms deadline**, with every other
+//!     role healthy (UI 42.3k/s, SCRIPTING 129.7k/s, NORMAL 100.6k/s).
+//!   * **Pinning is what makes the budget work, and FIFO without it is
+//!     catastrophic.**  Unpinned, MAX sticks at 12-13 ms for every budget from
+//!     5 ms down to 500 us while the clip count saturates — that residue is the
+//!     wait behind a LIVE PRIVILEGED PEER, which is contractually budget-exempt,
+//!     so its length is the holder's scheduling delay and nothing else.  Pinning
+//!     the contenders together (acq alone on cpu3, everyone else on cpu0) means
+//!     a holder is always promptly scheduled among its peers, and the exempt
+//!     residue disappears entirely.  Take the isolation away while keeping FIFO
+//!     and the same run FAILS the watchdog: only the acq thread is put on
+//!     SCHED_FIFO here, so it preempts the very CFS holders it then waits
+//!     behind — UI fell to 144 commits/s and SCRIPTING to 176 (from 42.3k and
+//!     129.7k), both flagged at 6,001 ms, while acq ran away at 337k/s and
+//!     still took 50.9 ms on its own worst commit.  A classic priority
+//!     inversion, and the reason `isolcpus` is not optional: **FIFO and
+//!     isolation ship together or neither ships.**
+//!   * Refuted: the cross-subtree role is NOT what the 12-13 ms residue is made
+//!     of.  Unpinned at a 1 ms budget, turning it off halves the clipped
+//!     population (0.077 % -> 0.039 %) and leaves MAX at 12.0 -> 13.0 ms.
+//!     Narrowing XSecondaryDriver's scope is worth doing for throughput; it
+//!     does not buy the tail.
 //!   * Starving that same NORMAL peer did NOT pin the acquisition thread —
 //!     acquisition sped back up, because a contender that is not running is
 //!     not contending.  The never-expiring-privilege pin was NOT reproduced
