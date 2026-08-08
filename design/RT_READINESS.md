@@ -752,9 +752,12 @@ below the floor and are allocator numbers, while the 8 MiB malloc max sits *at*
 the floor and must not be attributed to the allocator.  Quote them together.
 
 **The hard assertion fails on this host, with a characterised cause.**
-`rt_violations` is a deterministic `reps − 2` (2 / 4 / 8 / 18 at `--reps`
-4 / 6 / 10 / 20), unchanged by removing the interferers or by pinning to four
-cores.  `--rt-os-policy 3` names the site as `large_va_raw_map`, not the radix
+`rt_violations` is deterministic and `reps`-shaped — 0 / 2 / 2 / 4 / 8 / 18 at
+`--reps` 2 / 3 / 4 / 6 / 10 / 20, i.e. `reps − 2` at even counts, with odd ones
+not fitting (3 gives 2) — and is unchanged by removing the interferers or by
+pinning to four cores.  The registered `bench_rt_wcet_smoke` ctest runs
+`--reps 2`, which is exactly the zero of that sequence, which is why CI has
+never seen it.  `--rt-os-policy 3` names the site as `large_va_raw_map`, not the radix
 leaf — one of the two sites that degrade safely to libc under
 `KAME_RT_OS_FAIL`, so the bound is not what breaks.  The 8 MiB band is far
 below `LRC_HI`, so the large recycle cache is meant to absorb it: this is a

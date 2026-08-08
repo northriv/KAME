@@ -733,12 +733,20 @@ assertion.  It is not noise and not the measurement setup: the count is
 unchanged by dropping the interferers (`--threads 0`) or by pinning to four
 cores instead of two, and it tracks the repetition count exactly —
 
-| `--reps` | 4 | 6 | 10 | 20 |
-|---|---|---|---|---|
-| `rt_violations` | 2 | 4 | 8 | 18 |
+| `--reps` | 2 | 3 | 4 | 6 | 10 | 20 |
+|---|---|---|---|---|---|---|
+| `rt_violations` | **0** | 2 | 2 | 4 | 8 | 18 |
 
-— i.e. **`reps − 2`**, one large-tier mapping per repetition beyond what
-prewarm covers.  `--rt-os-policy 3` names the site: **`large_va_raw_map`**, not
+— i.e. **`reps − 2` at even `reps`**, one large-tier mapping per repetition
+beyond what prewarm covers.  Odd counts do not fit it (3 gives 2, not 1), so
+the RT/OFF alternation — `run_rep` swaps which arm goes first on odd `r` — is
+part of the mechanism, not just the repetition count.
+
+Note where that leaves the registered ctest.  `bench_rt_wcet_smoke` runs
+`--reps 2 --iters 150`, which is **exactly the point where the count is zero**,
+so the assertion passes and CI has never seen this.  Raising the test's
+repetitions would turn it red — correctly, but it should be a deliberate act
+with the residue understood, not a side effect of wanting more samples.  `--rt-os-policy 3` names the site: **`large_va_raw_map`**, not
 the radix leaf.  That matters, because `large_va_raw_map` is one of the two
 sites that degrade safely — under `KAME_RT_OS_FAIL` it returns nullptr and the
 allocation falls back to libc — so the bound is not what breaks here.
