@@ -46,7 +46,12 @@
 //!                mid-acquisition).
 //!
 //! Reading the OS arm's results (measured 2026-08, 4-CPU x86-64, non-RT
-//! kernel, so treat the numbers as shape rather than as a bound):
+//! kernel, so treat the numbers as shape rather than as a bound).
+//!
+//! **All of the figures in this block were taken at KAME_MIX_RT_POOL=0**, i.e.
+//! before the realtime contract became the default — see that knob for the
+//! measurement that changed it and by how much.  Re-measure before comparing
+//! anything here against a run at today's defaults:
 //!
 //!   * The clean 2x2, on a PREEMPT_RT host (i5-7500, isolcpus=2,3), acq
 //!     commits/s: neither 146.9k; FIFO+pin only 155.0k; XSUBTREE only 89.4k;
@@ -223,27 +228,47 @@
 //!                            library's ceiling and this one measures the
 //!                            product.
 //!   KAME_MIX_RT_POOL         how much of kamepoolalloc's realtime CONTRACT to
-//!                            honour.  0 (default) = none, which is how every
-//!                            number in this file was measured and is also
-//!                            LOOSER than the application, since
-//!                            kame/main.cpp already calls
-//!                            kame_pool_set_realtime_mode(1).  1 = that call.
+//!                            honour.  0 = none; 1 = kame_pool_set_realtime_
+//!                            mode(1), which is what kame/main.cpp does and
+//!                            therefore what the SHIPPED application is at;
 //!                            2 = + KAME_RT_DEFER on the acquisition thread
-//!                            and kame_pool_rt_drain() in the trough between
-//!                            records (precondition 5).  3 = KAME_RT_STRICT
-//!                            instead of DEFER.
-//!                            Why it belongs in a LATENCY test: STRICT is the
-//!                            only level that drops this thread's CROSS-THREAD
-//!                            dealloc batch to per-free flushing, so no single
-//!                            free inherits the batch's CAP=1024
-//!                            sort+merge+CAS — measured p99.99 256 ns against
-//!                            10,240 ns.  And the acquisition thread frees
-//!                            cross-thread exactly when a peer writes ITS
-//!                            subtree, i.e. exactly under
-//!                            KAME_MIX_NORMAL_XSUBTREE, which is the arm whose
-//!                            slow-commit rate is 5x the rest.  The test only
-//!                            ever honoured precondition 2 (prewarm), so this
-//!                            path has been running ungated throughout.
+//!                            and kame_pool_rt_drain() every
+//!                            KAME_MIX_RT_DRAIN_EVERY records (precondition 5);
+//!                            **3 = KAME_RT_STRICT instead of DEFER, and the
+//!                            DEFAULT.**  Use 0 to reproduce anything measured
+//!                            before 2026-08, and 1 when the question is what
+//!                            KAME ships rather than what the STM can do.
+//!                            Why a LATENCY harness defaults to it: STRICT is
+//!                            the only level that drops this thread's
+//!                            CROSS-THREAD dealloc batch to per-free flushing,
+//!                            so no single free inherits the batch's CAP=1024
+//!                            sort+merge+CAS.  The acquisition thread frees
+//!                            cross-thread precisely when a peer allocates on
+//!                            ITS subtree — whoever drops the last reference
+//!                            frees the payload — i.e. precisely under
+//!                            KAME_MIX_NORMAL_XSUBTREE.  Measured on the
+//!                            PREEMPT_RT host, FIFO + isolation, 60 s arms,
+//!                            slow (>= 50 us) commits per million:
+//!
+//!                              level 0 (none)        28.8   MAX 92,633 ns
+//!                              level 1 (mode)        31.0   MAX 101,584
+//!                              level 2 (DEFER)       29.3   MAX  94,161
+//!                              level 3 (STRICT)       8.3   MAX  66,737
+//!
+//!                            3.5x, and only at STRICT — mode and DEFER are
+//!                            within noise.  MAX 66,737 ns is BELOW the
+//!                            67,879 ns that latency_floor measures as this
+//!                            host's own worst case with no STM at all, so at
+//!                            level 3 the commit's worst case is no longer
+//!                            distinguishable from the machine.  Throughput
+//!                            went UP 8 % (50.7k -> 54.7k), so the contract's
+//!                            documented "STRICT costs ~47 % of cross-thread
+//!                            small-free throughput" does not reach this
+//!                            workload.
+//!                            CONSEQUENCE FOR THE NUMBERS BELOW: everything
+//!                            recorded in this header predates the default and
+//!                            was measured at level 0.  Comparisons across
+//!                            that boundary are not valid.
 //!   KAME_MIX_WB_US           the ScopedWaitBudget over the record commit, µs.
 //!                            Default 20000, mirroring
 //!                            XPrimaryDriver::downstreamWaitBudgetUS().  0
@@ -414,9 +439,13 @@ int main() {
     //! pages) and mistake it for a recurring event.  Set 0 to reproduce that.
     const bool do_prewarm  = env_long("KAME_MIX_PREWARM", 1) != 0;
     //! How much of the pool's realtime contract to honour.  \sa the header.
-    //! 0 (default) leaves it as every measurement so far took it, so numbers
-    //! stay comparable; the arms above 0 are the A/B.
-    const long rt_pool     = env_long("KAME_MIX_RT_POOL", 0);
+    //! **Default 3 (STRICT) since the 2026-08 measurement below**: this is a
+    //! realtime harness, and running it with the contract unhonoured measured
+    //! the allocator's ungated free path rather than the STM.  Set 0 to
+    //! reproduce the pre-2026-08 numbers, or 1 for shipped-KAME fidelity —
+    //! `kame/main.cpp` sets the process-wide mode and nothing marks the
+    //! acquisition thread, so the application is at level 1, not 3.
+    const long rt_pool     = env_long("KAME_MIX_RT_POOL", 3);
     //! Drain every N records, not every record.  Precondition 5 says "from a
     //! non-critical phase — between control cycles"; this harness has no
     //! trough (records come at ~10^5/s, a real driver at 1..10^4 Hz), so
@@ -495,8 +524,9 @@ int main() {
     //! it models the pool MORE loosely than the application does.
     if(rt_pool >= 1) kame_pool_set_realtime_mode(1);
     std::printf("  pool realtime contract: %s\n",
-        rt_pool <= 0 ? "none (preconditions 1/3/5 unmet — as measured so far)" :
-        rt_pool == 1 ? "mode only (matches kame/main.cpp)" :
+        rt_pool <= 0 ? "none (preconditions 1/3/5 unmet — the pre-2026-08 "
+                       "baseline; NOT the default)" :
+        rt_pool == 1 ? "mode only (matches kame/main.cpp, i.e. shipped KAME)" :
         rt_pool == 2 ? "mode + RT_DEFER on acq + rt_drain in the trough" :
                        "mode + RT_STRICT on acq + rt_drain in the trough");
 #endif

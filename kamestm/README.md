@@ -241,6 +241,21 @@ parks at all; same host and roles, 120 s:
 | HIGHEST (the library's ceiling) | 768 ns | 2.05 µs | 20.5 µs | **95.1 µs** |
 | NORMAL, 20 ms budget | 768 ns | 1.28 µs | 3.67 ms | **20.15 ms** |
 
+**That ceiling was the allocator, not the STM, and it is 66.7 µs once the pool's
+realtime contract is honoured.**  The harness marked no realtime thread, so the
+acquisition thread's *cross-thread* frees ran ungated — batched to `CAP=1024`,
+one unlucky free paying the whole sort+merge+CAS.  A commit frees cross-thread
+precisely when a peer allocated on its subtree (whoever drops the last
+reference frees the payload), which is why the effect tracked the cross-subtree
+peer and nothing else.  `kame_pool_set_realtime_thread(KAME_RT_STRICT)` on that
+thread cuts slow commits (≥ 50 µs) from 28.8 to 8.3 per million and MAX to
+**66.7 µs — below the 67.9 µs `latency_floor` measures as this host's own worst
+case with no STM at all** — while throughput *rises* 8 %.  Process-wide
+realtime mode and `KAME_RT_DEFER` do nothing; only STRICT, which is the one
+level that drops the batch.  It is the tests that changed: KAME itself sets the
+process-wide mode and marks no thread, so the application is still at the
+un-batched level and this is an outstanding precondition, not a shipped fix.
+
 The ceiling's precondition: **HIGHEST commit rate × longest peer closure
 ≪ 1.**  HIGHEST is also immune to fair-mode, so each of its commits landing
 inside a privileged peer's closure re-runs that closure — negligible at the
