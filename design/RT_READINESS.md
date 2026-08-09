@@ -789,6 +789,23 @@ isolated core.  120 s, **6,568,736 commits**, on the PREEMPT_RT host:
 |---|---|---|---|---|---|---|
 | 800 ns | 768 ns | 2.05 µs | 20.5 µs | 32.8 µs | 81.9 µs | **95.1 µs** |
 
+> **This tail was largely G7's own subject, measured with G7's contract
+> unhonoured.**  `transaction_priority_mixed_test` called `prewarm` and nothing
+> else — no `set_realtime_mode`, no `set_realtime_thread` — so the acquisition
+> thread's **cross-thread** frees ran ungated, batched to `CAP=1024` with one
+> unlucky free paying the whole sort+merge+CAS.  A commit frees cross-thread
+> exactly when a peer allocated on its subtree, which is why the effect tracked
+> the cross-subtree role and nothing else, and why the slow-commit RATE scales
+> with payload clones per commit (31.6 → 117.9 per million from 4 to 16 leaves,
+> against the 3.4× the clone count predicts) while the MAGNITUDE of an event
+> stays fixed.  Adding `kame_pool_set_realtime_thread(KAME_RT_STRICT)`: slow
+> commits 28.8 → **8.3** per million, MAX 92.6 → **66.7 µs**, throughput
+> **+8 %**.  Mode alone (31.0) and `KAME_RT_DEFER` (29.3) are within noise —
+> only STRICT, the one level that drops the batch.  66.7 µs is *below* the
+> 67.9 µs `latency_floor` measures as this host's worst case with no STM at
+> all.  The test now defaults to the contract; **KAME still does not mark the
+> thread**, so precondition 3 remains outstanding in the application.
+
 The host's floor is **17 µs** (`rtla osnoise`, 120 s, Max Single, which bounds
 C-states, SMIs and `nohz_full` wake-ups in one number).  So the worst case is
 5.6x the floor and everything through p99 is a factor of eight below it.
