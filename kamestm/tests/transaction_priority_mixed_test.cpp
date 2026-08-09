@@ -474,6 +474,17 @@ int main() {
         leavesB.push_back(b); devB->insert(b);
         leavesP.push_back(p); panel->insert(p);
     }
+    //! The roles deliberately poke DIFFERENT leaves of the acquiring driver's
+    //! subtree — 0 the demoted downstream, 1 the UI's snapshot, 2 the UI's
+    //! mid-acquisition write, 3 the scripting poke — so the indices carry
+    //! meaning and must not all collapse onto leaf 0.  Wrapping spreads them
+    //! as far as a small tree allows; the point of the helper, though, is that
+    //! they were RAW: `KAME_MIX_LEAVES` below 4 indexed out of bounds and
+    //! handed the STM a garbage node, aborting with a `domain_error` out of
+    //! the payload lookup — which reads as an STM bug and is a harness one.
+    auto lA = [&](std::size_t i) -> const shared_ptr<MyNode> & {
+        return leavesA[i % leavesA.size()];
+    };
 
     enum {T_HIGHEST = 0, T_DOWNSTREAM = 1, T_UI = 2, T_SCRIPT0 = 3};
     const int T_NORMAL0 = T_SCRIPT0 + (int)n_scripting;
@@ -678,12 +689,12 @@ int main() {
                 progress[T_HIGHEST].fetch_add(1, std::memory_order_relaxed);
                 // the demoted downstream: entry writes + visualize snapshot.
                 Transactional::ScopedDemoteRealtime _demoted;
-                leavesA[0]->iterate_commit([&](Tr &tr){
-                    tr[ *leavesA[0]].m_x++;
+                lA(0)->iterate_commit([&](Tr &tr){
+                    tr[ *lA(0)].m_x++;
                 });
                 {
                     Ss shot( *devA);
-                    (void)shot[ *leavesA[1]].m_x;
+                    (void)shot[ *lA(1)].m_x;
                 }
                 progress[T_DOWNSTREAM].fetch_add(1, std::memory_order_relaxed);
             }
@@ -718,8 +729,8 @@ int main() {
             if(i % 16 == 0) {
                 // the classic NMR trigger: a settings write into the
                 // MEASURING driver's own subtree, mid-acquisition.
-                leavesA[2]->iterate_commit([&](Tr &tr){
-                    tr[ *leavesA[2]].m_x++;
+                lA(2)->iterate_commit([&](Tr &tr){
+                    tr[ *lA(2)].m_x++;
                 });
             }
             if(i % 32 == 0) {
@@ -750,8 +761,8 @@ int main() {
                     (void)shot[ *devA].m_x;
                 }
                 if(i % 4 == 0)
-                    leavesA[3]->iterate_commit([&](Tr &tr){
-                        tr[ *leavesA[3]].m_x++;    // script pokes the driver
+                    lA(3)->iterate_commit([&](Tr &tr){
+                        tr[ *lA(3)].m_x++;    // script pokes the driver
                     });
                 if(i % 16 == 0)
                     panel->iterate_commit([&](Tr &tr){
