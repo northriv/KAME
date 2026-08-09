@@ -222,6 +222,28 @@
 //!                            precondition.  So the HIGHEST arm measures the
 //!                            library's ceiling and this one measures the
 //!                            product.
+//!   KAME_MIX_RT_POOL         how much of kamepoolalloc's realtime CONTRACT to
+//!                            honour.  0 (default) = none, which is how every
+//!                            number in this file was measured and is also
+//!                            LOOSER than the application, since
+//!                            kame/main.cpp already calls
+//!                            kame_pool_set_realtime_mode(1).  1 = that call.
+//!                            2 = + KAME_RT_DEFER on the acquisition thread
+//!                            and kame_pool_rt_drain() in the trough between
+//!                            records (precondition 5).  3 = KAME_RT_STRICT
+//!                            instead of DEFER.
+//!                            Why it belongs in a LATENCY test: STRICT is the
+//!                            only level that drops this thread's CROSS-THREAD
+//!                            dealloc batch to per-free flushing, so no single
+//!                            free inherits the batch's CAP=1024
+//!                            sort+merge+CAS — measured p99.99 256 ns against
+//!                            10,240 ns.  And the acquisition thread frees
+//!                            cross-thread exactly when a peer writes ITS
+//!                            subtree, i.e. exactly under
+//!                            KAME_MIX_NORMAL_XSUBTREE, which is the arm whose
+//!                            slow-commit rate is 5x the rest.  The test only
+//!                            ever honoured precondition 2 (prewarm), so this
+//!                            path has been running ungated throughout.
 //!   KAME_MIX_WB_US           the ScopedWaitBudget over the record commit, µs.
 //!                            Default 20000, mirroring
 //!                            XPrimaryDriver::downstreamWaitBudgetUS().  0
@@ -391,6 +413,16 @@ int main() {
     //! (the pool's per-slot next-pointer pre-fill faulting 5 size classes x 64
     //! pages) and mistake it for a recurring event.  Set 0 to reproduce that.
     const bool do_prewarm  = env_long("KAME_MIX_PREWARM", 1) != 0;
+    //! How much of the pool's realtime contract to honour.  \sa the header.
+    //! 0 (default) leaves it as every measurement so far took it, so numbers
+    //! stay comparable; the arms above 0 are the A/B.
+    const long rt_pool     = env_long("KAME_MIX_RT_POOL", 0);
+    //! Drain every N records, not every record.  Precondition 5 says "from a
+    //! non-critical phase — between control cycles"; this harness has no
+    //! trough (records come at ~10^5/s, a real driver at 1..10^4 Hz), so
+    //! draining per record costs 8x throughput and models nothing.  Separated
+    //! from the level so DEFER/STRICT can be A/B'd without it.  0 = never.
+    const long rt_drain_every = env_long("KAME_MIX_RT_DRAIN_EVERY", 1024);
     //! Per-thread timer slack for the acquisition thread, in ns.  Linux
     //! defaults to 50 us and applies it to every `futex` timeout a
     //! SCHED_OTHER task arms — which is the negotiator's CV chunk, i.e. it
@@ -456,6 +488,18 @@ int main() {
                     (os_starve >= 2) ? "lowprio+NORMAL" :
                         (os_starve ? "lowprio" : "no"),
                     pin_ok ? "yes" : "no", cpu_acq, cpu_house, ncpu);
+
+#ifndef DISABLE_POOL_ALLOCATOR
+    //! Process-wide half of KAME_MIX_RT_POOL, before any thread starts.
+    //! Level >= 1 is what `kame/main.cpp:562` already does, so anything below
+    //! it models the pool MORE loosely than the application does.
+    if(rt_pool >= 1) kame_pool_set_realtime_mode(1);
+    std::printf("  pool realtime contract: %s\n",
+        rt_pool <= 0 ? "none (preconditions 1/3/5 unmet — as measured so far)" :
+        rt_pool == 1 ? "mode only (matches kame/main.cpp)" :
+        rt_pool == 2 ? "mode + RT_DEFER on acq + rt_drain in the trough" :
+                       "mode + RT_STRICT on acq + rt_drain in the trough");
+#endif
 
     // The measurement tree: root -> {devA, devB, panel}, four leaves each.
     // devA is the acquiring driver's subtree; entriesA models its scalar
@@ -607,7 +651,14 @@ int main() {
                 std::printf("  NOTE: kame_pool_prewarm did not fit — the first "
                             "commits will show cold-path outliers.\n");
         }
+        //! \sa the KAME_MIX_RT_POOL block in the header comment.  Level 2/3
+        //! are per-THREAD and therefore have to be set here, on the thread
+        //! that owns the deadline, not in main().
+        if(rt_pool >= 2)
+            kame_pool_set_realtime_thread(rt_pool >= 3 ? KAME_RT_STRICT
+                                                       : KAME_RT_DEFER);
 #endif
+        std::uint64_t acq_iter = 0;   //!< for the periodic rt_drain below
         const std::uint64_t t_warm_end = now_ns() +
             (std::uint64_t)warmup_ms * 1000000ull;
         Transactional::ScopedPriority pr(acq_normal
@@ -698,6 +749,16 @@ int main() {
                 }
                 progress[T_DOWNSTREAM].fetch_add(1, std::memory_order_relaxed);
             }
+#ifndef DISABLE_POOL_ALLOCATOR
+            //! Precondition 5: drain from a NON-critical phase.  This is that
+            //! phase — after the record commit, outside its wait budget — and
+            //! it is the syscall batch the per-thread gate keeps off the
+            //! deadline path.  Without it the deferred work is not eliminated,
+            //! only postponed until something else pays for it.
+            if((rt_pool >= 2) && (rt_drain_every > 0)
+                    && (++acq_iter % (std::uint64_t)rt_drain_every == 0))
+                kame_pool_rt_drain();
+#endif
             pause_us(hi_duty_us);
         }
     });
