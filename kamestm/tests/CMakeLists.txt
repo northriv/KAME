@@ -110,7 +110,12 @@ set(kamestm_test_names
     # iterate_commit from outside and changes nothing in kamestm, so it can
     # neither regress the library nor bias what it measures.  Not a ctest --
     # absolute latencies are machine-specific; run it deliberately.
-    transaction_latency_bench)
+    transaction_latency_bench
+    # The control for the two above: the same clock and the same histogram
+    # with the STM removed, so a tail can be attributed to the machine before
+    # anyone instruments commit().  Not a ctest for the same reason
+    # transaction_latency_bench is not — the numbers are the host's.
+    latency_floor)
 
 foreach(t IN LISTS kamestm_test_names)
     add_executable(${t} ${t}.cpp ${support_SRCS})
