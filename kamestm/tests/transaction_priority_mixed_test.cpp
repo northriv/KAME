@@ -478,8 +478,23 @@ int main() {
     enum {T_HIGHEST = 0, T_DOWNSTREAM = 1, T_UI = 2, T_SCRIPT0 = 3};
     const int T_NORMAL0 = T_SCRIPT0 + (int)n_scripting;
     const int nthreads = T_NORMAL0 + (int)n_normals;
-    std::vector<std::atomic<uint64_t>> progress(nthreads);
-    for(auto &p : progress) p.store(0);
+    //! One cache line each.  Unpadded, all of these sit in one or two lines
+    //! and every role's fetch_add invalidates the line for every other role —
+    //! the harness would be generating the coherence traffic it is measuring,
+    //! and the distortion grows with the number of roles, i.e. exactly with
+    //! the arms being compared.  128 rather than 64: Intel's L2 adjacent-line
+    //! prefetcher pulls pairs.
+    struct alignas(128) Counter {
+        std::atomic<uint64_t> v{0};
+    };
+    static_assert(sizeof(Counter) == 128, "Counter must occupy a whole pair");
+    std::vector<Counter> progress_(nthreads);
+    //! Thin accessor so the (many) call sites keep reading `progress[t]`.
+    struct ProgressView {
+        Counter *p;
+        std::atomic<uint64_t> &operator[](size_t i) const { return p[i].v; }
+    } progress{progress_.data()};
+    for(auto &c : progress_) c.v.store(0);
     std::atomic<bool> stop{false};
     std::vector<std::thread> ts;
     //! Written only by the acquisition thread, read only after join().
@@ -602,11 +617,19 @@ int main() {
                 if(wb_us)
                     budget.reset(new Transactional::ScopedWaitBudget(
                         (int64_t)wb_us));
-                const std::uint64_t t_rec = now_ns();
                 //! Counted inside the lambda, because iterate_commit re-runs
                 //! it on every conflict: attempts == 1 on a slow commit means
                 //! one long pass, not a retry storm.
                 std::uint64_t attempts = 0;
+                //! Sampled BEFORE the clock starts, and after it stops.  These
+                //! are other threads' counters, written continuously from other
+                //! cores, so each load is a cross-core transfer on a line that
+                //! is essentially never in this core's cache — the measurement
+                //! would otherwise include the instrument's own coherence
+                //! traffic and scale with the number of roles.  The cost of
+                //! moving them out is a few hundred nanoseconds of slack in the
+                //! "system progress during a slow commit" attribution, which is
+                //! read against counts in the hundreds.
                 std::uint64_t sys0 = 0;
                 for(int t = T_UI; t < nthreads; ++t)
                     sys0 += progress[t].load(std::memory_order_relaxed);
@@ -616,6 +639,7 @@ int main() {
                 //! cycle.
                 (void)Transactional::neg_diag_snapshot(true);
 #endif
+                const std::uint64_t t_rec = now_ns();
                 devA->iterate_commit([&](Tr &tr){
                     ++attempts;
                     tr[ *devA].m_x++;
@@ -626,7 +650,7 @@ int main() {
                 const bool warm = (t_end >= t_warm_end);
                 if(warm) {
                     acq_hist.add(dt_rec);
-                    std::uint64_t sys1 = 0;
+                    std::uint64_t sys1 = 0;   // …and here, after the clock.
                     for(int t = T_UI; t < nthreads; ++t)
                         sys1 += progress[t].load(std::memory_order_relaxed);
                     acq_retries.add(dt_rec, attempts, (std::uint64_t)slow_ns,
