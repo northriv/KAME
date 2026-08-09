@@ -243,6 +243,31 @@ static void test_mlock_regions() {
 // Sum AnonHugePages over the smaps VMAs OVERLAPPING [lo, hi).  -1 if
 // unreadable.  Overlap, not containment: the allocation we are asked about
 // starts a header inside its mapping, so the VMA begins below `lo`.
+//! Does this kernel implement transparent hugepages AT ALL?
+//!
+//! Not a tuning question — a build-configuration one.  Upstream `mm/Kconfig`
+//! gates `TRANSPARENT_HUGEPAGE` on `HAVE_ARCH_TRANSPARENT_HUGEPAGE &&
+//! !PREEMPT_RT`, so a realtime kernel has no THP and the sysfs directory does
+//! not exist (verified on Ubuntu `7.0.0-29-realtime`; see
+//! `kamepoolalloc/design/RT_READINESS.md` §G6(a)).  There `madvise(MADV_*HUGE
+//! PAGE)` returns EINVAL and the re-advise walk legitimately reports 0 bytes.
+//!
+//! This has to be probed rather than inferred, because — as §G6(a) also notes
+//! — a re-advise walk returning 0 cannot be told apart from "there was nothing
+//! mapped to re-advise".  Absence of the file is the only unambiguous signal.
+static bool host_has_thp() {
+#if defined(__linux__)
+    if(std::FILE *f = std::fopen(
+           "/sys/kernel/mm/transparent_hugepage/enabled", "r")) {
+        std::fclose(f);
+        return true;
+    }
+    return false;
+#else
+    return false;
+#endif
+}
+
 static long anon_hugepages_in(uintptr_t lo, uintptr_t hi) {
     std::FILE *f = std::fopen("/proc/self/smaps", "r");
     if( !f) return -1;
@@ -289,11 +314,22 @@ static void test_thp_policy() {
     kame_pool_reserve_regions(2, /*prefault=*/0);
     const size_t re = kame_pool_set_thp_policy(KAME_THP_NEVER);
 #if defined(__linux__)
-    const size_t kRegion = 32u * 1024u * 1024u, kPage = 4096u;
-    check(re >= kRegion - kPage, "re-advise reached existing regions");
-    check(re % (kRegion - kPage) == 0, "re-advised in whole regions");
-    check(kame_pool_set_thp_policy(KAME_THP_SYSTEM) == 0,
-          "KAME_THP_SYSTEM re-advises nothing (Linux has no 'clear' advice)");
+    if( !host_has_thp()) {
+        // A PREEMPT_RT kernel has no THP to advise, so `madvise` returns
+        // EINVAL for every region and the walk correctly reports 0.  Asserting
+        // otherwise fails the whole test on exactly the platform this file's
+        // realtime sub-tests exist to cover.
+        std::printf("  [ok] skipped: this kernel has no transparent hugepages "
+                    "(no /sys/kernel/mm/transparent_hugepage) — the re-advise "
+                    "walk returns %zu by construction\n", re);
+    }
+    else {
+        const size_t kRegion = 32u * 1024u * 1024u, kPage = 4096u;
+        check(re >= kRegion - kPage, "re-advise reached existing regions");
+        check(re % (kRegion - kPage) == 0, "re-advised in whole regions");
+        check(kame_pool_set_thp_policy(KAME_THP_SYSTEM) == 0,
+              "KAME_THP_SYSTEM re-advises nothing (Linux has no 'clear' advice)");
+    }
 #else
     check(re == 0, "non-Linux: THP policy is a no-op returning 0");
 #endif
