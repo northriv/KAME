@@ -301,6 +301,29 @@ Left as a characterisation rather than a fix: it is 20–50× inside a 1 ms
 deadline.  Narrowing it further means separating the failed `commit()` from the
 `++tr` inside it, which the public API fuses.
 
+**Why the privileged escalation does not rescue it.**  The obvious objection is
+that the STM has a mechanism for exactly this: a transaction that keeps losing
+claims privilege and every peer defers to it.  The claim gate carries **no
+priority term** — HIGHEST claims on the same terms as anyone — and it converts
+every verdict it is given.  It is simply never given one here.  Counting the
+gates (`KAME_STM_NEG_DIAG` `ll_*`, 1.15 M commits) rather than reading them:
+
+| gate | share of the tail it blocks |
+|---|---|
+| `m_tagged_linkages.empty()` — the probe is inside it | ~37 % of slow commits never enter the negotiator at all |
+| retry threshold `clamp(sig_C·2, 3, nproc)` | **55 %** of the ticks that do happen |
+| the per-linkage window reset | 36 % |
+| `tags_owned == tags_total` | 9 % |
+
+The threshold is unreachable by construction for this workload: outer attempts
+peak at 3, so the retry count peaks at 2 against a floor of 3.  The transaction
+gives up losing before the probe is permitted to notice it was losing — and a
+plain CAS loss is not a negotiation at all, since nobody holds a tag.  So this
+tail is a privilege **absence**, not a privilege failure: the probe is
+calibrated for sustained mutual livelock, and a 4-attempt race that resolves on
+its own is not that.  Lowering the threshold is the lever if it ever needs one,
+but ~37 % of the population is out of the probe's reach at any threshold.
+
 The ceiling's precondition: **HIGHEST commit rate × longest peer closure
 ≪ 1.**  HIGHEST is also immune to fair-mode, so each of its commits landing
 inside a privileged peer's closure re-runs that closure — negligible at the
@@ -331,7 +354,12 @@ checked configuration; none is established for a deployment (the checking is
 per-configuration, and the specs drain a fixed workload while a deployment
 faces a continuing arrival stream).  "Retries are not bounded" means that —
 not "retries can diverge": a losing transaction escalates to a privileged
-stamp all peers, first-attempt ones included, must yield to.  Details in
+stamp all peers, first-attempt ones included, must yield to.  Read that as the
+*divergence* argument it is, not as a description of the common case: the
+escalation is **probe-gated**, and in the measured deployment mix it fires
+about once per million commits, because a short CAS race resolves before the
+probe's threshold is reached ([above](#realtime-behaviour)).  Retries stay
+finite there by winning, not by escalating.  Details in
 [tests/VERIFICATION.md](tests/VERIFICATION.md).
 
 ## Formal verification (TLA+)

@@ -190,6 +190,42 @@
 //!     not contradict the UI finding below: a snapshot's bundle and a spanning
 //!     transaction's unbundle are different events, and only the second is on
 //!     the acquiring thread's path.
+//!   * **Why privilege never rescues it — counted, not read.**  The obvious
+//!     objection to the above is that the STM has a completion guarantee for
+//!     exactly this: a transaction that keeps losing claims privilege and
+//!     everyone else defers to it.  The claim gate is
+//!     `if(_ll_saw && !snap.m_registered_privileged)` with NO priority term, so
+//!     HIGHEST is neither privileged nor excluded there — it claims on the same
+//!     terms as anyone.  Yet `priv strips (Rule 0)` is 0 in every run of this
+//!     harness.  Four gates stand between a losing commit and that claim, and
+//!     the ll_* counters below separate them.  Measured (container, 12 s,
+//!     1,147,583 warm commits, 1,838 slow at the 20 us threshold — the RT host
+//!     will move the constants, not the shape):
+//!       - `m_tagged_linkages.empty()` — the probe is inside it.  `entries` is
+//!         0.63 per SLOW commit, so ~37 % of them never enter the negotiator at
+//!         all.  A plain CAS loss is not a negotiation: nobody holds a tag, the
+//!         transaction just restarts.  That is the majority of this tail.
+//!       - the retry threshold, `my_tx_retries >= clamp(sig_C*2, 3,
+//!         hardware_concurrency())` — **the largest single blocker, 0.32 of the
+//!         0.58 ticks per slow commit (55 %)**.  It cannot be otherwise here:
+//!         attempts peak at 3, so `m_tx_retry_count` peaks at 2, and the floor
+//!         is 3.  The transaction gives up losing before the probe is allowed
+//!         to notice it was losing.
+//!       - the per-linkage window reset (0.21, 36 %) — `LivelockProbe::state()`
+//!         holds ONE `linkage_id`, and a multi-nodal commit negotiates on
+//!         several, so each switch discards the accumulated window.
+//!       - `tags_owned == tags_total` (0.05, 9 %) — the condition a displaced
+//!         thread necessarily fails, i.e. the one that most needs the rescue.
+//!     What is NOT broken: the gate itself.  One verdict was reached in the
+//!     whole run and it produced one claim and one grant — 100 % conversion.
+//!     So the honest statement is that HIGHEST's tail here is not a privilege
+//!     FAILURE, it is a privilege ABSENCE: this workload never presents the
+//!     probe with the pattern it was built to detect, because that pattern is
+//!     sustained mutual livelock and this is a 4-attempt CAS race that
+//!     resolves.  Whether the threshold SHOULD be 3 when a HIGHEST realtime
+//!     commit is the one losing is a design question this file does not
+//!     answer; it only establishes that lowering it is the lever, and that
+//!     ~37 % of the population is out of the probe's reach at any threshold.
 //!     Three things that could have explained that tail instead, all checked
 //!     on the RT host in the same clean configuration and all negative, so a
 //!     future reader does not re-open them:
@@ -714,7 +750,10 @@ int main() {
                       slept_ns = 0, slept_exempt_ns = 0, req_ns = 0,
                       spins = 0, spin_ns = 0, entries = 0, sleeps_priv = 0,
                       late_max_ns = 0, tail_spins = 0, tail_spin_ns = 0,
-                      commit_cas = 0, bundle_cas = 0, snap_cas = 0;
+                      commit_cas = 0, bundle_cas = 0, snap_cas = 0,
+                      ll_ticks = 0, ll_resets = 0, ll_no_tags = 0,
+                      ll_few_retries = 0, ll_verdicts = 0,
+                      priv_tries = 0, priv_grants = 0;
         //! …and the single worst commit of the run, kept whole: a mean over
         //! the slow population cannot say whether the MAX was one long exempt
         //! sleep or a hundred short budgeted ones.
@@ -731,9 +770,28 @@ int main() {
             commit_cas += d.commit_cas_retries;
             bundle_cas += d.bundle_cas_retries;
             snap_cas   += d.snapshot_retries;
+            ll_ticks += d.ll_ticks; ll_resets += d.ll_resets;
+            ll_no_tags += d.ll_no_tags; ll_few_retries += d.ll_few_retries;
+            ll_verdicts += d.ll_verdicts;
+            priv_tries += d.priv_tries; priv_grants += d.priv_grants;
             if(dt > max_dt) { max_dt = dt; max_d = d; }
         }
     } slow_diag;
+    //! The same probe chain over EVERY warm commit, not only the slow ones.
+    //! Needed because the two zero-cases are indistinguishable in the slow
+    //! population alone: a probe that never ticks and a probe that ticks and
+    //! never reaches a verdict both report `ll_verdicts = 0` there.  Cheap —
+    //! the snapshot already happens after the timed region closes.
+    struct LLAll {
+        std::uint64_t n = 0, ticks = 0, resets = 0, no_tags = 0,
+                      few_retries = 0, verdicts = 0, tries = 0, grants = 0;
+        void add(const Transactional::detail::NegDiag &d) {
+            ++n; ticks += d.ll_ticks; resets += d.ll_resets;
+            no_tags += d.ll_no_tags; few_retries += d.ll_few_retries;
+            verdicts += d.ll_verdicts;
+            tries += d.priv_tries; grants += d.priv_grants;
+        }
+    } ll_all;
 #endif
 
     // Breaktrace plumbing.  Both descriptors are opened up front so the hot
@@ -924,9 +982,11 @@ int main() {
                     if(phase_mode && (dt_rec >= (std::uint64_t)slow_ns))
                         phase_slow.add(dt_rec, ph_snap, ph_write, ph_commit, ph_retry);
 #if KAME_STM_NEG_DIAG
-                    if(dt_rec >= (std::uint64_t)slow_ns)
-                        slow_diag.add(dt_rec,
-                                      Transactional::neg_diag_snapshot(false));
+                    {   const auto d = Transactional::neg_diag_snapshot(false);
+                        ll_all.add(d);
+                        if(dt_rec >= (std::uint64_t)slow_ns)
+                            slow_diag.add(dt_rec, d);
+                    }
 #endif
                 }
                 else     cold_n.fetch_add(1, std::memory_order_relaxed);
@@ -1327,6 +1387,55 @@ int main() {
                     (unsigned long long)m.snapshot_retries,
                     (long long)slow_diag.max_dt - (long long)m.slept_ns
                         - (long long)m.spin_ns);
+        std::printf("      livelock probe during those slow commits: "
+                    "ticks=%.2f (reset=%.2f no_tags=%.2f few_retries=%.2f) "
+                    "VERDICTS=%.4f  priv: tries=%.4f grants=%.4f /commit\n",
+                    slow_diag.ll_ticks / N, slow_diag.ll_resets / N,
+                    slow_diag.ll_no_tags / N, slow_diag.ll_few_retries / N,
+                    slow_diag.ll_verdicts / N,
+                    slow_diag.priv_tries / N, slow_diag.priv_grants / N);
+    }
+    //! The privilege chain, end to end, over the whole warm run.  Every claim
+    //! goes through `if(_ll_saw && !registered)` — no priority term, so
+    //! HIGHEST claims on the same terms as anyone, and `priv strips = 0` means
+    //! the chain broke somewhere BEFORE the gate.  Each column is one of the
+    //! three AND-ed conditions inside livelock_probe_tx_tick, so the first
+    //! large one is the answer:
+    //!
+    //!   ticks           the probe ran at all
+    //!    - reset        ... and returned false because the linkage CHANGED:
+    //!                   the probe state holds ONE linkage_id, and a
+    //!                   multi-nodal commit negotiates on several, so each
+    //!                   switch throws the accumulated window away
+    //!    - no_tags      ... blocked by `tags_owned == tags_total`, which a
+    //!                   thread that has been displaced necessarily fails —
+    //!                   i.e. exactly the thread that needs the rescue
+    //!    - few_retries  ... blocked by `my_tx_retries >= clamp(sig_C*2, 3,
+    //!                   hardware_concurrency())` alone
+    //!   VERDICTS        reached LIVELOCK, the only input to the claim gate
+    //!   tries/grants    what the gate then did with it
+    if(ll_all.n) {
+        const double A = (double)ll_all.n;
+        std::printf("    livelock probe over ALL %llu warm record commits:\n"
+                    "      per commit: ticks=%.2f  -> reset=%.2f  "
+                    "no_tags=%.2f  few_retries=%.2f  VERDICTS=%.6f\n"
+                    "      privilege: tries=%.6f grants=%.6f per commit "
+                    "(%llu / %llu absolute)\n",
+                    (unsigned long long)ll_all.n,
+                    ll_all.ticks / A, ll_all.resets / A, ll_all.no_tags / A,
+                    ll_all.few_retries / A, ll_all.verdicts / A,
+                    ll_all.tries / A, ll_all.grants / A,
+                    (unsigned long long)ll_all.tries,
+                    (unsigned long long)ll_all.grants);
+        if( !ll_all.ticks)
+            std::printf("      => the probe NEVER RAN.  Privilege cannot fire "
+                        "on any path; the tail is not a privilege failure but "
+                        "a privilege ABSENCE.\n");
+        else if( !ll_all.verdicts)
+            std::printf("      => the probe ran %llu times and never reached a "
+                        "verdict.  The largest blocked column above is the "
+                        "reason privilege never fires.\n",
+                        (unsigned long long)ll_all.ticks);
     }
 #endif
     std::printf("    other roles' commits DURING a slow one: mean=%llu max=%llu"

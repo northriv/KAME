@@ -337,87 +337,10 @@ Node<XN>::NegotiationCounter::priority_probe_info(Priority pr) noexcept {
     }
 }
 
-template <class XN>
-bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
-    const void *linkage,
-    uint32_t my_tx_retries,
-    uint64_t tx_commit_count,
-    int tags_owned,
-    int tags_total,
-    int sig_C,
-    int64_t tx_age_us,
-    Priority prio) noexcept
-{
-    auto &p = LivelockProbe::state();
-    if (p.linkage_id != linkage) {
-        p.linkage_id       = linkage;
-        p.t_window_us      = LivelockProbe::now_us();
-        p.tx_retry_window  = my_tx_retries;
-        p.tx_commit_window = tx_commit_count;
-        return false;
-    }
-    int64_t now_us    = LivelockProbe::now_us();
-    int64_t window_us = now_us - p.t_window_us;
-
-    // m_tx_retry_count restarts at 0 when a new Transaction ctor fires;
-    // handle wrap-to-smaller-value by treating delta as the current value.
-    uint32_t my_retry_delta = my_tx_retries >= p.tx_retry_window
-                            ? my_tx_retries - p.tx_retry_window
-                            : my_tx_retries;
-    uint64_t cmt_delta      = tx_commit_count - p.tx_commit_window;
-
-    double elapsed_sec     = window_us * 1e-6;
-    double my_retry_rate   = my_retry_delta / elapsed_sec;
-    double tx_commit_rate  = cmt_delta       / elapsed_sec;
-    double ratio           = my_retry_rate /
-                             std::max(1.0, tx_commit_rate);
-
-    const auto pinfo = priority_probe_info(prio);
-
-    // Dynamic LL-probe retry threshold: each peer contributes ~2
-    // expected CAS retries (bidirectional contention), capped at
-    // hardware_concurrency() since beyond that count, threads can't all
-    // be physically running CAS simultaneously. Floor 3 keeps the
-    // early-call (sig_C ≈ 0) path safe before the bitset has accumulated
-    // peers. Machine-generic: no per-platform tuning constants — the
-    // hardware_concurrency() call adapts to SMT / core count.
-    int hw_procs = (int)std::thread::hardware_concurrency();
-    if (hw_procs <= 0) hw_procs = 4;
-    int retry_thresh_dyn = sig_C * 2;
-    if (retry_thresh_dyn < 3) retry_thresh_dyn = 3;
-    if (retry_thresh_dyn > hw_procs) retry_thresh_dyn = hw_procs;
-
-    // Age condition (`tx_age_us > min_privilege_age_us(prio)`)
-    // dropped — claim eligibility now depends on tag-ownership +
-    // retry count.  `tx_age_us` is still logged below for diagnostic.
-    const char *verdict =
-        (tags_total > 0 && tags_owned == tags_total
-         && (int)my_tx_retries >= retry_thresh_dyn)
-            ? "LIVELOCK" : "ok";
-
-    if(window_us > 100'000)
-        if(verdict[0] == 'L')
-            std::fprintf(stderr,
-                "[ll-probe] tid=%u linkage=%p prio=%s threshold=%d (sig_C=%d) "
-                "my_tx_retries=%u my_tx_retry_rate=%.0f/s "
-                "tx_commit_rate=%.0f/s ratio=%.1f "
-                "tags_owned=%d/%d tx_age_us=%lld "
-                "verdict=%s window_ms=%lld\n",
-                (unsigned)ProcessCounter::id(), linkage,
-                pinfo.name, retry_thresh_dyn, sig_C,
-                (unsigned)my_tx_retries, my_retry_rate, tx_commit_rate,
-                ratio, tags_owned, tags_total,
-                (long long)(tx_age_us), verdict,
-                (long long)(window_us / 1'000));
-
-    bool saw_livelock = (verdict[0] == 'L');
-
-    p.t_window_us      = now_us;
-    p.tx_retry_window  = my_tx_retries;
-    p.tx_commit_window = tx_commit_count;
-    return saw_livelock;
-}
-
+// The negotiation diagnostic counters are defined HERE, above the first
+// template that touches them: `detail::neg_diag()` is a NON-dependent name
+// inside `livelock_probe_tx_tick`, so two-phase lookup resolves it at the
+// point of definition and a later declaration would not be found.
 #if KAME_STM_NEG_DIAG
 namespace detail {
 //! Plain (non-atomic) per-thread counters: only the owning thread writes, and
@@ -496,6 +419,27 @@ struct NegDiag {
     //! scope exit, because they are snapshot-internal rather than
     //! transaction-level.  Correct for the probe, invisible for latency.
     std::uint64_t snapshot_retries;
+    //! The livelock probe, which is the only door to a privilege claim
+    //! (`if(_ll_saw && !registered)` — no priority term, so HIGHEST claims on
+    //! the same terms as anyone).  priv strips have been 0 in every run of
+    //! transaction_priority_mixed_test, and three AND-ed conditions inside the
+    //! probe can each account for that; these counters separate them instead
+    //! of leaving it to a reading of the source.  What they found (container,
+    //! 1.15 M commits — see that test's header for the full write-up): the
+    //! retry threshold `clamp(sig_C*2, 3, hardware_concurrency)` is the
+    //! largest blocker at 55 % of ticks, because outer attempts peak at 3 and
+    //! so `m_tx_retry_count` peaks at 2 against a floor of 3; the per-linkage
+    //! window RESET is 36 % (the state holds ONE linkage_id and a multi-nodal
+    //! commit negotiates on several); `tags_owned == tags_total` is 9 %.  A
+    //! fourth gate sits OUTSIDE the probe and is bigger than any of them —
+    //! `if(!snap.m_tagged_linkages.empty())` — so a transaction that is merely
+    //! losing a CAS never ticks at all.  The gate itself converts 100 % of the
+    //! verdicts it is given, so a 0 here is upstream of the gate, never in it.
+    std::uint64_t ll_ticks;        //!< calls into livelock_probe_tx_tick
+    std::uint64_t ll_resets;       //!< ... that returned early, linkage changed
+    std::uint64_t ll_no_tags;      //!< ... blocked by tags_owned != tags_total
+    std::uint64_t ll_few_retries;  //!< ... blocked by the retry threshold alone
+    std::uint64_t ll_verdicts;     //!< ... that returned LIVELOCK
     //! Set by the round loop, read by negotiate_sleep — not a counter.
     std::uint8_t  exempt_round;
 };
@@ -509,6 +453,101 @@ inline detail::NegDiag neg_diag_snapshot(bool reset) {
     return out;
 }
 #endif
+
+template <class XN>
+bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
+    const void *linkage,
+    uint32_t my_tx_retries,
+    uint64_t tx_commit_count,
+    int tags_owned,
+    int tags_total,
+    int sig_C,
+    int64_t tx_age_us,
+    Priority prio) noexcept
+{
+    auto &p = LivelockProbe::state();
+#if KAME_STM_NEG_DIAG
+    ++detail::neg_diag().ll_ticks;
+    if(p.linkage_id != linkage) ++detail::neg_diag().ll_resets;
+#endif
+    if (p.linkage_id != linkage) {
+        p.linkage_id       = linkage;
+        p.t_window_us      = LivelockProbe::now_us();
+        p.tx_retry_window  = my_tx_retries;
+        p.tx_commit_window = tx_commit_count;
+        return false;
+    }
+    int64_t now_us    = LivelockProbe::now_us();
+    int64_t window_us = now_us - p.t_window_us;
+
+    // m_tx_retry_count restarts at 0 when a new Transaction ctor fires;
+    // handle wrap-to-smaller-value by treating delta as the current value.
+    uint32_t my_retry_delta = my_tx_retries >= p.tx_retry_window
+                            ? my_tx_retries - p.tx_retry_window
+                            : my_tx_retries;
+    uint64_t cmt_delta      = tx_commit_count - p.tx_commit_window;
+
+    double elapsed_sec     = window_us * 1e-6;
+    double my_retry_rate   = my_retry_delta / elapsed_sec;
+    double tx_commit_rate  = cmt_delta       / elapsed_sec;
+    double ratio           = my_retry_rate /
+                             std::max(1.0, tx_commit_rate);
+
+    const auto pinfo = priority_probe_info(prio);
+
+    // Dynamic LL-probe retry threshold: each peer contributes ~2
+    // expected CAS retries (bidirectional contention), capped at
+    // hardware_concurrency() since beyond that count, threads can't all
+    // be physically running CAS simultaneously. Floor 3 keeps the
+    // early-call (sig_C ≈ 0) path safe before the bitset has accumulated
+    // peers. Machine-generic: no per-platform tuning constants — the
+    // hardware_concurrency() call adapts to SMT / core count.
+    int hw_procs = (int)std::thread::hardware_concurrency();
+    if (hw_procs <= 0) hw_procs = 4;
+    int retry_thresh_dyn = sig_C * 2;
+    if (retry_thresh_dyn < 3) retry_thresh_dyn = 3;
+    if (retry_thresh_dyn > hw_procs) retry_thresh_dyn = hw_procs;
+
+    // Age condition (`tx_age_us > min_privilege_age_us(prio)`)
+    // dropped — claim eligibility now depends on tag-ownership +
+    // retry count.  `tx_age_us` is still logged below for diagnostic.
+    const char *verdict =
+        (tags_total > 0 && tags_owned == tags_total
+         && (int)my_tx_retries >= retry_thresh_dyn)
+            ? "LIVELOCK" : "ok";
+
+    if(window_us > 100'000)
+        if(verdict[0] == 'L')
+            std::fprintf(stderr,
+                "[ll-probe] tid=%u linkage=%p prio=%s threshold=%d (sig_C=%d) "
+                "my_tx_retries=%u my_tx_retry_rate=%.0f/s "
+                "tx_commit_rate=%.0f/s ratio=%.1f "
+                "tags_owned=%d/%d tx_age_us=%lld "
+                "verdict=%s window_ms=%lld\n",
+                (unsigned)ProcessCounter::id(), linkage,
+                pinfo.name, retry_thresh_dyn, sig_C,
+                (unsigned)my_tx_retries, my_retry_rate, tx_commit_rate,
+                ratio, tags_owned, tags_total,
+                (long long)(tx_age_us), verdict,
+                (long long)(window_us / 1'000));
+
+    bool saw_livelock = (verdict[0] == 'L');
+#if KAME_STM_NEG_DIAG
+    {   auto &_d = detail::neg_diag();
+        const bool _tags_ok = (tags_total > 0 && tags_owned == tags_total);
+        const bool _retry_ok = ((int)my_tx_retries >= retry_thresh_dyn);
+        if(saw_livelock)      ++_d.ll_verdicts;
+        else if( !_tags_ok)   ++_d.ll_no_tags;
+        else if( !_retry_ok)  ++_d.ll_few_retries;
+    }
+#endif
+
+    p.t_window_us      = now_us;
+    p.tx_retry_window  = my_tx_retries;
+    p.tx_commit_window = tx_commit_count;
+    return saw_livelock;
+}
+
 
 template <class XN>
 void Node<XN>::NegotiationCounter::negotiate_sleep(
