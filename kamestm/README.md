@@ -152,6 +152,7 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 | Retry primitive | `retry` / `orElse` (Haskell) | `iterate_commit` / `iterate_commit_while` |
 | Blocking | `retry` suspends on read-set change | No data-structure locks; a repeatedly-colliding Tx yields/parks to the privileged (oldest / highest-priority) Tx |
 | Memory management | GC | Lock-free `atomic_shared_ptr` (ref-counted) |
+| Cost of an atomic multi-object commit | Per-variable logging, paid at commit | **p50 ≈ 439 ns + 94.5 ns × nodes**, measured 1–17 nodes ([below](#what-composability-costs)); the worst case grows 1.6× for 17× the nodes, so composability is not what sets the tail |
 | Hard real-time suitability | Limited (GC pauses) | No GC pauses, and a declared wait budget converts the tail into a chosen number — **measured** on a `PREEMPT_RT` host, MAX − budget = 3–7 µs at the shipped 20 ms budget (the host's own floor being 219 ns, measured), 38.3 M commits with zero over 3 ms at a 1 ms budget ([below](#realtime-behaviour)). Still not hard-RT in a strict WCET sense: CAS retry *counts* are not bounded, and the budget cannot bound the wait behind a live privilege holder — that one is the deployment's to bound, with core isolation |
 
 **Compared to Hardware Transactional Memory (Intel TSX/RTM):** HTM aborts on cache-line conflicts regardless of logical independence, and has strict capacity limits. KAME's STM aborts only on semantic conflicts (packet identity change), tolerates large read sets, and degrades gracefully to age-ordered privileged-Tx negotiation (the colliding losers yield to the oldest transaction) rather than falling back to a global lock.
@@ -231,6 +232,43 @@ retries; the clip rate stays ~0.32 %).  At length, 300 s at a 1 ms budget
 (measured before the reserve, so with the old +216 µs tail): **38.3 M
 commits, MAX 1.288 ms, zero over a 3 ms deadline**, every other role
 healthy.  Attempts per commit: mean 1.002, worst 5.
+
+### What composability costs
+
+A commit here is *composable*: it is atomic over a whole subtree, and every
+reader of that subtree sees it whole or not at all.  That is the expensive part
+of the design, so it is worth knowing the price rather than assuming it.
+`KAME_MIX_LEAVES=0` gives the control — every subtree becomes a bare node, a
+`Transaction` on it is a `SingleTransaction`, and `bundle()` is never called
+(the harness prints the pass count, and it is 0.00).  Same thread, same
+isolated core, same peers, 60 s each:
+
+| nodes in the commit | p50 | p99 | p99.9 | **MAX** | commits/s |
+|---|---|---|---|---|---|
+| 1 (no bundling at all) | 448 ns | 448 ns | 768 ns | **31.3 µs** | 323 k |
+| 2 | 640 ns | 640 ns | 1.28 µs | **34.1 µs** | 148 k |
+| 5 | 896 ns | 1.28 µs | 3.07 µs | **40.6 µs** | 119 k |
+| 17 | 2.05 µs | 2.56 µs | 12.3 µs | **50.0 µs** | 49 k |
+
+The median is linear and the fit is boring in the good way:
+**p50 ≈ 439 ns + 94.5 ns × nodes**, within 2 % at every point, with the
+intercept landing on the 448 ns single-node cost.  So a node costs ~94 ns to
+carry inside an atomic commit, and a **17-node atomic commit closes in
+2.05 µs**.
+
+The line that matters for realtime is the last column.  **17× the nodes buys
+1.6× the worst case** — and a single-node commit, with no bundling in it
+anywhere, is already at 31.3 µs, which is 77 % of the five-node MAX.  Whatever
+sets the tail, it is not composability.  (It is the retry path; see below.)
+For scale, this host's own `rtla osnoise` Max Single is 17 µs, so even the
+17-node commit's worst case is 2.9× the scheduling jitter underneath it.
+
+Two things the control also showed.  At one node, **p99 equals p50** — the
+distribution is a spike until the fourth nine.  And `unbundle()` still runs
+2.00 times per slow commit even with no children: `devA` is a child of the
+root, so a peer's root-scope `Snapshot` bundles it and the next commit has to
+extract itself back out.  A subtree with no bundling of its own still pays for
+its parent's.
 
 ### The one wait the budget cannot clip
 

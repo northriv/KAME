@@ -369,11 +369,21 @@
 //!                            way once produced "the 5-node commit is FASTER
 //!                            than the 1-node one", which is an artifact of
 //!                            acq owning cpu3 while NORMAL shared cpu2.  Vary
-//!                            the topology on ONE thread instead.  Container
-//!                            sweep, p50: 512 ns at 0 leaves (no bundle),
-//!                            640 at 1, 1,024 at 4 — so ~128 ns per extra node
-//!                            and 2.0x for a 5-node commit over a 1-node one.
-//!                            Note unbundle() still runs at 0 leaves (0.14
+//!                            the topology on ONE thread instead.  RT host,
+//!                            verified shape, 60 s per arm:
+//!                              nodes   p50      MAX      commits/s
+//!                                  1    448 ns  31.3 us    323 k   (no bundle)
+//!                                  2    640 ns  34.1 us    148 k
+//!                                  5    896 ns  40.6 us    119 k
+//!                                 17   2048 ns  50.0 us     49 k
+//!                            p50 = 439 + 94.5*nodes to within 2 % at every
+//!                            point, the intercept landing on the single-node
+//!                            cost.  The column that matters for RT is MAX:
+//!                            17x the nodes buys 1.6x the worst case, and the
+//!                            single-node arm is ALREADY at 77 % of the
+//!                            five-node MAX with no bundling in it anywhere.
+//!                            Whatever sets the tail, it is not composability.
+//!                            Note unbundle() still runs at 0 leaves (2.00
 //!                            passes/commit): devA is a child of root, so a
 //!                            peer's root-scope Snapshot bundles it and the
 //!                            next commit has to extract itself back out
