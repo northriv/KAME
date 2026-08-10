@@ -387,6 +387,24 @@
 //!                            passes/commit): devA is a child of root, so a
 //!                            peer's root-scope Snapshot bundles it and the
 //!                            next commit has to extract itself back out
+//!   KAME_MIX_DISJOINT        1 = no peer touches the acquiring subtree.  The
+//!                            control for "is the MAX the STM at all", and the
+//!                            reason it is a TOPOLOGY knob rather than
+//!                            KAME_MIX_NORMALS=0: every peer keeps running, on
+//!                            the same cores, at the same rate, allocating and
+//!                            freeing exactly as much, so the machine load is
+//!                            unchanged and only the CONFLICT is gone.  Turning
+//!                            the peers off instead removes the load with the
+//!                            conflict and cannot separate them.  Redirects
+//!                            every cross-thread devA touch to panel's subtree
+//!                            and demotes the two root-scope operations (the
+//!                            UI redraw Snapshot, the settings-apply Tx) to
+//!                            panel scope, since a root scope bundles devA
+//!                            whatever it writes; also forces NORMAL_XSUBTREE
+//!                            off, that role being a devA toucher by
+//!                            definition.  Pair with KAME_MIX_LEAVES=0 and the
+//!                            acquiring commit is one payload clone plus one
+//!                            CAS with nobody able to lose to anybody
 //!   KAME_MIX_OS_FIFO         >0 = acquisition thread at SCHED_FIFO of that
 //!                            priority (Linux; skipped with a notice when not
 //!                            permitted).  The rest stay SCHED_OTHER
@@ -598,6 +616,13 @@ int main() {
     const long ui_period_us= env_long("KAME_MIX_UI_PERIOD_US", 0);
     const long n_normals   = env_long("KAME_MIX_NORMALS", 1);
     const long n_scripting = env_long("KAME_MIX_SCRIPTING", 1);
+    //! \sa KAME_MIX_DISJOINT in the header.  The control for "is the tail the
+    //! STM at all": every peer keeps running, on the same cores, at the same
+    //! rate, allocating and freeing exactly as much — but nothing outside the
+    //! acquisition thread touches devA's subtree or takes a root scope that
+    //! would bundle it.  Removing the peers instead would remove the machine
+    //! load with the conflict and prove nothing.
+    const bool disjoint    = env_long("KAME_MIX_DISJOINT", 0) != 0;
     const long ui_wide     = env_long("KAME_MIX_UI_WIDE", 8);
     const long n_leaves    = env_long("KAME_MIX_LEAVES", 4);
     const bool acq_normal  = env_long("KAME_MIX_ACQ_NORMAL", 0) != 0;
@@ -1262,8 +1287,10 @@ int main() {
         while( !stop.load(std::memory_order_relaxed)) {
             ++i;
             {   // graph redraw: root Snapshot — bundles the whole tree.
-                Ss shot( *root);
-                (void)shot[ *devA].m_x;
+                //! Under DISJOINT it bundles `panel` instead, so the redraw
+                //! still costs a bundle but not one over devA.
+                Ss shot(disjoint ? *panel : *root);
+                (void)shot[ *(disjoint ? panel : devA)].m_x;
             }
             // widget edit: leaf write.
             lP(i)->iterate_commit([&](Tr &tr){
@@ -1271,17 +1298,19 @@ int main() {
             });
             if(i % (uint64_t)ui_wide == 0) {
                 // settings apply: root-scope transaction.
-                root->iterate_commit([&](Tr &tr){
-                    tr[ *panel].m_x++;
-                    tr[ *devB].m_x++;
-                });
+                if(disjoint)
+                    panel->iterate_commit([&](Tr &tr){ tr[ *panel].m_x++; });
+                else
+                    root->iterate_commit([&](Tr &tr){
+                        tr[ *panel].m_x++;
+                        tr[ *devB].m_x++;
+                    });
             }
             if(i % 16 == 0) {
                 // the classic NMR trigger: a settings write into the
                 // MEASURING driver's own subtree, mid-acquisition.
-                lA(2)->iterate_commit([&](Tr &tr){
-                    tr[ *lA(2)].m_x++;
-                });
+                const auto &t = disjoint ? lP(2) : lA(2);
+                t->iterate_commit([&](Tr &tr){ tr[ *t].m_x++; });
             }
             if(i % 32 == 0) {
                 // tool/driver creation & removal: structural churn.
@@ -1306,14 +1335,16 @@ int main() {
             uint64_t i = 0;
             while( !stop.load(std::memory_order_relaxed)) {
                 ++i;
-                {
-                    Ss shot( *root);           // read the tree, like a script
-                    (void)shot[ *devA].m_x;
+                {   // read the tree, like a script
+                    Ss shot(disjoint ? *panel : *root);
+                    (void)shot[ *(disjoint ? panel : devA)].m_x;
                 }
-                if(i % 4 == 0)
-                    lA(3)->iterate_commit([&](Tr &tr){
-                        tr[ *lA(3)].m_x++;    // script pokes the driver
+                if(i % 4 == 0) {
+                    const auto &t = disjoint ? lP(3) : lA(3);
+                    t->iterate_commit([&](Tr &tr){
+                        tr[ *t].m_x++;        // script pokes the driver
                     });
+                }
                 if(i % 16 == 0)
                     panel->iterate_commit([&](Tr &tr){
                         tr[ *lP(i / 16 + (std::size_t)k)].m_x++;
@@ -1337,7 +1368,7 @@ int main() {
             uint64_t i = 0;
             while( !stop.load(std::memory_order_relaxed)) {
                 ++i;
-                if(normal_xsub && ((i % 4) == 0)) {
+                if(normal_xsub && !disjoint && ((i % 4) == 0)) {
                     //! XSecondaryDriver's shape: a NORMAL transaction whose
                     //! scope SPANS the acquiring driver's subtree, because it
                     //! reads the primary's record and writes its own result.
