@@ -34,18 +34,34 @@
  *
  * Usage:  latency_floor [seconds]        (default 20)
  *
- * On a realtime host, run it the way the thing it is a control for runs:
+ * On a realtime host, run it the way the thing it is a control for runs — and
+ * under ./with_pmqos, or the C-state exits below are what you measure:
  *
- *     sudo chrt -f 20 taskset -c <isolated cpu> ./latency_floor 600
+ *     sudo ./with_pmqos chrt -f 20 taskset -c <isolated cpu> ./latency_floor 600
  *
- * 2026-08, the measurement that prompted this file: on a shared 4-CPU
- * container the `clk` arm — two clock reads, no STM whatsoever — produced
- * 1.05 events/s over 50 us and 0.05 events/s over 95 us, i.e. ~6 events over
- * 95 us per 120 s.  The PREEMPT_RT host's 6,568,736-commit run reported
- * exactly ONE sample over 95 us in 120 s.  A bare pair of clock reads was
- * therefore noisier than the commit whose MAX was being investigated, and the
- * "95 us ceiling" was a machine event that happened to land inside a timed
- * region.  Run this before concluding anything about a tail.
+ * 2026-08, what running this actually found.  The floor is not one number, it
+ * is whatever the host is configured to allow, and on the project's PREEMPT_RT
+ * host (i5-7500, 30 s, `clk` arm, an isolated core) it moved by three orders
+ * of magnitude across three configuration steps:
+ *
+ *     as found, no isolation on the cmdline   MAX 67,879 ns   >=10 us  660 /s
+ *     isolcpus + nohz_full (tick stopped)     MAX 17,030 ns   >=10 us  469 /s
+ *     + ./with_pmqos (C-states held off)      MAX    219 ns   >=10 us    0
+ *
+ * Each step was a diagnosis this tool made and nothing else could.  The first:
+ * `/proc/cmdline` had silently lost its isolation parameters across a reboot,
+ * and LOC on the "isolated" core was the full 1 kHz tick.  The second: the
+ * remaining population sat entirely inside [10, 17] us at ~469/s with NO
+ * interrupt the kernel counts — LOC, RES, NMI, PMI all zero and MSR_SMI_COUNT
+ * unmoved — which is the package leaving a deep C-state and charging the ramp
+ * to whoever is running.  `rtla osnoise` reports 17 us Max Single on that host,
+ * i.e. exactly that middle row and nothing about the 219 ns underneath it.
+ *
+ * Two lessons worth more than the numbers.  Run this FIRST: six mechanisms were
+ * proposed for a tail that three configuration checks explained.  And run it on
+ * the HOST, not on a container — the same tool on a shared 4-CPU container
+ * reported a floor NOISIER than the commit under investigation and produced the
+ * exactly wrong conclusion, because a container's floor is its neighbours.
  */
 /***************************************************************************
         Copyright (C) 2002-2026 Kentaro Kitagawa
