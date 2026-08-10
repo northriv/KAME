@@ -160,6 +160,26 @@
 //!     still took 50.9 ms on its own worst commit.  A classic priority
 //!     inversion, and the reason `isolcpus` is not optional: **FIFO and
 //!     isolation ship together or neither ships.**
+//!   * **Where the HIGHEST tail actually is, from the SlowDiag block below**
+//!     (RT host, isolation with the tick verified stopped, with_pmqos, contract
+//!     honoured, 120 s, slow threshold 15 us, n = 8,007): the negotiator
+//!     accounts for NONE of it.  sleeps 0.00, spins 0.00, slept 0 ns, spin
+//!     0 ns, exempt rounds 0.00, worst single wait overshoot 0 ns — and in the
+//!     worst commit taken whole, 51,796 ns of 51,796 ns unaccounted.  `rounds`
+//!     is 1.29 per commit against `entries` 4.58, i.e. most entries return
+//!     above the round loop.  The thread is not waiting for anybody; the time
+//!     is inside commit().
+//!     The arithmetic narrows it further: that worst commit took 4 attempts
+//!     over 8 entries — two linkages per attempt, which is the root->devA path
+//!     — at ~13 us per attempt against 823 ns for a clean commit, so a LOSING
+//!     attempt costs ~15x a winning one.  Bundle/unbundle done and discarded is
+//!     the candidate that fits every other arm: only a peer whose transaction
+//!     SPANS the acquiring subtree provokes it (5x), the cost is path-shaped so
+//!     4x the leaves leaves the magnitude alone, and a root Snapshot at 42 kHz
+//!     — which bundles but does not span — does nothing.  Note that this does
+//!     not contradict the UI finding below: a snapshot's bundle and a spanning
+//!     transaction's unbundle are different events, and only the second is on
+//!     the acquiring thread's path.
 //!   * Refuted: the cross-subtree role is NOT what the 12-13 ms residue is made
 //!     of.  Unpinned at a 1 ms budget, turning it off halves the clipped
 //!     population (0.077 % -> 0.039 %) and leaves MAX at 12.0 -> 13.0 ms.

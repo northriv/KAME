@@ -273,10 +273,27 @@ only — so it is an outstanding precondition, not a shipped property; see
 [`kamepoolalloc`](../kamepoolalloc)'s contract.  And **the host had to be made
 quiet first**, which is the ladder above.
 
-One thing did *not* move under any of it.  **p99.9 = 20.5 µs survived core
-isolation, the tick stopping, C-states off and the allocator fix alike** — it
-is 90× the floor and it is the STM's own.  It is also 50× inside a 1 ms
-deadline, which is why it is recorded rather than chased.
+One thing did *not* move under any of it.  **p99.9 stayed in the same bucket —
+[16.4, 20.5) µs — through core isolation, the tick stopping, C-states off and
+the allocator fix alike.**  At 90× the floor it is the STM's own, and
+instrumenting the negotiator says which part is not: over 8,007 slow commits
+and in the worst one individually, `sleeps`, `spins`, `slept_ns`, exempt rounds
+and wait overshoot are **all zero**, and 51,796 ns of a 51,796 ns commit is
+unaccounted for by the negotiation machinery.  It is not waiting for anyone.
+
+What is left is `commit()`'s own work, and the arithmetic points at one part of
+it: the worst commit took 4 attempts across 8 linkage entries — two linkages per
+attempt, which is the `root → devA` path — at roughly 13 µs per attempt against
+823 ns for a clean one.  A losing attempt costs ~15× a winning one because it
+does the **bundle/unbundle walk** and throws it away.  That is consistent with
+everything else measured: only the peer whose transaction *spans* the acquiring
+subtree provokes it (5× the slow-commit rate), the cost is path-shaped so 4× the
+leaves does not change the magnitude, and a root `Snapshot` at 42 kHz — which
+bundles but does not span — does not provoke it at all.
+
+Left as a characterisation rather than a fix: it is 50× inside a 1 ms deadline.
+The instrument for the next step is a timestamp per bundle/unbundle phase, and
+the 8,007-sample population means one run would settle it.
 
 The ceiling's precondition: **HIGHEST commit rate × longest peer closure
 ≪ 1.**  HIGHEST is also immune to fair-mode, so each of its commits landing
