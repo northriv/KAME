@@ -169,7 +169,17 @@
 //!     is 1.29 per commit against `entries` 4.58, i.e. most entries return
 //!     above the round loop.  The thread is not waiting for anybody; the time
 //!     is inside commit().
-//!     The arithmetic narrows it further: that worst commit took 4 attempts
+//!     KAME_MIX_PHASE then measured it instead of inferring it.  Over 9,172
+//!     slow commits: snapshot 947 ns, payload write 1,364 ns, the SUCCESSFUL
+//!     commit 1,199 ns, and failed attempts plus their re-snapshot 15,778 ns.
+//!     The worst commit, 50,707 ns, splits 729 / 2,591 / 669 / 46,670 with
+//!     48 ns unattributed — the accounting closes.  A failing attempt costs
+//!     ~13x a succeeding one, which is where the arithmetic below pointed.
+//!     (A container said the payload write instead; its floor produces 95 us
+//!     events and a machine stall lands in whichever phase is running, which
+//!     is preferentially the longest.  Phase attribution needs the 219 ns
+//!     floor to mean anything.)
+//!     The arithmetic that predicted it: that worst commit took 4 attempts
 //!     over 8 entries — two linkages per attempt, which is the root->devA path
 //!     — at ~13 us per attempt against 823 ns for a clean commit, so a LOSING
 //!     attempt costs ~15x a winning one.  Bundle/unbundle done and discarded is

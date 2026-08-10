@@ -281,19 +281,25 @@ and in the worst one individually, `sleeps`, `spins`, `slept_ns`, exempt rounds
 and wait overshoot are **all zero**, and 51,796 ns of a 51,796 ns commit is
 unaccounted for by the negotiation machinery.  It is not waiting for anyone.
 
-What is left is `commit()`'s own work, and the arithmetic points at one part of
-it: the worst commit took 4 attempts across 8 linkage entries — two linkages per
-attempt, which is the `root → devA` path — at roughly 13 µs per attempt against
-823 ns for a clean one.  A losing attempt costs ~15× a winning one because it
-does the **bundle/unbundle walk** and throws it away.  That is consistent with
-everything else measured: only the peer whose transaction *spans* the acquiring
-subtree provokes it (5× the slow-commit rate), the cost is path-shaped so 4× the
-leaves does not change the magnitude, and a root `Snapshot` at 42 kHz — which
-bundles but does not span — does not provoke it at all.
+**It is the retry path, measured.**  Timing `iterate_commit`'s phases
+separately (`KAME_MIX_PHASE=1`) over 9,172 slow commits: snapshot 947 ns,
+payload write 1,364 ns, the *successful* commit 1,199 ns — and **failed
+attempts plus the re-snapshot they trigger, 15,778 ns**.  In the worst commit,
+46,670 ns of 50,707 ns, with 48 ns unattributed.
 
-Left as a characterisation rather than a fix: it is 50× inside a 1 ms deadline.
-The instrument for the next step is a timestamp per bundle/unbundle phase, and
-the 8,007-sample population means one run would settle it.
+So **a failing attempt costs ~13× a succeeding one** (15.8 µs against 1.2 µs),
+which is where the arithmetic pointed and is now direct.  A re-snapshot is
+multi-nodal, so it re-bundles the subtree; `bundle()` itself never retries
+(measured 0.00 per slow commit), so the cost is one expensive pass done and
+discarded, not a spin.  Consistent with the rest: only the peer whose
+transaction *spans* the acquiring subtree provokes it (5× the slow-commit
+rate), the cost is path-shaped so 4× the leaves leaves the magnitude alone, and
+a root `Snapshot` at 42 kHz — which bundles but does not span — provokes
+nothing.
+
+Left as a characterisation rather than a fix: it is 20–50× inside a 1 ms
+deadline.  Narrowing it further means separating the failed `commit()` from the
+`++tr` inside it, which the public API fuses.
 
 The ceiling's precondition: **HIGHEST commit rate × longest peer closure
 ≪ 1.**  HIGHEST is also immune to fair-mode, so each of its commits landing
