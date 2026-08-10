@@ -2569,6 +2569,11 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
     fast_vector<scoped_atomic_view<PacketWrapper>, 16> subwrappers_org(supscope->packet()->subpackets()->size());
 
     for(int retry = 0;; ++retry) {
+#if KAME_STM_NEG_DIAG
+        //! \sa NegDiag::bundle_cas_retries — the bundle protocol's own
+        //! multi-phase retry, likewise invisible to `attempts`.
+        if(retry) ++detail::neg_diag().bundle_cas_retries;
+#endif
         // RAII OnEntry: negotiates supernode.m_link + tags eagerly (retry > 0).
         ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, retry,
             ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
@@ -2926,6 +2931,12 @@ Node<XN>::commit(Transaction<XN> &tr) {
 
     local_shared_ptr<PacketWrapper> newwrapper(make_local_shared<PacketWrapper>(tr.m_packet, tr.m_serial));
     for(int retry = 0;; ++retry) {
+#if KAME_STM_NEG_DIAG
+        //! Counted because `attempts` cannot see it: this loop retries the CAS
+        //! WITHOUT restarting the transaction, so it does not re-run the
+        //! caller's lambda.  \sa NegDiag::commit_cas_retries.
+        if(retry) ++detail::neg_diag().commit_cas_retries;
+#endif
         // RAII OnEntry: negotiates + tag-bit acquires view of m_link
         // + tags eagerly (retry > 0).  scope's internal view is the
         // CAS oldr.

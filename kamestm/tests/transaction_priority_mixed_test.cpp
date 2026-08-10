@@ -668,7 +668,8 @@ int main() {
         std::uint64_t n = 0, rounds = 0, rounds_exempt = 0, sleeps = 0,
                       slept_ns = 0, slept_exempt_ns = 0, req_ns = 0,
                       spins = 0, spin_ns = 0, entries = 0, sleeps_priv = 0,
-                      late_max_ns = 0, tail_spins = 0, tail_spin_ns = 0;
+                      late_max_ns = 0, tail_spins = 0, tail_spin_ns = 0,
+                      commit_cas = 0, bundle_cas = 0;
         //! …and the single worst commit of the run, kept whole: a mean over
         //! the slow population cannot say whether the MAX was one long exempt
         //! sleep or a hundred short budgeted ones.
@@ -682,6 +683,8 @@ int main() {
             sleeps_priv += d.sleeps_priv;
             if(d.late_max_ns > late_max_ns) late_max_ns = d.late_max_ns;
             tail_spins += d.tail_spins; tail_spin_ns += d.tail_spin_ns;
+            commit_cas += d.commit_cas_retries;
+            bundle_cas += d.bundle_cas_retries;
             if(dt > max_dt) { max_dt = dt; max_d = d; }
         }
     } slow_diag;
@@ -1146,7 +1149,9 @@ int main() {
                     "requested=%.0f ns  spin=%.0f ns\n"
                     "      worst SINGLE wait overshoot (actual-requested) "
                     "over all slow commits: %llu ns\n"
-                    "      deadline-tail spin: %.2f /commit, %.0f ns/commit\n",
+                    "      deadline-tail spin: %.2f /commit, %.0f ns/commit\n"
+                    "      INNER CAS retries (invisible to attempts): "
+                    "commit=%.2f bundle=%.2f per commit\n",
                     (unsigned long long)slow_diag.n,
                     slow_diag.entries / N, slow_diag.rounds / N,
                     slow_diag.rounds_exempt / N, slow_diag.sleeps / N,
@@ -1157,11 +1162,13 @@ int main() {
                                 / (double)slow_diag.slept_ns : 0.0,
                     slow_diag.req_ns / N, slow_diag.spin_ns / N,
                     (unsigned long long)slow_diag.late_max_ns,
-                    slow_diag.tail_spins / N, slow_diag.tail_spin_ns / N);
+                    slow_diag.tail_spins / N, slow_diag.tail_spin_ns / N,
+                    slow_diag.commit_cas / N, slow_diag.bundle_cas / N);
         const auto &m = slow_diag.max_d;
         std::printf("      the MAX commit itself (%llu ns): entries=%llu "
                     "rounds=%llu (exempt=%llu) sleeps=%llu slept=%llu ns "
                     "(exempt=%llu) requested=%llu ns spin=%llu ns\n"
+                    "  commit_cas=%llu bundle_cas=%llu\n"
                     "        unaccounted = %lld ns\n",
                     (unsigned long long)slow_diag.max_dt,
                     (unsigned long long)m.entries,
@@ -1172,6 +1179,8 @@ int main() {
                     (unsigned long long)m.slept_exempt_ns,
                     (unsigned long long)m.req_ns,
                     (unsigned long long)m.spin_ns,
+                    (unsigned long long)m.commit_cas_retries,
+                    (unsigned long long)m.bundle_cas_retries,
                     (long long)slow_diag.max_dt - (long long)m.slept_ns
                         - (long long)m.spin_ns);
     }

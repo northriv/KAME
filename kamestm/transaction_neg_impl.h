@@ -473,6 +473,17 @@ struct NegDiag {
     //! a budget: how often it fired and how long it actually held the core.
     std::uint64_t tail_spins;
     std::uint64_t tail_spin_ns;
+    //! The two INNER CAS loops, which nothing else counts.  `attempts` as a
+    //! harness measures it is `iterate_commit` re-running the caller's lambda
+    //! — the OUTERMOST loop.  Inside one such attempt, commit() and bundle()
+    //! each spin their own `for(int retry = 0;; ++retry)` (transaction_impl.h
+    //! :2928 and :2571) which retry a CAS without restarting the transaction,
+    //! so a commit can be expensive with `attempts` at 2.  That is exactly the
+    //! gap the 2026-08 tail investigation ran into: 8,496 slow commits averaged
+    //! 2.1 attempts and 100 % of their time was unaccounted for by every field
+    //! above.  These two say whether the time is bundle churn or the final CAS.
+    std::uint64_t commit_cas_retries;
+    std::uint64_t bundle_cas_retries;
     //! Set by the round loop, read by negotiate_sleep — not a counter.
     std::uint8_t  exempt_round;
 };
