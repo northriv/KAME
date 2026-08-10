@@ -6,8 +6,19 @@
 
 Lock-free software transactional memory (STM) primitives — the
 snapshot/transaction core from the [KAME](https://github.com/northriv/KAME)
-measurement framework, extracted as a stand-alone, **header-only**
-library plus three small `.cpp` (`threadlocal` / `xthread` / `xtime`).
+measurement framework, extracted as a stand-alone, **predominantly
+header-only** library: templates in headers plus three small support
+translation units (`threadlocal` / `xthread` / `xtime`).
+
+**What it is for.**  Shared **tree-structured** state with many concurrent
+writers and readers, where a reader may hold an immutable subtree snapshot
+for as long as it likes — a plot redrawing from one, an analysis pass, a
+script inspecting the tree.  It offers O(1) snapshot acquisition, atomic
+publication of a whole subtree, and oldest-wins arbitration under
+contention, none of which lock the live tree.  If your shared state is a
+flat set of independent variables, a conventional STM (or plain atomics)
+will serve you better; the tree, the retained snapshots and the
+subtree-consistency guarantee are what this one buys.
 
 Dual-licensed under your choice of **Apache 2.0 OR GPL-2.0-or-later**
 so it embeds cleanly into permissive / proprietary projects (Apache
@@ -18,6 +29,13 @@ foundation of the KAME node tree under 24/7 research-lab operation on
 every release from that year onwards.  Builds and passes the standalone
 test suite on macOS clang, Linux gcc/clang (64-bit + 32-bit),
 Windows MinGW64 + lld, and Windows MSVC.
+
+**Try it** (builds the 19-test standalone suite; see
+[Build / Use](#build--use) to consume the library from your own project):
+
+```bash
+cmake -S tests -B build && cmake --build build && ctest --test-dir build
+```
 
 ## What's in here
 
