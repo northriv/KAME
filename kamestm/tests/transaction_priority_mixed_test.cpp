@@ -180,6 +180,23 @@
 //!     not contradict the UI finding below: a snapshot's bundle and a spanning
 //!     transaction's unbundle are different events, and only the second is on
 //!     the acquiring thread's path.
+//!     Three things that could have explained that tail instead, all checked
+//!     on the RT host in the same clean configuration and all negative, so a
+//!     future reader does not re-open them:
+//!       - **Mapping (precondition 4).**  `rt_violations` = 0 and the pool's
+//!         mapped bytes flat at 32 MiB across the window, with or without
+//!         KAME_MIX_RESERVE_MIB.  Worth having checked rather than assumed —
+//!         prewarm provisions size classes, not address space, and with
+//!         cross-thread frees the two come apart — but at this working-set
+//!         size (16 nodes, five payload clones per commit) the in-flight set
+//!         never approaches one region.
+//!       - **Warm-up residue.**  Slow commits run 0.68x uniform in the first
+//!         warm second and the MAX landed 20.7 s in.  500 ms is enough.  (Two
+//!         earlier runs had put the MAX at 4.5 s and 4.6 s, which looked like a
+//!         fixed early event; three more put it at 3.0, 9.1 and 20.7 s.  A MAX
+//!         is one sample.)
+//!       - **The machine.**  latency_floor under with_pmqos on the same core:
+//!         MAX 219 ns, nothing over a microsecond in 370 M samples.
 //!   * Refuted: the cross-subtree role is NOT what the 12-13 ms residue is made
 //!     of.  Unpinned at a 1 ms budget, turning it off halves the clipped
 //!     population (0.077 % -> 0.039 %) and leaves MAX at 12.0 -> 13.0 ms.
