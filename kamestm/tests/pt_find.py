@@ -20,9 +20,23 @@ both produce confident nonsense:
     proportionally more calls.  A STALL is the opposite — the thread retires no
     branches, so its window goes SPARSE.  Look for the thin windows.
 
-So the discriminator is: sparse window (or an adjacent-line gap) => the CPU was
-stalled and no STM code was running, the residue is memory or coherence.  No
-sparse window => it was executing, and the histogram says on what.
+So the discriminator is: sparse window (or an adjacent-line gap) => the thread
+was resident but retiring no USER-SPACE branches.  That is NOT yet "memory
+stall": PT recorded with -e intel_pt//u traces user space only, so KERNEL time
+looks exactly the same.  The window histogram decides — syscall stubs
+(__read_nocancel, __close_nocancel, sched_yield ...) mean the kernel, and on
+the first real trace that is what they were: the livelock probe's uncached
+hardware_concurrency() doing an openat/read/close of
+/sys/devices/system/cpu/online per tick.  No sparse window => it was
+executing user code, and the histogram says what.
+
+Two artifact classes to expect in section 1, both seen on the first real
+trace: a gap population that is ONE value repeated (2004.67 us x8 here) is a
+timed wait — the thread parked on a futex with that timeout, off-CPU, which PT
+does not trace; and the single largest gap ending at the trace's newest
+timestamp is the SNAPSHOT BOUNDARY, where the fragment written at the SIGUSR2
+moment abuts the older ring body (145 ms here, on a thread committing at
+173 kHz — obviously not a stall).
 """
 import re, sys, collections, heapq, os
 
@@ -88,9 +102,17 @@ if ngap:
           "a spread is physical:")
     for d, n in sorted(mine_gaps, key=lambda x: -x[1])[:8]:
         print(f"      {n:6d} x {d:10.2f} us   ({n*d/1000:8.1f} ms total)")
+for d, n in sorted(mine_gaps, key=lambda x: -x[0])[:3]:
+    if n >= 3 and d >= 1000.0:
+        print(f"    NOTE: {n} identical {d:.2f} us gaps = a timed wait "
+              f"(futex timeout), off-CPU, not a stall")
+        break
+t_new = max(t for t, _l in last.values())
 top = sorted(gaps, reverse=True)[:8]
 for d, tid, lb, la, t in top:
-    print(f"    largest: {d:9.2f} us  tid {tid}  at {t:.9f}  lines {lb}-{la}")
+    tag = "  <= SNAPSHOT BOUNDARY (ends at the newest fragment), not a stall" \
+          if (t_new - t) < 0.002 else ""
+    print(f"    largest: {d:9.2f} us  tid {tid}  at {t:.9f}  lines {lb}-{la}{tag}")
 
 print(f"\n=== 2. STALLS by sparse window: thinnest 10 us windows on tid {TID} ===")
 print(f"    (mean {mean:.0f}; a window far below it is time the thread was "
@@ -113,9 +135,11 @@ for b, c in thin:
 if thin:
     lo_c = thin[0][1]
     print(f"    => thinnest interior window is {lo_c/mean*100:.0f} % of mean."
-          + ("  A stall would be a few PERCENT; this is not one."
-             if lo_c > 0.5 * mean else
-             "  That IS a stall — see the histogram below."))
+          + ("  Nothing stall-shaped; the thread retired user code "
+             "throughout." if lo_c > 0.5 * mean else
+             "  The thread was resident but retiring no USER branches "
+             "there — kernel time or a memory stall; the histogram below "
+             "decides (syscall stubs mean kernel)."))
 
 print(f"\n=== 3. WORK: densest windows, for contrast ===")
 for b, c in sorted(mine.items(), key=lambda kv: -kv[1])[:5]:

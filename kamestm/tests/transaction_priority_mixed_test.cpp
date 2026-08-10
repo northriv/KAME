@@ -988,6 +988,19 @@ int main() {
     //! PAGE FAULT is a kernel entry that is nobody's syscall and that nothing
     //! here counted.  Two getrusage(RUSAGE_THREAD) calls, both outside the
     //! timed region, settle it instead of arguing it.
+    //!
+    //! AND THE ARGUMENT WAS STILL WRONG, in the direction these counters
+    //! cannot see: faults and context switches are not syscalls, and a
+    //! syscall that neither faults nor blocks leaves minflt=0, invol=0
+    //! looking exactly like "no kernel".  Intel PT then showed the livelock
+    //! probe calling std::thread::hardware_concurrency() per tick — on
+    //! Linux/glibc an openat+read+close of /sys/devices/system/cpu/online,
+    //! three syscalls inside the HIGHEST commit's negotiation, ~2 us per
+    //! tick under PTI+IBRS, 2.83 ticks per slow commit = the unattributed
+    //! 5.5 us of the retry phase.  Fixed at the source (the probe caches it
+    //! now).  Lesson recorded: these two numbers certify faults and
+    //! scheduling, and certify NOTHING about syscalls — only an instruction
+    //! trace does.
     long ru_min_warm = 0, ru_maj_warm = 0, ru_nvcsw_warm = 0, ru_nivcsw_warm = 0;
     long ru_min_end = 0, ru_maj_end = 0, ru_nvcsw_end = 0, ru_nivcsw_end = 0;
     //! Retry accounting for the slow tail.  Written only by the acquisition

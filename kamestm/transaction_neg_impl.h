@@ -558,8 +558,27 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
     // early-call (sig_C ≈ 0) path safe before the bitset has accumulated
     // peers. Machine-generic: no per-platform tuning constants — the
     // hardware_concurrency() call adapts to SMT / core count.
-    int hw_procs = (int)std::thread::hardware_concurrency();
-    if (hw_procs <= 0) hw_procs = 4;
+    //
+    // CACHED, and the cache is not an optimisation nicety.  On Linux/glibc,
+    // std::thread::hardware_concurrency() is get_nprocs(), which is an
+    // openat+read+close of /sys/devices/system/cpu/online ON EVERY CALL —
+    // three syscalls through PTI+IBRS, inside the negotiation of a realtime
+    // commit.  Found by Intel PT on the RT host, not by reading: the sparse
+    // trace windows of the slow-commit tail were __read_nocancel /
+    // __close_nocancel_nostatus / memchr / strtoul clusters, and the
+    // arithmetic closed — 5,565 ns of unattributed retry cost per slow
+    // commit over 2.83 probe ticks is 1,966 ns per tick, a 3-syscall sysfs
+    // read.  A cycles profile could never see it (0.27 % of total time).
+    // effective_runners() three hundred lines down already caches the same
+    // call with the same `static const` pattern; this site predates it.
+    // Hotplug caveat: the value is now process-lifetime.  A stale cap only
+    // shifts this heuristic clamp, while the per-call read put syscalls
+    // into an RT thread's commit path — strictly worse.
+    static const int s_hw_procs = []{
+        int h = (int)std::thread::hardware_concurrency();
+        return h > 0 ? h : 4;
+    }();
+    const int hw_procs = s_hw_procs;
     int retry_thresh_dyn = sig_C * 2;
     if (retry_thresh_dyn < 3) retry_thresh_dyn = 3;
     if (retry_thresh_dyn > hw_procs) retry_thresh_dyn = hw_procs;
