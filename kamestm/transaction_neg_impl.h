@@ -484,6 +484,18 @@ struct NegDiag {
     //! above.  These two say whether the time is bundle churn or the final CAS.
     std::uint64_t commit_cas_retries;
     std::uint64_t bundle_cas_retries;
+    //! And the third, which is the one on the hot path nobody had looked at:
+    //! Node<XN>::snapshot()'s own `for(int retry = 0;; ++retry)`
+    //! (transaction_impl.h:2212).  Transaction construction takes a snapshot,
+    //! iterate_commit rebuilds the Transaction every attempt, and a
+    //! multi-nodal snapshot bundles the subtree to get a consistent view — so
+    //! this loop can call bundle()/unbundle() repeatedly while bundle itself
+    //! never retries, which is exactly the shape observed (bundle_cas = 0.00
+    //! over 8,013 slow commits).  Its retries are deliberately hidden from the
+    //! livelock probe: GuardSnapshotRetryCount RESTORES m_tx_retry_count on
+    //! scope exit, because they are snapshot-internal rather than
+    //! transaction-level.  Correct for the probe, invisible for latency.
+    std::uint64_t snapshot_retries;
     //! Set by the round loop, read by negotiate_sleep — not a counter.
     std::uint8_t  exempt_round;
 };

@@ -2212,6 +2212,11 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
     for(int retry = 0;; ++retry) {
         if(retry)
             ++snapshot.m_tx_retry_count;
+#if KAME_STM_NEG_DIAG
+        //! \sa NegDiag::snapshot_retries — counted here rather than read off
+        //! m_tx_retry_count, which the guard above restores on the way out.
+        if(retry) ++detail::neg_diag().snapshot_retries;
+#endif
         // A Snapshot has no operator++, so this loop is the only place its
         // retries can be bounded — and it is the path a graph redraw takes when
         // it snapshots an ancestor.  See Node::throw_if_starved_.
