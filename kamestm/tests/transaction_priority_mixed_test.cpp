@@ -198,34 +198,41 @@
 //!     HIGHEST is neither privileged nor excluded there — it claims on the same
 //!     terms as anyone.  Yet `priv strips (Rule 0)` is 0 in every run of this
 //!     harness.  Four gates stand between a losing commit and that claim, and
-//!     the ll_* counters below separate them.  Measured (container, 12 s,
-//!     1,147,583 warm commits, 1,838 slow at the 20 us threshold — the RT host
-//!     will move the constants, not the shape):
-//!       - `m_tagged_linkages.empty()` — the probe is inside it.  `entries` is
-//!         0.63 per SLOW commit, so ~37 % of them never enter the negotiator at
-//!         all.  A plain CAS loss is not a negotiation: nobody holds a tag, the
-//!         transaction just restarts.  That is the majority of this tail.
+//!     the ll_* counters below separate them.  Measured on the RT host (120 s,
+//!     isolated pair, 15,850,638 warm commits, 1,538 slow at 15 us):
 //!       - the retry threshold, `my_tx_retries >= clamp(sig_C*2, 3,
-//!         hardware_concurrency())` — **the largest single blocker, 0.32 of the
-//!         0.58 ticks per slow commit (55 %)**.  It cannot be otherwise here:
-//!         attempts peak at 3, so `m_tx_retry_count` peaks at 2, and the floor
-//!         is 3.  The transaction gives up losing before the probe is allowed
-//!         to notice it was losing.
-//!       - the per-linkage window reset (0.21, 36 %) — `LivelockProbe::state()`
+//!         hardware_concurrency())` — **the largest blocker by far, 1.82 of the
+//!         2.90 ticks per slow commit (63 %)**.
+//!       - the per-linkage window reset, 0.76 (26 %) — `LivelockProbe::state()`
 //!         holds ONE `linkage_id`, and a multi-nodal commit negotiates on
 //!         several, so each switch discards the accumulated window.
-//!       - `tags_owned == tags_total` (0.05, 9 %) — the condition a displaced
+//!       - `tags_owned == tags_total`, 0.32 (11 %) — the condition a displaced
 //!         thread necessarily fails, i.e. the one that most needs the rescue.
-//!     What is NOT broken: the gate itself.  One verdict was reached in the
-//!     whole run and it produced one claim and one grant — 100 % conversion.
-//!     So the honest statement is that HIGHEST's tail here is not a privilege
-//!     FAILURE, it is a privilege ABSENCE: this workload never presents the
-//!     probe with the pattern it was built to detect, because that pattern is
-//!     sustained mutual livelock and this is a 4-attempt CAS race that
-//!     resolves.  Whether the threshold SHOULD be 3 when a HIGHEST realtime
-//!     commit is the one losing is a design question this file does not
-//!     answer; it only establishes that lowering it is the lever, and that
-//!     ~37 % of the population is out of the probe's reach at any threshold.
+//!       - `m_tagged_linkages.empty()`, the gate OUTSIDE the probe: entries
+//!         3.17 against ticks 2.90, so only ~9 % here.  (On a shared container
+//!         this one dominates instead — entries 0.63 per slow commit, ~37 %
+//!         never negotiating at all, because a plain CAS loss is not a
+//!         negotiation.  It is the one figure of the four that is a property
+//!         of the host rather than of the STM.)
+//!     The four are exhaustive and mutually exclusive: 0.76 + 0.32 + 1.82 +
+//!     0.0007 = 2.90 exactly.
+//!     **The threshold is not merely the largest blocker, it is unreachable.**
+//!     Do NOT derive that from the outer attempt count — "attempts peak at 3 so
+//!     retries peak at 2" ignores Node::snapshot()'s own retry loop, which
+//!     increments the same `m_tx_retry_count` live and only restores it when
+//!     GuardSnapshotRetryCount leaves scope, so a tick taken inside it sees
+//!     more than any attempt count predicts.  Measured instead (the
+//!     `retry margin` line): `my_tx_retries` mean **0.16**, max **2**, against
+//!     a threshold of **4**.  The probe is nearly always looking at a
+//!     first-attempt transaction, and never once in a run saw enough retries to
+//!     pass, at any contention level the workload reached.
+//!     What is NOT broken: the gate itself.  One verdict was reached in
+//!     15.85 M commits and it produced one claim and one grant — 100 %
+//!     conversion.  So HIGHEST's tail here is not a privilege FAILURE, it is a
+//!     privilege ABSENCE: the probe is calibrated for sustained mutual
+//!     livelock, and a 3-attempt CAS race that resolves is not that.  Lowering
+//!     the threshold is the lever if one is ever wanted; this file establishes
+//!     only that it is the binding one, not that it should move.
 //!     Three things that could have explained that tail instead, all checked
 //!     on the RT host in the same clean configuration and all negative, so a
 //!     future reader does not re-open them:
@@ -753,7 +760,8 @@ int main() {
                       commit_cas = 0, bundle_cas = 0, snap_cas = 0,
                       ll_ticks = 0, ll_resets = 0, ll_no_tags = 0,
                       ll_few_retries = 0, ll_verdicts = 0,
-                      priv_tries = 0, priv_grants = 0;
+                      priv_tries = 0, priv_grants = 0,
+                      ll_retry_max = 0, ll_retry_sum = 0, ll_thresh_max = 0;
         //! …and the single worst commit of the run, kept whole: a mean over
         //! the slow population cannot say whether the MAX was one long exempt
         //! sleep or a hundred short budgeted ones.
@@ -774,6 +782,9 @@ int main() {
             ll_no_tags += d.ll_no_tags; ll_few_retries += d.ll_few_retries;
             ll_verdicts += d.ll_verdicts;
             priv_tries += d.priv_tries; priv_grants += d.priv_grants;
+            ll_retry_sum += d.ll_retry_sum;
+            if(d.ll_retry_max > ll_retry_max)   ll_retry_max = d.ll_retry_max;
+            if(d.ll_thresh_max > ll_thresh_max) ll_thresh_max = d.ll_thresh_max;
             if(dt > max_dt) { max_dt = dt; max_d = d; }
         }
     } slow_diag;
@@ -784,12 +795,16 @@ int main() {
     //! the snapshot already happens after the timed region closes.
     struct LLAll {
         std::uint64_t n = 0, ticks = 0, resets = 0, no_tags = 0,
-                      few_retries = 0, verdicts = 0, tries = 0, grants = 0;
+                      few_retries = 0, verdicts = 0, tries = 0, grants = 0,
+                      retry_max = 0, retry_sum = 0, thresh_max = 0;
         void add(const Transactional::detail::NegDiag &d) {
             ++n; ticks += d.ll_ticks; resets += d.ll_resets;
             no_tags += d.ll_no_tags; few_retries += d.ll_few_retries;
             verdicts += d.ll_verdicts;
             tries += d.priv_tries; grants += d.priv_grants;
+            retry_sum += d.ll_retry_sum;
+            if(d.ll_retry_max > retry_max)   retry_max = d.ll_retry_max;
+            if(d.ll_thresh_max > thresh_max) thresh_max = d.ll_thresh_max;
         }
     } ll_all;
 #endif
@@ -1394,6 +1409,13 @@ int main() {
                     slow_diag.ll_no_tags / N, slow_diag.ll_few_retries / N,
                     slow_diag.ll_verdicts / N,
                     slow_diag.priv_tries / N, slow_diag.priv_grants / N);
+        if(slow_diag.ll_ticks)
+            std::printf("      retry margin at those ticks: my_tx_retries "
+                        "mean=%.2f max=%llu  vs threshold max=%llu\n",
+                        (double)slow_diag.ll_retry_sum
+                            / (double)slow_diag.ll_ticks,
+                        (unsigned long long)slow_diag.ll_retry_max,
+                        (unsigned long long)slow_diag.ll_thresh_max);
     }
     //! The privilege chain, end to end, over the whole warm run.  Every claim
     //! goes through `if(_ll_saw && !registered)` — no priority term, so
@@ -1427,6 +1449,26 @@ int main() {
                     ll_all.tries / A, ll_all.grants / A,
                     (unsigned long long)ll_all.tries,
                     (unsigned long long)ll_all.grants);
+        if(ll_all.ticks) {
+            //! The decisive one.  `few_retries` being the largest blocker only
+            //! says the threshold binds; this says whether it binds by a
+            //! hair or by a mile — and whether it is reachable AT ALL.  Do
+            //! not derive this from the outer attempt count: snapshot()'s
+            //! retry loop bumps the same counter live and restores it on
+            //! scope exit, so a tick from inside it sees more retries than
+            //! any number of attempts would predict.
+            std::printf("      retry margin over the run: my_tx_retries "
+                        "mean=%.2f max=%llu  vs threshold "
+                        "clamp(sig_C*2,3,nproc) max=%llu  =>  %s\n",
+                        (double)ll_all.retry_sum / (double)ll_all.ticks,
+                        (unsigned long long)ll_all.retry_max,
+                        (unsigned long long)ll_all.thresh_max,
+                        ll_all.retry_max >= ll_all.thresh_max
+                            ? "REACHABLE — the threshold is met sometimes, so "
+                              "the other two conditions decide"
+                            : "UNREACHABLE — no tick in this run ever had "
+                              "enough retries, at any contention level");
+        }
         if( !ll_all.ticks)
             std::printf("      => the probe NEVER RAN.  Privilege cannot fire "
                         "on any path; the tail is not a privilege failure but "

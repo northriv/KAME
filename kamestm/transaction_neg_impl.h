@@ -440,6 +440,17 @@ struct NegDiag {
     std::uint64_t ll_no_tags;      //!< ... blocked by tags_owned != tags_total
     std::uint64_t ll_few_retries;  //!< ... blocked by the retry threshold alone
     std::uint64_t ll_verdicts;     //!< ... that returned LIVELOCK
+    //! The retry threshold turned out to be the largest blocker on both hosts,
+    //! so these say by HOW MUCH — and guard against an inference that looked
+    //! safe and is not.  "Outer attempts peak at 3, so m_tx_retry_count peaks
+    //! at 2, below the floor of 3" ignores Node::snapshot()'s own retry loop,
+    //! which increments the SAME field live (transaction_impl.h:2214) and only
+    //! restores it when GuardSnapshotRetryCount goes out of scope.  A probe
+    //! tick taken from inside that loop therefore sees a value the outer
+    //! attempt count does not bound.  Measure the margin, do not derive it.
+    std::uint64_t ll_retry_max;    //!< max my_tx_retries seen at any tick
+    std::uint64_t ll_retry_sum;    //!< ... summed, for a mean
+    std::uint64_t ll_thresh_max;   //!< max clamp(sig_C*2, 3, nproc) seen
     //! Set by the round loop, read by negotiate_sleep — not a counter.
     std::uint8_t  exempt_round;
 };
@@ -539,6 +550,10 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
         if(saw_livelock)      ++_d.ll_verdicts;
         else if( !_tags_ok)   ++_d.ll_no_tags;
         else if( !_retry_ok)  ++_d.ll_few_retries;
+        _d.ll_retry_sum += my_tx_retries;
+        if(my_tx_retries > _d.ll_retry_max) _d.ll_retry_max = my_tx_retries;
+        if((std::uint64_t)retry_thresh_dyn > _d.ll_thresh_max)
+            _d.ll_thresh_max = (std::uint64_t)retry_thresh_dyn;
     }
 #endif
 

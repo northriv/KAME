@@ -306,23 +306,29 @@ that the STM has a mechanism for exactly this: a transaction that keeps losing
 claims privilege and every peer defers to it.  The claim gate carries **no
 priority term** — HIGHEST claims on the same terms as anyone — and it converts
 every verdict it is given.  It is simply never given one here.  Counting the
-gates (`KAME_STM_NEG_DIAG` `ll_*`, 1.15 M commits) rather than reading them:
+gates (`KAME_STM_NEG_DIAG` `ll_*`, 15.85 M commits on the RT host) rather than
+reading them — four gates, mutually exclusive and exhaustive:
 
-| gate | share of the tail it blocks |
+| gate | share of the probe ticks it blocks |
 |---|---|
-| `m_tagged_linkages.empty()` — the probe is inside it | ~37 % of slow commits never enter the negotiator at all |
-| retry threshold `clamp(sig_C·2, 3, nproc)` | **55 %** of the ticks that do happen |
-| the per-linkage window reset | 36 % |
-| `tags_owned == tags_total` | 9 % |
+| retry threshold `clamp(sig_C·2, 3, nproc)` | **63 %** |
+| the per-linkage window reset | 26 % |
+| `tags_owned == tags_total` | 11 % |
+| `m_tagged_linkages.empty()` — outside the probe | 9 % (but ~37 % on a shared container, where a plain CAS loss never reaches a negotiation at all) |
 
-The threshold is unreachable by construction for this workload: outer attempts
-peak at 3, so the retry count peaks at 2 against a floor of 3.  The transaction
-gives up losing before the probe is permitted to notice it was losing — and a
-plain CAS loss is not a negotiation at all, since nobody holds a tag.  So this
-tail is a privilege **absence**, not a privilege failure: the probe is
-calibrated for sustained mutual livelock, and a 4-attempt race that resolves on
-its own is not that.  Lowering the threshold is the lever if it ever needs one,
-but ~37 % of the population is out of the probe's reach at any threshold.
+And the threshold is not merely the largest blocker, it is **unreachable**:
+`my_tx_retries` at those ticks has mean **0.16** and max **2**, against a
+threshold of **4**.  The probe is nearly always looking at a *first-attempt*
+transaction.  (Do not shortcut this from the attempt count — `snapshot()`'s own
+retry loop increments the same counter live and restores it on scope exit, so
+a tick from inside it sees more retries than any attempt count predicts.  It
+has to be measured, and the harness prints the margin.)
+
+So this tail is a privilege **absence**, not a privilege failure: the probe is
+calibrated for sustained mutual livelock, and a 3-attempt CAS race that
+resolves on its own is not that.  The one verdict the whole run produced
+converted to one claim and one grant.  Lowering the threshold is the lever if
+one is ever wanted.
 
 The ceiling's precondition: **HIGHEST commit rate × longest peer closure
 ≪ 1.**  HIGHEST is also immune to fair-mode, so each of its commits landing
