@@ -500,6 +500,17 @@ int main() {
     //! then regions, and a region is an mmap on the measured path.  0 = off,
     //! which is how everything so far was measured.
     const long reserve_mib = env_long("KAME_MIX_RESERVE_MIB", 0);
+    //! Split the timed region into snapshot / payload-write / commit by
+    //! expanding iterate_commit by hand — its body is exactly
+    //! `for(Transaction tr(node);; ++tr) { closure(tr); if(tr.commit()) ... }`
+    //! so the three phases are the ctor+`++tr`, the closure, and commit().
+    //! The last instrument left: every retry loop is counted and quiet, no
+    //! syscall, no fault, no sleep, and the machine floor is 219 ns, so the
+    //! tail is one slow PASS and only a timer can say which part of it.
+    //! Costs four now_ns() per attempt (~72 ns on an 814 ns commit), which
+    //! moves the median a few per cent and cannot hide 50 us.  Off by
+    //! default; the default path stays the real iterate_commit.
+    const bool phase_mode = env_long("KAME_MIX_PHASE", 0) != 0;
     //! Per-thread timer slack for the acquisition thread, in ns.  Linux
     //! defaults to 50 us and applies it to every `futex` timeout a
     //! SCHED_OTHER task arms — which is the negotiator's CV chunk, i.e. it
@@ -647,6 +658,20 @@ int main() {
     unsigned long long rt_viol_warm = 0, rt_reclaim_warm = 0, rt_unmap_warm = 0;
     std::size_t rt_bytes_warm = 0;
     bool rt_warm_sampled = false, rt_warm_first = true;
+    //! KAME_MIX_PHASE aggregate: sums over the SLOW population and the worst
+    //! commit's own triple, which is the one that has to add up.
+    struct PhaseStat {
+        std::uint64_t n = 0, snap = 0, write = 0, commit = 0, retry = 0;
+        std::uint64_t max_dt = 0, max_snap = 0, max_write = 0,
+                      max_commit = 0, max_retry = 0;
+        void add(std::uint64_t dt, std::uint64_t s, std::uint64_t w,
+                 std::uint64_t c, std::uint64_t r) {
+            ++n; snap += s; write += w; commit += c; retry += r;
+            if(dt > max_dt) { max_dt = dt; max_snap = s;
+                              max_write = w; max_commit = c;
+                              max_retry = r; }
+        }
+    } phase_slow;
     //! The acquisition thread's own kernel entries over the measured window.
     //! Syscalls on this path are argued away easily — HIGHEST never reaches
     //! negotiate_sleep's futex or the fair-spin's sched_yield, the pool makes
@@ -806,11 +831,43 @@ int main() {
                 (void)Transactional::neg_diag_snapshot(true);
 #endif
                 const std::uint64_t t_rec = now_ns();
-                devA->iterate_commit([&](Tr &tr){
-                    ++attempts;
-                    tr[ *devA].m_x++;
-                    for(auto &l : leavesA) tr[ *l].m_x++;
-                });
+                std::uint64_t ph_snap = 0, ph_write = 0, ph_commit = 0,
+                              ph_retry = 0;
+                if( !phase_mode) {
+                    devA->iterate_commit([&](Tr &tr){
+                        ++attempts;
+                        tr[ *devA].m_x++;
+                        for(auto &l : leavesA) tr[ *l].m_x++;
+                    });
+                }
+                else {
+                    //! iterate_commit, expanded.  Its body is
+                    //! `for(Transaction tr(node);; ++tr) { closure(tr);
+                    //!  if(tr.commit()) ... }`, and `operator++` is private, so
+                    //! the expansion goes through the public commitOrNext(),
+                    //! which is commit() plus that same ++ on failure.  The
+                    //! split that falls out is better than the one intended:
+                    //! the FINAL, successful commit is timed on its own, and
+                    //! failed attempts are charged to `retry` together with the
+                    //! re-snapshot they trigger.  With slow commits averaging
+                    //! 2.1 attempts, that separates "the commit that worked was
+                    //! slow" from "the ones that did not were".
+                    const std::uint64_t t0 = now_ns();
+                    Tr tr( *devA);
+                    std::uint64_t t1 = now_ns();
+                    ph_snap += t1 - t0;
+                    for(;;) {
+                        ++attempts;
+                        tr[ *devA].m_x++;
+                        for(auto &l : leavesA) tr[ *l].m_x++;
+                        const std::uint64_t t2 = now_ns();
+                        ph_write += t2 - t1;
+                        const bool ok = tr.commitOrNext();
+                        t1 = now_ns();
+                        if(ok) { ph_commit += t1 - t2; break; }
+                        ph_retry += t1 - t2;
+                    }
+                }
                 const std::uint64_t t_end = now_ns();
                 const std::uint64_t dt_rec = t_end - t_rec;
                 const bool warm = (t_end >= t_warm_end);
@@ -854,6 +911,8 @@ int main() {
                         sys1 += progress[t].load(std::memory_order_relaxed);
                     acq_retries.add(dt_rec, attempts, (std::uint64_t)slow_ns,
                                     sys1 - sys0);
+                    if(phase_mode && (dt_rec >= (std::uint64_t)slow_ns))
+                        phase_slow.add(dt_rec, ph_snap, ph_write, ph_commit, ph_retry);
 #if KAME_STM_NEG_DIAG
                     if(dt_rec >= (std::uint64_t)slow_ns)
                         slow_diag.add(dt_rec,
@@ -1119,6 +1178,28 @@ int main() {
                     (unsigned long long)acq_retries.slow_n, ratio,
                     (ratio >= 3.0)
                         ? "  <= FRONT-LOADED: raise KAME_MIX_WARMUP_MS" : "");
+    }
+    if(phase_slow.n) {
+        const double N = (double)phase_slow.n;
+        std::printf("    PHASE split of the slow population (n=%llu), per commit:\n"
+                    "      snapshot=%.0f  payload-write=%.0f  final commit=%.0f  failed attempts+resnap=%.0f  (ns)\n"
+                    "      the MAX commit (%llu ns): snapshot=%llu write=%llu "
+                    "final=%llu retry=%llu  (sum %llu, unattributed %lld)\n",
+                    (unsigned long long)phase_slow.n,
+                    phase_slow.snap / N, phase_slow.write / N,
+                    phase_slow.commit / N, phase_slow.retry / N,
+                    (unsigned long long)phase_slow.max_dt,
+                    (unsigned long long)phase_slow.max_snap,
+                    (unsigned long long)phase_slow.max_write,
+                    (unsigned long long)phase_slow.max_commit,
+                    (unsigned long long)phase_slow.max_retry,
+                    (unsigned long long)(phase_slow.max_snap
+                        + phase_slow.max_write + phase_slow.max_commit
+                        + phase_slow.max_retry),
+                    (long long)phase_slow.max_dt
+                        - (long long)(phase_slow.max_snap
+                        + phase_slow.max_write + phase_slow.max_commit
+                        + phase_slow.max_retry));
     }
 #if defined(__linux__)
     //! Kernel entries on the acquisition thread over the measured window.
