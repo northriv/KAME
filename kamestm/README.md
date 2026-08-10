@@ -201,14 +201,15 @@ the opposite:
 |---|---|---|---|
 | isolated, no PM-QoS | 17.0 µs | 66.7 µs | **49.7 µs** |
 | isolated + PM-QoS | 219 ns | 53.1 µs | **52.9 µs** |
+| + FIFO and per-thread pinning, `invol` = 0 | 219 ns | 40.8 µs | **40.6 µs** |
 
-The two rows share everything but PM-QoS, their floors differ by **77×**, and
-they nonetheless agree on the difference to within 6 %.  That invariance is
-what identifies it: **~50 µs of the tail is the STM's own**, and the sections
-below say which part — the retry path, measured directly at 46,670 ns of a
-50,707 ns worst commit.  The check is general and cheap: if a tail is really
-the machine, deleting the machine deletes the tail.  Here deleting all but
-219 ns of it left 53 µs standing.
+The floors span **77×** and the differences span 1.3×.  That near-invariance is
+what identifies it: **40–50 µs of the tail is the STM's own**, and the sections
+below say which part — the retry path, three quarters of the worst commit in
+the last row, measured directly.  The check is general and cheap: if a tail is
+really the machine, deleting the machine deletes the tail.  Here deleting all
+but 219 ns of it, and then every involuntary context switch as well, left
+40.6 µs standing.
 
 Two things earned those numbers.  First, instrumentation: the previous
 constant (~200 µs of overshoot at every budget) was **the timed wait's
@@ -267,18 +268,27 @@ terms are the deployment's to bound:
 Everything above runs at NORMAL.  `Priority::HIGHEST` additionally never
 parks at all; same host and roles, 120 s:
 
-Both rows below are one regime — isolated core with the tick verified stopped
-(`LOC` = 0 over the window), `SCHED_FIFO`, `with_pmqos`, and the pool's realtime
+Isolated core with the tick verified stopped (`LOC` = 0 over the window),
+`SCHED_FIFO`, per-thread pinning, `with_pmqos`, and the pool's realtime
 contract honoured — against the 219 ns floor above.  120 s each:
 
 | tier | p50 | p99 | p99.9 | p99.999 | **MAX** |
 |---|---|---|---|---|---|
-| HIGHEST (the library's ceiling) | 768 ns | 1.79 µs | 20.5 µs | 41.0 µs | **53.1 µs** |
+| HIGHEST (the library's ceiling) | 896 ns | 1.02 µs | 3.07 µs | 24.6 µs | **40.8 µs** |
 | NORMAL, 20 ms budget | 768 ns | 1.02 µs | 7.34 ms | 20.97 ms | **20.03 ms** |
 
-At HIGHEST, **three commits out of 4,480,089 exceeded 50 µs** — and all three
-took exactly 4 attempts, so they are retry bursts, not stalls.  The NORMAL row
-is the budget doing its job: 0.054 % of commits reach it, and MAX *is* it.
+The HIGHEST row is 14.3 M commits with **zero involuntary context switches**,
+and **nothing over 50 µs at all**.  The NORMAL row is the budget doing its job:
+0.054 % of commits reach it, and MAX *is* it.
+
+Read the two rows as one regime only for the scheduling and the host; the
+NORMAL row predates the verified-shape harness below and has not been re-taken
+in it.  An earlier HIGHEST row published here — p99 1.79 µs, p99.9 20.5 µs, MAX
+53.1 µs — has been **replaced rather than kept beside this one**: it was taken
+before the harness could report its own OS arm, so its scheduling is not
+established, and every column of it is worse.  p99.9 in particular is 6.7×
+better here, which is the size of effect that says the two are different
+configurations and not two samples of one.
 
 Getting there took two fixes that are worth stating because neither is
 obvious.  **The allocator owned 3.5× of the slow-commit population**: a commit
@@ -294,22 +304,31 @@ only — so it is an outstanding precondition, not a shipped property; see
 [`kamepoolalloc`](../kamepoolalloc)'s contract.  And **the host had to be made
 quiet first**, which is the ladder above.
 
-One thing did *not* move under any of it.  **p99.9 stayed in the same bucket —
-[16.4, 20.5) µs — through core isolation, the tick stopping, C-states off and
-the allocator fix alike.**  At 90× the floor it is the STM's own, and
-instrumenting the negotiator says which part is not: over 8,007 slow commits
-and in the worst one individually, `sleeps`, `spins`, `slept_ns`, exempt rounds
-and wait overshoot are **all zero**, and 51,796 ns of a 51,796 ns commit is
-unaccounted for by the negotiation machinery.  It is not waiting for anyone.
+p99.9 was for a long time the number that *would* not move: it stayed in the
+[16.4, 20.5) µs bucket through core isolation, the tick stopping, C-states off
+and the allocator fix alike, which is what argued it was the STM's own and not
+the host's.  **One thing did move it — per-thread pinning, 20.5 → 3.07 µs**,
+and that is a scheduling fix, not an STM one.  The conclusion survives with a
+smaller number: at 3.07 µs it is still **14× the 219 ns floor**, and the tail
+above it still is not the machine.
+
+What it is not is settled either way.  Instrumenting the negotiator: over 8,007
+slow commits and in the worst one individually, `sleeps`, `spins`, `slept_ns`,
+exempt rounds and wait overshoot are **all zero**, and 51,796 ns of a 51,796 ns
+commit is unaccounted for by the negotiation machinery.  It is not waiting for
+anyone.
 
 **It is the retry path, measured.**  Timing `iterate_commit`'s phases
-separately (`KAME_MIX_PHASE=1`) over 9,172 slow commits: snapshot 947 ns,
-payload write 1,364 ns, the *successful* commit 1,199 ns — and **failed
-attempts plus the re-snapshot they trigger, 15,778 ns**.  In the worst commit,
-46,670 ns of 50,707 ns, with 48 ns unattributed.
+separately (`KAME_MIX_PHASE=1`), in the verified shape above over 1,725 slow
+commits: snapshot 4,769 ns, payload write 1,080 ns, the *successful* commit
+3,500 ns — and **failed attempts plus the re-snapshot they trigger,
+9,220 ns**.  The worst commit splits **998 / 1,588 / 7,925 / 30,245** of
+40,812 ns with **56 ns unattributed**: three quarters of it is failed attempts,
+in a run with zero involuntary context switches.
 
-So **a failing attempt costs ~13× a succeeding one** (15.8 µs against 1.2 µs),
-which is where the arithmetic pointed and is now direct.
+So **a failing attempt costs ~11× a succeeding one** (9,220 ns over 0.56 failed
+attempts against 3,500 ns for the one that worked), which is where the
+arithmetic pointed and is now direct.
 
 *What* it spends that on is a separate question, and the first answer was
 wrong.  "A re-snapshot is multi-nodal, so it re-bundles the subtree and throws
@@ -323,15 +342,10 @@ commit come to 4.8 µs against 15.6 µs measured, short by 3.2×, and
 
 `bundle()` and `unbundle()` are now timed directly and differenced across the
 same boundaries as the retry phase itself, which needs no arithmetic at all:
-**re-bundling is 36 % of the retry cost on average and 29 % in the worst
-commit, not the whole of it.**  (RT host, shipped shape, 13.6 M commits; a
-container agrees at 30–32 %.)  The remaining two thirds are unattributed, and
-the harness prints the share so the next hypothesis has to clear the same bar.
-
-That worst commit is the cleanest statement of the whole finding: **45,129 ns
-= 411 snapshot + 1,522 write + 1,084 successful commit + 42,062 retry**, with
-50 ns unattributed and 137 involuntary context switches in the entire run.
-**93 % of it is failed attempts.**
+**re-bundling is 40 % of the retry cost on average and 24 % in the worst
+commit, not the whole of it** — 30–40 % across every RT-host and container run
+taken.  The remaining ~two thirds are unattributed, and the harness prints the
+share so the next hypothesis has to clear the same bar.
 
 (Pair the two terms only within one run, and only at matching scope: a
 whole-commit bundle total also contains the snapshot's and the successful
@@ -360,31 +374,39 @@ mutually exclusive and exhaustive, over two RT-host runs of 120 s:
 Across 8.3 M and 15.9 M commits the probe ran 63,616 and 45,967 times and
 reached a verdict **once, in one of the two runs**.
 
-Why the threshold binds took two answers.  On a shared container
-`my_tx_retries` at those ticks peaks at **2** against a threshold of **4** — it
-cannot be met at all, and no verdict is possible.  In the shipped shape
-(`SCHED_FIFO` + per-thread pinning) it peaks at **4** against the same
-threshold of 4: **reachable, and reached** — three verdicts in 13.6 M commits,
-each converting to a claim and a grant.  So the threshold is not a wall, it is
-simply far above where a 3-attempt race lives; the mean `my_tx_retries` at a
-tick is **0.12**, because the probe is nearly always looking at a *first
-attempt*.
+Why the threshold binds is not a fixed answer, and asking it twice gave two.
+`my_tx_retries` at a probe tick peaks at **2** on a shared container, **3** on
+the isolated pair, and **4** on the housekeeping pair, against a threshold of
+**4** throughout.  So the workload sits *exactly on the boundary*, and which
+side it lands is set by how disturbed the host is:
+
+| run | peak retries | threshold | verdicts in ~14 M commits |
+|---|---|---|---|
+| container | 2 | 4 | 0 |
+| isolated pair, `invol` = 0 | 3 | 4 | 0 |
+| housekeeping pair, `invol` = 137 | 4 | 4 | 3 |
+
+Privilege fires when the host disturbs the thread and not otherwise — defensible
+as a design (the probe is for pathological cases) but it does mean **privilege
+is not what bounds the clean-host tail**.  The mean `my_tx_retries` at a tick is
+**0.12** in every one of these: the probe is nearly always looking at a *first
+attempt*.  Every verdict ever reached, on any host, converted to a claim and a
+grant — 4 for 4.
 
 Do not shortcut this from the attempt count — `snapshot()`'s own retry loop
 increments the same counter live and restores it on scope exit, so a tick from
-inside it sees more retries than any attempt count predicts.  That is also why
-the container's "peaks at 2" does not generalise: it is a contention level, not
-an invariant.  The harness prints the margin and says REACHABLE or UNREACHABLE
-outright.
+inside it sees more retries than any attempt count predicts.  Nor from one
+host: "peaks at 2" was a contention level published once as an invariant, and
+the next run refuted it.  The harness prints the margin and says REACHABLE or
+UNREACHABLE outright, per run, for that reason.
 
-Two things about provenance.  The shares above come from three RT-host runs
-whose MAXes span 45 µs to 4.0 ms, and they agree to a few points across all of
-them — which is what makes them a property of the workload rather than of the
-schedule.  Only the 45 µs run was in the shipped shape; the other two were
-SCHED_OTHER with four threads sharing two cores, because an outer `chrt -f 20`
+The shares themselves come from four runs whose MAXes span 41 µs to 4.0 ms and
+which agree to a few points across all of them — which is what makes them a
+property of the workload rather than of the schedule.  Two of those four were
+SCHED_OTHER with all threads sharing two cores, because an outer `chrt -f 20`
 did nothing (every thread body resets its own policy, deliberately, so the
 elevation was demoted at thread start — the harness now adopts an inherited RT
-priority and says so).  Their *latencies* are therefore not quoted anywhere.
+priority and says so).  Their *latencies* are not quoted anywhere.
 
 So this tail is a privilege **absence**, not a privilege failure: the probe is
 calibrated for sustained mutual livelock, and a 3-attempt CAS race that

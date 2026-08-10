@@ -199,16 +199,18 @@
 //!     No counter could settle it because nothing timed the pass.
 //!     Now one does: bundle() and unbundle() are timed (outermost call only —
 //!     both recurse) and differenced across the SAME boundaries as `retry`, so
-//!     the split needs no arithmetic.  Measured on the RT host in the shipped
-//!     shape, 13.6 M commits: **36 % of the retry phase on the mean, 29 % in
-//!     the worst commit** (12,354 of 42,062 ns); a container agrees at 30-32 %.
+//!     the split needs no arithmetic.  Measured on the RT host, isolated pair,
+//!     FIFO + pinning, 14.3 M commits: **40 % of the retry phase on the mean,
+//!     24 % in the worst commit** (7,133 of 30,245 ns); the housekeeping-pair
+//!     run says 36/29 % and a container 30-32 %, so 30-40 % everywhere.
 //!     Re-bundling is a real and substantial term and it is not the mechanism;
-//!     two thirds of the cost of a failed attempt remain unattributed, and the
+//!     ~two thirds of the cost of a failed attempt remain unattributed, and the
 //!     next candidate has to clear the same multiplication this one failed.
 //!     That same run is the cleanest statement of the finding as a whole:
-//!     MAX 45,129 ns = 411 snapshot + 1,522 write + 1,084 successful commit +
-//!     42,062 retry, 50 ns unattributed, over a run with 137 involuntary
-//!     context switches.  93 % of the worst commit is failed attempts.
+//!     MAX 40,812 ns = 998 snapshot + 1,588 write + 7,925 successful commit +
+//!     30,245 retry, 56 ns unattributed, in a run with ZERO involuntary
+//!     context switches.  74 % of the worst commit is failed attempts, on a
+//!     host whose own floor under with_pmqos is 219 ns.
 //!     Do not pair a whole-commit bundle total against the retry phase — it
 //!     also contains the snapshot's and the successful commit's bundles (45 %
 //!     of all bundling in that run) and reads over 100 %, which is how this was
@@ -223,8 +225,8 @@
 //!     HIGHEST is neither privileged nor excluded there — it claims on the same
 //!     terms as anyone.  Yet `priv strips (Rule 0)` is 0 in every run of this
 //!     harness.  Four gates stand between a losing commit and that claim, and
-//!     the ll_* counters below separate them.  Three RT-host runs of 120 s,
-//!     13.6 / 15.9 / 8.3 M warm commits, whose MAXes span 45 us to 4.0 ms and
+//!     the ll_* counters below separate them.  Four RT-host runs of 120 s,
+//!     14.3 / 13.6 / 15.9 / 8.3 M warm commits, whose MAXes span 41 us to 4 ms and
 //!     which agree on these shares to a few points regardless — which is what
 //!     makes the shares a property of the workload and not of the schedule:
 //!       - the retry threshold, `my_tx_retries >= clamp(sig_C*2, 3,
@@ -236,13 +238,14 @@
 //!       - `tags_owned == tags_total`, 9-11 % — the condition a displaced
 //!         thread necessarily fails, i.e. the one that most needs the rescue.
 //!       - `m_tagged_linkages.empty()`, the gate OUTSIDE the probe: 7-9 %
-//!         (entries 3.10 vs ticks 2.87 in the shipped-shape run).  On a shared
+//!         (entries 3.08 vs ticks 2.83 in the cleanest run).  On a shared
 //!         container this one dominates instead — entries 0.63 per slow
 //!         commit, ~37 % never negotiating at all, because a plain CAS loss is
 //!         not a negotiation.  It is the one figure of the four that is a
 //!         property of the host rather than of the STM.
 //!     The four are exhaustive and mutually exclusive to the last digit in
-//!     every run: 0.72 + 0.27 + 1.88 + 0.0017 = 2.87 in the shipped-shape one.
+//!     every run: 0.69 + 0.28 + 1.86 = 2.83 in the cleanest one, 0.72 + 0.27 +
+//!     1.88 + 0.0017 = 2.87 in the one where privilege fired.
 //!     REGIME — two of those three runs were NOT the shipped one, and how they
 //!     failed to be is the trap this harness now guards.  They were `taskset`
 //!     to the isolated cores with an outer `chrt -f 20`, and the chrt did
@@ -268,16 +271,23 @@
 //!     which increments the same `m_tx_retry_count` live and only restores it
 //!     when GuardSnapshotRetryCount leaves scope, so a tick taken inside it
 //!     sees more than any attempt count predicts.  Measured (the `retry
-//!     margin` line, which prints REACHABLE/UNREACHABLE outright):
-//!       container            my_tx_retries max 2  vs threshold 4  UNREACHABLE
-//!       RT host, shipped     my_tx_retries max 4  vs threshold 4  REACHABLE
-//!     and on the RT host it IS reached: 3 verdicts in 13,560,878 commits,
-//!     each converting to a claim and a grant.  So the threshold is not a
-//!     wall; it sits far above where a 3-attempt race lives.  Mean
-//!     my_tx_retries at a tick is 0.12 — the probe is nearly always looking at
-//!     a FIRST attempt.
-//!     What is NOT broken: the gate itself, on either host — every verdict
-//!     ever reached converted, 4 for 4 across all runs.  So HIGHEST's tail is
+//!     margin` line, which prints REACHABLE/UNREACHABLE outright, PER RUN,
+//!     because it is not a constant):
+//!       container                max 2 vs 4  UNREACHABLE   0 verdicts
+//!       isolated pair, invol 0   max 3 vs 4  UNREACHABLE   0 verdicts
+//!       housekeeping, invol 137  max 4 vs 4  REACHABLE     3 verdicts
+//!     The workload sits EXACTLY on the boundary and which side it lands on is
+//!     set by how disturbed the host is: privilege fires when the host
+//!     disturbs the thread and not otherwise.  Defensible as a design — the
+//!     probe is for pathological cases — but it does mean privilege is not
+//!     what bounds the CLEAN-host tail.  Mean my_tx_retries at a tick is 0.12
+//!     in all three: the probe is nearly always looking at a FIRST attempt.
+//!     "Peaks at 2, therefore unreachable" was published here once off the
+//!     container alone and refuted by the next run.  Do not generalise a
+//!     contention level; the harness reprints the verdict every run for that
+//!     reason.
+//!     What is NOT broken: the gate itself, on any host — every verdict ever
+//!     reached converted, 4 for 4 across all runs.  So HIGHEST's tail is
 //!     not a privilege FAILURE but a privilege RARITY: the probe is calibrated
 //!     for sustained mutual livelock at ~1 firing per 4.5 M commits, and a
 //!     3-attempt CAS race that resolves is not what it is looking for.
