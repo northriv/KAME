@@ -1,3 +1,249 @@
+* Mon Aug 10 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- STM realtime, measured end to end on a PREEMPT_RT host (i5-7500, isolated
+  core, SCHED_FIFO, per-thread pinning, PM-QoS): a HIGHEST 5-node commit with
+  peers writing into the same subtree runs p50 896 ns / MAX 21.9 us; with no
+  peer on its subtree, p50 448 ns / MAX 1.06 us. NORMAL under the 20 ms wait
+  budget lands at MAX 20.03 ms, i.e. the budget. Contention -- not the number
+  of nodes a commit spans -- is what sets the tail: 21x in MAX between those
+  two rows, while 17x the nodes moves the worst case only 1.6x (p50 is linear,
+  439 ns + 94.5 ns per node). The lever is topological: a root-scope Snapshot
+  or Transaction bundles every subtree beneath it, so keep other threads, and
+  root-scope operations above all, off the deadline-bearing subtree.
+- STM: the livelock probe called std::thread::hardware_concurrency() on every
+  tick. On Linux/glibc that is get_nprocs(), i.e. an openat + read + close of
+  /sys/devices/system/cpu/online each time -- three syscalls through PTI+IBRS
+  inside the negotiation of a realtime commit, and the probe sits above the
+  round loop that HIGHEST breaks out of, so HIGHEST paid them too. Now cached
+  per process. Slow commits (>= 15 us) fell 879 -> 5 in a 60 s contended arm,
+  MAX 40.8 -> 21.9 us, p50 and throughput unchanged; on macOS the same fix is
+  worth ~16 % of 3level_mixed throughput. It was found with Intel PT after
+  five other instruments missed it: fault and context-switch counters do not
+  see a syscall, a cycles profile smeared it to 0.27 % of samples, the STM's
+  own counters account sleeps and CAS but not kernel entries, and strace is
+  not an option on the thread under test.
+- STM: KAME_STM_RT_FAST_PRIV (default off) fires the privilege claim early --
+  at N retries -- for a HIGHEST transaction on SCHED_FIFO/RR. Measured, it
+  makes the tail WORSE (MAX 27.6 -> 34.5 us) and the reason is worth the knob
+  existing: privilege blocks a peer at its next negotiation entry and can do
+  nothing about CASes already in flight, so cutting the snapshot loop short
+  converts cheap rebuild conflicts into commit-CAS losses. The organic gate's
+  tags_owned == tags_total condition, which the fast path bypasses, is
+  therefore an anti-leak filter rather than conservatism -- owning every tag
+  means the storm has drained and the commit can actually win. The knob keeps
+  its own measurement in a comment so the next person does not re-run it.
+- atomic_smart_ptr: the exponential-backoff knob has never been reachable --
+  BACKOFF_IN_ATOMIC_SMART_PTR is always defined (0 by default) and all four
+  use sites guarded on #ifndef, so every one took the no-op branch and
+  -DBACKOFF_IN_ATOMIC_SMART_PTR=4 changed nothing. Guards corrected to
+  #if > 0; the default remains 0, so no shipped behaviour changes.
+- kamestm/README: the realtime section is now 83 lines of contract and
+  conclusions (from 420 during the campaign). tests/latency_floor plus
+  tests/with_pmqos measure the host's own floor -- 67.9 us with no isolation,
+  17.0 us with isolcpus/nohz_full, 219 ns with PM-QoS on top -- because a
+  commit latency read against the wrong floor mis-attributes the machine to
+  the STM, which happened twice during this campaign. The investigation
+  record lives in design/RT_READINESS.md and in the test headers.
+
+* Sat Aug 08 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- fast_vector<T,N>: shrink_to_fit() ran on the INACTIVE union member. The
+  fixed inline array and the std::vector are union'd, and the is_fixed() test
+  was inverted -- so in inline mode it read m_array's bytes as a vector's
+  three pointers and reallocated through them. Talker::connect and
+  Talker::disconnect call it on every connect and disconnect, and the listener
+  list is inline for the usual case of four listeners or fewer, so this was
+  live on every platform; whether it corrupted anything depended on the stale
+  bytes, which is why it surfaced as an intermittent SIGSEGV at window close
+  (XMeasure::terminate_all -> Talker::disconnect) rather than a reliable one.
+  Two adjacent defects of the same class fixed with it: begin()/end() used
+  out-of-range operator[] subscripts in heap mode, and erase() dereferenced
+  end() when the last element went. New kamestm/tests/fast_vector_test.
+- STM: a budgeted wait is never armed to land ON the deadline any more. The
+  ~200 us of overshoot recorded for every budget size was not the STM and not
+  the budget-exempt wait behind a privileged peer (instrumentation found zero
+  exempt rounds in 17,274 slow commits) -- it was the timed wait's own
+  wake-up: one cell.wait() asked for 198 us returned 696 us later with 6 us
+  of STM work in the whole commit. The scheduling class dominates that cost
+  and a PM-QoS hold buys its remaining 6x only on top of FIFO. Every budgeted
+  sleep now stops KAME_NEG_SPIN_TAIL_US (300 us) short of the deadline and
+  polls the remainder, which also notices the blocker clearing immediately:
+  MAX - budget 122 -> 7.1 us at 20 ms, 3.0 us in the full configuration.
+  Unbudgeted callers execute the pre-existing code. Keep budgets well above
+  the reserve: at or below it the committer never sleeps and the deferrable
+  tiers starve (-94 % / -98 % measured at a 200 us budget).
+- XWaitCell parks on futex(FUTEX_WAIT_PRIVATE) on Linux, matching the
+  __ulock_wait path already used on macOS, so the negotiation route has no
+  mutex on either. The portable fallback's std::mutex has no priority
+  inheritance, which is a real hazard under a scheduler that enforces
+  priority; it remains for other platforms and xwaitcell_test covers all
+  three backends.
+- timeStamp() reads CNTVCT_EL0 on aarch64 instead of falling through to
+  XTime::now(), whose resolution is one microsecond. Apple Silicon and any
+  ARM realtime target had the library's lowest-level timing primitive 1000x
+  coarser than x86 with nothing saying so.
+
+* Fri Aug 07 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Linux: file dialogs work properly. XFilePathConnector passed a
+  ";;"-separated filter LIST to QFileDialog::setNameFilter(), which is
+  singular and does not split on ";;", so the type combo showed the raw
+  string as one garbled entry and only the trailing glob was ever in force;
+  and it handed the line edit's FILE path to setDirectory(), which roots
+  Qt's own widget dialog at a non-directory and lists nothing at all. Both
+  were masked by the native macOS/Windows dialogs. Also drops the trailing
+  ";;" from two getOpenFileName() filters, which rendered as a blank row.
+- Linux: File > Open and the colour picker no longer map as an empty frame
+  that never paints. FrmKameMain::processSignals() -- the timeout slot of a
+  zero-interval QTimer -- slept 5 ms whenever the STM signal buffer was idle,
+  and Qt's GTK3 platform theme runs those dialogs through gtk_dialog_run() on
+  the same GMainContext as Qt's dispatcher, so a blocking zero-interval timer
+  kept GLib from ever reaching GDK's lower-priority redraw source. The same
+  pacing is now expressed as the timer's interval, so the thread blocks in
+  poll() and the other sources get their turn.
+- Every header in the tree now compiles on its own. 38 of them used
+  fixed-width integer types without including <cstdint> and parsed only
+  because older libstdc++ leaked it through <string> -- newer ones do not,
+  and rubywrapper.h's `using Value = uintptr_t` then takes the whole Ruby
+  bridge down. <cstdint> now comes from the two prelude headers (kame/
+  support.h and kamestm/support.h) with the local include kept only where the
+  include graph does not reach a prelude.
+- Building the tree with clang for the first time found three defects GCC did
+  not: XDSOWithRealtimeAcq's raw-stream reader sized two variable-length
+  arrays straight from a channel count read out of the stream, so a truncated
+  or corrupt recorded .dat was an unbounded stack allocation (now a fixed
+  bound plus validation, which also lets the header compile on MSVC); a
+  bitwise | where a || was meant in pulserdriverh8; and an indeterminate int
+  copied by a lambda capture in usertempcontrol.
+
+* Wed Aug 05 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamepoolalloc: a recipe for the PREEMPT_RT host the allocator's WCET caveat
+  needs, and the measurements that gate it. Ubuntu 26.04 ships the realtime
+  kernel without an Ubuntu Pro subscription, which the first draft of the
+  recipe wrongly told you to buy; the host is verified with the checks written
+  down beside it (core isolation actually taking effect, C-state residency,
+  sustained temperature under a PM-QoS hold), because every number taken on it
+  is meaningless without that provenance. 13 us on the iMac, no hardware
+  purchased.
+- XAutoLCTuner: Auto Save Preset and Relay Settle Time are now on the form.
+  Both nodes shipped without a UI connector and were reachable only from
+  scripts and .kam files -- and Relay Settle Time exists precisely so the real
+  settling time can be found without a rebuild, which needs it visible.
+- README: a Linux section under Building, and the stale Qt5Compat claim
+  dropped.
+
+* Fri Jul 31 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- The field freezes reported while operating T1Mode during an NMR
+  measurement, and the SIGABRTs that ended some of them, are fixed. One
+  principle explains the whole set: privilege is the STM's completion
+  guarantee, and nothing may be immune to it. Two immunities existed and both
+  are gone.
+- (1) STM-HIGHEST is retired from KAME. AcquisitionPriority now keeps only
+  the OS-level elevation, which is a thread property rather than a
+  transaction property. A HIGHEST commit never parks, and therefore also
+  never yields to a privileged peer -- so each of its commits landing inside
+  that peer's closure re-runs the whole closure. Where closures are
+  microseconds this is negligible; where they are milliseconds, as KAME's
+  analysis closures are, the privilege holder stops converging and everything
+  waiting behind it waits through every re-run (reproduced in the lab as 1.1
+  -> 15.5 closure re-runs per commit). The tier remains in kamestm for hosts
+  that satisfy HIGHEST rate x longest peer closure << 1.
+- (2) The wait budget's expiry no longer bypasses fair mode. Its escapes and
+  clamps are now gated on the same fair_mode_blocks_me the ordinary path
+  consults, so a budget cannot barge past a live privilege holder. Before the
+  fix the field freeze reproduced in the lab as 372 HANG dumps and 12.5 s
+  pins; after it, none. The budget's other bounds are unchanged.
+- The HANG watchdog reports in release builds and no longer aborts
+  (KAME_STM_HANG_ABORT_N defaults to 0 there, 3 in debug where the core dump
+  is the point). It was tuned for true deadlocks and twice executed
+  recoverable states instead: an 11 s self-recovery had 4 s of margin on it,
+  and a live privilege holder legitimately grinding for 33 s was killed with
+  the unsaved measurement. The starvation bound is now the exit -- 10 s, and
+  arming after 2 retries rather than 8, because a thread already sunk in 5 s
+  sleep caps accrues retries at one per cap and eight of them deferred the
+  exit to ~40 s. The revocable tiers (LOWEST / UI_DEFERRABLE / SCRIPTING) get
+  an exception with a message telling the operator to save; NORMAL and
+  HIGHEST privilege never expires, by design.
+- Constructor exception safety in the base machinery, which the starvation
+  throw made reachable and which was a latent double-free before it. XNode's
+  constructor pushes shared_ptr(this) onto a per-thread stack so that
+  constructors can use shared_from_this(), and createOrphan() pops the back
+  -- a positional hand-off that assumed every constructor completes. When one
+  throws, `new T` has already run the base destructor and freed the memory
+  while the pushed entry still owns it: popping it double-frees, leaving it
+  hands the next createOrphan() freed memory. Node constructors run
+  transactions by design, so this was live for every driver. All three sites
+  (XNode::createOrphan, XQConnectorHolder_, XStatusPrinter::create) now
+  neutralise stale entries and verify the pop by identity; Snapshot and
+  Transaction constructors drop their own stamps before rethrowing, so a
+  throw during construction can no longer orphan a Reserved stamp that every
+  negotiator then waits behind. New tests/xnode_ctorthrow_test.
+- NMR: the PNR (LS-MDL) background solve is memoized, so an iterate_commit
+  retry costs microseconds instead of repeating a 10-20 ms solve. The key is
+  provenance -- the DSO record's time() plus the scalar inputs -- rather than
+  a content hash, which also reuses the solve across re-analyses triggered by
+  unrelated settings; the slot is an atomic_shared_ptr, so there is no mutex
+  anywhere near a transaction.
+* Thu Jul 30 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- NMR, four problems found setting up a two-site T-sweep: RelaySettleTime
+  [ms] on XAutoLCTuner (default 500) replaces a hard-coded 50 ms wait, so a
+  sweep that switches the pulser back on the instant tuning() clears no
+  longer fires the first pulse into a still-selected VNA path and reads it
+  back as a bogus FWD/BWD spike; the tuner hand-off, preset recording and a
+  hang on quit are fixed with it.
+- NMR/Thamway: the PROT status poll no longer writes a stale reading over a
+  fresh setting. fetchStatus reads every setting in one batch of USB round
+  trips and must drop the interface lock before its status transaction, so a
+  GUI or script write can land in between -- the device was already
+  programmed, but the poll then stored its pre-write reading into the node
+  and left the two disagreeing until the next poll (observed as PROT.Freq
+  showing 17.99 for one poll period after a script wrote 17.36043).
+- NMR: the avgClear() touch moved out of analyze() into visualize(). Firing
+  it inside the analysis transaction published a nested commit that restarts
+  the DSO sequence over the instrument interface -- a side effect the
+  enclosing transaction cannot roll back, and one that ran again on every
+  retry because the guard flag rolled back with it.
+- The record path declares a 20 ms wait budget by default, at every priority
+  (XPrimaryDriver::downstreamWaitBudgetUS()). Measurement quality suffers
+  past 20 ms whether or not the thread is elevated, so this is not gated on
+  the tier. Realtime ends with the record: the demoted downstream work runs
+  at NORMAL under the same budget.
+- Transactional::isInTransaction() and KAME's gWarnIfInTransaction() replace
+  the ad-hoc detectors: a debug build now reports msecsleep() or a mutex
+  acquired inside an in-flight transaction, deduplicated by call site, which
+  is the deadlock class the driver-authoring rules warn about.
+- kame/script: the Python downcaster cache no longer votes in the fallback
+  election. cast_to_pyobject elects the applicable downcaster with the
+  largest serial, which is correct only because declaration order puts a
+  derived class after its base -- cached resolutions carry no declaration
+  order, and the trivial cache left behind by a type with no registered base
+  (every XScalarEntry read, constantly) outranked every real declaration.
+- Interface I/O inside a transaction is now caught where all of it is
+  visible, and the audit script sees it one call away; QIODevice::open
+  results are no longer discarded; tools/audit gained a guard for
+  kamepoolalloc's no-DCAS invariant (which had been passing vacuously on
+  macOS) after pointer-width RT counters restored the 32-bit lock-free
+  property.
+
+* Tue Jul 28 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- The embedded IPython kernel works on ipykernel 7. Kernel.do_one_iteration
+  is gone there, and simply silencing the AttributeError traded it for a
+  worse failure: Timer.start() then entered its own loop and never returned,
+  a %gui hook owns the kernel thread while it runs, and the kernel stopped
+  answering at all -- which also took out the MCP server, since it talks over
+  the same channel. Now driven the way ipykernel's own loop_* hooks are.
+- Transactional::ScopedWaitBudget: a caller-supplied soft bound on how long a
+  commit may spend waiting in negotiation, asserted in ctest at p99.99. This
+  is the mechanism the record path's 20 ms default uses.
+- Priority.HIGHEST is withdrawn from the Python API. A Python transaction can
+  hold the GIL, and the tier's contract is that it never parks; the two do
+  not compose.
+- kamestm: the A/B/C/D negotiator knobs added while diagnosing the ms-scale
+  tail are removed, keeping what they measured -- (D) oldest-returns-and-tags
+  took MAX from 290 ms to 14 ms and is free below core count, and it is now
+  unconditional; B=4 beat B=1 head to head; the "uncapped
+  numThreadsRunning" optimisation was retracted as not a win when measured.
+- Fixed the platform-dependency defects found by auditing the tree for Linux,
+  and recorded that the earlier Linux allocator measurements were NOT taken
+  on a realtime kernel.
+
 * Mon Jul 27 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - Linux builds and runs again (Qt 6, qmake, GCC 13, Ubuntu 24.04). It is still
   NOT a supported platform -- no instrument hardware has been exercised and the
