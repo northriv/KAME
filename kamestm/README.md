@@ -152,7 +152,7 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 | Retry primitive | `retry` / `orElse` (Haskell) | `iterate_commit` / `iterate_commit_while` |
 | Blocking | `retry` suspends on read-set change | No data-structure locks; a repeatedly-colliding Tx yields/parks to the privileged (oldest / highest-priority) Tx |
 | Memory management | GC | Lock-free `atomic_shared_ptr` (ref-counted) |
-| Hard real-time suitability | Limited (GC pauses) | No GC pauses, and a declared wait budget converts the tail into a chosen number — **measured** on a `PREEMPT_RT` host, MAX − budget = 3–7 µs at the shipped 20 ms budget (below the host's own 17 µs noise floor), 38.3 M commits with zero over 3 ms at a 1 ms budget ([below](#realtime-behaviour)). Still not hard-RT in a strict WCET sense: CAS retry *counts* are not bounded, and the budget cannot bound the wait behind a live privilege holder — that one is the deployment's to bound, with core isolation |
+| Hard real-time suitability | Limited (GC pauses) | No GC pauses, and a declared wait budget converts the tail into a chosen number — **measured** on a `PREEMPT_RT` host, MAX − budget = 3–7 µs at the shipped 20 ms budget (the host's own floor being 219 ns, measured), 38.3 M commits with zero over 3 ms at a 1 ms budget ([below](#realtime-behaviour)). Still not hard-RT in a strict WCET sense: CAS retry *counts* are not bounded, and the budget cannot bound the wait behind a live privilege holder — that one is the deployment's to bound, with core isolation |
 
 **Compared to Hardware Transactional Memory (Intel TSX/RTM):** HTM aborts on cache-line conflicts regardless of logical independence, and has strict capacity limits. KAME's STM aborts only on semantic conflicts (packet identity change), tolerates large read sets, and degrades gracefully to age-ordered privileged-Tx negotiation (the colliding losers yield to the oldest transaction) rather than falling back to a global lock.
 
@@ -165,9 +165,9 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 **A commit's worst-case time is a number you choose.**  Declare a wait budget
 (`ScopedWaitBudget`; KAME sets it from `XPrimaryDriver::downstreamWaitBudgetUS()`,
 default 20 ms) and every wait inside the commit is clipped to it.  Measured
-under contention on a `PREEMPT_RT` host — i5-7500, isolated core, the host's
-own `rtla osnoise` floor 17 µs; workload `transaction_priority_mixed_test`,
-the record commit against NORMAL / UI / SCRIPTING peers — MAX − budget:
+under contention on a `PREEMPT_RT` host — i5-7500, isolated core; workload
+`transaction_priority_mixed_test`, the record commit against NORMAL / UI /
+SCRIPTING peers — MAX − budget:
 
 | budget | MAX − budget | acquisition | UI | SCRIPTING |
 |---|---|---|---|---|
@@ -176,8 +176,20 @@ the record commit against NORMAL / UI / SCRIPTING peers — MAX − budget:
 | 200 µs | 19 µs | +1 % | **−94 %** | **−98 %** |
 
 In the shipping configuration (`SCHED_FIFO` + isolation + PM-QoS, 20 ms
-budget) MAX − budget is **3.0 µs — below the host's own 17 µs floor**: the
-STM's contribution to the tail is smaller than the machine's noise.
+budget) MAX − budget is **3.0 µs**: the STM's contribution to the tail is a
+few microseconds on top of whatever the host allows.
+
+**And what the host allows is a configuration choice, not a property.**  Run
+`latency_floor` — the same clock and histogram with no STM in the loop — before
+quoting any absolute number here.  On this host it moved by three orders of
+magnitude across three steps: as found (the kernel command line had silently
+lost its isolation across a reboot) MAX 67.9 µs; with `isolcpus`/`nohz_full`
+actually taking effect, 17.0 µs; and under `tests/with_pmqos`, which holds
+`/dev/cpu_dma_latency` at 0 for the child's lifetime, **219 ns — with not one
+sample over a microsecond in 370 million.**  The middle rung is the package
+leaving a deep C-state, invisible to every counter the kernel keeps.  `rtla
+osnoise` reports 17 µs Max Single here, i.e. exactly that rung and nothing
+about the 219 ns underneath it.
 
 Two things earned those numbers.  First, instrumentation: the previous
 constant (~200 µs of overshoot at every budget) was **the timed wait's
@@ -236,37 +248,35 @@ terms are the deployment's to bound:
 Everything above runs at NORMAL.  `Priority::HIGHEST` additionally never
 parks at all; same host and roles, 120 s:
 
-| tier | p50 | p99 | p99.9 | **MAX** |
-|---|---|---|---|---|
-| HIGHEST (the library's ceiling) | 768 ns | 2.05 µs | 20.5 µs | **95.1 µs** |
-| NORMAL, 20 ms budget | 768 ns | 1.28 µs | 3.67 ms | **20.15 ms** |
+Both rows below are one regime — isolated core with the tick verified stopped
+(`LOC` = 0 over the window), `SCHED_FIFO`, `with_pmqos`, and the pool's realtime
+contract honoured — against the 219 ns floor above.  120 s each:
 
-**Both rows are pre-contract, and the MAX column is mostly the host.**  Two
-things were learned after they were taken, and neither has been folded back in
-yet because doing so needs one run that has not happened:
+| tier | p50 | p99 | p99.9 | p99.999 | **MAX** |
+|---|---|---|---|---|---|
+| HIGHEST (the library's ceiling) | 768 ns | 1.79 µs | 20.5 µs | 41.0 µs | **53.1 µs** |
+| NORMAL, 20 ms budget | 768 ns | 1.02 µs | 7.34 ms | 20.97 ms | **20.03 ms** |
 
-* **Most of that tail is the machine, not the STM.**  `latency_floor` — the
-  same clock and histogram with no STM in the loop — shows this host
-  interrupting a *pinned* thread for ≥ 10 µs about 660 times a second, which
-  through an 800 ns commit at ~55 k/s predicts a p99.9 near 20 µs.  That is the
-  p99.9 above.  The cause is the 1 kHz local timer tick, and it is present
-  because the kernel command line lost its `isolcpus`/`nohz_full` across a
-  reboot; SMI was measured and excluded (`MSR_SMI_COUNT` = 30 since boot).
-* **The allocator owned a further 3.5× of the slow-commit population.**  A
-  commit frees *cross-thread* whenever a peer allocated on its subtree, and an
-  ungated cross-thread free batches to `CAP=1024` with one unlucky free paying
-  the whole flush.  `kame_pool_set_realtime_thread(KAME_RT_STRICT)` on that
-  thread takes commits over 50 µs from 28.8 to 8.3 per million; process-wide
-  realtime mode and `KAME_RT_DEFER` buy nothing, only STRICT.  The tests default
-  to it now.  **KAME does not yet mark that thread** — `kame/main.cpp` sets the
-  process-wide mode only — so it is an outstanding precondition, not a shipped
-  property; see [`kamepoolalloc`](../kamepoolalloc)'s contract.
+At HIGHEST, **three commits out of 4,480,089 exceeded 50 µs** — and all three
+took exactly 4 attempts, so they are retry bursts, not stalls.  The NORMAL row
+is the budget doing its job: 0.054 % of commits reach it, and MAX *is* it.
 
-The 3.5× is a ratio measured within one sweep and stands; its absolute
-companion (MAX 66.7 µs) was taken on the un-isolated boot and is therefore not
-comparable with the table, which is why it is not in it.  **The number this
-table should eventually carry — isolated host, contract honoured — has not been
-measured.**
+Getting there took two fixes that are worth stating because neither is
+obvious.  **The allocator owned 3.5× of the slow-commit population**: a commit
+frees *cross-thread* whenever a peer allocated on its subtree, and an ungated
+cross-thread free batches to `CAP=1024` with one unlucky free paying the whole
+flush.  `kame_pool_set_realtime_thread(KAME_RT_STRICT)` on that thread takes
+commits over 50 µs from 28.8 to 8.3 per million; process-wide realtime mode and
+`KAME_RT_DEFER` buy nothing, only STRICT.  The tests default to it.  **KAME
+does not yet mark that thread** — `kame/main.cpp` sets the process-wide mode
+only — so it is an outstanding precondition, not a shipped property; see
+[`kamepoolalloc`](../kamepoolalloc)'s contract.  And **the host had to be made
+quiet first**, which is the ladder above.
+
+One thing did *not* move under any of it.  **p99.9 = 20.5 µs survived core
+isolation, the tick stopping, C-states off and the allocator fix alike** — it
+is 90× the floor and it is the STM's own.  It is also 50× inside a 1 ms
+deadline, which is why it is recorded rather than chased.
 
 The ceiling's precondition: **HIGHEST commit rate × longest peer closure
 ≪ 1.**  HIGHEST is also immune to fair-mode, so each of its commits landing
