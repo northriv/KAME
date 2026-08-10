@@ -339,23 +339,37 @@ that the STM has a mechanism for exactly this: a transaction that keeps losing
 claims privilege and every peer defers to it.  The claim gate carries **no
 priority term** — HIGHEST claims on the same terms as anyone — and it converts
 every verdict it is given.  It is simply never given one here.  Counting the
-gates (`KAME_STM_NEG_DIAG` `ll_*`, 15.85 M commits on the RT host) rather than
-reading them — four gates, mutually exclusive and exhaustive:
+gates (`KAME_STM_NEG_DIAG` `ll_*`) rather than reading them — four gates,
+mutually exclusive and exhaustive, over two RT-host runs of 120 s:
 
 | gate | share of the probe ticks it blocks |
 |---|---|
-| retry threshold `clamp(sig_C·2, 3, nproc)` | **63 %** |
-| the per-linkage window reset | 26 % |
-| `tags_owned == tags_total` | 11 % |
-| `m_tagged_linkages.empty()` — outside the probe | 9 % (but ~37 % on a shared container, where a plain CAS loss never reaches a negotiation at all) |
+| retry threshold `clamp(sig_C·2, 3, nproc)` | **57–63 %** |
+| the per-linkage window reset | 26–34 % |
+| `tags_owned == tags_total` | 9–11 % |
+| `m_tagged_linkages.empty()` — outside the probe | 7–9 % (but ~37 % on a shared container, where a plain CAS loss never reaches a negotiation at all) |
+
+Across 8.3 M and 15.9 M commits the probe ran 63,616 and 45,967 times and
+reached a verdict **once, in one of the two runs**.
 
 And the threshold is not merely the largest blocker, it is **unreachable**:
 `my_tx_retries` at those ticks has mean **0.16** and max **2**, against a
-threshold of **4**.  The probe is nearly always looking at a *first-attempt*
-transaction.  (Do not shortcut this from the attempt count — `snapshot()`'s own
-retry loop increments the same counter live and restores it on scope exit, so
-a tick from inside it sees more retries than any attempt count predicts.  It
-has to be measured, and the harness prints the margin.)
+threshold of **4** (measured on the container — the counter postdates both RT
+runs above, and the arithmetic it settles is not host-specific).  The probe is
+nearly always looking at a *first-attempt* transaction.  Do not shortcut this
+from the attempt count: `snapshot()`'s own retry loop increments the same
+counter live and restores it on scope exit, so a tick from inside it sees more
+retries than any attempt count predicts.  It has to be measured, and the
+harness prints the margin.
+
+Both RT runs above were `taskset` to the isolated cores but **SCHED_OTHER with
+all four threads sharing them** — not the shipped configuration, and not
+comparable to the tier table below.  (An outer `chrt -f 20` did nothing: every
+thread body resets its own policy, deliberately, so the elevation was demoted
+at thread start.  The harness now adopts an inherited RT priority and says so.)
+The shares are a property of the workload rather than of the schedule — the two
+runs differ by 54× in MAX and agree on them to a few points — but the absolute
+latencies from those runs are not quotable and are not quoted.
 
 So this tail is a privilege **absence**, not a privilege failure: the probe is
 calibrated for sustained mutual livelock, and a 3-attempt CAS race that

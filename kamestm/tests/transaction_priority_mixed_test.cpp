@@ -215,24 +215,39 @@
 //!     HIGHEST is neither privileged nor excluded there — it claims on the same
 //!     terms as anyone.  Yet `priv strips (Rule 0)` is 0 in every run of this
 //!     harness.  Four gates stand between a losing commit and that claim, and
-//!     the ll_* counters below separate them.  Measured on the RT host (120 s,
-//!     isolated pair, 15,850,638 warm commits, 1,538 slow at 15 us):
+//!     the ll_* counters below separate them.  Two RT-host runs, 120 s each,
+//!     15,850,638 and 8,331,170 warm commits — see the REGIME note at the end
+//!     of this bullet before quoting anything from them:
 //!       - the retry threshold, `my_tx_retries >= clamp(sig_C*2, 3,
-//!         hardware_concurrency())` — **the largest blocker by far, 1.82 of the
-//!         2.90 ticks per slow commit (63 %)**.
-//!       - the per-linkage window reset, 0.76 (26 %) — `LivelockProbe::state()`
+//!         hardware_concurrency())` — **the largest blocker by far, 57-63 % of
+//!         ticks** (1.82 of 2.90 and 1.27 of 2.22 per slow commit).
+//!       - the per-linkage window reset, 26-34 % — `LivelockProbe::state()`
 //!         holds ONE `linkage_id`, and a multi-nodal commit negotiates on
 //!         several, so each switch discards the accumulated window.
-//!       - `tags_owned == tags_total`, 0.32 (11 %) — the condition a displaced
+//!       - `tags_owned == tags_total`, 9-11 % — the condition a displaced
 //!         thread necessarily fails, i.e. the one that most needs the rescue.
 //!       - `m_tagged_linkages.empty()`, the gate OUTSIDE the probe: entries
-//!         3.17 against ticks 2.90, so only ~9 % here.  (On a shared container
-//!         this one dominates instead — entries 0.63 per slow commit, ~37 %
-//!         never negotiating at all, because a plain CAS loss is not a
-//!         negotiation.  It is the one figure of the four that is a property
-//!         of the host rather than of the STM.)
-//!     The four are exhaustive and mutually exclusive: 0.76 + 0.32 + 1.82 +
-//!     0.0007 = 2.90 exactly.
+//!         3.17 vs ticks 2.90 and 2.39 vs 2.22, so 7-9 % here.  (On a shared
+//!         container this one dominates instead — entries 0.63 per slow
+//!         commit, ~37 % never negotiating at all, because a plain CAS loss is
+//!         not a negotiation.  It is the one figure of the four that is a
+//!         property of the host rather than of the STM.)
+//!     The four are exhaustive and mutually exclusive, to the last digit in
+//!     both runs: 0.76 + 0.32 + 1.82 + 0.0007 = 2.90, and 0.76 + 0.19 + 1.27 =
+//!     2.22.  The probe ran 45,967 and 63,616 times across the two and reached
+//!     a verdict ONCE.
+//!     REGIME, and it is not the shipped one.  Both runs were `taskset` to the
+//!     isolated cores with an outer `chrt -f 20`, and the chrt did NOTHING:
+//!     every thread body opens with os_be_ordinary(), correctly (see the
+//!     comment there — PTHREAD_INHERIT_SCHED), so the elevation was demoted at
+//!     thread start and all four threads ran SCHED_OTHER sharing two cores.
+//!     The only trace was the missing `OS arm:` line.  The harness now adopts
+//!     an inherited RT priority and prints that it did, and warns when FIFO is
+//!     on without per-thread pinning; a `taskset` mask is not pinning.
+//!     Consequence: the SHARES above are usable — the two runs differ 54x in
+//!     MAX (74.0 us vs 4.01 ms, both CFS luck) and agree on them to a few
+//!     points, so they are a property of the workload, not of the schedule —
+//!     but the LATENCIES from those runs are not, and are not quoted here.
 //!     **The threshold is not merely the largest blocker, it is unreachable.**
 //!     Do NOT derive that from the outer attempt count — "attempts peak at 3 so
 //!     retries peak at 2" ignores Node::snapshot()'s own retry loop, which
@@ -242,7 +257,10 @@
 //!     `retry margin` line): `my_tx_retries` mean **0.16**, max **2**, against
 //!     a threshold of **4**.  The probe is nearly always looking at a
 //!     first-attempt transaction, and never once in a run saw enough retries to
-//!     pass, at any contention level the workload reached.
+//!     pass, at any contention level the workload reached.  (Container figures
+//!     — the counter postdates both RT runs above.  What it settles is
+//!     arithmetic, not a host property, but re-take it on the RT host before
+//!     quoting it as one.)
 //!     What is NOT broken: the gate itself.  One verdict was reached in
 //!     15.85 M commits and it produced one claim and one grant — 100 %
 //!     conversion.  So HIGHEST's tail here is not a privilege FAILURE, it is a
@@ -530,7 +548,7 @@ int main() {
     //! \sa the KAME_MIX_WB_US block in the header comment.  Default mirrors
     //! XPrimaryDriver::downstreamWaitBudgetUS(); 0 removes the budget.
     const long wb_us       = env_long("KAME_MIX_WB_US", 20000);
-    const long os_fifo     = env_long("KAME_MIX_OS_FIFO", 0);
+    const long os_fifo_req = env_long("KAME_MIX_OS_FIFO", 0);
     //! 0 = off, 1 = the lowprio tiers (UI + SCRIPTING) go SCHED_IDLE,
     //! 2 = the NORMAL peers as well.  The two levels ask different questions.
     //! Expiry is a lowprio-only mechanism, so level 1 starves holders whose
@@ -646,6 +664,41 @@ int main() {
 #endif
     if(cpus.empty()) cpus.push_back(0);
     const long ncpu = (long)cpus.size();
+    //! An outer `chrt -f N ./this_test` used to be silently thrown away, and it
+    //! cost a whole measurement session before anyone noticed.  Every thread
+    //! body opens with os_be_ordinary() — correctly, because
+    //! PTHREAD_INHERIT_SCHED would otherwise leak one thread's elevation into
+    //! the next — so the inherited RT class is demoted at the top of each
+    //! thread and the run is SCHED_OTHER throughout, while the command line
+    //! and the operator both say SCHED_FIFO.  The only visible trace was the
+    //! absence of the `OS arm:` line below, which is not something a reader
+    //! notices.  Adopt the inherited priority instead: `chrt -f 20 ./test` and
+    //! `KAME_MIX_OS_FIFO=20 ./test` are the same request.  Setting the variable
+    //! explicitly always wins, including to 0, which opts out.
+    long os_fifo_eff = os_fifo_req;
+#if defined(__linux__)
+    {   const int pol = ::sched_getscheduler(0);
+        struct sched_param sp{};
+        if((pol == SCHED_FIFO || pol == SCHED_RR)
+                && (::sched_getparam(0, &sp) == 0) && (sp.sched_priority > 0)) {
+            if( !std::getenv("KAME_MIX_OS_FIFO")) {
+                os_fifo_eff = sp.sched_priority;
+                std::printf("  NOTE: started under SCHED_%s %d (chrt?) — "
+                            "adopting it as KAME_MIX_OS_FIFO=%ld.  Every thread "
+                            "body resets its own policy, so without this the "
+                            "run would silently have been SCHED_OTHER.\n",
+                            (pol == SCHED_FIFO) ? "FIFO" : "RR",
+                            sp.sched_priority, os_fifo_eff);
+            }
+            else if(os_fifo_req != sp.sched_priority)
+                std::printf("  NOTE: started under SCHED_%s %d but "
+                            "KAME_MIX_OS_FIFO=%ld is set and wins.\n",
+                            (pol == SCHED_FIFO) ? "FIFO" : "RR",
+                            sp.sched_priority, os_fifo_req);
+        }
+    }
+#endif
+    const long os_fifo = os_fifo_eff;   //!< what the run actually uses
     bool fifo_ok = false;
     if(os_fifo > 0) {
         fifo_ok = os_set_policy(SCHED_FIFO, (int)os_fifo);
@@ -672,6 +725,20 @@ int main() {
                     (os_starve >= 2) ? "lowprio+NORMAL" :
                         (os_starve ? "lowprio" : "no"),
                     pin_ok ? "yes" : "no", cpu_acq, cpu_house, ncpu);
+    //! The combination this project measured as catastrophic and then shipped
+    //! a rule about — "FIFO and isolation ship together or neither ships" —
+    //! used to run without a word: the elevated thread preempts the very CFS
+    //! holders it then waits behind, contenders collapse to ~150 commits/s,
+    //! and the tail goes to tens of milliseconds.  `taskset` on the command
+    //! line does NOT satisfy this: it restricts the mask that every thread
+    //! shares, whereas the rule needs the deadline thread ALONE on a core.
+    if(fifo_ok && !pin_ok)
+        std::printf("  WARNING: SCHED_FIFO is on but per-thread pinning is "
+                    "OFF (KAME_MIX_OS_PIN=1).  The elevated thread will "
+                    "preempt the peers it then waits behind — a measured "
+                    "priority inversion, not a realtime configuration.  Any "
+                    "tail from this run describes that, and taskset alone "
+                    "does not fix it.\n");
 
 #ifndef DISABLE_POOL_ALLOCATOR
     //! Process-wide half of KAME_MIX_RT_POOL, before any thread starts.
