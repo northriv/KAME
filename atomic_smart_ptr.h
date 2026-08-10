@@ -1668,7 +1668,7 @@ atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt, bool weakly) const noexcept
         else {
             pause4spin();
         }
-#ifndef BACKOFF_IN_ATOMIC_SMART_PTR
+#if BACKOFF_IN_ATOMIC_SMART_PTR > 0
         for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
             pause4spin(); //exponential backoff.
 #else
@@ -1754,7 +1754,7 @@ inline bool atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_globa
                 return false;
             auto [cur_ptr, rcnt_old] = load_tagged_();
             if((cur_ptr == pref) && rcnt_old) {
-#ifndef BACKOFF_IN_ATOMIC_SMART_PTR
+#if BACKOFF_IN_ATOMIC_SMART_PTR > 0
                 for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
                     pause4spin(); //exponential backoff.
 #else
@@ -2024,7 +2024,7 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
             new_refcnt_undo();
             return false;
         }
-#ifndef BACKOFF_IN_ATOMIC_SMART_PTR
+#if BACKOFF_IN_ATOMIC_SMART_PTR > 0
         for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
             pause4spin(); //exponential backoff.
 #else
@@ -2104,7 +2104,7 @@ local_shared_ptr<T, reflocal_var_t>::swap(atomic_shared_ptr<T> &r) noexcept {
             assert(rcnt_old);
             r.release_tag_ref_(pref, rcnt_old);
         }
-#ifndef BACKOFF_IN_ATOMIC_SMART_PTR
+#if BACKOFF_IN_ATOMIC_SMART_PTR > 0
         for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
             pause4spin(); //exponential backoff.
 #else
