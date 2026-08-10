@@ -199,14 +199,22 @@
 //!     No counter could settle it because nothing timed the pass.
 //!     Now one does: bundle() and unbundle() are timed (outermost call only —
 //!     both recurse) and differenced across the SAME boundaries as `retry`, so
-//!     the split needs no arithmetic.  Measured share of the retry phase: ~a
-//!     THIRD.  Re-bundling is a real and substantial term and it is not the
-//!     mechanism; two thirds of the cost of a failed attempt remain
-//!     unattributed, and the next candidate has to clear the same
-//!     multiplication this one failed.
+//!     the split needs no arithmetic.  Measured on the RT host in the shipped
+//!     shape, 13.6 M commits: **36 % of the retry phase on the mean, 29 % in
+//!     the worst commit** (12,354 of 42,062 ns); a container agrees at 30-32 %.
+//!     Re-bundling is a real and substantial term and it is not the mechanism;
+//!     two thirds of the cost of a failed attempt remain unattributed, and the
+//!     next candidate has to clear the same multiplication this one failed.
+//!     That same run is the cleanest statement of the finding as a whole:
+//!     MAX 45,129 ns = 411 snapshot + 1,522 write + 1,084 successful commit +
+//!     42,062 retry, 50 ns unattributed, over a run with 137 involuntary
+//!     context switches.  93 % of the worst commit is failed attempts.
 //!     Do not pair a whole-commit bundle total against the retry phase — it
-//!     also contains the snapshot's and the successful commit's bundles and
-//!     reads over 100 %, which is how this was first got wrong.
+//!     also contains the snapshot's and the successful commit's bundles (45 %
+//!     of all bundling in that run) and reads over 100 %, which is how this was
+//!     first got wrong.  Note also the asymmetry the whole-commit line exposes:
+//!     ~7.5 us per bundle pass against ~925 ns per unbundle pass, 8x, with
+//!     bundle passes the rarer of the two (0.65 vs 1.10 per slow commit).
 //!   * **Why privilege never rescues it — counted, not read.**  The obvious
 //!     objection to the above is that the STM has a completion guarantee for
 //!     exactly this: a transaction that keeps losing claims privilege and
@@ -215,59 +223,66 @@
 //!     HIGHEST is neither privileged nor excluded there — it claims on the same
 //!     terms as anyone.  Yet `priv strips (Rule 0)` is 0 in every run of this
 //!     harness.  Four gates stand between a losing commit and that claim, and
-//!     the ll_* counters below separate them.  Two RT-host runs, 120 s each,
-//!     15,850,638 and 8,331,170 warm commits — see the REGIME note at the end
-//!     of this bullet before quoting anything from them:
+//!     the ll_* counters below separate them.  Three RT-host runs of 120 s,
+//!     13.6 / 15.9 / 8.3 M warm commits, whose MAXes span 45 us to 4.0 ms and
+//!     which agree on these shares to a few points regardless — which is what
+//!     makes the shares a property of the workload and not of the schedule:
 //!       - the retry threshold, `my_tx_retries >= clamp(sig_C*2, 3,
-//!         hardware_concurrency())` — **the largest blocker by far, 57-63 % of
-//!         ticks** (1.82 of 2.90 and 1.27 of 2.22 per slow commit).
-//!       - the per-linkage window reset, 26-34 % — `LivelockProbe::state()`
+//!         hardware_concurrency())` — **the largest blocker by far, 57-66 % of
+//!         ticks**.
+//!       - the per-linkage window reset, 25-34 % — `LivelockProbe::state()`
 //!         holds ONE `linkage_id`, and a multi-nodal commit negotiates on
 //!         several, so each switch discards the accumulated window.
 //!       - `tags_owned == tags_total`, 9-11 % — the condition a displaced
 //!         thread necessarily fails, i.e. the one that most needs the rescue.
-//!       - `m_tagged_linkages.empty()`, the gate OUTSIDE the probe: entries
-//!         3.17 vs ticks 2.90 and 2.39 vs 2.22, so 7-9 % here.  (On a shared
+//!       - `m_tagged_linkages.empty()`, the gate OUTSIDE the probe: 7-9 %
+//!         (entries 3.10 vs ticks 2.87 in the shipped-shape run).  On a shared
 //!         container this one dominates instead — entries 0.63 per slow
 //!         commit, ~37 % never negotiating at all, because a plain CAS loss is
 //!         not a negotiation.  It is the one figure of the four that is a
-//!         property of the host rather than of the STM.)
-//!     The four are exhaustive and mutually exclusive, to the last digit in
-//!     both runs: 0.76 + 0.32 + 1.82 + 0.0007 = 2.90, and 0.76 + 0.19 + 1.27 =
-//!     2.22.  The probe ran 45,967 and 63,616 times across the two and reached
-//!     a verdict ONCE.
-//!     REGIME, and it is not the shipped one.  Both runs were `taskset` to the
-//!     isolated cores with an outer `chrt -f 20`, and the chrt did NOTHING:
-//!     every thread body opens with os_be_ordinary(), correctly (see the
-//!     comment there — PTHREAD_INHERIT_SCHED), so the elevation was demoted at
-//!     thread start and all four threads ran SCHED_OTHER sharing two cores.
-//!     The only trace was the missing `OS arm:` line.  The harness now adopts
-//!     an inherited RT priority and prints that it did, and warns when FIFO is
-//!     on without per-thread pinning; a `taskset` mask is not pinning.
-//!     Consequence: the SHARES above are usable — the two runs differ 54x in
-//!     MAX (74.0 us vs 4.01 ms, both CFS luck) and agree on them to a few
-//!     points, so they are a property of the workload, not of the schedule —
-//!     but the LATENCIES from those runs are not, and are not quoted here.
-//!     **The threshold is not merely the largest blocker, it is unreachable.**
-//!     Do NOT derive that from the outer attempt count — "attempts peak at 3 so
-//!     retries peak at 2" ignores Node::snapshot()'s own retry loop, which
-//!     increments the same `m_tx_retry_count` live and only restores it when
-//!     GuardSnapshotRetryCount leaves scope, so a tick taken inside it sees
-//!     more than any attempt count predicts.  Measured instead (the
-//!     `retry margin` line): `my_tx_retries` mean **0.16**, max **2**, against
-//!     a threshold of **4**.  The probe is nearly always looking at a
-//!     first-attempt transaction, and never once in a run saw enough retries to
-//!     pass, at any contention level the workload reached.  (Container figures
-//!     — the counter postdates both RT runs above.  What it settles is
-//!     arithmetic, not a host property, but re-take it on the RT host before
-//!     quoting it as one.)
-//!     What is NOT broken: the gate itself.  One verdict was reached in
-//!     15.85 M commits and it produced one claim and one grant — 100 %
-//!     conversion.  So HIGHEST's tail here is not a privilege FAILURE, it is a
-//!     privilege ABSENCE: the probe is calibrated for sustained mutual
-//!     livelock, and a 3-attempt CAS race that resolves is not that.  Lowering
-//!     the threshold is the lever if one is ever wanted; this file establishes
-//!     only that it is the binding one, not that it should move.
+//!         property of the host rather than of the STM.
+//!     The four are exhaustive and mutually exclusive to the last digit in
+//!     every run: 0.72 + 0.27 + 1.88 + 0.0017 = 2.87 in the shipped-shape one.
+//!     REGIME — two of those three runs were NOT the shipped one, and how they
+//!     failed to be is the trap this harness now guards.  They were `taskset`
+//!     to the isolated cores with an outer `chrt -f 20`, and the chrt did
+//!     NOTHING: every thread body opens with os_be_ordinary(), correctly (see
+//!     the comment there — PTHREAD_INHERIT_SCHED), so the elevation was
+//!     demoted at thread start and all four threads ran SCHED_OTHER sharing
+//!     two cores.  The only trace was the missing `OS arm:` line.  Both then
+//!     hit a 4.006 ms MAX, reproducible to 0.5 us across runs and landing in a
+//!     DIFFERENT phase each time — a quantised external stall, not the STM.
+//!     The harness now adopts an inherited RT priority and prints that it did,
+//!     and warns when FIFO is on without per-thread pinning; a `taskset` mask
+//!     is not pinning.  Use KAME_MIX_OS_FIFO / KAME_MIX_OS_PIN, not chrt.
+//!     One more trap in the same family: `isolcpus=2,3` REMOVES those CPUs
+//!     from the default affinity mask, so a run without an explicit taskset
+//!     sees only the housekeeping cores — the shipped-shape run above reports
+//!     `acq->cpu1, others->cpu0, 2 CPUs` and got its 45 us there, on the NOISY
+//!     pair.  To land on the isolated cores, taskset INTO them AND let the
+//!     harness pin within that mask.
+//!     WHETHER THE THRESHOLD CAN BE MET AT ALL depends on the host, and the
+//!     first answer here was a container artifact stated as a general one.
+//!     Do NOT derive it from the outer attempt count either — "attempts peak
+//!     at 3 so retries peak at 2" ignores Node::snapshot()'s own retry loop,
+//!     which increments the same `m_tx_retry_count` live and only restores it
+//!     when GuardSnapshotRetryCount leaves scope, so a tick taken inside it
+//!     sees more than any attempt count predicts.  Measured (the `retry
+//!     margin` line, which prints REACHABLE/UNREACHABLE outright):
+//!       container            my_tx_retries max 2  vs threshold 4  UNREACHABLE
+//!       RT host, shipped     my_tx_retries max 4  vs threshold 4  REACHABLE
+//!     and on the RT host it IS reached: 3 verdicts in 13,560,878 commits,
+//!     each converting to a claim and a grant.  So the threshold is not a
+//!     wall; it sits far above where a 3-attempt race lives.  Mean
+//!     my_tx_retries at a tick is 0.12 — the probe is nearly always looking at
+//!     a FIRST attempt.
+//!     What is NOT broken: the gate itself, on either host — every verdict
+//!     ever reached converted, 4 for 4 across all runs.  So HIGHEST's tail is
+//!     not a privilege FAILURE but a privilege RARITY: the probe is calibrated
+//!     for sustained mutual livelock at ~1 firing per 4.5 M commits, and a
+//!     3-attempt CAS race that resolves is not what it is looking for.
+//!     Lowering the threshold is the lever if one is ever wanted; this file
+//!     establishes only that it is the binding one, not that it should move.
 //!     Three things that could have explained that tail instead, all checked
 //!     on the RT host in the same clean configuration and all negative, so a
 //!     future reader does not re-open them:

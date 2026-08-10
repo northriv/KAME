@@ -323,12 +323,20 @@ commit come to 4.8 µs against 15.6 µs measured, short by 3.2×, and
 
 `bundle()` and `unbundle()` are now timed directly and differenced across the
 same boundaries as the retry phase itself, which needs no arithmetic at all:
-**re-bundling is about a third of the retry cost, not the whole of it.**  The
-remaining two thirds are still unattributed — the harness prints the share so
-the next hypothesis has to clear the same bar.  (Pair the two terms only
-within one run: a whole-commit bundle total also contains the snapshot's and
-the successful commit's bundles, and against the retry phase alone it reads
-above 100 %.)
+**re-bundling is 36 % of the retry cost on average and 29 % in the worst
+commit, not the whole of it.**  (RT host, shipped shape, 13.6 M commits; a
+container agrees at 30–32 %.)  The remaining two thirds are unattributed, and
+the harness prints the share so the next hypothesis has to clear the same bar.
+
+That worst commit is the cleanest statement of the whole finding: **45,129 ns
+= 411 snapshot + 1,522 write + 1,084 successful commit + 42,062 retry**, with
+50 ns unattributed and 137 involuntary context switches in the entire run.
+**93 % of it is failed attempts.**
+
+(Pair the two terms only within one run, and only at matching scope: a
+whole-commit bundle total also contains the snapshot's and the successful
+commit's bundles — 45 % of all bundling here — and set against the retry phase
+alone it reads above 100 %.)
 
 Left as a characterisation rather than a fix: it is 20–50× inside a 1 ms
 deadline.  Narrowing it further means separating the failed `commit()` from the
@@ -352,24 +360,31 @@ mutually exclusive and exhaustive, over two RT-host runs of 120 s:
 Across 8.3 M and 15.9 M commits the probe ran 63,616 and 45,967 times and
 reached a verdict **once, in one of the two runs**.
 
-And the threshold is not merely the largest blocker, it is **unreachable**:
-`my_tx_retries` at those ticks has mean **0.16** and max **2**, against a
-threshold of **4** (measured on the container — the counter postdates both RT
-runs above, and the arithmetic it settles is not host-specific).  The probe is
-nearly always looking at a *first-attempt* transaction.  Do not shortcut this
-from the attempt count: `snapshot()`'s own retry loop increments the same
-counter live and restores it on scope exit, so a tick from inside it sees more
-retries than any attempt count predicts.  It has to be measured, and the
-harness prints the margin.
+Why the threshold binds took two answers.  On a shared container
+`my_tx_retries` at those ticks peaks at **2** against a threshold of **4** — it
+cannot be met at all, and no verdict is possible.  In the shipped shape
+(`SCHED_FIFO` + per-thread pinning) it peaks at **4** against the same
+threshold of 4: **reachable, and reached** — three verdicts in 13.6 M commits,
+each converting to a claim and a grant.  So the threshold is not a wall, it is
+simply far above where a 3-attempt race lives; the mean `my_tx_retries` at a
+tick is **0.12**, because the probe is nearly always looking at a *first
+attempt*.
 
-Both RT runs above were `taskset` to the isolated cores but **SCHED_OTHER with
-all four threads sharing them** — not the shipped configuration, and not
-comparable to the tier table below.  (An outer `chrt -f 20` did nothing: every
-thread body resets its own policy, deliberately, so the elevation was demoted
-at thread start.  The harness now adopts an inherited RT priority and says so.)
-The shares are a property of the workload rather than of the schedule — the two
-runs differ by 54× in MAX and agree on them to a few points — but the absolute
-latencies from those runs are not quotable and are not quoted.
+Do not shortcut this from the attempt count — `snapshot()`'s own retry loop
+increments the same counter live and restores it on scope exit, so a tick from
+inside it sees more retries than any attempt count predicts.  That is also why
+the container's "peaks at 2" does not generalise: it is a contention level, not
+an invariant.  The harness prints the margin and says REACHABLE or UNREACHABLE
+outright.
+
+Two things about provenance.  The shares above come from three RT-host runs
+whose MAXes span 45 µs to 4.0 ms, and they agree to a few points across all of
+them — which is what makes them a property of the workload rather than of the
+schedule.  Only the 45 µs run was in the shipped shape; the other two were
+SCHED_OTHER with four threads sharing two cores, because an outer `chrt -f 20`
+did nothing (every thread body resets its own policy, deliberately, so the
+elevation was demoted at thread start — the harness now adopts an inherited RT
+priority and says so).  Their *latencies* are therefore not quoted anywhere.
 
 So this tail is a privilege **absence**, not a privilege failure: the probe is
 calibrated for sustained mutual livelock, and a 3-attempt CAS race that
