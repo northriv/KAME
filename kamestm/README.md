@@ -191,6 +191,25 @@ leaving a deep C-state, invisible to every counter the kernel keeps.  `rtla
 osnoise` reports 17 µs Max Single here, i.e. exactly that rung and nothing
 about the 219 ns underneath it.
 
+**Three rungs, not one number — subtract the one whose configuration matches
+your run.**  This is easy to get wrong and was got wrong here: a commit MAX
+measured *with* isolation was once compared against the *un-isolated* rung and
+declared level with the machine.  Lined up correctly, the same measurements say
+the opposite:
+
+| configuration | machine floor | commit MAX | difference |
+|---|---|---|---|
+| isolated, no PM-QoS | 17.0 µs | 66.7 µs | **49.7 µs** |
+| isolated + PM-QoS | 219 ns | 53.1 µs | **52.9 µs** |
+
+The two rows share everything but PM-QoS, their floors differ by **77×**, and
+they nonetheless agree on the difference to within 6 %.  That invariance is
+what identifies it: **~50 µs of the tail is the STM's own**, and the sections
+below say which part — the retry path, measured directly at 46,670 ns of a
+50,707 ns worst commit.  The check is general and cheap: if a tail is really
+the machine, deleting the machine deletes the tail.  Here deleting all but
+219 ns of it left 53 µs standing.
+
 Two things earned those numbers.  First, instrumentation: the previous
 constant (~200 µs of overshoot at every budget) was **the timed wait's
 wake-up cost, not the STM** — the worst commit was one `cell.wait()` asked
@@ -266,8 +285,10 @@ obvious.  **The allocator owned 3.5× of the slow-commit population**: a commit
 frees *cross-thread* whenever a peer allocated on its subtree, and an ungated
 cross-thread free batches to `CAP=1024` with one unlucky free paying the whole
 flush.  `kame_pool_set_realtime_thread(KAME_RT_STRICT)` on that thread takes
-commits over 50 µs from 28.8 to 8.3 per million; process-wide realtime mode and
-`KAME_RT_DEFER` buy nothing, only STRICT.  The tests default to it.  **KAME
+commits over 50 µs from 28.8 to 8.3 per million and MAX from 92.6 to 66.7 µs
+(both arms isolated, no PM-QoS, so both against the 17.0 µs floor — 66.7 µs is
+**3.9× the machine**, not level with it); process-wide realtime mode (31.0) and
+`KAME_RT_DEFER` (29.3) buy nothing, only STRICT.  The tests default to it.  **KAME
 does not yet mark that thread** — `kame/main.cpp` sets the process-wide mode
 only — so it is an outstanding precondition, not a shipped property; see
 [`kamepoolalloc`](../kamepoolalloc)'s contract.  And **the host had to be made
