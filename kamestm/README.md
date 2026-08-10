@@ -341,6 +341,40 @@ What is left at zero conflict is **MAX 1.06 µs over 57 M composable commits**
 — 2.4× the median, 4.8× the machine's floor.  Nothing above it remains to
 attribute.
 
+### The contended remainder, measured to the end
+
+"Are there syscalls left?" was the right next question, and it was answered by
+counting rather than reading: `perf trace -s` attached to the acquisition
+thread for 30 s recorded **630 k syscall events — futex 10,433/s and
+`sched_yield` 77/s, nothing else**.  Both belong to the *demoted downstream*
+phase that shares the thread (its 2 ms `negotiate_sleep` chunks are the
+futex max of 2.005 ms; parking there is what the wait budget *is*).  The
+HIGHEST record phase contributes none — both syscall sites sit below the
+round-loop break that HIGHEST takes, and its own counters agree (sleeps 0,
+spins 0, faults 0).  Note the downstream spends 57 % of the thread's wall
+time parked under this deliberately hostile mix; that is a throughput fact
+about the demoted phase, not a latency fact about the record.
+
+So the record tail that remains is genuinely the STM executing, and the phase
+split says exactly where: of the worst commit's 22,374 ns, **20,159 ns —
+90 % — is the `Transaction` constructor's snapshot**, the retry phase is
+**zero**, and `snapshot_cas` runs at ~6–10 per slow commit.  A peer writing
+into the subtree between bundle phases forces the snapshot's bundle loop to
+rebuild; the worst commits rebuild ~10 times at ~2 µs a pass.  Attempts are
+1.000 — these commits never lose the CAS, they pay everything getting a
+consistent view assembled under fire.
+
+And the mechanism that caps it is the one this investigation kept finding
+asleep: with the sysfs read gone the probe is cheap, the snapshot loop's
+retries push `my_tx_retries` past the threshold (max 10 observed vs 4), and
+**privilege now fires ~25 times per 90 s run, converting 25/25** — the
+completion guarantee engaging on exactly the worst cases, where before the
+fix it fired once per several minutes.  The remaining levers, should ~22 µs
+ever matter, are design ones: the probe threshold and its
+`tags_owned == tags_total` condition (which blocks 8.5 ticks per slow commit
+during rebuilds), or the topology lever above, which removes the fire
+instead of fighting it.
+
 ### The one wait the budget cannot clip
 
 The exception is the wait behind a **live privileged peer** — privilege is

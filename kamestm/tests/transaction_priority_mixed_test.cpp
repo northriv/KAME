@@ -1014,6 +1014,21 @@ int main() {
     //! now).  Lesson recorded: these two numbers certify faults and
     //! scheduling, and certify NOTHING about syscalls — only an instruction
     //! trace does.
+    //!
+    //! Post-fix closure, by syscall COUNTING this time (`perf trace -s` on
+    //! this thread, 30 s, 630 k events): futex 10,433/s + sched_yield 77/s,
+    //! nothing else, and both are the DEMOTED DOWNSTREAM phase's (its 2 ms
+    //! negotiate_sleep chunk is the futex max; both call sites sit below the
+    //! round-loop break HIGHEST takes).  The record phase is syscall-free,
+    //! measured.  Its remaining tail is the snapshot's bundle-rebuild loop —
+    //! 90 % of the worst commit in the snapshot phase, retry phase ZERO,
+    //! snapshot_cas 6-10 — i.e. the cost of assembling a consistent view
+    //! while peers dirty the subtree, now capped by privilege actually
+    //! engaging (my_tx_retries reaches 10 vs threshold 4; ~25 grants per
+    //! 90 s, 25/25 converted).  The find-the-syscall workflow, for next
+    //! time: perf trace -t <tid> -s is the cheap first probe, PT the
+    //! localiser; pick the acq tid by Cpus_allowed_list == the isolated
+    //! core, not by ps psr sampling.
     long ru_min_warm = 0, ru_maj_warm = 0, ru_nvcsw_warm = 0, ru_nivcsw_warm = 0;
     long ru_min_end = 0, ru_maj_end = 0, ru_nvcsw_end = 0, ru_nivcsw_end = 0;
     //! Retry accounting for the slow tail.  Written only by the acquisition
