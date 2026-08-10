@@ -99,8 +99,17 @@ static inline void retry_pause(int retry) noexcept {
 inline int effective_runners(int c_obs) noexcept;
 #else
 inline int effective_runners(int) noexcept {
-    int hw = (int)std::thread::hardware_concurrency();
-    return hw > 0 ? hw : 1;
+    //! Cached: on Linux/glibc hardware_concurrency() re-reads
+    //! /sys/devices/system/cpu/online per call (3 syscalls) — see the
+    //! livelock-probe comment in transaction_neg_impl.h, where the same
+    //! uncached call was found costing ~2 us per probe tick inside RT
+    //! commits.  This overload is dead in the default configuration
+    //! (MIN/MAX_RUNNERS gate it out), fixed for whoever un-deads it.
+    static const int hw = []{
+        int h = (int)std::thread::hardware_concurrency();
+        return h > 0 ? h : 1;
+    }();
+    return hw;
 }
 #endif
 

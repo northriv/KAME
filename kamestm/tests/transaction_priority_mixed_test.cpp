@@ -355,7 +355,113 @@
 //!                            has ~10^3 nodes, so a root bundle costs ms and
 //!                            the invalidation window for a wide UI Tx is
 //!                            enormous — a 16-node tree cannot reproduce that.
-//!                            Set 64-256 to model a real measurement tree
+//!                            Set 64-256 to model a real measurement tree.
+//!                            **0 is the NO-BUNDLING topology**, and it is the
+//!                            control for every "what does composability
+//!                            cost" question: each subtree is a bare node, so
+//!                            a Transaction on it is a SingleTransaction and
+//!                            bundle() is never called (verify in the
+//!                            whole-commit bundle line: 0.00 passes).  Do NOT
+//!                            answer that question by comparing the acq
+//!                            thread's multi-nodal commit against another
+//!                            role's single-nodal one — those differ in core,
+//!                            in contention and in priority, and doing it that
+//!                            way once produced "the 5-node commit is FASTER
+//!                            than the 1-node one", which is an artifact of
+//!                            acq owning cpu3 while NORMAL shared cpu2.  Vary
+//!                            the topology on ONE thread instead.  RT host,
+//!                            verified shape, 60 s per arm:
+//!                              nodes   p50      MAX      commits/s
+//!                                  1    448 ns  31.3 us    323 k   (no bundle)
+//!                                  2    640 ns  34.1 us    148 k
+//!                                  5    896 ns  40.6 us    119 k
+//!                                 17   2048 ns  50.0 us     49 k
+//!                            p50 = 439 + 94.5*nodes to within 2 % at every
+//!                            point, the intercept landing on the single-node
+//!                            cost.  The column that matters for RT is MAX:
+//!                            17x the nodes buys 1.6x the worst case, and the
+//!                            single-node arm is ALREADY at 77 % of the
+//!                            five-node MAX with no bundling in it anywhere.
+//!                            Whatever sets the tail, it is not composability.
+//!                            Note unbundle() still runs at 0 leaves (2.00
+//!                            passes/commit): devA is a child of root, so a
+//!                            peer's root-scope Snapshot bundles it and the
+//!                            next commit has to extract itself back out
+//!   KAME_MIX_PERF_PID        pid of a `perf record --snapshot` to hit with
+//!                            SIGUSR2 on the first warm commit past
+//!                            KAME_MIX_TRACE_US; -1 = our parent, which is
+//!                            what perf IS when it launched us.  0 = off.
+//!                            The reason this exists: a cycles profile CANNOT
+//!                            find this tail, and that was tried before adding
+//!                            it.  Commits past p99.9 occupy 0.27 % of the
+//!                            run's cycles, so at -F 3000 they are ~240
+//!                            samples smeared across the whole path, and the
+//!                            contended and conflict-free profiles came out
+//!                            within 2 % of each other on every symbol.
+//!                            perf's sampling is proportional to TOTAL time
+//!                            and the tail is not in it.  A ring buffer plus a
+//!                            trigger is: Intel PT (Kaby Lake and later) keeps
+//!                            the last N MB of instruction trace and dumps it
+//!                            on SIGUSR2, so the one slow commit is captured
+//!                            instruction by instruction.  Usage —
+//!                              perf record -e intel_pt//u --snapshot -m,64M \
+//!                                -o pt.data -- taskset -c 2,3 env \
+//!                                KAME_MIX_TRACE_US=30 KAME_MIX_PERF_PID=-1 \
+//!                                ... ./transaction_priority_mixed_test
+//!                              perf script -i pt.data --insn-trace --xed
+//!                            taskset/env between perf and this binary are
+//!                            fine, they exec rather than fork, so getppid()
+//!                            still reaches perf.  The signal is sent BEFORE
+//!                            the tracefs freeze because perf needs
+//!                            milliseconds to service it and the AUX ring
+//!                            keeps overwriting meanwhile
+//!   KAME_MIX_DISJOINT        1 = no peer touches the acquiring subtree.  The
+//!                            control for "is the MAX the STM at all", and the
+//!                            reason it is a TOPOLOGY knob rather than
+//!                            KAME_MIX_NORMALS=0: every peer keeps running, on
+//!                            the same cores, at the same rate, allocating and
+//!                            freeing exactly as much, so the machine load is
+//!                            unchanged and only the CONFLICT is gone.  Turning
+//!                            the peers off instead removes the load with the
+//!                            conflict and cannot separate them.  Redirects
+//!                            every cross-thread devA touch to panel's subtree
+//!                            and demotes the two root-scope operations (the
+//!                            UI redraw Snapshot, the settings-apply Tx) to
+//!                            panel scope, since a root scope bundles devA
+//!                            whatever it writes; also forces NORMAL_XSUBTREE
+//!                            off, that role being a devA toucher by
+//!                            definition.  Pair with KAME_MIX_LEAVES=0 and the
+//!                            acquiring commit is one payload clone plus one
+//!                            CAS with nobody able to lose to anybody.
+//!                            WHAT IT FOUND (RT host, verified shape, 60 s):
+//!                              nodes conflict att bundle unbdl  MAX    cm/s
+//!                                5     yes     3  0.35   1.50  48.0us  121k
+//!                                5     NO      1  0.00   0.00   4.16   302k
+//!                                1     yes     3  0.00   1.88  32.3us  313k
+//!                                1     NO      1  0.00   0.00   4.94   952k
+//!                            The MAX collapses 11.5x (6.5x at one node) and
+//!                            slow commits over 10 us go to ZERO in 18 M and
+//!                            57 M.  **The tail is contention, full stop.**
+//!                            And composability contributes NOTHING to it —
+//!                            at zero conflict the five-node MAX (4.16 us) is
+//!                            LOWER than the single-node one (4.94 us).  Note
+//!                            a container reported the opposite (71-86 % of
+//!                            the tail surviving the same control); its floor
+//!                            produces ms events that swamp the effect, and it
+//!                            is not evidence about this question.
+//!                            AFTER the probe sysfs fix (all four arms above
+//!                            predate it): contended MAX 40.8 -> 21.9 us with
+//!                            slow commits 879 -> 5 per 60 s, and the control
+//!                            4.5-4.9 -> **1.06 us** over 57 M with p99.99 at
+//!                            640 ns.  The control was PREDICTED unchanged
+//!                            (the acq thread's probe never ticks there) and
+//!                            moved 4x anyway: in this arm UI and SCRIPTING
+//!                            contend with each other on `panel` and tick
+//!                            THEIR probes at kHz, and those reads taxed the
+//!                            whole package — shared inclusive LLC plus RT
+//!                            kernfs locks.  A per-thread model of a syscall
+//!                            misses what it does to the cache; the failed
+//!                            prediction is the measurement of that
 //!   KAME_MIX_OS_FIFO         >0 = acquisition thread at SCHED_FIFO of that
 //!                            priority (Linux; skipped with a notice when not
 //!                            permitted).  The rest stay SCHED_OTHER
@@ -469,6 +575,8 @@
 #  include <unistd.h>
 #  include <fcntl.h>
 #  include <sys/prctl.h>
+#  include <sys/types.h>
+#  include <signal.h>        // kill(perf, SIGUSR2) — the PT snapshot trigger
 #endif
 
 class MyNode : public Transactional::Node<MyNode> {
@@ -567,6 +675,13 @@ int main() {
     const long ui_period_us= env_long("KAME_MIX_UI_PERIOD_US", 0);
     const long n_normals   = env_long("KAME_MIX_NORMALS", 1);
     const long n_scripting = env_long("KAME_MIX_SCRIPTING", 1);
+    //! \sa KAME_MIX_DISJOINT in the header.  The control for "is the tail the
+    //! STM at all": every peer keeps running, on the same cores, at the same
+    //! rate, allocating and freeing exactly as much — but nothing outside the
+    //! acquisition thread touches devA's subtree or takes a root scope that
+    //! would bundle it.  Removing the peers instead would remove the machine
+    //! load with the conflict and prove nothing.
+    const bool disjoint    = env_long("KAME_MIX_DISJOINT", 0) != 0;
     const long ui_wide     = env_long("KAME_MIX_UI_WIDE", 8);
     const long n_leaves    = env_long("KAME_MIX_LEAVES", 4);
     const bool acq_normal  = env_long("KAME_MIX_ACQ_NORMAL", 0) != 0;
@@ -602,6 +717,7 @@ int main() {
     //! running trace is hopeless, while catching it in the act is routine.
     //! Needs tracefs mounted and root; says so and stays disarmed otherwise.
     const long trace_us = env_long("KAME_MIX_TRACE_US", 0);
+    const long perf_snap_pid = env_long("KAME_MIX_PERF_PID", 0);
     //! Samples in the first this-many milliseconds are counted but kept OUT of
     //! the histogram and cannot fire the breaktrace.  Without it the largest
     //! sample of every run is a cold-start artefact and the breaktrace can
@@ -809,8 +925,19 @@ int main() {
     //! they were RAW: `KAME_MIX_LEAVES` below 4 indexed out of bounds and
     //! handed the STM a garbage node, aborting with a `domain_error` out of
     //! the payload lookup — which reads as an STM bug and is a harness one.
+    //! KAME_MIX_LEAVES=0 is the no-bundling topology (see the header): every
+    //! subtree is a bare node, so a Transaction on it is a SingleTransaction
+    //! and bundle()/unbundle() are never called.  Each accessor then falls
+    //! back to the subtree root, so the roles contend on the same nodes rather
+    //! than on nothing.
     auto lA = [&](std::size_t i) -> const shared_ptr<MyNode> & {
-        return leavesA[i % leavesA.size()];
+        return leavesA.empty() ? devA : leavesA[i % leavesA.size()];
+    };
+    auto lB = [&](std::size_t i) -> const shared_ptr<MyNode> & {
+        return leavesB.empty() ? devB : leavesB[i % leavesB.size()];
+    };
+    auto lP = [&](std::size_t i) -> const shared_ptr<MyNode> & {
+        return leavesP.empty() ? panel : leavesP[i % leavesP.size()];
     };
 
     enum {T_HIGHEST = 0, T_DOWNSTREAM = 1, T_UI = 2, T_SCRIPT0 = 3};
@@ -874,6 +1001,34 @@ int main() {
     //! PAGE FAULT is a kernel entry that is nobody's syscall and that nothing
     //! here counted.  Two getrusage(RUSAGE_THREAD) calls, both outside the
     //! timed region, settle it instead of arguing it.
+    //!
+    //! AND THE ARGUMENT WAS STILL WRONG, in the direction these counters
+    //! cannot see: faults and context switches are not syscalls, and a
+    //! syscall that neither faults nor blocks leaves minflt=0, invol=0
+    //! looking exactly like "no kernel".  Intel PT then showed the livelock
+    //! probe calling std::thread::hardware_concurrency() per tick — on
+    //! Linux/glibc an openat+read+close of /sys/devices/system/cpu/online,
+    //! three syscalls inside the HIGHEST commit's negotiation, ~2 us per
+    //! tick under PTI+IBRS, 2.83 ticks per slow commit = the unattributed
+    //! 5.5 us of the retry phase.  Fixed at the source (the probe caches it
+    //! now).  Lesson recorded: these two numbers certify faults and
+    //! scheduling, and certify NOTHING about syscalls — only an instruction
+    //! trace does.
+    //!
+    //! Post-fix closure, by syscall COUNTING this time (`perf trace -s` on
+    //! this thread, 30 s, 630 k events): futex 10,433/s + sched_yield 77/s,
+    //! nothing else, and both are the DEMOTED DOWNSTREAM phase's (its 2 ms
+    //! negotiate_sleep chunk is the futex max; both call sites sit below the
+    //! round-loop break HIGHEST takes).  The record phase is syscall-free,
+    //! measured.  Its remaining tail is the snapshot's bundle-rebuild loop —
+    //! 90 % of the worst commit in the snapshot phase, retry phase ZERO,
+    //! snapshot_cas 6-10 — i.e. the cost of assembling a consistent view
+    //! while peers dirty the subtree, now capped by privilege actually
+    //! engaging (my_tx_retries reaches 10 vs threshold 4; ~25 grants per
+    //! 90 s, 25/25 converted).  The find-the-syscall workflow, for next
+    //! time: perf trace -t <tid> -s is the cheap first probe, PT the
+    //! localiser; pick the acq tid by Cpus_allowed_list == the isolated
+    //! core, not by ps psr sampling.
     long ru_min_warm = 0, ru_maj_warm = 0, ru_nvcsw_warm = 0, ru_nivcsw_warm = 0;
     long ru_min_end = 0, ru_maj_end = 0, ru_nvcsw_end = 0, ru_nivcsw_end = 0;
     //! Retry accounting for the slow tail.  Written only by the acquisition
@@ -901,7 +1056,7 @@ int main() {
                       late_max_ns = 0, tail_spins = 0, tail_spin_ns = 0,
                       commit_cas = 0, bundle_cas = 0, snap_cas = 0,
                       ll_ticks = 0, ll_resets = 0, ll_no_tags = 0,
-                      ll_few_retries = 0, ll_verdicts = 0,
+                      ll_few_retries = 0, ll_verdicts = 0, ll_rt_fast = 0,
                       priv_tries = 0, priv_grants = 0,
                       ll_retry_max = 0, ll_retry_sum = 0, ll_thresh_max = 0,
                       bundle_ns = 0, bundle_calls = 0, bundle_all = 0,
@@ -924,7 +1079,7 @@ int main() {
             snap_cas   += d.snapshot_retries;
             ll_ticks += d.ll_ticks; ll_resets += d.ll_resets;
             ll_no_tags += d.ll_no_tags; ll_few_retries += d.ll_few_retries;
-            ll_verdicts += d.ll_verdicts;
+            ll_verdicts += d.ll_verdicts; ll_rt_fast += d.ll_rt_fast;
             priv_tries += d.priv_tries; priv_grants += d.priv_grants;
             ll_retry_sum += d.ll_retry_sum;
             if(d.ll_retry_max > ll_retry_max)   ll_retry_max = d.ll_retry_max;
@@ -943,12 +1098,13 @@ int main() {
     //! the snapshot already happens after the timed region closes.
     struct LLAll {
         std::uint64_t n = 0, ticks = 0, resets = 0, no_tags = 0,
-                      few_retries = 0, verdicts = 0, tries = 0, grants = 0,
+                      few_retries = 0, verdicts = 0, rt_fast = 0,
+                      tries = 0, grants = 0,
                       retry_max = 0, retry_sum = 0, thresh_max = 0;
         void add(const Transactional::detail::NegDiag &d) {
             ++n; ticks += d.ll_ticks; resets += d.ll_resets;
             no_tags += d.ll_no_tags; few_retries += d.ll_few_retries;
-            verdicts += d.ll_verdicts;
+            verdicts += d.ll_verdicts; rt_fast += d.ll_rt_fast;
             tries += d.priv_tries; grants += d.priv_grants;
             retry_sum += d.ll_retry_sum;
             if(d.ll_retry_max > retry_max)   retry_max = d.ll_retry_max;
@@ -961,7 +1117,58 @@ int main() {
     // path only ever does two write()s, and only once.
     int trace_marker_fd = -1, tracing_on_fd = -1;
     std::atomic<bool> trace_fired{false};
+    std::uint64_t trace_fired_ns = 0;   //!< the commit that pulled the trigger
+    //! Intel PT snapshot target.  A cycles profile CANNOT find this tail and
+    //! it was tried: commits past p99.9 occupy 0.27 % of the run's cycles, so
+    //! at -F 3000 they are ~240 samples smeared over the whole path and the
+    //! contended and conflict-free profiles come out within 2 % of each other
+    //! everywhere.  Sampling is proportional to TOTAL time; the tail is not in
+    //! it.  What does work is a ring buffer of the instruction trace plus a
+    //! trigger — `perf record --snapshot` holds the last N MB of Intel PT and
+    //! dumps it on SIGUSR2, so signalling from the same `if` that already
+    //! freezes tracefs captures the literal instruction path of the one slow
+    //! commit.  \sa KAME_MIX_PERF_PID.
+    long perf_pid = 0;
 #if defined(__linux__)
+    if(perf_snap_pid) {
+        perf_pid = (perf_snap_pid == -1) ? (long)::getppid() : perf_snap_pid;
+        //! VERIFY THE TARGET IS PERF, do not merely sanity-check the number.
+        //! SIGUSR2's default disposition is TERMINATE, so a wrong pid does not
+        //! fail quietly — the first version of this checked only for init and
+        //! self, was run with -1 from an interactive shell, and killed the
+        //! shell.  getppid() is whatever launched us, and that is only perf
+        //! when perf launched us.  /proc/<pid>/comm settles it.
+        char comm[64] = "";
+        if(perf_pid > 1) {
+            char path[64];
+            std::snprintf(path, sizeof(path), "/proc/%ld/comm", perf_pid);
+            if(FILE *f = std::fopen(path, "r")) {
+                if(std::fgets(comm, sizeof(comm), f))
+                    comm[std::strcspn(comm, "\n")] = 0;
+                std::fclose(f);
+            }
+        }
+        if((perf_pid <= 1) || (perf_pid == (long)::getpid())
+                || (std::strncmp(comm, "perf", 4) != 0)) {
+            std::printf("  NOTE: KAME_MIX_PERF_PID resolved to %d (comm=\"%s\"), "
+                        "which is not perf — refusing to signal it.  SIGUSR2 "
+                        "KILLS an unprepared process.  Use -1 only when perf "
+                        "record LAUNCHES this one (`perf record ... -- "
+                        "./this_test`; exec-only wrappers such as taskset and "
+                        "env in between are fine, a shell is not).\n",
+                        (int)perf_pid, comm);
+            perf_pid = 0;
+        }
+        else if(trace_us <= 0) {
+            std::printf("  NOTE: KAME_MIX_PERF_PID is set but KAME_MIX_TRACE_US "
+                        "is not — there is no trigger, so nothing would ever "
+                        "be captured.  Snapshot DISARMED.\n");
+            perf_pid = 0;
+        }
+        else
+            std::printf("  PT snapshot armed: SIGUSR2 -> pid %d on the first "
+                        "warm commit >= %ld us\n", (int)perf_pid, trace_us);
+    }
     if(trace_us > 0) {
         static const char *kRoots[] = {"/sys/kernel/tracing",
                                        "/sys/kernel/debug/tracing"};
@@ -983,7 +1190,9 @@ int main() {
         if(tracing_on_fd < 0)
             std::printf("  NOTE: KAME_MIX_TRACE_US needs tracefs and root — "
                         "breaktrace DISARMED (mount it and re-run as root; "
-                        "the latency histogram below is unaffected).\n");
+                        "the latency histogram below is unaffected).%s\n",
+                        perf_pid ? "  The PT snapshot above is unaffected and "
+                                   "still armed." : "");
     }
 #endif
 
@@ -1164,16 +1373,28 @@ int main() {
                 }
                 else     cold_n.fetch_add(1, std::memory_order_relaxed);
 #if defined(__linux__)
-                if(warm && (tracing_on_fd >= 0) &&
+                //! One shot, and deliberately: a PT snapshot dump is large,
+                //! and the run is perturbed from here on anyway.  Note the
+                //! gate is no longer tracefs — the two consumers are
+                //! independent and PT works without root-mounted tracefs.
+                if(warm && (trace_us > 0) && (tracing_on_fd >= 0 || perf_pid) &&
                    (dt_rec >= (std::uint64_t)trace_us * 1000ull) &&
                    !trace_fired.exchange(true, std::memory_order_relaxed)) {
-                    char m[96];
-                    int n = std::snprintf(m, sizeof(m),
-                        "KAME_MIX: record commit took %llu ns\n",
-                        (unsigned long long)dt_rec);
-                    ssize_t w = ::write(trace_marker_fd, m, (size_t)n);
-                    w = ::write(tracing_on_fd, "0\n", 2);   // freeze the buffer
-                    (void)w;
+                    trace_fired_ns = dt_rec;
+                    //! SIGUSR2 FIRST.  perf takes milliseconds to service it
+                    //! and the AUX ring keeps filling meanwhile, so every
+                    //! instruction spent before the signal is one more chance
+                    //! for the commit we want to be overwritten.
+                    if(perf_pid) ::kill((pid_t)perf_pid, SIGUSR2);
+                    if(tracing_on_fd >= 0) {
+                        char m[96];
+                        int n = std::snprintf(m, sizeof(m),
+                            "KAME_MIX: record commit took %llu ns\n",
+                            (unsigned long long)dt_rec);
+                        ssize_t w = ::write(trace_marker_fd, m, (size_t)n);
+                        w = ::write(tracing_on_fd, "0\n", 2);  // freeze it
+                        (void)w;
+                    }
                 }
 #endif
                 progress[T_HIGHEST].fetch_add(1, std::memory_order_relaxed);
@@ -1220,26 +1441,30 @@ int main() {
         while( !stop.load(std::memory_order_relaxed)) {
             ++i;
             {   // graph redraw: root Snapshot — bundles the whole tree.
-                Ss shot( *root);
-                (void)shot[ *devA].m_x;
+                //! Under DISJOINT it bundles `panel` instead, so the redraw
+                //! still costs a bundle but not one over devA.
+                Ss shot(disjoint ? *panel : *root);
+                (void)shot[ *(disjoint ? panel : devA)].m_x;
             }
             // widget edit: leaf write.
-            leavesP[i % leavesP.size()]->iterate_commit([&](Tr &tr){
-                tr[ *leavesP[i % leavesP.size()]].m_x++;
+            lP(i)->iterate_commit([&](Tr &tr){
+                tr[ *lP(i)].m_x++;
             });
             if(i % (uint64_t)ui_wide == 0) {
                 // settings apply: root-scope transaction.
-                root->iterate_commit([&](Tr &tr){
-                    tr[ *panel].m_x++;
-                    tr[ *devB].m_x++;
-                });
+                if(disjoint)
+                    panel->iterate_commit([&](Tr &tr){ tr[ *panel].m_x++; });
+                else
+                    root->iterate_commit([&](Tr &tr){
+                        tr[ *panel].m_x++;
+                        tr[ *devB].m_x++;
+                    });
             }
             if(i % 16 == 0) {
                 // the classic NMR trigger: a settings write into the
                 // MEASURING driver's own subtree, mid-acquisition.
-                lA(2)->iterate_commit([&](Tr &tr){
-                    tr[ *lA(2)].m_x++;
-                });
+                const auto &t = disjoint ? lP(2) : lA(2);
+                t->iterate_commit([&](Tr &tr){ tr[ *t].m_x++; });
             }
             if(i % 32 == 0) {
                 // tool/driver creation & removal: structural churn.
@@ -1264,17 +1489,19 @@ int main() {
             uint64_t i = 0;
             while( !stop.load(std::memory_order_relaxed)) {
                 ++i;
-                {
-                    Ss shot( *root);           // read the tree, like a script
-                    (void)shot[ *devA].m_x;
+                {   // read the tree, like a script
+                    Ss shot(disjoint ? *panel : *root);
+                    (void)shot[ *(disjoint ? panel : devA)].m_x;
                 }
-                if(i % 4 == 0)
-                    lA(3)->iterate_commit([&](Tr &tr){
-                        tr[ *lA(3)].m_x++;    // script pokes the driver
+                if(i % 4 == 0) {
+                    const auto &t = disjoint ? lP(3) : lA(3);
+                    t->iterate_commit([&](Tr &tr){
+                        tr[ *t].m_x++;        // script pokes the driver
                     });
+                }
                 if(i % 16 == 0)
                     panel->iterate_commit([&](Tr &tr){
-                        tr[ *leavesP[(i / 16 + (uint64_t)k) % leavesP.size()]].m_x++;
+                        tr[ *lP(i / 16 + (std::size_t)k)].m_x++;
                     });
                 progress[T_SCRIPT0 + (size_t)k].fetch_add(
                     1, std::memory_order_relaxed);
@@ -1295,7 +1522,7 @@ int main() {
             uint64_t i = 0;
             while( !stop.load(std::memory_order_relaxed)) {
                 ++i;
-                if(normal_xsub && ((i % 4) == 0)) {
+                if(normal_xsub && !disjoint && ((i % 4) == 0)) {
                     //! XSecondaryDriver's shape: a NORMAL transaction whose
                     //! scope SPANS the acquiring driver's subtree, because it
                     //! reads the primary's record and writes its own result.
@@ -1308,12 +1535,12 @@ int main() {
                     //! _test reproduces white-box.
                     root->iterate_commit([&](Tr &tr){
                         (void)tr[ *devA].m_x;
-                        tr[ *leavesB[(i + (uint64_t)k) % leavesB.size()]].m_x++;
+                        tr[ *lB(i + (std::size_t)k)].m_x++;
                     });
                 }
                 else {
                     devB->iterate_commit([&](Tr &tr){
-                        tr[ *leavesB[(i + (uint64_t)k) % leavesB.size()]].m_x++;
+                        tr[ *lB(i + (std::size_t)k)].m_x++;
                     });
                 }
                 progress[T_NORMAL0 + (size_t)k].fetch_add(
@@ -1421,6 +1648,26 @@ int main() {
                     (unsigned long long)acq_retries.slow_n, ratio,
                     (ratio >= 3.0)
                         ? "  <= FRONT-LOADED: raise KAME_MIX_WARMUP_MS" : "");
+    }
+    if(trace_us > 0) {
+        //! Say whether the trigger fired, and on what.  A PT capture is
+        //! useless without knowing which commit it is meant to contain, and a
+        //! silent no-fire looks identical to a capture nobody decoded.
+        if(trace_fired_ns)
+            std::printf("    trigger FIRED on a %llu ns commit%s\n",
+                        (unsigned long long)trace_fired_ns,
+                        perf_pid ? " — SIGUSR2 sent; decode with "
+                                   "`perf script -i <data> --insn-trace --xed`"
+                                 : "");
+        else if((tracing_on_fd < 0) && !perf_pid)
+            std::printf("    trigger NOT ARMED: KAME_MIX_TRACE_US is set but "
+                        "neither consumer is (no tracefs, no PT snapshot), so "
+                        "nothing was watching.  MAX was %llu ns.\n",
+                        (unsigned long long)acq_hist.max);
+        else
+            std::printf("    trigger did NOT fire: nothing reached %ld us "
+                        "(MAX was %llu ns).  Lower KAME_MIX_TRACE_US.\n",
+                        trace_us, (unsigned long long)acq_hist.max);
     }
     if(phase_slow.n) {
         const double N = (double)phase_slow.n;
@@ -1597,10 +1844,11 @@ int main() {
                         - (long long)m.spin_ns);
         std::printf("      livelock probe during those slow commits: "
                     "ticks=%.2f (reset=%.2f no_tags=%.2f few_retries=%.2f) "
-                    "VERDICTS=%.4f  priv: tries=%.4f grants=%.4f /commit\n",
+                    "VERDICTS=%.4f (rt_fast=%.4f)  priv: tries=%.4f "
+                    "grants=%.4f /commit\n",
                     slow_diag.ll_ticks / N, slow_diag.ll_resets / N,
                     slow_diag.ll_no_tags / N, slow_diag.ll_few_retries / N,
-                    slow_diag.ll_verdicts / N,
+                    slow_diag.ll_verdicts / N, slow_diag.ll_rt_fast / N,
                     slow_diag.priv_tries / N, slow_diag.priv_grants / N);
         if(slow_diag.ll_ticks)
             std::printf("      retry margin at those ticks: my_tx_retries "
@@ -1633,12 +1881,14 @@ int main() {
         const double A = (double)ll_all.n;
         std::printf("    livelock probe over ALL %llu warm record commits:\n"
                     "      per commit: ticks=%.2f  -> reset=%.2f  "
-                    "no_tags=%.2f  few_retries=%.2f  VERDICTS=%.6f\n"
+                    "no_tags=%.2f  few_retries=%.2f  VERDICTS=%.6f "
+                    "(rt_fast %llu)\n"
                     "      privilege: tries=%.6f grants=%.6f per commit "
                     "(%llu / %llu absolute)\n",
                     (unsigned long long)ll_all.n,
                     ll_all.ticks / A, ll_all.resets / A, ll_all.no_tags / A,
                     ll_all.few_retries / A, ll_all.verdicts / A,
+                    (unsigned long long)ll_all.rt_fast,
                     ll_all.tries / A, ll_all.grants / A,
                     (unsigned long long)ll_all.tries,
                     (unsigned long long)ll_all.grants);
