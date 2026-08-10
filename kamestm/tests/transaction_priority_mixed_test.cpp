@@ -472,6 +472,16 @@ int main() {
     //! draining per record costs 8x throughput and models nothing.  Separated
     //! from the level so DEFER/STRICT can be A/B'd without it.  0 = never.
     const long rt_drain_every = env_long("KAME_MIX_RT_DRAIN_EVERY", 1024);
+    //! Pre-map this many MiB of pool regions up front (32 MiB granularity,
+    //! prefaulted).  Precondition 4 of the realtime contract is that the
+    //! working set does not GROW during the section, and prewarm does not
+    //! give you that: it provisions size-class capacity, not mapped address
+    //! space.  With cross-thread frees the two come apart — a block freed by
+    //! a peer does not land back on this thread's freelist, so a steady-state
+    //! in-flight set larger than what prewarm covers keeps claiming chunks,
+    //! then regions, and a region is an mmap on the measured path.  0 = off,
+    //! which is how everything so far was measured.
+    const long reserve_mib = env_long("KAME_MIX_RESERVE_MIB", 0);
     //! Per-thread timer slack for the acquisition thread, in ns.  Linux
     //! defaults to 50 us and applies it to every `futex` timeout a
     //! SCHED_OTHER task arms — which is the negotiator's CV chunk, i.e. it
@@ -543,6 +553,12 @@ int main() {
     //! Level >= 1 is what `kame/main.cpp:562` already does, so anything below
     //! it models the pool MORE loosely than the application does.
     if(rt_pool >= 1) kame_pool_set_realtime_mode(1);
+    if(reserve_mib > 0) {
+        unsigned got = kame_pool_reserve_regions(
+            (unsigned)((reserve_mib + 31) / 32), /*prefault=*/1);
+        std::printf("  pre-reserved %u region(s) = %u MiB, prefaulted\n",
+                    got, got * 32u);
+    }
     std::printf("  pool realtime contract: %s\n",
         rt_pool <= 0 ? "none (preconditions 1/3/5 unmet — the pre-2026-08 "
                        "baseline; NOT the default)" :
@@ -608,6 +624,11 @@ int main() {
     std::atomic<uint64_t> cold_n{0};   //!< commits dropped as warm-up
     //! Written only by the acquisition thread, read after its join.
     std::uint64_t acq_max_seen = 0, acq_max_at = 0, acq_slow_1st_sec = 0;
+    //! Sampled when the warm window closes, so start-up mapping is excluded
+    //! and what is reported is growth DURING the measurement.
+    unsigned long long rt_viol_warm = 0, rt_reclaim_warm = 0, rt_unmap_warm = 0;
+    std::size_t rt_bytes_warm = 0;
+    bool rt_warm_sampled = false;
     //! Retry accounting for the slow tail.  Written only by the acquisition
     //! thread; `sysd` comes from the other roles' progress counters, so a slow
     //! commit reports whether the rest of the tree kept committing while it
@@ -763,6 +784,15 @@ int main() {
                 const std::uint64_t dt_rec = t_end - t_rec;
                 const bool warm = (t_end >= t_warm_end);
                 if(warm) {
+#ifndef DISABLE_POOL_ALLOCATOR
+                    if( !rt_warm_sampled) {
+                        rt_warm_sampled = true;
+                        rt_viol_warm    = kame_pool_rt_violations();
+                        rt_reclaim_warm = kame_pool_rt_deferred_reclaims();
+                        rt_unmap_warm   = kame_pool_rt_deferred_unmaps();
+                        rt_bytes_warm   = kame_pool_reserved_bytes();
+                    }
+#endif
                     //! WHEN the extremes happen, not just how big they are.
                     //! Without this the histogram cannot distinguish a tail
                     //! that is spread over the run from one that is warm-up
@@ -1041,6 +1071,32 @@ int main() {
                     (ratio >= 3.0)
                         ? "  <= FRONT-LOADED: raise KAME_MIX_WARMUP_MS" : "");
     }
+#ifndef DISABLE_POOL_ALLOCATOR
+    //! Precondition 4, checked rather than assumed.  `rt_violations` counts
+    //! the times a realtime thread actually entered the kernel for a NEW
+    //! mapping — the one event the contract says must not happen inside the
+    //! section, and the one prewarm alone does NOT prevent, because prewarm
+    //! provisions size classes and mapping is about address space.  Sampled
+    //! from the close of the warm window so start-up mapping is excluded.
+    //! Process-wide, so a peer's growth counts too — which is the right
+    //! scope here, since a peer's mmap stalls this core as readily as ours.
+    if(rt_warm_sampled) {
+        unsigned long long v = kame_pool_rt_violations() - rt_viol_warm;
+        std::size_t b = kame_pool_reserved_bytes();
+        std::printf("  pool during the measured window: rt_violations=%llu  "
+                    "mapped %zu -> %zu MiB (%+lld)\n",
+                    v, rt_bytes_warm >> 20, b >> 20,
+                    (long long)((long long)(b >> 20)
+                                - (long long)(rt_bytes_warm >> 20)));
+        std::printf("    deferred: reclaims +%llu  unmaps +%llu  "
+                    "pending %zu MiB%s\n",
+                    kame_pool_rt_deferred_reclaims() - rt_reclaim_warm,
+                    kame_pool_rt_deferred_unmaps() - rt_unmap_warm,
+                    kame_pool_rt_pending_bytes() >> 20,
+                    v ? "   <= THE SECTION MAPPED: raise KAME_MIX_RESERVE_MIB"
+                      : "");
+    }
+#endif
     //! How many commits reached the budget.  Without this the tail is
     //! ambiguous: a MAX that sits ON the budget can be a distribution that
     //! happens to end there or a distribution CLIPPED there, and only the
