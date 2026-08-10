@@ -51,10 +51,16 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#if defined(__linux__)
+#  include <sched.h>       // sched_getscheduler — the RT fast-priv gate
+#elif defined(__APPLE__)
+#  include <pthread.h>     // pthread_getschedparam — same gate
+#endif
 #include <cmath>
 #include <condition_variable>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>    // getenv/atoi — the KAME_STM_RT_FAST_PRIV knob
 #include <mutex>
 #include <thread>
 
@@ -337,6 +343,37 @@ Node<XN>::NegotiationCounter::priority_probe_info(Priority pr) noexcept {
     }
 }
 
+namespace detail {
+//! Is the CURRENT thread under an OS realtime policy (SCHED_FIFO/RR)?
+//! Cached per thread: one pthread/sched syscall on first use, then a TLS
+//! load.  The cache means a thread that elevates itself AFTER its first
+//! negotiation keeps reading "not RT" — the conservative direction (the
+//! fast path stays off) — so set the OS policy at thread start, as every
+//! KAME acquisition thread and this repo's harnesses already do.  Windows:
+//! no mapping attempted, always false.
+inline bool os_sched_rt() noexcept {
+#if defined(__linux__)
+    static thread_local int t_rt = -1;
+    if(t_rt < 0) {
+        const int pol = ::sched_getscheduler(0);
+        t_rt = (pol == SCHED_FIFO || pol == SCHED_RR) ? 1 : 0;
+    }
+    return t_rt == 1;
+#elif defined(__APPLE__)
+    static thread_local int t_rt = -1;
+    if(t_rt < 0) {
+        int pol = 0; struct sched_param sp {};
+        if(::pthread_getschedparam(::pthread_self(), &pol, &sp) != 0)
+            pol = 0;
+        t_rt = (pol == SCHED_FIFO || pol == SCHED_RR) ? 1 : 0;
+    }
+    return t_rt == 1;
+#else
+    return false;
+#endif
+}
+} // namespace detail
+
 // The negotiation diagnostic counters are defined HERE, above the first
 // template that touches them: `detail::neg_diag()` is a NON-dependent name
 // inside `livelock_probe_tx_tick`, so two-phase lookup resolves it at the
@@ -440,6 +477,7 @@ struct NegDiag {
     std::uint64_t ll_no_tags;      //!< ... blocked by tags_owned != tags_total
     std::uint64_t ll_few_retries;  //!< ... blocked by the retry threshold alone
     std::uint64_t ll_verdicts;     //!< ... that returned LIVELOCK
+    std::uint64_t ll_rt_fast;      //!< ... of those, via the RT fast path
     //! The retry threshold turned out to be the largest blocker on both hosts,
     //! so these say by HOW MUCH — and guard against an inference that looked
     //! safe and is not.  "Outer attempts peak at 3, so m_tx_retry_count peaks
@@ -521,6 +559,58 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
     int64_t tx_age_us,
     Priority prio) noexcept
 {
+    // ---- RT fast privilege (opt-in) -----------------------------------
+    // KAME_STM_RT_FAST_PRIV=N (N >= 1): a transaction that is BOTH
+    // STM-HIGHEST and under an OS realtime policy (SCHED_FIFO/RR) claims
+    // privilege as soon as it has been forced to retry N times (N=2
+    // recommended) — bypassing the organic threshold clamp(sig_C*2,3,nproc)
+    // AND the tags_owned == tags_total condition, which the phase
+    // instrumentation showed blocking 8.5 ticks per slow commit while the
+    // snapshot loop rebuilds under peer fire.  The claim path upgrades only
+    // the slots this Tx still owns, so partial ownership is fine; hence
+    // tags_owned >= 1, not == tags_total.
+    //
+    // Evaluated BEFORE the per-linkage window reset below, deliberately:
+    // this check uses none of the window state, and a multi-nodal commit
+    // resets the window on 26-34 % of ticks — placed after it, the fast
+    // path would forfeit a third of its firing opportunities.
+    //
+    // WHY NO EXPIRY VALVE (a decision, 2026-08-10): a preempted holder's
+    // Reserved stamp blocks that linkage's contenders until the holder runs
+    // again — but that exposure is not new, it is the SAME one every organic
+    // NORMAL/HIGHEST privilege grant has carried all along (no expiry above
+    // the LOW band; ~25 grants per 90 s since the sysfs fix).  The gate here
+    // is exactly the deployment doctrine this library already ships —
+    // SCHED_FIFO together with core isolation, where invol = 0 was measured
+    // — and a HIGHEST+FIFO thread on its own core completes in ~10 us.
+    // FIFO without isolation is documented as catastrophic with or without
+    // this feature.  The 5 s negotiation HANG watchdog stays the backstop.
+    // Windows never takes this path (os_sched_rt is false there).
+    static const int s_rt_fast_retries = []{
+        const char *e = std::getenv("KAME_STM_RT_FAST_PRIV");
+        if( !e || !*e) return 0;
+        const int v = std::atoi(e);
+        return (v >= 1) ? v : 0;
+    }();
+    if(s_rt_fast_retries > 0 && prio == Priority::HIGHEST
+            && (int)my_tx_retries >= s_rt_fast_retries
+            && tags_owned >= 1
+            && detail::os_sched_rt()) {
+#if KAME_STM_NEG_DIAG
+        {   auto &_d = detail::neg_diag();
+            ++_d.ll_ticks;      // still a tick; keep the partition exhaustive
+            ++_d.ll_verdicts;   // a verdict is a verdict...
+            ++_d.ll_rt_fast;    // ...this one via the fast path
+            _d.ll_retry_sum += my_tx_retries;
+            if(my_tx_retries > _d.ll_retry_max) _d.ll_retry_max = my_tx_retries;
+        }
+#endif
+        // The probe window state is left untouched: it belongs to the
+        // organic detector, and the next organic tick handles a linkage
+        // change exactly as it would have.
+        return true;
+    }
+    // ---- organic livelock detection ------------------------------------
     auto &p = LivelockProbe::state();
 #if KAME_STM_NEG_DIAG
     ++detail::neg_diag().ll_ticks;
