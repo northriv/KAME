@@ -152,7 +152,7 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 | Retry primitive | `retry` / `orElse` (Haskell) | `iterate_commit` / `iterate_commit_while` |
 | Blocking | `retry` suspends on read-set change | No data-structure locks; a repeatedly-colliding Tx yields/parks to the privileged (oldest / highest-priority) Tx |
 | Memory management | GC | Lock-free `atomic_shared_ptr` (ref-counted) |
-| Cost of an atomic multi-object commit | Per-variable logging, paid at commit | **p50 ≈ 439 ns + 94.5 ns × nodes**, measured 1–17 nodes ([below](#what-composability-costs)); the worst case grows 1.6× for 17× the nodes, so composability is not what sets the tail |
+| Cost of an atomic multi-object commit | Per-variable logging, paid at commit | **p50 ≈ 439 ns + 94.5 ns × nodes**, measured 1–17 nodes ([below](#what-composability-costs)). In the *tail* it is free: with no peer on the subtree a five-node commit's MAX is 4.16 µs against a single-node commit's 4.94 µs |
 | Hard real-time suitability | Limited (GC pauses) | No GC pauses, and a declared wait budget converts the tail into a chosen number — **measured** on a `PREEMPT_RT` host, MAX − budget = 3–7 µs at the shipped 20 ms budget (the host's own floor being 219 ns, measured), 38.3 M commits with zero over 3 ms at a 1 ms budget ([below](#realtime-behaviour)). Still not hard-RT in a strict WCET sense: CAS retry *counts* are not bounded, and the budget cannot bound the wait behind a live privilege holder — that one is the deployment's to bound, with core isolation |
 
 **Compared to Hardware Transactional Memory (Intel TSX/RTM):** HTM aborts on cache-line conflicts regardless of logical independence, and has strict capacity limits. KAME's STM aborts only on semantic conflicts (packet identity change), tolerates large read sets, and degrades gracefully to age-ordered privileged-Tx negotiation (the colliding losers yield to the oldest transaction) rather than falling back to a global lock.
@@ -256,19 +256,48 @@ intercept landing on the 448 ns single-node cost.  So a node costs ~94 ns to
 carry inside an atomic commit, and a **17-node atomic commit closes in
 2.05 µs**.
 
-The line that matters for realtime is the last column.  **17× the nodes buys
-1.6× the worst case** — and a single-node commit, with no bundling in it
-anywhere, is already at 31.3 µs, which is 77 % of the five-node MAX.  Whatever
-sets the tail, it is not composability.  (It is the retry path; see below.)
-For scale, this host's own `rtla osnoise` Max Single is 17 µs, so even the
-17-node commit's worst case is 2.9× the scheduling jitter underneath it.
+The line that matters for realtime is the last column, and it barely moves:
+**17× the nodes buys 1.6× the worst case.**  Whatever sets the tail, it is not
+the topology.
 
-Two things the control also showed.  At one node, **p99 equals p50** — the
-distribution is a spike until the fourth nine.  And `unbundle()` still runs
-2.00 times per slow commit even with no children: `devA` is a child of the
-root, so a peer's root-scope `Snapshot` bundles it and the next commit has to
-extract itself back out.  A subtree with no bundling of its own still pays for
-its parent's.
+### The tail is contention, and contention is yours to remove
+
+`KAME_MIX_DISJOINT=1` is the control that settles it, and it is a *topology*
+control, not a load one: every peer keeps running on the same core at the same
+rate, allocating and freeing exactly as much, and only what they *touch*
+changes — cross-thread writes move off the acquiring subtree, and the two
+root-scope operations drop to a sibling scope, since a root scope bundles the
+acquiring subtree whatever it writes.  Turning the peers off instead would
+delete the machine load along with the conflict and prove nothing.
+
+| nodes | peers touch the subtree? | attempts | bundle | unbundle | p99.999 | **MAX** | commits/s |
+|---|---|---|---|---|---|---|---|
+| 5 | yes | 3 | 0.35 | 1.50 | 28.7 µs | **48.0 µs** | 121 k |
+| 5 | **no** | **1** | 0.00 | 0.00 | 4.10 µs | **4.16 µs** | 302 k |
+| 1 | yes | 3 | 0.00 | 1.88 | 20.5 µs | **32.3 µs** | 313 k |
+| 1 | **no** | **1** | 0.00 | 0.00 | 3.07 µs | **4.94 µs** | 952 k |
+
+**Removing the conflict collapses the worst case 11.5×** (6.5× at one node),
+and takes it to **zero commits over 10 µs in 18 M and 57 M respectively**.
+Throughput rises 2.5–3.0× at the same time, so the conflict was certainly
+real — it simply *was* the tail.
+
+Two readings fall out.  **Composability contributes nothing to the tail**: with
+no conflict, the five-node commit's MAX (4.16 µs) is *lower* than the
+single-node commit's (4.94 µs).  Bundling five nodes is free in the tail and
+costs 94 ns per node in the median.  And a single-node commit is not
+conflict-free by construction — its 32.3 µs comes with `unbundle()` running
+1.88 times per slow commit, because `devA` is a child of the root and a peer's
+root-scope `Snapshot` bundles it whether it has children of its own or not.
+**A subtree with no bundling of its own still pays for its parent's.**
+
+So the deployment lever is topological, and it is a large one: keep other
+threads off the deadline-bearing subtree, and in particular keep *root-scope*
+snapshots and transactions away from it, since those bundle everything beneath
+them.  What remains at zero conflict is ~4–5 µs — 11× the 448 ns median and 23×
+the 219 ns floor, with the negotiator, the scheduler and the machine all
+already excluded.  That residue is not yet attributed; the allocator on the
+copy-on-write path is the standing candidate.
 
 ### The one wait the budget cannot clip
 
@@ -316,7 +345,10 @@ contract honoured — against the 219 ns floor above.  120 s each:
 | NORMAL, 20 ms budget | 768 ns | 1.02 µs | 7.34 ms | 20.97 ms | **20.03 ms** |
 
 The HIGHEST row is 14.3 M commits with **zero involuntary context switches**,
-and **nothing over 50 µs at all**.  The NORMAL row is the budget doing its job:
+and **nothing over 50 µs at all**.  Note it is a *contended* figure — the peers
+in this workload deliberately write into the acquiring driver's own subtree,
+and taking them off it drops the same MAX to 4.16 µs
+([below](#the-tail-is-contention-and-contention-is-yours-to-remove)).  The NORMAL row is the budget doing its job:
 0.054 % of commits reach it, and MAX *is* it.
 
 Read the two rows as one regime only for the scheduling and the host; the

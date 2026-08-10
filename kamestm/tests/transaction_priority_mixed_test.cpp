@@ -404,7 +404,23 @@
 //!                            off, that role being a devA toucher by
 //!                            definition.  Pair with KAME_MIX_LEAVES=0 and the
 //!                            acquiring commit is one payload clone plus one
-//!                            CAS with nobody able to lose to anybody
+//!                            CAS with nobody able to lose to anybody.
+//!                            WHAT IT FOUND (RT host, verified shape, 60 s):
+//!                              nodes conflict att bundle unbdl  MAX    cm/s
+//!                                5     yes     3  0.35   1.50  48.0us  121k
+//!                                5     NO      1  0.00   0.00   4.16   302k
+//!                                1     yes     3  0.00   1.88  32.3us  313k
+//!                                1     NO      1  0.00   0.00   4.94   952k
+//!                            The MAX collapses 11.5x (6.5x at one node) and
+//!                            slow commits over 10 us go to ZERO in 18 M and
+//!                            57 M.  **The tail is contention, full stop.**
+//!                            And composability contributes NOTHING to it —
+//!                            at zero conflict the five-node MAX (4.16 us) is
+//!                            LOWER than the single-node one (4.94 us).  Note
+//!                            a container reported the opposite (71-86 % of
+//!                            the tail surviving the same control); its floor
+//!                            produces ms events that swamp the effect, and it
+//!                            is not evidence about this question
 //!   KAME_MIX_OS_FIFO         >0 = acquisition thread at SCHED_FIFO of that
 //!                            priority (Linux; skipped with a notice when not
 //!                            permitted).  The rest stay SCHED_OTHER
