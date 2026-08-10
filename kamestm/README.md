@@ -152,7 +152,7 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 | Retry primitive | `retry` / `orElse` (Haskell) | `iterate_commit` / `iterate_commit_while` |
 | Blocking | `retry` suspends on read-set change | No data-structure locks; a repeatedly-colliding Tx yields/parks to the privileged (oldest / highest-priority) Tx |
 | Memory management | GC | Lock-free `atomic_shared_ptr` (ref-counted) |
-| Cost of an atomic multi-object commit | Per-variable logging, paid at commit | **p50 ≈ 439 ns + 94.5 ns × nodes**, measured 1–17 nodes ([below](#what-composability-costs)). In the *tail* it is free: with no peer on the subtree a five-node commit's MAX is 4.16 µs against a single-node commit's 4.94 µs |
+| Cost of an atomic multi-object commit | Per-variable logging, paid at commit | **p50 ≈ 439 ns + 94.5 ns × nodes**, measured 1–17 nodes ([below](#what-composability-costs)). In the *tail* it is free: with no peer on the subtree a five-node commit's MAX measured *below* a single-node one's (4.16 vs 4.94 µs, equally-taxed arms), and the post-fix single-node control is **1.06 µs over 57 M commits** |
 | Hard real-time suitability | Limited (GC pauses) | No GC pauses, and a declared wait budget converts the tail into a chosen number — **measured** on a `PREEMPT_RT` host, MAX − budget = 3–7 µs at the shipped 20 ms budget (the host's own floor being 219 ns, measured), 38.3 M commits with zero over 3 ms at a 1 ms budget ([below](#realtime-behaviour)). Still not hard-RT in a strict WCET sense: CAS retry *counts* are not bounded, and the budget cannot bound the wait behind a live privilege holder — that one is the deployment's to bound, with core isolation |
 
 **Compared to Hardware Transactional Memory (Intel TSX/RTM):** HTM aborts on cache-line conflicts regardless of logical independence, and has strict capacity limits. KAME's STM aborts only on semantic conflicts (packet identity change), tolerates large read sets, and degrades gracefully to age-ordered privileged-Tx negotiation (the colliding losers yield to the oldest transaction) rather than falling back to a global lock.
@@ -203,14 +203,17 @@ the opposite:
 | isolated, no PM-QoS | 17.0 µs | 66.7 µs | **49.7 µs** |
 | isolated + PM-QoS | 219 ns | 53.1 µs | **52.9 µs** |
 | + FIFO and per-thread pinning, `invol` = 0 | 219 ns | 40.8 µs | **40.6 µs** |
+| + the sysfs fix ([below](#the-residue-was-the-stm-reading-sys-and-it-taxed-bystanders)) | 219 ns | 21.9 µs | **21.7 µs** |
 
-The floors span **77×** and the differences span 1.3×.  That near-invariance is
-what identifies it: **40–50 µs of the tail is the STM's own**, and the sections
-below say which part — the retry path, three quarters of the worst commit in
-the last row, measured directly.  The check is general and cheap: if a tail is
+The floors span **77×** and the differences stay within 2.4×.  That
+near-invariance is what identifies the difference as the STM's own, and the
+sections below take it apart: roughly half was the retry path's genuine work,
+and half was the livelock probe reading `/sys` on every tick — three syscalls
+per tick that no counter here could see, found by instruction trace and since
+removed.  The check that drove all of it is general and cheap: if a tail is
 really the machine, deleting the machine deletes the tail.  Here deleting all
-but 219 ns of it, and then every involuntary context switch as well, left
-40.6 µs standing.
+but 219 ns of the machine, every involuntary context switch, and finally the
+hidden syscalls left 21.7 µs standing — contention, and nothing else.
 
 Two things earned those numbers.  First, instrumentation: the previous
 constant (~200 µs of overshoot at every budget) was **the timed wait's
@@ -277,6 +280,10 @@ delete the machine load along with the conflict and prove nothing.
 | 1 | yes | 3 | 0.00 | 1.88 | 20.5 µs | **32.3 µs** | 313 k |
 | 1 | **no** | **1** | 0.00 | 0.00 | 3.07 µs | **4.94 µs** | 952 k |
 
+(All four arms predate the sysfs fix below, which taxed every arm about
+equally — the *ratios* are the finding.  Post-fix, the single-node control
+re-measured at **MAX 1.06 µs**.)
+
 **Removing the conflict collapses the worst case 11.5×** (6.5× at one node),
 and takes it to **zero commits over 10 µs in 18 M and 57 M respectively**.
 Throughput rises 2.5–3.0× at the same time, so the conflict was certainly
@@ -294,10 +301,45 @@ root-scope `Snapshot` bundles it whether it has children of its own or not.
 So the deployment lever is topological, and it is a large one: keep other
 threads off the deadline-bearing subtree, and in particular keep *root-scope*
 snapshots and transactions away from it, since those bundle everything beneath
-them.  What remains at zero conflict is ~4–5 µs — 11× the 448 ns median and 23×
-the 219 ns floor, with the negotiator, the scheduler and the machine all
-already excluded.  That residue is not yet attributed; the allocator on the
-copy-on-write path is the standing candidate.
+them.
+
+### The residue was the STM reading `/sys`, and it taxed bystanders
+
+At zero conflict ~4–5 µs remained — 11× the median, 23× the floor, with the
+negotiator, the scheduler and the machine excluded — and the allocator was the
+standing suspect.  Wrong.  An Intel PT snapshot triggered on a slow commit
+(`KAME_MIX_PERF_PID`; a cycles profile provably cannot see a population that is
+0.27 % of samples) showed 10 µs windows where the thread was resident but
+retiring almost no user-space branches, and the surviving calls were
+`__read_nocancel` / `__close_nocancel_nostatus` / `memchr` / `strtoul`:
+**the livelock probe called `std::thread::hardware_concurrency()` on every
+tick, and on Linux/glibc that is an `openat`+`read`+`close` of
+`/sys/devices/system/cpu/online` per call** — three syscalls through PTI+IBRS,
+inside the negotiation of a HIGHEST commit.  The arithmetic closed before the
+fix was written: 5,565 ns of unattributed retry cost per slow commit over 2.83
+probe ticks is 1,966 ns per tick, a 3-syscall sysfs read.  The fix is the
+`static const` cache the neighbouring `effective_runners()` already used.
+
+The A/B, same host, same shape, 60 s arms:
+
+| arm | before | after |
+|---|---|---|
+| contended, 5 nodes: slow (≥15 µs) | 879 | **5** |
+| contended: p99.99 / p99.999 / MAX | 20.5 / 24.6 / 40.8 µs | **7.2 / 10.2 / 21.9 µs** |
+| no-conflict control: p99.99 / MAX | 3.07 / 4.48–4.94 µs | **0.64 / 1.06 µs** |
+| either arm: p50, throughput | — | unchanged |
+
+One prediction failed, and the failure is the finding's sharpest edge.  The
+control was predicted *unchanged* — the acquiring thread's probe never ticks
+there — and instead it improved 4×.  The reads were never only the ticking
+thread's cost: in the control arm the *peers* contend with each other and tick
+their own probes at kHz, and those reads taxed the whole package (a shared
+6 MB inclusive LLC, plus sysfs locks on an RT kernel).  A per-thread model of
+a syscall's cost misses everything it does to the cache.
+
+What is left at zero conflict is **MAX 1.06 µs over 57 M composable commits**
+— 2.4× the median, 4.8× the machine's floor.  Nothing above it remains to
+attribute.
 
 ### The one wait the budget cannot clip
 
@@ -337,28 +379,29 @@ parks at all; same host and roles, 120 s:
 
 Isolated core with the tick verified stopped (`LOC` = 0 over the window),
 `SCHED_FIFO`, per-thread pinning, `with_pmqos`, and the pool's realtime
-contract honoured — against the 219 ns floor above.  120 s each:
+contract honoured — against the 219 ns floor above:
 
 | tier | p50 | p99 | p99.9 | p99.999 | **MAX** |
 |---|---|---|---|---|---|
-| HIGHEST (the library's ceiling) | 896 ns | 1.02 µs | 3.07 µs | 24.6 µs | **40.8 µs** |
-| NORMAL, 20 ms budget | 768 ns | 1.02 µs | 7.34 ms | 20.97 ms | **20.03 ms** |
+| HIGHEST (the library's ceiling; 60 s) | 896 ns | 1.02 µs | 3.58 µs | 10.2 µs | **21.9 µs** |
+| NORMAL, 20 ms budget (120 s) | 768 ns | 1.02 µs | 7.34 ms | 20.97 ms | **20.03 ms** |
 
-The HIGHEST row is 14.3 M commits with **zero involuntary context switches**,
-and **nothing over 50 µs at all**.  Note it is a *contended* figure — the peers
-in this workload deliberately write into the acquiring driver's own subtree,
-and taking them off it drops the same MAX to 4.16 µs
-([below](#the-tail-is-contention-and-contention-is-yours-to-remove)).  The NORMAL row is the budget doing its job:
-0.054 % of commits reach it, and MAX *is* it.
+The HIGHEST row is 7.15 M commits with **zero involuntary context switches,
+5 commits over 15 µs and none over 22 µs**.  Note it is a *contended* figure —
+the peers in this workload deliberately write into the acquiring driver's own
+subtree, and taking them off it leaves **MAX 1.06 µs over 57 M commits**
+([below](#the-residue-was-the-stm-reading-sys-and-it-taxed-bystanders)).  The
+NORMAL row is the budget doing its job: 0.054 % of commits reach it, and MAX
+*is* it (it predates the verified-shape harness and has not been re-taken).
 
-Read the two rows as one regime only for the scheduling and the host; the
-NORMAL row predates the verified-shape harness below and has not been re-taken
-in it.  An earlier HIGHEST row published here — p99 1.79 µs, p99.9 20.5 µs, MAX
-53.1 µs — has been **replaced rather than kept beside this one**: it was taken
-before the harness could report its own OS arm, so its scheduling is not
-established, and every column of it is worse.  p99.9 in particular is 6.7×
-better here, which is the size of effect that says the two are different
-configurations and not two samples of one.
+Two earlier HIGHEST rows published here have been **replaced rather than kept
+beside this one**, and the chain is worth a line each.  p99 1.79 µs / p99.9
+20.5 µs / MAX 53.1 µs was taken before the harness could report its own OS
+arm, so its scheduling was never established.  p99.999 24.6 µs / MAX 40.8 µs
+(120 s) was the verified shape, and half of its tail then turned out to be the
+livelock probe reading `/sys` on every tick — a defect, not a property, fixed
+below.  Each replacement was a configuration or code change of 2× or more,
+never a lucky sample.
 
 Getting there took two fixes that are worth stating because neither is
 obvious.  **The allocator owned 3.5× of the slow-commit population**: a commit

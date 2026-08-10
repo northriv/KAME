@@ -448,7 +448,20 @@
 //!                            a container reported the opposite (71-86 % of
 //!                            the tail surviving the same control); its floor
 //!                            produces ms events that swamp the effect, and it
-//!                            is not evidence about this question
+//!                            is not evidence about this question.
+//!                            AFTER the probe sysfs fix (all four arms above
+//!                            predate it): contended MAX 40.8 -> 21.9 us with
+//!                            slow commits 879 -> 5 per 60 s, and the control
+//!                            4.5-4.9 -> **1.06 us** over 57 M with p99.99 at
+//!                            640 ns.  The control was PREDICTED unchanged
+//!                            (the acq thread's probe never ticks there) and
+//!                            moved 4x anyway: in this arm UI and SCRIPTING
+//!                            contend with each other on `panel` and tick
+//!                            THEIR probes at kHz, and those reads taxed the
+//!                            whole package — shared inclusive LLC plus RT
+//!                            kernfs locks.  A per-thread model of a syscall
+//!                            misses what it does to the cache; the failed
+//!                            prediction is the measurement of that
 //!   KAME_MIX_OS_FIFO         >0 = acquisition thread at SCHED_FIFO of that
 //!                            priority (Linux; skipped with a notice when not
 //!                            permitted).  The rest stay SCHED_OTHER
