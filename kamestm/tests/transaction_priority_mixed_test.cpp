@@ -387,6 +387,34 @@
 //!                            passes/commit): devA is a child of root, so a
 //!                            peer's root-scope Snapshot bundles it and the
 //!                            next commit has to extract itself back out
+//!   KAME_MIX_PERF_PID        pid of a `perf record --snapshot` to hit with
+//!                            SIGUSR2 on the first warm commit past
+//!                            KAME_MIX_TRACE_US; -1 = our parent, which is
+//!                            what perf IS when it launched us.  0 = off.
+//!                            The reason this exists: a cycles profile CANNOT
+//!                            find this tail, and that was tried before adding
+//!                            it.  Commits past p99.9 occupy 0.27 % of the
+//!                            run's cycles, so at -F 3000 they are ~240
+//!                            samples smeared across the whole path, and the
+//!                            contended and conflict-free profiles came out
+//!                            within 2 % of each other on every symbol.
+//!                            perf's sampling is proportional to TOTAL time
+//!                            and the tail is not in it.  A ring buffer plus a
+//!                            trigger is: Intel PT (Kaby Lake and later) keeps
+//!                            the last N MB of instruction trace and dumps it
+//!                            on SIGUSR2, so the one slow commit is captured
+//!                            instruction by instruction.  Usage —
+//!                              perf record -e intel_pt//u --snapshot -m,64M \
+//!                                -o pt.data -- taskset -c 2,3 env \
+//!                                KAME_MIX_TRACE_US=30 KAME_MIX_PERF_PID=-1 \
+//!                                ... ./transaction_priority_mixed_test
+//!                              perf script -i pt.data --insn-trace --xed
+//!                            taskset/env between perf and this binary are
+//!                            fine, they exec rather than fork, so getppid()
+//!                            still reaches perf.  The signal is sent BEFORE
+//!                            the tracefs freeze because perf needs
+//!                            milliseconds to service it and the AUX ring
+//!                            keeps overwriting meanwhile
 //!   KAME_MIX_DISJOINT        1 = no peer touches the acquiring subtree.  The
 //!                            control for "is the MAX the STM at all", and the
 //!                            reason it is a TOPOLOGY knob rather than
@@ -534,6 +562,8 @@
 #  include <unistd.h>
 #  include <fcntl.h>
 #  include <sys/prctl.h>
+#  include <sys/types.h>
+#  include <signal.h>        // kill(perf, SIGUSR2) — the PT snapshot trigger
 #endif
 
 class MyNode : public Transactional::Node<MyNode> {
@@ -674,6 +704,7 @@ int main() {
     //! running trace is hopeless, while catching it in the act is routine.
     //! Needs tracefs mounted and root; says so and stays disarmed otherwise.
     const long trace_us = env_long("KAME_MIX_TRACE_US", 0);
+    const long perf_snap_pid = env_long("KAME_MIX_PERF_PID", 0);
     //! Samples in the first this-many milliseconds are counted but kept OUT of
     //! the histogram and cannot fire the breaktrace.  Without it the largest
     //! sample of every run is a cold-start artefact and the breaktrace can
@@ -1044,7 +1075,58 @@ int main() {
     // path only ever does two write()s, and only once.
     int trace_marker_fd = -1, tracing_on_fd = -1;
     std::atomic<bool> trace_fired{false};
+    std::uint64_t trace_fired_ns = 0;   //!< the commit that pulled the trigger
+    //! Intel PT snapshot target.  A cycles profile CANNOT find this tail and
+    //! it was tried: commits past p99.9 occupy 0.27 % of the run's cycles, so
+    //! at -F 3000 they are ~240 samples smeared over the whole path and the
+    //! contended and conflict-free profiles come out within 2 % of each other
+    //! everywhere.  Sampling is proportional to TOTAL time; the tail is not in
+    //! it.  What does work is a ring buffer of the instruction trace plus a
+    //! trigger — `perf record --snapshot` holds the last N MB of Intel PT and
+    //! dumps it on SIGUSR2, so signalling from the same `if` that already
+    //! freezes tracefs captures the literal instruction path of the one slow
+    //! commit.  \sa KAME_MIX_PERF_PID.
+    long perf_pid = 0;
 #if defined(__linux__)
+    if(perf_snap_pid) {
+        perf_pid = (perf_snap_pid == -1) ? (long)::getppid() : perf_snap_pid;
+        //! VERIFY THE TARGET IS PERF, do not merely sanity-check the number.
+        //! SIGUSR2's default disposition is TERMINATE, so a wrong pid does not
+        //! fail quietly — the first version of this checked only for init and
+        //! self, was run with -1 from an interactive shell, and killed the
+        //! shell.  getppid() is whatever launched us, and that is only perf
+        //! when perf launched us.  /proc/<pid>/comm settles it.
+        char comm[64] = "";
+        if(perf_pid > 1) {
+            char path[64];
+            std::snprintf(path, sizeof(path), "/proc/%ld/comm", perf_pid);
+            if(FILE *f = std::fopen(path, "r")) {
+                if(std::fgets(comm, sizeof(comm), f))
+                    comm[std::strcspn(comm, "\n")] = 0;
+                std::fclose(f);
+            }
+        }
+        if((perf_pid <= 1) || (perf_pid == (long)::getpid())
+                || (std::strncmp(comm, "perf", 4) != 0)) {
+            std::printf("  NOTE: KAME_MIX_PERF_PID resolved to %d (comm=\"%s\"), "
+                        "which is not perf — refusing to signal it.  SIGUSR2 "
+                        "KILLS an unprepared process.  Use -1 only when perf "
+                        "record LAUNCHES this one (`perf record ... -- "
+                        "./this_test`; exec-only wrappers such as taskset and "
+                        "env in between are fine, a shell is not).\n",
+                        (int)perf_pid, comm);
+            perf_pid = 0;
+        }
+        else if(trace_us <= 0) {
+            std::printf("  NOTE: KAME_MIX_PERF_PID is set but KAME_MIX_TRACE_US "
+                        "is not — there is no trigger, so nothing would ever "
+                        "be captured.  Snapshot DISARMED.\n");
+            perf_pid = 0;
+        }
+        else
+            std::printf("  PT snapshot armed: SIGUSR2 -> pid %d on the first "
+                        "warm commit >= %ld us\n", (int)perf_pid, trace_us);
+    }
     if(trace_us > 0) {
         static const char *kRoots[] = {"/sys/kernel/tracing",
                                        "/sys/kernel/debug/tracing"};
@@ -1066,7 +1148,9 @@ int main() {
         if(tracing_on_fd < 0)
             std::printf("  NOTE: KAME_MIX_TRACE_US needs tracefs and root — "
                         "breaktrace DISARMED (mount it and re-run as root; "
-                        "the latency histogram below is unaffected).\n");
+                        "the latency histogram below is unaffected).%s\n",
+                        perf_pid ? "  The PT snapshot above is unaffected and "
+                                   "still armed." : "");
     }
 #endif
 
@@ -1247,16 +1331,28 @@ int main() {
                 }
                 else     cold_n.fetch_add(1, std::memory_order_relaxed);
 #if defined(__linux__)
-                if(warm && (tracing_on_fd >= 0) &&
+                //! One shot, and deliberately: a PT snapshot dump is large,
+                //! and the run is perturbed from here on anyway.  Note the
+                //! gate is no longer tracefs — the two consumers are
+                //! independent and PT works without root-mounted tracefs.
+                if(warm && (trace_us > 0) && (tracing_on_fd >= 0 || perf_pid) &&
                    (dt_rec >= (std::uint64_t)trace_us * 1000ull) &&
                    !trace_fired.exchange(true, std::memory_order_relaxed)) {
-                    char m[96];
-                    int n = std::snprintf(m, sizeof(m),
-                        "KAME_MIX: record commit took %llu ns\n",
-                        (unsigned long long)dt_rec);
-                    ssize_t w = ::write(trace_marker_fd, m, (size_t)n);
-                    w = ::write(tracing_on_fd, "0\n", 2);   // freeze the buffer
-                    (void)w;
+                    trace_fired_ns = dt_rec;
+                    //! SIGUSR2 FIRST.  perf takes milliseconds to service it
+                    //! and the AUX ring keeps filling meanwhile, so every
+                    //! instruction spent before the signal is one more chance
+                    //! for the commit we want to be overwritten.
+                    if(perf_pid) ::kill((pid_t)perf_pid, SIGUSR2);
+                    if(tracing_on_fd >= 0) {
+                        char m[96];
+                        int n = std::snprintf(m, sizeof(m),
+                            "KAME_MIX: record commit took %llu ns\n",
+                            (unsigned long long)dt_rec);
+                        ssize_t w = ::write(trace_marker_fd, m, (size_t)n);
+                        w = ::write(tracing_on_fd, "0\n", 2);  // freeze it
+                        (void)w;
+                    }
                 }
 #endif
                 progress[T_HIGHEST].fetch_add(1, std::memory_order_relaxed);
@@ -1510,6 +1606,26 @@ int main() {
                     (unsigned long long)acq_retries.slow_n, ratio,
                     (ratio >= 3.0)
                         ? "  <= FRONT-LOADED: raise KAME_MIX_WARMUP_MS" : "");
+    }
+    if(trace_us > 0) {
+        //! Say whether the trigger fired, and on what.  A PT capture is
+        //! useless without knowing which commit it is meant to contain, and a
+        //! silent no-fire looks identical to a capture nobody decoded.
+        if(trace_fired_ns)
+            std::printf("    trigger FIRED on a %llu ns commit%s\n",
+                        (unsigned long long)trace_fired_ns,
+                        perf_pid ? " — SIGUSR2 sent; decode with "
+                                   "`perf script -i <data> --insn-trace --xed`"
+                                 : "");
+        else if((tracing_on_fd < 0) && !perf_pid)
+            std::printf("    trigger NOT ARMED: KAME_MIX_TRACE_US is set but "
+                        "neither consumer is (no tracefs, no PT snapshot), so "
+                        "nothing was watching.  MAX was %llu ns.\n",
+                        (unsigned long long)acq_hist.max);
+        else
+            std::printf("    trigger did NOT fire: nothing reached %ld us "
+                        "(MAX was %llu ns).  Lower KAME_MIX_TRACE_US.\n",
+                        trace_us, (unsigned long long)acq_hist.max);
     }
     if(phase_slow.n) {
         const double N = (double)phase_slow.n;
