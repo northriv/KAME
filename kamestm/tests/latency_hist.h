@@ -87,6 +87,15 @@ struct Hist {
         unsigned i = 64u + (oct - 6u) * 4u + (unsigned)((v >> (oct - 2)) & 3u);
         return i < (unsigned)HB ? i : (unsigned)HB - 1u;
     }
+    //! The bucket's **upper** edge, exclusive: bucket i holds
+    //! [value(i-1), value(i)).  Deliberately the upper edge and not the
+    //! lower — for a latency figure the useful rounding is the pessimistic
+    //! one, so a reported percentile is a guaranteed upper bound on the true
+    //! one.  The price is granularity: above 64 ns the buckets are 4 per
+    //! octave, so a quoted percentile can sit up to 25 % above the sample it
+    //! describes.  `p99.9 = 20,480` means "in [16,384, 20,480)", and a change
+    //! from 20 µs to 17 µs would not move it.  Read a percentile as its
+    //! bucket, not as a number.
     static std::uint64_t value(unsigned i) {
         if(i < 64) return i;
         unsigned oct = 6u + (i - 64u) / 4u, frac = (i - 64u) % 4u;
@@ -99,12 +108,18 @@ struct Hist {
         for(unsigned i = 0; i < HB; i++) bucket[i] += o.bucket[i];
         n += o.n; sum += o.sum; if(o.max > max) max = o.max;
     }
+    //! Clamped to `max`, which is the tighter upper bound whenever the
+    //! percentile lands in the same bucket as the largest sample.  Without the
+    //! clamp a report can print a percentile ABOVE its own MAX — observed as
+    //! p99.999 = 20,971,520 beside MAX = 20,025,541, both inside bucket 136 —
+    //! which is arithmetically correct and reads as a bug.
     std::uint64_t pct(double p) const {
         if( !n) return 0;
         std::uint64_t want = (std::uint64_t)(p * (double)n), acc = 0;
         if(want >= n) want = n - 1;
         for(unsigned i = 0; i < HB; i++)
-            if((acc += bucket[i]) > want) return value(i);
+            if((acc += bucket[i]) > want)
+                return (value(i) < max) ? value(i) : max;
         return max;
     }
     //! A percentile is only meaningful with >= 10 samples beyond it.
