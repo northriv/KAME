@@ -238,24 +238,35 @@ parks at all; same host and roles, 120 s:
 
 | tier | p50 | p99 | p99.9 | **MAX** |
 |---|---|---|---|---|
-| HIGHEST (the library's ceiling) | 768 ns | 2.05 µs | 20.5 µs | **66.7 µs** |
+| HIGHEST (the library's ceiling) | 768 ns | 2.05 µs | 20.5 µs | **95.1 µs** |
 | NORMAL, 20 ms budget | 768 ns | 1.28 µs | 3.67 ms | **20.15 ms** |
 
-**66.7 µs is below the 67.9 µs `latency_floor` measures as this host's own worst
-case with no STM in the loop** — at the tier that never parks, the commit's
-worst case is no longer distinguishable from the machine.  It requires the
-pool's realtime contract: `kame_pool_set_realtime_thread(KAME_RT_STRICT)` on
-that thread, because a commit frees *cross-thread* whenever a peer allocated on
-its subtree, and an ungated cross-thread free is batched to `CAP=1024` with one
-unlucky free paying the whole flush.  Process-wide realtime mode and
-`KAME_RT_DEFER` buy nothing here; only STRICT, which is the level that drops the
-batch.  **KAME does not yet mark that thread** (`kame/main.cpp` sets the
-process-wide mode only), so this is an outstanding precondition rather than a
-shipped property — see [`kamepoolalloc`](../kamepoolalloc)'s contract.
+**Both rows are pre-contract, and the MAX column is mostly the host.**  Two
+things were learned after they were taken, and neither has been folded back in
+yet because doing so needs one run that has not happened:
 
-The NORMAL row is unchanged by that: its worst case is the wait budget, which a
-40 µs allocator spike cannot reach.  (It is still a pre-contract measurement and
-worth re-running; the HIGHEST row is at today's defaults.)
+* **Most of that tail is the machine, not the STM.**  `latency_floor` — the
+  same clock and histogram with no STM in the loop — shows this host
+  interrupting a *pinned* thread for ≥ 10 µs about 660 times a second, which
+  through an 800 ns commit at ~55 k/s predicts a p99.9 near 20 µs.  That is the
+  p99.9 above.  The cause is the 1 kHz local timer tick, and it is present
+  because the kernel command line lost its `isolcpus`/`nohz_full` across a
+  reboot; SMI was measured and excluded (`MSR_SMI_COUNT` = 30 since boot).
+* **The allocator owned a further 3.5× of the slow-commit population.**  A
+  commit frees *cross-thread* whenever a peer allocated on its subtree, and an
+  ungated cross-thread free batches to `CAP=1024` with one unlucky free paying
+  the whole flush.  `kame_pool_set_realtime_thread(KAME_RT_STRICT)` on that
+  thread takes commits over 50 µs from 28.8 to 8.3 per million; process-wide
+  realtime mode and `KAME_RT_DEFER` buy nothing, only STRICT.  The tests default
+  to it now.  **KAME does not yet mark that thread** — `kame/main.cpp` sets the
+  process-wide mode only — so it is an outstanding precondition, not a shipped
+  property; see [`kamepoolalloc`](../kamepoolalloc)'s contract.
+
+The 3.5× is a ratio measured within one sweep and stands; its absolute
+companion (MAX 66.7 µs) was taken on the un-isolated boot and is therefore not
+comparable with the table, which is why it is not in it.  **The number this
+table should eventually carry — isolated host, contract honoured — has not been
+measured.**
 
 The ceiling's precondition: **HIGHEST commit rate × longest peer closure
 ≪ 1.**  HIGHEST is also immune to fair-mode, so each of its commits landing
