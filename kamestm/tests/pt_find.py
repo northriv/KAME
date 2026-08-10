@@ -31,12 +31,18 @@ LINE = re.compile(r'^\s*(\S+)\s+(\d+)\s+\[(\d+)\]\s+([\d.]+):\s+\((.*?)\)\s*\t(.
 #! A gap is only a stall if the two samples are ADJACENT in the file for this
 #! thread.  Anything further apart is the decoder moving between ring buffers.
 MAX_LINE_SPAN = 64
+#! ...and even then it need not be a stall.  Off-CPU time is not traced, so a
+#! voluntary park shows up as a gap; and the decoder's own packet cadence can
+#! manufacture one.  A gap POPULATION that is all one value, to the TSC
+#! quantum, is not a physical stall distribution — hence the histogram.
 BUCKET_HZ = 1e5          # 10 us buckets
 
 print(f"# {PATH}  {os.path.getsize(PATH)/1e6:.1f} MB")
 
 last = {}
 gaps = []
+gap_hist = collections.Counter()
+gap_sum = collections.Counter()
 buckets = collections.Counter()
 nlines = 0
 with open(PATH, errors="replace") as f:
@@ -49,7 +55,9 @@ with open(PATH, errors="replace") as f:
         p = last.get(tid)
         if p is not None and (i - p[1]) <= MAX_LINE_SPAN:
             d = (t - p[0]) * 1e6
-            if 1.0 <= d <= 100000.0:      # below 1 us is the TSC quantum
+            if 1.0 <= d <= 1e6:           # below 1 us is the TSC quantum
+                gap_hist[(tid, round(d, 2))] += 1
+                gap_sum[tid] += d
                 heapq.heappush(gaps, (d, tid, p[1], i, t))
                 if len(gaps) > 40: heapq.heappop(gaps)
         last[tid] = (t, i)
@@ -70,20 +78,44 @@ print(f"# (span {(hi-lo+1)/BUCKET_HZ*1e3:.1f} ms wall, "
       f"{occupied/BUCKET_HZ*1e3:.1f} ms actually covered — a ring buffer need "
       f"not be contiguous)\n")
 
-print("=== 1. STALLS by adjacent-line gap (ring artifacts excluded) ===")
-top = sorted(gaps, reverse=True)[:15]
-if not top: print("  none")
+print("=== 1. adjacent-line gaps on tid", TID, "(ring artifacts excluded) ===")
+mine_gaps = [(d, n) for (tid, d), n in gap_hist.items() if tid == TID]
+ngap = sum(n for _d, n in mine_gaps)
+print(f"    {ngap} gaps totalling {gap_sum[TID]/1000:.1f} ms, against "
+      f"{occupied/BUCKET_HZ*1e3:.1f} ms of traced execution")
+if ngap:
+    print("    by size — ONE value repeated is a decoder or off-CPU artifact, "
+          "a spread is physical:")
+    for d, n in sorted(mine_gaps, key=lambda x: -x[1])[:8]:
+        print(f"      {n:6d} x {d:10.2f} us   ({n*d/1000:8.1f} ms total)")
+top = sorted(gaps, reverse=True)[:8]
 for d, tid, lb, la, t in top:
-    print(f"  {d:9.2f} us  tid {tid}  at {t:.9f}  lines {lb}-{la}")
+    print(f"    largest: {d:9.2f} us  tid {tid}  at {t:.9f}  lines {lb}-{la}")
 
 print(f"\n=== 2. STALLS by sparse window: thinnest 10 us windows on tid {TID} ===")
 print(f"    (mean {mean:.0f}; a window far below it is time the thread was "
       f"resident and not retiring)")
-thin = sorted(mine.items(), key=lambda kv: kv[1])[:15]
+#! A window at the START or END of a traced fragment is partially filled by
+#! construction and says nothing.  Every one of the 15 thinnest windows in the
+#! first real run had a zero neighbour — i.e. they were ALL fragment edges and
+#! the list was pure structure.  Interior windows only.
+interior = [(b, c) for b, c in mine.items()
+            if mine.get(b - 1, 0) and mine.get(b + 1, 0)]
+edges = len(mine) - len(interior)
+print(f"    {len(interior):,} interior windows ({edges:,} fragment edges "
+      f"excluded — those are partial by construction, not stalls)")
+thin = sorted(interior, key=lambda kv: kv[1])[:15]
+if not thin: print("    no interior windows at all")
 for b, c in thin:
     nb = [mine.get(b + k, 0) for k in (-1, 1)]
     print(f"  {c:6d} calls at {b/BUCKET_HZ:.5f}   ({c/mean*100:5.1f} % of mean;"
           f" neighbours {nb[0]}, {nb[1]})")
+if thin:
+    lo_c = thin[0][1]
+    print(f"    => thinnest interior window is {lo_c/mean*100:.0f} % of mean."
+          + ("  A stall would be a few PERCENT; this is not one."
+             if lo_c > 0.5 * mean else
+             "  That IS a stall — see the histogram below."))
 
 print(f"\n=== 3. WORK: densest windows, for contrast ===")
 for b, c in sorted(mine.items(), key=lambda kv: -kv[1])[:5]:
@@ -97,8 +129,8 @@ if top:
                     tid, None))
 if thin:
     b, c = thin[0]
-    regions.append((f"the thinnest window ({c} calls, {c/mean*100:.0f} % of mean)",
-                    None, None, TID, b))
+    regions.append((f"the thinnest INTERIOR window ({c} calls, "
+                    f"{c/mean*100:.0f} % of mean)", None, None, TID, b))
 hists = {n: collections.Counter() for n, _a, _z, _t, _b in regions}
 if regions:
     with open(PATH, errors="replace") as f:
