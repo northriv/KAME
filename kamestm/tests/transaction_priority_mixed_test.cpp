@@ -606,6 +606,8 @@ int main() {
     Hist acq_hist;
     acq_hist.reset();
     std::atomic<uint64_t> cold_n{0};   //!< commits dropped as warm-up
+    //! Written only by the acquisition thread, read after its join.
+    std::uint64_t acq_max_seen = 0, acq_max_at = 0, acq_slow_1st_sec = 0;
     //! Retry accounting for the slow tail.  Written only by the acquisition
     //! thread; `sysd` comes from the other roles' progress counters, so a slow
     //! commit reports whether the rest of the tree kept committing while it
@@ -761,6 +763,20 @@ int main() {
                 const std::uint64_t dt_rec = t_end - t_rec;
                 const bool warm = (t_end >= t_warm_end);
                 if(warm) {
+                    //! WHEN the extremes happen, not just how big they are.
+                    //! Without this the histogram cannot distinguish a tail
+                    //! that is spread over the run from one that is warm-up
+                    //! residue the warm-up window failed to cover — and a MAX
+                    //! is one sample, so "is 500 ms enough?" is otherwise
+                    //! unanswerable except by re-running with a bigger window
+                    //! and hoping the difference is not noise.
+                    if(dt_rec > acq_max_seen) {
+                        acq_max_seen = dt_rec;
+                        acq_max_at   = t_end - t_warm_end;
+                    }
+                    if((dt_rec >= (std::uint64_t)slow_ns)
+                            && (t_end - t_warm_end < 1000000000ull))
+                        acq_slow_1st_sec++;
                     acq_hist.add(dt_rec);
                     std::uint64_t sys1 = 0;   // …and here, after the clock.
                     for(int t = T_UI; t < nthreads; ++t)
@@ -1001,6 +1017,30 @@ int main() {
             std::printf(" %s=%llu", kPN[i],
                         (unsigned long long)acq_hist.pct(kP[i]));
     std::printf("  MAX=%llu ns\n", (unsigned long long)acq_hist.max);
+    //! Is the tail warm-up residue?  A MAX in the first second after the
+    //! warm-up window says the window was too short and the headline number is
+    //! an artefact; a MAX at t=97 s says the tail is a property of the steady
+    //! state.  One sample cannot be read without knowing which, and raising
+    //! KAME_MIX_WARMUP_MS until the number moves is guesswork against noise.
+    //! Compared against the UNIFORM expectation for the warm window's own
+    //! length, not a fixed fraction: over 19.5 warm seconds a flat tail puts
+    //! 5 % of itself in the first second, and a fixed ">5 % means front-loaded"
+    //! test therefore fires on flat data.  (It did, on the first run of this
+    //! very line.)  The ratio is what carries meaning.
+    if(acq_hist.n) {
+        const double warm_s = (double)secs - (double)warmup_ms / 1000.0;
+        const double expect = (warm_s > 1.0)
+            ? (double)acq_retries.slow_n / warm_s : 0.0;
+        const double ratio = (expect > 0.0)
+            ? (double)acq_slow_1st_sec / expect : 0.0;
+        std::printf("    MAX occurred %.1f s after warm-up ended; %llu of %llu "
+                    "slow commit(s) in the first warm second = %.2fx uniform%s\n",
+                    (double)acq_max_at / 1e9,
+                    (unsigned long long)acq_slow_1st_sec,
+                    (unsigned long long)acq_retries.slow_n, ratio,
+                    (ratio >= 3.0)
+                        ? "  <= FRONT-LOADED: raise KAME_MIX_WARMUP_MS" : "");
+    }
     //! How many commits reached the budget.  Without this the tail is
     //! ambiguous: a MAX that sits ON the budget can be a distribution that
     //! happens to end there or a distribution CLIPPED there, and only the
