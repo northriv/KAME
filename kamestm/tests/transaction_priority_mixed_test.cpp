@@ -355,7 +355,28 @@
 //!                            has ~10^3 nodes, so a root bundle costs ms and
 //!                            the invalidation window for a wide UI Tx is
 //!                            enormous — a 16-node tree cannot reproduce that.
-//!                            Set 64-256 to model a real measurement tree
+//!                            Set 64-256 to model a real measurement tree.
+//!                            **0 is the NO-BUNDLING topology**, and it is the
+//!                            control for every "what does composability
+//!                            cost" question: each subtree is a bare node, so
+//!                            a Transaction on it is a SingleTransaction and
+//!                            bundle() is never called (verify in the
+//!                            whole-commit bundle line: 0.00 passes).  Do NOT
+//!                            answer that question by comparing the acq
+//!                            thread's multi-nodal commit against another
+//!                            role's single-nodal one — those differ in core,
+//!                            in contention and in priority, and doing it that
+//!                            way once produced "the 5-node commit is FASTER
+//!                            than the 1-node one", which is an artifact of
+//!                            acq owning cpu3 while NORMAL shared cpu2.  Vary
+//!                            the topology on ONE thread instead.  Container
+//!                            sweep, p50: 512 ns at 0 leaves (no bundle),
+//!                            640 at 1, 1,024 at 4 — so ~128 ns per extra node
+//!                            and 2.0x for a 5-node commit over a 1-node one.
+//!                            Note unbundle() still runs at 0 leaves (0.14
+//!                            passes/commit): devA is a child of root, so a
+//!                            peer's root-scope Snapshot bundles it and the
+//!                            next commit has to extract itself back out
 //!   KAME_MIX_OS_FIFO         >0 = acquisition thread at SCHED_FIFO of that
 //!                            priority (Linux; skipped with a notice when not
 //!                            permitted).  The rest stay SCHED_OTHER
@@ -809,8 +830,19 @@ int main() {
     //! they were RAW: `KAME_MIX_LEAVES` below 4 indexed out of bounds and
     //! handed the STM a garbage node, aborting with a `domain_error` out of
     //! the payload lookup — which reads as an STM bug and is a harness one.
+    //! KAME_MIX_LEAVES=0 is the no-bundling topology (see the header): every
+    //! subtree is a bare node, so a Transaction on it is a SingleTransaction
+    //! and bundle()/unbundle() are never called.  Each accessor then falls
+    //! back to the subtree root, so the roles contend on the same nodes rather
+    //! than on nothing.
     auto lA = [&](std::size_t i) -> const shared_ptr<MyNode> & {
-        return leavesA[i % leavesA.size()];
+        return leavesA.empty() ? devA : leavesA[i % leavesA.size()];
+    };
+    auto lB = [&](std::size_t i) -> const shared_ptr<MyNode> & {
+        return leavesB.empty() ? devB : leavesB[i % leavesB.size()];
+    };
+    auto lP = [&](std::size_t i) -> const shared_ptr<MyNode> & {
+        return leavesP.empty() ? panel : leavesP[i % leavesP.size()];
     };
 
     enum {T_HIGHEST = 0, T_DOWNSTREAM = 1, T_UI = 2, T_SCRIPT0 = 3};
@@ -1224,8 +1256,8 @@ int main() {
                 (void)shot[ *devA].m_x;
             }
             // widget edit: leaf write.
-            leavesP[i % leavesP.size()]->iterate_commit([&](Tr &tr){
-                tr[ *leavesP[i % leavesP.size()]].m_x++;
+            lP(i)->iterate_commit([&](Tr &tr){
+                tr[ *lP(i)].m_x++;
             });
             if(i % (uint64_t)ui_wide == 0) {
                 // settings apply: root-scope transaction.
@@ -1274,7 +1306,7 @@ int main() {
                     });
                 if(i % 16 == 0)
                     panel->iterate_commit([&](Tr &tr){
-                        tr[ *leavesP[(i / 16 + (uint64_t)k) % leavesP.size()]].m_x++;
+                        tr[ *lP(i / 16 + (std::size_t)k)].m_x++;
                     });
                 progress[T_SCRIPT0 + (size_t)k].fetch_add(
                     1, std::memory_order_relaxed);
@@ -1308,12 +1340,12 @@ int main() {
                     //! _test reproduces white-box.
                     root->iterate_commit([&](Tr &tr){
                         (void)tr[ *devA].m_x;
-                        tr[ *leavesB[(i + (uint64_t)k) % leavesB.size()]].m_x++;
+                        tr[ *lB(i + (std::size_t)k)].m_x++;
                     });
                 }
                 else {
                     devB->iterate_commit([&](Tr &tr){
-                        tr[ *leavesB[(i + (uint64_t)k) % leavesB.size()]].m_x++;
+                        tr[ *lB(i + (std::size_t)k)].m_x++;
                     });
                 }
                 progress[T_NORMAL0 + (size_t)k].fetch_add(
