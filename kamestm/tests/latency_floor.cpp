@@ -48,6 +48,16 @@
  *     isolcpus + nohz_full (tick stopped)     MAX 17,030 ns   >=10 us  469 /s
  *     + ./with_pmqos (C-states held off)      MAX    219 ns   >=10 us    0
  *
+ * THREE ROWS, NOT ONE NUMBER — quote the row whose configuration matches the
+ * run you are subtracting it from.  This has already been got wrong once here:
+ * a 66,737 ns commit MAX measured WITH isolation was declared "level with the
+ * machine" against the 67,879 ns of the top row, which is the un-isolated one.
+ * Against its own row (17,030 ns) the same commit is 3.9x the machine, and the
+ * ~50 us difference was the STM's retry path — which a later phase split then
+ * measured directly.  The cheap check that catches it: delete the floor
+ * (with_pmqos) and re-run.  A tail that is really the machine cannot survive
+ * deleting the machine; that one moved 66.7 -> 53.1 us and stayed.
+ *
  * Each step was a diagnosis this tool made and nothing else could.  The first:
  * `/proc/cmdline` had silently lost its isolation parameters across a reboot,
  * and LOC on the "isolated" core was the full 1 kHz tick.  The second: the

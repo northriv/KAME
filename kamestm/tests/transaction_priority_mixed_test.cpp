@@ -346,11 +346,27 @@
 //!                              level 3 (STRICT)       8.3   MAX  66,737
 //!
 //!                            3.5x, and only at STRICT — mode and DEFER are
-//!                            within noise.  MAX 66,737 ns is BELOW the
-//!                            67,879 ns that latency_floor measures as this
-//!                            host's own worst case with no STM at all, so at
-//!                            level 3 the commit's worst case is no longer
-//!                            distinguishable from the machine.  Throughput
+//!                            within noise.
+//!                            RETRACTED, and worth keeping visible because the
+//!                            error is the easy one to repeat: this used to
+//!                            read "MAX 66,737 ns is BELOW the 67,879 ns
+//!                            latency_floor measures for this host, so level 3
+//!                            is no longer distinguishable from the machine."
+//!                            Those arms ran WITH isolation (see the line
+//!                            above), and 67,879 ns is latency_floor's
+//!                            *un-isolated* row.  The right floor for this
+//!                            regime is 17,030 ns, so 66,737 is 3.9x the
+//!                            machine, not level with it — the ~50 us above
+//!                            the floor is the STM's own, which is exactly
+//!                            what the phase split later measured directly
+//!                            (46,670 of 50,707 ns in the retry path).  The
+//!                            check that would have caught it at the time:
+//!                            removing the floor entirely (with_pmqos, 219 ns)
+//!                            moved MAX only 66.7 -> 53.1 us.  A tail that was
+//!                            "the machine" cannot survive deleting the
+//!                            machine.  Quote a floor from the SAME
+//!                            configuration row, always.
+//!                            Throughput
 //!                            went UP 8 % (50.7k -> 54.7k), so the contract's
 //!                            documented "STRICT costs ~47 % of cross-thread
 //!                            small-free throughput" does not reach this

@@ -801,14 +801,23 @@ isolated core.  120 s, **6,568,736 commits**, on the PREEMPT_RT host:
 > stays fixed.  Adding `kame_pool_set_realtime_thread(KAME_RT_STRICT)`: slow
 > commits 28.8 → **8.3** per million, MAX 92.6 → **66.7 µs**, throughput
 > **+8 %**.  Mode alone (31.0) and `KAME_RT_DEFER` (29.3) are within noise —
-> only STRICT, the one level that drops the batch.  66.7 µs is *below* the
-> 67.9 µs `latency_floor` measures as this host's worst case with no STM at
-> all.  The test now defaults to the contract; **KAME still does not mark the
-> thread**, so precondition 3 remains outstanding in the application.
+> only STRICT, the one level that drops the batch.  The test now defaults to
+> the contract; **KAME still does not mark the thread**, so precondition 3
+> remains outstanding in the application.
+>
+> This block used to end "66.7 µs is *below* the 67.9 µs `latency_floor`
+> measures as this host's worst case with no STM at all" — **retracted**.  The
+> arms ran *with* isolation and 67.9 µs is `latency_floor`'s *un-isolated* row;
+> the right floor for the regime is 17 µs, the same one the next paragraph
+> already quoted, two lines apart and contradicting it.  66.7 µs is therefore
+> 3.9x the machine, not level with it.
 
 The host's floor is **17 µs** (`rtla osnoise`, 120 s, Max Single, which bounds
-C-states, SMIs and `nohz_full` wake-ups in one number).  So the worst case is
-5.6x the floor and everything through p99 is a factor of eight below it.
+C-states, SMIs and `nohz_full` wake-ups in one number) — and 219 ns once
+`/dev/cpu_dma_latency` is held at 0, which `rtla` does not tell you.  So the
+66.7 µs worst case is **3.9x** the 17 µs floor, and removing the floor
+altogether moves it only to 53.1 µs: the tail is the STM's own retry path, not
+the machine.  Everything through p99 stays a factor of eight below the floor.
 
 Three things about that number are worth stating with it.
 
