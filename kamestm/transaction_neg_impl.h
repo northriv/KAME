@@ -451,10 +451,55 @@ struct NegDiag {
     std::uint64_t ll_retry_max;    //!< max my_tx_retries seen at any tick
     std::uint64_t ll_retry_sum;    //!< ... summed, for a mean
     std::uint64_t ll_thresh_max;   //!< max clamp(sig_C*2, 3, nproc) seen
+    //! Wall time inside bundle() / unbundle(), which is the one term the tail
+    //! investigation asserted and never multiplied out.  "A failed attempt
+    //! re-bundles the subtree and throws it away" has the right shape, but
+    //! bounding one bundle pass by the SUCCESSFUL commit phase (1,199 ns,
+    //! which contains one) makes 2 entries x bundle+unbundle come to 4.8 us
+    //! against a measured 15.6 us per failed attempt — short by 3.2x, and by
+    //! 6.5x if only bundle is counted.  bundle_cas_retries is 0.00, so it is
+    //! not spinning either.  Nothing here could close that gap because
+    //! nothing timed the pass; these do.
+    //!
+    //! Both functions RECURSE (bundle bundles its children), so the timer runs
+    //! only at depth 0 — otherwise a 3-level subtree would report its own time
+    //! three times over.  `*_calls` counts outermost passes, `*_calls_all`
+    //! every level, and their ratio is the fan-out per pass.
+    std::uint64_t bundle_ns, bundle_calls, bundle_calls_all;
+    std::uint64_t unbundle_ns, unbundle_calls, unbundle_calls_all;
+    int           bundle_depth, unbundle_depth;   //!< not counters
     //! Set by the round loop, read by negotiate_sleep — not a counter.
     std::uint8_t  exempt_round;
 };
 inline NegDiag &neg_diag() { static thread_local NegDiag d{}; return d; }
+//! Times the OUTERMOST call only; see NegDiag::bundle_ns.  Counting at every
+//! level and timing at one is deliberate — the fan-out and the cost are
+//! different questions and a nested timer answers neither.
+struct ScopedPassTimer {
+    ScopedPassTimer(std::uint64_t NegDiag::*ns, std::uint64_t NegDiag::*calls,
+                    std::uint64_t NegDiag::*all, int NegDiag::*depth) noexcept
+        : m_ns(ns), m_calls(calls), m_depth(depth) {
+        auto &d = neg_diag();
+        ++(d.*all);
+        m_outer = (d.*depth == 0);
+        ++(d.*depth);
+        if(m_outer) m_t0 = std::chrono::steady_clock::now();
+    }
+    ~ScopedPassTimer() {
+        auto &d = neg_diag();
+        --(d.*m_depth);
+        if( !m_outer) return;
+        d.*m_ns += (std::uint64_t)std::chrono::duration_cast<
+            std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - m_t0).count();
+        ++(d.*m_calls);
+    }
+    std::uint64_t NegDiag::*m_ns;
+    std::uint64_t NegDiag::*m_calls;
+    int NegDiag::*m_depth;
+    std::chrono::steady_clock::time_point m_t0;
+    bool m_outer;
+};
 }
 //! Snapshot this thread's negotiation breakdown (and optionally zero it).
 //! Only compiled when KAME_STM_NEG_DIAG=1; callers guard on the same macro.

@@ -2508,6 +2508,13 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
     // with op_kind = BUNDLE.  Read side (peer-piggyback) not yet wired —
     // see VERIFICATION.md / paper notes.
     detail::ScopedOpKind _op_kind_scope(detail::StampKind::BUNDLE);
+#if KAME_STM_NEG_DIAG
+    //! \sa NegDiag::bundle_ns — the retry-path attribution was never
+    //! multiplied out against a measured pass cost.  Outermost call only.
+    detail::ScopedPassTimer _bundle_timer(
+        &detail::NegDiag::bundle_ns, &detail::NegDiag::bundle_calls,
+        &detail::NegDiag::bundle_calls_all, &detail::NegDiag::bundle_depth);
+#endif
     auto &started_time = snap.m_started_time;
     auto &tid_bitset = snap.m_tid_bitset;
 
@@ -3069,6 +3076,12 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
     // Mark every linkage we tag during this unbundle (via tag_as_contender)
     // with op_kind = UNBUNDLE.  Read side not yet wired.
     detail::ScopedOpKind _op_kind_scope(detail::StampKind::UNBUNDLE);
+#if KAME_STM_NEG_DIAG
+    //! \sa NegDiag::bundle_ns.  Outermost call only — unbundle recurses too.
+    detail::ScopedPassTimer _unbundle_timer(
+        &detail::NegDiag::unbundle_ns, &detail::NegDiag::unbundle_calls,
+        &detail::NegDiag::unbundle_calls_all, &detail::NegDiag::unbundle_depth);
+#endif
     auto &time_started = snap.m_started_time;
     auto &tid_bitset = snap.m_tid_bitset;
 

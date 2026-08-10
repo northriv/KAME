@@ -182,14 +182,31 @@
 //!     The arithmetic that predicted it: that worst commit took 4 attempts
 //!     over 8 entries — two linkages per attempt, which is the root->devA path
 //!     — at ~13 us per attempt against 823 ns for a clean commit, so a LOSING
-//!     attempt costs ~15x a winning one.  Bundle/unbundle done and discarded is
-//!     the candidate that fits every other arm: only a peer whose transaction
-//!     SPANS the acquiring subtree provokes it (5x), the cost is path-shaped so
-//!     4x the leaves leaves the magnitude alone, and a root Snapshot at 42 kHz
-//!     — which bundles but does not span — does nothing.  Note that this does
-//!     not contradict the UI finding below: a snapshot's bundle and a spanning
+//!     attempt costs ~15x a winning one.  Bundle/unbundle done and discarded
+//!     fits every other arm: only a peer whose transaction SPANS the acquiring
+//!     subtree provokes it (5x), the cost is path-shaped so 4x the leaves
+//!     leaves the magnitude alone, and a root Snapshot at 42 kHz — which
+//!     bundles but does not span — does nothing.  Note that this does not
+//!     contradict the UI finding below: a snapshot's bundle and a spanning
 //!     transaction's unbundle are different events, and only the second is on
 //!     the acquiring thread's path.
+//!     BUT IT DOES NOT FIT THE MAGNITUDE, and that was never checked before it
+//!     went into the docs.  Multiply it out: 2 entries per failed attempt x
+//!     bundle+unbundle, each bounded ABOVE by the whole successful commit
+//!     phase (1,199 ns, which contains a bundle), is 4.8 us against 15.6 us
+//!     measured — short by 3.2x, or 6.5x counting bundle alone.  And
+//!     bundle_cas_retries is 0.00, so it is not spinning its way there either.
+//!     No counter could settle it because nothing timed the pass.
+//!     Now one does: bundle() and unbundle() are timed (outermost call only —
+//!     both recurse) and differenced across the SAME boundaries as `retry`, so
+//!     the split needs no arithmetic.  Measured share of the retry phase: ~a
+//!     THIRD.  Re-bundling is a real and substantial term and it is not the
+//!     mechanism; two thirds of the cost of a failed attempt remain
+//!     unattributed, and the next candidate has to clear the same
+//!     multiplication this one failed.
+//!     Do not pair a whole-commit bundle total against the retry phase — it
+//!     also contains the snapshot's and the successful commit's bundles and
+//!     reads over 100 %, which is how this was first got wrong.
 //!   * **Why privilege never rescues it — counted, not read.**  The obvious
 //!     objection to the above is that the STM has a completion guarantee for
 //!     exactly this: a transaction that keeps losing claims privilege and
@@ -420,6 +437,16 @@ public:
 typedef Transactional::Transaction<MyNode> Tr;
 typedef Transactional::Snapshot<MyNode> Ss;
 
+#if KAME_STM_NEG_DIAG
+//! bundle() + unbundle() wall time so far on this thread.  Read as a running
+//! total and DIFFERENCED by the caller — the counters are cumulative per
+//! commit, so only a difference across a phase boundary is attributable to
+//! that phase.  \sa PhaseStat::rbu
+static inline std::uint64_t bundle_unbundle_ns() {
+    const auto &d = Transactional::detail::neg_diag();
+    return d.bundle_ns + d.unbundle_ns;
+}
+#endif
 static long env_long(const char *name, long defv) {
     const char *v = std::getenv(name);
     return (v && *v) ? std::atol(v) : defv;
@@ -729,16 +756,23 @@ int main() {
     bool rt_warm_sampled = false, rt_warm_first = true;
     //! KAME_MIX_PHASE aggregate: sums over the SLOW population and the worst
     //! commit's own triple, which is the one that has to add up.
+    //! `rbu` is bundle+unbundle wall time accumulated INSIDE the retry segment
+    //! only — the failed commitOrNext() calls, differenced across the same
+    //! boundaries as `retry` itself.  A per-commit bundle total cannot answer
+    //! "how much of the RETRY is bundling", because it also contains the
+    //! bundles of the snapshot and of the successful commit; paired against
+    //! the retry phase it can and did exceed 100 %.
     struct PhaseStat {
-        std::uint64_t n = 0, snap = 0, write = 0, commit = 0, retry = 0;
+        std::uint64_t n = 0, snap = 0, write = 0, commit = 0, retry = 0,
+                      rbu = 0;
         std::uint64_t max_dt = 0, max_snap = 0, max_write = 0,
-                      max_commit = 0, max_retry = 0;
+                      max_commit = 0, max_retry = 0, max_rbu = 0;
         void add(std::uint64_t dt, std::uint64_t s, std::uint64_t w,
-                 std::uint64_t c, std::uint64_t r) {
-            ++n; snap += s; write += w; commit += c; retry += r;
+                 std::uint64_t c, std::uint64_t r, std::uint64_t bu) {
+            ++n; snap += s; write += w; commit += c; retry += r; rbu += bu;
             if(dt > max_dt) { max_dt = dt; max_snap = s;
                               max_write = w; max_commit = c;
-                              max_retry = r; }
+                              max_retry = r; max_rbu = bu; }
         }
     } phase_slow;
     //! The acquisition thread's own kernel entries over the measured window.
@@ -777,7 +811,9 @@ int main() {
                       ll_ticks = 0, ll_resets = 0, ll_no_tags = 0,
                       ll_few_retries = 0, ll_verdicts = 0,
                       priv_tries = 0, priv_grants = 0,
-                      ll_retry_max = 0, ll_retry_sum = 0, ll_thresh_max = 0;
+                      ll_retry_max = 0, ll_retry_sum = 0, ll_thresh_max = 0,
+                      bundle_ns = 0, bundle_calls = 0, bundle_all = 0,
+                      unbundle_ns = 0, unbundle_calls = 0, unbundle_all = 0;
         //! …and the single worst commit of the run, kept whole: a mean over
         //! the slow population cannot say whether the MAX was one long exempt
         //! sleep or a hundred short budgeted ones.
@@ -801,6 +837,10 @@ int main() {
             ll_retry_sum += d.ll_retry_sum;
             if(d.ll_retry_max > ll_retry_max)   ll_retry_max = d.ll_retry_max;
             if(d.ll_thresh_max > ll_thresh_max) ll_thresh_max = d.ll_thresh_max;
+            bundle_ns += d.bundle_ns; bundle_calls += d.bundle_calls;
+            bundle_all += d.bundle_calls_all;
+            unbundle_ns += d.unbundle_ns; unbundle_calls += d.unbundle_calls;
+            unbundle_all += d.unbundle_calls_all;
             if(dt > max_dt) { max_dt = dt; max_d = d; }
         }
     } slow_diag;
@@ -931,7 +971,7 @@ int main() {
 #endif
                 const std::uint64_t t_rec = now_ns();
                 std::uint64_t ph_snap = 0, ph_write = 0, ph_commit = 0,
-                              ph_retry = 0;
+                              ph_retry = 0, ph_retry_bu = 0;
                 if( !phase_mode) {
                     devA->iterate_commit([&](Tr &tr){
                         ++attempts;
@@ -961,10 +1001,19 @@ int main() {
                         for(auto &l : leavesA) tr[ *l].m_x++;
                         const std::uint64_t t2 = now_ns();
                         ph_write += t2 - t1;
+#if KAME_STM_NEG_DIAG
+                        //! Differenced across exactly the boundaries `retry`
+                        //! is, so the share below is of the retry segment and
+                        //! not of the commit.  \sa PhaseStat::rbu
+                        const std::uint64_t bu0 = bundle_unbundle_ns();
+#endif
                         const bool ok = tr.commitOrNext();
                         t1 = now_ns();
                         if(ok) { ph_commit += t1 - t2; break; }
                         ph_retry += t1 - t2;
+#if KAME_STM_NEG_DIAG
+                        ph_retry_bu += bundle_unbundle_ns() - bu0;
+#endif
                     }
                 }
                 const std::uint64_t t_end = now_ns();
@@ -1011,7 +1060,8 @@ int main() {
                     acq_retries.add(dt_rec, attempts, (std::uint64_t)slow_ns,
                                     sys1 - sys0);
                     if(phase_mode && (dt_rec >= (std::uint64_t)slow_ns))
-                        phase_slow.add(dt_rec, ph_snap, ph_write, ph_commit, ph_retry);
+                        phase_slow.add(dt_rec, ph_snap, ph_write, ph_commit,
+                                       ph_retry, ph_retry_bu);
 #if KAME_STM_NEG_DIAG
                     {   const auto d = Transactional::neg_diag_snapshot(false);
                         ll_all.add(d);
@@ -1301,6 +1351,41 @@ int main() {
                         - (long long)(phase_slow.max_snap
                         + phase_slow.max_write + phase_slow.max_commit
                         + phase_slow.max_retry));
+#if KAME_STM_NEG_DIAG
+        //! The multiplication the retry-path attribution never did.  "A failed
+        //! attempt re-bundles the subtree and discards it" is only an
+        //! explanation if N passes x the cost of a pass reaches the retry
+        //! phase; done by hand from the numbers already published it fell
+        //! short by 3.2x, so do it here where both terms are measured in the
+        //! SAME run and cannot be paired across regimes.
+        {   const double retry = phase_slow.retry / N;
+            const double rbu = phase_slow.rbu / N;
+            std::printf("      of that retry phase, bundle+unbundle is "
+                        "%.0f ns of %.0f ns = %.0f %%  (worst commit: "
+                        "%llu of %llu)%s\n",
+                        rbu, retry, retry > 0 ? 100.0 * rbu / retry : 0.0,
+                        (unsigned long long)phase_slow.max_rbu,
+                        (unsigned long long)phase_slow.max_retry,
+                        (retry > 0 && rbu < 0.5 * retry)
+                            ? "\n      => does NOT close: re-bundling is a "
+                              "MINORITY of the retry cost" : "");
+            if(slow_diag.n) {
+                const double S = (double)slow_diag.n;
+                std::printf("      whole-commit bundle/unbundle for scale: "
+                            "bundle %.0f ns in %.2f pass(es) (%.1f levels "
+                            "each), unbundle %.0f ns in %.2f (%.1f levels)\n",
+                            slow_diag.bundle_ns / S, slow_diag.bundle_calls / S,
+                            slow_diag.bundle_calls
+                                ? (double)slow_diag.bundle_all
+                                    / (double)slow_diag.bundle_calls : 0.0,
+                            slow_diag.unbundle_ns / S,
+                            slow_diag.unbundle_calls / S,
+                            slow_diag.unbundle_calls
+                                ? (double)slow_diag.unbundle_all
+                                    / (double)slow_diag.unbundle_calls : 0.0);
+            }
+        }
+#endif
     }
 #if defined(__linux__)
     //! Kernel entries on the acquisition thread over the measured window.

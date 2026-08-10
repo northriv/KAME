@@ -309,14 +309,26 @@ attempts plus the re-snapshot they trigger, 15,778 ns**.  In the worst commit,
 46,670 ns of 50,707 ns, with 48 ns unattributed.
 
 So **a failing attempt costs ~13× a succeeding one** (15.8 µs against 1.2 µs),
-which is where the arithmetic pointed and is now direct.  A re-snapshot is
-multi-nodal, so it re-bundles the subtree; `bundle()` itself never retries
-(measured 0.00 per slow commit), so the cost is one expensive pass done and
-discarded, not a spin.  Consistent with the rest: only the peer whose
-transaction *spans* the acquiring subtree provokes it (5× the slow-commit
-rate), the cost is path-shaped so 4× the leaves leaves the magnitude alone, and
-a root `Snapshot` at 42 kHz — which bundles but does not span — provokes
-nothing.
+which is where the arithmetic pointed and is now direct.
+
+*What* it spends that on is a separate question, and the first answer was
+wrong.  "A re-snapshot is multi-nodal, so it re-bundles the subtree and throws
+the pass away" fits the shape — only a peer whose transaction *spans* the
+acquiring subtree provokes it (5× the slow-commit rate), the cost is
+path-shaped so 4× the leaves leaves the magnitude alone, and a root `Snapshot`
+at 42 kHz, which bundles but does not span, provokes nothing.  It does not fit
+the *magnitude*: two bundle+unbundle passes at the cost of a whole successful
+commit come to 4.8 µs against 15.6 µs measured, short by 3.2×, and
+`bundle_cas_retries` is 0.00 so it is not spinning either.
+
+`bundle()` and `unbundle()` are now timed directly and differenced across the
+same boundaries as the retry phase itself, which needs no arithmetic at all:
+**re-bundling is about a third of the retry cost, not the whole of it.**  The
+remaining two thirds are still unattributed — the harness prints the share so
+the next hypothesis has to clear the same bar.  (Pair the two terms only
+within one run: a whole-commit bundle total also contains the snapshot's and
+the successful commit's bundles, and against the retry phase alone it reads
+above 100 %.)
 
 Left as a characterisation rather than a fix: it is 20–50× inside a 1 ms
 deadline.  Narrowing it further means separating the failed `commit()` from the
