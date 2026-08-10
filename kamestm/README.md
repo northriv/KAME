@@ -166,9 +166,9 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 **A commit's worst-case time is a number you choose.**  Declare a wait budget
 (`ScopedWaitBudget`; KAME sets it from `XPrimaryDriver::downstreamWaitBudgetUS()`,
 default 20 ms) and every wait inside the commit is clipped to it.  Measured
-under contention on a `PREEMPT_RT` host — i5-7500, isolated core; workload
-`transaction_priority_mixed_test`, the record commit against NORMAL / UI /
-SCRIPTING peers — MAX − budget:
+under contention on a `PREEMPT_RT` host (i5-7500, isolated core; the
+`transaction_priority_mixed_test` record commit against NORMAL / UI /
+SCRIPTING peers), MAX − budget:
 
 | budget | MAX − budget | acquisition | UI | SCRIPTING |
 |---|---|---|---|---|
@@ -177,73 +177,44 @@ SCRIPTING peers — MAX − budget:
 | 200 µs | 19 µs | +1 % | **−94 %** | **−98 %** |
 
 In the shipping configuration (`SCHED_FIFO` + isolation + PM-QoS, 20 ms
-budget) MAX − budget is **3.0 µs**: the STM's contribution to the tail is a
-few microseconds on top of whatever the host allows.
+budget) MAX − budget is **3.0 µs**.  Two rules make that hold.  A budgeted
+sleep stops `KAME_NEG_SPIN_TAIL_US` (300 µs) short of its deadline and polls
+the remainder — a timed wait armed to land *on* the deadline hands its own
+wake-up latency (up to ~700 µs measured, dominated by scheduling class) to
+the caller's tail.  And **the budget must stay well above that 300 µs
+reserve**: the table's last row is the cliff, where a budget at or below the
+reserve never sleeps and starves the deferrable tiers.  At length, 300 s at
+a 1 ms budget: 38.3 M commits, MAX 1.29 ms, zero over a 3 ms deadline.
 
-**And what the host allows is a configuration choice, not a property.**  Run
-`latency_floor` — the same clock and histogram with no STM in the loop — before
-quoting any absolute number here.  On this host it moved by three orders of
-magnitude across three steps: as found (the kernel command line had silently
-lost its isolation across a reboot) MAX 67.9 µs; with `isolcpus`/`nohz_full`
-actually taking effect, 17.0 µs; and under `tests/with_pmqos`, which holds
-`/dev/cpu_dma_latency` at 0 for the child's lifetime, **219 ns — with not one
-sample over a microsecond in 370 million.**  The middle rung is the package
-leaving a deep C-state, invisible to every counter the kernel keeps.  `rtla
-osnoise` reports 17 µs Max Single here, i.e. exactly that rung and nothing
-about the 219 ns underneath it.
-
-**Three rungs, not one number — subtract the one whose configuration matches
-your run.**  This is easy to get wrong and was got wrong here: a commit MAX
-measured *with* isolation was once compared against the *un-isolated* rung and
-declared level with the machine.  Lined up correctly, the same measurements say
-the opposite:
+**What the host allows is a configuration choice, not a property.**  Run
+`latency_floor` — the same clock and histogram with no STM in the loop —
+before quoting any absolute number here.  On this host it moved three orders
+of magnitude in three steps: as found (the kernel command line had silently
+lost its isolation across a reboot), MAX 67.9 µs; with `isolcpus`/`nohz_full`
+taking effect, 17.0 µs — the package leaving deep C-states, which is also
+exactly what `rtla osnoise` reports as its 17 µs Max Single; and under
+`tests/with_pmqos` (holds `/dev/cpu_dma_latency` at 0), **219 ns, with no
+sample over 1 µs in 370 M**.  Subtract the rung whose configuration matches
+your run — mismatching rungs once mis-attributed the STM's own tail to the
+machine.  Lined up correctly:
 
 | configuration | machine floor | commit MAX | difference |
 |---|---|---|---|
 | isolated, no PM-QoS | 17.0 µs | 66.7 µs | **49.7 µs** |
 | isolated + PM-QoS | 219 ns | 53.1 µs | **52.9 µs** |
 | + FIFO and per-thread pinning, `invol` = 0 | 219 ns | 40.8 µs | **40.6 µs** |
-| + the sysfs fix ([below](#the-residue-was-the-stm-reading-sys-and-it-taxed-bystanders)) | 219 ns | 21.9 µs | **21.7 µs** |
+| + the sysfs fix ([below](#what-the-residue-was)) | 219 ns | 21.9 µs | **21.7 µs** |
 
-The floors span **77×** and the differences stay within 2.4×.  That
-near-invariance is what identifies the difference as the STM's own, and the
-sections below take it apart: roughly half was the retry path's genuine work,
-and half was the livelock probe reading `/sys` on every tick — three syscalls
-per tick that no counter here could see, found by instruction trace and since
-removed.  The check that drove all of it is general and cheap: if a tail is
-really the machine, deleting the machine deletes the tail.  Here deleting all
-but 219 ns of the machine, every involuntary context switch, and finally the
-hidden syscalls left 21.7 µs standing — contention, and nothing else.
-
-Two things earned those numbers.  First, instrumentation: the previous
-constant (~200 µs of overshoot at every budget) was **the timed wait's
-wake-up cost, not the STM** — the worst commit was one `cell.wait()` asked
-for 198 µs that returned 696 µs later with 6 µs of STM work in the whole
-commit, and the scheduling class dominates the cost (5.3×) with C-state
-exit buying its 6× only on top of it.  Second, the consequence: a timed
-wait must never be armed to land *on* the deadline, so every budgeted sleep
-now stops `KAME_NEG_SPIN_TAIL_US` (300 µs) short and the remainder is
-polled — which also observes the blocker clearing immediately.  Unbudgeted
-callers run the pre-existing code unchanged (measured −0.8 %, noise).
-
-**Keep the budget well above the 300 µs reserve** — the percentages in the
-table's last row are the cliff: a budget at or below the reserve never
-sleeps, never backs off the linkage, and starves the deferrable tiers.  At
-the shipped 20 ms the reserve is 1.5 % of the budget and free.  Throughput
-otherwise *rises* as the budget falls (a clipped commit stops sleeping and
-retries; the clip rate stays ~0.32 %).  At length, 300 s at a 1 ms budget
-(measured before the reserve, so with the old +216 µs tail): **38.3 M
-commits, MAX 1.288 ms, zero over a 3 ms deadline**, every other role
-healthy.  Attempts per commit: mean 1.002, worst 5.
+The floors span 77× while the differences stay within 2.4×: the difference
+is the STM's own, and the rest of this section takes it apart.  The check
+itself is general and cheap — if a tail is really the machine, deleting the
+machine deletes the tail.
 
 ### What composability costs
 
-A commit here is *composable*: it is atomic over a whole subtree, and every
-reader of that subtree sees it whole or not at all.  That is the expensive part
-of the design, so it is worth knowing the price rather than assuming it.
-`KAME_MIX_LEAVES=0` gives the control — every subtree becomes a bare node, a
-`Transaction` on it is a `SingleTransaction`, and `bundle()` is never called
-(the harness prints the pass count, and it is 0.00).  Same thread, same
+A commit is atomic over a whole subtree; `KAME_MIX_LEAVES=0` is the control
+with no bundling at all (a bare node's `Transaction` is a `SingleTransaction`;
+the harness prints the bundle pass count, and it is 0.00).  Same thread, same
 isolated core, same peers, 60 s each:
 
 | nodes in the commit | p50 | p99 | p99.9 | **MAX** | commits/s |
@@ -253,157 +224,97 @@ isolated core, same peers, 60 s each:
 | 5 | 896 ns | 1.28 µs | 3.07 µs | **40.6 µs** | 119 k |
 | 17 | 2.05 µs | 2.56 µs | 12.3 µs | **50.0 µs** | 49 k |
 
-The median is linear and the fit is boring in the good way:
-**p50 ≈ 439 ns + 94.5 ns × nodes**, within 2 % at every point, with the
-intercept landing on the 448 ns single-node cost.  So a node costs ~94 ns to
-carry inside an atomic commit, and a **17-node atomic commit closes in
-2.05 µs**.
-
-The line that matters for realtime is the last column, and it barely moves:
-**17× the nodes buys 1.6× the worst case.**  Whatever sets the tail, it is not
-the topology.
+The median is linear: **p50 ≈ 439 ns + 94.5 ns × nodes**, within 2 % at every
+point, the intercept landing on the measured single-node cost.  A node costs
+~94 ns to carry inside an atomic commit; a 17-node atomic commit closes in
+2.05 µs.  The realtime column barely moves — **17× the nodes buys 1.6× the
+worst case** — so whatever sets the tail, it is not the topology.
 
 ### The tail is contention, and contention is yours to remove
 
-`KAME_MIX_DISJOINT=1` is the control that settles it, and it is a *topology*
-control, not a load one: every peer keeps running on the same core at the same
-rate, allocating and freeing exactly as much, and only what they *touch*
-changes — cross-thread writes move off the acquiring subtree, and the two
-root-scope operations drop to a sibling scope, since a root scope bundles the
-acquiring subtree whatever it writes.  Turning the peers off instead would
-delete the machine load along with the conflict and prove nothing.
+`KAME_MIX_DISJOINT=1` is the control: every peer keeps running on the same
+core at the same rate, and only what they *touch* moves off the acquiring
+subtree.  (Turning the peers off instead would delete the machine load along
+with the conflict and prove nothing.)
 
-| nodes | peers touch the subtree? | attempts | bundle | unbundle | p99.999 | **MAX** | commits/s |
-|---|---|---|---|---|---|---|---|
-| 5 | yes | 3 | 0.35 | 1.50 | 28.7 µs | **48.0 µs** | 121 k |
-| 5 | **no** | **1** | 0.00 | 0.00 | 4.10 µs | **4.16 µs** | 302 k |
-| 1 | yes | 3 | 0.00 | 1.88 | 20.5 µs | **32.3 µs** | 313 k |
-| 1 | **no** | **1** | 0.00 | 0.00 | 3.07 µs | **4.94 µs** | 952 k |
+| nodes | peers touch the subtree? | attempts | p99.999 | **MAX** | commits/s |
+|---|---|---|---|---|---|
+| 5 | yes | 3 | 28.7 µs | **48.0 µs** | 121 k |
+| 5 | **no** | **1** | 4.10 µs | **4.16 µs** | 302 k |
+| 1 | yes | 3 | 20.5 µs | **32.3 µs** | 313 k |
+| 1 | **no** | **1** | 3.07 µs | **4.94 µs** | 952 k |
 
-(All four arms predate the sysfs fix below, which taxed every arm about
-equally — the *ratios* are the finding.  Post-fix, the single-node control
-re-measured at **MAX 1.06 µs**.)
+(These arms predate the sysfs fix below, which taxed them about equally — the
+*ratios* are the finding.  Post-fix, the single-node control re-measured at
+**MAX 1.06 µs**.)
 
-**Removing the conflict collapses the worst case 11.5×** (6.5× at one node),
-and takes it to **zero commits over 10 µs in 18 M and 57 M respectively**.
-Throughput rises 2.5–3.0× at the same time, so the conflict was certainly
-real — it simply *was* the tail.
+**Removing the conflict collapses the worst case 11.5×** (6.5× at one node)
+and takes commits over 10 µs to zero in 18 M and 57 M respectively, while
+throughput rises 2.5–3×.  Composability contributes nothing to the tail —
+at zero conflict the five-node MAX sits *below* the single-node one.  And a
+single-node commit is not conflict-free by construction: a peer's root-scope
+`Snapshot` bundles it whether it has children or not, so **a subtree with no
+bundling of its own still pays for its parent's**.  The deployment lever is
+topological and large: keep other threads off the deadline-bearing subtree,
+and keep *root-scope* snapshots and transactions away from it in particular.
 
-Two readings fall out.  **Composability contributes nothing to the tail**: with
-no conflict, the five-node commit's MAX (4.16 µs) is *lower* than the
-single-node commit's (4.94 µs).  Bundling five nodes is free in the tail and
-costs 94 ns per node in the median.  And a single-node commit is not
-conflict-free by construction — its 32.3 µs comes with `unbundle()` running
-1.88 times per slow commit, because `devA` is a child of the root and a peer's
-root-scope `Snapshot` bundles it whether it has children of its own or not.
-**A subtree with no bundling of its own still pays for its parent's.**
+### What the residue was
 
-So the deployment lever is topological, and it is a large one: keep other
-threads off the deadline-bearing subtree, and in particular keep *root-scope*
-snapshots and transactions away from it, since those bundle everything beneath
-them.
+Three suspects survived to the end, and none of them was the allocator.
 
-### The residue was the STM reading `/sys`, and it taxed bystanders
+**Hidden syscalls.**  The livelock probe called
+`std::thread::hardware_concurrency()` on every tick — on Linux/glibc an
+`openat`+`read`+`close` of `/sys/devices/system/cpu/online` per call, three
+syscalls inside a HIGHEST commit's negotiation, ~2 µs a tick under PTI+IBRS.
+No counter here could see it (a syscall that neither faults nor blocks leaves
+`minflt = 0`, `invol = 0`); an Intel PT snapshot triggered on a slow commit
+(`KAME_MIX_PERF_PID`) did.  Fixed with the `static const` cache the
+neighbouring `effective_runners()` already used.  The A/B: contended slow
+commits (≥ 15 µs) **879 → 5** per 60 s, MAX 40.8 → 21.9 µs; the no-conflict
+control 4.9 → **1.06 µs**.  The control had been predicted *unchanged* — its
+acquiring thread never ticks the probe — and improved 4× anyway: the *peers'*
+probes were reading sysfs at kHz on the neighbouring core, and those reads
+taxed the whole package through the shared LLC.  A per-thread model of a
+syscall misses what it does to the cache.
 
-At zero conflict ~4–5 µs remained — 11× the median, 23× the floor, with the
-negotiator, the scheduler and the machine excluded — and the allocator was the
-standing suspect.  Wrong.  An Intel PT snapshot triggered on a slow commit
-(`KAME_MIX_PERF_PID`; a cycles profile provably cannot see a population that is
-0.27 % of samples) showed 10 µs windows where the thread was resident but
-retiring almost no user-space branches, and the surviving calls were
-`__read_nocancel` / `__close_nocancel_nostatus` / `memchr` / `strtoul`:
-**the livelock probe called `std::thread::hardware_concurrency()` on every
-tick, and on Linux/glibc that is an `openat`+`read`+`close` of
-`/sys/devices/system/cpu/online` per call** — three syscalls through PTI+IBRS,
-inside the negotiation of a HIGHEST commit.  The arithmetic closed before the
-fix was written: 5,565 ns of unattributed retry cost per slow commit over 2.83
-probe ticks is 1,966 ns per tick, a 3-syscall sysfs read.  The fix is the
-`static const` cache the neighbouring `effective_runners()` already used.
+**The record path is now measured syscall-free** (`perf trace -s`, 630 k
+events over 30 s: futex and `sched_yield`, all from the demoted downstream
+phase that shares the thread — parking there is what the wait budget *is*).
 
-The A/B, same host, same shape, 60 s arms:
+**What remains is the snapshot assembling a consistent view under fire.**  Of
+the worst commit's 22,374 ns, 90 % is the `Transaction` constructor's
+snapshot; the retry phase is zero and attempts are 1.000 — these commits
+never lose the CAS, they rebuild the bundle up to ~10 times at ~2 µs a pass
+while peers dirty the subtree between bundle phases.  With the probe cheap
+again, the snapshot loop's retries cross the threshold and **privilege now
+fires ~25 times per 90 s, converting 25/25** — the completion guarantee
+engaging on exactly the worst cases, and capping them.
 
-| arm | before | after |
-|---|---|---|
-| contended, 5 nodes: slow (≥15 µs) | 879 | **5** |
-| contended: p99.99 / p99.999 / MAX | 20.5 / 24.6 / 40.8 µs | **7.2 / 10.2 / 21.9 µs** |
-| no-conflict control: p99.99 / MAX | 3.07 / 4.48–4.94 µs | **0.64 / 1.06 µs** |
-| either arm: p50, throughput | — | unchanged |
-
-One prediction failed, and the failure is the finding's sharpest edge.  The
-control was predicted *unchanged* — the acquiring thread's probe never ticks
-there — and instead it improved 4×.  The reads were never only the ticking
-thread's cost: in the control arm the *peers* contend with each other and tick
-their own probes at kHz, and those reads taxed the whole package (a shared
-6 MB inclusive LLC, plus sysfs locks on an RT kernel).  A per-thread model of
-a syscall's cost misses everything it does to the cache.
-
-What is left at zero conflict is **MAX 1.06 µs over 57 M composable commits**
-— 2.4× the median, 4.8× the machine's floor.  Nothing above it remains to
-attribute.
-
-### The contended remainder, measured to the end
-
-"Are there syscalls left?" was the right next question, and it was answered by
-counting rather than reading: `perf trace -s` attached to the acquisition
-thread for 30 s recorded **630 k syscall events — futex 10,433/s and
-`sched_yield` 77/s, nothing else**.  Both belong to the *demoted downstream*
-phase that shares the thread (its 2 ms `negotiate_sleep` chunks are the
-futex max of 2.005 ms; parking there is what the wait budget *is*).  The
-HIGHEST record phase contributes none — both syscall sites sit below the
-round-loop break that HIGHEST takes, and its own counters agree (sleeps 0,
-spins 0, faults 0).  Note the downstream spends 57 % of the thread's wall
-time parked under this deliberately hostile mix; that is a throughput fact
-about the demoted phase, not a latency fact about the record.
-
-So the record tail that remains is genuinely the STM executing, and the phase
-split says exactly where: of the worst commit's 22,374 ns, **20,159 ns —
-90 % — is the `Transaction` constructor's snapshot**, the retry phase is
-**zero**, and `snapshot_cas` runs at ~6–10 per slow commit.  A peer writing
-into the subtree between bundle phases forces the snapshot's bundle loop to
-rebuild; the worst commits rebuild ~10 times at ~2 µs a pass.  Attempts are
-1.000 — these commits never lose the CAS, they pay everything getting a
-consistent view assembled under fire.
-
-And the mechanism that caps it is the one this investigation kept finding
-asleep: with the sysfs read gone the probe is cheap, the snapshot loop's
-retries push `my_tx_retries` past the threshold (max 10 observed vs 4), and
-**privilege now fires ~25 times per 90 s run, converting 25/25** — the
-completion guarantee engaging on exactly the worst cases, where before the
-fix it fired once per several minutes.
-
-The obvious next lever — fire privilege *earlier* for OS-realtime HIGHEST
-threads — **was built and measured, and it makes the tail worse**
-(`KAME_STM_RT_FAST_PRIV`, default off).  The mechanism worked exactly as
-designed (rebuilds per slow commit 7.0 → 4.55) and the tail still lost: slow
-commits 4 → 11, MAX 27.6 → 34.5 µs, and a retry phase appeared from exactly
-zero.  Privilege blocks a peer at its *next* negotiation entry and can do
-nothing about CASes already in flight, so cutting the snapshot loop short
-commits against a tree that in-flight peers are still about to replace —
-cheap rebuild conflicts become full commit-CAS losses at ~11× a pass.  The
-organic probe's `tags_owned == tags_total` condition, which reads as its most
-annoying blocker, is precisely the anti-leak condition: owning every tag
-means no in-flight peer is ahead anywhere, so the storm has already drained
-and the grant protects a commit that can actually win.  **The organic
+Firing privilege *earlier* was the obvious next lever, **was built, and makes
+the tail worse** (`KAME_STM_RT_FAST_PRIV`, default off; measured: slow
+commits 4 → 11, MAX 27.6 → 34.5 µs, a retry phase appearing from exactly
+zero).  Privilege blocks a peer at its *next* negotiation entry and cannot
+touch CASes already in flight, so cutting the snapshot loop short commits
+against a tree that in-flight peers are still about to replace — cheap
+rebuild conflicts become full commit-CAS losses at ~11× a pass.  The organic
+probe's `tags_owned == tags_total` condition is precisely the anti-leak
+filter: owning every tag means the storm has already drained.  **The organic
 machinery is not conservative by accident.**  The lever that remains is the
-topology one above, which removes the fire instead of fighting it.
+topology one above.
 
 ### The one wait the budget cannot clip
 
 The exception is the wait behind a **live privileged peer** — privilege is
 the completion guarantee (it never expires above the LOW band of LOWEST /
-UI_DEFERRABLE / SCRIPTING), so waiting a holder out is correctness.  (It is
-also rarer than it looks: instrumentation found **zero** exempt rounds
-across 17,274 slow commits of the pinned workload above — the overshoot
-those commits carried was the wake-up cost, not this wait.)  Its two
+UI_DEFERRABLE / SCRIPTING), so waiting a holder out is correctness.  Its two
 terms are the deployment's to bound:
 
 * **The holder's scheduling delay** — bound it with isolation: every other
   STM thread together on the housekeeping cores.  Unpinned, MAX sticks at
-  12–13 ms whatever the budget; pinned, the residue vanishes (the table
-  above).  `SCHED_FIFO` helps only on top of isolation — alone it preempts
-  the very holders it then waits behind, a measured priority inversion:
-  contenders collapsed to ~150 commits/s and the elevated thread still took
-  50.9 ms on its own worst commit.
+  12–13 ms whatever the budget; pinned, the residue vanishes.  `SCHED_FIFO`
+  helps only on top of isolation — alone it preempts the very holders it
+  then waits behind, a measured priority inversion (contenders collapsed to
+  ~150 commits/s).
 * **The holder's closure re-runs under HIGHEST churn** — the precondition
   below.  Not a scheduling problem; isolation does not touch it.
 
@@ -421,157 +332,34 @@ terms are the deployment's to bound:
 ### HIGHEST, and its precondition
 
 Everything above runs at NORMAL.  `Priority::HIGHEST` additionally never
-parks at all; same host and roles, 120 s:
-
-Isolated core with the tick verified stopped (`LOC` = 0 over the window),
-`SCHED_FIFO`, per-thread pinning, `with_pmqos`, and the pool's realtime
-contract honoured — against the 219 ns floor above:
+parks at all.  Isolated core with the tick verified stopped, `SCHED_FIFO`,
+per-thread pinning, `with_pmqos`, the pool's realtime contract honoured —
+against the 219 ns floor above:
 
 | tier | p50 | p99 | p99.9 | p99.999 | **MAX** |
 |---|---|---|---|---|---|
 | HIGHEST (the library's ceiling; 60 s) | 896 ns | 1.02 µs | 3.58 µs | 10.2 µs | **21.9 µs** |
 | NORMAL, 20 ms budget (120 s) | 768 ns | 1.02 µs | 7.34 ms | 20.97 ms | **20.03 ms** |
 
-The HIGHEST row is 7.15 M commits with **zero involuntary context switches,
-5 commits over 15 µs and none over 22 µs**.  Note it is a *contended* figure —
-the peers in this workload deliberately write into the acquiring driver's own
-subtree, and taking them off it leaves **MAX 1.06 µs over 57 M commits**
-([below](#the-residue-was-the-stm-reading-sys-and-it-taxed-bystanders)).  The
-NORMAL row is the budget doing its job: 0.054 % of commits reach it, and MAX
-*is* it (it predates the verified-shape harness and has not been re-taken).
+The HIGHEST row is 7.15 M commits with zero involuntary context switches,
+**5 commits over 15 µs and none over 22 µs** — and it is a *contended*
+figure: the peers deliberately write into the acquiring driver's subtree, and
+taking them off it leaves **MAX 1.06 µs over 57 M commits**
+([above](#what-the-residue-was)).  Repeat runs land in a 22–29 µs MAX band.
+The NORMAL row is the budget doing its job: 0.054 % of commits reach it, and
+MAX *is* it.  (Two earlier HIGHEST rows, MAX 53.1 and 40.8 µs, are superseded
+— the first ran under unverified scheduling, the second carried the sysfs
+defect; the git history has both.)
 
-Two earlier HIGHEST rows published here have been **replaced rather than kept
-beside this one**, and the chain is worth a line each.  p99 1.79 µs / p99.9
-20.5 µs / MAX 53.1 µs was taken before the harness could report its own OS
-arm, so its scheduling was never established.  p99.999 24.6 µs / MAX 40.8 µs
-(120 s) was the verified shape, and half of its tail then turned out to be the
-livelock probe reading `/sys` on every tick — a defect, not a property, fixed
-below.  Each replacement was a configuration or code change of 2× or more,
-never a lucky sample.
-
-Getting there took two fixes that are worth stating because neither is
-obvious.  **The allocator owned 3.5× of the slow-commit population**: a commit
-frees *cross-thread* whenever a peer allocated on its subtree, and an ungated
-cross-thread free batches to `CAP=1024` with one unlucky free paying the whole
-flush.  `kame_pool_set_realtime_thread(KAME_RT_STRICT)` on that thread takes
-commits over 50 µs from 28.8 to 8.3 per million and MAX from 92.6 to 66.7 µs
-(both arms isolated, no PM-QoS, so both against the 17.0 µs floor — 66.7 µs is
-**3.9× the machine**, not level with it); process-wide realtime mode (31.0) and
-`KAME_RT_DEFER` (29.3) buy nothing, only STRICT.  The tests default to it.  **KAME
-does not yet mark that thread** — `kame/main.cpp` sets the process-wide mode
-only — so it is an outstanding precondition, not a shipped property; see
-[`kamepoolalloc`](../kamepoolalloc)'s contract.  And **the host had to be made
-quiet first**, which is the ladder above.
-
-p99.9 was for a long time the number that *would* not move: it stayed in the
-[16.4, 20.5) µs bucket through core isolation, the tick stopping, C-states off
-and the allocator fix alike, which is what argued it was the STM's own and not
-the host's.  **One thing did move it — per-thread pinning, 20.5 → 3.07 µs**,
-and that is a scheduling fix, not an STM one.  The conclusion survives with a
-smaller number: at 3.07 µs it is still **14× the 219 ns floor**, and the tail
-above it still is not the machine.
-
-What it is not is settled either way.  Instrumenting the negotiator: over 8,007
-slow commits and in the worst one individually, `sleeps`, `spins`, `slept_ns`,
-exempt rounds and wait overshoot are **all zero**, and 51,796 ns of a 51,796 ns
-commit is unaccounted for by the negotiation machinery.  It is not waiting for
-anyone.
-
-**It is the retry path, measured.**  Timing `iterate_commit`'s phases
-separately (`KAME_MIX_PHASE=1`), in the verified shape above over 1,725 slow
-commits: snapshot 4,769 ns, payload write 1,080 ns, the *successful* commit
-3,500 ns — and **failed attempts plus the re-snapshot they trigger,
-9,220 ns**.  The worst commit splits **998 / 1,588 / 7,925 / 30,245** of
-40,812 ns with **56 ns unattributed**: three quarters of it is failed attempts,
-in a run with zero involuntary context switches.
-
-So **a failing attempt costs ~11× a succeeding one** (9,220 ns over 0.56 failed
-attempts against 3,500 ns for the one that worked), which is where the
-arithmetic pointed and is now direct.
-
-*What* it spends that on is a separate question, and the first answer was
-wrong.  "A re-snapshot is multi-nodal, so it re-bundles the subtree and throws
-the pass away" fits the shape — only a peer whose transaction *spans* the
-acquiring subtree provokes it (5× the slow-commit rate), the cost is
-path-shaped so 4× the leaves leaves the magnitude alone, and a root `Snapshot`
-at 42 kHz, which bundles but does not span, provokes nothing.  It does not fit
-the *magnitude*: two bundle+unbundle passes at the cost of a whole successful
-commit come to 4.8 µs against 15.6 µs measured, short by 3.2×, and
-`bundle_cas_retries` is 0.00 so it is not spinning either.
-
-`bundle()` and `unbundle()` are now timed directly and differenced across the
-same boundaries as the retry phase itself, which needs no arithmetic at all:
-**re-bundling is 40 % of the retry cost on average and 24 % in the worst
-commit, not the whole of it** — 30–40 % across every RT-host and container run
-taken.  The remaining ~two thirds are unattributed, and the harness prints the
-share so the next hypothesis has to clear the same bar.
-
-(Pair the two terms only within one run, and only at matching scope: a
-whole-commit bundle total also contains the snapshot's and the successful
-commit's bundles — 45 % of all bundling here — and set against the retry phase
-alone it reads above 100 %.)
-
-Left as a characterisation rather than a fix: it is 20–50× inside a 1 ms
-deadline.  Narrowing it further means separating the failed `commit()` from the
-`++tr` inside it, which the public API fuses.
-
-**Why the privileged escalation does not rescue it.**  The obvious objection is
-that the STM has a mechanism for exactly this: a transaction that keeps losing
-claims privilege and every peer defers to it.  The claim gate carries **no
-priority term** — HIGHEST claims on the same terms as anyone — and it converts
-every verdict it is given.  It is simply never given one here.  Counting the
-gates (`KAME_STM_NEG_DIAG` `ll_*`) rather than reading them — four gates,
-mutually exclusive and exhaustive, over two RT-host runs of 120 s:
-
-| gate | share of the probe ticks it blocks |
-|---|---|
-| retry threshold `clamp(sig_C·2, 3, nproc)` | **57–63 %** |
-| the per-linkage window reset | 26–34 % |
-| `tags_owned == tags_total` | 9–11 % |
-| `m_tagged_linkages.empty()` — outside the probe | 7–9 % (but ~37 % on a shared container, where a plain CAS loss never reaches a negotiation at all) |
-
-Across 8.3 M and 15.9 M commits the probe ran 63,616 and 45,967 times and
-reached a verdict **once, in one of the two runs**.
-
-Why the threshold binds is not a fixed answer, and asking it twice gave two.
-`my_tx_retries` at a probe tick peaks at **2** on a shared container, **3** on
-the isolated pair, and **4** on the housekeeping pair, against a threshold of
-**4** throughout.  So the workload sits *exactly on the boundary*, and which
-side it lands is set by how disturbed the host is:
-
-| run | peak retries | threshold | verdicts in ~14 M commits |
-|---|---|---|---|
-| container | 2 | 4 | 0 |
-| isolated pair, `invol` = 0 | 3 | 4 | 0 |
-| housekeeping pair, `invol` = 137 | 4 | 4 | 3 |
-
-Privilege fires when the host disturbs the thread and not otherwise — defensible
-as a design (the probe is for pathological cases) but it does mean **privilege
-is not what bounds the clean-host tail**.  The mean `my_tx_retries` at a tick is
-**0.12** in every one of these: the probe is nearly always looking at a *first
-attempt*.  Every verdict ever reached, on any host, converted to a claim and a
-grant — 4 for 4.
-
-Do not shortcut this from the attempt count — `snapshot()`'s own retry loop
-increments the same counter live and restores it on scope exit, so a tick from
-inside it sees more retries than any attempt count predicts.  Nor from one
-host: "peaks at 2" was a contention level published once as an invariant, and
-the next run refuted it.  The harness prints the margin and says REACHABLE or
-UNREACHABLE outright, per run, for that reason.
-
-The shares themselves come from four runs whose MAXes span 41 µs to 4.0 ms and
-which agree to a few points across all of them — which is what makes them a
-property of the workload rather than of the schedule.  Two of those four were
-SCHED_OTHER with all threads sharing two cores, because an outer `chrt -f 20`
-did nothing (every thread body resets its own policy, deliberately, so the
-elevation was demoted at thread start — the harness now adopts an inherited RT
-priority and says so).  Their *latencies* are not quoted anywhere.
-
-So this tail is a privilege **absence**, not a privilege failure: the probe is
-calibrated for sustained mutual livelock, and a 3-attempt CAS race that
-resolves on its own is not that.  The one verdict the whole run produced
-converted to one claim and one grant.  Lowering the threshold is the lever if
-one is ever wanted.
+One pool precondition earned its place here: **the allocator owned 3.5× of
+the slow-commit population** until the acquiring thread declared
+`kame_pool_set_realtime_thread(KAME_RT_STRICT)` — a commit frees
+*cross-thread* whenever a peer allocated on its subtree, and an ungated free
+batches to `CAP=1024` with one unlucky free paying the whole flush.  STRICT
+took commits over 50 µs from 28.8 to 8.3 per million; process-wide mode and
+`KAME_RT_DEFER` buy nothing.  The tests default to it; **KAME does not yet
+mark that thread**, so it is an outstanding precondition — see
+[`kamepoolalloc`](../kamepoolalloc)'s contract.
 
 The ceiling's precondition: **HIGHEST commit rate × longest peer closure
 ≪ 1.**  HIGHEST is also immune to fair-mode, so each of its commits landing
@@ -605,8 +393,8 @@ faces a continuing arrival stream).  "Retries are not bounded" means that —
 not "retries can diverge": a losing transaction escalates to a privileged
 stamp all peers, first-attempt ones included, must yield to.  Read that as the
 *divergence* argument it is, not as a description of the common case: the
-escalation is **probe-gated**, and in the measured deployment mix it fires
-about once per million commits, because a short CAS race resolves before the
+escalation is **probe-gated**, and in the measured deployment mix it fires a
+few times per million commits, because a short CAS race resolves before the
 probe's threshold is reached ([above](#realtime-behaviour)).  Retries stay
 finite there by winning, not by escalating.  Details in
 [tests/VERIFICATION.md](tests/VERIFICATION.md).
