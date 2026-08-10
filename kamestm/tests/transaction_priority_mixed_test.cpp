@@ -334,6 +334,7 @@
 #include <vector>
 #include <cstring>
 #if defined(__linux__)
+#  include <sys/resource.h>   // getrusage(RUSAGE_THREAD)
 #  include <pthread.h>
 #  include <sched.h>
 #  include <unistd.h>
@@ -645,7 +646,16 @@ int main() {
     //! and what is reported is growth DURING the measurement.
     unsigned long long rt_viol_warm = 0, rt_reclaim_warm = 0, rt_unmap_warm = 0;
     std::size_t rt_bytes_warm = 0;
-    bool rt_warm_sampled = false;
+    bool rt_warm_sampled = false, rt_warm_first = true;
+    //! The acquisition thread's own kernel entries over the measured window.
+    //! Syscalls on this path are argued away easily — HIGHEST never reaches
+    //! negotiate_sleep's futex or the fair-spin's sched_yield, the pool makes
+    //! none on the free path under RT_STRICT, and now_ns() is vDSO — but a
+    //! PAGE FAULT is a kernel entry that is nobody's syscall and that nothing
+    //! here counted.  Two getrusage(RUSAGE_THREAD) calls, both outside the
+    //! timed region, settle it instead of arguing it.
+    long ru_min_warm = 0, ru_maj_warm = 0, ru_nvcsw_warm = 0, ru_nivcsw_warm = 0;
+    long ru_min_end = 0, ru_maj_end = 0, ru_nvcsw_end = 0, ru_nivcsw_end = 0;
     //! Retry accounting for the slow tail.  Written only by the acquisition
     //! thread; `sysd` comes from the other roles' progress counters, so a slow
     //! commit reports whether the rest of the tree kept committing while it
@@ -814,6 +824,16 @@ int main() {
                         rt_bytes_warm   = kame_pool_reserved_bytes();
                     }
 #endif
+#if defined(__linux__)
+                    if(rt_warm_first) {
+                        rt_warm_first = false;
+                        struct rusage ru;
+                        if(getrusage(RUSAGE_THREAD, &ru) == 0) {
+                            ru_min_warm = ru.ru_minflt; ru_maj_warm = ru.ru_majflt;
+                            ru_nvcsw_warm = ru.ru_nvcsw; ru_nivcsw_warm = ru.ru_nivcsw;
+                        }
+                    }
+#endif
                     //! WHEN the extremes happen, not just how big they are.
                     //! Without this the histogram cannot distinguish a tail
                     //! that is spread over the run from one that is warm-up
@@ -878,6 +898,14 @@ int main() {
 #endif
             pause_us(hi_duty_us);
         }
+#if defined(__linux__)
+        {   struct rusage ru;
+            if(getrusage(RUSAGE_THREAD, &ru) == 0) {
+                ru_min_end = ru.ru_minflt; ru_maj_end = ru.ru_majflt;
+                ru_nvcsw_end = ru.ru_nvcsw; ru_nivcsw_end = ru.ru_nivcsw;
+            }
+        }
+#endif
     });
 
     // --- UI_DEFERRABLE: the main-thread mix.
@@ -1092,6 +1120,28 @@ int main() {
                     (ratio >= 3.0)
                         ? "  <= FRONT-LOADED: raise KAME_MIX_WARMUP_MS" : "");
     }
+#if defined(__linux__)
+    //! Kernel entries on the acquisition thread over the measured window.
+    //! minflt is the one that matters: a minor fault is not a syscall, so no
+    //! amount of reasoning about which syscalls HIGHEST can reach excludes it,
+    //! and at a few microseconds each it is the right order for the tail.
+    if(ru_min_end || ru_maj_end || ru_nvcsw_end || ru_nivcsw_end) {
+        const long f = ru_min_end - ru_min_warm, mj = ru_maj_end - ru_maj_warm;
+        //! Scope: the whole acquisition CYCLE, record commit plus the demoted
+        //! downstream, because getrusage is itself a syscall and cannot be
+        //! called per commit.  So voluntary switches are EXPECTED and are the
+        //! downstream half at NORMAL reaching negotiate_sleep's futex — the
+        //! record commit's own sleeps are known to be zero independently, from
+        //! the NegDiag block.  The faults are the number with no such
+        //! alternative source, and the reason this line exists.
+        std::printf("  acq thread kernel entries per cycle (record + demoted "
+                    "downstream):\n    minor faults=%ld major=%ld  "
+                    "ctxt sw: vol=%ld (downstream futex) invol=%ld%s\n",
+                    f, mj, ru_nvcsw_end - ru_nvcsw_warm,
+                    ru_nivcsw_end - ru_nivcsw_warm,
+                    (f || mj) ? "   <= FAULTS ON THE MEASURED PATH" : "");
+    }
+#endif
 #ifndef DISABLE_POOL_ALLOCATOR
     //! Precondition 4, checked rather than assumed.  `rt_violations` counts
     //! the times a realtime thread actually entered the kernel for a NEW
