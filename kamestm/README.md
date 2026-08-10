@@ -192,10 +192,7 @@ osnoise` reports 17 µs Max Single here, i.e. exactly that rung and nothing
 about the 219 ns underneath it.
 
 **Three rungs, not one number — subtract the one whose configuration matches
-your run.**  This is easy to get wrong and was got wrong here: a commit MAX
-measured *with* isolation was once compared against the *un-isolated* rung and
-declared level with the machine.  Lined up correctly, the same measurements say
-the opposite:
+your run:**
 
 | configuration | machine floor | commit MAX | difference |
 |---|---|---|---|
@@ -203,23 +200,17 @@ the opposite:
 | isolated + PM-QoS | 219 ns | 53.1 µs | **52.9 µs** |
 | + FIFO and per-thread pinning, `invol` = 0 | 219 ns | 40.8 µs | **40.6 µs** |
 
-The floors span **77×** and the differences span 1.3×.  That near-invariance is
-what identifies it: **40–50 µs of the tail is the STM's own**, and the sections
-below say which part — the retry path, three quarters of the worst commit in
-the last row, measured directly.  The check is general and cheap: if a tail is
-really the machine, deleting the machine deletes the tail.  Here deleting all
-but 219 ns of it, and then every involuntary context switch as well, left
-40.6 µs standing.
+The floors span **77×** and the differences span 1.3× — so **40–50 µs of the
+tail is the STM's own** (the retry path; see below).  The check is general
+and cheap: if a tail is really the machine, deleting the machine deletes the
+tail.  Here deleting all but 219 ns of it, and every involuntary context
+switch as well, left 40.6 µs standing.
 
-Two things earned those numbers.  First, instrumentation: the previous
-constant (~200 µs of overshoot at every budget) was **the timed wait's
-wake-up cost, not the STM** — the worst commit was one `cell.wait()` asked
-for 198 µs that returned 696 µs later with 6 µs of STM work in the whole
-commit, and the scheduling class dominates the cost (5.3×) with C-state
-exit buying its 6× only on top of it.  Second, the consequence: a timed
-wait must never be armed to land *on* the deadline, so every budgeted sleep
-now stops `KAME_NEG_SPIN_TAIL_US` (300 µs) short and the remainder is
-polled — which also observes the blocker clearing immediately.  Unbudgeted
+The budget lands that precisely because a timed wait is never armed to land
+*on* the deadline — its wake-up costs more than the wait near the end — so
+every budgeted sleep stops `KAME_NEG_SPIN_TAIL_US` (300 µs) short and the
+remainder is polled, which also observes the blocker clearing immediately.
+Unbudgeted
 callers run the pre-existing code unchanged (measured −0.8 %, noise).
 
 **Keep the budget well above the 300 µs reserve** — the percentages in the
@@ -236,11 +227,9 @@ healthy.  Attempts per commit: mean 1.002, worst 5.
 
 The exception is the wait behind a **live privileged peer** — privilege is
 the completion guarantee (it never expires above the LOW band of LOWEST /
-UI_DEFERRABLE / SCRIPTING), so waiting a holder out is correctness.  (It is
-also rarer than it looks: instrumentation found **zero** exempt rounds
-across 17,274 slow commits of the pinned workload above — the overshoot
-those commits carried was the wake-up cost, not this wait.)  Its two
-terms are the deployment's to bound:
+UI_DEFERRABLE / SCRIPTING), so waiting a holder out is correctness.  (Rare in
+practice: zero exempt rounds across 17,274 slow commits of the pinned
+workload above.)  Its two terms are the deployment's to bound:
 
 * **The holder's scheduling delay** — bound it with isolation: every other
   STM thread together on the housekeeping cores.  Unpinned, MAX sticks at
@@ -266,139 +255,59 @@ terms are the deployment's to bound:
 ### HIGHEST, and its precondition
 
 Everything above runs at NORMAL.  `Priority::HIGHEST` additionally never
-parks at all; same host and roles, 120 s:
-
-Isolated core with the tick verified stopped (`LOC` = 0 over the window),
-`SCHED_FIFO`, per-thread pinning, `with_pmqos`, and the pool's realtime
-contract honoured — against the 219 ns floor above.  120 s each:
+parks at all.  Same host and roles; isolated core with the tick verified
+stopped (`LOC` = 0 over the window), `SCHED_FIFO`, per-thread pinning,
+`with_pmqos`, the pool's realtime contract honoured — against the 219 ns
+floor above, 120 s each:
 
 | tier | p50 | p99 | p99.9 | p99.999 | **MAX** |
 |---|---|---|---|---|---|
 | HIGHEST (the library's ceiling) | 896 ns | 1.02 µs | 3.07 µs | 24.6 µs | **40.8 µs** |
 | NORMAL, 20 ms budget | 768 ns | 1.02 µs | 7.34 ms | 20.97 ms | **20.03 ms** |
 
-The HIGHEST row is 14.3 M commits with **zero involuntary context switches**,
-and **nothing over 50 µs at all**.  The NORMAL row is the budget doing its job:
-0.054 % of commits reach it, and MAX *is* it.
+The HIGHEST row is 14.3 M commits with **zero involuntary context switches**
+and **nothing over 50 µs at all**.  The NORMAL row is the budget doing its
+job: 0.054 % of commits reach it, and MAX *is* it (taken under the same
+scheduling and host, before the harness's verified-shape checks).
 
-Read the two rows as one regime only for the scheduling and the host; the
-NORMAL row predates the verified-shape harness below and has not been re-taken
-in it.  An earlier HIGHEST row published here — p99 1.79 µs, p99.9 20.5 µs, MAX
-53.1 µs — has been **replaced rather than kept beside this one**: it was taken
-before the harness could report its own OS arm, so its scheduling is not
-established, and every column of it is worse.  p99.9 in particular is 6.7×
-better here, which is the size of effect that says the two are different
-configurations and not two samples of one.
+Two preconditions behind the HIGHEST row, neither obvious:
 
-Getting there took two fixes that are worth stating because neither is
-obvious.  **The allocator owned 3.5× of the slow-commit population**: a commit
-frees *cross-thread* whenever a peer allocated on its subtree, and an ungated
-cross-thread free batches to `CAP=1024` with one unlucky free paying the whole
-flush.  `kame_pool_set_realtime_thread(KAME_RT_STRICT)` on that thread takes
-commits over 50 µs from 28.8 to 8.3 per million and MAX from 92.6 to 66.7 µs
-(both arms isolated, no PM-QoS, so both against the 17.0 µs floor — 66.7 µs is
-**3.9× the machine**, not level with it); process-wide realtime mode (31.0) and
-`KAME_RT_DEFER` (29.3) buy nothing, only STRICT.  The tests default to it.  **KAME
-does not yet mark that thread** — `kame/main.cpp` sets the process-wide mode
-only — so it is an outstanding precondition, not a shipped property; see
-[`kamepoolalloc`](../kamepoolalloc)'s contract.  And **the host had to be made
-quiet first**, which is the ladder above.
+* **The pool's realtime contract, at `KAME_RT_STRICT` on that thread.**  A
+  commit frees *cross-thread* whenever a peer allocated on its subtree, and
+  an ungated cross-thread free batches to `CAP=1024` with one unlucky free
+  paying the whole flush — 3.5× of the slow-commit population.  Process-wide
+  realtime mode and `KAME_RT_DEFER` buy nothing here; only STRICT.  **KAME
+  does not yet mark that thread** (`kame/main.cpp` sets the process-wide mode
+  only), an outstanding precondition — see
+  [`kamepoolalloc`](../kamepoolalloc)'s contract.
+* **Per-thread pinning**, which is what moved p99.9 (20.5 → 3.07 µs); no
+  other host knob touched it.
 
-p99.9 was for a long time the number that *would* not move: it stayed in the
-[16.4, 20.5) µs bucket through core isolation, the tick stopping, C-states off
-and the allocator fix alike, which is what argued it was the STM's own and not
-the host's.  **One thing did move it — per-thread pinning, 20.5 → 3.07 µs**,
-and that is a scheduling fix, not an STM one.  The conclusion survives with a
-smaller number: at 3.07 µs it is still **14× the 219 ns floor**, and the tail
-above it still is not the machine.
+What the remaining tail is, measured (`KAME_MIX_PHASE=1` splits
+`iterate_commit`'s phases): **the retry path** — a failing attempt plus the
+re-snapshot it triggers costs **~11× a succeeding attempt**, and three
+quarters of the worst commit is failed attempts, in a run with zero
+involuntary context switches and every negotiation counter (sleeps, spins,
+exempt rounds, wait overshoot) at zero.  Of that retry cost, **re-bundling is
+30–40 %, not the whole of it**; the remaining ~two thirds are unattributed,
+and the harness prints the share so the next hypothesis has to clear the same
+bar.  Left as a characterisation rather than a fix: it is 20–50× inside a
+1 ms deadline, and narrowing it further means separating the failed
+`commit()` from the `++tr` inside it, which the public API fuses.  (Full
+forensic record: `design/RT_READINESS.md` and the test headers.)
 
-What it is not is settled either way.  Instrumenting the negotiator: over 8,007
-slow commits and in the worst one individually, `sleeps`, `spins`, `slept_ns`,
-exempt rounds and wait overshoot are **all zero**, and 51,796 ns of a 51,796 ns
-commit is unaccounted for by the negotiation machinery.  It is not waiting for
-anyone.
-
-**It is the retry path, measured.**  Timing `iterate_commit`'s phases
-separately (`KAME_MIX_PHASE=1`), in the verified shape above over 1,725 slow
-commits: snapshot 4,769 ns, payload write 1,080 ns, the *successful* commit
-3,500 ns — and **failed attempts plus the re-snapshot they trigger,
-9,220 ns**.  The worst commit splits **998 / 1,588 / 7,925 / 30,245** of
-40,812 ns with **56 ns unattributed**: three quarters of it is failed attempts,
-in a run with zero involuntary context switches.
-
-So **a failing attempt costs ~11× a succeeding one** (9,220 ns over 0.56 failed
-attempts against 3,500 ns for the one that worked), which is where the
-arithmetic pointed and is now direct.
-
-*What* it spends that on is a separate question, and the first answer was
-wrong.  "A re-snapshot is multi-nodal, so it re-bundles the subtree and throws
-the pass away" fits the shape — only a peer whose transaction *spans* the
-acquiring subtree provokes it (5× the slow-commit rate), the cost is
-path-shaped so 4× the leaves leaves the magnitude alone, and a root `Snapshot`
-at 42 kHz, which bundles but does not span, provokes nothing.  It does not fit
-the *magnitude*: two bundle+unbundle passes at the cost of a whole successful
-commit come to 4.8 µs against 15.6 µs measured, short by 3.2×, and
-`bundle_cas_retries` is 0.00 so it is not spinning either.
-
-`bundle()` and `unbundle()` are now timed directly and differenced across the
-same boundaries as the retry phase itself, which needs no arithmetic at all:
-**re-bundling is 40 % of the retry cost on average and 24 % in the worst
-commit, not the whole of it** — 30–40 % across every RT-host and container run
-taken.  The remaining ~two thirds are unattributed, and the harness prints the
-share so the next hypothesis has to clear the same bar.
-
-(Pair the two terms only within one run, and only at matching scope: a
-whole-commit bundle total also contains the snapshot's and the successful
-commit's bundles — 45 % of all bundling here — and set against the retry phase
-alone it reads above 100 %.)
-
-Left as a characterisation rather than a fix: it is 20–50× inside a 1 ms
-deadline.  Narrowing it further means separating the failed `commit()` from the
-`++tr` inside it, which the public API fuses.
-
-**Why the privileged escalation does not rescue it.**  The obvious objection is
-that the STM has a mechanism for exactly this: a transaction that keeps losing
-claims privilege and every peer defers to it.  The claim gate carries **no
-priority term** — HIGHEST claims on the same terms as anyone — and it converts
-every verdict it is given.  It is simply never given one here.  Counting the
-gates (`KAME_STM_NEG_DIAG` `ll_*`) rather than reading them — four gates,
-mutually exclusive and exhaustive, over two RT-host runs of 120 s:
-
-| gate | share of the probe ticks it blocks |
-|---|---|
-| retry threshold `clamp(sig_C·2, 3, nproc)` | **57–63 %** |
-| the per-linkage window reset | 26–34 % |
-| `tags_owned == tags_total` | 9–11 % |
-| `m_tagged_linkages.empty()` — outside the probe | 7–9 % (but ~37 % on a shared container, where a plain CAS loss never reaches a negotiation at all) |
-
-Across 8.3 M and 15.9 M commits the probe ran 63,616 and 45,967 times and
-reached a verdict **once, in one of the two runs**.
-
-Why the threshold binds is not a fixed answer, and asking it twice gave two.
-`my_tx_retries` at a probe tick peaks at **2** on a shared container, **3** on
-the isolated pair, and **4** on the housekeeping pair, against a threshold of
-**4** throughout.  So the workload sits *exactly on the boundary*, and which
-side it lands is set by how disturbed the host is:
-
-| run | peak retries | threshold | verdicts in ~14 M commits |
-|---|---|---|---|
-| container | 2 | 4 | 0 |
-| isolated pair, `invol` = 0 | 3 | 4 | 0 |
-| housekeeping pair, `invol` = 137 | 4 | 4 | 3 |
-
-Privilege fires when the host disturbs the thread and not otherwise — defensible
-as a design (the probe is for pathological cases) but it does mean **privilege
-is not what bounds the clean-host tail**.  The mean `my_tx_retries` at a tick is
-**0.12** in every one of these: the probe is nearly always looking at a *first
-attempt*.  Every verdict ever reached, on any host, converted to a claim and a
-grant — 4 for 4.
-
-Do not shortcut this from the attempt count — `snapshot()`'s own retry loop
-increments the same counter live and restores it on scope exit, so a tick from
-inside it sees more retries than any attempt count predicts.  Nor from one
-host: "peaks at 2" was a contention level published once as an invariant, and
-the next run refuted it.  The harness prints the margin and says REACHABLE or
-UNREACHABLE outright, per run, for that reason.
+**Why the privileged escalation does not rescue it.**  The escalation
+converts every verdict it is given (4 for 4 across all hosts: verdict →
+claim → grant) — it is simply almost never given one on a clean host.  The
+workload sits exactly on the retry threshold's boundary (`my_tx_retries`
+peaks at 2–4 against a threshold of 4, depending only on how disturbed the
+host is; the mean at a probe tick is 0.12 — nearly always a *first*
+attempt), so privilege fires when the host disturbs the thread and not
+otherwise.  Defensible as a design — the probe is for pathological cases —
+but it means **privilege is not what bounds the clean-host tail**; the
+budget and the host configuration are.  The harness prints the margin and
+says REACHABLE or UNREACHABLE per run (gate shares in the
+`KAME_STM_NEG_DIAG` `ll_*` counters).
 
 The shares themselves come from four runs whose MAXes span 41 µs to 4.0 ms and
 which agree to a few points across all of them — which is what makes them a
