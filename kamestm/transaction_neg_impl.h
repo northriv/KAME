@@ -575,6 +575,24 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
     // resets the window on 26-34 % of ticks — placed after it, the fast
     // path would forfeit a third of its firing opportunities.
     //
+    // MEASURED, AND IT DOES NOT PAY (RT host A/B, 90 s arms, N=2): the
+    // mechanism fired exactly as designed — 1,195 fast verdicts, rebuilds
+    // per slow commit 7.0 -> 4.55, snapshot phase -35 % — and the tail got
+    // WORSE: slow commits 4 -> 11, MAX 27.6 -> 34.5 us, and a retry phase
+    // appeared from exactly zero (attempts 1.000 -> up to 4).  The leak:
+    // privilege blocks a peer at its NEXT negotiation entry, and can do
+    // nothing about CASes already in flight.  Cutting the snapshot loop
+    // short therefore commits against a tree state that in-flight peers are
+    // still about to replace, converting cheap rebuild conflicts (~2 us a
+    // pass) into commit-CAS losses (a full attempt redo, measured ~11x).
+    // The organic probe's tags_owned == tags_total condition — the one this
+    // path bypasses, and the one that looked like its most annoying blocker
+    // — is precisely the anti-leak condition: owning every tag means no
+    // in-flight peer is ahead anywhere, i.e. the storm has drained and the
+    // grant protects something that can actually win.  Left in, default
+    // OFF, so the next person reaching for "just fire privilege earlier"
+    // finds the measurement instead of re-running it.
+    //
     // WHY NO EXPIRY VALVE (a decision, 2026-08-10): a preempted holder's
     // Reserved stamp blocks that linkage's contenders until the holder runs
     // again — but that exposure is not new, it is the SAME one every organic

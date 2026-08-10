@@ -369,11 +369,23 @@ asleep: with the sysfs read gone the probe is cheap, the snapshot loop's
 retries push `my_tx_retries` past the threshold (max 10 observed vs 4), and
 **privilege now fires ~25 times per 90 s run, converting 25/25** — the
 completion guarantee engaging on exactly the worst cases, where before the
-fix it fired once per several minutes.  The remaining levers, should ~22 µs
-ever matter, are design ones: the probe threshold and its
-`tags_owned == tags_total` condition (which blocks 8.5 ticks per slow commit
-during rebuilds), or the topology lever above, which removes the fire
-instead of fighting it.
+fix it fired once per several minutes.
+
+The obvious next lever — fire privilege *earlier* for OS-realtime HIGHEST
+threads — **was built and measured, and it makes the tail worse**
+(`KAME_STM_RT_FAST_PRIV`, default off).  The mechanism worked exactly as
+designed (rebuilds per slow commit 7.0 → 4.55) and the tail still lost: slow
+commits 4 → 11, MAX 27.6 → 34.5 µs, and a retry phase appeared from exactly
+zero.  Privilege blocks a peer at its *next* negotiation entry and can do
+nothing about CASes already in flight, so cutting the snapshot loop short
+commits against a tree that in-flight peers are still about to replace —
+cheap rebuild conflicts become full commit-CAS losses at ~11× a pass.  The
+organic probe's `tags_owned == tags_total` condition, which reads as its most
+annoying blocker, is precisely the anti-leak condition: owning every tag
+means no in-flight peer is ahead anywhere, so the storm has already drained
+and the grant protects a commit that can actually win.  **The organic
+machinery is not conservative by accident.**  The lever that remains is the
+topology one above, which removes the fire instead of fighting it.
 
 ### The one wait the budget cannot clip
 
