@@ -319,34 +319,55 @@ private:
         // analysis at KAME_STM_COMPACT_STATE comment.
         using cnt_t = int32_t;
         static constexpr int   STAMP_US_BITS      = 24;
-        static constexpr int   STAMP_LOWPRIO_BITS = 0;
+        static constexpr int   STAMP_PRIO_BITS    = 0;
         static constexpr int   STAMP_KIND_BITS    = 0;
         static constexpr int   STAMP_TID_BITS     = 8;
-        static constexpr int   STAMP_LOWPRIO_SHIFT = STAMP_US_BITS;     // unused
+        static constexpr int   STAMP_PRIO_SHIFT    = STAMP_US_BITS;     // unused
         static constexpr int   STAMP_KIND_SHIFT    = STAMP_US_BITS;     // unused
         static constexpr int   STAMP_TID_SHIFT     = STAMP_US_BITS;     // tid sits right above us
         static constexpr cnt_t STAMP_US_MASK      = (cnt_t{1} << STAMP_US_BITS) - 1;
         static constexpr cnt_t STAMP_KIND_MASK    = 0;
         static constexpr cnt_t STAMP_LOWPRIO_MASK = 0;
+        static constexpr cnt_t STAMP_HIGHEST_MASK = 0;
 #else
         using cnt_t = int64_t;
 
         //! Packed stamp layout (low → high), 64-bit total:
-        //!   [ us:45 | lowprio:1 | kind:2 | tid:16 ]
-        //! STAMP_US_BITS = 45 gives ~1.1 yr of monotonic µs (wrap-safe
-        //! over any KAME operation; longest real wait is EXPIRE_US = 50
-        //! ms — was 46 bits before, reduced by 1 to make room for the
-        //! `lowprio` flag at bit 45).
+        //!   [ us:44 | prio:2 | kind:2 | tid:16 ]
+        //! STAMP_US_BITS = 44 gives ~0.56 yr of monotonic µs, wrap-safe
+        //! over any KAME operation: every diff taken is bounded by
+        //! KAME_STM_LOWPRIO_STARVE_MS = 10 s, and the next longest is
+        //! EXPIRE_US = 50 ms, against a half-field of 101 days.  (46 → 45
+        //! made room for `lowprio`; 45 → 44 widened that into `prio`.)
         //!
-        //! Bit 45 (`STAMP_LOWPRIO_SHIFT`) is set when the stamp belongs
-        //! to a Tx running at a LOW priority (LOWEST / UI_DEFERRABLE /
-        //! SCRIPTING).  Used by the privilege hold-timeout in
-        //! `try_register_privileged_tidstamp` / `i_am_privileged_now`
-        //! to only evict stuck low-priority holders — NORMAL / HIGHEST
-        //! holders are protected from timeout-based preemption.
-        //! Set once at Tx construction in `m_started_time` and
-        //! propagated transparently through `with_kind` / `strip_kind`
-        //! (which only touch the kind bits).
+        //! PRIO (bits 44-45) is the Tx's priority CLASS, folded in once at
+        //! construction from `getCurrentPriorityMode()` and propagated
+        //! transparently by `with_kind` / `strip_kind` (which only touch the
+        //! kind bits).  Two flags rather than an enum:
+        //!
+        //!   bit 44  STAMP_HIGHEST_MASK   Priority::HIGHEST
+        //!   bit 45  STAMP_LOWPRIO_MASK   LOWEST / UI_DEFERRABLE / SCRIPTING
+        //!   00 = NORMAL      01 = HIGHEST      10 = LOW      11 = never
+        //!
+        //! NORMAL is deliberately the all-zero encoding: a zero word means
+        //! "empty slot" throughout this file, and a torn or zeroed read must
+        //! degrade to the ordinary tier, never claim HIGHEST.  LOW keeps
+        //! bit 45 so `STAMP_LOWPRIO_MASK` is numerically what it always was
+        //! and every lowprio path stays bit-identical; HIGHEST takes the bit
+        //! freed from the µs field.  Each test is a single-bit AND, which
+        //! matters because `throw_if_starved_` does one per commit retry.
+        //!
+        //! Readers.  LOW gates the privilege hold-timeout
+        //! (`stamp_is_expired_lowprio`, consulted by
+        //! `try_register_privileged_tidstamp` / `i_am_privileged_now` /
+        //! `fair_mode_blocks_me` — NORMAL and HIGHEST privilege never
+        //! expires) and the starvation escape in `throw_if_starved_`.
+        //! HIGHEST gates Rule 0 (a HIGHEST tagger strips a stuck foreign
+        //! non-HIGHEST Reserved stamp), Rule 0c (nobody below HIGHEST
+        //! overwrites a HIGHEST tag) and Rule 0d.  Those three used to read
+        //! a per-Linkage side word instead; carrying the class in the stamp
+        //! removed it, along with its acquire load and the window in which
+        //! it could disagree with the tag it described.
         //!
         //! STAMP_KIND_BITS = 2 carries the operation discriminator
         //! (NONE / BUNDLE / UNBUNDLE / Reserved) used by the same-op
@@ -360,19 +381,21 @@ private:
         //! detection in the livelock probe ambiguous. Packing
         //! ProcessCounter::id (16 bits) into the upper bits makes every
         //! stamp unique per-thread.
-        static constexpr int   STAMP_US_BITS      = 45;
-        static constexpr int   STAMP_LOWPRIO_BITS = 1;
+        static constexpr int   STAMP_US_BITS      = 44;
+        static constexpr int   STAMP_PRIO_BITS    = 2;
         static constexpr int   STAMP_KIND_BITS    = 2;
         static constexpr int   STAMP_TID_BITS     = 16;
-        // Shifts are (US_BITS, US_BITS+1, US_BITS+3) = (45, 46, 48).
-        static constexpr int   STAMP_LOWPRIO_SHIFT = STAMP_US_BITS;
+        // Shifts are (US_BITS, US_BITS+2, US_BITS+4) = (44, 46, 48) — kind
+        // and tid sit exactly where they did at us:45 + lowprio:1.
+        static constexpr int   STAMP_PRIO_SHIFT   = STAMP_US_BITS;
         static constexpr int   STAMP_KIND_SHIFT
-                                      = STAMP_LOWPRIO_SHIFT + STAMP_LOWPRIO_BITS;
+                                      = STAMP_PRIO_SHIFT + STAMP_PRIO_BITS;
         static constexpr int   STAMP_TID_SHIFT
                                       = STAMP_KIND_SHIFT + STAMP_KIND_BITS;
         static constexpr cnt_t STAMP_US_MASK      = (cnt_t{1} << STAMP_US_BITS) - 1;
         static constexpr cnt_t STAMP_KIND_MASK    = (cnt_t{1} << STAMP_KIND_BITS) - 1;
-        static constexpr cnt_t STAMP_LOWPRIO_MASK = cnt_t{1} << STAMP_LOWPRIO_SHIFT;
+        static constexpr cnt_t STAMP_HIGHEST_MASK = cnt_t{1} << STAMP_PRIO_SHIFT;
+        static constexpr cnt_t STAMP_LOWPRIO_MASK = cnt_t{1} << (STAMP_PRIO_SHIFT + 1);
 #endif // KAME_STM_COMPACT_STATE
 
         //! Mask for ProcessCounter::id() at STAMP_TID_BITS width, used
@@ -458,13 +481,37 @@ private:
             return (x & STAMP_LOWPRIO_MASK) != 0;
 #endif
         }
-        //! Set the lowprio flag on a stamp (use at Tx construction
-        //! based on `getCurrentPriorityMode()`).
+        //! True iff `x` belongs to a Tx that was at Priority::HIGHEST when it
+        //! started.  The other half of the PRIO field; see the layout comment.
+        //! Rule 0 / 0c / 0d read this and nothing else to decide a tag's
+        //! class, so a stamp is self-describing and there is no second word
+        //! to validate it against.  Sealed (always false) in compact mode,
+        //! where the PRIO field does not exist -- the same way `is_priv_stamp`
+        //! is sealed there, and with the same consequence: the priority
+        //! overlay is simply inactive, peers fall back on age order.
+        static inline bool stamp_is_highest(cnt_t x) noexcept {
+#if KAME_STM_COMPACT_STATE
+            (void)x;
+            return false; // prio field sealed
+#else
+            return (x & STAMP_HIGHEST_MASK) != 0;
+#endif
+        }
+        //! Set the LOW / HIGHEST bit of the PRIO field on a stamp.  Test
+        //! helpers and hand-built stamps; ordinary construction goes through
+        //! `now_us_tagged()`, which folds the whole field in at once.
         static inline cnt_t with_lowprio_flag(cnt_t stamp) noexcept {
 #if KAME_STM_COMPACT_STATE
             return stamp; // no-op
 #else
             return stamp | STAMP_LOWPRIO_MASK;
+#endif
+        }
+        static inline cnt_t with_highest_flag(cnt_t stamp) noexcept {
+#if KAME_STM_COMPACT_STATE
+            return stamp; // no-op
+#else
+            return stamp | STAMP_HIGHEST_MASK;
 #endif
         }
         //! True iff `x` is a stamp whose kind field is `Reserved` (=3),
@@ -474,14 +521,6 @@ private:
         //! a Linkage they want to commit to should yield (CV-sleep)
         //! instead of fighting for the CAS, even when the global
         //! `s_privileged_tidstamp` slot has cycled away.
-        //! Is this stamp one a bundle() / unbundle() pass planted?  Rule 0d's
-        //! window, and only that — see the measurement in
-        //! `fair_mode_blocks_me` for why the window and not the whole Tx.
-        static inline bool is_bundling_kind(cnt_t x) noexcept {
-            const uint8_t k = stamp_kind(x);
-            return k == (uint8_t)detail::StampKind::BUNDLE
-                || k == (uint8_t)detail::StampKind::UNBUNDLE;
-        }
         static inline bool is_priv_stamp(cnt_t x) noexcept {
 #if KAME_STM_COMPACT_STATE
             (void)x;
@@ -490,10 +529,18 @@ private:
             return stamp_kind(x) == (uint8_t)detail::StampKind::Reserved;
 #endif
         }
+        //! Is this stamp one a bundle() / unbundle() pass planted?  Rule 0d's
+        //! window, and only that — see the measurement in
+        //! `fair_mode_blocks_me` for why the window and not the whole Tx.
+        static inline bool is_bundling_kind(cnt_t x) noexcept {
+            const uint8_t k = stamp_kind(x);
+            return k == (uint8_t)detail::StampKind::BUNDLE
+                || k == (uint8_t)detail::StampKind::UNBUNDLE;
+        }
         //! Modular µs difference: returns (now - past) mod 2^STAMP_US_BITS,
         //! interpreted as elapsed µs.  Inputs may be raw `now_us()` (64-bit)
         //! or already-masked stamps; correct as long as the true elapsed
-        //! time is < 2^(STAMP_US_BITS-1) µs (~1 yr at 46 bits).  All KAME
+        //! time is < 2^(STAMP_US_BITS-1) µs (101 days at 44 bits).  All KAME
         //! diffs are <= EXPIRE_US = 50 ms.
         static inline cnt_t diff_us(cnt_t now, cnt_t past) noexcept {
             return (cnt_t)((uint64_t)(now - past) & (uint64_t)STAMP_US_MASK);
@@ -516,21 +563,26 @@ private:
             return (int64_t)(((uint64_t)u ^ (uint64_t)SIGN_BIT)
                              - (uint64_t)SIGN_BIT);
         }
-        //! Helper: read the calling thread's priority and return the
-        //! lowprio mask if it's a LOW-priority level (LOWEST /
-        //! UI_DEFERRABLE / SCRIPTING), else 0.  Used by
-        //! `now_us_tagged()` to fold the lowprio bit into the stamp
-        //! at construction.  `getCurrentPriorityMode()` is a single
+        //! Helper: read the calling thread's priority and return the PRIO
+        //! field bits for it — LOW mask for LOWEST / UI_DEFERRABLE /
+        //! SCRIPTING, HIGHEST mask for HIGHEST, 0 for NORMAL.  Used by
+        //! `now_us_tagged()` to fold the class into the stamp at
+        //! construction, which is the ONLY place it is read from the thread:
+        //! everything downstream reads the stamp, so a stamp always reports
+        //! the class the operation STARTED at even if the thread has since
+        //! changed tier.  `getCurrentPriorityMode()` is a single
         //! thread-local read — negligible cost.
-        static inline cnt_t lowprio_mask_for_current_priority() noexcept {
+        static inline cnt_t prio_mask_for_current_priority() noexcept {
 #if KAME_STM_COMPACT_STATE
-            return (cnt_t)0; // lowprio sealed in compact mode
+            return (cnt_t)0; // prio field sealed in compact mode
 #else
-            Priority pr = getCurrentPriorityMode();
-            return (pr == Priority::LOWEST
-                 || pr == Priority::UI_DEFERRABLE
-                 || pr == Priority::SCRIPTING)
-                 ? STAMP_LOWPRIO_MASK : (cnt_t)0;
+            switch(getCurrentPriorityMode()) {
+            case Priority::LOWEST:
+            case Priority::UI_DEFERRABLE:
+            case Priority::SCRIPTING:  return STAMP_LOWPRIO_MASK;
+            case Priority::HIGHEST:    return STAMP_HIGHEST_MASK;
+            default:                   return (cnt_t)0;   // NORMAL
+            }
 #endif
         }
         //! `now_us()` with the current thread's ProcessCounter::id
@@ -544,14 +596,14 @@ private:
         //! bits).
         static inline cnt_t now_us_tagged() noexcept {
             return pack_stamp(now_us(), my_tid_lo())
-                 | lowprio_mask_for_current_priority();
+                 | prio_mask_for_current_priority();
         }
         //! Kind-tagged variant: stamps op_kind into the 2-bit kind slot.
         //! Used by bundle/unbundle entry to advertise the in-flight op.
         //! Lowprio bit handled identically to the no-kind variant.
         static inline cnt_t now_us_tagged(StampKind kind) noexcept {
             return pack_stamp(now_us(), my_tid_lo(), (uint8_t)kind)
-                 | lowprio_mask_for_current_priority();
+                 | prio_mask_for_current_priority();
         }
         //! Replace the kind bits of an existing stamp, preserving us+tid.
         //! For stamping linkage with `m_started_time` + op kind.
@@ -922,34 +974,20 @@ private:
         using atomic_shared_ptr<PacketWrapper>::operator=;
         Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(),
             m_transaction_started_time(0),
-            m_priv_owner_prio(0),
             m_priority_state(packPriority(0, KAME_LEASE_NS_BASE / 1000, 0)),
             m_recent_ops_state(0) {}
         ~Linkage() {this->reset(); } //Packet should be freed before memory pools.
         atomic<typename NegotiationCounter::cnt_t> m_transaction_started_time;
 
-        //! Side word for the Reserved stamp above: [15:0] = holder tid,
-        //! bit 16 (PRIV_OWNER_HIGHEST) = the holder claimed at
-        //! Priority::HIGHEST.  Consumed by exactly one reader,
-        //! tag_as_contender's Rule 0 (a HIGHEST tagger forcibly strips a
-        //! non-HIGHEST Reserved) — the stamp itself cannot carry this: its one
-        //! priority bit is lowprio, load-bearing for expiry and the starvation
-        //! bound, and the 64-bit layout is full.
-        //!
-        //! No CAS is needed (user's design): only the thread whose own plain
-        //! stamp occupies the slot may upgrade it to Reserved, so writers are
-        //! already serialized by slot ownership.  The claimant release-stores
-        //! this word BEFORE its Reserved CAS; a reader that acquire-loads the
-        //! stamp and sees Reserved(A) therefore sees A's word — it validates
-        //! tid(word) == tid(stamp) and treats a mismatch (claim gap, epoch
-        //! change, global-privilege mode where this word is never written) as
-        //! "unknown": fall through to the age rules, i.e. do not strip.  Every
-        //! residual race degrades toward not-stripping, never toward stripping
-        //! a HIGHEST holder.  Left stale on release/preempt on purpose — a
-        //! stale word fails the tid check.  tid 0 cannot occur
-        //! (ProcessCounter::id() skips 0), so 0 is a safe initial value.
-        atomic<uint32_t> m_priv_owner_prio;
-        static constexpr uint32_t PRIV_OWNER_HIGHEST = 1u << 16;
+        //! (A per-Linkage `m_priv_owner_prio` side word used to live here,
+        //! carrying [15:0] = holder tid, bit 16 = "holder is HIGHEST", because
+        //! the stamp's one priority bit was `lowprio` and the 64-bit layout was
+        //! full.  Widening that bit into the 2-bit PRIO field -- one bit taken
+        //! from the µs range, 45 -> 44 -- made every stamp self-describing and
+        //! deleted this word, its release/release pre-publish ordering, its
+        //! acquire load on three read paths, and the whole tid-validation
+        //! fallback that existed only because a word and the tag it described
+        //! could disagree.)
 
         //! Non-atomic Transaction-commit counter — bumped in
         //! `Transaction<XN>::finalizeCommitment()` (only the
@@ -1717,10 +1755,12 @@ public:
     //! Transaction::operator++; this is just the extraction into a
     //! Snapshot-level helper so snapshot()/bundle() can adopt it too in
     //! later refactor passes.
-    //! True iff this thread is at Priority::HIGHEST right now — Rule 0 and
-    //! the side-word publish read the LIVE mode (one TLS read), matching the
-    //! claim loop's use of entry_pr; a Tx's stamp deliberately has no HIGHEST
-    //! bit (see m_priv_owner_prio).
+    //! True iff this thread is at Priority::HIGHEST right now: one TLS read.
+    //! Used for the TAGGER's own class -- Rule 0 ("am I entitled to strip?")
+    //! and Rule 0c ("am I the one who must not overwrite?").  The class of
+    //! the tag ALREADY THERE comes from its stamp instead
+    //! (`NC::stamp_is_highest`), so the live mode is only ever asked about
+    //! the caller, never about a third party.
     static bool highest_mask_current_() noexcept {
         return getCurrentPriorityMode() == Priority::HIGHEST;
     }
@@ -1817,15 +1857,12 @@ public:
             // preempt-recovery clears m_registered_privileged; it may
             // re-claim).  It must never hit a fellow HIGHEST — that would
             // undo the probe-gated escalation inside the RT tier and invite
-            // strip wars — which is what the validated side word decides:
-            // tid mismatch or HIGHEST bit ⇒ fall through ⇒ do not strip.
+            // strip wars — which the stamp's own PRIO field decides:
+            // `cur` is HIGHEST ⇒ fall through ⇒ do not strip.
             bool _strip_foreign_priv = false;
             if(_cur_is_priv
                     && getCurrentPriorityMode() == Priority::HIGHEST) {
-                const uint32_t _ow = link->m_priv_owner_prio.load(
-                    std::memory_order_acquire);
-                if((_ow & 0xffffu) == (uint32_t)NC::stamp_tid(cur)
-                        && !(_ow & Node<XN>::Linkage::PRIV_OWNER_HIGHEST)) {
+                if( !NC::stamp_is_highest(cur)) {
                     const int64_t _now = (int64_t)NC::now_us();
                     if(cur != m_seen_priv_stamp) {
                         m_seen_priv_stamp = cur;      // new holder episode
@@ -1851,17 +1888,22 @@ public:
             // the YOUNGEST contender (stamps are fixed per Tx and it
             // commits fastest, so its stamp is always freshest), so pure
             // age order systematically hands its slots to whoever is stuck.
-            // Validation is the Rule-0 side word: since every tag win now
-            // publishes it (see below), it names the slot's last writer;
-            // tid mismatch (raced writers, stale word) falls through to age
-            // order — conservative.  Exposure: a dead thread's HIGHEST tag
-            // is shielded from lower tiers until cleared by an equal tier —
-            // the same class as never-expiring NORMAL/HIGHEST privilege,
-            // accepted on the same grounds.
-            // MEASURED (RT host, 3 x 300 s each side, knob-free):
+            // The class comes off `cur` itself (PRIO field), so there is
+            // nothing to validate and no way for the answer to be stale:
+            // the word carrying the class IS the word being tested.  This
+            // replaced a per-Linkage side word whose tid had to match the
+            // tag's, and whose mismatches — raced writers, a word published
+            // for a tag that then lost its CAS — fell back to age order.
+            // Exposure: a dead thread's HIGHEST tag is shielded from lower
+            // tiers until cleared by an equal tier — the same class as
+            // never-expiring NORMAL/HIGHEST privilege, accepted on the same
+            // grounds.
+            // MEASURED (RT host, 3 x 300 s each side, knob-free) — with the
+            // side word, i.e. before the PRIO field absorbed it:
             //   shields ~83/s (mostly guarding FAST commits)
             //   no_tags per slow commit 8.4-10.2 -> 2.3-4.9 (residue =
-            //     side-word validation races falling back to age order)
+            //     side-word validation races falling back to age order,
+            //     which the PRIO field should remove; not yet re-measured)
             //   organic grants 4 -> 118 per 900 s (~30x); verdicts now fire
             //     0.8-1.7 per slow commit with no fast-path assistance
             //   slow (>=15 us) commits 62 -> 15 per 900 s (~5.4 sigma)
@@ -1881,14 +1923,8 @@ public:
             // HIGHEST, so peer-vs-peer tagging never reaches this branch at
             // all, and the shields that do fire are 79-83/s against ~1.2 M
             // peer commits/s — 0.0065 %.
-            bool _shield_highest = false;
-            if( !highest_mask_current_()) {
-                const uint32_t _ow = link->m_priv_owner_prio.load(
-                    std::memory_order_acquire);
-                if((_ow & 0xffffu) == (uint32_t)NC::stamp_tid(cur)
-                        && (_ow & Node<XN>::Linkage::PRIV_OWNER_HIGHEST))
-                    _shield_highest = true;
-            }
+            const bool _shield_highest =
+                !highest_mask_current_() && NC::stamp_is_highest(cur);
             if(_strip_foreign_priv) {
                 detail::g_priv_strips.fetch_add(1, std::memory_order_relaxed);
                 _preempt = true;
@@ -1925,21 +1961,15 @@ public:
             }
         }
         if(_preempt) {
-            // Pre-publish the side word before the slot store (release /
-            // release, same ordering as the claim loop) — and on EVERY
-            // winning tag, not only Reserved ones, since Rule 0c above.
-            // Publishing unconditionally is also what keeps the word fresh
-            // across a priority change on one thread: the acquisition
-            // thread tags at HIGHEST (record) and then at NORMAL (demoted
-            // downstream) under the SAME tid, and a Reserved-only publish
-            // would leave the HIGHEST mark shielding the downstream's
-            // plain tags.  The NORMAL win republishes tid-without-bit and
-            // the stale shield drops.
-            link->m_priv_owner_prio.store(
-                (uint32_t)NC::stamp_tid(my_stamp)
-                    | (highest_mask_current_()
-                           ? Node<XN>::Linkage::PRIV_OWNER_HIGHEST : 0u),
-                std::memory_order_release);
+            // No side word to publish: `my_stamp` already carries this Tx's
+            // priority class in its PRIO field, folded in by `now_us_tagged`
+            // at construction, so the tag we are about to store describes
+            // itself.  That also disposes of the ordering this block used to
+            // need (side word released BEFORE the slot store, or a peer
+            // could read the new tag against the old owner's class) and of
+            // the priority-change hazard: one thread tagging at HIGHEST for
+            // the record and at NORMAL for the demoted downstream now plants
+            // two stamps that differ, instead of two tags sharing one word.
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
             // ====== PREEMPT-RESERVED DIAGNOSTIC (opt-in) ======
             // If we are about to overwrite a Reserved-kind slot (= we

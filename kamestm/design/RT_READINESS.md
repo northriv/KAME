@@ -2454,10 +2454,14 @@ is accordingly a *performance*-bug detector, and still worth having.
 ### Does a privileged NORMAL yield to a HIGHEST tag? — the interaction matrix
 
 Asked (user) as the natural follow-up to the verdict above. The letter-answer is
-**no — and it could not**: the stamp carries exactly one priority bit
-(`STAMP_LOWPRIO_MASK`, set for the three revocable levels, sealed entirely under
-`KAME_STM_COMPACT_STATE`), so a HIGHEST tag is bit-identical to a NORMAL tag.
-Nothing on the linkage can key on "the contender is HIGHEST". But the intent
+**no — and at the time it could not**: the stamp then carried exactly one
+priority bit (`STAMP_LOWPRIO_MASK`, set for the three revocable levels, sealed
+entirely under `KAME_STM_COMPACT_STATE`), so a HIGHEST tag was bit-identical to
+a NORMAL tag and nothing on the linkage could key on "the contender is
+HIGHEST".  *(Superseded 2026-08-11: that bit is now the low half of a 2-bit
+PRIO field — see "The mechanism is a stamp field" below — so a tag does
+identify its class.  The four-layer answer that follows stands on its own and
+did not depend on the limitation.)*  But the intent
 behind the question — *can NORMAL privilege delay an acquisition thread?* — is
 answered by construction, in four layers:
 
@@ -2549,13 +2553,35 @@ holder is not HIGHEST**, since stripping a fellow HIGHEST's probe-gated
 escalation would invite strip wars inside the RT tier. One turn earlier this
 file said the HIGHEST bit had "no justified consumer"; this is the consumer.
 
-### The mechanism is a side word, not a stamp bit (user's design)
+### The mechanism is a stamp field (was a side word)
 
-The stamp cannot carry it (layout full, lowprio bit load-bearing — previous
-section), and stealing a µs bit would touch every stamp consumer. Instead:
-`Linkage::m_priv_owner_prio`, `[15:0] = holder tid, bit 16 = claimed at
-HIGHEST`. The race analysis that makes it sound, and answers "tid を CAS して
-から prio を CAS? race ある?":
+**Now (2026-08-11).** The stamp's single `lowprio` bit was widened into a
+2-bit **PRIO field** by taking one bit from the µs range (`STAMP_US_BITS`
+45 → 44, halving the wrap window from ~1.1 yr to ~0.56 yr against a longest
+real diff of `KAME_STM_LOWPRIO_STARVE_MS` = 10 s):
+
+    [ us:44 | prio:2 | kind:2 | tid:16 ]
+    bit 44 STAMP_HIGHEST_MASK   bit 45 STAMP_LOWPRIO_MASK
+    00 = NORMAL   01 = HIGHEST   10 = LOW   11 = never
+
+NORMAL is the all-zero encoding on purpose: a zero word means "empty slot"
+throughout `transaction.h`, so a torn or zeroed read degrades to the ordinary
+tier and can never claim HIGHEST. LOW keeps bit 45, so `STAMP_LOWPRIO_MASK` is
+numerically unchanged and every expiry / starvation path stays bit-identical;
+`kind` and `tid` do not move either. Every tag is therefore self-describing,
+and Rule 0 / 0c / 0d each reduce to one test on the word they already loaded.
+
+Measured against the side word it replaced, 6 interleaved 20 s pairs at 16
+leaves: acq +0.9 %, NORMAL +1.4 %, UI +1.3 %, SCRIPTING null, p99 unchanged —
+each within its own spread, consistent in direction across all four.
+`sizeof(Linkage)` 48 → 40 bytes. The point is not the percent; it is the three
+things deleted below.
+
+**Before.** `Linkage::m_priv_owner_prio`, `[15:0] = holder tid, bit 16 =
+claimed at HIGHEST`, adopted because the stamp layout was full and the lowprio
+bit load-bearing. Its race analysis, which answered "tid を CAS してから prio
+を CAS? race ある?", was sound and is preserved here because it is what the
+field change made unnecessary:
 
 * Two separate atomics would race — a reader could pair A's tid with B's
   priority. **One packed word removes the pairing race, and no CAS is needed
@@ -2567,6 +2593,12 @@ HIGHEST`. The race analysis that makes it sound, and answers "tid を CAS して
   epoch change, global-privilege mode (which never writes the word) — reads as
   "unknown: do not strip". Every residual race degrades toward not stripping;
   none can strip a HIGHEST holder.
+
+Three things went with it: the release/release pre-publish ordering, the
+acquire load on all three read paths, and the tid-validation fallback — which
+existed only because a word and the tag it described could disagree, and which
+showed up in the RT-host numbers as the 2.3-4.9 residual `no_tags` ticks per
+slow commit that Rule 0c could not remove.
 
 ### Stripping on sight measured NET NEGATIVE — the patience gate
 

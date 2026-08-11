@@ -203,11 +203,10 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
 }
 
 //! Rule 0d (default OFF) is two `if`s -- one here, one in
-//! `fair_mode_blocks_me` -- sharing the validated-owner idiom master already
-//! uses for Rule 0 in `tag_as_contender`: the Linkage's tag names a tid, the
-//! Linkage's `m_priv_owner_prio` side word names that tid's class, and the
-//! two agreeing is what makes the class trustworthy.  No new state, no
-//! helper: a helper would only hide that both sides read the same two words.
+//! `fair_mode_blocks_me` -- reading the same three facts off the one word the
+//! Linkage already holds: whose tag it is (tid), what planted it (kind), and
+//! what class that Tx started at (PRIO).  No new state, no helper: a helper
+//! would only hide that both sides test one load.
 #ifndef KAME_STM_HIGHEST_BUNDLE_BLOCK
 #define KAME_STM_HIGHEST_BUNDLE_BLOCK 0
 #endif
@@ -247,13 +246,8 @@ bool Node<XN>::NegotiationCounter::i_am_privileged_now(
     // if it fires, peers are racing a tag they were supposed to defer to.
 #if KAME_STM_HIGHEST_BUNDLE_BLOCK
     if(slot && stamp_tid(slot) == stamp_tid(my_tidstamp)
-            && is_bundling_kind(slot)) {
-        const uint32_t ow = link->m_priv_owner_prio.load(
-            std::memory_order_acquire);
-        if((ow & 0xffffu) == (uint32_t)stamp_tid(slot)
-                && (ow & Linkage::PRIV_OWNER_HIGHEST))
-            return true;
-    }
+            && is_bundling_kind(slot) && stamp_is_highest(slot))
+        return true;
 #endif
     if( !is_priv_stamp(slot)) return false;
     if(stamp_tid(slot) != stamp_tid(my_tidstamp)) return false;
@@ -344,11 +338,10 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // 2 -> 13 linkages, while the outer retry count the 2L tag argument
     // covers stayed flat at 2-3.
     //
-    // Rule 0c made m_priv_owner_prio publish on EVERY winning tag, so a plain
-    // tag's owner class is validatable, and that is all this needs: the tag
-    // names a tid, the side word names that tid's class, and their agreeing
-    // is what makes the class trustworthy.  Master already writes exactly
-    // this test inline for Rule 0's strip decision in `tag_as_contender`.
+    // The class comes off the tag's own PRIO field, so any tag — plain or
+    // Reserved — reports it, and there is nothing to cross-validate.  Master
+    // writes the same `stamp_is_highest` test inline for Rule 0's strip
+    // decision in `tag_as_contender`.
     //
     // The `is_bundling_kind` gate is load-bearing, which is not obvious and
     // was measured only after dropping it looked like a clean simplification.
@@ -383,13 +376,8 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // the RT host decides.
 #if KAME_STM_HIGHEST_BUNDLE_BLOCK
     if(slot && stamp_tid(slot) != stamp_tid(tidstamp)
-            && is_bundling_kind(slot)) {
-        const uint32_t ow = link->m_priv_owner_prio.load(
-            std::memory_order_acquire);
-        if((ow & 0xffffu) == (uint32_t)stamp_tid(slot)
-                && (ow & Linkage::PRIV_OWNER_HIGHEST))
-            return true;
-    }
+            && is_bundling_kind(slot) && stamp_is_highest(slot))
+        return true;
 #endif
     if( !is_priv_stamp(slot)) return false;
     if(stamp_tid(slot) == stamp_tid(tidstamp)) return false;
@@ -1733,22 +1721,18 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             const auto my_id = NegotiationCounter::strip_kind(snap.m_started_time);
             const auto my_priv = NegotiationCounter::with_kind(
                 snap.m_started_time, detail::StampKind::Reserved);
-            // Pre-publish the holder-class side word BEFORE each Reserved CAS
-            // (release/release ordering): a reader that sees Reserved(me) is
-            // then guaranteed to see my word.  Single writer — only the slot
-            // owner reaches this — so a plain store suffices; see
-            // Linkage::m_priv_owner_prio.
-            const uint32_t my_owner_word =
-                (uint32_t)NegotiationCounter::stamp_tid(my_priv)
-                | ((entry_pr == Priority::HIGHEST)
-                       ? Linkage::PRIV_OWNER_HIGHEST : 0u);
+            // No holder-class side word to pre-publish: `my_priv` is
+            // `m_started_time` with the kind bits swapped for Reserved, so it
+            // still carries this Tx's PRIO field and the Reserved stamp
+            // describes its own class.  (It reports the class the Tx STARTED
+            // at rather than `entry_pr`, the class at negotiation entry.  Those
+            // differ only for a thread that changed tier mid-Tx, and the stamp
+            // is the one the peers will read.)
             for (auto &l : snap.m_tagged_linkages) {
                 auto cur = l->m_transaction_started_time.load(
                     std::memory_order_relaxed);
                 if (cur != 0
                     && NegotiationCounter::strip_kind(cur) == my_id) {
-                    l->m_priv_owner_prio.store(my_owner_word,
-                                               std::memory_order_release);
                     if (l->m_transaction_started_time.compare_exchange_strong(
                             cur, my_priv,
                             std::memory_order_release,
@@ -1758,9 +1742,9 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 }
             }
 #else
-            // Global mode never writes any Linkage's m_priv_owner_prio, so
-            // tag_as_contender's Rule 0 fails its tid validation and stays
-            // inert — conservative by construction.
+            // Global mode plants no per-Linkage Reserved stamps, so
+            // tag_as_contender's Rule 0 (which requires one) stays inert —
+            // conservative by construction.
             claimed = NegotiationCounter::try_register_privileged_tidstamp(
                           entry_pr, snap.m_started_time);
 #endif
