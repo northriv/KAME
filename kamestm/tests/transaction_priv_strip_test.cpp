@@ -128,6 +128,37 @@ int main() {
         const NC::cnt_t fake = fake_reserved(kFakeTid, kAge, c.holder_highest);
         lk.m_transaction_started_time.store(fake);
         uint64_t s0 = strips();
+        if(c.holder_highest) {
+            // Since the 2026-08-11 older-wins ruling a HIGHEST loser DEFERS
+            // (spins, never parks) behind a live HIGHEST privilege instead
+            // of committing through it, so case B must assert the block and
+            // then play the holder's exit — the inline call would spin
+            // forever against a fake stamp nobody clears (caught as a hung
+            // ctest, CPU-pinned, by the user).
+            std::atomic<bool> done{false};
+            std::thread t([&]{
+                run_highest_tx(root, c.retries, c.pause_us);
+                done.store(true);
+            });
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            const bool held = !done.load();
+            const bool intact =
+                (lk.m_transaction_started_time.load() == fake);
+            lk.m_transaction_started_time.store(0);   // holder finishes
+            for(int i = 0; i < 2000 && !done.load(); ++i)
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            if(done.load()) t.join(); else t.detach();
+            std::printf("  %-44s strips +%llu, %s while held, %s\n", c.name,
+                        (unsigned long long)(strips() - s0),
+                        intact ? "stamp intact" : "STAMP LOST",
+                        held ? "deferred" : "NOT deferred");
+            if((strips() - s0) != 0 || !intact || !held || !done.load()) {
+                std::printf("    FAIL (want: no strip, stamp intact, "
+                            "deferred while held, completes on clear)\n");
+                ++failures;
+            }
+            continue;
+        }
         run_highest_tx(root, c.retries, c.pause_us);
         uint64_t ds = strips() - s0;
         NC::cnt_t after = lk.m_transaction_started_time.load();

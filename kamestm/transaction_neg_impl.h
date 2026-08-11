@@ -527,6 +527,10 @@ struct NegDiag {
     //! The deadline-tail spin that replaces the last KAME_NEG_SPIN_TAIL_US of
     //! a budget: how often it fired and how long it actually held the core.
     std::uint64_t tail_spins;
+    //! HIGHEST-vs-HIGHEST deferral: pause4spin() iterations spent by a
+    //! HIGHEST loser spinning behind a live privileged HIGHEST peer (the
+    //! never-park analogue of a NORMAL loser's fair-mode sleep).
+    std::uint64_t hi_peer_spins;
     std::uint64_t tail_spin_ns;
     //! The two INNER CAS loops, which nothing else counts.  `attempts` as a
     //! harness measures it is `iterate_commit` re-running the caller's lambda
@@ -1936,8 +1940,66 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         if(_wb_limit && NegotiationCounter::now_us() >= _wb_limit
                 && !NegotiationCounter::fair_mode_blocks_me(started_time, self))
             break;
-        if(entry_pr == Priority::HIGHEST)
+        if(entry_pr == Priority::HIGHEST) {
+            // HIGHEST never parks — but older-wins between HIGHESTs must
+            // have the same teeth it has at NORMAL (per user, 2026-08-11:
+            // a loser that keeps firing CAS instead of yielding empties the
+            // stamp comparison of meaning).  So the younger HIGHEST defers
+            // to a live privileged HIGHEST peer on the SAME predicate a
+            // NORMAL loser sleeps on — fair_mode_blocks_me — with the one
+            // difference the tier contract requires: the wait is an on-CPU
+            // spin, never a park.  Gated on the blocker being HIGHEST-class:
+            // deferring to a foreign-tier privilege stays as it was (the
+            // meeting-point/resonance issue is between HIGHEST and ms-scale
+            // NORMAL closures, and Rule 0 already strips a STUCK foreign
+            // holder after patience; a live one keeps the documented
+            // precondition).  Plain HIGHEST tags do not spin-block, exactly
+            // as plain tags never sleep-block a NORMAL.  Exposure: a dead
+            // HIGHEST holder pins this spinner forever — the same class as
+            // never-expiring NORMAL/HIGHEST privilege, accepted on the same
+            // grounds; unlike a sleeper this spinner never reaches the HANG
+            // dump, so a stuck HIGHEST-behind-HIGHEST reads as a hot core.
+            int64_t _spin_t0_us = 0, _spin_next_dump_us = 0;
+            for(unsigned _it = 0;; ++_it) {
+                auto _slot = self->m_transaction_started_time.load(
+                    std::memory_order_relaxed);
+                if( !NegotiationCounter::stamp_is_highest(_slot))
+                    break;
+                if( !NegotiationCounter::fair_mode_blocks_me(
+                        started_time, self))
+                    break;
+#if KAME_STM_NEG_DIAG
+                ++detail::neg_diag().hi_peer_spins;
+#endif
+                // The sleeper path gets its [HANG] dumps from the 5 s sleep
+                // cap; a spinner would otherwise be invisible — a stuck
+                // HIGHEST-behind-HIGHEST reading as nothing but a hot core.
+                // Same doctrine as the watchdog: report, never kill.  Clock
+                // read amortised (~4k pauses per check).
+                if((_it & 0xFFFu) == 0) {
+                    const int64_t _now =
+                        (int64_t)NegotiationCounter::now_us();
+                    if( !_spin_t0_us) {
+                        _spin_t0_us = _now;
+                        _spin_next_dump_us = _now + 5'000'000;
+                    }
+                    else if(_now >= _spin_next_dump_us) {
+                        std::fprintf(stderr,
+                            "[HANG] tid=%u HIGHEST spinning %llds behind a "
+                            "HIGHEST privilege (holder tid=%u, linkage %p) — "
+                            "never expires by contract; report only.\n",
+                            (unsigned)NegotiationCounter::stamp_tid(
+                                started_time),
+                            (long long)((_now - _spin_t0_us) / 1'000'000),
+                            (unsigned)NegotiationCounter::stamp_tid(_slot),
+                            (void *)self);
+                        _spin_next_dump_us = _now + 5'000'000;
+                    }
+                }
+                pause4spin();
+            }
             break;
+        }
         // Single-contender fast path: only this thread is visible in
         // tid_bitset (sig_C=1). The probabilistic √C lottery is
         // meaningless when there is no peer to share the slot with —

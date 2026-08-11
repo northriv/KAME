@@ -102,6 +102,7 @@ set(kamestm_test_names
     transaction_starvation_test
     transaction_sleep_in_tx_test
     transaction_priv_strip_test
+    transaction_highest_older_wins_test
     transaction_priv_expiry_test
     transaction_reanchor_test
     transaction_priv_pin_test
@@ -185,6 +186,14 @@ target_compile_options(transaction_sleep_in_tx_test PRIVATE -UNDEBUG)
 # API, and the benchmarks prove only that the rule stays silent when healthy.
 add_test(NAME transaction_priv_strip_test COMMAND transaction_priv_strip_test)
 target_compile_options(transaction_priv_strip_test PRIVATE -fno-access-control)
+
+# HIGHEST-vs-HIGHEST older-wins has teeth (2026-08-11): the loser defers to a
+# live privileged HIGHEST peer on the same predicate a NORMAL loser sleeps on,
+# spinning instead of parking.  Same white-box need as the strip test.
+add_test(NAME transaction_highest_older_wins_test
+         COMMAND transaction_highest_older_wins_test)
+target_compile_options(transaction_highest_older_wins_test
+                       PRIVATE -fno-access-control)
 
 # HIGHEST + NORMAL + UI_DEFERRABLE role mix (acquisition / demoted downstream
 # with a 20 ms budget / main-thread snapshots+transactions+structural churn),

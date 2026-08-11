@@ -3110,3 +3110,23 @@ starve the deferrable tiers (measured −94 %/−98 % at 200 µs) — keep budge
 well above the reserve until the span is plumbed through ScopedWaitBudget.
 The exemption itself remains contractual (fair-block still zeroes the
 budget); what changed is only the attribution of the measured constant.
+
+## HIGHEST-vs-HIGHEST older-wins now has teeth (2026-08-11, user)
+
+The Rule 0c audit surfaced that between two HIGHESTs the stamp comparison
+decided only tag slots: the loser kept firing CAS (never parks ⇒ never
+consulted fair mode), so privilege between HIGHESTs halted nobody — 「spinする
+のでなく、CASを撃ち続けるのは意図と違う。それなら時刻比較の意味がない」.
+Fixed at the round-loop HIGHEST break: the loser now defers to a live
+privileged HIGHEST peer on the SAME predicate a NORMAL loser sleeps on
+(fair_mode_blocks_me, gated on the blocker being HIGHEST-class), with the one
+tier-contract difference that the wait is an on-CPU spin, never a park.
+Plain HIGHEST tags do not spin-block (mirror: plain tags never sleep-block a
+NORMAL); foreign-tier privilege is unchanged (Rule 0 strips the stuck case).
+A spinner is invisible to the sleep-cap [HANG] dumps, so it emits its own
+report line every 5 s — report, never kill.  Exposure: a dead HIGHEST holder
+pins the spinner forever — the accepted never-expiring-privilege class.
+FAIL-first: transaction_highest_older_wins_test (4 arms) fails exactly its
+first arm against the pre-change library; priv_strip case B rewritten to the
+new contract (its inline fake-holder run would spin forever — caught by the
+user as a CPU-pinned hung ctest).
