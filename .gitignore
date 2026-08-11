@@ -43,6 +43,18 @@ tests/tla_bundle/states/
 tests/bench_*
 tests/bench_*.dSYM/
 
+# qmake in-source build residue under tests/ (`qmake Makefile.<target>` runs
+# leave generated Makefiles, .o and .qmake.stash beside the sources; the
+# tracked Makefile.tests / Makefile.nidaqmx are hand-written and stay).
+tests/*.o
+tests/.qmake.stash
+tests/Makefile.3level_mixed
+tests/Makefile.asp
+tests/Makefile.dyn
+tests/Makefile.tx
+tests/Makefile.*.bak
+tests/Makefile.*.stash
+
 # cmake/ctest output (CTest writes "Testing/Temporary/" with last-run
 # logs).  Build-dir-local; never tracked.
 Testing/
