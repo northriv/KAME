@@ -649,6 +649,21 @@ private:
                            cnt_t my_tidstamp,
                            const Linkage *link = nullptr) noexcept;
 
+        //! Rule 0d, SELF side: do I hold a BUNDLE / UNBUNDLE stamp on this
+        //! Linkage that peers are deferring to?  The mirror of the peer-side
+        //! test in `fair_mode_blocks_me`, and it has to exist or the rule is
+        //! all cost and no benefit: peers defer while the holder, seeing
+        //! `i_am_privileged_now() == false`, still takes the weak-acquire /
+        //! ADAPTIVE-threshold path built for contended CASes that are no
+        //! longer contended.  Deliberately NOT folded into
+        //! `i_am_privileged_now`, whose Reserved-only meaning the
+        //! CAS-fail-twice assertion and the expiry trio
+        //! (`stamp_is_expired_lowprio`) both depend on.
+        //! Compiled out unless KAME_STM_HIGHEST_BUNDLE_BLOCK.
+        static bool    i_hold_bundle_shield_now(
+                           cnt_t my_tidstamp,
+                           const Linkage *link) noexcept;
+
         //! Per-priority livelock-probe parameters (retry threshold + label).
         //! Only the name survives.  The `retry_threshold` field that used to
         //! sit here was the per-priority livelock-probe threshold, and it has

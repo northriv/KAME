@@ -445,10 +445,15 @@ public:
         // stale after preemption (a peer's older Tx may have
         // overwritten our Reserved stamp via tag_as_contender).
         // Strong-mode acquire is only safe when we *actually* still
-        // hold the Reserved stamp on this Linkage.
+        // hold the Reserved stamp on this Linkage — or, under Rule 0d,
+        // a HIGHEST BUNDLE/UNBUNDLE stamp, which peers defer to exactly
+        // as they do to Reserved (i_hold_bundle_shield_now, no-op when
+        // the rule is compiled out).
         using NC = typename Node<XN>::NegotiationCounter;
         bool we_hold_priv = NC::i_am_privileged_now(m_snap->m_started_time,
-                                                    m_link.get());
+                                                    m_link.get())
+            || NC::i_hold_bundle_shield_now(m_snap->m_started_time,
+                                            m_link.get());
         // STRONG-mode acquire+CAS for the privileged thread: privilege
         // is exclusive and fair_mode blocks all other threads' CAS on
         // this linkage, so a strong spin has no peer to contend with.
@@ -555,6 +560,8 @@ public:
 #endif
         m_view = scoped_atomic_view<PacketWrapper>(*m_link, std::move(from));
         m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
+                            m_snap->m_started_time, m_link.get())
+            || Node<XN>::NegotiationCounter::i_hold_bundle_shield_now(
                             m_snap->m_started_time, m_link.get());
         // Per user ("olderがpreemptできるように"): when someone else
         // holds per-Linkage privilege on this slot, force tag_as_contender
@@ -623,6 +630,8 @@ public:
 #endif
         m_view = std::move(from);
         m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
+                            m_snap->m_started_time, m_link.get())
+            || Node<XN>::NegotiationCounter::i_hold_bundle_shield_now(
                             m_snap->m_started_time, m_link.get());
         // Per user ("olderがpreemptできるように"): when someone else
         // holds per-Linkage privilege on this slot, force tag_as_contender

@@ -203,6 +203,33 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
 }
 
 template <class XN>
+bool Node<XN>::NegotiationCounter::i_hold_bundle_shield_now(
+        cnt_t my_tidstamp,
+        const Linkage *link) noexcept {
+#if KAME_STM_HIGHEST_BUNDLE_BLOCK && KAME_PER_LINKAGE_PRIVILEGE
+    if(link == nullptr) return false;
+    cnt_t slot = link->m_transaction_started_time.load(
+        std::memory_order_relaxed);
+    if( !slot || is_priv_stamp(slot)) return false;   // Reserved: not ours
+    if(stamp_tid(slot) != stamp_tid(my_tidstamp)) return false;
+    const uint8_t k = stamp_kind(slot);
+    if(k != (uint8_t)detail::StampKind::BUNDLE
+            && k != (uint8_t)detail::StampKind::UNBUNDLE) return false;
+    //! Validate against the same side word peers read, not against the live
+    //! priority mode: the two disagree exactly when this thread has changed
+    //! tier since planting (the acquisition thread tags at HIGHEST for the
+    //! record and at NORMAL for the demoted downstream, same tid), and the
+    //! side word is what actually decides whether peers are deferring.
+    const uint32_t ow = link->m_priv_owner_prio.load(std::memory_order_acquire);
+    return ((ow & 0xffffu) == (uint32_t)stamp_tid(slot))
+        && (ow & Linkage::PRIV_OWNER_HIGHEST);
+#else
+    (void)my_tidstamp; (void)link;
+    return false;
+#endif
+}
+
+template <class XN>
 bool Node<XN>::NegotiationCounter::i_am_privileged_now(
         cnt_t my_tidstamp,
         const Linkage *link) noexcept {
