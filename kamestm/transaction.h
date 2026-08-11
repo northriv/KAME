@@ -1862,6 +1862,17 @@ public:
             // The throughput/median gain is the tag slots going quiet:
             // ~25 k refused overwrites per 300 s that no longer cascade
             // into re-tagging churn.
+            // NO TIER PAYS FOR IT, checked rather than argued (60 s, same
+            // shape): acq 125.7 k/s, UI 76.1 k, SCRIPTING 217.6 k, NORMAL
+            // 914.6 k — three up, SCRIPTING -1.7 % (noise) against the
+            // closest same-shape baseline.  Attribute the GAINS to nothing:
+            // that baseline predates the sysfs fix, which taxed the peers
+            // too.  What the check establishes is the absence of a cost.
+            // The structural reason there is none: the shield needs the
+            // tagger to be non-HIGHEST AND the slot's validated owner to be
+            // HIGHEST, so peer-vs-peer tagging never reaches this branch at
+            // all, and the shields that do fire are 79-83/s against ~1.2 M
+            // peer commits/s — 0.0065 %.
             bool _shield_highest = false;
             if( !highest_mask_current_()) {
                 const uint32_t _ow = link->m_priv_owner_prio.load(

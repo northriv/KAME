@@ -213,7 +213,8 @@ Three facts a deployment can act on:
   HIGHEST tag — removed the starvation at its source: organic grants rose
   ~30×, slow commits fell **62 → 15 per 900 s** (5.4σ), the MAX band moved
   24.3–34.6 → **20.4–23.7 µs**, p99 1.28 → 1.02 µs, and throughput gained
-  4–6 % (the tag slots go quiet).  Triggering privilege early instead
+  4–6 % (the tag slots go quiet) with no tier paying for it — the shield
+  needs a HIGHEST-owned slot, so peer-vs-peer tagging never reaches it.  Triggering privilege early instead
   (`KAME_STM_RT_FAST_PRIV`, default off) measures null: grants neither
   spread nor stick while tags are still being overwritten.  The result is
   still an *observed* maximum, not a WCET — the gate's residual misses are
