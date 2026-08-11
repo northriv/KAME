@@ -363,6 +363,9 @@ namespace detail {
     //! Rule 0c: tag overwrites refused because the slot held a validated
     //! HIGHEST tag and the tagger was lower-priority.  \sa tag_as_contender.
     DECLSPEC_KAME extern std::atomic<std::uint64_t> g_highest_tag_shields;
+    //! Rule 0d: peer CASes deferred because a HIGHEST bundle/unbundle held
+    //! the linkage.  \sa fair_mode_blocks_me, KAME_STM_HIGHEST_BUNDLE_BLOCK.
+    DECLSPEC_KAME extern std::atomic<std::uint64_t> g_highest_bundle_blocks;
 
 #ifndef NDEBUG
     //! Debug-only, for `transaction_sleep_in_tx_test`: counts reports actually

@@ -78,6 +78,7 @@ namespace detail {
 DECLSPEC_KAME XThreadLocal<int, STxNestTag>     s_tx_nest;
 DECLSPEC_KAME std::atomic<std::uint64_t>        g_priv_strips{0};
 DECLSPEC_KAME std::atomic<std::uint64_t>        g_highest_tag_shields{0};
+DECLSPEC_KAME std::atomic<std::uint64_t>        g_highest_bundle_blocks{0};
 DECLSPEC_KAME XThreadLocal<int, SSleepNestTag>  s_sleep_nest;
 DECLSPEC_KAME XThreadLocal<void*, TlsPayloadCreatorPtrTag>
                                                 tls_payload_creator_ptr;

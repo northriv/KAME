@@ -1616,6 +1616,9 @@ int main() {
         (unsigned long long)Transactional::detail::g_priv_strips.load(),
         (unsigned long long)
             Transactional::detail::g_highest_tag_shields.load());
+    if(auto b = Transactional::detail::g_highest_bundle_blocks.load())
+        std::printf("  HIGHEST bundle blocks (Rule 0d): %llu\n",
+                    (unsigned long long)b);
 
     // The realtime question: not "did it keep up" but "did any one record take
     // too long".  Percentiles are printed only where the sample count can

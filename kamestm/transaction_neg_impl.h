@@ -304,6 +304,60 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // above for the nested-Tx self-deadlock rationale).
     if(link == nullptr) return false;
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
+    // Rule 0d (KAME_STM_HIGHEST_BUNDLE_BLOCK=1, default OFF): a HIGHEST
+    // BUNDLE/UNBUNDLE in progress blocks lower-priority committers on that
+    // linkage, exactly as a Reserved stamp does.
+    //
+    // Rule 0c stopped peers OVERWRITING a HIGHEST tag; it does not stop them
+    // COMMITTING, because only Reserved stamps reach the test below — "a
+    // plain tag merely shortens the loser's adaptive backoff".  So a peer
+    // still replaces the packet under a HIGHEST bundle, the bundle returns
+    // DISTURBED, and Node::snapshot() rebuilds.  That rebuild count is the
+    // one quantity here with no bound: measured 2 -> 142 as the subtree grew
+    // 2 -> 13 linkages, while the outer retry count the 2L tag argument
+    // covers stayed flat at 2-3.
+    //
+    // The read side was already built and left unwired: bundle()/unbundle()
+    // stamp every tag they plant with StampKind::BUNDLE / UNBUNDLE ("Read
+    // side (peer-piggyback) not yet wired", transaction_impl.h), and Rule 0c
+    // made m_priv_owner_prio publish on EVERY winning tag, so the owner
+    // class is validatable for plain tags too.  This is that read side.
+    //
+    // Cost and exposure, both real.  HIGHEST bundles at ~125 kHz for ~2 us,
+    // so a peer touching the acquiring subtree can lose a quarter of its
+    // attempts there; peers on other subtrees are untouched (tid and
+    // HIGHEST-bit validation both fail).  And a HIGHEST thread preempted
+    // mid-bundle blocks those peers for the preemption with no expiry
+    // (HIGHEST stamps never carry the lowprio bit) — the never-expiring
+    // exposure again, but on a far more frequent stamp than privilege.
+    //
+    // CONTAINER A/B (20 s, 16 leaves, where rebuilds dominate): fires hard —
+    // 9,010 blocks/s, 0.22 per acq commit — and costs on both axes.  acq
+    // -8.3 %, NORMAL -9.0 %, mean +2.6 %, p99 +14 %, p99.9 +20 %; UI and
+    // SCRIPTING flat.  Not confirmed on the RT host, and a container has
+    // reversed this file's conclusions before (the DISJOINT control came out
+    // backwards there), so this is a reason to measure properly, not a
+    // verdict.  Default OFF.
+#ifndef KAME_STM_HIGHEST_BUNDLE_BLOCK
+#define KAME_STM_HIGHEST_BUNDLE_BLOCK 0
+#endif
+#if KAME_STM_HIGHEST_BUNDLE_BLOCK
+    if(slot && !is_priv_stamp(slot)
+            && stamp_tid(slot) != stamp_tid(tidstamp)) {
+        const uint8_t _k = stamp_kind(slot);
+        if(_k == (uint8_t)detail::StampKind::BUNDLE
+                || _k == (uint8_t)detail::StampKind::UNBUNDLE) {
+            const uint32_t _ow = link->m_priv_owner_prio.load(
+                std::memory_order_acquire);
+            if((_ow & 0xffffu) == (uint32_t)stamp_tid(slot)
+                    && (_ow & Linkage::PRIV_OWNER_HIGHEST)) {
+                detail::g_highest_bundle_blocks.fetch_add(
+                    1, std::memory_order_relaxed);
+                return true;
+            }
+        }
+    }
+#endif
     if( !is_priv_stamp(slot)) return false;
     if(stamp_tid(slot) == stamp_tid(tidstamp)) return false;
     if(stamp_is_expired_lowprio(slot)) { report_expired(slot); return false; }
