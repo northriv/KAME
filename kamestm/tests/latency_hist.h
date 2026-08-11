@@ -58,10 +58,11 @@ enum { HB = 256 };
 struct Retries {
     std::uint64_t slow_n = 0, slow_attempts = 0, slow_max = 0;   // >= threshold
     std::uint64_t slow_sys = 0, slow_sys_max = 0;   // system commits during it
-    std::uint64_t all_n = 0, all_attempts = 0;
+    std::uint64_t all_n = 0, all_attempts = 0, all_max = 0;
     void add(std::uint64_t ns, std::uint64_t att, std::uint64_t thresh,
              std::uint64_t sysd = 0) {
         all_n++; all_attempts += att;
+        if(att > all_max) all_max = att;
         if(ns >= thresh) {
             slow_n++; slow_attempts += att; slow_sys += sysd;
             if(att > slow_max) slow_max = att;
@@ -74,6 +75,7 @@ struct Retries {
         if(o.slow_sys_max > slow_sys_max) slow_sys_max = o.slow_sys_max;
         if(o.slow_max > slow_max) slow_max = o.slow_max;
         all_n += o.all_n; all_attempts += o.all_attempts;
+        if(o.all_max > all_max) all_max = o.all_max;
     }
 };
 

@@ -1059,6 +1059,7 @@ int main() {
                       ll_few_retries = 0, ll_verdicts = 0, ll_rt_fast = 0,
                       priv_tries = 0, priv_grants = 0,
                       ll_retry_max = 0, ll_retry_sum = 0, ll_thresh_max = 0,
+                      ll_tags_max = 0, ll_tags_sum = 0,
                       bundle_ns = 0, bundle_calls = 0, bundle_all = 0,
                       unbundle_ns = 0, unbundle_calls = 0, unbundle_all = 0;
         //! …and the single worst commit of the run, kept whole: a mean over
@@ -1082,6 +1083,8 @@ int main() {
             ll_verdicts += d.ll_verdicts; ll_rt_fast += d.ll_rt_fast;
             priv_tries += d.priv_tries; priv_grants += d.priv_grants;
             ll_retry_sum += d.ll_retry_sum;
+            ll_tags_sum += d.ll_tags_sum;
+            if(d.ll_tags_max > ll_tags_max)     ll_tags_max = d.ll_tags_max;
             if(d.ll_retry_max > ll_retry_max)   ll_retry_max = d.ll_retry_max;
             if(d.ll_thresh_max > ll_thresh_max) ll_thresh_max = d.ll_thresh_max;
             bundle_ns += d.bundle_ns; bundle_calls += d.bundle_calls;
@@ -1100,13 +1103,16 @@ int main() {
         std::uint64_t n = 0, ticks = 0, resets = 0, no_tags = 0,
                       few_retries = 0, verdicts = 0, rt_fast = 0,
                       tries = 0, grants = 0,
-                      retry_max = 0, retry_sum = 0, thresh_max = 0;
+                      retry_max = 0, retry_sum = 0, thresh_max = 0,
+                      tags_max = 0, tags_sum = 0;
         void add(const Transactional::detail::NegDiag &d) {
             ++n; ticks += d.ll_ticks; resets += d.ll_resets;
             no_tags += d.ll_no_tags; few_retries += d.ll_few_retries;
             verdicts += d.ll_verdicts; rt_fast += d.ll_rt_fast;
             tries += d.priv_tries; grants += d.priv_grants;
             retry_sum += d.ll_retry_sum;
+            tags_sum += d.ll_tags_sum;
+            if(d.ll_tags_max > tags_max)     tags_max = d.ll_tags_max;
             if(d.ll_retry_max > retry_max)   retry_max = d.ll_retry_max;
             if(d.ll_thresh_max > thresh_max) thresh_max = d.ll_thresh_max;
         }
@@ -1903,9 +1909,23 @@ int main() {
             //! retry loop bumps the same counter live and restores it on
             //! scope exit, so a tick from inside it sees more retries than
             //! any number of attempts would predict.
+            //! `2L` is the analytic ceiling Rule 0c makes possible: a
+            //! HIGHEST Tx loses a linkage at most twice (the untagged
+            //! retry==0 CAS, then the CAS-fail-to-tag race), and never
+            //! again once the tag is planted.  Printed as a verdict so a
+            //! LEAVES sweep reads as a slope, not a coincidence.
+            //! Tested against OUTER attempts, not my_tx_retries: the bound
+            //! counts LINKAGE DISPLACEMENTS, each of which costs one outer
+            //! retry, whereas my_tx_retries is also bumped live by
+            //! Node::snapshot()'s rebuild loop (restored on scope exit) and
+            //! so counts rebuilds the argument never covered.  Measured
+            //! with the wrong yardstick the bound reads VIOLATED 64 vs 14
+            //! at 16 leaves purely from rebuild traffic.
             std::printf("      retry margin over the run: my_tx_retries "
                         "mean=%.2f max=%llu  vs threshold "
-                        "clamp(sig_C*2,3,nproc) max=%llu  =>  %s\n",
+                        "clamp(sig_C*2,3,nproc) max=%llu  =>  %s\n"
+                        "      tags_total (L): mean=%.2f max=%llu  =>  "
+                        "2L bound = %llu vs OUTER retries max %llu  [%s]\n",
                         (double)ll_all.retry_sum / (double)ll_all.ticks,
                         (unsigned long long)ll_all.retry_max,
                         (unsigned long long)ll_all.thresh_max,
@@ -1913,7 +1933,17 @@ int main() {
                             ? "REACHABLE — the threshold is met sometimes, so "
                               "the other two conditions decide"
                             : "UNREACHABLE — no tick in this run ever had "
-                              "enough retries, at any contention level");
+                              "enough retries, at any contention level",
+                        ll_all.ticks
+                            ? (double)ll_all.tags_sum / (double)ll_all.ticks
+                            : 0.0,
+                        (unsigned long long)ll_all.tags_max,
+                        (unsigned long long)(2 * ll_all.tags_max),
+                        (unsigned long long)(acq_retries.all_max
+                                             ? acq_retries.all_max - 1 : 0),
+                        (acq_retries.all_max
+                            && (acq_retries.all_max - 1 <= 2 * ll_all.tags_max))
+                            ? "HOLDS" : "VIOLATED");
         }
         if( !ll_all.ticks)
             std::printf("      => the probe NEVER RAN.  Privilege cannot fire "

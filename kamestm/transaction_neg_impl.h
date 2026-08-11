@@ -489,6 +489,17 @@ struct NegDiag {
     std::uint64_t ll_retry_max;    //!< max my_tx_retries seen at any tick
     std::uint64_t ll_retry_sum;    //!< ... summed, for a mean
     std::uint64_t ll_thresh_max;   //!< max clamp(sig_C*2, 3, nproc) seen
+    //! tags_total (= m_tagged_linkages.size(), "L") at each tick.  There to
+    //! test the analytic retry bound Rule 0c makes possible: a HIGHEST Tx
+    //! can lose a linkage at most TWICE — once on the retry==0 fast path,
+    //! which CASes with no tag planted, and once in the race between that
+    //! CAS failing and the scope dtor planting the tag — after which Rule 0c
+    //! forbids any lower-priority overwrite.  So retries <= 2L.  Printed
+    //! beside ll_retry_max so the two read against each other in one run,
+    //! and KAME_MIX_LEAVES sweeps L directly, which turns the bound into a
+    //! SLOPE rather than a single coincidence.
+    std::uint64_t ll_tags_max;
+    std::uint64_t ll_tags_sum;
     //! Wall time inside bundle() / unbundle(), which is the one term the tail
     //! investigation asserted and never multiplied out.  "A failed attempt
     //! re-bundles the subtree and throws it away" has the right shape, but
@@ -627,6 +638,9 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
             ++_d.ll_rt_fast;    // ...this one via the fast path
             _d.ll_retry_sum += my_tx_retries;
             if(my_tx_retries > _d.ll_retry_max) _d.ll_retry_max = my_tx_retries;
+            _d.ll_tags_sum += (std::uint64_t)tags_total;
+            if((std::uint64_t)tags_total > _d.ll_tags_max)
+                _d.ll_tags_max = (std::uint64_t)tags_total;
         }
 #endif
         // The probe window state is left untouched: it belongs to the
@@ -732,6 +746,9 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
         if(my_tx_retries > _d.ll_retry_max) _d.ll_retry_max = my_tx_retries;
         if((std::uint64_t)retry_thresh_dyn > _d.ll_thresh_max)
             _d.ll_thresh_max = (std::uint64_t)retry_thresh_dyn;
+        _d.ll_tags_sum += (std::uint64_t)tags_total;
+        if((std::uint64_t)tags_total > _d.ll_tags_max)
+            _d.ll_tags_max = (std::uint64_t)tags_total;
     }
 #endif
 
