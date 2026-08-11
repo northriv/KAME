@@ -202,6 +202,15 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     return true;
 }
 
+//! Rule 0d (default OFF) is two `if`s -- one here, one in
+//! `fair_mode_blocks_me` -- reading the same three facts off the one word the
+//! Linkage already holds: whose tag it is (tid), what planted it (kind), and
+//! what class that Tx started at (PRIO).  No new state, no helper: a helper
+//! would only hide that both sides test one load.
+#ifndef KAME_STM_HIGHEST_BUNDLE_BLOCK
+#define KAME_STM_HIGHEST_BUNDLE_BLOCK 0
+#endif
+
 template <class XN>
 bool Node<XN>::NegotiationCounter::i_am_privileged_now(
         cnt_t my_tidstamp,
@@ -228,6 +237,18 @@ bool Node<XN>::NegotiationCounter::i_am_privileged_now(
     // the else branch below.  (Fix 2026-05-20: was `strip_kind`.)
     if(link == nullptr) return false;
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
+    // Rule 0d, self side — the mirror of the peer test in
+    // `fair_mode_blocks_me`, same two words, `==` instead of `!=`.  It has to
+    // be here or the rule is all cost and no benefit: peers defer while the
+    // holder still takes the weak-acquire / ADAPTIVE-threshold path built for
+    // a CAS that is no longer contended.  Note this widens the CAS-fail-twice
+    // assertion in `_on_cas_fail` to cover Rule 0d, which is what we want —
+    // if it fires, peers are racing a tag they were supposed to defer to.
+#if KAME_STM_HIGHEST_BUNDLE_BLOCK
+    if(slot && stamp_tid(slot) == stamp_tid(my_tidstamp)
+            && is_bundling_kind(slot) && stamp_is_highest(slot))
+        return true;
+#endif
     if( !is_priv_stamp(slot)) return false;
     if(stamp_tid(slot) != stamp_tid(my_tidstamp)) return false;
     // Expiration: stale priv stamp from a stuck Tx no longer grants
@@ -304,6 +325,80 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // above for the nested-Tx self-deadlock rationale).
     if(link == nullptr) return false;
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
+    // Rule 0d (KAME_STM_HIGHEST_BUNDLE_BLOCK=1, default OFF): a Tx holding a
+    // validated HIGHEST tag on this linkage blocks lower-priority committers
+    // on it, exactly as a Reserved stamp does.
+    //
+    // Rule 0c stopped peers OVERWRITING a HIGHEST tag; it does not stop them
+    // COMMITTING, because only Reserved stamps reach the test below — "a
+    // plain tag merely shortens the loser's adaptive backoff".  So a peer
+    // still replaces the packet under a HIGHEST bundle, the bundle returns
+    // DISTURBED, and Node::snapshot() rebuilds.  That rebuild count is the
+    // one quantity here with no bound: measured 2 -> 142 as the subtree grew
+    // 2 -> 13 linkages, while the outer retry count the 2L tag argument
+    // covers stayed flat at 2-3.
+    //
+    // The class comes off the tag's own PRIO field, so any tag — plain or
+    // Reserved — reports it, and there is nothing to cross-validate.  Master
+    // writes the same `stamp_is_highest` test inline for Rule 0's strip
+    // decision in `tag_as_contender`.
+    //
+    // The `is_bundling_kind` gate is load-bearing, which is not obvious and
+    // was measured only after dropping it looked like a clean simplification.
+    // The argument for dropping it: a tag's lifetime is already bounded,
+    // since `drop_tags_n_privilege()` clears it from ~Transaction(), so "a
+    // validated HIGHEST tag holds this linkage" already means "a HIGHEST Tx
+    // is in flight on it".  True, and far too long a window — a whole Tx
+    // rather than the microseconds inside one bundle()/unbundle() pass.
+    // 8 interleaved 20 s pairs, ungated: acq -24 %, NORMAL -20 %, and the
+    // outer retry max — the thing the rule exists to bound — went from 2 to
+    // 4-16.  Shield the pass, not the transaction.
+    //
+    // Exposure, with the gate: a HIGHEST thread preempted mid-bundle blocks
+    // lower-priority peers on that linkage for the whole preemption, with no
+    // expiry (HIGHEST stamps never carry the lowprio bit).  Same
+    // never-expiring exposure as privilege, on a more frequent stamp.
+    //
+    // CONTAINER A/B, gated, 8 interleaved 20 s pairs at 16 leaves:
+    // acq 40,893 -> 38,613 /s (-5.6 %), NORMAL 283,130 -> 272,571 (-3.7 %),
+    // UI_DEFERRABLE +2.6 %.  No measured benefit: the outer retry max reads
+    // 2-3 vs 3-4, but the OFF arm's own distribution moved by that much
+    // BETWEEN batches, so a 20 s max cannot resolve it here.  (An earlier
+    // 4-pair read claimed -2.9 % and a retry-max win; both were subset
+    // artifacts of an ON arm with 7.5 % spread.  n=8, interleaved, or it is
+    // not a number.)
+    //
+    // So: a measured 4-6 % throughput charge and, in a container, nothing to
+    // show for it.  The tail it is meant to cut is not measurable there at all
+    // — MAX across those runs is 0.8-15.9 ms of scheduler noise.
+    //
+    // RT HOST, 5 x 300 s each side, interleaved, DEFAULT 4 leaves (the
+    // published "5-node commit" shape; NOT the 16 leaves the container A/B
+    // used, where bundle rebuilds dominate and this rule looked like pure
+    // cost).  Here it does what it was built to do:
+    //
+    //                       Rule 0d OFF                 Rule 0d ON
+    //   acq /s (median)     124,382                     113,506  (-8.7 %)
+    //     per run           123477 124380 124382        112609 113397 113506
+    //                       124539 125109               113749 113783
+    //   MAX per run         14913 16637 19009           16562 16598 16642
+    //                       22303 24904                 18107 19270
+    //   MAX worst of 5      24,904 ns                   19,270 ns
+    //   slow (>=15 us)      15                          14
+    //   p99                 896 ns                      896 ns
+    //
+    // The throughput charge is larger than the container's and unambiguous
+    // (distributions disjoint: OFF min 123,477 > ON max 113,783).  Against it,
+    // the ON arm's MAX never exceeds 19.3 us in five runs while OFF twice goes
+    // past 22 us — the tail tightening the rule exists for, and invisible in
+    // the container.  The bands still OVERLAP (both sit in 16-19 us most
+    // runs), so at n=5 this is a strong lead, not a verdict.  Default OFF
+    // until a longer run separates them.
+#if KAME_STM_HIGHEST_BUNDLE_BLOCK
+    if(slot && stamp_tid(slot) != stamp_tid(tidstamp)
+            && is_bundling_kind(slot) && stamp_is_highest(slot))
+        return true;
+#endif
     if( !is_priv_stamp(slot)) return false;
     if(stamp_tid(slot) == stamp_tid(tidstamp)) return false;
     if(stamp_is_expired_lowprio(slot)) { report_expired(slot); return false; }
@@ -489,6 +584,17 @@ struct NegDiag {
     std::uint64_t ll_retry_max;    //!< max my_tx_retries seen at any tick
     std::uint64_t ll_retry_sum;    //!< ... summed, for a mean
     std::uint64_t ll_thresh_max;   //!< max clamp(sig_C*2, 3, nproc) seen
+    //! tags_total (= m_tagged_linkages.size(), "L") at each tick.  There to
+    //! test the analytic retry bound Rule 0c makes possible: a HIGHEST Tx
+    //! can lose a linkage at most TWICE — once on the retry==0 fast path,
+    //! which CASes with no tag planted, and once in the race between that
+    //! CAS failing and the scope dtor planting the tag — after which Rule 0c
+    //! forbids any lower-priority overwrite.  So retries <= 2L.  Printed
+    //! beside ll_retry_max so the two read against each other in one run,
+    //! and KAME_MIX_LEAVES sweeps L directly, which turns the bound into a
+    //! SLOPE rather than a single coincidence.
+    std::uint64_t ll_tags_max;
+    std::uint64_t ll_tags_sum;
     //! Wall time inside bundle() / unbundle(), which is the one term the tail
     //! investigation asserted and never multiplied out.  "A failed attempt
     //! re-bundles the subtree and throws it away" has the right shape, but
@@ -575,23 +681,29 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
     // resets the window on 26-34 % of ticks — placed after it, the fast
     // path would forfeit a third of its firing opportunities.
     //
-    // MEASURED, AND IT DOES NOT PAY (RT host A/B, 90 s arms, N=2): the
-    // mechanism fired exactly as designed — 1,195 fast verdicts, rebuilds
-    // per slow commit 7.0 -> 4.55, snapshot phase -35 % — and the tail got
-    // WORSE: slow commits 4 -> 11, MAX 27.6 -> 34.5 us, and a retry phase
-    // appeared from exactly zero (attempts 1.000 -> up to 4).  The leak:
-    // privilege blocks a peer at its NEXT negotiation entry, and can do
-    // nothing about CASes already in flight.  Cutting the snapshot loop
-    // short therefore commits against a tree state that in-flight peers are
-    // still about to replace, converting cheap rebuild conflicts (~2 us a
-    // pass) into commit-CAS losses (a full attempt redo, measured ~11x).
-    // The organic probe's tags_owned == tags_total condition — the one this
-    // path bypasses, and the one that looked like its most annoying blocker
-    // — is precisely the anti-leak condition: owning every tag means no
-    // in-flight peer is ahead anywhere, i.e. the storm has drained and the
-    // grant protects something that can actually win.  Left in, default
-    // OFF, so the next person reaching for "just fire privilege earlier"
-    // finds the measurement instead of re-running it.
+    // WITH THIS OFF THERE IS NO BOUND on the rebuild count.  The organic
+    // gate's binding condition is tags_owned == tags_total, which is
+    // race-dependent rather than a counter, so crossing any retry threshold
+    // grants nothing: measured retries reached 10 against a threshold of 4,
+    // with 8.5 of 11.8 probe ticks per slow commit blocked by that
+    // condition alone.  Every MAX published for this workload is an
+    // observed maximum, not a guarantee.
+    //
+    // MEASURED NULL (settled 2026-08-11, three 300 s arms per side on the
+    // RT host): slow commits 62 vs 50 per 900 s (Poisson-overlapping), p50 /
+    // p99.9 / p99.99 / p99.999 identical in all six runs, MAX bands
+    // 24.3-34.6 vs 22.8-46.6 us — single samples, overlapping.  The trigger
+    // fires ~12/s and every grant converts, and the tail does not move in
+    // either direction.  (A first 90 s pass had concluded "measurably
+    // worse" from one arm of each; that died in the repeat, and the 6x
+    // data set buries it.)  Why it is null is visible in the counters: even
+    // with the fast path granting, no_tags still blocks 6-9 probe ticks per
+    // slow commit — the rebuild storm the grant is supposed to end keeps
+    // OVERWRITING the holder's tags, so the grant neither spreads nor
+    // sticks.  That overwrite is what Rule 0c (tag_as_contender) removes —
+    // and measured, Rule 0c delivers what this trigger could not: slow
+    // commits 62 -> 15 per 900 s and organic grants ~30x, with this knob
+    // off.  Default stays OFF; the numbers live at the Rule 0c comment.
     //
     // WHY NO EXPIRY VALVE (a decision, 2026-08-10): a preempted holder's
     // Reserved stamp blocks that linkage's contenders until the holder runs
@@ -621,6 +733,9 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
             ++_d.ll_rt_fast;    // ...this one via the fast path
             _d.ll_retry_sum += my_tx_retries;
             if(my_tx_retries > _d.ll_retry_max) _d.ll_retry_max = my_tx_retries;
+            _d.ll_tags_sum += (std::uint64_t)tags_total;
+            if((std::uint64_t)tags_total > _d.ll_tags_max)
+                _d.ll_tags_max = (std::uint64_t)tags_total;
         }
 #endif
         // The probe window state is left untouched: it belongs to the
@@ -726,6 +841,9 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
         if(my_tx_retries > _d.ll_retry_max) _d.ll_retry_max = my_tx_retries;
         if((std::uint64_t)retry_thresh_dyn > _d.ll_thresh_max)
             _d.ll_thresh_max = (std::uint64_t)retry_thresh_dyn;
+        _d.ll_tags_sum += (std::uint64_t)tags_total;
+        if((std::uint64_t)tags_total > _d.ll_tags_max)
+            _d.ll_tags_max = (std::uint64_t)tags_total;
     }
 #endif
 
@@ -1623,22 +1741,18 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             const auto my_id = NegotiationCounter::strip_kind(snap.m_started_time);
             const auto my_priv = NegotiationCounter::with_kind(
                 snap.m_started_time, detail::StampKind::Reserved);
-            // Pre-publish the holder-class side word BEFORE each Reserved CAS
-            // (release/release ordering): a reader that sees Reserved(me) is
-            // then guaranteed to see my word.  Single writer — only the slot
-            // owner reaches this — so a plain store suffices; see
-            // Linkage::m_priv_owner_prio.
-            const uint32_t my_owner_word =
-                (uint32_t)NegotiationCounter::stamp_tid(my_priv)
-                | ((entry_pr == Priority::HIGHEST)
-                       ? Linkage::PRIV_OWNER_HIGHEST : 0u);
+            // No holder-class side word to pre-publish: `my_priv` is
+            // `m_started_time` with the kind bits swapped for Reserved, so it
+            // still carries this Tx's PRIO field and the Reserved stamp
+            // describes its own class.  (It reports the class the Tx STARTED
+            // at rather than `entry_pr`, the class at negotiation entry.  Those
+            // differ only for a thread that changed tier mid-Tx, and the stamp
+            // is the one the peers will read.)
             for (auto &l : snap.m_tagged_linkages) {
                 auto cur = l->m_transaction_started_time.load(
                     std::memory_order_relaxed);
                 if (cur != 0
                     && NegotiationCounter::strip_kind(cur) == my_id) {
-                    l->m_priv_owner_prio.store(my_owner_word,
-                                               std::memory_order_release);
                     if (l->m_transaction_started_time.compare_exchange_strong(
                             cur, my_priv,
                             std::memory_order_release,
@@ -1648,9 +1762,9 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 }
             }
 #else
-            // Global mode never writes any Linkage's m_priv_owner_prio, so
-            // tag_as_contender's Rule 0 fails its tid validation and stays
-            // inert — conservative by construction.
+            // Global mode plants no per-Linkage Reserved stamps, so
+            // tag_as_contender's Rule 0 (which requires one) stays inert —
+            // conservative by construction.
             claimed = NegotiationCounter::try_register_privileged_tidstamp(
                           entry_pr, snap.m_started_time);
 #endif
@@ -1711,8 +1825,31 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     // helper internally skips the lease/owner-skip block for those
     // priorities.  Returns true iff the owner-skip fired (we hold the
     // soft lease and our age < lease_us) — caller returns early.
+    //
+    // GATED on fair_mode_blocks_me, for the same reason and by the same
+    // rule as the budget-expired break below (2026-07-31): "privilege is
+    // the completion guarantee, and NOTHING may be immune to it".  The
+    // owner-skip returns from `_negotiate_internal` BEFORE any fair-mode
+    // consultation, so without this gate a lease holder is a fair-mode-
+    // immune chainer — precisely the shape that made budget-expired record
+    // paths produce 372 HANG dumps.  And it is reachable: the owner test is
+    // `ps.tid` (the priority state's last committer) while the thing that
+    // would block us is `m_transaction_started_time` (the slot's tag).  They
+    // are different words, so "I committed here 3 us ago" says nothing about
+    // whether a peer has since planted a Reserved stamp — a HIGHEST claim,
+    // or a NORMAL one escalated by budget expiry — that we owe a yield to.
+    // The self-tagged short-circuit above does not cover it either: that one
+    // compares the SLOT's tid, and it is exactly the case where the slot is
+    // NOT ours that reaches here.
+    //
+    // Costs nothing on the common path: `&&` runs the lease helper first, so
+    // its drift write-back still happens, and the check is reached only when
+    // the skip would actually have fired.  fair_mode_blocks_me then re-reads
+    // a line this function loaded two statements ago and does three bit
+    // tests on it.
     if(_neg_apply_lease(ps, transaction_started_time, sig_C,
-                        now_us_entry, entry_pr))
+                        now_us_entry, entry_pr)
+            && !NegotiationCounter::fair_mode_blocks_me(started_time, self))
         return;
 
     // Thread-local LCG for sleep-duration jitter randomization.

@@ -2454,10 +2454,14 @@ is accordingly a *performance*-bug detector, and still worth having.
 ### Does a privileged NORMAL yield to a HIGHEST tag? — the interaction matrix
 
 Asked (user) as the natural follow-up to the verdict above. The letter-answer is
-**no — and it could not**: the stamp carries exactly one priority bit
-(`STAMP_LOWPRIO_MASK`, set for the three revocable levels, sealed entirely under
-`KAME_STM_COMPACT_STATE`), so a HIGHEST tag is bit-identical to a NORMAL tag.
-Nothing on the linkage can key on "the contender is HIGHEST". But the intent
+**no — and at the time it could not**: the stamp then carried exactly one
+priority bit (`STAMP_LOWPRIO_MASK`, set for the three revocable levels, sealed
+entirely under `KAME_STM_COMPACT_STATE`), so a HIGHEST tag was bit-identical to
+a NORMAL tag and nothing on the linkage could key on "the contender is
+HIGHEST".  *(Superseded 2026-08-11: that bit is now the low half of a 2-bit
+PRIO field — see "The mechanism is a stamp field" below — so a tag does
+identify its class.  The four-layer answer that follows stands on its own and
+did not depend on the limitation.)*  But the intent
 behind the question — *can NORMAL privilege delay an acquisition thread?* — is
 answered by construction, in four layers:
 
@@ -2549,13 +2553,35 @@ holder is not HIGHEST**, since stripping a fellow HIGHEST's probe-gated
 escalation would invite strip wars inside the RT tier. One turn earlier this
 file said the HIGHEST bit had "no justified consumer"; this is the consumer.
 
-### The mechanism is a side word, not a stamp bit (user's design)
+### The mechanism is a stamp field (was a side word)
 
-The stamp cannot carry it (layout full, lowprio bit load-bearing — previous
-section), and stealing a µs bit would touch every stamp consumer. Instead:
-`Linkage::m_priv_owner_prio`, `[15:0] = holder tid, bit 16 = claimed at
-HIGHEST`. The race analysis that makes it sound, and answers "tid を CAS して
-から prio を CAS? race ある?":
+**Now (2026-08-11).** The stamp's single `lowprio` bit was widened into a
+2-bit **PRIO field** by taking one bit from the µs range (`STAMP_US_BITS`
+45 → 44, halving the wrap window from ~1.1 yr to ~0.56 yr against a longest
+real diff of `KAME_STM_LOWPRIO_STARVE_MS` = 10 s):
+
+    [ us:44 | prio:2 | kind:2 | tid:16 ]
+    bit 44 STAMP_HIGHEST_MASK   bit 45 STAMP_LOWPRIO_MASK
+    00 = NORMAL   01 = HIGHEST   10 = LOW   11 = never
+
+NORMAL is the all-zero encoding on purpose: a zero word means "empty slot"
+throughout `transaction.h`, so a torn or zeroed read degrades to the ordinary
+tier and can never claim HIGHEST. LOW keeps bit 45, so `STAMP_LOWPRIO_MASK` is
+numerically unchanged and every expiry / starvation path stays bit-identical;
+`kind` and `tid` do not move either. Every tag is therefore self-describing,
+and Rule 0 / 0c / 0d each reduce to one test on the word they already loaded.
+
+Measured against the side word it replaced, 6 interleaved 20 s pairs at 16
+leaves: acq +0.9 %, NORMAL +1.4 %, UI +1.3 %, SCRIPTING null, p99 unchanged —
+each within its own spread, consistent in direction across all four.
+`sizeof(Linkage)` 48 → 40 bytes. The point is not the percent; it is the three
+things deleted below.
+
+**Before.** `Linkage::m_priv_owner_prio`, `[15:0] = holder tid, bit 16 =
+claimed at HIGHEST`, adopted because the stamp layout was full and the lowprio
+bit load-bearing. Its race analysis, which answered "tid を CAS してから prio
+を CAS? race ある?", was sound and is preserved here because it is what the
+field change made unnecessary:
 
 * Two separate atomics would race — a reader could pair A's tid with B's
   priority. **One packed word removes the pairing race, and no CAS is needed
@@ -2567,6 +2593,53 @@ HIGHEST`. The race analysis that makes it sound, and answers "tid を CAS して
   epoch change, global-privilege mode (which never writes the word) — reads as
   "unknown: do not strip". Every residual race degrades toward not stripping;
   none can strip a HIGHEST holder.
+
+Three things went with it: the release/release pre-publish ordering, the
+acquire load on all three read paths, and the tid-validation fallback — which
+existed only because a word and the tag it described could disagree, and which
+showed up in the RT-host numbers as the 2.3-4.9 residual `no_tags` ticks per
+slow commit that Rule 0c could not remove.
+
+Whether deleting the word deletes them is **unresolved**, and the way it
+failed to resolve is worth more than the answer would have been.
+
+RT host, 5 × 300 s each side, interleaved, default 4 leaves (side word =
+`e4db5f455`, PRIO field + lease gate = `bf213a168`):
+
+| | side word | PRIO field |
+|---|---|---|
+| `no_tags` / slow commit (weighted) | **4.60** | **0.81** |
+| per run | 5.33 / 3.60 / 6.17 / – / 3.50 | 0.25 / 2.20 / 0.00 / 0.17 / – |
+| acq /s (median) | 120,199 | **124,004** (+3.2 %, disjoint) |
+| p99 | 1,024 ns (5/5) | **896 ns** (5/5) |
+| MAX, worst of 5 | 36,989 ns | 28,088 ns |
+| slow (≥ 15 µs), total | 20 | 16 |
+
+That was published as confirmation. The very next A/B on the same host — Rule
+0d, whose OFF arm is the *same binary* as the PRIO column above — put it at
+**4.33**, with the same within-session consistency (4.50 / 4.60 / – / 4.75 /
+3.50 across its runs, against 0.25 / 2.20 / 0.00 / 0.17 / – across the
+other's). One build, two sessions, a factor of 5.7 apart.
+
+What the two sessions agree on is **position, not binary**:
+
+| | ran first | ran second |
+|---|---|---|
+| session 1 (preprio, diag) | preprio 4.60 | diag 0.75 |
+| session 2 (diag, 0d) | diag 4.33 | 0d 1.00 |
+
+`no_tags` follows the slot in the interleave. So the 4.60 → 0.81 above is an
+order effect until shown otherwise, and **no `no_tags` A/B is quotable unless
+it is order-balanced** (ABBA per rep, not ABAB). Throughput and MAX do not
+show the pattern — session 1's second arm was faster, session 2's was slower —
+so those columns stand.
+
+Two further cautions the same measurement cost. **The leaf count decides
+whether the phenomenon exists at all**: at `KAME_MIX_LEAVES=16` the residue is
+0.08–0.32 on BOTH sides, so an A/B there is null for want of the phenomenon,
+not for want of an effect. The published rows and the 2.3-4.9 figure are the
+default 4 leaves (= the "5-node commit"). **And `bf213a168` bundles the lease
+gate with the PRIO field**, so any result here attributes to the pair.
 
 ### Stripping on sight measured NET NEGATIVE — the patience gate
 

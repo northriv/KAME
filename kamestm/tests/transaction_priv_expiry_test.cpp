@@ -54,11 +54,15 @@ public:
 using NC = Transactional::Node<MyNode>::NegotiationCounter;
 using Linkage = Transactional::Node<MyNode>::Linkage;
 
-//! A Reserved stamp by \a tid, \a age_us in the past, lowprio bit per \a low.
-static NC::cnt_t reserved(uint16_t tid, int64_t age_us, bool low) {
+//! Priority class to plant in the stamp's PRIO field.
+enum class P { NORMAL, LOW, HIGHEST };
+
+//! A Reserved stamp by \a tid, \a age_us in the past, at class \a pr.
+static NC::cnt_t reserved(uint16_t tid, int64_t age_us, P pr) {
     NC::cnt_t st = ((NC::cnt_t)(NC::now_us() - age_us) & NC::STAMP_US_MASK)
         | ((NC::cnt_t)tid << NC::STAMP_TID_SHIFT);
-    if(low) st |= NC::STAMP_LOWPRIO_MASK;
+    if(pr == P::LOW)     st = NC::with_lowprio_flag(st);
+    if(pr == P::HIGHEST) st = NC::with_highest_flag(st);
     return NC::with_kind(st, Transactional::detail::StampKind::Reserved);
 }
 
@@ -71,35 +75,27 @@ int main() {
     // cannot flip an arm.
     const int64_t kOld = 500'000, kFresh = 1'000;
     // A peer stamp for fair_mode_blocks_me's self-check (tid must differ).
-    const NC::cnt_t peer_stamp = reserved(kPeer, kFresh, false)
-        ^ (NC::cnt_t)0;   // any non-holder stamp works; kind irrelevant
+    const NC::cnt_t peer_stamp = reserved(kPeer, kFresh, P::NORMAL);
 
     struct Case {
         const char *name;
         int64_t age_us;
-        bool lowprio;
-        uint32_t side_word;
+        P       pr;
         bool want_blocks;    // fair_mode_blocks_me(peer) — and the holder's
                              // i_am_privileged_now must agree exactly.
     } cases[] = {
-        { "fresh NORMAL holder      -> shields",         kFresh, false,
-          (uint32_t)kHolder,                                true  },
-        { "aged NORMAL holder       -> STILL shields",   kOld,   false,
-          (uint32_t)kHolder,                                true  },
-        { "aged HIGHEST (side word) -> shields",         kOld,   false,
-          (uint32_t)kHolder | Linkage::PRIV_OWNER_HIGHEST, true  },
-        { "aged lowprio holder      -> expires",         kOld,   true,
-          (uint32_t)kHolder,                                false },
-        { "fresh lowprio holder     -> shields",         kFresh, true,
-          (uint32_t)kHolder,                                true  },
+        { "fresh NORMAL holder   -> shields",       kFresh, P::NORMAL,  true  },
+        { "aged NORMAL holder    -> STILL shields", kOld,   P::NORMAL,  true  },
+        { "aged HIGHEST holder   -> shields",       kOld,   P::HIGHEST, true  },
+        { "aged lowprio holder   -> expires",       kOld,   P::LOW,     false },
+        { "fresh lowprio holder  -> shields",       kFresh, P::LOW,     true  },
     };
     for(const auto &c : cases) {
-        const NC::cnt_t stamp = reserved(kHolder, c.age_us, c.lowprio);
+        const NC::cnt_t stamp = reserved(kHolder, c.age_us, c.pr);
         lk.m_transaction_started_time.store(stamp);
-        lk.m_priv_owner_prio.store(c.side_word);
         bool blocks = NC::fair_mode_blocks_me(peer_stamp, &lk);
         bool mine   = NC::i_am_privileged_now(
-            reserved(kHolder, 0, c.lowprio), &lk);
+            reserved(kHolder, 0, c.pr), &lk);
         std::printf("  %-42s blocks=%d holder_sees=%d (want %d)\n",
                     c.name, (int)blocks, (int)mine, (int)c.want_blocks);
         if(blocks != c.want_blocks || mine != c.want_blocks) {
@@ -109,7 +105,6 @@ int main() {
             ++failures;
         }
         lk.m_transaction_started_time.store(0);
-        lk.m_priv_owner_prio.store(0);
     }
     std::printf(failures ? "FAILED\n" : "PASSED\n");
     return failures ? 1 : 0;

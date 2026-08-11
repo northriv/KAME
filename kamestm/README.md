@@ -126,8 +126,10 @@ carries a fixed `m_started_time` tidstamp (start time packed with its thread
 id, never re-stamped across retries); on contention it tags each contended
 linkage's own `m_transaction_started_time` slot via
 `Snapshot::tag_as_contender()` under an **oldest-wins** rule (older = earlier
-start), with a symmetric ~100 µs `KAME_STM_PREEMPT_WINDOW_US` burst window
-damping preemption between near-contemporaneous threads. A transaction that
+start) applied *within a priority class* — a validated `HIGHEST` tag is never
+overwritten by a lower-priority tagger (Rule 0c: priority sits above age for
+the HIGHEST class) — with a symmetric ~100 µs `KAME_STM_PREEMPT_WINDOW_US`
+burst window damping preemption between near-contemporaneous threads. A transaction that
 keeps losing escalates its tag to a *privileged* (Reserved-kind) stamp once
 the livelock probe fires (eligibility keyed on tag-ownership + retry count,
 not wall-clock age); only such Reserved stamps hard-block a peer's CAS
@@ -200,7 +202,7 @@ realtime contract honoured — on a PREEMPT_RT i5-7500:
 
 | workload | p50 | p99.9 | p99.999 | **MAX** |
 |---|---|---|---|---|
-| HIGHEST, 5-node commit, peers writing into the same subtree (60 s) | 896 ns | 3.58 µs | 10.2 µs | **21.9 µs** |
+| HIGHEST, 5-node commit, peers writing into the same subtree (worst of 3 × 300 s) | 896 ns | 4.10 µs | 12.3 µs | **23.7 µs** |
 | the same commit with no peer on its subtree (60 s) | 448 ns | 512 ns | 640 ns | **1.06 µs** |
 | NORMAL under the 20 ms budget (120 s) | 768 ns | 7.34 ms | 20.97 ms | **20.03 ms** |
 
@@ -218,11 +220,27 @@ Three facts a deployment can act on:
   threads, and root-scope operations above all, off the deadline-bearing
   subtree.
 * **The contended remainder is the snapshot assembling a consistent view
-  under fire** — up to ~10 bundle rebuilds at ~2 µs a pass, capped by the
-  privilege escalation; these commits never lose the CAS (attempts 1.000).
-  Firing privilege earlier measures *worse* (`KAME_STM_RT_FAST_PRIV`,
-  default off).  The record path makes no syscalls; the how and the dead
-  ends are written up in
+  under fire** — bundle rebuilds at ~2 µs a pass while peers dirty the
+  subtree — and what bounds it in practice is the privilege escalation,
+  whose engagement had to be won by measurement.  Its
+  `tags_owned == tags_total` gate was starved under pure age order:
+  HIGHEST commits fastest, so its stamp is always the youngest and its tags
+  were the first overwritten (8.5 of 11.8 probe ticks per slow commit lost
+  to exactly that, and no reachable bound on the rebuild count).
+  **Rule 0c** — a lower-priority tagger never overwrites a validated
+  HIGHEST tag — removed the starvation at its source: organic grants rose
+  ~30×, slow commits fell **62 → 15 per 900 s** (5.4σ), the MAX band moved
+  24.3–34.6 → **20.4–23.7 µs**, p99 1.28 → 1.02 µs, and throughput gained
+  4–6 % (the tag slots go quiet) with no tier paying for it — the shield
+  needs a HIGHEST-owned slot, so peer-vs-peer tagging never reaches it.  Triggering privilege early instead
+  (`KAME_STM_RT_FAST_PRIV`, default off) measures null: grants neither
+  spread nor stick while tags are still being overwritten.  The result is
+  still an *observed* maximum, not a WCET — the gate's residual misses are
+  side-word validation races, 2–5 ticks per slow commit.  (Whether folding
+  the holder's priority class into the stamp's own PRIO field removes them is
+  unresolved: the A/B that said so turned out to track run ORDER rather than
+  the binary — see `design/RT_READINESS.md`.)  The record path
+  makes no syscalls; the how and the dead ends are in
   [`tests/transaction_priority_mixed_test.cpp`](tests/transaction_priority_mixed_test.cpp),
   the lab notebook behind this section.
 

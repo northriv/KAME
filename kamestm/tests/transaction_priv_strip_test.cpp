@@ -66,10 +66,12 @@ static uint64_t strips() {
     return Transactional::detail::g_priv_strips.load();
 }
 
-//! A synthetic Reserved stamp \a age_us in the past, held by \a tid.
-static NC::cnt_t fake_reserved(uint16_t tid, int64_t age_us) {
+//! A synthetic Reserved stamp \a age_us in the past, held by \a tid, marked
+//! HIGHEST in its PRIO field per \a highest.
+static NC::cnt_t fake_reserved(uint16_t tid, int64_t age_us, bool highest) {
     NC::cnt_t st = ((NC::cnt_t)(NC::now_us() - age_us) & NC::STAMP_US_MASK)
         | ((NC::cnt_t)tid << NC::STAMP_TID_SHIFT);
+    if(highest) st = NC::with_highest_flag(st);
     return NC::with_kind(st, Transactional::detail::StampKind::Reserved);
 }
 
@@ -105,25 +107,26 @@ int main() {
     // small enough that several Rule-0 evaluations land beyond the window.
     const int kRetries = 8, kPauseUs = 40;
 
+    // (A fourth case, "side-word tid mismatch -> untouched", was retired with
+    // the side word itself: the holder's class now lives in the stamp's PRIO
+    // field, so there is no second word that can disagree with the tag it
+    // describes, and no mismatch to fall back from.)
     struct Case {
         const char *name;
-        uint32_t side_word;      // planted m_priv_owner_prio
+        bool holder_highest;     // PRIO field of the planted stamp
         int retries, pause_us;
         bool want_strip;
     } cases[] = {
         { "A stuck non-HIGHEST holder -> stripped",
-          (uint32_t)kFakeTid,                               kRetries, kPauseUs, true  },
+          false, kRetries, kPauseUs, true  },
         { "B holder marked HIGHEST -> untouched",
-          (uint32_t)kFakeTid | Linkage::PRIV_OWNER_HIGHEST, kRetries, kPauseUs, false },
-        { "C side-word tid mismatch -> untouched",
-          (uint32_t)(kFakeTid + 1),                         kRetries, kPauseUs, false },
-        { "D patience not elapsed -> untouched",
-          (uint32_t)kFakeTid,                               1,        0,        false },
+          true,  kRetries, kPauseUs, false },
+        { "C patience not elapsed -> untouched",
+          false, 1,        0,        false },
     };
     for(const auto &c : cases) {
-        const NC::cnt_t fake = fake_reserved(kFakeTid, kAge);
+        const NC::cnt_t fake = fake_reserved(kFakeTid, kAge, c.holder_highest);
         lk.m_transaction_started_time.store(fake);
-        lk.m_priv_owner_prio.store(c.side_word);
         uint64_t s0 = strips();
         run_highest_tx(root, c.retries, c.pause_us);
         uint64_t ds = strips() - s0;
@@ -144,7 +147,6 @@ int main() {
         // NORMAL contender on this linkage via fair-mode, forever (it is not
         // lowprio, so it never expires).
         lk.m_transaction_started_time.store(0);
-        lk.m_priv_owner_prio.store(0);
     }
 
     // The node must still be fully usable at NORMAL after the cleanup.

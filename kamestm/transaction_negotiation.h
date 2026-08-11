@@ -445,7 +445,8 @@ public:
         // stale after preemption (a peer's older Tx may have
         // overwritten our Reserved stamp via tag_as_contender).
         // Strong-mode acquire is only safe when we *actually* still
-        // hold the Reserved stamp on this Linkage.
+        // hold the Reserved stamp on this Linkage (or, under Rule 0d, a
+        // validated HIGHEST tag — same predicate, see i_am_privileged_now).
         using NC = typename Node<XN>::NegotiationCounter;
         bool we_hold_priv = NC::i_am_privileged_now(m_snap->m_started_time,
                                                     m_link.get());

@@ -122,6 +122,21 @@ foreach(t IN LISTS kamestm_test_names)
     target_link_libraries(${t} ${test_link_libs})
 endforeach()
 
+# Stage `with_pmqos` next to the binaries it wraps.  It lives in the source
+# tree, every absolute latency number from latency_floor /
+# transaction_latency_bench / transaction_priority_mixed_test is only
+# quotable *with* it (see the measured floor table in the script itself),
+# and reaching back across trees for it has twice produced a silent
+# `sudo: './with_pmqos': command not found` -- silent because the usual
+# invocation pipes stderr into a grep.  Copied rather than symlinked so a
+# build tree survives the source tree moving; copy_if_different keeps the
+# exec bit and refreshes on edit.
+add_custom_target(with_pmqos ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_CURRENT_SOURCE_DIR}/with_pmqos
+            ${CMAKE_CURRENT_BINARY_DIR}/with_pmqos
+    COMMENT "Staging with_pmqos next to the latency binaries")
+
 # --- CTest registration ---
 enable_testing()
 # Union discipline of fast_vector<T,N>: the inline m_array and the heap
