@@ -474,6 +474,14 @@ private:
         //! a Linkage they want to commit to should yield (CV-sleep)
         //! instead of fighting for the CAS, even when the global
         //! `s_privileged_tidstamp` slot has cycled away.
+        //! Is this stamp one a bundle() / unbundle() pass planted?  Rule 0d's
+        //! window, and only that — see the measurement in
+        //! `fair_mode_blocks_me` for why the window and not the whole Tx.
+        static inline bool is_bundling_kind(cnt_t x) noexcept {
+            const uint8_t k = stamp_kind(x);
+            return k == (uint8_t)detail::StampKind::BUNDLE
+                || k == (uint8_t)detail::StampKind::UNBUNDLE;
+        }
         static inline bool is_priv_stamp(cnt_t x) noexcept {
 #if KAME_STM_COMPACT_STATE
             (void)x;
@@ -648,21 +656,6 @@ private:
         static bool    i_am_privileged_now(
                            cnt_t my_tidstamp,
                            const Linkage *link = nullptr) noexcept;
-
-        //! Rule 0d, SELF side: do I hold a BUNDLE / UNBUNDLE stamp on this
-        //! Linkage that peers are deferring to?  The mirror of the peer-side
-        //! test in `fair_mode_blocks_me`, and it has to exist or the rule is
-        //! all cost and no benefit: peers defer while the holder, seeing
-        //! `i_am_privileged_now() == false`, still takes the weak-acquire /
-        //! ADAPTIVE-threshold path built for contended CASes that are no
-        //! longer contended.  Deliberately NOT folded into
-        //! `i_am_privileged_now`, whose Reserved-only meaning the
-        //! CAS-fail-twice assertion and the expiry trio
-        //! (`stamp_is_expired_lowprio`) both depend on.
-        //! Compiled out unless KAME_STM_HIGHEST_BUNDLE_BLOCK.
-        static bool    i_hold_bundle_shield_now(
-                           cnt_t my_tidstamp,
-                           const Linkage *link) noexcept;
 
         //! Per-priority livelock-probe parameters (retry threshold + label).
         //! Only the name survives.  The `retry_threshold` field that used to
@@ -1900,8 +1893,7 @@ public:
                 detail::g_priv_strips.fetch_add(1, std::memory_order_relaxed);
                 _preempt = true;
             } else if(_shield_highest) {
-                detail::g_highest_tag_shields.fetch_add(
-                    1, std::memory_order_relaxed);
+                detail::count_highest_tag_shield();
                 _preempt = false;
             } else if(_diff > 0) {
                 // I'm older.  cur is younger.

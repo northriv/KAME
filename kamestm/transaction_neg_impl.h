@@ -202,32 +202,15 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     return true;
 }
 
-template <class XN>
-bool Node<XN>::NegotiationCounter::i_hold_bundle_shield_now(
-        cnt_t my_tidstamp,
-        const Linkage *link) noexcept {
-#if KAME_STM_HIGHEST_BUNDLE_BLOCK && KAME_PER_LINKAGE_PRIVILEGE
-    if(link == nullptr) return false;
-    cnt_t slot = link->m_transaction_started_time.load(
-        std::memory_order_relaxed);
-    if( !slot || is_priv_stamp(slot)) return false;   // Reserved: not ours
-    if(stamp_tid(slot) != stamp_tid(my_tidstamp)) return false;
-    const uint8_t k = stamp_kind(slot);
-    if(k != (uint8_t)detail::StampKind::BUNDLE
-            && k != (uint8_t)detail::StampKind::UNBUNDLE) return false;
-    //! Validate against the same side word peers read, not against the live
-    //! priority mode: the two disagree exactly when this thread has changed
-    //! tier since planting (the acquisition thread tags at HIGHEST for the
-    //! record and at NORMAL for the demoted downstream, same tid), and the
-    //! side word is what actually decides whether peers are deferring.
-    const uint32_t ow = link->m_priv_owner_prio.load(std::memory_order_acquire);
-    return ((ow & 0xffffu) == (uint32_t)stamp_tid(slot))
-        && (ow & Linkage::PRIV_OWNER_HIGHEST);
-#else
-    (void)my_tidstamp; (void)link;
-    return false;
+//! Rule 0d (default OFF) is two `if`s -- one here, one in
+//! `fair_mode_blocks_me` -- sharing the validated-owner idiom master already
+//! uses for Rule 0 in `tag_as_contender`: the Linkage's tag names a tid, the
+//! Linkage's `m_priv_owner_prio` side word names that tid's class, and the
+//! two agreeing is what makes the class trustworthy.  No new state, no
+//! helper: a helper would only hide that both sides read the same two words.
+#ifndef KAME_STM_HIGHEST_BUNDLE_BLOCK
+#define KAME_STM_HIGHEST_BUNDLE_BLOCK 0
 #endif
-}
 
 template <class XN>
 bool Node<XN>::NegotiationCounter::i_am_privileged_now(
@@ -255,6 +238,23 @@ bool Node<XN>::NegotiationCounter::i_am_privileged_now(
     // the else branch below.  (Fix 2026-05-20: was `strip_kind`.)
     if(link == nullptr) return false;
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
+    // Rule 0d, self side — the mirror of the peer test in
+    // `fair_mode_blocks_me`, same two words, `==` instead of `!=`.  It has to
+    // be here or the rule is all cost and no benefit: peers defer while the
+    // holder still takes the weak-acquire / ADAPTIVE-threshold path built for
+    // a CAS that is no longer contended.  Note this widens the CAS-fail-twice
+    // assertion in `_on_cas_fail` to cover Rule 0d, which is what we want —
+    // if it fires, peers are racing a tag they were supposed to defer to.
+#if KAME_STM_HIGHEST_BUNDLE_BLOCK
+    if(slot && stamp_tid(slot) == stamp_tid(my_tidstamp)
+            && is_bundling_kind(slot)) {
+        const uint32_t ow = link->m_priv_owner_prio.load(
+            std::memory_order_acquire);
+        if((ow & 0xffffu) == (uint32_t)stamp_tid(slot)
+                && (ow & Linkage::PRIV_OWNER_HIGHEST))
+            return true;
+    }
+#endif
     if( !is_priv_stamp(slot)) return false;
     if(stamp_tid(slot) != stamp_tid(my_tidstamp)) return false;
     // Expiration: stale priv stamp from a stuck Tx no longer grants
@@ -331,9 +331,9 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // above for the nested-Tx self-deadlock rationale).
     if(link == nullptr) return false;
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
-    // Rule 0d (KAME_STM_HIGHEST_BUNDLE_BLOCK=1, default OFF): a HIGHEST
-    // BUNDLE/UNBUNDLE in progress blocks lower-priority committers on that
-    // linkage, exactly as a Reserved stamp does.
+    // Rule 0d (KAME_STM_HIGHEST_BUNDLE_BLOCK=1, default OFF): a Tx holding a
+    // validated HIGHEST tag on this linkage blocks lower-priority committers
+    // on it, exactly as a Reserved stamp does.
     //
     // Rule 0c stopped peers OVERWRITING a HIGHEST tag; it does not stop them
     // COMMITTING, because only Reserved stamps reach the test below — "a
@@ -344,45 +344,51 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // 2 -> 13 linkages, while the outer retry count the 2L tag argument
     // covers stayed flat at 2-3.
     //
-    // The read side was already built and left unwired: bundle()/unbundle()
-    // stamp every tag they plant with StampKind::BUNDLE / UNBUNDLE ("Read
-    // side (peer-piggyback) not yet wired", transaction_impl.h), and Rule 0c
-    // made m_priv_owner_prio publish on EVERY winning tag, so the owner
-    // class is validatable for plain tags too.  This is that read side.
+    // Rule 0c made m_priv_owner_prio publish on EVERY winning tag, so a plain
+    // tag's owner class is validatable, and that is all this needs: the tag
+    // names a tid, the side word names that tid's class, and their agreeing
+    // is what makes the class trustworthy.  Master already writes exactly
+    // this test inline for Rule 0's strip decision in `tag_as_contender`.
     //
-    // Cost and exposure, both real.  HIGHEST bundles at ~125 kHz for ~2 us,
-    // so a peer touching the acquiring subtree can lose a quarter of its
-    // attempts there; peers on other subtrees are untouched (tid and
-    // HIGHEST-bit validation both fail).  And a HIGHEST thread preempted
-    // mid-bundle blocks those peers for the preemption with no expiry
-    // (HIGHEST stamps never carry the lowprio bit) — the never-expiring
-    // exposure again, but on a far more frequent stamp than privilege.
+    // The `is_bundling_kind` gate is load-bearing, which is not obvious and
+    // was measured only after dropping it looked like a clean simplification.
+    // The argument for dropping it: a tag's lifetime is already bounded,
+    // since `drop_tags_n_privilege()` clears it from ~Transaction(), so "a
+    // validated HIGHEST tag holds this linkage" already means "a HIGHEST Tx
+    // is in flight on it".  True, and far too long a window — a whole Tx
+    // rather than the microseconds inside one bundle()/unbundle() pass.
+    // 8 interleaved 20 s pairs, ungated: acq -24 %, NORMAL -20 %, and the
+    // outer retry max — the thing the rule exists to bound — went from 2 to
+    // 4-16.  Shield the pass, not the transaction.
     //
-    // CONTAINER A/B (20 s, 16 leaves, where rebuilds dominate): fires hard —
-    // 9,010 blocks/s, 0.22 per acq commit — and costs on both axes.  acq
-    // -8.3 %, NORMAL -9.0 %, mean +2.6 %, p99 +14 %, p99.9 +20 %; UI and
-    // SCRIPTING flat.  Not confirmed on the RT host, and a container has
-    // reversed this file's conclusions before (the DISJOINT control came out
-    // backwards there), so this is a reason to measure properly, not a
-    // verdict.  Default OFF.
-#ifndef KAME_STM_HIGHEST_BUNDLE_BLOCK
-#define KAME_STM_HIGHEST_BUNDLE_BLOCK 0
-#endif
+    // Exposure, with the gate: a HIGHEST thread preempted mid-bundle blocks
+    // lower-priority peers on that linkage for the whole preemption, with no
+    // expiry (HIGHEST stamps never carry the lowprio bit).  Same
+    // never-expiring exposure as privilege, on a more frequent stamp.
+    //
+    // CONTAINER A/B, gated, 8 interleaved 20 s pairs at 16 leaves:
+    // acq 40,893 -> 38,613 /s (-5.6 %), NORMAL 283,130 -> 272,571 (-3.7 %),
+    // UI_DEFERRABLE +2.6 %.  No measured benefit: the outer retry max reads
+    // 2-3 vs 3-4, but the OFF arm's own distribution moved by that much
+    // BETWEEN batches, so a 20 s max cannot resolve it here.  (An earlier
+    // 4-pair read claimed -2.9 % and a retry-max win; both were subset
+    // artifacts of an ON arm with 7.5 % spread.  n=8, interleaved, or it is
+    // not a number.)
+    //
+    // So: a measured 4-6 % throughput charge and, in a container, nothing to
+    // show for it.  The tail it is meant to cut is not measurable here at all
+    // — MAX across these runs is 0.8-15.9 ms of scheduler noise — and this
+    // file's conclusions have been reversed by the RT host before (the
+    // DISJOINT control came out backwards in the container).  Default OFF;
+    // the RT host decides.
 #if KAME_STM_HIGHEST_BUNDLE_BLOCK
-    if(slot && !is_priv_stamp(slot)
-            && stamp_tid(slot) != stamp_tid(tidstamp)) {
-        const uint8_t _k = stamp_kind(slot);
-        if(_k == (uint8_t)detail::StampKind::BUNDLE
-                || _k == (uint8_t)detail::StampKind::UNBUNDLE) {
-            const uint32_t _ow = link->m_priv_owner_prio.load(
-                std::memory_order_acquire);
-            if((_ow & 0xffffu) == (uint32_t)stamp_tid(slot)
-                    && (_ow & Linkage::PRIV_OWNER_HIGHEST)) {
-                detail::g_highest_bundle_blocks.fetch_add(
-                    1, std::memory_order_relaxed);
-                return true;
-            }
-        }
+    if(slot && stamp_tid(slot) != stamp_tid(tidstamp)
+            && is_bundling_kind(slot)) {
+        const uint32_t ow = link->m_priv_owner_prio.load(
+            std::memory_order_acquire);
+        if((ow & 0xffffu) == (uint32_t)stamp_tid(slot)
+                && (ow & Linkage::PRIV_OWNER_HIGHEST))
+            return true;
     }
 #endif
     if( !is_priv_stamp(slot)) return false;

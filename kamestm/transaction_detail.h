@@ -360,12 +360,37 @@ namespace detail {
     //! mechanism actually fired — a strip is rare by construction (it needs a
     //! Reserved stamp in the way), so one relaxed fetch_add costs nothing.
     DECLSPEC_KAME extern std::atomic<std::uint64_t> g_priv_strips;
+
     //! Rule 0c: tag overwrites refused because the slot held a validated
     //! HIGHEST tag and the tagger was lower-priority.  \sa tag_as_contender.
-    DECLSPEC_KAME extern std::atomic<std::uint64_t> g_highest_tag_shields;
-    //! Rule 0d: peer CASes deferred because a HIGHEST bundle/unbundle held
-    //! the linkage.  \sa fair_mode_blocks_me, KAME_STM_HIGHEST_BUNDLE_BLOCK.
-    DECLSPEC_KAME extern std::atomic<std::uint64_t> g_highest_bundle_blocks;
+    //!
+    //! Deliberately NOT `atomic` the way `g_priv_strips` above is.  That
+    //! one's comment justifies the bare global with "a strip is rare by
+    //! construction ... so one relaxed fetch_add costs nothing", and on the
+    //! mixed workload it measures literally 0.  The justification does not
+    //! carry over: this fires ~500/s there, and a global atomic RMW on a
+    //! negotiation path is a shared cache line bounced between every
+    //! negotiating core, inside the code whose whole job is to not do that.
+    //!
+    //! Increment a plain thread-local instead and fold it into the global at
+    //! thread exit.  The count stays visible in a plain build — the property
+    //! the Rule 0 family wanted — while the hot path touches only a line this
+    //! thread owns.  Definitions live in transaction_impl.h so there is ONE
+    //! TLS object in libkame rather than one per plugin DLL (see the
+    //! singleton note at the top of that file); the increment is therefore an
+    //! exported call, still far cheaper than the bounce.
+    //!
+    //! Reads are exact once the counting threads have joined, which is how
+    //! the sole consumer (transaction_priority_mixed_test) reads it.  A
+    //! mid-run read undercounts by whatever live threads have not flushed.
+    //!
+    //! Rule 0d has no counter on purpose.  It briefly had one, at ~9,500/s
+    //! and only in the ON arm, which put the instrument inside the
+    //! experiment; and it counted spin-loop iterations rather than distinct
+    //! blocks, which it proved by RISING 190k -> 250k per 20 s when it was
+    //! made cheaper.  Build with the knob and read the throughput instead.
+    DECLSPEC_KAME void          count_highest_tag_shield() noexcept;
+    DECLSPEC_KAME std::uint64_t highest_tag_shields() noexcept;
 
 #ifndef NDEBUG
     //! Debug-only, for `transaction_sleep_in_tx_test`: counts reports actually

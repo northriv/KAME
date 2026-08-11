@@ -1615,10 +1615,10 @@ int main() {
                 "(Rule 0c): %llu\n",
         (unsigned long long)Transactional::detail::g_priv_strips.load(),
         (unsigned long long)
-            Transactional::detail::g_highest_tag_shields.load());
-    if(auto b = Transactional::detail::g_highest_bundle_blocks.load())
-        std::printf("  HIGHEST bundle blocks (Rule 0d): %llu\n",
-                    (unsigned long long)b);
+            Transactional::detail::highest_tag_shields());
+    // Exact here: the worker threads have joined, so every thread-local
+    // tally has been folded in.  Rule 0d has no counter -- see the note in
+    // transaction_detail.h; read its effect off the throughput instead.
 
     // The realtime question: not "did it keep up" but "did any one record take
     // too long".  Percentiles are printed only where the sample count can

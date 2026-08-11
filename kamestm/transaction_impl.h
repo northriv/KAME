@@ -77,8 +77,29 @@ namespace detail {
 // (See threadlocal.h for the type-erased dispatcher design.)
 DECLSPEC_KAME XThreadLocal<int, STxNestTag>     s_tx_nest;
 DECLSPEC_KAME std::atomic<std::uint64_t>        g_priv_strips{0};
-DECLSPEC_KAME std::atomic<std::uint64_t>        g_highest_tag_shields{0};
-DECLSPEC_KAME std::atomic<std::uint64_t>        g_highest_bundle_blocks{0};
+
+// Rule 0c counter: thread-local tally, folded into the global at thread exit.
+// See the rationale in transaction_detail.h — it fires orders of magnitude
+// more often than g_priv_strips above, so it must not sit on a shared cache
+// line in the negotiation hot path.
+namespace {
+std::atomic<std::uint64_t> s_highest_tag_shields{0};
+//! Folds this thread's tally into `sink` when the thread exits.
+struct FlushTally {
+    std::uint64_t n = 0;
+    std::atomic<std::uint64_t> *sink;
+    explicit FlushTally(std::atomic<std::uint64_t> *s) noexcept : sink(s) {}
+    ~FlushTally() { if(n) sink->fetch_add(n, std::memory_order_relaxed); }
+};
+} // namespace
+
+DECLSPEC_KAME void count_highest_tag_shield() noexcept {
+    static thread_local FlushTally t{&s_highest_tag_shields};
+    ++t.n;
+}
+DECLSPEC_KAME std::uint64_t highest_tag_shields() noexcept {
+    return s_highest_tag_shields.load(std::memory_order_relaxed);
+}
 DECLSPEC_KAME XThreadLocal<int, SSleepNestTag>  s_sleep_nest;
 DECLSPEC_KAME XThreadLocal<void*, TlsPayloadCreatorPtrTag>
                                                 tls_payload_creator_ptr;
