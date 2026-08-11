@@ -360,6 +360,9 @@ namespace detail {
     //! mechanism actually fired — a strip is rare by construction (it needs a
     //! Reserved stamp in the way), so one relaxed fetch_add costs nothing.
     DECLSPEC_KAME extern std::atomic<std::uint64_t> g_priv_strips;
+    //! Rule 0c: tag overwrites refused because the slot held a validated
+    //! HIGHEST tag and the tagger was lower-priority.  \sa tag_as_contender.
+    DECLSPEC_KAME extern std::atomic<std::uint64_t> g_highest_tag_shields;
 
 #ifndef NDEBUG
     //! Debug-only, for `transaction_sleep_in_tx_test`: counts reports actually

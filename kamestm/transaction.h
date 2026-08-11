@@ -1828,9 +1828,43 @@ public:
                         _strip_foreign_priv = true;
                 }
             }
+            // Rule 0c (per user, 2026-08-11): PRIORITY SITS ABOVE AGE for
+            // HIGHEST tags — a non-HIGHEST tagger never overwrites a
+            // validated HIGHEST tag, plain or Reserved, however old its own
+            // stamp is.  Age order (the TLA+ older-wins argument) remains
+            // the ordering WITHIN the non-HIGHEST population; HIGHEST's
+            // forward progress never depended on tags (it never parks) —
+            // its tags exist to feed its livelock probe, and that is what
+            // overwrites were breaking: a tag lost to an older peer leaves
+            // tags_owned < tags_total (a yielded tag never enters the list,
+            // an overwritten one does), and that condition blocked 8.5 of
+            // 11.8 probe ticks per slow commit — the reason the rebuild
+            // count had NO reachable bound.  HIGHEST is also structurally
+            // the YOUNGEST contender (stamps are fixed per Tx and it
+            // commits fastest, so its stamp is always freshest), so pure
+            // age order systematically hands its slots to whoever is stuck.
+            // Validation is the Rule-0 side word: since every tag win now
+            // publishes it (see below), it names the slot's last writer;
+            // tid mismatch (raced writers, stale word) falls through to age
+            // order — conservative.  Exposure: a dead thread's HIGHEST tag
+            // is shielded from lower tiers until cleared by an equal tier —
+            // the same class as never-expiring NORMAL/HIGHEST privilege,
+            // accepted on the same grounds.
+            bool _shield_highest = false;
+            if( !highest_mask_current_()) {
+                const uint32_t _ow = link->m_priv_owner_prio.load(
+                    std::memory_order_acquire);
+                if((_ow & 0xffffu) == (uint32_t)NC::stamp_tid(cur)
+                        && (_ow & Node<XN>::Linkage::PRIV_OWNER_HIGHEST))
+                    _shield_highest = true;
+            }
             if(_strip_foreign_priv) {
                 detail::g_priv_strips.fetch_add(1, std::memory_order_relaxed);
                 _preempt = true;
+            } else if(_shield_highest) {
+                detail::g_highest_tag_shields.fetch_add(
+                    1, std::memory_order_relaxed);
+                _preempt = false;
             } else if(_diff > 0) {
                 // I'm older.  cur is younger.
                 if(!_i_am_priv && _cur_is_priv) {
@@ -1861,15 +1895,21 @@ public:
             }
         }
         if(_preempt) {
-            // Publishing a Reserved stamp (privilege extension to a new
-            // Linkage) must pre-publish the side word first — same ordering
-            // as the claim loop, see m_priv_owner_prio.
-            if(my_kind == detail::StampKind::Reserved)
-                link->m_priv_owner_prio.store(
-                    (uint32_t)NC::stamp_tid(my_stamp)
-                        | (highest_mask_current_()
-                               ? Node<XN>::Linkage::PRIV_OWNER_HIGHEST : 0u),
-                    std::memory_order_release);
+            // Pre-publish the side word before the slot store (release /
+            // release, same ordering as the claim loop) — and on EVERY
+            // winning tag, not only Reserved ones, since Rule 0c above.
+            // Publishing unconditionally is also what keeps the word fresh
+            // across a priority change on one thread: the acquisition
+            // thread tags at HIGHEST (record) and then at NORMAL (demoted
+            // downstream) under the SAME tid, and a Reserved-only publish
+            // would leave the HIGHEST mark shielding the downstream's
+            // plain tags.  The NORMAL win republishes tid-without-bit and
+            // the stale shield drops.
+            link->m_priv_owner_prio.store(
+                (uint32_t)NC::stamp_tid(my_stamp)
+                    | (highest_mask_current_()
+                           ? Node<XN>::Linkage::PRIV_OWNER_HIGHEST : 0u),
+                std::memory_order_release);
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
             // ====== PREEMPT-RESERVED DIAGNOSTIC (opt-in) ======
             // If we are about to overwrite a Reserved-kind slot (= we

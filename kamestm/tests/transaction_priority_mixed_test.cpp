@@ -1605,8 +1605,11 @@ int main() {
         std::printf("  %-24s %12llu commits  (%.0f /s)\n", name_of(t),
                     (unsigned long long)progress[t].load(),
                     progress[t].load() / el);
-    std::printf("  priv strips (Rule 0): %llu\n",
-        (unsigned long long)Transactional::detail::g_priv_strips.load());
+    std::printf("  priv strips (Rule 0): %llu   HIGHEST-tag shields "
+                "(Rule 0c): %llu\n",
+        (unsigned long long)Transactional::detail::g_priv_strips.load(),
+        (unsigned long long)
+            Transactional::detail::g_highest_tag_shields.load());
 
     // The realtime question: not "did it keep up" but "did any one record take
     // too long".  Percentiles are printed only where the sample count can
