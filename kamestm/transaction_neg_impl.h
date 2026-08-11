@@ -575,40 +575,22 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
     // resets the window on 26-34 % of ticks — placed after it, the fast
     // path would forfeit a third of its firing opportunities.
     //
-    // MEASURED, AND IT DOES NOT PAY (RT host A/B, 90 s arms, N=2): the
-    // mechanism fired exactly as designed — 1,195 fast verdicts, rebuilds
-    // per slow commit 7.0 -> 4.55, snapshot phase -35 % — and the tail got
-    // WORSE: slow commits 4 -> 11, MAX 27.6 -> 34.5 us, and a retry phase
-    // appeared from exactly zero (attempts 1.000 -> up to 4).  The leak:
-    // privilege blocks a peer at its NEXT negotiation entry, and can do
-    // nothing about CASes already in flight.  Cutting the snapshot loop
-    // short therefore commits against a tree state that in-flight peers are
-    // still about to replace, converting cheap rebuild conflicts (~2 us a
-    // pass) into commit-CAS losses (a full attempt redo, measured ~11x).
-    // The organic probe's tags_owned == tags_total condition — the one this
-    // path bypasses, and the one that looked like its most annoying blocker
-    // — is precisely the anti-leak condition: owning every tag means no
-    // in-flight peer is ahead anywhere, i.e. the storm has drained and the
-    // grant protects something that can actually win.  Left in, default
-    // OFF, so the next person reaching for "just fire privilege earlier"
-    // finds the measurement instead of re-running it.
+    // WITH THIS OFF THERE IS NO BOUND on the rebuild count.  The organic
+    // gate's binding condition is tags_owned == tags_total, which is
+    // race-dependent rather than a counter, so crossing any retry threshold
+    // grants nothing: measured retries reached 10 against a threshold of 4,
+    // with 8.5 of 11.8 probe ticks per slow commit blocked by that
+    // condition alone.  Every MAX published for this workload is an
+    // observed maximum, not a guarantee.
     //
-    // WHAT THAT COSTS, stated plainly: with this OFF there is NO BOUND on
-    // the rebuild count.  The organic gate's binding condition is
-    // tags_owned == tags_total, which is race-dependent rather than a
-    // counter, so crossing any retry threshold grants nothing — measured
-    // retries reached 10 against a threshold of 4, with 8.5 of 11.8 probe
-    // ticks per slow commit blocked by that condition alone.  Published
-    // MAXes are observed maxima, not guarantees.
-    //
-    // A REAL BOUND would be this trigger plus a DRAIN, which is not built:
-    // on claiming, do not commit immediately — hold the privilege and keep
-    // rebuilding until tags_owned == tags_total actually becomes true, then
-    // commit.  The claim caps when waiting STARTS (at N retries) while the
-    // drain caps what is waited FOR (each in-flight peer finishes one
-    // commit and is then blocked at its next entry), so the bound becomes
-    // N + peers rather than a race.  That is the shape the measurement
-    // points at; nobody has built or measured it.
+    // WITH IT ON THE TAIL IS WORSE, measured (RT host, 90 s arms, N=2):
+    //   fast verdicts 1,195; rebuilds/slow commit 7.0 -> 4.55 (the
+    //   mechanism did what it was built to do); snapshot phase -35 %
+    //   slow commits 4 -> 11; MAX 27.6 -> 34.5 us
+    //   retry phase 0 -> 4,100 ns, attempts 1.000 -> max 4
+    // The trigger works and the trade is bad.  WHY is not established —
+    // profile it with the knob ON before theorising, which is the one thing
+    // that has worked on every other question in this file.
     //
     // WHY NO EXPIRY VALVE (a decision, 2026-08-10): a preempted holder's
     // Reserved stamp blocks that linkage's contenders until the holder runs

@@ -208,10 +208,10 @@ Three facts a deployment can act on:
   race-dependent: measured retries reached 10 against a threshold of 4,
   with 8.5 of 11.8 probe ticks per slow commit blocked by exactly that
   condition.  Triggering on the retry count alone *would* bound it and
-  measures **worse** (`KAME_STM_RT_FAST_PRIV`, default off) — a grant stops
-  peers at their next negotiation entry but not the CASes already in
-  flight, so committing early trades cheap rebuilds for full commit-CAS
-  losses.  A bound needs the grant plus a *drain* step, which is not built.
+  measures **worse** (`KAME_STM_RT_FAST_PRIV`, default off: rebuilds do
+  fall, 7.0 → 4.55, while MAX rises 27.6 → 34.5 µs and a retry phase
+  appears from zero).  Why that trade goes the way it does is not
+  established.
   The record path makes no syscalls; the how and the dead ends are in
   [`tests/transaction_priority_mixed_test.cpp`](tests/transaction_priority_mixed_test.cpp),
   the lab notebook behind this section.
