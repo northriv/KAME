@@ -200,11 +200,19 @@ Three facts a deployment can act on:
   threads, and root-scope operations above all, off the deadline-bearing
   subtree.
 * **The contended remainder is the snapshot assembling a consistent view
-  under fire** — up to ~10 bundle rebuilds at ~2 µs a pass, capped by the
-  privilege escalation; these commits never lose the CAS (attempts 1.000).
-  Firing privilege earlier measures *worse* (`KAME_STM_RT_FAST_PRIV`,
-  default off).  The record path makes no syscalls; the how and the dead
-  ends are written up in
+  under fire** — up to ~10 bundle rebuilds at ~2 µs a pass; these commits
+  never lose the CAS (attempts 1.000), they pay to get a view built.
+  **That rebuild count is not bounded, and the MAX above is an observed
+  maximum rather than a guarantee.**  The privilege escalation that would
+  bound it is gated on `tags_owned == tags_total`, which is itself
+  race-dependent: measured retries reached 10 against a threshold of 4,
+  with 8.5 of 11.8 probe ticks per slow commit blocked by exactly that
+  condition.  Triggering on the retry count alone *would* bound it and
+  measures **worse** (`KAME_STM_RT_FAST_PRIV`, default off) — a grant stops
+  peers at their next negotiation entry but not the CASes already in
+  flight, so committing early trades cheap rebuilds for full commit-CAS
+  losses.  A bound needs the grant plus a *drain* step, which is not built.
+  The record path makes no syscalls; the how and the dead ends are in
   [`tests/transaction_priority_mixed_test.cpp`](tests/transaction_priority_mixed_test.cpp),
   the lab notebook behind this section.
 

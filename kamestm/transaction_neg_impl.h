@@ -593,6 +593,23 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
     // OFF, so the next person reaching for "just fire privilege earlier"
     // finds the measurement instead of re-running it.
     //
+    // WHAT THAT COSTS, stated plainly: with this OFF there is NO BOUND on
+    // the rebuild count.  The organic gate's binding condition is
+    // tags_owned == tags_total, which is race-dependent rather than a
+    // counter, so crossing any retry threshold grants nothing — measured
+    // retries reached 10 against a threshold of 4, with 8.5 of 11.8 probe
+    // ticks per slow commit blocked by that condition alone.  Published
+    // MAXes are observed maxima, not guarantees.
+    //
+    // A REAL BOUND would be this trigger plus a DRAIN, which is not built:
+    // on claiming, do not commit immediately — hold the privilege and keep
+    // rebuilding until tags_owned == tags_total actually becomes true, then
+    // commit.  The claim caps when waiting STARTS (at N retries) while the
+    // drain caps what is waited FOR (each in-flight peer finishes one
+    // commit and is then blocked at its next entry), so the bound becomes
+    // N + peers rather than a race.  That is the shape the measurement
+    // points at; nobody has built or measured it.
+    //
     // WHY NO EXPIRY VALVE (a decision, 2026-08-10): a preempted holder's
     // Reserved stamp blocks that linkage's contenders until the holder runs
     // again — but that exposure is not new, it is the SAME one every organic
