@@ -1805,8 +1805,31 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     // helper internally skips the lease/owner-skip block for those
     // priorities.  Returns true iff the owner-skip fired (we hold the
     // soft lease and our age < lease_us) — caller returns early.
+    //
+    // GATED on fair_mode_blocks_me, for the same reason and by the same
+    // rule as the budget-expired break below (2026-07-31): "privilege is
+    // the completion guarantee, and NOTHING may be immune to it".  The
+    // owner-skip returns from `_negotiate_internal` BEFORE any fair-mode
+    // consultation, so without this gate a lease holder is a fair-mode-
+    // immune chainer — precisely the shape that made budget-expired record
+    // paths produce 372 HANG dumps.  And it is reachable: the owner test is
+    // `ps.tid` (the priority state's last committer) while the thing that
+    // would block us is `m_transaction_started_time` (the slot's tag).  They
+    // are different words, so "I committed here 3 us ago" says nothing about
+    // whether a peer has since planted a Reserved stamp — a HIGHEST claim,
+    // or a NORMAL one escalated by budget expiry — that we owe a yield to.
+    // The self-tagged short-circuit above does not cover it either: that one
+    // compares the SLOT's tid, and it is exactly the case where the slot is
+    // NOT ours that reaches here.
+    //
+    // Costs nothing on the common path: `&&` runs the lease helper first, so
+    // its drift write-back still happens, and the check is reached only when
+    // the skip would actually have fired.  fair_mode_blocks_me then re-reads
+    // a line this function loaded two statements ago and does three bit
+    // tests on it.
     if(_neg_apply_lease(ps, transaction_started_time, sig_C,
-                        now_us_entry, entry_pr))
+                        now_us_entry, entry_pr)
+            && !NegotiationCounter::fair_mode_blocks_me(started_time, self))
         return;
 
     // Thread-local LCG for sleep-duration jitter randomization.
