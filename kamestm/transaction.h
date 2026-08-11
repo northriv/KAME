@@ -1903,15 +1903,17 @@ public:
             //   shields ~83/s (mostly guarding FAST commits)
             //   no_tags per slow commit 8.4-10.2 -> 2.3-4.9 (residue =
             //     side-word validation races falling back to age order)
-            // The residue was then confirmed to be exactly that, by deleting
-            // the side word: moving the class into the stamp's PRIO field
-            // took it 4.60 -> 0.81 per slow commit (5 x 300 s each side,
-            // interleaved, weighted by slow count; per-run 5.33/3.60/6.17/
-            // -/3.50 vs 0.25/2.20/0.00/0.17/-), with acq 120,199 -> 124,004
-            // /s on disjoint distributions and p99 1,024 -> 896 ns in all
-            // ten runs.  Measure it at the DEFAULT 4 leaves: at 16 the
-            // residue does not arise at all (0.08-0.32 both sides), and an
-            // A/B there reads as "no effect" for want of the phenomenon.
+            // Whether deleting the side word (PRIO field) removes that
+            // residue is UNRESOLVED — see RT_READINESS.md.  An A/B said
+            // 4.60 -> 0.81 and it was published here; the next A/B, same
+            // binary on the same host, put the same build at 4.33.  What
+            // both agree on is the ORDER: whichever arm runs first in an
+            // interleaved pair reads ~4.3-4.6, whichever runs second reads
+            // ~0.8-1.0.  Do not quote a no_tags A/B that is not order-
+            // balanced.  (Leaf count matters too and in the other direction:
+            // at KAME_MIX_LEAVES=16 the residue does not arise at all,
+            // 0.08-0.32 on both sides, so an A/B there is null for want of
+            // the phenomenon.  The figure above is the DEFAULT 4 leaves.)
             //   organic grants 4 -> 118 per 900 s (~30x); verdicts now fire
             //     0.8-1.7 per slow commit with no fast-path assistance
             //   slow (>=15 us) commits 62 -> 15 per 900 s (~5.4 sigma)

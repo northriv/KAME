@@ -2600,8 +2600,11 @@ existed only because a word and the tag it described could disagree, and which
 showed up in the RT-host numbers as the 2.3-4.9 residual `no_tags` ticks per
 slow commit that Rule 0c could not remove.
 
-**Measured on the RT host, 5 × 300 s each side, interleaved, at the default 4
-leaves** (side word = `e4db5f455`, PRIO field + lease gate = `bf213a168`):
+Whether deleting the word deletes them is **unresolved**, and the way it
+failed to resolve is worth more than the answer would have been.
+
+RT host, 5 × 300 s each side, interleaved, default 4 leaves (side word =
+`e4db5f455`, PRIO field + lease gate = `bf213a168`):
 
 | | side word | PRIO field |
 |---|---|---|
@@ -2612,20 +2615,31 @@ leaves** (side word = `e4db5f455`, PRIO field + lease gate = `bf213a168`):
 | MAX, worst of 5 | 36,989 ns | 28,088 ns |
 | slow (≥ 15 µs), total | 20 | 16 |
 
-So the residue was the validation races, and deleting the word deletes them.
-The throughput and p99 gains are unambiguous — the acq distributions do not
-overlap (side word max 122,299 < PRIO min 123,734) and every one of the ten
-runs agrees on p99. MAX and the slow count move the same way but are inside
-their own spread at n = 5.
+That was published as confirmation. The very next A/B on the same host — Rule
+0d, whose OFF arm is the *same binary* as the PRIO column above — put it at
+**4.33**, with the same within-session consistency (4.50 / 4.60 / – / 4.75 /
+3.50 across its runs, against 0.25 / 2.20 / 0.00 / 0.17 / – across the
+other's). One build, two sessions, a factor of 5.7 apart.
 
-Two cautions this measurement cost. **The leaf count decides whether the
-phenomenon exists**: at `KAME_MIX_LEAVES=16` the residue is 0.08–0.32 on BOTH
-sides, and an A/B there reads as a clean null — not because the change does
-nothing but because there is nothing there to remove. The published rows are
-the default 4 leaves (= the "5-node commit"), and so is the 2.3-4.9 figure
-above. **And `bf213a168` bundles the lease gate with the PRIO field**, so
-strictly this attributes to the pair; the mechanism named by `no_tags` is the
-side word's.
+What the two sessions agree on is **position, not binary**:
+
+| | ran first | ran second |
+|---|---|---|
+| session 1 (preprio, diag) | preprio 4.60 | diag 0.75 |
+| session 2 (diag, 0d) | diag 4.33 | 0d 1.00 |
+
+`no_tags` follows the slot in the interleave. So the 4.60 → 0.81 above is an
+order effect until shown otherwise, and **no `no_tags` A/B is quotable unless
+it is order-balanced** (ABBA per rep, not ABAB). Throughput and MAX do not
+show the pattern — session 1's second arm was faster, session 2's was slower —
+so those columns stand.
+
+Two further cautions the same measurement cost. **The leaf count decides
+whether the phenomenon exists at all**: at `KAME_MIX_LEAVES=16` the residue is
+0.08–0.32 on BOTH sides, so an A/B there is null for want of the phenomenon,
+not for want of an effect. The published rows and the 2.3-4.9 figure are the
+default 4 leaves (= the "5-node commit"). **And `bf213a168` bundles the lease
+gate with the PRIO field**, so any result here attributes to the pair.
 
 ### Stripping on sight measured NET NEGATIVE — the patience gate
 

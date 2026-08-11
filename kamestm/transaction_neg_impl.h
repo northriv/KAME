@@ -369,11 +369,31 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // not a number.)
     //
     // So: a measured 4-6 % throughput charge and, in a container, nothing to
-    // show for it.  The tail it is meant to cut is not measurable here at all
-    // — MAX across these runs is 0.8-15.9 ms of scheduler noise — and this
-    // file's conclusions have been reversed by the RT host before (the
-    // DISJOINT control came out backwards in the container).  Default OFF;
-    // the RT host decides.
+    // show for it.  The tail it is meant to cut is not measurable there at all
+    // — MAX across those runs is 0.8-15.9 ms of scheduler noise.
+    //
+    // RT HOST, 5 x 300 s each side, interleaved, DEFAULT 4 leaves (the
+    // published "5-node commit" shape; NOT the 16 leaves the container A/B
+    // used, where bundle rebuilds dominate and this rule looked like pure
+    // cost).  Here it does what it was built to do:
+    //
+    //                       Rule 0d OFF                 Rule 0d ON
+    //   acq /s (median)     124,382                     113,506  (-8.7 %)
+    //     per run           123477 124380 124382        112609 113397 113506
+    //                       124539 125109               113749 113783
+    //   MAX per run         14913 16637 19009           16562 16598 16642
+    //                       22303 24904                 18107 19270
+    //   MAX worst of 5      24,904 ns                   19,270 ns
+    //   slow (>=15 us)      15                          14
+    //   p99                 896 ns                      896 ns
+    //
+    // The throughput charge is larger than the container's and unambiguous
+    // (distributions disjoint: OFF min 123,477 > ON max 113,783).  Against it,
+    // the ON arm's MAX never exceeds 19.3 us in five runs while OFF twice goes
+    // past 22 us — the tail tightening the rule exists for, and invisible in
+    // the container.  The bands still OVERLAP (both sit in 16-19 us most
+    // runs), so at n=5 this is a strong lead, not a verdict.  Default OFF
+    // until a longer run separates them.
 #if KAME_STM_HIGHEST_BUNDLE_BLOCK
     if(slot && stamp_tid(slot) != stamp_tid(tidstamp)
             && is_bundling_kind(slot) && stamp_is_highest(slot))

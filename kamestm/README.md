@@ -217,13 +217,11 @@ Three facts a deployment can act on:
   needs a HIGHEST-owned slot, so peer-vs-peer tagging never reaches it.  Triggering privilege early instead
   (`KAME_STM_RT_FAST_PRIV`, default off) measures null: grants neither
   spread nor stick while tags are still being overwritten.  The result is
-  still an *observed* maximum, not a WCET.  The gate's residual misses were
-  side-word validation races at 2–5 ticks per slow commit, and deleting that
-  word — folding the holder's priority class into the stamp's own 2-bit PRIO
-  field — took them to **0.81**, with acq +3.2 % on disjoint distributions
-  and p99 1,024 → 896 ns in all ten runs (5 × 300 s each side, interleaved).
-  Measure that at the default 4 leaves: at 16 the residue never arises on
-  either side, so the A/B reads null for want of the phenomenon.  The record path
+  still an *observed* maximum, not a WCET — the gate's residual misses are
+  side-word validation races, 2–5 ticks per slow commit.  (Whether folding
+  the holder's priority class into the stamp's own PRIO field removes them is
+  unresolved: the A/B that said so turned out to track run ORDER rather than
+  the binary — see `design/RT_READINESS.md`.)  The record path
   makes no syscalls; the how and the dead ends are in
   [`tests/transaction_priority_mixed_test.cpp`](tests/transaction_priority_mixed_test.cpp),
   the lab notebook behind this section.
