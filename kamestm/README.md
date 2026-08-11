@@ -198,13 +198,37 @@ alone spans 67.9 µs (no isolation) → 17.0 µs (`isolcpus`/`nohz_full`) →
 **219 ns** (+ PM-QoS), and a figure read against the wrong floor
 mis-attributes the machine to the STM.  Everything below is against the
 219 ns floor — isolated core, `SCHED_FIFO`, per-thread pinning, the pool's
-realtime contract honoured — on a PREEMPT_RT i5-7500:
+realtime contract honoured — on a PREEMPT_RT i5-7500, from a plain `Release`
+build (**not** `KAME_STM_NEG_DIAG`, whose pass timer puts two clock reads
+per bundle inside the path being measured):
 
 | workload | p50 | p99.9 | p99.999 | **MAX** |
 |---|---|---|---|---|
-| HIGHEST, 5-node commit, peers writing into the same subtree (worst of 3 × 300 s) | 896 ns | 4.10 µs | 12.3 µs | **23.7 µs** |
-| the same commit with no peer on its subtree (60 s) | 448 ns | 512 ns | 640 ns | **1.06 µs** |
-| NORMAL under the 20 ms budget (120 s) | 768 ns | 7.34 ms | 20.97 ms | **20.03 ms** |
+| HIGHEST, 5-node commit, peers writing into the same subtree (worst of 3 × 300 s) | 768 ns | 3.58 µs | 10.2 µs | **25.1 µs** |
+| the same commit with no peer on its subtree (60 s) | 768 ns | 1.28 µs | 1.28 µs | **1.53 µs** |
+| NORMAL under the 20 ms budget (120 s) | 768 ns | 1.05 ms | 10.5 ms | **20.01 ms** |
+
+Reproduce with `tests/transaction_priority_mixed_test` under
+`tests/with_pmqos`, `KAME_MIX_OS_FIFO=1 KAME_MIX_OS_PIN=1` inside a
+`taskset` onto the isolated pair, at the DEFAULT `KAME_MIX_LEAVES=4` — that
+default *is* the 5-node commit, and raising it changes which phenomena occur
+at all, not just their size. Rows 2 and 3 add `KAME_MIX_DISJOINT=1` and
+`KAME_MIX_ACQ_NORMAL=1`.
+
+Against the previous generation (before the stamp's 2-bit PRIO field, the
+commit-lease privilege gate and HIGHEST-vs-HIGHEST spin arbitration) row 1's
+stable percentiles improved 13–17 % (p50 896 → 768 ns, p99.9 4.10 → 3.58 µs,
+p99.999 12.3 → 10.2 µs) at +3–4 % throughput, and row 3's budgeted tail
+improved sharply (p99.9 7.34 → 1.05 ms, p99.999 20.97 → 10.5 ms, MAX still
+pinned to the 20 ms budget). Row 1's MAX reads 23.7 → 25.1 µs, which is one
+extreme value against another: the three runs behind it are 13.7 / 19.8 /
+25.1 µs, so the spread is the statistic. **Row 2 moved the wrong way** —
+p50 448 → 768 ns, MAX 1.06 → 1.53 µs on the uncontended path, where none of
+the three changes should cost anything (all of them sit in
+`_negotiate_internal`, which an uncontended commit never enters). Either the
+old row was taken under a configuration that is not written down, or
+something on the straight-line path did get slower; unexplained, and not
+attributed until bisected.
 
 Three facts a deployment can act on:
 
@@ -213,8 +237,8 @@ Three facts a deployment can act on:
   measured to 17 nodes within 2 % — while 17× the nodes moves the worst
   case only 1.6×.
 * **Contention is the tail, and the lever is topological.**  The first two
-  rows differ only in whether peers touch the committed subtree: 21× in
-  MAX, with nothing over 10 µs in 57 M uncontended commits.  A root-scope
+  rows differ only in whether peers touch the committed subtree: 16× in
+  MAX, with nothing over 1.6 µs in 19 M uncontended commits.  A root-scope
   `Snapshot` or `Transaction` bundles every subtree beneath it — a subtree
   with no bundling of its own still pays for its parent's — so keep other
   threads, and root-scope operations above all, off the deadline-bearing
@@ -232,7 +256,10 @@ Three facts a deployment can act on:
   ~30×, slow commits fell **62 → 15 per 900 s** (5.4σ), the MAX band moved
   24.3–34.6 → **20.4–23.7 µs**, p99 1.28 → 1.02 µs, and throughput gained
   4–6 % (the tag slots go quiet) with no tier paying for it — the shield
-  needs a HIGHEST-owned slot, so peer-vs-peer tagging never reaches it.  Triggering privilege early instead
+  needs a HIGHEST-owned slot, so peer-vs-peer tagging never reaches it.
+  (Those are that A/B's own before/after, not the current state; for what
+  the library measures today see the table above, where the same p99 reads
+  896 ns.)  Triggering privilege early instead
   (`KAME_STM_RT_FAST_PRIV`, default off) measures null: grants neither
   spread nor stick while tags are still being overwritten.  The result is
   still an *observed* maximum, not a WCET — the gate's residual misses are
