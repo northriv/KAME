@@ -1800,7 +1800,8 @@ public:
         //
         // signed_diff_us_packed(cur, my_stamp) > 0  iff  cur is
         // YOUNGER (later in steady-clock µs) than my stamp — modular at
-        // STAMP_US_BITS = 46, wrap-safe over any realistic boot session.
+        // STAMP_US_BITS (44 since the PRIO field; the constant is the
+        // authority), wrap-safe over any realistic boot session.
         auto cur = slot.load(std::memory_order_relaxed);
         //
         // Symmetric "preempt window" rule (per user):
