@@ -594,9 +594,10 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
     // with the fast path granting, no_tags still blocks 6-9 probe ticks per
     // slow commit — the rebuild storm the grant is supposed to end keeps
     // OVERWRITING the holder's tags, so the grant neither spreads nor
-    // sticks.  That overwrite is what Rule 0c (tag_as_contender) removes;
-    // measure THAT, with this knob off, before spending anything more here.
-    // Default stays OFF.
+    // sticks.  That overwrite is what Rule 0c (tag_as_contender) removes —
+    // and measured, Rule 0c delivers what this trigger could not: slow
+    // commits 62 -> 15 per 900 s and organic grants ~30x, with this knob
+    // off.  Default stays OFF; the numbers live at the Rule 0c comment.
     //
     // WHY NO EXPIRY VALVE (a decision, 2026-08-10): a preempted holder's
     // Reserved stamp blocks that linkage's contenders until the holder runs

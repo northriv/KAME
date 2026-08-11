@@ -1850,6 +1850,18 @@ public:
             // is shielded from lower tiers until cleared by an equal tier —
             // the same class as never-expiring NORMAL/HIGHEST privilege,
             // accepted on the same grounds.
+            // MEASURED (RT host, 3 x 300 s each side, knob-free):
+            //   shields ~83/s (mostly guarding FAST commits)
+            //   no_tags per slow commit 8.4-10.2 -> 2.3-4.9 (residue =
+            //     side-word validation races falling back to age order)
+            //   organic grants 4 -> 118 per 900 s (~30x); verdicts now fire
+            //     0.8-1.7 per slow commit with no fast-path assistance
+            //   slow (>=15 us) commits 62 -> 15 per 900 s (~5.4 sigma)
+            //   MAX band 24.3-34.6 -> 20.4-23.7 us (bands disjoint)
+            //   p99 1,280 -> 1,024 ns; mean -4 %; throughput +4-6 %
+            // The throughput/median gain is the tag slots going quiet:
+            // ~25 k refused overwrites per 300 s that no longer cascade
+            // into re-tagging churn.
             bool _shield_highest = false;
             if( !highest_mask_current_()) {
                 const uint32_t _ow = link->m_priv_owner_prio.load(
