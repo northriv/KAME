@@ -2621,18 +2621,39 @@ That was published as confirmation. The very next A/B on the same host — Rule
 3.50 across its runs, against 0.25 / 2.20 / 0.00 / 0.17 / – across the
 other's). One build, two sessions, a factor of 5.7 apart.
 
-What the two sessions agree on is **position, not binary**:
+The two sessions line up by **position**, not by binary:
 
 | | ran first | ran second |
 |---|---|---|
 | session 1 (preprio, diag) | preprio 4.60 | diag 0.75 |
 | session 2 (diag, 0d) | diag 4.33 | 0d 1.00 |
 
-`no_tags` follows the slot in the interleave. So the 4.60 → 0.81 above is an
-order effect until shown otherwise, and **no `no_tags` A/B is quotable unless
-it is order-balanced** (ABBA per rep, not ABAB). Throughput and MAX do not
-show the pattern — session 1's second arm was faster, session 2's was slower —
-so those columns stand.
+But the defect is narrower than "everything drifts with position", and the
+check that shows it is asking what ELSE the repeated binary reproduced. `diag`
+ran in both sessions, in opposite slots:
+
+| `diag`, same build | session 1 (2nd) | session 2 (1st) | |
+|---|---|---|---|
+| acq /s, median | 124,004 | 124,382 | 0.3 % apart |
+| MAX, median | 17,550 ns | 19,009 ns | 8 % apart |
+| MAX, sorted | 14647 16657 17550 20240 28088 | 14913 16637 19009 22303 24904 | interleave |
+| `no_tags` | 0.75 | 4.33 | **5.7 ×** |
+
+Throughput and the tail reproduce across the slot swap; `no_tags` does not.
+So this is not an environmental shift between sessions and not a general
+order effect — it is `no_tags` specifically, and the reason is almost
+certainly that it is an average over the run's *slow commits*, of which there
+are 0–6 per 300 s at `KAME_MIX_SLOW_NS=15000`: 14–20 events per arm, and
+they arrive in episodes rather than independently, so four runs are not four
+observations.
+
+Two consequences. **`no_tags` is not a usable A/B metric at that threshold** —
+fix it by lowering the threshold, not by adding reps: p99.99 is 7,168 ns and
+p99.999 is 10,240 ns over 37 M commits, so `KAME_MIX_SLOW_NS=10000` yields
+~370 events per run and 8000 yields thousands, against today's 0–6. **And the
+tail columns survive**, since the binary that ran in both slots gave the same
+MAX distribution in each; an order-balanced design (ABBA per rep) is still the
+right hygiene, but it is not what stands between us and the MAX numbers.
 
 Two further cautions the same measurement cost. **The leaf count decides
 whether the phenomenon exists at all**: at `KAME_MIX_LEAVES=16` the residue is

@@ -1906,12 +1906,15 @@ public:
             //     side-word validation races falling back to age order)
             // Whether deleting the side word (PRIO field) removes that
             // residue is UNRESOLVED — see RT_READINESS.md.  An A/B said
-            // 4.60 -> 0.81 and it was published here; the next A/B, same
-            // binary on the same host, put the same build at 4.33.  What
-            // both agree on is the ORDER: whichever arm runs first in an
-            // interleaved pair reads ~4.3-4.6, whichever runs second reads
-            // ~0.8-1.0.  Do not quote a no_tags A/B that is not order-
-            // balanced.  (Leaf count matters too and in the other direction:
+            // 4.60 -> 0.81 and it was published here; the next A/B put the
+            // same build at 4.33, and the two line up by which slot of the
+            // interleaved pair the arm ran in.  The same build reproduced
+            // its acq (0.3 %) and its MAX distribution across that slot
+            // swap, so the fault is in this statistic, not the sessions: it
+            // averages over the run's slow commits, and at
+            // KAME_MIX_SLOW_NS=15000 there are 0-6 of those per 300 s.
+            // Lower the threshold before quoting it — p99.999 is ~10 us, so
+            // SLOW_NS=10000 gives ~370 events per run instead of a handful.  (Leaf count matters too and in the other direction:
             // at KAME_MIX_LEAVES=16 the residue does not arise at all,
             // 0.08-0.32 on both sides, so an A/B there is null for want of
             // the phenomenon.  The figure above is the DEFAULT 4 leaves.)

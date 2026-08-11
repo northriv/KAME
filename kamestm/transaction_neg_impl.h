@@ -391,9 +391,20 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // (distributions disjoint: OFF min 123,477 > ON max 113,783).  Against it,
     // the ON arm's MAX never exceeds 19.3 us in five runs while OFF twice goes
     // past 22 us — the tail tightening the rule exists for, and invisible in
-    // the container.  The bands still OVERLAP (both sit in 16-19 us most
-    // runs), so at n=5 this is a strong lead, not a verdict.  Default OFF
-    // until a longer run separates them.
+    // the container.
+    //
+    // This A/B was ABAB with ON second, and a `no_tags` result from the same
+    // pair of sessions turned out to track the slot rather than the build
+    // (RT_READINESS.md), so the MAX column needs the same suspicion.  It
+    // survives it: the OFF build here is the same binary that ran in the
+    // OTHER slot in the previous session, and its MAX distribution is the
+    // same in both (14647 16657 17550 20240 28088 vs 14913 16637 19009 22303
+    // 24904 — they interleave), while its no_tags moved 5.7x.  The tail is
+    // reproducible across the slot swap; the probe statistic is not.
+    //
+    // The bands still OVERLAP (both sit in 16-19 us most runs), so at n=5
+    // this is a lead, not a verdict.  Default OFF until a longer run
+    // separates them.
 #if KAME_STM_HIGHEST_BUNDLE_BLOCK
     if(slot && stamp_tid(slot) != stamp_tid(tidstamp)
             && is_bundling_kind(slot) && stamp_is_highest(slot))
