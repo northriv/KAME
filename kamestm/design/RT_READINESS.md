@@ -2647,13 +2647,28 @@ are 0–6 per 300 s at `KAME_MIX_SLOW_NS=15000`: 14–20 events per arm, and
 they arrive in episodes rather than independently, so four runs are not four
 observations.
 
-Two consequences. **`no_tags` is not a usable A/B metric at that threshold** —
-fix it by lowering the threshold, not by adding reps: p99.99 is 7,168 ns and
-p99.999 is 10,240 ns over 37 M commits, so `KAME_MIX_SLOW_NS=10000` yields
-~370 events per run and 8000 yields thousands, against today's 0–6. **And the
-tail columns survive**, since the binary that ran in both slots gave the same
-MAX distribution in each; an order-balanced design (ABBA per rep) is still the
-right hygiene, but it is not what stands between us and the MAX numbers.
+**`no_tags` is not a usable A/B metric**, and lowering the threshold does not
+rescue it — that was the obvious fix and it is wrong. Tried: four 60 s runs of
+one binary at `KAME_MIX_SLOW_NS=7000` give 460–541 events each (vs 0–6 at
+15,000) and `no_tags` = 0.00 in all four. Not stability: **MAX in those runs
+was 12.9–14.0 µs, so no commit reached 15 µs at all.** The threshold does not
+add samples of the same population, it selects a different and benign one.
+The ≥ 15 µs residue stays at a handful per 300 s, so ~100 events costs hours
+per arm. Retire the metric rather than pay that.
+
+**Use `slow_n` instead** — the COUNT of commits over a chosen threshold. At
+≥ 7 µs it reads 460 / 468 / 521 / 541 across those four runs: ±8 % on a
+high-count statistic, so four runs resolve a ~10–15 % change in the tail
+population. It is also the quantity the budget contract is about ("how many
+commits missed the deadline"), where `no_tags` was a probe internal. MAX stays
+as the headline but is an extreme value and moves with run length — the same
+binary reads 12.9–14.0 µs over 60 s and 14.9–24.9 µs over 300 s, which is
+sampling, not a change.
+
+**And the tail columns from the confounded sessions survive**, since the
+binary that ran in both slots gave the same MAX distribution in each; an
+order-balanced design (ABBA per rep) is still the right hygiene, but it is not
+what stands between us and the MAX numbers.
 
 Two further cautions the same measurement cost. **The leaf count decides
 whether the phenomenon exists at all**: at `KAME_MIX_LEAVES=16` the residue is

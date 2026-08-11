@@ -1913,8 +1913,13 @@ public:
             // swap, so the fault is in this statistic, not the sessions: it
             // averages over the run's slow commits, and at
             // KAME_MIX_SLOW_NS=15000 there are 0-6 of those per 300 s.
-            // Lower the threshold before quoting it — p99.999 is ~10 us, so
-            // SLOW_NS=10000 gives ~370 events per run instead of a handful.  (Leaf count matters too and in the other direction:
+            // Lowering KAME_MIX_SLOW_NS does NOT rescue it: at 7000 the
+            // event count goes 0-6 -> ~500 per 60 s but no_tags reads 0.00,
+            // because MAX in those runs is 12.9-14.0 us and the >= 15 us
+            // population is simply absent — a different and benign set, not
+            // more samples of the same one.  Use `slow_n` (the COUNT over a
+            // threshold) as the tail metric instead; it is high-count, +-8 %,
+            // and it is what the budget contract asks about.  (Leaf count matters too and in the other direction:
             // at KAME_MIX_LEAVES=16 the residue does not arise at all,
             // 0.08-0.32 on both sides, so an A/B there is null for want of
             // the phenomenon.  The figure above is the DEFAULT 4 leaves.)
