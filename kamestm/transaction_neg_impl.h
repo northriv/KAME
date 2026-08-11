@@ -583,23 +583,20 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
     // condition alone.  Every MAX published for this workload is an
     // observed maximum, not a guarantee.
     //
-    // WITH IT ON, the trigger works — 913-1,195 fast verdicts, 609 grants,
-    // rebuilds per slow commit 7.0 -> 4.55 — and THE EFFECT ON THE TAIL IS
-    // NOT ESTABLISHED.  Every RT-host 90 s arm taken so far:
-    //   off   slow n=4  MAX 27.6 us | n=5  MAX 22.4 us | n=6  MAX 28.9 us
-    //   on=2  slow n=11 MAX 34.5 us | n=5  MAX 22.4 us
-    // The ranges overlap on both axes.  A first pass compared one arm of
-    // each (27.6 vs 34.5 us, n=4 vs 11), concluded "measurably worse", and
-    // wrote it into the README; the repeat landed at 22.4 us and n=5 WITH
-    // the knob on.  With 4-11 slow commits per 90 s the MAX is one sample
-    // from a heavy tail, and two of them decide nothing.
-    //
-    // To settle it, both of these, neither yet done: enough arms for the
-    // slow COUNT (the less noisy axis) to separate — several 300 s runs per
-    // side, not one 90 s each — and a PT capture of a slow commit with the
-    // knob ON, to see what the retry phase it introduces is actually doing.
-    // Set KAME_MIX_TRACE_US below the observed MAX or the trigger never
-    // fires; 25 us against a 22.4 us MAX caught nothing.
+    // MEASURED NULL (settled 2026-08-11, three 300 s arms per side on the
+    // RT host): slow commits 62 vs 50 per 900 s (Poisson-overlapping), p50 /
+    // p99.9 / p99.99 / p99.999 identical in all six runs, MAX bands
+    // 24.3-34.6 vs 22.8-46.6 us — single samples, overlapping.  The trigger
+    // fires ~12/s and every grant converts, and the tail does not move in
+    // either direction.  (A first 90 s pass had concluded "measurably
+    // worse" from one arm of each; that died in the repeat, and the 6x
+    // data set buries it.)  Why it is null is visible in the counters: even
+    // with the fast path granting, no_tags still blocks 6-9 probe ticks per
+    // slow commit — the rebuild storm the grant is supposed to end keeps
+    // OVERWRITING the holder's tags, so the grant neither spreads nor
+    // sticks.  That overwrite is what Rule 0c (tag_as_contender) removes;
+    // measure THAT, with this knob off, before spending anything more here.
+    // Default stays OFF.
     //
     // WHY NO EXPIRY VALVE (a decision, 2026-08-10): a preempted holder's
     // Reserved stamp blocks that linkage's contenders until the holder runs

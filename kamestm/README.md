@@ -207,11 +207,11 @@ Three facts a deployment can act on:
   bound it is gated on `tags_owned == tags_total`, which is itself
   race-dependent: measured retries reached 10 against a threshold of 4,
   with 8.5 of 11.8 probe ticks per slow commit blocked by exactly that
-  condition.  Triggering on the retry count alone *would* bound it
-  (`KAME_STM_RT_FAST_PRIV`, default off); it does cut rebuilds 7.0 → 4.55,
-  and **whether it helps or hurts the tail is not established** — the
-  measured arms overlap, and with a handful of slow commits per run each
-  MAX is one draw from a heavy tail.
+  condition.  Triggering on the retry count alone (`KAME_STM_RT_FAST_PRIV`, default
+  off) measures **null**: three 300 s arms per side, 62 vs 50 slow commits
+  per 900 s, identical percentiles, overlapping MAXes — the trigger fires
+  and converts, and the tail does not move, because the rebuild storm keeps
+  overwriting the holder's tags and the grant neither spreads nor sticks.
   The record path makes no syscalls; the how and the dead ends are in
   [`tests/transaction_priority_mixed_test.cpp`](tests/transaction_priority_mixed_test.cpp),
   the lab notebook behind this section.
