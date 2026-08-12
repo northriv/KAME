@@ -245,7 +245,27 @@ class ScopedNegotiateLinkage {
     scoped_atomic_view<PacketWrapper> m_view;
     float           m_mult_wait;             // retained from ctor for dtor's negotiate
     bool            m_eager;
-    bool            m_should_tag;            // retry != 0 — fast-path optimization
+    bool            m_should_tag;            // retry != 0, or HIGHEST
+    //! `retry != 0` is a fast-path optimisation: do not pay a tag CAS until
+    //! the first pass has actually collided.  For HIGHEST that optimisation
+    //! is the bug.  `bundle()` walks every child with a retry==0 scope, so on
+    //! the pass that matters it touches each child's Linkage and leaves it
+    //! UNSTAMPED.  A peer then writes that child freely, the bundle returns
+    //! DISTURBED, and the privilege HIGHEST holds on the subtree ROOT never
+    //! enters it -- the peer never went through the root.  Shielded surface
+    //! one Linkage, exposed surface the whole subtree; it shows up as a
+    //! rebuild count that tracks LEAVES and blows the 2L bound.
+    //!
+    //! (`_force_tag_for_preempt` cannot substitute: it requires
+    //! `fair_mode_blocks_me` to be true already, i.e. somebody ELSE holding
+    //! privilege on that Linkage.  It is a way to preempt, not to claim.)
+    //!
+    //! Tagging HIGHEST from retry 0 makes the shielded surface equal the
+    //! bundled one.  Costs one TLS read per scope, and a tag CAS per child
+    //! per bundle pass -- which is the throughput this buys the bound with.
+    static bool highest_tags_eagerly_() noexcept {
+        return getCurrentPriorityMode() == Priority::HIGHEST;
+    }
     bool            m_committed = false;
     bool            m_contention_observed = false;  // forces dtor tag despite retry==0
     //! True iff the privileged thread (s_privileged_tidstamp holder)
@@ -388,7 +408,7 @@ public:
         : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
-          m_should_tag(retry != 0)
+          m_should_tag(retry != 0 || highest_tags_eagerly_())
 #if KAME_ENABLE_RUNNER_DIGEST
         , m_caller_line(caller_line)
 #endif
@@ -522,7 +542,7 @@ public:
         : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
-          m_should_tag(retry != 0)
+          m_should_tag(retry != 0 || highest_tags_eagerly_())
 #if KAME_ENABLE_RUNNER_DIGEST
         , m_caller_line(caller_line)
 #endif
@@ -590,7 +610,7 @@ public:
         : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
-          m_should_tag(retry != 0)
+          m_should_tag(retry != 0 || highest_tags_eagerly_())
 #if KAME_ENABLE_RUNNER_DIGEST
         , m_caller_line(caller_line)
 #endif
