@@ -2621,7 +2621,12 @@ That was published as confirmation. The very next A/B on the same host — Rule
 3.50 across its runs, against 0.25 / 2.20 / 0.00 / 0.17 / – across the
 other's). One build, two sessions, a factor of 5.7 apart.
 
-The two sessions line up by **position**, not by binary:
+The two sessions line up by **position**, not by binary — and a later
+order-balanced run confirmed the slot effect directly, in a third metric:
+running ABBA (OFF, ON, ON, OFF) × 3, the SAME binary reads `slow_n` 583.7 in
+slot 1 and 486.0 in slot 4, a monotonic 20 % decay across one rep of four
+60 s runs. **Interleave ABBA, never ABAB**, and read no single-slot A/B in
+this file without checking which arm ran first:
 
 | | ran first | ran second |
 |---|---|---|
