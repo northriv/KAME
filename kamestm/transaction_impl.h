@@ -93,6 +93,16 @@ struct FlushTally {
 };
 } // namespace
 
+namespace { std::atomic<std::uint64_t> s_tx_linkages_max{0}; }
+DECLSPEC_KAME void note_tx_linkages(std::uint64_t n) noexcept {
+    // Relaxed load/compare/store: a lost race only drops one max update, and
+    // the next Tx that reaches the same depth restores it.
+    if(n > s_tx_linkages_max.load(std::memory_order_relaxed))
+        s_tx_linkages_max.store(n, std::memory_order_relaxed);
+}
+DECLSPEC_KAME std::uint64_t tx_linkages_max() noexcept {
+    return s_tx_linkages_max.load(std::memory_order_relaxed);
+}
 DECLSPEC_KAME void count_highest_tag_shield() noexcept {
     static thread_local FlushTally t{&s_highest_tag_shields};
     ++t.n;
@@ -2264,6 +2274,61 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
         // retries can be bounded — and it is the path a graph redraw takes when
         // it snapshots an ancestor.  See Node::throw_if_starved_.
         Node<XN>::throw_if_starved_(snapshot);
+        //! The 2L bound, asserted where it breaks rather than reported at the
+        //! end of the run (user, 2026-08-12).  A correctly built HIGHEST must
+        //! not lose a Linkage more than twice — interference by an OLDER
+        //! HIGHEST excepted — and a bundle coming back DISTURBED is a loss
+        //! like any other, so its rebuilds are bounded by twice the Tx's
+        //! linkage count.  Exceeding it is not a tuning result: it says a
+        //! lower tier is still displacing a thread that holds a Reserved
+        //! stamp on every Linkage it has touched, which is an implementation
+        //! error.  Asserted only at HIGHEST, and only once the tag list is
+        //! non-empty (before the first tag there is nothing to be bounded by).
+        //! The `+ 2` is the untagged retry==0 pass plus the CAS-fail-to-tag
+        //! race, the same two the outer 2L argument allows.
+#ifndef NDEBUG
+        if(getCurrentPriorityMode() == Priority::HIGHEST
+                && !snapshot.m_tagged_linkages.empty()
+                && (std::size_t)retry
+                       > 2 * snapshot.m_tagged_linkages.size() + 2) {
+            //! Print the state before aborting: the bound breaking says a
+            //! lower tier displaced us, and the only way to tell WHICH way is
+            //! to see whether our own stamp is still Reserved on each Linkage
+            //! we tagged, and whose stamp is there if it is not.
+            using NC = typename Node<XN>::NegotiationCounter;
+            std::fprintf(stderr,
+                "[2L] HIGHEST rebuild %d > 2L+2 (L=%zu)  my tid=%u\n",
+                retry, snapshot.m_tagged_linkages.size(),
+                (unsigned)NC::stamp_tid(started_time));
+            for(auto &lp : snapshot.m_tagged_linkages) {
+                const auto sl = lp->m_transaction_started_time.load(
+                    std::memory_order_relaxed);
+                std::fprintf(stderr,
+                    "     linkage %p slot tid=%u kind=%u priv=%d highest=%d "
+                    "mine=%d\n",
+                    (void *)lp.get(), (unsigned)NC::stamp_tid(sl),
+                    (unsigned)NC::stamp_kind(sl),
+                    (int)NC::is_priv_stamp(sl), (int)NC::stamp_is_highest(sl),
+                    (int)(NC::stamp_tid(sl) == NC::stamp_tid(started_time)));
+            }
+            //! WHAT IT FOUND, first time it fired (LEAVES=16): retry=5,
+            //! L=1, and the one tagged Linkage still carries OUR stamp,
+            //! Reserved and HIGHEST.  Nobody displaced us.  So the rebuild is
+            //! not a lost Linkage at all: we tag the SUBTREE ROOT, and the
+            //! bundle covers everything beneath it, so a peer writing a CHILD
+            //! invalidates the bundle without ever touching the Linkage our
+            //! privilege sits on.  The shielded surface is one Linkage; the
+            //! exposed surface is the subtree.  That is why the rebuild count
+            //! tracks LEAVES, why Rule 0d (same narrow surface) moved nothing,
+            //! and why "HIGHEST tag == privilege" bounds it at 4-8 leaves and
+            //! not at 16.  For the design rule to hold, HIGHEST needs
+            //! privilege on every Linkage it BUNDLES, not on the one it
+            //! tagged -- and until it does, this bound is a statement about
+            //! the wrong L.
+            assert(false && "HIGHEST exceeded the 2L rebuild bound — see the "
+                            "[2L] dump above");
+        }
+#endif
         // First iter: if caller supplied a pre-loaded view (e.g. from
         // the outer ScopedNeg in snapshot(Transaction&, ...) wrap),
         // use the move-in ctor (zero negotiate, zero view-acquire).

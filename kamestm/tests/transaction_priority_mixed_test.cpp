@@ -2093,7 +2093,22 @@ int main() {
                         "mean=%.2f max=%llu  vs threshold "
                         "clamp(sig_C*2,3,nproc) max=%llu  =>  %s\n"
                         "      tags_total (L): mean=%.2f max=%llu  =>  "
-                        "2L bound = %llu vs OUTER retries max %llu  [%s]\n",
+                        "2L bound = %llu vs OUTER retries max %llu  [%s]\n"
+                    //! The SAME bound, applied to the rebuild count.  The
+                    //! block above deliberately excluded rebuilds -- "the
+                    //! bound counts LINKAGE DISPLACEMENTS ... rebuilds the
+                    //! argument never covered" -- and that exclusion is the
+                    //! thing being questioned.  Per the design rule (user,
+                    //! 2026-08-12): a correctly built HIGHEST must not fail
+                    //! on a Linkage more than twice, interference by an OLDER
+                    //! HIGHEST excepted, so 2L bounds every failure it
+                    //! suffers -- and a bundle returning DISTURBED is a
+                    //! failure on a Linkage like any other.  Exceeding it is
+                    //! not a tuning result, it is a strong indication of an
+                    //! implementation error, which is why this prints a
+                    //! verdict rather than a number.
+                        "      rebuilds: max=%llu  vs 2L bound = %llu "
+                        "(L=%llu, the Tx's own linkage count)  [%s]\n",
                         (double)ll_all.retry_sum / (double)ll_all.ticks,
                         (unsigned long long)ll_all.retry_max,
                         (unsigned long long)ll_all.thresh_max,
@@ -2111,7 +2126,13 @@ int main() {
                                              ? acq_retries.all_max - 1 : 0),
                         (acq_retries.all_max
                             && (acq_retries.all_max - 1 <= 2 * ll_all.tags_max))
-                            ? "HOLDS" : "VIOLATED");
+                            ? "HOLDS" : "VIOLATED",
+                        (unsigned long long)ll_all.rebuild_max,
+                        (unsigned long long)(2 * Transactional::detail::tx_linkages_max()),
+                        (unsigned long long)Transactional::detail::tx_linkages_max(),
+                        (ll_all.rebuild_max <= 2 * Transactional::detail::tx_linkages_max())
+                            ? "HOLDS" : "VIOLATED — suspect the implementation"
+);
         }
         if( !ll_all.ticks)
             std::printf("      => the probe NEVER RAN.  Privilege cannot fire "

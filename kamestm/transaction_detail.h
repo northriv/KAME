@@ -389,6 +389,17 @@ namespace detail {
     //! experiment; and it counted spin-loop iterations rather than distinct
     //! blocks, which it proved by RISING 190k -> 250k per 20 s when it was
     //! made cheaper.  Build with the knob and read the throughput instead.
+    //! L for the 2L bound on HIGHEST's failures: the largest
+    //! `m_tagged_linkages.size()` any single Tx reached.  Sampled in
+    //! `drop_tags_n_privilege()`, which runs exactly once per Tx with the tag
+    //! list complete -- NOT at livelock-probe ticks, which only fire during
+    //! slow commits and so undercount L, making the verdict read worse than
+    //! it is.  A global max rather than a per-thread tally: max is idempotent,
+    //! and it only writes when a new high is reached, which is rare.
+    //! Lives here rather than in NegDiag because `drop_tags_n_privilege()` is
+    //! in transaction.h, which is included before neg_diag() is declared.
+    DECLSPEC_KAME void          note_tx_linkages(std::uint64_t n) noexcept;
+    DECLSPEC_KAME std::uint64_t tx_linkages_max() noexcept;
     DECLSPEC_KAME void          count_highest_tag_shield() noexcept;
     DECLSPEC_KAME std::uint64_t highest_tag_shields() noexcept;
 

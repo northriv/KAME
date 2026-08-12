@@ -211,6 +211,7 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
 #define KAME_STM_HIGHEST_BUNDLE_BLOCK 0
 #endif
 
+
 template <class XN>
 bool Node<XN>::NegotiationCounter::i_am_privileged_now(
         cnt_t my_tidstamp,

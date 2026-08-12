@@ -1793,9 +1793,32 @@ public:
         // privilege (m_registered_privileged=true), every subsequent
         // tag writes the Reserved kind directly — extending the priv
         // set to new Linkages.
-        const detail::StampKind my_kind = m_registered_privileged
-            ? detail::StampKind::Reserved
-            : *detail::s_current_op_kind;
+        // A HIGHEST tag IS a privilege claim (user, 2026-08-12).  The
+        // escalation used to be probe-gated: HIGHEST tagged plain, and only
+        // became Reserved once the livelock probe reached a verdict, which
+        // needs the thread to have been disturbed enough times first.  So the
+        // tier that must not be disturbed was the one whose shield arrived
+        // last, and until it did its only protection was Rule 0d's plain-tag
+        // shield -- one bundle pass wide, and measured not to bound anything.
+        //
+        // Claiming on the tag makes the shield the tag's own lifetime (the
+        // transaction, cleared by drop_tags_n_privilege from ~Transaction),
+        // costs nothing extra (the kind bits are written either way), and
+        // makes the design statement checkable: a HIGHEST Tx must not lose a
+        // Linkage more than twice -- interference by an OLDER HIGHEST
+        // excepted -- so its failures are bounded by 2L.  `_on_cas_fail`
+        // already asserts exactly that for a privilege holder; this is what
+        // puts HIGHEST under it.
+        //
+        // Exposure, unchanged in kind and larger in frequency: a HIGHEST
+        // stamp never carries the lowprio bit, so it never expires, and a
+        // dead HIGHEST holder pins lower tiers until an equal tier clears it.
+        // Same class as never-expiring NORMAL/HIGHEST privilege, now on every
+        // HIGHEST tag rather than on a probe-gated few.
+        const detail::StampKind my_kind =
+            (m_registered_privileged || highest_mask_current_())
+                ? detail::StampKind::Reserved
+                : *detail::s_current_op_kind;
         const auto my_stamp = NC::with_kind(m_started_time, my_kind);
         //
         // signed_diff_us_packed(cur, my_stamp) > 0  iff  cur is
@@ -2068,6 +2091,11 @@ public:
     //! from its own tranaction destructor.
     void drop_tags_n_privilege() noexcept {
         using NC = typename Node<XN>::NegotiationCounter;
+#if KAME_STM_NEG_DIAG
+        //! \sa detail::note_tx_linkages — L for the 2L bound.  Here because
+        //! this runs once per Tx with the tag list complete.
+        detail::note_tx_linkages((std::uint64_t)m_tagged_linkages.size());
+#endif
         // Identity = (us, tid) — kind bits ignored because tag_as_contender
         // may have stamped the linkage with kind=BUNDLE/UNBUNDLE/COMMIT
         // (driven by the thread-local ScopedOpKind) while my_started_time
