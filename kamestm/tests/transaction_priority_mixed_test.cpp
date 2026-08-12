@@ -568,6 +568,19 @@
 #include <thread>
 #include <vector>
 #include <cstring>
+#include <cstddef>
+#if defined(__linux__)
+#  include <sys/prctl.h>
+#  include <sys/syscall.h>
+#  include <signal.h>
+#  if __has_include(<linux/seccomp.h>) && __has_include(<linux/filter.h>) \
+      && __has_include(<linux/audit.h>) && defined(__x86_64__)
+#    include <linux/seccomp.h>
+#    include <linux/filter.h>
+#    include <linux/audit.h>
+#    define KAME_MIX_HAVE_SECCOMP 1
+#  endif
+#endif
 #if defined(__linux__)
 #  include <sys/resource.h>   // getrusage(RUSAGE_THREAD)
 #  include <pthread.h>
@@ -663,6 +676,93 @@ static void os_pin(long cpu) noexcept {
     (void)cpu;
 #endif
 }
+//! KAME_MIX_NOSYSCALL=1 — make "the HIGHEST path issues no system calls" a
+//! thing the KERNEL checks, not a thing a reviewer checked once.
+//!
+//! Armed on the acquisition thread ONLY (seccomp filters are per-thread
+//! unless SECCOMP_FILTER_FLAG_TSYNC is passed, and it is not).  Anything
+//! outside the allowlist below raises SIGSYS; the handler records the
+//! syscall number and the thread carries on with that call skipped, so one
+//! violation is reported rather than ending the run.
+//!
+//! WHY THIS EXISTS.  Two of the three known risks cannot be seen in the
+//! source at all.  `now_us()` is `clock_gettime(CLOCK_MONOTONIC)`, which is
+//! a vDSO read and NOT a syscall — but only while the host's clocksource is
+//! `tsc`; switch it to `hpet` and every commit traps, with nothing in the
+//! code having changed.  And the pool allocator is syscall-free only while
+//! it is warm: a growth event is an `mmap`.  Neither is a property of the
+//! program text, so neither can be audited statically.
+//!
+//! WHAT IT CANNOT CATCH, deliberately.  `write` and `futex` are allowed —
+//! the handler needs `write` to report, and thread teardown needs `futex`
+//! to wake the joiner — so an `fprintf(stderr)` on the HIGHEST path passes
+//! (that one IS visible in the source; keep it a review/audit rule) and so
+//! does a park that reaches the kernel.  Everything else, `mmap` and
+//! `clock_gettime` above all, is caught.
+static std::atomic<int>          g_nosys_hits{0};
+static std::atomic<int>          g_nosys_last{-1};
+//! Per-syscall tally, so the report names WHAT was called rather than only
+//! how often.  Fixed array: a signal handler must not allocate.
+static constexpr int             NOSYS_NR_MAX = 512;
+static std::atomic<int>          g_nosys_by_nr[NOSYS_NR_MAX];
+//! Split by the priority the thread was AT when it trapped.  The filter is
+//! per-thread, but the rule is per-PRIORITY: the acquisition thread runs its
+//! record commit at HIGHEST and its demoted downstream at NORMAL, and only
+//! the former is required to be syscall-free.  Without this split the census
+//! reports the demoted phase's legitimate `sched_yield` as a violation —
+//! which is exactly what the first armed run did.
+static std::atomic<int>          g_nosys_hi[NOSYS_NR_MAX];
+#if defined(__linux__) && defined(KAME_MIX_HAVE_SECCOMP)
+extern "C" void kame_mix_sigsys(int, siginfo_t *si, void *) {
+    const int nr = si->si_syscall;
+    g_nosys_last.store(nr, std::memory_order_relaxed);
+    g_nosys_hits.fetch_add(1, std::memory_order_relaxed);
+    if(nr >= 0 && nr < NOSYS_NR_MAX) {
+        g_nosys_by_nr[nr].fetch_add(1, std::memory_order_relaxed);
+        // One TLS read; async-signal-safe (no allocation, no lock).
+        if(Transactional::getCurrentPriorityMode()
+                == Transactional::Priority::HIGHEST)
+            g_nosys_hi[nr].fetch_add(1, std::memory_order_relaxed);
+    }
+}
+static bool os_no_syscalls() noexcept {
+    struct sigaction sa{};
+    sa.sa_sigaction = kame_mix_sigsys;
+    sa.sa_flags = SA_SIGINFO | SA_NODEFER;
+    sigemptyset( &sa.sa_mask);
+    if(sigaction(SIGSYS, &sa, nullptr) != 0) return false;
+    if(prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) return false;
+    // Allowlist, in the order a filter should test them: the two that must
+    // pass for the process to remain reportable and joinable, then the
+    // teardown calls a returning thread makes.
+    static const int allow[] = {
+        SYS_write, SYS_futex, SYS_exit, SYS_exit_group, SYS_rt_sigreturn,
+        SYS_munmap, SYS_madvise, SYS_mprotect, SYS_rt_sigprocmask,
+        // This harness's own bookkeeping, twice per thread, outside the
+        // measured window: the minor/major-fault and context-switch counts
+        // printed with the results.  Not the library's.
+        SYS_getrusage,
+    };
+    const std::size_t n = sizeof(allow) / sizeof(allow[0]);
+    std::vector<sock_filter> f;
+    f.push_back(BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
+                         (uint32_t)offsetof(seccomp_data, arch)));
+    f.push_back(BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 1, 0));
+    f.push_back(BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW)); // other arch: out of scope
+    f.push_back(BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
+                         (uint32_t)offsetof(seccomp_data, nr)));
+    for(std::size_t i = 0; i < n; ++i)
+        f.push_back(BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, (uint32_t)allow[i],
+                             (uint8_t)(n - i), 0));   // hit -> jump to ALLOW
+    f.push_back(BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_TRAP));
+    f.push_back(BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW));
+    sock_fprog prog{ (unsigned short)f.size(), f.data() };
+    return syscall(SYS_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog) == 0;
+}
+#else
+static bool os_no_syscalls() noexcept { return false; }
+#endif
+
 static void pause_us(long us) {
     if(us > 0)
         std::this_thread::sleep_for(std::chrono::microseconds(us));
@@ -774,6 +874,10 @@ int main() {
     //! are not the same measurement.)  0 = leave the default alone.
     const long timerslack  = env_long("KAME_MIX_TIMERSLACK_NS", 0);
     const bool os_pin_on   = env_long("KAME_MIX_OS_PIN", 0) != 0;
+    //! \sa os_no_syscalls().  Arms a per-thread seccomp filter on the
+    //! acquisition thread so a syscall on the HIGHEST path is reported
+    //! by the kernel rather than by review.
+    const bool nosyscall   = env_long("KAME_MIX_NOSYSCALL", 0) != 0;
     std::printf("mixed-priority livelock hunt: %lds, stall>%lds fails, "
                 "acq=%s duty %ldus, UI period %ldus, +%ld NORMAL, "
                 "+%ld SCRIPTING, %ld leaves/subtree, record wait budget ",
@@ -973,6 +1077,7 @@ int main() {
     unsigned long long rt_viol_warm = 0, rt_reclaim_warm = 0, rt_unmap_warm = 0;
     std::size_t rt_bytes_warm = 0;
     bool rt_warm_sampled = false, rt_warm_first = true;
+    bool nosys_armed = false;   //!< \sa os_no_syscalls(), armed at warm
     //! KAME_MIX_PHASE aggregate: sums over the SLOW population and the worst
     //! commit's own triple, which is the one that has to add up.
     //! `rbu` is bundle+unbundle wall time accumulated INSIDE the retry segment
@@ -1326,6 +1431,22 @@ int main() {
                 const std::uint64_t t_end = now_ns();
                 const std::uint64_t dt_rec = t_end - t_rec;
                 const bool warm = (t_end >= t_warm_end);
+                // Arm the syscall census at the warm boundary, not at thread
+                // start.  Everything on this path initialises lazily on first
+                // use -- the runner-count probe's sysfs read, glibc's per-
+                // thread CPU/NUMA setup, the pool's first refill -- and those
+                // one-shots land on whichever thread gets there first.  Armed
+                // at thread start they read as HIGHEST violations (openat /
+                // read / close / sched_getaffinity, once each) and drown the
+                // thing worth catching, which is a syscall that RECURS per
+                // commit.  Same discipline as touching every page before
+                // going realtime.
+                if(nosyscall && !nosys_armed && warm) {
+                    nosys_armed = true;
+                    if( !os_no_syscalls())
+                        std::printf("  NOTE: KAME_MIX_NOSYSCALL could not arm "
+                                    "seccomp (needs Linux/x86-64) — SKIPPED.\n");
+                }
                 if(warm) {
 #ifndef DISABLE_POOL_ALLOCATOR
                     if( !rt_warm_sampled) {
@@ -1611,6 +1732,35 @@ int main() {
         std::printf("  %-24s %12llu commits  (%.0f /s)\n", name_of(t),
                     (unsigned long long)progress[t].load(),
                     progress[t].load() / el);
+    if(nosyscall) {
+        const int hits = g_nosys_hits.load();
+        int hi = 0;
+        for(int nr = 0; nr < NOSYS_NR_MAX; ++nr) hi += g_nosys_hi[nr].load();
+        if(hi) {
+            std::printf("  NOSYSCALL: *** %d syscall(s) issued while AT "
+                        "HIGHEST — the rule is broken ***\n", hi);
+            ++failures;   // an enforcement, not a report
+        }
+        else
+            std::printf("  NOSYSCALL: clean at HIGHEST (%d trapped calls, all "
+                        "from the demoted NORMAL phase)\n", hits);
+        if(hits) {
+            for(int nr = 0; nr < NOSYS_NR_MAX; ++nr) {
+                const int c = g_nosys_by_nr[nr].load();
+                if( !c) continue;
+                const char *nm =
+                    nr == 9   ? "mmap"       : nr == 11  ? "munmap"    :
+                    nr == 12  ? "brk"        : nr == 24  ? "sched_yield" :
+                    nr == 28  ? "madvise"    : nr == 35  ? "nanosleep" :
+                    nr == 96  ? "gettimeofday" : nr == 98 ? "getrusage" :
+                    nr == 228 ? "clock_gettime (vDSO fell back — check "
+                                "/sys/.../current_clocksource)" :
+                    nr == 230 ? "clock_nanosleep" : "?";
+                std::printf("             nr=%-4d total=%-8d at-HIGHEST=%-6d %s\n",
+                            nr, c, g_nosys_hi[nr].load(), nm);
+            }
+        }
+    }
     std::printf("  priv strips (Rule 0): %llu   HIGHEST-tag shields "
                 "(Rule 0c): %llu\n",
         (unsigned long long)Transactional::detail::g_priv_strips.load(),

@@ -222,22 +222,34 @@ DECLSPEC_KAME XThreadLocal<RunnerDigest>        tls_runner_digest;
 
 #ifdef __linux__
 #include <unistd.h>
+#include <sched.h>      // getcpu(3) — vDSO, no syscall
 #include <sys/syscall.h>
 // Returns the NUMA node of the CPU currently scheduling this thread,
 // or -1 if unknown / syscall failed.  Used by `runner_counter_register`
 // to pick entries on the calling thread's local NUMA preferentially.
 //
-// `getcpu(2)` is fast (vDSO-accelerated on x86_64); call frequency
-// is once per thread first-register, so even a plain syscall would
-// be acceptable.  No `::` prefix on `syscall` — glibc declares it
-// in the unistd.h namespace without making it a global-scope symbol
-// reachable via `::`.
+// Prefer glibc's `getcpu(3)` wrapper: it resolves through the vDSO and
+// issues no syscall at all.  The raw `syscall(SYS_getcpu, ...)` this used
+// to do BYPASSES the vDSO by construction, so the "vDSO-accelerated" the
+// old comment claimed was never true of the way it was called -- caught by
+// the KAME_MIX_NOSYSCALL census, which saw it trap on a HIGHEST thread.
+// Frequency is once per thread first-register either way, so the cost was
+// never the point; the point is that the acquisition tier is required to
+// reach the kernel zero times.  Fallback keeps the raw call for pre-2.29
+// glibc and non-glibc, where it remains a real syscall -- documented rather
+// than hidden.  No `::` prefix on `syscall` -- glibc declares it in the
+// unistd.h namespace without making it a global-scope symbol.
 static inline int8_t kame_current_numa_node() noexcept {
-#ifdef SYS_getcpu
     unsigned int cpu = 0, node = 0;
+#if defined(__GLIBC__) \
+    && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 29))
+    if(getcpu( &cpu, &node) == 0)
+        return (int8_t)((node > 127) ? 127 : node);
+#elif defined(SYS_getcpu)
     if(syscall(SYS_getcpu, &cpu, &node, nullptr) == 0)
         return (int8_t)((node > 127) ? 127 : node);
 #endif
+    (void)cpu; (void)node;
     return -1;
 }
 #else

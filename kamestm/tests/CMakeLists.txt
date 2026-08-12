@@ -201,6 +201,21 @@ target_compile_options(transaction_highest_older_wins_test
 # soak with KAME_MIX_SECS=60+ when hunting.
 add_test(NAME transaction_priority_mixed_test
          COMMAND transaction_priority_mixed_test)
+# The acquisition tier must not reach the kernel, and two of the three risks
+# are invisible in the source: `now_us()` is a vDSO read only while the host
+# clocksource is `tsc` (switch it to `hpet` and every commit traps, with
+# nothing in the code having changed), and the pool allocator is syscall-free
+# only while warm.  Neither is a property of the program text.  This arm puts
+# a per-thread seccomp filter on the acquisition thread and FAILS on any call
+# trapped while the thread is at Priority::HIGHEST -- the demoted NORMAL
+# phase of the same thread is counted separately and allowed, since only the
+# HIGHEST path carries the requirement.  Short by design: it is a per-commit
+# property, so it does not need a soak.
+add_test(NAME transaction_nosyscall_highest_test
+         COMMAND transaction_priority_mixed_test)
+set_tests_properties(transaction_nosyscall_highest_test PROPERTIES
+    ENVIRONMENT "KAME_MIX_NOSYSCALL=1;KAME_MIX_SECS=6"
+    TIMEOUT 120)
 
 # Field-crash repro (2026-07-30 T1Mode SIGABRT): a stalling ms-analysis Tx
 # holding never-expiring NORMAL privilege pins third parties into the HANG
