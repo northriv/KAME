@@ -393,8 +393,40 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // past 22 us — the tail tightening the rule exists for, and invisible in
     // the container.
     //
-    // VERDICT (2026-08-12): that lead did not survive an order-balanced
-    // re-run, and the rule is NOT adopted.  The A/B above was ABAB with ON
+    // VERDICT (2026-08-12): NOT adopted -- and the reason that matters is
+    // not the throughput one below.  MAX is an upper-BOUND question, and the
+    // quantity with no bound here is the rebuild count, so that is what a
+    // rule claiming to bound HIGHEST's tail has to move.  It was never
+    // measured, because `snapshot_retries` was only ever summed; NegDiag now
+    // carries `snapshot_retries_max` and the answer is flat:
+    //
+    //   leaves L        2     4     8    16
+    //   rebuild max OFF  3     5    11    60
+    //   rebuild max ON   4     6    11    64
+    //
+    // Rule 0d does not bound it, does not bend the growth, does not even
+    // move it.  The throughput/`slow_n` result below is consistent with that
+    // but was the wrong test to have run first.
+    //
+    // WHY it cannot: the same sweep with KAME_MIX_DISJOINT=1 gives rebuild
+    // max = 0 at every L, so every rebuild is a peer touching the acquiring
+    // subtree -- not the acq thread's own demoted downstream, which DISJOINT
+    // leaves running.  The disturbers are external, so a priority shield is
+    // the right SHAPE; this one is just aimed at the wrong moment.  It gates
+    // a peer's commit CAS for the duration of one bundle pass, while what
+    // replaces the packet can be a peer BUNDLING (a reader's root-scope
+    // Snapshot absorbs the subtree beneath it and never consults
+    // fair_mode_blocks_me), or a commit landing between two passes.
+    //
+    // The half of the design that is actually missing is the other one:
+    // HIGHEST does not enter privilege quickly, it enters it only after the
+    // livelock probe reaches a verdict.  Until it holds a Reserved stamp its
+    // only shield is this plain-tag one, which is one pass wide.  A rule
+    // that gives HIGHEST privilege on entry, and then lets the EXISTING
+    // Reserved-stamp fair-mode shield do the work, is the shape to try next
+    // -- and to judge on `snapshot rebuilds: max`, not on throughput.
+    //
+    // The throughput measurement, for the record:  The A/B above was ABAB with ON
     // always second, and the slot turns out to matter: within one rep of
     // four runs the tail population decays monotonically, 20 % from first
     // slot to fourth for the SAME binary.  Re-run ABBA (OFF, ON, ON, OFF) x3
@@ -584,6 +616,13 @@ struct NegDiag {
     //! scope exit, because they are snapshot-internal rather than
     //! transaction-level.  Correct for the probe, invisible for latency.
     std::uint64_t snapshot_retries;
+    //! The LARGEST rebuild count any single snapshot reached.  The sum above
+    //! cannot answer the question this quantity exists for: the bundle-rebuild
+    //! count is the one thing in the negotiation with no reachable upper
+    //! bound (measured 2 -> 142 as the subtree grew 2 -> 13 linkages), and a
+    //! bound is a statement about the MAXIMUM, not about a rate.  Anything
+    //! claiming to bound HIGHEST's tail has to be judged here.
+    std::uint64_t snapshot_retries_max;
     //! The livelock probe, which is the only door to a privilege claim
     //! (`if(_ll_saw && !registered)` — no priority term, so HIGHEST claims on
     //! the same terms as anyone).  priv strips have been 0 in every run of

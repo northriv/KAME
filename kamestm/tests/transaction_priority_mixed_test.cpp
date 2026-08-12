@@ -1209,7 +1209,12 @@ int main() {
                       few_retries = 0, verdicts = 0, rt_fast = 0,
                       tries = 0, grants = 0,
                       retry_max = 0, retry_sum = 0, thresh_max = 0,
-                      tags_max = 0, tags_sum = 0;
+                      tags_max = 0, tags_sum = 0,
+                      //! \sa NegDiag::snapshot_retries_max — run-wide, not
+                      //! slow-population: a bound is about the worst case
+                      //! that occurred at all, not about the commits that
+                      //! happened to cross a latency threshold.
+                      rebuild_max = 0;
         void add(const Transactional::detail::NegDiag &d) {
             ++n; ticks += d.ll_ticks; resets += d.ll_resets;
             no_tags += d.ll_no_tags; few_retries += d.ll_few_retries;
@@ -1220,6 +1225,8 @@ int main() {
             if(d.ll_tags_max > tags_max)     tags_max = d.ll_tags_max;
             if(d.ll_retry_max > retry_max)   retry_max = d.ll_retry_max;
             if(d.ll_thresh_max > thresh_max) thresh_max = d.ll_thresh_max;
+            if(d.snapshot_retries_max > rebuild_max)
+                rebuild_max = d.snapshot_retries_max;
         }
     } ll_all;
 #endif
@@ -1761,6 +1768,14 @@ int main() {
             }
         }
     }
+#if KAME_STM_NEG_DIAG
+    //! The bundle-rebuild count is the only quantity in the negotiation with
+    //! no reachable upper bound (2 -> 142 as the subtree grew 2 -> 13), so
+    //! its MAXIMUM is the number any bound-claiming rule has to move.  Run-
+    //! wide by design: a bound is about the worst case that occurred at all.
+    std::printf("  snapshot rebuilds: max=%llu over the run\n",
+                (unsigned long long)ll_all.rebuild_max);
+#endif
     std::printf("  priv strips (Rule 0): %llu   HIGHEST-tag shields "
                 "(Rule 0c): %llu\n",
         (unsigned long long)Transactional::detail::g_priv_strips.load(),

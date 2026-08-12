@@ -2250,7 +2250,15 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
 #if KAME_STM_NEG_DIAG
         //! \sa NegDiag::snapshot_retries — counted here rather than read off
         //! m_tx_retry_count, which the guard above restores on the way out.
-        if(retry) ++detail::neg_diag().snapshot_retries;
+        if(retry) {
+            auto &_d = detail::neg_diag();
+            ++_d.snapshot_retries;
+            //! \sa NegDiag::snapshot_retries_max.  Recorded at the TOP of the
+            //! iteration rather than at exit: this loop returns from several
+            //! points inside, and the running maximum is monotonic anyway.
+            if((std::uint64_t)retry > _d.snapshot_retries_max)
+                _d.snapshot_retries_max = (std::uint64_t)retry;
+        }
 #endif
         // A Snapshot has no operator++, so this loop is the only place its
         // retries can be bounded — and it is the path a graph redraw takes when
