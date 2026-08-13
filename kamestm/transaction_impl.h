@@ -2501,8 +2501,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
 //! ~10x slowdown is a different contention regime. Do not judge this bound on
 //! anything under ten minutes.
 //!
-//! WHAT THIS FOUND (2026-08-12), so the probes below are read for what they
-//! settled rather than re-derived:
+//! WHAT THE (now deleted) PROBES FOUND, 2026-08-12:
 //!
 //!   * The rebuild loop retries on `bundle()` returning DISTURBED and on
 //!     nothing else, and 94 % of those returns come from two sites -- Phase

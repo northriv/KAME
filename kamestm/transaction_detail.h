@@ -122,11 +122,17 @@ struct ScopedLookupMemoInvalidate;
 //!   HIGHEST        — skips negotiation entirely: `if(entry_pr ==
 //!                    Priority::HIGHEST) break;` is the first statement of the
 //!                    round loop, so the thread never spins and never sleeps.
-//!                    Note this buys no deference — nothing makes peers wait
-//!                    for it, since only a Reserved (privilege) stamp does that
-//!                    and privilege is granted priority-blind.  It is an
-//!                    exemption from politeness, and it stops scaling past one
-//!                    such thread.  Deliberately not exposed to Python.
+//!                    Since 2026-08-12 it also DOES buy deference: a HIGHEST
+//!                    tag is planted as a Reserved (privilege) stamp, from the
+//!                    first pass rather than after the livelock probe reaches
+//!                    a verdict, so peers meet privilege on every Linkage it
+//!                    has touched and yield on the ordinary fair-mode path.
+//!                    (The note that used to sit here said the opposite --
+//!                    "buys no deference ... privilege is granted
+//!                    priority-blind" -- which was true when privilege was
+//!                    probe-gated.)  Between two HIGHESTs the loser defers by
+//!                    spinning, never parking, per the tier contract.
+//!                    Deliberately not exposed to Python.
 //!   LOWEST,        — the "low set".  `now_us_tagged()` folds a lowprio bit
 //!   UI_DEFERRABLE,   into their stamps, which makes a privilege stamp they hold
 //!   SCRIPTING        *evictable on timeout* (`stamp_is_expired_lowprio`) while

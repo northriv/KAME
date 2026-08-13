@@ -201,14 +201,6 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     return true;
 }
 
-//! Rule 0d (default OFF) is two `if`s -- one here, one in
-//! `fair_mode_blocks_me` -- reading the same three facts off the one word the
-//! Linkage already holds: whose tag it is (tid), what planted it (kind), and
-//! what class that Tx started at (PRIO).  No new state, no helper: a helper
-//! would only hide that both sides test one load.
-#ifndef KAME_STM_HIGHEST_BUNDLE_BLOCK
-#define KAME_STM_HIGHEST_BUNDLE_BLOCK 0
-#endif
 
 
 template <class XN>
@@ -244,11 +236,6 @@ bool Node<XN>::NegotiationCounter::i_am_privileged_now(
     // a CAS that is no longer contended.  Note this widens the CAS-fail-twice
     // assertion in `_on_cas_fail` to cover Rule 0d, which is what we want —
     // if it fires, peers are racing a tag they were supposed to defer to.
-#if KAME_STM_HIGHEST_BUNDLE_BLOCK
-    if(slot && stamp_tid(slot) == stamp_tid(my_tidstamp)
-            && is_bundling_kind(slot) && stamp_is_highest(slot))
-        return true;
-#endif
     if( !is_priv_stamp(slot)) return false;
     if(stamp_tid(slot) != stamp_tid(my_tidstamp)) return false;
     // Expiration: stale priv stamp from a stuck Tx no longer grants
@@ -325,141 +312,15 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // above for the nested-Tx self-deadlock rationale).
     if(link == nullptr) return false;
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
-    // Rule 0d (KAME_STM_HIGHEST_BUNDLE_BLOCK=1, default OFF): a Tx holding a
-    // validated HIGHEST tag on this linkage blocks lower-priority committers
-    // on it, exactly as a Reserved stamp does.
-    //
-    // Rule 0c stopped peers OVERWRITING a HIGHEST tag; it does not stop them
-    // COMMITTING, because only Reserved stamps reach the test below — "a
-    // plain tag merely shortens the loser's adaptive backoff".  So a peer
-    // still replaces the packet under a HIGHEST bundle, the bundle returns
-    // DISTURBED, and Node::snapshot() rebuilds.  That rebuild count is the
-    // one quantity here with no bound: measured 2 -> 142 as the subtree grew
-    // 2 -> 13 linkages, while the outer retry count the 2L tag argument
-    // covers stayed flat at 2-3.
-    //
-    // The class comes off the tag's own PRIO field, so any tag — plain or
-    // Reserved — reports it, and there is nothing to cross-validate.  Master
-    // writes the same `stamp_is_highest` test inline for Rule 0's strip
-    // decision in `tag_as_contender`.
-    //
-    // The `is_bundling_kind` gate is load-bearing, which is not obvious and
-    // was measured only after dropping it looked like a clean simplification.
-    // The argument for dropping it: a tag's lifetime is already bounded,
-    // since `drop_tags_n_privilege()` clears it from ~Transaction(), so "a
-    // validated HIGHEST tag holds this linkage" already means "a HIGHEST Tx
-    // is in flight on it".  True, and far too long a window — a whole Tx
-    // rather than the microseconds inside one bundle()/unbundle() pass.
-    // 8 interleaved 20 s pairs, ungated: acq -24 %, NORMAL -20 %, and the
-    // outer retry max — the thing the rule exists to bound — went from 2 to
-    // 4-16.  Shield the pass, not the transaction.
-    //
-    // Exposure, with the gate: a HIGHEST thread preempted mid-bundle blocks
-    // lower-priority peers on that linkage for the whole preemption, with no
-    // expiry (HIGHEST stamps never carry the lowprio bit).  Same
-    // never-expiring exposure as privilege, on a more frequent stamp.
-    //
-    // CONTAINER A/B, gated, 8 interleaved 20 s pairs at 16 leaves:
-    // acq 40,893 -> 38,613 /s (-5.6 %), NORMAL 283,130 -> 272,571 (-3.7 %),
-    // UI_DEFERRABLE +2.6 %.  No measured benefit: the outer retry max reads
-    // 2-3 vs 3-4, but the OFF arm's own distribution moved by that much
-    // BETWEEN batches, so a 20 s max cannot resolve it here.  (An earlier
-    // 4-pair read claimed -2.9 % and a retry-max win; both were subset
-    // artifacts of an ON arm with 7.5 % spread.  n=8, interleaved, or it is
-    // not a number.)
-    //
-    // So: a measured 4-6 % throughput charge and, in a container, nothing to
-    // show for it.  The tail it is meant to cut is not measurable there at all
-    // — MAX across those runs is 0.8-15.9 ms of scheduler noise.
-    //
-    // RT HOST, 5 x 300 s each side, interleaved, DEFAULT 4 leaves (the
-    // published "5-node commit" shape; NOT the 16 leaves the container A/B
-    // used, where bundle rebuilds dominate and this rule looked like pure
-    // cost).  Here it does what it was built to do:
-    //
-    //                       Rule 0d OFF                 Rule 0d ON
-    //   acq /s (median)     124,382                     113,506  (-8.7 %)
-    //     per run           123477 124380 124382        112609 113397 113506
-    //                       124539 125109               113749 113783
-    //   MAX per run         14913 16637 19009           16562 16598 16642
-    //                       22303 24904                 18107 19270
-    //   MAX worst of 5      24,904 ns                   19,270 ns
-    //   slow (>=15 us)      15                          14
-    //   p99                 896 ns                      896 ns
-    //
-    // The throughput charge is larger than the container's and unambiguous
-    // (distributions disjoint: OFF min 123,477 > ON max 113,783).  Against it,
-    // the ON arm's MAX never exceeds 19.3 us in five runs while OFF twice goes
-    // past 22 us — the tail tightening the rule exists for, and invisible in
-    // the container.
-    //
-    // VERDICT (2026-08-12): NOT adopted -- and the reason that matters is
-    // not the throughput one below.  MAX is an upper-BOUND question, and the
-    // quantity with no bound here is the rebuild count, so that is what a
-    // rule claiming to bound HIGHEST's tail has to move.  It was never
-    // measured, because `snapshot_retries` was only ever summed; NegDiag now
-    // carries `snapshot_retries_max` and the answer is flat:
-    //
-    //   leaves L        2     4     8    16
-    //   rebuild max OFF  3     5    11    60
-    //   rebuild max ON   4     6    11    64
-    //
-    // Rule 0d does not bound it, does not bend the growth, does not even
-    // move it.  The throughput/`slow_n` result below is consistent with that
-    // but was the wrong test to have run first.
-    //
-    // WHY it cannot: the same sweep with KAME_MIX_DISJOINT=1 gives rebuild
-    // max = 0 at every L, so every rebuild is a peer touching the acquiring
-    // subtree -- not the acq thread's own demoted downstream, which DISJOINT
-    // leaves running.  The disturbers are external, so a priority shield is
-    // the right SHAPE; this one is just aimed at the wrong moment.  It gates
-    // a peer's commit CAS for the duration of one bundle pass, while what
-    // replaces the packet can be a peer BUNDLING (a reader's root-scope
-    // Snapshot absorbs the subtree beneath it and never consults
-    // fair_mode_blocks_me), or a commit landing between two passes.
-    //
-    // The half of the design that is actually missing is the other one:
-    // HIGHEST does not enter privilege quickly, it enters it only after the
-    // livelock probe reaches a verdict.  Until it holds a Reserved stamp its
-    // only shield is this plain-tag one, which is one pass wide.  A rule
-    // that gives HIGHEST privilege on entry, and then lets the EXISTING
-    // Reserved-stamp fair-mode shield do the work, is the shape to try next
-    // -- and to judge on `snapshot rebuilds: max`, not on throughput.
-    //
-    // The throughput measurement, for the record:  The A/B above was ABAB with ON
-    // always second, and the slot turns out to matter: within one rep of
-    // four runs the tail population decays monotonically, 20 % from first
-    // slot to fourth for the SAME binary.  Re-run ABBA (OFF, ON, ON, OFF) x3
-    // at 60 s, with `slow_n` at a 7 us threshold as the primary metric --
-    // ~500 events per run instead of the handful a 15 us threshold gives, so
-    // it can actually resolve a 10 % change:
-    //
-    //                       Rule 0d OFF                Rule 0d ON
-    //   slow_n (>=7 us)     595 483 640 521 516 454    552 504 552 483 419 514
-    //     median / mean     518.5 / 534.8              509 / 504.0
-    //   MAX per run         20403 15415 21495          23531 13791 17626
-    //                       12707 15421 14499          13872 12709 14685
-    //     worst of 6        21,495 ns                  23,531 ns
-    //   acq /s (median)     124,677                    114,240   (-8.4 %)
-    //   p99.9               3584-4096                  3584-4096
-    //
-    // slow_n moves -5.8 % on the mean and -1.8 % on the median against a
-    // run-to-run spread of +-17 %: nothing.  MAX's worst-of-6 goes the wrong
-    // way.  The cost, by contrast, is unambiguous and reproduces the earlier
-    // figure exactly -- the acq distributions do not overlap (OFF min 122,977
-    // > ON max 115,146).
-    //
-    // So: a measured 8.4 % throughput charge with no demonstrable effect on
-    // the tail it was built for.  The earlier "MAX 24.9 -> 19.3 us" that made
-    // it look promising was an ABAB extreme value at a different run length;
-    // it did not reproduce.  Keep the code -- it is two `if`s and it costs
-    // nothing while compiled out -- but default OFF, and do not revisit
-    // without an order-balanced design and a high-count tail metric.
-#if KAME_STM_HIGHEST_BUNDLE_BLOCK
-    if(slot && stamp_tid(slot) != stamp_tid(tidstamp)
-            && is_bundling_kind(slot) && stamp_is_highest(slot))
-        return true;
-#endif
+    // (Rule 0d lived here: a validated HIGHEST BUNDLE/UNBUNDLE tag deferring
+    // lower tiers, behind KAME_STM_HIGHEST_BUNDLE_BLOCK, default OFF.  Removed
+    // as UNREACHABLE.  It required `is_bundling_kind(slot)`, i.e. kind BUNDLE
+    // or UNBUNDLE, together with `stamp_is_highest(slot)` -- and since a
+    // HIGHEST tag became a privilege claim its kind is always Reserved, so the
+    // conjunction cannot be satisfied.  It never bounded anything while it
+    // could fire either: rebuild max 3/6/11/60 OFF vs 4/6/11/64 ON across 2 to
+    // 16 leaves, for -8.4 % throughput on disjoint distributions.  The shield
+    // it was reaching for is now the ordinary Reserved path below.)
     if( !is_priv_stamp(slot)) return false;
     if(stamp_tid(slot) == stamp_tid(tidstamp)) return false;
     if(stamp_is_expired_lowprio(slot)) { report_expired(slot); return false; }

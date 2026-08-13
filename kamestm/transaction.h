@@ -529,14 +529,6 @@ private:
             return stamp_kind(x) == (uint8_t)detail::StampKind::Reserved;
 #endif
         }
-        //! Is this stamp one a bundle() / unbundle() pass planted?  Rule 0d's
-        //! window, and only that — see the measurement in
-        //! `fair_mode_blocks_me` for why the window and not the whole Tx.
-        static inline bool is_bundling_kind(cnt_t x) noexcept {
-            const uint8_t k = stamp_kind(x);
-            return k == (uint8_t)detail::StampKind::BUNDLE
-                || k == (uint8_t)detail::StampKind::UNBUNDLE;
-        }
         //! Modular µs difference: returns (now - past) mod 2^STAMP_US_BITS,
         //! interpreted as elapsed µs.  Inputs may be raw `now_us()` (64-bit)
         //! or already-masked stamps; correct as long as the true elapsed
