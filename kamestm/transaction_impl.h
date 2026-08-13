@@ -110,6 +110,13 @@ DECLSPEC_KAME void count_cas_past_privilege() noexcept {
 DECLSPEC_KAME std::uint64_t cas_past_privilege() noexcept {
     return s_cas_past_priv.load(std::memory_order_relaxed);
 }
+namespace { std::atomic<std::uint64_t> s_cas_nonhi{0}; }
+DECLSPEC_KAME void count_cas_nonhighest() noexcept {
+    s_cas_nonhi.fetch_add(1, std::memory_order_relaxed);
+}
+DECLSPEC_KAME std::uint64_t cas_nonhighest() noexcept {
+    return s_cas_nonhi.load(std::memory_order_relaxed);
+}
 DECLSPEC_KAME void count_highest_tag_shield() noexcept {
     static thread_local FlushTally t{&s_highest_tag_shields};
     ++t.n;
@@ -2568,9 +2575,13 @@ inline void hit(int line) {
 struct Dump { ~Dump() {
     std::fprintf(stderr,
         "[DISTSITE] non-HIGHEST CASes that landed while a peer's privilege "
-        "was live: %llu  (the negotiate/CAS window; compare against the "
-        "DISTURBED total below, not against zero)\n",
-        (unsigned long long)Transactional::detail::cas_past_privilege());
+        "was live: %llu of %llu non-HIGHEST CASes = %.4f %%  (the "
+        "negotiate/CAS window; judge the RATE, not the existence)\n",
+        (unsigned long long)Transactional::detail::cas_past_privilege(),
+        (unsigned long long)Transactional::detail::cas_nonhighest(),
+        Transactional::detail::cas_nonhighest()
+            ? 100.0 * (double)Transactional::detail::cas_past_privilege()
+                    / (double)Transactional::detail::cas_nonhighest() : 0.0);
     std::fprintf(stderr, "[DISTSITE] HIGHEST DISTURBED returns by source line:\n");
     for(int l = 0; l < 4096; ++l)
         if(unsigned n = site(l).load())

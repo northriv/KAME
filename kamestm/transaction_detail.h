@@ -406,6 +406,11 @@ namespace detail {
     //! to account for, never the existence.  \sa ScopedNegotiateLinkage's CAS.
     DECLSPEC_KAME void          count_cas_past_privilege() noexcept;
     DECLSPEC_KAME std::uint64_t cas_past_privilege() noexcept;
+    //! Denominator for the above: ALL non-HIGHEST CASes at the same two
+    //! entry points.  The question is never "did it happen" -- the
+    //! negotiate/CAS window is real -- but "at the rate a window would".
+    DECLSPEC_KAME void          count_cas_nonhighest() noexcept;
+    DECLSPEC_KAME std::uint64_t cas_nonhighest() noexcept;
     DECLSPEC_KAME void          count_highest_tag_shield() noexcept;
     DECLSPEC_KAME std::uint64_t highest_tag_shields() noexcept;
 

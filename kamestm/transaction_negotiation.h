@@ -828,10 +828,12 @@ public:
         //! HIGHEST is excluded: passing a foreign-tier privilege is its tier
         //! contract, not a violation.
 #ifndef NDEBUG
-        if(getCurrentPriorityMode() != Priority::HIGHEST
-                && Node<XN>::NegotiationCounter::fair_mode_blocks_me(
-                       m_snap->m_started_time, m_link.get()))
-            detail::count_cas_past_privilege();
+        if(getCurrentPriorityMode() != Priority::HIGHEST) {
+            detail::count_cas_nonhighest();
+            if(Node<XN>::NegotiationCounter::fair_mode_blocks_me(
+                   m_snap->m_started_time, m_link.get()))
+                detail::count_cas_past_privilege();
+        }
 #endif
         if (m_strong_mode) {
             if (m_link->compareAndSetStrong(m_view, desired)) {
@@ -924,10 +926,12 @@ public:
         //! HIGHEST is excluded: passing a foreign-tier privilege is its tier
         //! contract, not a violation.
 #ifndef NDEBUG
-        if(getCurrentPriorityMode() != Priority::HIGHEST
-                && Node<XN>::NegotiationCounter::fair_mode_blocks_me(
-                       m_snap->m_started_time, m_link.get()))
-            detail::count_cas_past_privilege();
+        if(getCurrentPriorityMode() != Priority::HIGHEST) {
+            detail::count_cas_nonhighest();
+            if(Node<XN>::NegotiationCounter::fair_mode_blocks_me(
+                   m_snap->m_started_time, m_link.get()))
+                detail::count_cas_past_privilege();
+        }
 #endif
         if (m_strong_mode) {
             if (m_link->compareAndSetStrongRetain(m_view, desired)) {
