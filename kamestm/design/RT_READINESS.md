@@ -3171,3 +3171,26 @@ FAIL-first: transaction_highest_older_wins_test (4 arms) fails exactly its
 first arm against the pre-change library; priv_strip case B rewritten to the
 new contract (its inline fake-holder run would spin forever — caught by the
 user as a CPU-pinned hung ctest).
+
+## The tag-first reorder needs a StoreLoad fence, and GenMC prices every quadrant
+
+Memory-order audit of TagBeforeAcquire (user: 「タグCASのメモリオーダーは適切
+か?」).  The reorder's bound assumes the tag is visible before the view is
+read — StoreLoad, the one ordering release/acquire cannot buy, and the
+store-verify cannot either (own-location acquire loads are satisfied from the
+store buffer).  A first litmus asserted the wrong property (single-round
+check-then-CAS peers are SC-reachable and already charged to (T-1)K; GenMC
+refuted the assertion) — the genuine weak-memory hole is the double
+store-buffering pair: H's tag-store vs view-load AND the peer's commit-CAS vs
+its NEXT licence check.  Fix shipped: seq_cst fence on the _tag_first path
+(HIGHEST first-touch per Linkage only), which GenMC shows individually
+necessary.  The peer half is closed for free on x86 (locked RMW) and left
+open on ARMv8 (casal is not a full barrier) as a priced trade — fencing it
+means a dmb on every tier's commit; exposure is one +1-class licensed win per
+store-buffer drain.  tests/tlaplus/test_negotiate_reserve.c carries the
+provable (both-fenced, GenMC-clean, 3 executions) and as-implemented
+(expected-violation counterexample) variants; all four fence quadrants run,
+only both-fenced passes.  En route the no-DCAS audit gained a toolchain
+pre-probe: Apple clang's fake -m32 -march=i486 (really ARMv4T) now skips both
+phases instead of failing the STM probe on atomic.h's int_cas_max
+fallthrough — a failure no real i486 toolchain produces.

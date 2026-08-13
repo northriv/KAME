@@ -60,6 +60,32 @@ i486_probe() {
         echo "SKIPPED (no 32-bit multilib; install gcc-multilib g++-multilib)"
         return
     fi
+    # Pre-probe what -m32 -march=i486 ACTUALLY targets before compiling the
+    # real source.  Apple clang accepts the flags and emits 32-bit ARMv4T,
+    # which used to surface in two different ways: allocator.cpp "compiled"
+    # to an empty object (caught below), while the STM probe FAILS to compile
+    # outright — ARMv4T has no lock-free atomics at all, so atomic.h's
+    # int_cas_max fallthrough leaves the typedef undefined and the phase
+    # reported a failure that no real i486 toolchain would produce
+    # (ATOMIC_INT_LOCK_FREE == 2 there; CMPXCHG is i486+).  One trivial TU
+    # settles the toolchain question for both phases.
+    if [ -z "${NO_DCAS_ARCH_OK+x}" ]; then
+        echo 'int kame_no_dcas_arch_probe;' > "$tmp/archprobe.c"
+        if "$CXX" -m32 -march=i486 -c "$tmp/archprobe.c" \
+                -o "$tmp/archprobe.o" 2>/dev/null \
+                && file "$tmp/archprobe.o" 2>/dev/null \
+                       | grep -qiE 'Intel (80)?386|i386|80486|x86'; then
+            NO_DCAS_ARCH_OK=1
+        else
+            NO_DCAS_ARCH_OK=0
+        fi
+    fi
+    if [ "$NO_DCAS_ARCH_OK" != "1" ]; then
+        echo "SKIPPED (toolchain accepted -m32 -march=i486 but targets"
+        echo "         $( (file "$tmp/archprobe.o" 2>/dev/null || echo 'nothing') | sed 's/.*: //')"
+        echo "         — needs a real i386 multilib toolchain, e.g. Linux g++ -m32)"
+        return
+    fi
     if ! "$CXX" -m32 -march=i486 -std=c++17 -O2 "$@" -c "$src" \
             -o "$tmp/$tag.o" 2>"$tmp/$tag.log"; then
         echo "FAILED (compile)"

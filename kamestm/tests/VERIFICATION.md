@@ -99,6 +99,7 @@ TLA+ atomic step corresponding 1:1 to a C atomic operation:
 | `test_atomic_shared_ptr.c` | `atomic_shared_ptr.tla` (Layer 1, core) | Pass |
 | `test_scoped_atomic_view.c` | `atomic_shared_ptr.tla` (Layer 1, scope) | Pass — 96 executions, 0.28s |
 | `test_stm_commit.c` | (legacy stm_commit layer) | Pass |
+| `test_negotiate_reserve.c` | NegotiateReserve.tla (TagBeforeAcquire) | Pass (both-fenced variant; 3 executions).  `-DNEG_RESERVE_AS_IMPLEMENTED` is an EXPECTED violation — a checked-in counterexample for the peer-side residual RC11 admits but x86 (locked RMW) forbids and ARMv8 (casal) leaves open by a store-buffer drain; see the file header.  All four fence quadrants verified: only both-fenced passes, so each fence is individually load-bearing. |
 | `test_bundle_2level.c`, `test_bundle_2level_LLfree.c` | `BundleUnbundle_2level*.tla` | Pass |
 | `test_bundle_3level.c`, `test_bundle_3level_LLfree.c` | `BundleUnbundle_3level*.tla` | Pass |
 | `test_bundle_hardlink_{4node,self_collision,external,external_migration,dynamic,nonatomic}.c` (6) | `BundleUnbundle_hardlink_*.tla` family | mechanically generated from the specs (each header: "C11 test generated mechanically from …"); run under GenMC |

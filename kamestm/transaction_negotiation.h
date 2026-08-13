@@ -506,9 +506,36 @@ public:
         // validated HIGHEST tag — same predicate, see i_am_privileged_now).
         using NC = typename Node<XN>::NegotiationCounter;
         const bool _tag_first = _tag_before_acquire_();
-        bool we_hold_priv = _tag_first
-            ? m_snap->tag_as_contender(m_link)
-            : NC::i_am_privileged_now(m_snap->m_started_time, m_link.get());
+        bool we_hold_priv;
+        if(_tag_first) {
+            we_hold_priv = m_snap->tag_as_contender(m_link);
+            // StoreLoad fence (per the 2026-08-14 memory-order audit): the
+            // reorder's bound assumes the tag is VISIBLE before the view is
+            // read, and that is the one ordering release/acquire cannot buy.
+            // The store-verify above does not prove it either -- an
+            // own-location acquire load is satisfied from the store buffer
+            // (store forwarding), on x86 and ARM alike.  Without this fence
+            // the guarantee was parasitic on x86 only (the view pin's locked
+            // RMW drains the buffer) and absent on ARM64 (casal's acquire
+            // half does not order an earlier store before its own load), so
+            // a ns-scale window re-admitted the +1 the reorder deletes.
+            // Cost: HIGHEST first-touch per Linkage per Snapshot only.
+            // This closes H's half of the store-buffering pair and GenMC
+            // confirms it is individually necessary (tests/tlaplus/
+            // test_negotiate_reserve.c: violation with it removed even when
+            // the peer is fenced).  The peer's half -- its NEXT licence
+            // check reordering above its own commit CAS -- is closed for
+            // free on x86 (a locked RMW is a full barrier) and left open on
+            // ARMv8 (casal is not) as a deliberate trade: fencing it costs
+            // a dmb on every tier's commit, and the exposure is one
+            // +1-class licensed win per store-buffer drain.  The litmus
+            // carries the provable (both-fenced) and as-implemented
+            // variants, the latter as a checked-in counterexample.
+            std::atomic_thread_fence(std::memory_order_seq_cst);
+        }
+        else
+            we_hold_priv = NC::i_am_privileged_now(
+                m_snap->m_started_time, m_link.get());
         // STRONG-mode acquire+CAS for the privileged thread: privilege
         // is exclusive and fair_mode blocks all other threads' CAS on
         // this linkage, so a strong spin has no peer to contend with.
@@ -615,10 +642,16 @@ public:
 #endif
         m_view = scoped_atomic_view<PacketWrapper>(*m_link, std::move(from));
         const bool _tag_first = _tag_before_acquire_();
-        m_strong_mode = _tag_first
-            ? m_snap->tag_as_contender(m_link)
-            : Node<XN>::NegotiationCounter::i_am_privileged_now(
-                  m_snap->m_started_time, m_link.get());
+        if(_tag_first) {
+            m_strong_mode = m_snap->tag_as_contender(m_link);
+            // StoreLoad fence -- see the first _tag_first site for the full
+            // rationale (store forwarding defeats the verify; x86 was
+            // parasitically safe via the pin's locked RMW, ARM64 was not).
+            std::atomic_thread_fence(std::memory_order_seq_cst);
+        }
+        else
+            m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
+                m_snap->m_started_time, m_link.get());
         // Per user ("olderがpreemptできるように"): when someone else
         // holds per-Linkage privilege on this slot, force tag_as_contender
         // even on retry=0 (m_should_tag=false).  tag_as_contender's window
@@ -686,10 +719,16 @@ public:
 #endif
         m_view = std::move(from);
         const bool _tag_first = _tag_before_acquire_();
-        m_strong_mode = _tag_first
-            ? m_snap->tag_as_contender(m_link)
-            : Node<XN>::NegotiationCounter::i_am_privileged_now(
-                  m_snap->m_started_time, m_link.get());
+        if(_tag_first) {
+            m_strong_mode = m_snap->tag_as_contender(m_link);
+            // StoreLoad fence -- see the first _tag_first site for the full
+            // rationale (store forwarding defeats the verify; x86 was
+            // parasitically safe via the pin's locked RMW, ARM64 was not).
+            std::atomic_thread_fence(std::memory_order_seq_cst);
+        }
+        else
+            m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
+                m_snap->m_started_time, m_link.get());
         // Per user ("olderがpreemptできるように"): when someone else
         // holds per-Linkage privilege on this slot, force tag_as_contender
         // even on retry=0 (m_should_tag=false).  tag_as_contender's window
