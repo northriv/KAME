@@ -1756,7 +1756,21 @@ public:
     static bool highest_mask_current_() noexcept {
         return getCurrentPriorityMode() == Priority::HIGHEST;
     }
-    void tag_as_contender(const local_shared_ptr<typename Node<XN>::Linkage> &link) noexcept {
+    //! \return whether OUR stamp owns \a link's slot when this returns —
+    //! the same predicate `NegotiationCounter::i_am_privileged_now` computes,
+    //! but from the load and the store-verify this function already performs,
+    //! so the caller pays nothing for it.  A caller that tags BEFORE acquiring
+    //! its view (the HIGHEST path) uses this instead of a second slot read,
+    //! which also closes the window between the verify below and that read:
+    //! a peer overwriting in it would send us down the weak acquire even
+    //! though our stamp had landed.
+    //!
+    //! Note the two ways the answer can be true.  Either we preempted and the
+    //! verify passed, or we did not preempt because the slot ALREADY carries
+    //! our own privileged stamp (`_diff == 0` against ourselves, from an
+    //! earlier touch of this Linkage in the same Snapshot) — the dedup path
+    //! below.  Reporting "did I store?" would call that second case a loss.
+    bool tag_as_contender(const local_shared_ptr<typename Node<XN>::Linkage> &link) noexcept {
         // CAS-loop variant (Option A). Atomically claim the linkage's
         // priority slot iff the slot is empty OR the current tagger is
         // YOUNGER than us (compare on stamp_us only — the tid packed in
@@ -2034,7 +2048,7 @@ public:
 #endif
             slot.store(my_stamp, std::memory_order_release);
             if(slot.load(std::memory_order_acquire) != my_stamp) [[unlikely]]
-                return;  // overwritten — don't add to list
+                return false;  // overwritten — don't add to list
 
             // Per-Linkage recent-ops log (m_recent_ops_state) is updated only
             // at confirmed publish points (bundle Phase 4 success with
@@ -2061,13 +2075,24 @@ public:
         //
         // -------------------------------------------------------------------
 
+        // Whether our stamp owns the slot now.  When we preempted, the verify
+        // above already proved it (we would have returned false otherwise).
+        // When we did not, the slot is somebody's -- possibly OURS, from an
+        // earlier touch in this Snapshot -- and the test is the one
+        // `i_am_privileged_now` applies, evaluated on the `cur` we loaded at
+        // the top rather than on a fresh read.
+        const bool _mine_now = _preempt
+            || (NC::is_priv_stamp(cur)
+                && NC::stamp_tid(cur) == NC::stamp_tid(my_stamp));
+
         // Dedup: ++tr re-tags the same primary-node linkage on every
         // retry, which otherwise piles duplicate shared_ptr entries
         // onto m_tagged_linkages.
         for(auto &&l: m_tagged_linkages)
             if(l.get() == link.get())
-                return; //duplicated.
+                return _mine_now; //duplicated.
         m_tagged_linkages.push_back(link);
+        return _mine_now;
     }
 
     //! Walks m_tagged_linkages and clears each linkage's tag only if it

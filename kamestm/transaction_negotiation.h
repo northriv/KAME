@@ -266,6 +266,43 @@ class ScopedNegotiateLinkage {
     static bool highest_tags_eagerly_() noexcept {
         return getCurrentPriorityMode() == Priority::HIGHEST;
     }
+    //! HIGHEST stamps the slot BEFORE it takes the view; everyone else keeps
+    //! the original order (view, then tag).  Two things follow, and the second
+    //! is the reason to do it.
+    //!
+    //!   * The untagged entry disappears.  Between the acquire and the tag,
+    //!     HIGHEST holds a view of a Linkage it has not claimed, and a peer
+    //!     CAS landing there stales a view already taken -- one loss per
+    //!     Linkage per Snapshot, since every later touch finds the tag
+    //!     already down.  NegotiateReserve.tla prices it exactly: the bound
+    //!     goes from (T-1)K + 1 to (T-1)K per Linkage, exhaustively at
+    //!     T in {3,4} and K in {1,2}.
+    //!
+    //!   * The FIRST touch stops being weak.  `we_hold_priv` used to be read
+    //!     before our own tag existed, so it was false on every Linkage's
+    //!     first touch and the ctor took the weak acquire and the weak CAS
+    //!     there.  On x86 a weak CAS failure means real contention, but on a
+    //!     weak-memory target it can be spurious, and a spurious failure on
+    //!     the first touch of every Linkage is not something a realtime bound
+    //!     can absorb.  Tagging first makes i_am_privileged_now true, so the
+    //!     acquire is DEFER_THRESHOLD + strong and the CAS dispatches to
+    //!     compareAndSetStrong*, which fails only on a real pointer change.
+    //!
+    //! Older-first between HIGHESTs is unaffected: the arbitration lives
+    //! entirely in tag_as_contender's rule cascade, which reads the slot and
+    //! our own stamp and nothing else -- no view is involved.  If anything it
+    //! is served better, because the older HIGHEST's Reserved stamp is down
+    //! sooner, so a younger HIGHEST's negotiate is likelier to see it and
+    //! defer on the age gate in _negotiate_internal.
+    //!
+    //! What it costs: a scope that tags and then fails its acquire leaves a
+    //! Reserved stamp on a Linkage it never used, until drop_tags_n_privilege.
+    //! Peers stay off it in the meantime.  That is the same exposure as any
+    //! never-expiring HIGHEST privilege here, and the earlier claim is the
+    //! intent rather than an accident.
+    bool _tag_before_acquire_() const noexcept {
+        return m_eager && m_should_tag && highest_tags_eagerly_();
+    }
     bool            m_committed = false;
     bool            m_contention_observed = false;  // forces dtor tag despite retry==0
     //! True iff the privileged thread (s_privileged_tidstamp holder)
@@ -468,8 +505,10 @@ public:
         // hold the Reserved stamp on this Linkage (or, under Rule 0d, a
         // validated HIGHEST tag — same predicate, see i_am_privileged_now).
         using NC = typename Node<XN>::NegotiationCounter;
-        bool we_hold_priv = NC::i_am_privileged_now(m_snap->m_started_time,
-                                                    m_link.get());
+        const bool _tag_first = _tag_before_acquire_();
+        bool we_hold_priv = _tag_first
+            ? m_snap->tag_as_contender(m_link)
+            : NC::i_am_privileged_now(m_snap->m_started_time, m_link.get());
         // STRONG-mode acquire+CAS for the privileged thread: privilege
         // is exclusive and fair_mode blocks all other threads' CAS on
         // this linkage, so a strong spin has no peer to contend with.
@@ -511,9 +550,9 @@ public:
         // stamp during walkUpChain / snapshotForUnbundle.
         using NC2 = typename Node<XN>::NegotiationCounter;
         const bool _force_tag_for_preempt =
-            m_eager && !m_should_tag
+            !_tag_first && m_eager && !m_should_tag
             && NC2::fair_mode_blocks_me(m_snap->m_started_time, m_link.get());
-        if((m_eager && m_should_tag) || _force_tag_for_preempt)
+        if(( !_tag_first && m_eager && m_should_tag) || _force_tag_for_preempt)
             m_snap->tag_as_contender(m_link);
     }
 
@@ -575,8 +614,11 @@ public:
         _shift_gate_history();   // captures decision before _on_cas_* clears it
 #endif
         m_view = scoped_atomic_view<PacketWrapper>(*m_link, std::move(from));
-        m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
-                            m_snap->m_started_time, m_link.get());
+        const bool _tag_first = _tag_before_acquire_();
+        m_strong_mode = _tag_first
+            ? m_snap->tag_as_contender(m_link)
+            : Node<XN>::NegotiationCounter::i_am_privileged_now(
+                  m_snap->m_started_time, m_link.get());
         // Per user ("olderがpreemptできるように"): when someone else
         // holds per-Linkage privilege on this slot, force tag_as_contender
         // even on retry=0 (m_should_tag=false).  tag_as_contender's window
@@ -589,9 +631,9 @@ public:
         // stamp during walkUpChain / snapshotForUnbundle.
         using NC2 = typename Node<XN>::NegotiationCounter;
         const bool _force_tag_for_preempt =
-            m_eager && !m_should_tag
+            !_tag_first && m_eager && !m_should_tag
             && NC2::fair_mode_blocks_me(m_snap->m_started_time, m_link.get());
-        if((m_eager && m_should_tag) || _force_tag_for_preempt)
+        if(( !_tag_first && m_eager && m_should_tag) || _force_tag_for_preempt)
             m_snap->tag_as_contender(m_link);
     }
 
@@ -643,8 +685,11 @@ public:
         _shift_gate_history();   // captures decision before _on_cas_* clears it
 #endif
         m_view = std::move(from);
-        m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
-                            m_snap->m_started_time, m_link.get());
+        const bool _tag_first = _tag_before_acquire_();
+        m_strong_mode = _tag_first
+            ? m_snap->tag_as_contender(m_link)
+            : Node<XN>::NegotiationCounter::i_am_privileged_now(
+                  m_snap->m_started_time, m_link.get());
         // Per user ("olderがpreemptできるように"): when someone else
         // holds per-Linkage privilege on this slot, force tag_as_contender
         // even on retry=0 (m_should_tag=false).  tag_as_contender's window
@@ -657,9 +702,9 @@ public:
         // stamp during walkUpChain / snapshotForUnbundle.
         using NC2 = typename Node<XN>::NegotiationCounter;
         const bool _force_tag_for_preempt =
-            m_eager && !m_should_tag
+            !_tag_first && m_eager && !m_should_tag
             && NC2::fair_mode_blocks_me(m_snap->m_started_time, m_link.get());
-        if((m_eager && m_should_tag) || _force_tag_for_preempt)
+        if(( !_tag_first && m_eager && m_should_tag) || _force_tag_for_preempt)
             m_snap->tag_as_contender(m_link);
     }
 
