@@ -2732,8 +2732,49 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
 
     Node &supernode(supscope->packet()->node());
 
+    //! EARLY PUBLISH, and why HIGHEST wants it even when the two conditions
+    //! below are already satisfied (user, 2026-08-13: "if all you need is to
+    //! make the peer's CAS fail, what is a reservation for?").
+    //!
+    //! A peer that got past its negotiate before our tag went down still holds
+    //! a live entitlement, and negotiate is checked ONCE per scope, so nothing
+    //! stops it CASing this Linkage later.  Nothing except the pointer: its
+    //! CAS compares against the wrapper it loaded, so ANY publish of ours
+    //! stales it and the hardware refuses the write.  We do not need to
+    //! reserve, or flag, or make peers behave -- we need to have published
+    //! before Phase 1 runs, and Phase 1 is the long part (it walks every
+    //! child and recurses into their bundles).
+    //!
+    //! The block below already publishes exactly that: a fresh wrapper over
+    //! the same packet, ahead of Phase 1.  It was merely SKIPPED whenever we
+    //! already held priority at this serial -- and when it is skipped, Phase 1
+    //! runs against a pointer every in-flight peer can still match, so their
+    //! CASes land and Phase 2 or Phase 4 comes back DISTURBED with our own
+    //! Reserved stamp untouched on the slot.  That is the shape every [3L]
+    //! dump in this branch reported.
+    //!
+    //! NegotiateReserve.tla prices it: with the early publish the per-Linkage
+    //! bound drops from (T-1)K to T-1, and it does so at BOTH K=1 and K=2 --
+    //! the K factor disappears outright.  A peer does not lose one CAS, it
+    //! loses its licence: the stale view fails the pointer compare, the caller
+    //! builds a fresh scope, and a fresh scope negotiates into our tag.  Its
+    //! second publish never happens, which is why the Phase-4 re-negotiate
+    //! that K=1 stood for stops being worth buying.  At the measured shape
+    //! (T=4, L=8) that is 48 -> 24, i.e. 3L: the rule this work started from,
+    //! correct at last for a protocol that now stamps before it looks and
+    //! publishes before it works.
+    //!
+    //! HIGHEST only.  For everyone else the skip is a pure saving -- they have
+    //! no tail to protect and would just be paying a CAS and an allocation to
+    //! invalidate each other.  The cost to HIGHEST is one CAS plus one wrapper
+    //! per bundle level per pass, and a loss here is the cheap kind: nothing
+    //! has been built yet, so it costs a re-entry rather than a re-run of
+    //! Phase 1.  That is the whole point of moving it earlier.
+    const bool _highest_early_publish =
+        (getCurrentPriorityMode() == Priority::HIGHEST);
     if( !supscope->hasPriority() ||
-        (supscope->m_bundle_serial != bundle_serial)) {
+        (supscope->m_bundle_serial != bundle_serial) ||
+        _highest_early_publish) {
         //Tags serial.
         // Keep local_shared_ptr (not unique_ptr) here: superwrapper is
         // moved into supscope.set_view after CAS for tracking.  unique_ptr
