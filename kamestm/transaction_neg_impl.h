@@ -211,6 +211,7 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
 #define KAME_STM_HIGHEST_BUNDLE_BLOCK 0
 #endif
 
+
 template <class XN>
 bool Node<XN>::NegotiationCounter::i_am_privileged_now(
         cnt_t my_tidstamp,
@@ -393,18 +394,68 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // past 22 us — the tail tightening the rule exists for, and invisible in
     // the container.
     //
-    // This A/B was ABAB with ON second, and a `no_tags` result from the same
-    // pair of sessions turned out to track the slot rather than the build
-    // (RT_READINESS.md), so the MAX column needs the same suspicion.  It
-    // survives it: the OFF build here is the same binary that ran in the
-    // OTHER slot in the previous session, and its MAX distribution is the
-    // same in both (14647 16657 17550 20240 28088 vs 14913 16637 19009 22303
-    // 24904 — they interleave), while its no_tags moved 5.7x.  The tail is
-    // reproducible across the slot swap; the probe statistic is not.
+    // VERDICT (2026-08-12): NOT adopted -- and the reason that matters is
+    // not the throughput one below.  MAX is an upper-BOUND question, and the
+    // quantity with no bound here is the rebuild count, so that is what a
+    // rule claiming to bound HIGHEST's tail has to move.  It was never
+    // measured, because `snapshot_retries` was only ever summed; NegDiag now
+    // carries `snapshot_retries_max` and the answer is flat:
     //
-    // The bands still OVERLAP (both sit in 16-19 us most runs), so at n=5
-    // this is a lead, not a verdict.  Default OFF until a longer run
-    // separates them.
+    //   leaves L        2     4     8    16
+    //   rebuild max OFF  3     5    11    60
+    //   rebuild max ON   4     6    11    64
+    //
+    // Rule 0d does not bound it, does not bend the growth, does not even
+    // move it.  The throughput/`slow_n` result below is consistent with that
+    // but was the wrong test to have run first.
+    //
+    // WHY it cannot: the same sweep with KAME_MIX_DISJOINT=1 gives rebuild
+    // max = 0 at every L, so every rebuild is a peer touching the acquiring
+    // subtree -- not the acq thread's own demoted downstream, which DISJOINT
+    // leaves running.  The disturbers are external, so a priority shield is
+    // the right SHAPE; this one is just aimed at the wrong moment.  It gates
+    // a peer's commit CAS for the duration of one bundle pass, while what
+    // replaces the packet can be a peer BUNDLING (a reader's root-scope
+    // Snapshot absorbs the subtree beneath it and never consults
+    // fair_mode_blocks_me), or a commit landing between two passes.
+    //
+    // The half of the design that is actually missing is the other one:
+    // HIGHEST does not enter privilege quickly, it enters it only after the
+    // livelock probe reaches a verdict.  Until it holds a Reserved stamp its
+    // only shield is this plain-tag one, which is one pass wide.  A rule
+    // that gives HIGHEST privilege on entry, and then lets the EXISTING
+    // Reserved-stamp fair-mode shield do the work, is the shape to try next
+    // -- and to judge on `snapshot rebuilds: max`, not on throughput.
+    //
+    // The throughput measurement, for the record:  The A/B above was ABAB with ON
+    // always second, and the slot turns out to matter: within one rep of
+    // four runs the tail population decays monotonically, 20 % from first
+    // slot to fourth for the SAME binary.  Re-run ABBA (OFF, ON, ON, OFF) x3
+    // at 60 s, with `slow_n` at a 7 us threshold as the primary metric --
+    // ~500 events per run instead of the handful a 15 us threshold gives, so
+    // it can actually resolve a 10 % change:
+    //
+    //                       Rule 0d OFF                Rule 0d ON
+    //   slow_n (>=7 us)     595 483 640 521 516 454    552 504 552 483 419 514
+    //     median / mean     518.5 / 534.8              509 / 504.0
+    //   MAX per run         20403 15415 21495          23531 13791 17626
+    //                       12707 15421 14499          13872 12709 14685
+    //     worst of 6        21,495 ns                  23,531 ns
+    //   acq /s (median)     124,677                    114,240   (-8.4 %)
+    //   p99.9               3584-4096                  3584-4096
+    //
+    // slow_n moves -5.8 % on the mean and -1.8 % on the median against a
+    // run-to-run spread of +-17 %: nothing.  MAX's worst-of-6 goes the wrong
+    // way.  The cost, by contrast, is unambiguous and reproduces the earlier
+    // figure exactly -- the acq distributions do not overlap (OFF min 122,977
+    // > ON max 115,146).
+    //
+    // So: a measured 8.4 % throughput charge with no demonstrable effect on
+    // the tail it was built for.  The earlier "MAX 24.9 -> 19.3 us" that made
+    // it look promising was an ABAB extreme value at a different run length;
+    // it did not reproduce.  Keep the code -- it is two `if`s and it costs
+    // nothing while compiled out -- but default OFF, and do not revisit
+    // without an order-balanced design and a high-count tail metric.
 #if KAME_STM_HIGHEST_BUNDLE_BLOCK
     if(slot && stamp_tid(slot) != stamp_tid(tidstamp)
             && is_bundling_kind(slot) && stamp_is_highest(slot))
@@ -566,6 +617,13 @@ struct NegDiag {
     //! scope exit, because they are snapshot-internal rather than
     //! transaction-level.  Correct for the probe, invisible for latency.
     std::uint64_t snapshot_retries;
+    //! The LARGEST rebuild count any single snapshot reached.  The sum above
+    //! cannot answer the question this quantity exists for: the bundle-rebuild
+    //! count is the one thing in the negotiation with no reachable upper
+    //! bound (measured 2 -> 142 as the subtree grew 2 -> 13 linkages), and a
+    //! bound is a statement about the MAXIMUM, not about a rate.  Anything
+    //! claiming to bound HIGHEST's tail has to be judged here.
+    std::uint64_t snapshot_retries_max;
     //! The livelock probe, which is the only door to a privilege claim
     //! (`if(_ll_saw && !registered)` — no priority term, so HIGHEST claims on
     //! the same terms as anyone).  priv strips have been 0 in every run of

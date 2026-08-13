@@ -245,7 +245,27 @@ class ScopedNegotiateLinkage {
     scoped_atomic_view<PacketWrapper> m_view;
     float           m_mult_wait;             // retained from ctor for dtor's negotiate
     bool            m_eager;
-    bool            m_should_tag;            // retry != 0 — fast-path optimization
+    bool            m_should_tag;            // retry != 0, or HIGHEST
+    //! `retry != 0` is a fast-path optimisation: do not pay a tag CAS until
+    //! the first pass has actually collided.  For HIGHEST that optimisation
+    //! is the bug.  `bundle()` walks every child with a retry==0 scope, so on
+    //! the pass that matters it touches each child's Linkage and leaves it
+    //! UNSTAMPED.  A peer then writes that child freely, the bundle returns
+    //! DISTURBED, and the privilege HIGHEST holds on the subtree ROOT never
+    //! enters it -- the peer never went through the root.  Shielded surface
+    //! one Linkage, exposed surface the whole subtree; it shows up as a
+    //! rebuild count that tracks LEAVES and blows the 2L bound.
+    //!
+    //! (`_force_tag_for_preempt` cannot substitute: it requires
+    //! `fair_mode_blocks_me` to be true already, i.e. somebody ELSE holding
+    //! privilege on that Linkage.  It is a way to preempt, not to claim.)
+    //!
+    //! Tagging HIGHEST from retry 0 makes the shielded surface equal the
+    //! bundled one.  Costs one TLS read per scope, and a tag CAS per child
+    //! per bundle pass -- which is the throughput this buys the bound with.
+    static bool highest_tags_eagerly_() noexcept {
+        return getCurrentPriorityMode() == Priority::HIGHEST;
+    }
     bool            m_committed = false;
     bool            m_contention_observed = false;  // forces dtor tag despite retry==0
     //! True iff the privileged thread (s_privileged_tidstamp holder)
@@ -388,7 +408,7 @@ public:
         : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
-          m_should_tag(retry != 0)
+          m_should_tag(retry != 0 || highest_tags_eagerly_())
 #if KAME_ENABLE_RUNNER_DIGEST
         , m_caller_line(caller_line)
 #endif
@@ -522,7 +542,7 @@ public:
         : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
-          m_should_tag(retry != 0)
+          m_should_tag(retry != 0 || highest_tags_eagerly_())
 #if KAME_ENABLE_RUNNER_DIGEST
         , m_caller_line(caller_line)
 #endif
@@ -590,7 +610,7 @@ public:
         : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
-          m_should_tag(retry != 0)
+          m_should_tag(retry != 0 || highest_tags_eagerly_())
 #if KAME_ENABLE_RUNNER_DIGEST
         , m_caller_line(caller_line)
 #endif
@@ -783,6 +803,19 @@ public:
     //! scopes use the WEAK fast path; conservative dtor tag on
     //! spurious failure (m_contention_observed).
     bool compareAndSet(const local_shared_ptr<PacketWrapper> &desired) noexcept {
+        //! THE RULE, made checkable (user, 2026-08-12): every CAS on a
+        //! Linkage's packet is preceded by negotiate, and negotiate makes a
+        //! thread yield while a peer holds privilege there.  That is what
+        //! protects the PACKET -- privilege sits on the tag word, the packet
+        //! is a different word, and only this rule connects them.  So being
+        //! here while `fair_mode_blocks_me` is true means some path reached a
+        //! CAS without negotiating, and the stack says which.
+        //!
+        //! Why it is worth an assert: a HIGHEST bundle loses these two CASes
+        //! ~1300 times in 25 s at 16 leaves with its OWN Reserved stamp still
+        //! on the parent Linkage (10 of 10 sampled), and that is the whole of
+        //! the rebuild count.  Either a peer is breaking the rule or the
+        //! yield has an exit that lets it through.
         if (m_strong_mode) {
             if (m_link->compareAndSetStrong(m_view, desired)) {
                 _on_cas_success();
@@ -849,6 +882,19 @@ public:
     //! failure undo is fetch_sub(2) (same op count).
     //! Strong/weak dispatch as in compareAndSet.
     bool compareAndSetRetain(const local_shared_ptr<PacketWrapper> &desired) noexcept {
+        //! THE RULE, made checkable (user, 2026-08-12): every CAS on a
+        //! Linkage's packet is preceded by negotiate, and negotiate makes a
+        //! thread yield while a peer holds privilege there.  That is what
+        //! protects the PACKET -- privilege sits on the tag word, the packet
+        //! is a different word, and only this rule connects them.  So being
+        //! here while `fair_mode_blocks_me` is true means some path reached a
+        //! CAS without negotiating, and the stack says which.
+        //!
+        //! Why it is worth an assert: a HIGHEST bundle loses these two CASes
+        //! ~1300 times in 25 s at 16 leaves with its OWN Reserved stamp still
+        //! on the parent Linkage (10 of 10 sampled), and that is the whole of
+        //! the rebuild count.  Either a peer is breaking the rule or the
+        //! yield has an exit that lets it through.
         if (m_strong_mode) {
             if (m_link->compareAndSetStrongRetain(m_view, desired)) {
                 _on_cas_success();
