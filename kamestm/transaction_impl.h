@@ -2363,6 +2363,37 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                 ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
         }
         ScopedNegotiateLinkage<XN> &scope = *scope_holder;
+#ifndef NDEBUG
+        //! Why this snapshot is rebuilding.  The [2L] dump ruled out "a peer
+        //! took our tag" (the surface is entirely ours) and the [DIST] probe
+        //! in bundle()'s child loop never fired for HIGHEST at all, so the
+        //! rebuilds are not the disturbance I assumed.  Count the loop's own
+        //! exits and let the run say which one it is.
+        //!
+        //! WHAT IT SAYS, 25 s at 16 leaves: `acquire-lost=0` -- the view
+        //! acquire never loses, so no peer is beating us to the Linkage --
+        //! and only ~7 % of retries find the packet absorbed into a super
+        //! packet (112 of 1600), a share that does NOT move when root-scope
+        //! UI transactions are switched off (110 of 1200).  So ancestor
+        //! bundling is not the driver either.  The remaining ~93 % take the
+        //! `hasPriority() && multi_nodal && packet()->missing()` fall-through:
+        //! the packet on our OWN Linkage, which we hold privilege on, keeps
+        //! coming back incomplete and we go round to assemble it again.
+        //! Nothing is being taken from us; the assembly is not converging.
+        //! That is where the next look belongs.
+        if(retry && getCurrentPriorityMode() == Priority::HIGHEST) {
+            static std::atomic<unsigned> s_noscope{0}, s_other{0};
+            static std::atomic<int> s_n{0};
+            static std::atomic<unsigned> s_absorbed{0};
+            if( !scope) ++s_noscope;
+            else { ++s_other; if( !scope->hasPriority()) ++s_absorbed; }
+            if(s_n.fetch_add(1, std::memory_order_relaxed) % 200 == 199)
+                std::fprintf(stderr,
+                    "[REBUILD] HIGHEST retries: acquire-lost=%u  scope-ok=%u  "
+                    "of which absorbed-into-a-super-packet=%u\n",
+                    s_noscope.load(), s_other.load(), s_absorbed.load());
+        }
+#endif
         if( !scope) {
             // Weak acquire CAS lost — treat as CAS failure: skip body
             // (m_contention_observed already set in ctor → dtor tags).
@@ -2770,6 +2801,41 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                     break;
                 case BundledStatus::DISTURBED:
                 default:
+#ifndef NDEBUG
+                    //! Who actually disturbed us.  The [2L] dump says the
+                    //! tagged surface is entirely ours at the moment the
+                    //! bound breaks, which rules out "a peer took our tag"
+                    //! and leaves "a peer replaced a packet on a Linkage we
+                    //! hold".  This says which Linkage and whose stamp is on
+                    //! it -- and, crucially, whether the disturbance is even
+                    //! at this level or came back up from a recursive
+                    //! bundle_subpacket.  Rate-limited to the first few so a
+                    //! debug run stays readable.
+                    //!
+                    //! MEASURED ZERO.  It never fires for HIGHEST at 16
+                    //! leaves, which is itself the result: the rebuilds are
+                    //! not this child loop coming back DISTURBED.
+                    if(getCurrentPriorityMode() == Priority::HIGHEST) {
+                        using NC = typename Node<XN>::NegotiationCounter;
+                        static std::atomic<int> s_n{0};
+                        if(s_n.fetch_add(1, std::memory_order_relaxed) < 12) {
+                            const auto sl =
+                                child->m_link->m_transaction_started_time.load(
+                                    std::memory_order_relaxed);
+                            std::fprintf(stderr,
+                                "[DIST] child %u/%u link=%p slot tid=%u kind=%u "
+                                "priv=%d mine=%d  sup_changed=%d\n",
+                                i, (unsigned)subpackets->size(),
+                                (void *)child->m_link.get(),
+                                (unsigned)NC::stamp_tid(sl),
+                                (unsigned)NC::stamp_kind(sl),
+                                (int)NC::is_priv_stamp(sl),
+                                (int)(NC::stamp_tid(sl)
+                                      == NC::stamp_tid(snap.m_started_time)),
+                                (int)!(supscope == *supernode.m_link));
+                        }
+                    }
+#endif
                     child_scope.confirm_contention();
                     if(supscope == *supernode.m_link)
                         continue;
