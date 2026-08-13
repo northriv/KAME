@@ -816,25 +816,6 @@ public:
         //! on the parent Linkage (10 of 10 sampled), and that is the whole of
         //! the rebuild count.  Either a peer is breaking the rule or the
         //! yield has an exit that lets it through.
-        //! COUNTED, not asserted.  There is a window between negotiate --
-        //! which checked fair mode and found it clear -- and this CAS, in
-        //! which a peer can plant its Reserved stamp; it is the same
-        //! CAS-fail-to-tag race that makes the failure bound 3L rather than
-        //! 2L.  So a hit here is expected to occur RARELY and proves nothing
-        //! on its own.  What decides is the RATE: compare it against the
-        //! DISTURBED returns it would have to explain (~1300 per 25 s at 16
-        //! leaves).  Aborting on the first one measures nothing, which is the
-        //! same mistake the 2L assert made.
-        //! HIGHEST is excluded: passing a foreign-tier privilege is its tier
-        //! contract, not a violation.
-#ifndef NDEBUG
-        if(getCurrentPriorityMode() != Priority::HIGHEST) {
-            detail::count_cas_nonhighest();
-            if(Node<XN>::NegotiationCounter::fair_mode_blocks_me(
-                   m_snap->m_started_time, m_link.get()))
-                detail::count_cas_past_privilege();
-        }
-#endif
         if (m_strong_mode) {
             if (m_link->compareAndSetStrong(m_view, desired)) {
                 _on_cas_success();
@@ -914,25 +895,6 @@ public:
         //! on the parent Linkage (10 of 10 sampled), and that is the whole of
         //! the rebuild count.  Either a peer is breaking the rule or the
         //! yield has an exit that lets it through.
-        //! COUNTED, not asserted.  There is a window between negotiate --
-        //! which checked fair mode and found it clear -- and this CAS, in
-        //! which a peer can plant its Reserved stamp; it is the same
-        //! CAS-fail-to-tag race that makes the failure bound 3L rather than
-        //! 2L.  So a hit here is expected to occur RARELY and proves nothing
-        //! on its own.  What decides is the RATE: compare it against the
-        //! DISTURBED returns it would have to explain (~1300 per 25 s at 16
-        //! leaves).  Aborting on the first one measures nothing, which is the
-        //! same mistake the 2L assert made.
-        //! HIGHEST is excluded: passing a foreign-tier privilege is its tier
-        //! contract, not a violation.
-#ifndef NDEBUG
-        if(getCurrentPriorityMode() != Priority::HIGHEST) {
-            detail::count_cas_nonhighest();
-            if(Node<XN>::NegotiationCounter::fair_mode_blocks_me(
-                   m_snap->m_started_time, m_link.get()))
-                detail::count_cas_past_privilege();
-        }
-#endif
         if (m_strong_mode) {
             if (m_link->compareAndSetStrongRetain(m_view, desired)) {
                 _on_cas_success();

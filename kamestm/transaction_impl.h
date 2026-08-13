@@ -103,20 +103,6 @@ DECLSPEC_KAME void note_tx_linkages(std::uint64_t n) noexcept {
 DECLSPEC_KAME std::uint64_t tx_linkages_max() noexcept {
     return s_tx_linkages_max.load(std::memory_order_relaxed);
 }
-namespace { std::atomic<std::uint64_t> s_cas_past_priv{0}; }
-DECLSPEC_KAME void count_cas_past_privilege() noexcept {
-    s_cas_past_priv.fetch_add(1, std::memory_order_relaxed);
-}
-DECLSPEC_KAME std::uint64_t cas_past_privilege() noexcept {
-    return s_cas_past_priv.load(std::memory_order_relaxed);
-}
-namespace { std::atomic<std::uint64_t> s_cas_nonhi{0}; }
-DECLSPEC_KAME void count_cas_nonhighest() noexcept {
-    s_cas_nonhi.fetch_add(1, std::memory_order_relaxed);
-}
-DECLSPEC_KAME std::uint64_t cas_nonhighest() noexcept {
-    return s_cas_nonhi.load(std::memory_order_relaxed);
-}
 DECLSPEC_KAME void count_highest_tag_shield() noexcept {
     static thread_local FlushTally t{&s_highest_tag_shields};
     ++t.n;
@@ -2377,37 +2363,6 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                 ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
         }
         ScopedNegotiateLinkage<XN> &scope = *scope_holder;
-#ifndef NDEBUG
-        //! Why this snapshot is rebuilding.  The [2L] dump ruled out "a peer
-        //! took our tag" (the surface is entirely ours) and the [DIST] probe
-        //! in bundle()'s child loop never fired for HIGHEST at all, so the
-        //! rebuilds are not the disturbance I assumed.  Count the loop's own
-        //! exits and let the run say which one it is.
-        //!
-        //! WHAT IT SAYS, 25 s at 16 leaves: `acquire-lost=0` -- the view
-        //! acquire never loses, so no peer is beating us to the Linkage --
-        //! and only ~7 % of retries find the packet absorbed into a super
-        //! packet (112 of 1600), a share that does NOT move when root-scope
-        //! UI transactions are switched off (110 of 1200).  So ancestor
-        //! bundling is not the driver either.  The remaining ~93 % take the
-        //! `hasPriority() && multi_nodal && packet()->missing()` fall-through:
-        //! the packet on our OWN Linkage, which we hold privilege on, keeps
-        //! coming back incomplete and we go round to assemble it again.
-        //! Nothing is being taken from us; the assembly is not converging.
-        //! That is where the next look belongs.
-        if(retry && getCurrentPriorityMode() == Priority::HIGHEST) {
-            static std::atomic<unsigned> s_noscope{0}, s_other{0};
-            static std::atomic<int> s_n{0};
-            static std::atomic<unsigned> s_absorbed{0};
-            if( !scope) ++s_noscope;
-            else { ++s_other; if( !scope->hasPriority()) ++s_absorbed; }
-            if(s_n.fetch_add(1, std::memory_order_relaxed) % 200 == 199)
-                std::fprintf(stderr,
-                    "[REBUILD] HIGHEST retries: acquire-lost=%u  scope-ok=%u  "
-                    "of which absorbed-into-a-super-packet=%u\n",
-                    s_noscope.load(), s_other.load(), s_absorbed.load());
-        }
-#endif
         if( !scope) {
             // Weak acquire CAS lost — treat as CAS failure: skip body
             // (m_contention_observed already set in ctor → dtor tags).
@@ -2557,42 +2512,6 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
 //! tag word, which is why they moved the rebuild count so little and why
 //! only ~7 % of retries were attributable to peers at the tag level.
 //!
-//! Which of the twelve `return BundledStatus::DISTURBED` sites a HIGHEST
-//! bundle actually leaves by.  The snapshot rebuild loop retries on DISTURBED
-//! and nothing else, so this is the whole of the rebuild count -- and the one
-//! site instrumented by hand (bundle()'s child loop) measured ZERO, which is
-//! why every site now reports.  Debug-only; the tally prints on exit.
-#ifndef NDEBUG
-namespace kame_dist_dbg {
-inline std::atomic<unsigned> &site(int line) {
-    static std::atomic<unsigned> t[4096];
-    return t[line & 4095];
-}
-inline void hit(int line) {
-    if(Transactional::getCurrentPriorityMode() == Transactional::Priority::HIGHEST)
-        site(line).fetch_add(1, std::memory_order_relaxed);
-}
-struct Dump { ~Dump() {
-    std::fprintf(stderr,
-        "[DISTSITE] non-HIGHEST CASes that landed while a peer's privilege "
-        "was live: %llu of %llu non-HIGHEST CASes = %.4f %%  (the "
-        "negotiate/CAS window; judge the RATE, not the existence)\n",
-        (unsigned long long)Transactional::detail::cas_past_privilege(),
-        (unsigned long long)Transactional::detail::cas_nonhighest(),
-        Transactional::detail::cas_nonhighest()
-            ? 100.0 * (double)Transactional::detail::cas_past_privilege()
-                    / (double)Transactional::detail::cas_nonhighest() : 0.0);
-    std::fprintf(stderr, "[DISTSITE] HIGHEST DISTURBED returns by source line:\n");
-    for(int l = 0; l < 4096; ++l)
-        if(unsigned n = site(l).load())
-            std::fprintf(stderr, "             transaction_impl.h:%d  %u\n", l, n);
-} };
-inline Dump g_dump;
-} // namespace kame_dist_dbg
-#define KAME_DIST_HIT() kame_dist_dbg::hit(__LINE__)
-#else
-#define KAME_DIST_HIT() ((void)0)
-#endif
 
 //=============================================================================
 // bundle_subpacket() — prepare one child's packet for inclusion in a bundle
@@ -2642,7 +2561,7 @@ Node<XN>::bundle_subpacket(ScopedNegotiateLinkage<XN> *supscope_super,
 //					need_for_unbundle = true;
                 }
                 else
-                    { KAME_DIST_HIT(); return BundledStatus::DISTURBED; }
+                    return BundledStatus::DISTURBED;
             }
         }
         else {
@@ -2672,7 +2591,7 @@ Node<XN>::bundle_subpacket(ScopedNegotiateLinkage<XN> *supscope_super,
                 return BundledStatus::SUCCESS;
             case UnbundledStatus::SUBVALUE_HAS_CHANGED:
             default:
-                { KAME_DIST_HIT(); return BundledStatus::DISTURBED; }
+                return BundledStatus::DISTURBED;
             }
         }
     }
@@ -2687,7 +2606,7 @@ Node<XN>::bundle_subpacket(ScopedNegotiateLinkage<XN> *supscope_super,
             break;
         case BundledStatus::DISTURBED:
         default:
-            { KAME_DIST_HIT(); return BundledStatus::DISTURBED; }
+            return BundledStatus::DISTURBED;
         }
     }
     subpacket_new = subscope->packet();
@@ -2807,10 +2726,10 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // view_copy().
         if(scope.operator->() != supscope.operator->()) {
             scope.confirm_contention();
-            { KAME_DIST_HIT(); return BundledStatus::DISTURBED; }
+            return BundledStatus::DISTURBED;
         }
         if( !scope.compareAndSet(superwrapper))
-            { KAME_DIST_HIT(); return BundledStatus::DISTURBED; }
+            return BundledStatus::DISTURBED;
         // CAS success: m_link advanced to superwrapper.  Update
         // supscope's view (move-in: 0 ops; supscope's old view is
         // released by set_view's internal release_).
@@ -2882,41 +2801,6 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                     break;
                 case BundledStatus::DISTURBED:
                 default:
-#ifndef NDEBUG
-                    //! Who actually disturbed us.  The [2L] dump says the
-                    //! tagged surface is entirely ours at the moment the
-                    //! bound breaks, which rules out "a peer took our tag"
-                    //! and leaves "a peer replaced a packet on a Linkage we
-                    //! hold".  This says which Linkage and whose stamp is on
-                    //! it -- and, crucially, whether the disturbance is even
-                    //! at this level or came back up from a recursive
-                    //! bundle_subpacket.  Rate-limited to the first few so a
-                    //! debug run stays readable.
-                    //!
-                    //! MEASURED ZERO.  It never fires for HIGHEST at 16
-                    //! leaves, which is itself the result: the rebuilds are
-                    //! not this child loop coming back DISTURBED.
-                    if(getCurrentPriorityMode() == Priority::HIGHEST) {
-                        using NC = typename Node<XN>::NegotiationCounter;
-                        static std::atomic<int> s_n{0};
-                        if(s_n.fetch_add(1, std::memory_order_relaxed) < 12) {
-                            const auto sl =
-                                child->m_link->m_transaction_started_time.load(
-                                    std::memory_order_relaxed);
-                            std::fprintf(stderr,
-                                "[DIST] child %u/%u link=%p slot tid=%u kind=%u "
-                                "priv=%d mine=%d  sup_changed=%d\n",
-                                i, (unsigned)subpackets->size(),
-                                (void *)child->m_link.get(),
-                                (unsigned)NC::stamp_tid(sl),
-                                (unsigned)NC::stamp_kind(sl),
-                                (int)NC::is_priv_stamp(sl),
-                                (int)(NC::stamp_tid(sl)
-                                      == NC::stamp_tid(snap.m_started_time)),
-                                (int)!(supscope == *supernode.m_link));
-                        }
-                    }
-#endif
                     child_scope.confirm_contention();
                     if(supscope == *supernode.m_link)
                         continue;
@@ -2955,35 +2839,10 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // value through Phase 3, ready for Phase 4's CAS without reload.
         if(scope.operator->() != supscope.operator->()) {
             scope.confirm_contention();
-            { KAME_DIST_HIT(); return BundledStatus::DISTURBED; }
+            return BundledStatus::DISTURBED;
         }
         if( !scope.compareAndSetRetain(superwrapper)) {
-#ifndef NDEBUG
-            //! We hold privilege on supernode.m_link (eager HIGHEST tagging),
-            //! so a peer CASing it should have parked in fair_mode.  Someone
-            //! is not consulting it.  Record whose stamp is on the parent at
-            //! the moment we lose, and by which phase.
-            if(getCurrentPriorityMode() == Priority::HIGHEST) {
-                using NC = typename Node<XN>::NegotiationCounter;
-                static std::atomic<int> s_n{0};
-                if(s_n.fetch_add(1, std::memory_order_relaxed) < 10) {
-                    const auto sl = supernode.m_link
-                        ->m_transaction_started_time.load(
-                            std::memory_order_relaxed);
-                    std::fprintf(stderr,
-                        "[SUPER] phase=%s parent=%p slot tid=%u kind=%u "
-                        "priv=%d highest=%d mine=%d\n", "2",
-                        (void *)supernode.m_link.get(),
-                        (unsigned)NC::stamp_tid(sl),
-                        (unsigned)NC::stamp_kind(sl),
-                        (int)NC::is_priv_stamp(sl),
-                        (int)NC::stamp_is_highest(sl),
-                        (int)(NC::stamp_tid(sl)
-                              == NC::stamp_tid(snap.m_started_time)));
-                }
-            }
-#endif
-            KAME_DIST_HIT(); return BundledStatus::DISTURBED;
+            return BundledStatus::DISTURBED;
         }
         // Update supscope.view to track the new m_link state.
         // Pass copy of superwrapper (still needed for Phase 4).
@@ -3062,7 +2921,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                             // returning DISTURBED so its dtor doesn't
                             // re-tag/assert on legitimate forward progress.
                             scope.commit();
-                            { KAME_DIST_HIT(); return BundledStatus::DISTURBED; }
+                            return BundledStatus::DISTURBED;
                         }
                     }
                     // No need to manually release subwrappers_org[i..n-1]:
@@ -3111,7 +2970,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                 newpacket->m_missing = true;
                 scope.confirm_contention();
                 scope.commit();
-                { KAME_DIST_HIT(); return BundledStatus::DISTURBED; }
+                return BundledStatus::DISTURBED;
             }
         }
 
@@ -3121,36 +2980,11 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         if(scope.operator->() != supscope.operator->()) {
             scope.confirm_contention();
             scope.commit();
-            { KAME_DIST_HIT(); return BundledStatus::DISTURBED; }
+            return BundledStatus::DISTURBED;
         }
         if( !scope.compareAndSetWithHint(superwrapper, started_time)) {
             scope.commit();
-#ifndef NDEBUG
-            //! We hold privilege on supernode.m_link (eager HIGHEST tagging),
-            //! so a peer CASing it should have parked in fair_mode.  Someone
-            //! is not consulting it.  Record whose stamp is on the parent at
-            //! the moment we lose, and by which phase.
-            if(getCurrentPriorityMode() == Priority::HIGHEST) {
-                using NC = typename Node<XN>::NegotiationCounter;
-                static std::atomic<int> s_n{0};
-                if(s_n.fetch_add(1, std::memory_order_relaxed) < 10) {
-                    const auto sl = supernode.m_link
-                        ->m_transaction_started_time.load(
-                            std::memory_order_relaxed);
-                    std::fprintf(stderr,
-                        "[SUPER] phase=%s parent=%p slot tid=%u kind=%u "
-                        "priv=%d highest=%d mine=%d\n", "4",
-                        (void *)supernode.m_link.get(),
-                        (unsigned)NC::stamp_tid(sl),
-                        (unsigned)NC::stamp_kind(sl),
-                        (int)NC::is_priv_stamp(sl),
-                        (int)NC::stamp_is_highest(sl),
-                        (int)(NC::stamp_tid(sl)
-                              == NC::stamp_tid(snap.m_started_time)));
-                }
-            }
-#endif
-            KAME_DIST_HIT(); return BundledStatus::DISTURBED;
+            return BundledStatus::DISTURBED;
         }
         // CAS success: m_link advanced.  If the new wrapper has its
         // missing flag cleared (Phase 4 finalize executed because all
