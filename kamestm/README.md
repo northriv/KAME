@@ -266,9 +266,11 @@ Three facts a deployment can act on:
   needs a HIGHEST-owned slot, so peer-vs-peer tagging never reaches it.
   (Those are that A/B's own before/after, not the current state; for what
   the library measures today see the table above, where the same p99 reads
-  896 ns.)  Triggering privilege early instead
-  (`KAME_STM_RT_FAST_PRIV`, default off) measures null: grants neither
-  spread nor stick while tags are still being overwritten.  The result is
+  896 ns.)  Triggering privilege *earlier* than the tag is a dead end,
+  measured (null: grants neither spread nor stick while tags are being
+  overwritten) and then subsumed — a HIGHEST tag now *is* the Reserved
+  claim, so there is no earlier moment left; the knob and its OS-scheduler
+  probe are gone.  The result is
   still an *observed* maximum, not a WCET — the gate's residual misses are
   side-word validation races, 2–5 ticks per slow commit.  (Whether folding
   the holder's priority class into the stamp's own PRIO field removes them is

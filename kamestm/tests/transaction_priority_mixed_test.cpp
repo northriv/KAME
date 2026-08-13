@@ -1161,7 +1161,7 @@ int main() {
                       late_max_ns = 0, tail_spins = 0, tail_spin_ns = 0,
                       commit_cas = 0, bundle_cas = 0, snap_cas = 0,
                       ll_ticks = 0, ll_resets = 0, ll_no_tags = 0,
-                      ll_few_retries = 0, ll_verdicts = 0, ll_rt_fast = 0,
+                      ll_few_retries = 0, ll_verdicts = 0,
                       priv_tries = 0, priv_grants = 0,
                       ll_retry_max = 0, ll_retry_sum = 0, ll_thresh_max = 0,
                       ll_tags_max = 0, ll_tags_sum = 0,
@@ -1185,7 +1185,7 @@ int main() {
             snap_cas   += d.snapshot_retries;
             ll_ticks += d.ll_ticks; ll_resets += d.ll_resets;
             ll_no_tags += d.ll_no_tags; ll_few_retries += d.ll_few_retries;
-            ll_verdicts += d.ll_verdicts; ll_rt_fast += d.ll_rt_fast;
+            ll_verdicts += d.ll_verdicts;
             priv_tries += d.priv_tries; priv_grants += d.priv_grants;
             ll_retry_sum += d.ll_retry_sum;
             ll_tags_sum += d.ll_tags_sum;
@@ -1206,7 +1206,7 @@ int main() {
     //! the snapshot already happens after the timed region closes.
     struct LLAll {
         std::uint64_t n = 0, ticks = 0, resets = 0, no_tags = 0,
-                      few_retries = 0, verdicts = 0, rt_fast = 0,
+                      few_retries = 0, verdicts = 0,
                       tries = 0, grants = 0,
                       retry_max = 0, retry_sum = 0, thresh_max = 0,
                       tags_max = 0, tags_sum = 0,
@@ -1218,7 +1218,7 @@ int main() {
         void add(const Transactional::detail::NegDiag &d) {
             ++n; ticks += d.ll_ticks; resets += d.ll_resets;
             no_tags += d.ll_no_tags; few_retries += d.ll_few_retries;
-            verdicts += d.ll_verdicts; rt_fast += d.ll_rt_fast;
+            verdicts += d.ll_verdicts;
             tries += d.priv_tries; grants += d.priv_grants;
             retry_sum += d.ll_retry_sum;
             tags_sum += d.ll_tags_sum;
@@ -2021,11 +2021,11 @@ int main() {
                         - (long long)m.spin_ns);
         std::printf("      livelock probe during those slow commits: "
                     "ticks=%.2f (reset=%.2f no_tags=%.2f few_retries=%.2f) "
-                    "VERDICTS=%.4f (rt_fast=%.4f)  priv: tries=%.4f "
+                    "VERDICTS=%.4f  priv: tries=%.4f "
                     "grants=%.4f /commit\n",
                     slow_diag.ll_ticks / N, slow_diag.ll_resets / N,
                     slow_diag.ll_no_tags / N, slow_diag.ll_few_retries / N,
-                    slow_diag.ll_verdicts / N, slow_diag.ll_rt_fast / N,
+                    slow_diag.ll_verdicts / N,
                     slow_diag.priv_tries / N, slow_diag.priv_grants / N);
         if(slow_diag.ll_ticks)
             std::printf("      retry margin at those ticks: my_tx_retries "
@@ -2058,14 +2058,12 @@ int main() {
         const double A = (double)ll_all.n;
         std::printf("    livelock probe over ALL %llu warm record commits:\n"
                     "      per commit: ticks=%.2f  -> reset=%.2f  "
-                    "no_tags=%.2f  few_retries=%.2f  VERDICTS=%.6f "
-                    "(rt_fast %llu)\n"
+                    "no_tags=%.2f  few_retries=%.2f  VERDICTS=%.6f\n"
                     "      privilege: tries=%.6f grants=%.6f per commit "
                     "(%llu / %llu absolute)\n",
                     (unsigned long long)ll_all.n,
                     ll_all.ticks / A, ll_all.resets / A, ll_all.no_tags / A,
                     ll_all.few_retries / A, ll_all.verdicts / A,
-                    (unsigned long long)ll_all.rt_fast,
                     ll_all.tries / A, ll_all.grants / A,
                     (unsigned long long)ll_all.tries,
                     (unsigned long long)ll_all.grants);

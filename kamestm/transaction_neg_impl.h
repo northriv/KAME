@@ -60,7 +60,6 @@
 #include <condition_variable>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>    // getenv/atoi — the KAME_STM_RT_FAST_PRIV knob
 #include <mutex>
 #include <thread>
 
@@ -500,36 +499,6 @@ Node<XN>::NegotiationCounter::priority_probe_info(Priority pr) noexcept {
     }
 }
 
-namespace detail {
-//! Is the CURRENT thread under an OS realtime policy (SCHED_FIFO/RR)?
-//! Cached per thread: one pthread/sched syscall on first use, then a TLS
-//! load.  The cache means a thread that elevates itself AFTER its first
-//! negotiation keeps reading "not RT" — the conservative direction (the
-//! fast path stays off) — so set the OS policy at thread start, as every
-//! KAME acquisition thread and this repo's harnesses already do.  Windows:
-//! no mapping attempted, always false.
-inline bool os_sched_rt() noexcept {
-#if defined(__linux__)
-    static thread_local int t_rt = -1;
-    if(t_rt < 0) {
-        const int pol = ::sched_getscheduler(0);
-        t_rt = (pol == SCHED_FIFO || pol == SCHED_RR) ? 1 : 0;
-    }
-    return t_rt == 1;
-#elif defined(__APPLE__)
-    static thread_local int t_rt = -1;
-    if(t_rt < 0) {
-        int pol = 0; struct sched_param sp {};
-        if(::pthread_getschedparam(::pthread_self(), &pol, &sp) != 0)
-            pol = 0;
-        t_rt = (pol == SCHED_FIFO || pol == SCHED_RR) ? 1 : 0;
-    }
-    return t_rt == 1;
-#else
-    return false;
-#endif
-}
-} // namespace detail
 
 // The negotiation diagnostic counters are defined HERE, above the first
 // template that touches them: `detail::neg_diag()` is a NON-dependent name
@@ -645,7 +614,6 @@ struct NegDiag {
     std::uint64_t ll_no_tags;      //!< ... blocked by tags_owned != tags_total
     std::uint64_t ll_few_retries;  //!< ... blocked by the retry threshold alone
     std::uint64_t ll_verdicts;     //!< ... that returned LIVELOCK
-    std::uint64_t ll_rt_fast;      //!< ... of those, via the RT fast path
     //! The retry threshold turned out to be the largest blocker on both hosts,
     //! so these say by HOW MUCH — and guard against an inference that looked
     //! safe and is not.  "Outer attempts peak at 3, so m_tx_retry_count peaks
@@ -739,83 +707,17 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
     Priority prio) noexcept
 {
     // ---- RT fast privilege (opt-in) -----------------------------------
-    // KAME_STM_RT_FAST_PRIV=N (N >= 1): a transaction that is BOTH
-    // STM-HIGHEST and under an OS realtime policy (SCHED_FIFO/RR) claims
-    // privilege as soon as it has been forced to retry N times (N=2
-    // recommended) — bypassing the organic threshold clamp(sig_C*2,3,nproc)
-    // AND the tags_owned == tags_total condition, which the phase
-    // instrumentation showed blocking 8.5 ticks per slow commit while the
-    // snapshot loop rebuilds under peer fire.  The claim path upgrades only
-    // the slots this Tx still owns, so partial ownership is fine; hence
-    // tags_owned >= 1, not == tags_total.
-    //
-    // Evaluated BEFORE the per-linkage window reset below, deliberately:
-    // this check uses none of the window state, and a multi-nodal commit
-    // resets the window on 26-34 % of ticks — placed after it, the fast
-    // path would forfeit a third of its firing opportunities.
-    //
-    // WITH THIS OFF THERE IS NO BOUND on the rebuild count.  The organic
-    // gate's binding condition is tags_owned == tags_total, which is
-    // race-dependent rather than a counter, so crossing any retry threshold
-    // grants nothing: measured retries reached 10 against a threshold of 4,
-    // with 8.5 of 11.8 probe ticks per slow commit blocked by that
-    // condition alone.  Every MAX published for this workload is an
-    // observed maximum, not a guarantee.
-    //
-    // MEASURED NULL (settled 2026-08-11, three 300 s arms per side on the
-    // RT host): slow commits 62 vs 50 per 900 s (Poisson-overlapping), p50 /
-    // p99.9 / p99.99 / p99.999 identical in all six runs, MAX bands
-    // 24.3-34.6 vs 22.8-46.6 us — single samples, overlapping.  The trigger
-    // fires ~12/s and every grant converts, and the tail does not move in
-    // either direction.  (A first 90 s pass had concluded "measurably
-    // worse" from one arm of each; that died in the repeat, and the 6x
-    // data set buries it.)  Why it is null is visible in the counters: even
-    // with the fast path granting, no_tags still blocks 6-9 probe ticks per
-    // slow commit — the rebuild storm the grant is supposed to end keeps
-    // OVERWRITING the holder's tags, so the grant neither spreads nor
-    // sticks.  That overwrite is what Rule 0c (tag_as_contender) removes —
-    // and measured, Rule 0c delivers what this trigger could not: slow
-    // commits 62 -> 15 per 900 s and organic grants ~30x, with this knob
-    // off.  Default stays OFF; the numbers live at the Rule 0c comment.
-    //
-    // WHY NO EXPIRY VALVE (a decision, 2026-08-10): a preempted holder's
-    // Reserved stamp blocks that linkage's contenders until the holder runs
-    // again — but that exposure is not new, it is the SAME one every organic
-    // NORMAL/HIGHEST privilege grant has carried all along (no expiry above
-    // the LOW band; ~25 grants per 90 s since the sysfs fix).  The gate here
-    // is exactly the deployment doctrine this library already ships —
-    // SCHED_FIFO together with core isolation, where invol = 0 was measured
-    // — and a HIGHEST+FIFO thread on its own core completes in ~10 us.
-    // FIFO without isolation is documented as catastrophic with or without
-    // this feature.  The 5 s negotiation HANG watchdog stays the backstop.
-    // Windows never takes this path (os_sched_rt is false there).
-    static const int s_rt_fast_retries = []{
-        const char *e = std::getenv("KAME_STM_RT_FAST_PRIV");
-        if( !e || !*e) return 0;
-        const int v = std::atoi(e);
-        return (v >= 1) ? v : 0;
-    }();
-    if(s_rt_fast_retries > 0 && prio == Priority::HIGHEST
-            && (int)my_tx_retries >= s_rt_fast_retries
-            && tags_owned >= 1
-            && detail::os_sched_rt()) {
-#if KAME_STM_NEG_DIAG
-        {   auto &_d = detail::neg_diag();
-            ++_d.ll_ticks;      // still a tick; keep the partition exhaustive
-            ++_d.ll_verdicts;   // a verdict is a verdict...
-            ++_d.ll_rt_fast;    // ...this one via the fast path
-            _d.ll_retry_sum += my_tx_retries;
-            if(my_tx_retries > _d.ll_retry_max) _d.ll_retry_max = my_tx_retries;
-            _d.ll_tags_sum += (std::uint64_t)tags_total;
-            if((std::uint64_t)tags_total > _d.ll_tags_max)
-                _d.ll_tags_max = (std::uint64_t)tags_total;
-        }
-#endif
-        // The probe window state is left untouched: it belongs to the
-        // organic detector, and the next organic tick handles a linkage
-        // change exactly as it would have.
-        return true;
-    }
+    // (A KAME_STM_RT_FAST_PRIV knob lived here until 2026-08-13: an early
+    // privilege claim at N retries, gated on HIGHEST && SCHED_FIFO/RR via an
+    // os_sched_rt() probe.  Deleted, twice over.  Measured null -- three
+    // 300 s arms per side, grants neither spread nor stick while tags are
+    // being overwritten; the numbers live at the Rule 0c comment in
+    // tag_as_contender.  Then subsumed: a HIGHEST tag IS a Reserved claim
+    // from retry 0 (184dd1b5d), so there is nothing left for an "earlier"
+    // trigger to fire before.  The OS-policy AND was the knob's only reason
+    // to detect the scheduler, and HIGHEST is de facto the RT tier (user),
+    // so os_sched_rt() went with it -- the tier contract, not the OS policy,
+    // is the design's authority.)
     // ---- organic livelock detection ------------------------------------
     auto &p = LivelockProbe::state();
 #if KAME_STM_NEG_DIAG
