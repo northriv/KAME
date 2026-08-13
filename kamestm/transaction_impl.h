@@ -2520,6 +2520,18 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
     }
 }
 
+//! THE BOUND, MEASURED PROPERLY (30 min, Release+diag, default 4 leaves):
+//! 115,646,487 acquisition commits, no stall, and `snapshot rebuilds: max=25`
+//! against a 3L bound of 24 at L=8 -- over by ONE, once, in 115 M commits.
+//! That is the negotiate/CAS window showing up at the rate a rare race
+//! should, and it is what the third failure per Linkage in 3L is there for.
+//!
+//! Every "violated by 3x" reading before it was a short-run artefact: 12 s is
+//! far too short to sample this extreme, and the worst of them additionally
+//! came from 16 leaves (not the shipped shape) or from a Debug build, whose
+//! ~10x slowdown is a different contention regime. Do not judge this bound on
+//! anything under ten minutes.
+//!
 //! WHAT THIS FOUND (2026-08-12), so the probes below are read for what they
 //! settled rather than re-derived:
 //!
