@@ -123,11 +123,32 @@
  *   Expensive rebuilds per Linkage (the quantity Node::snapshot reports as
  *   snapshot_retries_max), swept over T in {3,4} and K in {1,2}:
  *
- *       HIGHEST acquires then tags            (T-1)K + 1   <- today
- *       HIGHEST tags then acquires            (T-1)K
- *       HIGHEST tags, acquires, reserves      0
+ *       HIGHEST acquires then tags                 (T-1)K + 1   <- today
+ *       HIGHEST tags then acquires                 (T-1)K
+ *       + early publish, no flag ("publish")       T-1
+ *       + reservation flag       ("invalue")       0
  *
- *   -- peers unchanged in all three; the whole difference is HIGHEST-side.
+ *   -- peers unchanged in all four; the whole difference is HIGHEST-side.
+ *
+ *   THE EARLY PUBLISH DELETES K (author's question, 2026-08-13: "if all you
+ *   need is to make the peer's CAS fail, what is a reservation for?").  It
+ *   deletes it at BOTH K=1 and K=2, and the reason is that a peer does not
+ *   lose one CAS, it loses its licence: the stale view fails the pointer
+ *   compare, the caller builds a fresh scope, and a fresh scope negotiates --
+ *   into the tag.  So the second of its two publishes never happens, and the
+ *   Phase-4 re-negotiate that K=1 stood for becomes unnecessary.
+ *
+ *   Nothing new is needed to publish early.  bundle()'s serial-tag block
+ *   already does it (transaction_impl.h:2746/2775): a fresh wrapper over the
+ *   same packet, ahead of Phase 1.  It is CONDITIONAL today
+ *   (transaction_impl.h:2736), and when it is skipped Phase 1 runs on a
+ *   pointer every in-flight peer can still match.
+ *
+ *   What the reservation flag buys on top is the peer caught between its own
+ *   negotiate (transaction_negotiation.h:432) and its own acquire (:489) --
+ *   a few instructions, at most T-1 of them, each costing HIGHEST one cheap
+ *   retry.  That is the whole of the T-1 residue, and it is why the flag is
+ *   not being adopted.
  *
  *   The +1 is the untagged entry, isolated: HIGHEST takes its view before its
  *   stamp is down, so a peer CAS in that gap stales a view already taken.
@@ -140,6 +161,11 @@
  *   snapshot rebuild maxima of 36/39/40/50): today's bound is
  *   ((T-1)K + 1) * L = 56.  All four soaks fall under it.  Every bound tried
  *   by hand before this spec did not: 3L = 24, (T+1)L = 40 (soak 4 = 50).
+ *
+ *   And with tag-first plus the early publish, (T-1) * L = 3 * 8 = 24 -- which
+ *   is 3L.  The rule this branch started from turns out to be the right bound
+ *   for the protocol it did not yet have: the 3 is T-1 at four threads, and it
+ *   holds once HIGHEST stamps before it looks and publishes before it works.
  *
  *   sideword VIOLATES INV_NoBadWins at every configuration -- 613 distinct
  *   states to the counterexample.  A second word, tested when the peer
@@ -161,14 +187,24 @@ CONSTANTS
                         \*         order at a Linkage's first touch, where
                         \*         i_am_privileged_now (:488) is evaluated
                         \*         before tag_as_contender (:517) runs
-    ReserveMode,        \* "none" | "sideword" | "invalue"
+    ReserveMode,        \* "none" | "publish" | "sideword" | "invalue"
+                        \*   "publish" -- HIGHEST publishes a fresh wrapper right
+                        \*   after tagging and BEFORE its long phase, carrying no
+                        \*   flag at all.  The existing serial-tag block already
+                        \*   does exactly this (transaction_impl.h:2746/2775: a
+                        \*   new wrapper over the same packet, ahead of Phase 1).
+                        \*   Nothing is reserved; the publish alone stales every
+                        \*   peer holding the old pointer, so their CAS fails on
+                        \*   the pointer compare.  The question this arm answers
+                        \*   is the author's: if all you need is to make the peer
+                        \*   CAS fail, what is a reservation still buying?
     Null
 
 ASSUME Cardinality(Peers) >= 1
 ASSUME H \notin Peers
 ASSUME K \in Nat /\ K >= 1
 ASSUME TagBeforeAcquire \in BOOLEAN
-ASSUME ReserveMode \in {"none", "sideword", "invalue"}
+ASSUME ReserveMode \in {"none", "publish", "sideword", "invalue"}
 
 Threads == Peers \cup {H}
 
@@ -220,6 +256,8 @@ Init ==
 \* can only succeed on a non-stale view, that is the current one by construction.
 PeerMayCAS(p) ==
     CASE ReserveMode = "none"     -> TRUE
+      [] ReserveMode = "publish"  -> TRUE     \* nothing to test; only the
+                                              \*   pointer compare protects H
       [] ReserveMode = "sideword" -> ~seenRes[p]
       [] ReserveMode = "invalue"  -> ~reserved
       [] OTHER                    -> TRUE
@@ -324,7 +362,7 @@ HReserveOk ==
     /\ ReserveMode # "none"
     /\ pc[H] = "acq_t"
     /\ ~stale[H]
-    /\ reserved' = TRUE
+    /\ reserved' = (ReserveMode # "publish")
     /\ stale'    = Publish(H)
     /\ pc'       = [pc EXCEPT ![H] = "res"]
     /\ UNCHANGED <<tag, license, seenRes,
@@ -433,6 +471,13 @@ INV_WinsAfterTagPerPeer == winsAfterTag <= Cardinality(Peers)
 \* THE REALTIME CLAIM.  With the reservation in the value, HIGHEST never redoes
 \* work: every loss lands on the reserve CAS, before anything was built.
 INV_NoRebuild == (ReserveMode = "invalue") => (hRebuilds = 0)
+
+\* The author's question, made checkable: with the early publish and no flag,
+\* how many expensive restarts remain?  Only peers caught between their own
+\* negotiate and their own acquire can still land a CAS -- a few instructions
+\* wide in the C++ (transaction_negotiation.h:432 to :489).
+INV_PublishRebuilds_LE_0 == (ReserveMode = "publish") => (hRebuilds = 0)
+INV_PublishRebuilds_LE_1 == (ReserveMode = "publish") => (hRebuilds <= 1)
 
 \* The losses HIGHEST does take are bounded by the same window.
 INV_HLosses == hLosses <= Cardinality(Peers) * K
