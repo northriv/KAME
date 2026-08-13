@@ -76,29 +76,36 @@ namespace detail {
 // dllimport, which is what `detail::tls_storage()` uses as the slot key.
 // (See threadlocal.h for the type-erased dispatcher design.)
 DECLSPEC_KAME XThreadLocal<int, STxNestTag>     s_tx_nest;
-DECLSPEC_KAME std::atomic<std::uint64_t>        g_priv_strips{0};
+DECLSPEC_KAME std::atomic<diag_counter_t>       g_priv_strips{0};
 
 // Rule 0c counter: thread-local tally, folded into the global at thread exit.
 // See the rationale in transaction_detail.h — it fires orders of magnitude
 // more often than g_priv_strips above, so it must not sit on a shared cache
 // line in the negotiation hot path.
 namespace {
-std::atomic<std::uint64_t> s_highest_tag_shields{0};
+std::atomic<diag_counter_t> s_highest_tag_shields{0};
 //! Folds this thread's tally into `sink` when the thread exits.
 struct FlushTally {
-    std::uint64_t n = 0;
-    std::atomic<std::uint64_t> *sink;
-    explicit FlushTally(std::atomic<std::uint64_t> *s) noexcept : sink(s) {}
+    diag_counter_t n = 0;
+    std::atomic<diag_counter_t> *sink;
+    explicit FlushTally(std::atomic<diag_counter_t> *s) noexcept : sink(s) {}
     ~FlushTally() { if(n) sink->fetch_add(n, std::memory_order_relaxed); }
 };
 } // namespace
 
-namespace { std::atomic<std::uint64_t> s_tx_linkages_max{0}; }
+namespace { std::atomic<diag_counter_t> s_tx_linkages_max{0}; }
 DECLSPEC_KAME void note_tx_linkages(std::uint64_t n) noexcept {
+    // The parameter stays uint64_t (public signature); the counter is
+    // pointer-width.  Saturate rather than truncate on a 32-bit host — the
+    // caller passes `m_tagged_linkages.size()`, which cannot exceed
+    // SIZE_MAX there anyway, so the clamp is unreachable in practice and
+    // exists only so the narrowing is explicit and monotonic.
+    const diag_counter_t v = (n > (std::uint64_t)(diag_counter_t)-1)
+        ? (diag_counter_t)-1 : (diag_counter_t)n;
     // Relaxed load/compare/store: a lost race only drops one max update, and
     // the next Tx that reaches the same depth restores it.
-    if(n > s_tx_linkages_max.load(std::memory_order_relaxed))
-        s_tx_linkages_max.store(n, std::memory_order_relaxed);
+    if(v > s_tx_linkages_max.load(std::memory_order_relaxed))
+        s_tx_linkages_max.store(v, std::memory_order_relaxed);
 }
 DECLSPEC_KAME std::uint64_t tx_linkages_max() noexcept {
     return s_tx_linkages_max.load(std::memory_order_relaxed);

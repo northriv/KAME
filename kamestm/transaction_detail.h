@@ -355,11 +355,24 @@ namespace detail {
     struct STxNestTag;
     DECLSPEC_KAME extern XThreadLocal<int, STxNestTag> s_tx_nest;
 
+    //! Width of the always-on diagnostic counters below.  Pointer-width, NOT
+    //! `uint64_t`: these are unconditional (not behind KAME_ENABLE_*), so on a
+    //! host where `atomic<uint64_t>` is not lock-free — exactly the hosts
+    //! KAME_STM_COMPACT_STATE exists for (i386/i486, ARMv5/v6, RV32, MIPS32)
+    //! — a 64-bit one lowers to a LOCKED libatomic call.  That both fails to
+    //! link (no libatomic in the default link line) and would put a lock in
+    //! the negotiation path if it did.  These count negotiation events, so
+    //! pointer width is ample; the accessors keep returning `uint64_t` by
+    //! implicit widening, so no caller changes.  \sa rt_counter_t in
+    //! kamepoolalloc/allocator.cpp, which solves the same problem there, and
+    //! tools/audit/check_no_dcas.sh, which now guards both.
+    using diag_counter_t = std::size_t;
+
     //! Foreign non-HIGHEST Reserved stamps stripped by a HIGHEST tagger
     //! (tag_as_contender Rule 0).  Always-on so a plain build can verify the
     //! mechanism actually fired — a strip is rare by construction (it needs a
     //! Reserved stamp in the way), so one relaxed fetch_add costs nothing.
-    DECLSPEC_KAME extern std::atomic<std::uint64_t> g_priv_strips;
+    DECLSPEC_KAME extern std::atomic<diag_counter_t> g_priv_strips;
 
     //! Rule 0c: tag overwrites refused because the slot held a validated
     //! HIGHEST tag and the tagger was lower-priority.  \sa tag_as_contender.
