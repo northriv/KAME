@@ -2297,11 +2297,20 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
         //! Reports once and carries on -- never aborts.  `retry` rises by one
         //! per pass, so an aborting check always reads bound+1 and then ends
         //! the run: it cannot measure how far the excursion would have gone.
-        //! Judge this on a LONG run.  30 minutes at the default 4 leaves gives
-        //! max=25 against 3L=24 at L=8 -- over by one, once, in 115,646,487
-        //! commits, which is the negotiate/CAS window appearing at the rate a
-        //! rare race should.  Twelve-second runs cannot sample this extreme
-        //! and swing wildly; do not read them.
+        //! Judge this on a LONG run: twelve-second runs cannot sample this
+        //! extreme and swing wildly; do not read them.  What five 30-minute
+        //! runs at the default 4 leaves say (Release+diag, ~115 M acquisition
+        //! commits each, 578 M total) is that THE BOUND DOES NOT HOLD:
+        //!
+        //!     max     25    39    40    36    50
+        //!     3L      24    24    24    27    24   (L = 8,8,8,9,8)
+        //!     over    +1   +15   +16    +9   +26
+        //!
+        //! The first of those was written up as "over by one, once, in 115 M
+        //! commits -- the negotiate/CAS window at the rate a rare race
+        //! should".  It was n=1, and the low draw of five: the excursion runs
+        //! to 2.1x the bound, which no CAS-width window explains.  See the
+        //! block after Node::snapshot for what the excursion actually is.
 #if KAME_STM_NEG_DIAG
         if(getCurrentPriorityMode() == Priority::HIGHEST
                 && !snapshot.m_tagged_linkages.empty()
@@ -2341,7 +2350,11 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
             }
             //! WHAT IT FOUND, first time it fired (LEAVES=16): retry=5,
             //! L=1, and the one tagged Linkage still carries OUR stamp,
-            //! Reserved and HIGHEST.  Nobody displaced us.  So the rebuild is
+            //! Reserved and HIGHEST.  Every later firing says the same at
+            //! the shipped shape -- the four 30-minute soaks all opened with
+            //! `rebuild 16 > 3L (L=5)` and five slots reading
+            //! `kind=3 priv=1 highest=1 mine=1`.  Nobody displaced us.  So
+            //! the rebuild is
             //! not a lost Linkage at all: we tag the SUBTREE ROOT, and the
             //! bundle covers everything beneath it, so a peer writing a CHILD
             //! invalidates the bundle without ever touching the Linkage our
@@ -2491,17 +2504,40 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
     }
 }
 
-//! THE BOUND, MEASURED PROPERLY (30 min, Release+diag, default 4 leaves):
-//! 115,646,487 acquisition commits, no stall, and `snapshot rebuilds: max=25`
-//! against a 3L bound of 24 at L=8 -- over by ONE, once, in 115 M commits.
-//! That is the negotiate/CAS window showing up at the rate a rare race
-//! should, and it is what the third failure per Linkage in 3L is there for.
+//! THE BOUND DOES NOT HOLD, AND THE REASON IS NOT A RACE WINDOW.
 //!
-//! Every "violated by 3x" reading before it was a short-run artefact: 12 s is
-//! far too short to sample this extreme, and the worst of them additionally
-//! came from 16 leaves (not the shipped shape) or from a Debug build, whose
-//! ~10x slowdown is a different contention regime. Do not judge this bound on
-//! anything under ten minutes.
+//! Five 30-minute soaks (Release+diag, default 4 leaves, one HIGHEST acq
+//! thread + UI + NORMAL + SCRIPTING, ~115 M acquisition commits each,
+//! 578,635,152 in total, no stall in any of them):
+//!
+//!     max              25      39      40      36      50
+//!     3L bound         24      24      24      27      24
+//!     L (tags)          8       8       8       9       8
+//!     excursion        +1     +15     +16      +9     +26   (1.04x .. 2.08x)
+//!
+//! The first run was published as "over by ONE, once, in 115 M commits --
+//! the negotiate/CAS window at the rate a rare race should".  That was n=1.
+//! Four more runs put the excursion at +9..+26, and a window whose width is a
+//! CAS cannot produce 26 extra failures on 8 Linkages.  (The five soaks span
+//! a small code delta -- the age gate on the HIGHEST spin, the RT_FAST_PRIV
+//! deletion -- but none of it can fire with a single HIGHEST thread, and one
+//! draw per tree cannot separate a shift from the spread regardless.  The
+//! five are reported as five draws of one quantity.)
+//!
+//! Short runs are still unreadable -- 12 s cannot sample this extreme, and
+//! the worst old readings additionally came from 16 leaves (not the shipped
+//! shape) or a Debug build's ~10x-slower contention regime -- but "read it
+//! long enough and it converges to 3L" is now refuted, not unproven.
+//!
+//! WHY: the bound is about the wrong L.  3L counts LINKAGE DISPLACEMENTS, and
+//! a rebuild is not one.  Every [3L] dump this check produced -- all five,
+//! and the earlier LEAVES=16 ones -- reads the same: every Linkage in
+//! m_tagged_linkages still carries OUR stamp, Reserved and HIGHEST.  Nobody
+//! displaced us.  We are privileged on the L Linkages we tagged; the bundle's
+//! exposed surface is the whole SUBTREE beneath them, and a peer writing any
+//! child invalidates it without ever touching a word privilege guards.  The
+//! rebuild count therefore scales with the subtree and the peers' write rate,
+//! not with L, and nothing in the design bounds it today.
 //!
 //! WHAT THE (now deleted) PROBES FOUND, 2026-08-12:
 //!
