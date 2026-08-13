@@ -20,6 +20,22 @@
  *   HIGHEST (now):   observe tag --> acquire view --> tag --> CAS
  *   HIGHEST (prop):  observe tag --> tag --> acquire view --> reserve --> CAS
  *
+ * ONLY HIGHEST CHANGES.  The peer row is the same in every configuration below
+ * -- no peer action reads TagBeforeAcquire or ReserveMode's ordering, and none
+ * is meant to.  The proposal is a HIGHEST-side reorder plus a HIGHEST-side
+ * reservation; NORMAL keeps doing exactly what it does today, which is also
+ * why nothing here asks peers to be well behaved.
+ *
+ * AND ONLY AT THE FIRST TOUCH.  HIGHEST's view-before-tag order is not the
+ * steady state: it is what happens the FIRST time a Snapshot touches a given
+ * Linkage.  Every later touch already finds the tag there -- the previous
+ * scope's dtor plants it on observed contention
+ * (transaction_negotiation.h:1214-1217), Transaction::operator++ plants it on
+ * the target before re-snapshotting (transaction.h:2664), and within one
+ * Snapshot a planted tag survives until drop_tags_n_privilege.  So the
+ * TagBeforeAcquire=FALSE arm models one event per Linkage per Snapshot, not a
+ * per-pass cost -- which is exactly the shape of the +1 it turns out to cost.
+ *
  * `observe tag` is negotiate: NegotiationCounter::fair_mode_blocks_me reads
  * the Linkage's m_transaction_started_time slot and yields while a foreign
  * HIGHEST Reserved stamp sits there.  It is checked ONCE, at scope
@@ -107,9 +123,11 @@
  *   Expensive rebuilds per Linkage (the quantity Node::snapshot reports as
  *   snapshot_retries_max), swept over T in {3,4} and K in {1,2}:
  *
- *       acquire-then-tag, no reservation   (T-1)K + 1   <- today
- *       tag-then-acquire, no reservation   (T-1)K
- *       tag-then-acquire + reservation     0
+ *       HIGHEST acquires then tags            (T-1)K + 1   <- today
+ *       HIGHEST tags then acquires            (T-1)K
+ *       HIGHEST tags, acquires, reserves      0
+ *
+ *   -- peers unchanged in all three; the whole difference is HIGHEST-side.
  *
  *   The +1 is the untagged entry, isolated: HIGHEST takes its view before its
  *   stamp is down, so a peer CAS in that gap stales a view already taken.
@@ -137,8 +155,12 @@ CONSTANTS
     Peers,              \* the NORMAL / UI / SCRIPTING threads
     H,                  \* the single HIGHEST thread
     K,                  \* successful CASes a peer may land per observation
-    TagBeforeAcquire,   \* TRUE  = tag then acquire (proposed)
-                        \* FALSE = acquire then tag (as the C++ ctor orders it)
+    TagBeforeAcquire,   \* HIGHEST-side only; peers are identical either way.
+                        \* TRUE  = HIGHEST tags, then acquires (proposed)
+                        \* FALSE = HIGHEST acquires, then tags -- the ctor's
+                        \*         order at a Linkage's first touch, where
+                        \*         i_am_privileged_now (:488) is evaluated
+                        \*         before tag_as_contender (:517) runs
     ReserveMode,        \* "none" | "sideword" | "invalue"
     Null
 
