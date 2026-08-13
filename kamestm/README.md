@@ -3,12 +3,19 @@
 [![License: Apache-2.0 OR GPL-2.0+](https://img.shields.io/badge/License-Apache--2.0_OR_GPL--2.0%2B-blue.svg)](#license)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(MinGW%20%2B%20MSVC)-lightgrey)]()
+[![arXiv](https://img.shields.io/badge/arXiv-2608.12024-b31b1b.svg)](https://arxiv.org/abs/2608.12024)
 
 Lock-free software transactional memory (STM) primitives — the
 snapshot/transaction core from the [KAME](https://github.com/northriv/KAME)
 measurement framework, extracted as a stand-alone, **predominantly
 header-only** library: templates in headers plus three small support
 translation units (`threadlocal` / `xthread` / `xtime`).
+
+**Paper:** the design, its 16 years of measurement-platform service and the
+formal verification are described in K. Kitagawa, *Formally Verified
+Lock-Free Software Transactional Memory for Scientific Measurement*,
+[arXiv:2608.12024](https://arxiv.org/abs/2608.12024) (2026) — see
+[Citing](#citing).
 
 **What it is for.**  Shared **tree-structured** state with many concurrent
 writers and readers, where a reader may hold an immutable subtree snapshot
@@ -334,7 +341,10 @@ commits, because a short CAS race resolves first.  Details in
 
 ## Formal verification (TLA+)
 
-The STM protocol is formally specified and model-checked with TLA+ / TLC:
+The STM protocol is formally specified and model-checked with TLA+ / TLC.
+The [paper](https://arxiv.org/abs/2608.12024) presents this verification in
+full, including the spec-to-C++ fidelity argument; this section is the
+repository-level map of the specs themselves:
 
 - **Layer 1 — `atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting, drain release, and `scoped_atomic_view` ([spec](tests/tlaplus/atomic_shared_ptr.tla)). Safety only — the bare primitive is intentionally *not* livelock-free.
 - **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Exhaustively model-checked **safe + livelock-free** without `CONSTRAINT` (the LL-free design makes the state space naturally finite — no artificial bound); the largest single exhaustive run reaches **~641 M distinct states** (3-level all-root, 15 h on the ISSP ohtaka supercomputer), over a billion across the LL-free configurations combined. (Raw state counts are **spec-version-specific** — they shift as the spec evolves, so cross-version comparison isn't meaningful; see [tests/VERIFICATION.md](tests/VERIFICATION.md) §3–§4 for the current-spec figures.) These are exhaustive results for the checked configurations (fixed thread counts and tree shapes), not an unbounded ∀-thread proof. The property is `<>AllDone` over a *draining* workload, so it is starvation-freedom, **not** a bound on retry counts — [Realtime behaviour](#note-retry-counts-vs-time) sets the two side by side.
@@ -459,6 +469,25 @@ variants that caught real refcount bugs) and the TLA+-derived C translations of
 each protocol layer ([`tests/tlaplus/`](tests/tlaplus) — `test_*.c`).  The TLA+
 specs themselves (`atomic_shared_ptr.tla`, `BundleUnbundle*.tla` incl. 2-/3-level,
 lock-free, dynamic, and hard-link variants) are checked with TLC.
+
+## Citing
+
+If this library or its verification artifacts contribute to your work,
+please cite the paper:
+
+```bibtex
+@misc{kitagawa2026kamestm,
+  title         = {Formally Verified Lock-Free Software Transactional Memory
+                   for Scientific Measurement},
+  author        = {Kitagawa, Kentaro},
+  year          = {2026},
+  eprint        = {2608.12024},
+  archivePrefix = {arXiv},
+  primaryClass  = {cond-mat.other},
+  doi           = {10.48550/arXiv.2608.12024},
+  url           = {https://arxiv.org/abs/2608.12024}
+}
+```
 
 ## License
 
