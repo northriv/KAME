@@ -139,6 +139,19 @@ add_custom_target(with_pmqos ALL
     COMMENT "Staging with_pmqos next to the latency binaries")
 
 # --- CTest registration ---
+#
+# Three configurations are meaningful and all three have been run (2026-08-12):
+#   Release          40/40.
+#   Debug            40/40 -- every library assertion live across every test,
+#                    including STRICT_assert, the CAS-fail-twice invariant and
+#                    the 3L rebuild bound.  Worth running after any change to
+#                    the negotiation: Release compiles all of them out.
+#   ASan + UBSan     -DUSE_KAME_ALLOCATOR=OFF (the pool interposes malloc and
+#                    cannot coexist with ASan), 20/22 with ZERO sanitizer
+#                    diagnostics.  The two failures are timeouts, not findings:
+#                    ASan costs ~10x, so transaction_dynamic_node_test needs
+#                    well over ten minutes, and transaction_nosyscall_highest_test
+#                    cannot run under ASan at all (see its note below).
 enable_testing()
 # Union discipline of fast_vector<T,N>: the inline m_array and the heap
 # m_vector are union'd, so any method reaching for the inactive member is
@@ -211,6 +224,11 @@ add_test(NAME transaction_priority_mixed_test
 # phase of the same thread is counted separately and allowed, since only the
 # HIGHEST path carries the requirement.  Short by design: it is a per-commit
 # property, so it does not need a soak.
+# NOT sanitizer-compatible, by construction: ASan issues syscalls of its own
+# (mmap/madvise and friends) that this filter traps and SKIPS, so the process
+# wedges rather than reporting anything.  Under -fsanitize=address run the
+# rest of the suite and leave this arm out; it is checking a property of the
+# production binary anyway.
 add_test(NAME transaction_nosyscall_highest_test
          COMMAND transaction_priority_mixed_test)
 set_tests_properties(transaction_nosyscall_highest_test PROPERTIES
