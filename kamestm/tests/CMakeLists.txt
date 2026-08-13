@@ -84,6 +84,48 @@ if(USE_KAME_ALLOCATOR)
     list(APPEND test_link_libs kamepoolalloc)
 endif()
 
+# Does this target have a lock-free 64-bit atomic?  Mirrors exactly the test
+# transaction_definitions.h uses to auto-enable KAME_STM_COMPACT_STATE, so the
+# answer here and the layout the library compiles cannot disagree.  False on
+# i386/i486, ARMv5/v6, RV32, MIPS32 (and on -march=i486: CMPXCHG8B is
+# i586/Pentium+).  See tools/audit/check_no_dcas.sh, which guards the library
+# side of the same invariant.
+check_cxx_source_compiles("
+#include <atomic>
+#if ATOMIC_LLONG_LOCK_FREE != 2
+#error no lock-free 64-bit atomic
+#endif
+int main(){return 0;}" KAMESTM_HAVE_LOCKFREE_64)
+
+if(NOT KAMESTM_HAVE_LOCKFREE_64)
+    # Compact mode seals the stamp's PRIO field (STAMP_HIGHEST_MASK == 0), so
+    # `is_highest_stamp` / `is_priv_stamp` are constant-false and Rules 0 /
+    # 0c / 0d never fire: HIGHEST is simply not identifiable, and a HIGHEST Tx
+    # can be preempted by a NORMAL one.  That is the documented trade for
+    # running without DCAS -- data integrity is unaffected (the PacketWrapper
+    # CAS below does not consult the stamp), only the negotiation heuristics
+    # are.  These four assert the privilege machinery end-to-end, so they are
+    # testing a mechanism this target does not have.
+    set(kamestm_tests_need_prio
+        transaction_starvation_test
+        transaction_priv_strip_test
+        transaction_highest_older_wins_test
+        transaction_priv_expiry_test)
+    # These carry 64-bit atomics of their OWN (latency sums, per-thread
+    # progress counters) and so do not even link here.  Left as-is on purpose:
+    # a bench legitimately wants a 64-bit tally, the same call already made for
+    # g_alloc_size_histo in the allocator.  The library must be no-DCAS clean;
+    # its instruments need not be.
+    set(kamestm_tests_need_atomic64
+        transaction_priv_pin_test
+        transaction_priority_mixed_test
+        transaction_latency_bench)
+    message(STATUS
+        "kamestm/tests: no lock-free 64-bit atomic (KAME_STM_COMPACT_STATE) -- "
+        "excluding priority tests: ${kamestm_tests_need_prio}; "
+        "and 64-bit-atomic tests: ${kamestm_tests_need_atomic64}")
+endif()
+
 set(kamestm_test_names
     fast_vector_test
     atomic_shared_ptr_test
@@ -118,10 +160,20 @@ set(kamestm_test_names
     # transaction_latency_bench is not — the numbers are the host's.
     latency_floor)
 
+if(NOT KAMESTM_HAVE_LOCKFREE_64)
+    list(REMOVE_ITEM kamestm_test_names
+        ${kamestm_tests_need_prio} ${kamestm_tests_need_atomic64})
+endif()
+
 foreach(t IN LISTS kamestm_test_names)
     add_executable(${t} ${t}.cpp ${support_SRCS})
     target_link_libraries(${t} ${test_link_libs})
 endforeach()
+
+# NOTE: every add_test() / target_*() below for a test named in
+# kamestm_tests_need_prio or kamestm_tests_need_atomic64 must sit inside an
+# `if(TARGET ...)`, since compact-mode targets were dropped from the list
+# above and referencing one is a hard configure error.
 
 # Stage `with_pmqos` next to the binaries it wraps.  It lives in the source
 # tree, every absolute latency number from latency_floor /
@@ -180,9 +232,11 @@ add_test(NAME transaction_wait_budget_test COMMAND transaction_wait_budget_test)
 # 1 of 3 runs while 2 ms — the value the latency bench fired at consistently —
 # is dependable.  The production value is exercised by NOT firing, which the
 # uncontended arm covers.
-add_test(NAME transaction_starvation_test COMMAND transaction_starvation_test)
-target_compile_definitions(transaction_starvation_test PRIVATE
-    KAME_STM_LOWPRIO_STARVE_MS=2 KAME_STM_LOWPRIO_STARVE_MIN_RETRIES=2)
+if(TARGET transaction_starvation_test)
+    add_test(NAME transaction_starvation_test COMMAND transaction_starvation_test)
+    target_compile_definitions(transaction_starvation_test PRIVATE
+        KAME_STM_LOWPRIO_STARVE_MS=2 KAME_STM_LOWPRIO_STARVE_MIN_RETRIES=2)
+endif()
 
 # Debug-only detector for msecsleep() inside a Transaction.  -UNDEBUG is not
 # optional: this tree is configured Release, and without it the whole detector
@@ -197,23 +251,29 @@ target_compile_options(transaction_sleep_in_tx_test PRIVATE -UNDEBUG)
 # synthetic Reserved stamp on Node's private Linkage: privilege claims are
 # probe-gated and cannot be manufactured deterministically through the public
 # API, and the benchmarks prove only that the rule stays silent when healthy.
-add_test(NAME transaction_priv_strip_test COMMAND transaction_priv_strip_test)
-target_compile_options(transaction_priv_strip_test PRIVATE -fno-access-control)
+if(TARGET transaction_priv_strip_test)
+    add_test(NAME transaction_priv_strip_test COMMAND transaction_priv_strip_test)
+    target_compile_options(transaction_priv_strip_test PRIVATE -fno-access-control)
+endif()
 
 # HIGHEST-vs-HIGHEST older-wins has teeth (2026-08-11): the loser defers to a
 # live privileged HIGHEST peer on the same predicate a NORMAL loser sleeps on,
 # spinning instead of parking.  Same white-box need as the strip test.
-add_test(NAME transaction_highest_older_wins_test
-         COMMAND transaction_highest_older_wins_test)
-target_compile_options(transaction_highest_older_wins_test
-                       PRIVATE -fno-access-control)
+if(TARGET transaction_highest_older_wins_test)
+    add_test(NAME transaction_highest_older_wins_test
+             COMMAND transaction_highest_older_wins_test)
+    target_compile_options(transaction_highest_older_wins_test
+                           PRIVATE -fno-access-control)
+endif()
 
 # HIGHEST + NORMAL + UI_DEFERRABLE role mix (acquisition / demoted downstream
 # with a 20 ms budget / main-thread snapshots+transactions+structural churn),
 # with a stall watchdog: any thread stuck >5 s = livelock = FAIL.  10 s here;
 # soak with KAME_MIX_SECS=60+ when hunting.
-add_test(NAME transaction_priority_mixed_test
-         COMMAND transaction_priority_mixed_test)
+if(TARGET transaction_priority_mixed_test)
+    add_test(NAME transaction_priority_mixed_test
+             COMMAND transaction_priority_mixed_test)
+endif()
 # The acquisition tier must not reach the kernel, and two of the three risks
 # are invisible in the source: `now_us()` is a vDSO read only while the host
 # clocksource is `tsc` (switch it to `hpet` and every commit traps, with
@@ -229,11 +289,14 @@ add_test(NAME transaction_priority_mixed_test
 # wedges rather than reporting anything.  Under -fsanitize=address run the
 # rest of the suite and leave this arm out; it is checking a property of the
 # production binary anyway.
-add_test(NAME transaction_nosyscall_highest_test
-         COMMAND transaction_priority_mixed_test)
-set_tests_properties(transaction_nosyscall_highest_test PROPERTIES
-    ENVIRONMENT "KAME_MIX_NOSYSCALL=1;KAME_MIX_SECS=6"
-    TIMEOUT 120)
+# Same binary as transaction_priority_mixed_test above, so it goes with it.
+if(TARGET transaction_priority_mixed_test)
+    add_test(NAME transaction_nosyscall_highest_test
+             COMMAND transaction_priority_mixed_test)
+    set_tests_properties(transaction_nosyscall_highest_test PROPERTIES
+        ENVIRONMENT "KAME_MIX_NOSYSCALL=1;KAME_MIX_SECS=6"
+        TIMEOUT 120)
+endif()
 
 # Field-crash repro (2026-07-30 T1Mode SIGABRT): a stalling ms-analysis Tx
 # holding never-expiring NORMAL privilege pins third parties into the HANG
@@ -241,15 +304,19 @@ set_tests_properties(transaction_nosyscall_highest_test PROPERTIES
 # Deterministic half of the same fix: the expiry rules on the negotiation
 # predicates themselves, both agreeing consumers.  White-box, like the strip
 # test and for the same reason.
-add_test(NAME transaction_priv_expiry_test COMMAND transaction_priv_expiry_test)
-target_compile_options(transaction_priv_expiry_test PRIVATE -fno-access-control)
+if(TARGET transaction_priv_expiry_test)
+    add_test(NAME transaction_priv_expiry_test COMMAND transaction_priv_expiry_test)
+    target_compile_options(transaction_priv_expiry_test PRIVATE -fno-access-control)
+endif()
 
 # newTransactionUsingSnapshotFor must not orphan planted stamps when it
 # re-anchors the snapshot base (the 2026-07-31 field freeze).  White-box.
 add_test(NAME transaction_reanchor_test COMMAND transaction_reanchor_test)
 target_compile_options(transaction_reanchor_test PRIVATE -fno-access-control)
 
-add_test(NAME transaction_priv_pin_test COMMAND transaction_priv_pin_test)
+if(TARGET transaction_priv_pin_test)
+    add_test(NAME transaction_priv_pin_test COMMAND transaction_priv_pin_test)
+endif()
 
 # Long-running tests
 set_tests_properties(
