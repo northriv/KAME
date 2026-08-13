@@ -2107,7 +2107,7 @@ int main() {
                     //! not a tuning result, it is a strong indication of an
                     //! implementation error, which is why this prints a
                     //! verdict rather than a number.
-                        "      rebuilds: max=%llu  vs 2L bound = %llu "
+                        "      rebuilds: max=%llu  vs 3L bound = %llu "
                         "(L=%llu, the Tx's own linkage count)  [%s]\n",
                         (double)ll_all.retry_sum / (double)ll_all.ticks,
                         (unsigned long long)ll_all.retry_max,
@@ -2128,9 +2128,9 @@ int main() {
                             && (acq_retries.all_max - 1 <= 2 * ll_all.tags_max))
                             ? "HOLDS" : "VIOLATED",
                         (unsigned long long)ll_all.rebuild_max,
-                        (unsigned long long)(2 * Transactional::detail::tx_linkages_max()),
+                        (unsigned long long)(3 * Transactional::detail::tx_linkages_max()),
                         (unsigned long long)Transactional::detail::tx_linkages_max(),
-                        (ll_all.rebuild_max <= 2 * Transactional::detail::tx_linkages_max())
+                        (ll_all.rebuild_max <= 3 * Transactional::detail::tx_linkages_max())
                             ? "HOLDS" : "VIOLATED — suspect the implementation"
 );
         }

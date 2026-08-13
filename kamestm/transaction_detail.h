@@ -400,6 +400,12 @@ namespace detail {
     //! in transaction.h, which is included before neg_diag() is declared.
     DECLSPEC_KAME void          note_tx_linkages(std::uint64_t n) noexcept;
     DECLSPEC_KAME std::uint64_t tx_linkages_max() noexcept;
+    //! Non-HIGHEST CASes that landed while a peer's privilege was live on
+    //! the Linkage.  Expected to be non-zero -- the negotiate/CAS window is
+    //! real -- so read the RATE against the DISTURBED returns it would have
+    //! to account for, never the existence.  \sa ScopedNegotiateLinkage's CAS.
+    DECLSPEC_KAME void          count_cas_past_privilege() noexcept;
+    DECLSPEC_KAME std::uint64_t cas_past_privilege() noexcept;
     DECLSPEC_KAME void          count_highest_tag_shield() noexcept;
     DECLSPEC_KAME std::uint64_t highest_tag_shields() noexcept;
 

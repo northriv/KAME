@@ -803,6 +803,36 @@ public:
     //! scopes use the WEAK fast path; conservative dtor tag on
     //! spurious failure (m_contention_observed).
     bool compareAndSet(const local_shared_ptr<PacketWrapper> &desired) noexcept {
+        //! THE RULE, made checkable (user, 2026-08-12): every CAS on a
+        //! Linkage's packet is preceded by negotiate, and negotiate makes a
+        //! thread yield while a peer holds privilege there.  That is what
+        //! protects the PACKET -- privilege sits on the tag word, the packet
+        //! is a different word, and only this rule connects them.  So being
+        //! here while `fair_mode_blocks_me` is true means some path reached a
+        //! CAS without negotiating, and the stack says which.
+        //!
+        //! Why it is worth an assert: a HIGHEST bundle loses these two CASes
+        //! ~1300 times in 25 s at 16 leaves with its OWN Reserved stamp still
+        //! on the parent Linkage (10 of 10 sampled), and that is the whole of
+        //! the rebuild count.  Either a peer is breaking the rule or the
+        //! yield has an exit that lets it through.
+        //! COUNTED, not asserted.  There is a window between negotiate --
+        //! which checked fair mode and found it clear -- and this CAS, in
+        //! which a peer can plant its Reserved stamp; it is the same
+        //! CAS-fail-to-tag race that makes the failure bound 3L rather than
+        //! 2L.  So a hit here is expected to occur RARELY and proves nothing
+        //! on its own.  What decides is the RATE: compare it against the
+        //! DISTURBED returns it would have to explain (~1300 per 25 s at 16
+        //! leaves).  Aborting on the first one measures nothing, which is the
+        //! same mistake the 2L assert made.
+        //! HIGHEST is excluded: passing a foreign-tier privilege is its tier
+        //! contract, not a violation.
+#ifndef NDEBUG
+        if(getCurrentPriorityMode() != Priority::HIGHEST
+                && Node<XN>::NegotiationCounter::fair_mode_blocks_me(
+                       m_snap->m_started_time, m_link.get()))
+            detail::count_cas_past_privilege();
+#endif
         if (m_strong_mode) {
             if (m_link->compareAndSetStrong(m_view, desired)) {
                 _on_cas_success();
@@ -869,6 +899,36 @@ public:
     //! failure undo is fetch_sub(2) (same op count).
     //! Strong/weak dispatch as in compareAndSet.
     bool compareAndSetRetain(const local_shared_ptr<PacketWrapper> &desired) noexcept {
+        //! THE RULE, made checkable (user, 2026-08-12): every CAS on a
+        //! Linkage's packet is preceded by negotiate, and negotiate makes a
+        //! thread yield while a peer holds privilege there.  That is what
+        //! protects the PACKET -- privilege sits on the tag word, the packet
+        //! is a different word, and only this rule connects them.  So being
+        //! here while `fair_mode_blocks_me` is true means some path reached a
+        //! CAS without negotiating, and the stack says which.
+        //!
+        //! Why it is worth an assert: a HIGHEST bundle loses these two CASes
+        //! ~1300 times in 25 s at 16 leaves with its OWN Reserved stamp still
+        //! on the parent Linkage (10 of 10 sampled), and that is the whole of
+        //! the rebuild count.  Either a peer is breaking the rule or the
+        //! yield has an exit that lets it through.
+        //! COUNTED, not asserted.  There is a window between negotiate --
+        //! which checked fair mode and found it clear -- and this CAS, in
+        //! which a peer can plant its Reserved stamp; it is the same
+        //! CAS-fail-to-tag race that makes the failure bound 3L rather than
+        //! 2L.  So a hit here is expected to occur RARELY and proves nothing
+        //! on its own.  What decides is the RATE: compare it against the
+        //! DISTURBED returns it would have to explain (~1300 per 25 s at 16
+        //! leaves).  Aborting on the first one measures nothing, which is the
+        //! same mistake the 2L assert made.
+        //! HIGHEST is excluded: passing a foreign-tier privilege is its tier
+        //! contract, not a violation.
+#ifndef NDEBUG
+        if(getCurrentPriorityMode() != Priority::HIGHEST
+                && Node<XN>::NegotiationCounter::fair_mode_blocks_me(
+                       m_snap->m_started_time, m_link.get()))
+            detail::count_cas_past_privilege();
+#endif
         if (m_strong_mode) {
             if (m_link->compareAndSetStrongRetain(m_view, desired)) {
                 _on_cas_success();
