@@ -139,6 +139,18 @@ int main() {
         check("NORMAL is held by a HIGHEST Reserved stamp", r.held);
         check("...and proceeds the moment it clears", r.released);
     }
+    {   // 5. Older-wins direction: a YOUNGER foreign HIGHEST Reserved (a
+        // stamp from the future, i.e. younger than any Tx started now) must
+        // NOT hold an older HIGHEST — since every HIGHEST tag is a Reserved
+        // claim (184dd1b5d), an unconditioned defer would spin the older on
+        // the younger's tag, inverting older-wins (and deadlocking two
+        // crossed HIGHESTs).  The older proceeds; the younger's spin on the
+        // older's own tag is the yield.
+        auto r = run_arm(P::HIGHEST,
+                         fake_stamp(foreign_tid, -50'000, true, true), 80);
+        check("an OLDER HIGHEST passes a younger HIGHEST Reserved",
+              !r.held && r.released);
+    }
 
     std::printf(failures ? "FAILED\n" : "PASSED\n");
     return failures ? 1 : 0;

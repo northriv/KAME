@@ -2034,6 +2034,19 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     std::memory_order_relaxed);
                 if( !NegotiationCounter::stamp_is_highest(_slot))
                     break;
+                // Older-wins needs the AGE GATE now that every HIGHEST tag
+                // is a Reserved claim (184dd1b5d): Reserved is no longer the
+                // probe-elected singleton, so an unconditional defer would
+                // make the OLDER spin on a younger's tag too — the wrong
+                // direction outright, and with two HIGHESTs crossing scopes
+                // a symmetric spin with no one to break it.  Spin only while
+                // the blocker is strictly older; the younger's own spin on
+                // OUR tag is what resolves once we finish.  (NORMAL never
+                // needed this gate because its Reserved population was the
+                // singleton privilege holder by construction.)
+                if(NegotiationCounter::signed_diff_us_packed(
+                        _slot, started_time) >= 0)
+                    break;
                 if( !NegotiationCounter::fair_mode_blocks_me(
                         started_time, self))
                     break;
