@@ -62,6 +62,23 @@
  *      CASes and blocks on its next observation.  Liveness, hence the small
  *      model.
  *
+ * NOTHING BEFORE THE TAG IS INTERFERENCE (user, 2026-08-13).  Until HIGHEST's
+ * stamp is on the slot it has claimed nothing, so peers running are peers
+ * running -- not a loss, not a race, nothing to bound.  The first version of
+ * this spec counted peer wins from HIGHEST's first observation and TLC duly
+ * refuted the bound: PObserveOk stays enabled until the tag lands, so a peer
+ * re-observes and re-arms without limit.  Only winsAfterTag is counted now.
+ *
+ * NO GENERATION COUNTER.  A bounded one is worse than none: with MaxGen=8 the
+ * peers exhausted the range BEFORE the tag landed -- irrelevant activity by
+ * the rule above -- and HIGHEST then stuttered forever behind a `gen < MaxGen`
+ * guard, which TLC reported as a LIVE_Done violation that says nothing about
+ * the protocol.  The counter only ever answered "is my view stale?", so that
+ * is what the state holds: one boolean per thread, no bound, and liveness
+ * becomes checkable.  A CAS makes every other thread's view stale and keeps
+ * the winner's (compareAndSetRetain, which is how Phase 2 hands its view to
+ * Phase 4).
+ *
  * AND THE ONE THAT MATTERS FOR REALTIME.  Losses are not equal.  Without a
  * reservation, a peer that wins during HIGHEST's long phase invalidates work
  * already done, and HIGHEST restarts it: hRebuilds.  With the reservation
@@ -69,6 +86,49 @@
  * CAS instead, before any work: hLosses, each costing one re-acquire.  The
  * counts stay equal; the cost does not.  INV_NoRebuild asserts the strong
  * form -- in "invalue" mode the expensive restart never happens at all.
+ *
+ * RESULTS (TLC, exhaustive -- every run below completed with an empty queue).
+ *
+ *   Peer wins after the tag, mode "none", tag-first:
+ *
+ *       T  K | <=1        <=T-1      <=(T-1)K
+ *       2  1 | HOLDS      HOLDS      HOLDS
+ *       2  2 | VIOLATED   VIOLATED   HOLDS
+ *       3  1 | VIOLATED   HOLDS      HOLDS
+ *       3  2 | VIOLATED   VIOLATED   HOLDS
+ *       4  1 | VIOLATED   HOLDS      HOLDS
+ *       4  2 | VIOLATED   VIOLATED   HOLDS
+ *
+ *   (T-1)K is exact, and each column earns its place: "<=1" -- a constant
+ *   independent of the thread count, which is what the "3" in 3L was --
+ *   survives only the single-peer case, and "<=T-1" survives only at K=1, so
+ *   the K in the formula is precisely what a re-negotiate before Phase 4 buys.
+ *
+ *   Expensive rebuilds per Linkage (the quantity Node::snapshot reports as
+ *   snapshot_retries_max), swept over T in {3,4} and K in {1,2}:
+ *
+ *       acquire-then-tag, no reservation   (T-1)K + 1   <- today
+ *       tag-then-acquire, no reservation   (T-1)K
+ *       tag-then-acquire + reservation     0
+ *
+ *   The +1 is the untagged entry, isolated: HIGHEST takes its view before its
+ *   stamp is down, so a peer CAS in that gap stales a view already taken.
+ *   Reordering two statements in the ctor deletes it.  The reservation deletes
+ *   the rest -- INV_NoRebuild holds exhaustively at every T and K tried, which
+ *   is the realtime claim: the count that scales with the thread count is the
+ *   CHEAP one (a re-acquire and a CAS retry), and the expensive one is zero.
+ *
+ *   Against the field measurement (T=4, K=2, L=8, four 30-minute soaks giving
+ *   snapshot rebuild maxima of 36/39/40/50): today's bound is
+ *   ((T-1)K + 1) * L = 56.  All four soaks fall under it.  Every bound tried
+ *   by hand before this spec did not: 3L = 24, (T+1)L = 40 (soak 4 = 50).
+ *
+ *   sideword VIOLATES INV_NoBadWins at every configuration -- 613 distinct
+ *   states to the counterexample.  A second word, tested when the peer
+ *   negotiates, is stale by the time the peer CASes.  That is the whole
+ *   argument for carrying the reservation in the value, and it is also what
+ *   makes the design safe under a weak memory model: the reader's acquire on
+ *   the pointer is the same acquire that orders the fields behind it.
  *)
 
 EXTENDS Naturals, FiniteSets, TLC
@@ -77,7 +137,6 @@ CONSTANTS
     Peers,              \* the NORMAL / UI / SCRIPTING threads
     H,                  \* the single HIGHEST thread
     K,                  \* successful CASes a peer may land per observation
-    MaxGen,             \* bound on wrapper generations (state-space bound)
     TagBeforeAcquire,   \* TRUE  = tag then acquire (proposed)
                         \* FALSE = acquire then tag (as the C++ ctor orders it)
     ReserveMode,        \* "none" | "sideword" | "invalue"
@@ -86,231 +145,221 @@ CONSTANTS
 ASSUME Cardinality(Peers) >= 1
 ASSUME H \notin Peers
 ASSUME K \in Nat /\ K >= 1
-ASSUME MaxGen \in Nat /\ MaxGen >= 1
 ASSUME TagBeforeAcquire \in BOOLEAN
 ASSUME ReserveMode \in {"none", "sideword", "invalue"}
 
 Threads == Peers \cup {H}
 
 VARIABLES
-    gen,          \* current wrapper generation on the Linkage (the CASed word)
-    resAt,        \* [0..MaxGen -> BOOLEAN] — reservation carried BY generation g.
-                  \*   Indexed by generation, never a free-standing word: this is
+    reserved,     \* does the CURRENT value on the Linkage carry HIGHEST's
+                  \*   reservation?  One boolean, and it may only ever change in
+                  \*   the same action that changes the value -- that identity is
                   \*   what "the reservation is in the value" means, and writing
-                  \*   it any other way would model the design we are rejecting.
+                  \*   it as an independently updatable word would model exactly
+                  \*   the design being rejected.
+    stale,        \* [Threads -> BOOLEAN] — has the value moved since I acquired?
+                  \*   Replaces a generation counter; see the header.
     tag,          \* the m_transaction_started_time slot: Null or H
     pc,           \* [Threads -> state]
-    view,         \* [Threads -> generation each thread holds]
     license,      \* [Peers -> remaining CASes on the current observation]
     seenRes,      \* [Peers -> reservation as seen AT OBSERVE TIME] ("sideword")
-    peerWins,     \* successful peer CASes since HIGHEST first observed (unbounded
-                  \*   by design -- before the tag lands HIGHEST has claimed
-                  \*   nothing, so peers are free; kept as a diagnostic only)
-    winsAfterTag, \* successful peer CASes AFTER the tag landed -- the quantity
-                  \*   the "T-1" claim is actually about
-    badWins,      \* successful peer CASes on an already-reserved generation
+    winsAfterTag, \* successful peer CASes after the tag landed -- the only
+                  \*   interference the protocol is answerable for
+    badWins,      \* successful peer CASes against a live reservation
     hLosses,      \* HIGHEST's reserve-CAS losses (cheap: re-acquire and retry)
-    hRebuilds,    \* HIGHEST's work-CAS losses (expensive: redo the phase)
-    hStarted      \* HIGHEST has observed at least once
+    hRebuilds     \* HIGHEST's work-CAS losses (expensive: redo the phase)
 
-vars == <<gen, resAt, tag, pc, view, license, seenRes,
-          peerWins, winsAfterTag, badWins, hLosses, hRebuilds, hStarted>>
+vars == <<reserved, stale, tag, pc, license, seenRes,
+          winsAfterTag, badWins, hLosses, hRebuilds>>
+
+\* A successful CAS by `w`: the new value is published, so every other thread's
+\* view is stale.  The winner keeps tracking it (compareAndSetRetain).
+Publish(w) == [t \in Threads |-> t # w]
 
 Init ==
-    /\ gen       = 0
-    /\ resAt     = [g \in 0..MaxGen |-> FALSE]
-    /\ tag       = Null
-    /\ pc        = [t \in Threads |-> "idle"]
-    /\ view      = [t \in Threads |-> 0]
-    /\ license   = [p \in Peers |-> 0]
-    /\ seenRes   = [p \in Peers |-> FALSE]
-    /\ peerWins  = 0
+    /\ reserved     = FALSE
+    /\ stale        = [t \in Threads |-> FALSE]
+    /\ tag          = Null
+    /\ pc           = [t \in Threads |-> "idle"]
+    /\ license      = [p \in Peers |-> 0]
+    /\ seenRes      = [p \in Peers |-> FALSE]
     /\ winsAfterTag = 0
-    /\ badWins   = 0
-    /\ hLosses   = 0
-    /\ hRebuilds = 0
-    /\ hStarted  = FALSE
+    /\ badWins      = 0
+    /\ hLosses      = 0
+    /\ hRebuilds    = 0
 
 -----------------------------------------------------------------------------
 (* Peer (NORMAL) — observe, acquire, one-shot weak CAS.                      *)
 
-\* What the peer is allowed to test before its CAS.  The whole design question
-\* is WHICH generation's reservation it gets to see.
+\* The design question in one operator: WHICH reservation does the peer get to
+\* test?  "sideword" gives it the one it read at observe time, the way
+\* fair_mode_blocks_me reads the tag today -- already stale by the time it CASes.
+\* "invalue" gives it the one attached to the value it holds, and since a CAS
+\* can only succeed on a non-stale view, that is the current one by construction.
 PeerMayCAS(p) ==
     CASE ReserveMode = "none"     -> TRUE
-      [] ReserveMode = "sideword" -> ~seenRes[p]        \* read at observe time
-      [] ReserveMode = "invalue"  -> ~resAt[view[p]]    \* read from the held value
+      [] ReserveMode = "sideword" -> ~seenRes[p]
+      [] ReserveMode = "invalue"  -> ~reserved
       [] OTHER                    -> TRUE
 
-\* negotiate found a foreign HIGHEST Reserved stamp: yield.  Terminal here —
-\* a parked peer can be woken, but it re-tests the same stamp and parks again,
-\* so it can never harm HIGHEST once the tag is up.
+\* negotiate found a foreign HIGHEST Reserved stamp: yield.  Terminal here — a
+\* parked peer can be woken, but it re-tests the same stamp and parks again, so
+\* it can never harm HIGHEST once the tag is up.
 PObserveBlocked(p) ==
     /\ pc[p] = "idle"
     /\ tag = H
     /\ pc' = [pc EXCEPT ![p] = "blocked"]
-    /\ UNCHANGED <<gen, resAt, tag, view, license, seenRes,
-                   peerWins, winsAfterTag, badWins, hLosses, hRebuilds, hStarted>>
+    /\ UNCHANGED <<reserved, stale, tag, license, seenRes,
+                   winsAfterTag, badWins, hLosses, hRebuilds>>
 
 PObserveOk(p) ==
     /\ pc[p] = "idle"
     /\ tag # H
     /\ pc'      = [pc      EXCEPT ![p] = "obs"]
     /\ license' = [license EXCEPT ![p] = K]
-    /\ seenRes' = [seenRes EXCEPT ![p] = resAt[gen]]
-    /\ UNCHANGED <<gen, resAt, tag, view,
-                   peerWins, winsAfterTag, badWins, hLosses, hRebuilds, hStarted>>
+    /\ seenRes' = [seenRes EXCEPT ![p] = reserved]
+    /\ UNCHANGED <<reserved, stale, tag,
+                   winsAfterTag, badWins, hLosses, hRebuilds>>
 
 PAcquire(p) ==
     /\ pc[p] = "obs"
-    /\ view' = [view EXCEPT ![p] = gen]
-    /\ pc'   = [pc   EXCEPT ![p] = "acq"]
-    /\ UNCHANGED <<gen, resAt, tag, license, seenRes,
-                   peerWins, winsAfterTag, badWins, hLosses, hRebuilds, hStarted>>
+    /\ stale' = [stale EXCEPT ![p] = FALSE]
+    /\ pc'    = [pc    EXCEPT ![p] = "acq"]
+    /\ UNCHANGED <<reserved, tag, license, seenRes,
+                   winsAfterTag, badWins, hLosses, hRebuilds>>
 
-\* compareAndSetRetain semantics: on success the peer keeps tracking the new
-\* value, which is exactly how Phase 2 hands its view to Phase 4.
 PCASOk(p) ==
     /\ pc[p] = "acq"
-    /\ view[p] = gen
-    /\ gen < MaxGen
+    /\ ~stale[p]
     /\ license[p] > 0
     /\ PeerMayCAS(p)
-    /\ gen'       = gen + 1
-    /\ resAt'     = [resAt EXCEPT ![gen + 1] = FALSE]   \* a peer publishes no reservation
-    /\ view'      = [view    EXCEPT ![p] = gen + 1]
-    /\ license'   = [license EXCEPT ![p] = license[p] - 1]
-    /\ pc'        = [pc      EXCEPT ![p] =
-                        IF license[p] - 1 > 0 THEN "acq" ELSE "idle"]
-    /\ peerWins'     = peerWins     + (IF hStarted   THEN 1 ELSE 0)
-    /\ winsAfterTag' = winsAfterTag + (IF tag = H    THEN 1 ELSE 0)
-    /\ badWins'   = badWins  + (IF resAt[gen]  THEN 1 ELSE 0)
-    /\ UNCHANGED <<tag, seenRes, hLosses, hRebuilds, hStarted>>
+    /\ badWins'      = badWins + (IF reserved THEN 1 ELSE 0)
+    /\ reserved'     = FALSE                       \* a peer publishes no reservation
+    /\ stale'        = Publish(p)
+    /\ license'      = [license EXCEPT ![p] = license[p] - 1]
+    /\ pc'           = [pc      EXCEPT ![p] =
+                          IF license[p] - 1 > 0 THEN "acq" ELSE "idle"]
+    /\ winsAfterTag' = winsAfterTag + (IF tag = H THEN 1 ELSE 0)
+    /\ UNCHANGED <<tag, seenRes, hLosses, hRebuilds>>
 
-\* Lost the CAS (stale pointer) or refused it (reservation visible).  Either
-\* way the caller rebuilds a fresh scope, which means a fresh observation.
+\* Lost the CAS (stale view) or refused it (reservation visible).  Either way the
+\* caller builds a fresh scope, and a fresh scope is a fresh observation.
 PCASFail(p) ==
     /\ pc[p] = "acq"
-    /\ (view[p] # gen \/ ~PeerMayCAS(p))
+    /\ (stale[p] \/ ~PeerMayCAS(p))
     /\ pc'      = [pc      EXCEPT ![p] = "idle"]
     /\ license' = [license EXCEPT ![p] = 0]
-    /\ UNCHANGED <<gen, resAt, tag, view, seenRes,
-                   peerWins, winsAfterTag, badWins, hLosses, hRebuilds, hStarted>>
+    /\ UNCHANGED <<reserved, stale, tag, seenRes,
+                   winsAfterTag, badWins, hLosses, hRebuilds>>
 
 -----------------------------------------------------------------------------
 (* HIGHEST — observe, tag, acquire, reserve, work.                           *)
 
 HObserve ==
     /\ pc[H] = "idle"
-    /\ pc'      = [pc EXCEPT ![H] = "obs"]
-    /\ hStarted' = TRUE
-    /\ UNCHANGED <<gen, resAt, tag, view, license, seenRes,
-                   peerWins, winsAfterTag, badWins, hLosses, hRebuilds>>
+    /\ pc' = [pc EXCEPT ![H] = "obs"]
+    /\ UNCHANGED <<reserved, stale, tag, license, seenRes,
+                   winsAfterTag, badWins, hLosses, hRebuilds>>
 
-\* Proposed order: the tag goes down before the view is taken, which also makes
-\* i_am_privileged_now true for our own acquire -- the C++ evaluates it at
-\* transaction_negotiation.h:488 BEFORE tag_as_contender runs, so today every
+\* Proposed order: the tag goes down before the view is taken.  It also makes
+\* i_am_privileged_now true for our own acquire -- the C++ evaluates that at
+\* transaction_negotiation.h:488, BEFORE tag_as_contender runs, so today every
 \* first touch of a Linkage takes the weak acquire and the weak CAS.
 HTagEarly ==
     /\ TagBeforeAcquire
     /\ pc[H] = "obs"
     /\ tag' = H
     /\ pc'  = [pc EXCEPT ![H] = "obs_t"]
-    /\ UNCHANGED <<gen, resAt, view, license, seenRes,
-                   peerWins, winsAfterTag, badWins, hLosses, hRebuilds, hStarted>>
+    /\ UNCHANGED <<reserved, stale, license, seenRes,
+                   winsAfterTag, badWins, hLosses, hRebuilds>>
 
 HAcquireTagged ==
     /\ pc[H] = "obs_t"
-    /\ view' = [view EXCEPT ![H] = gen]
-    /\ pc'   = [pc   EXCEPT ![H] = "acq_t"]
-    /\ UNCHANGED <<gen, resAt, tag, license, seenRes,
-                   peerWins, winsAfterTag, badWins, hLosses, hRebuilds, hStarted>>
+    /\ stale' = [stale EXCEPT ![H] = FALSE]
+    /\ pc'    = [pc    EXCEPT ![H] = "acq_t"]
+    /\ UNCHANGED <<reserved, tag, license, seenRes,
+                   winsAfterTag, badWins, hLosses, hRebuilds>>
 
 HAcquireUntagged ==
     /\ ~TagBeforeAcquire
     /\ pc[H] = "obs"
-    /\ view' = [view EXCEPT ![H] = gen]
-    /\ pc'   = [pc   EXCEPT ![H] = "acq_u"]
-    /\ UNCHANGED <<gen, resAt, tag, license, seenRes,
-                   peerWins, winsAfterTag, badWins, hLosses, hRebuilds, hStarted>>
+    /\ stale' = [stale EXCEPT ![H] = FALSE]
+    /\ pc'    = [pc    EXCEPT ![H] = "acq_u"]
+    /\ UNCHANGED <<reserved, tag, license, seenRes,
+                   winsAfterTag, badWins, hLosses, hRebuilds>>
 
 \* The gap between "acq_u" and here is the untagged entry -- the author's term
-\* (1).  A peer CAS landing in it costs HIGHEST its view.
+\* (1), and the one that tag-before-acquire deletes.
 HTagLate ==
     /\ ~TagBeforeAcquire
     /\ pc[H] = "acq_u"
     /\ tag' = H
     /\ pc'  = [pc EXCEPT ![H] = "acq_t"]
-    /\ UNCHANGED <<gen, resAt, view, license, seenRes,
-                   peerWins, winsAfterTag, badWins, hLosses, hRebuilds, hStarted>>
+    /\ UNCHANGED <<reserved, stale, license, seenRes,
+                   winsAfterTag, badWins, hLosses, hRebuilds>>
 
 HReserveOk ==
     /\ ReserveMode # "none"
     /\ pc[H] = "acq_t"
-    /\ view[H] = gen
-    /\ gen < MaxGen
-    /\ gen'   = gen + 1
-    /\ resAt' = [resAt EXCEPT ![gen + 1] = TRUE]
-    /\ view'  = [view  EXCEPT ![H] = gen + 1]
-    /\ pc'    = [pc    EXCEPT ![H] = "res"]
+    /\ ~stale[H]
+    /\ reserved' = TRUE
+    /\ stale'    = Publish(H)
+    /\ pc'       = [pc EXCEPT ![H] = "res"]
     /\ UNCHANGED <<tag, license, seenRes,
-                   peerWins, winsAfterTag, badWins, hLosses, hRebuilds, hStarted>>
+                   winsAfterTag, badWins, hLosses, hRebuilds>>
 
 \* Cheap: nothing has been built yet, so re-acquire and try again.  The tag is
 \* already up, so this does not re-open the observation window.
 HReserveFail ==
     /\ ReserveMode # "none"
     /\ pc[H] = "acq_t"
-    /\ view[H] # gen
+    /\ stale[H]
     /\ hLosses' = hLosses + 1
     /\ pc'      = [pc EXCEPT ![H] = "obs_t"]
-    /\ UNCHANGED <<gen, resAt, tag, view, license, seenRes,
-                   peerWins, winsAfterTag, badWins, hRebuilds, hStarted>>
+    /\ UNCHANGED <<reserved, stale, tag, license, seenRes,
+                   winsAfterTag, badWins, hRebuilds>>
 
-\* The work CAS after a successful reservation.  Modelled explicitly rather
-\* than assumed away: if any peer can still get through, this is where it shows
-\* up, as hRebuilds.
+\* The work CAS after a successful reservation, modelled rather than assumed
+\* away: if any peer can still get through, it shows up here as hRebuilds.
 HWorkAfterReserveOk ==
     /\ pc[H] = "res"
-    /\ view[H] = gen
+    /\ ~stale[H]
     /\ pc' = [pc EXCEPT ![H] = "done"]
-    /\ UNCHANGED <<gen, resAt, tag, view, license, seenRes,
-                   peerWins, winsAfterTag, badWins, hLosses, hRebuilds, hStarted>>
+    /\ UNCHANGED <<reserved, stale, tag, license, seenRes,
+                   winsAfterTag, badWins, hLosses, hRebuilds>>
 
 HWorkAfterReserveFail ==
     /\ pc[H] = "res"
-    /\ view[H] # gen
+    /\ stale[H]
     /\ hRebuilds' = hRebuilds + 1
     /\ pc'        = [pc EXCEPT ![H] = "obs_t"]
-    /\ UNCHANGED <<gen, resAt, tag, view, license, seenRes,
-                   peerWins, winsAfterTag, badWins, hLosses, hStarted>>
+    /\ UNCHANGED <<reserved, stale, tag, license, seenRes,
+                   winsAfterTag, badWins, hLosses>>
 
 \* ReserveMode = "none" -- today's protocol.  "work" is bundle Phase 1: a long
-\* interval, entered on one entitlement, whose result the Phase 2 CAS publishes.
+\* interval entered on one entitlement, whose result the Phase 2 CAS publishes.
 HWorkStart ==
     /\ ReserveMode = "none"
     /\ pc[H] = "acq_t"
     /\ pc' = [pc EXCEPT ![H] = "work"]
-    /\ UNCHANGED <<gen, resAt, tag, view, license, seenRes,
-                   peerWins, winsAfterTag, badWins, hLosses, hRebuilds, hStarted>>
+    /\ UNCHANGED <<reserved, stale, tag, license, seenRes,
+                   winsAfterTag, badWins, hLosses, hRebuilds>>
 
 HWorkOk ==
     /\ pc[H] = "work"
-    /\ view[H] = gen
-    /\ gen < MaxGen
-    /\ gen'  = gen + 1
-    /\ view' = [view EXCEPT ![H] = gen + 1]
-    /\ pc'   = [pc   EXCEPT ![H] = "done"]
-    /\ UNCHANGED <<resAt, tag, license, seenRes,
-                   peerWins, winsAfterTag, badWins, hLosses, hRebuilds, hStarted>>
+    /\ ~stale[H]
+    /\ stale' = Publish(H)
+    /\ pc'    = [pc EXCEPT ![H] = "done"]
+    /\ UNCHANGED <<reserved, tag, license, seenRes,
+                   winsAfterTag, badWins, hLosses, hRebuilds>>
 
 HWorkFail ==
     /\ pc[H] = "work"
-    /\ view[H] # gen
+    /\ stale[H]
     /\ hRebuilds' = hRebuilds + 1
     /\ pc'        = [pc EXCEPT ![H] = "obs"]
-    /\ UNCHANGED <<gen, resAt, tag, view, license, seenRes,
-                   peerWins, winsAfterTag, badWins, hLosses, hStarted>>
+    /\ UNCHANGED <<reserved, stale, tag, license, seenRes,
+                   winsAfterTag, badWins, hLosses>>
 
 HNext ==
     \/ HObserve \/ HTagEarly \/ HAcquireTagged \/ HAcquireUntagged \/ HTagLate
@@ -325,53 +374,59 @@ PNext ==
 
 Next == HNext \/ PNext
 
-\* Weak fairness on HIGHEST only.  Peers are deliberately unfair: they may
-\* never run.  What must not depend on their cooperation is HIGHEST finishing.
+\* Weak fairness on HIGHEST only.  Peers are deliberately unfair: they may never
+\* run.  What must not depend on their cooperation is HIGHEST finishing.
 Spec == Init /\ [][Next]_vars /\ WF_vars(HNext)
 
 -----------------------------------------------------------------------------
 (* Properties                                                                *)
 
 TypeOK ==
-    /\ gen \in 0..MaxGen
-    /\ resAt \in [0..MaxGen -> BOOLEAN]
+    /\ reserved \in BOOLEAN
+    /\ stale \in [Threads -> BOOLEAN]
     /\ tag \in {Null, H}
-    /\ view \in [Threads -> 0..MaxGen]
     /\ license \in [Peers -> 0..K]
-    /\ peerWins \in Nat /\ winsAfterTag \in Nat /\ badWins \in Nat
+    /\ winsAfterTag \in Nat /\ badWins \in Nat
     /\ hLosses \in Nat /\ hRebuilds \in Nat
 
-\* CLAIM 2.  No peer CAS ever succeeds on a generation that carries HIGHEST's
-\* reservation.  Holds for "invalue"; expected to FAIL for "sideword", and
-\* that failure is the argument for keeping the reservation in the value.
+\* CLAIM 2.  No peer CAS ever succeeds against a live reservation.  Holds for
+\* "invalue"; FAILS for "sideword", and that counterexample is the argument for
+\* keeping the reservation in the value rather than in a second word.
 INV_NoBadWins == badWins = 0
 
-\* CLAIM 1 + 3, the counting form -- and note WHICH window it is about.  TLC
-\* refuted the first attempt at this (peerWins <= Cardinality(Peers)*K over the
-\* whole run): before the tag lands, PObserveOk stays enabled, so a peer can
-\* re-observe and re-arm without limit and the count is unbounded.  That is not
-\* a defect -- HIGHEST has claimed nothing yet -- but it means the protocol
-\* bounds only what happens AFTER the tag.  From that instant PObserveOk is
-\* disabled for everyone, so the only peers left are those already holding a
-\* license, and each has at most K CASes on it.
+\* CLAIM 1 + 3, the counting form, and note WHICH window it is about.  Nothing
+\* before the tag counts: HIGHEST has claimed nothing, so peers running are just
+\* peers running.  From the tag onward PObserveOk is disabled for everyone, so
+\* the only peers left are those already holding a license, each with at most K
+\* CASes on it.
 INV_WinsAfterTag == winsAfterTag <= Cardinality(Peers) * K
 
-\* The tighter reading the "3" in 3L assumed -- one interfering peer per
-\* Linkage.  Expected to FAIL whenever Cardinality(Peers) > 1: the bound must
-\* carry the thread count.
+\* The reading the "3" in 3L assumed -- one interfering peer per Linkage.
+\* Expected to FAIL once Cardinality(Peers) > 1: the bound must carry T.
 INV_WinsAfterTagOne == winsAfterTag <= 1
 
-\* Same, at K = 1: one win per peer.  Prices the re-negotiate before Phase 4.
+\* At K = 1, one win per peer.  Prices the re-negotiate before Phase 4.
 INV_WinsAfterTagPerPeer == winsAfterTag <= Cardinality(Peers)
 
-\* THE REALTIME CLAIM.  With the reservation in the value, HIGHEST never has to
-\* redo work: every loss lands on the reserve CAS, before anything was built.
+\* THE REALTIME CLAIM.  With the reservation in the value, HIGHEST never redoes
+\* work: every loss lands on the reserve CAS, before anything was built.
 INV_NoRebuild == (ReserveMode = "invalue") => (hRebuilds = 0)
 
 \* The losses HIGHEST does take are bounded by the same window.
 INV_HLosses == hLosses <= Cardinality(Peers) * K
 
-\* CLAIM 3, the liveness form.
+\* The EXPENSIVE count -- the one Node::snapshot's retry loop reports as
+\* snapshot_retries_max.  Probed at three tightness levels so the sweep can
+\* report the exact maximum rather than a bound someone guessed.
+INV_Rebuilds_LE_0  == hRebuilds = 0
+INV_Rebuilds_LE_P  == hRebuilds <= Cardinality(Peers)
+INV_Rebuilds_LE_PK == hRebuilds <= Cardinality(Peers) * K
+\* Tag-late costs exactly one more: HIGHEST acquires before its stamp is down,
+\* so a peer CAS in that gap staled a view it had already taken.  The author's
+\* term (1), isolated.
+INV_Rebuilds_LE_PK1 == hRebuilds <= Cardinality(Peers) * K + 1
+
+\* CLAIM 3, the liveness form: the reserve loop terminates.
 LIVE_Done == <>(pc[H] = "done")
 
 =============================================================================
