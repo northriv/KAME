@@ -180,7 +180,7 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 | Blocking | `retry` suspends on read-set change | No data-structure locks; a repeatedly-colliding Tx yields/parks to the privileged (oldest / highest-priority) Tx |
 | Memory management | GC | Lock-free `atomic_shared_ptr` (ref-counted) |
 | Cost of an atomic multi-object commit | Per-variable logging, paid at commit | **p50 ≈ 439 ns + 94.5 ns × nodes**, measured to 17 nodes; free in the tail, where 17× the nodes costs 1.6× the worst case ([below](#realtime-behaviour)) |
-| Hard real-time suitability | Limited (GC pauses) | No GC pauses, and a declared wait budget converts the tail into a chosen number — **measured** on a `PREEMPT_RT` host, MAX − budget = 3–7 µs at the shipped 20 ms budget (the host's own floor being 219 ns, measured), 38.3 M commits with zero over 3 ms at a 1 ms budget ([below](#realtime-behaviour)). Still not hard-RT in a strict WCET sense: CAS retry *counts* are not bounded, and the budget cannot bound the wait behind a live privilege holder — that one is the deployment's to bound, with core isolation |
+| Hard real-time suitability | Limited (GC pauses) | No GC pauses, and a declared wait budget puts a chosen ceiling on the ordinary wait path — **measured** on a `PREEMPT_RT` host, MAX − budget = 3–7 µs at the shipped 20 ms budget (the host's own floor being 219 ns, measured), 38.3 M commits with zero over 3 ms at a 1 ms budget ([below](#realtime-behaviour)). Still not hard-RT in a strict WCET sense: CAS retry *counts* are not bounded, and the budget cannot bound the wait behind a live privilege holder — that one is the deployment's to bound, with core isolation |
 
 **Compared to Hardware Transactional Memory (Intel TSX/RTM):** HTM aborts on cache-line conflicts regardless of logical independence, and has strict capacity limits. KAME's STM aborts only on semantic conflicts (packet identity change), tolerates large read sets, and degrades gracefully to age-ordered privileged-Tx negotiation (the colliding losers yield to the oldest transaction) rather than falling back to a global lock.
 
@@ -190,14 +190,26 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 
 ## Realtime behaviour
 
-**A commit's worst-case time is a number you choose.**  Declare a wait budget
-(`ScopedWaitBudget`; KAME sets 20 ms from
-`XPrimaryDriver::downstreamWaitBudgetUS()`) and every wait inside the commit
-is clipped to it: measured MAX − budget is **3–7 µs** from 20 ms down to
-1 ms, and a 300 s proof run at a 1 ms budget closed 38.3 M commits with zero
-over a 3 ms deadline.  Keep the budget well above the 300 µs deadline-spin
-reserve — at or below it the committer never sleeps, and the deferrable
-tiers starve (measured −94 % / −98 % at a 200 µs budget).
+**A commit's ordinary wait path has a ceiling you choose.**  Declare a wait
+budget (`ScopedWaitBudget`; KAME sets 20 ms from
+`XPrimaryDriver::downstreamWaitBudgetUS()`) and every ordinary wait inside the
+commit is clipped to it.  The **sole exception** is the wait behind a live
+privileged peer, which is exempt by design and bounded instead by the holder's
+scheduling delay — [below](#the-one-wait-the-budget-cannot-clip), and the
+reason core isolation is item 1 of the deployment recipe.  Measured
+MAX − budget is **3–7 µs** from 20 ms down to 1 ms, and a 300 s proof run at a
+1 ms budget closed 38.3 M commits with zero over a 3 ms deadline — that run is
+a *separate* configuration from the table below, which is at the shipped 20 ms
+budget; its 38.3 M is not those rows' sample count.  Keep the
+budget well above the 300 µs deadline-spin reserve — at or below it the
+committer never sleeps, and the deferrable tiers starve (measured −94 % /
+−98 % at a 200 µs budget).
+
+Read every number below as an **observed maximum under a tested
+configuration**, never as a WCET: the budget bounds *time* on the ordinary
+path, the model checking proves *starvation-freedom*, and neither yields a
+retry-count bound for a deployment — the three are set side by side in
+[Note: retry counts vs time](#note-retry-counts-vs-time).
 
 **Measure the host's floor before quoting any number here**
 (`tests/latency_floor`, run under `tests/with_pmqos`): this host's floor
@@ -215,8 +227,11 @@ already `performance` in both, so that factor of 2400 is PM-QoS alone:
 C-state exits are essentially all of the OS noise here.  Two consequences
 worth stating plainly.  Row 1's **MAX sits at or under that 19 µs**, so the
 extreme value is not separable from the machine — but p99.999 is: one 19 µs
-hole a minute cannot lift 1000 commits out of 10⁸ above 7 µs, so everything
-from p50 to p99.999 is the STM's.  And `rtla hwnoise`, which answers
+hole a minute cannot lift 1000 commits out of 10⁸ above 7 µs, so p50 through
+p99.999 are **dominated by** the STM path rather than by measured OS noise.
+(Dominated, not free of it — the same holes land inside those commits too;
+what the arithmetic rules out is their *setting* those percentiles.)  And
+`rtla hwnoise`, which answers
 "firmware, SMI" and must itself run under PM-QoS or it re-measures C-states,
 has not yet given a reproducible answer on this host (0 µs and 57 µs on two
 runs of the same length); until it does, no claim is made about a firmware
@@ -242,6 +257,14 @@ not one commit past the slow threshold.  Row 3 repeats only through p99
 10.5 / 12.6 / 10.5 ms, MAX pinned to the 20 ms wait budget in all three.
 Reproduce any of them with `sudo tests/rt_measure.sh latency <binary>`, whose
 `ROW=1|2|3` presets are exactly the three lines.
+
+A percentile appears here only when the run has the samples to carry it:
+`latency_hist.h` prints one only if at least **10 commits fall beyond it**
+(`n × (1 − p) ≥ 10`), so a quoted p99.999 means ≥ 1 M warm commits in that
+run, and a percentile absent from a row is absent because the harness refused
+it rather than because it was omitted.  Every row above quotes p99.999.  The
+harness reports the exact warm `n` on its latency line and `rt_measure.sh`
+records it per run in `provenance.txt`.
 
 That script is the recipe below wrapped so that it cannot be half-applied: it
 pre-flights
