@@ -3218,3 +3218,57 @@ one latency_hist bucket unless noted:
   NORMAL-only throughput change: head-vs-pre medians −4.3 % / −4.5 % /
   −1.1 % across rounds, within the box's inter-round drift, and the
   TLS-removed arm was indistinguishable from head.
+
+## Correction: "the demote sites are now no-ops" was never true (2026-08-14)
+
+The retirement section above records that after `AcquisitionPriority` dropped to
+NORMAL, the `ScopedDemoteRealtime` sites became "no-ops that document intent and
+re-arm if a future deployment restores the tier". Asked (user) whether the demote
+machinery could therefore be deleted from KAME outright, since KAME cannot take
+HIGHEST for now. Checking before deleting found the premise wrong in both
+directions.
+
+**HIGHEST never left KAME.** The 2026-07-31 verdict changed the generic wrapper;
+it did not touch the five hand-rolled `setCurrentPriorityMode(HIGHEST)` calls
+that predate it:
+
+    modules/dso/core/dsorealtimeacq_impl.h:299   DAQ reader thread
+    modules/nmr/thamway/thamwayrealtimedso.cpp   async reader thread
+    modules/nidaq/pulserdrivernidaqmx.cpp        DMA writer thread
+    modules/digilentwf/dwfdso.cpp                readAI thread
+    modules/nmr/pulsercore/pulserdriver.cpp:427  free-run loop
+
+So a claim that the sites are unarmed had to be checked per thread, not asserted
+from the wrapper.
+
+**Four of the five cannot reach a demote site.** They are DAQ threads: they fill
+buffers and take Snapshots, while `finishWritingRaw` — and therefore every marked
+message, `visualize()` and the secondary-driver chain — runs on the driver's
+*other* thread, the one holding `AcquisitionPriority`. Their tier is invisible to
+the demote question.
+
+**The fifth was a defect, and it was the only live arming path.**
+`XPulser::freeRunToDetectTriggers` opened with an unrestored HIGHEST declaration.
+It bought nothing on its own thread — the loop takes no Snapshot and opens no
+Transaction; `SoftwareTrigger::stamp()` is a FastQueue push with a mutex fallback
+— and `visualize()` calls the same function *synchronously* (`single = true`).
+`visualize()` runs on whichever thread committed the pulse change, i.e. the GUI
+thread at UI_DEFERRABLE or the scripting thread, so one pulser turn-on left that
+thread at HIGHEST permanently. `ScopedDemoteRealtime` cannot catch this: it arms
+only when the thread was ALREADY HIGHEST on entry, which is the opposite case.
+The declaration is deleted; if that thread ever needs a tier it goes on the
+`XThread` that starts it, where a synchronous caller cannot inherit it.
+
+**What was actually deleted, and what was kept.** Deleted: the pulser
+declaration, and `AcquisitionPriority`'s `ScopedPriority(Priority::NORMAL)` base
+— dead weight, because `execute_internal` already declares NORMAL at thread
+entry, so the base saved NORMAL and restored NORMAL. Kept: `ScopedDemoteRealtime`
+and its three sites, now genuinely dormant. The cost of keeping them is one TLS
+read on paths that already snapshot wide; the cost of deleting them is re-deriving
+the §"realtime ends with the record" argument the next time the tier moves.
+
+**The general lesson, which is why this is written up rather than just fixed.** A
+tier retired at the wrapper is not retired in the tree. "Armed only at HIGHEST,
+now no-ops" was a statement about one class that read as a statement about the
+program; a grep for the enumerator would have refuted it the same day. Any future
+claim that a priority is out of KAME has to name the threads, not the wrapper.

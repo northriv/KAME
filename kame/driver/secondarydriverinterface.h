@@ -41,9 +41,18 @@ XSecondaryDriverInterface<T>::onConnectedRecorded(const Snapshot &shot_emitter, 
 	// This runs INLINE ON THE COMMITTING THREAD: the onRecord listener below is
 	// connected with no flags, and XDriver::record() marks the talker so the
 	// dispatch happens when finishWritingRaw's transaction commits.  So the
-	// thread here is the primary driver's acquisition thread — which is at
-	// Priority::HIGHEST (XPrimaryDriverWithThread::AcquisitionPriority, plus the
-	// five pre-existing sites in the pulser and the realtime DSOs).
+	// thread here is the primary driver's acquisition thread.
+	//
+	// **Dormant as of 2026-08-14, and kept deliberately.**  No thread that can
+	// reach this function is at HIGHEST today: AcquisitionPriority grants only
+	// the OS elevation, and the four remaining direct HIGHEST sites (the
+	// realtime DSO reader, the Thamway async reader, the NI-DAQ DMA writer, the
+	// DigilentWF reader) are DAQ threads that never take the record path — the
+	// recording thread is a different one.  The fifth, the pulser's free-run
+	// loop, is gone: it did no STM work and leaked HIGHEST into visualize()'s
+	// caller.  What keeps this guard here is that arming it costs one TLS read
+	// on a path that already snapshots the whole driver list, while re-deriving
+	// WHY it is needed costs the argument below all over again.
 	//
 	// HIGHEST is safe only under a deployment invariant: realtime threads must
 	// not share a Linkage.  This function breaks it by construction — it

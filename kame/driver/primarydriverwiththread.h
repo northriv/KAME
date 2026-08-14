@@ -35,68 +35,47 @@ protected:
 	virtual void *execute(const atomic<bool> &terminated) = 0;
 
 protected:
-    //! RAII guard raising an acquisition loop to `Priority::HIGHEST`.
+    //! RAII guard marking an acquisition loop for the OS scheduler.
     //!
-    //! Construct it immediately before the `while( !terminated)` loop — never
-    //! around the setup commit that precedes it.  That commit runs once at
-    //! driver start, often while a .kam load is starting many drivers at once,
-    //! which is the one case where several impolite threads hurt each other.
-    //! Everything inside the loop, by contrast, belongs to the record: the
-    //! settings Snapshots (`***someNode()` expands to a SingleSnapshot, see
-    //! kame/xnode.h, so those negotiate too), the hardware I/O, and the record
-    //! commit(s).  None of it should be polite.
+    //! Construct it immediately before the `while( !terminated)` loop.  It
+    //! spans the loop, the loop spans the thread, and the thread dies with the
+    //! driver — so this is a set-once thread property in RAII clothing, which
+    //! is what an OS scheduling class has to be (POSIX RT attributes are set at
+    //! thread setup; MMCSS registers a thread once).
     //!
-    //! **Unconditional on purpose.**  This is a safeguard against unforeseen
-    //! contention — a .kam load, a script or an MCP session snapshotting the
-    //! measurement root, a graph redraw bundling an ancestor — and a safeguard
-    //! that has to be switched on ahead of time is not one, because nobody
-    //! predicts the unforeseen.  It is also free until it is needed:
-    //! `ScopedNegotiateLinkage::_negotiate()` returns `[[likely]]` early when
-    //! no peer has tagged the linkage, so `_negotiate_internal()` — the only
-    //! place that looks at the priority at all — is reached only under real
-    //! contention.  Until then a HIGHEST acquisition thread behaves bit-for-bit
-    //! like a NORMAL one.
+    //! **It grants no STM priority, and that is the whole history of this
+    //! class.**  It used to raise the loop to `Priority::HIGHEST`, and the
+    //! field and the lab converged on a structural incompatibility at the tier
+    //! contracts' meeting point: HIGHEST never waits (its fair-mode immunity IS
+    //! the contract), so it is the one contender a NORMAL transaction's
+    //! privilege cannot stop.  When any privilege-holding transaction's closure
+    //! takes longer than the HIGHEST commit period (closure x rate >= 1 — e.g.
+    //! a 20 ms PNR analysis against a 50 /s record stream), it resonates into
+    //! quasi-starvation, re-running its closure every record (measured: 1.1 ->
+    //! 15.5 closure runs per commit) while its privilege pins every OTHER
+    //! negotiator — a system-wide freeze that ends in the HANG watchdog.  At
+    //! NORMAL the acquisition commits negotiate like everyone, fair-mode works
+    //! on them, and the same load runs clean.  (User verdict, 2026-07-31; the
+    //! reasoning is in kamestm/design/RT_READINESS.md.)
     //!
-    //! **What it costs when it does act, stated plainly.**  HIGHEST breaks out
-    //! of the negotiator's round loop before the sleep path, which is where
-    //! `fair_mode_blocks_me` gates on a peer's privilege stamp — so a HIGHEST
-    //! thread ignores privilege entirely.  An ancestor-scope operation can
-    //! therefore no longer be protected by privilege against acquisition
-    //! threads, and with several drivers acquiring it can be starved for as
-    //! long as they keep acquiring.  That is a deliberate policy choice:
-    //! measurement beats UI and scripting.  Note the record-commit counters
-    //! above do NOT see it — they only count the acquisition side — so a
-    //! starved .kam load or redraw has to be noticed by other means.
-    //! **STM-HIGHEST is retired for KAME (user verdict, 2026-07-31)** — this
-    //! RAII now grants only the OS-level elevation.  The field and the lab
-    //! converged on a structural incompatibility at the tier contracts'
-    //! meeting point: HIGHEST never waits (its fair-mode immunity IS the
-    //! contract), so it is the one contender a NORMAL transaction's privilege
-    //! cannot stop.  When any privilege-holding transaction's closure takes
-    //! longer than the HIGHEST commit period (closure x rate >= 1 — e.g. a
-    //! 20 ms PNR analysis against a 50 /s record stream), it resonates into
-    //! quasi-starvation, re-running its closure every record (measured: 1.1
-    //! -> 15.5 closure runs per commit) while its privilege pins every OTHER
-    //! negotiator — a system-wide freeze that ends in the HANG watchdog.
-    //! At NORMAL the acquisition commits negotiate like everyone, fair-mode
-    //! works on them, and the same load runs clean.
+    //! The STM half was a `ScopedPriority(Priority::NORMAL)` base for a while
+    //! after that verdict, which was dead weight: `execute_internal` below
+    //! already declares NORMAL at thread entry, so the base saved NORMAL and
+    //! restored NORMAL.  Removed 2026-08-14 — an RAII that restores what was
+    //! never changed only invites the reader to believe a tier is in play here.
     //!
-    //! The OS half stays: CPU preference is a thread property with no
-    //! fair-mode immunity, so it keeps the acquisition thread scheduled
-    //! without letting it starve anyone at the STM level.  The kamestm
-    //! HIGHEST tier itself remains available to hosts that can honour its
-    //! deployment precondition (HIGHEST commit rate x longest peer closure
-    //! << 1); KAME with per-record analyses cannot.
-    class AcquisitionPriority : public Transactional::ScopedPriority {
+    //! CPU preference is a thread property with no fair-mode immunity, so the
+    //! OS half keeps the acquisition thread scheduled without letting it starve
+    //! anyone at the STM level.  The kamestm HIGHEST tier itself remains
+    //! available to hosts that can honour its deployment precondition (HIGHEST
+    //! commit rate x longest peer closure << 1); KAME with per-record analyses
+    //! cannot.
+    class AcquisitionPriority {
     public:
-        AcquisitionPriority()
-            : Transactional::ScopedPriority(
-                  Transactional::Priority::NORMAL) {
-            raiseAcquisitionOSPriority_();
-        }
-        ~AcquisitionPriority() {
-            restoreAcquisitionOSPriority_();
-        }
+        AcquisitionPriority() noexcept { raiseAcquisitionOSPriority_(); }
+        ~AcquisitionPriority() { restoreAcquisitionOSPriority_(); }
+        AcquisitionPriority(const AcquisitionPriority &) = delete;
+        AcquisitionPriority &operator=(const AcquisitionPriority &) = delete;
     };
 
 private:

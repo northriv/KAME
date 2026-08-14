@@ -424,7 +424,22 @@ XPulser::changeUIStatus(bool state) {
 }
 void
 XPulser::freeRunToDetectTriggers(const atomic<bool>&terminated, bool single) {
-    Transactional::setCurrentPriorityMode(Transactional::Priority::HIGHEST);
+    // No priority declaration here, deliberately.  This used to open with
+    // setCurrentPriorityMode(HIGHEST) and never restore, which was wrong twice
+    // over.  It bought nothing: the loop below takes no Snapshot and opens no
+    // Transaction -- it walks the cached pattern list under m_mutexForFreeRun
+    // and calls SoftwareTrigger::stamp(), which is a FastQueue push with a
+    // mutex fallback, no STM at all.  And it leaked: visualize() calls this
+    // synchronously (single = true), and visualize() runs on whatever thread
+    // committed the pulse change -- the GUI thread at UI_DEFERRABLE, or the
+    // scripting thread -- so one turn-on left that thread at HIGHEST
+    // permanently, for every transaction it would ever run afterwards.
+    // ScopedDemoteRealtime does not catch it: it arms only when the thread was
+    // ALREADY HIGHEST on entry, which is the opposite case.
+    //
+    // If the free-running thread ever does need a tier, declare it at the
+    // XThread that starts it (see visualize()), not here where the synchronous
+    // caller inherits it.
     for(;;) {
         XScopedLock<XMutex> lock(m_mutexForFreeRun);
         uint64_t threshold = m_thresholdOfFreeRun;
