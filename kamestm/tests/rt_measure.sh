@@ -8,7 +8,12 @@
 # gets dropped.
 #
 #   rt_measure.sh floor   [outdir]
-#   rt_measure.sh latency <binary> [outdir]
+#   rt_measure.sh latency <binary> [outdir]        ROW=1|2|3
+#
+# ROW picks the README realtime-table row to reproduce, with that row's knobs
+# and duration: 1 = contended (default, 300 s), 2 = uncontended
+# (KAME_MIX_DISJOINT=1, 60 s), 3 = budgeted NORMAL (KAME_MIX_ACQ_NORMAL=1,
+# 120 s).  SECS overrides the duration and says so in the provenance.
 #
 # Run it as `sudo CPUS=2,3 rt_measure.sh ...` and NOT `sudo -E` -- sudo ignores
 # -E ("preserving the entire environment is not supported") and the knobs then
@@ -46,7 +51,22 @@ MODE=${1:?usage: rt_measure.sh floor [outdir] | rt_measure.sh latency <binary> [
 shift
 
 CPUS=${CPUS:-2,3}
-SECS=${SECS:-300}
+# ROW selects which README realtime-table row is being reproduced.  The knobs
+# and the duration are part of the row's definition, not of the operator's
+# memory: row 2 is the uncontended path and row 3 is the budgeted NORMAL tier,
+# and getting either wrong reproduces a different row while looking right.
+ROW=${ROW:-1}
+SECS_SET=${SECS+set}
+case "$ROW" in
+    1) ROW_ENV="";                      ROW_SECS=300
+       ROW_DESC="HIGHEST, 5-node commit, peers writing into the same subtree" ;;
+    2) ROW_ENV="KAME_MIX_DISJOINT=1";   ROW_SECS=60
+       ROW_DESC="the same commit with no peer on its subtree" ;;
+    3) ROW_ENV="KAME_MIX_ACQ_NORMAL=1"; ROW_SECS=120
+       ROW_DESC="NORMAL under the 20 ms budget" ;;
+    *) echo "ROW must be 1, 2 or 3 (README's realtime table)" >&2; exit 1 ;;
+esac
+SECS=${SECS:-$ROW_SECS}
 REPS=${REPS:-3}
 SLOW_NS=${SLOW_NS:-7000}
 HWNOISE_SECS=${HWNOISE_SECS:-300}
@@ -245,16 +265,27 @@ do_latency() {
       say "binary        $BIN"
       say "binary sha256 $(sha256sum "$BIN" | cut -d' ' -f1)"
       say "git rev       $(git -C "$(dirname "$0")" rev-parse HEAD 2>/dev/null)"
-      say "SECS=$SECS REPS=$REPS SLOW_NS=$SLOW_NS"
+      say "row           $ROW -- $ROW_DESC"
+      say "row env       ${ROW_ENV:-<none>}"
+      say "SECS=$SECS${SECS_SET:+ (overridden; this row default is $ROW_SECS)} REPS=$REPS SLOW_NS=$SLOW_NS"
     } | tee "$OUT/provenance.txt"
     say ""
 
     save_governors; set_performance
 
+    # Record the composed command.  KAME_MIX_DISJOINT and KAME_MIX_ACQ_NORMAL
+    # change which row is being reproduced and neither appears in the run's own
+    # banner, so "did the knob reach the binary" is otherwise unanswerable from
+    # the artefacts.
+    say "invocation    $pm taskset -c $CPUS env KAME_MIX_SECS=$SECS KAME_MIX_SLOW_NS=$SLOW_NS KAME_MIX_OS_FIFO=1 KAME_MIX_OS_PIN=1 ${ROW_ENV:-} $BIN" \
+        | tee -a "$OUT/provenance.txt"
+    say ""
+
     for r in $(seq 1 "$REPS"); do
         "$pm" taskset -c "$CPUS" env \
             KAME_MIX_SECS=$SECS KAME_MIX_SLOW_NS=$SLOW_NS \
             KAME_MIX_OS_FIFO=1 KAME_MIX_OS_PIN=1 \
+            ${ROW_ENV:+$ROW_ENV} \
             "$BIN" > "$OUT/run$r.log" 2>&1
         say "run$r exit=$? -> $OUT/run$r.log"
     done
