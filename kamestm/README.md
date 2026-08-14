@@ -180,7 +180,7 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 | Blocking | `retry` suspends on read-set change | No data-structure locks; a repeatedly-colliding Tx yields/parks to the privileged (oldest / highest-priority) Tx |
 | Memory management | GC | Lock-free `atomic_shared_ptr` (ref-counted) |
 | Cost of an atomic multi-object commit | Per-variable logging, paid at commit | **p50 ≈ 439 ns + 94.5 ns × nodes**, measured to 17 nodes; free in the tail, where 17× the nodes costs 1.6× the worst case ([below](#realtime-behaviour)) |
-| Hard real-time suitability | Limited (GC pauses) | No GC pauses, and a declared wait budget converts the tail into a chosen number — **measured** on a `PREEMPT_RT` host, MAX − budget = 3–7 µs at the shipped 20 ms budget (the host's own floor being 219 ns, measured), 38.3 M commits with zero over 3 ms at a 1 ms budget ([below](#realtime-behaviour)). Still not hard-RT in a strict WCET sense: CAS retry *counts* are not bounded, and the budget cannot bound the wait behind a live privilege holder — that one is the deployment's to bound, with core isolation |
+| Hard real-time suitability | Limited (GC pauses) | No GC pauses, and a declared wait budget puts a chosen ceiling on the ordinary wait path — **measured** on a `PREEMPT_RT` host, MAX − budget = 3–7 µs at the shipped 20 ms budget (the host's own floor being 219 ns, measured), 38.3 M commits with zero over 3 ms at a 1 ms budget ([below](#realtime-behaviour)). Still not hard-RT in a strict WCET sense: CAS retry *counts* are not bounded, and the budget cannot bound the wait behind a live privilege holder — that one is the deployment's to bound, with core isolation |
 
 **Compared to Hardware Transactional Memory (Intel TSX/RTM):** HTM aborts on cache-line conflicts regardless of logical independence, and has strict capacity limits. KAME's STM aborts only on semantic conflicts (packet identity change), tolerates large read sets, and degrades gracefully to age-ordered privileged-Tx negotiation (the colliding losers yield to the oldest transaction) rather than falling back to a global lock.
 
@@ -190,14 +190,26 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 
 ## Realtime behaviour
 
-**A commit's worst-case time is a number you choose.**  Declare a wait budget
-(`ScopedWaitBudget`; KAME sets 20 ms from
-`XPrimaryDriver::downstreamWaitBudgetUS()`) and every wait inside the commit
-is clipped to it: measured MAX − budget is **3–7 µs** from 20 ms down to
-1 ms, and a 300 s proof run at a 1 ms budget closed 38.3 M commits with zero
-over a 3 ms deadline.  Keep the budget well above the 300 µs deadline-spin
-reserve — at or below it the committer never sleeps, and the deferrable
-tiers starve (measured −94 % / −98 % at a 200 µs budget).
+**A commit's ordinary wait path has a ceiling you choose.**  Declare a wait
+budget (`ScopedWaitBudget`; KAME sets 20 ms from
+`XPrimaryDriver::downstreamWaitBudgetUS()`) and every ordinary wait inside the
+commit is clipped to it.  The **sole exception** is the wait behind a live
+privileged peer, which is exempt by design and bounded instead by the holder's
+scheduling delay — [below](#the-one-wait-the-budget-cannot-clip), and the
+reason core isolation is item 1 of the deployment recipe.  Measured
+MAX − budget is **3–7 µs** from 20 ms down to 1 ms, and a 300 s proof run at a
+1 ms budget closed 38.3 M commits with zero over a 3 ms deadline — that run is
+a *separate* configuration from the table below, which is at the shipped 20 ms
+budget; its 38.3 M is not those rows' sample count.  Keep the
+budget well above the 300 µs deadline-spin reserve — at or below it the
+committer never sleeps, and the deferrable tiers starve (measured −94 % /
+−98 % at a 200 µs budget).
+
+Read every number below as an **observed maximum under a tested
+configuration**, never as a WCET: the budget bounds *time* on the ordinary
+path, the model checking proves *starvation-freedom*, and neither yields a
+retry-count bound for a deployment — the three are set side by side in
+[Note: retry counts vs time](#note-retry-counts-vs-time).
 
 **Measure the host before quoting any number here.**
 `tests/rt_measure.sh floor` runs both instruments with the preconditions
@@ -206,7 +218,10 @@ enforced: `tests/latency_floor` (the floor of a timed loop; this host spans
 osnoise` (how long the OS takes the CPU away from a spinning thread; here
 50 ms of noise per minute bare → **19–21 µs, C-state exits are essentially
 all of it** — so a MAX at or under ~19 µs is not separable from the machine,
-while p50–p99.999 are the STM's).  `rtla hwnoise` must itself run under
+while p50–p99.999 are *dominated by* the STM path: one 19 µs hole a minute
+cannot lift 1000 commits out of 10⁸ above 7 µs.  Dominated, not free of it —
+those holes land inside commits too; what the arithmetic excludes is their
+*setting* those percentiles).  `rtla hwnoise` must itself run under
 PM-QoS or it re-measures C-states; it has not yet produced a reproducible
 firmware figure on this host, so no claim is made about a firmware floor.
 
@@ -243,6 +258,14 @@ of the 0.054 % budget-clip population is a poorly conditioned statistic,
 and MAX stays pinned to the budget in every run.  Sub-bucket p50 movements
 observed across revisions remain unexplained and are treated as noise; the
 running record is [`design/RT_READINESS.md`](design/RT_READINESS.md).
+
+A percentile appears here only when the run has the samples to carry it:
+`latency_hist.h` prints one only if at least **10 commits fall beyond it**
+(`n × (1 − p) ≥ 10`), so a quoted p99.999 means ≥ 1 M warm commits in that
+run — every row above quotes one, and an absent percentile is one the harness
+refused rather than one omitted here.  The harness reports the exact warm `n`
+on its latency line, and `rt_measure.sh` records it per run in
+`provenance.txt` with the CPU model and the thread/core split.
 
 Three facts a deployment can act on:
 

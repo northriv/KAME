@@ -117,6 +117,13 @@ provenance() {
     say "date          $(date -Is)"
     say "host          $(uname -n)"
     say "kernel        $(uname -r)"
+    # The CPU model and its core/thread split are part of the result, not
+    # colour: an SMT sibling sharing the isolated core's execution units, or a
+    # different microarchitecture, moves these numbers more than most of the
+    # knobs below.  A reader cannot re-derive either from the hostname.
+    say "cpu model     $(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -1)"
+    local _cores; _cores=$(sed -n 's/^core id[[:space:]]*: //p' /proc/cpuinfo | sort -u | wc -l)
+    say "cpu topology  $(nproc --all) thread(s) over ${_cores:-?} core id(s)$([ "$(nproc --all)" != "$_cores" ] && echo '  <- SMT: check the isolated pair are not siblings')"
     say "cmdline       $(cat /proc/cmdline)"
     # Each of these moves the floor by roughly an order of magnitude (README's
     # 67.9 us / 17.0 us / 219 ns table), so their presence is part of the result.
@@ -302,10 +309,17 @@ do_latency() {
     fi
 
     say ""
-    printf "%-6s %-8s %-8s %-9s %-10s %-10s %-8s %s\n" run p50 p99 p99.9 p99.999 MAX slow_n verdict
+    # `n` is the warm commit count, and it is not decoration: latency_hist.h
+    # prints a percentile only when at least 10 samples fall beyond it
+    # (n*(1-p) >= 10), so n is what says whether the p99.999 column means
+    # anything -- a quoted p99.999 needs n >= 1 M.  A reader of the README
+    # table should not have to infer the sample size from the run length.
+    printf "%-6s %-12s %-8s %-8s %-9s %-10s %-10s %-8s %s\n" \
+           run n p50 p99 p99.9 p99.999 MAX slow_n verdict
     for f in "$OUT"/run*.log; do
         local line; line=$(grep -a "^    n=" "$f" | head -1)
-        local p50 p99 p999 p5 mx sn v
+        local n p50 p99 p999 p5 mx sn v
+        n=$(echo "$line" | grep -oE "^    n=[0-9]+" | cut -d= -f2)
         p50=$(echo "$line" | grep -oE "p50=[0-9]+" | cut -d= -f2)
         p99=$(echo "$line" | grep -oE "p99=[0-9]+" | cut -d= -f2)
         p999=$(echo "$line" | grep -oE "p99\.9=[0-9]+" | cut -d= -f2)
@@ -315,12 +329,13 @@ do_latency() {
         v=$(grep -aoE "^PASSED|^FAILED|STALL" "$f" | head -1)
         grep -qa "could not hold /dev/cpu_dma_latency" "$f" && v="$v NO-PMQOS"
         grep -qa "SCHED_FIFO .* not permitted" "$f"        && v="$v NO-FIFO"
-        printf "%-6s %-8s %-8s %-9s %-10s %-10s %-8s %s\n" \
-               "$(basename "$f" .log)" "${p50:-?}" "${p99:-?}" "${p999:-?}" \
+        printf "%-6s %-12s %-8s %-8s %-9s %-10s %-10s %-8s %s\n" \
+               "$(basename "$f" .log)" "${n:-?}" "${p50:-?}" "${p99:-?}" "${p999:-?}" \
                "${p5:-?}" "${mx:-?}" "${sn:-?}" "${v:-?}"
     done
     say ""
-    say "All in ns.  README quotes the WORST of the runs for its table row."
+    say "n = warm commits; a '?' in p99.999 means n was too small to support it."
+    say "Latencies in ns.  README quotes the WORST of the runs for its table row."
     say "Compare MAX against the treated floor from 'rt_measure.sh floor' --"
     say "a MAX under the floor is the machine, not the STM."
 }
