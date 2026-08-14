@@ -15,19 +15,23 @@
 # thread-count-INDEPENDENT constant -- which is what the "3" in the original 3L
 # rule was -- survives only the single-peer case.  Sweeping T is what tests it.
 #
-# READ THE CPU BUDGET BEFORE READING ANY RESULT.  The bound's T counts peers
-# that can be IN FLIGHT AT ONCE.  Raising T past the number of CPUs the run is
+# READ THE CPU BUDGET BEFORE COMPARING TWO T.  The bound's T counts peers that
+# can be IN FLIGHT AT ONCE.  Raising T past the number of CPUs the run is
 # allowed does not raise that; it raises preemption, and the measured maximum
-# stops responding to T entirely -- it is then rate-limited rather than
-# interleaving-limited, and the sweep measures the scheduler.  The first run of
+# stops responding to T -- it is then rate-limited rather than
+# interleaving-limited, so the TREND belongs to the scheduler.  The first run of
 # this script (2026-08-14) went out over CPUS="2,3" and produced exactly that:
 # 2, 2, 14, 5, 6, 9, 9, 6, 5, 5 for T = 3..12, no trend, T=12 among the lowest,
 # every margin comfortably positive and none of it meaning anything.  So:
 #
-#     A T-SWEEP NEEDS len(CPUS) >= max(TLIST).
+#     SWEEPING T NEEDS len(CPUS) >= max(TLIST).
 #
-# Set CPUS to a list that large, or do not sweep.  The script refuses by
-# default rather than produce another table of scheduler measurements.
+# This constrains the SWEEP and nothing else.  A SINGLE T on fewer CPUs is a
+# fine measurement and the script runs it without complaint: TLIST=4 on
+# CPUS="2,3" with OS_PIN -- acquisition alone on one CPU, the peers sharing the
+# other -- is the shape KAME deploys and the established configuration on this
+# host.  The guard exists so that "measure the deployment shape" and "test the
+# bound's T-dependence" cannot be run with the same command by accident.
 #
 # THE WRAPPERS ARE NOT OPTIONAL.  This is the house recipe, and every element
 # of it was learned by losing a measurement without it:
@@ -109,18 +113,33 @@ fi
 ncpus=$(echo "$CPUS" | tr ',' '\n' | while read -r r; do
             case $r in *-*) seq "${r%-*}" "${r#*-}";; *) echo "$r";; esac
         done | wc -l)
-maxT=$(echo "$TLIST" | tr ' ' '\n' | sort -n | tail -1)
-if [ "$maxT" -gt "$ncpus" ] && [ "$FORCE" != 1 ]; then
+maxT=$(echo "$TLIST" | tr ' ' '\n' | grep -c . >/dev/null; \
+       echo "$TLIST" | tr ' ' '\n' | sort -n | tail -1)
+nT=$(echo "$TLIST" | tr ' ' '\n' | grep -c .)
+# The CPU-budget argument is about SWEEPING, not about any single point.  A
+# single T on fewer CPUs is a perfectly good measurement -- T=4 on CPUS=2,3
+# with OS_PIN is the shape KAME deploys (acquisition alone on one CPU, peers on
+# the other) and is the established configuration on this host.  What the
+# budget breaks is the COMPARISON BETWEEN T values: past it, the difference
+# between two T is preemption rather than concurrency, and the trend is the
+# scheduler's.  So guard the sweep, and let a single point through.
+if [ "$nT" -gt 1 ] && [ "$maxT" -gt "$ncpus" ] && [ "$FORCE" != 1 ]; then
     cat >&2 <<MSG
-REFUSING: TLIST reaches T=$maxT but CPUS='$CPUS' gives only $ncpus CPU(s).
+REFUSING TO SWEEP: TLIST has $nT points reaching T=$maxT, but CPUS='$CPUS'
+gives only $ncpus CPU(s).
 
-The bound's T counts peers in flight AT ONCE.  Past the CPU budget T adds
-preemption, not concurrency, and the measured maximum stops responding to it --
-the sweep then measures the scheduler.  That has already been run once and the
-table looked fine while meaning nothing.
+This guards the COMPARISON BETWEEN T values, not any single measurement.  The
+bound's T counts peers in flight AT ONCE; past the CPU budget the difference
+between two T is preemption rather than concurrency, and the trend belongs to
+the scheduler.  That sweep has already been run once (2026-08-14, CPUS="2,3",
+T = 3..12): 2, 2, 14, 5, 6, 9, 9, 6, 5, 5 -- no trend, T=12 among the lowest,
+every margin positive, nothing learned.
 
-Either widen CPUS to >= $maxT entries, or narrow TLIST, or set FORCE=1 if the
-scheduler is what you are actually studying.
+A SINGLE T IS FINE HERE and is not what this refuses -- TLIST=4 on CPUS=2,3
+with OS_PIN is the deployment shape and the established configuration.
+
+So: TLIST=<one value> to measure, widen CPUS to >= $maxT to sweep, or FORCE=1
+if the scheduler is what you are studying.
 MSG
     exit 2
 fi
