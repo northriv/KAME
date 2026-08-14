@@ -203,39 +203,81 @@ tiers starve (measured −94 % / −98 % at a 200 µs budget).
 (`tests/latency_floor`, run under `tests/with_pmqos`): this host's floor
 alone spans 67.9 µs (no isolation) → 17.0 µs (`isolcpus`/`nohz_full`) →
 **219 ns** (+ PM-QoS), and a figure read against the wrong floor
-mis-attributes the machine to the STM.  Everything below is against the
-219 ns floor — isolated core, `SCHED_FIFO`, per-thread pinning, the pool's
+mis-attributes the machine to the STM.
+
+`tests/rt_measure.sh floor` answers the complementary question — not the
+floor of a timed loop but **how long the OS takes the CPU away from a
+spinning thread**, which is what sets the tail rather than the median.  On
+this host, `rtla osnoise` over 60 s: bare, 60 µs largest single hole and
+50,066 µs of noise; under PM-QoS with the governor at `performance`, **19 µs
+and 21 µs** on one isolated CPU and **zero** on the other.  The governor was
+already `performance` in both, so that factor of 2400 is PM-QoS alone:
+C-state exits are essentially all of the OS noise here.  Two consequences
+worth stating plainly.  Row 1's **MAX sits at or under that 19 µs**, so the
+extreme value is not separable from the machine — but p99.999 is: one 19 µs
+hole a minute cannot lift 1000 commits out of 10⁸ above 7 µs, so everything
+from p50 to p99.999 is the STM's.  And `rtla hwnoise`, which answers
+"firmware, SMI" and must itself run under PM-QoS or it re-measures C-states,
+has not yet given a reproducible answer on this host (0 µs and 57 µs on two
+runs of the same length); until it does, no claim is made about a firmware
+floor either way.
+
+Everything below is against the 219 ns floor — isolated core, `SCHED_FIFO`, per-thread pinning, the pool's
 realtime contract honoured — on a PREEMPT_RT i5-7500, from a plain `Release`
 build (**not** `KAME_STM_NEG_DIAG`, whose pass timer puts two clock reads
 per bundle inside the path being measured):
 
 | workload | p50 | p99.9 | p99.999 | **MAX** |
 |---|---|---|---|---|
-| HIGHEST, 5-node commit, peers writing into the same subtree (worst of 3 × 300 s) | 768 ns | 3.58 µs | 10.2 µs | **25.1 µs** |
-| the same commit with no peer on its subtree (60 s) | 768 ns | 1.28 µs | 1.28 µs | **1.53 µs** |
-| NORMAL under the 20 ms budget (120 s) | 768 ns | 1.05 ms | 10.5 ms | **20.01 ms** |
+| HIGHEST, 5-node commit, peers writing into the same subtree (worst of 3 × 300 s) | 896 ns | 3.07 µs | 7.17 µs | **14.8 µs** |
+| the same commit with no peer on its subtree (60 s) † | 768 ns | 1.28 µs | 1.28 µs | **1.53 µs** |
+| NORMAL under the 20 ms budget (120 s) † | 768 ns | 1.05 ms | 10.5 ms | **20.01 ms** |
 
-Reproduce with `tests/transaction_priority_mixed_test` under
+† rows 2 and 3 have **not** been re-measured at this revision and are the
+previous generation's figures.  Row 2 is stale in a known direction: the
+eager HIGHEST tag discussed below is on the straight-line path, so its p50
+should have moved the same 768 → 896 ns that row 1's did, and its MAX is the
+number to re-take first.  Row 3's ceiling is the wait budget and is set by
+`ScopedWaitBudget` rather than by anything this changed.  Row 1 is
+2026-08-14, three 300 s runs
+whose p50/p99/p99.9/p99.999 were identical to the digit (896 / 1024 / 3072 /
+7168 ns) with MAX 14.0 / 14.5 / 14.8 µs.
+
+Reproduce with `sudo tests/rt_measure.sh latency <binary>`, which is the
+recipe below wrapped so that it cannot be half-applied: it pre-flights
+`/dev/cpu_dma_latency` and `RLIMIT_RTPRIO` and refuses rather than let the
+run degrade to `SCHED_OTHER` with live C-states behind two warnings, pins the
+governor and restores it, and detects a `KAME_STM_NEG_DIAG` binary from its
+own output.  By hand it is `tests/transaction_priority_mixed_test` under
 `tests/with_pmqos`, `KAME_MIX_OS_FIFO=1 KAME_MIX_OS_PIN=1` inside a
 `taskset` onto the isolated pair, at the DEFAULT `KAME_MIX_LEAVES=4` — that
 default *is* the 5-node commit, and raising it changes which phenomena occur
 at all, not just their size. Rows 2 and 3 add `KAME_MIX_DISJOINT=1` and
 `KAME_MIX_ACQ_NORMAL=1`.
 
-Against the previous generation (before the stamp's 2-bit PRIO field, the
-commit-lease privilege gate and HIGHEST-vs-HIGHEST spin arbitration) row 1's
-stable percentiles improved 13–17 % (p50 896 → 768 ns, p99.9 4.10 → 3.58 µs,
-p99.999 12.3 → 10.2 µs) at +3–4 % throughput, and row 3's budgeted tail
-improved sharply (p99.9 7.34 → 1.05 ms, p99.999 20.97 → 10.5 ms, MAX still
-pinned to the 20 ms budget). Row 1's MAX reads 23.7 → 25.1 µs, which is one
-extreme value against another: the three runs behind it are 13.7 / 19.8 /
-25.1 µs, so the spread is the statistic. **Row 2 moved the wrong way** —
-p50 448 → 768 ns, MAX 1.06 → 1.53 µs on the uncontended path, where none of
-the three changes should cost anything (all of them sit in
-`_negotiate_internal`, which an uncontended commit never enters). Either the
-old row was taken under a configuration that is not written down, or
-something on the straight-line path did get slower; unexplained, and not
-attributed until bisected.
+**The tail improved and the median did not, and both are the same change.**
+Against the generation before HIGHEST tagged eagerly, row 1's tail moved
+p99.9 3.58 → 3.07 µs, p99.999 10.2 → 7.17 µs, MAX 25.1 → 14.8 µs, while p50
+went 768 → 896 ns.  That is the trade being made rather than a regression to
+bisect: HIGHEST now stamps the Linkage on entry instead of only after a
+contention loss, and stamps it *before* taking the view, with a `seq_cst`
+fence between the two because the reorder's guarantee is StoreLoad and
+neither the release store nor the own-location verify provides it (store
+forwarding satisfies the verify from the store buffer).  A store, a verify
+and a fence on the straight-line path buy a shield that is up before the
+first peer can look — the median pays for the tail, by construction.
+
+It also resolves what the previous generation left open here: row 2's
+uncontended p50 448 → 768 ns was recorded as unexplained, on the reasoning
+that the changes of that generation all sat in `_negotiate_internal`, which
+an uncontended commit never enters.  The tagging does not sit there.  It is
+on every scope's entry path, contended or not, and it is the cost.
+
+For context, the generation before that (adding the stamp's 2-bit PRIO
+field, the commit-lease privilege gate and HIGHEST-vs-HIGHEST spin
+arbitration) improved row 1's stable percentiles 13–17 % at +3–4 %
+throughput, and row 3's budgeted tail sharply (p99.9 7.34 → 1.05 ms,
+p99.999 20.97 → 10.5 ms, MAX still pinned to the 20 ms budget).
 
 Three facts a deployment can act on:
 
