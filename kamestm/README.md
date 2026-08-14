@@ -230,21 +230,21 @@ per bundle inside the path being measured):
 | workload | p50 | p99.9 | p99.999 | **MAX** |
 |---|---|---|---|---|
 | HIGHEST, 5-node commit, peers writing into the same subtree (worst of 3 × 300 s) | 896 ns | 3.07 µs | 7.17 µs | **14.8 µs** |
-| the same commit with no peer on its subtree (60 s) † | 768 ns | 1.28 µs | 1.28 µs | **1.53 µs** |
-| NORMAL under the 20 ms budget (120 s) † | 768 ns | 1.05 ms | 10.5 ms | **20.01 ms** |
+| the same commit with no peer on its subtree (worst of 3 × 60 s) | 896 ns | 1.28 µs | 1.28 µs | **1.84 µs** |
+| NORMAL under the 20 ms budget (worst of 3 × 120 s) | 896 ns | 2.10 ms | 12.6 ms | **20.01 ms** |
 
-† rows 2 and 3 have **not** been re-measured at this revision and are the
-previous generation's figures.  Row 2 is stale in a known direction: the
-eager HIGHEST tag discussed below is on the straight-line path, so its p50
-should have moved the same 768 → 896 ns that row 1's did, and its MAX is the
-number to re-take first.  Row 3's ceiling is the wait budget and is set by
-`ScopedWaitBudget` rather than by anything this changed.  Row 1 is
-2026-08-14, three 300 s runs
-whose p50/p99/p99.9/p99.999 were identical to the digit (896 / 1024 / 3072 /
-7168 ns) with MAX 14.0 / 14.5 / 14.8 µs.
+All three rows are 2026-08-14 at this revision, three runs each, reported
+worst-of-three.  Rows 1 and 2 repeated to the digit — row 1
+p50/p99/p99.9/p99.999 896 / 1024 / 3072 / 7168 ns with MAX 14.0 / 14.5 /
+14.8 µs; row 2 896 / 1024 / 1280 / 1280 ns with MAX 1.49 / 1.38 / 1.84 µs and
+not one commit past the slow threshold.  Row 3 repeats only through p99
+(896 / 1024 ns) and scatters past it: p99.9 1.31 / 1.31 / 2.10 ms, p99.999
+10.5 / 12.6 / 10.5 ms, MAX pinned to the 20 ms wait budget in all three.
+Reproduce any of them with `sudo tests/rt_measure.sh latency <binary>`, whose
+`ROW=1|2|3` presets are exactly the three lines.
 
-Reproduce with `sudo tests/rt_measure.sh latency <binary>`, which is the
-recipe below wrapped so that it cannot be half-applied: it pre-flights
+That script is the recipe below wrapped so that it cannot be half-applied: it
+pre-flights
 `/dev/cpu_dma_latency` and `RLIMIT_RTPRIO` and refuses rather than let the
 run degrade to `SCHED_OTHER` with live C-states behind two warnings, pins the
 governor and restores it, and detects a `KAME_STM_NEG_DIAG` binary from its
@@ -255,23 +255,45 @@ default *is* the 5-node commit, and raising it changes which phenomena occur
 at all, not just their size. Rows 2 and 3 add `KAME_MIX_DISJOINT=1` and
 `KAME_MIX_ACQ_NORMAL=1`.
 
-**The tail improved and the median did not, and both are the same change.**
-Against the generation before HIGHEST tagged eagerly, row 1's tail moved
-p99.9 3.58 → 3.07 µs, p99.999 10.2 → 7.17 µs, MAX 25.1 → 14.8 µs, while p50
-went 768 → 896 ns.  That is the trade being made rather than a regression to
-bisect: HIGHEST now stamps the Linkage on entry instead of only after a
-contention loss, and stamps it *before* taking the view, with a `seq_cst`
-fence between the two because the reorder's guarantee is StoreLoad and
-neither the release store nor the own-location verify provides it (store
-forwarding satisfies the verify from the store buffer).  A store, a verify
-and a fence on the straight-line path buy a shield that is up before the
-first peer can look — the median pays for the tail, by construction.
+**The contended tail improved.**  Against the generation before HIGHEST
+tagged eagerly, row 1 moved p99.9 3.58 → 3.07 µs, p99.999 10.2 → 7.17 µs and
+MAX 25.1 → 14.8 µs.  The mechanism is the intended one: HIGHEST now stamps
+the Linkage on entry instead of only after a contention loss, and stamps it
+*before* taking the view, with a `seq_cst` fence between the two because the
+reorder's guarantee is StoreLoad and neither the release store nor the
+own-location verify provides it (store forwarding satisfies the verify from
+the store buffer).  The shield is up before the first peer can look.
 
-It also resolves what the previous generation left open here: row 2's
-uncontended p50 448 → 768 ns was recorded as unexplained, on the reasoning
-that the changes of that generation all sat in `_negotiate_internal`, which
-an uncontended commit never enters.  The tagging does not sit there.  It is
-on every scope's entry path, contended or not, and it is the cost.
+**The median moved too — 768 → 896 ns — and it is not the tagging.**  An
+earlier revision of this section said it was, on the reasoning that a store,
+a verify and a fence sit on every HIGHEST scope's entry path whether
+contended or not.  That reading does not survive the other two rows, now
+measured at the same revision.  Row 3 runs the measured thread at NORMAL
+(`ScopedPriority pr(acq_normal ? NORMAL : HIGHEST)`), and its peers are
+UI_DEFERRABLE / SCRIPTING / NORMAL, so **no thread in row 3 is HIGHEST at
+all** — both `_tag_before_acquire_()` and `m_should_tag` are gated on
+`highest_tags_eagerly_()`, and neither can fire anywhere in that run.  Row 3's
+p50 moved 768 → 896 ns regardless, by the same one step as the other two.
+Row 2 points the same way from the other side: it *is* a HIGHEST row, and its
+p99.9 and p99.999 read 1.28 µs in all three runs, unchanged from the previous
+generation — a straight-line +128 ns would have to show there and does not.
+768 → 896 is exactly one histogram bucket (`latency_hist.h` is 4 buckets per
+octave, so 128 ns wide across 512–1024), it appears in all three tiers by the
+same single step, and its cause is **not identified**.  Treat it as
+unexplained rather than as the price of the shield.
+
+That also reopens what the previous generation left here: row 2's uncontended
+p50 448 → 768 ns, which this section had claimed the tagging finally
+explained.  It does not; that one is unexplained again too.
+
+One regression to record rather than bury: row 3's p99.9 worst-of-three went
+1.05 → 2.10 ms.  Two of the three runs read 1.31 ms and the third 2.10 ms, so
+the reported figure is one excursion and not a settled level, and p99.999
+(10.5 / 12.6 / 10.5 ms) and MAX (pinned to the 20 ms budget) are where the
+previous generation left them.  It is a NORMAL-tier tail under a wait budget,
+which is the tier the HIGHEST shield is designed to make wait — but nothing
+in the change reaches row 3's threads, so this is not that either, and it is
+also unexplained.
 
 For context, the generation before that (adding the stamp's 2-bit PRIO
 field, the commit-lease privilege gate and HIGHEST-vs-HIGHEST spin
@@ -286,8 +308,10 @@ Three facts a deployment can act on:
   measured to 17 nodes within 2 % — while 17× the nodes moves the worst
   case only 1.6×.
 * **Contention is the tail, and the lever is topological.**  The first two
-  rows differ only in whether peers touch the committed subtree: 16× in
-  MAX, with nothing over 1.6 µs in 19 M uncontended commits.  A root-scope
+  rows differ only in whether peers touch the committed subtree: **8× in
+  MAX** (14.8 vs 1.84 µs) and 2.4× at p99.9, with nothing over 1.84 µs and
+  not one commit past the slow threshold in three 60 s uncontended runs.
+  A root-scope
   `Snapshot` or `Transaction` bundles every subtree beneath it — a subtree
   with no bundling of its own still pays for its parent's — so keep other
   threads, and root-scope operations above all, off the deadline-bearing
@@ -306,9 +330,10 @@ Three facts a deployment can act on:
   24.3–34.6 → **20.4–23.7 µs**, p99 1.28 → 1.02 µs, and throughput gained
   4–6 % (the tag slots go quiet) with no tier paying for it — the shield
   needs a HIGHEST-owned slot, so peer-vs-peer tagging never reaches it.
-  (Those are that A/B's own before/after, not the current state; for what
-  the library measures today see the table above, where the same p99 reads
-  896 ns.)  Triggering privilege *earlier* than the tag is a dead end,
+  (Those are that A/B's own before/after, not the current state; today the
+  same row 1 p99 reads **1.02 µs** across three 300 s runs, with the rest of
+  its distribution in the table above.)
+  Triggering privilege *earlier* than the tag is a dead end,
   measured (null: grants neither spread nor stick while tags are being
   overwritten) and then subsumed — a HIGHEST tag now *is* the Reserved
   claim, so there is no earlier moment left; the knob and its OS-scheduler
