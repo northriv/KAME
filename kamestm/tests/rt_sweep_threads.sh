@@ -144,6 +144,32 @@ MSG
     exit 2
 fi
 
+# PRE-FLIGHT.  Both of these degrade to a WARNING inside the run and are then
+# invisible in the summary -- the 2026-08-14 T=4 set went out with neither and
+# was compared against README numbers taken with both.  Fail here, in a second,
+# rather than ninety minutes later in a table that looks fine.
+preflight_fail=0
+if [ "$PMQOS" = 1 ] && [ ! -w /dev/cpu_dma_latency ]; then
+    echo "PRE-FLIGHT: /dev/cpu_dma_latency is not writable by this user." >&2
+    echo "  with_pmqos will warn and continue, and C-state exits will be IN" >&2
+    echo "  the numbers.  Run under sudo, or grant write on the device, or" >&2
+    echo "  set PMQOS=0 to say out loud that no absolute value is quotable." >&2
+    preflight_fail=1
+fi
+if [ "$FIFO" != 0 ]; then
+    rtp=$(ulimit -r 2>/dev/null || echo 0)
+    if [ "${rtp:-0}" = 0 ] && [ "$(id -u)" != 0 ]; then
+        echo "PRE-FLIGHT: RLIMIT_RTPRIO is 0 and this is not root." >&2
+        echo "  KAME_MIX_OS_FIFO will be REFUSED and the run silently becomes" >&2
+        echo "  SCHED_OTHER throughout -- not a realtime measurement at all." >&2
+        echo "  Run under sudo, grant CAP_SYS_NICE, raise rtprio in" >&2
+        echo "  /etc/security/limits.conf, or set FIFO=0 deliberately." >&2
+        preflight_fail=1
+    fi
+fi
+[ "$preflight_fail" = 0 ] || { echo "(set IGNORE_PREFLIGHT=1 to proceed anyway)" >&2
+    [ "${IGNORE_PREFLIGHT:-0}" = 1 ] || exit 3; }
+
 mkdir -p "$OUT" || exit 1
 
 {
@@ -201,6 +227,10 @@ for f in "$OUT"/T*.log; do
     p999=$(grep -a "^    n=" "$f" | grep -oE "p99\.9=[0-9]+" | head -1 | cut -d= -f2)
     mx=$(grep -a "^    n=" "$f" | grep -oE "MAX=[0-9]+" | head -1 | cut -d= -f2)
     v=$(grep -aoE "^PASSED|^FAILED|STALL" "$f" | head -1)
+    # The run degrades loudly in its own log and silently in any summary that
+    # does not look.  Both of these invalidate an absolute latency number.
+    grep -qa "could not hold /dev/cpu_dma_latency" "$f" && v="$v NO-PMQOS"
+    grep -qa "SCHED_FIFO .* not permitted" "$f"        && v="$v NO-FIFO"
     if [ -n "$reb" ] && [ -n "$L" ]; then bound=$(( (T-1) * 2 * L )); else bound="?"; fi
     printf "%-4s %-7s %-6s %-5s %-4s %-9s %-9s %-10s %-8s %s\n" \
            "$T" "$pass" "${sn:-?}" "${reb:-?}" "${L:-?}" "$bound" \
@@ -210,3 +240,9 @@ echo
 echo "slow_n is the count past SLOW_NS=$SLOW_NS -- the tail statistic to read."
 echo "(T-1)KL uses K=2; a negative margin is the informative result."
 echo "MAX is dominated by the wait budget and the scheduler; do not read it alone."
+if grep -qa "could not hold /dev/cpu_dma_latency\|SCHED_FIFO .* not permitted" "$OUT"/T*.log; then
+    echo
+    echo "*** NO-PMQOS / NO-FIFO above: the run degraded to SCHED_OTHER and/or"
+    echo "*** live C-states.  The latency columns are NOT comparable with any"
+    echo "*** number taken under the house recipe (README's table, for one)."
+fi
