@@ -3194,3 +3194,27 @@ only both-fenced passes.  En route the no-DCAS audit gained a toolchain
 pre-probe: Apple clang's fake -m32 -march=i486 (really ARMv4T) now skips both
 phases instead of failing the STM probe on atomic.h's int_cas_max
 fallthrough — a failure no real i486 toolchain produces.
+
+## Open unexplained items, moved out of the README (2026-08-14, user)
+
+The README now carries reproduction (rt_measure.sh, ROW presets, the hand
+recipe) and results only; per the user, the revision-to-revision narrative
+lives here.  Standing unexplained items as of 348c26573, all quantized to
+one latency_hist bucket unless noted:
+
+* p50 stepped 768 → 896 ns in ALL tiers at the eager-tag revision —
+  including row 3, which runs no HIGHEST thread and cannot execute the new
+  code — and row 2's tails did not move, so a straight-line +128 ns is
+  excluded.  One bucket wide; cause not identified.
+* The earlier row-2 p50 448 → 768 ns step is likewise unexplained (a prior
+  attribution to the tagging was withdrawn once rows 2/3 were measured at
+  the same revision).
+* Row 3 p99.9 worst-of-three 1.05 → 2.10 ms: two of three runs read
+  1.31 ms (adjacent bucket to 1.05); the 2.10 ms is one excursion of a
+  0.1 % percentile sitting on the 0.054 % budget-clip shoulder — an
+  ill-conditioned statistic; p99.999 and MAX unchanged.  The 2026-08-14
+  Mac-side check (three order-balanced 9-rep rounds, plus a diagnostic arm
+  with the eager-tag TLS reads compiled out) found no reproducible
+  NORMAL-only throughput change: head-vs-pre medians −4.3 % / −4.5 % /
+  −1.1 % across rounds, within the box's inter-round drift, and the
+  TLS-removed arm was indistinguishable from head.
