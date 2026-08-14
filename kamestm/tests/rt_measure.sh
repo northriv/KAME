@@ -10,6 +10,10 @@
 #   rt_measure.sh floor   [outdir]
 #   rt_measure.sh latency <binary> [outdir]
 #
+# Run it as `sudo CPUS=2,3 rt_measure.sh ...` and NOT `sudo -E` -- sudo ignores
+# -E ("preserving the entire environment is not supported") and the knobs then
+# silently fall back to their defaults.
+#
 # WHY FLOOR FIRST.  kamestm/README.md opens its realtime table with "measure
 # the host's floor before quoting any number here", and gives this host's own
 # range: 67.9 us (no isolation) -> 17.0 us (isolcpus/nohz_full) -> 219 ns
@@ -131,12 +135,30 @@ do_floor() {
     provenance | tee "$OUT/provenance.txt"
     rule
 
-    # 1. FIRMWARE.  Interrupts disabled, so anything reported is SMI-class and
-    #    not addressable from the OS.  This is the question that decides
-    #    whether the host can carry an absolute number at all.
-    say "[1/3] hwnoise ${HWNOISE_SECS}s -- firmware (SMI) floor, interrupts disabled"
+    # Resolve with_pmqos once; steps 1 and 3 both need it.
+    PMQOS_CMD=""
+    for c in ./with_pmqos "$(command -v with_pmqos 2>/dev/null)"; do
+        [ -n "$c" ] && [ -x "$c" ] && { PMQOS_CMD=$c; break; }
+    done
+    [ -n "$PMQOS_CMD" ] || say "NOTE: with_pmqos not found in cwd or PATH -- steps 1 and 3 lose their C-state control."
+
+    # 1. FIRMWARE.  Interrupts disabled, so nothing SOFTWARE can intrude and
+    #    what remains is SMI-class -- the question that decides whether the host
+    #    can carry an absolute number at all.
+    #
+    #    UNDER PM-QoS, and that is not optional: "interrupts disabled" does not
+    #    mean "no C-states".  The tracer samples 750 ms of each second and the
+    #    CPU is free in between, and the PACKAGE can drop deep while the
+    #    housekeeping CPUs idle, which slows the measured core through the
+    #    uncore and the shared cache.  Both land in the unattributed bucket and
+    #    read as firmware.  Run bare on this host it reported Max Single 57 us
+    #    and 16323 events -- indistinguishable from the bare osnoise figure of
+    #    60 us, which is the tell -- while a hand run at another moment reported
+    #    exactly zero.  Two runs of the same length disagreeing that way is not
+    #    a firmware measurement; it is a C-state measurement.
+    say "[1/3] hwnoise ${HWNOISE_SECS}s -- firmware (SMI) floor, IRQs off, under PM-QoS"
     reset_tracer
-    rtla hwnoise top -c "$CPUS" -d "${HWNOISE_SECS}s" > "$OUT/hwnoise.txt" 2>&1
+    ${PMQOS_CMD:+$PMQOS_CMD} rtla hwnoise top -c "$CPUS" -d "${HWNOISE_SECS}s" > "$OUT/hwnoise.txt" 2>&1
     tail -4 "$OUT/hwnoise.txt"
     local hw_max; hw_max=$(max_single "$OUT/hwnoise.txt")
     rule
@@ -159,14 +181,7 @@ do_floor() {
     say "[3/3] osnoise ${OSNOISE_SECS}s -- with PM-QoS + performance governor"
     save_governors; set_performance
     reset_tracer
-    local pm; pm=$(command -v with_pmqos || echo ./with_pmqos)
-    if [ -x "$pm" ]; then
-        "$pm" rtla osnoise top -c "$CPUS" -d "${OSNOISE_SECS}s" > "$OUT/osnoise_treated.txt" 2>&1
-    else
-        say "  with_pmqos not on PATH or in cwd -- running without it; step 3 is then"
-        say "  only the governor's contribution."
-        rtla osnoise top -c "$CPUS" -d "${OSNOISE_SECS}s" > "$OUT/osnoise_treated.txt" 2>&1
-    fi
+    ${PMQOS_CMD:+$PMQOS_CMD} rtla osnoise top -c "$CPUS" -d "${OSNOISE_SECS}s" > "$OUT/osnoise_treated.txt" 2>&1
     tail -4 "$OUT/osnoise_treated.txt"
     local treated_max; treated_max=$(max_single "$OUT/osnoise_treated.txt")
     restore_governors
@@ -181,10 +196,16 @@ do_floor() {
         if [ "${hw_max:-1}" = 0 ]; then
             say "  Firmware floor is ZERO: no SMI.  Absolute latency numbers are"
             say "  meaningful on this host, and whatever osnoise sees is software."
+        elif [ -n "${bare_max:-}" ] && [ "${hw_max:-0}" -ge $(( bare_max * 8 / 10 )) ]; then
+            say "  Firmware reads ${hw_max} us, but that is within 20% of the BARE"
+            say "  osnoise figure (${bare_max} us) -- the two are measuring the same"
+            say "  thing, and it is not firmware.  Suspect residual C-state or"
+            say "  package-idle effects reaching the core, and treat the TREATED"
+            say "  number as the floor."
         else
-            say "  Firmware floor is ${hw_max} us.  No STM number below that is"
-            say "  attributable to the STM.  BIOS (USB legacy support first) or a"
-            say "  different machine."
+            say "  Firmware floor is ${hw_max} us and is distinct from the software"
+            say "  figures.  No STM number below that is attributable to the STM."
+            say "  BIOS (USB legacy support first) or a different machine."
         fi
         say ""
         say "  QUOTE NOTHING BELOW THE TREATED FLOOR.  Run 'latency' under the same"
