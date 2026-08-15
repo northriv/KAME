@@ -75,7 +75,7 @@ Windows 64-bit binaries: [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kam
 
 ## What's New in 8.0
 
-- **MCP server for AI-assisted experiment automation** — built-in [Model Context Protocol](https://modelcontextprotocol.io/) server lets AI assistants (Claude Code, Claude Desktop, etc.) execute Python code in the running KAME process, read instrument values, and control measurements through natural language. Matplotlib plots are returned inline. Long-running experiments (sweeps, scans) run asynchronously. To our knowledge, this is the first measurement software to integrate an MCP server.
+- **MCP server for AI-assisted experiment automation** — built-in [Model Context Protocol](https://modelcontextprotocol.io/) server lets AI assistants (Claude Code, Claude Desktop, etc.) execute Python code in the running KAME process, read instrument values, and control measurements through natural language. Matplotlib plots are returned inline. Long-running experiments (sweeps, scans) run asynchronously.
 - **Calibrated scalar entries** — `XCalibratedEntry` applies a calibration curve to any scalar entry; the result appears in graphs, charts, and data recording like a native scalar.
 - **Usermode NI USB-GPIB on Apple Silicon** — the embedded userspace linux-gpib port now works reliably on macOS ARM64 without any kernel module.
 - **Window cascade placement** — instrument windows are automatically arranged on show.
@@ -98,8 +98,9 @@ be carved out as their own subtrees for downstream embedding:
   plus the `atomic_shared_ptr<T>` engine, homed in `kamepoolalloc/`) extracted as a
   header-only library plus three small `.cpp` (`threadlocal` / `xthread` / `xtime`).
   TLA+ specs for the protocol; GenMC RC11-checked C translations.  Builds on
-  macOS clang / Linux gcc/clang (64+32-bit) / Windows **MinGW + MSVC** — all
-  11 standalone tests pass on each.  See [`kamestm/README.md`](kamestm/README.md).
+  macOS clang / Linux gcc/clang (64+32-bit) / Windows **MinGW + MSVC**, and the
+  registered standalone test suite passes on each (the exact test count is
+  platform-dependent).  See [`kamestm/README.md`](kamestm/README.md).
 - **[`kamepoolalloc/`](kamepoolalloc/) — Four-tier lock-free pool allocator.**
   1 B to multi-GiB span (buckets / dedicated chunks / large `mmap` / huge),
   per-thread DLL + cross-thread coalescing, two-level recycle cache, TLA+ /
@@ -155,7 +156,7 @@ any proprietary driver. On macOS this is the only viable path for USB-GPIB on Ap
 
 ### Python Integration
 
-*This section was written by Claude (Anthropic) based on analysis of the source code.*
+*This section was drafted with AI assistance (Anthropic Claude) and technically reviewed and verified by the maintainers.*
 
 Python access is provided via [pybind11](https://pybind11.readthedocs.io/). The embedded
 interpreter runs in its own OS thread; the Qt main thread and the Python thread communicate
@@ -300,8 +301,10 @@ the negotiate machinery (`ScopedNegotiateLinkage::_negotiate()`) lets the
 single *oldest* transaction win — each contended linkage is tagged with the
 tagger's start-time stamp (oldest-wins), a starved Tx escalating to a
 privileged Reserved tag; non-privileged contenders **park** until it commits,
-so the oldest/highest-priority Tx always makes progress. Model-checked livelock-free in TLA+ (exhaustively for the checked
-thread counts and tree shapes). Full details + the comparison
+so the oldest/highest-priority Tx makes progress ahead of the contenders parked
+behind it. Model-checked livelock-free in TLA+ (exhaustively for the checked,
+finite thread counts and tree shapes — not a proof for arbitrary deployment
+sizes). Full details + the comparison
 against other STMs (Haskell `TVar` / Clojure `Ref` / ScalaSTM, HTM TSX/RTM,
 TinySTM / NOrec) live in [`kamestm/README.md`](kamestm/README.md) — KAME's
 STM core is dual-licensed and maintained as a standalone library, with its
@@ -321,14 +324,14 @@ threads. Traditional mutex-based designs either serialize too aggressively
 (dropping samples) or require intricate lock ordering that is error-prone
 to extend. The STM approach offers three concrete benefits for this domain:
 
-- **Deadlock-free by design.** No locks are held across hardware I/O or UI redraws.
-  A slow UI thread can never stall a fast acquisition thread.
+- **Deadlock-free by design.** No locks are held across hardware I/O or UI redraws,
+  so a slow UI thread does not block a fast acquisition thread behind a lock.
 - **Consistent multi-instrument views.** A `Snapshot` of any subtree is always
   internally consistent — the UI always sees a coherent set of readings even when
   multiple drivers update simultaneously.
 - **Safe scripting from Python/Ruby.** Scripts read and write the node tree through
-  the same transaction API as C++ code, so user scripts cannot corrupt instrument
-  state regardless of when they run.
+  the same transaction API as C++ code, so a user script cannot leave the node
+  tree in a partially-updated state, whenever it runs.
 
 For *what makes KAME's STM distinctive* among STMs (tree-structured /
 per-packet conflict granularity / bundling instead of read-write logs),
@@ -336,7 +339,10 @@ see the [comparison tables in `kamestm/README.md`](kamestm/README.md#comparison-
 
 #### Formal verification (TLA+)
 
-The STM protocol is formally specified and model-checked with TLA+ / TLC:
+The STM *protocol* is formally specified and exhaustively model-checked with
+TLA+ / TLC for the documented finite thread counts and tree topologies. This is
+model checking of the protocol model, not a proof of the C++ implementation for
+arbitrary deployment sizes, compiler mappings, or real-time WCET:
 
 - **Layer 1 — `atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting, drain release, and `scoped_atomic_view` ([spec](kamestm/tests/tlaplus/atomic_shared_ptr.tla)). Safety only — the bare primitive is intentionally *not* livelock-free.
 - **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](kamestm/tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](kamestm/tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](kamestm/tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Exhaustively model-checked **safe + livelock-free** without `CONSTRAINT` (the LL-free design makes the state space naturally finite — no artificial bound); the largest single exhaustive run reaches **~641 M distinct states** (3-level all-root, 15 h on the ISSP ohtaka supercomputer), over a billion across the LL-free configurations combined. (Raw state counts are **spec-version-specific** and shift as the spec evolves — see [kamestm/tests/VERIFICATION.md](kamestm/tests/VERIFICATION.md) §3–§4 for current-spec figures.) These are exhaustive results for the checked configurations (fixed thread counts and tree shapes), not an unbounded ∀-thread proof.
@@ -575,4 +581,4 @@ Bug reports and pull requests are welcome on [GitHub](https://github.com/northri
 
 ---
 
-*This README was written with the assistance of [Claude](https://claude.ai) (Anthropic).*
+*This README was drafted with AI assistance ([Claude](https://claude.ai), Anthropic) and reviewed and verified by the maintainers.*

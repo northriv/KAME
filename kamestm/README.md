@@ -31,9 +31,9 @@ Dual-licensed under your choice of **Apache 2.0 OR GPL-2.0-or-later**
 so it embeds cleanly into permissive / proprietary projects (Apache
 path) or links into GPLv2-only projects such as KAME itself (GPL path).
 
-**Production-stable in KAME since 2008** — the STM core has been the
-foundation of the KAME node tree under 24/7 research-lab operation on
-every release from that year onwards.  Builds and passes the standalone
+**Production-stable in KAME** — the STM core has been the foundation of the
+KAME node tree in continuous research-lab use since around 2010 (its
+`atomic_shared_ptr` engine dates to 2006).  Builds and passes the standalone
 test suite on macOS clang, Linux gcc/clang (64-bit + 32-bit),
 Windows MinGW64 + lld, and Windows MSVC.
 
@@ -150,7 +150,7 @@ Non-privileged contenders **park** (adaptive backoff, then a timed
 wait-on-address — `XWaitCell`, mutex-less on macOS and Linux; see
 [Realtime behaviour](#realtime-behaviour)) instead of spinning, so the
 oldest / highest-priority transaction
-always makes progress — model-checked livelock-free in TLA+ (the Layer-2
+makes progress ahead of the parked contenders — model-checked livelock-free in TLA+ (the Layer-2
 `BundleUnbundle_*_LLfree` specs below model this per-linkage tag as a
 per-node `priorityTag`; see [tests/VERIFICATION.md](tests/VERIFICATION.md) §3
 — exhaustive for the checked thread counts and tree shapes). The global
@@ -166,7 +166,7 @@ replaces the earlier proportional-timestamp-wait backoff.
 
 ## Comparison with other STM designs
 
-*The following comparison was written by Claude (Anthropic) based on analysis of the source code.*
+*The following comparison was drafted with AI assistance (Anthropic Claude) and technically reviewed and verified by the maintainers.*
 
 Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are **flat**: the unit of transaction is a set of independent transactional variables. KAME's STM is instead **tree-structured** — the entire instrument node tree is the shared state, and snapshots are always subtree-consistent. This difference drives several design choices:
 
@@ -184,7 +184,7 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 
 **Compared to Hardware Transactional Memory (Intel TSX/RTM):** HTM aborts on cache-line conflicts regardless of logical independence, and has strict capacity limits. KAME's STM aborts only on semantic conflicts (packet identity change), tolerates large read sets, and degrades gracefully to age-ordered privileged-Tx negotiation (the colliding losers yield to the oldest transaction) rather than falling back to a global lock.
 
-**Compared to TinySTM / NOrec (C libraries):** Both use a global version clock and keep a read/write log per transaction, but differ on per-object metadata — TinySTM uses per-object version locks, whereas NOrec deliberately keeps *none* (it validates the read set by value against the global clock; the name is "No Ownership Records"). KAME avoids the read log entirely — a `Snapshot` is just an immutable pointer, so reads outside a transaction are truly zero-overhead. The trade-off is that KAME's write path must clone the payload upfront (copy-on-write), whereas log-based STMs defer that cost to commit time.
+**Compared to TinySTM / NOrec (C libraries):** Both use a global version clock and keep a read/write log per transaction, but differ on per-object metadata — TinySTM uses per-object version locks, whereas NOrec deliberately keeps *none* (it validates the read set by value against the global clock; the name is "No Ownership Records"). KAME avoids the read log entirely — a `Snapshot` is just an immutable pointer, so reads outside a transaction require no transactional read-set logging (O(1) acquisition). The trade-off is that KAME's write path must clone the payload upfront (copy-on-write), whereas log-based STMs defer that cost to commit time.
 
 **What makes KAME's design distinctive** is the *bundling* protocol: rather than tracking which variables a transaction touched, it tracks whether the packet at the subtree root has been replaced since the transaction started. This is efficient for KAME's access pattern (many readers of a stable tree, infrequent writes from acquisition threads) but would be coarser than necessary for workloads with many independent fine-grained variables.
 
@@ -197,7 +197,7 @@ commit is clipped to it.  The **sole exception** is the wait behind a live
 privileged peer, which is exempt by design and bounded instead by the holder's
 scheduling delay — [below](#the-one-wait-the-budget-cannot-clip), and the
 reason core isolation is item 1 of the deployment recipe.  Measured
-MAX − budget is **3–7 µs** from 20 ms down to 1 ms, and a 300 s proof run at a
+MAX − budget is **3–7 µs** from 20 ms down to 1 ms, and a 300 s stress run at a
 1 ms budget closed 38.3 M commits with zero over a 3 ms deadline — that run is
 a *separate* configuration from the table below, which is at the shipped 20 ms
 budget; its 38.3 M is not those rows' sample count.  Keep the
@@ -344,7 +344,8 @@ covers all three backends.
 ### Note: retry counts vs time
 
 The model checking proves **starvation-freedom**, not a retry-count bound —
-the right way around for a user, since the budget bounds *time* directly and
+the right way around for a user, since the budget bounds *time* on the ordinary
+wait path and
 measured attempts sit at 1.002 mean / 5 worst.  A finite bound exists for
 each checked configuration; none is established for a deployment, whose
 arrival stream never drains.  "Retries are not bounded" means that, not
@@ -356,7 +357,10 @@ commits, because a short CAS race resolves first.  Details in
 
 ## Formal verification (TLA+)
 
-The STM protocol is formally specified and model-checked with TLA+ / TLC.
+The STM *protocol* is formally specified and exhaustively model-checked with
+TLA+ / TLC for the documented finite thread counts and tree topologies — this
+is model checking of the protocol model, not a proof of the C++ implementation
+for arbitrary deployment sizes, compiler mappings, or real-time WCET.
 The [paper](https://arxiv.org/abs/2608.12024) presents this verification in
 full, including the spec-to-C++ fidelity argument; this section is the
 repository-level map of the specs themselves:
