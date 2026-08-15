@@ -6,10 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 KAME is a scientific instrument control and measurement software framework written in C++11/Qt. It provides a plugin-based architecture for controlling laboratory instruments (oscilloscopes, lock-in amplifiers, temperature controllers, magnet power supplies, etc.) with Python and Ruby scripting support. Version 8.0.
 
-**Platforms:** macOS, Windows (64-bit). **Linux builds and runs again** as of
-the 2026-07 port (Qt 6, qmake, GCC 13, Ubuntu 24.04) — see `INSTALL.linux` —
-but it is *not* a supported platform: no instrument hardware has been
-exercised there, and the GUI has only been smoke-tested offscreen.
+**Platforms:** macOS, Windows (64-bit), Linux (x86-64) — **Linux is a
+supported platform from 8.5** (Qt 6, qmake, GCC 13; verified on Ubuntu 24.04
+and on Ubuntu 26.04 `PREEMPT_RT`), see `INSTALL.linux`.  The one gap left is
+that no run against real instrument hardware has been done there; the
+interface layer is exercised hardware-free (`tools/iftest_serial_gpib.py`)
+and the usermode NI USB-GPIB driver builds.
 
 ## Build System
 

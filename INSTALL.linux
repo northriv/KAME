@@ -4,14 +4,19 @@ Linux support was dropped when KAME moved from autotools to qmake, and the
 tree accumulated a decade of macOS/Windows-only assumptions.  It builds and
 runs again as of 2026-07.
 
-**Status: unsupported.**  What has been verified is that it compiles, links,
-installs, starts, loads all 43 driver modules with zero failures, runs BOTH
-script engines — the embedded Python/pybind11 one and the Ruby one — and
-renders its OpenGL graphs correctly on a real X11 server (see "GUI" below).
-No instrument hardware has been exercised.  Treat it as a development
-platform, not a deployment one.
+**Status: supported from 8.5.**  Verified: it compiles, links, installs,
+starts, loads all 43 driver modules with zero failures, runs BOTH script
+engines — the embedded Python/pybind11 one and the Ruby one — and renders its
+OpenGL graphs correctly on a real X11 server (see "GUI" below).  Instrument
+communication is exercised hardware-free by `tools/iftest_serial_gpib.py`
+(serial and Prologix over a pty, including a `*IDN?` round trip), and the
+usermode NI USB-GPIB driver builds here, so `Device = GPIB` works without a
+kernel module when linux-gpib is absent.  What has not been done on Linux is
+a run against real instrument hardware; report anything you find with the
+driver and the device.
 
-Verified on Ubuntu 24.04 / Qt 6.4.2 / GCC 13.3 / glibc 2.39, x86-64.
+Verified on Ubuntu 24.04 / Qt 6.4.2 / GCC 13.3 / glibc 2.39, x86-64, and on
+Ubuntu 26.04 `PREEMPT_RT` (the realtime measurement host).
 
 ## Dependencies
 

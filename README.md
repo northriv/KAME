@@ -12,7 +12,7 @@ orchestration across compatible instruments.
 
 **License:** GPL v2 or later (prior to 8.0: LGPL v2 or later)
 **Authors:** Kentaro Kitagawa, Shota Suetsugu
-**Platforms:** macOS, Windows (64-bit); Linux builds and runs (see `INSTALL.linux`) but is unsupported
+**Platforms:** macOS, Windows (64-bit), Linux (x86-64, **supported from 8.5** — see `INSTALL.linux`)
 **Manual:** [日本語](https://kitag.issp.u-tokyo.ac.jp/%e8%87%aa%e5%8b%95%e5%8c%96%e5%af%be%e5%bf%9c%e6%b8%ac%e5%ae%9a%e3%83%97%e3%83%ad%e3%82%b0%e3%83%a9%e3%83%a0kame/) · [English](https://kitag.issp.u-tokyo.ac.jp/web/kame/kame-7-en.pdf)
 **Paper:** K. Kitagawa, *Formally Verified Lock-Free Software Transactional Memory for Scientific Measurement*, [arXiv:2608.12024](https://arxiv.org/abs/2608.12024) (2026)
 
@@ -399,13 +399,14 @@ Additional notes:
 
 ---
 
-### Linux (x86-64, Qt 6 / GCC) — *unsupported, but it builds and runs*
+### Linux (x86-64, Qt 6 / GCC) — *supported from 8.5*
 
-> No instrument hardware has been exercised on Linux and there is no packaged
-> release. Treat it as a development platform. Full notes, including the
-> serial/GPIB smoke test and the known gaps, are in **`INSTALL.linux`**.
+> Build from source; there is no packaged Linux binary yet.  Full notes,
+> including the serial/GPIB smoke test and the remaining gaps, are in
+> **`INSTALL.linux`**.
 
-Verified on Ubuntu 24.04 / Qt 6.4.2 / GCC 13.3 / glibc 2.39.
+Verified on Ubuntu 24.04 / Qt 6.4.2 / GCC 13.3 / glibc 2.39, and on the
+`PREEMPT_RT` kernel the realtime measurements below use.
 
 ```sh
 sudo apt install -y \
