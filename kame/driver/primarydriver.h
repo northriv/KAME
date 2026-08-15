@@ -38,6 +38,33 @@
 DECLSPEC_KAME void raiseAcquisitionOSPriority_() noexcept;
 DECLSPEC_KAME void restoreAcquisitionOSPriority_() noexcept;
 
+//! RAII for the OS half ALONE, for a realtime thread that never enters the STM.
+//!
+//! Pulser DMA writers, free-run trigger predictors and async chunk readers feed
+//! hardware and take no Snapshot, so they have no use for an STM tier — but
+//! they do need the CPU.  Historically they asked for it by calling
+//! `Transactional::setCurrentPriorityMode(Priority::HIGHEST)`, whose Windows arm
+//! mapped HIGHEST to THREAD_PRIORITY_TIME_CRITICAL.  That arm was removed when
+//! STM priority was decoupled from the OS scheduler, which silently turned every
+//! such call into a no-op: the thread lost TIME_CRITICAL and nothing replaced it
+//! (a Windows thread does not inherit its creator's priority, and these threads
+//! are separate XThreads that never construct \a AcquisitionPriority).  This is
+//! what those call sites meant, said directly.
+//!
+//! Use this — not `setCurrentPriorityMode` — whenever the thread is realtime but
+//! STM-free.  It is also the safer spelling for a function that can additionally
+//! be called inline on someone else's thread: `setCurrentPriorityMode` is a
+//! PERSISTENT thread mode with no restore, so one such call leaks its tier into
+//! whatever runs next on that thread (`ScopedDemoteRealtime` cannot catch it —
+//! it arms only when the thread was ALREADY HIGHEST on entry).
+class DECLSPEC_KAME ScopedAcquisitionOSPriority {
+public:
+    ScopedAcquisitionOSPriority() noexcept { raiseAcquisitionOSPriority_(); }
+    ~ScopedAcquisitionOSPriority() noexcept { restoreAcquisitionOSPriority_(); }
+    ScopedAcquisitionOSPriority(const ScopedAcquisitionOSPriority &) = delete;
+    ScopedAcquisitionOSPriority &operator=(const ScopedAcquisitionOSPriority &) = delete;
+};
+
 class DECLSPEC_KAME XPrimaryDriver : public XDriver {
 public:
 	XPrimaryDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);

@@ -35,7 +35,9 @@ protected:
 	virtual void *execute(const atomic<bool> &terminated) = 0;
 
 protected:
-    //! RAII guard raising an acquisition loop to `Priority::HIGHEST`.
+    //! RAII guard marking a thread as an acquisition loop: the OS scheduler
+    //! half, plus an STM tier that is now `Priority::NORMAL` (it was HIGHEST —
+    //! see the retirement note below, which is the bulk of this block).
     //!
     //! Construct it immediately before the `while( !terminated)` loop — never
     //! around the setup commit that precedes it.  That commit runs once at
@@ -87,16 +89,18 @@ protected:
     //! HIGHEST tier itself remains available to hosts that can honour its
     //! deployment precondition (HIGHEST commit rate x longest peer closure
     //! << 1); KAME with per-record analyses cannot.
+    //!
+    //! The two halves are paired here and nowhere else.  The OS half is
+    //! \a ScopedAcquisitionOSPriority (primarydriver.h) rather than a second
+    //! copy of the raise/restore calls, so a thread that needs only the OS half
+    //! — one that takes no Snapshot — asks for the same object this does.
     class AcquisitionPriority : public Transactional::ScopedPriority {
     public:
         AcquisitionPriority()
             : Transactional::ScopedPriority(
-                  Transactional::Priority::NORMAL) {
-            raiseAcquisitionOSPriority_();
-        }
-        ~AcquisitionPriority() {
-            restoreAcquisitionOSPriority_();
-        }
+                  Transactional::Priority::NORMAL) {}
+    private:
+        ScopedAcquisitionOSPriority m_os;
     };
 
 private:

@@ -424,7 +424,17 @@ XPulser::changeUIStatus(bool state) {
 }
 void
 XPulser::freeRunToDetectTriggers(const atomic<bool>&terminated, bool single) {
-    Transactional::setCurrentPriorityMode(Transactional::Priority::HIGHEST);
+    //! Takes no Snapshot: it walks m_patListFreeRun under m_mutexForFreeRun and
+    //! feeds softwareTrigger().  An STM tier buys it nothing; CPU is what it
+    //! needs, which is what setCurrentPriorityMode(HIGHEST) used to smuggle in
+    //! through its since-removed Windows arm.
+    //!
+    //! RAII specifically, not a bare raise: this runs BOTH as m_threadFreeRun
+    //! and inline on the caller's thread from visualize() (single=true).  The
+    //! old persistent setCurrentPriorityMode(HIGHEST) leaked STM HIGHEST onto
+    //! that caller for good -- ScopedDemoteRealtime around visualize() arms only
+    //! when the thread was already HIGHEST on entry, so it could not undo it.
+    ScopedAcquisitionOSPriority _os_priority;
     for(;;) {
         XScopedLock<XMutex> lock(m_mutexForFreeRun);
         uint64_t threshold = m_thresholdOfFreeRun;
