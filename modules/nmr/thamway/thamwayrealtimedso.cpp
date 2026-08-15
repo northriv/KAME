@@ -316,7 +316,11 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
 
 void*
 XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
-    Transactional::setCurrentPriorityMode(Priority::HIGHEST);
+    // Async chunk reader: issues USB IO and juggles m_chunks under m_acqMutex,
+    // taking no Snapshot and opening no Transaction.  It wants CPU, not a tier,
+    // and the HIGHEST that used to open this function delivered the CPU only
+    // while setCurrentPriorityMode still carried its Windows arm.
+    ScopedAcquisitionOSPriority _os_priority;
 
     enum class Collision {IOStall, Stopped};
     while( !terminated) {

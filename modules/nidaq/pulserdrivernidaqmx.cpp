@@ -765,7 +765,13 @@ XNIDAQmxPulser::aoVoltToRaw(const double poly_coeff[NUM_AO_CH][CAL_POLY_ORDER], 
 
 void *
 XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
-    Transactional::setCurrentPriorityMode(Transactional::Priority::HIGHEST);
+    // DMA writer: keeps the DO/AO buffers ahead of the card, taking no Snapshot
+    // and opening no Transaction.  It wants CPU, not a tier, and the HIGHEST
+    // that used to open this function delivered the CPU only while
+    // setCurrentPriorityMode still carried its Windows arm.  th_genbuf below is
+    // left alone deliberately: it runs ahead of this thread, so this is the one
+    // on the deadline.
+    ScopedAcquisitionOSPriority _os_priority;
 
     double dma_do_period = resolution();
  	double dma_ao_period = resolutionQAM();

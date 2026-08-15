@@ -70,13 +70,12 @@ protected:
     //! available to hosts that can honour its deployment precondition (HIGHEST
     //! commit rate x longest peer closure << 1); KAME with per-record analyses
     //! cannot.
-    class AcquisitionPriority {
-    public:
-        AcquisitionPriority() noexcept { raiseAcquisitionOSPriority_(); }
-        ~AcquisitionPriority() { restoreAcquisitionOSPriority_(); }
-        AcquisitionPriority(const AcquisitionPriority &) = delete;
-        AcquisitionPriority &operator=(const AcquisitionPriority &) = delete;
-    };
+    //! Spelt as an alias because a driver's EXTRA acquisition threads — DMA
+    //! writers, async chunk readers, DSO read loops — need exactly this object
+    //! and cannot all name it here (one of them is not under this class at all;
+    //! see \a ScopedAcquisitionOSPriority in primarydriver.h).  One
+    //! implementation, so the two cannot drift into meaning different things.
+    using AcquisitionPriority = ScopedAcquisitionOSPriority;
 
 private:
     unique_ptr<XThread> m_thread;

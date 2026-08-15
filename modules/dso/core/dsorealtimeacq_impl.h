@@ -296,7 +296,14 @@ XRealTimeAcqDSO<tDriver>::tryReadAISuspend(const atomic<bool> &terminated) {
 template <class tDriver>
 void *
 XRealTimeAcqDSO<tDriver>::executeReadAI(const atomic<bool> &terminated) {
-    Transactional::setCurrentPriorityMode(Transactional::Priority::HIGHEST);
+    // Unlike the pulser threads, this loop DOES enter the STM -- the Snapshot
+    // below, once per round -- so its tier was a real choice, and it was set to
+    // HIGHEST here, outside the 2026-07-31 verdict's reach.  A DSO feeding a
+    // secondary driver is precisely the closure x rate >= 1 case that verdict
+    // names.  NORMAL now, which is the thread default and so needs no
+    // declaration; what does need declaring is the OS half, since this is a
+    // separate XThread from the one holding AcquisitionPriority.
+    ScopedAcquisitionOSPriority _os_priority;
     while( !terminated) {
         try {
             Snapshot shot( *this);

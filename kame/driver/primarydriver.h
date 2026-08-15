@@ -38,6 +38,30 @@
 DECLSPEC_KAME void raiseAcquisitionOSPriority_() noexcept;
 DECLSPEC_KAME void restoreAcquisitionOSPriority_() noexcept;
 
+//! The RAII above, at namespace scope.
+//! `XPrimaryDriverWithThread::AcquisitionPriority` is an alias of this and its
+//! doc block carries the history — read that one first; this exists only
+//! because a driver's EXTRA acquisition threads cannot always name it.  They are
+//! separate `XThread`s that never construct it (a Windows thread does not
+//! inherit its creator's priority, so nothing reaches them implicitly either),
+//! and `XNIDAQmxPulser::executeWriter` is not even under
+//! `XPrimaryDriverWithThread` — `XPulser` derives from `XPrimaryDriver` direct.
+//!
+//! Those threads used to reach the OS elevation by calling
+//! `Transactional::setCurrentPriorityMode(Priority::HIGHEST)`, whose Windows arm
+//! mapped HIGHEST to THREAD_PRIORITY_TIME_CRITICAL.  That arm went away with the
+//! STM/OS decoupling, leaving those calls granting an STM tier nobody wanted and
+//! an elevation nobody got.  Declare this instead; it says only what is meant,
+//! and unlike `setCurrentPriorityMode` — a persistent thread mode with no
+//! restore — it cannot leak out of the scope that asked for it.
+class DECLSPEC_KAME ScopedAcquisitionOSPriority {
+public:
+    ScopedAcquisitionOSPriority() noexcept { raiseAcquisitionOSPriority_(); }
+    ~ScopedAcquisitionOSPriority() noexcept { restoreAcquisitionOSPriority_(); }
+    ScopedAcquisitionOSPriority(const ScopedAcquisitionOSPriority &) = delete;
+    ScopedAcquisitionOSPriority &operator=(const ScopedAcquisitionOSPriority &) = delete;
+};
+
 class DECLSPEC_KAME XPrimaryDriver : public XDriver {
 public:
 	XPrimaryDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
