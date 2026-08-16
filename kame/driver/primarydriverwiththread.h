@@ -71,16 +71,13 @@ protected:
     //! deployment precondition (HIGHEST commit rate x longest peer closure
     //! << 1); KAME with per-record analyses cannot.
     //!
-    //! The same \a ScopedAcquisitionOSPriority object is used here and by the
-    //! separate hardware threads that need only OS scheduling preference.
-    class AcquisitionPriority {
-    public:
-        AcquisitionPriority() noexcept = default;
-        AcquisitionPriority(const AcquisitionPriority &) = delete;
-        AcquisitionPriority &operator=(const AcquisitionPriority &) = delete;
-    private:
-        ScopedAcquisitionOSPriority m_os;
-    };
+    //! An alias, not a class of its own: a driver's EXTRA acquisition threads
+    //! — DMA writers, async chunk readers, DSO read loops — need exactly this
+    //! object and cannot all name it here (one is not under this class at all;
+    //! see \a ScopedAcquisitionOSPriority in primarydriver.h, whose doc block
+    //! carries the rest of the history).  One implementation, so the two
+    //! cannot drift into meaning different things.
+    using AcquisitionPriority = ScopedAcquisitionOSPriority;
 
 private:
     unique_ptr<XThread> m_thread;

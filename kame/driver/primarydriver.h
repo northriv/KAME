@@ -53,6 +53,13 @@ DECLSPEC_KAME void restoreAcquisitionOSPriority_(int saved_priority) noexcept;
 //! are separate XThreads that never construct \a AcquisitionPriority).  This is
 //! what those call sites meant, said directly.
 //!
+//! `XPrimaryDriverWithThread::AcquisitionPriority` is an alias of this: the
+//! driver's own acquisition thread wants exactly the same object, and a
+//! driver's EXTRA threads cannot all name the nested spelling — one of them,
+//! `XNIDAQmxPulser::executeWriter`, is not under `XPrimaryDriverWithThread` at
+//! all, since `XPulser` derives from `XPrimaryDriver` directly.  One
+//! implementation, so the two cannot drift into meaning different things.
+//!
 //! Use this — not `setCurrentPriorityMode` — whenever the thread is realtime but
 //! STM-free.  It is also the safer spelling for a function that can additionally
 //! be called inline on someone else's thread: `setCurrentPriorityMode` is a
