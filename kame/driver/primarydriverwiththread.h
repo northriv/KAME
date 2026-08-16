@@ -64,18 +64,22 @@ protected:
     //! restored NORMAL.  Removed 2026-08-14 — an RAII that restores what was
     //! never changed only invites the reader to believe a tier is in play here.
     //!
-    //! CPU preference is a thread property with no fair-mode immunity, so the
-    //! OS half keeps the acquisition thread scheduled without letting it starve
-    //! anyone at the STM level.  The kamestm HIGHEST tier itself remains
-    //! available to hosts that can honour its deployment precondition (HIGHEST
-    //! commit rate x longest peer closure << 1); KAME with per-record analyses
-    //! cannot.
+    //! The OS half stays: CPU preference is a thread property with no
+    //! fair-mode immunity, so it keeps the acquisition thread scheduled
+    //! without letting it starve anyone at the STM level.  The kamestm
+    //! HIGHEST tier itself remains available to hosts that can honour its
+    //! deployment precondition (HIGHEST commit rate x longest peer closure
+    //! << 1); KAME with per-record analyses cannot.
+    //!
+    //! The same \a ScopedAcquisitionOSPriority object is used here and by the
+    //! separate hardware threads that need only OS scheduling preference.
     class AcquisitionPriority {
     public:
-        AcquisitionPriority() noexcept { raiseAcquisitionOSPriority_(); }
-        ~AcquisitionPriority() { restoreAcquisitionOSPriority_(); }
+        AcquisitionPriority() noexcept = default;
         AcquisitionPriority(const AcquisitionPriority &) = delete;
         AcquisitionPriority &operator=(const AcquisitionPriority &) = delete;
+    private:
+        ScopedAcquisitionOSPriority m_os;
     };
 
 private:

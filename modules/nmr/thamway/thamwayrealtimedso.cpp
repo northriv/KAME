@@ -316,7 +316,11 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
 
 void*
 XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
-    Transactional::setCurrentPriorityMode(Priority::HIGHEST);
+    //! Async chunk reader: issues USB IO and juggles m_chunks under m_acqMutex,
+    //! never entering the STM.  It wants CPU, not a tier -- see
+    //! ScopedAcquisitionOSPriority (primarydriver.h) for why the old
+    //! setCurrentPriorityMode(HIGHEST) spelling stopped delivering it.
+    ScopedAcquisitionOSPriority _os_priority;
 
     enum class Collision {IOStall, Stopped};
     while( !terminated) {

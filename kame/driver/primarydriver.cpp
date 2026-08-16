@@ -21,17 +21,28 @@
     #include <windows.h>
 #endif
 
-// See the doc block in primarydriver.h.  Restore goes to NORMAL rather than to
-// a saved value: acquisition threads are created for the loop and die with it,
-// so the thread was at the default when it started.
-void raiseAcquisitionOSPriority_() noexcept {
+// See the doc block in primarydriver.h.  Save and restore the actual inherited
+// priority: most guards span a dedicated acquisition thread, but the pulser's
+// one-shot prefill can run inline and the guard may therefore be nested.
+int raiseAcquisitionOSPriority_() noexcept {
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
-    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
+    HANDLE thread = GetCurrentThread();
+    int saved = GetThreadPriority(thread);
+    if(saved == THREAD_PRIORITY_ERROR_RETURN)
+        return THREAD_PRIORITY_ERROR_RETURN;
+    if(!SetThreadPriority(thread, THREAD_PRIORITY_TIME_CRITICAL))
+        return THREAD_PRIORITY_ERROR_RETURN;
+    return saved;
+#else
+    return 0;
 #endif
 }
-void restoreAcquisitionOSPriority_() noexcept {
+void restoreAcquisitionOSPriority_(int saved_priority) noexcept {
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
-    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_NORMAL);
+    if(saved_priority != THREAD_PRIORITY_ERROR_RETURN)
+        SetThreadPriority(GetCurrentThread(), saved_priority);
+#else
+    (void)saved_priority;
 #endif
 }
 #include <chrono>
