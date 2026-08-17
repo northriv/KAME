@@ -928,6 +928,151 @@ def _kame_workspace_dir():
 	except Exception:
 		return os.path.expanduser('~')
 
+def _open_linux_terminal(inner):
+    """Run `inner` (a `bash -lc` string) in the first available terminal emulator.
+
+    Returns True if one was spawned.  Shared by the Claude and Codex launchers so
+    the terminal-probe list lives in exactly one place.
+    """
+    import shutil as _shutil, subprocess as _sp
+    _cands = []
+    if os.environ.get('TERMINAL'):
+        _cands.append((os.environ['TERMINAL'], '-e'))
+    _cands += [('x-terminal-emulator', '-e'), ('gnome-terminal', '--'),
+               ('konsole', '-e'), ('xfce4-terminal', '-x'),
+               ('kitty', '--'), ('alacritty', '-e'),
+               ('wezterm', 'start'), ('foot', ''), ('xterm', '-e')]
+    for _term, _flag in _cands:
+        _path = _shutil.which(_term)
+        if not _path:
+            continue
+        _argv = [_path] + ([_flag] if _flag else []) + ['bash', '-lc', inner]
+        try:
+            _sp.Popen(_argv)
+            return True
+        except OSError:
+            continue
+    return False
+
+
+def _kame_codex_spec():
+    """The MCP server KAME wired up this session, as a launch spec, or None.
+
+    Single source of truth: the same `.mcp.json` / `~/.kame_mcp_url` KAME already
+    wrote, so Codex is pointed at exactly the server this KAME started.  Returns
+    {'type':'stdio','command','args'} or {'type':'http','url','token'}.
+    """
+    import json as _json
+    _paths = []
+    _m = globals().get('NOTEBOOK_MCP_JSON')
+    if _m:
+        _paths.append(_m)
+    _paths.append(os.path.join(os.path.expanduser('~'), '.kame_mcp_url'))
+    for _p in _paths:
+        try:
+            with open(_p) as _f:
+                _d = _json.load(_f)
+        except Exception:
+            continue
+        if not isinstance(_d, dict):
+            continue
+        _srv = (_d.get('mcpServers') or {}).get('kame')
+        if isinstance(_srv, dict):
+            if _srv.get('type') == 'http' or _srv.get('url'):
+                _tok = ''
+                _auth = (_srv.get('headers') or {}).get('Authorization', '')
+                if _auth.lower().startswith('bearer '):
+                    _tok = _auth[7:]
+                return {'type': 'http', 'url': _srv.get('url'), 'token': _tok}
+            if _srv.get('command'):
+                return {'type': 'stdio', 'command': _srv['command'],
+                        'args': list(_srv.get('args') or [])}
+        if _d.get('url'):
+            return {'type': 'http', 'url': _d['url'], 'token': _d.get('token', '')}
+    return None
+
+
+def _toml_quote(s):
+    return '"' + str(s).replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+
+def _codex_launch(binary):
+    """One-click launch of codex / codex-fugu wired to KAME's MCP server.
+
+    macOS/Linux: EPHEMERAL, session-scoped `-c mcp_servers.kame.*` overrides —
+    nothing is written to ~/.codex/config.toml, so it cannot clobber the user's
+    other servers and needs no cleanup (mirrors the throwaway `.mcp.json`).
+    Windows: delegates to `codex mcp {remove,add}` so cmd.exe never has to quote
+    a TOML array; the entry is re-registered (self-correcting) on each launch.
+    """
+    import shutil as _sh, shlex as _shlex, platform as _pf, tempfile as _tf, subprocess as _sp
+    _bin = _sh.which(binary)
+    if not _bin:
+        MYDEFOUT.write_html('<font color="#cc0000">`{}` not found in PATH.</font>'.format(
+            html.escape(binary)))
+        return
+    _spec = _kame_codex_spec()
+    if not _spec:
+        MYDEFOUT.write_html('<font color="#cc0000">No KAME MCP config found &mdash; launch the '
+            'Jupyter notebook first so the MCP server is set up.</font>')
+        return
+    _wd = _kame_workspace_dir()
+    _sys = _pf.system()
+    try:
+        if _sys == 'Windows':
+            _lines = ['@echo off', 'cd /d "{}"'.format(_wd),
+                      '"{}" mcp remove kame >nul 2>&1'.format(_bin)]
+            if _spec['type'] == 'stdio':
+                _a = ' '.join('"{}"'.format(a) for a in _spec['args'])
+                _lines.append('"{}" mcp add kame -- "{}" {}'.format(_bin, _spec['command'], _a))
+            else:
+                if _spec.get('token'):
+                    _lines.append('set "KAME_MCP_TOKEN={}"'.format(_spec['token']))
+                _lines.append('"{}" mcp add kame --url "{}"{}'.format(_bin, _spec['url'],
+                    ' --bearer-token-env-var KAME_MCP_TOKEN' if _spec.get('token') else ''))
+            _lines += ['"{}"'.format(_bin), 'pause']
+            _bat = _tf.NamedTemporaryFile('w', suffix='.bat', delete=False)
+            _bat.write('\r\n'.join(_lines) + '\r\n')
+            _bat.close()
+            _sp.Popen(['cmd', '/c', 'start', '', _bat.name])
+        else:
+            _env, _ov = {}, []
+            if _spec['type'] == 'stdio':
+                _ov += ['-c', 'mcp_servers.kame.command=' + _toml_quote(_spec['command'])]
+                _arr = '[' + ', '.join(_toml_quote(a) for a in _spec['args']) + ']'
+                _ov += ['-c', 'mcp_servers.kame.args=' + _arr]
+            else:
+                _ov += ['-c', 'mcp_servers.kame.url=' + _toml_quote(_spec['url'])]
+                if _spec.get('token'):
+                    _ov += ['-c', 'mcp_servers.kame.bearer_token_env_var=' + _toml_quote('KAME_MCP_TOKEN')]
+                    _env['KAME_MCP_TOKEN'] = _spec['token']
+            _cmd = [_bin] + _ov
+            if _sys == 'Darwin':
+                _lines = ['#!/bin/bash', 'cd {}'.format(_shlex.quote(_wd))]
+                for _k, _v in _env.items():
+                    _lines.append('export {}={}'.format(_k, _shlex.quote(_v)))
+                _lines.append('exec {}'.format(' '.join(_shlex.quote(a) for a in _cmd)))
+                _sc = _tf.NamedTemporaryFile('w', suffix='.command', delete=False)
+                _sc.write('\n'.join(_lines) + '\n')
+                _sc.close()
+                os.chmod(_sc.name, 0o755)
+                _sp.Popen(['open', '-a', 'Terminal', _sc.name])
+            else:
+                _pre = ''.join('{}={} '.format(_k, _shlex.quote(_v)) for _k, _v in _env.items())
+                _inner = 'cd {} && {}{}; exec bash'.format(
+                    _shlex.quote(_wd), _pre, ' '.join(_shlex.quote(a) for a in _cmd))
+                if not _open_linux_terminal(_inner):
+                    MYDEFOUT.write_html('<font color="#cc0000">No terminal emulator found. '
+                        'Set $TERMINAL, or run <tt>{}</tt> yourself in {}.</font>'.format(
+                        html.escape(binary), html.escape(_wd)))
+                    return
+    except Exception:
+        MYDEFOUT.write_html('<font color="#cc0000">Launching {} failed:<br/>{}</font>'.format(
+            html.escape(binary), html.escape(traceback.format_exc())))
+        return
+    MYDEFOUT.write("#Launching {} (terminal) in {} ...".format(binary, _wd))
+
+
 def kame_handle_link(action):
 	"""Dispatch clicks on kame: links in the IPython/script pane (Jupyter / Claude launch)."""
 	import subprocess as _sp, shlex as _shlex, platform as _pf
@@ -964,35 +1109,17 @@ def kame_handle_link(action):
 			elif _sys == 'Windows':
 				_sp.Popen(['cmd', '/c', 'start', 'cmd', '/k', 'cd /d "{}" && claude'.format(_wd)])
 			else:
-				# `x-terminal-emulator` is a Debian/Ubuntu alternatives symlink
-				# — absent on Fedora, RHEL, openSUSE, Arch and most container
-				# images — and not every terminal accepts `-e`.  Probe a list,
-				# each with the flag it actually wants, honouring $TERMINAL.
-				import shutil as _shutil
 				_inner = 'cd {} && claude; exec bash'.format(_shlex.quote(_wd))
-				_cands = []
-				if os.environ.get('TERMINAL'):
-					_cands.append((os.environ['TERMINAL'], '-e'))
-				_cands += [('x-terminal-emulator', '-e'), ('gnome-terminal', '--'),
-						   ('konsole', '-e'), ('xfce4-terminal', '-x'),
-						   ('kitty', '--'), ('alacritty', '-e'),
-						   ('wezterm', 'start'), ('foot', ''), ('xterm', '-e')]
-				for _term, _flag in _cands:
-					_path = _shutil.which(_term)
-					if not _path:
-						continue
-					_argv = [_path] + ([_flag] if _flag else []) + ['bash', '-lc', _inner]
-					try:
-						_sp.Popen(_argv)
-						break
-					except OSError:
-						continue
-				else:
+				if not _open_linux_terminal(_inner):
 					MYDEFOUT.write_html('<font color="#cc0000">No terminal emulator found. '
 						'Set $TERMINAL, or run <tt>claude</tt> yourself in {}.</font>'.format(
 						html.escape(_wd)))
 					return
 			MYDEFOUT.write("#Launching Claude Code (terminal) in {} ...".format(_wd))
+		elif action == 'codex-cli':
+			_codex_launch('codex')
+		elif action == 'codex-fugu-cli':
+			_codex_launch('codex-fugu')
 		else:
 			MYDEFOUT.write_html('<font color="#cc0000">Unknown link action: {}</font>'.format(
 				html.escape(str(action))))
@@ -1029,7 +1156,7 @@ else:
 				connection_file = ipykernel.connect.get_connection_file()
 				MYDEFOUT.write("#KAME IPython binding")
 				MYDEFOUT.write("#Use sleep() instead of time.sleep().")
-				MYDEFOUT.write_html(r'<font color="#0066cc">Quick launch:&nbsp; <a href="kame:notebook">&#9654; Jupyter notebook</a> &nbsp;&nbsp; <a href="kame:claude-cli">&#9654; Claude Code (terminal)</a> &nbsp;&nbsp; <a href="kame:claude-app">&#9654; Claude app</a></font>')
+				MYDEFOUT.write_html(r'<font color="#0066cc">Quick launch:&nbsp; <a href="kame:notebook">&#9654; Jupyter notebook</a> &nbsp;&nbsp; <a href="kame:claude-cli">&#9654; Claude Code (terminal)</a> &nbsp;&nbsp; <a href="kame:claude-app">&#9654; Claude app</a> &nbsp;&nbsp; <a href="kame:codex-cli">&#9654; Codex</a> &nbsp;&nbsp; <a href="kame:codex-fugu-cli">&#9654; Codex (fugu)</a></font>')
 				self.logfilename = os.path.splitext(connection_file)[0] + "-log" + os.extsep + "txt"
 				self._initial_logfilename = self.logfilename
 				MYDEFOUT.write_html(r'<font color="#008800">Logging console output to <a href="file:///'
