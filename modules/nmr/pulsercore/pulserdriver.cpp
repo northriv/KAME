@@ -1154,6 +1154,13 @@ XPulser::setPrefillingSampsBeforeArm(uint64_t cnt) {
 void
 XPulser::visualize(const Snapshot &shot) {
     const unsigned int blankpattern = selectedPorts(shot, PORTSEL_COMB_FM) | selectedPorts(shot, PORTSEL_ALWAYS_HIGH);
+    //An unset time stamp means no valid sequence exists: either the output is
+    //off (onPulseChanged() records XTime() in that case), or the pattern
+    //generation has thrown, which zeroes the time stamp through XRecordError.
+    //In the latter case createNativePatterns() was never reached, so emitting
+    //shot[*output()] here would keep the previously uploaded -- and now
+    //misrepresented -- pattern running.  Blank the ports instead.
+    const bool out = shot[ *output()] && shot[ *this].time().isSet();
 	try {
         if(hasSoftwareTrigger()) {
             m_threadFreeRun.reset();
@@ -1164,7 +1171,7 @@ XPulser::visualize(const Snapshot &shot) {
             else {
                 m_lsnOnTriggerRequested.reset();
                 softwareTrigger()->stop();
-                if(shot[ *output()]) {
+                if(out) {
                     changeOutput(shot, false, blankpattern);
                     //synchronizes with the software trigger.
                     softwareTrigger()->start(1e3 / resolution());
@@ -1186,7 +1193,7 @@ XPulser::visualize(const Snapshot &shot) {
                 }
             }
         }
-        changeOutput(shot, shot[ *output()], blankpattern);
+        changeOutput(shot, out, blankpattern);
     }
 	catch (XKameError &e) {
 		e.print(getLabel() + i18n("Pulser Turn-On/Off Failed, because"));
