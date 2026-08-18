@@ -557,8 +557,9 @@ XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
 	const double asw_hold__ = rintTermMilliSec(shot[ *aswHold()]);
 	const double alt_sep__ = rintTermMilliSec(shot[ *altSep()]);
 	const int echo_num__ = shot[ *echoNum()];
-	if(asw_setup__ > 2.0 * tau__)
-		trans( *aswSetup()) = 2.0 * tau__;
+	//asw_setup__ is in [ms] whereas tau__ is in [us].
+	if(asw_setup__ > 2.0 * tau__/1000)
+		trans( *aswSetup()) = 2.0 * tau__/1000;
 	if(node != altSep().get()) {
 		if(alt_sep__ != asw_setup__ + asw_hold__ + (echo_num__ - 1) * 2 * tau__/1000) {
 			trans( *altSep()) = asw_setup__ + asw_hold__ + (echo_num__ - 1) * 2 * tau__/1000;
@@ -874,7 +875,7 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 			patterns.insert(tpat(pos + pw1__/2, 0, g1mask));
 			patterns.insert(tpat(pos + pw1__/2, 0, PAT_QAM_PULSE_IDX_MASK));
 			patterns.insert(tpat(pos + pw1__/2, 0, pulse1mask));
-			if( !pw2__/2 || (g2_setup__ * 2 + pw1__/2 + pw2__/2 < tau__)) {
+			if( !(pw2__/2) || (g2_setup__ * 2 + pw1__/2 + pw2__/2 < tau__)) {
 				patterns.insert(tpat(pos + pw1__/2, 0, g2mask));
 			}
 			else {
@@ -917,7 +918,7 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 				patterns.insert(tpat(pos + pw2__/2, 0, PAT_QAM_PULSE_IDX_MASK));
 				patterns.insert(tpat(pos + pw2__/2, 0, g1mask));
 				patterns.insert(tpat(pos + pw2__/2, 0, pulse2mask));
-                if( !odmr_mode || !pw1__/2) {
+                if( !odmr_mode || !(pw1__/2)) {
                     patterns.insert(tpat(pos + pw2__/2, 0, g2mask));
                     g2_kept_p1p2 = false;
                 }
