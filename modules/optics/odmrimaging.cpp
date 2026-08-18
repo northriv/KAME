@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2023 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -24,6 +24,8 @@
 #include <QToolButton>
 #include "graphmathtoolconnector.h"
 #include <QColorSpace>
+
+REGISTER_TYPE(XDriverList, ODMRImaging, "ODMR postprocessor for camera");
 
 XODMRImaging::XODMRImaging(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :

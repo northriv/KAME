@@ -1038,6 +1038,12 @@ def _codex_launch(binary):
     other servers and needs no cleanup (mirrors the throwaway `.mcp.json`).
     Windows: delegates to `codex mcp {remove,add}` so cmd.exe never has to quote
     a TOML array; the entry is re-registered (self-correcting) on each launch.
+
+    Token hygiene: the bearer token must never appear in argv (visible to any
+    local user via ps / /proc/*/cmdline for the life of the terminal), so both
+    POSIX paths go through a 0o700 temporary launch script that exports it and
+    deletes itself on first read; the .bat likewise self-deletes after codex
+    exits.
     """
     import shlex as _shlex, platform as _pf, tempfile as _tf, subprocess as _sp
     _bin = _resolve_cli(binary)
@@ -1069,6 +1075,11 @@ def _codex_launch(binary):
                         ' --bearer-token-env-var KAME_MCP_TOKEN'
                         if _spec.get('token') else ''))
             _lines += ['"{}"'.format(_bin), 'pause']
+            # Self-delete (the token is inside): `(goto) 2>nul` aborts batch
+            # reading with the already-parsed `& del` still executing, so no
+            # "batch file not found" complaint. Skipped if the window is
+            # closed during pause — %TEMP% is per-user, acceptable.
+            _lines.append('(goto) 2>nul & del "%~f0"')
             _bat = _tf.NamedTemporaryFile('w', suffix='.bat', delete=False)
             _bat.write('\r\n'.join(_lines) + '\r\n')
             _bat.close()
@@ -1085,21 +1096,30 @@ def _codex_launch(binary):
                     _ov += ['-c', 'mcp_servers.kame.bearer_token_env_var=' + _toml_quote('KAME_MCP_TOKEN')]
                     _env['KAME_MCP_TOKEN'] = _spec['token']
             _cmd = [_bin] + _ov
+            # Owner-only, self-deleting launch script: `rm -f -- "$0"` on the
+            # first line unlinks the file while bash keeps reading from the
+            # already-open fd, so the exported token exists on disk only for
+            # the instant between Popen and the shell starting.
+            _lines = ['#!/bin/bash', 'rm -f -- "$0"',
+                      'cd {}'.format(_shlex.quote(_wd))]
+            for _k, _v in _env.items():
+                _lines.append('export {}={}'.format(_k, _shlex.quote(_v)))
             if _sys == 'Darwin':
-                _lines = ['#!/bin/bash', 'cd {}'.format(_shlex.quote(_wd))]
-                for _k, _v in _env.items():
-                    _lines.append('export {}={}'.format(_k, _shlex.quote(_v)))
                 _lines.append('exec {}'.format(' '.join(_shlex.quote(a) for a in _cmd)))
                 _sc = _tf.NamedTemporaryFile('w', suffix='.command', delete=False)
                 _sc.write('\n'.join(_lines) + '\n')
                 _sc.close()
-                os.chmod(_sc.name, 0o755)
+                os.chmod(_sc.name, 0o700)
                 _sp.Popen(['open', '-a', 'Terminal', _sc.name])
             else:
-                _pre = ''.join('{}={} '.format(_k, _shlex.quote(_v)) for _k, _v in _env.items())
-                _inner = 'cd {} && {}{}; exec bash'.format(
-                    _shlex.quote(_wd), _pre, ' '.join(_shlex.quote(a) for a in _cmd))
-                if not _open_linux_terminal(_inner):
+                _lines.append(' '.join(_shlex.quote(a) for a in _cmd))
+                _lines.append('exec bash')  # keep the window alive afterwards
+                _sc = _tf.NamedTemporaryFile('w', suffix='.sh', delete=False)
+                _sc.write('\n'.join(_lines) + '\n')
+                _sc.close()
+                os.chmod(_sc.name, 0o700)
+                if not _open_linux_terminal(_shlex.quote(_sc.name)):
+                    os.unlink(_sc.name)
                     MYDEFOUT.write_html('<font color="#cc0000">No terminal emulator found. '
                         'Set $TERMINAL, or run <tt>{}</tt> yourself in {}.</font>'.format(
                         html.escape(binary), html.escape(_wd)))
