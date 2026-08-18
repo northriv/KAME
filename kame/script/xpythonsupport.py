@@ -996,6 +996,40 @@ def _toml_quote(s):
     return '"' + str(s).replace('\\', '\\\\').replace('"', '\\"') + '"'
 
 
+def _resolve_cli(binary):
+    """Find a CLI even when KAME was launched as a macOS GUI application.
+
+    Finder/Qt-launched applications commonly inherit only the system PATH, so
+    `shutil.which()` cannot see installers' usual destinations such as
+    ~/.local/bin.  Try those explicitly, then ask the user's login shell as a
+    last resort.  The returned path is absolute so the temporary Terminal
+    script does not depend on the GUI process's PATH.
+    """
+    import shutil as _sh, shlex as _shlex, subprocess as _sp
+    _p = _sh.which(binary)
+    if _p:
+        return _p
+    for _d in (os.path.expanduser('~/.local/bin'),
+               os.path.expanduser('~/.cargo/bin'),
+               '/opt/homebrew/bin', '/usr/local/bin', '/opt/local/bin'):
+        _p = os.path.join(_d, binary)
+        if os.path.isfile(_p) and os.access(_p, os.X_OK):
+            return _p
+    if os.name == 'posix':
+        _shell = os.environ.get('SHELL') or '/bin/zsh'
+        try:
+            _out = _sp.check_output(
+                [_shell, '-lic', 'command -v -- ' + _shlex.quote(binary)],
+                stderr=_sp.DEVNULL, text=True, timeout=5)
+            for _line in reversed(_out.splitlines()):
+                _line = _line.strip()
+                if os.path.isabs(_line) and os.access(_line, os.X_OK):
+                    return _line
+        except Exception:
+            pass
+    return None
+
+
 def _codex_launch(binary):
     """One-click launch of codex / codex-fugu wired to KAME's MCP server.
 
@@ -1005,31 +1039,35 @@ def _codex_launch(binary):
     Windows: delegates to `codex mcp {remove,add}` so cmd.exe never has to quote
     a TOML array; the entry is re-registered (self-correcting) on each launch.
     """
-    import shutil as _sh, shlex as _shlex, platform as _pf, tempfile as _tf, subprocess as _sp
-    _bin = _sh.which(binary)
+    import shlex as _shlex, platform as _pf, tempfile as _tf, subprocess as _sp
+    _bin = _resolve_cli(binary)
     if not _bin:
         MYDEFOUT.write_html('<font color="#cc0000">`{}` not found in PATH.</font>'.format(
             html.escape(binary)))
         return
     _spec = _kame_codex_spec()
     if not _spec:
-        MYDEFOUT.write_html('<font color="#cc0000">No KAME MCP config found &mdash; launch the '
-            'Jupyter notebook first so the MCP server is set up.</font>')
-        return
+        MYDEFOUT.write_html('<font color="#996600">No KAME MCP config found &mdash; '
+            'launching {} without KAME tools. Start the Jupyter notebook first '
+            'to enable them.</font>'.format(html.escape(binary)))
     _wd = _kame_workspace_dir()
     _sys = _pf.system()
     try:
         if _sys == 'Windows':
-            _lines = ['@echo off', 'cd /d "{}"'.format(_wd),
-                      '"{}" mcp remove kame >nul 2>&1'.format(_bin)]
-            if _spec['type'] == 'stdio':
-                _a = ' '.join('"{}"'.format(a) for a in _spec['args'])
-                _lines.append('"{}" mcp add kame -- "{}" {}'.format(_bin, _spec['command'], _a))
-            else:
-                if _spec.get('token'):
-                    _lines.append('set "KAME_MCP_TOKEN={}"'.format(_spec['token']))
-                _lines.append('"{}" mcp add kame --url "{}"{}'.format(_bin, _spec['url'],
-                    ' --bearer-token-env-var KAME_MCP_TOKEN' if _spec.get('token') else ''))
+            _lines = ['@echo off', 'cd /d "{}"'.format(_wd)]
+            if _spec:
+                _lines.append('"{}" mcp remove kame >nul 2>&1'.format(_bin))
+                if _spec['type'] == 'stdio':
+                    _a = ' '.join('"{}"'.format(a) for a in _spec['args'])
+                    _lines.append('"{}" mcp add kame -- "{}" {}'.format(
+                        _bin, _spec['command'], _a))
+                else:
+                    if _spec.get('token'):
+                        _lines.append('set "KAME_MCP_TOKEN={}"'.format(_spec['token']))
+                    _lines.append('"{}" mcp add kame --url "{}"{}'.format(
+                        _bin, _spec['url'],
+                        ' --bearer-token-env-var KAME_MCP_TOKEN'
+                        if _spec.get('token') else ''))
             _lines += ['"{}"'.format(_bin), 'pause']
             _bat = _tf.NamedTemporaryFile('w', suffix='.bat', delete=False)
             _bat.write('\r\n'.join(_lines) + '\r\n')
@@ -1037,11 +1075,11 @@ def _codex_launch(binary):
             _sp.Popen(['cmd', '/c', 'start', '', _bat.name])
         else:
             _env, _ov = {}, []
-            if _spec['type'] == 'stdio':
+            if _spec and _spec['type'] == 'stdio':
                 _ov += ['-c', 'mcp_servers.kame.command=' + _toml_quote(_spec['command'])]
                 _arr = '[' + ', '.join(_toml_quote(a) for a in _spec['args']) + ']'
                 _ov += ['-c', 'mcp_servers.kame.args=' + _arr]
-            else:
+            elif _spec:
                 _ov += ['-c', 'mcp_servers.kame.url=' + _toml_quote(_spec['url'])]
                 if _spec.get('token'):
                     _ov += ['-c', 'mcp_servers.kame.bearer_token_env_var=' + _toml_quote('KAME_MCP_TOKEN')]
