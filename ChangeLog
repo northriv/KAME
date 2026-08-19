@@ -1,5 +1,5 @@
 * Wed Aug 19 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
-- Release 8.5_BETA2.
+- Release 8.5.
 - Linux: first run against real instrument hardware. The Thamway FX2/FX3 USB
   path had never been exercised on Linux before, and it produced four crashes
   in one session; all four are fixed here, and three of them were the same
@@ -38,9 +38,29 @@
   branch was dead: with PW2 == 0 and a short Tau the amplifier gate stayed
   high across the rest of the sequence, and in ODMR mode it was never released
   inside the echo loop either. Both fixes strictly close the gate earlier.
-  Separately, ASWSetup is [ms] while Tau is [us], so the clamp compared the
-  two directly -- about 1000x too permissive -- and on firing wrote a
-  us-valued number into a ms node.
+  Separately, ASWSetup is [ms] while Tau is [us], so its clamp compared the
+  two directly -- about 1000x too permissive, which is why it had never once
+  fired. Correcting the units made it fire, and that proved worse than leaving
+  it wrong: the clamp writes a node onPulseChanged itself listens to, without
+  the re-entry guard and the return that its neighbour two lines below
+  carries, so every firing re-entered the callback. Nor did it settle -- the
+  value written is not a fixed point of the rounding the next invocation reads
+  it back through, so the comparison can stay true indefinitely, and one click
+  on Output recursed 232 levels and took the stack with it. The clamp is gone.
+  ASWSetup is no longer bounded by Tau, which is what every release so far
+  has shipped.
+- pulser: refuse pulse widths that exceed Tau rather than playing them.
+  Nothing checked that the RF pulses in a sequence are disjoint, so
+  PW1 = PW2 = 6 us against Tau = 0.6 us was accepted: twenty pi pulses 600
+  ticks wide on a 120-tick spacing, overlapping five deep. Their QAM pulse
+  indices then merge into a single ~2400-tick span, while the waveform behind
+  that index is built for one 600-tick pulse, and the back-end walks off the
+  end of it. createRelPatListNMRPulser now raises an XRecordError, which
+  blanks the ports through the record's time-stamp gate. The Thamway back-end's
+  own guard against the overrun was an assert, which NDEBUG drops -- so the
+  release build read past the end of the vector instead of stopping. It
+  throws now, and remains as a backstop, since on its own it only fires when
+  the pulse width sits near an integer multiple of the spacing.
 - pulser: blank the output when the record has no valid time stamp.
   visualize() emitted the output unconditionally, so a pattern-generation
   failure left the hardware running the pattern from before the failure: RF
