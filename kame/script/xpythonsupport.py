@@ -566,6 +566,13 @@ def launchJupyterConsole(prog, argv):
 			lines += ["", "Captured output:", raw]
 		raise RuntimeError("\n".join(lines))
 	NOTEBOOK_PROC = proc
+	# Show the launch command in the Script pane NOW, before the MCP setup
+	# below, which takes seconds.  This same node is the duplicate guard of
+	# the notebook-URL detector on the Python thread's Timer: when this write
+	# happened at the END of the function, the detector could fire first,
+	# get overwritten here, and fire again on the next tick — printing the
+	# "notebook in ...: <url>" / "Changing logfile" pair exactly twice.
+	XScriptingThreads()[0]["Filename"] = ' '.join(args)
 
 	# Write MCP config for Claude Code in the notebook workspace.
 	if console[0] == 'notebook':
@@ -930,8 +937,6 @@ def launchJupyterConsole(prog, argv):
 			NOTEBOOK_MCP_JSON = mcp_json_path
 		except OSError:
 			pass
-
-	XScriptingThreads()[0]["Filename"] = ' '.join(args)
 
 def _kame_workspace_dir():
 	"""Best-guess workspace dir holding .mcp.json (where Claude should start)."""
