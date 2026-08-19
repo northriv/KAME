@@ -87,6 +87,9 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
     struct AsyncIO : public CyFXUSBDevice::AsyncIO {
         AsyncIO() {
             transfer = libusb_alloc_transfer(0);
+            if( !transfer)
+                //Every path below fills and submits this unconditionally.
+                throw XInterface::XInterfaceError("USB: libusb_alloc_transfer() failed.\n", __FILE__, __LINE__);
             stl_bufferGarbage->swap(buf);
         }
         AsyncIO(AsyncIO&&) noexcept = default;
@@ -142,6 +145,12 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
         libusb_transfer *transfer;
         uint8_t *rdbuf = nullptr;
         int completed = 0;
+        //! The device this transfer was submitted on, so abort() can re-check
+        //! that it is still open before asking libusb to cancel.  A raw pointer
+        //! is sound here: an AsyncIO is only ever produced by that device's own
+        //! asyncBulkWrite()/asyncBulkRead() and handed to a caller that reached
+        //! the device through a shared_ptr, so the device outlives the transfer.
+        CyFXLibUSBDevice *m_owner = nullptr;
     };
 
     struct USBList {
@@ -235,7 +244,19 @@ CyFXLibUSBDevice::AsyncIO::hasFinished() const noexcept {
 
 int64_t
 CyFXLibUSBDevice::AsyncIO::waitFor() {
+    // This watchdog must OUTLAST the timeout libusb itself was given for the
+    // transfer, otherwise libusb can never complete it as
+    // LIBUSB_TRANSFER_TIMED_OUT -- the clean outcome the status check further
+    // down already handles -- and every stalled transfer is forced down the far
+    // more fragile cancel path instead.  It was the other way round: this used
+    // USB_TIMEOUT (6 s) while bulkWrite()/bulkRead() pass
+    // TIMEOUT_MS_LONG_ENOUGH (10 s) as timeout_ms, so the TIMED_OUT branch was
+    // dead code.  transfer->timeout == 0 means "no timeout" to libusb, and there
+    // this watchdog is legitimately the only bound.
+    const double deadline = transfer->timeout ?
+        transfer->timeout * 1e-3 + 2.0 : USB_TIMEOUT * 1e-3;
     auto start = XTime::now();
+    bool cancel_issued = false;
     while( !completed) {
         struct timeval tv;
         tv.tv_sec = USB_TIMEOUT / 1000;
@@ -243,9 +264,17 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
         int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, &completed);
         if(ret)
             throw XInterface::XInterfaceError(formatString("Error during completing transfer in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
-        if( !completed && (XTime::now() - start > USB_TIMEOUT * 1e-3)) {
+        if( !completed && (XTime::now() - start > deadline)) {
+            if(cancel_issued)
+                //The cancellation produced no completion callback within another
+                //full deadline.  Waiting longer cannot help, and looping here
+                //would re-issue libusb_cancel_transfer() on every iteration.
+                throw XInterface::XInterfaceError("USB: async transfer neither completed nor cancelled.\n", __FILE__, __LINE__);
             fprintf(stderr, "Libusb async transfer aborting due to timeout.\n");
-            abort();
+            cancel_issued = true;
+            if( !abort())
+                throw XInterface::XInterfaceError("USB: async transfer timed out and could not be cancelled.\n", __FILE__, __LINE__);
+            start = XTime::now(); //grants the cancellation its own grace period.
         }
         readBarrier();
     }
@@ -273,6 +302,19 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
 
 bool
 CyFXLibUSBDevice::AsyncIO::abort() noexcept {
+    if(m_owner && !m_owner->handle) {
+        //The device was closed while this transfer was still in flight, so
+        //libusb_close() has already freed the dev_handle the transfer points at
+        //and libusb_cancel_transfer() would dereference it.  That is the SIGSEGV
+        //seen on the first Linux hardware run: XCyFXUSBInterface::initialize()
+        //examines the shared s_devices entries -- open()/close() -- from its own
+        //thread under s_mutex, while a driver thread does I/O under the device's
+        //own mutex, and the two locks do not exclude each other.  Guarding here
+        //keeps the crash away; the underlying race still needs fixing in the
+        //interface layer's lock ordering.
+        fprintf(stderr, "Libusb async transfer cannot be cancelled: device already closed.\n");
+        return false;
+    }
     //According to man of libusb, in osx, all the transfer for the same ep will be cancelled.
     int ret = libusb_cancel_transfer(transfer);
     if(ret) {
@@ -308,6 +350,19 @@ CyFXLibUSBDevice::open() {
         ret = libusb_open(dev, &handle);
         if(ret) {
             handle = nullptr;
+            if(ret == LIBUSB_ERROR_ACCESS) {
+                // The common Linux first-run failure: /dev/bus/usb/BBB/DDD is
+                // root-only, and libusb opens it O_RDWR.  This fires before the
+                // claim_interface hint below ever gets a chance, so repeat the
+                // advice here with the concrete device and the exact fix.
+                fprintf(stderr, "USB: permission denied for %04x:%04x (bus %d, addr %d).\n"
+                    "  On Linux /dev/bus/usb must be writable by this user; install the shipped"
+                    " udev rule (see INSTALL.linux):\n"
+                    "    sudo install -m 644 kame/70-kame.rules /etc/udev/rules.d/70-kame.rules\n"
+                    "    sudo udevadm control --reload-rules && sudo udevadm trigger\n"
+                    "  then re-plug the device.  On macOS, check Privacy settings.\n",
+                    desc.idVendor, desc.idProduct, bus_num, addr);
+            }
             throw XInterface::XInterfaceError(formatString("Error opening dev. in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
         }
 
@@ -361,13 +416,18 @@ CyFXLibUSBDevice::open() {
 
 void
 CyFXLibUSBDevice::close() {
-    if(handle) {
-        libusb_reset_device(handle);
-        libusb_release_interface(handle,0);
-        libusb_close(handle);
+    //Clear `handle` FIRST.  Every "was the device closed concurrently?" guard in
+    //this file tests it, and while the teardown below ran with `handle` still
+    //set those guards had a window in which they let a caller through to an
+    //already-freed dev_handle.  Publishing the null first makes them meaningful.
+    libusb_device_handle *h = handle;
+    handle = nullptr;
+    if(h) {
+        libusb_reset_device(h);
+        libusb_release_interface(h, 0);
+        libusb_close(h);
         fprintf(stderr, "USB: closed.\n");
     }
-    handle = nullptr;
 }
 
 int
@@ -428,6 +488,7 @@ CyFXLibUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len, unsign
         //process (observed via the XThamwayPROT status-poll thread).
         throw XInterface::XInterfaceError("USB: bulk write attempted on a closed device handle.\n", __FILE__, __LINE__);
     unique_ptr<AsyncIO> async(new AsyncIO);
+    async->m_owner = this;
     async->buf.resize(len);
     std::memcpy( &async->buf[0], buf, len);
     libusb_fill_bulk_transfer(async->transfer, handle,
@@ -450,6 +511,7 @@ CyFXLibUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len, unsigned int 
         //process (observed via the XThamwayPROT status-poll thread).
         throw XInterface::XInterfaceError("USB: bulk read attempted on a closed device handle.\n", __FILE__, __LINE__);
     unique_ptr<AsyncIO> async(new AsyncIO);
+    async->m_owner = this;
     async->buf.resize(len);
     async->rdbuf = buf;
     libusb_fill_bulk_transfer(async->transfer, handle,
