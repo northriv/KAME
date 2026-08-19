@@ -374,8 +374,7 @@ C11 translations of each layer are verified with [GenMC](https://github.com/MPI-
 A C++11-capable compiler is required (the build uses `CONFIG += c++11` via qmake).
 
 Optional: IPython / Jupyter notebook, linux-gpib or NI 488.2, NI DAQmx,
-libdc1394 (IIDC cameras, macOS/Linux), libusb-1.0 (OceanOptics spectrometer,
-macOS/Linux), Euresys eGrabber SDK (frame grabbers, all platforms).
+libdc1394 (IIDC cameras, macOS/Linux), Euresys eGrabber SDK (frame grabbers).
 
 ---
 
