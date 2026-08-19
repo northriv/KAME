@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "kame",
+  "version": "1.0.0",
+  "description": "Drive the KAME instrument-control application: read instrument state, run sweeps and NMR/ODMR measurements, and edit the measurement notebook, with the instrument-safety rules loaded up front.",
+  "author": {
+    "name": "Kentaro Kitagawa",
+    "email": "kitag@issp.u-tokyo.ac.jp"
+  },
+  "homepage": "https://kitag.issp.u-tokyo.ac.jp/automated-measurement-program-kame/",
+  "repository": "https://github.com/northriv/kame",
+  "license": "GPL-2.0-or-later",
+  "keywords": ["measurement", "instrument-control", "nmr", "odmr", "physics", "laboratory"]
+}

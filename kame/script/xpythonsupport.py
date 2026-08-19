@@ -586,9 +586,15 @@ def launchJupyterConsole(prog, argv):
 			with open(_kame_conn_info, 'w') as _f:
 				# notebook_token / notebook_dir let the MCP server locate the
 				# notebook server (contents API) among Jupyter runtime files.
+				# resource_dir lets an installed agent plugin (whose cache
+				# holds only the plugin directory) find kame_mcp_server.py on
+				# ANY layout, dev build trees included — the fixed
+				# /Applications-style candidates in bin/kame-mcp-server miss
+				# those.
 				_json.dump({'connection_file': _conn_file, 'pid': os.getpid(),
 							'notebook_token': token,
-							'notebook_dir': os.path.abspath(console[1])}, _f)
+							'notebook_dir': os.path.abspath(console[1]),
+							'resource_dir': KAME_ResourceDir}, _f)
 		except OSError:
 			pass
 		# Write .mcp.json pointing to the MCP server script.

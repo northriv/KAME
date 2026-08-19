@@ -1,10 +1,19 @@
-# KAME plugin for Claude Code
+# KAME agent plugin
 
 Bundles KAME's MCP server together with a `kame-measurement` skill that carries
 the instrument-safety rules, so both are available in **any** directory — not
 only in the notebook workspace where KAME writes its `.mcp.json`.
 
-## Install
+This one directory is **dual-format**:
+
+- **Claude Code** reads `.claude-plugin/plugin.json` + `.mcp.json`;
+- root `plugin.json` + `mcp.json` conform to the cross-vendor
+  [**Agent Plugins 1.0.0**](https://agent-plugins.org/) specification
+  (validated against its published schemas), supported by Codex, ChatGPT,
+  Cursor, GitHub Copilot, Kiro and VS Code;
+- `skills/` is shared by both formats.
+
+## Install — Claude Code
 
 From a checkout of this repository:
 
@@ -19,7 +28,23 @@ During development, load it in place instead:
 claude --plugin-dir ./kame/script/plugin
 ```
 
-Run `/reload-plugins` after editing the plugin.
+Run `/reload-plugins` after editing the plugin. Sessions launched from KAME's
+**▶ Claude Code** quick-launch link get `--plugin-dir` automatically — no
+install needed there.
+
+## Install — Codex (and other Agent Plugins clients)
+
+Repo-root `.agents/plugins/marketplace.json` is a Codex marketplace:
+
+```
+codex plugin marketplace add northriv/KAME   # or a local checkout path
+codex plugin add kame@kame
+```
+
+Note: with the plugin installed, Codex has the `kame` MCP server registered
+permanently; KAME's **▶ Codex** quick-launch link *also* passes the server
+ephemerally, so you may see it twice. Either is harmless — the tools are the
+same server.
 
 ## What you get
 

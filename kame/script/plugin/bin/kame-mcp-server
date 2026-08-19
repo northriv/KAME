@@ -28,11 +28,22 @@ if [ -n "${KAME_MCP_SERVER:-}" ] && [ ! -f "$KAME_MCP_SERVER" ]; then
     die "KAME_MCP_SERVER is set to '$KAME_MCP_SERVER' but no such file exists."
 fi
 
+# The resource dir KAME itself recorded on notebook launch: an INSTALLED
+# plugin's cache holds only the plugin directory, so ../ finds nothing, and
+# the fixed /Applications-style candidates below miss dev build trees.  KAME
+# knows where it deployed the server; trust that first among the guesses.
+kame_resdir=""
+if [ -f "$HOME/.kame_kernel_connection.json" ]; then
+    kame_resdir=$(sed -n 's/.*"resource_dir": *"\([^"]*\)".*/\1/p' \
+        "$HOME/.kame_kernel_connection.json" | head -n 1)
+fi
+
 server=""
 for candidate in \
     "${KAME_MCP_SERVER:-}" \
     "$plugin_root/kame_mcp_server.py" \
     "$plugin_root/../kame_mcp_server.py" \
+    "${kame_resdir:+$kame_resdir/kame_mcp_server.py}" \
     "/Applications/KAME.app/Contents/Resources/kame_mcp_server.py" \
     "$HOME/Applications/KAME.app/Contents/Resources/kame_mcp_server.py" \
     "/usr/local/share/kame/kame_mcp_server.py" \
