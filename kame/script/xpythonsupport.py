@@ -1153,6 +1153,44 @@ def _codex_launch(binary):
     MYDEFOUT.write("#Launching {} (terminal) in {} ...".format(binary, _wd))
 
 
+def _find_python_with(mods, env_override=None):
+	"""First interpreter that imports every name in `mods`, or None.
+
+	The same lesson as the MCP-server search: unversioned python3 names are
+	unreliable (Homebrew relinks them on upgrades, MacPorts makes none
+	without `port select`), so versioned python3.X binaries are scanned too,
+	newest first, each candidate proved by actually importing `mods`."""
+	import shutil as _sh, subprocess as _sp, glob as _glob, re as _re
+	_cands = []
+	if env_override and os.environ.get(env_override):
+		_cands.append(os.environ[env_override])
+	for _n in ('python3', 'python'):
+		_p = _sh.which(_n)
+		if _p:
+			_cands.append(_p)
+	_vers = []
+	for _d in ('/opt/homebrew/bin', '/opt/local/bin', '/usr/local/bin', '/usr/bin'):
+		_vers += [_p for _p in _glob.glob(os.path.join(_d, 'python3.*'))
+				  if _re.search(r'python3\.\d+$', _p)]
+	_cands += sorted(_vers,
+		key=lambda _p: int(_re.search(r'python3\.(\d+)$', _p).group(1)),
+		reverse=True)
+	_probe = ';'.join('import ' + _m for _m in mods)
+	_seen = set()
+	for _c in _cands:
+		_rp = os.path.realpath(_c)
+		if _rp in _seen:
+			continue
+		_seen.add(_rp)
+		try:
+			_sp.check_call([_c, '-c', _probe],
+						   stdout=_sp.DEVNULL, stderr=_sp.DEVNULL, timeout=10)
+			return _c
+		except Exception:
+			continue
+	return None
+
+
 def _kame_plugin_dir():
 	"""The Claude Code plugin shipped with this KAME, or None.
 
@@ -1228,6 +1266,46 @@ def kame_handle_link(action):
 			_codex_launch('codex')
 		elif action == 'codex-fugu-cli':
 			_codex_launch('codex-fugu')
+		elif action in ('pyai-cli', 'pyai-web'):
+			# Vendor-neutral client on Pydantic AI: any provider:model, local
+			# models via an OpenAI-compatible endpoint. The wrapper connects
+			# over HTTP from ~/.kame_mcp_url and carries the server's safety
+			# instructions with the toolset.
+			_wd = _kame_workspace_dir()
+			_script = os.path.join(KAME_ResourceDir, 'kame_pydantic_ai.py')
+			if not os.path.isfile(_script):
+				MYDEFOUT.write_html('<font color="#cc0000">kame_pydantic_ai.py not '
+					'found in {} &mdash; rebuild/redeploy KAME.</font>'.format(
+					html.escape(KAME_ResourceDir)))
+				return
+			_py = _find_python_with(('pydantic_ai',), 'KAME_PYAI_PYTHON')
+			if not _py:
+				MYDEFOUT.write_html('<font color="#cc0000">No Python with '
+					'<tt>pydantic_ai</tt> found. <tt>pip install pydantic-ai</tt> '
+					'(plus <tt>clai</tt> for the web UI), or set KAME_PYAI_PYTHON.</font>')
+				return
+			_cmd = [_py, _script] + (['--web'] if action == 'pyai-web' else [])
+			_cmdline = ' '.join(_shlex.quote(a) for a in _cmd)
+			_sys = _pf.system()
+			if _sys == 'Darwin':
+				_osa = 'tell application "Terminal" to do script "cd {} && {}"'.format(
+					_shlex.quote(_wd), _cmdline)
+				_sp.Popen(['osascript', '-e', _osa,
+						   '-e', 'tell application "Terminal" to activate'])
+			elif _sys == 'Windows':
+				_sp.Popen(['cmd', '/c', 'start', 'cmd', '/k',
+						   'cd /d "{}" && "{}" "{}"{}'.format(
+							_wd, _py, _script,
+							' --web' if action == 'pyai-web' else '')])
+			else:
+				_inner = 'cd {} && {}; exec bash'.format(_shlex.quote(_wd), _cmdline)
+				if not _open_linux_terminal(_inner):
+					MYDEFOUT.write_html('<font color="#cc0000">No terminal emulator found. '
+						'Set $TERMINAL, or run <tt>{}</tt> yourself.</font>'.format(
+						html.escape(_cmdline)))
+					return
+			MYDEFOUT.write("#Launching Pydantic AI {} ({}) in {} ...".format(
+				"web UI" if action == 'pyai-web' else "CLI", _py, _wd))
 		else:
 			MYDEFOUT.write_html('<font color="#cc0000">Unknown link action: {}</font>'.format(
 				html.escape(str(action))))
@@ -1264,7 +1342,7 @@ else:
 				connection_file = ipykernel.connect.get_connection_file()
 				MYDEFOUT.write("#KAME IPython binding")
 				MYDEFOUT.write("#Use sleep() instead of time.sleep().")
-				MYDEFOUT.write_html(r'<font color="#0066cc">Quick launch:&nbsp; <a href="kame:notebook">&#9654; Jupyter notebook</a> &nbsp;&nbsp; <a href="kame:claude-cli">&#9654; Claude Code (terminal)</a> &nbsp;&nbsp; <a href="kame:claude-app">&#9654; Claude app</a> &nbsp;&nbsp; <a href="kame:codex-cli">&#9654; Codex</a> &nbsp;&nbsp; <a href="kame:codex-fugu-cli">&#9654; Codex (fugu)</a></font>')
+				MYDEFOUT.write_html(r'<font color="#0066cc">Quick launch:&nbsp; <a href="kame:notebook">&#9654; Jupyter notebook</a> &nbsp;&nbsp; <a href="kame:claude-cli">&#9654; Claude Code (terminal)</a> &nbsp;&nbsp; <a href="kame:claude-app">&#9654; Claude app</a> &nbsp;&nbsp; <a href="kame:codex-cli">&#9654; Codex</a> &nbsp;&nbsp; <a href="kame:codex-fugu-cli">&#9654; Codex (fugu)</a> &nbsp;&nbsp; <a href="kame:pyai-cli">&#9654; Pydantic AI</a> &nbsp;&nbsp; <a href="kame:pyai-web">&#9654; Pydantic AI (web)</a></font>')
 				self.logfilename = os.path.splitext(connection_file)[0] + "-log" + os.extsep + "txt"
 				self._initial_logfilename = self.logfilename
 				MYDEFOUT.write_html(r'<font color="#008800">Logging console output to <a href="file:///'

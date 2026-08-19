@@ -1,7 +1,7 @@
 {
   "name": "kame",
   "displayName": "KAME Measurement",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Drive the KAME instrument-control application: read instrument state, run sweeps and NMR/ODMR measurements, and edit the measurement notebook, with the instrument-safety rules loaded up front.",
   "author": {
     "name": "Kentaro Kitagawa",
