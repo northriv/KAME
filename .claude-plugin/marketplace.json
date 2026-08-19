@@ -1,0 +1,14 @@
+{
+  "name": "kame",
+  "owner": {
+    "name": "Kentaro Kitagawa",
+    "email": "kitag@issp.u-tokyo.ac.jp"
+  },
+  "plugins": [
+    {
+      "name": "kame",
+      "source": "./kame/script/plugin",
+      "description": "Drive the KAME instrument-control application over MCP, with the instrument-safety rules loaded up front."
+    }
+  ]
+}
