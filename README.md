@@ -2,7 +2,7 @@
 
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![GitHub](https://img.shields.io/badge/GitHub-northriv%2FKAME-181717?logo=github)](https://github.com/northriv/KAME)
-[![Version](https://img.shields.io/badge/version-8.4-green)]()
+[![Version](https://img.shields.io/badge/version-8.5-green)]()
 [![arXiv](https://img.shields.io/badge/arXiv-2608.12024-b31b1b.svg)](https://arxiv.org/abs/2608.12024)
 
 KAME is an open-source, multi-threaded program for automated physical property measurements,
@@ -412,8 +412,8 @@ Additional notes:
 > including the serial/GPIB smoke test and the remaining gaps, are in
 > **`INSTALL.linux`**.
 
-Verified on Ubuntu 24.04 / Qt 6.4.2 / GCC 13.3 / glibc 2.39, and on the
-`PREEMPT_RT` kernel the realtime measurements below use.
+Verified on Ubuntu 26.04, x86-64, including the `PREEMPT_RT` kernel the
+realtime measurements below use.
 
 ```sh
 sudo apt install -y \

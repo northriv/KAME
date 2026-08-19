@@ -11,12 +11,13 @@ OpenGL graphs correctly on a real X11 server (see "GUI" below).  Instrument
 communication is exercised hardware-free by `tools/iftest_serial_gpib.py`
 (serial and Prologix over a pty, including a `*IDN?` round trip), and the
 usermode NI USB-GPIB driver builds here, so `Device = GPIB` works without a
-kernel module when linux-gpib is absent.  What has not been done on Linux is
-a run against real instrument hardware; report anything you find with the
-driver and the device.
+kernel module when linux-gpib is absent.  Real instrument hardware has been
+driven from here since 8.5, but only over the Thamway FX2/FX3 USB path -- the
+run that turned up the four crashes 8.5 fixes.  Every other driver is still
+untried on Linux; report anything you find with the driver and the device.
 
-Verified on Ubuntu 24.04 / Qt 6.4.2 / GCC 13.3 / glibc 2.39, x86-64, and on
-Ubuntu 26.04 `PREEMPT_RT` (the realtime measurement host).
+Verified on Ubuntu 26.04, x86-64, including the `PREEMPT_RT` realtime
+measurement host.
 
 ## Dependencies
 
