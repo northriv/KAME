@@ -524,15 +524,6 @@ PATH=C:\msys64\usr\bin;C:\msys64\mingw64\bin;C:\msys64\mingw64\lib
 PYTHONHOME=C:\msys64\mingw64
 ```
 
-**Cameras.** Install the Euresys eGrabber SDK if you need one — it is the
-frame grabber KAME builds against on Windows, and therefore what feeds the
-ODMR imaging drivers there.  `modules/optics/optics.pro` looks in
-`C:\Program Files\Euresys\eGrabber` and honours `EGENTL_HOME`; nothing is
-linked (EGrabber.h is header-only and loads its GenTL producer at run time),
-so the include path is the whole requirement.  IIDC and the OceanOptics USB
-spectrometer are macOS/Linux only — see
-[Camera and spectrometer support](#camera-and-spectrometer-support-per-os).
-
 ---
 
 ## Scripting
