@@ -1391,8 +1391,15 @@ else:
 		# the console log file is reopened -- all visible within seconds of the
 		# first external client connecting.
 		if getattr(kernel, 'timer', None) is None:
-			kernel.shell.events.register('pre_run_cell', _kame_pre_run_cell)
-			kernel.shell.events.register('post_run_cell', _kame_post_run_cell)
+			# Status publishing is a convenience; it must never keep the timer
+			# below from starting, since that timer is what pumps KAME's event
+			# loop.
+			try:
+				kernel.shell.events.register('pre_run_cell', _kame_pre_run_cell)
+				kernel.shell.events.register('post_run_cell', _kame_post_run_cell)
+			except Exception:
+				sys.stderr.write("KAME: executing-cell status unavailable: "
+								 + str(traceback.format_exc()))
 			# `Kernel.do_one_iteration` is the ipykernel <= 6 coroutine that
 			# pumped one shell message per call.  ipykernel 7 removed it (the
 			# kernel drives its own anyio task and a `%gui` hook is expected
