@@ -1,3 +1,99 @@
+* Wed Aug 19 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Release 8.5_BETA2.
+- Linux: first run against real instrument hardware. The Thamway FX2/FX3 USB
+  path had never been exercised on Linux before, and it produced four crashes
+  in one session; all four are fixed here, and three of them were the same
+  bug. Taking &v[0] on a std::vector whose size is 0 is undefined, but the
+  capacity is allocated, so on macOS and Windows it returns exactly the
+  address the caller wanted and the code had "worked" for years. Qt6's headers
+  define _GLIBCXX_ASSERTIONS whenever QT_NO_DEBUG is absent, so libstdc++
+  checks operator[] and aborts -- which is why a debug build on Linux was the
+  first thing to see it. Every site of that shape across the DSO, NMR and ODMR
+  modules moved to .data(), which is defined for an empty vector and yields
+  the same address; they were found by enumerating the containers rather than
+  the syntax. Two ways the vectors are
+  legitimately empty at those points: stopAcquision() reserve()s each ring
+  chunk and then clear()s it, and visualize() runs even when analyze() bailed
+  out with an XSkippedRecordError.
+- charinterface: four defects on the libusb async path, found from a SIGSEGV
+  inside libusb_cancel_transfer in that same session. AsyncIO::abort()
+  cancelled a transfer without checking the device was still open, and held no
+  reference with which to check -- it now carries one. waitFor()'s watchdog
+  used a 6 s deadline while the transfers are issued with 10 s, so libusb
+  could never report LIBUSB_TRANSFER_TIMED_OUT and the clean outcome the code
+  below already handled was dead: the deadline now comes from
+  transfer->timeout. Past the deadline the loop re-issued the cancel on every
+  iteration; it now cancels once, grants a grace period, then raises a
+  catchable error. close() cleared its handle only after libusb_close() had
+  freed it, leaving every !handle guard in the file a window to walk through.
+- kame/70-kame.rules: TAG+="uaccess" alone grants access only while the user
+  holds an active local seat, so a measurement host driven over SSH, from cron
+  or from a systemd unit failed every libusb open with LIBUSB_ERROR_ACCESS
+  although the same user succeeded from the console a moment earlier.
+  GROUP="plugdev", MODE="0660" alongside uaccess on all ten devices.
+  INSTALL.linux gains the usermod step, the re-plug requirement and the
+  ls/getfacl checks, because nothing USB works until the rules are installed.
+- pulser: two operator-precedence bugs and a unit mismatch. '!pw2__/2' parses
+  as '(!pw2__)/2' == 0, so the "no pi pulse follows, close the PreGate now"
+  branch was dead: with PW2 == 0 and a short Tau the amplifier gate stayed
+  high across the rest of the sequence, and in ODMR mode it was never released
+  inside the echo loop either. Both fixes strictly close the gate earlier.
+  Separately, ASWSetup is [ms] while Tau is [us], so the clamp compared the
+  two directly -- about 1000x too permissive -- and on firing wrote a
+  us-valued number into a ms node.
+- pulser: blank the output when the record has no valid time stamp.
+  visualize() emitted the output unconditionally, so a pattern-generation
+  failure left the hardware running the pattern from before the failure: RF
+  kept being emitted from a setup KAME had already rejected, and the UI
+  advertised parameters the hardware was not playing. Both changeOutput()
+  calls are now gated on the stamp. XSkippedRecordError paths are unaffected.
+- optics: the Euresys eGrabber probe sat inside optics.pro's `unix { }` block
+  along with libdc1394 and libusb. For those two that is a library fact; for
+  eGrabber it was an accident, and it left a Windows build with no camera
+  driver of any kind, while the ODMR imaging, FM tracker and 2-D analysis
+  drivers all build there. The probe now has a per-platform default and still
+  honours EGENTL_HOME. The dc1394 probe also accepts `libdc1394-25`.
+- The ODMR driver is built by default.
+- kame,modules: the OS elevation is now asked for directly instead of through
+  an STM tier. Five acquisition threads called setCurrentPriorityMode(HIGHEST)
+  outside AcquisitionPriority; three of them never enter the STM at all, so
+  what they were buying was the Windows arm that mapped HIGHEST to
+  THREAD_PRIORITY_TIME_CRITICAL -- and when that arm was removed, those calls
+  became no-ops and the threads silently lost their priority. The two that do
+  commit sat at STM HIGHEST outside the reach of the 2026-07-31 verdict. The
+  OS half is now an RAII wrapper, and the STM half of AcquisitionPriority,
+  which was dead, is gone.
+- Linux is a supported platform from 8.5: the "unsupported" label is dropped
+  from README and INSTALL.linux. Since the 2026-07 port the tree compiles
+  warning-clean, loads all 43 driver modules, runs both script engines,
+  renders its OpenGL graphs on a real X11 server, builds the usermode NI
+  USB-GPIB driver, and is the host the realtime campaign measures on. Two
+  facts stay as facts rather than disclaimers: there is no packaged Linux
+  binary yet, and -- as of this release -- the hardware run above is the
+  first, so reports naming the driver and the device are wanted.
+- script: one-click Codex / codex-fugu launch alongside the existing Claude
+  entries, wired to the same throwaway .mcp.json KAME already writes, so the
+  CLI is pointed at exactly the server this KAME started. On macOS and Linux
+  the registration is an ephemeral, session-scoped `-c mcp_servers.kame.*`
+  override, so ~/.codex/config.toml is never touched; Windows delegates to
+  `codex mcp add` so cmd.exe need not quote a TOML array. The bearer token
+  never appears in argv -- where any local user could read it out of ps for
+  the life of the terminal -- but in a 0700 launch script that deletes itself
+  on first read.
+- STM: the tail on a PREEMPT_RT host is contention, not composability, and the
+  campaign that established that is summarised in the Aug 10 entry below;
+  since then Rule 0c (a lower-priority tagger never overwrites a validated
+  HIGHEST tag) took slow commits from 62 to 15 per 900 s at 5.4 sigma, HIGHEST
+  now tags from retry 0 so a bundle no longer leaves its children unstamped,
+  and a 30-minute soak holds the 3L retry bound to within one in 115 M
+  commits. Two published results were retracted on re-measurement and the
+  reasons kept: "RT fast privilege makes the tail worse" did not replicate,
+  and the no_tags result tracked run order rather than the binary.
+  KAME_STM_RT_FAST_PRIV and the OS-scheduler probe are deleted outright.
+- kamestm: diagnostic counters are pointer-width -- the STM core would not
+  link on i486, where a 64-bit atomic becomes a locked libatomic call and one
+  in a free path destroys lock-freedom.
+
 * Mon Aug 10 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - STM realtime, measured end to end on a PREEMPT_RT host (i5-7500, isolated
   core, SCHED_FIFO, per-thread pinning, PM-QoS): a HIGHEST 5-node commit with
