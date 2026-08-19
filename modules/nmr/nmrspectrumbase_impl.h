@@ -323,9 +323,14 @@ XNMRSpectrumBase<FRM>::visualize(const Snapshot &shot) {
 	assert(values.size() == length);
     m_spectrum->iterate_commit([=](Transaction &tr){
 		double th = FFT::windowFuncHamming(0.1);
-		const std::complex<double> *wave( &shot[ *this].wave()[0]);
-		const double *weights( &shot[ *this].weights()[0]);
-		const double *darkpsd( &shot[ *this].darkPSD()[0]);
+		//data(), not &...[0]: visualize() is called even when analyze() threw
+		//an XSkippedRecordError, and these Payload vectors are then still empty.
+		//The size-guarded loop below never dereferences them, but forming the
+		//pointer with operator[](0) on an empty vector is UB and aborts under a
+		//hardened libstdc++ (the debug build enables _GLIBCXX_ASSERTIONS via Qt).
+		const std::complex<double> *wave(shot[ *this].wave().data());
+		const double *weights(shot[ *this].weights().data());
+		const double *darkpsd(shot[ *this].darkPSD().data());
 		tr[ *m_spectrum].setRowCount(length);
         std::vector<double> colx(length);
         std::vector<float> colr(length), coli(length), colw(length),

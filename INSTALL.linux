@@ -77,13 +77,28 @@ sudo apt-get install -y \
   library.  Install `libdc1394-dev` for IIDC cameras; Euresys eGrabber is
   found under `/opt/euresys/egrabber` or wherever `EGENTL_HOME` points.
 * **USB device permissions.**  Every USB path goes through libusb from an
-  unprivileged process, so `/dev/bus/usb` must be writable by the user.
-  Install the shipped rules:
+  unprivileged process, and libusb opens `/dev/bus/usb/BBB/DDD` **O_RDWR**.
+  Those nodes are `root:root 0664` by default, so a fresh Linux box fails every
+  USB open with `LIBUSB_ERROR_ACCESS` — this is the first thing to hit when
+  trying Thamway, Ocean Optics or usermode NI-GPIB hardware here.  Install the
+  shipped rules, join `plugdev`, then **re-plug the device** (udev only applies
+  rules on an add event; `udevadm trigger` re-runs them, but a device already
+  claimed by KAME must be reopened either way):
 
   ```bash
   sudo install -m 644 kame/70-kame.rules /etc/udev/rules.d/70-kame.rules
+  sudo usermod -aG plugdev $USER
   sudo udevadm control --reload-rules && sudo udevadm trigger
   ```
+
+  The `usermod` needs a fresh login to take effect (`id` must list `plugdev`).
+  The rules apply `TAG+="uaccess"` *and* `GROUP="plugdev", MODE="0660"` to each
+  device on purpose: `uaccess` is the tidy workstation answer but its ACL only
+  exists while the user holds an **active local seat** session, so KAME started
+  over SSH, from cron, or from a systemd unit sees nothing.  `plugdev` covers
+  that.  Verify with `ls -l /dev/bus/usb/<bus>/<dev>` (expect group `plugdev`,
+  mode `0660`) and `getfacl` on the same node (expect a `user:<you>:rw-` entry
+  when logged in locally).
 
   For RS-232 and Prologix GPIB-USB adapters (`/dev/ttyUSB*`, `/dev/ttyACM*`)
   add yourself to `dialout` instead: `sudo usermod -aG dialout $USER`.

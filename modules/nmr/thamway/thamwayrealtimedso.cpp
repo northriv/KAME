@@ -122,7 +122,17 @@ XThamwayPROT3DSO::stopAcquision() {
         if(isMemLockAvailable()) {
             mlock(this, sizeof(XThamwayPROT3DSO));
             for(auto &&x: m_chunks) {
-                mlock(&x.data[0], x.data.capacity() * sizeof(tRawAI));
+                //data(), NOT &data[0].  These vectors were reserve()d and then
+                //clear()ed just above, so size()==0 while capacity()==ChunkSize,
+                //and operator[](0) on an empty vector is undefined behaviour.  It
+                //happens to yield the address mlock() wants on macOS/Windows, but
+                //Ubuntu 26.04 ships libstdc++ with _GLIBCXX_ASSERTIONS enabled,
+                //where it calls std::__glibcxx_assert_fail() -> abort(): the crash
+                //hit on the first Linux hardware run, in the DSO open path
+                //(XInterface::start -> onOpen -> ... -> startAcquision).  data() is
+                //defined for an empty vector and returns the same buffer address.
+                if(x.data.capacity())
+                    mlock(x.data.data(), x.data.capacity() * sizeof(tRawAI));
             }
         }
     }
@@ -282,15 +292,23 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
         }
 
         ssize_t len = std::min((uint32_t)chunk.data.size() - m_currRdPos, size);
+        //data() + pos, NOT &data[pos].  A chunk that startAcquision() has not
+        //filled yet is still in the reserve()d-but-clear()ed state set up by
+        //stopAcquision(), so size() is 0, len comes out 0, and the memcpy below
+        //is a harmless no-op -- but forming the pointer with operator[](0) on an
+        //empty vector is undefined behaviour, and the debug build's hardened
+        //libstdc++ (Qt defines _GLIBCXX_ASSERTIONS) aborts the process there.
+        //Seen on Linux while the acquisition ring was still being primed.
+        tRawAI *src = chunk.data.data() + m_currRdPos;
         if(m_swapTraces) {
             //copies data with word swapping.
             //test results i7 2.5GHz, OSX10.12, 3.7GB/s
-            memcpy_wordswap(buf, &chunk.data[m_currRdPos], len * sizeof(tRawAI));
+            memcpy_wordswap(buf, src, len * sizeof(tRawAI));
         }
         else {
             //Simple copy without swap.
             //test results i7 2.5GHz, OSX10.12, 4.5GB/s
-            std::memcpy(buf, &chunk.data[m_currRdPos], len * sizeof(tRawAI));
+            std::memcpy(buf, src, len * sizeof(tRawAI));
         }
         buf += len;
         samps_read += len;
@@ -335,7 +353,9 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
             m_wrChunkEnd = (wridx + 1) % m_chunks.size();
             chunk.data.resize(ChunkSize, 0x4f4f);
             chunk.ioInProgress = true;
-            return interface()->asyncReceive( (char*)&chunk.data[0],
+            //data() for uniformity with readAcqBuffer(); the resize() above
+            //guarantees a non-empty vector here, so this one was already safe.
+            return interface()->asyncReceive( (char*)chunk.data.data(),
                     chunk.data.size() * sizeof(tRawAI));
         };
         try {
