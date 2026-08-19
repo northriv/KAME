@@ -1148,6 +1148,25 @@ def _codex_launch(binary):
     MYDEFOUT.write("#Launching {} (terminal) in {} ...".format(binary, _wd))
 
 
+def _kame_plugin_dir():
+	"""The Claude Code plugin shipped with this KAME, or None.
+
+	Deployed builds carry it at <Resources>/plugin (kame.pro); a source build
+	that has not deployed it is found by the same upward search the MCP venv
+	uses.  Handing this to `claude --plugin-dir` loads the kame skill and MCP
+	server without any /plugin install ceremony, and always the version this
+	KAME shipped with."""
+	_c = os.path.join(KAME_ResourceDir, 'plugin')
+	if os.path.isfile(os.path.join(_c, '.claude-plugin', 'plugin.json')):
+		return _c
+	for _depth in range(3, 7):
+		_c = os.path.normpath(os.path.join(
+			KAME_ResourceDir, *(['..'] * _depth), 'kame', 'script', 'plugin'))
+		if os.path.isfile(os.path.join(_c, '.claude-plugin', 'plugin.json')):
+			return _c
+	return None
+
+
 def kame_handle_link(action):
 	"""Dispatch clicks on kame: links in the IPython/script pane (Jupyter / Claude launch)."""
 	import subprocess as _sp, shlex as _shlex, platform as _pf
@@ -1177,20 +1196,29 @@ def kame_handle_link(action):
 		elif action == 'claude-cli':
 			_wd = _kame_workspace_dir()
 			_sys = _pf.system()
+			# Load the bundled plugin (kame skill + MCP server) in place, so a
+			# session launched from KAME needs no /plugin install and always
+			# gets the version this KAME shipped.  Not on Windows: the
+			# plugin's server launcher is POSIX sh, so --plugin-dir there
+			# would greet every session with an MCP startup error.
+			_pd = _kame_plugin_dir() if _sys != 'Windows' else None
+			_claude = 'claude --plugin-dir {}'.format(_shlex.quote(_pd)) if _pd else 'claude'
 			if _sys == 'Darwin':
-				_osa = 'tell application "Terminal" to do script "cd {} && claude"'.format(_shlex.quote(_wd))
+				_osa = 'tell application "Terminal" to do script "cd {} && {}"'.format(
+					_shlex.quote(_wd), _claude)
 				_sp.Popen(['osascript', '-e', _osa,
 						   '-e', 'tell application "Terminal" to activate'])
 			elif _sys == 'Windows':
 				_sp.Popen(['cmd', '/c', 'start', 'cmd', '/k', 'cd /d "{}" && claude'.format(_wd)])
 			else:
-				_inner = 'cd {} && claude; exec bash'.format(_shlex.quote(_wd))
+				_inner = 'cd {} && {}; exec bash'.format(_shlex.quote(_wd), _claude)
 				if not _open_linux_terminal(_inner):
 					MYDEFOUT.write_html('<font color="#cc0000">No terminal emulator found. '
 						'Set $TERMINAL, or run <tt>claude</tt> yourself in {}.</font>'.format(
 						html.escape(_wd)))
 					return
-			MYDEFOUT.write("#Launching Claude Code (terminal) in {} ...".format(_wd))
+			MYDEFOUT.write("#Launching Claude Code (terminal) in {}{} ...".format(
+				_wd, " with the kame plugin" if _pd else ""))
 		elif action == 'codex-cli':
 			_codex_launch('codex')
 		elif action == 'codex-fugu-cli':

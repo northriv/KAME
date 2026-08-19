@@ -239,6 +239,14 @@ macx {
     scriptfile.path = Contents/Resources
     QMAKE_BUNDLE_DATA += scriptfile
 
+    # The Claude Code plugin (kame skill + MCP server launcher), copied as a
+    # whole directory to Contents/Resources/plugin.  The kame:claude-cli
+    # quick-launch link passes it to `claude --plugin-dir`, and the plugin's
+    # own launcher finds kame_mcp_server.py right above it at ../ .
+    pluginfiles.files = script/plugin
+    pluginfiles.path = Contents/Resources
+    QMAKE_BUNDLE_DATA += pluginfiles
+
     LIBS += -L$$OUT_PWD/ -llibkame
 }
 else {
@@ -272,11 +280,16 @@ else {
         }
         scriptfile.path = $${PREFIX}/share/kame
         INSTALLS += scriptfile
+        # The Claude Code plugin directory, whole (see the macx block).
+        pluginfiles.files = script/plugin
+        pluginfiles.path = $${PREFIX}/share/kame
+        INSTALLS += pluginfiles
         # Also stage them beside the binary so an uninstalled build tree is
         # directly runnable — the equivalent of QMAKE_BUNDLE_DATA on macOS.
         for(f, scriptfile.files): \
             QMAKE_POST_LINK += $$quote(cp -f $${_PRO_FILE_PWD_}/$${f} $${DESTDIR}/ &&) \
 
+        QMAKE_POST_LINK += $$quote(cp -Rf $${_PRO_FILE_PWD_}/script/plugin $${DESTDIR}/ &&)
         QMAKE_POST_LINK += true
 
         # The executable itself was never in INSTALLS, so `make install`
