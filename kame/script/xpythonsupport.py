@@ -636,6 +636,23 @@ def launchJupyterConsole(prog, argv):
 		_sys_py = _sh.which('python3')
 		if _sys_py:
 			_candidates.append(_sys_py)
+		# 5. Versioned interpreters (python3.X). The unversioned `python3` in
+		#    these directories can denote a different major.minor than the one
+		#    the user pip-installed `mcp` into: Homebrew relinks python3 on
+		#    upgrades, and MacPorts creates no unversioned link at all without
+		#    `port select`. Observed live: jupyter launched from MacPorts'
+		#    python3.14 (no mcp) while mcp lived in Homebrew's python3.11 —
+		#    reachable only as a versioned name. Newest first; the import
+		#    probe below rejects the losers.
+		import glob as _glob, re as _re
+		_vers = []
+		for _d in {_bin_dir, '/opt/homebrew/bin', '/opt/local/bin',
+				   '/usr/local/bin', '/usr/bin'}:
+			_vers += [_p for _p in _glob.glob(os.path.join(_d, 'python3.*'))
+					  if _re.search(r'python3\.\d+$', _p)]
+		_candidates += sorted(_vers,
+			key=lambda _p: int(_re.search(r'python3\.(\d+)$', _p).group(1)),
+			reverse=True)
 		# De-duplicate by resolved path, preserving priority order.
 		_seen = set()
 		_uniq = []

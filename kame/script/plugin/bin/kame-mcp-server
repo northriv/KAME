@@ -57,6 +57,10 @@ if [ -n "${KAME_MCP_PYTHON:-}" ]; then
     "$KAME_MCP_PYTHON" -c 'import mcp, jupyter_client' >/dev/null 2>&1 \
         || die "KAME_MCP_PYTHON ('$KAME_MCP_PYTHON') lacks 'mcp' or 'jupyter_client'."
 fi
+# The versioned globs matter: Homebrew relinks the unversioned python3 on
+# upgrades and MacPorts creates none without `port select`, so the interpreter
+# carrying mcp is often reachable only as python3.X.  An unmatched glob stays
+# literal and is dropped by the `command -v` test below.
 python=""
 for candidate in \
     "${KAME_MCP_PYTHON:-}" \
@@ -64,8 +68,13 @@ for candidate in \
     python \
     /opt/local/bin/python3 \
     /opt/homebrew/bin/python3 \
-    /usr/local/bin/python3
+    /usr/local/bin/python3 \
+    /opt/homebrew/bin/python3.[0-9]* \
+    /opt/local/bin/python3.[0-9]* \
+    /usr/local/bin/python3.[0-9]* \
+    /usr/bin/python3.[0-9]*
 do
+    case "$candidate" in *-config|*t) continue;; esac
     [ -n "$candidate" ] || continue
     command -v "$candidate" >/dev/null 2>&1 || continue
     if "$candidate" -c 'import mcp, jupyter_client' >/dev/null 2>&1; then
