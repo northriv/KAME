@@ -290,7 +290,14 @@ def _get_client() -> jupyter_client.BlockingKernelClient:
     # to PNG at a modest dpi with a tight bbox so figures come back crisp
     # but compact (fast over MCP); a bare `plt.plot(...)` in a cell is
     # captured automatically at cell end — no explicit display() needed.
-    client.execute("%matplotlib inline")
+    #
+    # stop_on_error=False on ALL of these pipelined setups: with the default
+    # True, one setup raising (e.g. `%matplotlib inline` on a kernel without
+    # matplotlib) makes ipykernel ABORT every already-queued request behind
+    # it — including the caller's first real execute, which then produces no
+    # iopub output at all and times out. Observed live: every fresh
+    # connection's first tool call timed out, the second was instant.
+    client.execute("%matplotlib inline", stop_on_error=False)
     client.execute(
         "try:\n"
         "    import matplotlib as _mpl\n"
@@ -299,7 +306,8 @@ def _get_client() -> jupyter_client.BlockingKernelClient:
         "    get_ipython().run_line_magic('config', "
         "\"InlineBackend.figure_formats = {'png'}\")\n"
         "except Exception:\n"
-        "    pass\n"
+        "    pass\n",
+        stop_on_error=False,
     )
     # MCP-driven Tx are external scripting — should yield to the
     # measurement loop for the first ~1 s of any contention before
@@ -310,8 +318,38 @@ def _get_client() -> jupyter_client.BlockingKernelClient:
         "    import kame\n"
         "    kame.setCurrentPriorityMode(kame.Priority.SCRIPTING)\n"
         "except (AttributeError, ImportError):\n"
-        "    pass\n"
+        "    pass\n",
+        stop_on_error=False,
     )
+    # Barrier handshake, AFTER the setup burst, for two reasons at once.
+    # (a) ZMQ slow-joiner: the iopub SUB subscription completes
+    # asynchronously and anything published before that is silently lost, so
+    # without an iopub echo the first tool call can miss its whole output.
+    # (b) Some embedded kernels drop a shell request that arrives in the
+    # middle of a pipelined burst — observed live on the development Mac
+    # (embedded Python 3.14.7, ipykernel 7.2.0): the request following the
+    # three setups vanished with neither an iopub trace nor a shell reply
+    # (an abort would at least reply status='aborted'), on every fresh
+    # connection, while other hosts are fine. A silent no-op is re-sent
+    # until its idle status echoes back: a dropped no-op is retried
+    # harmlessly — which a resend of the CALLER's code must never be, on an
+    # instrument-control kernel — and once it echoes, the burst has drained
+    # and the caller's first execute travels alone.
+    _joined = False
+    _hs_deadline = time.monotonic() + 15
+    while not _joined and time.monotonic() < _hs_deadline:
+        _mid = client.execute("pass", silent=True, store_history=False)
+        _round = time.monotonic() + 0.3
+        while time.monotonic() < _round:
+            try:
+                _msg = client.get_iopub_msg(timeout=0.3)
+            except queue.Empty:
+                break
+            if (_msg["parent_header"].get("msg_id") == _mid
+                    and _msg["msg_type"] == "status"
+                    and _msg["content"].get("execution_state") == "idle"):
+                _joined = True
+                break
     _client = client
     return client
 
