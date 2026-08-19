@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "server": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/kame-mcp-server",
+      "env": {
+        "KAME_PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}"
+      }
+    }
+  }
+}

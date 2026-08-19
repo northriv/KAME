@@ -1,0 +1,68 @@
+#!/bin/sh
+# Locate and exec KAME's MCP server (kame_mcp_server.py).
+#
+# When this plugin is installed from a marketplace, Claude Code copies only the
+# plugin directory, so the server script cannot be referenced with a relative
+# path out of the plugin.  It is instead located at run time from the KAME
+# installation, which is where it is deployed by kame.pro (scriptfile.files).
+#
+# Overrides, both optional:
+#   KAME_MCP_SERVER  full path to kame_mcp_server.py
+#   KAME_MCP_PYTHON  interpreter to run it with (needs mcp + jupyter_client)
+
+set -eu
+
+die() {
+    # stderr reaches the /plugin manager's Errors tab.
+    echo "kame plugin: $1" >&2
+    exit 1
+}
+
+# ---- locate the server script ------------------------------------------------
+plugin_root="${KAME_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$0")")}}"
+
+server=""
+for candidate in \
+    "${KAME_MCP_SERVER:-}" \
+    "$plugin_root/kame_mcp_server.py" \
+    "$plugin_root/../kame_mcp_server.py" \
+    "/Applications/KAME.app/Contents/Resources/kame_mcp_server.py" \
+    "$HOME/Applications/KAME.app/Contents/Resources/kame_mcp_server.py" \
+    "/usr/local/share/kame/kame_mcp_server.py" \
+    "/usr/share/kame/kame_mcp_server.py"
+do
+    if [ -n "$candidate" ] && [ -f "$candidate" ]; then
+        server="$candidate"
+        break
+    fi
+done
+
+[ -n "$server" ] || die "kame_mcp_server.py not found. Set KAME_MCP_SERVER to its\
+ full path (it is installed next to KAME, e.g. KAME.app/Contents/Resources/)."
+
+# ---- locate an interpreter that has the dependencies -------------------------
+# KAME itself embeds Python, so the interpreter that satisfies mcp +
+# jupyter_client is whichever one the user installed them into -- the same
+# search xpythonsupport.py performs when it writes .mcp.json.
+python=""
+for candidate in \
+    "${KAME_MCP_PYTHON:-}" \
+    python3 \
+    python \
+    /opt/local/bin/python3 \
+    /opt/homebrew/bin/python3 \
+    /usr/local/bin/python3
+do
+    [ -n "$candidate" ] || continue
+    command -v "$candidate" >/dev/null 2>&1 || continue
+    if "$candidate" -c 'import mcp, jupyter_client' >/dev/null 2>&1; then
+        python="$candidate"
+        break
+    fi
+done
+
+[ -n "$python" ] || die "no Python with 'mcp' and 'jupyter_client' found. Install\
+ them (pip install mcp jupyter_client) or set KAME_MCP_PYTHON to an interpreter\
+ that has them."
+
+exec "$python" "$server" --transport=stdio
