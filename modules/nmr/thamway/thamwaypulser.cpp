@@ -305,7 +305,16 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                         auto z0 = std::polar(pow(10.0, shot[ *this].masterLevel() / 20.0), M_PI / 2.0 * phase);
                         z0 /= m_qamPeriod;
                         auto &wave = shot[ *this].qamWaveForm(pnum - 1);
-                        assert(wave.size() >= qamidx + pat.term_n_cmd);
+                        if(wave.size() < qamidx + pat.term_n_cmd) {
+                            //qamidx only rewinds where the index changes between
+                            //entries, so pulses that overlap -- or merely abut --
+                            //are consumed as one span and outrun the waveform built
+                            //for a single pulse.  This has to throw rather than
+                            //assert: NDEBUG would drop the check and leave the read
+                            //below walking off the end of the vector.
+                            throw XInterface::XInterfaceError(
+                                i18n("QAM waveform is shorter than the pattern demands; check for overlapping pulses."), __FILE__, __LINE__);
+                        }
                         for(int i = 0; i < pat.term_n_cmd; ++i) {
                             qamz += wave[qamidx++];
                             addr_qam++;

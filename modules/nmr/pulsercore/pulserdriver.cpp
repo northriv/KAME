@@ -566,9 +566,6 @@ XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
 	const double asw_hold__ = rintTermMilliSec(shot[ *aswHold()]);
 	const double alt_sep__ = rintTermMilliSec(shot[ *altSep()]);
 	const int echo_num__ = shot[ *echoNum()];
-	//asw_setup__ is in [ms] whereas tau__ is in [us].
-	if(asw_setup__ > 2.0 * tau__/1000)
-		trans( *aswSetup()) = 2.0 * tau__/1000;
 	if(node != altSep().get()) {
 		if(alt_sep__ != asw_setup__ + asw_hold__ + (echo_num__ - 1) * 2 * tau__/1000) {
 			trans( *altSep()) = asw_setup__ + asw_hold__ + (echo_num__ - 1) * 2 * tau__/1000;
@@ -719,6 +716,15 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
     uint64_t comb_p1__ = rintSampsMilliSec(shot[ *this].combP1());
     uint64_t comb_p1_alt__ = rintSampsMilliSec(shot[ *this].combP1Alt());
     uint64_t g2_setup__ = ceilSampsMicroSec(shot[ *g2Setup()]);
+    //The pi/2 is centred at pos and the first pi at pos + tau__, the rest every
+    //2*tau__, so this is what makes every RF pulse in the train disjoint -- the
+    //same quantity the PreGate decision below is written in terms of.  Overlapping
+    //pulses do not merely sound wrong, they produce a pattern no back-end can play:
+    //the QAM pulse index stays asserted across what were meant to be separate
+    //pulses, and the per-pulse waveform is then far too short for the merged span.
+    if(pw2__/2 && (pw1__/2 + pw2__/2 > tau__))
+        throw XDriver::XRecordError(
+            i18n("Pulse widths exceed Tau; the RF pulses would overlap."), __FILE__, __LINE__);
 	int echo_num__ = shot[ *this].echoNum();
 	int comb_num__ = shot[ *this].combNum();
 	int comb_mode__ = shot[ *this].combMode();
