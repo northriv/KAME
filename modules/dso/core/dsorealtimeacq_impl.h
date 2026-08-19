@@ -179,13 +179,17 @@ XRealTimeAcqDSO<tDriver>::setupTiming() {
         DSORawRecord &rec = m_dsoRawRecordBanks[i];
         rec.record.resize(len * num_ch * (rec.isComplex ? 2 : 1));
         assert(rec.numCh == num_ch);
-        if(isMemLockAvailable()) {
-            mlock(&rec.record[0], rec.record.size() * sizeof(int32_t));
+        if(isMemLockAvailable() && !rec.record.empty()) {
+            //data(), not &record[0] -- see the note in XThamwayPROT3DSO::
+            //stopAcquision().  recordLength() is user-settable and resize(0)
+            //leaves this empty, where indexing is UB and a hardened libstdc++
+            //aborts the process.
+            mlock(rec.record.data(), rec.record.size() * sizeof(int32_t));
         }
     }
     m_recordBuf.resize(len * num_ch);
-    if(isMemLockAvailable()) {
-        mlock( &m_recordBuf[0], m_recordBuf.size() * sizeof(tRawAI));
+    if(isMemLockAvailable() && !m_recordBuf.empty()) {
+        mlock(m_recordBuf.data(), m_recordBuf.size() * sizeof(tRawAI));
     }
 
     m_interval = setupTimeBase();

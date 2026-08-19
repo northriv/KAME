@@ -717,8 +717,16 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
         double normalize = 1.0 / shot[ *this].m_wave.size();
         double darknormalize = shot[ *this].darkPSDFactorToVoltSq();
         double dfreq = shot[ *this].m_dFreq;
-        const double *darkpsd( &shot[ *this].m_darkPSD[0]);
-        const std::complex<double> *ftwave( &shot[ *this].m_ftWave[0]);
+        //data(), NOT &...[0].  visualize() runs even when analyze() bailed out
+        //with an XSkippedRecordError (secondarydriverinterface.h calls it
+        //regardless of `skipped`), and then these Payload vectors are still
+        //empty -- ftsize is 0, so the loop below never dereferences the
+        //pointers, but merely FORMING them with operator[](0) on an empty
+        //vector is undefined behaviour, and a hardened libstdc++ (the debug
+        //build, where Qt enables _GLIBCXX_ASSERTIONS) aborts the process.
+        //Seen on Linux as "Position beyond waveforms." followed by a SIGABRT.
+        const double *darkpsd(shot[ *this].m_darkPSD.data());
+        const std::complex<double> *ftwave(shot[ *this].m_ftWave.data());
         std::vector<double> colf(ftsize);
         std::vector<float> colr(ftsize), coli(ftsize), colarg(ftsize),
             colabs(ftsize), coldark(ftsize);
@@ -751,10 +759,13 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
         ftWaveGraph()->drawGraph(tr);
 
         int length = shot[ *this].m_dsoWave.size();
-        const std::complex<double> *dsowave( &shot[ *this].m_dsoWave[0]);
+        //data(): see the note above -- same empty-Payload-vector hazard.
+        const std::complex<double> *dsowave(shot[ *this].m_dsoWave.data());
         if(solver.ifft().size() < ftsize)
             return; //solver has been failed.
-        const std::complex<double> *ifft( &solver.ifft()[0]);
+        //Note this guard does NOT cover ftsize == 0 with an empty ifft(),
+        //where 0 < 0 is false and we fall through to an empty vector.
+        const std::complex<double> *ifft(solver.ifft().data());
         int dsowavestartpos = shot[ *this].m_dsoWaveStartPos;
         double interval = shot[ *this].m_interval;
         double starttime = shot[ *this].startTime();
