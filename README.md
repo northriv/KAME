@@ -57,7 +57,7 @@ Windows 64-bit binaries: [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kam
 | **Magnet power supplies** | Oxford PS-120, Oxford IPS-120, Cryogenic SMS10/30/120C |
 | **NMR pulsers** | Thamway N210-1026 PG32U40 (USB), PG027QAM (USB), N210-1026S/T (GPIB/TCP); NI-DAQ analog+digital output, digital output only, M+S Series; handmade H8, handmade SH2 |
 | **NMR / RF measurement** | Thamway PROT NMR (USB/TCP), NMR FID/echo analyser, T1/T2 relaxation, field-swept spectrum, frequency-swept spectrum, NMR built-in network analyser, NMR LC autotuner |
-| **Cameras / imaging** | IEEE 1394 IIDC, Euresys eGrabber (CoaXPress), Euresys Grablink (CameraLink), Hamamatsu via Grablink, JAI via Grablink, OceanOptics/Insight USB/HR2000+/4000 spectrometer |
+| **Cameras / imaging** | IEEE 1394 IIDC, Euresys eGrabber (CoaXPress), Euresys Grablink (CameraLink), Hamamatsu via Grablink, JAI via Grablink, OceanOptics/Insight USB/HR2000+/4000 spectrometer — **availability is per-OS, see [Camera and spectrometer support](#camera-and-spectrometer-support-per-os)** |
 | **Laser modules** | Coherent Stingray, Newport/ILX LDX-3200, Newport/ILX LDC-3700(C) |
 | **ODMR** | Frequency-swept spectrum, FM peak tracker, 2-D image analysis, filter wheel (STM-driven) |
 | **Motors / positioners** | OrientalMotor FLEX CRK, CVD2B, CVD5B, FLEX AR/DG2, EMP401; SigmaOptics PAMC-104 piezo-assisted; Micro CAM z/x/φ; Two-axis rotator |
@@ -70,6 +70,24 @@ Windows 64-bit binaries: [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kam
 | **NI DAQmx** | Pulser (AO+DO, DO-only, M+S Series), DSO |
 | **Resistance measurement** | Four-terminal with polarity switching; Python-based 4-terminal (simple and multi-current variants) |
 | **Monte Carlo simulation** | Monte Carlo driver |
+
+#### Camera and spectrometer support, per OS
+
+Every driver above builds on every platform **except** the three that need a
+vendor SDK or a bus library.  Each is detected at configure time and silently
+left out when its library is absent, so a build missing one is a missing
+dependency rather than a broken driver — `qmake` prints `Missing library
+for ...` in that case.
+
+| Driver | macOS | Linux | Windows | Needs |
+|---|---|---|---|---|
+| Euresys eGrabber / Grablink (incl. Hamamatsu, JAI) | ✅ | ✅ | ✅ | eGrabber SDK; `EGENTL_HOME` overrides the search path |
+| IEEE 1394 IIDC | ✅ | ✅ | ❌ | libdc1394 — no maintained Windows port |
+| OceanOptics USB spectrometer | ✅ | ✅ | ❌ | libusb-1.0; the Windows driver binding is not wired up yet |
+
+The ODMR drivers themselves (imaging, frequency-swept spectrum, FM peak
+tracker, 2-D analysis, STM-driven filter wheel) are pure software and build
+everywhere; on Windows, Euresys is the frame grabber that feeds them.
 
 ---
 
@@ -373,7 +391,10 @@ C11 translations of each layer are verified with [GenMC](https://github.com/MPI-
 
 A C++11-capable compiler is required (the build uses `CONFIG += c++11` via qmake).
 
-Optional: IPython / Jupyter notebook, linux-gpib or NI 488.2, NI DAQmx, libdc1394 (macOS cameras).
+Optional: IPython / Jupyter notebook, linux-gpib or NI 488.2, NI DAQmx,
+libdc1394 (IIDC cameras, macOS/Linux), libusb-1.0 (OceanOptics spectrometer,
+macOS/Linux), Euresys eGrabber SDK (frame grabbers, all three platforms) —
+see [Camera and spectrometer support](#camera-and-spectrometer-support-per-os).
 
 ---
 
@@ -502,6 +523,15 @@ To launch from Qt Creator, add to **Projects → Environment**:
 PATH=C:\msys64\usr\bin;C:\msys64\mingw64\bin;C:\msys64\mingw64\lib
 PYTHONHOME=C:\msys64\mingw64
 ```
+
+**Cameras.** Install the Euresys eGrabber SDK if you need one — it is the
+frame grabber KAME builds against on Windows, and therefore what feeds the
+ODMR imaging drivers there.  `modules/optics/optics.pro` looks in
+`C:\Program Files\Euresys\eGrabber` and honours `EGENTL_HOME`; nothing is
+linked (EGrabber.h is header-only and loads its GenTL producer at run time),
+so the include path is the whole requirement.  IIDC and the OceanOptics USB
+spectrometer are macOS/Linux only — see
+[Camera and spectrometer support](#camera-and-spectrometer-support-per-os).
 
 ---
 

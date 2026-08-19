@@ -71,7 +71,11 @@ sudo apt-get install -y \
   module still builds but registers nothing (rather than registering drivers
   whose hardware calls have been compiled away, which is what happened
   before).  `libdc1394` (IIDC cameras) and `libusb` (Ocean Optics, Thamway
-  Cypress FX2/FX3) are probed with pkg-config.
+  Cypress FX2/FX3) are probed with pkg-config; the dc1394 probe accepts
+  either module name (`libdc1394-25` or `libdc1394-2`), since distributions
+  differ and a wrong guess drops the driver from a build that has the
+  library.  Install `libdc1394-dev` for IIDC cameras; Euresys eGrabber is
+  found under `/opt/euresys/egrabber` or wherever `EGENTL_HOME` points.
 * **USB device permissions.**  Every USB path goes through libusb from an
   unprivileged process, so `/dev/bus/usb` must be writable by the user.
   Install the shipped rules:
