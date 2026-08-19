@@ -58,9 +58,13 @@ XDriverListConnector::XDriverListConnector
 	labels += i18n("Type");
 	labels += i18n("Recorded Time");
     m_pItem->setHorizontalHeaderLabels(labels);
-    m_pItem->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    m_pItem->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
-    m_pItem->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    //Every section must stay Interactive (Qt's default) to be draggable by the
+    //user; ResizeToContents / Fixed / Stretch all disable mouse resizing, which
+    //is why this list alone could not be adjusted.  The last section still
+    //fills the remaining width, and onCatch() grows column 0 to fit long
+    //driver names (grow-only, so a manual width is never taken back).
+    m_pItem->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    m_pItem->horizontalHeader()->setStretchLastSection(true);
 
 	Snapshot shot( *node);
 	if(shot.size()) {
@@ -92,6 +96,12 @@ XDriverListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload
     m_pItem->setItem(i, 0, new QTableWidgetItem(driver->getLabel().c_str()));
 	// typename is not set at this moment
     m_pItem->setItem(i, 1, new QTableWidgetItem(driver->getTypename().c_str()));
+
+    //Widens the name column when a long driver name does not fit; never
+    //narrows it, so a width chosen by the user with the mouse survives.
+    int hint = m_pItem->fontMetrics().horizontalAdvance(driver->getLabel().c_str()) + 24;
+    if(hint > m_pItem->columnWidth(0))
+        m_pItem->setColumnWidth(0, hint);
 
     m_cons.push_back(std::make_shared<tcons>());
     m_cons.back()->label = new QLabel(m_pItem);
