@@ -213,9 +213,10 @@ not the port.
 
 ## Known gaps
 
-* **No hardware testing.**  Serial, GPIB and TCP are exercised only against
-  ptys and simulators (see above); no real instrument, and no NI USB-GPIB
-  adapter, has been attached.
+* **Hardware testing covers two paths only.**  A Thamway FX2/FX3 USB pulser
+  and an NI USB-GPIB adapter on the usermode driver have both been driven from
+  here.  Serial and TCP, and every driver behind them, are still exercised
+  only against ptys and simulators (see above).
 * **Wayland is untested.**  The GUI was verified on X11 only (Xvfb, see
   below); under a Wayland session the toolbox panes stay docked by design (see
   the last bullet).  Remaining Linux-specific rendering issues are *not*
