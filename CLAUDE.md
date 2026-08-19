@@ -8,10 +8,11 @@ KAME is a scientific instrument control and measurement software framework writt
 
 **Platforms:** macOS, Windows (64-bit), Linux (x86-64) — **Linux is a
 supported platform from 8.5** (Qt 6, qmake; verified on Ubuntu 26.04,
-including `PREEMPT_RT`), see `INSTALL.linux`.  Real hardware has been driven
-there only over the Thamway FX2/FX3 USB path, the 8.5 run that found four
-crashes; for every other driver the interface layer is exercised hardware-free
-(`tools/iftest_serial_gpib.py`) and the usermode NI USB-GPIB driver builds.
+including `PREEMPT_RT`), see `INSTALL.linux`.  Two paths have real hardware
+behind them there: the Thamway FX2/FX3 USB path (the 8.5 run that found four
+crashes) and the usermode NI USB-GPIB driver.  Every other driver is untried
+on Linux; the interface layer is exercised hardware-free
+(`tools/iftest_serial_gpib.py`).
 
 ## Build System
 
