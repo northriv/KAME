@@ -8,32 +8,45 @@
 #     sudo install -m 644 kame/70-kame.rules /etc/udev/rules.d/70-kame.rules
 #     sudo udevadm control --reload-rules && sudo udevadm trigger
 #
-# TAG+="uaccess" grants access to the user of the active local login session
-# (systemd-logind), which is what you want on a workstation.  On a headless
-# machine, or for a service account, replace it with GROUP="plugdev", MODE="0660"
-# and add the account to that group.
+# Two mechanisms are applied to every device, deliberately:
+#
+#   TAG+="uaccess"                  grants access to the user of the *active
+#                                   local* login session (systemd-logind).
+#   GROUP="plugdev", MODE="0660"    grants access to members of `plugdev`.
+#
+# uaccess alone is the tidier workstation answer, but its ACL exists only while
+# somebody holds an active session on a seat.  A measurement host driven over
+# SSH, from cron, or from a systemd unit has no such session, and every USB open
+# then fails with LIBUSB_ERROR_ACCESS even though the same user succeeded a
+# moment earlier from the console.  plugdev covers that case; keeping both means
+# the rules work logged-in and headless alike.  Add yourself once:
+#
+#     sudo usermod -aG plugdev $USER      # then log out and back in
+#
+# If your distribution has no `plugdev` group, either create it or substitute a
+# group you already belong to.
 
 # --- National Instruments GPIB-USB (usermode-linux-gpib port) ----------------
 # NI USB-B, NI USB-B pre-firmware, NI USB-HS, NI USB-HS+, Keithley KUSB-488A,
 # Measurement Computing MC USB-488.  Note KAME only uses these when the
 # linux-gpib KERNEL driver is absent; if you have linux-gpib installed, use its
 # own rules and its /dev/gpib* nodes instead.
-SUBSYSTEM=="usb", ATTR{idVendor}=="3923", ATTR{idProduct}=="702a", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTR{idVendor}=="3923", ATTR{idProduct}=="702b", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTR{idVendor}=="3923", ATTR{idProduct}=="709b", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTR{idVendor}=="3923", ATTR{idProduct}=="7618", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTR{idVendor}=="3923", ATTR{idProduct}=="725c", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTR{idVendor}=="3923", ATTR{idProduct}=="725d", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="3923", ATTR{idProduct}=="702a", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+SUBSYSTEM=="usb", ATTR{idVendor}=="3923", ATTR{idProduct}=="702b", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+SUBSYSTEM=="usb", ATTR{idVendor}=="3923", ATTR{idProduct}=="709b", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+SUBSYSTEM=="usb", ATTR{idVendor}=="3923", ATTR{idProduct}=="7618", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+SUBSYSTEM=="usb", ATTR{idVendor}=="3923", ATTR{idProduct}=="725c", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+SUBSYSTEM=="usb", ATTR{idVendor}=="3923", ATTR{idProduct}=="725d", TAG+="uaccess", GROUP="plugdev", MODE="0660"
 
 # --- Cypress EZ-USB FX2 / FX3 (Thamway pulser, DSO, realtime DSO) -----------
 # 04b4:8613 is an un-programmed FX2 (KAME uploads fx2fw.bix into it), 04b4:00f1
 # an un-programmed FX3; 0547:1002 is the Thamway device after enumeration.
-SUBSYSTEM=="usb", ATTR{idVendor}=="04b4", ATTR{idProduct}=="8613", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTR{idVendor}=="04b4", ATTR{idProduct}=="00f1", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTR{idVendor}=="0547", ATTR{idProduct}=="1002", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="04b4", ATTR{idProduct}=="8613", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+SUBSYSTEM=="usb", ATTR{idVendor}=="04b4", ATTR{idProduct}=="00f1", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+SUBSYSTEM=="usb", ATTR{idVendor}=="0547", ATTR{idProduct}=="1002", TAG+="uaccess", GROUP="plugdev", MODE="0660"
 
 # --- Ocean Optics spectrometers ---------------------------------------------
-SUBSYSTEM=="usb", ATTR{idVendor}=="2457", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2457", TAG+="uaccess", GROUP="plugdev", MODE="0660"
 
 # --- USB serial adapters (Prologix GPIB-USB and plain RS-232 instruments) ---
 # These enumerate as /dev/ttyUSB* or /dev/ttyACM* and are normally owned by the
