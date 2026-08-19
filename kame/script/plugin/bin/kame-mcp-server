@@ -21,6 +21,13 @@ die() {
 # ---- locate the server script ------------------------------------------------
 plugin_root="${KAME_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$0")")}}"
 
+# An override that is set but wrong must fail, not fall through to discovery:
+# silently running a different server (or interpreter) than the one named is
+# exactly the confusion the override exists to prevent.
+if [ -n "${KAME_MCP_SERVER:-}" ] && [ ! -f "$KAME_MCP_SERVER" ]; then
+    die "KAME_MCP_SERVER is set to '$KAME_MCP_SERVER' but no such file exists."
+fi
+
 server=""
 for candidate in \
     "${KAME_MCP_SERVER:-}" \
@@ -44,6 +51,12 @@ done
 # KAME itself embeds Python, so the interpreter that satisfies mcp +
 # jupyter_client is whichever one the user installed them into -- the same
 # search xpythonsupport.py performs when it writes .mcp.json.
+if [ -n "${KAME_MCP_PYTHON:-}" ]; then
+    command -v "$KAME_MCP_PYTHON" >/dev/null 2>&1 \
+        || die "KAME_MCP_PYTHON is set to '$KAME_MCP_PYTHON' but it is not executable."
+    "$KAME_MCP_PYTHON" -c 'import mcp, jupyter_client' >/dev/null 2>&1 \
+        || die "KAME_MCP_PYTHON ('$KAME_MCP_PYTHON') lacks 'mcp' or 'jupyter_client'."
+fi
 python=""
 for candidate in \
     "${KAME_MCP_PYTHON:-}" \
