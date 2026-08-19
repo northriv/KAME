@@ -270,14 +270,19 @@ def _get_client() -> jupyter_client.BlockingKernelClient:
         return _client
     if not CONN_INFO_PATH.exists():
         raise RuntimeError(
-            "KAME is not running (no ~/.kame_kernel_connection.json). "
-            "Start KAME first."
+            "KAME is not connected (no ~/.kame_kernel_connection.json). "
+            "The file is written when KAME launches its Jupyter notebook: "
+            "ask the user to start KAME and click 'Jupyter notebook' in the "
+            "Script pane, then retry."
         )
     with open(CONN_INFO_PATH) as f:
         info = json.load(f)
     cf = info["connection_file"]
     if not os.path.exists(cf):
-        raise RuntimeError(f"Kernel connection file not found: {cf}")
+        raise RuntimeError(
+            f"Kernel connection file not found: {cf} — stale from a previous "
+            "KAME run. Ask the user to relaunch the Jupyter notebook from "
+            "KAME's Script pane, then retry.")
     client = jupyter_client.BlockingKernelClient()
     client.load_connection_file(cf)
     client.start_channels()
@@ -667,8 +672,16 @@ def _mcp_tree(_node, _depth, _max_depth, _indent=0):
 @_logged
 def kame_status() -> str:
     """Check if KAME is running and show basic measurement info."""
+    # Say what to DO, not just what is wrong: the connection file only
+    # appears when KAME launches its Jupyter notebook, so a plain "not
+    # running" sent an assistant speculating about ports and build options
+    # when the fix was one menu action away.
     if not CONN_INFO_PATH.exists():
-        return "KAME is not running."
+        return ("KAME is not connected: ~/.kame_kernel_connection.json does "
+                "not exist. It is written when KAME launches its Jupyter "
+                "notebook — ask the user to start KAME and click 'Jupyter "
+                "notebook' in the Script pane (or Script menu), then retry. "
+                "No other diagnosis is useful before that.")
     try:
         code = """
 import os as _os
