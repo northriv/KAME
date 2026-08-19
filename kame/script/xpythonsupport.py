@@ -881,8 +881,14 @@ else:
 					TLS.xscrthread["Status"] = "idle (Cell In[{}] {})".format(n, ok)
 			except Exception:
 				pass
-		kernel.shell.events.register('pre_run_cell', _kame_pre_run_cell)
-		kernel.shell.events.register('post_run_cell', _kame_post_run_cell)
+		#Status publishing is a convenience; it must never keep the timer below
+		#from starting, since that timer is what pumps KAME's event loop.
+		try:
+			kernel.shell.events.register('pre_run_cell', _kame_pre_run_cell)
+			kernel.shell.events.register('post_run_cell', _kame_post_run_cell)
+		except Exception:
+			sys.stderr.write("KAME: executing-cell status unavailable: "
+							 + str(traceback.format_exc()))
 
 		kernel.timer = Timer(kernel.do_one_iteration)
 		kernel.timer.start()
