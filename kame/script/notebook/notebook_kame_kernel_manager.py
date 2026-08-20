@@ -13,9 +13,72 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-# Picked up and renamed from those in 
+# Picked up and renamed from those in
 # https://git.fmrib.ox.ac.uk/yqzheng1/fsleyes
+import os
+import signal
+import threading
+import time
+
 from jupyter_server.services.kernels.kernelmanager import MappingKernelManager
+
+
+def parent_alive(pid):
+    """Does process `pid` still exist?
+
+    Deliberately NOT os.kill(pid, 0) on Windows: there, Python maps every
+    signal other than CTRL_C_EVENT/CTRL_BREAK_EVENT onto TerminateProcess, so
+    the "probe" would kill KAME outright.
+    """
+    if os.name == 'nt':
+        import ctypes
+        SYNCHRONIZE, WAIT_OBJECT_0 = 0x00100000, 0
+        h = ctypes.windll.kernel32.OpenProcess(SYNCHRONIZE, False, pid)
+        if not h:
+            return False
+        try:
+            #Signalled means the process has exited; still-running waits out
+            #the (zero) timeout and reports WAIT_TIMEOUT instead.
+            return ctypes.windll.kernel32.WaitForSingleObject(h, 0) != WAIT_OBJECT_0
+        finally:
+            ctypes.windll.kernel32.CloseHandle(h)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True     #exists, just not ours to signal
+    return True
+
+
+def start_kame_parent_watchdog(pid, interval=2.0, grace=10.0):
+    """Shut this notebook server down when the KAME that launched it goes away.
+
+    KAME stops the server on a clean exit, but a crash or a kill runs no code
+    in KAME at all -- which is how seven orphaned servers once accumulated in
+    eleven hours, each holding its port so the next launch climbed to 8889,
+    8890, ...  Only a check living in THIS process survives that, and there is
+    nothing to preserve: every notebook this server hands out is wired to
+    KAME's embedded kernel, so without KAME it can serve nobody.
+
+    PID reuse could in principle make this fire against an unrelated process.
+    The cost of that is a server nobody could have used exiting early, so the
+    simple check is the right one.
+    """
+    def _run():
+        while parent_alive(pid):
+            time.sleep(interval)
+        #Signal ourselves rather than _exit: the server's own SIGTERM handler
+        #shuts the kernels it started down too, which _exit would orphan.
+        try:
+            os.kill(os.getpid(), signal.SIGTERM)
+        except Exception:
+            pass
+        time.sleep(grace)
+        os._exit(1)
+
+    threading.Thread(target=_run, name='kame-parent-watchdog',
+                     daemon=True).start()
 class KAMENotebookKernelManager(MappingKernelManager):
     """Custom jupter ``MappingKernelManager`` which forces every notebook
     to connect to the embedded KAME IPython kernel.

@@ -458,6 +458,77 @@ NOTEBOOK_MCP_JSON = None
 NOTEBOOK_MCP_HTTP_PROC = None
 NOTEBOOK_MCP_URL_FILE = None
 NOTEBOOK_MCP_HTTP_LOG = None
+NOTEBOOK_LOG_TAIL = None	#last lines of the server's output, for diagnostics
+NOTEBOOK_ATEXIT_DONE = False
+
+
+def runningNotebookURL():
+	"""URL of the notebook server this KAME already launched, or None.
+
+	NOTEBOOK_PROC holds one process, so a second launch used to overwrite it
+	and orphan the first for good -- and the orphan kept its port, which is
+	why a run of clicks left servers on 8888, 8889, 8890...  One server per
+	KAME is the right invariant anyway: they would all serve the same embedded
+	kernel.
+	"""
+	if not NOTEBOOK_TOKEN or NOTEBOOK_PROC is None or NOTEBOOK_PROC.poll() is not None:
+		return None
+	try:
+		from jupyter_server import serverapp
+	except ImportError:
+		return None
+	for _s in serverapp.list_running_servers():
+		if _s.get('token') == NOTEBOOK_TOKEN:
+			return '{}?token={}'.format(_s['url'], _s['token'])
+	return None
+
+
+def stopNotebookServer():
+	"""Stop the Jupyter server KAME launched.  Idempotent.
+
+	terminate() alone was optimistic: it was called twice in a row and then
+	followed straight by sys.exit(0), so nothing established that the server
+	had actually gone.  Wait for it, and escalate if it will not.
+	"""
+	global NOTEBOOK_PROC
+	proc, NOTEBOOK_PROC = NOTEBOOK_PROC, None
+	if proc is None or proc.poll() is not None:
+		return
+	try:
+		proc.terminate()
+		proc.wait(timeout=5)
+	except Exception:
+		try:
+			proc.kill()
+			proc.wait(timeout=5)
+		except Exception:
+			pass
+
+
+def _drainNotebookOutput(proc):
+	"""Consume the server's stdout forever, keeping only the tail.
+
+	Nothing read this pipe after the 0.5 s launch check, so the server would
+	block in write() once the ~64 KB pipe buffer filled -- Jupyter logs every
+	HTTP request, so that is a matter of browsing, not of days.  The tail is
+	kept because a server that dies later leaves its reason there.
+	"""
+	global NOTEBOOK_LOG_TAIL
+	import collections
+	NOTEBOOK_LOG_TAIL = collections.deque(maxlen=200)
+	def _run():
+		try:
+			for _line in iter(proc.stdout.readline, b''):
+				NOTEBOOK_LOG_TAIL.append(
+					_line.decode('utf-8', errors='replace').rstrip())
+		except Exception:
+			pass
+		finally:
+			try:
+				proc.stdout.close()
+			except Exception:
+				pass
+	threading.Thread(target=_run, name='kame-notebook-drain', daemon=True).start()
 
 def launchJupyterConsole(prog, argv):
 	if not HasIPython:
@@ -490,6 +561,21 @@ def launchJupyterConsole(prog, argv):
 	elif console[0] == 'qtconsole':
 		proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 	elif console[0] == 'notebook':
+		#Clicking the link again means "show me the notebook", not "give me a
+		#second server": both would serve this one embedded kernel, and the
+		#loser of the port race is what used to be left behind.  Reopen the
+		#browser on the one already running.
+		_url = runningNotebookURL()
+		if _url:
+			import webbrowser
+			webbrowser.open(_url)
+			MYDEFOUT.write_html('<font color="#008800">Notebook server already '
+				'running: <a href="{}">{}</a></font>'.format(_url, html.escape(_url)))
+			return
+		#Alive but unlisted (its runtime file went missing) is still ours, and
+		#a replacement is going up regardless: retire it rather than lose the
+		#only handle to it.
+		stopNotebookServer()
 		import ipykernel
 		connection_file = ipykernel.connect.get_connection_file()
 		import binascii
@@ -566,6 +652,17 @@ def launchJupyterConsole(prog, argv):
 			lines += ["", "Captured output:", raw]
 		raise RuntimeError("\n".join(lines))
 	NOTEBOOK_PROC = proc
+	# Past the 0.5 s failure check, so nobody is going to call communicate()
+	# again: keep the pipe moving, or the server deadlocks on a full buffer.
+	_drainNotebookOutput(proc)
+	# Last-resort net for the paths that never reach finish(): a clean
+	# interpreter shutdown still runs this, and the server's own watchdog
+	# (jupyter_notebook_config.py) covers the rest, crashes included.
+	global NOTEBOOK_ATEXIT_DONE
+	if not NOTEBOOK_ATEXIT_DONE:
+		import atexit
+		atexit.register(stopNotebookServer)
+		NOTEBOOK_ATEXIT_DONE = True
 	# Show the launch command in the Script pane NOW, before the MCP setup
 	# below, which takes seconds.  This same node is the duplicate guard of
 	# the notebook-URL detector on the Python thread's Timer: when this write
@@ -1786,8 +1883,7 @@ else:
 
 				if NOTEBOOK_PROC:
 					get_ipython().run_line_magic('save', '-a ' + os.path.splitext(self.logfilename)[0] + "-save")
-					NOTEBOOK_PROC.terminate() #stops Jupyter client
-					NOTEBOOK_PROC.terminate() #again
+					stopNotebookServer() #and wait for it to actually go
 				#print(str([y[0] for y in inspect.getmembers(kernel, inspect.ismethod)]))
 
 				# from ipykernel.kernelapp import IPKernelApp
