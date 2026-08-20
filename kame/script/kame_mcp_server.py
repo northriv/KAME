@@ -1033,7 +1033,10 @@ if __name__ == "__main__":
     p.add_argument("--port", type=int, default=0,
                    help="port for sse/http (0 = OS-assigned)")
     p.add_argument("--token", default="",
-                   help="bearer token for http transport (optional)")
+                   help="DEPRECATED: pass the bearer token in KAME_MCP_TOKEN "
+                        "instead. A token in argv is readable by every local "
+                        "user through ps for the life of the process, which "
+                        "defeats the point of having one.")
     p.add_argument("--log-dir", default="",
                    help="directory for JSONL tool-call logs "
                         "(default: ~/.kame_mcp_log; env KAME_MCP_LOG_DIR)")
@@ -1055,8 +1058,18 @@ if __name__ == "__main__":
         server.run(transport="sse", host=args.host, port=args.port)
     else:
         # streamable-http is the MCP 1.0+ recommended transport.
+        # KAME_MCP_TOKEN is the supported way in: the environment of a process
+        # is private to its owner, whereas argv is world-readable through ps
+        # (and gets copied into crash reports, sudo logs and support dumps),
+        # so a token on the command line is legible to exactly the local users
+        # this token exists to keep out. The env var is popped so the token is
+        # not inherited by anything the server itself may spawn.
+        _token = os.environ.pop("KAME_MCP_TOKEN", "") or args.token
         if args.token:
-            _run_http_with_token(server, args.host, args.port, args.token)
+            print("kame-mcp: --token is deprecated and exposes the token to "
+                  "`ps`; pass it in KAME_MCP_TOKEN instead.", file=sys.stderr)
+        if _token:
+            _run_http_with_token(server, args.host, args.port, _token)
         else:
             server.run(transport="streamable-http",
                        host=args.host, port=args.port)

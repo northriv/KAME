@@ -813,12 +813,19 @@ def launchJupyterConsole(prog, argv):
 					prefix='kame_mcp_http_', suffix='.log',
 					mode='w', delete=False)
 				NOTEBOOK_MCP_HTTP_LOG = _logf.name
+				# The token goes in the environment, never in argv: a process's
+				# environment is private to its owner, while argv is readable by
+				# every local user through `ps` for as long as the server runs
+				# (and is copied into crash reports and support dumps). Those
+				# local users are precisely who the token keeps from POSTing to
+				# 127.0.0.1 and running Python inside KAME.
+				_mcp_env = dict(os.environ)
+				_mcp_env['KAME_MCP_TOKEN'] = _token
 				NOTEBOOK_MCP_HTTP_PROC = _sp.Popen(
 					[python_cmd, mcp_server_script,
 					 '--transport=http',
-					 f'--port={_port}',
-					 f'--token={_token}'],
-					stdout=_logf, stderr=_sp.STDOUT,
+					 f'--port={_port}'],
+					stdout=_logf, stderr=_sp.STDOUT, env=_mcp_env,
 				)
 				_logf.close()  # child still holds the fd
 				# Confirm the server actually LISTENS before declaring
