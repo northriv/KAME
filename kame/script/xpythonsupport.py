@@ -1065,6 +1065,165 @@ def _resolve_cli(binary):
     return None
 
 
+def _register_stdio_entry():
+    """The persistent server entry to register, or None with a reason shown.
+
+    A terminal client gets a session-scoped override at launch; a GUI app has
+    no command line, so it needs an entry in its own configuration -- and that
+    entry has to outlive this KAME process.  Hence the plugin's STDIO launcher
+    and not the HTTP URL: the launcher reaches whichever kernel is current
+    through ~/.kame_kernel_connection.json, whereas the HTTP port is assigned
+    per launch and the entry would be stale by the next restart.  Registering
+    while KAME is down is therefore harmless too -- the server starts and its
+    tools report that KAME is not running.
+    """
+    _pd = _kame_plugin_dir()
+    _launcher = os.path.join(_pd, 'bin', 'kame-mcp-server') if _pd else ''
+    if not _launcher or not os.path.isfile(_launcher):
+        _kame_gui_html('<font color="#cc0000">The plugin launcher was not found'
+            '{} &mdash; rebuild/redeploy KAME.</font>'.format(
+            ' at ' + html.escape(_launcher) if _launcher else ''))
+        return None
+    return _launcher
+
+
+def _claude_desktop_config():
+    """Path of Claude Desktop's config, if the app has a config dir here."""
+    import platform as _pf
+    _p = {
+        'Darwin': '~/Library/Application Support/Claude/claude_desktop_config.json',
+        'Windows': os.path.join(os.environ.get('APPDATA', '~'),
+                                'Claude', 'claude_desktop_config.json'),
+    }.get(_pf.system(), '~/.config/Claude/claude_desktop_config.json')
+    _p = os.path.expanduser(_p)
+    return _p if os.path.isdir(os.path.dirname(_p)) else None
+
+
+def _lmstudio_present():
+    """Bionic / LM Studio installed here?  (Both take the lmstudio: scheme.)"""
+    return [_p for _p in ('/Applications/Bionic.app',
+                          os.path.expanduser('~/Applications/Bionic.app'),
+                          '/Applications/LM Studio.app',
+                          os.path.expanduser('~/.lmstudio')) if os.path.exists(_p)]
+
+
+def _register_desktop_mcp(apply=False):
+    """Add KAME to the desktop GUI clients found on this machine.
+
+    Two steps on purpose: the first click only reports what would change --
+    every target path, and for the file that gets edited, its current `kame`
+    entry against the new one -- and the second applies it.  Persistent
+    configuration of another application is not something to do behind a
+    single click.
+
+    Each client is reached the way that client supports.  LM Studio / Bionic
+    take an `lmstudio://add_mcp` deeplink, so the app itself shows a
+    confirmation and no path has to be guessed -- its mcp.json location is not
+    derivable anyway (the bundle builds it at run time and carries both
+    'mcp.json' and 'ng-mcp.json' strings; a guessed path would fail silently,
+    which is the worst outcome).  Codex has `codex mcp add`, which owns the
+    TOML format.  Only Claude Desktop, which offers neither, gets its JSON
+    edited -- additively, after a backup.
+    """
+    import base64 as _b64, json as _json, shutil as _sh, subprocess as _sp, \
+        platform as _pf, urllib.parse as _up
+    _launcher = _register_stdio_entry()
+    if not _launcher:
+        return
+    _entry = {'command': _launcher}
+    _sys = _pf.system()
+    _plan, _done, _fail = [], [], []
+
+    _lm = _lmstudio_present()
+    _cc = _claude_desktop_config()
+    _cx = _resolve_cli('codex')
+
+    if not (_lm or _cc or _cx):
+        _kame_gui_html('<font color="#996600">No desktop MCP client found to '
+            'register with (looked for Bionic / LM Studio, Claude Desktop, and '
+            'the codex CLI).</font>')
+        return
+
+    # --- LM Studio / Bionic: deeplink, confirmed inside the app -------------
+    if _lm:
+        _cfg = _b64.b64encode(_json.dumps(_entry).encode()).decode()
+        _link = 'lmstudio://add_mcp?name=kame&config=' + _up.quote(_cfg)
+        _plan.append('<b>Bionic / LM Studio</b> &mdash; opens <tt>lmstudio://add_mcp</tt>; '
+                     'the app asks you to confirm. Nothing is written from here.')
+        if apply:
+            try:
+                _sp.Popen(['open', _link] if _sys == 'Darwin' else
+                          ['cmd', '/c', 'start', '', _link] if _sys == 'Windows' else
+                          ['xdg-open', _link])
+                _done.append('Bionic / LM Studio (confirm the dialog in the app)')
+            except Exception:
+                _fail.append('Bionic / LM Studio: ' + traceback.format_exc(limit=1))
+
+    # --- Claude Desktop: additive edit of its JSON, backup first ------------
+    if _cc:
+        _old = None
+        try:
+            if os.path.isfile(_cc):
+                with open(_cc) as _f:
+                    _old = ((_json.load(_f) or {}).get('mcpServers') or {}).get('kame')
+        except Exception:
+            _old = '(unreadable)'
+        _plan.append('<b>Claude Desktop</b> &mdash; <tt>{}</tt><br/>'
+            '&nbsp;&nbsp;<font color="#cc0000">-</font> mcpServers.kame: <tt>{}</tt><br/>'
+            '&nbsp;&nbsp;<font color="#008800">+</font> mcpServers.kame: <tt>{}</tt><br/>'
+            '&nbsp;&nbsp;(all other keys preserved; a <tt>.kame-backup</tt> copy is kept)'.format(
+            html.escape(_cc),
+            html.escape(_json.dumps(_old) if _old is not None else '(absent)'),
+            html.escape(_json.dumps(_entry))))
+        if apply:
+            try:
+                _conf = {}
+                if os.path.isfile(_cc):
+                    with open(_cc) as _f:
+                        _conf = _json.load(_f) or {}
+                    _sh.copy2(_cc, _cc + '.kame-backup')
+                #Only this one key is touched; everything else is written back.
+                _conf.setdefault('mcpServers', {})['kame'] = _entry
+                with open(_cc, 'w') as _f:
+                    _json.dump(_conf, _f, indent=2)
+                _done.append('Claude Desktop (' + _cc + ')')
+            except Exception:
+                _fail.append('Claude Desktop: ' + traceback.format_exc(limit=1))
+
+    # --- Codex: its own CLI owns ~/.codex/config.toml -----------------------
+    if _cx:
+        _plan.append('<b>Codex</b> &mdash; runs <tt>codex mcp add kame -- {}</tt> '
+                     '(writes ~/.codex/config.toml).'.format(html.escape(_launcher)))
+        if apply:
+            try:
+                _r = _sp.run([_cx, 'mcp', 'add', 'kame', '--', _launcher],
+                             capture_output=True, text=True, timeout=30)
+                if _r.returncode == 0:
+                    _done.append('Codex (~/.codex/config.toml)')
+                else:
+                    _fail.append('Codex: ' + (_r.stderr or _r.stdout or 'failed').strip())
+            except Exception:
+                _fail.append('Codex: ' + traceback.format_exc(limit=1))
+
+    if not apply:
+        _kame_gui_html(
+            '<font color="#0066cc">Registering KAME as a persistent MCP server '
+            'would do the following:</font><br/>&nbsp;&nbsp;'
+            + '<br/>&nbsp;&nbsp;'.join(_plan)
+            + '<br/><font color="#0066cc">The entry runs the stdio launcher, so '
+              'it stays valid across KAME restarts, and is inert while KAME is '
+              'not running.&nbsp; '
+              '<a href="kame:register-mcp-apply">&#9654; Apply</a></font>')
+        return
+    if _done:
+        _kame_gui_html('<font color="#008800">Registered with: '
+            + html.escape('; '.join(_done))
+            + '.&nbsp; Restart the app if it was already running.</font>')
+    if _fail:
+        _kame_gui_html('<font color="#cc0000">Failed: '
+            + html.escape('; '.join(_fail)) + '</font>')
+
+
 def _codex_desktop_launch(binary='codex'):
     """One-click launch of the Codex Desktop app, the twin of `kame:claude-app`.
 
@@ -1357,6 +1516,10 @@ def kame_handle_link(action):
 			_codex_launch('codex-fugu')
 		elif action == 'codex-app':
 			_codex_desktop_launch('codex')
+		elif action == 'register-mcp':
+			_register_desktop_mcp(apply=False)
+		elif action == 'register-mcp-apply':
+			_register_desktop_mcp(apply=True)
 		elif action.startswith('pyai-'):
 			# Vendor-neutral client on Pydantic AI: any provider:model, local
 			# models via an OpenAI-compatible endpoint. The wrapper connects
@@ -1492,6 +1655,10 @@ else:
 				#Grouped by vendor: eight flat entries on one line stopped being
 				#readable, and the terminal/desktop pair now repeats per vendor.
 				MYDEFOUT.write_html(r'<font color="#0066cc">Quick launch:&nbsp; <a href="kame:notebook">&#9654; Jupyter notebook</a> &nbsp;&nbsp;|&nbsp;&nbsp; Claude: <a href="kame:claude-cli">&#9654; Code</a> &nbsp;<a href="kame:claude-app">&#9654; app</a> &nbsp;&nbsp;|&nbsp;&nbsp; Codex: <a href="kame:codex-cli">&#9654; CLI</a> &nbsp;<a href="kame:codex-fugu-cli">&#9654; fugu</a> &nbsp;<a href="kame:codex-app">&#9654; app</a> &nbsp;&nbsp;|&nbsp;&nbsp; Pydantic AI: <a href="kame:pyai-cli">&#9654; CLI</a> &nbsp;<a href="kame:pyai-web">&#9654; web</a></font>')
+				#A GUI client has no command line for a per-launch override, so it
+				#needs a one-time entry in its own config; this reports the change
+				#first and only writes on the follow-up link.
+				MYDEFOUT.write_html(r'<font color="#0066cc">One-time setup:&nbsp; <a href="kame:register-mcp">&#9654; Register KAME with desktop AI apps</a> <font color="#808080">(Claude app / Bionic / Codex)</font></font>')
 				self.logfilename = os.path.splitext(connection_file)[0] + "-log" + os.extsep + "txt"
 				self._initial_logfilename = self.logfilename
 				MYDEFOUT.write_html(r'<font color="#008800">Logging console output to <a href="file:///'

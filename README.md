@@ -28,7 +28,7 @@ orchestration across compatible instruments.
   [`kamepoolalloc/`](kamepoolalloc/) (four-tier pool allocator) — see
   [Reusable subsystems](#reusable-subsystems)
 - Python (+Jupyter notebook) and Ruby scripting — nearly full control from scripts
-- **AI-assisted experiment automation via [MCP](https://modelcontextprotocol.io/)** — Claude and other AI assistants can read instruments, control parameters, and run measurement sequences through natural language
+- **AI-assisted experiment automation via [MCP](https://modelcontextprotocol.io/)** — Claude Code, Codex, and any other MCP client (including local models through Pydantic AI) can read instruments, control parameters, and run measurement sequences through natural language, with the instrument-safety rules delivered by the server itself
 - OpenGL-based 2-D / 1-D graph display; arbitrary scalar combinations (T, V, …)
 - Real-time NMR relaxation fitting (T1, T2, Tst.e.), Inverse Laplace Transform
 - Fourier step-sum spectrum measurement with field / frequency sweeping
@@ -75,7 +75,7 @@ Windows 64-bit binaries: [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kam
 
 ## What's New in 8.0
 
-- **MCP server for AI-assisted experiment automation** — built-in [Model Context Protocol](https://modelcontextprotocol.io/) server lets AI assistants (Claude Code, Claude Desktop, etc.) execute Python code in the running KAME process, read instrument values, and control measurements through natural language. Matplotlib plots are returned inline. Long-running experiments (sweeps, scans) run asynchronously.
+- **MCP server for AI-assisted experiment automation** — built-in [Model Context Protocol](https://modelcontextprotocol.io/) server lets AI assistants execute Python code in the running KAME process, read instrument values, and control measurements through natural language. One-click launches for Claude Code, Codex and a vendor-neutral Pydantic AI client (any `provider:model`, local models included) all point at the same server. Matplotlib plots are returned inline; long-running experiments (sweeps, scans) run asynchronously. Shipped as an [Agent Plugins 1.0.0](https://agent-plugins.org/) plugin bundling the server with a measurement skill.
 - **Calibrated scalar entries** — `XCalibratedEntry` applies a calibration curve to any scalar entry; the result appears in graphs, charts, and data recording like a native scalar.
 - **Usermode NI USB-GPIB on Apple Silicon** — the embedded userspace linux-gpib port now works reliably on macOS ARM64 without any kernel module.
 - **Window cascade placement** — instrument windows are automatically arranged on show.
@@ -209,10 +209,11 @@ a custom ipykernel integration (`loop_kamepysupport`).
 **AI-assisted experiment automation (MCP):**
 
 KAME includes an [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server
-that lets AI assistants such as Claude execute Python code directly in the running KAME
-interpreter. The MCP server connects to the embedded IPython kernel, giving the AI full
-access to `Root()`, `Snapshot()`, `Transaction()`, and all loaded drivers — the same
-environment available in Jupyter notebooks.
+that lets an AI assistant execute Python code directly in the running KAME interpreter.
+The MCP server connects to the embedded IPython kernel, giving the AI full access to
+`Root()`, `Snapshot()`, `Transaction()`, and all loaded drivers — the same environment
+available in Jupyter notebooks. Any MCP client works: Claude Code, Codex, and a bundled
+Pydantic AI client that reaches any `provider:model`, local models included.
 
 This enables scenarios like:
 - Conversational experiment control ("sweep temperature from 100 K to 300 K and record resistance")
@@ -537,42 +538,123 @@ This enables conversational experiment control:
 
 ### Available MCP tools
 
+Every tool carries MCP annotations, so a client can tell reads from writes
+without parsing prose: the seven read-only ones are marked `readOnlyHint`, and
+`execute_code`, `execute_code_async` and `notebook_edit` are marked
+`destructiveHint`.
+
 | Tool | Description |
 |---|---|
-| `kame_api` | Return the Python API quick reference (call first) |
+| `kame_api` | Python API reference, one topic at a time (call first; no argument lists the topics) |
+| `kame_manual` | The user's manual, section-wise — UI operation, per-driver settings, NMR workflow |
 | `execute_code` | Run Python in KAME's interpreter (returns text + matplotlib plots) |
 | `execute_code_async` | Run long experiments asynchronously (sweeps, scans) |
-| `get_result` | Check status of an async job |
+| `get_result` / `stop_job` | Poll progress of an async job, or ask it to stop at its next checkpoint |
 | `tree` | Browse the node tree with configurable depth (compact indented output) |
-| `kame_status` | Check if KAME is running and list active drivers (JSON) |
+| `kame_status` | Check if KAME is running and list active drivers |
+| `notebook_status` / `notebook_read` / `notebook_edit` | Inspect and edit the user's Jupyter measurement cells |
+
+The instrument-safety rules — motion, cryogenic warming, RF duty, and reading
+camera counts rather than the display image — live in the server's MCP
+`instructions`, which every client receives, rather than in any one client's
+prompt.
 
 ### Quick start
 
-1. Install prerequisites:
-   ```sh
-   pip install mcp jupyter_client
-   ```
-2. Start KAME and launch a Jupyter notebook (Script → Launch Jupyter Notebook).
-   KAME writes `.mcp.json` to the notebook workspace directory automatically.
-3. Open Claude Code in the same directory — the MCP server is discovered and
-   connected automatically.
-4. Ask Claude to interact with your instruments. The `.mcp.json` file is removed
-   when KAME exits.
+Start KAME and launch a Jupyter notebook (Script → Launch Jupyter Notebook,
+or the **▶ Jupyter notebook** link in the Script pane). KAME then starts the
+MCP server itself and writes its address and token to `~/.kame_mcp_url` and a
+`.mcp.json` in the notebook workspace; both are removed when KAME exits.
 
-**Manual setup** (without Jupyter):
+The Script pane then offers one-click launches, each already pointed at that
+server:
+
+| Link | Launches |
+|---|---|
+| **Claude: Code / app** | Claude Code in a terminal (with the bundled plugin, below) / the Claude desktop app |
+| **Codex: CLI / fugu / app** | Codex in a terminal, with the server passed as a session-scoped override — nothing is written to `~/.codex/config.toml` |
+| **Pydantic AI: CLI / web** | A vendor-neutral client (`kame_pydantic_ai.py`): any `provider:model`, including a local model through an OpenAI-compatible endpoint |
+
+Prerequisites are `pip install mcp jupyter_client` for the server, and
+`pip install pydantic-ai clai` if you want the Pydantic AI links. KAME finds
+an interpreter that has them, including versioned `python3.X` names.
+
+**Desktop apps** — a GUI client has no command line, so it cannot be handed a
+per-session override the way the terminal launches are. The Script pane's
+**▶ Register KAME with desktop AI apps** link adds a permanent entry to
+whichever of Claude Desktop, Bionic / LM Studio and Codex is installed. The
+first click only reports what would change — every target path, and the old
+and new entry for the one file that gets edited — and a second confirms it.
+Each client is reached the way it supports: an `lmstudio://add_mcp` deeplink
+that Bionic confirms in its own UI, `codex mcp add`, and for Claude Desktop,
+which offers neither, an additive edit of `claude_desktop_config.json` after a
+backup. The entry runs the plugin's stdio launcher rather than the HTTP URL,
+so it survives KAME restarts (the port does not) and is inert — tools simply
+report that KAME is not running — while KAME is closed.
+
+**Connecting a client KAME did not launch** — read the URL and bearer token
+from `~/.kame_mcp_url`; the port is assigned per launch, so do not hard-code
+it. For example, with Pydantic AI:
+
+```python
+import json, pathlib
+from pydantic_ai.mcp import MCPToolset
+
+info = json.loads((pathlib.Path.home() / '.kame_mcp_url').read_text())
+kame = MCPToolset(info['url'], auth=info['token'])   # instructions included
+```
+
+### Agent plugin (skill + server in one directory)
+
+`kame/script/plugin/` packages the MCP server together with a
+`kame-measurement` skill, so an assistant carries KAME's measurement
+procedures in any directory — not only the notebook workspace. The directory
+is dual-format: `.claude-plugin/` for Claude Code, and root `plugin.json` +
+`mcp.json` conforming to the cross-vendor
+[Agent Plugins 1.0.0](https://agent-plugins.org/) specification used by Codex,
+ChatGPT, Cursor, GitHub Copilot, Kiro and VS Code. The `skills/` directory
+serves both.
 
 ```sh
-claude mcp add kame /path/to/python /path/to/KAME/Resources/kame_mcp_server.py
+# Claude Code
+/plugin marketplace add northriv/KAME
+/plugin install kame@kame
+
+# Codex (and other Agent Plugins clients)
+codex plugin marketplace add northriv/KAME
+codex plugin add kame@kame
 ```
+
+Sessions started from KAME's **▶ Claude Code** link get the plugin passed with
+`--plugin-dir` automatically and need no install at all.
+
+The split of duties is deliberate: rules an agent must obey to avoid damaging
+an instrument stay in the server's `instructions`, because every MCP client
+sees those, while the skill carries the longer procedures for clients that
+support skills. Removing the skill must never make an agent unsafe.
+
+### Usage records
+
+KAME appends one JSONL line per MCP tool call to `~/.kame_mcp_log/`, and the
+Pydantic AI client appends one line per model request to `usage.jsonl` beside
+it — calls, tokens and inference time, never prompt or response text. The
+first is provenance for reconstructing what an assistant did; the second
+gives API-cost and local-inference figures that providers do not always
+report back. Both default on; disable with `KAME_MCP_NO_LOG` and
+`KAME_USAGE_NO_LOG` respectively.
 
 ### How it works
 
-1. When KAME launches a Jupyter notebook, it writes the kernel connection path to
-   `~/.kame_kernel_connection.json`.
-2. The MCP server reads that file and connects to the kernel via ZMQ (`jupyter_client`).
-3. The AI client launches the MCP server as a subprocess (stdio transport).
-4. The server ships `kame_python_api.md` — an API reference that Claude reads
-   automatically before writing code, reducing trial-and-error.
+1. When KAME launches a Jupyter notebook, it writes the kernel connection path
+   and its own resource directory to `~/.kame_kernel_connection.json`.
+2. The MCP server reads that file and connects to the kernel via ZMQ
+   (`jupyter_client`), so it is unaffected by which port anything is on.
+3. KAME starts the server over streamable HTTP on an OS-assigned port with a
+   bearer token, which it hands over in the environment rather than in the
+   command line. stdio remains available (`--transport=stdio`) and is what the
+   plugin's launcher uses.
+4. The server ships `kame_python_api.md` and the user's manual, which the
+   assistant reads a topic at a time before writing code.
 
 ---
 
