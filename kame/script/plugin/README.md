@@ -74,8 +74,31 @@ Both are searched in the same places `xpythonsupport.py` searches. If either is
 missing, the failure shows up in the `/plugin` manager's **Errors** tab with the
 path or package that is needed.
 
-The launcher is a POSIX shell script, so on Windows run it under Git Bash/MSYS,
-or point the `command` in `.mcp.json` at the interpreter directly.
+## Windows
+
+`bin/kame-mcp-server.cmd` is the batch twin of the POSIX launcher (same
+search order, same overrides, same fail-loudly contract; it also honours the
+`resource_dir` KAME records in `%USERPROFILE%\.kame_kernel_connection.json`).
+Neither plugin format offers per-platform commands, so how it gets picked up
+varies by client:
+
+- **Agent Plugins clients** MAY wrap a `.cmd` in the platform interpreter
+  when resolving `./bin/kame-mcp-server` (the spec permits, but does not
+  require, this) — try it and see.
+- **Claude Code on Windows** cannot spawn batch files directly (the npx.cmd
+  class of problem); register the server explicitly instead:
+
+  ```
+  claude mcp add kame -- cmd /c "<path-to-plugin>\bin\kame-mcp-server.cmd"
+  ```
+
+- Sessions launched **from KAME** on Windows already have a working server:
+  KAME writes the workspace `.mcp.json` with an absolute interpreter and
+  script path (no shell involved). On Windows the plugin's added value is
+  the skill.
+
+Status: written to mirror the verified POSIX launcher, but **not yet
+exercised on a Windows machine** — reports welcome.
 
 ## Remote / non-plugin use
 
