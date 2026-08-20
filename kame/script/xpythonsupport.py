@@ -1758,9 +1758,27 @@ def kame_handle_link(action):
 						'(<tt>pip install pydantic-ai clai</tt>), or set '
 						'KAME_PYAI_PYTHON.</font>')
 					return
-			_cmd = [_py, _script] + (['--web'] if action == 'pyai-web' else [])
-			_cmdline = ' '.join(_shlex.quote(a) for a in _cmd)
 			_sys = _pf.system()
+			# Hand the agent to the user's own clai rather than running the script
+			# ourselves.  Imported as a module, kame_pydantic_ai exposes `agent` with
+			# NO model bound -- only KAME's MCP toolset and its safety instructions --
+			# and clai fills that in itself (`if agent.model is None or model_arg_set:
+			# agent.model = infer_model(args.model or default_model)`).  So the model,
+			# the API keys and the defaults all stay in the setup the user already
+			# has, and KAME never has to ask which model to use.  Running the script
+			# directly is the fallback, and that one does have to be told a model.
+			_clai = os.path.join(os.path.dirname(_py),
+								 'clai.exe' if _sys == 'Windows' else 'clai')
+			_via_clai = os.path.isfile(_clai)
+			if _via_clai:
+				_cmd = [_clai] + (['web'] if action == 'pyai-web' else []) \
+					   + ['-a', 'kame_pydantic_ai:agent']
+			else:
+				_cmd = [_py, _script] + (['--web'] if action == 'pyai-web' else [])
+			# The agent module ships with KAME, not in the user's venv.
+			_cmdline = ('PYTHONPATH={} '.format(_shlex.quote(KAME_ResourceDir))
+						if _via_clai else '') \
+					   + ' '.join(_shlex.quote(a) for a in _cmd)
 			if _sys == 'Darwin':
 				_osa = 'tell application "Terminal" to do script "cd {} && {}"'.format(
 					_shlex.quote(_wd), _cmdline)
@@ -1768,9 +1786,11 @@ def kame_handle_link(action):
 						   '-e', 'tell application "Terminal" to activate'])
 			elif _sys == 'Windows':
 				_sp.Popen(['cmd', '/c', 'start', 'cmd', '/k',
-						   'cd /d "{}" && "{}" "{}"{}'.format(
-							_wd, _py, _script,
-							' --web' if action == 'pyai-web' else '')])
+						   'cd /d "{}" && {}{}'.format(
+							_wd,
+							'set "PYTHONPATH={}" && '.format(KAME_ResourceDir)
+							if _via_clai else '',
+							' '.join('"{}"'.format(a) for a in _cmd))])
 			else:
 				_inner = 'cd {} && {}; exec bash'.format(_shlex.quote(_wd), _cmdline)
 				if not _open_linux_terminal(_inner):
@@ -1778,8 +1798,10 @@ def kame_handle_link(action):
 						'Set $TERMINAL, or run <tt>{}</tt> yourself.</font>'.format(
 						html.escape(_cmdline)))
 					return
-			_kame_gui_log("#Launching Pydantic AI {} ({}) in {} ...".format(
-				"web UI" if action == 'pyai-web' else "CLI", _py, _wd))
+			_kame_gui_log("#Launching Pydantic AI {} in {} ({}) ...".format(
+				"web UI" if action == 'pyai-web' else "CLI", _wd,
+				"via clai; model comes from your clai setup, -m overrides"
+				if _via_clai else _py + "; needs --model or KAME_PYAI_MODEL"))
 		else:
 			_kame_gui_html('<font color="#cc0000">Unknown link action: {}</font>'.format(
 				html.escape(str(action))))
