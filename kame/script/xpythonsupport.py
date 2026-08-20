@@ -1682,21 +1682,48 @@ def kame_handle_link(action):
 						'or venv folder, or the interpreter itself.</font>'.format(
 						html.escape(_venvdir)))
 					return
+				_why = ''
 				for _c in _cands:
 					try:
-						_sp2.check_call([_c, '-c', 'import pydantic_ai'],
-										stdout=_sp2.DEVNULL, stderr=_sp2.DEVNULL, timeout=10)
-						_py = _c
-						break
+						_r = _sp2.run([_c, '-c', 'import pydantic_ai'],
+									  capture_output=True, text=True, timeout=15)
+						if _r.returncode == 0:
+							_py = _c
+							break
+						_why = _why or (_r.stderr or '')
 					except Exception:
 						continue
+				if not _py and ('Operation not permitted' in _why
+								or 'init_import_site' in _why):
+					# EPERM, not EACCES: macOS privacy (TCC), not file modes.
+					# The venv sits under a protected folder (Documents,
+					# Desktop, Downloads, iCloud Drive) and the interpreter is
+					# a CHILD of KAME, so it inherits KAME's authorisation and
+					# is refused without any prompt being shown.  A build-tree
+					# KAME is ad-hoc signed, so its cdhash changes on every
+					# rebuild and a granted authorisation does not survive one.
+					_kame_gui_html('<font color="#cc0000">macOS privacy protection '
+						'blocked {} from reading its own venv.<br/>The venv is under '
+						'a protected folder (Documents / Desktop / Downloads / iCloud '
+						'Drive), and it runs as a child of KAME, so it is refused '
+						'without a prompt.<br/>The venv has to live outside those four '
+						'&mdash; anywhere else in your home directory will do; the '
+						'project itself can stay where it is (with uv, '
+						'<tt>UV_PROJECT_ENVIRONMENT=&lt;path&gt; uv sync</tt>).<br/>'
+						'Granting KAME Full Disk Access in System Settings &rarr; '
+						'Privacy &amp; Security also works, but a locally built KAME '
+						'is ad-hoc signed, so that grant is lost on the next '
+						'rebuild.</font>'.format(html.escape(_cands[0])))
+					return
 				if not _py:
 					_kame_gui_html('<font color="#cc0000">{} lacks <tt>pydantic_ai</tt>. '
 						'Install it there: <tt>{} -m pip install pydantic-ai clai</tt>'
-						'{}</font>'.format(
+						'{}{}</font>'.format(
 						html.escape(_cands[0]), html.escape(_cands[0]),
 						'<br/>(also tried: ' + html.escape(', '.join(_cands[1:])) + ')'
-						if len(_cands) > 1 else ''))
+						if len(_cands) > 1 else '',
+						'<br/><tt>' + html.escape(_why.strip().splitlines()[-1][:200]) + '</tt>'
+						if _why.strip() else ''))
 					return
 				try:
 					with open(PYAI_PYTHON_FILE, 'w') as _f:
