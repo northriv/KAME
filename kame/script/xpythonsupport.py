@@ -1536,6 +1536,37 @@ def _find_python_with(mods, env_override=None, extra=()):
 	return None
 
 
+def _venv_python(d):
+	"""Interpreters worth trying for a folder picked in the venv dialog.
+
+	People pick the PROJECT, not the venv, and they are not wrong to: uv,
+	poetry and pdm all keep the interpreter in a `.venv` that macOS's file
+	dialog does not even show by default, so the venv root is not a thing the
+	user can conveniently point at.  Accepting only <picked>/bin/python turned
+	the natural choice into an error message.
+
+	Also accept the interpreter itself and a `bin`/`Scripts` directory, since
+	the same dialog reaches those just as easily.  Returns every existing
+	candidate, most specific first; the caller picks the one that imports what
+	it needs, so a project holding several venvs resolves to the usable one."""
+	if os.path.isfile(d) and os.access(d, os.X_OK):
+		return [d]
+	_bin = 'Scripts' if os.name == 'nt' else 'bin'
+	_exe = ('python.exe', 'python3.exe') if os.name == 'nt' else ('python', 'python3')
+	_cands = []
+	for _root in (d,) + tuple(os.path.join(d, _v) for _v in ('.venv', 'venv', 'env')):
+		_cands += [os.path.join(_root, _bin, _e) for _e in _exe]
+	#The dialog lands inside the venv's bin/ as readily as on the venv root.
+	_cands += [os.path.join(d, _e) for _e in _exe]
+	_seen, _out = set(), []
+	for _c in _cands:
+		_r = os.path.realpath(_c)
+		if os.path.isfile(_c) and _r not in _seen:
+			_seen.add(_r)
+			_out.append(_c)
+	return _out
+
+
 def _kame_plugin_dir():
 	"""The Claude Code plugin shipped with this KAME, or None.
 
@@ -1642,22 +1673,31 @@ def kame_handle_link(action):
 			import subprocess as _sp2
 			_py = None
 			if _venvdir:
-				_c = os.path.join(_venvdir, 'Scripts', 'python.exe') \
-					if _pf.system() == 'Windows' else os.path.join(_venvdir, 'bin', 'python')
-				if not os.path.isfile(_c):
-					_kame_gui_html('<font color="#cc0000">No interpreter inside '
-						'{} (expected bin/python, or Scripts\\python.exe on '
-						'Windows). Is it a virtualenv?</font>'.format(html.escape(_venvdir)))
+				_cands = _venv_python(_venvdir)
+				if not _cands:
+					_kame_gui_html('<font color="#cc0000">No Python interpreter under '
+						'{}.<br/>Looked for <tt>bin/python</tt> and '
+						'<tt>.venv/</tt>, <tt>venv/</tt>, <tt>env/</tt> inside it '
+						'(<tt>Scripts\\python.exe</tt> on Windows). Pick the project '
+						'or venv folder, or the interpreter itself.</font>'.format(
+						html.escape(_venvdir)))
 					return
-				try:
-					_sp2.check_call([_c, '-c', 'import pydantic_ai'],
-									stdout=_sp2.DEVNULL, stderr=_sp2.DEVNULL, timeout=10)
-				except Exception:
+				for _c in _cands:
+					try:
+						_sp2.check_call([_c, '-c', 'import pydantic_ai'],
+										stdout=_sp2.DEVNULL, stderr=_sp2.DEVNULL, timeout=10)
+						_py = _c
+						break
+					except Exception:
+						continue
+				if not _py:
 					_kame_gui_html('<font color="#cc0000">{} lacks <tt>pydantic_ai</tt>. '
-						'Install it there: <tt>{} -m pip install pydantic-ai clai</tt></font>'.format(
-						html.escape(_c), html.escape(_c)))
+						'Install it there: <tt>{} -m pip install pydantic-ai clai</tt>'
+						'{}</font>'.format(
+						html.escape(_cands[0]), html.escape(_cands[0]),
+						'<br/>(also tried: ' + html.escape(', '.join(_cands[1:])) + ')'
+						if len(_cands) > 1 else ''))
 					return
-				_py = _c
 				try:
 					with open(PYAI_PYTHON_FILE, 'w') as _f:
 						_f.write(_py + '\n')
