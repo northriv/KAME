@@ -1196,15 +1196,33 @@ def _claude_desktop_config():
     return _p if os.path.isdir(os.path.dirname(_p)) else None
 
 
-def _gemini_config():
-    """Path of Gemini CLI's user settings, if it has been run here.
+def _google_agent_config():
+    """(label, path) for Google's agent CLI, or None.
 
-    Documented as `~/.gemini/settings.json`, same `mcpServers` shape as Claude
-    Desktop -- so it shares the editor below.  Unlike Claude Desktop this file
-    also carries unrelated settings (theme, auth), which is exactly why the
-    edit is additive and keeps a backup."""
+    Two products share the ~/.gemini directory.  Antigravity CLI (`agy`), the
+    current one, keeps MCP servers in ~/.gemini/config/mcp_config.json, shared
+    with the IDE and the SDK.  Gemini CLI, which it replaced for consumers on
+    2026-06-18 but which enterprise licences still run, used the `mcpServers`
+    key inside ~/.gemini/settings.json.  Same key, different file -- so the
+    directory alone does not say which, and writing to the wrong one fails
+    silently.  Prefer the current product, and fall back to the legacy file
+    only when it is the only one present.
+
+    Antigravity also has `agy mcp add`, which would be the better mechanism by
+    the same argument that makes `codex mcp add` right for Codex -- the client
+    owning its own format.  It is not used here because its exact invocation
+    could not be verified against a real `agy`, and a guessed command line is
+    worse than an edit to a documented path."""
     _d = os.path.expanduser('~/.gemini')
-    return os.path.join(_d, 'settings.json') if os.path.isdir(_d) else None
+    if not os.path.isdir(_d):
+        return None
+    _agy = os.path.join(_d, 'config', 'mcp_config.json')
+    if os.path.isfile(_agy) or os.path.isdir(os.path.dirname(_agy)):
+        return ('Antigravity CLI', _agy)
+    _legacy = os.path.join(_d, 'settings.json')
+    if os.path.isfile(_legacy):
+        return ('Gemini CLI (legacy)', _legacy)
+    return ('Antigravity CLI', _agy)
 
 
 def _lmstudio_present():
@@ -1269,8 +1287,8 @@ def _register_desktop_mcp(apply=False):
     derivable anyway (the bundle builds it at run time and carries both
     'mcp.json' and 'ng-mcp.json' strings; a guessed path would fail silently,
     which is the worst outcome).  Codex has `codex mcp add`, which owns the
-    TOML format.  Claude Desktop and Gemini CLI offer neither, so their JSON
-    is edited -- additively, after a backup.
+    TOML format.  Claude Desktop and Google's agent CLI are edited as JSON --
+    additively, after a backup.
     """
     import base64 as _b64, json as _json, shutil as _sh, subprocess as _sp, \
         platform as _pf, urllib.parse as _up
@@ -1283,7 +1301,7 @@ def _register_desktop_mcp(apply=False):
 
     _lm = _lmstudio_present()
     _cc = _claude_desktop_config()
-    _gc = _gemini_config()
+    _gc = _google_agent_config()
     _cx = _resolve_cli('codex')
 
     if not (_lm or _cc or _gc or _cx):
@@ -1311,7 +1329,10 @@ def _register_desktop_mcp(apply=False):
     if _cc:
         _mcp_json_edit('Claude Desktop', _cc, _entry, apply, _plan, _done, _fail)
     if _gc:
-        _mcp_json_edit('Gemini CLI', _gc, _entry, apply, _plan, _done, _fail)
+        if apply:
+            #config/ need not exist yet even when ~/.gemini does.
+            os.makedirs(os.path.dirname(_gc[1]), exist_ok=True)
+        _mcp_json_edit(_gc[0], _gc[1], _entry, apply, _plan, _done, _fail)
 
     # --- Codex: its own CLI owns ~/.codex/config.toml -----------------------
     if _cx:
