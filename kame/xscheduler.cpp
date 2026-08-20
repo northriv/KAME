@@ -128,6 +128,14 @@ SignalBuffer::synchronize() {
     return s_signalBuffer->synchronize__();
 }
 bool
+SignalBuffer::hasImmediateEvents() {
+    //Only ever read right after synchronize__() returned, where a non-empty
+    //queue means it broke on the 30 ms budget.  A racing push right after this
+    //read is harmless: that event waits one idle period, exactly as it would
+    //have if it had arrived a moment later.
+    return !s_signalBuffer->m_queue.empty();
+}
+bool
 SignalBuffer::synchronize__() {
 	bool dotalk = true;
     XTime time_stamp_start(XTime::now());
