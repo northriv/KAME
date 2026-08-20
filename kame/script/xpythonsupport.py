@@ -1196,12 +1196,62 @@ def _claude_desktop_config():
     return _p if os.path.isdir(os.path.dirname(_p)) else None
 
 
+def _gemini_config():
+    """Path of Gemini CLI's user settings, if it has been run here.
+
+    Documented as `~/.gemini/settings.json`, same `mcpServers` shape as Claude
+    Desktop -- so it shares the editor below.  Unlike Claude Desktop this file
+    also carries unrelated settings (theme, auth), which is exactly why the
+    edit is additive and keeps a backup."""
+    _d = os.path.expanduser('~/.gemini')
+    return os.path.join(_d, 'settings.json') if os.path.isdir(_d) else None
+
+
 def _lmstudio_present():
     """Bionic / LM Studio installed here?  (Both take the lmstudio: scheme.)"""
     return [_p for _p in ('/Applications/Bionic.app',
                           os.path.expanduser('~/Applications/Bionic.app'),
                           '/Applications/LM Studio.app',
                           os.path.expanduser('~/.lmstudio')) if os.path.exists(_p)]
+
+
+def _mcp_json_edit(label, path, entry, apply, plan, done, fail):
+    """Plan, or apply, one `mcpServers.<name>` entry in a JSON config.
+
+    Shared by every client whose configuration is JSON with that key and which
+    offers no CLI of its own to do it.  Touches that one key and writes the
+    rest back unchanged, after a backup -- these files hold the user's own
+    settings, and for some clients (Gemini) that is most of the file."""
+    import json as _json, shutil as _sh
+    _old = None
+    try:
+        if os.path.isfile(path):
+            with open(path) as _f:
+                _old = ((_json.load(_f) or {}).get('mcpServers') or {}).get('kame')
+    except Exception:
+        _old = '(unreadable)'
+    plan.append('<b>{}</b> &mdash; <tt>{}</tt><br/>'
+        '&nbsp;&nbsp;<font color="#cc0000">-</font> mcpServers.kame: <tt>{}</tt><br/>'
+        '&nbsp;&nbsp;<font color="#008800">+</font> mcpServers.kame: <tt>{}</tt><br/>'
+        '&nbsp;&nbsp;(all other keys preserved; a <tt>.kame-backup</tt> copy is kept)'.format(
+        html.escape(label), html.escape(path),
+        html.escape(_json.dumps(_old) if _old is not None else '(absent)'),
+        html.escape(_json.dumps(entry))))
+    if not apply:
+        return
+    try:
+        _conf = {}
+        if os.path.isfile(path):
+            with open(path) as _f:
+                _conf = _json.load(_f) or {}
+            _sh.copy2(path, path + '.kame-backup')
+        #Only this one key is touched; everything else is written back.
+        _conf.setdefault('mcpServers', {})['kame'] = entry
+        with open(path, 'w') as _f:
+            _json.dump(_conf, _f, indent=2)
+        done.append('{} ({})'.format(label, path))
+    except Exception:
+        fail.append(label + ': ' + traceback.format_exc(limit=1))
 
 
 def _register_desktop_mcp(apply=False):
@@ -1219,8 +1269,8 @@ def _register_desktop_mcp(apply=False):
     derivable anyway (the bundle builds it at run time and carries both
     'mcp.json' and 'ng-mcp.json' strings; a guessed path would fail silently,
     which is the worst outcome).  Codex has `codex mcp add`, which owns the
-    TOML format.  Only Claude Desktop, which offers neither, gets its JSON
-    edited -- additively, after a backup.
+    TOML format.  Claude Desktop and Gemini CLI offer neither, so their JSON
+    is edited -- additively, after a backup.
     """
     import base64 as _b64, json as _json, shutil as _sh, subprocess as _sp, \
         platform as _pf, urllib.parse as _up
@@ -1233,12 +1283,13 @@ def _register_desktop_mcp(apply=False):
 
     _lm = _lmstudio_present()
     _cc = _claude_desktop_config()
+    _gc = _gemini_config()
     _cx = _resolve_cli('codex')
 
-    if not (_lm or _cc or _cx):
-        _kame_gui_html('<font color="#996600">No desktop MCP client found to '
-            'register with (looked for Bionic / LM Studio, Claude Desktop, and '
-            'the codex CLI).</font>')
+    if not (_lm or _cc or _gc or _cx):
+        _kame_gui_html('<font color="#996600">No MCP client found to register '
+            'with (looked for Bionic / LM Studio, Claude Desktop, Gemini CLI '
+            'and the codex CLI).</font>')
         return
 
     # --- LM Studio / Bionic: deeplink, confirmed inside the app -------------
@@ -1256,36 +1307,11 @@ def _register_desktop_mcp(apply=False):
             except Exception:
                 _fail.append('Bionic / LM Studio: ' + traceback.format_exc(limit=1))
 
-    # --- Claude Desktop: additive edit of its JSON, backup first ------------
+    # --- JSON-configured clients with no CLI of their own -------------------
     if _cc:
-        _old = None
-        try:
-            if os.path.isfile(_cc):
-                with open(_cc) as _f:
-                    _old = ((_json.load(_f) or {}).get('mcpServers') or {}).get('kame')
-        except Exception:
-            _old = '(unreadable)'
-        _plan.append('<b>Claude Desktop</b> &mdash; <tt>{}</tt><br/>'
-            '&nbsp;&nbsp;<font color="#cc0000">-</font> mcpServers.kame: <tt>{}</tt><br/>'
-            '&nbsp;&nbsp;<font color="#008800">+</font> mcpServers.kame: <tt>{}</tt><br/>'
-            '&nbsp;&nbsp;(all other keys preserved; a <tt>.kame-backup</tt> copy is kept)'.format(
-            html.escape(_cc),
-            html.escape(_json.dumps(_old) if _old is not None else '(absent)'),
-            html.escape(_json.dumps(_entry))))
-        if apply:
-            try:
-                _conf = {}
-                if os.path.isfile(_cc):
-                    with open(_cc) as _f:
-                        _conf = _json.load(_f) or {}
-                    _sh.copy2(_cc, _cc + '.kame-backup')
-                #Only this one key is touched; everything else is written back.
-                _conf.setdefault('mcpServers', {})['kame'] = _entry
-                with open(_cc, 'w') as _f:
-                    _json.dump(_conf, _f, indent=2)
-                _done.append('Claude Desktop (' + _cc + ')')
-            except Exception:
-                _fail.append('Claude Desktop: ' + traceback.format_exc(limit=1))
+        _mcp_json_edit('Claude Desktop', _cc, _entry, apply, _plan, _done, _fail)
+    if _gc:
+        _mcp_json_edit('Gemini CLI', _gc, _entry, apply, _plan, _done, _fail)
 
     # --- Codex: its own CLI owns ~/.codex/config.toml -----------------------
     if _cx:
