@@ -1065,6 +1065,54 @@ def _resolve_cli(binary):
     return None
 
 
+def _codex_desktop_launch(binary='codex'):
+    """One-click launch of the Codex Desktop app, the twin of `kame:claude-app`.
+
+    `codex app` opens the installer when the app is missing, so this needs no
+    existence check of its own -- unlike the Claude app link, which can only
+    ask the OS to open a bundle that may not be there.
+
+    The same ephemeral `-c mcp_servers.kame.*` overrides the terminal launcher
+    builds are passed along (the subcommand accepts -c), and the bearer token
+    goes through the environment rather than argv.  Whether the app itself
+    honours a launcher-scoped override is not something this can verify -- if
+    it does not, the overrides are simply ignored, and the supported route for
+    a GUI client is to install the plugin once (`codex plugin add kame@kame`),
+    whose stdio launcher reaches the kernel through
+    ~/.kame_kernel_connection.json and so does not care about the HTTP port.
+    """
+    import subprocess as _sp
+    _bin = _resolve_cli(binary)
+    if not _bin:
+        _kame_gui_html('<font color="#cc0000">`{}` not found in PATH.</font>'.format(
+            html.escape(binary)))
+        return
+    _wd = _kame_workspace_dir()
+    _spec = _kame_codex_spec()
+    _env, _ov = dict(os.environ), []
+    if _spec and _spec['type'] == 'stdio':
+        _ov += ['-c', 'mcp_servers.kame.command=' + _toml_quote(_spec['command'])]
+        _ov += ['-c', 'mcp_servers.kame.args=['
+                + ', '.join(_toml_quote(a) for a in _spec['args']) + ']']
+    elif _spec:
+        _ov += ['-c', 'mcp_servers.kame.url=' + _toml_quote(_spec['url'])]
+        if _spec.get('token'):
+            _ov += ['-c', 'mcp_servers.kame.bearer_token_env_var='
+                    + _toml_quote('KAME_MCP_TOKEN')]
+            _env['KAME_MCP_TOKEN'] = _spec['token']
+    try:
+        _sp.Popen([_bin, 'app'] + _ov + [_wd], env=_env)
+    except Exception:
+        _kame_gui_html('<font color="#cc0000">Launching the {} desktop app failed:'
+            '<br/>{}</font>'.format(html.escape(binary),
+            html.escape(traceback.format_exc())))
+        return
+    _kame_gui_log("#Launching the {} desktop app in {} ...".format(binary, _wd))
+    if not _spec:
+        _kame_gui_html('<font color="#996600">No KAME MCP config found &mdash; '
+            'start the Jupyter notebook first to enable KAME tools.</font>')
+
+
 def _codex_launch(binary):
     """One-click launch of codex / codex-fugu wired to KAME's MCP server.
 
@@ -1307,6 +1355,8 @@ def kame_handle_link(action):
 			_codex_launch('codex')
 		elif action == 'codex-fugu-cli':
 			_codex_launch('codex-fugu')
+		elif action == 'codex-app':
+			_codex_desktop_launch('codex')
 		elif action.startswith('pyai-'):
 			# Vendor-neutral client on Pydantic AI: any provider:model, local
 			# models via an OpenAI-compatible endpoint. The wrapper connects
@@ -1439,7 +1489,9 @@ else:
 				connection_file = ipykernel.connect.get_connection_file()
 				MYDEFOUT.write("#KAME IPython binding")
 				MYDEFOUT.write("#Use sleep() instead of time.sleep().")
-				MYDEFOUT.write_html(r'<font color="#0066cc">Quick launch:&nbsp; <a href="kame:notebook">&#9654; Jupyter notebook</a> &nbsp;&nbsp; <a href="kame:claude-cli">&#9654; Claude Code (terminal)</a> &nbsp;&nbsp; <a href="kame:claude-app">&#9654; Claude app</a> &nbsp;&nbsp; <a href="kame:codex-cli">&#9654; Codex</a> &nbsp;&nbsp; <a href="kame:codex-fugu-cli">&#9654; Codex (fugu)</a> &nbsp;&nbsp; <a href="kame:pyai-cli">&#9654; Pydantic AI</a> &nbsp;&nbsp; <a href="kame:pyai-web">&#9654; Pydantic AI (web)</a></font>')
+				#Grouped by vendor: eight flat entries on one line stopped being
+				#readable, and the terminal/desktop pair now repeats per vendor.
+				MYDEFOUT.write_html(r'<font color="#0066cc">Quick launch:&nbsp; <a href="kame:notebook">&#9654; Jupyter notebook</a> &nbsp;&nbsp;|&nbsp;&nbsp; Claude: <a href="kame:claude-cli">&#9654; Code</a> &nbsp;<a href="kame:claude-app">&#9654; app</a> &nbsp;&nbsp;|&nbsp;&nbsp; Codex: <a href="kame:codex-cli">&#9654; CLI</a> &nbsp;<a href="kame:codex-fugu-cli">&#9654; fugu</a> &nbsp;<a href="kame:codex-app">&#9654; app</a> &nbsp;&nbsp;|&nbsp;&nbsp; Pydantic AI: <a href="kame:pyai-cli">&#9654; CLI</a> &nbsp;<a href="kame:pyai-web">&#9654; web</a></font>')
 				self.logfilename = os.path.splitext(connection_file)[0] + "-log" + os.extsep + "txt"
 				self._initial_logfilename = self.logfilename
 				MYDEFOUT.write_html(r'<font color="#008800">Logging console output to <a href="file:///'
