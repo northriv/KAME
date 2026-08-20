@@ -28,6 +28,8 @@
 #include <QEvent>
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QDir>
+#include <QFile>
 #include <QTextBrowser>
 #include <QDesktopServices>
 #include <QUrl>
@@ -632,6 +634,24 @@ void FrmKameMain::onScriptLinkClicked(const QUrl &url) {
             if(dir.length())
                 m_measure->python()->launchJupyterConsole(
                     progs.front(), ("notebook " + dir).toUtf8().data());
+        }
+        else if(action.startsWith("pyai-")) {
+            //Pydantic AI normally lives in a venv, which no PATH probe can
+            //see. First use asks for the venv folder (the same gesture as the
+            //notebook workspace dialog); the Python side validates it,
+            //remembers it in ~/.kame_pyai_python, and forgets it when it goes
+            //stale — which makes this dialog reappear on the next click.
+            //Cancel falls through with an empty dir = search common places.
+            if( !QFile::exists(QDir::homePath() + "/.kame_pyai_python")
+                    && !qEnvironmentVariableIsSet("KAME_PYAI_PYTHON")) {
+                gMessagePrint(i18n("Choose the venv folder with pydantic-ai installed (Cancel = search common locations)."));
+                QString dir = QFileDialog::getExistingDirectory(
+                    this, i18n("Choose Pydantic AI virtualenv"));
+                m_measure->python()->handleLink(
+                    (action + "?venv=" + dir).toUtf8().constData());
+            }
+            else
+                m_measure->python()->handleLink(action.toUtf8().constData());
         }
         else {
             m_measure->python()->handleLink(action.toUtf8().constData());

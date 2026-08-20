@@ -1076,12 +1076,12 @@ def _codex_launch(binary):
     import shlex as _shlex, platform as _pf, tempfile as _tf, subprocess as _sp
     _bin = _resolve_cli(binary)
     if not _bin:
-        MYDEFOUT.write_html('<font color="#cc0000">`{}` not found in PATH.</font>'.format(
+        _kame_gui_html('<font color="#cc0000">`{}` not found in PATH.</font>'.format(
             html.escape(binary)))
         return
     _spec = _kame_codex_spec()
     if not _spec:
-        MYDEFOUT.write_html('<font color="#996600">No KAME MCP config found &mdash; '
+        _kame_gui_html('<font color="#996600">No KAME MCP config found &mdash; '
             'launching {} without KAME tools. Start the Jupyter notebook first '
             'to enable them.</font>'.format(html.escape(binary)))
     _wd = _kame_workspace_dir()
@@ -1148,18 +1148,45 @@ def _codex_launch(binary):
                 os.chmod(_sc.name, 0o700)
                 if not _open_linux_terminal(_shlex.quote(_sc.name)):
                     os.unlink(_sc.name)
-                    MYDEFOUT.write_html('<font color="#cc0000">No terminal emulator found. '
+                    _kame_gui_html('<font color="#cc0000">No terminal emulator found. '
                         'Set $TERMINAL, or run <tt>{}</tt> yourself in {}.</font>'.format(
                         html.escape(binary), html.escape(_wd)))
                     return
     except Exception:
-        MYDEFOUT.write_html('<font color="#cc0000">Launching {} failed:<br/>{}</font>'.format(
+        _kame_gui_html('<font color="#cc0000">Launching {} failed:<br/>{}</font>'.format(
             html.escape(binary), html.escape(traceback.format_exc())))
         return
-    MYDEFOUT.write("#Launching {} (terminal) in {} ...".format(binary, _wd))
+    _kame_gui_log("#Launching {} (terminal) in {} ...".format(binary, _wd))
 
 
-def _find_python_with(mods, env_override=None):
+def _kame_gui_html(htmlmsg):
+	"""Show raw html in KAME's Python pane, visibly, from ANY thread.
+
+	kame: link handlers run on the MAIN thread via py::eval, where
+	TLS.xscrthread is unset and MYDEFOUT falls back to the OS terminal — so
+	every error they printed was invisible in the GUI ("clicking does
+	nothing").  Write to the script thread's pane node directly, the same
+	trick launchJupyterConsole's _gui_log uses."""
+	try:
+		my_defout(XScriptingThreads()[0], htmlmsg)
+	except Exception:
+		pass
+	try:
+		import re as _re
+		STDERR.write(_re.sub(r'<[^>]+>', '', htmlmsg) + '\n')
+	except Exception:
+		pass
+
+
+def _kame_gui_log(msg, color='#008800'):
+	"""Plain-text variant of _kame_gui_html."""
+	_kame_gui_html('<font color="{}">{}</font>'.format(color, html.escape(msg)))
+
+
+PYAI_PYTHON_FILE = os.path.join(os.path.expanduser('~'), '.kame_pyai_python')
+
+
+def _find_python_with(mods, env_override=None, extra=()):
 	"""First interpreter that imports every name in `mods`, or None.
 
 	The same lesson as the MCP-server search: unversioned python3 names are
@@ -1170,6 +1197,7 @@ def _find_python_with(mods, env_override=None):
 	_cands = []
 	if env_override and os.environ.get(env_override):
 		_cands.append(os.environ[env_override])
+	_cands += [_e for _e in extra if _e]
 	for _n in ('python3', 'python'):
 		_p = _sh.which(_n)
 		if _p:
@@ -1223,11 +1251,11 @@ def kame_handle_link(action):
 		if action == 'notebook':
 			_progs = listOfJupyterPrograms()
 			if not _progs:
-				MYDEFOUT.write_html('<font color="#cc0000">No Jupyter program found '
+				_kame_gui_html('<font color="#cc0000">No Jupyter program found '
 					'(install jupyter, or use the Script menu).</font>')
 				return
 			_wd = _kame_workspace_dir()
-			MYDEFOUT.write("#Launching Jupyter notebook ({}) in {} ...".format(_progs[0], _wd))
+			_kame_gui_log("#Launching Jupyter notebook ({}) in {} ...".format(_progs[0], _wd))
 			launchJupyterConsole(_progs[0], 'notebook ' + _wd)
 		elif action == 'claude-app':
 			_sys = _pf.system()
@@ -1241,7 +1269,7 @@ def kame_handle_link(action):
 				# this used to do) does nothing visible, so fall through to the
 				# terminal path instead of pretending it worked.
 				return kame_handle_link('claude-cli')
-			MYDEFOUT.write("#Launched Claude app.")
+			_kame_gui_log("#Launched Claude app.")
 		elif action == 'claude-cli':
 			_wd = _kame_workspace_dir()
 			_sys = _pf.system()
@@ -1262,34 +1290,90 @@ def kame_handle_link(action):
 			else:
 				_inner = 'cd {} && {}; exec bash'.format(_shlex.quote(_wd), _claude)
 				if not _open_linux_terminal(_inner):
-					MYDEFOUT.write_html('<font color="#cc0000">No terminal emulator found. '
+					_kame_gui_html('<font color="#cc0000">No terminal emulator found. '
 						'Set $TERMINAL, or run <tt>claude</tt> yourself in {}.</font>'.format(
 						html.escape(_wd)))
 					return
-			MYDEFOUT.write("#Launching Claude Code (terminal) in {}{} ...".format(
+			_kame_gui_log("#Launching Claude Code (terminal) in {}{} ...".format(
 				_wd, " with the kame plugin" if _pd else ""))
 		elif action == 'codex-cli':
 			_codex_launch('codex')
 		elif action == 'codex-fugu-cli':
 			_codex_launch('codex-fugu')
-		elif action in ('pyai-cli', 'pyai-web'):
+		elif action.startswith('pyai-'):
 			# Vendor-neutral client on Pydantic AI: any provider:model, local
 			# models via an OpenAI-compatible endpoint. The wrapper connects
 			# over HTTP from ~/.kame_mcp_url and carries the server's safety
 			# instructions with the toolset.
+			#
+			# The usual install is a VENV (pip install pydantic-ai clai into
+			# ~/somewhere/venv), which no PATH probe can see — so the GUI asks
+			# for the venv folder on first use (kame.cpp, like the notebook
+			# workspace dialog), passes it as 'pyai-cli?venv=<dir>', and the
+			# choice is remembered in ~/.kame_pyai_python. A remembered
+			# interpreter that stopped importing pydantic_ai is deleted so the
+			# next click re-asks — self-healing, no manual cleanup.
+			action, _, _venvdir = action.partition('?venv=')
+			_venvdir = _venvdir.strip()
 			_wd = _kame_workspace_dir()
 			_script = os.path.join(KAME_ResourceDir, 'kame_pydantic_ai.py')
 			if not os.path.isfile(_script):
-				MYDEFOUT.write_html('<font color="#cc0000">kame_pydantic_ai.py not '
+				_kame_gui_html('<font color="#cc0000">kame_pydantic_ai.py not '
 					'found in {} &mdash; rebuild/redeploy KAME.</font>'.format(
 					html.escape(KAME_ResourceDir)))
 				return
-			_py = _find_python_with(('pydantic_ai',), 'KAME_PYAI_PYTHON')
+			import subprocess as _sp2
+			_py = None
+			if _venvdir:
+				_c = os.path.join(_venvdir, 'Scripts', 'python.exe') \
+					if _pf.system() == 'Windows' else os.path.join(_venvdir, 'bin', 'python')
+				if not os.path.isfile(_c):
+					_kame_gui_html('<font color="#cc0000">No interpreter inside '
+						'{} (expected bin/python, or Scripts\\python.exe on '
+						'Windows). Is it a virtualenv?</font>'.format(html.escape(_venvdir)))
+					return
+				try:
+					_sp2.check_call([_c, '-c', 'import pydantic_ai'],
+									stdout=_sp2.DEVNULL, stderr=_sp2.DEVNULL, timeout=10)
+				except Exception:
+					_kame_gui_html('<font color="#cc0000">{} lacks <tt>pydantic_ai</tt>. '
+						'Install it there: <tt>{} -m pip install pydantic-ai clai</tt></font>'.format(
+						html.escape(_c), html.escape(_c)))
+					return
+				_py = _c
+				try:
+					with open(PYAI_PYTHON_FILE, 'w') as _f:
+						_f.write(_py + '\n')
+					_kame_gui_log('#Remembered Pydantic AI interpreter in ' + PYAI_PYTHON_FILE)
+				except OSError:
+					pass
 			if not _py:
-				MYDEFOUT.write_html('<font color="#cc0000">No Python with '
-					'<tt>pydantic_ai</tt> found. <tt>pip install pydantic-ai</tt> '
-					'(plus <tt>clai</tt> for the web UI), or set KAME_PYAI_PYTHON.</font>')
-				return
+				_saved = None
+				try:
+					with open(PYAI_PYTHON_FILE) as _f:
+						_saved = _f.read().strip() or None
+				except OSError:
+					pass
+				_extra = [_saved,
+						  os.path.join(os.environ.get('VIRTUAL_ENV', ''), 'bin', 'python')
+						  if os.environ.get('VIRTUAL_ENV') else None,
+						  os.path.join(_wd, '.venv', 'bin', 'python')]
+				_py = _find_python_with(('pydantic_ai',), 'KAME_PYAI_PYTHON', _extra)
+				if not _py:
+					if _saved:
+						# The remembered interpreter went stale (venv moved or
+						# emptied); forget it so the next click re-opens the
+						# folder dialog instead of failing the same way forever.
+						try:
+							os.unlink(PYAI_PYTHON_FILE)
+						except OSError:
+							pass
+					_kame_gui_html('<font color="#cc0000">No Python with '
+						'<tt>pydantic_ai</tt> found. Click the link again and pick '
+						'the venv folder where you installed it '
+						'(<tt>pip install pydantic-ai clai</tt>), or set '
+						'KAME_PYAI_PYTHON.</font>')
+					return
 			_cmd = [_py, _script] + (['--web'] if action == 'pyai-web' else [])
 			_cmdline = ' '.join(_shlex.quote(a) for a in _cmd)
 			_sys = _pf.system()
@@ -1306,17 +1390,17 @@ def kame_handle_link(action):
 			else:
 				_inner = 'cd {} && {}; exec bash'.format(_shlex.quote(_wd), _cmdline)
 				if not _open_linux_terminal(_inner):
-					MYDEFOUT.write_html('<font color="#cc0000">No terminal emulator found. '
+					_kame_gui_html('<font color="#cc0000">No terminal emulator found. '
 						'Set $TERMINAL, or run <tt>{}</tt> yourself.</font>'.format(
 						html.escape(_cmdline)))
 					return
-			MYDEFOUT.write("#Launching Pydantic AI {} ({}) in {} ...".format(
+			_kame_gui_log("#Launching Pydantic AI {} ({}) in {} ...".format(
 				"web UI" if action == 'pyai-web' else "CLI", _py, _wd))
 		else:
-			MYDEFOUT.write_html('<font color="#cc0000">Unknown link action: {}</font>'.format(
+			_kame_gui_html('<font color="#cc0000">Unknown link action: {}</font>'.format(
 				html.escape(str(action))))
 	except Exception:
-		MYDEFOUT.write_html('<font color="#cc0000">Link action "{}" failed:<br/>{}</font>'.format(
+		_kame_gui_html('<font color="#cc0000">Link action "{}" failed:<br/>{}</font>'.format(
 			html.escape(str(action)), html.escape(traceback.format_exc())))
 
 import linecache
