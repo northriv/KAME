@@ -26,8 +26,146 @@ import argparse
 import json
 import os
 import sys
+import threading
+from datetime import datetime, timezone
 
 URL_FILE = os.path.join(os.path.expanduser('~'), '.kame_mcp_url')
+
+# ---------------------------------------------------------------------------
+# LLM usage logging
+#
+# Who called which model, how many times, and for how many tokens.  Providers
+# do not always report this back -- seat-billed plans need not itemise tokens,
+# and a model you run yourself has no provider at all -- so for cost tracking
+# and for any usage a funder wants evidenced, the client is the only place the
+# numbers exist.  Counts only: no prompt or response text is ever written.
+#
+# One row per MODEL REQUEST, not per agent run, because `elapsed_s` is meant to
+# stand in for inference time.  A KAME agent run blocks for minutes inside
+# instrument sweeps, so run wall-clock would overstate it by orders of
+# magnitude; the model-request span measures the request alone.  Run rows are
+# still emitted for reference, with every summed field zeroed and the wall
+# clock in `wall_s`, so totalling the file cannot double-count them.
+#
+#   KAME_MCP_LOG_DIR   where to write (shared with the MCP tool log)
+#   KAME_USAGE_NO_LOG  disable.  Deliberately NOT KAME_MCP_NO_LOG: that one
+#                      silences a convenience log that records whole code
+#                      payloads, and reaching for it must not also discard
+#                      usage evidence, which cannot be reconstructed later.
+#   KAME_USAGE_TAG     label for `model_key`, for keying an external ledger;
+#                      defaults to the model spec string.
+# ---------------------------------------------------------------------------
+USAGE_ENABLED = os.environ.get('KAME_USAGE_NO_LOG') is None
+USAGE_LOG_DIR = os.environ.get(
+    'KAME_MCP_LOG_DIR', os.path.join(os.path.expanduser('~'), '.kame_mcp_log'))
+USAGE_LOG_PATH = os.path.join(USAGE_LOG_DIR, 'usage.jsonl')
+_USAGE_LOCK = threading.Lock()
+#A tracer provider keeps every processor it is given, so installing twice
+#exports every span twice and doubles the reported token count.  One per
+#process, however many agents get built.
+_USAGE_INSTALLED = False
+
+
+def _usage_write(row):
+    """Append one row.  Never raises: usage accounting must not break a run."""
+    try:
+        with _USAGE_LOCK:
+            os.makedirs(USAGE_LOG_DIR, exist_ok=True)
+            with open(USAGE_LOG_PATH, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(row, ensure_ascii=False) + '\n')
+    except Exception:
+        pass
+
+
+def _install_usage_logging(model_spec):
+    """Attach the usage recorder, and return the Agent capabilities to use.
+
+    Instrumentation is OpenTelemetry-based, so this degrades to no logging
+    rather than failing when the SDK is absent (`pydantic-ai-slim` need not
+    pull it in) or when a tracer provider is already installed by the host.
+    """
+    global _USAGE_INSTALLED
+    if not USAGE_ENABLED:
+        return []
+    try:
+        from pydantic_ai.capabilities import Instrumentation
+    except ImportError:
+        return []
+    if _USAGE_INSTALLED:
+        return [Instrumentation()]
+    try:
+        from opentelemetry import trace
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import (
+            SimpleSpanProcessor, SpanExporter, SpanExportResult)
+    except ImportError:
+        return [Instrumentation()]
+
+    tag = os.environ.get('KAME_USAGE_TAG') or model_spec
+    base_url = os.environ.get('OPENAI_BASE_URL') or None
+
+    class _UsageExporter(SpanExporter):
+        #Simple, not Batch: a batch processor can still be holding the last
+        #spans when the CLI exits, and a lost row is a lost record.
+        def export(self, spans):
+            for s in spans:
+                try:
+                    self._row(s)
+                except Exception:
+                    pass
+            return SpanExportResult.SUCCESS
+
+        def _row(self, s):
+            a = dict(s.attributes or {})
+            op = a.get('gen_ai.operation.name')
+            if op not in ('chat', 'invoke_agent'):
+                return
+            secs = (s.end_time - s.start_time) / 1e9
+            row = {
+                'ts': datetime.now(timezone.utc).isoformat(),
+                'model_key': tag,
+                'provider': a.get('gen_ai.provider.name') or a.get('gen_ai.system'),
+                'model_id': (a.get('gen_ai.response.model')
+                             or a.get('gen_ai.request.model')
+                             or a.get('model_name') or model_spec),
+                'base_url': base_url,
+                'run_id': format(s.context.trace_id, '032x') if s.context else None,
+            }
+            if op == 'chat':
+                row.update({
+                    'elapsed_s': round(secs, 4),
+                    'requests': 1,
+                    'input_tokens': int(a.get('gen_ai.usage.input_tokens') or 0),
+                    'output_tokens': int(a.get('gen_ai.usage.output_tokens') or 0),
+                    'cache_read_tokens': int(a.get('gen_ai.usage.cache_read_tokens') or 0),
+                    'cache_write_tokens': int(a.get('gen_ai.usage.cache_write_tokens') or 0),
+                })
+                if s.status is not None and getattr(s.status, 'is_ok', True) is False:
+                    #A failed call is still billed, so it has to be recorded.
+                    row['note'] = 'FAILED: ' + str(getattr(s.status, 'description', '') or 'error')
+            else:
+                #Reference only -- zeroed so summing the file stays correct.
+                row.update({
+                    'elapsed_s': 0.0, 'requests': 0,
+                    'input_tokens': 0, 'output_tokens': 0,
+                    'cache_read_tokens': 0, 'cache_write_tokens': 0,
+                    'record': 'run', 'wall_s': round(secs, 3),
+                })
+            _usage_write(row)
+
+        def shutdown(self):
+            pass
+
+    try:
+        provider = trace.get_tracer_provider()
+        if not hasattr(provider, 'add_span_processor'):
+            provider = TracerProvider()
+            trace.set_tracer_provider(provider)
+        provider.add_span_processor(SimpleSpanProcessor(_UsageExporter()))
+        _USAGE_INSTALLED = True
+    except Exception:
+        return [Instrumentation()]
+    return [Instrumentation()]
 
 SYSTEM_PROMPT = (
     "You are operating the KAME instrument-control application through its "
@@ -75,8 +213,14 @@ def _toolset(url, token):
 def _build_agent(model):
     from pydantic_ai import Agent
     url, token = _server_url()
+    #Capabilities, not a wrapper around agent.run(): both entry points here
+    #hand the agent to someone else's loop (to_cli_sync, and `clai web`, which
+    #imports the module-level `agent` after this process has been replaced), so
+    #only something attached to the agent itself sees every call.
+    caps = _install_usage_logging(str(model))
+    kwargs = {'capabilities': caps} if caps else {}
     return Agent(model, system_prompt=SYSTEM_PROMPT,
-                 toolsets=[_toolset(url, token)])
+                 toolsets=[_toolset(url, token)], **kwargs)
 
 
 def _check():
