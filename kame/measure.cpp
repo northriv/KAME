@@ -161,19 +161,44 @@ void XMeasure::terminate() {
 	initialize();
 }
 void XMeasure::terminate_all() {
-    terminate();
+    //Every stage is isolated, because the joins below are the safety-critical
+    //part and an earlier stage must never be able to skip them: terminate()
+    //runs releaseAll() on five lists plus the driver stops, all of which can
+    //throw, and a scripting client holding node references makes that likelier.
+    //FrmKameMain::closeEvent has already called ce->accept() by the time this
+    //runs, so on macOS AppKit proceeds to exit() the moment it returns -- an
+    //unwound terminate_all() therefore leaves the IPython thread executing KAME
+    //bindings while the static type registry and the module dylibs are being
+    //finalized.  Seen 2026-08-20 with an MCP client attached: SIGABRT inside
+    //cast_to_pyobject on the Python thread, and an instruction abort in
+    //~XTypeHolder on the main thread, from one quit.
+    //Reported to stderr, not through XKameError::print(), which would post to a
+    //GUI that is already being torn down.
+    auto stage = [](const char *what, auto &&fn) noexcept {
+        try { fn(); }
+        catch (XKameError &e) {
+            fprintf(stderr, "kame: %s failed during shutdown: %s\n",
+                what, (const char *)e.msg().c_str());
+        }
+        catch (std::exception &e) {
+            fprintf(stderr, "kame: %s failed during shutdown: %s\n", what, e.what());
+        }
+        catch (...) {
+            fprintf(stderr, "kame: %s failed during shutdown.\n", what);
+        }
+    };
+    stage("releasing nodes", [&]{ terminate();});
     fprintf(stderr, "terminat");
-    m_ruby->terminate();
-    m_ruby->join();
+    stage("stopping the Ruby thread", [&]{ m_ruby->terminate(); m_ruby->join();});
     m_ruby.reset();
 #ifdef USE_PYBIND11
-    m_python->terminate(); //pybind11 should free shared_ptr to XMeasure
+    //pybind11 should free shared_ptr to XMeasure.
     //With IPython, sys.exit(0) is called, and stdout/err seem to be closed.
-    m_python->join();
+    stage("stopping the Python thread", [&]{ m_python->terminate(); m_python->join();});
     m_python.reset();
 #endif
-    m_rawStreamRecordReader->terminate();
-    m_rawStreamRecordReader->join();
+    stage("stopping the record reader", [&]{
+        m_rawStreamRecordReader->terminate(); m_rawStreamRecordReader->join();});
     g_statusPrinter.reset();
     fprintf(stderr, "ed.\n");
 }

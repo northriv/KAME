@@ -461,11 +461,16 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
 		ce->ignore();
 	}
     else {
-		ce->accept();
-		printf("quit\n");
+        //Tear down BEFORE accepting.  Accepting first tells Qt the window
+        //agreed to close, and on macOS AppKit then calls exit() as soon as this
+        //returns -- so anything that escaped terminate_all() (it is noexcept
+        //per stage now, but KameApplication::notify would also swallow an
+        //XKameError raised anywhere else here) used to leave the scripting
+        //threads running into static destruction.
+        printf("quit\n");
         m_measure->terminate_all();
-
-		m_measure.reset();
+        m_measure.reset();
+        ce->accept();
 	}
 }
 
