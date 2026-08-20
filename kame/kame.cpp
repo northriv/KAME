@@ -219,7 +219,7 @@ FrmKameMain::FrmKameMain()
 
 	m_pTimer = new QTimer(this);
     connect(m_pTimer, SIGNAL (timeout() ), this, SLOT(processSignals()));
-	m_pTimer->start(0);
+    m_pTimer->start(1); //never 0 -- see processSignals().
 
 #ifdef USE_PYBIND11
     pythonLineShellAction_activated();
@@ -438,7 +438,18 @@ FrmKameMain::processSignals() {
     // (QMessageBox) are unaffected because they run Qt's event loop.
     // Express the same pacing as the timer interval instead, so the thread
     // blocks in poll() -- where the other sources get their turn.
-    int interval = idle ? 5 : 0;
+    //
+    // The busy interval must not be 0.  A zero-interval QTimer does not mean
+    // "as soon as possible", it means "never let the event loop sleep": on
+    // macOS Qt then re-arms the CFRunLoop timer on every pass, and a bare
+    // QApplication whose only timer is a do-nothing zero-interval one fires
+    // 652708 times in 5 s and burns 85% of a core (measured, Qt 6.10.1) --
+    // all of it inside CFRunLoopTimerSetNextFireDate/mk_timer_arm, none of it
+    // in the slot.  KAME sat at a steady 100% CPU with no measurement running
+    // for exactly this reason.  1 ms costs 4.6% instead, still 831 passes per
+    // second, and the pump's own 30 ms drain budget -- not the poll period --
+    // is what bounds throughput.
+    int interval = idle ? 5 : 1;
     if(m_pTimer->interval() != interval)
         m_pTimer->setInterval(interval); //restarts the running timer.
 }
