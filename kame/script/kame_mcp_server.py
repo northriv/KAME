@@ -31,6 +31,7 @@ from pathlib import Path
 
 try:
     from mcp.server.fastmcp import FastMCP, Image
+    from mcp.types import ToolAnnotations
 except ImportError:
     print("Error: 'mcp' package not installed. Run:", file=sys.stderr)
     print(f"  {sys.executable} -m pip install mcp jupyter_client", file=sys.stderr)
@@ -420,20 +421,63 @@ def _nav_code(path: str) -> str:
     return nav
 
 
-@server.tool()
-@_logged
-def kame_api() -> str:
-    """Return the KAME Python API quick reference.
+def _doc_section(path, section: str, tool: str) -> str:
+    """Table of contents, or one heading's body, from a Markdown file.
 
-    Call this FIRST before writing any code to learn the correct patterns
-    for reading values, navigating nodes, and controlling instruments.
+    Shared by kame_api and kame_manual so both stay navigable the same way.
+    Returning a whole reference on every call is not free: these documents are
+    read at the start of essentially every session, and the API one alone is
+    ~26 kB, which is context the model then does not have for the task.
     """
-    if API_DOC_PATH.exists():
-        return API_DOC_PATH.read_text()
-    return "API documentation not found at " + str(API_DOC_PATH)
+    lines = path.read_text().splitlines()
+    headings = []  # (level, title, line_idx)
+    in_fence = False
+    for i, ln in enumerate(lines):
+        if ln.startswith("```"):
+            in_fence = not in_fence
+            continue
+        m = re.match(r"^(#{1,6})\s+(.+?)\s*$", ln)
+        if m and not in_fence:
+            headings.append((len(m.group(1)), m.group(2), i))
+    if not section.strip():
+        toc = [f"Table of contents — call {tool}(<heading>) to read one:"]
+        toc += ["  " * (lvl - 1) + "- " + title for lvl, title, _ in headings]
+        return "\n".join(toc)
+    sec = section.strip().lower()
+    idx = next((k for k, h in enumerate(headings) if h[1].lower() == sec), None)
+    if idx is None:
+        idx = next((k for k, h in enumerate(headings) if sec in h[1].lower()), None)
+    if idx is None:
+        return (f"Section {section!r} not found. Call {tool}() for the table "
+                "of contents.")
+    lvl, _, start = headings[idx]
+    end = next((h[2] for h in headings[idx + 1:] if h[0] <= lvl), len(lines))
+    body = "\n".join(lines[start:end]).strip()
+    # Image references are dead weight over MCP (text-only consumers)
+    return re.sub(r"!\[[^\]]*\]\([^)]*\)", "", body)
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(
+    readOnlyHint=True, destructiveHint=False, idempotentHint=True))
+@_logged
+def kame_api(topic: str = "") -> str:
+    """Return the KAME Python API reference, one topic at a time.
+
+    Call this FIRST, before writing any code. With no argument it returns the
+    list of topics; pass one to read it. Start with "MCP tool selection" and
+    the topic your task needs, e.g. "Writing Values", "Driver lifecycle",
+    "Transactional Patterns", "2D Math Tools".
+
+    Args:
+        topic: Heading to retrieve, case-insensitive substring match.
+               Empty string returns the table of contents.
+    """
+    if not API_DOC_PATH.exists():
+        return "API documentation not found at " + str(API_DOC_PATH)
+    return _doc_section(API_DOC_PATH, topic, "kame_api")
+
+
+@server.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
 @_logged
 def kame_manual(section: str = "") -> str:
     """Return the KAME user's manual (Markdown), whole-section at a time.
@@ -451,35 +495,10 @@ def kame_manual(section: str = "") -> str:
     path = next((p for p in MANUAL_DOC_PATHS if p.exists()), None)
     if path is None:
         return "Manual not found: " + ", ".join(str(p) for p in MANUAL_DOC_PATHS)
-    lines = path.read_text().splitlines()
-    headings = []  # (level, title, line_idx)
-    in_fence = False
-    for i, ln in enumerate(lines):
-        if ln.startswith("```"):
-            in_fence = not in_fence
-            continue
-        m = re.match(r"^(#{1,6})\s+(.+?)\s*$", ln)
-        if m and not in_fence:
-            headings.append((len(m.group(1)), m.group(2), i))
-    if not section.strip():
-        toc = ["Table of contents — call kame_manual(section=<heading>) to read one:"]
-        toc += ["  " * (lvl - 1) + "- " + title for lvl, title, _ in headings]
-        return "\n".join(toc)
-    sec = section.strip().lower()
-    idx = next((k for k, h in enumerate(headings) if h[1].lower() == sec), None)
-    if idx is None:
-        idx = next((k for k, h in enumerate(headings) if sec in h[1].lower()), None)
-    if idx is None:
-        return f"Section {section!r} not found. Call kame_manual() for the table of contents."
-    lvl, _, start = headings[idx]
-    end = next((h[2] for h in headings[idx + 1:] if h[0] <= lvl), len(lines))
-    body = "\n".join(lines[start:end]).strip()
-    # Image references are dead weight over MCP (text-only consumers)
-    body = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", body)
-    return body
+    return _doc_section(path, section, "kame_manual")
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True))
 @_logged
 def execute_code(code: str) -> list:
     """Execute Python code in KAME's interpreter.
@@ -502,7 +521,7 @@ def execute_code(code: str) -> list:
     return _execute(code)
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True))
 @_logged
 def execute_code_async(code: str) -> str:
     """Execute long-running Python code asynchronously.
@@ -578,7 +597,7 @@ _th.Thread(target=_mcp_run, daemon=True).start()
     return _execute_text(wrapper)
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
 @_logged
 def get_result(job_id: str) -> str:
     """Check the status of an async job started with execute_code_async.
@@ -597,7 +616,7 @@ _json.dumps(_mcp_jobs.get({repr(job_id)}, {{"status": "unknown"}}))
     return _execute_text(code)
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
 @_logged
 def stop_job(job_id: str) -> str:
     """Request a cooperative stop of an async job.
@@ -624,7 +643,7 @@ _json.dumps(_r)
     return _execute_text(code)
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
 @_logged
 def tree(path: str = "", depth: int = 2) -> str:
     """List child nodes at a given path as an indented tree.
@@ -668,7 +687,7 @@ def _mcp_tree(_node, _depth, _max_depth, _indent=0):
     return _execute_text(code)
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
 @_logged
 def kame_status() -> str:
     """Check if KAME is running and show basic measurement info."""
@@ -854,7 +873,7 @@ RELOAD_NOTICE = (
     "in progress.")
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
 @_logged
 def notebook_status() -> str:
     """KAME notebook overview: open notebooks, kernel busy/idle, and the
@@ -895,7 +914,7 @@ def notebook_status() -> str:
     return "\n".join(lines) if lines else "No notebook sessions."
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
 @_logged
 def notebook_read(path: str = "", with_outputs: bool = False) -> str:
     """Read a notebook's cells with indices (for notebook_edit).
@@ -925,7 +944,7 @@ def notebook_read(path: str = "", with_outputs: bool = False) -> str:
     return "\n".join(out)
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False))
 @_logged
 def notebook_edit(path: str, index: int, source: str = "",
                   mode: str = "replace", cell_type: str = "code") -> str:

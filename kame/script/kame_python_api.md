@@ -87,8 +87,18 @@ len(shot)                         # Children of snapshot root
 # Simple assignment (auto-transactional, by child name)
 node["ChildName"] = 3.14         # float, int, bool, or str
 
-# Set a value node directly
-value_node.set("300.0")           # XValueNodeBase.set(str)
+# Set a value node directly.  set() is TYPED per node class — there is no
+# XValueNodeBase.set(str) that accepts anything.  Passing a string to a bool
+# or double node raises TypeError:
+double_node.set(300.0)            # XDoubleNode.set(float)
+bool_node.set(True)               # XBoolNode.set(bool)   NOT set("true")
+int_node.set(3)                   # XIntNode/XUIntNode/XLongNode/XULongNode/XHexNode
+string_node.set("text")           # XStringNode.set(str)
+combo_node.set("Item label")      # XComboNode — set(str) and set(int) both exist
+combo_node.set(2)                 #   (index), and .itemStrings() lists the choices
+
+# node["Child"] = value converts for you, so it is the forgiving form:
+node["Control"] = True
 
 # Explicit transaction
 for tr in Transaction(node):
@@ -380,6 +390,50 @@ driver = dc.createByTypename("TestDriver", "Test1")
 
 # Release: also removes the driver's ChartList / ScalarEntries
 dc.release(driver)
+```
+
+## Driver lifecycle
+
+Creating a driver does **not** touch hardware. Opening its interface does.
+
+| Step | Call | Touches hardware? |
+|---|---|---|
+| discover types | `dc.typenames()` | no |
+| create | `dc.createByTypename(type, name)` | no |
+| configure | set `Interface` children (`Device`, `Port`, `Address`, …) | no |
+| **start** | `iface["Control"] = True` | **yes — opens the port** |
+| read | `Snapshot(driver)` / scalar entries | no |
+| **stop** | `iface["Control"] = False` | yes — closes the port |
+| delete | `dc.release(driver)` | no (stop first) |
+
+```python
+iface = driver["Interface"]
+bool(Snapshot(iface)[iface["Control"]])   # current state: True = open
+iface["Control"] = True                   # start
+```
+
+Notes that matter before you write `Control`:
+
+- **`Control = True` means "open the port and start the driver's thread."**
+  It is handled asynchronously on a worker thread, so the write returns
+  before the port is actually open — poll `Control` (it reverts to False if
+  opening failed) rather than assuming success. Errors surface in KAME's
+  message area, not as a Python exception.
+- **Configure before starting.** `Device` / `Port` / `Address` are read when
+  the port opens; changing them afterwards does not re-open it.
+- **It is reversible** — `Control = False` closes the port and is the
+  supported stop. But what the instrument *did* while running may not be:
+  see the motion, temperature and RF rules in the server instructions before
+  starting anything attached to real hardware.
+- **`TestDriver` is synthetic** (no interface, no hardware) and is the safe
+  choice for checking that a connection works end to end.
+
+```python
+# End-to-end check with no hardware involved
+dc = Root()["Drivers"].dynamic_cast()
+d = dc.createByTypename("TestDriver", "MCP_Test")
+# ... read Snapshot(d) / its scalar entries ...
+dc.release(d)
 ```
 
 ## Common Recipes
