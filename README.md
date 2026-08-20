@@ -73,9 +73,27 @@ Windows 64-bit binaries: [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kam
 
 ---
 
+## What's New since 8.5 *(unreleased)*
+
+- **Vendor-neutral AI clients** — a Pydantic AI client (`kame_pydantic_ai.py`) drives the same MCP server with any `provider:model`, local models included through an OpenAI-compatible endpoint, from a CLI or a web UI.
+- **Agent plugin** — the MCP server and a `kame-measurement` skill ship as one directory that is both a Claude Code plugin and an [Agent Plugins 1.0.0](https://agent-plugins.org/) plugin, so an assistant carries KAME's measurement procedures in any directory.
+- **Desktop client registration** — a one-time Script-pane action registers KAME with the desktop apps installed (Claude Desktop, Bionic / LM Studio, Codex), each by the mechanism that client supports; it reports every change before writing anything.
+- **Usage records** — one JSONL line per MCP tool call, and per model request from the Pydantic AI client: calls, tokens and inference time, never prompt or response text.
+
+---
+
+## What's New in 8.5
+
+- **Linux is a supported platform** — Qt 6 / qmake, verified on Ubuntu 26.04 including `PREEMPT_RT`. Two paths have real hardware behind them: the Thamway FX2/FX3 USB path, whose first Linux run found and fixed four crashes, and the usermode NI USB-GPIB driver. See `INSTALL.linux`.
+- **Crash audit with automated checkers** — `tools/audit/run_audits.sh` mechanically enforces the driver-authoring rules (node-name collisions, side effects in `iterate_commit` closures, pybind GIL discipline, UI-touching listeners, non-const Payload pointees), as a pre-commit hook and in CI.
+- **Pulser correctness** — overlapping RF pulses are refused rather than played, two operator-precedence bugs that left the amplifier gate open are fixed, and the `ASWSetup` clamp that recursed on itself is gone.
+- **One-click Codex launch** — Codex and codex-fugu join Claude Code in the Script pane, each started already pointed at this KAME's MCP server.
+
+---
+
 ## What's New in 8.0
 
-- **MCP server for AI-assisted experiment automation** — built-in [Model Context Protocol](https://modelcontextprotocol.io/) server lets AI assistants execute Python code in the running KAME process, read instrument values, and control measurements through natural language. One-click launches for Claude Code, Codex and a vendor-neutral Pydantic AI client (any `provider:model`, local models included) all point at the same server. Matplotlib plots are returned inline; long-running experiments (sweeps, scans) run asynchronously. Shipped as an [Agent Plugins 1.0.0](https://agent-plugins.org/) plugin bundling the server with a measurement skill.
+- **MCP server for AI-assisted experiment automation** — built-in [Model Context Protocol](https://modelcontextprotocol.io/) server lets AI assistants (Claude Code, Claude Desktop, etc.) execute Python code in the running KAME process, read instrument values, and control measurements through natural language. Matplotlib plots are returned inline. Long-running experiments (sweeps, scans) run asynchronously.
 - **Calibrated scalar entries** — `XCalibratedEntry` applies a calibration curve to any scalar entry; the result appears in graphs, charts, and data recording like a native scalar.
 - **Usermode NI USB-GPIB on Apple Silicon** — the embedded userspace linux-gpib port now works reliably on macOS ARM64 without any kernel module.
 - **Window cascade placement** — instrument windows are automatically arranged on show.
