@@ -161,17 +161,14 @@ void XMeasure::terminate() {
 	initialize();
 }
 void XMeasure::terminate_all() {
-    //Every stage is isolated, because the joins below are the safety-critical
-    //part and an earlier stage must never be able to skip them: terminate()
-    //runs releaseAll() on five lists plus the driver stops, all of which can
-    //throw, and a scripting client holding node references makes that likelier.
-    //FrmKameMain::closeEvent has already called ce->accept() by the time this
-    //runs, so on macOS AppKit proceeds to exit() the moment it returns -- an
-    //unwound terminate_all() therefore leaves the IPython thread executing KAME
-    //bindings while the static type registry and the module dylibs are being
-    //finalized.  Seen 2026-08-20 with an MCP client attached: SIGABRT inside
-    //cast_to_pyobject on the Python thread, and an instruction abort in
-    //~XTypeHolder on the main thread, from one quit.
+    //Every stage is isolated because the joins below are the safety-critical
+    //part: terminate() runs releaseAll() on five lists plus the driver stops,
+    //all of which can throw, and an unwound terminate_all() would leave the
+    //scripting threads running on into static destruction -- which is fatal
+    //(see FrmKameMain::closeEvent).  This is a guard, not the fix for the
+    //2026-08-20 quit crash: the run that reproduced that crash reported no
+    //failing stage once these markers existed, so nothing was throwing.  The
+    //ordering in closeEvent was what mattered.
     //Reported to stderr, not through XKameError::print(), which would post to a
     //GUI that is already being torn down.
     auto stage = [](const char *what, auto &&fn) noexcept {

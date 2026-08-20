@@ -461,12 +461,16 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
 		ce->ignore();
 	}
     else {
-        //Tear down BEFORE accepting.  Accepting first tells Qt the window
-        //agreed to close, and on macOS AppKit then calls exit() as soon as this
-        //returns -- so anything that escaped terminate_all() (it is noexcept
-        //per stage now, but KameApplication::notify would also swallow an
-        //XKameError raised anywhere else here) used to leave the scripting
-        //threads running into static destruction.
+        //Tear down BEFORE accepting.  The accept is the only thing that
+        //authorizes the quit to proceed, and on macOS a Cmd-Q arrives as
+        //-[NSApplication terminate:], which calls exit() -- static destructors
+        //and module-dylib finalization -- rather than returning through main().
+        //Accepting first let that proceed while the scripting threads were
+        //still alive: quitting with an MCP client attached aborted twice in one
+        //exit (2026-08-20), SIGABRT in cast_to_pyobject on the IPython thread
+        //and an instruction abort in ~XTypeHolder on the main thread, both of
+        //them the Python thread still calling into KAME mid-teardown.  With the
+        //accept last, exit() cannot start until every join has returned.
         printf("quit\n");
         m_measure->terminate_all();
         m_measure.reset();
