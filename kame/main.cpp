@@ -595,7 +595,20 @@ int main(int argc, char *argv[]) {
 #if defined __MACOSX__ || defined __APPLE__
     while(form->running()) {
         void *p = autoReleasePoolInit(); //may be needed to release OpenGL related objects.
-        app.processEvents();
+        //WaitForMoreEvents is what makes this a loop rather than a spin.  The
+        //default flags omit it, and Qt's dispatcher then blocks only when
+        //asked to (canWait &= flags & WaitForMoreEvents), so a bare
+        //processEvents() in a while loop pegs a core forever -- measured at a
+        //steady 100%, all of it inside the Cocoa dispatcher re-arming its
+        //CFRunLoop timer, none of it in KAME's own code.  Only this platform
+        //was affected: everywhere else app.exec() below asks to wait.
+        //
+        //Until 7801fd5a1 the spin was hidden by processSignals() sleeping 5 ms
+        //per pass, which paced THIS loop as a side effect; moving that pacing
+        //to the timer interval (correct on Linux, where app.exec() waits) left
+        //macOS with nothing holding it back.  The timer still bounds how long
+        //we block, so form->running() is re-checked every 1-5 ms.
+        app.processEvents(QEventLoop::WaitForMoreEvents);
         autoReleasePoolRelease(p);
     }
     int ret = 0;
