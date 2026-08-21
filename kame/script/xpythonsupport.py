@@ -1225,12 +1225,21 @@ def _google_agent_config():
     return ('Antigravity CLI', _agy)
 
 
-def _lmstudio_present():
-    """Bionic / LM Studio installed here?  (Both take the lmstudio: scheme.)"""
-    return [_p for _p in ('/Applications/Bionic.app',
-                          os.path.expanduser('~/Applications/Bionic.app'),
-                          '/Applications/LM Studio.app',
-                          os.path.expanduser('~/.lmstudio')) if os.path.exists(_p)]
+def _lmstudio_deeplink():
+    """(label, url-scheme) of an installed LM Studio-family app, or None.
+
+    The scheme is per PRODUCT, not per family: Bionic's bundle declares
+    `bionic`, LM Studio's declares `lmstudio`, and sending one to the other
+    fails with kLSApplicationNotFoundErr -- which is how the first attempt
+    here silently "succeeded" against Bionic while doing nothing at all."""
+    for _p, _label, _scheme in (
+            ('/Applications/Bionic.app', 'Bionic', 'bionic'),
+            (os.path.expanduser('~/Applications/Bionic.app'), 'Bionic', 'bionic'),
+            ('/Applications/LM Studio.app', 'LM Studio', 'lmstudio'),
+            (os.path.expanduser('~/Applications/LM Studio.app'), 'LM Studio', 'lmstudio')):
+        if os.path.exists(_p):
+            return (_label, _scheme)
+    return None
 
 
 def _mcp_json_edit(label, path, entry, apply, plan, done, fail):
@@ -1299,31 +1308,45 @@ def _register_desktop_mcp(apply=False):
     _sys = _pf.system()
     _plan, _done, _fail = [], [], []
 
-    _lm = _lmstudio_present()
+    _lm = _lmstudio_deeplink()
     _cc = _claude_desktop_config()
-    _gc = _google_agent_config()
     _cx = _resolve_cli('codex')
+    _agy = _resolve_cli('agy')
+    #The CLI owns the file; hand-edit its JSON only when it is absent
+    #(an enterprise Gemini Code Assist licence still runs the old CLI).
+    _gc = None if _agy else _google_agent_config()
 
-    if not (_lm or _cc or _gc or _cx):
+    if not (_lm or _cc or _gc or _cx or _agy):
         _kame_gui_html('<font color="#996600">No MCP client found to register '
-            'with (looked for Bionic / LM Studio, Claude Desktop, Gemini CLI '
-            'and the codex CLI).</font>')
+            'with (looked for Bionic / LM Studio, Claude Desktop, and the '
+            'codex and agy CLIs).</font>')
         return
 
     # --- LM Studio / Bionic: deeplink, confirmed inside the app -------------
     if _lm:
+        _lmlabel, _lmscheme = _lm
         _cfg = _b64.b64encode(_json.dumps(_entry).encode()).decode()
-        _link = 'lmstudio://add_mcp?name=kame&config=' + _up.quote(_cfg)
-        _plan.append('<b>Bionic / LM Studio</b> &mdash; opens <tt>lmstudio://add_mcp</tt>; '
-                     'the app asks you to confirm. Nothing is written from here.')
+        _link = '{}://add_mcp?name=kame&config={}'.format(_lmscheme, _up.quote(_cfg))
+        _plan.append('<b>{}</b> &mdash; opens <tt>{}://add_mcp</tt>; the app asks '
+                     'you to confirm. Nothing is written from here.'.format(
+                     html.escape(_lmlabel), html.escape(_lmscheme)))
         if apply:
             try:
-                _sp.Popen(['open', _link] if _sys == 'Darwin' else
-                          ['cmd', '/c', 'start', '', _link] if _sys == 'Windows' else
-                          ['xdg-open', _link])
-                _done.append('Bionic / LM Studio (confirm the dialog in the app)')
+                #run, not Popen: `open` reports kLSApplicationNotFoundErr when
+                #no app claims the scheme, and a launch that went nowhere must
+                #not be reported as a registration.
+                _r = _sp.run(['open', _link] if _sys == 'Darwin' else
+                             ['cmd', '/c', 'start', '', _link] if _sys == 'Windows' else
+                             ['xdg-open', _link],
+                             capture_output=True, text=True, timeout=20)
+                if _r.returncode == 0:
+                    _done.append(_lmlabel + ' (confirm the dialog in the app)')
+                else:
+                    _fail.append('{}: {} did not accept {}://add_mcp. Add the '
+                        'server by hand in the app: command {}'.format(
+                        _lmlabel, _lmlabel, _lmscheme, _launcher))
             except Exception:
-                _fail.append('Bionic / LM Studio: ' + traceback.format_exc(limit=1))
+                _fail.append(_lmlabel + ': ' + traceback.format_exc(limit=1))
 
     # --- JSON-configured clients with no CLI of their own -------------------
     if _cc:
@@ -1334,20 +1357,30 @@ def _register_desktop_mcp(apply=False):
             os.makedirs(os.path.dirname(_gc[1]), exist_ok=True)
         _mcp_json_edit(_gc[0], _gc[1], _entry, apply, _plan, _done, _fail)
 
-    # --- Codex: its own CLI owns ~/.codex/config.toml -----------------------
-    if _cx:
-        _plan.append('<b>Codex</b> &mdash; runs <tt>codex mcp add kame -- {}</tt> '
-                     '(writes ~/.codex/config.toml).'.format(html.escape(_launcher)))
+    # --- clients that own their config through a CLI of their own -----------
+    # Always preferable to editing their file: the CLI knows fields we would
+    # not think to write.  `agy mcp add` records "disabled": false alongside
+    # the command, which a hand-built entry would omit.
+    for _label, _bin, _argv, _where in (
+            ('Codex', _cx, ['mcp', 'add', 'kame', '--', _launcher],
+             '~/.codex/config.toml'),
+            ('Antigravity CLI', _agy, ['mcp', 'add', 'kame', _launcher],
+             '~/.gemini/config/mcp_config.json')):
+        if not _bin:
+            continue
+        _plan.append('<b>{}</b> &mdash; runs <tt>{} {}</tt> (writes {}).'.format(
+            html.escape(_label), html.escape(os.path.basename(_bin)),
+            html.escape(' '.join(_argv)), html.escape(_where)))
         if apply:
             try:
-                _r = _sp.run([_cx, 'mcp', 'add', 'kame', '--', _launcher],
-                             capture_output=True, text=True, timeout=30)
+                _r = _sp.run([_bin] + _argv, capture_output=True, text=True, timeout=30)
                 if _r.returncode == 0:
-                    _done.append('Codex (~/.codex/config.toml)')
+                    _done.append('{} ({})'.format(_label, _where))
                 else:
-                    _fail.append('Codex: ' + (_r.stderr or _r.stdout or 'failed').strip())
+                    _fail.append(_label + ': '
+                                 + (_r.stderr or _r.stdout or 'failed').strip())
             except Exception:
-                _fail.append('Codex: ' + traceback.format_exc(limit=1))
+                _fail.append(_label + ': ' + traceback.format_exc(limit=1))
 
     if not apply:
         _kame_gui_html(
