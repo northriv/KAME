@@ -75,9 +75,9 @@ Windows 64-bit binaries: [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kam
 
 ## What's New since 8.5 *(unreleased)*
 
-- **Vendor-neutral AI clients** — a Pydantic AI client (`kame_pydantic_ai.py`) drives the same MCP server with any `provider:model`, local models included through an OpenAI-compatible endpoint, from a CLI or a web UI.
+- **Vendor-neutral AI clients** — `kame_pydantic_ai.py` exposes KAME's toolset and safety instructions as a Pydantic AI agent with no model bound, and hands it to the user's own `clai` (`clai -a kame_pydantic_ai:agent`). The provider, keys and default therefore stay in the setup they already have, and KAME never asks which model to use.
 - **Agent plugin** — the MCP server and a `kame-measurement` skill ship as one directory that is both a Claude Code plugin and an [Agent Plugins 1.0.0](https://agent-plugins.org/) plugin, so an assistant carries KAME's measurement procedures in any directory.
-- **Desktop client registration** — a one-time Script-pane action registers KAME with the desktop apps installed (Claude Desktop, Bionic / LM Studio, Codex), each by the mechanism that client supports; it reports every change before writing anything.
+- **Permanent client registration** — a one-time Script-pane action registers KAME with whichever clients are installed (Codex, Antigravity CLI, Claude Desktop), each through the mechanism that client provides; it reports every change before writing anything.
 - **Usage records** — one JSONL line per MCP tool call, and per model request from the Pydantic AI client: calls, tokens and inference time, never prompt or response text.
 
 ---
@@ -591,24 +591,34 @@ server:
 |---|---|
 | **Claude: Code / app** | Claude Code in a terminal (with the bundled plugin, below) / the Claude desktop app |
 | **Codex: CLI / fugu / app** | Codex in a terminal, with the server passed as a session-scoped override — nothing is written to `~/.codex/config.toml` |
-| **Pydantic AI: CLI / web** | A vendor-neutral client (`kame_pydantic_ai.py`): any `provider:model`, including a local model through an OpenAI-compatible endpoint |
+| **Pydantic AI: CLI / web** | The venv's `clai`, handed KAME's agent (`clai -a kame_pydantic_ai:agent`); the model comes from your clai setup, `-m` overrides. Falls back to running the script directly, which does need a model |
 
 Prerequisites are `pip install mcp jupyter_client` for the server, and
 `pip install pydantic-ai clai` if you want the Pydantic AI links. KAME finds
 an interpreter that has them, including versioned `python3.X` names.
 
-**Desktop apps** — a GUI client has no command line, so it cannot be handed a
-per-session override the way the terminal launches are. The Script pane's
-**▶ Register KAME with desktop AI apps** link adds a permanent entry to
-whichever of Claude Desktop, Bionic / LM Studio and Codex is installed. The
-first click only reports what would change — every target path, and the old
-and new entry for the one file that gets edited — and a second confirms it.
-Each client is reached the way it supports: an `lmstudio://add_mcp` deeplink
-that Bionic confirms in its own UI, `codex mcp add`, and for Claude Desktop,
-which offers neither, an additive edit of `claude_desktop_config.json` after a
-backup. The entry runs the plugin's stdio launcher rather than the HTTP URL,
-so it survives KAME restarts (the port does not) and is inert — tools simply
-report that KAME is not running — while KAME is closed.
+**Registering permanently** — a client KAME did not launch gets no
+per-session override, so it needs an entry of its own. The Script pane's
+**▶ Register KAME with desktop AI apps** link writes one into whichever
+clients are installed. The first click only reports what would change — every
+target path, and the old and new entry for any file that gets edited — and a
+second applies it.
+
+| Client | How it is registered |
+|---|---|
+| Codex | `codex mcp add` |
+| Antigravity CLI (`agy`) | `agy mcp add` — writes `~/.gemini/config/mcp_config.json` |
+| Claude Desktop | additive edit of `claude_desktop_config.json`, after a backup |
+| Bionic / LM Studio | nothing to do — open the notebook workspace as a project and it reads the `.mcp.json` KAME writes there |
+
+Where a client ships a CLI for this, that CLI is used rather than an edit to
+its file: it knows fields we would not think to write (`agy` records
+`"disabled": false` beside the command). Only clients offering neither a CLI
+nor a workspace convention get their JSON edited, and then only the one key.
+
+The entry runs the plugin's stdio launcher rather than the HTTP URL, so it
+survives KAME restarts (the port does not) and is inert — tools simply report
+that KAME is not running — while KAME is closed.
 
 **Connecting a client KAME did not launch** — read the URL and bearer token
 from `~/.kame_mcp_url`; the port is assigned per launch, so do not hard-code
