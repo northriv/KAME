@@ -33,8 +33,23 @@ try:
     from mcp.server.fastmcp import FastMCP, Image
     from mcp.types import ToolAnnotations
 except ImportError:
-    print("Error: 'mcp' package not installed. Run:", file=sys.stderr)
-    print(f"  {sys.executable} -m pip install mcp jupyter_client", file=sys.stderr)
+    # Two different failures land here, and the fix differs:
+    #   * no `mcp` at all, or
+    #   * mcp >= 2, which REMOVED mcp.server.fastmcp (the vendored FastMCP 1.0)
+    #     -- so a plain `pip install mcp` installs a package that imports fine
+    #     yet cannot satisfy this line.  Pin the 1.x line until this server is
+    #     ported to the 2.x API.  Quote it as "mcp<2": bare < is a redirect in
+    #     cmd.exe and in POSIX shells alike.
+    try:
+        from importlib.metadata import version as _v
+        _have = f" (found mcp {_v('mcp')})"
+    except Exception:
+        _have = ""
+    print(f"Error: no usable 'mcp' package{_have}; mcp 2.x removed "
+          "mcp.server.fastmcp, so the 1.x line is required. Run:",
+          file=sys.stderr)
+    print(f'  {sys.executable} -m pip install "mcp<2" jupyter_client',
+          file=sys.stderr)
     sys.exit(1)
 try:
     import jupyter_client
