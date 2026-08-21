@@ -27,8 +27,12 @@ copy ..\..\kame\script\kame_python_api.md ..\kame-win32\resources\
 copy ..\..\doc\manual\kame-8-en.md ..\kame-win32\resources\
 xcopy /S /I /Y ..\..\doc\manual\media ..\kame-win32\resources\media\
 xcopy /S /I /Y ..\..\kame\script\plugin ..\kame-win32\resources\plugin\
-remove ..\kame-win32\qtdir.txt
-remove ..\kame-win32\kame.log
-rmdir /S /Y ..\kame-win32\resources\python*\__pycache__
-rmdir /S /Y ..\kame-win32\resources\plugin\skills\kame-measurement\__pycache__
-remove ..\kame-win32\.qmake*
+del /Q ..\kame-win32\qtdir.txt 2>nul
+del /Q ..\kame-win32\kame.log 2>nul
+del /Q ..\kame-win32\.qmake* 2>nul
+rem __pycache__ is NESTED (python3.12\collections\, importlib\metadata\, ...),
+rem so a single `rmdir resources\python*\__pycache__` cleared only the top
+rem level and shipped the rest.  `for /d /r` walks every subdirectory.
+rem (`remove` used to be here, but that is not a cmd command -- these deletes
+rem  never ran, which is why qtdir.txt and kame.log kept reaching releases.)
+for /d /r "..\kame-win32" %%d in (__pycache__) do @if exist "%%d" rd /S /Q "%%d"

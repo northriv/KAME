@@ -1030,6 +1030,25 @@ def notebook_edit(path: str, index: int, source: str = "",
     return f"{action} ({path}){note}\n\n{RELOAD_NOTICE}"
 
 
+def _bind(server, host, port):
+    """Point `server` at host:port before `run()`.
+
+    `FastMCP.run()` takes only (transport, mount_path) -- host and port are
+    constructor/settings values, so passing them to run() raises
+    `TypeError: FastMCP.run() got an unexpected keyword argument 'host'` and
+    the HTTP transport never comes up (KAME then reports the exit code and
+    falls back to stdio).  Assign them where they actually live instead.
+    """
+    for _obj in (getattr(server, "settings", None), server):
+        if _obj is None:
+            continue
+        try:
+            _obj.host, _obj.port = host, port
+            return
+        except Exception:
+            continue
+
+
 def _run_http_with_token(server, host, port, token):
     """Run streamable-http server with Bearer-token middleware.
 
@@ -1062,7 +1081,8 @@ def _run_http_with_token(server, host, port, token):
             f"Warning: token auth unavailable ({e}); falling back to "
             f"unauthenticated streamable-http on {host}:{port}.",
             file=sys.stderr)
-        server.run(transport="streamable-http", host=host, port=port)
+        _bind(server, host, port)
+        server.run(transport="streamable-http")
 
 
 if __name__ == "__main__":
@@ -1098,7 +1118,8 @@ if __name__ == "__main__":
     if args.transport == "stdio":
         server.run(transport="stdio")
     elif args.transport == "sse":
-        server.run(transport="sse", host=args.host, port=args.port)
+        _bind(server, args.host, args.port)
+        server.run(transport="sse")
     else:
         # streamable-http is the MCP 1.0+ recommended transport.
         # KAME_MCP_TOKEN is the supported way in: the environment of a process
@@ -1114,5 +1135,5 @@ if __name__ == "__main__":
         if _token:
             _run_http_with_token(server, args.host, args.port, _token)
         else:
-            server.run(transport="streamable-http",
-                       host=args.host, port=args.port)
+            _bind(server, args.host, args.port)
+            server.run(transport="streamable-http")

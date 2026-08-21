@@ -780,6 +780,20 @@ def launchJupyterConsole(prog, argv):
 				_seen.add(_rp)
 				_uniq.append(_c)
 		_candidates = _uniq
+		# Every candidate is a DIFFERENT Python than the one embedded in KAME,
+		# so KAME's own interpreter environment must not leak into it.  On
+		# Windows this is fatal rather than untidy: kame-msyspython.bat exports
+		# PYTHONHOME=C:\msys64\mingw64 and a PYTHONPATH of MSYS2's stdlib, and a
+		# real CPython told to use those loads mingw-built C extensions it
+		# cannot open -- `ModuleNotFoundError: No module named '_socket'`, or a
+		# uv venv trampoline failing outright with "No Python at ..." (exit
+		# 103).  That killed both the probe (so the venv looked unusable and the
+		# fallback picked it anyway) and the server itself.  VIRTUAL_ENV is
+		# dropped for the same reason, PYTHONSTARTUP because it would run
+		# KAME-oriented code in a foreign interpreter.
+		_child_env = dict(os.environ)
+		for _v in ('PYTHONHOME', 'PYTHONPATH', 'VIRTUAL_ENV', 'PYTHONSTARTUP'):
+			_child_env.pop(_v, None)
 		# Probe each candidate with the EXACT imports kame_mcp_server.py runs
 		# at module load. A bare `import mcp` is not enough: a Python carrying
 		# a stale/partial `mcp` (top-level import OK but no mcp.server.fastmcp)
@@ -790,7 +804,8 @@ def launchJupyterConsole(prog, argv):
 					[_c, '-c',
 					 'import jupyter_client; '
 					 'from mcp.server.fastmcp import FastMCP, Image'],
-					stdout=_sp.DEVNULL, stderr=_sp.DEVNULL, timeout=10)
+					stdout=_sp.DEVNULL, stderr=_sp.DEVNULL, timeout=10,
+					env=_child_env)
 				python_cmd = _c
 				break
 			except Exception:
@@ -924,7 +939,10 @@ def launchJupyterConsole(prog, argv):
 				# (and is copied into crash reports and support dumps). Those
 				# local users are precisely who the token keeps from POSTing to
 				# 127.0.0.1 and running Python inside KAME.
-				_mcp_env = dict(os.environ)
+				# _child_env, not os.environ: the server runs a different
+				# Python, so KAME's PYTHONHOME/PYTHONPATH must not follow it
+				# (see the probe above -- on MSYS2 they break it outright).
+				_mcp_env = dict(_child_env)
 				_mcp_env['KAME_MCP_TOKEN'] = _token
 				NOTEBOOK_MCP_HTTP_PROC = _sp.Popen(
 					[python_cmd, mcp_server_script,
