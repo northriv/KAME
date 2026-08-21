@@ -1981,8 +1981,18 @@ def kame_handle_link(action):
 				# of the problem -- KAME still does not pick a model.
 				_model = (os.environ.get('KAME_PYAI_MODEL')
 						  or os.environ.get('PYDANTIC_AI_MODEL') or '')
+				# KAME_PYAI_AGENT points the link at YOUR agent instead of the
+				# one shipped here: `module:variable`, or a .yml/.json spec, as
+				# clai's --agent accepts.  KAME has no business owning the
+				# capability list, the model roster or the instructions -- an
+				# agent that also wants a Coder, memory or web search is defined
+				# in the user's own module, and only needs KAME's toolset added
+				# to it (capabilities.MCP(url=..., authorization_token=...) from
+				# ~/.kame_mcp_url).  The directory the terminal opens in is the
+				# notebook workspace, so a relative module path resolves there.
+				_agent = os.environ.get('KAME_PYAI_AGENT') or 'kame_pydantic_ai:agent'
 				_cmd = [_clai] + (['web'] if action == 'pyai-web' else []) \
-					   + ['-a', 'kame_pydantic_ai:agent'] \
+					   + ['-a', _agent] \
 					   + (['-m', _model] if _model else [])
 			else:
 				_cmd = [_py, _script] + (['--web'] if action == 'pyai-web' else [])

@@ -631,7 +631,7 @@ server:
 |---|---|
 | **Claude: Code / app** | Claude Code in a terminal (with the bundled plugin, below) / the Claude desktop app |
 | **Codex: CLI / fugu / app** | Codex in a terminal, with the server passed as a session-scoped override — nothing is written to `~/.codex/config.toml` |
-| **Pydantic AI: CLI / web** | The venv's `clai`, handed KAME's agent (`clai -a kame_pydantic_ai:agent`); the model comes from your clai setup, `-m` overrides. Falls back to running the script directly, which does need a model |
+| **Pydantic AI: CLI / web** | The venv's `clai`, handed KAME's agent (`clai -a kame_pydantic_ai:agent`); the model comes from your clai setup, `-m` overrides, and `KAME_PYAI_AGENT` points it at an agent of your own instead. Falls back to running the script directly, which does need a model |
 
 Prerequisites are `pip install "mcp<2" jupyter_client` for the server, and
 `pip install pydantic-ai clai` if you want the Pydantic AI links. **Keep the
