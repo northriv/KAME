@@ -666,7 +666,7 @@ both `jupyter_client` and `mcp.server.fastmcp`.
 
 **Registering permanently** — a client KAME did not launch gets no
 per-session override, so it needs an entry of its own. The Script pane's
-**▶ Register KAME with desktop AI apps** link writes one into whichever
+**▶ Register KAME with your AI clients** link writes one into whichever
 clients are installed. The first click only reports what would change — every
 target path, and the old and new entry for any file that gets edited — and a
 second applies it.

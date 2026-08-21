@@ -2052,10 +2052,11 @@ else:
 				#Grouped by vendor: eight flat entries on one line stopped being
 				#readable, and the terminal/desktop pair now repeats per vendor.
 				MYDEFOUT.write_html(r'<font color="#0066cc">Quick launch:&nbsp; <a href="kame:notebook">&#9654; Jupyter notebook</a> &nbsp;&nbsp;|&nbsp;&nbsp; Claude: <a href="kame:claude-cli">&#9654; Code</a> &nbsp;<a href="kame:claude-app">&#9654; app</a> &nbsp;&nbsp;|&nbsp;&nbsp; Codex: <a href="kame:codex-cli">&#9654; CLI</a> &nbsp;<a href="kame:codex-fugu-cli">&#9654; fugu</a> &nbsp;<a href="kame:codex-app">&#9654; app</a> &nbsp;&nbsp;|&nbsp;&nbsp; Pydantic AI: <a href="kame:pyai-cli">&#9654; CLI</a> &nbsp;<a href="kame:pyai-web">&#9654; web</a></font>')
-				#A GUI client has no command line for a per-launch override, so it
+				#A client KAME does not launch gets no per-session override, so it
 				#needs a one-time entry in its own config; this reports the change
-				#first and only writes on the follow-up link.
-				MYDEFOUT.write_html(r'<font color="#0066cc">One-time setup:&nbsp; <a href="kame:register-mcp">&#9654; Register KAME with desktop AI apps</a> <font color="#808080">(Claude app / Bionic / Codex)</font></font>')
+				#first and only writes on the follow-up link.  The names must track
+				#_register_desktop_mcp -- this label went stale when agy was added.
+				MYDEFOUT.write_html(r'<font color="#0066cc">One-time setup:&nbsp; <a href="kame:register-mcp">&#9654; Register KAME with your AI clients</a> <font color="#808080">(Codex / Antigravity / Claude Desktop)</font></font>')
 				self.logfilename = os.path.splitext(connection_file)[0] + "-log" + os.extsep + "txt"
 				self._initial_logfilename = self.logfilename
 				MYDEFOUT.write_html(r'<font color="#008800">Logging console output to <a href="file:///'
