@@ -499,16 +499,24 @@ pacman -S make \
     mingw-w64-x86_64-ruby
 ```
 
-For the in-process Jupyter kernel (the `kame-msyspython.bat` route below),
-add the notebook stack — MSYS2's Python is `EXTERNALLY-MANAGED` and ships no
-`pip` module, so these must come from `pacman`, not `pip`:
+For the in-process Jupyter kernel and the notebook server (the
+`kame-msyspython.bat` route below), add the notebook stack — MSYS2's Python is
+`EXTERNALLY-MANAGED` and ships no `pip` module, so these must come from
+`pacman`, not `pip`:
 
 ```sh
 pacman -S mingw-w64-x86_64-python-ipykernel \
     mingw-w64-x86_64-python-ipython \
+    mingw-w64-x86_64-python-jupyter_notebook \
     mingw-w64-x86_64-python-pyzmq \
     mingw-w64-x86_64-python-matplotlib
 ```
+
+`python-jupyter_notebook` is the one that provides the `jupyter-notebook`
+subcommand — note the name: there is no `python-notebook` in MSYS2. Installing
+only `ipykernel` gives a working kernel but leaves `jupyter notebook` failing
+with *"Jupyter command `jupyter-notebook` not found"* (its `jupyter.exe` comes
+from `jupyter_core`, which has no notebook server in it).
 
 NI 488.2 or DAQmx drivers are optional.
 
