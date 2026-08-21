@@ -49,6 +49,14 @@ operations (`Root`, `Snapshot`, `Transaction`, writes), `sleep()` and
 `print()` all work there; the per-thread script context behind the Script
 tab's status line is simply absent, so do not reach for it.
 
+Every `mcp_checkpoint()` also writes the job's state to
+`~/.kame_mcp_log/jobs/<job_id>.json` and looks for a `<job_id>.stop` marker
+beside it. That is why `get_result` and `stop_job` keep working when the
+kernel does not answer: the worker thread is still running in that state, and
+neither path needs the kernel's shell socket. Code that never checkpoints
+still cannot be stopped, and now also cannot be observed — checkpoint every
+iteration.
+
 ## Globals (pre-imported from `kame`)
 
 ```python

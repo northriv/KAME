@@ -1,4 +1,21 @@
 * Fri Aug 21 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- mcp: an async job that starves the kernel's message loop used to be
+  unstoppable and unobservable, because get_result and stop_job were both
+  implemented by executing code ON the kernel -- the one thing that stops
+  working exactly then. Reported from a temperature-monitoring loop where the
+  GUI stayed responsive (so this was Python-side starvation, not an STM stall)
+  and get_result, stop_job, tree and execute_code all went silent. The worker
+  thread keeps running in that state, so each mcp_checkpoint() now also writes
+  ~/.kame_mcp_log/jobs/<job_id>.json and checks for a <job_id>.stop marker
+  that stop_job drops from the SERVER process, before it tries the kernel at
+  all. Both tools fall back to the files when the kernel does not answer.
+  Verified with no kernel in the loop: a 200-iteration job stops within one
+  checkpoint of the marker appearing, and its progress is readable throughout.
+  Note this is recoverability, not the root cause: the starvation itself is
+  still open -- Timer.start() only polls shell_stream.flush() after on_timer()
+  returns, so anything that blocks inside on_timer() stops all message
+  handling. The async mechanism alone does not do it (a Snapshot+sleep loop
+  leaves the kernel answering normally with no drivers loaded).
 - mcp 2.x is supported alongside 1.x, so `pip install mcp` will be the right
   instruction from the next release. 2.0 renamed the class and moved the module
   (mcp.server.fastmcp.FastMCP -> mcp.server.MCPServer) and moved transport

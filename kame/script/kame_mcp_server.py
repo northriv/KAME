@@ -593,6 +593,7 @@ def execute_code_async(code: str) -> str:
     Returns a job_id string for use with get_result() / stop_job().
     """
     job_id = f"_mcp_{int(time.time() * 1000)}"
+    jobdir = str(_JOB_DIR)
     wrapper = f"""
 import threading as _th, traceback as _tb
 _mcp_jobs = globals().setdefault("_mcp_jobs", {{}})
@@ -600,6 +601,25 @@ _mcp_tls = globals().setdefault("_mcp_tls", _th.local())
 if "_McpStopped" not in globals():
     class _McpStopped(Exception):
         pass
+if "_mcp_publish" not in globals():
+    import json as _mcp_json, os as _mcp_os, time as _mcp_time
+    def _mcp_publish(job_id, job):
+        # Runs on the WORKER thread, which keeps going even when the kernel's
+        # message loop is starved -- that is the whole point of writing it.
+        try:
+            _mcp_os.makedirs({jobdir!r}, exist_ok=True)
+            _p = _mcp_os.path.join({jobdir!r}, job_id + ".json")
+            with open(_p + ".tmp", "w", encoding="utf-8") as _f:
+                _mcp_json.dump(dict(job, ts=_mcp_time.time()), _f)
+            _mcp_os.replace(_p + ".tmp", _p)
+        except Exception:
+            pass
+    def _mcp_stop_requested(job_id):
+        try:
+            return _mcp_os.path.exists(
+                _mcp_os.path.join({jobdir!r}, job_id + ".stop"))
+        except Exception:
+            return False
 if "mcp_checkpoint" not in globals():
     def mcp_checkpoint(progress=None):
         _job = getattr(_mcp_tls, "job", None)
@@ -607,19 +627,23 @@ if "mcp_checkpoint" not in globals():
             return
         if progress is not None:
             _job["progress"] = str(progress)
-        if _job.get("stop"):
+        _jid = _job.get("id", "")
+        _mcp_publish(_jid, _job)
+        if _job.get("stop") or _mcp_stop_requested(_jid):
             raise _McpStopped()
-_mcp_jobs[{job_id!r}] = {{"status": "running", "progress": ""}}
+_mcp_jobs[{job_id!r}] = {{"status": "running", "progress": "", "id": {job_id!r}}}
 def _mcp_run():
-    _mcp_tls.job = _mcp_jobs[{job_id!r}]
+    _job = _mcp_jobs[{job_id!r}]
+    _mcp_tls.job = _job
     try:
         exec({code!r}, globals())
-        _mcp_jobs[{job_id!r}]["status"] = "done"
+        _job["status"] = "done"
     except _McpStopped:
-        _mcp_jobs[{job_id!r}]["status"] = "stopped"
+        _job["status"] = "stopped"
     except Exception:
-        _mcp_jobs[{job_id!r}]["status"] = "error"
-        _mcp_jobs[{job_id!r}]["error"] = _tb.format_exc()
+        _job["status"] = "error"
+        _job["error"] = _tb.format_exc()
+    _mcp_publish({job_id!r}, _job)
 _th.Thread(target=_mcp_run, daemon=True).start()
 {job_id!r}
 """
@@ -642,7 +666,14 @@ def get_result(job_id: str) -> str:
 import json as _json
 _json.dumps(_mcp_jobs.get({repr(job_id)}, {{"status": "unknown"}}))
 """
-    return _execute_text(code)
+    try:
+        out = _execute_text(code)
+        if out and "unknown" not in out:
+            return out
+    except Exception:
+        out = None
+    #The kernel is busy or wedged; the job records its own state for this.
+    return _job_from_disk(job_id) or out or json.dumps({"status": "unknown"})
 
 
 @server.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
@@ -659,6 +690,17 @@ def stop_job(job_id: str) -> str:
 
     Returns JSON with the job's status at the time of the request.
     """
+    # Drop the marker FIRST, from this process.  A job that has wedged the
+    # kernel's message loop is exactly the job you cannot reach by executing
+    # code on the kernel, and it is also the one you most need to stop; the
+    # worker thread reads this file at its next checkpoint regardless.
+    marker = None
+    try:
+        _JOB_DIR.mkdir(parents=True, exist_ok=True)
+        _job_stopfile(job_id).write_text("stop\n", encoding="utf-8")
+        marker = str(_job_stopfile(job_id))
+    except Exception:
+        pass
     code = f"""
 import json as _json
 _job = globals().get("_mcp_jobs", {{}}).get({job_id!r})
@@ -669,7 +711,21 @@ else:
     _r = {{"status": _job["status"], "stop_requested": True}}
 _json.dumps(_r)
 """
-    return _execute_text(code)
+    try:
+        out = _execute_text(code)
+        if out and "unknown" not in out:
+            return out
+    except Exception:
+        out = None
+    return json.dumps({
+        "stop_requested": True,
+        "via": "stop marker on disk" if marker else "kernel only",
+        "note": ("The kernel did not answer, so the request went through the "
+                 "marker file the job checks at each mcp_checkpoint(). Code "
+                 "that never checkpoints still cannot be stopped."),
+        "marker": marker,
+        "kernel_reply": out,
+    })
 
 
 @server.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
@@ -1033,6 +1089,40 @@ def notebook_edit(path: str, index: int, source: str = "",
     note = ("\nNOTE: the kernel is BUSY — a cell is still executing; this "
             "edit does not affect it.") if busy else ""
     return f"{action} ({path}){note}\n\n{RELOAD_NOTICE}"
+
+
+# ---------------------------------------------------------------------------
+# Async-job state on disk
+#
+# get_result and stop_job used to work only by executing code on the kernel,
+# which is exactly the thing that stops working when a job wedges the kernel's
+# message loop: the job becomes unstoppable and unobservable at the moment you
+# most need both.  The WORKER thread is still running in that state -- only the
+# main thread is starved -- so a channel that does not go through the kernel's
+# shell socket reaches it.  Each checkpoint writes a small JSON file, and looks
+# for a stop marker beside it.  The kernel path stays primary because it is
+# authoritative and immediate; these files are the fallback.
+# ---------------------------------------------------------------------------
+_JOB_DIR = _LOG_DIR / "jobs"
+
+
+def _job_file(job_id: str) -> Path:
+    return _JOB_DIR / f"{job_id}.json"
+
+
+def _job_stopfile(job_id: str) -> Path:
+    return _JOB_DIR / f"{job_id}.stop"
+
+
+def _job_from_disk(job_id: str) -> str | None:
+    """Last state the job itself recorded, or None if it never wrote one."""
+    try:
+        with open(_job_file(job_id), encoding="utf-8") as f:
+            d = json.load(f)
+        d["source"] = "file (the kernel did not answer; the job writes this itself)"
+        return json.dumps(d)
+    except Exception:
+        return None
 
 
 def _serve(server, transport, host=None, port=None):
