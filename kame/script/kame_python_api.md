@@ -44,6 +44,19 @@ get_result(job["job_id"])              # -> {"status": "running", "progress": "3
 stop_job(job["job_id"])                # honoured at the next mcp_checkpoint
 ```
 
+The job runs on a plain worker thread, not a KAME script thread. Node
+operations (`Root`, `Snapshot`, `Transaction`, writes), `sleep()` and
+`print()` all work there; the per-thread script context behind the Script
+tab's status line is simply absent, so do not reach for it.
+
+Every `mcp_checkpoint()` also writes the job's state to
+`~/.kame_mcp_log/jobs/<job_id>.json` and looks for a `<job_id>.stop` marker
+beside it. That is why `get_result` and `stop_job` keep working when the
+kernel does not answer: the worker thread is still running in that state, and
+neither path needs the kernel's shell socket. Code that never checkpoints
+still cannot be stopped, and now also cannot be observed — checkpoint every
+iteration.
+
 ## Showing a figure to the user
 
 `execute_code` returns matplotlib figures as MCP image content, and the model
@@ -69,19 +82,6 @@ itself ran.
 **Never** embed a figure as a base64 data URI in returned text. Tool text goes
 into the model's context: a 30 KB PNG is ~10k tokens spent on something the
 image channel already delivers.
-
-The job runs on a plain worker thread, not a KAME script thread. Node
-operations (`Root`, `Snapshot`, `Transaction`, writes), `sleep()` and
-`print()` all work there; the per-thread script context behind the Script
-tab's status line is simply absent, so do not reach for it.
-
-Every `mcp_checkpoint()` also writes the job's state to
-`~/.kame_mcp_log/jobs/<job_id>.json` and looks for a `<job_id>.stop` marker
-beside it. That is why `get_result` and `stop_job` keep working when the
-kernel does not answer: the worker thread is still running in that state, and
-neither path needs the kernel's shell socket. Code that never checkpoints
-still cannot be stopped, and now also cannot be observed — checkpoint every
-iteration.
 
 ## Globals (pre-imported from `kame`)
 
