@@ -1,4 +1,11 @@
 * Fri Aug 21 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- script: the web link opens the browser. `clai web` prints its URL and waits,
+  and nothing opened it, so choosing "web" looked like it had merely opened a
+  terminal. KAME picks a free port, passes --host/--port, and opens
+  http://127.0.0.1:<port> once something answers there -- from a daemon thread,
+  because kame: link handlers run on the main thread and blocking it would
+  freeze the GUI while the server starts. The terminal window stays: it is
+  where the server lives, and where its errors are legible.
 - script: -m is passed only to the agent KAME ships. clai overrides
   unconditionally when -m is present (`if agent.model is None or
   model_arg_set`), and the shipped agent binds no model precisely so clai can

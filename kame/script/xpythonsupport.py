@@ -1686,6 +1686,40 @@ PYAI_PYTHON_FILE = os.path.join(os.path.expanduser('~'), '.kame_pyai_python')
 PYAI_AGENT_FILE = os.path.join(os.path.expanduser('~'), '.kame_pyai_agent')
 
 
+def _open_when_listening(url, host, port, timeout=90.0):
+	"""Open the browser once something answers on host:port.
+
+	`clai web` prints its URL and waits; nothing opens the browser, so the
+	link looked like it had merely opened a terminal.  The wait has to happen
+	off the main thread: kame: link handlers run there, and blocking it would
+	freeze the GUI for as long as the server takes to come up."""
+	def _run():
+		import socket as _s, webbrowser as _wb
+		_deadline = time.time() + timeout
+		while time.time() < _deadline:
+			try:
+				with _s.create_connection((host, port), timeout=0.5):
+					_wb.open(url)
+					return
+			except OSError:
+				time.sleep(0.5)
+		_kame_gui_html('<font color="#996600">The web UI did not come up on '
+			'{} within {:.0f}s &mdash; see the terminal window for why.</font>'.format(
+			html.escape(url), timeout))
+	threading.Thread(target=_run, name='kame-pyai-web-open', daemon=True).start()
+
+
+def _free_port():
+	"""A port free right now, for handing to a child that will bind it."""
+	import socket as _s
+	_sk = _s.socket()
+	try:
+		_sk.bind(('127.0.0.1', 0))
+		return _sk.getsockname()[1]
+	finally:
+		_sk.close()
+
+
 def _pyai_agent(py):
 	"""(clai --agent spec, directory to run in) for the links.
 
@@ -2055,6 +2089,7 @@ def kame_handle_link(action):
 			# the API keys and the defaults all stay in the setup the user already
 			# has, and KAME never has to ask which model to use.  Running the script
 			# directly is the fallback, and that one does have to be told a model.
+			_weburl = ''   #set below only for the clai web path
 			_clai = os.path.join(os.path.dirname(_py),
 								 'clai.exe' if _sys == 'Windows' else 'clai')
 			_via_clai = os.path.isfile(_clai)
@@ -2086,9 +2121,18 @@ def kame_handle_link(action):
 				#agent the user wrote would silently replace the model chosen in
 				#their own module -- the opposite of the point of picking one.
 				_own = _agent != 'kame_pydantic_ai:agent'
+				#For the web UI, choose the port ourselves so the browser can be
+				#opened on it: clai prints its URL and waits, and nothing was
+				#opening it, which made the link look like it only ran a terminal.
+				_webargs = []
+				if action == 'pyai-web':
+					_port = _free_port()
+					_webargs = ['--host', '127.0.0.1', '--port', str(_port)]
+					_weburl = 'http://127.0.0.1:{}'.format(_port)
 				_cmd = [_clai] + (['web'] if action == 'pyai-web' else []) \
 					   + ['-a', _agent] \
-					   + (['-m', _model] if _model and not _own else [])
+					   + (['-m', _model] if _model and not _own else []) \
+					   + _webargs
 			else:
 				_cmd = [_py, _script] + (['--web'] if action == 'pyai-web' else [])
 			# The agent module ships with KAME, not in the user's venv.
@@ -2114,6 +2158,8 @@ def kame_handle_link(action):
 						'Set $TERMINAL, or run <tt>{}</tt> yourself.</font>'.format(
 						html.escape(_cmdline)))
 					return
+			if _weburl:
+				_open_when_listening(_weburl, "127.0.0.1", _port)
 			_kame_gui_log("#Launching Pydantic AI {} in {} ({}) ...".format(
 				"web UI" if action == 'pyai-web' else "CLI", _wd,
 				("via clai, agent " + _agent + ("; its own model" if _own
