@@ -2080,9 +2080,15 @@ def kame_handle_link(action):
 				_agent, _agentdir = _pyai_agent(_py)
 				if _agentdir:
 					_wd = _agentdir
+				#-m only for the agent KAME ships, which binds no model on
+				#purpose.  clai overrides unconditionally when -m is present
+				#(`if agent.model is None or model_arg_set`), so passing it to an
+				#agent the user wrote would silently replace the model chosen in
+				#their own module -- the opposite of the point of picking one.
+				_own = _agent != 'kame_pydantic_ai:agent'
 				_cmd = [_clai] + (['web'] if action == 'pyai-web' else []) \
 					   + ['-a', _agent] \
-					   + (['-m', _model] if _model else [])
+					   + (['-m', _model] if _model and not _own else [])
 			else:
 				_cmd = [_py, _script] + (['--web'] if action == 'pyai-web' else [])
 			# The agent module ships with KAME, not in the user's venv.
@@ -2110,7 +2116,8 @@ def kame_handle_link(action):
 					return
 			_kame_gui_log("#Launching Pydantic AI {} in {} ({}) ...".format(
 				"web UI" if action == 'pyai-web' else "CLI", _wd,
-				"via clai; model comes from your clai setup, -m overrides"
+				("via clai, agent " + _agent + ("; its own model" if _own
+					else "; model from -m or clai's default"))
 				if _via_clai else _py + "; needs --model or KAME_PYAI_MODEL"))
 		else:
 			_kame_gui_html('<font color="#cc0000">Unknown link action: {}</font>'.format(

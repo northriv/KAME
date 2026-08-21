@@ -1,4 +1,11 @@
 * Fri Aug 21 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- script: -m is passed only to the agent KAME ships. clai overrides
+  unconditionally when -m is present (`if agent.model is None or
+  model_arg_set`), and the shipped agent binds no model precisely so clai can
+  fill it in -- but an agent the user wrote usually binds its own, and passing
+  -m then silently replaced the model chosen in their module, which is the
+  opposite of the point of picking one. The launch log now names the agent and
+  says which of the two supplied the model.
 - script: choosing your own Pydantic AI agent is a file dialog, not an
   environment variable -- a GUI application should not require one exported
   before launch. The Script pane's Pydantic AI row gains an agent picker: it
