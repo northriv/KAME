@@ -28,7 +28,7 @@ orchestration across compatible instruments.
   [`kamepoolalloc/`](kamepoolalloc/) (four-tier pool allocator) — see
   [Reusable subsystems](#reusable-subsystems)
 - Python (+Jupyter notebook) and Ruby scripting — nearly full control from scripts
-- **AI-assisted experiment automation via [MCP](https://modelcontextprotocol.io/)** — Claude Code, Codex, and any other MCP client (including local models through Pydantic AI) can read instruments, control parameters, and run measurement sequences through natural language, with the instrument-safety rules delivered by the server itself
+- **AI-assisted experiment automation via [MCP](https://modelcontextprotocol.io/)** — Claude Code, Codex, Antigravity, Claude Desktop, LM Studio / Bionic and any other MCP client (local models included, through Pydantic AI) can read instruments, control parameters, and run measurement sequences through natural language, with the instrument-safety rules delivered by the server itself
 - OpenGL-based 2-D / 1-D graph display; arbitrary scalar combinations (T, V, …)
 - Real-time NMR relaxation fitting (T1, T2, Tst.e.), Inverse Laplace Transform
 - Fourier step-sum spectrum measurement with field / frequency sweeping
@@ -75,14 +75,16 @@ Windows 64-bit binaries: [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kam
 
 ## What's New in 8.6
 
-- **Windows: MCP works** — it did not, for four independent reasons that each hid the next: `scriptfile.files` were never deployed (they sat in `DISTFILES`, which copies nothing), so there was no `kame_mcp_server.py` to launch; `pip install mcp` now serves 2.x, which dropped the `mcp.server.fastmcp` the server imports; the MSYS2 launcher's `PYTHONHOME`/`PYTHONPATH` were inherited by a real CPython that cannot load mingw extensions; and `FastMCP.run(host=…)` is a `TypeError` in mcp 1.x. A win32 `QMAKE_POST_LINK` now deploys the scripts at link time, and `tools/mkzip.bat` uses the same script so a build tree and a release match.
-- **Windows: the Claude and Codex desktop links open the apps** — both ship as MSIX packages, which are not on `PATH` and appear in no registry the shell consults, so they are launched by AppUserModelID through the AppsFolder namespace, with the id read from the OS rather than hardcoded.
-- **Vendor-neutral AI clients** — `kame_pydantic_ai.py` exposes KAME's toolset and safety instructions as a Pydantic AI agent with no model bound, and hands it to the user's own `clai` (`clai -a kame_pydantic_ai:agent`). The provider, keys and default therefore stay in the setup they already have, and KAME never asks which model to use.
-- **Agent plugin** — the MCP server and a `kame-measurement` skill ship as one directory that is both a Claude Code plugin and an [Agent Plugins 1.0.0](https://agent-plugins.org/) plugin, so an assistant carries KAME's measurement procedures in any directory.
-- **Permanent client registration** — a one-time Script-pane action registers KAME with whichever clients are installed (Codex, Antigravity CLI, Claude Desktop), each through the mechanism that client provides; it reports every change before writing anything.
-- **Usage records** — one JSONL line per MCP tool call, and per model request from the Pydantic AI client: calls, tokens and inference time, never prompt or response text.
-- **macOS: idle CPU back to a few percent** — the main loop called `processEvents()` without `WaitForMoreEvents`, so it could never sleep and held a full core with nothing running. Pacing that used to come from a sleep inside the signal pump is now expressed where it belongs; the pump still drains at full speed while events are actually queued.
-- **The Jupyter server exits with KAME** — it watches KAME's pid and shuts itself down, so a crash or a kill no longer leaves an orphan holding its port. Clicking the link again reopens the running server instead of starting a second one, and its output is drained rather than left to fill a pipe and block it.
+- **Windows: MCP works.** Four independent faults each hid the next — `scriptfile.files` were never deployed there (they sat in `DISTFILES`, which copies nothing), `pip install mcp` now serves 2.x without the `mcp.server.fastmcp` the server imports, the MSYS2 launcher's `PYTHONHOME` was inherited by a real CPython that cannot load mingw extensions, and `FastMCP.run(host=…)` is a `TypeError` in mcp 1.x. Scripts now deploy at link time, and `tools/mkzip.bat` runs the same script so a build tree and a release match.
+- **Permanent client registration.** One Script-pane action registers KAME with Codex, Antigravity CLI (`agy`) and Claude Desktop, each through the mechanism that client provides, and reports every change before it writes. LM Studio / Bionic need nothing — a project opened on the notebook workspace reads the `.mcp.json` KAME already writes there.
+- **The model stays yours.** The Pydantic AI links hand KAME's agent to your own `clai` (`clai -a kame_pydantic_ai:agent`), so provider, keys and default come from the setup you already have and KAME never asks which model to use.
+- Agent plugin: the MCP server and a `kame-measurement` skill as one directory, both a Claude Code plugin and an [Agent Plugins 1.0.0](https://agent-plugins.org/) one.
+- Usage records: one JSONL line per MCP tool call and per model request — counts and timings only, never prompt or response text.
+- Windows: the Claude and Codex desktop links open the apps, which ship as MSIX and are reachable only by AppUserModelID.
+- macOS: idle CPU back to a few percent — the main loop never asked to wait, so it could not sleep.
+- The Jupyter server exits with KAME instead of orphaning itself; a second click reopens the running one.
+- MCP async jobs can read their own thread context, and tracebacks arrive without IPython's colour escapes.
+
 ---
 
 ## What's New in 8.5
@@ -101,8 +103,8 @@ Windows 64-bit binaries: [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kam
 - **Usermode NI USB-GPIB on Apple Silicon** — the embedded userspace linux-gpib port now works reliably on macOS ARM64 without any kernel module.
 - **Window cascade placement** — instrument windows are automatically arranged on show.
 - **Comprehensive bug audit** — 20 bug fixes across 12 source files (GIL safety, buffer bounds, null-pointer guards, logic errors).
-- **Arbitrary mask support for 2D math tools** — ROI math tools (Average, Sum) now support arbitrary binary masks in addition to Rectangle and Ellipse shapes. Masks can be set programmatically from Python via `setArbitraryMask()`. Highlighted masks are rendered as GPU textures.
-- **Math tool API cleanup** — ROI endpoint naming changed from `Begin/End` to `First/Last` (inclusive endpoints, avoids STL naming confusion). Added `imageWidth()`/`imageHeight()` to `X2DImagePlot` for Python access. Old `.kam` files with `Begin/End` names load transparently via compatibility aliases.
+- **Arbitrary masks for 2D math tools** — Rectangle, Ellipse, or a binary mask set from Python; highlights render as GPU textures.
+- **Math tool API cleanup** — ROI endpoints renamed `Begin/End` to `First/Last` (inclusive); old `.kam` files still load.
 
 ---
 
@@ -233,7 +235,7 @@ KAME includes an [MCP](https://modelcontextprotocol.io/) (Model Context Protocol
 that lets an AI assistant execute Python code directly in the running KAME interpreter.
 The MCP server connects to the embedded IPython kernel, giving the AI full access to
 `Root()`, `Snapshot()`, `Transaction()`, and all loaded drivers — the same environment
-available in Jupyter notebooks. Any MCP client works: Claude Code, Codex, and a bundled
+available in Jupyter notebooks. Any MCP client works: Claude Code, Codex, Antigravity, Claude Desktop, LM Studio / Bionic, and a bundled
 Pydantic AI client that reaches any `provider:model`, local models included.
 
 This enables scenarios like:
