@@ -57,7 +57,18 @@ PYBIND11_DECLARE_HOLDER_TYPE(T, local_shared_ptr<T>, true)
 
 namespace py = pybind11;
 
-KAMEPyBind XPython::bind; //should be here before PYBIND11_EMBEDDED_MODULE.
+//Leaked on purpose, and never destroyed.  As a static OBJECT its destructor
+//ran during __cxa_finalize_ranges at exit(), and it holds two things that must
+//not be touched then: a pybind11::module_, whose release DECREFs a Python
+//object after the interpreter is no longer in a state to dealloc one, and maps
+//of std::function whose lambdas live in driver-module dylibs that may already
+//be unloaded.  Observed as KAME "hanging" on quit: the DECREF segfaulted
+//inside _Py_Dealloc, libruby's SIGSEGV handler (installed because KAME embeds
+//Ruby too) caught it, and the process spun there at 100% instead of dying --
+//identical stack across samples seconds apart.  The OS reclaims this at exit;
+//nothing else needs it torn down.
+//Still defined here, before PYBIND11_EMBEDDED_MODULE, for initialisation order.
+KAMEPyBind &XPython::bind = *new KAMEPyBind();
 
 PYBIND11_EMBEDDED_MODULE(kame, m
 #ifdef PYBIND11_HAS_SUBINTERPRETER_SUPPORT //for free-threading python.

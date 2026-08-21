@@ -1,4 +1,20 @@
 * Fri Aug 21 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kame/script: KAME "hung" on quit instead of exiting. The stack was identical
+  across samples taken seconds apart while CPU kept climbing: exit() ->
+  __cxa_finalize_ranges -> _Py_Dealloc -> _sigtramp -> libruby's sigsegv ->
+  check_stack_overflow. So it was not a hang at all -- a segfault during Python
+  teardown, caught by Ruby's SIGSEGV handler (installed because KAME embeds
+  Ruby as well), which then spun there rather than dying. XPython::bind was a
+  static KAMEPyBind, so its destructor ran in that finalisation phase holding
+  two things that must not be touched then: a pybind11::module_, whose release
+  DECREFs a Python object when the interpreter can no longer dealloc one, and
+  maps of std::function whose lambdas live in driver-module dylibs that may
+  already be unloaded -- the static-destruction-order hazard already flagged in
+  CLAUDE.md, now with a symptom attached. It is a reference to a never-freed
+  object now; the OS reclaims it. Suspicion fell first on a leftover async job,
+  but no worker thread existed in the sample: the only other Python threads were
+  ipykernel's _watch_pipe_fd pair, parked in PyThread_hang_thread, which is
+  CPython 3.14 doing what it should to daemon threads after finalisation starts.
 - mcp: an async job that starves the kernel's message loop used to be
   unstoppable and unobservable, because get_result and stop_job were both
   implemented by executing code ON the kernel -- the one thing that stops

@@ -120,7 +120,8 @@ public:
     //! Signals execute() to proceed with importing xpythonsupport.py.
     void signalModulesLoaded() { m_modules_loaded.store(true, std::memory_order_release); }
 
-    static KAMEPyBind bind;
+    //! Deliberately a reference to a never-freed object: see the definition.
+    static KAMEPyBind &bind;
 protected:
     virtual void *execute(const atomic<bool> &) override;
     void my_defout(shared_ptr<XNode> node, const std::string &msg);
