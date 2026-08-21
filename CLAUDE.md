@@ -204,7 +204,11 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
   of KAME's kernel (ZMQ via `jupyter_client`), so it need not be — and on Windows
   cannot be — the interpreter embedded in KAME. Three hard constraints, each of
   which produced a silent failure:
-  - **Either `mcp` line works** — `pip install mcp` is correct again. 2.0
+  - **Either `mcp` line works on `master`** — but **8.6 and earlier are 1.x
+    only**, so the README must keep telling users `pip install "mcp<2"`:
+    that is the one instruction that works for a released binary and for a
+    build from master alike. Do not unpin it in the docs until a release
+    ships this code. 2.0
     renamed the class and moved the module
     (`mcp.server.fastmcp.FastMCP` → `mcp.server.MCPServer`) and moved transport
     options from settings into `run()`; the server picks whichever it finds
