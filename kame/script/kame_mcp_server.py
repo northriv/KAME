@@ -29,28 +29,33 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+# Both mcp lines are supported.  2.0 renamed the class and moved the module
+# (mcp.server.fastmcp.FastMCP -> mcp.server.MCPServer), and moved transport
+# options from settings into run(); everything this server actually uses is
+# otherwise identical, including mcp.types.ToolAnnotations and the tool
+# decorator's annotations= keyword.  Verified against 1.29.0 and 2.0.0.
 try:
-    from mcp.server.fastmcp import FastMCP, Image
-    from mcp.types import ToolAnnotations
+    from mcp.server.fastmcp import FastMCP as MCPServerClass, Image
+    MCP_MAJOR = 1
 except ImportError:
-    # Two different failures land here, and the fix differs:
-    #   * no `mcp` at all, or
-    #   * mcp >= 2, which REMOVED mcp.server.fastmcp (the vendored FastMCP 1.0)
-    #     -- so a plain `pip install mcp` installs a package that imports fine
-    #     yet cannot satisfy this line.  Pin the 1.x line until this server is
-    #     ported to the 2.x API.  Quote it as "mcp<2": bare < is a redirect in
-    #     cmd.exe and in POSIX shells alike.
     try:
-        from importlib.metadata import version as _v
-        _have = f" (found mcp {_v('mcp')})"
-    except Exception:
-        _have = ""
-    print(f"Error: no usable 'mcp' package{_have}; mcp 2.x removed "
-          "mcp.server.fastmcp, so the 1.x line is required. Run:",
-          file=sys.stderr)
-    print(f'  {sys.executable} -m pip install "mcp<2" jupyter_client',
-          file=sys.stderr)
-    sys.exit(1)
+        from mcp.server import MCPServer as MCPServerClass
+        # NOT re-exported by mcp.server, unlike the server class itself.
+        from mcp.server.mcpserver import Image
+        MCP_MAJOR = 2
+    except ImportError:
+        try:
+            from importlib.metadata import version as _v
+            _have = f" (found mcp {_v('mcp')})"
+        except Exception:
+            _have = ""
+        print(f"Error: no usable 'mcp' package{_have}: neither the 1.x "
+              "mcp.server.fastmcp nor the 2.x mcp.server.MCPServer could be "
+              "imported. Run:", file=sys.stderr)
+        print(f"  {sys.executable} -m pip install mcp jupyter_client",
+              file=sys.stderr)
+        sys.exit(1)
+from mcp.types import ToolAnnotations
 try:
     import jupyter_client
 except ImportError:
@@ -199,7 +204,7 @@ def _logged(fn):
     return wrapper
 
 
-server = FastMCP("kame", instructions="""You are connected to a running KAME measurement application
+server = MCPServerClass("kame", instructions="""You are connected to a running KAME measurement application
 via its embedded IPython kernel. The `kame` module is pre-imported:
 Root(), Snapshot(), Transaction() are available directly.
 
@@ -1030,23 +1035,33 @@ def notebook_edit(path: str, index: int, source: str = "",
     return f"{action} ({path}){note}\n\n{RELOAD_NOTICE}"
 
 
-def _bind(server, host, port):
-    """Point `server` at host:port before `run()`.
+def _serve(server, transport, host=None, port=None):
+    """Start `server` on `transport`, binding host/port the way this mcp wants.
 
-    `FastMCP.run()` takes only (transport, mount_path) -- host and port are
-    constructor/settings values, so passing them to run() raises
-    `TypeError: FastMCP.run() got an unexpected keyword argument 'host'` and
-    the HTTP transport never comes up (KAME then reports the exit code and
-    falls back to stdio).  Assign them where they actually live instead.
+    The two lines are exact opposites here, so this cannot be papered over
+    with one call.  In 1.x, run() takes only (transport, mount_path) and
+    host/port are settings -- passing them to run() raises
+    `TypeError: ... unexpected keyword argument 'host'` and the HTTP
+    transport never comes up (KAME then reports the exit code and falls back
+    to stdio).  In 2.x they are run() keywords, forwarded to
+    run_streamable_http_async(host=, port=, ...), and settings no longer
+    carries them.
     """
+    if transport == "stdio" or host is None:
+        server.run(transport=transport)
+        return
+    if MCP_MAJOR >= 2:
+        server.run(transport=transport, host=host, port=port)
+        return
     for _obj in (getattr(server, "settings", None), server):
         if _obj is None:
             continue
         try:
             _obj.host, _obj.port = host, port
-            return
+            break
         except Exception:
             continue
+    server.run(transport=transport)
 
 
 def _run_http_with_token(server, host, port, token):
@@ -1081,8 +1096,7 @@ def _run_http_with_token(server, host, port, token):
             f"Warning: token auth unavailable ({e}); falling back to "
             f"unauthenticated streamable-http on {host}:{port}.",
             file=sys.stderr)
-        _bind(server, host, port)
-        server.run(transport="streamable-http")
+        _serve(server, "streamable-http", host, port)
 
 
 if __name__ == "__main__":
@@ -1116,10 +1130,9 @@ if __name__ == "__main__":
               f"(session {_SESSION_ID})", file=sys.stderr)
 
     if args.transport == "stdio":
-        server.run(transport="stdio")
+        _serve(server, "stdio")
     elif args.transport == "sse":
-        _bind(server, args.host, args.port)
-        server.run(transport="sse")
+        _serve(server, "sse", args.host, args.port)
     else:
         # streamable-http is the MCP 1.0+ recommended transport.
         # KAME_MCP_TOKEN is the supported way in: the environment of a process
@@ -1135,5 +1148,4 @@ if __name__ == "__main__":
         if _token:
             _run_http_with_token(server, args.host, args.port, _token)
         else:
-            _bind(server, args.host, args.port)
-            server.run(transport="streamable-http")
+            _serve(server, "streamable-http", args.host, args.port)

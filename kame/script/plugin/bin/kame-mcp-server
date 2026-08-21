@@ -59,13 +59,18 @@ done
  full path (it is installed next to KAME, e.g. KAME.app/Contents/Resources/)."
 
 # ---- locate an interpreter that has the dependencies -------------------------
+# One line on purpose: \n inside sh single quotes is a literal backslash-n, so
+# a multi-line -c would be a SyntaxError and reject every candidate.  Either
+# mcp line counts -- 2.x renamed mcp.server.fastmcp to mcp.server.mcpserver --
+# and reaching .Image proves the module really loaded, not just that `mcp`
+# resolves.
 # KAME itself embeds Python, so the interpreter that satisfies mcp +
 # jupyter_client is whichever one the user installed them into -- the same
 # search xpythonsupport.py performs when it writes .mcp.json.
 if [ -n "${KAME_MCP_PYTHON:-}" ]; then
     command -v "$KAME_MCP_PYTHON" >/dev/null 2>&1 \
         || die "KAME_MCP_PYTHON is set to '$KAME_MCP_PYTHON' but it is not executable."
-    "$KAME_MCP_PYTHON" -c 'import mcp, jupyter_client' >/dev/null 2>&1 \
+    "$KAME_MCP_PYTHON" -c 'import jupyter_client, mcp.types, importlib.util; _m = "mcp.server.fastmcp" if importlib.util.find_spec("mcp.server.fastmcp") else "mcp.server.mcpserver"; importlib.import_module(_m).Image' >/dev/null 2>&1 \
         || die "KAME_MCP_PYTHON ('$KAME_MCP_PYTHON') lacks 'mcp' or 'jupyter_client'."
 fi
 # The versioned globs matter: Homebrew relinks the unversioned python3 on
@@ -100,7 +105,7 @@ do
     case "$candidate" in *-config|*t) continue;; esac
     [ -n "$candidate" ] || continue
     command -v "$candidate" >/dev/null 2>&1 || continue
-    if "$candidate" -c 'import mcp, jupyter_client' >/dev/null 2>&1; then
+    if "$candidate" -c 'import jupyter_client, mcp.types, importlib.util; _m = "mcp.server.fastmcp" if importlib.util.find_spec("mcp.server.fastmcp") else "mcp.server.mcpserver"; importlib.import_module(_m).Image' >/dev/null 2>&1; then
         python="$candidate"
         break
     fi

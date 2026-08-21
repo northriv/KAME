@@ -633,10 +633,11 @@ server:
 | **Codex: CLI / fugu / app** | Codex in a terminal, with the server passed as a session-scoped override — nothing is written to `~/.codex/config.toml` |
 | **Pydantic AI: CLI / web** | The venv's `clai`, handed KAME's agent (`clai -a kame_pydantic_ai:agent`); the model comes from your clai setup, `-m` overrides. Falls back to running the script directly, which does need a model |
 
-Prerequisites are `pip install "mcp<2" jupyter_client` for the server, and
-`pip install pydantic-ai clai` if you want the Pydantic AI links. **The `<2`
-matters:** mcp 2.x removed `mcp.server.fastmcp`, so a plain `pip install mcp`
-lands a package that imports but cannot start this server. The server
+Prerequisites are `pip install mcp jupyter_client` for the server, and
+`pip install pydantic-ai clai` if you want the Pydantic AI links. Either mcp
+line works: 2.0 renamed the server class and moved transport options into
+`run()`, and the server adapts to whichever it finds (verified against 1.29
+and 2.0). The server
 runs as its **own process**, so this need not be the interpreter embedded in
 KAME: KAME probes candidates — Jupyter's own interpreter, a `kame-mcp-venv`
 (preferred, searched upward from the resource directory), `python3`, and
@@ -654,7 +655,7 @@ both `jupyter_client` and `mcp.server.fastmcp`.
 >
 > ```
 > uv venv --python 3.12 kame-mcp-venv
-> uv pip install --python kame-mcp-venv\Scripts\python.exe "mcp<2" jupyter_client
+> uv pip install --python kame-mcp-venv\Scripts\python.exe mcp jupyter_client
 > ```
 >
 > The probe searches upward from the resource directory, so the venv may also

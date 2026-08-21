@@ -36,7 +36,7 @@ rem ---- locate an interpreter with the dependencies ------------------------
 set "PYEXE="
 set "PYARG="
 if defined KAME_MCP_PYTHON (
-    "%KAME_MCP_PYTHON%" -c "import mcp, jupyter_client" >nul 2>nul
+    "%KAME_MCP_PYTHON%" -c "import jupyter_client, mcp.types, importlib.util; _m = "mcp.server.fastmcp" if importlib.util.find_spec("mcp.server.fastmcp") else "mcp.server.mcpserver"; importlib.import_module(_m).Image" >nul 2>nul
     if errorlevel 1 (
         echo kame plugin: KAME_MCP_PYTHON ^("%KAME_MCP_PYTHON%"^) is not executable or lacks 'mcp' or 'jupyter_client'. 1>&2
         exit /b 1
@@ -71,7 +71,7 @@ exit /b %errorlevel%
 
 :try
 if defined PYEXE goto :eof
-"%~1" %~2 -c "import mcp, jupyter_client" >nul 2>nul || goto :eof
+"%~1" %~2 -c "import jupyter_client, mcp.types, importlib.util; _m = "mcp.server.fastmcp" if importlib.util.find_spec("mcp.server.fastmcp") else "mcp.server.mcpserver"; importlib.import_module(_m).Image" >nul 2>nul || goto :eof
 set "PYEXE=%~1"
 set "PYARG=%~2"
 goto :eof

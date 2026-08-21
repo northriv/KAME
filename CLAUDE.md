@@ -204,13 +204,18 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
   of KAME's kernel (ZMQ via `jupyter_client`), so it need not be — and on Windows
   cannot be — the interpreter embedded in KAME. Three hard constraints, each of
   which produced a silent failure:
-  - **`mcp` must be 1.x** (`pip install "mcp<2"`). mcp 2.x removed
-    `mcp.server.fastmcp`, which `kame_mcp_server.py` imports; `import mcp` still
-    succeeds, so the only symptom is `ModuleNotFoundError` on
-    `mcp.server.fastmcp` — exactly the "partial mcp" the interpreter probe in
-    `xpythonsupport.py` exists to reject. `FastMCP.run()` also takes only
-    `(transport, mount_path)`: host/port are constructor/settings values
-    (`_bind()`), not `run()` kwargs.
+  - **Either `mcp` line works** — `pip install mcp` is correct again. 2.0
+    renamed the class and moved the module
+    (`mcp.server.fastmcp.FastMCP` → `mcp.server.MCPServer`) and moved transport
+    options from settings into `run()`; the server picks whichever it finds
+    (`MCP_MAJOR`, `_serve()`), verified against 1.29.0 and 2.0.0. Two traps if
+    you touch this: `Image` is `mcp.server.mcpserver.Image` on 2.x and is *not*
+    re-exported from `mcp.server`, and the host/port asymmetry is exact —
+    1.x's `run()` takes only `(transport, mount_path)` with host/port as
+    settings, 2.x takes them as `run()` kwargs and no longer has them in
+    settings. `mcp.types.ToolAnnotations` and the `annotations=` keyword are
+    unchanged. The probe in `xpythonsupport.py` accepts either line; a bare
+    `import mcp` is still not enough to prove an interpreter usable.
   - **`kame-mcp-venv`** is the convention. The probe walks up from
     `KAME_ResourceDir` (depths 1..6 — 1 matters on Windows, where `resources` is
     only one level inside the release folder) and prefers it over `python3` and

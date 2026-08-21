@@ -811,14 +811,21 @@ def launchJupyterConsole(prog, argv):
 			_child_env.pop(_v, None)
 		# Probe each candidate with the EXACT imports kame_mcp_server.py runs
 		# at module load. A bare `import mcp` is not enough: a Python carrying
-		# a stale/partial `mcp` (top-level import OK but no mcp.server.fastmcp)
-		# would pass and then crash the server at startup.
+		# a stale/partial `mcp` (top-level import OK but neither server class)
+		# would pass and then crash the server at startup. Either mcp line
+		# counts, matching the server's own fallback -- requiring only the 1.x
+		# module would reject a perfectly good `pip install mcp` (which serves
+		# 2.x) and send the user hunting for a missing package.
+		_probe = ('import jupyter_client, mcp.types\n'
+				  'try:\n'
+				  '    from mcp.server.fastmcp import FastMCP, Image\n'
+				  'except ImportError:\n'
+				  '    from mcp.server import MCPServer\n'
+				  '    from mcp.server.mcpserver import Image\n')
 		for _c in _candidates:
 			try:
 				_sp.check_call(
-					[_c, '-c',
-					 'import jupyter_client; '
-					 'from mcp.server.fastmcp import FastMCP, Image'],
+					[_c, '-c', _probe],
 					stdout=_sp.DEVNULL, stderr=_sp.DEVNULL, timeout=10,
 					env=_child_env)
 				python_cmd = _c

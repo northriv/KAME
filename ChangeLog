@@ -1,5 +1,22 @@
 * Fri Aug 21 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - Release 8.6.
+- mcp 2.x is supported alongside 1.x, so `pip install mcp` is the right
+  instruction again. 2.0 renamed the class and moved the module
+  (mcp.server.fastmcp.FastMCP -> mcp.server.MCPServer) and moved transport
+  options out of settings into run(); the server now picks whichever line it
+  finds. Verified against 1.29.0 and 2.0.0: both list all eleven tools with
+  their annotations over stdio, and both bind the streamable-http transport.
+  Two details a plain import swap would have missed -- Image lives at
+  mcp.server.mcpserver.Image on 2.x and is NOT re-exported from mcp.server,
+  and the host/port handling is exactly inverted (1.x: settings, run() takes
+  only transport/mount_path; 2.x: run() kwargs, gone from settings), which is
+  why _bind() became _serve(). mcp.types.ToolAnnotations and the annotations=
+  keyword are unchanged. The interpreter probes accept either line -- requiring
+  the 1.x module would have rejected a perfectly good `pip install mcp` -- and
+  the plugin launchers' `import mcp` check, which would pass a package too
+  broken to serve, now reaches the server class itself. That probe has to stay
+  a single line: \n inside sh single quotes is a literal backslash-n, so a
+  multi-line -c is a SyntaxError that rejects every candidate.
 - script: an MCP async job could not touch the per-thread script context.
   execute_code_async runs the code in a daemon thread, and TLS was a plain
   threading.local(), so every field was unset there and a read raised
