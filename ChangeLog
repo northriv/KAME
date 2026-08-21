@@ -1,4 +1,13 @@
 * Fri Aug 21 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- script: the web UI had no model to choose. Not passing -m to a user's own
+  agent (right, for chat: clai would override the model bound in their module)
+  also emptied the web UI's picker, which clai builds from repeated -m. But a
+  module that calls Agent.to_web(models=...) already declares the roster its
+  author wants, and `clai web` cannot see it because it takes an Agent, not an
+  app. So the picker now records that app too, and the web link serves it with
+  the venv's uvicorn -- the switcher then works exactly as written. Modules
+  without one still go through clai, where KAME_PYAI_MODEL may now list several
+  models (comma or space separated) to populate the picker.
 - script: the web link opens the browser. `clai web` prints its URL and waits,
   and nothing opened it, so choosing "web" looked like it had merely opened a
   terminal. KAME picks a free port, passes --host/--port, and opens

@@ -3,6 +3,7 @@
 import time
 import sys
 import html
+import re
 import threading
 import traceback
 import inspect
@@ -1721,7 +1722,7 @@ def _free_port():
 
 
 def _pyai_agent(py):
-	"""(clai --agent spec, directory to run in) for the links.
+	"""(clai --agent spec, directory to run in, ASGI app spec) for the links.
 
 	Precedence: an agent the user picked in the dialog, then KAME_PYAI_AGENT
 	for scripted setups, then the one shipped in Resources.  Choosing your own
@@ -1736,14 +1737,17 @@ def _pyai_agent(py):
 		_saved = ''
 	_spec = _saved or os.environ.get('KAME_PYAI_AGENT') or ''
 	if not _spec:
-		return ('kame_pydantic_ai:agent', None)
+		return ('kame_pydantic_ai:agent', None, '')
 	#A spec file (clai reads .yml/.yaml/.json itself) is passed as a path;
 	#a module spec needs its own directory as cwd so the import resolves.
-	_path, _, _var = _spec.partition('|')
+	_parts = _spec.split('|')
+	_path, _var = _parts[0], (_parts[1] if len(_parts) > 1 else '')
+	_app = _parts[2] if len(_parts) > 2 else ''
 	if _var:
-		return ('{}:{}'.format(os.path.splitext(os.path.basename(_path))[0], _var),
-				os.path.dirname(_path))
-	return (_spec, None)
+		_mod = os.path.splitext(os.path.basename(_path))[0]
+		return ('{}:{}'.format(_mod, _var), os.path.dirname(_path),
+				'{}:{}'.format(_mod, _app) if _app else '')
+	return (_spec, None, '')
 
 
 def _pyai_pick_agent(py, path):
@@ -1765,12 +1769,26 @@ def _pyai_pick_agent(py, path):
 		_record = path
 		_note = 'agent spec file'
 	else:
-		_probe = ('import importlib.util as u, sys\n'
+		# Report the Agent variable and, separately, any ASGI app the module
+		# built with Agent.to_web(models=...) -- that app carries the model
+		# roster the author chose, which `clai web` cannot see because it takes
+		# an Agent, not an app.  Serving it directly is the only way their
+		# model switcher works as written.
+		_probe = ('import importlib.util as u\n'
 				  'from pydantic_ai import Agent\n'
 				  's = u.spec_from_file_location("_kame_pyai_probe", %r)\n'
 				  'm = u.module_from_spec(s); s.loader.exec_module(m)\n'
-				  'ns = [k for k, v in vars(m).items() if isinstance(v, Agent)]\n'
-				  'print(("agent" if "agent" in ns else (ns[0] if ns else "")))\n' % path)
+				  'v = vars(m)\n'
+				  'ns = [k for k, o in v.items() if isinstance(o, Agent)]\n'
+				  'try:\n'
+				  '    from starlette.applications import Starlette\n'
+				  'except ImportError:\n'
+				  '    Starlette = ()\n'
+				  'apps = [k for k, o in v.items()\n'
+				  '        if Starlette and isinstance(o, Starlette)]\n'
+				  'print(("agent" if "agent" in ns else (ns[0] if ns else "")))\n'
+				  'print(("app" if "app" in apps else (apps[0] if apps else "")))\n'
+				  % path)
 		try:
 			_r = _sp3.run([py, '-c', _probe], capture_output=True, text=True,
 						  timeout=120, cwd=os.path.dirname(path) or None)
@@ -1778,8 +1796,9 @@ def _pyai_pick_agent(py, path):
 			_kame_gui_html('<font color="#cc0000">Could not run {} to check '
 				'{}.</font>'.format(html.escape(py), html.escape(path)))
 			return
-		_var = (_r.stdout or '').strip().splitlines()[-1:] or ['']
-		_var = _var[0].strip()
+		_lines = [_l.strip() for _l in (_r.stdout or '').strip().splitlines()]
+		_var = _lines[0] if _lines else ''
+		_app = _lines[1] if len(_lines) > 1 else ''
 		if _r.returncode != 0 or not _var:
 			_kame_gui_html('<font color="#cc0000">{} defines no '
 				'<tt>pydantic_ai.Agent</tt>, so clai has nothing to run.'
@@ -1787,8 +1806,10 @@ def _pyai_pick_agent(py, path):
 				'<br/><tt>' + html.escape((_r.stderr or '').strip().splitlines()[-1][:200])
 				+ '</tt>' if (_r.stderr or '').strip() else ''))
 			return
-		_record = path + '|' + _var
-		_note = 'variable <tt>{}</tt>'.format(html.escape(_var))
+		_record = path + '|' + _var + '|' + _app
+		_note = 'agent <tt>{}</tt>{}'.format(html.escape(_var),
+			', web UI from <tt>{}</tt> (your own model list)'.format(html.escape(_app))
+			if _app else ', web UI from clai')
 	try:
 		with open(PYAI_AGENT_FILE, 'w') as _f:
 			_f.write(_record + '\n')
@@ -2112,7 +2133,7 @@ def kame_handle_link(action):
 				# (capabilities.MCP(url=..., authorization_token=...) read from
 				# ~/.kame_mcp_url).  A picked module runs in its own directory
 				# so the import resolves.
-				_agent, _agentdir = _pyai_agent(_py)
+				_agent, _agentdir, _webapp = _pyai_agent(_py)
 				if _agentdir:
 					_wd = _agentdir
 				#-m only for the agent KAME ships, which binds no model on
@@ -2129,10 +2150,23 @@ def kame_handle_link(action):
 					_port = _free_port()
 					_webargs = ['--host', '127.0.0.1', '--port', str(_port)]
 					_weburl = 'http://127.0.0.1:{}'.format(_port)
-				_cmd = [_clai] + (['web'] if action == 'pyai-web' else []) \
-					   + ['-a', _agent] \
-					   + (['-m', _model] if _model and not _own else []) \
-					   + _webargs
+				#Serve the module's own to_web() app when it has one: that is
+				#where the author's model roster lives, and `clai web` cannot see
+				#it because it takes an Agent, not an app -- which is why the UI
+				#came up with nothing to choose from.  KAME_PYAI_MODEL may list
+				#several (comma or space separated) for the clai path, where -m is
+				#repeatable and builds the picker.
+				_uvi = os.path.join(os.path.dirname(_py),
+									'uvicorn.exe' if _sys == 'Windows' else 'uvicorn')
+				if action == 'pyai-web' and _webapp and os.path.isfile(_uvi):
+					_cmd = [_uvi, _webapp, '--host', '127.0.0.1', '--port', str(_port)]
+				else:
+					_models = [_x for _x in re.split(r'[,\s]+', _model) if _x] \
+							  if _model and (not _own or action == 'pyai-web') else []
+					_cmd = [_clai] + (['web'] if action == 'pyai-web' else []) \
+						   + ['-a', _agent] \
+						   + [_a for _x in _models for _a in ('-m', _x)] \
+						   + _webargs
 			else:
 				_cmd = [_py, _script] + (['--web'] if action == 'pyai-web' else [])
 			# The agent module ships with KAME, not in the user's venv.

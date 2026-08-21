@@ -631,7 +631,7 @@ server:
 |---|---|
 | **Claude: Code / app** | Claude Code in a terminal (with the bundled plugin, below) / the Claude desktop app |
 | **Codex: CLI / fugu / app** | Codex in a terminal, with the server passed as a session-scoped override — nothing is written to `~/.codex/config.toml` |
-| **Pydantic AI: CLI / web / ⚙ agent** | The venv's `clai`, handed an agent; the model comes from your clai setup, `-m` overrides. **web** picks a free port and opens the browser on it once the server answers. **⚙ agent** picks an agent module of your own — KAME checks it exposes a `pydantic_ai.Agent`, remembers which variable, and runs it from its own directory; Cancel returns to the one KAME ships |
+| **Pydantic AI: CLI / web / ⚙ agent** | The venv's `clai`, handed an agent; the model comes from your clai setup, `-m` overrides. **web** picks a free port and opens the browser on it once the server answers; if your module builds an app with `Agent.to_web(models=…)`, that app is served (with `uvicorn`) so your own model list is the one in the UI. **⚙ agent** picks an agent module of your own — KAME checks it exposes a `pydantic_ai.Agent`, remembers which variable, and runs it from its own directory; Cancel returns to the one KAME ships |
 
 Prerequisites are `pip install "mcp<2" jupyter_client` for the server, and
 `pip install pydantic-ai clai` if you want the Pydantic AI links. **Keep the
