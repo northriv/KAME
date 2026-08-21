@@ -93,7 +93,22 @@ print("Hello! KAME Python support.")
 #Thread-monitor
 MONITOR_PERIOD=0.2
 
-TLS = threading.local()
+class _KameTLS(threading.local):
+	"""Per-thread script context, with every field readable from any thread.
+
+	threading.local calls a subclass __init__ once per thread that touches it,
+	which is exactly the semantics wanted here: a thread that is not a script
+	thread reads None instead of raising AttributeError.  Plain
+	threading.local() left every access a landmine for code running anywhere
+	but the kernel thread -- an MCP async job (execute_code_async runs the
+	code in a daemon thread) hit it on the first `TLS.xscrthread`, and the
+	guards scattered through this file exist only because of it."""
+	def __init__(self):
+		self.xscrthread = None
+		self.logfile = None
+		self.cell_status = None
+
+TLS = _KameTLS()
 if HasIPython:
 	XScriptingThreads()[0].setLabel("IPython kernel")
 	XScriptingThreads()[0]["Action"] = ""

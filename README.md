@@ -38,9 +38,9 @@ orchestration across compatible instruments.
 - Calibration curves (cspline, Chebyshev, polynomial) for resistance thermometers and generic sensors; calibrated entries feed into graphs, charts, and data recording like any native scalar
 
 ### Released versions/Binaries
-Source: [kame-8.5.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.5.zip) (4.7MB, Aug. 2026).
+Source: [kame-8.6.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.6.zip) (Aug. 2026).
 [All other source archives](https://kitag.issp.u-tokyo.ac.jp/web/kame/src).
-Windows 64-bit binaries: [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.5.zip) (20.4MB) · [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.4.zip). At least Qt is additionally needed, follow instructions below to install.
+Windows 64-bit binaries: [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.zip) · [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.5.zip) (20.4MB) · [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.4.zip). At least Qt is additionally needed, follow instructions below to install.
 
 ### Supported instruments
 
@@ -75,13 +75,14 @@ Windows 64-bit binaries: [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kam
 
 ## What's New in 8.6
 
+- **Windows: MCP works** — it did not, for four independent reasons that each hid the next: `scriptfile.files` were never deployed (they sat in `DISTFILES`, which copies nothing), so there was no `kame_mcp_server.py` to launch; `pip install mcp` now serves 2.x, which dropped the `mcp.server.fastmcp` the server imports; the MSYS2 launcher's `PYTHONHOME`/`PYTHONPATH` were inherited by a real CPython that cannot load mingw extensions; and `FastMCP.run(host=…)` is a `TypeError` in mcp 1.x. A win32 `QMAKE_POST_LINK` now deploys the scripts at link time, and `tools/mkzip.bat` uses the same script so a build tree and a release match.
+- **Windows: the Claude and Codex desktop links open the apps** — both ship as MSIX packages, which are not on `PATH` and appear in no registry the shell consults, so they are launched by AppUserModelID through the AppsFolder namespace, with the id read from the OS rather than hardcoded.
 - **Vendor-neutral AI clients** — `kame_pydantic_ai.py` exposes KAME's toolset and safety instructions as a Pydantic AI agent with no model bound, and hands it to the user's own `clai` (`clai -a kame_pydantic_ai:agent`). The provider, keys and default therefore stay in the setup they already have, and KAME never asks which model to use.
 - **Agent plugin** — the MCP server and a `kame-measurement` skill ship as one directory that is both a Claude Code plugin and an [Agent Plugins 1.0.0](https://agent-plugins.org/) plugin, so an assistant carries KAME's measurement procedures in any directory.
 - **Permanent client registration** — a one-time Script-pane action registers KAME with whichever clients are installed (Codex, Antigravity CLI, Claude Desktop), each through the mechanism that client provides; it reports every change before writing anything.
 - **Usage records** — one JSONL line per MCP tool call, and per model request from the Pydantic AI client: calls, tokens and inference time, never prompt or response text.
 - **macOS: idle CPU back to a few percent** — the main loop called `processEvents()` without `WaitForMoreEvents`, so it could never sleep and held a full core with nothing running. Pacing that used to come from a sleep inside the signal pump is now expressed where it belongs; the pump still drains at full speed while events are actually queued.
 - **The Jupyter server exits with KAME** — it watches KAME's pid and shuts itself down, so a crash or a kill no longer leaves an orphan holding its port. Clicking the link again reopens the running server instead of starting a second one, and its output is drained rather than left to fill a pipe and block it.
-
 ---
 
 ## What's New in 8.5

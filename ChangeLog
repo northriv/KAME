@@ -1,5 +1,71 @@
 * Fri Aug 21 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - Release 8.6.
+- script: an MCP async job could not touch the per-thread script context.
+  execute_code_async runs the code in a daemon thread, and TLS was a plain
+  threading.local(), so every field was unset there and a read raised
+  `AttributeError: '_thread._local' object has no attribute 'xscrthread'`.
+  Reproduced first, which narrowed it usefully: Root(), Snapshot, Transaction,
+  print() and sleep() all work on that thread already -- only the direct TLS
+  reads failed. TLS is now a threading.local subclass whose __init__ (called
+  once per thread that touches it) defaults xscrthread / logfile / cell_status
+  to None, so a non-script thread reads None instead of raising, and no thread
+  can see another's context. That is also what the hasattr/getattr guards
+  scattered through this file were working around. kame_python_api says what an
+  async job may rely on.
+- Windows: MCP did not work at all, for four independent reasons, and each hid
+  the next. Nothing ever deployed kame.pro's scriptfile.files there -- they sit
+  in DISTFILES, which copies nothing, while the macOS bundle and the Linux
+  QMAKE_POST_LINK do the real work -- so kame.exe ran against a resources\ dir
+  holding only whatever had once been hand-copied, and the server launch failed
+  with `can't open file '...\Resources\kame_mcp_server.py'`. A win32
+  QMAKE_POST_LINK now runs tools/deploy_scripts.bat at link time and
+  tools/mkzip.bat calls the same script, so a build tree and a release get an
+  identical set; the recipe needs system_path() rather than shell_path(),
+  because with MSYS on PATH qmake decides the make shell is sh and emits
+  /C/Users/... which a recipe run under `mingw32-make SHELL=cmd.exe` cannot
+  execute. Second, `pip install mcp` now serves 2.0.0, which dropped
+  mcp.server.fastmcp: `import mcp` still succeeds, so the only symptom is a
+  ModuleNotFoundError on the submodule -- pinned to 1.x explicitly. Third,
+  kame-msyspython.bat exports PYTHONHOME=C:\msys64\mingw64 and MSYS2's
+  PYTHONPATH, and both the interpreter probe and the server launch inherited
+  os.environ verbatim, so a real CPython was told to load mingw-built C
+  extensions it cannot open (`No module named '_socket'`, or exit 103 through a
+  uv trampoline). Worse, the probe failed for that same reason, so the venv
+  looked unusable and the fallback picked it anyway. Both now run with
+  PYTHONHOME / PYTHONPATH / VIRTUAL_ENV / PYTHONSTARTUP stripped. Fourth,
+  FastMCP.run(host=, port=) raises TypeError in mcp 1.x, where those are
+  constructor/settings values, so all three HTTP call sites could never bring
+  the server up even with a clean environment.
+- script: the Windows Claude and Codex desktop apps are MSIX packages -- not on
+  PATH, no executable under Program Files, and absent from both App Paths and
+  the Uninstall registry -- so `start "" Claude` opened nothing and the Codex
+  link reported its CLI missing on a machine where the app was installed. They
+  are launched by AppUserModelID through the AppsFolder shell namespace, with
+  the id resolved from the OS rather than hardcoded (Claude_pzs8sxrjxfjjc!Claude,
+  OpenAI.Codex_2p2nqsd0c76g0!App); a plain-exe install has no AUMID and keeps
+  the old route. The session-scoped -c MCP overrides cannot ride along that
+  path, which the log line now says. The same packaging redirects %APPDATA%
+  into Packages\<pkg>\LocalCache, which is why an interpreter installed from
+  inside such a container resolves there and not for KAME.
+- plugin launcher: both launchers now walk up for kame-mcp-venv, the same
+  interpreter KAME's own probe prefers, ahead of the system ones. They searched
+  only KAME_MCP_PYTHON, `py -3`, `python` and `python3` -- on Windows typically
+  the Microsoft Store alias stub or an MSYS2 python that cannot host mcp at all
+  -- so an installed plugin reported "no Python with 'mcp'" while KAME was
+  happily using the venv.
+- script: an MCP client config that exists but is empty is read as {} rather
+  than raising. Antigravity CLI leaves a 0-byte ~/.gemini/config/mcp_config.json
+  until it first writes one, and json.load() rejects that. Malformed-but-
+  non-empty still raises: that is somebody's real configuration. The directory
+  is created when absent, which would have failed one step later.
+- tools: mkzip.bat's cleanup never ran -- the trailing lines used `remove`,
+  which is not a cmd command, so qtdir.txt and kame.log shipped in every
+  release; and __pycache__ is nested, while the single rmdir matched only the
+  top level (12 -> 0 on the current release folder). findstr has no alternation
+  and its `*` repeats only the preceding element, so the Qt-version filter needs
+  `6.[5-9]` *and* `6.[1-9][0-9]`: without the second, kame-msyspython.bat
+  silently stopped finding Qt at 6.10 while kame.bat still did.
+
 - macOS: the GUI held a full core with nothing running. main() does not use
   app.exec() on this platform -- since 2018 it runs its own
   while(form->running()) { pool; app.processEvents(); } so each pass can be

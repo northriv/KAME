@@ -44,6 +44,11 @@ get_result(job["job_id"])              # -> {"status": "running", "progress": "3
 stop_job(job["job_id"])                # honoured at the next mcp_checkpoint
 ```
 
+The job runs on a plain worker thread, not a KAME script thread. Node
+operations (`Root`, `Snapshot`, `Transaction`, writes), `sleep()` and
+`print()` all work there; the per-thread script context behind the Script
+tab's status line is simply absent, so do not reach for it.
+
 ## Globals (pre-imported from `kame`)
 
 ```python
