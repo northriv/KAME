@@ -1299,8 +1299,7 @@ def _register_desktop_mcp(apply=False):
     TOML format.  Claude Desktop and Google's agent CLI are edited as JSON --
     additively, after a backup.
     """
-    import base64 as _b64, json as _json, shutil as _sh, subprocess as _sp, \
-        platform as _pf, urllib.parse as _up
+    import subprocess as _sp, platform as _pf
     _launcher = _register_stdio_entry()
     if not _launcher:
         return
@@ -1322,31 +1321,19 @@ def _register_desktop_mcp(apply=False):
             'codex and agy CLIs).</font>')
         return
 
-    # --- LM Studio / Bionic: deeplink, confirmed inside the app -------------
+    # --- Bionic / LM Studio: nothing to do, and nothing that can be checked -
+    # Point one of its projects at the notebook workspace and it reads the
+    # .mcp.json KAME already writes there -- confirmed working before any of
+    # this existed.  An `<scheme>://add_mcp` deeplink was tried instead and
+    # withdrawn: Bionic declares `bionic`, not `lmstudio`, and sending the
+    # right scheme still produced no dialog and no entry.  `open` exits 0 once
+    # the URL reaches the app, which says nothing about the app acting on it,
+    # so there is no success to report and reporting one would be a lie.
     if _lm:
-        _lmlabel, _lmscheme = _lm
-        _cfg = _b64.b64encode(_json.dumps(_entry).encode()).decode()
-        _link = '{}://add_mcp?name=kame&config={}'.format(_lmscheme, _up.quote(_cfg))
-        _plan.append('<b>{}</b> &mdash; opens <tt>{}://add_mcp</tt>; the app asks '
-                     'you to confirm. Nothing is written from here.'.format(
-                     html.escape(_lmlabel), html.escape(_lmscheme)))
-        if apply:
-            try:
-                #run, not Popen: `open` reports kLSApplicationNotFoundErr when
-                #no app claims the scheme, and a launch that went nowhere must
-                #not be reported as a registration.
-                _r = _sp.run(['open', _link] if _sys == 'Darwin' else
-                             ['cmd', '/c', 'start', '', _link] if _sys == 'Windows' else
-                             ['xdg-open', _link],
-                             capture_output=True, text=True, timeout=20)
-                if _r.returncode == 0:
-                    _done.append(_lmlabel + ' (confirm the dialog in the app)')
-                else:
-                    _fail.append('{}: {} did not accept {}://add_mcp. Add the '
-                        'server by hand in the app: command {}'.format(
-                        _lmlabel, _lmlabel, _lmscheme, _launcher))
-            except Exception:
-                _fail.append(_lmlabel + ': ' + traceback.format_exc(limit=1))
+        _plan.append('<b>{}</b> &mdash; nothing to register: open the notebook '
+                     'workspace as a project and it picks up the '
+                     '<tt>.mcp.json</tt> KAME writes there.'.format(
+                     html.escape(_lm[0])))
 
     # --- JSON-configured clients with no CLI of their own -------------------
     if _cc:
