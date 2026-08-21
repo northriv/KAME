@@ -1683,6 +1683,86 @@ def _kame_gui_log(msg, color='#008800'):
 
 
 PYAI_PYTHON_FILE = os.path.join(os.path.expanduser('~'), '.kame_pyai_python')
+PYAI_AGENT_FILE = os.path.join(os.path.expanduser('~'), '.kame_pyai_agent')
+
+
+def _pyai_agent(py):
+	"""(clai --agent spec, directory to run in) for the links.
+
+	Precedence: an agent the user picked in the dialog, then KAME_PYAI_AGENT
+	for scripted setups, then the one shipped in Resources.  Choosing your own
+	is the point: KAME owns the MCP endpoint, not your capability list, model
+	roster or instructions -- an agent that also wants a Coder, memory or web
+	search belongs in your module, with KAME's toolset added to it as one
+	capability."""
+	try:
+		with open(PYAI_AGENT_FILE) as _f:
+			_saved = _f.read().strip()
+	except OSError:
+		_saved = ''
+	_spec = _saved or os.environ.get('KAME_PYAI_AGENT') or ''
+	if not _spec:
+		return ('kame_pydantic_ai:agent', None)
+	#A spec file (clai reads .yml/.yaml/.json itself) is passed as a path;
+	#a module spec needs its own directory as cwd so the import resolves.
+	_path, _, _var = _spec.partition('|')
+	if _var:
+		return ('{}:{}'.format(os.path.splitext(os.path.basename(_path))[0], _var),
+				os.path.dirname(_path))
+	return (_spec, None)
+
+
+def _pyai_pick_agent(py, path):
+	"""Remember an agent module/spec the user picked, after checking it loads.
+
+	A .py is only useful if it actually exposes an Agent, and which variable
+	holds it is convention, not law -- so ask the interpreter rather than
+	assume `agent` and fail later inside clai with nothing to go on."""
+	import subprocess as _sp3
+	if not path:
+		#Cancel clears the choice and returns to the agent KAME ships.
+		try:
+			os.unlink(PYAI_AGENT_FILE)
+			_kame_gui_log('#Using the agent KAME ships (kame_pydantic_ai:agent).')
+		except OSError:
+			_kame_gui_log('#Already using the agent KAME ships.')
+		return
+	if os.path.splitext(path)[1].lower() in ('.yml', '.yaml', '.json'):
+		_record = path
+		_note = 'agent spec file'
+	else:
+		_probe = ('import importlib.util as u, sys\n'
+				  'from pydantic_ai import Agent\n'
+				  's = u.spec_from_file_location("_kame_pyai_probe", %r)\n'
+				  'm = u.module_from_spec(s); s.loader.exec_module(m)\n'
+				  'ns = [k for k, v in vars(m).items() if isinstance(v, Agent)]\n'
+				  'print(("agent" if "agent" in ns else (ns[0] if ns else "")))\n' % path)
+		try:
+			_r = _sp3.run([py, '-c', _probe], capture_output=True, text=True,
+						  timeout=120, cwd=os.path.dirname(path) or None)
+		except Exception:
+			_kame_gui_html('<font color="#cc0000">Could not run {} to check '
+				'{}.</font>'.format(html.escape(py), html.escape(path)))
+			return
+		_var = (_r.stdout or '').strip().splitlines()[-1:] or ['']
+		_var = _var[0].strip()
+		if _r.returncode != 0 or not _var:
+			_kame_gui_html('<font color="#cc0000">{} defines no '
+				'<tt>pydantic_ai.Agent</tt>, so clai has nothing to run.'
+				'{}</font>'.format(html.escape(os.path.basename(path)),
+				'<br/><tt>' + html.escape((_r.stderr or '').strip().splitlines()[-1][:200])
+				+ '</tt>' if (_r.stderr or '').strip() else ''))
+			return
+		_record = path + '|' + _var
+		_note = 'variable <tt>{}</tt>'.format(html.escape(_var))
+	try:
+		with open(PYAI_AGENT_FILE, 'w') as _f:
+			_f.write(_record + '\n')
+	except OSError:
+		pass
+	_kame_gui_html('<font color="#008800">Pydantic AI links will use {} ({}). '
+		'Pick again and Cancel to go back to the one KAME ships.</font>'.format(
+		html.escape(os.path.basename(path)), _note))
 
 
 def _find_python_with(mods, env_override=None, extra=()):
@@ -1862,6 +1942,8 @@ def kame_handle_link(action):
 			# choice is remembered in ~/.kame_pyai_python. A remembered
 			# interpreter that stopped importing pydantic_ai is deleted so the
 			# next click re-asks — self-healing, no manual cleanup.
+			action, _, _agentfile = action.partition('?file=')
+			_agentfile = _agentfile.strip()
 			action, _, _venvdir = action.partition('?venv=')
 			_venvdir = _venvdir.strip()
 			_wd = _kame_workspace_dir()
@@ -1959,6 +2041,11 @@ def kame_handle_link(action):
 						'(<tt>pip install pydantic-ai clai</tt>), or set '
 						'KAME_PYAI_PYTHON.</font>')
 					return
+			if action == 'pyai-agent':
+				#Picking is its own action: it needs the interpreter (to check
+				#the file really exposes an Agent) but launches nothing.
+				_pyai_pick_agent(_py, _agentfile)
+				return
 			_sys = _pf.system()
 			# Hand the agent to the user's own clai rather than running the script
 			# ourselves.  Imported as a module, kame_pydantic_ai exposes `agent` with
@@ -1981,16 +2068,18 @@ def kame_handle_link(action):
 				# of the problem -- KAME still does not pick a model.
 				_model = (os.environ.get('KAME_PYAI_MODEL')
 						  or os.environ.get('PYDANTIC_AI_MODEL') or '')
-				# KAME_PYAI_AGENT points the link at YOUR agent instead of the
-				# one shipped here: `module:variable`, or a .yml/.json spec, as
-				# clai's --agent accepts.  KAME has no business owning the
-				# capability list, the model roster or the instructions -- an
-				# agent that also wants a Coder, memory or web search is defined
-				# in the user's own module, and only needs KAME's toolset added
-				# to it (capabilities.MCP(url=..., authorization_token=...) from
-				# ~/.kame_mcp_url).  The directory the terminal opens in is the
-				# notebook workspace, so a relative module path resolves there.
-				_agent = os.environ.get('KAME_PYAI_AGENT') or 'kame_pydantic_ai:agent'
+				# Which agent: the one picked in the dialog (kame:pyai-agent),
+				# else KAME_PYAI_AGENT for scripted setups, else the one shipped
+				# in Resources.  KAME has no business owning the capability
+				# list, the model roster or the instructions -- an agent that
+				# also wants a Coder, memory or web search belongs in the user's
+				# own module, needing only KAME's toolset added to it
+				# (capabilities.MCP(url=..., authorization_token=...) read from
+				# ~/.kame_mcp_url).  A picked module runs in its own directory
+				# so the import resolves.
+				_agent, _agentdir = _pyai_agent(_py)
+				if _agentdir:
+					_wd = _agentdir
 				_cmd = [_clai] + (['web'] if action == 'pyai-web' else []) \
 					   + ['-a', _agent] \
 					   + (['-m', _model] if _model else [])
@@ -2061,7 +2150,7 @@ else:
 				MYDEFOUT.write("#Use sleep() instead of time.sleep().")
 				#Grouped by vendor: eight flat entries on one line stopped being
 				#readable, and the terminal/desktop pair now repeats per vendor.
-				MYDEFOUT.write_html(r'<font color="#0066cc">Quick launch:&nbsp; <a href="kame:notebook">&#9654; Jupyter notebook</a> &nbsp;&nbsp;|&nbsp;&nbsp; Claude: <a href="kame:claude-cli">&#9654; Code</a> &nbsp;<a href="kame:claude-app">&#9654; app</a> &nbsp;&nbsp;|&nbsp;&nbsp; Codex: <a href="kame:codex-cli">&#9654; CLI</a> &nbsp;<a href="kame:codex-fugu-cli">&#9654; fugu</a> &nbsp;<a href="kame:codex-app">&#9654; app</a> &nbsp;&nbsp;|&nbsp;&nbsp; Pydantic AI: <a href="kame:pyai-cli">&#9654; CLI</a> &nbsp;<a href="kame:pyai-web">&#9654; web</a></font>')
+				MYDEFOUT.write_html(r'<font color="#0066cc">Quick launch:&nbsp; <a href="kame:notebook">&#9654; Jupyter notebook</a> &nbsp;&nbsp;|&nbsp;&nbsp; Claude: <a href="kame:claude-cli">&#9654; Code</a> &nbsp;<a href="kame:claude-app">&#9654; app</a> &nbsp;&nbsp;|&nbsp;&nbsp; Codex: <a href="kame:codex-cli">&#9654; CLI</a> &nbsp;<a href="kame:codex-fugu-cli">&#9654; fugu</a> &nbsp;<a href="kame:codex-app">&#9654; app</a> &nbsp;&nbsp;|&nbsp;&nbsp; Pydantic AI: <a href="kame:pyai-cli">&#9654; CLI</a> &nbsp;<a href="kame:pyai-web">&#9654; web</a> &nbsp;<a href="kame:pyai-agent">&#9881; agent</a></font>')
 				#A client KAME does not launch gets no per-session override, so it
 				#needs a one-time entry in its own config; this reports the change
 				#first and only writes on the follow-up link.  The names must track

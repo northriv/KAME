@@ -661,6 +661,18 @@ void FrmKameMain::onScriptLinkClicked(const QUrl &url) {
                 m_measure->python()->launchJupyterConsole(
                     progs.front(), ("notebook " + dir).toUtf8().data());
         }
+        else if(action == "pyai-agent") {
+            //Choosing your own agent is a file, not an environment variable:
+            //a GUI application should not require one to be exported before
+            //launch.  Cancel clears the choice and returns to the agent KAME
+            //ships, which is the only way back that needs no explanation.
+            gMessagePrint(i18n("Choose your Pydantic AI agent module (Cancel = use the one KAME ships)."));
+            QString file = QFileDialog::getOpenFileName(
+                this, i18n("Choose Pydantic AI Agent"), QString(),
+                "Agent module or spec (*.py *.yml *.yaml *.json);;All files (*.*)");
+            m_measure->python()->handleLink(
+                (action + "?file=" + file).toUtf8().constData());
+        }
         else if(action.startsWith("pyai-")) {
             //Pydantic AI normally lives in a venv, which no PATH probe can
             //see. First use asks for the venv folder (the same gesture as the
