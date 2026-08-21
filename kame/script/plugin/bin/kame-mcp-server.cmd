@@ -43,6 +43,21 @@ if defined KAME_MCP_PYTHON (
     )
     set "PYEXE=%KAME_MCP_PYTHON%"
 )
+rem kame-mcp-venv first -- the interpreter KAME's own probe prefers.  Look for
+rem it beside and above the directory the server script lives in (KAME's
+rem resources dir), which is the same walk xpythonsupport.py does.  Without
+rem this the launcher reports "no Python with 'mcp'..." while KAME itself is
+rem happily using that venv: on Windows `py`/`python`/`python3` are usually
+rem the Microsoft Store alias stub or an MSYS2 python that cannot host `mcp`
+rem (no pip, and PyPI's win_amd64 wheels do not match its mingw ABI).
+for %%I in ("%SERVER%") do set "SRVDIR=%%~dpI"
+for %%P in ("." ".." "..\.." "..\..\.." "..\..\..\.." "..\..\..\..\..") do (
+    if not defined PYEXE (
+        if exist "!SRVDIR!%%~P\kame-mcp-venv\Scripts\python.exe" (
+            call :try "!SRVDIR!%%~P\kame-mcp-venv\Scripts\python.exe" ""
+        )
+    )
+)
 if not defined PYEXE call :try "py" "-3"
 if not defined PYEXE call :try "python" ""
 if not defined PYEXE call :try "python3" ""

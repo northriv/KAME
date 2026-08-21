@@ -72,9 +72,21 @@ fi
 # upgrades and MacPorts creates none without `port select`, so the interpreter
 # carrying mcp is often reachable only as python3.X.  An unmatched glob stays
 # literal and is dropped by the `command -v` test below.
+# kame-mcp-venv, beside and above the directory the server script lives in
+# (KAME's resources dir): the same walk xpythonsupport.py does when it picks an
+# interpreter, so the plugin agrees with KAME instead of reporting "no Python
+# with 'mcp'..." while KAME is using that venv. Listed before the system ones
+# because it is the interpreter provisioned for exactly this job.
+_srvdir=$(dirname "$server")
+_venv_candidates=""
+for _up in . .. ../.. ../../.. ../../../.. ../../../../..; do
+    _venv_candidates="$_venv_candidates $_srvdir/$_up/kame-mcp-venv/bin/python3"
+done
+
 python=""
 for candidate in \
     "${KAME_MCP_PYTHON:-}" \
+    $_venv_candidates \
     python3 \
     python \
     /opt/local/bin/python3 \
