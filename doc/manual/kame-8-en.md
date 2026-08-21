@@ -1298,8 +1298,16 @@ Simply instruct the AI assistant in natural language:
 1. Install required packages:
 
    ```
-   pip install mcp jupyter_client
+   pip install "mcp<2" jupyter_client
    ```
+
+   Keep the `<2`. Released builds (8.6 and earlier) import
+   `mcp.server.fastmcp`, which mcp 2.x removed, so a plain `pip install mcp`
+   installs a package that imports yet cannot start the server — the symptom
+   is a `ModuleNotFoundError` on that submodule, not a missing `mcp`. This
+   need not be the Python embedded in KAME: the MCP server is a separate
+   process, and KAME searches for an interpreter that can import both
+   packages.
 
 2. Launch KAME and start a Jupyter notebook via Script → Launch Jupyter Notebook.
 
