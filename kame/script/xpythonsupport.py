@@ -1319,11 +1319,24 @@ def _mcp_json_edit(label, path, entry, apply, plan, done, fail):
     rest back unchanged, after a backup -- these files hold the user's own
     settings, and for some clients (Gemini) that is most of the file."""
     import json as _json, shutil as _sh
+
+    def _load(p):
+        """Parse `p`, treating an EMPTY file as {}.
+
+        A client that has a config path but has never written to it leaves a
+        0-byte file -- Antigravity does, and json.load then dies with
+        "Expecting value: line 1 column 1 (char 0)", which surfaced as a
+        traceback on Apply. Empty means "no settings yet", so {} is the right
+        reading. Malformed-but-non-empty still raises: that is somebody's real
+        configuration this cannot safely rewrite."""
+        with open(p) as _f:
+            _text = _f.read()
+        return _json.loads(_text) if _text.strip() else {}
+
     _old = None
     try:
         if os.path.isfile(path):
-            with open(path) as _f:
-                _old = ((_json.load(_f) or {}).get('mcpServers') or {}).get('kame')
+            _old = ((_load(path) or {}).get('mcpServers') or {}).get('kame')
     except Exception:
         _old = '(unreadable)'
     plan.append('<b>{}</b> &mdash; <tt>{}</tt><br/>'
@@ -1338,11 +1351,15 @@ def _mcp_json_edit(label, path, entry, apply, plan, done, fail):
     try:
         _conf = {}
         if os.path.isfile(path):
-            with open(path) as _f:
-                _conf = _json.load(_f) or {}
+            _conf = _load(path) or {}
             _sh.copy2(path, path + '.kame-backup')
         #Only this one key is touched; everything else is written back.
         _conf.setdefault('mcpServers', {})['kame'] = entry
+        #A client can be installed with its config directory not yet created;
+        #without this the write fails with FileNotFoundError on the dir.
+        _dir = os.path.dirname(path)
+        if _dir:
+            os.makedirs(_dir, exist_ok=True)
         with open(path, 'w') as _f:
             _json.dump(_conf, _f, indent=2)
         done.append('{} ({})'.format(label, path))
