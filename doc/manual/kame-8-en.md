@@ -1263,9 +1263,22 @@ Why KAME’s STM is effective for laboratory software:
 
 # AI-Assisted Experiment Automation (MCP)
 
-KAME 8.0 includes a built-in Model Context Protocol (MCP) server. MCP is an open protocol developed by Anthropic that provides a standard interface for AI assistants (such as Claude) to interact with external tools.
+> **This chapter is maintained in `doc/manual/kame-8-en.md`, not in the `.docx`.**
+> It changes far more often than the rest of the manual, and it is also the
+> version AI assistants read (the `kame_manual` tool serves this file). Do not
+> overwrite it from a docx conversion; regenerate the docx from here instead.
 
-KAME’s MCP server connects to the embedded IPython kernel via jupyter_client, allowing AI assistants to execute Python code directly in KAME’s interpreter. The same environment available in Jupyter notebooks — Root(), Snapshot(), Transaction(), and all loaded drivers — is fully accessible to the AI.
+KAME includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/)
+(MCP) server. MCP is an open protocol that gives AI assistants a standard way
+to use external tools. KAME's server connects to its embedded IPython kernel,
+so an assistant can run Python inside KAME with the same environment a Jupyter
+notebook has: `Root()`, `Snapshot()`, `Transaction()` and every loaded driver.
+
+The assistant is also given KAME's instrument-safety rules by the server
+itself, so they apply in every client: motion may be irreversible, warming a
+cryostat above room temperature needs your confirmation, RF output has limits,
+and camera images must be read through 2-D math tools rather than off the
+display bitmap. Removing a client-specific skill or prompt never removes these.
 
 ## Available Tools
 
@@ -1273,7 +1286,7 @@ KAME’s MCP server connects to the embedded IPython kernel via jupyter_client, 
 |------|-------------|
 | `kame_api` | Retrieve the Python API quick reference (for AI orientation) |
 | `kame_manual` | Retrieve this manual — table of contents or a specific section |
-| `execute_code` | Execute arbitrary Python code in KAME's interpreter; returns text and matplotlib plots |
+| `execute_code` | Execute Python in KAME's interpreter; returns text and matplotlib plots. ~30 s limit |
 | `execute_code_async` | Run long experiments in a background thread; returns a job id |
 | `get_result` | Check the status/progress of an asynchronous job |
 | `stop_job` | Request a cooperative stop of a running asynchronous job |
@@ -1285,7 +1298,7 @@ KAME’s MCP server connects to the embedded IPython kernel via jupyter_client, 
 
 ## Usage Examples
 
-Simply instruct the AI assistant in natural language:
+Instruct the assistant in natural language:
 
 - "Read the current temperature from LakeShore1"
 
@@ -1295,7 +1308,7 @@ Simply instruct the AI assistant in natural language:
 
 ## Setup
 
-1. Install required packages:
+1. Install the server's requirements:
 
    ```
    pip install "mcp<2" jupyter_client
@@ -1304,28 +1317,142 @@ Simply instruct the AI assistant in natural language:
    Keep the `<2`. Released builds (8.6 and earlier) import
    `mcp.server.fastmcp`, which mcp 2.x removed, so a plain `pip install mcp`
    installs a package that imports yet cannot start the server — the symptom
-   is a `ModuleNotFoundError` on that submodule, not a missing `mcp`. This
-   need not be the Python embedded in KAME: the MCP server is a separate
-   process, and KAME searches for an interpreter that can import both
-   packages.
+   is a `ModuleNotFoundError` on that submodule, not a missing `mcp`.
 
-2. Launch KAME and start a Jupyter notebook via Script → Launch Jupyter Notebook.
+   This need not be the Python embedded in KAME. The MCP server is a separate
+   process, and KAME looks for an interpreter that can import both packages:
+   Jupyter's own, then a folder named `kame-mcp-venv` beside the installation,
+   then `python3` and versioned `python3.X` names. Creating `kame-mcp-venv` is
+   the recommended way to keep these packages away from your system Python.
 
-3. KAME automatically generates .mcp.json in the notebook workspace directory.
+2. Start KAME and click **▶ Jupyter notebook** in the Script pane (or
+   Script → Launch Jupyter Notebook). This starts the notebook *and* the MCP
+   server, and writes the connection details that clients need.
 
-4. Open Claude Code in the same directory — the MCP server is discovered automatically.
+3. Launch a client from the Script pane, or register one permanently (below).
 
-5. The .mcp.json file is cleaned up when KAME exits.
+## Launching a client
 
-## Technical Highlights
+The Script pane offers one-click launches, each already pointed at this KAME:
 
-- Connects to KAME’s embedded IPython kernel via ZMQ (jupyter_client)
+| Link | Starts |
+|------|--------|
+| **Claude: Code / app** | Claude Code in a terminal, with KAME's plugin loaded automatically / the Claude desktop app |
+| **Codex: CLI / fugu / app** | Codex in a terminal. The server is passed for that session only — nothing is written to your Codex configuration |
+| **Pydantic AI: CLI / web** | The `clai` command from your virtualenv, given KAME's agent. **web** also opens your browser once the server answers |
+| **Pydantic AI: ⚙ agent** | Use an agent module of your own instead of KAME's (see below) |
 
-- Uses stdio transport for inter-process communication
+On first use of a Pydantic AI link, KAME asks for the virtualenv that has
+`pydantic-ai` installed and remembers it.
 
-- Includes kame_python_api.md — an API reference automatically read by the AI before writing code, minimizing trial-and-error
+## Registering a client permanently
 
-- To our knowledge, this is the first measurement software to integrate an MCP server, enabling direct AI-to-instrument interaction
+A client you did not launch from KAME has no way to be told where the server
+is, so it needs an entry of its own. **▶ Register KAME with your AI clients**
+writes one into whichever clients are installed. The first click only reports
+what would change — every path, and the old and new entry for any file that is
+edited — and a second click applies it.
+
+| Client | How it is registered |
+|--------|----------------------|
+| Codex | `codex mcp add` |
+| Antigravity CLI (`agy`) | `agy mcp add` |
+| Claude Desktop | its `claude_desktop_config.json`, edited additively after a backup |
+| LM Studio / Bionic | nothing to do — open the notebook workspace as a project and it reads the `.mcp.json` KAME writes there |
+
+The entry runs a launcher that finds the current kernel by itself, so it stays
+valid across KAME restarts and does nothing while KAME is closed (its tools
+simply report that KAME is not running).
+
+## Using your own Pydantic AI agent
+
+KAME ships a ready-made agent, but it owns only the connection to KAME — not
+your choice of model, capabilities or instructions. An agent that should also
+have, say, a code-reading capability, memory that survives runs, or a list of
+models to switch between belongs in a module of your own; it needs KAME's
+toolset added to it as one capability.
+
+**⚙ agent** picks that module. KAME checks the file really exposes a
+`pydantic_ai.Agent`, notes which variable holds it, and runs it from its own
+directory. If the module also builds a web app with `Agent.to_web(models=…)`,
+the **web** link serves that app, so the model list in the browser is the one
+you declared. Cancel in the dialog returns to the agent KAME ships.
+
+Which model is used:
+
+- Your own agent uses the model bound in your module. KAME does not override it.
+- KAME's agent binds none, so `clai` supplies one. Set `KAME_PYAI_MODEL` to
+  choose (several may be listed, separated by commas, to populate the web UI's
+  model menu); otherwise `clai`'s own default applies, which needs a matching
+  API key.
+
+## What each client can show you
+
+Every client receives the same tools and the same data, including plots — the
+assistant can analyse a figure in all of them. What differs is what *you* see:
+
+- Claude Code, Claude Desktop and Antigravity display plots returned by
+  `execute_code`.
+- The Pydantic AI web chat UI does not: it renders images the model generates,
+  not images a tool returns.
+
+When you need to look at a figure in a client that will not show it, ask the
+assistant to put the plotting code in a **notebook cell** instead. It renders
+inline there, and it stays in the notebook as part of the measurement record.
+Reload the notebook tab and run the new cell — appending a cell is a file
+edit, so it is not executed for you.
+
+## Long measurements
+
+Anything that loops, sleeps or samples over time should run through
+`execute_code_async`, which returns a job id immediately and leaves KAME
+responsive. Ask the assistant to report progress at every iteration; that is
+also the only point at which a stop request can take effect.
+
+Progress and state are written to `~/.kame_mcp_log/jobs/<job_id>.json` as the
+job runs, and a stop request is honoured through a file beside it. That is
+deliberate: it means a job can still be inspected and stopped even when the
+kernel is too busy to answer.
+
+## Usage records
+
+KAME appends one line per tool call to `~/.kame_mcp_log/`, and the Pydantic AI
+client appends one line per model request beside it: calls, tokens and
+inference time — never the text of a prompt or a reply. The first is a record
+of what an assistant actually did, useful when reconstructing a Methods
+section; the second gives cost and local-inference figures that providers do
+not always report. Set `KAME_MCP_NO_LOG` to switch the tool log off,
+`KAME_USAGE_NO_LOG` for the model log.
+
+## Troubleshooting
+
+Most failures here are environmental rather than KAME's, and they are not
+guessable from the message. This table is symptom-first.
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `ModuleNotFoundError: mcp.server.fastmcp` | `pip install mcp` installed 2.x | `pip install "mcp<2"` |
+| `can't open file ...\Resources\kame_mcp_server.py` (Windows) | Script files were never deployed into the build tree | Rebuild, or run `tools\deploy_scripts.bat <resources dir>` |
+| `No module named '_socket'`, or exit code 103 | KAME was started from `kame-msyspython.bat`, whose `PYTHONHOME` a real CPython cannot use | Fixed in current builds; otherwise start KAME with `kame.bat` |
+| Clicking the Claude or Codex **app** link does nothing (Windows) | Those apps are MSIX packages, not on `PATH` | Fixed in current builds |
+| `No interpreter inside <folder>` | uv, poetry and pdm keep the interpreter in a hidden `.venv` | Pick the project folder; KAME looks inside it |
+| `PermissionError: [Errno 1] Operation not permitted` | macOS privacy protection. The path is under Documents, Desktop, Downloads or iCloud Drive | Put the virtualenv and project outside those folders, or grant Terminal access to them in System Settings → Privacy & Security |
+| `KeyError` on an API-key variable | A `.env` file is not read by anything automatically | Call `load_dotenv()` in your module, or export the variable |
+| `Set the OPENAI_API_KEY environment variable` | `clai`'s default model was used | Set `KAME_PYAI_MODEL`, or bind a model in your own agent |
+| Plots do not appear in the web UI | That UI does not render tool-returned images | Use a notebook cell (see above), or a client that does |
+| A long job cannot be stopped | The code never reports progress, so there is no point at which a stop can be honoured | Ask the assistant to report progress every iteration |
+
+## Technical notes
+
+- The server connects to KAME's embedded IPython kernel over ZMQ
+  (`jupyter_client`), and speaks either stdio or HTTP to the client.
+- `kame_python_api.md` is read by the assistant before it writes code, which
+  removes most trial and error.
+- The server and a `kame-measurement` skill are also packaged as one plugin
+  directory, in both the Claude Code format and the cross-vendor
+  [Agent Plugins 1.0.0](https://agent-plugins.org/) format.
+- To our knowledge this is the first measurement software to integrate an MCP
+  server, allowing an assistant to interact with instruments directly.
 
 # FAQ
 
