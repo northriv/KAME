@@ -2,7 +2,7 @@
 
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![GitHub](https://img.shields.io/badge/GitHub-northriv%2FKAME-181717?logo=github)](https://github.com/northriv/KAME)
-[![Version](https://img.shields.io/badge/version-8.5-green)]()
+[![Version](https://img.shields.io/badge/version-8.6-green)]()
 [![arXiv](https://img.shields.io/badge/arXiv-2608.12024-b31b1b.svg)](https://arxiv.org/abs/2608.12024)
 
 KAME is an open-source, multi-threaded program for automated physical property measurements,
@@ -73,12 +73,14 @@ Windows 64-bit binaries: [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kam
 
 ---
 
-## What's New since 8.5 *(unreleased)*
+## What's New in 8.6
 
 - **Vendor-neutral AI clients** — `kame_pydantic_ai.py` exposes KAME's toolset and safety instructions as a Pydantic AI agent with no model bound, and hands it to the user's own `clai` (`clai -a kame_pydantic_ai:agent`). The provider, keys and default therefore stay in the setup they already have, and KAME never asks which model to use.
 - **Agent plugin** — the MCP server and a `kame-measurement` skill ship as one directory that is both a Claude Code plugin and an [Agent Plugins 1.0.0](https://agent-plugins.org/) plugin, so an assistant carries KAME's measurement procedures in any directory.
 - **Permanent client registration** — a one-time Script-pane action registers KAME with whichever clients are installed (Codex, Antigravity CLI, Claude Desktop), each through the mechanism that client provides; it reports every change before writing anything.
 - **Usage records** — one JSONL line per MCP tool call, and per model request from the Pydantic AI client: calls, tokens and inference time, never prompt or response text.
+- **macOS: idle CPU back to a few percent** — the main loop called `processEvents()` without `WaitForMoreEvents`, so it could never sleep and held a full core with nothing running. Pacing that used to come from a sleep inside the signal pump is now expressed where it belongs; the pump still drains at full speed while events are actually queued.
+- **The Jupyter server exits with KAME** — it watches KAME's pid and shuts itself down, so a crash or a kill no longer leaves an orphan holding its port. Clicking the link again reopens the running server instead of starting a second one, and its output is drained rather than left to fill a pipe and block it.
 
 ---
 

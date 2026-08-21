@@ -1,3 +1,74 @@
+* Fri Aug 21 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Release 8.6.
+- macOS: the GUI held a full core with nothing running. main() does not use
+  app.exec() on this platform -- since 2018 it runs its own
+  while(form->running()) { pool; app.processEvents(); } so each pass can be
+  wrapped in an autorelease pool -- and processEvents() defaults to AllEvents,
+  which does NOT include WaitForMoreEvents. Qt computes
+  canWait &= (flags & WaitForMoreEvents), so that loop could never block: it
+  was a busy-wait from the day it was written. It did not show because
+  processSignals() slept 5 ms per idle pass and that sleep paced the loop as a
+  side effect; moving the pacing to the timer interval (right on Linux, where
+  app.exec() asks to wait) left macOS with nothing holding it back. Sampling
+  put 92% of the main thread in running states and 44% of it inside the Cocoa
+  dispatcher re-arming its CFRunLoop timer -- work whose whole purpose is to
+  prepare a sleep that never came. A bare QApplication whose only timer is a
+  do-nothing zero-interval one reproduces the same two frames at 85% of a core.
+  The loop now asks to wait, and the signal pump's timer is never 0: 0 means
+  "never sleep", not "soon".
+- kame/xscheduler: SignalBuffer::synchronize() reported "busy" for two
+  unrelated states and the single bool could not tell them apart -- a real
+  backlog left by the 30 ms drain budget, where returning at once is exactly
+  right, and an empty queue with an event parked in the skipped queue waiting
+  out its listener's delay_ms(), where nothing can progress before the delay
+  expires and polling is pure spin. hasImmediateEvents() separates them, so
+  the aggressive path keeps its 0 ms and the deadline that has not arrived is
+  simply waited out.
+- script: the Jupyter server KAME launches now dies with KAME. finish() only
+  runs on a clean kernel-loop exit, so a crash or a kill left the server alive
+  holding its port -- seven had accumulated in eleven hours, each pushing the
+  next launch to 8889, 8890, ... The decisive check therefore lives in the
+  server: a daemon thread watches the KAME pid and sends itself SIGTERM when it
+  goes (0.09 s, measured), taking the kernels it started with it. It must not
+  probe with os.kill(pid, 0) on Windows, where Python maps every signal other
+  than CTRL_C_EVENT/CTRL_BREAK_EVENT onto TerminateProcess -- the probe would
+  kill KAME. Three parent-side defects went with it: only the last launch was
+  remembered (a second click orphaned the first for good), terminate() was
+  called twice with nothing checking that the server had gone, and stdout was a
+  PIPE nobody read after the 0.5 s launch check, so the server would block once
+  the ~64 KB buffer filled. Clicking the link again now reopens the running
+  server.
+- script: MCP clients that KAME did not launch can be registered permanently
+  from the Script pane. The entry names the plugin's stdio launcher, not the
+  HTTP URL, so it survives KAME restarts and is inert while KAME is closed.
+  Each client is reached the way it provides: `codex mcp add`, `agy mcp add`
+  (Antigravity CLI -- and its CLI records "disabled": false beside the command,
+  which a hand-built entry would omit, which is the argument for using it), and
+  an additive edit of claude_desktop_config.json for Claude Desktop, which
+  offers neither. Bionic / LM Studio need nothing: a project opened on the
+  notebook workspace reads the .mcp.json KAME already writes there. Two clicks,
+  not one -- the first reports every target path and the old and new entry, and
+  only the second writes.
+- script: the Pydantic AI links hand KAME's agent to the user's own clai
+  (`clai -a kame_pydantic_ai:agent`) instead of running the script with a model
+  KAME had to ask for. Imported as a module, kame_pydantic_ai exposes `agent`
+  with no model bound and only KAME's MCP toolset and safety instructions, and
+  clai fills the model in from -m or its own default -- so provider, keys and
+  defaults stay in the setup the user already has.
+- script: the venv dialog accepts the folder people actually pick. uv, poetry
+  and pdm keep the interpreter in a .venv that macOS's file dialog does not
+  show, so demanding <picked>/bin/python turned the natural choice into an
+  error; .venv/, venv/ and env/ inside it, a bin/ directory and the interpreter
+  itself are all accepted now, and every candidate is probed rather than the
+  first assumed. A venv under Documents that fails with EPERM is reported as
+  what it is -- macOS privacy, not a missing package.
+- mcp: tracebacks reach the client without IPython's colour escapes, which were
+  43% of the payload on the sample measured and unrenderable by the reader.
+  kame_python_api gains the async polling shape and, for driver cleanup, the
+  `finally` idiom -- explicitly NOT a blanket context manager, because
+  unconditional teardown is wrong for a controller mid-ramp, a magnet at field
+  or a gate mid-sequence.
+
 * Wed Aug 19 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - Release 8.5.
 - Linux: first run against real instrument hardware. The Thamway FX2/FX3 USB
