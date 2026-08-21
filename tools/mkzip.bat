@@ -6,14 +6,21 @@ xcopy /S /Y resources\* ..\kame-win32\resources\
 copy coremodules2\*.dll ..\kame-win32\coremodules2\
 copy coremodules\*.dll ..\kame-win32\coremodules\
 copy modules\*.dll ..\kame-win32\modules\
-rem --- AI support (MCP server + API ref + Pydantic AI + user manual + plugin).
-rem     Windows qmake does NOT deploy scriptfile.files (they are in DISTFILES
-rem     only), so the build tree's resources\ never receives them -- copy them
-rem     straight from the source tree instead, mirroring the macOS bundle's
-rem     Contents/Resources layout.  Without kame_mcp_server.py the release has
-rem     no MCP server at all; kame_python_api.md / kame-8-en.md + media\ back
-rem     the kame_api and kame_manual tools.  plugin\ is for macOS parity -- it
-rem     is inert on Windows (its .mcp.json invokes a POSIX-sh launcher).
+rem --- kame.pro's scriptfile.files, copied from the SOURCE tree.
+rem     Windows qmake never deploys them (they sit in DISTFILES only), so the
+rem     build tree's resources\ only ever holds whatever was hand-copied there
+rem     once -- which is how a release shipped a jupyter_notebook_config.py and
+rem     notebook_kame_kernel_manager.py predating the orphan-server watchdog and
+rem     the working interrupt/restart overrides, and no kame_mcp_server.py at
+rem     all.  Copying the whole set from source every time keeps that from
+rem     silently rotting again; it mirrors the macOS Contents/Resources layout.
+rem     kame_python_api.md / kame-8-en.md + media\ back the kame_api and
+rem     kame_manual MCP tools.  plugin\ is for macOS parity -- it is inert on
+rem     Windows (its .mcp.json invokes a POSIX-sh launcher).
+copy ..\..\kame\script\rubylineshell.rb ..\kame-win32\resources\
+copy ..\..\kame\script\pythonlineshell.py ..\kame-win32\resources\
+copy ..\..\kame\script\notebook\jupyter_notebook_config.py ..\kame-win32\resources\
+copy ..\..\kame\script\notebook\notebook_kame_kernel_manager.py ..\kame-win32\resources\
 copy ..\..\kame\script\kame_mcp_server.py ..\kame-win32\resources\
 copy ..\..\kame\script\kame_pydantic_ai.py ..\kame-win32\resources\
 copy ..\..\kame\script\kame_python_api.md ..\kame-win32\resources\
