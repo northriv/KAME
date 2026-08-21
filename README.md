@@ -499,6 +499,17 @@ pacman -S make \
     mingw-w64-x86_64-ruby
 ```
 
+For the in-process Jupyter kernel (the `kame-msyspython.bat` route below),
+add the notebook stack — MSYS2's Python is `EXTERNALLY-MANAGED` and ships no
+`pip` module, so these must come from `pacman`, not `pip`:
+
+```sh
+pacman -S mingw-w64-x86_64-python-ipykernel \
+    mingw-w64-x86_64-python-ipython \
+    mingw-w64-x86_64-python-pyzmq \
+    mingw-w64-x86_64-python-matplotlib
+```
+
 NI 488.2 or DAQmx drivers are optional.
 
 **Before running KAME**, copy the following DLLs from `C:\msys64\mingw64\bin` alongside the KAME executable:
@@ -509,14 +520,34 @@ zlib1.dll  libgmp-10.dll  libusb-1.0.dll
 x64-msvcrt-ruby3**.dll
 ```
 
-Also copy `kame/script/rubylineshell.rb` and `kame/script/pythonlineshell.py` to `./Resources`.
+**Also copy the script files by hand.** Unlike the macOS bundle and `make
+install` on Linux, the Windows build does *not* deploy `scriptfile.files`
+automatically (qmake only lists them in `DISTFILES`), so copy these into
+`.\resources` next to `kame.exe`:
+
+```
+kame/script/rubylineshell.rb          kame/script/pythonlineshell.py
+kame/script/notebook/jupyter_notebook_config.py
+kame/script/notebook/notebook_kame_kernel_manager.py
+kame/script/kame_mcp_server.py        kame/script/kame_pydantic_ai.py
+kame/script/kame_python_api.md        doc/manual/kame-8-en.md
+doc/manual/media/                     (→ .\resources\media\)
+```
+
+The last five are what the AI integration runs on: without
+`kame_mcp_server.py` there is no MCP server to launch, and the `kame_api` /
+`kame_manual` tools read `kame_python_api.md` and `kame-8-en.md` (plus its
+`media/` images) from this directory. `kame/script/plugin/` may be copied to
+`.\resources\plugin` for parity with macOS, but it is inert on Windows — its
+`.mcp.json` invokes a POSIX-sh launcher, which is why the **Claude: Code**
+quick-launch link deliberately omits `--plugin-dir` there.
 
 **Launch scripts:**
 
 | Script | Purpose |
 |---|---|
-| `kame.bat` | Standard launch (system Python) |
-| `kame-msyspython.bat` | Launch with MSYS2 Python (numpy, etc.) |
+| `kame.bat` | Standard launch — bundled `.\resources\python3.12` (standard library only, no `pip`). Scripting works; there is no `ipykernel`, so no in-process Jupyter kernel — and therefore nothing for the MCP server to attach to |
+| `kame-msyspython.bat` | Launch with MSYS2 Python (`PYTHONHOME=C:\msys64\mingw64`) — the one to use for the in-process Jupyter kernel, given the `python-ipykernel` packages above |
 
 To launch from Qt Creator, add to **Projects → Environment**:
 
@@ -596,8 +627,26 @@ server:
 | **Pydantic AI: CLI / web** | The venv's `clai`, handed KAME's agent (`clai -a kame_pydantic_ai:agent`); the model comes from your clai setup, `-m` overrides. Falls back to running the script directly, which does need a model |
 
 Prerequisites are `pip install mcp jupyter_client` for the server, and
-`pip install pydantic-ai clai` if you want the Pydantic AI links. KAME finds
-an interpreter that has them, including versioned `python3.X` names.
+`pip install pydantic-ai clai` if you want the Pydantic AI links. The server
+runs as its **own process**, so this need not be the interpreter embedded in
+KAME: KAME probes candidates — Jupyter's own interpreter, a `kame-mcp-venv`
+(preferred, searched upward from the resource directory), `python3`, and
+versioned `python3.X` names — and picks the first that can actually import
+both `jupyter_client` and `mcp.server.fastmcp`.
+
+> **On Windows, use a `kame-mcp-venv`.** None of the interpreters KAME can
+> otherwise reach will do: the bundled `resources\python3.12` has no `pip`,
+> MSYS2's Python is `EXTERNALLY-MANAGED` with no `pip` module (and `mcp` /
+> `pydantic-ai` are not in `pacman`), and `python3` on `PATH` is usually the
+> Microsoft Store App-Execution-Alias stub, which only prints an
+> "install from the Store" message. Create the venv from a real CPython
+> ≥ 3.10 (what `mcp` requires) — [`uv`](https://docs.astral.sh/uv/) is the
+> least intrusive way — and put it next to `kame.exe`:
+>
+> ```
+> uv venv --python 3.12 kame-mcp-venv
+> uv pip install --python kame-mcp-venv\Scripts\python.exe mcp jupyter_client
+> ```
 
 **Registering permanently** — a client KAME did not launch gets no
 per-session override, so it needs an entry of its own. The Script pane's
