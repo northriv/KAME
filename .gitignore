@@ -61,3 +61,10 @@ Testing/
 
 # KAME writes <script>.log next to any script it runs
 tools/*.py.log
+
+# The MCP server's interpreter (README "MCP setup"): a venv KAME's probe
+# finds by walking up from the resource dir, plus the standalone CPython it
+# is built from when the host has no suitable one.  Local, ~150 MB, and
+# platform-specific -- never tracked.
+/kame-mcp-venv/
+/.uvpython/
