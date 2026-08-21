@@ -736,7 +736,15 @@ def launchJupyterConsole(prog, argv):
 		# 3. Common venv location for KAME MCP (sibling of the build directory)
 		import platform as _pf
 		_venv_subdir = ('Scripts', 'python.exe') if _pf.system() == 'Windows' else ('bin', 'python3')
-		for _depth in range(3, 7):  # search up from Resources to find kame-mcp-venv
+		# Search up from the resource dir.  Start at depth 1, not 3: the old
+		# floor assumed the macOS bundle's `kame.app/Contents/Resources`
+		# (2 levels in, so depth 3 is the build dir).  A Windows release keeps
+		# `resources` only ONE level inside the unzipped folder, so depth 3
+		# already lands on the folder's GRANDPARENT and `kame-mcp-venv` placed
+		# next to kame.exe — the obvious spot — was never found.  Depths 1-2
+		# are two extra isfile() checks and cannot false-positive (nothing
+		# ships a kame-mcp-venv inside kame.app/Contents).
+		for _depth in range(1, 7):  # search up from Resources to find kame-mcp-venv
 			_venv_base = os.path.join(KAME_ResourceDir, *(['..'] * _depth), 'kame-mcp-venv', *_venv_subdir)
 			_venv_py = os.path.normpath(_venv_base)
 			if os.path.isfile(_venv_py):
