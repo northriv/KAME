@@ -331,9 +331,14 @@ else {
         exists($${_PRO_FILE_PWD_}/hi32-app-kame.png): INSTALLS += icon32
     }
     else {
+        # Keep in step with scriptfile.files above and with
+        # tools/deploy_scripts.bat, which is what actually copies on Windows.
+        # This list only makes the files visible in the IDE, so an omission
+        # here is invisible -- and a tempting template for the next addition.
         DISTFILES += script/rubylineshell.rb  \
             script/pythonlineshell.py \
             script/kame_mcp_server.py \
+            script/kame_pydantic_ai.py \
             script/kame_python_api.md \
             ../doc/manual/kame-8-en.md \
             script/notebook/jupyter_notebook_config.py \
