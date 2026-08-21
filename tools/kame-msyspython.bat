@@ -10,7 +10,12 @@ if not exist qtdir.txt (
 
  echo Searching for QT 6.5 or later DLLs in %QTROOT%....
 
- dir /S/B %QTROOT% | findstr /r "6.[5-9].*\\llvm.*64\\bin\\Qt6Core.dll" >qtdir.txt
+rem Two patterns, because findstr has no alternation and `*` repeats only the
+rem PRECEDING element: "6.[5-9]" alone matches 6.5-6.9 but NOT a two-digit
+rem minor, so Qt 6.10/6.11 went undetected here while kame.bat (plain "6.*")
+rem found them.  The second /c: covers 6.10 and later; together they keep the
+rem original ">= 6.5" intent.
+ dir /S/B %QTROOT% | findstr /r /c:"6.[5-9].*\\llvm.*64\\bin\\Qt6Core.dll" /c:"6.[1-9][0-9].*\\llvm.*64\\bin\\Qt6Core.dll" >qtdir.txt
 
 )
 
