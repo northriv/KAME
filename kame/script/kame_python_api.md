@@ -44,6 +44,32 @@ get_result(job["job_id"])              # -> {"status": "running", "progress": "3
 stop_job(job["job_id"])                # honoured at the next mcp_checkpoint
 ```
 
+## Showing a figure to the user
+
+`execute_code` returns matplotlib figures as MCP image content, and the model
+receives them either way — you can analyse a plot you cannot display. What
+varies is whether the *client* renders a tool-returned image. Claude Code,
+Claude Desktop and Antigravity do. The Pydantic AI web chat UI does not:
+pydantic-ai carries the image to the model, but its browser event stream emits
+only model-generated files, so a tool's image never reaches the page.
+
+When the human needs to look at the figure, put the plotting code in a
+notebook cell instead of relying on the client:
+
+```python
+notebook_edit(path="", index=-1, mode="insert", cell_type="code", source=CODE)
+# then tell the user to reload the tab and run the new cell
+```
+
+It renders inline wherever notebooks render, and it stays in the notebook as
+part of the experiment record. The cell is not executed for you — appending it
+is a file edit, and output can only be attributed to a cell the front end
+itself ran.
+
+**Never** embed a figure as a base64 data URI in returned text. Tool text goes
+into the model's context: a 30 KB PNG is ~10k tokens spent on something the
+image channel already delivers.
+
 The job runs on a plain worker thread, not a KAME script thread. Node
 operations (`Root`, `Snapshot`, `Transaction`, writes), `sleep()` and
 `print()` all work there; the per-thread script context behind the Script
