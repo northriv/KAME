@@ -31,6 +31,19 @@ for _ in range(60):
 ```
 Switch to `execute_code_async` + `get_result(job_id)` for the same code.
 
+The async shape, on the MCP side. Poll on the timescale of the work, not
+faster: `get_result` returns the latest `mcp_checkpoint` message, so one call
+per checkpoint is all the information there is.
+
+```python
+job = execute_code_async(code)         # -> {"job_id": ...}
+# then, repeatedly:
+get_result(job["job_id"])              # -> {"status": "running", "progress": "3/60 ..."}
+                                       #    "done" | "stopped" | "error" ends it
+# read the job's variables with execute_code only after status is done/stopped
+stop_job(job["job_id"])                # honoured at the next mcp_checkpoint
+```
+
 ## Globals (pre-imported from `kame`)
 
 ```python
@@ -435,6 +448,26 @@ d = dc.createByTypename("TestDriver", "MCP_Test")
 # ... read Snapshot(d) / its scalar entries ...
 dc.release(d)
 ```
+
+**If your code can raise, clean up in `finally`** — a driver left in the tree
+with its port open is the normal outcome of a half-finished script, and the
+next run then fails on the name it already used:
+
+```python
+d = dc.createByTypename("TestDriver", "MCP_Test")
+try:
+    ...                                  # measure
+finally:
+    dc.release(d)                        # runs even if the body raised
+```
+
+**Do NOT wrap a real instrument in unconditional teardown.** For a synthetic
+driver, closing and releasing on the way out is always right, and a `with`
+block would be a fine way to say it. For hardware it is a judgement call the
+operator owns: a temperature controller mid-ramp, a magnet supply at field or
+an amplifier gate mid-sequence may be safer left running under supervision
+than closed because a Python exception happened somewhere above. Write
+`Control = False` where you mean it, not in a blanket handler.
 
 ## Common Recipes
 

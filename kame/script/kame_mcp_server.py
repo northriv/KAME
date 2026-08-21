@@ -43,6 +43,10 @@ except ImportError:
     print(f"  {sys.executable} -m pip install jupyter_client", file=sys.stderr)
     sys.exit(1)
 
+#CSI sequences only: IPython's traceback colouring is all SGR, and a
+#narrow pattern cannot eat anything from the user's own output.
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
 CONN_INFO_PATH = Path.home() / ".kame_kernel_connection.json"
 API_DOC_PATH = Path(__file__).parent / "kame_python_api.md"
 MANUAL_DOC_PATHS = [
@@ -392,7 +396,12 @@ def _execute(code: str, timeout: float = 30.0) -> list:
                     if "HTML object" not in text:
                         outputs.append(text)
             elif msg_type == "error":
-                tb = "\n".join(content.get("traceback", []))
+                # IPython colours its traceback, and those escapes reached the
+                # client verbatim: a third of the payload was SGR codes wrapping
+                # every token, spent on a reader that cannot render them.  The
+                # summary line stays first so the failure is readable without
+                # parsing the traceback at all.
+                tb = _ANSI_RE.sub("", "\n".join(content.get("traceback", [])))
                 outputs.append(f"ERROR: {content.get('ename')}: {content.get('evalue')}\n{tb}")
             elif msg_type == "status" and content.get("execution_state") == "idle":
                 break
