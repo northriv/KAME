@@ -1697,7 +1697,35 @@ def kame_handle_link(action):
 			if _sys == 'Darwin':
 				_sp.Popen(['open', '-a', 'Claude'])
 			elif _sys == 'Windows':
-				_sp.Popen(['cmd', '/c', 'start', '', 'Claude'])
+				# The Windows Claude app ships as an MSIX package, and `start
+				# "" Claude` cannot open one: packaged apps are not on PATH,
+				# have no Program Files exe and no App Paths / Uninstall
+				# registry entry, so cmd has nothing to resolve.  They are
+				# launched by AppUserModelID through the AppsFolder shell
+				# namespace instead.  Ask the OS for the ID rather than
+				# hardcoding it -- the publisher hash in the family name is
+				# stable, but a plain-exe install has no AUMID at all, and
+				# that install is exactly what the `start` fallback handles.
+				_aumid = None
+				try:
+					_ps = _sp.run(
+						['powershell', '-NoProfile', '-Command',
+						 '$p=Get-AppxPackage -Name Claude | Select-Object -First 1;'
+						 'if($p){$id=($p | Get-AppxPackageManifest).Package.'
+						 'Applications.Application.Id;'
+						 'if($id -is [array]){$id=$id[0]};'
+						 '"$($p.PackageFamilyName)!$id"}'],
+						capture_output=True, text=True, timeout=20)
+					_out = (_ps.stdout or '').strip().splitlines()
+					if _out and '!' in _out[-1]:
+						_aumid = _out[-1].strip()
+				except Exception:
+					pass
+				if _aumid:
+					_sp.Popen(['explorer.exe',
+							   'shell:AppsFolder\\' + _aumid])
+				else:
+					_sp.Popen(['cmd', '/c', 'start', '', 'Claude'])
 			else:
 				# There is no Claude desktop app on Linux.  Running the bare
 				# `claude` CLI with inherited stdio and no tty (which is what
