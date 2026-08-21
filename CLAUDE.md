@@ -21,7 +21,30 @@ The primary build method on macOS is via **Qt Creator** using `kame.pro` (qmake)
 **Adding new files to the build:**
 - Core framework / scripts: edit `kame/kame.pro`
 - Driver modules: edit `modules/<name>/<name>.pro`
-- In `kame/kame.pro`: `SOURCES`/`HEADERS` for C++; `scriptfile.files` for files deployed to `Contents/Resources` (macOS); `DISTFILES` in `else { }` block for Windows
+- In `kame/kame.pro`: `SOURCES`/`HEADERS` for C++; `scriptfile.files` for files deployed to `Contents/Resources` (macOS), `$PREFIX/share/kame` (Linux `INSTALLS`) and `$$DESTDIR/resources` (Windows). A new runtime script/doc goes in `scriptfile.files` **and** in `tools/deploy_scripts.bat`'s list.
+
+**Windows script deployment** — qmake deploys `scriptfile.files` on macOS
+(`QMAKE_BUNDLE_DATA`) and Linux (`QMAKE_POST_LINK` / `INSTALLS`), but on Windows
+they are only in `DISTFILES`, which copies nothing. A win32 `QMAKE_POST_LINK`
+therefore runs `tools/deploy_scripts.bat <resources-dir>` at link time, and
+`tools/mkzip.bat` calls the same script when assembling a release, so a build
+tree and a release get an identical set. Two traps this cost once:
+- Before it existed, `resources/` held only what had been hand-copied there
+  once. A missing `kame_mcp_server.py` means there is no MCP server to launch
+  at all (`can't open file ...\Resources\kame_mcp_server.py`), and stale
+  notebook files silently reverted the orphan-server watchdog and the working
+  interrupt/restart overrides.
+- The recipe must use `$$system_path()`, **not** `$$shell_path()`: with MSYS on
+  PATH qmake decides the make shell is `sh` and `shell_path()` emits
+  `/C/Users/...`, which a recipe run under `mingw32-make SHELL=cmd.exe` (how
+  this project is built) cannot execute.
+
+`.bat` files under `tools/` are the tracked originals; the copies in a build
+directory are disposable. `findstr` has no alternation and its `*` repeats only
+the preceding element, so a Qt-version filter needs two `/c:` patterns
+(`6.[5-9]` **plus** `6.[1-9][0-9]`) — `6.[5-9]` alone silently fails to match a
+two-digit minor such as 6.10, which is how `kame-msyspython.bat` stopped finding
+Qt while `kame.bat` (plain `6.*`) still did.
 
 **macOS dependencies** (via MacPorts under `/opt/local`):
 - `gsl`, `fftw3`, `libtool-ltdl`, `zlib`, `libusb`, `eigen3`, `pybind11` (no boost)
@@ -29,6 +52,14 @@ The primary build method on macOS is via **Qt Creator** using `kame.pro` (qmake)
 - Do NOT enable "Add build library search path..." in Qt Creator's executable environment pane — this causes crashes
 
 Tests live in `kamestm/tests/` and cover the core STM framework: `atomic_shared_ptr_test`, `atomic_scoped_ptr_test`, `atomic_queue_test`, `mutex_test`, `transaction_test`, `transaction_negotiation_test`, `transaction_dynamic_node_test`, `transaction_lookup_memo_test`, and the `transaction_payload_integrity_*` family. `transaction_lookup_bench` (not a testcase) measures the `Snapshot::at()` / `Transaction::operator[]` lookup-memo speedup. Pool-allocator tests live in `kamepoolalloc/tests/` (`alloc_*`).
+
+`USE_KAME_ALLOCATOR` (the CMake test builds' switch between the pool and
+`std::allocator`) **defaults ON everywhere**, including Windows — production
+runs the pool on every platform (`kame.pri` clears `USE_STD_ALLOCATOR`; the
+comment there claiming otherwise was stale), so the tests exercise the path
+that ships. Only pre-GCC-10 opts out. A POSIX-only test must be guarded:
+`alloc_madvise_straddle_repro` uses `sysconf(_SC_PAGESIZE)` and is excluded
+with `if(NOT WIN32)`.
 
 **Memory-model verification (C++-derived)** (`kamestm/tests/cds_atomic_shared_ptr/`): GenMC model-checker tests derived from the C++ implementation in `kamepoolalloc/atomic_smart_ptr.h` (relocated from `kamestm/`). Three tests cover `load_shared_`/`release_tag_ref_` concurrency, `load_shared_` vs `compareAndSwap_` races, and multi-thread `compareAndSet` contention. Verifies reference counting safety but not payload values. Requires GenMC v0.16+ built against LLVM 20; see `Makefile` for build instructions. Run with `make run` from the test directory.
 
@@ -169,6 +200,48 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
 - Script thread launch no longer has fixed `sleep()` delays; deferred scripts execute in the global namespace via `exec(script, globals())`
 - **GIL startup synchronization** — `FrmKameMain` constructor creates `XMeasure` immediately, which starts the Python thread. Driver modules (including Python modules whose `PyDriverExporter`/`PyXNodeExporter` global constructors need the GIL) are loaded afterward in `main.cpp`. To prevent the main thread from blocking on `gil_scoped_acquire` while the Python thread holds the GIL during heavy imports, `XPython::execute()` releases the GIL and waits on `m_modules_loaded` before running `xpythonsupport.py`. `main.cpp` calls `form->signalAllModulesLoaded()` after the `lt_dlopenext` loop to unblock it.
 - **MCP server** (`kame/script/kame_mcp_server.py`) — connects to the embedded IPython kernel via `jupyter_client`, providing AI assistants (Claude Code, etc.) with 11 tools: `kame_api`, `kame_manual` (user's manual TOC / per-section retrieval), `execute_code` (returns text + matplotlib plots as MCP ImageContent), `execute_code_async`/`get_result`/`stop_job` (background thread for long experiments, with `mcp_checkpoint()` progress reporting and cooperative stop), `tree` (recursive node browser with configurable depth, compact indented output), `kame_status`, and `notebook_status`/`notebook_read`/`notebook_edit` (Jupyter contents-API cell editing: the server is located among Jupyter runtime files by the token/workspace-dir KAME records in `~/.kame_kernel_connection.json`; a dedicated second ZMQ connection watches iopub `execute_input`/`status` so the currently executing cell is known even while the kernel is busy — a busy kernel cannot answer `execute_code`; edits clear the cell's outputs, refuse to touch the currently-executing cell, and every edit response instructs the LLM to have the user reload the stale browser tab). Previous helper tools (`read_node`, `set_node`, `read_scalar`, `list_children`, `list_scalars`) were removed as redundant — `execute_code` handles all read/write operations directly. Kernel connection is reused across calls; `%matplotlib inline` is set automatically on first connect. `execute_code_async` runs code in a daemon thread on the kernel — KAME STM operations are thread-safe, but Python-level shared variables should not be read until the job completes. Auto-configured when launching a Jupyter notebook: `xpythonsupport.py` writes `.mcp.json` and `~/.kame_kernel_connection.json` in `launchJupyterConsole()` (notebook path only); both files are cleaned up on exit. Tool-generated code uses IPython expression results (bare last-line evaluation) instead of `print()`, because KAME's `MYDEFOUT` wraps print output in HTML via `display(IPython.display.HTML(...))` when a notebook is connected. The `_execute` message handler also filters out `display_data` messages containing HTML object reprs. API reference in `kame/script/kame_python_api.md` is served by the `kame_api` tool. The user's manual lives at `doc/manual/kame-8-en.md` (converted from the official docx; images in `doc/manual/media/`) and is served section-wise by the `kame_manual` tool; the md is deployed next to the server script via `scriptfile.files` in `kame.pro`, with a source-tree fallback path.
+- **MCP server interpreter** — the server is a **separate process** and a *client*
+  of KAME's kernel (ZMQ via `jupyter_client`), so it need not be — and on Windows
+  cannot be — the interpreter embedded in KAME. Three hard constraints, each of
+  which produced a silent failure:
+  - **`mcp` must be 1.x** (`pip install "mcp<2"`). mcp 2.x removed
+    `mcp.server.fastmcp`, which `kame_mcp_server.py` imports; `import mcp` still
+    succeeds, so the only symptom is `ModuleNotFoundError` on
+    `mcp.server.fastmcp` — exactly the "partial mcp" the interpreter probe in
+    `xpythonsupport.py` exists to reject. `FastMCP.run()` also takes only
+    `(transport, mount_path)`: host/port are constructor/settings values
+    (`_bind()`), not `run()` kwargs.
+  - **`kame-mcp-venv`** is the convention. The probe walks up from
+    `KAME_ResourceDir` (depths 1..6 — 1 matters on Windows, where `resources` is
+    only one level inside the release folder) and prefers it over `python3` and
+    the versioned names. The plugin launchers (`bin/kame-mcp-server[.cmd]`) do
+    the same walk, or they report "no Python with 'mcp'..." while KAME itself is
+    using the venv. On Windows it must be a real Windows CPython ≥ 3.10:
+    `py`/`python`/`python3` are usually the Microsoft Store App-Execution-Alias
+    stub, and MSYS2's python cannot host `mcp` at all (no `pip` module, and
+    PyPI's `win_amd64` wheels do not match its `mingw_x86_64_msvcrt_gnu` ABI —
+    its `-m venv` also produces `bin/`, not `Scripts/`).
+  - **Its environment must be sanitised.** `kame-msyspython.bat` exports
+    `PYTHONHOME=C:\msys64\mingw64` and MSYS2's `PYTHONPATH`; inherited by a real
+    CPython those load mingw-built C extensions it cannot open
+    (`ModuleNotFoundError: No module named '_socket'`, or a uv venv trampoline
+    dying with `No Python at ...`, exit 103). The probe **and** the launch strip
+    `PYTHONHOME`/`PYTHONPATH`/`VIRTUAL_ENV`/`PYTHONSTARTUP`.
+- **Windows Claude / Codex desktop apps are MSIX packages** — not on PATH, no
+  executable under Program Files, and nothing in App Paths or the Uninstall
+  registry, so `start "" Claude` opens nothing and a CLI-based launcher reports
+  the CLI missing even though the app is installed. Launch them by
+  AppUserModelID through the AppsFolder shell namespace
+  (`_msix_aumid()` / `_launch_msix()` in `xpythonsupport.py`:
+  `explorer.exe shell:AppsFolder\<family>!<appid>`, e.g.
+  `Claude_pzs8sxrjxfjjc!Claude`, `OpenAI.Codex_2p2nqsd0c76g0!App`). Ask the OS
+  (`Get-AppxPackage`) rather than hardcoding; a plain-exe install has no AUMID
+  and must keep the old route. Corollary for **agent sessions running inside
+  such a package**: `%APPDATA%`/`%LOCALAPPDATA%` writes are redirected into
+  `Packages\<pkg>\LocalCache\`, so anything installed there (a uv-managed
+  Python, a venv, npm globals) works in-session yet is invisible to KAME — put
+  dev artifacts under a real path, and do not trust an in-container green test
+  for a path-dependent Windows result.
 - **Agent plugin** (`kame/script/plugin/`) — packages the MCP server plus a `kame-measurement` skill so both load in any directory, not only the notebook workspace where `launchJupyterConsole()` writes `.mcp.json`. The one directory is **dual-format**: Claude Code reads `.claude-plugin/plugin.json` + `.mcp.json`, while root `plugin.json` + `mcp.json` conform to the cross-vendor **Agent Plugins 1.0.0** spec (agent-plugins.org, validated against its published schemas) that Codex/ChatGPT/Cursor/Copilot/Kiro/VS Code support; `skills/` is shared by both. For Codex, repo-root `.agents/plugins/marketplace.json` makes `codex plugin marketplace add <repo-or-path>` + `codex plugin add kame@kame` work (verified: installs as kame@kame 1.0.0, whole directory cached). Repo-root `.claude-plugin/marketplace.json` makes `/plugin marketplace add northriv/kame` work; `claude --plugin-dir kame/script/plugin` loads it in place during development (verified: the skill appears as `kame:kame-measurement`). **Zero-install path:** KAME's `kame:claude-cli` quick-launch link passes `--plugin-dir` automatically — `_kame_plugin_dir()` in `xpythonsupport.py` prefers the deployed `<Resources>/plugin` (kame.pro copies `script/plugin` there, and to `$PREFIX/share/kame/plugin` + beside the binary on Linux) and falls back to the source tree; not on Windows, whose sessions would otherwise greet every launch with an MCP error from the POSIX-sh server launcher. Installing **copies only the plugin directory**, so nothing may be referenced with `../` — hence `bin/kame-mcp-server` (POSIX sh) locates `kame_mcp_server.py` and an interpreter carrying `mcp`+`jupyter_client` at run time (`KAME_MCP_SERVER` / `KAME_MCP_PYTHON` override), rather than duplicating the server. Plugin tools are namespaced `mcp__plugin_kame_server__<tool>`. **Rule placement:** core instrument-safety rules stay in the server's `instructions` string because every MCP client sees them (Pydantic AI injects them with `include_instructions=True`); the skill carries the longer procedures for Claude Code only — keeping the core in one place also keeps cross-vendor model comparisons fair.
 
 ### Serialization (.kam files)
