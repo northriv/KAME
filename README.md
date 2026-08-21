@@ -528,27 +528,23 @@ zlib1.dll  libgmp-10.dll  libusb-1.0.dll
 x64-msvcrt-ruby3**.dll
 ```
 
-**Also copy the script files by hand.** Unlike the macOS bundle and `make
-install` on Linux, the Windows build does *not* deploy `scriptfile.files`
-automatically (qmake only lists them in `DISTFILES`), so copy these into
-`.\resources` next to `kame.exe`:
+The **script files are deployed for you** at link time, into `.\resources`
+next to `kame.exe` — `rubylineshell.rb`, `pythonlineshell.py`, the two
+notebook files, `kame_mcp_server.py`, `kame_pydantic_ai.py`,
+`kame_python_api.md`, the user's manual (`kame-8-en.md` + `media\`), and
+`plugin\`. Qt Creator needs no extra step; `tools\deploy_scripts.bat
+<resources-dir>` does the same by hand if you ever need it, and
+`tools\mkzip.bat` calls it when assembling a release.
 
-```
-kame/script/rubylineshell.rb          kame/script/pythonlineshell.py
-kame/script/notebook/jupyter_notebook_config.py
-kame/script/notebook/notebook_kame_kernel_manager.py
-kame/script/kame_mcp_server.py        kame/script/kame_pydantic_ai.py
-kame/script/kame_python_api.md        doc/manual/kame-8-en.md
-doc/manual/media/                     (→ .\resources\media\)
-```
-
-The last five are what the AI integration runs on: without
-`kame_mcp_server.py` there is no MCP server to launch, and the `kame_api` /
-`kame_manual` tools read `kame_python_api.md` and `kame-8-en.md` (plus its
-`media/` images) from this directory. `kame/script/plugin/` may be copied to
-`.\resources\plugin` for parity with macOS, but it is inert on Windows — its
-`.mcp.json` invokes a POSIX-sh launcher, which is why the **Claude: Code**
-quick-launch link deliberately omits `--plugin-dir` there.
+> Older trees had no such step (qmake only lists these in `DISTFILES`, which
+> copies nothing), so a Windows build ran with whatever had been hand-copied
+> into `resources\` once. That is worth knowing if you inherit one: without
+> `kame_mcp_server.py` there is no MCP server to launch at all, and the
+> `kame_api` / `kame_manual` tools read `kame_python_api.md` and
+> `kame-8-en.md` from that directory. `plugin\` ships for parity with macOS
+> but is inert on Windows — its `.mcp.json` invokes a POSIX-sh launcher,
+> which is why the **Claude: Code** quick-launch link omits `--plugin-dir`
+> there.
 
 **Launch scripts:**
 
