@@ -1154,6 +1154,49 @@ def _toml_quote(s):
     return '"' + str(s).replace('\\', '\\\\').replace('"', '\\"') + '"'
 
 
+def _msix_aumid(name_glob):
+    """AppUserModelID of an installed MSIX package, or None (Windows only).
+
+    Both the Claude and Codex desktop apps ship as MSIX packages on Windows.
+    Those are unreachable the ordinary ways -- not on PATH, no executable under
+    Program Files that may be run directly, and nothing in App Paths or the
+    Uninstall registry -- so `start "" Claude` opens nothing and a CLI-based
+    launcher reports the CLI missing even though the app is installed.  A
+    packaged app is launched by AppUserModelID via the AppsFolder shell
+    namespace: `explorer.exe shell:AppsFolder\\<family>!<appid>`.
+
+    Asked of the OS rather than hardcoded: the publisher hash in the family
+    name is stable, but a plain-exe install has no AUMID at all and must keep
+    using the caller's existing route.  Observed values here:
+    Claude_pzs8sxrjxfjjc!Claude, OpenAI.Codex_2p2nqsd0c76g0!App.
+    """
+    import platform as _pf, subprocess as _sp
+    if _pf.system() != 'Windows':
+        return None
+    try:
+        _ps = _sp.run(
+            ['powershell', '-NoProfile', '-Command',
+             '$p=Get-AppxPackage {} | Select-Object -First 1;'
+             'if($p){{$id=($p | Get-AppxPackageManifest).Package.'
+             'Applications.Application.Id;'
+             'if($id -is [array]){{$id=$id[0]}};'
+             '"$($p.PackageFamilyName)!$id"}}'.format(name_glob)],
+            capture_output=True, text=True, timeout=20)
+        for _line in reversed((_ps.stdout or '').strip().splitlines()):
+            _line = _line.strip()
+            if '!' in _line:
+                return _line
+    except Exception:
+        pass
+    return None
+
+
+def _launch_msix(aumid):
+    """Open a packaged app by AUMID.  Caller checked it is non-None."""
+    import subprocess as _sp
+    _sp.Popen(['explorer.exe', 'shell:AppsFolder\\' + aumid])
+
+
 def _resolve_cli(binary):
     """Find a CLI even when KAME was launched as a macOS GUI application.
 
@@ -1433,6 +1476,19 @@ def _codex_desktop_launch(binary='codex'):
     import subprocess as _sp
     _bin = _resolve_cli(binary)
     if not _bin:
+        # The app can be installed while its CLI is not: on Windows Codex
+        # ships as an MSIX package, and this launcher reached it only through
+        # `codex app`.  Open the package directly instead of reporting the CLI
+        # missing.  The -c MCP overrides below cannot come along that way, but
+        # the docstring's caveat already applies to them -- and the plugin
+        # route (`codex plugin add kame@kame`) does not need them.
+        _aumid = _msix_aumid('*codex*')
+        if _aumid:
+            _launch_msix(_aumid)
+            _kame_gui_log('#Launched the Codex app (MSIX package; the `codex` '
+                          'CLI is not installed, so no MCP override was '
+                          'passed -- use `codex plugin add kame@kame` once).')
+            return
         _kame_gui_html('<font color="#cc0000">`{}` not found in PATH.</font>'.format(
             html.escape(binary)))
         return
@@ -1706,24 +1762,9 @@ def kame_handle_link(action):
 				# hardcoding it -- the publisher hash in the family name is
 				# stable, but a plain-exe install has no AUMID at all, and
 				# that install is exactly what the `start` fallback handles.
-				_aumid = None
-				try:
-					_ps = _sp.run(
-						['powershell', '-NoProfile', '-Command',
-						 '$p=Get-AppxPackage -Name Claude | Select-Object -First 1;'
-						 'if($p){$id=($p | Get-AppxPackageManifest).Package.'
-						 'Applications.Application.Id;'
-						 'if($id -is [array]){$id=$id[0]};'
-						 '"$($p.PackageFamilyName)!$id"}'],
-						capture_output=True, text=True, timeout=20)
-					_out = (_ps.stdout or '').strip().splitlines()
-					if _out and '!' in _out[-1]:
-						_aumid = _out[-1].strip()
-				except Exception:
-					pass
+				_aumid = _msix_aumid('-Name Claude')
 				if _aumid:
-					_sp.Popen(['explorer.exe',
-							   'shell:AppsFolder\\' + _aumid])
+					_launch_msix(_aumid)
 				else:
 					_sp.Popen(['cmd', '/c', 'start', '', 'Claude'])
 			else:

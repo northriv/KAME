@@ -338,6 +338,20 @@ else {
             ../doc/manual/kame-8-en.md \
             script/notebook/jupyter_notebook_config.py \
             script/notebook/notebook_kame_kernel_manager.py
+
+        # DISTFILES only lists files for the IDE -- it copies nothing, so the
+        # Windows build used to leave $$DESTDIR/resources without any of them
+        # and kame.exe started with no kame_mcp_server.py beside it (the MCP
+        # link then died with "can't open file ...\Resources\
+        # kame_mcp_server.py").  Deploy them at link time, the way the macOS
+        # bundle and the Linux QMAKE_POST_LINK above already do.  The work
+        # lives in a batch file rather than inline qmake so the quoting stays
+        # legible and it can be run by hand (tools/mkzip.bat uses it too).
+        # system_path(), not shell_path(): with MSYS on PATH qmake decides the
+        # make shell is sh and shell_path() emits /C/Users/... , which the
+        # recipe -- run under `mingw32-make SHELL=cmd.exe`, as this project is
+        # built -- cannot execute.  system_path() gives native C:\Users\... .
+        QMAKE_POST_LINK += $$quote(cmd /c $$system_path($${_PRO_FILE_PWD_}/../tools/deploy_scripts.bat) $$system_path($${DESTDIR}/$${SCRIPT_DIR}))
     }
 }
 

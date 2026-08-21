@@ -17,16 +17,9 @@ rem     silently rotting again; it mirrors the macOS Contents/Resources layout.
 rem     kame_python_api.md / kame-8-en.md + media\ back the kame_api and
 rem     kame_manual MCP tools.  plugin\ is for macOS parity -- it is inert on
 rem     Windows (its .mcp.json invokes a POSIX-sh launcher).
-copy ..\..\kame\script\rubylineshell.rb ..\kame-win32\resources\
-copy ..\..\kame\script\pythonlineshell.py ..\kame-win32\resources\
-copy ..\..\kame\script\notebook\jupyter_notebook_config.py ..\kame-win32\resources\
-copy ..\..\kame\script\notebook\notebook_kame_kernel_manager.py ..\kame-win32\resources\
-copy ..\..\kame\script\kame_mcp_server.py ..\kame-win32\resources\
-copy ..\..\kame\script\kame_pydantic_ai.py ..\kame-win32\resources\
-copy ..\..\kame\script\kame_python_api.md ..\kame-win32\resources\
-copy ..\..\doc\manual\kame-8-en.md ..\kame-win32\resources\
-xcopy /S /I /Y ..\..\doc\manual\media ..\kame-win32\resources\media\
-xcopy /S /I /Y ..\..\kame\script\plugin ..\kame-win32\resources\plugin\
+rem     Shared with kame.pro's win32 QMAKE_POST_LINK, so a build tree and a
+rem     release get exactly the same set.
+call ..\..\tools\deploy_scripts.bat ..\kame-win32\resources
 del /Q ..\kame-win32\qtdir.txt 2>nul
 del /Q ..\kame-win32\kame.log 2>nul
 del /Q ..\kame-win32\.qmake* 2>nul
