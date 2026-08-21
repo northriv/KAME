@@ -1972,8 +1972,18 @@ def kame_handle_link(action):
 								 'clai.exe' if _sys == 'Windows' else 'clai')
 			_via_clai = os.path.isfile(_clai)
 			if _via_clai:
+				# Pass -m when the user has named a model, because clai's own
+				# default is openai:gpt-5 and most people have no key for it:
+				# without this the link dies on
+				# `UserError: Set the OPENAI_API_KEY environment variable`,
+				# which says nothing about what to do. With neither the env var
+				# nor a key, clai's default and its error are the right owner
+				# of the problem -- KAME still does not pick a model.
+				_model = (os.environ.get('KAME_PYAI_MODEL')
+						  or os.environ.get('PYDANTIC_AI_MODEL') or '')
 				_cmd = [_clai] + (['web'] if action == 'pyai-web' else []) \
-					   + ['-a', 'kame_pydantic_ai:agent']
+					   + ['-a', 'kame_pydantic_ai:agent'] \
+					   + (['-m', _model] if _model else [])
 			else:
 				_cmd = [_py, _script] + (['--web'] if action == 'pyai-web' else [])
 			# The agent module ships with KAME, not in the user's venv.
