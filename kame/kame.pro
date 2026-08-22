@@ -545,12 +545,18 @@ win32-msvc* {
 #    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby -lmsvcr120-ruby212 #-static -lWS2_32 -lAdvapi32 -lShell32 -limagehlp -lShlwapi -lIphlpapi
 }
 
+# USE_RUBY is set HERE and nowhere else, because this is the only target that
+# runs the detection above.  Positive form on purpose: `DEFINES -=` needs an
+# exact textual match to undo an inherited define, and a define the modules
+# inherit but cannot verify is what made 8bb86a9b6 a crash instead of a
+# warning.  See the note in kame.pri.
+!no_ruby:ruby_found: DEFINES += USE_RUBY
+
 # Ruby is deprecated, so its absence must NOT stop the build -- the opposite of
 # Python below.  Until now a missing ruby-dev was error() on Linux and MSVC,
 # which meant the deprecated language could block a build that never wanted it.
 # Drop it and say so instead; CONFIG+=no_ruby silences the message.
 !no_ruby:!ruby_found {
-    DEFINES -= USE_RUBY
     SOURCES -= script/xrubysupport.cpp script/rubywrapper.cpp
     HEADERS -= script/xrubysupport.h script/rubywrapper.h
     message("No Ruby development files found: the deprecated Ruby scripting is \

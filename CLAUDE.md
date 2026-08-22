@@ -337,6 +337,26 @@ Details, whichever archetype:
 ## Code Conventions
 
 - All exported symbols use `DECLSPEC_KAME` macro
+- **Never let a build-file macro change a class's layout.** A data member or
+  virtual function behind `#ifdef SOMETHING` in a header is safe only while
+  every translation unit agrees on `SOMETHING` — and macros from `.pro`/`.pri`
+  do not have to agree, because each target evaluates its own. `kame.pri`
+  handed `USE_RUBY` to `libkame` and all 44 module targets while only
+  `kame/kame.pro` looked for `ruby.h`; on a Mac without it the app answered
+  "no" and everyone else "yes". `shared_ptr<XRuby> m_ruby` behind that macro
+  split `sizeof(XMeasure)` by 16 bytes, so the modules' `m_interfaces` landed
+  exactly on the app's `m_drivers` — `meas->interfaces()->insert()` from a
+  module put an `XInterface` into the *driver* list, and the next
+  `static_pointer_cast<XDriver>` walked it. Adding any driver crashed
+  (`8bb86a9b6`). A conditional *virtual* does the same to the vtable.
+  Two rules follow: a macro that only one target can decide must be defined by
+  that target's own `.pro` (`USE_RUBY` now lives in `kame/kame.pro`, and only
+  `kame.cpp` / `measure.cpp` / `kame.h` may test it), and a class member must
+  never sit inside a conditional — gate the *body* in the `.cpp` instead.
+  Guarding a whole class or file is fine: it then either exists or fails to
+  compile, rather than silently disagreeing about offsets. Enforced by
+  `tools/audit/check_conditional_layout.py`, which derives the risky macro set
+  from the build files themselves.
 - **Never use `slots`, `signals`, or `emit` as C++ identifiers** (variable / parameter / member / function names) in any header reachable from a Qt translation unit — i.e. anything `kame/` includes, which includes the entire `kamestm/` STM core (`transaction.h` etc.). Qt's `<QObject>` does `#define slots`, `#define signals public`, `#define emit`, so a parameter named `slots` makes `slots[i]` expand to `[i]` — parsed as a stray lambda → `error: expected body of lambda expression`. These build fine in the Qt-free standalone `kamestm/tests/` harness, so the breakage only surfaces when a Qt module (e.g. `modules/levelmeter/`) is compiled. Use a distinct name (e.g. `slotv` for a slot array — see `Snapshot::LookupMemo::find_slow_`/`set`/`archive_`). The uppercase `SLOTS` constant and prefixed names like `s_sleep_slots` / `m_lookup_slots` / `NEGOTIATE_SLEEP_SLOTS` are safe (the macro is the bare lowercase token). To check a header in isolation: `clang++ -fsyntax-only -D slots= -D 'signals=public' -D emit= ...`.
 - Node payload fields are public members of the nested `Payload` struct inside each node class
 - Prefer `iterate_commit` / `iterate_commit_if` over manual retry loops for transactions
@@ -370,7 +390,8 @@ Details, whichever archetype:
 Rules 1, 3, 4, and 6 — plus the Payload pointer-to-const rule from the STM
 section — are enforced mechanically by `tools/audit/run_audits.sh`
 (node-name collisions, iterate_commit side effects, pybind GIL, UI-touching
-listeners, non-const Payload pointees) — run it after touching any driver; it
+listeners, non-const Payload pointees, build-macro-dependent class layout) —
+run it after touching any driver; it
 also runs as a pre-commit hook (enable once per clone:
 `git config core.hooksPath .githooks`) and in CI (`.github/workflows/audit.yml`).
 Pre-existing findings are grandfathered in `tools/audit/stm_closures.baseline`
