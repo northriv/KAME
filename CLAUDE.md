@@ -40,11 +40,37 @@ tree and a release get an identical set. Two traps this cost once:
   this project is built) cannot execute.
 
 `.bat` files under `tools/` are the tracked originals; the copies in a build
-directory are disposable. `findstr` has no alternation and its `*` repeats only
-the preceding element, so a Qt-version filter needs two `/c:` patterns
-(`6.[5-9]` **plus** `6.[1-9][0-9]`) — `6.[5-9]` alone silently fails to match a
-two-digit minor such as 6.10, which is how `kame-msyspython.bat` stopped finding
-Qt while `kame.bat` (plain `6.*`) still did.
+directory are disposable.
+
+**Qt discovery lives in `tools/kame-qtenv.bat`**, which `kame.bat` and
+`kame-msyspython.bat` both `call`. The `kame-` prefix is load-bearing:
+`mkzip.bat` packages a release with `copy kame*.bat`, so a plainer name would be
+absent from the zip and every launcher in it would die on its first line. Run it
+as `kame-qtenv.bat print` to see what it would choose without launching KAME.
+`kame.bat` calls it with `mingw`, which additionally puts Qt's sibling
+`mingw_64` kit on PATH for `libgcc_s_seh` / `api-ms-win-core-path`; that kit
+holds a second, GCC-built `Qt6Core.dll`, so it is opt-in and always ordered
+behind `QTDIR\bin`. The MSYS2 launcher omits it and takes those DLLs from
+`C:\msys64\mingw64` instead.
+It replaced an inline search that had three faults worth not reintroducing:
+`dir /S/B` from a drive root (a full disk walk per uncached launch — Qt lives at
+`<root>\<version>\<kit>\bin`, so two levels of globbing suffice); `set /p`
+taking the **first** line, i.e. lexicographic order, which preferred 6.10 over
+6.9 only because `6.1` sorts before `6.9` and would equally prefer 6.10 over
+6.20 (versions are now folded into one integer key, patch included); and a
+`goto start` retry loop that rescanned for ever on a machine with no Qt.
+Version text is never matched with `findstr` any more — worth remembering why:
+`findstr` has no alternation and its `*` repeats only the preceding element, so
+`6.[5-9]` silently missed two-digit minors, which is how `kame-msyspython.bat`
+stopped finding Qt 6.10 while `kame.bat` (plain `6.*`) still did.
+
+Two lines in `kame.bat` had also never executed: `unset PYTHONHOME` (`unset` is
+a Unix builtin, so an inherited `PYTHONHOME` survived into the bundled
+interpreter and anything it spawns) and a `#`-commented `ldd` line (`#` is not a
+cmd comment, so it ran and failed). `rem` is the only comment; `set "VAR="`
+clears. `kame-nooverpaint.bat` was deleted rather than ported: it looked for a
+Qt5 `mingw_32` kit and passed `--nooverpaint`, which `QCommandLineParser` in
+`main.cpp` has not accepted for several major versions and rejects with exit 1.
 
 **macOS dependencies** (via MacPorts under `/opt/local`):
 - `gsl`, `fftw3`, `libtool-ltdl`, `zlib`, `libusb`, `eigen3`, `pybind11` (no boost)
