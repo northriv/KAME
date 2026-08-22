@@ -12,6 +12,33 @@
 # every node has been reset.  A live-object leak, not payload corruption.
 # `objcnt` is `atomic<int>`, so it is not a counter race either.
 #
+# ANSWERED (2026-08-22): it is the pool allocator, not the STM.  Same cmake
+# tree, same load, same source, the only variable being USE_KAME_ALLOCATOR:
+#
+#     pool ON    7 / 42 failed   (all SIGSEGV)
+#     pool OFF   0 / 42 failed
+#
+# The wider soak had already shaped the suspicion.  Of 12 captured failures the
+# largest group was rc=124 — a HANG hitting the per-run timeout — with SIGSEGV
+# and SIGABRT behind it, and four of them printed `succeeded` FIRST and then
+# died or wedged.  A fault after every check has passed is teardown, and the
+# pool's teardown is where the thread-exit orphan-chain reclaim, the
+# pthread_key destructors and static destruction order all meet.  It also
+# explains why a hand-built binary that compiled allocator.cpp straight in
+# never reproduced once, while the shared-library build did: the failing path
+# runs across the DSO boundary.
+#
+# The one STM-level message seen, `STM lookup failed: payload ... not reachable`
+# ending in an uncaught std::domain_error, is consistent with the same cause —
+# an allocator that hands back memory it should not have — and should be
+# re-judged only after the allocator side is fixed.  Worth noting separately
+# that the STM throws that domain_error where nobody catches it, so a detected
+# inconsistency takes the whole process down.
+#
+# Not yet done: a backtrace.  A -O3 -g rebuild under gdb had not caught the
+# SIGSEGV within 14 rounds when the investigation was stopped; the crash is
+# ~17% per run without gdb, so a longer gdb loop should get one.
+#
 # What the failure is NOT, established while chasing it:
 #   * Not a timeout.  No TIMEOUT property is set (ctest allows 1500 s) and the
 #     test runs in ~20 s.
