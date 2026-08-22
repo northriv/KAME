@@ -8,6 +8,13 @@
   the venv's uvicorn -- the switcher then works exactly as written. Modules
   without one still go through clai, where KAME_PYAI_MODEL may now list several
   models (comma or space separated) to populate the picker.
+- script: setup-time failures now carry a link to the setup instructions.
+  Someone getting MCP working for the first time cannot consult the manual: it
+  is served THROUGH MCP, so it is unreachable until the thing they are fixing
+  works, and by then they no longer need it. The only surface they have is
+  KAME's own message and the plugin launcher's stderr, so the URL travels in
+  those. The launchers' advice was also unpinned `pip install mcp`, which on a
+  released build installs a package that cannot start the server.
 - script: the web link opens the browser. `clai web` prints its URL and waits,
   and nothing opened it, so choosing "web" looked like it had merely opened a
   terminal. KAME picks a free port, passes --host/--port, and opens

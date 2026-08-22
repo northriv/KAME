@@ -94,6 +94,12 @@ print("Hello! KAME Python support.")
 #Thread-monitor
 MONITOR_PERIOD=0.2
 
+#Where someone setting MCP up can read how.  It has to travel IN the message:
+#the manual is served THROUGH MCP, so it is unreachable until this works, and
+#by then they do not need it.
+MCP_SETUP_URL = 'https://github.com/northriv/KAME#ai-assisted-experiment-automation-mcp'
+
+
 class _KameTLS(threading.local):
 	"""Per-thread script context, with every field readable from any thread.
 
@@ -1029,6 +1035,7 @@ def launchJupyterConsole(prog, argv):
 							"",
 							"A required Python package is missing. Install with:",
 							f"  {python_cmd} -m pip install mcp jupyter_client uvicorn starlette",
+							f"  Setup instructions: {MCP_SETUP_URL}",
 						]
 					elif ('address already in use' in _lower
 					      or 'errno 48' in _lower):
