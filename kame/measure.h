@@ -32,9 +32,7 @@ class XCalibratedEntryList;
 class XTextWriter;
 class XRawStreamRecorder;
 class XRawStreamRecordReader;
-#ifdef USE_RUBY
-    class XRuby;
-#endif
+class XRuby;
 class XPython;
 class XNodeBrowser;
 
@@ -66,9 +64,8 @@ public:
 	const shared_ptr<XRawStreamRecorder> &rawStreamRecorder() const {return m_rawStreamRecorder;}
 	const shared_ptr<XRawStreamRecordReader> &rawStreamRecordReader() const {return m_rawStreamRecordReader;}
 
-#ifdef USE_RUBY
+	//! Null unless the build has the Ruby interpreter (USE_RUBY).
 	const shared_ptr<XRuby> &ruby() const {return m_ruby;}
-#endif
 #ifdef USE_PYBIND11
     const shared_ptr<XPython> &python() const {return m_python;}
 #endif
@@ -76,9 +73,15 @@ public:
     const shared_ptr<XStringNode> &pyInfoForNodeBrowser() const {return m_pyInfoForNodeBrowser;}
     shared_ptr<XNode> &lastPointedByNodeBrowser() {return m_lastPointedByNodeBrowser;}
 private:
-#ifdef USE_RUBY
+	//! Declared unconditionally ON PURPOSE.  This header is included by
+	//! libkame and by every module, and only kame.pro runs the ruby-header
+	//! detection -- so USE_RUBY is NOT uniform across the targets that see
+	//! this class.  Putting a member behind it split sizeof(XMeasure) by 16
+	//! bytes between the app and the modules, which aliased the modules'
+	//! m_interfaces onto the app's m_drivers.  A forward-declared
+	//! shared_ptr costs 16 bytes and pulls in no libruby; only the
+	//! construction in measure.cpp is gated.
 	shared_ptr<XRuby> m_ruby;
-#endif
     shared_ptr<XPython> m_python;
 
 	const shared_ptr<XCalibrationCurveList> m_thermometers;
