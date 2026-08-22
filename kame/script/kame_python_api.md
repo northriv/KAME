@@ -92,11 +92,18 @@ you translate by eye:
 | `.seq` (Ruby) | Python | Note |
 |---|---|---|
 | `measurement["Drivers"]["X"]` | `Root()["Drivers"]["X"]` | returns `None` if absent — check it |
-| `node.get()` | `float(Snapshot(node)[node])` | **there is no `.get()`** — reading goes through a Snapshot |
+| `node.get()` | `str(node)`, or a typed read through a Snapshot | **there is no `.get()`**, and no `float(node)` either (TypeError). `str(node)` works on any value node; for a number use `float(shot[n])` on an XDoubleNode, `int(shot[n])` on an int node, `bool(shot[n])` on an XBoolNode |
 | `node.set(v)` | `node.set(v)` or `parent["Child"] = v` | `set()` is TYPED here; `parent[...] = v` converts for you |
 | `while TRUE ... end` | `while True:` | |
 | `begin ... end while cond` | `while True: ...` + `if not cond: break` | Ruby runs the body FIRST; a plain `while cond:` may never run it |
 | `sleep(n)` | `sleep(n)` | same name, same KAME-aware sleep |
+
+**`bool(node)` does not read the value.** `XNode.__len__` is the number of
+children, and Python derives truthiness from it, so `bool(node)` on a value
+node is always `False` — it has no children — whatever the value is. A `.seq`
+condition must become `bool(shot[node])`. This one is measured, not guessed,
+and it is the kind that survives review: on a node whose value is `false` the
+wrong expression gives the right answer.
 
 Two more things before handing back a translation:
 
@@ -157,6 +164,10 @@ for child in shot.list(node):
 shot.size(node)                   # Number of children
 len(shot)                         # Children of snapshot root
 ```
+
+**`len(node)` and `bool(node)` are about CHILDREN, not the value.** A value
+node has none, so `bool(node)` is always `False`; read the value with
+`bool(shot[node])`.
 
 ## Writing Values
 
