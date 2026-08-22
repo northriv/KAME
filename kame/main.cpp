@@ -594,7 +594,24 @@ int main(int argc, char *argv[]) {
 
 #if defined __MACOSX__ || defined __APPLE__
     while(form->running()) {
-        void *p = autoReleasePoolInit(); //may be needed to release OpenGL related objects.
+        //This exists because macOS QOpenGL once leaked heavily here, a finding
+        //that was never written up anywhere else -- keep that provenance, it
+        //is the only record.  It no longer reproduces: on Qt 6.10.1 a
+        //QOpenGLWidget doing a paintGL QPainter text overpaint, the shape of
+        //XQGraph, held a flat footprint over 4000 frames with the pool and
+        //without it (-0.5 vs -0.7 MB from frame 500).  The leak was most
+        //likely in QGLWidget, the Qt5 class the #ifdef in graphwidget.h still
+        //names but that Qt 6 no longer has.
+        //Two things now drain what this used to: QCocoaEventDispatcher wraps
+        //every processEvents() pass in a QMacAutoReleasePool, so anything
+        //autoreleased during event processing goes with it (measured: 1 live
+        //at peak, 0 leaked, pool or no pool).  Only autoreleases OUTSIDE
+        //processEvents accumulate, and this loop body has none.
+        //Kept anyway: it costs one push/pop per 1-5 ms pass, it covers
+        //whatever is added to this body later, and it is genuinely
+        //load-bearing under -platform offscreen/minimal, whose
+        //QUnixEventDispatcherQPA drains nothing at all.
+        void *p = autoReleasePoolInit();
         //WaitForMoreEvents is what makes this a loop rather than a spin.  The
         //default flags omit it, and Qt's dispatcher then blocks only when
         //asked to (canWait &= flags & WaitForMoreEvents), so a bare
