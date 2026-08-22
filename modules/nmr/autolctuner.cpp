@@ -836,23 +836,43 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             }
             if(presetAngles.size()) {
                 std::sort(presetAngles.begin(), presetAngles.end());
-                double stms[2];
-                message += "Using preset angles.\n";
+                //`stms` used to be read even when no interval matched, i.e.
+                //uninitialised stack driven into the capacitor targets.  Three
+                //ways to reach that: a single-row table (the loop below never
+                //runs), a frequency outside the table and outside the +-half
+                //interval extrapolation window, and duplicate frequencies
+                //making `a` inf/nan so every test is false.  Whatever happened
+                //to be on the stack was then blended in with weight
+                //trust_preset_angles and the motors were told to go there.
+                double stms[2] = {0.0, 0.0};
+                bool bracketed = false;
                 for(unsigned int i = 1; i < presetAngles.size(); ++i) {
-                    double a = (f0 - presetAngles[i - 1].targetFreq) / (presetAngles[i].targetFreq - presetAngles[i - 1].targetFreq);
+                    double df = presetAngles[i].targetFreq - presetAngles[i - 1].targetFreq;
+                    if(df == 0.0)
+                        continue; //duplicate frequencies: no interval to interpolate over.
+                    double a = (f0 - presetAngles[i - 1].targetFreq) / df;
                     if(((0 <= a) && (a <= 1)) ||
                             ((i == 1) && (a < 0) && (a > -0.5)) ||
                             ((i == presetAngles.size() - 1) && (a > 1) && (a < 1.5))) {
                         //bilinear interpolation/extrapolation
                         for(int j: {0,1})
                             stms[j] = presetAngles[i - 1].stms[j] * (1 - a) + presetAngles[i].stms[j] * a;
+                        bracketed = true;
                     }
                 }
-                //modifies the original positions before an iteration.
-                for(int j: {0,1}) {
-                    tr[ *this].targetSTMValues[j] = shot_this[ *this].targetSTMValues[j] * (1 - trust_preset_angles) + stms[j] * trust_preset_angles;
+                if(bracketed) {
+                    message += "Using preset angles.\n";
+                    //modifies the original positions before an iteration.
+                    for(int j: {0,1}) {
+                        tr[ *this].targetSTMValues[j] = shot_this[ *this].targetSTMValues[j] * (1 - trust_preset_angles) + stms[j] * trust_preset_angles;
+                    }
+                    tr[ *this].timeSTMChanged = XTime::now();
                 }
-                tr[ *this].timeSTMChanged = XTime::now();
+                else {
+                    //Leave the targets alone rather than move towards a number
+                    //nothing computed.  Tuning then proceeds on its own search.
+                    message += "Preset angles do not cover this frequency.\n";
+                }
             }
         }
         if(shot_this[ *this].timeSTMChanged.isSet() && (trust_preset_angles > 0.99)) {
