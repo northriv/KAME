@@ -1432,7 +1432,7 @@ guessable from the message. This table is symptom-first.
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `ModuleNotFoundError: mcp.server.fastmcp` | `pip install mcp` installed 2.x | `pip install "mcp<2"` |
-| `can't open file ...\Resources\kame_mcp_server.py` (Windows) | Script files were never deployed into the build tree | Rebuild, or run `tools\deploy_scripts.bat <resources dir>` |
+| `can't open file ...\Resources\kame_mcp_server.py` (Windows) | The 8.5 and earlier Windows binaries could ship without it: nothing deployed the script files, and the packaging step copied whatever the build tree happened to hold | Use 8.6 or later. On an older one, copy `kame/script/kame_mcp_server.py` (and `kame/script/notebook/*.py`) from the source archive into `resources\` |
 | `No module named '_socket'`, or exit code 103 | KAME was started from `kame-msyspython.bat`, whose `PYTHONHOME` a real CPython cannot use | Fixed in current builds; otherwise start KAME with `kame.bat` |
 | Clicking the Claude or Codex **app** link does nothing (Windows) | Those apps are MSIX packages, not on `PATH` | Fixed in current builds |
 | `No interpreter inside <folder>` | uv, poetry and pdm keep the interpreter in a hidden `.venv` | Pick the project folder; KAME looks inside it |
