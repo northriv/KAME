@@ -50,6 +50,27 @@
 # The last one matters: the heap's own structures are already corrupt, so this
 # is not one stale pointer, it is broad damage.
 #
+# It cannot be simulated on a 64-bit host.  arm64/M3, 12-way soak, ~2400 runs
+# across nine configurations — compact forced, KAME_LOCAL_REF_CAPACITY_OVERRIDE
+# 4 and 2, forced uint32 bitmap, an ILP32-faithful NONINTRUSIVE=4, a tag-guard
+# build, and the O3+strict soak pairing — produced ZERO failures.  x86-64 with
+# OVERRIDE=4 gave 1 in 200 and then 0 in 120 more; at a true 0.5% rate arm64's
+# 2400 runs would have shown ~12, so that single event was noise and the
+# "reproduced on x86-64 with capacity 4" claim is withdrawn.  LOCAL_REF_CAPACITY
+# is NOT the mechanism, and neither is anything else a 64-bit box can emulate.
+#
+# What is left is what only real ILP32 has: 32-bit pointers (so different
+# struct layout and padding), 32-bit size_t arithmetic, user addresses above
+# 2 GiB with the sign bit set, and the x86-32 ABI's own codegen.  Chased and
+# closed within that: `int_cas_max` / `uint_cas_max` in atomic.h are a signed
+# type behind an unsigned name, which would matter for a >2 GiB address — but
+# they are dead typedefs, referenced nowhere.
+#
+# Practical consequence: debug this on ILP32 hardware, where it fires at
+# 10% (i486) to 25% (i586), not by trying to reproduce it on a 64-bit host.
+# TSan is unavailable there, but cores are not, and every useful fact so far
+# came from a core.
+#
 # Ruled out inside the allocator: the 32-bit radix path.  `radix_lookup_slow`
 # does drop its bound check on ILP32 (kBoundShift 48 >= 32), but the indices
 # cannot escape — region_idx = up >> 25 caps at 127, so l1 is always 0 and l2
