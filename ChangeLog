@@ -8,6 +8,19 @@
   the venv's uvicorn -- the switcher then works exactly as written. Modules
   without one still go through clai, where KAME_PYAI_MODEL may now list several
   models (comma or space separated) to populate the picker.
+- build: the two scripting languages had their failure modes backwards. A
+  missing Ruby stopped the build (error() on Linux and MSVC) while a missing
+  Python was silent on macOS and Windows and a mere message on Linux -- so the
+  deprecated language could block a build that never wanted it, and the
+  supported one could go missing without a word, leaving a KAME with no
+  scripting, no Jupyter and no MCP, discovered at runtime. Swapped: no Python
+  is now an error naming `CONFIG+=no_python` as the way to mean it, and no Ruby
+  drops the interpreter with a message (`CONFIG+=no_ruby` to silence). macOS
+  gained the existence test its framework arm never had. Verified by generating
+  Makefiles: default has both, no_python clears USE_PYBIND11 and the
+  xpythonsupport.o rule, no_ruby clears USE_RUBY and xrubysupport.o, and the
+  auto-disable path was checked separately -- SOURCES/HEADERS -= removes
+  exactly the Ruby entries and leaves the rest.
 - script: the Ruby line shell says it is deprecated, in its greeting, where it
   cannot be missed: planned OFF by default from 9.0, droppable today with
   `qmake CONFIG+=no_ruby`, and port a .seq by asking the AI assistant, whose

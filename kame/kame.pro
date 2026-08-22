@@ -384,18 +384,20 @@ macx {
         INCLUDEPATH += /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Ruby.framework/Versions/Current/Headers/
         LIBS += $$files(/opt/local/lib/libruby.*.dylib)
         message("using ruby from macports.")
+        CONFIG += ruby_found
     }
-    else {
+    else:exists("/System/Library/Frameworks/Ruby.framework/Versions/Current/Headers/ruby.h") {
         INCLUDEPATH += /System/Library/Frameworks/Ruby.framework/Versions/Current/Headers
         INCLUDEPATH += /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Ruby.framework/Versions/Current/Headers/
         LIBS += -framework Ruby
     #for ruby.h incompatible with C++11
         QMAKE_CXXFLAGS += -Wno-error=reserved-user-defined-literal
         message("using framework ruby.")
+        CONFIG += ruby_found
     }
   }
 
-    greaterThan(QT_MAJOR_VERSION, 5) {
+    !no_python: greaterThan(QT_MAJOR_VERSION, 5) {
         pythons="python3" $$files("/opt/local/bin/python3*") $$files("/usr/local/bin/python3*")
         for(PYTHON, pythons) {
             system("$${PYTHON} -m pybind11 --includes") {
@@ -441,10 +443,7 @@ else:unix {
         !contains(RUBY_LIBDIR, "^/usr/lib.*"): !equals(RUBY_LIBDIR, /lib): \
             QMAKE_RPATHDIR += $${RUBY_LIBDIR}
         message("using ruby headers from $${RUBY_HDRDIR}.")
-    }
-    else {
-        error("No Ruby development headers found (install ruby-dev / ruby-devel), \
-or build without the Ruby interpreter: qmake CONFIG+=no_ruby")
+        CONFIG += ruby_found
     }
   }
 
@@ -453,7 +452,7 @@ or build without the Ruby interpreter: qmake CONFIG+=no_ruby")
     # defined here — which silently disabled the Python scripting engine, the
     # Jupyter/IPython console, the MCP server AND the preferred .kam loader
     # (xrubysupport is then the only reader left).  Same probe as the others.
-    greaterThan(QT_MAJOR_VERSION, 5) {
+    !no_python: greaterThan(QT_MAJOR_VERSION, 5) {
         pythons=$$system(which python3) $$files("/usr/bin/python3.[0-9]") $$files("/usr/bin/python3.[0-9][0-9]")
         for(PYTHON, pythons) {
             system("$${PYTHON} -m pybind11 --includes > /dev/null 2>&1") {
@@ -492,9 +491,6 @@ or build without the Ruby interpreter: qmake CONFIG+=no_ruby")
                 }
             }
         }
-        !contains(DEFINES, USE_PYBIND11): \
-            message("pybind11 not found for any python3 — Python scripting, \
-Jupyter and the MCP server are DISABLED, and .kam files fall back to the Ruby loader.")
     }
 }
 win32-*g++ {
@@ -516,8 +512,9 @@ win32-*g++ {
         LIBS += $$files(c:/msys64/mingw64/lib/libx64-msvcrt-ruby*[0-9].dll.a)
         message("using ruby from msys2.")
     }
+    CONFIG += ruby_found
   }
-    greaterThan(QT_MAJOR_VERSION, 5) {
+    !no_python: greaterThan(QT_MAJOR_VERSION, 5) {
         pythons="c:/msys64/mingw64/bin/python.exe"
         for(PYTHON, pythons) {
             system("$${PYTHON} -m pybind11 --includes") {
@@ -542,11 +539,36 @@ win32-*g++ {
 win32-msvc* {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/i386-mswin32_120
-    !exists($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/libmsvcr*-ruby2*[0-9].lib) {
-        error("No Ruby2 library!")
-    }
+    exists($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/libmsvcr*-ruby2*[0-9].lib): \
+        CONFIG += ruby_found
     LIBS += $$files($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/libmsvcr*-ruby2*[0-9].lib)
 #    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby -lmsvcr120-ruby212 #-static -lWS2_32 -lAdvapi32 -lShell32 -limagehlp -lShlwapi -lIphlpapi
+}
+
+# Ruby is deprecated, so its absence must NOT stop the build -- the opposite of
+# Python below.  Until now a missing ruby-dev was error() on Linux and MSVC,
+# which meant the deprecated language could block a build that never wanted it.
+# Drop it and say so instead; CONFIG+=no_ruby silences the message.
+!no_ruby:!ruby_found {
+    DEFINES -= USE_RUBY
+    SOURCES -= script/xrubysupport.cpp script/rubywrapper.cpp
+    HEADERS -= script/xrubysupport.h script/rubywrapper.h
+    message("No Ruby development files found: the deprecated Ruby scripting is \
+disabled (.seq scripts and the Ruby line shell).  The .kam format is \
+unaffected.  Pass CONFIG+=no_ruby to make this deliberate and silent.")
+}
+
+# Python is the supported scripting language, so its absence must stop the
+# build rather than quietly produce a KAME without scripting, Jupyter or MCP --
+# which is what happened: only the Linux branch even mentioned it, and only as
+# a message, while a missing RUBY (deprecated) has always been a hard error on
+# two platforms.  `CONFIG+=no_python` is the way to say you meant it.
+!contains(DEFINES, USE_PYBIND11) {
+    no_python: message("Python scripting disabled by CONFIG+=no_python: no \
+scripting, no Jupyter, no MCP server; .kam files fall back to the Ruby loader.")
+    else: error("pybind11 not found for any python3, so Python scripting, \
+Jupyter and the MCP server would all be missing.  Install it (pip install \
+pybind11) or build deliberately without it: qmake CONFIG+=no_python")
 }
 
 win32 {

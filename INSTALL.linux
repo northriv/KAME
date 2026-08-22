@@ -33,13 +33,15 @@ sudo apt-get install -y \
   works too, minus the Qt 6-only `QT +=` lines in `kame.pri`.  `core5compat`
   used to be required and no longer is — the only thing that pulled it in was
   a dead `#include <QTextCodec>`.
-* **Ruby** headers are mandatory — `script/xrubysupport.cpp` is compiled
-  unconditionally.  `kame/kame.pro` asks the interpreter for its header path
-  via `RbConfig`, so any packaged or rbenv/rvm Ruby works.  Verified working
-  on **Ruby 3.3.6**: the support script and `rubylineshell.rb` both evaluate,
-  and a `.rb` passed on the command line runs through the Ruby engine and
-  walks the measurement tree over the C++ node bridge.
-* **pybind11** is optional but strongly recommended: without it there is no
+* **Ruby** headers are optional and deprecated.  Without them the build simply
+  drops the Ruby interpreter and says so; `CONFIG+=no_ruby` makes that
+  deliberate and silent.  The `.kam` format does not depend on it.  When the
+  headers are present `kame/kame.pro` asks the interpreter for their path via
+  `RbConfig`, so any packaged or rbenv/rvm Ruby works.  Verified working on
+  **Ruby 3.3.6**: the support script and `rubylineshell.rb` both evaluate, and
+  a `.rb` passed on the command line runs through the Ruby engine and walks the
+  measurement tree over the C++ node bridge.
+* **pybind11** is required unless you pass `CONFIG+=no_python`: without it there is no
   Python scripting, no Jupyter/IPython console, no MCP server, and `.kam`
   files fall back to the (legacy) Ruby loader.  It must be importable by the
   interpreter qmake picks — `python3 -m pybind11 --includes` must succeed.
