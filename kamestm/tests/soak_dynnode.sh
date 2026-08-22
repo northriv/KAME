@@ -12,11 +12,48 @@
 # every node has been reset.  A live-object leak, not payload corruption.
 # `objcnt` is `atomic<int>`, so it is not a counter race either.
 #
-# ANSWERED (2026-08-22): it is the pool allocator, not the STM.  Same cmake
-# tree, same load, same source, the only variable being USE_KAME_ALLOCATOR:
+# NARROWED (2026-08-22) to: ILP32 *and* the pool allocator.  Either one alone
+# is clean; both together fail.  All A/Bs below are same tree, same load, same
+# source, one variable each, 4-way concurrent on i486/i586:
 #
-#     pool ON    7 / 42 failed   (all SIGSEGV)
-#     pool OFF   0 / 42 failed
+#     i486  pool ON / OFF          7-10 %  /  0 / 42
+#     i586  pool ON / OFF         21-25 %  /  0 / 44
+#     x86-64, arm64 (pool ON)      never fired
+#
+# i586 is what makes this precise: it is ILP32 but has CMPXCHG8B, so
+# KAME_STM_COMPACT_STATE is 0 there — the full 64-bit stamp, the uint64_t
+# BitmapWord, privilege enabled.  It fails MORE than i486, so compact mode is
+# not the cause; pointer width is.  Excluded the same way:
+#
+#     link form   static 4/30 vs shared 6/30   -> not the DSO boundary.  (An
+#                 earlier "static never reproduces" reading was wrong: that
+#                 hand build was missing -fPIC / -fvisibility-inlines-hidden /
+#                 -fno-semantic-interposition, so it was a different binary.)
+#     TLS model   initial-exec 13/80 vs default 21/80 -> shifts the rate, not
+#                 the cause.
+#     -O level    -O3 gives SIGSEGV, -O1 gives hangs; both fire.
+#
+# And it is specific to THIS test, at equal 4-way concurrency and equal wall
+# time per arm: dynamic_node 2/36, while transaction_test 0/588,
+# negotiation 0/312, payload_integrity_mixed 0/468, reanchor 0/36988.  What
+# only dynamic_node does is change STRUCTURE under contention (insert /
+# release / swap in four threads plus the main thread).  Below it, the
+# components are clean on their own: atomic_shared_ptr/scoped/queue/intrusive
+# 0/1600, the pool's own stress tests 0/128, the whole 46-test suite 0 (bar
+# transaction_wait_budget_test, which measures latency budgets and cannot
+# survive a saturated box — exclude it from load runs).
+#
+# Crash sites cluster on the recursive bundle build:
+# snapshot -> bundle -> bundle_subpacket -> bundle, from where they land in
+# PacketWrapper::bundledBy (reading a recycled wrapper: every field garbage,
+# m_bundledBy.m_ref == 0x1), in reverseLookup, or inside operator new itself.
+# The last one matters: the heap's own structures are already corrupt, so this
+# is not one stale pointer, it is broad damage.
+#
+# Ruled out inside the allocator: the 32-bit radix path.  `radix_lookup_slow`
+# does drop its bound check on ILP32 (kBoundShift 48 >= 32), but the indices
+# cannot escape — region_idx = up >> 25 caps at 127, so l1 is always 0 and l2
+# always < 2048.  The comment there is correct; no OOB, no over-width shift.
 #
 # The wider soak had already shaped the suspicion.  Of 12 captured failures the
 # largest group was rc=124 — a HANG hitting the per-run timeout — with SIGSEGV
