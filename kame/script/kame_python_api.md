@@ -91,9 +91,13 @@ you translate by eye:
 
 | `.seq` (Ruby) | Python | Note |
 |---|---|---|
-| `measurement["Drivers"]["X"]` | `Root()["Drivers"]["X"]` | returns `None` if absent — check it |
+| `measurement["Drivers"]["X"]`, `Measurement[...]` | `Root()["Drivers"]["X"]` | both spellings occur; returns `None` if absent — check it |
 | `node.get()` | `float(node)` / `int(node)` / `bool(node)` / `str(node)` | **there is no `.get()`** — use the conversion matching the node's value type; no Snapshot needed |
 | `node.set(v)` | `node.set(v)` or `parent["Child"] = v` | `set()` is TYPED here; `parent[...] = v` converts for you |
+| `node.value = v` | same as `set` above | the older idiom; the manual's Ruby example uses it, the `.seq` samples use `set` |
+| `node.value` | same as `get` above | likewise |
+| `node.name` | `node.getName()` | |
+| `node.touch()` | `node.touch()` | unchanged |
 | `while TRUE ... end` | `while True:` | |
 | `begin ... end while cond` | `while True: ...` + `if not cond: break` | Ruby runs the body FIRST; a plain `while cond:` may never run it |
 | `sleep(n)` | `sleep(n)` | same name, same KAME-aware sleep |
