@@ -62,7 +62,7 @@ if not defined PYEXE call :try "py" "-3"
 if not defined PYEXE call :try "python" ""
 if not defined PYEXE call :try "python3" ""
 if not defined PYEXE (
-    echo kame plugin: no Python with 'mcp' and 'jupyter_client' found. Install them ^(pip install "mcp^<2" jupyter_client^) - setup: https://github.com/northriv/KAME#ai-assisted-experiment-automation-mcp or set KAME_MCP_PYTHON. 1>&2
+    echo kame plugin: no Python with 'mcp' and 'jupyter_client' found. Install them ^(pip install mcp jupyter_client^) - setup: https://github.com/northriv/KAME#ai-assisted-experiment-automation-mcp or set KAME_MCP_PYTHON. 1>&2
     exit /b 1
 )
 

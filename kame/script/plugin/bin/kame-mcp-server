@@ -112,7 +112,7 @@ do
 done
 
 [ -n "$python" ] || die "no Python with 'mcp' and 'jupyter_client' found. Install\
- them (pip install \"mcp<2\" jupyter_client) or set KAME_MCP_PYTHON to an\
+ them (pip install mcp jupyter_client) or set KAME_MCP_PYTHON to an\
  interpreter that has them.  Setup: https://github.com/northriv/KAME#ai-assisted-experiment-automation-mcp"
 
 exec "$python" "$server" --transport=stdio
