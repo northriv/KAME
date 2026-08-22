@@ -8,6 +8,18 @@
   the venv's uvicorn -- the switcher then works exactly as written. Modules
   without one still go through clai, where KAME_PYAI_MODEL may now list several
   models (comma or space separated) to populate the picker.
+- script: the Ruby line shell says it is deprecated, in its greeting, where it
+  cannot be missed: planned OFF by default from 9.0, droppable today with
+  `qmake CONFIG+=no_ruby`, and port a .seq by asking the AI assistant, whose
+  mapping is in kame_api. The .kam format is unaffected either way.
+- script: the Python banner warns when nothing on the machine can run the MCP
+  server, beside the links that would then fail. The detection already existed
+  but printed to stderr only, which in a GUI session is nowhere. Probed on a
+  daemon thread so the banner is never delayed, and the candidate list mirrors
+  the real search -- the interpreter behind Jupyter first, then a
+  kame-mcp-venv -- because a false alarm on a working setup would be worse than
+  silence. Verified both ways: silent against a venv that has the packages,
+  and it reports with the setup URL when nothing does.
 - build: `qmake CONFIG+=no_ruby` builds without the Ruby interpreter. Ruby had
   no switch at all, unlike USE_PYBIND11: XRuby was constructed unconditionally
   and Linux refused to configure without ruby-dev ("KAME compiles

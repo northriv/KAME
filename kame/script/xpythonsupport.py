@@ -1694,6 +1694,57 @@ PYAI_PYTHON_FILE = os.path.join(os.path.expanduser('~'), '.kame_pyai_python')
 PYAI_AGENT_FILE = os.path.join(os.path.expanduser('~'), '.kame_pyai_agent')
 
 
+def _warn_if_mcp_unavailable():
+	"""Say, in the pane, when nothing can run the MCP server.
+
+	The links printed above are the only place a user meets MCP, so a missing
+	prerequisite has to be visible there rather than only when a click fails.
+	Probed on a daemon thread: it spawns interpreters, and this thread goes on
+	to pump KAME's event loop.
+
+	Accuracy matters more than coverage here -- a false alarm on a working
+	setup would be worse than silence -- so the candidate list mirrors the real
+	search: the interpreter that runs Jupyter (whose environment is almost
+	always where `mcp` was installed), then a kame-mcp-venv beside the
+	installation, before the generic python3 names."""
+	def _run():
+		_extra = []
+		try:
+			_progs = listOfJupyterPrograms()
+		except Exception:
+			_progs = []
+		if _progs:
+			#The shebang of the jupyter launcher names the interpreter whose
+			#environment has jupyter_client -- the primary candidate.
+			try:
+				with open(_progs[0], 'rb') as _f:
+					_first = _f.readline(512)
+				if _first.startswith(b'#!'):
+					_parts = _first[2:].decode('utf-8', 'replace').split()
+					if _parts:
+						import shutil as _sh2
+						_cand = (_sh2.which(_parts[1])
+								 if os.path.basename(_parts[0]) == 'env' and len(_parts) > 1
+								 else _parts[0])
+						if _cand:
+							_extra.append(_cand)
+			except OSError:
+				pass
+		_sub = ('Scripts', 'python.exe') if os.name == 'nt' else ('bin', 'python3')
+		for _d in range(1, 7):
+			_v = os.path.join(KAME_ResourceDir, *(['..'] * _d), 'kame-mcp-venv', *_sub)
+			if os.path.isfile(_v):
+				_extra.append(_v)
+				break
+		if _find_python_with(('mcp', 'jupyter_client'), 'KAME_MCP_PYTHON', _extra):
+			return
+		_kame_gui_html('<font color="#996600">No Python with <tt>mcp</tt> and '
+			'<tt>jupyter_client</tt> was found, so the MCP server cannot start '
+			'and the AI links above will fail.&nbsp; Setup: <a href="{0}">{0}</a>'
+			'</font>'.format(MCP_SETUP_URL))
+	threading.Thread(target=_run, name='kame-mcp-precheck', daemon=True).start()
+
+
 def _open_when_listening(url, host, port, timeout=90.0):
 	"""Open the browser once something answers on host:port.
 
@@ -2249,6 +2300,7 @@ else:
 				#needs a one-time entry in its own config; this reports the change
 				#first and only writes on the follow-up link.  The names must track
 				#_register_desktop_mcp -- this label went stale when agy was added.
+				_warn_if_mcp_unavailable()
 				MYDEFOUT.write_html(r'<font color="#0066cc">One-time setup:&nbsp; <a href="kame:register-mcp">&#9654; Register KAME with your AI clients</a> <font color="#808080">(Codex / Antigravity / Claude Desktop)</font></font>')
 				self.logfilename = os.path.splitext(connection_file)[0] + "-log" + os.extsep + "txt"
 				self._initial_logfilename = self.logfilename
