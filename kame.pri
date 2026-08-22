@@ -28,6 +28,14 @@ CONFIG += c++17
 #For ruby.h
 QMAKE_CXXFLAGS += -Wno-register
 
+# --- Ruby scripting -------------------------------------------------------
+# Built by default.  `qmake CONFIG+=no_ruby` drops the interpreter, its thread
+# and the libruby dependency.  The .kam FORMAT is unaffected: XRubyWriter only
+# writes text and is always built, and .kam files are loaded by the Python
+# loader whenever USE_PYBIND11 is set, which is already the default path.
+# What goes away is running .rb files and the Ruby line shell.
+!no_ruby: DEFINES += USE_RUBY
+
 # Run the kamepoolalloc pool allocator (NOT std::allocator) in production.
 # `-= USE_STD_ALLOCATOR` clears any inherited definition so the pool path in
 # allocator.h / allocator.cpp is active on every platform (macOS, Windows).

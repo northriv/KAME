@@ -8,6 +8,22 @@
   the venv's uvicorn -- the switcher then works exactly as written. Modules
   without one still go through clai, where KAME_PYAI_MODEL may now list several
   models (comma or space separated) to populate the picker.
+- build: `qmake CONFIG+=no_ruby` builds without the Ruby interpreter. Ruby had
+  no switch at all, unlike USE_PYBIND11: XRuby was constructed unconditionally
+  and Linux refused to configure without ruby-dev ("KAME compiles
+  script/xrubysupport.cpp unconditionally"). Default is unchanged -- this only
+  makes the question measurable, since deciding to drop Ruby needs a build that
+  can be tried. What is NOT affected is the .kam format: XRubyWriter merely
+  writes text, needs no libruby and is always built, and .kam files already load
+  through the Python loader whenever USE_PYBIND11 is set. What goes away is
+  running .rb files and the Ruby line shell. Verified by generating both
+  Makefiles: with no_ruby there is no compile rule for xrubysupport.o, no
+  USE_RUBY define and no libruby in LIBS, while xrubywriter is untouched; and
+  measure.cpp / kame.cpp / xrubywriter.cpp syntax-check both ways.
+  Motivation, for the record: libruby installs a SIGSEGV handler, which is what
+  turned a segfault in Python teardown into an endless spin rather than a crash
+  -- a cost paid on every platform for an interpreter most installations no
+  longer use.
 - script: setup-time failures now carry a link to the setup instructions.
   Someone getting MCP working for the first time cannot consult the manual: it
   is served THROUGH MCP, so it is unreachable until the thing they are fixing

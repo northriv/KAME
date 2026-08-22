@@ -104,7 +104,9 @@ public slots:
     virtual void mesStopAction_activated();
     virtual void scriptMenu_activated();
     virtual void scriptRunAction_activated();
+#ifdef USE_RUBY
     virtual void rubyLineShellAction_activated();
+#endif
     virtual void pythonLineShellAction_activated();
     virtual void jupyterConsoleAction_activated( QAction *act );
     virtual void jupyterQtConsoleAction_activated( QAction *act );

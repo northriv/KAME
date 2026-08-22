@@ -32,6 +32,16 @@ INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/script\
     $${_PRO_FILE_PWD_}/icons
 
+# The Ruby INTERPRETER, dropped by `qmake CONFIG+=no_ruby` (see kame.pri).
+# xrubywriter.* is NOT here: it only writes text, needs no libruby, and the
+# .kam format depends on it.
+RUBY_HEADERS =
+RUBY_SOURCES =
+!no_ruby {
+    RUBY_HEADERS = script/xrubysupport.h script/rubywrapper.h
+    RUBY_SOURCES = script/xrubysupport.cpp script/rubywrapper.cpp
+}
+
 HEADERS += \
     ../kamepoolalloc/allocator.h \
     ../kamepoolalloc/allocator_prv.h \
@@ -78,9 +88,8 @@ HEADERS += \
     analyzer/recorder.h \
     analyzer/recordreader.h \
     script/xdotwriter.h \
-    script/xrubysupport.h \
+    $$RUBY_HEADERS \
     script/xrubywriter.h \
-    script/rubywrapper.h \
     xitemnode.h \
     xlistnode.h \
     xnode.h \
@@ -139,9 +148,8 @@ SOURCES += icons/icon.cpp \
     math/rand.cpp \
     math/spectrumsolver.cpp \
     script/xdotwriter.cpp \
-    script/xrubysupport.cpp \
+    $$RUBY_SOURCES \
     script/xrubywriter.cpp \
-    script/rubywrapper.cpp \
     measure.cpp \
     ../kamestm/threadlocal.cpp \
     xnode.cpp \
@@ -366,6 +374,7 @@ macx: ICON = kame.icns
 
 #Ruby, pybind11
 macx {
+  !no_ruby {
     exists("/opt/local/include/ruby-*") {
         #for macports ruby3
         RUBYH = $$files("/opt/local/include/ruby-*")
@@ -384,6 +393,7 @@ macx {
         QMAKE_CXXFLAGS += -Wno-error=reserved-user-defined-literal
         message("using framework ruby.")
     }
+  }
 
     greaterThan(QT_MAJOR_VERSION, 5) {
         pythons="python3" $$files("/opt/local/bin/python3*") $$files("/usr/local/bin/python3*")
@@ -411,6 +421,7 @@ else:unix {
     # distribution for many years; ask the interpreter instead, exactly as
     # the macOS branch above globs MacPorts.  `rubyhdrdir` holds ruby.h and
     # `rubyarchhdrdir` the per-arch ruby/config.h — BOTH are required.
+  !no_ruby {
     RUBY_BIN = $$system(which ruby)
     !isEmpty(RUBY_BIN) {
         RUBY_HDRDIR = $$system($${RUBY_BIN} -rrbconfig -e \'print RbConfig::CONFIG[\"rubyhdrdir\"]\')
@@ -432,9 +443,10 @@ else:unix {
         message("using ruby headers from $${RUBY_HDRDIR}.")
     }
     else {
-        error("No Ruby development headers found (install ruby-dev / ruby-devel).  \
-KAME compiles script/xrubysupport.cpp unconditionally.")
+        error("No Ruby development headers found (install ruby-dev / ruby-devel), \
+or build without the Ruby interpreter: qmake CONFIG+=no_ruby")
     }
+  }
 
     # Python / pybind11.  The macOS and win32-g++ branches each grow their
     # own copy of this block; Linux never had one, so USE_PYBIND11 was never
@@ -486,6 +498,7 @@ Jupyter and the MCP server are DISABLED, and .kam files fall back to the Ruby lo
     }
 }
 win32-*g++ {
+  !no_ruby {
     exists($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include/ruby.h) {
     #for user-build ruby
         INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
@@ -503,6 +516,7 @@ win32-*g++ {
         LIBS += $$files(c:/msys64/mingw64/lib/libx64-msvcrt-ruby*[0-9].dll.a)
         message("using ruby from msys2.")
     }
+  }
     greaterThan(QT_MAJOR_VERSION, 5) {
         pythons="c:/msys64/mingw64/bin/python.exe"
         for(PYTHON, pythons) {

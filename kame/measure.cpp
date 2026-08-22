@@ -12,7 +12,9 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "xpythonsupport.h"
-#include "xrubysupport.h"
+#ifdef USE_RUBY
+    #include "xrubysupport.h"
+#endif
 #include "measure.h"
 #include "kame.h"
 
@@ -138,9 +140,11 @@ m_conNodeBrowser(xqcon_create<XNodeBrowser>(
 #endif
     m_pyInfoForNodeBrowser = XNode::createOrphan<XStringNode>("PyInfoForNodeBrowser", true);
 
+#ifdef USE_RUBY
     m_ruby = createOrphan<XRuby>("RubySupport", true,
         dynamic_pointer_cast<XMeasure>(shared_from_this()));
     m_ruby->startExecutionThread();
+#endif
 
     initialize();
 }
@@ -186,8 +190,10 @@ void XMeasure::terminate_all() {
     };
     stage("releasing nodes", [&]{ terminate();});
     fprintf(stderr, "terminat");
+#ifdef USE_RUBY
     stage("stopping the Ruby thread", [&]{ m_ruby->terminate(); m_ruby->join();});
     m_ruby.reset();
+#endif
 #ifdef USE_PYBIND11
     //pybind11 should free shared_ptr to XMeasure.
     //With IPython, sys.exit(0) is called, and stdout/err seem to be closed.

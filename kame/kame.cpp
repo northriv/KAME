@@ -12,7 +12,9 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "xpythonsupport.h"
-#include "xrubysupport.h"
+#ifdef USE_RUBY
+    #include "xrubysupport.h"
+#endif
 #include <QTimer>
 #include <QAction>
 #include <QMenu>
@@ -208,7 +210,9 @@ FrmKameMain::FrmKameMain()
     connect( m_pJupyterQtConsoleMenu, SIGNAL( triggered(QAction *) ), this, SLOT( jupyterQtConsoleAction_activated(QAction *) ) );
     connect( m_pJupyterNotebookMenu, SIGNAL( triggered(QAction *) ), this, SLOT( jupyterNotebookAction_activated(QAction *) ) );
     connect( m_pScriptRunAction, SIGNAL( triggered() ), this, SLOT( scriptRunAction_activated() ) );
+#ifdef USE_RUBY
     connect( m_pRubyLineShellAction, SIGNAL( triggered() ), this, SLOT( rubyLineShellAction_activated() ) );
+#endif
     connect( m_pPythonLineShellAction, SIGNAL( triggered() ), this, SLOT( pythonLineShellAction_activated() ) );
     connect( m_pFileLogAction, SIGNAL( toggled(bool) ), this, SLOT( fileLogAction_toggled(bool) ) );
     connect( m_pGraphThemeNightAction, SIGNAL( toggled(bool) ), this, SLOT( graphThemeNightAction_toggled(bool) ) );
@@ -223,7 +227,7 @@ FrmKameMain::FrmKameMain()
 
 #ifdef USE_PYBIND11
     pythonLineShellAction_activated();
-#else
+#elif defined(USE_RUBY)
     rubyLineShellAction_activated();
 #endif
 }
@@ -339,9 +343,11 @@ FrmKameMain::createActions() {
     m_pPythonLineShellAction->setEnabled( false );
 #endif
     m_pPythonLineShellAction->setIcon(QIcon( *g_pIconPython));
+#ifdef USE_RUBY
     m_pRubyLineShellAction = new QAction( this );
     m_pRubyLineShellAction->setEnabled( true );
     m_pRubyLineShellAction->setIcon(QIcon( *g_pIconScript));
+#endif
     m_pJupyterConsoleMenu = new QMenu( this );
     m_pJupyterConsoleMenu->setIcon(QIcon( *g_pIconPython));
     m_pJupyterQtConsoleMenu = new QMenu( this );
@@ -379,7 +385,9 @@ FrmKameMain::createActions() {
     m_pMesStopAction->setText( i18n( "&Stop" ) );
     m_pScriptRunAction->setText( i18n( "&Run..." ) );
     m_pPythonLineShellAction->setText( i18n( "New &Python Line Shell" ) );
+#ifdef USE_RUBY
     m_pRubyLineShellAction->setText( i18n( "&New Ruby Line Shell" ) );
+#endif
     m_pJupyterNotebookMenu->setTitle( i18n( "Launch &Jupyter Notebook" ) );
     m_pJupyterConsoleMenu->setTitle( i18n( "Launch Jupyter &Console" ) );
     m_pJupyterQtConsoleMenu->setTitle( i18n( "Launch Jupyter &Qt Console" ) );
@@ -405,7 +413,9 @@ FrmKameMain::createMenus() {
 
     m_pScriptMenu = menuBar()->addMenu( i18n( "&Script" ) );
     m_pScriptMenu->addAction(m_pScriptRunAction);
+#ifdef USE_RUBY
     m_pScriptMenu->addAction(m_pRubyLineShellAction);
+#endif
     m_pScriptMenu->addAction(m_pPythonLineShellAction);
     m_pScriptMenu->addSeparator();
     m_pScriptMenu->addMenu(m_pJupyterNotebookMenu);
@@ -613,7 +623,13 @@ FrmKameMain::runNewScript(const XString &label, const XString &filename) {
     } else
 #endif
     {
+#ifdef USE_RUBY
         threadlist = m_measure->ruby();
+#else
+        gErrPrint(i18n("Built without the Ruby interpreter; only .py and .kam "
+            "files can be run."));
+        return shared_ptr<XScriptingThread>();
+#endif
     }
     shared_ptr<XScriptingThread> scriptthread =
         threadlist->create<XScriptingThread>(label.c_str(), true, filename);
@@ -723,9 +739,11 @@ void FrmKameMain::scriptRunAction_activated() {
 void FrmKameMain::pythonLineShellAction_activated() {
     scriptLineShellAction_activated(PY_LINESHELL_FILE);
 }
+#ifdef USE_RUBY
 void FrmKameMain::rubyLineShellAction_activated() {
     scriptLineShellAction_activated(RB_LINESHELL_FILE);
 }
+#endif
 
 
 void FrmKameMain::scriptLineShellAction_activated(const char *name) {

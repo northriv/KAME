@@ -32,7 +32,9 @@ class XCalibratedEntryList;
 class XTextWriter;
 class XRawStreamRecorder;
 class XRawStreamRecordReader;
-class XRuby;
+#ifdef USE_RUBY
+    class XRuby;
+#endif
 class XPython;
 class XNodeBrowser;
 
@@ -64,7 +66,9 @@ public:
 	const shared_ptr<XRawStreamRecorder> &rawStreamRecorder() const {return m_rawStreamRecorder;}
 	const shared_ptr<XRawStreamRecordReader> &rawStreamRecordReader() const {return m_rawStreamRecordReader;}
 
+#ifdef USE_RUBY
 	const shared_ptr<XRuby> &ruby() const {return m_ruby;}
+#endif
 #ifdef USE_PYBIND11
     const shared_ptr<XPython> &python() const {return m_python;}
 #endif
@@ -72,7 +76,9 @@ public:
     const shared_ptr<XStringNode> &pyInfoForNodeBrowser() const {return m_pyInfoForNodeBrowser;}
     shared_ptr<XNode> &lastPointedByNodeBrowser() {return m_lastPointedByNodeBrowser;}
 private:
+#ifdef USE_RUBY
 	shared_ptr<XRuby> m_ruby;
+#endif
     shared_ptr<XPython> m_python;
 
 	const shared_ptr<XCalibrationCurveList> m_thermometers;
