@@ -83,6 +83,31 @@ itself ran.
 into the model's context: a 30 KB PNG is ~10k tokens spent on something the
 image channel already delivers.
 
+## Converting a `.seq` script to Python
+
+`.seq` files are Ruby with KAME bindings, and users migrating one will ask you
+to translate it. The shapes map directly, but several differences are silent if
+you translate by eye:
+
+| `.seq` (Ruby) | Python | Note |
+|---|---|---|
+| `measurement["Drivers"]["X"]` | `Root()["Drivers"]["X"]` | returns `None` if absent — check it |
+| `node.get()` | `float(Snapshot(node)[node])` | **there is no `.get()`** — reading goes through a Snapshot |
+| `node.set(v)` | `node.set(v)` or `parent["Child"] = v` | `set()` is TYPED here; `parent[...] = v` converts for you |
+| `while TRUE ... end` | `while True:` | |
+| `begin ... end while cond` | `while True: ...` + `if not cond: break` | Ruby runs the body FIRST; a plain `while cond:` may never run it |
+| `sleep(n)` | `sleep(n)` | same name, same KAME-aware sleep |
+
+Two more things before handing back a translation:
+
+- **Verify every node path with `tree` first.** These scripts are old — the
+  ones shipped with KAME were written in 2003-2005 — and node names have
+  changed since. A path that reads plausibly may simply not exist any more,
+  and `Root()[...]` returns `None` rather than raising, so the failure surfaces
+  much later as a confusing `NoneType` error.
+- **A loop that sleeps belongs in `execute_code_async`**, not `execute_code`;
+  the originals often loop forever, which no synchronous call can host.
+
 ## Globals (pre-imported from `kame`)
 
 ```python
