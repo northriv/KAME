@@ -14,12 +14,14 @@ print greeting[Integer(rand()**2*greeting.size())]
 #linking it is not free: its SIGSEGV handler turns a crash elsewhere in the
 #process into an unkillable spin.  The .kam format is unaffected either way --
 #it is written as text and read by the Python loader.
-print "\n*** The Ruby shell is deprecated. ***\n"
-print "It is planned to be OFF by default from KAME 9.0; today's builds can\n"
-print "already drop it with `qmake CONFIG+=no_ruby`.  Python is the supported\n"
-print "scripting language.\n"
-print "To port a .seq script, ask KAME's AI assistant to convert it -- the\n"
-print "mapping, including the traps, is in kame_api(\"Converting a .seq script\").\n\n"
+#One print, not six: each one crosses the SignalBuffer to the main thread on
+#its own, so six of them arrive staggered instead of as a block.
+print "\n*** The Ruby shell is deprecated. ***\n" +
+    "It is planned to be OFF by default from KAME 9.0; today's builds can\n" +
+    "already drop it with `qmake CONFIG+=no_ruby`.  Python is the supported\n" +
+    "scripting language.\n" +
+    "To port a .seq script, ask KAME's AI assistant to convert it -- the\n" +
+    "mapping, including the traps, is in kame_api(\"Converting a .seq script\").\n\n"
 
 #Usuful contants.
 h = 6.626070040e-34
