@@ -1546,7 +1546,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         bool _ll_saw = NegotiationCounter::livelock_probe_tx_tick(
             static_cast<const void*>(self),
             snap.m_tx_retry_count,
-            self->m_tx_commit_count,
+            self->m_tx_commit_count.load(std::memory_order_relaxed),
             _ll_owned, _ll_total, sig_C, _ll_age_us,
             entry_pr);
         // Fair-mode escape: when verdict=LIVELOCK fires for this Tx
@@ -2103,7 +2103,8 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 (long long)dt, (long long)dt2, sig_C, (int)_fair_blocks,
                 (int)snap.m_tagged_linkages.size(),
                 (unsigned)snap.m_tx_retry_count,
-                (unsigned long long)self->m_tx_commit_count);
+                (unsigned long long)self->m_tx_commit_count.load(
+                    std::memory_order_relaxed));
             // Dump every tagged Linkage's current slot stamp so we can
             // see who else is holding which slot.
             int _idx = 0;
