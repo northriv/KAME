@@ -151,10 +151,10 @@ public:
     //! Transaction in finalizeCommitment()). Summing this over the whole
     //! node tree gives the aggregate STM commit count; differencing two
     //! readings against wall-clock time yields the commit throughput
-    //! (commits/s). Read is a plain load of a mutable counter — racy by
-    //! design, adequate for coarse-grained monitoring.
+    //! (commits/s). A relaxed load — deliberately unordered, adequate for
+    //! coarse-grained monitoring.
     uint64_t numTransactionsCommitted() const noexcept {
-        return m_link->m_tx_commit_count;
+        return m_link->m_tx_commit_count.load(std::memory_order_relaxed);
     }
     //! Swaps orders in the subnode list.
     //! \return True if succeeded.
@@ -992,15 +992,26 @@ private:
         //! could disagree.)
 
         //! Non-atomic Transaction-commit counter — bumped in
-        //! `Transaction<XN>::finalizeCommitment()` (only the
-        //! iterate_commit winner executes that, one writer per tx, no
-        //! concurrent writes on a given Linkage, so the plain ++ is
-        //! race-free). Counts **successful Transactions** rooted at
-        //! this linkage (not individual CAS ops inside a single tx).
-        //! Readers — the optional livelock probe — load via the same
-        //! atomic_shared_ptr CAS acquire they already used to reach
-        //! this Linkage.
-        mutable uint64_t m_tx_commit_count = 0;
+        //! `Transaction<XN>::finalizeCommitment()`.  Counts **successful
+        //! Transactions** rooted at this linkage (not individual CAS ops
+        //! inside a single tx); the optional livelock probe reads it.
+        //!
+        //! Relaxed atomic, and pointer-width (`diag_counter_t`) so an i486
+        //! without CMPXCHG8B does not need libatomic for it.  It was a plain
+        //! `uint64_t` on the stated grounds that only the iterate_commit
+        //! winner writes, one writer per tx — but TSan disproves that: a full
+        //! run reports write/write races on this very line (4-11 of them),
+        //! alongside ~300 write/read.  Concurrent Txs rooted at the same
+        //! linkage do both increment it.
+        //!
+        //! On LP64 that merely loses updates, since a 64-bit access is single
+        //! and indivisible in practice.  On ILP32 it is worse in kind: `++`
+        //! becomes add+adc and a reader's load becomes two 32-bit loads, so a
+        //! peer can observe halves from different generations.  No safety
+        //! property reads this counter — it feeds the livelock probe, hence
+        //! privilege claiming — so this is not the ILP32 corruption under
+        //! investigation, but it is UB that ILP32 makes qualitatively worse.
+        mutable std::atomic<detail::diag_counter_t> m_tx_commit_count{0};
 
         // Implicit commit-lease. within a certain window after the
         // current wrapper was installed, the committing TID holds a soft lease —
@@ -2764,7 +2775,7 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
     // Bump the per-root-linkage Transaction-commit counter consumed by
     // the optional livelock probe. Single writer (the iterate_commit
     // winner) per tx, so the non-atomic ++ is race-free.
-    ++node.m_link->m_tx_commit_count;
+    node.m_link->m_tx_commit_count.fetch_add(1, std::memory_order_relaxed);
     //Clears the time stamp linked to this object and privilage.
     // Drop all contender tags (including TAG_ON_DISTURB child tags) before
     // zeroing m_started_time; drop_tags_n_privilege() matches on the current value.
