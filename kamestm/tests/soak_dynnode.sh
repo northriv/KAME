@@ -66,6 +66,40 @@
 # type behind an unsigned name, which would matter for a >2 GiB address — but
 # they are dead typedefs, referenced nowhere.
 #
+# COMPILER: it is GCC-only so far.  Same source, same flags, same load, i586:
+# gcc-13 2/44, clang-18 0/126.  If the rates were equal, clang reaching 126
+# runs without a failure has probability ~0.3%, so the difference is real even
+# though 44 runs cannot pin gcc's own rate.  That makes a codegen or
+# latent-UB reading plausible, and it is the cheapest remaining lead.
+#
+# UBSan (gcc, i586, 82 runs) reports exactly ONE thing, on every run:
+#   allocator.cpp:4292: member access within address ... which does not point
+#   to an object of type 'PoolAllocatorBase'
+# — the deliberate header type-pun (`reinterpret_cast<PoolAllocatorBase *>
+# (chunk_base + ALLOC_CHUNK_HEADER)->m_owner_id = 0`).  Real UB and worth
+# rewriting as a byte-offset store, but not the ILP32 bug: offsetof(m_owner_id)
+# is 64 and ALLOC_CHUNK_HEADER is 64 on BOTH widths, so the store lands at
+# +128 either way.  What matters more is what UBSan did NOT find: no
+# misalignment, no over-width shift, no signed overflow.  So this is not a
+# UB class UBSan can see.
+#
+# Two readings tried and NOT established, recorded so they are not re-run as
+# if new:
+#   -fno-strict-aliasing   1/34 vs 0/34 — at a ~4.5% rate that is ~1.5
+#                          expected per arm.  Proves nothing; the run was also
+#                          cut short.
+#   64-bit-atomic codegen  Counting `cmpxchg8b` in libkamepoolalloc.so gave
+#                          gcc 11 vs clang 148, and KAME_FORCE_UINT32_BITMAP
+#                          took gcc's 11 to 0 — so those 11 are all the chunk
+#                          claim bitmap.  But the .so is only the allocator:
+#                          kamestm compiles into the TEST BINARY, and there the
+#                          counts are gcc 15 vs clang 14, unchanged by
+#                          FORCE_UINT32_BITMAP.  kamestm's own 64-bit atomics
+#                          (m_priority_state, the packed stamp) obviously need
+#                          cmpxchg8b on i586 and get it from both compilers.
+#                          The 13x figure was an artifact of measuring one
+#                          library and reasoning about the whole program.
+#
 # Practical consequence: debug this on ILP32 hardware, where it fires at
 # 10% (i486) to 25% (i586), not by trying to reproduce it on a 64-bit host.
 # TSan is unavailable there, but cores are not, and every useful fact so far
