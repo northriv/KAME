@@ -44,6 +44,51 @@
 //     All other workloads parity.
 #define LEAVE_VACANT_CHUNKS_PER_THREAD 2
 
+//! GCC targeting macOS cannot host this file, and the reason is structural
+//! rather than a bug to fix here.  Measured with GCC 15.2 / arm64 macOS 25
+//! (2026-08-22):
+//!
+//!  1. `__attribute__((constructor(N)))` is rejected on Mach-O
+//!     ("constructor priorities are not supported"), so it does not compile.
+//!     Drop the priority to get past that, and then:
+//!  2. GCC on Mach-O has no native TLS — every `thread_local` (and every
+//!     `__thread`, INCLUDING one marked `tls_model("initial-exec")`: measured,
+//!     the attribute is silently ignored) becomes libgcc's EMULATED TLS, and
+//!     `__emutls_get_address()` ALLOCATES.  With the pool interposing malloc
+//!     that is an unbounded cycle.  One lldb backtrace holds the whole loop:
+//!
+//!         #0 __emutls_get_address        emutls.c:149
+//!         #1 new_redirected_cold         <- the pool's own thread_local
+//!         #2 kame_malloc_slow            <- our interposed malloc
+//!         #3 emutls_alloc                emutls.c:119  <- emutls calls malloc
+//!         #4 __emutls_get_address        emutls.c:204
+//!         #5 new_redirected_cold         <- and around again
+//!         #6 kame_malloc_slow
+//!         #7 libsystem_malloc <- libobjc _objc_init <- dyld initializers
+//!
+//!     It starts in dyld's initializers, so the process dies of stack
+//!     exhaustion in `__emutls_get_address` before `main` — every run, any
+//!     workload.  This is the one case the usual defence does not cover: the
+//!     pool already avoids allocating TLS the way mimalloc does (initial-exec
+//!     on ELF, direct TPIDRRO_EL0 + TSD-slot reads on macOS, an OS-direct
+//!     path before init), but emutls cannot be made non-allocating, and
+//!     arming the fast-TSD path itself needs TLS.
+//!
+//! Unconditional, with no version bound: upstream GCC has shown no intent to
+//! implement native Mach-O TLS, so gating on __GNUC__ would only invite a
+//! future reader to assume a newer GCC had fixed it.  If one ever does, this
+//! is a one-line change, and the check is a one-liner too:
+//!
+//!     printf 'thread_local int x; int*f(){return &x;}\n' \
+//!       | g++ -O2 -S -x c++ - -o - | grep -c __emutls_get_address
+//!
+//! The fix is the same either way: build with clang (the supported macOS
+//! toolchain; Linux GCC has native TLS and is fine), or configure with
+//! USE_KAME_ALLOCATOR=OFF, which never compiles this file.
+#if defined(__APPLE__) && defined(__GNUC__) && !defined(__clang__)
+#  error "kamepoolalloc: GCC on macOS is unsupported -- its emulated TLS allocates, so the pool's own thread_local recurses through the interposed malloc until the stack is gone (dies in __emutls_get_address before main). Use clang, or configure with USE_KAME_ALLOCATOR=OFF."
+#endif
+
 #include "allocator.h"
 #include "kame_pool.h"        // C-API stats struct + version macro
 #if defined(__linux__)
