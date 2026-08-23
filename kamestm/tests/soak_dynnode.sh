@@ -18,7 +18,8 @@
 #
 #     i486  pool ON / OFF          7-10 %  /  0 / 42
 #     i586  pool ON / OFF         21-25 %  /  0 / 44
-#     x86-64, arm64 (pool ON)      never fired
+#     x86-64 (pool ON)             1 SIGSEGV in ~400 — see the LP64 note below
+#     arm64  (pool ON)             0 / 2400
 #
 # i586 is what makes this precise: it is ILP32 but has CMPXCHG8B, so
 # KAME_STM_COMPACT_STATE is 0 there — the full 64-bit stamp, the uint64_t
@@ -50,14 +51,27 @@
 # The last one matters: the heap's own structures are already corrupt, so this
 # is not one stale pointer, it is broad damage.
 #
-# It cannot be simulated on a 64-bit host.  arm64/M3, 12-way soak, ~2400 runs
-# across nine configurations — compact forced, KAME_LOCAL_REF_CAPACITY_OVERRIDE
-# 4 and 2, forced uint32 bitmap, an ILP32-faithful NONINTRUSIVE=4, a tag-guard
-# build, and the O3+strict soak pairing — produced ZERO failures.  x86-64 with
-# OVERRIDE=4 gave 1 in 200 and then 0 in 120 more; at a true 0.5% rate arm64's
-# 2400 runs would have shown ~12, so that single event was noise and the
-# "reproduced on x86-64 with capacity 4" claim is withdrawn.  LOCAL_REF_CAPACITY
-# is NOT the mechanism, and neither is anything else a 64-bit box can emulate.
+# ILP32 is where it is reproducible.  arm64/M3, 12-way soak, ~2400 runs across
+# nine configurations — compact forced, KAME_LOCAL_REF_CAPACITY_OVERRIDE 4 and
+# 2, forced uint32 bitmap, an ILP32-faithful NONINTRUSIVE=4, a tag-guard build,
+# and the O3+strict soak pairing — produced ZERO failures.  So
+# LOCAL_REF_CAPACITY is NOT the mechanism, and the "reproduced on x86-64 with
+# capacity 4" claim is withdrawn: one event cannot carry it against 2400.
+#
+# But that event must NOT be filed away as noise — it is UNEXPLAINED, which is
+# a different thing, and calling it noise was an overstatement made without
+# evidence.  x86-64, LP64, pool on, OVERRIDE=4: 1 SIGSEGV in 200 runs (0 in 120
+# more afterwards, 0/80 at the default capacity).  The kept output is
+# unambiguous — `Segmentation fault`, packet addresses at 0x7fd722.., a genuine
+# 64-bit crash inside the same bundle dump this bug produces on ILP32.  It
+# dumped core, and the core was then lost to a later experiment's
+# `rm -f /tmp/cores/core.*`; keep 64-bit cores aside if this recurs.
+#
+# So the honest statement is narrower than "only ILP32 fails": ILP32 fails at
+# 10-25%, LP64 has failed once in ~400 runs here and never in arm64's 2400.
+# Either there is a second and far rarer path on LP64, or that crash shares
+# this cause and LP64 simply needs a much longer soak.  Nothing so far
+# separates those two.
 #
 # What is left is what only real ILP32 has: 32-bit pointers (so different
 # struct layout and padding), 32-bit size_t arithmetic, user addresses above
