@@ -52,6 +52,44 @@ struct load_shared_enabled : detail_asp::load_shared_enabled_impl<T> {};
     #define BACKOFF_IN_ATOMIC_SMART_PTR 0 //disabled by default, in accord with our tests for ARM64 and high-core-count x86_64.
 #endif
 
+#ifdef KAME_RC_TRACE
+//! ---- KAME_RC_TRACE: per-object refcount event tracing ------------------
+//! Debug aid for hunting premature-free bugs (a refcount reaching zero
+//! while a reachable owner still exists).  Definitions live in
+//! kamestm/tests/rc_trace.cpp -- add it to the build together with
+//! -DKAME_RC_TRACE.  Coverage: every strong-count change that goes through
+//! local_shared_ptr (copy ctors, reset) plus control-block birth via
+//! atomic_countable.  For intrusive types (Packet / Payload:
+//! atomic_countable) that are never installed in an atomic_shared_ptr the
+//! recorded history is COMPLETE; for atomically-published types
+//! (PacketWrapper) the atomic-side machinery (tag drains, CAS transfers)
+//! is NOT traced, so wrapper histories are partial.  Biased-refcount
+//! branches (KAME_LSP_BIASED) are not traced.  Two tripwires abort() at
+//! the guilty call site with a history dump: copying a dead object
+//! (OP_INC_FROM_ZERO) and decrementing an already-zero count
+//! (OP_DEC_UNDERFLOW).  From gdb: call kame_rc_dump((const void*)$rsi).
+namespace kame_rc_trace {
+enum Op : unsigned {
+    OP_BORN = 1,        //!< control block constructed, refcnt = 1
+    OP_INC,             //!< copy: fetch_add(1); oldc = value before
+    OP_DEC,             //!< reset: fetch_sub(1); oldc = value before
+    OP_DEAD,            //!< reset: count hit zero -> deleter runs
+    OP_DEAD_UNIQUE,     //!< reset: unique() fast path -> deleter runs
+    OP_INC_FROM_ZERO,   //!< TRIPWIRE: copied a dead object
+    OP_DEC_UNDERFLOW,   //!< TRIPWIRE: decrement of an already-zero count
+};
+void record(const void *obj, unsigned op, unsigned long long oldc,
+    const void *site) noexcept;
+[[noreturn]] void die(const void *obj, unsigned op, unsigned long long oldc,
+    const void *site) noexcept;
+}
+#define KAME_RC_EVT(obj, op, oldc) \
+    ::kame_rc_trace::record((obj), (op), (unsigned long long)(oldc), \
+        __builtin_return_address(0))
+#else
+#define KAME_RC_EVT(obj, op, oldc) ((void)0)
+#endif
+
 //! \brief This is an atomic variant of \a std::unique_ptr.
 //! An instance of atomic_unique_ptr can be shared among threads by the use of \a swap(\a _shared_target_).\n
 //! Namely, it is destructive reading.
@@ -296,8 +334,8 @@ struct atomic_weakable : atomic_emplaced {};
 //! sizeof(T) includes the refcnt; `local_shared_ptr<T>` stores T*
 //! directly (no separate control block).  Fastest hot path.
 struct atomic_countable {
-    atomic_countable() noexcept : refcnt(1) {}
-    atomic_countable(const atomic_countable &) noexcept : refcnt(1) {}
+    atomic_countable() noexcept : refcnt(1) { KAME_RC_EVT(this, 1 /*OP_BORN*/, 1); }
+    atomic_countable(const atomic_countable &) noexcept : refcnt(1) { KAME_RC_EVT(this, 1 /*OP_BORN*/, 1); }
     ~atomic_countable() { assert(refcnt == 0); }
 
     atomic_countable &operator=(const atomic_countable &) = delete;
@@ -1572,7 +1610,19 @@ inline local_shared_ptr<T, reflocal_var_t>::local_shared_ptr(const local_shared_
     this->m_ref = (TaggedPtr)y.m_ref;
     if(Ref *p = ref_ptr_()) {
         if constexpr (is_biased_directpublish<T>::value) biased_inc_(p->refcnt); //!< §biased — skippable
+#ifdef KAME_RC_TRACE
+        else {
+            auto _rct_o = p->refcnt.fetch_add(1, std::memory_order_relaxed);
+            // ==0: freed-and-still-zero.  >=2^48: freed-and-poisoned
+            // (0xBAADF00D...) or wild — either way a dead object.
+            if(_rct_o == 0 || _rct_o >= ((uintptr_t)1 << 48))
+                kame_rc_trace::die(p, kame_rc_trace::OP_INC_FROM_ZERO, _rct_o,
+                    __builtin_return_address(0));
+            KAME_RC_EVT(p, kame_rc_trace::OP_INC, _rct_o);
+        }
+#else
         else p->refcnt.fetch_add(1, std::memory_order_relaxed);
+#endif
     }
 }
 
@@ -1583,7 +1633,19 @@ inline local_shared_ptr<T, reflocal_var_t>::local_shared_ptr(const local_shared_
     this->m_ref = (TaggedPtr)y.m_ref;
     if(Ref *p = ref_ptr_()) {
         if constexpr (is_biased_directpublish<T>::value) biased_inc_(p->refcnt); //!< §biased — skippable
+#ifdef KAME_RC_TRACE
+        else {
+            auto _rct_o = p->refcnt.fetch_add(1, std::memory_order_relaxed);
+            // ==0: freed-and-still-zero.  >=2^48: freed-and-poisoned
+            // (0xBAADF00D...) or wild — either way a dead object.
+            if(_rct_o == 0 || _rct_o >= ((uintptr_t)1 << 48))
+                kame_rc_trace::die(p, kame_rc_trace::OP_INC_FROM_ZERO, _rct_o,
+                    __builtin_return_address(0));
+            KAME_RC_EVT(p, kame_rc_trace::OP_INC, _rct_o);
+        }
+#else
         else p->refcnt.fetch_add(1, std::memory_order_relaxed);
+#endif
     }
 }
 
@@ -1603,6 +1665,25 @@ local_shared_ptr<T, reflocal_var_t>::reset() noexcept {
         return;
     }
     // decreases global reference counter.
+#ifdef KAME_RC_TRACE
+    if(unique()) {
+        KAME_RC_EVT(pref, kame_rc_trace::OP_DEAD_UNIQUE, 1);
+        pref->refcnt.store(0, std::memory_order_relaxed);
+        this->deleter(pref);
+    }
+    else {
+        // decAndTest() expanded so the pre-decrement value is observable.
+        auto _rct_o = pref->refcnt.fetch_sub(1, std::memory_order_acq_rel);
+        if(_rct_o == 0 || _rct_o >= ((uintptr_t)1 << 48))
+            kame_rc_trace::die(pref, kame_rc_trace::OP_DEC_UNDERFLOW, _rct_o,
+                __builtin_return_address(0));
+        KAME_RC_EVT(pref,
+            (_rct_o == 1) ? kame_rc_trace::OP_DEAD : kame_rc_trace::OP_DEC,
+            _rct_o);
+        if(_rct_o == 1)
+            this->deleter(pref);
+    }
+#else
     if(unique()) {
         pref->refcnt.store(0, std::memory_order_relaxed);
         this->deleter(pref);
@@ -1610,6 +1691,7 @@ local_shared_ptr<T, reflocal_var_t>::reset() noexcept {
     else if(pref->refcnt.decAndTest()) {
         this->deleter(pref);
     }
+#endif
     this->m_ref = (TaggedPtr)nullptr;
 }
 //=============================================================================

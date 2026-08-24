@@ -268,3 +268,70 @@ and should not be described as one.
   worth fixing independently of this bug.
 - Whether the ILP32 fault is the same defect is now testable directly: apply
   the poison patch there and check `si_code` and the faulting register.
+
+## 8. Refcount event tracing (`KAME_RC_TRACE`) — added 2026-08-24
+
+The next step chosen over more modelling: instrument the `Packet` refcount
+itself and let the reproducer name the guilty increment/decrement.  Hooks in
+`kamepoolalloc/atomic_smart_ptr.h` (no-ops unless `-DKAME_RC_TRACE`), runtime
+in `kamestm/tests/rc_trace.cpp`.
+
+**Coverage.** Every strong-count change that goes through `local_shared_ptr`
+(copy ctors, `reset()`), plus control-block birth via the `atomic_countable`
+ctor.  `Packet`/`Payload` are intrusive `atomic_countable` and are never
+installed in an `atomic_shared_ptr`, so their histories are **complete**.
+`PacketWrapper` histories are **partial** (the atomic-side machinery — tag
+drains, CAS transfers — is untraced).  Biased branches (`KAME_LSP_BIASED`)
+are untraced; keep it off.
+
+**Tripwires** (abort at the guilty call site, with history dump):
+
+- `INC-FROM-ZERO`: copying a `local_shared_ptr` whose count is `0` **or
+  ≥ 2^48** — the threshold matters because with the §3 poison patch a freed
+  slot's count reads `0xBAADF00DBAADF00D`, not `0`.  This fires at the exact
+  *stale copy* site, earlier than the poison `#GP`.
+- `DEC-UNDERFLOW`: `reset()` on a count of `0` / poisoned — the exact *stale
+  release* site.
+
+Per-thread rings (64 rings × 16384 events, recycled round-robin — safe under
+the reproducer's thread churn since events carry the real tid), TSC
+sequencing on x86-64 (no shared cacheline on the record path).
+
+**Build** (the §3 line plus two additions):
+
+```bash
+c++ -DKAMEPOOLALLOC_DYLIB -DA_NO_P1TREE -DKAME_RC_TRACE \
+    -I kamestm/tests -I kamestm -I kamepoolalloc \
+    -O3 -g -DNDEBUG -std=gnu++17 -include kamestm/tests/support_standalone.h \
+    kamestm/tests/tmin_dynnode.cpp kamestm/tests/rc_trace.cpp \
+    kamestm/tests/support_standalone.cpp kamestm/threadlocal.cpp \
+    -o tmin_rct -Wl,-rpath,<build>/kamepoolalloc-tests \
+    <build>/kamepoolalloc-tests/libkamepoolalloc.so -ldl
+```
+
+Keep the poisoned allocator `.so` from §3 — poison is what makes the stale
+access *identifiable*; the thresholds make it *attributable*.
+
+**Run**: `gdb --args ./tmin_rct 100 16 1250`, then either
+
+1. a tripwire aborts first (the good case): the `abort()` backtrace **is** the
+   guilty site; the stderr dump shows the object's whole inc/dec history with
+   per-event `tid` and resolved sites; or
+2. the poison `#GP` fires as in §1: then
+   `call kame_rc_dump((const void*)$rsi)` — read the history for the freed
+   `Packet`: look for the `DEC`/`DEAD` that has no matching owner, or the
+   `DEAD → BORN` (slot recycled as a new Packet) followed by a `DEC` from a
+   thread that should no longer hold it.  `call kame_rc_dump_recent(200)`
+   prints cross-thread context around the fault.
+
+**Perturbation caveat**: the hooks add a TLS ring store + (x86) a `rdtsc`
+per refcount op.  §4's rule applies — if the fire rate collapses, raise the
+thread count (16 → 24) rather than concluding anything.
+
+What this decides: whether the premature zero is a *double release* (extra
+`DEC` — its site named directly), a *missing increment* (history shows N
+owners but N−1 `INC`s — the transfer that skipped its `INC` is the edge
+between the last two events), or a *stale release onto a recycled slot*
+(`DEAD → BORN → DEC` signature).  Each of the three points at a different
+`bundle`/`bundle_subpacket` edge; §2's model can then be built around the
+named edge instead of the whole recursion.
