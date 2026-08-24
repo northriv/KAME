@@ -1,3 +1,29 @@
+# SUPERSEDED — see `kamestm/tests/DYNNODE_UAF_HANDOFF.md`
+
+**The fault was caught on 2026-08-24 (commit 65b2d977) and it is neither an
+allocator defect nor a miscompile.  It is an STM lifetime bug: a `Packet` is
+destroyed while a live `PacketWrapper` still holds `m_packet` pointing at it —
+a `local_shared_ptr<Packet>` refcount reaching zero with an outstanding
+reference, inside the `snapshot -> bundle -> bundle_subpacket -> bundle`
+recursion.  Poisoning every slot with `0xBAADF00DBAADF00D` inside
+`deallocate_pooled_or_free` caught it in the act at `transaction_impl.h:2733`:
+the wrapper is valid, `wrapper->m_packet` is valid, `packet->m_payload` is the
+poison, and dereferencing it takes a #GP.**
+
+That reconciles everything measured here.  The pool is required because it
+recycles the slot; only the allocator's codegen matters because the STM defect
+is identical in every build; `-fipa-cp-clone` is an accelerator, not a
+miscompile; quarantine works because the slot is never reissued; and no
+sanitiser sees it because the allocator misses no atomic and unmaps nothing.
+
+Three conclusions in this file were subsequently REFUTED, including one this
+session recorded as the leading answer.  They are marked inline below.  The
+file is kept only for its negative results — the long list of things that were
+measured and are not the cause — which remain valid and are worth not
+re-running.  For anything else, read the handoff.
+
+---
+
 # The LRC_CHUNK recycle-cache identity bug
 
 Status as of 2026-08-23.  Two sessions in parallel: an Ubuntu 26.04 RT box
@@ -75,7 +101,16 @@ Recorded so nobody re-runs them.
 
 The reason is structural, and it is the hypothesis below.
 
-## Localised (2026-08-23): CrossDeallocBatch
+## REFUTED — CrossDeallocBatch was NOT the mechanism
+
+**This section's conclusion is wrong.**  The RT session separated the batch's
+behaviours properly: keeping the batching but flushing per slot still fails
+5/16.  `cap = 1` reaching zero here changed slot-reuse *timing*, not the
+protocol.  The reasoning below overstated a real measurement.
+
+Original text follows.
+
+### (superseded) Localised (2026-08-23): CrossDeallocBatch
 
 With the chunk layer cleared, the remaining reuse layer is the bucket slot —
 where the STM's objects actually live (`Packet` 16-32 B, `PacketWrapper`
