@@ -2037,3 +2037,29 @@ built for exactly that class.
 to master.  It is real UB (`++` on a shared non-atomic `uint64_t`), it is
 qualitatively worse on ILP32 (`add`+`adc`, readers can observe torn halves),
 and on this branch it is currently the only thing TSan reports.
+
+### 13.12 The counter fix is now ON this branch — and it is a precondition, not a fix
+
+`cc227fafd` cherry-picked here (the branch's only TSan-reported race is
+gone at the source).  Expectations kept honest: that commit's own analysis
+says the counter feeds only the livelock probe → privilege claiming, no
+safety property reads it, and on LP64 the race merely loses updates — so
+it is NOT predicted to move the 37 %/run rate.  Its importance is
+different: **an H1 (genuine-miscompile) case cannot be made from a binary
+containing known UB** — neither internally nor as a GCC report, since UB
+licenses the very transformations we would be attributing to a compiler
+bug.  With this port, the reproducing build is TSan-clean end to end.
+
+**The pre-registered causal test, now runnable**: rebuild the reproducing
+configuration (pool `.so`, `-O3`, forensic) from THIS commit and re-run
+the 60-run batch.
+- Rate unchanged (expected) → H1 stands on a UB-free binary; proceed to
+  the `__attribute__((noipa))` per-function bisect of the
+  `-fno-ipa-cp-clone` switch (start with `finalizeCommitment`,
+  `livelock_probe_tx_tick`, `reverseLookupWithHint`, `bundle` — the hot
+  cloned-template set), then the g++ 12/13/14/15 sweep, then the asm diff
+  of whichever function the bisect names.
+- Rate drops to zero (unlikely per the analysis above, but the test is
+  cheap) → the "benign" counter race was load-bearing after all, and the
+  mechanism to write up is optimizer treatment of the racy `++` in the
+  cloned commit path.
