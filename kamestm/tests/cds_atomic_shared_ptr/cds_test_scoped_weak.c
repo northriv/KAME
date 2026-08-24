@@ -20,8 +20,10 @@
  * Key differences from test 8 (compareAndSet, no-acquire, with const
  * local_shared_ptr):
  *   - scoped has a tag (1 of T tag holders, instead of +1 in refcnt)
- *   - step 4 = fetch_add(T-1) (pre-pay OTHERS only; we already have a tag)
- *   - failure undo = fetch_sub(T-1, relaxed)
+ *   - step 4 = fetch_add(T) (scoped's tag-share treated as pre-paid;
+ *     the success-path fetch_sub(2) consumes it -- matches the current
+ *     implementation; an earlier revision used +(T-1))
+ *   - failure undo = fetch_sub(T, relaxed)
  *   - success: tag is consumed by the CAS (scoped becomes Empty)
  *   - failure (pointer-changed before CAS): release_tag_ref_ on scoped's pref,
  *     then scoped becomes Empty. (Eager cleanup so caller can detect.)

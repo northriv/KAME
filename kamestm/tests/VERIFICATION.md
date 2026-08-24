@@ -53,6 +53,7 @@ standalone C11 programs with all `memory_order` annotations exactly matching the
 | `cds_test_cas_excess.c` | CAS with drain release excess undo | 2 |
 | `cds_test_cas_noacquire.c` | `compareAndSet_impl_<NOSWAP=true>` no-acquire optimization | 2 |
 | `cds_test_scoped_weak.c` | `scoped_atomic_view` + `compareAndSetWeak` race (Layer 1 SCOPED path) | 2 |
+| `cds_test_zeroreset.c` | `release_tagheld_zeroreset_` (bulk TagHeld release): SCEN 1 vs `load_shared_`, SCEN 2 dual zeroreset, SCEN 3 vs `swap` (faithful pre-pay-before-CAS; `-DSWAP_TRANSFER_AFTER_CAS` bug knob must violate), SCEN 4 three-way | 2–3 |
 
 ### Key modeled details
 
@@ -157,6 +158,11 @@ complete-execution count was reproduced to the digit:**
 | 7: `cds_test_swap_excess` | 120,118 | 120,118 | 117s | ✅ |
 | 8: `cds_test_cas_noacquire` | 74 | 74 | <1s | ✅ |
 | 9: `cds_test_scoped_weak` | 85 | 85 | <1s | ✅ |
+| 11: `cds_test_zeroreset` SCEN 1 | 43 | 43 | <1s | ✅ |
+| 11: `cds_test_zeroreset` SCEN 2 | 18 | 18 | <1s | ✅ |
+| 11: `cds_test_zeroreset` SCEN 3 | 89 | 89 | <1s | ✅ |
+| 11: SCEN 3 + `SWAP_TRANSFER_AFTER_CAS` | — | — | <1s | ❌ violates (by design) |
+| 11: `cds_test_zeroreset` SCEN 4 | 1,110,415 | 1,110,415 | 160s | ✅ |
 | TLA+ `test_scoped_atomic_view.c` | 96 | 96 | <1s | ✅ |
 
 Because the **complete**-execution counts match the recorded values exactly,

@@ -89,6 +89,12 @@ static uintptr_t get_tag(uintptr_t tagged) {
  * fold those counts into pref->refcnt so that their later fall-back
  * global decrements remain balanced.
  */
+/* NOTE (test 11): this simplified swap transfers the tag shares AFTER the
+ * CAS.  The real lsp::swap(asp&) pre-pays BEFORE the CAS, and that order
+ * is load-bearing against concurrent TagHeld releasers --
+ * cds_test_zeroreset.c's -DSWAP_TRANSFER_AFTER_CAS knob shows GenMC
+ * catching a premature destroy with this order.  It is inert HERE only
+ * because no thread in this test holds a tag (tag_old == 0 always). */
 static Obj *swap_exchange(Obj *new_val) {
     uintptr_t cur = atomic_load_explicit(&g_ref, memory_order_relaxed);
     for (;;) {

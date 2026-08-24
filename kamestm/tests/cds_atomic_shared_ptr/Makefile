@@ -21,7 +21,7 @@ GMCFLAGS ?= --rc11 --unroll=5
 
 SRCDIR = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-run: run-test1 run-test2 run-test3 run-test4 run-test5 run-test6 run-test7 run-test8 run-test9 run-test10
+run: run-test1 run-test2 run-test3 run-test4 run-test5 run-test6 run-test7 run-test8 run-test9 run-test10 run-test11
 
 run-test1:
 	@echo "=== Test 1: load_shared_ / release_tag_ref_ safety ==="
@@ -73,8 +73,24 @@ run-test10:
 	$(GENMC) $(GMCFLAGS) $(SRCDIR)cds_test_biased_publish.c
 	@echo ""
 
+# Scenario 4 (three-way composition) is minutes-long, so `make run` covers
+# scenarios 1-3 and the bug knob; run `make run-test11-full` deliberately.
+run-test11:
+	@echo "=== Test 11: release_tagheld_zeroreset_ (bulk TagHeld release) ==="
+	$(GENMC) $(GMCFLAGS) -- -DSCEN=1 $(SRCDIR)cds_test_zeroreset.c
+	$(GENMC) $(GMCFLAGS) -- -DSCEN=2 $(SRCDIR)cds_test_zeroreset.c
+	$(GENMC) $(GMCFLAGS) -- -DSCEN=3 $(SRCDIR)cds_test_zeroreset.c
+	@echo "--- bug knob: transfer-after-CAS swap MUST violate ---"
+	-$(GENMC) $(GMCFLAGS) -- -DSCEN=3 -DSWAP_TRANSFER_AFTER_CAS $(SRCDIR)cds_test_zeroreset.c
+	@echo ""
+
+run-test11-full: run-test11
+	@echo "=== Test 11 SCEN 4: zeroreset + load + swap composition ==="
+	$(GENMC) $(GMCFLAGS) --disable-estimation -- -DSCEN=4 $(SRCDIR)cds_test_zeroreset.c
+	@echo ""
+
 # Run with IMM memory model
 run-imm: GMCFLAGS = --imm --unroll=5
 run-imm: run
 
-.PHONY: run run-test1 run-test2 run-test3 run-test4 run-test5 run-test6 run-test7 run-test8 run-test9 run-test10 run-imm
+.PHONY: run run-test1 run-test2 run-test3 run-test4 run-test5 run-test6 run-test7 run-test8 run-test9 run-test10 run-test11 run-test11-full run-imm

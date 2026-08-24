@@ -1441,3 +1441,52 @@ slot-aware rendering only exist here.  Expect faster ring eviction (markers
 are now ~35–40% of event traffic, and dual-keying adds a second record for
 each): the `RC-RECENT`/`RC-EV` windows stay the right place to read, and
 the eviction banner tells you when the ledger is not coverage.
+
+### 13.3 Mac-runnable verification: GenMC test 11 mechanizes the §13.1 audit
+
+The user asked for a verification test that runs on the Mac.  Timing-luck
+reproduction is the wrong tool on arm64 (520 clean runs historically), so
+the Mac's role is exhaustive interleaving exploration instead:
+`cds_atomic_shared_ptr/cds_test_zeroreset.c` (GenMC test 11) models
+`release_tagheld_zeroreset_` — the §12.4 seam — directly from the C++, and
+mechanizes the §13.1 hand audit that was previously "closed by
+inspection":
+
+| scenario | covers (§13.1) | result |
+|---|---|---|
+| SCEN 1 zeroreset vs `load_shared_` | A, B, C | ✅ 43 executions |
+| SCEN 2 dual zeroreset | E | ✅ 18 |
+| SCEN 3 zeroreset vs `swap` | D, F | ✅ 89 |
+| SCEN 4 three-way composition | all | ✅ 1,110,415 executions, 160 s |
+
+Every global decrement funnels through an asserted helper, so the
+DEC-UNDERFLOW tripwire the tracer checks at runtime is an exhaustive
+assert here; double destroy and touch-after-destroy are asserted too.
+
+**The teeth, and a modeling drift found on the way:** writing SCEN 3
+against `cds_test_swap.c`'s swapper produced an immediate Safety violation
+— because test 4's simplified swap transfers the tag shares AFTER the CAS,
+while the real `lsp::swap(asp&)` pre-pays BEFORE it (acquire → pre-pay
+rcnt−1 → CAS).  Against a concurrent TagHeld releaser the after-CAS order
+lets the releaser's "pointer changed ⇒ my +1 is global" `fetch_sub(1)` hit
+the implicit m_ref reference and destroy the object while the swapper
+still holds it — the premature-destroy/UAF class we are hunting, found by
+GenMC in milliseconds.  The faithful order passes exhaustively; the
+unfaithful one is preserved as a bug knob (`-DSWAP_TRANSFER_AFTER_CAS`,
+wired into `make run-test11` and REQUIRED to violate), so the test
+provably has teeth against exactly this fault class.  Test 4 itself was
+never wrong-in-effect (none of its threads hold a tag, so its transfer
+never fires) — it now carries a comment saying so; test 7's swapper was
+already faithful.  Also fixed: test 9's header still described the retired
+`step4=+(T−1)` SCOPED protocol its own body no longer uses (same doc
+drift as S6b).
+
+Consequence for the hunt: the bulk-release/CASTransfer algebra is now
+model-checked, not just audited — under RC11, with these actors, the
+protocol conserves.  Combined with §13's TLA+ layer and tests 1–10, the
+remaining habitat for the defect keeps shrinking toward (a) an
+implementation path NOT equivalent to these models (the §13.2 layout
+reinterpretation points at wrapper teardown, i.e. who was holding the
+wrapper), or (b) a composition the models still do not contain (bundle
+multi-linkage sequences).  `make run-test11` runs scenarios 1–3 + knob in
+seconds on either machine; `make run-test11-full` adds SCEN 4.
