@@ -205,17 +205,130 @@ extern "C" void kame_rc_dump_recent(unsigned nreq) {
 
 namespace kame_rc_trace {
 
-[[noreturn]] void die(const void *obj, unsigned op, unsigned long long oldc,
+// ---- v2: destruction stack (per thread) --------------------------------
+// reset() brackets `deleter(pref)` with push/pop.  A tripwire that fires
+// with a non-empty stack is a REENTRANT release: the anomaly happened
+// inside the destruction chain of the listed object(s) -- e.g. a dying
+// Packet's list element pointing back at an ancestor under destruction
+// (the shape \xc2\xa79.1's RCT3_35 suggests: DEAD(unique) stores 0, the second
+// DEC reads 0 before the allocator's poison lands).
+struct DtorFrame { const void *obj; const void *site; };
+static constexpr unsigned DTOR_MAX = 64;
+static thread_local DtorFrame tl_dtor[DTOR_MAX];
+static thread_local unsigned tl_dtor_depth = 0;
+
+void push_dtor(const void *obj, const void *site) noexcept {
+    if(tl_dtor_depth < DTOR_MAX)
+        tl_dtor[tl_dtor_depth] = DtorFrame{obj, site};
+    ++tl_dtor_depth;   // depth counts even past capacity (overflow visible)
+}
+void pop_dtor() noexcept {
+    if(tl_dtor_depth) --tl_dtor_depth;
+}
+
+static void dump_dtor_stack_() {
+    if(!tl_dtor_depth) {
+        fprintf(stderr, "  destruction stack: (empty -- not a reentrant release)\n");
+        return;
+    }
+    fprintf(stderr, "  destruction stack (%u deep, innermost last)%s:\n",
+        tl_dtor_depth, tl_dtor_depth > DTOR_MAX ? " [TRUNCATED]" : "");
+    unsigned n = tl_dtor_depth < DTOR_MAX ? tl_dtor_depth : DTOR_MAX;
+    for(unsigned i = 0; i < n; ++i) {
+        fprintf(stderr, "    [%u] destroying obj=%p  from ", i, tl_dtor[i].obj);
+        print_site_(tl_dtor[i].site);
+        fprintf(stderr, "\n");
+    }
+}
+
+// ---- v2: anomaly registry + modes --------------------------------------
+static bool abort_mode_() noexcept {
+    static const bool v = [] {
+        const char *e = getenv("KAME_RC_TRACE_ABORT");
+        return !(e && e[0] == '0');           // default: abort (gdb workflow)
+    }();
+    return v;
+}
+struct AnomSlot { std::atomic<const void *> obj{nullptr};
+                  std::atomic<unsigned> count{0}; };
+static constexpr unsigned ANOM_MAX = 64;
+static AnomSlot g_anom[ANOM_MAX];
+static std::atomic<unsigned> g_anom_overflow{0};
+
+static void anom_exit_summary_() {
+    unsigned total = 0;
+    for(unsigned i = 0; i < ANOM_MAX; ++i)
+        if(g_anom[i].obj.load(std::memory_order_relaxed)) ++total;
+    if(!total && !g_anom_overflow.load(std::memory_order_relaxed)) return;
+    fprintf(stderr, "\n==== kame_rc_trace exit summary: %u anomalous object(s)"
+        "%s ====\n", total,
+        g_anom_overflow.load(std::memory_order_relaxed) ? " (+overflow)" : "");
+    for(unsigned i = 0; i < ANOM_MAX; ++i) {
+        const void *o = g_anom[i].obj.load(std::memory_order_relaxed);
+        if(!o) continue;
+        fprintf(stderr, "  obj=%p  anomalies=%u\n", o,
+            g_anom[i].count.load(std::memory_order_relaxed));
+        kame_rc_dump(o);
+    }
+    fflush(stderr);
+}
+static void register_exit_summary_() {
+    static std::atomic<bool> once{false};
+    bool f = false;
+    if(once.compare_exchange_strong(f, true)) atexit(anom_exit_summary_);
+}
+
+//! Returns the anomaly ordinal for this object (1 = first).
+static unsigned anom_note_(const void *obj) noexcept {
+    for(unsigned i = 0; i < ANOM_MAX; ++i) {
+        const void *cur = g_anom[i].obj.load(std::memory_order_acquire);
+        if(cur == obj)
+            return g_anom[i].count.fetch_add(1, std::memory_order_relaxed) + 1;
+        if(!cur) {
+            const void *expect = nullptr;
+            if(g_anom[i].obj.compare_exchange_strong(expect, obj,
+                    std::memory_order_acq_rel)) {
+                return g_anom[i].count.fetch_add(1, std::memory_order_relaxed) + 1;
+            }
+            if(expect == obj)
+                return g_anom[i].count.fetch_add(1, std::memory_order_relaxed) + 1;
+        }
+    }
+    g_anom_overflow.fetch_add(1, std::memory_order_relaxed);
+    return 1;   // treat as first so it is never silently dropped
+}
+
+void anomaly(const void *obj, unsigned op, unsigned long long oldc,
     const void *site) noexcept {
-    // Record the fatal event itself so it appears in the dump, then dump
-    // and abort.  The abort's core/backtrace points at the guilty caller.
     record(obj, op, oldc, site);
-    fprintf(stderr, "\nkame_rc_trace: FATAL %s  obj=%p  rc(before)=%llu  at ",
-        op_name_(op), obj, oldc);
-    print_site_(site);
-    fprintf(stderr, "\n");
-    kame_rc_dump(obj);
-    abort();
+    register_exit_summary_();
+    unsigned nth = anom_note_(obj);
+    if(abort_mode_()) {
+        fprintf(stderr, "\nkame_rc_trace: FATAL %s  obj=%p  rc(before)=%llu  at ",
+            op_name_(op), obj, oldc);
+        print_site_(site);
+        fprintf(stderr, "\n");
+        dump_dtor_stack_();
+        kame_rc_dump(obj);
+        abort();
+    }
+    if(nth == 1) {
+        fprintf(stderr, "\nkame_rc_trace: ANOMALY #1 %s  obj=%p  rc(before)=%llu  at ",
+            op_name_(op), obj, oldc);
+        print_site_(site);
+        fprintf(stderr, "\n");
+        dump_dtor_stack_();
+        kame_rc_dump(obj);
+    } else {
+        fprintf(stderr, "kame_rc_trace: anomaly #%u %s obj=%p rc=%llu dtor_depth=%u at ",
+            nth, op_name_(op), obj, oldc, tl_dtor_depth);
+        print_site_(site);
+        fprintf(stderr, "\n");
+    }
+    fflush(stderr);
+    // continue: the fetch_add/fetch_sub already happened; later poison
+    // dereferences may still crash the run, but everything above is
+    // already on stderr.
 }
 
 } // namespace kame_rc_trace

@@ -80,14 +80,34 @@ enum Op : unsigned {
 };
 void record(const void *obj, unsigned op, unsigned long long oldc,
     const void *site) noexcept;
-[[noreturn]] void die(const void *obj, unsigned op, unsigned long long oldc,
+//! Tripwire entry.  Default (KAME_RC_TRACE_ABORT unset or "1"): dump the
+//! object's history + the thread's live destruction stack, then abort() --
+//! the gdb workflow of handoff Â§8.  With KAME_RC_TRACE_ABORT=0: record
+//! the anomaly, dump full history only for the FIRST anomaly per object
+//! (one line for repeats), and CONTINUE, so the earliest anomaly per run
+//! is comparable across runs (handoff Â§9.1's request).  An atexit
+//! summary lists every anomalous object either way.
+void anomaly(const void *obj, unsigned op, unsigned long long oldc,
     const void *site) noexcept;
+//! Destruction-stack bookkeeping: reset() brackets `deleter(pref)` with
+//! push/pop, so an anomaly fired INSIDE a destruction chain (reentrant
+//! release -- e.g. an element of a dying Packet's list pointing back at
+//! an ancestor being destroyed) is visible as a non-empty stack in the
+//! anomaly report.  Â§9.1's RCT3_35 (single-tid rc=0 double release) is
+//! decided by exactly this: second DEC inside the first DEAD's chain.
+void push_dtor(const void *obj, const void *site) noexcept;
+void pop_dtor() noexcept;
 }
 #define KAME_RC_EVT(obj, op, oldc) \
     ::kame_rc_trace::record((obj), (op), (unsigned long long)(oldc), \
         __builtin_return_address(0))
+#define KAME_RC_DTOR_PUSH(obj) \
+    ::kame_rc_trace::push_dtor((obj), __builtin_return_address(0))
+#define KAME_RC_DTOR_POP() ::kame_rc_trace::pop_dtor()
 #else
 #define KAME_RC_EVT(obj, op, oldc) ((void)0)
+#define KAME_RC_DTOR_PUSH(obj) ((void)0)
+#define KAME_RC_DTOR_POP() ((void)0)
 #endif
 
 //! \brief This is an atomic variant of \a std::unique_ptr.
@@ -1616,7 +1636,7 @@ inline local_shared_ptr<T, reflocal_var_t>::local_shared_ptr(const local_shared_
             // ==0: freed-and-still-zero.  >=2^48: freed-and-poisoned
             // (0xBAADF00D...) or wild — either way a dead object.
             if(_rct_o == 0 || _rct_o >= ((uintptr_t)1 << 48))
-                kame_rc_trace::die(p, kame_rc_trace::OP_INC_FROM_ZERO, _rct_o,
+                kame_rc_trace::anomaly(p, kame_rc_trace::OP_INC_FROM_ZERO, _rct_o,
                     __builtin_return_address(0));
             KAME_RC_EVT(p, kame_rc_trace::OP_INC, _rct_o);
         }
@@ -1639,7 +1659,7 @@ inline local_shared_ptr<T, reflocal_var_t>::local_shared_ptr(const local_shared_
             // ==0: freed-and-still-zero.  >=2^48: freed-and-poisoned
             // (0xBAADF00D...) or wild — either way a dead object.
             if(_rct_o == 0 || _rct_o >= ((uintptr_t)1 << 48))
-                kame_rc_trace::die(p, kame_rc_trace::OP_INC_FROM_ZERO, _rct_o,
+                kame_rc_trace::anomaly(p, kame_rc_trace::OP_INC_FROM_ZERO, _rct_o,
                     __builtin_return_address(0));
             KAME_RC_EVT(p, kame_rc_trace::OP_INC, _rct_o);
         }
@@ -1669,19 +1689,24 @@ local_shared_ptr<T, reflocal_var_t>::reset() noexcept {
     if(unique()) {
         KAME_RC_EVT(pref, kame_rc_trace::OP_DEAD_UNIQUE, 1);
         pref->refcnt.store(0, std::memory_order_relaxed);
+        KAME_RC_DTOR_PUSH(pref);
         this->deleter(pref);
+        KAME_RC_DTOR_POP();
     }
     else {
         // decAndTest() expanded so the pre-decrement value is observable.
         auto _rct_o = pref->refcnt.fetch_sub(1, std::memory_order_acq_rel);
         if(_rct_o == 0 || _rct_o >= ((uintptr_t)1 << 48))
-            kame_rc_trace::die(pref, kame_rc_trace::OP_DEC_UNDERFLOW, _rct_o,
+            kame_rc_trace::anomaly(pref, kame_rc_trace::OP_DEC_UNDERFLOW, _rct_o,
                 __builtin_return_address(0));
         KAME_RC_EVT(pref,
             (_rct_o == 1) ? kame_rc_trace::OP_DEAD : kame_rc_trace::OP_DEC,
             _rct_o);
-        if(_rct_o == 1)
+        if(_rct_o == 1) {
+            KAME_RC_DTOR_PUSH(pref);
             this->deleter(pref);
+            KAME_RC_DTOR_POP();
+        }
     }
 #else
     if(unique()) {

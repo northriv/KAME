@@ -526,3 +526,52 @@ No new code is needed for this capture.  If (B)/(C) point at the writer,
 one further ring op (`OP_LIST_CLONE` at transaction_impl.h:1719-1721
 recording `list, m_serial, tr_serial`) can be added, but only after the
 free evidence above is in.
+
+## 11. Instrumentation v2 — §9.1's two requests, implemented
+
+§9.1 asked for (a) not aborting on the first *detected* access, so the
+earliest anomaly per run can be compared across runs, and (b) a way to tell
+a root release from a secondary access.  Both are in now; the default
+behaviour is unchanged.
+
+**(a) `KAME_RC_TRACE_ABORT=0` — record and continue.**  Default (unset or
+`1`) is the old abort-with-dump, so §8/§10's gdb workflow is untouched.  With
+`0`: full history dump for the **first** anomaly per object, a one-line note
+for repeats, execution continues, and an `atexit` summary lists every
+anomalous object with its full history.  A run can then be read as "these N
+objects went wrong, in this order" instead of one sample per process.  (The
+run may still die later on a poison dereference — everything above is
+already on stderr by then.)
+
+**(b) Destruction stack.**  `reset()` now brackets `deleter(pref)` with
+`push_dtor`/`pop_dtor` (per-thread, 64 deep, depth counted past capacity so
+truncation is visible).  Every anomaly report prints it:
+
+```
+  destruction stack (1 deep, innermost last):
+    [0] destroying obj=0x1032c9b10  from 0x1001487ec (main+0x12c)
+```
+
+An empty stack means the anomaly is *not* reentrant — an independent access.
+A non-empty stack means the anomaly happened **inside** the listed object's
+destruction chain, which is exactly the discriminator §9.1's RCT3_35 needs:
+`BORN → DEAD(unique) 1→0 → a second DEC from ~PacketList_()` is a double
+release *within one chain* iff that second DEC reports the first object on
+its stack.  Verified on a hand-built case (`Outer{local_shared_ptr<Inner>}`,
+Inner's count poisoned, released from inside `~Outer`): tripwire fires at
+`~local_shared_ptr<Inner>` with `[0] destroying obj=<the Outer>`.
+
+Two notes for whoever writes the next smoke test: `atomic_countable`'s own
+`assert(refcnt == 0)` is live in a `-DNDEBUG`-less build and fires before any
+tripwire, and a **self-referential** type (`struct Q { local_shared_ptr<Q>
+child; }`, i.e. the member declared while `Q` is incomplete) does not take
+the intrusive path, so `q->refcnt` is not the counter in play.  Both cost a
+detour here; the real `Packet`/`PacketList_` are complete at use and build
+with `-DNDEBUG`, so neither affects the reproducer.
+
+Suggested use for the next batch: run 10× with `KAME_RC_TRACE_ABORT=0` and
+tabulate the **first** anomaly of each run (object, op, site, dtor-stack
+depth).  If the earliest anomaly is stable across runs, §9's attribution can
+be re-made on a distribution rather than one capture; if it is not, that is
+itself the answer, and §2's model should target the invariant rather than an
+edge.
