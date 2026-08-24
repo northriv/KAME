@@ -75,7 +75,31 @@ Recorded so nobody re-runs them.
 
 The reason is structural, and it is the hypothesis below.
 
-## Leading hypothesis: a parked chunk keeps its identity
+## REFUTED (2026-08-23): the parked-chunk hypothesis
+
+Disabling the recycle cache entirely — `kame_pool_set_large_cache_cap(0)` at
+the top of `main`, verified to take effect (cap 2147483648 -> 0) and to close
+the L1 too, since `tls_l1_max_idx` is derived from `g_lrc_cap` — does NOT
+change the failure rate.  Both arms run simultaneously under one load on i586,
+172 runs each:
+
+    cap default (parking on)   10 / 172
+    cap 0       (parking off)  10 / 172
+
+Identical.  With cap 0 every chunk takes `deallocate_chunk` instead: bitmap
+cleared, `madvise`d, identity gone.  The fault is unaffected, so a parked
+chunk retaining its claim bits, header and radix entry is NOT the mechanism.
+
+This is a stronger and more specific probe than the quarantine result that
+motivated the hypothesis: quarantine delays address reuse in general, while
+cap 0 closes only the parking path and leaves every other reuse intact.  The
+quarantine finding (0/41 vs 13/41) therefore still stands and still says reuse
+is the variable — but it is not reuse *through the LRC*.
+
+The section below is kept because the asymmetry it documents is real and
+worth knowing; it simply is not this bug.
+
+## The parked-chunk asymmetry (real, but not the cause)
 
 `bucket_release_chunk` has two exits:
 
