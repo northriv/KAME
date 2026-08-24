@@ -417,3 +417,63 @@ the same object class observed later in the recursion.
   than poison, and its `1 → 0` transition was **absent** from the trace —
   same fault class, weaker instance; do not use it for attribution.
 - Raw dump excerpt: `kamestm/tests/evidence/rc_trace_INC_FROM_ZERO.txt`.
+
+## 10. Next capture: dump the SOURCE LIST's history at the same abort
+
+Written from the Mac session after auditing `fast_vector` (2026-08-24).
+
+**`fast_vector` is clean.**  Copy assignment placement-news `T(r[i])` per
+element (→ traced `INC`), moves transfer ownership without count changes,
+`move_fixed_to_var` move-constructs then destroys the fixed slots exactly
+once, `destroy()` destroys the active union member only.  (The union
+discriminator had one historical inversion — see the `shrink_to_fit()`
+comment — already fixed and unrelated to counting.)  So single-threaded
+container accounting cannot produce "an element exists but its count does
+not".  What remains is a **concurrent reader-copy vs writer-release on one
+`PacketList`**: the §9 reader loaded the element's `m_ref`, the writer's
+`reset()` ran `DEC → 1→0 → free`, the reader then `INC`'d the poisoned
+count.  (`local_shared_ptr::reset()` nulls `m_ref`, so copying a *properly
+destroyed* slot yields null, not a stale pointer — the reader must have
+raced the release, or walked a list it should not reach.)  A list with a
+concurrent writer is a list that is **shared when the code believes it is
+private** — the `copy_branch` privacy argument (`m_serial != tr_serial`)
+or a stale `*foundpacket` from the hint path are the candidate holes.
+
+**The arbitrating evidence is already being recorded.**  `PacketList_` is
+itself intrusive `atomic_countable` (`force_intrusive_ref`), so the LIST's
+own `BORN/INC/DEC/DEAD` history with sites is captured by the same hooks.
+`fast_vector` is `PacketList_`'s first base, so the list object address ==
+the fast_vector address visible in the copy-loop frames.
+
+At the §9 abort, additionally run:
+
+```gdb
+# frame: fast_vector<local_shared_ptr<Packet>,1>::operator=(const&) —
+# `r` is the SOURCE list (== the PacketList_* the tracer keyed on):
+frame <N-of-operator=>
+call kame_rc_dump((const void *) &r)
+# and the destination clone's list for contrast:
+call kame_rc_dump((const void *) this)
+```
+
+Three outcomes, each decisive:
+
+- **(A) source list shows `DEAD` before the fatal `INC`** — the reader is
+  iterating a *freed* list (memory unreused, bytes intact).  The site of
+  the list's last `DEC/DEAD` names who dropped it; the bug edge is a stale
+  `*foundpacket` / hint that outlived the list's owner ⇒ model §2 around
+  "lookup walks a chain whose interior list is released concurrently".
+- **(B) source list alive, never shared (its `INC` history is all this
+  thread)** — then the *element* was overwritten/reset concurrently by a
+  writer that reached the same list through another path: the `m_serial`
+  privacy check admitted a shared list as private.  Compare the list's
+  `m_serial` (`print ((Transactional::PacketList_<...>*)&r)->m_serial`)
+  against both threads' `tr_serial`.
+- **(C) source list alive and INC'd from two threads** — direct proof the
+  list is structurally shared while one side treats it as writable; the
+  second thread's `INC` site names the aliasing edge.
+
+No new code is needed for this capture.  If (B)/(C) point at the writer,
+one further ring op (`OP_LIST_CLONE` at transaction_impl.h:1719-1721
+recording `list, m_serial, tr_serial`) can be added, but only after the
+free evidence above is in.
