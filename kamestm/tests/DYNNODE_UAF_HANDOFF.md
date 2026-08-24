@@ -335,3 +335,85 @@ between the last two events), or a *stale release onto a recycled slot*
 (`DEAD → BORN → DEC` signature).  Each of the three points at a different
 `bundle`/`bundle_subpacket` edge; §2's model can then be built around the
 named edge instead of the whole recursion.
+
+## 9. `KAME_RC_TRACE` result — the guilty site is named
+
+Run on x86-64 / g++ 15.2 / 2 cores, 2026-08-24, using §8's build against the
+§3 poisoned `.so`.  At 16 threads the tracing overhead suppressed the fault
+(0/2 and 0/5); §8's rule applied, **24 threads** fires it.  `setarch -R`
+(ASLR off) makes the raw site addresses directly resolvable with
+`addr2line -e tmin_rct <addr - 0x555555554000>`.
+
+The tripwire is what fires, not the poison `#GP` — exit (1), the good case.
+
+```
+kame_rc_trace: FATAL INC-FROM-ZERO **TRIPWIRE**
+  obj=0x7ffff5de01e0  rc(before)=13451671603782742029  at 0x55555556635e
+```
+
+`13451671603782742029 == 0xBAADF00DBAADF00D`.  The `≥ 2^48` branch of the
+double condition is what caught it — the `count==0`-only tripwire would have
+slept through this, exactly as §8 predicted.
+
+### The ordering (three threads, one object)
+
+```
+tid=3570406  BORN → INC → DEC → DEAD(unique) 1→0   site=0x555555562da3
+tid=3570406  BORN, BORN                            site=0x555555566615   slot recycled
+tid=3570417  INC/DEC ×2 → DEAD(unique) 1→0         site=0x555555562395
+tid=3570408  INC-FROM-ZERO on the poisoned slot    site=0x55555556635e
+```
+
+Ledger for the object: `BORN 103 / DEAD 103 / INC 206 / DEC 204` — balanced,
+so no class of decrement is unhooked and the history is trustworthy.
+
+### Resolved sites
+
+| addr | resolves to |
+|---|---|
+| `0x55555556635e` **(fatal)** | `local_shared_ptr<PacketList_>::reset()` `atomic_smart_ptr.h:763`, inlined into **`reverseLookupWithHint`, `transaction_impl.h:1720`** |
+| `0x555555562395` | `fast_vector<local_shared_ptr<Packet>,1>::clear_fixed()` → `~PacketList_()`, `transaction.h:105` |
+| `0x555555562da3` | `~local_weak_ptr<Linkage>` → `~PacketWrapper()`, `transaction.h:915` |
+| `0x555555566615` | `local_shared_ptr<Packet>::operator=(&&)` → `reverseLookup`, `transaction_impl.h:1808` |
+| `0x55555556632e` | `~local_shared_ptr<Packet>` → `reverseLookupWithHint`, `transaction_impl.h:1719` |
+| `0x555555562ac1` | `forwardLookup`, `transaction_impl.h:1760` |
+
+### What it says
+
+`reset(Y*)` is `reset(); reset_unsafe(y)`.  The `INC` attributed to it comes
+from its **argument**: `new PacketList( *(*foundpacket)->subpackets() )`
+copy-constructs the list, and `PacketList_` derives from
+`fast_vector<local_shared_ptr<PacketT>>`, so the copy runs a
+`local_shared_ptr<Packet>` copy constructor **per element**.  The object's
+last `DEAD` came from `~PacketList_()` releasing exactly such an element.
+
+> **A `PacketList` still holds a `local_shared_ptr<Packet>` element pointing
+> at a `Packet` that has already been destroyed.  The `copy_branch` clone at
+> `transaction_impl.h:1720` copies that list, and the per-element copy
+> increments a refcount in freed memory.**
+
+```c
+transaction_impl.h:1717-1721   (copy_branch block of reverseLookupWithHint)
+    if(( *foundpacket)->subpackets()->m_serial != tr_serial) {
+        *foundpacket = make_local_shared<Packet>( **foundpacket);          // 1719
+        ( *foundpacket)->subpackets().reset(
+            new PacketList( *( *foundpacket)->subpackets()));              // 1720  <-- stale read
+        ( *foundpacket)->m_missing = ( *foundpacket)->m_missing || set_missing;
+        ( *foundpacket)->subpackets()->m_serial = tr_serial;
+```
+
+Of §8's three scenarios this is the **third** — stale release onto a recycled
+slot, signature `DEAD → BORN → DEAD → stale INC`.  Not a double `DEC`, not a
+missing `INC`.  So §2's model wants the edge between this copy-branch clone
+and whatever destroys a `PacketList` concurrently, **not** the whole
+`bundle` recursion.  §1's `bundle()` crash at `transaction_impl.h:2733` is
+the same object class observed later in the recursion.
+
+### Status of this evidence
+
+- One capture, symbolised.  A confirming capture with the same two sites is
+  running; treat the attribution as strong-but-single until it lands.
+- An earlier capture (ASLR on, `RCTP_HIT_24_1`) read `rc(before)=0` rather
+  than poison, and its `1 → 0` transition was **absent** from the trace —
+  same fault class, weaker instance; do not use it for attribution.
+- Raw dump excerpt: `kamestm/tests/evidence/rc_trace_INC_FROM_ZERO.txt`.
