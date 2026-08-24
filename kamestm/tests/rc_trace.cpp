@@ -88,6 +88,7 @@ static const char *op_name_(unsigned op) noexcept {
 struct Ev {
     const void *obj;
     const void *site;
+    const void *slot;       //!< the smart-pointer object performing the op
     const char *tname;      //!< type_name_<T>() literal, or null (BORN)
     unsigned long long seq;
     unsigned long long oldc;
@@ -197,6 +198,12 @@ static const char *type_label_(const char *tname, char *buf, size_t cap) noexcep
     return buf;
 }
 
+// ---- destruction-stack storage (hoisted: record() snapshots it) -----------
+struct DtorFrame { const void *obj; const void *site; };
+static constexpr unsigned DTOR_MAX = 64;
+static thread_local DtorFrame tl_dtor[DTOR_MAX];
+static thread_local unsigned tl_dtor_depth = 0;
+
 // ---- call-chain capture (v5) ---------------------------------------------
 // Â§11.3: nine captures, and the innermost `site` symbol scatters across
 // them (clear_fixed x3, bundle x2, local_weak_ptr::reset x2, ...), because at
@@ -264,6 +271,12 @@ struct LastRel {
     Ev ev{};
     const void *chain[CHAIN_N]{};
     unsigned chain_n{0};
+    //! The containers being destroyed when this release ran (objects on
+    //! the dtor stack) -- lets the PRIOR release's containment be compared
+    //! against the anomaly's dtor stack: same list appearing in both says
+    //! one cascade reached the same holder chain twice.
+    const void *dobjs[CHAIN_N]{};
+    unsigned dobjs_n{0};
 };
 static constexpr unsigned LASTREL_SLOTS = 4096;   // power of two
 static LastRel g_lastrel[LASTREL_SLOTS];
@@ -284,7 +297,7 @@ static std::atomic<unsigned long long> g_writes{0};
 static std::atomic<unsigned> g_wrapped_rings{0};
 
 void record(const void *obj, unsigned op, unsigned long long oldc,
-    const void *site, const char *tname) noexcept {
+    const void *site, const char *tname, const void *slot) noexcept {
     TL &t = tl;
     if(!t.ring) {
         t.ring = g_rings[g_ring_next.fetch_add(1, std::memory_order_relaxed)
@@ -295,13 +308,17 @@ void record(const void *obj, unsigned op, unsigned long long oldc,
         g_wrapped_rings.fetch_add(1, std::memory_order_relaxed);
     g_writes.fetch_add(1, std::memory_order_relaxed);
     Ev &e = t.ring[t.idx++ & RING_MASK];
-    e.obj = obj; e.site = site; e.tname = tname; e.seq = rc_trace_seq_();
+    e.obj = obj; e.site = site; e.slot = slot; e.tname = tname;
+    e.seq = rc_trace_seq_();
     e.oldc = oldc; e.op = op; e.tid = t.tid;
     if(op == OP_DEC || op == OP_DEAD || op == OP_DEAD_UNIQUE) {
         LastRel &lr = g_lastrel[lastrel_slot_(obj)];
         lr.ev = e;                                   // racy by design
         lr.chain_n = chain_enabled_()
             ? walk_chain_(lr.chain, CHAIN_N) : 0;
+        unsigned dn = tl_dtor_depth < CHAIN_N ? tl_dtor_depth : CHAIN_N;
+        for(unsigned i = 0; i < dn; ++i) lr.dobjs[i] = tl_dtor[i].obj;
+        lr.dobjs_n = dn;
         lr.obj.store(obj, std::memory_order_release);
     }
 }
@@ -389,9 +406,18 @@ static void raw_prior_release_fast_(const void *obj) noexcept {
     for(unsigned i = 0; i < cn; ++i) ch[i] = lr.chain[i];
     char tb[128];
     raw_line_("RC-PRIOR-RELEASE-FAST obj=%p op=%s rc_before=%llu tid=%u "
-        "seq=%llu site=%p type=%s\n", obj, op_name_(e.op), e.oldc, e.tid,
-        e.seq, e.site, type_label_(e.tname, tb, sizeof tb));
+        "seq=%llu slot=%p site=%p type=%s\n", obj, op_name_(e.op), e.oldc,
+        e.tid, e.seq, e.slot, e.site, type_label_(e.tname, tb, sizeof tb));
     raw_chain_("PRIOR", obj, ch, cn);
+    if(lr.dobjs_n) {
+        char db[384];
+        int k = snprintf(db, sizeof db, "RC-PRIOR-DTOR obj=%p depth=%u",
+            obj, lr.dobjs_n);
+        for(unsigned i = 0; i < lr.dobjs_n && k > 0 && k < (int)sizeof db - 24; ++i)
+            k += snprintf(db + k, sizeof db - (size_t)k, " %p", lr.dobjs[i]);
+        if(k > 0 && k < (int)sizeof db - 2) { db[k++] = '\n'; db[k] = 0; }
+        raw_write_(db, (size_t)(k > 0 ? k : 0));
+    }
 }
 
 //! The decisive line for a double release: the most recent DEC / DEAD /
@@ -429,8 +455,8 @@ static void raw_events_(const void *obj, unsigned n) noexcept {
         const Ev &e = g_out[i];
         char tb[128];
         raw_line_("RC-EV obj=%p i=%u op=%s rc_before=%llu tid=%u seq=%llu "
-            "site=%p type=%s\n", obj, i, op_name_(e.op), e.oldc, e.tid,
-            e.seq, e.site, type_label_(e.tname, tb, sizeof tb));
+            "slot=%p site=%p type=%s\n", obj, i, op_name_(e.op), e.oldc,
+            e.tid, e.seq, e.slot, e.site, type_label_(e.tname, tb, sizeof tb));
     }
     raw_line_("RC-END obj=%p\n", obj);
 }
@@ -549,11 +575,6 @@ namespace kame_rc_trace {
 // Packet's list element pointing back at an ancestor under destruction
 // (the shape \xc2\xa79.1's RCT3_35 suggests: DEAD(unique) stores 0, the second
 // DEC reads 0 before the allocator's poison lands).
-struct DtorFrame { const void *obj; const void *site; };
-static constexpr unsigned DTOR_MAX = 64;
-static thread_local DtorFrame tl_dtor[DTOR_MAX];
-static thread_local unsigned tl_dtor_depth = 0;
-
 void push_dtor(const void *obj, const void *site) noexcept {
     if(tl_dtor_depth < DTOR_MAX)
         tl_dtor[tl_dtor_depth] = DtorFrame{obj, site};
@@ -646,8 +667,8 @@ static bool type_selected_(const char *tname) noexcept {
 }
 
 void anomaly(const void *obj, unsigned op, unsigned long long oldc,
-    const void *site, const char *tname) noexcept {
-    record(obj, op, oldc, site, tname);
+    const void *site, const char *tname, const void *slot) noexcept {
+    record(obj, op, oldc, site, tname, slot);
     if(!type_selected_(tname)) return;   // recorded, not reported
     register_exit_summary_();
     unsigned nth = anom_note_(obj);
@@ -657,9 +678,9 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
     {
         char tb[128];
         raw_line_("\nRC-ANOMALY #%u obj=%p op=%s rc_before=%llu tid=%u "
-            "site=%p type=%s dtor_depth=%u\n", nth, obj, op_name_(op), oldc,
-            rc_trace_tid_(), site, type_label_(tname, tb, sizeof tb),
-            tl_dtor_depth);
+            "slot=%p site=%p type=%s dtor_depth=%u\n", nth, obj, op_name_(op),
+            oldc, rc_trace_tid_(), slot, site,
+            type_label_(tname, tb, sizeof tb), tl_dtor_depth);
         if(chain_enabled_()) {
             const void *ch[CHAIN_N];
             unsigned cn = walk_chain_(ch, CHAIN_N);

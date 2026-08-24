@@ -95,8 +95,19 @@ enum Op : unsigned {
 template <class T> inline const char *type_name_() noexcept {
     return __PRETTY_FUNCTION__;
 }
+//! \a slot is the address of the smart-pointer object performing the op
+//! (`this` of the local_shared_ptr / local_weak_ptr), or null where no
+//! holder exists (BORN).  It is the discriminator Â§11.4 still lacks:
+//! `reset()` nulls `m_ref`, so destroying the SAME holder twice is a no-op
+//! on the second pass -- an underflow therefore implies either a DIFFERENT
+//! slot (two owners, one count: a missing increment) or a slot whose memory
+//! was REWRITTEN with the stale value (bitwise duplication of the holder).
+//! Comparing the anomaly's slot with the prior release's slot separates the
+//! two, and matching slot addresses against the dying containers' object
+//! addresses (the dtor stack) identifies WHICH list held it, at which
+//! element offset.
 void record(const void *obj, unsigned op, unsigned long long oldc,
-    const void *site, const char *tname) noexcept;
+    const void *site, const char *tname, const void *slot) noexcept;
 //! Tripwire entry.  Default (KAME_RC_TRACE_ABORT unset or "1"): dump the
 //! object's history + the thread's live destruction stack, then abort() --
 //! the gdb workflow of handoff Â§8.  With KAME_RC_TRACE_ABORT=0: record
@@ -105,7 +116,7 @@ void record(const void *obj, unsigned op, unsigned long long oldc,
 //! is comparable across runs (handoff Â§9.1's request).  An atexit
 //! summary lists every anomalous object either way.
 void anomaly(const void *obj, unsigned op, unsigned long long oldc,
-    const void *site, const char *tname) noexcept;
+    const void *site, const char *tname, const void *slot) noexcept;
 //! Destruction-stack bookkeeping: reset() brackets `deleter(pref)` with
 //! push/pop, so an anomaly fired INSIDE a destruction chain (reentrant
 //! release -- e.g. an element of a dying Packet's list pointing back at
@@ -117,13 +128,14 @@ void pop_dtor() noexcept;
 }
 #define KAME_RC_EVT(obj, op, oldc) \
     ::kame_rc_trace::record((obj), (op), (unsigned long long)(oldc), \
-        __builtin_return_address(0), nullptr)
+        __builtin_return_address(0), nullptr, nullptr)
 //! Typed variant: use wherever T is in scope (all local_shared_ptr /
 //! local_weak_ptr hooks).  The untyped form is only for
 //! `atomic_countable`'s own ctor, where the derived type is not known.
 #define KAME_RC_EVT_T(obj, op, oldc, TY) \
     ::kame_rc_trace::record((obj), (op), (unsigned long long)(oldc), \
-        __builtin_return_address(0), ::kame_rc_trace::type_name_<TY>())
+        __builtin_return_address(0), ::kame_rc_trace::type_name_<TY>(), \
+        static_cast<const void *>(this))
 #define KAME_RC_DTOR_PUSH(obj) \
     ::kame_rc_trace::push_dtor((obj), __builtin_return_address(0))
 #define KAME_RC_DTOR_POP() ::kame_rc_trace::pop_dtor()
@@ -1674,7 +1686,8 @@ inline local_shared_ptr<T, reflocal_var_t>::local_shared_ptr(const local_shared_
             // (0xBAADF00D...) or wild — either way a dead object.
             if(_rct_o == 0 || _rct_o >= ((uintptr_t)1 << 48))
                 kame_rc_trace::anomaly(p, kame_rc_trace::OP_INC_FROM_ZERO, _rct_o,
-                    __builtin_return_address(0), kame_rc_trace::type_name_<T>());
+                    __builtin_return_address(0), kame_rc_trace::type_name_<T>(),
+                    static_cast<const void *>(this));
             KAME_RC_EVT_T(p, kame_rc_trace::OP_INC, _rct_o, T);
         }
 #else
@@ -1697,7 +1710,8 @@ inline local_shared_ptr<T, reflocal_var_t>::local_shared_ptr(const local_shared_
             // (0xBAADF00D...) or wild — either way a dead object.
             if(_rct_o == 0 || _rct_o >= ((uintptr_t)1 << 48))
                 kame_rc_trace::anomaly(p, kame_rc_trace::OP_INC_FROM_ZERO, _rct_o,
-                    __builtin_return_address(0), kame_rc_trace::type_name_<T>());
+                    __builtin_return_address(0), kame_rc_trace::type_name_<T>(),
+                    static_cast<const void *>(this));
             KAME_RC_EVT_T(p, kame_rc_trace::OP_INC, _rct_o, T);
         }
 #else
@@ -1735,7 +1749,8 @@ local_shared_ptr<T, reflocal_var_t>::reset() noexcept {
         auto _rct_o = pref->refcnt.fetch_sub(1, std::memory_order_acq_rel);
         if(_rct_o == 0 || _rct_o >= ((uintptr_t)1 << 48))
             kame_rc_trace::anomaly(pref, kame_rc_trace::OP_DEC_UNDERFLOW, _rct_o,
-                __builtin_return_address(0), kame_rc_trace::type_name_<T>());
+                __builtin_return_address(0), kame_rc_trace::type_name_<T>(),
+                static_cast<const void *>(this));
         KAME_RC_EVT_T(pref,
             (_rct_o == 1) ? kame_rc_trace::OP_DEAD : kame_rc_trace::OP_DEC,
             _rct_o, T);

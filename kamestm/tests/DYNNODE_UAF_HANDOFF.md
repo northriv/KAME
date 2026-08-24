@@ -972,3 +972,55 @@ strings*, which is what §11.2 predicted; the chains name it.
 so it is not proven that both releases belong to the *same* cascade instance
 rather than two instances of the same shape.  Tail calls fold frames, so a
 chain says "these frames were on the stack", not "these are all of them".
+
+### 12.2 v6 — slot identity: testing §11.4's "installed without an increment"
+
+§11.4's conclusion has an unexamined step.  "A Packet reachable at two
+depths, released once at each" presumes **two holders**; the alternative —
+the *same* holder reached twice — was not excluded by the chains, since the
+two cascades' frames were truncated before their roots could be compared.
+
+One deduction closes half of that gap by construction:
+`local_shared_ptr::reset()` **nulls `m_ref`**, so destroying the same holder
+twice is a **no-op** on the second pass, not an underflow.  A genuine
+`DEC-UNDERFLOW` therefore implies either
+
+- a **different slot** — two owners, one count: §11.4's missing increment, or
+- a slot whose memory was **rewritten** with the stale value — a bitwise
+  duplication of the holder (memcpy'd storage, torn move, relocated
+  container bytes), which is a different bug in a different place.
+
+v6 records the discriminator: every event now carries **`slot`** — the
+address of the `local_shared_ptr`/`local_weak_ptr` performing the op
+(`this`), null for `BORN`.  It appears in `RC-ANOMALY`,
+`RC-PRIOR-RELEASE-FAST`, and every `RC-EV` line.  The release-time cache also
+snapshots the destruction stack's object addresses, emitted as
+`RC-PRIOR-DTOR`, so the PRIOR release's containment can be compared with the
+anomaly's `RC-DTOR` frames.
+
+**How to read the next capture** (three questions, in order):
+
+1. `ANOM.slot == PRIOR.slot`?  Equal ⇒ the holder's memory was rewritten
+   between the releases — look for who copies holder bytes, not for a missing
+   increment.  Different ⇒ two owners, one count, §11.4 confirmed.
+2. Does `ANOM.slot` appear as the `slot` of any `INC`/`BORN` in the (complete)
+   history?  **If not, its ownership was installed invisibly** — by a move
+   whose source was not emptied, or a bitwise copy — and the visible events
+   bracket where: it happened after the last event whose slot chain accounts
+   for all owners.
+3. Which container holds each slot?  Compare the slot addresses against the
+   `RC-DTOR` / `RC-PRIOR-DTOR` object addresses: a slot lying within a dying
+   `PacketList_`'s storage identifies the list AND the element index
+   (`(slot - list_base - header) / sizeof(local_shared_ptr)`), turning "two
+   depths of the cascade" into two named list elements.
+
+Verified on a synthetic invisible install (holder forged by `memcpy` beside
+one visible copy): the anomaly's slot is the forged holder, the prior's slot
+is the first owner, the visible `INC`'s slot is the third — and the forged
+slot appears in **no** `INC`/`BORN` line, which is exactly the signature to
+look for.  Crash-race re-verified after the change (2/2 runs kept all raw
+lines).
+
+If question 2 comes back "all slots accounted for", then the count itself was
+wrong earlier than the installs — and the invariant for §2 stays as §11.3
+stated it; the slots will have localised where not to look.
