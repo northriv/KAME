@@ -709,3 +709,83 @@ state, and treat only `no ring has wrapped` runs as ledger-checkable.  If the
 result is again unstable, that is the third independent confirmation and the
 invariant-level model of §11.1 is the answer; no further instrumentation is
 warranted.
+
+## 12. Instrumentation v4 — crash-proof capture, and the first releaser in one line
+
+Written after the §11.2 batch report: 30 v3 runs / 0 tripwires turned out to
+be rate variation (an interleaved v2/v3 comparison had v3 firing on its
+second run), and the capture that did land **lost its history to a peer
+thread's SIGSEGV mid-dump** — header intact, ledger and events gone.
+
+That capture nevertheless settled §11.1, via the one field v3 added:
+
+```
+FATAL DEC-UNDERFLOW  obj=0x7ffff5460640  rc(before)=0
+  type=Transactional::Node<LongNode>::Packet      ← ledger-complete class
+  destruction stack: (empty — not a reentrant release)
+  at …  → local_weak_ptr<Linkage>::reset()  atomic_smart_ptr.h:937
+         → ~PacketWrapper()  transaction.h:915
+```
+
+The op is on a **`Packet`**, not on a `Linkage` weak count — as §11.2's
+structural argument required (the tracer never observes `weak_refcnt`).  The
+`:911`/`:937` site is `~PacketWrapper()` destroying its `local_weak_ptr<Linkage>`
+and its `local_shared_ptr<Packet> m_packet` interleaved by the optimiser, so
+the Packet's `DEC` return address lands in the weak pointer's inlined code:
+the same line-table noise as §9.1, now disambiguated by the type label.
+Three captures (§11.1 runs 3 and 7, plus this one) at that site therefore read:
+
+> `~PacketWrapper()` releases its `m_packet` and that `Packet`'s count is
+> **already zero** — the wrapper is the SECOND releaser, and with an empty
+> destruction stack it is an independent release, not a reentrant one.
+
+Scenario (1), a double release, with one party named.  What is missing is the
+**first** releaser, which needs a dump that survives.
+
+### v4 changes
+
+1. **Raw crash-proof sink.**  Every dump now goes out twice: first raw —
+   plain `write(2)` of unsymbolised lines to a file, **newest event first** —
+   then the symbolised version to stderr.  Newest-first is deliberate: if the
+   process dies after three lines, those three are the ones nearest the fault.
+   File: `$KAME_RC_TRACE_FILE`, else `rc_trace.<pid>.log`.  Nothing on the raw
+   path calls `dladdr` (the loader-lock symbol walk that made the old window
+   wide) or buffered stdio.
+
+2. **`RC-PRIOR-RELEASE-FAST` — the first releaser, in O(1), emitted first.**
+   A first attempt put this line after a ring scan and measured the failure:
+   with a peer crash racing the dump, *only the anomaly header* reached the
+   file, because `collect_()` walks 64×16384 slots before printing anything.
+   So the datum is now maintained **at record time** — a 4096-slot
+   direct-mapped cache of the last `DEC`/`DEAD` per object address, updated on
+   every release, read in O(1) at anomaly time.  Verified against a deliberate
+   peer-SIGSEGV race: in the worst run only two lines were written, and they
+   were the header and the prior-release line.
+
+   ```
+   RC-ANOMALY #1 obj=0x… op=DEC-UNDERFLOW rc_before=0 tid=… site=0x… type=Pk dtor_depth=0
+   RC-PRIOR-RELEASE-FAST obj=0x… op=DEC rc_before=2 tid=… seq=… site=0x… type=Pk
+   ```
+
+   (The cache is racy by construction — a torn slot is possible when two
+   threads release into the same bucket.  The full `RC-EV` history that
+   follows is the arbiter; this is the copy that survives.)
+
+3. Full history retained as `RC-HIST` / `RC-EV` / `RC-END` (newest-first, with
+   the eviction count), plus `RC-DTOR` frames; ring scan now bounded by the
+   number of rings ever handed out.
+
+### How to read the next capture
+
+```bash
+KAME_RC_TRACE_FILE=$PWD/rc.$$.log gdb --args ./tmin_rct 100 24 950
+grep -E 'RC-ANOMALY|PRIOR-RELEASE-FAST' rc.*.log
+```
+
+`RC-ANOMALY` names the second releaser (expected: `~PacketWrapper()` on a
+`Packet`), `RC-PRIOR-RELEASE-FAST` names the **first** — its `tid` says
+whether the two releases are on the same thread (a genuine double release in
+one call chain) or different ones (two owners both believing they hold the
+last reference), and its `site` — treated as a hint, per §11.2, until a second
+capture agrees — says through which edge.  Those two lines close the
+attribution; everything after them is corroboration.

@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdint>
+#include <cstdarg>
 
 #if defined(__linux__)
 #include <unistd.h>
@@ -52,7 +53,10 @@ static inline unsigned long long rc_trace_seq_() noexcept {
 
 #if defined(__unix__) || defined(__APPLE__)
 #include <dlfcn.h>
+#include <fcntl.h>
+#include <unistd.h>
 #define RC_TRACE_HAVE_DLADDR 1
+#define RC_TRACE_HAVE_RAW_SINK 1
 #endif
 
 namespace kame_rc_trace {
@@ -119,6 +123,103 @@ struct TL {
 };
 static thread_local TL tl;
 
+// ---- raw crash-proof sink -------------------------------------------------
+// Why: at 24 threads in abort-mode the other threads are already corrupting
+// memory, so a concurrent SIGSEGV can kill the process WHILE the dump is
+// being written -- and the pretty dump calls dladdr() per event, which is
+// slow enough (symbol-table walk under a loader lock) that the window is
+// wide.  One capture was lost exactly that way: header intact, ledger and
+// events gone.
+//
+// So every dump now goes out TWICE: first raw -- straight write(2) of
+// unsymbolised lines to a file, NEWEST EVENT FIRST -- then the symbolised
+// version to stderr.  Newest-first matters: if the process dies after three
+// lines, those three lines are the ones nearest the fault, which is where
+// the prior release that caused an underflow lives.
+//
+// The single most valuable line is emitted before the bulk: PRIOR-RELEASE,
+// the most recent DEC / DEAD / DEAD(unique) on this object before the fatal
+// op -- i.e. the first releaser in a double release.
+static int raw_fd_() noexcept {
+#ifdef RC_TRACE_HAVE_RAW_SINK
+    static int fd = [] {
+        const char *path = getenv("KAME_RC_TRACE_FILE");
+        char buf[256];
+        if(!path || !*path) {
+            snprintf(buf, sizeof buf, "rc_trace.%ld.log", (long)getpid());
+            path = buf;
+        }
+        int f = open(path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+        return f;
+    }();
+    return fd >= 0 ? fd : 2;
+#else
+    return 2;
+#endif
+}
+static void raw_write_(const char *b, size_t n) noexcept {
+#ifdef RC_TRACE_HAVE_RAW_SINK
+    int fd = raw_fd_();
+    while(n) {
+        ssize_t w = write(fd, b, n);
+        if(w <= 0) break;
+        b += w; n -= (size_t)w;
+    }
+#else
+    (void)b; (void)n;
+#endif
+}
+//! One formatted line, one write() -- O_APPEND makes short writes to a
+//! regular file effectively atomic, so concurrent dumps do not tear lines.
+static void raw_line_(const char *fmt, ...) noexcept
+    __attribute__((format(printf, 1, 2)));
+static void raw_line_(const char *fmt, ...) noexcept {
+    char buf[512];
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(buf, sizeof buf, fmt, ap);
+    va_end(ap);
+    if(n < 0) return;
+    if(n > (int)sizeof buf - 1) n = (int)sizeof buf - 1;
+    raw_write_(buf, (size_t)n);
+}
+//! Short type label, into a caller buffer (no stdio on the raw path).
+static const char *type_label_(const char *tname, char *buf, size_t cap) noexcept {
+    if(!tname) return "?";
+    const char *b = strstr(tname, "T = ");
+    if(!b) return tname;
+    b += 4;
+    const char *e = strchr(b, ']');
+    size_t n = e ? (size_t)(e - b) : strlen(b);
+    if(n > cap - 1) n = cap - 1;
+    memcpy(buf, b, n);
+    buf[n] = 0;
+    return buf;
+}
+
+// ---- O(1) last-release cache ---------------------------------------------
+// The decisive datum for a double release is "who released this object
+// last, before the underflow".  Recovering it from the rings needs a
+// 64x16384 scan, and that scan is exactly what a peer thread's SIGSEGV
+// interrupts (measured: with the scan first, only the anomaly header
+// reached the file).  So maintain it at RECORD time instead: one
+// direct-mapped slot per object address, updated on every DEC / DEAD, read
+// in O(1) at anomaly time so the line lands immediately after the header.
+//
+// Racy by construction (a torn slot is possible under concurrent updates to
+// the same bucket); the full ring history that follows is the arbiter, this
+// is the copy that survives.
+struct LastRel {
+    std::atomic<const void *> obj{nullptr};
+    Ev ev{};
+};
+static constexpr unsigned LASTREL_SLOTS = 4096;   // power of two
+static LastRel g_lastrel[LASTREL_SLOTS];
+static inline unsigned lastrel_slot_(const void *obj) noexcept {
+    return (unsigned)((((uintptr_t)obj >> 4) * 0x9E3779B97F4A7C15ULL) >> 52)
+           & (LASTREL_SLOTS - 1);
+}
+
 //! Ring eviction accounting.  Rings are circular AND recycled across
 //! threads (slot = round-robin % MAX_RINGS), so old events are dropped
 //! silently once a slot has taken RING writes.  That matters for reading
@@ -144,6 +245,11 @@ void record(const void *obj, unsigned op, unsigned long long oldc,
     Ev &e = t.ring[t.idx++ & RING_MASK];
     e.obj = obj; e.site = site; e.tname = tname; e.seq = rc_trace_seq_();
     e.oldc = oldc; e.op = op; e.tid = t.tid;
+    if(op == OP_DEC || op == OP_DEAD || op == OP_DEAD_UNIQUE) {
+        LastRel &lr = g_lastrel[lastrel_slot_(obj)];
+        lr.ev = e;                                   // racy by design
+        lr.obj.store(obj, std::memory_order_release);
+    }
 }
 
 static void print_site_(const void *site) {
@@ -158,6 +264,99 @@ static void print_site_(const void *site) {
     fprintf(stderr, "%p", site);
 }
 
+//! Collect this object's events into \a out, oldest first.  Shared static
+//! buffer, serialised by \a g_dumping so concurrent dumps do not shred it;
+//! best-effort (a spin that gives up rather than deadlocking behind a thread
+//! that is about to die).
+static constexpr unsigned MAXOUT = 4096;
+static Ev g_out[MAXOUT];
+static std::atomic<bool> g_dumping{false};
+
+static bool dump_lock_() noexcept {
+    for(int i = 0; i < 1000000; ++i) {
+        bool f = false;
+        if(g_dumping.compare_exchange_weak(f, true, std::memory_order_acq_rel))
+            return true;
+    }
+    return false;   // proceed unserialised rather than hang
+}
+static void dump_unlock_() noexcept { g_dumping.store(false, std::memory_order_release); }
+
+static unsigned collect_(const void *obj) noexcept {
+    unsigned n = 0;
+    // Only rings that were ever handed out contain events.
+    unsigned nr = g_ring_next.load(std::memory_order_relaxed);
+    if(nr > MAX_RINGS) nr = MAX_RINGS;
+    for(unsigned r = 0; r < nr; ++r)
+        for(unsigned i = 0; i < RING; ++i) {
+            const Ev &e = g_rings[r][i];
+            if(e.obj == obj && e.seq && n < MAXOUT)
+                g_out[n++] = e;
+        }
+    for(unsigned i = 1; i < n; ++i) {          // insertion sort by seq
+        Ev key = g_out[i];
+        unsigned j = i;
+        for(; j > 0 && g_out[j-1].seq > key.seq; --j) g_out[j] = g_out[j-1];
+        g_out[j] = key;
+    }
+    return n;
+}
+
+//! O(1) variant, emitted BEFORE any scan so it survives a peer crash.
+static void raw_prior_release_fast_(const void *obj) noexcept {
+    LastRel &lr = g_lastrel[lastrel_slot_(obj)];
+    if(lr.obj.load(std::memory_order_acquire) != obj) {
+        raw_line_("RC-PRIOR-RELEASE-FAST obj=%p none-cached\n", obj);
+        return;
+    }
+    Ev e = lr.ev;
+    char tb[128];
+    raw_line_("RC-PRIOR-RELEASE-FAST obj=%p op=%s rc_before=%llu tid=%u "
+        "seq=%llu site=%p type=%s\n", obj, op_name_(e.op), e.oldc, e.tid,
+        e.seq, e.site, type_label_(e.tname, tb, sizeof tb));
+}
+
+//! The decisive line for a double release: the most recent DEC / DEAD /
+//! DEAD(unique) strictly before the newest event (the fatal one), i.e. the
+//! FIRST releaser.  Emitted before the bulk dump so it survives a
+//! concurrent crash.
+static void raw_prior_release_(const void *obj, unsigned n) noexcept {
+    if(n < 2) {
+        raw_line_("RC-PRIOR-RELEASE obj=%p none (history has %u event(s))\n",
+            obj, n);
+        return;
+    }
+    for(unsigned i = n - 1; i-- > 0; ) {
+        const Ev &e = g_out[i];
+        if(e.op == OP_DEC || e.op == OP_DEAD || e.op == OP_DEAD_UNIQUE) {
+            char tb[128];
+            raw_line_("RC-PRIOR-RELEASE obj=%p op=%s rc_before=%llu tid=%u "
+                "seq=%llu dseq=-%llu site=%p type=%s\n",
+                obj, op_name_(e.op), e.oldc, e.tid, e.seq,
+                g_out[n-1].seq - e.seq, e.site,
+                type_label_(e.tname, tb, sizeof tb));
+            return;
+        }
+    }
+    raw_line_("RC-PRIOR-RELEASE obj=%p none in %u recorded event(s)\n", obj, n);
+}
+
+//! Raw, unsymbolised, NEWEST FIRST.
+static void raw_events_(const void *obj, unsigned n) noexcept {
+    unsigned wrapped = g_wrapped_rings.load(std::memory_order_relaxed);
+    raw_line_("RC-HIST obj=%p events=%u evicted_rings=%u total_writes=%llu\n",
+        obj, n, wrapped,
+        (unsigned long long)g_writes.load(std::memory_order_relaxed));
+    for(unsigned i = n; i-- > 0; ) {
+        const Ev &e = g_out[i];
+        char tb[128];
+        raw_line_("RC-EV obj=%p i=%u op=%s rc_before=%llu tid=%u seq=%llu "
+            "site=%p type=%s\n", obj, i, op_name_(e.op), e.oldc, e.tid,
+            e.seq, e.site, type_label_(e.tname, tb, sizeof tb));
+    }
+    raw_line_("RC-END obj=%p\n", obj);
+}
+
 } // namespace kame_rc_trace
 
 //! Dump the recorded refcount history of one object, oldest first.
@@ -165,22 +364,13 @@ static void print_site_(const void *site) {
 //! Also called by the tripwires before abort().
 extern "C" void kame_rc_dump(const void *obj) {
     using namespace kame_rc_trace;
-    static constexpr unsigned MAXOUT = 4096;
-    static Ev out[MAXOUT];           // static: dump runs once, no stack blowup
-    unsigned n = 0;
-    for(unsigned r = 0; r < MAX_RINGS; ++r)
-        for(unsigned i = 0; i < RING; ++i) {
-            const Ev &e = g_rings[r][i];
-            if(e.obj == obj && e.seq && n < MAXOUT)
-                out[n++] = e;
-        }
-    // insertion sort by seq (n is small; dump-time only)
-    for(unsigned i = 1; i < n; ++i) {
-        Ev key = out[i];
-        unsigned j = i;
-        for(; j > 0 && out[j-1].seq > key.seq; --j) out[j] = out[j-1];
-        out[j] = key;
-    }
+    bool locked = dump_lock_();
+    unsigned n = collect_(obj);
+    Ev *out = g_out;
+    // RAW FIRST: unsymbolised, newest-first, straight write(2) -- survives a
+    // concurrent crash during the (dladdr-heavy) pretty phase below.
+    raw_prior_release_(obj, n);
+    raw_events_(obj, n);
     // Ledger, split strong vs weak (they are different counters).
     unsigned born=0, dead=0, inc=0, dec=0, winc=0, wdec=0, wdead=0, trip=0;
     const char *ty = nullptr;
@@ -228,6 +418,7 @@ extern "C" void kame_rc_dump(const void *obj) {
         fprintf(stderr, "  (output truncated at %u)\n", MAXOUT);
     fprintf(stderr, "==== end of history for %p ====\n\n", obj);
     fflush(stderr);
+    if(locked) dump_unlock_();
 }
 
 //! Dump the most recent \a nreq events across all threads — context around
@@ -382,6 +573,21 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
     if(!type_selected_(tname)) return;   // recorded, not reported
     register_exit_summary_();
     unsigned nth = anom_note_(obj);
+    // ---- RAW PHASE: no dladdr, no stdio buffering.  Everything a later
+    // reader needs is on disk before the pretty phase risks dying to a
+    // peer thread's SIGSEGV.
+    {
+        char tb[128];
+        raw_line_("\nRC-ANOMALY #%u obj=%p op=%s rc_before=%llu tid=%u "
+            "site=%p type=%s dtor_depth=%u\n", nth, obj, op_name_(op), oldc,
+            rc_trace_tid_(), site, type_label_(tname, tb, sizeof tb),
+            tl_dtor_depth);
+        raw_prior_release_fast_(obj);      // O(1): the decisive line, first
+        unsigned dn = tl_dtor_depth < DTOR_MAX ? tl_dtor_depth : DTOR_MAX;
+        for(unsigned i = 0; i < dn; ++i)
+            raw_line_("RC-DTOR [%u] obj=%p site=%p\n", i,
+                tl_dtor[i].obj, tl_dtor[i].site);
+    }
     if(abort_mode_()) {
         fprintf(stderr, "\nkame_rc_trace: FATAL %s  obj=%p  rc(before)=%llu  type=",
             op_name_(op), obj, oldc);
