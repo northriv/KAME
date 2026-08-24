@@ -909,3 +909,66 @@ same `Packet`.  With §11.3's finding that 6/9 are same-tid, the expectation is
 two different points in **one** thread's `snapshot`/`bundle` walk — and if the
 divergent frames are stable across two or three captures, that names the edge
 and §2's model can be built around it instead of the whole recursion.
+
+### 11.4 v5 chains — the edge, named and stable
+
+Ubuntu x86-64 / g++ 15.2, v5 tracer, `-fno-omit-frame-pointer`, poisoned
+`.so`, `KAME_RC_TRACE_CHAIN=1`, ASLR off.
+
+**§4 rate check first.**  Chain capture suppresses the fault: interleaved on
+one binary, `CHAIN=1` gave **0/16** and chain-off **2/16**.  Not significant
+alone (p≈0.48) but the wrong direction, so the chain arm was compensated with
+threads per §4 — 24thr 1/11, 32thr 3/11, 40thr 2/11.  Run the chain arm at
+32-40 threads, not 24.
+
+**Four of seven captures are frame-for-frame identical** (`rc5b_24_3`,
+`32_16`, `32_19`, `32_34`; all `DEC-UNDERFLOW`, all `dtor_depth=4`):
+
+```
+PRIOR  (the release that frees it, DEAD(unique) 1->0), read bottom-up:
+  Node::bundle()                       transaction_impl.h:2893
+    ScopedNegotiateLinkage::set_view() transaction_negotiation.h:877
+    scoped_atomic_view::assign_from_local()  atomic_smart_ptr.h:1314
+    scoped_atomic_view::release_()           atomic_smart_ptr.h:1613
+    ~PacketWrapper()                   transaction.h:915
+    ~Packet()                          transaction.h:252
+    ~PacketList_()/clear_fixed         transaction.h:105 / fast_vector.h:236
+    local_shared_ptr<Packet>::reset()  atomic_smart_ptr.h:1728   <-- frees
+
+ANOM   (the double release, dtor_depth=4):
+  ~PacketWrapper()
+    ~Packet() -> ~PacketList_() -> ~Packet() -> ~PacketList_()
+    local_shared_ptr<Packet>::reset()  atomic_smart_ptr.h:1739   <-- underflows
+```
+
+The other three captures differ (`dtor_depth` 0, 1, 2), so this is the
+dominant shape, not the only one.
+
+**What it says.**  Both releases are frames of **one recursive destruction
+cascade**, not two unrelated code paths.  `set_view()` in `bundle()` drops the
+old `PacketWrapper`; its destruction recurses `~PacketWrapper -> ~Packet ->
+~PacketList_ -> ~Packet -> ...` through the packet graph, and a `Packet`
+reachable at **two different depths** of that graph is released once at each
+depth — the second time after its count already reached zero.
+
+The graph is a DAG by construction in this reproducer: `p2` is hard-linked
+under both the thread-local `p1` and the shared `gn2` (§2).  Refcounting
+should absorb that — two list slots ⇒ count 2 ⇒ two DECs ⇒ one free — so the
+implication is that **one of the two references was installed without an
+increment**.
+
+**This also explains §11.3's scatter.**  Every innermost symbol there —
+`clear_fixed`, `~PacketWrapper`'s inlined weak reset, `~local_shared_ptr<Packet>`,
+`bundle` — is a *frame of this same cascade*, sampled at whatever depth that
+run aborted.  They were never different edges.  §11.3's "the edge cannot be
+named" is therefore superseded: it could not be named *from single site
+strings*, which is what §11.2 predicted; the chains name it.
+
+**For §2's model**: the edge is `bundle()`'s `set_view()` releasing a
+`PacketWrapper` whose packet DAG contains a shared `Packet`.  The invariant of
+§11.3 still holds and is what to check; this narrows *where* to check it.
+
+**Caveats.**  The 6-frame bound truncates the ANOM chain at `~PacketWrapper`,
+so it is not proven that both releases belong to the *same* cascade instance
+rather than two instances of the same shape.  Tail calls fold frames, so a
+chain says "these frames were on the stack", not "these are all of them".
