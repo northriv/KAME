@@ -95,6 +95,12 @@ enum Op : unsigned {
     //! carries the SOURCE slot address.
     OP_VADOPT,
     OP_VMOVE,
+    //! §13.9 detector: copy_branch's "serial says already mine" fast path
+    //! trusted a mark on a packet that is REACHABLE FROM THE COMMITTED
+    //! TREE -- the unsound precondition for an in-place write to shared
+    //! state.  A logic condition, not a race: fires deterministically on
+    //! any host where the precondition occurs.
+    OP_MINE_SHARED,
 };
 //! Compile-time type identification: `__PRETTY_FUNCTION__` of a function
 //! template names T, so every traced event can carry the type it belongs

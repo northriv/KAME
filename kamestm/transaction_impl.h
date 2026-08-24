@@ -1672,6 +1672,45 @@ Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN
     return true;
 }
 
+#ifdef KAME_RC_TRACE
+template <class XN>
+bool
+Node<XN>::rcTreeContains_(const local_shared_ptr<Packet> &root,
+    const Packet *target) noexcept {
+    if(root.get() == target) return true;
+    if( !root->size()) return false;
+    for(int i = 0; i < root->size(); ++i) {
+        const local_shared_ptr<Packet> &sp(( *root->subpackets())[i]);
+        // Racy-by-design traversal: the committed tree is immutable by
+        // contract; if the contract is broken we may read torn state, but
+        // this is a debug detector and a false hit is re-checked by eye.
+        if(sp && rcTreeContains_(sp, target)) return true;
+    }
+    return false;
+}
+template <class XN>
+void
+Node<XN>::rcMineCheck(const local_shared_ptr<Packet> &trroot,
+    const Packet *target, const void *site) noexcept {
+    static const bool enabled = [] {
+        const char *e = getenv("KAME_RC_TRACE_MINE_CHECK");
+        return e && e[0] && e[0] != '0';
+    }();
+    if( !enabled || !target) return;
+    // The committed root: the transaction root node's linkage.  Read via a
+    // tag view (no promote); best-effort -- skip when the root is not
+    // priority-holding (mid-bundle).
+    Node &rootnode(trroot->node());
+    scoped_atomic_view<PacketWrapper> wrapper( *rootnode.m_link);
+    if( !wrapper || !wrapper->hasPriority() || !wrapper->packet()) return;
+    if(wrapper->packet().get() == trroot.get())
+        return;   // tr's branch IS the committed root (nothing published since)
+    if(rcTreeContains_(wrapper->packet(), target))
+        kame_rc_trace::anomaly(target, kame_rc_trace::OP_MINE_SHARED, 0,
+            site, kame_rc_trace::type_name_<Packet>(), nullptr);
+}
+#endif
+
 // reverseLookupWithHint() — fast path for finding a node's packet within a
 // transaction's packet tree. Uses the bundledBy back-reference chain stored
 // in the node's PacketWrapper to walk directly to the containing slot,
@@ -1721,6 +1760,11 @@ Node<XN>::reverseLookupWithHint(local_shared_ptr<Linkage> &linkage,
             ( *foundpacket)->m_missing = ( *foundpacket)->m_missing || set_missing;
             ( *foundpacket)->subpackets()->m_serial = tr_serial;
         }
+#ifdef KAME_RC_TRACE
+        else
+            rcMineCheck(superpacket, foundpacket->get(),
+                __builtin_return_address(0));
+#endif
     }
     local_shared_ptr<Packet> &p(( *foundpacket)->subpackets()->at(ridx));
     if( !p || (p->node().m_link != linkage)) {
@@ -1751,6 +1795,11 @@ Node<XN>::forwardLookup(local_shared_ptr<Packet> &superpacket,
             superpacket->subpackets()->m_serial = tr_serial;
             superpacket->m_missing = superpacket->m_missing || set_missing;
         }
+#ifdef KAME_RC_TRACE
+        else if(superpacket->size())
+            rcMineCheck(superpacket, superpacket.get(),
+                __builtin_return_address(0));
+#endif
     }
     for(unsigned int i = 0; i < superpacket->subnodes()->size(); i++) {
         if(( *superpacket->subnodes())[i].get() == this) {
@@ -1807,6 +1856,12 @@ Node<XN>::reverseLookup(local_shared_ptr<Packet> &superpacket,
     if(copy_branch && (( *foundpacket)->payload()->m_serial != tr_serial)) {
         *foundpacket = make_local_shared<Packet>( **foundpacket);
     }
+#ifdef KAME_RC_TRACE
+    else if(copy_branch)
+        rcMineCheck(superpacket, foundpacket->get(),
+            __builtin_return_address(0));
+#endif
+
 //						printf("#");
     return foundpacket;
 }

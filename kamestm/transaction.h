@@ -1528,6 +1528,22 @@ private:
 //		const local_shared_ptr<Packet> &packet);
     static void eraseSerials(local_shared_ptr<Packet> &packet, int64_t serial,
                              Snapshot<XN> &snap);
+#ifdef KAME_RC_TRACE
+    //! §13.9 detector (debug tracer builds; enable with
+    //! KAME_RC_TRACE_MINE_CHECK=1): called on copy_branch's already-mine
+    //! fast path (list/payload serial == tr_serial => clone skipped).  If
+    //! the packet about to be treated as transaction-private is REACHABLE
+    //! FROM THE COMMITTED TREE, the skip is unsound -- the exact
+    //! precondition for an in-place write to shared state -- and the
+    //! tracer records an OP_MINE_SHARED anomaly with the packet's
+    //! history.  A logic condition, not a race: deterministic on any
+    //! host where the precondition occurs.  Static member functions
+    //! only; no data, no virtuals -- layout unchanged.
+    static void rcMineCheck(const local_shared_ptr<Packet> &trroot,
+                            const Packet *target, const void *site) noexcept;
+    static bool rcTreeContains_(const local_shared_ptr<Packet> &root,
+                                const Packet *target) noexcept;
+#endif
 protected:
     //! Use \a create().
     Node();

@@ -1855,3 +1855,73 @@ Version-independent, and it does not need the edge:
 The wrapper layer — tag refs, views, zeroreset, scoped CAS, park/unpark — is
 **out of scope**: it cannot touch a `Packet`'s units, and it is separately
 verified.  That makes the spec smaller than one built around a named edge.
+
+### 13.9 The "wrongly-mine" precondition, made mechanically checkable
+### (KAME_RC_TRACE_MINE_CHECK — a logic detector, no race needed)
+
+§13.8 left the live surface at "copies whose source is a slot in the
+packet tree, racing a concurrent structural mutation of that tree".  For
+the WRITER of such a mutation to exist at all, copy_branch's already-mine
+test (`m_serial == tr_serial` ⇒ skip the clone, mutate in place) must
+have trusted a mark on a packet that other actors can reach.  Reading the
+serial life cycle on this side:
+
+- `tr_serial` is REGENERATED on every retry (`operator++` →
+  `snapshot()` → `SerialGenerator::gen()`), so a stale mark from a failed
+  attempt can never match — the wrongly-mine condition requires a mark
+  that ESCAPES the private branch **within one attempt**.
+- The complete writer set for `PacketList::m_serial` is five sites:
+  `insert` (:1389), `release` (:1522), `swap` (:1649), and the two
+  copy_branch clone blocks.  bundle/unbundle stamp only the WRAPPER field
+  `m_bundle_serial` — never a list — so mid-transaction bundle
+  publications carry no tr marks.
+- `insert(online)` audited: both interim `commit(tr)` calls publish a
+  fresh clone OF THE OLD packet (shallow, old serials), and the
+  child-linkage CAS publishes `subpacket_new` (bundle-built, no list
+  marks).  Object SHARING between the private branch and the live tree
+  does begin here (`packet->subpackets()->back() = subpacket_new`), but
+  every shared list still carries a non-tr serial, so re-encounters clone
+  properly.  No escape found on this path.
+- **`eraseSerials()` is the design's own acknowledgment of the hazard**:
+  it exists to strip tr marks from a RELEASED subtree, precisely because
+  that subtree stays alive (the released node's own linkage still serves
+  it) and a surviving mark would be wrongly trusted.  It is the ONLY
+  escape route that is patched — and its walk recurses through
+  `subpackets()` slots, so in a hard-link topology, where a slot on this
+  branch is NULL (missing) while the same child is reachable through a
+  sibling parent, **the walk cannot reach everything the tree can**.  A
+  mark surviving on such a shared packet + a same-tr re-encounter is the
+  cleanest wrongly-mine candidate left.  (The dynamic test creates
+  exactly these shapes: insert of an already-parented node = hard link,
+  plus release/swap in the same closures.)
+
+Rather than keep enumerating by hand, the condition is now checked
+mechanically: `KAME_RC_TRACE_MINE_CHECK=1` (tracer builds) arms a
+detector at all three already-mine skip sites (`reverseLookupWithHint`,
+`forwardLookup`, `reverseLookup`'s payload-level skip).  On a skip it
+walks the CURRENT COMMITTED tree (root node's linkage, tag-view read) and
+records an `OP_MINE_SHARED` anomaly — with the packet's full history —
+if the packet about to be treated as private is reachable from it.  This
+is a **logic condition, not a race**: it fires deterministically on any
+host where the precondition occurs, independent of whether the downstream
+torn-copy race would have been lost or won.  Known coverage gaps: the
+check self-disables while the root wrapper lacks priority (mid-bundle),
+and `forwardLookup`'s interior recursion levels check only their local
+root.
+
+Mac result: 100 runs × 40 threads, `-O2` test / `-O3` forensic pool —
+**zero MINE-SHARED hits** (and zero anomalies).  So on arm64 the
+precondition does not occur in this workload, at least outside the
+gated windows.
+
+**Ubuntu next**: run the reproducer with `KAME_RC_TRACE_MINE_CHECK=1` on
+the v10 build.  Interpretation:
+- MINE-SHARED fires (with or without a subsequent underflow) → the edge
+  is the wrongly-mine class; the anomaly's site + packet history name the
+  specific escape (watch for release-of-hard-linked-subtree shapes).
+- The 37 %/run underflows keep firing with ZERO MINE-SHARED → the
+  wrongly-mine class is refuted, and §13.8's surface narrows to the
+  reader side: torn copies through slot REFERENCES already in hand
+  (`local_shared_ptr<Packet> &` returned by lookups, `fast_vector`
+  entry references across a concurrent in-place legitimate clone of the
+  same list) — plus habitat 3's container lifecycle.
