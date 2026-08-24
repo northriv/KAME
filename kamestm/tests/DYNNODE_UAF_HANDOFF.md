@@ -1925,3 +1925,62 @@ the v10 build.  Interpretation:
   (`local_shared_ptr<Packet> &` returned by lookups, `fast_vector`
   entry references across a concurrent in-place legitimate clone of the
   same list) — plus habitat 3's container lifecycle.
+
+### 13.10 TSan — the missing enumeration, and why it must run on Ubuntu
+
+Reflecting on why the hunt narrows without converging: every instrument so
+far (GenMC, TLA+, the hand audits, §13.8's reading) verifies SOURCE
+SEMANTICS, and at that level the code keeps coming up clean.  The
+observables, though — x86-64/g++ only, flipped by ONE optimization pass
+(`-fno-ipa-cp-clone`), invisible on weaker-ordered arm64 (0/200,
+blind-spot-free) — point BELOW that level: either a genuine g++
+miscompile, or, more likely, a PLAIN-field data race in the source
+(formal UB) that ipa-cp-clone's changed inlining/cloning contexts license
+the optimizer to weaponize (merged/hoisted loads, sunk stores).  Sanctioned
+plain-field shared accesses exist: `eraseSerials()` resets
+`PacketList::m_serial` / `Payload::m_serial` IN PLACE on a
+released-but-still-served subtree; `Packet::m_missing` (plain bool) is
+written on packets other threads read; `setReverseIndex()` is a plain int
+write.  GenMC cannot see any of this as g++ codegen (it compiles with
+clang), and the models abstract the fields entirely.
+
+The mechanical enumerator for exactly this class is ThreadSanitizer, and
+it has never been run on this codebase.  **It cannot run on the Mac**:
+on macOS 26.4, Apple clang 17's TSan runtime crashes pre-init in
+`__tsan::SlotLock` even on `int main(){return 0;}`, and Homebrew LLVM
+20's TSan links but never initializes (verbosity=2 prints nothing; a
+guaranteed 10^6-increment race goes unreported).  So this lands on
+Ubuntu, which is the right host anyway (g++, canonical TSan, and the
+races of interest are observable INDEPENDENT of whether the fault
+manifests — no timing luck needed):
+
+```
+g++ -DA_NO_P1TREE -fsanitize=thread -O2 -g -std=gnu++17 \
+    -I kamestm/tests -I kamestm -I kamepoolalloc \
+    -include kamestm/tests/support_standalone.h \
+    kamestm/tests/tmin_dynnode.cpp kamestm/tests/support_standalone.cpp \
+    kamestm/threadlocal.cpp -o tmin_tsan
+TSAN_OPTIONS="halt_on_error=0 log_path=tsan history_size=7" ./tmin_tsan 20 8 200
+```
+
+Constraints: NO pool `.so` and no `-DKAMEPOOLALLOC_DYLIB` (TSan must own
+malloc), NO `-DKAME_RC_TRACE` (the tracer's racy-by-design caches would
+flood the output with known-benign reports).  A few runs at 8–40 threads
+suffice.
+
+Reading the output: TSan models `std::atomic` — the intentional
+relaxed/acq-rel machinery stays silent.  **Every report on a PLAIN field
+is formal UB** and is exactly the enumeration we have been missing.
+Expected/priority suspects: `PacketList::m_serial` (eraseSerials reset vs
+copy_branch's serial checks), `Packet::m_missing`, `m_reverse_index`,
+`fast_vector` internals.  For each report keep both stacks and the field;
+then cross-reference which side lives in a function ipa-cp-clone would
+clone (hot templates with constant-ish arguments).  Outcomes:
+- Reports on plain fields exist (expected) → each is a candidate for the
+  weaponization story; fixing is per-field atomic<> with relaxed loads —
+  cheap — and re-running the reproducer per fix bisects WHICH race is
+  load-bearing.
+- Zero reports (unlikely) → source is race-free, H1 (real g++ miscompile)
+  is promoted; next step is the `__attribute__((noipa))` per-function
+  bisect of the 43%↔0% switch, then a g++ version sweep (12/13/14/15) and
+  an asm diff of the named function.
