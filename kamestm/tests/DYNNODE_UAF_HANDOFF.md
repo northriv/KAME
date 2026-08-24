@@ -1601,3 +1601,59 @@ patch.  Coverage is strictly wider than the old poison (fresh-free window
 now included), every capture gains the RC-FREEREC culprit line, and the
 n=3 capture's first releaser will be named even if it happened megabytes
 of events ago.
+
+### 13.5 Forensic poison on Ubuntu — the blind spot was real, and every catch is a PRIMARY event
+
+Rebuilt the `.so` from `9c527ab4c` with `-DKAME_POISON_FORENSIC
+-fno-omit-frame-pointer`, §3 scratch patch dropped; test built with
+`-DKAME_RC_TRACE -fno-omit-frame-pointer` against it.  60 runs, 40 threads.
+
+**The blind spot was costing us most of the signal.**
+
+| tracer / poison | hits |
+|---|---|
+| v6 (constant poison) | 7 / 60 |
+| v7 | 8 / 60 |
+| v9 | 10 / 51 |
+| **v10 = v9 + forensic poison** | **19 / 51 (37 %)** |
+
+Three times v6's yield from the same reproducer, which is what §13.4 predicts
+if the fresh-free window — where word 0 held an L1 freelist pointer under
+2^48 — was previously invisible to the tripwire.  It also means the *silence*
+in every earlier batch was partly instrumentation, not absence: "no anomaly"
+runs in §11.3/§11.5/§12.4 cannot be read as clean.
+
+**`drift=+0` in 14/14 captures carrying `RC-FREEREC`.**  Every catch is the
+FIRST stale op on that block.  This is the discrimination no previous version
+could make: earlier batches could not tell a primary event from a downstream
+consequence of one, and §11.3's site scatter was read under that ambiguity.
+
+**Who freed it — now answered unconditionally**, independent of ring
+survival and of the `+16` offset inference §12.5 retracted:
+
+| free-side chain tail | captures |
+|---|---|
+| `local_weak_ptr<Linkage>::reset()` → `~PacketWrapper()` | 6 / 14 |
+| `fast_vector<local_shared_ptr<Packet>,1>::clear_fixed()` → `~PacketList_()` | 6 / 14 |
+| `Snapshot<…>` / `local_shared_ptr<…>` | 2 / 14 |
+
+**A reading withdrawn before it propagates.**  The first capture (`rcA_2`) had
+BOTH the free and the stale release running through `~PacketWrapper()` →
+`local_shared_ptr<Packet>::reset()`, with the stale side reached from
+`Transaction::commit()` (`transaction.h:2616/2624`) — i.e. two distinct
+`PacketWrapper`s each releasing the same `Packet`.  Across all 14 that shape
+holds in **1** (partially 2).  It is a real capture, not a population.  Same
+failure mode as §12.4's `CASInfo`: a single capture read as a mechanism.
+
+**What survives at n=14**, on the fields §11.2 admits plus the self-identifying
+token:
+
+> Every anomaly is a `Packet`, is the FIRST stale op on its block
+> (`drift=+0`), has two distinct holder slots (Q1 15/15), and the release that
+> freed it is a destructor — `~PacketWrapper()` or `~PacketList_()` in equal
+> measure — while the stale release arrives from an unrelated context.
+
+That is §11.3's invariant with the primary-vs-secondary ambiguity removed,
+which is the part that was missing.  It still does not name one edge, and the
+free-side split 6/6 between two different destructors argues that it may not
+be one edge.
