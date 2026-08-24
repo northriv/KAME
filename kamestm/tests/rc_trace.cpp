@@ -197,6 +197,56 @@ static const char *type_label_(const char *tname, char *buf, size_t cap) noexcep
     return buf;
 }
 
+// ---- call-chain capture (v5) ---------------------------------------------
+// Â§11.3: nine captures, and the innermost `site` symbol scatters across
+// them (clear_fixed x3, bundle x2, local_weak_ptr::reset x2, ...), because at
+// -O3 a return address lands wherever the optimiser put the inlined code.  A
+// single address cannot name the edge; a few frames can, since the OUTER
+// frames are real non-inlined functions (bundle / snapshot / commit / the
+// lookup helpers).
+//
+// Cost: a bounded frame-pointer walk (CHAIN_N loads) on release ops only,
+// and one walk at the anomaly.  Opt-in via KAME_RC_TRACE_CHAIN=1 so the
+// Â§11.3 fire-rate baseline stays comparable.
+//
+// REQUIRES the reproducer to be built with -fno-omit-frame-pointer, else the
+// walk has nothing to follow.  It is written to fail SHORT rather than wild:
+// each candidate frame must be aligned, strictly above the previous one, and
+// within 1 MiB of it, so a garbage chain truncates instead of dereferencing
+// nonsense.  Re-check the fire rate after enabling it (Â§4's rule).
+static constexpr unsigned CHAIN_N = 6;
+
+static bool chain_enabled_() noexcept {
+    static const bool v = [] {
+        const char *e = getenv("KAME_RC_TRACE_CHAIN");
+        return e && e[0] == '1';
+    }();
+    return v;
+}
+
+//! Walk saved frame pointers: fp[0] = caller's fp, fp[1] = return address
+//! (true on x86-64 and aarch64 alike).  Returns how many frames were stored.
+static unsigned walk_chain_(const void **out, unsigned max) noexcept {
+#if defined(__x86_64__) || defined(__aarch64__)
+    void **fp = (void **)__builtin_frame_address(0);
+    unsigned n = 0;
+    uintptr_t prev = 0;
+    while(n < max && fp) {
+        uintptr_t f = (uintptr_t)fp;
+        if(f & (sizeof(void *) - 1)) break;                 // misaligned
+        if(prev && (f <= prev || f - prev > (1u << 20))) break;  // implausible
+        void *ret = fp[1];
+        if(!ret) break;
+        out[n++] = ret;
+        prev = f;
+        fp = (void **)fp[0];
+    }
+    return n;
+#else
+    (void)out; (void)max; return 0;
+#endif
+}
+
 // ---- O(1) last-release cache ---------------------------------------------
 // The decisive datum for a double release is "who released this object
 // last, before the underflow".  Recovering it from the rings needs a
@@ -212,6 +262,8 @@ static const char *type_label_(const char *tname, char *buf, size_t cap) noexcep
 struct LastRel {
     std::atomic<const void *> obj{nullptr};
     Ev ev{};
+    const void *chain[CHAIN_N]{};
+    unsigned chain_n{0};
 };
 static constexpr unsigned LASTREL_SLOTS = 4096;   // power of two
 static LastRel g_lastrel[LASTREL_SLOTS];
@@ -248,6 +300,8 @@ void record(const void *obj, unsigned op, unsigned long long oldc,
     if(op == OP_DEC || op == OP_DEAD || op == OP_DEAD_UNIQUE) {
         LastRel &lr = g_lastrel[lastrel_slot_(obj)];
         lr.ev = e;                                   // racy by design
+        lr.chain_n = chain_enabled_()
+            ? walk_chain_(lr.chain, CHAIN_N) : 0;
         lr.obj.store(obj, std::memory_order_release);
     }
 }
@@ -302,6 +356,25 @@ static unsigned collect_(const void *obj) noexcept {
     return n;
 }
 
+//! One line per chain, addresses only -- resolve offline with
+//!   addr2line -e <binary> -f -C -i <addr>...
+//! `-i` is the part that matters: it expands the INLINE stack at each
+//! address, which is what a bare symbol lookup could not do (Â§11.3).
+static void raw_chain_(const char *kind, const void *obj,
+    const void *const *chain, unsigned n) noexcept {
+    if(!n) {
+        raw_line_("RC-CHAIN-%s obj=%p none (chain capture off or no frames)\n",
+            kind, obj);
+        return;
+    }
+    char buf[512];
+    int k = snprintf(buf, sizeof buf, "RC-CHAIN-%s obj=%p frames=%u", kind, obj, n);
+    for(unsigned i = 0; i < n && k > 0 && k < (int)sizeof buf - 24; ++i)
+        k += snprintf(buf + k, sizeof buf - (size_t)k, " %p", chain[i]);
+    if(k > 0 && k < (int)sizeof buf - 2) { buf[k++] = '\n'; buf[k] = 0; }
+    raw_write_(buf, (size_t)(k > 0 ? k : 0));
+}
+
 //! O(1) variant, emitted BEFORE any scan so it survives a peer crash.
 static void raw_prior_release_fast_(const void *obj) noexcept {
     LastRel &lr = g_lastrel[lastrel_slot_(obj)];
@@ -310,10 +383,15 @@ static void raw_prior_release_fast_(const void *obj) noexcept {
         return;
     }
     Ev e = lr.ev;
+    const void *ch[CHAIN_N];
+    unsigned cn = lr.chain_n;
+    if(cn > CHAIN_N) cn = CHAIN_N;
+    for(unsigned i = 0; i < cn; ++i) ch[i] = lr.chain[i];
     char tb[128];
     raw_line_("RC-PRIOR-RELEASE-FAST obj=%p op=%s rc_before=%llu tid=%u "
         "seq=%llu site=%p type=%s\n", obj, op_name_(e.op), e.oldc, e.tid,
         e.seq, e.site, type_label_(e.tname, tb, sizeof tb));
+    raw_chain_("PRIOR", obj, ch, cn);
 }
 
 //! The decisive line for a double release: the most recent DEC / DEAD /
@@ -582,6 +660,11 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
             "site=%p type=%s dtor_depth=%u\n", nth, obj, op_name_(op), oldc,
             rc_trace_tid_(), site, type_label_(tname, tb, sizeof tb),
             tl_dtor_depth);
+        if(chain_enabled_()) {
+            const void *ch[CHAIN_N];
+            unsigned cn = walk_chain_(ch, CHAIN_N);
+            raw_chain_("ANOM", obj, ch, cn);
+        }
         raw_prior_release_fast_(obj);      // O(1): the decisive line, first
         unsigned dn = tl_dtor_depth < DTOR_MAX ? tl_dtor_depth : DTOR_MAX;
         for(unsigned i = 0; i < dn; ++i)

@@ -837,3 +837,75 @@ answer.  Naming the source edge would need something site-strings cannot give
 at `-O3` — a captured call chain (e.g. a few frames of return addresses
 recorded at `DEAD` and at the anomaly, resolved offline) — and that is only
 worth building if the model cannot be closed without it.
+
+### 12.1 v5 — captured call chains, because one address cannot name the edge
+
+§11.3 closed the attribution of the *second* releaser but not the **edge**:
+the innermost `site` symbol scattered across nine captures (`clear_fixed` ×3,
+`bundle` ×2, `local_weak_ptr::reset` ×2, …) because at `-O3` a return address
+lands wherever the optimiser put the inlined code.  §11.3's own prescription —
+"a few return addresses recorded at `DEAD` and at the anomaly, resolved
+offline" — is now implemented.
+
+**What it adds** (`KAME_RC_TRACE_CHAIN=1`, default OFF so §11.3's fire-rate
+baseline stays comparable):
+
+```
+RC-ANOMALY #1 obj=0x… op=DEC-UNDERFLOW rc_before=0 tid=1 site=0x… type=Pk dtor_depth=0
+RC-CHAIN-ANOM  obj=0x… frames=4 0x…76c 0x…804 0x…964 0x…
+RC-PRIOR-RELEASE-FAST obj=0x… op=DEAD(unique) rc_before=1 tid=1 seq=4 site=0x… type=Pk
+RC-CHAIN-PRIOR obj=0x… frames=3 0x…710 0x…958 0x…
+```
+
+A bounded frame-pointer walk (≤6 frames): `fp[0]` = caller's fp, `fp[1]` =
+return address, true on x86-64 and aarch64 alike.  Captured on **release ops
+only** (`DEC`/`DEAD`/`DEAD(unique)`, stored in the O(1) last-release cache
+beside the event) and once **at the anomaly**.  Written on the raw path, so
+both chains survive a peer crash — re-verified against the deliberate
+peer-SIGSEGV race: 3/3 runs kept all four lines above.
+
+**Requires `-fno-omit-frame-pointer`** on the reproducer; without it the walk
+has nothing to follow.  It is written to fail SHORT rather than wild — each
+candidate frame must be pointer-aligned, strictly above the previous one, and
+within 1 MiB of it — so a garbage chain truncates instead of dereferencing
+nonsense.  Re-check the fire rate after enabling either flag (§4's rule);
+frame pointers alone perturb codegen.
+
+**Verified to do the thing site strings could not.**  On a synthetic double
+release with distinct real callers, compared against runtime function
+addresses printed by the test itself:
+
+| chain | frame[0] | frame[1] | frame[2] |
+|---|---|---|---|
+| `ANOM` | shared/inlined `reset()` body — **ambiguous, as §11.3 describes** | **`second_releaser`** | `main` |
+| `PRIOR` | same shared body | **`main`** (the intermediate wrappers were *tail-called*, so they left no frames) | — |
+
+frame[0] is exactly the useless address; **frames[1…] are the genuine
+distinct callers, and the two chains diverge there.**  That divergence is the
+disambiguation §11.3 asked for.
+
+**Two caveats from that experiment**, both real:
+- **Tail calls collapse frames.**  `outer→middle→inner` appeared as a single
+  frame because clang turned the wrappers into jumps.  A chain can therefore
+  *skip* intermediate functions — read it as "these frames are on the stack",
+  never "these are all the frames".
+- Resolve with `addr2line -e <binary> -f -C -i <addrs>`.  The **`-i`** matters:
+  it expands the inline stack at each address, which is what a bare symbol
+  lookup could not do — worth using on the old §11.3 site addresses too.
+
+**Suggested run**
+
+```bash
+c++ … -fno-omit-frame-pointer -DKAME_RC_TRACE …            # rebuild
+KAME_RC_TRACE_CHAIN=1 KAME_RC_TRACE_FILE=$PWD/rc.$$.log ./tmin_v5 100 24 950
+grep -E 'RC-ANOMALY|RC-CHAIN|PRIOR-RELEASE-FAST' rc.*.log
+addr2line -e ./tmin_v5 -f -C -i <the frames>
+```
+
+The question to put to the two resolved chains is narrow: **where do they
+diverge?**  Their common prefix is the shared release code; the first frame
+at which `ANOM` and `PRIOR` differ is the pair of edges that both released the
+same `Packet`.  With §11.3's finding that 6/9 are same-tid, the expectation is
+two different points in **one** thread's `snapshot`/`bundle` walk — and if the
+divergent frames are stable across two or three captures, that names the edge
+and §2's model can be built around it instead of the whole recursion.
