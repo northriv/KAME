@@ -75,6 +75,48 @@ Recorded so nobody re-runs them.
 
 The reason is structural, and it is the hypothesis below.
 
+## Localised (2026-08-23): CrossDeallocBatch
+
+With the chunk layer cleared, the remaining reuse layer is the bucket slot —
+where the STM's objects actually live (`Packet` 16-32 B, `PacketWrapper`
+24-40 B, `Linkage` 20-40 B).  `CrossDeallocBatch` is the cross-thread free
+path for exactly those slots: it buffers `(chunk, slot)` pairs and returns
+them through `batch_return_to_bitmap`.
+
+`kame_pool_set_realtime_thread(2)` already disables the batch —
+`tls_cross_dealloc_batch.cap = 1` — so no patch was needed.  But level 2 also
+turns on RT deferral, so on its own it does not separate "batch" from "RT".
+Level 1 does: the source says so outright ("DEFER deliberately leaves the
+batch alone"), and it skips the free-path `madvise` while keeping the batch.
+Three arms, i586, same load, 10 min each:
+
+| arm | madvise | batch | failed |
+|---|---|---|---|
+| control | yes | on | 10 / 74 (13.5%) |
+| RT1 (DEFER) | **skipped** | on | 11 / 110 (10.0%) |
+| RT2 (STRICT) | skipped | **off** | **0 / 108** |
+
+RT1 sits at the control rate, so the free-path `madvise` is not the mechanism
+— worth stating because `MADV_DONTNEED` is otherwise a perfect fit for a fault
+no sanitiser sees (the page is neither unmapped nor unsynchronised, its
+contents simply vanish).  The captured core argues against it independently:
+the corrupted `PacketWrapper` held garbage (`0x565feb80`, a text address that
+looks like a vtable), not zeros, so something WROTE that memory rather than
+it being zero-filled.
+
+The only variable between RT1 and RT2 is `cap = 1`, and it takes the rate from
+10% to zero.  An earlier independent run agrees: 0/134 against a control of
+7/134.  Combined 0/242.
+
+Two things line up with this.  `CrossDeallocBatch::flush(bool)` is one of the
+four functions `-fipa-cp-clone` clones — the set whose removal is the only
+other thing that reaches zero.  And the bucket-slot layer is what was left
+after the chunk layer came back clean twice.
+
+Still to separate: the batch has several distinct behaviours (accumulation
+across chunks, the sort-and-group in `flush`, `push_direct`'s hold/immediate
+decision), and `cap = 1` disables all of them at once.
+
 ## REFUTED (2026-08-23): the parked-chunk hypothesis
 
 Disabling the recycle cache entirely — `kame_pool_set_large_cache_cap(0)` at
