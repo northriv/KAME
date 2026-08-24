@@ -641,3 +641,71 @@ concrete instance to check first.
    counter, a `Linkage` will show spurious underflow whichever way the real
    counts move.  Worth checking before any `atomic_smart_ptr.h:911` report is
    believed.
+
+### 11.2 Instrumentation v3 — and a correction to §11.1's ledger test
+
+§11.1 asked for two things and flagged one suspicion.  All three are settled;
+one of them **invalidates the ledger check as §11.1 applied it**.
+
+**The ledger test does not mean what it was read to mean in continue-mode.**
+The rings are circular *and* recycled across threads (slot = round-robin
+`% MAX_RINGS`), so once a slot has taken `RING` (16384) writes, older events
+are silently **evicted**.  In abort-mode the process usually dies before any
+wrap — §9's `103/103/206/204` is a genuinely complete history — but a
+continue-mode run of 100×24×950 wraps many times, so run 8's
+`BORN 22 / DEAD 6 / INC 19 / DEC 27` is **the expected shape of an evicted
+history, not evidence that the tracer misses ops**.  v3 makes this explicit:
+every dump now states whether anything was evicted.
+
+```
+  ledger: strong BORN 0 / DEAD 0 / INC 2048 / DEC 2048   weak wINC 0 / ...
+  ** 1 ring(s) have wrapped (40010 events recorded) -- older events were
+     EVICTED, so an unbalanced ledger here says nothing about tracer coverage **
+```
+or, when nothing was lost:
+```
+  no ring has wrapped -- this history is complete
+```
+Run 8's anomaly therefore cannot be *confirmed* by its ledger, but neither is
+it discredited by it.  For a ledger-based judgement, use abort-mode (or raise
+`RING_LOG2`).
+
+**The strong/weak suspicion is refuted, by construction.**  `atomic_smart_ptr.h:911`
+is `local_weak_ptr<T>::reset()`, which touches `weak_refcnt` **only**; every
+v1/v2 hook was on `refcnt` **only** (`atomic_countable` ctor,
+`local_shared_ptr` copy ctors, `local_shared_ptr::reset`).  The tracer never
+observed a weak counter, so it cannot have conflated the two — a `:911`
+report could only ever have been line-table noise from an inlined strong op,
+which is what §11.1 already suspected.  v3 nevertheless **traces the weak
+side explicitly** as distinct ops (`wINC` / `wDEC` / `wDEAD`, three sites:
+the ctor-from-shared, the weak copy ctor, `reset()`), so `PacketWrapper`
+histories — it holds a `local_weak_ptr<Linkage>` — are now interpretable
+instead of absent, and the ledger prints the two counters separately.
+
+**Type identification (§11.1's item 1).**  Every event now carries its `T`
+(from `__PRETTY_FUNCTION__` of a function template — one string literal per
+instantiation, no runtime cost), and reports print it:
+
+```
+kame_rc_trace: FATAL DEC-UNDERFLOW  obj=0x...  rc(before)=0xBAADF00D...  type=Inner  at ...
+```
+
+so a report on a partially-covered type is discountable at a glance.  For
+hard gating, `KAME_RC_TRACE_TYPES=<substr>` reports only anomalies whose type
+label contains `<substr>` (recording is unaffected): `…=Packet` keeps
+`Packet` / `PacketList_` / `PacketWrapper` and drops everything else.
+Verified: `…=Inner` → report; `…=Nothing` → silent.
+
+**Also worth stating**, since §9.1 and §11.1 each lost time to it: at `-O3`
+every `site` string in this tool is `__builtin_return_address(0)` fed to
+`addr2line`, and inlining makes that land on a *neighbouring* source line
+often enough that no site string should be trusted without a second capture
+agreeing.  What is reliable: the **op** class, the **object address**, the
+**tid**, the **type label**, the dtor-stack **depth**, and the eviction flag.
+
+**Suggested next batch** (unpoisoned `.so`, `ABORT=0`, `KAME_RC_TRACE_TYPES=Packet`):
+tabulate first anomaly per run as before, but now recording type + eviction
+state, and treat only `no ring has wrapped` runs as ledger-checkable.  If the
+result is again unstable, that is the third independent confirmation and the
+invariant-level model of §11.1 is the answer; no further instrumentation is
+warranted.

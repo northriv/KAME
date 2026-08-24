@@ -60,7 +60,11 @@ namespace kame_rc_trace {
 enum Op : unsigned {  // keep in sync with atomic_smart_ptr.h
     OP_BORN = 1, OP_INC, OP_DEC, OP_DEAD, OP_DEAD_UNIQUE,
     OP_INC_FROM_ZERO, OP_DEC_UNDERFLOW,
+    OP_WEAK_INC, OP_WEAK_DEC, OP_WEAK_DEAD,
 };
+static bool is_weak_op_(unsigned op) noexcept {
+    return op == OP_WEAK_INC || op == OP_WEAK_DEC || op == OP_WEAK_DEAD;
+}
 static const char *op_name_(unsigned op) noexcept {
     switch(op) {
     case OP_BORN: return "BORN";
@@ -70,6 +74,9 @@ static const char *op_name_(unsigned op) noexcept {
     case OP_DEAD_UNIQUE: return "DEAD(unique)";
     case OP_INC_FROM_ZERO: return "INC-FROM-ZERO **TRIPWIRE**";
     case OP_DEC_UNDERFLOW: return "DEC-UNDERFLOW **TRIPWIRE**";
+    case OP_WEAK_INC: return "wINC (weak_refcnt)";
+    case OP_WEAK_DEC: return "wDEC (weak_refcnt)";
+    case OP_WEAK_DEAD: return "wDEAD (weak_refcnt)";
     default: return "????";
     }
 }
@@ -77,11 +84,26 @@ static const char *op_name_(unsigned op) noexcept {
 struct Ev {
     const void *obj;
     const void *site;
+    const char *tname;      //!< type_name_<T>() literal, or null (BORN)
     unsigned long long seq;
     unsigned long long oldc;
     unsigned op;
     unsigned tid;
 };
+
+//! Short type label out of `__PRETTY_FUNCTION__`: everything between
+//! "T = " and the closing "]" — enough to tell Packet from PacketList_
+//! from PacketWrapper without printing a whole signature.
+static void print_type_(const char *tname) {
+    if(!tname) { fprintf(stderr, "?"); return; }
+    const char *b = strstr(tname, "T = ");
+    if(!b) { fprintf(stderr, "%s", tname); return; }
+    b += 4;
+    const char *e = strchr(b, ']');
+    int n = e ? (int)(e - b) : (int)strlen(b);
+    if(n > 96) n = 96;
+    fprintf(stderr, "%.*s", n, b);
+}
 
 static constexpr unsigned MAX_RINGS = 64;
 static constexpr unsigned RING_LOG2 = 14;               // 16384 events/ring
@@ -97,16 +119,30 @@ struct TL {
 };
 static thread_local TL tl;
 
+//! Ring eviction accounting.  Rings are circular AND recycled across
+//! threads (slot = round-robin % MAX_RINGS), so old events are dropped
+//! silently once a slot has taken RING writes.  That matters for reading
+//! a dump: a per-object ledger (BORN/DEAD vs INC/DEC) can only be
+//! expected to balance while NOTHING has been evicted.  In abort-mode the
+//! process usually dies before any wrap (handoff Â§9's 103/103/206/204 is a
+//! genuinely complete history); in continue-mode a long run wraps many
+//! times, and an unbalanced ledger then says nothing about coverage.
+static std::atomic<unsigned long long> g_writes{0};
+static std::atomic<unsigned> g_wrapped_rings{0};
+
 void record(const void *obj, unsigned op, unsigned long long oldc,
-    const void *site) noexcept {
+    const void *site, const char *tname) noexcept {
     TL &t = tl;
     if(!t.ring) {
         t.ring = g_rings[g_ring_next.fetch_add(1, std::memory_order_relaxed)
                          % MAX_RINGS];
         t.tid = rc_trace_tid_();
     }
+    if(t.idx == RING)                  // this thread just filled its ring
+        g_wrapped_rings.fetch_add(1, std::memory_order_relaxed);
+    g_writes.fetch_add(1, std::memory_order_relaxed);
     Ev &e = t.ring[t.idx++ & RING_MASK];
-    e.obj = obj; e.site = site; e.seq = rc_trace_seq_();
+    e.obj = obj; e.site = site; e.tname = tname; e.seq = rc_trace_seq_();
     e.oldc = oldc; e.op = op; e.tid = t.tid;
 }
 
@@ -145,14 +181,44 @@ extern "C" void kame_rc_dump(const void *obj) {
         for(; j > 0 && out[j-1].seq > key.seq; --j) out[j] = out[j-1];
         out[j] = key;
     }
+    // Ledger, split strong vs weak (they are different counters).
+    unsigned born=0, dead=0, inc=0, dec=0, winc=0, wdec=0, wdead=0, trip=0;
+    const char *ty = nullptr;
+    for(unsigned i = 0; i < n; ++i) {
+        switch(out[i].op) {
+        case OP_BORN: ++born; break;
+        case OP_INC: ++inc; break;
+        case OP_DEC: ++dec; break;
+        case OP_DEAD: case OP_DEAD_UNIQUE: ++dead; break;
+        case OP_WEAK_INC: ++winc; break;
+        case OP_WEAK_DEC: ++wdec; break;
+        case OP_WEAK_DEAD: ++wdead; break;
+        default: ++trip; break;
+        }
+        if(!ty && out[i].tname) ty = out[i].tname;
+    }
+    unsigned wrapped = g_wrapped_rings.load(std::memory_order_relaxed);
     fprintf(stderr, "\n==== kame_rc_trace: %u event(s) for obj %p "
         "(oldest first; seq is TSC) ====\n", n, obj);
+    fprintf(stderr, "  type: ");
+    print_type_(ty);
+    fprintf(stderr, "\n  ledger: strong BORN %u / DEAD %u / INC %u / DEC %u"
+        "   weak wINC %u / wDEC %u / wDEAD %u   tripwires %u\n",
+        born, dead, inc, dec, winc, wdec, wdead, trip);
+    if(wrapped)
+        fprintf(stderr, "  ** %u ring(s) have wrapped (%llu events recorded) --"
+            " older events were EVICTED, so an unbalanced ledger here says"
+            " nothing about tracer coverage **\n",
+            wrapped, (unsigned long long)g_writes.load(std::memory_order_relaxed));
+    else
+        fprintf(stderr, "  no ring has wrapped -- this history is complete\n");
     for(unsigned i = 0; i < n; ++i) {
         const Ev &e = out[i];
-        fprintf(stderr, "  seq=%llu%+lld tid=%u  %-26s rc %llu -> %llu  site=",
+        fprintf(stderr, "  seq=%llu%+lld tid=%u  %-26s %s %llu -> %llu  site=",
             e.seq, i ? (long long)(e.seq - out[0].seq) : 0LL, e.tid,
-            op_name_(e.op), e.oldc,
-            (e.op == OP_INC || e.op == OP_INC_FROM_ZERO || e.op == OP_BORN)
+            op_name_(e.op), is_weak_op_(e.op) ? "wrc" : "rc ", e.oldc,
+            (e.op == OP_INC || e.op == OP_INC_FROM_ZERO || e.op == OP_BORN
+             || e.op == OP_WEAK_INC)
                 ? e.oldc + (e.op == OP_BORN ? 0 : 1)
                 : (e.oldc ? e.oldc - 1 : 0));
         print_site_(e.site);
@@ -194,8 +260,10 @@ extern "C" void kame_rc_dump_recent(unsigned nreq) {
     fprintf(stderr, "\n==== kame_rc_trace: most recent %u event(s) ====\n", n);
     for(unsigned i = 0; i < n; ++i) {
         const Ev &e = out[i];
-        fprintf(stderr, "  seq=%llu tid=%u obj=%p  %-26s rc=%llu  site=",
+        fprintf(stderr, "  seq=%llu tid=%u obj=%p  %-26s rc=%llu  type=",
             e.seq, e.tid, e.obj, op_name_(e.op), e.oldc);
+        print_type_(e.tname);
+        fprintf(stderr, "  site=");
         print_site_(e.site);
         fprintf(stderr, "\n");
     }
@@ -298,14 +366,27 @@ static unsigned anom_note_(const void *obj) noexcept {
     return 1;   // treat as first so it is never silently dropped
 }
 
+//! KAME_RC_TRACE_TYPES=<substr>: only REPORT anomalies whose type label
+//! contains <substr> (recording is unaffected).  Handoff Â§11.1 asked for
+//! gating on the ledger-complete classes -- `KAME_RC_TRACE_TYPES=Packet`
+//! keeps Packet/PacketList_/PacketWrapper and drops the rest.
+static bool type_selected_(const char *tname) noexcept {
+    static const char *filt = getenv("KAME_RC_TRACE_TYPES");
+    if(!filt || !*filt) return true;
+    return tname && strstr(tname, filt) != nullptr;
+}
+
 void anomaly(const void *obj, unsigned op, unsigned long long oldc,
-    const void *site) noexcept {
-    record(obj, op, oldc, site);
+    const void *site, const char *tname) noexcept {
+    record(obj, op, oldc, site, tname);
+    if(!type_selected_(tname)) return;   // recorded, not reported
     register_exit_summary_();
     unsigned nth = anom_note_(obj);
     if(abort_mode_()) {
-        fprintf(stderr, "\nkame_rc_trace: FATAL %s  obj=%p  rc(before)=%llu  at ",
+        fprintf(stderr, "\nkame_rc_trace: FATAL %s  obj=%p  rc(before)=%llu  type=",
             op_name_(op), obj, oldc);
+        print_type_(tname);
+        fprintf(stderr, "  at ");
         print_site_(site);
         fprintf(stderr, "\n");
         dump_dtor_stack_();
@@ -313,8 +394,10 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
         abort();
     }
     if(nth == 1) {
-        fprintf(stderr, "\nkame_rc_trace: ANOMALY #1 %s  obj=%p  rc(before)=%llu  at ",
+        fprintf(stderr, "\nkame_rc_trace: ANOMALY #1 %s  obj=%p  rc(before)=%llu  type=",
             op_name_(op), obj, oldc);
+        print_type_(tname);
+        fprintf(stderr, "  at ");
         print_site_(site);
         fprintf(stderr, "\n");
         dump_dtor_stack_();

@@ -77,9 +77,26 @@ enum Op : unsigned {
     OP_DEAD_UNIQUE,     //!< reset: unique() fast path -> deleter runs
     OP_INC_FROM_ZERO,   //!< TRIPWIRE: copied a dead object
     OP_DEC_UNDERFLOW,   //!< TRIPWIRE: decrement of an already-zero count
+    //! Weak-side ops.  A SEPARATE counter (`weak_refcnt`) from everything
+    //! above -- the tracer never conflates the two, so a report naming a
+    //! weak site can only ever be line-table noise from an inlined strong
+    //! op.  Traced anyway so weakable histories (PacketWrapper holds a
+    //! local_weak_ptr<Linkage>) are interpretable instead of absent.
+    OP_WEAK_INC,
+    OP_WEAK_DEC,
+    OP_WEAK_DEAD,       //!< weak count hit zero -> control block freed
 };
+//! Compile-time type identification: `__PRETTY_FUNCTION__` of a function
+//! template names T, so every traced event can carry the type it belongs
+//! to at the cost of one string literal per instantiation.  Needed because
+//! only some traced types have COMPLETE histories (see the coverage note
+//! above), and a report on a partially-covered type must be discountable
+//! at a glance rather than argued about afterwards.
+template <class T> inline const char *type_name_() noexcept {
+    return __PRETTY_FUNCTION__;
+}
 void record(const void *obj, unsigned op, unsigned long long oldc,
-    const void *site) noexcept;
+    const void *site, const char *tname) noexcept;
 //! Tripwire entry.  Default (KAME_RC_TRACE_ABORT unset or "1"): dump the
 //! object's history + the thread's live destruction stack, then abort() --
 //! the gdb workflow of handoff Â§8.  With KAME_RC_TRACE_ABORT=0: record
@@ -88,7 +105,7 @@ void record(const void *obj, unsigned op, unsigned long long oldc,
 //! is comparable across runs (handoff Â§9.1's request).  An atexit
 //! summary lists every anomalous object either way.
 void anomaly(const void *obj, unsigned op, unsigned long long oldc,
-    const void *site) noexcept;
+    const void *site, const char *tname) noexcept;
 //! Destruction-stack bookkeeping: reset() brackets `deleter(pref)` with
 //! push/pop, so an anomaly fired INSIDE a destruction chain (reentrant
 //! release -- e.g. an element of a dying Packet's list pointing back at
@@ -100,12 +117,19 @@ void pop_dtor() noexcept;
 }
 #define KAME_RC_EVT(obj, op, oldc) \
     ::kame_rc_trace::record((obj), (op), (unsigned long long)(oldc), \
-        __builtin_return_address(0))
+        __builtin_return_address(0), nullptr)
+//! Typed variant: use wherever T is in scope (all local_shared_ptr /
+//! local_weak_ptr hooks).  The untyped form is only for
+//! `atomic_countable`'s own ctor, where the derived type is not known.
+#define KAME_RC_EVT_T(obj, op, oldc, TY) \
+    ::kame_rc_trace::record((obj), (op), (unsigned long long)(oldc), \
+        __builtin_return_address(0), ::kame_rc_trace::type_name_<TY>())
 #define KAME_RC_DTOR_PUSH(obj) \
     ::kame_rc_trace::push_dtor((obj), __builtin_return_address(0))
 #define KAME_RC_DTOR_POP() ::kame_rc_trace::pop_dtor()
 #else
 #define KAME_RC_EVT(obj, op, oldc) ((void)0)
+#define KAME_RC_EVT_T(obj, op, oldc, TY) ((void)0)
 #define KAME_RC_DTOR_PUSH(obj) ((void)0)
 #define KAME_RC_DTOR_POP() ((void)0)
 #endif
@@ -868,7 +892,8 @@ public:
             using Ref = typename local_shared_ptr<T, Z>::Ref;
             m_ref = static_cast<gref_weak_base_ *>(
                 reinterpret_cast<Ref *>(static_cast<uintptr_t>(sp.m_ref)));
-            m_ref->weak_refcnt.fetch_add(1, std::memory_order_acq_rel);
+            KAME_RC_EVT_T(m_ref, kame_rc_trace::OP_WEAK_INC,
+                m_ref->weak_refcnt.fetch_add(1, std::memory_order_acq_rel), T);
             //!< §biased — skippable: taking a weak handle (promotable cross-thread)
             //!< is a publish point, so a biased CB is negated -count→+count here.
             if constexpr (is_biased_directpublish<T>::value) biased_publish_(m_ref->refcnt);
@@ -878,7 +903,8 @@ public:
     //! Copy: straightforward global fetch_add (mirrors local_shared_ptr).
     local_weak_ptr(const local_weak_ptr &o) noexcept : m_ref(o.m_ref) {
         if(m_ref)
-            m_ref->weak_refcnt.fetch_add(1, std::memory_order_acq_rel);
+            KAME_RC_EVT_T(m_ref, kame_rc_trace::OP_WEAK_INC,
+                m_ref->weak_refcnt.fetch_add(1, std::memory_order_acq_rel), T);
     }
 
     local_weak_ptr(local_weak_ptr &&o) noexcept : m_ref(o.m_ref) { o.m_ref = nullptr; }
@@ -909,7 +935,13 @@ public:
     //! derived Ref type for deletion).
     void reset() noexcept {
         if(m_ref) {
+#ifdef KAME_RC_TRACE
+            const unsigned long long _rcw_o =
+                (unsigned long long)m_ref->weak_refcnt.load(
+                    std::memory_order_relaxed);
+#endif
             if(m_ref->weak_refcnt.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+                KAME_RC_EVT_T(m_ref, kame_rc_trace::OP_WEAK_DEAD, 1, T);
                 //!< Select the correct derived gref type for delete.
                 //!< T is complete at this point (deferred template instantiation).
                 if constexpr (ref_traits<T>::is_emplaced) {
@@ -921,6 +953,11 @@ public:
                     Ref::release_weak_zero(static_cast<Ref *>(m_ref));
                 }
             }
+#ifdef KAME_RC_TRACE
+            else {
+                KAME_RC_EVT_T(m_ref, kame_rc_trace::OP_WEAK_DEC, _rcw_o, T);
+            }
+#endif
             m_ref = nullptr;
         }
     }
@@ -1637,8 +1674,8 @@ inline local_shared_ptr<T, reflocal_var_t>::local_shared_ptr(const local_shared_
             // (0xBAADF00D...) or wild — either way a dead object.
             if(_rct_o == 0 || _rct_o >= ((uintptr_t)1 << 48))
                 kame_rc_trace::anomaly(p, kame_rc_trace::OP_INC_FROM_ZERO, _rct_o,
-                    __builtin_return_address(0));
-            KAME_RC_EVT(p, kame_rc_trace::OP_INC, _rct_o);
+                    __builtin_return_address(0), kame_rc_trace::type_name_<T>());
+            KAME_RC_EVT_T(p, kame_rc_trace::OP_INC, _rct_o, T);
         }
 #else
         else p->refcnt.fetch_add(1, std::memory_order_relaxed);
@@ -1660,8 +1697,8 @@ inline local_shared_ptr<T, reflocal_var_t>::local_shared_ptr(const local_shared_
             // (0xBAADF00D...) or wild — either way a dead object.
             if(_rct_o == 0 || _rct_o >= ((uintptr_t)1 << 48))
                 kame_rc_trace::anomaly(p, kame_rc_trace::OP_INC_FROM_ZERO, _rct_o,
-                    __builtin_return_address(0));
-            KAME_RC_EVT(p, kame_rc_trace::OP_INC, _rct_o);
+                    __builtin_return_address(0), kame_rc_trace::type_name_<T>());
+            KAME_RC_EVT_T(p, kame_rc_trace::OP_INC, _rct_o, T);
         }
 #else
         else p->refcnt.fetch_add(1, std::memory_order_relaxed);
@@ -1687,7 +1724,7 @@ local_shared_ptr<T, reflocal_var_t>::reset() noexcept {
     // decreases global reference counter.
 #ifdef KAME_RC_TRACE
     if(unique()) {
-        KAME_RC_EVT(pref, kame_rc_trace::OP_DEAD_UNIQUE, 1);
+        KAME_RC_EVT_T(pref, kame_rc_trace::OP_DEAD_UNIQUE, 1, T);
         pref->refcnt.store(0, std::memory_order_relaxed);
         KAME_RC_DTOR_PUSH(pref);
         this->deleter(pref);
@@ -1698,10 +1735,10 @@ local_shared_ptr<T, reflocal_var_t>::reset() noexcept {
         auto _rct_o = pref->refcnt.fetch_sub(1, std::memory_order_acq_rel);
         if(_rct_o == 0 || _rct_o >= ((uintptr_t)1 << 48))
             kame_rc_trace::anomaly(pref, kame_rc_trace::OP_DEC_UNDERFLOW, _rct_o,
-                __builtin_return_address(0));
-        KAME_RC_EVT(pref,
+                __builtin_return_address(0), kame_rc_trace::type_name_<T>());
+        KAME_RC_EVT_T(pref,
             (_rct_o == 1) ? kame_rc_trace::OP_DEAD : kame_rc_trace::OP_DEC,
-            _rct_o);
+            _rct_o, T);
         if(_rct_o == 1) {
             KAME_RC_DTOR_PUSH(pref);
             this->deleter(pref);
