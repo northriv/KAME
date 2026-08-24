@@ -1791,3 +1791,67 @@ header carries no `seq`, so an extraction that falls back to
 `RC-PRIOR-RELEASE-FAST` measures `DEAD → free` deleter latency (400–3 500
 ticks here) rather than the age, and comes out **negative**.  Take the `seq`
 from the tripwire's own `RC-EV`/`RC-R` line.
+
+### 13.8 Reading the three habitats — habitat 2 eliminated; what the model should say
+
+Per §13.7 the loss is strictly before the free and inside a ~1 µs teardown
+window, so the remaining discrimination is cheaper by reading than by
+measuring.  §13.6's three habitats, read:
+
+**Habitat 2 — writes to published state through the non-const `packet()`
+accessor — ELIMINATED.**  There are exactly two such writes in the tree:
+
+```
+transaction_impl.h:1442  auto newwrapper = make_local_shared<PacketWrapper>(…);
+                  :1444  newwrapper->packet() = subpacket_new;      // not yet published
+                  :1448  if(!scope.compareAndSetWithHint(newwrapper, …)) …  // publishes here
+
+transaction_impl.h:1560  newsubwrapper = make_local_shared<PacketWrapper>(…);
+                  :1561  newsubwrapper->packet() = *pit;            // not yet published
+```
+
+Both write into a wrapper created two lines earlier and published only by a
+later CAS.  The non-const accessor makes the class *expressible* — worth
+tightening on general principle — but neither instance is a write to published
+state.
+
+The adjacent write at `:1445` (`packet->subpackets()->back() = subpacket_new`,
+which is *not* rolled back when the CAS at `:1448` fails) is also safe:
+`packet` comes from `reverseLookup(tr.m_packet, true, tr.m_serial, true)` at
+`:1387` — `copy_branch=true`, so it is this transaction's private clone, and a
+failed CAS discards the whole branch on retry.
+
+**Habitat 1 — torn `lsp<Packet>` copy — narrowed, not eliminated.**  The four
+`snapshot.m_packet = scope->packet()` sites copy from a reference *into* the
+`PacketWrapper` the scoped view holds.  Given habitat 2's result — published
+wrappers are immutable, the only writes to `m_packet` happen pre-publish —
+that source field is stable while the wrapper lives, and the view is what keeps
+it alive.  So a tear there requires the **wrapper** to die under the view,
+which is the wrapper-layer machinery already exonerated by GenMC 1–11 and the
+scope-token TLA+.  This habitat survives only where the copy source is *not* a
+published wrapper: `reverseLookup`'s returned reference and the `PacketList`
+clone (`*foundpacket = make_local_shared<Packet>(**foundpacket)`), which point
+into the packet tree rather than into a wrapper.
+
+**Habitat 3 — `fast_vector<lsp<Packet>>` lifecycle — untouched.**  §10 audited
+it under single-thread semantics only.
+
+So the live surface after reading is: **copies whose source is a slot in the
+packet tree (not in a wrapper), racing a concurrent structural mutation of that
+tree.**
+
+### What §2's model should encode
+
+Version-independent, and it does not need the edge:
+
+> A `Packet`'s strong count is pure `local_shared_ptr<Packet>` copy/reset
+> algebra — there is no `atomic_shared_ptr<Packet>` and no
+> `scoped_atomic_view<Packet>` anywhere in the tree (§13.6, grep-verified).
+> **No `Packet` may be released after its count has reached zero**, and the
+> model must admit the same-thread case (§11.3), the two-distinct-holder shape
+> (Q1, 15/15), and a loss that occurs strictly *before* the free (`drift=+0`,
+> 14/14).
+
+The wrapper layer — tag refs, views, zeroreset, scoped CAS, park/unpark — is
+**out of scope**: it cannot touch a `Packet`'s units, and it is separately
+verified.  That makes the spec smaller than one built around a named edge.
