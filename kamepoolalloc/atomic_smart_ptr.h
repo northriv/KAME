@@ -85,6 +85,16 @@ enum Op : unsigned {
     OP_WEAK_INC,
     OP_WEAK_DEC,
     OP_WEAK_DEAD,       //!< weak count hit zero -> control block freed
+    //! v8 count-NEUTRAL markers: scoped_atomic_view association events.
+    //! §12.4's stale-view sequence begins before any count changes, so the
+    //! establishment itself must leave a trace: VADOPT = an Owned
+    //! association created (move-in ctor / assign_from_local / promote /
+    //! RETAIN reassignment); VMOVE = the association transferred between
+    //! view slots (move ctor / move assign; consume_scoped_view and the
+    //! CASInfo park/unpark ride on these).  For VMOVE the `oldc` field
+    //! carries the SOURCE slot address.
+    OP_VADOPT,
+    OP_VMOVE,
 };
 //! Compile-time type identification: `__PRETTY_FUNCTION__` of a function
 //! template names T, so every traced event can carry the type it belongs
@@ -1287,6 +1297,7 @@ public:
                 asp.release_tag_ref_(p, rcnt);
                 m_pref = p;
                 m_tag_held = false;  // sentinel for Owned
+                KAME_RC_EVT_T(p, kame_rc_trace::OP_VADOPT, 0, T);
             } else {
                 m_pref = p;
                 m_tag_held = true;  // TagHeld
@@ -1311,6 +1322,7 @@ public:
             m_pref = (Ref *)from.m_ref;
             // m_tag_held stays 0 → Owned mode.
             from.m_ref = 0;  // empty out the source
+            KAME_RC_EVT_T(m_pref, kame_rc_trace::OP_VADOPT, 0, T);
         }
     }
 
@@ -1328,6 +1340,7 @@ public:
             m_pref = (Ref *)from.m_ref;
             m_tag_held = false;  // Owned mode
             from.m_ref = 0;  // empty out the source
+            KAME_RC_EVT_T(m_pref, kame_rc_trace::OP_VADOPT, 0, T);
         } else {
             m_pref = nullptr;
             m_tag_held = false;
@@ -1339,6 +1352,9 @@ public:
         : m_asp(other.m_asp), m_pref(other.m_pref),
           m_tag_held(other.m_tag_held),
           m_acquire_succeeded(other.m_acquire_succeeded) {
+        if(m_pref)
+            KAME_RC_EVT_T(m_pref, kame_rc_trace::OP_VMOVE,
+                (unsigned long long)(uintptr_t)&other, T);
         other.m_pref = nullptr;
         other.m_tag_held = false;
         other.m_acquire_succeeded = true;
@@ -1350,6 +1366,9 @@ public:
             m_pref = other.m_pref;
             m_tag_held = other.m_tag_held;
             m_acquire_succeeded = other.m_acquire_succeeded;
+            if(m_pref)
+                KAME_RC_EVT_T(m_pref, kame_rc_trace::OP_VMOVE,
+                    (unsigned long long)(uintptr_t)&other, T);
             other.m_pref = nullptr;
             other.m_tag_held = false;
             other.m_acquire_succeeded = true;
@@ -1543,9 +1562,23 @@ private:
             return m_asp->release_tag_ref_(m_pref, rcnt_now, single_attempt);
         }
         // ptr changed or tag already drained — our +1 is in global.
+#ifdef KAME_RC_TRACE
+        auto _rct_o = m_pref->refcnt.fetch_sub(1, std::memory_order_acq_rel);
+        if(_rct_o == 0 || _rct_o >= ((uintptr_t)1 << 48))
+            kame_rc_trace::anomaly(m_pref, kame_rc_trace::OP_DEC_UNDERFLOW,
+                _rct_o, __builtin_return_address(0),
+                kame_rc_trace::type_name_<T>(),
+                static_cast<const void *>(this));
+        KAME_RC_EVT_T(m_pref,
+            (_rct_o == 1) ? kame_rc_trace::OP_DEAD : kame_rc_trace::OP_DEC,
+            _rct_o, T);
+        if(_rct_o == 1)
+            m_asp->deleter(m_pref);
+#else
         if(m_pref->refcnt.fetch_sub(1, std::memory_order_acq_rel) == 1) {
             m_asp->deleter(m_pref);
         }
+#endif
         return true;
     }
 
@@ -1621,9 +1654,25 @@ private:
                 (void)release_tagheld_zeroreset_(/*single_attempt=*/false);
             } else {
                 // Owned → plain fetch_sub(1) + delete check.
+#ifdef KAME_RC_TRACE
+                auto _rct_o = m_pref->refcnt.fetch_sub(1,
+                    std::memory_order_acq_rel);
+                if(_rct_o == 0 || _rct_o >= ((uintptr_t)1 << 48))
+                    kame_rc_trace::anomaly(m_pref,
+                        kame_rc_trace::OP_DEC_UNDERFLOW, _rct_o,
+                        __builtin_return_address(0),
+                        kame_rc_trace::type_name_<T>(),
+                        static_cast<const void *>(this));
+                KAME_RC_EVT_T(m_pref,
+                    (_rct_o == 1) ? kame_rc_trace::OP_DEAD
+                                  : kame_rc_trace::OP_DEC, _rct_o, T);
+                if(_rct_o == 1)
+                    m_asp->deleter(m_pref);
+#else
                 if(m_pref->refcnt.fetch_sub(1, std::memory_order_acq_rel) == 1) {
                     m_asp->deleter(m_pref);
                 }
+#endif
             }
             m_pref = nullptr;
             m_tag_held = false;
@@ -2140,6 +2189,14 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
                     // from NEWR_ADD at entry provides the Owned ref.
                     if(oldr.m_tag_held) oldr.m_tag_held = false;
                     oldr.m_pref = newr_pref();
+#ifdef KAME_RC_TRACE
+                    if(oldr.m_pref)
+                        kame_rc_trace::record(oldr.m_pref,
+                            kame_rc_trace::OP_VADOPT, 0,
+                            __builtin_return_address(0),
+                            kame_rc_trace::type_name_<T>(),
+                            static_cast<const void *>(&oldr));
+#endif
                     // oldr is now Owned on newr.  Destructor will
                     // release_tag_ref_(newr, 1u) → fetch_sub(1).
                 } else {

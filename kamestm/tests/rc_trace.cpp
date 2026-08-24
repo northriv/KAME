@@ -65,6 +65,7 @@ enum Op : unsigned {  // keep in sync with atomic_smart_ptr.h
     OP_BORN = 1, OP_INC, OP_DEC, OP_DEAD, OP_DEAD_UNIQUE,
     OP_INC_FROM_ZERO, OP_DEC_UNDERFLOW,
     OP_WEAK_INC, OP_WEAK_DEC, OP_WEAK_DEAD,
+    OP_VADOPT, OP_VMOVE,
 };
 static bool is_weak_op_(unsigned op) noexcept {
     return op == OP_WEAK_INC || op == OP_WEAK_DEC || op == OP_WEAK_DEAD;
@@ -81,6 +82,8 @@ static const char *op_name_(unsigned op) noexcept {
     case OP_WEAK_INC: return "wINC (weak_refcnt)";
     case OP_WEAK_DEC: return "wDEC (weak_refcnt)";
     case OP_WEAK_DEAD: return "wDEAD (weak_refcnt)";
+    case OP_VADOPT: return "VADOPT (view association)";
+    case OP_VMOVE: return "VMOVE (rc_before=src slot)";
     default: return "????";
     }
 }

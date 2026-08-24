@@ -1277,3 +1277,68 @@ contracts**, not an emergent property of the protocol design.
 The two **open** rows plus a surviving v7 `RC-RECENT` capture are the
 remaining moves.  A capture that names the deviating op empirically ends it;
 failing that, the checklist is short enough to close by inspection.
+
+### 13.1 The §12.4 seam, audited by hand — and v8: association markers
+
+**Bulk TagHeld release (`release_tagheld_zeroreset_` + `release_tag_ref_`)
+audited across interleavings.**  §13's model idealised the tag release as a
+per-unit decrement; the implementation is a BULK protocol (pre-pay the other
+`rcnt−1` pinners into global, then drain the whole word).  Hand-checked
+cases, each netting exactly −1 for the releaser: (A) unchanged word, full
+drain; (B) new acquires between read and drain (min() leaves them); (C) a
+concurrent drainer shrank the word (excess-undo `fetch_sub(added−drained)`);
+(D) pointer swapped with CASTransfer (full global undo); (E) two concurrent
+zeroresets on the same word (second sees rcnt=0, undoes its own pre-pay +
+releases via global); (F) swap-with-transfer between pre-pay and drain.
+All conserve, GIVEN `release_tag_ref_`'s excess-undo delete-check
+(`d93fc7de`).  This closes §13's "promote/release composition" open row by
+inspection and discharges the dossier's 🟡7/🟡8 concern for these callers.
+
+**The scoped-CAS Owned/TagHeld discrimination is present and correct.**
+`compareAndSet_impl_`'s success path selects `sub = 2` for TagHeld (m_ref
+share + tag share) and for Owned+RETAIN (m_ref share + the view's old +1,
+since the view is reassigned to newr), `sub = 1` for plain Owned — and its
+comment records a FIXED past bug of exactly the class we are hunting
+("without this, OLD pref's refcnt leaks +1 per Owned-RETAIN call ... appears
+at low LOCAL_REF_CAPACITY").  step4 = +T for SCOPED balances in both the
+ABSORBED and DRAINED cases.  One stale comment found: the OldrT dispatch
+header still says "SCOPED ... step4 = +(T−1)" — the implementation uses +T
+with the sub-side discrimination; the block comment at the step-4 site is
+the accurate one.  (This resolves the §12.3-era S6b comment contradiction:
+it was doc drift, not two sub-cases.)
+
+So every path §12.4 pointed at reads clean, three formal layers pass, and
+yet the stale view exists at n=2.  The remaining blind spot is EXACTLY the
+part with no events: zero-atomic transfers and view establishment are
+count-neutral, so the tracer never sees them, and Q2inc=0 because the
+16-event window opens long after the association was created.
+
+**v8 therefore adds count-neutral association markers:**
+
+- `VADOPT` — an Owned association is created: the lsp move-in ctor,
+  `assign_from_local` (= `set_view`), the acquire-ctor promote, and the
+  RETAIN_NEWR reassignment inside `compareAndSet_impl_`.  **The ADOPT site
+  distinguishes the two §12.4 candidates directly** (promote vs
+  set_view/lsp hand-off).
+- `VMOVE` — the association transfers between view slots (move ctor / move
+  assign; `consume_scoped_view` and the CASInfo park/unpark ride on these).
+  The event's `rc_before` field carries the SOURCE slot address, so the
+  custody chain `ADOPT → VMOVE → ... → CASInfo → release` is
+  reconstructable from a single capture.  Smoke-verified: a three-hop
+  chain reads back exactly, each hop naming its source slot.
+
+Also in v8: the branch's tracer now hooks `scoped_atomic_view`'s own
+release paths (`release_()` Owned branch and `release_tagheld_zeroreset_`'s
+global-fallback branch) with the same threshold tripwires, `slot` = the
+view address.  §11.5/§12.4's captures show view-address slots, so the
+Ubuntu binary evidently carries equivalent local hooks — with this commit
+the branch is self-sufficient and the two tracers agree on coverage.
+
+**Reading the next capture**: for the underflowing object, the `RC-R` /
+`RC-EV` history now contains its views' `VADOPT` (with site: promote vs
+set_view) and every `VMOVE` hop.  A stale CASInfo view's chain ending in an
+ADOPT whose object address was REBORN in between is the §12.4 sequence with
+the origin attached — that names the deviating code path, and the hunt
+ends there.  (Rate caveat as in §12.4: marker events add record-path work
+on snapshot/bundle hot paths; do not compare shape statistics with earlier
+tracer versions.)
