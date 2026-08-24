@@ -1147,6 +1147,71 @@ The invariant is the only version-independent statement.  The next batch's
 `RC-RECENT` blocks should be read for Q2/Q3 answers, not for a new dominant
 shape.
 
+### 12.4 v7 batch — Q3 confirmed at n=2, and the stale-view sequence
+
+Ubuntu x86-64 / g++ 15.2, v7, chains on, 32/40 threads, `100 <thr> 700`.
+**60 runs → 8 captures.**  v7 is markedly slower per run (~3 min vs ~40 s for
+v6), which is itself worth recording: the instrument importance-samples the
+interleaving harder at each version, so shape statistics from this batch are
+not comparable across versions — read `RC-RECENT` for Q2/Q3 only, per §12.3.
+
+| capture | op | depth | tid | rec | Q2 | dtor off |
+|---|---|---|---|---|---|---|
+| rc7_4 | DEC-UNDERFLOW | **1** | cross | 17 | 0 | **+16** |
+| rc7_17 | DEC-UNDERFLOW | 0 | same | 17 | 1 | — |
+| rc7_19 | DEC-UNDERFLOW | 4 | same | 17 | 0 | (slot not inside) |
+| rc7_31 | INC-FROM-ZERO | 0 | cross | 51 | 3 | — |
+| rc7_34 | INC-FROM-ZERO | 0 | cross | 17 | 1 | — |
+| rc7_40 | DEC-UNDERFLOW | 0 | same | 17 | 1 | — |
+| rc7_46 | DEC-UNDERFLOW | 0 | same | 17 | 1 | — |
+| rc7_51 | INC-FROM-ZERO | 0 | cross | 6 | 2 | — |
+
+**Q1: `DIFF` 8/8** — with §11.5's 7/7 that is **15/15**, two holders every time.
+
+**Q3: confirmed, n=2.**  `rc7_4` is structurally identical to `rc6_34`:
+
+```
+RC-DTOR [0] obj=0x7fffcec1fa70 → CASInfo::~CASInfo()  transaction.h:1386
+                                 in fast_vector<CASInfo,32>::clear_fixed()
+ANOM.slot  = 0x7fffcec1fa80    = CASInfo + 16 = CASInfo::old_wrapper
+PRIOR.slot = 0x7fffdaff6330    = ~scoped_atomic_view<PacketWrapper>()
+                                 in Node::snapshot()  transaction_impl.h:2241
+```
+
+Across 120 runs these are the **only two captures with `dtor_depth > 0`**, and
+both name the same member.  Both cross-thread, both with the poison as
+`rc_before`.
+
+**The sequence, from `rc7_4`'s recent block (chronological, last three):**
+
+```
+BORN          rc->1    tid=...251  slot=(nil)            <- the address is RE-BORN
+DEAD(unique)  1->0     tid=...253  slot=…6330            <- snapshot():2241's view frees it
+DEC-UNDERFLOW poison   tid=...251  slot=CASInfo+16       <- old_wrapper releases
+```
+
+`CASInfo::old_wrapper` releases an object **born after its own view was
+established**, which then died at the hands of a *different* view.  That is
+`DEAD → BORN → stale release`: the view **outlived its target**, rather than
+sharing a count with it.  `Q2inc=0` for this capture is consistent — the
+CASInfo slot has no `INC` inside the 16-event window because its view was
+installed before the window opened.
+
+**Consequence for §12.3's audit.**  This does not contradict the finding that
+`consume_scoped_view()` → `emplace_back` → move-in-ctor are each clean.  It
+says the `CASInfo` view is the **second releaser and the victim**: it holds a
+`+1` that was not, or is no longer, backed by the target.  The remaining
+unaudited seam §12.3 names — **where the `+1` entered `parent_scope`
+(`set_view()` / the scoped-acquire path)** — is where a view could come to
+hold a reference that does not keep its target alive.  That is now the single
+most specific place to look, and it is reachable by reading code rather than
+by more runs.
+
+**Caveat**: n=2 for Q3, and both are the cross-thread `depth=1` shape.  The
+`depth=4` same-thread cascade of §11.4 is *not* represented among the
+container-knowable captures, so it is not established that both shapes share
+this mechanism.
+
 ## 13. TLA+ scope-token model — the protocol is exonerated; hunt the departure
 
 `kamestm/tests/tlaplus/atomic_shared_ptr_scopetoken.tla` + 6 cfgs.  Models
