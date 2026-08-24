@@ -2063,3 +2063,61 @@ the 60-run batch.
   cheap) → the "benign" counter race was load-bearing after all, and the
   mechanism to write up is optimizer treatment of the racy `++` in the
   cloned commit path.
+
+### 13.13 Where does the anomaly sit on the POOL's timeline?  (asked, and
+### until now unmeasurable — plus a reconciliation the record needs)
+
+The user asked: what is the temporal relation between the anomalies and
+the pool's batch processing / chunk claim & release — unrelated, or right
+after?  Honest answer from the existing record:
+
+- **Chunk-CACHE reuse is already refuted** by §5's ablation (chunk cache
+  disabled: 13/30 vs control 12/31).
+- **`drift=+0` (14/14)** says the block was never re-handed-out between
+  the free and the stale op — so the stale op is NOT "right after a
+  re-allocation" of that block.
+- **Ages ~0.1–1.8 µs** are far below chunk-lifecycle timescales
+  (release needs a fully-empty chunk + madvise) but exactly at slot-batch
+  timescales (cross-thread flush, L1→bitmap batch returns, BMWIN claims).
+- Beyond that, **nothing is known**: no instrument has ever recorded pool
+  batch/chunk events, and the free-side call chains terminate ABOVE the
+  pool internals by construction.  The question was unmeasurable.
+
+**A reconciliation §13.11 needs**: promoting H1 (genuine miscompile) sits
+uneasily with §5's own earlier retraction — "`-fipa-cp-clone` is a
+miscompile" was withdrawn there, with the flag reclassified as an
+ACCELERATOR that "changes what the freed Packet's memory contains when
+the stale read happens" (same mmap/munmap counts, same wall time).  A
+TSan-clean, model-clean codebase whose failure rate depends on the
+CONTENT of freed memory points at a third reading alongside H1/H2:
+**somewhere upstream there is a read of freed memory whose consequences
+depend on what it finds** — the count corruption would then be a
+second-order effect of a first-order stale READ, and the flag merely
+changes how often the read finds something plausible.  Note who writes
+into freed memory as a matter of course: the pool itself (L1 freelist
+links, §13.4 — and with the old constant poison an L1-listed block's
+word 0 was a valid-looking heap pointer).  Slot-level double hand-out
+(the BMWIN class, f104768b) is also NOT excluded by the chunk-cache
+ablation.
+
+**New instrument** (this commit): the pool now records a 4096-entry
+timeline of its lifecycle events on the same clock as the free records —
+`CHUNK-ALLOC`, `CHUNK-RECYCLE` (LRC cache claim), `CHUNK-RELEASE`,
+`BATCH-RETURN` (per-chunk bitmap batch), `DLL-DRAIN` (owner exit),
+`CROSS-FLUSH` (cross-thread free batch, with entry count) — exported as
+`kame_pool_recent_events()`, and the anomaly raw phase prints the 12
+newest as `RC-POOLEV` lines with per-event `age_tsc` and a
+`SAME-UNIT` tag when the event's address falls in the anomaly object's
+256 KiB unit.  (Also fixed: age computations now use a dedicated
+wall-clock helper — on arm64 `Ev.seq` is a plain counter and must not be
+differenced against the allocator's cntvct.)
+
+Verified on Mac: pool ctest 18/18 under the flag, tmin 3× clean,
+RC-POOLEV renders with sane ages in the tripwire smoke.
+
+**Ubuntu**: the next batch (from this commit) answers the question
+directly — for each capture, read the RC-POOLEV block: CROSS-FLUSH /
+BATCH-RETURN with SAME-UNIT tags inside the free→stale window (≲ 6 000
+ticks) mean the anomaly rides the batch machinery; an empty/far timeline
+means the pool is a bystander and the §13.12 causal test + noipa bisect
+continue on the STM side.

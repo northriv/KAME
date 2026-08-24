@@ -650,6 +650,55 @@ thread_local AllocThreadExitCleanup tls_alloc_thread_exit_cleanup;
 // CAP=16 chosen by the earlier sweep (HWM trade-off — see git log).
 // Re-tune-able now that the O(n) impl removes the throughput cost
 // curve.
+#ifdef KAME_POISON_FORENSIC
+// ===================================================================
+// §13.13 pool-event timeline (debug only; see kame_poison_forensic.h).
+#include "kame_poison_forensic.h"
+namespace {
+constexpr std::uint32_t KAME_POOLEV_RING = 4096;
+kame_poolev g_poolevs[KAME_POOLEV_RING];
+std::atomic<std::uint32_t> g_poolev_next{0};
+std::atomic<std::uint32_t> g_poolev_tid_next{0};
+inline std::uint32_t poolev_tid_() noexcept {
+    static thread_local std::uint32_t tid =
+        g_poolev_tid_next.fetch_add(1, std::memory_order_relaxed) + 1;
+    return tid;
+}
+inline unsigned long long poolev_tsc_() noexcept {
+#if defined(__x86_64__)
+    return __builtin_ia32_rdtsc();
+#elif defined(__aarch64__)
+    unsigned long long v;
+    asm volatile("mrs %0, cntvct_el0" : "=r"(v));
+    return v;
+#else
+    return 0;
+#endif
+}
+inline void poolev_(std::uint16_t kind, const void *addr,
+    unsigned long long aux) noexcept {
+    std::uint32_t i = g_poolev_next.fetch_add(1, std::memory_order_relaxed);
+    kame_poolev &e = g_poolevs[i % KAME_POOLEV_RING];
+    e.tsc = poolev_tsc_();
+    e.addr = addr;
+    e.aux = aux;
+    e.tid = poolev_tid_();
+    e.kind = kind;
+}
+} // namespace
+extern "C" __attribute__((noinline, used))
+unsigned kame_pool_recent_events(kame_poolev *out, unsigned max) {
+    std::uint32_t n = g_poolev_next.load(std::memory_order_relaxed);
+    unsigned c = 0;
+    for(std::uint32_t k = n; k != 0 && c < max && (n - k) < KAME_POOLEV_RING; --k)
+        out[c++] = g_poolevs[(k - 1) % KAME_POOLEV_RING];   // racy copy: debug
+    return c;
+}
+#define KAME_POOLEV(kind, addr, aux) poolev_((kind), (addr),     (unsigned long long)(uintptr_t)(aux))
+#else
+#define KAME_POOLEV(kind, addr, aux) ((void)0)
+#endif // KAME_POISON_FORENSIC
+
 struct CrossDeallocBatch {
     // FS=true-only small-slot batch (FS=false bypasses
     // cross-batch entirely in its `deallocate_pooled` — see that
@@ -778,6 +827,7 @@ struct CrossDeallocBatch {
     // simply drop it there — the slots are still returned to the bitmap.
     void flush(bool at_teardown = false) noexcept {
         if(count == 0) return;
+        KAME_POOLEV(KAME_PEV_CROSS_FLUSH, buf[0].chunk, count);
         // Sort by (chunk, slot) lex — chunk primary key for grouping,
         // slot pointer secondary key so each chunk run is pointer-
         // ascending (= m_flags-word-ascending).  std::sort introsort,
@@ -1993,6 +2043,7 @@ template <unsigned int ALIGN, bool DUMMY>
 int
 PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
     const CrossDeallocEntry *entries) noexcept {
+	KAME_POOLEV(KAME_PEV_BATCH_RETURN, this, entries[0].slot);
 	// Walk entries[k] while .chunk == this — terminates on the next
 	// chunk's group OR the trailing {nullptr, nullptr} sentinel that
 	// `CrossDeallocBatch::flush` plants at buf[count].  No `k < n_max`
@@ -2154,6 +2205,7 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 int
 PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
     const CrossDeallocEntry *entries) noexcept {
+	KAME_POOLEV(KAME_PEV_BATCH_RETURN, this, entries[0].slot);
 	// Walks entries[k] while .chunk == this — sentinel-terminated, no
 	// length argument; see the FS=false sibling for the full rationale
 	// and the contract with `CrossDeallocBatch::flush`.
@@ -2515,6 +2567,7 @@ PoolAllocatorBase::allocate_chunk() {
 		    addr + ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET) =
 		    &ALLOC::size_of_static;
 		writeBarrier();
+		KAME_POOLEV(KAME_PEV_CHUNK_ALLOC, palloc, CHUNK_SIZE);
 		return palloc;
 	};
 
@@ -2530,6 +2583,7 @@ PoolAllocatorBase::allocate_chunk() {
 	// re-stamp back_off to the bucket tag (0) before constructing.
 	if(char *cached = large_recycle_pop(CHUNK_SIZE, LRC_CHUNK)) {
 		restamp_back_offset(cached, CHUNK_SIZE, /*back_off_flag=*/0u);
+		KAME_POOLEV(KAME_PEV_CHUNK_RECYCLE, cached, CHUNK_SIZE);
 		return construct_chunk_at(cached);
 	}
 
@@ -3099,6 +3153,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::cross_release(PoolAllocator * /*palloc*/) {
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void
 PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
+	KAME_POOLEV(KAME_PEV_DLL_DRAIN, nullptr, 0);   // static fn: per-thread owner-exit drain
 	// Walk this thread's DLL with cached-next.  For each chunk:
 	//   empty (count == 0) → CAS BIT_RELEASED, then delete + deallocate_chunk.
 	//   non-empty           → CAS BIT_OWNER_EXITED, then drop reference.
@@ -3291,6 +3346,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 inline void
 PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
                                     bool reclaim_pages) {
+	KAME_POOLEV(KAME_PEV_CHUNK_RELEASE, chunk_base, chunk_size);
 	// Release sequence (multi-unit aware):
 	//   1. chunk_header.palloc / size_info = 0 (plain).  palloc == 0 is
 	//      the "released" signal a lookup-from-slot reads (foreign

@@ -65,7 +65,30 @@ struct kame_freerec {
     std::uint32_t nret;
 };
 
+/* Pool-lifecycle event (§13.13): chunk claims/releases and slot-batch
+ * operations, on the same rdtsc clock as kame_freerec.tsc and the
+ * tracer's Ev.seq, so an anomaly can be placed on the pool's own
+ * timeline ("unrelated, or right after a batch drain?"). */
+struct kame_poolev {
+    unsigned long long tsc;
+    const void *addr;           /* chunk base / PoolAllocator / first slot */
+    unsigned long long aux;     /* kind-specific (size, first slot, ...) */
+    std::uint32_t tid;
+    std::uint16_t kind;
+};
+enum : std::uint16_t {
+    KAME_PEV_CHUNK_ALLOC   = 1,  /* addr=chunk PoolAllocator, aux=chunk size */
+    KAME_PEV_CHUNK_RECYCLE = 2,  /* addr=chunk PoolAllocator (recycled claim) */
+    KAME_PEV_CHUNK_RELEASE = 3,  /* addr=chunk_base, aux=chunk_size */
+    KAME_PEV_BATCH_RETURN  = 4,  /* addr=chunk PoolAllocator, aux=first slot */
+    KAME_PEV_DLL_DRAIN     = 5,  /* addr=chunk PoolAllocator (owner exit) */
+    KAME_PEV_CROSS_FLUSH   = 6,  /* addr=first chunk, aux=entry count */
+};
+
 extern "C" {
+/* Copy the newest events (newest first) into out; returns the count. */
+unsigned kame_pool_recent_events(struct kame_poolev *out, unsigned max);
+
 /* Decode a poisoned word.  Returns 1 and fills *out when `word` carries
  * the forensic tag and its ring record is still live (not overwritten);
  * 0 otherwise.  Exported by the allocator only when built with

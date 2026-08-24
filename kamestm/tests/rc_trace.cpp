@@ -67,16 +67,47 @@ static inline unsigned long long rc_trace_seq_() noexcept {
 // thread's ring init (NOT in the anomaly path).
 #include "kame_poison_forensic.h"
 typedef int (*kame_poison_decode_fn)(unsigned long long, kame_freerec *);
+typedef unsigned (*kame_poolev_fn)(kame_poolev *, unsigned);
 static std::atomic<kame_poison_decode_fn> g_poison_decode{nullptr};
+static std::atomic<kame_poolev_fn> g_poolev_fn{nullptr};
 static void resolve_poison_decode_() noexcept {
 #if defined(__unix__) || defined(__APPLE__)
     static std::atomic<bool> once{false};
     bool f = false;
-    if(once.compare_exchange_strong(f, true))
+    if(once.compare_exchange_strong(f, true)) {
         g_poison_decode.store(reinterpret_cast<kame_poison_decode_fn>(
             dlsym(RTLD_DEFAULT, "kame_poison_decode")),
             std::memory_order_release);
+        g_poolev_fn.store(reinterpret_cast<kame_poolev_fn>(
+            dlsym(RTLD_DEFAULT, "kame_pool_recent_events")),
+            std::memory_order_release);
+    }
 #endif
+}
+//! Wall clock matching kame_freerec.tsc / kame_poolev.tsc: rdtsc on x86
+//! (same as Ev.seq there), cntvct on arm64 (where Ev.seq is only a
+//! counter and must NOT be differenced against the allocator's tsc).
+static inline unsigned long long rc_wallclock_() noexcept {
+#if defined(__x86_64__)
+    return __rdtsc();
+#elif defined(__aarch64__)
+    unsigned long long v;
+    asm volatile("mrs %0, cntvct_el0" : "=r"(v));
+    return v;
+#else
+    return 0;
+#endif
+}
+static const char *poolev_name_(unsigned k) noexcept {
+    switch(k) {
+    case KAME_PEV_CHUNK_ALLOC:   return "CHUNK-ALLOC  ";
+    case KAME_PEV_CHUNK_RECYCLE: return "CHUNK-RECYCLE";
+    case KAME_PEV_CHUNK_RELEASE: return "CHUNK-RELEASE";
+    case KAME_PEV_BATCH_RETURN:  return "BATCH-RETURN ";
+    case KAME_PEV_DLL_DRAIN:     return "DLL-DRAIN    ";
+    case KAME_PEV_CROSS_FLUSH:   return "CROSS-FLUSH  ";
+    default: return "?????";
+    }
 }
 
 namespace kame_rc_trace {
@@ -834,7 +865,7 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
                     "tsc=%llu age_tsc=%llu drift=%+d frames=%u %p %p %p %p\n",
                     fr.ptr, fr.ptr == obj ? " (=obj)" : " (DIFFERENT from obj!)",
                     (unsigned long long)fr.size, fr.tid, fr.tsc,
-                    rc_trace_seq_() - fr.tsc,
+                    rc_wallclock_() - fr.tsc,
                     (int)(oldc & 0xFFFFu) - (int)KAME_POISON_PAD, fr.nret,
                     fr.nret > 0 ? fr.ret[0] : nullptr,
                     fr.nret > 1 ? fr.ret[1] : nullptr,
@@ -847,6 +878,23 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
                 raw_line_("RC-FREEREC tag matched, no kame_poison_decode in "
                     "process (plain-poison allocator)\n");
             }
+        }
+        // §13.13: the pool's own timeline around the anomaly.  age_tsc is
+        // (now - event); SAME-UNIT marks events in the anomaly object's
+        // 256 KiB unit (ALLOC_MIN_CHUNK_SHIFT = 18) -- chunk-level identity
+        // without needing the allocator to export chunk_of().
+        if(kame_poolev_fn pf = g_poolev_fn.load(std::memory_order_acquire)) {
+            kame_poolev evs[12];
+            unsigned n = pf(evs, 12);
+            unsigned long long now = rc_wallclock_();
+            for(unsigned i = 0; i < n; ++i) {
+                raw_line_("RC-POOLEV %s addr=%p aux=%llu tid=%u age_tsc=%llu%s\n",
+                    poolev_name_(evs[i].kind), evs[i].addr,
+                    evs[i].aux, evs[i].tid, now - evs[i].tsc,
+                    (((uintptr_t)evs[i].addr >> 18) == ((uintptr_t)obj >> 18))
+                        ? "  <== SAME-UNIT as obj" : "");
+            }
+            if(!n) raw_line_("RC-POOLEV (none recorded)\n");
         }
         if(chain_enabled_()) {
             const void *ch[CHAIN_N];
