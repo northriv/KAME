@@ -789,3 +789,51 @@ one call chain) or different ones (two owners both believing they hold the
 last reference), and its `site` — treated as a hint, per §11.2, until a second
 capture agrees — says through which edge.  Those two lines close the
 attribution; everything after them is corroboration.
+
+### 11.3 v4 batch — 40 runs, 9 captures: double release of a `Packet`, mostly same-thread
+
+Ubuntu x86-64 / g++ 15.2, v4 tracer, **poisoned** `.so`, abort-mode,
+`./tmin_v4 100 24 950`, ASLR off, `KAME_RC_TRACE_FILE` per run.
+40 runs → 9 captures.  The two-stage raw sink worked: every capture kept both
+`RC-ANOMALY` and `RC-PRIOR-RELEASE-FAST`, including runs that died mid-dump.
+
+Using only the fields §11.2 marks trustworthy:
+
+| field | result |
+|---|---|
+| `type` | **9/9 `Transactional::Node<LongNode>::Packet`** |
+| prior release is the true freeing op (`DEAD(unique)`, `rc_before=1`) | 7/9 |
+| prior release on the **same tid** as the anomaly | **6/9** |
+| `dtor_depth` | 0 ×5, 1 ×1, 2 ×1, 4 ×2 |
+| innermost site symbol | **scatters** (see below) |
+
+The other 2/9 report `prior = DEC 2→1` on a different tid — there the fast
+cache's last-traced DEC is simply not the freeing op, so they neither
+corroborate nor contradict.
+
+**Conclusion**
+
+> A `Packet` is released twice, and in 6 of 9 captures the second release is
+> on the **same thread** as the genuine `DEAD(unique) 1→0`.  That is a double
+> release inside one call chain, not two owners racing for the last reference.
+
+**The edge still cannot be named.** Innermost symbols across the nine:
+`fast_vector::clear_fixed` ×3, `bundle` ×2, `local_weak_ptr<Linkage>::reset`
+×2, `atomic_shared_ptr_base::deleter`, `~local_shared_ptr<Packet>`.  An
+earlier reading of this batch (`reverseLookup:1808` → `~PacketList_`) was
+drawn from one capture and does **not** survive the other eight — the exact
+failure mode §11.2 predicts for site strings at `-O3`.  Recorded here so it is
+not re-derived.
+
+So §2's model should encode the invariant, now stated more precisely than in
+§11.1:
+
+> **No `Packet` may be released after its reference count has already reached
+> zero** — and the model must admit the same-thread case, since that is the
+> majority shape, rather than only the cross-thread race.
+
+**Instrumentation status: sufficient.**  v4 answers what it was built to
+answer.  Naming the source edge would need something site-strings cannot give
+at `-O3` — a captured call chain (e.g. a few frames of return addresses
+recorded at `DEAD` and at the anomaly, resolved offline) — and that is only
+worth building if the model cannot be closed without it.
