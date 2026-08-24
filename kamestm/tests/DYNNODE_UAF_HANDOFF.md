@@ -1724,3 +1724,17 @@ The defect is the DEC whose slot is NOT the slot that INC'd that unit —
 with Q2 (the stale wrapper's INC is visible) that pair is the edge, and
 the VADOPT/VMOVE custody on the same history names who was holding the
 wrapper when it happened.
+
+**arm64 control, now instrumentation-robust (Mac, 2026-08-25).**  §13.5
+established that the old poison's silence cannot be read as clean — so the
+historical "arm64 never reproduces" needed re-basing on the blind-spot-free
+build.  Done: 200 runs × 40 threads, `-O3` on both the forensic `.so`
+(Release + `KAME_POISON_FORENSIC`) and the test, tracer v9+v10+age —
+**200/200 pass, zero tripwires** (the anomaly log was never created).
+Against Ubuntu's 37 %/run on the same tracer generation, P(0/200) under
+that rate is ~10⁻⁴⁰; even a 1.5 %/run arm64 rate is rejected at 95 %.
+The fault needs something x86-64/g++ provides — the §4 `-O3` /
+`-fno-ipa-cp-clone` codegen switch remains the strongest lever we have on
+that axis — and arm64's weaker memory ordering does NOT summon it, which
+argues against a plain missing-barrier reading and toward codegen
+(store/load elision, cloning) or allocator address-pattern timing.
