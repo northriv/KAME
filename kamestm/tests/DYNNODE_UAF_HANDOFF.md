@@ -1738,3 +1738,56 @@ The fault needs something x86-64/g++ provides — the §4 `-O3` /
 that axis — and arm64's weaker memory ordering does NOT summon it, which
 argues against a plain missing-barrier reading and toward codegen
 (store/load elision, cloning) or allocator address-pattern timing.
+
+### 13.7 The age distribution — computed from the existing captures, no re-run
+
+§13.6's observation that `Ev.seq` and `kame_freerec.tsc` share the x86 `rdtsc`
+clock makes `free → stale op` computable from the §13.5 captures directly.
+Host: i5-7500, TSC base **3.40 GHz** (invariant TSC; the 3701 MHz in
+`/proc/cpuinfo` is the current core clock, not the TSC rate — the conversion
+below uses 3.4).
+
+| capture | ticks | age |
+|---|---|---|
+| rcA_42 | 258 | 0.08 µs |
+| rcA_35 | 290 | 0.09 µs |
+| rcA_54 | 532 | 0.16 µs |
+| rcA_27 | 998 | 0.29 µs |
+| rcA_10 | 1 108 | 0.33 µs |
+| rcA_38 | 1 138 | 0.33 µs |
+| rcA_32 | 2 372 | 0.70 µs |
+| rcA_29 | 2 796 | 0.82 µs |
+| rcA_51 | 3 436 | 1.01 µs |
+| rcA_49 | 3 960 | 1.16 µs |
+| rcA_22 | 5 870 | 1.73 µs |
+| rcA_25 | 5 932 | 1.74 µs |
+| rcA_2 | 6 036 | 1.78 µs |
+| rcA_48 | 14 506 | 4.27 µs |
+| rcA_47 | 462 048 | **135.9 µs** |
+
+**13 of 15 under 2 µs, median ≈ 1.0 µs.**  By §13.6's discriminator that is
+the **torn-copy class — the stale op racing the same teardown** — not a
+long-parked wrapper handed around a custody chain.  The distribution is
+single-peaked with one clear outlier (rcA_47, 136 µs) and one intermediate
+(rcA_48, 4.3 µs); it is not bimodal.
+
+Reading this against §13.6's three remaining habitats, all of which are plain
+`lsp<Packet>` algebra since no `asp<Packet>` or `view<Packet>` exists in the
+tree:
+
+1. **torn `lsp` copy** — consistent with the whole distribution;
+2. **writes to published state** (`newwrapper->packet() = …`, the non-const
+   accessor) — also sub-µs, not separable by age alone;
+3. **`fast_vector<lsp<Packet>>` lifecycle** — would need the copy to race a
+   container operation, again sub-µs.
+
+So age narrows to "racing the teardown" and rules the custody class *out* for
+13/15, but does not separate (1)–(3) from each other.  What would: the
+slot-pair audit §13.6 prescribes — in a `Packet`'s history, find the `DEC`
+that consumes a unit its own slot never `INC`ed.
+
+A methodological note, since it cost a wrong table above: the `RC-ANOMALY`
+header carries no `seq`, so an extraction that falls back to
+`RC-PRIOR-RELEASE-FAST` measures `DEAD → free` deleter latency (400–3 500
+ticks here) rather than the age, and comes out **negative**.  Take the `seq`
+from the tripwire's own `RC-EV`/`RC-R` line.
