@@ -1106,8 +1106,14 @@ and emits them as `RC-RECENT`/`RC-R` lines **immediately after the header and
 prior-release line, before anything that scans**.  16 events cover Q2 (the
 matching `INC` with its slot) and the `DEAD → BORN` rebirth signature.  The
 slow post-scan dump is additionally capped to the newest 40 events
-(`KAME_RC_TRACE_FULL=1` restores all).  Crash-race verified: 3/3 runs kept
-header + prior + the full `RC-R` block.
+(`KAME_RC_TRACE_FULL=1` restores all).  Crash-race result, honestly: of the
+final 3 runs, **2 kept header + prior + the full `RC-R` block; 1 kept
+nothing at all** — zero lines including the header, which is consistent with
+the peer's SIGSEGV landing before the tripwire's first `write(2)` (a capture
+that never started, which no output ordering can fix), but it caps what this
+mechanism can promise: it protects captures that begin, it cannot create
+ones that don't.  (The pushed commit message says "3/3"; this paragraph is
+the correction.)
 
 **The three §11.5-named transfer points, audited (Mac, branch tip).**  If
 Q3's shape is real, one of the zero-atomic transfers must leave both ends
