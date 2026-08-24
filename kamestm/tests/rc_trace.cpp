@@ -317,10 +317,38 @@ static Recent g_recent[LASTREL_SLOTS];
 static std::atomic<unsigned long long> g_writes{0};
 static std::atomic<unsigned> g_wrapped_rings{0};
 
+//! Per-op global tallies (relaxed).  Two consumers: the anomaly raw header
+//! prints the marker counts so every capture proves the v8 markers were
+//! alive in that binary/run (handoff Â§13.2 -- "adopt=0 vmove=0 in the
+//! whole file" must be distinguishable from "markers never fired"), and
+//! KAME_RC_TRACE_STATS=1 prints the full tally at exit even without an
+//! anomaly.
+static constexpr unsigned TALLY_N = 32;
+static std::atomic<unsigned long long> g_op_tally[TALLY_N];
+
+static void op_tally_exit_() {
+    fprintf(stderr, "\n==== kame_rc_trace op tally ====\n");
+    for(unsigned i = 1; i < TALLY_N; ++i) {
+        unsigned long long v = g_op_tally[i].load(std::memory_order_relaxed);
+        if(v) fprintf(stderr, "  %-28s %llu\n", op_name_(i), v);
+    }
+    fflush(stderr);
+}
+static void register_stats_() noexcept {
+    static std::atomic<bool> once{false};
+    bool f = false;
+    if(once.compare_exchange_strong(f, true)) {
+        const char *e = getenv("KAME_RC_TRACE_STATS");
+        if(e && e[0] && e[0] != '0') atexit(op_tally_exit_);
+    }
+}
+
 void record(const void *obj, unsigned op, unsigned long long oldc,
     const void *site, const char *tname, const void *slot) noexcept {
+    if(op < TALLY_N) g_op_tally[op].fetch_add(1, std::memory_order_relaxed);
     TL &t = tl;
     if(!t.ring) {
+        register_stats_();
         t.ring = g_rings[g_ring_next.fetch_add(1, std::memory_order_relaxed)
                          % MAX_RINGS];
         t.tid = rc_trace_tid_();
@@ -535,7 +563,8 @@ extern "C" void kame_rc_dump(const void *obj) {
     raw_prior_release_(obj, n);
     raw_events_(obj, n);
     // Ledger, split strong vs weak (they are different counters).
-    unsigned born=0, dead=0, inc=0, dec=0, winc=0, wdec=0, wdead=0, trip=0;
+    unsigned born=0, dead=0, inc=0, dec=0, winc=0, wdec=0, wdead=0, trip=0,
+        mark=0;
     const char *ty = nullptr;
     for(unsigned i = 0; i < n; ++i) {
         switch(out[i].op) {
@@ -546,6 +575,7 @@ extern "C" void kame_rc_dump(const void *obj) {
         case OP_WEAK_INC: ++winc; break;
         case OP_WEAK_DEC: ++wdec; break;
         case OP_WEAK_DEAD: ++wdead; break;
+        case OP_VADOPT: case OP_VMOVE: ++mark; break;   // count-neutral
         default: ++trip; break;
         }
         if(!ty && out[i].tname) ty = out[i].tname;
@@ -556,8 +586,8 @@ extern "C" void kame_rc_dump(const void *obj) {
     fprintf(stderr, "  type: ");
     print_type_(ty);
     fprintf(stderr, "\n  ledger: strong BORN %u / DEAD %u / INC %u / DEC %u"
-        "   weak wINC %u / wDEC %u / wDEAD %u   tripwires %u\n",
-        born, dead, inc, dec, winc, wdec, wdead, trip);
+        "   weak wINC %u / wDEC %u / wDEAD %u   markers %u   tripwires %u\n",
+        born, dead, inc, dec, winc, wdec, wdead, mark, trip);
     if(wrapped)
         fprintf(stderr, "  ** %u ring(s) have wrapped (%llu events recorded) --"
             " older events were EVICTED, so an unbalanced ledger here says"
@@ -567,6 +597,21 @@ extern "C" void kame_rc_dump(const void *obj) {
         fprintf(stderr, "  no ring has wrapped -- this history is complete\n");
     for(unsigned i = 0; i < n; ++i) {
         const Ev &e = out[i];
+        // Count-neutral markers: `oldc` is not a count.  VMOVE carries the
+        // SOURCE slot address there; render both with their slot(s) instead
+        // of a bogus "rc 0 -> 0" arithmetic line.
+        if(e.op == OP_VADOPT || e.op == OP_VMOVE) {
+            fprintf(stderr, "  seq=%llu%+lld tid=%u  %-26s slot=%p%s",
+                e.seq, i ? (long long)(e.seq - out[0].seq) : 0LL, e.tid,
+                op_name_(e.op), e.slot,
+                e.op == OP_VMOVE ? "" : "  site=");
+            if(e.op == OP_VMOVE)
+                fprintf(stderr, " src_slot=%p  site=",
+                    (const void *)(uintptr_t)e.oldc);
+            print_site_(e.site);
+            fprintf(stderr, "\n");
+            continue;
+        }
         fprintf(stderr, "  seq=%llu%+lld tid=%u  %-26s %s %llu -> %llu  site=",
             e.seq, i ? (long long)(e.seq - out[0].seq) : 0LL, e.tid,
             op_name_(e.op), is_weak_op_(e.op) ? "wrc" : "rc ", e.oldc,
@@ -740,6 +785,13 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
             "slot=%p site=%p type=%s dtor_depth=%u\n", nth, obj, op_name_(op),
             oldc, rc_trace_tid_(), slot, site,
             type_label_(tname, tb, sizeof tb), tl_dtor_depth);
+        // Marker-liveness receipt (Â§13.2): totals across the whole run so
+        // far, NOT this object's -- zero here means the markers never
+        // fired in this binary, nonzero means absence from a per-object
+        // history is a keying fact, not a wiring fault.
+        raw_line_("RC-MARKERS-ALIVE adopt=%llu vmove=%llu (run totals)\n",
+            g_op_tally[OP_VADOPT].load(std::memory_order_relaxed),
+            g_op_tally[OP_VMOVE].load(std::memory_order_relaxed));
         if(chain_enabled_()) {
             const void *ch[CHAIN_N];
             unsigned cn = walk_chain_(ch, CHAIN_N);

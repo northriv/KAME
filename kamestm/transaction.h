@@ -941,6 +941,16 @@ private:
         void setReverseIndex(int i) noexcept {m_reverse_index = i;}
 
         void print_() const;
+#ifdef KAME_RC_TRACE
+        //! Â§13.2 dual-keying: rc-trace view markers on this wrapper are
+        //! also recorded onto the payload Packet's history, so a
+        //! Packet-typed anomaly carries the view association that reached
+        //! it.  Racy diagnostic read; tracer builds only (non-virtual
+        //! member function -- no layout change).
+        const void *rc_trace_secondary_() const noexcept {
+            return static_cast<const void *>(m_packet.get());
+        }
+#endif
         local_weak_ptr<Linkage> const m_bundledBy;
         local_shared_ptr<Packet> m_packet;
         int m_reverse_index;

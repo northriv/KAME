@@ -149,9 +149,24 @@ void pop_dtor() noexcept;
 #define KAME_RC_DTOR_PUSH(obj) \
     ::kame_rc_trace::push_dtor((obj), __builtin_return_address(0))
 #define KAME_RC_DTOR_POP() ::kame_rc_trace::pop_dtor()
+//! Dual-keyed variant for the scoped_atomic_view association markers
+//! (handoff Â§13.2): every anomaly to date is typed Packet, but VADOPT /
+//! VMOVE are keyed on the view's target (a PacketWrapper), so a
+//! Packet-keyed history could never contain them.  This variant records
+//! the marker a second time, keyed on the target's payload object when
+//! the target type exposes one (see rc_secondary_probe_ below).
+#define KAME_RC_EVT_TV(obj, op, oldc, TY) do { \
+    KAME_RC_EVT_T(obj, op, oldc, TY); \
+    if(const void *_rct_sec = ::kame_rc_trace::secondary_obj_<TY>( \
+            static_cast<const void *>(obj))) \
+        ::kame_rc_trace::record(_rct_sec, (op), (unsigned long long)(oldc), \
+            __builtin_return_address(0), ::kame_rc_trace::type_name_<TY>(), \
+            static_cast<const void *>(this)); \
+    } while(0)
 #else
 #define KAME_RC_EVT(obj, op, oldc) ((void)0)
 #define KAME_RC_EVT_T(obj, op, oldc, TY) ((void)0)
+#define KAME_RC_EVT_TV(obj, op, oldc, TY) ((void)0)
 #define KAME_RC_DTOR_PUSH(obj) ((void)0)
 #define KAME_RC_DTOR_POP() ((void)0)
 #endif
@@ -409,6 +424,37 @@ struct atomic_countable {
     typedef uintptr_t Refcnt;
     atomic<Refcnt> refcnt;
 };
+
+#ifdef KAME_RC_TRACE
+namespace kame_rc_trace {
+//! Â§13.2 dual-keying support.  A type opts in by exposing a
+//! `rc_trace_secondary_()` member returning the payload object's address
+//! (Node<XN>::PacketWrapper returns m_packet.get() under this macro; see
+//! transaction.h).  Detection keeps this layer generic.  Intrusive-only:
+//! the probe casts the Ref* to T*, valid only when Ref IS T.  The payload
+//! read is racy by design (diagnostic only) -- the target itself is pinned
+//! by the tag/ref the marker documents, but a concurrent writer may be
+//! mutating the payload pointer.
+template <class U, class = void>
+struct rc_secondary_probe_ {
+    static const void *get(const void *) noexcept { return nullptr; }
+};
+template <class U>
+struct rc_secondary_probe_<U, std::void_t<decltype(
+        std::declval<const U &>().rc_trace_secondary_())>> {
+    static const void *get(const void *p) noexcept {
+        return static_cast<const U *>(p)->rc_trace_secondary_();
+    }
+};
+template <class TY>
+inline const void *secondary_obj_(const void *pref) noexcept {
+    if constexpr (std::is_base_of<atomic_countable, TY>::value)
+        return pref ? rc_secondary_probe_<TY>::get(pref) : nullptr;
+    else
+        return nullptr;
+}
+}
+#endif
 
 //! Non-intrusive control block, T embedded + weak refcount — single
 //! allocation, supports `local_weak_ptr<T>`.  Used when
@@ -914,8 +960,16 @@ public:
             using Ref = typename local_shared_ptr<T, Z>::Ref;
             m_ref = static_cast<gref_weak_base_ *>(
                 reinterpret_cast<Ref *>(static_cast<uintptr_t>(sp.m_ref)));
-            KAME_RC_EVT_T(m_ref, kame_rc_trace::OP_WEAK_INC,
-                m_ref->weak_refcnt.fetch_add(1, std::memory_order_acq_rel), T);
+            // The fetch_add must live OUTSIDE the trace macro: as a macro
+            // argument it vanished in non-KAME_RC_TRACE builds -- weak
+            // handles then never incremented weak_refcnt, the control
+            // block was freed under live strong refs, and every no-trace
+            // run of the branch died on the ~gref_weakable_ assert
+            // (use-after-free with NDEBUG).
+            const auto _rcw_o =
+                m_ref->weak_refcnt.fetch_add(1, std::memory_order_acq_rel);
+            (void)_rcw_o;
+            KAME_RC_EVT_T(m_ref, kame_rc_trace::OP_WEAK_INC, _rcw_o, T);
             //!< §biased — skippable: taking a weak handle (promotable cross-thread)
             //!< is a publish point, so a biased CB is negated -count→+count here.
             if constexpr (is_biased_directpublish<T>::value) biased_publish_(m_ref->refcnt);
@@ -924,9 +978,13 @@ public:
 
     //! Copy: straightforward global fetch_add (mirrors local_shared_ptr).
     local_weak_ptr(const local_weak_ptr &o) noexcept : m_ref(o.m_ref) {
-        if(m_ref)
-            KAME_RC_EVT_T(m_ref, kame_rc_trace::OP_WEAK_INC,
-                m_ref->weak_refcnt.fetch_add(1, std::memory_order_acq_rel), T);
+        if(m_ref) {
+            // Outside the macro -- see the ctor above.
+            const auto _rcw_o =
+                m_ref->weak_refcnt.fetch_add(1, std::memory_order_acq_rel);
+            (void)_rcw_o;
+            KAME_RC_EVT_T(m_ref, kame_rc_trace::OP_WEAK_INC, _rcw_o, T);
+        }
     }
 
     local_weak_ptr(local_weak_ptr &&o) noexcept : m_ref(o.m_ref) { o.m_ref = nullptr; }
@@ -1300,7 +1358,7 @@ public:
                 asp.release_tag_ref_(p, rcnt);
                 m_pref = p;
                 m_tag_held = false;  // sentinel for Owned
-                KAME_RC_EVT_T(p, kame_rc_trace::OP_VADOPT, 0, T);
+                KAME_RC_EVT_TV(p, kame_rc_trace::OP_VADOPT, 0, T);
             } else {
                 m_pref = p;
                 m_tag_held = true;  // TagHeld
@@ -1325,7 +1383,7 @@ public:
             m_pref = (Ref *)from.m_ref;
             // m_tag_held stays 0 → Owned mode.
             from.m_ref = 0;  // empty out the source
-            KAME_RC_EVT_T(m_pref, kame_rc_trace::OP_VADOPT, 0, T);
+            KAME_RC_EVT_TV(m_pref, kame_rc_trace::OP_VADOPT, 0, T);
         }
     }
 
@@ -1343,7 +1401,7 @@ public:
             m_pref = (Ref *)from.m_ref;
             m_tag_held = false;  // Owned mode
             from.m_ref = 0;  // empty out the source
-            KAME_RC_EVT_T(m_pref, kame_rc_trace::OP_VADOPT, 0, T);
+            KAME_RC_EVT_TV(m_pref, kame_rc_trace::OP_VADOPT, 0, T);
         } else {
             m_pref = nullptr;
             m_tag_held = false;
@@ -1356,7 +1414,7 @@ public:
           m_tag_held(other.m_tag_held),
           m_acquire_succeeded(other.m_acquire_succeeded) {
         if(m_pref)
-            KAME_RC_EVT_T(m_pref, kame_rc_trace::OP_VMOVE,
+            KAME_RC_EVT_TV(m_pref, kame_rc_trace::OP_VMOVE,
                 (unsigned long long)(uintptr_t)&other, T);
         other.m_pref = nullptr;
         other.m_tag_held = false;
@@ -1370,7 +1428,7 @@ public:
             m_tag_held = other.m_tag_held;
             m_acquire_succeeded = other.m_acquire_succeeded;
             if(m_pref)
-                KAME_RC_EVT_T(m_pref, kame_rc_trace::OP_VMOVE,
+                KAME_RC_EVT_TV(m_pref, kame_rc_trace::OP_VMOVE,
                     (unsigned long long)(uintptr_t)&other, T);
             other.m_pref = nullptr;
             other.m_tag_held = false;
@@ -2195,12 +2253,21 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
                     if(oldr.m_tag_held) oldr.m_tag_held = false;
                     oldr.m_pref = newr_pref();
 #ifdef KAME_RC_TRACE
-                    if(oldr.m_pref)
+                    if(oldr.m_pref) {
                         kame_rc_trace::record(oldr.m_pref,
                             kame_rc_trace::OP_VADOPT, 0,
                             __builtin_return_address(0),
                             kame_rc_trace::type_name_<T>(),
                             static_cast<const void *>(&oldr));
+                        if(const void *_rct_sec =
+                                kame_rc_trace::secondary_obj_<T>(
+                                    static_cast<const void *>(oldr.m_pref)))
+                            kame_rc_trace::record(_rct_sec,
+                                kame_rc_trace::OP_VADOPT, 0,
+                                __builtin_return_address(0),
+                                kame_rc_trace::type_name_<T>(),
+                                static_cast<const void *>(&oldr));
+                    }
 #endif
                     // oldr is now Owned on newr.  Destructor will
                     // release_tag_ref_(newr, 1u) → fetch_sub(1).

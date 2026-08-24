@@ -1342,3 +1342,102 @@ the origin attached — that names the deviating code path, and the hunt
 ends there.  (Rate caveat as in §12.4: marker events add record-path work
 on snapshot/bundle hot paths; do not compare shape statistics with earlier
 tracer versions.)
+
+### 13.2 v9 — dual-keyed markers, layout ground truth, and a tracer bug that
+### invalidated every no-trace build of this branch
+
+Response to the structural report ("markers keyed on the view's target,
+every anomaly on a Packet").  The critique is accepted and implemented, and
+chasing it uncovered two things bigger than the request.
+
+**(1) The keying gap is real; markers were nonetheless alive.**  On a Mac
+arm64 build of `tmin_dynnode` (20 rounds, 8 threads), the new op tally shows
+VADOPT 1.1M / VMOVE 5.2M — the markers fire constantly; their absence from
+the captures was purely per-object keying, as diagnosed.  Every anomaly
+header now carries a receipt so this is never ambiguous again:
+`RC-MARKERS-ALIVE adopt=<N> vmove=<N> (run totals)` — zero there means the
+markers did not fire in that binary; nonzero means absence from a history is
+a keying fact.  `KAME_RC_TRACE_STATS=1` prints the full per-op tally at exit
+of any run, anomalous or not.
+
+**(2) Option 2 implemented — markers are dual-keyed onto the payload.**
+Every VADOPT/VMOVE now records twice: keyed on the view's target (the
+wrapper) as before, and keyed on `PacketWrapper::m_packet.get()` (the
+payload Packet), same slot, same site.  Wiring: `KAME_RC_EVT_TV` macro +
+`rc_secondary_probe_` detection template in `atomic_smart_ptr.h` (layer-0
+stays generic; intrusive-only), `PacketWrapper::rc_trace_secondary_()` in
+`transaction.h` (tracer builds only; non-virtual member = no layout change).
+End-to-end check lives in `rc_layout_probe.cpp`: the Packet's own history
+reads
+
+```
+  BORN ... INC ...
+  VADOPT (view association)  slot=0x16fd52770
+  VMOVE  (...)               slot=0x16fd52758 src_slot=0x16fd52770
+```
+
+Interpretive rule: views of Packet do not exist in the STM, so **any
+VADOPT/VMOVE in a Packet-keyed history is a dual-keyed record about a
+wrapper that held that Packet** — the custody chain requested, in the same
+capture, keyed by the address the anomaly is keyed by (so it also lands in
+`RC-RECENT`'s O(1) crash-surviving cache).  The pretty dump now renders
+markers with `slot=`/`src_slot=` instead of bogus rc arithmetic, and the
+ledger counts them in their own `markers` column (they were previously
+mislabelled `tripwires`).
+
+**(3) Layout ground truth — the n=2 slot attribution does not survive it.**
+`rc_layout_probe.cpp` (committed; run it per toolchain) prints, on
+arm64/clang and by LP64 rules everywhere:
+
+| thing | value |
+|---|---|
+| `CASInfo::linkage` | +0 |
+| `CASInfo::old_wrapper` | **+8** (view = m_asp,m_pref,flags = 24 B) |
+| `CASInfo::new_wrapper` | +32 |
+| `PacketWrapper::m_packet` | **+16** |
+| `sizeof(CASInfo)` = `sizeof(PacketWrapper)` | **40 = 40** |
+| `sizeof(Packet)` | 32 |
+
+So "ANOM.slot = CASInfo + 16 == old_wrapper" (§11.5, §12.4) is refuted:
+old_wrapper's `this` is CASInfo+8, and CASInfo+16 is old_wrapper's
+*interior* (`m_pref`), which no canonical hook ever passes as a slot.  The
+reading that IS self-consistent with `type=Packet, slot=X+16`: **X is a
+PacketWrapper and the slot is its `m_packet` member — the underflowing
+release is `~PacketWrapper` (or wrapper packet reassignment) releasing the
+Packet one level down.**  The equal sizes (40=40) make base-address
+misidentification easy; the disambiguator is address class — CASInfos live
+in `fast_vector<CASInfo,32>` (stack / Transaction frame), wrappers on the
+heap.  Note the n=2 dtor-stack entry `obj=0x7fff...` is a *stack* address:
+canonical v8+ `KAME_RC_DTOR_PUSH` only ever pushes the heap object being
+deleted, so that entry came from local instrumentation — worth re-deriving
+both rc6_34/rc7_4 attributions against the probe's numbers (run it under
+g++ 15.2 to confirm x86-64 agrees).  If the reinterpretation holds, §12.4's
+"CASInfo::old_wrapper is the second releaser" becomes "a PacketWrapper's
+`m_packet` is the second releaser", and the stale +1 to hunt is the one the
+wrapper's `m_packet` believed it still had — which is exactly what the
+dual-keyed markers + the wrapper-era events in the Packet's history will
+now show directly.
+
+**(4) A tracer bug of mine, found by this turn's cross-checks, fixed here:
+both `local_weak_ptr` weak-INC hooks had the `weak_refcnt.fetch_add(1)`
+INSIDE the `KAME_RC_EVT_T` argument list.**  In a non-`KAME_RC_TRACE` build
+the macro expands to `((void)0)` and the increment vanished: weak handles
+never counted, the control block was freed under live strong references,
+and every no-trace build of this branch died deterministically (Mac: 8/8)
+on the `~gref_weakable_` `refcnt==0` assert — a use-after-free with
+`-DNDEBUG`.  Master is unaffected (6/6 clean with identical test sources);
+**your captures are unaffected** (every §8-recipe build defines
+`KAME_RC_TRACE`, and with the macro live the behaviour was correct); but
+any control run built from this branch WITHOUT the define was invalid
+before this commit.  Both sites now hoist the fetch_add out of the macro,
+and a whole-file audit confirms no other side-effectful expression sits in
+any trace-macro argument.  (Meta-lesson filed: instrumentation macros that
+compile out must never wrap the operation they observe.)
+
+**Batch recommendation:** restart the 60-run batch from THIS commit rather
+than letting it finish on 91a5bbf8b — a capture without dual-keys re-poses
+the same question this section answers, and the markers-alive receipt +
+slot-aware rendering only exist here.  Expect faster ring eviction (markers
+are now ~35–40% of event traffic, and dual-keying adds a second record for
+each): the `RC-RECENT`/`RC-EV` windows stay the right place to read, and
+the eviction banner tells you when the ledger is not coverage.
