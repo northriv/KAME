@@ -1212,6 +1212,48 @@ by more runs.
 container-knowable captures, so it is not established that both shapes share
 this mechanism.
 
+### 12.5 §12.4's slot identification withdrawn — the layout probe settles it
+
+`rc_layout_probe.cpp` run on Ubuntu x86-64 / g++ 15.2 (needs
+`-fno-access-control` there; the nested types are private and clang was more
+permissive).  Measured, matching the Mac:
+
+```
+sizeof(PacketWrapper) = 40      sizeof(CASInfo) = 40      <- the trap
+sizeof(scoped_atomic_view<PW>) = 24
+PW::m_bundledBy @ +8   PW::m_packet @ +16   PW::m_reverse_index @ +24
+CI::linkage     @ +0   CI::old_wrapper @ +8  CI::new_wrapper @ +32
+```
+
+`CASInfo + 16` lands **inside** `old_wrapper` (at its `m_pref`), an address no
+hook passes as a slot.  So `type=Packet, slot=X+16` has one self-consistent
+reading: **X is a `PacketWrapper` and the releaser is its `m_packet`.**
+Re-derived:
+
+| capture | dtor obj | anom slot | off | reading |
+|---|---|---|---|---|
+| rc6_34 | 0x7fffd09637f0 | 0x7fffd0963800 | **+16** | `PacketWrapper::m_packet` |
+| rc7_4 | 0x7fffcec1fa70 | 0x7fffcec1fa80 | **+16** | `PacketWrapper::m_packet` |
+
+**§12.4's "second releaser = `CASInfo::old_wrapper`" is withdrawn**, and with
+it the inference that the CAS-list hand-off was implicated.  The `CASInfo`
+reading came from symbolising the `RC-DTOR` *site* string, which §11.2 already
+classifies as a hint; the two 40-byte structs made a wrong hint look
+self-consistent.  The level-crossing was an attribution error on this side,
+not a tracer inconsistency.
+
+**What it becomes instead is more consistent, not less.**  The second releaser
+is `~PacketWrapper()` releasing its `m_packet` — the same statement as §12's
+three earlier captures and as §1's crash, where a live wrapper's `m_packet`
+pointed at freed memory.  All five container-knowable observations now say one
+thing, and the stale `+1` to hunt is the one a `PacketWrapper` should have held
+on its `Packet`.
+
+**Dual-keyed markers verified here**: the probe's `Packet` history carries
+`VADOPT` and `VMOVE (src_slot=…)`, so a `Packet`-typed anomaly will now show
+the custody chain of the wrapper that held it — which is what §13.1's reading
+instruction needs and what v8 could not produce.
+
 ## 13. TLA+ scope-token model — the protocol is exonerated; hunt the departure
 
 `kamestm/tests/tlaplus/atomic_shared_ptr_scopetoken.tla` + 6 cfgs.  Models
