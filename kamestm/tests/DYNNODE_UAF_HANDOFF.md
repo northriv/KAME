@@ -1094,3 +1094,49 @@ are answerable only on the minority whose dump survives.  Writing the history
 **before** the header, or capping it to the last ~40 events, would convert
 those into answerable captures and reach a second Q3 data point far faster
 than raising the run count.
+
+### 12.3 v7 — recent-history survives the crash; and the three named transfers audited
+
+**v7 tracer change (§11.5's ask).**  The reason 4 of 7 captures kept ≤1
+`RC-EV` line is that the full history requires the 64×16384 ring scan, and
+the peers are already corrupting while it runs.  v7 keeps the last 16 events
+per object in a record-time direct-mapped cache (same hash as the
+prior-release cache; racy on bucket collision, full scan stays the arbiter)
+and emits them as `RC-RECENT`/`RC-R` lines **immediately after the header and
+prior-release line, before anything that scans**.  16 events cover Q2 (the
+matching `INC` with its slot) and the `DEAD → BORN` rebirth signature.  The
+slow post-scan dump is additionally capped to the newest 40 events
+(`KAME_RC_TRACE_FULL=1` restores all).  Crash-race verified: 3/3 runs kept
+header + prior + the full `RC-R` block.
+
+**The three §11.5-named transfer points, audited (Mac, branch tip).**  If
+Q3's shape is real, one of the zero-atomic transfers must leave both ends
+owning.  The named ones do not:
+
+- `transaction_impl.h:2178` — `cas_infos->emplace_back(…,
+  r.parent_scope->consume_scoped_view(), …)`: `consume` empties the source
+  view; `emplace_back` move-constructs the member (move ctor nulls the
+  temporary).  One owner at every step.
+- `transaction_impl.h:3329` — `std::move(it->old_wrapper)` into the
+  ScopedNeg **move-in ctor**: the ctor is `noexcept`, has no early return,
+  and consumes unconditionally at `m_view = std::move(from)`
+  (`transaction_negotiation.h`, view-variant); `_negotiate()` runs *before*
+  the move and cannot skip it.  A mid-loop `DISTURBED` return leaves
+  already-moved `CASInfo`s empty and unmoved ones owning — both correct.
+- `scoped_atomic_view` move ctor / move assign / `assign_from_local` —
+  audited in §10/§12: source nulled in every branch.
+
+**Consequence**: if two holders end up sharing one `+1` (Q2 says the second
+holder's `INC` is *visible*, so the count went wrong elsewhere), the defect
+is **not** in the CASInfo hand-off pair; the remaining unaudited seam on that
+path is where the `+1` **entered** `parent_scope` in the first place —
+`set_view()` / the scoped-acquire path — or an earlier release that the
+invariant (§11.3) will catch regardless of shape.
+
+**On the shape instability** (v4 same-thread 6/9 → v5 depth-4 4/7 → v6
+depth-0 5/7): agreed, and it is worth saying *why* the steering is expected —
+every tracer version changes the per-op cost and therefore the interleaving
+distribution; the captures are importance-sampled by the instrument itself.
+The invariant is the only version-independent statement.  The next batch's
+`RC-RECENT` blocks should be read for Q2/Q3 answers, not for a new dominant
+shape.

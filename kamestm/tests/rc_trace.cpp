@@ -285,6 +285,24 @@ static inline unsigned lastrel_slot_(const void *obj) noexcept {
            & (LASTREL_SLOTS - 1);
 }
 
+// ---- O(1) per-object recent-event cache (v7) -------------------------------
+// Â§11.5: 4 of 7 captures kept <=1 RC-EV line, because the full history
+// needs a 64x16384 ring scan and the peer threads are already corrupting.
+// So keep the last RECENT_N events per object in a direct-mapped cache
+// maintained at record time, and emit them right after the header --
+// before anything that scans.  Racy on bucket collision (two objects
+// hashing together thrash the bucket; a torn entry is possible); the
+// full RC-EV scan that follows is the arbiter, this is the copy that
+// survives.  RECENT_N=16 is enough for Q2 (does the anomalous slot have
+// a matching INC nearby?) and for the DEAD->BORN rebirth signature.
+struct Recent {
+    std::atomic<const void *> obj{nullptr};
+    Ev evs[16];
+    unsigned idx{0};
+};
+static constexpr unsigned RECENT_N = 16;
+static Recent g_recent[LASTREL_SLOTS];
+
 //! Ring eviction accounting.  Rings are circular AND recycled across
 //! threads (slot = round-robin % MAX_RINGS), so old events are dropped
 //! silently once a slot has taken RING writes.  That matters for reading
@@ -311,6 +329,14 @@ void record(const void *obj, unsigned op, unsigned long long oldc,
     e.obj = obj; e.site = site; e.slot = slot; e.tname = tname;
     e.seq = rc_trace_seq_();
     e.oldc = oldc; e.op = op; e.tid = t.tid;
+    {
+        Recent &rc = g_recent[lastrel_slot_(obj)];
+        if(rc.obj.load(std::memory_order_relaxed) != obj) {
+            rc.idx = 0;
+            rc.obj.store(obj, std::memory_order_relaxed);
+        }
+        rc.evs[rc.idx++ % RECENT_N] = e;
+    }
     if(op == OP_DEC || op == OP_DEAD || op == OP_DEAD_UNIQUE) {
         LastRel &lr = g_lastrel[lastrel_slot_(obj)];
         lr.ev = e;                                   // racy by design
@@ -392,6 +418,27 @@ static void raw_chain_(const char *kind, const void *obj,
     raw_write_(buf, (size_t)(k > 0 ? k : 0));
 }
 
+//! O(1) recent-history emitter: up to RECENT_N events for \a obj from the
+//! record-time cache, newest first, no scan.  Emitted before anything slow.
+static void raw_recent_(const void *obj) noexcept {
+    Recent &rc = g_recent[lastrel_slot_(obj)];
+    if(rc.obj.load(std::memory_order_relaxed) != obj) {
+        raw_line_("RC-RECENT obj=%p none-cached (bucket taken by another object)\n", obj);
+        return;
+    }
+    unsigned total = rc.idx;
+    unsigned n = total < RECENT_N ? total : RECENT_N;
+    raw_line_("RC-RECENT obj=%p n=%u of %u (newest first, O(1) cache)\n",
+        obj, n, total);
+    for(unsigned k = 0; k < n; ++k) {
+        const Ev &e = rc.evs[(total - 1 - k) % RECENT_N];
+        char tb[128];
+        raw_line_("RC-R obj=%p op=%s rc_before=%llu tid=%u seq=%llu slot=%p "
+            "site=%p type=%s\n", obj, op_name_(e.op), e.oldc, e.tid, e.seq,
+            e.slot, e.site, type_label_(e.tname, tb, sizeof tb));
+    }
+}
+
 //! O(1) variant, emitted BEFORE any scan so it survives a peer crash.
 static void raw_prior_release_fast_(const void *obj) noexcept {
     LastRel &lr = g_lastrel[lastrel_slot_(obj)];
@@ -448,10 +495,19 @@ static void raw_prior_release_(const void *obj, unsigned n) noexcept {
 //! Raw, unsymbolised, NEWEST FIRST.
 static void raw_events_(const void *obj, unsigned n) noexcept {
     unsigned wrapped = g_wrapped_rings.load(std::memory_order_relaxed);
-    raw_line_("RC-HIST obj=%p events=%u evicted_rings=%u total_writes=%llu\n",
-        obj, n, wrapped,
+    // Cap the slow (post-scan) dump to the newest events; the RC-RECENT
+    // block above already secured the tail, and Â§11.5 showed the long dump
+    // rarely survives anyway.  KAME_RC_TRACE_FULL=1 restores everything.
+    unsigned cap = n;
+    {
+        static const char *fe = getenv("KAME_RC_TRACE_FULL");
+        if(!(fe && fe[0] == '1') && cap > 40) cap = 40;
+    }
+    raw_line_("RC-HIST obj=%p events=%u shown=%u evicted_rings=%u total_writes=%llu\n",
+        obj, n, cap, wrapped,
         (unsigned long long)g_writes.load(std::memory_order_relaxed));
-    for(unsigned i = n; i-- > 0; ) {
+    unsigned lo = n - cap;
+    for(unsigned i = n; i-- > lo; ) {
         const Ev &e = g_out[i];
         char tb[128];
         raw_line_("RC-EV obj=%p i=%u op=%s rc_before=%llu tid=%u seq=%llu "
@@ -687,6 +743,7 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
             raw_chain_("ANOM", obj, ch, cn);
         }
         raw_prior_release_fast_(obj);      // O(1): the decisive line, first
+        raw_recent_(obj);                  // O(1): last 16 events, pre-scan
         unsigned dn = tl_dtor_depth < DTOR_MAX ? tl_dtor_depth : DTOR_MAX;
         for(unsigned i = 0; i < dn; ++i)
             raw_line_("RC-DTOR [%u] obj=%p site=%p\n", i,
