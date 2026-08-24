@@ -1024,3 +1024,73 @@ lines).
 If question 2 comes back "all slots accounted for", then the count itself was
 wrong earlier than the installs — and the invariant for §2 stays as §11.3
 stated it; the slots will have localised where not to look.
+
+### 11.5 v6 slot identity — Q1 answered, Q2 answered, Q3 at n=1
+
+Ubuntu x86-64 / g++ 15.2, v6, `-fno-omit-frame-pointer`, poisoned `.so`,
+`KAME_RC_TRACE_CHAIN=1`, 32/40 threads, `100 <thr> 700`.
+**60 runs → 7 captures.**
+
+| capture | op | dtor_depth | RC-EV kept | Q1 slots | tid | Q2 |
+|---|---|---|---|---|---|---|
+| rc6_3 | DEC-UNDERFLOW | 0 | 16 | DIFF | cross | yes |
+| rc6_18 | DEC-UNDERFLOW | 0 | **0** | DIFF | same | n/a |
+| rc6_26 | INC-FROM-ZERO | 0 | 1 | DIFF | cross | n/a |
+| rc6_28 | INC-FROM-ZERO | 0 | **0** | DIFF | cross | n/a |
+| rc6_34 | DEC-UNDERFLOW | **1** | 322 | DIFF | cross | yes |
+| rc6_59 | DEC-UNDERFLOW | 0 | **0** | DIFF | same | n/a |
+| rc6_60 | INC-FROM-ZERO | 0 | 77 | DIFF | same | yes |
+
+**Q1 — `ANOM.slot != PRIOR.slot` in 7/7.**  Always two holders.  The
+holder-write-back branch (bitwise copy / torn move / container realloc) is
+**excluded**; §11.4's two-holder reading survives.
+
+**Q2 — 3/3 `yes`** among captures with a usable history: the ANOM slot always
+has a matching `INC`.  The four "no" readings were **empty dumps**, not
+invisible installs — a distinction worth stating, since an earlier draft of
+this table scored them as evidence.  So the reference is installed *visibly
+and with an increment*: this is the "count broken before installation" branch,
+not the invisible-install one.
+
+**Q3 — one capture only** (`rc6_34`, the only `dtor_depth>0`):
+
+```
+RC-DTOR [0] obj=0x7fffd09637f0   = a CASInfo, in fast_vector<CASInfo,32>::clear_fixed()
+ANOM.slot  = 0x7fffd0963800      = that CASInfo + 16  ==  CASInfo::old_wrapper
+PRIOR.slot = 0x7fffdf7f7330      = a scoped_atomic_view<PacketWrapper> local in
+                                   Node::snapshot()  transaction_impl.h:2241
+```
+
+```cpp
+struct CASInfo {                                   // transaction.h:1386
+    local_shared_ptr<Linkage>          linkage;      // +0
+    scoped_atomic_view<PacketWrapper>  old_wrapper;  // holder at +16
+    local_shared_ptr<PacketWrapper>    new_wrapper;
+};
+```
+
+Both releasers are `scoped_atomic_view<PacketWrapper>` instances — one owned by
+a `CASInfo` in the CAS list, one a local in `snapshot()`.  That is the type
+that carries a `+1` with **zero atomic operations** through
+`assign_from_local()` and the `local_shared_ptr&&` move-in ctor ("caller is
+responsible … we do NOT verify").  The same `+1` is handed
+`parent_scope → CASInfo` at `transaction_impl.h:2178-2180` ("Extract
+scoped_atomic_view from parent_scope into CASInfo … kept alive by the
+CASInfo's view") and back out at `:3329` ("Move CASInfo's scoped_atomic_view
+into ScopedNeg").  If either transfer leaves the source still owning, both
+ends release — which is exactly "two holders, one count".
+
+**Candidate, not conclusion.**  n=1, and it is the `depth=1` cross-thread
+shape, not §11.4's `depth=4` same-thread cascade.
+
+**A caution about all three shape claims.**  The dominant shape has moved with
+every tracer version: v4 6/9 **same-thread**, v5 4/7 at **depth=4**, v6 5/7 at
+**depth=0** with 4/7 cross-thread.  Three versions, three dominant shapes.
+That is the instrumentation steering which shape gets sampled, not three
+findings.  Weight the *invariant* (§11.3) over any shape.
+
+**What limits the next batch**: 4 of 7 captures kept ≤1 `RC-EV` line, so Q2/Q3
+are answerable only on the minority whose dump survives.  Writing the history
+**before** the header, or capping it to the last ~40 events, would convert
+those into answerable captures and reach a second Q3 data point far faster
+than raising the run count.
