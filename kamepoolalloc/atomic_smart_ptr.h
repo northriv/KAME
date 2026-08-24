@@ -1202,9 +1202,12 @@ protected:
     //!       acquire_tag_ref_ required (will update oldr on mismatch);
     //!       step4 = +(T-1); failure undo via release_tag_ref_(pref, T).
     //!   - OldrT = scoped_atomic_view<T> (SetScoped, weak only):
-    //!       scoped already holds tag (no acquire); step4 = +(T-1);
-    //!       failure undo via plain fetch_sub(T-1, relaxed); on success,
-    //!       scoped's tag is consumed by CAS (m_pref reset to nullptr).
+    //!       scoped already holds tag (no acquire); step4 = +T (scoped's
+    //!       tag-share is treated as pre-paid — see the step-4 comment in
+    //!       the implementation); failure undo via plain fetch_sub(T,
+    //!       relaxed); on success the fetch_sub discriminates: TagHeld and
+    //!       Owned+RETAIN_NEWR release 2 (m_ref share + scoped's share),
+    //!       plain Owned releases 1 (scoped keeps its +1 on OLD pref).
     //! NewrT = const local_shared_ptr<T> (caller retains ownership):
     //!   fetch_add(1) at start, fetch_sub(1) at WEAK-failure undo.
     //!   m_ref takes its own +1 via the fetch_add; caller's local
@@ -1993,9 +1996,11 @@ inline bool atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_globa
 //       acquire_tag_ref_() to pin pref while updating oldr on mismatch;
 //       step4 = +(T-1); failure undo via release_tag_ref_(pref, T).
 //   - OldrT = scoped_atomic_view<T> (SetScoped, WEAK only):
-//       scoped already holds tag; step4 = +(T-1);
-//       failure undo via plain fetch_sub(T-1, relaxed) (eager); on success,
-//       scoped's tag is consumed by CAS (m_pref reset to nullptr).
+//       scoped already holds tag; step4 = +T (scoped's tag-share treated
+//       as pre-paid — see the step-4 block comment below);
+//       failure undo via plain fetch_sub(T, relaxed) (eager); on success,
+//       the release fetch_sub discriminates: sub = 2 for TagHeld and for
+//       Owned+RETAIN_NEWR, sub = 1 for plain Owned (scoped keeps OLD).
 //
 // RETAIN_NEWR (SCOPED+WEAK only): on CAS success, scoped transitions to
 //   Owned mode on newr instead of going Empty.  Entry does fetch_add(2)
