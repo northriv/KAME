@@ -575,3 +575,69 @@ depth).  If the earliest anomaly is stable across runs, §9's attribution can
 be re-made on a distribution rather than one capture; if it is not, that is
 itself the answer, and §2's model should target the invariant rather than an
 edge.
+
+### 11.1 That batch, run — the earliest anomaly is NOT stable
+
+Ubuntu, x86-64 / g++ 15.2, `KAME_RC_TRACE_ABORT=0`, 9 runs of
+`./tmin_rct 100 24 950`, ASLR off.
+
+**First: continue-mode and the §3 poison are incompatible.**  With the
+poisoned `.so`, runs 1-2 gave `rc=139 anomalies=0` — the tripwires only see
+refcount *operations*, while the poison `#GP` is a plain dereference, so the
+process dies before any anomaly is recorded and continue-mode never gets to
+continue.  The batch below therefore uses the **unpoisoned** `.so`.  Anyone
+running §11 should pair `ABORT=0` with an unpoisoned allocator and keep the
+poison for `ABORT=1`.
+
+| run | rc | anomalies | first anomaly | site resolves to |
+|---|---|---|---|---|
+| 1,2,4,9 | 139 | 0 | — | — |
+| 5 | 134 | 0 | — | — |
+| 6 | 255 | 0 | — | — (`failed objcnt`) |
+| 3 | 139 | 3 | DEC-UNDERFLOW, `rc=0`, dtor-stack **1 deep** | `local_weak_ptr<Linkage>::reset()` `atomic_smart_ptr.h:911` → `~PacketWrapper()` |
+| 7 | 139 | 2 | DEC-UNDERFLOW, `rc=0` | **same site**, `atomic_smart_ptr.h:911` |
+| 8 | 139 | 2 | INC-FROM-ZERO, `rc=0` | `local_shared_ptr<Packet>::operator=(&&)` → `reverseLookup:1808` |
+
+Two of three name the same site, which looks like the stability §11 hoped
+for — but it does not survive the ledger check:
+
+| capture | BORN | DEAD | INC | DEC | balanced? |
+|---|---|---|---|---|---|
+| §9 abort-mode captures (Packet / PacketList) | 103 | 103 | 206 | 204 | yes |
+| run 8 object | **22** | **6** | **19** | **27** | **no** |
+
+An object whose ledger is that far out is one the tracer is not seeing all of,
+so its anomaly cannot be attributed.  And the 2-of-3 repeat is worse than
+unbalanced: `atomic_smart_ptr.h:911` is `local_weak_ptr<Linkage>::reset()`,
+i.e. a **weak** count on a `Linkage` — precisely the "atomic-side machinery is
+untraced" class §8 excludes.  So that repeat is most likely an artefact of
+partial coverage, not a finding.
+
+**Also line-table noise in the new dtor stack**: run 3's frame reads
+`destroying obj=0x7fffe124beb0 from 0x55555556f997`, and that site resolves to
+`XThreadLocal<StampKind>::operator*()` / `~ScopedOpKind()` inlined in
+`bundle:3060` — not a refcounted destruction at all.  Same class of
+mis-attribution as `ScopedNegotiateLinkage::commit()` in §9.1.  The stack
+*depth* (0 vs non-zero) is trustworthy; the *site string* is not, at `-O3`.
+
+**Conclusion, by §11's own criterion**: the earliest anomaly is not stable, so
+**§2's model should target the invariant, not an edge** —
+
+> no slot may be reborn while a reference to its previous incarnation
+> survives
+
+with `Packet` refcount reaching zero under a live `PacketWrapper` (§1) as the
+concrete instance to check first.
+
+**Two changes that would make the next batch decisive:**
+
+1. **Gate anomalies on ledger-complete classes.**  Only `Packet` and
+   `PacketList_` are intrusive-and-`local_shared_ptr`-only, so only they have
+   complete histories.  Either suppress anomalies on other types or print the
+   object's `BORN/DEAD/INC/DEC` balance beside every report so a reader can
+   discount an unbalanced one at a glance.
+2. **Separate the two counters for `atomic_weakable` types.**  If the tracer
+   keys on the control block but hooks strong and weak operations onto one
+   counter, a `Linkage` will show spurious underflow whichever way the real
+   counts move.  Worth checking before any `atomic_smart_ptr.h:911` report is
+   believed.
