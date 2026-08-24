@@ -1146,3 +1146,69 @@ distribution; the captures are importance-sampled by the instrument itself.
 The invariant is the only version-independent statement.  The next batch's
 `RC-RECENT` blocks should be read for Q2/Q3 answers, not for a new dominant
 shape.
+
+## 13. TLA+ scope-token model — the protocol is exonerated; hunt the departure
+
+`kamestm/tests/tlaplus/atomic_shared_ptr_scopetoken.tla` + 6 cfgs.  Models
+exactly the layer §11.5 converged on: a `+1` ownership token moving between
+the atomic linkage word, `local_shared_ptr` holders, `scoped_atomic_view`
+(TagHeld / Owned, with the promote split into its two real atomic steps),
+and `CASInfo` parking (`:2178` park / `:3329` unpark), plus both `release_()`
+branches and the linkage CAS.  No Packet tree: the tree only *drives* a
+sequence of transfers, and the model generates all transfer sequences
+nondeterministically — a superset of every walk.  Rebirth (`MakeNew` into a
+freed identity) is included, so §11.3's invariant is checked in its token
+form:
+
+> per object `rc >= holders` (equality when no transfer has occurred),
+> globally `Σrc + link_tag = holders + pins`, a freed object has **nothing**
+> pointing at it, and no release ever fires against `rc = 0`.
+
+`CONSTANT TagXfer` selects the one thing v1 cut: `FALSE` = CAS requires a
+quiescent tag word; `TRUE` = the CAS **transfers** outstanding tags into the
+displaced object's `rc` (Layer 1's `CASTransfer`) and the tag-release paths
+gain their word-changed → global-decrement branch.  `TRUE` is the
+**composition of the L1 drain machinery with the Owned-view layer** — the
+seam neither Layer 1 (no Owned mode) nor v1 covered.  Backings are fungible
+under transfer (a stolen word-tag and a transferred rc-unit swap roles),
+which is why the per-object equality legitimately weakens to `>=`.
+
+**Results (2 threads, 2 objects, 2 lsp + 2 views + 1 park per thread):**
+
+| cfg | verdict |
+|---|---|
+| `none` (quiescent) | **PASS, exhaustive** — 11.7M generated / 748k distinct / depth 21 |
+| `none_xfer` (transfer composition) | **PASS, exhaustive** — 111.7M / 7.2M / depth 27, 2m42s |
+| `setview_noempty` ×2, `unpark_noempty` ×2 | **Conservation violated** within seconds, all four |
+
+The bug knobs each break one documented contract the way a real defect
+would (`set_view` adopting without emptying the source lsp; unpark leaving
+the CASInfo owning) — so the detector provably fires on the fault class.
+Two self-corrections during construction, recorded for honesty: the global
+sum first double-counted "promoting" (it consumes a holder AND a pending
+pin backing); and the first `TypeOK` rc bound counted holders only, tripping
+on a transferred pin at 90M states — the bound was wrong, not the protocol.
+
+**What this establishes.**  The token protocol **as documented** — including
+the transfer composition — cannot produce §1's state at this scope, and the
+scope is adequate for this fault class (both knobs violate within depth
+~10; the fungibility argument is scope-independent).  Combined with §11.5
+(Q2: the second holder's INC is visible), the defect is therefore a
+**departure of the implementation from one of these finitely many
+contracts**, not an emergent property of the protocol design.
+
+**The checklist this reduces the hunt to** (model action → C++ → audit状態):
+
+| action | C++ | audited? |
+|---|---|---|
+| `SetView` release-then-adopt | `set_view()` tn.h:877 + `assign_from_local` | transfer half clean (§12.3); release-ordering vs concurrent access **open** |
+| `ParkToCAS` / `UnparkFromCAS` | `:2178` / `:3329` + move-in ctor | **clean** (§12.3) |
+| `ViewPromoteAdd/Release` | scoped promote / `release_tagheld_zeroreset_` | L1-verified in isolation; **composition with Owned in-code: open** |
+| `ViewReleaseOwned` | `release_()` Owned `fetch_sub` | hook-verified semantics |
+| `LspCopy/Reset` | copy ctor / `reset()` | v1-hooked, §10 `fast_vector` clean |
+| `CommitCAS` + step4 accounting | `compareAndSet_impl_` | L1-verified in isolation (dossier 🟡7 noted the fetch_sub(2) consume as unexamined detail) |
+| wrapper ctor/dtor `m_packet` hand-off | `~PacketWrapper()` etc. | **open** — the cross-level seam (wrapper-count error becomes a Packet double-DEC) |
+
+The two **open** rows plus a surviving v7 `RC-RECENT` capture are the
+remaining moves.  A capture that names the deviating op empirically ends it;
+failing that, the checklist is short enough to close by inspection.
