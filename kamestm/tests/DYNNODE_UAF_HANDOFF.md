@@ -418,6 +418,55 @@ the same object class observed later in the recursion.
   same fault class, weaker instance; do not use it for attribution.
 - Raw dump excerpt: `kamestm/tests/evidence/rc_trace_INC_FROM_ZERO.txt`.
 
+### 9.1 Correction — §9's single-edge attribution is too strong
+
+Four further captures (three plain, one under gdb) **do not confirm one
+edge**.  Each run aborts at its own earliest *detected* anomaly, and those
+differ:
+
+| capture | tripwire | `rc(before)` | site |
+|---|---|---|---|
+| RCT2_3 | INC-FROM-ZERO | poison | `reverseLookupWithHint:1720` (PacketList clone) |
+| RCT3_14 | DEC-UNDERFLOW | poison | `~PacketWrapper()` → `atomic_shared_ptr_base::deleter` |
+| RCT3_22 | INC-FROM-ZERO | другой object's garbage | `Node::snapshot:2403` |
+| RCT3_35 | DEC-UNDERFLOW | **0**, single tid | `~PacketList_()` → `clear_fixed`, `transaction.h:105` |
+| RCTG_1 | INC-FROM-ZERO | 0 | `Node::snapshot:2423` |
+
+(read "другой" as "another" — typo preserved rather than silently rewritten
+in a record other people are reading.)
+
+**The one repeat**: RCT3_22 and RCTG_1 both resolve through
+`ScopedNegotiateLinkage::commit()` — but that is a line-table artefact,
+`commit()` is `{ m_committed = true; }` and performs no refcount op.  The
+real instruction is the adjacent
+`snapshot.m_packet = scope->packet();` / `= *foundpacket;` at
+`transaction_impl.h:2403` / `:2423`: a `local_shared_ptr<Packet>` copy-assign
+that INCs a `Packet` reached **through the scoped view's wrapper**.  That is
+§1's shape exactly — wrapper live, its `m_packet` already dead.
+
+**Methodological caveat, and the reason §9 overreached**: once the heap is
+corrupt the first tripwire is frequently a *secondary* access, not the root
+release.  A single capture cannot distinguish them.  What is consistent
+across all five is weaker but solid:
+
+> An object is **reborn in a slot while a reference to the previous
+> incarnation survives** (`DEAD → BORN → touch`, and in RCT3_35 a `DEC → BORN`
+> with no intervening `DEAD` at all), and the surviving reference is always
+> reached through the wrapper / list / scoped-view machinery of
+> `snapshot` / `bundle` / `unbundle`.
+
+RCT3_35 is the cleanest instance because it has no concurrency confound:
+single tid, `rc(before) = 0` rather than poison, `BORN → DEAD(unique) 1→0 via
+~PacketWrapper's chain → a second DEC from ~PacketList_()`.  That is a plain
+**double release inside one thread** — scenario (1), not (3).  So §9's
+"scenario (3), not (1)" claim is withdrawn; both shapes occur.
+
+**Suggested change to the instrumentation** (for whoever owns it): aborting on
+the first detected access maximises the chance of catching a secondary.
+Recording anomalies and continuing — or gating the abort on the *first* one
+per object per run and dumping all of them at exit — would let the earliest
+anomaly be compared across runs rather than sampled one per run.
+
 ## 10. Next capture: dump the SOURCE LIST's history at the same abort
 
 Written from the Mac session after auditing `fast_vector` (2026-08-24).
