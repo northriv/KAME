@@ -1330,7 +1330,7 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 		char *prev = nullptr;
 		for(size_t i = N_slots; i-- > 0; ) {
 			char *slot = base + i * ALIGN;
-			*reinterpret_cast<char **>(slot) = prev;
+			*kame_slot_link_(slot) = prev;
 			prev = slot;
 		}
 		m_freelist_head[0] = base;
@@ -3207,7 +3207,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 				char *fh = c->m_freelist_head[b];
 				c->m_freelist_head[b] = nullptr;
 				while(fh) {
-					char *fnext = *reinterpret_cast<char **>(fh);
+					char *fnext = *kame_slot_link_(fh);
 					fdrain[0].chunk = c;
 					fdrain[0].slot = fh;
 					c->batch_return_to_bitmap(fdrain);
@@ -3598,8 +3598,109 @@ PoolAllocatorBase::lookup_chunk(void *p) noexcept {
 // inline makes the hot free deterministic.  The cold off-ramps stay
 // out-of-line (their own `noinline`), so this only duplicates the lean
 // ~20-instruction hot path per call site.
+#ifdef KAME_POISON_FORENSIC
+// ===================================================================
+// Forensic free-poison (debug only, default OFF — every line here is
+// inside the #ifdef; see kame_poison_forensic.h for the token layout and
+// DYNNODE_UAF_HANDOFF.md §13.4 for why).  Replaces the hand-applied §3
+// scratch patch: same fill window (small pool classes), but the first two
+// words carry an index into this ring of free records, so a stale-access
+// tripwire can name the freeing thread/site/time directly.
+#include "kame_poison_forensic.h"
+namespace {
+// 2^18 records (~19 MB BSS in the debug .so).  A ring wrap makes older
+// records undecodable — the decoder reports that honestly rather than
+// misattributing.
+constexpr std::uint32_t KAME_FREEREC_RING = 1u << 18;
+kame_freerec g_freerecs[KAME_FREEREC_RING];
+std::atomic<std::uint32_t> g_freerec_next{1};   // 0 = "never written"
+std::atomic<std::uint32_t> g_freerec_tid_next{0};
+
+inline std::uint32_t freerec_tid_() noexcept {
+    static thread_local std::uint32_t tid =
+        g_freerec_tid_next.fetch_add(1, std::memory_order_relaxed) + 1;
+    return tid;
+}
+inline unsigned long long freerec_tsc_() noexcept {
+#if defined(__x86_64__)
+    return __builtin_ia32_rdtsc();
+#elif defined(__aarch64__)
+    unsigned long long v;
+    asm volatile("mrs %0, cntvct_el0" : "=r"(v));
+    return v;
+#else
+    return 0;
+#endif
+}
+//! Best-effort frame-pointer walk (same sanity checks as the tracer's
+//! walk_chain_).  Full chains need -fno-omit-frame-pointer on this TU;
+//! without it the walk breaks after ret[0], which is still recorded.
+inline std::uint32_t freerec_chain_(const void **out, std::uint32_t max,
+    const void *ret0) noexcept {
+    std::uint32_t n = 0;
+    out[n++] = ret0;
+#if defined(__x86_64__) || defined(__aarch64__)
+    void **fp = (void **)__builtin_frame_address(0);
+    std::uintptr_t prev = 0;
+    while(n < max && fp) {
+        std::uintptr_t f = (std::uintptr_t)fp;
+        if(f & (sizeof(void *) - 1)) break;
+        if(prev && (f <= prev || f - prev > (1u << 20))) break;
+        void *ret = fp[1];
+        if( !ret) break;
+        out[n++] = ret;
+        prev = f;
+        fp = (void **)fp[0];
+    }
+#endif
+    return n;
+}
+
+inline void freerec_poison_(void *p, const void *ret0) noexcept {
+    // size_of() == 0 for foreign pointers; same 16..4096 window as the §3
+    // scratch patch (small pool classes — where Packet/PacketWrapper live).
+    std::size_t sz = PoolAllocatorBase::size_of(p);
+    if(sz < 16u || sz > 4096u) return;
+    std::uint32_t ctr = g_freerec_next.fetch_add(1, std::memory_order_relaxed);
+    kame_freerec &r = g_freerecs[ctr % KAME_FREEREC_RING];
+    r.ctr = 0;                          // invalidate while (racily) rewriting
+    r.ptr = p;
+    r.size = sz;
+    r.tsc = freerec_tsc_();
+    r.tid = freerec_tid_();
+    r.nret = freerec_chain_(r.ret, 4u, ret0);
+    r.ctr = ctr;
+    unsigned long long token = (KAME_POISON_TAG << 48)
+        | ((unsigned long long)ctr << 16) | KAME_POISON_PAD;
+    unsigned long long *q = reinterpret_cast<unsigned long long *>(p);
+    q[0] = token;                       // where an intrusive refcnt sits
+    if(sz >= 16u) q[1] = token;         // where a weak_refcnt would sit
+    for(std::size_t i = 2; i < sz / 8u; ++i)
+        q[i] = KAME_POISON_PLAIN;       // derefs still fault loudly
+}
+} // namespace
+
+extern "C" __attribute__((noinline, used))
+int kame_poison_decode(unsigned long long word, kame_freerec *out) {
+    if((word >> 48) != KAME_POISON_TAG) return 0;
+    std::uint32_t ctr = (std::uint32_t)(word >> 16);
+    if( !ctr) return 0;
+    const kame_freerec &r = g_freerecs[ctr % KAME_FREEREC_RING];
+    if(r.ctr != ctr) return 0;          // never written, or ring wrapped
+    *out = r;                           // racy copy against a wrapping writer:
+    if(r.ctr != ctr) return 0;          // re-check catches the overlap
+    return 1;
+}
+#endif // KAME_POISON_FORENSIC
+
 KAME_ALWAYS_INLINE void
 PoolAllocatorBase::deallocate(void *p) noexcept {
+#ifdef KAME_POISON_FORENSIC
+	// The ONE choke point every small-pool free passes through (kame_free,
+	// operator delete, deallocate_pooled_or_free all land here); hooking
+	// anywhere shallower missed the interposed-malloc-family route.
+	if(p) freerec_poison_(p, __builtin_return_address(0));
+#endif
 	// (hoist) Read this thread's KameTlsPage ONCE: the region-cache
 	// check and the owner-id compare below share it.  `free(NULL)` needs
 	// no `!p` pre-filter — `last_region_base` is RADIX_CACHE_EMPTY (~0),
@@ -4622,7 +4723,7 @@ void *new_redirected_cold(unsigned int bucket, std::size_t size) {
 	if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
 		char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
 		if(char *head = *head_ptr) {
-			*head_ptr = *reinterpret_cast<char **>(head);
+			*head_ptr = *kame_slot_link_(head);
 			return head;
 		}
 		PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
@@ -4685,7 +4786,7 @@ void *new_redirected_large(std::size_t size) noexcept {
         if(char *cell_ptr_raw = pg->m_slots[bucket].freelist_head) {
             char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
             if(char *head = *head_ptr) {
-                *head_ptr = *reinterpret_cast<char **>(head);
+                *head_ptr = *kame_slot_link_(head);
                 return head;
             }
         }
@@ -4720,7 +4821,7 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
         if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
             char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
             if(char *head = *head_ptr) {
-                *head_ptr = *reinterpret_cast<char **>(head);
+                *head_ptr = *kame_slot_link_(head);
                 return head;
             }
             return chunk_from_freelist_ptr(head_ptr)->slow_allocate(bucket, size);
@@ -5014,7 +5115,7 @@ void *kame_malloc_impl(std::size_t n) noexcept {
 			}
 #endif
 			if(char *head = *head_ptr) {
-				*head_ptr = *reinterpret_cast<char **>(head);
+				*head_ptr = *kame_slot_link_(head);
 				return head;
 			}
 		}

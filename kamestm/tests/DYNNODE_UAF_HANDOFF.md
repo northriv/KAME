@@ -1490,3 +1490,72 @@ reinterpretation points at wrapper teardown, i.e. who was holding the
 wrapper), or (b) a composition the models still do not contain (bundle
 multi-linkage sequences).  `make run-test11` runs scenarios 1–3 + knob in
 seconds on either machine; `make run-test11-full` adds SCEN 4.
+
+### 13.4 Forensic poison — the freed memory itself names its killer
+### (and the old poison had a blind spot exactly where it mattered)
+
+User's idea, implemented: instead of a constant magic, the poison now
+CARRIES INFORMATION.  Build the allocator with `-DKAME_POISON_FORENSIC`
+(replaces the §3 hand-applied scratch patch; everything is inside the
+ifdef, production builds unchanged — default-off ctest 18/18, flag-on
+ctest 18/18, tmin 3×8-thread clean, no false anomalies):
+
+- On every small-pool free (16..4096 B, the same window as §3), the block
+  is filled with poison, but its FIRST word — where an intrusive refcnt
+  sits, i.e. what the tripwires read — gets a token:
+  `0xBAAD(16) | free-record counter(32) | 0x8000(16)`.  The low 16 bits
+  absorb stale count operations, so the counter stays decodable and the
+  decoder reports the DRIFT = how many stale ops already hit the block.
+- The counter indexes a 2^18-record ring inside the allocator:
+  `{ptr, size, tid, tsc, 4-frame call chain of the free}`.  A wrapped-out
+  record is reported as such, never misattributed.
+- `rc_trace` resolves `kame_poison_decode` via dlsym (binary and .so need
+  not agree on flags) and the anomaly RAW phase prints, right under the
+  header:
+
+```
+RC-ANOMALY #1 obj=0x110040080 op=DEC-UNDERFLOW ... rc_before=13451407662026227712 ...
+RC-FREEREC freed_ptr=0x110040080 (=obj) size=64 free_tid=1 tsc=... drift=+0
+           frames=4 <free call chain — addr2line -f -C -i>
+```
+
+Q3's question — WHO freed the thing the stale reference targets — is now
+answered unconditionally at the anomaly, immune to tracer-ring eviction
+and to `g_lastrel`/`g_recent` bucket theft: the block itself carries the
+key, for as long as it stays free.
+
+**The discovery that fell out (worth more than the feature): the pool's
+owner-thread L1 freelist stores its next pointer IN the freed slot's
+FIRST 8 bytes** (`freelist_push`, allocator_prv.h) — the exact word the
+refcnt occupies and the §3 poison claimed.  Two consequences for every
+capture to date:
+
+1. **Plain poison had a blind spot in the most likely window.**  An
+   L1-listed block's word 0 holds a HEAP POINTER, not poison — typically
+   < 2^48, so a stale count op on a *freshly freed* block (the hottest
+   reuse window) sailed under the tripwire threshold and was never
+   reported.  Poison was only reliably present after the block drained to
+   the bitmap.
+2. **A stale strong-count op on an L1-listed block CORRUPTS THE FREELIST
+   LINK** — the crash then happens later, in the owner's drain walk
+   (`release_dll_chunks_for_thread`), far from the culprit.  Demonstrated
+   here first-hand: the v11 smoke's two stale fetch_subs produced exactly
+   that delayed teardown SIGSEGV.  Some of the §1-era "random"
+   allocator-internal crash shapes may be this second-order effect rather
+   than direct UAF derefs.
+
+Under the flag, the link moves to the SECOND word (`kame_slot_link_()`;
+all twelve in-block link accesses routed through it, and the remaining
+`reinterpret_cast<char **>` casts in the pool are grep-audited to be
+head-cell casts, never slot derefs).  So with forensic poison: the token
+occupies word 0 for the block's ENTIRE freed lifetime (L1 → drain →
+bitmap → realloc), the tripwire can no longer miss the fresh-free window,
+and stale strong-count ops can no longer corrupt freelists.  (Stale WEAK
+ops land on word 1 = the relocated link; unchanged exposure, noted.)
+
+**Ubuntu action**: rebuild the poisoned `.so` from this commit with
+`-DKAME_POISON_FORENSIC -fno-omit-frame-pointer` and drop the §3 scratch
+patch.  Coverage is strictly wider than the old poison (fresh-free window
+now included), every capture gains the RC-FREEREC culprit line, and the
+n=3 capture's first releaser will be named even if it happened megabytes
+of events ago.

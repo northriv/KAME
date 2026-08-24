@@ -844,6 +844,26 @@ static constexpr uintptr_t RADIX_CACHE_EMPTY = ~(uintptr_t)0;
 //! Used by PoolAllocatorBase::radix_lookup and ::deallocate inlines.
 KameTlsPage *kame_page() noexcept;
 
+//! In-block freelist-link accessor.  Normally the link lives in the freed
+//! slot's FIRST 8 bytes.  Under KAME_POISON_FORENSIC (debug tracer builds
+//! only) it moves to the SECOND 8 bytes, so the first word — where an
+//! intrusive refcnt sits, and what the KAME_RC_TRACE stale-access
+//! tripwires read — keeps the forensic poison token for the block's whole
+//! freed lifetime (L1 freelist → drain → bitmap), AND a stale refcount
+//! operation on freed memory can no longer corrupt the freelist link
+//! (it lands on the token word instead).  Every pool class is >= 16 bytes
+//! (ALLOC_ALIGNMENT), so the second word always exists.  ALL in-block
+//! link reads/writes must go through this helper; the remaining
+//! `reinterpret_cast<char **>` casts in the pool are head-CELL casts,
+//! never slot derefs (grep-audited when this was introduced).
+static inline char **kame_slot_link_(void *p) noexcept {
+#ifdef KAME_POISON_FORENSIC
+    return reinterpret_cast<char **>(static_cast<char *>(p) + 8);
+#else
+    return reinterpret_cast<char **>(p);
+#endif
+}
+
 class PoolAllocatorBase {
 public:
 	//! Signature of the per-chunk dealloc trampoline stored in the
@@ -1287,13 +1307,13 @@ public:
 	//! the alloc-side TLS shortcut (`m_slots[bucket].freelist_head`) is
 	//! aimed at — see slow_allocate for the maintenance of that pointer.
 	inline void freelist_push(unsigned local, void *p) noexcept {
-		*reinterpret_cast<char **>(p) = m_freelist_head[local];
+		*kame_slot_link_(p) = m_freelist_head[local];
 		m_freelist_head[local] = static_cast<char *>(p);
 	}
 	inline void *freelist_pop(unsigned local) noexcept {
 		char *head = m_freelist_head[local];
 		if(head)
-			m_freelist_head[local] = *reinterpret_cast<char **>(head);
+			m_freelist_head[local] = *kame_slot_link_(head);
 		return head;
 	}
 
@@ -1807,7 +1827,7 @@ public:
 			if(head) {
 				s_tls.my_chunk = c;
 				c->m_freelist_head[local_id] =
-				    *reinterpret_cast<char **>(head);
+				    *kame_slot_link_(head);
 				return head;
 			}
 		}
@@ -2420,7 +2440,7 @@ struct AllocSlot {
 
 	//! Owner-thread freelist push.  Single-writer (TLS pin), no atomics.
 	void push(void *p) noexcept {
-		*reinterpret_cast<char **>(p) = freelist_head;
+		*kame_slot_link_(p) = freelist_head;
 		freelist_head = static_cast<char *>(p);
 	}
 	//! Owner-thread freelist pop.  Returns nullptr on empty;
@@ -2428,7 +2448,7 @@ struct AllocSlot {
 	void *pop() noexcept {
 		char *head = freelist_head;
 		if(!head) return nullptr;
-		freelist_head = *reinterpret_cast<char **>(head);
+		freelist_head = *kame_slot_link_(head);
 		return head;
 	}
 };
@@ -3219,7 +3239,7 @@ inline void *new_redirected(std::size_t size) {
 		}
 #endif /* KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH */
 		if(char *head = *head_ptr) {
-			*head_ptr = *reinterpret_cast<char **>(head);
+			*head_ptr = *kame_slot_link_(head);
 			return head;
 		}
 	}

@@ -59,6 +59,26 @@ static inline unsigned long long rc_trace_seq_() noexcept {
 #define RC_TRACE_HAVE_RAW_SINK 1
 #endif
 
+// ---- forensic free-poison decode (Â§13.4) -------------------------------
+// When the allocator is built with -DKAME_POISON_FORENSIC, a freed pool
+// block's first words carry an index into its ring of free records instead
+// of a bare magic.  Resolved via dlsym so this TU works with or without
+// such an allocator in the process; resolution happens once, on the first
+// thread's ring init (NOT in the anomaly path).
+#include "kame_poison_forensic.h"
+typedef int (*kame_poison_decode_fn)(unsigned long long, kame_freerec *);
+static std::atomic<kame_poison_decode_fn> g_poison_decode{nullptr};
+static void resolve_poison_decode_() noexcept {
+#if defined(__unix__) || defined(__APPLE__)
+    static std::atomic<bool> once{false};
+    bool f = false;
+    if(once.compare_exchange_strong(f, true))
+        g_poison_decode.store(reinterpret_cast<kame_poison_decode_fn>(
+            dlsym(RTLD_DEFAULT, "kame_poison_decode")),
+            std::memory_order_release);
+#endif
+}
+
 namespace kame_rc_trace {
 
 enum Op : unsigned {  // keep in sync with atomic_smart_ptr.h
@@ -349,6 +369,7 @@ void record(const void *obj, unsigned op, unsigned long long oldc,
     TL &t = tl;
     if(!t.ring) {
         register_stats_();
+        resolve_poison_decode_();
         t.ring = g_rings[g_ring_next.fetch_add(1, std::memory_order_relaxed)
                          % MAX_RINGS];
         t.tid = rc_trace_tid_();
@@ -792,6 +813,33 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
         raw_line_("RC-MARKERS-ALIVE adopt=%llu vmove=%llu (run totals)\n",
             g_op_tally[OP_VADOPT].load(std::memory_order_relaxed),
             g_op_tally[OP_VMOVE].load(std::memory_order_relaxed));
+        // Forensic poison (Â§13.4): if the stale count carries the 0xBAAD
+        // token, name the free that killed the block -- thread, call chain
+        // (resolve offline: addr2line -e <alloc.so> -f -C -i), age, and how
+        // many stale count ops already hit the word (drift).  This line is
+        // immune to tracer-ring eviction: the block itself carried the key.
+        if((oldc >> 48) == KAME_POISON_TAG) {
+            kame_poison_decode_fn dec =
+                g_poison_decode.load(std::memory_order_acquire);
+            kame_freerec fr;
+            if(dec && dec(oldc, &fr)) {
+                raw_line_("RC-FREEREC freed_ptr=%p%s size=%llu free_tid=%u "
+                    "tsc=%llu drift=%+d frames=%u %p %p %p %p\n",
+                    fr.ptr, fr.ptr == obj ? " (=obj)" : " (DIFFERENT from obj!)",
+                    (unsigned long long)fr.size, fr.tid, fr.tsc,
+                    (int)(oldc & 0xFFFFu) - (int)KAME_POISON_PAD, fr.nret,
+                    fr.nret > 0 ? fr.ret[0] : nullptr,
+                    fr.nret > 1 ? fr.ret[1] : nullptr,
+                    fr.nret > 2 ? fr.ret[2] : nullptr,
+                    fr.nret > 3 ? fr.ret[3] : nullptr);
+            } else if(dec) {
+                raw_line_("RC-FREEREC tag matched, record overwritten "
+                    "(free predates the ring window) or plain poison\n");
+            } else {
+                raw_line_("RC-FREEREC tag matched, no kame_poison_decode in "
+                    "process (plain-poison allocator)\n");
+            }
+        }
         if(chain_enabled_()) {
             const void *ch[CHAIN_N];
             unsigned cn = walk_chain_(ch, CHAIN_N);
