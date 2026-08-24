@@ -1984,3 +1984,56 @@ clone (hot templates with constant-ish arguments).  Outcomes:
   is promoted; next step is the `__attribute__((noipa))` per-function
   bisect of the 43%↔0% switch, then a g++ version sweep (12/13/14/15) and
   an asm diff of the named function.
+
+### 13.11 TSan on Ubuntu — one racing variable, already fixed elsewhere; then silence
+
+§13.10's recipe run on Ubuntu 26.04 / g++ 15.2 (TSan works here; the Mac
+finding stands).  Built without the pool (TSan owns `malloc`) and without
+`KAME_RC_TRACE`, per the recipe.
+
+**Pass 1 — `./tmin_tsan 5 8 200`: 60 data races, ALL the same variable.**
+
+```
+Linkage::m_tx_commit_count      transaction.h:1003   mutable uint64_t (non-atomic)
+  write  ++node.m_link->m_tx_commit_count   finalizeCommitment      transaction.h:2767
+  read   self->m_tx_commit_count            livelock_probe_tx_tick  transaction_neg_impl.h:1546
+```
+
+56 of 60 are that write/read pair, 4 are write/write on the same word.  This
+is exactly the race fixed by `cc227fafd` on `claude/great-turing-Ufao2`
+("make `Linkage::m_tx_commit_count` a relaxed pointer-width atomic") — **and
+that fix is not on this branch**, which forked from the rt-linux line.  It
+also matches that commit's own note that TSan reported this as the only racing
+variable in the STM.
+
+**Pass 2 — same fix applied locally to unmask, `./tmin_tsan2 20 8 200`
+(4× the work): ZERO races.  No log file emitted at all.**
+
+So **none of §13.10's priority suspects is a TSan-visible race**: not
+`PacketList::m_serial`, not `Payload::m_serial` (the `eraseSerials()`
+in-place resets), not `Packet::m_missing`, not `setReverseIndex()`'s plain
+int, not `fast_vector` internals.  Whatever those accesses are, in this
+workload they do not execute concurrently in a way TSan can flag.
+
+**Branch decision per §13.10: H1 (genuine miscompile) is promoted.**  The
+plain-field-race explanation is not supported by the mechanical enumerator
+built for exactly that class.
+
+**Two caveats on the negative**, so it is not over-read:
+
+1. Coverage is `20 × 8 × 200` without the pool — the configuration in which
+   the fault does not manifest at all.  §13.10's argument that race
+   observation is manifestation-independent holds for races that *execute*,
+   but a plain-field race gated behind a code path the pool-less build never
+   takes would be invisible.  A larger run (more rounds/threads) would
+   strengthen it; TSan at 8 threads is ~30× slower than the bare build.
+2. TSan sees the *compiled* accesses.  If g++ has already merged or hoisted a
+   plain load such that two source-level accesses became one, TSan observes
+   the optimized form — which is the very transformation H1 posits.  So a
+   TSan negative is weaker evidence against H1's *mechanism* than it looks:
+   it cannot see a race the optimizer created.
+
+**Action item independent of this hunt**: port `cc227fafd` to this branch and
+to master.  It is real UB (`++` on a shared non-atomic `uint64_t`), it is
+qualitatively worse on ILP32 (`add`+`adc`, readers can observe torn halves),
+and on this branch it is currently the only thing TSan reports.
