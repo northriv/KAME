@@ -1657,3 +1657,70 @@ That is §11.3's invariant with the primary-vs-secondary ambiguity removed,
 which is the part that was missing.  It still does not name one edge, and the
 free-side split 6/6 between two different destructors argues that it may not
 be one edge.
+
+### 13.6 The free-side 6/6 split is a lottery, not a second edge — and the
+### habitat is now: plain lsp<Packet> algebra on shared state
+
+Digesting §13.5 from the Mac side, one push-back and one narrowing.
+
+**Push-back: the 6/6 destructor split carries (almost) no information
+about the bug edge.**  The free-side chain names the LAST LEGITIMATE
+holder — whoever happens to hold the final accounted unit when the count
+(wrongly early) reaches zero.  A live Packet is legitimately held by its
+parent list's `lsp<Packet>` entry, by wrapper(s') `m_packet`, and by
+transients; if one unit is silently consumed upstream, which legitimate
+holder performs the 1→0 DEC afterwards is a teardown-order lottery over
+that population.  `~PacketWrapper()` 6 / `~PacketList_()` 6 / other 2 is
+what a SINGLE upstream edge would also produce.  The constant across all
+evidence is the STALE side — five container-knowable observations, §12.5
+included, all say `~PacketWrapper()` releasing `m_packet` — so the
+single-edge hypothesis is alive; it lives on the stale wrapper's share,
+and the free-side table should not be read against it.
+
+**Narrowing (structural, grep-verified on the branch): a Packet's strong
+count is touched by NOTHING but `local_shared_ptr<Packet>`
+copy/move/reset.**  The only `atomic_shared_ptr` in the tree is
+`Linkage : asp<PacketWrapper>`; there is no `asp<Packet>` and no
+`scoped_atomic_view<Packet>`.  Every mechanism exonerated so far — tags,
+views, zeroreset, scoped CAS, park/unpark (GenMC tests 1–11, the
+scope-token TLA+) — operates on the WRAPPER/Linkage layer and cannot
+touch a Packet unit.  What remains is ordinary shared-pointer algebra
+made unsound only by a broken immutability contract:
+
+1. **Torn lsp copy** — an `lsp<Packet>` copy whose SOURCE is concurrently
+   written (copy is load-then-INC, not atomic): suspects are every copy
+   from shared state — `snapshot.m_packet = scope->packet()`
+   (transaction_impl.h:2396/2402/2455/2495), PacketList clone entries
+   (`reverseLookupWithHint` — RCT2_3's INC-FROM-ZERO already fired
+   there), `reverseLookup` returns.
+2. **Write into published state** — the writer side of the same race:
+   `newwrapper->packet() = subpacket_new` (:1444),
+   `newsubwrapper->packet() = *pit` (:1561), and any PacketList entry
+   assignment — sound only while the wrapper/list is provably
+   unpublished.  `PacketWrapper::packet()` returning a NON-const ref is
+   what makes this class expressible at all.
+3. **`fast_vector<lsp<Packet>>` lifecycle** under cross-thread
+   publication (§10 audited the single-threaded semantics only).
+
+`drift=+0` adds a hard fact here: between the legitimate free and the
+stale op, NOTHING touched the block — no reallocation (a BORN would have
+replaced the token), no earlier stale op.  The stale wrapper simply held
+its `m_packet` across the entire freed window.  So pool double-hand-out
+is effectively excluded for these 14, and the loss happened strictly
+BEFORE the free.
+
+**Age is already in your data.**  `Ev.seq` and `kame_freerec.tsc` are the
+same rdtsc clock on x86, so `anomaly.seq − RC-FREEREC.tsc` gives each
+capture's free→stale-op age; the tracer now prints it directly
+(`age_tsc=` in RC-FREEREC).  The distribution is the cheap next
+discriminator: tight-µs ⇒ the stale wrapper was racing the teardown that
+freed the Packet (favors torn-copy/write-race suspects); long/bimodal ⇒ a
+parked long-lived wrapper (favors a custody hand-off).  Computable for
+the existing 14 without a rerun.
+
+**Next capture reading** (v9+v10 build already produces everything): in
+the underflowing Packet's history, pair every INC with its DEC by slot.
+The defect is the DEC whose slot is NOT the slot that INC'd that unit —
+with Q2 (the stale wrapper's INC is visible) that pair is the edge, and
+the VADOPT/VMOVE custody on the same history names who was holding the
+wrapper when it happened.

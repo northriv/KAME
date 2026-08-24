@@ -823,10 +823,15 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
                 g_poison_decode.load(std::memory_order_acquire);
             kame_freerec fr;
             if(dec && dec(oldc, &fr)) {
+                // age = stale-op time minus free time.  On x86 both sides are
+                // rdtsc (Ev.seq and kame_freerec.tsc share the clock), so this
+                // is directly comparable across a capture and across the §13.5
+                // batch; on other hosts the two clocks differ -- ignore it.
                 raw_line_("RC-FREEREC freed_ptr=%p%s size=%llu free_tid=%u "
-                    "tsc=%llu drift=%+d frames=%u %p %p %p %p\n",
+                    "tsc=%llu age_tsc=%llu drift=%+d frames=%u %p %p %p %p\n",
                     fr.ptr, fr.ptr == obj ? " (=obj)" : " (DIFFERENT from obj!)",
                     (unsigned long long)fr.size, fr.tid, fr.tsc,
+                    rc_trace_seq_() - fr.tsc,
                     (int)(oldc & 0xFFFFu) - (int)KAME_POISON_PAD, fr.nret,
                     fr.nret > 0 ? fr.ret[0] : nullptr,
                     fr.nret > 1 ? fr.ret[1] : nullptr,
