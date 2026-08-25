@@ -4446,3 +4446,53 @@ proxy that produced §13.59's capture, where it is decisive:
   arrives some other way, and the next question is which list the victim
   belonged to (dump `&newpacket`'s container identity alongside the
   tripwire).
+
+### 13.61 The escape detector is live and reports **zero** escapes across four reproductions — §13.60 refuted as stated
+
+Built the §13.60 tracer on Ubuntu against the `-O2 -fipa-cp-clone` forensic
+`.so` (the arm that produced §13.59's capture), `setarch -R`,
+`taskset -c 0-3`, `KAME_RC_TRACE_ESCAPE_CHECK=1`.
+
+**Liveness proved first, because `escapes=0` is ambiguous** between "ran and
+found nothing" and "never ran".  Temporarily patching `rcSlotWithin_` to
+`return false` (build, measure, revert — tree clean) makes the detector report
+**3 `LOOKUP-ESCAPE`** on a small run.  The call site at
+`transaction_impl.h:2902` executes, the env gate opens, and the anomaly
+reporter fires.
+
+**Result, 9 runs, 4 reproductions:**
+
+| run | rc | escapes | anomalies |
+|---|---|---|---|
+| 4 | 134 | **0** | 2 (`INC-FROM-ZERO`) |
+| 6 | 139 | **0** | 0 |
+| 7 | 134 | **0** | 0 |
+| 9 | 139 | **0** | 0 |
+
+**Zero escapes in every run, including the one that reproduced §13.59's
+`INC-FROM-ZERO` pair.**  At the moment of the check, `&newpacket` *was* a slot
+within `superwrapper->packet()`'s tree — the lookup did **not** navigate into
+a sibling parent's subtree.
+
+**So §13.60 is refuted in the form it was stated** — "a logic condition, no
+race needed".  The eleventh mechanism to die on a mechanical test.  The
+hard-link hint path is not returning an unpinned slot.
+
+**What is *not* refuted, and the distinction matters.**  The check is a
+point-in-time containment test taken immediately after the lookup.  It
+establishes that the slot was inside the pinned tree *then*; it cannot exclude
+a **time-of-check/time-of-use** variant in which the slot is legitimately
+inside the tree at lookup and the list holding it dies before Phase 1's copy
+at `:2870` runs.  That variant keeps everything else §13.60 assembled — the
+site, `drift=+0`, the two-holder Q1 result, the µs window — and would need a
+check placed *at the copy* (or a pin taken across it) rather than after the
+lookup.  Since §13.59 established the increment happens on already-freed
+storage, something does die in that interval; the escape check just shows it
+is not because the slot started outside the tree.
+
+**Recommendation.**  Move the containment check (or better, an explicit pin of
+the owning list) to immediately before the `:2870` copy and re-run this same
+matrix.  If it then reports, the TOCTOU variant is confirmed and the fix is a
+pin across Phase 1; if it still reports zero across several reproductions, the
+list is dying by some route other than the copy's own navigation, and the next
+question is who releases it.
