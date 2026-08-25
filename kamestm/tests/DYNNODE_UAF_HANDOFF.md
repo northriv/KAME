@@ -5193,3 +5193,72 @@ unchanged and is the one §13.63 posed: **what drops the last reference to
 `supscope->packet()` while the scope is live.**  The detector §13.68 retained
 (now pointed at the pre-loop capture) has not reported, which is consistent:
 that slot was not the one dying.
+
+### 13.73 §13.71's discriminator, answered: the survivor is a DIFFERENT signature — a same-thread DEC-UNDERFLOW
+
+Built HEAD (with §13.68 + §13.71; both verified present in the compiled
+header: `newsubpacket_val` ×3, `supscope->packet()->subnodes()` ×1) as the
+tracer/forensic binary and hunted survivors at `20 40 700`,
+`setarch -R taskset -c 0-3`.
+
+**Three surviving failures analysed: `rc=134` every time, and in each one
+`RC-SEGV` count = 0 and `INC-FROM-ZERO` count = 0.**  The §13.57/§13.59/§13.63
+signature is absent from the survivors.  What fires instead is
+**`DEC-UNDERFLOW`** — and the two events are on **the same thread**:
+
+```
+tid=844320  seq …927802  DEAD(unique)               rc 1 -> 0
+            (free at tsc …928276, free_tid=88, drift=+0)
+tid=844320  seq …929578  DEC-UNDERFLOW **TRIPWIRE** rc <poison> -> poison-1
+```
+
+One thread releases the last reference, the block is freed with **`drift=+0`**
+(accounting correct, as in every prior capture), and **the same thread
+decrements it again** ~1776 seq units later.  That is a **same-thread
+double-release** — precisely the class §13.50 built the ASan mode for and
+which §13.50 correctly noted TSan structurally cannot see.
+
+**The two sites.**
+
+* **Last release** (`0x1249d`) — `local_weak_ptr<Linkage>::reset()` ←
+  `~local_weak_ptr` ← `~PacketWrapper` ←
+  `atomic_shared_ptr_base<PacketWrapper>::deleter` ←
+  `compareAndSet_impl_`.  **The same shape as §13.57's crash frame and
+  §13.59's legitimate release.**
+* **The second decrement** (`0x605a`) —
+  `local_shared_ptr<Packet>::operator=(const local_shared_ptr&)`
+  (`atomic_smart_ptr.h:863`), i.e. an assignment releasing its *old* pointee.
+  Its `slot=0x7ffff37f7e50` is a **stack address**: a stack-local
+  `local_shared_ptr<Packet>` still held a countable reference it no longer
+  owned, and assigning over it paid the reference a second time.
+
+**Object life story, all on the one thread** (sites resolved):
+
+| seq | op | resolved site |
+|---|---|---|
+| …910962 | `BORN` | `reset_unsafe` ← `local_shared_ptr(Packet*)` ctor |
+| …913086 | `VADOPT` | `atomic_shared_ptr_base::get()` ← `lsp::get()` |
+| …915796 | `INC` (1→2) | `lsp::swap` ← `lsp::operator=` |
+| …916556 | `INC` (2→3) | `lsp::swap` ← `lsp::operator=` |
+| …927472 | `VMOVE` | `~scoped_atomic_view` ← **`ScopedNegotiateLinkage` ctor** (`transaction_negotiation.h:555`) |
+| …927802 | `DEAD(unique)` | `~PacketWrapper` ← `compareAndSet_impl_` |
+| …929578 | `DEC-UNDERFLOW` | `lsp::operator=` (`:863`), stack slot |
+
+The `VMOVE` — a view-custody move out of a `scoped_atomic_view` during
+`ScopedNegotiateLinkage` construction — is the last event before the death,
+and is the natural place to look for where a stack-local's ownership stopped
+matching its count.
+
+**Caveat on type labels:** the tracer keys on address, and this address
+carries `type=PacketWrapper` on the `VADOPT`/`VMOVE` lines and
+`type=Packet` on the `INC`/`DEAD` ones.  I have not resolved whether that is
+custody markers being recorded against the view's type or genuine reuse across
+the boundary, so **the type column should not be over-read**; the seq ordering
+and the site resolutions are the solid parts.
+
+**What this means for §13.71's question.**  The survivor is *not* the same
+class.  §13.68 and §13.71 may well have closed the resurrection windows —
+those signatures are gone from the survivors — while a **distinct
+same-thread double-release** remains, sharing only the `~PacketWrapper`
+last-release frame and `drift=+0`.  The next probe should target the
+stack-local's ownership across the `VMOVE`, not the resurrection sites.
