@@ -3597,3 +3597,44 @@ the small-workload result is what is verified here.  The decisive experiment
 is differential, not more TSan: make the `:3366` store a release atomic (and
 the `:3855` load acquire), then re-run the **original** `-O3` + `.so` + gcc
 reproducer and see whether 42/42 failures moves. Only that tests causation.
+
+### 13.46 The §13.45 differential, implemented: the m_owner_id handoff
+### goes release/acquire (falsifier #5 — and a correct fix regardless)
+
+The store and read §13.45 attributed are now a proper atomic pair, plus
+every other POST-PUBLICATION `m_owner_id` write found by census:
+
+- release stores (`atomicStoreRelease`, new shim beside the load
+  helpers; MSVC arm = volatile store, its idiomatic release):
+  the §13.45 store itself (`release_dll_chunks_for_thread`, non-empty
+  orphan branch), the empty-branch zero, the DLL-neighbour zero, the
+  orphan-ADOPT re-arm (`oc->m_owner_id = kame_owner_id()`), and both
+  dedicated/recycle restamps.  The construction-time stamp (:1304) stays
+  plain — pre-publication, correctly so.
+- acquire loads at both deallocate routing tests
+  (`atomicLoadAcquire`, which also takes the §13.43 fence-proxy token
+  under TSan).  x86: mov, zero cost.  arm64: `ldar` on the free fast
+  path — accepted pending the verdict; revisit if the reproducer flips.
+
+Two things this is, one thing it is not:
+1. **A correct fix regardless of the verdict** — a plain 4 B store
+   racing an atomic load is UB, full stop; §13.45's reasoning about the
+   dangerous direction (stale NON-ZERO owner id routing a foreign free
+   down the owner fast path mid-handoff) stands on its own.
+2. **The pre-registered causation experiment**: rebuild the ORIGINAL
+   failing configuration (gcc `-O3`, `.so`, forensic, no TSan) from this
+   commit and re-run the 42/42 batch.  All-or-nothing as always:
+   → 0 = the handoff race is THE fault; the mechanism is named
+   (§13.45), the §13.18 mitigation can be re-examined, and the story
+   closes as "post-publication plain store, exposed by -O3 codegen" —
+   note falsifier #2 (§13.17) had already atomicized the READ side and
+   was refuted, so the causal half was the WRITE side (or the acquire
+   ordering), which is consistent, not contradictory.
+   → still 42/42 = the UB fix stays, the enumeration continues on the
+   now-live pool (§13.45's six-run batch), and the survivor list is the
+   worklist.
+3. It is NOT a full DRF certificate — TSan's live-pool enumeration
+   remains the authority for what else is racing.
+
+Mac: both compile modes clean (TSan TU + bare), default Release ctest
+18/18; remaining plain owner writes are the construction stamp only.

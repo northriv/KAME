@@ -340,6 +340,17 @@ template <typename T>
 inline T atomicLoadRelaxed(const T *p) noexcept {
     return *(const volatile T *)p;
 }
+//! §13.46: acquire load / release store for the m_owner_id handoff.
+//! MSVC volatile has acquire/release semantics on its targets
+//! (/volatile:ms), so the volatile access is the idiomatic spelling.
+template <typename T>
+inline T atomicLoadAcquire(const T *p) noexcept {
+    return *(const volatile T *)p;
+}
+template <typename T>
+inline void atomicStoreRelease(T *p, T v) noexcept {
+    *(volatile T *)p = v;
+}
 #else
 template <typename T>
 inline T atomicLoadRelaxed(const T *p) noexcept {
@@ -351,6 +362,27 @@ inline T atomicLoadRelaxed(const T *p) noexcept {
     __tsan_acquire(&kame_tsan_fence_token_);
 #endif
     return v;
+}
+//! §13.46: the m_owner_id ownership-handoff pair.  The TSan-attributed
+//! race (§13.45) is a PLAIN post-publication `m_owner_id = 0` against the
+//! deallocate routing test; the store becomes release, the routing read
+//! becomes acquire.  x86: both compile to plain mov (zero cost).  arm64:
+//! the acquire is an ldar on the free fast path -- accepted pending the
+//! causation verdict; revisit if the reproducer flips.
+template <typename T>
+inline T atomicLoadAcquire(const T *p) noexcept {
+    T v = __atomic_load_n(p, __ATOMIC_ACQUIRE);
+#if KAME_TSAN_ENABLED
+    __tsan_acquire(&kame_tsan_fence_token_);
+#endif
+    return v;
+}
+template <typename T>
+inline void atomicStoreRelease(T *p, T v) noexcept {
+#if KAME_TSAN_ENABLED
+    __tsan_release(&kame_tsan_fence_token_);
+#endif
+    __atomic_store_n(p, v, __ATOMIC_RELEASE);
 }
 #endif
 

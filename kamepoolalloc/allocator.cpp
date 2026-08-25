@@ -2838,7 +2838,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 				s_tls.dll_exhausted = false;
 				// (1b) Clear m_owner_id BEFORE the destructor — see the
 				// FS=true batch_return_to_bitmap sibling for the rationale.
-				nx->m_owner_id = 0;
+				atomicStoreRelease(&nx->m_owner_id, 0u);   // §13.46
 				if(nx->m_owner_self_ref) {
 					// (Path B owner-ref) Adopted neighbour: it may still be
 					// pinned by a concurrent scrubber.  DROP the self-ref —
@@ -3001,7 +3001,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 			//   m_owner_dll_head_addr     = &s_tls.dll_head
 			//   m_owner_dll_force_walk_ptr= &s_tls.dll_force_walk_from_head
 			//                               (release store)
-			oc->m_owner_id = kame_owner_id();
+			atomicStoreRelease(&oc->m_owner_id, kame_owner_id());   // §13.46
 			oc->m_owner_dll_head_addr = static_cast<void *>(&s_tls.dll_head);
 			oc->m_owner_dll_force_walk_ptr.store(
 			    &s_tls.dll_force_walk_from_head, std::memory_order_release);
@@ -3325,7 +3325,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 		if(newv == 0) {
 			// (1b) Clear m_owner_id BEFORE the destructor — see the
 			// FS=true batch_return_to_bitmap sibling for the rationale.
-			c->m_owner_id = 0;
+			atomicStoreRelease(&c->m_owner_id, 0u);   // §13.46
 			if(c->m_owner_self_ref) {
 				// (Path B owner-ref) Re-owned (adopted) chunk: it may still be
 				// pinned by a concurrent scrubber's load_shared.  DROP the
@@ -3362,8 +3362,10 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 			// Non-empty orphaned chunk: clear m_owner_id so future threads
 			// can adopt it via try_adopt_orphan (§orphan-adopt).
 			// m_owner_dll_force_walk_ptr was already nulled (release) above;
-			// atomicFetchAnd provides a full barrier ordering this store.
-			c->m_owner_id = 0;
+			// atomicFetchAnd provides a full barrier ordering this store --
+			// but ordering is not atomicity: this is the §13.45 TSan-attributed
+			// racing store (plain 4 B write vs the deallocate routing read).
+			atomicStoreRelease(&c->m_owner_id, 0u);   // §13.46
 			// Push onto the atomic_shared_ptr orphan chain so an allocating
 			// thread can re-own it and reuse its free slots, instead of
 			// mmap'ing fresh (the scenario-2 stranding leak).  PUSH exactly
@@ -3852,7 +3854,7 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 	// garbage local-id (corruption / coincidental owner match on a stray
 	// pointer) tail-calls cold, which re-validates via palloc + the vtable
 	// owner check.
-	if(__builtin_expect(atomicLoadRelaxed(&chunk_obj->m_owner_id) == page_owner_id
+	if(__builtin_expect(atomicLoadAcquire(&chunk_obj->m_owner_id) == page_owner_id
 	                    && page_owner_id != 0, 1)) {
 		if(__builtin_expect(atomicLoadRelaxed(&chunk_obj->m_fs_flag) != 0, 1)) {  // FS=true — 64 B hot
 #if KAME_FS_CHUNK_FIFO
@@ -4072,7 +4074,7 @@ PoolAllocatorBase::deallocate_cold(void *p) noexcept {
 		// post-teardown free to the cold cross-free path, which decrements
 		// MASK_CNT and reclaims correctly.
 		uint32_t page_owner_id = pg->owner_id;   // (hoist) reuse the page read at fn entry
-		if(__builtin_expect(atomicLoadRelaxed(&chunk_obj->m_owner_id) == page_owner_id
+		if(__builtin_expect(atomicLoadAcquire(&chunk_obj->m_owner_id) == page_owner_id
 		                    && page_owner_id != 0, 1)) {
 			// (§12.3 / §16) Local-id from the cache-line-1 hot block:
 			//   FS=true        : chunk serves one size -> local-id 0.
@@ -4470,8 +4472,8 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 		// on the hot path and detect dedicated chunks via the natural
 		// owner-id mismatch.  Bucket-origin recycled blocks may carry a
 		// stale m_owner_id here; restamp it unconditionally.
-		reinterpret_cast<PoolAllocatorBase *>(
-		    cached + ALLOC_CHUNK_HEADER)->m_owner_id = 0;
+		atomicStoreRelease(&reinterpret_cast<PoolAllocatorBase *>(
+		    cached + ALLOC_CHUNK_HEADER)->m_owner_id, 0u);   // §13.46
 		writeBarrier();
 		// (§28.5) dedicated_chunk_bytes is now walked on demand; no
 		// per-alloc counter to bump here.
@@ -4502,8 +4504,8 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 	// truly-first claim, but the unit may have been previously held by a
 	// bucket chunk that left a non-zero m_owner_id behind.  Stamp it
 	// unconditionally — single uint32 store, negligible.
-	reinterpret_cast<PoolAllocatorBase *>(
-	    chunk_base + ALLOC_CHUNK_HEADER)->m_owner_id = 0;
+	atomicStoreRelease(&reinterpret_cast<PoolAllocatorBase *>(
+	    chunk_base + ALLOC_CHUNK_HEADER)->m_owner_id, 0u);   // §13.46
 	writeBarrier();
 	// (§28.5) dedicated_chunk_bytes is now walked on demand; no per-alloc
 	// counter to bump here.
