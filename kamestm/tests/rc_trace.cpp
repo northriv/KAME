@@ -119,7 +119,7 @@ enum Op : unsigned {  // keep in sync with atomic_smart_ptr.h
     OP_INC_FROM_ZERO, OP_DEC_UNDERFLOW,
     OP_WEAK_INC, OP_WEAK_DEC, OP_WEAK_DEAD,
     OP_VADOPT, OP_VMOVE,
-    OP_MINE_SHARED, OP_LOOKUP_ESCAPE,
+    OP_MINE_SHARED, OP_LOOKUP_ESCAPE, OP_DEAD_ELEMENT,
 };
 static bool is_weak_op_(unsigned op) noexcept {
     return op == OP_WEAK_INC || op == OP_WEAK_DEC || op == OP_WEAK_DEAD;
@@ -137,6 +137,8 @@ static const char *op_name_(unsigned op) noexcept {
     case OP_WEAK_DEC: return "wDEC (weak_refcnt)";
     case OP_WEAK_DEAD: return "wDEAD (weak_refcnt)";
     case OP_VADOPT: return "VADOPT (view association)";
+    case OP_DEAD_ELEMENT:
+        return "DEAD-ELEMENT **TRIPWIRE** (list element dead at the pre-copy check)";
     case OP_LOOKUP_ESCAPE:
         return "LOOKUP-ESCAPE **TRIPWIRE** (lookup slot outside the pinned tree)";
     case OP_MINE_SHARED:

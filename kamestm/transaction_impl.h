@@ -1716,6 +1716,29 @@ Node<XN>::rcLookupEscapeCheck(const local_shared_ptr<Packet> &root,
 }
 template <class XN>
 void
+Node<XN>::rcPreCopyCheck(const local_shared_ptr<PacketList> &list,
+    const void *site) noexcept {
+    static const bool enabled = [] {
+        const char *e = getenv("KAME_RC_TRACE_PRECOPY_CHECK");
+        return e && e[0] && e[0] != '0';
+    }();
+    if( !enabled || !list) return;
+    for(unsigned int i = 0; i < list->size(); ++i) {
+        const local_shared_ptr<Packet> &sp(( *list)[i]);
+        const Packet *e = sp.get();
+        if( !e) continue;
+        // Reading a freed pool slot is safe (still mapped) and is the
+        // point: a zero or poisoned count means the copy about to run
+        // would resurrect it.  Same predicate the lsp tripwires use.
+        uintptr_t rc = e->refcnt;
+        if(rc == 0 || rc >= ((uintptr_t)1 << 48))
+            kame_rc_trace::anomaly(e, kame_rc_trace::OP_DEAD_ELEMENT, rc,
+                site, kame_rc_trace::type_name_<Packet>(),
+                static_cast<const void *>( &sp));   // slot = the list slot
+    }
+}
+template <class XN>
+void
 Node<XN>::rcMineCheck(const local_shared_ptr<Packet> &trroot,
     const Packet *target, const void *site) noexcept {
     static const bool enabled = [] {
@@ -2907,6 +2930,14 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         STRICT_assert(s_serial_abandoned != newpacket->subpackets()->m_serial);
 
         //--- Phase 1: collect sub-packets from child nodes ---
+#ifdef KAME_RC_TRACE
+        // §13.62: §13.59 proved THIS copy increments an already-freed
+        // Packet.  Check every element ONE INSTRUCTION EARLIER, so the
+        // anomaly names the dead element, who released it last, its recent
+        // history, and who freed the storage -- and `slot=` says which list
+        // slot held it (shared-with-committed-tree vs private clone).
+        rcPreCopyCheck(newpacket->subpackets(), __builtin_return_address(0));
+#endif
         newpacket->subpackets().reset(new PacketList( *newpacket->subpackets()));
         local_shared_ptr<PacketList> &subpackets(newpacket->subpackets());
         shared_ptr<NodeList> &subnodes(newpacket->subnodes());

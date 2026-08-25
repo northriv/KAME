@@ -121,6 +121,13 @@ enum Op : unsigned {
     //! mutate and copy.  Logic condition; fires deterministically wherever
     //! the precondition occurs.
     OP_LOOKUP_ESCAPE,
+    //! §13.62 detector: a PacketList element was ALREADY DEAD (refcnt 0 or
+    //! poisoned) at the instant before the list copy that would resurrect
+    //! it -- §13.59's writer, caught one instruction early.  The anomaly
+    //! path then prints, for the element: who released it last
+    //! (RC-PRIOR-RELEASE-FAST), its recent history (RC-RECENT), and who
+    //! freed the storage (RC-FREEREC).  Complete forensics at the scene.
+    OP_DEAD_ELEMENT,
 };
 //! Compile-time type identification: `__PRETTY_FUNCTION__` of a function
 //! template names T, so every traced event can carry the type it belongs

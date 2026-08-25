@@ -1559,6 +1559,10 @@ private:
                               const void *slot) noexcept;
     static void rcLookupEscapeCheck(const local_shared_ptr<Packet> &root,
                                     const void *slot, const void *site) noexcept;
+    //! §13.62: validate every element of \a list is still live, at the
+    //! instant before a copy of \a list would increment them all.
+    static void rcPreCopyCheck(const local_shared_ptr<PacketList> &list,
+                               const void *site) noexcept;
     static bool rcTreeContains_(const local_shared_ptr<Packet> &root,
                                 const Packet *target) noexcept;
 #endif

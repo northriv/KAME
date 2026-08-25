@@ -4496,3 +4496,65 @@ matrix.  If it then reports, the TOCTOU variant is confirmed and the fix is a
 pin across Phase 1; if it still reports zero across several reproductions, the
 list is dying by some route other than the copy's own navigation, and the next
 question is who releases it.
+
+### 13.62 Check the ELEMENTS, one instruction before the resurrection
+### (the TOCTOU question answered at the scene, with full forensics)
+
+§13.61's result taken as decisive for §13.60-as-stated, and its
+liveness-first discipline adopted below.  Rather than move the
+containment check to `:2870`, this commit checks the thing §13.59
+actually indicted — **the elements** — at exactly that instant:
+
+```cpp
+rcPreCopyCheck(newpacket->subpackets(), …);                 // §13.62
+newpacket->subpackets().reset(new PacketList( *newpacket->subpackets()));
+```
+
+`rcPreCopyCheck` walks the list and tests every element's refcount for
+the same predicate the `local_shared_ptr` tripwires use (`0` or
+`>= 2^48` = poisoned).  Why this beats a containment/pin check:
+
+- **It answers TOCTOU directly.**  If an element is dead *here*, the
+  copy on the next line is the resurrection — no inference from
+  containment needed.  If every element is live *here* and
+  `INC-FROM-ZERO` still fires from `:2870`, then the element dies
+  **between this check and the copy**, i.e. inside the copy's own
+  execution window — which narrows the race to a handful of
+  instructions and rules out "it was already dead when we got here".
+- **It arrives with the complete case file.**  The report keys on the
+  ELEMENT, so the existing anomaly path prints, for that element:
+  `RC-PRIOR-RELEASE-FAST` (who released it last, with call chain),
+  `RC-RECENT` (its last 16 events), and `RC-FREEREC` (who freed the
+  storage, when — §13.4), plus `slot=` = the list slot address, which
+  says whether the list is a private clone or shared with the committed
+  tree.  That is the whole §13.59 triple *and* the container identity,
+  in one report.
+
+**Liveness proved before trusting any zero** (§13.61's rule): patching
+the predicate to `if(true)` yields **144 138** `DEAD-ELEMENT` reports on
+a small run, with well-formed anomaly lines (`rc_before=1` for live
+elements, `slot=`, `type=…::Packet`) — the call site executes on every
+bundle, the gate opens, the reporter fires.  Reverted; tree carries only
+the feature.
+
+**Mac: 0 dead elements** (6 runs, 1×+5× at 40 threads) — as expected
+where the fault never reproduces.
+
+**Ubuntu, the decisive matrix** — same arm as §13.61
+(`-O2 -fipa-cp-clone` forensic, `setarch -R`, `taskset -c 0-3`,
+`KAME_RC_TRACE_PRECOPY_CHECK=1`), enough runs to include reproductions:
+- **DEAD-ELEMENT fires** → the element was already dead on entry to
+  Phase 1; read its `RC-PRIOR-RELEASE-FAST` + `RC-FREEREC` and the
+  releaser is named — that is the last unknown in the chain.  Note the
+  `slot=` value: inside a private clone means the dead pointer was
+  *copied in* earlier (look one level up, at the lookup's own
+  `PacketList` copy); shared with the committed tree means a reachable
+  list holds a dead element, which is the STM-invariant break.
+- **No DEAD-ELEMENT but INC-FROM-ZERO still fires at `:2870`** → the
+  element dies *during* the copy: a concurrent releaser wins a race
+  against the copy's per-element increment, which points at the copy
+  needing the container pinned (or the elements' release ordered) rather
+  than at any earlier navigation — and the fix scope is then a pin/CAS
+  around this one copy.
+Either branch ends with a named releaser or a named window; there is no
+third outcome that leaves the chain open.
