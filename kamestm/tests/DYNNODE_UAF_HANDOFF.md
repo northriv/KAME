@@ -4814,3 +4814,57 @@ anyone proposes it as the cheap fix.  The two writes §13.36 found
 (`:1444`, `:1561`) are the easy half: both immediately follow
 `make_local_shared<PacketWrapper>(m_link, idx, serial)` and would become
 a 4-argument constructor, at zero runtime cost.
+
+### 13.66 CORRECTION to §13.65 — its PASS was over a crippled model; the
+### repaired one passes exhaustively to depth 3, and a checker now prevents
+### the class of mistake
+
+**§13.65's numbers were wrong and are withdrawn.**  `ScopeRelease` both
+assigned `done'` and listed `done` in its `UNCHANGED` tuple — a
+contradiction, so **that action was never enabled**: scopes were never
+released, wrappers never died from scope exit, and the "exhaustive PASS
+over 1 297 distinct states" was over a model that could not exercise the
+mechanism it was built for.  Caught by asking why raising the per-thread
+bound from 1 to 2 left the state count *identical*.
+
+Repaired (`done` removed from that tuple).  What the corrected model says,
+with `ScopeNodes = {Root, C}` and two threads:
+
+| depth (`MaxBundles`) | faithful arm | states / distinct |
+|---|---|---|
+| 1 | **PASS** exhaustive | 8 821 / 3 623 |
+| 2 | **PASS** exhaustive | 570 741 / **156 927** |
+| 3 | **PASS** exhaustive | 5 383 721 / **1 333 183** |
+
+and with the bug knobs at depth 2: LIFETIME violates `NoResurrection`,
+DOUBLE and UNCOUNTED violate `LiveWrapperPinsPacket`.  So the faithful
+transcription of the two-scope sequence — including scope release,
+wrapper death, `~PacketWrapper` cascading into `m_packet`, and up to
+three bundle sequences per thread — **admits no resurrection**, while all
+three candidate departures are caught.  That is now a real result rather
+than an artefact: 1.33 M distinct states with the mechanism live.
+
+**Prevention, since this is the fourth model error in three sections.**  A
+mechanical check now runs over the module: for every action, the set of
+primed variables must be disjoint from every `UNCHANGED` tuple it lists.
+It reported the contradiction immediately and reports NONE after the fix.
+Anyone extending this model should run it (it is six lines of Python over
+the `.tla`, split on action headers) before trusting a PASS — the
+TLA+ analogue of §13.61's "prove the detector fires first".
+
+**Where that leaves the partition.**  The protocol, faithfully
+transcribed at the depth the reproducer needs, does not permit
+§13.63's observation.  Combined with the constructor reading
+(UNCOUNTED refuted at source) the surviving candidates are:
+1. **DOUBLE** — a release of a `Packet` by code that does not own a
+   reference to it;
+2. a **concurrent overwrite** of a live wrapper's non-`const` `m_packet`
+   (which the model does not represent — it has no action that writes a
+   published wrapper's packet field, because §13.36's audit found both
+   writes pre-publish).
+
+(2) is now the more interesting gap precisely *because* the model omits
+it on the strength of that audit — and the audit predates everything
+learned since.  Re-auditing it is cheap and is the natural next Mac-side
+step; adding the write as an action would then let TLC say whether it is
+sufficient to produce the observation.

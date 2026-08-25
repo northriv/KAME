@@ -82,7 +82,12 @@ CONSTANTS
      * the smallest set that still contains a super/sub pair and the
      * hard-linked node.  Full {Root,A,B,C} runs are kept as the wider
      * (possibly non-exhaustive) arm. *)
-    ScopeNodes
+    ScopeNodes,
+    (* How many bundle sequences each thread may run.  1 keeps the search
+     * tiny; 2 is what reaches a RETRY (a thread bundling the same linkage
+     * again after a peer moved it) -- the depth §13.65 flagged as its
+     * limitation. *)
+    MaxBundles
 
 Nodes    == {Root, A, B, C}
 Packets  == {"pRoot", "pA", "pB", "pC"}
@@ -107,7 +112,7 @@ VARIABLES
     scopeIn,     \* [Threads -> Wrappers \cup {Null}]  the INNER `scope`
     viewHeld,    \* [Threads -> BOOLEAN]  does the OUTER view still protect it?
     pc,          \* [Threads -> String]
-    done,        \* [Threads -> BOOLEAN]  one bundle per thread (finiteness
+    done,        \* [Threads -> Nat]  bundles completed per thread (finiteness
                  \*   by PRECONDITION, mirroring the hard-link models'
                  \*   `bundleDone` -- this project does not use
                  \*   StateConstraint for structural bounding)
@@ -151,7 +156,7 @@ Init ==
     /\ scopeIn  = [t \in Threads |-> Null]
     /\ viewHeld = [t \in Threads |-> FALSE]
     /\ pc       = [t \in Threads |-> "idle"]
-    /\ done     = [t \in Threads |-> FALSE]
+    /\ done     = [t \in Threads |-> 0]
     /\ deadRead = FALSE
 
 --------------------------------------------------------------------------
@@ -161,7 +166,7 @@ Init ==
  * what is supposed to make `scope->packet()` safe. *)
 ScopeAcquire(t, n) ==
     /\ pc[t] = "idle"
-    /\ ~done[t]
+    /\ done[t] < MaxBundles
     /\ link[n] # Null
     /\ wAlive[link[n]]
     /\ scopeW'   = [scopeW   EXCEPT ![t] = link[n]]
@@ -355,9 +360,9 @@ ScopeRelease(t) ==
     /\ scopeW'   = [scopeW   EXCEPT ![t] = Null]
     /\ scopeIn'  = [scopeIn  EXCEPT ![t] = Null]
     /\ viewHeld' = [viewHeld EXCEPT ![t] = FALSE]
-    /\ done'     = [done     EXCEPT ![t] = TRUE]
+    /\ done'     = [done     EXCEPT ![t] = @ + 1]
     /\ pc' = [pc EXCEPT ![t] = "idle"]
-    /\ UNCHANGED <<link, done, deadRead>>
+    /\ UNCHANGED <<link, deadRead>>
 
 (* The bundle's own locals go out of scope: superwrapper + the list copy. *)
 DropLocals(t) ==
