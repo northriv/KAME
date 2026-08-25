@@ -233,6 +233,13 @@ inline std::atomic<std::size_t> &pf_frees() noexcept {
 inline std::atomic<std::size_t> &pf_unknown() noexcept {
     static std::atomic<std::size_t> n{0}; return n;
 }
+inline bool pf_strict() noexcept {
+    static const bool v = []{
+        const char *e = std::getenv("KAME_PF_STRICT");
+        return e && std::atoi(e);
+    }();
+    return v;
+}
 inline void pf_report_at_exit() noexcept {
     static bool once = (std::atexit([]{
         std::fprintf(stderr,
@@ -248,6 +255,26 @@ inline void *packet_forensics_new(std::size_t sz, const char *type) {
     void *raw = pf_raw_alloc(sizeof(PacketForensicsHeader) + sz);
     if( !raw) throw std::bad_alloc();
     auto *h = static_cast<PacketForensicsHeader *>(raw);
+    // Exclusivity.  The poison evidence in DYNNODE_UAF_HANDOFF.md cannot
+    // tell "the STM dropped the last reference too early" from "the
+    // allocator handed the same slot to two live objects" -- in both cases
+    // a live object's storage reads back as someone else's poison.  This
+    // separates them: a fresh block whose header still says ALIVE is one
+    // our records show as in use, so the allocator returned a live block.
+    // Costs one load per allocation.
+    if(h->magic == PF_MAGIC_ALIVE) {
+        std::fprintf(stderr,
+            "\n*** ALLOCATOR RETURNED A LIVE BLOCK ***\n"
+            "  %p (%zu bytes) is being handed to a %s on tid %d,\n"
+            "  but our records say it still holds a live %s (tid %d)\n",
+            static_cast<void *>(h + 1), sz, type, pf_tid(),
+            h->type ? h->type : "?", h->birth_tid);
+        pf_print("previous alloc", h->birth_bt, h->birth_bt_n);
+        void *abt[PF_BT_DEPTH];
+        pf_print("this alloc", abt, pf_capture_exact(abt));
+        std::fflush(stderr);
+        std::abort();
+    }
     h->magic = PF_MAGIC_ALIVE;
     h->size = sz;
     h->type = type;
@@ -296,11 +323,27 @@ inline void packet_forensics_check(const void *p, const char *what,
     auto *h = static_cast<const PacketForensicsHeader *>(p) - 1;
     if(h->magic == PF_MAGIC_ALIVE) return;
     if(h->magic != PF_MAGIC_DEAD) {
-        // Not one of our blocks (see pf_unknown).  Could equally be a freed
-        // block whose header was already recycled, so it is not proof of
-        // health -- but it is not proof of a fault either.
+        // Neither magic.  Two readings, and they are not equivalent:
+        //   - an instrumentation gap (some object of this type is built by
+        //     a path that bypasses our operators), or
+        //   - the block's memory was handed to something else entirely --
+        //     which is what an allocator returning a chunk while units in
+        //     it are still live would look like, and that case is invisible
+        //     to the DEAD check because the header never gets stamped.
+        // A clean run measures exactly zero of these, so KAME_PF_STRICT=1
+        // promotes the first one to a fault; the default only tallies them,
+        // since aborting on a gap would be a false positive.
         pf_unknown().fetch_add(1, std::memory_order_relaxed);
-        return;
+        if( !pf_strict()) return;
+        std::fprintf(stderr,
+            "\n*** STM BLOCK NO LONGER ITSELF (KAME_PF_STRICT) ***\n"
+            "  %s %p accessed via %s() by tid %d\n"
+            "  header magic = 0x%016llx (neither ALIVE nor DEAD)\n",
+            what, p, where, pf_tid(), (unsigned long long)h->magic);
+        void *sbt[PF_BT_DEPTH];
+        pf_print("use", sbt, pf_capture_exact(sbt));
+        std::fflush(stderr);
+        std::abort();
     }
     std::fprintf(stderr,
         "\n*** STM USE-AFTER-FREE ***\n"
