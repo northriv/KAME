@@ -4558,3 +4558,67 @@ where the fault never reproduces.
   around this one copy.
 Either branch ends with a named releaser or a named window; there is no
 third outcome that leaves the chain open.
+
+### 13.63 Elements are LIVE at the pre-copy check — and the first resurrection is not the Phase 1 copy
+
+Ubuntu matrix, `-O2 -fipa-cp-clone` forensic `.so`, `setarch -R`,
+`taskset -c 0-3`, both gates on.  Liveness proved locally first (§13.61's
+rule): forcing the predicate to `if(true)` yields **3** well-formed
+`DEAD-ELEMENT` reports (the reporter caps; §13.61's control capped the same
+way), then reverted — tree clean.
+
+| run | rc | DEAD-ELEMENT | LOOKUP-ESCAPE | INC-FROM-ZERO |
+|---|---|---|---|---|
+| 1 | 139 | 0 | 0 | 0 |
+| 2 | 134 | 0 | 0 | 0 |
+| 3 | 134 | **0** | 0 | **12** |
+| 4 | 139 | 0 | 0 | 0 |
+
+**Four reproductions, zero dead elements — including the run that fired 12
+`INC-FROM-ZERO`.**  Every element of the list was live one instruction before
+the copy.  By §13.62's own reading this is outcome 2: the element dies inside
+a window of a few instructions.
+
+**But the case file says something sharper.**  All 12 events are on **one**
+`Packet` (`0x7fffd672bc20`), and the two anomaly records differ in kind:
+
+* **`#1`, the first: `rc_before=0`** — a *clean zero*, not poison.  The object
+  had reached refcount 0 but had **not yet been freed**.  Site resolves to
+  `Node<LongNode>::bundle`, **`transaction_impl.h:2851`**:
+
+  ```cpp
+  local_shared_ptr<PacketWrapper> superwrapper(
+      make_local_shared<PacketWrapper>(supscope->packet(), bundle_serial));
+  ```
+
+  The `PacketWrapper` constructor copies that `local_shared_ptr<Packet>`, so
+  this increments **`supscope->packet()`'s Packet — which is already at zero.**
+
+* **`#2`, later: `rc_before=` poison** — the same object after the free, from a
+  different thread.  Its site attributes to `ScopedNegotiateLinkage::commit()`
+  / `Node::snapshot` (`transaction_impl.h:2507`); with inlining this frame
+  attribution is the least trustworthy datum here and I would not build on it.
+
+**This revises §13.59's single-site reading.**  §13.59 caught the increment at
+Phase 1's copy (`:2870`); this capture catches an *earlier* one, at the
+super-wrapper construction, on a **not-yet-freed** object.  So the copy at
+`:2870` is not uniquely guilty — it is one of several sites that increment a
+`Packet` already at zero, and the earliest observed one is upstream of it.
+That is exactly the shape §13.55's graded dose-response predicted: **many
+small windows, not one**.
+
+**What this establishes.**  The defect is not "the copy navigates to an
+unpinned list" (§13.60/§13.61, refuted) and not "the list elements are already
+dead when the copy starts" (§13.62's outcome 1, refuted here).  It is that
+**a `Packet` reaches refcount zero while a scope still holds a path to it**,
+and whichever site next copies that `local_shared_ptr` resurrects it —
+`bundle:2851` in this capture, `bundle:2870` in §13.59's.  The question is now
+squarely upstream: **why does `supscope->packet()` yield a zero-count
+Packet** — i.e. what dropped the last reference while the scope was live.
+
+**Suggested next probe**, in the same style that has been working: validate
+`supscope->packet()`'s refcount at scope *entry* and at each use, keyed on the
+Packet so the existing anomaly path prints its release history.  If it is
+already zero at entry, the defect is in how the scope acquires its view; if it
+goes zero during the scope, the release that does it is the culprit and its
+`RC-PRIOR-RELEASE-FAST` record will name it.
