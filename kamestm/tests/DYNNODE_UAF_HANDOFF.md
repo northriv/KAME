@@ -2653,3 +2653,69 @@ clone-set equality is not codegen equality.
 (11/11 both arms), and speculative indirect-call promotion (here).  The
 §13.14 boundary — allocator, gcc `-O3` only, absent from `-O2` and clang,
 blind-spot-free — has never moved.
+
+### 13.24 The §13.22 source read — no constant can kill either increment;
+### one benign escape hatch remains, and falsifier #4 decides at runtime
+
+The requested read of `orphan_chain_pop` (allocator.cpp:8242) against the
+two `lock add …,0xd8` sites:
+
+```
+local_shared_ptr<PoolAllocator> old(s_orphan_chain_head());
+        // lsp(asp&) ctor = load_shared_: acquire_tag_ref_ (CAS loop) →
+        // null check → PROMOTE refcnt.fetch_add(rcnt)  == the EARLY,
+        // null-checked lock add (variable amount = the tag count in %rax)
+for(;;) {
+    if(!old) return {};
+    local_shared_ptr<PoolAllocator> nxt(old->m_orphan_next);
+        // second load_shared_ — same shape, on NXT's refcnt
+    if(s_orphan_chain_head().compareAndSwap(old, nxt)) {
+        // Swap variant: step4 pre-pay fetch_add(rcnt_old−1) on OLD's
+        // refcnt == the CAS-path lock add (present in BOTH arms)
+        old->m_orphan_next = lsp();   // asp assign = more asp machinery
+        return old;
+    }
+    // failure: compareAndSwap re-acquires into `old` (another promote)
+}
+```
+
+**Verdict on the null hypothesis: DEAD at source level.**
+`orphan_chain_pop` takes NO arguments — IPA-CP has no constants to
+specialize on — and neither promote is guarded by anything a template
+parameter or propagated constant could fold: `load_shared_`'s promote is
+unconditional after the null check, the chain head is a global atomic
+(non-emptiness unprovable), and the only constexpr branch in the ctor
+path (`is_biased_directpublish<T>`) is OFF identically in both arms.
+There is no lawful "specialisation removed a source path" story for this
+function.
+
+**One benign escape hatch their exclusion does not close.**  "Symbols
+containing one add = 154 in both" rules out relocation into a NEW
+symbol, but not into an EXISTING one: if B replaced the inlined
+`load_shared_` with a CALL to an out-of-line copy that already carried
+an add in A's census, totals drop by exactly 22 while the
+symbols-containing count stays fixed — the same shape as the benign
+`recycle_push`/`l1_base.part.0` case.  **The one-line check: does B's
+`orphan_chain_pop` body contain a `call` where A had the inline add?**
+(e.g. `for f in B/sym/*orphan_chain_pop*.s; do grep -c "call" $f; done`
+against the same over A, and eyeball the callee names.)
+
+**If there is no call either — the increment is gone, and this is the
+bug**: the popped head loses its pin, `orphan_chain_scrub` /
+`atomic_intrusive_dispose` can free the chunk while the adopter holds
+and re-owns it, the region is reused, and every slot in it is handed out
+twice — Packet underflows downstream with exactly Q1's
+two-holders-one-count shape, at the thread-exit cadence the reproducer
+hammers (§11.4).  clang/-O2 keep the add; 42/42 vs 0/41 follows.
+
+**Falsifier #4 (runtime, cheap, decisive either way):** rebuild the B
+arm with `__attribute__((optimize("O2")))` (or `noipa`) on
+`orphan_chain_pop` alone — §5's warning about noclone side-effects is
+about attributing CAUSE to a clone set, but here the prediction is
+sharp and pre-registered: if pinning this ONE function to -O2 codegen
+takes the arm from 100 %-failing to zero, the lost increment is the
+defect (then extract the minimal TU around orphan_chain_pop + the asp
+machinery for the GCC report); if it keeps failing with the add
+restored (verify in the disassembly first, per §13.23's standing
+practice), the site is exonerated and the census scan continues to
+signatures (a)/(b).
