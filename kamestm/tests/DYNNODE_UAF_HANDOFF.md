@@ -2344,3 +2344,42 @@ does not:
 The hunt continues underneath: falsifier #2's A/B and the NC7 asm diff
 (§13.17) still decide between optimizer-created race and miscompile —
 whichever lands also decides whether this flag can ever come off.
+
+### 13.19 The three textbook ipa-cp-clone failure modes, checked against
+### this code — and the indirect-call refinement for the asm diff
+
+A generic list of "why ipa-cp-clone breaks programs" (miscompile with
+wrongly-assumed constant args; function-ADDRESS identity broken by
+clones; inline-asm/Windows interactions) was checked against
+allocator.cpp:
+
+1. **Function-address identity — does not apply as stated.**  The chunk
+   header stores `DeallocateFn`/`SizeOfFn` and the cold paths CALL
+   THROUGH them (:4071/:4166); nothing compares a function pointer's
+   address (the "identity-compares" at :577 is the DATA pointer
+   `&g_teardown_page`).  An address-taken function keeps its original
+   address under cloning, and calls through it are semantically safe.
+2. **But the inverse of (1) is live and CHECKABLE**: gcc performs
+   SPECULATIVE INDIRECT-CALL PROMOTION — at an indirect call whose
+   target set it thinks it knows, it emits `cmp fn, $target; je
+   direct_or_clone; else indirect` GUARDS of its own.  The stored-fn
+   dispatch at :4071/:4166 (one stamp site per template instantiation)
+   is exactly the shape that invites it, and a wrong assumption there
+   (mis-narrowed target set, or a clone specialized on a mis-proven
+   constant argument) is a PR110282/118138-class wrong-code.  **Asm-diff
+   refinement: in the `-O2 -fipa-cp-clone` arm, look FIRST at the
+   deallocate_cold / size_of call sites through the header-stored
+   pointers for compiler-inserted compare-and-branch guards and
+   .constprop targets.**  gcc 15.2 postdates the PR118138 ipa-cp fix
+   (2025-01), so that exact bug is likely already fixed — but the family
+   is the right neighborhood.
+3. **Inline asm / MinGW modes — not applicable** (production repro is
+   Linux ELF; the only asm in the TU is rdtsc/cntvct in the debug-gated
+   forensic block and pause4spin).
+
+Cheap additional discriminator for Ubuntu (E3): an A/B of
+`-O3 -fno-indirect-inlining` (clones still allowed, indirect-call
+promotion suppressed).  If THIS also fully suppresses, the defect sits
+in the promoted-indirect-call machinery around the stored-fn dispatch,
+and the asm reading narrows to those two call sites; if it keeps
+failing, the promotion reading dies and the clones themselves remain.
