@@ -30,6 +30,7 @@
 // Transaction below.  Pulled out into transaction_detail.h to
 // keep transaction.h focused on the public API.
 #include "transaction_detail.h"
+#include "packet_forensics.h"
 
 namespace Transactional {
 
@@ -251,13 +252,16 @@ private:
     //! any content may be out-of-date.\n
     struct DECLSPEC_KAME Packet : public atomic_countable {
         Packet() noexcept : m_missing(false) {}
-        int size() const noexcept {return subpackets() ? subpackets()->size() : 0;}
-        local_shared_ptr<Payload> &payload() noexcept { return m_payload;}
-        const local_shared_ptr<Payload> &payload() const noexcept { return m_payload;}
+        //! Debug-only use-after-free detector; no-ops unless
+        //! KAME_STM_PACKET_FORENSICS is defined.  \sa packet_forensics.h
+        KAME_PF_NEW_DELETE
+        int size() const noexcept {KAME_PF_CK("size"); return subpackets() ? subpackets()->size() : 0;}
+        local_shared_ptr<Payload> &payload() noexcept { KAME_PF_CK("payload"); return m_payload;}
+        const local_shared_ptr<Payload> &payload() const noexcept { KAME_PF_CK("payload"); return m_payload;}
         shared_ptr<NodeList> &subnodes() noexcept { return subpackets()->m_subnodes;}
-        local_shared_ptr<PacketList> &subpackets() noexcept { return m_subpackets;}
+        local_shared_ptr<PacketList> &subpackets() noexcept { KAME_PF_CK("subpackets"); return m_subpackets;}
         const shared_ptr<NodeList> &subnodes() const noexcept { return subpackets()->m_subnodes;}
-        const local_shared_ptr<PacketList> &subpackets() const noexcept { return m_subpackets;}
+        const local_shared_ptr<PacketList> &subpackets() const noexcept { KAME_PF_CK("subpackets"); return m_subpackets;}
 
         //! Points to the corresponding node.
         Node &node() noexcept {return payload()->node();}
@@ -265,7 +269,7 @@ private:
         const Node &node() const noexcept {return payload()->node();}
 
         //! \return false if the packet contains the up-to-date subpackets for all the subnodes.
-        bool missing() const noexcept { return m_missing;}
+        bool missing() const noexcept { KAME_PF_CK("missing"); return m_missing;}
 
         //! For debugging.
         void print_() const;

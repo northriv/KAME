@@ -39,6 +39,7 @@
 #include <condition_variable>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 
 // All KAME_STM_* / KAME_LEASE_* / KAME_DT2_* / KAME_GATE_* / KAME_SPIN_*
 // tuning macros live in transaction_definitions.h (-D overridable).
@@ -2815,6 +2816,24 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         newpacket->subpackets().reset(new PacketList( *newpacket->subpackets()));
         local_shared_ptr<PacketList> &subpackets(newpacket->subpackets());
         shared_ptr<NodeList> &subnodes(newpacket->subnodes());
+#ifdef KAME_STM_BUNDLE_BOUNDS_CHECK
+        // subwrappers_org was sized ONCE, before the retry loop, from the
+        // child count supscope had then.  Every index below is unchecked
+        // (fast_vector::operator[] has no bounds test and its inline slots
+        // past size() are RAW STORAGE), so if this node gained a child
+        // while we were retrying, `subwrappers_org[i] = ...` move-assigns
+        // over an unconstructed scoped_atomic_view — i.e. release_() on a
+        // stale stack word.  Prove whether that is reachable.
+        if(subpackets->size() > subwrappers_org.size()) {
+            std::fprintf(stderr,
+                "*** subwrappers_org UNDERSIZED: sized %zu, now %d children"
+                " (retry=%d) ***\n",
+                (std::size_t)subwrappers_org.size(), (int)subpackets->size(),
+                retry);
+            std::fflush(stderr);
+            std::abort();
+        }
+#endif
 
         bool missing = false;
         for(unsigned int i = 0; i < subpackets->size(); ++i) {
@@ -2896,6 +2915,17 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         //  Each bundled_ref is a PacketWrapper holding a back-reference
         //  (bundledBy → parent's m_link) and the child's reverse index.
         bool changed_during_bundling = false;
+#ifdef KAME_STM_BUNDLE_BOUNDS_CHECK
+        if(subnodes->size() > subwrappers_org.size()) {
+            std::fprintf(stderr,
+                "*** subwrappers_org UNDERSIZED (phase 3): sized %zu, now %d"
+                " subnodes (retry=%d) ***\n",
+                (std::size_t)subwrappers_org.size(), (int)subnodes->size(),
+                retry);
+            std::fflush(stderr);
+            std::abort();
+        }
+#endif
         for(unsigned int i = 0; i < subnodes->size(); i++) {
             shared_ptr<Node> child(( *subnodes)[i]);
             local_shared_ptr<PacketWrapper> bundled_ref;
