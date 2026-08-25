@@ -5262,3 +5262,66 @@ those signatures are gone from the survivors — while a **distinct
 same-thread double-release** remains, sharing only the `~PacketWrapper`
 last-release frame and `drift=+0`.  The next probe should target the
 stack-local's ownership across the `VMOVE`, not the resurrection sites.
+
+### 13.74 Two answers the instrument's author owes §13.73 — and the last
+### decrement-coverage hole, closed
+
+**1. The type-label caveat is resolved: it is the dual-keyed markers, not
+reuse.**  §13.32 made `VADOPT` / `VMOVE` record TWICE — once keyed on the
+view's target (a `PacketWrapper`) and once on `secondary_obj_`, the
+target's `m_packet` (the `Packet`) — and **both records carry
+`type_name_<T>()` = the VIEW's T**, i.e. `PacketWrapper`.  So in §13.73's
+history the `type=PacketWrapper` lines on a `Packet` address are the
+SECONDARY records: they mean *"a PacketWrapper whose `m_packet` is this
+Packet adopted / moved a view"*.  The object is a `Packet` throughout; no
+cross-boundary reuse is implied.  That makes those two lines **positively
+useful** rather than suspect: they name the wrapper custody events
+bracketing the death, which is why the `VMOVE` sits where it does.
+
+**2. The arithmetic gap (BORN 1 → INC → INC → `DEAD(unique)` at 1) has
+two possible causes, and one of them was my instrument.**
+
+*Cause A — cache bucket theft (most likely for a `Packet`).*  `RC-RECENT`
+is an O(1) **direct-mapped** cache: 4096 buckets keyed by an address
+hash, 16 events each.  A second object hashing to the same bucket **takes
+it over and discards the first object's events**; when the original
+object is touched again it re-claims the bucket and starts from an empty
+index.  So a `RC-RECENT` history can legitimately be missing intermediate
+events.  **The authoritative source is `kame_rc_dump`'s ring scan** — its
+`ledger:` line (`strong BORN n / DEAD n / INC n / DEC n`) is computed over
+all 64 rings and is what settles whether decrements are missing or merely
+unlisted.  Please read that line for the survivor's object; if
+`INC + BORN − DEC − DEAD ≠ 0` the arithmetic really is open.
+
+*Cause B — six decrement paths had NO event at all, now fixed here.*
+Audited every `refcnt.fetch_sub` / `decAndTest` in `atomic_smart_ptr.h`:
+`lsp::reset()`, `release_()`'s Owned branch and `release_tagheld_zeroreset_`'s
+fallback were hooked (v8), but **six were silent** — the CAS success-path
+release, the step-4 undo, `release_tag_ref_`'s excess-undo,
+`new_refcnt_undo`, the Swap path's `decAndTest`, and
+`try_release_single_attempt`'s helper.  A new `KAME_RC_DEC_N(obj, amount,
+T)` macro now traces all six with the standard threshold tripwire and
+records the pre-value, so multi-unit decrements are visible and any
+history's arithmetic is closable.  Verified: a CAS smoke's ledger now
+shows the previously invisible CAS-path `DEC`, no false anomalies, and the
+full `tests/` tree is **40/40**.
+
+**Scope note that matters for the survivor.**  All six are
+`atomic_shared_ptr<T>` paths, and there is no `atomic_shared_ptr<Packet>`
+(§13.6, grep-verified) — so for a **Packet** they cannot fire.  Meaning:
+if the survivor's `Packet` history still fails to add up after this
+commit, the missing decrements are **cache eviction (Cause A), not an
+unhooked path** — every `Packet` decrement goes through `lsp`, and all of
+those were already traced.  Where the new hooks DO change things is
+**wrapper** histories, which §13.57's crash (`~PacketWrapper` on reused
+storage) and §13.73's `VMOVE` make central: a wrapper's life can now be
+reconstructed completely.
+
+**Suggested next read, no new runs needed**: for the survivor's object,
+the `ledger:` line plus the full `RC-EV` list (newest-40, ring-scanned).
+If `DEAD(unique)` really fired at a true count of 1 while a stack-local
+`lsp<Packet>` still held it, that is **two holders / one count on a
+Packet** — the UNCOUNTED shape §13.64 partitioned out and refuted at the
+`PacketWrapper` constructors, which would mean the missing `+1` is on a
+different acquisition path (the stack-local's), and the `VMOVE` line
+names the custody event to inspect.

@@ -179,6 +179,29 @@ void pop_dtor() noexcept;
     ::kame_rc_trace::record((obj), (op), (unsigned long long)(oldc), \
         __builtin_return_address(0), ::kame_rc_trace::type_name_<TY>(), \
         static_cast<const void *>(this))
+//! §13.74: traced multi-unit decrement.  Six decrement paths (the CAS
+//! success/undo paths, release_tag_ref_'s excess-undo, the Swap decAndTest,
+//! new_refcnt_undo and try_release_single_attempt's helper) previously
+//! changed a refcount with NO event, so a history's arithmetic could not be
+//! closed -- exactly the gap §13.73's capture ran into (BORN 1, INC to 3,
+//! then DEAD(unique) at 1, with the two decrements invisible).  These are
+//! wrapper-level counts (there is no atomic_shared_ptr<Packet>), so the hole
+//! only ever hid WRAPPER history -- which §13.57's crash and §13.73's VMOVE
+//! make central.  `amount` may exceed 1; `oldc` records the pre-value so the
+//! arithmetic is checkable.
+#define KAME_RC_DEC_N(obj, amount, TY) do { \
+    auto _rct_n = (uintptr_t)(amount); \
+    auto _rct_o = (obj)->refcnt.fetch_sub(_rct_n, std::memory_order_acq_rel); \
+    if(_rct_o < _rct_n || _rct_o >= ((uintptr_t)1 << 48)) \
+        ::kame_rc_trace::anomaly((obj), ::kame_rc_trace::OP_DEC_UNDERFLOW, \
+            _rct_o, __builtin_return_address(0), \
+            ::kame_rc_trace::type_name_<TY>(), nullptr); \
+    ::kame_rc_trace::record((obj), (_rct_o == _rct_n) \
+            ? ::kame_rc_trace::OP_DEAD : ::kame_rc_trace::OP_DEC, \
+        _rct_o, __builtin_return_address(0), \
+        ::kame_rc_trace::type_name_<TY>(), nullptr); \
+    _rct_dead_ = (_rct_o == _rct_n); \
+    } while(0)
 #define KAME_RC_DTOR_PUSH(obj) \
     ::kame_rc_trace::push_dtor((obj), __builtin_return_address(0))
 #define KAME_RC_DTOR_POP() ::kame_rc_trace::pop_dtor()
@@ -200,6 +223,9 @@ void pop_dtor() noexcept;
 #define KAME_RC_EVT(obj, op, oldc) ((void)0)
 #define KAME_RC_EVT_T(obj, op, oldc, TY) ((void)0)
 #define KAME_RC_EVT_TV(obj, op, oldc, TY) ((void)0)
+#define KAME_RC_DEC_N(obj, amount, TY) \
+    do { _rct_dead_ = ((obj)->refcnt.fetch_sub((uintptr_t)(amount), \
+            std::memory_order_acq_rel) == (uintptr_t)(amount)); } while(0)
 #define KAME_RC_DTOR_PUSH(obj) ((void)0)
 #define KAME_RC_DTOR_POP() ((void)0)
 #endif
@@ -1693,8 +1719,9 @@ public:
         // this fetch_sub).  Captures m_pref and m_asp for deleter.
         auto sub_with_delete_check = [this](uintptr_t sub) {
             if(sub) {
-                if(m_pref->refcnt.fetch_sub(sub,
-                        std::memory_order_acq_rel) == sub) {
+                bool _rct_dead_ = false;
+                KAME_RC_DEC_N(m_pref, sub, T);      // §13.74
+                if(_rct_dead_) {
                     m_asp->deleter(m_pref);
                 }
             }
@@ -2070,7 +2097,9 @@ inline bool atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_globa
         break;
     }
     if(sub_amount) {
-        if(pref->refcnt.fetch_sub(sub_amount, std::memory_order_acq_rel) == sub_amount) {
+        bool _rct_dead_ = false;
+        KAME_RC_DEC_N(pref, sub_amount, T);         // §13.74
+        if(_rct_dead_) {
             const_cast<atomic_shared_ptr*>(this)->deleter(pref);
         }
     }
@@ -2151,7 +2180,8 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
                 if(newr.use_count() == 2) //unique at start pt., and was +1.
                     { newr.ref_ptr_()->refcnt--; return; }
             }
-            newr.ref_ptr_()->refcnt.fetch_sub(NEWR_ADD, std::memory_order_relaxed);
+            { bool _rct_dead_ = false;                 // §13.74
+              KAME_RC_DEC_N(newr.ref_ptr_(), NEWR_ADD, T); (void)_rct_dead_; }
         }
     };
 
@@ -2202,7 +2232,9 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
             if constexpr (ACQUIRE) {
                 if(oldr.ref_ptr_()) {
                     // decreasing global reference counter.
-                    if(oldr.ref_ptr_()->refcnt.decAndTest()) {
+                    bool _rct_dead_ = false;
+                    KAME_RC_DEC_N(oldr.ref_ptr_(), 1u, T);   // §13.74
+                    if(_rct_dead_) {
                         this->deleter(oldr.ref_ptr_());
                     }
                 }
@@ -2276,7 +2308,9 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
                     else if constexpr (RETAIN_NEWR) sub = 2u;  // Owned + RETAIN
                     // else Owned non-RETAIN: sub = 1 (scoped keeps OLD)
                 }
-                if(pref->refcnt.fetch_sub(sub, std::memory_order_acq_rel) == sub) {
+                bool _rct_dead_ = false;
+                KAME_RC_DEC_N(pref, sub, T);        // §13.74
+                if(_rct_dead_) {
                     const_cast<atomic_shared_ptr*>(this)->deleter(pref);
                 }
             }
@@ -2336,7 +2370,8 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
             //             OR pre-paid by an external drainer); destructor's
             //             release_tag_ref_(pref, 1u) handles cleanup.
             if(pref && step4_amount) {
-                pref->refcnt.fetch_sub(step4_amount, std::memory_order_relaxed);
+                bool _rct_dead_ = false;            // §13.74
+                KAME_RC_DEC_N(pref, step4_amount, T); (void)_rct_dead_;
             }
         }
         if constexpr (WEAK) {
