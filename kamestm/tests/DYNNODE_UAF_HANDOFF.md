@@ -2719,3 +2719,48 @@ machinery for the GCC report); if it keeps failing with the add
 restored (verify in the disassembly first, per §13.23's standing
 practice), the site is exonerated and the census scan continues to
 signatures (a)/(b).
+
+### 13.26 The call: run (b) now — and (a) only as a census, with the unit
+### of analysis corrected for -O3
+
+Decision requested on §13.25's fork.  **Run (b)** — falsifier #4 on the
+-O2 proxy pair, where the missing increment demonstrably exists and the
+configuration demonstrably fails (19/35).  It is the well-posed
+experiment, and it completes the GCC-report package either way: the
+-O2-pair exhibit is already sufficient for a wrong-code report (one
+pass, one no-argument symbol, 22 deleted atomic RMWs, source read on
+record showing no constant can justify any of them, call-census showing
+no relocation) — (b) adds the runtime consequence if it flips, and if it
+does NOT flip, the deletion is still reportable wrong code, just not our
+crash.  Please record the proxy arm's tripwire phenotype (op types,
+anomaly object type) alongside, so proxy-vs--O3 comparability stops
+being an assumption.
+
+**(a) should not be run as a full A/B — only as a census — and with a
+corrected target.**  Two structural points:
+
+1. **-O3's "5 lock adds" in the standalone symbol is likely the COMPLETE
+   set, not an excess.**  The §13.24 source map has exactly five static
+   variable-amount fetch_add classes inside orphan_chain_pop: head-load
+   promote, nxt-load promote, CAS step4 pre-pay, CAS-failure re-acquire
+   promote, and the m_orphan_next-assign pre-pay.  -O2's "2" means three
+   of them lived behind calls there; -O3 inlines them all.  So the
+   standalone -O3 symbol being "intact" is expected and says nothing.
+2. **At -O3 the unit of analysis is probably the CALLER.**  If
+   allocate_chunk_path (:2952) inlines orphan_chain_pop at -O3, the
+   standalone symbol is dead weight and the place an analogous deletion
+   would live is the INLINED copy.  Check first: does the -O3 caller
+   `call orphan_chain_pop` at all?  If not, run the census on
+   allocate_chunk_path's body (all instantiations): count the five site
+   classes in -O3 vs -O3 -fno-ipa-cp-clone.  Corollary: §13.25's "noipa
+   is a no-op at -O3" was verified on the SYMBOL being byte-identical —
+   but noipa also forbids INLINING, so the CALLER must have changed
+   (now calling the complete out-of-line copy).  If the caller did
+   change, falsifier #4 at -O3 is not a no-op after all — it forces the
+   never-cloned, all-five-adds copy into use, which is exactly the
+   experiment we want; re-check the caller's disassembly before
+   discarding that arm.
+
+Sequence: (b) first (cheap, decisive for the proxy), the corrected (a)
+census second (one build + objdump, no runs), full -O3 A/B only if the
+census finds an asymmetry to attribute.
