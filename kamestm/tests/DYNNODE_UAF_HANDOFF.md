@@ -2764,3 +2764,60 @@ corrected target.**  Two structural points:
 Sequence: (b) first (cheap, decisive for the proxy), the corrected (a)
 census second (one build + objdump, no runs), full -O3 A/B only if the
 census finds an asymmetry to attribute.
+
+### 13.27 §13.24's call-check answered — and falsifier #4 is untestable as specified
+
+**The call-check: no inline-to-call conversion.**  Comparing
+`orphan_chain_pop` bodies in the §13.22 pair:
+
+```
+call targets in A: s_owner_id_next ×1, self-relative ×13
+call targets in B: s_owner_id_next ×1, self-relative ×11
+calls present only in B: NONE
+totals across all 22 instantiations: A=330 calls, B=307
+```
+
+B has **fewer** calls, and no target appears in B that is absent from A.  The
+benign escape §13.24 names is excluded: the increment is **gone**, not moved
+into a callee.  §13.24's source read (no foldable constant guards either add;
+`orphan_chain_pop` takes no arguments so IPA-CP has nothing to specialise on)
+plus this leaves no lawful explanation *within the `-O2` pair*.
+
+**But falsifier #4 cannot be run as written, and the reason matters.**
+`__attribute__((noipa))` on `orphan_chain_pop` produced **byte-identical**
+codegen: 197 `lock add …0xd8` object-wide in both, and the function body
+identical (5 adds, 219 lines).  Per §13.23's standing practice that is a
+no-op, so the arm would have returned a null — the `-fno-indirect-inlining`
+trap again.
+
+**Why it is a no-op exposes a gap in §13.22's own reasoning**, which is mine
+to correct:
+
+| build | `lock add` in `orphan_chain_pop` | body lines |
+|---|---|---|
+| `-O2` (asm-diff A) | 2 | 158 |
+| `-O2 -fipa-cp-clone` (asm-diff B) | **1** | 136 |
+| **`-O3` (the arm that actually fails)** | **5** | 219 |
+| `-O3` + `noipa` | 5 | 219 |
+
+The §13.22 asymmetry lives entirely in the **`-O2` pair**.  The build that
+actually fails is `-O3`, and there `orphan_chain_pop` carries **five**
+increments — more than `-O2`'s two, not fewer.  The `-O2 +ipa-cp-clone` pair
+is a *proxy* for the failing configuration (chosen in §13.17 as the 19/35
+minimal pair), and on this symbol the proxy and the real failing build do not
+agree.
+
+So §13.22's "the failing arm loses a refcount increment" **does not transfer
+to `-O3` as stated**.  What survives is narrower: *in the minimal pair*,
+enabling one pass deletes 22 increments that no source-level constant can
+justify.  Whether anything analogous happens at `-O3` is unmeasured — the
+symbol there is a different shape and would need its own comparison, against
+what baseline is not obvious, since `-O3 -fno-ipa-cp-clone` is the natural
+control but differs from `-O3` in far more than this symbol.
+
+**Suggested reframing before more effort goes here**: either (a) re-establish
+the asymmetry directly in the failing configuration (`-O3` vs
+`-O3 -fno-ipa-cp-clone`, this symbol, same census), or (b) demonstrate that
+the `-O2 +ipa-cp-clone` proxy actually fails — §13.17 cites 19/35, so it does
+fail, and then falsifier #4 should be run **on the proxy**, where the missing
+increment demonstrably exists, rather than at `-O3` where it does not.
