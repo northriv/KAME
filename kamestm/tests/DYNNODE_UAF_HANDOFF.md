@@ -5052,3 +5052,35 @@ and `BundleUnbundle_3level_LLfree`'s `UnbundleCASChild` note should record
 that `local[t].newpacket` corresponds to §13.68's pre-loop capture, and
 that the pre-fix pointer-after-loop was an unmodelled divergence.  That is
 the one place where the rewrite changes what the docs should say.
+
+### 13.70 Full test sweep for the §13.68 rewrite (the earlier five were not enough)
+
+Asked whether the other tests were run — they had not been: §13.68
+reported only `tmin` plus four transaction tests, which is thin for a
+change to a core STM header.  Complete sweep, all on this commit:
+
+| suite | result |
+|---|---|
+| `cmake -S tests` tree, `ctest -j4` | **40/40 pass** (40.7 s) — includes the 10 `alloc_*`, `atomic_*`, `mutex`, `fast_vector`, `xwaitcell`, `xnode_ctorthrow`, `c_api`, `malloc_intercept`, `test_pmr_resource`, `test_ros2_allocator`, `bench_rt_wcet_smoke`, and 15 `transaction_*` |
+| `tools/audit/run_audits.sh` | **exit 0** (node-name collisions, iterate_commit side effects, pybind GIL, UI listeners, non-const Payload pointees, conditional layout, no-DCAS) |
+| `transaction_lookup_memo_test` | pass — **absent from the cmake tree**, built by hand |
+| `transaction_payload_integrity_mixed_test` | pass, default **and** `3 8 3 30` |
+| `transaction_payload_integrity_3level_mixed_test` | pass, default **and** `3 8 3 30` |
+| `transaction_dynamic_node_test` ×20 | **20/20** |
+| `transaction_payload_integrity_3level_test` ×5 | **5/5** |
+| `PacketRefcount.tla`, both orders | fixed PASS 1 045 892 distinct / pre-fix violates (§13.69) |
+
+Worth recording as a gap in its own right: **three tests in CLAUDE.md's
+list are not in the `tests/` cmake tree** — `transaction_lookup_memo_test`
+and the two `*_mixed_test` payload-integrity variants.  They build and
+pass standalone (and the mixed ones need their arguments as four separate
+tokens, per the bench-methodology note), but nothing runs them
+automatically, so a regression there would be invisible to `ctest` and to
+CI.  Adding them to `tests/CMakeLists.txt` is a small, separate change
+worth doing.
+
+Not covered on this machine, and stated so rather than implied: the Qt
+app build (`kame.pro`) — the change is header-only inside `kamestm/`, and
+`libkame`/module compilation of that header is exercised on Ubuntu; the
+GenMC suites (unaffected: they model the allocator, not this path); and
+the reproducer itself, which does not fire on arm64.
