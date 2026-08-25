@@ -3071,7 +3071,7 @@ enumeration, the thing §13.21 was built to obtain.  If it collapses,
 the survivor was chunk-recycle shadow, and the audit returns to
 outcome-2 territory.
 
-### 13.34 TSan-over-the-pool: run performed, but NOT interpretable without allocator annotations
+### 13.37 TSan-over-the-pool: run performed, but NOT interpretable without allocator annotations
 
 Built and ran §13.31's recipe (gcc `-O3`, `-DKAMEPOOLALLOC_NO_LIBC_INTERPOSE`,
 pool compiled in and instrumented, no `.so`, no `KAME_RC_TRACE`, 40 threads,
@@ -3135,3 +3135,56 @@ prerequisite, and it is a genuinely small change.
 Recorded also because §13.11's *pool-less* TSan silence remains the only
 trustworthy TSan datum so far, and its caveat stands unchanged: it was
 measured in the configuration where the fault never manifests.
+
+### 13.38 Annotated TSan-over-the-pool — the false-race class collapses, and outcome 1 arrives
+
+§13.33's annotations rebuilt and **verified before running** (§13.23): 14 call
+sites to `__tsan_acquire`/`__tsan_release` in the binary, 2 undefined symbols.
+(A first build reported 0 — it predated the merge; the verification caught it.)
+
+**The false-race class collapses as predicted:**
+
+| build | TSan warnings, `20 40 700` |
+|---|---|
+| unannotated (§13.34) | **5 412** |
+| annotated | **10** (7 data race + 3 vptr) |
+
+**The dominant survivor is a use-after-free, and it is the same shape the
+tracer has been reporting since §1:**
+
+```
+Write      T74:  Node::Node()  transaction_impl.h:1320   ← vptr of a NEW LongNode
+                 at 0x7fff90000920
+Prev write T65:  lsp<Packet>::reset()  atomic_smart_ptr.h:1903   ← SAME address
+                 ~lsp<Packet> ← ~PacketWrapper()  transaction.h:915
+                 ← deleter(PacketWrapper*)  ← release_tagheld_zeroreset_  :1661
+                 ← release_()  ← assign_from_local  :1420
+                 ← ScopedNegotiateLinkage::set_view  transaction_negotiation.h:877
+                 ← Node::bundle  transaction_impl.h:2948
+```
+
+T65 runs `~PacketWrapper()`, whose member `~local_shared_ptr<Packet>` writes
+into the wrapper's **own storage**, while T74 constructs a **new `Node` at that
+address**.  With `__tsan_release` at deallocate entry and `__tsan_acquire` on
+hand-out, a correct `destruct → free → alloc → construct` sequence is fully
+ordered and would not be reported.  A report means the wrapper's destructor is
+touching storage **already recycled to a new owner**.
+
+Note where it is reached from: `bundle → set_view → assign_from_local →
+release_ → release_tagheld_zeroreset_`.  That is the same
+`scoped_atomic_view` release path §12.4/§12.5 kept landing on from the
+tracer side, arrived at here by a completely independent instrument.
+
+**Caveat, stated because it is the one thing that could still explain it
+benignly**: locations are still un-attributed (`Location is …` absent in all
+10), so the residual seams §13.33 documents — LRC chunk recycle and in-place
+realloc, both un-annotated — remain possible sources.  A wrapper freed through
+the chunk-recycle path rather than the slot path would not carry the
+`__tsan_release` edge, and would produce exactly this report.  **Annotating
+those two seams is the next step**, and if the report survives it, this is the
+enumeration the whole §13.21 line was after.
+
+Remaining survivors for completeness: `atomic_base.h:358 ↔ transaction.h:2614`,
+`shared_ptr_base.h:1073 ↔ tmin_dynnode.cpp:46`, `atomic_smart_ptr.h:937 ↔
+transaction_impl.h:1276`, `:937 ↔ transaction.h:252`, and three pairs internal
+to `atomic_smart_ptr.h` (`:1810`, `:1037`, `:950`, `:501`).
