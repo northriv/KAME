@@ -74,6 +74,7 @@ enum : std::uint64_t {
 struct PacketForensicsHeader {
     std::uint64_t magic;
     std::size_t   size;
+    const char   *type;         //!< which STM object this block held
     int           birth_tid;
     int           death_tid;
     int           birth_bt_n;
@@ -224,15 +225,24 @@ inline std::atomic<std::size_t> &pf_allocs() noexcept {
 inline std::atomic<std::size_t> &pf_frees() noexcept {
     static std::atomic<std::size_t> n{0}; return n;
 }
+//! Blocks whose header carries neither magic.  A non-zero count means some
+//! object of a watched type is allocated by a path that bypasses these
+//! operators, so a "clean" run under-reports; it is printed rather than
+//! treated as a fault, because the alternative (aborting) would turn an
+//! instrumentation gap into a false positive.
+inline std::atomic<std::size_t> &pf_unknown() noexcept {
+    static std::atomic<std::size_t> n{0}; return n;
+}
 inline void pf_report_at_exit() noexcept {
     static bool once = (std::atexit([]{
-        std::fprintf(stderr, "packet-forensics: %zu Packet alloc, %zu free\n",
-            pf_allocs().load(), pf_frees().load());
+        std::fprintf(stderr,
+            "packet-forensics: %zu alloc, %zu free, %zu unknown-header reads\n",
+            pf_allocs().load(), pf_frees().load(), pf_unknown().load());
     }), true);
     (void)once;
 }
 
-inline void *packet_forensics_new(std::size_t sz) {
+inline void *packet_forensics_new(std::size_t sz, const char *type) {
     pf_report_at_exit();
     pf_allocs().fetch_add(1, std::memory_order_relaxed);
     void *raw = pf_raw_alloc(sizeof(PacketForensicsHeader) + sz);
@@ -240,6 +250,7 @@ inline void *packet_forensics_new(std::size_t sz) {
     auto *h = static_cast<PacketForensicsHeader *>(raw);
     h->magic = PF_MAGIC_ALIVE;
     h->size = sz;
+    h->type = type;
     h->birth_tid = pf_tid();
     h->death_tid = -1;
     h->birth_bt_n = pf_capture(h->birth_bt);
@@ -252,10 +263,12 @@ inline void packet_forensics_delete(void *p) noexcept {
     auto *h = static_cast<PacketForensicsHeader *>(p) - 1;
     if(h->magic == PF_MAGIC_DEAD) {
         std::fprintf(stderr,
-            "\n*** PACKET DOUBLE FREE at %p (first freed by tid %d) ***\n",
-            p, h->death_tid);
+            "\n*** STM DOUBLE FREE: %s at %p (first freed by tid %d) ***\n",
+            h->type ? h->type : "?", p, h->death_tid);
         pf_print("first free", h->death_bt, h->death_bt_n);
-        pf_print("second free", nullptr, 0);
+        void *bt[PF_BT_DEPTH];
+        pf_print("second free", bt, pf_capture_exact(bt));
+        std::fflush(stderr);
         std::abort();
     }
     pf_frees().fetch_add(1, std::memory_order_relaxed);
@@ -274,24 +287,28 @@ inline void packet_forensics_delete(void *p) noexcept {
     if(old) pf_raw_free(old);
 }
 
-//! \return silently when \a p is a live Packet; aborts with both stacks
-//! otherwise.  \a where names the accessor for the report.
-inline void packet_forensics_check(const void *p, const char *where) noexcept {
+//! \return silently when \a p is live; aborts with both stacks when its
+//! header says the block was freed.  \a what names the type, \a where the
+//! accessor, so the report says which object died and how it was reached.
+inline void packet_forensics_check(const void *p, const char *what,
+                                   const char *where) noexcept {
     if( !p) return;
     auto *h = static_cast<const PacketForensicsHeader *>(p) - 1;
     if(h->magic == PF_MAGIC_ALIVE) return;
-    std::fprintf(stderr,
-        "\n*** PACKET USE-AFTER-FREE ***\n"
-        "  Packet %p accessed via %s by tid %d\n"
-        "  header magic = 0x%016llx (expected ALIVE 0x%016llx)\n"
-        "  freed by tid %d\n",
-        p, where, pf_tid(),
-        (unsigned long long)h->magic, (unsigned long long)PF_MAGIC_ALIVE,
-        (h->magic == PF_MAGIC_DEAD) ? h->death_tid : -1);
-    if(h->magic == PF_MAGIC_DEAD) {
-        pf_print("free", h->death_bt, h->death_bt_n);
-        pf_print("alloc", h->birth_bt, h->birth_bt_n);
+    if(h->magic != PF_MAGIC_DEAD) {
+        // Not one of our blocks (see pf_unknown).  Could equally be a freed
+        // block whose header was already recycled, so it is not proof of
+        // health -- but it is not proof of a fault either.
+        pf_unknown().fetch_add(1, std::memory_order_relaxed);
+        return;
     }
+    std::fprintf(stderr,
+        "\n*** STM USE-AFTER-FREE ***\n"
+        "  %s %p accessed via %s() by tid %d\n"
+        "  freed by tid %d\n",
+        h->type ? h->type : what, p, where, pf_tid(), h->death_tid);
+    pf_print("free", h->death_bt, h->death_bt_n);
+    pf_print("alloc", h->birth_bt, h->birth_bt_n);
     void *bt[PF_BT_DEPTH];
     pf_print("use", bt, pf_capture_exact(bt));
     std::fflush(stderr);
@@ -300,20 +317,22 @@ inline void packet_forensics_check(const void *p, const char *where) noexcept {
 
 }} // namespace Transactional::detail
 
-#define KAME_PF_NEW_DELETE                                                    \
+#define KAME_PF_NEW_DELETE(what)                                              \
     static void *operator new(std::size_t sz)                                 \
-        { return ::Transactional::detail::packet_forensics_new(sz); }         \
+        { return ::Transactional::detail::packet_forensics_new(sz, what); }   \
     static void operator delete(void *p) noexcept                             \
         { ::Transactional::detail::packet_forensics_delete(p); }              \
     static void operator delete(void *p, std::size_t) noexcept                \
         { ::Transactional::detail::packet_forensics_delete(p); }
-#define KAME_PF_CK(where)                                                     \
-    ::Transactional::detail::packet_forensics_check(this, where)
+#define KAME_PF_CK2(what, where)                                              \
+    ::Transactional::detail::packet_forensics_check(this, what, where)
+#define KAME_PF_CK(where) KAME_PF_CK2("Packet", where)
 
 #else  // !KAME_STM_PACKET_FORENSICS
 
-#define KAME_PF_NEW_DELETE
+#define KAME_PF_NEW_DELETE(what)
 #define KAME_PF_CK(where) ((void)0)
+#define KAME_PF_CK2(what, where) ((void)0)
 
 #endif
 

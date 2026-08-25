@@ -100,6 +100,8 @@ struct DECLSPEC_KAME PacketList_
       public atomic_countable {
     shared_ptr<NodeListT> m_subnodes;
     int64_t m_serial;
+    //! \sa packet_forensics.h — no-op without KAME_STM_PACKET_FORENSICS.
+    KAME_PF_NEW_DELETE("PacketList")
     explicit PacketList_(int64_t serial) noexcept
         : fast_vector<local_shared_ptr<PacketT>>(), m_serial(serial) {}
     PacketList_(const PacketList_ &) = default;   //!< refcnt=1 via atomic_countable copy ctor
@@ -189,12 +191,15 @@ public:
     struct DECLSPEC_KAME Payload : public atomic_countable {
         Payload() noexcept : m_node(nullptr), m_serial(-1), m_tr(nullptr) {}
         virtual ~Payload() = default;
+        //! \sa packet_forensics.h — no-op without KAME_STM_PACKET_FORENSICS.
+        //! Inherited by every driver Payload, so it covers the subclasses too.
+        KAME_PF_NEW_DELETE("Payload")
 
         //! Points to the corresponding node.
-        XN &node() noexcept {return *m_node;}
+        XN &node() noexcept {KAME_PF_CK2("Payload", "node"); return *m_node;}
         //! Points to the corresponding node.
-        const XN &node() const noexcept {return *m_node;}
-        int64_t serial() const noexcept {return this->m_serial;}
+        const XN &node() const noexcept {KAME_PF_CK2("Payload", "node"); return *m_node;}
+        int64_t serial() const noexcept {KAME_PF_CK2("Payload", "serial"); return this->m_serial;}
         Transaction<XN> &tr() noexcept { return *this->m_tr;}
 
         virtual void catchEvent(const shared_ptr<XN>&, int) {}
@@ -254,7 +259,7 @@ private:
         Packet() noexcept : m_missing(false) {}
         //! Debug-only use-after-free detector; no-ops unless
         //! KAME_STM_PACKET_FORENSICS is defined.  \sa packet_forensics.h
-        KAME_PF_NEW_DELETE
+        KAME_PF_NEW_DELETE("Packet")
         int size() const noexcept {KAME_PF_CK("size"); return subpackets() ? subpackets()->size() : 0;}
         local_shared_ptr<Payload> &payload() noexcept { KAME_PF_CK("payload"); return m_payload;}
         const local_shared_ptr<Payload> &payload() const noexcept { KAME_PF_CK("payload"); return m_payload;}
@@ -925,12 +930,14 @@ private:
         //! \param[in] reverse_index The index for this node in the list of the upper node.
         PacketWrapper(const local_shared_ptr<Linkage> &bp, int reverse_index, int64_t bundle_serial) noexcept;
         PacketWrapper(const PacketWrapper &x, int64_t bundle_serial) noexcept;
-        bool hasPriority() const noexcept { return m_reverse_index == (int)PACKET_STATE::PACKET_HAS_PRIORITY; }
-        const local_shared_ptr<Packet> &packet() const noexcept {return m_packet;}
-        local_shared_ptr<Packet> &packet() noexcept {return m_packet;}
+        //! \sa packet_forensics.h — no-op without KAME_STM_PACKET_FORENSICS.
+        KAME_PF_NEW_DELETE("PacketWrapper")
+        bool hasPriority() const noexcept { KAME_PF_CK2("PacketWrapper", "hasPriority"); return m_reverse_index == (int)PACKET_STATE::PACKET_HAS_PRIORITY; }
+        const local_shared_ptr<Packet> &packet() const noexcept {KAME_PF_CK2("PacketWrapper", "packet"); return m_packet;}
+        local_shared_ptr<Packet> &packet() noexcept {KAME_PF_CK2("PacketWrapper", "packet"); return m_packet;}
 
         //! Points to the upper node that should have the up-to-date Packet when this lacks priority.
-        local_shared_ptr<Linkage> bundledBy() const noexcept {return m_bundledBy.lock();}
+        local_shared_ptr<Linkage> bundledBy() const noexcept {KAME_PF_CK2("PacketWrapper", "bundledBy"); return m_bundledBy.lock();}
         //! True iff the bundled-by back-reference names \a l's control
         //! block, tested WITHOUT a weak->strong promotion (see
         //! local_weak_ptr::same_control_block).  \a l must be a live
@@ -941,7 +948,7 @@ private:
             return m_bundledBy.same_control_block(l);
         }
         //! The index for this node in the list of the upper node.
-        int reverseIndex() const noexcept {return m_reverse_index;}
+        int reverseIndex() const noexcept {KAME_PF_CK2("PacketWrapper", "reverseIndex"); return m_reverse_index;}
         void setReverseIndex(int i) noexcept {m_reverse_index = i;}
 
         void print_() const;
