@@ -2431,3 +2431,35 @@ beyond it (freelist links via kame_slot_link_, the L0 FIFO/STASH cells,
 m_idx, the write sides of owner/back_offset).  The flag ships either
 way; the verdict still belongs to E3 + the asm diff, now with this
 prior attached.
+
+### 13.20 DRF-migration inventory — what §13.15/§13.17 did NOT convert,
+### and the queued falsifier #3
+
+Asked whether "mark the concurrent accesses, keep plain inside sync
+edges" is already done: only the READ half of the hot paths is.
+
+Converted: the four m_flags word loads (§13.15); back_offset /
+m_owner_id ×2 / m_fs_flag / filled_cnt-gate READS (§13.17, verdict
+pending).
+
+NOT converted, classified:
+1. **`m_idx` — reads AND writes, the clearest live race.**  The code's
+   own comment licenses concurrent allocate_pooled on one chunk, so the
+   `this->m_idx = idx` stores (:1537/:1618/:1808) race the loop-head
+   reads across threads.  Queued as **falsifier #3** (convert both
+   sides, relaxed).
+2. **Post-publication write sides** of m_owner_id / back_offset /
+   m_fs_flag (owner-exit clear, release zeroing, restamp) — formal race
+   against the §13.17 atomic reads; also falsifier #3 scope.
+   Construction-time stamps stay plain (correct publication pattern).
+3. **Freelist links / L0 FIFO+STASH cells / hdr_word** — single-writer
+   or publication-patterned BY DESIGN; correctly plain, do not convert
+   (converting would bury design intent).
+
+Discipline note: #3 waits for #2's verdict — one all-or-nothing
+falsifier per commit is what gives these experiments evidential value,
+and Ubuntu's paired A/B baselines must stay clean.  If #3 also comes
+back refuted, switch strategy: hygiene-first full DRF migration of
+allocator.cpp (the mimalloc/jemalloc discipline, §13.18 addendum 2) and
+let the asm diff carry the verdict alone, for the record and any GCC
+report.
