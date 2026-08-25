@@ -2383,3 +2383,28 @@ promotion suppressed).  If THIS also fully suppresses, the defect sits
 in the promoted-indirect-call machinery around the stored-fn dispatch,
 and the asm reading narrows to those two call sites; if it keeps
 failing, the promotion reading dies and the clones themselves remain.
+
+**§13.18 addendum — ecosystem precedent for the flag (no apology needed).**
+Surveyed who else disables function cloning / related IPA passes:
+
+- **Linux kernel**: carries `-fno-ipa-cp-clone` (CONFIG_READABLE_ASM) and
+  a `-fno-indirect-inlining` bundle (CC_DISABLE_AUTO_INLINE) — and builds
+  at `-O2`, where the pass is off by default anyway.
+- **illumos**: since 2018 builds the entire gate with function cloning
+  and IPA-ICF disabled in `Makefile.master` (`CCNOAUTOINLINE`) as
+  permanent policy — clones break dtrace/mdb symbol integrity.
+- **GCC itself** disables IPA-CP cloning on functions with
+  `target_clones` (feature interaction fix), and has a wrong-code
+  lineage in the pass (PR110282-family; PR118138 fixed 2025-01).
+- Distro-level breakage records exist (RH bz#1340377, `-fipa-cp-clone`
+  + `-flto` crash; Valgrind false positives, KDE bz#378627).
+- The deeper norm: mainstream OSS and distro packaging ship `-O2`, where
+  `ipa-cp-clone` (and `-findirect-inlining` beyond `-O2`'s subset) never
+  runs.  Running "`-O3` minus this one pass" on one TU is therefore MORE
+  aggressive than the ecosystem default, not less.
+
+So the shipping posture needs no defense.  What the precedent does NOT
+yet license is the verdict "gcc is at fault" — most documented disables
+are for observability/tooling or specific ICEs, and our own §5/§13.16
+record says the pass is an accelerator here.  The verdict still comes
+from E3 + the asm diff; the flag is correct to ship either way.
