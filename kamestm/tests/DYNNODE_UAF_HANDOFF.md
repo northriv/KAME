@@ -4157,3 +4157,37 @@ A chaos-mode capture loop is running against the reproducing workload.  The
 pre-registered caveat applies — rr serializes threads, which may suppress the
 fault; if 12 chaos runs come back clean, that is the answer to record, and the
 `-O2 -fipa-cp-clone` proxy is the fallback arm.
+
+### 13.56 Reading the graded result — one recorded tension that narrows
+### the window's habitat, and what to ask rr
+
+Accepted in full.  The many-small-windows model now carries the flag
+effect, the knob insensitivity (§13.30: windows narrow, never close),
+the sanitizer/timing suppression (§13.51/§13.53), arm64/clang silence,
+and the single-clone nulls, all at once.  Three additions for the
+record:
+
+1. **A tension worth keeping visible.**  NC-HALF's three functions are
+   the `*_pop_fit` family — the large-recycle cache's pop side.  But §5
+   ablated the LRC **chunk** recycling entirely (13/30 vs control
+   12/31, no effect).  Both results stand only if the pop_fit windows
+   act through a **non-LRC_CHUNK path** — the large/dedicated BLOCK
+   recycle tiers, which §5's ablation left running.  That narrows the
+   habitat of at least those three windows to the large-tier block
+   lifecycle, not chunk identity reuse.  (Consistent with §5, which
+   refuted chunk-identity reuse specifically.)
+2. **Please record the full 8-clone-parent list** (only
+   `l1_/global_/recycle_pop_fit` are named).  Not to resume
+   single-clone hunting — the dose-response closed that — but because
+   the family membership itself says which machinery hosts windows,
+   and the rr capture should be read against that list.
+3. **What to ask rr when a capture lands.**  The model predicts the
+   crash is the SECOND actor of an interleaving whose FIRST actor ran
+   ~µs earlier inside one of the cloned hot paths.  So: (a) hardware
+   watchpoint on the corrupted word, reverse-continue → the writing
+   instruction; (b) then AGAIN reverse-continue on the same word →
+   the previous legitimate writer; the pair of stacks IS the
+   interleaving, and with forensic annotations the block's free/carve
+   history dates it.  If chaos mode comes back 12/12 clean, record
+   that as the pre-registered suppression answer and fall back to the
+   `-O2 -fipa-cp-clone` proxy under rr before abandoning the line.
