@@ -1,3 +1,48 @@
+> **CORRECTION (2026-08-25, cloud session, x86-64 / g++ 15 / 4 cores).**
+> **§1 and §2 below are wrong, and the TLA+ work they ask for would model a
+> fault that does not occur.  Do not start it.**  The `Packet` is never
+> released: the allocator hands its storage to a second live object while
+> the first is still in use.
+>
+> Measured with a layout-preserving exclusivity check
+> (`KAME_STM_ALLOC_EXCLUSIVITY` in `kamestm/packet_forensics.h`) —
+> **2 hits in 3 runs**, against the crash's ~33% on the same box:
+>
+> ```
+> *** ALLOCATOR RETURNED A LIVE BLOCK ***
+>   0x7f5c091b4120 handed out for a Packet (32 bytes) on tid 509,
+>   but our records still show it live as a Packet (32 bytes)
+>   from tid 509 -- no operator delete for it ever ran.
+>     Packet         17645198 alloc, 17645161 free
+>     PacketWrapper  22675600 alloc, 22675562 free
+> ```
+>
+> **Same thread both times.**  That removes every cross-thread question
+> from the report — no ordering subtlety between two threads' views of the
+> side table can produce it, and a colliding address can only *evict* a
+> record, never manufacture one.  The per-type tallies establish the one
+> premise the argument needs (every free really does run through
+> `operator delete`); the small alloc-minus-free residues are the objects
+> in flight at the abort.
+>
+> Why §1's reading looked right: a poisoned word inside a still-referenced
+> object is produced by *both* faults, so the poison evidence never
+> discriminated between them.  The double-allocation reading additionally
+> explains the fact §5 had to explain away — that only the **allocator's**
+> codegen moves the rate (gcc-STM + clang-pool 0/12 vs clang-STM +
+> gcc-pool 8/12).  Under §1 that needed "the allocator only decides what
+> the freed memory contains"; here it is the direct reading.
+>
+> So `bundle()` is where the damage *surfaces*, not where it originates.
+> A same-thread double allocation points at the thread-local bucket path,
+> which is consistent with the one clean arm in §6 (cross-thread batch
+> `cap = 1`, 0/16) — that path is what returns units to the bitmap.
+>
+> Still open, and not claimed here: whether this fully accounts for the
+> ILP32 `objcnt != 0` signature, and whether an STM lifetime bug also
+> exists independently.  §3–§6 (the reproducer, the ablation, the
+> retracted claims, the experimental record) stand as written.
+
 # `transaction_dynamic_node_test`: the fault is a `Packet` use-after-free
 
 Handoff for the TLA+ work.  Written 2026-08-24 from the x86-64 / g++ 15.2 /
