@@ -112,6 +112,8 @@ static const char *poolev_name_(unsigned k) noexcept {
 
 namespace kame_rc_trace {
 
+static void install_segv_() noexcept;   // §13.58; defined below the raw helpers
+
 enum Op : unsigned {  // keep in sync with atomic_smart_ptr.h
     OP_BORN = 1, OP_INC, OP_DEC, OP_DEAD, OP_DEAD_UNIQUE,
     OP_INC_FROM_ZERO, OP_DEC_UNDERFLOW,
@@ -404,6 +406,7 @@ void record(const void *obj, unsigned op, unsigned long long oldc,
     if(!t.ring) {
         register_stats_();
         resolve_poison_decode_();
+        install_segv_();
         t.ring = g_rings[g_ring_next.fetch_add(1, std::memory_order_relaxed)
                          % MAX_RINGS];
         t.tid = rc_trace_tid_();
@@ -552,6 +555,151 @@ static void raw_prior_release_fast_(const void *obj) noexcept {
         raw_write_(db, (size_t)(k > 0 ? k : 0));
     }
 }
+
+// ---- §13.58 SIGSEGV/SIGBUS forensics ---------------------------------
+// §13.57 resolved a crash to "a const member read a value it was never
+// constructed with" -- premature slot reuse under a running destructor --
+// but the WRITER is blocked behind rr's replay divergence on PREEMPT_RT.
+// This handler answers the cheaper half of the question on every NATIVE
+// crash: at SIGSEGV, dump (raw sink only, crash-time discipline) the
+// fault address, key registers, and for each candidate object base
+// (rbp = the destructing object in the §13.57 shape, rdi, the fault
+// address) the O(1) caches: prior-release line, recent history, then the
+// pool-event tail -- all table lookups, no deref of crash memory.  LAST,
+// with SA_RESETHAND already armed so a nested fault just ends the
+// process with everything above flushed, it reads candidate word 0 for
+// the forensic poison token and prints the RC-FREEREC culprit ("who
+// freed this slot, when").  Default ON in tracer builds;
+// KAME_RC_TRACE_SEGV=0 disables.
+#if (defined(__unix__) || defined(__APPLE__))
+#include <signal.h>
+#if defined(__linux__)
+#include <ucontext.h>
+#else
+#include <sys/ucontext.h>   // macOS: <ucontext.h> demands _XOPEN_SOURCE
+#endif
+static void raw_poolev_tail_() noexcept {
+    if(kame_poolev_fn pf = g_poolev_fn.load(std::memory_order_acquire)) {
+        kame_poolev evs[8];
+        unsigned n = pf(evs, 8);
+        unsigned long long now = rc_wallclock_();
+        for(unsigned i = 0; i < n; ++i)
+            raw_line_("RC-POOLEV %s addr=%p aux=%llu tid=%u age_tsc=%llu\n",
+                poolev_name_(evs[i].kind), evs[i].addr, evs[i].aux,
+                evs[i].tid, now - evs[i].tsc);
+    }
+}
+static void segv_handler_(int sig, siginfo_t *si, void *uc_) noexcept {
+    // Candidate object bases.  `this` of the destructing object lives in
+    // a callee-saved register or rbp/x29 depending on codegen -- §13.57's
+    // frame had it in rbp -- so scan the plausible set rather than betting
+    // on one.  All uses below are TABLE lookups keyed by address; nothing
+    // dereferences crash memory until the final, deliberately-last W0 read.
+    enum { NCAND = 9 };
+    const void *cands[NCAND] = {};
+    const char *names[NCAND] = {};
+    unsigned long long ip = 0;
+#if defined(__x86_64__) && defined(__linux__)
+    ucontext_t *uc = (ucontext_t *)uc_;
+    const greg_t *g = uc->uc_mcontext.gregs;
+    ip = (unsigned long long)g[REG_RIP];
+    const int regs[] = { REG_RBP, REG_RDI, REG_RBX, REG_R12, REG_R13,
+                         REG_R14, REG_R15, REG_RAX };
+    const char *rn[] = { "rbp", "rdi", "rbx", "r12", "r13",
+                         "r14", "r15", "rax" };
+    for(int i = 0; i < 8; ++i) { cands[i] = (const void *)g[regs[i]]; names[i] = rn[i]; }
+    raw_line_("\nRC-SEGV sig=%d fault_addr=%p ip=0x%llx rbp=0x%llx rdi=0x%llx "
+        "rax=0x%llx rbx=0x%llx r12=0x%llx r13=0x%llx r14=0x%llx r15=0x%llx tid=%u\n",
+        sig, si ? si->si_addr : nullptr, ip,
+        (unsigned long long)g[REG_RBP], (unsigned long long)g[REG_RDI],
+        (unsigned long long)g[REG_RAX], (unsigned long long)g[REG_RBX],
+        (unsigned long long)g[REG_R12], (unsigned long long)g[REG_R13],
+        (unsigned long long)g[REG_R14], (unsigned long long)g[REG_R15],
+        rc_trace_tid_());
+#elif defined(__aarch64__) && defined(__APPLE__)
+    ucontext_t *uc = (ucontext_t *)uc_;
+    ip = uc->uc_mcontext->__ss.__pc;
+    cands[0] = (const void *)uc->uc_mcontext->__ss.__fp;   names[0] = "fp";
+    cands[1] = (const void *)uc->uc_mcontext->__ss.__x[0]; names[1] = "x0";
+    for(int i = 0; i < 6; ++i) {                            // x19..x24 (callee-saved)
+        cands[2 + i] = (const void *)uc->uc_mcontext->__ss.__x[19 + i];
+        names[2 + i] = "x19+";
+    }
+    raw_line_("\nRC-SEGV sig=%d fault_addr=%p ip=0x%llx fp=0x%llx x0=0x%llx "
+        "x19=0x%llx x20=0x%llx tid=%u\n", sig, si ? si->si_addr : nullptr, ip,
+        (unsigned long long)uc->uc_mcontext->__ss.__fp,
+        (unsigned long long)uc->uc_mcontext->__ss.__x[0],
+        (unsigned long long)uc->uc_mcontext->__ss.__x[19],
+        (unsigned long long)uc->uc_mcontext->__ss.__x[20], rc_trace_tid_());
+#else
+    (void)uc_;
+    raw_line_("\nRC-SEGV sig=%d fault_addr=%p (no register decode on this target) tid=%u\n",
+        sig, si ? si->si_addr : nullptr, rc_trace_tid_());
+#endif
+    cands[NCAND - 1] = si ? si->si_addr : nullptr;
+    names[NCAND - 1] = "fault_addr";
+    for(int i = 0; i < NCAND; ++i) {
+        if( !cands[i] || !names[i]) continue;
+        if((uintptr_t)cands[i] < 0x1000u) continue;      // not an object base
+        bool dup = false;
+        for(int j = 0; j < i; ++j) if(cands[j] == cands[i]) dup = true;
+        if(dup) continue;
+        // Only report candidates the caches actually know -- an
+        // unfiltered 9-register dump would bury the signal.
+        LastRel &lr = g_lastrel[lastrel_slot_(cands[i])];
+        Recent &rc = g_recent[lastrel_slot_(cands[i])];
+        bool known = lr.obj.load(std::memory_order_acquire) == cands[i]
+                  || rc.obj.load(std::memory_order_relaxed) == cands[i];
+        if( !known) continue;
+        raw_line_("RC-SEGV-CAND %s=%p (cache HIT)\n", names[i], cands[i]);
+        raw_prior_release_fast_(cands[i]);
+        raw_recent_(cands[i]);
+    }
+    raw_poolev_tail_();
+    // LAST: deref candidates' word 0 for the forensic token (may nested-
+    // fault; SA_RESETHAND means that just ends the process -- everything
+    // above is already on disk via the O_APPEND raw sink).
+    kame_poison_decode_fn dec = g_poison_decode.load(std::memory_order_acquire);
+    for(int i = 0; i < NCAND; ++i) {       // aligned, plausible bases only
+        const void *c = cands[i];
+        if( !c || ((uintptr_t)c & 7u) || (uintptr_t)c < 0x1000u) continue;
+        bool dup = false;
+        for(int j = 0; j < i; ++j) if(cands[j] == c) dup = true;
+        if(dup) continue;
+        unsigned long long w0 = *(volatile const unsigned long long *)c;
+        raw_line_("RC-SEGV-W0 %s=%p w0=0x%llx\n", names[i], c, w0);
+        if(dec && (w0 >> 48) == KAME_POISON_TAG) {
+            kame_freerec fr;
+            if(dec(w0, &fr))
+                raw_line_("RC-FREEREC freed_ptr=%p size=%llu free_tid=%u "
+                    "age_tsc=%llu frames=%u %p %p %p %p\n", fr.ptr,
+                    (unsigned long long)fr.size, fr.tid,
+                    rc_wallclock_() - fr.tsc, fr.nret,
+                    fr.nret > 0 ? fr.ret[0] : nullptr,
+                    fr.nret > 1 ? fr.ret[1] : nullptr,
+                    fr.nret > 2 ? fr.ret[2] : nullptr,
+                    fr.nret > 3 ? fr.ret[3] : nullptr);
+        }
+    }
+    // fall through: SA_RESETHAND restored SIG_DFL; returning re-executes
+    // the faulting instruction -> default SIGSEGV -> core/exit code intact.
+}
+static void install_segv_() noexcept {
+    static std::atomic<bool> once{false};
+    bool f = false;
+    if( !once.compare_exchange_strong(f, true)) return;
+    if(const char *e = getenv("KAME_RC_TRACE_SEGV"))
+        if(e[0] == '0') return;                      // default ON
+    struct sigaction sa;
+    memset(&sa, 0, sizeof sa);
+    sa.sa_sigaction = segv_handler_;
+    sa.sa_flags = SA_SIGINFO | SA_RESETHAND | SA_NODEFER;
+    sigaction(SIGSEGV, &sa, nullptr);
+    sigaction(SIGBUS, &sa, nullptr);
+}
+#else
+static void install_segv_() noexcept {}
+#endif
 
 //! The decisive line for a double release: the most recent DEC / DEAD /
 //! DEAD(unique) strictly before the newest event (the fatal one), i.e. the

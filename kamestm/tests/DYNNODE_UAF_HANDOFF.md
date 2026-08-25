@@ -4260,3 +4260,59 @@ reverse-continue to the writer, then again to the previous legitimate writer)
 is exactly the right next step and is **blocked only by the replay
 divergence** — worth one attempt on a non-RT kernel, or with rr's PMU checks
 relaxed, before anything else.
+
+### 13.58 The capture read against the source — and a native SIGSEGV
+### forensics handler, since replay is blocked
+
+**§13.57's read is confirmed against the source, and it is stronger than
+stated.**  `PacketWrapper::m_bundledBy` is `local_weak_ptr<Linkage> const`
+— and the *only* member of the whole class that a `const_cast`-free
+program cannot touch after construction.  Checked in the tree: no
+`PacketWrapper` method writes it; `local_weak_ptr::m_ref` is a plain
+`gref_weak_base_ *` with no tag bits (unlike `local_shared_ptr`'s tagged
+`m_ref`), so `1` is not a legitimate encoding of anything.  Two further
+details make the reuse reading tight:
+
+- `1` is `atomic_countable::refcnt`'s **constructor** value, and the
+  fault is at `+0x8`.  A `PacketWrapper` re-constructed at
+  `victim + 0x8` would put its `refcnt` exactly there — i.e. a
+  **misaligned-by-8 re-occupation**, not a clean same-base reuse.
+  (`PacketWrapper` is 40 B; the 48 B class the smoke exercises has
+  0x8-offset neighbours.)  Worth checking against the pool's slot stride
+  for that size class in the capture.
+- `m_packet.reset()` at `+0x10` completed **normally** immediately
+  before, so the object was coherent µs-scale earlier — matching §13.7's
+  0.1–1.8 µs free→stale distribution exactly.
+
+**The blocker is replay, so instrument the NATIVE crash instead.**  This
+commit adds a `SIGSEGV`/`SIGBUS` handler to the tracer (default ON in
+tracer builds, `KAME_RC_TRACE_SEGV=0` off) that answers, at the crash,
+what reverse-execution would have been asked first:
+
+- fault address + all plausible object-base registers (x86-64:
+  rbp/rdi/rbx/r12–r15/rax; arm64: fp/x0/x19–x24) — §13.57's frame kept
+  `this` in `rbp`, but that is codegen-dependent, so it scans;
+- for every register the O(1) caches RECOGNISE (cache-HIT filter, so a
+  9-register dump does not bury the signal): `RC-PRIOR-RELEASE-FAST`
+  (who released it last, with call chain) and `RC-RECENT` (its last 16
+  events) — pure table lookups, no dereference of crash memory;
+- the pool-event tail (`RC-POOLEV`, §13.13) — was a batch/chunk
+  operation in flight on that address's unit?
+- and LAST, with `SA_RESETHAND` already armed so a nested fault merely
+  ends the process with everything above already on disk: word 0 of each
+  aligned candidate, decoded for the forensic token → `RC-FREEREC`
+  ("who freed this slot, when", §13.4).
+
+That yields the victim's release history and the freeing stack on every
+native crash, without rr.  It does not name the writer — only replay or
+a watchpoint can — but combined with §13.57's disassembly it should show
+whether the victim was freed legitimately just before (reuse race) or
+never freed at all (wild write).
+
+Mac verification: a synthetic crash in the §13.57 shape
+(`fault_addr=0x9`, deref of a `1` read from a freed object) produces the
+full `RC-SEGV` / `RC-SEGV-W0` sequence; the cache-HIT filter correctly
+stays silent for registers holding no traced object; tmin 3×40t with the
+handler armed is clean and silent.  Ubuntu: it needs no new flags — the
+existing forensic tracer build arms it, so the next `-c 10000` capture
+carries the block's history automatically.
