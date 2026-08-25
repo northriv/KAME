@@ -4703,3 +4703,114 @@ candidate, in the order that preserves the common path best:
 Run: `cd kamestm/tests/tlaplus && java -cp tla2tools.jar tlc2.TLC
 -workers 4 -config PacketRefcount_none.cfg PacketRefcount.tla`
 (≈30 s), and the four other cfgs likewise.
+
+### 13.65 "Why does discrimination need Ubuntu?  Run TLC here." — correct;
+### the model now transcribes the real two-scope sequence
+
+The objection is right and §13.64's closing sentence was wrong: choosing
+between LIFETIME / DOUBLE / UNCOUNTED is a question about the C++ code's
+STRUCTURE, not about the failing hardware, so it belongs here.  What was
+missing was fidelity, not a machine.  §13.64's model idealised each
+thread as holding ONE view; the real serial-tag block holds TWO views of
+the SAME wrapper:
+
+```cpp
+local_shared_ptr<PacketWrapper> superwrapper(                       // :2850
+    make_local_shared<PacketWrapper>(supscope->packet(), bundle_serial));
+ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, -1, OnExit); // :2851
+...
+if(scope.operator->() != supscope.operator->()) return DISTURBED;    // :2875
+if( !scope.compareAndSet(superwrapper))       return DISTURBED;      // consumes `scope`'s view
+supscope.set_view(std::move(superwrapper));                          // releases supscope's OLD view
+```
+
+The `:2875` pointer check *establishes* that both scopes view one
+wrapper, so that wrapper carries **three** references (linkage + two
+views), and the CAS consumes one while `set_view` releases another.  The
+model now encodes exactly that (`AcquireInner`, a CAS that drops the
+linkage's ref AND the inner view, and `RestoreView` = `set_view` releasing
+the outer view first).  Two source facts settled by reading while doing
+it, both narrowing the partition:
+
+- **All three `PacketWrapper` constructors take COUNTED copies**
+  (`m_packet(x)`, `m_packet(x.m_packet)`) — so UNCOUNTED is refuted at
+  the constructor level.  The §13.63 increment at `:2850` is the
+  *victim's* resurrection, not the cause.
+- Therefore the cause is upstream of `:2850`: the packet reached zero
+  while `supscope`'s wrapper was still alive holding it — which is
+  DOUBLE, or a concurrent overwrite of a live wrapper's non-`const`
+  `m_packet`.
+
+**A model bug caught in the act, recorded because it nearly became a
+"finding".**  The first faithful two-scope run reported
+`NoResurrection` violated.  Reading the 12-state trace showed the cause
+was mine: `set_view` performs a **zero-atomic transfer** of the
+`superwrapper` local's reference into the view, so the installed wrapper
+carries TWO references (linkage + transferred local).  The model counted
+only the linkage's, so the new wrapper died one release early and killed
+its packet.  Fixed (`wrc[new] = 2` at the CAS, no increment at the
+transfer).  This is the same trap as §13.61's and §13.30's: a violation
+in an under-specified model is a model result, not a code result — and
+the only defence is reading the counterexample against the source before
+believing it.
+
+**Effect on the user's constraint** (a fix must not regress the
+non-hard-link path): the partition now favours it strongly.  With
+UNCOUNTED refuted at the constructors and LIFETIME's natural fix being
+the narrow `set_view`-at-the-consuming-CAS form already used by
+`bundle_subpacket`, the two surviving candidates are both **one-site,
+topology-independent** changes:
+- DOUBLE — remove or condition a release that does not own its
+  reference: no new work on any path, no hard-link special case;
+- a concurrent write to a live wrapper's `m_packet` — the fix is to make
+  that field `const` (it already is for `m_bundledBy`), which is a
+  compile-time change with **zero** runtime cost anywhere.
+Neither adds an atomic operation to the common path, which is exactly the
+property asked for.  Only if both are refuted does the LIFETIME-style
+pin come back into scope, and §13.64 already records how to bound that
+one.
+
+Run matrix (all five arms, this machine, no Ubuntu needed):
+`cd kamestm/tests/tlaplus && for a in none none_nohardlink lifetime
+double uncounted; do java -cp tla2tools.jar tlc2.TLC -workers 4 -config
+PacketRefcount_$a.cfg PacketRefcount.tla; done`
+
+**Results of the faithful two-scope model** (this machine, seconds per arm):
+
+| arm | result |
+|---|---|
+| faithful, `HardLink=TRUE` | **PASS** exhaustive — 2 673 states / 1 297 distinct, queue empty |
+| faithful, `HardLink=FALSE` | **PASS** exhaustive — identical counts |
+| knob LIFETIME | **NoResurrection violated** |
+| knob DOUBLE | **LiveWrapperPinsPacket violated** |
+| knob UNCOUNTED | **LiveWrapperPinsPacket violated** |
+
+Finiteness is by **precondition, not StateConstraint** (this project's
+rule): each thread performs at most one bundle sequence (`done[t]`,
+mirroring the hard-link models' `bundleDone`), and `ScopeNodes` restricts
+which linkages threads bundle.  **That bound is the result's main
+limitation**: with one bundle per thread the search never reaches a retry
+loop or a second bundle on the same linkage, so "PASS" means "no
+departure within that depth", not "the protocol is safe at any depth".
+Raising it is the obvious next step and is a cfg-level change
+(`done` → a small counter).
+
+Two further model errors of mine were caught and fixed while getting
+here — the `set_view` zero-atomic transfer (above) and unclamped
+`wrc` arithmetic that made the LIFETIME knob trip `TypeOK` instead of the
+invariant it was built to trip.  Both were found by reading TLC's output
+rather than by assuming; the pattern is now three-for-three in this
+section (§13.61, §13.62, here).
+
+**A source finding that constrains the fix, discovered while modelling.**
+`m_packet` **cannot simply be made `const`**: `reverseLookup` takes
+`local_shared_ptr<Packet> &superpacket` and rewrites it in place
+(copy-on-write along the path), and `bundle` passes
+`superwrapper->packet()` to it directly (`:2912`, `:3120`).  So the
+"harden the field" route needs `reverseLookup`'s contract changed first
+(return the new root instead of mutating the caller's slot), which is a
+larger change than the const keyword suggests — worth knowing before
+anyone proposes it as the cheap fix.  The two writes §13.36 found
+(`:1444`, `:1561`) are the easy half: both immediately follow
+`make_local_shared<PacketWrapper>(m_link, idx, serial)` and would become
+a 4-argument constructor, at zero runtime cost.
