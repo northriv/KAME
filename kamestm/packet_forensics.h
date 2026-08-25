@@ -233,6 +233,28 @@ inline std::atomic<std::size_t> &pf_frees() noexcept {
 inline std::atomic<std::size_t> &pf_unknown() noexcept {
     static std::atomic<std::size_t> n{0}; return n;
 }
+//! Quarantine on (default) or off (`KAME_PF_QUARANTINE=0`).
+//!
+//! Off matters more than it looks.  The record in DYNNODE_UAF_HANDOFF.md
+//! says the fault needs freed addresses to come back into circulation --
+//! delaying reuse by 2M allocations gave 0/41 against 13/41.  A quarantine
+//! is exactly that delay, so a soak with it on may be a configuration that
+//! structurally cannot fail, and a clean result would mean nothing.  With
+//! it off the allocator's reuse pattern is intact (only the header's extra
+//! bytes shift size classes) and the exclusivity check below -- the one
+//! that separates an early free from a double allocation -- still works
+//! unchanged, because it reads the header of the block being handed out,
+//! not of one we are holding back.  What weakens is the DEAD check: a
+//! recycled block's header may already belong to its next owner.  So run
+//! quarantine ON to identify a use-after-free precisely, and OFF to ask
+//! whether the fault happens at all under realistic reuse.
+inline bool pf_quarantine() noexcept {
+    static const bool v = []{
+        const char *e = std::getenv("KAME_PF_QUARANTINE");
+        return !(e && !std::atoi(e));
+    }();
+    return v;
+}
 inline bool pf_strict() noexcept {
     static const bool v = []{
         const char *e = std::getenv("KAME_PF_STRICT");
@@ -306,6 +328,7 @@ inline void packet_forensics_delete(void *p) noexcept {
     // if the magic check is bypassed.
     std::memset(p, 0xBD, h->size);
 
+    if( !pf_quarantine()) { pf_raw_free(h); return; }
     PfRing &r = pf_ring();
     if( !r.slot) { pf_raw_free(h); return; }   // out of memory: no quarantine
     std::size_t i = r.pos++ % PF_QUARANTINE;
