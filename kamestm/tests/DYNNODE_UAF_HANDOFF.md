@@ -2526,3 +2526,68 @@ Formalized as the procedure:
    classification list is what covers the rest.)
 
 Mac-side verification this commit: the define compiles clean (Release).
+
+### 13.22 Asm diff run on Ubuntu — signature (c) hit: `orphan_chain_pop` loses one refcount `lock add` in the clone arm
+
+`kamepoolalloc/tests/asm_diff_ipa_clone.sh $OUT /usr/bin/c++
+-DKAME_POISON_FORENSIC` on Ubuntu / g++ 15.2.  Output: **40 clone symbols
+only in B**, **380 changed base symbols**.
+
+Scanned mechanically for §13.17's signature (c) — a dropped or displaced
+`lock`/`mfence` relative to the `-O2` body — by comparing per-symbol atomic
+counts.  Two hits; one is benign, one is not obviously so.
+
+**Benign: `recycle_push`** (A=6, B=5).  The missing `lock xadd` is inside
+B's `l1_base.part.0`, a B-only outlined symbol; A inlines `l1_base` entirely
+(A has no separate `l1_base` symbol at all).  Moved, not dropped.
+
+**Not benign-looking: `orphan_chain_pop`.**
+
+```
+A (-O2)                    B (-O2 -fipa-cp-clone)
+  je   …                     (block absent)
+  mov  %rax,%r14
+  lock add %rax,0xd8(%r14)   <-- early-path refcount add, NOT in B
+  …
+  lock cmpxchg %rdx,(%rsi)   lock cmpxchg %rcx,(%rsi)
+  jne  …                     jne  …
+  lea  0xd8(%r15),%r9        lea  0xd8(%r14),%rdi
+  lock add %rcx,0xd8(%r15)   lock add %rdx,0xd8(%r14)   <-- CAS-path add, in both
+```
+
+It is **systematic, and the instructions are not merely relocated**:
+
+| | A | B |
+|---|---|---|
+| `lock add …0xd8` instructions, whole object | **198** | **176** |
+| symbols containing one | 154 | 154 |
+| `orphan_chain_pop` instantiations losing exactly one | — | **22 of 22** |
+
+Same symbol count, 22 fewer instructions, and every one of the 22
+`orphan_chain_pop` instantiations accounts for exactly one.  So B is not
+outlining them elsewhere — it is not emitting them.
+
+`0xd8` is a refcount word on the popped chunk object (`orphan_chain_pop`
+returns `local_shared_ptr<PoolAllocator<…>>`; the adoption path re-owns the
+chunk).  A performs the increment on a null-checked early path *and* on the
+CAS-success path; B performs only the latter.
+
+**What this is NOT yet.**  `-fipa-cp-clone` legitimately deletes code it has
+proven unreachable in a specialisation, so a constant-folded condition
+eliminating one of two source paths is an entirely lawful explanation and is
+the null hypothesis here.  Deciding it needs the source read that this session
+cannot responsibly do from disassembly alone: **are both increments reachable
+in the specialised context, and does the early one correspond to a reference
+that the adoption path still relies on?**  `orphan_chain_pop`'s caller is at
+`allocator.cpp:2952` (`oc_hold = orphan_chain_pop()`, then the BIT_OWNED claim
+loop and owner re-arm).
+
+It is worth prioritising because of *where* it sits: chunk adoption is the
+path the reproducer hammers (§11.4 — repeated thread create/exit under a
+persistent tree), and a lost increment on a chunk's refcount in the failing
+arm only is the right shape for "two owners, one count", which is what Q1
+established 15/15.
+
+**Falsifier #2 is running in parallel** (paired PRE vs `2d8a9e5b8`); §13.16's
+discipline applies unchanged — 100 %-failing to zero confirms, still-failing
+refutes and keeps the UB fixes.
