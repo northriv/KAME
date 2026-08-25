@@ -4057,3 +4057,51 @@ shortcut is closed**, and a census — however clean its correlation — cannot
 substitute for the differential.  That is the second time in this section a
 perfect structural correlation (§13.52's suppressor/clone-set alignment, then
 `global_pop_fit`) has failed its causal test.
+
+### 13.54 After the tenth refutation: stop asking "which mechanism" and
+### ask the execution itself — rr, plus a dose-response probe
+
+§13.53 accepted in full, including the demolition of §13.52 — that is
+the second perfect correlation to fail its causal test here, and the
+lesson is now structural: with the effect distributed across the clone
+set (or not about clone presence at all), *hypothesis-first* testing has
+hit its floor.  Ten mechanisms died on differentials; the flag effect
+alone survives every control.  Two moves remain that do not require
+guessing a mechanism first:
+
+**1. rr — the tool this situation is the textbook case for.**  A
+`SIGSEGV` with an unknown writer, µs windows, 40 threads, and a fault
+that survives light instrumentation: record once, then interrogate the
+execution *backwards*.
+
+```
+sudo sysctl kernel.perf_event_paranoid=1
+rr record -h ./tmin 20 40 700          # -h = chaos mode; repeat until a crash lands
+rr replay                              # at the SIGSEGV:
+  (rr) watch -l *(uintptr_t*)<corrupted address>   # hardware watchpoint
+  (rr) reverse-continue                # lands ON the writing instruction
+```
+
+That names the writer of the corrupted word — refcnt, header, pointer,
+whatever the crash exposes — with zero hypotheses, and the forensic
+annotations date-stamp the block's free/pool history around it.  Two
+caveats to pre-register: rr serializes onto one core (chaos mode
+compensates by adversarial scheduling; if the fault needs true
+parallelism it may suppress — record the attempt count either way), and
+rr's syscall interposition may perturb like ASan did (same fallback:
+`-O2 -fipa-cp-clone` proxy, which fails at the same rates).
+
+**2. The dose-response probe (cheap, structural).**  The distributed
+reading predicts a *graded* rate: `noclone` on half the clone parents ≈
+half the failure rate; the whole-TU-phase-change reading predicts a
+*step* (full rate until the pass is off).  Three arms, interleaved as
+usual: BASE / NC-half (§5's seven-function list, take 3–4) / flag-off.
+Graded ⇒ many small windows, each clone contributing — consistent with
+a latent timing bug the pass's codegen widens everywhere at once.
+Step ⇒ a whole-TU property (register allocation, section layout,
+alignment), which is also what a *distributed* miscompile would look
+like.  Either shape kills half the remaining hypothesis space.
+
+**3. Standing offer**: paste any 4-core SIGSEGV capture (fault address,
+backtrace, the RC-FREEREC / RC-POOLEV block) — the Mac side reads them
+against the source, §13.24-style, as they arrive.
