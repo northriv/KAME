@@ -3757,3 +3757,71 @@ of the three carries it.  If still failing: all three stay as correct
 fixes, and the TSan enumeration (runs 2–6, the three singletons) is the
 worklist.  Mac: ctest 18/18 both builds, tmin 3×40t clean on the
 patched pool.
+
+### 13.49 Both TSan-derived candidates refuted by differential test: 18/20 vs 13/20 (p=0.13), then 20/20 vs 20/20
+
+The pre-registered causation tests from §13.46 and §13.48 have both run on
+Ubuntu.  Method each time: **one** `-O3` `.so` test binary (`tmin_ab`, built
+once), two allocator arms compiled with identical flags
+(`-O3 -g -DNDEBUG -fPIC -fvisibility-inlines-hidden -fno-semantic-interposition`)
+and swapped via a symlink **interleaved run-by-run** in a single job, 20 pairs
+per experiment.  Arms confirmed to differ (`cmp` + differing `.so` sizes)
+before each run.
+
+**Test 1 — §13.46 `m_owner_id` release/acquire (falsifier #5).**
+
+| arm | failures |
+|---|---|
+| BASE (`25d732690^`) | **18/20** (90%) |
+| FIXED (`25d732690`) | **13/20** (65%) |
+
+Fisher exact two-tailed **p = 0.127** — not significant.  By §13.46's own
+criterion ("still-failing keeps the fix and returns to the enumeration"),
+**refuted as the cause**.
+
+The fix nonetheless *worked*, which is what makes this a clean refutation
+rather than a null result: a TSan build from the fixed commit shows **Pair B
+gone** (1 report, 1 pair, at `8 8 400`).  The race was real, was eliminated,
+and the fault continued.
+
+The 90% → 65% gap is a **load artifact, not an effect** — confirmed by Test 2,
+where the *same* fixed code (as the PREV arm) failed **20/20** once the
+concurrent TSan batch stopped competing for CPU.  Absolute rates here track
+machine load; only the interleaved within-job comparison is meaningful.
+
+**Test 2 — §13.48(A) claim-side acquire + §13.48(B) metadata-after-CAS.**
+
+| arm | failures |
+|---|---|
+| PREV (`e23e5b2c4`, §13.46 fix only) | **20/20** |
+| HEAD (`d3c9a2176`, +§13.48 A+B) | **20/20** |
+
+**No effect at all.**  §13.48(B) was the strongest candidate yet — a pure
+logic bug needing no UB, with a direct path to the observed signature (loser's
+pre-CAS header store re-types the winner's live slot → wrong size on free →
+mis-route → freelist/bitmap corruption → released-after-zero).  The reasoning
+is sound and the fix is worth keeping; it is simply **not this fault**.
+
+**Where that leaves the method.**  §13.44 made TSan-over-the-pool work, and it
+delivered a genuine enumeration — 5 pairs, 0 impossible, stable across five
+runs (104/127/75/83/85 reports).  Both dominant pairs were then real races,
+both were fixed, and **neither was the fault**.  So the fault is not a
+TSan-visible data race on allocator metadata.  That is a substantive negative
+result: it eliminates the entire class the last several sections have been
+searching, and it is consistent with §13.30's pattern — the codegen knobs and
+now the race fixes tune symptom rates without touching the failure rate.
+
+Refuted mechanisms now total **nine**: `CASInfo::old_wrapper`, wrongly-mine,
+split-read, falsifier #2, speculative devirtualization, `orphan_chain_pop`,
+`m_owner_id` handoff, claim-side ordering, pre-CAS metadata.
+
+**Recommendation.**  Stop generating allocator-race candidates; that well is
+now measured dry.  The evidence that has never moved is differential and
+points at codegen: total `-O3` vs `-O2`/clang separation, the single-pass
+`-fipa-cp-clone` flip (0/167), arm64 silence (0/2400). The unexamined
+habitat is §13.28's habitat 3 — `fast_vector<lsp<Packet>>` / `PacketList_`
+lifecycle **as STM logic**, not as an allocator race — which is exactly what
+Pair A's stacks kept pointing at on *both* sides even though the allocator-side
+fix did nothing.  A post-§13.48 TSan batch at matched workload is running to
+confirm Pair A is actually gone (the Pair B check pattern); that result is
+pending and is not assumed here.
