@@ -1246,6 +1246,18 @@ void activateAllocator() {
 #endif
     g_sys_image_loaded = true;
 }
+#if KAME_TSAN_ENABLED
+// §13.43: every TSan run since §13.34 measured an INERT pool -- the
+// inline recipe never called activateAllocator(), so g_sys_image_loaded
+// stayed false, every allocation took the pre-activation fallback, and
+// mmap_new_region (with §13.42's arena behind it) never ran.  A TSan
+// analysis build with an inert pool measures nothing, so under TSan the
+// inline mode auto-activates exactly like the dylib mode does.
+[[gnu::used]] __attribute__((constructor(101)))
+static void kamepoolalloc_tsan_auto_activate() noexcept {
+    g_sys_image_loaded = true;
+}
+#endif
 #endif
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -6776,6 +6788,7 @@ void PoolAllocatorBase::radix_clear(char *mp) noexcept {
 // both chunk-claim Pass-2 sites.  Returns the new region (== its base)
 // or nullptr on cap-exceeded / mmap failure.
 #if KAME_TSAN_ENABLED && !(defined __WIN32__ || defined WINDOWS || defined _WIN32)
+#include <pthread.h>   // §13.43(1): don't rely on transitive inclusion
 // ===================================================================
 // §13.42 single-arena TSan mode (see allocator_prv.h for the rationale).
 // One PROT_NONE reservation, carved in 32 MiB granules; freed spans are

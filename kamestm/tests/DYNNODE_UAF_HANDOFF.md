@@ -3480,3 +3480,49 @@ under-powered probe — a tiny workload without `strace -f`, then a global
 `new char[48]` that never reaches the pool — and had to retract mid-
 investigation.  Both were caught by a control run before reporting, which is
 the only reason they are footnotes rather than another §13.40.
+
+### 13.44 §13.43's three blockers, fixed — and the answer to its open question
+
+**The open question is answered: the pool was never ACTIVATED.**  Inline
+(non-dylib) mode requires an explicit `activateAllocator()` call —
+production does it via `KamePooledAllocGuard` in kame/main.cpp, the old
+standalone tests via a static shim — and the §13.10 recipe contains
+neither.  So `g_sys_image_loaded` stayed false, every `operator new` took
+the pre-activation FALLBACK (the symbol is "live", the pool is inert),
+`mmap_new_region` never ran, and §13.42's arena sat behind a door that
+was never opened.  Every TSan-over-the-pool number since §13.34 —
+5 412, 45, 255, 52/40 — was measured against an inert pool.  (This also
+reframes the `rc=134` = glibc `free(): invalid size` observation: those
+crashes happened on a libc-backed run, which deserves its own §: see the
+note below.)
+
+Fixes, all in this commit:
+
+1. **TSan builds auto-activate.**  Under `KAME_TSAN_ENABLED`, inline mode
+   gains the same `constructor(101)` auto-activation as the dylib mode —
+   an analysis build with an inert pool measures nothing, so the whole
+   "recipe forgot the shim" class is now impossible for this line.
+   (Non-TSan inline builds keep the explicit-activation contract.)
+2. **`<pthread.h>` included** by the §13.42 arena block directly.
+3. **Fence visibility** (`-Wtsan`, the second ceiling): under a TSan
+   build only, `writeBarrier()` / `readBarrier()` / `memoryBarrier()`
+   additionally release/acquire a process-wide proxy token
+   (`kame_tsan_fence_token_` in atomic_mfence.h, self-contained gate),
+   and `atomicLoadRelaxed()` acquires the token after its load — so the
+   fence-published fields §13.43 lists (`m_owner_id`, `m_idx`,
+   `LargeAllocMeta`) are ordered in TSan's model.  Conservative by
+   construction: proxy edges can only HIDE races along orderings the
+   fences already claim, never invent one.
+
+Mac verification: TSan TU compiles (java + acquire/release + token all
+referenced), bare `clang++ -c allocator.cpp` with no harness compiles
+(defect 1 gone), default Release ctest 18/18.
+
+**Worth a run of its own once TSan works**: §13.43 noted every TSan run
+died `rc=134` = glibc `free(): invalid size` — on what we now know was a
+LIBC-BACKED binary.  If that reproduces on a pool-INERT, TSan-OFF build
+(§13.10 recipe minus `-fsanitize=thread`, activation still absent), the
+fault corrupts the GLIBC heap with the pool bypassed — which would be a
+major boundary shift all by itself (the §13.14 "allocator codegen"
+boundary would need re-reading, since the allocator's pool paths would
+be out of the loop).  One cheap batch answers it.

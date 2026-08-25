@@ -288,6 +288,7 @@ inline T atomicFetchOr(T *target, T value) noexcept {
 #endif
 #if KAME_TSAN_ENABLED
 #include <sanitizer/tsan_interface.h>
+#include "atomic_mfence.h"   // kame_tsan_fence_token_ (§13.43(2))
 #define KAME_TSAN_ACQUIRE(p) do { if(p) __tsan_acquire(p); } while(0)
 #define KAME_TSAN_RELEASE(p) do { if(p) __tsan_release(p); } while(0)
 //! §13.41/§13.42 single-arena TSan mode.  acquire/release add EDGES but
@@ -342,7 +343,14 @@ inline T atomicLoadRelaxed(const T *p) noexcept {
 #else
 template <typename T>
 inline T atomicLoadRelaxed(const T *p) noexcept {
-    return __atomic_load_n(p, __ATOMIC_RELAXED);
+    T v = __atomic_load_n(p, __ATOMIC_RELAXED);
+#if KAME_TSAN_ENABLED
+    // §13.43(2): pair with the fence-proxy release in writeBarrier() so
+    // fence-published fields (m_owner_id, m_idx, LargeAllocMeta) are
+    // ordered in TSan's model.  TSan builds only; production unaffected.
+    __tsan_acquire(&kame_tsan_fence_token_);
+#endif
+    return v;
 }
 #endif
 

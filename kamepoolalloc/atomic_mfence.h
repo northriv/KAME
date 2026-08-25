@@ -36,14 +36,46 @@
 #  include <intrin.h>   // _mm_pause (x86) / __yield (ARM64)
 #endif
 
+// §13.43(2): TSan does not model atomic_thread_fence (-Wtsan), so
+// fence-published data is invisible to it no matter how allocations are
+// annotated.  Under a TSan build ONLY, the barriers additionally
+// release/acquire a process-wide proxy token, which conservatively
+// models the fences' pan-address ordering for the race detector (it can
+// only ADD happens-before, i.e. hide, never invent, a race -- and only
+// along edges the fences already claim).  Self-contained gate: this
+// header is included before allocator_prv.h's KAME_TSAN_ENABLED exists.
+#if defined(__SANITIZE_THREAD__)
+#define KAME_MFENCE_TSAN_ 1
+#elif defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+#define KAME_MFENCE_TSAN_ 1
+#endif
+#endif
+#ifdef KAME_MFENCE_TSAN_
+extern "C" {
+void __tsan_acquire(void *addr);
+void __tsan_release(void *addr);
+}
+inline unsigned char kame_tsan_fence_token_;
+#define KAME_MFENCE_TSAN_ACQ_ __tsan_acquire(&kame_tsan_fence_token_)
+#define KAME_MFENCE_TSAN_REL_ __tsan_release(&kame_tsan_fence_token_)
+#else
+#define KAME_MFENCE_TSAN_ACQ_ ((void)0)
+#define KAME_MFENCE_TSAN_REL_ ((void)0)
+#endif
+
 inline void readBarrier() noexcept {
     std::atomic_thread_fence(std::memory_order_acquire);
+    KAME_MFENCE_TSAN_ACQ_;
 }
 inline void writeBarrier() noexcept {
+    KAME_MFENCE_TSAN_REL_;
     std::atomic_thread_fence(std::memory_order_release);
 }
 inline void memoryBarrier() noexcept {
+    KAME_MFENCE_TSAN_REL_;
     std::atomic_thread_fence(std::memory_order_seq_cst);
+    KAME_MFENCE_TSAN_ACQ_;
 }
 
 inline void pause4spin() noexcept {
