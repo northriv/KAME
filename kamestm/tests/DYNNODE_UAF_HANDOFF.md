@@ -4868,3 +4868,76 @@ it on the strength of that audit — and the audit predates everything
 learned since.  Re-auditing it is cheap and is the natural next Mac-side
 step; adding the write as an action would then let TLC say whether it is
 sufficient to produce the observation.
+
+### 13.67 The §13.36 re-audit finds it: `unbundle` dereferences a list slot
+### AFTER the CAS loop has let its container die
+
+Re-auditing "all `m_packet` writes are pre-publish" as §13.66 asked.  The
+original audit grepped for `packet() = ` assignments; the re-audit
+classified **every** `packet()` use, including MUTABLE BORROWS (address
+taken, or passed as a non-const reference), which the first pass missed.
+Inventory:
+
+| kind | sites | verdict |
+|---|---|---|
+| assignments | `:1444`, `:1561` | pre-publish (fresh wrappers) — audit stands |
+| `reverseLookup(superwrapper->packet(), …)` | `:2808`, `:2994` | pre-publish (fresh `superwrapper`) |
+| `const_cast` to a mutable slot pointer | `:3303`, `:3307` | read-only use; type-unification only |
+| **address of a slot inside a scope-held packet** | `:1948`/`:1952` → `:1996` | **the finding, below** |
+
+**The sequence.**  `snapshotForUnbundle` sets the caller's
+`newsubpacket` to `&(*(*parent_packet)->subpackets())[i]` (`:1996`) —
+a slot **inside an ancestor's packet**, where `parent_packet` points into
+`(*r.parent_scope)->packet()` (`:1948`).  The source's own lifetime
+argument is *"r.parent_scope … keeps it alive"*, and that view survives
+the return by being **parked into `cas_infos`** (§12.4's park).  Then:
+
+```cpp
+for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {
+    ScopedNegotiateLinkage<XN> scope(it->linkage, snap, -1,
+        std::move(it->old_wrapper), …);      // parked view MOVED OUT, :3333
+    if( !scope.compareAndSet(it->new_wrapper)) return DISTURBED;
+    …
+}                                            // <-- scope DIES here, each iteration
+…
+newsubwrapper = make_local_shared<PacketWrapper>( *newsubpacket, …);  // :3379
+```
+
+The loop moves each parked view into a **loop-local** `ScopedNeg` and
+lets it die at the end of its iteration.  The linkage's reference to that
+old ancestor wrapper was just replaced by the CAS, so the loop-local view
+was its **last** reference: the old wrapper dies, `~PacketWrapper`
+releases its `m_packet`, the old ancestor packet dies, **its PacketList
+dies, and the list's element references are released**.  `:3379` then
+dereferences `newsubpacket` — a slot in that list — and copies the
+element, incrementing an already-freed `Packet`.
+
+**This matches every surviving observation**: the resurrection is at a
+`make_local_shared<PacketWrapper>(…packet…)` site (§13.63); the victim
+was released with CORRECT accounting (`drift=+0`, 14/14 — the ancestor's
+packet genuinely reached zero when its wrapper died); the last releaser
+is `~PacketWrapper` (§13.57/§13.59 and all five container-knowable
+observations); two holders for one count (Q1 15/15 — the dead slot plus
+the new copy); a µs window (the loop is short); and deeper hard-link
+walk-up chains mean more `cas_infos` entries, i.e. more chances — which
+is why the hard-linked reproducer hits it.  It also explains why
+§13.60/§13.62's detectors stayed silent: they were placed in **`bundle`
+Phase 1**, and this is in **`unbundle`**.
+
+`oldsubpacket` is `nullptr` on the live path (`bundle_subpacket` passes
+`nullptr`, `:2622`), so the dangerous branch is the one that runs.
+
+**Detector, this commit** (`KAME_RC_TRACE_SLOT_CHECK=1`): validate the
+slot's target immediately before the `:3379` copy, keyed on the ELEMENT so
+the anomaly prints its release history and the freeing stack.  Liveness
+proved first (§13.61's rule): forcing the predicate true yields **46 435**
+reports; reverted.  Mac: 0 hits over 3×40-thread runs, as expected where
+the fault does not reproduce.
+
+**The fix is a REORDERING, which is what the no-regression constraint
+wants.**  Nothing in the CAS loop changes the slot's value (the old
+ancestor packet is immutable; the loop only republishes wrappers), so the
+copy can simply be taken BEFORE the loop — same single increment, no new
+atomic operation, no hard-link special case, no cost on any path that
+does not unbundle.  That lands as the next commit, kept separate so the
+causal batch can bisect detector-vs-fix.

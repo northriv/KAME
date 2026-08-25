@@ -1563,6 +1563,12 @@ private:
     //! instant before a copy of \a list would increment them all.
     static void rcPreCopyCheck(const local_shared_ptr<PacketList> &list,
                                const void *site) noexcept;
+    //! §13.67: is the Packet at \a slot still live, at the instant before
+    //! it is copied?  `slot` is a `local_shared_ptr<Packet>*` a lookup
+    //! handed out; the check reports the ELEMENT so the anomaly path
+    //! prints its release history and the freeing stack.
+    static void rcSlotLiveCheck(const local_shared_ptr<Packet> *slot,
+                                const void *site) noexcept;
     static bool rcTreeContains_(const local_shared_ptr<Packet> &root,
                                 const Packet *target) noexcept;
 #endif

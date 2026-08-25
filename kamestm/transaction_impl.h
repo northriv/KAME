@@ -1716,6 +1716,23 @@ Node<XN>::rcLookupEscapeCheck(const local_shared_ptr<Packet> &root,
 }
 template <class XN>
 void
+Node<XN>::rcSlotLiveCheck(const local_shared_ptr<Packet> *slot,
+    const void *site) noexcept {
+    static const bool enabled = [] {
+        const char *e = getenv("KAME_RC_TRACE_SLOT_CHECK");
+        return e && e[0] && e[0] != '0';
+    }();
+    if( !enabled || !slot) return;
+    const Packet *e = slot->get();
+    if( !e) return;
+    uintptr_t rc = e->refcnt;          // reading a freed pool slot is safe
+    if(rc == 0 || rc >= ((uintptr_t)1 << 48))
+        kame_rc_trace::anomaly(e, kame_rc_trace::OP_DEAD_ELEMENT, rc,
+            site, kame_rc_trace::type_name_<Packet>(),
+            static_cast<const void *>(slot));
+}
+template <class XN>
+void
 Node<XN>::rcPreCopyCheck(const local_shared_ptr<PacketList> &list,
     const void *site) noexcept {
     static const bool enabled = [] {
@@ -3501,8 +3518,19 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
     local_shared_ptr<PacketWrapper> newsubwrapper;
     if(oldsubpacket)
         newsubwrapper = *newsubwrapper_returned;
-    else
+    else {
+#ifdef KAME_RC_TRACE
+        // §13.67: `newsubpacket` points at a slot INSIDE an ancestor's
+        // packet (snapshotForUnbundle -> :1996, whose packet is held by
+        // `r.parent_scope`, whose view was PARKED into cas_infos).  The
+        // CAS loop above moved each parked view into a loop-local
+        // ScopedNeg and let it die at the end of its iteration, so by
+        // here the containing packet -- and its PacketList -- may already
+        // be gone.  Check the slot's target before copying it.
+        rcSlotLiveCheck(newsubpacket, __builtin_return_address(0));
+#endif
         newsubwrapper = make_local_shared<PacketWrapper>( *newsubpacket, SerialGenerator::gen(root_bundle_serial));
+    }
 
     // Final sublinkage CAS via the caller-provided subscope.  The
     // outer scope's negotiate (at construction) covers this CAS — no
