@@ -1588,7 +1588,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 					// owners with one refcount backing -- the §11.3 shape.
 					// Relaxed atomic load compiles to the same single mov /
 					// ldr; only the optimizer's license changes.
-					FUINT oldv = __atomic_load_n(pflag, __ATOMIC_RELAXED);
+					FUINT oldv = atomicLoadRelaxed(pflag);
 					if(oldv == ~(FUINT)0u)
 						break;                    // word full
 					FUINT mask = (FUINT)~oldv;
@@ -1622,7 +1622,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	for(;;) {
 		FUINT *pflag = &this->m_flags[idx];
 		// §13.15: atomic load -- see the word-grab loop comment above.
-		FUINT oldv = __atomic_load_n(pflag, __ATOMIC_RELAXED);
+		FUINT oldv = atomicLoadRelaxed(pflag);
 		if(oldv != ~(FUINT)0u) {
 			one = find_zero_forward(oldv);
 //			assert(count_bits(one) == SIZE / ALIGN);
@@ -1787,7 +1787,7 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	constexpr unsigned int MAX_N_HERE =
 	    PoolAllocator<ALIGN, false, DUMMY>::MAX_N;
 	// §13.17: gate read made atomic (races atomicInc/Dec writers).
-	if(__atomic_load_n(&this->m_flags_filled_cnt, __ATOMIC_RELAXED)
+	if(atomicLoadRelaxed(&this->m_flags_filled_cnt)
 	        == this->m_count && N >= MAX_N_HERE)
 		return 0;
 
@@ -1801,7 +1801,7 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 		// §13.15: atomic load -- see the word-grab loop comment above.
 		// This is the loop ipa-cp-clone reshapes (find_training_zeros
 		// inlined with constant N): the prime suspect for a split read.
-		oldv = __atomic_load_n(pflag, __ATOMIC_RELAXED);
+		oldv = atomicLoadRelaxed(pflag);
 		cand = find_training_zeros(N, oldv);
 		if(cand) {
 			ones = cand *
@@ -2185,7 +2185,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 		FUINT *pflags = &this->m_flags[idx];
 		for(;;) {
 			// §13.15: atomic load -- see the word-grab loop comment above.
-			FUINT oldv = __atomic_load_n(pflags, __ATOMIC_RELAXED);
+			FUINT oldv = atomicLoadRelaxed(pflags);
 			FUINT newv = oldv & nones;
 			if(atomicCompareAndSet(oldv, newv, pflags)) {
 				on_clear(oldv, newv);
@@ -3804,7 +3804,7 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 	// (§13.15 gave the m_flags word loads the same treatment; that
 	// falsifier was refuted -- these are the same UB class one ring out.)
 	unsigned int back_off_raw =
-	    __atomic_load_n(&rmeta->back_offset[unit_idx], __ATOMIC_RELAXED);
+	    atomicLoadRelaxed(&rmeta->back_offset[unit_idx]);
 	unsigned int base_idx = unit_idx - (back_off_raw & 0x7Fu);
 	char *chunk_base = mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE
 	                 - (size_t)ALLOC_CHUNK_K_MAX;
@@ -3823,9 +3823,9 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 	// garbage local-id (corruption / coincidental owner match on a stray
 	// pointer) tail-calls cold, which re-validates via palloc + the vtable
 	// owner check.
-	if(__builtin_expect(__atomic_load_n(&chunk_obj->m_owner_id, __ATOMIC_RELAXED) == page_owner_id
+	if(__builtin_expect(atomicLoadRelaxed(&chunk_obj->m_owner_id) == page_owner_id
 	                    && page_owner_id != 0, 1)) {
-		if(__builtin_expect(__atomic_load_n(&chunk_obj->m_fs_flag, __ATOMIC_RELAXED) != 0, 1)) {  // FS=true — 64 B hot
+		if(__builtin_expect(atomicLoadRelaxed(&chunk_obj->m_fs_flag) != 0, 1)) {  // FS=true — 64 B hot
 #if KAME_FS_CHUNK_FIFO
 			// (§L0-FIFO) Park into the chunk's depth-4 null-marking ring
 			// instead of the freelist: no store into the block itself
@@ -4043,7 +4043,7 @@ PoolAllocatorBase::deallocate_cold(void *p) noexcept {
 		// post-teardown free to the cold cross-free path, which decrements
 		// MASK_CNT and reclaims correctly.
 		uint32_t page_owner_id = pg->owner_id;   // (hoist) reuse the page read at fn entry
-		if(__builtin_expect(__atomic_load_n(&chunk_obj->m_owner_id, __ATOMIC_RELAXED) == page_owner_id
+		if(__builtin_expect(atomicLoadRelaxed(&chunk_obj->m_owner_id) == page_owner_id
 		                    && page_owner_id != 0, 1)) {
 			// (§12.3 / §16) Local-id from the cache-line-1 hot block:
 			//   FS=true        : chunk serves one size -> local-id 0.

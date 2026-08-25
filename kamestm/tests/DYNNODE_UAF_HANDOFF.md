@@ -2463,3 +2463,22 @@ back refuted, switch strategy: hygiene-first full DRF migration of
 allocator.cpp (the mimalloc/jemalloc discipline, §13.18 addendum 2) and
 let the asm diff carry the verdict alone, for the record and any GCC
 report.
+
+**§13.20 addendum — spelling fix: `atomicLoadRelaxed()` shim (MSVC
+compatibility restored).**  Answering "so it's atomic<> everywhere OR the
+old barrier+volatile school?": the two schools are ISOMORPHIC — the
+kernel's READ_ONCE/WRITE_ONCE + barrier() is a hand-rolled pre-C11
+spelling of relaxed-atomic + fences, same generated code — and in
+userland C++ the standard spelling is strictly better (ISO-defined,
+TSan-visible, no volatile over-constraint).  It is also not "everywhere":
+§13.20's classification stands (concurrent words atomic; owner-only /
+pre-publication words plain, by design).
+
+While answering, an own-goal surfaced: the §13.15/§13.17 falsifiers used
+`__atomic_load_n` directly — a GNU extension absent on MSVC, which the
+standalone lib supports (the `_Interlocked*` shims, `/utf-8`).  Fixed:
+`atomicLoadRelaxed()` in allocator_prv.h next to the other shims — GNU
+arm `__atomic_load_n(RELAXED)`, MSVC arm an aligned volatile scalar read
+(the idiomatic MSVC relaxed load; a live illustration that the volatile
+school and the atomic school are one discipline in two dialects).  All 9
+call sites converted; ctest 18/18 forensic ON, tmin 40t clean.

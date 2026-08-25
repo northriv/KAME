@@ -266,6 +266,24 @@ inline T atomicFetchOr(T *target, T value) noexcept {
 }
 #endif
 
+//! Relaxed atomic load of a PLAIN-typed shared word (§13.15/§13.17 DRF
+//! migration).  GNU: __atomic_load_n (defined behavior, TSan-visible).
+//! MSVC: an aligned volatile scalar read -- the idiomatic MSVC spelling
+//! of a relaxed atomic (untorn, unfused); ordering, where needed, comes
+//! from the _Interlocked* full-barrier ops around it, exactly as the
+//! __sync_* ops do on the GNU side.
+#if defined(_MSC_VER) && !defined(__GNUC__)
+template <typename T>
+inline T atomicLoadRelaxed(const T *p) noexcept {
+    return *(const volatile T *)p;
+}
+#else
+template <typename T>
+inline T atomicLoadRelaxed(const T *p) noexcept {
+    return __atomic_load_n(p, __ATOMIC_RELAXED);
+}
+#endif
+
 #if defined(__GNUC__) || defined(__clang__)
 	#define ALLOC_TLS __thread //TLS for allocations, could be better for NUMA.
 	// Hot-path TLS variables: marked initial-exec to bypass libc's
