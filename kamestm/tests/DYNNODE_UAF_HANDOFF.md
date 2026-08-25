@@ -4191,3 +4191,72 @@ record:
    history dates it.  If chaos mode comes back 12/12 clean, record
    that as the pre-registered suppression answer and fall back to the
    `-O2 -fipa-cp-clone` proxy under rr before abandoning the line.
+
+### 13.57 CAPTURED — the corrupted word is `PacketWrapper::m_bundledBy.m_ref == 1`, in `unbundle`'s CAS deleter
+
+**rr recipe that works** (chaos alone does not).  `rr record -h` at
+`20 40 700`: **17/17 clean** — the pre-registered suppression.  Adding forced
+preemption **`-c 10000`** flips it: the fault reproduces on essentially every
+run (`rc=139` on run 1 of two independent hunts, and 2/2 in a third).  That
+knob, not chaos, is what defeats rr's serialization.
+
+**Replay diverges — read the recording instead.**  `rr replay` aborts with
+`PerfCounters.cc:1147 read_ticks(): Detected 31656 ticks, expected no more
+than 734` on every crashing trace (and on autopilot).  A *short successful*
+run of the same workload replays fine, so it is not the workload per se;
+this box runs a **PREEMPT_RT kernel (7.0.0-29-realtime)** and PMU tick
+accounting under RT + forced preemption is the obvious suspect.  No matter —
+**the crash registers and the module map are in the trace already**:
+`rr dump <trace>` gives the `SIGNAL: SIGSEGV(det)` frame with full registers,
+and `rr dump -p` gives the mmap bases.  No replay required.
+
+**The fault, fully resolved.**  `rip = 0x5fc583993bf2`, exe base
+`0x5fc58397c000` → file offset **`0x17bf2`**, inside `Node<LongNode>::unbundle`:
+
+```
+17be0: lea    0x10(%rbp),%rdi
+17be4: call   local_shared_ptr<Packet>::reset()   ; m_packet at +0x10, OK
+17be9: mov    0x8(%rbp),%rax                      ; m_bundledBy.m_ref at +0x8
+17bed: test   %rax,%rax                           ; null check
+17bf0: je     17c10
+17bf2: lock subq $0x1,0x8(%rax)                   ; <-- SIGSEGV
+```
+
+At the fault **`rax = 0x1`**, so the `lock subq` targets address `0x9`.
+
+Inline chain (`addr2line -f -C -i`), innermost first:
+`fetch_sub` → `local_weak_ptr<Linkage>::reset()` (`atomic_smart_ptr.h:1043`)
+→ `~local_weak_ptr` (`:1012`) → **`~PacketWrapper`** (`transaction.h:915`)
+→ `atomic_shared_ptr_base<PacketWrapper>::deleter` (`:756`)
+→ `compareAndSet_impl_<scoped_atomic_view, …>` (`:2267`)
+→ `compareAndSetWeak` (`:2363`)
+→ `ScopedNegotiateLinkage<LongNode>::compareAndSet` (`transaction_negotiation.h:917`)
+→ **`Node<LongNode>::unbundle`** (`transaction_impl.h:3393`).
+
+**PacketWrapper layout**: `+0x0` `atomic_countable::refcnt`,
+**`+0x8` `local_weak_ptr<Linkage> const m_bundledBy`**, `+0x10`
+`local_shared_ptr<Packet> m_packet`.
+
+**Why this is proof of premature reuse, not a logic bug in the dtor.**
+`m_bundledBy` is declared **`const`** — no PacketWrapper method writes it
+after construction, and `m_ref` is a plain `gref_weak_base_ *` with no tagging
+(so `1` cannot be a legitimate tagged value).  A `const` member observed
+holding a value it was never constructed with means **the storage was written
+by something other than this object** — i.e. the slot was recycled and
+re-occupied while this destructor was still running.  Note also that the
+preceding `m_packet.reset()` at `+0x10` completed normally, so the object was
+coherent moments earlier.
+
+`1` is exactly `atomic_countable::refcnt`'s construction value, which is
+consistent with a fresh object being constructed in overlapping storage — but
+which occupant wrote it is **not** established, and I am not asserting it.
+
+**What this does and does not settle.**  It identifies the *victim* (a
+`PacketWrapper` freed through `unbundle`'s CAS), the *corrupted word*
+(`m_bundledBy.m_ref` at `+0x8`), and the *manifestation* (a null check that
+passes on a non-pointer value, then a `lock subq` into unmapped memory).  It
+does **not** yet name the writer.  §13.56's protocol (watchpoint +
+reverse-continue to the writer, then again to the previous legitimate writer)
+is exactly the right next step and is **blocked only by the replay
+divergence** — worth one attempt on a non-RT kernel, or with rr's PMU checks
+relaxed, before anything else.
