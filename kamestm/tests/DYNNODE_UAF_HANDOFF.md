@@ -4622,3 +4622,84 @@ Packet so the existing anomaly path prints its release history.  If it is
 already zero at entry, the defect is in how the scope acquires its view; if it
 goes zero during the scope, the release that does it is the culprit and its
 `RC-PRIOR-RELEASE-FAST` record will name it.
+
+### 13.64 TLA+ at the packet layer: the protocol does NOT permit §13.63's
+### observation — so the C++ departs from it (and the fix has a constraint)
+
+Answering "can't TLA+ prove this?": **now it can be asked**, and this
+commit asks it.  Every earlier layer abstracts packets as VALUES; none
+tracks a packet's refcount, so none could express §13.63's finding.  That
+finding is also logically over-determined, which is what makes it
+modelable: a scope pins its wrapper, a live wrapper's `m_packet` is a
+counted reference, so `rc[wrapper.m_packet] >= 1` should be a theorem.
+Observing 0 leaves exactly three possibilities —
+
+1. **LIFETIME** — the scope does not keep its wrapper alive across a
+   consuming CAS (view cleared, never restored, still dereferenced);
+2. **DOUBLE** — the packet is released through a second, uncounted path;
+3. **UNCOUNTED** — a published wrapper's `m_packet` was installed without
+   taking the +1.
+
+`kamestm/tests/tlaplus/PacketRefcount.tla` models the bundle protocol's
+packet ownership (scope acquire → super-wrapper copy at `:2851` →
+Phase 1 list copy at `:2870` → commit CAS with explicit ownership
+TRANSFER → `set_view` restore → scope release, with `~PacketWrapper`
+cascading into `m_packet`), on the reproducer's hard-link topology, and
+offers each candidate as a bug knob.
+
+| arm | result |
+|---|---|
+| faithful (`HardLink=TRUE`) | **PASS**, exhaustive: 3 455 353 states / 703 620 distinct, queue empty |
+| faithful (`HardLink=FALSE`) | **PASS**, same |
+| knob 1 LIFETIME | **NoResurrection violated** |
+| knob 2 DOUBLE | **LiveWrapperPinsPacket violated** |
+| knob 3 UNCOUNTED | **LiveWrapperPinsPacket violated** |
+
+**So the protocol as specified cannot produce the observation, and all
+three candidate departures are caught.**  Same verdict shape as §13's
+scope-token model: the defect is an implementation departure, not a
+design hole — and now with a three-way partition of *which* departure,
+each mechanically falsifiable in the C++.
+
+**Honest limits, recorded so the PASS is not over-read:**
+- Two of the three knobs were **toothless in their first formulation**
+  (UNCOUNTED starved the protocol of commits; LIFETIME had no action that
+  dereferences a cleared view).  Both were repaired until they violated —
+  §13.61's rule applied to my own instrument.
+- `CountMatchesHolders` is a **model-internal** identity, not a protocol
+  invariant, and is deliberately **not asserted**: ownership transfer
+  reuses holder ids, so `holders` (a set) cannot track `rc` (a count)
+  exactly.  It stays as a definition for a future tightening with
+  unique-per-acquisition ids.
+- **The `HardLink` switch currently expresses only "one extra initial
+  reference", not the dual-PATH structure** that makes hard links
+  special.  Proof that this matters: both settings explore an
+  *identical* 703 620-state graph — isomorphic, i.e. the model cannot yet
+  tell the two topologies apart.  Modelling two reverseLookup routes to
+  one node is the next tightening, and it is a prerequisite for using
+  this model on the question below.
+
+**The user's constraint, and how the model serves it.**  A fix must not
+regress the NON-hard-link path.  That is a structural claim, and this is
+the right instrument for it once the dual-path tightening lands: check any
+candidate fix under `HardLink=TRUE` (must repair) *and* `HardLink=FALSE`
+(must not change the reachable behaviour).  Scoping guidance per
+candidate, in the order that preserves the common path best:
+- **UNCOUNTED** — if the missing +1 is at a specific install site, the fix
+  is that one `+1`: cost is one atomic increment on a path that already
+  performs several, and it is topology-independent (no regression risk,
+  no hard-link special case).
+- **DOUBLE** — a release that does not own its reference; the fix removes
+  or conditions that release.  Also topology-independent.
+- **LIFETIME** — the only candidate whose natural fix (pin/restore the
+  view across the CAS, or re-read after it) touches the hot bundle path
+  for every topology.  If this is the one, prefer the narrowest form:
+  restore the view exactly where the CAS consumed it (the `set_view`
+  pattern already in `bundle_subpacket`), rather than holding an extra
+  reference across Phase 1 — the former is a no-op for anyone who does
+  not take the consuming branch, the latter is a permanent extra
+  increment per bundle.
+
+Run: `cd kamestm/tests/tlaplus && java -cp tla2tools.jar tlc2.TLC
+-workers 4 -config PacketRefcount_none.cfg PacketRefcount.tla`
+(≈30 s), and the four other cfgs likewise.
