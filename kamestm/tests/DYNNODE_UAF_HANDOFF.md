@@ -4316,3 +4316,70 @@ stays silent for registers holding no traced object; tmin 3×40t with the
 handler armed is clean and silent.  Ubuntu: it needs no new flags — the
 existing forensic tracer build arms it, so the next `-c 10000` capture
 carries the block's history automatically.
+
+### 13.59 The writer is named: `bundle` Phase 1's PacketList copy resurrects a dead `Packet` (`transaction_impl.h:2870`)
+
+§13.58's handler works.  **Operational note:** its output goes to the raw sink
+(`rc_trace.<pid>.log` in CWD, or `KAME_RC_TRACE_FILE`), **not** stderr — I
+first grepped stderr and saw nothing.  Run with `setarch -R` so every `site=`
+resolves against the PIE base `0x555555554000`.
+
+**Captured natively** (`-O2 -fipa-cp-clone` `.so`, forensic poison + tracer,
+`taskset -c 0-3`, `10 40 500`, crash on run 2): two `INC-FROM-ZERO` tripwires
+on the same `Packet` `0x7ffff58d6580`, size 32, each with the full triple.
+
+| record | content |
+|---|---|
+| `RC-PRIOR-RELEASE-FAST` | `DEAD(unique) rc_before=1` tid **788730** site `0xf856` |
+| `RC-FREEREC` | `freed_ptr=(=obj) size=32` **`drift=+0`** frames `0xf139 …` |
+| `RC-ANOMALY #1` | `INC-FROM-ZERO` rc_before=**poison** tid **788756** site `0x1cbbe` |
+| `RC-ANOMALY #2` | same object, same site, tid **788731**, `drift=+1` |
+
+**`drift=+0` at free time is the key qualifier**: the reference accounting was
+*correct* when the block was released.  This is **not** a lost decrement.  The
+object was legitimately released and freed, and *then* a stale reference
+incremented it — resurrection, not miscounting.  The increments come from OS
+threads (788756, 788731) distinct from the releasing thread (788730).
+
+**The three sites, resolved (`addr2line -f -C -i`):**
+
+* **Last release** `0xf856` — `local_weak_ptr<Linkage>::reset()` ←
+  `~local_weak_ptr` ← **`~PacketWrapper`** (`transaction.h:915`) ←
+  `atomic_shared_ptr_base<PacketWrapper>::deleter` ←
+  `local_shared_ptr<PacketWrapper>::reset()`.  **The same shape as §13.57's
+  crash frame.**
+* **Free** `0xf139` — `local_shared_ptr<Packet>::reset()`
+  (`atomic_smart_ptr.h:1891`).
+* **The resurrecting increment** `0x1cbbe` —
+  `local_shared_ptr<PacketList_>::reset<PacketList_>(…)`
+  (`atomic_smart_ptr.h:895`) inlined into **`Node<LongNode>::bundle`,
+  `transaction_impl.h:2870`**:
+
+```cpp
+//--- Phase 1: collect sub-packets from child nodes ---
+newpacket->subpackets().reset(new PacketList( *newpacket->subpackets()));
+```
+
+That copy-constructs a `PacketList` from the live one, and the copy
+**increments every element `local_shared_ptr<Packet>`**.  When one element
+already refers to a released-and-freed `Packet`, the copy's increment lands on
+poisoned storage — exactly the tripwire that fired, twice, from two threads.
+
+**This is where every independent line has been pointing.**
+§13.39/§13.40's earliest TSan pair named **`bundle:2870`** by line number.
+§13.47's Pair A (61×) had `PacketList_`'s copy ctor on the allocating side and
+`PacketList_`'s dtor on the freeing side.  §13.28's habitat 3 was
+"`fast_vector<lsp<Packet>>` / `PacketList_` lifecycle, never audited beyond
+single-thread semantics".  §13.57's crash was `~PacketWrapper` on reused
+storage.  They are all the same site.
+
+**What is established, and what is not.**  Established: the *writer* is
+`bundle` Phase 1's PacketList copy; the victim is a `Packet` element of the
+copied list; the accounting was correct at free time, so the defect is a
+liveness/ownership assumption in the copy, not a refcount leak.  **Not**
+established: *why* an element is already dead at that moment.  The obvious
+suspect is documented in CLAUDE.md — the bundle Phase-3 rule (skip child
+wrappers whose `local.subpackets[c] == nullptr`) needed "when hard-link
+references coexist with `is_bundle_root` bundles" — and **this reproducer
+carries a hard link by construction** (`p2` under `gn2`).  That is the next
+thing to test, and it is an STM-side question, not an allocator one.
