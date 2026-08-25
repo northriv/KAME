@@ -101,8 +101,46 @@ struct DECLSPEC_KAME PacketList_
     int64_t m_serial;
     explicit PacketList_(int64_t serial) noexcept
         : fast_vector<local_shared_ptr<PacketT>>(), m_serial(serial) {}
+#ifdef KAME_RC_TRACE
+    //! §13.76: the element array is where §13.59 (a COPY incrementing a
+    //! dead element) and §13.75 (this DESTRUCTOR decrementing one) meet.
+    //! Check the elements at both ends of a list's life, keyed on the
+    //! ELEMENT so the anomaly path prints who released it and who freed
+    //! the storage; `slot` is the element's address, which says whether
+    //! the list is a private clone or shared.  Enable with
+    //! KAME_RC_TRACE_LIST_CHECK=1.  Deliberately NO new data member: a
+    //! class layout must not depend on a build macro (CLAUDE.md).
+    static bool rc_list_check_enabled_() noexcept {
+        static const bool e = [] {
+            const char *v = getenv("KAME_RC_TRACE_LIST_CHECK");
+            return v && v[0] && v[0] != '0';
+        }();
+        return e;
+    }
+    void rc_check_elements_(const char *where) const noexcept {
+        if( !rc_list_check_enabled_()) return;
+        for(unsigned i = 0; i < this->size(); ++i) {
+            const PacketT *e = ( *this)[i].get();
+            if( !e) continue;
+            uintptr_t rc = e->refcnt;   // reading a freed pool slot is safe
+            if(rc == 0 || rc >= ((uintptr_t)1 << 48))
+                kame_rc_trace::anomaly(e, kame_rc_trace::OP_DEAD_ELEMENT, rc,
+                    __builtin_return_address(0), where,
+                    static_cast<const void *>( &( *this)[i]));
+        }
+    }
+    PacketList_(const PacketList_ &x)
+        : fast_vector<local_shared_ptr<PacketT>>(
+              (x.rc_check_elements_("PacketList_ copy-ctor element"), x)),
+          atomic_countable(x), m_subnodes(x.m_subnodes), m_serial(x.m_serial) {}
+    ~PacketList_() {
+        rc_check_elements_("PacketList_ dtor element");
+        this->clear();
+    }
+#else
     PacketList_(const PacketList_ &) = default;   //!< refcnt=1 via atomic_countable copy ctor
     ~PacketList_() { this->clear(); }             //!< destroys payloads prior to nodes.
+#endif
 };
 } // namespace Transactional
 

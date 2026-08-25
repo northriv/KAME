@@ -5383,3 +5383,61 @@ record each element's `Packet` and its refcount, and re-check them in
 `~PacketList_` before `clear()` runs.  A mismatch names the interval in which
 the element's ownership was lost, and the existing anomaly path will print the
 offending release's history keyed on that `Packet`.
+
+### 13.76 Instrumenting the element array itself — and how to read a ledger
+### whose `BORN` is 31
+
+§13.75's suggestion, implemented, plus one reading correction that changes
+what "balanced" means.
+
+**The ledger is per-ADDRESS, not per-object.**  `BORN 31` means that
+address was born **31 times** — 31 incarnations of pool storage.  So
+`INC 72 / DEC 72` balancing across 31 lives does **not** imply any single
+life balanced: a decrement that lands one incarnation too late leaves life
+N−1 short a `DEC` and life N with a spare, and the totals still add up.
+That is precisely the stale-reference shape, and it means the balanced
+ledger is **consistent with** §13.75's finding rather than a puzzle
+against it.  (Also recorded: the `ledger:` line goes to stderr via
+`kame_rc_dump`, not the raw sink — §13.75 found that the hard way.)
+
+**The instrument, at the place the two indictments meet.**  Rather than at
+either caller, the check now lives in `PacketList_` itself
+(`KAME_RC_TRACE_LIST_CHECK=1`), at **both ends of a list's life**:
+
+- its **copy constructor**, before copying the elements — §13.59's
+  direction (a copy that would resurrect a dead element);
+- its **destructor**, before `clear()` — §13.75's direction (a release
+  that would double-pay one).
+
+Each element's `Packet` is tested with the same predicate the `lsp`
+tripwires use, keyed on the ELEMENT, so a report brings the element's
+release history, its `RC-FREEREC` (who freed the storage, when) and
+`slot=` (the element's address, i.e. which list held it).  The `type`
+field carries the check site (`PacketList_ copy-ctor element` /
+`PacketList_ dtor element`) so the two directions are distinguishable at a
+glance.
+
+Deliberately **no new data member**: a class layout must not depend on a
+build macro (CLAUDE.md's `USE_RUBY` lesson), so the traced build adds only
+member functions and a hand-written copy ctor that forwards exactly what
+`= default` did (`fast_vector` copy, `atomic_countable(x)` for
+`refcnt = 1`, `m_subnodes`, `m_serial`).
+
+Liveness proved before trusting the zero (§13.61's rule): forcing the
+predicate true yields **1 663 344** well-formed reports carrying the check
+site.  Reverted.  Mac: 0 reports over 3 dynamic-node runs, full `tests/`
+tree **40/40**.
+
+**Ubuntu**: add `KAME_RC_TRACE_LIST_CHECK=1` to the survivor hunt — no
+rebuild flags beyond the tracer build already in use.
+- Fires in the **dtor** → confirms §13.75 at the array and names the
+  releaser that emptied the element while the list still held it;
+- fires in the **copy ctor** → §13.59's direction is still live too, and
+  the same array is the common cause;
+- fires in **neither** while `DEC-UNDERFLOW` still lands in
+  `~PacketList_` → the element was live at dtor entry and died *during*
+  `clear()`, i.e. the double-pay is inside the vector teardown itself
+  (`erase`/spill were audited clean here — `erase`'s swap-based
+  move-assign carries the erased value to the tail and destroys it once;
+  `move_fixed_to_var` move-constructs then destroys an emptied source),
+  which would point at concurrent access to a list presumed private.
