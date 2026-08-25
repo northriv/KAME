@@ -2265,3 +2265,47 @@ fields in the same machinery, and the `-O2` vs `-O2 +ipa-cp-clone` asm diff of
 the NC7 clones.  The asm diff is now the more valuable of the two: it is the
 only instrument left that can distinguish a miscompile from an
 optimizer-created race, and §13.14 already narrowed where to look.
+
+### 13.17 After the refutation: falsifier #2 (the ring outside m_flags) and
+### a one-command asm-diff runner for the NC7 clones
+
+§13.16 removed the only named mechanism.  This commit supplies both of
+§13.15's surviving next steps in runnable form.
+
+**Falsifier #2 — the remaining plain shared reads, one ring out.**  The
+§13.15 conversion covered only the four `m_flags` WORD loads.  The free
+fast path and the claim gate still read, with PLAIN loads, fields that
+chunk-lifecycle writers mutate concurrently:
+
+- `rmeta->back_offset[unit_idx]` (hot `deallocate`) — written by
+  `claim_chunk`'s post-CAS publish, cleared by `deallocate_chunk`.  A
+  stale/merged read mis-derives `chunk_base`: the free lands in the
+  WRONG chunk's bitmap — a bit cleared in a chunk that still owns the
+  slot = that slot handed out twice.  This is the highest-value
+  conversion of the set.
+- `chunk_obj->m_owner_id` (both owner-check sites) — racing owner exit /
+  release / re-claim.  A stale match sends a free down the OWNER fast
+  path of a chunk this thread no longer owns: `freelist_push` into
+  another owner's L1 cells.
+- `chunk_obj->m_fs_flag`, and the `m_flags_filled_cnt` claim-gate read
+  (races its own `atomicInc/Dec` writers).
+
+All become `__atomic_load_n(RELAXED)` — same single instruction, no
+ordering change, only the optimizer's license revoked, no-DCAS
+unaffected.  Mac: ctest 18/18 (forensic ON), tmin 3×40t clean.
+Prediction discipline as before: if gcc -O3 drops from 100 %-failing to
+zero, the guilty read is in this set (bisect by reverting one at a
+time); if it keeps failing, the UB fixes stay and the asm diff decides.
+
+**The asm-diff runner** (`kamepoolalloc/tests/asm_diff_ipa_clone.sh`):
+one command on Ubuntu builds `allocator.cpp` as the 19/35 minimal pair
+(`-O2` vs `-O2 -fipa-cp-clone`; arms overridable via
+`ARM_A_FLAGS`/`ARM_B_FLAGS`), splits both disassemblies per symbol, and
+emits `summary.txt` (clone symbols only-in-B; changed base symbols) plus
+a unified diff per changed symbol.  Plumbing verified on the Mac
+(clang `-O2` vs `-O3`: 1117 per-symbol diffs).  Suggested reading order:
+the `.constprop` clone families first (`bucket_release_chunk` ×3,
+`find_training_zeros` ×2, and the rest of NC7 — please record the full
+list), looking for (a) a load of the same address issued twice where the
+source reads once, (b) plain stores sunk across a `lock cmpxchg`, (c) a
+dropped or displaced `mfence`/`lock` relative to the `-O2` body.
