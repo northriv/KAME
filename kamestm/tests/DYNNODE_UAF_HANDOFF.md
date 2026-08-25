@@ -3987,3 +3987,73 @@ plus stack, strictly more than the assertion gives).
 speaks in SIGSEGV — take the faulting-address/stack pairs (forensic
 build, so RC-FREEREC and RC-POOLEV annotate each one) before any more
 instrument-building.
+
+### 13.53 The clone census: §13.52's hypothesis refuted, a perfect 6-arm correlation found, and that correlation refuted too
+
+**The census (no runs).**  `objdump` clone-body and `constprop`-reference
+counts for `allocator.cpp`, all arms compiled identically otherwise.  The
+reference column reproduces the known baselines (`-O2 -fipa-cp-clone` → 558 ≈
+"~585"; `-fno-ipa-cp-clone` → 14 ≈ "~12"), confirming the metric matches.
+
+| arm | verdict | clone bodies | constprop refs |
+|---|---|---|---|
+| `-O3` | **FAULT** | 8 | 121 |
+| `-O2 -fipa-cp-clone` | **FAULT** | 24 | 558 |
+| `-O3 -fno-ipa-cp-clone` | suppress | **2** | **14** |
+| `-O2` | suppress | **3** | **25** |
+| `-O3 -fsanitize=address` | suppress | 7 | 183 |
+| `-O3 -fsanitize=thread` | suppress | **8** | **123** |
+
+**§13.52's hypothesis is refuted.**  TSan does **not** collapse the clone set —
+it carries `-O3`'s count almost exactly (8 bodies / 123 refs vs 8 / 121), and
+ASan's reference count is *higher* than `-O3`'s.  Only the genuine
+clone-suppressors collapse (2/14, 3/25).  So sanitizer suppression is **not**
+the `-fipa-cp-clone` effect in disguise; the two act by different mechanisms,
+and §13.51's reading (sanitizers perturb timing) stands.
+
+**But the census found something sharper — clone *membership*.**  Exactly one
+clone family separates the arms perfectly:
+
+| | `-O3` | `-O2+clone` | ASan | TSan | `-O2` | `-fno-ipa-cp-clone` |
+|---|---|---|---|---|---|---|
+| verdict | FAULT | FAULT | suppr | suppr | suppr | suppr |
+| **`global_pop_fit`** | **1** | **1** | **0** | **0** | **0** | **0** |
+| `l1_pop_fit` | 1 | 0 | 1 | 0 | 0 | 0 |
+| `recycle_pop_fit` | 1 | 1 | 1 | 1 | 0 | 0 |
+
+`l1_pop_fit` fails (absent from a FAULT arm), `recycle_pop_fit` fails (present
+in suppressors).  **`global_pop_fit`'s clone is present in both fault arms and
+absent from all four suppressors — 2/2 vs 0/4, perfect across every arm.**
+
+**And it is not causal.**  `__attribute__((noclone,noinline))` on
+`global_pop_fit`, verified surgical (its clone 1 → 0, the other 7 clone bodies
+retained, refs 121 → 85), interleaved 16 pairs under `taskset -c 0-3`:
+
+| arm | failures |
+|---|---|
+| BASE (clone present) | 11/16 |
+| NOCLONE `global_pop_fit` | 10/16 |
+
+Fisher **p = 1.000**.  **Refuted** — the tenth mechanism to die on a
+differential test.
+
+**Positive control, same session, same 4 cores** — because a null result is
+only meaningful if the framing still reproduces:
+
+| arm | failures |
+|---|---|
+| BASE | 6/14 |
+| `-O3 -fno-ipa-cp-clone` | **0/14** |
+
+Fisher **p = 0.016**.  The flag effect is **real and still reproduces here**.
+
+**What this establishes.**  `-fipa-cp-clone` genuinely gates the fault, but its
+effect is **not reducible to the presence of any single clone** — removing the
+one clone that correlates perfectly across six arms changes nothing, while
+removing the pass entirely suppresses completely.  The effect is distributed
+across the clone set, or is not about clone *presence* at all but about the
+whole-TU codegen the pass induces.  Either way, **the "find the one bad clone"
+shortcut is closed**, and a census — however clean its correlation — cannot
+substitute for the differential.  That is the second time in this section a
+perfect structural correlation (§13.52's suppressor/clone-set alignment, then
+`global_pop_fit`) has failed its causal test.
