@@ -2221,3 +2221,47 @@ and re-run §13.14's batch.
   diff of the NC7 clone set (`-O2` vs `-O2 -fipa-cp-clone`, the 19/35
   minimal pair).  Either way, please also record the full NC7 function
   list in this file — only 2 of 7 are named so far.
+
+### 13.16 The split-read falsifier — REFUTED (the UB fix stands on its own)
+
+§13.15's prediction was explicit and all-or-nothing: if gcc rematerializes a
+racy plain `m_flags` load so mask and CAS-expected come from different reads,
+converting those four loads to `__atomic_load_n(RELAXED)` should take the gcc
+`-O3` arm from 42/42-failing to **zero** — the same total cleanliness `-O2`
+and clang show, not a reduced rate.
+
+Run as a **paired A/B** rather than against §13.14's historical numbers: same
+test-binary source, same `-DKAME_POISON_FORENSIC`, same host, alternating
+`PRE` (parent commit) / `POST` (`c2c5be471`) per cycle so both arms see
+identical load.  The `.so`s differ (4 072 112 → 4 097 904 bytes), so the
+relaxed loads did change codegen.
+
+| arm | runs | failed | tripwires |
+|---|---|---|---|
+| `PRE` | 13 | **13** | 5 |
+| `POST` | 12 | **12** | 3 |
+
+**100 % failure in both arms.**  Not a reduced rate — no effect.  At a
+baseline where every single run crashes, 12/12 is as far from the prediction
+as the experiment can get.
+
+**So the named mechanism is refuted.**  The rematerialized-split-read twin of
+the BMWIN double-payout is not what produces the fault, and the story it told
+so well — why `-O2`/clang are totally clean rather than rate-reduced, why
+`-fipa-cp-clone` acts as an accelerator via register pressure — is
+unfortunately not load-bearing.
+
+**The UB fix stands regardless**, on the grounds §13.15 gives independently: a
+plain load feeding `__sync_bool_compare_and_swap` is formal UB whatever the
+optimizer does with it, the relaxed load is the same instruction, and no-DCAS
+is unaffected.  Keep it; it just isn't the root cause.
+
+**What the refutation costs and what it leaves.**  It removes the only named,
+mechanically-checkable candidate the H1 case had produced.  What survives is
+the §13.14 boundary — the fault is in the allocator's gcc `-O3` codegen,
+absent from `-O2` and clang, blind-spot-free — with no mechanism attached.  Of
+§13.15's own "what comes next" list, the remaining items are the other plain
+fields in the same machinery, and the `-O2` vs `-O2 +ipa-cp-clone` asm diff of
+the NC7 clones.  The asm diff is now the more valuable of the two: it is the
+only instrument left that can distinguish a miscompile from an
+optimizer-created race, and §13.14 already narrowed where to look.
