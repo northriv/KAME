@@ -2408,3 +2408,26 @@ yet license is the verdict "gcc is at fault" — most documented disables
 are for observability/tooling or specific ICEs, and our own §5/§13.16
 record says the pass is an accelerator here.  The verdict still comes
 from E3 + the asm diff; the flag is correct to ship either way.
+
+**§13.18 addendum 2 — allocators are the -O3-by-default corner of OSS,
+and that shifts the prior.**  Asked whether any OSS ALLOCATOR defaults to
+-O3: yes, essentially all of the modern ones.  jemalloc's configure
+appends `-O3 -funroll-loops` on gcc when CFLAGS is unset; mimalloc and
+snmalloc build as CMake Release, which is `-O3 -DNDEBUG` on gcc; rpmalloc
+likewise.  These run under gcc -O3 — ipa-cp-clone ON — at planetary
+scale (Redis vendors jemalloc; Firefox ships mozjemalloc; Rust shipped
+jemalloc for years) without endemic miscompiles.
+
+Consequence for the verdict (as opposed to the shipping posture): the
+ecosystem does NOT support "gcc at -O3 cannot be trusted over allocator
+hot code".  What separates kamepoolalloc from the peers is the INPUT
+class: they are C with strict C11-atomics discipline throughout; this TU
+is heavily-templated C++ (PoolAllocator<ALIGN,FS,DUMMY>, constant-N
+claim loops — far richer cloning food) whose shared accesses were, until
+§13.15/§13.17, plain-load + __sync (formal UB).  The prior therefore
+tilts back toward "our residual UB × gcc's license" over "gcc bug" —
+falsifier #1 is refuted but #2 is pending, and plain fields remain
+beyond it (freelist links via kame_slot_link_, the L0 FIFO/STASH cells,
+m_idx, the write sides of owner/back_offset).  The flag ships either
+way; the verdict still belongs to E3 + the asm diff, now with this
+prior attached.
