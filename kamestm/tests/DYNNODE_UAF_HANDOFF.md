@@ -3882,3 +3882,55 @@ fail = the corruption is NOT written through freed-memory bytes at all,
 which would leave wild writes through live-but-wrong pointers (Pair-A's
 (B)-style retyping survivors) and genuine miscompile as the last two
 readings.
+
+### 13.51 ASan suppresses the fault (0/17), post-§13.48 TSan is near-silent, and this box has been running on half its cores
+
+**§13.50's ASan mode builds and its hooks are live** — 10 `__asan_poison_memory_region`
+and 48 `__asan_unpoison_memory_region` call sites in the `-fsanitize=address`
+`.so`.  It never fired.
+
+| build (same 4 cores, same session) | failures | ASan errors |
+|---|---|---|
+| non-ASan `-O3` `.so` | **7/9** (3 SIGSEGV, 4 abort) | — |
+| ASan `-O3` `.so` | **0/8** | **0** |
+
+Fisher exact two-tailed **p = 0.0023**.  Adding the 2-core runs, ASan is
+**0/17 with zero use-after-poison reports** while the same code without ASan
+fails routinely.  **ASan suppresses the fault**, joining `-O2` and clang in
+the "cannot observe it" set.  §13.50's instrument is sound — it simply has no
+window into this fault, and the same-thread-UAF hypothesis is untested rather
+than refuted.
+
+**Post-§13.48 TSan, matched `20 40 700` workload** (the §13.49 pending item):
+reports fall **104–127 → 2–3**, and **Pair A and Pair B are both gone**,
+confirming both fixes did what they claimed.  One residual pair remains,
+3× and 2× in two runs: `orphan_chain_scrub()` `allocator.cpp:8364` reading
+`cur->m_flags_packed & MASK_CNT` as a **plain load** against the `__sync_*`
+RMWs (`allocator_prv.h:240`) that maintain it — same class as Pair B, worth
+fixing on correctness grounds, but §13.49's "well is dry" verdict stands and
+it should not be chased as the cause.
+
+**Environment finding that affects every rate in this document.**  This box is
+an i5-7500, **4 cores online** — but processes in this session inherit an
+affinity mask of **CPUs 0,1 only** (`nproc` = 2; the other two cores idle at
+800 MHz).  Every run before this section used **half the machine**.
+`taskset -c 0-3` lifts it, and the failure *character* changes with it: on
+2 cores failures were assertion aborts; on 4 cores **3 of 7 were SIGSEGV**.
+Governor is `powersave` with scaling at 59%, so clock varies with load too.
+
+**Consequence — treat single-arm rates as uninformative.**  With `.text`
+**byte-identical** (verified: `md5 803ecb9e…` for both `c25fa8244` and
+`d3c9a2176` compiled ASan-off — so §13.50's "production byte-identical" claim
+holds), the same binary measured **20/20** in one session and **1/3** in
+another.  I started to report that swing as a §13.50 regression and stopped
+to check the `.text` bytes first; it was environment, not code.  Only
+**interleaved within-job** comparisons are admissible here, which is what
+§13.49's two differentials were — those results stand.  Any absolute rate
+quoted anywhere in §13 should be read as conditional on the core count,
+affinity mask and load of that session.
+
+**Recommendation.**  Re-run the key differentials with `taskset -c 0-3`, where
+the fault reproduces harder and produces SIGSEGV rather than a caught
+assertion — a segfault carries a faulting address and a stack, which is
+strictly more evidence than the value-check gives.  That is the cheapest
+available upgrade to the signal, and it needs no new instrumentation.
