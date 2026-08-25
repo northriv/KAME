@@ -427,8 +427,30 @@ inline void packet_forensics_check(const void *p, const char *what,
 #include <cstdio>
 #include <cstdlib>
 #include <new>
+#if defined __unix__ || defined __APPLE__
+    #include <execinfo.h>
+#endif
 
 namespace Transactional { namespace detail {
+
+enum : int {PF_BT_DEPTH = 24};
+//! Only ever used on an abort path, so accuracy costs nothing.
+inline int pf_capture_exact(void **bt) noexcept {
+#if defined __unix__ || defined __APPLE__
+    return backtrace(bt, PF_BT_DEPTH);
+#else
+    (void)bt; return 0;
+#endif
+}
+inline void pf_print(const char *what, void *const *bt, int n) noexcept {
+    std::fprintf(stderr, "  %s stack (%d frames):\n", what, n);
+    std::fflush(stderr);
+#if defined __unix__ || defined __APPLE__
+    if(n > 0) backtrace_symbols_fd(const_cast<void **>(bt), n, 2);
+#else
+    (void)bt;
+#endif
+}
 
 enum : std::size_t {
     PF_SHADOW_BITS  = 23,
@@ -596,6 +618,37 @@ inline void excl_delete(void *p, const char *type) noexcept {
 }
 
 }} // namespace Transactional::detail
+
+//! (§tier-trace) Called by the pool for every slot it is about to return to
+//! the bitmap.  The exclusivity report says a live slot's bit had been
+//! cleared but not by whom; this fires AT that moment, on the thread and
+//! stack that is doing it, so the offending return path names itself.
+//! Requires a pool built with KAME_ALLOC_TIER_TRACE and this executable
+//! linked -rdynamic (the pool's reference is weak+undefined).
+extern "C" __attribute__((used, visibility("default")))
+inline void kame_pool_debug_slot_returned(void *p) {
+    namespace D = ::Transactional::detail;
+    if( !p) return;
+    auto *t = D::pf_shadow();
+    if( !t) return;
+    auto a = reinterpret_cast<std::uintptr_t>(p);
+    D::PfSlot &slot = t[D::pf_shadow_slot(a)];
+    if(slot.addr.load(std::memory_order_acquire) != a) return;   // not live
+    std::fprintf(stderr,
+        "\n*** A LIVE SLOT IS BEING RETURNED TO THE BITMAP ***\n"
+        "  %p is live as a %s (%zu bytes) allocated on tid %d by\n"
+        "  tier %u: %s\n"
+        "  ...and tid %d is handing it back to the allocator's bitmap now.\n"
+        "  That is the invariant break: once the bit reads zero, the\n"
+        "  whole-word grab or the bitmap scan will re-issue this slot\n"
+        "  while its first owner is still using it.\n",
+        p, slot.type ? slot.type : "?", slot.size, slot.tid,
+        slot.tier, D::pf_tier_name(slot.tier), D::pf_excl_tid());
+    void *bt[D::PF_BT_DEPTH];
+    D::pf_print("returning", bt, D::pf_capture_exact(bt));
+    std::fflush(stderr);
+    std::abort();
+}
 
 #define KAME_PF_NEW_DELETE(what)                                              \
     static void *operator new(std::size_t sz)                                 \

@@ -650,6 +650,49 @@ thread_local AllocThreadExitCleanup tls_alloc_thread_exit_cleanup;
 // CAP=16 chosen by the earlier sweep (HWM trade-off — see git log).
 // Re-tune-able now that the O(n) impl removes the throughput cost
 // curve.
+#ifdef KAME_ALLOC_TIER_TRACE
+#include <execinfo.h>
+//! (§tier-trace) glibc's `backtrace()` lazily dlopens libgcc_s on its FIRST
+//! call, and that dlopen ALLOCATES -- which re-enters this allocator.  A
+//! backtrace taken on the entry path of a free/flush therefore manufactures
+//! exactly the re-entrancy it is trying to observe: the first run of this
+//! instrumentation reported "flush RE-ENTERED" whose inner stack was
+//! backtrace -> __libc_unwind_link_get -> ld.so -> operator new -> flush.
+//! Force the unwinder to load once, before any of it matters.
+static const bool kame_backtrace_warmed = []{
+	void *bt[4];
+	(void)backtrace(bt, 4);
+	return true;
+}();
+//! (§tier-trace) These MUST live outside CrossDeallocBatch.  A flag stored
+//! in the object itself is written by code running inside ~CrossDeallocBatch,
+//! where the object's lifetime is ending -- so `-flifetime-dse` legally
+//! deletes the store, and the flag reads back stale.  That is not a
+//! hypothetical: the first version kept `in_flush` / `destroyed` as members
+//! and reported "flush RE-ENTERED, destroyed=0" from a thread whose
+//! destructor had demonstrably already run.
+static ALLOC_TLS_IE bool  tls_batch_destroyed = false;
+static ALLOC_TLS_IE bool  tls_batch_warned = false;
+static ALLOC_TLS_IE int   tls_batch_count_at_destroy = -1;
+#endif
+//! (§batch-after-death) Set by `~CrossDeallocBatch`, read by `push`.
+//!
+//! MUST be namespace-scope TLS, not a member: the store happens inside the
+//! destructor, i.e. into an object whose lifetime is ending, where the
+//! compiler may legally drop it (-flifetime-dse).  A member flag reads back
+//! stale for exactly the accesses this is meant to catch.
+//!
+//! Why it is needed at all: glibc runs `__call_tls_dtors()` (C++
+//! thread_local destructors, including ~CrossDeallocBatch) BEFORE
+//! `__nptl_deallocate_tsd()` (pthread_key destructors).  KAME registers a
+//! pthread_key destructor -- `Transactional::detail::pthread_destroy`,
+//! kamestm/threadlocal.cpp -- which frees STM objects.  Those frees run
+//! after this batch has been destroyed, and were resurrecting it: measured
+//! here refilling to the full 1024 entries and flushing, from both teardown
+//! phases.  Using an object after its destructor is UB regardless of what
+//! it appears to do.
+static ALLOC_TLS_IE bool tls_batch_dead = false;
+
 struct CrossDeallocBatch {
     // FS=true-only small-slot batch (FS=false bypasses
     // cross-batch entirely in its `deallocate_pooled` — see that
@@ -692,6 +735,18 @@ struct CrossDeallocBatch {
     //! FS=true path: hold and batch.  Caller passes its own `this`
     //! as `c` (the chunk).
     void push(PoolAllocatorBase *c, void *s) noexcept {
+        if(__builtin_expect(tls_batch_dead, 0)) {
+            // Post-destructor free (see tls_batch_dead): settle it directly
+            // instead of buffering into a destroyed object.  Nothing would
+            // ever flush what we buffered here -- ~CrossDeallocBatch has
+            // already run and will not run again -- so this is also the
+            // only way these slots get returned at all.  Same shape as
+            // `push_direct`'s direct arm, minus the DLL-cursor poke, which
+            // is pointless once this thread is exiting.
+            CrossDeallocEntry tmp[2] = {{c, s}, {nullptr, nullptr}};
+            c->batch_return_to_bitmap(tmp);
+            return;
+        }
         if(count >= cap) flush();
         buf[count++] = {c, s};
     }
@@ -777,6 +832,33 @@ struct CrossDeallocBatch {
     // The poke is a pure slot-reuse hint, worthless at teardown, so we
     // simply drop it there — the slots are still returned to the bitmap.
     void flush(bool at_teardown = false) noexcept {
+#ifdef KAME_ALLOC_TIER_TRACE
+        // (§tier-trace) Two ways this batch can return a slot twice, both
+        // of which would clear a LIVE slot's bitmap bit:
+        //   - re-entry: `batch_return_to_bitmap` can release a chunk, and a
+        //     free on that path pushes into this same batch and can trigger
+        //     a nested flush over entries the outer walk has not consumed
+        //     yet.  `count` is only reset at the END, so the nested flush
+        //     sees the whole buffer.
+        //   - use after this thread_local's own destructor has run (the
+        //     "musl TSD-dtor ordering" the comment below worries about):
+        //     `count` was zeroed by ~CrossDeallocBatch, and anything pushed
+        //     afterwards is flushed by nobody -- or, worse, by a second
+        //     destructor-ordering pass over a buffer already consumed.
+        if(tls_batch_destroyed && !tls_batch_warned) {
+            // WARN, do not abort: being used after the destructor is real
+            // (see below) but is not by itself a double return, and
+            // aborting here masks the duplicate scan further down, which
+            // is the check that would actually explain a live slot's bit
+            // being cleared.
+            tls_batch_warned = true;
+            std::fprintf(stderr,
+                "[batch used after its own destructor: count=%d,"
+                " at_teardown=%d, count left by dtor flush=%d]\n",
+                count, (int)at_teardown, tls_batch_count_at_destroy);
+            std::fflush(stderr);
+        }
+#endif
         if(count == 0) return;
         // Sort by (chunk, slot) lex — chunk primary key for grouping,
         // slot pointer secondary key so each chunk run is pointer-
@@ -787,6 +869,32 @@ struct CrossDeallocBatch {
                       if(a.chunk != b.chunk) return a.chunk < b.chunk;
                       return a.slot < b.slot;
                   });
+#ifdef KAME_ALLOC_TIER_TRACE
+        // (§tier-trace) The buffer is now sorted by (chunk, slot), so a
+        // duplicate entry is an ADJACENT equal pair -- one comparison per
+        // entry over data already in cache.  A duplicate means the same
+        // slot is handed back to the bitmap twice in ONE flush, and the
+        // second clear lands after the owner has re-issued the slot: that
+        // is precisely how a LIVE slot's bit comes to read zero.
+        for(int _d = 1; _d < count; ++_d) {
+            if(buf[_d].chunk == buf[_d - 1].chunk
+               && buf[_d].slot == buf[_d - 1].slot) {
+                std::fprintf(stderr,
+                    "\n*** DUPLICATE ENTRY IN CROSS-DEALLOC BATCH ***\n"
+                    "  slot %p on chunk %p appears twice among %d entries\n"
+                    "  (at_teardown=%d, batch destroyed already=%d)\n"
+                    "  The second return clears the bit again, after the\n"
+                    "  owner has re-allocated the slot.\n",
+                    buf[_d].slot, (void *)buf[_d].chunk, count,
+                    (int)at_teardown, (int)tls_batch_destroyed);
+                std::fflush(stderr);
+                void *_bt[32];
+                int _n = backtrace(_bt, 32);
+                backtrace_symbols_fd(_bt, _n, 2);
+                std::abort();
+            }
+        }
+#endif
         // Plant the sentinel after the live count so the chunk-side
         // walk terminates by `entries[k].chunk == this` failing,
         // without a length check.
@@ -827,7 +935,16 @@ struct CrossDeallocBatch {
         }
         count = 0;
     }
-    ~CrossDeallocBatch() noexcept { flush(/*at_teardown=*/true); }
+    ~CrossDeallocBatch() noexcept {
+        flush(/*at_teardown=*/true);
+        tls_batch_dead = true;
+#ifdef KAME_ALLOC_TIER_TRACE
+        // Both stores target namespace-scope TLS, NOT members: a member
+        // written here is a dead store into a dying object and vanishes.
+        tls_batch_count_at_destroy = count;
+        tls_batch_destroyed = true;
+#endif
+    }
 };
 thread_local CrossDeallocBatch tls_cross_dealloc_batch;
 
@@ -1993,6 +2110,26 @@ PoolAllocator<ALIGN, false, DUMMY>::size_of_static(
 // batch_clear_impl skeleton with a borrow-scheme MaskFn and FS=false-
 // specific OnClearFn (no filled_cnt; m_available_bits is gone since
 // the earlier change's fragmentation cutoff in allocate_pooled replaces it).
+
+#ifdef KAME_ALLOC_TIER_TRACE
+//! (§tier-trace) Debug hook: called for every slot handed back to the
+//! bitmap, BEFORE the bit is cleared.  A client that tracks liveness
+//! (kamestm/packet_forensics.h's exclusivity mode) defines it and aborts
+//! if the slot is still live -- which is the one thing the exclusivity
+//! report cannot say on its own: WHICH return path clears a live slot's
+//! bit.  Weak+undefined, so a build with no client resolves it to null
+//! and the call is skipped; the executable must be linked -rdynamic for
+//! the definition to be visible here.
+extern "C" void kame_pool_debug_slot_returned(void *) __attribute__((weak));
+#define KAME_DEBUG_RETURNED(entries, self)                                    \
+	do { if( &kame_pool_debug_slot_returned)                              \
+		for(int _k = 0; (entries)[_k].chunk == (self); ++_k)           \
+			kame_pool_debug_slot_returned((entries)[_k].slot);     \
+	} while(0)
+#else
+#define KAME_DEBUG_RETURNED(entries, self) ((void)0)
+#endif
+
 template <unsigned int ALIGN, bool DUMMY>
 int
 PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
@@ -2168,6 +2305,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
 			reinterpret_cast<uint64_t *>(p)[j] = GUARDIAN;
 	}
 #endif
+	KAME_DEBUG_RETURNED(entries, this);
 	int n = this->batch_clear_impl(entries,
 		// MaskFn: FS=true single bit
 		[](int /*idx*/, unsigned sidx, char * /*p*/) -> FUINT {
