@@ -4105,3 +4105,55 @@ like.  Either shape kills half the remaining hypothesis space.
 **3. Standing offer**: paste any 4-core SIGSEGV capture (fault address,
 backtrace, the RC-FREEREC / RC-POOLEV block) — the Mac side reads them
 against the source, §13.24-style, as they arrive.
+
+### 13.55 The dose-response is GRADED — and rr now records this program (glibc 2.43 workaround)
+
+**Result 1 — the probe §13.54 asked for, three arms interleaved, `taskset -c 0-3`, 14 rounds each:**
+
+| arm | clone bodies | constprop refs | failures |
+|---|---|---|---|
+| BASE | 8 | 121 | **10/14 (71%)** |
+| NC-HALF (`noclone` on `l1_`/`global_`/`recycle_pop_fit`) | 5 | 46 | **5/14 (36%)** |
+| FLAG-OFF (`-fno-ipa-cp-clone`) | 2 | 14 | **0/14 (0%)** |
+
+Monotone in clone count, **r = 1.000**.  BASE vs OFF **p = 0.00015**;
+NC-HALF vs OFF **p = 0.041**; BASE vs NC-HALF p = 0.128 (the adjacent step is
+underpowered at n=14, the endpoints are not).
+
+**This is the graded shape, not the step.**  By §13.54's pre-registration that
+means **many small windows, each clone contributing** — a latent timing bug
+whose windows the pass's codegen widens everywhere at once — and it argues
+against a whole-TU phase change (register allocation, section layout,
+alignment) and against a single miscompiled clone.
+
+**It also re-reads §13.53 rather than contradicting it.**  Removing *one*
+clone (8 → 7) moved 11/16 → 10/16, p = 1.000; removing *three* (8 → 5) moved
+71% → 36%.  Those are consistent with a roughly additive per-clone
+contribution: §13.53's null was **underpowered for one clone's share**, not
+evidence that clones are irrelevant.  `global_pop_fit` is not special — no
+single clone is.  §13.53's stated conclusion ("the effect is distributed
+across the clone set") is exactly what the dose-response now confirms
+independently, and the "find the one bad clone" shortcut stays closed.
+
+**Result 2 — rr works here now, with one caveat worth recording.**
+`rr` 5.9.0 (installed) **cannot record any threaded program** on this box:
+glibc **2.43** installs pthread stack guards with
+`madvise(…, MADV_GUARD_INSTALL)` (advice **102**, Linux 6.13+), which rr 5.9
+does not know, and it aborts at the first `pthread_create`.  Confirmed on a
+three-line `std::thread` test, so it is not the allocator's doing.  An
+`LD_PRELOAD` shim does **not** help — glibc issues that `madvise` by inline
+syscall, bypassing the interposable symbol.
+
+The workaround is test-side and contained: create the threads with
+`pthread_attr_setguardsize(&attr, 0)` (guard pages are what triggers the
+syscall).  A scratchpad copy of `tmin_dynnode.cpp` with the `std::thread`
+loop replaced by `pthread_create`/`pthread_join` at guardsize 0 — body and
+join order unchanged — **records cleanly under `rr record -h`**, and still
+reproduces natively: **3/4, all SIGSEGV**.  The repo copy is untouched.
+
+`kernel.perf_event_paranoid` must be **≤ 3** (was 4; the user set it).
+
+A chaos-mode capture loop is running against the reproducing workload.  The
+pre-registered caveat applies — rr serializes threads, which may suppress the
+fault; if 12 chaos runs come back clean, that is the answer to record, and the
+`-O2 -fipa-cp-clone` proxy is the fallback arm.
