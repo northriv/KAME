@@ -1575,7 +1575,20 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			for(int walked = 0; walked < this->m_count; ++walked) {
 				FUINT *pflag = &this->m_flags[widx];
 				for(;;) {
-					FUINT oldv = *pflag;
+					// §13.15: every read of an m_flags word that feeds a
+					// __sync CAS must be an ATOMIC load.  A plain load of a
+					// concurrently-CAS'd word is a data race (UB), and gcc
+					// -O3 (ipa-cp-clone reshaping these loops) is entitled
+					// to REMATERIALIZE it -- re-reading memory instead of
+					// spilling -- so `mask`/`ones` and the CAS expected
+					// value can come from DIFFERENT reads.  A peer's claim
+					// landing between the two reads then yields a word-
+					// cache mask (here) or an N-run (claim loop) that
+					// OVERLAPS the peer's slots: a double hand-out, two
+					// owners with one refcount backing -- the §11.3 shape.
+					// Relaxed atomic load compiles to the same single mov /
+					// ldr; only the optimizer's license changes.
+					FUINT oldv = __atomic_load_n(pflag, __ATOMIC_RELAXED);
 					if(oldv == ~(FUINT)0u)
 						break;                    // word full
 					FUINT mask = (FUINT)~oldv;
@@ -1608,7 +1621,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	int idx = this->m_idx;
 	for(;;) {
 		FUINT *pflag = &this->m_flags[idx];
-		FUINT oldv = *pflag;
+		// §13.15: atomic load -- see the word-grab loop comment above.
+		FUINT oldv = __atomic_load_n(pflag, __ATOMIC_RELAXED);
 		if(oldv != ~(FUINT)0u) {
 			one = find_zero_forward(oldv);
 //			assert(count_bits(one) == SIZE / ALIGN);
@@ -1782,7 +1796,10 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	char *slot_start = nullptr;
 	int walked = 0;  // count of distinct m_flags words visited (max = m_count)
 	for(;;) {
-		oldv = *pflag;
+		// §13.15: atomic load -- see the word-grab loop comment above.
+		// This is the loop ipa-cp-clone reshapes (find_training_zeros
+		// inlined with constant N): the prime suspect for a split read.
+		oldv = __atomic_load_n(pflag, __ATOMIC_RELAXED);
 		cand = find_training_zeros(N, oldv);
 		if(cand) {
 			ones = cand *
@@ -2165,7 +2182,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 		FUINT nones = ~mask;
 		FUINT *pflags = &this->m_flags[idx];
 		for(;;) {
-			FUINT oldv = *pflags;
+			// §13.15: atomic load -- see the word-grab loop comment above.
+			FUINT oldv = __atomic_load_n(pflags, __ATOMIC_RELAXED);
 			FUINT newv = oldv & nones;
 			if(atomicCompareAndSet(oldv, newv, pflags)) {
 				on_clear(oldv, newv);

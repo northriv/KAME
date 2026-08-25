@@ -2163,3 +2163,61 @@ invisible to TSan (which sees the compiled form) and absent from `-O2`/clang
 (which never perform the transform).  That is not distinguishable from a
 miscompile by any instrument used so far; it is distinguishable by reading the
 `-O3` asm of the affected paths against `-O2`.
+
+### 13.15 The allocator was never under TSan — and its bitmap machinery is
+### plain-load + __sync CAS.  A named mechanism, and a zero-cost falsifier.
+
+Two things line up against §13.14's localization (only the ALLOCATOR's
+codegen varies across the total separation):
+
+1. **§13.11's "TSan clean" does not cover the allocator.**  The TSan
+   build was pool-less BY NECESSITY (TSan must own malloc).  The half of
+   the program the fault was just localized to has never been enumerated.
+2. **The bitmap machinery is pre-C++11 idiom**: `m_flags` is a plain
+   `uintptr_t *`, CASed via `__sync_bool_compare_and_swap`, and READ via
+   plain loads.  Every `oldv = *pflag` racing a peer's CAS is a data race
+   — formal UB — in exactly the component the fault lives in.
+
+**The named mechanism (candidate):** under UB, gcc may REMATERIALIZE a
+plain load — re-read memory instead of spilling a register — so a value
+the source reads once is read twice.  In the claim loops the derived mask
+and the CAS expected value can then come from DIFFERENT reads:
+
+- word-grab loop (word cache): `mask = ~read1`, CAS expected = `read2`.
+  A peer CLAIM landing between the reads → CAS succeeds (against read2),
+  the word goes to ~0, and `mask` still contains the peer's bit — **the
+  same slot is handed to two owners.**  A codegen-induced twin of the
+  BMWIN double-payout (`f104768b`), in the same machinery.
+- N-run claim loop (FS=false): `cand/ones` from read1, expected from
+  read2 → `newv = read2 | ones` claims a run overlapping the peer's.
+
+Two owners, one refcount backing → a Packet and its neighbours built in
+overlapping slots → the count reaches zero with a live holder → the
+~1 µs-later DEC-UNDERFLOW at teardown, and every §11.3 field: two
+distinct holder slots, loss strictly before the free, same-thread cases
+admitted.  Rematerialization is a register-pressure response, which is
+precisely what ipa-cp-clone's constant-N inlining changes — and why -O2
+and clang (which do not perform it here) are TOTALLY clean rather than
+rate-reduced, and why the flag looked like an "accelerator": different
+clone shapes, different split-read windows.
+
+**The falsifier costs nothing**: this commit converts the four
+`m_flags`-word loads that feed CASes (word-grab :1528-area, FS=true
+single-bit claim, FS=false N-run claim, batch_clear_impl) to
+`__atomic_load_n(..., __ATOMIC_RELAXED)` — the same single `mov`/`ldr`
+on every target, no ordering change, only the OPTIMIZER'S LICENSE to
+duplicate/stabilize the read is revoked.  no-DCAS is unaffected
+(pointer-width).  Mac: pool ctest 18/18, tmin 3×40t clean.
+
+**Ubuntu, the decisive run**: rebuild the gcc `-O3` arm from THIS commit
+and re-run §13.14's batch.
+- 42/42-fail → 0 clean: root cause proven at the construct, no asm
+  reading needed (and the fix is already in).  A revert-and-objdump of
+  one clone would then document the exact split read for the record.
+- Still failing: the mechanism is refuted, the atomic loads stay (they
+  fix real UB regardless), and the remaining suspects are the OTHER
+  plain shared fields in the allocator (`m_idx`, `m_flags_filled_cnt`
+  gate reads, freelist heads) — same treatment, or proceed to the asm
+  diff of the NC7 clone set (`-O2` vs `-O2 -fipa-cp-clone`, the 19/35
+  minimal pair).  Either way, please also record the full NC7 function
+  list in this file — only 2 of 7 are named so far.
