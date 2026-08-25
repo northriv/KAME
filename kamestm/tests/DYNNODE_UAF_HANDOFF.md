@@ -3825,3 +3825,60 @@ Pair A's stacks kept pointing at on *both* sides even though the allocator-side
 fix did nothing.  A post-§13.48 TSan batch at matched workload is running to
 confirm Pair A is actually gone (the Pair B check pattern); that result is
 pending and is not assumed here.
+
+### 13.50 The instrument for what TSan cannot see: ASan use-after-poison
+### over the live pool (same-thread UAF finally observable)
+
+§13.49's negative is accepted, and its recommendation sharpened by one
+structural fact: **a same-thread use-after-free has no happens-before
+violation, so TSan can never report it** — while §11.3 explicitly admits
+same-thread cases and Pair A's stacks point at habitat-3 STM lifecycle
+on both sides.  The class that remains is precisely the class the
+enumeration instrument was blind to.  The instrument for it is ASan's
+manual poisoning, and the pool now cooperates (KAME_ASAN_ENABLED,
+`__SANITIZE_ADDRESS__` / `__has_feature(address_sanitizer)` gate,
+production builds byte-identical):
+
+- **free** (`deallocate` entry, after the forensic fill): the slot's
+  bytes are poisoned (same 16..4096 window).  The freelist-link word
+  stays unpoisoned — the pool owns it while the slot is free; run with
+  `-DKAME_POISON_FORENSIC` so the link is word 1 and **word 0
+  (refcnt / vptr) stays covered**.
+- **hand-out** (the `new_redirected`/`_aligned` wrappers, which now
+  exist under either sanitizer): exactly the requested bytes are
+  unpoisoned.
+- **re-carve** (`construct_chunk_at`): the whole region is unpoisoned
+  (old slot poison from a previous ALIGN class would otherwise trip the
+  pool's own header writes).
+- Auto-activation (§13.44) now covers ASan builds too.
+
+Effect: **the FIRST touch of freed pool memory — any thread, any byte,
+same-thread included — aborts with the accessing stack.**  That is a
+strictly stronger detector than the refcnt tripwires (all bytes, not
+one word) and complementary to them (the link-word hole is covered by
+the tripwires).
+
+**Mac cannot runtime-validate this either**: on macOS 26.4, Apple
+clang 17's AND Homebrew LLVM 20's ASan both hang inside
+`InitializeShadowMemory → get_dyld_hdr → dyld_shared_cache_iterate` —
+the same OS-version breakage family as TSan (§13.10).  Verified here:
+the four-way compile matrix (plain / forensic / ASan+forensic / TSan)
+is clean and default Release ctest is 18/18.  Runtime validation and
+the run itself belong to Ubuntu:
+
+```
+g++ -O3 -g -DNDEBUG -fPIC -fvisibility-inlines-hidden -fno-semantic-interposition \
+    -fsanitize=address -DKAME_POISON_FORENSIC ... allocator.cpp  (the .so)
+g++ ... -fsanitize=address ... tmin_dynnode.cpp ...              (the binary)
+ASAN_OPTIONS=halt_on_error=0 ./tmin 20 40 700
+```
+
+(gcc -O3 arm — the failing codegen — WITH ASan; if ASan's
+instrumentation suppresses the fault the way heavy tracing once did,
+fall back to `-O2 -fipa-cp-clone`, the 19/35 proxy.)  Expected outcomes:
+a use-after-poison report whose access stack lands in habitat-3 STM
+code = the fault's first direct observation; silence while runs still
+fail = the corruption is NOT written through freed-memory bytes at all,
+which would leave wild writes through live-but-wrong pointers (Pair-A's
+(B)-style retyping survivors) and genuine miscompile as the last two
+readings.

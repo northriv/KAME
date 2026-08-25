@@ -329,6 +329,39 @@ inline void kame_tsan_java_free_(const void *p, std::size_t n) noexcept {
 #define KAME_TSAN_JAVA_FREE(p, n)  ((void)0)
 #endif
 
+//! §13.50 ASan use-after-poison mode.  TSan structurally cannot see a
+//! SAME-THREAD use-after-free (no happens-before violation exists), and
+//! §13.49 measured the cross-thread-race well dry.  Under an
+//! AddressSanitizer build (and only then), the pool poisons a freed
+//! slot's bytes and unpoisons on hand-out, so the FIRST touch of freed
+//! pool memory -- any thread, any byte -- faults with the accessing
+//! stack.  Complementary holes, by design: the freelist link word is
+//! left unpoisoned (the pool itself owns it while the slot is free; the
+//! KAME_RC_TRACE tripwires cover the refcnt word independently), and
+//! per-slot borrow headers live OUTSIDE the user range anyway.  Build
+//! the .so AND the test with -fsanitize=address; combine with
+//! -DKAME_POISON_FORENSIC so the link sits at word 1 and word 0
+//! (refcnt / vptr) stays poisoned.
+#if defined(__SANITIZE_ADDRESS__)
+#define KAME_ASAN_ENABLED 1
+#endif
+#if !defined(KAME_ASAN_ENABLED) && defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define KAME_ASAN_ENABLED 1
+#endif
+#endif
+#ifndef KAME_ASAN_ENABLED
+#define KAME_ASAN_ENABLED 0
+#endif
+#if KAME_ASAN_ENABLED
+#include <sanitizer/asan_interface.h>
+#define KAME_ASAN_POISON(p, n)   do { if((p) && (n))     __asan_poison_memory_region((p), (n)); } while(0)
+#define KAME_ASAN_UNPOISON(p, n) do { if((p) && (n))     __asan_unpoison_memory_region((p), (n)); } while(0)
+#else
+#define KAME_ASAN_POISON(p, n)   ((void)0)
+#define KAME_ASAN_UNPOISON(p, n) ((void)0)
+#endif
+
 //! Relaxed atomic load of a PLAIN-typed shared word (§13.15/§13.17 DRF
 //! migration).  GNU: __atomic_load_n (defined behavior, TSan-visible).
 //! MSVC: an aligned volatile scalar read -- the idiomatic MSVC spelling
@@ -3285,7 +3318,7 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept;
 //! still forces a frame, but the lean body is smaller — measured +12% at 64 B.)
 void *new_redirected_cold(unsigned int bucket, std::size_t size);
 
-#if KAME_TSAN_ENABLED
+#if KAME_TSAN_ENABLED || KAME_ASAN_ENABLED
 #define KAME_NEW_REDIRECTED_ new_redirected_body_
 #else
 #define KAME_NEW_REDIRECTED_ new_redirected
@@ -3370,12 +3403,13 @@ inline void *KAME_NEW_REDIRECTED_(std::size_t size) {
 	}
 	return new_redirected_cold(bucket, size);
 }
-#if KAME_TSAN_ENABLED
-//! §13.32: single hand-out choke point under TSan -- every allocation
-//! route (freelist pop, FIFO take, cold, large tail-call) returns
-//! through here, so one acquire covers them all.
+#if KAME_TSAN_ENABLED || KAME_ASAN_ENABLED
+//! §13.32/§13.50: single hand-out choke point under a sanitizer -- every
+//! allocation route (freelist pop, FIFO take, cold, large tail-call)
+//! returns through here, so one annotation covers them all.
 inline void *new_redirected(std::size_t size) {
 	void *p = new_redirected_body_(size);
+	KAME_ASAN_UNPOISON(p, size);   // §13.50: the new life's exact bytes
 	KAME_TSAN_ACQUIRE(p);
 	KAME_TSAN_JAVA_ALLOC(p, size);   // §13.42: reset shadow for the new life
 	return p;

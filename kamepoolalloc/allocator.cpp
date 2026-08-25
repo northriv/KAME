@@ -1246,15 +1246,15 @@ void activateAllocator() {
 #endif
     g_sys_image_loaded = true;
 }
-#if KAME_TSAN_ENABLED
-// §13.43: every TSan run since §13.34 measured an INERT pool -- the
+#if KAME_TSAN_ENABLED || KAME_ASAN_ENABLED
+// §13.43/§13.50: every TSan run since §13.34 measured an INERT pool -- the
 // inline recipe never called activateAllocator(), so g_sys_image_loaded
 // stayed false, every allocation took the pre-activation fallback, and
 // mmap_new_region (with §13.42's arena behind it) never ran.  A TSan
 // analysis build with an inert pool measures nothing, so under TSan the
 // inline mode auto-activates exactly like the dylib mode does.
 [[gnu::used]] __attribute__((constructor(101)))
-static void kamepoolalloc_tsan_auto_activate() noexcept {
+static void kamepoolalloc_sanitizer_auto_activate() noexcept {
     g_sys_image_loaded = true;
 }
 #endif
@@ -2610,6 +2610,7 @@ PoolAllocatorBase::allocate_chunk() {
 		KAME_POOLEV(KAME_PEV_CHUNK_ALLOC, palloc, CHUNK_SIZE);
 		KAME_TSAN_ACQUIRE(addr);   // §13.35: pairs with teardown/LRC release
 		KAME_TSAN_JAVA_ALLOC(addr, CHUNK_SIZE);   // §13.42: fresh shadow
+		KAME_ASAN_UNPOISON(addr, CHUNK_SIZE);     // §13.50: re-carve clears old slot poison
 		return palloc;
 	};
 
@@ -3810,6 +3811,26 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 	// shadow (java API; range-guarded, foreign pointers skip via size 0).
 	if(p) KAME_TSAN_JAVA_FREE(p, PoolAllocatorBase::size_of(p));
 #endif
+#if KAME_ASAN_ENABLED
+	// §13.50: poison the freed slot (small classes, same 16..4096 window
+	// as the forensic fill) so ANY later touch -- same-thread included,
+	// the class TSan cannot see -- faults with the accessing stack.  The
+	// freelist-link word stays unpoisoned (the pool owns it while free);
+	// under KAME_POISON_FORENSIC the link is word 1, so word 0
+	// (refcnt / vptr) stays covered -- run this mode with forensic ON.
+	if(p) {
+		std::size_t _usable = PoolAllocatorBase::size_of(p);
+		if(_usable >= 16u && _usable <= 4096u) {
+			char *_pc = static_cast<char *>(p);
+#ifdef KAME_POISON_FORENSIC
+			KAME_ASAN_POISON(_pc, 8);                       // word 0
+			KAME_ASAN_POISON(_pc + 16, _usable - 16u);      // word 2..
+#else
+			KAME_ASAN_POISON(_pc + 8, _usable - 8u);        // link @ word 0
+#endif
+		}
+	}
+#endif
 #ifdef KAME_POISON_FORENSIC
 	// The ONE choke point every small-pool free passes through (kame_free,
 	// operator delete, deallocate_pooled_or_free all land here); hooking
@@ -4934,10 +4955,11 @@ void *new_redirected_large(std::size_t size) noexcept {
 //
 // Pre-activation / post-teardown: like new_redirected, fall through to
 // posix_memalign so TLS dtor-time allocs etc. stay safe.
-#if KAME_TSAN_ENABLED
+#if KAME_TSAN_ENABLED || KAME_ASAN_ENABLED
 static void *new_redirected_aligned_body_(std::size_t alignment, std::size_t size) noexcept;
 void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
 	void *p = new_redirected_aligned_body_(alignment, size);
+	KAME_ASAN_UNPOISON(p, size);   // §13.50
 	KAME_TSAN_ACQUIRE(p);
 	KAME_TSAN_JAVA_ALLOC(p, size);
 	return p;
