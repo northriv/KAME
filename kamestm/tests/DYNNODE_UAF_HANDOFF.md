@@ -3070,3 +3070,68 @@ the first time — SURVIVES these edges, it is a genuine use-after-free
 enumeration, the thing §13.21 was built to obtain.  If it collapses,
 the survivor was chunk-recycle shadow, and the audit returns to
 outcome-2 territory.
+
+### 13.34 TSan-over-the-pool: run performed, but NOT interpretable without allocator annotations
+
+Built and ran §13.31's recipe (gcc `-O3`, `-DKAMEPOOLALLOC_NO_LIBC_INTERPOSE`,
+pool compiled in and instrumented, no `.so`, no `KAME_RC_TRACE`, 40 threads,
+`20 40 700`).  It produces reports in volume:
+
+```
+1573  data race
+  66  data race on vptr (ctor/dtor vs virtual call)
+ 217  distinct racing pairs, overwhelmingly in atomic_smart_ptr.h
+```
+
+**These cannot be entered into the decision tree as outcome 1, and the reason
+is mechanical, not a judgement call.**
+
+1. **Zero `Location is …` attributions.**  Across all 1573 reports TSan does
+   not characterise a single racing address as heap / stack / global.  It has
+   no allocation record for them — they come from the pool's `mmap`'d regions,
+   which TSan never saw allocated.
+2. **The pool carries no TSan annotations.**  `grep` for `__tsan_acquire` /
+   `__tsan_release` / `ANNOTATE_HAPPENS_BEFORE` over `allocator.cpp` and
+   `allocator_prv.h` returns nothing.
+
+Without those, a custom allocator makes TSan report a **false race for every
+recycled address**: it cannot know that `free → alloc` orders the previous
+owner's accesses before the new owner's, so the new object's writes race the
+old object's reads in stale shadow.  The 66 vptr races are the textbook
+signature — e.g. `PayloadWrapper`'s copy constructor writing a vptr at
+`0x7fffd4001010`, reached from `Transaction::operator[]` → `clone` → a fresh
+`make_local_shared`, i.e. a **newly constructed object at a recycled
+address**, which is precisely what this reproducer does thousands of times a
+second.
+
+A further tell: many of the top pairs are `<atomic_base.h:358>` against
+`:477/:501/:641` — i.e. TSan reporting races *between `std::atomic`
+operations*.  TSan models atomics correctly and does not report those; seeing
+them means the shadow state for those addresses is not trustworthy.
+
+**What is needed before this arm can decide anything** — small, standard, and
+entirely inside the pool:
+
+```c
+#if defined(__SANITIZE_THREAD__)
+  /* on hand-out */   __tsan_acquire(p);
+  /* on free      */  __tsan_release(p);
+#endif
+```
+
+on the slot alloc/free paths (and the chunk claim/release paths), so recycled
+memory carries a happens-before edge TSan can see.  §13.31's own framing —
+"the pool's `__sync`/`__atomic` ops are TSan-visible sync, so claim/free
+handoffs form recognized happens-before" — holds for the *metadata* words, but
+not for the **payload bytes**, which is where object reuse lives and where
+every one of these reports sits.
+
+**So the decision tree is not yet entered.**  This is neither outcome 1
+(reports we can act on), nor outcome 2 (TSan silent), nor outcome 3 (TSan
+perturbs the fault away — the run still fails).  It is a fourth state:
+instrument not yet valid for this configuration.  Annotating the pool is the
+prerequisite, and it is a genuinely small change.
+
+Recorded also because §13.11's *pool-less* TSan silence remains the only
+trustworthy TSan datum so far, and its caveat stands unchanged: it was
+measured in the configuration where the fault never manifests.
