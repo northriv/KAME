@@ -1511,8 +1511,10 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 		// cross-thread frees (the only mechanism that opens bits with
 		// the pre-fill design — slots returned to the OWNER stay in
 		// `m_freelist_head[0]`, not the bitmap).
-		if(void *p = this->freelist_pop(0))
+		if(void *p = this->freelist_pop(0)) {
+			KAME_TIER(KAME_TIER_POOLED_FL);
 			return p;
+		}
 #if KAME_FS_WORDCACHE
 		// (§word-cache) tier ③: inv==0 AND the freelist is dry (this
 		// cold is reached exactly then) — claim EVERY zero bit of one
@@ -1544,6 +1546,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 						    reinterpret_cast<char *>(
 						        (uintptr_t)(mask & (mask - 1u)));
 						this->m_freelist_head[2] = base;
+						KAME_TIER(KAME_TIER_POOLED_GRAB);
 						return base + (size_t)b * ALIGN;
 					}
 					// CAS lost to a cross-thread clear: re-read.
@@ -1618,6 +1621,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	this->m_idx = idx;
 
 	void *p = &this->mempool()[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN];
+	KAME_TIER(KAME_TIER_POOLED_SCAN);
 	return p;
 }
 
@@ -2385,9 +2389,11 @@ PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
 	if(char *head = scan_dll_freelist(/*local_id=*/0u)) {
 		kame_page()->m_slots[bucket].freelist_head =
 		    reinterpret_cast<char *>(&s_tls.my_chunk->m_freelist_head[0]);
+		KAME_TIER(KAME_TIER_DLL_SCAN);
 		return head;
 	}
 	void *p = allocate_chunk_path(ALIGN);
+	KAME_TIER(KAME_TIER_CHUNK_PATH);
 	PoolAllocatorBase *new_chunk =
 	    static_cast<PoolAllocatorBase *>(s_tls.my_chunk);
 	// (§12.3 / §hot-tls) Update the KameTlsPage slot to store the pointer
@@ -4521,6 +4527,7 @@ void *bucket_first_access(std::size_t /*size*/) noexcept {
 // distance budget.  The switch lowers to a jump table on arm64.
 __attribute__((cold, noinline))
 void *cold_first_access(unsigned bucket, std::size_t size) noexcept {
+    KAME_TIER(KAME_TIER_FIRST_ACCESS);
     if( !g_sys_image_loaded || kame_thread_torn_down())
         return libsystem_malloc_for_pool(size);  // not std::malloc — would recurse under strong-symbol `malloc` override
     switch(bucket) {
@@ -4608,6 +4615,13 @@ ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, 0, {}};
 // path identity-compares against `&g_teardown_page` to take a TLS-free route.
 KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, 0, {}};
 
+#ifdef KAME_ALLOC_TIER_TRACE
+//! (§tier-trace) See allocator_prv.h.  extern "C" + default visibility so a
+//! client-side exclusivity detector in the executable can read it directly;
+//! initial-exec is correct here because the library is linked, not dlopen'd.
+extern "C" ALLOC_TLS_IE unsigned g_kame_alloc_tier = 0;
+#endif
+
 // Cold off-ramp for the lean freelist-pop entries (`new_redirected` and
 // `new_redirected_large`; declared in allocator_prv.h): an empty owner
 // freelist (re-resolve the chunk and slow_allocate via its vtable), a
@@ -4623,6 +4637,7 @@ void *new_redirected_cold(unsigned int bucket, std::size_t size) {
 		char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
 		if(char *head = *head_ptr) {
 			*head_ptr = *reinterpret_cast<char **>(head);
+			KAME_TIER(KAME_TIER_COLD_POP);
 			return head;
 		}
 		PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
@@ -4641,6 +4656,7 @@ void *new_redirected_cold(unsigned int bucket, std::size_t size) {
 				    (unsigned long long)inv);
 				ck->m_freelist_head[1] =
 				    reinterpret_cast<char *>(inv & (inv - 1u));
+				KAME_TIER(KAME_TIER_COLD_WC);
 				return ck->m_freelist_head[2] +
 				    (((size_t)b * bucket) << 4);
 			}

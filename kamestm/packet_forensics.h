@@ -438,11 +438,35 @@ enum : std::size_t {
 //! One slot per hash bucket.  `addr` is the live address (0 = free); the
 //! rest is provenance for the report, written before `addr` is published so
 //! a reader that matches `addr` sees a consistent record.
+//! (§tier-trace) The allocator publishes which of its ~8 paths served the
+//! most recent allocation on this thread, in a TLS word we read straight
+//! after the call.  Weak, so a pool built without KAME_ALLOC_TIER_TRACE
+//! still links and simply reports tier 0.
+extern "C" __thread unsigned g_kame_alloc_tier __attribute__((weak));
+inline unsigned pf_alloc_tier() noexcept {
+    return ( &g_kame_alloc_tier) ? g_kame_alloc_tier : 0u;
+}
+inline const char *pf_tier_name(unsigned t) noexcept {
+    switch(t) {
+    case 1: return "new_redirected: TLS cell freelist pop";
+    case 2: return "new_redirected_cold: cell pop";
+    case 3: return "new_redirected_cold: word-cache ctz serve";
+    case 4: return "cold_first_access";
+    case 5: return "slow_allocate: scan_dll_freelist hit";
+    case 6: return "slow_allocate: allocate_chunk_path";
+    case 7: return "allocate_pooled: freelist_pop(0)";
+    case 8: return "allocate_pooled: whole-word grab";
+    case 9: return "allocate_pooled: bitmap scan";
+    default: return "(untraced pool build)";
+    }
+}
+
 struct PfSlot {
     std::atomic<std::uintptr_t> addr;
     const char *type;
     int tid;
     std::size_t size;
+    unsigned tier;
 };
 inline PfSlot *pf_shadow() noexcept {
     static PfSlot *t = static_cast<PfSlot *>(
@@ -511,6 +535,7 @@ inline void *excl_new(std::size_t sz, const char *type) {
         pf_tally(false)[i].fetch_add(1, std::memory_order_relaxed);
 #endif
     void *p = ::operator new(sz);               // exactly the default path
+    unsigned tier = pf_alloc_tier();
     if(auto *t = pf_shadow()) {
         auto a = reinterpret_cast<std::uintptr_t>(p);
         PfSlot &slot = t[pf_shadow_slot(a)];
@@ -523,11 +548,15 @@ inline void *excl_new(std::size_t sz, const char *type) {
                 "  %p handed out for a %s (%zu bytes) on tid %d,\n"
                 "  but our records still show it live as a %s (%zu bytes)\n"
                 "  from tid %d -- no operator delete for it ever ran.\n"
+                "  served the FIRST time by  tier %u: %s\n"
+                "  served THIS time by       tier %u: %s\n"
                 "  Read this against the per-type tallies below: they are\n"
                 "  equal iff every free went through operator delete, which\n"
                 "  is what makes the record trustworthy.\n",
                 p, type, sz, pf_excl_tid(),
-                slot.type ? slot.type : "?", slot.size, slot.tid);
+                slot.type ? slot.type : "?", slot.size, slot.tid,
+                slot.tier, pf_tier_name(slot.tier),
+                tier, pf_tier_name(tier));
             for(int i = 0; i < PF_NTYPE; ++i)
                 std::fprintf(stderr, "    %-14s %zu alloc, %zu free\n",
                     pf_type_names(i), pf_tally(false)[i].load(),
@@ -539,6 +568,7 @@ inline void *excl_new(std::size_t sz, const char *type) {
         slot.type = type;
         slot.tid = pf_excl_tid();
         slot.size = sz;
+        slot.tier = tier;
 #endif
         slot.addr.store(a, std::memory_order_release);
     }

@@ -3143,6 +3143,34 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept;
 //! spill and no `bl` — matching mimalloc's shrink-wrapped frameless
 //! `_mi_page_malloc`.  (On macOS the kame_page() runtime-offset cold-init
 //! still forces a frame, but the lean body is smaller — measured +12% at 64 B.)
+//! (§tier-trace) Which allocation path served the most recent pooled
+//! allocation on this thread.  Debug-only: `KAME_ALLOC_TIER_TRACE` gates it,
+//! and without the macro every KAME_TIER() below compiles to nothing.
+//!
+//! Exists because an exclusivity violation (the allocator handing out a block
+//! that is still live) says WHICH block but not WHICH PATH produced it, and
+//! the pooled allocator has ~8 of them.  A detector in the client records this
+//! value beside each allocation, so a violation report can name the tier that
+//! served the first allocation and the tier that served the second.  One
+//! relaxed TLS store per allocation, no branch.
+#ifdef KAME_ALLOC_TIER_TRACE
+enum : unsigned {
+    KAME_TIER_FAST_POP     = 1,  //!< new_redirected: TLS cell freelist pop
+    KAME_TIER_COLD_POP     = 2,  //!< new_redirected_cold: cell pop
+    KAME_TIER_COLD_WC      = 3,  //!< new_redirected_cold: word-cache ctz serve
+    KAME_TIER_FIRST_ACCESS = 4,  //!< cold_first_access
+    KAME_TIER_DLL_SCAN     = 5,  //!< slow_allocate: scan_dll_freelist hit
+    KAME_TIER_CHUNK_PATH   = 6,  //!< slow_allocate: allocate_chunk_path
+    KAME_TIER_POOLED_FL    = 7,  //!< allocate_pooled: freelist_pop(0)
+    KAME_TIER_POOLED_GRAB  = 8,  //!< allocate_pooled: whole-word grab
+    KAME_TIER_POOLED_SCAN  = 9,  //!< allocate_pooled: bitmap scan
+};
+extern "C" ALLOC_TLS_IE unsigned g_kame_alloc_tier;
+#define KAME_TIER(n) (g_kame_alloc_tier = (n))
+#else
+#define KAME_TIER(n) ((void)0)
+#endif
+
 void *new_redirected_cold(unsigned int bucket, std::size_t size);
 
 inline void *new_redirected(std::size_t size) {
@@ -3220,6 +3248,7 @@ inline void *new_redirected(std::size_t size) {
 #endif /* KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH */
 		if(char *head = *head_ptr) {
 			*head_ptr = *reinterpret_cast<char **>(head);
+			KAME_TIER(KAME_TIER_FAST_POP);
 			return head;
 		}
 	}
