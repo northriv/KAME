@@ -3526,3 +3526,74 @@ fault corrupts the GLIBC heap with the pool bypassed — which would be a
 major boundary shift all by itself (the §13.14 "allocator codegen"
 boundary would need re-reading, since the allocator's pool paths would
 be out of the loop).  One cheap batch answers it.
+
+### 13.45 §13.44 verified on Ubuntu: the pool is live, attribution works, and the first admissible report is `m_owner_id`
+
+All three §13.43 blockers confirmed fixed on Linux/g++ 15.2, each checked
+against the behaviour it was supposed to move (not just "it built"):
+
+1. **pthread include** — `g++ -I kamepoolalloc -c allocator.cpp` with no
+   harness: **0 errors** (was 5).
+2. **Auto-activation + arena** — rebuilt `tmin` to the §13.10 recipe plus
+   `-DKAME_TSAN_ENABLED=1`: `strace -f` now shows the
+   **64 GiB reservation (`mmap(…, 68753031168, …)`) exactly once**, where
+   §13.43 measured zero.  The pool's region path is live.
+3. **Attribution** — the decisive one.  Every report now carries
+   **`Location is heap block of size 262144 …`** naming the allocating stack.
+   All 255 pre-§13.44 reports had **zero** location lines (§13.41(a)); that
+   was the tell for stale shadow, and it is gone.
+
+**The first admissible finding.**  At `5 4 200` the run completed cleanly
+(`succeeded`) with **2 warnings, 2 locations — and both are the same pair**:
+
+* **Write of 4 B**, `PoolAllocator<48u,true,true>::release_dll_chunks_for_thread()`
+  `allocator.cpp:3366` ← `~AllocThreadExitCleanup` ← `__call_tls_dtors`
+  — the plain store `c->m_owner_id = 0;` on the **non-empty orphaned-chunk**
+  branch at thread exit.
+* **Previous atomic read of 4 B**, `atomicLoadRelaxed<unsigned>`
+  (`allocator_prv.h:346`) in `PoolAllocatorBase::deallocate` **`allocator.cpp:3855`**
+  — the deallocate **fast-path routing test**
+  `atomicLoadRelaxed(&chunk_obj->m_owner_id) == page_owner_id && page_owner_id != 0`
+  — reached via `operator delete` ← `atomic_shared_ptr_base<PacketWrapper>::deleter`
+  ← `scoped_atomic_view::release_` ← `assign_from_local` ← `set_view` ←
+  **`Node::bundle`** (`transaction_impl.h:2835`) in one report, and
+  ← `PayloadWrapper::~PayloadWrapper` (`transaction.h:231`) in the other.
+
+The two reports involve **different threads, different chunks, and different
+STM callers**, and in the second the chunk was allocated by a *third* thread —
+so this is one mechanism, not one unlucky object.
+
+**Why it is a real race, not an annotation gap.**  A plain 4-byte store
+concurrent with any other access to the same location is a data race by the
+model; the in-tree comment ("`atomicFetchAnd` provides a full barrier
+ordering this store") justifies *ordering*, but a barrier orders the
+operations around it — it does not make the store itself atomic, and it is
+invisible to TSan besides (§13.43(2)).
+
+**Why it is a plausible fault, not just a defect.**  The routing test's
+*intended* failure direction is safe: the comment states a zeroed
+`m_owner_id` fails the test and tail-calls the cold path, which re-validates.
+The unsafe direction is the reader observing the **stale non-zero** owner id
+and taking the owner-assumed fast path into a chunk whose ownership is being
+handed to the orphan chain. That is a free-path mis-route — the mechanism
+class that produces both the "released after count reached zero" signature
+and libc heap corruption.  A **relaxed** load is also precisely what `-O3`
+may cache or duplicate across the branch, which is how a fault acquires
+codegen sensitivity.  It further coincides with the independently-derived
+teardown timing (§12: 13/15 under 2 µs, median 1.0 µs) and with §13.20's
+falsifier #3, which predicted post-publication `m_owner_id` writes.
+
+**Boundary test §13.44 asked for — negative, and that is good news.**
+Pool-inert, TSan-OFF, `20 40 700` × 12: **12/12 clean**, no
+`free(): invalid size`, no failures.  So **§13.14's "requires the pool"
+boundary is intact** and needs no re-reading.  It also localises §13.43's
+`rc=134`: with the pool inert, glibc corruption appears only when TSan is
+present, so that abort was an artifact of the inert-pool + TSan
+configuration, not the fault.
+
+**Status / next.**  A six-run `20 40 700` batch is in flight; at that scale
+the report count is larger than 2, so **convergence is not yet claimed** —
+the small-workload result is what is verified here.  The decisive experiment
+is differential, not more TSan: make the `:3366` store a release atomic (and
+the `:3855` load acquire), then re-run the **original** `-O3` + `.so` + gcc
+reproducer and see whether 42/42 failures moves. Only that tests causation.
