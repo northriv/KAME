@@ -2881,3 +2881,38 @@ member, not on the allocator function.
 Standing practice (§13.23) has now caught three untestable falsifier arms in a
 row — `-fno-indirect-inlining`, `noipa` at `-O3`, and all four attributes on
 the proxy.  Each would have been reported as a refutation.
+
+### 13.29 Falsifier #4, retargeted at the source: KAME_ASP_NOCLONE forbids
+### cloning of the refcount-protocol members themselves
+
+§13.28's conclusion implemented where it belongs (the smart-pointer
+header): `-DKAME_ASP_NOCLONE` (gcc-only; expands to nothing on clang and
+when unset) puts `__attribute__((noclone))` on the three protocol members
+whose inlined copies supply the deleted increment —
+
+- `atomic_shared_ptr<T>::load_shared_()`   (the unconditional promote),
+- `acquire_tag_ref_()`,
+- `release_tag_ref_()`.
+
+Rationale: (b) proved no attribute on the ENCLOSING function can reach a
+callee's specialisation; the specialisation to forbid is of the callees.
+`noclone` on a callee removes IPA-CP's licence to make the `.constprop`
+copy that gets inlined with the increment folded away, while leaving
+ordinary inlining untouched (so the arm stays comparable — a `noipa`
+here would also block inlining and change far more).
+
+**Protocol, per §13.23's standing practice**: on the proxy
+(`-O2 -fipa-cp-clone -DKAME_ASP_NOCLONE`), FIRST re-run the census —
+expect the orphan_chain_pop family back at **44/44** lock adds; only if
+it verifies, run the paired A/B (proxy vs proxy+knob).  Prediction
+stays all-or-nothing: 19/35-class failing → 0 names the deleted promote
+as the proxy's defect and completes the GCC-report package (asm exhibit
++ source read + call census + runtime flip, all on one no-argument
+symbol family); census-unverified or still-failing gets reported as
+exactly that.
+
+Mac-side verification: clang builds with and without the define
+(attribute correctly compiles away), pool Release build clean.  If the
+knob verifies and flips, note it is a DIAGNOSTIC, not the mitigation —
+§13.18's production flag stays until the root cause is fixed in gcc or
+the protocol members carry the attribute permanently by decision.

@@ -33,6 +33,20 @@
 #include <cstdint>   // uintptr_t — tagged-pointer local refcount (not transitive under libstdc++ 14+)
 #include <assert.h>
 
+//! §13.28 falsifier-#4 retarget (DYNNODE_UAF_HANDOFF.md): on the -O2
+//! -fipa-cp-clone proxy, IPA-CP deletes load_shared_'s unconditional
+//! promote (a variable-amount refcnt fetch_add) inside the copies inlined
+//! into orphan_chain_pop -- and no attribute on the ENCLOSING function can
+//! reach a callee's specialisation.  Define KAME_ASP_NOCLONE (gcc only) to
+//! forbid IPA cloning of the refcount-protocol members themselves; verify
+//! against the 22->44 lock-add census BEFORE trusting any run (§13.23
+//! standing practice).  Diagnostic knob, not a production default.
+#if defined(KAME_ASP_NOCLONE) && defined(__GNUC__) && !defined(__clang__)
+#define KAME_ASP_NOCLONE_ATTR __attribute__((noclone))
+#else
+#define KAME_ASP_NOCLONE_ATTR
+#endif
+
 //! Trait to disable load_shared_() for specific types at compile time.
 //! To disable for type T, add `using load_shared_disabled_tag = void;` to T.
 //! Detected via SFINAE — no template specialization required.
@@ -1242,16 +1256,17 @@ protected:
     //internal functions below.
     //! Atomically scans \a m_ref and increases the global reference counter.
     //! \a load_shared_() is used for atomically coping the pointer.
-    inline Ref *load_shared_() const noexcept;
+    KAME_ASP_NOCLONE_ATTR inline Ref *load_shared_() const noexcept;
     //! Atomically scans \a m_ref and increases the  local (temporary) reference counter.
     //! use \a release_tag_ref_() to release the temporary reference.
-    inline std::pair<Ref*, bool> acquire_tag_ref_(Refcnt *, bool weakly = false) const noexcept;
+    KAME_ASP_NOCLONE_ATTR inline std::pair<Ref*, bool> acquire_tag_ref_(Refcnt *, bool weakly = false) const noexcept;
     //! Tries to decrease local (temporary) reference counter.
     //! In case the reference is lost, \a release_tag_ref_() releases the global reference counter instead.
     //! When \a left_global_rcnt > 0, undoes step 4's
     //! excess (left_global_rcnt - 1) on tag-success, or combines undo+release on pointer-changed.
     //! \param[in] single_attempt  If true, drain CAS is single-shot;
     //!   on CAS-loss, returns false WITHOUT global fetch_sub.
+    KAME_ASP_NOCLONE_ATTR
     inline bool release_tag_ref_(Ref *, Refcnt added_global_rcnt,
                                   bool single_attempt = false) const noexcept;
 
