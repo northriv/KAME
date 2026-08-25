@@ -2916,3 +2916,58 @@ Mac-side verification: clang builds with and without the define
 knob verifies and flips, note it is a DIAGNOSTIC, not the mitigation —
 §13.18's production flag stays until the root cause is fixed in gcc or
 the protocol members carry the attribute permanently by decision.
+
+### 13.30 Falsifier #4, retargeted and properly armed — refuted; the missing increment is real but not causal
+
+First arm in four whose **census passes** before the run, exactly as §13.29
+specified:
+
+| build | `orphan_chain_pop` `lock add` |
+|---|---|
+| `-O2` (baseline) | 44 |
+| `-O2 -fipa-cp-clone` (proxy) | **22** |
+| proxy `+ -DKAME_ASP_NOCLONE` | **44** — restored |
+
+That by itself confirms §13.28's inference: the deletion is performed on the
+**callee's** specialisation (`load_shared_` / `acquire_tag_ref_` /
+`release_tag_ref_`), not on `orphan_chain_pop`, which is why no attribute on
+the enclosing function could reach it.
+
+**The run, paired on the proxy pair:**
+
+| arm | runs | failed | tripwires |
+|---|---|---|---|
+| `PXctl` | 11 | **11** | 8 |
+| `PXasp` (increment restored) | 11 | **11** | 4 |
+
+**100 % failure in both — refuted.**  And this refutation is trustworthy in a
+way the last three arms were not: the knob demonstrably does the thing it was
+built to do, verified before the batch started.
+
+**So the §13.22 asymmetry is real but not causal.**  `-fipa-cp-clone` does
+delete 22 refcount increments that no source-level constant justifies (§13.24
+established that at source level, §13.25 excluded inline-to-call conversion,
+§13.28 established the baseline).  Restoring every one of them changes
+nothing.  Whatever those increments were protecting, the fault does not
+depend on them.
+
+Two secondary observations:
+
+- **The proxy fails 11/11, not 19/35.**  §13.17 cites 19/35 for
+  `-O2 -fipa-cp-clone`; here it is 100 %, the same as `-O3`.  Worth
+  reconciling — it may be host/thread-count dependent (this batch is 40
+  threads) — but it makes the proxy a *stronger* control than assumed, since
+  a zero on the treated arm would have been unambiguous.
+- **Tripwires halve (8 → 4) while failures do not move.**  The §13.21 pattern
+  again: anomaly frequency responds to codegen knobs, the fault does not.
+  Three separate knobs have now shown this shape (`-fno-devirtualize-
+  speculatively` 25→13, `KAME_ASP_NOCLONE` 8→4, and the instrument versions
+  themselves).  That is worth taking seriously as a finding in its own right:
+  the tripwire counts a *symptom whose rate is tunable*, while the failure is
+  not — which is hard to reconcile with the anomalies being the fault's
+  direct cause, and easier to reconcile with both being downstream of
+  something the knobs do not touch.
+
+**Tally: six named mechanisms refuted by mechanical test.**  The §13.14
+boundary has still never moved.  The one lead that came from measurement
+rather than reasoning — §13.22's deleted increment — is now closed too.
