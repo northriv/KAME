@@ -2482,3 +2482,47 @@ arm `__atomic_load_n(RELAXED)`, MSVC arm an aligned volatile scalar read
 (the idiomatic MSVC relaxed load; a live illustration that the volatile
 school and the atomic school are one discipline in two dialects).  All 9
 call sites converted; ctest 18/18 forensic ON, tmin 40t clean.
+
+### 13.21 The decision procedure — audit the simple rule; what survives a
+### clean audit is a gcc bug
+
+Agreed framing (user): the rule is simple — concurrent words atomic,
+owner-only/pre-publication words plain — so it should be settled by
+AUDIT, and whatever slips through a clean audit is gcc's fault.
+Formalized as the procedure:
+
+1. **Dynamic audit — runnable on Ubuntu TODAY, closes §13.11's gap.**
+   `KAMEPOOLALLOC_NO_LIBC_INTERPOSE` (already in the tree; Linux gates
+   the strong-symbol malloc family off, operator new/delete still pool)
+   lets TSan own libc malloc while the POOL runs fully instrumented
+   under it:
+
+   ```
+   g++ -DA_NO_P1TREE -DKAMEPOOLALLOC_NO_LIBC_INTERPOSE -fsanitize=thread \
+       -O2 -g -std=gnu++17 -I kamestm/tests -I kamestm -I kamepoolalloc \
+       -include kamestm/tests/support_standalone.h \
+       kamestm/tests/tmin_dynnode.cpp ../kamepoolalloc/allocator.cpp \
+       kamestm/tests/support_standalone.cpp kamestm/threadlocal.cpp -o tmin_tsan_pool
+   ```
+
+   (inline-compile the allocator, as production does; no .so, no
+   KAME_RC_TRACE.)  The pool's __sync/__atomic ops are TSan-visible
+   sync, so claim/free handoffs form recognized happens-before — every
+   report on a PLAIN allocator field is a genuine rule violation, named
+   with both stacks.  This is the mechanical audit of the simple rule
+   for all executed paths.
+2. **Fix what it names** (atomicLoadRelaxed / relaxed stores — the
+   §13.20 falsifier-#3 set is the predicted catch: m_idx both sides,
+   post-publication owner/back_offset writes).
+3. **Static ratchet afterwards**: a tools/audit checker over
+   allocator.cpp flagging loads/stores of the classified-shared field
+   list that bypass the atomic helpers, baselined like stm_closures, so
+   the rule cannot regress.
+4. **Then the verdict is mechanical**: if the reproducer still fails
+   at gcc -O3 on a TSan-clean-WITH-POOL, audit-clean build, the program
+   is DRF and the compiled behavior is nonconforming — a reportable gcc
+   bug, with the §13.17 asm-diff artifacts as the exhibit.  (One honest
+   caveat: TSan certifies executed pairs; the static ratchet plus the
+   classification list is what covers the rest.)
+
+Mac-side verification this commit: the define compiles clean (Release).
