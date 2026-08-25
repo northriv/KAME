@@ -5147,3 +5147,49 @@ survivor is this class again (a member read out of freed storage, as in
 §13.57) or something new** — please paste one when the higher-workload
 batch lands, and the higher-power BASE/FIXED comparison at
 `20 40 700` will also say whether §13.68 moved the rate at all.
+### 13.72 The §13.68 causal test: rate does NOT go to zero — 40 interleaved pairs, two workloads, p = 0.82
+
+§13.68's pre-registered Ubuntu test, run per §13.49's protocol.  The fix is in
+`transaction_impl.h`, so the arms differ in the **test binary**, not the `.so`:
+one allocator (`-O2 -fipa-cp-clone`, the arm that produced §13.59's and
+§13.63's captures), two binaries built with identical flags, the BASE arm
+compiled against `b1cb96327`'s header via an `-I` override.  Arms verified
+distinct (`newsubpacket_val`: 3 occurrences in FIXED, 0 in BASE; binaries
+differ, and FIXED is the larger — consistent with added code).  Interleaved
+run-by-run, `taskset -c 0-3`.
+
+| workload | BASE (pre-fix) | FIXED (§13.68) | Fisher p |
+|---|---|---|---|
+| `10 40 500` | 6/20 (30%) | 2/20 (10%) | 0.235 |
+| `20 40 700` | 10/20 (50%) | **12/20 (60%)** | 0.751 |
+| **pooled** | **16/40 (40%)** | **14/40 (35%)** | **0.818** |
+
+**The two workloads point in opposite directions**, which is the signature of
+noise, not of a partial effect — and neither is significant on its own.  A
+separate 10-run batch of the FIXED arm produced another SIGSEGV (3/30 overall
+at the smaller workload).  **The rate does not go to zero.**
+
+By §13.68's own pre-registration this is the "unchanged" branch: **the fix
+stands as a real dangling-dereference removal** — §13.67 identified a genuine
+defect and the reordering is sound and free — **but it is not this fault**, and
+the hunt does not end here.  Twelfth mechanism to survive its author's
+reasoning and die on a differential.
+
+**A methodological note worth keeping.**  The first workload alone would have
+read as a 3× reduction, and had I stopped there I would have reported the fix
+as confirmed on a p = 0.235 result. The second workload reversed the sign.
+Single-workload, single-session rates in this document have repeatedly proven
+unstable (§13.51: identical `.text` measured 20/20 and 1/3); the pooled,
+two-workload, interleaved form is the weakest design I would now trust for a
+"went to zero" claim, and even it only bounds the effect rather than
+confirming absence.
+
+**Where that leaves the chain.**  §13.63's finding is untouched and remains the
+live thread: a `Packet` reaches refcount zero while a scope still holds a path
+to it, and the *earliest observed* resurrection was `bundle:2851`'s
+`make_local_shared<PacketWrapper>(supscope->packet(), …)` — upstream of both
+the Phase 1 copy and the unbundle slot §13.68 fixed.  The open question is
+unchanged and is the one §13.63 posed: **what drops the last reference to
+`supscope->packet()` while the scope is live.**  The detector §13.68 retained
+(now pointed at the pre-loop capture) has not reported, which is consistent:
+that slot was not the one dying.
