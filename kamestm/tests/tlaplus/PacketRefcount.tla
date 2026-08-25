@@ -87,7 +87,13 @@ CONSTANTS
      * tiny; 2 is what reaches a RETRY (a thread bundling the same linkage
      * again after a peer moved it) -- the depth §13.65 flagged as its
      * limitation. *)
-    MaxBundles
+    MaxBundles,
+    (* §13.69: model unbundle's sub-packet handoff.  FALSE = the fixed order
+     * (capture the value while the parked views still hold the containing
+     * packet); TRUE = the pre-fix order (dereference the slot AFTER the
+     * cas_infos loop has let the containing wrapper die).  This is the
+     * model-level regression test for §13.68. *)
+    BUG_LATE_DEREF
 
 Nodes    == {Root, A, B, C}
 Packets  == {"pRoot", "pA", "pB", "pC"}
@@ -110,6 +116,8 @@ VARIABLES
     link,        \* [Nodes -> Wrappers \cup {Null}]  the published wrapper
     scopeW,      \* [Threads -> Wrappers \cup {Null}]  the OUTER `supscope`
     scopeIn,     \* [Threads -> Wrappers \cup {Null}]  the INNER `scope`
+    slotIn,      \* [Threads -> Wrappers \cup {Null}]  §13.69: the wrapper
+                 \*   whose packet holds the slot unbundle will read
     viewHeld,    \* [Threads -> BOOLEAN]  does the OUTER view still protect it?
     pc,          \* [Threads -> String]
     done,        \* [Threads -> Nat]  bundles completed per thread (finiteness
@@ -119,7 +127,7 @@ VARIABLES
     deadRead     \* BOOLEAN: a thread read a packet through a live path
                  \*          whose rc was 0 (the §13.63 observation)
 
-vars == <<rc, holders, wAlive, wPacket, wrc, link, scopeW, scopeIn,
+vars == <<rc, holders, wAlive, wPacket, wrc, link, scopeW, scopeIn, slotIn,
           viewHeld, pc, done, deadRead>>
 
 \* Holder identities, so a counterexample names WHO held what.
@@ -154,6 +162,7 @@ Init ==
     /\ link     = [n \in Nodes |-> <<n, 0>>]
     /\ scopeW   = [t \in Threads |-> Null]
     /\ scopeIn  = [t \in Threads |-> Null]
+    /\ slotIn   = [t \in Threads |-> Null]
     /\ viewHeld = [t \in Threads |-> FALSE]
     /\ pc       = [t \in Threads |-> "idle"]
     /\ done     = [t \in Threads |-> 0]
@@ -173,7 +182,7 @@ ScopeAcquire(t, n) ==
     /\ viewHeld' = [viewHeld EXCEPT ![t] = TRUE]
     /\ wrc'      = [wrc      EXCEPT ![link[n]] = @ + 1]
     /\ pc'       = [pc       EXCEPT ![t] = "scoped"]
-    /\ UNCHANGED <<rc, holders, wAlive, wPacket, link, scopeIn, done, deadRead>>
+    /\ UNCHANGED <<rc, holders, wAlive, wPacket, link, scopeIn, done, deadRead, slotIn>>
 
 (* transaction_impl.h:2851 -- the serial-tag block constructs a SECOND
  * scope on the SAME linkage: `ScopedNegotiateLinkage scope(supernode.m_link,
@@ -193,7 +202,7 @@ AcquireInner(t) ==
        /\ scopeIn' = [scopeIn EXCEPT ![t] = link[n]]
        /\ wrc'     = [wrc     EXCEPT ![link[n]] = @ + 1]
     /\ UNCHANGED <<rc, holders, wAlive, wPacket, link, scopeW, viewHeld,
-                   pc, done, deadRead>>
+                   pc, done, deadRead, slotIn>>
 
 (* bundle:2851 -- `make_local_shared<PacketWrapper>(supscope->packet(), …)`
  * reads the packet THROUGH the scope's wrapper and copies the pointer.
@@ -216,7 +225,7 @@ SuperWrapperCopy(t) ==
              \*  it here instead merely starves the protocol of commits,
              \*  which is how its first formulation came out toothless.)
     /\ pc' = [pc EXCEPT ![t] = "phase1"]
-    /\ UNCHANGED <<wAlive, wPacket, wrc, link, scopeW, scopeIn, viewHeld, done>>
+    /\ UNCHANGED <<wAlive, wPacket, wrc, link, scopeW, scopeIn, viewHeld, done, slotIn>>
 
 (* bundle:2870 -- the PacketList copy: increments every element.  Modelled
  * on the hard-linked child, the element the captures name. *)
@@ -226,7 +235,7 @@ Phase1ListCopy(t) ==
     /\ deadRead' = (deadRead \/ rc["pC"] = 0)
     /\ Inc("pC", HolderL(t))
     /\ pc' = [pc EXCEPT ![t] = "committing"]
-    /\ UNCHANGED <<wAlive, wPacket, wrc, link, scopeW, scopeIn, viewHeld, done>>
+    /\ UNCHANGED <<wAlive, wPacket, wrc, link, scopeW, scopeIn, viewHeld, done, slotIn>>
 
 (* The commit CAS: publish a fresh (generation-1) wrapper at the node.
  * The linkage's reference moves from the old wrapper to the new one; the
@@ -298,7 +307,7 @@ CommitCAS(t) ==
           /\ viewHeld' = [viewHeld EXCEPT ![t] = FALSE]
           /\ scopeIn'  = [scopeIn  EXCEPT ![t] = Null]   \* view consumed
     /\ pc' = [pc EXCEPT ![t] = "committed"]
-    /\ UNCHANGED <<scopeW, done, deadRead>>
+    /\ UNCHANGED <<scopeW, done, deadRead, slotIn>>
 
 (* set_view(std::move(newwrapper)) -- restores the view after a consuming
  * CAS so the rest of the function may keep dereferencing (see
@@ -321,13 +330,13 @@ RestoreView(t) ==
           /\ wPacket' = [wPacket EXCEPT ![oldv] = IF dies THEN Null ELSE @]
           /\ IF dies /\ wPacket[oldv] # Null
                 THEN Dec(wPacket[oldv], HolderW(oldv))
-                ELSE UNCHANGED <<rc, holders, done>>
+                ELSE UNCHANGED <<rc, holders, done, slotIn>>
           \* Move-in is ZERO-ATOMIC: the local's reference (counted at the
           \* CAS above) becomes the view's.  No increment here.
           /\ scopeW'   = [scopeW   EXCEPT ![t] = link[n]]
           /\ viewHeld' = [viewHeld EXCEPT ![t] = TRUE]
     /\ pc' = [pc EXCEPT ![t] = "scoped"]     \* may read again (Phase 1 etc.)
-    /\ UNCHANGED <<link, scopeIn, done, deadRead>>
+    /\ UNCHANGED <<link, scopeIn, done, deadRead, slotIn>>
 
 (* Dereference `scope->packet()` through a view a consuming CAS already
  * cleared -- i.e. the code failed to `set_view` (or to stop reading) after
@@ -343,12 +352,67 @@ DerefStaleView(t) ==
        /\ deadRead' = (deadRead \/ ~wAlive[w]
                        \/ (wPacket[w] # Null /\ rc[wPacket[w]] = 0))
     /\ UNCHANGED <<rc, holders, wAlive, wPacket, wrc, link, scopeW,
-                   scopeIn, viewHeld, pc, done>>
+                   scopeIn, viewHeld, pc, done, slotIn>>
+
+(* --- §13.69 unbundle's sub-packet handoff -------------------------------
+ * `snapshotForUnbundle` hands the caller a POINTER to a slot inside an
+ * ancestor's packet, and the source states the lifetime contract
+ * explicitly (transaction_impl.h:2178-2180): "parent_packet still points
+ * into the PacketWrapper kept alive by the CASInfo's view".  The CAS loop
+ * then MOVES that view into a loop-local scope which dies at the end of
+ * its iteration -- after the CAS replaced the linkage's reference, so it
+ * was the wrapper's last one.
+ *
+ * Modelled as three steps.  The FIXED order takes the value while the
+ * view still holds (CaptureEarly); the PRE-FIX order reads the slot after
+ * the wrapper is gone (DerefLate).  `slotIn[t]` is the wrapper whose
+ * packet contains the slot. *)
+ParkAndKill(t) ==
+    /\ pc[t] = "scoped"
+    /\ scopeW[t] # Null
+    /\ slotIn[t] = Null
+    /\ LET w == scopeW[t] IN
+       \* the parked view is the wrapper's last reference: it dies here,
+       \* and ~PacketWrapper releases its m_packet.
+       /\ slotIn' = [slotIn EXCEPT ![t] = w]
+       /\ wrc'    = [wrc    EXCEPT ![w] = 0]
+       /\ wAlive' = [wAlive EXCEPT ![w] = FALSE]
+       /\ wPacket' = [wPacket EXCEPT ![w] = Null]
+       /\ IF wPacket[w] # Null THEN Dec(wPacket[w], HolderW(w))
+                               ELSE UNCHANGED <<rc, holders>>
+    /\ pc' = [pc EXCEPT ![t] = "unbundling"]
+    /\ UNCHANGED <<link, scopeW, scopeIn, viewHeld, done, deadRead>>
+
+CaptureEarly(t) ==          \* the §13.68 order: value taken before the kill
+    /\ ~BUG_LATE_DEREF
+    /\ pc[t] = "scoped"
+    /\ scopeW[t] # Null
+    /\ wPacket[scopeW[t]] # Null
+    /\ LET q == wPacket[scopeW[t]] IN
+       /\ deadRead' = (deadRead \/ rc[q] = 0)
+       /\ Inc(q, HolderL(t))
+    /\ pc' = [pc EXCEPT ![t] = "captured"]
+    /\ UNCHANGED <<wAlive, wPacket, wrc, link, scopeW, scopeIn, viewHeld,
+                   slotIn, done>>
+
+DerefLate(t) ==             \* the pre-fix order: read the slot after the kill
+    /\ BUG_LATE_DEREF
+    /\ pc[t] = "unbundling"
+    /\ slotIn[t] # Null
+    /\ LET q == PacketOf[slotIn[t][1]] IN   \* wrapper = <<node, gen>>
+       \* the slot still names the packet the dead wrapper held; reading and
+       \* copying it is the resurrection §13.63 observed.
+       /\ deadRead' = (deadRead \/ rc[q] = 0)
+       /\ Inc(q, HolderL(t))
+    /\ pc' = [pc EXCEPT ![t] = "captured"]
+    /\ UNCHANGED <<wAlive, wPacket, wrc, link, scopeW, scopeIn, viewHeld,
+                   slotIn, done>>
 
 (* Scope destructor: drop the wrapper reference; a wrapper reaching zero
  * runs ~PacketWrapper and releases m_packet. *)
 ScopeRelease(t) ==
-    /\ pc[t] \in {"scoped", "phase1", "committing", "committed"}
+    /\ pc[t] \in {"scoped", "phase1", "committing", "committed",
+                  "unbundling", "captured"}
     /\ scopeW[t] # Null
     /\ LET w == scopeW[t] IN
        /\ wrc' = [wrc EXCEPT ![w] = IF @ > 0 THEN @ - 1 ELSE 0]
@@ -356,13 +420,14 @@ ScopeRelease(t) ==
        /\ wPacket' = [wPacket EXCEPT ![w] = IF wrc[w] - 1 <= 0 THEN Null ELSE @]
        /\ IF wrc[w] - 1 <= 0 /\ wPacket[w] # Null
              THEN Dec(wPacket[w], HolderW(w))
-             ELSE UNCHANGED <<rc, holders>>
+             ELSE UNCHANGED <<rc, holders, slotIn>>
     /\ scopeW'   = [scopeW   EXCEPT ![t] = Null]
     /\ scopeIn'  = [scopeIn  EXCEPT ![t] = Null]
+    /\ slotIn'   = [slotIn   EXCEPT ![t] = Null]
     /\ viewHeld' = [viewHeld EXCEPT ![t] = FALSE]
     /\ done'     = [done     EXCEPT ![t] = @ + 1]
     /\ pc' = [pc EXCEPT ![t] = "idle"]
-    /\ UNCHANGED <<link, deadRead>>
+    /\ UNCHANGED <<link, deadRead, slotIn>>
 
 (* The bundle's own locals go out of scope: superwrapper + the list copy. *)
 DropLocals(t) ==
@@ -371,14 +436,14 @@ DropLocals(t) ==
          /\ HolderS(t) \in holders[p] \/ HolderL(t) \in holders[p]
          /\ IF HolderS(t) \in holders[p] THEN Dec(p, HolderS(t))
                                         ELSE Dec(p, HolderL(t))
-    /\ UNCHANGED <<wAlive, wPacket, wrc, link, scopeW, scopeIn, viewHeld, pc, done, deadRead>>
+    /\ UNCHANGED <<wAlive, wPacket, wrc, link, scopeW, scopeIn, viewHeld, pc, done, deadRead, slotIn>>
 
 (* Bug knob (2): a release performed without owning a reference -- the
  * double-release candidate.  Faithful runs never enable this. *)
 UncountedRelease(t) ==
     /\ BUG_DOUBLE
     /\ \E p \in Packets : rc[p] > 0 /\ Dec(p, HolderS(t))
-    /\ UNCHANGED <<wAlive, wPacket, wrc, link, scopeW, scopeIn, viewHeld, pc, done, deadRead>>
+    /\ UNCHANGED <<wAlive, wPacket, wrc, link, scopeW, scopeIn, viewHeld, pc, done, deadRead, slotIn>>
 
 Next ==
     \/ \E t \in Threads, n \in ScopeNodes : ScopeAcquire(t, n)
@@ -388,6 +453,9 @@ Next ==
     \/ \E t \in Threads : CommitCAS(t)
     \/ \E t \in Threads : RestoreView(t)
     \/ \E t \in Threads : DerefStaleView(t)
+    \/ \E t \in Threads : ParkAndKill(t)
+    \/ \E t \in Threads : CaptureEarly(t)
+    \/ \E t \in Threads : DerefLate(t)
     \/ \E t \in Threads : ScopeRelease(t)
     \/ \E t \in Threads : DropLocals(t)
     \/ \E t \in Threads : UncountedRelease(t)

@@ -4990,3 +4990,65 @@ this commit, alternated run-by-run under `taskset -c 0-3`.
   that the source's own lifetime comment does not justify), and the
   detector output from the §13.67 build tells us whether the slot was
   dead before the loop instead.
+
+### 13.69 Which TLA+ models the §13.68 rewrite touches — and the surprise:
+### the specs already described the FIXED order
+
+Asked directly.  Surveyed all thirteen `BundleUnbundle*` models plus
+`atomic_shared_ptr.tla` and `PacketRefcount.tla`:
+
+| model family | represents unbundle's CAS loop | tracks refcounts | affected? |
+|---|---|---|---|
+| `BundleUnbundle*` (13 files) | yes (`cas_infos` in 5 of them) | **no** | **not invalidated** |
+| `atomic_shared_ptr.tla` | no | yes (wrapper layer) | no |
+| `PacketRefcount.tla` | no (bundle only) | yes (packet layer) | extended here |
+
+**No existing model's result is invalidated**, for a structural reason:
+the `BundleUnbundle` family abstracts packets as VALUES.  It has no
+references, no aliasing and no refcounts, so "when is the reference
+taken" is not expressible there, and a reordering that changes only that
+cannot change any of their conclusions.
+
+**The surprise is stronger than "unaffected".**  `BundleUnbundle_3level_LLfree`
+carries the sub-packet as `local[t].newpacket` — a VALUE captured into
+thread-local state before `UnbundleCASLoop`, then used by
+`UnbundleCASChild`.  TLA+ has no pointers, so the spec could only ever
+describe *capture, then CAS the ancestors* — i.e. **the specification has
+always described §13.68's fixed order.  It was the C++ that drifted**, by
+holding a pointer whose container the loop kills.  Pre-fix, the code
+diverged from every unbundle model at exactly this point, and nobody
+noticed because the divergence is invisible in the models' vocabulary.
+The fix restores correspondence rather than requiring a spec change.
+
+Corroboration from the code itself, worth quoting because it states the
+broken contract explicitly (`transaction_impl.h:2178-2180`):
+
+> *"Extract scoped_atomic_view from parent_scope into CASInfo.
+> parent_scope is not used after this point (parent_packet still points
+> into the PacketWrapper kept alive by the CASInfo's view)."*
+
+The lifetime argument is "the CASInfo's view keeps it alive" — and the
+CAS loop is precisely what moves that view out and lets it die.
+
+**What this commit adds: a model-level regression test for the fix.**
+`PacketRefcount.tla` (the only model with the packet-refcount layer) now
+models the handoff as `ParkAndKill` + `CaptureEarly` / `DerefLate`, with
+`BUG_LATE_DEREF` selecting the order:
+
+| arm | result |
+|---|---|
+| `BUG_LATE_DEREF = FALSE` (§13.68's order) | **PASS** exhaustive — 3 492 281 states / **1 045 892 distinct**, queue empty |
+| `BUG_LATE_DEREF = TRUE` (pre-fix order) | **NoResurrection violated** in 163 states |
+
+So the reordering is now verified in both directions at the layer where
+it matters: the old order provably resurrects a released packet, the new
+one provably does not, over a million distinct states.  (One model error
+of mine on the way — `PacketOf[slotIn[t]][1]` for
+`PacketOf[slotIn[t][1]]`, which TLC reported as a domain error rather
+than a violation.  Caught before it became a "PASS".)
+
+**Documentation follow-up (not done here, small):** the fidelity dossier
+and `BundleUnbundle_3level_LLfree`'s `UnbundleCASChild` note should record
+that `local[t].newpacket` corresponds to §13.68's pre-loop capture, and
+that the pre-fix pointer-after-loop was an unmodelled divergence.  That is
+the one place where the rewrite changes what the docs should say.
