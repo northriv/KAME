@@ -3466,6 +3466,22 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
         ? subscope->m_bundle_serial
         : cas_infos.front().new_wrapper->m_bundle_serial;
 
+    // §13.67: `newsubpacket` points at a slot inside an ANCESTOR's packet
+    // (snapshotForUnbundle -> :1996; that packet is held by the ancestor's
+    // wrapper, whose view is parked in cas_infos).  The loop below moves
+    // each parked view into a loop-local ScopedNeg and lets it die at the
+    // end of its iteration -- and since the CAS has already replaced the
+    // linkage's reference by then, that view was the old wrapper's LAST
+    // one: the wrapper dies, ~PacketWrapper releases its m_packet, and the
+    // packet's PacketList (the container of our slot) dies with it.  Take
+    // the value NOW, while the parked views still hold everything up.
+    // Nothing in the loop changes it: the old ancestor packet is immutable
+    // and the loop only republishes wrappers.  A pure reordering -- the
+    // same single reference the copy at the end would have taken, taken
+    // earlier -- so no new atomic operation on any path.
+    const local_shared_ptr<Packet> newsubpacket_val(
+        oldsubpacket ? local_shared_ptr<Packet>() : *newsubpacket);
+
     for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {
         // Save old wrapper identity before moving into scope.
         PacketWrapper *old_pw = it->old_wrapper.get();
@@ -3520,16 +3536,12 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
         newsubwrapper = *newsubwrapper_returned;
     else {
 #ifdef KAME_RC_TRACE
-        // §13.67: `newsubpacket` points at a slot INSIDE an ancestor's
-        // packet (snapshotForUnbundle -> :1996, whose packet is held by
-        // `r.parent_scope`, whose view was PARKED into cas_infos).  The
-        // CAS loop above moved each parked view into a loop-local
-        // ScopedNeg and let it die at the end of its iteration, so by
-        // here the containing packet -- and its PacketList -- may already
-        // be gone.  Check the slot's target before copying it.
-        rcSlotLiveCheck(newsubpacket, __builtin_return_address(0));
+        // §13.67 detector, kept: it now checks the PRE-LOOP capture, so a
+        // report here would mean the slot was already dead before the loop
+        // -- a different (and worse) defect than the one fixed above.
+        rcSlotLiveCheck( &newsubpacket_val, __builtin_return_address(0));
 #endif
-        newsubwrapper = make_local_shared<PacketWrapper>( *newsubpacket, SerialGenerator::gen(root_bundle_serial));
+        newsubwrapper = make_local_shared<PacketWrapper>(newsubpacket_val, SerialGenerator::gen(root_bundle_serial));
     }
 
     // Final sublinkage CAS via the caller-provided subscope.  The

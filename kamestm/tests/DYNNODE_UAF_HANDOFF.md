@@ -4941,3 +4941,52 @@ copy can simply be taken BEFORE the loop — same single increment, no new
 atomic operation, no hard-link special case, no cost on any path that
 does not unbundle.  That lands as the next commit, kept separate so the
 causal batch can bisect detector-vs-fix.
+
+### 13.68 The fix: take the value before the CAS loop (a pure reordering)
+
+```cpp
+    // BEFORE the cas_infos loop:
+    const local_shared_ptr<Packet> newsubpacket_val(
+        oldsubpacket ? local_shared_ptr<Packet>() : *newsubpacket);
+    for(auto it = cas_infos.begin(); …)   // views move out, wrappers die
+    …
+    newsubwrapper = make_local_shared<PacketWrapper>(newsubpacket_val, …);
+```
+
+Why this is the right shape for the constraint the user set (no
+regression on the non-hard-link path):
+
+- **No new atomic operation, on any path.**  The copy at `:3379` already
+  took one reference on that `Packet`; this takes the same one earlier.
+  The old code's dereference-after-the-loop was not just unsafe, it was
+  unnecessary — nothing in the loop can change the slot's value (the old
+  ancestor packet is immutable; the loop only republishes wrappers).
+- **No topology special case.**  It is the same three lines whether or
+  not a hard link exists; hard links only made the window likelier by
+  lengthening the walk-up chain.
+- **Nothing outside `unbundle` changes**, so the common bundle-only path
+  is untouched.
+- The `oldsubpacket ? …` guard keeps the other branch allocation-free:
+  when the caller supplied an expected value, `newsubwrapper` comes from
+  `*newsubwrapper_returned` and no capture is needed.
+
+The §13.67 detector is retained and re-pointed at the pre-loop capture:
+after the fix, a report there would mean the slot was **already** dead
+before the loop — a different and worse defect — so it keeps earning its
+place.
+
+Mac verification: `tmin` 5×40 threads clean with zero anomalies, and the
+standalone `transaction_dynamic_node_test` (3×), `transaction_test`,
+`transaction_negotiation_test` and `transaction_lookup_memo_test` all
+pass.
+
+**Ubuntu, the causal test** — the same interleaved discipline as §13.49:
+one `-O3` `.so` test binary, two allocator/STM arms differing only by
+this commit, alternated run-by-run under `taskset -c 0-3`.
+- rate → 0: the mechanism is confirmed and the hunt is over; §13.18's
+  `-fno-ipa-cp-clone` mitigation can then be re-examined (keep it until
+  a soak confirms, then decide).
+- rate unchanged: the fix stays (it removes a real dangling dereference
+  that the source's own lifetime comment does not justify), and the
+  detector output from the §13.67 build tells us whether the slot was
+  dead before the loop instead.
