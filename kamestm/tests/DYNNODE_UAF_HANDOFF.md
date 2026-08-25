@@ -2309,3 +2309,38 @@ the `.constprop` clone families first (`bucket_release_chunk` ×3,
 list), looking for (a) a load of the same address issued twice where the
 source reads once, (b) plain stores sunk across a `lock cmpxchg`, (c) a
 dropped or displaced `mfence`/`lock` relative to the `-O2` body.
+
+### 13.18 Decision: ship the mitigation now — `-fno-ipa-cp-clone` on gcc
+### production builds of allocator.cpp (a mitigation, not a fix)
+
+Two-plus days in, root cause still unnamed.  The user's call: if hours-
+scale resolution is not assured, gcc builds should carry the flag.  Done
+— and the record should be explicit about what this buys and what it
+does not:
+
+- **Empirical strength**: `-O3 -fno-ipa-cp-clone` 0/167 and NC7 0/100
+  against a 40–100 %/run baseline; §13.14's blind-spot-free total
+  separation.  Combined ≈ 0/267.  As a shipping posture this is as
+  strong as an unnamed-root-cause mitigation gets.
+- **What it is NOT**: a fix.  §5 stands — the pass is an accelerator;
+  the defect (optimizer-created race or miscompile, §13.16) remains in
+  the source/toolchain pair and may resurface under a different gcc
+  version, flag set, or workload.  Tracking note: remove this flag only
+  when the root cause is named and fixed, and re-run §13.14's A/B to
+  prove it.
+- **Scope**: production builds that compile `allocator.cpp` under gcc —
+  `kame/kame.pro` (Linux g++ AND Windows mingw-g++ production; `*g++*`
+  scope, macOS is clang and refuses gcc anyway per `cdb70d2cf`),
+  `kamepoolalloc/kamepoolalloc.pro`, and the standalone
+  `kamepoolalloc/CMakeLists.txt` dylib (flows to the standalone repo via
+  the subtree sync; tag the next standalone release with it).
+- **Deliberately NOT flagged**: every test tree (`tests/`,
+  `kamestm/tests/`, `kamepoolalloc/tests/`, the handoff's manual .so
+  builds).  The reproducer must keep reproducing or the hunt stops.
+- **Cost**: ipa-cp-clone is typically worth at most a few percent here;
+  if it matters, measure on Ohtaka later (correctness first).  The Mac
+  cmake build is unaffected (GNU-gated generator expression).
+
+The hunt continues underneath: falsifier #2's A/B and the NC7 asm diff
+(§13.17) still decide between optimizer-created race and miscompile —
+whichever lands also decides whether this flag can ever come off.

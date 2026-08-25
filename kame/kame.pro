@@ -191,6 +191,19 @@ SOURCES += icons/icon.cpp \
 # (operator new/delete pooled, libc malloc untouched).
 SOURCES += ../kamepoolalloc/allocator.cpp
 
+# §13.18 MITIGATION (DYNNODE_UAF_HANDOFF.md): a use-after-free that
+# corrupts refcounts manifests ONLY in gcc's -O3 codegen of allocator.cpp
+# with the ipa-cp-clone pass enabled (blind-spot-free A/B: gcc -O3 42/42
+# runs failing vs 0/41 for gcc -O2 and clang -O3; -fno-ipa-cp-clone gives
+# 0/267 combined).  Root cause not yet named -- the pass is an
+# ACCELERATOR, not the defect -- so this is a mitigation with a tracking
+# note, not a fix.  gcc-only (clang has no such pass; macOS refuses gcc,
+# cdb70d2cf).  Test builds deliberately do NOT carry this flag: the
+# reproducer must keep reproducing while the hunt continues.
+*g++* {
+    QMAKE_CXXFLAGS += -fno-ipa-cp-clone
+}
+
 unix {
     HEADERS += \
         math/matrix.h \

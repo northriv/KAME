@@ -49,6 +49,15 @@ target_compile_definitions(kamepoolalloc PUBLIC KAMEPOOLALLOC_DYLIB)
 target_compile_options(kamepoolalloc PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-fvisibility-inlines-hidden;-fno-semantic-interposition>
     $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
+# §13.18 MITIGATION (see DYNNODE_UAF_HANDOFF.md in the KAME monorepo): a
+# use-after-free corrupting refcounts manifests only in gcc's -O3 codegen
+# of allocator.cpp with ipa-cp-clone enabled (42/42-failing vs 0/41 for
+# gcc -O2 / clang -O3; -fno-ipa-cp-clone: 0/267).  The pass is an
+# accelerator, not the named root cause -- mitigation with tracking note.
+# gcc-only; the KAME test trees deliberately omit it so the reproducer
+# keeps reproducing while the hunt continues.
+target_compile_options(kamepoolalloc PRIVATE
+    $<$<CXX_COMPILER_ID:GNU>:-fno-ipa-cp-clone>)
 # CMAKE_DL_LIBS: empty on glibc >= 2.34 (dlsym lives in libc); -ldl on older
 # glibc — needed by the Linux malloc_usable_size co-interpose's RTLD_NEXT.
 target_link_libraries(kamepoolalloc PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
