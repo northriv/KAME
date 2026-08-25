@@ -3398,3 +3398,85 @@ pool address now has java-heap standing — and the report count to become
 the true enumeration.  §13.31's decision tree re-enters service with
 outcome 1/2 finally distinguishable; §13.38's `~PacketWrapper` pair is
 the first thing to look for in the survivor set.
+
+### 13.43 §13.42's arena never activates under the §13.10 recipe — and neither recipe gives TSan over a live pool
+
+§13.42 built the single-arena mode I asked for in §13.41.  It is correct code,
+but **it does not run** in the binary the TSan work has been using, so it
+changed nothing.  Measured, not inferred.
+
+**The null result first.**  Rebuilt `tmin_dynnode` exactly as §13.10 specifies
+plus `-DKAME_TSAN_ENABLED=1`, verified the annotations linked (**40
+`__tsan_java_alloc`, 3 `__tsan_java_free`, 1 `__tsan_java_init`** call sites;
+the pre-arena binary has 0).  Two runs of the six-run batch before I stopped
+it: **52 and 40** warnings, **0** `Location is` — statistically identical to
+the pre-arena 51/44/43/48/21/48, with the atomic-vs-atomic pairs at the same
+~10% share.
+
+**Why.**  Direct `fprintf` probes at the entry of `kame_tsan_arena_map()` and
+`PoolAllocatorBase::mmap_new_region()` (patched, measured, reverted):
+
+| build | pool `operator new` | `mmap_new_region` | arena |
+|---|---|---|---|
+| §13.10 inline (`NO_LIBC_INTERPOSE`), TSan | **live** | **never entered** | never |
+| §13.10 inline, no TSan | live | **never entered** | n/a |
+| `.so` (`KAMEPOOLALLOC_DYLIB`), no TSan | live | **entered** | n/a |
+| `.so`, TSan | — | never entered | never |
+
+Corroborated externally: no 64 GiB `PROT_NONE` reservation in
+`/proc/<pid>/maps` and no `mmap(…, 68753031168, …)` in an `strace -f` of the
+run.  Since `g_tsan_arena_base` stays null, `kame_tsan_arena_contains()` is
+false for every pointer, and **all 40 `JAVA_ALLOC`/`JAVA_FREE` sites are
+unconditionally no-ops** — they are guarded by that predicate.  The same
+holds for any §13.33/§13.36 edge placed inside the region path.
+
+**And the `.so` recipe is not the fix.**  A clean A/B — same source, same
+workload (`10 8 400`), only `-fsanitize=thread` differing — gives
+`mmap_new_region entered` without TSan and **0 warnings, no pool activity**
+with it.  In the `.so` layout libtsan's `operator new`/`delete` (linked
+first) preempt the pool's; in the inline layout the executable's definitions
+win, which is why the inline build's pool `operator new` *is* live.  So:
+
+* inline → pool `operator new` live, region/chunk path dead;
+* `.so` → pool bypassed entirely.
+
+Neither configuration is "TSan over a live pool", which is what §13.10
+promised and what §13.33 onward assumed.
+
+**Open question I did not resolve.**  If the inline build's pool `operator
+new` is live but `mmap_new_region` never runs, its chunk backing comes from
+some other path.  I did not find it, and I am not going to assert the pool
+is "unused" — the honest statement is narrower: *the region/arena path is
+dead in that build, so annotations placed there cannot fire.*
+
+**Two incidental defects.**
+1. `allocator.cpp` uses `pthread_mutex_*` / `PTHREAD_MUTEX_INITIALIZER` in the
+   §13.42 block without including `<pthread.h>`.  It compiles only when the TU
+   drags pthread in (`support_standalone.h` does); a bare
+   `g++ -I kamepoolalloc allocator.cpp` fails with five errors.  One-line fix.
+2. `-Wtsan`: **`atomic_thread_fence` is not supported under
+   `-fsanitize=thread`.**  The allocator has 6 `writeBarrier()` call sites and
+   **0** `readBarrier()` ones, so fence-published data (`m_idx` at :1599,
+   `m_owner_id` at :4463/:4495, `LargeAllocMeta` at :8149) is invisible to
+   TSan's model no matter how the allocation is annotated.  This is a second
+   ceiling independent of §13.41's, and it would bite even after the arena
+   works.
+
+**Also worth recording:** `rc=134` in every TSan run is glibc `free():
+invalid size`, **not** the test's own value-check assertion — it is present
+in the pre-arena binary too, so the TSan runs have been terminating on heap
+corruption rather than on the STM detector this whole time.
+
+**Recommendation unchanged from §13.41, now with a cost estimate.**  Making
+TSan viable needs (a) a build where the pool is the sole `operator new` *and*
+its region path is live, (b) the arena from §13.42 actually reached, and
+(c) the fence sites converted to load-acquire/store-release so TSan can see
+the ordering.  That is three fixes before the first admissible report.  The
+differential line (`-O3` / `-fipa-cp-clone`, two-holder-slot 15/15 `DIFF`,
+`drift=+0` 14/14) still costs nothing and still holds.
+
+*Process note:* twice in this section I started building a conclusion on an
+under-powered probe — a tiny workload without `strace -f`, then a global
+`new char[48]` that never reaches the pool — and had to retract mid-
+investigation.  Both were caught by a control run before reporting, which is
+the only reason they are footnotes rather than another §13.40.
