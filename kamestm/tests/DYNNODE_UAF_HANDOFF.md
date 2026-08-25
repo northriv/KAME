@@ -3709,3 +3709,51 @@ then re-run the **original** `-O3` + `.so` + gcc reproducer against the 42/42
 baseline.  If the rate moves, causation is established; if not, Pair B is a
 real defect that is not this fault, and Pair A becomes the candidate.  Runs
 2–6 are in flight to confirm the 5-pair structure is stable.
+
+### 13.48 Pair A adjudicated: two defects, two commits (bisectable)
+
+The allocator-owner read §13.47 asked for.  The overlap arithmetic
+(write 8 B @…0f8 ⊇ read 4 B @…0fc, with the read = `*(uint32_t*)(p-4)`
+and the write = `*(uint64_t*)(q-8)`) forces **p == q: both sides touch
+the SAME slot's header word** — the freer routing slot q's free while a
+claimer initialises slot q's header.  Verdict: **(i), a real defect —
+in fact two**, shipped as two commits so the causal batch can bisect:
+
+**(A) The relaxed claim load is the missing edge.**  §13.15's relaxed
+conversion bought load integrity, not ordering: a claimer that observes
+a freed bit through a RELAXED `m_flags` load gets visibility without
+happens-before, so its header write is unordered against the freer's
+last header read — exactly Pair A as TSan states it, and formal UB even
+where hardware behaves.  All four CAS-loop loads go relaxed → acquire
+(free on x86; arm64 pays `ldar` in the claim loops, accepted pending
+the verdict).
+
+**(B) The pre-CAS header write is a store to unowned memory, and it can
+clobber a LIVE slot.**  Two claimants computing candidates from the same
+`oldv` pick overlapping runs (a lowest-zero-run start is shared;
+constant-N clones make different-N claims of one chunk routine common at
+-O3).  Both write their `{bucket,SIZE}` header BEFORE their CAS; the
+loser's store can land AFTER the winner's CAS — the winner's live slot
+now carries the LOSER's size, and its eventual free mis-routes (wrong
+size class → freelist/bitmap corruption → the released-after-zero
+signature and libc-visible damage).  The old "write before the CAS so
+the CAS publishes it" rationale does not hold up: every header reader
+reaches the slot through the allocator's RETURN VALUE plus an
+application-level synchronized handoff, which orders a post-CAS write
+just as well.  The metadata now goes in AFTER CAS success.
+
+Note what (B) is: a plain LOGIC bug — no UB required, timing-window
+dependent (contention on one m_flags word with overlapping candidates),
+which is exactly the kind of window that codegen reshaping (ipa-cp-clone
+constant-N specialisation) widens or narrows without being the "cause"
+— consistent with every knob-tunes-rate-but-not-failure observation
+(§13.30) IF (B) is the fault, and with the -O2/clang total cleanliness
+if their windows round to zero.
+
+**Causal protocol (all-or-nothing, as always):** re-run the ORIGINAL
+gcc `-O3` + `.so` + forensic reproducer at HEAD (A+B+§13.46's Pair-B
+fix all in).  If 42/42 → 0: revert one commit at a time to name which
+of the three carries it.  If still failing: all three stay as correct
+fixes, and the TSan enumeration (runs 2–6, the three singletons) is the
+worklist.  Mac: ctest 18/18 both builds, tmin 3×40t clean on the
+patched pool.

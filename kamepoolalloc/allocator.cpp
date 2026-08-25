@@ -1826,35 +1826,41 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			int idx_cand = pflag - this->m_flags;
 			size_t bit_index = size_t(idx_cand) * sizeof(FUINT) * 8 + sidx;
 			slot_start = &this->mempool()[bit_index * ALIGN];
-			// Write the per-slot metadata BEFORE the CAS publishes the bit
-			// (the CAS is the release that publishes it to a freeing
-			// thread; the freer's acquire on the bitmap word synchronises
-			// with it).
-			if constexpr (ALIGN >= 1024u) {
-				// (§16) Full-usable mode: store (N<<8)|local_id in the
-				// chunk-header m_sizes[] array indexed by slot start bit.
-				// The slot's own bytes are 100 % user-usable — no borrow.
-				this->m_sizes[bit_index] = msize_word;
-				(void)hdr_word;
-			}
-			else {
-				// Borrow scheme — header at `slot_start - 8`:
-				//   * Bit 0 of word 0 (slot_start == mempool()):
-				//       slot_start - 8 = chunk_base + K_MAX - 8, the last
-				//       8 B of the metadata region (reserved tail after
-				//       m_flags[]; §15-shifted home — was chunk_base + 56
-				//       pre-shift, when mempool sat at +ALLOC_CHUNK_HEADER).
-				//   * Bit B > 0: slot_start - 8 lands in bit (B-1)'s last 8
-				//       bytes (universal reservation invariant — the prior
-				//       slot's user_area excludes its own last 8 B).
-				*reinterpret_cast<std::uint64_t *>(slot_start - 8) = hdr_word;
-				(void)msize_word;
-			}
 			// Always-CAS path (cf. FS=true sibling): TLS s_tls.my_chunk
 			// fast path removes the bit0-lock around chunk access, so
 			// a non-atomic store would torn-write under contention.
 			FUINT newv = oldv | ones; //filling with N ones (all user bits).
 			if(atomicCompareAndSet(oldv, newv, pflag)) {
+				// §13.48(B): the per-slot metadata is written AFTER the CAS
+				// establishes ownership.  It used to be written BEFORE the
+				// CAS "so the CAS publishes it" -- but every header reader
+				// reaches the slot through the ALLOCATOR'S RETURN VALUE and
+				// an application-level synchronized handoff (STM refcount
+				// release/acquire), which orders the header write anyway.
+				// The pre-CAS write, by contrast, was a store to memory this
+				// thread did NOT yet own: two claimants whose candidate runs
+				// overlap (constant-N clones make different-N claims on one
+				// chunk routine) both computed from the same oldv, and the
+				// LOSER's header store could land after the winner's CAS --
+				// clobbering the winner's live {bucket,SIZE} header so the
+				// slot's eventual free reads the wrong size and mis-routes
+				// (§13.47 Pair A's colliding header word, and the freelist /
+				// bitmap corruption class).
+				if constexpr (ALIGN >= 1024u) {
+					// (§16) Full-usable mode: (N<<8)|local_id in the
+					// chunk-header m_sizes[] array, indexed by start bit.
+					this->m_sizes[bit_index] = msize_word;
+					(void)hdr_word;
+				}
+				else {
+					// Borrow scheme — header at `slot_start - 8`:
+					//   * Bit 0 of word 0: chunk_base + K_MAX - 8 (reserved
+					//     tail after m_flags[]).
+					//   * Bit B > 0: bit (B-1)'s last 8 bytes (universal
+					//     reservation invariant).
+					*reinterpret_cast<std::uint64_t *>(slot_start - 8) = hdr_word;
+					(void)msize_word;
+				}
 				if(oldv == 0)
 					atomicInc( &this->m_flags_packed);
 				// (§max-n-gate) Widened m_flags_filled_cnt for FS=false:
