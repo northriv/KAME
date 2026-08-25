@@ -3638,3 +3638,74 @@ Two things this is, one thing it is not:
 
 Mac: both compile modes clean (TSan TU + bare), default Release ctest
 18/18; remaining plain owner writes are the construction stamp only.
+### 13.47 First real enumeration: 104 reports → 5 pairs, zero impossible. Two mechanisms, both in the free/reuse path
+
+Run 1 of the live-pool batch (`20 40 700`) completed — **`rc=66`**, which is
+TSan's "warnings were reported" exit, i.e. the run finished normally.  The
+`free(): invalid size` abort that ended every pre-§13.44 run is **gone**,
+consistent with §13.45's finding that it was an artifact of the inert-pool +
+TSan configuration.
+
+**The report set is finally an enumeration:**
+
+| | pre-§13.44 (§13.41) | now |
+|---|---|---|
+| reports | 255 | 104 |
+| **distinct pairs** | **105** | **5** |
+| singletons | 64 | 3 |
+| atomic-vs-atomic (impossible) | 22 | **0** |
+| with `Location is` | **0** | 80 |
+| vptr races | 5 | 0 |
+
+Five pairs, and 101 of the 104 reports fall in just two of them.
+
+**Pair A — 61×: slot header written while the same slot's size is read.**
+Addresses **overlap**: write of 8 B at `…0f8`, previous read of 4 B at `…0fc`.
+
+* read (first, T29): `size_of_static` `allocator.cpp:2060`
+  (`*(uint32_t*)(p-4)`) ← `PoolAllocatorBase::size_of` `:4281`
+  ← **`deallocate` `:3801`** ← `operator delete` ←
+  `fast_vector<lsp<Packet>>::destroy` (`fast_vector.h:231`) ←
+  `PacketList_::~PacketList_` (`transaction.h:105`) ← `Packet::~Packet`
+  (`transaction.h:252`) — the recursive `local_shared_ptr::reset()` teardown.
+* write (after, T3): `allocate_pooled` `allocator.cpp:1848`
+  (`*(uint64_t*)(slot_start-8) = hdr_word`) ←
+  `fast_vector<lsp<Packet>>::operator=` (`fast_vector.h:96`) ←
+  **`PacketList_` copy ctor** (`transaction.h:104`) ←
+  `reverseLookupWithHint` (`transaction_impl.h:1759`) ← `reverseLookup` ←
+  `Transaction::operator[]`.
+
+Both sides are `fast_vector<local_shared_ptr<Packet>>` inside `PacketList_`
+— **habitat 3** of §13.28, the one never audited beyond single-thread
+semantics.  One thread frees a slot and another is handed it with **no
+happens-before edge TSan can see**.  `deallocate` reads the size header to
+route the free; if that header has already been rewritten by a concurrent
+allocation, the free routes to the wrong size class — freelist/bitmap
+corruption, which is the "released after count reached zero" signature and a
+libc-visible corruption both.
+
+*I am not calling this the fault yet.*  It is one of two things, and the
+allocator owner should adjudicate: **(i)** a genuinely missing release/acquire
+on the cross-thread free → reuse handoff (a real bug: the reusing thread may
+observe stale contents), or **(ii)** a remaining annotation gap on that
+specific handoff path, the §13.36 seams not covering free→realloc.  The
+overlapping-address detail favours (i) — the two accesses touch the *same
+header word*, not merely the same cache line — but that is an argument, not
+a proof.
+
+**Pair B — 40×: `m_owner_id`,** exactly as §13.45 described from the
+small-workload run (`:3366` plain store at thread exit ↔ `:3855` relaxed load
+in the deallocate routing test).  It reproduces at scale.  Unlike Pair A this
+one is unambiguous: a plain 4-byte store concurrent with any access is a race
+by the model, no annotation question arises.
+
+**Three singletons:** `:8354 ↔ prv:252`, `:8354 ↔ prv:240`,
+`:3004 ↔ prv:346`.  Left un-analysed pending more runs — with 1 occurrence
+each they may not recur.
+
+**Next.**  Pair B is cheap and unambiguous, so test it first and
+*differentially*: make `:3366` a release store and `:3855` an acquire load,
+then re-run the **original** `-O3` + `.so` + gcc reproducer against the 42/42
+baseline.  If the rate moves, causation is established; if not, Pair B is a
+real defect that is not this fault, and Pair A becomes the candidate.  Runs
+2–6 are in flight to confirm the 5-pair structure is stable.
