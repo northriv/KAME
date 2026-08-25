@@ -266,6 +266,35 @@ inline T atomicFetchOr(T *target, T value) noexcept {
 }
 #endif
 
+//! §13.32 TSan allocator annotations.  A custom allocator recycles
+//! addresses; without a free→alloc happens-before edge TSan reports a
+//! false race for every reuse (old owner's accesses vs new owner's) and
+//! attributes racing addresses to no allocation ("Zero Location is...").
+//! Standard cure: __tsan_release(p) when a block leaves the program
+//! (deallocate entry), __tsan_acquire(p) when it is handed out (the
+//! new_redirected wrappers).  Compiled out entirely unless the build IS
+//! TSan-instrumented; production codegen is untouched (the wrappers exist
+//! only under TSan -- otherwise the entry points keep their names).
+#if defined(__SANITIZE_THREAD__)
+#define KAME_TSAN_ENABLED 1
+#endif
+#if !defined(KAME_TSAN_ENABLED) && defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+#define KAME_TSAN_ENABLED 1
+#endif
+#endif
+#ifndef KAME_TSAN_ENABLED
+#define KAME_TSAN_ENABLED 0
+#endif
+#if KAME_TSAN_ENABLED
+#include <sanitizer/tsan_interface.h>
+#define KAME_TSAN_ACQUIRE(p) do { if(p) __tsan_acquire(p); } while(0)
+#define KAME_TSAN_RELEASE(p) do { if(p) __tsan_release(p); } while(0)
+#else
+#define KAME_TSAN_ACQUIRE(p) ((void)0)
+#define KAME_TSAN_RELEASE(p) ((void)0)
+#endif
+
 //! Relaxed atomic load of a PLAIN-typed shared word (§13.15/§13.17 DRF
 //! migration).  GNU: __atomic_load_n (defined behavior, TSan-visible).
 //! MSVC: an aligned volatile scalar read -- the idiomatic MSVC spelling
@@ -3183,7 +3212,12 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept;
 //! still forces a frame, but the lean body is smaller — measured +12% at 64 B.)
 void *new_redirected_cold(unsigned int bucket, std::size_t size);
 
-inline void *new_redirected(std::size_t size) {
+#if KAME_TSAN_ENABLED
+#define KAME_NEW_REDIRECTED_ new_redirected_body_
+#else
+#define KAME_NEW_REDIRECTED_ new_redirected
+#endif
+inline void *KAME_NEW_REDIRECTED_(std::size_t size) {
 	// LEAN hot path: small size + owner-freelist HIT — a leaf (kame_page()
 	// + freelist pop, no call), so no prologue on Linux.  Both off-ramps are
 	// TAIL-CALLS to keep the hot path frame-free:
@@ -3263,6 +3297,17 @@ inline void *new_redirected(std::size_t size) {
 	}
 	return new_redirected_cold(bucket, size);
 }
+#if KAME_TSAN_ENABLED
+//! §13.32: single hand-out choke point under TSan -- every allocation
+//! route (freelist pop, FIFO take, cold, large tail-call) returns
+//! through here, so one acquire covers them all.
+inline void *new_redirected(std::size_t size) {
+	void *p = new_redirected_body_(size);
+	KAME_TSAN_ACQUIRE(p);
+	return p;
+}
+#endif
+#undef KAME_NEW_REDIRECTED_
 
 //void* operator new(std::size_t size) throw(std::bad_alloc);
 //void* operator new(std::size_t size, const std::nothrow_t&) throw();

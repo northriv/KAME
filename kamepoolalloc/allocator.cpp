@@ -3771,6 +3771,9 @@ int kame_poison_decode(unsigned long long word, kame_freerec *out) {
 
 KAME_ALWAYS_INLINE void
 PoolAllocatorBase::deallocate(void *p) noexcept {
+	// §13.32: the block leaves the program here -- publish the owner's
+	// accesses so the next hand-out's acquire orders them (TSan only).
+	KAME_TSAN_RELEASE(p);
 #ifdef KAME_POISON_FORENSIC
 	// The ONE choke point every small-pool free passes through (kame_free,
 	// operator delete, deallocate_pooled_or_free all land here); hooking
@@ -4895,7 +4898,17 @@ void *new_redirected_large(std::size_t size) noexcept {
 //
 // Pre-activation / post-teardown: like new_redirected, fall through to
 // posix_memalign so TLS dtor-time allocs etc. stay safe.
+#if KAME_TSAN_ENABLED
+static void *new_redirected_aligned_body_(std::size_t alignment, std::size_t size) noexcept;
 void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
+	void *p = new_redirected_aligned_body_(alignment, size);
+	KAME_TSAN_ACQUIRE(p);
+	return p;
+}
+static void *new_redirected_aligned_body_(std::size_t alignment, std::size_t size) noexcept {
+#else
+void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
+#endif
     // bucket_for_aligned returns ALLOC_NUM_BUCKETS when no bucket fits.
     unsigned int bucket = bucket_for_aligned(alignment, size);
     if(bucket < (unsigned)ALLOC_NUM_BUCKETS &&

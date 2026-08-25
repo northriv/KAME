@@ -3008,3 +3008,34 @@ Also worth capturing while there: the non-tripwire death signature
 (which assert / which SIGSEGV site) — 11 failures vs 8 tripwires says
 some runs die without ever touching a tripwire, and that signature is
 the closest thing we have to the fault's direct voice.
+
+### 13.33 The §13.32 prerequisite, installed: TSan allocator annotations
+
+The fourth state is closed.  Under a TSan-instrumented build (and ONLY
+then — `__SANITIZE_THREAD__` / `__has_feature(thread_sanitizer)`, so
+production codegen is untouched and the entry points keep their exact
+names and shapes otherwise):
+
+- **hand-out**: `new_redirected` gains a single-choke-point wrapper
+  (`new_redirected_body_` conditional rename) issuing
+  `__tsan_acquire(p)` — every route (freelist pop, L0 FIFO/STASH take,
+  cold, large tail-call) returns through it, so one acquire covers all;
+  `new_redirected_aligned` gets the same wrapper pattern at its
+  definition.
+- **free**: `PoolAllocatorBase::deallocate` — the one entry every free
+  passes — issues `__tsan_release(p)` first thing (a release on a
+  foreign pointer is a harmless extra edge).
+
+This gives TSan the free→alloc happens-before that recycled addresses
+need, which should collapse the 1 573 Zero-Location reports and the
+vptr/atomic-vs-atomic impossibilities.  Verified on the Mac: default
+Release build byte-for-byte unaffected path (ctest 18/18), the TSan TU
+compiles with both gcc-style and clang-style gates, and the object
+references both `__tsan_acquire` and `__tsan_release`.
+
+Residual seams if Zero-Location noise persists (extend the same two
+macros there): the LRC chunk-recycle push/pop (a region reused as a NEW
+chunk without munmap keeps stale shadow), and realloc's grow-in-place
+path (same identity, likely fine).  With this in place §13.31's decision
+tree is live again — outcome 2 (TSan silent, run still fails) now
+genuinely seals the gcc verdict for executed paths.
