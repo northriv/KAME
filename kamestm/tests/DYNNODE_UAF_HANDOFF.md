@@ -2971,3 +2971,40 @@ Two secondary observations:
 **Tally: six named mechanisms refuted by mechanical test.**  The §13.14
 boundary has still never moved.  The one lead that came from measurement
 rather than reasoning — §13.22's deleted increment — is now closed too.
+
+### 13.31 The TSan-over-the-pool run is now THE move — decision tree
+
+With six named mechanisms refuted and §13.30's observation that three
+independent knobs tune the tripwire RATE without touching the failure
+rate (the anomalies are a symptom cloud, the fault sits where the knobs
+do not reach), mechanism-guessing has exhausted its ladder.  What
+remains is the §13.21 dynamic audit, which enumerates instead of
+guessing: TSan with the pool COMPILED IN and instrumented
+(`-DKAMEPOOLALLOC_NO_LIBC_INTERPOSE`, no `.so`, no `KAME_RC_TRACE` —
+recipe in §13.21).  The pool's `__sync`/`__atomic` ops are TSan-visible
+sync, so claim/free handoffs form recognized happens-before; races on
+POOL METADATA and on STM/user data alike get named with both stacks.
+
+Practicalities: build the failing shape (gcc, `-O2 -fipa-cp-clone` or
+`-O3` — TSan composes with either; keep 40 threads).  TSan is 5–15×
+slower, but at 100 %-failure-per-run a handful of runs decides.
+`TSAN_OPTIONS="halt_on_error=0 log_path=tsan_pool history_size=7"`.
+
+Decision tree:
+- **Reports on pool/STM PLAIN fields** → the enumeration we have been
+  missing; fix per §13.20's classification (relaxed loads/stores), rerun
+  — repeat until TSan-silent, then the reproducer verdict is clean.
+- **TSan silent AND the run still fails** → the program is
+  DRF-on-executed-paths with the pool included, and the compiled
+  behavior is nonconforming: the gcc-bug verdict is effectively sealed
+  (finish with the §13.20 static ratchet for the unexecuted-path
+  caveat, and take the §13.22/§13.30 asm exhibits — real deletion,
+  proven non-causal, but proof the pass rewrites this TU unsoundly-
+  looking — into the report as supporting material).
+- **TSan itself perturbs the fault away** (runs stop failing under
+  TSan) → still informative: the fault needs a timing TSan destroys;
+  record it and fall back to the static ratchet as the audit arm.
+Also worth capturing while there: the non-tripwire death signature
+(which assert / which SIGSEGV site) — 11 failures vs 8 tripwires says
+some runs die without ever touching a tripwire, and that signature is
+the closest thing we have to the fault's direct voice.
