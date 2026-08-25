@@ -3934,3 +3934,56 @@ the fault reproduces harder and produces SIGSEGV rather than a caught
 assertion — a segfault carries a faulting address and a stack, which is
 strictly more evidence than the value-check gives.  That is the cheapest
 available upgrade to the signal, and it needs no new instrumentation.
+
+### 13.52 The residual pair fixed — and a unification hypothesis for the
+### suppressor set, testable with one census
+
+**Code**: §13.51's residual TSan pair (`orphan_chain_scrub`'s plain
+`m_flags_packed & MASK_CNT` read racing the `__sync` RMWs) is fixed with
+an acquire load, plus its two same-class siblings found by census (the
+DLL-neighbour emptiness test and `try_adopt_orphan`'s precondition).
+Correctness fixes per §13.49's verdict — not chased as the cause.
+
+**The suppressor pattern, unified into one testable hypothesis.**  Sort
+everything by whether it can observe the fault:
+
+| suppresses (0 failures) | does not suppress |
+|---|---|
+| gcc `-O2` | KAME_RC_TRACE tracer |
+| clang `-O3` | forensic poison + free records |
+| `-fno-ipa-cp-clone` | pool-event ring |
+| arm64 | §13.46/§13.48 race fixes |
+| **ASan** (§13.51, p=0.0023) | 2-vs-4-core affinity (rate only) |
+| TSan (runs complete) | |
+
+Every suppressor CHANGES THE CLONE SET of the allocator TU (different
+compiler, different pass set, different arch — and sanitizer
+instrumentation bloats function bodies, which flips inlining/cloning
+profitability heuristics).  Every non-suppressor leaves the clone set
+alone (side-table writes, extra data, scheduling).  So the cheap
+hypothesis is that **ASan/TSan suppression is the `-fipa-cp-clone` flag
+effect in disguise** — not "no window into the fault" but "the fault's
+codegen precondition evaporated".  One command decides it, no runs:
+
+```
+ARM_A_FLAGS="-O3" ARM_B_FLAGS="-O3 -fsanitize=address" \
+  kamepoolalloc/tests/asm_diff_ipa_clone.sh /tmp/asan_census g++
+grep -c constprop /tmp/asan_census/{A,B}/sym/ -r   # A ≈ 585, B ≈ ?
+```
+
+If the ASan arm's `.constprop` count collapses toward the
+`-fno-ipa-cp-clone` value (~12), the suppressor set has ONE explanation
+and the fault's necessary condition sharpens to "the -O3 clone set of
+allocator.cpp, on x86-64 gcc" — with §13.49 having eliminated its
+TSan-visible races, the remaining readings are (a) a genuine
+gcc wrong-code in one of those clones (the §13.22-style census, now
+run at `-O3` vs `-O3 -fno-ipa-cp-clone` with the §13.26 caller-unit
+correction, is the exhibit hunt), or (b) a latent app/pool bug whose
+window only those clones' instruction scheduling opens (the taskset
+SIGSEGVs are the cheapest new evidence for this — a faulting address
+plus stack, strictly more than the assertion gives).
+
+**Endorsed**: §13.51's taskset recommendation.  With 4 cores the fault
+speaks in SIGSEGV — take the faulting-address/stack pairs (forensic
+build, so RC-FREEREC and RC-POOLEV annotate each one) before any more
+instrument-building.

@@ -2778,7 +2778,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 		auto *nx = s_tls.my_chunk->m_dll_next;
 		for(int released = 0; nx && released < 2; ) {
 			auto *nxnext = nx->m_dll_next;
-			if((nx->m_flags_packed & PoolAllocator<ALIGN, DUMMY, DUMMY>::MASK_CNT) != 0)
+			if((atomicLoadAcquire(&nx->m_flags_packed)
+			        & PoolAllocator<ALIGN, DUMMY, DUMMY>::MASK_CNT) != 0)   // §13.52
 				break;  // hit a non-empty
 			// `nx` is `PoolAllocator<ALIGN, DUMMY, DUMMY> *` (same
 			// type as `s_tls.my_chunk`).  Use the current template's
@@ -3154,7 +3155,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
 
 	// Quick pre-check: bail if not empty.  Avoids the atomicFetchAnd
 	// (and the BIT_OWNED clear that'd hand release to cross-thread).
-	if((palloc->m_flags_packed & MASK_CNT) != 0) return false;
+	if((atomicLoadAcquire(&palloc->m_flags_packed) & MASK_CNT) != 0) return false;   // §13.52
 
 	uint32_t old = atomicFetchAnd(&palloc->m_flags_packed,
 	                              static_cast<uint32_t>(~BIT_OWNED));
@@ -8383,7 +8384,7 @@ void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_scrub() noexcept {
 	local_shared_ptr<PoolAllocator> cur(s_orphan_chain_head());
 	while(cur) {
 		local_shared_ptr<PoolAllocator> nxt(cur->m_orphan_next);
-		if((cur->m_flags_packed & MASK_CNT) == 0u) {           // dead orphan → unlink
+		if((atomicLoadAcquire(&cur->m_flags_packed) & MASK_CNT) == 0u) {   // §13.52: races the __sync RMWs; acquire orders the drain
 			bool ok = pred ? pred->m_orphan_next.compareAndSet(cur, nxt)
 			               : s_orphan_chain_head().compareAndSet(cur, nxt);
 			if(ok) { cur = nxt; continue; }                    // unlinked; pred unchanged
