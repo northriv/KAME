@@ -38,6 +38,23 @@
 > which is consistent with the one clean arm in §6 (cross-thread batch
 > `cap = 1`, 0/16) — that path is what returns units to the bitmap.
 >
+> **`-fipa-cp-clone` governs the double allocation itself, not just its
+> lethality.**  Interleaved on one box, one binary per arm with the pool
+> rpath-pinned (no `LD_LIBRARY_PATH` ambiguity — the test binaries carry
+> RPATH, which defeats it):
+>
+> | pool build | double allocations |
+> |---|---|
+> | `-O3` | **5 / 8** |
+> | `-O3 -fno-ipa-cp-clone` | **0 / 8** |
+>
+> That mirrors the flag's effect on the crash (43/100 vs 0/167) at a
+> detector with roughly double the event rate, so the two are one
+> phenomenon rather than a corruption plus a separate lethality switch.
+> It does NOT by itself say the flag is a miscompile: an exposed latent
+> race and a wrong-code bug both fit these numbers, and §5's retraction of
+> the miscompile claim is not overturned by them.
+>
 > Still open, and not claimed here: whether this fully accounts for the
 > ILP32 `objcnt != 0` signature, and whether an STM lifetime bug also
 > exists independently.  §3–§6 (the reproducer, the ablation, the
