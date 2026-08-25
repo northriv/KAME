@@ -4383,3 +4383,66 @@ wrappers whose `local.subpackets[c] == nullptr`) needed "when hard-link
 references coexist with `is_bundle_root` bundles" — and **this reproducer
 carries a hard link by construction** (`p2` under `gn2`).  That is the next
 thing to test, and it is an STM-side question, not an allocator one.
+
+### 13.60 Reading `bundle` Phase 1 around the named writer — the reference
+### `newpacket` is, and a deterministic detector for it
+
+§13.59 named the writer.  The remaining question ("why is an element
+already dead?") is STM-side, so here is the source read of the four
+lines above `:2870`:
+
+```cpp
+local_shared_ptr<PacketWrapper> superwrapper(              // :2861 pins a COPY
+    make_local_shared<PacketWrapper>( *supscope, bundle_serial));
+local_shared_ptr<Packet> &newpacket(                       // :2863 a REFERENCE,
+    reverseLookup(superwrapper->packet(), true, SerialGenerator::gen()));
+...
+newpacket->subpackets().reset(new PacketList( *newpacket->subpackets()));  // :2870
+```
+
+**`newpacket` is a reference to a slot inside whatever list the lookup
+navigated to — the frame owns no counted reference to that list.**  What
+it pins is `superwrapper` (hence the root packet).  That is sound only
+while the returned slot is inside `superwrapper->packet()`'s own tree.
+
+`reverseLookupWithHint` navigates by the child wrapper's `bundledBy`
+back-reference chain, and it validates NODE identity at the end
+(`p->node().m_link != linkage → nullptr`) — but **not list ownership**.
+With a hard link (a child with two parents — which this reproducer builds
+by construction, `p2` under `gn2`) the hint chain can resolve through the
+SIBLING parent, returning a slot in a list that only the sibling's
+wrapper keeps alive.  When that wrapper dies (the §13.57/§13.59 last
+release is exactly `~PacketWrapper`), the list dies with it, its dtor
+releases every element (`drift=+0`: accounting correct at that moment),
+and Phase 1's copy then increments elements from zero — the
+INC-FROM-ZERO that fired, from two threads, on one `Packet`.
+
+That is a complete, single mechanism consistent with **every** surviving
+observation: the site (§13.59), the shape (§13.47 Pair A: PacketList copy
+ctor allocating / PacketList dtor freeing), habitat 3 (§13.28), the
+victim identity (§13.57), `drift=+0` (§13.5), the two-holder result
+(Q1 15/15), the hard-link caveat already in CLAUDE.md, and — because the
+window is a µs-scale race between the sibling wrapper's death and Phase
+1's copy — the timing distribution (§13.7) and the many-small-windows
+dose-response (§13.55).
+
+**Deterministic detector, this commit** (`KAME_RC_TRACE_ESCAPE_CHECK=1`,
+tracer builds): after the `:2863` lookup, walk `superwrapper->packet()`'s
+tree and check that `&newpacket` is a slot within it; if not, record an
+`OP_LOOKUP_ESCAPE` anomaly with the site.  A LOGIC condition — no race
+needed, so it fires wherever the precondition occurs, exactly like the
+MINE-SHARED detector.
+
+**Mac result: 0 escapes** (1×8t + 5×40t, all clean).  Note what that
+does and does not mean: arm64 never reproduces the fault either
+(§13.6/§13.53), so a null here is consistent with the hypothesis; the
+check needs to run **on Ubuntu**, ideally on the `-O2 -fipa-cp-clone`
+proxy that produced §13.59's capture, where it is decisive:
+- escape fires → the mechanism is confirmed and the fix is scoped (pin
+  the list: hold a `local_shared_ptr<PacketList>` for the returned
+  slot's container across Phase 1, or reject a hint that leaves the
+  pinned tree and fall back to `forwardLookup`);
+- escape never fires while INC-FROM-ZERO still does → the dead element
+  arrives some other way, and the next question is which list the victim
+  belonged to (dump `&newpacket`'s container identity alongside the
+  tripwire).

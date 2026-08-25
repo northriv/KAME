@@ -115,6 +115,12 @@ enum Op : unsigned {
     //! state.  A logic condition, not a race: fires deterministically on
     //! any host where the precondition occurs.
     OP_MINE_SHARED,
+    //! §13.60 detector: a lookup returned a reference to a PacketList slot
+    //! that is NOT reachable from the packet tree the caller pinned -- i.e.
+    //! the caller holds no counted reference to the list it is about to
+    //! mutate and copy.  Logic condition; fires deterministically wherever
+    //! the precondition occurs.
+    OP_LOOKUP_ESCAPE,
 };
 //! Compile-time type identification: `__PRETTY_FUNCTION__` of a function
 //! template names T, so every traced event can carry the type it belongs

@@ -1552,6 +1552,13 @@ private:
     //! only; no data, no virtuals -- layout unchanged.
     static void rcMineCheck(const local_shared_ptr<Packet> &trroot,
                             const Packet *target, const void *site) noexcept;
+    //! §13.60: is \a slot (a `local_shared_ptr<Packet>*` a lookup returned)
+    //! a slot of a PacketList reachable from \a root -- i.e. does the
+    //! caller's pin on \a root actually keep that list alive?
+    static bool rcSlotWithin_(const local_shared_ptr<Packet> &root,
+                              const void *slot) noexcept;
+    static void rcLookupEscapeCheck(const local_shared_ptr<Packet> &root,
+                                    const void *slot, const void *site) noexcept;
     static bool rcTreeContains_(const local_shared_ptr<Packet> &root,
                                 const Packet *target) noexcept;
 #endif

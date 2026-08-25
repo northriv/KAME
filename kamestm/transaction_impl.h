@@ -1689,6 +1689,32 @@ Node<XN>::rcTreeContains_(const local_shared_ptr<Packet> &root,
     return false;
 }
 template <class XN>
+bool
+Node<XN>::rcSlotWithin_(const local_shared_ptr<Packet> &root,
+    const void *slot) noexcept {
+    if(static_cast<const void *>( &root) == slot) return true;
+    if( !root || !root->size()) return false;
+    for(int i = 0; i < root->size(); ++i) {
+        const local_shared_ptr<Packet> &sp(( *root->subpackets())[i]);
+        if(static_cast<const void *>( &sp) == slot) return true;
+        if(sp && rcSlotWithin_(sp, slot)) return true;
+    }
+    return false;
+}
+template <class XN>
+void
+Node<XN>::rcLookupEscapeCheck(const local_shared_ptr<Packet> &root,
+    const void *slot, const void *site) noexcept {
+    static const bool enabled = [] {
+        const char *e = getenv("KAME_RC_TRACE_ESCAPE_CHECK");
+        return e && e[0] && e[0] != '0';
+    }();
+    if( !enabled || !slot || !root) return;
+    if( !rcSlotWithin_(root, slot))
+        kame_rc_trace::anomaly(slot, kame_rc_trace::OP_LOOKUP_ESCAPE, 0,
+            site, kame_rc_trace::type_name_<Packet>(), nullptr);
+}
+template <class XN>
 void
 Node<XN>::rcMineCheck(const local_shared_ptr<Packet> &trroot,
     const Packet *target, const void *site) noexcept {
@@ -2863,6 +2889,20 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             reverseLookup(superwrapper->packet(), true, SerialGenerator::gen()));
         assert(newpacket->size());
         assert(newpacket->missing());
+#ifdef KAME_RC_TRACE
+        // §13.60: `newpacket` is a REFERENCE into whatever list the lookup
+        // navigated to.  Phase 1 immediately mutates it
+        // (`subpackets().reset(...)`) and copies the list, incrementing every
+        // element -- the §13.59 resurrection site.  That is only sound if the
+        // slot lives in a list this frame PINS, i.e. one reachable from
+        // `superwrapper->packet()`.  With a hard link the bundledBy hint can
+        // navigate into a SIBLING parent's subtree, whose lists nothing here
+        // keeps alive; when that parent's wrapper dies the reference dangles
+        // and the copy resurrects dead elements.  Deterministic check.
+        rcLookupEscapeCheck(superwrapper->packet(),
+            static_cast<const void *>( &newpacket),
+            __builtin_return_address(0));
+#endif
 
         STRICT_assert(s_serial_abandoned != newpacket->subpackets()->m_serial);
 
