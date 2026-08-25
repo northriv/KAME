@@ -3294,3 +3294,68 @@ Recorded at length because this is the second time in this section a partial
 or unverified read produced a conclusion that had to be withdrawn (§13.21's
 flag that did nothing, and now this).  Both were caught, but only after being
 reported.
+
+### 13.41 The TSan-over-the-pool avenue has a ceiling: no shadow reset on reuse, so it cannot converge
+
+The six-run batch finished: **51, 44, 43, 48, 21, 48** warnings (all `rc=134`).
+Aggregated: **255 reports over 105 distinct pairs, 64 of them singletons**,
+22 atomic-vs-atomic.  Eight pairs recur in >=5 of 6 runs, led by
+`atomic_smart_ptr.h:1903 <-> transaction_impl.h:1320` (6/6, 12x).  So the
+residue is *stable*, not run-to-run noise — which pointed at a specific
+un-annotated seam, per §13.40.
+
+It is not a seam.  Two mechanical checks close this avenue:
+
+**(a) Zero `Location is` attributions in all 255 reports** — same as the
+unannotated run (§13.34).  And the impossible pairs and the ordinary pairs
+draw from *the same address prefixes* (`0x7fff70..`–`0x7fffd4..`); there is no
+region that is attributed and another that is not.  TSan has no allocation
+record for any pool address.
+
+**(b) The public TSan interface has no shadow-reset call.**  Checked against
+`/usr/lib/gcc/x86_64-linux-gnu/15/include/sanitizer/tsan_interface.h`: the
+exported user API is `__tsan_acquire`/`__tsan_release`, the `__tsan_mutex_*`
+family, the fiber family, and report accessors.  Nothing equivalent to
+`__tsan_malloc`/`__tsan_free`.  `common_interface_defs.h` offers only the
+contiguous-container annotations (an ASan-side facility).
+
+Together those give the mechanism.  `__tsan_acquire`/`__tsan_release` add
+happens-before *edges*; they never reset *shadow*.  When a byte is freed by
+thread A and re-carved to thread B, B's write meets A's stale shadow entry
+for that address — a race is reported between two accesses that never
+coexisted, and it reproduces stably because the carve pattern is stable.
+That is exactly the observed signature: repeatable atomic-vs-atomic pairs,
+no location attribution, a long singleton tail.  §13.36's seam annotations
+were not wrong, and they did real work (5412 -> ~45); they are simply
+**insufficient in kind**.  No number of additional acquire/release edges
+resets shadow, so adding more cannot drive the residue to zero.
+
+This corrects §13.40's reading.  The problem is not that annotation coverage
+is incomplete — it is that the available annotation *primitive* cannot express
+"this storage is fresh".  Under that ceiling, **no report in the set is
+individually trustworthy**, including the `~PacketWrapper` / `bundle:2840` vs
+`:2870` pair.  §13.31's decision tree therefore stays un-entered, and
+outcome 1 was never actually reached.
+
+**The one escape hatch, and its cost.**  `libtsan.so` *does* export a
+shadow-resetting pair — `__tsan_java_alloc` / `__tsan_java_free`
+(`MemoryResetRange` / `MemoryRangeFreed` internally), plus `__tsan_java_move`.
+They ship without a header on this install but are declarable by hand.  The
+blocker is `__tsan_java_init(heap_begin, heap_size)`: it registers **one
+contiguous** heap span, and every annotated pointer must fall inside it.
+kamepoolalloc does not have one — it takes repeated 32 MiB regions
+(`ALLOC_MIN_MMAP_SIZE`, tracked per-index and derived by masking any in-region
+pointer), at whatever addresses mmap returns.  Using the java API therefore
+requires a TSan-only build mode that reserves a single large VA span up front
+and carves all regions from it (`PROT_NONE` reserve + commit-on-demand), so
+that `__tsan_java_init` can cover it.  That is a real change to the region
+layer, not an instrumentation add-on.
+
+**Recommendation.**  Do not spend further effort widening acquire/release
+coverage — the ceiling is structural.  Either commit to the single-arena TSan
+build so `__tsan_java_alloc`/`_free` can reset shadow on carve and recycle, or
+drop TSan and return to the differential evidence that has never moved: the
+`-O3` / `-fipa-cp-clone` separation (§6, §7), the two-holder-slot result
+(Q1 15/15 `DIFF`), and `drift=+0` 14/14.  Of the two, the differential line is
+cheaper and has produced every boundary that still stands; the TSan line
+would need the arena work before it produces anything admissible at all.
