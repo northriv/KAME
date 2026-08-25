@@ -5084,3 +5084,66 @@ app build (`kame.pro`) — the change is header-only inside `kamestm/`, and
 `libkame`/module compilation of that header is exercised on Ubuntu; the
 GenMC suites (unaffected: they model the allocator, not this path); and
 the reproducer itself, which does not fire on arm64.
+
+### 13.71 FIXED still crashes → the same class, audited again: one candidate
+### refuted by reading, one narrower case closed by a free hardening
+
+`FIXED` at 3/30 vs `BASE` 30% (p = 0.235) is exactly what §13.55's
+graded dose-response predicts if §13.68 closed **one of several** windows
+of the same class, so the audit continued on the generalisation:
+*a reference or pointer into a packet / list held across a point where a
+wrapper can die.*
+
+**Verified first that §13.68 covers all of `unbundle`'s callers**: three
+call sites, two pass `oldsubpacket = nullptr` (the branch that was fixed),
+the third passes `&tr.m_oldpacket` — a `Transaction` member, alive by
+construction, and it takes the other branch.  No further exposure there.
+
+**The bundle-side candidate, and its honest resolution.**  Phase 1 binds
+two REFERENCES into the packet it is building (`:2816-2817`):
+
+```cpp
+local_shared_ptr<PacketList> &subpackets(newpacket->subpackets());
+shared_ptr<NodeList>        &subnodes(newpacket->subnodes());   // = subpackets()->m_subnodes
+```
+
+`subpackets` is used only through Phase 3 (`:2902`), before anything can
+die — clean.  `subnodes` is used again at **`:3050`, after Phase 4 and
+after `supscope.set_view(std::move(superwrapper))` drops the last holder
+of the Phase-1 wrapper**.  Chasing whether that dangles:
+
+- **Root path (is_bundle_root): SAFE, and the reason is subtle** —
+  Phase 4's `reverseLookup` takes the self-alias branch, whose only
+  clone is the *payload-level* `make_local_shared<Packet>(**foundpacket)`.
+  That copy is SHALLOW: it shares `m_subpackets`, so the PacketList that
+  actually owns `m_subnodes` survives the Phase-1 packet's death.  I had
+  this written up as a second use-after-free before tracing
+  `Packet::subnodes()` through `subpackets()` — it would have been the
+  second false finding in this section, and the trace is what stopped it.
+- **Non-root path: NOT excluded** — there `reverseLookupWithHint`'s
+  copy_branch does the *list-level* clone
+  (`subpackets().reset(new PacketList(...))`), which REPLACES the very
+  list `subnodes` points into, and nothing else need hold the old one.
+
+Rather than argue over which branch the reproducer reaches, `:3050` now
+reads the children through the **live view** —
+`supscope->packet()->subnodes()` — which is valid in every branch by
+construction (the view was just installed), names the same children (the
+clone shares the NodeList), and **costs nothing**: no new atomic
+operation, no allocation, no topology special case.  Same shape of remedy
+as §13.68: stop holding a reference across a lifetime edge you do not
+own.
+
+Verified: `transaction_dynamic_node_test` 10/10, full `tests/` tree
+**40/40**.
+
+**What this does and does not claim.**  It closes a reachable
+dangling-reference path; it is NOT claimed to be the remaining 10 %.  The
+discriminator is on the Ubuntu side and needs no new instrumentation: the
+FIXED arm's surviving SIGSEGVs already carry §13.58's `RC-SEGV` block
+(fault address, candidate registers, `RC-PRIOR-RELEASE-FAST`,
+`RC-RECENT`, `RC-FREEREC`).  **Reading one of those tells us whether the
+survivor is this class again (a member read out of freed storage, as in
+§13.57) or something new** — please paste one when the higher-workload
+batch lands, and the higher-power BASE/FIXED comparison at
+`20 40 700` will also say whether §13.68 moved the rate at all.

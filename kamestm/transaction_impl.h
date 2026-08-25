@@ -3190,8 +3190,21 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // Update supscope.view to track.
         supscope.set_view(std::move(superwrapper));
 
-        for(unsigned int i = 0; i < subnodes->size(); i++) {
-            shared_ptr<Node> child(( *subnodes)[i]);
+        // §13.71: read the children through the LIVE view, not through
+        // Phase 1's `subnodes` reference.  `subnodes` binds to
+        // `P->subpackets()->m_subnodes`, i.e. a member of the PacketList
+        // Phase 1 installed -- and Phase 4's `reverseLookup(..., copy_branch)`
+        // can REPLACE that list (`subpackets().reset(new PacketList(...))`
+        // in reverseLookupWithHint) on the non-root path, while the
+        // set_view above drops the last holder of the packet that owned it.
+        // The root path happens to be safe (the payload-level clone is
+        // shallow and shares the list), but that is an accident of which
+        // branch runs, not an invariant.  `supscope`'s view is live here by
+        // construction, its packet's subnodes name the same children, and
+        // reading them costs nothing extra.
+        const shared_ptr<NodeList> &subnodes_live(supscope->packet()->subnodes());
+        for(unsigned int i = 0; i < subnodes_live->size(); i++) {
+            shared_ptr<Node> child(( *subnodes_live)[i]);
             //this tagging significantly increased a commiting rate.
             child->m_link->tags_successful_cas(started_time);
         }
