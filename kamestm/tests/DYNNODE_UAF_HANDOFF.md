@@ -3245,3 +3245,52 @@ hottest function in the reproducer, so coincidental address reuse inside one
 function cannot be excluded from a single run.  The batch is running to six;
 if both survivors recur with `bundle:2840` / `:2870` across runs, that is the
 enumeration §13.21 was built to produce.
+
+### 13.40 Correction to §13.39 — the "2 survivors" was a partial log; the real count is ~51, still scattered
+
+**§13.39's headline number was wrong and the conclusion drawn from it does not
+stand.**  The "2 warnings" was read from a log while the run was still
+executing.  Run 1 completed with **51** (46 data race + 5 vptr); run 2 reached
+20 before this was written.  So the collapse is **5 412 → ~51**, not → 2.
+
+**And the survivors do not converge.**  44 distinct pairs across 51 reports,
+maximum 3 occurrences for any pair:
+
+```
+  3  atomic_base.h:358  <->  atomic_base.h:477      <-- atomic vs atomic
+  3  atomic_base.h:501  <->  transaction.h:104
+  2  atomic_smart_ptr.h:1903  <->  transaction.h:980
+  2  atomic_base.h:358  <->  atomic_smart_ptr.h:950
+  2  atomic_base.h:501  <->  transaction_impl.h:1276
+  … 39 more pairs at 1 each
+```
+
+That is a long tail, the same shape §11.3 and §13.34 showed — not a converged
+finding.  §13.39 read two reports out of fifty-one and described them as "the
+survivor".
+
+**The `atomic_base.h:358 ↔ :477` pair is the diagnostic one**: those are
+`std::atomic` load and store.  TSan models atomics and never reports races
+between them.  Its presence means the shadow state for those addresses is
+still untrustworthy — i.e. **annotation coverage remains incomplete** even
+with §13.36's chunk, LRC and re-carve edges.  This is exactly the tell §13.34
+used to disqualify the unannotated run, and it has not gone away; it has only
+become rarer.
+
+**What survives from §13.39, and what does not.**  The `~PacketWrapper` /
+`bundle:2840` vs `bundle:2870` report is real and did appear (9 and 7 line
+occurrences in run 1).  What does not survive is the inference that it is *the
+survivor* and therefore the enumeration — it is one pair among 44, in a set
+that still contains provably impossible reports.
+
+**Consequence for §13.31's decision tree**: still not entered.  Outcome 1
+requires reports we can act on, and a set containing atomic-vs-atomic
+impossibilities cannot be acted on selectively without a principled way to
+tell the real ones from the residue.  The remaining un-annotated seam should
+be found first — the atomic-vs-atomic pairs are the trail, since each names an
+address whose shadow is wrong.
+
+Recorded at length because this is the second time in this section a partial
+or unverified read produced a conclusion that had to be withdrawn (§13.21's
+flag that did nothing, and now this).  Both were caught, but only after being
+reported.
