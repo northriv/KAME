@@ -5325,3 +5325,61 @@ Packet** — the UNCOUNTED shape §13.64 partitioned out and refuted at the
 `PacketWrapper` constructors, which would mean the missing `+1` is on a
 different acquisition path (the stack-local's), and the `VMOVE` line
 names the custody event to inspect.
+
+### 13.75 With all six paths traced: the survivor is `PacketList_`'s destructor releasing an element that is already dead
+
+Rebuilt HEAD (§13.74's `KAME_RC_DEC_N` present, 8 sites in
+`atomic_smart_ptr.h`) and hunted survivors at `20 40 700`.  **Two captures,
+both `rc=134`, both `DEC-UNDERFLOW` on a `Packet`, no `INC-FROM-ZERO` and no
+`RC-SEGV` in either** — §13.73's survivor signature reproduces 2/2, and the
+resurrection signature stays absent from the FIXED arm.
+
+**Operational note:** the `ledger:` line is written by `kame_rc_dump` to
+**stderr**, not to the `KAME_RC_TRACE_FILE` raw sink — it is in the run's
+`.out`, not the `.log`.  (I looked in the log first and reported it missing.)
+
+**The authoritative ledgers are balanced:**
+
+| capture | ledger | tripwires |
+|---|---|---|
+| 1 | `BORN 31 / DEAD 31 / INC 72 / DEC 72` | 1 |
+| 2 | `BORN 8 / DEAD 7 / INC 13 / DEC 13` | 1 |
+
+Balanced strong counts, consistent with `drift=+0` in every capture so far:
+the accounting is not leaking, one decrement simply arrives at an object that
+has already reached zero.
+
+**Capture 1 — `dtor_depth=2`, and the site is habitat 3 itself:**
+
+```
+fast_vector<lsp<Packet>,1>::clear_fixed()     fast_vector.h:236
+fast_vector<lsp<Packet>,1>::clear()           fast_vector.h:180
+PacketList_::~PacketList_()                   transaction.h:105
+atomic_shared_ptr_base<PacketList_>::deleter  atomic_smart_ptr.h:795
+```
+
+A `PacketList_` is being destroyed; its `fast_vector<local_shared_ptr<Packet>>`
+clears, releasing each element — **and one element's `Packet` is already at
+zero and freed.**  `dtor_depth=2` matches exactly (list dtor → vector clear →
+element release).
+
+**This is the mirror image of §13.59.**  There, `bundle` Phase 1's PacketList
+*copy* **incremented** an element whose `Packet` was already dead.  Here the
+PacketList *destructor* **decrements** one.  Both say the same thing about the
+same structure: **a `PacketList_`'s element array holds a
+`local_shared_ptr<Packet>` whose ownership does not match its count** — copy it
+and you resurrect; destroy it and you double-release.  §13.28 flagged this
+container as habitat 3 and it has now been indicted from both directions.
+
+**Capture 2** attributes to `Transaction::finalizeCommitment`
+(`transaction.h:2814`), but its leaf frames are `is_fixed`/`size`/`empty` on an
+unrelated `fast_vector<shared_ptr<Message_>>` — inlining has smeared this one,
+so I would treat only the `finalizeCommitment` frame as meaningful and would
+not build on the leaf.
+
+**Suggested next probe.**  The two indictments meet at the element array, so
+instrument *there* rather than at either caller: on `PacketList_` construction
+record each element's `Packet` and its refcount, and re-check them in
+`~PacketList_` before `clear()` runs.  A mismatch names the interval in which
+the element's ownership was lost, and the existing anomaly path will print the
+offending release's history keyed on that `Packet`.
