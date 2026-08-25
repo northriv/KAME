@@ -394,7 +394,190 @@ inline void packet_forensics_check(const void *p, const char *what,
     ::Transactional::detail::packet_forensics_check(this, what, where)
 #define KAME_PF_CK(where) KAME_PF_CK2("Packet", where)
 
-#else  // !KAME_STM_PACKET_FORENSICS
+#elif defined KAME_STM_ALLOC_EXCLUSIVITY
+
+// ---------------------------------------------------------------------------
+// Layout-preserving arm.
+//
+// The header mode above adds 424 bytes to every object, which puts a ~40-byte
+// Packet in a completely different pool size class -- so a clean soak under it
+// says little about a fault that the record ties to allocator reuse.  This
+// mode changes NOTHING about the allocation: it calls the same global
+// operator new the default would have called, and keeps its bookkeeping in a
+// side table.  It answers exactly one question, the one that separates the two
+// readings of the poison evidence:
+//
+//     does the allocator ever hand out a block that is still live?
+//
+// The table is direct-mapped (hash of the address -> the address), not a real
+// map.  A collision evicts a live entry, which costs a MISSED detection and
+// can never manufacture one: a report requires the slot to still hold the very
+// address being handed out, and the matching free clears that same slot.
+// Objects here live for microseconds, so the window an entry must survive is
+// tiny and eviction barely matters.
+//
+// What this arm cannot see is a stale READ -- there is no per-object stamp to
+// check.  Use KAME_STM_PACKET_FORENSICS for that, and read its result knowing
+// the size classes moved.
+// ---------------------------------------------------------------------------
+
+#include <atomic>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <new>
+
+namespace Transactional { namespace detail {
+
+enum : std::size_t {
+    PF_SHADOW_BITS  = 23,
+    PF_SHADOW_SLOTS = std::size_t{1} << PF_SHADOW_BITS,
+};
+
+//! One slot per hash bucket.  `addr` is the live address (0 = free); the
+//! rest is provenance for the report, written before `addr` is published so
+//! a reader that matches `addr` sees a consistent record.
+struct PfSlot {
+    std::atomic<std::uintptr_t> addr;
+    const char *type;
+    int tid;
+    std::size_t size;
+};
+inline PfSlot *pf_shadow() noexcept {
+    static PfSlot *t = static_cast<PfSlot *>(
+        std::calloc(PF_SHADOW_SLOTS, sizeof(PfSlot)));
+    return t;
+}
+inline int pf_excl_tid() noexcept {
+    static std::atomic<int> next{0};
+    static thread_local int id = next.fetch_add(1, std::memory_order_relaxed);
+    return id;
+}
+//! Per-type allocation / free tallies.  A type whose two tallies differ has
+//! a free path that does not run through `excl_delete`, which is the ONE way
+//! this arm can report a violation that is not real -- a slot can only still
+//! hold an address if no `excl_delete` for it ran, so a bypassed free leaves
+//! a stale record that the next allocation of that address trips over.
+//! Printed at exit so the report can be read against them.
+enum : int {PF_NTYPE = 4};
+inline const char *pf_type_names(int i) noexcept {
+    static const char *n[PF_NTYPE] =
+        {"Packet", "PacketWrapper", "PacketList", "Payload"};
+    return n[i];
+}
+inline std::atomic<std::size_t> *pf_tally(bool freed) noexcept {
+    static std::atomic<std::size_t> a[PF_NTYPE], f[PF_NTYPE];
+    return freed ? f : a;
+}
+inline int pf_type_index(const char *t) noexcept {
+    for(int i = 0; i < PF_NTYPE; ++i)
+        if(t == pf_type_names(i)) return i;     // literals are pooled per TU
+    for(int i = 0; i < PF_NTYPE; ++i) {
+        const char *a = t, *b = pf_type_names(i);
+        while( *a && *a == *b) { ++a; ++b; }
+        if( !*a && !*b) return i;
+    }
+    return -1;
+}
+inline void pf_excl_report_at_exit() noexcept {
+    static bool once = (std::atexit([]{
+        for(int i = 0; i < PF_NTYPE; ++i) {
+            std::size_t a = pf_tally(false)[i].load(), f = pf_tally(true)[i].load();
+            std::fprintf(stderr, "alloc-exclusivity: %-14s %zu alloc, %zu free%s\n",
+                pf_type_names(i), a, f,
+                (a == f) ? "" : "   <-- MISMATCH: a free path bypasses operator delete");
+        }
+    }), true);
+    (void)once;
+}
+inline std::size_t pf_shadow_slot(std::uintptr_t a) noexcept {
+    a >>= 4;                                    // pool blocks are 16-aligned
+    a *= 0x9E3779B97F4A7C15ull;
+    return static_cast<std::size_t>(a >> (64 - PF_SHADOW_BITS));
+}
+
+//! `KAME_PF_NO_TALLY` drops the per-type counters and the slot provenance.
+//! They cost two atomic RMWs and three stores per allocation, which is not
+//! nothing at ~550k allocations/s: the first configuration that reported a
+//! violation had none of them, and adding them stopped it reporting.  Until
+//! that is explained, the lean build has to stay reproducible on demand --
+//! the difference between "the bookkeeping perturbed the race away" and
+//! "the violation was an artefact of the leaner code" is the whole question.
+inline void *excl_new(std::size_t sz, const char *type) {
+#ifndef KAME_PF_NO_TALLY
+    pf_excl_report_at_exit();
+    if(int i = pf_type_index(type); i >= 0)
+        pf_tally(false)[i].fetch_add(1, std::memory_order_relaxed);
+#endif
+    void *p = ::operator new(sz);               // exactly the default path
+    if(auto *t = pf_shadow()) {
+        auto a = reinterpret_cast<std::uintptr_t>(p);
+        PfSlot &slot = t[pf_shadow_slot(a)];
+        // Acquire pairs with the release in excl_delete: the allocator's own
+        // free->alloc edge already orders the two, but making it explicit
+        // means a stale read here cannot be blamed on this table's ordering.
+        if(slot.addr.load(std::memory_order_acquire) == a) {
+            std::fprintf(stderr,
+                "\n*** ALLOCATOR RETURNED A LIVE BLOCK ***\n"
+                "  %p handed out for a %s (%zu bytes) on tid %d,\n"
+                "  but our records still show it live as a %s (%zu bytes)\n"
+                "  from tid %d -- no operator delete for it ever ran.\n"
+                "  Read this against the per-type tallies below: they are\n"
+                "  equal iff every free went through operator delete, which\n"
+                "  is what makes the record trustworthy.\n",
+                p, type, sz, pf_excl_tid(),
+                slot.type ? slot.type : "?", slot.size, slot.tid);
+            for(int i = 0; i < PF_NTYPE; ++i)
+                std::fprintf(stderr, "    %-14s %zu alloc, %zu free\n",
+                    pf_type_names(i), pf_tally(false)[i].load(),
+                    pf_tally(true)[i].load());
+            std::fflush(stderr);
+            std::abort();
+        }
+#ifndef KAME_PF_NO_TALLY
+        slot.type = type;
+        slot.tid = pf_excl_tid();
+        slot.size = sz;
+#endif
+        slot.addr.store(a, std::memory_order_release);
+    }
+    return p;
+}
+//! \a type is the STATIC type whose operator delete ran, so the tally counts
+//! every free regardless of whether the slot record survived eviction --
+//! which is what makes "alloc == free" a real statement about coverage.
+inline void excl_delete(void *p, const char *type) noexcept {
+    if(p) {
+#ifndef KAME_PF_NO_TALLY
+        if(int i = pf_type_index(type); i >= 0)
+            pf_tally(true)[i].fetch_add(1, std::memory_order_relaxed);
+#else
+        (void)type;
+#endif
+        if(auto *t = pf_shadow()) {
+            auto a = reinterpret_cast<std::uintptr_t>(p);
+            PfSlot &slot = t[pf_shadow_slot(a)];
+            if(slot.addr.load(std::memory_order_relaxed) == a)
+                slot.addr.store(0, std::memory_order_release);
+        }
+        ::operator delete(p);
+    }
+}
+
+}} // namespace Transactional::detail
+
+#define KAME_PF_NEW_DELETE(what)                                              \
+    static void *operator new(std::size_t sz)                                 \
+        { return ::Transactional::detail::excl_new(sz, what); }               \
+    static void operator delete(void *p) noexcept                             \
+        { ::Transactional::detail::excl_delete(p, what); }                    \
+    static void operator delete(void *p, std::size_t) noexcept                \
+        { ::Transactional::detail::excl_delete(p, what); }
+#define KAME_PF_CK(where) ((void)0)
+#define KAME_PF_CK2(what, where) ((void)0)
+
+#else  // no forensics
 
 #define KAME_PF_NEW_DELETE(what)
 #define KAME_PF_CK(where) ((void)0)
