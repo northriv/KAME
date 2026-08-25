@@ -1600,7 +1600,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 					// owners with one refcount backing -- the §11.3 shape.
 					// Relaxed atomic load compiles to the same single mov /
 					// ldr; only the optimizer's license changes.
-					FUINT oldv = atomicLoadRelaxed(pflag);
+					FUINT oldv = atomicLoadAcquire(pflag);   // §13.48: pairs with the free-side clear-CAS
 					if(oldv == ~(FUINT)0u)
 						break;                    // word full
 					FUINT mask = (FUINT)~oldv;
@@ -1633,8 +1633,10 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	int idx = this->m_idx;
 	for(;;) {
 		FUINT *pflag = &this->m_flags[idx];
-		// §13.15: atomic load -- see the word-grab loop comment above.
-		FUINT oldv = atomicLoadRelaxed(pflag);
+		// §13.15/§13.48: acquire -- the freed bits this load observes must
+		// carry the freeing thread's accesses (Pair A: the claim's header
+		// write raced the freer's header read with no model-level edge).
+		FUINT oldv = atomicLoadAcquire(pflag);
 		if(oldv != ~(FUINT)0u) {
 			one = find_zero_forward(oldv);
 //			assert(count_bits(one) == SIZE / ALIGN);
@@ -1813,7 +1815,7 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 		// §13.15: atomic load -- see the word-grab loop comment above.
 		// This is the loop ipa-cp-clone reshapes (find_training_zeros
 		// inlined with constant N): the prime suspect for a split read.
-		oldv = atomicLoadRelaxed(pflag);
+		oldv = atomicLoadAcquire(pflag);   // §13.48: see the word-grab loop
 		cand = find_training_zeros(N, oldv);
 		if(cand) {
 			ones = cand *
@@ -2197,7 +2199,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 		FUINT *pflags = &this->m_flags[idx];
 		for(;;) {
 			// §13.15: atomic load -- see the word-grab loop comment above.
-			FUINT oldv = atomicLoadRelaxed(pflags);
+			FUINT oldv = atomicLoadAcquire(pflags);   // §13.48
 			FUINT newv = oldv & nones;
 			if(atomicCompareAndSet(oldv, newv, pflags)) {
 				on_clear(oldv, newv);
