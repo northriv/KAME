@@ -3039,3 +3039,34 @@ chunk without munmap keeps stale shadow), and realloc's grow-in-place
 path (same identity, likely fine).  With this in place §13.31's decision
 tree is live again — outcome 2 (TSan silent, run still fails) now
 genuinely seals the gcc verdict for executed paths.
+
+### 13.36 The two residual seams annotated — plus the third one both of us
+### missed (re-carve granularity)
+
+§13.35's discriminator, installed, with one addition.  Per-address
+release/acquire cannot order a region that is REUSED AS A DIFFERENT
+ALIGN CLASS: interior slot bases shift, so the new owner's acquire(base')
+never pairs with the old owner's release(base).  Three edges close
+everything:
+
+- `deallocate_chunk` entry: `__tsan_release(chunk_base)` — the region
+  identity leaves its old life; prior slot traffic happens-before this
+  point via the bitmap/MASK_CNT atomics TSan already models, so the edge
+  is transitive over all old accesses.
+- `construct_chunk_at`: `__tsan_acquire(addr)` — every new chunk (fresh
+  claim AND LRC-recycled) passes through here.
+- `large_recycle_push`/`pop`: release(base)/acquire(base) — covers
+  dedicated-origin regions whose only per-address release was the USER
+  block (base+header), not the region base.
+
+In-place realloc is left un-annotated deliberately (same identity, no
+reuse).  Verified: TSan TU compiles with both symbols referenced;
+default Release ctest 18/18.
+
+Interpretation unchanged from §13.35: if the 10-survivor set — the
+`~PacketWrapper()`-writes-into-recycled-storage shape at
+`set_view ← Node::bundle:2948`, where the tracer and TSan now agree for
+the first time — SURVIVES these edges, it is a genuine use-after-free
+enumeration, the thing §13.21 was built to obtain.  If it collapses,
+the survivor was chunk-recycle shadow, and the audit returns to
+outcome-2 territory.

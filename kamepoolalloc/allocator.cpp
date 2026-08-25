@@ -2588,6 +2588,7 @@ PoolAllocatorBase::allocate_chunk() {
 		    &ALLOC::size_of_static;
 		writeBarrier();
 		KAME_POOLEV(KAME_PEV_CHUNK_ALLOC, palloc, CHUNK_SIZE);
+		KAME_TSAN_ACQUIRE(addr);   // §13.35: pairs with teardown/LRC release
 		return palloc;
 	};
 
@@ -3367,6 +3368,13 @@ inline void
 PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
                                     bool reclaim_pages) {
 	KAME_POOLEV(KAME_PEV_CHUNK_RELEASE, chunk_base, chunk_size);
+	// §13.35 residual seam: a region reused as a NEW chunk (possibly a
+	// different ALIGN class, so interior slot bases shift) needs a
+	// region-granular edge -- per-slot release/acquire cannot order
+	// re-carved interiors.  Pairs with the acquire in construct_chunk_at;
+	// prior slot traffic happens-before this teardown via the bitmap /
+	// MASK_CNT atomics, which TSan models, so the edge is transitive.
+	KAME_TSAN_RELEASE(chunk_base);
 	// Release sequence (multi-unit aware):
 	//   1. chunk_header.palloc / size_info = 0 (plain).  palloc == 0 is
 	//      the "released" signal a lookup-from-slot reads (foreign
@@ -7615,9 +7623,12 @@ void l1_drain() noexcept {
 // (§22) Definitions of the forward-declared helpers used by the earlier
 // §15 dedicated-chunk paths (allocate_dedicated_chunk / deallocate).
 char *large_recycle_pop(std::size_t need, unsigned kind) noexcept {
-	return recycle_pop_fit(need, kind);
+	char *p = recycle_pop_fit(need, kind);
+	KAME_TSAN_ACQUIRE(p);          // §13.35: pairs with the push's release
+	return p;
 }
 bool large_recycle_push(char *base, std::size_t size, unsigned kind) noexcept {
+	KAME_TSAN_RELEASE(base);       // §13.35: region identity leaves this owner
 	return recycle_push(base, size, kind);
 }
 } // namespace
