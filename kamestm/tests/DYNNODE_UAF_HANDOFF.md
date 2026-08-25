@@ -2121,3 +2121,45 @@ BATCH-RETURN with SAME-UNIT tags inside the free→stale window (≲ 6 000
 ticks) mean the anomaly rides the batch machinery; an empty/far timeline
 means the pool is a bystander and the §13.12 causal test + noipa bisect
 continue on the STM side.
+
+### 13.14 clang and `-O2` re-checked under blind-spot-free instrumentation — still clean
+
+§13.5 established that the constant poison missed stale ops on L1-listed
+blocks, so every "clean" arm measured before it — including clang and `-O2` —
+had to be re-checked before it could be trusted.  Done: three `.so`s built
+from the same source with `-DKAME_POISON_FORENSIC -fno-omit-frame-pointer`,
+linked against one identical gcc `-O3` test binary so only the allocator's
+codegen varies, interleaved on one host.
+
+| arm | tripwires | runs | outcomes |
+|---|---|---|---|
+| **gcc `-O3`** | **13** | 42 | 19× `rc=134`, 23× `rc=139` — **0 clean runs** |
+| gcc `-O2` | **0** | 41 | **41 × `rc=0`** |
+| clang `-O3` | **0** | 41 | **41 × `rc=0`** |
+
+Not a rate difference — a total separation.  gcc `-O3` never completed a run;
+`-O2` and clang never failed one.  Fisher on 42/42 vs 0/41 is beyond
+meaningful quotation.
+
+**The blind-spot doubt is resolved in the negative**: clang and `-O2` are not
+"quietly corrupting and surviving".  With the instrumentation that catches the
+fresh-free window at 31 % on gcc `-O3` (13/42, consistent with §13.5's 35 %),
+they produce **zero tripwires** — no `INC-FROM-ZERO`, no `DEC-UNDERFLOW`, no
+refcount anomaly of any kind.  The defect is absent from their codegen, not
+merely non-fatal in it.
+
+**Combined with §13.11** (TSan clean once `m_tx_commit_count` is fixed) this
+is the strongest form of the H1 case the available instruments can produce:
+
+- no TSan-visible plain-field race (§13.11);
+- no refcount anomaly at all under clang or gcc `-O2`, blind-spot-free (here);
+- the fault flipped by exactly one pass, `-fno-ipa-cp-clone`, 0/167 (§11.x);
+- arm64 silent at 200×40t, blind-spot-free (§13.6 addendum).
+
+The one reading these do not exclude, and §13.11's second caveat is the reason:
+a plain-field race that **only gcc `-O3` codegen makes reachable** — the
+optimizer merging or hoisting a load so two source accesses become one — is
+invisible to TSan (which sees the compiled form) and absent from `-O2`/clang
+(which never perform the transform).  That is not distinguishable from a
+miscompile by any instrument used so far; it is distinguishable by reading the
+`-O3` asm of the affected paths against `-O2`.
