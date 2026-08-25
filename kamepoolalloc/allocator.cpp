@@ -2589,6 +2589,7 @@ PoolAllocatorBase::allocate_chunk() {
 		writeBarrier();
 		KAME_POOLEV(KAME_PEV_CHUNK_ALLOC, palloc, CHUNK_SIZE);
 		KAME_TSAN_ACQUIRE(addr);   // §13.35: pairs with teardown/LRC release
+		KAME_TSAN_JAVA_ALLOC(addr, CHUNK_SIZE);   // §13.42: fresh shadow
 		return palloc;
 	};
 
@@ -3782,6 +3783,11 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 	// §13.32: the block leaves the program here -- publish the owner's
 	// accesses so the next hand-out's acquire orders them (TSan only).
 	KAME_TSAN_RELEASE(p);
+#if KAME_TSAN_ENABLED
+	// §13.42: mark the block's bytes freed so the next carve is fresh
+	// shadow (java API; range-guarded, foreign pointers skip via size 0).
+	if(p) KAME_TSAN_JAVA_FREE(p, PoolAllocatorBase::size_of(p));
+#endif
 #ifdef KAME_POISON_FORENSIC
 	// The ONE choke point every small-pool free passes through (kame_free,
 	// operator delete, deallocate_pooled_or_free all land here); hooking
@@ -4911,6 +4917,7 @@ static void *new_redirected_aligned_body_(std::size_t alignment, std::size_t siz
 void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
 	void *p = new_redirected_aligned_body_(alignment, size);
 	KAME_TSAN_ACQUIRE(p);
+	KAME_TSAN_JAVA_ALLOC(p, size);
 	return p;
 }
 static void *new_redirected_aligned_body_(std::size_t alignment, std::size_t size) noexcept {
@@ -6768,6 +6775,75 @@ void PoolAllocatorBase::radix_clear(char *mp) noexcept {
 // register it in the radix, and push it on the region list.  Shared by
 // both chunk-claim Pass-2 sites.  Returns the new region (== its base)
 // or nullptr on cap-exceeded / mmap failure.
+#if KAME_TSAN_ENABLED && !(defined __WIN32__ || defined WINDOWS || defined _WIN32)
+// ===================================================================
+// §13.42 single-arena TSan mode (see allocator_prv.h for the rationale).
+// One PROT_NONE reservation, carved in 32 MiB granules; freed spans are
+// madvise(DONTNEED)'d, kept READABLE (released-chunk headers are probed
+// by concurrent lookups), and recycled through a tiny freelist.  Debug
+// only: a pthread mutex is fine here.
+namespace {
+char *g_tsan_arena_base = nullptr;
+size_t g_tsan_arena_size = 0;
+size_t g_tsan_arena_bump = 0;
+struct TsanArenaFree { size_t off, size; };
+TsanArenaFree g_tsan_arena_free[512];
+unsigned g_tsan_arena_nfree = 0;
+pthread_mutex_t g_tsan_arena_mu = PTHREAD_MUTEX_INITIALIZER;
+}
+bool kame_tsan_arena_contains(const void *p) noexcept {
+    char *b = __atomic_load_n(&g_tsan_arena_base, __ATOMIC_ACQUIRE);
+    return b && (const char *)p >= b && (const char *)p < b + g_tsan_arena_size;
+}
+char *kame_tsan_arena_map(std::size_t size) noexcept {
+    size = (size + (size_t)ALLOC_MIN_MMAP_SIZE - 1u)
+           & ~((size_t)ALLOC_MIN_MMAP_SIZE - 1u);
+    pthread_mutex_lock(&g_tsan_arena_mu);
+    if( !g_tsan_arena_base) {
+        size_t gb = 64;
+        if(const char *e = getenv("KAME_TSAN_ARENA_GB"))
+            if(e[0]) gb = (size_t)atoi(e);
+        size_t asz = gb << 30;
+        size_t total = asz + (size_t)ALLOC_MIN_MMAP_SIZE;
+        char *raw = static_cast<char *>(mmap(0, total, PROT_NONE,
+            MAP_ANON | MAP_PRIVATE | MAP_NORESERVE, -1, 0));
+        if(raw == MAP_FAILED) { pthread_mutex_unlock(&g_tsan_arena_mu); return nullptr; }
+        uintptr_t aligned = ((uintptr_t)raw + ALLOC_MIN_MMAP_SIZE - 1u)
+                            & ~(uintptr_t)(ALLOC_MIN_MMAP_SIZE - 1u);
+        g_tsan_arena_size = asz;
+        g_tsan_arena_bump = 0;
+        __tsan_java_init((unsigned long)aligned, (unsigned long)asz);
+        __atomic_store_n(&g_tsan_arena_base, (char *)aligned, __ATOMIC_RELEASE);
+    }
+    char *out = nullptr;
+    for(unsigned i = 0; i < g_tsan_arena_nfree; ++i) {       // first fit
+        if(g_tsan_arena_free[i].size == size) {
+            out = g_tsan_arena_base + g_tsan_arena_free[i].off;
+            g_tsan_arena_free[i] = g_tsan_arena_free[--g_tsan_arena_nfree];
+            break;
+        }
+    }
+    if( !out && g_tsan_arena_bump + size <= g_tsan_arena_size) {
+        out = g_tsan_arena_base + g_tsan_arena_bump;
+        g_tsan_arena_bump += size;
+    }
+    if(out && mprotect(out, size, PROT_READ | PROT_WRITE) != 0)
+        out = nullptr;
+    pthread_mutex_unlock(&g_tsan_arena_mu);
+    return out;
+}
+void kame_tsan_arena_unmap(char *p, std::size_t size) noexcept {
+    size = (size + (size_t)ALLOC_MIN_MMAP_SIZE - 1u)
+           & ~((size_t)ALLOC_MIN_MMAP_SIZE - 1u);
+    madvise(p, size, MADV_DONTNEED);       // pages back; VA + shadow stay
+    pthread_mutex_lock(&g_tsan_arena_mu);
+    if(g_tsan_arena_nfree < 512)
+        g_tsan_arena_free[g_tsan_arena_nfree++] =
+            { (size_t)(p - g_tsan_arena_base), size };
+    pthread_mutex_unlock(&g_tsan_arena_mu);
+}
+#endif // KAME_TSAN_ENABLED arena
+
 PoolAllocatorBase::RegionMeta *
 PoolAllocatorBase::mmap_new_region() noexcept {
 	// (§75) RT policy gate — BEFORE the count reservation below, so a
@@ -6799,6 +6875,15 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 		return nullptr;
 	}
 #else
+#if KAME_TSAN_ENABLED
+	// §13.42: regions come from the single java-registered arena.
+	char *p = kame_tsan_arena_map(mmap_size);
+	if( !p) {
+		fprintf(stderr, "tsan-arena region carve failed.\n");
+		s_region_count.fetch_sub(1, std::memory_order_relaxed);
+		return nullptr;
+	}
+#else
 	size_t total = mmap_size + kAlign;
 	char *raw = static_cast<char *>(
 	    mmap(0, total, PROT_READ | PROT_WRITE,
@@ -6815,6 +6900,7 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 	size_t suffix = total - prefix - mmap_size;
 	if(prefix > 0) munmap(raw, prefix);
 	if(suffix > 0) munmap(p + mmap_size, suffix);
+#endif
 	// (§35) Radix coverage guard (see large_va_raw_map): a region base the
 	// radix can't index (≥ RADIX_VA_LIMIT = 2^48) would silently fail to
 	// register, mis-routing its chunks' frees to libc.  Never fires under a
@@ -7065,6 +7151,10 @@ inline char *large_va_raw_map(std::size_t mmap_size) noexcept {
 #if defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32)
 	return static_cast<char *>(_aligned_malloc(mmap_size, ALLOC_MIN_MMAP_SIZE));
 #else
+#if KAME_TSAN_ENABLED
+	char *base = kame_tsan_arena_map(mmap_size);   // §13.42
+	if( !base) return nullptr;
+#else
 	std::size_t total = mmap_size + ALLOC_MIN_MMAP_SIZE;
 	char *raw = static_cast<char *>(
 	    mmap(0, total, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0));
@@ -7077,6 +7167,7 @@ inline char *large_va_raw_map(std::size_t mmap_size) noexcept {
 	std::size_t suffix = total - prefix - mmap_size;
 	if(prefix > 0) munmap(raw, prefix);
 	if(suffix > 0) munmap(base + mmap_size, suffix);
+#endif
 	// (§35) Radix coverage guard: if the kernel placed us at a base the
 	// radix can't index (≥ RADIX_VA_LIMIT = 2^48), registration would
 	// silently fail and a later free of this block would mis-route to
@@ -7115,6 +7206,8 @@ inline void large_va_raw_unmap(char *base, std::size_t mmap_size) noexcept {
 #if defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32)
 	(void)mmap_size;
 	_aligned_free(base);
+#elif KAME_TSAN_ENABLED
+	kame_tsan_arena_unmap(base, mmap_size);   // §13.42: VA + shadow persist
 #else
 	munmap(base, mmap_size);
 #endif

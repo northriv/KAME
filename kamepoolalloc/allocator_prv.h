@@ -290,9 +290,42 @@ inline T atomicFetchOr(T *target, T value) noexcept {
 #include <sanitizer/tsan_interface.h>
 #define KAME_TSAN_ACQUIRE(p) do { if(p) __tsan_acquire(p); } while(0)
 #define KAME_TSAN_RELEASE(p) do { if(p) __tsan_release(p); } while(0)
+//! §13.41/§13.42 single-arena TSan mode.  acquire/release add EDGES but
+//! never reset SHADOW, so recycled bytes keep the old owner's shadow and
+//! every reuse reports a false race (the 255-report residue).  The only
+//! shadow-resetting user API libtsan exports is the java family, and
+//! __tsan_java_init requires ONE contiguous heap.  So under TSan (and
+//! only then) the pool's regions and the large tier carve from a single
+//! PROT_NONE-reserved arena (default 64 GiB VA, KAME_TSAN_ARENA_GB
+//! overrides), registered once with __tsan_java_init; hand-out resets
+//! shadow with __tsan_java_alloc, free with __tsan_java_free.  The java
+//! calls are RANGE-GUARDED: libc-fallback pointers never see them.
+//! Headerless on purpose -- gcc's tsan_interface.h does not declare the
+//! java family, but libtsan exports it (checked §13.41).
+extern "C" {
+void __tsan_java_init(unsigned long heap_begin, unsigned long heap_size);
+void __tsan_java_alloc(unsigned long ptr, unsigned long size);
+void __tsan_java_free(unsigned long ptr, unsigned long size);
+}
+//! Defined in allocator.cpp: the arena carve/recycle (32 MiB granules).
+char *kame_tsan_arena_map(std::size_t size) noexcept;
+void kame_tsan_arena_unmap(char *p, std::size_t size) noexcept;
+bool kame_tsan_arena_contains(const void *p) noexcept;
+inline void kame_tsan_java_alloc_(const void *p, std::size_t n) noexcept {
+    if(p && n && kame_tsan_arena_contains(p))
+        __tsan_java_alloc((unsigned long)(uintptr_t)p, (unsigned long)n);
+}
+inline void kame_tsan_java_free_(const void *p, std::size_t n) noexcept {
+    if(p && n && kame_tsan_arena_contains(p))
+        __tsan_java_free((unsigned long)(uintptr_t)p, (unsigned long)n);
+}
+#define KAME_TSAN_JAVA_ALLOC(p, n) kame_tsan_java_alloc_((p), (n))
+#define KAME_TSAN_JAVA_FREE(p, n)  kame_tsan_java_free_((p), (n))
 #else
 #define KAME_TSAN_ACQUIRE(p) ((void)0)
 #define KAME_TSAN_RELEASE(p) ((void)0)
+#define KAME_TSAN_JAVA_ALLOC(p, n) ((void)0)
+#define KAME_TSAN_JAVA_FREE(p, n)  ((void)0)
 #endif
 
 //! Relaxed atomic load of a PLAIN-typed shared word (§13.15/§13.17 DRF
@@ -3304,6 +3337,7 @@ inline void *KAME_NEW_REDIRECTED_(std::size_t size) {
 inline void *new_redirected(std::size_t size) {
 	void *p = new_redirected_body_(size);
 	KAME_TSAN_ACQUIRE(p);
+	KAME_TSAN_JAVA_ALLOC(p, size);   // §13.42: reset shadow for the new life
 	return p;
 }
 #endif

@@ -3359,3 +3359,42 @@ drop TSan and return to the differential evidence that has never moved: the
 (Q1 15/15 `DIFF`), and `drift=+0` 14/14.  Of the two, the differential line is
 cheaper and has produced every boundary that still stands; the TSan line
 would need the arena work before it produces anything admissible at all.
+
+### 13.42 The escape hatch, built: single-arena TSan mode with
+### __tsan_java shadow reset
+
+§13.41's fork, taken on the arena side — the differential line is
+mechanism-starved (six refutations, boundary never moved), while the
+enumeration line dies only for want of a shadow-reset primitive; the
+region-layer change that unlocks it is contained, and here it is.
+
+Under `KAME_TSAN_ENABLED` (and POSIX) only — production and plain builds
+byte-identical, gated exactly like §13.33:
+
+- **One arena**: first region claim reserves a PROT_NONE,
+  32 MiB-aligned span (default 64 GiB VA, `KAME_TSAN_ARENA_GB`
+  overrides; `MAP_NORESERVE`), registers it ONCE with
+  `__tsan_java_init`, and both `mmap_new_region` (pool regions) and
+  `large_va_raw_map` (large tier) carve 32 MiB-granule spans from it
+  (mutex + small freelist + bump; carve = `mprotect(RW)`).
+  `large_va_raw_unmap` returns spans with `madvise(DONTNEED)` — VA and
+  shadow persist, pages are given back, and released-chunk headers stay
+  READABLE for the concurrent-lookup contract.
+- **Shadow resets**: `__tsan_java_alloc(p, size)` at both hand-out
+  wrappers (`new_redirected`, `new_redirected_aligned`) and over the
+  whole region at `construct_chunk_at` (covers re-carve into a different
+  ALIGN class); `__tsan_java_free(p, size_of(p))` at `deallocate` entry,
+  before the forensic poison overwrites anything.  All java calls are
+  RANGE-GUARDED to the arena, so libc-fallback pointers never reach the
+  java API (which would CHECK-fail).
+- The §13.33/§13.36 acquire/release edges stay — the java calls reset
+  shadow, the edges order genuine handoffs; they compose.
+
+Mac verification: TSan TU compiles and a full TSan link resolves all
+three `__tsan_java_*` from the runtime; default Release build unchanged
+(ctest 18/18).  Runtime validation belongs to Ubuntu (macOS 26 TSan is
+dead, §13.10): expect the Zero-Location class to vanish entirely — every
+pool address now has java-heap standing — and the report count to become
+the true enumeration.  §13.31's decision tree re-enters service with
+outcome 1/2 finally distinguishable; §13.38's `~PacketWrapper` pair is
+the first thing to look for in the survivor set.
