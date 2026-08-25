@@ -2591,3 +2591,65 @@ established 15/15.
 **Falsifier #2 is running in parallel** (paired PRE vs `2d8a9e5b8`); §13.16's
 discipline applies unchanged — 100 %-failing to zero confirms, still-failing
 refutes and keeps the UB fixes.
+
+### 13.23 E3 run — and a flag that did nothing, nearly reported as a refutation
+
+**First, a methodological correction that matters more than the result.**
+E3 as specified used `-fno-indirect-inlining`.  On this TU that flag is very
+nearly a **no-op**:
+
+| | `-O3` | `+ -fno-indirect-inlining` |
+|---|---|---|
+| differing disassembly lines | — | **2** |
+| symbols | 1143 | 1143 |
+| indirect calls (`call *%r…`) | 90 | 90 |
+| `constprop` symbols | 585 | 585 |
+
+Two instructions.  Its arm duly "kept failing" (6/6) — a result with **no
+information**, which was about to be written up as a refutation.  Probing which
+flag actually engages the machinery §13.19 names:
+
+| flag | diff lines | constprop | indirect calls |
+|---|---|---|---|
+| `-fno-indirect-inlining` | **2** | 585 | 90 |
+| `-fno-devirtualize-speculatively` | **62 425** | 558 | **5** |
+| `-fno-devirtualize` | 62 425 | 558 | 5 |
+| `-fno-ipa-cp` | 62 434 | 0 | 69 |
+| `-fno-ipa-cp-clone` | 58 779 | **12** | 93 |
+
+**Standing practice from here: verify a falsifier flag moved codegen before
+believing either outcome.**
+
+**E3, re-run with `-fno-devirtualize-speculatively`** (paired, same HEAD, only
+the flag differing):
+
+| arm | runs | failed | tripwires |
+|---|---|---|---|
+| `-O3` | 28 | **28** | 25 |
+| `-O3 -fno-devirtualize-speculatively` | 27 | **27** | 13 |
+
+**100 % failure in both — the speculative-promotion reading is refuted**, and
+this time the negative is real: the flag changed 62 425 lines and collapsed
+indirect calls 90 → 5.
+
+Two observations worth keeping:
+
+- The flag **halves the tripwire count** (25 → 13) without touching the
+  failure rate.  A rate effect on anomaly *frequency* but not on whether the
+  run dies — consistent with everything since §13.5, where instrument and
+  codegen changes move rates while the fault survives.
+- `-fno-devirtualize-speculatively` collapsing indirect calls 90 → 5 shows
+  speculative promotion is **pervasive** in this TU, not confined to the
+  `:4071`/`:4166` dispatch sites.  Had the arm gone clean, it would still have
+  needed narrowing before naming a site.
+
+Also noted from the probe table: `-fno-ipa-cp-clone` leaves **12** `constprop`
+symbols rather than zero — independent confirmation of §12.5's point that
+clone-set equality is not codegen equality.
+
+**Tally of named mechanisms refuted by mechanical test: five.**
+`CASInfo::old_wrapper` (§12.5), wrongly-mine (§13.9, Mac 0/100), split-read
+(§13.16, 40/40 both arms), falsifier #2's `back_offset`/owner/gate reads
+(11/11 both arms), and speculative indirect-call promotion (here).  The
+§13.14 boundary — allocator, gcc `-O3` only, absent from `-O2` and clang,
+blind-spot-free — has never moved.
