@@ -2821,3 +2821,63 @@ the asymmetry directly in the failing configuration (`-O3` vs
 the `-O2 +ipa-cp-clone` proxy actually fails — §13.17 cites 19/35, so it does
 fail, and then falsifier #4 should be run **on the proxy**, where the missing
 increment demonstrably exists, rather than at `-O3` where it does not.
+
+### 13.28 (a) and (b) both run — and falsifier #4's target is the wrong function
+
+**(a), the corrected `-O3` census — comes back empty.**  §13.26 predicted the
+`-O3` deletion, if any, would live in `allocate_chunk_path`'s *inlined* copy,
+and that `noipa` must have changed the caller.  Measured:
+
+```
+calls to orphan_chain_pop:   -O3 = 22        -O3 + noipa = 22
+allocate_chunk_path bodies:  13153 lines     13014 lines
+  lock add inside caller:    0               0
+```
+
+At `-O3` the function is **already out-of-line** — 22 call sites — so `noipa`
+had no inlining to forbid, and the caller contains **no** `lock add` at all,
+so there is no inlined copy for a deletion to hide in.  Falsifier #4 at `-O3`
+is a null, confirmed on the caller as §13.26 asked, not just on the symbol.
+
+**(b), falsifier #4 on the proxy — fails its own verification step.**
+Baseline established first:
+
+| build | `orphan_chain_pop` symbols | their `lock add` |
+|---|---|---|
+| `-O2` | 44 | **44** |
+| `-O2 -fipa-cp-clone` (the proxy) | 44 | **22** |
+
+The deletion is real, and the restore target is 44.  Then, on the proxy, with
+the attribute applied to `orphan_chain_pop`:
+
+| attribute | resulting `lock add` |
+|---|---|
+| `noipa` | 22 |
+| `optimize("O2")` | 22 |
+| `optimize("no-ipa-cp-clone")` | 22 |
+| `noclone` | 22 |
+
+**None restores the increment** — though `noipa` changed 35 777 disassembly
+lines elsewhere, so the attributes are being applied, they simply do not
+affect this.
+
+**What that tells us, and it is the useful part.**  If per-function
+suppression on `orphan_chain_pop` cannot bring the increment back, the
+deletion is **not** performed on `orphan_chain_pop` as a cloning target.
+§13.24 already mapped the early add to `load_shared_`'s unconditional promote
+inside the `lsp(asp&)` constructor of the chain-head load — i.e. it arrives
+*inlined from a callee*.  IPA-CP specialising **that callee** would delete it
+in the inlined copy, and no attribute on the enclosing function can prevent
+it.
+
+**So falsifier #4 should retarget**: apply the suppression to the callee that
+supplies the increment — the `local_shared_ptr(atomic_shared_ptr&)`
+constructor / `load_shared_` path in `atomic_smart_ptr.h` — and verify against
+the same 22→44 census before running anything.  That is a header-inline
+template, so the practical lever is likely `-fno-ipa-cp-clone` scoped to the
+TU (already known to restore it) or an `optimize` attribute on the smart-pointer
+member, not on the allocator function.
+
+Standing practice (§13.23) has now caught three untestable falsifier arms in a
+row — `-fno-indirect-inlining`, `noipa` at `-O3`, and all four attributes on
+the proxy.  Each would have been reported as a refutation.
