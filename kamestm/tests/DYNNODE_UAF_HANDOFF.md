@@ -3188,3 +3188,60 @@ Remaining survivors for completeness: `atomic_base.h:358 ↔ transaction.h:2614`
 `shared_ptr_base.h:1073 ↔ tmin_dynnode.cpp:46`, `atomic_smart_ptr.h:937 ↔
 transaction_impl.h:1276`, `:937 ↔ transaction.h:252`, and three pairs internal
 to `atomic_smart_ptr.h` (`:1810`, `:1037`, `:950`, `:501`).
+
+### 13.39 All seams annotated — noise 5412 → 2, and the survivor is `~PacketWrapper` on recycled storage
+
+Rebuilt with §13.36's seam annotations, verified first (§13.23): **91**
+`__tsan_acquire`/`__tsan_release` call sites, up from 14 with slot-only edges.
+
+| build | TSan warnings, `20 40 700` |
+|---|---|
+| unannotated | 5 412 |
+| slot annotations | 10 |
+| **+ chunk teardown/construct, LRC push/pop, re-carve** | **2** |
+
+**The `~PacketWrapper`-into-recycled-storage report survives all three seam
+classes.**  Both survivors are the same object (`0x7fffa0002a20` /
+`…2a28`, adjacent words):
+
+```
+Write  T78 @0x7fffa0002a20   PacketList_::PacketList_(const&)   transaction.h:104
+                             (copying the m_subnodes shared_ptr)
+                             <- Node::bundle   transaction_impl.h:2870
+
+Prev   T72 @0x7fffa0002a20   atomic_countable::~atomic_countable  atomic_smart_ptr.h:440
+       (atomic read of       (reads refcnt)
+        refcnt)              <- ~PacketWrapper()            transaction.h:915
+                             <- deleter(PacketWrapper*)     atomic_smart_ptr.h:756
+                             <- lsp<PacketWrapper>::reset() atomic_smart_ptr.h:1897
+                             <- ~local_shared_ptr           atomic_smart_ptr.h:1856
+                             <- Node::bundle   transaction_impl.h:2840
+```
+
+**Both stacks are inside `Node::bundle`, thirty lines apart** — `:2840`
+releasing a wrapper, `:2870` copy-constructing a `PacketList_`.  One thread's
+wrapper destructor is reading `refcnt` in storage another thread has already
+been handed and is constructing into.
+
+**Why this is now hard to dismiss.**  The destructor chain runs *before* the
+free (`deleter` → `~PacketWrapper` → `~atomic_countable`), so in a correct
+sequence that read strictly precedes the `__tsan_release` at deallocate and
+strictly precedes any later `__tsan_acquire` on hand-out.  For TSan to report
+it with all four annotation classes installed, the block must have been
+**freed and re-handed-out before this destructor ran** — i.e. a second
+destruction of an object already released, which is exactly the
+two-holders-one-count shape Q1 established 15/15 and §1 saw as a live wrapper
+pointing at freed storage.
+
+**Convergence worth stating plainly.**  Three independent instruments now name
+the same site: the refcount tracer (§12.4/§12.5, `~PacketWrapper` releasing
+`m_packet`), the forensic free-record (§13.5, `~PacketWrapper()` 6/14 of free
+chains), and annotated TSan (here).  No mechanism hypothesis produced this —
+all six were refuted — but three measurement instruments agree on the
+location.
+
+**Remaining caveat**: locations are still un-attributed, and `bundle` is the
+hottest function in the reproducer, so coincidental address reuse inside one
+function cannot be excluded from a single run.  The batch is running to six;
+if both survivors recur with `bundle:2840` / `:2870` across runs, that is the
+enumeration §13.21 was built to produce.
