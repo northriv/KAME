@@ -5713,3 +5713,62 @@ is not a usable production-parity test for edits to these headers —
 inserting comment-only lines changes `.text` too, so something in the TU
 embeds `__LINE__`.  The parity argument here rests on the `#ifdef
 KAME_RC_TRACE` gate plus a clean plain build, not on byte equality.
+
+### 13.82 The act check does not fire — and the releaser is not consistently `finalizeCommitment`
+
+Ran §13.81's check (`KAME_RC_TRACE_OLDPKT_CHECK=1`, plus
+`KAME_RC_TRACE_ABORT=0` and the scope check), forensic `.so`, `setarch -R`,
+`taskset -c 0-3`, `20 40 700`.  **14 runs, 9 failures, `ACT = 0` in every
+one** — including runs where the downstream entry check fired **5** and **3**
+times.
+
+**Read this as a bounded negative, not a refutation.**  §13.81's condition is
+`m_oldpacket.use_count() == 1` **and** the **published** wrapper (read via a
+`scoped_atomic_view` on `node.m_link`) naming the same `Packet`.  The wrapper
+in evidence is the one the *scope* holds (`supscope`), and nothing establishes
+that it is still the published wrapper at that moment — a scope can hold a
+wrapper the linkage has already replaced.  So `ACT = 0` is consistent both
+with "the act is not there" and with "the act is there but the wrapper is no
+longer the published one".  Widening to *any* wrapper naming the packet is the
+obvious next form.
+
+**A correction that matters more.**  Re-resolving the fatal releaser on the
+capturing run gives a **different site from §13.79's**:
+
+```
+local_weak_ptr<Linkage>::reset()                atomic_smart_ptr.h:1076
+~local_weak_ptr()                               :1051
+PacketWrapper::~PacketWrapper()                 transaction.h:1016
+atomic_shared_ptr_base<PacketWrapper>::deleter  :795
+```
+
+The last count is taken by **a `PacketWrapper` being destroyed**, releasing its
+own `m_packet` — not by `finalizeCommitment`.  And this chain is *clean*: every
+frame belongs to the release path.  The two captures that named
+`finalizeCommitment` (§13.75 cap 2, §13.79) both had leaf frames from an
+unrelated `fast_vector<shared_ptr<Message_>>`, i.e. exactly the inlining smear
+I flagged at the time and then leaned on anyway.  **The releasing site is not
+an invariant of this bug**; three captures give two different sites, and the
+cleanest resolution points at `~PacketWrapper`.
+
+**What IS invariant across every capture** — and is what a fix must explain:
+`rc_before = 1` at the fatal release, `drift = +0` at the free, and a **live**
+wrapper (§13.80: `refcnt = 1`, not double-destructed) still naming the freed
+`Packet`.  Two wrappers name one `Packet`; one dies and legitimately releases;
+the other's count is simply not there.  Since every ctor copies `m_packet`,
+the second wrapper's count was taken away, and §13.80's suspect — `packet()`'s
+**mutable reference** handed to `reverseLookup(superwrapper->packet(), …)`,
+which can overwrite a live wrapper's counted member — remains the only
+mechanism proposed that would produce exactly this.
+
+**Recommended next form of the check**, given the above: at the fatal release
+(wherever it occurs — hook `~PacketWrapper`'s `m_packet` release as well as
+`m_oldpacket.reset()`), report when the count is about to reach zero while
+**any** reachable wrapper names the packet; and separately, record
+`w->m_packet.get()` at wrapper construction and compare it at the entry check,
+which tests the overwrite hypothesis directly rather than by elimination.
+
+*Process note:* I again lost a capture to a too-narrow log-retention condition
+(kept only runs where the new check fired, discarding one that had 5 entry
+hits).  Fixed to keep every failing run; worth stating because it is the
+second time in this section.
