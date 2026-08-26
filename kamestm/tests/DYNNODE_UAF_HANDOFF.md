@@ -7958,3 +7958,62 @@ kamepoolalloc/tests/nonclone_memop_diff.py A.o B.o --top 25
 The pair to diff is §13.119's minimal pair — the two builds whose failure rates
 are 0/10 and 9/10 — so every row is a candidate for the whole-unit effect that
 survived both directions of clone-set manipulation.
+### 13.124 Not function pointers — the indirect-call class is closed, and which `acquire_tag_ref_` it is
+
+**The question is a good one because the pool is full of function pointers**:
+every chunk header stores a `DeallocateFn` and a `SizeOfFn`
+(`ALLOC_CHUNK_HEADER_FN_OFFSET` / `..._SIZEOF_FN_OFFSET`), written at
+construction and called on every free.  If IPA-CP specialized those, a chunk
+could carry one specialization's address and be freed through another —
+which would explain chunk-level mis-recycling exactly.
+
+**It does not.  Two checks, both negative:**
+
+1. `deallocate_pooled_static` and `size_of_static` are **not cloned**: 52
+   symbols in the firing object, 52 in the non-firing one, **zero
+   `.constprop`** among them.
+2. More generally, of the **24 cloned families** in the firing object,
+   **none has its address taken** — no `R_X86_64_64`/`PC32` data relocation
+   names any clone or its parent.  IPA-CP is leaving address-taken functions
+   alone, as it is required to.
+
+With speculative devirtualization already refuted directly
+(`-fno-devirtualize-speculatively`, 28/28 vs 27/27, §12-era), **the whole
+indirect-call class is closed**: the fault is not a function-pointer identity
+problem.  It is an algorithmic consequence of what the specialized bodies
+compute.
+
+**Which `acquire_tag_ref_`, precisely.**  All **22** specializations are
+
+```
+atomic_shared_ptr<PoolAllocator<N,true[,false]>>::acquire_tag_ref_(Refcnt*, bool)
+```
+
+one per size class (16, 32, 48, 64, 80, 112, 144, 176, 208, 240, 256, 272,
+288, 304, 320, 336, 352, 368, 1024, 4096, …).  **These are the pool's own
+`atomic_shared_ptr`s — the orphan-chunk reclaim chain — not the STM's
+`atomic_shared_ptr<PacketWrapper>`.**  Every one propagates the same constant:
+
+```
+- considering value 0 for param #2 weakly (caller_count: 3)
+  replacing param #2 weakly with const 0
+```
+
+i.e. the `weakly` argument specialized to `false`.
+
+**Why that is the most interesting thing found in this stretch.**  The orphan
+chain is the machinery by which a chunk orphaned by an exited thread is
+adopted and reused — exactly the path §13.110's chunk-clustered hits and
+§13.113's "handed out with its previous occupant live and unfreed" implicate.
+So the single largest block of the pass's work in this TU (22 of 73
+specializations, 30%) sits on the code path the runtime evidence independently
+points at, and the constant it propagates is the flag that selects between the
+strong and weak acquisition protocols.
+
+**Status of that arm — deliberately not called closed.**  §13.122 measured
+11/16 vs 7/16 (p = 0.285) with all 22 suppressed.  That is a 25-point drop
+which is *not* significant at n = 16, and given how well-motivated the family
+is I am treating it as underpowered rather than negative; a 26-round rerun is
+in progress.  Every other candidate in this section was refuted at p ≈ 1.0 or
+with the arms tied — this one is the only suppression so far that moved the
+rate in the right direction at all.
