@@ -5544,3 +5544,60 @@ the plain (non-traced) build is unchanged; `tests/` tree **40/40**.
 Ubuntu: add `KAME_RC_TRACE_SCOPEPKT_CHECK=1` alongside the existing
 tracer flags — no rebuild beyond that.  Whichever of the two sites fires
 narrows the interval, and the wrapper dump then names the mechanism.
+
+### 13.79 The scope-packet probe HITS — at bundle ENTRY — and the releaser is `finalizeCommitment`
+
+Ran §13.78's probe (`KAME_RC_TRACE_SCOPEPKT_CHECK=1`, forensic `.so`,
+`setarch -R taskset -c 0-3`, `20 40 700`).  Two runs; the `rc=139` one gives
+**5 scope-packet hits and 2 anomalies**.
+
+**Every hit is at the ENTRY check** — `type=bundle entry supscope->packet()`,
+none at the pre-`:2867` check.  By §13.78's pre-registration that is the
+branch which **indicts how the caller's scope acquired its view**: the packet
+is already dead when `bundle` is entered, so nothing inside `bundle` kills it
+and the resurrection at `:2867/:2868` is a *consequence*, not the cause.  Two
+of §13.63/§13.77's three captures pointed inside `bundle`; this says the
+defect is upstream of all of them.
+
+Further, **two different threads (867556, 867554) hit on the same `Packet`
+(`0x7fffe041f9a0`) at the same slot (`0x7fffc51eb7a0`)** — the dead packet is
+reachable from more than one thread's scope, not a single thread's stale local.
+
+**The releaser, from the same capture:**
+
+```
+RC-PRIOR-RELEASE-FAST obj=0x7fffe041f9a0 op=DEAD(unique) rc_before=1
+                      tid=867556  site=0x1681b
+RC-FREEREC            freed_ptr=(=obj) size=32 drift=+0
+```
+
+`drift=+0` once more, and **the releasing thread is the same one that then hit
+the entry check**.  Site `0x1681b` resolves to
+**`Transaction<LongNode>::finalizeCommitment`** (`transaction.h:2863`); its
+leaf frames are `is_fixed`/`size`/`empty` on the unrelated
+`fast_vector<shared_ptr<Message_>>`, i.e. the usual inlining smear, so the
+**function** is the solid datum and the exact line is not.  Reading the
+function, the release in it is **`m_oldpacket.reset()` at `transaction.h:2852`**
+— the `Transaction`'s own old-packet reference.  (§13.68 already noted that one
+`unbundle` caller passes `&tr.m_oldpacket`.)
+
+**This is the second independent capture to name `finalizeCommitment`:**
+§13.75's capture 2 attributed its `DEC-UNDERFLOW` to the same function.  Two
+captures, two different tripwire directions, one releasing frame.
+
+**The chain now reads end to end:** `finalizeCommitment` drops the last
+reference to a `Packet` (`m_oldpacket.reset()`, accounting correct — every
+capture has `drift=+0`) **while a live `ScopedNegotiateLinkage`'s wrapper still
+names that same `Packet`**; the block is freed and poisoned; whichever code
+next touches the wrapper's packet pays for it — `bundle` copying it at
+`:2867` (`INC-FROM-ZERO`), or a holder's destructor releasing it again
+(`DEC-UNDERFLOW`).  One defect, both signatures, matching §13.77.
+
+**What is still open.**  Why the wrapper's reference is not counted — whether
+the scope's view was taken without acquiring, or `finalizeCommitment` releases
+a reference the wrapper had already assumed. §13.78's wrapper-history dump is
+the right discriminator but **did not reach the log in this capture**: the
+process died at the FATAL with only 512 bytes of stderr, so the wrapper dump
+was not flushed.  Re-running with the wrapper dump routed to the raw sink (or
+flushed before abort) should settle which of §13.78's three mechanisms it is,
+from a capture that already reproduces readily.
