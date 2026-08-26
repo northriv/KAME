@@ -6663,3 +6663,120 @@ retired "find the one clone".
 **Next**: the remaining `(none)` is a `Payload` resurrection, so at least one
 more path still needs a marker. Worth finding it before drawing the
 distribution, since it is the only unattributed class left.
+
+### 13.103 The `DOUBLE-LIVE` probe: §6's mixed-compiler result says ALLOCATOR, and §13.102's four victim types are what one double hand-out looks like
+
+**Reading §13.102 against §6.**  §13.102 concluded from four victim types
+(`Packet`, `Linkage`, `PacketWrapper`, `Payload`) across five scopes that the
+damage is "broader than any single hypothesis has assumed" and retired
+"find the one site".  Correct about the site — but the type spread is not
+evidence for *many* defects.  **One pool slot handed to two owners produces
+exactly this signature**: whichever types happen to share the block are the
+ones whose refcounts corrupt, and whichever scope happens to touch them is the
+scope that reports.  Four types and five scopes is the *expected* fingerprint
+of one address-level fault, not of four protocol faults.
+
+And §6's table already localises the layer, which the last ~40 sections have
+not been treating as binding:
+
+| experiment (§6) | result |
+|---|---|
+| pool ON vs OFF | fires 40–75 % vs **0/6, 0/8** |
+| **gcc-STM + clang-pool** | **0/12** |
+| **clang-STM + gcc-pool** | **8/12** |
+| allocator `-O3` / `-O2` / `-Os` / `-O1` | 6/8, **0/8**, **0/8**, **0/7** |
+
+The fault follows **the allocator's compiler and the allocator's `-O` level**,
+not the STM's: a clang-built STM over a gcc-built pool still fires 8/12, and
+the reverse is 0/12.  So the `Packet`-lifetime audits (§13.91–§13.98), the
+`unbundle`-locals work, and `PacketRefcount.tla` were all auditing a layer the
+evidence had already excluded as the *origin* — they were right to find it
+clean.  §13.x's own word-cache reading names the mechanism: the read1/read2 gap
+in the word-grab loop as "a codegen-induced twin of the BMWIN double-payout
+(`f104768b`), in the same machinery."
+
+**What was never done: test that claim in the configuration that fires.**
+`alloc_stress_test`'s "256 M ops, 0 violations" is synthetic — a different
+workload, different size classes, different thread pattern.  No instrument has
+ever asked, under the reproducer, whether one address is ever occupied by two
+live objects.
+
+**The probe.**  Every refcounted object announces `OP_BORN` in its constructor
+and `OP_DEAD`/`OP_DEAD_UNIQUE` at death, so a live-set keyed on the object
+address answers it directly: **a BORN on an address that is still live means
+two objects occupy it at once.**  This fires *at* the double hand-out —
+upstream of every refcount victim — so it names a cause rather than a
+consequence.  `KAME_RC_TRACE_DLIVE=1` counts, `=2` reports through
+`anomaly()`; default 1.
+
+**Confined to `rc_trace.cpp` by design.**  A check inside `allocator.cpp`
+would change the ipa-cp-clone set under test — §5 records that `noclone` on
+one function moved 72 other function sizes — i.e. it could hide the fault it
+is looking for.  `rc_trace.cpp` is a separate TU and the pool is a separate
+library, so the allocator's codegen is untouched.  Plain builds contain none of
+this (`rc_trace.cpp` is not in `support_SRCS`).
+
+**Validated in both directions before any zero is trusted (§13.61, §13.83).**
+
+| step | result |
+|---|---|
+| first version, base rate | **22.2 M hits / 96.3 M births — instrument error** |
+| self-calibrating version, arm64 4 t | 0 hits / **74.2 M enforced** |
+| arm64 40 t, 5 runs | **0 hits / 371 M enforced**, dead-miss 0, table-full 0 |
+| positive control: 1-in-1 M injected double occupancy | **75 hits** (74 expected) |
+| report path (`=2`) | full `RC-ANOMALY` + prior occupant's release record |
+
+The first version's 23 % "hit" rate is worth recording as the failure mode it
+was: a stack or embedded `atomic_countable` announces BORN but never DEAD, and
+its address recycles every call.  The fix makes the probe **self-calibrating**
+— it enforces only on addresses a *traced death* has proven to be recycling
+heap slots (`DL_EVERDEAD`).  That keeps 77 % of births under enforcement while
+taking the false-positive rate to zero across 371 M checks.  It **under**-detects
+in one known way, stated so it is not over-read: the key is the
+`atomic_countable` subobject address, so two types whose subobject sits at
+different offsets inside one block would overlap without colliding here.
+
+**For the Ubuntu side — one env var, no rebuild beyond this commit:**
+
+```
+KAME_RC_TRACE_DLIVE=2 KAME_RC_TRACE_ABORT=0 ./tmin ...
+```
+
+- **HITS > 0** → the allocator handed one slot to two live owners in the
+  failing configuration.  That closes the hunt at the layer §6 pointed to, and
+  the `RC-PRIOR-RELEASE-FAST` line names the other occupant.
+- **HITS = 0 across the failing runs** → the whole double-hand-out class is
+  refuted *at the address level*, on an instrument with a 371 M-check clean
+  baseline and a working positive control.  The STM then genuinely holds a
+  stale reference, and the remaining allocator story has to be about *reuse
+  timing* (which §6's non-monotone quarantine result already hints at) rather
+  than about exclusivity.
+
+Either outcome is decisive, which is why this is worth running before any
+further site-level audit.
+
+### 13.104 Targeted preemption injection on arm64: null — and `sched_yield` is not a perturbation on macOS
+
+Testing the standing intuition that the window is one macOS preemption cannot
+enter (rather than one clang never emits).  `KAME_STM_YIELD_AT=<site>` with
+`KAME_STM_YIELD_EVERY` / `KAME_STM_YIELD_US` deschedules at six hand-picked
+points: 1 `unbundle` after the pre-loop capture, before the CAS loop; 2 inside
+that loop after `compareAndSet` (loop-local scope alive); 3 `bundle` Phase 2
+published, before `set_view`; 4 Phase 4 CASed, `sw1` still held by `supscope`;
+5 `finalizeCommitment` before `m_oldpacket.reset()`; 6 walk, just after parking
+the view.  `KAME_RC_TRACE`-only; plain builds unaffected.
+
+**Result: 0 failures, 0 anomalies at every site.**  But the first sweep was
+worthless and that is the more useful finding: **`sched_yield()` barely
+perturbs anything on macOS** — 21.16 s → 21.51 s with a yield at *every*
+`unbundle` — because with idle cores there is nobody to yield to.  `usleep(1)`
+is a real deschedule (21.16 s → 36.07 s), and `usleep(50)` at every call slows
+the test past a 180 s timeout, so that arm carries no information either (all
+its "failures" are exit 124).  The informative arm is therefore
+`us=1 × 6 sites`, which is clean.
+
+So this does not separate "clang lacks the window" from "macOS never lands in
+it" — it only says that six specific points, deschedule-injected, do not open
+it. Recorded as a null result with its coverage stated, and as a standing
+caution: **measure that a perturbation perturbs before believing its zero**
+(the same rule §13.83 established for predicates).

@@ -26,6 +26,9 @@
 #include <cstring>
 #include <cstdint>
 #include <cstdarg>
+#include <mutex>
+#include <new>
+#include <sys/mman.h>
 
 #if defined(__linux__)
 #include <unistd.h>
@@ -122,6 +125,7 @@ enum Op : unsigned {  // keep in sync with atomic_smart_ptr.h
     OP_WEAK_INC, OP_WEAK_DEC, OP_WEAK_DEAD,
     OP_VADOPT, OP_VMOVE,
     OP_MINE_SHARED, OP_LOOKUP_ESCAPE, OP_DEAD_ELEMENT,
+    OP_DOUBLE_LIVE,   // §13.103
 };
 enum : unsigned {   // §13.99 — keep in sync with atomic_smart_ptr.h
     STM_SCOPE_BUNDLE      = 1u << 0,
@@ -153,6 +157,8 @@ static const char *op_name_(unsigned op) noexcept {
         return "LOOKUP-ESCAPE **TRIPWIRE** (lookup slot outside the pinned tree)";
     case OP_MINE_SHARED:
         return "MINE-SHARED **TRIPWIRE** (copy_branch trusted a mark on a committed-reachable packet)";
+    case OP_DOUBLE_LIVE:
+        return "DOUBLE-LIVE **TRIPWIRE** (BORN at an address already occupied by a live object)";
     case OP_VMOVE: return "VMOVE (rc_before=src slot)";
     default: return "????";
     }
@@ -499,9 +505,217 @@ void dec_dump(const void *obj) noexcept {
     }
 }
 
+
+// ---------------------------------------------------------------------------
+// §13.103  DOUBLE-LIVE: is one address ever occupied by two live objects?
+//
+// Why this and why here.  §13.102 attests refcount damage on FOUR object
+// types (`Packet`, `Linkage`, `PacketWrapper`, `Payload`) across FIVE STM
+// scopes, and read that as "several small windows in several STM paths".  One
+// pool slot handed to two owners explains the same spread with ONE defect:
+// whichever types happen to share the block are the ones that corrupt, and
+// whichever scope happens to touch them is the scope that reports.  §6's
+// table already localises the fault to the ALLOCATOR's compiler (clang-STM +
+// gcc-pool 8/12, gcc-STM + clang-pool 0/12; allocator -O2 0/8), and §13.x
+// names the word-cache read1/read2 gap as a codegen-induced twin of the BMWIN
+// double-payout (f104768b).  Nothing has ever tested the claim DIRECTLY in the
+// configuration that fires -- `alloc_stress_test`'s 0 violations is synthetic.
+//
+// The probe.  Every refcounted object announces OP_BORN in its ctor and
+// OP_DEAD/OP_DEAD_UNIQUE at its death, so a live-set keyed on the object
+// address answers it: a BORN on an address that is still live means two
+// objects occupy it at once.  This fires AT the double hand-out -- upstream of
+// every refcount victim -- so it names a cause, not a consequence.
+//
+// Deliberately confined to this TU.  A check inside `allocator.cpp` would
+// change the ipa-cp-clone set under test (`noclone` on one function moved 72
+// other function sizes, §5), i.e. it could hide the fault it is looking for.
+// rc_trace.cpp is a separate TU and the pool is a separate library, so this
+// adds nothing to the allocator's codegen.
+//
+// Two honest limits, both to be measured before any hit is believed (§13.83):
+//  * Keyed on the `atomic_countable` subobject address.  Two types whose
+//    subobject sits at DIFFERENT offsets inside one block would overlap
+//    without colliding here, so this under-detects; it does not over-detect.
+//  * A death that reaches no hook leaves a stale live entry, and the next
+//    legitimate reuse of that address then looks like a hit.  That is the
+//    false-positive mode, and it is exactly what the arm64 base rate measures:
+//    arm64 never fails, so any nonzero count there is instrument error.
+namespace {
+enum { DL_BITS = 20, DL_N = 1u << DL_BITS };
+struct DLSlot {
+    //! Address, tagged in the low bits (all objects are >= 8-aligned):
+    //!   bit0 LIVE     -- an occupant announced BORN and has not announced DEAD
+    //!   bit1 EVERDEAD -- this address has announced DEAD at least once, i.e.
+    //!                    it is a recycling HEAP slot and worth enforcing
+    //! A stack or embedded `atomic_countable` announces BORN but never DEAD,
+    //! and its address recycles every call -- so enforcing on first sight
+    //! produced a 23 % "hit" rate that was pure instrument error (measured,
+    //! 22.2 M hits / 96.3 M births, with dead-miss the same size).  Requiring
+    //! EVERDEAD makes the probe self-calibrating: it enforces only where a
+    //! traced death has proven the address is a heap slot.
+    std::atomic<uintptr_t> addr{0};   //!< 0 = free (untagged key in bits 3+)
+    const void *site{nullptr};        //!< ctor return address of the occupant
+    unsigned long long seq{0};
+};
+enum : uintptr_t { DL_LIVE = 1u, DL_EVERDEAD = 2u, DL_TAGS = 3u };
+DLSlot *g_dl;                          //!< lazily mmapped; 16 MB at DL_BITS=20
+std::atomic<unsigned long long> g_dl_born{0}, g_dl_dead{0}, g_dl_hit{0},
+    g_dl_full{0}, g_dl_miss{0}, g_dl_enforced{0};
+//! 0 = off, 1 = count only (default: state the base rate, flood nothing),
+//! 2 = report each hit through anomaly().
+unsigned dl_mode_() noexcept {
+    static const unsigned v = [] {
+        const char *e = getenv("KAME_RC_TRACE_DLIVE");
+        return (e && e[0]) ? (unsigned)atoi(e) : 1u;
+    }();
+    return v;
+}
+inline unsigned dl_hash_(uintptr_t a) noexcept {
+    return (unsigned)(((a >> 4) * 0x9E3779B97F4A7C15ull) >> (64 - DL_BITS));
+}
+DLSlot *dl_table_() noexcept {
+    static std::once_flag once;
+    std::call_once(once, [] {
+        void *m = mmap(nullptr, sizeof(DLSlot) * DL_N, PROT_READ | PROT_WRITE,
+            MAP_PRIVATE | MAP_ANON, -1, 0);
+        g_dl = (m == MAP_FAILED) ? nullptr : new(m) DLSlot[DL_N];
+    });
+    return g_dl;
+}
+enum { DL_PROBE = 8 };   //!< linear-probe budget; overflow is counted, not hidden
+//! §13.61 positive control.  `KAME_RC_TRACE_DLIVE_INJECT=N` makes every N-th
+//! enforced BORN claim its address a SECOND time while the first claim is
+//! still live -- exactly the state a pool double hand-out would create, on a
+//! real address in the real workload.  A run with it set must report HITS > 0,
+//! or the probe's zero means nothing.
+unsigned dl_inject_() noexcept {
+    static const unsigned v = [] {
+        const char *e = getenv("KAME_RC_TRACE_DLIVE_INJECT");
+        return (e && e[0]) ? (unsigned)atoi(e) : 0u;
+    }();
+    return v;
+}
+} // namespace
+
+//! BORN: claim the address.  Returns the previous occupant's ctor site when
+//! the address was already live (the tripwire), else nullptr.
+static const void *dl_born_(const void *, const void *, unsigned long long) noexcept;
+static const void *dl_born_(const void *obj, const void *site,
+    unsigned long long seq) noexcept {
+    DLSlot *t = dl_table_();
+    if(!t || !obj) return nullptr;
+    g_dl_born.fetch_add(1, std::memory_order_relaxed);
+    uintptr_t a = (uintptr_t)obj & ~DL_TAGS;
+    unsigned h = dl_hash_(a);
+    for(unsigned i = 0; i < DL_PROBE; ++i) {
+        DLSlot &s = t[(h + i) & (DL_N - 1)];
+        uintptr_t cur = s.addr.load(std::memory_order_acquire);
+        if((cur & ~DL_TAGS) == a) {
+            if(!(cur & DL_EVERDEAD)) {       // never proven to be a heap slot
+                s.addr.store(a | DL_LIVE, std::memory_order_release);
+                s.site = site; s.seq = seq;
+                return nullptr;
+            }
+            g_dl_enforced.fetch_add(1, std::memory_order_relaxed);
+            if(cur & DL_LIVE) {              // two live occupants, one address
+                g_dl_hit.fetch_add(1, std::memory_order_relaxed);
+                return s.site ? s.site : (const void *)1;
+            }
+            s.addr.store(a | DL_LIVE | DL_EVERDEAD, std::memory_order_release);
+            s.site = site; s.seq = seq;
+            if(unsigned iv = dl_inject_()) {
+                static std::atomic<unsigned> n{0};
+                if((n.fetch_add(1, std::memory_order_relaxed) % iv) == 0)
+                    return dl_born_(obj, site, seq);   // claim it again, live
+            }
+            return nullptr;
+        }
+        if(cur == 0) {
+            uintptr_t expect = 0;
+            if(s.addr.compare_exchange_strong(expect, a | DL_LIVE,
+                    std::memory_order_acq_rel, std::memory_order_acquire)) {
+                s.site = site; s.seq = seq;
+                return nullptr;
+            }
+            --i;                             // lost the slot; re-examine it
+            continue;
+        }
+    }
+    g_dl_full.fetch_add(1, std::memory_order_relaxed);
+    return nullptr;
+}
+
+static void dl_dead_(const void *obj) noexcept {
+    DLSlot *t = dl_table_();
+    if(!t || !obj) return;
+    g_dl_dead.fetch_add(1, std::memory_order_relaxed);
+    uintptr_t a = (uintptr_t)obj & ~DL_TAGS;
+    unsigned h = dl_hash_(a);
+    for(unsigned i = 0; i < DL_PROBE; ++i) {
+        DLSlot &s = t[(h + i) & (DL_N - 1)];
+        uintptr_t cur = s.addr.load(std::memory_order_acquire);
+        if((cur & ~DL_TAGS) == a) {
+            s.site = nullptr; s.seq = 0;
+            // Keep the entry (EVERDEAD, not LIVE): the slot is now known to be
+            // a recycling heap address, which is what licenses enforcement on
+            // the next BORN here.
+            s.addr.store(a | DL_EVERDEAD, std::memory_order_release);
+            return;
+        }
+        if(cur == 0) {                       // death of an unseen birth
+            uintptr_t expect = 0;
+            if(s.addr.compare_exchange_strong(expect, a | DL_EVERDEAD,
+                    std::memory_order_acq_rel, std::memory_order_acquire))
+                return;
+            --i;
+            continue;
+        }
+    }
+    g_dl_miss.fetch_add(1, std::memory_order_relaxed);
+}
+
+static void dl_report_() noexcept {
+    unsigned long long b = g_dl_born.load(std::memory_order_relaxed);
+    if(!b) return;
+    static std::atomic<bool> printed{false};   // atexit + exit summary both call
+    bool f = false;
+    if(!printed.compare_exchange_strong(f, true)) return;
+    fprintf(stderr, "kame_rc_trace: DOUBLE-LIVE probe: born %llu dead %llu "
+        "enforced %llu HITS %llu (table-full %llu, dead-miss %llu)\n", b,
+        g_dl_dead.load(std::memory_order_relaxed),
+        g_dl_enforced.load(std::memory_order_relaxed),
+        g_dl_hit.load(std::memory_order_relaxed),
+        g_dl_full.load(std::memory_order_relaxed),
+        g_dl_miss.load(std::memory_order_relaxed));
+}
+
 void record(const void *obj, unsigned op, unsigned long long oldc,
     const void *site, const char *tname, const void *slot) noexcept {
     if(op < TALLY_N) g_op_tally[op].fetch_add(1, std::memory_order_relaxed);
+    // §13.103 -- live-set bookkeeping.  Placed first so a BORN's claim is
+    // recorded before anything else can recurse into record().
+    if(unsigned dlm = dl_mode_()) {
+        if(op == OP_BORN) {
+            static std::atomic<bool> dl_once{false};
+            bool f = false;
+            if(dl_once.compare_exchange_strong(f, true)) atexit(dl_report_);
+            if(const void *prev = dl_born_(obj, site, 0)) {
+                if(dlm >= 2) {
+                    // Report through the ordinary tripwire path.  `slot`
+                    // carries the PREVIOUS occupant's ctor site, which is the
+                    // one fact that names the other owner.
+                    extern void anomaly(const void *, unsigned,
+                        unsigned long long, const void *, const char *,
+                        const void *) noexcept;
+                    anomaly(obj, OP_DOUBLE_LIVE, 0, site, tname, prev);
+                    return;   // anomaly() re-enters record() itself
+                }
+            }
+        }
+        else if(op == OP_DEAD || op == OP_DEAD_UNIQUE)
+            dl_dead_(obj);
+    }
     TL &t = tl;
     if(op == OP_DEC || op == OP_DEAD || op == OP_DEAD_UNIQUE
        || op == OP_DEC_UNDERFLOW)
@@ -1166,6 +1380,7 @@ static std::atomic<unsigned> g_anom_overflow{0};
 static void park_report_() noexcept;
 static void anom_exit_summary_() {
     park_report_();
+    dl_report_();
     unsigned total = 0;
     for(unsigned i = 0; i < ANOM_MAX; ++i)
         if(g_anom[i].obj.load(std::memory_order_relaxed)) ++total;

@@ -153,6 +153,46 @@ struct force_intrusive_ref<Transactional::PacketList_<PacketT, NodeListT>>
 
 namespace Transactional {
 
+#ifdef KAME_RC_TRACE
+#include <sched.h>
+#include <unistd.h>
+//! §13.100 targeted preemption injection.  §13.88 showed the fault responds
+//! to preemption FREQUENCY (rr `-c 10000` reproduces where chaos scheduling
+//! does not), and arm64's silence has two unseparated explanations: clang's
+//! codegen lacks the window, or macOS preemption never lands in it.  This
+//! separates them: force a yield at a CHOSEN point, every Nth pass, and see
+//! whether arm64 -- which never reproduces on its own -- starts to.
+//!   KAME_STM_YIELD_AT=<siteId>   which point (see the callers)
+//!   KAME_STM_YIELD_EVERY=<N>     1 in N passes (default 1)
+//!   KAME_STM_YIELD_US=<us>       optional extra sleep to widen further
+//! A hit means the window exists here and only scheduling was missing.
+namespace detail {
+inline void stm_yield_at_(unsigned site) noexcept {
+    static const unsigned s_site = [] {
+        const char *e = getenv("KAME_STM_YIELD_AT");
+        return (e && e[0]) ? (unsigned)atoi(e) : 0u;
+    }();
+    if(site != s_site) return;
+    static const unsigned s_every = [] {
+        const char *e = getenv("KAME_STM_YIELD_EVERY");
+        unsigned v = (e && e[0]) ? (unsigned)atoi(e) : 1u;
+        return v ? v : 1u;
+    }();
+    static const unsigned s_us = [] {
+        const char *e = getenv("KAME_STM_YIELD_US");
+        return (e && e[0]) ? (unsigned)atoi(e) : 0u;
+    }();
+    static std::atomic<unsigned> s_n{0};
+    if((s_n.fetch_add(1, std::memory_order_relaxed) % s_every) != 0) return;
+    if(s_us) usleep(s_us);
+    else     sched_yield();
+}
+}
+#define KAME_STM_YIELD(site) ::Transactional::detail::stm_yield_at_(site)
+#else
+#define KAME_STM_YIELD(site) ((void)0)
+#endif
+
 template <class XN>
 class DECLSPEC_KAME Node {
     template <class> friend class ScopedNegotiateLinkage;
@@ -2900,6 +2940,7 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
     // the anomaly path prints the Packet's own release history.
     // Enable with KAME_RC_TRACE_OLDPKT_CHECK=1 (and KAME_RC_TRACE_ABORT=0
     // if you want the follow-up dumps, per §13.80).
+    KAME_STM_YIELD(5);   //!< §13.100: just before m_oldpacket.reset()
     if(m_oldpacket) {
         static const bool _chk = [] {
             const char *e = getenv("KAME_RC_TRACE_OLDPKT_CHECK");

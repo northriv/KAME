@@ -2442,6 +2442,7 @@ Node<XN>::snapshotForUnbundle(const local_shared_ptr<Linkage> &child_linkage,
             r.parent_scope->consume_scoped_view(),
             newwrapper);
         p = &newwrapper->packet();
+        KAME_STM_YIELD(6);   //!< §13.100: view parked, ancestor view-protected only
 #ifdef KAME_RC_TRACE
 _kame_injected_park: ;
 #endif
@@ -3199,6 +3200,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         if( !scope.compareAndSetRetain(superwrapper)) {
             return BundledStatus::DISTURBED;
         }
+        KAME_STM_YIELD(3);   //!< §13.100: Phase 2 published, before set_view
         // Update supscope.view to track the new m_link state.
         // Pass copy of superwrapper (still needed for Phase 4).
         supscope.set_view(local_shared_ptr<PacketWrapper>(superwrapper));
@@ -3360,6 +3362,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                                               detail::StampKind::BUNDLE));
         }
 #endif
+        KAME_STM_YIELD(4);   //!< §13.100: Phase 4 CASed, sw1 still held by supscope
         // Update supscope.view to track.
         supscope.set_view(std::move(superwrapper));
 
@@ -3716,6 +3719,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
 #endif
 
     int _witer = 0;
+    KAME_STM_YIELD(1);   //!< §13.100: after the capture, before the CAS loop
     for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {
 #ifdef KAME_RC_TRACE
         _wcheck(1000 + _witer);    // point 1000+n: top of CAS-loop iteration n
@@ -3734,6 +3738,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
         if( !scope) return UnbundledStatus::DISTURBED;  // view was empty
         if( !scope.compareAndSet(it->new_wrapper))
             return UnbundledStatus::DISTURBED;
+        KAME_STM_YIELD(2);   //!< §13.100: CAS done, loop-local scope still alive
         // scope.compareAndSet auto-committed on success.  A subsequent
         // return DISTURBED below from the oldsuperwrapper check is
         // legitimate forward progress (linkage already advanced), and
