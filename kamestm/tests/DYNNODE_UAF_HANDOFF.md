@@ -7905,3 +7905,56 @@ conclusions and inline decisions for functions that are **never cloned at
 all**.  §13.119's suggested next step is now the only one left standing — diff
 the two objects restricted to functions that are *not* clones, which is where
 an effect that survives both directions of clone-set manipulation has to live.
+
+### 13.123 The non-clone memory-op diff §13.122 asks for
+
+(The conflict markers `7899e2210` committed in `allocator_prv.h` and
+`allocator.cpp` — both sessions built the §13.121 mask independently and the
+merge went in unresolved — were fixed on the Ubuntu side in `8382836c3`, taking
+the §13.121 files verbatim.  Confirmed here: `KAME_NOCLONE_MASK` ∈ {0, 2, 7}
+compiles again on that tree.  Worth one line of standing practice anyway: the
+allocator did not compile *at all* on the tip for several commits, and a
+build-and-measure loop that does not check its object exists reads stale
+artefacts as results — the same trap §13.119 documented.)
+
+**Then the tool.**  §13.122 leaves exactly one line open: the pass's effect on
+functions it never clones, "diff the two objects restricted to functions that
+are not clones".  The existing runner reports *sizes* (§5: "34 function sizes
+differ"), which is true and not actionable.
+`kamepoolalloc/tests/nonclone_memop_diff.py` ranks by **memory-operation shape**
+instead, because the fault class picks the metric: §13.113/§13.116 say a bitmap
+bit was cleared for a slot whose own free never happened, i.e. some function
+computed the wrong address or ran a store twice.  That shows up as an atomic RMW
+gained or lost, a store moved into or out of a branch, or a load duplicated so
+two reads back one CAS — not as a size delta.
+
+Per non-clone function present in both objects it reports Δinstructions,
+Δatomic, Δstore, Δload, Δbranch, sorted atomic-first, and it
+
+- excludes `.constprop` / `.isra` / `.part` symbols (the clone set, already
+  exhausted in both directions by §13.119 and §13.122);
+- lists non-clone functions present in only **one** object separately — a
+  function that stopped being emitted at all is a bigger change than any delta;
+- demangles, and **collapses template instantiations** (`×N`): one function
+  instantiated per size class otherwise produces 40 identical rows and buries
+  everything else.
+
+**Self-tested on a real object pair** (this side cannot run gcc on
+kamepoolalloc, `cdb70d2cf`, so the test is clang `-O2` vs `-O3` — the parsing
+and ranking are what is being checked, not the finding): 1149 non-clone
+functions in both, **114 changed**, collapsed from 436 raw rows by grouping.
+Top of that list is `orphan_chain_scrub` (+26 atomic, ×22 instantiations) and
+`orphan_chain_pop` (+8 atomic) — which is only a demonstration that the ranking
+separates memory-shape changes from noise, not a result about the fault.
+
+Ubuntu runs it as:
+
+```
+g++ -O2                 -c ... -o A.o
+g++ -O2 -fipa-cp-clone  -c ... -o B.o
+kamepoolalloc/tests/nonclone_memop_diff.py A.o B.o --top 25
+```
+
+The pair to diff is §13.119's minimal pair — the two builds whose failure rates
+are 0/10 and 9/10 — so every row is a candidate for the whole-unit effect that
+survived both directions of clone-set manipulation.
