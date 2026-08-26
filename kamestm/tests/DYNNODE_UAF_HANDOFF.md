@@ -5441,3 +5441,55 @@ rebuild flags beyond the tracer build already in use.
   move-assign carries the erased value to the tail and destroys it once;
   `move_fixed_to_var` move-constructs then destroys an emptied source),
   which would point at concurrent access to a list presumed private.
+
+### 13.77 The list check is silent because the victim was never a list element — it is `supscope->packet()` (§13.63's site, again)
+
+Ran §13.76's probe (`KAME_RC_TRACE_LIST_CHECK=1`, forensic `.so`,
+`setarch -R taskset -c 0-3`, `20 40 700`).  Three runs, two failures; the
+`rc=139` one carried **2 `INC-FROM-ZERO` tripwires and ZERO list-check
+reports** — neither the copy-ctor direction nor the dtor direction fired.
+
+**Liveness proved locally first** (§13.61's rule): forcing the predicate to
+`if(true)` gives **3** well-formed reports carrying the check site
+(`type=PacketList_ copy-ctor element`), then reverted — tree clean.  So the
+silence is a real negative, not a dead probe.
+
+**And the reason is in the anomaly's own site.**  Both tripwires resolve to
+`Node<LongNode>::bundle`, **`transaction_impl.h:2868`**:
+
+```cpp
+local_shared_ptr<PacketWrapper> superwrapper(
+    make_local_shared<PacketWrapper>(supscope->packet(), bundle_serial));
+```
+
+That is **§13.63's anomaly #1 site** (line 2851 before the intervening edits
+shifted it).  The `PacketWrapper` constructor copies `supscope->packet()` — so
+the resurrected `Packet` is **the scope's own view packet, not an element of
+any `PacketList_`**.  §13.76's checks walk the element array; the victim is
+never in it.  That is why both directions are silent, and it is a clean
+answer rather than a null one: **the element array is excluded as the locus.**
+
+**A correction I owe on my own earlier reading.**  In §13.73 and §13.75 I wrote
+that the resurrection signature was *absent* from the FIXED-arm survivors,
+on five captures that were all `DEC-UNDERFLOW`.  This capture is a FIXED-arm
+survivor with `INC-FROM-ZERO`.  **The survivor population carries both
+signatures**; they are not partitioned by fix state, and my "absent" was an
+over-read of a small sample.  The two directions are the same defect seen from
+either side, exactly as §13.75 argued: a `Packet` whose ownership does not
+match its count — copy the holder and you resurrect it, destroy the holder and
+you double-release it.
+
+**Where the evidence now converges.**  Three independent captures
+(§13.63 #1, and both tripwires here) put the resurrection at the *same*
+construction, and it is not a list operation:
+`make_local_shared<PacketWrapper>(supscope->packet(), …)`.  The open question
+is the one §13.63 posed and it is now the only one standing:
+**what drops the last reference to `supscope->packet()` while the scope is
+live.**
+
+**Suggested probe** — the same shape that has worked, moved to the right
+object: check `supscope->packet()`'s refcount at `ScopedNegotiateLinkage`
+construction, at each `packet()` use, and immediately before `:2868`, keyed on
+that `Packet` so the anomaly path prints its `RC-PRIOR-RELEASE-FAST`.
+Zero-at-entry indicts how the scope acquires its view; going-zero-during
+indicts the release that does it, and names it directly.
