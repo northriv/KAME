@@ -5772,3 +5772,76 @@ which tests the overwrite hypothesis directly rather than by elimination.
 (kept only runs where the new check fired, discarding one that had 5 entry
 hits).  Fixed to keep every failing run; worth stating because it is the
 second time in this section.
+
+### 13.83 The overwrite hypothesis is not testable by "did m_packet change?" —
+### measured: that happens 195 000 times in 40 s
+
+Implemented §13.82's recommendation (record `w->m_packet.get()` at wrapper
+construction, compare later) as a tracer-side association table
+(`wp_note`/`wp_check`, 8192 direct-mapped slots — no data member, since a
+class layout must not depend on a build macro).  It reports **195 171
+changes in a single 40 s arm64 run**.
+
+**So "m_packet changed since construction" is not a defect predicate.**
+Copy-on-write through the non-const `packet()` is exactly how `bundle`
+builds its *private* wrapper, and it does so constantly.  The reporter is
+therefore left in place but **OFF by default**
+(`KAME_RC_TRACE_WP_REPORT=1`) as a frequency probe only.  This is a
+substantive negative: §13.80/§13.82's "only mechanism standing" is not
+anomalous *per se*, and the anomaly must be narrower.
+
+**Two instrument bugs of mine, recorded because both cost a run.**
+(1) `anomaly()`'s `tname` must have **static lifetime** — it is stored in
+the ring and read at dump time — and I passed a `snprintf` stack buffer,
+which crashed at the dump (dangling read).  The two pointers now travel in
+the numeric fields (`rc_before` = born packet, `slot` = current).  (2) The
+`bundledBy` constructor legitimately starts with `m_packet == nullptr` and
+is assigned right after (`:1444`/`:1561`, both pre-publish), so without a
+born-non-null guard every such wrapper "changed" — that was the flood.
+
+### 13.84 The narrower predicate: writing through a PUBLISHED wrapper
+
+If mutating a *private* wrapper is the design, the defect can only be
+mutating the **published** one — that drops a counted reference other
+holders still rely on, with no zero crossing and hence no tripwire, which
+is exactly the evidence §13.80/§13.82 assembled.
+
+`KAME_RC_TRACE_PUBWRITE_CHECK=1` arms `rcPublishedWriteCheck(node, w,
+where)` at **both** `reverseLookup(superwrapper->packet(), …)` call sites
+in `bundle`: it reads the linkage's current wrapper through a
+`scoped_atomic_view` and reports only when that wrapper **is** the one
+about to be written through.  Keyed on the packet, with the wrapper in
+`slot` and `rc_before` = the wrapper address.
+
+Liveness proved (§13.61's rule): inverting the private-case early-out
+gives **434 719** reports; reverted.  Mac: **0 hits** over 3 dynamic-node
+runs, `tests/` tree **40/40**, plain build unaffected.
+
+### 13.85 Division of labour — the Linux side should build instruments too
+
+Raised by the user, and the record supports it.  My last two probes were
+designed without a reproducer and **each needed a correction from your
+runs**: §13.78's follow-up dump sat after an `anomaly()` that aborts by
+default (§13.80 found it), and §13.83's predicate turned out to fire
+195 k times (found here only because arm64 runs the same code).  A probe
+whose base rate must be measured before it can be trusted belongs on the
+machine that can measure it in one cycle instead of three round trips.
+
+Suggested split from here:
+
+- **Ubuntu (has the reproducer)** — write and calibrate detectors
+  directly: measure a candidate predicate's base rate BEFORE trusting a
+  zero (the §13.83 lesson); iterate probe placement against a live
+  failure; own the `rr` line (recording works with `-c 10000`; the replay
+  divergence is your PREEMPT_RT/PMU issue, and the watchpoint +
+  reverse-continue to the writer is still the highest-value unexplored
+  step); run the interleaved A/B for any fix.
+- **Mac (no reproduction, ever)** — formal work where an arm64 result is
+  the datum: TLA+/GenMC models (`PacketRefcount.tla` is the only one with
+  the packet-refcount layer, and the depth-4+/3-thread run is still
+  outstanding), source audits of the kind that produced §13.67 and
+  §13.71, and the tracer's *mechanics* (ring/cache/marker semantics, the
+  `tname` lifetime contract, decrement coverage) where I am the author.
+- **Both** — keep the discipline that has actually worked: prove a
+  detector fires before believing its zero; measure a predicate's base
+  rate before believing its hit; and state which of the two you did.

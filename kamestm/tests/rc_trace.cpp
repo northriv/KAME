@@ -886,6 +886,66 @@ namespace kame_rc_trace {
 // Packet's list element pointing back at an ancestor under destruction
 // (the shape \xc2\xa79.1's RCT3_35 suggests: DEAD(unique) stores 0, the second
 // DEC reads 0 before the allocator's poison lands).
+// ---- §13.83 wrapper -> packet-at-construction association ---------------
+// (anomaly() is defined below; declare it here so this block can sit next
+//  to the other O(1) caches rather than after the reporter.)
+// Direct-mapped, same hashing as the other O(1) caches.  Racy by design:
+// a lost note only costs a missed check, never a false report -- a report
+// requires BOTH a matching wrapper address AND a differing packet.
+namespace {
+struct WPSlot { std::atomic<const void *> w{nullptr}; const void *p{nullptr}; };
+constexpr unsigned WP_SLOTS = 8192;
+WPSlot g_wp[WP_SLOTS];
+inline unsigned wp_slot_(const void *w) noexcept {
+    return (unsigned)((((uintptr_t)w >> 4) * 0x9E3779B97F4A7C15ull) >> 51)
+           % WP_SLOTS;
+}
+}
+void anomaly(const void *obj, unsigned op, unsigned long long oldc,
+    const void *site, const char *tname, const void *slot) noexcept;
+static bool wp_report_enabled_() noexcept {
+    static const bool v = [] {
+        const char *e = getenv("KAME_RC_TRACE_WP_REPORT");
+        return e && e[0] && e[0] != '0';
+    }();
+    return v;
+}
+void wp_note(const void *wrapper, const void *packet) noexcept {
+    if(!wrapper) return;
+    WPSlot &s = g_wp[wp_slot_(wrapper)];
+    s.p = packet;                                   // publish value first
+    s.w.store(wrapper, std::memory_order_release);
+}
+void wp_check(const void *wrapper, const void *packet,
+              const void *site, const char *where) noexcept {
+    if(!wrapper) return;
+    WPSlot &s = g_wp[wp_slot_(wrapper)];
+    if(s.w.load(std::memory_order_acquire) != wrapper) return;  // no note
+    const void *born = s.p;
+    if(born == packet) return;                       // unchanged: fine
+    if( !born) return;
+    if(!wp_report_enabled_()) return;
+    //!< §13.83 measured: an m_packet change is NORMAL and frequent (195k in
+    //!< a 40s run) -- copy-on-write through the non-const packet() is how
+    //!< bundle builds its private wrapper.  So "changed" is not a defect
+    //!< predicate and this reporter stays OFF unless explicitly asked for
+    //!< (KAME_RC_TRACE_WP_REPORT=1), kept only as a frequency probe.
+    //!< Born NULL is the bundledBy ctor, whose packet is legitimately
+    //!< assigned right after (transaction_impl.h:1444/:1561, both
+    //!< pre-publish).  Only the overwrite of an ALREADY-SET counted member
+    //!< is interesting -- and skipping this is what flooded the first run.
+    (void)where;
+    //!< `tname` must have STATIC lifetime: anomaly() stores the pointer in
+    //!< the ring and the dump reads it later.  Passing a stack buffer here
+    //!< crashed the first attempt (dangling read at dump time), so the two
+    //!< pointers travel in the numeric fields instead: rc_before = the
+    //!< packet it was BORN with, slot = the packet it names NOW.
+    anomaly(wrapper, OP_DEAD_ELEMENT,
+        (unsigned long long)(uintptr_t)born, site,
+        "wrapper m_packet OVERWRITTEN (rc_before=born packet, slot=now)",
+        packet);
+}
+
 void push_dtor(const void *obj, const void *site) noexcept {
     if(tl_dtor_depth < DTOR_MAX)
         tl_dtor[tl_dtor_depth] = DtorFrame{obj, site};

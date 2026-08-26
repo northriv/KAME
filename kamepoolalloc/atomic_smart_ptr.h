@@ -166,6 +166,18 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
 //! an ancestor being destroyed) is visible as a non-empty stack in the
 //! anomaly report.  Â§9.1's RCT3_35 (single-tid rc=0 double release) is
 //! decided by exactly this: second DEC inside the first DEAD's chain.
+//! §13.83 wrapper->packet association table.  §13.80/§13.82 leave one
+//! mechanism standing: a LIVE wrapper's counted `m_packet` being
+//! OVERWRITTEN (the non-const `packet()` handed to a copy-on-write
+//! lookup), which removes its count without any zero crossing and so
+//! without any tripwire.  Testing that needs the wrapper's packet AT
+//! CONSTRUCTION, and a class layout must not depend on a build macro
+//! (CLAUDE.md) -- so the association lives here, in the tracer, keyed by
+//! wrapper address.  `note` records it; `check` reports when the wrapper
+//! now names a DIFFERENT packet than it was built with.
+void wp_note(const void *wrapper, const void *packet) noexcept;
+void wp_check(const void *wrapper, const void *packet,
+              const void *site, const char *where) noexcept;
 void push_dtor(const void *obj, const void *site) noexcept;
 void pop_dtor() noexcept;
 }

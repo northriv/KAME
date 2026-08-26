@@ -1262,6 +1262,9 @@ template <class XN>
 Node<XN>::PacketWrapper::PacketWrapper(const local_shared_ptr<Packet> &x, int64_t bundle_serial) noexcept :
     m_bundledBy(), m_packet(x), m_reverse_index((int)PACKET_STATE::PACKET_HAS_PRIORITY),
     m_bundle_serial(bundle_serial) {
+#ifdef KAME_RC_TRACE
+    kame_rc_trace::wp_note(this, m_packet.get());   // §13.83
+#endif
 }
 template <class XN>
 Node<XN>::PacketWrapper::PacketWrapper(const local_shared_ptr<Linkage > &bp, int reverse_index,
@@ -1269,11 +1272,20 @@ Node<XN>::PacketWrapper::PacketWrapper(const local_shared_ptr<Linkage > &bp, int
     m_bundledBy(bp), m_packet(), m_reverse_index(),
     m_bundle_serial(bundle_serial) {
     setReverseIndex(reverse_index);
+#ifdef KAME_RC_TRACE
+    kame_rc_trace::wp_note(this, m_packet.get());   // §13.83 (null at birth;
+    //!< the two :1444/:1561 assignments then legitimately change it, which is
+    //!< why a report needs a NON-null born value to be interesting)
+#endif
 }
 template <class XN>
 Node<XN>::PacketWrapper::PacketWrapper(const PacketWrapper &x, int64_t bundle_serial) noexcept :
     m_bundledBy(x.m_bundledBy), m_packet(x.m_packet),
-    m_reverse_index(x.m_reverse_index), m_bundle_serial(bundle_serial) {}
+    m_reverse_index(x.m_reverse_index), m_bundle_serial(bundle_serial) {
+#ifdef KAME_RC_TRACE
+    kame_rc_trace::wp_note(this, m_packet.get());   // §13.83
+#endif
+}
 
 template <class XN>
 void
@@ -1719,6 +1731,21 @@ extern "C" void kame_rc_dump(const void *);   //!< §13.78: tracer runtime
 #endif
 template <class XN>
 void
+Node<XN>::rcPublishedWriteCheck(Node<XN> &node, const PacketWrapper *w,
+    const char *where) noexcept {
+    static const bool enabled = [] {
+        const char *e = getenv("KAME_RC_TRACE_PUBWRITE_CHECK");
+        return e && e[0] && e[0] != '0';
+    }();
+    if( !enabled || !w) return;
+    scoped_atomic_view<PacketWrapper> cur( *node.m_link);
+    if( !cur || cur.operator->() != w) return;      // private: the normal case
+    kame_rc_trace::anomaly(w->packet().get(), kame_rc_trace::OP_DEAD_ELEMENT,
+        (unsigned long long)(uintptr_t)w, __builtin_return_address(0),
+        where, static_cast<const void *>(w));
+}
+template <class XN>
+void
 Node<XN>::rcScopePacketCheck(const PacketWrapper *w, const char *where) noexcept {
     static const bool enabled = [] {
         const char *e = getenv("KAME_RC_TRACE_SCOPEPKT_CHECK");
@@ -1732,6 +1759,12 @@ Node<XN>::rcScopePacketCheck(const PacketWrapper *w, const char *where) noexcept
     kame_rc_trace::anomaly(e, kame_rc_trace::OP_DEAD_ELEMENT, rc,
         __builtin_return_address(0), where,
         static_cast<const void *>(w));   // slot = the WRAPPER that names it
+    // §13.83: did this LIVE wrapper's m_packet change since construction?
+    // That is the one mechanism §13.82 left standing -- an overwrite through
+    // the non-const packet() -- and it is testable directly, not by
+    // elimination.
+    kame_rc_trace::wp_check(static_cast<const void *>(w),
+        static_cast<const void *>(e), __builtin_return_address(0), where);
     // (§13.80) Discriminator: every capture so far shows the fatal release
     // finding rc_before == 1, i.e. NO wrapper reference was counted on this
     // packet.  Two readings remain -- the wrapper is alive but uncounted, or
@@ -2975,7 +3008,12 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         local_shared_ptr<PacketWrapper> superwrapper(
             make_local_shared<PacketWrapper>( *supscope, bundle_serial));
         local_shared_ptr<Packet> &newpacket(
-            reverseLookup(superwrapper->packet(), true, SerialGenerator::gen()));
+            (
+#ifdef KAME_RC_TRACE
+             rcPublishedWriteCheck(supernode, superwrapper.get(),
+                 "copy-on-write through a PUBLISHED wrapper's packet()"),
+#endif
+             reverseLookup(superwrapper->packet(), true, SerialGenerator::gen())));
         assert(newpacket->size());
         assert(newpacket->missing());
 #ifdef KAME_RC_TRACE
@@ -3183,7 +3221,12 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         superwrapper = make_local_shared<PacketWrapper>( *superwrapper, bundle_serial);
         if( !missing) {
             local_shared_ptr<Packet> &newpacket(
-                reverseLookup(superwrapper->packet(), true, SerialGenerator::gen()));
+                (
+#ifdef KAME_RC_TRACE
+             rcPublishedWriteCheck(supernode, superwrapper.get(),
+                 "copy-on-write through a PUBLISHED wrapper's packet()"),
+#endif
+             reverseLookup(superwrapper->packet(), true, SerialGenerator::gen())));
             // Hard-link race gate: verify every Null sub-slot is
             // reverseLookup-able before publishing ~missing (the
             // production "30/30 abort" pattern; see VERIFICATION.md §5

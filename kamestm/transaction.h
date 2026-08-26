@@ -1007,6 +1007,12 @@ private:
         //! running the destructor on storage that was already freed.
         //! Member destruction is unchanged -- this only observes.
         ~PacketWrapper() noexcept {
+            //!< §13.83: also test the overwrite hypothesis here -- at death a
+            //!< wrapper should still name what it was built with (or what the
+            //!< two pre-publish assignments set), so a change means the
+            //!< counted member was replaced while the wrapper lived.
+            kame_rc_trace::wp_check(this, m_packet.get(),
+                __builtin_return_address(0), "PacketWrapper dtor");
             uintptr_t rc = this->refcnt;
             if(rc >= ((uintptr_t)1 << 48))
                 kame_rc_trace::anomaly(this, kame_rc_trace::OP_DEAD_ELEMENT,
@@ -1632,6 +1638,15 @@ private:
     //! m_packet was never counted".
     static void rcScopePacketCheck(const PacketWrapper *w,
                                    const char *where) noexcept;
+    //! §13.84: about to write through \a w's non-const `packet()` -- is \a w
+    //! the wrapper currently PUBLISHED at \a node's linkage?  Mutating a
+    //! private wrapper is the copy-on-write design (§13.83 measured 195k
+    //! such writes in 40 s, so "it changed" is not a defect).  Mutating the
+    //! PUBLISHED one is the mechanism §13.80/§13.82 left standing: it drops
+    //! a counted reference other holders still rely on, with no zero
+    //! crossing and so no tripwire.
+    static void rcPublishedWriteCheck(Node<XN> &node, const PacketWrapper *w,
+                                      const char *where) noexcept;
     //! §13.67: is the Packet at \a slot still live, at the instant before
     //! it is copied?  `slot` is a `local_shared_ptr<Packet>*` a lookup
     //! handed out; the check reports the ELEMENT so the anomaly path
