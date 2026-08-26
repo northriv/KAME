@@ -9,6 +9,31 @@ yet" on LP64.
 **There is now an LP64 reproducer that fires most runs, and the fault has been
 caught in the act.  It is not an allocator defect and not a miscompile.**
 
+> **Header note added later, and it contradicts the line above.**  §6's
+> mixed-compiler table (clang-STM + gcc-pool **8/12**, gcc-STM + clang-pool
+> **0/12**, allocator `-O2` **0/8**) puts the fault in the **allocator's** TU and
+> makes its dependence on `-fipa-cp-clone` a codegen property.  §13.103 onwards
+> works from that; this header's "not an allocator defect and not a miscompile"
+> is the 2026-08-24 reading and is left in place for the record rather than
+> quietly corrected.
+
+## 0. Working convention for the two sessions
+
+Both sides append numbered sections to this file, so **`git fetch` before
+writing a section number and before every push.**  Four collisions have already
+happened (§13.104, §13.110, §13.121, §13.132 were each written twice) and each
+cost a rebase with a hand-resolved conflict — one of which
+(`7899e2210`) went in with **unresolved conflict markers** and left the
+allocator uncompilable on the branch tip for several commits, which is the worst
+outcome available since a build-and-measure loop then reads stale artefacts as
+results.
+
+Taking the next free number after a fetch is enough; a parity split (one side
+even, one odd) was considered and rejected as more bookkeeping than the problem
+warrants.  If a collision does happen, **renumber the later-written section** and
+say so in its text, so cross-references from earlier sections keep pointing at
+what they meant.
+
 ---
 
 ## 1. The finding
