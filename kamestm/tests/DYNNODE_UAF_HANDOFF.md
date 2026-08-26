@@ -8614,3 +8614,62 @@ the fix is the gate.  If it does not, the window is real but not load-bearing,
 and it should be closed anyway — a documented dangling deref with a prior SEGV
 attached is not something to leave on the argument that it did not happen to be
 this bug.
+
+### 13.134 A working harness for the verifier — both §13.132 symptoms are the same two traps
+
+§13.132 confirms §13.130's predicted wide store in the firing binary (a 16-bit
+`mov %dx, 0x10(%rax,%rdi,1)` where the source is a byte loop) and then reports
+its verifier harness not working: "the self-test driver segfaults in a bare
+program and the env-gated poke never triggers".  Both have specific causes, both
+cost this side the same time, and neither is the verifier's fault.
+
+1. **The SIGSEGV is expected, and it arrives AFTER the detection.**  Once a
+   `back_offset` entry is corrupted, every later free of a slot in the affected
+   chunk mis-derives `chunk_base`, so the process dies in the free path with
+   `rc=139`.  That is the point — it is the failing runs' signature reproduced
+   from a one-byte poke — but with block-buffered `stdout` the buffer dies with
+   the process and the run looks like it printed nothing.  `setvbuf(_IONBF)`
+   before anything else.
+2. **Poking an UNCLAIMED unit is invisible by design.**  The verifier walks
+   `claim_bitmap` and skips unclaimed units, because an unclaimed entry
+   legitimately reads 0.  A poke at a fixed index hits an unclaimed unit on most
+   runs and is correctly ignored — which presents exactly as "the poke never
+   triggers".  Poke a unit the run has actually claimed: sweep a range and stop
+   at the first index where the count rises.
+
+**`kamepoolalloc/tests/backoffset_verify_test.cpp`** is the harness with both
+handled, and it works here (pool active, arm64):
+
+```
+round 0                reserved=33554432  anomalies=0
+round 1                reserved=67108864  anomalies=0
+round 2                reserved=67108864  anomalies=0
+--- base rate over 3 rounds: 0 anomalies ---
+--- positive control ---
+poked unit 2   -> anomalies=1  first(unit=2 val=85 expect=1)  CAUGHT
+exit=139
+```
+
+It also **fails loudly** (`return 2`) if the poke sweep never fires, so a clean
+table can never be quoted from a run whose control did not work — the §13.61 rule
+built into the harness rather than left to the reader.
+
+Build note repeated because it is the third time it has bitten: the pool must be
+**active**, i.e. a shared library with `-DKAMEPOOLALLOC_DYLIB`.  Compiling
+`allocator.cpp` into the executable links the pool in but leaves `new`/`delete`
+on libc, `kame_pool_reserved_bytes()` reads 0, and freed blocks carry no poison
+(§13.109).  The harness prints `reserved=` on every line so a pool-inactive run
+is obvious at a glance.
+
+**On §13.132's open question** — whether the 2-entry clone is ever reached with a
+1-unit chunk — one observation from the disassembly worth recording, and one
+reason it is probably not the bug.  The clone masks the unit index with
+`and $0x7f` and then does a **2-byte** store at `0x10(%rax,%rdi,1)`; `RegionMeta`
+puts `back_offset[128]` at `0x10` with `dll_next` immediately after, so a store
+at index **127** would write `back_offset[127]` **and the low byte of
+`dll_next`**.  But a 2-unit chunk cannot have base unit 127 (unit 128 does not
+exist, so the claim could not have succeeded), and an IPA-CP clone is only
+called from the sites whose constant matched — so both the 1-unit and the
+index-127 cases require the specialization itself to be mis-dispatched, which is
+a different and much stronger claim than a wide store.  The verifier is what
+settles it either way, which is why the harness mattered more than more staring.
