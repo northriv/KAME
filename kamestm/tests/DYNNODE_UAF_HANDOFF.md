@@ -7776,3 +7776,68 @@ firing baseline), not licensed locally from a quiet one.
 [cython#2494 "Should not use __attribute__((optimize(…)))"](https://github.com/cython/cython/issues/2494),
 [GCC bug 66616 — fipa-cp-clone ignores thunk](https://gcc.gnu.org/pipermail/gcc-bugs/2015-December/526767.html),
 [GCC internals: Regular IPA passes](https://gcc.gnu.org/onlinedocs/gccint/Regular-IPA-passes.html).
+
+### 13.121 The subtractive mechanism §13.120 asks for: `noclone` from a FIRING baseline, reaching the four caller-driven clones
+
+§13.120's conclusion is that per-function licensing is structurally unable to
+reach the four functions the pass specialises from caller context — and that
+those four are the interesting set (`global_pop_fit` is §13.53's clone that
+correlated perfectly with the fault across all six arms; `acquire_tag_ref_` is
+the tagged-pointer refcount acquisition this whole section is about).  It also
+says what to do instead: enable the pass unit-wide and **suppress cloning
+elsewhere**, i.e. subtract from a build that fires rather than add to one that
+is quiet.
+
+Built that.  `KAME_NOCLONE_MASK` is the mirror of `KAME_CLONE_MASK` — a bitmask
+over `noclone` attributes on the three `*_pop_fit` functions, applied on top of
+a global `-O2 -fipa-cp-clone`:
+
+```
+g++ -O2 -fipa-cp-clone -DKAME_NOCLONE_MASK=0x2   # global_pop_fit only
+g++ -O2 -fipa-cp-clone -DKAME_NOCLONE_MASK=0x7   # all three *_pop_fit
+g++ -O2 -fipa-cp-clone -DKAME_ASP_NOCLONE        # the ASP protocol trio
+```
+
+`acquire_tag_ref_` is deliberately **not** a new slot: it already carries
+`KAME_ASP_NOCLONE_ATTR` in `atomic_smart_ptr.h`, so `-DKAME_ASP_NOCLONE` is its
+switch — with the caveat already written there, that it moves the other two
+protocol members with it and wants the lock-add census checked first (§13.23).
+
+**Why `noclone` reaches what `optimize()` cannot.**  IPA-CP's decision to
+specialise a callee is taken with the callee's own `noclone` in hand — it
+removes the licence — whereas asking for a specialisation the caller context
+has to justify cannot be expressed on the callee at all.  So this direction
+covers exactly the set the additive one structurally missed.  §5's objection
+still stands and is handled differently: it warns against attributing a
+*disappearance* to the function the attribute was on, so the runner reports the
+**ipa-cp decision delta** (`-fdump-ipa-cp-details`, "Creating a specialized node
+of ...") rather than surviving `.constprop` symbols — §13.120's lesson exactly,
+since symbol counts said "superset" where decisions said "strict subset".
+
+**Runner**: `kamepoolalloc/tests/noclone_mask_bisect.sh`.  Per arm it prints the
+specialised-node and distinct-function counts plus the per-function histogram,
+so an arm that did **not** remove its target from the list is reported as
+suppressing nothing — VACUOUS, not negative, the same discipline §13.112 applied
+to the additive arms and §13.117 then needed for five of seven.  It also never
+sends compiler errors to `/dev/null` and refuses to proceed on a missing `.so`,
+which is the §13.119 failure mode (stale artefacts read as fresh results).
+
+**The three experiments this makes available, in order of what a result would
+settle:**
+
+| arm | if the firing build STOPS firing | if it keeps firing |
+|---|---|---|
+| `0x2` (`global_pop_fit`) | §13.53's perfect correlation becomes causal — the single most direct outcome available | that clone is not load-bearing alone |
+| `0x7` (all three `*_pop_fit`) | the family carries it; bisect within by `0x1`/`0x2`/`0x4` | the family is not it, and `acquire_tag_ref_` is the remaining unreached candidate |
+| `KAME_ASP_NOCLONE` | the refcount-protocol specialisation carries it | neither of the two reachable sets does, and the answer is a whole-unit property after all |
+
+Note the asymmetry that makes this worth running before anything else: unlike
+§13.117–§13.119's arms, **every arm here starts from a configuration that is
+known to fail 9/10**, so a negative arm is a real negative — the experiment
+cannot be silently unpowered.  What it can be is vacuous, and the decision-delta
+report is there to catch precisely that.
+
+**Mac-side validation**: masks `0`, `0x1`, `0x2`, `0x4`, `0x7` all pass a clang
+syntax check (clang parses and ignores `noclone`), so the attribute placement is
+valid at all three sites; and mask 0 leaves the default build unchanged.  The
+runs need gcc, so they are Ubuntu's.

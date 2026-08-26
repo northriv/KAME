@@ -1594,6 +1594,67 @@ public:
   #undef  KAME_CLONE_L12
   #define KAME_CLONE_L12 KAME_CLONE_ATTR_M_
 #endif
+//! §13.121  The SUBTRACTIVE direction, which is the only one that reaches the
+//! four functions §13.120 identified.
+//!
+//! §13.120's finding: `-fipa-cp-clone` specialises 12 functions unit-wide, of
+//! which per-function licensing reaches only 8.  The four it cannot reach --
+//! `l1_pop_fit`, `global_pop_fit`, `recycle_pop_fit` and
+//! `atomic_shared_ptr_base::acquire_tag_ref_` -- are specialised from CALLER
+//! context, and no attribute on a callee can ask for that.  They are also the
+//! interesting ones: `global_pop_fit` is §13.53's clone that correlated
+//! perfectly with the fault across all six arms, and `acquire_tag_ref_` is the
+//! refcount acquisition this whole section is about.
+//!
+//! So invert the experiment: start from the build that FIRES
+//! (`-O2 -fipa-cp-clone`, 9/10 in §13.119's job) and take cloning AWAY from one
+//! candidate at a time.  `noclone` on a callee does remove IPA-CP's licence to
+//! specialise it, so this direction reaches exactly the set the additive one
+//! cannot.  A candidate whose suppression makes a firing build STOP firing is
+//! implicated positively -- and §5's objection (a `noclone` moved 72 other
+//! function sizes) is about attributing a disappearance to the attributed
+//! function, which is why the runner reports the ipa-cp DECISION delta, not a
+//! symbol count: §13.120's lesson was that surviving `.constprop` symbols are
+//! not what the pass did.
+//!
+//!   g++ -O2 -fipa-cp-clone -DKAME_NOCLONE_MASK=0x2 ...   # global_pop_fit only
+//!   g++ -O2 -fipa-cp-clone -DKAME_NOCLONE_MASK=0x7 ...   # all three *_pop_fit
+//!   ... -DKAME_ASP_NOCLONE                               # the ASP protocol trio
+//!
+//! Slots (bit n-1 selects slot n):
+//!   1 l1_pop_fit
+//!   2 global_pop_fit      (§13.53's perfectly-correlated clone)
+//!   3 recycle_pop_fit
+//! `acquire_tag_ref_` is NOT here: it already carries `KAME_ASP_NOCLONE_ATTR`
+//! in atomic_smart_ptr.h, so `-DKAME_ASP_NOCLONE` is its switch (and it moves
+//! the other two protocol members with it -- verify against the lock-add
+//! census, §13.23, before trusting a run).
+#ifndef KAME_NOCLONE_MASK
+  #define KAME_NOCLONE_MASK 0
+#endif
+#if defined(__GNUC__) && !defined(__clang__)
+  #define KAME_NOCLONE_ATTR_ __attribute__((noclone))
+#else
+  #define KAME_NOCLONE_ATTR_
+#endif
+#if (KAME_NOCLONE_MASK) & 0x1
+  #define KAME_NOCLONE_N1 KAME_NOCLONE_ATTR_
+#else
+  #define KAME_NOCLONE_N1
+#endif
+#if (KAME_NOCLONE_MASK) & 0x2
+  #define KAME_NOCLONE_N2 KAME_NOCLONE_ATTR_
+#else
+  #define KAME_NOCLONE_N2
+#endif
+#if (KAME_NOCLONE_MASK) & 0x4
+  #define KAME_NOCLONE_N3 KAME_NOCLONE_ATTR_
+#else
+  #define KAME_NOCLONE_N3
+#endif
+#define KAME_NOCLONE_(n) KAME_NOCLONE_N##n
+#define KAME_NOCLONE(n) KAME_NOCLONE_(n)
+
 #define KAME_CLONE_LICENCE_(n) KAME_CLONE_L##n
 #define KAME_CLONE_LICENCE(n) KAME_CLONE_LICENCE_(n)
 //! Arm map -- keep in sync with the licensable sites below:
