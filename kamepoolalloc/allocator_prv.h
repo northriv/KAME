@@ -1476,6 +1476,21 @@ public:
 #else
   #define KAME_CLONE_ATTR_
 #endif
+// (§13.118) Arms 9/10: the families that actually GAIN clones between the
+// non-firing -O2 build and the firing -O2 -fipa-cp-clone build --
+// PoolAllocator<N,true,true>::PoolAllocator (17 of them, one per size class)
+// and restamp_back_offset.  Neither was on the §13.112/§13.116 arm list, yet
+// together they are the bulk of the clone-set delta the fault correlates with.
+#if KAME_CLONE_ARM == 9
+  #define KAME_CLONE_L9 KAME_CLONE_ATTR_
+#else
+  #define KAME_CLONE_L9
+#endif
+#if KAME_CLONE_ARM == 10
+  #define KAME_CLONE_L10 KAME_CLONE_ATTR_
+#else
+  #define KAME_CLONE_L10
+#endif
 #if KAME_CLONE_ARM == 1
   #define KAME_CLONE_L1 KAME_CLONE_ATTR_
 #else

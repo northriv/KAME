@@ -7608,3 +7608,59 @@ forces cloning rather than merely permitting it (e.g. licensing at `-O3` and
 subtracting elsewhere, or `-fipa-cp-clone` with per-function
 `optimize("-O3")`), and until then §13.112's most interesting arm is untested
 rather than refuted.
+
+### 13.118 The arm list omits the family that carries the clone-set delta — armed it, and it still does not fire
+
+**The observation first.**  Comparing the clone families of the two builds
+whose failure rates differ (§13.117), the delta is not in any armed function:
+
+| family | baseline `-O2` (0/8) | firing `-O2 -fipa-cp-clone` (3/8) |
+|---|---|---|
+| **`PoolAllocator<N,true,true>::PoolAllocator`** | 0 | **17** |
+| **`PoolAllocatorBase::restamp_back_offset`** | 0 | **1** |
+| `find_training_zeros` | 0 | 1 |
+| `bucket_release_chunk` | 0 | 1 |
+| unnamed (static/local) | 3 | 5 |
+
+Arms 1–8 cover the three *single-clone* families.  **The 17 chunk
+constructors — one per size class, and the bulk of the difference — were never
+on the list**, nor was `restamp_back_offset`.  Given §13.110/§13.113 (a chunk
+of live objects recycled underneath its owners), the chunk constructor is also
+the mechanistically obvious candidate: it is what lays down a chunk's bitmap,
+counts and `back_offset`.
+
+**So I armed them** (slots 9 and 10, same macro mechanism).  Both are
+substantial, unlike arms 3–7:
+
+| arm | function | clones (baseline 3) |
+|---|---|---|
+| 9 | `PoolAllocator<N,…>::PoolAllocator` | **25** |
+| 10 | `restamp_back_offset` | 6 |
+
+Arm 9 alone reproduces **25 of the global build's 27 clones**.
+
+**Result, 10 interleaved rounds:**
+
+| arm | failures |
+|---|---|
+| baseline plain `-O2` | 0/10 |
+| **arm 9** `PoolAllocator` ctor (25 clones) | **0/10** |
+| **arm 10** `restamp_back_offset` | **0/10** |
+| **global** `-O2 -fipa-cp-clone` (27 clones) | **4/10** |
+
+Fisher, global vs arm 9: **p = 0.082**.
+
+**This is the sharpest form the distributed result has taken.**  Arm 9 carries
+92% of the global build's clones and fires **zero times in ten runs**, while
+the global build fires four.  So it is not that some single unarmed function
+was hiding the effect — reproducing almost the entire clone set is *still not
+enough*.  Whatever the pass does, it needs the last two clones, or it needs
+them together, or the effect is not "which functions are cloned" at all but a
+whole-TU consequence of running the pass across the unit.
+
+**Caveats.**  Ten rounds, and p = 0.082 is not significant on its own; the
+result is that arm 9 shows **no hint** (0/10, not 1/10) while carrying nearly
+all the clones.  And `optimize()`-based licensing is itself a codegen
+perturbation — §5's warning that `noclone` on one function moved 72 others
+applies in this direction too, so "25 clones" is a count, not proof that those
+25 bodies are identical to the global build's.

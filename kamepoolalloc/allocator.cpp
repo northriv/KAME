@@ -1261,6 +1261,7 @@ static void kamepoolalloc_sanitizer_auto_activate() noexcept {
 #endif
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
+KAME_CLONE_L9 /*§13.118 arm 9*/
 inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	PoolAllocatorBase(),
 	m_flags(reinterpret_cast<FUINT *>( &addr[((sizeof(PoolAllocator) + sizeof(FUINT) - 1) / sizeof(FUINT)) * sizeof(FUINT)])),
@@ -4398,7 +4399,7 @@ PoolAllocatorBase::recycle_release_chunk(char *chunk_base,
 // (§34) Re-stamp back_offset[] for all units of the chunk to carry the
 // consumer tier's tag.  See header doc.
 void
-PoolAllocatorBase::restamp_back_offset(char *chunk_base,
+KAME_CLONE_L10 /*§13.118 arm 10*/ PoolAllocatorBase::restamp_back_offset(char *chunk_base,
                                        std::size_t chunk_size,
                                        std::uint8_t back_off_flag) noexcept {
 	RegionMeta *rmeta = region_meta_of(chunk_base);
