@@ -8481,3 +8481,55 @@ suppresses through a route neither §13.128 nor this section measures.
 wired), and record adopts that are **attempted but not claimed**.  If failing
 runs show a different adopt rate, or a population of partial adopts the census
 never sees, that is where the discrepancy lives.
+
+### 13.132 §13.130's predicted wide store EXISTS in the firing binary — a 16-bit store where the source is a byte loop
+
+§13.130 predicts that `-fipa-cp-clone` turns `restamp_back_offset`'s byte loop
+trip count into a constant, licensing the compiler to merge the loop into
+**wider stores**.  That is checkable in the object file, and it is there.
+
+**The firing library carries a second, tiny body:**
+
+| build | symbols for `restamp_back_offset` |
+|---|---|
+| non-firing `-O2` (`arm_base.so`) | one body, `0x169` bytes, `T` and `t` at the **same address** |
+| **firing `-O2 -fipa-cp-clone`** | base `0x169` **plus a `t` local of `0x22` = 34 bytes** |
+
+34 bytes cannot be a byte loop.  Disassembled, `.constprop.1` is:
+
+```asm
+mov    %rdi,%rax
+add    $0x1000,%rdi
+mov    $0x100,%edx              ; value = 0x0100  -> bytes {0x00, 0x01}
+shr    $0x12,%rdi               ; >> 18  (÷ 256 KiB unit)
+and    $0xfffffffffe000000,%rax ; region base (32 MiB)
+and    $0x7f,%edi               ; unit index & 127
+mov    %dx,0x10(%rax,%rdi,1)    ; *** 16-BIT STORE ***
+ret
+```
+
+`mov %dx, …` is a **word store**: two `back_offset` bytes written at once,
+`[u] = 0x00` and `[u+1] = 0x01`.  The loop is gone.  `RegionMeta` confirms the
+addressing — `claim_bitmap` (16 B) then `back_offset[128]` at offset `0x10`,
+matching `0x10(%rax,%rdi,1)` exactly.
+
+**So the mechanism is no longer hypothetical: the wide store exists, only in
+the arm that fires.**  Whether it is *wrong* turns on one question — the clone
+stamps exactly two entries, which is correct for a **2-unit** chunk and
+corrupts the next chunk's entry `[0]` with `0x01` if it is ever reached with a
+**1-unit** chunk.  A slot in that next chunk would then resolve to the wrong
+`chunk_base` on free, which is §13.129's "bit cleared for a slot whose own free
+never happened" and §13.104's DOUBLE-LIVE.
+
+**What is NOT yet shown**, stated plainly: that the clone is called with a
+1-unit chunk.  The specialization is presumably guarded by the call site's
+constant, in which case it is correct and this is a dead end.  §13.130's
+whole-table verifier answers exactly that, and my harness for it is not yet
+working — the self-test driver segfaults in a bare program and the env-gated
+poke never triggers, both my bugs, not the verifier's.  **I have not
+demonstrated the verifier fires, so I am claiming nothing from a clean table.**
+
+**Next, and it is small**: call `kame_pool_check_back_offset()` from inside the
+reproducer (where the pool is genuinely live) rather than from a standalone
+driver, prove it catches `kame_pool_poke_back_offset(0,7,0x5a)`, and only then
+read its verdict on a failing run.
