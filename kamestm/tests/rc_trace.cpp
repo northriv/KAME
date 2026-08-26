@@ -893,7 +893,8 @@ namespace kame_rc_trace {
 // a lost note only costs a missed check, never a false report -- a report
 // requires BOTH a matching wrapper address AND a differing packet.
 namespace {
-struct WPSlot { std::atomic<const void *> w{nullptr}; const void *p{nullptr}; };
+struct WPSlot { std::atomic<const void *> w{nullptr}; const void *p{nullptr};
+                long long id{0}; };   //!< §13.89: incarnation id (m_bundle_serial)
 constexpr unsigned WP_SLOTS = 8192;
 WPSlot g_wp[WP_SLOTS];
 inline unsigned wp_slot_(const void *w) noexcept {
@@ -915,6 +916,27 @@ void wp_note(const void *wrapper, const void *packet) noexcept {
     WPSlot &s = g_wp[wp_slot_(wrapper)];
     s.p = packet;                                   // publish value first
     s.w.store(wrapper, std::memory_order_release);
+}
+//! (§13.89) Record the wrapper's INCARNATION (its m_bundle_serial, set at
+//! construction and never changed).  Pool storage is reused, so an address
+//! alone cannot tell one wrapper from its successor -- and §13.87 leaves
+//! "the live wrapper seen at the entry check is a different instance from
+//! the one that named the packet at release time" as the untested reading.
+void wp_note_id(const void *wrapper, long long id) noexcept {
+    if(!wrapper) return;
+    WPSlot &s = g_wp[wp_slot_(wrapper)];
+    s.id = id;
+}
+//! Report only when the address still carries our note but the incarnation
+//! differs -- i.e. this storage was reused since the note was written.
+void wp_check_id(const void *wrapper, long long id_now, const void *site) noexcept {
+    if(!wrapper) return;
+    WPSlot &s = g_wp[wp_slot_(wrapper)];
+    if(s.w.load(std::memory_order_acquire) != wrapper) return;   // no note: miss
+    if(s.id == 0 || s.id == id_now) return;                      // same incarnation
+    anomaly(wrapper, OP_DEAD_ELEMENT, (unsigned long long)s.id, site,
+        "WRAPPER ADDRESS REUSED since construction (rc_before=born serial)",
+        (const void *)(uintptr_t)id_now);
 }
 void wp_check(const void *wrapper, const void *packet,
               const void *site, const char *where) noexcept {

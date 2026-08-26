@@ -1263,7 +1263,8 @@ Node<XN>::PacketWrapper::PacketWrapper(const local_shared_ptr<Packet> &x, int64_
     m_bundledBy(), m_packet(x), m_reverse_index((int)PACKET_STATE::PACKET_HAS_PRIORITY),
     m_bundle_serial(bundle_serial) {
 #ifdef KAME_RC_TRACE
-    kame_rc_trace::wp_note(this, m_packet.get());   // §13.83
+    kame_rc_trace::wp_note(this, m_packet.get());
+    kame_rc_trace::wp_note_id(this, (long long)bundle_serial);   // §13.89   // §13.83
 #endif
 }
 template <class XN>
@@ -1273,7 +1274,8 @@ Node<XN>::PacketWrapper::PacketWrapper(const local_shared_ptr<Linkage > &bp, int
     m_bundle_serial(bundle_serial) {
     setReverseIndex(reverse_index);
 #ifdef KAME_RC_TRACE
-    kame_rc_trace::wp_note(this, m_packet.get());   // §13.83 (null at birth;
+    kame_rc_trace::wp_note(this, m_packet.get());
+    kame_rc_trace::wp_note_id(this, (long long)bundle_serial);   // §13.89   // §13.83 (null at birth;
     //!< the two :1444/:1561 assignments then legitimately change it, which is
     //!< why a report needs a NON-null born value to be interesting)
 #endif
@@ -1283,7 +1285,8 @@ Node<XN>::PacketWrapper::PacketWrapper(const PacketWrapper &x, int64_t bundle_se
     m_bundledBy(x.m_bundledBy), m_packet(x.m_packet),
     m_reverse_index(x.m_reverse_index), m_bundle_serial(bundle_serial) {
 #ifdef KAME_RC_TRACE
-    kame_rc_trace::wp_note(this, m_packet.get());   // §13.83
+    kame_rc_trace::wp_note(this, m_packet.get());
+    kame_rc_trace::wp_note_id(this, (long long)bundle_serial);   // §13.89   // §13.83
 #endif
 }
 
@@ -1759,6 +1762,10 @@ Node<XN>::rcScopePacketCheck(const PacketWrapper *w, const char *where) noexcept
     kame_rc_trace::anomaly(e, kame_rc_trace::OP_DEAD_ELEMENT, rc,
         __builtin_return_address(0), where,
         static_cast<const void *>(w));   // slot = the WRAPPER that names it
+#ifdef KAME_RC_TRACE
+    kame_rc_trace::wp_check_id(w, (long long)w->m_bundle_serial,
+        __builtin_return_address(0));   // §13.89: same instance, or reused address?
+#endif
     // §13.83: did this LIVE wrapper's m_packet change since construction?
     // That is the one mechanism §13.82 left standing -- an overwrite through
     // the non-const packet() -- and it is testable directly, not by

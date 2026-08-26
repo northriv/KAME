@@ -6013,3 +6013,61 @@ It also confirms §13.86's central point independently: this reproduces under
 rr's **full serialization**, at every `-c` tried, so the window is an
 interleaving hole between two instruction streams and not a memory-model
 artifact — and its width is now measured rather than assumed.
+
+### 13.89 Address reuse refuted too: the wrapper at the entry check IS the instance that was constructed
+
+§13.87 left two ways out of the four-way contradiction, and **(B) — "the live
+wrapper seen at the entry check is a different instance from the one that named
+the packet at release time, because pool storage is reused"** — had never been
+tested.  It is now.
+
+**Implementation.**  Extended §13.83's wrapper→packet association table with an
+**incarnation id**: `m_bundle_serial`, which every ctor sets and nothing ever
+changes.  `wp_note_id()` records it at all three constructors; `wp_check_id()`
+runs at the scope-packet entry check and reports **only** when the address
+still carries our note *and* the serial differs — i.e. this storage was reused
+since the note.  Tracer-side table only, so no data member and no layout
+change; plain builds still compile unchanged.
+
+**Both controls run before reading the result** (§13.61/§13.85):
+
+* **Liveness** — with the `s.id == id_now` early-out removed, a failing run
+  reports **12**.  The check is reachable and the reporter works.
+* **Base rate** — three short clean runs wrote **no events at all**.
+
+**Result: `REUSE = 0` in every run**, including one with **13** entry-check
+hits and another with 4.
+
+| run | rc | entry hits | address-reuse reports |
+|---|---|---|---|
+| 2 | 139 | **13** | **0** |
+| 6 | 139 | 4 | **0** |
+| 1,3,4 | 139 | 0 | 0 |
+
+**Coverage caveat, stated because the zero depends on it.**  `wp_check_id`
+returns early when the slot no longer carries our note (8192 direct-mapped
+slots under heavy churn), so a miss is silent.  The liveness build measures
+exactly that population: **12 notes were present** on a comparable failing
+run, against **0** mismatches in the real build.  So the sample is small — of
+order ten observed opportunities, not hundreds — but it is real, and every one
+of them said *same incarnation*.
+
+**So (B) is refuted.**  The wrapper observed alive at `refcnt == 1`, naming a
+freed `Packet`, is the same instance that was constructed with that member —
+not a fresh tenant at a recycled address.  The four facts of §13.87 stand
+together and are not an artifact of reading a tenant boundary.
+
+**Which leaves (A) alone, and cornered.**  The wrapper's `m_packet` must be
+losing its count by some path that is neither a wrapper destructor (§13.80),
+nor a write through a published wrapper (§13.87), nor ordinary copy-on-write
+(§13.83's 195 k base rate). Every mechanism proposed so far is refuted, and
+the remaining shape is a decrement that is *attributed to nobody* — which is
+consistent with §13.88's measurement that the window is wide (half-height near
+150 000 instructions) rather than a tight check-then-act.
+
+**The probe that follows from this**, and the first one that does not need a
+mechanism guessed in advance: instrument the *`Packet`* rather than its
+holders — record every INC/DEC on the packet a scope's wrapper names, from the
+moment the wrapper is constructed, and dump that ledger when the entry check
+fires.  §13.74 completed the decrement coverage, so such a ledger is now
+complete; the missing decrement will be in it, with its site.
