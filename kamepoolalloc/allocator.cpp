@@ -7479,11 +7479,7 @@ inline L1KArray *l1_base() noexcept {
 // ---- L1 (per-thread, no atomics) ----
 // Pop a fitting block from this thread's L1 at (kstart…kstart+K), or
 // nullptr.  Single owner ⇒ plain loads/stores, no CAS.
-<<<<<<< HEAD
 KAME_NOCLONE(1) /*§13.121*/ inline char *l1_pop_fit(std::size_t need, unsigned kind) noexcept {
-=======
-KAME_NC1 inline char *l1_pop_fit(std::size_t need, unsigned kind) noexcept {
->>>>>>> a285688dd (kamestm: §13.121 — gap fully accounted (27 = 5 pop_fit + 22 acquire_tag_ref_), both suppressions verified surgical by IPA-CP dump, and neither changes the failure rate)
     // (teardown) Symmetric with l1_push: a torn-down thread must not re-arm its
     // L1 here either — l1_base() would bump g_lrc_l1_threads again (live-thread
     // counter drift → undersized L1 cuts for the threads that remain).  Fall to
@@ -7559,11 +7555,7 @@ inline bool global_push(char *base, std::size_t size, unsigned kind) noexcept {
 }
 // Pop a fitting block from the global cache, weak-CAS each slot (own-then-
 // read-size) until a fit; livelock-free (bounded K iterations, no inner retry).
-<<<<<<< HEAD
 KAME_CLONE_L12 /*§13.119 arm 12*/ KAME_NOCLONE(2) /*§13.121*/ inline char *global_pop_fit(std::size_t need, unsigned kind) noexcept {
-=======
-KAME_NC2 KAME_CLONE_L12 /*§13.119 arm 12*/ inline char *global_pop_fit(std::size_t need, unsigned kind) noexcept {
->>>>>>> a285688dd (kamestm: §13.121 — gap fully accounted (27 = 5 pop_fit + 22 acquire_tag_ref_), both suppressions verified surgical by IPA-CP dump, and neither changes the failure rate)
     int idx = lrc_idx(need, kind);
     int kstart = lrc_kstart_g();
     for(int kk = 0; kk < LRC_K_MAX; kk++) {
@@ -7588,11 +7580,7 @@ KAME_NC2 KAME_CLONE_L12 /*§13.119 arm 12*/ inline char *global_pop_fit(std::siz
 }
 
 // Public entry points: L1 first, then global.
-<<<<<<< HEAD
 KAME_NOCLONE(3) /*§13.121*/ inline char *recycle_pop_fit(std::size_t need, unsigned kind) noexcept {
-=======
-KAME_NC3 inline char *recycle_pop_fit(std::size_t need, unsigned kind) noexcept {
->>>>>>> a285688dd (kamestm: §13.121 — gap fully accounted (27 = 5 pop_fit + 22 acquire_tag_ref_), both suppressions verified surgical by IPA-CP dump, and neither changes the failure rate)
     if(char *b = l1_pop_fit(need, kind)) return b;
     return global_pop_fit(need, kind);
 }

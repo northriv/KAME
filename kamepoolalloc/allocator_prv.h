@@ -1594,7 +1594,6 @@ public:
   #undef  KAME_CLONE_L12
   #define KAME_CLONE_L12 KAME_CLONE_ATTR_M_
 #endif
-<<<<<<< HEAD
 //! §13.121  The SUBTRACTIVE direction, which is the only one that reaches the
 //! four functions §13.120 identified.
 //!
@@ -1630,18 +1629,10 @@ public:
 //! in atomic_smart_ptr.h, so `-DKAME_ASP_NOCLONE` is its switch (and it moves
 //! the other two protocol members with it -- verify against the lock-add
 //! census, §13.23, before trusting a run).
-=======
-// (§13.121) SUPPRESSION mask -- the direction §13.120 says is the only one
-// that can reach caller-context specializations.  The pass runs unit-wide
-// (-fipa-cp-clone on the command line) and KAME_NOCLONE_MASK removes the
-// licence from selected functions with noclone.  bit0=l1_pop_fit,
-// bit1=global_pop_fit, bit2=recycle_pop_fit.
->>>>>>> a285688dd (kamestm: §13.121 — gap fully accounted (27 = 5 pop_fit + 22 acquire_tag_ref_), both suppressions verified surgical by IPA-CP dump, and neither changes the failure rate)
 #ifndef KAME_NOCLONE_MASK
   #define KAME_NOCLONE_MASK 0
 #endif
 #if defined(__GNUC__) && !defined(__clang__)
-<<<<<<< HEAD
   #define KAME_NOCLONE_ATTR_ __attribute__((noclone))
 #else
   #define KAME_NOCLONE_ATTR_
@@ -1664,27 +1655,6 @@ public:
 #define KAME_NOCLONE_(n) KAME_NOCLONE_N##n
 #define KAME_NOCLONE(n) KAME_NOCLONE_(n)
 
-=======
-  #define KAME_NC_ATTR_ __attribute__((noclone))
-#else
-  #define KAME_NC_ATTR_
-#endif
-#if ((KAME_NOCLONE_MASK) & (1u << 0))
-  #define KAME_NC1 KAME_NC_ATTR_
-#else
-  #define KAME_NC1
-#endif
-#if ((KAME_NOCLONE_MASK) & (1u << 1))
-  #define KAME_NC2 KAME_NC_ATTR_
-#else
-  #define KAME_NC2
-#endif
-#if ((KAME_NOCLONE_MASK) & (1u << 2))
-  #define KAME_NC3 KAME_NC_ATTR_
-#else
-  #define KAME_NC3
-#endif
->>>>>>> a285688dd (kamestm: §13.121 — gap fully accounted (27 = 5 pop_fit + 22 acquire_tag_ref_), both suppressions verified surgical by IPA-CP dump, and neither changes the failure rate)
 #define KAME_CLONE_LICENCE_(n) KAME_CLONE_L##n
 #define KAME_CLONE_LICENCE(n) KAME_CLONE_LICENCE_(n)
 //! Arm map -- keep in sync with the licensable sites below:
