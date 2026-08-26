@@ -3665,7 +3665,35 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
     const local_shared_ptr<Packet> newsubpacket_val(
         oldsubpacket ? local_shared_ptr<Packet>() : *newsubpacket);
 
+#ifdef KAME_RC_TRACE
+    // (§13.94) §13.93 placed the death AFTER the copy and BEFORE the closing
+    // brace -- i.e. inside this loop -- with the parked views never empty and
+    // the slot alive at the copy.  Sample the captured packet's own refcount
+    // at three fixed points and report the FIRST point that sees it at zero
+    // or poisoned, with the loop iteration.  Reports at most once per call,
+    // so a hit names an iteration rather than flooding.
+    const Packet *_wpkt = newsubpacket_val.get();
+    int _wpt = -1;                 // -1 = never seen bad
+    auto _wcheck = [&](int point) noexcept {
+        if( !_wpkt || _wpt >= 0) return;
+        uintptr_t rc = _wpkt->refcnt;
+        if(rc == 0 || rc >= ((uintptr_t)1 << 48)) {
+            _wpt = point;
+            kame_rc_trace::anomaly(_wpkt, kame_rc_trace::OP_DEAD_ELEMENT, rc,
+                __builtin_return_address(0),
+                "unbundle: newsubpacket_val DIED (rc_before=rc, slot=point index)",
+                (const void *)(uintptr_t)point);
+        }
+    };
+    _wcheck(0);                    // point 0: immediately after the copy
+#endif
+
+    int _witer = 0;
     for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {
+#ifdef KAME_RC_TRACE
+        _wcheck(1000 + _witer);    // point 1000+n: top of CAS-loop iteration n
+#endif
+        ++_witer;
         // Save old wrapper identity before moving into scope.
         PacketWrapper *old_pw = it->old_wrapper.get();
         // Move CASInfo's scoped_atomic_view into ScopedNeg — reuses the
@@ -3757,6 +3785,9 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
 //		*oldsuperwrapper = cas_infos.front().new_wrapper;
 //	}
 
+#ifdef KAME_RC_TRACE
+    _wcheck(2000);                 // point 2000: at the closing brace
+#endif
     return UnbundledStatus::W_NEW_SUBVALUE;
 }
 

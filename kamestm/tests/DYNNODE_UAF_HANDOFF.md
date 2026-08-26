@@ -6386,3 +6386,50 @@ after the copy, once per CAS-loop iteration, and at the closing brace — and
 report the first point at which it has reached zero while `newsubpacket_val`
 still holds it.  That converts "somewhere in the loop" into a specific
 iteration, without needing a mechanism guessed in advance.
+
+### 13.94 Three-point sampling inside `unbundle`: the captured packet never dies there
+
+§13.93 placed the death "after the copy, before the closing brace".  Measured
+that directly: sample `newsubpacket_val`'s own `Packet` refcount at three fixed
+points — **immediately after the copy (0)**, **at the top of each CAS-loop
+iteration (1000+n)**, and **at the closing brace (2000)** — reporting the first
+point that sees zero or poison, at most once per call so a hit names an
+iteration instead of flooding.
+
+**Controls first:** liveness **39 025** reports with the predicate forced true;
+base rate **zero** on a clean run.
+
+**Result: 8 crashing runs (`rc=139`), `DIED = 0` in every one.**  The packet
+`newsubpacket_val` holds is alive at the copy, alive at every CAS-loop
+iteration, and alive at the closing brace.
+
+**So the §13.93 inference is refuted**: the death is not inside `unbundle`'s
+span for the packet that `unbundle` captured.  Combined with §13.93 (slot alive
+at the copy, parked views never empty), `unbundle` is now measured clean from
+entry to exit with respect to this reference.
+
+**A coverage limitation I have to state, because it may be the whole answer.**
+The capture is
+
+```cpp
+const local_shared_ptr<Packet> newsubpacket_val(
+    oldsubpacket ? local_shared_ptr<Packet>() : *newsubpacket);
+```
+
+so on the **`oldsubpacket` branch it is EMPTY** — `_wpkt` is null and my probe
+does nothing at all.  Every "DIED = 0" above is therefore silent about that
+branch, and that branch is precisely the one §13.68 left allocation-free and
+un-copied.  §13.91's cleanly-resolved post-free decrement was
+`~local_shared_ptr<Packet>` at `unbundle`'s closing brace; if the *other*
+branch is the one running there, the decrementing local is **not**
+`newsubpacket_val` and §13.92's audit conclusion ("only `newsubpacket_val` can
+decrement a Packet at the closing brace with `in_deleter=0`") needs re-checking
+against the `oldsubpacket` case, where that local is empty and some other
+`local_shared_ptr<Packet>` must be doing it.
+
+**Next measurement, and it is small:** count how often each branch is taken,
+and extend the sampler to whichever `local_shared_ptr<Packet>` is live on the
+`oldsubpacket` path (`*oldsubpacket` itself is a caller-owned pointer —
+`&tr.m_oldpacket` for one of the three callers, per §13.68 — so the interesting
+sample is the caller's object, not a local).  That closes the one blind spot
+these three sections have left.
