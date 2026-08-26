@@ -5493,3 +5493,54 @@ construction, at each `packet()` use, and immediately before `:2868`, keyed on
 that `Packet` so the anomaly path prints its `RC-PRIOR-RELEASE-FAST`.
 Zero-at-entry indicts how the scope acquires its view; going-zero-during
 indicts the release that does it, and names it directly.
+
+### 13.78 The probe at the one remaining question — and it dumps the WRAPPER
+### too, which is the part that discriminates
+
+§13.77's correction accepted: the survivor population carries **both**
+signatures, the element array is excluded as the locus, and three
+independent captures put the resurrection at the same construction —
+`make_local_shared<PacketWrapper>(supscope->packet(), …)`.  So the single
+open question is the §13.63 one: **what drops the last reference to
+`supscope->packet()` while the scope holds its wrapper.**
+
+Implemented as suggested, with one addition that changes what a hit can
+tell us.  `KAME_RC_TRACE_SCOPEPKT_CHECK=1` arms
+`rcScopePacketCheck(scope.operator->(), where)` at two points in `bundle`:
+
+- **entry** (`supscope->packet()` as received from the caller) — a hit
+  here indicts how the CALLER's scope acquired its view;
+- **immediately before `:2867`'s construction** — a hit only here means
+  the packet died between entry and the copy, and the release that did it
+  is in the middle.
+
+The addition: on a hit the probe reports the **PACKET** (so the anomaly
+path prints its `RC-PRIOR-RELEASE-FAST` — the releaser — plus
+`RC-FREEREC`), and then **dumps the WRAPPER's history too**
+(`kame_rc_dump(w)`, with `slot=` = the wrapper address).  That second dump
+is the discriminator, and it only became possible with §13.74: a wrapper's
+life is now completely traced, so its history separates
+
+- **"this wrapper was destroyed twice"** (two `DEC`/`DEAD` on the wrapper
+  — a wrapper-level double release, which would explain a live scope
+  whose packet is gone), from
+- **"this wrapper never took a count on the packet it names"** (the
+  wrapper's own `BORN`/`INC` pattern showing an uncounted acquisition —
+  the UNCOUNTED shape §13.64 partitioned out and refuted at the three
+  `PacketWrapper` constructors, which would then have to be arriving by
+  some other route), from
+- **"the wrapper is fine and someone else released the packet"** (a
+  clean wrapper life, with the packet's own `RC-PRIOR-RELEASE-FAST`
+  naming the third party).
+
+All three are distinguishable from ONE capture, which is why the extra
+dump is worth its (debug-only, on-hit) cost.
+
+Liveness proved before trusting the zero (§13.61's rule): forcing the
+predicate gives **60 028** well-formed reports carrying the check site and
+the wrapper address, then reverted.  Mac: 0 hits over 3 dynamic-node runs;
+the plain (non-traced) build is unchanged; `tests/` tree **40/40**.
+
+Ubuntu: add `KAME_RC_TRACE_SCOPEPKT_CHECK=1` alongside the existing
+tracer flags — no rebuild beyond that.  Whichever of the two sites fires
+narrows the interval, and the wrapper dump then names the mechanism.

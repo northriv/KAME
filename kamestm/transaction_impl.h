@@ -1714,6 +1714,30 @@ Node<XN>::rcLookupEscapeCheck(const local_shared_ptr<Packet> &root,
         kame_rc_trace::anomaly(slot, kame_rc_trace::OP_LOOKUP_ESCAPE, 0,
             site, kame_rc_trace::type_name_<Packet>(), nullptr);
 }
+#ifdef KAME_RC_TRACE
+extern "C" void kame_rc_dump(const void *);   //!< §13.78: tracer runtime
+#endif
+template <class XN>
+void
+Node<XN>::rcScopePacketCheck(const PacketWrapper *w, const char *where) noexcept {
+    static const bool enabled = [] {
+        const char *e = getenv("KAME_RC_TRACE_SCOPEPKT_CHECK");
+        return e && e[0] && e[0] != '0';
+    }();
+    if( !enabled || !w) return;
+    const Packet *e = w->packet().get();
+    if( !e) return;
+    uintptr_t rc = e->refcnt;           // reading a freed pool slot is safe
+    if(rc != 0 && rc < ((uintptr_t)1 << 48)) return;
+    kame_rc_trace::anomaly(e, kame_rc_trace::OP_DEAD_ELEMENT, rc,
+        __builtin_return_address(0), where,
+        static_cast<const void *>(w));   // slot = the WRAPPER that names it
+    // The wrapper's own history: §13.74 traced the last six decrement
+    // paths, so a wrapper life is now reconstructable -- and it is what
+    // separates "this wrapper was destroyed twice" from "this wrapper
+    // never took a count on the packet it names".
+    kame_rc_dump(static_cast<const void *>(w));
+}
 template <class XN>
 void
 Node<XN>::rcSlotLiveCheck(const local_shared_ptr<Packet> *slot,
@@ -2847,6 +2871,11 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
     // set_view when an ancestor advances.  Saves the consume_view +
     // local var ledger management of the previous design.
 
+#ifdef KAME_RC_TRACE
+    // §13.78: zero AT ENTRY indicts how the caller's scope acquired its
+    // view; zero only later indicts a release that happens in between.
+    rcScopePacketCheck(supscope.operator->(), "bundle entry supscope->packet()");
+#endif
     assert(supscope->packet());
     assert(supscope->packet()->size());
     assert(supscope->packet()->missing());
@@ -2864,7 +2893,12 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // local_shared_ptr's +1 transfers cleanly into supscope.view via
         // move-in set_view (0 ops).  Net: same atomic ops, simpler flow.
         local_shared_ptr<PacketWrapper> superwrapper(
-            make_local_shared<PacketWrapper>(supscope->packet(), bundle_serial));
+            (
+#ifdef KAME_RC_TRACE
+             rcScopePacketCheck(supscope.operator->(),
+                 "bundle:2867 make_local_shared<PacketWrapper>(supscope->packet())"),
+#endif
+             make_local_shared<PacketWrapper>(supscope->packet(), bundle_serial)));
         ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, -1,
             ScopedNegotiateLinkage<XN>::TagMode::OnExit);
         if( !scope) return BundledStatus::DISTURBED;

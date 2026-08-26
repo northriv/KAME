@@ -1601,6 +1601,17 @@ private:
     //! instant before a copy of \a list would increment them all.
     static void rcPreCopyCheck(const local_shared_ptr<PacketList> &list,
                                const void *site) noexcept;
+    //! §13.78: is the packet a LIVE scope's wrapper names still alive?
+    //! §13.77 put every resurrection at
+    //! `make_local_shared<PacketWrapper>(supscope->packet(), …)`, so the
+    //! question is what drops the last reference to that packet while the
+    //! scope holds its wrapper.  On a hit this reports the PACKET (its
+    //! history names the releaser) AND dumps the WRAPPER's history --
+    //! §13.74 made wrapper histories complete, and the wrapper's own life
+    //! distinguishes "double-destroyed wrapper" from "wrapper whose
+    //! m_packet was never counted".
+    static void rcScopePacketCheck(const PacketWrapper *w,
+                                   const char *where) noexcept;
     //! §13.67: is the Packet at \a slot still live, at the instant before
     //! it is copied?  `slot` is a `local_shared_ptr<Packet>*` a lookup
     //! handed out; the check reports the ELEMENT so the anomaly path
