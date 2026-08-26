@@ -7075,3 +7075,81 @@ refcount damage (§13.104's per-address sequence) and the fault following the
 allocator's compiler (§6).  Three independent lines agree on the allocator
 layer.  The open question is no longer *whether* but *which* recycle path —
 and that is an allocator-side question, on the arm where it fires.
+
+### 13.109 Which recycle path? — a free-record discriminator on every hit. Plus a correction: the Mac baselines were measured with the pool INACTIVE
+
+**Correction first, because it touches §13.103–§13.107's numbers.**  The
+hand-rolled Mac build used for every DOUBLE-LIVE baseline compiled
+`allocator.cpp` straight into the test executable.  That links the pool in but
+does **not activate it**: `kame_pool_reserved_bytes()` returned **0** and freed
+blocks carried **no forensic poison** — `new`/`delete` were libc's.  The
+activation (`constructor(101)` + `__DATA,__interpose`) exists only under
+`KAMEPOOLALLOC_DYLIB` in a **shared** library, which is how
+`kamepoolalloc/tests/CMakeLists.txt` builds it.  **This is the second time this
+trap has bitten this investigation** (the first invalidated a round of TSan
+numbers); it is worth a standing rule: any hand-rolled build must be checked
+with `kame_pool_reserved_bytes() != 0` before its numbers are quoted.
+
+What survives, what changes:
+
+- **Survives** — everything internal to the tracer, which does not depend on
+  which allocator runs: `dtor == born` exactly (§13.107), the positive control
+  firing at the injected rate, and §13.105's folded-key hits being untraced
+  deaths rather than co-tenancy.
+- **Withdrawn** — §13.106's remark that "96 M births recycle fewer than ~1000
+  distinct addresses on macOS", offered as a contrast with Ubuntu's saturation.
+  That was **libc malloc's** reuse pattern, not the pool's, and it cannot be
+  compared with a pool-active run.  The saturation *fix* stands; the
+  reuse-distance observation does not.
+- **Re-measured with the pool active** (`reserved = 33 554 432`, poison present
+  on freed blocks), arm64 40 threads:
+
+| key | runs | born | enforced | HITS |
+|---|---|---|---|---|
+| exact | 3 | 96.1–97.2 M each | 99.85 % of born | **0** |
+| 16 B-folded | 1 | 96.2 M | 99.9 % | **0** |
+| exact + inject 1-in-20 M | 1 | 97.1 M | — | **5** (control fires) |
+
+`dtor == born` exactly on every one of them.
+
+**Now the discriminator.**  §13.108 ends at "no longer *whether* but *which*
+recycle path", and §13.107's narrowing makes that question answerable, because
+a **legitimate** free cannot produce a DOUBLE-LIVE at all (freeing through the
+smart-pointer path happens only after the refcount reaches zero, which runs
+`DEAD` *and* the destructor).  So the slot reached the bitmap without this
+object being freed, and the forensic poison separates the ways that can happen:
+
+| what the hit shows | reading |
+|---|---|
+| tag present, `freed_ptr == obj` | the block **was** freed while its object was live — a premature free |
+| tag present, `freed_ptr != obj` | **someone else's** free carries this block's ring record — the mis-derived `chunk_base` shape (§13.x's `back_offset[unit_idx]`): a bit cleared in the wrong chunk |
+| no tag at all | the block was **never freed**, yet was handed out again — a claim-side double hand-out |
+
+**The pre-store capture is what makes it work on Ubuntu's hit shape.**  A freed
+block carries the token in word 0, but for every type whose `atomic_countable`
+sits at offset 0 (`Packet`, `PacketWrapper`) the constructor's `refcnt = 1`
+lands on exactly that word before `OP_BORN` can be observed — and §13.104's hit
+(`0x7fffd0676f90`, offset 0) is that shape, so the probe would have been blind
+on the one capture it exists to read.  Under `KAME_RC_TRACE` only, `refcnt` is
+therefore initialized in the constructor **body** instead of the
+mem-initializer, and `preborn_note()` reads word 0 first into a thread-local
+that `record()` consumes on the same call — no table, no keying.
+
+Validated end to end with the pool active (injected control, so every verdict
+is the expected "THIS block"):
+
+```
+RC-DLIVE-WPRE 0x110100120 w=0xbaad0000000b8000  <-- POISON TAG
+RC-DLIVE-FREEREC w-1 freed_ptr=0x110100120 (THIS block -- premature free)
+    size=32 free_tid=1 age_tsc=167940 frames=4 0x104a16d14 0x109598aa8 ...
+```
+
+One trap fixed while validating: `KAME_POISON_PLAIN` (`0xBAADF00DBAADF00D`, the
+word-2-and-beyond filler) also has `0xBAAD` in its top 16 bits, so it matched
+the tag test and then failed to decode — reported as "ring wrapped", a
+different and misleading claim.  It is now named as filler.
+
+**For Ubuntu:** nothing new to pass — a DOUBLE-LIVE hit now carries
+`RC-DLIVE-WPRE` / `RC-DLIVE-FREEREC` beside its `scope=`.  One real hit should
+land in exactly one row of the table above, and that row names the allocator
+path to read.

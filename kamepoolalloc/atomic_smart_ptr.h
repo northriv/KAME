@@ -160,6 +160,9 @@ void record(const void *obj, unsigned op, unsigned long long oldc,
 //! construction: after it, a DOUBLE-LIVE means the previous occupant's
 //! destructor NEVER RAN, i.e. memory was recycled without destruction.
 void dtor_note(const void *obj) noexcept;
+//! §13.109  Capture word 0 of the storage before the refcount store lands on
+//! it; a freed block still carries the forensic poison there.
+void preborn_note(const void *obj) noexcept;
 //! Tripwire entry.  Default (KAME_RC_TRACE_ABORT unset or "1"): dump the
 //! object's history + the thread's live destruction stack, then abort() --
 //! the gdb workflow of handoff Â§8.  With KAME_RC_TRACE_ABORT=0: record
@@ -537,8 +540,30 @@ struct atomic_weakable : atomic_emplaced {};
 //! sizeof(T) includes the refcnt; `local_shared_ptr<T>` stores T*
 //! directly (no separate control block).  Fastest hot path.
 struct atomic_countable {
-    atomic_countable() noexcept : refcnt(1) { KAME_RC_EVT(this, 1 /*OP_BORN*/, 1); }
-    atomic_countable(const atomic_countable &) noexcept : refcnt(1) { KAME_RC_EVT(this, 1 /*OP_BORN*/, 1); }
+#ifdef KAME_RC_TRACE
+    //! §13.109  `refcnt` is initialized in the BODY under the tracer, not in the
+    //! mem-initializer, so word 0 can be read BEFORE the store lands on it.
+    //! Needed because a freed block carries the forensic poison in word 0, and
+    //! for every type whose `atomic_countable` sits at offset 0
+    //! (`Packet`, `PacketWrapper`) `refcnt = 1` destroys that poison before
+    //! `OP_BORN` can be observed -- which is exactly the offset the Ubuntu hit
+    //! (§13.104, `...f90`, offset 0) landed on, so the discriminator would have
+    //! been blind on the one capture it exists to read.  The pre-store word goes
+    //! into a thread-local that `record()` picks up on the same call.
+    atomic_countable() noexcept {
+        ::kame_rc_trace::preborn_note(this);
+        refcnt.store(1, std::memory_order_relaxed);
+        KAME_RC_EVT(this, 1 /*OP_BORN*/, 1);
+    }
+    atomic_countable(const atomic_countable &) noexcept {
+        ::kame_rc_trace::preborn_note(this);
+        refcnt.store(1, std::memory_order_relaxed);
+        KAME_RC_EVT(this, 1 /*OP_BORN*/, 1);
+    }
+#else
+    atomic_countable() noexcept : refcnt(1) {}
+    atomic_countable(const atomic_countable &) noexcept : refcnt(1) {}
+#endif
     ~atomic_countable() {
         assert(refcnt == 0);
         KAME_RC_DTOR(this);

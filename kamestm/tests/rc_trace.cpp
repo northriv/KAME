@@ -804,6 +804,19 @@ void dl_counts(unsigned long long *b, unsigned long long *e,
 //! no untraced release path can produce: only memory recycled without
 //! destruction (an allocator double hand-out, or a block freed under a live
 //! object) gets there.
+//! §13.109  Word 0 of the storage as it was BEFORE `refcnt = 1` landed on it.
+//! Thread-local and consumed by `record()` on the very next call from the same
+//! constructor, so no table and no keying is needed.  `pre_obj` guards against
+//! a stale value being read for a different object (a birth that never reaches
+//! `record()`, e.g. with the probe disabled).
+thread_local unsigned long long tl_preword = 0;
+thread_local const void *tl_preobj = nullptr;
+void preborn_note(const void *obj) noexcept {
+    if(!obj || ((uintptr_t)obj & 7u)) { tl_preobj = nullptr; return; }
+    tl_preobj = obj;
+    tl_preword = *(volatile const unsigned long long *)obj;
+}
+
 void dtor_note(const void *obj) noexcept {
     if(!dl_mode_()) return;
     g_dl_dtor.fetch_add(1, std::memory_order_relaxed);
@@ -1578,6 +1591,74 @@ static bool type_selected_(const char *tname) noexcept {
     return tname && strstr(tname, filt) != nullptr;
 }
 
+//! §13.109  Which recycle path?  §13.107 narrowed a DOUBLE-LIVE hit to "a slot
+//! recycled while its previous occupant was still a CONSTRUCTED object", and
+//! that narrowing forces the question, because a LEGITIMATE free cannot get
+//! there: freeing through the smart-pointer path happens only after the
+//! refcount reaches zero, which runs DEAD *and* the destructor.  So the slot
+//! was returned to the pool's bitmap **without this object being freed**, and
+//! the two ways that can happen are distinguishable:
+//!
+//!  * **the block WAS freed** (a free record exists for it) -- a free landed on
+//!    a block whose object was still live: a premature free;
+//!  * **the block was NEVER freed** (no record) -- its bitmap bit was cleared by
+//!    somebody ELSE's free.  That is §13.x's `back_offset[unit_idx]` stale-read
+//!    shape exactly: a mis-derived `chunk_base` clears a bit in the wrong
+//!    chunk, so a slot that is still owned reads as free.
+//!
+//! The forensic poison answers it without touching `allocator.cpp`: every freed
+//! block carries the tag in word 0, and `kame_poison_decode` (already resolved
+//! by dlsym here) returns the free record.  Words 0 and 1 are both probed
+//! because the poison sits in word 0 while the L1 link was moved to word 1, and
+//! because the second occupant's constructor has by then written its own
+//! refcount at ITS offset -- which is word 0 for `Packet`/`PacketWrapper` and
+//! word 1 for `Payload`.  So an absent tag in one word is not evidence; the
+//! honest readings are:
+//!   TAG FOUND    -> the block was freed; `freed_ptr` says whether the free even
+//!                   named THIS block, and a `freed_ptr` elsewhere in the chunk
+//!                   is itself the mis-derivation signature.
+//!   NO TAG, both -> consistent with never freed, but NOT proof: the ctor may
+//!                   have overwritten it.  Read together with `size`/`age`.
+static void raw_dlive_poison_(const void *obj) noexcept {
+    kame_poison_decode_fn dec = g_poison_decode.load(std::memory_order_acquire);
+    if(!obj || ((uintptr_t)obj & 7u) || (uintptr_t)obj < 0x1000u) return;
+    // w = -1 is the PRE-store capture (§13.109): the only reading that works
+    // for an offset-0 victim, since its `refcnt = 1` overwrites word 0.
+    for(int w = (tl_preobj == obj ? -1 : 0); w < 2; ++w) {
+        unsigned long long wv = (w < 0) ? tl_preword
+            : *((volatile const unsigned long long *)obj + w);
+        // KAME_POISON_PLAIN (0xBAADF00DBAADF00D) also has 0xBAAD in the top
+        // 16 bits, but it is the word-2-and-beyond FILLER, not a token -- it
+        // carries no ring index, so decoding it fails and would otherwise be
+        // reported as "ring wrapped", which is a different and misleading
+        // claim.  Name it for what it is.
+        bool plain = (wv == KAME_POISON_PLAIN);
+        bool token = !plain && (wv >> 48) == KAME_POISON_TAG;
+        raw_line_("RC-DLIVE-W%s %p w=0x%llx%s\n",
+            w < 0 ? "PRE" : (w == 0 ? "0" : "1"), obj, wv,
+            token ? "  <-- POISON TAG"
+                  : (plain ? "  <-- poison FILLER (freed, but no ring index)"
+                           : ""));
+        if(!dec || !token) continue;
+        kame_freerec fr;
+        if(!dec(wv, &fr)) {
+            raw_line_("RC-DLIVE-FREEREC w%d tag present but record overwritten"
+                " (ring wrapped)\n", w);
+            continue;
+        }
+        raw_line_("RC-DLIVE-FREEREC w%d freed_ptr=%p %s size=%llu free_tid=%u "
+            "age_tsc=%llu frames=%u %p %p %p %p\n", w, fr.ptr,
+            fr.ptr == obj ? "(THIS block -- premature free)"
+                          : "(ANOTHER block -- mis-derived chunk_base?)",
+            (unsigned long long)fr.size, fr.tid,
+            rc_wallclock_() - fr.tsc, fr.nret,
+            fr.nret > 0 ? fr.ret[0] : nullptr,
+            fr.nret > 1 ? fr.ret[1] : nullptr,
+            fr.nret > 2 ? fr.ret[2] : nullptr,
+            fr.nret > 3 ? fr.ret[3] : nullptr);
+    }
+}
+
 void anomaly(const void *obj, unsigned op, unsigned long long oldc,
     const void *site, const char *tname, const void *slot) noexcept {
     record(obj, op, oldc, site, tname, slot);
@@ -1590,6 +1671,7 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
     {
         char tb[128];
         raw_line_("RC-STM-SCOPE %s\n", stm_scope_str(kame_rc_trace::stm_scope()));
+        if(op == OP_DOUBLE_LIVE) raw_dlive_poison_(obj);   // §13.109
         raw_line_("\nRC-ANOMALY #%u obj=%p op=%s rc_before=%llu tid=%u "
             "slot=%p site=%p type=%s dtor_depth=%u\n", nth, obj, op_name_(op),
             oldc, rc_trace_tid_(), slot, site,
