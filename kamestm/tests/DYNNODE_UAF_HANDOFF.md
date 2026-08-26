@@ -5917,3 +5917,55 @@ width** directly:
 
 That single number constrains the remaining search more than another
 detector would.
+### 13.87 The published-write predicate never fires — my overwrite hypothesis is dead in both forms
+
+§13.83's measurement already killed the broad form (195 k "m_packet changed"
+events in 40 s — copy-on-write through the non-const `packet()` is just how
+`bundle` builds a private wrapper).  The narrow form is now measured here too.
+
+**Base rate first, per §13.85.**  Three short clean runs with
+`KAME_RC_TRACE_PUBWRITE_CHECK=1` wrote **no events at all** — the raw sink file
+was never even created.  Base rate zero, so a hit would mean something.
+
+**Result: 9 runs, 9 failures, `PUBWRITE = 0` in every one**, including a run
+that hit the scope-packet entry check **4** times.
+
+**Liveness proved locally** (§13.61's rule, and the same control the Mac used):
+inverting the private-case early-out yields **267 648** reports on a *2 8 200*
+run.  The check is reachable, the predicate evaluates, the reporter works.
+
+So `bundle` **never** copies-on-write through a wrapper that is currently
+published at the linkage — the write is always to a private wrapper.  My
+§13.80/§13.82 suspicion that `reverseLookup(superwrapper->packet(), …)` steals
+a live wrapper's counted reference is **refuted in both the broad and the
+narrow form**.  It was the only mechanism I had proposed; it is gone.
+
+**The contradiction that survives, stated sharply.**  Every capture shows all
+four of these at once:
+
+1. the fatal release finds `rc_before == 1`;
+2. `drift == +0` at the free (accounting correct);
+3. a wrapper naming that `Packet` is **alive**, `refcnt == 1` (§13.80);
+4. that wrapper was not double-destructed (§13.80), and every ctor copies
+   `m_packet`, so it should hold a count.
+
+(1) and (3)+(4) cannot both be true of the *same* wrapper instance holding a
+*counted* reference.  Two ways out remain, and they are distinguishable:
+
+* **(A) the wrapper's `m_packet` is not a counted reference at that moment** —
+  e.g. it was installed by a path that transfers the pointer without the
+  count.  §13.83's 195 k says pointer-changing is normal, so only a
+  *count-losing* variant qualifies, and the published-write form is now
+  excluded.
+* **(B) the wrapper observed at the entry check is not the instance that
+  named the packet at release time** — pool storage is reused, so a *new*
+  wrapper can occupy the same address.  Nothing tested so far distinguishes
+  instance identity; `refcnt == 1` is equally consistent with a fresh tenant.
+
+**(B) is the cheaper test and has never been run.**  Give each wrapper an
+identity at construction (its `m_bundle_serial` is already there, or record
+construction seq in the §13.83 association table) and compare it at the entry
+check.  If the identity differs, every "live wrapper names a dead packet"
+observation in §13.79–§13.82 is really *address reuse*, and the investigation
+has been reading a tenant boundary as a liveness contradiction — which would
+also explain why every mechanism proposed against (A) has been refuted.
