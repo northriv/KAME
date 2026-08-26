@@ -6527,3 +6527,51 @@ and correct, on the abort path that previously produced nothing at all.
 `KAME_RC_TRACE`.  Read `RC-SEGV-SCOPE` on the crash and `scope=` on the
 `RC-R` lines of the underflowing object; between them they name the dynamic
 context of every recorded decrement without relying on a single `site=`.
+
+### 13.100 Scope tags corrected — and the victims are `Linkage` and `PacketWrapper`, not `Packet`
+
+§13.99's tags work, but the first Ubuntu run read `scope=(none)` on the
+bundle-entry check — a probe that is inside `bundle` by construction.
+
+**Instrument fix.**  The entry check sat **three lines above** the
+`ScopedStmScope` marker, so its own record was written before the tag existed.
+A probe that can report must be placed *after* the marker or its attribution is
+silently empty.  Moved the marker above it; the same check now reports real
+tags.  (Worth stating as a rule: every scope-tagged probe needs its marker
+entered first, and `(none)` on a probe you know the location of is an
+instrument bug, not a finding.)
+
+**With that corrected, one capture (`rc=139`, 7 tripwires):**
+
+| count | op | type | scope |
+|---|---|---|---|
+| 3 | `INC-FROM-ZERO` | **`Linkage`** | **`bundle,unbundle`** |
+| 1 | `DEC-UNDERFLOW` | **`PacketWrapper`** | `bundle` |
+
+`RC-STM-SCOPE` shows `bundle` and `bundle,unbundle`; the crash itself carries
+`RC-SEGV-SCOPE bundle,unbundle`.
+
+**Two things change here.**
+
+1. **The victims are not `Packet`.**  Every capture from §13.59 to §13.95 was a
+   `Packet`, and every probe I built chased `Packet` references — which is
+   consistent with §13.93/§13.97/§13.98 all coming back clean.  In this
+   capture the resurrections are on **`Linkage`** and the double-release on
+   **`PacketWrapper`**.  If `Linkage` is the primary victim, the `Packet`
+   damage seen earlier is downstream, and the whole `unbundle`-locals line of
+   inquiry (§13.91–§13.98) was auditing a symptom.
+2. **The context is the nested descent.**  `bundle,unbundle` means both frames
+   are live — `bundle` recursing into `unbundle` — which is an interval nobody
+   has instrumented as a unit, and it is exactly where §13.88's wide window
+   (half-height ~150 000 instructions) would sit.
+
+**Caveat, stated plainly:** this is **one** capture.  The type distribution is
+a real observation from trustworthy attribution, but whether `Linkage` is the
+*primary* victim or just another downstream casualty needs more captures — the
+tripwire population has been mixed before (§13.77 corrected exactly this kind
+of over-read on a five-capture sample).
+
+**Next:** collect several more tagged captures and tabulate op × type × scope.
+If `Linkage` resurrections dominate and precede the `Packet` ones in `seq`
+order, the investigation should move to `Linkage`'s lifetime in the
+bundle→unbundle descent, and the `Packet`-side probes can be retired.

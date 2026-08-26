@@ -2986,12 +2986,15 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
     // local var ledger management of the previous design.
 
 #ifdef KAME_RC_TRACE
+    // (§13.100) The scope marker must be entered BEFORE any probe that can
+    // report, or that probe's own record carries scope=(none) and the tag
+    // says nothing about where it fired -- observed exactly that: the entry
+    // check below sat three lines above this marker and every one of its
+    // records read (none) despite being inside bundle by construction.
+    kame_rc_trace::ScopedStmScope _stm_scope_(kame_rc_trace::STM_SCOPE_BUNDLE);
     // §13.78: zero AT ENTRY indicts how the caller's scope acquired its
     // view; zero only later indicts a release that happens in between.
     rcScopePacketCheck(supscope.operator->(), "bundle entry supscope->packet()");
-#endif
-#ifdef KAME_RC_TRACE
-    kame_rc_trace::ScopedStmScope _stm_scope_(kame_rc_trace::STM_SCOPE_BUNDLE);
 #endif
     assert(supscope->packet());
     assert(supscope->packet()->size());
