@@ -7315,8 +7315,50 @@ all seven arms **pass a syntax check** under clang (which parses and ignores
 not lose a cycle to a build error; and the default arm-0 build is unchanged —
 same reproducer, `HITS 0`, `dtor == born`, `enforced 96 555 426`.
 
-**Order to run them in:** 6, then 3/4, then 1/2, then 5/7.  Not by suspicion of
-the clone but by what a hit would *explain*: arm 6 is the only one whose
-mechanism is already written down as a concrete misbehaviour (a stale
-`back_offset` read clearing a bit in the wrong chunk), and §13.109's middle row
-is the observation that would confirm it.
+**Order to run them in — revised by §13.110's clustering: 5, 7, 6, then 3/4,
+then 1/2.**  §13.110 shows two of three multi-hit runs putting both hits in one
+chunk, one pair **224 bytes apart**, which is what *chunk-level* reuse looks
+like — so the chunk-scoped arms come first: `deallocate_chunk` (5) and
+`orphan_chain_pop` (7) before `claim_chunk` (6), and the slot-scoped
+`batch_return_to_bitmap` (3/4) after.  §13.111's negative points the same way:
+no poison at the hit argues for a hand-out with **no intervening free**, and a
+whole chunk being handed back out is exactly that with no per-slot free
+involved.
+
+### 13.112a Correction to §13.111: `W0` is NOT uninformative any more — §13.109 moved the store
+
+§13.111 explains its `W0` reading with
+
+```cpp
+atomic_countable() noexcept : refcnt(1) { KAME_RC_EVT(this, OP_BORN, 1); }
+```
+
+and concludes W0 is uninformative by construction because `refcnt = 1` lands
+before BORN.  **That was true, and §13.109 changed it.**  Under `KAME_RC_TRACE`
+the constructor now initialises `refcnt` in the **body**, after
+`preborn_note()` has read word 0 into a thread-local — precisely so that the
+poison survives long enough to be seen, and precisely because §13.104's hit was
+an offset-0 address where W0 is the only word that can carry it.
+
+The captures in §13.111 show `RC-DLIVE-WPRE … w=0x1`, i.e. the pre-store word
+already holding the new occupant's refcount — which cannot happen with the
+§13.109 constructor, so **that binary predates the change** (only one copy of
+`atomic_smart_ptr.h` exists in the tree, and HEAD carries the new ctor).  Mac
+evidence that the mechanism does work, pool active:
+
+```
+RC-DLIVE-WPRE 0x110100120 w=0xbaad0000000b8000  <-- POISON TAG
+RC-DLIVE-FREEREC w-1 freed_ptr=0x110100120 (THIS block) size=32 free_tid=1 …
+```
+
+That also disposes of a worry worth naming: if `atomic<Refcnt>`'s default
+constructor wrote word 0 before the body, the hook would silently read zero
+instead of the poison.  It does not — the token is there.
+
+**So §13.111's conclusion should be re-taken on a rebuilt binary.**  Its
+direction ("no intervening free") may well hold — §13.110 independently points
+the same way — but as it stands the negative rests on W1 alone, and §13.111 is
+right that W1 proves nothing until `deallocate_pooled_or_free`'s write set is
+checked.  With the §13.109 constructor, W0 becomes the word the argument should
+rest on, and no such audit is needed for it: the poison writer targets word 0
+first (`q[0] = token`).
