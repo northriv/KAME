@@ -6780,3 +6780,67 @@ it" — it only says that six specific points, deschedule-injected, do not open
 it. Recorded as a null result with its coverage stated, and as a standing
 caution: **measure that a perturbation perturbs before believing its zero**
 (the same rule §13.83 established for predicates).
+
+### 13.104 DOUBLE-LIVE FIRES — a crashing run hands out an occupied address, and the refcount damage follows it
+
+§13.103's probe run on Ubuntu.  **Instrument fix first, same lesson as
+§13.93/§13.99:** `dl_report_` was reachable only via `atexit`, which does not
+run after a fatal signal, so every crashing run reported nothing.  Added a
+signal-safe `dl_counts()` readback emitted from the crash handler as
+`RC-SEGV-DLIVE`.  Without it this section's result would have been invisible.
+
+**Base rate — zero.**  Clean runs: `born 1 234 375 / enforced 837 948 /
+HITS 0`, and a longer clean run `born 51 443 040 / enforced 20 202 912 /
+HITS 0`.  **Zero double-live hits in ~21 M enforced checks on runs that
+succeeded.**
+
+**Crashing runs:**
+
+| run | rc | born | enforced | **HITS** |
+|---|---|---|---|---|
+| 2 | 139 | 25 689 514 | 9 011 912 | **3** |
+| 3 | 139 | 12 794 248 | 5 707 402 | 0 |
+| 4 | 139 | 7 697 087 | 3 926 128 | 0 |
+
+**And the three hits are not incidental — they lead the damage.**  On one
+address, in `seq` order, one thread:
+
+```
+obj=0x7fffd0676f90
+  #1  DOUBLE-LIVE   BORN at an address already occupied by a live object
+                    scope=bundle,snapshot
+  #2  DEC-UNDERFLOW type=PacketWrapper
+  #3  DEC-UNDERFLOW type=PacketWrapper
+```
+
+**The double hand-out comes first, and the refcount corruption is on the same
+address afterwards.**  That is the ordering §13.101 asked for and never got
+from the victim types: cause before consequence, one address, one thread.  It
+also explains §13.102's four victim types in one stroke — whichever types
+happen to share a doubly-handed-out block are the ones that corrupt, which is
+§13.103's prediction, made before this run.
+
+**Site attribution, with the standing caveat.**  The second occupant's `BORN`
+resolves through `lsp<PacketWrapper>::swap` ← `operator=(&&)` ← `bundle`
+(`transaction_impl.h:3304`), and the recorded previous-occupant slots to
+`bundle:3032` and `snapshotForUnbundle:2367`.  These are line-table
+resolutions and this section has discounted three of them (§13.75, §13.79,
+§13.82); the **scope tag** `bundle,snapshot` is the part that cannot smear.
+
+**Two coverage caveats, both real.**  (1) The probe's live-set saturates:
+`table-full 26 851 369` and `dead-miss 25 616 655` against 20 M enforced, so
+roughly half the births are untracked and **every HITS figure is a lower
+bound** — including the zeros.  (2) Only 1 of 3 crashing runs showed hits,
+which given (1) is as consistent with coverage as with distinct failure modes.
+
+**What this establishes.**  A double hand-out is **real, observed, and ordered
+ahead of the refcount damage** — it is no longer a hypothesis.  Combined with
+§6's table (fault follows the *allocator's* compiler: clang-STM+gcc-pool 8/12,
+gcc-STM+clang-pool 0/12, allocator `-O3` 6/8 vs `-O2` 0/8), the layer and the
+mechanism now agree, and every STM-side lifetime audit coming back clean
+(§13.91–§13.98) reads as correct rather than puzzling.
+
+**Next, in order:** enlarge the probe's table (or key it more sparsely) so the
+zeros become trustworthy, then re-run to establish how often hits accompany a
+crash; and take the `bundle,snapshot` scope as the place to look on the
+allocator side, since that is the one attribution here that cannot be smeared.

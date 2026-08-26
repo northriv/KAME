@@ -118,6 +118,7 @@ namespace kame_rc_trace {
 static void install_segv_() noexcept;   // §13.58; defined below the raw helpers
 void park_counts(unsigned long long *e, unsigned long long *h) noexcept;  //!< §13.93
 void ub_branch_counts(unsigned long long *o, unsigned long long *n) noexcept;  //!< §13.95
+void dl_counts(unsigned long long *b, unsigned long long *e, unsigned long long *h) noexcept;  //!< §13.104
 
 enum Op : unsigned {  // keep in sync with atomic_smart_ptr.h
     OP_BORN = 1, OP_INC, OP_DEC, OP_DEAD, OP_DEAD_UNIQUE,
@@ -675,6 +676,15 @@ static void dl_dead_(const void *obj) noexcept {
     g_dl_miss.fetch_add(1, std::memory_order_relaxed);
 }
 
+//! (§13.104) Same lesson as §13.93's park counters: `atexit` does not run
+//! after a fatal signal, and a crashing run is exactly where a HIT would
+//! appear.  Signal-safe readback for the crash handler.
+void dl_counts(unsigned long long *b, unsigned long long *e,
+               unsigned long long *h) noexcept {
+    *b = g_dl_born.load(std::memory_order_relaxed);
+    *e = g_dl_enforced.load(std::memory_order_relaxed);
+    *h = g_dl_hit.load(std::memory_order_relaxed);
+}
 static void dl_report_() noexcept {
     unsigned long long b = g_dl_born.load(std::memory_order_relaxed);
     if(!b) return;
@@ -934,6 +944,9 @@ static void segv_handler_(int sig, siginfo_t *si, void *uc_) noexcept {
         unsigned long long _uo = 0, _un = 0;
         ub_branch_counts( &_uo, &_un);
         raw_line_("RC-SEGV-UBBRANCH oldsubpacket %llu / newsubpacket %llu\n", _uo, _un);
+        unsigned long long _db = 0, _de = 0, _dh = 0;
+        dl_counts( &_db, &_de, &_dh);
+        raw_line_("RC-SEGV-DLIVE born %llu enforced %llu HITS %llu\n", _db, _de, _dh);
     }
     raw_line_("\nRC-SEGV sig=%d fault_addr=%p ip=0x%llx rbp=0x%llx rdi=0x%llx "
         "rax=0x%llx rbx=0x%llx r12=0x%llx r13=0x%llx r14=0x%llx r15=0x%llx tid=%u\n",
