@@ -3385,7 +3385,17 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 			// branch above and were released directly (self-ref reset); they
 			// are never on the chain, so the chain-only no-release invariant
 			// holds.
+#ifdef KAME_NO_ORPHAN_CHAIN
+			// (§13.125) Ablation: never publish the orphan chunk.  The
+			// chain is the pool's ONLY use of atomic_shared_ptr, so a
+			// build without it separates "atomic_shared_ptr algorithm"
+			// from "pool bookkeeping elsewhere".  Chunks are stranded
+			// rather than adopted -- a memory cost, not a correctness
+			// change, and acceptable for an ablation arm.
+			(void)c;
+#else
 			orphan_chain_push(c);   // (Path B) push onto the atomic_shared_ptr chain
+#endif
 		}
 		c = next;
 	}

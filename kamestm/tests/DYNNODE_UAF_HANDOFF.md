@@ -8078,3 +8078,55 @@ setting up if the rerun comes back positive.
 baseline vs `-DKAME_ASP_NOCLONE` — that pair isolates this one family, so the
 non-clone rows are exactly the three callers' code, and the atomic/store columns
 say whether a memory operation moved in them.
+### 13.126 ORPHAN CHAIN ABLATION: 0/20 against 15/20 — the first suppression that eliminates the fault
+
+**The question — `atomic_shared_ptr` or the pool — has a sharp answer because
+they meet in exactly one place.**  The pool's **only** use of
+`atomic_shared_ptr` is the orphan-chunk reclaim chain
+(`s_orphan_chain_head()`, `m_orphan_next`; `allocator_prv.h:2473/2526`).
+Nothing else in the allocator instantiates it.  And §13.124's 22
+`acquire_tag_ref_` specializations are all
+`atomic_shared_ptr<PoolAllocator<N,…>>` — i.e. that chain.
+
+**So I ablated the chain.**  `KAME_ORPHAN_CHAIN` was retired long ago and the
+chain is unconditional, so I added `KAME_NO_ORPHAN_CHAIN`, which skips the
+`orphan_chain_push(c)` at `allocator.cpp:3388`.  Chunks are then stranded
+rather than adopted — a memory cost, not a correctness change.  The chain code
+still compiles and still receives all 22 specializations; only the **runtime
+use** is removed.
+
+**Result, 20 interleaved rounds, `20 40 700`, `taskset -c 0-3`:**
+
+| arm | failures |
+|---|---|
+| firing baseline (`-O2 -fipa-cp-clone`) | **15/20 (75%)** |
+| **`-DKAME_NO_ORPHAN_CHAIN`** | **0/20 (0%)** |
+
+Fisher exact **p = 7.7 × 10⁻⁷**.
+
+**This is the first ablation in the entire investigation to eliminate the
+fault.**  Every other suppression tied or came back at p ≈ 1.0 — including,
+finally, the `acquire_tag_ref_` arm itself, which on 22 rounds settled at
+**13/22 vs 13/22, p = 1.000**, confirming §13.124's caution that its earlier
+25-point drop was noise.
+
+**It also explains the reproducer's own requirements.**  §1 records that the
+minimal test needs *"a PERSISTENT tree, MANY concurrent threads, and REPEATED
+thread create/exit"* — and thread exit is precisely what orphans a chunk onto
+this chain.  It fits every runtime observation: §13.104's DOUBLE-LIVE (a chunk
+handed out while still occupied), §13.110's per-chunk clustering, §13.113's
+"previous occupant live and unfreed", and §6's finding that the fault follows
+the **allocator's** compiler — the chain is compiled in the allocator's TU.
+
+**The confound, stated because it is real.**  This ablation removes two things
+at once: the `atomic_shared_ptr` chain *algorithm*, and a major source of
+**chunk reuse**.  A build that strands chunks reuses far less storage, so 0/20
+is consistent both with "the chain's adoption logic is wrong" and with "less
+reuse means fewer opportunities".  It is a localisation, not yet a mechanism.
+
+**The experiment that separates those**, and the obvious next one: keep the
+chain and its reuse, but make adoption **verify** what it takes — e.g. refuse
+to adopt a chunk whose occupancy count is non-zero, or re-check it after the
+CAS.  If the fault dies with reuse intact, the adoption logic is named; if it
+survives, the effect is reuse volume and the chain is merely the busiest
+supplier of it.
