@@ -1476,21 +1476,6 @@ public:
 #else
   #define KAME_CLONE_ATTR_
 #endif
-// (§13.118) Arms 9/10: the families that actually GAIN clones between the
-// non-firing -O2 build and the firing -O2 -fipa-cp-clone build --
-// PoolAllocator<N,true,true>::PoolAllocator (17 of them, one per size class)
-// and restamp_back_offset.  Neither was on the §13.112/§13.116 arm list, yet
-// together they are the bulk of the clone-set delta the fault correlates with.
-#if KAME_CLONE_ARM == 9
-  #define KAME_CLONE_L9 KAME_CLONE_ATTR_
-#else
-  #define KAME_CLONE_L9
-#endif
-#if KAME_CLONE_ARM == 10
-  #define KAME_CLONE_L10 KAME_CLONE_ATTR_
-#else
-  #define KAME_CLONE_L10
-#endif
 #if KAME_CLONE_ARM == 1
   #define KAME_CLONE_L1 KAME_CLONE_ATTR_
 #else
@@ -1530,6 +1515,84 @@ public:
   #define KAME_CLONE_L8 KAME_CLONE_ATTR_
 #else
   #define KAME_CLONE_L8
+#endif
+// (§13.119) Slots 9-12 and KAME_CLONE_MASK subset selection.  Defined here,
+// AFTER every `KAME_CLONE_ARM == n` block, so nothing can redefine them away.
+#ifndef KAME_CLONE_MASK
+  #define KAME_CLONE_MASK 0
+#endif
+#if defined(__GNUC__) && !defined(__clang__)
+  #define KAME_CLONE_ATTR_M_ __attribute__((optimize("-fipa-cp-clone")))
+#else
+  #define KAME_CLONE_ATTR_M_
+#endif
+#if KAME_CLONE_ARM == 9
+  #define KAME_CLONE_L9 KAME_CLONE_ATTR_
+#else
+  #define KAME_CLONE_L9
+#endif
+#if KAME_CLONE_ARM == 10
+  #define KAME_CLONE_L10 KAME_CLONE_ATTR_
+#else
+  #define KAME_CLONE_L10
+#endif
+#if KAME_CLONE_ARM == 11
+  #define KAME_CLONE_L11 KAME_CLONE_ATTR_
+#else
+  #define KAME_CLONE_L11
+#endif
+#if KAME_CLONE_ARM == 12
+  #define KAME_CLONE_L12 KAME_CLONE_ATTR_
+#else
+  #define KAME_CLONE_L12
+#endif
+#if ((KAME_CLONE_MASK) & (1u << 0))
+  #undef  KAME_CLONE_L1
+  #define KAME_CLONE_L1 KAME_CLONE_ATTR_M_
+#endif
+#if ((KAME_CLONE_MASK) & (1u << 1))
+  #undef  KAME_CLONE_L2
+  #define KAME_CLONE_L2 KAME_CLONE_ATTR_M_
+#endif
+#if ((KAME_CLONE_MASK) & (1u << 2))
+  #undef  KAME_CLONE_L3
+  #define KAME_CLONE_L3 KAME_CLONE_ATTR_M_
+#endif
+#if ((KAME_CLONE_MASK) & (1u << 3))
+  #undef  KAME_CLONE_L4
+  #define KAME_CLONE_L4 KAME_CLONE_ATTR_M_
+#endif
+#if ((KAME_CLONE_MASK) & (1u << 4))
+  #undef  KAME_CLONE_L5
+  #define KAME_CLONE_L5 KAME_CLONE_ATTR_M_
+#endif
+#if ((KAME_CLONE_MASK) & (1u << 5))
+  #undef  KAME_CLONE_L6
+  #define KAME_CLONE_L6 KAME_CLONE_ATTR_M_
+#endif
+#if ((KAME_CLONE_MASK) & (1u << 6))
+  #undef  KAME_CLONE_L7
+  #define KAME_CLONE_L7 KAME_CLONE_ATTR_M_
+#endif
+#if ((KAME_CLONE_MASK) & (1u << 7))
+  #undef  KAME_CLONE_L8
+  #define KAME_CLONE_L8 KAME_CLONE_ATTR_M_
+#endif
+#if ((KAME_CLONE_MASK) & (1u << 8))
+  #undef  KAME_CLONE_L9
+  #define KAME_CLONE_L9 KAME_CLONE_ATTR_M_
+#endif
+#if ((KAME_CLONE_MASK) & (1u << 9))
+  #undef  KAME_CLONE_L10
+  #define KAME_CLONE_L10 KAME_CLONE_ATTR_M_
+#endif
+#if ((KAME_CLONE_MASK) & (1u << 10))
+  #undef  KAME_CLONE_L11
+  #define KAME_CLONE_L11 KAME_CLONE_ATTR_M_
+#endif
+#if ((KAME_CLONE_MASK) & (1u << 11))
+  #undef  KAME_CLONE_L12
+  #define KAME_CLONE_L12 KAME_CLONE_ATTR_M_
 #endif
 #define KAME_CLONE_LICENCE_(n) KAME_CLONE_L##n
 #define KAME_CLONE_LICENCE(n) KAME_CLONE_LICENCE_(n)

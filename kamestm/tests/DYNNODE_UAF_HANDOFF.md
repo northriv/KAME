@@ -7664,3 +7664,55 @@ all the clones.  And `optimize()`-based licensing is itself a codegen
 perturbation — §5's warning that `noclone` on one function moved 72 others
 applies in this direction too, so "25 clones" is a count, not proof that those
 25 bodies are identical to the global build's.
+
+### 13.119 The bisect, done properly: licensing EVERY cloned function reproduces the clone set and still does not fire
+
+§13.118 could only test one function at a time, so it could not answer "does
+some *subset* carry it".  Added `KAME_CLONE_MASK`, a bitmask over the same
+slots (bit n-1 → arm n), plus slots 11/12 for the two families that were
+cloned globally but had no arm (`CrossDeallocBatch::flush`, `global_pop_fit`).
+
+**Two instrument errors on the way, both caught before they were reported.**
+(1) My first mask block was inserted *before* the `KAME_CLONE_ARM == n` blocks,
+which then redefined the macros to empty — arms 1/2 silently expanded to
+nothing while appearing to be armed.  (2) Moving the block corrupted a line
+(`#endif#define …`), so the mask builds **failed**, and because I had sent
+`stderr` to `/dev/null` the loop read **stale `.so` files from earlier builds**
+and reported plausible clone counts for binaries that did not exist.  Both were
+found by preprocessing the macro and by checking the `.so` actually existed.
+Sending compiler errors to `/dev/null` in a build-and-measure loop is how a
+measurement silently becomes fiction.
+
+**With the mechanism fixed**, per-function licensing composes as expected:
+`0x000` → 3 clones, `0x001` → 5, `0x100` → 25, **`0x101` → 27, matching the
+global build's 27**, and `0xF03` (all six families) → 33.  `0xF03` covers
+**every clone family the global build has** (set difference empty).
+
+**Result, 10 interleaved rounds:**
+
+| arm | clones | failures |
+|---|---|---|
+| baseline plain `-O2` | 3 | 0/10 |
+| A — chunk ctor + `restamp_back_offset` | 28 | 0/10 |
+| B — the four single-clone families | 8 | 0/10 |
+| **FULL — all six families** | **33** | **0/10** |
+| **global `-O2 -fipa-cp-clone`** | **27** | **9/10** |
+
+Fisher, global vs FULL: **p = 0.00003**.
+
+**This is a clean, decisive negative, and it closes the whole line.**  A build
+that clones *every function the global build clones* — 33 bodies against its 27,
+superset coverage by family — **never fails in ten runs**, while the global flag
+fails nine times out of ten in the same interleaved job.  So the fault is **not
+carried by the clone set at all**: not by one function (§13.53, §13.118), not by
+any half, and not by the union.
+
+**What that leaves.**  `-fipa-cp-clone` as a whole-TU pass does something beyond
+producing those clone bodies — it re-runs IPA-CP's propagation and the
+inlining/ordering decisions across the entire unit, and `optimize()` on
+individual functions does not.  The distinguishing property is therefore a
+**whole-TU codegen consequence**, which is what §13.55's graded dose-response
+and §13.88's wide window have been saying in other language.  "Which function"
+is the wrong question; the next one has to be "what does the pass change about
+the unit", e.g. a diff of the two objects restricted to functions that are *not*
+clones.

@@ -825,7 +825,7 @@ struct CrossDeallocBatch {
     // store SIGSEGVs (observed only on Alpine/musl; glibc CI is clean).
     // The poke is a pure slot-reuse hint, worthless at teardown, so we
     // simply drop it there — the slots are still returned to the bitmap.
-    void flush(bool at_teardown = false) noexcept {
+    KAME_CLONE_L11 /*§13.119 arm 11*/ void flush(bool at_teardown = false) noexcept {
         if(count == 0) return;
         KAME_POOLEV(KAME_PEV_CROSS_FLUSH, buf[0].chunk, count);
         // Sort by (chunk, slot) lex — chunk primary key for grouping,
@@ -7555,7 +7555,7 @@ inline bool global_push(char *base, std::size_t size, unsigned kind) noexcept {
 }
 // Pop a fitting block from the global cache, weak-CAS each slot (own-then-
 // read-size) until a fit; livelock-free (bounded K iterations, no inner retry).
-inline char *global_pop_fit(std::size_t need, unsigned kind) noexcept {
+KAME_CLONE_L12 /*§13.119 arm 12*/ inline char *global_pop_fit(std::size_t need, unsigned kind) noexcept {
     int idx = lrc_idx(need, kind);
     int kstart = lrc_kstart_g();
     for(int kk = 0; kk < LRC_K_MAX; kk++) {
