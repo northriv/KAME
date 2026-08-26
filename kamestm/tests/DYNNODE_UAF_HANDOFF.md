@@ -8265,3 +8265,74 @@ hands out slots from a chunk it did not itself construct.
 bitmap the adopting thread proceeds to allocate from.  A slot handed out that
 the occupancy count says is still in use is the DOUBLE-LIVE event at its
 source, one step upstream of where §13.104 catches it.
+
+### 13.129 `OrphanAdopt.tla` — adopt at bitmap granularity: the invariant is `occ ⊆ bits`, and only two things break it
+
+§13.128 exonerated the release half by measurement and left **adopt** as the
+only live candidate inside the chain.  §13.127's model cannot speak to it: it
+abstracted occupancy to one bit (`MASK_CNT` zero or not) and had no bitmap, so
+"can adopt hand out a slot that is occupied" was outside its language.  This
+model puts the bitmap in, and it answers the question §13.128 was going to
+instrument for.
+
+**Three sets per chunk, which is the whole mechanism:** `bits` (the `m_flags`
+bitmap — a set bit means *not available*), `occ` (slots holding a **live**
+object), `mask` (the word-cache's claimed-but-undistributed bits, parked in
+`m_freelist_head[1]`).  The word-grab claims a whole word in one CAS
+(`bits := ALL`) and hands out one slot, parking the rest — so `bits` legitimately
+**exceeds** `occ`, and the invariant runs the other way:
+
+> **`occ ⊆ bits`** — the bitmap never says "available" about storage in use.
+
+Its breach **is** the DOUBLE-LIVE event, one step upstream of where §13.104
+catches it.  Two supporting invariants: `mask ∩ occ = {}` (a parked bit is never
+live) and `handed = {}` (no slot handed out while occupied — the fault stated
+directly).
+
+**Results (3 slots, 2 threads, exhaustive):**
+
+| config | states | verdict |
+|---|---|---|
+| the code as written | 313 distinct, **queue 0** | **PASS** |
+| `BUG_NO_DRAIN` — owner exit forgets to drain the mask | 379 distinct, **queue 0** | **PASS** |
+| `BUG_DRAIN_KEEPS_CELLS` — returns the bits, leaves the cells | 203 | **`occ ⊆ bits` violated** |
+| `BUG_WRONG_BIT` — a free clears a bit other than its own | 42 | **`occ ⊆ bits` violated** |
+
+**`BUG_NO_DRAIN` passing is a finding, not a null.**  Forgetting to drain the
+word-cache mask at owner exit is a **leak**, not a correctness bug: the parked
+bits are already claimed in the bitmap, so inheriting them and handing them out
+later is legitimate.  That is exactly what §13.116 argued by reading, now
+machine-checked — and it removes the mask-inheritance story from the candidate
+list for good.
+
+**`BUG_DRAIN_KEEPS_CELLS` failing is the sharper half of the same point.**  The
+drain must do **both** halves or **neither**: returning the bits to the bitmap
+while leaving the cells populated double-counts the slots, so the same storage
+goes out once from the bitmap and once from the mask.  The C++ does both (nulls
+`[1]`/`[2]`, then returns each bit) — §13.116 verified that by reading, and the
+model now says what the cost of getting it backwards would be.  Worth keeping as
+a standing regression: this is a two-line invariant that a future
+"simplification" of the drain would break silently.
+
+**`BUG_WRONG_BIT` failing ties the model to the runtime evidence.**  §13.116
+identified "a bit cleared for a slot whose own free never happened" as the one
+surviving mechanism, and §13.113 measured exactly that (`W0 = 1`: the victim was
+never freed).  Modelling a free that clears *some* bit rather than *its own*
+breaks `occ ⊆ bits` in **42 states** — so the invariant detects the mechanism the
+runtime evidence points at, which is what licenses reading the PASS as
+meaningful.
+
+**Where this leaves adopt.**  Adopt does not re-verify the bitmap: it claims
+`BIT_OWNED` and allocates from whatever `m_flags` says.  The model says that is
+**sound provided `occ ⊆ bits` holds on entry** — adopt itself introduces no way
+to break it.  So §13.128's proposed instrument (compare occupancy against the
+bitmap at the claim) is worth building not as a test of adopt's logic but as a
+**detector of an invariant violated before adopt runs**: if it fires, the bit was
+already wrong when the chunk was orphaned, and the culprit is on the free side —
+`resolve_chunk_from_slot`, arm 8, the one the additive bisect could never reach
+and §13.121's subtractive mask now can.
+
+**Limits, as before.**  One chunk, one bitmap word, no addresses — so a
+*cross-chunk* mis-derivation is modelled only by its consequence (a wrong bit
+cleared), not by its cause.  That is deliberate: the cause needs addresses, and
+the consequence is what any instrument can see.
