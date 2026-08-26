@@ -7548,3 +7548,63 @@ less.
 §13.115's probe is already going: at a DOUBLE-LIVE hit, report the victim's
 chunk base **and** whether any recent free resolved to that chunk from a slot
 address outside it.  A single such record names the defect outright.
+### 13.117 The additive clone bisect, run: no single-function arm fires — and five of seven arms cannot be tested
+
+§13.112's positive bisect run on Ubuntu.  Reproducer is `tmin_rr` at
+`20 40 700`, `taskset -c 0-3`, arms **interleaved round-robin** in one job.
+The runner script compiles without `-fPIC`, so its object cannot be linked into
+the shared library the reproducer needs; I ran an equivalent loop that builds
+each arm as a PIC `.so` with otherwise identical flags, keeping its
+clone-count / VACUOUS check.
+
+**The measured global clone set at `-O2 -fipa-cp-clone`** (§13.112 asked for
+this and it had never been recorded): 29 `constprop` symbols — 17 of the 27
+in the shared build are `PoolAllocator<N,true,true>::PoolAllocator` (one per
+size class), plus `find_training_zeros` ×2 and `CrossDeallocBatch::flush`.
+
+**Arm viability, checked before running any of them:**
+
+| arm | function | clones (baseline 3) | vs baseline bytes |
+|---|---|---|---|
+| 1 | `bucket_release_chunk` | 5 | differs |
+| 2 | `find_training_zeros` | 5 | differs |
+| 3, 4 | `batch_return_to_bitmap` | 3 | differs, **no new clone** |
+| 5 | `deallocate_chunk` | 3 | differs, **no new clone** |
+| 6 | `claim_chunk` | 3 | **BYTE-IDENTICAL** |
+| 7 | `orphan_chain_pop` | 3 | **BYTE-IDENTICAL** |
+
+**Arms 6 and 7 are byte-identical to the baseline `.so`** — the licence expands
+to nothing `-O2` will act on, so those arms test *nothing*; a 0 from them is
+not a negative result.  That matters because **arm 6 (`claim_chunk`) is the one
+§13.112 singled out** as mapping onto the discriminator rows.  Arms 3/4/5 add
+no clone either, so on the runner's own VACUOUS criterion only **arms 1 and 2**
+are real experiments.
+
+**Results, 8 interleaved rounds:**
+
+| arm | failures |
+|---|---|
+| baseline plain `-O2` | **0/8** |
+| arm 1 `bucket_release_chunk` | **0/8** |
+| arm 2 `find_training_zeros` | **0/8** |
+| **global `-O2 -fipa-cp-clone`** | **3/8** |
+
+**The positive control fires and the arms do not.**  Baseline 0/8 reproduces
+§6's `-O2` row, and the global licence reproducing at 3/8 in the same job shows
+the experiment is powered — so arms 1 and 2 returning 0/8 are real negatives
+for those two functions, not a dead setup.
+
+**What this adds.**  Licensing either function that actually gains clones under
+`-O2` does not reproduce the fault, while licensing everything does.  That is
+the additive counterpart of §13.53 (removing the one perfectly-correlating
+clone changed nothing) and of §13.55's graded dose-response, and it points the
+same way: **the effect is distributed across the clone set, not carried by one
+function.**
+
+**What it cannot say.**  Five of seven candidates were never tested — two
+because the licence produced identical code, three because it produced no new
+clone.  Reaching `claim_chunk` and `orphan_chain_pop` needs a mechanism that
+forces cloning rather than merely permitting it (e.g. licensing at `-O3` and
+subtracting elsewhere, or `-fipa-cp-clone` with per-function
+`optimize("-O3")`), and until then §13.112's most interesting arm is untested
+rather than refuted.
