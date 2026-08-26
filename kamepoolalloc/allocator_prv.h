@@ -1511,6 +1511,11 @@ public:
 #else
   #define KAME_CLONE_L7
 #endif
+#if KAME_CLONE_ARM == 8
+  #define KAME_CLONE_L8 KAME_CLONE_ATTR_
+#else
+  #define KAME_CLONE_L8
+#endif
 #define KAME_CLONE_LICENCE_(n) KAME_CLONE_L##n
 #define KAME_CLONE_LICENCE(n) KAME_CLONE_LICENCE_(n)
 //! Arm map -- keep in sync with the licensable sites below:
@@ -1522,6 +1527,15 @@ public:
 //!   5 deallocate_chunk       (returns a whole chunk)
 //!   6 claim_chunk            (publishes back_offset -- §13.x's stale-read site)
 //!   7 orphan_chain_pop       (adoption)
+//!   8 resolve_chunk_from_slot (THE back_offset reader: derives chunk_base for
+//!                             every free.  §13.116 selects this one -- it is
+//!                             the only site whose misbehaviour clears a bit
+//!                             for a slot that was never freed, which is what
+//!                             §13.113 measured.  Note it is `static inline`,
+//!                             so licensing it also forces an out-of-line copy
+//!                             at -O2 -- a bigger perturbation than the other
+//!                             arms, and a reason to read a hit there with the
+//!                             §13.112 caveat firmly in mind.)
 
 #if KAME_FS_WORDCACHE && (KAME_FS_CHUNK_FIFO || KAME_FS_CHUNK_STASH)
   // Cell overlap: the word-cache stores its mask/base in

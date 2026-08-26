@@ -3634,7 +3634,7 @@ PoolAllocatorBase::count_live_chunks() noexcept {
 // of the back-offset table plus a plain palloc read suffice — the
 // pre-WIP cost profile.
 static inline PoolAllocatorBase *
-resolve_chunk_from_slot(char *mp, size_t /*meta_base unused*/,
+KAME_CLONE_LICENCE(8) /*§13.112 arm 8*/ resolve_chunk_from_slot(char *mp, size_t /*meta_base unused*/,
                         unsigned int unit_idx,
                         char **out_chunk_base) noexcept {
 	// (§13.2) back_offset now lives inside the region (RegionMeta at

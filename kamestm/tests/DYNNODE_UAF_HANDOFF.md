@@ -7492,3 +7492,59 @@ fix is per-chunk rather than global: record, for each chunk, the last pool
 event that touched it, and print that at the hit.  That is the one question
 between the current evidence and a named allocator defect, and it is what I am
 building next.
+
+### 13.116 Reading the chunk paths: four mechanisms cleared, and the invariant that clears them selects the remaining one
+
+While §13.115's per-chunk event probe is being built, the same question read
+from the source.  §13.110/§13.113/§13.115 say: a chunk's worth of live,
+singly-referenced, ordinary STM objects is handed back out, and **the victims
+were never freed**.  So which pool path can hand out storage that is in use?
+
+**Four candidates, all cleared by one invariant.**
+
+| candidate | why it cannot do it |
+|---|---|
+| the two claim loops (word-grab, N-run) | one `atomicLoadAcquire` feeds BOTH `mask`/`one` and the CAS expected value, so a successful CAS proves the word went exactly from `oldv` — the claimed bits ARE `mask` (§13.107) |
+| word-cache cells `m_freelist_head[1]/[2]` | touched only by claim, the lean-cold consume, and the owner-exit drain — and that drain walks **this thread's own** DLL, so it cannot race the consumer.  Under `WORDCACHE` the free side never touches the cells (the FIFO/STASH park that does is `#error`-exclusive with it) |
+| release of a chunk holding undistributed mask bits | `MASK_CNT` counts **non-empty bitmap words**, not slots (`allocator_prv.h`: "MASK_CNT = count (all words non-empty)").  The word-grab leaves the word **all-ones**, so undistributed bits keep it non-empty and `MASK_CNT ≥ 1` — the chunk is unreleasable while they exist |
+| the deferred cross-thread batch | same invariant: a batched slot's bit is **still set**, so its word is non-empty and its chunk is pinned for the whole accumulation window.  `push_direct` also routes each free to direct **or** hold, never both, so one free cannot produce two clears |
+
+**The invariant is: a slot's bit stays set until its own free is applied, and
+that pins its chunk.**  Every path above is built on it, which is why they are
+safe — and it means the defect must be something that **breaks** it.  There are
+exactly two ways:
+
+1. **one slot's bit cleared twice** — the first clear frees the slot, a new
+   object takes it, the second clear lands under the new occupant;
+2. **a bit cleared for a slot that was never freed** — some *other* block's
+   free clears it.
+
+**§13.113 selects (2).**  Its `W0 = 1` says the victim was never freed, which
+(1) does not produce: in (1) the victim IS a slot whose free was applied, so its
+word 0 would carry the poison.  (2) is §13.x's original mis-derived
+`chunk_base`: a free that resolves to the **wrong chunk** clears a bit there, so
+a live object in that chunk reads as free.  Several frees mis-resolving to the
+same chunk give §13.110's clustering; the victims are whatever ordinary live
+objects sit in it, at whatever refcount they happen to hold — §13.115 and
+§13.113 exactly.
+
+It also explains something (1) cannot: why `cap = 1` is **0/16** and the 2 M
+quarantine **0/41** while default batching fires.  Under (2) the batch is not
+the defect but the *delay*: it widens the interval between the mis-resolving
+free and the bit-clear, and both extremes remove the interval — `cap = 1`
+applies the clear immediately, quarantine keeps the wrongly-freed slot out of
+circulation until nothing depends on it.
+
+**The reader is `resolve_chunk_from_slot`** (`allocator.cpp:3637`) — the one
+function that turns a slot address into a chunk via
+`rmeta->back_offset[unit_idx]`, on **every** free.  It was missing from
+§13.112's arm list; it is now **arm 8, and first in the suggested order**
+(`8 5 7 6 3 4 1 2`).  One honest qualification: it is `static inline`, so
+licensing it also forces an out-of-line copy at `-O2` — a larger perturbation
+than the other arms, so §13.112's caveat 1 applies to it more strongly, not
+less.
+
+**What would confirm (2) directly**, and it is cheap on the allocator side where
+§13.115's probe is already going: at a DOUBLE-LIVE hit, report the victim's
+chunk base **and** whether any recent free resolved to that chunk from a slot
+address outside it.  A single such record names the defect outright.

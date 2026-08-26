@@ -14,7 +14,7 @@
 set -u
 REPRO=${1:?usage: clone_arm_bisect.sh <reproducer-binary-builder> [runs] [arms...]}
 RUNS=${2:-16}; shift 2 || true
-ARMS=${*:-"1 2 3 4 5 6 7"}
+ARMS=${*:-"8 5 7 6 3 4 1 2"}
 SRC=$(cd "$(dirname "$0")/.." && pwd)
 CXX=${CXX:-g++}
 OUT=${OUT:-/tmp/clone_arm}
