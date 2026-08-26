@@ -186,6 +186,7 @@ void dec_dump(const void *obj) noexcept;                              //!< §13.
 int  deleter_depth() noexcept;                                        //!< §13.91
 void deleter_enter() noexcept;                                        //!< §13.91
 void deleter_exit() noexcept;                                         //!< §13.91
+void ub_branch_note(bool is_old) noexcept;                            //!< §13.95
 void wp_check(const void *wrapper, const void *packet,
               const void *site, const char *where) noexcept;
 void push_dtor(const void *obj, const void *site) noexcept;

@@ -114,6 +114,7 @@ namespace kame_rc_trace {
 
 static void install_segv_() noexcept;   // §13.58; defined below the raw helpers
 void park_counts(unsigned long long *e, unsigned long long *h) noexcept;  //!< §13.93
+void ub_branch_counts(unsigned long long *o, unsigned long long *n) noexcept;  //!< §13.95
 
 enum Op : unsigned {  // keep in sync with atomic_smart_ptr.h
     OP_BORN = 1, OP_INC, OP_DEC, OP_DEAD, OP_DEAD_UNIQUE,
@@ -685,6 +686,9 @@ static void segv_handler_(int sig, siginfo_t *si, void *uc_) noexcept {
         unsigned long long _pe = 0, _ph = 0;
         park_counts( &_pe, &_ph);
         raw_line_("\nRC-SEGV-PARK EMPTY %llu / held %llu\n", _pe, _ph);
+        unsigned long long _uo = 0, _un = 0;
+        ub_branch_counts( &_uo, &_un);
+        raw_line_("RC-SEGV-UBBRANCH oldsubpacket %llu / newsubpacket %llu\n", _uo, _un);
     }
     raw_line_("\nRC-SEGV sig=%d fault_addr=%p ip=0x%llx rbp=0x%llx rdi=0x%llx "
         "rax=0x%llx rbx=0x%llx r12=0x%llx r13=0x%llx r14=0x%llx r15=0x%llx tid=%u\n",
@@ -990,6 +994,16 @@ namespace { std::atomic<unsigned long long> g_park_empty{0}, g_park_held{0}; }
 //! not run after SIGSEGV, and a crashing run is exactly where EMPTY > 0 would
 //! appear -- a base rate that only prints on clean runs cannot answer the
 //! question it was built for.
+//! (§13.95) unbundle branch census: how often is the oldsubpacket path --
+//! the one §13.94's sampler is blind on -- actually taken?
+namespace { std::atomic<unsigned long long> g_ub_old{0}, g_ub_new{0}; }
+void ub_branch_note(bool is_old) noexcept {
+    (is_old ? g_ub_old : g_ub_new).fetch_add(1, std::memory_order_relaxed);
+}
+void ub_branch_counts(unsigned long long *o, unsigned long long *n) noexcept {
+    *o = g_ub_old.load(std::memory_order_relaxed);
+    *n = g_ub_new.load(std::memory_order_relaxed);
+}
 void park_counts(unsigned long long *e, unsigned long long *h) noexcept {
     *e = g_park_empty.load(std::memory_order_relaxed);
     *h = g_park_held.load(std::memory_order_relaxed);

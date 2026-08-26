@@ -6387,7 +6387,7 @@ report the first point at which it has reached zero while `newsubpacket_val`
 still holds it.  That converts "somewhere in the loop" into a specific
 iteration, without needing a mechanism guessed in advance.
 
-### 13.94 Three-point sampling inside `unbundle`: the captured packet never dies there
+### 13.97 Three-point sampling inside `unbundle`: the captured packet never dies there
 
 §13.93 placed the death "after the copy, before the closing brace".  Measured
 that directly: sample `newsubpacket_val`'s own `Packet` refcount at three fixed
@@ -6433,3 +6433,46 @@ and extend the sampler to whichever `local_shared_ptr<Packet>` is live on the
 `&tr.m_oldpacket` for one of the three callers, per §13.68 — so the interesting
 sample is the caller's object, not a local).  That closes the one blind spot
 these three sections have left.
+
+### 13.98 The `oldsubpacket` branch is 11% of calls — and covering it changes nothing
+
+§13.97 left one blind spot: on the `oldsubpacket` branch `newsubpacket_val` is
+empty, so the three-point sampler sampled nothing.  Both halves measured now.
+
+**Branch census** (counters emitted from the crash handler, so they survive the
+`SIGSEGV` that `atexit` misses — §13.93's fix):
+
+| run | `oldsubpacket` | `newsubpacket` | old share |
+|---|---|---|---|
+| 1 | 96 468 | 799 931 | 10.8% |
+| 2 | 32 074 | 267 334 | 10.7% |
+| 3 | 48 869 | 404 593 | 10.8% |
+| 5 | 81 202 | 674 334 | 10.7% |
+| 6 | 48 748 | 403 507 | 10.8% |
+
+**Remarkably stable at ~10.8%.**  So §13.97 was blind on roughly a ninth of all
+`unbundle` calls — a real gap, not a corner case.
+
+**Extended the sampler** to take `*oldsubpacket` (the caller-owned reference
+that *is* live on that path) when the branch is taken, keeping the same three
+points and the same once-per-call reporting.
+
+**Result: 6 crashing runs, `DIED = 0` on both branches.**  Neither the copied
+`newsubpacket_val` nor the caller's `*oldsubpacket` ever sees its `Packet` at
+zero or poisoned — not after the copy, not at any CAS-loop iteration, not at
+the closing brace.
+
+**So `unbundle` is now measured clean for every `Packet` reference it holds,
+on both paths.**  Which sharpens §13.91's finding rather than confirming it:
+the post-free decrement that resolved to `unbundle`'s closing brace is **not**
+a reference `unbundle` held and lost — every reference it holds is alive
+throughout.  Either that attribution was smeared after all (the third time this
+section has had to discount a `site=`), or the decrementing object is a
+`local_shared_ptr<Packet>` that neither §13.92's audit nor this sampler has
+identified.
+
+**Known instrument gap, stated for whoever runs this next:** the crash handler
+covers `SIGSEGV`/`SIGBUS` only, so `rc=134` (abort) runs still lose the
+counters — two of the eight runs above show empty census fields for that
+reason.  Extending §13.58's handler to `SIGABRT` would close it, and is worth
+doing before the next census-style measurement.

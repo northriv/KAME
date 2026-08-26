@@ -3672,7 +3672,13 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
     // at three fixed points and report the FIRST point that sees it at zero
     // or poisoned, with the loop iteration.  Reports at most once per call,
     // so a hit names an iteration rather than flooding.
-    const Packet *_wpkt = newsubpacket_val.get();
+    kame_rc_trace::ub_branch_note(oldsubpacket != nullptr);   // §13.95
+    // (§13.95) On the oldsubpacket branch newsubpacket_val is EMPTY, so
+    // §13.94 sampled nothing there -- and the census says that branch is
+    // ~11% of calls.  Sample the reference that IS live on that path: the
+    // caller-owned *oldsubpacket.
+    const Packet *_wpkt = oldsubpacket ? oldsubpacket->get()
+                                       : newsubpacket_val.get();
     int _wpt = -1;                 // -1 = never seen bad
     auto _wcheck = [&](int point) noexcept {
         if( !_wpkt || _wpt >= 0) return;
