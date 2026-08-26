@@ -8533,3 +8533,84 @@ demonstrated the verifier fires, so I am claiming nothing from a clean table.**
 reproducer (where the pool is genuinely live) rather than from a standalone
 driver, prove it catches `kame_pool_poke_back_offset(0,7,0x5a)`, and only then
 read its verdict on a failing run.
+### 13.133 §13.131's tension resolved by audit: a cross-thread poke into owner TLS, dereferenced after an unbounded window
+
+§13.131 ends with three possibilities and says it will not pick the convenient
+one.  Its third — "the chain's effect is through state it **re-arms** rather than
+storage it hands out" — is the one that survives an audit, and the audit finds a
+concrete use-after-free.
+
+**The code.**  In `CrossDeallocBatch::flush`, per batched entry:
+
+```cpp
+std::atomic<bool> *p = chunk->m_owner_dll_force_walk_ptr.load(acquire);
+i += chunk->batch_return_to_bitmap(&buf[i]);   // unbounded; may release a chunk
+if(p) p->store(true, relaxed);                 // deref, much later
+```
+
+`p` points into the **owner thread's TLS** (`&s_tls.dll_force_walk_from_head`).
+Owner exit does `m_owner_dll_force_walk_ptr.store(nullptr, release)` and then
+lets its TLS die, and the comment there argues the deref is safe:
+
+> "A freer that observes the old non-null pointer must have loaded BEFORE our
+> release, in which case our TLS is still live."
+
+**That does not follow.**  Loading before the release says nothing about the
+**deref** happening before the TLS dies.  The window is `[load, deref]` and it
+spans `batch_return_to_bitmap`; a freer that saw non-null has **no**
+happens-before edge constraining the owner's *subsequent* teardown.  The
+release-store orders the owner's prior work before a freer that reads **null** —
+which is a different freer.
+
+**Two things say this is not hypothetical.**  The teardown path already passes
+`at_teardown ? nullptr` *because* the pointer "may dangle under musl's TSD-dtor
+ordering", and the null-store's own comment records that this field already
+produced a SEGV once (Linux 1000-thread `alloc_stress`).  **Only the teardown
+path was guarded**; the general path rests on the inference above.
+
+**And the target is recycled memory.**  The TLS block is itself
+pool/malloc-allocated and freed at thread exit, so the write lands in storage
+that may now hold a live object.  The value written is a one-byte `true`.
+
+**It accounts for the observations that the chain's two halves could not:**
+
+| observation | this mechanism |
+|---|---|
+| §13.131: **no** DOUBLE-LIVE hit is in an adopted chunk (0/17) | the victim is wherever the freed TLS block got reused — unrelated to the adopted chunk |
+| §13.126: ablating the chain gives 0/20 | adopt is what **re-arms** this pointer to a *new* thread's TLS (`allocator.cpp:3025`); no chain, no re-arming |
+| §1: the reproducer needs **repeated thread create/exit** | without exits the TLS is never freed and the window never matures |
+| §13.110: hits cluster within one chunk | a ~32 KiB TLS block reused as many small slots in one chunk |
+| §13.113/§13.115: ordinary live objects at refcount 1 | a stray 1-byte write, not a structural corruption |
+| §13.128: release-half backstops never fire | nothing is disposed early; the damage is a write, not a lifetime error |
+
+**The gate, which is a candidate fix as much as an experiment.**
+`KAME_NO_XTHREAD_FORCEWALK_POKE` skips the cross-thread poke entirely.  The flag
+it sets is documented as a hint with "one-cycle false-negative delay
+acceptable", so the cost is a delayed DLL walk and nothing else.  Unlike
+§13.126's ablation it removes **exactly one write** — the chain stays, adoption
+stays, reuse volume stays — so a positive result is not confounded the way
+§13.126 conceded its own was.  Mac: default build unchanged (`HITS 0`,
+`dtor == born`, `enforced 96 823 433`), both arms compile.
+
+**Also fixed: §13.131 broke every macOS build of the test.**  `rc_trace.cpp`
+referenced `kame_pool_was_adopted` with `__attribute__((weak))`, but `weak` on an
+**undefined** reference is an ELF-ism — on Mach-O it does not make the reference
+optional, and neither does Darwin's `weak_import` when no linked dylib exports
+the symbol at all:
+
+```
+Undefined symbols for architecture arm64:
+  "_kame_pool_was_adopted", referenced from: kame_rc_trace::anomaly(...)
+```
+
+So the tracer's buildability was coupled to an allocator diagnostic flag
+(`KAME_POOL_ADOPT_CENSUS`).  Now resolved by `dlsym`, which this file already
+does for `kame_poison_decode`; verified both ways (links without the flag; the
+symbol is exported and found with it).
+
+**To run:** `-DKAME_NO_XTHREAD_FORCEWALK_POKE` on the allocator, interleaved
+against the firing baseline in one job.  If it suppresses, the write is named and
+the fix is the gate.  If it does not, the window is real but not load-bearing,
+and it should be closed anyway — a documented dangling deref with a prior SEGV
+attached is not something to leave on the argument that it did not happen to be
+this bug.

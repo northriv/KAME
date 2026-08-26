@@ -826,9 +826,20 @@ void dtor_note(const void *obj) noexcept {
 //! (§13.130) Weakly bound: the adopt census lives in the allocator build and
 //! is absent unless KAME_POOL_ADOPT_CENSUS was defined there.  -1 = no census,
 //! so the report stays silent rather than asserting something it cannot know.
-extern "C" int kame_pool_was_adopted(const void *) noexcept __attribute__((weak));
+//! §13.133  Resolved by `dlsym`, not by a weak extern.  `weak` on an UNDEFINED
+//! reference is an ELF-ism: on Mach-O it does not make the reference optional
+//! (nor does Darwin's `weak_import`, when no linked dylib exports the symbol at
+//! all), so the link failed with "Undefined symbols: _kame_pool_was_adopted"
+//! unless the allocator happened to be built with KAME_POOL_ADOPT_CENSUS --
+//! coupling this test's buildability to an allocator diagnostic flag and
+//! breaking every macOS build of it.  `dlsym` is what this file already does for
+//! `kame_poison_decode`, works on both platforms, and keeps the census
+//! genuinely optional.
+typedef int (*kame_pool_was_adopted_fn)(const void *);
 static int kame_pool_was_adopted_weak(const void *p) noexcept {
-    return kame_pool_was_adopted ? kame_pool_was_adopted(p) : -1;
+    static kame_pool_was_adopted_fn fn = reinterpret_cast<
+        kame_pool_was_adopted_fn>(dlsym(RTLD_DEFAULT, "kame_pool_was_adopted"));
+    return fn ? fn(p) : -1;
 }
 static void dl_report_() noexcept {
     unsigned long long b = g_dl_born.load(std::memory_order_relaxed);

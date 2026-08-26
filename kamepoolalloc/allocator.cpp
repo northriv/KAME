@@ -795,6 +795,36 @@ struct CrossDeallocBatch {
         // object-lifetime rule (UBSAN's vptr check fires under
         // -fsanitize=undefined).  The fields are write-once at chunk
         // construction so the cached values are safe across the call.
+//! §13.133  The cross-thread force-walk poke is a HINT, and its pointer can
+//! dangle.  Define KAME_NO_XTHREAD_FORCEWALK_POKE to skip it entirely.
+//!
+//! The window: a cross-thread freer does
+//!     p = chunk->m_owner_dll_force_walk_ptr.load(acquire);
+//!     batch_return_to_bitmap(...);          // unbounded work; may release a chunk
+//!     if(p) p->store(true, relaxed);        // <-- deref, much later
+//! and owner exit does `m_owner_dll_force_walk_ptr.store(nullptr, release)` and
+//! then lets its TLS die.  The comment at that store argues "a freer that
+//! observes the old non-null pointer must have loaded BEFORE our release, in
+//! which case our TLS is still live" -- which does not follow.  Loading before
+//! the release says nothing about the DEREF happening before the TLS dies; the
+//! window is [load, deref] and it spans `batch_return_to_bitmap`.  A freer that
+//! saw non-null has NO happens-before edge constraining the owner's subsequent
+//! teardown.
+//!
+//! The target is recycled memory: the TLS block is itself pool/malloc-allocated
+//! and freed at thread exit, so the write lands in storage that may now hold a
+//! live object -- and the value written is a 1-byte `true`.
+//!
+//! Two things say this is not hypothetical.  The teardown path already passes
+//! `at_teardown ? nullptr` *because* the pointer "may dangle under musl's
+//! TSD-dtor ordering", and the null-store comment records that this field
+//! already produced a SEGV once (Linux 1000-thread `alloc_stress`).  Only the
+//! teardown path was guarded; the general path rests on the invalid inference.
+//!
+//! Skipping the poke costs a delayed DLL walk and nothing else -- the flag is
+//! documented as a hint with "one-cycle false-negative delay acceptable".  So
+//! this gate is a candidate FIX as much as an experiment, and unlike §13.126's
+//! ablation it removes exactly one write: not the chain, not its reuse.
         void *cached_dll_head_addr = c->m_owner_dll_head_addr;
         auto *cached_force_walk =
             c->m_owner_dll_force_walk_ptr.load(std::memory_order_acquire);
@@ -868,9 +898,13 @@ struct CrossDeallocBatch {
             // pointer (it may dangle under musl's TSD-dtor ordering — see
             // the function comment).  Returning the slots is all that
             // matters there.
+#ifdef KAME_NO_XTHREAD_FORCEWALK_POKE
+            std::atomic<bool> *cached_force_walk = nullptr;   // §13.133
+#else
             std::atomic<bool> *cached_force_walk = at_teardown ? nullptr :
                 chunk->m_owner_dll_force_walk_ptr.load(
                     std::memory_order_acquire);
+#endif
             i += chunk->batch_return_to_bitmap(&buf[i]);
             if(cached_force_walk)
                 cached_force_walk->store(true, std::memory_order_relaxed);
@@ -2031,8 +2065,12 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	if(cached_dll_head_addr ==
 	   static_cast<void *>(&PoolAllocator<ALIGN, true, false>::s_tls.dll_head))
 		PoolAllocator<ALIGN, true, false>::reset_dll_walk_state();
+#ifndef KAME_NO_XTHREAD_FORCEWALK_POKE
 	else if(cached_force_walk)
-		cached_force_walk->store(true, std::memory_order_relaxed);
+		cached_force_walk->store(true, std::memory_order_relaxed);   // §13.133
+#else
+	else (void)cached_force_walk;
+#endif
 	return false;
 }
 
