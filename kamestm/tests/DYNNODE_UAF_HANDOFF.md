@@ -7027,3 +7027,51 @@ confirm `table-full`/`dead-miss` are ~0 *before* reading HITS (§13.106);
 escaping even the destructor and that is its own finding; (3) then the HITS
 column is a measurement, and `scope=` on each hit is the one attribution that
 cannot smear.
+
+### 13.108 The tightened probe on Ubuntu: DOUBLE-LIVE accompanies **every** failing run, zero on clean
+
+§13.107's destructor-hooked live-set, run in the firing configuration.  Its
+soundness reproduces here: **`dtor == born` exactly** (1 230 350 both on a
+clean run), `table-full 0`, `dead-miss 0`, `steals 0` — the ~43% coverage and
+the 2e-5 born/dead gap that made §13.104's zeros unreliable are gone.  The
+`KAME_RC_TRACE_DLIVE_INJECT` positive control fires, so the probe is live.
+
+**Clean runs: `HITS 0`** (1 047 796 enforced).
+
+**Failing runs — five of five:**
+
+| run | rc | enforced | **HITS** |
+|---|---|---|---|
+| 1 | 139 | 25 853 245 | **2** |
+| 2 | 139 | 1 884 575 | **1** |
+| 3 | 139 | 15 792 428 | **2** |
+| 4 | **255** | 48 101 233 | **1** |
+| 5 | 139 | 25 379 050 | **2** |
+
+**Every failing run has at least one hit; clean runs have none.**  §13.104 saw
+1 of 3, which I attributed to the probe's saturation — that reading is
+confirmed: with coverage at ~100% the association is complete.
+
+**Run 4 matters disproportionately.**  `rc=255` is the test's *own*
+`objcnt` consistency check failing, not a segfault — so a double-live hit
+accompanies the STM-level correctness failure as well as the crashes.  The
+probe is not merely tracking "this run happened to segfault".
+
+**What §13.107 makes of a hit is what makes this worth stating.**  With the
+destructor hook, reading (c) — a stale LIVE bit from an untraced death — is
+closed by construction, and (b) — a premature free under a live object —
+cannot present as DOUBLE-LIVE, because freeing through the smart-pointer path
+happens only after the refcount reaches zero, which runs DEAD *and* the
+destructor.  So a hit now means what §13.107 states: **a slot recycled under a
+still-constructed object.**
+
+**Caveat kept:** enforced/born is ~92–99% here (`nonaligned` accounts for the
+remainder), so hits remain a lower bound — but the zeros on clean runs are now
+measurements rather than artefacts, which is the property §13.104 lacked.
+
+**Where this leaves the investigation.**  The association is now: failing run
+⇔ slot recycled under a live object, with the recycle ordered *ahead* of the
+refcount damage (§13.104's per-address sequence) and the fault following the
+allocator's compiler (§6).  Three independent lines agree on the allocator
+layer.  The open question is no longer *whether* but *which* recycle path —
+and that is an allocator-side question, on the arm where it fires.
