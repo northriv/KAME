@@ -8673,3 +8673,70 @@ called from the sites whose constant matched — so both the 1-unit and the
 index-127 cases require the specialization itself to be mis-dispatched, which is
 a different and much stronger claim than a wide store.  The verifier is what
 settles it either way, which is why the harness mattered more than more staring.
+
+### 13.135 The wide store is CORRECT — `CHUNK_UNITS` is a per-instantiation constant, so the specialization is exact. One residual check names itself
+
+§13.132 confirms the 16-bit store and leaves the right question open: is the
+2-entry clone ever reached with a chunk that does not own 2 units?  The source
+answers it.
+
+```cpp
+static constexpr unsigned int CHUNK_UNITS =
+    (ALIGN < 256u) ? 1u : (ALIGN < 1024u) ? 2u : 4u;
+static constexpr size_t CHUNK_SIZE = CHUNK_UNITS * ALLOC_MIN_CHUNK_SIZE;
+```
+
+`CHUNK_UNITS` is a **compile-time constant per instantiation**, and call site 1
+passes `ALLOC::CHUNK_SIZE` — also compile-time.  So IPA-CP's specialization is
+**exact**: a clone that stamps two entries can only be called from a 2-unit
+instantiation (`256 ≤ ALIGN < 1024`: the instantiated 256, 272, 288, 304, 320,
+336, 352, 368), where `chunk_units` genuinely is 2.  It writes precisely the two
+entries that chunk owns.
+
+The index-127 worry from §13.134 closes the same way: a 2-unit chunk's claim sets
+**two contiguous** claim bits, so its base unit is ≤ 126; the clone's `and $0x7f`
+is the region-offset extraction, not a clamp that could yield 127 for a 2-unit
+chunk.
+
+**So the wide store is not the defect, and §13.132's lead should be closed
+rather than run.**  Recorded as a *closed* lead and not a silent drop, because
+the prediction (§13.130) was right about the transformation and wrong about its
+consequence — which is worth distinguishing: `-fipa-cp-clone` really does turn
+that byte loop into a wider store, and that store is correct.
+
+**The residual check, and it is the interesting one.**  Call site **2** is
+different:
+
+```cpp
+restamp_back_offset(cached, actual, /*back_off_flag=*/0x80u);   // allocate_dedicated_chunk
+```
+
+`actual` is a **runtime** value — `ceil((size + K_MAX) / 256K)` units for a
+dedicated (large) chunk.  The clone §13.132 disassembled hardcodes
+`0x0100` = bytes `{0x00, 0x01}`, i.e. `back_off_flag == 0`, so it serves site 1.
+But §13.118 measured `restamp_back_offset` with **6** clones.  So:
+
+> Enumerate **every** `restamp_back_offset.constprop.*` body in the firing
+> object and check each one's hardcoded byte count against a legal
+> `CHUNK_UNITS` (1, 2 or 4) **and** its flag.  A clone carrying flag `0x80` with
+> a hardcoded count is the one to look at, because site 2's size is not a
+> compile-time constant — a specialization there would be IPA-CP asserting a
+> constant it cannot have from that call site.
+
+That is a static check on the object already built, no run needed:
+
+```bash
+nm -C kp_firing.so | grep restamp_back_offset      # expect several .constprop
+objdump -dC --no-show-raw-insn kp_firing.so | \
+    awk '/restamp_back_offset.*constprop/,/ret/'   # read each body's stores
+```
+
+**Meanwhile the live lead is §13.133**, which is a documented dangling
+dereference rather than a suspicion: a cross-thread poke into owner TLS,
+loaded before `batch_return_to_bitmap` and dereferenced after it, whose safety
+argument ("the freer must have loaded before our release, so our TLS is still
+live") does not follow — and whose field already produced one SEGV
+(`alloc_stress`, 1000 threads) and is already guarded on the teardown path for
+exactly this reason.  `-DKAME_NO_XTHREAD_FORCEWALK_POKE` removes that one write
+and nothing else, so unlike §13.126's ablation a positive result is unconfounded,
+and the write should be removed whether or not it is this bug.
