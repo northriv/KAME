@@ -113,6 +113,7 @@ static const char *poolev_name_(unsigned k) noexcept {
 namespace kame_rc_trace {
 
 static void install_segv_() noexcept;   // §13.58; defined below the raw helpers
+void park_counts(unsigned long long *e, unsigned long long *h) noexcept;  //!< §13.93
 
 enum Op : unsigned {  // keep in sync with atomic_smart_ptr.h
     OP_BORN = 1, OP_INC, OP_DEC, OP_DEAD, OP_DEAD_UNIQUE,
@@ -680,6 +681,11 @@ static void segv_handler_(int sig, siginfo_t *si, void *uc_) noexcept {
     const char *rn[] = { "rbp", "rdi", "rbx", "r12", "r13",
                          "r14", "r15", "rax" };
     for(int i = 0; i < 8; ++i) { cands[i] = (const void *)g[regs[i]]; names[i] = rn[i]; }
+    {   //!< (§13.93) park base rate, from the crash path
+        unsigned long long _pe = 0, _ph = 0;
+        park_counts( &_pe, &_ph);
+        raw_line_("\nRC-SEGV-PARK EMPTY %llu / held %llu\n", _pe, _ph);
+    }
     raw_line_("\nRC-SEGV sig=%d fault_addr=%p ip=0x%llx rbp=0x%llx rdi=0x%llx "
         "rax=0x%llx rbx=0x%llx r12=0x%llx r13=0x%llx r14=0x%llx r15=0x%llx tid=%u\n",
         sig, si ? si->si_addr : nullptr, ip,
@@ -980,6 +986,14 @@ static bool wp_report_enabled_() noexcept {
     return v;
 }
 namespace { std::atomic<unsigned long long> g_park_empty{0}, g_park_held{0}; }
+//! (§13.93) async-signal-safe readback for the crash handler: `atexit` does
+//! not run after SIGSEGV, and a crashing run is exactly where EMPTY > 0 would
+//! appear -- a base rate that only prints on clean runs cannot answer the
+//! question it was built for.
+void park_counts(unsigned long long *e, unsigned long long *h) noexcept {
+    *e = g_park_empty.load(std::memory_order_relaxed);
+    *h = g_park_held.load(std::memory_order_relaxed);
+}
 static void park_report_() noexcept;
 void park_note(bool empty) noexcept {
     //!< Register the report on first use, not from anomaly(): the base rate

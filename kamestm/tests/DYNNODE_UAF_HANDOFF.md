@@ -6335,3 +6335,54 @@ site, and now also less motivated by §13.88's wide window — but the
 it here, and see whether the observable matches the real signature.  That
 is a Mac-side capability worth using on every future candidate, and it
 costs one gated `if`.
+### 13.96 Empty parked views: `EMPTY 0` on four crashing runs — the §13.92 premise holds
+
+§13.92's audit confirmed §13.91's reading (one variable, two ends: the
+`INC-FROM-ZERO` at `newsubpacket_val`'s copy and the post-free decrement at
+its destruction) and proposed the locus: an **empty parked `CASInfo` view**,
+leaving the ancestor wrapper unprotected.  Measured here.
+
+**An instrument fix was needed first.**  `park_note`'s base-rate report is
+registered with `atexit`, which **does not run after `SIGSEGV`** — and a
+crashing run is precisely where `EMPTY > 0` would appear.  Every failing run
+reported an empty string.  Added an async-signal-safe readback
+(`park_counts()`) emitted from §13.58's crash handler as `RC-SEGV-PARK`, so
+the counters survive the crash that motivated them.
+
+**Result — four crashing runs (`rc=139`), counters read from the crash path:**
+
+| run | parked views |
+|---|---|
+| 1 | `EMPTY 0 / held 91 835` |
+| 2 | `EMPTY 0 / held 190 359` |
+| 3 | `EMPTY 0 / held 188 262` |
+| 4 | `EMPTY 0 / held 771 404` |
+
+Plus a clean run at `EMPTY 0 / held 50 096`, and arm64's `0 / 4 101 676`.
+**Over 1.2 M parks observed on this machine across runs that actually
+crashed, not one was empty.**
+
+The instrument is live in the sense that matters: `held` and `EMPTY` are
+incremented by the *same* call in the *same* function, and `held` counts in
+the hundreds of thousands, so the call site is reached constantly — only the
+boolean's value is in question, and it is never true.
+
+**The pre-copy `rcSlotLiveCheck` also reported zero** (`DEAD-ELEMENT` = 0 in
+all four logs): at the moment `unbundle` is about to copy the slot, the
+`Packet` in it is still alive.
+
+**So §13.92's premise holds, and its hypothesis is refuted.**  The parked
+views are never empty, and the slot is not already dead at the copy.  That
+places the death **after** the copy — i.e. between `newsubpacket_val`'s
+acquisition and `unbundle`'s exit — which is the CAS loop, exactly the
+interval §13.68 moved the copy *out of* in order to protect it.  §13.68's
+reordering was therefore correct in intent and still did not help (§13.72:
+16/40 vs 14/40), which now reads as: the copy is safe where it is, but the
+count it takes is being cancelled by something during the loop.
+
+**What I would measure next**, and it is again a Linux-side measurement:
+sample the packet's refcount at three fixed points in `unbundle` — right
+after the copy, once per CAS-loop iteration, and at the closing brace — and
+report the first point at which it has reached zero while `newsubpacket_val`
+still holds it.  That converts "somewhere in the loop" into a specific
+iteration, without needing a mechanism guessed in advance.
