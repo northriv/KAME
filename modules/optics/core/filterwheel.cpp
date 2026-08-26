@@ -60,7 +60,7 @@ XFilterWheel::XFilterWheel(const char *name, bool runtime,
     m_form->setWindowTitle(i18n("Filter Wheel - ") + getLabel() );
     iterate_commit([=](Transaction &tr){
         m_lsnOnTargetChanged = tr[ *target()].onValueChanged().connectWeakly(
-            shared_from_this(), &XFilterWheel::onTargetChanged);
+            shared_from_this(), &XFilterWheel::onTargetChangedInternal);
         tr[ *this].m_timeFilterMoved = XTime::now();
     });
 }
@@ -103,12 +103,20 @@ void XFilterWheel::analyze(Transaction &tr, const Snapshot &shot_emitter, const 
                 tr[ *this].m_timeFilterMoved = XTime::now();
                 tr[ *this].m_wheelIndex = -1;
                 tr[ *this].m_timeFilterStabled = {};
+                //Together with the target, and inside the same transaction: a STM
+                //record analyzed before onTargetChanged() has even reached the
+                //hardware must not be able to call the wheel stable again.
+                tr[ *this].m_wheelIndexCommanded = idx;
                 tr[ *target()] = idx;
             }
         }
     }
     else {
-        tr[ *this].m_wheelIndex = currentWheelPosition(shot_this, shot_emitter);
+        int pos = currentWheelPosition(shot_this, shot_emitter);
+        int commanded = shot_this[ *this].m_wheelIndexCommanded;
+        if((pos >= 0) && (commanded >= 0) && (pos != commanded))
+            pos = -1; //Resting at a filter, but not at the commanded one: still moving, or not started.
+        tr[ *this].m_wheelIndex = pos;
         if(tr[ *this].m_wheelIndex >= 0) {
             if(XTime::now().diff_sec(shot_this[ *this].m_timeFilterMoved) < shot_this[ *waitAfterMove()])
                 tr[ *this].m_wheelIndex = -1; //unstable (still vibrating) yet.
@@ -122,6 +130,28 @@ void XFilterWheel::analyze(Transaction &tr, const Snapshot &shot_emitter, const 
         }
     }
     currentWheelIndex()->value(ref(tr), shot_this[ *this].m_wheelIndex);
+}
+
+void
+XFilterWheel::onTargetChangedInternal(const Snapshot &shot, XValueNodeBase *node) {
+    //The wheel is, from now on, no longer where it was. Invalidating here as well
+    //as in analyze() covers a target set by hand, by a script, or by .kam loading.
+    //The auto-advance has already written the same index inside its own
+    //transaction, so this commit is skipped for it.
+    iterate_commit([&](Transaction &tr){
+        unsigned int idx = tr[ *target()];
+        if(tr[ *this].m_wheelIndexCommanded == (int)idx)
+            return; //auto-advance, already accounted for.
+        tr[ *this].m_wheelIndexCommanded = idx;
+        tr[ *this].m_wheelIndex = -1;
+        tr[ *this].m_timeFilterStabled = {};
+        tr[ *this].m_timeFilterMoved = XTime::now();
+        //Resume the go-around from where the wheel was just sent, instead of
+        //stepping from a stale index and jumping several filters at once.
+        tr[ *this].m_nextWheelIndex = idx;
+        tr[ *this].m_dwellIndex = 0;
+    });
+    onTargetChanged(shot, node);
 }
 
 void XFilterWheel::visualize(const Snapshot &shot) {

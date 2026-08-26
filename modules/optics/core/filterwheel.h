@@ -67,6 +67,10 @@ public:
         unsigned int m_nextWheelIndex = 0;
         int wheelIndex() const {return m_wheelIndex;} //!< -1: not ready
         int m_wheelIndex = 0;
+        //! The filter the rotator was last told to go to, -1 until the first move.
+        //! The rotator resting at some other filter therefore means the move is
+        //! not over -- either it has not begun, or it is still on its way.
+        int m_wheelIndexCommanded = -1;
         int m_wheelIndexOfLastFrame = 0;
         XTime m_timeLastFrame = {};
         XTime m_timeFilterMoved;
@@ -100,6 +104,10 @@ protected:
 
     virtual void onTargetChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 private:
+    //! Records the newly commanded filter and invalidates the current reading
+    //! before onTargetChanged() moves the hardware.
+    void onTargetChangedInternal(const Snapshot &shot, XValueNodeBase *);
+
     shared_ptr<Listener> m_lsnOnTargetChanged;
 
     std::deque<xqcon_ptr> m_conUIs;
