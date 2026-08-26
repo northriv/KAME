@@ -5601,3 +5601,64 @@ process died at the FATAL with only 512 bytes of stderr, so the wrapper dump
 was not flushed.  Re-running with the wrapper dump routed to the raw sink (or
 flushed before abort) should settle which of §13.78's three mechanisms it is,
 from a capture that already reproduces readily.
+
+### 13.80 Two of §13.78's three mechanisms refuted; and why the wrapper dump never printed
+
+Working the §13.79 capture further on Ubuntu.  Two detectors added, both
+gated to `KAME_RC_TRACE` (production parity verified below).
+
+**First, a correction to §13.79.**  I attributed the missing wrapper dump to
+cache eviction.  Wrong: **`anomaly()` aborts by default** —
+`abort_mode_()` reads `KAME_RC_TRACE_ABORT` and returns `true` unless it is
+`0` ("default: abort (gdb workflow)").  §13.78's `kame_rc_dump(w)` sits
+*after* the `anomaly()` call, so it never ran; neither did anything else
+placed there.  **Run these probes with `KAME_RC_TRACE_ABORT=0`.**  With that
+set, the follow-up code executes and the capture rate is unchanged.
+
+**Mechanism "the wrapper itself is dead" — REFUTED.**  Added a one-load
+discriminator reporting the wrapper's own `refcnt` beside the packet's.  In
+the capturing run: **`wrapper-ALIVE = 5`, `wrapper-DEAD = 0`**, with the
+wrapper at `refcnt = 1` (alive, singly held by the scope) while its
+`m_packet` was poisoned.  The scope is not holding a freed wrapper.
+
+**Mechanism "the wrapper was destructed twice" — REFUTED.**  `PacketWrapper`
+had no explicit destructor; added one under `KAME_RC_TRACE` that reads its own
+`refcnt` at entry (0 is correct; poison means the storage was already freed)
+and only observes.  Across runs that hit the entry check **8 and 4 times**,
+`DTOR ON FREED STORAGE = 0`.
+
+**What that leaves — and it sharpens the question.**  All three
+`PacketWrapper` constructors initialise `m_packet` **by copy**
+(`m_packet(x)`, `m_packet()`, `m_packet(x.m_packet)`), so a live wrapper
+*always* holds a count on the Packet it names.  The wrapper is alive, it was
+not destructed twice, and its constructor took a count — yet the fatal release
+in `finalizeCommitment` finds `rc_before = 1`.  So the wrapper's count did not
+fail to be taken: **it was taken away.**  An extra decrement while the Packet
+is still live leaves no tripwire (the tripwires fire on zero/poison), which is
+exactly why every capture so far has shown the *consequences* and never the
+act.
+
+**The next suspect, from reading rather than measurement.**
+`PacketWrapper::packet()` has a **non-const overload returning a mutable
+reference** (`transaction.h:964`), and `bundle` hands the wrapper's own member
+straight into a function that writes through it:
+
+```cpp
+local_shared_ptr<Packet> &newpacket(
+    reverseLookup(superwrapper->packet(), true, SerialGenerator::gen()));
+```
+
+That is a path by which a live wrapper's counted member can be overwritten
+without the wrapper knowing — the shape that would produce precisely this
+evidence.  I have not demonstrated it, and say so; it is where I would
+instrument next (record `w->m_packet.get()` at wrapper construction, compare at
+the entry check, and report on mismatch).
+
+**Production parity, with a caveat worth recording.**  Both detectors are
+`#ifdef KAME_RC_TRACE`.  Verifying that took a control: a plain build's
+`.text` *did* differ from pristine — but inserting **15 pure comment lines** at
+the same spot changes `.text` too (same size, one differing region), so
+something in this TU embeds `__LINE__`.  Two pristine builds are byte-identical,
+so the comparison is otherwise sound.  **`.text` equality is not a usable
+production-parity test for edits to this header** unless line counts are held
+constant; use it only with a comments-only control alongside.

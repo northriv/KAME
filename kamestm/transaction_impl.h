@@ -1732,6 +1732,21 @@ Node<XN>::rcScopePacketCheck(const PacketWrapper *w, const char *where) noexcept
     kame_rc_trace::anomaly(e, kame_rc_trace::OP_DEAD_ELEMENT, rc,
         __builtin_return_address(0), where,
         static_cast<const void *>(w));   // slot = the WRAPPER that names it
+    // (§13.80) Discriminator: every capture so far shows the fatal release
+    // finding rc_before == 1, i.e. NO wrapper reference was counted on this
+    // packet.  Two readings remain -- the wrapper is alive but uncounted, or
+    // the wrapper ITSELF is already dead and we are reading freed storage.
+    // Its own refcnt separates them, and it is one relaxed load.
+#ifdef KAME_RC_TRACE
+    {
+        uintptr_t wrc = w->refcnt;
+        kame_rc_trace::anomaly(w, kame_rc_trace::OP_DEAD_ELEMENT, wrc,
+            __builtin_return_address(0),
+            (wrc == 0 || wrc >= ((uintptr_t)1 << 48))
+                ? "SCOPE WRAPPER ITSELF DEAD" : "scope wrapper alive (uncounted packet)",
+            static_cast<const void *>(w));
+    }
+#endif
     // The wrapper's own history: §13.74 traced the last six decrement
     // paths, so a wrapper life is now reconstructable -- and it is what
     // separates "this wrapper was destroyed twice" from "this wrapper

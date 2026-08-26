@@ -995,6 +995,26 @@ private:
         int64_t m_bundle_serial;
         enum class PACKET_STATE : int { PACKET_HAS_PRIORITY = -1};
 
+#ifdef KAME_RC_TRACE
+        //! (§13.80) Double-destruction detector.  Every PacketWrapper ctor
+        //! initialises m_packet BY COPY, so a live wrapper always holds a
+        //! count on the Packet it names.  §13.79 nevertheless caught a live
+        //! wrapper (refcnt 1) naming a freed Packet, which means the count
+        //! was taken away -- and the only way to do that without a tripwire
+        //! is a decrement while the Packet is still alive.  A wrapper
+        //! destructed twice does exactly that.  At dtor entry a correctly
+        //! released wrapper has refcnt == 0; poison here means we are
+        //! running the destructor on storage that was already freed.
+        //! Member destruction is unchanged -- this only observes.
+        ~PacketWrapper() noexcept {
+            uintptr_t rc = this->refcnt;
+            if(rc >= ((uintptr_t)1 << 48))
+                kame_rc_trace::anomaly(this, kame_rc_trace::OP_DEAD_ELEMENT,
+                    rc, __builtin_return_address(0),
+                    "PacketWrapper DTOR ON FREED STORAGE",
+                    static_cast<const void *>(this));
+        }
+#endif
         PacketWrapper(const PacketWrapper &) = delete;
     };
     // (Contention-observation bitset moved to the non-template
