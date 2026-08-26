@@ -8130,3 +8130,90 @@ to adopt a chunk whose occupancy count is non-zero, or re-check it after the
 CAS.  If the fault dies with reuse intact, the adoption logic is named; if it
 survives, the effect is reuse volume and the chain is merely the busiest
 supplier of it.
+
+### 13.127 The orphan chain, read and then modelled: the protocol is correct as written, and the `move` in `orphan_chain_push` is load-bearing
+
+§13.126 localised the fault to the orphan-chunk reclaim chain by ablation
+(0/20 vs 15/20).  Two things follow: read the algorithm, and — because reading
+has a limit here — model it.
+
+**Read first.  Every mechanism reading can settle is defended:**
+
+| step | why it is not the defect |
+|---|---|
+| `orphan_chain_push` | **MOVEs** the self-ref into the chain-ref, preserving `refcnt` including a residual scrub pin.  The code says why a `store(1)` would be wrong |
+| adopt's `BIT_OWNED` claim | single plain read feeding the CAS expected value; retries on a `MASK_CNT` change |
+| adopt takes a NON-empty chunk | by design — empty chunks are released directly and never reach the chain, so a chunk with live slots is exactly what adoption is for |
+| word-cache mask | drained (cells nulled AND bits returned) **before** the `BIT_OWNED` clear, unconditionally for orphaned chunks too — no double accounting |
+| second releaser | for FS=true the cross-thread free's `atomicDecAndTest` return is **intentionally ignored**, so the scrub is the sole releaser; and FS=true is where `Packet`/`PacketWrapper` live |
+
+**But one coupling survives reading, and it is the fault's shape exactly.**  The
+chunk **object** (refcounted) and the chunk **storage** share a lifetime, so a
+refcount reaching zero while a slot is live releases the region under live
+objects — and the region is then re-carved for another size class.  That is
+§13.104's DOUBLE-LIVE, §13.110's per-chunk clustering and §13.113's "previous
+occupant live and unfreed", in one sentence.  And that refcount is maintained by
+**three reference kinds** (chain-ref, self-ref, scrub pin) over a Treiber stack
+whose scrub **unlinks** nodes and whose adopt **revives** them.  Reading does not
+settle that.
+
+**So: `kamestm/tests/tlaplus/OrphanChain.tla`.**  Split points only where a race
+can occur — scrub `read → CAS`, adopt `pop → claim → move`, push `take → CAS` —
+and `atomic_intrusive_dispose` **folded into the 1 → 0 decrement** rather than
+modelled as its own action.  Properties: `NoDisposeWithLive` (the fault),
+`NoUseAfterDispose`, `OwnedNotOnChain`, `TypeOK`.
+
+**Results:**
+
+| config | states | verdict |
+|---|---|---|
+| 2 chunks, 2 threads | 5 799 distinct, **queue 0** | **PASS (exhaustive)** |
+| **3 chunks**, 2 threads | **160 699 distinct, queue 0**, depth 33 | **PASS (exhaustive)** |
+| 2 chunks, **3 threads** | **60 595 distinct, queue 0**, depth 29 | **PASS (exhaustive)** |
+| `BUG_STORE1` | 1 283 | `NoDisposeWithLive` **violated** |
+| `BUG_SCRUB_STALE` | 2 931 | `NoDisposeWithLive` **violated** |
+| `BUG_EXTRA_RELEASER` | **43** | `NoUseAfterDispose` **violated** |
+
+All three knobs bite, so the passes are not vacuous — the §13.61 rule, applied to
+a model rather than an instrument.
+
+**And `BUG_STORE1` reproduces the code comment's own reasoning, step for step:**
+
+```
+FreshClaim(t1,c1) → Allocate → live=1 → PushTake/PushCas → on chain, refcnt=1
+ScrubRead(t1,c1)                      ← residual scrub pin, refcnt=2
+PopTake/AdoptClaim/AdoptMove(t2)      ← t2 adopts; hold → self-ref, refcnt=2
+PushTake(t2,c1)                       ← re-orphan; store(1) CLOBBERS the pin
+ScrubRelease(t1)                      ← pin drop: 1 → 0 → dispose with live=1
+```
+
+That is verbatim what `orphan_chain_push` warns about ("a `refcnt.store(1)` here
+would CLOBBER that pin's count, so a later pin-drop would dispose the chunk
+while it is back on the chain").  **The `move` is now machine-checked as
+load-bearing**, which also means it must never be "simplified" back.
+
+**The model caught one of my own errors first, which is the honest way to report
+its value.**  The first version tracked no ownership, so it allowed a second
+thread to orphan a chunk another thread was mid-adoption on — a violation that
+looked like a real finding for one run.  The real code cannot do it:
+`release_dll_chunks_for_thread` walks **this thread's own DLL**, so a thread can
+only orphan what it owns.  Added `ownerOf` and the violation went away.  A model
+that reproduces an artifact before a defect is doing its job; quoting the
+artifact would not have been.
+
+**What this does NOT say, stated plainly.**  An exhaustive pass at 3×2 and 2×3
+says the *protocol* is correct at that scale, under the abstraction chosen: one
+live-slot bit per chunk (`live ∈ 0..1`, i.e. "MASK_CNT zero or not"), a chain
+walked one node at a time, and no modelling of the bitmap, the batch, or the
+word cache.  It therefore **argues against an algorithmic defect in the chain
+protocol** and, combined with §13.126's ablation, points the remaining suspicion
+at the *implementation* of that protocol under `-fipa-cp-clone` — which is where
+§13.122's whole-unit codegen conclusion already stood.  The two now agree: the
+chain is the site, and the algorithm at that site is sound.
+
+**The experiment §13.126 asked for is unchanged and is now better motivated:**
+keep the chain and its reuse but make adoption verify what it takes.  The model
+says such a check is redundant against the *algorithm*, so if adding it removes
+the fault, that is direct evidence the failure is in codegen rather than
+protocol — a cleaner discriminator than the ablation, which removed reuse
+volume at the same time.
