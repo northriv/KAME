@@ -5662,3 +5662,54 @@ something in this TU embeds `__LINE__`.  Two pristine builds are byte-identical,
 so the comparison is otherwise sound.  **`.text` equality is not a usable
 production-parity test for edits to this header** unless line counts are held
 constant; use it only with a comments-only control alongside.
+
+### 13.81 Catch the ACT, not the consequence: check at the named releaser
+
+§13.80's conclusion — *the wrapper is alive, was not destructed twice, and
+its constructor took a count, so the count was **taken away*** — makes the
+remaining act **an extra decrement while the Packet is still live**.  That
+crosses no zero, so no tripwire can see it; every capture so far has been
+a consequence.  Two things follow, and both are actionable now.
+
+**The named releaser has exactly one Packet release in it.**
+`finalizeCommitment` touches a Packet in a single place:
+
+```cpp
+m_oldpacket.reset();
+```
+
+So "the fatal release resolves to `finalizeCommitment`" means precisely:
+*that* reset found the count at 1 and took it to 0, while a live wrapper
+still named the same Packet.  This commit checks that condition **at that
+line, before the reset** (`KAME_RC_TRACE_OLDPKT_CHECK=1`):
+
+- `m_oldpacket.use_count() == 1` — this reset is about to be fatal, **and**
+- the node's **published** wrapper (read through a `scoped_atomic_view` on
+  `node.m_link`) still names the same `Packet`.
+
+Both true ⇒ a live holder exists whose reference is not in the count, and
+we are standing on the act.  Reported keyed on the **Packet** (so the
+anomaly prints its own release history — the earlier decrement that
+removed the wrapper's count) with `slot` = the published wrapper.
+
+**Why this is the right next capture.**  Everything so far names either the
+victim (§13.63/§13.77) or a downstream release (§13.75/§13.79).  This
+condition is checked *before* the damage, on the live path the capture
+already reaches, so its `RC-PRIOR-RELEASE-FAST` block points at **the
+decrement that stole the wrapper's count** — the one event the whole
+investigation has never observed.
+
+**Operational notes carried forward from §13.80**: run with
+`KAME_RC_TRACE_ABORT=0` (otherwise `anomaly()` aborts before any follow-up
+output), and remember the `ledger:` line goes to stderr.
+
+Liveness proved before trusting the zero (§13.61's rule): dropping the
+wrapper-match condition yields **565 774** well-formed reports carrying the
+check-site string; reverted.  Mac: 0 hits over 3 dynamic-node runs, plain
+build unaffected, `tests/` tree **40/40**.
+
+**Also noted for the record**, since §13.80 raised it: `.text` comparison
+is not a usable production-parity test for edits to these headers —
+inserting comment-only lines changes `.text` too, so something in the TU
+embeds `__LINE__`.  The parity argument here rests on the `#ifdef
+KAME_RC_TRACE` gate plus a clean plain build, not on byte equality.

@@ -2869,6 +2869,35 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
     m_started_time = 0;
     m_oneup.release();   // yield the running slot before messaging
 
+#ifdef KAME_RC_TRACE
+    // (§13.81) §13.79 named THIS release as the fatal one and §13.80 showed
+    // the wrapper naming the same Packet is alive with its count already
+    // gone -- "the count was taken away".  An extra decrement taken while
+    // the Packet is still live crosses no zero, so no tripwire sees the ACT;
+    // this check does, at the one site the capture named.  Condition: this
+    // reset is about to take the count to zero (use_count()==1) while the
+    // node's PUBLISHED wrapper still names the same Packet -- i.e. a live
+    // holder exists whose reference was never counted (or was consumed).
+    // Reported keyed on the PACKET, with slot = the published wrapper, so
+    // the anomaly path prints the Packet's own release history.
+    // Enable with KAME_RC_TRACE_OLDPKT_CHECK=1 (and KAME_RC_TRACE_ABORT=0
+    // if you want the follow-up dumps, per §13.80).
+    if(m_oldpacket) {
+        static const bool _chk = [] {
+            const char *e = getenv("KAME_RC_TRACE_OLDPKT_CHECK");
+            return e && e[0] && e[0] != '0';
+        }();
+        if(_chk && m_oldpacket.use_count() == 1) {
+            scoped_atomic_view<typename Node<XN>::PacketWrapper> _w( *node.m_link);
+            if(_w && _w->packet().get() == m_oldpacket.get())
+                kame_rc_trace::anomaly(m_oldpacket.get(),
+                    kame_rc_trace::OP_DEAD_ELEMENT, 1,
+                    __builtin_return_address(0),
+                    "finalizeCommitment: last count released while the PUBLISHED wrapper still names it",
+                    static_cast<const void *>(_w.operator->()));
+        }
+    }
+#endif
     m_oldpacket.reset();
     //Messaging.
     // The listeners below are other people's code.  Two lines up, this function
