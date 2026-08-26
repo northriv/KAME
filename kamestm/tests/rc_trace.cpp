@@ -1671,7 +1671,15 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
     {
         char tb[128];
         raw_line_("RC-STM-SCOPE %s\n", stm_scope_str(kame_rc_trace::stm_scope()));
-        if(op == OP_DOUBLE_LIVE) raw_dlive_poison_(obj);   // §13.109
+        if(op == OP_DOUBLE_LIVE) {
+            // §13.114  Name the occupant that is STILL THERE.  `slot` carries
+            // the previous occupant's constructor site (dl_born_ returns it),
+            // so this line says which allocation site owns the storage the
+            // pool just handed out again -- unlabelled inside RC-ANOMALY's
+            // `slot=` field, and easy to read as something else.
+            raw_line_("RC-DLIVE-PREV still-live occupant ctor_site=%p\n", slot);
+            raw_dlive_poison_(obj);
+        }
         raw_line_("\nRC-ANOMALY #%u obj=%p op=%s rc_before=%llu tid=%u "
             "slot=%p site=%p type=%s dtor_depth=%u\n", nth, obj, op_name_(op),
             oldc, rc_trace_tid_(), slot, site,

@@ -7408,3 +7408,54 @@ poison there and live refcounts here.**
 occupant live and unfreed, hits clustered within a chunk, on every failing run
 and no clean one.  That is a coherent picture of chunk-level reuse of live
 storage — and it is an allocator bookkeeping question, not an STM one.
+
+### 13.114 The Mac/Ubuntu divergence §13.113 asks about is not a divergence — the Mac readings were the injected control
+
+§13.113 flags that the same probe reads `WPRE = 0xbaad…` (a full free record) on
+arm64 and `WPRE = 1` (a live refcount) on Ubuntu, and rightly says the
+difference should be resolved rather than averaged.  It resolves immediately:
+
+**arm64 has never produced a real DOUBLE-LIVE hit.**  Every Mac reading quoted
+in §13.109 came from `KAME_RC_TRACE_DLIVE_INJECT`, which claims an address a
+*second* time on the enforced path — and the enforced path requires a prior
+traced death, so the injector's victim is by construction a block that was
+**legitimately freed and reused**.  A freed block carries the poison, so
+`WPRE = 0xbaad…` is the correct and expected reading *for the control*.  It was
+presented as end-to-end validation of the decode path, which is what it is; it
+is not a claim about arm64 behaviour, and §13.109's text should have said which
+kind of hit produced it.
+
+So the two machines are not disagreeing — they are exercising **the two
+different branches of the discriminator**, and both branches read what they
+should:
+
+| | hit source | `WPRE` | verdict |
+|---|---|---|---|
+| arm64 | injected control (block was freed, then reused) | poison token, decodes to a free record | "THIS block — freed" |
+| Ubuntu | real hits, failing runs | `1` — a live `refcnt` | never freed |
+
+That is a stronger result than either alone: the probe **demonstrably
+distinguishes** the freed case from the never-freed case, with the freed case
+shown on a control and the never-freed case on real data.  §13.113's conclusion
+therefore stands on a discriminator whose positive branch is verified, not
+merely assumed.
+
+**And `W0 = 1` says a little more than "not freed".**  For an offset-0 victim,
+word 0 *is* the previous occupant's `refcnt`, so the value is that occupant's
+reference count at the moment the pool handed its storage away: **1** — a single
+live reference, not a large fan-out.  Combined with §13.110's clustering, the
+picture is a chunk of singly-referenced live objects being recycled underneath
+their owners.
+
+**Small addition for the next capture** (`RC-DLIVE-PREV`): the previous
+occupant's constructor site was already being recorded — `dl_born_` returns it
+and `anomaly()` prints it in the `slot=` field — but unlabelled there it reads
+as something else.  It now gets its own line, so a hit names the allocation
+site that still owns the storage.  That is the one piece of provenance a hit
+does not currently make obvious, and it should say which size class and which
+STM path the trampled object came from.
+
+**Next remains §13.112's arm bisect, chunk-scoped arms first (5, 7, 6).**  Both
+independent Ubuntu results — chunk clustering, and never-freed storage — point
+at a chunk being handed back out rather than a slot, and arms 5 and 7 are the
+two chunk-level returners.
