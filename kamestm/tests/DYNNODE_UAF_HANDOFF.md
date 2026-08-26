@@ -6192,3 +6192,73 @@ Linux-side measurement.  Where it would genuinely help: an audit of which
 locals in `unbundle` hold `Packet` references across the CAS loop and whether
 any can outlive their referent, and a model of the acquire/release pairing.
 Both are source/formal work, which is where §13.85 put the division.
+
+### 13.92 The audit §13.91 asked for — and the lifetime claim it breaks:
+### an EMPTY view parked into a CASInfo (base rate on arm64: 0 in 4.1 M)
+
+**The audit.**  Every local in `unbundle` that can reach a `Packet`:
+
+| local | line | holds a count on a Packet? | released at function exit? |
+|---|---|---|---|
+| `newsubpacket` | 3551 | **no** — a raw `local_shared_ptr<Packet>*` | — |
+| **`newsubpacket_val`** | 3595 | **yes** (counted copy, §13.68's fix) | **yes, directly** |
+| `newsubwrapper` | 3647 | indirectly, via the wrapper's `m_packet` | yes, but **through the wrapper's deleter** |
+| `cas_infos` | 3552 | `Linkage` / views / `PacketWrapper` | via their own deleters |
+
+So the only local that can produce a **Packet** decrement at `unbundle`'s
+closing brace **with `in_deleter = 0`** is `newsubpacket_val`.  §13.91's
+cleanly-resolved post-free decrement is therefore that local's release, and
+its `INC-FROM-ZERO` partner is the copy at `:3595` — one variable's acquire
+and release, exactly as §13.91 suspected.
+
+**And that dates the damage earlier than §13.68 assumed.**  `:3595` runs
+**before** the CAS loop.  If the slot's `Packet` is already dead there,
+§13.68's premise — *"the parked views still hold everything up before the
+loop"* — is **false**, and the defect is upstream, in the walk that produced
+the slot.
+
+**Where that premise comes from, and how it can fail.**  `walkUpChainImpl`
+states it in a comment at the park site:
+
+> *"parent_scope is not used after this point (parent_packet still points into
+> the PacketWrapper kept alive by the CASInfo's view)."*
+
+That holds **only if the parked view is non-empty**.  And
+`consume_scoped_view()` is a bare `return std::move(m_view);` — **no emptiness
+check** — while the CAS loop downstream contains
+`if(!scope) return UnbundledStatus::DISTURBED; // view was empty`, i.e. **the
+code itself acknowledges an empty parked view is reachable**.  If it is empty,
+nothing protects that ancestor wrapper: it can die, its packet dies, and both
+the walk's own `*p = make_local_shared<Packet>(**p)` write and the slot handed
+back to `unbundle` touch freed memory.  That is "who releases the referent
+early" answered as **nobody — it was never held**, which is why every
+mechanism asking "who mishandles the reference" was refuted.
+
+**Two checks added, and — per §13.83's lesson — the base rate measured first.**
+
+- `park_note()` counts every parked view, empty or held, and the count is
+  printed at exit **whether or not anything fires** (registered from
+  `park_note`, not from `anomaly()`, so a silent run still states it).
+  **arm64, one run: `EMPTY 0 / held 4 101 676`.**  Zero in 4.1 M samples
+  makes an empty park genuinely anomalous — a hit on Linux is signal, not
+  noise, and the detector's zero is meaningful.
+- An `rcSlotLiveCheck` on the **slot** immediately *before* `:3595`'s copy
+  (the previous one checked the copy, i.e. after the fact).  A hit says the
+  slot handed back was already dead.
+
+Liveness proved for both (§13.61's rule): forcing the empty predicate gives
+**176 182** reports; the pre-copy call site is reached (9 hits with a capped
+counter).  Reverted.  `tests/` tree **40/40**.
+
+**Ubuntu, two flags, no rebuild beyond the tracer**:
+`KAME_RC_TRACE_SLOT_CHECK=1` and (always on with `KAME_RC_TRACE`) the park
+counters — the exit line states the base rate for your build too, which is
+worth having even from a clean run.
+- **`EMPTY n>0`** → the lifetime claim is broken and the walk is the locus;
+  the fix is to reject an empty parked view at the park site (return
+  `DISTURBED` there, as the loop already does later) rather than to defend
+  its consumers.
+- **`EMPTY 0` with the pre-copy check firing** → the slot dies for another
+  reason while a non-empty view is parked, which points at the ancestor
+  wrapper being released *despite* the view — i.e. back at the wrapper
+  layer, but now with a specific interval to look in.

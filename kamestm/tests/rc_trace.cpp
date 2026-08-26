@@ -979,6 +979,27 @@ static bool wp_report_enabled_() noexcept {
     }();
     return v;
 }
+namespace { std::atomic<unsigned long long> g_park_empty{0}, g_park_held{0}; }
+static void park_report_() noexcept;
+void park_note(bool empty) noexcept {
+    //!< Register the report on first use, not from anomaly(): the base rate
+    //!< must be stated even when NOTHING fires -- that is the whole point of
+    //!< measuring it (§13.83).
+    static std::atomic<bool> once{false};
+    bool f = false;
+    if(once.compare_exchange_strong(f, true)) atexit(park_report_);
+    (empty ? g_park_empty : g_park_held)
+        .fetch_add(1, std::memory_order_relaxed);
+}
+//! §13.92: report the base rate.  Called from the exit summary so every
+//! run states it, whether or not anything fired.
+static void park_report_() noexcept {
+    unsigned long long e = g_park_empty.load(std::memory_order_relaxed);
+    unsigned long long h = g_park_held.load(std::memory_order_relaxed);
+    if(e || h)
+        fprintf(stderr, "kame_rc_trace: parked CASInfo views: "
+            "EMPTY %llu / held %llu\n", e, h);
+}
 void wp_note(const void *wrapper, const void *packet) noexcept {
     if(!wrapper) return;
     WPSlot &s = g_wp[wp_slot_(wrapper)];
@@ -1074,7 +1095,9 @@ static constexpr unsigned ANOM_MAX = 64;
 static AnomSlot g_anom[ANOM_MAX];
 static std::atomic<unsigned> g_anom_overflow{0};
 
+static void park_report_() noexcept;
 static void anom_exit_summary_() {
+    park_report_();
     unsigned total = 0;
     for(unsigned i = 0; i < ANOM_MAX; ++i)
         if(g_anom[i].obj.load(std::memory_order_relaxed)) ++total;

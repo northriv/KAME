@@ -2380,6 +2380,30 @@ Node<XN>::snapshotForUnbundle(const local_shared_ptr<Linkage> &child_linkage,
         // parent_scope is not used after this point (parent_packet still
         // points into the PacketWrapper kept alive by the CASInfo's view).
         // The ScopedNeg's dtor handles its empty-view case cleanly.
+#ifdef KAME_RC_TRACE
+        // §13.92: the lifetime claim made three lines above -- "parent_packet
+        // still points into the PacketWrapper kept alive by the CASInfo's
+        // view" -- holds only if that view is NON-EMPTY.  consume_scoped_view()
+        // is a bare std::move with no such check, and the CAS loop downstream
+        // has `if(!scope) return DISTURBED; // view was empty`, so the code
+        // itself acknowledges an empty parked view is reachable.  If it is
+        // empty here, nothing protects the old wrapper: it can die, its packet
+        // dies, and the slot this walk returns (plus the `*p` write below)
+        // touch freed memory -- which is "who releases the referent early"
+        // answered as "nobody: it was never held".
+        // Counters (not just anomalies) so the BASE RATE is known before any
+        // zero is trusted (§13.83's lesson).
+        {
+            bool _empty = !r.parent_scope->view();
+            kame_rc_trace::park_note(_empty);
+            if(_empty)
+                kame_rc_trace::anomaly(( *r.parent_packet).get(),
+                    kame_rc_trace::OP_DEAD_ELEMENT, 0,
+                    __builtin_return_address(0),
+                    "EMPTY view parked into CASInfo (parent_packet unprotected)",
+                    static_cast<const void *>(r.parent_linkage.get()));
+        }
+#endif
         cas_infos->emplace_back(r.parent_linkage,
             r.parent_scope->consume_scoped_view(),
             newwrapper);
@@ -3592,6 +3616,18 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
     // and the loop only republishes wrappers.  A pure reordering -- the
     // same single reference the copy at the end would have taken, taken
     // earlier -- so no new atomic operation on any path.
+#ifdef KAME_RC_TRACE
+    // §13.92: check the SLOT before copying it.  §13.91's cleanly-resolved
+    // post-free decrement is at unbundle's closing brace, and the audit of
+    // this function's locals shows only `newsubpacket_val` can decrement a
+    // Packet there with in_deleter=0 -- so that capture is this local's
+    // release, and its INC-FROM-ZERO partner is this very copy.  A hit here
+    // therefore says the slot handed back by snapshotForUnbundle was ALREADY
+    // dead, i.e. §13.68's premise ("the parked views still hold everything up
+    // before the loop") is false and the defect is upstream in the walk.
+    if( !oldsubpacket)
+        rcSlotLiveCheck(newsubpacket, __builtin_return_address(0));
+#endif
     const local_shared_ptr<Packet> newsubpacket_val(
         oldsubpacket ? local_shared_ptr<Packet>() : *newsubpacket);
 

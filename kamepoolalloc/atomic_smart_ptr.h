@@ -176,6 +176,10 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
 //! wrapper address.  `note` records it; `check` reports when the wrapper
 //! now names a DIFFERENT packet than it was built with.
 void wp_note(const void *wrapper, const void *packet) noexcept;
+//! §13.92 base-rate counters for parked CASInfo views (empty vs held).
+//! Printed by kame_rc_park_report(); measuring the base rate BEFORE
+//! trusting a zero is §13.83's lesson made routine.
+void park_note(bool empty) noexcept;
 void wp_note_id(const void *wrapper, long long id) noexcept;          //!< §13.89
 void wp_check_id(const void *wrapper, long long id_now, const void *site) noexcept;  //!< §13.89
 void dec_dump(const void *obj) noexcept;                              //!< §13.90
