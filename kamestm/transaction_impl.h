@@ -1765,6 +1765,7 @@ Node<XN>::rcScopePacketCheck(const PacketWrapper *w, const char *where) noexcept
 #ifdef KAME_RC_TRACE
     kame_rc_trace::wp_check_id(w, (long long)w->m_bundle_serial,
         __builtin_return_address(0));   // §13.89: same instance, or reused address?
+    kame_rc_trace::dec_dump(static_cast<const void *>(e));   // §13.90: who decremented it
 #endif
     // §13.83: did this LIVE wrapper's m_packet change since construction?
     // That is the one mechanism §13.82 left standing -- an overwrite through

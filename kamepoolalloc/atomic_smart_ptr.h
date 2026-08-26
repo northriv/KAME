@@ -178,6 +178,7 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
 void wp_note(const void *wrapper, const void *packet) noexcept;
 void wp_note_id(const void *wrapper, long long id) noexcept;          //!< §13.89
 void wp_check_id(const void *wrapper, long long id_now, const void *site) noexcept;  //!< §13.89
+void dec_dump(const void *obj) noexcept;                              //!< §13.90
 void wp_check(const void *wrapper, const void *packet,
               const void *site, const char *where) noexcept;
 void push_dtor(const void *obj, const void *site) noexcept;

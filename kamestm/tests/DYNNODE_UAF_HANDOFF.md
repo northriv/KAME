@@ -6071,3 +6071,63 @@ holders — record every INC/DEC on the packet a scope's wrapper names, from the
 moment the wrapper is constructed, and dump that ledger when the entry check
 fires.  §13.74 completed the decrement coverage, so such a ledger is now
 complete; the missing decrement will be in it, with its site.
+
+### 13.90 THE ACT, CAPTURED: two decrements with `rc_before == 0`, after the packet was already dead
+
+§13.89 cornered the defect at "a decrement attributed to nobody", and named the
+reason it had never been seen: the per-object rings **evict** (§13.74), so by
+the time a corpse is found its own history is gone.  So I built a dedicated
+ledger that cannot evict by object.
+
+**Instrument.**  `record()` is the single funnel for every traced event, so one
+hook there feeds a direct-mapped table (16384 slots × 8 entries) holding the
+last decrements per object — site, `rc_before`, tid.  The object address is
+stored in the slot, so a collision **resets** the slot rather than silently
+attributing another object's decrements.  `dec_dump(packet)` is called from the
+scope-packet entry check, i.e. at the moment the dead packet is discovered.
+Tracer-side only; plain builds compile and are untouched.
+
+**The capture** (`20 40 700`, forensic `.so`, `KAME_RC_TRACE_ABORT=0`):
+
+```
+RC-DECLEDGER obj=0x7ffff4950860 total_decs=26 showing=8 (oldest first)
+  DEC[18] site=0x…68b72  rc_before=2  tid=926640
+  DEC[19..22] site=0x…63e72 rc_before=2  tid=926643     (churn: INC/DEC pairs)
+  DEC[23] site=0x…5a0f7  rc_before=1  tid=926640   <-- legitimate last release, 1 -> 0
+  DEC[24] site=0x…63e72  rc_before=0  tid=926643   <-- DECREMENT FROM ZERO
+  DEC[25] site=0x…63e72  rc_before=0  tid=926643   <-- again
+```
+
+**This is the event the investigation has been chasing since §13.79.**  Thread
+`926640` takes the count to zero; thread `926643` then decrements the same
+packet **twice more, from zero**, at one site.  Every earlier capture saw only
+the consequences (`INC-FROM-ZERO` when someone copied the corpse,
+`DEC-UNDERFLOW` when someone released it again after the free); this is the
+act itself, and it explains the whole §13.87 contradiction: the wrapper's
+count was never "not taken", it was **decremented away by a second party**
+while the wrapper was alive and holding it.
+
+**Attribution, with the caveat this section has earned.**  Both the legitimate
+release and the from-zero pair resolve into `~PacketWrapper`
+(`local_weak_ptr<Linkage>::reset()` ← `~local_weak_ptr` ← `~PacketWrapper`);
+the legitimate one additionally carries the
+`atomic_shared_ptr_base<PacketWrapper>::deleter` frame, the from-zero pair does
+not.  That difference is suggestive — a wrapper destructor running *without*
+going through the deleter would do exactly this — but §13.75/§13.82 have twice
+shown these `site=` resolutions smeared by inlining, and the innermost frame
+here (a **weak** `local_weak_ptr<Linkage>` reset) does not even match the
+strong `Packet` decrement being recorded.  **I am not naming the caller on this
+evidence.**  A run with `KAME_RC_TRACE_CHAIN=1` is in progress to get real call
+chains rather than a single smeared address; the entry check fires in roughly
+one run in six, and chain capture slows each run substantially.
+
+**Note also** that §13.80's double-destruction detector cannot see this case:
+it tests the wrapper's storage for *poison*, and a destructor invoked on a
+wrapper whose refcount reached zero but whose storage has not yet been freed
+passes that test unremarked.  That is consistent with its zero result and with
+this ledger at once.
+
+**Standing:** the act is observed and reproducible-in-principle (one capture so
+far, from a probe with zero base rate and proven liveness).  What remains is
+one question, now a narrow one: **which call path performs a `~PacketWrapper`
+whose `m_packet` release lands on an already-zero count.**

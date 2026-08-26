@@ -403,10 +403,69 @@ static void register_stats_() noexcept {
     }
 }
 
+// ---- (§13.90) per-object DECREMENT ledger ------------------------------
+// §13.89 cornered the defect at "a decrement attributed to nobody": the
+// wrapper is the same instance, alive, not double-destructed, and its ctor
+// took a count -- yet the count is gone.  The per-object rings answer this
+// in principle, but they EVICT (§13.74), which is exactly why the act has
+// never been seen.  This is a dedicated, small, non-evicting-by-object
+// table: for each object, the last DEC_KEEP decrement sites, direct-mapped
+// with the object address stored so a collision is visible rather than
+// silently attributed to the wrong object.
+namespace {
+enum { DEC_SLOTS = 16384, DEC_KEEP = 8 };
+struct DecSlot {
+    std::atomic<const void *> obj{nullptr};
+    std::atomic<unsigned> n{0};
+    const void *site[DEC_KEEP]{};
+    unsigned long long oldc[DEC_KEEP]{};
+    unsigned tid[DEC_KEEP]{};
+};
+DecSlot g_dec[DEC_SLOTS];
+inline unsigned dec_slot_(const void *o) noexcept {
+    return (unsigned)((((uintptr_t)o >> 4) * 0x9E3779B97F4A7C15ull) >> 50) % DEC_SLOTS;
+}
+void dec_note_(const void *obj, const void *site, unsigned long long oldc,
+               unsigned tid) noexcept {
+    DecSlot &d = g_dec[dec_slot_(obj)];
+    if(d.obj.load(std::memory_order_relaxed) != obj) {
+        d.obj.store(obj, std::memory_order_relaxed);   // new tenant: restart
+        d.n.store(0, std::memory_order_relaxed);
+    }
+    unsigned i = d.n.fetch_add(1, std::memory_order_relaxed);
+    d.site[i % DEC_KEEP] = site;
+    d.oldc[i % DEC_KEEP] = oldc;
+    d.tid[i % DEC_KEEP]  = tid;
+}
+}
+//! Dump every recorded decrement for \a obj.  Called from the tripwire /
+//! probe path, so it runs at the moment the corpse is found.
+void dec_dump(const void *obj) noexcept {
+    DecSlot &d = g_dec[dec_slot_(obj)];
+    if(d.obj.load(std::memory_order_relaxed) != obj) {
+        raw_line_("RC-DECLEDGER obj=%p (no entries: slot taken by %p)\n",
+            obj, d.obj.load(std::memory_order_relaxed));
+        return;
+    }
+    unsigned n = d.n.load(std::memory_order_relaxed);
+    unsigned shown = n < DEC_KEEP ? n : DEC_KEEP;
+    raw_line_("RC-DECLEDGER obj=%p total_decs=%u showing=%u (oldest first)\n",
+        obj, n, shown);
+    unsigned start = n < DEC_KEEP ? 0 : n - DEC_KEEP;
+    for(unsigned k = 0; k < shown; ++k) {
+        unsigned i = (start + k) % DEC_KEEP;
+        raw_line_("  DEC[%u] site=%p rc_before=%llu tid=%u\n",
+            start + k, d.site[i], d.oldc[i], d.tid[i]);
+    }
+}
+
 void record(const void *obj, unsigned op, unsigned long long oldc,
     const void *site, const char *tname, const void *slot) noexcept {
     if(op < TALLY_N) g_op_tally[op].fetch_add(1, std::memory_order_relaxed);
     TL &t = tl;
+    if(op == OP_DEC || op == OP_DEAD || op == OP_DEAD_UNIQUE
+       || op == OP_DEC_UNDERFLOW)
+        dec_note_(obj, site, oldc, rc_trace_tid_());   // §13.90
     if(!t.ring) {
         register_stats_();
         resolve_poison_decode_();
