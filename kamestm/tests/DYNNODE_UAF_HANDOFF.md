@@ -6896,3 +6896,62 @@ overlap the exact key structurally cannot, at the price that a single hit needs
 corroboration.  Ubuntu should run **exact first** — a hit there is the decisive
 outcome — and reach for the fold only if exact stays clean, where its extra
 reach is the whole point and its 3-in-509 M baseline is the number to beat.
+
+### 13.106 Making §13.104's zeros trustworthy: the live-set was leaking, and saturation collapses coverage to nothing
+
+§13.104's caveat (1) is the one thing standing between "DOUBLE-LIVE fires on a
+crashing run" and "DOUBLE-LIVE fires on N of M crashing runs":
+`table-full 26 851 369` / `dead-miss 25 616 655` against 20 M enforced, i.e.
+roughly half the births untracked and every HITS figure a lower bound.  Two
+causes, both fixed.
+
+**1. The table leaked.**  An `EVERDEAD`-without-`LIVE` entry was never
+reclaimed, and `dl_dead_` *inserts* one for every death whose birth it never
+saw — so the table filled with dead marks and then refused new claims.  A full
+probe window now **steals the first non-`LIVE` slot in it**.  Stealing a dead
+mark costs only that address's `EVERDEAD` proof, which must be re-earned before
+enforcement resumes there: it can **under**-detect and cannot manufacture a
+hit.  `steals` reports the rate.
+
+**2. 2^20 slots was too few for a sparse address set.**  `DL_BITS` now comes
+from `KAME_RC_TRACE_DLIVE_BITS` (default **22**, clamped 8..26), so Ubuntu can
+turn it without a rebuild.  The mapping is lazy — an oversized table costs only
+the pages touched.
+
+**Why macOS never saw this, which is itself worth recording.**  Forcing
+saturation by shrinking the table does not work here: `steals 0, table-full 0`
+at **bits=10 (1024 slots)**.  So this reproducer's 96 M births recycle **fewer
+than ~1000 distinct addresses** on macOS/arm64, while Ubuntu's run saturates a
+million-slot table.  Same test, same pool, and the reuse distance differs by
+orders of magnitude.  Noted as an observation, not a claim about the fault --
+but it is the kind of difference the arm64 silence would live in, since a
+freed block being handed straight back leaves a much narrower window in which
+"freed but still referenced" is distinguishable from "still valid".
+
+**Positive control for the steal path** (`KAME_RC_TRACE_DLIVE_HASHOFF=1`
+collapses every key onto one probe window, since table size cannot force
+saturation here):
+
+```
+enforced 16   HITS 0   steals 114   table-full 94 874 884   dead-miss 96 215 947
+```
+
+- The steal path **executes** (114) and produces **no false positives** (HITS 0)
+  — the claim that stealing only under-detects, measured rather than argued.
+- Only 114 steals against 94 M full windows is correct behaviour: once the
+  single window holds 8 *live* entries there is nothing stealable, and a `LIVE`
+  slot is never taken.
+- **Enforcement collapses to 16.**  That is the cost of saturation demonstrated
+  directly, and it is the regime §13.104 was measuring in — so its zeros were
+  indeed lower bounds, now confirmed from the other side.
+
+**Regression check on the clean path** (arm64, 40 threads): exact key at
+bits=22 and bits=20, folded key at bits=22 — all `HITS 0, steals 0,
+table-full 0, dead-miss 0`; positive control still 75 hits at 1-in-1 M
+injection.  `steals 0` matters: the new path is **inert without pressure**, so
+it cannot have perturbed the 518 M-check baseline §13.105 rests on.
+
+**For Ubuntu:** re-run §13.104 with `KAME_RC_TRACE_DLIVE_BITS=24` and check
+that `table-full` and `dead-miss` fall to near zero *before* reading the HITS
+column.  Only then is "hits accompany a crash N of M times" a measurement
+rather than a lower bound.

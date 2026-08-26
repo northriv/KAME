@@ -543,7 +543,35 @@ void dec_dump(const void *obj) noexcept {
 //    false-positive mode, and it is exactly what the arm64 base rate measures:
 //    arm64 never fails, so any nonzero count there is instrument error.
 namespace {
-enum { DL_BITS = 20, DL_N = 1u << DL_BITS };
+//! §13.106  Table size is a runtime knob, and a full probe window STEALS a
+//! non-LIVE slot instead of giving up.  Ubuntu measured `table-full 26 851 369`
+//! / `dead-miss 25 616 655` against 20 M enforced (§13.104), i.e. about half
+//! the births untracked, which made every HITS figure -- including the zeros --
+//! a lower bound.  Two causes, both fixed here:
+//!   * 2^20 slots is too few once the address set is sparse.  `DL_BITS` now
+//!     comes from `KAME_RC_TRACE_DLIVE_BITS` (default 22, clamped 16..26), so
+//!     the knob can be turned without a rebuild.  The mapping is lazy, so an
+//!     oversized table costs only the pages actually touched.
+//!   * Entries LEAKED.  An `EVERDEAD`-without-`LIVE` entry was never removed,
+//!     and `dl_dead_` inserts one for every death it has not seen a birth for,
+//!     so the table filled with dead marks and then refused new claims.  A full
+//!     window now reclaims the first non-LIVE slot in it.  Stealing a dead mark
+//!     costs only that address's `EVERDEAD` proof -- it must be re-proven
+//!     before enforcement resumes -- so it can only UNDER-detect, never
+//!     manufacture a hit.  `steals` reports how often it happens.
+unsigned dl_bits_() noexcept {
+    static const unsigned v = [] {
+        const char *e = getenv("KAME_RC_TRACE_DLIVE_BITS");
+        unsigned b = (e && e[0]) ? (unsigned)atoi(e) : 22u;
+        // Lower bound is 8, not a sane working size: the steal path can only
+        // be exercised by forcing saturation, and on this reproducer even 2^16
+        // slots never fill (the pool recycles a small address set -- `steals 0,
+        // table-full 0` at bits=16).  bits=10 is how that path gets tested.
+        return b < 8u ? 8u : (b > 26u ? 26u : b);
+    }();
+    return v;
+}
+inline unsigned dl_mask_() noexcept { return (1u << dl_bits_()) - 1u; }
 struct DLSlot {
     //! Address, tagged in the low bits (all objects are >= 8-aligned):
     //!   bit0 LIVE     -- an occupant announced BORN and has not announced DEAD
@@ -560,9 +588,10 @@ struct DLSlot {
     unsigned long long seq{0};
 };
 enum : uintptr_t { DL_LIVE = 1u, DL_EVERDEAD = 2u, DL_TAGS = 3u };
-DLSlot *g_dl;                          //!< lazily mmapped; 16 MB at DL_BITS=20
+DLSlot *g_dl;                          //!< lazily mmapped; sized by dl_bits_()
 std::atomic<unsigned long long> g_dl_born{0}, g_dl_dead{0}, g_dl_hit{0},
-    g_dl_full{0}, g_dl_miss{0}, g_dl_enforced{0}, g_dl_hit_nbr{0};
+    g_dl_full{0}, g_dl_miss{0}, g_dl_enforced{0}, g_dl_hit_nbr{0},
+    g_dl_steal{0};
 //! 0 = off, 1 = count only (default: state the base rate, flood nothing),
 //! 2 = report each hit through anomaly().
 unsigned dl_mode_() noexcept {
@@ -572,15 +601,32 @@ unsigned dl_mode_() noexcept {
     }();
     return v;
 }
+//! §13.106 positive control for the STEAL path.  Table size cannot force
+//! saturation on this reproducer -- the distinct-address set is under ~1000
+//! (`steals 0, table-full 0` even at bits=10, 1024 slots: 96 M births recycle a
+//! few hundred addresses), which is also why Ubuntu saturates and macOS does
+//! not.  `KAME_RC_TRACE_DLIVE_HASHOFF=1` collapses every key onto one probe
+//! window, so the window is permanently full and the steal path is taken on
+//! essentially every claim.  HITS must stay 0 under it: stealing drops an
+//! `EVERDEAD` proof, which can only under-detect.
+bool dl_hashoff_() noexcept {
+    static const bool v = [] {
+        const char *e = getenv("KAME_RC_TRACE_DLIVE_HASHOFF");
+        return e && e[0] && e[0] != '0';
+    }();
+    return v;
+}
 inline unsigned dl_hash_(uintptr_t a) noexcept {
-    return (unsigned)(((a >> 4) * 0x9E3779B97F4A7C15ull) >> (64 - DL_BITS));
+    if(dl_hashoff_()) return 0u;
+    return (unsigned)(((a >> 4) * 0x9E3779B97F4A7C15ull) >> (64 - dl_bits_()));
 }
 DLSlot *dl_table_() noexcept {
     static std::once_flag once;
     std::call_once(once, [] {
-        void *m = mmap(nullptr, sizeof(DLSlot) * DL_N, PROT_READ | PROT_WRITE,
+        const std::size_t n = (std::size_t)1 << dl_bits_();
+        void *m = mmap(nullptr, sizeof(DLSlot) * n, PROT_READ | PROT_WRITE,
             MAP_PRIVATE | MAP_ANON, -1, 0);
-        g_dl = (m == MAP_FAILED) ? nullptr : new(m) DLSlot[DL_N];
+        g_dl = (m == MAP_FAILED) ? nullptr : new(m) DLSlot[n];
     });
     return g_dl;
 }
@@ -652,7 +698,7 @@ static const void *dl_born_(const void *obj, const void *site,
     uintptr_t a = dl_key_(obj);
     unsigned h = dl_hash_(a);
     for(unsigned i = 0; i < DL_PROBE; ++i) {
-        DLSlot &s = t[(h + i) & (DL_N - 1)];
+        DLSlot &s = t[(h + i) & dl_mask_()];
         uintptr_t cur = s.addr.load(std::memory_order_acquire);
         if((cur & ~DL_TAGS) == a) {
             if(!(cur & DL_EVERDEAD)) {       // never proven to be a heap slot
@@ -685,6 +731,19 @@ static const void *dl_born_(const void *obj, const void *site,
             continue;
         }
     }
+    // Window full: reclaim the first non-LIVE slot in it rather than dropping
+    // this birth (which is what let the table saturate on Ubuntu).
+    for(unsigned i = 0; i < DL_PROBE; ++i) {
+        DLSlot &s = t[(h + i) & dl_mask_()];
+        uintptr_t cur = s.addr.load(std::memory_order_acquire);
+        if(cur & DL_LIVE) continue;
+        if(s.addr.compare_exchange_strong(cur, a | DL_LIVE,
+                std::memory_order_acq_rel, std::memory_order_acquire)) {
+            s.site = site; s.seq = seq;
+            g_dl_steal.fetch_add(1, std::memory_order_relaxed);
+            return nullptr;
+        }
+    }
     g_dl_full.fetch_add(1, std::memory_order_relaxed);
     return nullptr;
 }
@@ -696,7 +755,7 @@ static void dl_dead_(const void *obj) noexcept {
     uintptr_t a = dl_key_(obj);
     unsigned h = dl_hash_(a);
     for(unsigned i = 0; i < DL_PROBE; ++i) {
-        DLSlot &s = t[(h + i) & (DL_N - 1)];
+        DLSlot &s = t[(h + i) & dl_mask_()];
         uintptr_t cur = s.addr.load(std::memory_order_acquire);
         if((cur & ~DL_TAGS) == a) {
             s.site = nullptr; s.seq = 0;
@@ -713,6 +772,17 @@ static void dl_dead_(const void *obj) noexcept {
                 return;
             --i;
             continue;
+        }
+    }
+    for(unsigned i = 0; i < DL_PROBE; ++i) {
+        DLSlot &s = t[(h + i) & dl_mask_()];
+        uintptr_t cur = s.addr.load(std::memory_order_acquire);
+        if(cur & DL_LIVE) continue;
+        if(s.addr.compare_exchange_strong(cur, a | DL_EVERDEAD,
+                std::memory_order_acq_rel, std::memory_order_acquire)) {
+            s.site = nullptr; s.seq = 0;
+            g_dl_steal.fetch_add(1, std::memory_order_relaxed);
+            return;
         }
     }
     g_dl_miss.fetch_add(1, std::memory_order_relaxed);
@@ -734,14 +804,16 @@ static void dl_report_() noexcept {
     bool f = false;
     if(!printed.compare_exchange_strong(f, true)) return;
     fprintf(stderr, "kame_rc_trace: DOUBLE-LIVE probe (%s key): born %llu dead %llu "
-        "enforced %llu HITS %llu (nonaligned %llu, table-full %llu, "
-        "dead-miss %llu)\n", dl_fold_() ? "16B-folded" : "exact", b,
+        "enforced %llu HITS %llu (nonaligned %llu, steals %llu, "
+        "table-full %llu, dead-miss %llu, bits %u)\n",
+        dl_fold_() ? "16B-folded" : "exact", b,
         g_dl_dead.load(std::memory_order_relaxed),
         g_dl_enforced.load(std::memory_order_relaxed),
         g_dl_hit.load(std::memory_order_relaxed),
         g_dl_hit_nbr.load(std::memory_order_relaxed),
+        g_dl_steal.load(std::memory_order_relaxed),
         g_dl_full.load(std::memory_order_relaxed),
-        g_dl_miss.load(std::memory_order_relaxed));
+        g_dl_miss.load(std::memory_order_relaxed), dl_bits_());
 }
 
 void record(const void *obj, unsigned op, unsigned long long oldc,
