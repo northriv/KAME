@@ -7716,3 +7716,63 @@ and §13.88's wide window have been saying in other language.  "Which function"
 is the wrong question; the next one has to be "what does the pass change about
 the unit", e.g. a diff of the two objects restricted to functions that are *not*
 clones.
+
+### 13.120 Correction to §13.119: the clone SYMBOLS matched, the pass's DECISIONS did not — and the gap is `*_pop_fit` + `acquire_tag_ref_`
+
+A web survey of `-fipa-cp-clone` prompted the check that undoes §13.119's
+conclusion.  Two documented facts about the mechanism §13.112–§13.119 relies on:
+`__attribute__((optimize(...)))` **replaces** the command-line optimisation
+flags rather than adding to them, and GCC's own documentation says the
+attribute *"should be used for debugging purposes only. It is not suitable in
+production code."*  That is a warning that per-function licensing is not
+equivalent to the flag — so I measured what the pass actually did, with
+`-fdump-ipa-cp-details`, instead of counting surviving symbols.
+
+**The two builds are not equivalent, and §13.119 measured the wrong thing:**
+
+| | specialized nodes created | distinct functions specialized |
+|---|---|---|
+| global `-fipa-cp-clone` | **73** | **12** |
+| FULL `KAME_CLONE_MASK=0xF03` | **46** | **8** |
+
+§13.119 reported FULL as having *superset* coverage (33 clone symbols vs 27).
+That was surviving-symbol count, which is not what the pass did — many
+specializations are inlined or merged away.  By decisions, **FULL is a strict
+subset of GLOBAL**, missing four functions entirely:
+
+```
+char* {anonymous}::global_pop_fit
+char* {anonymous}::l1_pop_fit
+char* {anonymous}::recycle_pop_fit
+atomic_shared_ptr_base<...>::acquire_tag_ref_
+```
+
+**So §13.119's "decisive negative" is withdrawn.**  FULL firing 0/10 does not
+show that the clone set fails to carry the fault; it shows that per-function
+licensing **cannot reproduce the clone set**, because IPA-CP's decision to
+specialize these four depends on whole-unit propagation from their callers,
+which an attribute on the callee cannot supply.  The 0/10 is explained by the
+missing four, not by the 33 that were present.
+
+**And the missing four are the interesting ones.**  Three are the `*_pop_fit`
+family, of which `global_pop_fit` is the clone §13.53 found **perfectly
+correlated with the fault across all six arms** (present in both FAULT arms,
+absent from all four suppressors) and then could not confirm causally — because
+§13.53's test was `noclone`, i.e. subtractive, and §13.112's additive direction
+was supposed to fix exactly that.  It now turns out the additive direction
+**cannot reach them at all**.  The fourth,
+`atomic_shared_ptr_base::acquire_tag_ref_`, is the tagged-pointer reference
+acquisition in `atomic_smart_ptr.h` — the refcount machinery whose corruption
+this entire section has been chasing.
+
+**Standing.**  The arm mechanism is sound for functions the pass will specialize
+from a local licence, and useless for functions whose specialization is driven
+by caller context — which is the set that matters.  Reaching them needs the
+pass enabled unit-wide with cloning *suppressed elsewhere* (subtractive from a
+firing baseline), not licensed locally from a quiet one.
+
+**Sources**: [GCC Common Function Attributes](https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html),
+[GCC Optimize Options](https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html),
+[cython#2494 "Should not use __attribute__((optimize(…)))"](https://github.com/cython/cython/issues/2494),
+[GCC bug 66616 — fipa-cp-clone ignores thunk](https://gcc.gnu.org/pipermail/gcc-bugs/2015-December/526767.html),
+[GCC internals: Regular IPA passes](https://gcc.gnu.org/onlinedocs/gccint/Regular-IPA-passes.html).
