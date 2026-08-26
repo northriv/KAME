@@ -8217,3 +8217,51 @@ says such a check is redundant against the *algorithm*, so if adding it removes
 the fault, that is direct evidence the failure is in codegen rather than
 protocol — a cleaner discriminator than the ablation, which removed reuse
 volume at the same time.
+
+### 13.128 Within the chain, it is not the release path: both dispose backstops never fire, on failing runs too
+
+§13.127 models the chain protocol as correct and names the surviving coupling —
+the chunk OBJECT and chunk STORAGE share a lifetime, so a refcount reaching
+zero with a live slot would release a region under live objects.  That
+coupling has a last line of defence already in the code, and its comment makes
+a testable claim.  `atomic_intrusive_dispose` holds two guards:
+
+```cpp
+if(p->m_flags_packed & BIT_OWNED) return;   // "never fires under the owner-ref design"
+if(p->m_flags_packed & MASK_CNT)  return;   // "At runtime this never fires"
+```
+
+**Counted them** (`KAME_POOL_BACKSTOP_CENSUS`, gated — production builds contain
+none of it, verified by symbol absence).  Also added a signal-handler readback,
+because `atexit` does not run after `SIGSEGV`/`SIGABRT` and a crashing run is
+exactly where a backstop would fire — the same gap that hid the park counters
+(§13.93) and the DOUBLE-LIVE counters (§13.104), now three times.
+
+**Result, 12 runs — 7 failing, 5 clean:**
+
+| runs | backstop `owned` | backstop `live-slot` |
+|---|---|---|
+| 7 failing (`rc=139`/`134`) | **0** | **0** |
+| 5 clean | never fired | never fired |
+
+**So the release path is exonerated.**  No chunk is disposed while owned, and
+none is disposed with live slots — not even on the runs that go on to crash.
+The comment's claim holds under the fault, and §13.127's coupling, while real
+as a design property, is **not being exercised**: the guards catch it, or it
+never arises.
+
+**That halves what is left of the chain.**  §13.126's ablation removed the
+whole orphan chain and the fault went 15/20 → 0/20.  The chain has two active
+halves — **scrub/dispose** (unlink a drained orphan, release its region) and
+**adopt** (pop a chunk and re-own it, handing its free slots back out).  The
+release half is now measured clean on failing runs, so within the chain the
+remaining candidate is **adopt** — which is also the half that matches the
+runtime evidence: §13.104's DOUBLE-LIVE is a slot handed *out*, §13.113 found
+the previous occupant *live and unfreed*, and adopt is the only path that
+hands out slots from a chunk it did not itself construct.
+
+**Next**: instrument adopt the way dispose was just instrumented — at the
+`BIT_OWNED` claim, record the chunk's occupancy and compare it against the
+bitmap the adopting thread proceeds to allocate from.  A slot handed out that
+the occupancy count says is still in use is the DOUBLE-LIVE event at its
+source, one step upstream of where §13.104 catches it.

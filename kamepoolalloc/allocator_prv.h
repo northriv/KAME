@@ -34,6 +34,12 @@
 #include <atomic>
 #include <limits>
 #include <type_traits>
+#ifdef KAME_POOL_BACKSTOP_CENSUS
+extern "C" void kame_pool_backstop_note(unsigned which) noexcept;   /* §13.128 */
+#define KAME_BACKSTOP_NOTE_(w) kame_pool_backstop_note(w)
+#else
+#define KAME_BACKSTOP_NOTE_(w) ((void)0)
+#endif
 
 // ===== MSVC compatibility shim for the live pool =====
 // The live pool is ON by default on MSVC (opt OUT via
@@ -2554,7 +2560,13 @@ public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
 		// chunks, and for scrub-reclaimed empty orphans likewise.  The check
 		// thus never fires under the owner-ref design; it is kept as cheap
 		// insurance against a stray refcnt→0 while a chunk is still owned.
-		if(p->m_flags_packed & BIT_OWNED) return;
+		if(p->m_flags_packed & BIT_OWNED) {
+			// (§13.128) The comment says this "never fires under the owner-ref
+			// design".  §13.127's coupling (chunk OBJECT and chunk STORAGE share
+			// a lifetime) predicts it CAN, so count it instead of assuming.
+			KAME_BACKSTOP_NOTE_(0);
+			return;
+		}
 		// Live-slot backstop: NEVER reclaim a chunk that still has allocated
 		// slots (MASK_CNT != 0).  At runtime this never fires — scrub only
 		// unlinks DRAINED (MASK_CNT==0) orphans, and the chain-ref keeps a
@@ -2565,7 +2577,13 @@ public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
 		// (now leaked — see s_orphan_chain_head) or any future refcnt bug
 		// would `~PoolAllocator()` a live chunk → pure-virtual on the next
 		// free().  Belt to the never-destroyed-head's braces.
-		if(p->m_flags_packed & MASK_CNT) return;
+		if(p->m_flags_packed & MASK_CNT) {
+			// (§13.128) "At runtime this never fires" -- the live-slot backstop.
+			// If it DOES, a stray refcnt->0 reached a non-empty chunk, which is
+			// exactly the release-under-live-objects coupling.
+			KAME_BACKSTOP_NOTE_(1);
+			return;
+		}
 		char *cbase = reinterpret_cast<char *>(p) - ALLOC_CHUNK_HEADER;
 		p->~PoolAllocator();
 		PoolAllocatorBase::bucket_release_chunk(cbase, (std::size_t)CHUNK_SIZE);

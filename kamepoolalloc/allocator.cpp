@@ -8476,3 +8476,48 @@ template class PoolAllocator<ALLOC_SIZE15, true>;
 //	}
 //} pool_releaser;
 #endif //USE_STD_ALLOCATOR
+
+#ifdef KAME_POOL_BACKSTOP_CENSUS
+// (§13.128) Backstop census.  Both guards in atomic_intrusive_dispose are
+// documented as never firing at runtime; §13.127's object/storage lifetime
+// coupling says one of them is the last line before a live chunk is
+// reclaimed.  Counting is cheaper than arguing, and the counters print at
+// exit AND are readable from a crash handler.
+#include <cstdio>
+static std::atomic<unsigned long long> g_backstop[2];
+extern "C" void kame_pool_backstop_note(unsigned which) noexcept {
+    if(which < 2) g_backstop[which].fetch_add(1, std::memory_order_relaxed);
+}
+extern "C" void kame_pool_backstop_counts(unsigned long long *owned,
+                                          unsigned long long *live) noexcept {
+    *owned = g_backstop[0].load(std::memory_order_relaxed);
+    *live  = g_backstop[1].load(std::memory_order_relaxed);
+}
+// (§13.128) atexit does not run after SIGSEGV/SIGABRT, and a crashing run is
+// exactly where a backstop would fire -- the same gap that hid the park and
+// DOUBLE-LIVE counters twice.  Signal handler writes the counters with
+// write(2) only.
+#include <csignal>
+#include <unistd.h>
+extern "C" void kame_pool_backstop_counts(unsigned long long *, unsigned long long *) noexcept;
+namespace {
+void backstop_sig_(int sig) {
+    unsigned long long o = 0, l = 0;
+    kame_pool_backstop_counts(&o, &l);
+    char b[128]; int n = snprintf(b, sizeof b,
+        "\nkame_pool: [sig %d] DISPOSE BACKSTOPS owned=%llu live-slot=%llu\n", sig, o, l);
+    if(n > 0) { ssize_t r = write(2, b, (size_t)n); (void)r; }
+    signal(sig, SIG_DFL); raise(sig);
+}
+struct BackstopSig { BackstopSig() {
+    signal(SIGSEGV, backstop_sig_); signal(SIGABRT, backstop_sig_); signal(SIGBUS, backstop_sig_);
+} } g_backstop_sig;
+}
+namespace { struct BackstopReport {
+    ~BackstopReport() {
+        unsigned long long o = g_backstop[0].load(), l = g_backstop[1].load();
+        if(o || l) fprintf(stderr, "kame_pool: DISPOSE BACKSTOPS FIRED  owned=%llu  live-slot=%llu\n", o, l);
+        else       fprintf(stderr, "kame_pool: dispose backstops: never fired\n");
+    }
+} g_backstop_report; }
+#endif // KAME_POOL_BACKSTOP_CENSUS
