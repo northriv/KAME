@@ -2404,10 +2404,44 @@ Node<XN>::snapshotForUnbundle(const local_shared_ptr<Linkage> &child_linkage,
                     static_cast<const void *>(r.parent_linkage.get()));
         }
 #endif
+#ifdef KAME_RC_TRACE
+        // §13.93 FAULT INJECTION (off unless KAME_STM_INJECT_EMPTY_PARK=N):
+        // every N-th park, drop the view's protection and park an EMPTY view,
+        // i.e. manufacture exactly the state §13.92 identified as the one the
+        // walk's lifetime comment assumes cannot happen (arm64 base rate:
+        // 0 in 4.1 M).  This tests SUFFICIENCY: if the known signature
+        // (INC-FROM-ZERO at unbundle's slot copy, DEC-UNDERFLOW at its
+        // function exit, or a SIGSEGV in ~PacketWrapper) appears on arm64 --
+        // which never reproduces the real fault -- then an unprotected
+        // ancestor wrapper is enough to produce it, and we have a reproducer
+        // on the fast machine.  If it does NOT, the mechanism is bounded by
+        // the loop's `if(!scope) return DISTURBED` bail and is insufficient.
+        {
+            static const unsigned _inj = [] {
+                const char *e = getenv("KAME_STM_INJECT_EMPTY_PARK");
+                return (e && e[0]) ? (unsigned)atoi(e) : 0u;
+            }();
+            if(_inj) {
+                static std::atomic<unsigned> _n{0};
+                if((_n.fetch_add(1, std::memory_order_relaxed) % _inj) == 0) {
+                    { auto _drop = r.parent_scope->consume_scoped_view(); }
+                    //!< ^ releases the wrapper reference here, so nothing
+                    //!<   protects parent_packet from this point on.
+                    cas_infos->emplace_back(r.parent_linkage,
+                        scoped_atomic_view<PacketWrapper>(), newwrapper);
+                    p = &newwrapper->packet();
+                    goto _kame_injected_park;
+                }
+            }
+        }
+#endif
         cas_infos->emplace_back(r.parent_linkage,
             r.parent_scope->consume_scoped_view(),
             newwrapper);
         p = &newwrapper->packet();
+#ifdef KAME_RC_TRACE
+_kame_injected_park: ;
+#endif
     }
     int size = ( *r.parent_packet)->size();
     if(size) {

@@ -6262,3 +6262,76 @@ worth having even from a clean run.
   reason while a non-empty view is parked, which points at the ancestor
   wrapper being released *despite* the view — i.e. back at the wrapper
   layer, but now with a specific interval to look in.
+
+### 13.93 Fault INJECTION on arm64 — §13.92's own hypothesis refuted, cheaply,
+### on the machine that never reproduces anything
+
+Asked why the A/B mimicry (hoist a read to fake caching / duplicate a read
+to fake splitting) had not been run.  Two honest reasons, then the better
+experiment that replaced it.
+
+1. **§13.88 moved the ground under it.**  The `rr -c` sweep is graded with
+   half-height near **150 000 instructions** — by §13.86's own
+   pre-registration that is the **wide-window** branch, i.e. a
+   protocol-level interleaving, whereas A and B are *narrow*-window
+   mechanisms.  The measurement weakened the hypothesis the mimicry was
+   built to test.
+2. **A/B mimicry needs a named site.**  Hoisting or duplicating a read is
+   only meaningful at a specific shared read; a shotgun edit tests
+   nothing.  No site is named yet.
+
+**What is nameable is a STATE**, and §13.92 named one: an EMPTY view parked
+into a `CASInfo`, which the walk's own comment assumes cannot happen.  So
+the mimicry moved from "fake the transformation" to **"inject the state"**
+— a sufficiency test, and exactly the kind of thing arm64 can do since it
+never produces the fault on its own.
+
+**Injector** (`KAME_STM_INJECT_EMPTY_PARK=N`, `KAME_RC_TRACE` only, default
+off): every N-th park drops the view's protection (consume into a
+temporary that dies) and parks an **empty** view — manufacturing the state
+whose natural base rate here is 0 in 4.1 M.
+
+| N (1 in N parks) | outcome (3 runs each) |
+|---|---|
+| off | 3/3 clean |
+| 1000 | 3/3 clean, no tripwires |
+| 100 | **3/3 abort** |
+| 10 | **3/3 abort** |
+
+**And the abort is loud, immediate and deterministic** — not the fault's
+signature:
+
+```
+Assertion failed: (*this), atomic_smart_ptr.h:984   (lsp<Packet>::operator->)
+  Node<LongNode>::snapshotForUnbundle  transaction_impl.h:2446
+     int size = ( *r.parent_packet)->size();
+```
+
+So when the walk's `parent_packet` loses its owner, the **very next line of
+the walk** dereferences it and asserts.  That is the discriminator:
+
+- the reproducer builds run with **asserts enabled** (§13.10's recipe adds
+  no `-DNDEBUG`), and no capture has ever shown this assert;
+- therefore `*r.parent_packet` is *not* empty/dead there in the failing
+  runs, and **§13.92's empty-park hypothesis is refuted as the fault** —
+  it would announce itself instantly instead of corrupting silently and
+  surfacing thousands of instructions later.
+
+The hypothesis also splits cleanly, and both halves are dead: *empty park
+with the owner dead* → this loud assert (not observed); *empty park with
+the owner still held elsewhere* → the packet stays valid, no fault.
+
+**What the injector is worth keeping for.**  It is the first *artificial*
+reproduction on arm64 of the general shape "the walk touches a `Packet`
+slot whose owner has died", and it shows that shape is **guarded** — which
+is itself a constraint on the real fault: whatever it is, it does not pass
+through `(*r.parent_packet)->size()` with a dead owner.  Left in place,
+gated and off by default, as a sufficiency-test lever for the next named
+state; `tests/` tree **40/40** with it present.
+
+**Where this leaves the A/B mimicry.**  Still unactionable for want of a
+site, and now also less motivated by §13.88's wide window — but the
+*method* has proven itself in the injection form: name a state, manufacture
+it here, and see whether the observable matches the real signature.  That
+is a Mac-side capability worth using on every future candidate, and it
+costs one gated `if`.
