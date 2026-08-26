@@ -6476,3 +6476,54 @@ covers `SIGSEGV`/`SIGBUS` only, so `rc=134` (abort) runs still lose the
 counters — two of the eight runs above show empty census fields for that
 reason.  Extending §13.58's handler to `SIGABRT` would close it, and is worth
 doing before the next census-style measurement.
+
+### 13.99 Two instrument fixes §13.98 asked for: `SIGABRT` coverage, and
+### dynamic STM-scope tags that cannot be smeared
+
+§13.98's result — `unbundle` measured clean for **every** `Packet` reference
+it holds, on both branches — means either §13.91's `site=` was smeared (the
+**third** discounted attribution in this section, after §13.75 and §13.79)
+or the decrementing `local_shared_ptr<Packet>` has not been identified.
+Both possibilities are attribution problems, so this commit attacks
+attribution itself rather than adding another predicate.
+
+**1. `SIGABRT` is now covered** (§13.98's explicit request).  `atexit` does
+not run after a fatal signal, and §13.58's handler took `SIGSEGV`/`SIGBUS`
+only — so every `rc=134` run lost its census counters, which is exactly
+where they were needed.  The handler now also takes `SIGABRT`, which covers
+both `assert()` and `anomaly()`'s own abort path.  Verified: an injected
+abort (§13.93) now produces the full crash block instead of nothing.
+
+**2. Dynamic STM-scope tags — the `in_deleter` trick generalised.**
+§13.91's `in_deleter` depth worked precisely because it needs no unwinding
+and no line table: it is set by RAII at the place that matters.  The same
+device now marks the STM entry points (`bundle`, `unbundle`,
+`finalizeCommitment`, with slots reserved for `snapshotForUnbundle`,
+`commit`, `snapshot`), each setting a thread-local bit for the duration of
+its call (recursion-safe: an inner RAII that finds the bit already set
+leaves it alone on exit).  Every recorded event carries the mask, so:
+
+- `RC-R` history lines gained `scope=…`;
+- `anomaly()` emits `RC-STM-SCOPE …`;
+- the crash handler emits `RC-SEGV-SCOPE …`, placed **after** the
+  architecture split so it appears on both x86-64 and arm64 (the first
+  attempt landed inside the x86 branch and was invisible here — caught by
+  testing on this machine).
+
+**A post-free decrement now says which STM function was on the stack, and
+that statement cannot be smeared by inlining**, because it does not come
+from the line table at all.  Applied to §13.91's capture, this settles the
+open question directly: if the DEC carries `scope=unbundle` the attribution
+was right and the object is one this audit has not found; if it carries
+something else (or `(none)`), §13.91's `site=` was the third smear and the
+search moves to whatever scope it names.
+
+Verified on arm64: forcing the §13.93 injector produces
+`RC-SEGV sig=6` followed by **`RC-SEGV-SCOPE unbundle`** — the tag is live
+and correct, on the abort path that previously produced nothing at all.
+`tests/` tree **40/40**; the plain (non-traced) build is unaffected.
+
+**For the next Ubuntu run**: no new flags — both fixes are part of
+`KAME_RC_TRACE`.  Read `RC-SEGV-SCOPE` on the crash and `scope=` on the
+`RC-R` lines of the underflowing object; between them they name the dynamic
+context of every recorded decrement without relying on a single `site=`.

@@ -2990,6 +2990,9 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
     // view; zero only later indicts a release that happens in between.
     rcScopePacketCheck(supscope.operator->(), "bundle entry supscope->packet()");
 #endif
+#ifdef KAME_RC_TRACE
+    kame_rc_trace::ScopedStmScope _stm_scope_(kame_rc_trace::STM_SCOPE_BUNDLE);
+#endif
     assert(supscope->packet());
     assert(supscope->packet()->size());
     assert(supscope->packet()->missing());
@@ -3608,6 +3611,9 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
 // — no view_copy() or temporary needed.
     local_shared_ptr<Packet> *newsubpacket;
     CASInfoList cas_infos;
+#ifdef KAME_RC_TRACE
+    kame_rc_trace::ScopedStmScope _stm_scope_(kame_rc_trace::STM_SCOPE_UNBUNDLE);
+#endif
     SnapshotStatus status = snapshotForUnbundle(subscope.linkage(),
         subscope, &newsubpacket,
         bundle_serial ? *bundle_serial : SerialGenerator::SERIAL_NULL, &cas_infos);

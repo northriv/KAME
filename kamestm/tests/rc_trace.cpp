@@ -123,6 +123,14 @@ enum Op : unsigned {  // keep in sync with atomic_smart_ptr.h
     OP_VADOPT, OP_VMOVE,
     OP_MINE_SHARED, OP_LOOKUP_ESCAPE, OP_DEAD_ELEMENT,
 };
+enum : unsigned {   // §13.99 — keep in sync with atomic_smart_ptr.h
+    STM_SCOPE_BUNDLE      = 1u << 0,
+    STM_SCOPE_UNBUNDLE    = 1u << 1,
+    STM_SCOPE_SNAPFORUNB  = 1u << 2,
+    STM_SCOPE_COMMIT      = 1u << 3,
+    STM_SCOPE_FINALIZE    = 1u << 4,
+    STM_SCOPE_SNAPSHOT    = 1u << 5,
+};
 static bool is_weak_op_(unsigned op) noexcept {
     return op == OP_WEAK_INC || op == OP_WEAK_DEC || op == OP_WEAK_DEAD;
 }
@@ -159,6 +167,7 @@ struct Ev {
     unsigned long long oldc;
     unsigned op;
     unsigned tid;
+    unsigned stm_scope;     //!< §13.99 which STM entry points were on the stack
 };
 
 //! Short type label out of `__PRETTY_FUNCTION__`: everything between
@@ -432,6 +441,26 @@ inline unsigned dec_slot_(const void *o) noexcept {
 //! (§13.91) deleter-context depth, per thread.
 static thread_local int tl_del_depth = 0;
 int  deleter_depth() noexcept { return tl_del_depth; }
+// ---- §13.99 dynamic STM-scope tags -------------------------------------
+static thread_local unsigned tl_stm_scope = 0;
+unsigned stm_scope() noexcept { return tl_stm_scope; }
+void stm_scope_enter(unsigned bit) noexcept { tl_stm_scope |= bit; }
+void stm_scope_exit(unsigned bit) noexcept { tl_stm_scope &= ~bit; }
+//! Render the mask for a report; static buffer, single-threaded use from
+//! the reporting paths only.
+const char *stm_scope_str(unsigned m) noexcept {
+    static thread_local char b[64];
+    int k = 0;
+    if(m & STM_SCOPE_BUNDLE)     k += snprintf(b + k, sizeof b - k, "bundle,");
+    if(m & STM_SCOPE_UNBUNDLE)   k += snprintf(b + k, sizeof b - k, "unbundle,");
+    if(m & STM_SCOPE_SNAPFORUNB) k += snprintf(b + k, sizeof b - k, "snapForUnb,");
+    if(m & STM_SCOPE_COMMIT)     k += snprintf(b + k, sizeof b - k, "commit,");
+    if(m & STM_SCOPE_FINALIZE)   k += snprintf(b + k, sizeof b - k, "finalize,");
+    if(m & STM_SCOPE_SNAPSHOT)   k += snprintf(b + k, sizeof b - k, "snapshot,");
+    if( !k) snprintf(b, sizeof b, "(none)");
+    else b[k - 1] = 0;
+    return b;
+}
 void deleter_enter() noexcept { ++tl_del_depth; }
 void deleter_exit()  noexcept { --tl_del_depth; }
 namespace {
@@ -492,6 +521,7 @@ void record(const void *obj, unsigned op, unsigned long long oldc,
     e.obj = obj; e.site = site; e.slot = slot; e.tname = tname;
     e.seq = rc_trace_seq_();
     e.oldc = oldc; e.op = op; e.tid = t.tid;
+    e.stm_scope = tl_stm_scope;          // §13.99
     {
         Recent &rc = g_recent[lastrel_slot_(obj)];
         if(rc.obj.load(std::memory_order_relaxed) != obj) {
@@ -597,8 +627,9 @@ static void raw_recent_(const void *obj) noexcept {
         const Ev &e = rc.evs[(total - 1 - k) % RECENT_N];
         char tb[128];
         raw_line_("RC-R obj=%p op=%s rc_before=%llu tid=%u seq=%llu slot=%p "
-            "site=%p type=%s\n", obj, op_name_(e.op), e.oldc, e.tid, e.seq,
-            e.slot, e.site, type_label_(e.tname, tb, sizeof tb));
+            "site=%p scope=%s type=%s\n", obj, op_name_(e.op), e.oldc, e.tid,
+            e.seq, e.slot, e.site, stm_scope_str(e.stm_scope),
+            type_label_(e.tname, tb, sizeof tb));
     }
 }
 
@@ -718,6 +749,11 @@ static void segv_handler_(int sig, siginfo_t *si, void *uc_) noexcept {
     raw_line_("\nRC-SEGV sig=%d fault_addr=%p (no register decode on this target) tid=%u\n",
         sig, si ? si->si_addr : nullptr, rc_trace_tid_());
 #endif
+    //!< §13.99: which STM entry points were on this thread's stack.  `site=`
+    //!< has been discounted three times for inlining smear; this cannot be,
+    //!< because it is set by RAII at the entry points themselves.
+    raw_line_("RC-SEGV-SCOPE %s\n",
+        kame_rc_trace::stm_scope_str(kame_rc_trace::stm_scope()));
     cands[NCAND - 1] = si ? si->si_addr : nullptr;
     names[NCAND - 1] = "fault_addr";
     for(int i = 0; i < NCAND; ++i) {
@@ -778,6 +814,10 @@ static void install_segv_() noexcept {
     sa.sa_flags = SA_SIGINFO | SA_RESETHAND | SA_NODEFER;
     sigaction(SIGSEGV, &sa, nullptr);
     sigaction(SIGBUS, &sa, nullptr);
+    //!< §13.99: rc=134 (abort -- assert, or anomaly()'s own abort) previously
+    //!< lost every census counter, because atexit does not run after a fatal
+    //!< signal and the handler only covered SEGV/BUS.  §13.98 asked for this.
+    sigaction(SIGABRT, &sa, nullptr);
 }
 #else
 static void install_segv_() noexcept {}
@@ -1189,6 +1229,7 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
     // peer thread's SIGSEGV.
     {
         char tb[128];
+        raw_line_("RC-STM-SCOPE %s\n", stm_scope_str(kame_rc_trace::stm_scope()));
         raw_line_("\nRC-ANOMALY #%u obj=%p op=%s rc_before=%llu tid=%u "
             "slot=%p site=%p type=%s dtor_depth=%u\n", nth, obj, op_name_(op),
             oldc, rc_trace_tid_(), slot, site,

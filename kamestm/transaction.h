@@ -2873,6 +2873,9 @@ protected:
 
 template <class XN>
 void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
+#ifdef KAME_RC_TRACE
+    kame_rc_trace::ScopedStmScope _stm_scope_(kame_rc_trace::STM_SCOPE_FINALIZE);
+#endif
     // Bump the per-root-linkage Transaction-commit counter consumed by
     // the optional livelock probe. Single writer (the iterate_commit
     // winner) per tx, so the non-atomic ++ is race-free.

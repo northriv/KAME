@@ -187,6 +187,34 @@ int  deleter_depth() noexcept;                                        //!< §13.
 void deleter_enter() noexcept;                                        //!< §13.91
 void deleter_exit() noexcept;                                         //!< §13.91
 void ub_branch_note(bool is_old) noexcept;                            //!< §13.95
+//! §13.99 dynamic STM-scope tags.  `site=` has now been discounted three
+//! times for inlining smear (§13.75, §13.79, §13.98), while §13.91's
+//! `in_deleter` depth -- the same trick without unwinding -- was decisive.
+//! Generalise it: each STM entry point sets a bit for the duration of its
+//! call, and every recorded decrement carries the mask, so a post-free DEC
+//! says WHICH STM function was on the stack instead of which line the
+//! line-table guessed.
+enum : unsigned {
+    STM_SCOPE_BUNDLE      = 1u << 0,
+    STM_SCOPE_UNBUNDLE    = 1u << 1,
+    STM_SCOPE_SNAPFORUNB  = 1u << 2,
+    STM_SCOPE_COMMIT      = 1u << 3,
+    STM_SCOPE_FINALIZE    = 1u << 4,
+    STM_SCOPE_SNAPSHOT    = 1u << 5,
+};
+unsigned stm_scope() noexcept;
+void stm_scope_enter(unsigned bit) noexcept;
+void stm_scope_exit(unsigned bit) noexcept;
+//! RAII, so an early return or a throw cannot leave a stale bit.
+struct ScopedStmScope {
+    unsigned m_bit, m_prev;
+    explicit ScopedStmScope(unsigned bit) noexcept : m_bit(bit) {
+        m_prev = stm_scope() & bit;   //!< recursion-safe: remember if set
+        stm_scope_enter(bit);
+    }
+    ~ScopedStmScope() noexcept { if( !m_prev) stm_scope_exit(m_bit); }
+    ScopedStmScope(const ScopedStmScope &) = delete;
+};
 void wp_check(const void *wrapper, const void *packet,
               const void *site, const char *where) noexcept;
 void push_dtor(const void *obj, const void *site) noexcept;
