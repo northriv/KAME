@@ -6513,6 +6513,113 @@ extern "C" std::size_t kame_pool_reserved_bytes() noexcept {
 // cache definitions.
 namespace { extern std::atomic<size_t> g_lrc_bytes; }
 
+#ifdef KAME_POOL_VERIFY_BACKOFFSET
+//! §13.130  Whole-table `back_offset[]` verifier.
+//!
+//! Why the table and not the write site.  §13.129 leaves one candidate: a bit
+//! cleared for a slot whose own free never happened, i.e. a free that
+//! mis-derived `chunk_base`.  That derivation is
+//! `resolve_chunk_from_slot`'s single read of `rmeta->back_offset[unit_idx]`,
+//! and the table it reads is a **plain `std::uint8_t` array** (`RegionMeta`,
+//! `allocator_prv.h:1889` -- note the `claim_bitmap` beside it IS
+//! `std::atomic`).  Its only writer of interest is `restamp_back_offset`,
+//! whose body is
+//!
+//!     for(unsigned u = 0; u < chunk_units; ++u)
+//!         rmeta->back_offset[base_unit_idx + u] = (uint8_t)u | back_off_flag;
+//!
+//! -- a byte loop whose trip count `-fipa-cp-clone` turns into a CONSTANT
+//! (§13.118: `restamp_back_offset` is a cloned family, 6 clones), which is
+//! exactly what licenses a compiler to merge it into wider stores.  A store
+//! wider than the units the chunk owns corrupts the NEXT chunk's entries, and
+//! then every free of a slot in that chunk resolves to the wrong chunk_base.
+//!
+//! The check must not go in either function: adding code to `restamp_back_offset`
+//! would inhibit the very vectorisation under suspicion, and §5's lesson (a
+//! `noclone` moved 72 other function sizes) says the same about the reader.  So
+//! this is a separate `noipa` function that only READS, and the table itself
+//! carries the invariant: within one chunk the entries are exactly
+//! `0, 1, 2, ... k-1` (bit 7 aside), so an over-write from a neighbouring
+//! restamp shows up as a broken run -- detectable without knowing chunk
+//! boundaries from any other source.
+//!
+//! Returns the number of anomalies; fills `first_*` with the first one.
+//! Best-effort under concurrency: a claim or release in flight can produce a
+//! transient mismatch, so a single hit is not proof -- report the count and
+//! re-check.  That caveat is why it returns a count rather than aborting.
+extern "C" __attribute__((noinline, noipa))
+unsigned kame_pool_check_back_offset(void **first_region,
+                                     unsigned *first_unit,
+                                     unsigned *first_val,
+                                     unsigned *first_expect) noexcept {
+    using BitmapWord = PoolAllocatorBase::BitmapWord;
+    unsigned bad = 0;
+    int total_nodes = PoolAllocatorBase::s_num_numa_nodes.load(
+        std::memory_order_relaxed);
+    if(total_nodes <= 0) total_nodes = 1;
+    for(int node = 0; node < total_nodes; ++node)
+    for(auto *rm = PoolAllocatorBase::s_region_dll_heads[node].load(
+                       std::memory_order_acquire);
+        rm; rm = rm->dll_next.load(std::memory_order_acquire)) {
+        unsigned expect = 0;          // expected offset for the next claimed unit
+        bool in_chunk = false;
+        for(int u = 1; u < PoolAllocatorBase::NUM_ALLOCATORS_IN_SPACE; ++u) {
+            BitmapWord bw = rm->claim_bitmap[
+                u / PoolAllocatorBase::BITS_PER_BITMAP_WORD]
+                .load(std::memory_order_relaxed);
+            bool claimed =
+                (bw >> (u % PoolAllocatorBase::BITS_PER_BITMAP_WORD)) & 1u;
+            if( !claimed) { in_chunk = false; continue; }
+            unsigned v = (unsigned)(rm->back_offset[u] & 0x7Fu);
+            if( !in_chunk) {
+                // First claimed unit of a run must start a chunk (offset 0)
+                // OR continue one whose earlier units are unclaimed, which
+                // cannot happen -- a chunk's units are claimed together.
+                if(v != 0u) {
+                    if(bad++ == 0 && first_region) {
+                        *first_region = (void *)rm; *first_unit = (unsigned)u;
+                        *first_val = v; *first_expect = 0u;
+                    }
+                }
+                in_chunk = true; expect = v + 1u;
+            }
+            else if(v != 0u && v != expect) {
+                if(bad++ == 0 && first_region) {
+                    *first_region = (void *)rm; *first_unit = (unsigned)u;
+                    *first_val = v; *first_expect = expect;
+                }
+                expect = v + 1u;
+            }
+            else if(v == 0u) expect = 1u;      // a new chunk starts here
+            else expect = v + 1u;
+        }
+    }
+    return bad;
+}
+//! §13.61 positive control for the verifier above: corrupt one entry on
+//! purpose so a run can prove the checker fires before its zero is trusted.
+//! Walks to the `n`-th region and writes `val` at `unit`; returns 0 on success.
+extern "C" __attribute__((noinline, noipa))
+int kame_pool_poke_back_offset(unsigned region_ordinal, unsigned unit,
+                               unsigned val) noexcept {
+    int total_nodes = PoolAllocatorBase::s_num_numa_nodes.load(
+        std::memory_order_relaxed);
+    if(total_nodes <= 0) total_nodes = 1;
+    unsigned seen = 0;
+    for(int node = 0; node < total_nodes; ++node)
+    for(auto *rm = PoolAllocatorBase::s_region_dll_heads[node].load(
+                       std::memory_order_acquire);
+        rm; rm = rm->dll_next.load(std::memory_order_acquire)) {
+        if(seen++ != region_ordinal) continue;
+        if(unit >= (unsigned)PoolAllocatorBase::NUM_ALLOCATORS_IN_SPACE)
+            return 2;
+        rm->back_offset[unit] = (std::uint8_t)val;
+        return 0;
+    }
+    return 1;
+}
+#endif /* KAME_POOL_VERIFY_BACKOFFSET */
+
 // (§14) Diagnostic / tuning stats — walks the push-only region list
 // (since §13.3, O(populated regions × BITMAP_WORDS_PER_REGION)) reading
 // each region's embedded claim_bitmap + back_offset under relaxed loads.

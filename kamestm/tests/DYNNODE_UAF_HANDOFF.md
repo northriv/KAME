@@ -8336,3 +8336,99 @@ and §13.121's subtractive mask now can.
 *cross-chunk* mis-derivation is modelled only by its consequence (a wrong bit
 cleared), not by its cause.  That is deliberate: the cause needs addresses, and
 the consequence is what any instrument can see.
+
+### 13.130 The audit lands on one plain byte array — and a `back_offset` verifier that reproduces the crash signature from a single poked byte
+
+§13.129 left exactly one candidate: a bit cleared for a slot whose own free
+never happened, i.e. a free that mis-derived `chunk_base`.  Audited that
+derivation end to end.
+
+**What it is.**  `resolve_chunk_from_slot` (`allocator.cpp`, arm 8) turns a slot
+pointer into a chunk with **one read**:
+
+```cpp
+unsigned back_off = rmeta->back_offset[unit_idx] & 0x7Fu;
+unsigned base_idx = unit_idx - back_off;
+char *chunk_base  = mp + base_idx * ALLOC_MIN_CHUNK_SIZE - ALLOC_CHUNK_K_MAX;
+```
+
+and `RegionMeta` declares that table as
+
+```cpp
+std::atomic<BitmapWord> claim_bitmap[BITMAP_WORDS_PER_REGION];  // atomic
+std::uint8_t            back_offset[NUM_ALLOCATORS_IN_SPACE];   // PLAIN
+```
+
+**a plain `uint8_t` array, immediately beside an atomic one.**  Every free reads
+it plainly; `restamp_back_offset` and `deallocate_chunk` write it plainly.  (The
+comment above the reader says "a single **relaxed load** of the back-offset
+table" — the code does a plain load.  Worth reconciling either way, since the
+two are not the same licence.)
+
+**Why the writer is the suspect and not the reader.**  `restamp_back_offset` is
+
+```cpp
+for(unsigned u = 0; u < chunk_units; ++u)
+    rmeta->back_offset[base_unit_idx + u] = (uint8_t)u | back_off_flag;
+```
+
+a byte loop whose trip count **`-fipa-cp-clone` turns into a compile-time
+constant** — §13.118 measured `restamp_back_offset` as a cloned family with 6
+clones — and a constant trip count is exactly what licenses merging a byte loop
+into wider stores.  A store wider than the units the chunk owns corrupts the
+**next** chunk's entries, after which every free of a slot in that chunk resolves
+to the wrong `chunk_base` and clears a bit there.  That is §13.116's surviving
+mechanism, with a reason for the `-O3` + clone dependency attached.
+
+**The verifier** (`KAME_POOL_VERIFY_BACKOFFSET`, gated; default builds contain
+none of it).  The table carries its own invariant: within one chunk the entries
+are exactly `0, 1, 2, … k-1` (bit 7 aside), so an over-write from a neighbouring
+restamp is a **broken run** — detectable without knowing chunk boundaries from
+any other source.  `kame_pool_check_back_offset()` walks every region against
+the claim bitmap and returns an anomaly count plus the first offender.
+
+**Deliberately outside both suspect functions.**  A check inside
+`restamp_back_offset` would inhibit the very vectorisation under suspicion, and
+§5's lesson (a `noclone` moved 72 other function sizes) says the same about the
+reader.  So it is a separate `noinline, noipa` function that only reads.
+
+**Validated on the Mac with the pool active, both directions:**
+
+```
+round 0: reserved=33554432  anomalies=0
+round 1: reserved=67108864  anomalies=0
+round 2: reserved=67108864  anomalies=0
+--- positive control ---
+poked unit 2 -> anomalies=1  first(unit=2 val=85 expect=1)
+exit=139 (SIGSEGV)
+```
+
+Three rounds of 200 000 allocations with half freed: **zero false positives**.
+One byte poked (`kame_pool_poke_back_offset`, the same gate): **caught, with the
+offending unit, value and expectation**.
+
+**And the last line is the finding.**  After that single poked byte the process
+**SIGSEGVs in the free path — `rc=139`, the exact signature of the failing
+runs.**  That does not prove this byte is the cause; it establishes that
+corrupting it is a **sufficient** mechanism for the observed crash class, and
+that the class is reachable from a one-byte perturbation of a plain,
+concurrently-written table read by every free.
+
+**For Ubuntu, two things, in order:**
+
+1. **The asm check, which is cheap and may settle it outright.**  Disassemble
+   `restamp_back_offset` and its `.constprop` clones in the firing object and
+   compare each clone's store widths and offsets against its constant
+   `chunk_units`.  A clone that writes more bytes than its chunk owns is the
+   defect, visible statically, with no run needed:
+   ```
+   objdump -dC --no-show-raw-insn kp_firing.o | \
+       awk '/restamp_back_offset/,/^$/' | grep -E 'mov|movd|movq|movap|movup'
+   ```
+2. **The verifier in the failing configuration**, called at a DOUBLE-LIVE hit
+   and at exit.  A nonzero count names the region and unit; a zero across
+   failing runs refutes the over-write story and sends the derivation question
+   back to the reader side (a torn or stale single-byte read rather than a
+   ranged over-write).
+
+Both are narrow, and between them the plain-byte-table hypothesis is decidable.
