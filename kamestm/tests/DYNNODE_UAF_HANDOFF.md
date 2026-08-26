@@ -6575,3 +6575,45 @@ of over-read on a five-capture sample).
 If `Linkage` resurrections dominate and precede the `Packet` ones in `seq`
 order, the investigation should move to `Linkage`'s lifetime in the
 bundle→unbundle descent, and the `Packet`-side probes can be retired.
+
+### 13.101 Correction to §13.100: victim types are MIXED — but `finalize` is now confirmed unsmeared
+
+Collected further tagged captures.  Three with tripwires:
+
+| capture | tripwires |
+|---|---|
+| A | 3× `INC-FROM-ZERO` **`Linkage`** `scope=bundle,unbundle`; 1× `DEC-UNDERFLOW` **`PacketWrapper`** `scope=bundle` |
+| B | 1× `DEC-UNDERFLOW` **`Packet`** **`scope=finalize`** |
+| C | 4× `DEAD-ELEMENT` (the entry-check probes) `scope=bundle` |
+
+**§13.100 over-read its single capture.**  I wrote that "the victims are
+`Linkage` and `PacketWrapper`, not `Packet`" and suggested the `Packet`-side
+probes could be retired.  Capture B is a `Packet`.  **The victim population is
+mixed** — `Linkage`, `PacketWrapper` and `Packet` all appear across three
+captures — so no type is established as primary, and the §13.91–§13.98
+`Packet` work was not chasing a symptom on this evidence.  I flagged that
+caveat in §13.100 and it is now realized; this is the same over-read §13.77
+had to correct, on the same kind of small sample.
+
+**The instrument fix is confirmed working.**  Capture C's entry-check probes
+now report `scope=bundle`, where before the reorder every one of them read
+`(none)` — so §13.100's marker-ordering fix does what it claimed.
+
+**And one earlier discounted result is rehabilitated.**  Capture B's `Packet`
+double-release carries **`scope=finalize`**, i.e. `finalizeCommitment` was on
+the stack.  §13.75 and §13.79 both attributed a release there from the line
+table, and §13.82 **discounted both as inlining smear** because their leaf
+frames were unrelated `fast_vector<Message_>` helpers.  A scope tag is a
+thread-local bit set by an RAII marker; it cannot be smeared by inlining.  So
+`finalizeCommitment` is now confirmed as a genuine site of `Packet`
+double-release, by a mechanism independent of the line table — and §13.82's
+dismissal was too strong.
+
+**Standing.**  What the tags have bought is trustworthy attribution, and the
+first two things they attribute are: `Linkage` resurrections inside the
+**nested `bundle,unbundle` descent**, and a `Packet` double-release inside
+**`finalizeCommitment`**.  Whether those are one defect or two is not
+established.  The cheap next step is ordering: with `seq` on every record,
+tabulate whether `Linkage` events precede the `Packet`/`PacketWrapper` ones
+within a capture.  A consistent order would separate cause from consequence;
+an inconsistent one would say they are independent.
