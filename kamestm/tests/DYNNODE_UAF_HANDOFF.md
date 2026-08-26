@@ -7206,3 +7206,48 @@ the activating configuration.  Corroborated in the captures themselves: the
 logs carry `RC-POOLEV` records (the pool's own event ring) and `rc_before`
 values in the forensic-poison range.  **So §13.104, §13.108 and §13.110 were
 measured with the pool active** and are unaffected by §13.109's correction.
+
+### 13.111 The free-record discriminator on Ubuntu: no poison found — with one word of it uninformative by construction
+
+Ran §13.109's discriminator in the firing configuration.  Two failing runs,
+**4 and 2 DOUBLE-LIVE hits**, and in both the probe reports words but
+**`RC-DLIVE-FREEREC` never fires** — no forensic poison token was found:
+
+```
+RC-DLIVE-WPRE 0x7fffc9b6ffd0 w=0x1      RC-DLIVE-WPRE 0x7fffc4ef07b8 w=0x1
+RC-DLIVE-W0   0x7fffc9b6ffd0 w=0x1      RC-DLIVE-W0   0x7fffc4ef07b8 w=0x1
+RC-DLIVE-W1   0x7fffc9b6ffd0 w=0x7ffff40c0000   RC-DLIVE-W1 … w=0x7ffff4040060
+```
+
+**W0 is uninformative, and it is worth saying why before anyone reads it as
+evidence.**  `atomic_countable`'s constructor is
+
+```cpp
+atomic_countable() noexcept : refcnt(1) { KAME_RC_EVT(this, OP_BORN, 1); }
+```
+
+— `refcnt` is initialised **before** the body announces BORN.  The probe runs
+at BORN, so by then the incoming object has already written `1` over word 0.
+`w=0x1` there is the new occupant's own refcount, not a statement about what
+was in the block, and **any poison that had been at word 0 is destroyed before
+the probe can see it**.
+
+**W1 *is* informative.**  `atomic_countable` is a base class, so at BORN only
+its own word has been written; the derived object's members are not yet
+constructed.  W1 lies in that not-yet-written region, and in **both** hits it
+holds a plain pointer-shaped value, **not the poison token**.
+
+**So, as far as two hits can say:** the doubly-occupied block was **not freed
+through the poisoning deallocate path**.  That is the outcome §13.109's
+discriminator was built to separate — it argues against "freed under a live
+object" and for a hand-out with **no intervening free at all**, i.e. the
+allocator considering a slot available while its first occupant is live and
+was never released.
+
+**Caveats, both load-bearing.**  (1) Two hits, four probed words of which two
+are uninformative — this is a direction, not a rate.  (2) The negative rests
+entirely on W1; if any allocator path writes that word on free (a freelist
+link, a size field), the absence of poison there would prove nothing.  Worth
+confirming against `deallocate_pooled_or_free`'s actual write set before this
+is leaned on — that is an allocator-side read, and the one thing that would
+make this result solid rather than suggestive.
