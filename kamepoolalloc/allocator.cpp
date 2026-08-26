@@ -774,6 +774,17 @@ struct CrossDeallocBatch {
 
     template <unsigned ALIGN>
     void push_direct(PoolAllocatorBase *c, void *s) noexcept {
+        if(__builtin_expect(tls_batch_dead, 0)) {
+            // Same reason as `push` (see tls_batch_dead).  Guarding here
+            // too keeps the post-destructor path from reading `this`'s
+            // members (`explore_counter`) at all -- the hold arm would
+            // reach the guard in `push` anyway, but only after touching a
+            // destroyed object.  The TLS base is already live in this
+            // function, so the test is a load and a predicted branch.
+            CrossDeallocEntry tmp[2] = {{c, s}, {nullptr, nullptr}};
+            c->batch_return_to_bitmap(tmp);
+            return;
+        }
         constexpr uint8_t threshold_x16 =
             (ALIGN <=  64) ? 20 :
             (ALIGN <= 128) ? 24 :
@@ -832,6 +843,12 @@ struct CrossDeallocBatch {
     // The poke is a pure slot-reuse hint, worthless at teardown, so we
     // simply drop it there — the slots are still returned to the bitmap.
     void flush(bool at_teardown = false) noexcept {
+        // A flush after ~CrossDeallocBatch would be operating on a
+        // destroyed object.  With the guards in `push`/`push_direct`
+        // nothing accumulates post-destruction, so this is belt-and-braces
+        // for the external callers (the realtime-mode switch, the RT
+        // pending-cap drain) rather than a live path.
+        if(__builtin_expect(tls_batch_dead, 0)) return;
 #ifdef KAME_ALLOC_TIER_TRACE
         // (§tier-trace) Two ways this batch can return a slot twice, both
         // of which would clear a LIVE slot's bitmap bit:

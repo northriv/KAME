@@ -84,7 +84,24 @@ Interleaved, one binary per arm, pool rpath-pinned:
 
 | measurement | baseline | fixed |
 |---|---|---|
-| double allocations (exclusivity detector) | **11 / 14** | **0 / 14** |
+| double allocations, exclusivity detector on the STM reproducer | **11 / 14** | **0 / 14** |
+| `alloc_tsd_exclusivity_test` (this commit) | **5 / 20** | **0 / 20** |
+| crashes, original `tmin_dynnode` reproducer | 2 / 16 | 0 / 16 |
+
+Read the third row as consistent, not as proof: at a 12 % baseline it has
+almost no power on its own (p ≈ 0.48).  The first two rows are the
+evidence.  `transaction_dynamic_node_test` itself passes, and so does the
+rest of the suite bar four pre-existing failures — `starvation`,
+`priv_strip`, `highest_older_wins`, `priv_expiry` — which fail identically
+without the fix.  Those are an artifact of a scratch tree configured with
+`-DKAME_STM_COMPACT_STATE=1` by hand: compact mode seals the privilege
+bits, but the `kamestm_tests_need_prio` exclusion in `tests/CMakeLists.txt`
+only fires on genuine no-DCAS detection.
+
+`alloc_tsd_exclusivity_test` is the one to keep: it reproduces in **0.39
+seconds** against the STM reproducer's two minutes, and it fails on the
+unfixed allocator, which is what makes it a regression test rather than a
+demonstration.
 
 ## 4. Instrumentation traps
 
