@@ -151,6 +151,15 @@ template <class T> inline const char *type_name_() noexcept {
 //! element offset.
 void record(const void *obj, unsigned op, unsigned long long oldc,
     const void *site, const char *tname, const void *slot) noexcept;
+//! §13.107  Live-set bookkeeping only (NOT an event-ring record): the one
+//! choke point every death passes through, whatever freed the object.  The
+//! DOUBLE-LIVE probe's `OP_DEAD` feed is only as complete as the release hooks
+//! are, and `born`/`dead` balanced to 2 e-5 -- a gap 1000x larger than the
+//! probe's own hit rate, so "an untraced death left a stale LIVE bit" could not
+//! be ruled out as the explanation of a hit.  A destructor hook closes that by
+//! construction: after it, a DOUBLE-LIVE means the previous occupant's
+//! destructor NEVER RAN, i.e. memory was recycled without destruction.
+void dtor_note(const void *obj) noexcept;
 //! Tripwire entry.  Default (KAME_RC_TRACE_ABORT unset or "1"): dump the
 //! object's history + the thread's live destruction stack, then abort() --
 //! the gdb workflow of handoff Â§8.  With KAME_RC_TRACE_ABORT=0: record
@@ -220,6 +229,8 @@ void wp_check(const void *wrapper, const void *packet,
 void push_dtor(const void *obj, const void *site) noexcept;
 void pop_dtor() noexcept;
 }
+#define KAME_RC_DTOR(obj) ::kame_rc_trace::dtor_note( \
+    static_cast<const void *>(obj))
 #define KAME_RC_EVT(obj, op, oldc) \
     ::kame_rc_trace::record((obj), (op), (unsigned long long)(oldc), \
         __builtin_return_address(0), nullptr, nullptr)
@@ -271,6 +282,7 @@ void pop_dtor() noexcept;
             static_cast<const void *>(this)); \
     } while(0)
 #else
+#define KAME_RC_DTOR(obj) ((void)0)
 #define KAME_RC_EVT(obj, op, oldc) ((void)0)
 #define KAME_RC_EVT_T(obj, op, oldc, TY) ((void)0)
 #define KAME_RC_EVT_TV(obj, op, oldc, TY) ((void)0)
@@ -527,7 +539,10 @@ struct atomic_weakable : atomic_emplaced {};
 struct atomic_countable {
     atomic_countable() noexcept : refcnt(1) { KAME_RC_EVT(this, 1 /*OP_BORN*/, 1); }
     atomic_countable(const atomic_countable &) noexcept : refcnt(1) { KAME_RC_EVT(this, 1 /*OP_BORN*/, 1); }
-    ~atomic_countable() { assert(refcnt == 0); }
+    ~atomic_countable() {
+        assert(refcnt == 0);
+        KAME_RC_DTOR(this);
+    }
 
     atomic_countable &operator=(const atomic_countable &) = delete;
 

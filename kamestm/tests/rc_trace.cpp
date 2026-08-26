@@ -591,7 +591,7 @@ enum : uintptr_t { DL_LIVE = 1u, DL_EVERDEAD = 2u, DL_TAGS = 3u };
 DLSlot *g_dl;                          //!< lazily mmapped; sized by dl_bits_()
 std::atomic<unsigned long long> g_dl_born{0}, g_dl_dead{0}, g_dl_hit{0},
     g_dl_full{0}, g_dl_miss{0}, g_dl_enforced{0}, g_dl_hit_nbr{0},
-    g_dl_steal{0};
+    g_dl_steal{0}, g_dl_dtor{0};
 //! 0 = off, 1 = count only (default: state the base rate, flood nothing),
 //! 2 = report each hit through anomaly().
 unsigned dl_mode_() noexcept {
@@ -751,7 +751,6 @@ static const void *dl_born_(const void *obj, const void *site,
 static void dl_dead_(const void *obj) noexcept {
     DLSlot *t = dl_table_();
     if(!t || !obj) return;
-    g_dl_dead.fetch_add(1, std::memory_order_relaxed);
     uintptr_t a = dl_key_(obj);
     unsigned h = dl_hash_(a);
     for(unsigned i = 0; i < DL_PROBE; ++i) {
@@ -797,6 +796,20 @@ void dl_counts(unsigned long long *b, unsigned long long *e,
     *e = g_dl_enforced.load(std::memory_order_relaxed);
     *h = g_dl_hit.load(std::memory_order_relaxed);
 }
+//! §13.107  Every destruction, from the one choke point.  Feeds the live-set
+//! only -- no event-ring record, no ledger entry -- so the existing analyses
+//! keep the semantics they were validated with, while the live-set stops
+//! depending on the completeness of the release hooks.  With this in place a
+//! DOUBLE-LIVE hit means the previous occupant's DESTRUCTOR never ran, which
+//! no untraced release path can produce: only memory recycled without
+//! destruction (an allocator double hand-out, or a block freed under a live
+//! object) gets there.
+void dtor_note(const void *obj) noexcept {
+    if(!dl_mode_()) return;
+    g_dl_dtor.fetch_add(1, std::memory_order_relaxed);
+    dl_dead_(obj);
+}
+
 static void dl_report_() noexcept {
     unsigned long long b = g_dl_born.load(std::memory_order_relaxed);
     if(!b) return;
@@ -804,10 +817,11 @@ static void dl_report_() noexcept {
     bool f = false;
     if(!printed.compare_exchange_strong(f, true)) return;
     fprintf(stderr, "kame_rc_trace: DOUBLE-LIVE probe (%s key): born %llu dead %llu "
-        "enforced %llu HITS %llu (nonaligned %llu, steals %llu, "
+        "dtor %llu enforced %llu HITS %llu (nonaligned %llu, steals %llu, "
         "table-full %llu, dead-miss %llu, bits %u)\n",
         dl_fold_() ? "16B-folded" : "exact", b,
         g_dl_dead.load(std::memory_order_relaxed),
+        g_dl_dtor.load(std::memory_order_relaxed),
         g_dl_enforced.load(std::memory_order_relaxed),
         g_dl_hit.load(std::memory_order_relaxed),
         g_dl_hit_nbr.load(std::memory_order_relaxed),
@@ -839,8 +853,10 @@ void record(const void *obj, unsigned op, unsigned long long oldc,
                 }
             }
         }
-        else if(op == OP_DEAD || op == OP_DEAD_UNIQUE)
+        else if(op == OP_DEAD || op == OP_DEAD_UNIQUE) {
+            g_dl_dead.fetch_add(1, std::memory_order_relaxed);
             dl_dead_(obj);
+        }
     }
     TL &t = tl;
     if(op == OP_DEC || op == OP_DEAD || op == OP_DEAD_UNIQUE

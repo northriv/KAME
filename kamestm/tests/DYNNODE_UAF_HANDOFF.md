@@ -6955,3 +6955,75 @@ it cannot have perturbed the 518 M-check baseline §13.105 rests on.
 that `table-full` and `dead-miss` fall to near zero *before* reading the HITS
 column.  Only then is "hits accompany a crash N of M times" a measurement
 rather than a lower bound.
+
+### 13.107 A destructor hook makes the live-set exact — and that is what upgrades §13.104's hit from "a double hand-out" to "a slot recycled under a constructed object"
+
+**The gap §13.104 could not exclude.**  `DOUBLE-LIVE` means "BORN at an address
+whose previous occupant never announced DEAD", and three readings reach that:
+
+- **(a)** the allocator handed out an occupied block;
+- **(b)** the block was freed while its object was still live, then legitimately
+  reallocated — which is the *original* UAF hypothesis, not a new mechanism;
+- **(c)** the object legitimately died and the tracer simply missed its `DEAD`
+  — a stale `LIVE` bit, i.e. instrument error.
+
+§13.104 read its hit as (a).  On the evidence available then, (b) fits the
+observed order (`DOUBLE-LIVE` then two `DEC-UNDERFLOW` on the same address)
+exactly as well, and (c) could not be bounded: `born` and `dead` balanced only
+to ~2 e-5, a gap **1000x larger** than the probe's own hit rate.  §13.105's own
+3-in-509 M folded-key hits were the same ambiguity on the Mac side.
+
+**The fix is one line in the one place every death must pass.**
+`~atomic_countable()` runs whatever released the object, so a hook there feeds
+the live-set independently of how complete the release hooks are.  It feeds the
+live-set ONLY — no event-ring record, no ledger entry — so every prior analysis
+keeps the semantics it was validated with.
+
+**Result (arm64, 40 threads):**
+
+| | before | after |
+|---|---|---|
+| `dtor` vs `born` | (no dtor feed) | **96 588 856 vs 96 588 856 — exactly equal** |
+| enforced / born | 74 M / 96 M = **77 %** | 96 588 542 / 96 588 856 = **99.9997 %** |
+| base rate, exact key | 0 / 518 M | **0 / 290 M (3 runs)** |
+| base rate, folded key | **3 / 509 M** | **0 / 96.8 M** |
+| positive control | 75 @ 1-in-1 M | **97 @ 1-in-1 M** (96.6 M enforced) |
+
+`dtor == born` exactly, on every run, is the completeness proof: the
+bookkeeping is now exact rather than balanced-on-average.  And **§13.105's
+folded-key hits are gone**, which settles that open question — they were (c),
+untraced deaths, not genuine co-tenancy.  Both keys now have a zero baseline,
+so the fold is usable without corroboration.
+
+**What a hit means now — narrower and stronger than §13.104 claimed.**  With
+the destructor feed, (c) is closed by construction.  And (b) collapses too, on
+inspection: a premature free *through the smart-pointer path* is impossible to
+reach here, because that path frees only after the refcount hits zero, which
+runs `DEAD` **and** the destructor — so it could never present as a
+`DOUBLE-LIVE`.  A (b) that survives therefore requires a free that bypasses the
+object protocol entirely.  So:
+
+> A `DOUBLE-LIVE` hit means **a slot was recycled while its previous occupant
+> was still a constructed object** — the destructor never ran.
+
+That is an allocator-level statement, and it supports §13.104's conclusion for a
+sharper reason than §13.104 gave.  It also stays agnostic about *which*
+allocator path: a claim handing out an occupied slot, and a reclaim taking a
+slot back under a live object, both land here.
+
+**Source note, closing one named suspect.**  The two claim paths §13.x
+nominated are **sound as written**: the word-grab loop takes ONE
+`atomicLoadAcquire` into `oldv`, derives `mask = ~oldv`, and CASes
+`oldv -> ~0`, so a successful CAS proves the word transitioned exactly from
+`oldv` and the claimed bits are precisely `mask`; the N-run loop has the same
+single-load shape (`one` and `newv` both from `oldv`).  An atomic load is not a
+rematerializable pure expression, so after §13.15's conversion gcc cannot split
+these into two reads — consistent with that conversion changing nothing.
+Whatever the `-O3` clone set does, it is not this.
+
+**For Ubuntu, in order:** (1) re-run with `KAME_RC_TRACE_DLIVE_BITS=24` and
+confirm `table-full`/`dead-miss` are ~0 *before* reading HITS (§13.106);
+(2) confirm `dtor == born` in the report — if they differ, some death is
+escaping even the destructor and that is its own finding; (3) then the HITS
+column is a measurement, and `scope=` on each hit is the one attribution that
+cannot smear.
