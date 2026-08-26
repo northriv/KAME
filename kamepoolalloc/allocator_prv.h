@@ -1434,6 +1434,95 @@ public:
 #ifndef KAME_FS_WORDCACHE
   #define KAME_FS_WORDCACHE 1
 #endif
+//! §13.112  POSITIVE clone bisect: `-O2` baseline, licence ONE function.
+//!
+//! Every localisation so far has SUBTRACTED (`-fno-ipa-cp-clone`, `noclone`),
+//! and §5 records why that is weak: `noclone` on one function moved 72 OTHER
+//! functions' sizes, so a disappearance cannot be attributed to the function it
+//! was applied to.  The addition direction is available because §6's minimal
+//! pair is not an -O level at all -- **`-O2 -fipa-cp-clone` fires 19/35** while
+//! plain `-O2` is 0/8.  So: build at `-O2`, hand the clone licence to exactly
+//! one function, and a run that FIRES names that function positively.
+//!
+//! Selected at build time, one arm per build:
+//!     g++ -O2 -DKAME_CLONE_ARM=bucket_release_chunk ...
+//! The default build defines nothing and is byte-identical to today's.
+//!
+//! Two caveats that must be respected or an arm means nothing:
+//!
+//!  1. **A mismatched optimisation context BLOCKS INLINING across it** (gcc
+//!     documents `optimize` as a debugging aid for this reason).  So an arm
+//!     perturbs more than "one extra pass": it also pins a call boundary that
+//!     `-O2` would have inlined away.  A firing arm is therefore evidence that
+//!     *something about that function's codegen* is load-bearing, not proof
+//!     that the clone specifically is.
+//!  2. **`-O2` may refuse the clone anyway** -- IPA-CP's profitability
+//!     thresholds (`ipa-cp-unit-growth` and friends) differ by -O level, so the
+//!     licence does not guarantee a clone.  **Every arm must be verified to
+//!     have produced one** (`nm` shows `<name>.constprop.N`); an unverified
+//!     silent arm is vacuous, not negative.  This is §13.61's rule applied to
+//!     a compiler flag.
+//! Arm selection is an INTEGER (`-DKAME_CLONE_ARM=3`), because a function
+//! attribute is a compile-time construct and cannot be chosen by comparing
+//! strings.  Each licensable site writes `KAME_CLONE_LICENCE(n)` with the
+//! function named in a comment; only slot `n == KAME_CLONE_ARM` expands to the
+//! attribute, so every other site -- and the whole default build -- is
+//! untouched.
+#ifndef KAME_CLONE_ARM
+  #define KAME_CLONE_ARM 0
+#endif
+#if KAME_CLONE_ARM && defined(__GNUC__) && !defined(__clang__)
+  #define KAME_CLONE_ATTR_ __attribute__((optimize("-fipa-cp-clone")))
+#else
+  #define KAME_CLONE_ATTR_
+#endif
+#if KAME_CLONE_ARM == 1
+  #define KAME_CLONE_L1 KAME_CLONE_ATTR_
+#else
+  #define KAME_CLONE_L1
+#endif
+#if KAME_CLONE_ARM == 2
+  #define KAME_CLONE_L2 KAME_CLONE_ATTR_
+#else
+  #define KAME_CLONE_L2
+#endif
+#if KAME_CLONE_ARM == 3
+  #define KAME_CLONE_L3 KAME_CLONE_ATTR_
+#else
+  #define KAME_CLONE_L3
+#endif
+#if KAME_CLONE_ARM == 4
+  #define KAME_CLONE_L4 KAME_CLONE_ATTR_
+#else
+  #define KAME_CLONE_L4
+#endif
+#if KAME_CLONE_ARM == 5
+  #define KAME_CLONE_L5 KAME_CLONE_ATTR_
+#else
+  #define KAME_CLONE_L5
+#endif
+#if KAME_CLONE_ARM == 6
+  #define KAME_CLONE_L6 KAME_CLONE_ATTR_
+#else
+  #define KAME_CLONE_L6
+#endif
+#if KAME_CLONE_ARM == 7
+  #define KAME_CLONE_L7 KAME_CLONE_ATTR_
+#else
+  #define KAME_CLONE_L7
+#endif
+#define KAME_CLONE_LICENCE_(n) KAME_CLONE_L##n
+#define KAME_CLONE_LICENCE(n) KAME_CLONE_LICENCE_(n)
+//! Arm map -- keep in sync with the licensable sites below:
+//!   1 bucket_release_chunk   (3 clones at -O3, survives noclone x5)
+//!   2 find_training_zeros    (2 clones, same)
+//!   3 batch_return_to_bitmap (FS=false overload: the deferred returner; §6's
+//!                             cross-thread batch `cap = 1` is 0/16 clean)
+//!   4 batch_return_to_bitmap (generic FS overload)
+//!   5 deallocate_chunk       (returns a whole chunk)
+//!   6 claim_chunk            (publishes back_offset -- §13.x's stale-read site)
+//!   7 orphan_chain_pop       (adoption)
+
 #if KAME_FS_WORDCACHE && (KAME_FS_CHUNK_FIFO || KAME_FS_CHUNK_STASH)
   // Cell overlap: the word-cache stores its mask/base in
   // m_freelist_head[1]/[2], the very cells FIFO/STASH park slots in.

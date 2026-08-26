@@ -984,7 +984,7 @@ inline unsigned int count_zeros_forward(T x) {
 //! \arg X number of zeros to be looked for.
 //! \return one bit at the LSB of the training zeros if enough zeros are found.
 template<typename T>
-inline T find_training_zeros (int X, T x) {
+KAME_CLONE_LICENCE(2) /*§13.112 arm 2*/ inline T find_training_zeros (int X, T x) {
 //	if( !x) return 1u;
 	if(X == sizeof(T) * 8)
 		return !x ? 1u : 0u; //a trivial case.
@@ -2080,7 +2080,7 @@ PoolAllocator<ALIGN, false, DUMMY>::size_of_static(
 // the earlier change's fragmentation cutoff in allocate_pooled replaces it).
 template <unsigned int ALIGN, bool DUMMY>
 int
-PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
+KAME_CLONE_LICENCE(3) /*§13.112 arm 3*/ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
     const CrossDeallocEntry *entries) noexcept {
 	KAME_POOLEV(KAME_PEV_BATCH_RETURN, this, entries[0].slot);
 	// Walk entries[k] while .chunk == this — terminates on the next
@@ -2243,7 +2243,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 // definition).
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 int
-PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
+KAME_CLONE_LICENCE(4) /*§13.112 arm 4*/ PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
     const CrossDeallocEntry *entries) noexcept {
 	KAME_POOLEV(KAME_PEV_BATCH_RETURN, this, entries[0].slot);
 	// Walks entries[k] while .chunk == this — sentinel-terminated, no
@@ -3390,7 +3390,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 	}
 }
 inline void
-PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
+KAME_CLONE_LICENCE(5) /*§13.112 arm 5*/ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
                                     bool reclaim_pages) {
 	KAME_POOLEV(KAME_PEV_CHUNK_RELEASE, chunk_base, chunk_size);
 	// §13.35 residual seam: a region reused as a NEW chunk (possibly a
@@ -4319,7 +4319,7 @@ PoolAllocatorBase::size_of(void *p) {
 // (`allocate_chunk<ALLOC>()` calls with chunk_units = ALLOC::CHUNK_UNITS),
 // 0x80 to tag a dedicated single-slot large chunk (`allocate_dedicated_chunk`).
 char *
-PoolAllocatorBase::claim_chunk(unsigned chunk_units,
+KAME_CLONE_LICENCE(6) /*§13.112 arm 6*/ PoolAllocatorBase::claim_chunk(unsigned chunk_units,
                                std::uint8_t back_off_flag) noexcept {
 	const BitmapWord occ_mask =
 	    (chunk_units >= (unsigned)BITS_PER_BITMAP_WORD)
@@ -4420,7 +4420,7 @@ PoolAllocatorBase::restamp_back_offset(char *chunk_base,
 // madvise) when possible, else true-release via deallocate_chunk.  See
 // header doc for the no-recurse contract.
 void
-PoolAllocatorBase::bucket_release_chunk(char *chunk_base,
+KAME_CLONE_LICENCE(1) /*§13.112 arm 1*/ PoolAllocatorBase::bucket_release_chunk(char *chunk_base,
                                         std::size_t chunk_size) noexcept {
 	// lrc_block_size(LRC_CHUNK) reads the DEDICATED_SIZE header field, so
 	// stamp it before pushing — a bucket chunk doesn't otherwise carry it.
@@ -8402,7 +8402,7 @@ void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_scrub() noexcept {
 //! through the BIT_OWNED claim); clears the popped node's m_orphan_next.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 local_shared_ptr<PoolAllocator<ALIGN, FS, DUMMY> >
-PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_pop() noexcept {
+KAME_CLONE_LICENCE(7) /*§13.112 arm 7*/ PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_pop() noexcept {
 	local_shared_ptr<PoolAllocator> old(s_orphan_chain_head());
 	for(;;) {
 		if( !old) return local_shared_ptr<PoolAllocator>();   // chain empty

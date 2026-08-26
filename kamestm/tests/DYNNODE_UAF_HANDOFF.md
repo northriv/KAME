@@ -7251,3 +7251,72 @@ link, a size field), the absence of poison there would prove nothing.  Worth
 confirming against `deallocate_pooled_or_free`'s actual write set before this
 is leaned on — that is an allocator-side read, and the one thing that would
 make this result solid rather than suggestive.
+
+### 13.112 Bisect the other way: `-O2` baseline, licence the clone on ONE function
+
+Every localisation so far has **subtracted** — `-fno-ipa-cp-clone` (0/167),
+`noclone` ×5, `noipa` — and §5 records why that direction is weak: `noclone` on
+one function moved **72 other functions'** sizes, so a disappearance cannot be
+attributed to the function the attribute was on.
+
+The **additive** direction is available, and §6's own table is what makes it
+work: the minimal pair is not an `-O` level at all.
+
+| §6 | |
+|---|---|
+| plain `-O2` | **0/8** |
+| **`-O2 -fipa-cp-clone`** | **19/35** |
+
+So build at `-O2`, hand the clone licence to exactly one allocator function, and
+an arm that **fires** names that function *positively*, from a clean baseline
+instead of a perturbed one.
+
+**Mechanism** (`allocator_prv.h`, arms attached in `allocator.cpp`): arm
+selection is an integer, because a function attribute cannot be chosen by
+comparing strings — `-DKAME_CLONE_ARM=6` expands
+`__attribute__((optimize("-fipa-cp-clone")))` at slot 6 only.  The default build
+defines nothing and every slot expands empty, so it is byte-identical to today's.
+
+| arm | function | why it is on the list |
+|---|---|---|
+| 1 | `bucket_release_chunk` | 3 clones at `-O3`; survives `noclone` ×5 (§5) |
+| 2 | `find_training_zeros` | 2 clones, same |
+| 3 | `batch_return_to_bitmap` (FS=false) | the only **deferred** returner; §6's cross-thread batch `cap = 1` is **0/16** |
+| 4 | `batch_return_to_bitmap` (generic) | same, other overload |
+| 5 | `deallocate_chunk` | returns a whole chunk |
+| 6 | `claim_chunk` | publishes `back_offset` — §13.x's stale-read site |
+| 7 | `orphan_chain_pop` | adoption |
+
+Arms 3/4 and 6 map directly onto two rows of §13.109's discriminator table, so a
+hit there fixes the **function and the recycle path at once**.
+
+**Runner**: `kamepoolalloc/tests/clone_arm_bisect.sh`.  It first `nm`s an
+`-O2 -fipa-cp-clone` object and prints the **measured** global clone set —
+worth doing because NC7's full membership was never recorded here (§13.x asked
+for it twice), so the arm list can be checked against fact rather than memory.
+
+**Two caveats, and an arm that ignores them means nothing.**
+
+1. **A mismatched optimisation context blocks inlining across it** — which is
+   why gcc documents `optimize` as a debugging aid.  An arm therefore perturbs
+   more than "one extra pass": it also pins a call boundary `-O2` would have
+   inlined away.  A firing arm is evidence that *that function's codegen* is
+   load-bearing; it is not proof that the clone specifically is.  Weaker than it
+   looks — but still a positive localisation, which the subtractive direction
+   never produced.
+2. **`-O2` may refuse the clone even when licensed.**  IPA-CP's profitability
+   thresholds differ by `-O` level, so the runner **verifies** each arm produced
+   a `.constprop` symbol and reports an arm with none as **VACUOUS, not
+   negative** — §13.61's rule applied to a compiler flag.
+
+**Mac-side validation** (gcc cannot build kamepoolalloc on macOS, `cdb70d2cf`):
+all seven arms **pass a syntax check** under clang (which parses and ignores
+`optimize`), so the attribute placement is valid at every site and Ubuntu will
+not lose a cycle to a build error; and the default arm-0 build is unchanged —
+same reproducer, `HITS 0`, `dtor == born`, `enforced 96 555 426`.
+
+**Order to run them in:** 6, then 3/4, then 1/2, then 5/7.  Not by suspicion of
+the clone but by what a hit would *explain*: arm 6 is the only one whose
+mechanism is already written down as a concrete misbehaviour (a stale
+`back_offset` read clearing a bit in the wrong chunk), and §13.109's middle row
+is the observation that would confirm it.
