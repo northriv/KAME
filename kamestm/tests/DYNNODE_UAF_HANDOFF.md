@@ -7841,3 +7841,67 @@ report is there to catch precisely that.
 syntax check (clang parses and ignores `noclone`), so the attribute placement is
 valid at all three sites; and mask 0 leaves the default build unchanged.  The
 runs need gcc, so they are Ubuntu's.
+### 13.122 The gap is filled and fully accounted — and neither half of it carries the fault
+
+§13.120 left a measured gap: the firing build makes **73** specializations
+across **12** functions, the additively-licensed build **46** across **8**, and
+the four unreachable functions were `l1_/global_/recycle_pop_fit` and
+`acquire_tag_ref_`.  §13.120 also said the only direction that can reach them
+is **subtractive from a firing baseline**.  Built that, and — the point §5's
+objection turned on — **verified every suppression against
+`-fdump-ipa-cp-details` instead of assuming it**.
+
+**The gap accounts exactly:**
+
+| | specializations |
+|---|---|
+| global `-fipa-cp-clone` | **73** |
+| additive FULL (§13.119) | 46 |
+| **difference** | **27** |
+| `*_pop_fit` ×3 (measured) | **5** |
+| `acquire_tag_ref_` (measured) | **22** |
+| 5 + 22 | **27** ✓ |
+
+So the whole difference between "licensed per function" and "the flag" is those
+two families, and `acquire_tag_ref_` alone is **22 of the 73 specializations —
+30% of everything the pass does in this unit**, in the tagged-pointer reference
+acquisition that this section has spent forty sections watching corrupt.
+
+**Both suppressions are surgical, and measured to be:**
+
+| build | nodes | target specializations |
+|---|---|---|
+| firing baseline | 73 | pop_fit 5, `acquire_tag_ref_` 22 |
+| `KAME_NOCLONE_MASK=7` | 68 | **pop_fit 0** |
+| `-DKAME_ASP_NOCLONE` | 51 | **`acquire_tag_ref_` 0** |
+
+73−5 = 68 and 73−22 = 51: each removes exactly its target and nothing else.
+That is the check §5 said could not be made, and it can.
+
+**Causal results — neither fires the discriminator:**
+
+| experiment | firing arm | suppressed arm | p |
+|---|---|---|---|
+| `*_pop_fit` ×3 (pooled, 2 batches) | 12/22 (55%) | 12/21 (57%) | **1.000** |
+| `acquire_tag_ref_` (22 nodes, 16 rounds) | 11/16 (69%) | 7/16 (44%) | **0.285** |
+
+**So the gap is closed and empty.**  `global_pop_fit` — §13.53's clone that
+correlated perfectly across all six arms — does not carry it, now tested in the
+direction §13.112 was built to provide and §13.120 showed was the only one that
+could reach it.  Neither does `acquire_tag_ref_`, despite being 30% of the
+pass's work and sitting in the exact machinery that fails.
+
+**What that establishes, and it is worth stating plainly.**  The difference
+between the firing and non-firing builds is now **fully enumerated** — 27
+specializations, in two families — and **removing either changes nothing**.
+Combined with §13.119 (adding them back, by the only means available, also
+changes nothing), the specialization *set* is exhausted as an explanation in
+both directions.  Whatever `-fipa-cp-clone` does to make this fault appear, it
+is not the set of functions it specializes.
+
+**The remaining candidates are the pass's side effects**: it re-runs IPA-CP
+propagation over the unit, which changes value ranges, alias/escape
+conclusions and inline decisions for functions that are **never cloned at
+all**.  §13.119's suggested next step is now the only one left standing — diff
+the two objects restricted to functions that are *not* clones, which is where
+an effect that survives both directions of clone-set manipulation has to live.
