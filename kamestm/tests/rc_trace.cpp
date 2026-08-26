@@ -823,6 +823,13 @@ void dtor_note(const void *obj) noexcept {
     dl_dead_(obj);
 }
 
+//! (§13.130) Weakly bound: the adopt census lives in the allocator build and
+//! is absent unless KAME_POOL_ADOPT_CENSUS was defined there.  -1 = no census,
+//! so the report stays silent rather than asserting something it cannot know.
+extern "C" int kame_pool_was_adopted(const void *) noexcept __attribute__((weak));
+static int kame_pool_was_adopted_weak(const void *p) noexcept {
+    return kame_pool_was_adopted ? kame_pool_was_adopted(p) : -1;
+}
 static void dl_report_() noexcept {
     unsigned long long b = g_dl_born.load(std::memory_order_relaxed);
     if(!b) return;
@@ -1634,6 +1641,10 @@ static void raw_dlive_poison_(const void *obj) noexcept {
         // claim.  Name it for what it is.
         bool plain = (wv == KAME_POISON_PLAIN);
         bool token = !plain && (wv >> 48) == KAME_POISON_TAG;
+        { int ad = kame_pool_was_adopted_weak(obj);       // §13.130
+          if(ad >= 0 && w < 0)
+              raw_line_("RC-DLIVE-ADOPTED %p chunk-was-adopted=%s\n",
+                        obj, ad ? "YES" : "no"); }
         raw_line_("RC-DLIVE-W%s %p w=0x%llx%s\n",
             w < 0 ? "PRE" : (w == 0 ? "0" : "1"), obj, wv,
             token ? "  <-- POISON TAG"

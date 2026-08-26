@@ -34,6 +34,11 @@
 #include <atomic>
 #include <limits>
 #include <type_traits>
+#ifdef KAME_POOL_ADOPT_CENSUS
+extern "C" void kame_pool_adopt_note(const void *chunk_base) noexcept;   /* §13.130 */
+extern "C" int  kame_pool_was_adopted(const void *addr) noexcept;
+extern "C" unsigned long long kame_pool_adopt_count() noexcept;
+#endif
 #ifdef KAME_POOL_BACKSTOP_CENSUS
 extern "C" void kame_pool_backstop_note(unsigned which) noexcept;   /* §13.128 */
 #define KAME_BACKSTOP_NOTE_(w) kame_pool_backstop_note(w)

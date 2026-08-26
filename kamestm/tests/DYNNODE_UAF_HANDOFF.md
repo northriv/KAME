@@ -8432,3 +8432,52 @@ concurrently-written table read by every free.
    ranged over-write).
 
 Both are narrow, and between them the plain-byte-table hypothesis is decidable.
+### 13.131 Adopt does not hand out the doubly-live slots — and that leaves §13.126's confound looking like the answer
+
+§13.129 names the invariant (`occ ⊆ bits`) and says its breach is adopt handing
+out storage still in use.  §13.128 exonerated the release half, so adopt was
+the last candidate inside the chain.  Tested it directly by **linking the two
+events**: the allocator records every adopted chunk base
+(`KAME_POOL_ADOPT_CENSUS`, gated; production builds contain none of it), and
+the tracer asks, at each DOUBLE-LIVE hit, whether that slot's chunk had been
+adopted.
+
+**Control first, because a "no" is worthless if adopt never runs:** a short
+clean run reports **`orphan-chain ADOPTS this run = 101`**.  Adopt happens.
+
+**Result, two failing runs:**
+
+| run | DOUBLE-LIVE hits | chunk-was-adopted=YES | =no |
+|---|---|---|---|
+| 1 | 9 | **0** | 2 |
+| 2 | 8 | **0** | 2 |
+
+**No DOUBLE-LIVE hit is in an adopted chunk.**  (Only the `WPRE` probe line
+carries the query, hence 2 answers per run rather than 9 and 8; the direct-
+mapped adopt table holds 8192 entries against ~101 adopts, so eviction cannot
+explain the zeros.)
+
+**Which sets up a tension I am not going to resolve by choosing the convenient
+half.**  §13.126's ablation removed the chain and the fault went **15/20 → 0/20
+(p = 8 × 10⁻⁷)**.  Yet:
+
+* the release half never fires its backstops, even on failing runs (§13.128);
+* the adopt half never supplies a doubly-live slot (here);
+* and adopt is **rare** — ~101 per run — which makes my §13.126 confound
+  ("removing the chain removes reuse volume") a *weak* explanation too: 101
+  chunks is not enough reuse for its removal to suppress a 75% failure rate by
+  starving opportunities.
+
+So the chain is causally necessary (ablation) while neither of its two active
+paths shows the fault at the point the model predicts.  One of three things is
+true: the census misses the relevant adopts (it records the base at the
+`BIT_OWNED` claim — an adopt that fails partway would not be recorded), the
+chain's effect is through state it *re-arms* rather than storage it hands out
+(`m_owner_id`, the DLL splice, `m_owner_dll_force_walk_ptr`), or the ablation
+suppresses through a route neither §13.128 nor this section measures.
+
+**Next**, and it is cheap: count adopts on *failing* runs too (the report is
+`atexit`-only for the clean case and signal-backed for crashes — both are
+wired), and record adopts that are **attempted but not claimed**.  If failing
+runs show a different adopt rate, or a population of partial adopts the census
+never sees, that is where the discrepancy lives.

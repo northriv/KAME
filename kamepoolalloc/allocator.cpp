@@ -3006,6 +3006,14 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 			// CAS lost to a concurrent MASK_CNT dec — retry with fresh `of`.
 		}
 		if(claimed) {
+#ifdef KAME_POOL_ADOPT_CENSUS
+			// (§13.130) Record that THIS chunk was adopted, so a later
+			// DOUBLE-LIVE hit can be asked whether its slot came from an
+			// adopted chunk.  §13.129's invariant (occ SUBSETEQ bits) is
+			// breached exactly when adopt hands out storage still in use;
+			// linking the two events is the cheapest way to see it.
+			kame_pool_adopt_note(reinterpret_cast<const char *>(oc) - ALLOC_CHUNK_HEADER);
+#endif
 			// Re-arm owner metadata to THIS thread, mirroring
 			// create_allocator's fresh-chunk setup (PoolAllocator ctor):
 			//   m_owner_id                = kame_owner_id()
@@ -8628,3 +8636,43 @@ namespace { struct BackstopReport {
     }
 } g_backstop_report; }
 #endif // KAME_POOL_BACKSTOP_CENSUS
+
+#ifdef KAME_POOL_ADOPT_CENSUS
+// (§13.130) Adopted-chunk census.  Direct-mapped by chunk base; a collision
+// overwrites (the query only ever asks "was THIS chunk adopted", and stores
+// the base so a mismatch answers no rather than yes).
+#include <cstdio>
+#include <csignal>
+#include <unistd.h>
+namespace {
+enum { ADOPT_SLOTS = 8192 };
+std::atomic<const void *> g_adopt[ADOPT_SLOTS];
+std::atomic<unsigned long long> g_adopt_n{0};
+inline unsigned adopt_slot_(const void *b) noexcept {
+    return (unsigned)((((uintptr_t)b >> 18) * 0x9E3779B97F4A7C15ull) >> 51) % ADOPT_SLOTS;
+}
+}
+extern "C" void kame_pool_adopt_note(const void *chunk_base) noexcept {
+    g_adopt[adopt_slot_(chunk_base)].store(chunk_base, std::memory_order_relaxed);
+    g_adopt_n.fetch_add(1, std::memory_order_relaxed);
+}
+extern "C" int kame_pool_was_adopted(const void *addr) noexcept {
+    const void *b = (const void *)((uintptr_t)addr & ~(uintptr_t)0x3ffff);
+    return g_adopt[adopt_slot_(b)].load(std::memory_order_relaxed) == b;
+}
+namespace { struct AdoptReport { ~AdoptReport() {
+    fprintf(stderr, "kame_pool: orphan-chain ADOPTS this run = %llu\n",
+            (unsigned long long)g_adopt_n.load(std::memory_order_relaxed));
+} } g_adopt_report;
+void adopt_sig_(int sig) {
+    char b[96]; int n = snprintf(b, sizeof b, "\nkame_pool: [sig %d] ADOPTS = %llu\n",
+        sig, (unsigned long long)g_adopt_n.load(std::memory_order_relaxed));
+    if(n > 0) { ssize_t r = write(2, b, (size_t)n); (void)r; }
+    signal(sig, SIG_DFL); raise(sig);
+}
+struct AdoptSig { AdoptSig() { signal(SIGSEGV, adopt_sig_); signal(SIGABRT, adopt_sig_); } } g_adopt_sig;
+}
+extern "C" unsigned long long kame_pool_adopt_count() noexcept {
+    return g_adopt_n.load(std::memory_order_relaxed);
+}
+#endif // KAME_POOL_ADOPT_CENSUS
