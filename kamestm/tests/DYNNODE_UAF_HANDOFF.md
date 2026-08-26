@@ -8765,3 +8765,50 @@ live") does not follow — and whose field already produced one SEGV
 exactly this reason.  `-DKAME_NO_XTHREAD_FORCEWALK_POKE` removes that one write
 and nothing else, so unlike §13.126's ablation a positive result is unconfounded,
 and the write should be removed whether or not it is this bug.
+### 13.136 The `back_offset` table is intact on failing runs — the wide store is real but is not corrupting it
+
+§13.134's harness works here, and both of §13.132's harness failures were as
+diagnosed: the SIGSEGV arrives **after** detection (a corrupted entry kills the
+next free), and block-buffered stdout hid the report; a fixed poke index lands
+on an unclaimed unit, which the verifier skips by design.
+
+**Control, on Ubuntu, pool active** (`reserved=33554432` → `67108864`):
+
+```
+round 0/1/2                      anomalies=0
+--- positive control ---
+poked unit 2  -> anomalies=1  first(unit=2 val=85 expect=1)  CAUGHT
+```
+
+So the verifier is proven to fire *here*, not merely on arm64.
+
+**Then the real question — is the table corrupt on runs that actually fail?**
+Wired `kame_pool_check_back_offset()` into the reproducer **per round** (not at
+exit: a failing run dies first), with `setvbuf(_IONBF)` per §13.134's note.
+
+| runs | failures | rounds checked | `BO-CORRUPT` |
+|---|---|---|---|
+| 12 | **8** (`rc=139` ×7, `rc=255` ×1) | every round of every run | **0** |
+
+**Zero corrupted entries across eight failing runs**, with the checker proven
+live in the same build.
+
+**So §13.132's wide store, though real, is not the fault.**  The 16-bit
+`mov %dx,0x10(%rax,%rdi,1)` exists only in the firing build — that stands — but
+it never writes an entry the whole-table invariant rejects.  The reading it
+suggested (a clone stamping two units for a one-unit chunk) is therefore
+**refuted**: the specialization is reached only where two units are genuinely
+owned, exactly as a correct constant-propagation should.
+
+**And that closes §13.129's remaining candidate.**  Its analysis left "a bit
+cleared for a slot whose own free never happened, i.e. a free that mis-derived
+`chunk_base`" as the one way to breach `occ ⊆ bits`; `chunk_base` is derived
+from this table, and the table is clean under the fault.  Together with
+§13.128 (release half never fires its backstops) and §13.131 (no DOUBLE-LIVE
+hit is in an adopted chunk), all three named paths inside the orphan chain are
+now measured clean on failing runs — while removing the chain still suppresses
+the fault 15/20 → 0/20.
+
+The discrepancy in §13.131 is therefore not a loose end but **the** finding:
+the chain is necessary, and none of scrub/dispose, adopt, or back_offset
+derivation is where it goes wrong.
