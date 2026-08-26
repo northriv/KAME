@@ -7459,3 +7459,36 @@ STM path the trampled object came from.
 independent Ubuntu results — chunk clustering, and never-freed storage — point
 at a chunk being handed back out rather than a slot, and arms 5 and 7 are the
 two chunk-level returners.
+
+### 13.115 The previous occupants are ordinary live STM objects
+
+§13.114's `RC-DLIVE-PREV` run in the firing configuration.  Two failing runs,
+4 and 3 hits, one `PREV` record each (the previous occupant's ctor site is only
+retained when its birth is still in the ring).
+
+| capture | previous occupant's ctor site resolves to |
+|---|---|
+| 1 | `reset_unsafe<Packet>` ← `local_shared_ptr<Packet>(Packet*)` ← **`make_local_shared<Packet>(Packet&)`** — a `Packet` clone |
+| 2 | `lsp<PacketWrapper>::swap` ← `operator=(&&)` ← **`Node::release`** (`transaction_impl.h:1575`) |
+
+**Nothing exotic is being recycled.**  The still-live occupants whose storage
+the pool gave away are an ordinary `Packet` clone and an ordinary
+`PacketWrapper` produced in the node-release path — the two commonest objects
+in this workload.  Combined with §13.113 (`W0 = 1`: the occupant held exactly
+one live reference) and §13.110 (hits cluster inside one chunk), the Ubuntu
+picture is: **a chunk of singly-referenced, live, ordinary STM objects is
+handed back out underneath its owners.**
+
+**Caveat on the second site.**  A "ctor site" resolving to `swap` ←
+`operator=(&&)` is the line-table smear this section has discounted four times
+(§13.75, §13.79, §13.82, §13.104); the *function* (`Node::release`) is the
+trustworthy part, the exact frame is not.  The first site is a clean chain and
+needs no such qualification.
+
+**What is still missing is the recycle path itself.**  §13.110 showed the
+global `RC-POOLEV` tail cannot supply it — in 4 of 5 captures no pool event was
+within 1 MiB of the hit, the relevant chunk event having scrolled off.  The
+fix is per-chunk rather than global: record, for each chunk, the last pool
+event that touched it, and print that at the hit.  That is the one question
+between the current evidence and a named allocator defect, and it is what I am
+building next.
