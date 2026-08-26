@@ -7153,3 +7153,56 @@ different and misleading claim.  It is now named as filler.
 `RC-DLIVE-WPRE` / `RC-DLIVE-FREEREC` beside its `scope=`.  One real hit should
 land in exactly one row of the table above, and that row names the allocator
 path to read.
+### 13.110 The hits cluster by chunk — pointing at chunk-level recycling, not per-slot
+
+Free analysis on §13.108's five captures, no new instrumentation.
+
+**Do multiple hits in one run share a chunk?**  Using the 256 KiB chunk mask
+(`addr & ~0x3ffff`; 262 144 is the block size TSan reported in §13.47):
+
+| run | hit addresses | same chunk | delta |
+|---|---|---|---|
+| 1 | `0x7fffca05cf00`, `0x7fffde46f200` | no | 324 MiB |
+| 3 | `0x7fffd8065880`, `0x7fffd806f540` | **yes** | 40 128 B |
+| 5 | `0x7ffff4c5b080`, `0x7ffff4c5b160` | **yes** | **224 B** |
+| 2, 4 | single hit | — | — |
+
+**Two of the three multi-hit runs have both hits in the same chunk**, and in
+run 5 the two doubly-occupied addresses are **224 bytes apart** — adjacent
+slots.
+
+**Why that is informative.**  A per-slot recycling bug would place its hits
+independently; the chance of two independent hits landing in the same 256 KiB
+chunk out of the ~10^4 chunks a run touches is negligible, and run 5's 224-byte
+separation is stronger still.  Co-located hits are what **chunk-level** reuse
+looks like: a whole chunk handed back out while objects inside it are still
+constructed, so several slots in it double-occupy at once.  That matches the
+event kinds the pool already distinguishes — `KAME_PEV_CHUNK_RECYCLE` /
+`CHUNK_RELEASE` / `DLL_DRAIN` operate on chunks, `BATCH_RETURN` on slots.
+
+**The existing pool-event tail cannot close this.**  The anomaly dump carries
+only the last 20–68 `RC-POOLEV` records, and in 4 of 5 captures **none of them
+is within 1 MiB of the hit address** — the relevant chunk event has long
+scrolled off.  So the correlation has to be made at the hit, not after it.
+
+**Concrete next probe** (allocator-side, and small): at a DOUBLE-LIVE hit,
+report the **chunk base** of the address and the most recent pool event
+recorded *for that chunk* — a per-chunk last-event slot, not a global ring, so
+it cannot scroll away.  If the answer is consistently `CHUNK_RECYCLE` (or
+`DLL_DRAIN`, the owner-exit path §13.79's timing already implicates), that
+names the recycle path §13.108 left open, and the fix has a specific site.
+
+**Caveat:** three multi-hit runs, two clustered.  The 224-byte pair is hard to
+get by chance, but this is a pattern in five captures, not a rate.
+
+**Pool-active verification for the Ubuntu numbers (§13.109's standing rule).**
+Checked rather than assumed, and the first attempt was wrong: calling
+`kame_pool_reserved_bytes()` in a program that has not allocated returns **0**,
+which looks exactly like the inactive-pool trap.  After 200 000 `new`s against
+the same `libkp_forensic.so` these binaries link, it reads **33 554 432** — the
+same 32 MiB the Mac reports for a pool-active run.  The Ubuntu builds link the
+allocator as a **shared library** built with `-DKAMEPOOLALLOC_DYLIB`, which is
+the activating configuration.  Corroborated in the captures themselves: the
+logs carry `RC-POOLEV` records (the pool's own event ring) and `rc_before`
+values in the forensic-poison range.  **So §13.104, §13.108 and §13.110 were
+measured with the pool active** and are unaffected by §13.109's correction.
