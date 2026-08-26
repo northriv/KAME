@@ -6131,3 +6131,64 @@ this ledger at once.
 far, from a probe with zero base rate and proven liveness).  What remains is
 one question, now a narrow one: **which call path performs a `~PacketWrapper`
 whose `m_packet` release lands on an already-zero count.**
+
+### 13.91 Deleter-context recording: every post-free decrement happens OUTSIDE the deleter, and one resolves cleanly to `unbundle`'s function exit
+
+§13.90 deferred attribution because the `site=` resolution was smeared and the
+chain alternative failed — `KAME_RC_TRACE_CHAIN=1` ran **14 runs with zero
+entry hits** (chain capture perturbs timing enough to suppress the window), so
+stack walking is not available here.  Recorded the fact directly instead.
+
+**Instrument.**  An RAII marker inside `atomic_shared_ptr_base<T>::deleter`
+bumps a thread-local depth (`KAME_RC_TRACE` only), and the §13.90 ledger stores
+that depth with every decrement.  No unwinding, no smear: each DEC now says
+whether it was reached *through the refcount deleter*.
+
+**Capture** (`20 40 700`, forensic `.so`):
+
+```
+RC-DECLEDGER obj=0x7ffff4a90980 total_decs=31 showing=8
+  DEC[23] rc_before=1       tid=937109 in_deleter=0
+  DEC[25] rc_before=1       tid=937109 in_deleter=1
+  DEC[27] rc_before=1       tid=937109 in_deleter=1
+  DEC[28] rc_before=POISON  tid=937109 in_deleter=0   <-- on freed storage
+  DEC[29] rc_before=POISON  tid=937124 in_deleter=0   <-- on freed storage
+  DEC[30] rc_before=POISON  tid=937124 in_deleter=0   <-- on freed storage
+```
+
+**Reading the `in_deleter` column correctly:** a `1 -> 0` decrement with
+`in_deleter=0` is *normal* — the decrement that reaches zero is recorded before
+the deleter is entered.  `in_deleter=1` marks a nested release while destroying
+an owner, also normal.  The signal is the three decrements on **poisoned**
+storage, and **all three are `in_deleter=0`** — nothing is destroying these
+through the refcount path; they are plain `local_shared_ptr` destructions whose
+target is already gone.
+
+**One of them resolves cleanly.**  `0x1a73a` →
+`~local_shared_ptr<Packet>` ← **`Node<LongNode>::unbundle`,
+`transaction_impl.h:3691`** — and 3691 is `unbundle`'s **closing brace**, i.e.
+its local `local_shared_ptr<Packet>` objects being destroyed at function exit.
+Two such decrements, one thread.  (The other, `0x16c41`, is the familiar
+`finalizeCommitment` attribution with unrelated `fast_vector<Message_>` leaf
+frames — smeared, and I am not relying on it.)
+
+**What that makes of the two signatures.**  A local in `unbundle` that copied a
+slot whose `Packet` was already at zero would show **exactly** the pair this
+investigation has been collecting: `INC-FROM-ZERO` at the copy (§13.59 caught
+one at precisely this function), then `DEC-UNDERFLOW` at function exit when the
+local dies (this capture).  They are plausibly the **acquire and release of one
+local variable**, not two independent defects — which would explain why fixing
+either end (§13.68, §13.71) moved nothing: both are victims of a slot that is
+already dead when `unbundle` reads it.
+
+**So the root question is unchanged but now sharply placed:** what drives a
+`Packet` to zero *while it is still referenced from the slot `unbundle` is
+about to copy*.  Note this is consistent with §13.88's wide window and with
+every refuted mechanism so far, all of which asked "who mishandles the
+reference" rather than "who releases the referent early".
+
+**Do I need the Mac for this?**  Not to proceed — the next step is another
+Linux-side measurement.  Where it would genuinely help: an audit of which
+locals in `unbundle` hold `Packet` references across the CAS loop and whether
+any can outlive their referent, and a model of the acquire/release pairing.
+Both are source/formal work, which is where §13.85 put the division.

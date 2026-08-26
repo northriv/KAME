@@ -418,6 +418,7 @@ struct DecSlot {
     std::atomic<const void *> obj{nullptr};
     std::atomic<unsigned> n{0};
     const void *site[DEC_KEEP]{};
+    int indel[DEC_KEEP]{};   //!< §13.91: was it inside a deleter?
     unsigned long long oldc[DEC_KEEP]{};
     unsigned tid[DEC_KEEP]{};
 };
@@ -425,6 +426,13 @@ DecSlot g_dec[DEC_SLOTS];
 inline unsigned dec_slot_(const void *o) noexcept {
     return (unsigned)((((uintptr_t)o >> 4) * 0x9E3779B97F4A7C15ull) >> 50) % DEC_SLOTS;
 }
+}
+//! (§13.91) deleter-context depth, per thread.
+static thread_local int tl_del_depth = 0;
+int  deleter_depth() noexcept { return tl_del_depth; }
+void deleter_enter() noexcept { ++tl_del_depth; }
+void deleter_exit()  noexcept { --tl_del_depth; }
+namespace {
 void dec_note_(const void *obj, const void *site, unsigned long long oldc,
                unsigned tid) noexcept {
     DecSlot &d = g_dec[dec_slot_(obj)];
@@ -434,6 +442,7 @@ void dec_note_(const void *obj, const void *site, unsigned long long oldc,
     }
     unsigned i = d.n.fetch_add(1, std::memory_order_relaxed);
     d.site[i % DEC_KEEP] = site;
+    d.indel[i % DEC_KEEP] = tl_del_depth;
     d.oldc[i % DEC_KEEP] = oldc;
     d.tid[i % DEC_KEEP]  = tid;
 }
@@ -454,8 +463,8 @@ void dec_dump(const void *obj) noexcept {
     unsigned start = n < DEC_KEEP ? 0 : n - DEC_KEEP;
     for(unsigned k = 0; k < shown; ++k) {
         unsigned i = (start + k) % DEC_KEEP;
-        raw_line_("  DEC[%u] site=%p rc_before=%llu tid=%u\n",
-            start + k, d.site[i], d.oldc[i], d.tid[i]);
+        raw_line_("  DEC[%u] site=%p rc_before=%llu tid=%u in_deleter=%d\n",
+            start + k, d.site[i], d.oldc[i], d.tid[i], d.indel[i]);
     }
 }
 

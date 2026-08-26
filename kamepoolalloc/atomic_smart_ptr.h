@@ -179,6 +179,9 @@ void wp_note(const void *wrapper, const void *packet) noexcept;
 void wp_note_id(const void *wrapper, long long id) noexcept;          //!< §13.89
 void wp_check_id(const void *wrapper, long long id_now, const void *site) noexcept;  //!< §13.89
 void dec_dump(const void *obj) noexcept;                              //!< §13.90
+int  deleter_depth() noexcept;                                        //!< §13.91
+void deleter_enter() noexcept;                                        //!< §13.91
+void deleter_exit() noexcept;                                         //!< §13.91
 void wp_check(const void *wrapper, const void *packet,
               const void *site, const char *where) noexcept;
 void push_dtor(const void *obj, const void *site) noexcept;
@@ -800,6 +803,19 @@ protected:
     using Refcnt = typename refcnt_of_<Traits>::type;
 
     static int deleter(Ref *p) noexcept {
+#ifdef KAME_RC_TRACE
+        //! (§13.91) Mark that any destructor running below this point was
+        //! reached through the refcount deleter.  §13.90 caught two
+        //! decrements with rc_before == 0 whose site resolved into
+        //! ~PacketWrapper but WITHOUT the deleter frame the legitimate
+        //! release carries -- inlining makes that frame difference
+        //! unreliable, so record the fact directly instead of reading it
+        //! off a smeared stack.
+        struct DelMark {
+            DelMark() noexcept { kame_rc_trace::deleter_enter(); }
+            ~DelMark() noexcept { kame_rc_trace::deleter_exit(); }
+        } _dm;
+#endif
         if constexpr (Traits::is_intrusive) {
             if constexpr (has_intrusive_dispose<T>::value) {
                 //!< (§36b) custom region disposer — object still LIVE so it
