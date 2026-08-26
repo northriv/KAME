@@ -5845,3 +5845,75 @@ Suggested split from here:
 - **Both** — keep the discipline that has actually worked: prove a
   detector fires before believing its zero; measure a predicate's base
   rate before believing its hit; and state which of the two you did.
+
+### 13.86 "Why doesn't heavy preemption fire it?" — it does; and the window
+### survives full serialization, so reordering is not what closes it
+
+The question: if this is an algorithmic hole, why does it not fire under
+plenty of OS preemption — is the window one that processor reordering
+always destroys?  The record answers both halves, and the answer inverts
+the usual expectation.
+
+**It DOES fire under preemption — that is what makes it reproduce at all.**
+§13.57: `rr record -h` (chaos scheduling) was **17/17 clean**; adding
+**`-c 10000`** — a forced preemption every 10 000 instructions — made it
+reproduce on essentially every run.  Chaos mode randomises *which* thread
+runs; `-c` multiplies *how often* the switch happens.  The fault responds
+to preemption **frequency**, not to scheduling randomness.  Ordinary OS
+preemption on a 4-core box is orders of magnitude rarer than one switch
+per 10 k instructions, which is exactly why the native rate is 10–37 % per
+run instead of ~100 %.
+
+**And the window survives complete serialization, so it is not a
+reordering window.**  Under `rr` every thread is serialized onto one core
+and replayed deterministically: no store-buffer interleaving, no
+cross-core visibility delay, no speculative reordering to exploit.  It
+reproduces there anyway.  Therefore:
+
+- it is an **interleaving hole** — a logical race between two threads'
+  instruction streams — **not** a memory-model artifact;
+- "processor reordering destroys the window" is **refuted**: reordering is
+  not needed to hit it, so it cannot be what suppresses it elsewhere;
+- a missing-barrier-style fix would not address it, which is consistent
+  with §13.46/§13.48's ordering fixes not moving the rate.
+
+**Then why is arm64 silent, and why do ASan/TSan/`-O2`/clang suppress?**
+Because preemption is *necessary but not sufficient*: the window must
+EXIST in the compiled code first.
+
+- arm64/clang and gcc `-O2` are not preempted less — they lack the code
+  shape (§13.14's total separation, §13.53's clone census, §13.55's
+  dose-response graded with clone count, r = 1.000).  No scheduling
+  pressure opens a window that is not there.
+- ASan/TSan keep the clone set (§13.53: TSan 8 bodies / 123 refs vs
+  `-O3`'s 8 / 121) yet suppress, so they act by **timing**: every shared
+  access gains an instrumentation prologue, moving the two racing streams
+  apart relative to the window.
+
+**What this says about the defect's shape.**  An interleaving hole that
+exists in only one code shape is the signature of a **check-then-act whose
+two uses of a shared value can see different values in one shape and the
+same value in another** — a source-level read the optimizer may split or
+cache differently per clone.  That is the class §13.15's falsifier
+targeted (and refuted) for `m_flags`; it has **never been tested on the
+STM side**, where it would look like a plain field read once in the source
+and used twice, with the compiled clone re-reading it in between.
+
+**Cheap deterministic measurement for the Linux side — sizes the window
+instead of guessing at it.**  Sweep `rr`'s `-c`: 200 000 / 100 000 /
+50 000 / 10 000 / 2 000, recording the reproduction rate at each.  Because
+`rr` replays deterministically the sweep needs no statistics, and the
+frequency at which the rate collapses gives the window's **instruction
+width** directly:
+
+- still reproducing at `-c 200000` ⇒ a **wide** window (thousands of
+  instructions) ⇒ a protocol-level interleaving between two named phases,
+  which is findable by reading the phase boundaries;
+- needs `-c ≤ 10000` ⇒ a **narrow** window (hundreds) ⇒ the split-read
+  class above, which is findable by diffing the `-O3` clone's asm for a
+  shared load issued twice where the source reads once;
+- finer granularity *reducing* the rate ⇒ the interaction is with switch
+  cost, not window position, and the whole framing needs revisiting.
+
+That single number constrains the remaining search more than another
+detector would.
