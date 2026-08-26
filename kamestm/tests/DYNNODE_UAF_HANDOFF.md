@@ -5969,3 +5969,47 @@ check.  If the identity differs, every "live wrapper names a dead packet"
 observation in §13.79–§13.82 is really *address reuse*, and the investigation
 has been reading a tenant boundary as a liveness contradiction — which would
 also explain why every mechanism proposed against (A) has been refuted.
+
+### 13.88 The `-c` sweep: a graded preemption dose-response, collapse centred near 150 000 instructions
+
+§13.86's pre-registered measurement, run here.  One `.so`
+(`-O2 -fipa-cp-clone`), one binary (`tmin_rr`, the guardsize-0 variant),
+`rr record -h -c <N> ./tmin_rr 10 40 500`, arms **interleaved round-robin**
+so drift cannot bias one arm.  Six rounds.
+
+| `-c` (instructions between forced preemptions) | reproductions |
+|---|---|
+| 400 000 | 1/6 (17%) |
+| 200 000 | 2/6 (33%) |
+| 150 000 | 4/6 (67%) |
+| 100 000 | 5/6 (83%) |
+| 50 000 | 5/6 (83%) |
+
+**Monotone in preemption frequency, r = +0.93.**  Not a step: the rate climbs
+smoothly from 17% to ~83% and then saturates by 100 000.  The half-height
+point sits near **150 000 instructions**.
+
+**A correction to my own first attempt.**  My initial sweep counted `rc != 0`
+as a reproduction, which silently counted **timeouts** as hits — and the
+`-c 2000` arm was so slow that runs were exceeding the 900 s limit (one was
+still running at 12.5 minutes).  That arm's apparent "1/1" was very likely a
+timeout, not a fault.  The rerun records the exit code per run and **excludes
+`rc=124` from both numerator and denominator** (zero timeouts occurred in the
+final arms).  `-c 2000` is dropped as impractical; it is not needed, because
+the collapse is fully contained between 400 000 and 100 000.
+
+**What the shape says.**  A saturating curve rather than a threshold means the
+window is not a single fixed-width hole that either does or does not get hit:
+more preemption points keep buying more chances up to ~100 000, after which
+extra preemptions add nothing.  Read as an order-of-magnitude estimate, the
+hole is wide enough that roughly one preemption per **10^5** instructions is
+already near-certain to land in it, while one per 4×10^5 lands only ~1 time in
+6.  That is a large window in instruction terms — consistent with §13.55's
+graded clone dose-response (many small windows summing) and inconsistent with
+a single tight check-then-act of a few instructions, which would show a much
+sharper knee.
+
+It also confirms §13.86's central point independently: this reproduces under
+rr's **full serialization**, at every `-c` tried, so the window is an
+interleaving hole between two instruction streams and not a memory-model
+artifact — and its width is now measured rather than assumed.
