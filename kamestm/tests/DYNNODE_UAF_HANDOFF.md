@@ -8017,3 +8017,64 @@ is I am treating it as underpowered rather than negative; a 26-round rerun is
 in progress.  Every other candidate in this section was refuted at p ≈ 1.0 or
 with the arms tied — this one is the only suppression so far that moved the
 rate in the right direction at all.
+
+### 13.125 The 22 `acquire_tag_ref_` specializations are semantically INERT — `weakly` is a dead parameter for the pool's instantiation
+
+§13.124 names the strongest remaining candidate and asks for more rounds.  Read
+the source while those run, because what the specialization *is* changes what a
+confirmed effect would mean.
+
+**The function is sound under the fold.**  `acquire_tag_ref_(Refcnt*, bool
+weakly)` with `weakly` folded to `false` loses only the weak block, which has
+no side effect (it fails fast and returns).  What remains is a single
+`load_tagged_()` per iteration feeding **both** CAS operands
+(`TaggedPtr(pref + rcnt_old)` → `TaggedPtr(pref + rcnt_new)`), and
+`load_tagged_()` is `m_ref.load(std::memory_order_relaxed)` — an atomic load, so
+it cannot be hoisted out of the loop or CSE'd across iterations however much the
+fold shrinks the body.  Same single-load discipline §13.116 verified in the
+allocator's claim loops, and it holds here too.
+
+**And for this instantiation the parameter is DEAD.**  `weakly` reaches
+`acquire_tag_ref_` from four places in the header — `load_shared_()` (default
+`false`), the `scoped_atomic_view` constructor (runtime argument), and
+`compareAndSet_impl_<…, WEAK, …>` (template constant, instantiated `true` at
+`atomic_smart_ptr.h:2510/2515/2520`).  The pool's orphan chain uses **none** of
+the weak entry points: the only `atomic_shared_ptr` operations on
+`m_orphan_next` / `s_orphan_chain_head()` in the whole allocator are
+`compareAndSwap` (`allocator.cpp:8369`) and `compareAndSet` (`:8389`), both
+`WEAK = false`, and it never constructs a `scoped_atomic_view`.  That matches the
+dump's `caller_count: 3` with value 0 and no competing value.
+
+So the largest single block of the pass's work in this TU — **22 of 73
+specializations, 30 %** — **cannot change behaviour.**  It removes a branch that
+was never taken, makes the returned `success` constant `true`, and lets three
+call sites inline differently.  Nothing else.
+
+**Which sharpens what §13.124's arm can mean, in both directions:**
+
+- If the 26-round rerun **confirms** the drop, the fault is localised to a
+  transformation that is *provably semantically inert* — which is the strongest
+  statement available that this is a **codegen-class** problem (a miscompile, or
+  a store/load the optimiser is entitled to move only because it can now prove
+  something) and not a latent source race.  It would also say exactly where to
+  look: not in `acquire_tag_ref_` but in its three callers — `load_shared_`, the
+  `scoped_atomic_view` constructor, and `compareAndSet_impl_` — for the
+  `PoolAllocator<N>` instantiations.
+- If it **does not** confirm, the 11/16 vs 7/16 was the n = 16 noise it looks
+  like, and the honest reading is that a semantically inert transformation
+  behaved like one.
+
+**The confound to state now rather than after the fact:** a semantically inert
+change that moves a failure rate can equally be **timing or layout**
+perturbation — the Heisenbug confound this whole hunt has been living with, and
+`optimize()`/`noclone` attributes are exactly the kind of change that shifts code
+placement.  At n = 16 the two are indistinguishable.  What would separate them is
+not more rounds of the same arm but a *placement control*: suppress the same 22
+and add back an equivalent amount of unrelated code motion (e.g. `noclone` on a
+family with the same clone count that §13.122 already measured as inert).  Worth
+setting up if the rerun comes back positive.
+
+**Where to point the §13.123 diff if it does.**  Not at the global pair, but at
+baseline vs `-DKAME_ASP_NOCLONE` — that pair isolates this one family, so the
+non-clone rows are exactly the three callers' code, and the atomic/store columns
+say whether a memory operation moved in them.
