@@ -7362,3 +7362,49 @@ right that W1 proves nothing until `deallocate_pooled_or_free`'s write set is
 checked.  With the §13.109 constructor, W0 becomes the word the argument should
 rest on, and no such audit is needed for it: the poison writer targets word 0
 first (`q[0] = token`).
+
+### 13.113 Re-measured with the §13.109 constructor: `W0` reads a LIVE refcount, not poison — the block was never freed
+
+§13.112a is right, and my §13.111 was reasoning from the pre-§13.109
+constructor: the store moved into the body, `preborn_note(this)` reads word 0
+**before** `refcnt.store(1)` lands, so W0 is the pre-store content and is
+informative.  §13.112a also diagnosed the binary correctly — I rebuilt and
+confirmed the new hook is present (`preborn` symbol in the executable) before
+re-running.
+
+**Re-measured, firing configuration, two failing runs (7 and 3 hits):**
+
+```
+RC-DLIVE-WPRE 0x7fffd4bb4230 w=0x1     RC-DLIVE-WPRE 0x7ffff526f4e0 w=0x1
+RC-DLIVE-W0   0x7fffd4bb4230 w=0x1     RC-DLIVE-W0   0x7ffff526f4e0 w=0x1
+RC-DLIVE-W1   0x7fffd4bb4230 w=0x7ffff40c0000   RC-DLIVE-W1 … w=0x7fffb70f0b70
+RC-DLIVE-WPRE 0x7fffd4bb4320 w=0x1
+RC-DLIVE-W0   0x7fffd4bb4320 w=0x1
+RC-DLIVE-W1   0x7fffd4bb4320 w=0x0
+```
+
+**W0 = 1 on every hit, and `RC-DLIVE-FREEREC` never fires.**  With the
+§13.109 constructor that is a real reading: word 0 held **1 — a live
+`atomic_countable::refcnt` — immediately before the incoming object's store**.
+Not the forensic poison, and not a free record.
+
+**So the doubly-handed-out block was never freed.**  It was handed out while
+its previous occupant was alive at refcount 1.  That is §13.103's reading (a),
+an allocator double hand-out, and it is now resting on the word §13.112a says
+it should rest on rather than on W1 alone — §13.111's stated weakness is
+removed.
+
+**One divergence from the Mac worth flagging.**  arm64 saw
+`WPRE = 0xbaad0000000b8000`, decoding to a full free record; every Ubuntu probe
+here reads `WPRE = 1`.  A constant 1 in the word *preceding* the block is
+itself consistent with the neighbouring slot holding a live object — i.e. these
+hits sit inside a region of live objects, which is what §13.110's chunk
+clustering already suggested.  The two machines may simply be catching
+different situations (theirs a freed block, mine a live-neighbour one), but the
+difference should be resolved rather than averaged: **the same probe reads
+poison there and live refcounts here.**
+
+**Standing.**  Ubuntu evidence now says: slot handed out with its previous
+occupant live and unfreed, hits clustered within a chunk, on every failing run
+and no clean one.  That is a coherent picture of chunk-level reuse of live
+storage — and it is an allocator bookkeeping question, not an STM one.
