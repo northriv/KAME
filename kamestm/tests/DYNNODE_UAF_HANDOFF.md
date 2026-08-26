@@ -6617,3 +6617,49 @@ established.  The cheap next step is ordering: with `seq` on every record,
 tabulate whether `Linkage` events precede the `Packet`/`PacketWrapper` ones
 within a capture.  A consistent order would separate cause from consequence;
 an inconsistent one would say they are independent.
+
+### 13.102 Installing the three reserved scope markers: `(none)` collapses, and the damage spans four object types across five scopes
+
+§13.101's ordering pass turned up something more useful than the ordering:
+**most `Packet` tripwires carried `scope=(none)`.**  In one capture all nine
+did.  §13.99 defined six scope bits but installed only three markers
+(`BUNDLE`, `UNBUNDLE`, `FINALIZE`); `SNAPFORUNB`, `COMMIT` and `SNAPSHOT` were
+reserved and never placed — so `(none)` did not mean "outside the STM", it
+meant "in a function nobody tagged".
+
+**Installed the missing three** (`snapshotForUnbundle`, both `Node::snapshot`
+overloads, `Node::commit`), each immediately at function entry per §13.100's
+ordering rule.  Plain builds unaffected; markers are `KAME_RC_TRACE`-only.
+
+**Result — tripwires now, across captures:**
+
+| op | victim | scope |
+|---|---|---|
+| `INC-FROM-ZERO` | `Linkage` | `bundle,unbundle,snapforunb` |
+| `INC-FROM-ZERO` | `Linkage` | **`snapshot`** |
+| `DEC-UNDERFLOW` | `Packet` | **`snapshot`** |
+| `DEC-UNDERFLOW` | `Packet` | `finalize` |
+| `INC-FROM-ZERO` | **`Payload`** | `(none)` |
+
+**`(none)` fell from the majority to 1 of 5.**  The markers did what they were
+reserved for, and `snapshot` — never previously implicated — is now named
+twice, for two different victim types.
+
+**The damage is broader than any single hypothesis has assumed.**  Four victim
+types are now attested (`Packet`, `Linkage`, `PacketWrapper`, `Payload`) across
+five scopes (`bundle`, `unbundle`, `snapshotForUnbundle`, `snapshot`,
+`finalizeCommitment`).  That is hard to reconcile with a single narrow defect
+at one site, and easy to reconcile with §13.55's graded clone dose-response
+(many small windows) and §13.88's wide window (half-height ~150 000
+instructions): a refcounting hazard that the `-O3` clone set opens in *several*
+STM paths at once, rather than one mishandled reference.
+
+**Sample caveat, again explicitly.**  Five tripwire records.  §13.100 over-read
+a single capture and §13.101 had to correct it; I am not claiming a
+distribution from five, only that **no scope or type is exclusive** — which is
+itself enough to retire "find the one site" as a strategy, the same way §13.53
+retired "find the one clone".
+
+**Next**: the remaining `(none)` is a `Payload` resurrection, so at least one
+more path still needs a marker. Worth finding it before drawing the
+distribution, since it is the only unattributed class left.

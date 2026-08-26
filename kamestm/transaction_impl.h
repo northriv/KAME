@@ -2304,6 +2304,9 @@ Node<XN>::snapshotForUnbundle(const local_shared_ptr<Linkage> &child_linkage,
     const ScopedNegotiateLinkage<XN> &incoming_scope,
     local_shared_ptr<Packet> **child_subpacket_out,
     int64_t serial, CASInfoList *cas_infos) {
+#ifdef KAME_RC_TRACE
+    kame_rc_trace::ScopedStmScope _stm_scope_(kame_rc_trace::STM_SCOPE_SNAPFORUNB);  // §13.102
+#endif
 
     auto r = walkUpChainImpl(child_linkage, incoming_scope, child_subpacket_out,
         [serial, cas_infos](const local_shared_ptr<Linkage> &pl,
@@ -2487,6 +2490,9 @@ _kame_injected_park: ;
 template <class XN>
 void
 Node<XN>::snapshot(Transaction<XN> &target, bool multi_nodal) const {
+#ifdef KAME_RC_TRACE
+    kame_rc_trace::ScopedStmScope _stm_scope_(kame_rc_trace::STM_SCOPE_SNAPSHOT);    // §13.102
+#endif
     scoped_atomic_view<PacketWrapper> initial_view;
     {
         ScopedNegotiateLinkage<XN> scope(m_link, target, -1,
@@ -2503,6 +2509,9 @@ template <class XN>
 void
 Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                    scoped_atomic_view<PacketWrapper> &&initial_view) const {
+#ifdef KAME_RC_TRACE
+    kame_rc_trace::ScopedStmScope _stm_scope_(kame_rc_trace::STM_SCOPE_SNAPSHOT);    // §13.102
+#endif
     // All snapshot/refill paths funnel here (Snapshot ctor, Transaction
     // ctor, operator++ retry): m_packet is about to be replaced, so any
     // memoized lookup into the previous tree must go first.
@@ -3440,6 +3449,9 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
 template <class XN>
 bool
 Node<XN>::commit(Transaction<XN> &tr) {
+#ifdef KAME_RC_TRACE
+    kame_rc_trace::ScopedStmScope _stm_scope_(kame_rc_trace::STM_SCOPE_COMMIT);      // §13.102
+#endif
     assert(tr.m_oldpacket != tr.m_packet);
     assert(tr.isMultiNodal() || tr.m_packet->subpackets() == tr.m_oldpacket->subpackets());
     assert(this == &tr.m_packet->node());
