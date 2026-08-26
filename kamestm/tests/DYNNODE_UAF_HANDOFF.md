@@ -6755,7 +6755,7 @@ KAME_RC_TRACE_DLIVE=2 KAME_RC_TRACE_ABORT=0 ./tmin ...
 Either outcome is decisive, which is why this is worth running before any
 further site-level audit.
 
-### 13.104 Targeted preemption injection on arm64: null — and `sched_yield` is not a perturbation on macOS
+### 13.103b Targeted preemption injection on arm64: null — and `sched_yield` is not a perturbation on macOS
 
 Testing the standing intuition that the window is one macOS preemption cannot
 enter (rather than one clang never emits).  `KAME_STM_YIELD_AT=<site>` with
@@ -6844,3 +6844,55 @@ mechanism now agree, and every STM-side lifetime audit coming back clean
 zeros become trustworthy, then re-run to establish how often hits accompany a
 crash; and take the `bundle,snapshot` scope as the place to look on the
 allocator side, since that is the one attribution here that cannot be smeared.
+### 13.105 `DOUBLE-LIVE`, second key: the subobject offsets are NOT uniform, so the exact key has a structural blind spot
+
+§13.103 flagged one honest limit — the probe keys on the `atomic_countable`
+subobject address, so two types whose subobject sits at a different offset in
+one block would overlap without colliding.  Measured, rather than left as a
+caveat:
+
+| type | `sizeof` | `atomic_countable` offset |
+|---|---|---|
+| `Packet` | 32 | **0** |
+| `PacketWrapper` | 40 | **0** |
+| `Payload` (base) | 40 | **8** |
+| `LongNode::Payload` | 48 | **8** |
+| `PacketList` | 104 | **72** |
+
+So the blind spot is real and it lands exactly on the pair §13.102 names:
+`PacketWrapper` (offset 0) and `Payload` (offset 8) sharing one size class are
+invisible to an exact-address key, while `Packet` vs `PacketWrapper` (both 0)
+are covered.  23 % of all births are at non-16-aligned addresses — that is the
+offset-8 population, and it is now reported as `nonaligned`.
+
+**First attempt, rejected on cost.**  Probing the +/-8 neighbours explicitly is
+sound (two live countables 8 bytes apart cannot be distinct blocks when the
+smallest class is >= 32) but tripled the lookups per BORN and pushed the
+40-thread run past a 300 s timeout — no result at all.  Recorded because the
+soundness argument is worth keeping even though the implementation is not.
+
+**Second attempt: round the key down to 16 bytes.**  Folds the {0, 8} family
+onto one key at *zero* extra probes, and raises enforcement coverage 15 %
+(74 M → 85 M per run) because more keys acquire the `EVERDEAD` proof.
+
+**But it does not keep the zero base rate, so it is opt-in, not the default:**
+
+| key | base rate on arm64 (nothing fails here) | coverage |
+|---|---|---|
+| **exact** (default) | **0 hits / 518 M enforced, 7 runs** | 74 M/run |
+| `KAME_RC_TRACE_DLIVE_FOLD=1` | **3 hits / 509 M enforced, 6 runs** | 85 M/run |
+
+The folded hits are not obviously instrument error: one came from
+`Transaction::operator[]` constructing a `Payload` at an offset-8 address —
+precisely the cross-offset event the fold exists to see.  Genuine co-tenancy
+and a stale `LIVE` bit left by a death that reaches no hook are both plausible
+at ~1 in 10^8 births, and this is not settled here.
+
+**Both are kept because they buy different things.**  The exact key is the
+DECISIVE instrument: one hit means something, because its baseline is zero over
+518 M checks and its positive control still fires at the predicted rate (75
+hits at 1-in-1 M injection).  The fold is the SENSITIVE one: it can see an
+overlap the exact key structurally cannot, at the price that a single hit needs
+corroboration.  Ubuntu should run **exact first** — a hit there is the decisive
+outcome — and reach for the fold only if exact stays clean, where its extra
+reach is the whole point and its 3-in-509 M baseline is the number to beat.

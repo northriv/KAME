@@ -562,7 +562,7 @@ struct DLSlot {
 enum : uintptr_t { DL_LIVE = 1u, DL_EVERDEAD = 2u, DL_TAGS = 3u };
 DLSlot *g_dl;                          //!< lazily mmapped; 16 MB at DL_BITS=20
 std::atomic<unsigned long long> g_dl_born{0}, g_dl_dead{0}, g_dl_hit{0},
-    g_dl_full{0}, g_dl_miss{0}, g_dl_enforced{0};
+    g_dl_full{0}, g_dl_miss{0}, g_dl_enforced{0}, g_dl_hit_nbr{0};
 //! 0 = off, 1 = count only (default: state the base rate, flood nothing),
 //! 2 = report each hit through anomaly().
 unsigned dl_mode_() noexcept {
@@ -590,6 +590,17 @@ enum { DL_PROBE = 8 };   //!< linear-probe budget; overflow is counted, not hidd
 //! still live -- exactly the state a pool double hand-out would create, on a
 //! real address in the real workload.  A run with it set must report HITS > 0,
 //! or the probe's zero means nothing.
+bool dl_fold_() noexcept {
+    static const bool v = [] {
+        const char *e = getenv("KAME_RC_TRACE_DLIVE_FOLD");
+        return e && e[0] && e[0] != '0';
+    }();
+    return v;
+}
+inline uintptr_t dl_key_(const void *obj) noexcept {
+    uintptr_t a = (uintptr_t)obj;
+    return dl_fold_() ? (a & ~(uintptr_t)15u) : (a & ~DL_TAGS);
+}
 unsigned dl_inject_() noexcept {
     static const unsigned v = [] {
         const char *e = getenv("KAME_RC_TRACE_DLIVE_INJECT");
@@ -601,13 +612,44 @@ unsigned dl_inject_() noexcept {
 
 //! BORN: claim the address.  Returns the previous occupant's ctor site when
 //! the address was already live (the tripwire), else nullptr.
+//! §13.103b  Cross-offset overlap, at zero extra cost.  The `atomic_countable`
+//! subobject offset is NOT uniform -- measured on this reproducer: `Packet` 0,
+//! `PacketWrapper` 0, `Payload` 8, `PacketList` 72 (sizes 32/40/40/104) -- so
+//! two types sharing one size class can occupy one block without colliding on
+//! a subobject-address key.  `PacketWrapper` vs `Payload` is exactly that
+//! pair, and both are types §13.102 names.
+//!
+//! Rounding the key down to 16 bytes folds the {0, 8} offset family onto one
+//! key while keeping distinct blocks distinct (the smallest size class is well
+//! above 16).  It costs nothing -- no extra probe -- unlike checking the +/-8
+//! neighbours explicitly, which tripled the lookups per BORN and pushed the
+//! 40-thread run past a 300 s timeout.
+//!
+//! **But it is opt-in (`KAME_RC_TRACE_DLIVE_FOLD=1`), because it does not keep
+//! the zero base rate.**  Measured on arm64, where nothing ever fails:
+//!   exact key : 0 hits / 371 M enforced (5 runs)
+//!   folded key: 2 hits / 254 M enforced (3 runs), coverage +15 %
+//! The two folded hits are real observations of two live countables 8 bytes
+//! apart -- one from `Transaction::operator[]` creating a `Payload` (offset 8),
+//! i.e. exactly the cross-offset case the fold exists to see.  Whether they are
+//! genuine co-tenancy or a stale LIVE bit left by a death that reaches no hook
+//! is not established; at ~1 in 10^8 births either is plausible.
+//!
+//! So the two modes buy different things and both are kept.  The exact key is
+//! the DECISIVE instrument: a single hit means something, because its baseline
+//! is zero over 371 M checks.  The fold is the SENSITIVE one: it sees the
+//! `PacketWrapper`-vs-`Payload` overlap the exact key structurally cannot, at
+//! the cost of needing corroboration for any single hit.  Default is exact.
+//! `nonaligned` reports how many raw addresses are not 16-aligned (23 % here --
+//! the offset-8 population), so the fold's reach is stated numerically.
 static const void *dl_born_(const void *, const void *, unsigned long long) noexcept;
 static const void *dl_born_(const void *obj, const void *site,
     unsigned long long seq) noexcept {
     DLSlot *t = dl_table_();
     if(!t || !obj) return nullptr;
     g_dl_born.fetch_add(1, std::memory_order_relaxed);
-    uintptr_t a = (uintptr_t)obj & ~DL_TAGS;
+    if((uintptr_t)obj & 15u) g_dl_hit_nbr.fetch_add(1, std::memory_order_relaxed);
+    uintptr_t a = dl_key_(obj);
     unsigned h = dl_hash_(a);
     for(unsigned i = 0; i < DL_PROBE; ++i) {
         DLSlot &s = t[(h + i) & (DL_N - 1)];
@@ -651,7 +693,7 @@ static void dl_dead_(const void *obj) noexcept {
     DLSlot *t = dl_table_();
     if(!t || !obj) return;
     g_dl_dead.fetch_add(1, std::memory_order_relaxed);
-    uintptr_t a = (uintptr_t)obj & ~DL_TAGS;
+    uintptr_t a = dl_key_(obj);
     unsigned h = dl_hash_(a);
     for(unsigned i = 0; i < DL_PROBE; ++i) {
         DLSlot &s = t[(h + i) & (DL_N - 1)];
@@ -691,11 +733,13 @@ static void dl_report_() noexcept {
     static std::atomic<bool> printed{false};   // atexit + exit summary both call
     bool f = false;
     if(!printed.compare_exchange_strong(f, true)) return;
-    fprintf(stderr, "kame_rc_trace: DOUBLE-LIVE probe: born %llu dead %llu "
-        "enforced %llu HITS %llu (table-full %llu, dead-miss %llu)\n", b,
+    fprintf(stderr, "kame_rc_trace: DOUBLE-LIVE probe (%s key): born %llu dead %llu "
+        "enforced %llu HITS %llu (nonaligned %llu, table-full %llu, "
+        "dead-miss %llu)\n", dl_fold_() ? "16B-folded" : "exact", b,
         g_dl_dead.load(std::memory_order_relaxed),
         g_dl_enforced.load(std::memory_order_relaxed),
         g_dl_hit.load(std::memory_order_relaxed),
+        g_dl_hit_nbr.load(std::memory_order_relaxed),
         g_dl_full.load(std::memory_order_relaxed),
         g_dl_miss.load(std::memory_order_relaxed));
 }
