@@ -10640,9 +10640,10 @@ says adoption's role is to keep the recycle machine turning, which is also
 what §13.146's dose-response says.  It is not "the faulting chunk must itself
 have been adopted".
 
-**The load-bearing column is the last one.**  In 4 of 4 the chunk was neither
-released nor re-constructed between the two births: **the same chunk
-incarnation held both occupants.**  Constructions are counted, not just
+**The load-bearing column is the last one.**  In every usable observation the
+chunk was neither released nor re-constructed between the two births: **the
+same chunk incarnation held both occupants.**  (See the correction below: 2 of
+these 4 rows are usable, not 4.)  Constructions are counted, not just
 releases, precisely because the §22 warm path recycles a cached chunk with its
 units still claimed and never calls `deallocate_chunk` — a release tally
 cannot see that reuse, and `construct_chunk_at` is the one point every reuse
@@ -10666,12 +10667,33 @@ are never recycled and the non-atomic list really is owner-only.  §13.166's
 instrument records which of the two paths freed the address, which thread, and
 whether that free happened **after** the previous occupant was born.
 
-**Bounds, stated.**  n = 4.  The batch was **capped deliberately, not
+**CORRECTION, found while building §13.166's instrument and applied here
+rather than left standing.**  `dl_born_` claims a live-set slot on **four**
+branches, and the birth-time counters were stamped on only **two** of them —
+the two that re-claim an already-known address.  The branches that claim a
+*fresh* slot (`cur == 0`, and the steal path) left `relcnt`/`concnt` at their
+initial 0.  So `at_prev_birth = 0` is ambiguous: it can mean "the counter was
+genuinely zero" or "never recorded".
+
+Applying that to the table above: **runs 2 and 3 are sound** — their
+`at_prev_birth` values are 2 and 3, which only a real stamp can produce, and
+both deltas are 0.  **Runs 1 and 4 are ambiguous** and must not be counted:
+both read 0→0, which is exactly what an unrecorded slot looks like.
+
+So the incarnation claim rests on **2 clean observations, not 4**.  It is
+still the only direction any observation points, and §13.163(d)'s reasoning is
+independent of it, but "4/4" was wrong and is withdrawn.  All four branches
+now stamp the counters, and an unrecorded prev-birth value prints
+`[verdict withheld]` instead of a verdict — the same disease as §13.164's
+keying bug (a missing write that reads as a legitimate value), caught this
+time by looking at the raw fields rather than the verdict string.
+
+**Bounds, stated.**  n = 4, of which 2 usable.  The batch was **capped deliberately, not
 completed**: per-run cost had risen to ~6 min because runs kept entering the
 livelock mode of §13.162 (3 threads spinning, 38 parked, killed at the 400 s
-timeout), and it was blocking the decisive measurement.  4/4 on the
-incarnation columns is the claim worth carrying forward; 2/4 on adoption is a
-ratio from four samples and should not be quoted as one.  A zero Δ can also be
+timeout), and it was blocking the decisive measurement.  The
+incarnation result is the claim worth carrying forward, at n = 2; the 2/4 on
+adoption is a ratio from four samples and should not be quoted as one.  A zero Δ can also be
 produced by a hash collision evicting the table entry (the census is
 direct-mapped), which the self-test does not cover — with ~120 distinct chunk
 bases in 8192 slots that is unlikely, but it is not excluded.

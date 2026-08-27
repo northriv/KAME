@@ -799,6 +799,11 @@ static const void *dl_born_(const void *obj, const void *site,
             if(s.addr.compare_exchange_strong(expect, a | DL_LIVE,
                     std::memory_order_acq_rel, std::memory_order_acquire)) {
                 s.site = site; s.seq = seq;
+                // §13.164/§13.165  MUST be set on EVERY branch that claims a
+                // slot.  Missing it here left `at_prev_birth = 0`, which reads
+                // as a legitimate zero and makes the delta verdicts vacuous.
+                s.relcnt = dl_relcnt_(obj); s.concnt = dl_concnt_(obj);
+                s.freeseq = dl_freeseq_();
                 return nullptr;
             }
             --i;                             // lost the slot; re-examine it
@@ -814,6 +819,8 @@ static const void *dl_born_(const void *obj, const void *site,
         if(s.addr.compare_exchange_strong(cur, a | DL_LIVE,
                 std::memory_order_acq_rel, std::memory_order_acquire)) {
             s.site = site; s.seq = seq;
+            s.relcnt = dl_relcnt_(obj); s.concnt = dl_concnt_(obj);   // §13.164/§13.165
+            s.freeseq = dl_freeseq_();
             g_dl_steal.fetch_add(1, std::memory_order_relaxed);
             return nullptr;
         }
@@ -1802,9 +1809,11 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
                         " delta=%d | con now=%u at_prev_birth=%u delta=%d%s\n",
                         now, tl_dl_prev_relcnt, rd,
                         cnow, tl_dl_prev_concnt, cd,
-                        (cd != 0 || rd != 0)
-                            ? "  <-- CHUNK RE-PURPOSED BETWEEN THE TWO BIRTHS"
-                            : "  (same chunk incarnation for both births)");
+                        (tl_dl_prev_concnt == 0 && tl_dl_prev_relcnt == 0)
+                            ? "  [prev-birth counters UNRECORDED -- verdict withheld]"
+                            : (cd != 0 || rd != 0)
+                                ? "  <-- CHUNK RE-PURPOSED BETWEEN THE TWO BIRTHS"
+                                : "  (same chunk incarnation for both births)");
                 }
                 else
                     raw_line_("RC-DLIVE-CHUNKREL rel now=%u con now=%u"
@@ -1823,9 +1832,11 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
                     raw_line_("RC-DLIVE-LASTFREE path=%s tid=%u seq=%llu"
                         " prev_birth_seq=%llu%s\n", pname, ftid, fseq,
                         tl_dl_prev_freeseq,
-                        (fseq > tl_dl_prev_freeseq)
-                            ? "  <-- FREED AFTER THE PREVIOUS OCCUPANT WAS BORN"
-                            : "  (free predates the previous occupant's birth)");
+                        (tl_dl_prev_freeseq == 0)
+                            ? "  [prev birth seq UNRECORDED -- verdict withheld]"
+                            : (fseq > tl_dl_prev_freeseq)
+                                ? "  <-- FREED AFTER THE PREVIOUS OCCUPANT WAS BORN"
+                                : "  (free predates the previous occupant's birth)");
                 }
                 else
                     raw_line_("RC-DLIVE-LASTFREE no record for this slot"
