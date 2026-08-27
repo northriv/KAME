@@ -10269,7 +10269,7 @@ structural hazard is closed by the sort order, and the chunk-liveness invariant
 (§13.116) holds throughout.  What it does carry is a defence against a removed
 hazard, whose only remaining effect is a dangling dereference that cannot be
 reordered away and does not need to exist.
-### 13.160 The yield probe with a REAL window: site 4 (adoption complete) suppresses, sites 1–3 do not
+### 13.161 The yield probe with a REAL window: site 4 (adoption complete) looked like a suppressor — see §13.162, it is not
 
 §13.158 reported the probe flat and flagged that `sched_yield` on idle cores
 might not be inserting a real delay.  That caveat was right, and the instrument
@@ -10317,3 +10317,53 @@ seeing the data.  What is suggestive is the *shape*: a monotone rise across
 sites 1-3 and a drop at 4, which is not what noise usually looks like, but a
 shape is not a result.  That run — `none` vs
 `AT=4` only, more rounds — is the obvious next measurement and is cheap.
+
+### 13.162 §13.161 does not replicate: the yield probe is flat at every site, and the site-4 "suppressor" was noise
+
+§13.161 ended by naming its own follow-up — "`none` vs `AT=4` only, more
+rounds" — and flagged that the contrast it leaned on was chosen after seeing
+the data.  That run is done, and it goes the other way.
+
+**40 interleaved rounds, `KAME_ADOPT_YIELD_US=500`, one binary, `20 40 700`:**
+
+| arm | failures | rate |
+|---|---|---|
+| `none` | 23/40 | 58% |
+| `AT=4` | 25/40 | 63% |
+
+**p = 0.82.**  Not merely non-significant — the point estimate has *reversed*
+sign relative to §13.161's 11/16 vs 6/16.
+
+**So §13.161 is withdrawn.**  Its shape (a rise across sites 1–3 and a drop at
+4) was a 16-round fluctuation, exactly the failure mode its own "Bounds"
+paragraph warned about, and I still let the section's title claim a
+localisation.  The honest combined statement across §13.158 (1 µs), §13.161
+(500 µs, n=16) and this run (500 µs, n=40) is:
+
+> **No delay inserted anywhere in the adopt sequence changes the failure rate,
+> at either a 1 µs or a 500 µs per-event window.**  The instrument is known to
+> work (a 50 ms window moves a successful run 3.5 s → 5.4 s, §13.161), so this
+> is a real null, not a dead probe.
+
+That null is worth as much as a positive would have been: the exposure is not
+a two-party interleaving that a 500 µs stall at any of the four adopt-sequence
+points can serialise.  Combined with §13.157 (placement is not it) and the
+clone bisection (§13.112–§13.148, no single clone), the search space for
+"a race between two specific instructions in the adopt path" is now largely
+spent, and the next section stops probing timing and asks a structural
+question instead.
+
+**Two process notes from this run, both worth keeping:**
+
+* **A p-value read off a partial batch is not a p-value.**  §13.161's 0.032
+  came from the round-15 snapshot; at round 16 the same contrast was 0.073.
+  Numbers now get computed only after `DONE`.
+* **`timeout` counts as a failure in every batch script I have written**
+  (`[ $rc -ne 0 ] && F++`).  During this run one `none` execution livelocked —
+  21 threads, **2 spinning at ~90% CPU and 19 parked in `futex_do_wait`**, for
+  the full 400 s timeout, against a normal 11.7 s success / 1.5 s crash — and
+  was scored as a UAF failure.  It is a distinct pathology (no SIGSEGV, no
+  watchdog abort) and it is *not* the fault under investigation.  Its rate is
+  unmeasured because no batch has ever recorded per-run `rc`; from here they
+  do.  One event in 80 runs does not move 23/40 vs 25/40, but every earlier
+  batch in §13 carries the same unquantified contamination.
