@@ -9610,3 +9610,58 @@ not about reuse volume at all.
 | dies with both individually | the two interact, and `KEEP=N` gives the dose curve |
 
 Run them interleaved in one job against the baseline, same `.so`.
+
+### 13.150 The chain's own three functions are compiled IDENTICALLY in both arms — so the difference is around them, not in them
+
+Given §13.144 (chain behaviour necessary, zero codegen delta), §13.146 (op counts
+conserved statically), §13.147 (executed counts within 3 %) and §13.148 (no clone
+short of its parent), the same operations run the same number of times and yet one
+build fails 63–71 % and the other never.  What is left is **how** an operation is
+compiled — so measure that where it matters most: the three chain functions
+themselves.
+
+Real GCC 15.2, §13.119's minimal pair, atomic positions given as instruction
+index within the body (which is what sets the width of any window *inside* the
+function):
+
+| function | `-O2` | `-O2 -fipa-cp-clone` |
+|---|---|---|
+| `orphan_chain_push` | 112–114 insns; atomics @ 44, 72, 76, 85–88 | 113; **same positions** |
+| `orphan_chain_pop` | 169; @ 37, 41, 86, 90, 105, 111 | 164; **same positions** |
+| `orphan_chain_scrub` | 217; @ 35, 65, 70, 85, 118, 123, 164, 168, 189, 206 | 216; same but the last two shift by 2 (191, 207) |
+
+22 bodies each, and the shape distribution is preserved (`pop`: 15/5/2 in both
+arms).  The clone arm's only systematic change to `push` is to make every
+instantiation **identical to the others** (112/114 → uniformly 113) — a
+normalisation, not a widened gap.  `pop` loses 5 instructions, all *after* the
+last atomic (epilogue).
+
+**So the difference between the firing and non-firing builds is not in the
+codegen of `orphan_chain_push`, `_pop` or `_scrub`.**  That is a real elimination
+and it redirects the search: the chain's behaviour is necessary (§13.144) and the
+chain's code is unchanged, so what differs must be code that runs **around or
+concurrently with** the chain.
+
+**And §13.122's non-clone diff already named that code.**  Run on this pair, the
+bodies that gained atomics are the **allocation** paths:
+
+```
+PoolAllocator<N,true,true>::create_allocator()        atomic +4   (many N)
+PoolAllocatorBase::allocate_dedicated_chunk(...)      atomic +4
+PoolAllocatorBase::allocate_large_va(...)             atomic +4
+PoolAllocatorBase::allocate_chunk<...>()              atomic +4
+```
+
+`create_allocator` is the function that **claims a chunk and constructs it**, and
+it is the counterpart of the chain in the reuse cycle: the chain publishes and
+re-owns chunks, `create_allocator` makes new ones.  A codegen change in the
+claimer, racing a chain whose codegen did not change, fits every constraint
+collected so far — same chain ops, same counts, chain necessary, and a difference
+that only appears when both run.
+
+**Next**, and it is two measurements rather than a hypothesis: (1) the same
+positional census on `create_allocator` and `allocate_chunk` between the arms —
+where did those +4 atomics land, and did anything move relative to the claim CAS;
+(2) §13.149's decomposition, which says which chain act has to be present for the
+fault, and therefore which pairing to look at.  Both are cheap, and (1) runs here
+with no Linux round-trip (§13.145).
