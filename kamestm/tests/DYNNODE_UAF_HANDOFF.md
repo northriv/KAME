@@ -9939,3 +9939,54 @@ evidence (§13.146) and the adopt requirement (§13.150), the remaining
 hypothesis is not a wrong instruction but a wrong *interleaving*: the same
 correct sequence, executed with a different window relative to the claim it is
 now inlined into.
+### 13.155 Static analysis is exhausted on these paths — every difference is inlining relocation; plus an adoption dose knob and a build fix
+
+§13.150 makes adoption the necessary half, so the asm-vs-source walk continued
+into the adopt path.  Three differences were found and **all three closed as
+relocation**, with the transferable level conserved each time:
+
+| difference found | how it closed |
+|---|---|
+| `create_allocator` +4 atomics, `stlr` gone (§13.152) | GIMPLE release stores **151 = 151**; the ten atomic stores that do vanish are 7 relaxed + 3 seq_cst, none release |
+| `allocate_chunk_path`: 4 bodies lose a **`dmb`** and 64 instructions (344 → 280) | whole-object `dmb` **71 = 71**; the fences move into `allocate_chunk<PoolAllocator<N,false,false>>` (+2 each, N = 32/64/256/1024) — and GIMPLE thread fences are **81 = 81**, all release |
+| the same 4 bodies lose **9 plain loads after the claim CAS** (36 → 27) | the *base* arm already has one instantiation at 27, and base never fails; the loads left with the outlined callee |
+
+The third is worth a note because it is the shape the investigation has circled
+since the start — the user's hypothesis A, a value cached across a
+synchronisation point instead of re-read.  The firing arm has **fewer** post-CAS
+re-reads (36 → 27 in four instantiations, −36 across the family), which is the
+right direction for that hypothesis.  It does not survive: `-O2` already emits a
+27-load form for one instantiation and `-O2` never fails, so 27 post-CAS loads is
+not by itself the fault.
+
+**So static analysis has said what it can.**  At the level that transfers between
+targets — GIMPLE memory orders, fence counts, atomic-operation accounting,
+executed counts (§13.147), per-clone reconciliation (§13.148) — the two builds are
+**equivalent**, and every instruction-level difference resolves to inlining moving
+code between bodies.  What remains is scheduling, register allocation and timing,
+which no static count can adjudicate.
+
+**Which makes the dose curve the instrument, and it was missing on the half that
+matters.**  The existing throttle (`KAME_ORPHAN_CHAIN_KEEP`) thins **pushes**, and
+§13.150 showed push-only is not sufficient (0/11).  Added
+**`KAME_ORPHAN_ADOPT_KEEP=N`** — admit only every N-th adoption — so the curve can
+be taken on adoption itself.  Verified live here (`KEEP=1` → 64 MiB reserved,
+`KEEP≥2` → 128 MiB; it saturates fast in this synthetic probe, which the
+reproducer will not).  What the shape would say:
+
+- **smooth in 1/N** → a probabilistic window; each adoption carries the same small
+  chance, which is §13.55's graded dose-response and §13.88's wide window;
+- **threshold** → state accumulates across adoptions until something tips;
+- **flat until N is huge** → one adoption suffices and the rate is limited
+  elsewhere.
+
+**Build fix, and it is the same class as the conflict markers in `7899e2210`.**
+`KAME_CHAIN_CNT` (§13.147's counters) is *defined* inside the
+`KAME_ORPHAN_CHAIN_RUNTIME_GATE` region but *used* unconditionally, so the
+**default build of `allocator.cpp` did not compile** — "use of undeclared
+identifier `KAME_CHAIN_CNT`" at both use sites.  Fixed with a fallback
+`#ifndef` rather than moving the block, so the gated build keeps what it has.
+Verified: the plain build, the gate, `KAME_CHAIN_DYNCOUNT`,
+`KAME_NO_ORPHAN_CHAIN`, and gate+dyncount together all compile.  A diagnostic
+that only compiles under its own flag breaks everyone else silently, and a
+build-and-measure loop then reads stale objects as results — twice now.

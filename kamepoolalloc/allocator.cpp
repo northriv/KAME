@@ -2725,6 +2725,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::create_allocator() {
 //! declared here because the adoption path below precedes them in the TU.
 extern "C" bool kame_orphan_no_scrub() noexcept;
 extern "C" bool kame_orphan_no_adopt() noexcept;
+extern "C" bool kame_orphan_adopt_admit() noexcept;
 #endif
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -3022,8 +3023,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	if( !kame_orphan_no_scrub())                      // §13.149
 		orphan_chain_scrub();
 	local_shared_ptr<PoolAllocator<ALIGN, true, DUMMY> > oc_hold =
-	    kame_orphan_no_adopt() ? local_shared_ptr<PoolAllocator<ALIGN, true, DUMMY> >()
-	                           : orphan_chain_pop();  // §13.149
+	    (kame_orphan_no_adopt() || !kame_orphan_adopt_admit())
+	        ? local_shared_ptr<PoolAllocator<ALIGN, true, DUMMY> >()
+	        : orphan_chain_pop();                     // §13.149 / §13.155
 #else
 	orphan_chain_scrub();
 	local_shared_ptr<PoolAllocator<ALIGN, true, DUMMY> > oc_hold = orphan_chain_pop();
@@ -3316,6 +3318,35 @@ namespace { struct ChainCountReport { ~ChainCountReport() {
 //!
 //! Each predicate keeps its call site compiled and reachable (the skipped call
 //! sits in the untaken branch), so every arm is the same machine code.
+//! §13.155  Dose curve for the half that matters.  §13.150 measured adoption as
+//! the NECESSARY half (0/11 with it off against 10/11 baseline, p = 3.4e-5) while
+//! scrub is not (8/11).  The existing throttle (`KAME_ORPHAN_CHAIN_KEEP`) thins
+//! the PUSH side, which §13.150 also showed is not sufficient on its own
+//! (push-only: 0/11).  So the informative dose is on **adoption**:
+//! `KAME_ORPHAN_ADOPT_KEEP=N` admits only every N-th adoption attempt.
+//!
+//! What the shape would say, and this is why a curve beats another binary arm:
+//!   smooth in 1/N  -> a probabilistic window; each adoption carries the same
+//!                     small chance, which is the §13.55 / §13.88 picture
+//!   threshold      -> state accumulates across adoptions and something tips
+//!   flat until N is huge -> a single adoption can do it, and the rate is
+//!                     limited by something else entirely
+//! Static analysis cannot separate these (§13.152: every static difference in
+//! these paths is inlining relocation with the transferable semantics conserved),
+//! so the dose curve is the instrument that can.
+extern "C" bool kame_orphan_adopt_admit() noexcept {
+    static std::atomic<int> keep{-1};
+    int k = keep.load(std::memory_order_relaxed);
+    if(k < 0) {
+        const char *e = getenv("KAME_ORPHAN_ADOPT_KEEP");
+        k = (e && e[0]) ? atoi(e) : 1;
+        if(k < 1) k = 1;
+        keep.store(k, std::memory_order_relaxed);
+    }
+    if(k == 1) return true;
+    static std::atomic<unsigned long long> n{0};
+    return (n.fetch_add(1, std::memory_order_relaxed) % (unsigned long long)k) == 0;
+}
 extern "C" bool kame_orphan_no_adopt() noexcept {
     static std::atomic<int> cached{-1};
     int v = cached.load(std::memory_order_relaxed);
@@ -8658,6 +8689,18 @@ PoolAllocator<ALIGN, FS, DUMMY>::s_orphan_chain_head() noexcept {
 //! race-free.  Adopt into a local_shared_ptr (which takes that 1) and CAS it
 //! onto the head (mirrors atomic_intrusive_chain_test.cpp's push_head); head +
 //! the chunk's m_orphan_next hold the chain-ref.
+//! §13.155  `KAME_CHAIN_CNT` is defined inside the
+//! `KAME_ORPHAN_CHAIN_RUNTIME_GATE` region (that is where §13.147's counters
+//! landed), but it is USED here unconditionally -- so the DEFAULT build of this
+//! file did not compile: "use of undeclared identifier 'KAME_CHAIN_CNT'" at both
+//! use sites.  Fallback definition rather than moving the block, so the gated
+//! build keeps the definition it already has.  (Same class as the conflict
+//! markers in `7899e2210`: a diagnostic that only compiles under its own flag
+//! silently breaks everyone else, and a build-and-measure loop then reads stale
+//! objects as results.)
+#ifndef KAME_CHAIN_CNT
+  #define KAME_CHAIN_CNT(i) ((void)0)
+#endif
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_push(
     PoolAllocator<ALIGN, DUMMY, DUMMY> *craw) noexcept {
