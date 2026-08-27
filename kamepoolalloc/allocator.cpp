@@ -2779,6 +2779,27 @@ extern "C" void kame_adopt_yield(unsigned site) noexcept;
 #ifndef KAME_ADOPT_YIELD
   #define KAME_ADOPT_YIELD(n) ((void)0)
 #endif
+#ifdef KAME_POOL_RESOLVE_CHECK
+//! (§13.162) Ground-truth check on the back_offset derivation.  Every chunk is
+//! built with `palloc = ALLOC::create(..., chunk_base + ALLOC_CHUNK_HEADER)`, so
+//!     (char *)palloc == chunk_base + ALLOC_CHUNK_HEADER
+//! holds BY CONSTRUCTION for every chunk in existence.  If `back_offset[]` ever
+//! yields the wrong `base_idx`, `chunk_base` is wrong and this identity breaks —
+//! which is §13.109's second branch ("its bitmap bit was cleared by somebody
+//! ELSE's free") made directly observable, instead of inferred from an absent
+//! poison tag.  Containment (`back_off` inside the chunk's unit span) is checked
+//! too, since a derivation can be wrong while landing on a real chunk header.
+extern "C" void kame_pool_resolve_bad(unsigned kind, const void *mp,
+    unsigned unit_idx, unsigned back_off, const void *chunk_base,
+    const void *palloc) noexcept;
+extern "C" void kame_pool_resolve_ok() noexcept;
+  #define KAME_RESOLVE_BAD(k,m,u,b,c,p) ::kame_pool_resolve_bad(k,m,u,b,c,p)
+  #define KAME_RESOLVE_OK()             ::kame_pool_resolve_ok()
+#endif
+#ifndef KAME_RESOLVE_BAD
+  #define KAME_RESOLVE_BAD(k,m,u,b,c,p) ((void)0)
+  #define KAME_RESOLVE_OK()             ((void)0)
+#endif
 #ifdef KAME_POOL_SURVIVOR_CENSUS
 //! (§13.161) Was the adopted chunk a SURVIVOR (MASK_CNT != 0 at the claim CAS,
 //! i.e. blocks in it are still live and held by OTHER threads) or DRAINED?
@@ -4033,6 +4054,18 @@ KAME_CLONE_LICENCE(8) /*§13.112 arm 8*/ resolve_chunk_from_slot(char *mp, size_
 	// libsystem-malloc pointer that happens to land in our mmap range
 	// (macOS interpose).  Either way: foreign, fall through to free.
 	if((uintptr_t)palloc <= (uintptr_t)1u) return nullptr;
+#ifdef KAME_POOL_RESOLVE_CHECK
+	// (§13.162) Identity: palloc must BE this chunk's embedded allocator.
+	if(reinterpret_cast<const char *>(palloc)
+	       != chunk_base + ALLOC_CHUNK_HEADER)
+		KAME_RESOLVE_BAD(0u, mp, unit_idx, back_off, chunk_base, palloc);
+	// Containment: the slot's unit must lie inside the chunk's own span.
+	else if((size_t)back_off * (size_t)ALLOC_MIN_CHUNK_SIZE
+	            >= palloc->chunk_size())
+		KAME_RESOLVE_BAD(1u, mp, unit_idx, back_off, chunk_base, palloc);
+	else
+		KAME_RESOLVE_OK();
+#endif
 	*out_chunk_base = chunk_base;
 	return palloc;
 }
@@ -9084,9 +9117,21 @@ inline void sv_report_(int fd) noexcept {
     if(n > 0) { ssize_t r = write(fd, b, (size_t)n); (void)r; }
 }
 // atexit does NOT run after a fatal signal (§13.93) — read back from a handler.
-void sv_sig_(int sig) { sv_report_(2); signal(sig, SIG_DFL); raise(sig); }
-struct SvSig { SvSig() { signal(SIGSEGV, sv_sig_); signal(SIGABRT, sv_sig_);
-                         signal(SIGBUS, sv_sig_); } } g_sv_sig;
+// Chain to whatever handler was installed before us: two censuses in one
+// binary would otherwise silently lose one report (last constructor wins).
+typedef void (*sig_fn_)(int);
+sig_fn_ g_sv_prev[3] = {SIG_DFL, SIG_DFL, SIG_DFL};
+inline int sv_slot_(int sig) { return sig == SIGSEGV ? 0 : sig == SIGABRT ? 1 : 2; }
+void sv_sig_(int sig) {
+    sv_report_(2);
+    sig_fn_ prev = g_sv_prev[sv_slot_(sig)];
+    if(prev != SIG_DFL && prev != SIG_IGN && prev != sv_sig_) { prev(sig); return; }
+    signal(sig, SIG_DFL); raise(sig);
+}
+struct SvSig { SvSig() {
+    g_sv_prev[0] = signal(SIGSEGV, sv_sig_);
+    g_sv_prev[1] = signal(SIGABRT, sv_sig_);
+    g_sv_prev[2] = signal(SIGBUS,  sv_sig_); } } g_sv_sig;
 struct SvReport { ~SvReport() { sv_report_(2); } } g_sv_report;
 }
 extern "C" void kame_pool_survivor_note(unsigned cnt) noexcept {
@@ -9104,3 +9149,67 @@ extern "C" void kame_pool_survivor_alloc(unsigned cnt) noexcept {
     else    g_sv_alloc_drain.fetch_add(1, std::memory_order_relaxed);
 }
 #endif // KAME_POOL_SURVIVOR_CENSUS
+
+#ifdef KAME_POOL_RESOLVE_CHECK
+// (§13.162) back_offset derivation ground truth.  See the declaration comment.
+#include <cstdio>
+#include <csignal>
+#include <unistd.h>
+namespace {
+std::atomic<unsigned long long> g_rv_ok{0}, g_rv_bad_id{0}, g_rv_bad_span{0};
+struct RvFirst { const void *mp, *chunk_base, *palloc;
+                 unsigned kind, unit_idx, back_off; };
+RvFirst g_rv_first{};                 // first offender, written once
+std::atomic<int> g_rv_have{0};
+inline void rv_report_(int fd) noexcept {
+    char b[420];
+    int n = snprintf(b, sizeof b,
+        "kame_pool: RESOLVE check: ok=%llu bad_identity=%llu bad_span=%llu\n",
+        (unsigned long long)g_rv_ok.load(std::memory_order_relaxed),
+        (unsigned long long)g_rv_bad_id.load(std::memory_order_relaxed),
+        (unsigned long long)g_rv_bad_span.load(std::memory_order_relaxed));
+    if(n > 0) { ssize_t r = write(fd, b, (size_t)n); (void)r; }
+    if(g_rv_have.load(std::memory_order_relaxed)) {
+        n = snprintf(b, sizeof b,
+            "kame_pool: RESOLVE first offender: kind=%u mp=%p unit=%u back=%u"
+            " derived_base=%p palloc=%p (palloc-base=%ld, want %d)\n",
+            g_rv_first.kind, g_rv_first.mp, g_rv_first.unit_idx,
+            g_rv_first.back_off, g_rv_first.chunk_base, g_rv_first.palloc,
+            (long)((const char *)g_rv_first.palloc
+                   - (const char *)g_rv_first.chunk_base),
+            (int)ALLOC_CHUNK_HEADER);
+        if(n > 0) { ssize_t r = write(fd, b, (size_t)n); (void)r; }
+    }
+}
+typedef void (*rv_sig_fn_)(int);
+rv_sig_fn_ g_rv_prev[3] = {SIG_DFL, SIG_DFL, SIG_DFL};
+inline int rv_slot_(int sig) { return sig == SIGSEGV ? 0 : sig == SIGABRT ? 1 : 2; }
+void rv_sig_(int sig) {
+    rv_report_(2);
+    rv_sig_fn_ prev = g_rv_prev[rv_slot_(sig)];
+    if(prev != SIG_DFL && prev != SIG_IGN && prev != rv_sig_) { prev(sig); return; }
+    signal(sig, SIG_DFL); raise(sig);
+}
+struct RvSig { RvSig() {
+    g_rv_prev[0] = signal(SIGSEGV, rv_sig_);
+    g_rv_prev[1] = signal(SIGABRT, rv_sig_);
+    g_rv_prev[2] = signal(SIGBUS,  rv_sig_); } } g_rv_sig;
+struct RvReport { ~RvReport() { rv_report_(2); } } g_rv_report;
+}
+extern "C" void kame_pool_resolve_ok() noexcept {
+    g_rv_ok.fetch_add(1, std::memory_order_relaxed);
+}
+extern "C" void kame_pool_resolve_bad(unsigned kind, const void *mp,
+    unsigned unit_idx, unsigned back_off, const void *chunk_base,
+    const void *palloc) noexcept {
+    if(kind == 0u) g_rv_bad_id.fetch_add(1, std::memory_order_relaxed);
+    else           g_rv_bad_span.fetch_add(1, std::memory_order_relaxed);
+    int expect = 0;
+    if(g_rv_have.compare_exchange_strong(expect, 1,
+           std::memory_order_relaxed)) {
+        g_rv_first.kind = kind; g_rv_first.mp = mp;
+        g_rv_first.unit_idx = unit_idx; g_rv_first.back_off = back_off;
+        g_rv_first.chunk_base = chunk_base; g_rv_first.palloc = palloc;
+    }
+}
+#endif // KAME_POOL_RESOLVE_CHECK
