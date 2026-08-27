@@ -11524,3 +11524,39 @@ candidates are narrow, and all are source-level:
 
 (3) is directly testable and connects to §13.159's other suppressor
 (`cap = 1` → 0/16), which shortens exactly that interval.
+
+### 13.178 `flush` re-entrancy: refuted, and refuted decisively
+
+§13.176 says the zeros are too clean for a pure timing sensitizer and leaves an
+"unfound semantic difference" open.  One candidate follows directly from its own
+disassembly: the clone reloads `count` from TLS every iteration
+(`call __tls_get_addr` then `cmp 0x5ba0(%rax),%ebx`), and `flush` has **no
+re-entrancy guard and no comment claiming it needs none**.  A nested flush on the
+same thread-local batch would set `count = 0` under the outer loop — a semantic
+defect, not a timing shift, and one whose visibility could plausibly depend on
+whether `count` is reloaded or held in a register.
+
+**Measured rather than reasoned about.**  A TLS depth counter in `flush`
+(`KAME_ORPHAN_CHAIN_RUNTIME_GATE` only, one increment):
+
+```
+BATCH_CAP=unset   FLUSHDEPTH max=1 nested_entries=0   (pushes 960, flushes 0)
+BATCH_CAP=1       FLUSHDEPTH max=1 nested_entries=0   (pushes 960, flushes 320)
+```
+
+**Refuted**, and the `cap = 1` arm is what makes it decisive rather than merely
+suggestive: at cap 1 **every push flushes immediately**, so if anything reachable
+from `batch_return_to_bitmap` pushed to the same thread's batch, nesting would
+occur on the first such push and every one after.  320 flushes with zero nesting
+is therefore a statement about the **call graph**, not about this workload's luck.
+
+Kept as an invariant (it costs one increment and is now a proven zero) — a
+candidate for the `alloc_invariants` ctest §13.170 promoted, where it would catch
+any future edit that lets the free path re-enter the batch.
+
+**What it removes from §13.176's shortlist:** the only "nested state corruption"
+story available for `flush`.  The remaining semantic candidates have to explain a
+difference that survives identical GIMPLE atomics/fences (§13.175), no release
+inlining and no post-release use of `chunk` (§13.176) — i.e. a difference not in
+what the loop does but in how many times or how fast it does it, which is the
+sensitizer reading §13.176 is reluctant to accept on the strength of the zeros.

@@ -699,6 +699,12 @@ unsigned kame_pool_recent_events(kame_poolev *out, unsigned max) {
 #define KAME_POOLEV(kind, addr, aux) ((void)0)
 #endif // KAME_POISON_FORENSIC
 
+#ifdef KAME_ORPHAN_CHAIN_RUNTIME_GATE
+//! §13.178 counters (file scope so the exit report can read them).
+static thread_local int g_flush_depth = 0;
+static std::atomic<int> g_flush_maxd{0};
+static std::atomic<unsigned long long> g_flush_nested{0};
+#endif
 struct CrossDeallocBatch {
     // FS=true-only small-slot batch (FS=false bypasses
     // cross-batch entirely in its `deallocate_pooled` — see that
@@ -898,6 +904,29 @@ struct CrossDeallocBatch {
     // The poke is a pure slot-reuse hint, worthless at teardown, so we
     // simply drop it there — the slots are still returned to the bitmap.
     KAME_CLONE_L11 /*§13.119 arm 11*/ void flush(bool at_teardown = false) noexcept {
+#ifdef KAME_ORPHAN_CHAIN_RUNTIME_GATE
+        //! §13.178  Is `flush` RE-ENTERED?  §13.176 shows the clone reloads
+        //! `count` from TLS every iteration (`call __tls_get_addr` then
+        //! `cmp 0x5ba0(%rax),%ebx`), and `flush` has no re-entrancy guard and no
+        //! comment claiming it needs none.  A nested flush on the SAME
+        //! thread-local batch would set `count = 0` under the outer loop, which
+        //! is a semantic defect rather than a timing shift -- and §13.176 says
+        //! plainly that the zeros are too clean for a pure sensitizer.
+        //!
+        //! Measured, not reasoned about: a TLS depth counter costs one increment
+        //! and answers whether the path is reachable at all.  depth_max == 1 for
+        //! a whole run refutes the hypothesis outright.
+        struct Depth {
+            Depth() {
+                if(++g_flush_depth > 1)
+                    g_flush_nested.fetch_add(1, std::memory_order_relaxed);
+                int m = g_flush_maxd.load(std::memory_order_relaxed);
+                while(g_flush_depth > m &&
+                      !g_flush_maxd.compare_exchange_weak(m, g_flush_depth)) {}
+            }
+            ~Depth() { --g_flush_depth; }
+        } _depth_guard;
+#endif
         if(count == 0) return;
         KAME_POOLEV(KAME_PEV_CROSS_FLUSH, buf[0].chunk, count);
         // Sort by (chunk, slot) lex — chunk primary key for grouping,
@@ -3466,6 +3495,8 @@ extern "C" bool kame_orphan_no_scrub() noexcept {
 //! default cap never took the HOLD path at all, and its cap arm is vacuous.
 namespace {
 struct BatchCapReport { ~BatchCapReport() {
+    fprintf(stderr, "FLUSHDEPTH max=%d nested_entries=%llu\n",
+            g_flush_maxd.load(), g_flush_nested.load());
     unsigned long long p = CrossDeallocBatch::s_pushes.load(),
                        f = CrossDeallocBatch::s_flushes.load();
     if(p) fprintf(stderr, "BATCHCAP pushes=%llu flushes=%llu (ratio %.1f)\n",
