@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""§13.142  Tag-mask census: does any compiled body use the tagged pointer
+"""§13.142 Tag-mask census: does any compiled body use the tagged pointer
 without masking the tag off?
 
 The question (user's proposal i).  `atomic_shared_ptr` keeps a local refcount in
@@ -112,8 +112,16 @@ def main():
         elif a.startswith('--'): pass
         else: args.append(a)
     if not args: sys.exit(__doc__)
-    interesting = re.compile(r'atomic_shared_ptr|local_shared_ptr|tag_ref|load_shared|'
-                             r'scoped_atomic_view|compareAndSet|compareAndSwap')
+    # --all counts EVERY body, not just those whose name names the primitive.
+    # At -O2 most of the primitive is inlined into allocator functions whose
+    # names match nothing, so a name filter silently misses exactly the copies a
+    # differential is looking for -- the filtered totals answer a narrower
+    # question than they appear to.
+    if '--all' in sys.argv:
+        interesting = re.compile(r'')
+    else:
+        interesting = re.compile(r'atomic_shared_ptr|local_shared_ptr|tag_ref|load_shared|'
+                                 r'scoped_atomic_view|compareAndSet|compareAndSwap')
     for path in args:
         fns = bodies(path, objdump)
         rows = []
@@ -130,9 +138,19 @@ def main():
         print("   totals: mask_ptr=%d mask_cnt=%d tagged_add=%d | cas=%d rmw=%d fence=%d"
               % (tot['mask_ptr'], tot['mask_cnt'], tot['tagged_add'],
                  tot['cas'], tot['rmw'], tot['fence']))
-        susp = [r for r in rows if r[0] > 0 and r[1] == 0]
-        print("   SUSPECT (builds/consumes a tagged value, never masks): %d" % len(susp))
-        for add, mp, mc, cas, rmw, fen, n in susp[:10]:
+        # The suspect heuristic is only meaningful under the NAME FILTER.  With
+        # --all it fires on any function that adds a small constant to a
+        # pointer, which is most of them -- 268 of 523 in one measurement.  A
+        # number that large is not 268 findings, it is a broken predicate, so
+        # say so instead of printing it (§13.83).
+        if '--all' in sys.argv:
+            print("   SUSPECT: not reported under --all -- the predicate "
+                  "(tagged_add>0 and no mask) has no discriminating power over "
+                  "every body; use the default name filter for it")
+        else:
+            susp = [r for r in rows if r[0] > 0 and r[1] == 0]
+            print("   SUSPECT (builds/consumes a tagged value, never masks): %d" % len(susp))
+        for add, mp, mc, cas, rmw, fen, n in (susp[:10] if '--all' not in sys.argv else []):
             print("     %-58s add=%d mask_ptr=0 mask_cnt=%d" % (n[:58], add, mc))
         print("   %-58s %4s %4s %4s %4s %4s %4s"
               % ("body", "add", "mskP", "mskC", "cas", "rmw", "fnc"))

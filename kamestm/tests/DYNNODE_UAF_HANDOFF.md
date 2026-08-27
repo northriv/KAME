@@ -9284,3 +9284,76 @@ not *which operation* but *what varies with the amount of chain traffic* —
 §13.141's runtime gate makes that measurable for the first time, since the
 same binary can now be run with the chain on, off, or (with a small addition)
 throttled.
+
+### 13.145 Disassembly needs no Linux — real GCC 15.2 builds the allocator here. Both (i) and (ii)-static come back NO
+
+The user's point: a static check does not need to **run**, so a local `g++`
+suffices.  Correct, and it removes the Linux round-trip from every static check
+in this investigation.  MacPorts has **GCC 15.2.0 — the same version Ubuntu is
+using**.
+
+**What actually blocks GCC on macOS** (three things, none a project rule; this is
+the substance of `cdb70d2cf` for inspection purposes):
+
+1. The macOS 26 SDK's `<malloc/malloc.h>` pulls in `<mach/message.h>`, which uses
+   the clang-only `xnu_static_assert_struct_size` and GCC rejects outright.
+   `tests/gccprobe/malloc_shim.h`, placed as `<malloc/malloc.h>` earlier on the
+   include path, declares the six zone functions and the one struct member the
+   code touches (`z->size`).  Layout plausible, not faithful — **inspection
+   only, never run**.
+2. Darwin GCC does not support `__attribute__((constructor(N)))` priorities.  A
+   scratch copy rewrites `constructor(N)` → `constructor`, which changes
+   initialisation ORDER and no function body being censused.
+3. Nothing else.
+
+`tests/gccprobe/build_gcc_probe.sh` does all of it and reproduces **§13.119's
+minimal pair locally**: `constprop syms` **2 → 24** between `-O2` and
+`-O2 -fipa-cp-clone` (Ubuntu measures ~27 in its build), object 537 104 → 549 024
+bytes.  So the pair is real, not a same-file comparison.
+
+**Answer to (i) — does GCC drop the low-tag mask?  NO.**  Whole-object census,
+every body (not a name filter — at `-O2` most of the primitive is inlined into
+functions whose names match nothing, so a filtered total answers a narrower
+question than it appears to):
+
+| | base `-O2` | clone `-O2 -fipa-cp-clone` |
+|---|---|---|
+| bodies | 523 | 526 |
+| **`mask_ptr`** (`and ~7`) | **331** | **331** |
+| **`mask_cnt`** (`and 7`) | **395** | **395** |
+| `tagged_add` | 1307 | 1397 |
+| **`cas`** | **575** | **610** |
+| `rmw` | 1071 | 1110 |
+| `fence` | 71 | 71 |
+
+**Not one mask is lost** — 331 and 395 are identical across the arms even though
+the clone arm has three more bodies, 90 more tagged adds and 35 more CAS.  The
+premise was sound (IPA-CP propagating a zero refcount does make
+`(uintptr_t)pref + 0` provably aligned, and gcc may then delete `& ~7`); it just
+does not happen here.
+
+**Answer to (ii)'s static half — was a `cmpxchg` omitted?  NO, the opposite.**
+`cas` goes **575 → 610** and `rmw` **1071 → 1110**: the clone arm performs *more*
+atomic operations, as duplicated paths should.  No compare-exchange disappeared.
+
+**A predicate I had to withdraw mid-measurement.**  The census's "SUSPECT"
+heuristic (builds a tagged value, never masks) is meaningful only under the name
+filter.  With `--all` it fired on **268 of 523 bodies** — any function adding a
+small constant to a pointer.  A number that large is not 268 findings, it is a
+broken predicate, so the tool now refuses to print it under `--all` and says why
+(§13.83's rule, applied to my own tool while using it).
+
+**Caveat, and it is the real limit of this result.**  The target is the host arch:
+these are **aarch64** bodies while the firing build is **x86-64**.  The
+middle-end question — *was the operation kept at all* — travels across targets,
+because it is decided before instruction selection; the instruction selection
+does not.  So this refutes "the optimizer deleted a mask or a CAS" as a
+*general* consequence of the pass, and does not exclude an x86-64-specific
+selection bug.  Re-running the same two commands on Ubuntu is now trivial and
+would close that gap.
+
+**Queue after this:** §13.141's runtime gate is still the only arm that cannot be
+confounded by codegen, and (iii) — hand-written clones — is still the only way to
+reach the four caller-driven specializations.  What this section removes is two
+hypotheses and, more usefully, the need to ask Linux for any further static
+answer.
