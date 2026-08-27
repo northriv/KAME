@@ -11894,3 +11894,77 @@ most likely to be dismissed: it cannot fire *by construction* — which is exact
 why it is worth having.  Every other "cannot happen" in this section that was
 finally measured (§13.164's census key, §13.168's birth stamp, §13.178's flush
 counter) turned out to be measuring something other than what its name said.
+
+### 13.184 §13.183's invariant FIRES on x86-64 — but it tracks the SHAPE, not the fault
+
+Two obstacles had to be cleared before §13.183's check could say anything here,
+and the second changes its stated reading.
+
+#### Making it runnable at all: the §13.182 precondition applies to this too
+
+`KAME_BATCH_VERIFY` deletes the flush clone, exactly as §13.179's gate did:
+
+```
+g15gate    (no verify)  -> 1 flush .constprop clone
+g15verify  (verify on)  -> 0
+```
+
+So on the stock source the fault cannot fire in a verify build and
+`bit_clear_bad = 0` would have meant nothing.  **The way through is §13.177's
+hand-specialised source:** it states the shape in C++ (`flush_impl<false>`), so
+it does not depend on ipa-cp cloning anything, and instrumentation cannot delete
+what the source says outright.  Both builds carry the shape
+(`nm -C | grep -c flush_impl<false>` = 4 with and without verify).
+
+#### It fires
+
+```
+BATCHVERIFY BIT ALREADY CLEAR (chunk was not pinned) slot=0x76e922047880 chunk=0x76e92203f040
+BATCHVERIFY checked=23 517 879  pairing_bad=0  bit_clear_bad=800
+```
+
+**~800 violations per run out of ~23.5 M batched entries**, and `pairing_bad = 0`
+throughout — the entries belong to the chunk they are filed under; it is the
+*pinning* half of §13.116 that breaks, not the pairing half.  On arm64 §13.183
+measured **0 in 9 M**.  So this is a genuine platform difference in the
+invariant, not a difference in how it is measured.
+
+#### But the control says it is not the defect
+
+§13.183: *"if `bit_clear_bad > 0` there, **that is the defect**."*  It is not —
+or not by itself.  12 interleaved rounds, three arms:
+
+| arm | shape | fault | pinning violation |
+|---|---|---|---|
+| hand-specialised, default cap | yes | **9/12** | **12/12** |
+| hand-specialised, **`cap = 1`** | yes | **0/12** | **12/12** |
+| original source (no clone/shape) | no | 0/12 | **0/12** |
+
+* violation vs **shape**: 24/24 vs 0/12 — **p = 8.0 × 10⁻¹⁰**;
+* fault vs **cap**, within the shaped arms: 9/12 vs 0/12 — **p = 3.4 × 10⁻⁴**;
+* violation vs **fault**: the two shaped arms are **12/12 and 12/12** while
+  their fault rates are 9/12 and 0/12 — **uncorrelated**.
+
+`cap = 1` suppresses the fault completely and does **not** reduce the violation
+(≈800 in both).  So the pinning failure is **necessary-looking but not
+sufficient**, and it is caused by the shape rather than by the crash.
+
+#### The chain this supports
+
+> The single un-unswitched in-allocation flush loop (§13.177) breaks §13.116's
+> pinning invariant — a batched slot's bit is already clear when its free is
+> applied, ~800 times per run.  That alone does not crash.  The **number of
+> entries in flight** (§13.180's dose, z = 4.80) then decides whether a chunk is
+> recycled while one of those unpinned batched frees is still pending, which is
+> the DOUBLE-LIVE.
+
+Each half now has a knob that moves it independently — shape (`noclone` /
+hand-specialisation) and dose (`KAME_BATCH_CAP`) — which is what a mechanism
+needs to be testable rather than merely consistent.
+
+**The question this hands back:** *why* does the single-loop form clear the bit
+early?  `pairing_bad = 0` says the entries are filed correctly, so the bit is
+being cleared by something other than a mis-attributed entry — a second return
+of the same slot, or a return that races the pin.  That is answerable with the
+existing hook: record, for one offending slot, who cleared its bit and when,
+the way §13.165's last-free census did for addresses.
