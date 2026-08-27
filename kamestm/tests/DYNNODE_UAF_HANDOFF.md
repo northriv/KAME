@@ -11446,3 +11446,81 @@ function without yet explaining it.
 2. **Force the clone's shape without the clone** — hand-specialise: give
    `flush()` a `false`-only body and call it directly, under GCC 14.  If GCC 14
    then fails, the shape is sufficient and the compiler version is irrelevant.
+
+### 13.177 It is NOT a compiler bug: the SHAPE alone reproduces it on GCC 14, with semantics preserved
+
+§13.176 left two readings — timing sensitizer, or an unfound semantic
+difference — and named two experiments.  Here is the second one, and it
+settles the compiler question.
+
+**Hand-specialise `flush` in SOURCE so GCC 14 emits the shape GCC 15 was
+choosing on its own.**  Two variants, because the obvious edit is confounded:
+
+| arm | how | clone shape | teardown still skips the poke |
+|---|---|---|---|
+| `g14spec` | drop the `at_teardown ? nullptr :` ternary | yes | **NO — semantics changed** |
+| `g14spec2` | `flush()` dispatches to `flush_impl<bool>`; the `false` body is a single loop | yes | **yes — preserved** |
+| `g14` | original source | no | yes |
+
+`g14spec` alone would have been worthless: removing the ternary also makes the
+destructor's `flush(true)` perform the force-walk poke, so a failure could be
+the poke rather than the shape.  `g14spec2` keeps teardown routed to
+`flush_impl<true>` and changes only the shape.  Verified in the binary:
+`flush_impl<false>() [clone .constprop.0]`, one loop, force-walk load before
+the indirect `batch_return_to_bitmap`, poke after — and `flush_impl<true>`
+present separately.
+
+**16 interleaved rounds, one reproducer binary, only the pool swapped:**
+
+| arm | failures |
+|---|---|
+| `g14spec2` (shape only, semantics preserved) | **11/16** |
+| `g14spec` (shape + teardown poke) | **11/16** |
+| `g14` (original) | **0/16** |
+
+`g14spec2` vs `g14`: **p = 6.8 × 10⁻⁵**.  `g14spec2` vs `g14spec`: **p = 1.000,
+identical** — the teardown poke contributes nothing, exactly as §13.138's
+rate-neutral ablation predicted.
+
+#### What this settles
+
+> **GCC 15 did not miscompile anything.**  The fault is a defect in the SOURCE
+> that a particular shape of `flush` exposes.  GCC 15 merely began choosing that
+> shape; GCC 14 emits it too, and fails, as soon as the source asks for it.
+
+So the compiler-facing knobs are **mitigations, not fixes** — which answers
+§13.173's question in the direction it feared:
+
+* `-fno-ipa-cp-clone` — mitigation;
+* `noclone` on `flush` (§13.174, 0/16) — mitigation;
+* GCC 14 — not immune, merely not currently choosing the shape;
+* any future compiler that specialises this function reintroduces it, which is
+  precisely what happened between 14 and 15.
+
+There is no upstream GCC bug to report.
+
+#### And it kills the sensitizer reading
+
+§13.176 proposed the clone might be a pure timing sensitizer (108 → 66 insns).
+`g14spec2`'s `flush_impl<false>` clone is **109 instructions** — the *same size*
+as the un-specialised `noclone` body (108) — and it fails 11/16.  **Size is not
+what matters; the single-loop structure is.**  The distinguishing property is
+that the non-teardown path exists as ONE loop rather than as one of two
+unswitched copies.
+
+#### The question that remains, now purely about the source
+
+Why does a single un-unswitched loop over the batch expose the fault when two
+unswitched copies do not?  Both execute the same sequence per iteration.  The
+candidates are narrow, and all are source-level:
+
+1. the loop-carried reuse of `chunk`/`i` across iterations differs between the
+   two forms (register pressure, reload points) in a way that interacts with a
+   concurrent writer;
+2. the unswitched form's extra branch acts as an incidental scheduling barrier
+   that the single form lacks;
+3. something about the batch being walked in one tighter loop changes how long
+   an entry sits between `sort` and `batch_return_to_bitmap`.
+
+(3) is directly testable and connects to §13.159's other suppressor
+(`cap = 1` → 0/16), which shortens exactly that interval.
