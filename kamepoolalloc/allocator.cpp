@@ -1672,6 +1672,45 @@ inline void PoolAllocator<ALIGN, FS, DUMMY>::operator delete(void *p) throw() {
 	free(p);
 }
 
+#ifdef KAME_ORPHAN_CHAIN_RUNTIME_GATE
+//! §13.179  The clone's CALL SITES.  The clone is `flush(at_teardown=false)`, and
+//! `flush(false)` has exactly three callers -- two INSIDE the allocation path:
+//! `allocate_pooled` (the 4/5-filled proactive trigger, after the claim CAS) and
+//! `allocate_chunk_path` (before the DLL walk -- the same function §13.150 proved
+//! adoption necessary in).  Teardown uses the other body and is not the clone.
+//!
+//! That puts both suppressors on ONE conjunction: `cap = 1` empties the batch
+//! before these in-allocation flushes run, so their loop body never executes, and
+//! `KAME_ORPHAN_NO_ADOPT` removes the path through the second one.  Neither is a
+//! control (§13.178: a suppressor is not a control) -- but suppressing ONE call
+//! site is: the batch still defers, adoption still happens, only the
+//! in-allocation flush is gone and `push`'s threshold flush drains it instead.
+//!     KAME_NO_INALLOC_FLUSH=1   both in-allocation sites
+//!     KAME_NO_INALLOC_FLUSH=2   only allocate_pooled       (site 1)
+//!     KAME_NO_INALLOC_FLUSH=3   only allocate_chunk_path   (site 2)
+static std::atomic<unsigned long long> g_inalloc_taken[2], g_inalloc_supp[2];
+static bool kame_inalloc_flush_off(unsigned site) noexcept {
+    static std::atomic<int> m{-1};
+    int v = m.load(std::memory_order_relaxed);
+    if(v < 0) {
+        const char *e = getenv("KAME_NO_INALLOC_FLUSH");
+        v = (e && e[0]) ? atoi(e) : 0;
+        m.store(v, std::memory_order_relaxed);
+    }
+    bool off = (v == 1) || (v == 2 && site == 1) || (v == 3 && site == 2);
+    //! §13.179 liveness, per site, reported at exit.  A gate whose `suppressed`
+    //! stays 0 was never reached, so its arm is VACUOUS -- the failure mode this
+    //! section's own history (§13.178) is about.  Counting both halves means a
+    //! run states it instead of the reader assuming it.
+    (off ? g_inalloc_supp : g_inalloc_taken)[site == 1 ? 0 : 1]
+        .fetch_add(1, std::memory_order_relaxed);
+    return off;
+}
+#define KAME_INALLOC_FLUSH(site) (!kame_inalloc_flush_off(site))
+#endif
+#ifndef KAME_INALLOC_FLUSH
+  #define KAME_INALLOC_FLUSH(site) true
+#endif
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline void *
 PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
@@ -1788,7 +1827,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
                     // (~1 in FUINT_BITS = 64 allocs) so the overhead is
                     // amortised; `flush()` is a no-op when the batch is
                     // empty so post-cross-event calls are cheap.
-                    if(this->m_flags_filled_cnt * 5 >= this->m_count * 4)
+                    if(this->m_flags_filled_cnt * 5 >= this->m_count * 4
+                       && KAME_INALLOC_FLUSH(1))            // §13.179
                         tls_cross_dealloc_batch.flush();
                 }
 				writeBarrier(); //for the counters.
@@ -2930,7 +2970,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// O(N) → O(1) advantage.  Stress workloads see real cross-frees,
 	// the count > 0 path fires, and the cursor rewinds so partial
 	// revivals are visited.
-	if(tls_cross_dealloc_batch.count != 0) {
+	if(tls_cross_dealloc_batch.count != 0 && KAME_INALLOC_FLUSH(2)) {   // §13.179
 		tls_cross_dealloc_batch.flush();
 		s_tls.dll_cursor = nullptr;
 		s_tls.dll_exhausted = false;
@@ -3520,6 +3560,9 @@ extern "C" unsigned long long kame_pool_flush_count() noexcept {
 }
 namespace {
 struct BatchCapReport { ~BatchCapReport() {
+    fprintf(stderr, "INALLOCFLUSH site1 taken=%llu supp=%llu | site2 taken=%llu supp=%llu\n",
+            g_inalloc_taken[0].load(), g_inalloc_supp[0].load(),
+            g_inalloc_taken[1].load(), g_inalloc_supp[1].load());
     fprintf(stderr, "FLUSHDEPTH max=%d nested=%llu | flush entries=%llu "
             "non-empty=%llu entries-processed=%llu\n",
             g_flush_maxd.load(), g_flush_nested.load(),

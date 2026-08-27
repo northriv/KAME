@@ -11630,3 +11630,56 @@ what the loop does but in how many times or how fast it does it, which is the
 sensitizer reading §13.176 is reluctant to accept on the strength of the zeros.
 
 </details>
+
+### 13.179 Where the clone is USED: two of its three call sites are inside the allocation path
+
+Asked where the clone actually matters.  The clone is
+`flush(at_teardown == false)`, so the question is answerable exactly: who calls
+`flush(false)`?
+
+| site | caller | position |
+|---|---|---|
+| **1** | **`allocate_pooled`** | the 4/5-filled proactive trigger, **after** the bitmap claim CAS |
+| **2** | **`allocate_chunk_path`** | before the DLL walk — **the same function §13.150 proved adoption necessary in** |
+| 3 | `kame_pool_set_realtime_thread` | not on any hot path |
+
+`flush(true)` — the destructor's teardown flush — uses the **other** body and is
+not the clone at all.  So the clone is, specifically, **the flush that runs inside
+allocation**.
+
+**That places both suppressors on one conjunction**, which the record had not
+stated:
+
+* **`cap = 1` (0/16)** empties the batch on every push, so when these
+  in-allocation flushes run the batch is empty and the loop body never executes;
+* **`KAME_ORPHAN_NO_ADOPT` (0/11)** removes the path through site 2.
+
+Both act on *"a non-empty deferred batch, flushed from inside the
+allocation/adoption path"* — which is also exactly what the clone is.
+
+**And it yields an arm that is a control rather than a suppressor** (§13.178's
+rule): gate **one call site** and leave everything else running.  The batch still
+defers, adoption still happens, `push`'s threshold flush still drains it — only
+the in-allocation flush moves.
+
+```
+KAME_NO_INALLOC_FLUSH=1   both in-allocation sites
+KAME_NO_INALLOC_FLUSH=2   only allocate_pooled      (site 1)
+KAME_NO_INALLOC_FLUSH=3   only allocate_chunk_path  (site 2)
+```
+
+If **site 2 alone** cures it, the path is named: the flush that adoption performs.
+If site 1 alone does, it is the post-claim trigger.  If neither does but both
+together do, it is the conjunction.
+
+**Liveness NOT verified here, and the gates say so themselves.**  Each site
+counts its taken/suppressed invocations, and in this probe both read
+`taken=0 supp=0` — neither site's outer condition (`m_flags_filled_cnt * 5 >=
+m_count * 4`; `count != 0`) is ever met, because the probe never drives the batch
+through the allocation path.  So this is an **untested arm shipped with its own
+vacuity check**, not a verified one: a reproducer run must show
+`taken > 0` on the baseline before any zero from these gates means anything.
+That is the §13.178 failure mode pre-empted rather than repeated.
+
+**Mac**: default build unchanged; plain, gate, `KAME_NO_ORPHAN_CHAIN` and
+`KAME_CHAIN_DYNCOUNT` all compile.
