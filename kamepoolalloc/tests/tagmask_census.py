@@ -60,12 +60,22 @@ def bodies(path, objdump):
                          capture_output=True, text=True)
     if out.returncode != 0:
         sys.exit("objdump failed on %s:\n%s" % (path, out.stderr[:300]))
-    fns, cur = {}, None
-    hdr = re.compile(r'^[0-9a-f]+\s+<(.+)>:\s*$')
+    fns, cur, seen = {}, None, {}
+    # §13.146  Key by ADDRESS, not name: an object can carry two symbols at the
+    # SAME address (§13.132 saw `T` and `t` for one body), and a name-keyed dict
+    # silently keeps whichever came last -- so a per-body count could come from a
+    # different symbol than the one named.  That produced a bogus "-1 atomic" for
+    # bucket_release_chunk here, which a direct disassembly refuted (it GAINED
+    # atomics, 3 -> 11).  Addresses are unique; the first name seen at an address
+    # wins and aliases are dropped.
+    hdr = re.compile(r'^([0-9a-f]+)\s+<(.+)>:\s*$')
     ins = re.compile(r'^\s+[0-9a-f]+:\s+(\S+)\s*(.*)$')
     for line in out.stdout.splitlines():
         m = hdr.match(line)
-        if m: cur = m.group(1); fns[cur] = []; continue
+        if m:
+            addr, nm = m.group(1), m.group(2)
+            if addr in seen: cur = None; continue     # alias of a body already taken
+            seen[addr] = nm; cur = nm; fns[cur] = []; continue
         m = ins.match(line)
         if m and cur is not None: fns[cur].append((m.group(1), m.group(2)))
     return fns

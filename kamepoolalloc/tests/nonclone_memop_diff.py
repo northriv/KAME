@@ -32,14 +32,23 @@ def disassemble(path, objdump):
                          capture_output=True, text=True)
     if out.returncode != 0:
         sys.exit("objdump failed on %s:\n%s" % (path, out.stderr[:400]))
-    funcs, cur = {}, None
+    funcs, cur, seen = {}, None, {}
     # GNU objdump: "0000000000001234 <name>:";  llvm-objdump: "0000... <name>:"
-    hdr = re.compile(r'^[0-9a-f]+\s+<(.+)>:\s*$')
+    # §13.146  Key by ADDRESS, not name: an object can carry two symbols at the
+    # SAME address (§13.132 saw `T` and `t` for one body), and a name-keyed dict
+    # silently keeps whichever came last -- so a per-body count could come from a
+    # different symbol than the one named.  That produced a bogus "-1 atomic" for
+    # bucket_release_chunk here, which a direct disassembly refuted (it GAINED
+    # atomics, 3 -> 11).  Addresses are unique; the first name seen at an address
+    # wins and aliases are dropped.
+    hdr = re.compile(r'^([0-9a-f]+)\s+<(.+)>:\s*$')
     insn = re.compile(r'^\s+[0-9a-f]+:\s+(\S+)\s*(.*)$')
     for line in out.stdout.splitlines():
         m = hdr.match(line)
         if m:
-            cur = m.group(1); funcs[cur] = []
+            addr, nm = m.group(1), m.group(2)
+            if addr in seen: cur = None; continue     # alias of a body already taken
+            seen[addr] = nm; cur = nm; funcs[cur] = []
             continue
         m = insn.match(line)
         if m and cur is not None:
@@ -75,8 +84,16 @@ def main():
         if a == '--objdump': objdump = sys.argv[i+1]
     A, B = disassemble(args[0], objdump), disassemble(args[1], objdump)
 
-    clones = {n for n in set(A) | set(B) if '.constprop' in n or '.isra' in n
-                                        or '.part' in n}
+    # §13.146  `.part.N` is PARTIAL INLINING, not an IPA-CP clone: the parent
+    # still exists and the outlined piece is part of it.  Excluding `.part` from
+    # the non-clone set makes partial inlining read as an OMISSION -- which is
+    # exactly the false lead it produced here: the non-clone
+    # `bucket_release_chunk` appeared to lose a 32-bit atomic, and the addr2line
+    # inline chain traced it to `l1_base` (allocator.cpp:7689) inlined via
+    # `l1_push`, which the clone arm had outlined into `l1_base() (.part.0)`
+    # carrying exactly that one RMW.  Nothing was omitted; the op moved.
+    # `.isra` (argument removal) is the same case.  Only `.constprop` is a clone.
+    clones = {n for n in set(A) | set(B) if '.constprop' in n}
     common = [n for n in (set(A) & set(B)) - clones]
     onlyB  = sorted(n for n in set(B) - set(A) - clones)
     onlyA  = sorted(n for n in set(A) - set(B) - clones)

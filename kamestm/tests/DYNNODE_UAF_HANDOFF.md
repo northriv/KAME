@@ -9401,3 +9401,73 @@ contain the bug so much as it repeatedly creates the condition under which some
 other, already-present race can be hit.  That is the shape §13.88's ~150 000
 instruction window described, and it predicts the fault should also respond to
 anything else that changes how often chunks change hands.
+
+### 13.146 Proposal (ii) as an identity, not a comparison — and it closes: masks and fences conserved exactly, atomics gained
+
+The correction: **if cloning creates N bodies, the totals must rise by what those
+bodies contain.**  §13.145 read `mask_ptr 331 vs 331` as "not one mask lost",
+which was the wrong test — identical totals are not evidence of health, they are a
+coincidence that has to be explained.  The right test is arithmetic:
+
+> `residual = (total delta) − (delta inside derived bodies)`
+
+**First attempt gave a large negative residual**, i.e. apparent losses:
+
+| op | base | clone | delta | in clones | residual |
+|---|---|---|---|---|---|
+| `mask_ptr` | 331 | 331 | +0 | 23 | **−23** |
+| `cas` | 575 | 610 | +35 | 72 | **−37** |
+| `rmw` | 1071 | 1110 | +39 | 124 | **−85** |
+
+**Chased one of them to the bottom.**  The non-clone `bucket_release_chunk`
+(clone-bisect arm 1) really does lose an atomic: base has
+`casal`, `ldadd x19`, **`ldadd w1`** — the third being a **32-bit** add — and the
+clone arm's non-clone body has only the first two.  `llvm-addr2line -i` on that
+address:
+
+```
+std::__atomic_base<int>::fetch_add      atomic_base.h:631
+  l1_base                               allocator.cpp:7689
+  l1_push                               allocator.cpp:7742
+```
+
+and the clone arm contains **`l1_base() (.part.0)` carrying exactly one RMW**.
+So the operation was **outlined by partial inlining, not omitted**.
+
+**Which exposed a bug in my own tooling.**  `.part.N` is *partial inlining* and
+`.isra.N` is *argument removal* — neither is an IPA-CP clone, and the parent still
+exists.  Excluding them from the "non-clone" set (as `nonclone_memop_diff.py`
+did) makes partial inlining read as an omission.  Fixed: only `.constprop` counts
+as a clone, and the reconciliation counts all three kinds of derived body.
+
+**With that, the identity closes** (real GCC 15.2, §13.119's minimal pair, all 523
+/ 526 bodies):
+
+| op | base | clone | delta | derived Δ | **residual** |
+|---|---|---|---|---|---|
+| `mask_ptr` | 331 | 331 | +0 | +0 | **0** |
+| `mask_cnt` | 395 | 395 | +0 | +0 | **0** |
+| `cas` | 575 | 610 | +35 | +6 | **+29** |
+| `rmw` | 1071 | 1110 | +39 | +11 | **+28** |
+| `fence` | 71 | 71 | +0 | +0 | **0** |
+
+**Three of five classes reconcile to exactly zero** — which is the sign the
+accounting is now right rather than fudged.  `cas` and `rmw` have a **positive**
+residual: ordinary bodies *gained* ~29 compare-exchanges and ~28 other RMWs,
+because each specialized call site inlines a callee that carries them.  Gaining
+is not the failure mode; **losing** is, and nothing loses.
+
+**So proposal (ii) closes as NO**, now on an identity rather than a comparison:
+no mask, no fence, and no atomic RMW is dropped anywhere in the object when
+`-fipa-cp-clone` is enabled.  Tools: `clone_op_reconcile.py` (the identity),
+`tagmask_census.py --all` (the per-class totals), `nonclone_memop_diff.py` (which
+body changed) — all three now address-keyed, since an object can carry two
+symbols at one address (§13.132's `T`/`t`) and a name-keyed dict silently keeps
+the wrong one.
+
+**Errors this section had to correct, recorded because three of them were mine:**
+reading identical totals as conservation (§13.145); a manual `awk` check that
+swept `.constprop` bodies into a count of the parent and so "refuted" the tool
+when the tool was right; and excluding `.part`/`.isra` from the non-clone set.
+The user's framing — *clone count × operations must show up in the total* — is
+what turned a vague comparison into a test that could close.
