@@ -889,7 +889,7 @@ static inline unsigned long long kame_bv_pack(unsigned state, unsigned owner,
            ((unsigned long long)(applyc & 0xfu) << 24) |
            (seq & 0xffffffULL);
 }
-static std::atomic<unsigned long long> g_bv_double_push{0};
+static std::atomic<unsigned long long> g_bv_double_push{0}, g_bv_push_after_dtor{0};
 //! §13.203  kind 0 = entry contributed a bit it does not own, 1 = two entries in
 //! one run on the same bit, 2 = entries consumed != distinct bits set.
 static std::atomic<unsigned long long> g_bv_bit[3];
@@ -920,6 +920,9 @@ static void kame_bv_bit_bad(int kind, const void *slot, unsigned sidx,
 //! And a push inside the loop is reachable: `batch_return_to_bitmap` may RELEASE
 //! a chunk (its own comments say so), and releasing frees memory, which routes
 //! back into `deallocate_pooled` -> `push`.
+//! §13.207  These live under KAME_BATCH_VERIFY so the summary can still print
+//! them, but NOTHING under that macro is emitted inside `flush` any more --
+//! see the gate split at the top of this section.
 static thread_local int g_bv_flush_depth = 0;
 static std::atomic<unsigned long long> g_bv_flush_reenter{0}, g_bv_flush_maxdepth{0};
 static inline void kame_bv_slot_stamp(char *p, unsigned align, unsigned state,
@@ -1189,6 +1192,9 @@ namespace { struct BatchVerifyReport { ~BatchVerifyReport() {
         if(tot) fprintf(stderr, "BATCHVERIFY   groups=%llu  violations=%llu  "
                         "mean group=%.2f\n", tot, wsum, (double)wsum / (double)tot);
     }
+    fprintf(stderr, "BATCHVERIFY push-after-batch-dtor=%llu"
+            "  (§13.206: should account for a negative excess, one per thread)\n",
+            g_bv_push_after_dtor.load());
     fprintf(stderr, "BATCHVERIFY thread exits=%llu  drain_checked/exit=%.0f"
             "  clears/exit=%.0f  (compare against the measured prior-clear gap)\n",
             g_bv_exits.load(),
@@ -1331,6 +1337,7 @@ struct CrossDeallocBatch {
         if(count >= cap) flush();
 #ifdef KAME_BATCH_VERIFY
         g_bv_pushes.fetch_add(1, std::memory_order_relaxed);
+        if(dead_) g_bv_push_after_dtor.fetch_add(1, std::memory_order_relaxed);
         {   //! §13.191  Four frames: 0-1 are inside the allocator
             //! (`deallocate_pooled` <- `deallocate_cold`), so the CLIENT that
             //! issued the free is at 2-3.  Needs frame pointers to be reliable
@@ -1493,7 +1500,7 @@ struct CrossDeallocBatch {
         } _depth_guard;
 #endif
         verify_owner("flush");                                   // §13.182
-#ifdef KAME_BATCH_VERIFY
+#ifdef KAME_FLUSH_SHAPE_PROBE
         struct BvDepth {                                         // §13.202
             BvDepth() noexcept {
                 if(++g_bv_flush_depth > 1) {
@@ -1511,7 +1518,7 @@ struct CrossDeallocBatch {
             ~BvDepth() noexcept { --g_bv_flush_depth; }
         } _bv_depth;
 #endif
-#ifdef KAME_BATCH_VERIFY
+#ifdef KAME_FLUSH_SHAPE_PROBE
         if(count < 0 || count > CAP) {
             fprintf(stderr, "BATCHVERIFY count OUT OF RANGE before flush: %d\n", count);
             abort();
@@ -1607,7 +1614,7 @@ struct CrossDeallocBatch {
                 cached_force_walk->store(true, std::memory_order_relaxed);
 #endif
         }
-#ifdef KAME_BATCH_VERIFY
+#ifdef KAME_FLUSH_SHAPE_PROBE
         //! §13.202 sufficiency test.  `KAME_FLUSH_REENTRY_INJECT=N` re-enters
         //! `flush` once per N flushes, from inside the apply loop -- exactly what
         //! a `push` from a chunk release would do.  Two questions at once: does
@@ -1631,11 +1638,30 @@ struct CrossDeallocBatch {
         }
 #endif
         count = 0;
-#ifdef KAME_BATCH_VERIFY
+#ifdef KAME_FLUSH_SHAPE_PROBE
         if(count != 0) { fprintf(stderr, "BATCHVERIFY count != 0 AFTER flush: %d\n", count); abort(); }
 #endif
     }
-    ~CrossDeallocBatch() noexcept { flush(/*at_teardown=*/true); }
+    ~CrossDeallocBatch() noexcept {
+        flush(/*at_teardown=*/true);
+#ifdef KAME_BATCH_VERIFY
+        //! §13.207  §13.204 measures `checked_flush - pushes` at exactly **-801**
+        //! (cap 1) and **-17 601** (cap 32) on Linux, invariant across runs, while
+        //! arm64 gives **+0** in the same source.  801 is this run's thread-exit
+        //! count (§13.205), so it is one lost entry per thread exit: pushed, never
+        //! applied, bit left SET, slot never returned.
+        //!
+        //! The suspect is a free arriving AFTER this destructor, which lands in a
+        //! dead batch.  The bypass meant to catch that (`kame_page() ==
+        //! &g_teardown_page` -> direct return) shows `site teardown checked = 0`
+        //! in every run, i.e. it never fires.  This flag makes the two cases
+        //! distinguishable instead of inferred.
+        dead_ = true;
+#endif
+    }
+#ifdef KAME_BATCH_VERIFY
+    bool dead_ = false;
+#endif
 };
 thread_local CrossDeallocBatch tls_cross_dealloc_batch;
 

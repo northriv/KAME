@@ -13619,3 +13619,72 @@ nm -C <so> | grep -c 'flush_impl<false>'     # must stay 4
 
 Two lines, and they would have caught this before three sections were written
 against a build that no longer had the phenomenon.
+
+### 13.207 The perturbation confirmed with §13.204's own discriminator, and undone: `KAME_BATCH_VERIFY` now emits nothing inside `flush`
+
+§13.204 found that the §13.202-era source no longer produces the violation, and
+named the cheap check.  Run, on real GCC 15.2 (`-O3`, aarch64), counting `flush`
+symbols in `allocator.cpp.o`:
+
+| build | `flush` symbols |
+|---|---|
+| plain (no instrumentation) | **4** |
+| `-DKAME_BATCH_VERIFY` (after the gate split below) | **4** — identical |
+| `+ -DKAME_FLUSH_SHAPE_PROBE` | **7** |
+
+§13.204 measured **6** on the hand-specialised source against a previous 4.  Same
+cause: **my §13.202 additions were inside `flush`** — the `BvDepth` RAII counter,
+the re-entry injector, and the two `count` asserts.  §13.177 established the fault
+needs that function's *shape*; instrumenting it changed the shape.  That is the
+§13.182 class, and §13.182 is mine: *a control that perturbs what it measures is
+not a control.*
+
+#### The split
+
+Everything that lands inside `flush` now sits behind **`KAME_FLUSH_SHAPE_PROBE`**,
+a separate macro.  A `KAME_BATCH_VERIFY` build emits exactly one thing there —
+`KAME_BV_SITE(BV_FLUSH)`, a save/restore of one TLS byte inside the loop — and
+that was **present when §13.187 measured 800 violations**, so it is proven not to
+suppress the fault rather than merely assumed harmless.  The symbol count agrees:
+4, the same as plain.
+
+Practical consequence for the Linux side: the default verify build no longer
+contains the injector's `flush(at_teardown)` call, so §13.184's hand-specialisation
+needs no rewrite unless the probe macro is enabled.
+
+#### Scope of what needs re-taking, precisely
+
+* **§13.184–§13.201 stand.**  Those were measured before the §13.202 additions
+  existed, i.e. on 4-symbol builds.
+* **§13.202's sufficiency result stands** — it is *about* the perturbed shape
+  (forced re-entry), and it showed what a run walked twice looks like.
+* **§13.203's merge-loop zeros must be re-taken.**  The checks live in
+  `batch_clear_impl`, not `flush`, but the *build* carried the flush additions, so
+  they were read on a shape that does not exhibit the fault.  On arm64 that
+  changes nothing (no violations either way); on x86-64 they are the live
+  question and now have a build that can answer.
+
+#### The −801, and an instrument for it
+
+§13.204's deficit is `checked_flush − pushes` = **−801** at `cap = 1` and
+**−17 601** at `cap = 32`, invariant across runs, while arm64 gives **+0** in the
+same source.  §13.205 measures this run's thread-exit count as **801** — the same
+number.  So it is **one batched entry lost per thread exit**: pushed, never
+applied, bit left SET, slot never returned.  A deterministic per-thread leak, not a
+race, and platform-specific.
+
+The suspect is a free arriving *after* `~CrossDeallocBatch`, landing in a dead
+batch.  The bypass that exists to catch exactly that (`kame_page() ==
+&g_teardown_page` → direct return) reports `site teardown checked = 0` in every
+run — it never fires.  So the build now sets a `dead_` flag in the destructor and
+counts pushes that arrive afterwards:
+
+```
+arm64, cap 1 and 32:  push-after-batch-dtor = 0   thread exits = 801   excess = +0
+```
+
+The arm is live (exits counted, same 801) and the deficit simply does not occur
+here.  On x86-64 the reading is direct: **`push-after-batch-dtor ≈ 801`** confirms
+the post-destructor free and localises the bug to the teardown bypass not firing;
+**`= 0`** means the entry is lost inside the teardown flush itself, which is a
+different and smaller search.
