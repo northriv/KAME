@@ -24,7 +24,8 @@
 (***************************************************************************)
 EXTENDS Naturals, FiniteSets, Sequences, TLC
 
-CONSTANTS Chunks, Slots, Threads, BUG_DRAIN_AFTER_DISOWN, BUG_STALE_FLIST
+CONSTANTS Chunks, Slots, Threads, BUG_DRAIN_AFTER_DISOWN, BUG_STALE_FLIST,
+          OWNER_RELEASE
 
 VARIABLES
     owner,      \* [Chunks -> Threads \cup {NONE}]
@@ -200,7 +201,36 @@ Adopt(t, c) ==
     /\ onChain' = [onChain EXCEPT ![c] = FALSE]
     /\ UNCHANGED <<bits, occ, flist, pending, walk, pc, dead, handed, drained, snap>>
 
+\* §13.216  `owner_release`, modelled at the granularity of its actual code.
+\*
+\* This is NOT a bug knob: it is a code path that EXISTS (allocate_chunk_path calls
+\* it, unguarded) and that this reproducer never enters (`entered = 0`), so it has
+\* never been checked either empirically or formally.
+\*
+\*     if(dll_len <= LEAVE_VACANT_CHUNKS_PER_THREAD) return false;          // benign
+\*     if((load(&m_flags_packed) & MASK_CNT) != 0)    return false;         // benign
+\*     old = atomicFetchAnd(&m_flags_packed, ~BIT_OWNED);   // <-- CLEARS FIRST
+\*     if((old & ~BIT_OWNED) != 0) return false;            // <-- and gives up
+\*
+\* The pre-check and the fetch-and are separate operations, so a cross-thread free
+\* can raise MASK_CNT in between.  `bits[c] = {}` models "looked empty"; the peer's
+\* pending flush landing between the two models the race.  On the give-up return the
+\* chunk has BIT_OWNED cleared (owner = NONE here) and is NOT put on the chain --
+\* which is the state `NoStrandedChunk` forbids.
+NeighbourRelease(t, c) ==
+    /\ OWNER_RELEASE
+    /\ Alive(t) /\ pc[t] = "idle"
+    /\ owner[c] = t
+    /\ bits[c] = {}                  \* the pre-check saw MASK_CNT == 0
+    /\ owner' = [owner EXCEPT ![c] = NONE]        \* atomicFetchAnd(~BIT_OWNED)
+    \* If a peer's flush has since made it non-empty the function returns false and
+    \* leaves it exactly here: owner-clear, off-chain.  If it really is still empty
+    \* the caller reclaims it, which the model represents by leaving bits empty.
+    /\ UNCHANGED <<onChain, bits, occ, flist, pending, walk, pc, dead, handed,
+                   drained, snap>>
+
 Next ==
+    \/ \E t \in Threads, c \in Chunks : NeighbourRelease(t, c)
     \/ \E t \in Threads, c \in Chunks :
          Claim(t, c) \/ AllocBitmap(t, c) \/ AllocFlist(t, c)
          \/ FreeOwner(t, c) \/ FreeCross(t, c) \/ Adopt(t, c)
@@ -224,7 +254,14 @@ NoDoubleCustody ==
 NoOwnedOnChain == \A c \in Chunks : ~(onChain[c] /\ owner[c] /= NONE)
 NoDoubleHandOut == handed = {}
 NoLostEntries == \A t \in dead : pending[t] = {}
+\* §13.216  A chunk with no owner and not on the chain is reachable by NOBODY:
+\* `orphan_chain_scrub` only walks the chain, and the FS OnClearFns decline to
+\* release a BIT_OWNED-clear chunk precisely because they assume it IS on the
+\* chain.  So such a chunk must have no bits set, or it is stranded for ever.
+NoStrandedChunk ==
+    \A c \in Chunks : (owner[c] = NONE /\ ~onChain[c]) => bits[c] = {}
 
 Inv == TypeOK /\ OccCoveredByBits /\ FlistCoveredByBits /\ PendingCoveredByBits
        /\ NoDoubleCustody /\ NoOwnedOnChain /\ NoDoubleHandOut /\ NoLostEntries
+       /\ NoStrandedChunk
 ===========================================================================

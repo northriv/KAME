@@ -924,6 +924,29 @@ static std::atomic<unsigned long long> g_bv_double_push{0}, g_bv_push_after_dtor
 //! clears BIT_OWNED on a chunk still being drained (`owner_release`'s landmine is
 //! exactly such a path), turns a proved-unsafe configuration into a loud one.
 static std::atomic<unsigned long long> g_bv_drain_owned{0}, g_bv_drain_unowned{0};
+//! §13.217  TLS DESTRUCTION ORDER between the two thread_locals that matter.
+//!
+//!   thread_local AllocThreadExitCleanup tls_alloc_thread_exit_cleanup; // line 629
+//!   thread_local CrossDeallocBatch      tls_cross_dealloc_batch;       // line 1763
+//!
+//! Both have non-trivial destructors in ONE translation unit, so their destruction
+//! order is the reverse of the order in which each was FIRST ACCESSED -- which is a
+//! per-thread, per-code-path property, not a fixed one.
+//!
+//! The orders are not equivalent:
+//!   batch first  -> pending frees are applied while the chunks are still owned.
+//!   cleanup first -> release_dll_chunks_for_thread drains, disowns and orphans the
+//!                    chunks, and THEN flush(at_teardown=true) clears bits on
+//!                    chunks that another thread may already have adopted and
+//!                    handed slots out of -- one late flush per thread.
+//!
+//! The source already knows this class exists: the teardown path passes
+//! `at_teardown ? nullptr` for the force-walk poke *because* "the pointer may
+//! dangle under musl's TSD-dtor ordering".  Only the poke was guarded; the flush
+//! itself was not.
+static std::atomic<unsigned long long> g_bv_ord_batch_first{0},
+                                       g_bv_ord_cleanup_first{0};
+static thread_local unsigned char g_bv_tls_dtor_mark = 0;   // 1=batch 2=cleanup
 static std::atomic<unsigned long long> g_bv_or_entered{0}, g_bv_or_floor{0},
                                       g_bv_or_reached{0}, g_bv_or_landmine{0};
 //! §13.209  exits that occurred inside the [first clear, violation] window, for
@@ -1282,6 +1305,10 @@ namespace { struct BatchVerifyReport { ~BatchVerifyReport() {
                     clears_per_exit > 0 ? mean_gap / clears_per_exit : 0.0,
                     g_bv_exitgap[0].load());
     }
+    fprintf(stderr, "BATCHVERIFY TLS dtor order: batch_first=%llu cleanup_first=%llu"
+            "  (§13.217: cleanup_first means a flush runs AFTER the chunks were "
+            "disowned)\n",
+            g_bv_ord_batch_first.load(), g_bv_ord_cleanup_first.load());
     fprintf(stderr, "BATCHVERIFY drain-under-BIT_OWNED: ok=%llu VIOLATIONS=%llu"
             "  (§13.216: the invariant ExitWalk.tla proves load-bearing)\n",
             g_bv_drain_owned.load(), g_bv_drain_unowned.load());
@@ -1364,6 +1391,30 @@ struct CrossDeallocBatch {
     //! `push` already dereferences, so reading it adds no TLS access at all.
     int               cap = CAP;
 #ifdef KAME_BATCH_VERIFY
+#ifdef KAME_FORCE_TLS_DTOR_ORDER
+    //! §13.217  Pin the destruction order instead of inheriting it.
+    //!
+    //! `tls_alloc_thread_exit_cleanup` (whose dtor drains, disowns and orphans this
+    //! thread's chunks) and `tls_cross_dealloc_batch` (whose dtor flushes its
+    //! pending cross-thread frees) both have non-trivial destructors in ONE
+    //! translation unit, so the order is the reverse of first-access -- a
+    //! per-thread, per-path property, and unspecified as far as the program is
+    //! concerned.
+    //!
+    //! The two orders are NOT equivalent.  Flushing after the walk clears bits on
+    //! chunks that have been disowned, orphaned, and possibly adopted and handed
+    //! out of -- one late flush per thread.  Today macOS happens to give the safe
+    //! order on every thread (measured: batch_first = 801, cleanup_first = 0)
+    //! because the cleanup is registered during the first ALLOCATION while the
+    //! batch is first touched at the first cross-thread FREE, and allocation always
+    //! comes first.  That is an accident of the workload, not a guarantee.
+    //!
+    //! Destruction is reverse of construction, so to have the batch's flush run
+    //! FIRST the batch must be constructed LAST: touching the cleanup from the
+    //! batch's constructor forces it.  One line, no run-time cost after
+    //! construction, and it removes the dependence on unspecified order.
+    CrossDeallocBatch() noexcept { (void)&tls_alloc_thread_exit_cleanup; }
+#endif
     //! §13.183  The two-line version of the same question, on the batch itself.
     //! `CrossDeallocBatch` is `thread_local`, so being reached from another
     //! thread is a defect by construction -- and it would explain everything:
@@ -1740,6 +1791,12 @@ struct CrossDeallocBatch {
 #endif
     }
     ~CrossDeallocBatch() noexcept {
+#ifdef KAME_BATCH_VERIFY
+        if(g_bv_tls_dtor_mark == 0) {                            // §13.217
+            g_bv_tls_dtor_mark = 1;
+            g_bv_ord_batch_first.fetch_add(1, std::memory_order_relaxed);
+        }
+#endif
         flush(/*at_teardown=*/true);
 #ifdef KAME_BATCH_VERIFY
         //! §13.207  §13.204 measures `checked_flush - pushes` at exactly **-801**

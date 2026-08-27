@@ -14315,3 +14315,86 @@ The two things still unmeasured are both on the Linux side and both one command:
 **the exits-in-gap histogram against its own base rate** (§13.209) and
 **`checked_flush − pushes` vs `bit_clear_bad`** on a shape-gated build (§13.208).
 Everything else this section can propose has now been tried.
+
+### 13.216 A violation FOUND by reading: the two teardown `thread_local`s have unspecified destruction order — and the fix passes the shape gate
+
+Not another exoneration.  Two objects with non-trivial destructors, one
+translation unit:
+
+```cpp
+line  629:  thread_local AllocThreadExitCleanup tls_alloc_thread_exit_cleanup;
+line 1763:  thread_local CrossDeallocBatch      tls_cross_dealloc_batch;
+```
+
+* `~AllocThreadExitCleanup` → `release_dll_chunks_for_thread`: drains each chunk's
+  freelist, clears `BIT_OWNED`, sets `BIT_OWNER_EXITED`, orphans what is non-empty.
+* `~CrossDeallocBatch` → `flush(at_teardown = true)`: applies this thread's pending
+  cross-thread frees, i.e. **clears bits**.
+
+Their destruction order is the reverse of the order each was **first accessed** —
+a per-thread, per-code-path property, and unspecified as far as the program is
+concerned.  **The two orders are not equivalent:**
+
+| order | consequence |
+|---|---|
+| batch first | pending frees are applied while their chunks are still owned. Correct. |
+| **cleanup first** | the walk disowns and orphans the chunks, and the flush **then** clears bits on chunks another thread may already have adopted and handed slots out of — **one late flush per thread.** |
+
+**The source already knows this class exists** and guarded only half of it: the
+teardown path passes `at_teardown ? nullptr` for the force-walk poke *because*
+"the pointer may dangle under **musl's TSD-dtor ordering**".  The poke was guarded;
+the flush that clears the bitmap was not.
+
+#### Measured here — always the safe order, and the reason is an accident
+
+```
+arm64 / macOS, cap 1 and 32   TLS dtor order: batch_first=801  cleanup_first=0
+```
+
+Every thread gets the safe order, and *why* matters: the cleanup is registered
+during the first **allocation** (`tls_alloc_thread_exit_cleanup.add(...)` on the
+allocate path) while the batch is first touched at the first cross-thread **free**
+— and allocation always precedes a free.  So safety here is a property of the
+access pattern, not a guarantee, and any path that touches the batch before the
+first allocation inverts it.
+
+#### The prediction this makes, with a number
+
+Violations == thread exits, exactly, 801 per run (§13.210).  If Linux reports
+`cleanup_first > 0` — and especially if it equals the violation count — the
+mechanism is found: one late flush per thread, each clearing one bit on a chunk
+that has moved on.  It also explains what no other candidate has: both clears at
+`flush` (§13.190), no double-pending (§13.195/§13.200), `FREE-OF-FREE = 0`
+(§13.192), conservation ±1 (the entry *is* applied, just too late), and the
+compiler dependence — first-access order is exactly what inlining decisions move.
+
+#### The fix, and why it is the first candidate that can be tested
+
+Destruction is reverse of construction, so for the batch's flush to run **first**
+the batch must be constructed **last**.  Touching the cleanup from the batch's
+constructor forces that:
+
+```cpp
+CrossDeallocBatch() noexcept { (void)&tls_alloc_thread_exit_cleanup; }
+```
+
+One line, no run-time cost after construction, and it removes a dependence on
+unspecified order whether or not it is the current bug.  Gated
+`KAME_FORCE_TLS_DTOR_ORDER` so it can be A/B'd; it should become unconditional.
+
+**And it passes §13.208's shape gate** — real GCC 15.2, `-O3`:
+
+| build | `flush` syms | flush constprop clones |
+|---|---|---|
+| plain | 4 | 1 |
+| `KAME_BATCH_VERIFY` | 4 | 1 |
+| `+ KAME_FORCE_TLS_DTOR_ORDER` | **4** | **1** |
+| `KAME_FORCE_TLS_DTOR_ORDER` alone | **4** | **1** |
+
+That is the property every previous candidate lacked.  `noclone` and
+`-fno-ipa-cp-clone` delete the clone, `KAME_BATCH_CAP=1` removes the deferral,
+`KAME_ORPHAN_NO_ADOPT` strands memory, and §13.202's counters deleted the
+signature outright (§13.206).  **This one changes construction order and nothing
+else**, so a run of it against stock on x86-64 is a clean A/B: if
+`bit_clear_bad` goes 800 → 0 with the shape intact, that is the fix, not a
+mitigation.
