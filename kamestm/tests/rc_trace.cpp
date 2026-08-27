@@ -1890,8 +1890,25 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
                         dlsym(RTLD_DEFAULT, "kame_pool_alloc_of_live_bt"));
                     if(abtf) {
                         void *fr[24]; int n = abtf(fr, 24);
-                        for(int fi = 0; fi < n; ++fi)
-                            raw_line_("RC-ALLOCOFLIVE-BT   [%d] %p\n", fi, fr[fi]);
+                        // §13.171  Print the module base too, and the frames as
+                        // OFFSETS.  A raw address is unresolvable once the
+                        // process exits (the first capture was lost that way);
+                        // an offset feeds straight into
+                        //   addr2line -f -C -e libkamepoolalloc_*.so <off>
+                        typedef const void *(*mb_fn)();
+                        static mb_fn mbf = reinterpret_cast<mb_fn>(
+                            dlsym(RTLD_DEFAULT, "kame_pool_module_base"));
+                        const void *base = mbf ? mbf() : nullptr;
+                        raw_line_("RC-ALLOCOFLIVE-BT base=%p frames=%d\n", base, n);
+                        for(int fi = 0; fi < n; ++fi) {
+                            if(base)
+                                raw_line_("RC-ALLOCOFLIVE-BT   [%d] %p  +0x%lx\n",
+                                          fi, fr[fi],
+                                          (unsigned long)((const char *)fr[fi]
+                                                          - (const char *)base));
+                            else
+                                raw_line_("RC-ALLOCOFLIVE-BT   [%d] %p\n", fi, fr[fi]);
+                        }
                     }
                 }
                 // §13.167  The premature free's own call chain.

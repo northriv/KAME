@@ -9375,6 +9375,17 @@ extern "C" unsigned long long kame_pool_alloc_of_live_count() noexcept {
 extern "C" unsigned long long kame_pool_alloc_checked_count() noexcept {
     return g_alloc_checked.load(std::memory_order_relaxed);
 }
+//! (§13.171) The library's load base, so raw `backtrace()` frames can be
+//! turned into offsets and resolved offline with addr2line.  Without it a
+//! captured backtrace is unresolvable once the process is gone — which is
+//! exactly what happened to the first capture.
+extern "C" const void *kame_pool_module_base() noexcept {
+    Dl_info info;
+    if(dladdr(reinterpret_cast<const void *>(&kame_pool_alloc_of_live_count),
+              &info))
+        return info.dli_fbase;
+    return nullptr;
+}
 extern "C" int kame_pool_alloc_of_live_bt(void **out, int max) noexcept {
     if(!g_aol_have.load(std::memory_order_relaxed)) return 0;
     int n = g_aol_first.btn; if(n > max) n = max;
