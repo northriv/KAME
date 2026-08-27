@@ -1202,9 +1202,8 @@ namespace { struct BatchVerifyReport { ~BatchVerifyReport() {
                                 (double)g_bv_exits.load() : 0.0,
             g_bv_exits.load() ? (double)(g_bv_clearseq.load() - 1) /
                                 (double)g_bv_exits.load() : 0.0);
-    fprintf(stderr, "BATCHVERIFY merge-loop: bit_not_owned=%llu two_on_one_bit=%llu"
-            " count_mismatch=%llu  (§13.195's never-run check)\n",
-            g_bv_bit[0].load(), g_bv_bit[1].load(), g_bv_bit[2].load());
+    fprintf(stderr, "BATCHVERIFY duplicate-bit in one run: %llu"
+            "  (§13.195's check, §13.208 placement)\n", g_bv_bit[1].load());
     fprintf(stderr, "BATCHVERIFY flush re-entry: count=%llu max_depth=%llu"
             "  (>0 => the nested call re-applied the outer buffer)\n",
             g_bv_flush_reenter.load(), g_bv_flush_maxdepth.load());
@@ -3034,26 +3033,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 		int idx = midx / FUINT_BITS;
 		unsigned int sidx = midx % FUINT_BITS;
 		FUINT mask = mask_fn(idx, sidx, p);
-#ifdef KAME_BATCH_VERIFY
-		//! §13.203  §13.195's never-run check.  `pairing_bad` only verifies that
-		//! an entry's slot lies inside this chunk -- never that the BIT it
-		//! contributes is the one that entry owns, nor that two entries in a run
-		//! contribute distinct bits.  Two entries on one bit merge to a single
-		//! clear, so the run advances by 2 while only 1 bit clears; the same
-		//! shape from the other side is an entry contributing a bit it does not
-		//! own, which clears somebody else's slot.
-		FUINT bv_run_bits = 0;
-		unsigned bv_run_entries = 0;
-		if constexpr (FS && DUMMY) {
-			if(mask != (((FUINT)1u) << sidx))
-				kame_bv_bit_bad(0, p, sidx, (unsigned long long)mask);
-			bv_run_bits = mask; bv_run_entries = 1;
-		}
-#endif
-		// Merge adjacent same-word slots — pointer-sorted ⇒
-		// word-index-sorted, so once we see a different idx
-		// (or a different chunk) we know no later slot lands in this
-		// word either.
 		int j = i + 1;
 		while(entries[j].chunk == this) {
 			char *q = static_cast<char *>(entries[j].slot);
@@ -3061,47 +3040,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 			int idx_q = midx_q / FUINT_BITS;
 			if(idx_q != idx) break;
 			unsigned int sidx_q = midx_q % FUINT_BITS;
-			FUINT bv_m = mask_fn(idx_q, sidx_q, q);
-#ifdef KAME_BATCH_VERIFY
-			if constexpr (FS && DUMMY) {
-				//! §13.203 control: `KAME_BATCH_VERIFY_MINJECT=N` corrupts the
-				//! value handed to the CHECKS for 1 merged entry in N, leaving
-				//! the real `mask` untouched -- so the arm is non-destructive
-				//! and a zero above is only meaningful once this run is nonzero.
-				FUINT bv_chk = bv_m;
-				{
-					static std::atomic<int> mi{-1};
-					int iv = mi.load(std::memory_order_relaxed);
-					if(iv < 0) {
-						const char *e = getenv("KAME_BATCH_VERIFY_MINJECT");
-						iv = (e && e[0]) ? atoi(e) : 0;
-						mi.store(iv, std::memory_order_relaxed);
-					}
-					if(iv > 0) {
-						static std::atomic<unsigned long long> mc{0};
-						if((mc.fetch_add(1, std::memory_order_relaxed)
-						    % (unsigned)iv) == 0)
-							bv_chk = bv_run_bits ? bv_run_bits : (bv_m << 1);
-					}
-				}
-				if(bv_chk != (((FUINT)1u) << sidx_q))
-					kame_bv_bit_bad(0, q, sidx_q, (unsigned long long)bv_chk);
-				if(bv_run_bits & bv_chk)                     // §13.203
-					kame_bv_bit_bad(1, q, sidx_q, (unsigned long long)bv_run_bits);
-				bv_run_bits |= bv_m; ++bv_run_entries;
-			}
-#endif
-			mask |= bv_m;
+			mask |= mask_fn(idx_q, sidx_q, q);
 			++j;
 		}
-#ifdef KAME_BATCH_VERIFY
-		//! §13.203  Entries consumed for this word must equal distinct bits set.
-		if constexpr (FS && DUMMY)
-			if((unsigned)__builtin_popcountll((unsigned long long)bv_run_bits)
-			   != bv_run_entries)
-				kame_bv_bit_bad(2, entries[i].slot, bv_run_entries,
-				                (unsigned long long)bv_run_bits);
-#endif
 		++n_words;
 		// CAS-clear `m_flags[idx] &= ~mask` with retry; on_clear gets
 		// the (oldv, newv) for counter updates (per-FS-variant logic).
@@ -3215,6 +3156,22 @@ KAME_CLONE_LICENCE(4) /*§13.112 arm 4*/ PoolAllocator<ALIGN, FS, DUMMY>::batch_
 	// Counters report checks performed as well as violations, so a zero is
 	// distinguishable from "never ran" (§13.178's lesson, three times over).
 	unsigned bv_vio_this_call = 0;                                  // §13.197
+	//! §13.208  §13.195's duplicate-bit check, moved OUT of `batch_clear_impl`.
+	//!
+	//! §13.206 bisected the vanished signature to instrumentation inside the flush
+	//! region and set the rule: any counter placed there must be re-validated on
+	//! the failing target, because arm64 cannot detect the class.  So the check
+	//! moves to this loop, which was present when §13.187 measured 800 violations
+	//! -- validated by history rather than by assumption.
+	//!
+	//! It costs nothing in coverage.  Entries are pointer-sorted, so same-word
+	//! entries are contiguous and one running (word, bits) pair reproduces the
+	//! merge loop's view exactly.  The other half of §13.195's proposal --
+	//! "does `mask_fn` return the entry's own bit" -- is dropped deliberately: for
+	//! FS=true `mask_fn` is a lambda literal at the call site returning
+	//! `1 << sidx`, so checking it only checks that a literal is itself.
+	unsigned bv_prev_widx = ~0u;
+	FUINT bv_run_bits = 0;
 	for(int k = 0; entries[k].chunk == static_cast<PoolAllocatorBase *>(this); ++k) {
 		char *p = static_cast<char *>(entries[k].slot);
 		char *base = this->mempool();
@@ -3255,6 +3212,25 @@ KAME_CLONE_LICENCE(4) /*§13.112 arm 4*/ PoolAllocator<ALIGN, FS, DUMMY>::batch_
 					kame_bv_note_clear_as((uintptr_t)p, BV_OTHER);
 			}
 		}
+		{   //! §13.208 control: `KAME_BATCH_VERIFY_MINJECT=N` replays the previous
+			//! entry's bit for 1 entry in N -- observation only, nothing cleared.
+			static std::atomic<int> mi{-1};
+			int iv = mi.load(std::memory_order_relaxed);
+			if(iv < 0) {
+				const char *e = getenv("KAME_BATCH_VERIFY_MINJECT");
+				iv = (e && e[0]) ? atoi(e) : 0;
+				mi.store(iv, std::memory_order_relaxed);
+			}
+			if(iv > 0 && bv_run_bits) {
+				static std::atomic<unsigned long long> mc{0};
+				if((mc.fetch_add(1, std::memory_order_relaxed) % (unsigned)iv) == 0)
+					kame_bv_bit_bad(1, p, bit, (unsigned long long)bv_run_bits);
+			}
+		}
+		if(widx != bv_prev_widx) { bv_prev_widx = widx; bv_run_bits = 0; }
+		if(bv_run_bits & (((FUINT)1u) << bit))
+			kame_bv_bit_bad(1, p, bit, (unsigned long long)bv_run_bits);   // §13.208
+		bv_run_bits |= ((FUINT)1u) << bit;
 		FUINT w = atomicLoadAcquire(&this->m_flags[widx]);
 		if(!((w >> bit) & 1u)) {
 			++bv_vio_this_call;                                 // §13.197

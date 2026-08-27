@@ -13688,3 +13688,65 @@ here.  On x86-64 the reading is direct: **`push-after-batch-dtor ≈ 801`** conf
 the post-destructor free and localises the bug to the teardown bypass not firing;
 **`= 0`** means the entry is lost inside the teardown flush itself, which is a
 different and smaller search.
+
+### 13.208 §13.195's check re-placed where history validates it, and `flush` restored to plain's exact shape
+
+§13.206's rule is adopted: on the failing target the flush region is codegen-
+sensitive enough that measuring inside it changes what it does, and an arm64
+validation cannot detect that class.  So instead of arguing that a counter is
+harmless, put it where a build that *did* exhibit the phenomenon already had it.
+
+#### What moved
+
+* **`batch_clear_impl`'s merge loop: all instrumentation removed.**  §13.203 put
+  three checks in the hot merge loop; they are gone.
+* **The duplicate-bit check re-implemented in the verify loop** of
+  `batch_return_to_bitmap` — the loop that was present when §13.187 measured 800
+  violations and §13.201 measured 395.  Validated by history, not by assumption.
+  It loses no coverage: entries are pointer-sorted, so same-word entries are
+  contiguous and one running `(word, bits)` pair reproduces the merge loop's view
+  exactly.
+* **The other half of §13.195's proposal dropped deliberately.**  "Does `mask_fn`
+  return the entry's own bit" — for FS=true `mask_fn` is a lambda literal at the
+  call site returning `1 << sidx`, so checking it only checks that a literal is
+  itself.  Removing it removes a hot-loop write for no loss.
+
+#### Shape, measured (real GCC 15.2, `-O3`, `nm -C` on `allocator.cpp.o`)
+
+| build | `CrossDeallocBatch::flush` syms | flush constprop clones | `batch_clear_impl` syms |
+|---|---|---|---|
+| plain | 4 | 1 | 23 |
+| `-DKAME_BATCH_VERIFY` | **4** | **1** | 6 |
+
+**The flush region is now identical to plain** — which is the region §13.206
+bisected to.  `batch_clear_impl` still differs (23 vs 6), and that difference is
+**not new**: it comes from §13.188's census at the clearing CAS, and §13.190 read
+**800** violations and §13.201 **395** on builds that contained it.  So it, too, is
+validated by history rather than by argument.
+
+#### Both directions
+
+```
+arm64, cap 32   duplicate-bit in one run: 0
+control (KAME_BATCH_VERIFY_MINJECT=4000, observation only — replays the previous
+entry's bit into the check, clears nothing)
+                duplicate-bit in one run: 18
+```
+
+#### The gate, mechanised
+
+`kamepoolalloc/tests/verify_shape_gate.sh <so> <reproducer> [cap]` runs exactly the
+two lines §13.206 specifies and exits nonzero unless **both** hold — flush symbol
+count unchanged, and `bit_clear_bad > 0`.  Intended to be run *before* any counter
+in this family is read, since a build that fails either line is not a measurement
+platform whatever its counters print.  `KAME_WANT_FLUSH_SYMS` overrides the
+expected count for the hand-specialised source.
+
+#### Still owed on the Linux side, in order
+
+1. gate the current source (`verify_shape_gate.sh`) — if `bit_clear_bad` is back to
+   ~800, the platform is restored and (2) and (3) are readable;
+2. **`duplicate-bit in one run`** — the last unexecuted structural check;
+3. **`checked_flush − pushes` vs `bit_clear_bad`** — §13.202's discriminator, now
+   with a left-hand side again;
+4. `push-after-batch-dtor` for §13.207's −801 (one entry lost per thread exit).
