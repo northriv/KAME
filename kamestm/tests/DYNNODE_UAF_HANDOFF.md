@@ -14712,3 +14712,54 @@ of 1600**, i.e. an exit is in the window essentially always, where independence
 predicts ~23 %.  The mean was the wrong statistic (exits are bursty — 16 threads
 join per round); the depleted zero cell is the one that carries the signal, and it
 agrees with the identity above.
+
+### 13.221 Shipped: B unconditional, A removed as inert, and the order counter removed as vacuous
+
+§13.220's reading is in, so §13.218's caution is lifted.
+
+* **B is now unconditional.**  `drain_thread_slot_freelists()` — the stub
+  `~AllocThreadExitCleanup` has always called first — flushes
+  `tls_cross_dealloc_batch` before the DLL walk.  No macro.  §13.220: 1600 → 0,
+  3 reps of 3, with the B-null control holding the fault at full strength, so the
+  cure is the flush and not the shape.
+* **A is removed.**  `KAME_FORCE_TLS_DTOR_ORDER` measured inert (`dead = 0`,
+  `nonempty = 96` with it on).  The reason is structural and worth keeping in the
+  comment: the two objects are destroyed by **different mechanisms** — the batch by
+  `__cxa_thread_atexit`, the cleanup via the pthread-key path — so construction
+  order cannot sequence them against each other at all.  Explicit sequencing is the
+  only thing that works, which is why B does and A cannot.
+* **`batch_first` / `cleanup_first` removed.**  `cleanup_first` was defined,
+  printed, and never incremented, so §13.216's `801 / 0` reported only that the
+  batch destructor ran 801 times — and I read it as an order, and inverted the
+  真 order in the process.  `dead_` at the first statement of the cleanup
+  destructor is the correct probe and §13.220 used it.  Removed rather than
+  repaired.
+
+```
+arm64, B unconditional, no instrumentation    ctest 41/41 pass
+real GCC 15.2 -O3                             flush syms 4, constprop clones 1
+```
+
+#### The three errors of mine that §13.220 corrected, recorded together
+
+1. **§13.216's order measurement was vacuous** — a counter that cannot be nonzero,
+   in the section that called itself FOUND.  §13.61 does not stop applying to
+   one's own conclusions.
+2. **The order was inverted** — cleanup-first on 100 % of threads, not 0 %.  The
+   class was right and every empirical claim about it was backwards.
+3. **§13.209's histogram sat inside `if(n < 8)`** despite its comment, so `n` was
+   literally 8.  Hoisted by §13.220; the depleted zero cell (3 of 1600 against
+   ~23 % under independence) is the statistic that carries the signal, not the mean.
+
+What survives from §13.216 is the part that mattered: the **class** — two teardown
+`thread_local`s with no explicit sequencing — and the fix that removes it.
+
+#### Still open, and it is severity rather than existence
+
+Why the bit is already *clear* when the late flush applies it: §13.220's one-shot
+probe accounts for ~36 of 96 (`drain` 22–23, `flush` 12, `direct` 1) and leaves
+~60 with no counted clear at all, pointing at `construct_chunk_at` zeroing a whole
+bitmap on chunk re-construction — which fits §13.211's gdb sample, a 32 B chunk's
+push applied by a `PoolAllocator<48u,…>`.  A per-chunk construction generation,
+recorded at registration and compared at the violation, is the measurement.  B
+closes the window regardless.
