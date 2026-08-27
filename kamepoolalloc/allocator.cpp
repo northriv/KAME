@@ -2726,6 +2726,18 @@ PoolAllocator<ALIGN, FS, DUMMY>::create_allocator() {
 extern "C" bool kame_orphan_no_scrub() noexcept;
 extern "C" bool kame_orphan_no_adopt() noexcept;
 extern "C" bool kame_orphan_adopt_admit() noexcept;
+extern "C" void kame_adopt_yield(unsigned site) noexcept;
+  #define KAME_ADOPT_YIELD(n) ::kame_adopt_yield(n)
+#endif
+//! §13.156  No-op fallback so the DEFAULT build compiles.  Without it the call
+//! sites below are outside the gate's `#ifdef` while the declaration is inside --
+//! which is exactly the break §13.155 had just fixed in `KAME_CHAIN_CNT`, and I
+//! reproduced it in the next commit.  Recorded rather than quietly corrected: a
+//! diagnostic whose call sites are not guarded breaks every build but its own.
+#ifndef KAME_ADOPT_YIELD
+  #define KAME_ADOPT_YIELD(n) ((void)0)
+#endif
+#ifdef KAME_ORPHAN_CHAIN_RUNTIME_GATE
 #endif
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -3026,6 +3038,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	    (kame_orphan_no_adopt() || !kame_orphan_adopt_admit())
 	        ? local_shared_ptr<PoolAllocator<ALIGN, true, DUMMY> >()
 	        : orphan_chain_pop();                     // §13.149 / §13.155
+	KAME_ADOPT_YIELD(1);                             // §13.156
 #else
 	orphan_chain_scrub();
 	local_shared_ptr<PoolAllocator<ALIGN, true, DUMMY> > oc_hold = orphan_chain_pop();
@@ -3075,10 +3088,12 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 			//   m_owner_dll_head_addr     = &s_tls.dll_head
 			//   m_owner_dll_force_walk_ptr= &s_tls.dll_force_walk_from_head
 			//                               (release store)
+			KAME_ADOPT_YIELD(2);                             // §13.156
 			atomicStoreRelease(&oc->m_owner_id, kame_owner_id());   // §13.46
 			oc->m_owner_dll_head_addr = static_cast<void *>(&s_tls.dll_head);
 			oc->m_owner_dll_force_walk_ptr.store(
 			    &s_tls.dll_force_walk_from_head, std::memory_order_release);
+			KAME_ADOPT_YIELD(3);                             // §13.156
 			// Splice at DLL tail (mirror create_allocator's append below).
 			oc->m_dll_next = nullptr;
 			oc->m_dll_prev = s_tls.dll_tail;
@@ -3100,6 +3115,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 			// a direct deallocate_chunk.  No refcnt change (the popped chain-ref
 			// becomes the self-ref); oc_hold goes null.  Closes Inv_NoBadOwnerFree.
 			oc->m_owner_self_ref = std::move(oc_hold);
+			KAME_ADOPT_YIELD(4);                             // §13.156
 			if(void *p = oc->allocate_pooled(SIZE)) {
 #ifdef GUARDIAN
 				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
@@ -3334,6 +3350,47 @@ namespace { struct ChainCountReport { ~ChainCountReport() {
 //! Static analysis cannot separate these (§13.152: every static difference in
 //! these paths is inlining relocation with the transferable semantics conserved),
 //! so the dose curve is the instrument that can.
+//! §13.156  Targeted preemption inside the ADOPT sequence.
+//!
+//! Everything statically checkable is now correct: the chain's three functions
+//! compile identically (§13.150), release stores / fences / atomic counts are
+//! conserved at GIMPLE (§13.152, §13.155), and the recycle path the firing arm
+//! inlines into the claimer is a faithful translation with its size verify
+//! intact (§13.154).  Adoption is nevertheless the necessary half (§13.150,
+//! 0/11 vs 10/11).  So the remaining variable is interleaving, and the way to
+//! locate an interleaving window is to widen it at a chosen point and see the
+//! rate move.
+//!
+//! `KAME_ADOPT_YIELD_AT=N` delays at one point of the adopt sequence;
+//! `KAME_ADOPT_YIELD_US` picks the delay (default 1 us -- and note that
+//! `sched_yield()` is NOT a perturbation when cores are idle, §13.103b: it moved
+//! a 21.16 s run to 21.51 s, while `usleep(1)` moved it to 36.07 s).
+//!
+//!   1  after orphan_chain_pop(), before the BIT_OWNED claim CAS
+//!   2  after the claim CAS, before re-arming owner metadata
+//!   3  after the owner metadata / before the DLL splice
+//!   4  after the DLL splice and the self-ref move (adoption complete)
+//!
+//! A point whose delay RAISES the rate is where a peer needs time to reach the
+//! other side of the race; a point whose delay SUPPRESSES it has serialised the
+//! pair.  Either direction localises, which no static census could.
+#include <unistd.h>   // usleep -- included here because the file's own
+#include <sched.h>    // <unistd.h> appears far below this point
+extern "C" void kame_adopt_yield(unsigned site) noexcept {
+    static std::atomic<int> at{-1};
+    static std::atomic<int> us{-1};
+    int a = at.load(std::memory_order_relaxed);
+    if(a < 0) {
+        const char *e = getenv("KAME_ADOPT_YIELD_AT");
+        a = (e && e[0]) ? atoi(e) : 0;
+        at.store(a, std::memory_order_relaxed);
+        const char *u = getenv("KAME_ADOPT_YIELD_US");
+        us.store((u && u[0]) ? atoi(u) : 1, std::memory_order_relaxed);
+    }
+    if(a == 0 || (unsigned)a != site) return;
+    int d = us.load(std::memory_order_relaxed);
+    if(d > 0) usleep((unsigned)d); else sched_yield();
+}
 extern "C" bool kame_orphan_adopt_admit() noexcept {
     static std::atomic<int> keep{-1};
     int k = keep.load(std::memory_order_relaxed);

@@ -9990,3 +9990,58 @@ Verified: the plain build, the gate, `KAME_CHAIN_DYNCOUNT`,
 `KAME_NO_ORPHAN_CHAIN`, and gate+dyncount together all compile.  A diagnostic
 that only compiles under its own flag breaks everyone else silently, and a
 build-and-measure loop then reads stale objects as results — twice now.
+
+### 13.156 An interleaving probe for the adopt sequence — because everything statically checkable is now correct
+
+Where this stands after §13.154: the chain's three functions compile identically
+(§13.150), release stores and fences are conserved at GIMPLE (§13.152, §13.155),
+the recycle path the firing arm inlines into the claimer is a **faithful
+translation with its size verify intact** (§13.154), operation counts reconcile
+statically (§13.146) and dynamically (§13.147), and no clone is short of its
+parent (§13.148).  **Everything statically checkable is correct** — and adoption
+is still the necessary half (§13.150, 0/11 vs 10/11).
+
+So the remaining variable is interleaving, and static censuses cannot adjudicate
+it.  The way to locate an interleaving window is to **widen it at a chosen point**
+and watch the rate move.
+
+**`KAME_ADOPT_YIELD_AT=N`** delays inside the adopt sequence, `KAME_ADOPT_YIELD_US`
+sets the delay (default 1 µs — and `sched_yield()` is *not* a perturbation when
+cores are idle, §13.103b: 21.16 s → 21.51 s, while `usleep(1)` gave 36.07 s):
+
+| site | position |
+|---|---|
+| 1 | after `orphan_chain_pop()`, **before** the `BIT_OWNED` claim CAS |
+| 2 | after the claim CAS, before re-arming owner metadata |
+| 3 | after the owner metadata, before the DLL splice |
+| 4 | after the DLL splice **and** the self-ref move — adoption complete |
+
+A site whose delay **raises** the rate is where a peer needs time to reach the
+other side of the race; one that **suppresses** it has serialised the pair.
+Either direction localises.
+
+**All four proven live (§13.61), same binary, env only:**
+
+```
+AT=0 (off)   0.05 s
+AT=1         2.70 s
+AT=2/3/4     0.87 s
+```
+
+**And the asymmetry matters for reading the results**, so it is recorded rather
+than smoothed over: site 1 sits before the claim and therefore fires on **every
+pop attempt, including those that return null**, while 2–4 are inside
+`if(claimed)` and fire only on **successful adoptions**.  Site 1's delay is
+roughly 3× the dose of the others in this probe — so a larger effect at site 1 is
+not by itself evidence that its position matters more.  Compare 2 against 3
+against 4 for position, and use site 1 only against itself at different `US`.
+
+**A build break I introduced and then had to fix — the same one I had just
+criticised.**  §13.155 fixed `KAME_CHAIN_CNT` being *defined* inside the
+runtime-gate region while *used* outside it, breaking the default build.  My first
+version of this injector did exactly that: the four call sites sit outside the
+gate, the declaration inside.  Fixed with a no-op `KAME_ADOPT_YIELD` fallback, and
+all five flag combinations verified (plain, gate, `KAME_CHAIN_DYNCOUNT`,
+`KAME_NO_ORPHAN_CHAIN`, gate + dyncount), plus a real GCC 15.2 build.  Recorded
+because writing the lesson down one commit earlier did not stop me repeating it;
+the guard belongs in the *call-site macro*, not in discipline.
