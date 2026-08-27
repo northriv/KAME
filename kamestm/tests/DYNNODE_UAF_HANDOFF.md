@@ -8919,3 +8919,71 @@ doubly-live slots (§13.131), `back_offset` corruption (§13.136), and now the
 cross-thread TLS poke — while removing the chain still suppresses the fault
 15/20 → 0/20 (§13.126).  The ablation's discriminating power is undiminished
 and none of its parts has confessed.
+
+### 13.139 §6 does not say what we have been reading it to say: the STM's refcount primitive is compiled INSIDE the allocator's TU
+
+Four named mechanisms in and around the orphan chain are now measured clean on
+failing runs — release backstops (§13.128), adopt supplying doubly-live slots
+(§13.131), `back_offset` corruption (§13.136), the cross-thread TLS poke
+(§13.138) — while removing the chain still suppresses the fault 15/20 → 0/20
+(§13.126).  §13.138 calls that "none of its parts has confessed".  There is a
+part that was never on the list.
+
+**The structural fact.**  `atomic_smart_ptr.h` is a **header**, included by
+`allocator_prv.h:525`.  So `atomic_shared_ptr<PoolAllocator<N,…>>` and its entire
+tagged-pointer refcount machinery — `load_shared_`, `acquire_tag_ref_`,
+`release_tag_ref_`, `compareAndSet_impl_`, `local_shared_ptr` constructors and
+destructors, `atomic_intrusive_dispose` — are instantiated **inside
+`allocator.cpp`'s translation unit and compiled with the allocator's flags**.
+Confirmed, not assumed:
+
+```
+$ nm -C libkamepoolalloc.so | grep -o 'compareAndSet_impl_<local_shared_ptr<PoolAllocator[^>]*>'
+... one per size class: 16, 112, 144, 176, 208, 240, 256, 272, ...
+```
+
+**What that does to §6.**  Its table —
+
+| | |
+|---|---|
+| clang-STM + gcc-pool | 8/12 |
+| gcc-STM + clang-pool | 0/12 |
+| allocator `-O2` | 0/8 |
+
+— has been read since §13.103 as "the defect is in allocator **logic**".  It does
+not say that.  It says the defect is in **whatever gcc compiles in that TU**, and
+that TU contains the STM's refcount primitive as well as the allocator.  A
+miscompile of the primitive there follows the allocator's compiler exactly as
+allocator logic would, and is **invisible in the STM's own TU** — which is also
+why the STM-side audits (§13.91–§13.98) were right to come back clean while the
+same code, compiled elsewhere, could still be the fault.
+
+**And it explains the discrepancy §13.138 leaves open.**
+`orphan_chain_push` is the **only** place a chunk's `refcnt` is established and
+the **only** place a `local_shared_ptr<PoolAllocator>` is created.  So
+`KAME_NO_ORPHAN_CHAIN` does not merely disable adopt and scrub: it removes the
+**entire primitive** from the pool.  An ablation that suppresses the fault while
+every *logic* path inside it measures clean is exactly what you would see if the
+primitive, not the logic, were at fault.
+
+**The arm** (`KAME_ASP_AT_O2`): wrap that one `#include` in
+`#pragma GCC push_options` / `optimize("O2")` / `pop_options`, so the primitive
+compiles at `-O2` while the allocator around it keeps the firing flags.  It
+separates the two readings §6 cannot:
+
+| result | conclusion |
+|---|---|
+| fault **dies** | the defect is the refcount primitive as compiled here; the allocator's own code is a bystander, and 30 sections of allocator-logic auditing were looking one layer off |
+| fault **stays** | the primitive is not it, and the remaining candidate is the allocator's non-clone codegen (§13.122) — with `nonclone_memop_diff.py` still unrun |
+
+**Caveats, the same ones §13.112 spells out for the function attribute.**
+`#pragma GCC optimize` changes inlining across its boundary and gcc documents it
+as a debugging aid, so a positive result localises "**this code's codegen
+matters**", not "this line is wrong".  And verify the arm did something before
+trusting either outcome — the primitive's instantiations should change shape
+between the two objects; `nonclone_memop_diff.py` on the arm pair reads that
+directly, and an arm whose primitive is byte-identical is vacuous, not negative
+(§13.117 needed exactly this check for five of seven arms).
+
+**Mac**: both arms compile; the default build is unchanged (`HITS 0`,
+`dtor == born`, `enforced 95 938 287`).  The runs need gcc.

@@ -522,7 +522,51 @@ inline void atomicStoreRelease(T *p, T v) noexcept {
 //! churn plateau; the regression guard is the TLA model
 //! (tests/tlaplus/run_orphan_chain.sh) — the owner-free vs scrub-pin race it
 //! caught (Inv_NoBadOwnerFree) is not reproducible by runtime stress.
-#include "atomic_smart_ptr.h"
+//! §13.139  `KAME_ASP_AT_O2` wraps this include in `#pragma GCC optimize("O2")`,
+//! so the refcount primitive is compiled at `-O2` while the allocator around it
+//! keeps whatever the command line says.
+//!
+//! Why this experiment exists, and why it should have existed 130 sections ago.
+//! §6's table is read as "the fault follows the ALLOCATOR's compiler" (clang-STM
+//! + gcc-pool 8/12, gcc-STM + clang-pool 0/12), and every section since has
+//! taken that to mean the defect is in allocator LOGIC.  It does not follow:
+//! `atomic_smart_ptr.h` is a HEADER, so `atomic_shared_ptr<PoolAllocator<N>>`
+//! and its whole tagged-pointer refcount machinery
+//! (`load_shared_`, `acquire_tag_ref_`, `release_tag_ref_`, `compareAndSet_impl_`,
+//! `local_shared_ptr` ctors/dtors, `atomic_intrusive_dispose`) are instantiated
+//! **inside allocator.cpp's TU and compiled with the allocator's flags**.  A
+//! miscompile there follows the allocator's compiler exactly as allocator logic
+//! would, and is invisible in the STM's own TU.  Confirmed present:
+//! `nm -C` on the pool library lists `compareAndSet_impl_<local_shared_ptr<
+//! PoolAllocator<N,…>>, …>` for every size class.
+//!
+//! This also explains why ablating the chain works so cleanly (§13.126,
+//! 15/20 → 0/20) while all four named mechanisms inside it measure clean
+//! (§13.128, §13.131, §13.136, §13.138): `orphan_chain_push` is the ONLY place
+//! that establishes a chunk's `refcnt` and the only place a
+//! `local_shared_ptr<PoolAllocator>` is created, so `KAME_NO_ORPHAN_CHAIN`
+//! removes the ENTIRE primitive from the pool -- not just adopt and scrub.
+//!
+//! The arm therefore separates two readings §6 cannot:
+//!   fault dies  -> the defect is in the refcount primitive as compiled here,
+//!                  and the allocator's own code is a bystander;
+//!   fault stays -> the primitive is not it, and the remaining candidate is the
+//!                  allocator's non-clone codegen (§13.122).
+//!
+//! `#pragma GCC optimize` has the same caveats as `optimize()` on a function
+//! (§13.112): it changes inlining across the boundary, and gcc documents it as a
+//! debugging aid.  So a positive result localises "this code's codegen matters",
+//! not "this line is wrong" -- the same reading §13.112 spells out.  Verify the
+//! arm did something before trusting it: the primitive's instantiations should
+//! change shape in the object (`nonclone_memop_diff.py` between the two arms).
+#ifdef KAME_ASP_AT_O2
+  #pragma GCC push_options
+  #pragma GCC optimize("O2")
+  #include "atomic_smart_ptr.h"
+  #pragma GCC pop_options
+#else
+  #include "atomic_smart_ptr.h"
+#endif
 //! (Orphan-chain) The chunk's embedded PoolAllocator IS the intrusive
 //! node of the lock-free orphan chain — it uses the intrusive
 //! atomic_shared_ptr path (Ref = T, custom disposer) WITHOUT a sizeof
