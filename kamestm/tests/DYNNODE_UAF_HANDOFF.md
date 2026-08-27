@@ -12351,3 +12351,82 @@ the counters have narrowed to a single sentence:
 > the batch is owner-only, correctly counted, correctly paired, applies each
 > entry exactly once — and 800 times per run the bit is **already clear when the
 > flush arrives**.  Who cleared it?
+
+### 13.190 The census, run on x86-64: the prior clearer is `flush` — the same slot passes the one clearing CAS TWICE, ~46 k clears apart
+
+§13.188's census is complete by construction, so its answer is an answer.  Run
+here on §13.177's hand-specialised source under `KAME_BATCH_CAP=1` (800
+violations, exits 0):
+
+```
+BATCHVERIFY checked=23 625 554  pushes=2 648 039  pairing_bad=0
+            bit_clear_bad=800   bits_cleared=24 031 449
+  site flush   checked=2 648 038   bad=800
+  site drain   checked=20 505 293   bad=0
+  conservation: flush_applied - pushes = -1
+
+BATCHVERIFY   prior clear of this slot: site=flush seq=151657 (now seq=202887)
+BATCHVERIFY IN-USE BIT ALREADY CLEAR site=flush slot=0x70260d455ba0 chunk=0x70260d43f040 …
+```
+
+**Every prior clearer is `site=flush`** (8/8 printed), never `drain`, never
+`direct`.  No `NO RECORD` — the table is not evicting these.
+
+#### What that forces
+
+The census stores the *most recent* clear, so between the prior clear and the
+violation **there was no other clear of that slot**.  And the bit is clear on
+arrival, so nothing set it either — a re-allocation would have set it and made
+this flush's clear legitimate.  Therefore:
+
+> The slot was cleared by a flush, **never re-allocated**, and cleared by a flush
+> **again**.  Two frees of one slot with no allocation between them: a genuine
+> double free, arriving through the cross-thread batch.
+
+Conservation (`applied − pushes = −1`) does **not** contradict this: it is a
+global count, so two pushes producing two applications balances exactly.  It
+rules out one push being applied twice; it never ruled out the same slot being
+pushed twice.
+
+#### The gap is suspiciously regular
+
+`now − prior`, over the eight printed violations:
+
+```
+51230  45321  44430  45366  49063  46113  49237  45291
+```
+
+**All within 44 k–51 k**, clustered near ~46 k.  A client-side double free of a
+random block would scatter; a gap this tight says the second free is produced by
+something periodic, not by an arbitrary mistake.  That is a lead the source can
+be read against directly.
+
+#### A correction to §13.166's scope
+
+§13.166 reported **0 double frees in 40 base runs** and I described the allocator
+as not double-freeing at all in the shipping configuration.  That detector hooked
+`freelist_push` and `batch_return_to_bitmap` — it **never hooked
+`CrossDeallocBatch::push`**, which is the path FS=true cross-thread frees take.
+So its zero was about the freelist path only, and is silent about exactly the
+path that is now implicated.  The claim stands as measured, but its scope was
+narrower than I stated.
+
+#### Where this leaves it
+
+The chain is now end-to-end except for one link:
+
+* something frees a slot **twice** through the cross-thread batch, ~46 k clears
+  apart (this section);
+* the second free clears an in-use bit, so the slot reads free while still
+  live (§13.184/§13.187);
+* it is then handed out to a second object — `alloc_of_live > 0` in every failing
+  run, and exactly once in runs with no premature free at all (§13.172);
+* which is the DOUBLE-LIVE, whose rate scales with how many entries a single
+  in-allocation flush loop carries (§13.180) and requires that loop to exist in
+  un-unswitched form (§13.177).
+
+**The remaining question is narrow:** *what issues the second free?*  The
+census records the site (`flush`) but not the **caller** that pushed the entry.
+Adding the push-side caller — a return address captured at
+`CrossDeallocBatch::push` and stored beside the clear record — would name it, and
+is the same one-table change that made this section possible.
