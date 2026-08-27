@@ -9471,3 +9471,47 @@ swept `.constprop` bodies into a count of the parent and so "refuted" the tool
 when the tool was right; and excluding `.part`/`.isra` from the non-clone set.
 The user's framing — *clone count × operations must show up in the total* — is
 what turned a vague comparison into a test that could close.
+
+### 13.147 Proposal (i), the dynamic half: cloning changes neither the count nor the amount of chain work executed
+
+§13.146 answers "does cloning grow the appropriate number of atomic ops?"
+**statically** — masks and fences conserved exactly, atomics gained inside the
+derived bodies, residual 0.  That census cannot see an atomic whose
+*execution* a specialization elides: a propagated constant can make a branch
+dead, leaving the instruction in some body while no longer running it.  So I
+counted what actually runs.
+
+**Instrument**: `KAME_CHAIN_DYNCOUNT` counts executed `orphan_chain_push` and
+`orphan_chain_scrub` entries, printed at exit; both arms built from one source
+with identical flags apart from `-fipa-cp-clone`.
+
+**Successful runs only, `10 40 500`** (the arms must complete to report, and a
+crashing run loses the `atexit` — the same gap as §13.93/§13.104/§13.128, now
+the fourth time):
+
+| arm | pushes | scrub visits |
+|---|---|---|
+| firing `-O2 -fipa-cp-clone` | 2227, 2231 | 5472, 5612 |
+| non-firing `-O2` | 2154, 2159, 2155, 2201 | 5604, 5681, 5776, 5644 |
+
+**Within ~3%, and overlapping.**  The firing arm does not execute more chain
+work, nor less; cloning neither adds nor elides chain operations at run time.
+
+**So (i) is answered in both halves and the answer is no.**  The atomic-op
+count is appropriate statically (§13.146) and the executed count is
+indistinguishable between arms (here).  Whatever `-fipa-cp-clone` does to make
+this fault appear, it is **not** a change in how many atomic operations happen
+on the chain.
+
+**Which sharpens §13.146's dose result rather than competing with it.**  The
+same amount of chain work — ~2200 pushes, ~5600 scrub visits — produces a 63-71%
+failure rate in one arm and 0% in the other (§13.144), and thinning that work
+scales the rate smoothly (§13.146).  Same operations, same counts, different
+outcome: the difference has to be in *how* the work interleaves, not *how much*
+of it there is.  That is consistent with §13.88's preemption dose-response and
+with the fault surviving full serialization under rr (§13.86).
+
+**Instrument gap, stated:** I wired counters for push and scrub only; the `pop`
+and `unlink-CAS` slots exist but were never incremented, so their zeros in the
+output are **not measurements**.  Anyone extending this should wire those two
+before quoting them.

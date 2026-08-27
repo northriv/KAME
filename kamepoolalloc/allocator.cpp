@@ -3261,6 +3261,23 @@ static bool kame_orphan_chain_off() noexcept {
 //! scales with N is a volume effect; a rate that stays flat until N is huge is
 //! a per-event trigger.  Counter is relaxed and approximate on purpose -- the
 //! question is the dose, not exact accounting.
+//! (§13.147) DYNAMIC atomic-op census for the chain.  §13.146 shows the static
+//! totals are conserved; that cannot see an atomic whose EXECUTION a
+//! specialization elides (a propagated constant killing a branch).  So count
+//! what actually runs, per arm, and compare the ratios rather than the raw
+//! numbers -- the two arms do not do the same amount of work.
+#ifdef KAME_CHAIN_DYNCOUNT
+namespace { std::atomic<unsigned long long> g_cn[4]; }   // push, pop, scrub-visit, unlink-CAS
+extern "C" void kame_chain_count(unsigned i) noexcept { if(i<4) g_cn[i].fetch_add(1, std::memory_order_relaxed); }
+namespace { struct ChainCountReport { ~ChainCountReport() {
+    fprintf(stderr, "CHAINDYN push=%llu pop=%llu scrub_visit=%llu unlink_cas=%llu\n",
+        (unsigned long long)g_cn[0].load(), (unsigned long long)g_cn[1].load(),
+        (unsigned long long)g_cn[2].load(), (unsigned long long)g_cn[3].load());
+} } g_chain_report; }
+#define KAME_CHAIN_CNT(i) kame_chain_count(i)
+#else
+#define KAME_CHAIN_CNT(i) ((void)0)
+#endif
 extern "C" bool kame_orphan_chain_admit() noexcept {
     static std::atomic<int> keep{-1};
     int k = keep.load(std::memory_order_relaxed);
@@ -8586,6 +8603,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::s_orphan_chain_head() noexcept {
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_push(
     PoolAllocator<ALIGN, DUMMY, DUMMY> *craw) noexcept {
+	KAME_CHAIN_CNT(0);
 	PoolAllocator *c = static_cast<PoolAllocator *>(craw);  // upcast to FS=true base (chain node type)
 	local_shared_ptr<PoolAllocator> n;
 	if(c->m_owner_self_ref) {
@@ -8622,6 +8640,7 @@ void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_push(
 //! restarts from head — multiple scrubbers are safe-side.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_scrub() noexcept {
+	KAME_CHAIN_CNT(2);
 	local_shared_ptr<PoolAllocator> pred;                      // empty ⇒ pred is head
 	local_shared_ptr<PoolAllocator> cur(s_orphan_chain_head());
 	while(cur) {
