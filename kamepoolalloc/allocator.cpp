@@ -880,6 +880,18 @@ static inline unsigned long long kame_bv_pack(unsigned state, unsigned owner,
            (seq & 0xffffffULL);
 }
 static std::atomic<unsigned long long> g_bv_double_push{0};
+//! §13.203  kind 0 = entry contributed a bit it does not own, 1 = two entries in
+//! one run on the same bit, 2 = entries consumed != distinct bits set.
+static std::atomic<unsigned long long> g_bv_bit[3];
+static void kame_bv_bit_bad(int kind, const void *slot, unsigned sidx,
+                            unsigned long long aux) noexcept {
+    static const char *const w[3] = { "BIT NOT OWNED BY THIS ENTRY",
+                                      "TWO ENTRIES ON ONE BIT (merge collapses them)",
+                                      "ENTRIES CONSUMED != DISTINCT BITS" };
+    if(g_bv_bit[kind].fetch_add(1, std::memory_order_relaxed) < 4)
+        fprintf(stderr, "BATCHVERIFY %s slot=%p sidx=%u aux=0x%llx\n",
+                w[kind], slot, sidx, aux);
+}
 //! §13.202  Is `flush` RE-ENTERED at a cap where the buffer can hold entries?
 //!
 //! §13.178 measured nesting and found none, but at the FIRING cap -- and at
@@ -1166,6 +1178,9 @@ namespace { struct BatchVerifyReport { ~BatchVerifyReport() {
         if(tot) fprintf(stderr, "BATCHVERIFY   groups=%llu  violations=%llu  "
                         "mean group=%.2f\n", tot, wsum, (double)wsum / (double)tot);
     }
+    fprintf(stderr, "BATCHVERIFY merge-loop: bit_not_owned=%llu two_on_one_bit=%llu"
+            " count_mismatch=%llu  (§13.195's never-run check)\n",
+            g_bv_bit[0].load(), g_bv_bit[1].load(), g_bv_bit[2].load());
     fprintf(stderr, "BATCHVERIFY flush re-entry: count=%llu max_depth=%llu"
             "  (>0 => the nested call re-applied the outer buffer)\n",
             g_bv_flush_reenter.load(), g_bv_flush_maxdepth.load());
@@ -2975,6 +2990,22 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 		int idx = midx / FUINT_BITS;
 		unsigned int sidx = midx % FUINT_BITS;
 		FUINT mask = mask_fn(idx, sidx, p);
+#ifdef KAME_BATCH_VERIFY
+		//! §13.203  §13.195's never-run check.  `pairing_bad` only verifies that
+		//! an entry's slot lies inside this chunk -- never that the BIT it
+		//! contributes is the one that entry owns, nor that two entries in a run
+		//! contribute distinct bits.  Two entries on one bit merge to a single
+		//! clear, so the run advances by 2 while only 1 bit clears; the same
+		//! shape from the other side is an entry contributing a bit it does not
+		//! own, which clears somebody else's slot.
+		FUINT bv_run_bits = 0;
+		unsigned bv_run_entries = 0;
+		if constexpr (FS && DUMMY) {
+			if(mask != (((FUINT)1u) << sidx))
+				kame_bv_bit_bad(0, p, sidx, (unsigned long long)mask);
+			bv_run_bits = mask; bv_run_entries = 1;
+		}
+#endif
 		// Merge adjacent same-word slots — pointer-sorted ⇒
 		// word-index-sorted, so once we see a different idx
 		// (or a different chunk) we know no later slot lands in this
@@ -2986,9 +3017,47 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 			int idx_q = midx_q / FUINT_BITS;
 			if(idx_q != idx) break;
 			unsigned int sidx_q = midx_q % FUINT_BITS;
-			mask |= mask_fn(idx_q, sidx_q, q);
+			FUINT bv_m = mask_fn(idx_q, sidx_q, q);
+#ifdef KAME_BATCH_VERIFY
+			if constexpr (FS && DUMMY) {
+				//! §13.203 control: `KAME_BATCH_VERIFY_MINJECT=N` corrupts the
+				//! value handed to the CHECKS for 1 merged entry in N, leaving
+				//! the real `mask` untouched -- so the arm is non-destructive
+				//! and a zero above is only meaningful once this run is nonzero.
+				FUINT bv_chk = bv_m;
+				{
+					static std::atomic<int> mi{-1};
+					int iv = mi.load(std::memory_order_relaxed);
+					if(iv < 0) {
+						const char *e = getenv("KAME_BATCH_VERIFY_MINJECT");
+						iv = (e && e[0]) ? atoi(e) : 0;
+						mi.store(iv, std::memory_order_relaxed);
+					}
+					if(iv > 0) {
+						static std::atomic<unsigned long long> mc{0};
+						if((mc.fetch_add(1, std::memory_order_relaxed)
+						    % (unsigned)iv) == 0)
+							bv_chk = bv_run_bits ? bv_run_bits : (bv_m << 1);
+					}
+				}
+				if(bv_chk != (((FUINT)1u) << sidx_q))
+					kame_bv_bit_bad(0, q, sidx_q, (unsigned long long)bv_chk);
+				if(bv_run_bits & bv_chk)                     // §13.203
+					kame_bv_bit_bad(1, q, sidx_q, (unsigned long long)bv_run_bits);
+				bv_run_bits |= bv_m; ++bv_run_entries;
+			}
+#endif
+			mask |= bv_m;
 			++j;
 		}
+#ifdef KAME_BATCH_VERIFY
+		//! §13.203  Entries consumed for this word must equal distinct bits set.
+		if constexpr (FS && DUMMY)
+			if((unsigned)__builtin_popcountll((unsigned long long)bv_run_bits)
+			   != bv_run_entries)
+				kame_bv_bit_bad(2, entries[i].slot, bv_run_entries,
+				                (unsigned long long)bv_run_bits);
+#endif
 		++n_words;
 		// CAS-clear `m_flags[idx] &= ~mask` with retry; on_clear gets
 		// the (oldv, newv) for counter updates (per-FS-variant logic).

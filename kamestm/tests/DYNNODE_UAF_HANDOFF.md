@@ -13356,3 +13356,75 @@ cap on arm64**, and §13.178 also found none at the firing cap.  The identity ab
 is what settles that, and if it selects the second branch, the mechanism is the
 same class (a run walked twice) with the trigger one level down in
 `batch_clear_impl` rather than in `flush`.
+
+### 13.203 Flush re-entry has no trigger in this source — so §13.202's mechanism is sufficient but not available; §13.195's merge-loop check, run at last
+
+#### The nesting trigger is statically excluded, and §13.202's is withdrawn as a trigger
+
+§13.202 named a route: `batch_return_to_bitmap` releases a chunk → releasing frees
+memory → the free re-enters `push` → `count >= cap` → nested `flush`.  Traced, it
+does not exist:
+
+* the FS=true `on_clear` **declines to release** by design, leaving the orphan for
+  `orphan_chain_scrub` — it says so at the site;
+* no `m_owner_self_ref.reset()` / `orphan_chain_*` call lies inside
+  `batch_return_to_bitmap`'s path (they are in the drain, in adoption, and in the
+  scrub);
+* the release funnel reclaims pages with **`madvise`**, not `free()`;
+* `std::sort` here is in-place introsort — the comment says "no alloca, no scratch
+  buffer", and no allocation happens in the loop.
+
+So nothing in the apply loop can call `push`, and **flush cannot re-enter on this
+source.**  That explains both independent zeros — §13.178's at the firing cap and
+§13.202's at every cap — as *structural*, not lucky.  §13.202's **sufficiency**
+result stands unchanged (forcing re-entry reproduces mean group 4.41 vs the
+measured 4.29): it shows the signature is what a run walked twice looks like.  What
+is withdrawn is the trigger, and with it `KAME_FLUSH_REENTRY_GUARD` as a *fix* —
+it now guards a path that cannot be taken.  Keep it only as an assertion.
+
+#### §13.195's check, implemented and run
+
+That section named it and it had never run: `pairing_bad` verifies an entry's slot
+is inside this chunk, never that the **bit** it contributes is the one that entry
+owns, nor that two entries in a run contribute **distinct** bits.  Two entries on
+one bit merge into a single clear, so the run advances by 2 while 1 bit clears —
+a re-walk by another name.
+
+```
+arm64, cap = 1 / 32 / 1024
+   merge-loop: bit_not_owned=0  two_on_one_bit=0  count_mismatch=0
+control (KAME_BATCH_VERIFY_MINJECT=5000, non-destructive — corrupts only the value
+handed to the checks, never the real mask)
+   merge-loop: bit_not_owned=16  two_on_one_bit=16  count_mismatch=0
+```
+
+Kinds 0 and 1 are validated.  `count_mismatch` is not exercised by that control and
+its zero is therefore weaker — but it is also *implied*: if every entry contributes
+its own bit and no two share one, `popcount(run_bits) == run_entries` follows.  It
+is kept as a cheap cross-check, not as independent evidence.
+
+#### Two exact identities, so x86-64 needs no gdb for the next step
+
+Both hold in every run of this build, and both are already printed:
+
+| identity | why |
+|---|---|
+| `checked − bits_cleared == bit_clear_bad` | a violation clears nothing, so it is the whole difference.  Verified: 13 045 387 − 13 045 064 = 323 = `bit_clear_bad`. |
+| `checked_flush − pushes == bit_clear_bad` | **the re-walk signature** — a re-applied entry is walked again *and* finds its bit clear, one for one (verified at +358 = 358, +1439 = 1439 under forced re-entry). |
+
+So on x86-64 at `cap = 32`, one summary decides between the three surviving
+readings:
+
+* `checked_flush − pushes == bit_clear_bad`, `merge-loop` all 0, `re-entry = 0`
+  → entries **are** walked twice, but neither loop misbehaves, so the same buffer
+  reaches two calls by a route not yet enumerated;
+* `checked_flush − pushes == bit_clear_bad` with a nonzero `merge-loop` cell
+  → the merge loop is the re-walk, and the failing cell names which way;
+* `checked_flush − pushes == 0`
+  → **there is no extra walk at all**, and the 800 second clears are not
+  re-applications of anything.  Then the census's `site=flush` prior clearer must
+  be re-read: with re-walk excluded on both loops, a same-thread `flush` clearing a
+  bit whose own entry has not been applied is the only remaining shape, and that
+  contradicts `freed-while-pending = 0` — meaning one of those two exact-keyed
+  measurements is narrower than its name, which is the pattern this section has hit
+  four times (§13.166, §13.178, §13.192, §13.196).
