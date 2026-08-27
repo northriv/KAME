@@ -13125,3 +13125,98 @@ gdb easy — and that convenience silently removed the phenomenon under test.
 Both §13.196's claim and §13.198's withdrawal were published in good faith from
 measurements that could not distinguish the cases.  The distinguishing run took
 one gdb session.
+
+### 13.200 The paradox has exactly one consistent sequence — and §13.192's DOUBLE-PUSH, made exact, tests it at a single choke point
+
+#### First, my share of §13.198/§13.199
+
+§13.197 stated the reading criterion in advance but not the **configuration
+precondition**, and that omission is what cost a section.  At `cap = 1` the batch
+holds one entry, so a flush applies one, so a group of 1 is *forced* — the
+histogram could not have reported otherwise.  I validated it against an injector
+that **scatters** (mean 1.00) and never against a known-grouped case, so null and
+forced-null were indistinguishable, exactly as §13.198's own caveat said.  Adding
+that caveat is what made §13.199 readable rather than merely contradictory.
+
+> §13.170's rule — *a probe must prove it can report a one* — needs its twin
+> stated at the same strength: **an arm must be able to exhibit the effect.**  A
+> configuration chosen for convenience (`cap = 1` is the arm that passes, so gdb
+> is easy) can silently remove the phenomenon under test.
+
+At `cap = 32` the histogram gives **mean 4.29, sizes 1–16, no peak** — and
+§13.197's advance reading applies: a spread means a **variable-length run**, not a
+fixed-size unit.  That is what a flush's per-chunk entry run looks like.
+
+#### The measurements now admit exactly one sequence
+
+Take the five surviving facts together — conservation ±1 (§13.187/§13.195),
+FREE-OF-FREE = 0 (§13.192), cross_thread = 0 (§13.195), one owner per group
+(§13.196), all violations at `flush` (§13.187):
+
+1. slot S is handed out and freed → **push #1**, bit SET (FREE-OF-FREE passes);
+2. **S is handed out again while push #1 is still pending in the batch**;
+3. the new holder frees it on the same thread → **push #2**, bit still SET
+   (FREE-OF-FREE passes again — nothing has cleared it yet);
+4. the flush applies push #1 → bit cleared, recorded `site=flush`;
+5. the flush applies push #2 → **bit already clear = the violation**, prior
+   clearer `flush`, same owner, in the same call as its run-mates.
+
+Two pushes, two applies — **conservation is intact**.  One thread — **cross_thread
+is 0**.  Neither free is of an already-free slot — **FREE-OF-FREE is 0**.  Every
+zero this section has collected is satisfied simultaneously, which no other
+sequence achieves.
+
+**And step 2 is invisible to the bitmap by design**, which is why nothing caught
+it.  `allocate_pooled` says so outright:
+
+> *"slots returned to the OWNER stay in `m_freelist_head[0]`, not the bitmap"*
+
+An owner-side free keeps the bit **SET** and puts the slot on the chunk freelist;
+`freelist_pop` hands it back **without consulting the bitmap**.  So a hand-out
+that occurs while a cross-thread free is in flight leaves no bitmap trace at all —
+the bit is set before, during and after.
+
+#### The test: §13.192's DOUBLE-PUSH, exact
+
+§13.192 built exactly this check and rightly refused to interpret its zero — a
+2^19 table against 2.6 M pushes can only under-report.  The slot's own tail has no
+collisions, and `deallocate_pooled` is the **single choke point for every free**
+with `ALIGN` in scope, so the same check becomes exact with complete coverage of
+frees:
+
+> a free that finds the stamp **already `PENDING`** means a previous free of that
+> slot has not been applied yet — i.e. step 2 happened.
+
+```
+baseline, cap default   freed-while-pending = 0   bit_clear_bad = 0
+baseline, cap = 32      freed-while-pending = 0   bit_clear_bad = 0
+injected 1/3000         FREED WHILE A FREE IS STILL PENDING: slot=0x10ab032a0
+                        me=0xab prev=(site=other owner=0xa2 seq=1858049) pushes_this_life=2
+```
+
+**My first control was worthless and is worth recording as such**: it forced
+`PENDING` at a *free*, where the state is already `PENDING`, so it changed nothing
+and the detector reported 0 — §13.61 in its purest form, produced by me one
+section after invoking it.  The working control acts on the **apply**: skip the
+`CLEARED` stamp for 1 apply in N, leaving that slot pending into its next free.
+
+#### How it reads, either way
+
+* **`freed-while-pending > 0`** — step 2 is confirmed and the defect is named: the
+  allocator hands out a slot whose free is still in flight.  That is also §13.192's
+  *dangerous* half made visible, since the same hand-out is what puts a live
+  object on a slot whose pending clear is about to mark it free.
+* **`= 0` while `bit_clear_bad = 800`** — then the second apply has no second push,
+  so conservation cannot hold **per slot** even though it holds globally, and the
+  contradiction is localised to the flush loop's `i += ...` accounting rather than
+  to any lifetime question.
+
+#### Coverage, stated
+
+This detects the second **free**, not the hand-out itself.  Hooking hand-out
+directly would be better — and the two hot pops in `new_redirected` /
+`new_redirected_cold` already carry `kame_pool_onlist_clear` hooks at exactly the
+right instruction — but the tail offset needs the chunk's `ALIGN`, and there is no
+bucket→size map in the pool (only `m_base_bucket`), so those sites cannot compute
+it today.  Rather than hook a subset and quote a partial zero, the check sits where
+coverage is total.

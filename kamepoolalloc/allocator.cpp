@@ -879,6 +879,7 @@ static inline unsigned long long kame_bv_pack(unsigned state, unsigned owner,
            ((unsigned long long)(applyc & 0xfu) << 24) |
            (seq & 0xffffffULL);
 }
+static std::atomic<unsigned long long> g_bv_double_push{0};
 static inline void kame_bv_slot_stamp(char *p, unsigned align, unsigned state,
                                       const void *client) noexcept {
     volatile unsigned long long *w =
@@ -899,8 +900,31 @@ static inline void kame_bv_slot_stamp(char *p, unsigned align, unsigned state,
     unsigned pushc  = stamped ? (unsigned)((old >> 28) & 0xfu) : 0;
     unsigned applyc = stamped ? (unsigned)((old >> 24) & 0xfu) : 0;
     if(state == BV_ST_PENDING) {
-        if(prev == BV_ST_PENDING) { if(pushc < 15u) ++pushc; }   // double push
-        else                      { pushc = 1; applyc = 0; }     // new life
+        if(prev == BV_ST_PENDING) {
+            //! §13.200  §13.192's DOUBLE-PUSH check, made EXACT.  That section
+            //! built it against a 2^19 table for 2.6 M pushes and rightly refused
+            //! to interpret its zero; the slot's own tail has no collisions, so
+            //! this one means what it says.
+            //!
+            //! A free finding the stamp ALREADY PENDING says a previous free of
+            //! this slot has not been applied yet.  Given FREE-OF-FREE = 0 (the
+            //! bit was set at both frees) that is the shape every other
+            //! measurement leaves standing: the slot was handed out again while a
+            //! free for it was still in flight, so both frees apply and the
+            //! second finds the bit already clear -- conservation intact (two
+            //! pushes, two applies), same owner (cross_thread = 0), and grouped
+            //! by flush, exactly as §13.199 measures.
+            if(pushc < 15u) ++pushc;
+            unsigned long long n = g_bv_double_push.fetch_add(1, std::memory_order_relaxed);
+            if(n < 8)
+                fprintf(stderr, "BATCHVERIFY FREED WHILE A FREE IS STILL PENDING: "
+                        "slot=%p me=%#x prev=(site=%s owner=%#x seq=%llu) pushes_this_life=%u\n",
+                        (void *)p, kame_owner_id() & 0xffu,
+                        g_bv_sitename[(unsigned)((old >> 40) & 0xfu) < BV_NSITE
+                                      ? (unsigned)((old >> 40) & 0xfu) : 0],
+                        (unsigned)((old >> 32) & 0xffu), old & 0xffffffULL, pushc);
+        }
+        else { pushc = 1; applyc = 0; }                           // new life
     }
     else { if(applyc < 15u) ++applyc; }                          // apply / replay
     *w = kame_bv_pack(state, kame_owner_id(), pushc, applyc,
@@ -908,7 +932,24 @@ static inline void kame_bv_slot_stamp(char *p, unsigned align, unsigned state,
     if(align >= 32u)
         *reinterpret_cast<const void *volatile *>(p + align - 16) = client;
 }
+//! §13.200  The control has to act on the APPLY, not the free.  My first version
+//! forced PENDING at a free, where the state is already PENDING -- it changed
+//! nothing and the detector duly reported 0, which is precisely the worthless zero
+//! §13.61 warns about.  Skipping the CLEARED stamp for 1 apply in N leaves that
+//! slot marked pending into its next free, which is the real shape.
+static std::atomic<int> g_bv_xinj{-1};
 static inline void kame_bv_slot_mark(char *p, unsigned align, const void *client) noexcept {
+    int iv = g_bv_xinj.load(std::memory_order_relaxed);
+    if(iv < 0) {
+        const char *e = getenv("KAME_BATCH_VERIFY_XINJECT");
+        iv = (e && e[0]) ? atoi(e) : 0;
+        g_bv_xinj.store(iv, std::memory_order_relaxed);
+    }
+    if(iv > 0) {
+        static std::atomic<unsigned long long> c{0};
+        if((c.fetch_add(1, std::memory_order_relaxed) % (unsigned)iv) == 0)
+            return;                                  // leave it PENDING
+    }
     kame_bv_slot_stamp(p, align, BV_ST_CLEARED, client);
 }
 static inline bool kame_bv_slot_read(const char *p, unsigned align, unsigned char *site,
@@ -1006,9 +1047,7 @@ static void kame_bv_xinject(char *p, unsigned align) noexcept {
     //! §13.197  Zero the push count of 1 stamp in N, so its own apply reads
     //! apply > push.  That is the off-diagonal cell the histogram exists to see;
     //! without a run that populates it, an empty off-diagonal means nothing.
-    volatile unsigned long long *w =
-        reinterpret_cast<volatile unsigned long long *>(p + align - 8);
-    *w &= ~((unsigned long long)0xfu << 28);
+    (void)p; (void)align;   // §13.200: the injection moved to kame_bv_slot_mark
 }
 static void kame_bv_note_clear(uintptr_t slot) noexcept {
     kame_bv_note_clear_as(slot, g_bv_site);
@@ -1107,6 +1146,9 @@ namespace { struct BatchVerifyReport { ~BatchVerifyReport() {
         if(tot) fprintf(stderr, "BATCHVERIFY   groups=%llu  violations=%llu  "
                         "mean group=%.2f\n", tot, wsum, (double)wsum / (double)tot);
     }
+    fprintf(stderr, "BATCHVERIFY freed-while-pending (exact, §13.192's DOUBLE-PUSH): %llu"
+            "  (>0 => a slot was handed out while a free for it was in flight)\n",
+            g_bv_double_push.load());
     fprintf(stderr, "BATCHVERIFY pending-at-clear: total=%llu cross_thread=%llu"
             "  (cross_thread > 0 => two threads held one slot pending)\n",
             g_bv_clear_pending.load(), g_bv_clear_pending_x.load());
