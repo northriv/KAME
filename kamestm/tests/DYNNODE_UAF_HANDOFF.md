@@ -8881,3 +8881,41 @@ the only explanation standing, and `nonclone_memop_diff.py` on §13.119's minima
 pair is the tool that has not yet been run.  The poke gate is still worth one
 job: it is cheap, and a positive result would be decisive whatever the mechanism
 turns out to be.
+### 13.138 The cross-thread TLS poke is a real UAF but not this fault — 10/18 vs 11/18
+
+§13.132's audit finds a genuine use-after-free: `CrossDeallocBatch::flush`
+loads `m_owner_dll_force_walk_ptr` (a pointer into the OWNER thread's TLS),
+calls `batch_return_to_bitmap` (unbounded, may release a chunk), then
+dereferences the pointer — with no happens-before edge on the owner's
+teardown in between.  It is exactly the "state the chain re-arms rather than
+storage it hands out" class §13.131 pointed at, and §13.132 gates it with
+`KAME_NO_XTHREAD_FORCEWALK_POKE`.
+
+**Causal test, 18 interleaved rounds, `20 40 700`, `taskset -c 0-3`:**
+
+| arm | failures |
+|---|---|
+| poke present (baseline) | **10/18** |
+| **`-DKAME_NO_XTHREAD_FORCEWALK_POKE`** | **11/18** |
+
+**No effect.**  The gate removes the dereference entirely and the rate does not
+move — so the TLS poke, while a real defect that should be fixed on its own
+merits, is **not** the fault this hunt is chasing.
+
+**A methodological correction I owe on this run.**  I first declared the batch
+invalid because 18 rounds finished in ~4 minutes, when earlier `20 40 700` runs
+had taken 1–2 minutes each.  I was wrong: with the machine idle a successful
+run takes **~11.7 s** and a failing one **1.3–1.8 s** (measured), so 36 runs in
+4 minutes is exactly right.  The earlier 1–2 min figures were runs competing
+with concurrent batches.  **Run duration is not a validity check** — it tracks
+machine load, which §13.51 already established varies this rate by a factor of
+several, and I used it as a proxy for "did this really run" anyway.  The real
+check is the one that then confirmed it: time a run directly and compare the
+success and failure distributions.
+
+**Standing.**  Four named mechanisms inside or around the orphan chain are now
+measured clean on failing runs — release backstops (§13.128), adopt supplying
+doubly-live slots (§13.131), `back_offset` corruption (§13.136), and now the
+cross-thread TLS poke — while removing the chain still suppresses the fault
+15/20 → 0/20 (§13.126).  The ablation's discriminating power is undiminished
+and none of its parts has confessed.
