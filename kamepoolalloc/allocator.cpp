@@ -9526,6 +9526,7 @@ struct RelReport { ~RelReport() { rel_report_(2); } } g_rel_report;
 #ifdef KAME_POOL_FREE_CENSUS
 #include <csignal>
 #include <unistd.h>
+#include <execinfo.h>
 // (§13.165) Last-free record per slot address.  Direct-mapped; a collision
 // overwrites, and the stored address is compared on lookup so a collision
 // answers "unknown" rather than a wrong path.
@@ -9557,7 +9558,8 @@ typedef int (*islive_fn)(const void *);
 std::atomic<islive_fn> g_islive{nullptr};
 std::atomic<int> g_islive_resolved{0};
 std::atomic<unsigned long long> g_free_of_live{0}, g_free_checked{0};
-struct FolFirst { const void *addr; unsigned path, tid; };
+struct FolFirst { const void *addr; unsigned path, tid;
+                  void *bt[24]; int btn; };
 FolFirst g_fol_first{};
 std::atomic<int> g_fol_have{0};
 inline islive_fn islive_() noexcept {
@@ -9582,6 +9584,11 @@ extern "C" void kame_pool_free_note(const void *slot, unsigned path) noexcept {
             if(g_fol_have.compare_exchange_strong(e, 1, std::memory_order_relaxed)) {
                 g_fol_first.addr = slot; g_fol_first.path = path;
                 g_fol_first.tid = kame_page()->owner_id;
+                // (§13.167) NAME THE CALLER.  `backtrace()` only — never
+                // `backtrace_symbols`, which mallocs and would re-enter the
+                // allocator from inside a free.  Raw addresses; resolve
+                // offline with addr2line against the .so.
+                g_fol_first.btn = backtrace(g_fol_first.bt, 24);
             }
         }
     }
@@ -9671,6 +9678,11 @@ void df_report_(int fd) noexcept {
                 g_fol_first.path == 1 ? "freelist_push" : "batch_return_to_bitmap",
                 g_fol_first.tid);
             if(m > 0) { ssize_t rr = write(fd, c, (size_t)m); (void)rr; }
+            for(int fi = 0; fi < g_fol_first.btn; ++fi) {
+                m = snprintf(c, sizeof c, "kame_pool: FREE-OF-LIVE   bt[%d] %p\n",
+                             fi, g_fol_first.bt[fi]);
+                if(m > 0) { ssize_t rr = write(fd, c, (size_t)m); (void)rr; }
+            }
         }
     }
     int n = snprintf(b, sizeof b,
