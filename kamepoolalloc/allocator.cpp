@@ -1199,6 +1199,31 @@ static void kame_batch_verify_bad(int kind, const void *slot, const void *chunk,
     unsigned long long n = g_bv_bad[kind].fetch_add(1, std::memory_order_relaxed);
     g_bv_bad_site[g_bv_site].fetch_add(1, std::memory_order_relaxed);
     if(kind == 1) kame_bv_note_violation_slot((uintptr_t)slot);       // §13.191
+    //! §13.217  ALL-violations accounting, hoisted OUT of the print budget.
+    //!
+    //! §13.209 wrote this block to replace a predicate that saw "only the first 8
+    //! violations", and its comment says "all-violations accounting, before the
+    //! print budget applies" -- but the code sat INSIDE `if(n < 8)`, so both the
+    //! histogram and the `mean_gap` it is compared against were 8-sample.  The
+    //! measured n was literally 8 in every run.  Hoisted; the prints keep their
+    //! budget, the counters no longer share it.
+    BvClearRec &r = g_bv_cleartab[kame_bv_hash((uintptr_t)slot)];
+    const uintptr_t rs = r.slot.load(std::memory_order_relaxed);
+    const unsigned char rsite = r.site.load(std::memory_order_relaxed);
+    const unsigned long long rseq = r.seq.load(std::memory_order_relaxed);
+    if(aux_align >= 32) {
+        unsigned long long e0 = (unsigned long long)(uintptr_t)
+            *reinterpret_cast<unsigned long long *const volatile *>(
+                reinterpret_cast<const void *>((const char *)slot + aux_align - 16));
+        unsigned long long en = g_bv_exits.load(std::memory_order_relaxed);
+        unsigned long long d = (en >= e0) ? (en - e0) : 0;
+        g_bv_exitgap[d > 8 ? 8 : d].fetch_add(1, std::memory_order_relaxed);
+    }
+    if(rs == (uintptr_t)slot) {
+        g_bv_gapsum.fetch_add(g_bv_clearseq.load(std::memory_order_relaxed) - rseq,
+                              std::memory_order_relaxed);
+        g_bv_gapn.fetch_add(1, std::memory_order_relaxed);
+    }
     if(n < 8) {
         //! §13.192: the slot's OWN record first -- exact, no hash, no eviction.
         {
@@ -1214,20 +1239,8 @@ static void kame_batch_verify_bad(int kind, const void *slot, const void *chunk,
                 fprintf(stderr, "BATCHVERIFY   slot's OWN stamp: NONE "
                         "(never cleared through batch_clear_impl since last write)\n");
         }
-        //! §13.188: name the previous clearer of THIS slot, from the census.
-        BvClearRec &r = g_bv_cleartab[kame_bv_hash((uintptr_t)slot)];
-        uintptr_t rs = r.slot.load(std::memory_order_relaxed);
-        unsigned char rsite = r.site.load(std::memory_order_relaxed);
-        unsigned long long rseq = r.seq.load(std::memory_order_relaxed);
-        //! §13.209  all-violations accounting, before the print budget applies.
-        if(aux_align >= 32) {
-            unsigned long long e0 = (unsigned long long)(uintptr_t)
-                *reinterpret_cast<unsigned long long *const volatile *>(
-                    reinterpret_cast<const void *>((const char *)slot + aux_align - 16));
-            unsigned long long en = g_bv_exits.load(std::memory_order_relaxed);
-            unsigned long long d = (en >= e0) ? (en - e0) : 0;
-            g_bv_exitgap[d > 8 ? 8 : d].fetch_add(1, std::memory_order_relaxed);
-        }
+        //! §13.188: name the previous clearer of THIS slot, from the census
+        //! (read above, §13.217).
         if(rs == (uintptr_t)slot) {
             fprintf(stderr, "BATCHVERIFY   prior clear of this slot: site=%s seq=%llu "
                     "(now seq=%llu, gap=%llu, thread_exits_so_far=%llu)\n",
@@ -1235,10 +1248,6 @@ static void kame_batch_verify_bad(int kind, const void *slot, const void *chunk,
                     g_bv_clearseq.load(std::memory_order_relaxed),
                     g_bv_clearseq.load(std::memory_order_relaxed) - rseq,
                     g_bv_exits.load(std::memory_order_relaxed));
-            g_bv_gapsum.fetch_add(
-                g_bv_clearseq.load(std::memory_order_relaxed) - rseq,
-                std::memory_order_relaxed);
-            g_bv_gapn.fetch_add(1, std::memory_order_relaxed);
             //! §13.191  Name both frees.  dladdr only here, never on a hot path.
             for(int w = 0; w < 2; ++w) {
                 if( !r.caller[w][0].load(std::memory_order_relaxed)) continue;
