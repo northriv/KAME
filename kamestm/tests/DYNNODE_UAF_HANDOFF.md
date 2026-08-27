@@ -13060,3 +13060,68 @@ the direct measure fails to show it, which is enough to withdraw an assertion
 that was mine to support.  But before this histogram is used to *establish*
 anything, it needs the positive control — e.g. inject two violations into one
 call deliberately and confirm it reports `group of 2`.
+
+### 13.199 §13.198 is WITHDRAWN: it measured at `cap = 1`, where a group of 1 is FORCED — at `cap = 32` the mean group is 4.29
+
+§13.198 withdrew §13.196's group finding on the strength of `mean group = 1.00`.
+That measurement was vacuous, and gdb found it by looking at the batch instead of
+the counter:
+
+```
+(gdb) p tls_cross_dealloc_batch.count    ->  1
+(gdb) p tls_cross_dealloc_batch.cap      ->  1
+```
+
+**At `cap = 1` the batch holds exactly one entry, so a flush can only ever apply
+one — group size 1 is forced by the configuration, not observed.**  §13.197's
+null was validated with an injector that *scatters*, which produces 1.00 for the
+same structural reason, so null and forced-null were indistinguishable.
+
+#### Measured where a batch can actually hold entries
+
+`cap = 32` crashes (§13.180), and the histogram only prints at exit — so it was
+read under gdb at a late violation, with the symbol in scope
+(`break kame_batch_verify_bad`, `ignore 1 400`, then read `g_bv_group[]`):
+
+```
+group of  1  x20     group of  2  x14     group of  3  x13
+group of  4  x6      group of  5  x8      group of  6  x6
+group of  7  x4      group of  8  x5      group of 10  x6
+group of 11  x1      group of 13  x1      group of 14  x1
+group of 16  x1
+groups=86  violations=369        mean group = 4.29
+(gdb) p tls_cross_dealloc_batch.count -> 32   cap -> 32
+```
+
+**Mean group 4.29, groups up to 16.**  So **§13.196's reframing stands and
+§13.198 is withdrawn**: violations do cluster within one
+`batch_return_to_bitmap` call — a group of entries is applied a second time
+together.
+
+This also closes the caveat §13.198 itself raised: the histogram *can* report
+above 1, so it is now validated in **both** directions — null by injection
+(1.00) and positive here (4.29).  That caveat was the right thing to write down;
+it is what made this result interpretable rather than just contradictory.
+
+#### What the shape says
+
+§13.197 gave the reading in advance: *"group sizes clustered at one value point
+at a fixed-size unit being replayed, a spread points at a variable-length run."*
+The distribution is a **spread** — 1 through 16 with no peak — so it is a
+variable-length run, consistent with a flush's per-chunk entry run being
+re-applied rather than a fixed-size unit.
+
+#### The error, and what it costs to avoid
+
+Withdrawing §13.196 was the right instinct on the evidence I had; the fault was
+running the check in the one configuration where its answer was predetermined.
+`cap = 1` was chosen because it is the arm that *passes* (§13.184), which makes
+gdb easy — and that convenience silently removed the phenomenon under test.
+
+> **Before reading a null, ask what the configuration permits.**  §13.170's rule
+> — a probe must prove it can report a one — has a twin for *arms*: an arm must
+> be able to exhibit the effect. `cap = 1` cannot, by construction.
+
+Both §13.196's claim and §13.198's withdrawal were published in good faith from
+measurements that could not distinguish the cases.  The distinguishing run took
+one gdb session.
