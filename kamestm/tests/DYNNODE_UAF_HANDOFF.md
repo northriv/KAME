@@ -11307,3 +11307,58 @@ Whether this is a GCC miscompile worth reporting upstream or latent UB that
 GCC 15's inlining newly exploits is **open**, and the asm-vs-source read of the
 g15 clone against `batch_return_to_bitmap` + the release path decides it.  That
 is §13.85's Mac half.
+
+### 13.175 §13.174's Mac half: the curing transformation is ordering-neutral, so it is not an ordering miscompile — and one question decides the rest
+
+§13.174 hands over the asm-vs-source read of the g15 clone.  Two results, one
+negative about this platform and one that transfers.
+
+**aarch64 does not reproduce the lead.**  Built the same minimal pair here —
+`g++-15`, `-O2 -fipa-cp-clone`, one `__attribute__((noclone))` on `flush` — and it
+reproduces the *symbol* difference exactly (clone arm: only
+`flush(bool) (.constprop.0)`; noclone arm: only the plain `flush(bool)`).  But the
+bodies contain **no atomics at all** in either arm: the LRC/`g_lrc_bytes`/
+`steady_clock` machinery §13.174 sees inlined on x86-64 is **not** inlined here.
+The only difference is that `blr x2` — the indirect `chunk->batch_return_to_bitmap`
+— appears **twice** in the noclone arm and **once** in the clone arm: the
+`at_teardown` branch folded and the duplicated loop body collapsed.  On this
+target the specialisation is exactly what it says and nothing more, so the
+x86-64 read cannot be done from here.
+
+**What does transfer: the curing transformation changes no ordering.**  GIMPLE
+census on the new pair (clone vs `noclone`-on-`flush`, same compiler, same flags):
+
+| | relaxed | release | seq_cst | fences | CAS |
+|---|---|---|---|---|---|
+| clone | 311 | 151 | 143 | 81 | 1 |
+| **noclone on `flush`** | **311** | **151** | **143** | **81** | **1** |
+
+Identical in every column.  **The transformation whose removal takes 14/16 to
+0/16 does not alter a single memory order, fence or atomic operation in the
+middle end.**  So an ordering miscompile is excluded, and (b) is left with a
+**back-end** error — instruction selection or scheduling — which is
+target-specific and therefore consistent with the inlining being x86-64-only.
+
+**Which shifts the weight to (a), and (a) has a definitional consequence.**  If
+the source keeps an ordering only because the release path sits behind an
+**opaque call**, that is a latent bug by construction: the compiler is permitted
+to inline it.  §13.174 already checked the force-walk pointer's order and found it
+preserved in both builds — so that is not the assumption at stake.  The one that
+remains is `chunk` itself:
+
+> **In the g15 clone, is any use of `chunk` — or of a value loaded from it —
+> scheduled after the inlined release?**
+
+The loop is `chunk = buf[i].chunk; … ; i += chunk->batch_return_to_bitmap(&buf[i]);`
+and then continues.  There is no barrier between the release and the post-call
+uses, so while the release is behind a call the order holds for free, and the
+moment it is inlined the reordering becomes **legal**.  That single question
+separates "GCC bug worth reporting" from "latent UB GCC 15 newly exploits", and
+it is answerable from the x86-64 disassembly §13.174 already has.
+
+**Also worth carrying from §13.174(d):** an additive bisection over optimisation
+licences is not the dual of a subtractive one.  §13.112 built the additive form
+and §13.121 added the subtractive mask as an afterthought; the arm that landed was
+subtractive.  My §13.112 note said a firing arm shows "that function's codegen is
+load-bearing" — the correct reading of a *silent* additive arm was never stated:
+it shows nothing at all when the effect needs the rest of the build cloned too.
