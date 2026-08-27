@@ -9828,3 +9828,59 @@ next step is a direct read of those four sites against the source they came
 from — on x86-64, where comdat sections make `addr2line` offsets ambiguous, so
 it needs `-ffunction-sections` or a per-section disassembly to attribute them
 reliably.
+
+### 13.153 STATUS — the Linux side, as of §13.152
+
+Everything below was measured on the firing machine (Ubuntu, x86-64, GCC 15.2,
+pool ACTIVE — `kame_pool_reserved_bytes()` = 33 554 432, verified per §13.109's
+rule). Interleaved arms in one job unless stated.
+
+**What is established, and how strongly.**
+
+| finding | evidence | strength |
+|---|---|---|
+| The orphan chain is **behaviourally** necessary | runtime gate, one binary, zero codegen delta: 15/24 vs 0/24 | p = 2.4 × 10⁻⁶ |
+| **Adoption** is the necessary half; publication is not | `NO_ADOPT` 0/11 vs `all` 10/11; `pushonly` 0/11 | p = 3.4 × 10⁻⁵ |
+| Chain traffic is a **dose**, not a trigger | KEEP=1/4/16/64 → 10/14, 4/14, 1/14, 0/13 | r = 0.95 vs log traffic |
+| The firing arm **inlines the recycle path into the claimer** | `create_allocator<64u>` 111→181 insns, 0→4 atomics | static, both arches |
+| A slot is handed out while its previous occupant is **live and unfreed** | DOUBLE-LIVE on 5/5 failing runs, 0 on clean; `W0` = live refcnt, no poison | dtor-exact live-set |
+| Hits cluster **within one chunk** | 2 of 3 multi-hit runs same 256 KiB chunk, one pair 224 B apart | pattern, n small |
+
+**What is refuted, on this machine, each with a live control.**
+
+`m_owner_id` handoff (18/20 vs 13/20, p = 0.13) · claim-side ordering + pre-CAS
+metadata (20/20 vs 20/20) · `global_pop_fit`'s clone, both additively
+(untestable — §13.117) and subtractively (12/22 vs 12/21) · `acquire_tag_ref_`'s
+22 clones (13/22 vs 13/22) · the refcount primitive at `no-ipa-cp-clone`
+(22/30 vs 26/30) · dispose backstops (0 firings on 7 failing runs) · adopt
+supplying the doubly-live slots (0/17 hits in adopted chunks, census live at
+101 adopts/run) · `back_offset` corruption (0 across 8 failing runs, poke
+control CAUGHT) · the cross-thread TLS poke (10/18 vs 11/18) · TSan-visible
+allocator races (both fixed, neither moved the rate) · ASan (suppresses the
+fault entirely, 0/17).
+
+**The one tension worth carrying forward.**  Adoption is *necessary* (§13.150)
+yet no doubly-live slot lands in a chunk the adopt census records (§13.131).
+Both are measured with live controls. The likeliest reconciliation is that the
+census records the wrong moment — the `BIT_OWNED` claim — when what matters is
+what the adopting thread does afterwards: the DLL splice, the owner re-arm, or
+its first allocation out of a bitmap it did not build.
+
+**Where the two lines now meet.**  For the first time the codegen difference and
+the behavioural requirement name the same code: the pass inlines
+`global_pop_fit` into `create_allocator`, and `create_allocator` is the adopter.
+Every earlier suppression manipulated that function as a *separate clone*, which
+is not the object the firing arm actually executes.
+
+**Immediate next step (mine).**  Read the four inlined atomic sites in
+`create_allocator` against their source. On x86-64 comdat sections make
+`addr2line` offsets ambiguous — my first attempt resolved into `__tls_init` —
+so this needs `-ffunction-sections` or per-section disassembly to attribute
+reliably.
+
+**Standing methodological notes** (each cost a measurement here): prove a
+detector fires before trusting its zero; measure a predicate's base rate before
+trusting its hit; `atexit` does not run after a fatal signal, so any counter
+that matters on a failing run needs a signal-backed readback (cost four
+measurements); never send compiler stderr to `/dev/null` in a build-and-measure
+loop (cost two); run duration is not a validity check — it tracks machine load.
