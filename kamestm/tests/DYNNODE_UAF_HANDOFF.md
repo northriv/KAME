@@ -11778,3 +11778,71 @@ release paths, of which `cross_release` and the `BIT_RELEASED` CAS are both gone
 BIT_RELEASED)").  Reading that block is how one reconstructs a cross-thread
 releaser that was removed — which is exactly the wrong model §13.116 and §13.159
 both built from stale comments.
+
+### 13.182 §13.179's per-site gate cannot test its own hypothesis: building it DELETES the clone
+
+Ran §13.179's gate on the machine where the fault fires.  Every arm passed —
+including `gate=0`, the ungated baseline, which should fail ~75 %.  A batch
+where the control does not fire cannot answer which site matters, so the
+question became why.
+
+**The gate's own liveness counters answer part of it immediately**, and they
+are the reason this was visible rather than inferred:
+
+```
+site1 (allocate_pooled)      taken=0     supp=0      <- NEVER REACHED
+site2 (allocate_chunk_path)  taken≈5 500 supp≈6 600  <- live, and gated correctly
+```
+
+**Site 1 never runs in this workload.**  The 4/5-filled proactive trigger does
+not fire, so `KAME_NO_INALLOC_FLUSH=2` is *identical to* `gate=0` by
+construction, and any result from that arm would have been about nothing.
+§13.179 shipped the counters that catch this; without them the arm would have
+read as a clean "site 1 is not the culprit".
+
+**And the whole batch is void for a sharper reason.**  Same flags, same
+reproducer binary, only the allocator source differing, 14 interleaved rounds:
+
+| build | flush `.constprop` clone | failures |
+|---|---|---|
+| source **before** §13.179 | **1** | **9/14** |
+| source **after** §13.179 | **0** | **0/14** |
+
+**p = 5.8 × 10⁻⁴.**  Bisected across the three commits:
+
+```
+851018a88 (§13.178 withdrawn)   -> 1 flush clone
+a118ab76d (§13.178 corrected)   -> 1 flush clone
+3ed96b285 (§13.179 gate added)  -> 0 flush clones
+```
+
+Adding `kame_inalloc_flush_off(site)` at the call sites **changes ipa-cp's
+decision and the clone is never created**.  By §13.174/§13.177 (no clone → no
+fault) the arms then trivially pass.  The gate does not suppress the fault by
+moving a flush; it suppresses it by removing the thing under study.
+
+> **A control that perturbs the codegen it is controlling for is not a control.**
+> This is the §13.170 rule one level up: a probe must prove it can report a one
+> — and for a probe embedded in the optimised region, that includes proving the
+> optimisation it is studying still happened.  `nm -C … | grep flush.*constprop`
+> is a one-line precondition for any arm in this line of work.
+
+**What still stands from §13.179:** the call-site *inventory* (which is read off
+the source and the dumps, not off a run) and its conjunction argument.  Site 1
+being dead in this workload actually strengthens it — if only site 2 runs, then
+"the in-allocation flush" is specifically **the flush `allocate_chunk_path`
+performs**, the same function §13.150 proved adoption necessary in, and
+`NO_ADOPT`'s 0/11 and `cap = 1`'s 0/12 are then two ways of emptying the same
+loop.
+
+**How to ask the question without destroying the clone.**  Do not gate the call;
+vary what it *processes*, which §13.180 shows is the live variable:
+
+1. Confirm the clone survives (`nm` check) for every arm before scoring it.
+2. Instead of `KAME_NO_INALLOC_FLUSH`, make the *batch* empty at one site only
+   — e.g. flush the batch immediately **before** entering `allocate_chunk_path`
+   so its in-allocation flush finds nothing, leaving the call, the loop and the
+   codegen intact.
+3. Or reach it from outside the TU (`LD_PRELOAD` interposition, or a
+   `volatile` global read the compiler cannot fold) so the source of the
+   optimised region is untouched.
