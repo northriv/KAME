@@ -10367,3 +10367,184 @@ question instead.
   unmeasured because no batch has ever recorded per-run `rc`; from here they
   do.  One event in 80 runs does not move 23/40 vs 25/40, but every earlier
   batch in §13 carries the same unquantified contamination.
+
+### 13.163 The allocator side, measured: adoption's hazard is universal, the derivation is exact to 1.1 G checks, and three more mechanisms close on reading
+
+§13.162 exhausted the timing probes.  This section stops perturbing and
+measures allocator state instead, in three passes, plus three hypotheses that
+close by reading the source.
+
+#### (a) What does adoption actually hand over?  Always a chunk with live blocks in it
+
+`KAME_POOL_SURVIVOR_CENSUS` records `MASK_CNT` at the claim CAS — the chunk's
+**live-word count** (the alloc path increments it when a flag word goes
+`0 → non-zero`, the free path decrements on `→ 0`; `allocator.cpp:1686`,
+`:2211`).  Nonzero means blocks in the chunk are still live and held by
+**other** threads.  20 runs, `20 40 700`:
+
+| | |
+|---|---|
+| runs | 20 (18 crashed, 2 clean) |
+| adoptions | 123 – 2325 per run |
+| **drained (`MASK_CNT == 0`)** | **0, in every run** |
+| **survivor (`MASK_CNT != 0`)** | **100%, in every run** |
+| **first `allocate_pooled` out of it succeeded** | **100%, in every run** |
+
+So every adoption re-owns a chunk that other threads still hold live blocks
+in, and every adopter immediately allocates out of that chunk's bitmap.  **On
+crashing and clean runs alike.**
+
+That is by construction, not by accident: a chunk is pushed to the chain only
+when its owner exits **non-empty**, and `orphan_chain_scrub` unlinks only
+DRAINED orphans, so nothing else can be there to adopt.  **The consequence is
+the useful part:** "adoption hands the thread a chunk with foreign live blocks
+in it" cannot be what distinguishes a failing run from a passing one, because
+it is what *every* adoption does on *every* run.  §13.150's finding that
+adoption is necessary is therefore **not** "sometimes it picks a dangerous
+chunk" — the shape is always identical, and the discriminator is elsewhere.
+
+One observation, deliberately under-claimed: the maximum live-word count seen
+at a claim tracks the adoption count at a near-constant ratio (~1 per 122–123
+adoptions, across runs spanning 123 to 2325 adoptions).  A running maximum is
+monotone by construction, so this is *consistent with* steady accumulation of
+live words across a rotating set of ~120 chunks and is **not** by itself
+evidence of a leak.  Recorded because the ratio's constancy across a 19×
+range of run lengths is striking, not because it proves anything.
+
+#### (b) Is `back_offset[]` ever mis-derived?  No — 1 144 061 498 checks, zero
+
+§13.109 split the DOUBLE-LIVE hit into two branches and could not decide
+between them from an absent poison tag.  Its second branch — *"the block was
+NEVER freed; its bitmap bit was cleared by somebody ELSE's free … a
+mis-derived `chunk_base` clears a bit in the wrong chunk"* — is directly
+checkable, because every chunk is built as
+
+```cpp
+ALLOC *palloc = ALLOC::create(CHUNK_SIZE - ALLOC_CHUNK_HEADER,
+                              addr + ALLOC_CHUNK_HEADER);   // :2676
+```
+
+so **`(char *)palloc == chunk_base + ALLOC_CHUNK_HEADER` holds by
+construction** for every chunk in existence.  A wrong `base_idx` breaks it.
+`KAME_POOL_RESOLVE_CHECK` tests that identity plus span containment on every
+free, skipping dedicated chunks (bit 7, different header layout) and
+released/in-creation chunks (`palloc <= 1`).
+
+**First placement was wrong and the instrument said so:** it went into
+`resolve_chunk_from_slot`, which this workload never calls — 20 runs reported
+`ok=0`.  The hot owner-free path (`:4276`) and the cold cross-thread path
+(`:4461`) each derive `chunk_base` inline and never go through the resolver.
+Re-aimed at both:
+
+| | |
+|---|---|
+| runs | 20 (16 crashed: 13×SIGABRT, 3×SIGSEGV; 4 clean) |
+| **derivations checked** | **1 144 061 498** |
+| **bad identity** | **0** |
+| **bad span** | **0** |
+
+**§13.109's second branch is refuted** — not inferred from a missing tag, but
+measured, on runs that crashed, at a billion checks.
+
+#### (c) Does the adopt claim loop's "should never happen" ever happen?  No
+
+The claim loop discards a popped orphan that already carries `BIT_OWNED`, a
+case its own comment calls *"duplicate-owned (should never happen)"* — two
+threads owning one chunk, which would put two allocators on one bitmap and one
+freelist: exactly the double-hand-out shape §13.104 saw.  It had never been
+counted.  Counted now, together with claim-CAS retries (losses to a concurrent
+cross-thread `MASK_CNT` dec):
+
+| | |
+|---|---|
+| runs | 20 (14 failed: 11×SIGABRT, 2×SIGSEGV, 1×self-detected rc=255; 6 clean) |
+| adoptions | **33 939** |
+| **DUP-OWNED (two owners for one chunk)** | **0** |
+| **claim-CAS retries** | **0** |
+
+Zero duplicates in 34 k adoptions, so the single-push invariant holds and the
+discard branch is genuinely dead code.  **Zero retries is the more interesting
+number:** the claim CAS never once lost to a concurrent cross-thread
+`MASK_CNT` decrement, which says no foreign free is in flight against the
+chunk at the instant it is re-owned.  The claim loop's careful
+MASK_CNT-preserving retry — and the comment justifying it — describe a race
+that does not occur in this workload.
+
+
+**Validity of the nulls in (a)–(c).**  A probe that suppresses the fault
+returns nulls for the wrong reason (§13.157's noinline arm is the standing
+example).  These do not suppress it — every instrumented build fails *more*
+often than the uninstrumented yield build of §13.162, not less:
+
+| build | instruments | failed |
+|---|---|---|
+| `yl.so` | yield only | 48/80 (60%) |
+| `sv.so` | + survivor census | 18/20 (90%) |
+| `rv.so` | + resolve check | 16/20 (80%) |
+| `dup.so` | + dup/retry counters | 14/20 (70%) |
+
+These arms were not interleaved against each other, so the *direction* is not
+attributable to the instruments — but every null above was collected on a
+sample where the fault fired in the large majority of runs, which is what the
+nulls need in order to mean anything.
+
+#### (d) Three more mechanisms, closed by reading rather than by running
+
+Each of these is a way a bitmap bit could go free without that block being
+freed — i.e. a way to reach §13.109's second branch that is *not* a
+mis-derivation.  All three are closed:
+
+1. **A stale word cache surviving into adoption.**  The allocator claims an
+   entire 64-slot flag word in one CAS (`CAS oldv → ~0`) and hands out bits
+   from a cache held in `m_freelist_head[1]` (remaining mask) and `[2]` (word
+   base) — **chunk members, not TLS**, despite the comment at `:1655` saying
+   "straight into the TLS mask".  So the cache outlives its owner thread and
+   travels with the chunk into the orphan chain.  *If* the thread-exit drain
+   returned those bits to the bitmap without clearing the cache, an adopter
+   would hand out each of them twice.  It does not: `release_dll_chunks_for_thread`
+   (`:3641`) takes the mask, **nulls both cells first**, then returns every
+   undistributed bit — and it runs for every chunk in the DLL, before the
+   `BIT_OWNED` clear, so orphaned chunks are drained exactly like released
+   ones.  Closed.
+2. **A stale per-thread pointer aimed into a recycled chunk.**  The free path
+   re-aims `kame_page()->m_slots[bucket].freelist_head` to point *into* a
+   chunk's `m_freelist_head[local]` cell (`:4571`).  Before releasing a chunk,
+   the owner sweeps all `ALLOC_NUM_BUCKETS` of its own slots and nulls any
+   that point into it (`:2968`).  The re-aim happens only on the owner-matched
+   branch, so a thread only ever aims into chunks it owns — no cross-thread
+   aliasing to invalidate.  Closed.
+3. **The word cache's take arithmetic.**  Producer and consumer compute the
+   slot address differently — producer `base + b * ALIGN` (`:1694`), consumer
+   `base + ((b * bucket) << 4)` (`:5359`) — which agree only if
+   `slot_size(bucket) == 16 * bucket`.  The word cache fires only for FS=true
+   chunks, whose buckets all lie in 1..23, and `kBucketNewSlot[]` is
+   documented and tabulated as **"Buckets 1..23: 16-step.  Slot = K*16"**
+   (`allocator_prv.h:2989`).  The two agree over the cache's entire domain.
+   Closed.
+
+#### (e) Where that leaves the dichotomy — and it points away from the allocator
+
+§13.109 framed the DOUBLE-LIVE hit as: *either* the block was freed while its
+object was live (a **premature free**), *or* its bit was cleared by somebody
+else (an **allocator fault**).  It could not choose, because the poison tag
+was absent and its own text warned that absence is not proof — word 0 is
+where `PacketWrapper` puts its refcount, so the second occupant's constructor
+overwrites the tag.
+
+The second branch now has no surviving mechanism that I can find: the
+derivation is exact at a billion checks (b), the ownership invariant holds
+(c), and the three remaining bit-clearing paths are closed by construction
+(d).  **That shifts the weight decisively onto the first branch** — the block
+*was* freed, while a live object still sat in it — and makes §13.109's absent
+tag the false negative it explicitly anticipated.
+
+**Recommendation for the Mac session.**  The allocator has now absorbed
+§13.104–§13.163 and returned nulls at every structural question asked of it,
+while the one thing it does unconditionally (hand a thread a chunk full of
+other threads' live blocks) is invariant across passing and failing runs.  The
+productive question is no longer *which pool knob* but **which reference was
+dropped**: on a DOUBLE-LIVE hit, the full refcount history of the offending
+address — who released it to zero, and who still held it.  The tracer already
+has the ledger and the choke point (`rc_trace.cpp:799`, every destruction);
+what is missing is dumping that address's history at the trip.  That is a
+tracer-mechanics change, which is the Mac side's half of §13.85.

@@ -2779,6 +2779,10 @@ extern "C" void kame_adopt_yield(unsigned site) noexcept;
 #ifndef KAME_ADOPT_YIELD
   #define KAME_ADOPT_YIELD(n) ((void)0)
 #endif
+#ifdef KAME_POOL_RELEASE_CENSUS
+//! (§13.164) See the call site in `deallocate_chunk`.
+extern "C" void kame_pool_chunk_release_note(const void *chunk_base) noexcept;
+#endif
 #ifdef KAME_POOL_RESOLVE_CHECK
 //! (§13.162) Ground-truth check on the back_offset derivation.  Every chunk is
 //! built with `palloc = ALLOC::create(..., chunk_base + ALLOC_CHUNK_HEADER)`, so
@@ -3805,6 +3809,17 @@ inline void
 KAME_CLONE_LICENCE(5) /*§13.112 arm 5*/ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
                                     bool reclaim_pages) {
 	KAME_POOLEV(KAME_PEV_CHUNK_RELEASE, chunk_base, chunk_size);
+#ifdef KAME_POOL_RELEASE_CENSUS
+	// (§13.164) Per-chunk release tally.  §13.163(b,c,d) leaves "the whole
+	// chunk was recycled under live objects" as the last unclosed way for a
+	// slot to be handed out while its previous occupant is still constructed:
+	// it needs no bitmap bit to move and no per-block free at all, and it
+	// would put SEVERAL double-live hits in ONE chunk — which is what §13.104
+	// saw.  The POOLEV ring already logs KAME_PEV_CHUNK_RELEASE but evicts;
+	// this is a keyed count so a later "was THIS chunk ever released" query
+	// cannot be answered by eviction.
+	::kame_pool_chunk_release_note(chunk_base);
+#endif
 	// §13.35 residual seam: a region reused as a NEW chunk (possibly a
 	// different ALIGN class, so interior slot bases shift) needs a
 	// region-granular edge -- per-slot release/acquire cannot order
@@ -9284,3 +9299,61 @@ extern "C" void kame_pool_resolve_bad(unsigned kind, const void *mp,
     }
 }
 #endif // KAME_POOL_RESOLVE_CHECK
+
+#ifdef KAME_POOL_RELEASE_CENSUS
+// (§13.164) Direct-mapped chunk-release tally, same shape as the §13.130 adopt
+// census: keyed by chunk base, a collision overwrites (the stored base is
+// compared on query, so a collision answers "no" rather than a false "yes").
+#include <cstdio>
+#include <csignal>
+#include <unistd.h>
+namespace {
+enum { REL_SLOTS = 8192 };
+struct RelSlot { std::atomic<const void *> base; std::atomic<unsigned> n; };
+RelSlot g_rel[REL_SLOTS];
+std::atomic<unsigned long long> g_rel_total{0};
+inline unsigned rel_slot_(const void *b) noexcept {
+    return (unsigned)((((uintptr_t)b >> 18) * 0x9E3779B97F4A7C15ull) >> 51) % REL_SLOTS;
+}
+}
+extern "C" void kame_pool_chunk_release_note(const void *chunk_base) noexcept {
+    RelSlot &s = g_rel[rel_slot_(chunk_base)];
+    const void *prev = s.base.exchange(chunk_base, std::memory_order_relaxed);
+    if(prev != chunk_base) s.n.store(1, std::memory_order_relaxed);
+    else                   s.n.fetch_add(1, std::memory_order_relaxed);
+    g_rel_total.fetch_add(1, std::memory_order_relaxed);
+}
+//! How many times the chunk CONTAINING `addr` has been released.  0 also means
+//! "not recorded" (collision) — a nonzero answer is evidence, a zero is not.
+extern "C" unsigned kame_pool_chunk_release_count(const void *addr) noexcept {
+    const void *b = (const void *)((uintptr_t)addr & ~(uintptr_t)0x3ffff);
+    RelSlot &s = g_rel[rel_slot_(b)];
+    if(s.base.load(std::memory_order_relaxed) != b) return 0u;
+    return s.n.load(std::memory_order_relaxed);
+}
+extern "C" unsigned long long kame_pool_chunk_release_total() noexcept {
+    return g_rel_total.load(std::memory_order_relaxed);
+}
+namespace {
+void rel_report_(int fd) noexcept {
+    char b[128];
+    int n = snprintf(b, sizeof b, "kame_pool: CHUNK RELEASES this run = %llu\n",
+        (unsigned long long)g_rel_total.load(std::memory_order_relaxed));
+    if(n > 0) { ssize_t r = write(fd, b, (size_t)n); (void)r; }
+}
+typedef void (*rel_fn_)(int);
+rel_fn_ g_rel_prev[3] = {SIG_DFL, SIG_DFL, SIG_DFL};
+inline int rel_slotidx_(int sig) { return sig == SIGSEGV ? 0 : sig == SIGABRT ? 1 : 2; }
+void rel_sig_(int sig) {
+    rel_report_(2);
+    rel_fn_ prev = g_rel_prev[rel_slotidx_(sig)];
+    if(prev != SIG_DFL && prev != SIG_IGN && prev != rel_sig_) { prev(sig); return; }
+    signal(sig, SIG_DFL); raise(sig);
+}
+struct RelSig { RelSig() {
+    g_rel_prev[0] = signal(SIGSEGV, rel_sig_);
+    g_rel_prev[1] = signal(SIGABRT, rel_sig_);
+    g_rel_prev[2] = signal(SIGBUS,  rel_sig_); } } g_rel_sig;
+struct RelReport { ~RelReport() { rel_report_(2); } } g_rel_report;
+}
+#endif // KAME_POOL_RELEASE_CENSUS
