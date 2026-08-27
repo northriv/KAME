@@ -10091,3 +10091,47 @@ re-check `.text` (§13.117).
 **Standing.**  The chain is necessary (§13.144), adoption is the necessary half
 (§13.150), traffic is a dose (§13.146) — and every mechanism nominated inside
 that half has now been measured innocent.
+
+### 13.158 The adopt-sequence yield probe: no site suppresses, and one may aggravate
+
+Ran §13.156's interleaving probe on the firing machine.  `KAME_ADOPT_YIELD_AT=N`
+delays at one point of the adopt sequence; all arms are one binary, chosen from
+the environment, `sched_yield`-based per §13.103b.
+
+**14 interleaved rounds, `20 40 700`, `taskset -c 0-3`:**
+
+| arm | delay point | failures |
+|---|---|---|
+| `none` (baseline) | — | **6/14 (43%)** |
+| `AT=1` | after `orphan_chain_pop`, before the claim CAS | 8/14 (57%) |
+| `AT=2` | after the claim CAS, before re-arming owner metadata | 8/14 (57%) |
+| `AT=3` | after owner metadata, before the DLL splice | 5/13 (38%) |
+| `AT=4` | (fourth site) | **9/13 (69%)** |
+
+Against baseline: `AT=1` p = 0.71, `AT=2` p = 0.71, `AT=3` p = 1.00,
+`AT=4` p = 0.26.  **No arm suppresses**, and none reaches significance.
+
+**What that rules out.**  If the fault were a race with a *narrow* window inside
+the adopt sequence, widening that window at the right point should have made it
+markedly more likely, and widening it at the wrong point should have left it
+alone — a clear peak.  There is no peak.  The largest excursion (`AT=4`,
+69% vs 43%) is not significant at n = 13 and would need its own run to claim.
+
+**Read with §13.157**, which showed the same for placement (removing the
+inlining moved 4 atomics out of the claimer and changed nothing, 8/20 vs 13/20),
+this is the second interleaving-shaped hypothesis to come back flat.  Delaying
+*within* the adopt sequence does not modulate the fault, and neither does moving
+its code.
+
+**What still stands.**  Adoption is required (§13.150, 0/11 vs 10/11) and chain
+traffic is a dose (§13.146, r = 0.95).  Those two together now look less like
+"a race inside adopt" and more like "adoption is the event that supplies
+something the fault consumes" — the rate tracks how often adoption happens, not
+how the individual adoption is scheduled.
+
+**A caveat on this instrument specifically.**  `sched_yield` on idle cores is
+close to a no-op (§13.103b measured 21.16 s → 21.51 s), and these runs are on an
+idle 4-core box, so the arms may simply not be inserting much delay.  Re-running
+with `KAME_ADOPT_YIELD_US` set high enough to be a real perturbation would
+distinguish "no window here" from "no delay applied"; as it stands this is
+weaker evidence than the flat numbers suggest.
