@@ -2779,7 +2779,19 @@ extern "C" void kame_adopt_yield(unsigned site) noexcept;
 #ifndef KAME_ADOPT_YIELD
   #define KAME_ADOPT_YIELD(n) ((void)0)
 #endif
-#ifdef KAME_ORPHAN_CHAIN_RUNTIME_GATE
+#ifdef KAME_POOL_SURVIVOR_CENSUS
+//! (§13.161) Was the adopted chunk a SURVIVOR (MASK_CNT != 0 at the claim CAS,
+//! i.e. blocks in it are still live and held by OTHER threads) or DRAINED?
+//! And did the adopter's first allocate_pooled out of it succeed?
+extern "C" void kame_pool_survivor_note(unsigned cnt) noexcept;
+extern "C" void kame_pool_survivor_alloc(unsigned cnt) noexcept;
+  #define KAME_SURVIVOR_NOTE(c)  ::kame_pool_survivor_note(c)
+  #define KAME_SURVIVOR_ALLOC(c) ::kame_pool_survivor_alloc(c)
+#endif
+//! Same no-op fallback discipline as KAME_ADOPT_YIELD above (§13.156).
+#ifndef KAME_SURVIVOR_NOTE
+  #define KAME_SURVIVOR_NOTE(c)  ((void)0)
+  #define KAME_SURVIVOR_ALLOC(c) ((void)0)
 #endif
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -3103,6 +3115,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 		// access style as the neighbour walk above); the CAS is the
 		// synchronisation point.
 		bool claimed = false;
+		uint32_t claim_flags = 0;                        // §13.161
 		for(;;) {
 			uint32_t of = oc->m_flags_packed;
 			if(of & PoolAllocator<ALIGN, DUMMY, DUMMY>::BIT_OWNED)
@@ -3111,6 +3124,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 			       of | PoolAllocator<ALIGN, DUMMY, DUMMY>::BIT_OWNED,
 			       &oc->m_flags_packed)) {
 				claimed = true;
+				claim_flags = of;                        // §13.161
 				break;  // BIT_OWNED set, MASK_CNT preserved
 			}
 			// CAS lost to a concurrent MASK_CNT dec — retry with fresh `of`.
@@ -3158,7 +3172,15 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 			// becomes the self-ref); oc_hold goes null.  Closes Inv_NoBadOwnerFree.
 			oc->m_owner_self_ref = std::move(oc_hold);
 			KAME_ADOPT_YIELD(4);                             // §13.156
+			// (§13.161) MASK_CNT at the claim: nonzero == SURVIVOR.  Hoisted
+			// into a local because the template's commas would otherwise be
+			// parsed as extra macro arguments.
+			const unsigned sv_cnt = claim_flags
+			    & PoolAllocator<ALIGN, DUMMY, DUMMY>::MASK_CNT;
+			(void)sv_cnt;
+			KAME_SURVIVOR_NOTE(sv_cnt);
 			if(void *p = oc->allocate_pooled(SIZE)) {
+				KAME_SURVIVOR_ALLOC(sv_cnt);
 #ifdef GUARDIAN
 				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
 					if(static_cast<uint64_t *>(p)[i] != GUARDIAN)
@@ -9033,3 +9055,52 @@ extern "C" unsigned long long kame_pool_adopt_count() noexcept {
     return g_adopt_n.load(std::memory_order_relaxed);
 }
 #endif // KAME_POOL_ADOPT_CENSUS
+
+#ifdef KAME_POOL_SURVIVOR_CENSUS
+// (§13.161) SURVIVOR-vs-DRAINED adopt census.  MASK_CNT at the claim CAS is
+// the chunk's non-empty-flag-word count: nonzero means blocks in the chunk are
+// STILL LIVE and held by other threads, which will free them cross-thread into
+// a chunk that now has a new owner.  Adopting such a chunk and immediately
+// allocating out of its bitmap (the two events straddling KAME_ADOPT_YIELD(4))
+// is the only place the allocator hands out storage from a bitmap it did not
+// build while foreign frees are still in flight against it.
+#include <cstdio>
+#include <csignal>
+#include <unistd.h>
+namespace {
+std::atomic<unsigned long long> g_sv_total{0}, g_sv_surv{0}, g_sv_drain{0},
+    g_sv_alloc_surv{0}, g_sv_alloc_drain{0}, g_sv_maxcnt{0};
+inline void sv_report_(int fd) noexcept {
+    char b[320];
+    int n = snprintf(b, sizeof b,
+        "kame_pool: ADOPT survivor census: total=%llu drained=%llu survivor=%llu"
+        " maxcnt=%llu | first-alloc-OK: drained=%llu survivor=%llu\n",
+        (unsigned long long)g_sv_total.load(std::memory_order_relaxed),
+        (unsigned long long)g_sv_drain.load(std::memory_order_relaxed),
+        (unsigned long long)g_sv_surv.load(std::memory_order_relaxed),
+        (unsigned long long)g_sv_maxcnt.load(std::memory_order_relaxed),
+        (unsigned long long)g_sv_alloc_drain.load(std::memory_order_relaxed),
+        (unsigned long long)g_sv_alloc_surv.load(std::memory_order_relaxed));
+    if(n > 0) { ssize_t r = write(fd, b, (size_t)n); (void)r; }
+}
+// atexit does NOT run after a fatal signal (§13.93) — read back from a handler.
+void sv_sig_(int sig) { sv_report_(2); signal(sig, SIG_DFL); raise(sig); }
+struct SvSig { SvSig() { signal(SIGSEGV, sv_sig_); signal(SIGABRT, sv_sig_);
+                         signal(SIGBUS, sv_sig_); } } g_sv_sig;
+struct SvReport { ~SvReport() { sv_report_(2); } } g_sv_report;
+}
+extern "C" void kame_pool_survivor_note(unsigned cnt) noexcept {
+    g_sv_total.fetch_add(1, std::memory_order_relaxed);
+    if(cnt) {
+        g_sv_surv.fetch_add(1, std::memory_order_relaxed);
+        unsigned long long m = g_sv_maxcnt.load(std::memory_order_relaxed);
+        while(cnt > m && !g_sv_maxcnt.compare_exchange_weak(m, cnt,
+                  std::memory_order_relaxed)) {}
+    }
+    else g_sv_drain.fetch_add(1, std::memory_order_relaxed);
+}
+extern "C" void kame_pool_survivor_alloc(unsigned cnt) noexcept {
+    if(cnt) g_sv_alloc_surv.fetch_add(1, std::memory_order_relaxed);
+    else    g_sv_alloc_drain.fetch_add(1, std::memory_order_relaxed);
+}
+#endif // KAME_POOL_SURVIVOR_CENSUS
