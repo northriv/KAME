@@ -13220,3 +13220,61 @@ right instruction — but the tail offset needs the chunk's `ALIGN`, and there i
 bucket→size map in the pool (only `m_base_bucket`), so those sites cannot compute
 it today.  Rather than hook a subset and quote a partial zero, the check sits where
 coverage is total.
+
+### 13.201 §13.200's sequence tested on x86-64: `freed-while-pending = 0` — step 2 does not happen, and by §13.200's own reading the contradiction is in the flush loop's accounting
+
+#### The vacuous arm, refused this time
+
+At `cap = 1` the detector reads 0 — and that reading is worthless for the same
+reason §13.199 documented: **at `cap = 1` every push flushes immediately, so the
+"pending" window is essentially zero and step 2 cannot occur by construction.**
+Reporting it would have repeated §13.199's error one section after publishing the
+lesson.  Recorded here only as the arm that was rejected.
+
+#### Measured where the window exists
+
+`cap = 32` — batch holds 32, groups mean 4.29 (§13.199) — read under gdb at a
+late violation, since crashing runs print no exit summary:
+
+```
+freed-while-pending = 0
+bit_clear_bad       = 395
+pending-at-clear    = 153 769      cross_thread = 0
+(gdb) p tls_cross_dealloc_batch.count -> 32   cap -> 32
+```
+
+**`pending-at-clear = 153 769` is the liveness statement**: the stamp is written,
+survives, and is read across the window, so the zero is a real zero and not a
+silent one.  395 violations had already accumulated in the same run.
+
+#### So §13.200's sequence is refuted, and it named the consequence in advance
+
+> *"`= 0` while `bit_clear_bad = 800` — then the second apply has no second push,
+> so conservation cannot hold **per slot** even though it holds globally, and the
+> contradiction is localised to the flush loop's `i += ...` accounting rather than
+> to any lifetime question."*
+
+That is the branch the data selects.  **No slot is handed out while its free is in
+flight** (0 over 153 k pending observations), so the second apply has no second
+push behind it — and every lifetime story, including §13.200's carefully
+constructed one, is out.
+
+#### Which fits the group shape better than any lifetime account did
+
+§13.199 measured violations clustering **within one call** — mean 4.29, sizes
+1–16, no peak.  A defect in the flush loop's own advance is exactly the shape
+that produces: a run of entries re-processed inside a single
+`batch_return_to_bitmap`, giving several violations in that call and none in
+neighbouring ones, with the run length varying as chunk runs vary.  No lifetime
+mechanism naturally produces per-call clustering; a loop-accounting one does.
+
+**The tension to resolve with it:** §13.187 measured `site flush checked = 2 562
+816` against `pushes = 2 562 817` — each entry examined once, globally.  A re-walk
+inside a call should make `checked` exceed `pushes`.  Either the re-processed
+entries are not re-*checked* (the check sits after the CAS, so a second pass that
+finds nothing to clear may still increment), or the advance is wrong in a way that
+skips as many entries as it repeats.  **Both are decidable from the loop's own
+variables**, which is a much smaller question than any asked since §13.184:
+instrument `batch_clear_impl` to record, per call, the entry count it was handed,
+the number of distinct entries it consumed, and the value it returned — and
+compare the three.
