@@ -561,7 +561,10 @@ inline void atomicStoreRelease(T *p, T v) noexcept {
 //! change shape in the object (`nonclone_memop_diff.py` between the two arms).
 #ifdef KAME_ASP_AT_O2
   #pragma GCC push_options
-  #pragma GCC optimize("O2")
+  // (§13.140) "O2" alone is a NO-OP here: the TU is already -O2, so the
+  // pragma restates the level without cancelling -fipa-cp-clone, and the
+  // arm came out byte-identical (.text compared).  Name the pass.
+  #pragma GCC optimize("O2","no-ipa-cp-clone")
   #include "atomic_smart_ptr.h"
   #pragma GCC pop_options
 #else

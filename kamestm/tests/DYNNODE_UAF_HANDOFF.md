@@ -8987,3 +8987,54 @@ directly, and an arm whose primitive is byte-identical is vacuous, not negative
 
 **Mac**: both arms compile; the default build is unchanged (`HITS 0`,
 `dtor == born`, `enforced 95 938 287`).  The runs need gcc.
+
+### 13.140 `KAME_ASP_AT_O2` as written is vacuous — corrected, the refcount primitive's own clones are not the fault either
+
+§13.139's reframing is right and important: `atomic_smart_ptr.h` is included at
+`allocator_prv.h:525`, so the STM's refcount primitive is instantiated **inside
+the allocator's TU** and compiled with the allocator's flags.  §6 therefore
+never localised to allocator *logic*.  The arm it adds to test that, however,
+does nothing.
+
+**Vacuity check first (§13.117's rule).**  `KAME_ASP_AT_O2` wraps the include in
+
+```cpp
+#pragma GCC optimize("O2")
+```
+
+but the TU is **already** compiled at `-O2 -fipa-cp-clone`.  The pragma restates
+the level and does not cancel the pass, so the arm is a no-op: clone counts
+identical (31 vs 31) and **`.text` byte-identical**.  A 0 from it would have
+meant nothing.
+
+**Corrected** to name the pass —
+
+```cpp
+#pragma GCC optimize("O2","no-ipa-cp-clone")
+```
+
+— and the arm becomes real: **31 → 29 clones**, `.text` differs.
+
+**Causal test, 30 interleaved rounds, `20 40 700`:**
+
+| arm | failures |
+|---|---|
+| firing baseline | **22/30 (73%)** |
+| **primitive at `no-ipa-cp-clone`** | **26/30 (87%)** |
+
+Fisher **p = 0.33** — no effect, and if anything slightly *more* failures.
+
+**So the refcount primitive's own specializations are not the fault.**  §13.139
+correctly identifies that `atomic_shared_ptr`'s machinery is compiled in the
+allocator's TU and was never on the candidate list; measured, suppressing its
+cloning changes nothing.  That is consistent with §13.124 (the 22
+`acquire_tag_ref_` clones are `weakly=false`, semantically inert) and §13.126
+(suppressing all 22 gave 13/22 vs 13/22).
+
+**Running total inside the localisation.**  Five named mechanisms now measured
+clean on failing runs — release backstops, adopt, `back_offset`, the TLS poke,
+and the primitive's clone set — against an ablation that still takes the rate to
+zero.  Every arm that *specifically* removes a candidate leaves the rate alone;
+only removing the orphan chain **wholesale** suppresses.  That pattern itself is
+now the most informative thing left: it says the chain's contribution is not any
+single operation it performs.
