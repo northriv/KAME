@@ -11215,3 +11215,95 @@ this side.
 **Annotated both flag sites** (`CMakeLists.txt`, `kamepoolalloc.pro`) with this
 as the open discriminator, so the next reader of those four lines learns what the
 flag does not establish without reading 11 000 lines to find out.
+
+### 13.174 §13.173's sweep, RUN — and it localises to `CrossDeallocBatch::flush(bool)`'s clone — GCC 14 never makes it and never fails; suppressing that ONE clone under GCC 15 takes 14/16 to 0/16
+
+**This is the experiment §13.173 says has never been run.**  It was requested
+independently on the Linux side at the same time, and it is the sharpest
+discriminator this hunt has had.  Three lines now name one function, and
+§13.173's question — is `-fno-ipa-cp-clone` a fix or a mitigation — gets a
+sharper answer than either of us expected: **one clone, of one function,
+accounts for the whole effect.**
+
+#### (a) The version boundary
+
+One reproducer binary (built by `g++-15` throughout), four POOLS swapped by
+symlink — §13's mixed-compiler table established the *pool's* compiler is what
+matters (clang-pool **0/12**, clang-STM + gcc-pool 8/12).  10 interleaved
+rounds:
+
+| pool | failures | vs g14 |
+|---|---|---|
+| **GCC 14.3.0** | **0/10** | — |
+| GCC 15.2.0 | 9/10 | **p = 1.1 × 10⁻⁵** |
+| GCC 16.0.1 (trunk) | 9/10 | **p = 1.1 × 10⁻⁵** |
+| GCC 15 + `-DKAME_FS_WORDCACHE=0` | 10/10 | no effect |
+
+#### (b) One function differs, and `-fdump-ipa-cp-details` names it
+
+Clone sets, same source and flags:
+
+```
+g14: 52 distinct functions cloned
+g15: 53
+ONLY in g15:  void {anonymous}::CrossDeallocBatch::flush(bool)
+ONLY in g14:  (none)
+```
+
+Confirmed at the symbol level — `nm -C | grep flush.*constprop`: **g14 = 0,
+g15 = 1, g16 = 1**.  In g15 the plain `flush(bool)` is *gone*, replaced by
+`flush(bool) [clone .constprop.0]`.
+
+#### (c) The subtractive test, same compiler, same flags, one attribute
+
+`__attribute__((noclone))` on `flush` alone, `g++-15`, `-fipa-cp-clone` still
+global.  16 interleaved rounds:
+
+| arm | failures |
+|---|---|
+| g15 | **14/16** |
+| **g15 + `noclone` on `flush`** | **0/16** |
+| g14 (control) | **0/16** |
+
+**p = 5.1 × 10⁻⁷** for both contrasts.  Removing that single clone reproduces
+GCC 14's immunity exactly.
+
+#### (d) Why §13.112–§13.148's clone bisection missed it
+
+`flush` *was* arm 11 (`KAME_CLONE_L11`).  But the arms grant cloning licence
+**additively** from a `-fno-ipa-cp-clone` base — one function at a time — and
+that design cannot see a clone whose effect needs the rest of the build cloned
+too.  The test that lands is **subtractive**: everything cloned, minus one.
+Worth carrying beyond this bug — an additive bisection over optimisation
+licences is not the dual of a subtractive one.
+
+#### (e) It reconciles the OTHER suppressor
+
+§13.159/§13.160 found cross-thread batch `cap = 1` is **0/16** and flagged it as
+"never been reconciled with the chain".  It reconciles now: `cap = 1` flushes
+one entry at a time, and the function whose batching that disables is the same
+function GCC 15 started cloning.  Two suppressors, one function.
+
+#### What this does NOT establish, and the lead for the mechanism
+
+This localises the fault to a function; it does **not** name the defect.
+Specifically:
+
+* `noclone` also inhibits other transformations on `flush`, so it is not a
+  surgical "no constprop" knob.
+* The hazard the source comment warns about is **not** what changed.  Both
+  builds keep the documented order — force-walk pointer loaded *before*
+  `call *0x18(%rax)`, `movb $0x1` stored *after*.  Consistent with §13.138's
+  poke ablation being rate-neutral (10/18 vs 11/18), and with `WORDCACHE=0`
+  above changing nothing.
+* **The lead:** in g15's clone the chunk-release/LRC path is **inlined into the
+  flush loop** — `lock cmpxchg` on an LRC slot, `g_lrc_bytes` accounting and
+  `steady_clock::now()` all appear inside the function body, where g14 keeps
+  them behind an opaque call.  So specialising on `at_teardown == false` does
+  not merely fold a branch; it unlocks inlining chunk *release* machinery into a
+  loop walking a batch of cross-thread frees.  That is where to read next.
+
+Whether this is a GCC miscompile worth reporting upstream or latent UB that
+GCC 15's inlining newly exploits is **open**, and the asm-vs-source read of the
+g15 clone against `batch_return_to_bitmap` + the release path decides it.  That
+is §13.85's Mac half.
