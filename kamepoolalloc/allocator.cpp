@@ -890,6 +890,29 @@ static inline unsigned long long kame_bv_pack(unsigned state, unsigned owner,
            (seq & 0xffffffULL);
 }
 static std::atomic<unsigned long long> g_bv_double_push{0}, g_bv_push_after_dtor{0};
+//! §13.214  `owner_release` is LIVE, contradicting §13.181.
+//!
+//! §13.181 reported it "declared and defined with no call site anywhere in the
+//! pool" and therefore harmless.  There is a call site:
+//! `allocate_chunk_path` -> `if(PoolAllocator<ALIGN,FS,DUMMY>::owner_release(nx))`,
+//! under no preprocessor guard.  So the landmine §13.181 documented is ARMED:
+//!
+//!   if(dll_len <= LEAVE_VACANT_CHUNKS_PER_THREAD) return false;     // benign
+//!   if((load(&m_flags_packed) & MASK_CNT) != 0)    return false;    // benign
+//!   old = atomicFetchAnd(&m_flags_packed, ~BIT_OWNED);
+//!   if((old & ~BIT_OWNED) != 0) return false;   // <-- BIT_OWNED CLEARED, non-empty
+//!
+//! On that last return the chunk is left BIT_OWNED-clear, NON-EMPTY, still on a
+//! live thread's DLL and NOT on the orphan chain -- while the FS OnClearFns
+//! decline to release a BIT_OWNED-clear chunk precisely because "such a chunk is
+//! an ORPHAN on the chain, reclaimed by orphan_chain_scrub", which is false for
+//! this one.
+//!
+//! And the window is exactly the flush: MASK_CNT must rise between the pre-check
+//! and the fetchAnd, which is a cross-thread free landing on a chunk the owner is
+//! about to release -- the site at which all 800 violations occur.
+static std::atomic<unsigned long long> g_bv_or_entered{0}, g_bv_or_floor{0},
+                                      g_bv_or_reached{0}, g_bv_or_landmine{0};
 //! §13.209  exits that occurred inside the [first clear, violation] window, for
 //! EVERY violation (not the 8 that get printed).  Cell 0 is "no exit intervened".
 static std::atomic<unsigned long long> g_bv_exitgap[9];
@@ -1246,6 +1269,11 @@ namespace { struct BatchVerifyReport { ~BatchVerifyReport() {
                     clears_per_exit > 0 ? mean_gap / clears_per_exit : 0.0,
                     g_bv_exitgap[0].load());
     }
+    fprintf(stderr, "BATCHVERIFY owner_release: entered=%llu floor_bail=%llu "
+            "reached_CAS=%llu landmine=%llu"
+            "  (§13.214: landmine leaves a non-empty chunk BIT_OWNED-clear off-chain)\n",
+            g_bv_or_entered.load(), g_bv_or_floor.load(),
+            g_bv_or_reached.load(), g_bv_or_landmine.load());
     fprintf(stderr, "BATCHVERIFY push-after-batch-dtor=%llu"
             "  (§13.206: should account for a negative excess, one per thread)\n",
             g_bv_push_after_dtor.load());
@@ -4310,15 +4338,34 @@ PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
 	// path.
 	int dll_len = 0;
 	for(auto *c = s_tls.dll_head; c; c = c->m_dll_next) ++dll_len;
+#ifdef KAME_BATCH_VERIFY
+	g_bv_or_entered.fetch_add(1, std::memory_order_relaxed);          // §13.214
+	if(dll_len <= LEAVE_VACANT_CHUNKS_PER_THREAD)
+		g_bv_or_floor.fetch_add(1, std::memory_order_relaxed);
+#endif
 	if(dll_len <= LEAVE_VACANT_CHUNKS_PER_THREAD) return false;
 
 	// Quick pre-check: bail if not empty.  Avoids the atomicFetchAnd
 	// (and the BIT_OWNED clear that'd hand release to cross-thread).
 	if((atomicLoadAcquire(&palloc->m_flags_packed) & MASK_CNT) != 0) return false;   // §13.52
 
+#ifdef KAME_BATCH_VERIFY
+	g_bv_or_reached.fetch_add(1, std::memory_order_relaxed);          // §13.214
+#endif
 	uint32_t old = atomicFetchAnd(&palloc->m_flags_packed,
 	                              static_cast<uint32_t>(~BIT_OWNED));
 	uint32_t newv = old & ~BIT_OWNED;
+#ifdef KAME_BATCH_VERIFY
+	if(newv != 0) {
+		unsigned long long n =
+		    g_bv_or_landmine.fetch_add(1, std::memory_order_relaxed);
+		if(n < 4)
+			fprintf(stderr, "BATCHVERIFY OWNER_RELEASE LANDMINE: chunk=%p left "
+			        "BIT_OWNED-clear and NON-EMPTY (packed=0x%x, cnt=%u) on a live "
+			        "DLL, not on the orphan chain\n", (void *)palloc, newv,
+			        newv & 0x7fffffffu);
+	}
+#endif
 	if(newv != 0) {
 		// MASK_CNT > 0 (cross-thread brought a bit back?) — no, MASK_CNT
 		// monotone non-increases on non-pinned DLL chunks.  Reaching

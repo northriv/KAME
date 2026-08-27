@@ -14150,3 +14150,107 @@ What it would **not** fix is `BUG_WRONG_BIT`: a mis-derived bit index clears
 somebody else's slot no matter who holds a reference.  So refcounted custody is
 the right answer for lifetime and the wrong one for arithmetic — and the model says
 the arithmetic is the surviving suspect.
+
+### 13.214 The DLL walk, audited: `owner_release` is LIVE code (§13.181 was wrong) but never entered — and the walk is safe iff the drain does not read a captured freelist
+
+Ordering is out on independent grounds before this section starts: §13.175/§13.176
+measured the middle-end memory orders **identical** between the curing and failing
+builds (release stores 151 = 151), and x86-64 is TSO while the *weaker* target
+(arm64) is the one that does **not** fail — the wrong direction for a missing
+barrier.  So: the walk.
+
+#### Correction to §13.181: `owner_release` has a call site
+
+§13.181 reported it *"declared and defined with no call site anywhere in the
+pool"* and therefore harmless.  It is called, under no preprocessor guard:
+
+```cpp
+if(s_tls.my_chunk) {
+    auto *nx = s_tls.my_chunk->m_dll_next;
+    for(int released = 0; nx && released < 2; ) {
+        ...
+        if(PoolAllocator<ALIGN, FS, DUMMY>::owner_release(nx)) {   // allocate_chunk_path
+```
+
+So the landmine §13.181 documented is **armed**: on its third return-false the
+chunk is left `BIT_OWNED`-clear, non-empty, on a live thread's DLL and **not** on
+the orphan chain — while the FS `OnClearFn`s decline to release a
+`BIT_OWNED`-clear chunk *because* "such a chunk is an ORPHAN on the chain".  And
+the window is a cross-thread free raising `MASK_CNT` between the pre-check and the
+`atomicFetchAnd` — i.e. a **flush**, the site of all 800 violations.
+
+**Measured, though:**
+
+```
+cap = 1 / 32 / 1024   owner_release: entered=0  floor_bail=0  reached_CAS=0  landmine=0
+```
+
+`entered = 0` — the function is never called in this workload, because the block
+needs `s_tls.my_chunk->m_dll_next != nullptr` and this reproducer's threads never
+hold a chunk *after* `my_chunk`.  So §13.181's **empirical** half ("probed
+empirically, did not fire") stands; its **structural** half was wrong, and the
+whole release path is uncovered by this reproducer.
+
+That also closes the link-corruption reading of the walk: the only code that writes
+through a *neighbour's* link —
+
+```cpp
+if(nx->m_dll_prev) nx->m_dll_prev->m_dll_next = nx->m_dll_next;
+```
+
+— is inside that never-entered block.  The exit walk's own stale
+`next->m_dll_prev` (it nulls `c`'s links but not its successor's `prev`) therefore
+has no writer, and `next` still has `BIT_OWNED` set so no peer can take it.
+
+#### `ExitWalk.tla` — multi-chunk, and the per-chunk work split in two
+
+The last structural gap in §13.213 was one chunk.  This module has N chunks, a
+walk over the set of owned chunks (a **set**, so every visit order is explored),
+and the per-chunk work as **two separate steps** — drain and disown — so peers
+interleave between them.
+
+```
+correct walk              13 600 distinct states   no error
+BUG_DRAIN_AFTER_DISOWN   184 535 distinct states   no error
+BUG_STALE_FLIST           11 466 distinct states   Inv VIOLATED
+```
+
+> **The walk is safe iff the drain reads the LIVE freelist.  The per-chunk
+> drain/disown order turns out not to matter — what matters is the freshness of
+> the list the drain walks.**
+
+#### And the C++ does capture, so the protection is elsewhere — and it is load-bearing
+
+```cpp
+char *fh = c->m_freelist_head[b];
+c->m_freelist_head[b] = nullptr;          // detach
+while(fh) { char *fnext = *kame_slot_link_(fh); ... ; fh = fnext; }
+```
+
+That is the `BUG_STALE_FLIST` shape — with a mitigation the model does not have:
+the head is **nulled before the walk**, so the list becomes private and a later
+adopter finds it empty.  Two things then carry the safety, and both are implicit:
+
+1. **`BIT_OWNED` is still set during the drain** (drain precedes disown per
+   chunk), so the chunk is not adoptable while the walk holds the captured chain.
+   The model says the order does not matter *because its drain is atomic*; in the
+   C++ the drain is a loop, so **drain-before-disown is exactly what makes the
+   capture safe**.  Any edit that disowns first re-creates `BUG_STALE_FLIST`.
+2. `m_freelist_head[0]` is written **non-atomically** by both the popper
+   (`*head_ptr = *link(head)`) and the drain (`= nullptr`), justified by
+   "only the owner thread touches it".  Adoption is what can invalidate that
+   single-writer premise — which is why `KAME_ORPHAN_NO_ADOPT` cures the fault
+   (§13.150) without any of the mechanisms proposed since §13.184.
+
+#### Two knobs found inert, by a tell worth reusing
+
+`BUG_ADOPT_UNVISITED` and the first `BUG_DRAIN_AFTER_DISOWN` both produced an
+**identical distinct-state count** to the no-bug arm (6915).
+
+> A knob that does not change the distinct-state count is not being exercised.
+
+The first is unreachable by construction (`onChain ⇒ owner = NONE` holds
+invariantly, since adoption pops from the chain and only a disowned chunk is on
+it) and was removed rather than kept as a vacuous pass; the second only became
+live once the per-chunk work was split into two steps.  That is §13.61 applied to
+a spec for the second time in two sections.
