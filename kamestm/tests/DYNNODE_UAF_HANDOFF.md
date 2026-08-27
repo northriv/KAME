@@ -14571,3 +14571,144 @@ The complementary read, needing no rebuild: on x86 disassemble the flush clone a
 count `__tls_get_addr` in its loop body.  §13.176 already recorded one; if it is
 still there, this candidate is live, and if `KAME_FLUSH_CACHE_COUNT` takes
 `bit_clear_bad` 800 → 0 with the clone intact, it is the fix.
+### 13.220 x86-64 A/B read: B cures it 1600 → 0, deterministically — and the mechanism is now identity, not inference. §13.216's order counter is vacuous; the real order is cleanup-first on EVERY thread
+
+§13.218 asks for the x86-64 A/B before flipping defaults.  Here it is, and it
+went further than a pass/fail: the instrument built to check whether B's cure was
+real ended up naming the defect.
+
+#### First, the counter §13.216 and §13.217 both rest on cannot be nonzero
+
+```
+$ grep -n 'g_bv_ord_cleanup_first' kamepoolalloc/allocator.cpp
+954:                                       g_bv_ord_cleanup_first{0};      # defined
+1326:            g_bv_ord_batch_first.load(), g_bv_ord_cleanup_first.load());  # printed
+$ grep -c 'g_bv_ord_cleanup_first.fetch_add' kamepoolalloc/allocator.cpp
+0
+$ grep -c 'g_bv_tls_dtor_mark = 2'  kamepoolalloc/allocator.cpp
+0
+```
+
+**It is defined and printed and never incremented**, and the `mark = 2` branch that
+would increment it does not exist.  So `batch_first = 801, cleanup_first = 0`
+measured one thing — *the batch destructor ran 801 times* — and nothing whatever
+about order.  §13.216's Linux prediction ("if Linux reports `cleanup_first > 0`")
+could not be satisfied by construction, on any platform, ever.  §13.61 again, and
+this time on the section that called itself FOUND.
+
+#### The order, measured directly — and it is the unsafe one, everywhere
+
+`dead_` read at the **first statement** of `~AllocThreadExitCleanup`
+(`drain_thread_slot_freelists`), i.e. does the batch destructor precede it:
+
+```
+control / B / A ,  cap 1        calls=1601   dead=0
+```
+
+**`dead = 0` on every thread of every arm.**  The batch destructor has *not* run.
+The order on x86-64 is **cleanup-first — §13.216's unsafe case — on 100 % of
+threads**, not 0 %.  §13.216 had the class exactly right and every empirical claim
+about it inverted.
+
+(This also supersedes §13.211's gdb reading that "the batch dtor runs first".  That
+observation was taken on two *different* threads — the same error §13.211 itself
+retracted one paragraph earlier — so it never established a per-thread order.
+`dead_` does.)
+
+#### And the batch is not empty there: exactly one entry, and `push` says why
+
+```
+control (B-null),  cap 1       calls=1601  nonempty=1600  entries=1600
+```
+
+One entry, on 1600 of 1601 threads.  The source explains the "exactly one":
+
+```cpp
+void push(...) {
+    if(count >= cap) flush();     // flush FIRST, then append
+    buf[count++] = ...;
+}
+```
+
+At `cap = 1` the flush happens on the *next* push, so **every thread ends its life
+with exactly one un-flushed entry**.  That is §13.210's identity — violations ==
+thread exits, 1:1 — derived rather than observed.
+
+#### Identity: the violating slot IS the late-pending slot
+
+Recording each slot still pending at cleanup start and testing every violation
+against that set — not counts, addresses:
+
+| | violations | recorded late | **hit** | **miss** |
+|---|---|---|---|---|
+| full scale, rep 1–3 | 1600 | 1600 | **1600** | **0** |
+| `OUTER=6`, rep 1–2 | 96 | 96 | **96** | **0** |
+
+**Every violation, without exception, is the slot left pending in the exiting
+thread's batch when the cleanup destructor began.**
+
+#### The A/B, interleaved, full scale
+
+| arm | what it changes | `bit_clear_bad` (3 reps) |
+|---|---|---|
+| **control** (B-null) | the identical structural change with the **flush removed** | 1600 / 1600 / 1600 |
+| **B** `KAME_UNIFY_THREAD_EXIT_DRAIN` | flush the batch at the head of the cleanup | **0 / 0 / 0** |
+| **A** `KAME_FORCE_TLS_DTOR_ORDER` | pin the language-level order | 96 / 96 (`dead=0`, `nonempty=96`, `hit=96`) |
+
+Every arm keeps `flush_impl<false>` symbols = 4, so §13.206/§13.208's shape gate
+holds throughout and none of this is the codegen-perturbation class.
+
+**The B-null arm is the control that matters.**  B's cure could have been shape
+perturbation — a non-empty body in a previously-empty function.  B-null makes the
+identical structural change and *keeps the fault at full strength*, so the cure is
+the flush, not the shape.
+
+**A is inert, and now demonstrably so**: `dead = 0` and `nonempty = 96` under A,
+i.e. it does not move the order at all.  That is expected once the order is
+understood — the two objects are destroyed by *different mechanisms* (the batch by
+`__cxa_thread_atexit`, the cleanup via the pthread-key path), and taking the
+address of one cannot reorder it against the other.  **Ship B; A buys nothing
+here.**  §13.218's caution can be lifted: the reading is in.
+
+#### What is now established, end to end
+
+1. at `cap = 1` every thread ends with exactly one pending cross-thread free;
+2. `~AllocThreadExitCleanup` runs **first** on every thread, disowning and orphaning
+   the thread's chunks while that entry is still pending;
+3. `~CrossDeallocBatch` then applies it — **after** the chunks have moved on;
+4. every violation is that entry, by address;
+5. flushing at the head of the cleanup removes the window: 1600 → 0, 3/3.
+
+It also retro-explains what nothing else did: both clears at `flush` (§13.190),
+`FREE-OF-FREE = 0` (§13.192 — the bit *was* set at the push), no double-pending
+(§13.195/§13.200), conservation ±1 (§13.204 — the entry is applied, just too late),
+`NO_ADOPT` curing it (§13.150 — no adoption, nothing to hand the slot on), and the
+compiler dependence (§13.145 — inlining moves nothing about the order, but it does
+move which frees land cross-thread).
+
+#### One link still open, and the probe for it
+
+Why is the bit already *clear* when the late flush applies it?  A one-shot probe —
+the first clear of each late slot after registration, so no stale-flag inflation
+(§13.212's trap) — accounts for only ~36 of 96: `drain` 22–23, `flush` 12,
+`direct` 1.  The other ~60 lose their bit with **no counted clear at all**, which
+points at the one uncounted path: `construct_chunk_at` zeroes the whole bitmap
+(`m_flags[i] = 0`) when a chunk is re-constructed.  That would fit §13.211's gdb
+sample exactly — a push for a 32 B chunk applied by
+`PoolAllocator<48u,…>::batch_return_to_bitmap`, a **different size class**.  The
+next measurement is a per-chunk construction generation, recorded at registration
+and compared at the violation.
+
+That link is about *how bad* the stale apply is, not *whether* it happens — (1)–(5)
+above stand on their own, and B closes all of them.
+
+#### Also fixed here
+
+§13.209's exits-in-gap accounting sat **inside** `if(n < 8)` despite its own comment
+saying otherwise, so both the histogram and the base rate it is compared against
+were 8-sample (measured `n = 8` in every run).  Hoisted; now `n = 1600`, and the
+comparison it was built for reads mean 1.71 vs base rate 1.46 — with **cell 0 = 3
+of 1600**, i.e. an exit is in the window essentially always, where independence
+predicts ~23 %.  The mean was the wrong statistic (exits are bursty — 16 threads
+join per round); the depleted zero cell is the one that carries the signal, and it
+agrees with the identity above.

@@ -1199,7 +1199,7 @@ static void kame_batch_verify_bad(int kind, const void *slot, const void *chunk,
     unsigned long long n = g_bv_bad[kind].fetch_add(1, std::memory_order_relaxed);
     g_bv_bad_site[g_bv_site].fetch_add(1, std::memory_order_relaxed);
     if(kind == 1) kame_bv_note_violation_slot((uintptr_t)slot);       // §13.191
-    //! §13.217  ALL-violations accounting, hoisted OUT of the print budget.
+    //! §13.220  ALL-violations accounting, hoisted OUT of the print budget.
     //!
     //! §13.209 wrote this block to replace a predicate that saw "only the first 8
     //! violations", and its comment says "all-violations accounting, before the
@@ -1240,7 +1240,7 @@ static void kame_batch_verify_bad(int kind, const void *slot, const void *chunk,
                         "(never cleared through batch_clear_impl since last write)\n");
         }
         //! §13.188: name the previous clearer of THIS slot, from the census
-        //! (read above, §13.217).
+        //! (read above, §13.220).
         if(rs == (uintptr_t)slot) {
             fprintf(stderr, "BATCHVERIFY   prior clear of this slot: site=%s seq=%llu "
                     "(now seq=%llu, gap=%llu, thread_exits_so_far=%llu)\n",
