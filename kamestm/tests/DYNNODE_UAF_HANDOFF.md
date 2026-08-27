@@ -11846,3 +11846,51 @@ vary what it *processes*, which §13.180 shows is the live variable:
 3. Or reach it from outside the TU (`LD_PRELOAD` interposition, or a
    `volatile` global read the compiler cannot fold) so the source of the
    optimised region is untouched.
+### 13.183 Assert the batch's own invariants at the flush — including the one the whole chunk-liveness argument rests on
+
+The suggestion: if the fault needs `flush` + the clone, assert around the flush —
+`count` before, actually-flushed after, and **abort if another thread reached the
+batch**.  All three are cheap, and the same hook location admits the invariant
+§13.116 named as load-bearing and nobody ever measured:
+
+> **a batched slot's bit stays SET until its own free is applied, and that is what
+> pins its chunk.**
+
+`KAME_BATCH_VERIFY` (gated; default builds contain none of it) checks four things:
+
+| check | where | what a violation means |
+|---|---|---|
+| **owner thread** | `push` and `flush` | `CrossDeallocBatch` is `thread_local`, so being reached cross-thread is a defect *by construction* — and would explain everything: frees applied to another thread's TLS state, racing its owner.  **Aborts.** |
+| `count` in range | before flush | the batch's own bookkeeping is broken.  Aborts. |
+| `count == 0` | after flush | the flush contract states this and never checked it.  Aborts. |
+| **pairing + bit still set** | per entry, inside `batch_return_to_bitmap` | the §13.116 invariant.  A slot outside this chunk is the §13.136 class checked against the *pairs actually carried* rather than the back_offset table; a bit **already clear** means the chunk was **never pinned**, and every downstream conclusion about release, recycle and hand-out follows from it. |
+
+The per-entry check lives in `batch_return_to_bitmap`, not `flush`, because the
+bit index needs `ALIGN` and only the template knows it.
+
+**Validated both ways (arm64, pool active):**
+
+```
+baseline            checked = 9 051 294   pairing_bad = 0   bit_clear_bad = 0
+inject 1-in-1000    checked = 3 210 084   pairing_bad = 0   bit_clear_bad = 3 214
+   BATCHVERIFY BIT ALREADY CLEAR (chunk was not pinned) slot=0x106140070 chunk=0x10613f040 aux=0x7
+```
+
+3 214 / 3 210 084 = 1/999 — the injector (`KAME_BATCH_VERIFY_INJECT=N` clears a bit
+before the check) fires at exactly its rate, and the first offender is named with
+slot, chunk and bit.  The owner-thread and `count` asserts never fired on the
+baseline.
+
+**So on arm64, where the fault does not occur, the invariant holds across 9 M
+batched entries.**  The reading that matters is the same build under the
+reproducer: if `bit_clear_bad > 0` there, **that is the defect** — a batched slot
+whose bit was already cleared means the chunk was not pinned, which is upstream of
+every DOUBLE-LIVE this section has recorded.  And `checked` on the same line says
+whether the arm ran, so a zero is distinguishable from silence (§13.178, three
+times over).
+
+One note on the cross-thread assert, since it is the cheapest of the four and the
+most likely to be dismissed: it cannot fire *by construction* — which is exactly
+why it is worth having.  Every other "cannot happen" in this section that was
+finally measured (§13.164's census key, §13.168's birth stamp, §13.178's flush
+counter) turned out to be measuring something other than what its name said.

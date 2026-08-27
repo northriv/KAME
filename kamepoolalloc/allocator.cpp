@@ -750,6 +750,27 @@ struct CrossDeallocBatch {
     //! thunk — a call, on a ~3.5 ns operation.  This field lives in a struct
     //! `push` already dereferences, so reading it adds no TLS access at all.
     int               cap = CAP;
+#ifdef KAME_BATCH_VERIFY
+    //! §13.183  The two-line version of the same question, on the batch itself.
+    //! `CrossDeallocBatch` is `thread_local`, so being reached from another
+    //! thread is a defect by construction -- and it would explain everything:
+    //! frees applied to the wrong thread's TLS state, racing its owner.  Stamp
+    //! the owner on first use and abort if it ever differs.  Also the invariants
+    //! the flush contract states but never checks: `count` in range before, and
+    //! actually zero after.
+    unsigned long long owner_tid = 0;
+    void verify_owner(const char *where) noexcept {
+        unsigned long long me = (unsigned long long)(uintptr_t)&owner_tid;  // TLS-unique
+        if(owner_tid == 0) owner_tid = me;
+        else if(owner_tid != me) {
+            fprintf(stderr, "BATCHVERIFY WRONG THREAD at %s: batch owner=%#llx "
+                    "caller=%#llx\n", where, owner_tid, me);
+            abort();
+        }
+    }
+#else
+    void verify_owner(const char *) noexcept {}
+#endif
 #ifdef KAME_ORPHAN_CHAIN_RUNTIME_GATE
     //! §13.159  `KAME_BATCH_CAP=N` sets the flush threshold at runtime, so §6's
     //! `cap = 1` suppressor (0/16, 0/12) becomes a knob in the SAME binary as
@@ -791,6 +812,7 @@ struct CrossDeallocBatch {
     //! FS=true path: hold and batch.  Caller passes its own `this`
     //! as `c` (the chunk).
     void push(PoolAllocatorBase *c, void *s) noexcept {
+        verify_owner("push");                                    // §13.182
 #ifdef KAME_ORPHAN_CHAIN_RUNTIME_GATE
         if( !cap_inited_) { cap_inited_ = true; init_cap_from_env_(); }   // §13.159
         s_pushes.fetch_add(1, std::memory_order_relaxed);
@@ -935,6 +957,13 @@ struct CrossDeallocBatch {
             ~Depth() { --g_flush_depth; }
         } _depth_guard;
 #endif
+        verify_owner("flush");                                   // §13.182
+#ifdef KAME_BATCH_VERIFY
+        if(count < 0 || count > CAP) {
+            fprintf(stderr, "BATCHVERIFY count OUT OF RANGE before flush: %d\n", count);
+            abort();
+        }
+#endif
         if(count == 0) return;
 #ifdef KAME_ORPHAN_CHAIN_RUNTIME_GATE
         g_flush_nonempty.fetch_add(1, std::memory_order_relaxed);
@@ -993,6 +1022,9 @@ struct CrossDeallocBatch {
                 cached_force_walk->store(true, std::memory_order_relaxed);
         }
         count = 0;
+#ifdef KAME_BATCH_VERIFY
+        if(count != 0) { fprintf(stderr, "BATCHVERIFY count != 0 AFTER flush: %d\n", count); abort(); }
+#endif
     }
     ~CrossDeallocBatch() noexcept { flush(/*at_teardown=*/true); }
 };
@@ -2409,6 +2441,25 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 	return i;
 }
 
+#ifdef KAME_BATCH_VERIFY
+//! §13.183 counters, defined once; `kind` 0 = pairing, 1 = bit already clear.
+static std::atomic<unsigned long long> g_bv_checked{0}, g_bv_bad[2];
+static void kame_batch_verify_checked() noexcept {
+    g_bv_checked.fetch_add(1, std::memory_order_relaxed);
+}
+static void kame_batch_verify_bad(int kind, const void *slot, const void *chunk,
+                                  unsigned long long aux) noexcept {
+    if(g_bv_bad[kind].fetch_add(1, std::memory_order_relaxed) == 0)
+        fprintf(stderr, "BATCHVERIFY %s slot=%p chunk=%p aux=0x%llx\n",
+                kind == 0 ? "PAIRING (slot not in this chunk)"
+                          : "BIT ALREADY CLEAR (chunk was not pinned)",
+                slot, chunk, aux);
+}
+namespace { struct BatchVerifyReport { ~BatchVerifyReport() {
+    fprintf(stderr, "BATCHVERIFY checked=%llu pairing_bad=%llu bit_clear_bad=%llu\n",
+            g_bv_checked.load(), g_bv_bad[0].load(), g_bv_bad[1].load());
+} } g_bv_report; }
+#endif
 // Bitmap clear of slots passed via argument array.  All slots must
 // belong to THIS chunk (callers always pass single-chunk groups —
 // `CrossDeallocBatch::push` issues `&one, 1`, the per-chunk owner-exit
@@ -2431,6 +2482,62 @@ KAME_CLONE_LICENCE(4) /*§13.112 arm 4*/ PoolAllocator<ALIGN, FS, DUMMY>::batch_
 	    e->chunk == static_cast<PoolAllocatorBase *>(this); ++e)
 		{ kame_pool_free_note(e->slot, KAME_FREEPATH_RETURN_BITMAP);
 		  kame_pool_onlist_clear(e->slot); }   /* §13.166: list -> bitmap */
+#endif
+#ifdef KAME_BATCH_VERIFY
+	// §13.183  The invariant §13.116 identified as the one holding the whole
+	// chunk-liveness argument together -- and never measured: **a batched
+	// slot's bit stays SET until its own free is applied, and that is what
+	// pins its chunk.**  Checked here rather than in `flush` because the bit
+	// index needs ALIGN, which only the template knows.
+	//
+	// Two checks per entry, at the moment the batch acts on it:
+	//   pairing -- the slot lies inside THIS chunk's slot region.  A stale or
+	//              mis-derived pair (the §13.136 class, checked there against
+	//              the back_offset TABLE but never against the pairs actually
+	//              carried) fails here.
+	//   bit     -- the slot's bitmap bit is still set.  If it is already
+	//              clear, someone else cleared it: the chunk was NOT pinned,
+	//              and every downstream conclusion about release, recycle and
+	//              hand-out follows from that.
+	// Counters report checks performed as well as violations, so a zero is
+	// distinguishable from "never ran" (§13.178's lesson, three times over).
+	for(int k = 0; entries[k].chunk == static_cast<PoolAllocatorBase *>(this); ++k) {
+		char *p = static_cast<char *>(entries[k].slot);
+		char *base = this->mempool();
+		std::size_t off = (std::size_t)(p - base);
+		kame_batch_verify_checked();
+		if(p < base || off >= (std::size_t)this->m_count * sizeof(FUINT) * 8 * ALIGN
+		   || (off % ALIGN) != 0) {
+			kame_batch_verify_bad(0, p, (const void *)this, (unsigned long long)off);
+			continue;
+		}
+		unsigned sidx = (unsigned)(off / ALIGN);
+		unsigned widx = sidx / (sizeof(FUINT) * 8);
+		unsigned bit  = sidx % (sizeof(FUINT) * 8);
+		//! §13.183 positive control: `KAME_BATCH_VERIFY_INJECT=N` clears the
+		//! bit for 1 entry in N BEFORE the check, which is exactly the
+		//! violation the check exists to see.  A run with it set must report
+		//! bit_clear_bad > 0, or the zero above means nothing (§13.61).
+		{
+			static std::atomic<int> inj{-1};
+			int iv = inj.load(std::memory_order_relaxed);
+			if(iv < 0) {
+				const char *e = getenv("KAME_BATCH_VERIFY_INJECT");
+				iv = (e && e[0]) ? atoi(e) : 0;
+				inj.store(iv, std::memory_order_relaxed);
+			}
+			if(iv > 0) {
+				static std::atomic<unsigned long long> c{0};
+				if((c.fetch_add(1, std::memory_order_relaxed) % (unsigned)iv) == 0)
+					atomicFetchAnd(&this->m_flags[widx],
+					               (FUINT)~(((FUINT)1u) << bit));
+			}
+		}
+		FUINT w = atomicLoadAcquire(&this->m_flags[widx]);
+		if(!((w >> bit) & 1u))
+			kame_batch_verify_bad(1, p, (const void *)this,
+			                      ((unsigned long long)widx << 32) | bit);
+	}
 #endif
 	// Walks entries[k] while .chunk == this — sentinel-terminated, no
 	// length argument; see the FS=false sibling for the full rationale
