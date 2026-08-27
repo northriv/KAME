@@ -10135,3 +10135,73 @@ idle 4-core box, so the arms may simply not be inserting much delay.  Re-running
 with `KAME_ADOPT_YIELD_US` set high enough to be a real perturbation would
 distinguish "no window here" from "no delay applied"; as it stands this is
 weaker evidence than the flat numbers suggest.
+
+### 13.159 The OTHER suppressor: cross-thread batch `cap = 1` is 0/16 and has never been reconciled with the chain
+
+Asked directly, and it is a real gap in the record.  §6's table has
+
+| experiment | result |
+|---|---|
+| cross-thread batch **`cap = 1`** | **0/16, 0/12** |
+| batching kept, per-slot flush (no sort/merge/CAS-merge) | 5/16 — protocol innocent |
+
+so **deferred batching is a second, independent ablation that takes the rate to
+zero** — and in 150 sections it is cited only three times (the table, §13.112's
+arm list, §13.116's reasoning).  Nobody has asked the obvious question: *we now
+have two ablations that each give 0; are they one mechanism or two?*  That is a
+strong constraint, because any single mechanism must require **both** deferred
+batching and adoption.
+
+**The obvious reconciliation is closed by the code.**  I proposed it in §13.116
+and dismissed it for FS=true only; checking FS=false too, the comment is
+explicit:
+
+> FS=false `OnClearFn`: "We **DO NOT** release the chunk on the
+> dec-to-0-with-`BIT_OWNED`-clear case: such a chunk is an ORPHAN on the
+> `atomic_shared_ptr` chain (its chain-ref keeps it mapped), reclaimed by
+> `orphan_chain_scrub` (unlink → refcnt 0 → dispose) once drained — **not freed
+> here**.  The return value is intentionally ignored."
+
+Both FS arms ignore the `atomicDecAndTest` result, so a batch flush can never
+release an on-chain chunk.  **Stale comment flagged**, because a reader will
+build the wrong model from it: `owner_release` still says "BIT_OWNED is now clear
+so the cross-thread releaser's subsequent `atomicDecAndTest` will bring the word
+to 0 and **identify itself as releaser**" — no such releaser exists any more.
+
+**What the two suppressors need is to be run against each other, and now they
+can be, in one binary.**  `cap` is already a runtime field (`kame_pool_set_
+realtime_thread(2)` sets it to 1) but that call carries the rest of the §75
+realtime policy, so using it as the batch knob would confound exactly this
+comparison.  Added **`KAME_BATCH_CAP=N`** instead — the flush threshold alone.
+With `KAME_ORPHAN_NO_ADOPT` / `KAME_ORPHAN_ADOPT_KEEP` already present, the 2×2
+is:
+
+| | batch default | `KAME_BATCH_CAP=1` |
+|---|---|---|
+| adopt on | baseline (fires) | §6 says 0 |
+| `NO_ADOPT` | §13.150 says 0 | — |
+
+**One binary, four cells, zero codegen delta.**  If the fault needs both, the
+suspect is a *pair* of operations and not a function — which would explain why
+every single-function audit has come back clean.  If either alone suppresses at
+partial dose (`ADOPT_KEEP=N`, `BATCH_CAP=N`), the dose curves say which is
+upstream.
+
+**The knob reports its own liveness, because my first attempt to prove it failed.**
+A cross-thread free bench gave 104 / 98 / 99 / 106 M free/s for cap unset / 1 / 8
+/ 1024 — all noise.  The reason is instructive: `push_direct` reads
+`m_last_coalesce_x16` and routes to **direct** rather than **hold** when
+coalescing looks unprofitable, so `cap` never entered the picture and my bench
+could not have shown anything.  Rather than hunt for a workload that chooses
+HOLD, the batch now counts its own work and prints it:
+
+```
+CAP=unset(1024)  pushes=960  flushes=0     <- threshold never reached
+CAP=1            pushes=960  flushes=320   <- knob demonstrably live
+CAP=8            pushes=960  flushes=0     <- ~3 pushes per thread, never reaches 8
+```
+
+So every run states whether its cap arm did anything: `flushes == 0` under a
+non-1 cap means that arm was **vacuous**, not negative.  That is §13.61 built
+into the instrument instead of left to the reader — and it is what my own bench
+would have needed to be trustworthy.

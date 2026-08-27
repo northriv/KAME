@@ -737,10 +737,52 @@ struct CrossDeallocBatch {
     //! thunk — a call, on a ~3.5 ns operation.  This field lives in a struct
     //! `push` already dereferences, so reading it adds no TLS access at all.
     int               cap = CAP;
+#ifdef KAME_ORPHAN_CHAIN_RUNTIME_GATE
+    //! §13.159  `KAME_BATCH_CAP=N` sets the flush threshold at runtime, so §6's
+    //! `cap = 1` suppressor (0/16, 0/12) becomes a knob in the SAME binary as
+    //! the adoption knobs.  That matters because the two are the only ablations
+    //! that take the rate to zero, and they have never been run against each
+    //! other -- so it has never been asked whether they are one mechanism or two.
+    //!
+    //! Deliberately NOT `kame_pool_set_realtime_thread(2)`, which also sets
+    //! cap = 1: that call carries the rest of the §75 realtime policy (page
+    //! reclaim demotion and friends), so using it as the batch knob would
+    //! confound the very comparison this is for.
+    //!
+    //! Read once per thread on first use; `CAP` when unset, so the default build
+    //! and the unset arm are identical.
+    void init_cap_from_env_() noexcept {
+        static std::atomic<int> env_cap{-1};
+        int c = env_cap.load(std::memory_order_relaxed);
+        if(c < 0) {
+            const char *e = getenv("KAME_BATCH_CAP");
+            c = (e && e[0]) ? atoi(e) : CAP;
+            if(c < 1) c = 1;
+            if(c > CAP) c = CAP;
+            env_cap.store(c, std::memory_order_relaxed);
+        }
+        cap = c;
+    }
+    bool cap_inited_ = false;
+    //! §13.159 liveness, reported per run rather than assumed.  A cap knob whose
+    //! effect cannot be seen is a knob whose zero means nothing (§13.61), and my
+    //! first liveness attempt failed to show one: a cross-thread free bench gave
+    //! 104 / 98 / 99 / 106 M free/s for cap unset / 1 / 8 / 1024 -- all noise,
+    //! because `push_direct` reads `m_last_coalesce_x16` and routes to DIRECT
+    //! rather than HOLD when coalescing looks unprofitable, so `cap` never
+    //! entered the picture.  Counting the batch's own work settles it without
+    //! needing a workload that happens to choose HOLD.
+    static inline std::atomic<unsigned long long> s_pushes{0}, s_flushes{0};
+#endif
 
     //! FS=true path: hold and batch.  Caller passes its own `this`
     //! as `c` (the chunk).
     void push(PoolAllocatorBase *c, void *s) noexcept {
+#ifdef KAME_ORPHAN_CHAIN_RUNTIME_GATE
+        if( !cap_inited_) { cap_inited_ = true; init_cap_from_env_(); }   // §13.159
+        s_pushes.fetch_add(1, std::memory_order_relaxed);
+        if(count >= cap) s_flushes.fetch_add(1, std::memory_order_relaxed);
+#endif
         if(count >= cap) flush();
         buf[count++] = {c, s};
     }
@@ -3424,6 +3466,20 @@ extern "C" bool kame_orphan_no_scrub() noexcept {
     }
     return v != 0;
 }
+#ifdef KAME_ORPHAN_CHAIN_RUNTIME_GATE
+//! §13.159  Print the batch knob's effect so a run states it.  `pushes/flushes`
+//! is the ratio the cap controls: cap=N should give roughly pushes/N flushes, and
+//! cap=1 should give flushes == pushes.  A run where the two are equal under the
+//! default cap never took the HOLD path at all, and its cap arm is vacuous.
+namespace {
+struct BatchCapReport { ~BatchCapReport() {
+    unsigned long long p = CrossDeallocBatch::s_pushes.load(),
+                       f = CrossDeallocBatch::s_flushes.load();
+    if(p) fprintf(stderr, "BATCHCAP pushes=%llu flushes=%llu (ratio %.1f)\n",
+                  p, f, f ? (double)p/(double)f : 0.0);
+} } g_batchcap_report;
+}
+#endif
 extern "C" bool kame_orphan_chain_admit() noexcept {
     static std::atomic<int> keep{-1};
     int k = keep.load(std::memory_order_relaxed);
