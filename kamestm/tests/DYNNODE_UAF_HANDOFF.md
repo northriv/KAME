@@ -12855,3 +12855,80 @@ credits "§13.192's measurement" to the Linux side — and this section original
 wrote the instrument's range as "§13.192–§13.194", which wrongly folded the
 Linux side's own section into the Mac side's instrument.  Corrected above to
 §13.193–§13.194.
+
+### 13.196 §13.193 performed, and it reframes the defect: not one slot freed twice — a GROUP of entries applied a second time, together
+
+#### The stamp read in gdb, which is what §13.193 is for
+
+Broke on the violation, captured the slot, and read its tail word directly:
+
+```
+slot = 0x7fffcc0506b0
+x/1gx $slot + 48 - 8   ->   0x4b412205702ce7d4
+```
+
+Decoding §13.194's packing (`63..48 magic | 47..44 state | 43..40 site |
+39..28 owner | 27..0 seq`):
+
+```
+magic 0x4b41   state 2 (CLEARED)   owner 0x57   seq 2 942 932
+```
+
+which matches that violation's printed report exactly (`owner=0x57
+seq=2942932`).  **The stamp works on x86-64** — once §13.195's
+`__builtin_return_address` crash is fixed, without which none of this ran at
+all.
+
+#### And it exposes the shape the counters could not
+
+Reading the stamps of *successive* violations in one run, rather than one in
+isolation:
+
+```
+slot 0x7fffcc0506b0   own stamp seq 2942932   re-cleared now seq 2972583
+slot 0x7fffcc050800   own stamp seq 2942933   re-cleared now seq 2972583
+slot 0x7fffcc058360   own stamp seq 2942934   re-cleared now seq 2972583
+slot 0x7fffcc058390   own stamp seq 2942935   re-cleared now seq 2972583
+slot 0x7fffcc058420   own stamp seq 2942936   re-cleared now seq 2972583
+```
+
+**Different slots.  Consecutive first-clear seqs.  One owner.  One chunk.  And
+all re-cleared at the SAME later seq.**  Four independent runs:
+
+| run | first-clear seqs | owner | all re-cleared at |
+|---|---|---|---|
+| 1 | 1523059, 061, 063, 064, 065, 071 | 0x6 | 1874089 |
+| 2 | 234944–234949 | 0x1a | 286589 |
+| 3 | 2176817–2176822 | 0x44 | 2191641 |
+| 4 | 418959–418969 | 0x20 | 524598 |
+
+> The defect is **not** "some slot gets freed twice".  It is **a group of
+> entries, cleared together by one thread, being applied a second time as a
+> group** — one later operation, one `now` seq.
+
+That reframes every earlier reading.  §13.190's "~46 k gap" is the interval
+between a group's first application and its replay, not a property of any
+individual slot — and its clustering (and the ~2× values) follows naturally from
+a *group* recurring, which is exactly the periodicity §13.190 noticed and could
+not explain.
+
+#### The paradox this leaves, stated rather than smoothed over
+
+A group replay should show up as `applied − pushes = +N`.  It does not:
+conservation is **±1** (§13.187, §13.195).  And re-pushing an already-cleared
+group would have to free slots whose bits are clear — which `FREE-OF-FREE = 0`
+(§13.192, read off the live bitmap) says never happens.
+
+So the measurements say all three of:
+
+* the group is applied twice (this section, 4/4 runs);
+* nothing is applied more times than it was pushed (conservation ±1);
+* every push is of an in-use slot (FREE-OF-FREE = 0).
+
+At least one of those is measuring something narrower than its name suggests.
+The most likely candidate is **conservation**, which is a global count of
+entries processed: if the replayed group is *also* re-pushed, both sides rise
+together and the identity holds while the same storage is returned twice.  That
+makes the next check specific and cheap: **count pushes and applies per slot,
+not globally** — the same table §13.194 already keys exactly, with a counter
+instead of a flag.
