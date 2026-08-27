@@ -11362,3 +11362,87 @@ and §13.121 added the subtractive mask as an afterthought; the arm that landed 
 subtractive.  My §13.112 note said a firing arm shows "that function's codegen is
 load-bearing" — the correct reading of a *silent* additive arm was never stated:
 it shows nothing at all when the effect needs the rest of the build cloned too.
+
+### 13.176 §13.175's question answered — NO post-release use of `chunk`; and §13.174's "inlining" lead was my misread
+
+#### First, a retraction
+
+§13.174 offered as its lead: *"in g15's clone the chunk-release/LRC path is
+inlined into the flush loop — `lock cmpxchg`, `g_lrc_bytes`,
+`steady_clock::now()` in the body."*  **That is wrong.**  I disassembled with
+`--stop-address=start+0x300` and ran off the end of the function: the clone
+ends at `0x27ce9` (`ret`) and those instructions live at `0x27d60`+, in the
+*next* function.  The flush clone contains **zero `lock` instructions**.
+
+Which means §13.175's premise ("the inlining is x86-64-only") is also void, and
+the two targets agree after all — as its aarch64 census already suggested.
+
+#### The real x86-64 diff, and it matches aarch64 exactly
+
+| | insns | indirect `batch_return_to_bitmap` | atomics |
+|---|---|---|---|
+| g15 `.constprop.0` clone | **66** | **1** | 0 |
+| g15 plain `flush(bool)` (`noclone`) | **108** | **2** | 0 |
+
+§13.175 reports `blr x2` twice vs once on aarch64.  x86-64 is the same
+transformation: the `noclone` body is the loop **unswitched** into an
+`at_teardown == true` copy (no force-walk load at all) and a `false` copy; the
+clone keeps only the `false` copy.  Branch folded, duplicate loop dropped.
+
+#### §13.175's question, answered
+
+> *In the g15 clone, is any use of `chunk` — or of a value loaded from it —
+> scheduled after the inlined release?*
+
+**No.**  The clone's loop body:
+
+```
+mov  (%rsi),%rdi        ; chunk = buf[i].chunk
+mov  0xa8(%rdi),%rbp    ; cached_force_walk       <- load from chunk, BEFORE
+mov  (%rdi),%rax        ; vtable                  <- load from chunk, BEFORE
+call *0x18(%rax)        ; batch_return_to_bitmap  (may release the chunk)
+add  %eax,%ebx          ; i += ret
+test %rbp,%rbp          ; SAVED register, not a reload
+movb $0x1,0x0(%rbp)
+call __tls_get_addr     ; reloads `this` (TLS) -- NOT chunk
+cmp  0x5ba0(%rax),%ebx  ; i < count
+```
+
+Both loads from `%rdi` precede the call; after it only `%rbp` (the saved
+force-walk pointer), `%eax`/`%ebx` and a TLS reload of `this` are used.  The
+`noclone` arm is identical in this respect (`mov 0xa8(%rdi),%r12` before,
+`test %r12,%r12` after).  **The hoist §13.133 identified is preserved in both,
+and the release-then-use hazard §13.175 asks about does not occur.**
+
+#### So the transformation looks semantically inert — and that is uncomfortable
+
+Everything measured now says the curing transformation changes nothing
+semantic:
+
+* identical GIMPLE atomics/fences/CAS counts (§13.175);
+* no inlining of the release path — indirect call preserved (this section);
+* no post-release use of `chunk` (this section);
+* same transformation on two targets.
+
+The natural reading is that the clone is a **sensitizer**: 108 → 66
+instructions and 2 → 1 call sites make `flush` tighter, shifting the
+cross-thread batch-flush timing enough to expose a race that is in the source.
+That fits `cap = 1` suppressing at 0/16 (§13.159) — it perturbs the same
+timing — and fits every timing-sensitive result in §13.
+
+**But the zeros are too clean for that story, and I will not paper over it.**
+A timing sensitizer shifts a rate; it does not usually produce **0/16** and
+**0/10** against 14/16 and 9/10.  Either the timing shift is unusually decisive
+here, or there is a semantic difference I have not found.  Both readings are on
+the table, and the honest position is that §13.174 localised the fault to a
+function without yet explaining it.
+
+**What would separate them,** and neither is expensive:
+
+1. **Perturb timing without changing semantics on the curing arm** — e.g. pad
+   `flush` back to ~108 instructions (`-falign-functions`, a volatile no-op
+   loop, or `noinline` on the sort helpers) while keeping the clone suppressed.
+   If the fault stays at 0, timing is not what the clone changed.
+2. **Force the clone's shape without the clone** — hand-specialise: give
+   `flush()` a `false`-only body and call it directly, under GCC 14.  If GCC 14
+   then fails, the shape is sufficient and the compiler version is irrelevant.
