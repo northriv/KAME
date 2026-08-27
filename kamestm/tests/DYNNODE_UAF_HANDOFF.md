@@ -12666,3 +12666,86 @@ same event, and the four-frame caller of *this* free.  If the two disagree, the
 table's entry was evicted and the slot's is the truth.  For anything the report
 does not print — every other slot in the pool, at the moment of the crash — the
 two gdb lines above now answer the same question retroactively.
+
+### 13.194 §13.192's measurement, exact-keyed and table-free: who clears a slot that is PENDING in another thread's batch
+
+§13.192 asks for `(slot → seq)` at push in an **exact-keyed** structure, having
+correctly refused to interpret its own DOUBLE-PUSH zero (2^19 entries against
+2.6 M pushes can only under-report).  §13.193's slot stamp already is that
+structure — one slot, one record, no hash, no eviction — so the check needs no
+table at all.
+
+**Why the slot's tail is sound for exactly this window**, and it follows from
+§13.192's own two facts: the slot is dead from the moment its owner frees it, and
+its bit stays **SET** until the clear.  A set bit means the allocator cannot hand
+it out, so nothing can overwrite the tail between push and apply.  The record is
+guaranteed intact across precisely the interval in question.
+
+`deallocate_pooled` stamps `PENDING` with the pushing thread's owner id; every
+clearing CAS reads the tail of each bit it is about to clear.  A tail still marked
+`PENDING` **by a different owner** means two threads hold one slot pending at once
+— which, given FREE-OF-FREE = 0, requires the slot to have been handed out twice.
+
+The stamp goes at the `deallocate_pooled` call site, not inside `push`: only that
+frame knows `ALIGN` (the batch is type-erased over chunks), and the guard is
+`FS && DUMMY` — see §13.193 for what `FS` alone costs.
+
+#### Live, and validated both ways (arm64, pool active)
+
+```
+baseline (×3)   pending-at-clear: total=79 145 / 83 686 / 83 440   cross_thread=0
+                checked=9 105 993  pushes=73 338  conservation +0
+```
+
+`total ≈ pushes` is the liveness statement that matters: essentially **every**
+pushed slot is observed still marked `PENDING` at its own clear, so the stamp
+demonstrably survives the window and the arm demonstrably runs.  That is what
+makes `cross_thread = 0` a real zero rather than a silent one — the failure mode
+§13.178 hit three times.
+
+`KAME_BATCH_VERIFY_XINJECT=N` flips the owner field of 1 stamp in N, and the
+detector fires, naming the client:
+
+```
+CLEARING A SLOT PENDING IN ANOTHER THREAD'S BATCH: slot=0x10e180420
+  clearer=(site=flush owner=0x5)  pending=(site=other owner=0x550 seq=1)
+  client=atomic_shared_ptr_base<Node<LongNode>::PacketWrapper,…>::deleter
+CLEARING A SLOT PENDING IN ANOTHER THREAD'S BATCH: slot=0x10ecc01e0
+  clearer=(site=direct owner=0x4) pending=(site=other owner=0x551 seq=77785)
+  client=local_shared_ptr<PacketList_<Node<LongNode>::Packet,…>>::reset
+```
+
+#### How to read it on the reproducer
+
+* **`cross_thread > 0`** — names both threads, both sites, and the client that
+  issued the pending free.  That is the fact §13.192 says the chain lacks.
+* **`cross_thread = 0` with `total ≈ pushes`** — then the clearer is the *same*
+  thread, and since conservation holds (§13.187) and the batch is owner-only
+  (§13.185), that means one thread clears a bit for a slot it holds pending under
+  a *different* entry.  §13.191's `distinct` count then says whether it is a
+  handful of slots or hundreds.
+
+#### One honest limit, and the extension that would remove it
+
+§13.192's key point is that the reported violations are the **benign** half — a
+second clear landing *after* re-allocation is the harmful one and is invisible.
+**This check inherits that limit**: once the slot is re-allocated the client may
+overwrite the tail, so the dangerous case can erase its own evidence.  What it
+does add is that it fires at **every** clear of a pending slot rather than only
+where a violation is already visible, and it identifies the *other* party.
+
+Covering the harmful half needs a third state stamped at **hand-out**: a clear
+that finds `LIVE` is clearing storage that has since been given away.  That is
+implementable in the same word, but the hand-out path is the hot allocation path
+and the client overwrites the tail immediately afterwards, so it would be
+inherently racy — worth trying, not worth trusting a zero from.
+
+#### A footnote to §13.192's ranked fixes
+
+`KAME_POKE_BEFORE_CALL` (§13.186) is not in that table and belongs in it: unlike
+`noclone` and `-fno-ipa-cp-clone` it **keeps** the clone (verified,
+`flush_constprop = 1` both ways) and unlike `KAME_BATCH_CAP=1` it costs no
+throughput, because it moves only the post-call deref of a pointer into another
+thread's TLS.  If it cures on x86-64 it is a **fix**, not a mitigation — and it is
+the one arm that holds the clone fixed, which §13.186 shows
+`KAME_NO_XTHREAD_FORCEWALK_POKE` never did.

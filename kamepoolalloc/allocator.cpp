@@ -855,27 +855,90 @@ static void kame_bv_note_violation_slot(uintptr_t slot) noexcept {
 //! `x/1gx <slot>+ALIGN-8` in gdb reads the last free of any slot, and the magic
 //! makes a core file greppable for stamped slots.
 static constexpr unsigned long long BV_CLRMAGIC16 = 0x4B41ULL;   // "KA"
-static inline void kame_bv_slot_mark(char *p, unsigned align, const void *client) noexcept {
+enum { BV_ST_PENDING = 1, BV_ST_CLEARED = 2 };
+//! §13.194  Packing, one word at `p + ALIGN - 8`:
+//!   63..48 magic 0x4B41 | 47..44 state | 43..40 site | 39..28 owner | 27..0 seq
+static inline void kame_bv_slot_stamp(char *p, unsigned align, unsigned state,
+                                      const void *client) noexcept {
     unsigned long long seq = g_bv_clearseq.load(std::memory_order_relaxed);
-    *reinterpret_cast<unsigned long long *>(p + align - 8) =
-        (BV_CLRMAGIC16 << 48) | ((unsigned long long)(g_bv_site & 0xfu) << 44) |
-        ((unsigned long long)(kame_owner_id() & 0xfffu) << 32) |
-        (unsigned long long)(unsigned)seq;
+    *reinterpret_cast<volatile unsigned long long *>(p + align - 8) =
+        (BV_CLRMAGIC16 << 48) | ((unsigned long long)(state & 0xfu) << 44) |
+        ((unsigned long long)(g_bv_site & 0xfu) << 40) |
+        ((unsigned long long)(kame_owner_id() & 0xfffu) << 28) |
+        (seq & 0xfffffffULL);
     if(align >= 32u)
-        *reinterpret_cast<const void **>(p + align - 16) = client;
+        *reinterpret_cast<const void *volatile *>(p + align - 16) = client;
 }
-//! Read a stamp back.  Returns false when the slot carries no record.
+static inline void kame_bv_slot_mark(char *p, unsigned align, const void *client) noexcept {
+    kame_bv_slot_stamp(p, align, BV_ST_CLEARED, client);
+}
 static inline bool kame_bv_slot_read(const char *p, unsigned align, unsigned char *site,
                                      unsigned long long *seq, unsigned *owner,
-                                     const void **client) noexcept {
-    unsigned long long w = *reinterpret_cast<const unsigned long long *>(p + align - 8);
+                                     const void **client, unsigned *state = nullptr) noexcept {
+    unsigned long long w = *reinterpret_cast<const volatile unsigned long long *>(p + align - 8);
     if((w >> 48) != BV_CLRMAGIC16) return false;
-    *site  = (unsigned char)((w >> 44) & 0xfu);
-    *owner = (unsigned)((w >> 32) & 0xfffu);
-    *seq   = (unsigned long long)(unsigned)w;
-    *client = (align >= 32u) ? *reinterpret_cast<const void *const *>(p + align - 16)
+    if(state) *state = (unsigned)((w >> 44) & 0xfu);
+    *site  = (unsigned char)((w >> 40) & 0xfu);
+    *owner = (unsigned)((w >> 28) & 0xfffu);
+    *seq   = w & 0xfffffffULL;
+    *client = (align >= 32u) ? *reinterpret_cast<const void *const volatile *>(p + align - 16)
                              : nullptr;
     return true;
+}
+//! §13.194  The measurement §13.192 asks for, EXACT-KEYED and table-free.
+//!
+//! §13.192 establishes: the bit is SET when a free is issued (FREE-OF-FREE = 0,
+//! read off the live bitmap) and CLEAR when that same free's entry is applied.  So
+//! something clears the bit while the slot is *pending in a batch*.  The needed
+//! record is per-slot and exact -- a 2^19 table against 2.6 M pushes/run can only
+//! under-report, which is why §13.192's DOUBLE-PUSH zero is uninterpretable.
+//!
+//! The slot's own tail IS exact, needs no table, and is provably stable across
+//! exactly the window in question: the slot is dead from the moment its owner
+//! frees it, and its bit stays SET until the clear, so the allocator cannot hand
+//! it out and no client can overwrite the tail in between.
+//!
+//! `push` stamps PENDING with the pushing thread's owner id.  Every clearing CAS
+//! then checks each bit it is about to clear: a tail still marked PENDING by a
+//! DIFFERENT owner means two threads hold the same slot pending at once, which
+//! given FREE-OF-FREE = 0 requires the slot to have been handed out twice.  That
+//! is the fact this chain lacks, and it is a single 64-bit read per cleared bit.
+static std::atomic<unsigned long long> g_bv_clear_pending{0}, g_bv_clear_pending_x{0};
+static void kame_bv_check_pending(const char *p, unsigned align) noexcept {
+    unsigned char st_site; unsigned long long sq; unsigned ow; const void *cl; unsigned state;
+    if( !kame_bv_slot_read(p, align, &st_site, &sq, &ow, &cl, &state)) return;
+    if(state != BV_ST_PENDING) return;
+    unsigned long long n = g_bv_clear_pending.fetch_add(1, std::memory_order_relaxed);
+    unsigned me = kame_owner_id() & 0xfffu;
+    if(ow == me) return;                       // its own apply -- expected
+    unsigned long long x = g_bv_clear_pending_x.fetch_add(1, std::memory_order_relaxed);
+    if(x < 8) {
+        Dl_info di;
+        fprintf(stderr, "BATCHVERIFY CLEARING A SLOT PENDING IN ANOTHER THREAD'S BATCH: "
+                "slot=%p clearer=(site=%s owner=%#x) pending=(site=%s owner=%#x seq=%llu) "
+                "client=%p <%s>  [same-owner applies so far=%llu]\n",
+                (const void *)p, g_bv_sitename[g_bv_site], me,
+                g_bv_sitename[st_site < BV_NSITE ? st_site : 0], ow, sq, cl,
+                (cl && dladdr(cl, &di) && di.dli_sname) ? di.dli_sname : "?", n - x);
+    }
+}
+//! §13.194 positive control: `KAME_BATCH_VERIFY_XINJECT=N` rewrites the owner
+//! field of 1 PENDING stamp in N, so the clear sees a foreign owner.  Without a
+//! run in which `cross_thread > 0`, the zero above means nothing (§13.61).
+static void kame_bv_xinject(char *p, unsigned align) noexcept {
+    static std::atomic<int> inj{-1};
+    int iv = inj.load(std::memory_order_relaxed);
+    if(iv < 0) {
+        const char *e = getenv("KAME_BATCH_VERIFY_XINJECT");
+        iv = (e && e[0]) ? atoi(e) : 0;
+        inj.store(iv, std::memory_order_relaxed);
+    }
+    if(iv <= 0) return;
+    static std::atomic<unsigned long long> c{0};
+    if((c.fetch_add(1, std::memory_order_relaxed) % (unsigned)iv) != 0) return;
+    volatile unsigned long long *w =
+        reinterpret_cast<volatile unsigned long long *>(p + align - 8);
+    *w ^= ((unsigned long long)0x555u << 28);          // flip the owner field
 }
 static void kame_bv_note_clear(uintptr_t slot) noexcept {
     kame_bv_note_clear_as(slot, g_bv_site);
@@ -964,6 +1027,9 @@ namespace { struct BatchVerifyReport { ~BatchVerifyReport() {
                 g_bv_sitename[i], g_bv_checked[i].load(), g_bv_bad_site[i].load());
     //! `direct` bypasses `push` entirely, so the identity is on `flush` alone:
     //! every pushed entry is applied exactly once => flush == pushes.
+    fprintf(stderr, "BATCHVERIFY pending-at-clear: total=%llu cross_thread=%llu"
+            "  (cross_thread > 0 => two threads held one slot pending)\n",
+            g_bv_clear_pending.load(), g_bv_clear_pending_x.load());
     fprintf(stderr, "BATCHVERIFY violation slots: distinct=%u repeats=%u overflow=%u"
             "  (repeats >> distinct => a few slots cycling, not 800 double frees)\n",
             g_bv_vdistinct.load(), g_bv_vrepeat.load(), g_bv_voverflow.load());
@@ -2746,6 +2812,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 						char *cp = this->mempool() +
 						    ((std::size_t)idx * sizeof(FUINT) * 8 + b) * ALIGN;
 						//! §13.193 stamp the slot itself, then the table.
+						kame_bv_check_pending(cp, ALIGN);      // §13.194
 						BvClearRec &pr = g_bv_cleartab[kame_bv_hash((uintptr_t)cp)];
 						kame_bv_slot_mark(cp, ALIGN,
 						    pr.slot.load(std::memory_order_relaxed) == (uintptr_t)cp
@@ -3058,6 +3125,16 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// thread, released on another), so that spike is reachable, not
 	// hypothetical.  The decision lives in the batch (see `cap`) precisely so
 	// this hot path needs no realtime test of its own.
+#ifdef KAME_BATCH_VERIFY
+	//! §13.194  PENDING stamp goes HERE, not in `push`: only this frame knows
+	//! ALIGN (the batch is type-erased over chunks), and `FS && DUMMY` is the
+	//! real "is a fixed-size chunk" test -- see §13.193 for why `FS` alone is
+	//! not, and what it costs.
+	if constexpr (FS && DUMMY) {
+		kame_bv_slot_stamp(p, ALIGN, BV_ST_PENDING, __builtin_return_address(1));
+		kame_bv_xinject(p, ALIGN);
+	}
+#endif
 	if constexpr (ALIGN <= 48) {
 		tls_cross_dealloc_batch.push(this, p);
 	} else {
