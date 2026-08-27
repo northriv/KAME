@@ -1071,8 +1071,12 @@ on them:
   the chain (`fh = head; head = NULL; walk fh`), and what makes that safe is that
   `BIT_OWNED` is still set while the walk holds it.
 * **`OrphanAdoptFreelist`'s `BUG_NO_BATCH_AT_EXIT` violates `NoLostEntries`.**  That
-  is the failure mode `drain_thread_slot_freelists()` exists to prevent: a thread
-  whose pending cross-thread frees are applied after its chunks have been disowned.
+  is a real failure mode of thread exit: a thread whose pending cross-thread frees
+  are applied after its chunks have been disowned.  Whether the production teardown
+  admits it, and where a flush would have to go to close it, is open — an attempt
+  that flushed at the head of `~AllocThreadExitCleanup` made the crashing
+  reproducer worse, so the spec result is a statement about the model, not an
+  endorsement of that placement.
   The three "forgot to drain" knobs deliberately do *not* fire — a non-drained mask
   or freelist is inherited by whoever adopts the chunk — and an `X ⊆ bits` invariant
   family cannot detect a failure to *clear* at all, which is why `BitsAccounted` and
