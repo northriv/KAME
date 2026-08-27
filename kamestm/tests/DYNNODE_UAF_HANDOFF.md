@@ -11968,3 +11968,48 @@ being cleared by something other than a mis-attributed entry — a second return
 of the same slot, or a return that races the pin.  That is answerable with the
 existing hook: record, for one offending slot, who cleared its bit and when,
 the way §13.165's last-free census did for addresses.
+
+### 13.185 All four §13.183 assertions, scored: three hold, one fails, and the one §13.183 said "would explain everything" is refuted
+
+§13.184 reported the pinning check.  The build carries four assertions; here are
+all of them, across the **36 runs** of that batch (24 shaped, 12 not; 9 crashes):
+
+| assertion | where | runs firing |
+|---|---|---|
+| **`WRONG THREAD`** — batch reached cross-thread | `push` + `flush` | **0 / 36** |
+| `count OUT OF RANGE` | before flush | **0 / 36** |
+| `count != 0 AFTER flush` | after flush | **0 / 36** |
+| pairing — slot `NOT IN THIS CHUNK` | per entry | **0 / 36** |
+| **`BIT ALREADY CLEAR`** — the §13.116 pin | per entry | **24 / 36** |
+
+Exactly one fails, and it fires in **exactly** the 24 runs carrying the
+single-loop shape and **none** of the 12 without it — the perfect split §13.184
+already quantified (p = 8.0 × 10⁻¹⁰), now with the other three assertions
+confirming nothing else in the batch's own bookkeeping is broken.
+
+**The refutation is the valuable half.**  §13.183 singles out the owner check:
+
+> *"`CrossDeallocBatch` is `thread_local`, so being reached cross-thread is a
+> defect by construction — and would explain everything: frees applied to
+> another thread's TLS state, racing its owner."*
+
+**It never fires** — 0/36, across ~23.5 M batched entries per run and every push
+in between, including the 9 runs that crashed.  So the batch is only ever
+touched by its owner, and "frees applied to another thread's TLS state" is off
+the table.  That matters because it was the last available story in which the
+*batch itself* is corrupted; with it gone, the batch's contents and bookkeeping
+are correct and the failure is entirely in **what the bits mean by the time the
+flush applies them**.
+
+Combined with `pairing_bad = 0` (entries filed under the right chunk), the
+surviving statement is tight:
+
+> The batch is owner-only, correctly counted, correctly paired, and drained to
+> completion — and ~800 times per run the slot it is returning **had already
+> been un-pinned by someone else**.
+
+So the next question is not about the batch at all.  It is: **who clears a
+batched slot's bit before its own free is applied?**  §13.184 named the two
+shapes (a second return of the same slot, or a return racing the pin); this
+section removes the third possibility (a foreign thread mutating the batch) by
+measurement rather than by argument.
