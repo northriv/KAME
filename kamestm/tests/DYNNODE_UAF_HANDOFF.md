@@ -11104,3 +11104,65 @@ every hand-out (freelist-pop choke point plus both word-cache returns), with a
 denominator printed and a backtrace captured.  **`alloc_of_live > 0`** means
 the allocator really did hand out a live slot; **`= 0` at good coverage** means
 it never handed that address out at all, and the search moves to `bundle`.
+
+### 13.172 The mirror check: the allocator hands out a LIVE slot, in every failing run
+
+§13.171 left one fork.  The 86 % pattern has no free between the two births, so
+the hand-out itself must be the event — but `alloc_of_live` had never been
+measured.  It now is, at the freelist-pop choke point and both word-cache
+hand-out returns, with a denominator and a positive control.
+
+**20 runs, 19 with a DOUBLE-LIVE hit:**
+
+| | |
+|---|---|
+| runs with `alloc_of_live > 0` | **19 / 19** |
+| runs with `alloc_of_live == 0` | 0 |
+| hand-outs checked per run | 6.6 M – 50.7 M |
+| pattern split | 15 "not live at its free", 3 "LIVE at its free" |
+
+**Coverage is measured, not assumed.**  Checked hand-outs run at a stable
+**1.18–1.19 ×** the run's *total* frees, across runs spanning a 8× range.
+Since every allocated block is eventually freed, a hand-out counter exceeding
+the free counter means the uncovered path (the bitmap-scan hand-out) is either
+small or also routes through a covered pop.  The constancy of that ratio across
+19 runs is itself a check that the two counters measure what they claim.
+
+**What is FORCED, and must not be read as evidence.**  Every run in this batch
+had a hit, and a DOUBLE-LIVE *is* a birth at a live address, which requires one
+live hand-out.  So "19/19 with `alloc_of_live > 0`" is largely entailed by the
+filter.  Stating it plainly because the number looks stronger than it is.
+
+**What is NOT forced, and is the result.**  Six runs recorded **zero** premature
+frees (`free_of_live = 0` over 5.5–22 M frees) and still handed out a live slot
+**exactly once**:
+
+```
+ALLOCOFLIVE 1   free_of_live=0      (x6, independent runs)
+```
+
+So the live hand-out is **not** downstream of a premature free — it occurs in
+runs where no free ever touched a live object.  That disposes of the reading
+§13.167 proposed and §13.171 kept alive at 10 %: premature frees are a real but
+*separate* defect (3 of 19 hits here), not the mechanism behind the dominant
+pattern.
+
+An arithmetic aside, recorded because I asserted it and it is wrong: early runs
+showed `alloc_of_live = free_of_live + 1` and I flagged it as a striking
+regularity, then downgraded it to a bookkeeping identity (each hit contributes
+one live hand-out; each premature free contributes one downstream).  At n = 18
+even that fails — a run with `aol = 1, fol = 1` — because a freed-while-live
+slot is only counted once it is *re-handed-out*, which need not happen before
+the crash.  The relation is neither a finding nor an identity.
+
+**Where this leaves the search.**  The event is now pinned to the allocator's
+hand-out path and is catchable there, with a `backtrace()` captured at the
+moment it happens.  That still does not say whether the pool returned an
+occupied slot or whether the "live" occupant is one the STM constructed over
+storage it already held — `alloc_of_live` sees only that the live-set says
+LIVE.  The captured call chain decides it, and frames now print as module
+offsets (`+0x…`) against an exported `kame_pool_module_base()`, because the
+first capture was raw addresses and unresolvable once the process exited.
+Resolution is verified end to end (`addr2line -f -C -i` on a known symbol), and
+the allocator `.so` spans `0x3f7420` — frames beyond that belong to the
+executable or libc and must be resolved against those modules instead.
