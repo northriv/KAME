@@ -4280,6 +4280,29 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 	                 - (size_t)ALLOC_CHUNK_K_MAX;
 	PoolAllocatorBase *chunk_obj = reinterpret_cast<PoolAllocatorBase *>(
 	    chunk_base + ALLOC_CHUNK_HEADER);
+#ifdef KAME_POOL_RESOLVE_CHECK
+	// (§13.163) Ground truth at the site the frees ACTUALLY take.  Skip
+	// dedicated chunks (bit 7 — different header layout) and released /
+	// in-creation chunks (palloc <= 1), neither of which is checkable here.
+	if(!(back_off_raw & 0x80u)) {
+		const char *pal = *reinterpret_cast<const char * const *>(
+		    chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET);
+		if((uintptr_t)pal > (uintptr_t)1u) {
+			if(pal != chunk_base + ALLOC_CHUNK_HEADER)
+				KAME_RESOLVE_BAD(0u, mp, unit_idx,
+				    back_off_raw & 0x7Fu, chunk_base, pal);
+			else if((size_t)(back_off_raw & 0x7Fu)
+			            * (size_t)ALLOC_MIN_CHUNK_SIZE
+			        >= reinterpret_cast<const PoolAllocatorBase *>(pal)
+			               ->chunk_size())
+				KAME_RESOLVE_BAD(1u, mp, unit_idx,
+				    back_off_raw & 0x7Fu, chunk_base, pal);
+			else
+				KAME_RESOLVE_OK();
+		}
+	}
+#endif
+
 	uint32_t page_owner_id = pg->owner_id;
 	// Owner-free fast path: a live chunk THIS thread owns.  A released
 	// chunk (m_owner_id==0), a foreign / post-teardown thread
@@ -4464,6 +4487,29 @@ PoolAllocatorBase::deallocate_cold(void *p) noexcept {
 		// resolve_chunk_from_slot for the layout rationale).
 		char *chunk_base = mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE
 		                 - (size_t)ALLOC_CHUNK_K_MAX;
+#ifdef KAME_POOL_RESOLVE_CHECK
+		// (§13.163) Ground truth at the site the frees ACTUALLY take.  Skip
+		// dedicated chunks (bit 7 — different header layout) and released /
+		// in-creation chunks (palloc <= 1), neither of which is checkable here.
+		if(!(back_off_raw & 0x80u)) {
+			const char *pal = *reinterpret_cast<const char * const *>(
+			    chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET);
+			if((uintptr_t)pal > (uintptr_t)1u) {
+				if(pal != chunk_base + ALLOC_CHUNK_HEADER)
+					KAME_RESOLVE_BAD(2u, mp, unit_idx,
+					    back_off_raw & 0x7Fu, chunk_base, pal);
+				else if((size_t)(back_off_raw & 0x7Fu)
+				            * (size_t)ALLOC_MIN_CHUNK_SIZE
+				        >= reinterpret_cast<const PoolAllocatorBase *>(pal)
+				               ->chunk_size())
+					KAME_RESOLVE_BAD(3u, mp, unit_idx,
+					    back_off_raw & 0x7Fu, chunk_base, pal);
+				else
+					KAME_RESOLVE_OK();
+			}
+		}
+#endif
+
 		// Dedicated single-slot large chunk?  bit7 of the (already-loaded)
 		// back_off byte flags it — NO chunk_header read added to the hot
 		// owner-free path (preserves the (1b) cache-line discipline).
@@ -9202,8 +9248,8 @@ extern "C" void kame_pool_resolve_ok() noexcept {
 extern "C" void kame_pool_resolve_bad(unsigned kind, const void *mp,
     unsigned unit_idx, unsigned back_off, const void *chunk_base,
     const void *palloc) noexcept {
-    if(kind == 0u) g_rv_bad_id.fetch_add(1, std::memory_order_relaxed);
-    else           g_rv_bad_span.fetch_add(1, std::memory_order_relaxed);
+    if((kind & 1u) == 0u) g_rv_bad_id.fetch_add(1, std::memory_order_relaxed);
+    else                  g_rv_bad_span.fetch_add(1, std::memory_order_relaxed);
     int expect = 0;
     if(g_rv_have.compare_exchange_strong(expect, 1,
            std::memory_order_relaxed)) {
