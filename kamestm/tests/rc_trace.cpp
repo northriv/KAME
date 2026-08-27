@@ -1896,6 +1896,15 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
             if(kame_freelookup_fn fl = g_freelookup.load(std::memory_order_acquire)) {
                 unsigned fpath = 0, ftid = 0; unsigned long long fseq = 0;
                 if(fl(obj, &fpath, &ftid, &fseq)) {
+                    typedef int (*wl_fn)(const void *);
+                    static wl_fn wlf = reinterpret_cast<wl_fn>(
+                        dlsym(RTLD_DEFAULT, "kame_pool_free_was_live"));
+                    int wl = wlf ? wlf(obj) : -2;
+                    const char *wls = (wl == 1) ? "LIVE AT ITS FREE"
+                                    : (wl == 0) ? "not live at its free"
+                                    : (wl == 2) ? "liveness unchecked at that free"
+                                    : (wl == -1) ? "no record" : "query absent";
+                    raw_line_("RC-DLIVE-FREEWASLIVE %s\n", wls);
                     const char *pname = (fpath == 1) ? "freelist_push (owner park)"
                                       : (fpath == 2) ? "batch_return_to_bitmap"
                                                      : "unknown";

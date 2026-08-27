@@ -9538,6 +9538,11 @@ struct FreeRec {
     std::atomic<unsigned> path;
     std::atomic<unsigned> tid;
     std::atomic<unsigned long long> seq;
+    //! (§13.167) Was the tracer calling this slot LIVE at the instant it was
+    //! freed?  Recorded here rather than inferred, because the run-wide
+    //! free-of-live counter and the per-address ordering disagreed and only a
+    //! per-record answer can say which is right.  2 = not checked.
+    std::atomic<unsigned char> was_live;
 };
 FreeRec g_freerec[FREE_SLOTS];
 std::atomic<unsigned long long> g_free_seq{1};
@@ -9618,11 +9623,13 @@ extern "C" void kame_pool_free_note(const void *slot, unsigned path) noexcept {
     // (§13.167) Ask the tracer whether this slot still holds a constructed
     // object.  Guarded against re-entry: the query can allocate, and we are
     // inside a free.
+    unsigned char live_at_free = 2;   // 2 = not checked
     if(!tl_in_islive) {
         if(islive_fn f = islive_()) {
             tl_in_islive = true;
             g_free_checked.fetch_add(1, std::memory_order_relaxed);
-            if(f(slot)) {
+            live_at_free = f(slot) ? 1 : 0;
+            if(live_at_free) {
                 g_free_of_live.fetch_add(1, std::memory_order_relaxed);
                 int e = 0;
                 if(g_fol_have.compare_exchange_strong(e, 1,
@@ -9642,6 +9649,7 @@ extern "C" void kame_pool_free_note(const void *slot, unsigned path) noexcept {
     }
     FreeRec &r = g_freerec[free_slot_(slot)];
     r.addr.store(slot, std::memory_order_relaxed);
+    r.was_live.store(live_at_free, std::memory_order_relaxed);
     r.path.store(path, std::memory_order_relaxed);
     r.tid.store(kame_page()->owner_id, std::memory_order_relaxed);
     r.seq.store(g_free_seq.fetch_add(1, std::memory_order_relaxed),
@@ -9766,6 +9774,13 @@ extern "C" int kame_pool_free_lookup(const void *slot, unsigned *path,
     if(tid)  *tid  = r.tid.load(std::memory_order_relaxed);
     if(seq)  *seq  = r.seq.load(std::memory_order_relaxed);
     return 1;
+}
+//! (§13.167) 0 = not live at its last free, 1 = live, 2 = unchecked,
+//! -1 = no record for this address.
+extern "C" int kame_pool_free_was_live(const void *slot) noexcept {
+    FreeRec &r = g_freerec[free_slot_(slot)];
+    if(r.addr.load(std::memory_order_relaxed) != slot) return -1;
+    return (int)r.was_live.load(std::memory_order_relaxed);
 }
 #endif // KAME_POOL_FREE_CENSUS
 
