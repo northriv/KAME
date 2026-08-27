@@ -911,6 +911,19 @@ static std::atomic<unsigned long long> g_bv_double_push{0}, g_bv_push_after_dtor
 //! And the window is exactly the flush: MASK_CNT must rise between the pre-check
 //! and the fetchAnd, which is a cross-thread free landing on a chunk the owner is
 //! about to release -- the site at which all 800 violations occur.
+//! §13.216  The invariant `ExitWalk.tla` identifies as load-bearing, made a
+//! CHECK instead of an implicit property.
+//!
+//! The model's only violating knob is BUG_STALE_FLIST -- the drain walking a
+//! CAPTURED freelist chain -- and the C++ does capture (`fh = head; head = null;
+//! walk fh`).  What makes that safe is that `BIT_OWNED` is still set while the
+//! walk holds the chain, so the chunk cannot be adopted out from under it.  That
+//! is drain-before-disown, and nothing in the source says it is required.
+//!
+//! So: assert it at the drain.  A future edit that disowns first, or any path that
+//! clears BIT_OWNED on a chunk still being drained (`owner_release`'s landmine is
+//! exactly such a path), turns a proved-unsafe configuration into a loud one.
+static std::atomic<unsigned long long> g_bv_drain_owned{0}, g_bv_drain_unowned{0};
 static std::atomic<unsigned long long> g_bv_or_entered{0}, g_bv_or_floor{0},
                                       g_bv_or_reached{0}, g_bv_or_landmine{0};
 //! §13.209  exits that occurred inside the [first clear, violation] window, for
@@ -1269,6 +1282,9 @@ namespace { struct BatchVerifyReport { ~BatchVerifyReport() {
                     clears_per_exit > 0 ? mean_gap / clears_per_exit : 0.0,
                     g_bv_exitgap[0].load());
     }
+    fprintf(stderr, "BATCHVERIFY drain-under-BIT_OWNED: ok=%llu VIOLATIONS=%llu"
+            "  (§13.216: the invariant ExitWalk.tla proves load-bearing)\n",
+            g_bv_drain_owned.load(), g_bv_drain_unowned.load());
     fprintf(stderr, "BATCHVERIFY owner_release: entered=%llu floor_bail=%llu "
             "reached_CAS=%llu landmine=%llu"
             "  (§13.214: landmine leaves a non-empty chunk BIT_OWNED-clear off-chain)\n",
@@ -4593,6 +4609,24 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 	s_tls.dll_exhausted = false;
 	while(c) {
 		auto *next = c->m_dll_next;
+#ifdef KAME_BATCH_VERIFY
+		{   //! §13.216  BIT_OWNED must still be set here: the drain below walks a
+			//! captured freelist chain, and only BIT_OWNED keeps a peer from
+			//! adopting the chunk while it does.
+			uint32_t pk = atomicLoadAcquire(&c->m_flags_packed);
+			if(pk & PoolAllocator<ALIGN, DUMMY, DUMMY>::BIT_OWNED)
+				g_bv_drain_owned.fetch_add(1, std::memory_order_relaxed);
+			else {
+				unsigned long long n =
+				    g_bv_drain_unowned.fetch_add(1, std::memory_order_relaxed);
+				if(n < 4)
+					fprintf(stderr, "BATCHVERIFY DRAIN OF A CHUNK THAT IS NOT "
+					        "BIT_OWNED: chunk=%p packed=0x%x -- it can be adopted "
+					        "while this drain walks its captured chain\n",
+					        (void *)c, pk);
+			}
+		}
+#endif
 		c->m_dll_prev = nullptr;
 		c->m_dll_next = nullptr;
 		// Drain this chunk's owner-thread freelists back to the bitmap

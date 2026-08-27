@@ -14254,3 +14254,64 @@ invariantly, since adoption pops from the chain and only a disowned chunk is on
 it) and was removed rather than kept as a vacuous pass; the second only became
 live once the per-chunk work was split into two steps.  That is §13.61 applied to
 a spec for the second time in two sections.
+
+### 13.215 "Just flush first?" — both orders are already correct; the DLL walk closes on three grounds, and the invariant becomes a check
+
+Asked whether doing the flush first would fix it.  **Both relevant orders are
+already what they should be, so there is nothing to reorder:**
+
+* `~CrossDeallocBatch` (the flush) already runs **before**
+  `release_dll_chunks_for_thread` — §13.211 verified it under gdb, and at `cap = 1`
+  the batch is empty by the time the walk starts;
+* per chunk the walk already **drains before disowning**, which is precisely what
+  makes its captured-chain drain safe.
+
+What §13.214 added was not a prescription but an identification: those two orders
+are load-bearing and **nothing in the source says so**.
+
+#### The walk closes on three independent grounds
+
+| ground | statement |
+|---|---|
+| **formal** | `ExitWalk.tla`: the correct walk passes exhaustively (13 600 states, 2 chunks × 2 slots × 2 threads).  The only violating knob is `BUG_STALE_FLIST`, and its precondition — a chunk adoptable while the drain holds a captured chain — is exactly what drain-before-disown prevents.  Even `BUG_DRAIN_AFTER_DISOWN` passes (184 535 states) when the drain reads the live list. |
+| **structural** | the only code that writes a **neighbour's** link (`nx->m_dll_prev->m_dll_next = …`) lives in `owner_release`'s block.  The exit walk's own stale `next->m_dll_prev` therefore has no writer, and `next` still has `BIT_OWNED` so no peer can take it. |
+| **empirical** | that block is **never entered**: `owner_release: entered = 0` at `cap ∈ {1, 32, 1024}` and across three workload shapes (801 / 80 / 9 thread exits).  Its call site needs `s_tls.my_chunk->m_dll_next != nullptr`, and this reproducer never puts a chunk after `my_chunk`. |
+
+The third row is also a **coverage statement worth keeping**: the whole
+neighbour-release path is untested by this reproducer, so if the fault needs it, no
+amount of instrumenting the flush will ever see it.  (`my_chunk` is set at three
+sites; two append at the tail, and only the Phase-2 DLL-walk revival can make it a
+mid-list chunk — which is why the path is reachable in principle and unreached
+here.)
+
+#### So the deliverable is a check, not a reorder
+
+The drain now asserts, per chunk, that `BIT_OWNED` is still set when it starts —
+the exact property `ExitWalk.tla` proves the safety rests on:
+
+```
+arm64, cap 1 and 32   drain-under-BIT_OWNED: ok=3217  VIOLATIONS=0
+```
+
+`ok = 3217` is the liveness denominator (≈ 4 chunks × 801 exits), so the zero
+means something.  A future edit that disowns before draining, or any path that
+clears `BIT_OWNED` on a chunk still being drained — **`owner_release`'s landmine is
+exactly such a path** — now says so out loud instead of producing a
+use-after-free.
+
+#### Where that leaves the hunt, honestly
+
+Everything reachable from the Mac is now either measured or proved:
+
+* the batch: owner-only, correctly counted, correctly paired, applies each entry
+  once, never double-pending;
+* the drain: never clears a foreign pending stamp, always runs under `BIT_OWNED`;
+* the walk: safe formally, structurally and empirically;
+* ordering: refuted at the middle-end level, and contradicted by the platform
+  asymmetry;
+* the release path: **uncovered**, and unreachable in this workload.
+
+The two things still unmeasured are both on the Linux side and both one command:
+**the exits-in-gap histogram against its own base rate** (§13.209) and
+**`checked_flush − pushes` vs `bit_clear_bad`** on a shape-gated build (§13.208).
+Everything else this section can propose has now been tried.
