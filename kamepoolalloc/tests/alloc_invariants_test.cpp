@@ -41,6 +41,14 @@
 #include <random>
 
 extern "C" {
+//! §13.178/§13.179: `flush` has no re-entrancy guard.  A nested flush on the
+//! same thread-local batch would set `count = 0` under the outer loop.  §13.178
+//! measured max depth 1 / 0 nested over 320 flushes at cap=1 -- a statement
+//! about the call graph, so it holds until an edit lets the free path re-enter
+//! the batch.  That is what this catches.
+int                kame_pool_flush_max_depth() noexcept;
+unsigned long long kame_pool_flush_nested_count() noexcept;
+unsigned long long kame_pool_flush_count() noexcept;
 unsigned long long kame_pool_resolve_ok_count() noexcept;
 unsigned long long kame_pool_resolve_bad_count() noexcept;
 unsigned long long kame_pool_double_free_count() noexcept;
@@ -102,6 +110,9 @@ int main(int argc, char **argv) {
         for(auto &t : ts) t.join();
     }
 
+    const int fmaxd = kame_pool_flush_max_depth();
+    const unsigned long long fnest = kame_pool_flush_nested_count();
+    const unsigned long long fcnt = kame_pool_flush_count();
     const unsigned long long rok  = kame_pool_resolve_ok_count();
     const unsigned long long rbad = kame_pool_resolve_bad_count();
     const unsigned long long dfree = kame_pool_double_free_count();
@@ -110,6 +121,8 @@ int main(int argc, char **argv) {
     printf("back_offset derivations verified : %llu (bad %llu)\n", rok, rbad);
     printf("double frees                     : %llu [self-test %s]\n", dfree,
            dfst == 1 ? "PASS" : (dfst == 0 ? "FAIL" : "not run"));
+    printf("cross-batch flushes              : %llu (max depth %d, nested %llu)\n",
+           fcnt, fmaxd, fnest);
 
     int rc = 0;
     // A zero is only evidence when the instrument demonstrably runs.
@@ -123,6 +136,19 @@ int main(int argc, char **argv) {
         fprintf(stderr, "FAIL: the double-free detector's positive control did\n"
                 "      not pass, so its count cannot be read as a negative.\n");
         rc = 2;
+    }
+    if(fcnt == 0) {
+        fprintf(stderr, "FAIL: zero cross-batch flushes -- 'max depth 1' is\n"
+                "      vacuous on a run that never flushed.  Raise the thread\n"
+                "      count/iterations, or set KAME_BATCH_CAP=1.\n");
+        rc = 2;
+    }
+    else if(fnest != 0 || fmaxd > 1) {
+        fprintf(stderr, "FAIL: flush re-entered (max depth %d, %llu nested) --\n"
+                "      the free path now reaches back into the thread's own\n"
+                "      cross-dealloc batch, and the inner flush zeroes `count`\n"
+                "      under the outer loop.\n", fmaxd, fnest);
+        rc = 1;
     }
     if(rbad != 0) {
         fprintf(stderr, "FAIL: %llu back_offset derivations were wrong — a free\n"

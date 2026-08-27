@@ -110,7 +110,8 @@ if(USE_KAME_ALLOCATOR)
     target_include_directories(kamepoolalloc_checked PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/..)
     target_compile_definitions(kamepoolalloc_checked PUBLIC
-        KAMEPOOLALLOC_DYLIB KAME_POOL_RESOLVE_CHECK KAME_POOL_FREE_CENSUS)
+        KAMEPOOLALLOC_DYLIB KAME_POOL_RESOLVE_CHECK KAME_POOL_FREE_CENSUS
+        KAME_ORPHAN_CHAIN_RUNTIME_GATE)
     target_compile_options(kamepoolalloc_checked PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-fvisibility-inlines-hidden;-fno-semantic-interposition>
         $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
@@ -126,6 +127,16 @@ if(USE_KAME_ALLOCATOR)
     # <threads> <iters-per-thread> <rounds>.
     add_test(NAME alloc_invariants
              COMMAND alloc_invariants_test 8 20000 3)
+    # KAME_BATCH_CAP=1 makes EVERY cross-thread free flush immediately.  Two
+    # reasons, both load-bearing:
+    #   * at the default cap (1024) this workload never flushes at all, so the
+    #     flush-depth invariant would be vacuous -- the test detects that and
+    #     fails rather than passing on an empty denominator;
+    #   * cap=1 is what made §13.178's re-entrancy result decisive: if anything
+    #     reachable from batch_return_to_bitmap pushed to the same thread's
+    #     batch, nesting would occur on the first such push.
+    set_tests_properties(alloc_invariants PROPERTIES
+        ENVIRONMENT "KAME_BATCH_CAP=1")
 endif()
 
 # (§36b) Intrusive atomic_shared_ptr + custom-disposer mode test.  Header-only

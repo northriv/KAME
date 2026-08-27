@@ -3493,6 +3493,19 @@ extern "C" bool kame_orphan_no_scrub() noexcept {
 //! is the ratio the cap controls: cap=N should give roughly pushes/N flushes, and
 //! cap=1 should give flushes == pushes.  A run where the two are equal under the
 //! default cap never took the HOLD path at all, and its cap arm is vacuous.
+//! (§13.179) Accessors so the `alloc_invariants` ctest (§13.170) can assert
+//! §13.178's result instead of a human reading a stderr line.  `flushes` is the
+//! DENOMINATOR: max_depth <= 1 is vacuous on a run that never flushed, which is
+//! precisely why §13.178 leaned on the cap=1 arm.
+extern "C" int kame_pool_flush_max_depth() noexcept {
+    return g_flush_maxd.load(std::memory_order_relaxed);
+}
+extern "C" unsigned long long kame_pool_flush_nested_count() noexcept {
+    return g_flush_nested.load(std::memory_order_relaxed);
+}
+extern "C" unsigned long long kame_pool_flush_count() noexcept {
+    return CrossDeallocBatch::s_flushes.load(std::memory_order_relaxed);
+}
 namespace {
 struct BatchCapReport { ~BatchCapReport() {
     fprintf(stderr, "FLUSHDEPTH max=%d nested_entries=%llu\n",
