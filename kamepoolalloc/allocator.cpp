@@ -9547,7 +9547,44 @@ inline unsigned free_slot_(const void *p) noexcept {
 extern "C" unsigned long long kame_pool_free_seq_now() noexcept {
     return g_free_seq.load(std::memory_order_relaxed);
 }
+// (§13.167) Ask the STM tracer, AT THE FREE, whether this slot still holds a
+// constructed object.  A legitimate `delete` runs the destructor — and so the
+// tracer's death hook — before operator delete, so a legitimate free always
+// sees 0.  Resolved by dlsym so the allocator still builds and runs with no
+// tracer in the process; absent symbol = feature off, reported as such.
+namespace {
+typedef int (*islive_fn)(const void *);
+std::atomic<islive_fn> g_islive{nullptr};
+std::atomic<int> g_islive_resolved{0};
+std::atomic<unsigned long long> g_free_of_live{0}, g_free_checked{0};
+struct FolFirst { const void *addr; unsigned path, tid; };
+FolFirst g_fol_first{};
+std::atomic<int> g_fol_have{0};
+inline islive_fn islive_() noexcept {
+    int r = g_islive_resolved.load(std::memory_order_acquire);
+    if(!r) {
+        g_islive.store(reinterpret_cast<islive_fn>(
+            dlsym(RTLD_DEFAULT, "kame_rc_dl_islive")), std::memory_order_release);
+        g_islive_resolved.store(1, std::memory_order_release);
+    }
+    return g_islive.load(std::memory_order_acquire);
+}
+}
+extern "C" unsigned long long kame_pool_free_of_live_count() noexcept {
+    return g_free_of_live.load(std::memory_order_relaxed);
+}
 extern "C" void kame_pool_free_note(const void *slot, unsigned path) noexcept {
+    if(islive_fn f = islive_()) {
+        g_free_checked.fetch_add(1, std::memory_order_relaxed);
+        if(f(slot)) {
+            g_free_of_live.fetch_add(1, std::memory_order_relaxed);
+            int e = 0;
+            if(g_fol_have.compare_exchange_strong(e, 1, std::memory_order_relaxed)) {
+                g_fol_first.addr = slot; g_fol_first.path = path;
+                g_fol_first.tid = kame_page()->owner_id;
+            }
+        }
+    }
     FreeRec &r = g_freerec[free_slot_(slot)];
     r.addr.store(slot, std::memory_order_relaxed);
     r.path.store(path, std::memory_order_relaxed);
@@ -9620,6 +9657,22 @@ struct DfSelfTest { DfSelfTest() {
 } } g_df_selftest_run;
 void df_report_(int fd) noexcept {
     char b[200];
+    {   char c[240];
+        unsigned long long chk = g_free_checked.load(std::memory_order_relaxed);
+        int m = snprintf(c, sizeof c,
+            "kame_pool: FREE-OF-LIVE (freed a slot the tracer still calls live)"
+            " = %llu of %llu frees checked%s\n",
+            (unsigned long long)g_free_of_live.load(std::memory_order_relaxed),
+            chk, chk ? "" : "   [tracer absent -- check NOT running]");
+        if(m > 0) { ssize_t rr = write(fd, c, (size_t)m); (void)rr; }
+        if(g_fol_have.load(std::memory_order_relaxed)) {
+            m = snprintf(c, sizeof c, "kame_pool: FREE-OF-LIVE first: addr=%p"
+                " path=%s tid=%u\n", g_fol_first.addr,
+                g_fol_first.path == 1 ? "freelist_push" : "batch_return_to_bitmap",
+                g_fol_first.tid);
+            if(m > 0) { ssize_t rr = write(fd, c, (size_t)m); (void)rr; }
+        }
+    }
     int n = snprintf(b, sizeof b,
         "kame_pool: DOUBLE-FREE (same slot pushed twice with no pop) = %llu"
         " | prefill-reset (benign, counted apart) = %llu"

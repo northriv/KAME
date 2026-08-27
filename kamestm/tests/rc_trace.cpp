@@ -750,7 +750,27 @@ static unsigned long long dl_freeseq_() noexcept {
 thread_local unsigned tl_dl_prev_relcnt = 0, tl_dl_prev_concnt = 0;
 thread_local unsigned long long tl_dl_prev_freeseq = 0;
 thread_local bool tl_dl_prev_relcnt_valid = false;
+//! §13.167  Is `p` an address the live-set currently believes holds a
+//! CONSTRUCTED object?  Exported so the ALLOCATOR can ask, at the moment it
+//! frees a slot, whether it is freeing a live object — the premature free
+//! detected at its own site instead of inferred from the next birth.  A
+//! legitimate `delete` runs the destructor (and so the death hook) before
+//! operator delete, so a legitimate free always sees 0 here.
+extern "C" int kame_rc_dl_islive(const void *p) noexcept;
 static const void *dl_born_(const void *, const void *, unsigned long long) noexcept;
+extern "C" int kame_rc_dl_islive(const void *p) noexcept {
+    DLSlot *t = dl_table_();
+    if(!t || !p) return 0;
+    uintptr_t a = dl_key_(p);
+    unsigned h = dl_hash_(a);
+    for(unsigned i = 0; i < DL_PROBE; ++i) {
+        DLSlot &s = t[(h + i) & dl_mask_()];
+        uintptr_t cur = s.addr.load(std::memory_order_acquire);
+        if((cur & ~DL_TAGS) == a) return (cur & DL_LIVE) ? 1 : 0;
+        if(cur == 0) return 0;
+    }
+    return 0;
+}
 static const void *dl_born_(const void *obj, const void *site,
     unsigned long long seq) noexcept {
     DLSlot *t = dl_table_();
@@ -1822,6 +1842,13 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
             }
             else
                 raw_line_("RC-DLIVE-CHUNKREL absent (no release census)\n");
+            // §13.167  POSITIVE CONTROL for the allocator-side FREE-OF-LIVE
+            // check: at THIS instant the previous occupant is live by
+            // definition, so kame_rc_dl_islive(obj) must answer 1.  If it
+            // answers 0 the lookup is broken and any "0 frees of live
+            // objects" from the allocator is worthless.
+            raw_line_("RC-DLIVE-ISLIVE-SELFTEST islive(obj)=%d (must be 1)\n",
+                      kame_rc_dl_islive(obj));
             // §13.165  Name the free that made this slot re-allocatable.
             if(kame_freelookup_fn fl = g_freelookup.load(std::memory_order_acquire)) {
                 unsigned fpath = 0, ftid = 0; unsigned long long fseq = 0;
