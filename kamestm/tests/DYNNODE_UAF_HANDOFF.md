@@ -13962,3 +13962,86 @@ free is of an in-use slot (§13.192) — because the second clear comes from the
 swapped: at `release_dll_chunks_for_thread`, before returning each slot, test
 whether that slot is stamped `PENDING` by **any** thread.  §13.194's stamp is
 already per-slot and exact; only the query site changes.
+
+### 13.212 §13.211's check already ran — and the one sequence that survives every zero is a drain returning a slot that is still LIVE
+
+§13.211 asks for the pending stamp to be queried at
+`release_dll_chunks_for_thread`.  **That query already runs there.**
+`kame_bv_check_pending` sits at the single clearing CAS, inside the loop over the
+bits actually being cleared, so it covers all seven sites including the drain —
+`site drain checked = 20.5 M` is the same code path.  It reported
+`cross_thread = 0` over 2.9 M (§13.195) and 153 k (§13.201) pending observations.
+
+#### But one of my instruments *was* structurally blind, and I checked
+
+The stamp held only the **latest** state, and the first clear overwrites `PENDING`
+with `CLEARED`.  So at the second clear — the violation — the state always reads
+`CLEARED` and the check returns early: a slot pending in two batches is invisible
+exactly where it would matter.  `cross_thread = 0` therefore does **not** mean "no
+slot is ever held by two batches"; it means "no clear found a foreign `PENDING`
+stamp still in place".
+
+I un-blinded it (a `pending_owner` field the clear does not erase) and it fired
+immediately on arm64, at both caps — **and that was a false positive**, which is
+why this section reverts it.  The field is never cleared, so it survives across a
+slot's lives, and with 87–99 % of clears coming from the drain almost any clear
+eventually meets a stale owner from a previous life.  An owner-valued field cannot
+answer this; only a **count** can.
+
+#### The count-based check exists, is sound, and reads zero
+
+`freed-while-pending` (§13.200) triggers when a push finds the state already
+`PENDING`.  That logic is **not** subject to the blindness above: the clear
+overwrites `PENDING` with `CLEARED`, so a push sees `PENDING` only when **no clear
+intervened** — precisely the condition wanted, with no stale-field failure mode.
+It reads **0** on both platforms.
+
+> So §13.211's relocated hypothesis — one thread's drain clearing a bit under
+> another thread's in-flight free — is excluded, by the sound check rather than the
+> blind one.  Two batches never hold one slot at the same time.
+
+#### What is left, and it is the original hypothesis refined
+
+Constraints now: both clears are flushes (§13.190, 8/8 — so neither is a drain);
+no slot is double-pending; every free is of an in-use slot (§13.192);
+conservation ±1; and violations == thread exits, **1:1** (§13.210).  Exactly one
+sequence satisfies all of them:
+
+1. the exiting thread's drain returns a slot **that is still live** — no free, no
+   push, so both `FREE-OF-FREE` and `freed-while-pending` are silent by
+   construction;
+2. the now-free bit is **re-claimed** and the slot handed out a second time (bit
+   SET again);
+3. the first holder frees it → push sees SET ✓ → flush clears it;
+4. the second holder frees it → push sees... the bit **cleared in 3** → violation
+   at a flush, prior clearer a flush ✓, serialized so never double-pending ✓,
+   two pushes and two applies so conservation holds ✓.
+
+**This is the hypothesis put to me at §13.191, refined**: not "the drain returns to
+a chunk it already let go" — I checked *release* and correctly excluded it — but
+"the drain returns a slot that is **still in use**".  Adoption is what makes it
+reachable, which is why `KAME_ORPHAN_NO_ADOPT` cures it 0/11 (§13.150), and one
+drain per exit gives one such slot per exit, which is §13.210's identity.
+
+#### Why no existing instrument can see step 1
+
+Every check in this section hangs off a **free** or a **clear**.  Step 1 involves
+neither: it is a *return* of storage nobody freed.  The only place that could see
+it is the **hand-out**, and that is the one path never instrumented — §13.200
+recorded why (the two hot pops in `new_redirected` need the chunk's `ALIGN` and the
+pool has no bucket→size map).
+
+Two things already point at it independently:
+
+* §13.172 — the allocator hands out a **live** slot (`alloc_of_live > 0`) in every
+  failing run;
+* §13.204's deterministic `excess = −801`: one pushed entry per exit never applied,
+  the arithmetic complement of one slot per exit returned without a push.
+
+**The check to build** is therefore at the drain, not at the clear: before
+returning a slot from a freelist or word-cache mask, assert it is not live.  A
+freelist slot carries a link at offset 0 and the pool never writes its tail, so a
+tail stamp written at hand-out and cleared at free would answer it — the same
+mechanism as §13.193, moved to the one site that still lacks it.  That needs
+bucket→size, which is a small addition to `PoolAllocatorBase` and the only thing
+standing between this and a direct measurement.
