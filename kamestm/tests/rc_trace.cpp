@@ -596,6 +596,13 @@ struct DLSlot {
     std::atomic<uintptr_t> addr{0};   //!< 0 = free (untagged key in bits 3+)
     const void *site{nullptr};        //!< ctor return address of the occupant
     unsigned long long seq{0};
+    //! §13.164  The containing CHUNK's wholesale-release count as it stood when
+    //! THIS occupant was born.  A DOUBLE-LIVE hit compares it against the count
+    //! now: if it has grown, the chunk was recycled BETWEEN the two births,
+    //! which hands out a slot under a live object without moving a bitmap bit
+    //! or freeing an individual block — the one mechanism §13.163(d) could not
+    //! close.  Equal counts rule that path out for this hit.
+    unsigned relcnt{0};
 };
 enum : uintptr_t { DL_LIVE = 1u, DL_EVERDEAD = 2u, DL_TAGS = 3u };
 DLSlot *g_dl;                          //!< lazily mmapped; sized by dl_bits_()
@@ -698,6 +705,15 @@ unsigned dl_inject_() noexcept {
 //! the cost of needing corroboration for any single hit.  Default is exact.
 //! `nonaligned` reports how many raw addresses are not 16-aligned (23 % here --
 //! the offset-8 population), so the fold's reach is stated numerically.
+//! §13.164  Release count of the chunk containing `p`, or 0 when the allocator
+//! in this process has no release census (the symbol is absent).
+static unsigned dl_relcnt_(const void *p) noexcept {
+    if(kame_relcount_fn f = g_relcount.load(std::memory_order_acquire))
+        return f(p);
+    return 0u;
+}
+thread_local unsigned tl_dl_prev_relcnt = 0;
+thread_local bool tl_dl_prev_relcnt_valid = false;
 static const void *dl_born_(const void *, const void *, unsigned long long) noexcept;
 static const void *dl_born_(const void *obj, const void *site,
     unsigned long long seq) noexcept {
@@ -714,15 +730,21 @@ static const void *dl_born_(const void *obj, const void *site,
             if(!(cur & DL_EVERDEAD)) {       // never proven to be a heap slot
                 s.addr.store(a | DL_LIVE, std::memory_order_release);
                 s.site = site; s.seq = seq;
+                s.relcnt = dl_relcnt_(obj);          // §13.164
                 return nullptr;
             }
             g_dl_enforced.fetch_add(1, std::memory_order_relaxed);
             if(cur & DL_LIVE) {              // two live occupants, one address
                 g_dl_hit.fetch_add(1, std::memory_order_relaxed);
+                // §13.164  Publish the previous occupant's birth-time release
+                // count for the report; read before the slot is overwritten.
+                tl_dl_prev_relcnt = s.relcnt;
+                tl_dl_prev_relcnt_valid = true;
                 return s.site ? s.site : (const void *)1;
             }
             s.addr.store(a | DL_LIVE | DL_EVERDEAD, std::memory_order_release);
             s.site = site; s.seq = seq;
+            s.relcnt = dl_relcnt_(obj);              // §13.164
             if(unsigned iv = dl_inject_()) {
                 static std::atomic<unsigned> n{0};
                 if((n.fetch_add(1, std::memory_order_relaxed) % iv) == 0)
@@ -1715,8 +1737,21 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
             // zero is NOT evidence against it (the census is direct-mapped,
             // so a hash collision also reads as zero) — and "absent" means
             // the allocator in this process was built without the census.
-            if(kame_relcount_fn rc_fn = g_relcount.load(std::memory_order_acquire))
-                raw_line_("RC-DLIVE-CHUNKREL releases=%u\n", rc_fn(obj));
+            if(kame_relcount_fn rc_fn = g_relcount.load(std::memory_order_acquire)) {
+                unsigned now = rc_fn(obj);
+                if(tl_dl_prev_relcnt_valid)
+                    raw_line_("RC-DLIVE-CHUNKREL releases_now=%u"
+                        " releases_at_prev_birth=%u delta=%d%s\n",
+                        now, tl_dl_prev_relcnt,
+                        (int)now - (int)tl_dl_prev_relcnt,
+                        (now != tl_dl_prev_relcnt)
+                            ? "  <-- CHUNK RECYCLED BETWEEN THE TWO BIRTHS"
+                            : "  (chunk not released between the births)");
+                else
+                    raw_line_("RC-DLIVE-CHUNKREL releases_now=%u"
+                        " releases_at_prev_birth=unrecorded\n", now);
+                tl_dl_prev_relcnt_valid = false;
+            }
             else
                 raw_line_("RC-DLIVE-CHUNKREL absent (no release census)\n");
             raw_dlive_poison_(obj);

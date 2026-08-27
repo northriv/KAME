@@ -35,9 +35,11 @@
 #include <limits>
 #include <type_traits>
 #ifdef KAME_POOL_ADOPT_CENSUS
-extern "C" void kame_pool_adopt_note(const void *chunk_base) noexcept;   /* §13.130 */
+extern "C" void kame_pool_adopt_note(const void *chunk_base,
+                                     unsigned long long chunk_size) noexcept; /* §13.130, keying fixed §13.164 */
 extern "C" int  kame_pool_was_adopted(const void *addr) noexcept;
 extern "C" unsigned long long kame_pool_adopt_count() noexcept;
+extern "C" void kame_pool_adopt_selftest(const void *blk) noexcept; /* §13.164 */
 #endif
 #ifdef KAME_POOL_BACKSTOP_CENSUS
 extern "C" void kame_pool_backstop_note(unsigned which) noexcept;   /* §13.128 */

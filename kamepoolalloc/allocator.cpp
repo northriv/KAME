@@ -2781,7 +2781,17 @@ extern "C" void kame_adopt_yield(unsigned site) noexcept;
 #endif
 #ifdef KAME_POOL_RELEASE_CENSUS
 //! (§13.164) See the call site in `deallocate_chunk`.
-extern "C" void kame_pool_chunk_release_note(const void *chunk_base) noexcept;
+extern "C" void kame_pool_chunk_release_note(const void *chunk_base,
+                                            unsigned long long chunk_size) noexcept;
+//! (§13.164) A chunk is released only when its bitmap is empty — every release
+//! decision is `m_flags_packed == 0`, and MASK_CNT is 0 exactly when every flag
+//! word is 0.  So scanning the words at the release point tests that identity
+//! at full volume (~7 400 releases/run) instead of waiting for the rare
+//! DOUBLE-LIVE trip.  A release with a nonzero word means the chunk was handed
+//! back with live slots still in it — whole-chunk recycle under live objects,
+//! which is the one mechanism §13.163(d) could not close.
+extern "C" void kame_pool_release_verify(const void *chunk_base,
+    unsigned nonzero_words, unsigned total_words, unsigned packed) noexcept;
 #endif
 #ifdef KAME_POOL_RESOLVE_CHECK
 //! (§13.162) Ground-truth check on the back_offset derivation.  Every chunk is
@@ -3176,7 +3186,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 			// adopted chunk.  §13.129's invariant (occ SUBSETEQ bits) is
 			// breached exactly when adopt hands out storage still in use;
 			// linking the two events is the cheapest way to see it.
-			kame_pool_adopt_note(reinterpret_cast<const char *>(oc) - ALLOC_CHUNK_HEADER);
+			kame_pool_adopt_note(
+			    reinterpret_cast<const char *>(oc) - ALLOC_CHUNK_HEADER,
+			    (unsigned long long)oc->m_chunk_size);   // §13.164 keying fix
 #endif
 			// Re-arm owner metadata to THIS thread, mirroring
 			// create_allocator's fresh-chunk setup (PoolAllocator ctor):
@@ -3221,6 +3233,14 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 			KAME_SURVIVOR_NOTE(sv_cnt);
 			if(void *p = oc->allocate_pooled(SIZE)) {
 				KAME_SURVIVOR_ALLOC(sv_cnt);
+#ifdef KAME_POOL_ADOPT_CENSUS
+				// (§13.164) SELF-TEST.  `p` provably came from the chunk we
+				// just recorded, so `kame_pool_was_adopted(p)` MUST answer
+				// yes.  §13.131 had no such check and reported the keying
+				// bug as a finding; any census that answers a question about
+				// an address now proves it can answer at all.
+				kame_pool_adopt_selftest(p);
+#endif
 #ifdef GUARDIAN
 				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
 					if(static_cast<uint64_t *>(p)[i] != GUARDIAN)
@@ -3715,6 +3735,15 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 				// chunk_base; recover chunk_base from `c` directly.
 				char *cbase = reinterpret_cast<char*>(c) - ALLOC_CHUNK_HEADER;
 				size_t csz = c->m_chunk_size;
+#ifdef KAME_POOL_RELEASE_CENSUS
+				{   // (§13.164) verify the bitmap really is empty
+					unsigned nz = 0;
+					for(int fi = 0; fi < c->m_count; ++fi)
+						if(c->m_flags[fi]) ++nz;
+					::kame_pool_release_verify(cbase, nz,
+					    (unsigned)c->m_count, c->m_flags_packed);
+				}
+#endif
 				c->~PoolAllocator();   // placement-new destructor
 				// (§21) madvise the slot pages on thread exit by default
 				// (`s_thread_exit_reclaim`, default TRUE) so RSS is returned
@@ -3818,7 +3847,7 @@ KAME_CLONE_LICENCE(5) /*§13.112 arm 5*/ PoolAllocatorBase::deallocate_chunk(cha
 	// saw.  The POOLEV ring already logs KAME_PEV_CHUNK_RELEASE but evicts;
 	// this is a keyed count so a later "was THIS chunk ever released" query
 	// cannot be answered by eviction.
-	::kame_pool_chunk_release_note(chunk_base);
+	::kame_pool_chunk_release_note(chunk_base, (unsigned long long)chunk_size);
 #endif
 	// §13.35 residual seam: a region reused as a NEW chunk (possibly a
 	// different ALIGN class, so interior slot bases shift) needs a
@@ -9136,25 +9165,53 @@ namespace {
 enum { ADOPT_SLOTS = 8192 };
 std::atomic<const void *> g_adopt[ADOPT_SLOTS];
 std::atomic<unsigned long long> g_adopt_n{0};
+std::atomic<unsigned long long> g_adopt_st_ok{0}, g_adopt_st_bad{0};
 inline unsigned adopt_slot_(const void *b) noexcept {
     return (unsigned)((((uintptr_t)b >> 18) * 0x9E3779B97F4A7C15ull) >> 51) % ADOPT_SLOTS;
 }
 }
-extern "C" void kame_pool_adopt_note(const void *chunk_base) noexcept {
-    g_adopt[adopt_slot_(chunk_base)].store(chunk_base, std::memory_order_relaxed);
+// (§13.164 CORRECTION) The key must be something a QUERY can derive from a
+// user pointer.  `chunk_base` is NOT that: the slot region starts at
+// `chunk_base + ALLOC_CHUNK_K_MAX` (= mempool(), 256 KiB-aligned), so a
+// pointer masked to 256 KiB yields `chunk_base + K_MAX`, never `chunk_base`.
+// Keying the note on `chunk_base` while querying with the mask made
+// `kame_pool_was_adopted` return false for EVERY address — which is what
+// §13.131 measured and read as a finding.  Key on the slot-region base, and
+// register every unit so multi-unit chunks answer for their upper units too.
+extern "C" void kame_pool_adopt_note(const void *chunk_base,
+                                     unsigned long long chunk_size) noexcept {
+    uintptr_t b = (uintptr_t)chunk_base + (uintptr_t)ALLOC_CHUNK_K_MAX;
+    unsigned units = (unsigned)(chunk_size / (unsigned long long)ALLOC_MIN_CHUNK_SIZE);
+    if(units == 0u) units = 1u;
+    for(unsigned u = 0; u < units; ++u) {
+        const void *k = (const void *)(b + (uintptr_t)u * ALLOC_MIN_CHUNK_SIZE);
+        g_adopt[adopt_slot_(k)].store(k, std::memory_order_relaxed);
+    }
     g_adopt_n.fetch_add(1, std::memory_order_relaxed);
 }
+extern "C" int kame_pool_was_adopted(const void *addr) noexcept;
+extern "C" void kame_pool_adopt_selftest(const void *blk) noexcept {
+    if(kame_pool_was_adopted(blk)) g_adopt_st_ok.fetch_add(1, std::memory_order_relaxed);
+    else                           g_adopt_st_bad.fetch_add(1, std::memory_order_relaxed);
+}
 extern "C" int kame_pool_was_adopted(const void *addr) noexcept {
-    const void *b = (const void *)((uintptr_t)addr & ~(uintptr_t)0x3ffff);
+    const void *b = (const void *)((uintptr_t)addr
+                                   & ~(uintptr_t)(ALLOC_MIN_CHUNK_SIZE - 1));
     return g_adopt[adopt_slot_(b)].load(std::memory_order_relaxed) == b;
 }
 namespace { struct AdoptReport { ~AdoptReport() {
-    fprintf(stderr, "kame_pool: orphan-chain ADOPTS this run = %llu\n",
-            (unsigned long long)g_adopt_n.load(std::memory_order_relaxed));
+    fprintf(stderr, "kame_pool: orphan-chain ADOPTS this run = %llu"
+            " | keying self-test ok=%llu BAD=%llu\n",
+            (unsigned long long)g_adopt_n.load(std::memory_order_relaxed),
+            (unsigned long long)g_adopt_st_ok.load(std::memory_order_relaxed),
+            (unsigned long long)g_adopt_st_bad.load(std::memory_order_relaxed));
 } } g_adopt_report;
 void adopt_sig_(int sig) {
-    char b[96]; int n = snprintf(b, sizeof b, "\nkame_pool: [sig %d] ADOPTS = %llu\n",
-        sig, (unsigned long long)g_adopt_n.load(std::memory_order_relaxed));
+    char b[160]; int n = snprintf(b, sizeof b,
+        "\nkame_pool: [sig %d] ADOPTS = %llu selftest ok=%llu BAD=%llu\n",
+        sig, (unsigned long long)g_adopt_n.load(std::memory_order_relaxed),
+        (unsigned long long)g_adopt_st_ok.load(std::memory_order_relaxed),
+        (unsigned long long)g_adopt_st_bad.load(std::memory_order_relaxed));
     if(n > 0) { ssize_t r = write(2, b, (size_t)n); (void)r; }
     signal(sig, SIG_DFL); raise(sig);
 }
@@ -9316,30 +9373,64 @@ inline unsigned rel_slot_(const void *b) noexcept {
     return (unsigned)((((uintptr_t)b >> 18) * 0x9E3779B97F4A7C15ull) >> 51) % REL_SLOTS;
 }
 }
-extern "C" void kame_pool_chunk_release_note(const void *chunk_base) noexcept {
-    RelSlot &s = g_rel[rel_slot_(chunk_base)];
-    const void *prev = s.base.exchange(chunk_base, std::memory_order_relaxed);
-    if(prev != chunk_base) s.n.store(1, std::memory_order_relaxed);
-    else                   s.n.fetch_add(1, std::memory_order_relaxed);
+extern "C" void kame_pool_chunk_release_note(const void *chunk_base,
+                                            unsigned long long chunk_size) noexcept {
+    // (§13.164) keyed on the slot-region base — see the adopt census note.
+    uintptr_t b = (uintptr_t)chunk_base + (uintptr_t)ALLOC_CHUNK_K_MAX;
+    unsigned units = (unsigned)(chunk_size / (unsigned long long)ALLOC_MIN_CHUNK_SIZE);
+    if(units == 0u) units = 1u;
+    for(unsigned u = 0; u < units; ++u) {
+        const void *k = (const void *)(b + (uintptr_t)u * ALLOC_MIN_CHUNK_SIZE);
+        RelSlot &sl = g_rel[rel_slot_(k)];
+        const void *prev = sl.base.exchange(k, std::memory_order_relaxed);
+        if(prev != k) sl.n.store(1, std::memory_order_relaxed);
+        else          sl.n.fetch_add(1, std::memory_order_relaxed);
+    }
     g_rel_total.fetch_add(1, std::memory_order_relaxed);
 }
 //! How many times the chunk CONTAINING `addr` has been released.  0 also means
 //! "not recorded" (collision) — a nonzero answer is evidence, a zero is not.
 extern "C" unsigned kame_pool_chunk_release_count(const void *addr) noexcept {
-    const void *b = (const void *)((uintptr_t)addr & ~(uintptr_t)0x3ffff);
+    const void *b = (const void *)((uintptr_t)addr
+                                   & ~(uintptr_t)(ALLOC_MIN_CHUNK_SIZE - 1));
     RelSlot &s = g_rel[rel_slot_(b)];
     if(s.base.load(std::memory_order_relaxed) != b) return 0u;
     return s.n.load(std::memory_order_relaxed);
+}
+namespace {
+std::atomic<unsigned long long> g_relv_ok{0}, g_relv_bad{0};
+struct RelvFirst { const void *base; unsigned nz, total, packed; };
+RelvFirst g_relv_first{};
+std::atomic<int> g_relv_have{0};
+}
+extern "C" void kame_pool_release_verify(const void *chunk_base,
+    unsigned nonzero_words, unsigned total_words, unsigned packed) noexcept {
+    if(nonzero_words == 0u) { g_relv_ok.fetch_add(1, std::memory_order_relaxed); return; }
+    g_relv_bad.fetch_add(1, std::memory_order_relaxed);
+    int e = 0;
+    if(g_relv_have.compare_exchange_strong(e, 1, std::memory_order_relaxed)) {
+        g_relv_first.base = chunk_base; g_relv_first.nz = nonzero_words;
+        g_relv_first.total = total_words; g_relv_first.packed = packed;
+    }
 }
 extern "C" unsigned long long kame_pool_chunk_release_total() noexcept {
     return g_rel_total.load(std::memory_order_relaxed);
 }
 namespace {
 void rel_report_(int fd) noexcept {
-    char b[128];
-    int n = snprintf(b, sizeof b, "kame_pool: CHUNK RELEASES this run = %llu\n",
-        (unsigned long long)g_rel_total.load(std::memory_order_relaxed));
+    char b[256];
+    int n = snprintf(b, sizeof b, "kame_pool: CHUNK RELEASES this run = %llu"
+        " | bitmap-empty-at-release: ok=%llu BAD=%llu\n",
+        (unsigned long long)g_rel_total.load(std::memory_order_relaxed),
+        (unsigned long long)g_relv_ok.load(std::memory_order_relaxed),
+        (unsigned long long)g_relv_bad.load(std::memory_order_relaxed));
     if(n > 0) { ssize_t r = write(fd, b, (size_t)n); (void)r; }
+    if(g_relv_have.load(std::memory_order_relaxed)) {
+        n = snprintf(b, sizeof b, "kame_pool: RELEASE-BAD first: base=%p"
+            " nonzero_words=%u/%u packed=%08x\n", g_relv_first.base,
+            g_relv_first.nz, g_relv_first.total, g_relv_first.packed);
+        if(n > 0) { ssize_t r = write(fd, b, (size_t)n); (void)r; }
+    }
 }
 typedef void (*rel_fn_)(int);
 rel_fn_ g_rel_prev[3] = {SIG_DFL, SIG_DFL, SIG_DFL};
