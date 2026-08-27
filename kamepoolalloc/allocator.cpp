@@ -507,6 +507,13 @@ bool  large_recycle_push(char *base, std::size_t size, unsigned kind) noexcept;
 // `BIT_OWNER_EXITED` so cross-thread last-slot-returners can release
 // them later.  Capacity covers the count of distinct PoolAllocator
 // template instantiations actually in use by this thread.
+#ifdef KAME_BATCH_VERIFY
+//! §13.205  Thread exits, counted -- because the test has ~400 of them per run
+//! (main loops `k < 100` around a 4-thread create/join), not the 4 that §13.191
+//! wrongly asserted.  Printed at every violation so the record shows whether the
+//! 800 follow exits.
+static std::atomic<unsigned long long> g_bv_exits{0};
+#endif
 namespace {
 struct AllocThreadExitCleanup {
     static constexpr int MAX = 32;
@@ -527,6 +534,9 @@ struct AllocThreadExitCleanup {
         if(count < MAX) release_fns[count++] = fn;
     }
     ~AllocThreadExitCleanup() noexcept {
+#ifdef KAME_BATCH_VERIFY
+        g_bv_exits.fetch_add(1, std::memory_order_relaxed);      // §13.204
+#endif
         // `drain_thread_slot_freelists()` is a retained no-op stub now
         // (see its definition); the per-chunk freelist drain has been
         // folded into the per-template DLL walk below
@@ -1125,10 +1135,11 @@ static void kame_batch_verify_bad(int kind, const void *slot, const void *chunk,
         unsigned long long rseq = r.seq.load(std::memory_order_relaxed);
         if(rs == (uintptr_t)slot) {
             fprintf(stderr, "BATCHVERIFY   prior clear of this slot: site=%s seq=%llu "
-                    "(now seq=%llu, gap=%llu)\n",
+                    "(now seq=%llu, gap=%llu, thread_exits_so_far=%llu)\n",
                     g_bv_sitename[rsite < BV_NSITE ? rsite : 0], rseq,
                     g_bv_clearseq.load(std::memory_order_relaxed),
-                    g_bv_clearseq.load(std::memory_order_relaxed) - rseq);
+                    g_bv_clearseq.load(std::memory_order_relaxed) - rseq,
+                    g_bv_exits.load(std::memory_order_relaxed));
             //! §13.191  Name both frees.  dladdr only here, never on a hot path.
             for(int w = 0; w < 2; ++w) {
                 if( !r.caller[w][0].load(std::memory_order_relaxed)) continue;
@@ -1178,6 +1189,13 @@ namespace { struct BatchVerifyReport { ~BatchVerifyReport() {
         if(tot) fprintf(stderr, "BATCHVERIFY   groups=%llu  violations=%llu  "
                         "mean group=%.2f\n", tot, wsum, (double)wsum / (double)tot);
     }
+    fprintf(stderr, "BATCHVERIFY thread exits=%llu  drain_checked/exit=%.0f"
+            "  clears/exit=%.0f  (compare against the measured prior-clear gap)\n",
+            g_bv_exits.load(),
+            g_bv_exits.load() ? (double)g_bv_checked[BV_DRAIN].load() /
+                                (double)g_bv_exits.load() : 0.0,
+            g_bv_exits.load() ? (double)(g_bv_clearseq.load() - 1) /
+                                (double)g_bv_exits.load() : 0.0);
     fprintf(stderr, "BATCHVERIFY merge-loop: bit_not_owned=%llu two_on_one_bit=%llu"
             " count_mismatch=%llu  (§13.195's never-run check)\n",
             g_bv_bit[0].load(), g_bv_bit[1].load(), g_bv_bit[2].load());

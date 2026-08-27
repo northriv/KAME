@@ -13487,3 +13487,76 @@ re-taking on whichever source still exhibits it.
 to `flush(AtTeardown)`, or the build fails; and it yields **6**
 `flush_impl<false>` symbols against the previous **4**, which is itself a sign
 that the flush region's structure changed between the two revisions.
+
+### 13.205 Is thread exit involved?  Not excludable — and §13.191's "4 exits" was wrong: there are ~800 per run, which is the scale of §13.190's unexplained gap
+
+Asked whether the fault occurs without thread exit.  Three findings, one of them a
+correction of mine that has been load-bearing since §13.191.
+
+#### The correction: ~800 exits per run, not 4
+
+§13.191 said *"`transaction_dynamic_node_test` runs `NUM_THREADS 4`, created once
+and joined once — so there are 4 thread exits per run, not the ~520 that a 46 k gap
+over 24 M clears would need."*  That read the inner block and missed `main`'s outer
+loop:
+
+```cpp
+for(int k = 0; k < 100; k++) {          //  <-- 100 iterations
+    std::thread threads[NUM_THREADS];   //  4 created and joined EACH iteration
+```
+
+Measured directly (a counter in `~AllocThreadExitCleanup`): **801 exits per run.**
+So §13.191's conclusion — "whatever is periodic at ~46 k, it is not thread
+teardown" — is withdrawn, and §13.190's periodicity stops being unexplained:
+24 M clears / ~800 exits ≈ **30 k clears per exit**, against measured prior-clear
+gaps of 44 k–51 k (≈ 1.5 exits) with a second cluster at ~98 k (≈ 3).  Same scale,
+and the drain is 87 % of all clears, so the clear axis is essentially an
+exit-burst axis.
+
+#### The mechanism of §13.202 does NOT need thread exit — and that is what disqualifies it
+
+With forced re-entry on arm64 the violations carry `thread_exits_so_far = 0`, so a
+re-walk produces violations with no exit having happened.  But the *gap* does not
+match at all:
+
+| statistic | x86-64, spontaneous | arm64, forced re-entry |
+|---|---|---|
+| mean group | 4.29 | **4.41** ✓ |
+| prior-clear gap | **44 k–51 k**, plus ~98 k | **6–10** ✗ |
+
+Four orders of magnitude apart.  §13.202's signature match was therefore
+**partial**: it reproduces the *group* statistic and not the *gap* statistic.  A
+re-applied buffer is re-applied immediately, so its gap is the buffer length —
+which is exactly what 6–10 is.  The real fault's second clear arrives after
+roughly one to two **thread-exit drains** of intervening traffic.
+
+That makes the gap the discriminating statistic, and it is the one no
+lifetime-free, exit-free mechanism has matched.
+
+#### The second, independent line pointing at thread exit
+
+`KAME_ORPHAN_NO_ADOPT` cures the fault **0/11** (§13.150).  Adoption can only
+adopt orphans, and an orphan is created by `orphan_chain_push` **at owner exit**.
+So "the fault needs adoption" entails "the fault needs a prior thread exit".  That
+inference is independent of any timing measurement.
+
+#### So the answer, stated honestly
+
+**No — thread exit is not excluded; two independent lines implicate it.**  What is
+excluded is the *drain* as the agent of the second clear (`site drain: bad = 0`
+over 20.5 M — §13.187).  The consistent reading is:
+
+> thread exit supplies the **trigger and the timescale** (orphans to adopt, and the
+> ~30 k-clear drain bursts that set the gap), while the entity performing the
+> second clear is a **`flush`** (§13.190's census, 8/8).
+
+#### The one-line test
+
+Every violation report now prints `thread_exits_so_far`, and the summary prints
+exits, drain-checked per exit, and clears per exit.  On x86-64 at `cap = 32`:
+
+* **all 800 with `thread_exits_so_far > 0`** → an exit precedes every occurrence,
+  and the search moves to what an exit leaves behind that a later flush can
+  mis-clear — adoption being the named candidate;
+* **any with `= 0`** → thread exit is not necessary, and §13.150's `NO_ADOPT` cure
+  needs re-explaining, since without exits there is nothing to adopt.
