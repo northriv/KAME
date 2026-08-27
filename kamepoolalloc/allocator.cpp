@@ -1469,6 +1469,9 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 		char *prev = nullptr;
 		for(size_t i = N_slots; i-- > 0; ) {
 			char *slot = base + i * ALIGN;
+#ifdef KAME_POOL_FREE_CENSUS
+			kame_pool_onlist_set(slot);     /* §13.166: pre-fill puts it ON the list */
+#endif
 			*kame_slot_link_(slot) = prev;
 			prev = slot;
 		}
@@ -2170,7 +2173,8 @@ KAME_CLONE_LICENCE(3) /*§13.112 arm 3*/ PoolAllocator<ALIGN, false, DUMMY>::bat
 	// same termination the real walk below uses.
 	for(const CrossDeallocEntry *e = entries;
 	    e->chunk == static_cast<PoolAllocatorBase *>(this); ++e)
-		kame_pool_free_note(e->slot, KAME_FREEPATH_RETURN_BITMAP);
+		{ kame_pool_free_note(e->slot, KAME_FREEPATH_RETURN_BITMAP);
+		  kame_pool_onlist_clear(e->slot); }   /* §13.166: list -> bitmap */
 #endif
 	// Walk entries[k] while .chunk == this — terminates on the next
 	// chunk's group OR the trailing {nullptr, nullptr} sentinel that
@@ -2341,7 +2345,8 @@ KAME_CLONE_LICENCE(4) /*§13.112 arm 4*/ PoolAllocator<ALIGN, FS, DUMMY>::batch_
 	// same termination the real walk below uses.
 	for(const CrossDeallocEntry *e = entries;
 	    e->chunk == static_cast<PoolAllocatorBase *>(this); ++e)
-		kame_pool_free_note(e->slot, KAME_FREEPATH_RETURN_BITMAP);
+		{ kame_pool_free_note(e->slot, KAME_FREEPATH_RETURN_BITMAP);
+		  kame_pool_onlist_clear(e->slot); }   /* §13.166: list -> bitmap */
 #endif
 	// Walks entries[k] while .chunk == this — sentinel-terminated, no
 	// length argument; see the FS=false sibling for the full rationale
@@ -5405,6 +5410,9 @@ void *new_redirected_cold(unsigned int bucket, std::size_t size) {
 		char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
 		if(char *head = *head_ptr) {
 			*head_ptr = *kame_slot_link_(head);
+#ifdef KAME_POOL_FREE_CENSUS
+			kame_pool_onlist_clear(head);   /* §13.166 */
+#endif
 			return head;
 		}
 		PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
@@ -5468,6 +5476,9 @@ void *new_redirected_large(std::size_t size) noexcept {
             char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
             if(char *head = *head_ptr) {
                 *head_ptr = *kame_slot_link_(head);
+#ifdef KAME_POOL_FREE_CENSUS
+            kame_pool_onlist_clear(head);   /* §13.166 */
+#endif
                 return head;
             }
         }
@@ -5515,6 +5526,9 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
             char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
             if(char *head = *head_ptr) {
                 *head_ptr = *kame_slot_link_(head);
+#ifdef KAME_POOL_FREE_CENSUS
+            kame_pool_onlist_clear(head);   /* §13.166 */
+#endif
                 return head;
             }
             return chunk_from_freelist_ptr(head_ptr)->slow_allocate(bucket, size);
@@ -5809,6 +5823,9 @@ void *kame_malloc_impl(std::size_t n) noexcept {
 #endif
 			if(char *head = *head_ptr) {
 				*head_ptr = *kame_slot_link_(head);
+#ifdef KAME_POOL_FREE_CENSUS
+			kame_pool_onlist_clear(head);   /* §13.166 */
+#endif
 				return head;
 			}
 		}
@@ -9507,12 +9524,14 @@ struct RelReport { ~RelReport() { rel_report_(2); } } g_rel_report;
 }
 #endif // KAME_POOL_RELEASE_CENSUS
 #ifdef KAME_POOL_FREE_CENSUS
+#include <csignal>
+#include <unistd.h>
 // (§13.165) Last-free record per slot address.  Direct-mapped; a collision
 // overwrites, and the stored address is compared on lookup so a collision
 // answers "unknown" rather than a wrong path.
 #include <cstdio>
 namespace {
-enum { FREE_SLOTS = 1u << 16 };
+enum { FREE_SLOTS = 1u << 20 };   // §13.166: 64K evicted almost instantly under ~1e8 frees/run
 struct FreeRec {
     std::atomic<const void *> addr;
     std::atomic<unsigned> path;
@@ -9522,7 +9541,7 @@ struct FreeRec {
 FreeRec g_freerec[FREE_SLOTS];
 std::atomic<unsigned long long> g_free_seq{1};
 inline unsigned free_slot_(const void *p) noexcept {
-    return (unsigned)((((uintptr_t)p >> 4) * 0x9E3779B97F4A7C15ull) >> 48) % FREE_SLOTS;
+    return (unsigned)((((uintptr_t)p >> 4) * 0x9E3779B97F4A7C15ull) >> 44) % FREE_SLOTS;
 }
 }
 extern "C" unsigned long long kame_pool_free_seq_now() noexcept {
@@ -9535,6 +9554,79 @@ extern "C" void kame_pool_free_note(const void *slot, unsigned path) noexcept {
     r.tid.store(kame_page()->owner_id, std::memory_order_relaxed);
     r.seq.store(g_free_seq.fetch_add(1, std::memory_order_relaxed),
                 std::memory_order_relaxed);
+}
+// (§13.166) One bit per slot address saying "this address is currently on a
+// freelist".  Direct-mapped and address-tagged, so a collision loses a bit
+// rather than inventing one: it can only cause a MISS (a double free we fail
+// to see), never a false positive.  That asymmetry is deliberate — the
+// counter is meant to be believable when it is nonzero.
+namespace {
+struct OnList { std::atomic<const void *> addr; std::atomic<unsigned char> on; };
+OnList g_onlist[FREE_SLOTS];
+std::atomic<unsigned long long> g_double_free{0};
+}
+extern "C" void kame_pool_onlist_set(const void *slot) noexcept {
+    OnList &o = g_onlist[free_slot_(slot)];
+    if(o.addr.load(std::memory_order_relaxed) == slot
+       && o.on.load(std::memory_order_relaxed))
+        g_double_free.fetch_add(1, std::memory_order_relaxed);
+    o.addr.store(slot, std::memory_order_relaxed);
+    o.on.store(1, std::memory_order_relaxed);
+}
+extern "C" void kame_pool_onlist_clear(const void *slot) noexcept {
+    OnList &o = g_onlist[free_slot_(slot)];
+    if(o.addr.load(std::memory_order_relaxed) == slot)
+        o.on.store(0, std::memory_order_relaxed);
+}
+extern "C" unsigned long long kame_pool_double_free_count() noexcept {
+    return g_double_free.load(std::memory_order_relaxed);
+}
+namespace {
+// (§13.166) POSITIVE CONTROL.  Three probes in §13 returned "nothing found"
+// because they could not have found anything (§13.155 call sites outside the
+// ifdef, §13.163(b) a function never called, §13.164 a mis-keyed lookup).  So
+// this detector proves it can fire, on a case true by construction, before it
+// is allowed to report a zero.  Runs at load on a dummy address that belongs
+// to no chunk, then restores the counter.
+int g_df_selftest = -1;
+struct DfSelfTest { DfSelfTest() {
+    static long long dummy = 0;
+    const void *d = &dummy;
+    unsigned long long before = g_double_free.load(std::memory_order_relaxed);
+    kame_pool_onlist_set(d);          // first push: must NOT count
+    bool spurious = g_double_free.load(std::memory_order_relaxed) != before;
+    kame_pool_onlist_set(d);          // second push with no pop: MUST count
+    bool fired = g_double_free.load(std::memory_order_relaxed) == before + 1;
+    kame_pool_onlist_clear(d);        // pop
+    kame_pool_onlist_set(d);          // push after pop: must NOT count
+    bool clean = g_double_free.load(std::memory_order_relaxed) == before + 1;
+    kame_pool_onlist_clear(d);
+    g_double_free.store(before, std::memory_order_relaxed);   // restore
+    g_df_selftest = (!spurious && fired && clean) ? 1 : 0;
+} } g_df_selftest_run;
+void df_report_(int fd) noexcept {
+    char b[200];
+    int n = snprintf(b, sizeof b,
+        "kame_pool: DOUBLE-FREE (same slot pushed twice with no pop) = %llu"
+        "  [detector self-test: %s]\n",
+        (unsigned long long)g_double_free.load(std::memory_order_relaxed),
+        g_df_selftest == 1 ? "PASS" : (g_df_selftest == 0 ? "FAIL" : "not run"));
+    if(n > 0) { ssize_t r = write(fd, b, (size_t)n); (void)r; }
+}
+typedef void (*df_fn_)(int);
+df_fn_ g_df_prev[3] = {SIG_DFL, SIG_DFL, SIG_DFL};
+inline int df_idx_(int sig) { return sig == SIGSEGV ? 0 : sig == SIGABRT ? 1 : 2; }
+void df_sig_(int sig) {
+    df_report_(2);
+    df_fn_ prev = g_df_prev[df_idx_(sig)];
+    if(prev != SIG_DFL && prev != SIG_IGN && prev != df_sig_) { prev(sig); return; }
+    signal(sig, SIG_DFL); raise(sig);
+}
+struct DfSig { DfSig() {
+    g_df_prev[0] = signal(SIGSEGV, df_sig_);
+    g_df_prev[1] = signal(SIGABRT, df_sig_);
+    g_df_prev[2] = signal(SIGBUS,  df_sig_); } } g_df_sig;
+struct DfReport { ~DfReport() { df_report_(2); } } g_df_report;
 }
 extern "C" int kame_pool_free_lookup(const void *slot, unsigned *path,
                                      unsigned *tid,

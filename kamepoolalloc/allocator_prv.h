@@ -55,6 +55,16 @@ enum {
     KAME_FREEPATH_RETURN_BITMAP = 2    /* batch_return_to_bitmap (bit cleared) */
 };
 extern "C" void kame_pool_free_note(const void *slot, unsigned path) noexcept;
+/* §13.166  DOUBLE-FREE detector, exact and at full volume.  A slot parked on
+   the owner freelist keeps its bitmap bit SET, so the list is the only record
+   that it is free.  Pushing an address that is ALREADY on the list puts it
+   there twice, and two pops then hand the same storage to two live objects —
+   precisely the DOUBLE-LIVE shape, with the first occupant's destructor never
+   running.  Tracked with one bit per address: set by push, cleared by pop and
+   by batch_return_to_bitmap (which moves the slot from list to bitmap). */
+extern "C" void kame_pool_onlist_set(const void *slot) noexcept;
+extern "C" void kame_pool_onlist_clear(const void *slot) noexcept;
+extern "C" unsigned long long kame_pool_double_free_count() noexcept;
 extern "C" int  kame_pool_free_lookup(const void *slot, unsigned *path,
                                       unsigned *tid,
                                       unsigned long long *seq) noexcept;
@@ -1799,14 +1809,19 @@ public:
 	inline void freelist_push(unsigned local, void *p) noexcept {
 #ifdef KAME_POOL_FREE_CENSUS
 		kame_pool_free_note(p, KAME_FREEPATH_FREELIST_PUSH);   /* §13.165 */
+		kame_pool_onlist_set(p);                               /* §13.166 */
 #endif
 		*kame_slot_link_(p) = m_freelist_head[local];
 		m_freelist_head[local] = static_cast<char *>(p);
 	}
 	inline void *freelist_pop(unsigned local) noexcept {
 		char *head = m_freelist_head[local];
-		if(head)
+		if(head) {
 			m_freelist_head[local] = *kame_slot_link_(head);
+#ifdef KAME_POOL_FREE_CENSUS
+			kame_pool_onlist_clear(head);                      /* §13.166 */
+#endif
+		}
 		return head;
 	}
 
@@ -2321,6 +2336,9 @@ public:
 				s_tls.my_chunk = c;
 				c->m_freelist_head[local_id] =
 				    *kame_slot_link_(head);
+#ifdef KAME_POOL_FREE_CENSUS
+				kame_pool_onlist_clear(head);   /* §13.166 */
+#endif
 				return head;
 			}
 		}
@@ -2945,6 +2963,10 @@ struct AllocSlot {
 
 	//! Owner-thread freelist push.  Single-writer (TLS pin), no atomics.
 	void push(void *p) noexcept {
+#ifdef KAME_POOL_FREE_CENSUS
+		kame_pool_free_note(p, KAME_FREEPATH_FREELIST_PUSH);   /* §13.165 */
+		kame_pool_onlist_set(p);                               /* §13.166 */
+#endif
 		*kame_slot_link_(p) = freelist_head;
 		freelist_head = static_cast<char *>(p);
 	}
@@ -2954,6 +2976,9 @@ struct AllocSlot {
 		char *head = freelist_head;
 		if(!head) return nullptr;
 		freelist_head = *kame_slot_link_(head);
+#ifdef KAME_POOL_FREE_CENSUS
+		kame_pool_onlist_clear(head);   /* §13.166 */
+#endif
 		return head;
 	}
 };
@@ -3750,6 +3775,9 @@ inline void *KAME_NEW_REDIRECTED_(std::size_t size) {
 #endif /* KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH */
 		if(char *head = *head_ptr) {
 			*head_ptr = *kame_slot_link_(head);
+#ifdef KAME_POOL_FREE_CENSUS
+			kame_pool_onlist_clear(head);   /* §13.166 */
+#endif
 			return head;
 		}
 	}
