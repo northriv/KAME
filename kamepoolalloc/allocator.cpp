@@ -712,6 +712,80 @@ static std::atomic<unsigned long long> g_flush_nested{0};
 static std::atomic<unsigned long long> g_flush_entries{0}, g_flush_iters{0},
                                        g_flush_nonempty{0};
 #endif
+#ifdef KAME_BATCH_VERIFY
+//! §13.186 counters.  `kind` 0 = pairing, 1 = in-use bit already clear.
+//!
+//! Placed ahead of `CrossDeallocBatch` because the SITE now matters: the FS=true
+//! `batch_return_to_bitmap` has two callers -- `push_direct`'s DIRECT pair (push
+//! and apply in one expression, no deferral at all) and `flush`'s held run -- and
+//! §13.184 reports a violation count that does not move with `KAME_BATCH_CAP`.
+//! `cap = 1` leaves the direct path untouched and still flushes one entry at a
+//! time, so a cap-insensitive count is what BOTH a direct-path violation and a
+//! per-flush violation look like.  Attributing each one separates them.
+//!
+//! Conservation: every pushed entry is applied exactly once, so
+//! `checked_flush == pushes`.  A positive difference means an entry was applied
+//! MORE than once -- which is a second clear of the same slot's bit, i.e. exactly
+//! the violation, arriving from the batch's own bookkeeping rather than from a
+//! racing peer.
+//! §13.186b  `batch_return_to_bitmap` has SEVEN call sites, not two, and the
+//! first attribution attempt got this wrong: a single sticky TLS byte reported
+//! `flush = 9 112 840` against `pushes = 87 297`.  The excess is not a
+//! double-application -- it is the OWNER-EXIT DRAIN, which returns each exiting
+//! thread's whole per-chunk freelist and its whole undistributed word-cache mask
+//! one entry at a time, and which the sticky byte mislabelled as `flush`.
+//! Cross-thread frees are ~1 % of the traffic through this function.
+//!
+//! That matters for §13.184's 800: site 3 is the word-cache mask drain, i.e. the
+//! `f104768b` accounting class (a mask bit whose slot was already handed out).  A
+//! violation seen at `flush`/`direct` with the drain as first clearer, and one
+//! seen at the drain itself, are different defects, and only attribution
+//! separates them.
+enum { BV_OTHER = 0, BV_DIRECT, BV_FLUSH, BV_DRAIN, BV_TEARDOWN, BV_LOCALFREE, BV_NSITE };
+static const char *const g_bv_sitename[BV_NSITE] =
+    { "other", "direct", "flush", "drain", "teardown", "localfree" };
+static std::atomic<unsigned long long> g_bv_checked[BV_NSITE], g_bv_bad[2],
+                                       g_bv_bad_site[BV_NSITE], g_bv_pushes{0};
+static thread_local unsigned char g_bv_site = BV_OTHER;
+struct BvSite {                       // save/restore -- these paths nest
+    unsigned char old_;
+    explicit BvSite(unsigned char s) noexcept : old_(g_bv_site) { g_bv_site = s; }
+    ~BvSite() noexcept { g_bv_site = old_; }
+};
+#define KAME_BV_SITE(n) BvSite _bv_site_guard_(n)
+static void kame_batch_verify_checked() noexcept {
+    g_bv_checked[g_bv_site].fetch_add(1, std::memory_order_relaxed);
+}
+static void kame_batch_verify_bad(int kind, const void *slot, const void *chunk,
+                                  unsigned long long aux, unsigned long long word,
+                                  unsigned packed, unsigned filled) noexcept {
+    unsigned long long n = g_bv_bad[kind].fetch_add(1, std::memory_order_relaxed);
+    g_bv_bad_site[g_bv_site].fetch_add(1, std::memory_order_relaxed);
+    if(n < 4)
+        fprintf(stderr, "BATCHVERIFY %s site=%s slot=%p chunk=%p aux=0x%llx "
+                "word=0x%llx inuse_in_word=%d packed=0x%x(cnt=%u,owned=%d) filled=%u\n",
+                kind == 0 ? "PAIRING (slot not in this chunk)"
+                          : "IN-USE BIT ALREADY CLEAR (slot freed twice)",
+                g_bv_sitename[g_bv_site], slot, chunk, aux, word,
+                __builtin_popcountll(word), packed, packed & 0x7fffffffu,
+                (packed >> 31) & 1u, filled);
+}
+namespace { struct BatchVerifyReport { ~BatchVerifyReport() {
+    unsigned long long tot = 0;
+    for(int i = 0; i < BV_NSITE; ++i) tot += g_bv_checked[i].load();
+    fprintf(stderr, "BATCHVERIFY checked=%llu pushes=%llu pairing_bad=%llu "
+            "bit_clear_bad=%llu\n", tot, g_bv_pushes.load(),
+            g_bv_bad[0].load(), g_bv_bad[1].load());
+    for(int i = 0; i < BV_NSITE; ++i)
+        fprintf(stderr, "BATCHVERIFY   site %-9s checked=%-12llu bad=%llu\n",
+                g_bv_sitename[i], g_bv_checked[i].load(), g_bv_bad_site[i].load());
+    //! `direct` bypasses `push` entirely, so the identity is on `flush` alone:
+    //! every pushed entry is applied exactly once => flush == pushes.
+    fprintf(stderr, "BATCHVERIFY conservation: flush_applied - pushes = %+lld"
+            "  (nonzero => a pushed entry was applied twice, or dropped)\n",
+            (long long)(g_bv_checked[BV_FLUSH].load() - g_bv_pushes.load()));
+} } g_bv_report; }
+#endif
 struct CrossDeallocBatch {
     // FS=true-only small-slot batch (FS=false bypasses
     // cross-batch entirely in its `deallocate_pooled` — see that
@@ -819,6 +893,9 @@ struct CrossDeallocBatch {
         if(count >= cap) s_flushes.fetch_add(1, std::memory_order_relaxed);
 #endif
         if(count >= cap) flush();
+#ifdef KAME_BATCH_VERIFY
+        g_bv_pushes.fetch_add(1, std::memory_order_relaxed);
+#endif
         buf[count++] = {c, s};
     }
 
@@ -905,6 +982,9 @@ struct CrossDeallocBatch {
         void *cached_dll_head_addr = c->m_owner_dll_head_addr;
         auto *cached_force_walk =
             c->m_owner_dll_force_walk_ptr.load(std::memory_order_acquire);
+#ifdef KAME_BATCH_VERIFY
+        KAME_BV_SITE(BV_DIRECT);                                 // §13.185
+#endif
         c->batch_return_to_bitmap(tmp);
         // (§20) `c` may be destructed past this point — use cached values only.
         if(cached_dll_head_addr ==
@@ -1017,9 +1097,35 @@ struct CrossDeallocBatch {
                 chunk->m_owner_dll_force_walk_ptr.load(
                     std::memory_order_acquire);
 #endif
+#ifdef KAME_BATCH_VERIFY
+            KAME_BV_SITE(BV_FLUSH);                              // §13.185
+#endif
+#ifdef KAME_POKE_BEFORE_CALL
+            //! §13.186  The clone-PRESERVING control for the post-call deref.
+            //!
+            //! The clone's entire semantic surface is the ternary above:
+            //! `at_teardown` is used in exactly ONE place in this function, so
+            //! `flush(false)` differs from the generic body only in that the
+            //! force-walk load is unconditional.  That makes
+            //! `KAME_NO_XTHREAD_FORCEWALK_POKE` useless as a control -- it
+            //! removes the only use of the parameter and therefore the clone
+            //! itself (verified on GCC 15.2: flush constprop syms 1 -> 0), so its
+            //! rate-neutral result compares a no-clone build against a no-clone
+            //! build, in a regime where owners stop reusing returned slots.
+            //!
+            //! This knob keeps the poke AND the clone and moves only the DEREF to
+            //! before the call, which is the one thing §13.133 says can dangle
+            //! (the target is the owner's TLS, and the call may release the
+            //! chunk).  The hint is advisory, so an early poke costs at most a
+            //! wasted walk -- a throughput risk, not a correctness one.
+            if(cached_force_walk)
+                cached_force_walk->store(true, std::memory_order_relaxed);
+            i += chunk->batch_return_to_bitmap(&buf[i]);
+#else
             i += chunk->batch_return_to_bitmap(&buf[i]);
             if(cached_force_walk)
                 cached_force_walk->store(true, std::memory_order_relaxed);
+#endif
         }
         count = 0;
 #ifdef KAME_BATCH_VERIFY
@@ -2108,6 +2214,9 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// bitmap and return, touching no thread-local.
 	if(__builtin_expect(kame_page() == &g_teardown_page, 0)) {
 		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
+		#ifdef KAME_BATCH_VERIFY
+		KAME_BV_SITE(BV_TEARDOWN);
+		#endif
 		this->batch_return_to_bitmap(tmp);
 		return false;
 	}
@@ -2204,6 +2313,9 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	auto *cached_force_walk =
 	    this->m_owner_dll_force_walk_ptr.load(std::memory_order_acquire);
 	CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
+	#ifdef KAME_BATCH_VERIFY
+	KAME_BV_SITE(BV_LOCALFREE);
+	#endif
 	this->batch_return_to_bitmap(tmp);
 	// (§20) `this` may be destructed past this point — use cached values
 	// only.  Direct `batch_return_to_bitmap` cleared 1 bit on `this` chunk
@@ -2441,25 +2553,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 	return i;
 }
 
-#ifdef KAME_BATCH_VERIFY
-//! §13.183 counters, defined once; `kind` 0 = pairing, 1 = bit already clear.
-static std::atomic<unsigned long long> g_bv_checked{0}, g_bv_bad[2];
-static void kame_batch_verify_checked() noexcept {
-    g_bv_checked.fetch_add(1, std::memory_order_relaxed);
-}
-static void kame_batch_verify_bad(int kind, const void *slot, const void *chunk,
-                                  unsigned long long aux) noexcept {
-    if(g_bv_bad[kind].fetch_add(1, std::memory_order_relaxed) == 0)
-        fprintf(stderr, "BATCHVERIFY %s slot=%p chunk=%p aux=0x%llx\n",
-                kind == 0 ? "PAIRING (slot not in this chunk)"
-                          : "BIT ALREADY CLEAR (chunk was not pinned)",
-                slot, chunk, aux);
-}
-namespace { struct BatchVerifyReport { ~BatchVerifyReport() {
-    fprintf(stderr, "BATCHVERIFY checked=%llu pairing_bad=%llu bit_clear_bad=%llu\n",
-            g_bv_checked.load(), g_bv_bad[0].load(), g_bv_bad[1].load());
-} } g_bv_report; }
-#endif
 // Bitmap clear of slots passed via argument array.  All slots must
 // belong to THIS chunk (callers always pass single-chunk groups —
 // `CrossDeallocBatch::push` issues `&one, 1`, the per-chunk owner-exit
@@ -2499,6 +2592,12 @@ KAME_CLONE_LICENCE(4) /*§13.112 arm 4*/ PoolAllocator<ALIGN, FS, DUMMY>::batch_
 	//              clear, someone else cleared it: the chunk was NOT pinned,
 	//              and every downstream conclusion about release, recycle and
 	//              hand-out follows from that.
+	// §13.185: the LABEL of a clear bit is settled by the polarity -- the claim
+	// path CASes a bitmap word to ~0 to take its zero bits and chunk (re-)init
+	// SETS every bit, so set = in use and a recycle can never PRODUCE a clear
+	// bit.  A clear bit therefore is not "the chunk was not pinned": it is a
+	// SECOND clear of that slot, by a peer free, an owner drain, or a re-applied
+	// batch entry.  The report now carries what distinguishes them.
 	// Counters report checks performed as well as violations, so a zero is
 	// distinguishable from "never ran" (§13.178's lesson, three times over).
 	for(int k = 0; entries[k].chunk == static_cast<PoolAllocatorBase *>(this); ++k) {
@@ -2508,7 +2607,8 @@ KAME_CLONE_LICENCE(4) /*§13.112 arm 4*/ PoolAllocator<ALIGN, FS, DUMMY>::batch_
 		kame_batch_verify_checked();
 		if(p < base || off >= (std::size_t)this->m_count * sizeof(FUINT) * 8 * ALIGN
 		   || (off % ALIGN) != 0) {
-			kame_batch_verify_bad(0, p, (const void *)this, (unsigned long long)off);
+			kame_batch_verify_bad(0, p, (const void *)this, (unsigned long long)off,
+			                      0, this->m_flags_packed, this->m_flags_filled_cnt);
 			continue;
 		}
 		unsigned sidx = (unsigned)(off / ALIGN);
@@ -2536,7 +2636,9 @@ KAME_CLONE_LICENCE(4) /*§13.112 arm 4*/ PoolAllocator<ALIGN, FS, DUMMY>::batch_
 		FUINT w = atomicLoadAcquire(&this->m_flags[widx]);
 		if(!((w >> bit) & 1u))
 			kame_batch_verify_bad(1, p, (const void *)this,
-			                      ((unsigned long long)widx << 32) | bit);
+			                      ((unsigned long long)widx << 32) | bit,
+			                      (unsigned long long)w, this->m_flags_packed,
+			                      this->m_flags_filled_cnt);
 	}
 #endif
 	// Walks entries[k] while .chunk == this — sentinel-terminated, no
@@ -2651,6 +2753,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// sentinel) and return.  Subsumes the former `s_alloc_tls_off` bypass.
 	if(__builtin_expect(kame_page() == &g_teardown_page, 0)) {
 		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
+		#ifdef KAME_BATCH_VERIFY
+		KAME_BV_SITE(BV_TEARDOWN);
+		#endif
 		this->batch_return_to_bitmap(tmp);
 		return false;
 	}
@@ -3786,6 +3891,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 						c->m_freelist_head[i] = nullptr;
 						fdrain[0].chunk = c;
 						fdrain[0].slot = blk;
+						#ifdef KAME_BATCH_VERIFY
+						KAME_BV_SITE(BV_DRAIN);
+						#endif
 						c->batch_return_to_bitmap(fdrain);
 					}
 				}
@@ -3812,6 +3920,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 					inv &= inv - 1u;
 					fdrain[0].chunk = c;
 					fdrain[0].slot = wbase + (size_t)bit * ALIGN;
+					#ifdef KAME_BATCH_VERIFY
+					KAME_BV_SITE(BV_DRAIN);
+					#endif
 					c->batch_return_to_bitmap(fdrain);
 				}
 			}
@@ -3825,6 +3936,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 					char *fnext = *kame_slot_link_(fh);
 					fdrain[0].chunk = c;
 					fdrain[0].slot = fh;
+					#ifdef KAME_BATCH_VERIFY
+					KAME_BV_SITE(BV_DRAIN);
+					#endif
 					c->batch_return_to_bitmap(fdrain);
 					fh = fnext;
 				}

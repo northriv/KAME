@@ -12013,3 +12013,135 @@ batched slot's bit before its own free is applied?**  §13.184 named the two
 shapes (a second return of the same slot, or a return racing the pin); this
 section removes the third possibility (a foreign thread mutating the batch) by
 measurement rather than by argument.
+
+### 13.186 Who clears a batched slot's bit — answered structurally, plus: the poke-off arm was never a control (it deletes the clone), and the clone-preserving one
+
+§13.185 ends on *"who clears a batched slot's bit before its own free is
+applied?"*  Three parts, in order of how much they change the record.
+
+#### 1. The polarity settles what the violation IS, and it is not an un-pinning
+
+The claim path CASes a bitmap word **to `~0`** and takes its **zero** bits
+(`if(oldv == ~0) break; // word full`), the free path CAS-clears
+(`newv = oldv & ~mask`), and chunk (re-)init does `m_flags[i] = ~(FUINT)0u`.  So
+**set = in use**, and a chunk recycle **SETS** every bit.
+
+A recycle therefore cannot *produce* a clear bit.  §13.184's second candidate —
+"a return that races the pin", i.e. the chunk recycled under the pending entry —
+would leave the bit **set** and is **invisible to this check**.  Two consequences:
+
+* the violation is unambiguously **a second clear of that slot** — a peer free,
+  an owner drain, or a re-applied entry;
+* the check is not the pinning test §13.183 called it.  It measures *one* of the
+  two hazards §13.116 conflated.  ("Chunk was not pinned" is now corrected in the
+  code's own report string.)
+
+#### 2. Attribution: `batch_return_to_bitmap` has SEVEN call sites, and 99 % of its traffic is the owner-exit drain
+
+The check lives in `batch_return_to_bitmap`, and the flush is only one of its
+callers.  My first attribution used a sticky TLS byte and reported
+
+```
+flush = 9 112 840   pushes = 87 297          <- 104x, and wrong
+```
+
+The excess is the **owner-exit drain**: `release_dll_chunks_for_thread` returns
+each exiting thread's whole per-chunk freelist *and its whole undistributed
+word-cache mask*, one entry per call.  A save/restore guard at all seven sites
+(arm64, 40 threads, pool active):
+
+```
+BATCHVERIFY checked=9248697 pushes=85102 pairing_bad=0 bit_clear_bad=0
+   site direct    checked=11458        bad=0
+   site flush     checked=85102        bad=0     <- == pushes, exactly
+   site drain     checked=9152137      bad=0     <- 99.0 % of all traffic
+   site teardown  checked=0            bad=0
+   site localfree checked=0            bad=0
+BATCHVERIFY conservation: flush_applied - pushes = +0
+```
+
+Two readings, both new:
+
+* **Conservation is exact**: every pushed entry is applied exactly once, so
+  §13.184's "a second return of the same slot" is ruled out *for the batch* on
+  this platform, and the same line rules it in or out on x86-64.  (`direct`
+  bypasses `push`, so the identity is on `flush` alone.)
+* **Site 3 is the word-cache mask drain** — the `f104768b` accounting class (a
+  mask bit whose slot was already handed out).  It is the numerically dominant
+  clearer of bits in this program by two orders of magnitude, and until now no
+  measurement in this section distinguished it from the flush.
+
+The positive control fires per-site in exact proportion
+(`KAME_BATCH_VERIFY_INJECT=1000` → 6 323 = 11 direct + 82 flush + 6 230 drain,
+1/999 of each site's traffic), so a per-site zero is a real zero.
+
+**The prediction this makes, and the evidence against it.**  If the 800 are at
+`drain`, they are cap-insensitive *by construction* (the drain never goes through
+the batch), which would explain §13.184's "12/12 violations in both an arm that
+crashes 9/12 and one that crashes 0/12" as **two unrelated phenomena at two
+different call sites**.  Against that: §13.184's third arm shows 0/12 violations
+without the shape, and the shape is in `flush`, which should leave a drain-site
+violation untouched.  So the site line is genuinely undetermined and worth one
+run — whichever way it falls, it removes a whole branch.
+
+#### 3. `KAME_NO_XTHREAD_FORCEWALK_POKE` deletes the clone, so its rate-neutral result was never a control
+
+`at_teardown` is used in **exactly one place** in `flush` — the force-walk
+ternary at the bottom of the chunk loop:
+
+```cpp
+auto *cached_force_walk = at_teardown ? nullptr :
+    chunk->m_owner_dll_force_walk_ptr.load(std::memory_order_acquire);
+i += chunk->batch_return_to_bitmap(&buf[i]);
+if(cached_force_walk) cached_force_walk->store(true, std::memory_order_relaxed);
+```
+
+So **the clone's entire semantic surface is that one line.**  Compile the poke
+out and the parameter has no uses left — nothing to propagate.  Measured on real
+GCC 15.2 (`-O3`, aarch64, `nm -C | grep constprop | grep flush`):
+
+| build | flush constprop syms |
+|---|---|
+| stock | **1** |
+| `-DKAME_NO_XTHREAD_FORCEWALK_POKE` | **0** |
+| `-DKAME_BATCH_VERIFY` | **1** |
+
+The poke-off arm was **already a no-clone build**, and it reproduced the fault
+at 11/18 while `noclone` on `flush` cured it at 0/16 (§13.174).  Two no-clone
+builds, one fails and one does not — so that arm cannot be read as evidence
+about the poke, or about the clone.  It removes the reuse hint entirely, which is
+the regime whose absence inflated the pool by 32 regions; a build in which owners
+stop reusing returned slots has its own route to the same fault.  **Strike it
+from the clone analysis**; the clean pair remains stock vs `noclone`.
+
+(Incidentally `-DKAME_BATCH_VERIFY` **keeps** the clone here, where §13.184 found
+it deleted on x86-64.  IPA-CP is cost-model driven and therefore target
+dependent, so "instrumenting deletes the clone" is a per-target fact to re-check,
+not a property of the instrument.  §13.184's workaround — measure on §13.177's
+hand-specialised source — is right regardless, and remains the safe default.)
+
+#### The clone-preserving control, built
+
+`KAME_POKE_BEFORE_CALL` moves **only the deref** to before the call:
+
+```cpp
+if(cached_force_walk) cached_force_walk->store(true, relaxed);
+i += chunk->batch_return_to_bitmap(&buf[i]);
+```
+
+It keeps the poke (same reuse regime), keeps the parameter's single use, and —
+verified — **keeps the clone**: `flush_constprop = 1` with and without it.  What
+it removes is the one thing §13.133 says can dangle: a store into the owner's TLS
+issued *after* a call that may release the chunk.  The hint is advisory, so an
+early poke costs at most a wasted DLL walk — a throughput risk, not a
+correctness one.
+
+Both arms build and pass on arm64 (`checked = 9 094 325`, all assertions 0,
+conservation +0), which says only that the reordering is not itself broken.
+
+**The reading that decides something:** run stock vs `KAME_POKE_BEFORE_CALL`
+interleaved on x86-64.  A cure there means the defect is the post-call deref of a
+pointer into another thread's TLS — with the clone present, which is the
+combination no previous arm has tested — and it is then also the fix.  No change
+means the harm is elsewhere in the shape, and the poke is finally excluded by an
+arm that actually holds the clone fixed.
