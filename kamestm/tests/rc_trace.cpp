@@ -1849,6 +1849,49 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
             // objects" from the allocator is worthless.
             raw_line_("RC-DLIVE-ISLIVE-SELFTEST islive(obj)=%d (must be 1)\n",
                       kame_rc_dl_islive(obj));
+            // §13.167  Print the ALLOCATOR's counters here.  Its own atexit /
+            // signal reports never reach the log: this tracer installs its
+            // handlers later, so it runs first and terminates without
+            // chaining.  A whole smoke run produced ZERO `kame_pool:` lines
+            // for exactly that reason.
+            {   typedef unsigned long long (*ctr_fn)();
+                static ctr_fn folf = reinterpret_cast<ctr_fn>(
+                    dlsym(RTLD_DEFAULT, "kame_pool_free_of_live_count"));
+                static ctr_fn dff = reinterpret_cast<ctr_fn>(
+                    dlsym(RTLD_DEFAULT, "kame_pool_double_free_count"));
+                static ctr_fn chk = reinterpret_cast<ctr_fn>(
+                    dlsym(RTLD_DEFAULT, "kame_pool_free_checked_count"));
+                static ctr_fn tot = reinterpret_cast<ctr_fn>(
+                    dlsym(RTLD_DEFAULT, "kame_pool_free_notes_count"));
+                if(folf || dff)
+                    raw_line_("RC-DLIVE-POOLCTRS free_of_live=%llu of %llu checked"
+                              " (%llu frees total) | double_free=%llu%s\n",
+                              folf ? folf() : 0ull, chk ? chk() : 0ull,
+                              tot ? tot() : 0ull,
+                              dff ? dff() : 0ull,
+                              (chk && chk() == 0)
+                                  ? "   [ZERO CHECKS RUN -- the count is vacuous]"
+                                  : "");
+                else
+                    raw_line_("RC-DLIVE-POOLCTRS absent (allocator built without the census)\n");
+                // §13.167  The premature free's own call chain.
+                typedef int (*bt_fn)(void **, int);
+                typedef const void *(*ad_fn)();
+                static bt_fn btf = reinterpret_cast<bt_fn>(
+                    dlsym(RTLD_DEFAULT, "kame_pool_free_of_live_bt"));
+                static ad_fn adf = reinterpret_cast<ad_fn>(
+                    dlsym(RTLD_DEFAULT, "kame_pool_free_of_live_addr"));
+                if(btf) {
+                    void *frames[24];
+                    int n = btf(frames, 24);
+                    if(n > 0) {
+                        raw_line_("RC-FREEOFLIVE-BT addr=%p frames=%d\n",
+                                  adf ? adf() : nullptr, n);
+                        for(int fi = 0; fi < n; ++fi)
+                            raw_line_("RC-FREEOFLIVE-BT   [%d] %p\n", fi, frames[fi]);
+                    }
+                }
+            }
             // §13.165  Name the free that made this slot re-allocatable.
             if(kame_freelookup_fn fl = g_freelookup.load(std::memory_order_acquire)) {
                 unsigned fpath = 0, ftid = 0; unsigned long long fseq = 0;

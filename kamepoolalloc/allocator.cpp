@@ -9557,39 +9557,87 @@ namespace {
 typedef int (*islive_fn)(const void *);
 std::atomic<islive_fn> g_islive{nullptr};
 std::atomic<int> g_islive_resolved{0};
-std::atomic<unsigned long long> g_free_of_live{0}, g_free_checked{0};
+std::atomic<unsigned long long> g_free_of_live{0}, g_free_checked{0},
+    g_free_notes{0};   // §13.167 total free_note calls = the true denominator
 struct FolFirst { const void *addr; unsigned path, tid;
                   void *bt[24]; int btn; };
 FolFirst g_fol_first{};
 std::atomic<int> g_fol_have{0};
+// (§13.167) RE-ENTRANCY.  The first version resolved the symbol lazily from
+// inside `kame_pool_free_note`, i.e. from inside a free — and `dlsym`, and the
+// tracer's lazy table mmap, can themselves allocate.  That re-enters the
+// allocator from a free and recurses to a stack overflow: 20/20 runs died with
+// SIGSEGV and EMPTY stderr, producing no data at all.  A "0 frees of live
+// objects" from that build would have been a vacuous zero of exactly the kind
+// §13.155 / §13.163(b) / §13.164 already cost this investigation.
+//
+// Two guards: resolve ONCE from a library constructor (never from a free), and
+// a thread-local flag so any allocation the query itself performs cannot
+// recurse back into the check.
+thread_local bool tl_in_islive = false;
+void resolve_islive_once_() noexcept {
+    g_islive.store(reinterpret_cast<islive_fn>(
+        dlsym(RTLD_DEFAULT, "kame_rc_dl_islive")), std::memory_order_release);
+    g_islive_resolved.store(1, std::memory_order_release);
+}
+struct IsLiveResolver { IsLiveResolver() { resolve_islive_once_(); } };
+IsLiveResolver g_islive_resolver;
 inline islive_fn islive_() noexcept {
-    int r = g_islive_resolved.load(std::memory_order_acquire);
-    if(!r) {
-        g_islive.store(reinterpret_cast<islive_fn>(
-            dlsym(RTLD_DEFAULT, "kame_rc_dl_islive")), std::memory_order_release);
-        g_islive_resolved.store(1, std::memory_order_release);
-    }
+    if(!g_islive_resolved.load(std::memory_order_acquire)) return nullptr;
     return g_islive.load(std::memory_order_acquire);
 }
 }
 extern "C" unsigned long long kame_pool_free_of_live_count() noexcept {
     return g_free_of_live.load(std::memory_order_relaxed);
 }
+//! (§13.167) The DENOMINATOR.  "free_of_live = 0" is uninterpretable without
+//! it: zero checks and zero findings look identical.
+extern "C" unsigned long long kame_pool_free_checked_count() noexcept {
+    return g_free_checked.load(std::memory_order_relaxed);
+}
+//! (§13.167) Total frees seen, checked or not.  If this greatly exceeds the
+//! checked count, the check's COVERAGE is the story and its zero says little.
+extern "C" unsigned long long kame_pool_free_notes_count() noexcept {
+    return g_free_notes.load(std::memory_order_relaxed);
+}
+//! (§13.167) The captured backtrace of the FIRST free that landed on a live
+//! object, for a consumer that can actually print it — the allocator's own
+//! atexit/signal reports never reach the log, because the tracer installs its
+//! handlers later and terminates without chaining.
+extern "C" int kame_pool_free_of_live_bt(void **out, int max) noexcept {
+    if(!g_fol_have.load(std::memory_order_relaxed)) return 0;
+    int n = g_fol_first.btn; if(n > max) n = max;
+    for(int i = 0; i < n; ++i) out[i] = g_fol_first.bt[i];
+    return n;
+}
+extern "C" const void *kame_pool_free_of_live_addr() noexcept {
+    return g_fol_have.load(std::memory_order_relaxed) ? g_fol_first.addr : nullptr;
+}
 extern "C" void kame_pool_free_note(const void *slot, unsigned path) noexcept {
-    if(islive_fn f = islive_()) {
-        g_free_checked.fetch_add(1, std::memory_order_relaxed);
-        if(f(slot)) {
-            g_free_of_live.fetch_add(1, std::memory_order_relaxed);
-            int e = 0;
-            if(g_fol_have.compare_exchange_strong(e, 1, std::memory_order_relaxed)) {
-                g_fol_first.addr = slot; g_fol_first.path = path;
-                g_fol_first.tid = kame_page()->owner_id;
-                // (§13.167) NAME THE CALLER.  `backtrace()` only — never
-                // `backtrace_symbols`, which mallocs and would re-enter the
-                // allocator from inside a free.  Raw addresses; resolve
-                // offline with addr2line against the .so.
-                g_fol_first.btn = backtrace(g_fol_first.bt, 24);
+    g_free_notes.fetch_add(1, std::memory_order_relaxed);
+    // (§13.167) Ask the tracer whether this slot still holds a constructed
+    // object.  Guarded against re-entry: the query can allocate, and we are
+    // inside a free.
+    if(!tl_in_islive) {
+        if(islive_fn f = islive_()) {
+            tl_in_islive = true;
+            g_free_checked.fetch_add(1, std::memory_order_relaxed);
+            if(f(slot)) {
+                g_free_of_live.fetch_add(1, std::memory_order_relaxed);
+                int e = 0;
+                if(g_fol_have.compare_exchange_strong(e, 1,
+                       std::memory_order_relaxed)) {
+                    g_fol_first.addr = slot;
+                    g_fol_first.path = path;
+                    g_fol_first.tid  = kame_page()->owner_id;
+                    // NAME THE CALLER.  `backtrace()` only — never
+                    // `backtrace_symbols`, which mallocs and would re-enter
+                    // the allocator from inside a free.  Raw addresses;
+                    // resolve offline with addr2line against the .so.
+                    g_fol_first.btn = backtrace(g_fol_first.bt, 24);
+                }
             }
+            tl_in_islive = false;
         }
     }
     FreeRec &r = g_freerec[free_slot_(slot)];
