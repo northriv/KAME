@@ -73,6 +73,13 @@ typedef int (*kame_poison_decode_fn)(unsigned long long, kame_freerec *);
 typedef unsigned (*kame_poolev_fn)(kame_poolev *, unsigned);
 static std::atomic<kame_poison_decode_fn> g_poison_decode{nullptr};
 static std::atomic<kame_poolev_fn> g_poolev_fn{nullptr};
+// §13.164  Per-chunk release tally from KAME_POOL_RELEASE_CENSUS.  §13.163
+// closed every OTHER way a slot can be handed out while its previous occupant
+// is still constructed, except one: the whole CHUNK being recycled under live
+// objects, which moves no bitmap bit and frees no individual block.  This asks
+// the doubly-live address directly whether its chunk has ever been released.
+typedef unsigned (*kame_relcount_fn)(const void *);
+static std::atomic<kame_relcount_fn> g_relcount{nullptr};
 static void resolve_poison_decode_() noexcept {
 #if defined(__unix__) || defined(__APPLE__)
     static std::atomic<bool> once{false};
@@ -83,6 +90,9 @@ static void resolve_poison_decode_() noexcept {
             std::memory_order_release);
         g_poolev_fn.store(reinterpret_cast<kame_poolev_fn>(
             dlsym(RTLD_DEFAULT, "kame_pool_recent_events")),
+            std::memory_order_release);
+        g_relcount.store(reinterpret_cast<kame_relcount_fn>(
+            dlsym(RTLD_DEFAULT, "kame_pool_chunk_release_count")),
             std::memory_order_release);
     }
 #endif
@@ -1700,6 +1710,15 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
             // pool just handed out again -- unlabelled inside RC-ANOMALY's
             // `slot=` field, and easy to read as something else.
             raw_line_("RC-DLIVE-PREV still-live occupant ctor_site=%p\n", slot);
+            // §13.164  Has this address's CHUNK ever been released wholesale?
+            // A nonzero count is evidence for the whole-chunk-recycle path;
+            // zero is NOT evidence against it (the census is direct-mapped,
+            // so a hash collision also reads as zero) — and "absent" means
+            // the allocator in this process was built without the census.
+            if(kame_relcount_fn rc_fn = g_relcount.load(std::memory_order_acquire))
+                raw_line_("RC-DLIVE-CHUNKREL releases=%u\n", rc_fn(obj));
+            else
+                raw_line_("RC-DLIVE-CHUNKREL absent (no release census)\n");
             raw_dlive_poison_(obj);
         }
         raw_line_("\nRC-ANOMALY #%u obj=%p op=%s rc_before=%llu tid=%u "
