@@ -3241,6 +3241,22 @@ PoolAllocator<ALIGN, FS, DUMMY>::cross_release(PoolAllocator * /*palloc*/) {
 	return false;
 }
 
+#ifdef KAME_ORPHAN_CHAIN_RUNTIME_GATE
+//! §13.141  Runtime ablation of the orphan chain's BEHAVIOUR only -- the code
+//! stays compiled so the TU's codegen is unchanged.  See the note at the push
+//! site for why that distinction is now the whole question.
+static bool kame_orphan_chain_off() noexcept {
+    static std::atomic<int> cached{-1};
+    int v = cached.load(std::memory_order_relaxed);
+    if(v < 0) {
+        const char *e = getenv("KAME_ORPHAN_CHAIN_OFF");
+        v = (e && e[0] && e[0] != '0') ? 1 : 0;
+        cached.store(v, std::memory_order_relaxed);
+    }
+    return v != 0;
+}
+#endif
+
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void
 PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
@@ -3431,7 +3447,49 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 			// branch above and were released directly (self-ref reset); they
 			// are never on the chain, so the chain-only no-release invariant
 			// holds.
-#ifdef KAME_NO_ORPHAN_CHAIN
+//! §13.141  `KAME_NO_ORPHAN_CHAIN` conflates TWO removals, and the whole
+//! investigation now turns on separating them.
+//!
+//! §13.140's summary is that five named mechanisms are clean on failing runs
+//! while removing the chain wholesale still takes the rate to zero, so "the
+//! chain's contribution is not any single operation it performs".  There is a
+//! reading of that which does not require any operation at all: the
+//! compile-time ablation makes `orphan_chain_push` unreachable, so
+//! `orphan_chain_push`, `orphan_chain_pop`, `orphan_chain_scrub` **and the whole
+//! `atomic_shared_ptr<PoolAllocator>` instantiation** become dead code and are
+//! eliminated.  That deletes ~30 clone families from the TU and changes IPA-CP's
+//! propagation, inlining and register allocation for **everything else in it**.
+//! So the 15/20 -> 0/20 may be a CODEGEN effect and not a behavioural one --
+//! which is exactly §13.122's whole-unit reading, and would reconcile every
+//! clean arm with the ablation's power at a stroke.
+//!
+//! `KAME_ORPHAN_CHAIN_RUNTIME_GATE` separates them.  The chain code stays
+//! compiled and reachable (so the TU's codegen is what it always was) and only
+//! the CALL is skipped, decided at run time from the environment:
+//!
+//!     KAME_ORPHAN_CHAIN_OFF=1 ./reproducer      # behaviour ablated
+//!     ./reproducer                              # baseline
+//!
+//! **One binary, two arms, zero codegen delta between them** -- which no arm in
+//! this investigation has managed before, and which is why this is worth running
+//! ahead of anything else:
+//!
+//!   fault PERSISTS with the chain behaviourally off
+//!       -> the chain is not causally involved at all; §13.126's ablation worked
+//!          by deleting code, so the fault is a whole-TU codegen consequence and
+//!          `nonclone_memop_diff.py` on §13.119's pair is the next and only step.
+//!   fault DIES
+//!       -> the behaviour is necessary after all, and since the five named
+//!          mechanisms are clean it is an unnamed one -- but now provably
+//!          behavioural, which is a different search.
+//!
+//! Read through `std::atomic<bool>` so the compiler cannot fold the branch away
+//! and delete the chain behind it; the flag is read once and cached, so the cost
+//! is one relaxed load on a cold path.
+#if defined(KAME_ORPHAN_CHAIN_RUNTIME_GATE)
+			if( !kame_orphan_chain_off())
+				orphan_chain_push(c);
+#elif defined(KAME_NO_ORPHAN_CHAIN)
 			// (§13.125) Ablation: never publish the orphan chunk.  The
 			// chain is the pool's ONLY use of atomic_shared_ptr, so a
 			// build without it separates "atomic_shared_ptr algorithm"

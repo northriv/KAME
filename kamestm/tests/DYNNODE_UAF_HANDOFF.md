@@ -9038,3 +9038,70 @@ zero.  Every arm that *specifically* removes a candidate leaves the rate alone;
 only removing the orphan chain **wholesale** suppresses.  That pattern itself is
 now the most informative thing left: it says the chain's contribution is not any
 single operation it performs.
+
+### 13.141 `KAME_NO_ORPHAN_CHAIN` removes two things at once — one binary, two arms, zero codegen delta
+
+§13.140 is right that my `KAME_ASP_AT_O2` was vacuous: `#pragma GCC
+optimize("O2")` restates a level the TU already has and does not cancel a pass
+given on the command line.  The vacuity check that caught it is the one §13.139's
+own caveats asked for, which is the system working — but it was my arm that
+needed it.  Its corrected form (`"O2","no-ipa-cp-clone"`, 31 → 29 clones) then
+measured 22/30 vs 26/30, p = 0.33: the primitive's clones are not the fault
+either.
+
+**Which brings §13.140's summary to the point that matters.**  "The chain's
+contribution is not any single operation it performs" has a reading that requires
+no operation at all: **the compile-time ablation deletes code.**  With
+`KAME_NO_ORPHAN_CHAIN` the push site becomes `(void)c;`, so
+`orphan_chain_push`/`_pop`/`_scrub` and the whole
+`atomic_shared_ptr<PoolAllocator>` instantiation are unreachable and eliminated —
+changing IPA-CP propagation, inlining and register allocation for **everything
+else in the TU**.  Measured, clang, same flags otherwise:
+
+| build | `orphan_chain*` symbols |
+|---|---|
+| runtime gate (code kept) | **220** |
+| `KAME_NO_ORPHAN_CHAIN` | **184** |
+
+**36 symbols' worth of code disappears.**  So §13.126's 15/20 → 0/20 is
+consistent with a **codegen** effect and not a behavioural one — which is
+§13.122's whole-unit reading, and which would reconcile every clean arm with the
+ablation's power at a stroke.
+
+**`KAME_ORPHAN_CHAIN_RUNTIME_GATE` separates them.**  The chain code stays
+compiled and reachable; only the *call* is skipped, decided at run time from the
+environment:
+
+```
+KAME_ORPHAN_CHAIN_OFF=1 ./reproducer      # behaviour ablated
+./reproducer                              # baseline
+```
+
+**One binary, two arms, zero codegen delta** — which no arm in this
+investigation has achieved before.  Every previous ablation and every clone arm
+changed the object; this one cannot, because it *is* the same object.
+
+**Both halves validated on the Mac.**  Behaviourally live (§13.61), proven by the
+stranding it causes rather than asserted:
+
+```
+KAME_ORPHAN_CHAIN_OFF=(unset)  reserved=234 881 024 bytes
+KAME_ORPHAN_CHAIN_OFF=1        reserved=335 544 320 bytes    (+43 %)
+```
+
+40 rounds × 8 threads, each thread leaving one live slot so its chunk is
+non-empty at exit and therefore orphaned.  With the chain on those chunks are
+adopted; with it off they strand, and the pool grows 43 %.  The flag is read
+through an `std::atomic<bool>` so the branch cannot be folded and the chain
+deleted behind it; read once and cached, so the cost is one relaxed load on a
+cold path.  Default build unchanged.
+
+**What the two outcomes mean, stated before the run:**
+
+| result | conclusion |
+|---|---|
+| fault **persists** with the chain behaviourally off | the chain is **not causally involved**; §13.126's ablation worked by deleting code, the fault is a whole-TU codegen consequence, and `nonclone_memop_diff.py` on §13.119's minimal pair becomes the only remaining step |
+| fault **dies** | the behaviour is necessary after all — and since five named mechanisms are clean, it is an unnamed one, but now *provably behavioural*, which is a different and much better-posed search |
+
+This is worth running ahead of everything else queued, because it is the only
+experiment left that cannot be confounded by codegen.
