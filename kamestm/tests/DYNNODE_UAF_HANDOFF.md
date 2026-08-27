@@ -11525,48 +11525,49 @@ candidates are narrow, and all are source-level:
 (3) is directly testable and connects to §13.159's other suppressor
 (`cap = 1` → 0/16), which shortens exactly that interval.
 
-### 13.178 `flush` re-entrancy: WITHDRAWN — measured in the arm where the fault does not occur
+### 13.178 `flush` re-entrancy: not observed at the FIRING cap — after two wrong readings of my own counter
 
-**The refutation this section claimed is withdrawn in full.**  Not because the
-reasoning was wrong twice (it was), but because the measurement was taken in the
-wrong configuration entirely:
+The question that fixed this section: *why was `flushes = 0`, and is the default
+cap the configuration where the fault occurs?*  Both answers were mine to get
+wrong, and I got them wrong twice — once by claiming the `cap = 1` arm was
+decisive, once by withdrawing the whole section on the grounds that the firing arm
+had never run `flush`.
 
-| arm | fault | `flush` executions | information about nesting |
-|---|---|---|---|
-| default cap (1024) — **where the fault occurs** | 9–14/16 | **0** | **none** |
-| `cap = 1` — **where §6 measures 0/16** | none | 320 | about a configuration with no fault |
+**Why `flushes = 0`.**  That counter sat in `push()` behind `if(count >= cap)`, so
+it counted **threshold-triggered flushes only**.  It missed every thread's
+teardown flush (`~CrossDeallocBatch()` → `flush(true)`) and the §80 %-proactive
+trigger.  Counting entries to `flush()` itself, and the batch entries each one
+processes:
 
-`cap = 1` is one of the two suppressors (§6: **0/16, 0/12**).  Proving "`flush` is
-never re-entered" there proves it in the arm where the bug is absent, which says
-nothing about the arm where it is present.  My first correction to this section
-noticed only the coverage half of the problem (`flushes == 0` in the default arm)
-and still missed that the arm with coverage was the *suppressed* one.
+| cap | flush entries | non-empty | entries processed | max depth | nested |
+|---|---|---|---|---|---|
+| **default (1024)** | **641** | 640 | **960** | 1 | **0** |
+| 1 | 961 | 960 | 960 | 1 | 0 |
+| 8 | 641 | 640 | 960 | 1 | 0 |
 
-**And the probe cannot fix it.**  Swept `cap = 2, 3, 4, 8` — deferral present,
-which is the condition the fault needs — and every one gives `flushes = 0`:
+**So the firing configuration WAS exercised**: at the default cap the probe enters
+`flush` 641 times and processes 960 deferred entries — deferral active, which is
+the condition the fault needs — and never nests.  My withdrawal was based on
+misreading my own narrow counter as "flush never ran"; it ran 641 times.
 
-```
-CAP=2  flushes=0    CAP=3  flushes=0    CAP=4  flushes=0    CAP=8  flushes=0
-```
+**Where that leaves the hypothesis.**  Re-entrancy is **not observed in the firing
+configuration** — which is the arm that matters, contrary to the withdrawal.  It
+is still not *excluded*: 960 processed entries is thin against the reproducer's
+~10^8 frees, and a nesting path needing a rare in-flush condition would be missed.
+The depth counter is in `alloc_invariants`, so one reproducer run at default cap
+settles it properly.
 
-`push_direct` routes most frees **direct** rather than **hold** (its
-`m_last_coalesce_x16` hint), so a synthetic probe never accumulates a batch — the
-same reason §13.159's throughput bench showed nothing.  So this Mac cannot
-exercise the flush path at `cap > 1` at all, and no local measurement can answer
-the question.
-
-**What would settle it, and it is already in place.**  The depth counter is folded
-into the `alloc_invariants` ctest, and the reading that matters is **one
-reproducer run at default cap**, where §13.147's dynamic census shows the batch
-genuinely in use and `flush` runs 10^5–10^6 times.  Until then the re-entrancy
-hypothesis is **open, not refuted**.
-
-**Kept as the standing lesson**, since this is the third time in this section's
-history that a zero came from an arm that could not have produced a one: a
-suppressor is not a control.  `cap = 1`, `KAME_ORPHAN_NO_ADOPT` and
-`KAME_NO_ORPHAN_CHAIN` all take the rate to zero, so **any hypothesis tested
-inside them is tested where the phenomenon is absent** — that is what the arm is
-for, not what it can be reused for.
+**Three lessons, all from the same counter.**
+1. A counter placed at a *trigger* does not count the *event*: `flushes` measured
+   threshold hits, not flushes.  Name such counters for what they count.
+2. `flushes == 0` from that counter looked exactly like the vacuity signal §13.159
+   built deliberately — so a real signal and an instrument artefact printed the
+   same thing on the same line.
+3. And the correct half of the withdrawal still stands as a rule: **a suppressor
+   is not a control.**  `cap = 1`, `KAME_ORPHAN_NO_ADOPT` and
+   `KAME_NO_ORPHAN_CHAIN` all take the rate to zero, so a hypothesis tested inside
+   one of them is tested where the phenomenon is absent.  That is why the default
+   cap, not `cap = 1`, is the arm this section needed.
 
 <details><summary>original §13.178 text, retained for the record</summary>
 

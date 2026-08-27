@@ -704,6 +704,13 @@ unsigned kame_pool_recent_events(kame_poolev *out, unsigned max) {
 static thread_local int g_flush_depth = 0;
 static std::atomic<int> g_flush_maxd{0};
 static std::atomic<unsigned long long> g_flush_nested{0};
+//! §13.178 correction: count EVERY entry to flush() and the loop iterations it
+//! performs.  The earlier `flushes` counter sat in push() behind
+//! `if(count >= cap)`, so it saw only THRESHOLD-triggered flushes and missed the
+//! teardown flush every thread performs (~CrossDeallocBatch -> flush(true)) and
+//! the §80%-proactive trigger.  Reading 0 from it as "flush never ran" was wrong.
+static std::atomic<unsigned long long> g_flush_entries{0}, g_flush_iters{0},
+                                       g_flush_nonempty{0};
 #endif
 struct CrossDeallocBatch {
     // FS=true-only small-slot batch (FS=false bypasses
@@ -918,6 +925,7 @@ struct CrossDeallocBatch {
         //! a whole run refutes the hypothesis outright.
         struct Depth {
             Depth() {
+                g_flush_entries.fetch_add(1, std::memory_order_relaxed);
                 if(++g_flush_depth > 1)
                     g_flush_nested.fetch_add(1, std::memory_order_relaxed);
                 int m = g_flush_maxd.load(std::memory_order_relaxed);
@@ -928,6 +936,10 @@ struct CrossDeallocBatch {
         } _depth_guard;
 #endif
         if(count == 0) return;
+#ifdef KAME_ORPHAN_CHAIN_RUNTIME_GATE
+        g_flush_nonempty.fetch_add(1, std::memory_order_relaxed);
+        g_flush_iters.fetch_add((unsigned)count, std::memory_order_relaxed);
+#endif
         KAME_POOLEV(KAME_PEV_CROSS_FLUSH, buf[0].chunk, count);
         // Sort by (chunk, slot) lex — chunk primary key for grouping,
         // slot pointer secondary key so each chunk run is pointer-
@@ -3508,8 +3520,11 @@ extern "C" unsigned long long kame_pool_flush_count() noexcept {
 }
 namespace {
 struct BatchCapReport { ~BatchCapReport() {
-    fprintf(stderr, "FLUSHDEPTH max=%d nested_entries=%llu\n",
-            g_flush_maxd.load(), g_flush_nested.load());
+    fprintf(stderr, "FLUSHDEPTH max=%d nested=%llu | flush entries=%llu "
+            "non-empty=%llu entries-processed=%llu\n",
+            g_flush_maxd.load(), g_flush_nested.load(),
+            g_flush_entries.load(), g_flush_nonempty.load(),
+            g_flush_iters.load());
     unsigned long long p = CrossDeallocBatch::s_pushes.load(),
                        f = CrossDeallocBatch::s_flushes.load();
     if(p) fprintf(stderr, "BATCHCAP pushes=%llu flushes=%llu (ratio %.1f)\n",
