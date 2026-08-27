@@ -14398,3 +14398,73 @@ signature outright (§13.206).  **This one changes construction order and nothin
 else**, so a run of it against stock on x86-64 is a clean A/B: if
 `bit_clear_bad` goes 800 → 0 with the shape intact, that is the fix, not a
 mitigation.
+
+### 13.217 They do NOT share a common exit path — the stub that was meant to be it is empty; two fixes compared, and B is the one to ship
+
+Asked whether the two destructors read a common teardown path, with a recollection
+that it had been unified.  **The recollection is right about the intent and the
+call site, and wrong about the content.**
+
+`~AllocThreadExitCleanup` does call a common entry point:
+
+```cpp
+drain_thread_slot_freelists();          // first statement of the destructor
+```
+
+and that function's own comment says it is *"a retained no-op stub now … the
+per-chunk freelist drain has been folded into the per-template DLL walk below …
+Call kept for call-site / ABI stability."*  So a unification did exist — of the
+**freelist** drain — and when that moved into the walk the stub was left empty.
+**The cross-dealloc batch flush was never part of it**, and
+`~AllocThreadExitCleanup` touches `tls_cross_dealloc_batch` nowhere.  So the two
+destructors are independent and §13.216's ordering dependence stands.
+
+Usefully, `drain_thread_slot_freelists()` is *defined after*
+`thread_local CrossDeallocBatch tls_cross_dealloc_batch`, so it is the one place
+that can already see both halves.
+
+#### The two fixes
+
+| | **A** — pin the order from the ctor | **B** — put the flush back in the common entry point |
+|---|---|---|
+| mechanism | `CrossDeallocBatch() { (void)&tls_alloc_thread_exit_cleanup; }` | `drain_thread_slot_freelists()` calls `tls_cross_dealloc_batch.flush(true)` |
+| what it guarantees | *rearranges* the language-level order | makes the order a **program** property: one destructor sequences both halves explicitly |
+| rests on | the ABI: taking the address of a `thread_local` with a non-trivial destructor runs its TLS wrapper, hence registers its destructor first. True on the Itanium ABI and macOS — but an inference about codegen, not a statement in the source | nothing |
+| subtlety | `(void)&x` is a discarded-value expression; it cannot be elided for an object whose initialisation has side effects, but that is a fine point to rest a fix on | none |
+| a third teardown `thread_local` | breaks again — A pins one pair | still correct |
+| provenance | a new mechanism | a **restoration** of the call site the comment says is kept for exactly this |
+
+**Ship B.**  Double-flushing is free — `flush()` returns immediately on
+`count == 0` — and `~CrossDeallocBatch` must stay as a **backstop**: a thread that
+never allocated never registered the cleanup, so for it the batch's own destructor
+is the only flush there is.  A can be kept as one belt-and-braces line; it costs
+nothing and makes the intent visible at the batch.
+
+#### Both verified, and both A/B-able
+
+Real GCC 15.2, `-O3` — every arm keeps the shape §13.206 showed is fragile:
+
+| build | `flush` syms | clones |
+|---|---|---|
+| plain | 4 | 1 |
+| `KAME_FORCE_TLS_DTOR_ORDER` (A) | 4 | 1 |
+| `KAME_UNIFY_THREAD_EXIT_DRAIN` (B) | **4** | **1** |
+| A + B | 4 | 1 |
+
+```
+arm64, B, cap 1 and 32   exit 0   bit_clear_bad=0   conservation +0
+                         TLS dtor order: batch_first=801 cleanup_first=0
+                         drain-under-BIT_OWNED: ok=3216 VIOLATIONS=0
+```
+
+macOS already had the safe order, so B is a no-op here — which is the point: it
+removes the dependence rather than changing behaviour, and it is the first
+candidate that can be A/B'd on x86-64 without deleting the phenomenon.
+
+#### One thing B does NOT fix, stated so it is not assumed
+
+A free arriving during TLS teardown **after** the cleanup has run still lands in
+the batch, and only the batch's own destructor will flush it.  That is §13.207's
+deterministic `excess = −801` (one entry per thread never applied) and it is a
+separate question from ordering — `push-after-batch-dtor` is the counter for it,
+still unread on Linux.

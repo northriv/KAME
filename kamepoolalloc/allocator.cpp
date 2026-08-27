@@ -1830,6 +1830,31 @@ thread_local CrossDeallocBatch tls_cross_dealloc_batch;
 // the cross_release inside batch_return_to_bitmap returns false
 // — the owner thread (us) is still alive, no release allowed.
 void drain_thread_slot_freelists() noexcept {
+#ifdef KAME_UNIFY_THREAD_EXIT_DRAIN
+	//! §13.217  Make the teardown order a PROGRAM property instead of a language
+	//! one.  `~AllocThreadExitCleanup` already calls this function, and this
+	//! function is defined after `tls_cross_dealloc_batch`, so it is the one place
+	//! that can sequence the two halves explicitly:
+	//!
+	//!     flush the pending cross-thread frees, THEN walk the DLL.
+	//!
+	//! Without it the order is the reverse of first-access order between two
+	//! `thread_local`s with non-trivial destructors (§13.216) -- per-thread,
+	//! per-code-path, and unspecified.  macOS happens to give the safe order on
+	//! every thread because the cleanup registers during the first ALLOCATION and
+	//! the batch is first touched at the first cross-thread FREE; that is an
+	//! accident of the access pattern.
+	//!
+	//! `~CrossDeallocBatch` stays as a backstop: `flush()` returns immediately on
+	//! `count == 0`, so a second call costs nothing, and a thread that never
+	//! allocated never registered this cleanup at all -- for it the batch's own
+	//! destructor is the only flush there is.
+	//!
+	//! This is a restoration, not an invention: the stub's own comment says the
+	//! call is "kept for call-site / ABI stability" after the per-chunk drain moved
+	//! into the DLL walk.  The batch flush was never part of it.
+	tls_cross_dealloc_batch.flush(/*at_teardown=*/true);
+#endif
     // Single-slot scratch + trailing nullptr sentinel — satisfies
     // `batch_return_to_bitmap`'s `entries[k].chunk == this` walk
     // contract (one matching entry, then the sentinel terminates).
