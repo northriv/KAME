@@ -10611,3 +10611,67 @@ calls (`ok=0` for 20 runs); this is a lookup keyed differently from its
 insert.  All three were silent — they returned plausible numbers.  A probe
 that reports "nothing found" must first be made to report "found" on a case
 that is true by construction; until it has, its null is not evidence.
+
+### 13.165 With the key fixed, §13.131 reverses — and the double hand-out happens inside ONE chunk incarnation
+
+§13.164 fixed the census key and made every answer carry a receipt.  Re-asking
+the question §13.131 believed it had answered, on the tracer build with
+`KAME_RC_TRACE_DLIVE=2`, one DOUBLE-LIVE hit per run:
+
+| run | rc | `chunk-was-adopted` | keying self-test | releases Δ | constructions Δ |
+|---|---|---|---|---|---|
+| 1 | 134 | **YES** | ok=612 BAD=0 | 0 (0→0) | 0 (1→1) |
+| 2 | 134 | no | ok=490 BAD=0 | 0 (2→2) | 0 (4→4) |
+| 3 | 134 | no | ok=977 BAD=0 | 0 (3→3) | 0 (5→5) |
+| 4 | 134 | **YES** | ok=122 BAD=0 | 0 (0→0) | 0 (1→1) |
+
+Δ = the counter at the second birth minus its value recorded at the previous
+occupant's birth, stamped into the live-set entry when that occupant was born.
+
+**§13.131 is reversed.**  Doubly-live slots *do* land in adopted chunks — 2 of
+4 here — and the self-test says the census could answer (hundreds of
+successful self-queries, zero failures, on every run).  §13.131's "no" was the
+only answer a mis-keyed lookup could return.  **The §13.131-vs-§13.150 tension
+is gone:** there was never a contradiction, only a broken key.
+
+That adoption is not universal *for the faulting chunk* (2 of 4) while §13.150
+showed adoption is behaviourally *necessary* is not a new contradiction — it
+says adoption's role is to keep the recycle machine turning, which is also
+what §13.146's dose-response says.  It is not "the faulting chunk must itself
+have been adopted".
+
+**The load-bearing column is the last one.**  In 4 of 4 the chunk was neither
+released nor re-constructed between the two births: **the same chunk
+incarnation held both occupants.**  Constructions are counted, not just
+releases, precisely because the §22 warm path recycles a cached chunk with its
+units still claimed and never calls `deallocate_chunk` — a release tally
+cannot see that reuse, and `construct_chunk_at` is the one point every reuse
+route passes through.
+
+So **whole-chunk recycle under live objects is ruled out** — the last
+mechanism §13.163(d) left open.  Combined with §13.163(b) (derivation exact to
+1.1 G checks) and §13.163(c) (no duplicate ownership in 34 k adoptions), what
+remains is narrow and follows as a consequence:
+
+> A slot inside a single live chunk became re-allocatable while its occupant
+> was still a constructed object.
+
+There are exactly two ways for that: parked on the owner freelist
+(`freelist_push`, bit stays set) or returned to the bitmap
+(`batch_return_to_bitmap`).  An audit of all seven `freelist_push` call sites
+confirms every one is guarded by
+`m_owner_id == page_owner_id && page_owner_id != 0`, and owner ids come from a
+monotonic `s_owner_id_next.fetch_add(1)` held in a per-thread GD TLV, so they
+are never recycled and the non-atomic list really is owner-only.  §13.166's
+instrument records which of the two paths freed the address, which thread, and
+whether that free happened **after** the previous occupant was born.
+
+**Bounds, stated.**  n = 4.  The batch was **capped deliberately, not
+completed**: per-run cost had risen to ~6 min because runs kept entering the
+livelock mode of §13.162 (3 threads spinning, 38 parked, killed at the 400 s
+timeout), and it was blocking the decisive measurement.  4/4 on the
+incarnation columns is the claim worth carrying forward; 2/4 on adoption is a
+ratio from four samples and should not be quoted as one.  A zero Δ can also be
+produced by a hash collision evicting the table entry (the census is
+direct-mapped), which the self-test does not cover — with ~120 distinct chunk
+bases in 8192 slots that is unlikely, but it is not excluded.
