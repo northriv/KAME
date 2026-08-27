@@ -9884,3 +9884,58 @@ trusting its hit; `atexit` does not run after a fatal signal, so any counter
 that matters on a failing run needs a signal-backed readback (cost four
 measurements); never send compiler stderr to `/dev/null` in a build-and-measure
 loop (cost two); run duration is not a validity check — it tracks machine load.
+
+### 13.154 asm-vs-source on x86-64: the inlined `global_pop_fit` is a faithful translation, size verify intact
+
+§13.152 located the difference (`create_allocator<64u>`: 0 → 4 atomics, the
+recycle path inlined in the firing arm only) but could not attribute the sites,
+because comdat sections make `addr2line` offsets ambiguous in a relocatable
+object — my first attempt resolved into `__tls_init`.  Linking to a `.so` gives
+unique addresses and fixes it.
+
+**All four atomics attribute to `global_pop_fit`**, inlined through
+`recycle_pop_fit:7901` → `large_recycle_pop:8082` → `allocate_chunk:2666`:
+
+| asm | source |
+|---|---|
+| `lock cmpxchg %rbp,(%rdx)` | `:7881` take-CAS — `slots[idx].compare_exchange_weak(b, nullptr, acq_rel)` |
+| `lock sub %rsi,…(%rip)` | `:7885` `g_lrc_bytes.fetch_sub(sz, relaxed)` |
+| `lock cmpxchg %rdi,(%rdx)` | `:7889` put-back-CAS — `compare_exchange_weak(exp, b, acq_rel)` |
+| `lock add %rsi,…(%rip)` | `:7891` `g_lrc_bytes.fetch_add(sz, relaxed)` |
+
+**The safety-critical check survives, and is correct.**  The C++ verifies the
+popped block is big enough (`if(sz >= need) return b;`) between the fetch_sub
+and the put-back.  In the inlined firing copy:
+
+```asm
+35187:  lock sub %rsi,0x48a99(%rip)   ; g_lrc_bytes.fetch_sub(sz)      :7885
+3518f:  cmp    $0x3ffff,%rsi          ; sz >= need, need folded to 0x40000
+35196:  ja     350d2                  ;   -> return b   (VERIFY, taken when sz >= 256 KiB)
+3519c:  mov    %rbp,%rax
+3519f:  lock cmpxchg %rdi,(%rdx)      ; put back                        :7889
+351a4:  jne    3521b                  ;   -> lrc_release path
+351a6:  lock add %rsi,0x48a7a(%rip)   ; g_lrc_bytes.fetch_add(sz)       :7891
+351ae:  add    $0x1,%ecx              ; ++kk
+351b1:  cmp    %r10d,%ecx
+351b4:  jne    35160                  ; loop
+```
+
+`need` is constant-propagated to `0x40000` (256 KiB — the chunk size for this
+instantiation), so `sz >= 0x40000` becomes `cmp $0x3ffff / ja`.  That is the
+**correct** encoding of the same predicate, not an elision.  Both CASes, both
+counter updates, the verify, the `lrc_release` fall-through and the bounded
+`LRC_K_MAX` loop are all present and in source order.
+
+**So the suspicious routine is not miscompiled.**  The one function that the
+codegen difference and the behavioural requirement both point at (§13.152) is a
+faithful translation of its source, with its size check intact.  Together with
+§13.151's refutation of the release-store lead on arm64, the "the pass broke
+`global_pop_fit`" reading is now closed on both architectures.
+
+**What that leaves.**  The inlining is real and only in the firing arm, but it
+changes *where* this code runs, not *what it computes* — four atomic RMWs now
+execute inside the claimer's frame rather than behind a call.  On the dose
+evidence (§13.146) and the adopt requirement (§13.150), the remaining
+hypothesis is not a wrong instruction but a wrong *interleaving*: the same
+correct sequence, executed with a different window relative to the claim it is
+now inlined into.
