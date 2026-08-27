@@ -556,6 +556,19 @@ struct has_intrusive_dispose<
 //! `KAME_LOCAL_REF_CAPACITY_OVERRIDE`: stress-testing knob; force a
 //! smaller capacity to simulate high-CPU contention without changing
 //! actual allocator alignment.
+//! Arm the tagged-pointer write checks in `this->tag_compose_()` (see there).
+//! Off by default: the check is two compares on the hottest path in the
+//! library.  Turn it on when hunting a corruption that smells like a tag
+//! carrying into the pointer -- especially at a reduced LOCAL_REF_CAPACITY,
+//! where the counter's headroom is 4 rather than 8.
+#ifndef KAME_ASP_TAG_GUARD
+#define KAME_ASP_TAG_GUARD 0
+#endif
+#if KAME_ASP_TAG_GUARD
+#include <cstdio>
+#include <cstdlib>
+#endif
+
 template <typename T, typename reflocal_t, typename reflocal_var_t,
           typename Enable = void>
 struct atomic_shared_ptr_base {
@@ -634,11 +647,61 @@ protected:
     reflocal_var_t m_ref;
 
 #ifdef KAME_LOCAL_REF_CAPACITY_OVERRIDE
+    //! Blunt knob: shrinks EVERY mode, intrusive included.  Note that this is
+    //! NOT what an ILP32 host looks like — there the non-intrusive capacity
+    //! halves (`sizeof(intptr_t)` = 4) while the intrusive one stays 8
+    //! (`sizeof(double)`).  Use the NONINTRUSIVE knob below to emulate ILP32
+    //! faithfully on a 64-bit host; use this one to squeeze both.
     enum {LOCAL_REF_CAPACITY = KAME_LOCAL_REF_CAPACITY_OVERRIDE};
+#elif defined(KAME_LOCAL_REF_CAPACITY_OVERRIDE_NONINTRUSIVE)
+    //! ILP32 emulation: non-intrusive capacity as given, intrusive untouched.
+    //! The intrusive path is the pool allocator's own orphan-chunk chain,
+    //! whose capacity is `sizeof(double)` on 32- and 64-bit alike, so
+    //! shrinking it models no real target.
+    enum {LOCAL_REF_CAPACITY =
+        (Traits::is_intrusive ? sizeof(double)
+                             : KAME_LOCAL_REF_CAPACITY_OVERRIDE_NONINTRUSIVE)};
 #else
     enum {LOCAL_REF_CAPACITY =
         (Traits::is_intrusive ? sizeof(double) : sizeof(intptr_t))};
 #endif
+
+    //! Compose the tagged pointer written back into `m_ref`.
+    //!
+    //! Every write to `m_ref` goes through here so ONE place can check the
+    //! two invariants the tagged representation stands on:
+    //!   * the local refcount fits: `rcnt < LOCAL_REF_CAPACITY`.  A write of
+    //!     `rcnt == LOCAL_REF_CAPACITY` does not "wrap the counter" — it
+    //!     CARRIES INTO THE POINTER, silently handing out a Ref* one
+    //!     alignment unit too high.  That is a memory-corrupting bug whose
+    //!     first symptom is a SIGSEGV somewhere else entirely.
+    //!   * the pointer really has those low bits free.
+    //! The headroom that hides an off-by-one here is capacity-dependent: at
+    //! the default capacity 8 the counter has to reach 8, at capacity 4 only
+    //! 4 — which is why an ILP32 host (non-intrusive capacity
+    //! `sizeof(intptr_t)` = 4), or any host built with
+    //! KAME_LOCAL_REF_CAPACITY_OVERRIDE=4, fires what a 64-bit default build
+    //! never shows.
+    //!
+    //! `-DKAME_ASP_TAG_GUARD=1` to arm; default off, and with it off this is
+    //! exactly the `(uintptr_t)p + rcnt` it replaced.
+    static uintptr_t tag_compose_(const Ref *p, Refcnt rcnt,
+                                  const char *site) noexcept {
+#if KAME_ASP_TAG_GUARD
+        if(rcnt >= (Refcnt)LOCAL_REF_CAPACITY ||
+           ((uintptr_t)p & (uintptr_t)(LOCAL_REF_CAPACITY - 1))) {
+            std::fprintf(stderr,
+                "atomic_smart_ptr TAG GUARD (%s): ptr=%p rcnt=%llu capacity=%d\n",
+                site, (const void *)p, (unsigned long long)rcnt,
+                (int)LOCAL_REF_CAPACITY);
+            std::fflush(stderr);
+            std::abort();
+        }
+#else
+        (void)site;
+#endif
+        return (uintptr_t)p + rcnt;
+    }
 };
 //! \brief This class provides non-reentrant interfaces for atomic_shared_ptr: operator->(), operator*() and so on.\n
 //! Use this class in non-reentrant scopes instead of costly atomic_shared_ptr.
@@ -1495,8 +1558,8 @@ public:
         }
         // Single-shot drain CAS: tag rcnt_now → 0.
         if(const_cast<atomic_shared_ptr<T> *>(m_asp)->m_ref.compare_set_weak(
-            (uintptr_t)m_pref + rcnt_now,
-            (uintptr_t)m_pref + 0)) {
+            m_asp->tag_compose_(m_pref, rcnt_now, "scoped drain: expected"),
+            m_asp->tag_compose_(m_pref, 0, "scoped drain: desired"))) {
             // Adjust for excess pre-pay.
             sub_with_delete_check(rcnt_added - needed);
             rcnt_added = 0;
@@ -1653,16 +1716,16 @@ atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt, bool weakly) const noexcept
         if(weakly) {
             if(rcnt_new < this->LOCAL_REF_CAPACITY
                && const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_weak(
-                   TaggedPtr((uintptr_t)pref + rcnt_old),
-                   TaggedPtr((uintptr_t)pref + rcnt_new)))
+                   TaggedPtr(this->tag_compose_(pref, rcnt_old, "acquire weak: expected")),
+                   TaggedPtr(this->tag_compose_(pref, rcnt_new, "acquire weak: desired"))))
                 break;
             return {(Ref*)nullptr, false};
         }
         // Strong path: pause on overflow, exponential backoff on CAS loss.
         if(rcnt_new < this->LOCAL_REF_CAPACITY) {
             if(const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_weak(
-                TaggedPtr((uintptr_t)pref + rcnt_old),
-                TaggedPtr((uintptr_t)pref + rcnt_new)))
+                TaggedPtr(this->tag_compose_(pref, rcnt_old, "acquire: expected")),
+                TaggedPtr(this->tag_compose_(pref, rcnt_new, "acquire: desired"))))
                 break;
         }
         else {
@@ -1737,8 +1800,8 @@ inline bool atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_globa
             Refcnt rcnt_new = rcnt_old - local_release;
             // trying to dec. reference counter if stored pointer is unchanged.
             if(const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_weak(
-                TaggedPtr((uintptr_t)pref + rcnt_old),
-                TaggedPtr((uintptr_t)pref + rcnt_new))) {
+                TaggedPtr(this->tag_compose_(pref, rcnt_old, "release: expected")),
+                TaggedPtr(this->tag_compose_(pref, rcnt_new, "release: desired")))) {
                 //decreases the rest of global counting.
                 // CRITICAL: must be acq_rel + delete check, NOT relaxed.
                 // Concurrent local_reset() can drop refcnt to (added_global_rcnt -
@@ -1947,8 +2010,8 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
         // CAS m_ref: pref + rcnt_old → newr + 0
         Refcnt rcnt_new = 0;
         if(this->m_ref.compare_set_weak(
-                TaggedPtr((uintptr_t)pref + rcnt_old),
-                TaggedPtr((uintptr_t)newr_pref() + rcnt_new))) {
+                TaggedPtr(this->tag_compose_(pref, rcnt_old, "compareAndSet: expected")),
+                TaggedPtr(this->tag_compose_(newr_pref(), rcnt_new, "compareAndSet: desired")))) {
             if(pref) {
                 // Release m_ref's implicit ownership.
                 // For SCOPED in TagHeld mode, additionally consume scoped's
@@ -2095,8 +2158,9 @@ local_shared_ptr<T, reflocal_var_t>::swap(atomic_shared_ptr<T> &r) noexcept {
         }
         rcnt_new = 0;
         if(r.m_ref.compare_set_weak(
-            TaggedPtr((uintptr_t)pref + rcnt_old),
-            TaggedPtr((uintptr_t)this->m_ref + rcnt_new))) {
+            TaggedPtr(this->tag_compose_(pref, rcnt_old, "swap: expected")),
+            TaggedPtr(this->tag_compose_((const Ref *)(uintptr_t)this->m_ref, rcnt_new,
+                                   "swap: desired")))) {
             this->m_ref = (TaggedPtr)pref;
             return;
         }

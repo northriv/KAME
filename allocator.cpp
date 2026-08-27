@@ -2715,13 +2715,17 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// memory growth = mmap rate (one new chunk per chunk-fill); this
 	// release path balances it at the same cadence.
 	//
-	// Safety: an earlier change `owner_release` CAS's `BIT_RELEASED` on the
-	// chunk's `m_flags_packed` — this races safely against any
-	// cross-thread `cross_release`, but cross_release additionally
-	// requires `BIT_OWNER_EXITED == 1` which only the owner's
-	// exit-path sets, so while we're alive only `owner_release` can
-	// win the race.  Caller (us) handles the post-CAS DLL unlink +
-	// `delete` + `deallocate_chunk`.
+	// Safety: `owner_release` clears BIT_OWNED with an atomicFetchAnd and only
+	// reports success when the word reached 0, i.e. when it is the unique
+	// releaser; the caller then does the DLL unlink + `delete` +
+	// `deallocate_chunk`.  Note what its give-up return leaves behind: BIT_OWNED
+	// already cleared on a chunk that is NOT on the orphan chain, which is a state
+	// the free path's `OnClearFn`s assume cannot occur (they decline to release a
+	// BIT_OWNED-clear chunk precisely because they take it to be chained).  The
+	// give-up needs MASK_CNT to rise between the pre-check and the fetch-and, and
+	// MASK_CNT is only ever raised by the owner's own claim path, so it is
+	// unreachable today — do not make it reachable without revisiting those
+	// OnClearFns.
 	if(s_tls.my_chunk) {
 		auto *nx = s_tls.my_chunk->m_dll_next;
 		for(int released = 0; nx && released < 2; ) {
