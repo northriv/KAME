@@ -41,6 +41,7 @@ extern "C" unsigned long long kame_pool_adopt_count() noexcept;
 #endif
 #ifdef KAME_POOL_BACKSTOP_CENSUS
 extern "C" void kame_pool_backstop_note(unsigned which) noexcept;   /* §13.128 */
+extern "C" bool kame_orphan_chain_admit() noexcept;   /* §13.145 */
 #define KAME_BACKSTOP_NOTE_(w) kame_pool_backstop_note(w)
 #else
 #define KAME_BACKSTOP_NOTE_(w) ((void)0)

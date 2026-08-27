@@ -3255,6 +3255,25 @@ static bool kame_orphan_chain_off() noexcept {
     }
     return v != 0;
 }
+//! (§13.145) Traffic dose-response.  KAME_ORPHAN_CHAIN_KEEP=N admits only
+//! every N-th push (N=1 => all, the baseline; large N => a trickle).  The gate
+//! answers "chain or no chain"; this answers "how much chain".  A rate that
+//! scales with N is a volume effect; a rate that stays flat until N is huge is
+//! a per-event trigger.  Counter is relaxed and approximate on purpose -- the
+//! question is the dose, not exact accounting.
+extern "C" bool kame_orphan_chain_admit() noexcept {
+    static std::atomic<int> keep{-1};
+    int k = keep.load(std::memory_order_relaxed);
+    if(k < 0) {
+        const char *e = getenv("KAME_ORPHAN_CHAIN_KEEP");
+        k = (e && e[0]) ? atoi(e) : 1;
+        if(k < 1) k = 1;
+        keep.store(k, std::memory_order_relaxed);
+    }
+    if(k == 1) return true;
+    static std::atomic<unsigned long long> n{0};
+    return (n.fetch_add(1, std::memory_order_relaxed) % (unsigned long long)k) == 0;
+}
 #endif
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -3487,7 +3506,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 //! and delete the chain behind it; the flag is read once and cached, so the cost
 //! is one relaxed load on a cold path.
 #if defined(KAME_ORPHAN_CHAIN_RUNTIME_GATE)
-			if( !kame_orphan_chain_off())
+			if( !kame_orphan_chain_off()
+			    && kame_orphan_chain_admit())   // §13.145 throttle
 				orphan_chain_push(c);
 #elif defined(KAME_NO_ORPHAN_CHAIN)
 			// (§13.125) Ablation: never publish the orphan chunk.  The

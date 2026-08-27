@@ -9357,3 +9357,47 @@ confounded by codegen, and (iii) — hand-written clones — is still the only w
 reach the four caller-driven specializations.  What this section removes is two
 hypotheses and, more usefully, the need to ask Linux for any further static
 answer.
+### 13.146 Chain traffic is a DOSE: the failure rate scales with how many pushes happen
+
+§13.144 established the chain is behaviourally necessary with zero codegen
+delta.  §13.141's runtime gate makes a further question askable for the first
+time — not *whether* the chain runs but *how much*.  Added
+`KAME_ORPHAN_CHAIN_KEEP=N` beside the gate: admit only every N-th
+`orphan_chain_push`, same binary, same machine code, N chosen from the
+environment.
+
+**14 interleaved rounds, `20 40 700`, `taskset -c 0-3`, one `.so`:**
+
+| chain traffic | failures |
+|---|---|
+| `KEEP=1` (every push — baseline) | **10/14 (71%)** |
+| `KEEP=4` (¼ of pushes) | **4/14 (29%)** |
+| `KEEP=16` | **1/14 (7%)** |
+| `KEEP=64` | **0/13 (0%)** |
+| `OFF` (no pushes) | **0/13 (0%)** |
+
+**Monotone, and smooth: r = 0.95 against log(traffic).**  `KEEP=1` vs `KEEP=16`
+is **p = 0.0013**; vs `KEEP=4`, p = 0.057 (the adjacent step is underpowered at
+n = 14, the endpoints are not).
+
+**This is a dose, not a trigger.**  A per-event defect — one bad push, one bad
+adopt — would show a *threshold*: any traffic at all reproduces, and thinning
+it merely lengthens the wait.  Instead the rate falls off with the amount of
+chain activity in the same graded way §13.55 found for the clone set and
+§13.88 for preemption frequency.  Three independent knobs — how many clones,
+how often threads are preempted, and now how much chain traffic — all move this
+fault's rate *continuously*.
+
+**Which reframes the five clean mechanisms.**  §13.128, §13.131, §13.136,
+§13.138 and §13.140 each removed one operation and found nothing, and that is
+exactly what a dose-shaped fault predicts: no single operation is *the* defect,
+so removing any one of them leaves the rate essentially unchanged, while
+removing the traffic that drives all of them takes it to zero.  The five
+negatives and the one positive are consistent, not contradictory.
+
+**What it argues for.**  A window whose *width* is roughly fixed but whose
+*frequency of exposure* scales with chain activity — i.e. the chain does not
+contain the bug so much as it repeatedly creates the condition under which some
+other, already-present race can be hit.  That is the shape §13.88's ~150 000
+instruction window described, and it predicts the fault should also respond to
+anything else that changes how often chunks change hands.
