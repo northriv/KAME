@@ -1470,7 +1470,7 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 		for(size_t i = N_slots; i-- > 0; ) {
 			char *slot = base + i * ALIGN;
 #ifdef KAME_POOL_FREE_CENSUS
-			kame_pool_onlist_set(slot);     /* §13.166: pre-fill puts it ON the list */
+			kame_pool_onlist_prefill(slot); /* §13.166: pre-fill, counted apart */
 #endif
 			*kame_slot_link_(slot) = prev;
 			prev = slot;
@@ -9563,15 +9563,29 @@ extern "C" void kame_pool_free_note(const void *slot, unsigned path) noexcept {
 namespace {
 struct OnList { std::atomic<const void *> addr; std::atomic<unsigned char> on; };
 OnList g_onlist[FREE_SLOTS];
-std::atomic<unsigned long long> g_double_free{0};
+std::atomic<unsigned long long> g_double_free{0}, g_prefill_reset{0};
 }
-extern "C" void kame_pool_onlist_set(const void *slot) noexcept {
+//! (§13.166) `from_prefill` separates a genuine double free from the ONE
+//! benign way this bit can be re-set: `construct_chunk_at`'s pre-fill marks
+//! every slot of a chunk as on-list, so warm-reusing a chunk whose slots were
+//! still marked would re-set bits without any free having happened.  Counted
+//! apart so the headline number cannot absorb it.
+extern "C" void kame_pool_onlist_set_ex(const void *slot,
+                                        int from_prefill) noexcept {
     OnList &o = g_onlist[free_slot_(slot)];
     if(o.addr.load(std::memory_order_relaxed) == slot
-       && o.on.load(std::memory_order_relaxed))
-        g_double_free.fetch_add(1, std::memory_order_relaxed);
+       && o.on.load(std::memory_order_relaxed)) {
+        if(from_prefill) g_prefill_reset.fetch_add(1, std::memory_order_relaxed);
+        else             g_double_free.fetch_add(1, std::memory_order_relaxed);
+    }
     o.addr.store(slot, std::memory_order_relaxed);
     o.on.store(1, std::memory_order_relaxed);
+}
+extern "C" void kame_pool_onlist_set(const void *slot) noexcept {
+    kame_pool_onlist_set_ex(slot, 0);
+}
+extern "C" void kame_pool_onlist_prefill(const void *slot) noexcept {
+    kame_pool_onlist_set_ex(slot, 1);
 }
 extern "C" void kame_pool_onlist_clear(const void *slot) noexcept {
     OnList &o = g_onlist[free_slot_(slot)];
@@ -9608,8 +9622,10 @@ void df_report_(int fd) noexcept {
     char b[200];
     int n = snprintf(b, sizeof b,
         "kame_pool: DOUBLE-FREE (same slot pushed twice with no pop) = %llu"
+        " | prefill-reset (benign, counted apart) = %llu"
         "  [detector self-test: %s]\n",
         (unsigned long long)g_double_free.load(std::memory_order_relaxed),
+        (unsigned long long)g_prefill_reset.load(std::memory_order_relaxed),
         g_df_selftest == 1 ? "PASS" : (g_df_selftest == 0 ? "FAIL" : "not run"));
     if(n > 0) { ssize_t r = write(fd, b, (size_t)n); (void)r; }
 }

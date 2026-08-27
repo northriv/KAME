@@ -63,6 +63,7 @@ extern "C" void kame_pool_free_note(const void *slot, unsigned path) noexcept;
    running.  Tracked with one bit per address: set by push, cleared by pop and
    by batch_return_to_bitmap (which moves the slot from list to bitmap). */
 extern "C" void kame_pool_onlist_set(const void *slot) noexcept;
+extern "C" void kame_pool_onlist_prefill(const void *slot) noexcept;
 extern "C" void kame_pool_onlist_clear(const void *slot) noexcept;
 extern "C" unsigned long long kame_pool_double_free_count() noexcept;
 extern "C" int  kame_pool_free_lookup(const void *slot, unsigned *path,
