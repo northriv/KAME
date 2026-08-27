@@ -12280,3 +12280,74 @@ same run: that distance should be **small at `cap = 1` and large at the default
 cap**, since the deferral is what widens it.  If it does not move with the cap,
 the dose is acting on something other than the deferral window, and §13.180's
 mechanism sentence needs rewriting.
+### 13.189 Under gdb: the applying path, caught live — and why a watchpoint cannot name the first clearer
+
+Broke on the violation reporter (`kame_batch_verify_bad`) under `KAME_BATCH_CAP=1`,
+the arm that produces 800 violations and still **exits 0** — so gdb only has to
+witness the double-clear, not win the race that crashes.
+
+**Note for anyone repeating it:** the reporter is `static` inside an anonymous
+namespace in the *shared library*, so a plain `break` fails with "Function not
+defined" and the run completes silently.  `set breakpoint pending on` resolves it
+to four locations once the `.so` loads.  Two full runs were spent on that.
+
+#### The applying stack
+
+```
+#0 kame_batch_verify_bad(slot=0x7fffe8985a80, chunk=0x7fffe897f040, kind=1)
+#1 PoolAllocator<32u,true,true>::batch_return_to_bitmap   alloc.cpp:2642
+#2 CrossDeallocBatch::flush_impl<false>                   alloc.cpp:1129
+#3 CrossDeallocBatch::flush(at_teardown=false)            alloc.cpp:1016
+#4 CrossDeallocBatch::push(c=0x7ffff557f040, s=0x7ffff5580000)
+#5 PoolAllocator<32u,true,true>::deallocate_pooled(this=0x7ffff557f040, …)
+#7 PoolAllocatorBase::deallocate_cold
+#8 __GI___call_tls_dtors()                                <- THREAD EXIT
+#9 start_thread
+```
+
+with `widx = 11, bit = 20`, `packed = 0x80000075 (cnt=117, owned=1)`.
+
+Three things this pins that the counters could not:
+
+1. **The flush that trips the check is a `push`-triggered threshold flush**, not
+   the teardown flush — `at_teardown=false`, the cloned body, as §13.186's
+   analysis requires.
+2. **It runs during thread exit in at least some cases** — frame #8 is
+   `__call_tls_dtors`: an exiting thread's TLS destructor frees a pool block,
+   that `push` flushes the batch, and the flush applies a **stale entry for a
+   different chunk** (`0x7fffe897f040`, still `owned=1`).  Other captured
+   violations were triggered from ordinary STM frees
+   (`atomic_shared_ptr_base<…Packet>::deleter`,
+   `compareAndSet_impl_`, `~__shared_count`), so thread exit is **a** trigger,
+   not **the** trigger.
+3. **The chunk is still owned** (`owned=1`, cnt 117/118/52…) in every `cap = 1`
+   capture, while the crashing-run capture in §13.187 showed `owned=0`.  So the
+   double-clear does not require the chunk to be orphaned.
+
+#### The watchpoint, and its limit
+
+Set a hardware watchpoint on the offending word (`&this->m_flags[widx]`) and
+continued.  Every subsequent write in the window came from
+`batch_clear_impl ← flush_impl<false> ← flush ← push` — i.e. **flushes are the
+only writer of that word in that phase**, with the client frames underneath being
+ordinary STM releases.
+
+But the watchpoint is set *at* the violation, and the clear it is trying to
+attribute already happened.  Watching from earlier is not possible either: the
+offending slot is not known until it is violated, and addresses do not survive
+across runs (thread-scheduling-dependent allocation, so ASLR-off does not help).
+
+> **A watchpoint can show who writes a word next; it cannot show who wrote it
+> last.**  Naming the first clearer needs a *record*, not a breakpoint.
+
+#### What that leaves — and it is a small, specific change
+
+The §13.165 last-free census, re-pointed from addresses to bits: on every clear,
+store `(site, thread, seq)` keyed by slot address; at the violation, print the
+stored record.  The seven-site attribution (§13.186) already exists in this
+build, so this is a per-slot table plus one lookup — and it answers the question
+the counters have narrowed to a single sentence:
+
+> the batch is owner-only, correctly counted, correctly paired, applies each
+> entry exactly once — and 800 times per run the bit is **already clear when the
+> flush arrives**.  Who cleared it?
