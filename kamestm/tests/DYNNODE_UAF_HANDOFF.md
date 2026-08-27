@@ -11525,7 +11525,50 @@ candidates are narrow, and all are source-level:
 (3) is directly testable and connects to §13.159's other suppressor
 (`cap = 1` → 0/16), which shortens exactly that interval.
 
-### 13.178 `flush` re-entrancy: refuted, and refuted decisively
+### 13.178 `flush` re-entrancy: WITHDRAWN — measured in the arm where the fault does not occur
+
+**The refutation this section claimed is withdrawn in full.**  Not because the
+reasoning was wrong twice (it was), but because the measurement was taken in the
+wrong configuration entirely:
+
+| arm | fault | `flush` executions | information about nesting |
+|---|---|---|---|
+| default cap (1024) — **where the fault occurs** | 9–14/16 | **0** | **none** |
+| `cap = 1` — **where §6 measures 0/16** | none | 320 | about a configuration with no fault |
+
+`cap = 1` is one of the two suppressors (§6: **0/16, 0/12**).  Proving "`flush` is
+never re-entered" there proves it in the arm where the bug is absent, which says
+nothing about the arm where it is present.  My first correction to this section
+noticed only the coverage half of the problem (`flushes == 0` in the default arm)
+and still missed that the arm with coverage was the *suppressed* one.
+
+**And the probe cannot fix it.**  Swept `cap = 2, 3, 4, 8` — deferral present,
+which is the condition the fault needs — and every one gives `flushes = 0`:
+
+```
+CAP=2  flushes=0    CAP=3  flushes=0    CAP=4  flushes=0    CAP=8  flushes=0
+```
+
+`push_direct` routes most frees **direct** rather than **hold** (its
+`m_last_coalesce_x16` hint), so a synthetic probe never accumulates a batch — the
+same reason §13.159's throughput bench showed nothing.  So this Mac cannot
+exercise the flush path at `cap > 1` at all, and no local measurement can answer
+the question.
+
+**What would settle it, and it is already in place.**  The depth counter is folded
+into the `alloc_invariants` ctest, and the reading that matters is **one
+reproducer run at default cap**, where §13.147's dynamic census shows the batch
+genuinely in use and `flush` runs 10^5–10^6 times.  Until then the re-entrancy
+hypothesis is **open, not refuted**.
+
+**Kept as the standing lesson**, since this is the third time in this section's
+history that a zero came from an arm that could not have produced a one: a
+suppressor is not a control.  `cap = 1`, `KAME_ORPHAN_NO_ADOPT` and
+`KAME_NO_ORPHAN_CHAIN` all take the rate to zero, so **any hypothesis tested
+inside them is tested where the phenomenon is absent** — that is what the arm is
+for, not what it can be reused for.
+
+<details><summary>original §13.178 text, retained for the record</summary>
 
 §13.176 says the zeros are too clean for a pure timing sensitizer and leaves an
 "unfound semantic difference" open.  One candidate follows directly from its own
@@ -11584,3 +11627,5 @@ difference that survives identical GIMPLE atomics/fences (§13.175), no release
 inlining and no post-release use of `chunk` (§13.176) — i.e. a difference not in
 what the loop does but in how many times or how fast it does it, which is the
 sensitizer reading §13.176 is reluctant to accept on the strength of the zeros.
+
+</details>
