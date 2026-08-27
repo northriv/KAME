@@ -9707,3 +9707,78 @@ owner re-arm, the first allocation out of a bitmap it did not build).
 **Bounds.**  Eleven rounds; the adopt effect is far outside noise
 (p = 3.4 × 10⁻⁵) but the scrub arm's 8/11 vs 10/11 is only "not different", not
 "identical" — a real but small scrub contribution would not be visible at this n.
+
+### 13.152 Walking the asm against the source, as asked — and the release-store lead it produced is refuted by the middle-end dump
+
+The user's assessment is right and worth stating plainly: **there is no strong
+suspect.**  What exists is a layer (the allocator's TU under gcc
+`-fipa-cp-clone`), a necessary behaviour (the orphan chain), and a short list of
+functions whose codegen changed.  With the list short, walking the assembly
+against the C++ is the remaining method, so that is what this section does.
+
+**Step 1 — where did `create_allocator`'s +4 atomics come from?**
+`llvm-addr2line -i` on each atomic in `create_allocator<64u,true,true>`:
+
+| arm | atomics and their inline chains |
+|---|---|
+| `-O2` | **one**: `stlr` ← `local_shared_ptr()` `atomic_smart_ptr.h:962` ← `atomic_shared_ptr()` `:1265` ← `PoolAllocator::PoolAllocator` `allocator.cpp:1303` |
+| `-O2 -fipa-cp-clone` | **four**, all from `global_pop_fit` (`:7786/7790/7794/7796`) ← `recycle_pop_fit:7806` ← `large_recycle_pop:7987` — and **no `stlr`** |
+
+So the firing arm inlines the large-recycle pop path into `create_allocator` and
+outlines the `PoolAllocator` constructor.  Note **`global_pop_fit` is one of the
+four caller-driven specializations §13.120 proved unreachable by per-function
+licensing, and the clone §13.53 found perfectly correlated with the fault across
+all six arms** — here it is, inlined into the claimer, in the firing arm only.
+
+**Step 2 — the release-store asymmetry, which the earlier censuses could not see.**
+`tagmask_census.py` counts RMWs and fences but **not release stores** (`stlr` is
+neither), so §13.146's "everything conserved" never covered them.  Counted:
+
+| | base | clone | derived Δ | residual |
+|---|---|---|---|---|
+| `stlr` | **52** | **36** | +0 | **−16** |
+| `ldar` | 951 | 951 | +0 | 0 |
+| `dmb` | 71 | 71 | — | 0 |
+
+Sixteen release stores absent, none moved into a derived body, acquires and
+barriers exactly conserved.  Concentrated in `create_allocator()` (1 → 0, many
+size classes) and `allocate_chunk<PoolAllocator<N,true,true>>` (2 → 0, N =
+272…368).  In `base` the run of member zero-initialisations ends with
+`stlr xzr, [x19+0x120]`; in the firing arm that run is not in the body at all,
+because the constructor is outlined — and the outlined copy uses plain stores.
+
+**Step 3 — and that lead is refuted, by the one measurement that transfers.**
+`stlr` is aarch64; on **x86-64 a release store is a plain `mov` and no such
+instruction exists**, so this signal cannot even be observed on the firing
+target.  The transferable question is what the *middle end* decided, so compare
+`-fdump-tree-optimized`:
+
+| memory order | base | clone |
+|---|---|---|
+| relaxed | 318 | 311 |
+| **release** | **151** | **151** |
+| seq_cst | 146 | 143 |
+
+**Release stores are exactly conserved (151 = 151).**  Ten atomic stores do
+disappear — seven relaxed, three seq_cst — consistent with dead-path elimination
+under specialization, and **not one of them is a release.**  So no release
+ordering was weakened or dropped; the `stlr` delta is instruction selection and
+inlining redistributing what survives to the back end.
+
+**Recorded because I was one step from reporting it as the finding.**  An
+aarch64-only instruction count, on a machine that is not the firing target,
+produced a clean-looking −16 with a plausible mechanism attached (a chunk
+published without a release on its chain pointers, observable by the only reader
+of those pointers — the chain, which §13.144 proved necessary).  The GIMPLE dump
+took two minutes and refuted it.  **Instruction counts on a non-target
+architecture can manufacture a lead; the middle-end dump is what transfers.**
+
+**Standing after this:** the ordering question is now answered NO at both levels
+that can answer it, and the asm-vs-source walk has covered the chain's three
+functions (§13.150, identical) and the claimer (`create_allocator`, here).  What
+the walk *did* turn up is worth keeping: **`global_pop_fit` is inlined into
+`create_allocator` in the firing arm only** — the same function §13.53 found
+perfectly correlated and §13.120 showed no attribute-based arm can reach.  That
+is where the next reading should go, and unlike everything else in this section it
+is a difference in *what code runs inside the claimer*, not in how an operation is
+encoded.
