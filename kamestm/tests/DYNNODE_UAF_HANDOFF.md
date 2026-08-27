@@ -11544,11 +11544,35 @@ BATCH_CAP=unset   FLUSHDEPTH max=1 nested_entries=0   (pushes 960, flushes 0)
 BATCH_CAP=1       FLUSHDEPTH max=1 nested_entries=0   (pushes 960, flushes 320)
 ```
 
-**Refuted**, and the `cap = 1` arm is what makes it decisive rather than merely
-suggestive: at cap 1 **every push flushes immediately**, so if anything reachable
-from `batch_return_to_bitmap` pushed to the same thread's batch, nesting would
-occur on the first such push and every one after.  320 flushes with zero nesting
-is therefore a statement about the **call graph**, not about this workload's luck.
+**Refuted for the paths this probe executes — and the reason I first gave for
+calling it decisive was wrong.**  I wrote that "at cap 1 every push flushes
+immediately, so nesting would occur on the first such push".  The nesting
+mechanism is **cap-independent**: `flush()` resets `count = 0` *after* its loop,
+so a nested push during a flush sees the old count, which is `>= cap` at any cap
+(1 >= 1 at cap 1; 1024 >= 1024 at the default).  Either setting would nest
+immediately if the path existed.
+
+What the `cap = 1` arm actually buys is **coverage**:
+
+```
+BATCH_CAP=unset   flushes = 0     <- flush never ran; the arm tests nothing
+BATCH_CAP=1       flushes = 320   <- the only arm where the code under test ran
+```
+
+The default arm's `nested = 0` carried no information at all.  And with the
+reason corrected, the **strength** of the conclusion drops with it: 320 flushes is
+thin against the reproducer's ~10^8 frees, so a nesting path that needs a rare
+condition inside the flush (a chunk going empty and reaching `on_clear`'s deeper
+branches, say) would be missed.  The honest statement:
+
+> Refuted for the paths executed here; **not** established for the call graph.
+> The real test is this counter under the reproducer, where `flush` runs
+> 10^5–10^6 times.
+
+Recorded rather than quietly fixed because the failure mode is the one this
+section is otherwise about: a zero from an arm that never ran the code
+(§13.159's own `flushes == 0` warning), and I published a decisiveness claim that
+the numbers on the same line contradicted.
 
 Kept as an invariant (it costs one increment and is now a proven zero) — a
 candidate for the `alloc_invariants` ctest §13.170 promoted, where it would catch
