@@ -80,6 +80,11 @@ static std::atomic<kame_poolev_fn> g_poolev_fn{nullptr};
 // the doubly-live address directly whether its chunk has ever been released.
 typedef unsigned (*kame_relcount_fn)(const void *);
 static std::atomic<kame_relcount_fn> g_relcount{nullptr};
+// §13.164  CONSTRUCTIONS is the strictly better counter: every reuse route
+// passes through `construct_chunk_at`, while the §22 warm path recycles a
+// cached chunk without ever releasing it.  Both are read; the construction
+// delta is the one that answers "was this storage re-purposed".
+static std::atomic<kame_relcount_fn> g_concount{nullptr};
 static void resolve_poison_decode_() noexcept {
 #if defined(__unix__) || defined(__APPLE__)
     static std::atomic<bool> once{false};
@@ -93,6 +98,9 @@ static void resolve_poison_decode_() noexcept {
             std::memory_order_release);
         g_relcount.store(reinterpret_cast<kame_relcount_fn>(
             dlsym(RTLD_DEFAULT, "kame_pool_chunk_release_count")),
+            std::memory_order_release);
+        g_concount.store(reinterpret_cast<kame_relcount_fn>(
+            dlsym(RTLD_DEFAULT, "kame_pool_chunk_construct_count")),
             std::memory_order_release);
     }
 #endif
@@ -603,6 +611,7 @@ struct DLSlot {
     //! or freeing an individual block — the one mechanism §13.163(d) could not
     //! close.  Equal counts rule that path out for this hit.
     unsigned relcnt{0};
+    unsigned concnt{0};              //!< §13.164 chunk CONSTRUCTIONS at birth
 };
 enum : uintptr_t { DL_LIVE = 1u, DL_EVERDEAD = 2u, DL_TAGS = 3u };
 DLSlot *g_dl;                          //!< lazily mmapped; sized by dl_bits_()
@@ -712,7 +721,12 @@ static unsigned dl_relcnt_(const void *p) noexcept {
         return f(p);
     return 0u;
 }
-thread_local unsigned tl_dl_prev_relcnt = 0;
+static unsigned dl_concnt_(const void *p) noexcept {
+    if(kame_relcount_fn f = g_concount.load(std::memory_order_acquire))
+        return f(p);
+    return 0u;
+}
+thread_local unsigned tl_dl_prev_relcnt = 0, tl_dl_prev_concnt = 0;
 thread_local bool tl_dl_prev_relcnt_valid = false;
 static const void *dl_born_(const void *, const void *, unsigned long long) noexcept;
 static const void *dl_born_(const void *obj, const void *site,
@@ -731,6 +745,7 @@ static const void *dl_born_(const void *obj, const void *site,
                 s.addr.store(a | DL_LIVE, std::memory_order_release);
                 s.site = site; s.seq = seq;
                 s.relcnt = dl_relcnt_(obj);          // §13.164
+                s.concnt = dl_concnt_(obj);
                 return nullptr;
             }
             g_dl_enforced.fetch_add(1, std::memory_order_relaxed);
@@ -739,12 +754,14 @@ static const void *dl_born_(const void *obj, const void *site,
                 // §13.164  Publish the previous occupant's birth-time release
                 // count for the report; read before the slot is overwritten.
                 tl_dl_prev_relcnt = s.relcnt;
+                tl_dl_prev_concnt = s.concnt;
                 tl_dl_prev_relcnt_valid = true;
                 return s.site ? s.site : (const void *)1;
             }
             s.addr.store(a | DL_LIVE | DL_EVERDEAD, std::memory_order_release);
             s.site = site; s.seq = seq;
             s.relcnt = dl_relcnt_(obj);              // §13.164
+            s.concnt = dl_concnt_(obj);
             if(unsigned iv = dl_inject_()) {
                 static std::atomic<unsigned> n{0};
                 if((n.fetch_add(1, std::memory_order_relaxed) % iv) == 0)
@@ -1685,9 +1702,23 @@ static void raw_dlive_poison_(const void *obj) noexcept {
         bool plain = (wv == KAME_POISON_PLAIN);
         bool token = !plain && (wv >> 48) == KAME_POISON_TAG;
         { int ad = kame_pool_was_adopted_weak(obj);       // §13.130
-          if(ad >= 0 && w < 0)
-              raw_line_("RC-DLIVE-ADOPTED %p chunk-was-adopted=%s\n",
-                        obj, ad ? "YES" : "no"); }
+          if(ad >= 0 && w < 0) {
+              // §13.164  Print the census's KEYING SELF-TEST alongside its
+              // answer.  A "no" is meaningless unless ok>0 and BAD==0: that
+              // is exactly what §13.131 published without, and its "no" was
+              // the only answer a mis-keyed lookup could give.
+              typedef void (*st_fn)(unsigned long long *, unsigned long long *);
+              static st_fn stf = reinterpret_cast<st_fn>(
+                  dlsym(RTLD_DEFAULT, "kame_pool_adopt_selftest_stats"));
+              unsigned long long sok = 0, sbad = 0;
+              if(stf) stf(&sok, &sbad);
+              raw_line_("RC-DLIVE-ADOPTED %p chunk-was-adopted=%s"
+                        " [keying selftest ok=%llu BAD=%llu%s]\n",
+                        obj, ad ? "YES" : "no", sok, sbad,
+                        stf ? (sbad == 0 && sok > 0 ? " TRUSTWORTHY"
+                                                    : " NOT TRUSTWORTHY")
+                            : " absent -- answer unverified");
+          } }
         raw_line_("RC-DLIVE-W%s %p w=0x%llx%s\n",
             w < 0 ? "PRE" : (w == 0 ? "0" : "1"), obj, wv,
             token ? "  <-- POISON TAG"
@@ -1738,18 +1769,21 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
             // so a hash collision also reads as zero) — and "absent" means
             // the allocator in this process was built without the census.
             if(kame_relcount_fn rc_fn = g_relcount.load(std::memory_order_acquire)) {
-                unsigned now = rc_fn(obj);
-                if(tl_dl_prev_relcnt_valid)
-                    raw_line_("RC-DLIVE-CHUNKREL releases_now=%u"
-                        " releases_at_prev_birth=%u delta=%d%s\n",
-                        now, tl_dl_prev_relcnt,
-                        (int)now - (int)tl_dl_prev_relcnt,
-                        (now != tl_dl_prev_relcnt)
-                            ? "  <-- CHUNK RECYCLED BETWEEN THE TWO BIRTHS"
-                            : "  (chunk not released between the births)");
+                unsigned now = rc_fn(obj), cnow = dl_concnt_(obj);
+                if(tl_dl_prev_relcnt_valid) {
+                    int rd = (int)now - (int)tl_dl_prev_relcnt;
+                    int cd = (int)cnow - (int)tl_dl_prev_concnt;
+                    raw_line_("RC-DLIVE-CHUNKREL rel now=%u at_prev_birth=%u"
+                        " delta=%d | con now=%u at_prev_birth=%u delta=%d%s\n",
+                        now, tl_dl_prev_relcnt, rd,
+                        cnow, tl_dl_prev_concnt, cd,
+                        (cd != 0 || rd != 0)
+                            ? "  <-- CHUNK RE-PURPOSED BETWEEN THE TWO BIRTHS"
+                            : "  (same chunk incarnation for both births)");
+                }
                 else
-                    raw_line_("RC-DLIVE-CHUNKREL releases_now=%u"
-                        " releases_at_prev_birth=unrecorded\n", now);
+                    raw_line_("RC-DLIVE-CHUNKREL rel now=%u con now=%u"
+                        " at_prev_birth=unrecorded\n", now, cnow);
                 tl_dl_prev_relcnt_valid = false;
             }
             else

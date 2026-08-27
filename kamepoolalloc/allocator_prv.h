@@ -40,6 +40,23 @@ extern "C" void kame_pool_adopt_note(const void *chunk_base,
 extern "C" int  kame_pool_was_adopted(const void *addr) noexcept;
 extern "C" unsigned long long kame_pool_adopt_count() noexcept;
 extern "C" void kame_pool_adopt_selftest(const void *blk) noexcept; /* §13.164 */
+extern "C" void kame_pool_adopt_selftest_stats(unsigned long long *ok,
+                                               unsigned long long *bad) noexcept;
+#endif
+#ifdef KAME_POOL_RELEASE_CENSUS
+/* §13.164  Keyed per-chunk tallies.  RELEASES counts `deallocate_chunk`;
+   CONSTRUCTIONS counts `construct_chunk_at`, which is the one every reuse
+   route passes through — including the §22 warm path that recycles a cached
+   chunk with its units still claimed and never releases it. */
+extern "C" void kame_pool_chunk_release_note(const void *chunk_base,
+                                             unsigned long long chunk_size) noexcept;
+extern "C" void kame_pool_chunk_construct_note(const void *chunk_base,
+                                               unsigned long long chunk_size) noexcept;
+extern "C" unsigned kame_pool_chunk_release_count(const void *addr) noexcept;
+extern "C" unsigned kame_pool_chunk_construct_count(const void *addr) noexcept;
+extern "C" unsigned long long kame_pool_chunk_release_total() noexcept;
+extern "C" void kame_pool_release_verify(const void *chunk_base,
+    unsigned nonzero_words, unsigned total_words, unsigned packed) noexcept;
 #endif
 #ifdef KAME_POOL_BACKSTOP_CENSUS
 extern "C" void kame_pool_backstop_note(unsigned which) noexcept;   /* §13.128 */
