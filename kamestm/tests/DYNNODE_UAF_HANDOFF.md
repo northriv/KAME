@@ -12208,3 +12208,75 @@ at bits rather than addresses: for one offending slot, record who cleared its bi
 and from which of the seven sites, then read it back at the violation.  The
 attribution machinery for the sites already exists in this build; it needs a
 per-slot record rather than a per-site counter.
+
+### 13.188 The per-slot last-clearer census, built — and it is COMPLETE by construction: there is exactly one bit-clearing CAS in the allocator
+
+§13.187 asks for §13.165's census re-pointed at bits: for an offending slot,
+record who cleared it and from which site.  Built, and validated both ways.  The
+reason it can answer the question outright rather than narrowing it is structural.
+
+#### There is one clearing site, and every route to it is already stamped
+
+Four bitmap-word CAS sites exist in the allocator.  **Three of them SET bits:**
+
+| site | operation |
+|---|---|
+| word-cache grab | word → `~0` (takes every zero bit) |
+| FS=true single-slot claim | `oldv \| one` |
+| FS=false N-bit claim | `oldv \| ones` |
+| **`batch_clear_impl`** | **`oldv & ~mask`** — the only clear |
+
+So every in-use bit that ever goes clear passes **one** CAS, and every route to it
+carries a §13.186 site stamp.  The first clearer of an offending slot is therefore
+**necessarily one of the seven named sites** — the census cannot come back
+"something else did it".
+
+(This also tightens §13.186's polarity argument: not only can a recycle not
+*produce* a clear bit, nothing outside this one CAS can either.)
+
+#### Implementation
+
+`kame_bv_note_clear` records `(slot → site, seq)` for each bit the CAS actually
+cleared (`oldv & ~newv`, iterated by `ctz`), into a `1<<19`-entry table in **BSS**
+— recording runs inside the allocator and must not allocate.
+Overwrite-on-collision is deliberate: the question is who cleared it *last* before
+the violation, so recency should win.  `NO RECORD` therefore means *evicted by
+collision* (expected: 1<<19 against ~9 M clears/run), not "unknown path" — there
+is no unknown path.  If it dominates, raise `BV_CLEARTAB`.
+
+The violation report now prints the prior clearer immediately above the violation.
+
+#### Validated both ways (arm64, pool active, 40 threads)
+
+```
+baseline    checked=9 088 722  pushes=72 902  bit_clear_bad=0  bits_cleared=9 098 923
+                                                       conservation +0
+injected    BATCHVERIFY   prior clear of this slot: site=other seq=1 (now seq=2)
+            BATCHVERIFY IN-USE BIT ALREADY CLEAR site=flush slot=0x1081005a0 ...
+```
+
+`bits_cleared = 9.1 M` says the census records at full volume, not just at
+violations.  The injector (`KAME_BATCH_VERIFY_INJECT=N`) now also files its own
+clear as site `other`, so every injected violation must — and does — print
+`prior clear ... site=other` on the line above, exercising hash, store and lookup
+end to end.  A `NO RECORD` or a wrong site name on that arm would have meant the
+lookup was broken.
+
+#### What each answer means, and the bonus quantity
+
+For the 800:
+
+| prior-clear site | reading |
+|---|---|
+| **`drain`** | exactly §13.187's argument: the owner-exit drain legitimately clears a bit that a peer's batched entry still holds — scoring 0 at the drain and violating at `flush`.  The `f104768b` word-cache-mask class, confirmed by name. |
+| `flush` / `direct` | two batches hold the same slot ⇒ a genuine double free arriving from **above** the allocator, and the pool is a victim. |
+| `localfree` / `teardown` | the same, via the immediate single-slot paths. |
+| `NO RECORD` dominant | table too small; raise `BV_CLEARTAB` and re-run. |
+
+The census also stamps a global **sequence number**, so `now seq − prior seq` is a
+direct measure of how much allocator traffic separated the two clears — i.e. the
+width of the window §13.180 showed is a dose.  Prediction worth checking on the
+same run: that distance should be **small at `cap = 1` and large at the default
+cap**, since the deferral is what widens it.  If it does not move with the cap,
+the dose is acting on something other than the deferral window, and §13.180's
+mechanism sentence needs rewriting.

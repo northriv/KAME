@@ -756,12 +756,65 @@ struct BvSite {                       // save/restore -- these paths nest
 static void kame_batch_verify_checked() noexcept {
     g_bv_checked[g_bv_site].fetch_add(1, std::memory_order_relaxed);
 }
+//! §13.188  Per-slot LAST-CLEARER census -- §13.165's last-free census
+//! re-pointed at bits, which is what §13.187 asks for.
+//!
+//! It is complete by construction, and that is a structural fact rather than a
+//! hope: `batch_clear_impl`'s CAS is the ONLY place in the allocator that clears
+//! an in-use bit.  The other three bitmap CAS sites all SET bits -- the
+//! word-cache grab (word -> ~0), the FS=true single-bit claim (`oldv | one`) and
+//! the FS=false N-bit claim (`oldv | ones`).  So every clear passes one choke
+//! point, every route to it already carries a §13.186 site stamp, and the first
+//! clearer of an offending slot is NECESSARILY one of the seven named sites.
+//! What "NO RECORD" means is therefore NOT "cleared by an unknown path" -- there
+//! is no such path.  It means the entry was evicted by a hash collision, which
+//! is expected: 1<<19 slots against ~9 M clears per run.  If NO RECORD dominates
+//! the violations, raise BV_CLEARTAB rather than reading anything into it.
+//!
+//! Overwrite-on-collision is deliberate: the question is who cleared it LAST
+//! before the violation, so recency is exactly what should win.  The table is
+//! BSS, never heap -- recording runs inside the allocator and must not allocate.
+struct BvClearRec {
+    std::atomic<uintptr_t>          slot;
+    std::atomic<unsigned long long> seq;
+    std::atomic<unsigned char>      site;
+};
+enum { BV_CLEARTAB = 1u << 19 };                  // 12 MB BSS
+static BvClearRec g_bv_cleartab[BV_CLEARTAB];
+static std::atomic<unsigned long long> g_bv_clearseq{1};
+static inline unsigned kame_bv_hash(uintptr_t p) noexcept {
+    return (unsigned)(((p >> 4) * 0x9E3779B97F4A7C15ull) >> 45) & (BV_CLEARTAB - 1);
+}
+static void kame_bv_note_clear_as(uintptr_t slot, unsigned char site) noexcept {
+    BvClearRec &r = g_bv_cleartab[kame_bv_hash(slot)];
+    unsigned long long q = g_bv_clearseq.fetch_add(1, std::memory_order_relaxed);
+    r.slot.store(slot, std::memory_order_relaxed);
+    r.site.store(site, std::memory_order_relaxed);
+    r.seq.store(q, std::memory_order_relaxed);
+}
+static void kame_bv_note_clear(uintptr_t slot) noexcept {
+    kame_bv_note_clear_as(slot, g_bv_site);
+}
 static void kame_batch_verify_bad(int kind, const void *slot, const void *chunk,
                                   unsigned long long aux, unsigned long long word,
                                   unsigned packed, unsigned filled) noexcept {
     unsigned long long n = g_bv_bad[kind].fetch_add(1, std::memory_order_relaxed);
     g_bv_bad_site[g_bv_site].fetch_add(1, std::memory_order_relaxed);
-    if(n < 4)
+    if(n < 8) {
+        //! §13.188: name the previous clearer of THIS slot, from the census.
+        BvClearRec &r = g_bv_cleartab[kame_bv_hash((uintptr_t)slot)];
+        uintptr_t rs = r.slot.load(std::memory_order_relaxed);
+        unsigned char rsite = r.site.load(std::memory_order_relaxed);
+        unsigned long long rseq = r.seq.load(std::memory_order_relaxed);
+        if(rs == (uintptr_t)slot)
+            fprintf(stderr, "BATCHVERIFY   prior clear of this slot: site=%s seq=%llu "
+                    "(now seq=%llu)\n", g_bv_sitename[rsite < BV_NSITE ? rsite : 0],
+                    rseq, g_bv_clearseq.load(std::memory_order_relaxed));
+        else
+            fprintf(stderr, "BATCHVERIFY   prior clear of this slot: NO RECORD "
+                    "(evicted by hash collision -- raise BV_CLEARTAB)\n");
+    }
+    if(n < 8)
         fprintf(stderr, "BATCHVERIFY %s site=%s slot=%p chunk=%p aux=0x%llx "
                 "word=0x%llx inuse_in_word=%d packed=0x%x(cnt=%u,owned=%d) filled=%u\n",
                 kind == 0 ? "PAIRING (slot not in this chunk)"
@@ -774,8 +827,9 @@ namespace { struct BatchVerifyReport { ~BatchVerifyReport() {
     unsigned long long tot = 0;
     for(int i = 0; i < BV_NSITE; ++i) tot += g_bv_checked[i].load();
     fprintf(stderr, "BATCHVERIFY checked=%llu pushes=%llu pairing_bad=%llu "
-            "bit_clear_bad=%llu\n", tot, g_bv_pushes.load(),
-            g_bv_bad[0].load(), g_bv_bad[1].load());
+            "bit_clear_bad=%llu bits_cleared=%llu\n", tot, g_bv_pushes.load(),
+            g_bv_bad[0].load(), g_bv_bad[1].load(),
+            g_bv_clearseq.load(std::memory_order_relaxed) - 1);
     for(int i = 0; i < BV_NSITE; ++i)
         fprintf(stderr, "BATCHVERIFY   site %-9s checked=%-12llu bad=%llu\n",
                 g_bv_sitename[i], g_bv_checked[i].load(), g_bv_bad_site[i].load());
@@ -2529,6 +2583,20 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 			FUINT oldv = atomicLoadAcquire(pflags);   // §13.48
 			FUINT newv = oldv & nones;
 			if(atomicCompareAndSet(oldv, newv, pflags)) {
+#ifdef KAME_BATCH_VERIFY
+				//! §13.188  The only bit-clearing CAS in the allocator; record
+				//! each bit it actually cleared, tagged with the calling site.
+				if constexpr (FS) {
+					FUINT bits = oldv & ~newv;
+					while(bits) {
+						unsigned b = (unsigned)__builtin_ctzll(
+						    (unsigned long long)bits);
+						bits &= bits - 1;
+						kame_bv_note_clear((uintptr_t)(this->mempool() +
+						    ((std::size_t)idx * sizeof(FUINT) * 8 + b) * ALIGN));
+					}
+				}
+#endif
 				on_clear(oldv, newv);
 				break;
 			}
@@ -2631,6 +2699,10 @@ KAME_CLONE_LICENCE(4) /*§13.112 arm 4*/ PoolAllocator<ALIGN, FS, DUMMY>::batch_
 				if((c.fetch_add(1, std::memory_order_relaxed) % (unsigned)iv) == 0)
 					atomicFetchAnd(&this->m_flags[widx],
 					               (FUINT)~(((FUINT)1u) << bit));
+					//! §13.188 control: record it as `other`, so an injected
+					//! violation must print `prior clear ... site=other`.  That
+					//! exercises hash, store and lookup end to end.
+					kame_bv_note_clear_as((uintptr_t)p, BV_OTHER);
 			}
 		}
 		FUINT w = atomicLoadAcquire(&this->m_flags[widx]);
