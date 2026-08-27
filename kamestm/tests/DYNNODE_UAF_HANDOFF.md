@@ -12583,3 +12583,86 @@ structure (or simply stamp the batch entry itself), and at every clearing CAS
 assert that no pending entry exists for a bit being cleared by a *different*
 entry.  That names the clearer of a pending slot directly, which is the one fact
 this chain still lacks.
+
+### 13.193 The clearer stamped into the slot before the clear, gdb-readable — and the `if constexpr (FS)` trap that makes per-slot instrumentation crash
+
+The proposal: if identifying the clearer is the key, write the clearer's identity
+into spare metadata *before* clearing, and read it in gdb.  Built.  It is strictly
+better than §13.188's hash table for this job — exact per slot, no collision, no
+eviction — and unlike a printed report it is still there **after** the crash, which
+is what §13.189 found a watchpoint could not give.
+
+#### Where the record goes
+
+Not the chunk's padding: it exists (`[m_flags[count]] [padding] [chunk_base +
+K_MAX]`) but `m_count` is sized to fill the metadata budget, so its size varies by
+template.  The **slot's own tail** needs no sizing analysis: every FS=true bucket
+is ≥ 16 B, and the slot is dead at that instant — its owner has already handed it
+back; we are processing that very free.
+
+```
+[ALIGN-8]   0x4B41 <<48 | site <<44 | owner <<32 | seq      ("KA" magic)
+[ALIGN-16]  client return address                           (ALIGN >= 32 only)
+```
+
+gdb, on any slot, at any time — including post-mortem on a core:
+
+```
+(gdb) x/1gx (char*)SLOT + ALIGN - 8      # 0x4b41... => stamped; site in bits 44-47
+(gdb) x/1a  (char*)SLOT + ALIGN - 16     # the client that issued that free
+```
+
+**The offset is load-bearing and cost a SEGV to get right.**  A 24-byte record at
+`ALIGN-24` underflows for the 16 B bucket, and a 16-byte one at `ALIGN-16` lands
+on **offset 0 — the freelist link**.  Clobbering it corrupts the chunk's free list
+and the test dies inside `PacketWrapper` printing, a long way from the cause.
+`ALIGN-8` is ≥ 8 for every bucket.
+
+#### The trap worth carrying forward: `if constexpr (FS)` does not mean FS=true
+
+With the offsets fixed the baseline **still** SEGV'd, and the reason generalises
+past this instrument:
+
+> An FS=false chunk is instantiated as **`<ALIGN, true, false>`** — it constructs
+> through the FS=true base — so inside `batch_clear_impl` **`FS` is `true` for it**.
+> The discriminator for a real FS=true chunk is **`FS && DUMMY`**.
+
+So `if constexpr (FS)` admitted variable-size chunks, where a slot spans *N* bits
+and `bit_index * ALIGN` is **not** a slot start.  Stamping there writes into the
+middle of a **live neighbouring allocation** — and the pairing check cannot see it,
+because the address is still inside the region.  Any future per-slot
+instrumentation, poison, or metadata write must use `FS && DUMMY`.
+
+Two confirmations that the guard is now exactly right:
+
+* 3/3 runs exit 0, all assertions 0, conservation +0;
+* **`bits_cleared` now equals `checked` exactly** (9 118 503 = 9 118 503), where
+  before it exceeded it by ~10 k.  The census domain and the verify loop's domain
+  are provably the same set now, which is a property neither counter could show
+  alone.
+
+**And a pre-existing instance of the same confusion**, benign but worth knowing:
+the adaptive-coalescing-hint store at the end of `batch_clear_impl` is guarded
+`if constexpr (FS)` under a comment that says *"Skip for FS=false — … the hint is
+never consulted and storing it would be wasted work."*  It does **not** skip them.
+The documented optimisation has never happened; the cost is one relaxed byte store
+per FS=false flush, so this is a comment/一致 bug, not a defect.
+
+#### Validated both ways
+
+```
+baseline (×3)  exit 0   checked=9 118 503  bit_clear_bad=0  bits_cleared=9 118 503
+injected       BATCHVERIFY  slot's OWN stamp: site=other seq=1 owner=0x3 client=0x0
+               BATCHVERIFY  prior clear of this slot: site=other seq=1 (gap=1)
+```
+
+The injector now stamps as well as records, so the slot-read path is exercised end
+to end and agrees with the table on both site and seq — two independent stores
+read back consistently.
+
+**On the reproducer** the violation report prints, in order: the slot's own stamp
+(the first clear: site, owner thread, seq, client address), the table's view of the
+same event, and the four-frame caller of *this* free.  If the two disagree, the
+table's entry was evicted and the slot's is the truth.  For anything the report
+does not print — every other slot in the pool, at the moment of the crash — the
+two gdb lines above now answer the same question retroactively.

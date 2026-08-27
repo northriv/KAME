@@ -825,6 +825,58 @@ static void kame_bv_note_violation_slot(uintptr_t slot) noexcept {
     }
     g_bv_voverflow.fetch_add(1, std::memory_order_relaxed);
 }
+
+//! §13.193  Per-slot clear record written INTO THE SLOT, immediately before the
+//! clearing CAS -- the proposal to stamp the clearer into spare metadata and read
+//! it in gdb.
+//!
+//! Why the slot's own tail rather than the chunk's padding: the padding between
+//! `m_flags[count]` and `chunk_base + K_MAX` is real but its size varies by
+//! template (`m_count` is sized to fill the metadata budget), whereas the slot is
+//! guaranteed >= 16 B for every FS=true bucket and is DEAD at this moment -- its
+//! owner has already handed it back; we are processing that very free.  The
+//! freelist link lives at offset 0 and the size prefix at p-8, so the TAIL is
+//! untouched by the allocator.  §13.190's finding is what makes it forensically
+//! sound: a violating slot is never re-allocated between the two clears, so the
+//! first clear's record is still intact both at the violation and at the crash.
+//!
+//! Layout -- ONE word at `p + ALIGN - 8`, plus the client address at
+//! `p + ALIGN - 16` when ALIGN >= 32:
+//!
+//!   [ALIGN-8]  0x4B41 <<48 | site <<44 | owner <<32 | seq        ("KA" magic)
+//!   [ALIGN-16] client return address                            (ALIGN >= 32)
+//!
+//! The offset matters and cost a SEGV to get right: the smallest FS=true bucket
+//! is 16 B, so a 24-byte record at `ALIGN-24` underflows and a 16-byte one at
+//! `ALIGN-16` lands on offset 0 -- which is the FREELIST LINK.  Writing there
+//! corrupts the chunk's free list and the test dies in `PacketWrapper` printing.
+//! `ALIGN-8` is >= 8 for every bucket, so the link is never touched.
+//!
+//! `x/1gx <slot>+ALIGN-8` in gdb reads the last free of any slot, and the magic
+//! makes a core file greppable for stamped slots.
+static constexpr unsigned long long BV_CLRMAGIC16 = 0x4B41ULL;   // "KA"
+static inline void kame_bv_slot_mark(char *p, unsigned align, const void *client) noexcept {
+    unsigned long long seq = g_bv_clearseq.load(std::memory_order_relaxed);
+    *reinterpret_cast<unsigned long long *>(p + align - 8) =
+        (BV_CLRMAGIC16 << 48) | ((unsigned long long)(g_bv_site & 0xfu) << 44) |
+        ((unsigned long long)(kame_owner_id() & 0xfffu) << 32) |
+        (unsigned long long)(unsigned)seq;
+    if(align >= 32u)
+        *reinterpret_cast<const void **>(p + align - 16) = client;
+}
+//! Read a stamp back.  Returns false when the slot carries no record.
+static inline bool kame_bv_slot_read(const char *p, unsigned align, unsigned char *site,
+                                     unsigned long long *seq, unsigned *owner,
+                                     const void **client) noexcept {
+    unsigned long long w = *reinterpret_cast<const unsigned long long *>(p + align - 8);
+    if((w >> 48) != BV_CLRMAGIC16) return false;
+    *site  = (unsigned char)((w >> 44) & 0xfu);
+    *owner = (unsigned)((w >> 32) & 0xfffu);
+    *seq   = (unsigned long long)(unsigned)w;
+    *client = (align >= 32u) ? *reinterpret_cast<const void *const *>(p + align - 16)
+                             : nullptr;
+    return true;
+}
 static void kame_bv_note_clear(uintptr_t slot) noexcept {
     kame_bv_note_clear_as(slot, g_bv_site);
 }
@@ -842,11 +894,26 @@ static void kame_bv_note_push(uintptr_t slot, const void *const f[4]) noexcept {
 }
 static void kame_batch_verify_bad(int kind, const void *slot, const void *chunk,
                                   unsigned long long aux, unsigned long long word,
-                                  unsigned packed, unsigned filled) noexcept {
+                                  unsigned packed, unsigned filled,
+                                  unsigned aux_align = 16) noexcept {
     unsigned long long n = g_bv_bad[kind].fetch_add(1, std::memory_order_relaxed);
     g_bv_bad_site[g_bv_site].fetch_add(1, std::memory_order_relaxed);
     if(kind == 1) kame_bv_note_violation_slot((uintptr_t)slot);       // §13.191
     if(n < 8) {
+        //! §13.192: the slot's OWN record first -- exact, no hash, no eviction.
+        {
+            unsigned char st; unsigned long long sq; unsigned ow; const void *cl;
+            if(kame_bv_slot_read((const char *)slot, aux_align, &st, &sq, &ow, &cl)) {
+                Dl_info di;
+                fprintf(stderr, "BATCHVERIFY   slot's OWN stamp: site=%s seq=%llu "
+                        "owner=%#x client=%p <%s>\n",
+                        g_bv_sitename[st < BV_NSITE ? st : 0], sq, ow, cl,
+                        (cl && dladdr(cl, &di) && di.dli_sname) ? di.dli_sname : "?");
+            }
+            else
+                fprintf(stderr, "BATCHVERIFY   slot's OWN stamp: NONE "
+                        "(never cleared through batch_clear_impl since last write)\n");
+        }
         //! §13.188: name the previous clearer of THIS slot, from the census.
         BvClearRec &r = g_bv_cleartab[kame_bv_hash((uintptr_t)slot)];
         uintptr_t rs = r.slot.load(std::memory_order_relaxed);
@@ -2661,14 +2728,30 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 #ifdef KAME_BATCH_VERIFY
 				//! §13.188  The only bit-clearing CAS in the allocator; record
 				//! each bit it actually cleared, tagged with the calling site.
-				if constexpr (FS) {
+				//!
+				//! §13.193  `FS && DUMMY`, not `FS`.  An FS=false chunk is
+				//! instantiated as `<ALIGN,true,false>` -- it constructs through
+				//! the FS=true base -- so `FS` alone is TRUE for it, and its
+				//! slots are variable-size (N bits each): bit_index * ALIGN is
+				//! not a slot start, and stamping there writes into the middle
+				//! of a LIVE neighbouring allocation.  That is a SEGV, and it is
+				//! invisible to the pairing check, which only bounds the address
+				//! to the region.
+				if constexpr (FS && DUMMY) {
 					FUINT bits = oldv & ~newv;
 					while(bits) {
 						unsigned b = (unsigned)__builtin_ctzll(
 						    (unsigned long long)bits);
 						bits &= bits - 1;
-						kame_bv_note_clear((uintptr_t)(this->mempool() +
-						    ((std::size_t)idx * sizeof(FUINT) * 8 + b) * ALIGN));
+						char *cp = this->mempool() +
+						    ((std::size_t)idx * sizeof(FUINT) * 8 + b) * ALIGN;
+						//! §13.193 stamp the slot itself, then the table.
+						BvClearRec &pr = g_bv_cleartab[kame_bv_hash((uintptr_t)cp)];
+						kame_bv_slot_mark(cp, ALIGN,
+						    pr.slot.load(std::memory_order_relaxed) == (uintptr_t)cp
+						        ? pr.caller[0][2].load(std::memory_order_relaxed)
+						        : nullptr);
+						kame_bv_note_clear((uintptr_t)cp);
 					}
 				}
 #endif
@@ -2777,6 +2860,9 @@ KAME_CLONE_LICENCE(4) /*§13.112 arm 4*/ PoolAllocator<ALIGN, FS, DUMMY>::batch_
 					//! §13.188 control: record it as `other`, so an injected
 					//! violation must print `prior clear ... site=other`.  That
 					//! exercises hash, store and lookup end to end.
+					{ unsigned char sv = g_bv_site; g_bv_site = BV_OTHER;
+					  kame_bv_slot_mark(p, ALIGN, nullptr);
+					  g_bv_site = sv; }
 					kame_bv_note_clear_as((uintptr_t)p, BV_OTHER);
 			}
 		}
@@ -2785,7 +2871,7 @@ KAME_CLONE_LICENCE(4) /*§13.112 arm 4*/ PoolAllocator<ALIGN, FS, DUMMY>::batch_
 			kame_batch_verify_bad(1, p, (const void *)this,
 			                      ((unsigned long long)widx << 32) | bit,
 			                      (unsigned long long)w, this->m_flags_packed,
-			                      this->m_flags_filled_cnt);
+			                      this->m_flags_filled_cnt, ALIGN);
 	}
 #endif
 	// Walks entries[k] while .chunk == this — sentinel-terminated, no
