@@ -1725,7 +1725,29 @@ struct CrossDeallocBatch {
         } _in_flush;
 #endif
         int i = 0;
+#ifdef KAME_FLUSH_CACHE_COUNT
+        //! §13.219  Read `count` ONCE.
+        //!
+        //! §13.176 disassembled the clone and found it reloads `count` from TLS on
+        //! every iteration -- `call __tls_get_addr` then `cmp 0x5ba0(%rax),%ebx` --
+        //! where the un-cloned body keeps it in a register.  Semantically identical
+        //! *provided `count` cannot change during the loop*, which §13.178/§13.202
+        //! checked for source-level re-entrancy and found none.
+        //!
+        //! But the trigger need not be in the source.  The pool ships as a dylib,
+        //! and under glibc's dynamic TLS `__tls_get_addr` may ALLOCATE on a
+        //! thread's first access to a module's block -- and the pool interposes
+        //! malloc, so that allocation re-enters the allocator from inside the flush
+        //! loop.  First access is once per thread, which is the cadence §13.210
+        //! measures (violations == thread exits, 1:1).  It also fits what nothing
+        //! else did: GCC 15 vs 14 (only the clone re-reads), x86-64 vs macOS
+        //! (different TLS model), and §13.175/§13.176's finding that the memory
+        //! orders are identical -- this is not an ordering bug.
+        const int n = count;
+        while(i < n) {
+#else
         while(i < count) {
+#endif
             PoolAllocatorBase *chunk = buf[i].chunk;
             // At teardown, do NOT load/deref the owner's TLS force-walk
             // pointer (it may dangle under musl's TSD-dtor ordering — see

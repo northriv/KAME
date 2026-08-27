@@ -14515,3 +14515,59 @@ unconditional immediately after that reading, whichever way it falls, since B
 removes a dependence on unspecified destruction order regardless.
 
 The `dlfcn.h` fix is different: it is a build break, so it is unconditional now.
+
+### 13.219 A stronger candidate than the destructor: the flush loop re-reads `count` through `__tls_get_addr`, and that call can allocate
+
+§13.216's destructor finding is real but weak as a cause — macOS gives the safe
+order on every thread, and the reason (cleanup registers at the first allocation,
+the batch at the first cross-thread free) holds on glibc too.  This is better.
+
+**And a correction:** §13.215/§13.217 put `excess = −801` forward as the leading
+lead.  It was measured on the §13.202-era build — the one where
+`bit_clear_bad = 0` because the instrumentation had deleted the signature
+(§13.206).  **The −801 and the 800 violations have never been observed in the same
+run**, so it cannot be treated as a property of the failing configuration.
+
+#### The candidate
+
+§13.176 disassembled the clone and found it **reloads `count` from TLS every
+iteration** — `call __tls_get_addr` then `cmp 0x5ba0(%rax),%ebx` — where the
+un-cloned body keeps it in a register.  Semantically identical *provided `count`
+cannot change during the loop*.  §13.178 and §13.202 checked for source-level
+re-entrancy and found none, and §13.203 concluded there is no trigger.
+
+**The trigger need not be in the source.**  The pool ships as a **dylib**, and
+under glibc's dynamic TLS `__tls_get_addr` may **allocate** on a thread's first
+access to a module's block — and the pool **interposes malloc**, so that allocation
+re-enters the allocator from inside the flush loop.  §13.203's static argument
+enumerated calls written in the function; this one is emitted by the compiler.
+
+It fits every discriminating fact, which no other candidate does:
+
+| fact | fit |
+|---|---|
+| violations == thread exits, 1:1 (§13.210) | first TLS access is **once per thread** |
+| needs the un-unswitched shape (§13.174/§13.177) | only the reloading form calls `__tls_get_addr` in the loop |
+| GCC 15/16 fail, 14 does not | 14 does not produce the reloading body |
+| x86-64 fails, arm64/macOS does not | Mach-O `_tlv_get_addr`, different allocation behaviour |
+| memory orders identical (§13.175/§13.176) | not an ordering bug at all |
+| cap is a dose (§13.180) | a deeper buffer means more iterations exposed to the re-entry |
+| both clears at `flush`, no double-pending, `FREE-OF-FREE = 0` | the re-entrant free is a normal free; the damage is the outer loop continuing with a `count` and a `buf` that no longer agree |
+
+#### The test, one line
+
+`KAME_FLUSH_CACHE_COUNT` reads `count` once:
+
+```cpp
+const int n = count;
+while(i < n) { ... }
+```
+
+It **passes §13.208's shape gate** — real GCC 15.2 `-O3`: `flush` symbols 4 and 1
+constprop clone, identical to plain — so stock vs it on x86-64 is a clean A/B, and
+arm64 `ctest` is unaffected.
+
+The complementary read, needing no rebuild: on x86 disassemble the flush clone and
+count `__tls_get_addr` in its loop body.  §13.176 already recorded one; if it is
+still there, this candidate is live, and if `KAME_FLUSH_CACHE_COUNT` takes
+`bit_clear_bad` 800 → 0 with the clone intact, it is the fix.
