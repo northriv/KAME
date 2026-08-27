@@ -9246,3 +9246,41 @@ the tool is ready; the `relaxed` half is answerable only dynamically and that
 instrument is already built and already reporting balance. What has *not* been
 done is running the static half on the §13.119 minimal pair — which is minutes,
 and is now second in the queue behind §13.141's runtime gate.
+### 13.144 The ablation survives the codegen confound: runtime gate, one binary, 15/24 vs 0/24
+
+§13.141 identifies a confound in §13.126 that I did not flag: the compile-time
+`KAME_NO_ORPHAN_CHAIN` **deletes code**, so `orphan_chain_push/_pop/_scrub` and
+the whole `atomic_shared_ptr<PoolAllocator>` instantiation become unreachable
+and are eliminated — changing IPA-CP propagation, inlining and register
+allocation for everything else in the TU (measured there: 220 → 184 symbols).
+On that reading 15/20 → 0/20 could have been a **codegen** effect, not a
+behavioural one, which would have made my §13.126 conclusion wrong in kind
+rather than in degree.  I flagged the reuse-volume confound and missed this one.
+
+**Its runtime gate settles it.**  `KAME_ORPHAN_CHAIN_RUNTIME_GATE` compiles the
+chain in unconditionally and skips only the *call*, chosen from the
+environment — **one binary, both arms, zero codegen delta.**
+
+**24 interleaved rounds, `20 40 700`, `taskset -c 0-3`, same `.so`:**
+
+| arm | failures |
+|---|---|
+| chain enabled (baseline) | **15/24 (63%)** |
+| **`KAME_ORPHAN_CHAIN_OFF=1`** | **0/24 (0%)** |
+
+Fisher **p = 1.4 × 10⁻⁶**.
+
+**So the effect is behavioural, not codegen.**  Identical machine code, the
+only difference being whether `orphan_chain_push` is *called*, and the fault
+goes from 63% to never.  §13.126's localisation stands, now on a design that
+cannot be explained by clone-set or inlining differences — which also means
+§13.122's whole-unit-codegen reading, whatever else it explains, does not
+explain this.
+
+**Where that leaves the picture.**  The chain is behaviourally necessary, and
+five named mechanisms inside it are individually clean on failing runs
+(§13.128, §13.131, §13.136, §13.138, §13.140).  The next question is therefore
+not *which operation* but *what varies with the amount of chain traffic* —
+§13.141's runtime gate makes that measurable for the first time, since the
+same binary can now be run with the chain on, off, or (with a small addition)
+throttled.
