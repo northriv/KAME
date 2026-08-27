@@ -890,6 +890,10 @@ static inline unsigned long long kame_bv_pack(unsigned state, unsigned owner,
            (seq & 0xffffffULL);
 }
 static std::atomic<unsigned long long> g_bv_double_push{0}, g_bv_push_after_dtor{0};
+//! §13.209  exits that occurred inside the [first clear, violation] window, for
+//! EVERY violation (not the 8 that get printed).  Cell 0 is "no exit intervened".
+static std::atomic<unsigned long long> g_bv_exitgap[9];
+static std::atomic<unsigned long long> g_bv_gapsum{0}, g_bv_gapn{0};
 //! §13.203  kind 0 = entry contributed a bit it does not own, 1 = two entries in
 //! one run on the same bit, 2 = entries consumed != distinct bits set.
 static std::atomic<unsigned long long> g_bv_bit[3];
@@ -974,8 +978,22 @@ static inline void kame_bv_slot_stamp(char *p, unsigned align, unsigned state,
     else { if(applyc < 15u) ++applyc; }                          // apply / replay
     *w = kame_bv_pack(state, kame_owner_id(), pushc, applyc,
                       g_bv_clearseq.load(std::memory_order_relaxed));
+    //! §13.209  The ALIGN-16 word now carries the THREAD-EXIT COUNT at this
+    //! clear, not the client address.  §13.207 dropped frame levels > 0 as
+    //! unportable, which left that word holding only `deallocate_pooled`'s own
+    //! return address -- no information.  The exit count turns it into the one
+    //! quantity that can decide §13.205: whether an exit falls inside the window
+    //! between a slot's first clear and its second.
+    //!
+    //! `thread_exits_so_far > 0` at a violation cannot decide it -- with ~800
+    //! exits spread over a run, that predicate is true almost always regardless of
+    //! cause.  The BASE RATE has to be measured and compared against, which is
+    //! §13.83's rule and which the previous version violated.
     if(align >= 32u)
-        *reinterpret_cast<const void *volatile *>(p + align - 16) = client;
+        *reinterpret_cast<unsigned long long *volatile *>(
+            reinterpret_cast<void *>(p + align - 16)) =
+            (unsigned long long *)(uintptr_t)g_bv_exits.load(std::memory_order_relaxed);
+    (void)client;
 }
 //! §13.200  The control has to act on the APPLY, not the free.  My first version
 //! forced PENDING at a free, where the state is already PENDING -- it changed
@@ -1136,6 +1154,15 @@ static void kame_batch_verify_bad(int kind, const void *slot, const void *chunk,
         uintptr_t rs = r.slot.load(std::memory_order_relaxed);
         unsigned char rsite = r.site.load(std::memory_order_relaxed);
         unsigned long long rseq = r.seq.load(std::memory_order_relaxed);
+        //! §13.209  all-violations accounting, before the print budget applies.
+        if(aux_align >= 32) {
+            unsigned long long e0 = (unsigned long long)(uintptr_t)
+                *reinterpret_cast<unsigned long long *const volatile *>(
+                    reinterpret_cast<const void *>((const char *)slot + aux_align - 16));
+            unsigned long long en = g_bv_exits.load(std::memory_order_relaxed);
+            unsigned long long d = (en >= e0) ? (en - e0) : 0;
+            g_bv_exitgap[d > 8 ? 8 : d].fetch_add(1, std::memory_order_relaxed);
+        }
         if(rs == (uintptr_t)slot) {
             fprintf(stderr, "BATCHVERIFY   prior clear of this slot: site=%s seq=%llu "
                     "(now seq=%llu, gap=%llu, thread_exits_so_far=%llu)\n",
@@ -1143,6 +1170,10 @@ static void kame_batch_verify_bad(int kind, const void *slot, const void *chunk,
                     g_bv_clearseq.load(std::memory_order_relaxed),
                     g_bv_clearseq.load(std::memory_order_relaxed) - rseq,
                     g_bv_exits.load(std::memory_order_relaxed));
+            g_bv_gapsum.fetch_add(
+                g_bv_clearseq.load(std::memory_order_relaxed) - rseq,
+                std::memory_order_relaxed);
+            g_bv_gapn.fetch_add(1, std::memory_order_relaxed);
             //! §13.191  Name both frees.  dladdr only here, never on a hot path.
             for(int w = 0; w < 2; ++w) {
                 if( !r.caller[w][0].load(std::memory_order_relaxed)) continue;
@@ -1191,6 +1222,29 @@ namespace { struct BatchVerifyReport { ~BatchVerifyReport() {
         }
         if(tot) fprintf(stderr, "BATCHVERIFY   groups=%llu  violations=%llu  "
                         "mean group=%.2f\n", tot, wsum, (double)wsum / (double)tot);
+    }
+    {   //! §13.209  Decidable form: exits inside each violation's own window,
+        //! against the base rate the same run implies.
+        unsigned long long n = 0, tot = 0;
+        for(int k = 0; k <= 8; ++k) {
+            unsigned long long v = g_bv_exitgap[k].load();
+            if(v) fprintf(stderr, "BATCHVERIFY   exits within gap = %d%s : %llu\n",
+                          k, k == 8 ? "+" : "", v);
+            n += v; tot += v * (unsigned)k;
+        }
+        double clears_per_exit = g_bv_exits.load()
+            ? (double)(g_bv_clearseq.load() - 1) / (double)g_bv_exits.load() : 0.0;
+        double mean_gap = g_bv_gapn.load()
+            ? (double)g_bv_gapsum.load() / (double)g_bv_gapn.load() : 0.0;
+        if(n)
+            fprintf(stderr, "BATCHVERIFY exits-in-gap: n=%llu mean=%.2f  |  "
+                    "BASE RATE from this run = mean_gap %.0f / clears_per_exit %.0f"
+                    " = %.2f  (cell 0 = %llu; equality with the base rate means"
+                    " exits are incidental, cell 0 == 0 means one always"
+                    " intervenes)\n",
+                    n, (double)tot / (double)n, mean_gap, clears_per_exit,
+                    clears_per_exit > 0 ? mean_gap / clears_per_exit : 0.0,
+                    g_bv_exitgap[0].load());
     }
     fprintf(stderr, "BATCHVERIFY push-after-batch-dtor=%llu"
             "  (§13.206: should account for a negative excess, one per thread)\n",

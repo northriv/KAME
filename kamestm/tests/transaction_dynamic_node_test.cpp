@@ -106,7 +106,24 @@ start_routine(void) {
     printf("start\n");
 	shared_ptr<LongNode> p1(LongNode::create<LongNode>());
 	shared_ptr<LongNode> p2(LongNode::create<LongNode>());
-    for(int i = 0; i < 2500; i++) {
+    // §13.209  Thread-exit ABLATION knobs.  `main` loops 100 times around a
+    // 4-thread create/join, so a default run performs ~800 thread exits, and
+    // §13.205 shows the violation's prior-clear gap sits at the scale of one to
+    // two exit drains.  Whether exits are NECESSARY cannot be read from
+    // "exits > 0 at the violation" -- with 800 of them that predicate is almost
+    // always true whatever the cause (§13.83).  It needs an ablation.
+    //
+    //   DYNNODE_OUTER=1 DYNNODE_ITERS=250000
+    //
+    // runs the SAME total work with 4 thread exits instead of ~800.  If the fault
+    // still reproduces, thread exit is not necessary; if it vanishes while the
+    // work is unchanged, it is.
+    static const int s_iters = []{
+        const char *e = getenv("DYNNODE_ITERS");
+        int v = (e && e[0]) ? atoi(e) : 2500;
+        return v > 0 ? v : 2500;
+    }();
+    for(int i = 0; i < s_iters; i++) {
 		p1->insert(p2);
 		if((i % 10) == 0) {
             gn1->iterate_commit_if([=](Transaction &tr1)->bool{
@@ -172,7 +189,10 @@ start_routine(void) {
 int
 main(int argc, char **argv) {
     Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
-    for(int k = 0; k < 100; k++) {
+    const char *e_outer = getenv("DYNNODE_OUTER");            // §13.209
+    const int outer = (e_outer && e_outer[0] && atoi(e_outer) > 0)
+                      ? atoi(e_outer) : 100;
+    for(int k = 0; k < outer; k++) {
         gn1.reset(LongNode::create<LongNode>());
         gn2.reset(LongNode::create<LongNode>());
         gn3.reset(LongNode::create<LongNode>());

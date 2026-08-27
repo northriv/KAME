@@ -13750,3 +13750,83 @@ expected count for the hand-specialised source.
 3. **`checked_flush − pushes` vs `bit_clear_bad`** — §13.202's discriminator, now
    with a left-hand side again;
 4. `push-after-batch-dtor` for §13.207's −801 (one entry lost per thread exit).
+
+### 13.209 §13.205's question made decidable — the previous form could not decide it, and an exit dose-response that can
+
+Asked directly whether what §13.205 handed over would settle thread-exit
+involvement.  **It would not**, and the reason is a rule of my own:
+
+> §13.205 prints `thread_exits_so_far` at a violation.  With ~800 exits spread
+> through a run and violations spread through it too, `> 0` is true almost always
+> **whatever the cause** — and only the first 8 violations are printed at all.
+> §13.83 says measure the predicate's base rate first; that section did not.
+
+Two replacements, one measurement and one ablation.
+
+#### 1. Exits inside each violation's own window, against this run's base rate
+
+The stamp's `ALIGN-16` word now carries the **thread-exit count at the first
+clear** instead of the client address — which §13.207 rendered near-useless when
+it dropped frame levels above 0 as unportable, leaving only
+`deallocate_pooled`'s own return address there.
+
+At a violation the difference `exits_now − exits_at_first_clear` is the number of
+exits that fell inside that slot's gap, accumulated for **every** violation, not
+the printed 8.  The summary prints the histogram *and* the base rate derived from
+the same run (`mean_gap / clears_per_exit`), so the comparison is built in:
+
+* **cell 0 == 0** — an exit intervened in every single case: exits are implicated;
+* **mean ≈ the printed base rate** — exits fall in the window at exactly the rate
+  chance predicts: incidental;
+* **mean ≫ base rate** — enriched, i.e. violations prefer windows containing an
+  exit.
+
+Coverage note: this half needs the `ALIGN-16` word, so the 16 B bucket is not
+covered.  The buckets carrying this traffic are 32/48/80 B (§13.191's frames), so
+the loss is small but real.
+
+#### 2. The ablation, as a dose-response — with the confound named
+
+`DYNNODE_OUTER` / `DYNNODE_ITERS` (new, in the test) redistribute the same work
+between `main`'s outer loop and `start_routine`'s inner loop.  Measured here:
+
+| `OUTER` | `ITERS` | thread exits | pushes (flush-site traffic) |
+|---|---|---|---|
+| 100 | 2 500 | **801** | 71 833 |
+| 25 | 10 000 | **201** | 44 003 |
+| 5 | 50 000 | **41** | 41 892 |
+| 1 | 250 000 | **9** | 45 843 |
+
+**Exits vary 89×; across the last three arms `pushes` is constant within 10 % while
+exits vary 22×.**  That is the comparison the question needs.
+
+**The confound, stated because it invalidates the naive reading:** total
+`batch_return_to_bitmap` traffic collapses from 9.09 M to 194 k across this sweep —
+because 87–99 % of it *is* the thread-exit drain, so it must fall with exits by
+construction.  Normalising on that would make any ablation "work" trivially.  The
+correct denominator is **`pushes`**, the flush-site traffic where all 800 violations
+occur, and it is the one this sweep holds nearly fixed.
+
+So the reading is **violations per push**, not per run:
+
+* roughly constant across the sweep → thread exit is **incidental**;
+* falling with exits at nearly constant pushes → thread exit is **necessary**, and
+  §13.150's `NO_ADOPT` cure gets its mechanism (no exits ⇒ no orphans ⇒ nothing to
+  adopt).
+
+#### Commands
+
+```bash
+tests/verify_shape_gate.sh <so> <repro> 32          # gate first (§13.208)
+for a in "100 2500" "25 10000" "5 50000" "1 250000"; do
+  set -- $a
+  DYNNODE_OUTER=$1 DYNNODE_ITERS=$2 KAME_BATCH_CAP=32 <repro> 2>&1 |
+    grep -E 'thread exits=|pushes=|bit_clear_bad=|exits-in-gap|exits within gap'
+done
+```
+
+Four runs, and the two readings above are independent — the histogram needs only
+the default arm, the dose-response needs no violation attribution at all.  If they
+disagree, the histogram is the weaker one (it excludes the 16 B bucket and assumes
+the stamp survives the window, which §13.194's `pending-at-clear ≈ pushes` supports
+but does not prove for the exit-count field specifically).
