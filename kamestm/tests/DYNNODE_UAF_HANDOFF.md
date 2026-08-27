@@ -11166,3 +11166,52 @@ first capture was raw addresses and unresolvable once the process exited.
 Resolution is verified end to end (`addr2line -f -C -i` on a known symbol), and
 the allocator `.so` spans `0x3f7420` — frames beyond that belong to the
 executable or libc and must be resolved against those modules instead.
+### 13.173 Is `-fno-ipa-cp-clone` a fix?  No — and the experiment that would decide has never been run
+
+Asked directly, so answered directly: **the flag is a mitigation, not a
+resolution**, and the flag sites already say so ("the pass is an accelerator, not
+the named root cause — mitigation with tracking note").  What has been missing is
+not honesty at the flag site but a statement of *what would settle it*.
+
+**Why it cannot be called a fix.**  `-fno-ipa-cp-clone` changes gcc's codegen for
+one TU.  Whatever the source-level hazard is, it is untouched — another compiler
+version, another pass, another target can re-expose it.  And "clang 0/41" /
+"gcc -O2 0/8" are **run counts, not absence**: the same reproducer needed 40
+threads and thousands of rounds to fire at all.
+
+**Why it cannot yet be called a workaround for a compiler bug either.**  Every
+static check has come back correct — orderings and fences conserved at GIMPLE
+(§13.152/§13.155), operation counts reconciled statically (§13.146) and
+dynamically (§13.147), the chain's three functions compiled identically
+(§13.150), the inlined recycle path a faithful translation with its size verify
+intact (§13.154), no double free (§13.166), no mis-derivation (§13.136), and no
+bypassed destruction (§13.169).  Correct code plus two ablations that take the
+rate to zero is exactly the shape of *both* remaining explanations.
+
+**The two, and what each implies:**
+
+| | reading | consequence |
+|---|---|---|
+| **(a)** | a latent source race the `-O3` clone set's timing exposes | the flag **hides a real bug**; it should stay, and the issue must stay open |
+| **(b)** | a gcc miscompile no static check we ran can see | the flag **is** the right fix — plus an upstream report and a version condition |
+
+**The discriminator is a gcc version sweep, and §13.10 planned it 160 sections
+ago without running it** (the only mention in this document is that plan).  The
+same reproducer under g++ 12 / 13 / 14 / 15:
+
+- **fires only on 15.2** → a compiler-regression fingerprint → (b);
+- **fires on every version** → a stable source hazard → (a).
+
+Either answer changes what to do, which is what makes it worth one job.  It is
+also the cheapest experiment left: no new instrumentation, no new arm — just the
+existing binary built by four compilers.
+
+**Not runnable here**, for the record: this Mac has g++ 15.2.0 (which reproduces
+the specialization set: `constprop` 2 → 24, §13.145) and g++ 13.1.0, but the
+latter's fixed-includes were generated against Darwin 21 and no longer compile
+against the current SDK.  So the sweep is Ubuntu's, and it needs nothing from
+this side.
+
+**Annotated both flag sites** (`CMakeLists.txt`, `kamepoolalloc.pro`) with this
+as the open discriminator, so the next reader of those four lines learns what the
+flag does not establish without reading 11 000 lines to find out.

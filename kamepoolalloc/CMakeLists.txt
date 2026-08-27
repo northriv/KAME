@@ -56,6 +56,12 @@ target_compile_options(kamepoolalloc PRIVATE
 # accelerator, not the named root cause -- mitigation with tracking note.
 # gcc-only; the KAME test trees deliberately omit it so the reproducer
 # keeps reproducing while the hunt continues.
+# OPEN DISCRIMINATOR (§13.173): whether this flag is the CORRECT fix or is
+# hiding a source-level race turns on a gcc VERSION sweep -- planned at §13.10
+# and never run.  Fires only on 15.2 => compiler regression, this flag is the
+# fix and belongs upstream too; fires on 12/13/14 as well => a stable source
+# hazard the pass merely exposes, and the flag hides a real bug.  Do not close
+# the issue on the strength of this flag until that is known.
 target_compile_options(kamepoolalloc PRIVATE
     $<$<CXX_COMPILER_ID:GNU>:-fno-ipa-cp-clone>)
 # CMAKE_DL_LIBS: empty on glibc >= 2.34 (dlsym lives in libc); -ldl on older

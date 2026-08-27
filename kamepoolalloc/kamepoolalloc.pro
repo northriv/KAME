@@ -34,6 +34,12 @@ QMAKE_CXXFLAGS += -Wno-register
 # cdb70d2cf).  Test builds deliberately do NOT carry this flag: the
 # reproducer must keep reproducing while the hunt continues.
 *g++* {
+# OPEN DISCRIMINATOR (§13.173): whether this flag is the CORRECT fix or is
+# hiding a source-level race turns on a gcc VERSION sweep -- planned at §13.10
+# and never run.  Fires only on 15.2 => compiler regression, this flag is the
+# fix and belongs upstream too; fires on 12/13/14 as well => a stable source
+# hazard the pass merely exposes, and the flag hides a real bug.  Do not close
+# the issue on the strength of this flag until that is known.
     QMAKE_CXXFLAGS += -fno-ipa-cp-clone
 }
 
