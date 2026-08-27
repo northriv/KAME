@@ -13004,3 +13004,59 @@ being re-applied, the group size would equal that call's **run length** — so
 comparing the group-size distribution against the per-chunk run lengths in the
 same run distinguishes "the chunk run is replayed" from "a fixed subset is",
 without needing conservation to be re-derived.
+
+### 13.198 §13.197's histogram, run: mean group = 1.00 — §13.196's "group replay" is WITHDRAWN, and the inference error is instructive
+
+§13.197 built the direct measure and named the criterion in advance: mean group
+comfortably above 1 confirms §13.196, mean 1.00 is the null.  Run on the
+reproducer, hand-specialised source, `KAME_BATCH_CAP=1`:
+
+```
+BATCHVERIFY checked=23 580 201  pushes=2 529 947  pairing_bad=0  bit_clear_bad=800
+BATCHVERIFY   group of 1   x800
+BATCHVERIFY   groups=800  violations=800  mean group=1.00
+BATCHVERIFY pending-at-clear: total=2 977 542  cross_thread=0
+```
+
+**Every one of the 800 violations is alone in its `batch_return_to_bitmap`
+call.**  That is exactly the null, so **§13.196's central claim — "a group of
+entries applied a second time as a group" — is withdrawn.**
+
+#### Where my inference went wrong, because the mechanism matters
+
+§13.196 read several violations sharing one `now` seq as "one applying
+operation".  They are not.  `g_bv_clearseq` is advanced by
+`kame_bv_note_clear_as`, which is called **only for bits actually cleared**
+(`oldv & ~newv`).  A violation clears **nothing** — the bit is already clear —
+so **a violation does not advance the sequence**.  Several violations therefore
+report an identical `now` seq whenever no *successful* clear happens between
+them, which says only that they occurred in a quiet window, not that they were
+one operation.
+
+I read a shared timestamp as a shared event.  The direct per-call measure was
+the right instrument and it disagrees.
+
+#### What actually survives from §13.196
+
+The *first* clears of the violating slots really are consecutive
+(`2942932, 933, 934, 935, 936…`, one owner, one chunk).  That side of it is
+sound: those slots were originally cleared as a run.  What is now excluded is
+that the **second** clears are a run.  So the shape is:
+
+> a set of slots cleared consecutively by one thread, later each re-cleared
+> **individually**, in separate calls.
+
+The stamp read (§13.196's other half — magic, state, owner, seq decoded and
+matching the report) also stands; it is only the grouping inference that fails.
+
+#### One caveat on the instrument, in the direction it has not been validated
+
+§13.197 validates the histogram against a **scattered** case
+(`KAME_BATCH_VERIFY_INJECT` → `group of 1 x459`, mean 1.00) — the null.  It has
+not been validated against a **known-grouped** case, so "mean = 1.00" and "the
+counter cannot exceed 1" are not yet distinguishable by measurement.  The claim
+withdrawn above does not depend on resolving that: §13.196 asserted grouping and
+the direct measure fails to show it, which is enough to withdraw an assertion
+that was mine to support.  But before this histogram is used to *establish*
+anything, it needs the positive control — e.g. inject two violations into one
+call deliberately and confirm it reports `group of 2`.
