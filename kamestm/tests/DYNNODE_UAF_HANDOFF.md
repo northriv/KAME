@@ -13830,3 +13830,71 @@ the default arm, the dose-response needs no violation attribution at all.  If th
 disagree, the histogram is the weaker one (it excludes the 16 B bucket and assumes
 the stamp survives the window, which §13.194's `pending-at-clear ≈ pushes` supports
 but does not prove for the exit-count field specifically).
+
+### 13.210 ANSWERED: thread exit is the mechanism — violations equal thread exits EXACTLY, 1:1, across a 20× sweep
+
+§13.209's dose-response, run.  Precondition checked first, per §13.206: the
+hand-specialised build has **4** `flush_impl<false>` symbols and `cap = 1` gives
+`bit_clear_bad = 800`, so the arm exhibits the effect (§13.205's perturbation is
+undone).
+
+Reproducer args are `rounds × threads × iters`, so exits = `rounds × 40`.
+`rounds × iters` held at 14 000 so total work — and flush-site `pushes` — stays
+fixed while exits vary:
+
+| exits | `bit_clear_bad` | violations/exit | pushes | violations per M pushes |
+|---|---|---|---|---|
+| 800 | **800** | 1.00 | 2 597 693 | 308.0 |
+| 400 | **400** | 1.00 | 2 686 027 | 148.9 |
+| 400 | **400** | 1.00 | 2 713 711 | 147.4 |
+| 160 | **160** | 1.00 | 2 807 658 | 57.0 |
+| 160 | **160** | 1.00 | 2 750 296 | 58.2 |
+| 80 | **80** | 1.00 | 2 858 610 | 28.0 |
+| 40 | **40** | 1.00 | 2 785 913 | 14.4 |
+
+**`bit_clear_bad == exits`, exactly, in every arm.**  Pushes vary by 10 %;
+violations per push varies **21.4×**.  §13.209's stated reading — *"falling with
+exits at nearly constant pushes → thread exit is necessary"* — is satisfied in its
+strongest possible form: not a trend, an **identity**.
+
+> **Each thread exit produces exactly one double-clear.**
+
+#### What this closes
+
+* §13.205's question is answered: **thread exit is not incidental**, it is the
+  generator.  §13.191's "4 exits per run" was the reason this looked excluded for
+  twenty sections; with the corrected ~800 the arithmetic was already suggestive
+  (§13.205) and the ablation now settles it.
+* §13.150's `NO_ADOPT` cure (0/11) gets its mechanism: no exits ⇒ no orphaned
+  chunks ⇒ nothing to adopt.  The two suppressors stop being separate facts.
+* §13.190's periodicity resolves quantitatively: gaps of 44–51 k clears ≈ 1.5
+  exits and the second cluster at ~98 k ≈ 3 exits, because one violation is
+  emitted per exit and the clear axis is dominated by the exit drain.
+* §13.189's gdb capture — the applying flush running from `__call_tls_dtors` —
+  was not a coincidence of one sample.
+
+#### And it points at one line of code
+
+§13.204 measured, deterministically, `excess = checked_flush − pushes = **−801**`
+at `cap = 1` with **`site teardown checked = 0`**.  Read against this section:
+**801 = 800 exits + 1**, and the teardown site registers *no traffic at all*.  So
+at each thread exit one pushed entry is never applied through the teardown path,
+while exactly one slot is cleared twice.  Those are the same event counted from
+two ends:
+
+> the exiting thread's drain returns a slot that its own cross-dealloc batch is
+> still holding, and the batch's entry for it is then applied — or discarded —
+> against a bit the drain already cleared.
+
+That is `release_dll_chunks_for_thread` versus the thread-local batch at teardown,
+and it is a **single-threaded ordering question**, not a race: both actions belong
+to the exiting thread.  §13.185's `WRONG THREAD = 0/36` is consistent — no foreign
+thread is involved, which is exactly why every cross-thread hypothesis
+(§13.194/§13.195/§13.200) measured zero.
+
+#### The check that would nail it, and it is small
+
+At `release_dll_chunks_for_thread`, before draining, count the exiting thread's own
+`tls_cross_dealloc_batch.count` and compare its entries against the slots the drain
+is about to return.  Any intersection is the defect, and it is inspectable
+**without concurrency** — a single thread's two data structures at one instant.
