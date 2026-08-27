@@ -10045,3 +10045,49 @@ all five flag combinations verified (plain, gate, `KAME_CHAIN_DYNCOUNT`,
 `KAME_NO_ORPHAN_CHAIN`, gate + dyncount), plus a real GCC 15.2 build.  Recorded
 because writing the lesson down one commit earlier did not stop me repeating it;
 the guard belongs in the *call-site macro*, not in discipline.
+### 13.156 Placement is not it either: forcing `global_pop_fit` out of line does not suppress the fault
+
+§13.154 closed "the pass miscompiled `global_pop_fit`" and left the narrower
+reading: the inlining changes *where* the four atomics run — inside the
+claimer's frame instead of behind a call — so the suspect became the
+interleaving, not the instructions.  That is directly testable by removing the
+inlining while keeping the specialization.
+
+**`KAME_NO_INLINE_POPFIT` isolates exactly that variable:**
+
+| arm | `create_allocator<64u>` size | atomics inside | `pop_fit` calls |
+|---|---|---|---|
+| base (firing, inlined) | 743 | **4** | 0 |
+| **`noinline`** | 747 | **1** | **1** |
+
+Three of the four atomic RMWs move back out of the claimer's frame; everything
+else — the clone set, the constants, the size verify — is unchanged.
+
+**Result, 20 interleaved rounds, `20 40 700`:**
+
+| arm | failures |
+|---|---|
+| inlined (baseline) | **8/20 (40%)** |
+| noinline | **13/20 (65%)** |
+
+Fisher **p = 0.20** — no suppression, and the arm without the inlining fails
+*more*, not less.
+
+**So the placement reading is refuted too.**  The inlining is real and
+firing-arm-only (§13.152), the body it inlines is correct (§13.154), and
+removing the inlining does not help.  `global_pop_fit` is now exhausted from
+every angle available: cloned or not (§13.122), licensed or not (§13.117),
+inlined or not (here), and correct as compiled (§13.154).
+
+**A flag-sensitivity worth recording.**  The same two arms built *with*
+`-DKAME_POISON_FORENSIC` show **0** atomics inside `create_allocator` in both —
+the inlining decision disappears entirely.  I built the first version of this
+experiment that way and got two identical-looking arms; the inlining that
+§13.152 and §13.154 documented exists only under the flag set used there.  Any
+future arm touching this function must re-check the inlining is present in its
+own build before drawing a conclusion, exactly as the clone arms had to
+re-check `.text` (§13.117).
+
+**Standing.**  The chain is necessary (§13.144), adoption is the necessary half
+(§13.150), traffic is a dose (§13.146) — and every mechanism nominated inside
+that half has now been measured innocent.

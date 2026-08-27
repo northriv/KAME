@@ -7959,6 +7959,14 @@ inline bool global_push(char *base, std::size_t size, unsigned kind) noexcept {
 }
 // Pop a fitting block from the global cache, weak-CAS each slot (own-then-
 // read-size) until a fit; livelock-free (bounded K iterations, no inner retry).
+// (§13.155) `KAME_NO_INLINE_POPFIT` forces this out of line.  §13.154 shows the
+// body is compiled correctly; what the firing arm changes is WHERE it runs --
+// four atomic RMWs inside the claimer's frame instead of behind a call.  This
+// arm keeps the specialization and removes only the inlining, isolating
+// placement from content.
+#ifdef KAME_NO_INLINE_POPFIT
+__attribute__((noinline))
+#endif
 KAME_CLONE_L12 /*§13.119 arm 12*/ KAME_NOCLONE(2) /*§13.121*/ inline char *global_pop_fit(std::size_t need, unsigned kind) noexcept {
     int idx = lrc_idx(need, kind);
     int kstart = lrc_kstart_g();
