@@ -12505,3 +12505,81 @@ measured an `atomic_countable` going DEAD twice with no BORN between, which is t
 STM-side statement of exactly what the census now shows at the bitmap.  That
 detector is a tag flip in the existing `dl_*` table and is the natural next arm —
 run beside this one, agreement between them would close the chain from both ends.
+### 13.192 Source-side detectors: the free is legitimate, so the bit is cleared BETWEEN the free and its apply — and how to fix, honestly
+
+§13.190 ends on "what issues the second free?".  Two detectors, at the free
+rather than at the flush.  Both needed the §13.167 re-entrancy fix first:
+`backtrace()` allocates on first use and this runs inside `operator delete`, so
+the first build died SIGSEGV with no output.  Warm the unwinder at load, guard
+re-entry per thread.
+
+#### FREE-OF-FREE = 0 (trustworthy)
+
+At `deallocate_pooled`, before the push, read the slot's own bitmap bit:
+
+```
+BATCHVERIFY FREE-OF-FREE (freed a slot whose bit was already clear) = 0
+```
+
+**Every free is of a slot that is genuinely in use.**  This reads the live
+bitmap — no table, no hash, no eviction — so the zero is real.
+
+#### DOUBLE-PUSH = 0 (NOT trustworthy — stated so it is not quoted later)
+
+The "slot pushed twice while still pending" check uses a 2^19 table against
+**2.6 M pushes/run**, so collisions overwrite the pending flag and it can only
+**under**-report.  Its zero is uninterpretable, the same failure the census's
+`NO RECORD` documents.  It needs an exact-keyed structure before it means
+anything.
+
+#### What the trustworthy half forces
+
+* the bit is **set** when the free is issued (this section);
+* the bit is **clear** when that free's own entry is applied (§13.184/§13.190);
+* the prior clearer is `site=flush` (§13.190);
+* the slot is never re-allocated in between (else the bit would be set).
+
+> So a slot's bit is cleared **between its own free and that free's apply**, by
+> a flush, while the slot is still marked in use to the whole allocator.
+
+And the two detectors bracket it: nothing is wrong at the free, nothing is wrong
+with the batch (§13.185/§13.187), so the defect is in the window between them.
+
+#### And the practical point: the 800 violations are the BENIGN half
+
+A second clear that lands **before** the slot is re-allocated is harmless and is
+what the check reports.  One that lands **after** re-allocation clears a live
+slot's bit, looks legitimate (the bit was set), and is **never reported** — that
+is the one that hands out live storage.  This explains the otherwise odd
+§13.184 result directly: `cap = 1` still shows all 800 violations yet never
+crashes, because draining immediately keeps the second clear inside the benign
+window; a large cap delays it into the dangerous one, which is §13.180's dose
+(z = 4.80).
+
+**Consequence for any fix:** a guard at the apply site that skips already-clear
+entries would suppress only the reported, harmless half and is blind to the
+harmful one.  It would make the symptom disappear from the logs and leave the
+bug.
+
+#### How to fix — ranked, with what each actually buys
+
+| option | evidence | what it costs / risks |
+|---|---|---|
+| **Fix the clear-between-free-and-apply** | not yet located | the only real fix |
+| `KAME_BATCH_CAP=1` | **0/12** (§13.180) | defeats batching: 2.6 M flushes/run instead of ~2.5 k |
+| `noclone` on `flush` | **0/16** (§13.174) | **mitigation only** — §13.177 reproduced the fault on GCC 14 with the shape hand-written, so any compiler that specialises this function reintroduces it |
+| `-fno-ipa-cp-clone` | same | same, and global |
+| `KAME_ORPHAN_NO_ADOPT` | **0/11** (§13.150) | strands orphaned chunks; unbounded memory growth |
+
+If a mitigation must ship today, `KAME_BATCH_CAP=1` is the one whose mechanism
+is understood — it removes the delay the dose-response identifies — and its cost
+is throughput, not correctness.  The compiler knobs are the *least* safe choice
+despite looking like the most targeted: §13.177 showed the fault does not need
+the clone, only the shape.
+
+**The next measurement**, and it is small: the free's own entry sits in the batch
+between push and apply.  Record `(slot → seq)` at push in an **exact-keyed**
+structure (or simply stamp the batch entry itself), and at every clearing CAS
+assert that no pending entry exists for a bit being cleared by a *different*
+entry.  That names the clearer of a pending slot directly, which is the one fact
+this chain still lacks.
