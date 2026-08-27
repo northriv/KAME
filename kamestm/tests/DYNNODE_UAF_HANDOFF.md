@@ -14468,3 +14468,50 @@ the batch, and only the batch's own destructor will flush it.  That is §13.207'
 deterministic `excess = −801` (one entry per thread never applied) and it is a
 separate question from ordering — `push-after-batch-dtor` is the counter for it,
 still unread on Linux.
+
+### 13.218 Tested before shipping — and the attempt immediately found a build break the whole section had been masking
+
+"Test first" paid off on the first command.  Configuring the test tree **without**
+`KAME_BATCH_VERIFY` — i.e. production shape — does not compile on macOS at HEAD:
+
+```
+allocator.cpp:10420: error: use of undeclared identifier 'RTLD_DEFAULT'
+allocator.cpp:10570: error: unknown type name 'Dl_info'
+```
+
+`#include <dlfcn.h>` sat behind `#if defined(__linux__)`, while
+`resolve_islive_once_` (§13.155, commit `e37941489`) calls
+`dlsym(RTLD_DEFAULT, …)` unguarded.  **Every build in §13.183–§13.217 defined
+`KAME_BATCH_VERIFY`, whose own `#include <dlfcn.h>` (§13.191) had been masking it**
+— so the break has been latent since §13.155 and invisible to this entire section.
+`dlsym` / `RTLD_DEFAULT` / `Dl_info` are POSIX and present on Darwin, so the include
+is now unconditional.
+
+#### The fix, measured against baseline
+
+Two trees, identical flags apart from `KAME_UNIFY_THREAD_EXIT_DRAIN` +
+`KAME_FORCE_TLS_DTOR_ORDER`, no instrumentation in either:
+
+| | baseline | B + A |
+|---|---|---|
+| `ctest` | **41/41 pass** | **41/41 pass** |
+| suite wall clock | 40.63 s | 40.21 s |
+| `transaction_dynamic_node_test` | 5/5 | 5/5 |
+| `alloc_stress_test` | 3/3 | 3/3 |
+| `alloc_thread_exit_free_test` (+`_dynamic`) | 3/3 | 3/3 |
+| `alloc_thread_exit_unarmed_test` (+`_dynamic`) | 3/3 | 3/3 |
+| `bench_xthread` free/s | 19.70 M | 20.31 M (single runs — noise) |
+
+The thread-exit family is the set that exercises exactly what B changes, and it is
+clean.  B costs work only at thread exit and A costs one TLS touch per batch
+construction, so the throughput parity is expected rather than lucky.
+
+#### One caution about defaults, which matters right now
+
+**Do not flip B or A on by default until the x86-64 A/B has been read.**  With B
+default-on the stock arm disappears and §13.216's clean comparison — 800 → 0 with
+`flush_syms` unchanged — becomes impossible to take.  They should graduate to
+unconditional immediately after that reading, whichever way it falls, since B
+removes a dependence on unspecified destruction order regardless.
+
+The `dlfcn.h` fix is different: it is a build break, so it is unconditional now.

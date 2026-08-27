@@ -75,11 +75,17 @@
                             //  libstdc++ does not.  `<cstring>` is the
                             //  portable C++ way.)
 #include <type_traits>
-#if defined(__linux__)
-    #include <dlfcn.h>           // RTLD_NEXT resolve of libc
+//! §13.218  NOT `#if defined(__linux__)`.  `dlsym` / `RTLD_DEFAULT` / `Dl_info`
+//! are POSIX and present on Darwin, and `resolve_islive_once_` (§13.155) uses
+//! `dlsym(RTLD_DEFAULT, ...)` unguarded -- so with the Linux-only include the
+//! macOS build of this file fails to compile unless something else happens to
+//! pull the header in.  Found by building the test tree WITHOUT
+//! KAME_BATCH_VERIFY: every build in §13.183-§13.217 defined it, and its own
+//! `#include <dlfcn.h>` had been masking the break.
+#include <dlfcn.h>               // RTLD_NEXT / RTLD_DEFAULT resolve of libc
                                  // malloc_usable_size (strong-symbol
-                                 // co-interpose forwards foreign pointers)
-#endif
+                                 // co-interpose forwards foreign pointers),
+                                 // and dlsym/Dl_info for §13.155 + §13.191
 #if defined(__APPLE__)
     #include <malloc/malloc.h>   // for malloc_zone_from_ptr / malloc_zone_free
 #elif defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
