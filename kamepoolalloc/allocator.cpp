@@ -713,6 +713,7 @@ static std::atomic<unsigned long long> g_flush_entries{0}, g_flush_iters{0},
                                        g_flush_nonempty{0};
 #endif
 #ifdef KAME_BATCH_VERIFY
+#include <dlfcn.h>                 // §13.191: dladdr, report path only
 //! §13.186 counters.  `kind` 0 = pairing, 1 = in-use bit already clear.
 //!
 //! Placed ahead of `CrossDeallocBatch` because the SITE now matters: the FS=true
@@ -778,6 +779,13 @@ struct BvClearRec {
     std::atomic<uintptr_t>          slot;
     std::atomic<unsigned long long> seq;
     std::atomic<unsigned char>      site;
+    //! §13.191  The two most recent PUSH callers for this slot, newest first.
+    //! `site` says which of the seven paths applied the clear; this says which
+    //! CALLER handed the slot to the batch, which is what §13.190 asks for.  Two
+    //! frames, because frame 0 is inside the allocator (`deallocate_pooled` /
+    //! `push_direct`) and the interesting one is its caller.  Keeping the
+    //! PREVIOUS push's pair as well means a double free names BOTH frees.
+    std::atomic<const void *>       caller[2][4];   // [newest|prev][frame 0..3]
 };
 enum { BV_CLEARTAB = 1u << 19 };                  // 12 MB BSS
 static BvClearRec g_bv_cleartab[BV_CLEARTAB];
@@ -792,24 +800,78 @@ static void kame_bv_note_clear_as(uintptr_t slot, unsigned char site) noexcept {
     r.site.store(site, std::memory_order_relaxed);
     r.seq.store(q, std::memory_order_relaxed);
 }
+//! §13.191  How many DISTINCT slots do the violations involve?  800 violations
+//! over ~24 M clears is a mean spacing of ~30 k, and §13.190's measured
+//! prior-clear gap is ~46 k -- close enough that the "prior clear" may simply be
+//! the PREVIOUS violation of the same slot, i.e. a handful of slots cycling
+//! rather than 800 independent double frees.  Those two readings call for
+//! completely different searches, and one small set separates them.
+enum { BV_VSLOTS = 1024 };
+static std::atomic<uintptr_t> g_bv_vslot[BV_VSLOTS];
+static std::atomic<unsigned> g_bv_vdistinct{0}, g_bv_vrepeat{0}, g_bv_voverflow{0};
+static void kame_bv_note_violation_slot(uintptr_t slot) noexcept {
+    for(unsigned i = 0; i < BV_VSLOTS; ++i) {
+        uintptr_t e = g_bv_vslot[i].load(std::memory_order_relaxed);
+        if(e == slot) { g_bv_vrepeat.fetch_add(1, std::memory_order_relaxed); return; }
+        if(e == 0) {
+            uintptr_t exp = 0;
+            if(g_bv_vslot[i].compare_exchange_strong(exp, slot,
+                                                     std::memory_order_relaxed)) {
+                g_bv_vdistinct.fetch_add(1, std::memory_order_relaxed);
+                return;
+            }
+            if(exp == slot) { g_bv_vrepeat.fetch_add(1, std::memory_order_relaxed); return; }
+        }
+    }
+    g_bv_voverflow.fetch_add(1, std::memory_order_relaxed);
+}
 static void kame_bv_note_clear(uintptr_t slot) noexcept {
     kame_bv_note_clear_as(slot, g_bv_site);
+}
+//! §13.191  Record a push's caller pair, shifting the previous pair down so a
+//! double free through the batch names both frees.  Relaxed and racy by design:
+//! a census, not a proof obligation.
+static void kame_bv_note_push(uintptr_t slot, const void *const f[4]) noexcept {
+    BvClearRec &r = g_bv_cleartab[kame_bv_hash(slot)];
+    bool same = r.slot.load(std::memory_order_relaxed) == slot;
+    for(int k = 0; k < 4; ++k)
+        r.caller[1][k].store(same ? r.caller[0][k].load(std::memory_order_relaxed)
+                                  : nullptr, std::memory_order_relaxed);
+    if( !same) r.slot.store(slot, std::memory_order_relaxed);
+    for(int k = 0; k < 4; ++k) r.caller[0][k].store(f[k], std::memory_order_relaxed);
 }
 static void kame_batch_verify_bad(int kind, const void *slot, const void *chunk,
                                   unsigned long long aux, unsigned long long word,
                                   unsigned packed, unsigned filled) noexcept {
     unsigned long long n = g_bv_bad[kind].fetch_add(1, std::memory_order_relaxed);
     g_bv_bad_site[g_bv_site].fetch_add(1, std::memory_order_relaxed);
+    if(kind == 1) kame_bv_note_violation_slot((uintptr_t)slot);       // §13.191
     if(n < 8) {
         //! §13.188: name the previous clearer of THIS slot, from the census.
         BvClearRec &r = g_bv_cleartab[kame_bv_hash((uintptr_t)slot)];
         uintptr_t rs = r.slot.load(std::memory_order_relaxed);
         unsigned char rsite = r.site.load(std::memory_order_relaxed);
         unsigned long long rseq = r.seq.load(std::memory_order_relaxed);
-        if(rs == (uintptr_t)slot)
+        if(rs == (uintptr_t)slot) {
             fprintf(stderr, "BATCHVERIFY   prior clear of this slot: site=%s seq=%llu "
-                    "(now seq=%llu)\n", g_bv_sitename[rsite < BV_NSITE ? rsite : 0],
-                    rseq, g_bv_clearseq.load(std::memory_order_relaxed));
+                    "(now seq=%llu, gap=%llu)\n",
+                    g_bv_sitename[rsite < BV_NSITE ? rsite : 0], rseq,
+                    g_bv_clearseq.load(std::memory_order_relaxed),
+                    g_bv_clearseq.load(std::memory_order_relaxed) - rseq);
+            //! §13.191  Name both frees.  dladdr only here, never on a hot path.
+            for(int w = 0; w < 2; ++w) {
+                if( !r.caller[w][0].load(std::memory_order_relaxed)) continue;
+                fprintf(stderr, "BATCHVERIFY     %s free pushed by:\n",
+                        w == 0 ? "SECOND (this)" : "FIRST (prior)");
+                for(int k = 0; k < 4; ++k) {
+                    const void *fk = r.caller[w][k].load(std::memory_order_relaxed);
+                    if( !fk) break;
+                    Dl_info di;
+                    fprintf(stderr, "BATCHVERIFY       #%d %p <%s>\n", k, fk,
+                            (dladdr(fk, &di) && di.dli_sname) ? di.dli_sname : "?");
+                }
+            }
+        }
         else
             fprintf(stderr, "BATCHVERIFY   prior clear of this slot: NO RECORD "
                     "(evicted by hash collision -- raise BV_CLEARTAB)\n");
@@ -835,6 +897,9 @@ namespace { struct BatchVerifyReport { ~BatchVerifyReport() {
                 g_bv_sitename[i], g_bv_checked[i].load(), g_bv_bad_site[i].load());
     //! `direct` bypasses `push` entirely, so the identity is on `flush` alone:
     //! every pushed entry is applied exactly once => flush == pushes.
+    fprintf(stderr, "BATCHVERIFY violation slots: distinct=%u repeats=%u overflow=%u"
+            "  (repeats >> distinct => a few slots cycling, not 800 double frees)\n",
+            g_bv_vdistinct.load(), g_bv_vrepeat.load(), g_bv_voverflow.load());
     fprintf(stderr, "BATCHVERIFY conservation: flush_applied - pushes = %+lld"
             "  (nonzero => a pushed entry was applied twice, or dropped)\n",
             (long long)(g_bv_checked[BV_FLUSH].load() - g_bv_pushes.load()));
@@ -949,6 +1014,16 @@ struct CrossDeallocBatch {
         if(count >= cap) flush();
 #ifdef KAME_BATCH_VERIFY
         g_bv_pushes.fetch_add(1, std::memory_order_relaxed);
+        {   //! §13.191  Four frames: 0-1 are inside the allocator
+            //! (`deallocate_pooled` <- `deallocate_cold`), so the CLIENT that
+            //! issued the free is at 2-3.  Needs frame pointers to be reliable
+            //! at depth; build with -fno-omit-frame-pointer.
+            const void *f[4] = { __builtin_return_address(0),
+                                 __builtin_return_address(1),
+                                 __builtin_return_address(2),
+                                 __builtin_return_address(3) };
+            kame_bv_note_push((uintptr_t)s, f);
+        }
 #endif
         buf[count++] = {c, s};
     }

@@ -12430,3 +12430,78 @@ census records the site (`flush`) but not the **caller** that pushed the entry.
 Adding the push-side caller — a return address captured at
 `CrossDeallocBatch::push` and stored beside the clear record — would name it, and
 is the same one-table change that made this section possible.
+
+### 13.191 Does thread exit return slots to a chunk it already let go?  No — and the push-side caller, which names both frees
+
+Asked directly: at thread exit, does the drain return slots to a chunk it has
+already handed off?  Answered twice over, then the instrument §13.190 asks for.
+
+#### The drain cannot meet a released chunk, by construction
+
+`~AllocThreadExitCleanup` → `release_dll_chunks_for_thread` walks the thread's
+DLL and, **per chunk**, drains that chunk's freelist, park cells and
+word-cache mask *and then* clears its `BIT_OWNED` / sets `BIT_OWNER_EXITED`.  The
+order is drain-then-disown, one chunk at a time.  And a peer cannot release a
+chunk out from under the walk: a cross-thread last-slot returner only releases a
+chunk once `BIT_OWNER_EXITED` is set, which is what this very walk sets.  So a
+chunk the walk has not yet reached is still owned, and one it has finished with is
+no longer drained.
+
+**And the measurement agrees**: §13.187 has `site drain: checked = 20 505 293,
+bad = 0`, and §13.190's census names the prior clearer as `flush` in 8/8 — never
+`drain`, never `direct`.  The hypothesis is a live *shape* (a stale holder freeing
+late), but the owner-exit drain is not the holder.
+
+#### The ~46 k gap is not thread exit, and may not be 800 double frees
+
+`transaction_dynamic_node_test` runs **`NUM_THREADS 4`**, created once and joined
+once — so there are 4 thread exits per run, not the ~520 that a 46 k gap over
+24 M clears would need.  Whatever is periodic at ~46 k, it is not thread teardown.
+
+A cheaper reading is available and was never checked: 800 violations over ~24 M
+clears is a mean spacing of ~30 k, and the measured prior-clear gap is ~46 k.
+Those are the same order, which is what it looks like when **the same few slots
+cycle** — each violation's "prior clear" being that slot's *previous violation* —
+rather than 800 independent double frees.  The two readings call for completely
+different searches, so the build now counts distinct violation slots directly
+(`violation slots: distinct=N repeats=M`).  Validated with the injector, which
+scatters by construction: `distinct=1024 repeats=12 overflow=745`.  A real run
+reporting `distinct` in the single digits with `repeats` in the hundreds would
+turn this from a double-free hunt into a single-object lifetime bug.
+
+#### The push-side caller, both frees named
+
+§13.190 asks for the caller that pushed the entry.  `push` now records **four
+return addresses** into the census record, shifting the previous push's set down,
+so a doubly-freed slot names *both* frees; `dladdr` symbolises them in the report
+path only.  Frames 0–1 are always inside the allocator, so the client is at 2–3.
+Validated on arm64 with the injector:
+
+```
+BATCHVERIFY   prior clear of this slot: site=other seq=5 (now seq=6, gap=1)
+BATCHVERIFY     SECOND (this) free pushed by:
+BATCHVERIFY       #0 PoolAllocator<32,true,true>::deallocate_pooled(char*)
+BATCHVERIFY       #1 PoolAllocatorBase::deallocate_cold(void*)
+BATCHVERIFY       #2 atomic_shared_ptr_base<Node<LongNode>::PacketWrapper,…>::deleter(PacketWrapper*)
+BATCHVERIFY       #3 scoped_atomic_view<Node<LongNode>::PacketWrapper>::release_()
+```
+
+Depth ≥ 2 needs frame pointers to be reliable — build the arm with
+`-fno-omit-frame-pointer`.  Baseline unchanged and clean (`checked = 9 206 268`,
+all assertions 0, conservation +0).
+
+#### The reframing this makes hard to avoid
+
+§13.190's own chain says the slot was cleared by a flush, **never re-allocated**,
+and cleared by a flush again.  Both clears therefore come from a client free, and
+in *this* program the client is the STM whose use-after-free is the object of the
+hunt.  So the leading reading is no longer that the allocator loses a slot: it is
+that **the STM releases the same `PacketWrapper` twice**, and the allocator's
+bitmap is simply the first place that notices.  §13.190 already conceded the
+symmetric point about scope — §13.166's double-free detector never hooked
+`CrossDeallocBatch::push` — and the same gap exists on the STM side: **`rc_trace`'s
+zero was DOUBLE-LIVE, never DOUBLE-DEAD.**  Nothing in this section has ever
+measured an `atomic_countable` going DEAD twice with no BORN between, which is the
+STM-side statement of exactly what the census now shows at the bitmap.  That
+detector is a tag flip in the existing `dl_*` table and is the natural next arm —
+run beside this one, agreement between them would close the chain from both ends.
