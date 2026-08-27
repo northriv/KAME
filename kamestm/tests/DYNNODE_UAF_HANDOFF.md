@@ -9665,3 +9665,45 @@ where did those +4 atomics land, and did anything move relative to the claim CAS
 (2) §13.149's decomposition, which says which chain act has to be present for the
 fault, and therefore which pairing to look at.  Both are cheap, and (1) runs here
 with no Linux round-trip (§13.145).
+### 13.150 The behavioural decomposition: ADOPT is necessary, scrub is not
+
+§13.147's three runtime arms make the decomposition possible for the first
+time — the gate had only ever controlled `orphan_chain_push`, so "chain on,
+adoption off" had never been run.  Its framing is the right one: a half can be
+necessary while the mechanism nominated for it is innocent.
+
+**11 interleaved rounds, one binary, `20 40 700`, `taskset -c 0-3`:**
+
+| arm | what still runs | failures |
+|---|---|---|
+| `all` (baseline) | push + adopt + scrub | **10/11 (91%)** |
+| **`KAME_ORPHAN_NO_ADOPT`** | push + scrub | **0/11 (0%)** |
+| `KAME_ORPHAN_NO_SCRUB` | push + adopt | **8/11 (73%)** |
+| `pushonly` (no adopt, no scrub) | push only | **0/11 (0%)** |
+| `off` | nothing | **0/11 (0%)** |
+
+`all` vs `noadopt`: **p = 3.4 × 10⁻⁵**.  `all` vs `noscrub`: **p = 0.59**.
+
+**Adopt is the necessary half.**  Removing adoption alone takes a 91% failure
+rate to zero, while removing scrub alone leaves it at 73% — statistically
+indistinguishable from baseline.  And `pushonly` at 0/11 says the publication
+itself is not sufficient: push establishes the refcount and does the Treiber
+CAS on the head, and with adoption disabled that is harmless.  **It is the
+re-acquisition of a published chunk that matters, not its publication.**
+
+**This does not contradict §13.131, and the distinction is worth keeping
+straight.**  §13.131 measured that no DOUBLE-LIVE hit lands in a chunk the
+adopt census recorded, and concluded the adopt path "does not supply the
+doubly-live slots".  That remains true as measured; what it cannot say — and
+what §13.147 anticipated — is whether adoption is *necessary*, which is a
+different question answered by a different experiment.  Both results stand: the
+adopt path is required for the fault, and the specific slots that go doubly
+live are not the ones its census records.  Reconciling those two is now the
+sharpest question in the investigation, and it suggests the census is looking
+at the wrong moment — recording the `BIT_OWNED` claim, when what matters may be
+what the adopting thread does with the chunk *afterwards* (the DLL splice, the
+owner re-arm, the first allocation out of a bitmap it did not build).
+
+**Bounds.**  Eleven rounds; the adopt effect is far outside noise
+(p = 3.4 × 10⁻⁵) but the scrub arm's 8/11 vs 10/11 is only "not different", not
+"identical" — a real but small scrub contribution would not be visible at this n.
