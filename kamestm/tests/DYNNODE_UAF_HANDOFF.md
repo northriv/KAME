@@ -12754,7 +12754,7 @@ the one arm that holds the clone fixed, which §13.186 shows
 
 #### The instrument crashed here, and gdb named it exactly
 
-`KAME_BATCH_VERIFY` built from §13.192–§13.194 dies **SIGSEGV with zero output**
+`KAME_BATCH_VERIFY` built from §13.193–§13.194 dies **SIGSEGV with zero output**
 on x86-64, on the stock source as well as the hand-specialised one — so not a
 consequence of §13.184's workaround.  Under gdb:
 
@@ -12839,3 +12839,19 @@ that the *bit index* it contributes is the one that entry owns.  That is
 checkable with the existing machinery: assert, per merged entry, that
 `mask_fn`'s bit is the entry's own `sidx`, and that no two entries in a run
 contribute the same bit.
+
+#### Numbering note, because commit messages here do not match headings
+
+Two sections were renumbered on landing, and their **commit messages keep the
+pre-merge number**:
+
+| heading | author | commit says |
+|---|---|---|
+| §13.192 (source-side detectors, fix ranking) | **Linux side** | "§13.191" |
+| §13.193 (slot stamp, `if constexpr (FS)` trap) | **Mac side** | "§13.192" |
+
+So `git log -S"§13.19x"` misattributes both.  §13.194 has it right in prose — it
+credits "§13.192's measurement" to the Linux side — and this section originally
+wrote the instrument's range as "§13.192–§13.194", which wrongly folded the
+Linux side's own section into the Mac side's instrument.  Corrected above to
+§13.193–§13.194.
