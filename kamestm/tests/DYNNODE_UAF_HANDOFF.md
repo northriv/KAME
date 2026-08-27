@@ -9105,3 +9105,94 @@ cold path.  Default build unchanged.
 
 This is worth running ahead of everything else queued, because it is the only
 experiment left that cannot be confounded by codegen.
+
+### 13.142 Three proposals from the user, ranked — and (i) built: a tag-mask census
+
+Three ideas, with an honest ranking before any of them is worked: **(iii) is the
+most decisive, (i) the best value per unit of effort, (ii) a sharpening of a
+census that already exists.**
+
+#### (i) Does gcc ever drop the low-tag mask?  — **yes, and IPA-CP supplies the premise**
+
+`atomic_shared_ptr` keeps a local refcount in the **low bits** of the pointer
+word, so every use masks:
+
+```cpp
+(Ref*)(ref & ~(LOCAL_REF_CAPACITY - 1))     // pointer -> `and ~7`
+(Refcnt)(ref & (LOCAL_REF_CAPACITY - 1))    // count   -> `and 7`
+```
+
+A compiler that concludes the value is an aligned pointer may delete `& ~7` as
+**redundant** — and this is not idle: **IPA-CP is exactly what supplies the
+premise**, because a specialization propagating a zero refcount makes
+`(uintptr_t)pref + 0` provably 8-aligned.  Correct for that clone; wrong the
+moment such a body is reached with a tagged value.  The project already knows the
+mirror of this hazard (CLAUDE.md forbids `alignas(N)`/`alignof(Ref)` for the
+constant, because pre-C++17 `operator new` need not honour it, "causing silent
+pointer corruption and rare crashes").
+
+What the source says: `m_ref` is declared **`uintptr_t`, not a pointer type**,
+which closes the direct type-based route — so the question has to be put to the
+object file, not the source.
+
+**`kamepoolalloc/tests/tagmask_census.py`** does that.  Per body touching the tag
+machinery it counts `mask_ptr` (masks with `~(CAP-1)`), `mask_cnt` (masks with
+`CAP-1`) and `tagged_add` (adds of a constant `< CAP` to a pointer-shaped value,
+i.e. *building* a tagged word), and flags any body that builds or consumes a
+tagged value and **never masks**.  Baseline here (clang, arm64, pool library):
+
+```
+bodies touching the tag machinery: 31
+totals: mask_ptr=131 mask_cnt=103 tagged_add=72
+SUSPECT (builds/consumes a tagged value, never masks): 0
+per body, uniformly: add=3 mask_ptr=5 mask_cnt=4
+```
+
+The uniformity is what makes it useful: with every instantiation at the same
+counts, a **differential** between the firing and non-firing builds is readable
+at a glance, and a body whose `mask_ptr` **drops** is the finding.  Absolute
+counts prove nothing on their own — inlining moves masks between bodies — so it
+is a differential tool by design and says so.
+
+#### (ii) Do the clone count and the refcount-access count reconcile in the asm?
+
+Worth doing, but a **raw total will not mean anything**: a clone legitimately has
+fewer refcount RMWs than its parent (the `weakly=false` specializations drop a
+whole branch, §13.125), so a difference is expected and a match is luck.  The
+sharp form is per-path rather than per-total:
+
+> for each clone, check that **every path from entry to return** performs the
+> same multiset of refcount RMWs as the corresponding source path.
+
+A clone with a path that reaches `ret` having done **one fewer** `lock add`/`lock
+sub` on `refcnt` than the source path it specializes is a lost reference, which is
+this fault.  §13.23's "22→44 lock-add census" is the same instinct applied to one
+function; the generalisation is to make it path-wise and run it over every clone.
+Cheaper than it sounds, because the bodies are small.
+
+#### (iii) Hand-write the clones under two names — **the most decisive of the three**
+
+This is the one that can do something no previous arm could.  §13.120 established
+that per-function licensing **cannot reach** the four functions IPA-CP specializes
+from caller context (`l1_/global_/recycle_pop_fit`, `acquire_tag_ref_`), and
+§13.121's subtractive direction reaches them only by *removing* cloning.  Neither
+can produce those specialized bodies at `-O2`.
+
+**Writing them by hand can** — because you write the call sites too.  Duplicate
+the function under a second name with the constant folded in, call it from the
+sites that would have been specialized, and build at plain `-O2` (0/8).  Then:
+
+| result | conclusion |
+|---|---|
+| fires | the clone set **is** the fault, and §13.119's negative was an artifact of the mechanism rather than evidence about the hypothesis |
+| clean | the clone set is refuted a third way, by the one method that can reach all twelve specialized functions |
+
+It also gives something no gcc-flag arm can: a **permanently reproducible** case
+that does not depend on a compiler's choices, which is what a regression test
+needs.  The cost is real (twelve functions, and the caller edits have to be
+faithful), which is why it is ranked most decisive rather than first to run.
+
+**Suggested order**, given what is already queued: §13.141's runtime gate first
+(it is the only arm that cannot be confounded by codegen, and it is one env var),
+then (i)'s census on the §13.119 pair (static, minutes), then (iii) if both come
+back empty.
