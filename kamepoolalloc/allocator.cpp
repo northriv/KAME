@@ -2806,13 +2806,25 @@ extern "C" void kame_pool_resolve_ok() noexcept;
 //! And did the adopter's first allocate_pooled out of it succeed?
 extern "C" void kame_pool_survivor_note(unsigned cnt) noexcept;
 extern "C" void kame_pool_survivor_alloc(unsigned cnt) noexcept;
+//! (§13.163) The adopt claim loop has a branch its own comment calls
+//! "duplicate-owned (should never happen)": a popped orphan already carrying
+//! BIT_OWNED, i.e. TWO threads owning one chunk — which would put two
+//! allocators on one bitmap and one freelist, the exact shape of a double
+//! hand-out.  It has never been counted.  `retry` counts claim-CAS losses to
+//! concurrent cross-thread MASK_CNT decs (contention, not an error).
+extern "C" void kame_pool_adopt_dup() noexcept;
+extern "C" void kame_pool_adopt_retry() noexcept;
   #define KAME_SURVIVOR_NOTE(c)  ::kame_pool_survivor_note(c)
   #define KAME_SURVIVOR_ALLOC(c) ::kame_pool_survivor_alloc(c)
+  #define KAME_ADOPT_DUP()       ::kame_pool_adopt_dup()
+  #define KAME_ADOPT_RETRY()     ::kame_pool_adopt_retry()
 #endif
 //! Same no-op fallback discipline as KAME_ADOPT_YIELD above (§13.156).
 #ifndef KAME_SURVIVOR_NOTE
   #define KAME_SURVIVOR_NOTE(c)  ((void)0)
   #define KAME_SURVIVOR_ALLOC(c) ((void)0)
+  #define KAME_ADOPT_DUP()       ((void)0)
+  #define KAME_ADOPT_RETRY()     ((void)0)
 #endif
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -3139,8 +3151,10 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 		uint32_t claim_flags = 0;                        // §13.161
 		for(;;) {
 			uint32_t of = oc->m_flags_packed;
-			if(of & PoolAllocator<ALIGN, DUMMY, DUMMY>::BIT_OWNED)
+			if(of & PoolAllocator<ALIGN, DUMMY, DUMMY>::BIT_OWNED) {
+				KAME_ADOPT_DUP();                        // §13.163
 				break;  // duplicate-owned (should never happen) -> discard
+			}
 			if(atomicCompareAndSet(of,
 			       of | PoolAllocator<ALIGN, DUMMY, DUMMY>::BIT_OWNED,
 			       &oc->m_flags_packed)) {
@@ -3148,6 +3162,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 				claim_flags = of;                        // §13.161
 				break;  // BIT_OWNED set, MASK_CNT preserved
 			}
+			KAME_ADOPT_RETRY();                          // §13.163
 			// CAS lost to a concurrent MASK_CNT dec — retry with fresh `of`.
 		}
 		if(claimed) {
@@ -9149,17 +9164,21 @@ extern "C" unsigned long long kame_pool_adopt_count() noexcept {
 namespace {
 std::atomic<unsigned long long> g_sv_total{0}, g_sv_surv{0}, g_sv_drain{0},
     g_sv_alloc_surv{0}, g_sv_alloc_drain{0}, g_sv_maxcnt{0};
+std::atomic<unsigned long long> g_sv_dup{0}, g_sv_retry{0};
 inline void sv_report_(int fd) noexcept {
     char b[320];
     int n = snprintf(b, sizeof b,
         "kame_pool: ADOPT survivor census: total=%llu drained=%llu survivor=%llu"
-        " maxcnt=%llu | first-alloc-OK: drained=%llu survivor=%llu\n",
+        " maxcnt=%llu | first-alloc-OK: drained=%llu survivor=%llu"
+        " | DUP-OWNED=%llu claim-retries=%llu\n",
         (unsigned long long)g_sv_total.load(std::memory_order_relaxed),
         (unsigned long long)g_sv_drain.load(std::memory_order_relaxed),
         (unsigned long long)g_sv_surv.load(std::memory_order_relaxed),
         (unsigned long long)g_sv_maxcnt.load(std::memory_order_relaxed),
         (unsigned long long)g_sv_alloc_drain.load(std::memory_order_relaxed),
-        (unsigned long long)g_sv_alloc_surv.load(std::memory_order_relaxed));
+        (unsigned long long)g_sv_alloc_surv.load(std::memory_order_relaxed),
+        (unsigned long long)g_sv_dup.load(std::memory_order_relaxed),
+        (unsigned long long)g_sv_retry.load(std::memory_order_relaxed));
     if(n > 0) { ssize_t r = write(fd, b, (size_t)n); (void)r; }
 }
 // atexit does NOT run after a fatal signal (§13.93) — read back from a handler.
@@ -9189,6 +9208,12 @@ extern "C" void kame_pool_survivor_note(unsigned cnt) noexcept {
                   std::memory_order_relaxed)) {}
     }
     else g_sv_drain.fetch_add(1, std::memory_order_relaxed);
+}
+extern "C" void kame_pool_adopt_dup() noexcept {
+    g_sv_dup.fetch_add(1, std::memory_order_relaxed);
+}
+extern "C" void kame_pool_adopt_retry() noexcept {
+    g_sv_retry.fetch_add(1, std::memory_order_relaxed);
 }
 extern "C" void kame_pool_survivor_alloc(unsigned cnt) noexcept {
     if(cnt) g_sv_alloc_surv.fetch_add(1, std::memory_order_relaxed);
