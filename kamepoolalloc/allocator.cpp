@@ -876,26 +876,10 @@ struct CrossDeallocBatch {
 };
 thread_local CrossDeallocBatch tls_cross_dealloc_batch;
 
-// drain_thread_slot_freelists (defined below) is `~AllocThreadExitCleanup`'s first
-// statement, and it is what sequences the two halves of this thread's teardown: it
-// flushes the cross-dealloc batch BEFORE `release_dll_chunks_for_thread` disowns
-// and orphans the thread's chunks.
-//
-// That order is load-bearing and cannot be left to the language.  Both
-// `tls_cross_dealloc_batch` and `tls_alloc_thread_exit_cleanup` have non-trivial
-// destructors and are destroyed by DIFFERENT mechanisms — the batch by
-// `__cxa_thread_atexit`, the cleanup via the pthread-key path — so nothing about
-// construction order sequences them against each other.  On glibc the cleanup runs
-// first on every thread, and `push` flushes before it appends, so at cap == 1 every
-// thread ends its life with exactly one un-flushed entry.  Applying that entry
-// after the walk clears a bit on a chunk that has been disowned, orphaned, and
-// possibly adopted and handed out of: a use-after-free, one per thread, which
-// reproduces as an abort in `transaction_dynamic_node_test` under GCC 15 -O2
-// -fipa-cp-clone and disappears when this flush is present.
-//
+// drain_thread_slot_freelists (defined below) is a retained no-op stub.
 // Owner-thread freelists are chunk-local and drained per-chunk by
 // `release_dll_chunks_for_thread` (per-template DLL walk) before each
-// chunk's BIT_OWNED clear — see that function.
+// chunk's BIT_OWNED clear — see that function and the stub's own comment.
 //
 // each touched chunk still has `BIT_OWNER_EXITED == 0`
 // at this point (the per-template DLL walk that sets it runs
@@ -903,12 +887,6 @@ thread_local CrossDeallocBatch tls_cross_dealloc_batch;
 // the cross_release inside batch_return_to_bitmap returns false
 // — the owner thread (us) is still alive, no release allowed.
 void drain_thread_slot_freelists() noexcept {
-    // Flush this thread's pending cross-thread frees while its chunks are still
-    // owned.  `~CrossDeallocBatch` remains as a backstop: `flush()` returns
-    // immediately on an empty batch, and a thread that never allocated never
-    // registered this cleanup, so for it the batch's own destructor is the only
-    // flush there is.
-    tls_cross_dealloc_batch.flush(/*at_teardown=*/true);
     // Single-slot scratch + trailing nullptr sentinel — satisfies
     // `batch_return_to_bitmap`'s `entries[k].chunk == this` walk
     // contract (one matching entry, then the sentinel terminates).
@@ -2737,17 +2715,13 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// memory growth = mmap rate (one new chunk per chunk-fill); this
 	// release path balances it at the same cadence.
 	//
-	// Safety: `owner_release` clears BIT_OWNED with an atomicFetchAnd and only
-	// reports success when the word reached 0, i.e. when it is the unique
-	// releaser; the caller then does the DLL unlink + `delete` +
-	// `deallocate_chunk`.  Note what its give-up return leaves behind: BIT_OWNED
-	// already cleared on a chunk that is NOT on the orphan chain, which is a state
-	// the free path's `OnClearFn`s assume cannot occur (they decline to release a
-	// BIT_OWNED-clear chunk precisely because they take it to be chained).  The
-	// give-up needs MASK_CNT to rise between the pre-check and the fetch-and, and
-	// MASK_CNT is only ever raised by the owner's own claim path, so it is
-	// unreachable today — do not make it reachable without revisiting those
-	// OnClearFns.
+	// Safety: an earlier change `owner_release` CAS's `BIT_RELEASED` on the
+	// chunk's `m_flags_packed` — this races safely against any
+	// cross-thread `cross_release`, but cross_release additionally
+	// requires `BIT_OWNER_EXITED == 1` which only the owner's
+	// exit-path sets, so while we're alive only `owner_release` can
+	// win the race.  Caller (us) handles the post-CAS DLL unlink +
+	// `delete` + `deallocate_chunk`.
 	if(s_tls.my_chunk) {
 		auto *nx = s_tls.my_chunk->m_dll_next;
 		for(int released = 0; nx && released < 2; ) {
