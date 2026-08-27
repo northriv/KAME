@@ -880,6 +880,26 @@ static inline unsigned long long kame_bv_pack(unsigned state, unsigned owner,
            (seq & 0xffffffULL);
 }
 static std::atomic<unsigned long long> g_bv_double_push{0};
+//! §13.202  Is `flush` RE-ENTERED at a cap where the buffer can hold entries?
+//!
+//! §13.178 measured nesting and found none, but at the FIRING cap -- and at
+//! `cap = 1` re-entry cannot do damage even if it happens, because the outer loop
+//! has walked at most 0 entries when it occurs.  `cap = 32` is the arm with the
+//! groups (§13.199) and has never been checked.
+//!
+//! The shape the source permits: `flush` never copies `count` into a local
+//! (`while(i < count)` re-reads the member, which §13.176 saw the clone reload
+//! from TLS every iteration) and only zeroes it AFTER the apply loop.  So a
+//! `push` occurring inside the loop sees `count >= cap`, calls `flush()`
+//! recursively, and the nested call re-sorts and re-applies THE SAME BUFFER --
+//! every entry a second time.  That is a group of entries applied together, of
+//! run length, clustered in the nested call: §13.199's measured shape exactly.
+//!
+//! And a push inside the loop is reachable: `batch_return_to_bitmap` may RELEASE
+//! a chunk (its own comments say so), and releasing frees memory, which routes
+//! back into `deallocate_pooled` -> `push`.
+static thread_local int g_bv_flush_depth = 0;
+static std::atomic<unsigned long long> g_bv_flush_reenter{0}, g_bv_flush_maxdepth{0};
 static inline void kame_bv_slot_stamp(char *p, unsigned align, unsigned state,
                                       const void *client) noexcept {
     volatile unsigned long long *w =
@@ -1146,6 +1166,12 @@ namespace { struct BatchVerifyReport { ~BatchVerifyReport() {
         if(tot) fprintf(stderr, "BATCHVERIFY   groups=%llu  violations=%llu  "
                         "mean group=%.2f\n", tot, wsum, (double)wsum / (double)tot);
     }
+    fprintf(stderr, "BATCHVERIFY flush re-entry: count=%llu max_depth=%llu"
+            "  (>0 => the nested call re-applied the outer buffer)\n",
+            g_bv_flush_reenter.load(), g_bv_flush_maxdepth.load());
+    fprintf(stderr, "BATCHVERIFY excess-applied: checked_flush - pushes = %+lld"
+            "  (>0 => entries walked more than once)\n",
+            (long long)(g_bv_checked[BV_FLUSH].load() - g_bv_pushes.load()));
     fprintf(stderr, "BATCHVERIFY freed-while-pending (exact, §13.192's DOUBLE-PUSH): %llu"
             "  (>0 => a slot was handed out while a free for it was in flight)\n",
             g_bv_double_push.load());
@@ -1159,6 +1185,9 @@ namespace { struct BatchVerifyReport { ~BatchVerifyReport() {
             "  (nonzero => a pushed entry was applied twice, or dropped)\n",
             (long long)(g_bv_checked[BV_FLUSH].load() - g_bv_pushes.load()));
 } } g_bv_report; }
+#endif
+#ifdef KAME_FLUSH_REENTRY_GUARD
+static thread_local bool kame_in_flush_ = false;            // §13.202
 #endif
 struct CrossDeallocBatch {
     // FS=true-only small-slot batch (FS=false bypasses
@@ -1432,6 +1461,24 @@ struct CrossDeallocBatch {
 #endif
         verify_owner("flush");                                   // §13.182
 #ifdef KAME_BATCH_VERIFY
+        struct BvDepth {                                         // §13.202
+            BvDepth() noexcept {
+                if(++g_bv_flush_depth > 1) {
+                    unsigned long long n =
+                        g_bv_flush_reenter.fetch_add(1, std::memory_order_relaxed);
+                    unsigned long long m = g_bv_flush_maxdepth.load(std::memory_order_relaxed);
+                    while((unsigned long long)g_bv_flush_depth > m &&
+                          !g_bv_flush_maxdepth.compare_exchange_weak(m, g_bv_flush_depth)) {}
+                    if(n < 4)
+                        fprintf(stderr, "BATCHVERIFY FLUSH RE-ENTERED depth=%d "
+                                "-- the nested call re-applies the same buffer\n",
+                                g_bv_flush_depth);
+                }
+            }
+            ~BvDepth() noexcept { --g_bv_flush_depth; }
+        } _bv_depth;
+#endif
+#ifdef KAME_BATCH_VERIFY
         if(count < 0 || count > CAP) {
             fprintf(stderr, "BATCHVERIFY count OUT OF RANGE before flush: %d\n", count);
             abort();
@@ -1476,6 +1523,13 @@ struct CrossDeallocBatch {
         // pointer.  The owner's TLS storage that the cached ptr targets
         // lives independently of the chunk; null after owner-exit's
         // release-store, so the post-call deref is safe-or-skipped.
+#ifdef KAME_FLUSH_REENTRY_GUARD
+        struct InFlush {                                       // §13.202
+            bool saved;
+            InFlush() noexcept : saved(kame_in_flush_) { kame_in_flush_ = true; }
+            ~InFlush() noexcept { kame_in_flush_ = saved; }
+        } _in_flush;
+#endif
         int i = 0;
         while(i < count) {
             PoolAllocatorBase *chunk = buf[i].chunk;
@@ -1520,6 +1574,29 @@ struct CrossDeallocBatch {
                 cached_force_walk->store(true, std::memory_order_relaxed);
 #endif
         }
+#ifdef KAME_BATCH_VERIFY
+        //! §13.202 sufficiency test.  `KAME_FLUSH_REENTRY_INJECT=N` re-enters
+        //! `flush` once per N flushes, from inside the apply loop -- exactly what
+        //! a `push` from a chunk release would do.  Two questions at once: does
+        //! the detector fire (else its zero is worthless, §13.61), and does the
+        //! re-entry PRODUCE §13.199's signature (violations grouped per call,
+        //! `checked_flush > pushes`)?  If it does, the mechanism is sufficient
+        //! even where it is not spontaneous.
+        if(g_bv_flush_depth == 1) {
+            static std::atomic<int> inj{-1};
+            int iv = inj.load(std::memory_order_relaxed);
+            if(iv < 0) {
+                const char *e = getenv("KAME_FLUSH_REENTRY_INJECT");
+                iv = (e && e[0]) ? atoi(e) : 0;
+                inj.store(iv, std::memory_order_relaxed);
+            }
+            if(iv > 0) {
+                static std::atomic<unsigned long long> c{0};
+                if((c.fetch_add(1, std::memory_order_relaxed) % (unsigned)iv) == 0)
+                    flush(at_teardown);          // same buffer, count untouched
+            }
+        }
+#endif
         count = 0;
 #ifdef KAME_BATCH_VERIFY
         if(count != 0) { fprintf(stderr, "BATCHVERIFY count != 0 AFTER flush: %d\n", count); abort(); }
@@ -3262,6 +3339,26 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// thread, released on another), so that spike is reachable, not
 	// hypothetical.  The decision lives in the batch (see `cap`) precisely so
 	// this hot path needs no realtime test of its own.
+#ifdef KAME_FLUSH_REENTRY_GUARD
+	//! §13.202  The fix, if re-entry is the defect.  `flush` works from the member
+	//! `count` and zeroes it only after the apply loop, so a `push` reached from
+	//! inside that loop (a chunk release frees memory) re-enters and re-applies the
+	//! whole buffer.  Appending instead is NOT safe either: it overwrites the
+	//! sentinel and breaks the merge loop's "sorted within a chunk group"
+	//! precondition, which makes the run advance short -- the same double apply by
+	//! another route.
+	//!
+	//! So while a flush is in progress this thread's frees bypass the batch and
+	//! settle their own slot, exactly as `push_direct`'s direct path does.  The
+	//! check lives here because only this frame knows ALIGN.
+	if constexpr (FS && DUMMY) {
+		if(kame_in_flush_) {
+			CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
+			this->batch_return_to_bitmap(tmp);
+			return false;
+		}
+	}
+#endif
 #ifdef KAME_BATCH_VERIFY
 	//! §13.194  PENDING stamp goes HERE, not in `push`: only this frame knows
 	//! ALIGN (the batch is type-erased over chunks), and `FS && DUMMY` is the

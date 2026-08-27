@@ -13278,3 +13278,81 @@ variables**, which is a much smaller question than any asked since §13.184:
 instrument `batch_clear_impl` to record, per call, the entry count it was handed,
 the number of distinct entries it consumed, and the value it returned — and
 compare the three.
+
+### 13.202 A mechanism that reproduces §13.199's signature quantitatively — flush re-entry — plus the one-line test that decides it, and a candidate fix
+
+§13.201 puts the contradiction in the flush loop's accounting.  Reading the loop
+gives a specific shape, and forcing it reproduces the measured numbers.
+
+#### What the source permits
+
+`flush` never copies `count` into a local — `while(i < count)` re-reads the member
+(which §13.176 saw the clone reload from TLS every iteration) — and **`count` is
+zeroed only after the apply loop**.  So a `push` reached from inside that loop sees
+`count >= cap`, calls `flush()` **recursively**, and the nested call re-sorts and
+**re-applies the same buffer**.  A push from inside is reachable:
+`batch_return_to_bitmap` may release a chunk (its own comments say so), and
+releasing frees memory, which routes back to `deallocate_pooled`.
+
+Appending instead of flushing would not be safe either: it overwrites the sentinel
+at `buf[count]` and breaks the merge loop's "sorted within a chunk group"
+precondition, which makes a run advance short — the same double apply by another
+route.
+
+#### Forced once per 200 flushes, on arm64 where the fault never occurs
+
+| | x86-64, spontaneous, cap 32 (§13.199/§13.201) | arm64, forced re-entry, cap 32 |
+|---|---|---|
+| mean group | **4.29** | **4.41** (1/200) · 4.82 (1/50) |
+| sizes | 1–16, no peak | 1–16, no peak |
+| `bit_clear_bad` | 395 | 358 · 1439 |
+| re-entry count | — | 15 · 58 (max depth 2) |
+
+```
+cap=32 inject=0     bit_clear_bad=0     re-entry=0    checked_flush-pushes = +0
+cap=32 inject=200   bit_clear_bad=358   re-entry=15   checked_flush-pushes = +358
+cap=32 inject=50    bit_clear_bad=1439  re-entry=58   checked_flush-pushes = +1439
+```
+
+**Mean group 4.41 against 4.29**, same range, same shape — and the injector's own
+zero arm gives 0 violations, so this is not a property of the instrumented build.
+The detector fires (validated, so its spontaneous zero on arm64 is a real zero).
+
+#### The identity this exposes, which is the test
+
+`checked_flush − pushes` **equals `bit_clear_bad` exactly**, in both injected runs.
+That is structural: a re-applied entry is walked a second time (excess) and finds
+its bit clear (violation), one for one.  It gives a single-line discriminator that
+needs no gdb:
+
+> **At `cap = 32` on x86-64, is `checked_flush − pushes == bit_clear_bad`?**
+
+* **Yes, with `re-entry > 0`** — flush re-entry is the defect, and
+  `KAME_FLUSH_REENTRY_GUARD` (below) is the fix.
+* **Yes, with `re-entry = 0`** — a re-walk happens *without* re-entry, which leaves
+  exactly one candidate: the merge loop's advance. That is §13.195's never-run
+  check — assert per merged entry that `mask_fn`'s bit is that entry's own `sidx`,
+  and that no two entries in a run contribute the same bit.
+* **No** — then entries are not walked twice at all and the double apply is
+  somewhere neither loop reaches.
+
+The three cases are mutually exclusive and the number is already in the summary
+this build prints.
+
+#### The candidate fix
+
+`KAME_FLUSH_REENTRY_GUARD`: while a flush is in progress, this thread's frees
+bypass the batch and settle their own slot directly, exactly as `push_direct`'s
+direct path does.  The check sits in `deallocate_pooled` because only that frame
+knows `ALIGN`.  It is a few instructions on the free path, costs no throughput in
+the common case (the flag is false), and unlike `KAME_BATCH_CAP=1` it does not
+defeat batching.
+
+#### Honest scope
+
+Forcing re-entry proves the mechanism is **sufficient** to produce the signature.
+It does not prove x86-64 does it spontaneously — my detector reads **0 at every
+cap on arm64**, and §13.178 also found none at the firing cap.  The identity above
+is what settles that, and if it selects the second branch, the mechanism is the
+same class (a run walked twice) with the trigger one level down in
+`batch_clear_impl` rather than in `flush`.
