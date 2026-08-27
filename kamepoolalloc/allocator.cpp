@@ -856,16 +856,55 @@ static void kame_bv_note_violation_slot(uintptr_t slot) noexcept {
 //! makes a core file greppable for stamped slots.
 static constexpr unsigned long long BV_CLRMAGIC16 = 0x4B41ULL;   // "KA"
 enum { BV_ST_PENDING = 1, BV_ST_CLEARED = 2 };
-//! §13.194  Packing, one word at `p + ALIGN - 8`:
-//!   63..48 magic 0x4B41 | 47..44 state | 43..40 site | 39..28 owner | 27..0 seq
+//! §13.197  Repacked to carry PER-SLOT push and apply counts, which is the check
+//! §13.196 asks for.  Its paradox is that a group is demonstrably applied twice
+//! (4/4 runs) while conservation reads ±1 -- and conservation is a GLOBAL count of
+//! entries processed, so a replay that is also re-pushed raises both sides and the
+//! identity survives while the same storage is returned twice.  Counting per slot
+//! cannot be fooled that way.
+//!
+//!   63..48 magic 0x4B41 | 47..44 state | 43..40 site | 39..32 owner
+//!   31..28 push_cnt (saturating) | 27..24 apply_cnt (saturating) | 23..0 seq
+//!
+//! `owner` narrows to 8 bits (ids observed: 0x6, 0x1a, 0x20, 0x44, 0x57) and
+//! `seq` to 24; gaps are ~50 k so a 2^24 wrap is invisible to a masked
+//! subtraction, and both are printed for cross-checking against the table.
+static inline unsigned long long kame_bv_pack(unsigned state, unsigned owner,
+                                              unsigned pushc, unsigned applyc,
+                                              unsigned long long seq) noexcept {
+    return (BV_CLRMAGIC16 << 48) | ((unsigned long long)(state & 0xfu) << 44) |
+           ((unsigned long long)(g_bv_site & 0xfu) << 40) |
+           ((unsigned long long)(owner & 0xffu) << 32) |
+           ((unsigned long long)(pushc & 0xfu) << 28) |
+           ((unsigned long long)(applyc & 0xfu) << 24) |
+           (seq & 0xffffffULL);
+}
 static inline void kame_bv_slot_stamp(char *p, unsigned align, unsigned state,
                                       const void *client) noexcept {
-    unsigned long long seq = g_bv_clearseq.load(std::memory_order_relaxed);
-    *reinterpret_cast<volatile unsigned long long *>(p + align - 8) =
-        (BV_CLRMAGIC16 << 48) | ((unsigned long long)(state & 0xfu) << 44) |
-        ((unsigned long long)(g_bv_site & 0xfu) << 40) |
-        ((unsigned long long)(kame_owner_id() & 0xfffu) << 28) |
-        (seq & 0xfffffffULL);
+    volatile unsigned long long *w =
+        reinterpret_cast<volatile unsigned long long *>(p + align - 8);
+    //! §13.197  The counters must be PER LIFE, not cumulative.  My first version
+    //! simply incremented, and since a slot is recycled thousands of times per run
+    //! both counters saturated at 15 -- the resulting histogram measured slot
+    //! REUSE and nothing else (`push=0 apply=15` with 2.7 M hits was just "this
+    //! slot has been freed at least fifteen times ever").
+    //!
+    //! A push after an apply starts a new life; a push while still PENDING is a
+    //! DOUBLE PUSH; an apply while already CLEARED is a REPLAY.  Those are exactly
+    //! §13.196's two candidate shapes, so the pair (push, apply) is now bounded
+    //! and every cell above (1,1) is a defect.
+    unsigned long long old = *w;
+    bool stamped = (old >> 48) == BV_CLRMAGIC16;
+    unsigned prev   = stamped ? (unsigned)((old >> 44) & 0xfu) : 0;
+    unsigned pushc  = stamped ? (unsigned)((old >> 28) & 0xfu) : 0;
+    unsigned applyc = stamped ? (unsigned)((old >> 24) & 0xfu) : 0;
+    if(state == BV_ST_PENDING) {
+        if(prev == BV_ST_PENDING) { if(pushc < 15u) ++pushc; }   // double push
+        else                      { pushc = 1; applyc = 0; }     // new life
+    }
+    else { if(applyc < 15u) ++applyc; }                          // apply / replay
+    *w = kame_bv_pack(state, kame_owner_id(), pushc, applyc,
+                      g_bv_clearseq.load(std::memory_order_relaxed));
     if(align >= 32u)
         *reinterpret_cast<const void *volatile *>(p + align - 16) = client;
 }
@@ -874,13 +913,17 @@ static inline void kame_bv_slot_mark(char *p, unsigned align, const void *client
 }
 static inline bool kame_bv_slot_read(const char *p, unsigned align, unsigned char *site,
                                      unsigned long long *seq, unsigned *owner,
-                                     const void **client, unsigned *state = nullptr) noexcept {
+                                     const void **client, unsigned *state = nullptr,
+                                     unsigned *pushc = nullptr,
+                                     unsigned *applyc = nullptr) noexcept {
     unsigned long long w = *reinterpret_cast<const volatile unsigned long long *>(p + align - 8);
     if((w >> 48) != BV_CLRMAGIC16) return false;
-    if(state) *state = (unsigned)((w >> 44) & 0xfu);
+    if(state)  *state  = (unsigned)((w >> 44) & 0xfu);
+    if(pushc)  *pushc  = (unsigned)((w >> 28) & 0xfu);
+    if(applyc) *applyc = (unsigned)((w >> 24) & 0xfu);
     *site  = (unsigned char)((w >> 40) & 0xfu);
-    *owner = (unsigned)((w >> 28) & 0xfffu);
-    *seq   = w & 0xfffffffULL;
+    *owner = (unsigned)((w >> 32) & 0xffu);
+    *seq   = w & 0xffffffULL;
     *client = (align >= 32u) ? *reinterpret_cast<const void *const volatile *>(p + align - 16)
                              : nullptr;
     return true;
@@ -904,12 +947,36 @@ static inline bool kame_bv_slot_read(const char *p, unsigned align, unsigned cha
 //! given FREE-OF-FREE = 0 requires the slot to have been handed out twice.  That
 //! is the fact this chain lacks, and it is a single 64-bit read per cleared bit.
 static std::atomic<unsigned long long> g_bv_clear_pending{0}, g_bv_clear_pending_x{0};
+//! §13.197  GROUP SIZE per applying call -- §13.196's finding, automated.
+//!
+//! A (push, apply) count histogram was the obvious instrument and it does NOT
+//! work; recording why, because the reason is the useful part.  A normal recycle
+//! and a replay differ by exactly one event: whether a CLAIM intervened.  The
+//! claim is on the hot allocation path and is the one thing not hooked, so without
+//! it the apply counter simply accumulates over a slot's thousands of lives -- my
+//! first version reported `push=0 apply=15` with 2.7 M hits, which is "this slot
+//! has been freed at least fifteen times", not a replay.
+//!
+//! But the claim SETS the bit, so "two clears with no claim between" is precisely
+//! "the bit was already clear at the second clear" -- and that is `bit_clear_bad`,
+//! which this build has measured from the start.  The replay detector already
+//! exists; what was missing is the SHAPE §13.196 had to reconstruct by hand from
+//! successive stamps.
+//!
+//! Violations inside one `batch_return_to_bitmap` call share one applying
+//! operation and one `now` seq -- they ARE a group.  So counting violations per
+//! call and histogramming that measures group size exactly, over all 800 rather
+//! than the handful a report can print.
+static std::atomic<unsigned long long> g_bv_group[17];
 static void kame_bv_check_pending(const char *p, unsigned align) noexcept {
-    unsigned char st_site; unsigned long long sq; unsigned ow; const void *cl; unsigned state;
-    if( !kame_bv_slot_read(p, align, &st_site, &sq, &ow, &cl, &state)) return;
+    unsigned char st_site; unsigned long long sq; unsigned ow; const void *cl;
+    unsigned state, pushc, applyc;
+    if( !kame_bv_slot_read(p, align, &st_site, &sq, &ow, &cl, &state, &pushc, &applyc))
+        return;
+    (void)pushc; (void)applyc;
     if(state != BV_ST_PENDING) return;
     unsigned long long n = g_bv_clear_pending.fetch_add(1, std::memory_order_relaxed);
-    unsigned me = kame_owner_id() & 0xfffu;
+    unsigned me = kame_owner_id() & 0xffu;   // §13.197: 8 bits, matching the pack
     if(ow == me) return;                       // its own apply -- expected
     unsigned long long x = g_bv_clear_pending_x.fetch_add(1, std::memory_order_relaxed);
     if(x < 8) {
@@ -936,9 +1003,12 @@ static void kame_bv_xinject(char *p, unsigned align) noexcept {
     if(iv <= 0) return;
     static std::atomic<unsigned long long> c{0};
     if((c.fetch_add(1, std::memory_order_relaxed) % (unsigned)iv) != 0) return;
+    //! §13.197  Zero the push count of 1 stamp in N, so its own apply reads
+    //! apply > push.  That is the off-diagonal cell the histogram exists to see;
+    //! without a run that populates it, an empty off-diagonal means nothing.
     volatile unsigned long long *w =
         reinterpret_cast<volatile unsigned long long *>(p + align - 8);
-    *w ^= ((unsigned long long)0x555u << 28);          // flip the owner field
+    *w &= ~((unsigned long long)0xfu << 28);
 }
 static void kame_bv_note_clear(uintptr_t slot) noexcept {
     kame_bv_note_clear_as(slot, g_bv_site);
@@ -1027,6 +1097,16 @@ namespace { struct BatchVerifyReport { ~BatchVerifyReport() {
                 g_bv_sitename[i], g_bv_checked[i].load(), g_bv_bad_site[i].load());
     //! `direct` bypasses `push` entirely, so the identity is on `flush` alone:
     //! every pushed entry is applied exactly once => flush == pushes.
+    {   //! §13.197  Group size = violations per applying call.
+        unsigned long long tot = 0, wsum = 0;
+        for(int k = 1; k <= 16; ++k) {
+            unsigned long long v = g_bv_group[k].load();
+            if(v) fprintf(stderr, "BATCHVERIFY   group of %-2d  x%llu\n", k, v);
+            tot += v; wsum += v * (unsigned)k;
+        }
+        if(tot) fprintf(stderr, "BATCHVERIFY   groups=%llu  violations=%llu  "
+                        "mean group=%.2f\n", tot, wsum, (double)wsum / (double)tot);
+    }
     fprintf(stderr, "BATCHVERIFY pending-at-clear: total=%llu cross_thread=%llu"
             "  (cross_thread > 0 => two threads held one slot pending)\n",
             g_bv_clear_pending.load(), g_bv_clear_pending_x.load());
@@ -1151,10 +1231,19 @@ struct CrossDeallocBatch {
             //! (`deallocate_pooled` <- `deallocate_cold`), so the CLIENT that
             //! issued the free is at 2-3.  Needs frame pointers to be reliable
             //! at depth; build with -fno-omit-frame-pointer.
-            const void *f[4] = { __builtin_return_address(0),
-                                 __builtin_return_address(1),
-                                 __builtin_return_address(2),
-                                 __builtin_return_address(3) };
+            //! §13.197  Level 0 ONLY.  `__builtin_return_address(n>0)` compiles
+            //! to a frame-chain walk `*(*rbp + 8)`, and at -O2 on x86-64 %rbp is
+            //! a general register -- §13.195 caught it holding
+            //! ALLOC_MIN_CHUNK_SIZE, so the load faulted and the whole
+            //! instrument died SIGSEGV with no output.  aarch64 survived only
+            //! because that ABI keeps frame pointers, and
+            //! -fno-omit-frame-pointer does NOT rescue it (the caller is
+            //! tail-called, so the wanted frame is not on the chain either).
+            //! A deeper caller identity must be passed in explicitly by the
+            //! frame that has it, or captured with a warmed `backtrace()` at a
+            //! rare event -- never by walking the chain.
+            const void *f[4] = { __builtin_return_address(0), nullptr,
+                                 nullptr, nullptr };
             kame_bv_note_push((uintptr_t)s, f);
         }
 #endif
@@ -2893,6 +2982,7 @@ KAME_CLONE_LICENCE(4) /*§13.112 arm 4*/ PoolAllocator<ALIGN, FS, DUMMY>::batch_
 	// batch entry.  The report now carries what distinguishes them.
 	// Counters report checks performed as well as violations, so a zero is
 	// distinguishable from "never ran" (§13.178's lesson, three times over).
+	unsigned bv_vio_this_call = 0;                                  // §13.197
 	for(int k = 0; entries[k].chunk == static_cast<PoolAllocatorBase *>(this); ++k) {
 		char *p = static_cast<char *>(entries[k].slot);
 		char *base = this->mempool();
@@ -2934,12 +3024,17 @@ KAME_CLONE_LICENCE(4) /*§13.112 arm 4*/ PoolAllocator<ALIGN, FS, DUMMY>::batch_
 			}
 		}
 		FUINT w = atomicLoadAcquire(&this->m_flags[widx]);
-		if(!((w >> bit) & 1u))
+		if(!((w >> bit) & 1u)) {
+			++bv_vio_this_call;                                 // §13.197
 			kame_batch_verify_bad(1, p, (const void *)this,
 			                      ((unsigned long long)widx << 32) | bit,
 			                      (unsigned long long)w, this->m_flags_packed,
 			                      this->m_flags_filled_cnt, ALIGN);
+		}
 	}
+	if(bv_vio_this_call)
+		g_bv_group[bv_vio_this_call > 16 ? 16 : bv_vio_this_call]
+		    .fetch_add(1, std::memory_order_relaxed);
 #endif
 	// Walks entries[k] while .chunk == this — sentinel-terminated, no
 	// length argument; see the FS=false sibling for the full rationale
@@ -3131,7 +3226,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	//! real "is a fixed-size chunk" test -- see §13.193 for why `FS` alone is
 	//! not, and what it costs.
 	if constexpr (FS && DUMMY) {
-		kame_bv_slot_stamp(p, ALIGN, BV_ST_PENDING, __builtin_return_address(1));
+		kame_bv_slot_stamp(p, ALIGN, BV_ST_PENDING,
+		                   __builtin_return_address(0));      // §13.197: level 0 only
 		kame_bv_xinject(p, ALIGN);
 	}
 #endif

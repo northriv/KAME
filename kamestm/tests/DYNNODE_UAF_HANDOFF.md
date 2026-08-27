@@ -12932,3 +12932,75 @@ together and the identity holds while the same storage is returned twice.  That
 makes the next check specific and cheap: **count pushes and applies per slot,
 not globally** — the same table §13.194 already keys exactly, with a counter
 instead of a flag.
+
+### 13.197 §13.196's groups, measured automatically — plus two of my own errors, and why a push/apply counter cannot work
+
+Three things: the crash §13.195 diagnosed is fixed at the source, a bug of mine
+that manufactured a nonzero is withdrawn, and §13.196's group finding now has an
+instrument that covers all 800 violations rather than the handful a report prints.
+
+#### The two errors, so neither is quoted later
+
+**`__builtin_return_address(n>0)` is gone.**  §13.195's gdb trace is exact — at
+`-O2` on x86-64 `%rbp` held `ALLOC_MIN_CHUNK_SIZE` and the chain walk faulted, and
+`-fno-omit-frame-pointer` cannot help because the caller is tail-called.  My
+§13.191 caveat ("wants frame pointers") was not strong enough: it is not
+portable instrumentation at all.  Both sites now capture **level 0 only**, with
+the reason recorded where the code is, and the deeper client identity is simply
+not available this way — it must be passed in by the frame that has it.
+
+**`cross_thread = 57 369` was my bug, not a finding.**  Repacking the stamp
+narrowed `owner` to 8 bits while the comparison still masked
+`kame_owner_id() & 0xfff`, so every thread with an id ≥ 256 mismatched itself.
+Fixed; the count returns to **0**, and §13.194/§13.195's zero stands unchanged.
+
+#### Why a (push, apply) counter histogram cannot work — the useful half of the failure
+
+It was the obvious answer to §13.196's request to count per slot rather than
+globally, and it is wrong for a reason worth keeping:
+
+> A normal recycle and a replay differ by exactly one event — whether a **claim**
+> intervened.  The claim is on the hot allocation path and is the one thing not
+> hooked, so an apply counter just accumulates over a slot's thousands of lives.
+
+My first version duly reported `push=0 apply=15` with **2.7 M** hits, which says
+"this slot has been freed at least fifteen times", not that anything was replayed.
+Making the counters per-life did not rescue it: the reset event is the push, and
+87 % of clears come from the drain, whose slots are never pushed.
+
+**But the claim sets the bit.**  So "two clears with no claim between" is exactly
+"the bit was already clear at the second clear" — which is `bit_clear_bad`, in
+this build since §13.183.  *The replay detector already existed.*  What was
+missing is the **shape**, which §13.196 had to reconstruct by hand from
+successive stamps.
+
+#### The shape, measured
+
+Violations inside one `batch_return_to_bitmap` call share one applying operation
+and one `now` seq — they **are** one of §13.196's groups.  So the build now counts
+violations per call and histograms it:
+
+```
+BATCHVERIFY   group of 5   x37
+BATCHVERIFY   groups=...   violations=...   mean group=...
+```
+
+Validated against a known null: `KAME_BATCH_VERIFY_INJECT` scatters by
+construction, and it produces exactly that —
+
+```
+injected 1/20000   bit_clear_bad=459   group of 1  x459   mean group=1.00
+baseline           bit_clear_bad=0     (no groups)
+```
+
+**Mean group = 1.00 is the null distribution.**  So on the reproducer a mean
+comfortably above 1 confirms §13.196's reframing quantitatively over all 800
+violations, and the histogram's *shape* says more than the mean: group sizes
+clustered at one value point at a fixed-size unit being replayed, a spread points
+at a variable-length run.
+
+And it bears directly on §13.196's paradox.  If a whole call's entry list were
+being re-applied, the group size would equal that call's **run length** — so
+comparing the group-size distribution against the per-chunk run lengths in the
+same run distinguishes "the chunk run is replayed" from "a fixed subset is",
+without needing conservation to be re-derived.
