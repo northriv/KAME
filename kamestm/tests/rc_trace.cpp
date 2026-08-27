@@ -1880,6 +1880,28 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
                                   : "");
                 else
                     raw_line_("RC-DLIVE-POOLCTRS absent (allocator built without the census)\n");
+                // §13.168  The mirror check: did the allocator HAND OUT a slot
+                // the tracer still called live?  With a denominator, and its
+                // own backtrace.
+                {   typedef unsigned long long (*c2)();
+                    static c2 aol = reinterpret_cast<c2>(
+                        dlsym(RTLD_DEFAULT, "kame_pool_alloc_of_live_count"));
+                    static c2 ack = reinterpret_cast<c2>(
+                        dlsym(RTLD_DEFAULT, "kame_pool_alloc_checked_count"));
+                    if(aol)
+                        raw_line_("RC-DLIVE-ALLOCOFLIVE %llu of %llu hand-outs"
+                                  " checked%s\n", aol(), ack ? ack() : 0ull,
+                                  (ack && ack() == 0)
+                                      ? "   [ZERO CHECKS -- vacuous]" : "");
+                    typedef int (*abt)(void **, int);
+                    static abt abtf = reinterpret_cast<abt>(
+                        dlsym(RTLD_DEFAULT, "kame_pool_alloc_of_live_bt"));
+                    if(abtf) {
+                        void *fr[24]; int n = abtf(fr, 24);
+                        for(int fi = 0; fi < n; ++fi)
+                            raw_line_("RC-ALLOCOFLIVE-BT   [%d] %p\n", fi, fr[fi]);
+                    }
+                }
                 // §13.167  The premature free's own call chain.
                 typedef int (*bt_fn)(void **, int);
                 typedef const void *(*ad_fn)();

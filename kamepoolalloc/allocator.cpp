@@ -1699,6 +1699,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 						    reinterpret_cast<char *>(
 						        (uintptr_t)(mask & (mask - 1u)));
 						this->m_freelist_head[2] = base;
+#ifdef KAME_POOL_FREE_CENSUS
+						kame_pool_alloc_check(base + (size_t)b * ALIGN);
+#endif
 						return base + (size_t)b * ALIGN;
 					}
 					// CAS lost to a cross-thread clear: re-read.
@@ -5431,6 +5434,10 @@ void *new_redirected_cold(unsigned int bucket, std::size_t size) {
 				    (unsigned long long)inv);
 				ck->m_freelist_head[1] =
 				    reinterpret_cast<char *>(inv & (inv - 1u));
+#ifdef KAME_POOL_FREE_CENSUS
+				kame_pool_alloc_check(ck->m_freelist_head[2]
+				                      + (((size_t)b * bucket) << 4));
+#endif
 				return ck->m_freelist_head[2] +
 				    (((size_t)b * bucket) << 4);
 			}
@@ -9687,10 +9694,51 @@ extern "C" void kame_pool_onlist_set(const void *slot) noexcept {
 extern "C" void kame_pool_onlist_prefill(const void *slot) noexcept {
     kame_pool_onlist_set_ex(slot, 1);
 }
+//! (§13.168) Every freelist pop passes through here, so this is the choke
+//! point for the mirror image of the free-of-live check: is the allocator
+//! HANDING OUT a slot the tracer still calls live?  §13.168's ordering data
+//! says no free separates the two births, which means the hand-out itself is
+//! the event.  Same guards: re-entrancy flag, and a denominator.
+std::atomic<unsigned long long> g_alloc_of_live{0}, g_alloc_checked{0};
+struct AolFirst { const void *addr; unsigned tid; void *bt[24]; int btn; };
+AolFirst g_aol_first{};
+std::atomic<int> g_aol_have{0};
+extern "C" void kame_pool_alloc_check(const void *slot) noexcept {
+    if(!tl_in_islive) {
+        if(islive_fn f = islive_()) {
+            tl_in_islive = true;
+            g_alloc_checked.fetch_add(1, std::memory_order_relaxed);
+            if(f(slot)) {
+                g_alloc_of_live.fetch_add(1, std::memory_order_relaxed);
+                int e = 0;
+                if(g_aol_have.compare_exchange_strong(e, 1,
+                       std::memory_order_relaxed)) {
+                    g_aol_first.addr = slot;
+                    g_aol_first.tid  = kame_page()->owner_id;
+                    g_aol_first.btn  = backtrace(g_aol_first.bt, 24);
+                }
+            }
+            tl_in_islive = false;
+        }
+    }
+}
 extern "C" void kame_pool_onlist_clear(const void *slot) noexcept {
     OnList &o = g_onlist[free_slot_(slot)];
     if(o.addr.load(std::memory_order_relaxed) == slot)
         o.on.store(0, std::memory_order_relaxed);
+    kame_pool_alloc_check(slot);      // §13.168: every freelist pop
+}
+extern "C" unsigned long long kame_pool_alloc_of_live_count() noexcept {
+    return g_alloc_of_live.load(std::memory_order_relaxed);
+}
+extern "C" unsigned long long kame_pool_alloc_checked_count() noexcept {
+    return g_alloc_checked.load(std::memory_order_relaxed);
+}
+extern "C" int kame_pool_alloc_of_live_bt(void **out, int max) noexcept {
+    if(!g_aol_have.load(std::memory_order_relaxed)) return 0;
+    int n = g_aol_first.btn; if(n > max) n = max;
+    for(int i = 0; i < n; ++i) out[i] = g_aol_first.bt[i];
+    return n;
 }
 extern "C" unsigned long long kame_pool_double_free_count() noexcept {
     return g_double_free.load(std::memory_order_relaxed);
