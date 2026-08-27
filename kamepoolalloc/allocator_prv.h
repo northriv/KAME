@@ -43,6 +43,23 @@ extern "C" void kame_pool_adopt_selftest(const void *blk) noexcept; /* §13.164 
 extern "C" void kame_pool_adopt_selftest_stats(unsigned long long *ok,
                                                unsigned long long *bad) noexcept;
 #endif
+#ifdef KAME_POOL_FREE_CENSUS
+/* §13.165  WHO freed this slot last.  §13.164 established that a doubly-live
+   slot sits in an ADOPTED chunk, in a single chunk incarnation that was never
+   released — so the slot became re-allocatable through an ordinary free path
+   while its occupant was still constructed.  A slot becomes re-allocatable in
+   exactly two ways: parked on the chunk freelist (bit stays set) or returned
+   to the bitmap.  Both are recorded here, keyed by slot address. */
+enum {
+    KAME_FREEPATH_FREELIST_PUSH = 1,   /* owner-side park onto m_freelist_head */
+    KAME_FREEPATH_RETURN_BITMAP = 2    /* batch_return_to_bitmap (bit cleared) */
+};
+extern "C" void kame_pool_free_note(const void *slot, unsigned path) noexcept;
+extern "C" int  kame_pool_free_lookup(const void *slot, unsigned *path,
+                                      unsigned *tid,
+                                      unsigned long long *seq) noexcept;
+extern "C" unsigned long long kame_pool_free_seq_now() noexcept;
+#endif
 #ifdef KAME_POOL_RELEASE_CENSUS
 /* §13.164  Keyed per-chunk tallies.  RELEASES counts `deallocate_chunk`;
    CONSTRUCTIONS counts `construct_chunk_at`, which is the one every reuse
@@ -1780,6 +1797,9 @@ public:
 	//! the alloc-side TLS shortcut (`m_slots[bucket].freelist_head`) is
 	//! aimed at — see slow_allocate for the maintenance of that pointer.
 	inline void freelist_push(unsigned local, void *p) noexcept {
+#ifdef KAME_POOL_FREE_CENSUS
+		kame_pool_free_note(p, KAME_FREEPATH_FREELIST_PUSH);   /* §13.165 */
+#endif
 		*kame_slot_link_(p) = m_freelist_head[local];
 		m_freelist_head[local] = static_cast<char *>(p);
 	}

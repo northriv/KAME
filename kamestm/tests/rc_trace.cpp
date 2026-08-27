@@ -85,6 +85,16 @@ static std::atomic<kame_relcount_fn> g_relcount{nullptr};
 // cached chunk without ever releasing it.  Both are read; the construction
 // delta is the one that answers "was this storage re-purposed".
 static std::atomic<kame_relcount_fn> g_concount{nullptr};
+// §13.165  Who freed this slot last, and when.  §13.164 put the doubly-live
+// slot inside ONE incarnation of an ADOPTED chunk, so the slot was made
+// re-allocatable by an ordinary free while its occupant was still
+// constructed.  This names the path (freelist park vs bitmap return), the
+// thread, and whether the free happened AFTER the previous occupant's birth.
+typedef int (*kame_freelookup_fn)(const void *, unsigned *, unsigned *,
+                                  unsigned long long *);
+typedef unsigned long long (*kame_freeseq_fn)();
+static std::atomic<kame_freelookup_fn> g_freelookup{nullptr};
+static std::atomic<kame_freeseq_fn> g_freeseq{nullptr};
 static void resolve_poison_decode_() noexcept {
 #if defined(__unix__) || defined(__APPLE__)
     static std::atomic<bool> once{false};
@@ -101,6 +111,12 @@ static void resolve_poison_decode_() noexcept {
             std::memory_order_release);
         g_concount.store(reinterpret_cast<kame_relcount_fn>(
             dlsym(RTLD_DEFAULT, "kame_pool_chunk_construct_count")),
+            std::memory_order_release);
+        g_freelookup.store(reinterpret_cast<kame_freelookup_fn>(
+            dlsym(RTLD_DEFAULT, "kame_pool_free_lookup")),
+            std::memory_order_release);
+        g_freeseq.store(reinterpret_cast<kame_freeseq_fn>(
+            dlsym(RTLD_DEFAULT, "kame_pool_free_seq_now")),
             std::memory_order_release);
     }
 #endif
@@ -612,6 +628,7 @@ struct DLSlot {
     //! close.  Equal counts rule that path out for this hit.
     unsigned relcnt{0};
     unsigned concnt{0};              //!< §13.164 chunk CONSTRUCTIONS at birth
+    unsigned long long freeseq{0};   //!< §13.165 global free counter at birth
 };
 enum : uintptr_t { DL_LIVE = 1u, DL_EVERDEAD = 2u, DL_TAGS = 3u };
 DLSlot *g_dl;                          //!< lazily mmapped; sized by dl_bits_()
@@ -726,7 +743,12 @@ static unsigned dl_concnt_(const void *p) noexcept {
         return f(p);
     return 0u;
 }
+static unsigned long long dl_freeseq_() noexcept {
+    if(kame_freeseq_fn f = g_freeseq.load(std::memory_order_acquire)) return f();
+    return 0ull;
+}
 thread_local unsigned tl_dl_prev_relcnt = 0, tl_dl_prev_concnt = 0;
+thread_local unsigned long long tl_dl_prev_freeseq = 0;
 thread_local bool tl_dl_prev_relcnt_valid = false;
 static const void *dl_born_(const void *, const void *, unsigned long long) noexcept;
 static const void *dl_born_(const void *obj, const void *site,
@@ -746,6 +768,8 @@ static const void *dl_born_(const void *obj, const void *site,
                 s.site = site; s.seq = seq;
                 s.relcnt = dl_relcnt_(obj);          // §13.164
                 s.concnt = dl_concnt_(obj);
+            s.freeseq = dl_freeseq_();           // §13.165
+                s.freeseq = dl_freeseq_();       // §13.165
                 return nullptr;
             }
             g_dl_enforced.fetch_add(1, std::memory_order_relaxed);
@@ -755,6 +779,7 @@ static const void *dl_born_(const void *obj, const void *site,
                 // count for the report; read before the slot is overwritten.
                 tl_dl_prev_relcnt = s.relcnt;
                 tl_dl_prev_concnt = s.concnt;
+                tl_dl_prev_freeseq = s.freeseq;
                 tl_dl_prev_relcnt_valid = true;
                 return s.site ? s.site : (const void *)1;
             }
@@ -1788,6 +1813,24 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
             }
             else
                 raw_line_("RC-DLIVE-CHUNKREL absent (no release census)\n");
+            // §13.165  Name the free that made this slot re-allocatable.
+            if(kame_freelookup_fn fl = g_freelookup.load(std::memory_order_acquire)) {
+                unsigned fpath = 0, ftid = 0; unsigned long long fseq = 0;
+                if(fl(obj, &fpath, &ftid, &fseq)) {
+                    const char *pname = (fpath == 1) ? "freelist_push (owner park)"
+                                      : (fpath == 2) ? "batch_return_to_bitmap"
+                                                     : "unknown";
+                    raw_line_("RC-DLIVE-LASTFREE path=%s tid=%u seq=%llu"
+                        " prev_birth_seq=%llu%s\n", pname, ftid, fseq,
+                        tl_dl_prev_freeseq,
+                        (fseq > tl_dl_prev_freeseq)
+                            ? "  <-- FREED AFTER THE PREVIOUS OCCUPANT WAS BORN"
+                            : "  (free predates the previous occupant's birth)");
+                }
+                else
+                    raw_line_("RC-DLIVE-LASTFREE no record for this slot"
+                        " (never freed, or evicted by a hash collision)\n");
+            }
             raw_dlive_poison_(obj);
         }
         raw_line_("\nRC-ANOMALY #%u obj=%p op=%s rc_before=%llu tid=%u "

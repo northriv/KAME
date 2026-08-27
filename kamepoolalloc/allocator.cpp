@@ -2164,6 +2164,14 @@ int
 KAME_CLONE_LICENCE(3) /*§13.112 arm 3*/ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
     const CrossDeallocEntry *entries) noexcept {
 	KAME_POOLEV(KAME_PEV_BATCH_RETURN, this, entries[0].slot);
+#ifdef KAME_POOL_FREE_CENSUS
+	// (§13.165) Record every slot this call returns to the bitmap.  The run
+	// ends at the next chunk's group or the {nullptr,nullptr} sentinel, the
+	// same termination the real walk below uses.
+	for(const CrossDeallocEntry *e = entries;
+	    e->chunk == static_cast<PoolAllocatorBase *>(this); ++e)
+		kame_pool_free_note(e->slot, KAME_FREEPATH_RETURN_BITMAP);
+#endif
 	// Walk entries[k] while .chunk == this — terminates on the next
 	// chunk's group OR the trailing {nullptr, nullptr} sentinel that
 	// `CrossDeallocBatch::flush` plants at buf[count].  No `k < n_max`
@@ -2327,6 +2335,14 @@ int
 KAME_CLONE_LICENCE(4) /*§13.112 arm 4*/ PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
     const CrossDeallocEntry *entries) noexcept {
 	KAME_POOLEV(KAME_PEV_BATCH_RETURN, this, entries[0].slot);
+#ifdef KAME_POOL_FREE_CENSUS
+	// (§13.165) Record every slot this call returns to the bitmap.  The run
+	// ends at the next chunk's group or the {nullptr,nullptr} sentinel, the
+	// same termination the real walk below uses.
+	for(const CrossDeallocEntry *e = entries;
+	    e->chunk == static_cast<PoolAllocatorBase *>(this); ++e)
+		kame_pool_free_note(e->slot, KAME_FREEPATH_RETURN_BITMAP);
+#endif
 	// Walks entries[k] while .chunk == this — sentinel-terminated, no
 	// length argument; see the FS=false sibling for the full rationale
 	// and the contract with `CrossDeallocBatch::flush`.
@@ -9490,3 +9506,45 @@ struct RelSig { RelSig() {
 struct RelReport { ~RelReport() { rel_report_(2); } } g_rel_report;
 }
 #endif // KAME_POOL_RELEASE_CENSUS
+#ifdef KAME_POOL_FREE_CENSUS
+// (§13.165) Last-free record per slot address.  Direct-mapped; a collision
+// overwrites, and the stored address is compared on lookup so a collision
+// answers "unknown" rather than a wrong path.
+#include <cstdio>
+namespace {
+enum { FREE_SLOTS = 1u << 16 };
+struct FreeRec {
+    std::atomic<const void *> addr;
+    std::atomic<unsigned> path;
+    std::atomic<unsigned> tid;
+    std::atomic<unsigned long long> seq;
+};
+FreeRec g_freerec[FREE_SLOTS];
+std::atomic<unsigned long long> g_free_seq{1};
+inline unsigned free_slot_(const void *p) noexcept {
+    return (unsigned)((((uintptr_t)p >> 4) * 0x9E3779B97F4A7C15ull) >> 48) % FREE_SLOTS;
+}
+}
+extern "C" unsigned long long kame_pool_free_seq_now() noexcept {
+    return g_free_seq.load(std::memory_order_relaxed);
+}
+extern "C" void kame_pool_free_note(const void *slot, unsigned path) noexcept {
+    FreeRec &r = g_freerec[free_slot_(slot)];
+    r.addr.store(slot, std::memory_order_relaxed);
+    r.path.store(path, std::memory_order_relaxed);
+    r.tid.store(kame_page()->owner_id, std::memory_order_relaxed);
+    r.seq.store(g_free_seq.fetch_add(1, std::memory_order_relaxed),
+                std::memory_order_relaxed);
+}
+extern "C" int kame_pool_free_lookup(const void *slot, unsigned *path,
+                                     unsigned *tid,
+                                     unsigned long long *seq) noexcept {
+    FreeRec &r = g_freerec[free_slot_(slot)];
+    if(r.addr.load(std::memory_order_relaxed) != slot) return 0;
+    if(path) *path = r.path.load(std::memory_order_relaxed);
+    if(tid)  *tid  = r.tid.load(std::memory_order_relaxed);
+    if(seq)  *seq  = r.seq.load(std::memory_order_relaxed);
+    return 1;
+}
+#endif // KAME_POOL_FREE_CENSUS
+
