@@ -13560,3 +13560,62 @@ exits, drain-checked per exit, and clears per exit.  On x86-64 at `cap = 32`:
   mis-clear — adoption being the named candidate;
 * **any with `= 0`** → thread exit is not necessary, and §13.150's `NO_ADOPT` cure
   needs re-explaining, since without exits there is nothing to adopt.
+### 13.206 Bisected: §13.202's own commit removes the signature it was built to study
+
+§13.204 reported the violation gone from the newer source without knowing which
+change did it.  Bisected, three commits, each built identically (hand-specialised
+per §13.184, `KAME_BATCH_VERIFY`, `KAME_FLUSH_REENTRY_GUARD` **not** defined),
+same reproducer binary, `cap = 1`:
+
+| commit | section | `bit_clear_bad` |
+|---|---|---|
+| `cf217d162` | §13.200 | **800** |
+| `b16026df4` | **§13.202** | **0** |
+| `a0ae073c2` | §13.203 | **0** |
+
+**`b16026df4` is the boundary.**  That is the commit adding §13.202's re-entry
+injector, its counters and the (inactive) guard — i.e. **the instrumentation built
+to study the double-clear is what removes it.**
+
+A corroborating structural signal, visible without running anything: the
+hand-specialised build yields **4** `flush_impl<false>` symbols before that commit
+and **6** after, so the flush region's code structure changed at exactly the same
+point.
+
+#### Why this matters more than the individual result
+
+This is §13.182's finding at one more level.  There, adding a per-site gate
+deleted the *clone*.  Here, adding counters to the flush loop removes the
+*violation*.  Both times the instrument was correct in isolation and validated on
+arm64 — where the fault does not occur, so nothing could reveal the perturbation.
+
+> On this target the flush region is **so codegen-sensitive that measuring inside
+> it changes what it does.**  §13.177 already showed the fault needs only a
+> particular *shape* of that loop, and §13.184 that instrumenting it deletes the
+> clone.  Any new counter placed in `flush` / `batch_clear_impl` must therefore be
+> re-validated **here** before its output is read — an arm64 validation cannot
+> detect this class at all.
+
+#### What this does to the open questions
+
+* §13.202's discriminator (`excess == bit_clear_bad?`) — **unanswerable on the
+  current source**, because the left side is 0.  It needs re-running on
+  `cf217d162`, which still exhibits 800.
+* §13.203's merge-loop check (`bit_not_owned`, `two_on_one_bit`) — the same
+  applies: run on `a0ae073c2` it would report 0 against 0 violations, which is no
+  measurement.  **It must be back-ported onto `cf217d162`** and run there.
+* §13.203's static exclusion of flush re-entry is unaffected — it is a source
+  argument, not a measurement, and it stands.
+
+#### Concretely, for the next step
+
+The measurement platform for anything about this violation is
+**`cf217d162` + the smallest possible addition**, checked each time with:
+
+```
+nm -C <so> | grep -c 'flush_impl<false>'     # must stay 4
+<run at cap=1>  bit_clear_bad                 # must stay ~800
+```
+
+Two lines, and they would have caught this before three sections were written
+against a build that no longer had the phenomenon.
