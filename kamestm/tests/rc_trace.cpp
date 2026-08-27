@@ -73,18 +73,6 @@ typedef int (*kame_poison_decode_fn)(unsigned long long, kame_freerec *);
 typedef unsigned (*kame_poolev_fn)(kame_poolev *, unsigned);
 static std::atomic<kame_poison_decode_fn> g_poison_decode{nullptr};
 static std::atomic<kame_poolev_fn> g_poolev_fn{nullptr};
-// §13.164  Per-chunk release tally from KAME_POOL_RELEASE_CENSUS.  §13.163
-// closed every OTHER way a slot can be handed out while its previous occupant
-// is still constructed, except one: the whole CHUNK being recycled under live
-// objects, which moves no bitmap bit and frees no individual block.  This asks
-// the doubly-live address directly whether its chunk has ever been released.
-typedef unsigned (*kame_relcount_fn)(const void *);
-static std::atomic<kame_relcount_fn> g_relcount{nullptr};
-// §13.164  CONSTRUCTIONS is the strictly better counter: every reuse route
-// passes through `construct_chunk_at`, while the §22 warm path recycles a
-// cached chunk without ever releasing it.  Both are read; the construction
-// delta is the one that answers "was this storage re-purposed".
-static std::atomic<kame_relcount_fn> g_concount{nullptr};
 // §13.165  Who freed this slot last, and when.  §13.164 put the doubly-live
 // slot inside ONE incarnation of an ADOPTED chunk, so the slot was made
 // re-allocatable by an ordinary free while its occupant was still
@@ -105,12 +93,6 @@ static void resolve_poison_decode_() noexcept {
             std::memory_order_release);
         g_poolev_fn.store(reinterpret_cast<kame_poolev_fn>(
             dlsym(RTLD_DEFAULT, "kame_pool_recent_events")),
-            std::memory_order_release);
-        g_relcount.store(reinterpret_cast<kame_relcount_fn>(
-            dlsym(RTLD_DEFAULT, "kame_pool_chunk_release_count")),
-            std::memory_order_release);
-        g_concount.store(reinterpret_cast<kame_relcount_fn>(
-            dlsym(RTLD_DEFAULT, "kame_pool_chunk_construct_count")),
             std::memory_order_release);
         g_freelookup.store(reinterpret_cast<kame_freelookup_fn>(
             dlsym(RTLD_DEFAULT, "kame_pool_free_lookup")),
@@ -620,14 +602,6 @@ struct DLSlot {
     std::atomic<uintptr_t> addr{0};   //!< 0 = free (untagged key in bits 3+)
     const void *site{nullptr};        //!< ctor return address of the occupant
     unsigned long long seq{0};
-    //! §13.164  The containing CHUNK's wholesale-release count as it stood when
-    //! THIS occupant was born.  A DOUBLE-LIVE hit compares it against the count
-    //! now: if it has grown, the chunk was recycled BETWEEN the two births,
-    //! which hands out a slot under a live object without moving a bitmap bit
-    //! or freeing an individual block — the one mechanism §13.163(d) could not
-    //! close.  Equal counts rule that path out for this hit.
-    unsigned relcnt{0};
-    unsigned concnt{0};              //!< §13.164 chunk CONSTRUCTIONS at birth
     unsigned long long freeseq{0};   //!< §13.165 global free counter at birth
 };
 enum : uintptr_t { DL_LIVE = 1u, DL_EVERDEAD = 2u, DL_TAGS = 3u };
@@ -731,18 +705,6 @@ unsigned dl_inject_() noexcept {
 //! the cost of needing corroboration for any single hit.  Default is exact.
 //! `nonaligned` reports how many raw addresses are not 16-aligned (23 % here --
 //! the offset-8 population), so the fold's reach is stated numerically.
-//! §13.164  Release count of the chunk containing `p`, or 0 when the allocator
-//! in this process has no release census (the symbol is absent).
-static unsigned dl_relcnt_(const void *p) noexcept {
-    if(kame_relcount_fn f = g_relcount.load(std::memory_order_acquire))
-        return f(p);
-    return 0u;
-}
-static unsigned dl_concnt_(const void *p) noexcept {
-    if(kame_relcount_fn f = g_concount.load(std::memory_order_acquire))
-        return f(p);
-    return 0u;
-}
 static unsigned long long dl_freeseq_() noexcept {
     if(kame_freeseq_fn f = g_freeseq.load(std::memory_order_acquire)) return f();
     return 0ull;
@@ -754,9 +716,8 @@ static unsigned long long dl_freeseq_() noexcept {
 //! first branch had the line twice).  A stale stamp does not look stale: it
 //! reads as a legitimate earlier value, and it made every ordering verdict in
 //! §13.167 compare against the wrong birth.
-thread_local unsigned tl_dl_prev_relcnt = 0, tl_dl_prev_concnt = 0;
 thread_local unsigned long long tl_dl_prev_freeseq = 0;
-thread_local bool tl_dl_prev_relcnt_valid = false;
+thread_local bool tl_dl_prev_valid = false;
 //! §13.167  Is `p` an address the live-set currently believes holds a
 //! CONSTRUCTED object?  Exported so the ALLOCATOR can ask, at the moment it
 //! frees a slot, whether it is freeing a live object — the premature free
@@ -765,8 +726,6 @@ thread_local bool tl_dl_prev_relcnt_valid = false;
 //! operator delete, so a legitimate free always sees 0 here.
 extern "C" int kame_rc_dl_islive(const void *p) noexcept;
 static inline void dl_stamp_(DLSlot &s, const void *obj) noexcept {
-    s.relcnt  = dl_relcnt_(obj);
-    s.concnt  = dl_concnt_(obj);
     s.freeseq = dl_freeseq_();
 }
 static const void *dl_born_(const void *, const void *, unsigned long long) noexcept;
@@ -806,10 +765,8 @@ static const void *dl_born_(const void *obj, const void *site,
                 g_dl_hit.fetch_add(1, std::memory_order_relaxed);
                 // §13.164  Publish the previous occupant's birth-time release
                 // count for the report; read before the slot is overwritten.
-                tl_dl_prev_relcnt = s.relcnt;
-                tl_dl_prev_concnt = s.concnt;
                 tl_dl_prev_freeseq = s.freeseq;
-                tl_dl_prev_relcnt_valid = true;
+                tl_dl_prev_valid = true;
                 return s.site ? s.site : (const void *)1;
             }
             s.addr.store(a | DL_LIVE | DL_EVERDEAD, std::memory_order_release);
@@ -998,7 +955,7 @@ static void dl_report_() noexcept {
     if(!printed.compare_exchange_strong(f, true)) return;
     fprintf(stderr, "kame_rc_trace: DOUBLE-LIVE probe (%s key): born %llu dead %llu "
         "dtor %llu enforced %llu HITS %llu (nonaligned %llu, steals %llu, "
-        "table-full %llu, dead-miss %llu, bits %u)\n",
+        "table-full %llu, dead-miss %llu, bits %u, skipped-dtor %llu)\n",
         dl_fold_() ? "16B-folded" : "exact", b,
         g_dl_dead.load(std::memory_order_relaxed),
         g_dl_dtor.load(std::memory_order_relaxed),
@@ -1260,6 +1217,25 @@ static void segv_handler_(int sig, siginfo_t *si, void *uc_) noexcept {
         unsigned long long _db = 0, _de = 0, _dh = 0;
         dl_counts( &_db, &_de, &_dh);
         raw_line_("RC-SEGV-DLIVE born %llu enforced %llu HITS %llu\n", _db, _de, _dh);
+        // §13.168  Emit the ALLOCATOR's counters from the crash path too.
+        // Its own atexit report is unreachable on a crashing run — this
+        // handler terminates first — so without this line every failing run
+        // is invisible to any arm comparison of those counters.
+        {   typedef unsigned long long (*c_fn)();
+            static c_fn a = reinterpret_cast<c_fn>(
+                dlsym(RTLD_DEFAULT, "kame_pool_free_of_live_count"));
+            static c_fn b = reinterpret_cast<c_fn>(
+                dlsym(RTLD_DEFAULT, "kame_pool_free_checked_count"));
+            static c_fn c = reinterpret_cast<c_fn>(
+                dlsym(RTLD_DEFAULT, "kame_pool_alloc_of_live_count"));
+            static c_fn d = reinterpret_cast<c_fn>(
+                dlsym(RTLD_DEFAULT, "kame_pool_alloc_checked_count"));
+            if(a || c)
+                raw_line_("RC-SEGV-POOLCTRS free_of_live=%llu of %llu"
+                          " | alloc_of_live=%llu of %llu\n",
+                          a ? a() : 0ull, b ? b() : 0ull,
+                          c ? c() : 0ull, d ? d() : 0ull);
+        }
     }
     raw_line_("\nRC-SEGV sig=%d fault_addr=%p ip=0x%llx rbp=0x%llx rdi=0x%llx "
         "rax=0x%llx rbx=0x%llx r12=0x%llx r13=0x%llx r14=0x%llx r15=0x%llx tid=%u\n",
@@ -1864,33 +1840,6 @@ void anomaly(const void *obj, unsigned op, unsigned long long oldc,
             // pool just handed out again -- unlabelled inside RC-ANOMALY's
             // `slot=` field, and easy to read as something else.
             raw_line_("RC-DLIVE-PREV still-live occupant ctor_site=%p\n", slot);
-            // §13.164  Has this address's CHUNK ever been released wholesale?
-            // A nonzero count is evidence for the whole-chunk-recycle path;
-            // zero is NOT evidence against it (the census is direct-mapped,
-            // so a hash collision also reads as zero) — and "absent" means
-            // the allocator in this process was built without the census.
-            if(kame_relcount_fn rc_fn = g_relcount.load(std::memory_order_acquire)) {
-                unsigned now = rc_fn(obj), cnow = dl_concnt_(obj);
-                if(tl_dl_prev_relcnt_valid) {
-                    int rd = (int)now - (int)tl_dl_prev_relcnt;
-                    int cd = (int)cnow - (int)tl_dl_prev_concnt;
-                    raw_line_("RC-DLIVE-CHUNKREL rel now=%u at_prev_birth=%u"
-                        " delta=%d | con now=%u at_prev_birth=%u delta=%d%s\n",
-                        now, tl_dl_prev_relcnt, rd,
-                        cnow, tl_dl_prev_concnt, cd,
-                        (tl_dl_prev_concnt == 0 && tl_dl_prev_relcnt == 0)
-                            ? "  [prev-birth counters UNRECORDED -- verdict withheld]"
-                            : (cd != 0 || rd != 0)
-                                ? "  <-- CHUNK RE-PURPOSED BETWEEN THE TWO BIRTHS"
-                                : "  (same chunk incarnation for both births)");
-                }
-                else
-                    raw_line_("RC-DLIVE-CHUNKREL rel now=%u con now=%u"
-                        " at_prev_birth=unrecorded\n", now, cnow);
-                tl_dl_prev_relcnt_valid = false;
-            }
-            else
-                raw_line_("RC-DLIVE-CHUNKREL absent (no release census)\n");
             // §13.167  POSITIVE CONTROL for the allocator-side FREE-OF-LIVE
             // check: at THIS instant the previous occupant is live by
             // definition, so kame_rc_dl_islive(obj) must answer 1.  If it

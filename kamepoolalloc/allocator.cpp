@@ -2697,15 +2697,6 @@ PoolAllocatorBase::allocate_chunk() {
 	// dedicated path's header stamp; `ALLOC::create` placement-news the
 	// PoolAllocator + m_flags + (§29) freelist pre-fill.
 	auto construct_chunk_at = [&](char *addr) -> ALLOC * {
-#ifdef KAME_POOL_RELEASE_CENSUS
-		// (§13.164) Count CONSTRUCTIONS, not just releases.  The §22 warm
-		// path recycles a cached chunk with its units still CLAIMED and never
-		// calls `deallocate_chunk`, so a release tally cannot see that reuse —
-		// but every reuse route ends here, re-making a chunk at an address.
-		// "Was this storage re-purposed between the two births" is therefore
-		// answered by this counter, and by the release one only partially.
-		::kame_pool_chunk_construct_note(addr, (unsigned long long)CHUNK_SIZE);
-#endif
 		ALLOC *palloc = ALLOC::create(CHUNK_SIZE - ALLOC_CHUNK_HEADER,
 		                              addr + ALLOC_CHUNK_HEADER);
 		palloc->m_chunk_size = CHUNK_SIZE;
@@ -2801,27 +2792,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::create_allocator() {
 extern "C" bool kame_orphan_no_scrub() noexcept;
 extern "C" bool kame_orphan_no_adopt() noexcept;
 extern "C" bool kame_orphan_adopt_admit() noexcept;
-extern "C" void kame_adopt_yield(unsigned site) noexcept;
-  #define KAME_ADOPT_YIELD(n) ::kame_adopt_yield(n)
-#endif
-//! §13.156  No-op fallback so the DEFAULT build compiles.  Without it the call
-//! sites below are outside the gate's `#ifdef` while the declaration is inside --
-//! which is exactly the break §13.155 had just fixed in `KAME_CHAIN_CNT`, and I
-//! reproduced it in the next commit.  Recorded rather than quietly corrected: a
-//! diagnostic whose call sites are not guarded breaks every build but its own.
-#ifndef KAME_ADOPT_YIELD
-  #define KAME_ADOPT_YIELD(n) ((void)0)
-#endif
-#ifdef KAME_POOL_RELEASE_CENSUS
-//! (§13.164) A chunk is released only when its bitmap is empty — every release
-//! decision is `m_flags_packed == 0`, and MASK_CNT is 0 exactly when every flag
-//! word is 0.  So scanning the words at the release point tests that identity
-//! at full volume (~7 400 releases/run) instead of waiting for the rare
-//! DOUBLE-LIVE trip.  A release with a nonzero word means the chunk was handed
-//! back with live slots still in it — whole-chunk recycle under live objects,
-//! which is the one mechanism §13.163(d) could not close.
-extern "C" void kame_pool_release_verify(const void *chunk_base,
-    unsigned nonzero_words, unsigned total_words, unsigned packed) noexcept;
 #endif
 #ifdef KAME_POOL_RESOLVE_CHECK
 //! (§13.162) Ground-truth check on the back_offset derivation.  Every chunk is
@@ -2844,32 +2814,7 @@ extern "C" void kame_pool_resolve_ok() noexcept;
   #define KAME_RESOLVE_BAD(k,m,u,b,c,p) ((void)0)
   #define KAME_RESOLVE_OK()             ((void)0)
 #endif
-#ifdef KAME_POOL_SURVIVOR_CENSUS
-//! (§13.161) Was the adopted chunk a SURVIVOR (MASK_CNT != 0 at the claim CAS,
-//! i.e. blocks in it are still live and held by OTHER threads) or DRAINED?
-//! And did the adopter's first allocate_pooled out of it succeed?
-extern "C" void kame_pool_survivor_note(unsigned cnt) noexcept;
-extern "C" void kame_pool_survivor_alloc(unsigned cnt) noexcept;
-//! (§13.163) The adopt claim loop has a branch its own comment calls
-//! "duplicate-owned (should never happen)": a popped orphan already carrying
-//! BIT_OWNED, i.e. TWO threads owning one chunk — which would put two
-//! allocators on one bitmap and one freelist, the exact shape of a double
-//! hand-out.  It has never been counted.  `retry` counts claim-CAS losses to
-//! concurrent cross-thread MASK_CNT decs (contention, not an error).
-extern "C" void kame_pool_adopt_dup() noexcept;
-extern "C" void kame_pool_adopt_retry() noexcept;
-  #define KAME_SURVIVOR_NOTE(c)  ::kame_pool_survivor_note(c)
-  #define KAME_SURVIVOR_ALLOC(c) ::kame_pool_survivor_alloc(c)
-  #define KAME_ADOPT_DUP()       ::kame_pool_adopt_dup()
-  #define KAME_ADOPT_RETRY()     ::kame_pool_adopt_retry()
-#endif
-//! Same no-op fallback discipline as KAME_ADOPT_YIELD above (§13.156).
-#ifndef KAME_SURVIVOR_NOTE
-  #define KAME_SURVIVOR_NOTE(c)  ((void)0)
-  #define KAME_SURVIVOR_ALLOC(c) ((void)0)
-  #define KAME_ADOPT_DUP()       ((void)0)
-  #define KAME_ADOPT_RETRY()     ((void)0)
-#endif
+//! No-op fallback so the DEFAULT build compiles (§13.155).
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void *
@@ -3169,7 +3114,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	    (kame_orphan_no_adopt() || !kame_orphan_adopt_admit())
 	        ? local_shared_ptr<PoolAllocator<ALIGN, true, DUMMY> >()
 	        : orphan_chain_pop();                     // §13.149 / §13.155
-	KAME_ADOPT_YIELD(1);                             // §13.156
 #else
 	orphan_chain_scrub();
 	local_shared_ptr<PoolAllocator<ALIGN, true, DUMMY> > oc_hold = orphan_chain_pop();
@@ -3195,10 +3139,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 		uint32_t claim_flags = 0;                        // §13.161
 		for(;;) {
 			uint32_t of = oc->m_flags_packed;
-			if(of & PoolAllocator<ALIGN, DUMMY, DUMMY>::BIT_OWNED) {
-				KAME_ADOPT_DUP();                        // §13.163
+			if(of & PoolAllocator<ALIGN, DUMMY, DUMMY>::BIT_OWNED)
 				break;  // duplicate-owned (should never happen) -> discard
-			}
+				        // (§13.163: counted at 0 in 34 k adoptions)
 			if(atomicCompareAndSet(of,
 			       of | PoolAllocator<ALIGN, DUMMY, DUMMY>::BIT_OWNED,
 			       &oc->m_flags_packed)) {
@@ -3206,7 +3149,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 				claim_flags = of;                        // §13.161
 				break;  // BIT_OWNED set, MASK_CNT preserved
 			}
-			KAME_ADOPT_RETRY();                          // §13.163
 			// CAS lost to a concurrent MASK_CNT dec — retry with fresh `of`.
 		}
 		if(claimed) {
@@ -3226,12 +3168,10 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 			//   m_owner_dll_head_addr     = &s_tls.dll_head
 			//   m_owner_dll_force_walk_ptr= &s_tls.dll_force_walk_from_head
 			//                               (release store)
-			KAME_ADOPT_YIELD(2);                             // §13.156
 			atomicStoreRelease(&oc->m_owner_id, kame_owner_id());   // §13.46
 			oc->m_owner_dll_head_addr = static_cast<void *>(&s_tls.dll_head);
 			oc->m_owner_dll_force_walk_ptr.store(
 			    &s_tls.dll_force_walk_from_head, std::memory_order_release);
-			KAME_ADOPT_YIELD(3);                             // §13.156
 			// Splice at DLL tail (mirror create_allocator's append below).
 			oc->m_dll_next = nullptr;
 			oc->m_dll_prev = s_tls.dll_tail;
@@ -3253,16 +3193,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 			// a direct deallocate_chunk.  No refcnt change (the popped chain-ref
 			// becomes the self-ref); oc_hold goes null.  Closes Inv_NoBadOwnerFree.
 			oc->m_owner_self_ref = std::move(oc_hold);
-			KAME_ADOPT_YIELD(4);                             // §13.156
-			// (§13.161) MASK_CNT at the claim: nonzero == SURVIVOR.  Hoisted
-			// into a local because the template's commas would otherwise be
-			// parsed as extra macro arguments.
-			const unsigned sv_cnt = claim_flags
-			    & PoolAllocator<ALIGN, DUMMY, DUMMY>::MASK_CNT;
-			(void)sv_cnt;
-			KAME_SURVIVOR_NOTE(sv_cnt);
 			if(void *p = oc->allocate_pooled(SIZE)) {
-				KAME_SURVIVOR_ALLOC(sv_cnt);
 #ifdef KAME_POOL_ADOPT_CENSUS
 				// (§13.164) SELF-TEST.  `p` provably came from the chunk we
 				// just recorded, so `kame_pool_was_adopted(p)` MUST answer
@@ -3453,18 +3384,7 @@ static bool kame_orphan_chain_off() noexcept {
 //! specialization elides (a propagated constant killing a branch).  So count
 //! what actually runs, per arm, and compare the ratios rather than the raw
 //! numbers -- the two arms do not do the same amount of work.
-#ifdef KAME_CHAIN_DYNCOUNT
-namespace { std::atomic<unsigned long long> g_cn[4]; }   // push, pop, scrub-visit, unlink-CAS
-extern "C" void kame_chain_count(unsigned i) noexcept { if(i<4) g_cn[i].fetch_add(1, std::memory_order_relaxed); }
-namespace { struct ChainCountReport { ~ChainCountReport() {
-    fprintf(stderr, "CHAINDYN push=%llu pop=%llu scrub_visit=%llu unlink_cas=%llu\n",
-        (unsigned long long)g_cn[0].load(), (unsigned long long)g_cn[1].load(),
-        (unsigned long long)g_cn[2].load(), (unsigned long long)g_cn[3].load());
-} } g_chain_report; }
-#define KAME_CHAIN_CNT(i) kame_chain_count(i)
-#else
-#define KAME_CHAIN_CNT(i) ((void)0)
-#endif
+#define KAME_CHAIN_CNT(i) ((void)0)   // §13.147 dyncount removed; answered
 //! §13.149  Decomposition of the chain's BEHAVIOUR into its three acts, all
 //! runtime, all in the same binary as the baseline.
 //!
@@ -3504,47 +3424,8 @@ namespace { struct ChainCountReport { ~ChainCountReport() {
 //! Static analysis cannot separate these (§13.152: every static difference in
 //! these paths is inlining relocation with the transferable semantics conserved),
 //! so the dose curve is the instrument that can.
-//! §13.156  Targeted preemption inside the ADOPT sequence.
-//!
-//! Everything statically checkable is now correct: the chain's three functions
-//! compile identically (§13.150), release stores / fences / atomic counts are
-//! conserved at GIMPLE (§13.152, §13.155), and the recycle path the firing arm
-//! inlines into the claimer is a faithful translation with its size verify
-//! intact (§13.154).  Adoption is nevertheless the necessary half (§13.150,
-//! 0/11 vs 10/11).  So the remaining variable is interleaving, and the way to
-//! locate an interleaving window is to widen it at a chosen point and see the
-//! rate move.
-//!
-//! `KAME_ADOPT_YIELD_AT=N` delays at one point of the adopt sequence;
-//! `KAME_ADOPT_YIELD_US` picks the delay (default 1 us -- and note that
-//! `sched_yield()` is NOT a perturbation when cores are idle, §13.103b: it moved
-//! a 21.16 s run to 21.51 s, while `usleep(1)` moved it to 36.07 s).
-//!
-//!   1  after orphan_chain_pop(), before the BIT_OWNED claim CAS
-//!   2  after the claim CAS, before re-arming owner metadata
-//!   3  after the owner metadata / before the DLL splice
-//!   4  after the DLL splice and the self-ref move (adoption complete)
-//!
-//! A point whose delay RAISES the rate is where a peer needs time to reach the
-//! other side of the race; a point whose delay SUPPRESSES it has serialised the
-//! pair.  Either direction localises, which no static census could.
-#include <unistd.h>   // usleep -- included here because the file's own
-#include <sched.h>    // <unistd.h> appears far below this point
-extern "C" void kame_adopt_yield(unsigned site) noexcept {
-    static std::atomic<int> at{-1};
-    static std::atomic<int> us{-1};
-    int a = at.load(std::memory_order_relaxed);
-    if(a < 0) {
-        const char *e = getenv("KAME_ADOPT_YIELD_AT");
-        a = (e && e[0]) ? atoi(e) : 0;
-        at.store(a, std::memory_order_relaxed);
-        const char *u = getenv("KAME_ADOPT_YIELD_US");
-        us.store((u && u[0]) ? atoi(u) : 1, std::memory_order_relaxed);
-    }
-    if(a == 0 || (unsigned)a != site) return;
-    int d = us.load(std::memory_order_relaxed);
-    if(d > 0) usleep((unsigned)d); else sched_yield();
-}
+#include <unistd.h>
+#include <sched.h>
 extern "C" bool kame_orphan_adopt_admit() noexcept {
     static std::atomic<int> keep{-1};
     int k = keep.load(std::memory_order_relaxed);
@@ -3765,15 +3646,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 				// chunk_base; recover chunk_base from `c` directly.
 				char *cbase = reinterpret_cast<char*>(c) - ALLOC_CHUNK_HEADER;
 				size_t csz = c->m_chunk_size;
-#ifdef KAME_POOL_RELEASE_CENSUS
-				{   // (§13.164) verify the bitmap really is empty
-					unsigned nz = 0;
-					for(int fi = 0; fi < c->m_count; ++fi)
-						if(c->m_flags[fi]) ++nz;
-					::kame_pool_release_verify(cbase, nz,
-					    (unsigned)c->m_count, c->m_flags_packed);
-				}
-#endif
 				c->~PoolAllocator();   // placement-new destructor
 				// (§21) madvise the slot pages on thread exit by default
 				// (`s_thread_exit_reclaim`, default TRUE) so RSS is returned
@@ -3868,17 +3740,6 @@ inline void
 KAME_CLONE_LICENCE(5) /*§13.112 arm 5*/ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
                                     bool reclaim_pages) {
 	KAME_POOLEV(KAME_PEV_CHUNK_RELEASE, chunk_base, chunk_size);
-#ifdef KAME_POOL_RELEASE_CENSUS
-	// (§13.164) Per-chunk release tally.  §13.163(b,c,d) leaves "the whole
-	// chunk was recycled under live objects" as the last unclosed way for a
-	// slot to be handed out while its previous occupant is still constructed:
-	// it needs no bitmap bit to move and no per-block free at all, and it
-	// would put SEVERAL double-live hits in ONE chunk — which is what §13.104
-	// saw.  The POOLEV ring already logs KAME_PEV_CHUNK_RELEASE but evicts;
-	// this is a keyed count so a later "was THIS chunk ever released" query
-	// cannot be answered by eviction.
-	::kame_pool_chunk_release_note(chunk_base, (unsigned long long)chunk_size);
-#endif
 	// §13.35 residual seam: a region reused as a NEW chunk (possibly a
 	// different ALIGN class, so interior slot bases shift) needs a
 	// region-granular edge -- per-slot release/acquire cannot order
@@ -8221,14 +8082,11 @@ inline bool global_push(char *base, std::size_t size, unsigned kind) noexcept {
 }
 // Pop a fitting block from the global cache, weak-CAS each slot (own-then-
 // read-size) until a fit; livelock-free (bounded K iterations, no inner retry).
-// (§13.155) `KAME_NO_INLINE_POPFIT` forces this out of line.  §13.154 shows the
+// (§13.155) `` forces this out of line.  §13.154 shows the
 // body is compiled correctly; what the firing arm changes is WHERE it runs --
 // four atomic RMWs inside the claimer's frame instead of behind a call.  This
 // arm keeps the specialization and removes only the inlining, isolating
 // placement from content.
-#ifdef KAME_NO_INLINE_POPFIT
-__attribute__((noinline))
-#endif
 KAME_CLONE_L12 /*§13.119 arm 12*/ KAME_NOCLONE(2) /*§13.121*/ inline char *global_pop_fit(std::size_t need, unsigned kind) noexcept {
     int idx = lrc_idx(need, kind);
     int kstart = lrc_kstart_g();
@@ -9155,50 +9013,6 @@ template class PoolAllocator<ALLOC_SIZE15, true>;
 //} pool_releaser;
 #endif //USE_STD_ALLOCATOR
 
-#ifdef KAME_POOL_BACKSTOP_CENSUS
-// (§13.128) Backstop census.  Both guards in atomic_intrusive_dispose are
-// documented as never firing at runtime; §13.127's object/storage lifetime
-// coupling says one of them is the last line before a live chunk is
-// reclaimed.  Counting is cheaper than arguing, and the counters print at
-// exit AND are readable from a crash handler.
-#include <cstdio>
-static std::atomic<unsigned long long> g_backstop[2];
-extern "C" void kame_pool_backstop_note(unsigned which) noexcept {
-    if(which < 2) g_backstop[which].fetch_add(1, std::memory_order_relaxed);
-}
-extern "C" void kame_pool_backstop_counts(unsigned long long *owned,
-                                          unsigned long long *live) noexcept {
-    *owned = g_backstop[0].load(std::memory_order_relaxed);
-    *live  = g_backstop[1].load(std::memory_order_relaxed);
-}
-// (§13.128) atexit does not run after SIGSEGV/SIGABRT, and a crashing run is
-// exactly where a backstop would fire -- the same gap that hid the park and
-// DOUBLE-LIVE counters twice.  Signal handler writes the counters with
-// write(2) only.
-#include <csignal>
-#include <unistd.h>
-extern "C" void kame_pool_backstop_counts(unsigned long long *, unsigned long long *) noexcept;
-namespace {
-void backstop_sig_(int sig) {
-    unsigned long long o = 0, l = 0;
-    kame_pool_backstop_counts(&o, &l);
-    char b[128]; int n = snprintf(b, sizeof b,
-        "\nkame_pool: [sig %d] DISPOSE BACKSTOPS owned=%llu live-slot=%llu\n", sig, o, l);
-    if(n > 0) { ssize_t r = write(2, b, (size_t)n); (void)r; }
-    signal(sig, SIG_DFL); raise(sig);
-}
-struct BackstopSig { BackstopSig() {
-    signal(SIGSEGV, backstop_sig_); signal(SIGABRT, backstop_sig_); signal(SIGBUS, backstop_sig_);
-} } g_backstop_sig;
-}
-namespace { struct BackstopReport {
-    ~BackstopReport() {
-        unsigned long long o = g_backstop[0].load(), l = g_backstop[1].load();
-        if(o || l) fprintf(stderr, "kame_pool: DISPOSE BACKSTOPS FIRED  owned=%llu  live-slot=%llu\n", o, l);
-        else       fprintf(stderr, "kame_pool: dispose backstops: never fired\n");
-    }
-} g_backstop_report; }
-#endif // KAME_POOL_BACKSTOP_CENSUS
 
 #ifdef KAME_POOL_ADOPT_CENSUS
 // (§13.130) Adopted-chunk census.  Direct-mapped by chunk base; a collision
@@ -9283,76 +9097,6 @@ extern "C" unsigned long long kame_pool_adopt_count() noexcept {
 }
 #endif // KAME_POOL_ADOPT_CENSUS
 
-#ifdef KAME_POOL_SURVIVOR_CENSUS
-// (§13.161) SURVIVOR-vs-DRAINED adopt census.  MASK_CNT at the claim CAS is
-// the chunk's non-empty-flag-word count: nonzero means blocks in the chunk are
-// STILL LIVE and held by other threads, which will free them cross-thread into
-// a chunk that now has a new owner.  Adopting such a chunk and immediately
-// allocating out of its bitmap (the two events straddling KAME_ADOPT_YIELD(4))
-// is the only place the allocator hands out storage from a bitmap it did not
-// build while foreign frees are still in flight against it.
-#include <cstdio>
-#include <csignal>
-#include <unistd.h>
-namespace {
-std::atomic<unsigned long long> g_sv_total{0}, g_sv_surv{0}, g_sv_drain{0},
-    g_sv_alloc_surv{0}, g_sv_alloc_drain{0}, g_sv_maxcnt{0};
-std::atomic<unsigned long long> g_sv_dup{0}, g_sv_retry{0};
-inline void sv_report_(int fd) noexcept {
-    char b[320];
-    int n = snprintf(b, sizeof b,
-        "kame_pool: ADOPT survivor census: total=%llu drained=%llu survivor=%llu"
-        " maxcnt=%llu | first-alloc-OK: drained=%llu survivor=%llu"
-        " | DUP-OWNED=%llu claim-retries=%llu\n",
-        (unsigned long long)g_sv_total.load(std::memory_order_relaxed),
-        (unsigned long long)g_sv_drain.load(std::memory_order_relaxed),
-        (unsigned long long)g_sv_surv.load(std::memory_order_relaxed),
-        (unsigned long long)g_sv_maxcnt.load(std::memory_order_relaxed),
-        (unsigned long long)g_sv_alloc_drain.load(std::memory_order_relaxed),
-        (unsigned long long)g_sv_alloc_surv.load(std::memory_order_relaxed),
-        (unsigned long long)g_sv_dup.load(std::memory_order_relaxed),
-        (unsigned long long)g_sv_retry.load(std::memory_order_relaxed));
-    if(n > 0) { ssize_t r = write(fd, b, (size_t)n); (void)r; }
-}
-// atexit does NOT run after a fatal signal (§13.93) — read back from a handler.
-// Chain to whatever handler was installed before us: two censuses in one
-// binary would otherwise silently lose one report (last constructor wins).
-typedef void (*sig_fn_)(int);
-sig_fn_ g_sv_prev[3] = {SIG_DFL, SIG_DFL, SIG_DFL};
-inline int sv_slot_(int sig) { return sig == SIGSEGV ? 0 : sig == SIGABRT ? 1 : 2; }
-void sv_sig_(int sig) {
-    sv_report_(2);
-    sig_fn_ prev = g_sv_prev[sv_slot_(sig)];
-    if(prev != SIG_DFL && prev != SIG_IGN && prev != sv_sig_) { prev(sig); return; }
-    signal(sig, SIG_DFL); raise(sig);
-}
-struct SvSig { SvSig() {
-    g_sv_prev[0] = signal(SIGSEGV, sv_sig_);
-    g_sv_prev[1] = signal(SIGABRT, sv_sig_);
-    g_sv_prev[2] = signal(SIGBUS,  sv_sig_); } } g_sv_sig;
-struct SvReport { ~SvReport() { sv_report_(2); } } g_sv_report;
-}
-extern "C" void kame_pool_survivor_note(unsigned cnt) noexcept {
-    g_sv_total.fetch_add(1, std::memory_order_relaxed);
-    if(cnt) {
-        g_sv_surv.fetch_add(1, std::memory_order_relaxed);
-        unsigned long long m = g_sv_maxcnt.load(std::memory_order_relaxed);
-        while(cnt > m && !g_sv_maxcnt.compare_exchange_weak(m, cnt,
-                  std::memory_order_relaxed)) {}
-    }
-    else g_sv_drain.fetch_add(1, std::memory_order_relaxed);
-}
-extern "C" void kame_pool_adopt_dup() noexcept {
-    g_sv_dup.fetch_add(1, std::memory_order_relaxed);
-}
-extern "C" void kame_pool_adopt_retry() noexcept {
-    g_sv_retry.fetch_add(1, std::memory_order_relaxed);
-}
-extern "C" void kame_pool_survivor_alloc(unsigned cnt) noexcept {
-    if(cnt) g_sv_alloc_surv.fetch_add(1, std::memory_order_relaxed);
-    else    g_sv_alloc_drain.fetch_add(1, std::memory_order_relaxed);
-}
-#endif // KAME_POOL_SURVIVOR_CENSUS
 
 #ifdef KAME_POOL_RESOLVE_CHECK
 // (§13.162) back_offset derivation ground truth.  See the declaration comment.
@@ -9418,118 +9162,6 @@ extern "C" void kame_pool_resolve_bad(unsigned kind, const void *mp,
 }
 #endif // KAME_POOL_RESOLVE_CHECK
 
-#ifdef KAME_POOL_RELEASE_CENSUS
-// (§13.164) Direct-mapped chunk-release tally, same shape as the §13.130 adopt
-// census: keyed by chunk base, a collision overwrites (the stored base is
-// compared on query, so a collision answers "no" rather than a false "yes").
-#include <cstdio>
-#include <csignal>
-#include <unistd.h>
-namespace {
-enum { REL_SLOTS = 8192 };
-struct RelSlot { std::atomic<const void *> base; std::atomic<unsigned> n; };
-RelSlot g_rel[REL_SLOTS];
-RelSlot g_con[REL_SLOTS];                       // §13.164 constructions
-std::atomic<unsigned long long> g_rel_total{0}, g_con_total{0};
-//! Shared keyed-tally update: key on the slot-region base (chunk_base +
-//! K_MAX, the 256 KiB-aligned one — see §13.164) and register every unit.
-inline void tally_(RelSlot *tab, const void *chunk_base,
-                   unsigned long long chunk_size) noexcept;
-inline unsigned rel_slot_(const void *b) noexcept {
-    return (unsigned)((((uintptr_t)b >> 18) * 0x9E3779B97F4A7C15ull) >> 51) % REL_SLOTS;
-}
-}
-namespace {
-inline void tally_(RelSlot *tab, const void *chunk_base,
-                   unsigned long long chunk_size) noexcept {
-    uintptr_t b = (uintptr_t)chunk_base + (uintptr_t)ALLOC_CHUNK_K_MAX;
-    unsigned units = (unsigned)(chunk_size / (unsigned long long)ALLOC_MIN_CHUNK_SIZE);
-    if(units == 0u) units = 1u;
-    for(unsigned u = 0; u < units; ++u) {
-        const void *k = (const void *)(b + (uintptr_t)u * ALLOC_MIN_CHUNK_SIZE);
-        RelSlot &sl = tab[rel_slot_(k)];
-        const void *prev = sl.base.exchange(k, std::memory_order_relaxed);
-        if(prev != k) sl.n.store(1, std::memory_order_relaxed);
-        else          sl.n.fetch_add(1, std::memory_order_relaxed);
-    }
-}
-inline unsigned tally_read_(RelSlot *tab, const void *addr) noexcept {
-    const void *b = (const void *)((uintptr_t)addr
-                                   & ~(uintptr_t)(ALLOC_MIN_CHUNK_SIZE - 1));
-    RelSlot &sl = tab[rel_slot_(b)];
-    if(sl.base.load(std::memory_order_relaxed) != b) return 0u;
-    return sl.n.load(std::memory_order_relaxed);
-}
-}
-extern "C" void kame_pool_chunk_release_note(const void *chunk_base,
-                                            unsigned long long chunk_size) noexcept {
-    tally_(g_rel, chunk_base, chunk_size);
-    g_rel_total.fetch_add(1, std::memory_order_relaxed);
-}
-extern "C" void kame_pool_chunk_construct_note(const void *chunk_base,
-                                               unsigned long long chunk_size) noexcept {
-    tally_(g_con, chunk_base, chunk_size);
-    g_con_total.fetch_add(1, std::memory_order_relaxed);
-}
-extern "C" unsigned kame_pool_chunk_construct_count(const void *addr) noexcept {
-    return tally_read_(g_con, addr);
-}
-//! How many times the chunk CONTAINING `addr` has been released.  0 also means
-//! "not recorded" (collision) — a nonzero answer is evidence, a zero is not.
-extern "C" unsigned kame_pool_chunk_release_count(const void *addr) noexcept {
-    return tally_read_(g_rel, addr);
-}
-namespace {
-std::atomic<unsigned long long> g_relv_ok{0}, g_relv_bad{0};
-struct RelvFirst { const void *base; unsigned nz, total, packed; };
-RelvFirst g_relv_first{};
-std::atomic<int> g_relv_have{0};
-}
-extern "C" void kame_pool_release_verify(const void *chunk_base,
-    unsigned nonzero_words, unsigned total_words, unsigned packed) noexcept {
-    if(nonzero_words == 0u) { g_relv_ok.fetch_add(1, std::memory_order_relaxed); return; }
-    g_relv_bad.fetch_add(1, std::memory_order_relaxed);
-    int e = 0;
-    if(g_relv_have.compare_exchange_strong(e, 1, std::memory_order_relaxed)) {
-        g_relv_first.base = chunk_base; g_relv_first.nz = nonzero_words;
-        g_relv_first.total = total_words; g_relv_first.packed = packed;
-    }
-}
-extern "C" unsigned long long kame_pool_chunk_release_total() noexcept {
-    return g_rel_total.load(std::memory_order_relaxed);
-}
-namespace {
-void rel_report_(int fd) noexcept {
-    char b[256];
-    int n = snprintf(b, sizeof b, "kame_pool: CHUNK RELEASES this run = %llu"
-        " | bitmap-empty-at-release: ok=%llu BAD=%llu\n",
-        (unsigned long long)g_rel_total.load(std::memory_order_relaxed),
-        (unsigned long long)g_relv_ok.load(std::memory_order_relaxed),
-        (unsigned long long)g_relv_bad.load(std::memory_order_relaxed));
-    if(n > 0) { ssize_t r = write(fd, b, (size_t)n); (void)r; }
-    if(g_relv_have.load(std::memory_order_relaxed)) {
-        n = snprintf(b, sizeof b, "kame_pool: RELEASE-BAD first: base=%p"
-            " nonzero_words=%u/%u packed=%08x\n", g_relv_first.base,
-            g_relv_first.nz, g_relv_first.total, g_relv_first.packed);
-        if(n > 0) { ssize_t r = write(fd, b, (size_t)n); (void)r; }
-    }
-}
-typedef void (*rel_fn_)(int);
-rel_fn_ g_rel_prev[3] = {SIG_DFL, SIG_DFL, SIG_DFL};
-inline int rel_slotidx_(int sig) { return sig == SIGSEGV ? 0 : sig == SIGABRT ? 1 : 2; }
-void rel_sig_(int sig) {
-    rel_report_(2);
-    rel_fn_ prev = g_rel_prev[rel_slotidx_(sig)];
-    if(prev != SIG_DFL && prev != SIG_IGN && prev != rel_sig_) { prev(sig); return; }
-    signal(sig, SIG_DFL); raise(sig);
-}
-struct RelSig { RelSig() {
-    g_rel_prev[0] = signal(SIGSEGV, rel_sig_);
-    g_rel_prev[1] = signal(SIGABRT, rel_sig_);
-    g_rel_prev[2] = signal(SIGBUS,  rel_sig_); } } g_rel_sig;
-struct RelReport { ~RelReport() { rel_report_(2); } } g_rel_report;
-}
-#endif // KAME_POOL_RELEASE_CENSUS
 #ifdef KAME_POOL_FREE_CENSUS
 #include <csignal>
 #include <unistd.h>

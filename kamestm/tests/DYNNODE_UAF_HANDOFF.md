@@ -10957,3 +10957,61 @@ itself is C++-level (every death runs `~atomic_countable`) so it transfers, but
 the count is per-platform — worth one `SKIPDTOR=0` line on Ubuntu to confirm the
 deficit is 0 there too.  §13.104's own clean run already reported
 `dtor == born` (1 230 350 both), so it very likely is.
+
+### 13.170 Probe triage: what gets deleted, what becomes regression apparatus
+
+§13 has accumulated ~30 diagnostic knobs.  With §13.169 closing the last
+standing assumption, this sorts them.  The rule used: **a probe survives only
+if it tests an invariant that is true BY CONSTRUCTION and carries a positive
+control.**  Everything whose question is answered goes, because a dormant
+probe is not free — three of this session's corrections came from probes that
+returned plausible numbers while being incapable of finding anything.
+
+#### DELETED — question answered, result recorded in this document
+
+| probe | §  | what it settled |
+|---|---|---|
+| `KAME_ADOPT_YIELD` / `_AT` / `_US` | 13.156 | Flat at every adopt-sequence site, at 1 µs and 500 µs, instrument proven live (50 ms moves a run 3.5 s→5.4 s).  §13.161's apparent hit did not replicate (§13.162). |
+| `KAME_POOL_SURVIVOR_CENSUS` | 13.163a | 100 % of adoptions take a SURVIVOR chunk — by construction, since only non-empty chunks are pushed and scrub unlinks only drained ones.  Identical on passing and failing runs, so it cannot discriminate. |
+| `KAME_POOL_RELEASE_CENSUS` (+ construct tally) | 13.164/165 | 0 re-purpose deltas between the two births; whole-chunk recycle ruled out.  A one-shot correlation, not an invariant. |
+| `KAME_POOL_BACKSTOP_CENSUS` | 13.128 | The two `atomic_intrusive_dispose` backstops never fire. |
+| `KAME_CHAIN_DYNCOUNT` | 13.147 | Superseded by the runtime gate's behavioural A/B, which is strictly better (one binary, zero codegen delta). |
+| `KAME_NO_INLINE_POPFIT` | 13.157 | Placement is not it; forcing `global_pop_fit` out of line does not suppress. |
+| adopt `DUP` / `RETRY` counters | 13.163c | 0 duplicates and 0 claim-CAS retries in 33 939 adoptions.  The defensive branch stays; the counters go. |
+
+`allocator.cpp` 9834 → 9466 lines.  The default, gate-only and full-census
+configurations all compile, and the reproducer still fails at its usual rate
+(2/3 in a spot check) — the removals are behaviour-neutral, as default-off
+probes must be.
+
+#### KEPT as regression apparatus — invariant + positive control
+
+| probe | why it earns its place |
+|---|---|
+| `KAME_POOL_RESOLVE_CHECK` | `(char *)palloc == chunk_base + ALLOC_CHUNK_HEADER` is true **by construction** for every chunk ever built.  Verified across **1 144 061 498** derivations, 0 failures.  This is an allocator invariant, not a hypothesis, and belongs in a slow/soak CI job. |
+| `KAME_POOL_FREE_CENSUS` — double-free detector | "a slot must not be pushed onto a freelist twice with no pop" is an invariant; it carries a load-time positive control (push/push counts once, push/pop/push does not) and its table can only MISS, never false-positive.  0/40 in the shipping configuration. |
+| `KAME_POOL_FREE_CENSUS` — free-of-live / alloc-of-live | "a legitimate `delete` runs the destructor before `operator delete`, so no free may see a live object" — an invariant, with a denominator printed and a control at the DOUBLE-LIVE hit (`islive(obj)` must read 1). |
+| `KAME_ORPHAN_CHAIN_RUNTIME_GATE` + `NO_ADOPT` / `NO_SCRUB` / `CHAIN_OFF` / `*_KEEP` | The suppressor.  Reproduces at **p = 1.3 × 10⁻⁸** on one binary with zero codegen delta — the single most reliable lever this investigation has, and a standing regression guard: if a future change makes `NO_ADOPT` stop suppressing, that is information. |
+| `KAME_RC_TRACE_DLIVE_SKIPDTOR` / `_INJECT` | The calibration controls that turned §13.167's assumption into §13.169's measurement.  These ARE the DOUBLE-LIVE detector's positive controls. |
+| `KAME_POOL_ADOPT_CENSUS` | Kept **only** because its key is now fixed and self-tested (§13.164).  Any future "was this address in an adopted chunk" question needs it, and re-deriving it is how §13.131 went wrong. |
+
+#### PARKED — default-inert, large surface, remove in a dedicated pass
+
+The `-fipa-cp-clone` bisection apparatus (`KAME_CLONE_MASK`, `KAME_NOCLONE_MASK`,
+`KAME_CLONE_ARM`, `KAME_CLONE_LICENCE(n)` + `KAME_CLONE_L1..L12`,
+`KAME_CLONE_ATTR_*`, `KAME_ASP_NOCLONE_ATTR`) — ~60 sites across
+`allocator_prv.h` and `atomic_smart_ptr.h`.  Its question is exhausted
+(§13.112–§13.148: no single clone is responsible), but it expands to **nothing**
+by default and the `KAME_CLONE_LICENCE(n)` markers are attached to function
+definitions, so removing it is a mechanical edit of live declarations.  Not
+worth doing while measurements are in flight; it is the obvious next cleanup.
+
+#### One defect found while triaging, in someone else's instrument
+
+`dl_report_()`'s format string carries **11 specifiers for 12 arguments**, and
+the dropped one is `g_dl_skipped` — the SKIPDTOR counter that §13.169's
+calibration is *about*.  So that table's bypass counts had to be derived rather
+than read off the report.  Fixed (`skipped-dtor %llu` appended); flagging it
+because it is the same failure class as the rest of this section — an
+instrument that reports confidently while silently omitting the number it
+exists to produce.
