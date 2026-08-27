@@ -9552,3 +9552,61 @@ an empty file, reporting "0 cloned families" from a build that had failed —
 the exact mistake §13.119 recorded and warned about, repeated. The zero looked
 like a result. Compiler stderr belongs in the log in any build-and-measure
 loop, and the cheap guard is to check the artefact exists before parsing it.
+### 13.149 Decomposing the chain's behaviour: push / adopt / scrub as three runtime arms in one binary
+
+§13.144 settled that the chain's effect is **behavioural** (15/24 vs 0/24, zero
+codegen delta), which retires the whole-TU-codegen reading of the ablation and
+makes the behavioural question the only one left.  Five named mechanisms inside
+the chain are clean — but **no half of it has ever been ablated as a behaviour.**
+The gate controls `orphan_chain_push` only, so "chain on, adoption off" has not
+been run.  §13.128's exoneration is by backstop counts and §13.131's by victim
+location: both are statements about *mechanisms*, and a half can be necessary
+while the mechanism nominated for it is innocent.
+
+**Three acts, and they partition what the chain does:**
+
+| env | what runs |
+|---|---|
+| `KAME_ORPHAN_NO_SCRUB=1` | push + adopt; orphans are never reclaimed |
+| `KAME_ORPHAN_NO_ADOPT=1` | push + scrub; nothing is ever re-owned |
+| both | **only `orphan_chain_push` itself** — the `refcnt` establishment (or self-ref move) and the Treiber CAS on the shared head |
+| `KAME_ORPHAN_CHAIN_OFF=1` | none of it (§13.141) |
+| `KAME_ORPHAN_CHAIN_KEEP=N` | dose: every N-th push (added with §13.144's run) |
+
+The "both" row is the interesting one: if the fault needs only that, the acting
+part is the **publication**, not the reuse — which no arm so far could say, and
+which would explain why every reuse-side mechanism measures clean.
+
+**Each arm is the same machine code**: the skipped call sits in the untaken
+branch, the predicate is a cached `std::atomic<int>` read from the environment,
+and every arm compiles under both clang and **real GCC 15.2** (verified here,
+536 144 bytes).
+
+**All five arms proven behaviourally live before use (§13.61)** — and the ladder
+is coherent, which is the check that they mean what they say.  40 rounds × 8
+threads, each thread leaving one live slot so its chunk is orphaned at exit:
+
+| arm | `reserved` |
+|---|---|
+| baseline | 64 MiB |
+| `NO_SCRUB=1` | 64 MiB — adoption is the recycler here, so losing scrub costs nothing |
+| `NO_ADOPT=1` | **160 MiB** — scrub reclaims some, but nothing is re-owned |
+| `CHAIN_OFF=1` | 320 MiB — nothing published, everything strands |
+| `NO_ADOPT` + `NO_SCRUB` | **352 MiB** — worse than `CHAIN_OFF`, and correctly so: pushed chunks are pinned by the chain-ref, so they cannot even be released |
+| `KEEP=8` | 288 MiB |
+
+`NO_SCRUB` being indistinguishable from baseline in *memory* while
+`NO_ADOPT` costs 96 MiB is itself informative: in this workload adoption does the
+recycling and scrub is nearly idle — so if the fault survives `NO_ADOPT` it is
+not about reuse volume at all.
+
+**How to read the outcomes:**
+
+| result | conclusion |
+|---|---|
+| dies with `NO_ADOPT`, lives with `NO_SCRUB` | adoption is behaviourally necessary despite §13.131's clean victim census — the search moves to *what adopt does* rather than *what it hands out* |
+| dies with `NO_SCRUB`, lives with `NO_ADOPT` | the reclaim path is necessary despite §13.128's silent backstops |
+| lives with both, dies only with `CHAIN_OFF` | **the publication itself** is the acting part: `refcnt.store(1)` / the self-ref move and the head CAS.  That is a two-statement suspect list |
+| dies with both individually | the two interact, and `KEEP=N` gives the dose curve |
+
+Run them interleaved in one job against the baseline, same `.so`.

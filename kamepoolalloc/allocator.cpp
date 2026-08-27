@@ -2720,6 +2720,13 @@ PoolAllocator<ALIGN, FS, DUMMY>::create_allocator() {
 	}
 	return palloc;
 }
+#ifdef KAME_ORPHAN_CHAIN_RUNTIME_GATE
+//! §13.149 predicates, defined further down with the other runtime-gate knobs;
+//! declared here because the adoption path below precedes them in the TU.
+extern "C" bool kame_orphan_no_scrub() noexcept;
+extern "C" bool kame_orphan_no_adopt() noexcept;
+#endif
+
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void *
 PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
@@ -3011,8 +3018,16 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// pin draining → refcnt 0 → atomic_intrusive_dispose no-ops while owned.
 	// oc_hold is the FS=true-base type (the chain's node type); the downcast
 	// reverses the upcast orphan_chain_push applied at owner-exit.
+#if defined(KAME_ORPHAN_CHAIN_RUNTIME_GATE)
+	if( !kame_orphan_no_scrub())                      // §13.149
+		orphan_chain_scrub();
+	local_shared_ptr<PoolAllocator<ALIGN, true, DUMMY> > oc_hold =
+	    kame_orphan_no_adopt() ? local_shared_ptr<PoolAllocator<ALIGN, true, DUMMY> >()
+	                           : orphan_chain_pop();  // §13.149
+#else
 	orphan_chain_scrub();
 	local_shared_ptr<PoolAllocator<ALIGN, true, DUMMY> > oc_hold = orphan_chain_pop();
+#endif
 	if(PoolAllocator<ALIGN, DUMMY, DUMMY> *oc =
 	       static_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(oc_hold.get())) {
 		// Claim: set BIT_OWNED, preserving the MASK_CNT survivors that the
@@ -3278,6 +3293,49 @@ namespace { struct ChainCountReport { ~ChainCountReport() {
 #else
 #define KAME_CHAIN_CNT(i) ((void)0)
 #endif
+//! §13.149  Decomposition of the chain's BEHAVIOUR into its three acts, all
+//! runtime, all in the same binary as the baseline.
+//!
+//! §13.144 established that the chain's effect is behavioural (15/24 vs 0/24,
+//! zero codegen delta), and five named mechanisms inside it are individually
+//! clean on failing runs (§13.128 by backstop counts, §13.131 by victim
+//! location, §13.136, §13.138, §13.140).  But **no half of the chain has ever
+//! been ablated as a BEHAVIOUR** -- the gate controls `orphan_chain_push` only,
+//! so "chain on, adoption off" has not been run.  Those exonerations are about
+//! mechanisms, and a half can be necessary while the mechanism nominated for it
+//! is innocent.
+//!
+//! The three acts partition what the chain does:
+//!   KAME_ORPHAN_NO_ADOPT=1   push and scrub run; nothing is ever re-owned
+//!   KAME_ORPHAN_NO_SCRUB=1   push and adopt run; orphans are never reclaimed
+//!   KAME_ORPHAN_CHAIN_OFF=1  none of it (§13.141)
+//! With both NO_ADOPT and NO_SCRUB set, what survives is exactly
+//! `orphan_chain_push` itself: the `refcnt` establishment (or self-ref move) and
+//! the Treiber CAS on the shared head.  If the fault needs only that, the acting
+//! part is the publication, not the reuse -- which no arm so far could say.
+//!
+//! Each predicate keeps its call site compiled and reachable (the skipped call
+//! sits in the untaken branch), so every arm is the same machine code.
+extern "C" bool kame_orphan_no_adopt() noexcept {
+    static std::atomic<int> cached{-1};
+    int v = cached.load(std::memory_order_relaxed);
+    if(v < 0) {
+        const char *e = getenv("KAME_ORPHAN_NO_ADOPT");
+        v = (e && e[0] && e[0] != '0') ? 1 : 0;
+        cached.store(v, std::memory_order_relaxed);
+    }
+    return v != 0;
+}
+extern "C" bool kame_orphan_no_scrub() noexcept {
+    static std::atomic<int> cached{-1};
+    int v = cached.load(std::memory_order_relaxed);
+    if(v < 0) {
+        const char *e = getenv("KAME_ORPHAN_NO_SCRUB");
+        v = (e && e[0] && e[0] != '0') ? 1 : 0;
+        cached.store(v, std::memory_order_relaxed);
+    }
+    return v != 0;
+}
 extern "C" bool kame_orphan_chain_admit() noexcept {
     static std::atomic<int> keep{-1};
     int k = keep.load(std::memory_order_relaxed);
