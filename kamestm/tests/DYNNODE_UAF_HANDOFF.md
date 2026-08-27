@@ -10830,3 +10830,65 @@ That measurement is queued.  (The lookup is lossy — a 2^20 table under ~10⁸
 frees per run evicts fast, so most hits report "no record"; a *present* record
 is address-verified and is the true last free of that address, while an absent
 one says nothing.)
+
+### 13.167 The block is freed WHILE ITS OCCUPANT IS LIVE — 6/6, through both free paths
+
+§13.166 withdrew its own ordering verdicts: `prev_birth_seq` read 0 because
+`dl_born_` stamped its counters on only two of four slot-claim branches, so
+"FREED AFTER" was `seq > 0` and meant nothing.  With all four branches stamped
+(§13.165's correction) the comparison is real.  9 runs, all of which failed,
+6 DOUBLE-LIVE hits carrying **both** a present free record and a genuine
+birth stamp:
+
+| hit | path | free seq | prev-birth seq | thread |
+|---|---|---|---|---|
+| 1 | `freelist_push` | 32 360 502 | 330 638 | 240 |
+| 2 | `freelist_push` | 11 565 208 | 3 681 296 | 63 |
+| 3 | `batch_return_to_bitmap` | 5 396 460 | 1 232 268 | 22 |
+| 4 | `freelist_push` | 4 592 197 | 1 199 031 | 11 |
+| 5 | `freelist_push` | 4 760 359 | 1 107 851 | 17 |
+| 6 | `freelist_push` | 16 655 167 | 580 775 | 92 |
+
+**6 of 6: freed AFTER the occupant was born.**  Zero "predates", zero "no
+record" (the 2^20 table retains what the earlier 2^16 one evicted), six
+distinct threads, and — the part that matters — **both** free paths behave
+identically.  This is not a quirk of one code path: whatever issues the free
+reaches the allocator through the ordinary owner-side route *and* through the
+cross-thread batch.
+
+The ordering is therefore:
+
+> O1 is constructed at slot A → an ordinary free returns A to the pool → O2 is
+> constructed at A, while O1 has never been destroyed.
+
+That is §13.109's **first** branch — the block *was* freed, under a live
+object — which is exactly where §13.163(e) predicted the weight would fall
+once the second branch ran out of mechanisms.  Combined with the allocator's
+unbroken run of nulls (derivation exact to 1.14 G checks §13.163(b); no
+duplicate ownership in 34 k adoptions §13.163(c); no whole-chunk recycle
+§13.165; no double free in 40 base runs §13.166), the reading is:
+
+> **The pool faithfully recycles blocks it is told to free.  Something is
+> telling it to free live objects.**
+
+**The load-bearing assumption, named.**  All of this rests on §13.107's claim
+that the live-set's destruction feed is complete — that a `DL_LIVE` slot means
+the destructor genuinely never ran.  If some destruction path bypassed that
+choke point, O1 would in fact be dead, the free would be legitimate, and every
+DOUBLE-LIVE since §13.104 would be a false positive.  The evidence for
+completeness is §13.104's base rate: **0 hits in ~21 M enforced checks on runs
+that succeeded**.  An incomplete feed would leak false positives into clean
+runs too, and it does not.  That is strong but indirect, and it is the single
+assumption this whole line now hangs on — worth an independent check by the
+Mac session (§13.85's half), because if it fails, §13.104–§13.167 fall with it.
+
+**Next, already instrumented.**  Detect the premature free *at the free*
+rather than inferring it at the next birth: the tracer exports
+`kame_rc_dl_islive()` and the allocator asks it on every free — a legitimate
+`delete` runs the destructor, and so the death hook, before `operator delete`,
+so a legitimate free must see 0.  That fires at ~10^8 frees per run instead of
+one rare hit, and captures a raw `backtrace()` of the first offender
+(never `backtrace_symbols`, which mallocs and would re-enter the allocator
+from inside a free).  It carries a positive control: at a DOUBLE-LIVE hit the
+previous occupant is live *by definition*, so the report prints
+`islive(obj)` and it must read 1.
