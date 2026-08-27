@@ -11683,3 +11683,58 @@ That is the §13.178 failure mode pre-empted rather than repeated.
 
 **Mac**: default build unchanged; plain, gate, `KAME_NO_ORPHAN_CHAIN` and
 `KAME_CHAIN_DYNCOUNT` all compile.
+
+### 13.180 The batch cap is a DOSE, not a switch — `cap = 1` is the floor of a monotone curve
+
+§13.179 places both suppressors on one conjunction: *a non-empty deferred
+batch, flushed from inside the allocation path*.  `cap = 1` was known only at
+its extreme (0/16, §13.159).  Varying it turns a switch into a dose.
+
+**12 interleaved rounds, one binary, `g++-15` pool with the runtime gate, only
+`KAME_BATCH_CAP` differing:**
+
+| `KAME_BATCH_CAP` | 1 | 2 | 8 | 32 | unset (= 1024) |
+|---|---|---|---|---|---|
+| failures | **0/12** | **0/12** | 3/12 | 5/12 | **9/12** |
+
+* `cap = 1` vs unset: **p = 3.4 × 10⁻⁴**; `cap = 2` likewise.
+* `cap = 8` vs unset: p = 0.039.
+* **Cochran–Armitage trend over log₂(cap): z = 4.80.**
+
+**So `cap = 1` is not a special case.**  The rate rises monotonically with how
+many cross-thread frees sit deferred at once, exactly the quantity §13.179 says
+both suppressors act on.  This is the same evidence shape as §13.146's
+chain-traffic dose (KEEP 1/4/16/64 → 10/14, 4/14, 1/14, 0/13), and it does for
+the batch what that did for adoption.
+
+Together with §13.177 (the fault needs `flush`'s non-teardown path to be ONE
+loop, and size is not the variable — a 109-instruction clone fails like a
+66-instruction one), the surviving description is:
+
+> The fault scales with the number of entries a single un-unswitched
+> in-allocation flush loop processes per invocation.
+
+#### A vacuous experiment I ran first, and how it was caught
+
+The first run of this dose produced a **flat** curve — `cap 1/2/8/32/unset` at
+2/4, 3/4, 3/4, 3/4, 2/4 — which would have *contradicted* §13.159 outright.  It
+was five arms of the **same binary**: `KAME_BATCH_CAP` is compiled out unless
+`KAME_ORPHAN_CHAIN_RUNTIME_GATE` is defined, and the `.so` built for §13.174's
+version matrix does not define it.  The env var was inert in all five arms.
+
+It was not caught by doubting the result — flat was a legitimate outcome — but
+by a stray number in an unrelated run: the `alloc_invariants` ctest printing
+`BATCHCAP … ratio 2.0` while `KAME_BATCH_CAP=1` was set, where cap 1 demands
+1.0.  On the corrected build the knob is demonstrably live (`pushes 2 598 396,
+flushes 2 592 343, ratio 1.0`).
+
+**That is the seventh instrument defect in this session**, and the pattern has
+not varied once: every one produced *believable* numbers rather than an obvious
+failure — call sites outside their own `#ifdef`; a check in a function the
+workload never calls; a lookup keyed differently from its insert; a counter
+conflating two events; re-entrancy killing 20/20 runs silently; a missing
+denominator; a stale birth stamp; and now a knob compiled out of the arm that
+was supposed to vary.  §13.170's rule earns itself again: **a probe reports a
+zero only after proving it can report a one** — and for a *knob*, the
+equivalent proof is a liveness readout, which is why §13.179's per-site gate
+counting `suppressed`/`taken` is the right shape.
