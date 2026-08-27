@@ -9782,3 +9782,49 @@ perfectly correlated and §13.120 showed no attribute-based arm can reach.  That
 is where the next reading should go, and unlike everything else in this section it
 is a difference in *what code runs inside the claimer*, not in how an operation is
 encoded.
+
+### 13.152 The same inlining on x86-64 — and it lands in the half §13.150 proved necessary
+
+§13.151's step 1 finds `global_pop_fit` inlined into `create_allocator` in the
+firing arm only, with the claimer's atomics going 1 → 4.  That walk is arm64,
+where the fault never reproduces; the check that matters is whether the same
+thing happens on the machine where it does.  It does.
+
+**x86-64, GCC 15.2, `-O2` vs `-O2 -fipa-cp-clone`, otherwise identical flags:**
+
+| arm | `create_allocator<64u,true,true>` | instructions | **atomic RMWs** |
+|---|---|---|---|
+| non-firing `-O2` | — | 111 | **0** |
+| **firing `-O2 -fipa-cp-clone`** | — | 181 | **4** |
+
+Neither body *calls* `pop_fit`/`recycle_pop_fit`/`large_recycle_pop`, so the
+firing arm's extra ~70 instructions and **four atomic read-modify-writes are
+inlined into the claimer**, exactly as §13.151 measured on arm64 (1 → 4 there,
+0 → 4 here — the difference in the base count being the `stlr`-vs-`lock`
+counting convention, not a structural one).
+
+**Why this is worth more than the other codegen deltas.**  `create_allocator`
+is the claim path — the function reached when a thread needs a chunk and, via
+`large_recycle_pop` / the orphan pop, the one that **adopts**.  §13.150 measured
+adoption to be the necessary half: `KAME_ORPHAN_NO_ADOPT` takes 10/11 to 0/11
+while `NO_SCRUB` leaves 8/11.  So for the first time the **codegen difference
+and the behavioural necessity name the same code**: the pass inlines the
+recycle path into the claimer, adding four atomics there, and the claimer's
+adoption is what the fault requires.
+
+**And it is the function that keeps recurring.**  `global_pop_fit` is one of the
+four caller-driven specializations §13.120 proved unreachable by per-function
+licensing, and the clone §13.53 found perfectly correlated with the fault across
+all six arms — correlated, then untestable additively (§13.117), then
+individually innocent when suppressed (§13.122: 12/22 vs 12/21).  Those results
+stand: suppressing its *cloning* changes nothing.  What is new here is that in
+the firing arm it is not a separate clone being called at all — it is **inlined
+into the claimer**, which is a different object from the one those suppression
+arms manipulated.
+
+**What this does not yet show.**  That the four inlined atomics are wrong, or
+that their placement differs semantically from the out-of-line version.  The
+next step is a direct read of those four sites against the source they came
+from — on x86-64, where comdat sections make `addr2line` offsets ambiguous, so
+it needs `-ffunction-sections` or a per-section disassembly to attribute them
+reliably.
