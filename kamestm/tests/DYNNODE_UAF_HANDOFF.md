@@ -9515,3 +9515,40 @@ with the fault surviving full serialization under rr (§13.86).
 and `unlink-CAS` slots exist but were never incremented, so their zeros in the
 output are **not measurements**.  Anyone extending this should wire those two
 before quoting them.
+
+### 13.148 Correction to §13.147, and the right form of proposal (i): clones ADD atomics, and none is short of its parent
+
+**The correction first.**  §13.147 concluded "cloning changes neither the count
+nor the amount of chain work", which conflates two things and is wrong as
+phrased.  What it measured was the number of `orphan_chain_push` /
+`orphan_chain_scrub` **calls** — chain traffic, not atomic operations.  Those
+being equal between arms says nothing about atomic-op counts, and "conserved"
+is in any case the wrong expectation: **a clone that coexists with its parent
+should make the total GROW, by exactly what the clone contains.**  The failure
+mode worth looking for is a clone carrying *fewer* atomics than the parent it
+was specialized from.
+
+**Measured per family** (real GCC 15.2, `-O2 -fipa-cp-clone`, lock-prefixed
+instructions + `cmpxchg`/`xchg` counted per body, clones grouped to their
+parent):
+
+* **24 cloned families**, parent body still present for **10** of them.
+* **Zero families where a clone carries fewer atomics than its parent.**
+* The `PoolAllocator<N>` ctors are 1 → 1 for most sizes, and **1 → 2** for
+  N = 144, 288, 336 — the clone carrying *more* than the parent.
+* The 14 families whose parent is gone (fully inlined) contribute their clones'
+  atomics outright, including `global_pop_fit` (4) and `recycle_pop_fit` (5).
+
+**So proposal (i) answers "yes, appropriately".**  Cloning grows the atomic-op
+total by the clones' contents — roughly 29 lock-prefixed operations across the
+clone bodies that would not otherwise exist — and no specialization drops an
+atomic relative to the code it was derived from.  Together with §13.146's
+static identity (masks and fences conserved exactly, residual 0) and §13.147's
+dynamic call counts, the atomic-operation account is closed in all three
+forms: statically conserved, per-clone non-decreasing, and dynamically equal.
+
+**Process note.**  I built the object for this with `2>/dev/null` and analysed
+an empty file, reporting "0 cloned families" from a build that had failed —
+the exact mistake §13.119 recorded and warned about, repeated. The zero looked
+like a result. Compiler stderr belongs in the log in any build-and-measure
+loop, and the cheap guard is to check the artefact exists before parsing it.
