@@ -14045,3 +14045,108 @@ tail stamp written at hand-out and cleared at free would answer it — the same
 mechanism as §13.193, moved to the one site that still lacks it.  That needs
 bucket→size, which is a small addition to `PoolAllocatorBase` and the only thing
 standing between this and a direct measurement.
+
+### 13.213 TLA+ audit of destruction concurrency: three real gaps in `OrphanAdopt`, closed — and the closed model says the state machine is SAFE
+
+Asked whether the existing TLA+ work covers concurrency around object
+destruction, and whether there is a gap.  Audited, and the answer is more useful
+than a yes/no.
+
+#### What already exists — more than this hunt's narrative assumed
+
+`OrphanAdopt.tla` already carries `bits` (the bitmap), `occ` (live slots), `mask`
+(the parked word-cache cells), `pending` (per-thread batched cross-thread frees),
+`handed` (double hand-out), and the actions `FreeBatch` / `FlushBatch` /
+`OwnerExit` / `Adopt`.  Its invariant `OccCoveredByBits` **is** "the drain must not
+return a live slot".  So §13.212's "no instrument can see step 1" was true of the
+C++ probes and false of the specs: the property was already stated and checked.
+`PacketRefcount.tla` (`_lifetime`, `_double`, `_uncounted`, `_latederef`) and
+`atomic_shared_ptr.tla` cover the STM side's destruction races.
+
+#### Three gaps, each an abstraction the C++ does not make
+
+1. **No owner freelist.**  `FreeDirect` clears the bit at once (`bits' = bits \ {s}`)
+   while `allocate_pooled` says the opposite outright — *"slots returned to the
+   OWNER stay in `m_freelist_head[0]`, not the bitmap"*.  An owner free leaves the
+   bit **SET** in off-bitmap custody, `freelist_pop` hands it back **without
+   consulting the bitmap**, and the exit drains that list (the third of its three
+   drain sites).  That state — the one §13.212's sequence needs — did not exist,
+   so no interleaving involving it was ever searched.
+2. **Exit was one atomic step.**  In C++ it is two ordered phases,
+   `~CrossDeallocBatch` then `release_dll_chunks_for_thread`, with a window
+   between them a peer can use.
+3. **Threads were immortal.**  `OwnerExit` returned the thread to `"idle"`, so
+   nothing was ever permanently lost — which is why no "forgot to flush at exit"
+   defect could be detected.  §13.204's deterministic `excess = −801` (one batched
+   entry lost per thread exit) is exactly that class, and it was outside the model.
+
+Plus one fidelity fix: an **owner** free goes to the freelist, a **non-owner** free
+to the batch.  `FreeDirect` had no owner precondition, so it modelled both.
+
+#### `OrphanAdoptFreelist.tla`, and its verdict
+
+Adds `flist`, `AllocFromFlist`, `FreeOwner`, two-phase exit (`ExitBegin` /
+`ExitDrain`), a `dead` set, and the invariants `FlistCoveredByBits`,
+`MaskCoveredByBits`, `PendingCoveredByBits`, `NoDoubleCustody`, `BitsAccounted`
+(exact accounting — the spec-level form of the C++ conservation identity) and
+`NoLostEntries` (a dead thread's batch must be empty).
+
+```
+correct design, Slots=3 Threads=2   1 185 distinct states   no error
+correct design, Slots=4 Threads=3  37 639 distinct states   depth 16, no error
+```
+
+> **At bitmap-and-custody granularity — now including the owner freelist, a real
+> two-phase thread death, and permanent thread loss — the pool's slot lifetime is
+> safe.  §13.212's sequence is not realisable in the modelled state machine.**
+
+#### Teeth, and two knobs that correctly do not bite
+
+| injected defect | detected |
+|---|---|
+| `BUG_NO_BATCH_AT_EXIT` | **yes** (`NoLostEntries`) |
+| `BUG_DRAIN_KEEPS_CELLS` | **yes** (`MaskCoveredByBits`) |
+| `BUG_WRONG_BIT` — a free clears a bit other than its own | **yes** |
+| `BUG_NO_DRAIN` (mask not drained) | no |
+| `BUG_NO_FLIST_DRAIN` | no |
+
+The last two are correct passes with a finding attached: a non-drained mask or
+freelist is **inherited by whoever adopts the chunk**, so it is not lost.  Which
+also says that under `KAME_ORPHAN_NO_ADOPT` — the configuration that cures the
+fault 0/11 — those two become genuine leaks.
+
+**And my first invariant set was vacuous for three of the five knobs**: every
+invariant was of the form `X ⊆ bits`, which a failure to *clear* can never
+violate, so the drain-omission knobs "passed" without being tested.  `BitsAccounted`
+and `NoLostEntries` are what made them meaningful — §13.61 applied to a spec rather
+than to a probe.
+
+#### Where that leaves the defect, and the `local_shared_ptr` question
+
+Since the state machine is safe, the defect is in what the model still abstracts:
+
+* **memory ordering** — every action here is one atomic step; RC11 is not.  This is
+  GenMC's job, and there is **no GenMC test for the drain/claim pair** (the
+  existing three cover `atomic_shared_ptr` only).  That is a concrete, buildable
+  gap.
+* **the bit-index arithmetic** — `(p - mempool())/ALIGN`, `back_offset`, the
+  chunk-base derivation.  `BUG_WRONG_BIT` models its *effect* and it bites, so the
+  model's statement is: *if that arithmetic can ever be wrong, this is exactly the
+  observed failure.*  §13.136's verifier checked the `back_offset` **table**, never
+  the derivation that indexes it.
+* **multi-chunk / the DLL walk** — still one chunk.
+
+**On using `local_shared_ptr` for custody:** the right structural fix, and partly
+already there.  Custody today is bits plus two off-bitmap lists, and a *pending*
+batch entry holds **no reference** to the chunk whose bit it will clear.  Having
+the entry hold a `local_shared_ptr<PoolAllocatorBase>` makes "the chunk or its
+cells reclaimed while an entry is in flight" impossible by construction; the pool
+already proves the mechanism (`m_owner_self_ref`, its only `atomic_shared_ptr`).
+Cost is one inc/dec per cross-thread free on a pointer the batch already stores —
+the same order as the per-word CAS it already pays.  It would subsume
+`BUG_DRAIN_KEEPS_CELLS` and the whole "returned while still referenced" class.
+
+What it would **not** fix is `BUG_WRONG_BIT`: a mis-derived bit index clears
+somebody else's slot no matter who holds a reference.  So refcounted custody is
+the right answer for lifetime and the wrong one for arithmetic — and the model says
+the arithmetic is the surviving suspect.
