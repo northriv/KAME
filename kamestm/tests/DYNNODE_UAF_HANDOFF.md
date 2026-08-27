@@ -10904,3 +10904,56 @@ one rare hit, and captures a raw `backtrace()` of the first offender
 from inside a free).  It carries a positive control: at a DOUBLE-LIVE hit the
 previous occupant is live *by definition*, so the report prints
 `islive(obj)` and it must read 1.
+
+### 13.169 §13.167's load-bearing assumption, measured: the destruction feed's completeness is not an assumption any more
+
+§13.167 asks the Mac session for this, and it is the right thing to ask: every
+DOUBLE-LIVE since §13.104 means "the previous occupant's destructor never ran",
+so if any destruction path bypassed §13.107's choke point, all of it would be
+false positives.  The evidence offered was `dtor == born` exactly plus 0 hits in
+~21 M clean checks — strong, but **neither statement says what an incomplete feed
+would look like**, so neither bounds the incompleteness.
+
+**Audit first, and it finds nothing that manufactures a hit.**  `dl_born_`'s four
+claim branches: the two that overwrite a slot's address (the never-EVERDEAD
+branch and the steal) *drop* the `DL_EVERDEAD` proof, so they can only
+**under**-detect; `dl_dead_` cannot fail to find a slot `dl_born_` created, since
+both use the same hash and the same 8-slot window and a steal never takes a
+`DL_LIVE` slot.  One real defect found and fixed, also on the under-detect side:
+`--i` on CAS loss wrapped an **unsigned** counter at `i == 0`, so
+`i < DL_PROBE` failed and the whole probe window was abandoned — a CAS loss at
+the first slot fell straight through to the steal path, dropping an `EVERDEAD`
+proof it would have found one slot later.
+
+**Then measure the detector instead of arguing about it.**
+`KAME_RC_TRACE_DLIVE_SKIPDTOR=N` skips the hook for 1 death in N — exactly a
+bypassed destruction path — and asks whether the two observables move:
+
+| `SKIPDTOR` | `born − dtor` | expected (`born/N`) | false HITS | hits per bypass |
+|---|---|---|---|---|
+| **0 (off)** | **0** | — | **0** | — |
+| 1 000 000 | **97** | 96 | 22 | 0.23 |
+| 10 000 | **9 694** | 9 693 | 2 144 | 0.22 |
+| 100 | **967 045** | 967 044 | 221 301 | 0.23 |
+
+**Both move, and exactly.**  The `dtor` deficit tracks `born/N` to within one
+count across four decades — so the equality is a **per-event** detector of a
+bypassed destruction, not an accident of counting.  And false hits appear at a
+**constant 0.22–0.23 per bypass** over three orders of magnitude (not 1.0,
+because the address must be re-born while still flagged `DL_LIVE` *and* be
+enforced — about a quarter of bypasses get there).
+
+**So the assumption is now a measurement.**  On a run whose observed deficit is
+**0**, the number of bypassed destructions is **0** — from a detector shown to
+register one deficit per bypass. §13.104's 21 M-check clean baseline adds an
+independent bound through the other observable: at 0.23 hits per bypass, 0 hits
+is Poisson-consistent with at most ~13 bypasses, and the exact equality tightens
+that to none.  **§13.104–§13.167 do not rest on an unmeasured assumption**, and
+if the destruction feed is ever changed, this arm is how to re-establish that in
+one run.
+
+**Caveat, stated:** measured on arm64/clang with the pool active.  The property
+itself is C++-level (every death runs `~atomic_countable`) so it transfers, but
+the count is per-platform — worth one `SKIPDTOR=0` line on Ubuntu to confirm the
+deficit is 0 there too.  §13.104's own clean run already reported
+`dtor == born` (1 230 350 both), so it very likely is.

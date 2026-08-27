@@ -833,7 +833,13 @@ static const void *dl_born_(const void *obj, const void *site,
                 dl_stamp_(s, obj);                   // §13.168
                 return nullptr;
             }
-            --i;                             // lost the slot; re-examine it
+            // §13.169  `--i` at i == 0 wraps an UNSIGNED counter, so
+            // `i < DL_PROBE` fails and the whole probe window is abandoned --
+            // a CAS loss at the first slot fell straight through to the steal
+            // path, dropping the EVERDEAD proof it would have found at i+1.
+            // Under-detection, not a false positive, but not what the line
+            // meant.  Re-examine the same slot without wrapping.
+            if(i) --i;
             continue;
         }
     }
@@ -924,8 +930,44 @@ void preborn_note(const void *obj) noexcept {
     tl_preword = *(volatile const unsigned long long *)obj;
 }
 
+//! §13.169  Sensitivity control for §13.107's load-bearing assumption.
+//!
+//! §13.167 names it: everything from §13.104 rests on the destruction feed being
+//! COMPLETE -- a `DL_LIVE` slot must mean the destructor genuinely never ran.  If
+//! some path bypassed this choke point, the "live" occupant would in fact be
+//! dead, the free would be legitimate, and every DOUBLE-LIVE would be a false
+//! positive.  The evidence offered is `dtor == born` exactly plus 0 hits in ~21 M
+//! clean checks -- strong but indirect, since neither says what an INCOMPLETE
+//! feed would look like.
+//!
+//! `KAME_RC_TRACE_DLIVE_SKIPDTOR=N` skips this hook for 1 death in N, which is
+//! exactly a bypassed destruction path.  Two things must then move:
+//!   * `dtor` must fall below `born` by about born/N -- so the equality is a
+//!     sensitive detector and not an accident of counting;
+//!   * false DOUBLE-LIVE hits must appear, at a rate the injection sets.
+//! If both scale with 1/N, then the observed exact equality and zero clean hits
+//! bound the real incompleteness, and §13.104-§13.167 do not rest on an
+//! unmeasured assumption.  If hits do NOT appear even at N=2, the probe cannot
+//! see an incomplete feed at all and the assumption is unfalsifiable as posed --
+//! which would be the more important finding.
+static unsigned dl_skipdtor_() noexcept {
+    static const unsigned v = [] {
+        const char *e = getenv("KAME_RC_TRACE_DLIVE_SKIPDTOR");
+        return (e && e[0]) ? (unsigned)atoi(e) : 0u;
+    }();
+    return v;
+}
+namespace { std::atomic<unsigned long long> g_dl_skipped{0}; }
+
 void dtor_note(const void *obj) noexcept {
     if(!dl_mode_()) return;
+    if(unsigned n = dl_skipdtor_()) {
+        static std::atomic<unsigned long long> c{0};
+        if((c.fetch_add(1, std::memory_order_relaxed) % n) == 0) {
+            g_dl_skipped.fetch_add(1, std::memory_order_relaxed);
+            return;                      // emulate a bypassed destruction
+        }
+    }
     g_dl_dtor.fetch_add(1, std::memory_order_relaxed);
     dl_dead_(obj);
 }
@@ -965,7 +1007,8 @@ static void dl_report_() noexcept {
         g_dl_hit_nbr.load(std::memory_order_relaxed),
         g_dl_steal.load(std::memory_order_relaxed),
         g_dl_full.load(std::memory_order_relaxed),
-        g_dl_miss.load(std::memory_order_relaxed), dl_bits_());
+        g_dl_miss.load(std::memory_order_relaxed), dl_bits_(),
+        g_dl_skipped.load(std::memory_order_relaxed));
 }
 
 void record(const void *obj, unsigned op, unsigned long long oldc,
