@@ -10205,3 +10205,67 @@ So every run states whether its cap arm did anything: `flushes == 0` under a
 non-1 cap means that arm was **vacuous**, not negative.  That is §13.61 built
 into the instrument instead of left to the reader — and it is what my own bench
 would have needed to be trustworthy.
+
+### 13.158 Is the batch flush an algorithmic hole?  No — but it defends against a hazard that no longer exists, and three comments still describe it
+
+Read `flush()`, both `batch_return_to_bitmap` overloads and `batch_clear_impl`
+with that question.
+
+**The one structural hazard the algorithm has, and why it is closed.**  A flush
+sorts by `(chunk, slot)` and hands each chunk's run to
+`batch_return_to_bitmap`, which consumes the run and returns the count.  If a
+*middle* entry of a run brought `MASK_CNT` to zero, the remaining entries would
+be processed against a reclaimable chunk.  It cannot: the run is slot-ascending,
+hence **word**-ascending, and `MASK_CNT` counts non-empty words — so it reaches
+zero only when the last non-empty word empties, and any remaining entry implies a
+non-empty word remains.  The sort order is load-bearing for that, which is worth
+knowing before anyone "optimises" it away.
+
+**No release path exists in the batch chain at all.**  Neither
+`batch_return_to_bitmap` overload, nor `batch_clear_impl`, calls
+`deallocate_chunk`, `bucket_release_chunk`, `owner_release`, a destructor or
+`dispose` — the whole inventory is bitmap CASes plus `mask_fn` / `on_clear`, and
+both `on_clear` functors say in as many words that they do **not** release an
+orphan, deferring to `orphan_chain_scrub`.
+
+**Three comments still describe the removed releaser**, and they are not
+cosmetic:
+
+| location | claim | status |
+|---|---|---|
+| `flush()` | "the call **may release the chunk** on last-slot return + owner-exit, after which `chunk` is a stale pointer" | cannot happen |
+| `push_direct` | "batch_return releases the chunk: the placement-new destructor runs, and `c` becomes a stale pointer" | cannot happen |
+| `owner_release` | "the cross-thread releaser's subsequent `atomicDecAndTest` will bring the word to 0 and **identify itself as releaser**" | no such releaser |
+
+**The cost of that is not tidiness — the current safety argument is nowhere
+written down, so readers reconstruct the removed one.**  I did it twice:
+§13.116 nominated "the batch-mediated releaser" and dismissed it on the FS=true
+comment; §13.157 dismissed it again on the FS=false comment.  Both times I was
+arguing about a mechanism that exists in neither direction.
+
+**And a correction to my own proposed fix, which is the interesting part.**  Since
+the call cannot release the chunk, the `[load, deref]` window §13.133 found — the
+force-walk pointer loaded *before* `batch_return_to_bitmap` and dereferenced
+*after* — looked removable by simply loading it after the call.  **It is not.**
+The flush clears bits; clearing the last one takes `MASK_CNT` to zero and makes
+the chunk **eligible for reclaim by a concurrent scrub** — so a post-call
+`chunk->m_owner_dll_force_walk_ptr` is a dangling *chunk* dereference instead of a
+dangling *TLS* one.  The original hoist therefore has a real justification; just
+not the one its comment gives.
+
+> **The window is not fixable by reordering: load-before risks the owner's TLS,
+> load-after risks the chunk.**
+
+Which settles what to do with it.  §13.138 measured the poke as **rate-neutral**
+(10/18 with it, 11/18 without), and the flag it sets is documented as a hint with
+"one-cycle false-negative delay acceptable".  So the resolution is not to reorder
+or to pin anything: **remove the poke**, which is what
+`KAME_NO_XTHREAD_FORCEWALK_POKE` already does, at the cost of a delayed DLL walk
+and nothing else.  Recommending it as the default rather than doing it, since
+that is a production behaviour change and not mine to take unilaterally.
+
+**Answer to the question, then:** the flush is not an algorithmic hole — its one
+structural hazard is closed by the sort order, and the chunk-liveness invariant
+(§13.116) holds throughout.  What it does carry is a defence against a removed
+hazard, whose only remaining effect is a dangling dereference that cannot be
+reordered away and does not need to exist.
