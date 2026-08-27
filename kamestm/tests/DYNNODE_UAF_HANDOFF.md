@@ -10548,3 +10548,66 @@ address — who released it to zero, and who still held it.  The tracer already
 has the ledger and the choke point (`rc_trace.cpp:799`, every destruction);
 what is missing is dumping that address's history at the trip.  That is a
 tracer-mechanics change, which is the Mac side's half of §13.85.
+
+### 13.164 CORRECTION: the adopt census's key never matched, so §13.131 measured nothing — plus a self-test so it cannot recur
+
+**Read this before using §13.131 for anything.**
+
+`kame_pool_adopt_note` recorded the adopted chunk under
+
+```cpp
+reinterpret_cast<const char *>(oc) - ALLOC_CHUNK_HEADER      // == chunk_base
+```
+
+while `kame_pool_was_adopted` looked it up under
+
+```cpp
+(const void *)((uintptr_t)addr & ~(uintptr_t)0x3ffff)        // 256 KiB mask
+```
+
+**Those two are never equal.**  A chunk's slot region does not begin at
+`chunk_base`; it begins at `chunk_base + ALLOC_CHUNK_K_MAX` — and *that* is the
+256 KiB-aligned address:
+
+```cpp
+char *mempool() noexcept {                       // allocator_prv.h:1243
+    return reinterpret_cast<char *>(this) + (ALLOC_CHUNK_K_MAX - ALLOC_CHUNK_HEADER);
+}   // = (chunk_base + 64) + (4096 - 64) = chunk_base + 4096
+```
+
+`chunk_base = unit_boundary - K_MAX` (`allocator_prv.h:858`, `:922`), so every
+user pointer masked to 256 KiB yields `chunk_base + 4096`, and the stored key
+was `chunk_base`.  Off by exactly K_MAX, every time.
+**`kame_pool_was_adopted()` returned false for every address ever passed to
+it, in every run.**
+
+So §13.131's result — *"no doubly-live slot lands in a census-recorded adopted
+chunk"* — is **not a finding**.  It is the only answer that function could
+give.  And it is the same result my §13.163(a) had to work around as "the
+census records the wrong moment": the moment was fine, the *key* was wrong.
+**The §13.131-vs-§13.150 tension (adoption necessary, yet never implicated in
+a hit) may dissolve entirely on re-measurement.**  It is now re-measurable.
+
+**What was fixed.**  Both censuses (adopt, and the new release tally) key on
+the slot-region base and register **every** 256 KiB unit of a multi-unit
+chunk, so a pointer into an upper unit answers too.
+
+**What stops a repeat.**  A census that answers questions about addresses now
+proves it can answer at all.  The adopt path holds a block pointer that
+*provably* came from the chunk it just recorded — the return value of
+`oc->allocate_pooled(SIZE)` — so it queries the census with it and counts
+agreement.  The report carries `selftest ok=N BAD=N`.  §13.131 had no such
+check; had it had one, the bug would have surfaced the first time it ran.
+
+**Immediate consequence, already visible.**  §13.164's own first
+question — has the chunk containing a doubly-live address ever been released
+wholesale? — read `releases=0` under the broken key and **`releases=3`** under
+the fixed one, on the very next run.
+
+**Standing lesson, and this is the fourth time in §13 that a probe has needed
+one.**  §13.155/§13.156 was a diagnostic whose call sites were outside its own
+`#ifdef`; §13.163(b) was a check placed in a function the workload never
+calls (`ok=0` for 20 runs); this is a lookup keyed differently from its
+insert.  All three were silent — they returned plausible numbers.  A probe
+that reports "nothing found" must first be made to report "found" on a case
+that is true by construction; until it has, its null is not evidence.
