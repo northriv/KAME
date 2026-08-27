@@ -10206,7 +10206,7 @@ non-1 cap means that arm was **vacuous**, not negative.  That is §13.61 built
 into the instrument instead of left to the reader — and it is what my own bench
 would have needed to be trustworthy.
 
-### 13.158 Is the batch flush an algorithmic hole?  No — but it defends against a hazard that no longer exists, and three comments still describe it
+### 13.160 Is the batch flush an algorithmic hole?  No — but it defends against a hazard that no longer exists, and three comments still describe it
 
 Read `flush()`, both `batch_return_to_bitmap` overloads and `batch_clear_impl`
 with that question.
