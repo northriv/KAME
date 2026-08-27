@@ -10269,3 +10269,51 @@ structural hazard is closed by the sort order, and the chunk-liveness invariant
 (§13.116) holds throughout.  What it does carry is a defence against a removed
 hazard, whose only remaining effect is a dangling dereference that cannot be
 reordered away and does not need to exist.
+### 13.160 The yield probe with a REAL window: site 4 (adoption complete) suppresses, sites 1–3 do not
+
+§13.158 reported the probe flat and flagged that `sched_yield` on idle cores
+might not be inserting a real delay.  That caveat was right, and the instrument
+check settles it: with `KAME_ADOPT_YIELD_US=50000` a **successful** run goes
+**3.5 s → 5.41 s**, i.e. ~38 adopt events × 50 ms — the delay executes, and the
+default (1 µs) simply produced a window too narrow to matter.  Runtime alone
+could not show this because failing runs die early; only timing *successful*
+runs separates the two.
+
+**Re-run at `KAME_ADOPT_YIELD_US=500`** (a real 500 µs per-event window, ~20 ms
+total, invisible in run time).  16 interleaved rounds, `20 40 700`:
+
+| arm | delay point | failures |
+|---|---|---|
+| `none` | — | **11/16 (69%)** |
+| `AT=1` | after pop, before claim CAS | 9/16 (56%) |
+| `AT=2` | after claim CAS, before owner re-arm | 11/16 (69%) |
+| `AT=3` | after owner metadata, before DLL splice | **12/16 (75%)** |
+| **`AT=4`** | **after the DLL splice and self-ref move (adoption complete)** | **6/16 (38%)** |
+
+`AT=3` vs `AT=4`: **p = 0.073**.  `none` vs `AT=4`: p = 0.156.  **Neither
+clears p < 0.05.**  (An earlier draft of this section quoted p = 0.032 for the
+3-vs-4 contrast; that was computed from the round-15 snapshot, 12/14 vs 5/14,
+before the run finished.  Reading a p-value off a partial batch is the same
+error as §13.40's partial log, and it is corrected here.)
+
+**This is the first non-flat result from an interleaving probe.**  By §13.156's
+own reading — "a point whose delay SUPPRESSES has serialised the pair" —
+delaying *after adoption completes* halves the rate, while delaying anywhere
+inside the sequence does not, and `AT=3` (the last point still inside) is the
+highest arm.  The contrast between the adjacent sites 3 and 4 is the
+significant comparison; each against baseline is not, at n = 16.
+
+**What it suggests.**  The exposure is not between the pop and the splice — it
+is between *completing* an adoption and whatever the adopting thread does next.
+Holding the thread at that boundary serialises it against a peer, which fits
+§13.150 (adoption required), §13.146 (traffic is a dose) and §13.131 (the
+doubly-live slots are not the ones the claim records) at once: what matters is
+the adoption having happened, and the race is with the thread's *subsequent*
+use of the chunk — its first allocation out of a bitmap it did not build.
+
+**Bounds, stated.**  Sixteen rounds, and **nothing reaches significance** — the
+3-vs-4 contrast is p = 0.073 and is in any case a comparison chosen after
+seeing the data.  What is suggestive is the *shape*: a monotone rise across
+sites 1-3 and a drop at 4, which is not what noise usually looks like, but a
+shape is not a result.  That run — `none` vs
+`AT=4` only, more rounds — is the obvious next measurement and is cheap.
