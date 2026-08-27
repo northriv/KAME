@@ -12145,3 +12145,66 @@ pointer into another thread's TLS — with the clone present, which is the
 combination no previous arm has tested — and it is then also the fix.  No change
 means the harm is elsewhere in the shape, and the poke is finally excluded by an
 arm that actually holds the clone fixed.
+
+### 13.187 The site line, run: all 800 are at `flush`, the drain is clean across 20.7 M checks
+
+§13.186 asks for one run to settle whether the x86-64 violations sit at `flush`
+or at the owner-exit `drain`, and says either answer removes a branch.  Run, on
+§13.177's hand-specialised source (which §13.184 established is the only way to
+keep the shape while instrumenting on this target — and §13.186 confirms is the
+safe default, since IPA-CP's cost model makes "instrumenting deletes the clone"
+a per-target fact):
+
+```
+BATCHVERIFY checked=23 740 740  pushes=2 562 817  pairing_bad=0  bit_clear_bad=800
+  site other      checked=0            bad=0
+  site direct     checked=456 319      bad=0
+  site flush      checked=2 562 816    bad=800      <- ALL of them
+  site drain      checked=20 721 605   bad=0        <- 87 % of traffic, ZERO bad
+  site teardown   checked=0            bad=0
+  site localfree  checked=0            bad=0
+BATCHVERIFY conservation: flush_applied - pushes = -1
+```
+
+**All 800 are at `flush`.  The drain is clean over 20.7 M checks.**
+
+That kills §13.186's own alternative: the violations are **not** cap-insensitive
+drain-site noise, and §13.184's "12/12 violations in an arm that crashes 9/12 and
+one that crashes 0/12" is **one phenomenon at one site**, not two unrelated ones.
+It also matches the third arm there — no shape, no violation — since the shape
+lives in `flush`.
+
+**Conservation is ±1**, i.e. every pushed entry is applied once (the −1 is a
+single in-flight entry at the exit read, not a doubling).  Combined with
+§13.185's `WRONG THREAD = 0/36`, that closes the batch as a suspect from both
+directions:
+
+> The batch is owner-only, correctly counted, correctly paired, drained to
+> completion, and applies each entry exactly once — and 800 of those
+> applications find the bit **already clear**.
+
+So the second clear is **not** the batch re-applying an entry.  Something outside
+the batch clears those 800 bits first, between the push and the flush.  The drain
+is the numerically dominant clearer (20.7 M) and is the obvious candidate — note
+that `bad = 0` at the drain does **not** exonerate it: `bad` counts finding a bit
+*already* clear, so a drain that legitimately clears a set bit which a batched
+entry is still holding scores 0 there and produces the violation at `flush`.
+That is precisely the `f104768b` word-cache-mask class §13.186 named.
+
+**Also captured, and new:** the per-violation state now printed includes the
+chunk's packed flags, and it is not constant —
+
+```
+site=flush ... packed=0x6(cnt=6,owned=0)   (crashing run)
+site=flush ... owned=1                     (cap=1 run)
+```
+
+— so the double-clear happens both while the chunk is still owned and after it
+has been orphaned.  Any explanation resting on the chunk being orphaned at the
+time must account for the `owned=1` cases.
+
+**The measurement that would name it** is §13.165's last-free census re-pointed
+at bits rather than addresses: for one offending slot, record who cleared its bit
+and from which of the seven sites, then read it back at the violation.  The
+attribution machinery for the sites already exists in this build; it needs a
+per-slot record rather than a per-site counter.
