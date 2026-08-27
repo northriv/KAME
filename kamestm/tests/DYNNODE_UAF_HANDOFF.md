@@ -11041,3 +11041,66 @@ than read off the report.  Fixed (`skipped-dtor %llu` appended); flagging it
 because it is the same failure class as the rest of this section — an
 instrument that reports confidently while silently omitting the number it
 exists to produce.
+
+### 13.171 The ordering re-measured correctly: TWO mechanisms, and the dominant one involves no free at all
+
+§13.167's table is withdrawn (see the note on it).  `prev_birth_seq` was stale
+on `dl_born_`'s `DL_EVERDEAD` branch — the common path for a re-birth at an
+address the live-set already knows — so its 6/6 "freed AFTER the occupant was
+born" compared the free against some *earlier* birth.  All four claim sites now
+stamp through one `dl_stamp_()` helper, and a per-record `was_live` field was
+added because the run-wide free-of-live counter and the per-address lookup
+disagreed and only a per-record answer could say which was right.
+
+**25 runs, 21 DOUBLE-LIVE hits, each carrying a present free record and a
+genuine birth stamp:**
+
+| pattern | n | reading |
+|---|---|---|
+| free **predates** the occupant's birth, slot **not live** when freed | **18 (86 %)** | nothing freed the slot between the two births — the **hand-out** is the event |
+| free **after** the birth, slot **LIVE** when freed | **2 (10 %)** | a genuine premature free |
+| no record (evicted at 42 M frees) | 1 | self-declared, not counted either way |
+
+Paths: 16 `freelist_push`, 4 `batch_return_to_bitmap` — both routes, both
+patterns.
+
+**Crash signature does NOT select the mechanism.**  I floated that hypothesis
+at n = 8 and it died two hits later; at full n it is flat: `rc=134` 14/15
+predates vs `rc=139` 4/5, **p = 0.45**.  Recorded because the intermediate
+correlation looked clean and was not.
+
+**The gap distribution says the dominant pattern is not a stale-ordering
+artefact.**  Birth-seq minus free-seq, for the 18:
+
+```
+1 2 2 2 3 4 4 4 6 9 9 20 26 92 1309 2378 4148 12813
+```
+
+Ten of eighteen are single digits — the block is freed and re-born within a
+handful of free events *across the whole process*.  That is the ordinary
+free→immediately-realloc turnover: the slot legitimately changes hands, O1 is
+constructed in it, and only then is O2 constructed on top of a live O1, with
+**no free in between**.  A stale or mis-attributed stamp would not cluster at
+a median of 4.
+
+**Both mechanisms are real, and §13.167 was half right for the wrong reason.**
+Premature frees exist — 15 of 21 runs recorded at least one (`free_of_live`
+1–5 per run out of 10–40 M frees) — but they account for only 2 of 21 hits.
+§13.167's *claim* survives; its *evidence* never showed what it thought.
+
+**Where this points.**  The 86 % case is §13.109's second branch, which
+§13.163(b) refuted for the mis-derivation mechanism (1.14 G derivations, 0 bad)
+and §13.166 refuted for double-free (0/40 in the shipping configuration).  So
+either the pool hands out an occupied slot by some path still unaccounted for,
+**or the second "birth" is a constructor running on storage the program already
+holds** — which would make it an object-lifetime problem on the STM side and
+the pool innocent throughout, consistent with its unbroken run of nulls.
+§13.104 resolved the second birth through `lsp<PacketWrapper>::swap` ←
+`operator=(&&)` ← `bundle`, and a spot capture puts the site at
+`Transactional::Node<LongNode>::bundle+0x6cc`.
+
+The mirror check now running decides it: `kame_rc_dl_islive()` is queried at
+every hand-out (freelist-pop choke point plus both word-cache returns), with a
+denominator printed and a backtrace captured.  **`alloc_of_live > 0`** means
+the allocator really did hand out a live slot; **`= 0` at good coverage** means
+it never handed that address out at all, and the search moves to `bundle`.
