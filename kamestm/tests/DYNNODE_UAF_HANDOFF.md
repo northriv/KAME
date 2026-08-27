@@ -10045,7 +10045,7 @@ all five flag combinations verified (plain, gate, `KAME_CHAIN_DYNCOUNT`,
 `KAME_NO_ORPHAN_CHAIN`, gate + dyncount), plus a real GCC 15.2 build.  Recorded
 because writing the lesson down one commit earlier did not stop me repeating it;
 the guard belongs in the *call-site macro*, not in discipline.
-### 13.156 Placement is not it either: forcing `global_pop_fit` out of line does not suppress the fault
+### 13.157 Placement is not it either: forcing `global_pop_fit` out of line does not suppress the fault
 
 §13.154 closed "the pass miscompiled `global_pop_fit`" and left the narrower
 reading: the inlining changes *where* the four atomics run — inside the
