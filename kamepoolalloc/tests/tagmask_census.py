@@ -21,6 +21,28 @@ What it reports, per function that touches the tag machinery:
   * `mask_cnt`   -- masks with (CAP-1):  the count extraction
   * `tagged_add` -- adds a small constant to a pointer-shaped value (building a
                     tagged value: `(uintptr_t)pref + rcnt`)
+  * `cas`        -- compare-exchange (`lock cmpxchg`; arm64 `cas*` or an
+                    `ldaxr`/`stlxr` pair)
+  * `rmw`        -- other atomic read-modify-writes (`lock add/sub/xadd/or/and/
+                    xchg`; arm64 `ldadd*`/`swp*`)
+  * `fence`      -- `mfence` / `dmb`
+
+**On "was a cmpxchg or a relaxed op omitted?" -- the two halves differ.**
+
+A `cas`/`rmw` that disappears IS visible here.  GCC does not delete an atomic RMW
+as such, but constant propagation that kills a branch condition removes the whole
+PATH containing one -- which is the realistic failure mode, and it is countable:
+a clone with fewer `cas` than every source path through it requires has lost an
+atomic operation.
+
+A **relaxed load or store is NOT visible**, and no asm tool can make it so: a
+relaxed load compiles to a plain `mov`/`ldr`, indistinguishable from a
+non-atomic load.  So "the relaxed op was omitted" cannot be observed directly --
+only relatively, as *fewer loads than the source path performs*, which inlining
+also changes.  For that half the runtime accounting is the real instrument (the
+tracer's DEC ledger and `dtor == born`, §13.74/§13.107), not the disassembly.
+This is stated because counting `mov`s and calling the difference a missing
+relaxed load would be exactly the kind of number that looks like evidence.
 A body with `tagged_add > 0` and `mask_ptr == 0` is the shape to look at: it
 constructs or consumes a tagged value and never masks.
 
@@ -54,6 +76,19 @@ def census(insns, cap):
     c = collections.Counter()
     for mnem, ops in insns:
         o = ops.lower()
+        if mnem.startswith("lock"):
+            t = o.split()[0] if o else ""
+            if "cmpxchg" in mnem or "cmpxchg" in t: c['cas'] += 1
+            else: c['rmw'] += 1
+        elif mnem in ("cas", "casa", "casal", "casl", "casb", "cash") \
+             or mnem.startswith(("casal", "casa", "casl")):
+            c['cas'] += 1
+        elif mnem.startswith(("ldaxr", "ldxr")):
+            c['cas'] += 1            # half of an LL/SC pair; counted once
+        elif mnem.startswith(("ldadd", "ldclr", "ldset", "ldeor", "swp", "stadd")):
+            c['rmw'] += 1
+        elif mnem.startswith(("mfence", "dmb", "dsb")):
+            c['fence'] += 1
         if mnem.startswith(("and", "bic")):
             if hi_hex in o or ("$0x%x" % (0x100000000 - cap)) in o \
                or re.search(r'#-?%d\b' % cap, o):
@@ -88,17 +123,22 @@ def main():
             c = census(insns, cap)
             if not c: continue
             tot.update(c)
-            rows.append((c['tagged_add'], c['mask_ptr'], c['mask_cnt'], n))
+            rows.append((c['tagged_add'], c['mask_ptr'], c['mask_cnt'],
+                         c['cas'], c['rmw'], c['fence'], n))
         rows.sort(reverse=True)
         print("== %s ==  bodies touching the tag machinery: %d" % (path, len(rows)))
-        print("   totals: mask_ptr=%d mask_cnt=%d tagged_add=%d"
-              % (tot['mask_ptr'], tot['mask_cnt'], tot['tagged_add']))
+        print("   totals: mask_ptr=%d mask_cnt=%d tagged_add=%d | cas=%d rmw=%d fence=%d"
+              % (tot['mask_ptr'], tot['mask_cnt'], tot['tagged_add'],
+                 tot['cas'], tot['rmw'], tot['fence']))
         susp = [r for r in rows if r[0] > 0 and r[1] == 0]
         print("   SUSPECT (builds/consumes a tagged value, never masks): %d" % len(susp))
-        for add, mp, mc, n in susp[:10]:
-            print("     %-70s add=%d mask_ptr=0 mask_cnt=%d" % (n[:70], add, mc))
-        for add, mp, mc, n in rows[:8]:
-            print("   %-70s add=%d mask_ptr=%d mask_cnt=%d" % (n[:70], add, mp, mc))
+        for add, mp, mc, cas, rmw, fen, n in susp[:10]:
+            print("     %-58s add=%d mask_ptr=0 mask_cnt=%d" % (n[:58], add, mc))
+        print("   %-58s %4s %4s %4s %4s %4s %4s"
+              % ("body", "add", "mskP", "mskC", "cas", "rmw", "fnc"))
+        for add, mp, mc, cas, rmw, fen, n in rows[:10]:
+            print("   %-58s %4d %4d %4d %4d %4d %4d"
+                  % (n[:58], add, mp, mc, cas, rmw, fen))
         print()
 
 main()

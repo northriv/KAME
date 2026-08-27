@@ -9196,3 +9196,53 @@ faithful), which is why it is ranked most decisive rather than first to run.
 (it is the only arm that cannot be confounded by codegen, and it is one env var),
 then (i)'s census on the §13.119 pair (static, minutes), then (iii) if both come
 back empty.
+
+### 13.143 Proposal (ii), put precisely: a missing `cmpxchg` IS visible in the asm; a missing `relaxed` is NOT
+
+The question is whether the compiler **omitted** a `cmpxchg` or a relaxed
+operation.  The two halves have different answers and it matters which.
+
+**A `cas`/`rmw` that disappears is visible, and now counted.**  GCC does not
+delete an atomic read-modify-write as such — but constant propagation that kills a
+branch condition removes the **whole path** containing one, which is the realistic
+failure mode and is exactly what a per-body count catches.  `tagmask_census.py`
+now reports, per body touching the tag machinery: `cas` (`lock cmpxchg`; arm64
+`cas*` or an `ldaxr`/`stlxr` pair), `rmw` (`lock add/sub/xadd/or/and/xchg`; arm64
+`ldadd*`/`swp*`) and `fence` (`mfence`/`dmb`).
+
+Baseline (clang, arm64, pool library) — and the **uniformity is the finding
+mechanism**:
+
+```
+bodies touching the tag machinery: 34
+totals: mask_ptr=131 mask_cnt=103 tagged_add=72 | cas=112 rmw=231 fence=0
+
+per body, every instantiation identical:
+  add=3  mask_ptr=5  mask_cnt=4  cas=4  rmw=9  fence=0
+```
+
+Every `compareAndSet_impl_<local_shared_ptr<PoolAllocator<N,…>>, …>` has
+**exactly 4 compare-exchanges and 9 other atomic RMWs**.  So on the firing build
+any body that deviates is visible at a glance, and a body with `cas < 4` has lost
+a compare-exchange path.  That is a one-command check on an object already built.
+
+**A missing relaxed load or store is NOT visible, and no asm tool can make it
+so.**  A relaxed load compiles to a plain `mov`/`ldr`, indistinguishable from a
+non-atomic load; a relaxed store likewise.  So "the relaxed op was omitted" cannot
+be observed directly — only *relatively*, as fewer loads than the source path
+performs, which inlining changes anyway.  Counting `mov`s and calling the
+difference a missing relaxed load would produce exactly the kind of number that
+looks like evidence and is not, so the tool refuses to report it.
+
+For that half the instrument is **runtime accounting**, and most of it exists:
+the tracer's DEC ledger and the `dtor == born` identity (§13.74 closed six
+previously-untraced decrement paths for exactly this reason, and §13.107's
+destructor hook made the birth/death identity exact — `96 588 856 == 96 588 856`).
+An omitted relaxed increment or decrement shows up there as an arithmetic
+mismatch, which is a real observation, unlike an instruction count.
+
+**So the answer to (ii) splits:** the `cmpxchg` half is answerable statically and
+the tool is ready; the `relaxed` half is answerable only dynamically and that
+instrument is already built and already reporting balance. What has *not* been
+done is running the static half on the §13.119 minimal pair — which is minutes,
+and is now second in the queue behind §13.141's runtime gate.
