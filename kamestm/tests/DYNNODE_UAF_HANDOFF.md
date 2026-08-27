@@ -14763,3 +14763,98 @@ bitmap on chunk re-construction — which fits §13.211's gdb sample, a 32 B chu
 push applied by a `PoolAllocator<48u,…>`.  A per-chunk construction generation,
 recorded at registration and compared at the violation, is the measurement.  B
 closes the window regardless.
+
+### 13.222 `tmin3` answered on both counts: it DOES fail at thread exit — and the thread-exit flush, at either placement, nearly TRIPLES its crash rate
+
+Two questions, one apparatus.  §13.220 shipped a fix on the strength of a counter;
+this section runs the reproducer that actually crashes.
+
+#### 1. Does the failure happen at thread exit?  Yes — with the base rate measured
+
+Phase markers around `join()`, plus two worker-side counters: `work_done` (bumped
+at the end of `start_routine`) and `tls_done` (a `thread_local` sentinel's
+destructor, so it fires during TLS teardown).
+
+**The first version of this instrument was wrong, and its own output said so.**
+`start_routine` ends with an explicit `return;` and the increment landed *after*
+it — dead code, so `work_done` read 0 in every sample while `tls_done` read up to
+7.  `tls_done > work_done` is impossible; that contradiction is what exposed it.
+Everything below is post-fix.
+
+```
+failures with phase data:   32
+work_done at failure:       {1:7, 2:8, 3:6, 4:3, 5:4, 6:2, 7:2}
+inside the exit window:     32 / 32
+```
+
+Never `0` (nobody has exited) and never `8` (all exited, none running).  Every
+failure is in the **overlap**: exiting threads concurrent with live peers.
+
+That is only evidence against a base rate, so the same runs measure it — wall time
+from the first worker finishing to the last, accumulated over completed rounds:
+
+```
+exit-window base rate:  mean 0.310   (n = 13, range 0.276 – 0.341)
+P(32/32 inside | uniform-in-round null) = 5.2e-17
+```
+
+31 % of the time takes 100 % of the crashes.  (The window is wide because this box
+has **2 cores** and 8 workers finish badly staggered — precisely why it had to be
+measured rather than assumed.)
+
+> **`tmin3` fails at thread exit, in the same shape §13.220 found for the bitmap
+> double-clear: an exiting thread interfering with still-running peers.**
+
+#### 2. Does the fix help?  No — and v2's placement is not the variable
+
+Three arms from **one** base, differing only in where the flush sits, interleaved
+on one machine, production build (no `KAME_BATCH_VERIFY`, natural clone, 5 flush
+clones in every arm):
+
+| arm | placement | failures / 28 | vs control |
+|---|---|---|---|
+| **rev** | no thread-exit flush | **8 (29 %)** | — |
+| **v1** | head of `drain_thread_slot_freelists` (§13.221, shipped) | **21 (75 %)** | p = 0.0011 |
+| **v2** | between the two loops (`f49b578a2`) | **22 (79 %)** | p = 0.0004 |
+
+```
+v1 vs v2 : p = 1.00000
+```
+
+**The placement question v2 was written to settle is not the variable.**  Its
+reasoning — after the bucket-pointer clear because a flush can release a chunk,
+before the DLL walk because the walk orphans the chunks — may be correct on its own
+terms, but it changes nothing measurable: v1 and v2 are indistinguishable, and both
+are ~2.6× worse than not flushing at all.
+
+#### The pair this leaves, stated without varnish
+
+* flushing the last pending entry at thread exit drives the bitmap double-clear to
+  **zero** on `tmin_rr` — 1600 → 0, deterministic, with `hit = 1600 / miss = 0`
+  identity between the violating slot and the late-pending one (§13.220);
+* the same one statement makes the **crashing** reproducer significantly worse, at
+  either placement.
+
+So the late apply is real, reproducible and exactly characterised — and removing it
+does not fix the crash; it aggravates it.  The most economical reading is that the
+stale bit-clear is not what kills `tmin3`, and that applying the entry earlier
+returns a slot to circulation sooner, widening whatever window actually does.
+**That is a hypothesis; the two rows above are the measurements.**
+
+#### Recommendation
+
+**Hold §13.221's unconditional ship.**  On the only reproducer that crashes, the
+shipped statement is a net negative at p = 0.001.  `bit_clear_bad` was never
+validated as a proxy for the crash — §13.220 established it is a real defect and
+that B removes it, which is not the same claim.
+
+#### Two corrections to §13.220's reporting
+
+* I described v1's failure modes as including "a `kamepoolalloc` assertion the
+  control never hits".  Wrong, from a truncated path: it is
+  `atomic_smart_ptr.h:1053`, `local_shared_ptr<Node<LongNode>::Payload>::operator->`
+  — the **UAF signature itself**, not an allocator-internal invariant.  The other
+  arm's mode is `transaction_impl.h:3175` in `bundle`.  Both arms die of the same
+  family.
+* I reported after one rep that `tmin3` "runs to completion with the fix in".  That
+  was extrapolation from rep 1; the full A/B says the opposite.
