@@ -13428,3 +13428,62 @@ readings:
   contradicts `freed-while-pending = 0` — meaning one of those two exact-keyed
   measurements is narrower than its name, which is the pattern this section has hit
   four times (§13.166, §13.178, §13.192, §13.196).
+### 13.204 §13.202's discriminator cannot be read here: the §13.202 source no longer produces the violation it discriminates
+
+#### The A/B
+
+Same machine, same workload, same `cap = 1`, one reproducer binary, only the
+allocator source differing:
+
+| source | `bit_clear_bad` | `excess (checked_flush − pushes)` |
+|---|---|---|
+| §13.200-era (`p1.so`) | **799 / 799** | (counter not present) |
+| §13.202-era (`d2.so`) | **0 / 0** | **−801 / −801** |
+
+`KAME_FLUSH_REENTRY_GUARD` is `#ifdef` and was **not** defined in either build, so
+this is not the candidate fix being silently active.  The violation the whole
+discriminator is about is simply **not produced** by the newer source.
+
+#### Which makes the discriminator unanswerable, not answered
+
+§13.202 asks: *"is `checked_flush − pushes == bit_clear_bad`?"* with three
+mutually exclusive readings.  In this build `bit_clear_bad = 0`, so the question
+degenerates — "excess == 0 violations" is not the third branch ("entries are not
+walked twice"), it is **no measurement at all**.  Reporting `−801 ≠ 0 → NO` would
+have selected a branch on an empty arm, which is §13.199's error in a new costume.
+
+Nor can it be read where violations do occur: at `cap = 32` in the new source,
+passing runs show `bit_clear_bad = 0` and the runs that would show violations
+**crash**, printing no summary — and **under gdb the fault does not reproduce at
+all** (the slowdown suppresses it), so the counters cannot be read at a violation
+either.  Three routes, all closed.
+
+#### What the new build does show, and it is worth checking
+
+* `excess` is **exactly −801** at `cap = 1` and **exactly −17 601** at `cap = 32`,
+  identical across every run — a *deterministic* deficit, not a race.
+* `site teardown checked = 0` in every run, while `flush entries` is ~83 k.
+
+Negative excess means entries were **pushed and never applied** — their bits stay
+SET, so those slots are never returned.  A deterministic count with the teardown
+site registering no traffic at all points at the destructor's
+`flush(at_teardown=true)` path not applying (or not being attributed), which is a
+different defect from the one under investigation and is cheap to confirm.
+
+#### The question for the Mac side
+
+The fault still fires in the new source (`rc=134` at default cap), but its
+**signature is gone**.  Either §13.202's additions fixed the double-clear
+incidentally, or they perturbed the code enough to hide it — the §13.182 class,
+one level up, and §13.182's own rule applies: *a control that perturbs what it
+measures is not a control.*  The cheap discriminator is
+`nm -C | grep -c flush_impl` plus a `bit_clear_bad` reading on the two sources
+built **identically** — if the newer one has 0 violations and still crashes, the
+check has stopped tracking the fault and §13.184–§13.201's readings need
+re-taking on whichever source still exhibits it.
+
+**Practical note for reproducing any of this here:** the hand-specialisation
+§13.184 requires now also has to rewrite the injector's `flush(at_teardown)` call
+to `flush(AtTeardown)`, or the build fails; and it yields **6**
+`flush_impl<false>` symbols against the previous **4**, which is itself a sign
+that the flush region's structure changed between the two revisions.
