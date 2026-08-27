@@ -94,6 +94,40 @@ foreach(t IN LISTS kamepoolalloc_test_names)
     target_link_libraries(${t} ${test_link_libs})
 endforeach()
 
+# (§13.170) Allocator INVARIANT regression test — the apparatus kept from the
+# §13 hunt, promoted from ad-hoc probes to a standing check.
+#
+# It needs its own library build, because the two invariants it asserts are
+# compiled in behind -DKAME_POOL_RESOLVE_CHECK / -DKAME_POOL_FREE_CENSUS.
+# That separation is deliberate and load-bearing: the test references the
+# counters' accessors directly, so linking it against an UNINSTRUMENTED
+# library fails at link time rather than silently reporting "0 problems
+# found".  Three §13 corrections came from probes that could not have found
+# anything while looking like they had; this one cannot even be built that way.
+if(USE_KAME_ALLOCATOR)
+    add_library(kamepoolalloc_checked SHARED
+        ${CMAKE_CURRENT_SOURCE_DIR}/../allocator.cpp)
+    target_include_directories(kamepoolalloc_checked PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/..)
+    target_compile_definitions(kamepoolalloc_checked PUBLIC
+        KAMEPOOLALLOC_DYLIB KAME_POOL_RESOLVE_CHECK KAME_POOL_FREE_CENSUS)
+    target_compile_options(kamepoolalloc_checked PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-fvisibility-inlines-hidden;-fno-semantic-interposition>
+        $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
+    set_target_properties(kamepoolalloc_checked PROPERTIES
+        INSTALL_NAME_DIR "@rpath"
+        BUILD_WITH_INSTALL_RPATH TRUE)
+
+    add_executable(alloc_invariants_test alloc_invariants_test.cpp)
+    target_link_libraries(alloc_invariants_test
+        kamepoolalloc_checked Threads::Threads)
+    # Modest by default: the checks sit on the free and derivation hot paths,
+    # so this trades throughput for coverage.  Arguments are
+    # <threads> <iters-per-thread> <rounds>.
+    add_test(NAME alloc_invariants
+             COMMAND alloc_invariants_test 8 20000 3)
+endif()
+
 # (§36b) Intrusive atomic_shared_ptr + custom-disposer mode test.  Header-only
 # (atomic_smart_ptr.h, relocated here) + std::thread; the intrusive mode
 # allocates NO control block, so it needs neither libkamepoolalloc nor the pool.

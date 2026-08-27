@@ -9144,6 +9144,15 @@ struct RvSig { RvSig() {
     g_rv_prev[2] = signal(SIGBUS,  rv_sig_); } } g_rv_sig;
 struct RvReport { ~RvReport() { rv_report_(2); } } g_rv_report;
 }
+//! (§13.170) Accessors so a regression test can assert the invariant rather
+//! than a human reading a stderr line.
+extern "C" unsigned long long kame_pool_resolve_ok_count() noexcept {
+    return g_rv_ok.load(std::memory_order_relaxed);
+}
+extern "C" unsigned long long kame_pool_resolve_bad_count() noexcept {
+    return g_rv_bad_id.load(std::memory_order_relaxed)
+         + g_rv_bad_span.load(std::memory_order_relaxed);
+}
 extern "C" void kame_pool_resolve_ok() noexcept {
     g_rv_ok.fetch_add(1, std::memory_order_relaxed);
 }
@@ -9398,6 +9407,12 @@ struct DfSelfTest { DfSelfTest() {
     g_double_free.store(before, std::memory_order_relaxed);   // restore
     g_df_selftest = (!spurious && fired && clean) ? 1 : 0;
 } } g_df_selftest_run;
+}
+//! (§13.170) 1 = the detector's load-time positive control PASSED, 0 = failed,
+//! -1 = never ran.  A regression test must refuse to interpret a zero
+//! double-free count unless this reads 1.
+extern "C" int kame_pool_double_free_selftest() noexcept { return g_df_selftest; }
+namespace {
 void df_report_(int fd) noexcept {
     char b[200];
     {   char c[240];

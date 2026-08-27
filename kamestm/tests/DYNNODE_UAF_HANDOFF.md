@@ -11006,6 +11006,32 @@ by default and the `KAME_CLONE_LICENCE(n)` markers are attached to function
 definitions, so removing it is a mechanical edit of live declarations.  Not
 worth doing while measurements are in flight; it is the obvious next cleanup.
 
+#### The kept apparatus is now a TEST, not a labelled probe
+
+`kamepoolalloc/tests/alloc_invariants_test.cpp` + a `kamepoolalloc_checked`
+library target and a `ctest` entry (`alloc_invariants`).  It drives a
+multi-threaded churn shaped like the workload that found these — mixed sizes,
+and threads that **exit while still holding blocks**, since a thread exiting
+non-empty is what pushes its chunk onto the orphan chain — then asserts:
+
+* `back_offset` derivations: **bad == 0**, and **ok > 0** (a zero denominator
+  is reported as a failure, not a pass);
+* double frees: **0**, and only after `kame_pool_double_free_selftest()`
+  reads 1 — the count is refused as evidence unless the load-time positive
+  control passed.
+
+**The negative control is structural.**  The test calls the counters'
+accessors directly, so building it against an *uninstrumented* library fails
+at **link time** (`undefined reference to kame_pool_resolve_ok_count`) rather
+than running and reporting "0 problems found".  Verified both ways: linked
+against `kamepoolalloc_checked` it reports 239 813 derivations verified and
+passes; linked against a plain build it does not link at all.  Given that
+three §13 corrections came from probes that could not have found anything
+while looking like they had, an instrument that cannot even be *built* in its
+vacuous configuration is the right shape.
+
+`ctest -R alloc_invariants` → Passed, 0.45 s.
+
 #### One defect found while triaging, in someone else's instrument
 
 `dl_report_()`'s format string carries **11 specifiers for 12 arguments**, and
