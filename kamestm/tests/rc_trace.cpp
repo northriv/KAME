@@ -747,6 +747,13 @@ static unsigned long long dl_freeseq_() noexcept {
     if(kame_freeseq_fn f = g_freeseq.load(std::memory_order_acquire)) return f();
     return 0ull;
 }
+//! §13.168  ONE place that stamps a claimed live-set slot.  Open-coding this
+//! at each claim site cost two corrections already: §13.165 (two of four
+//! branches unstamped) and this one (the DL_EVERDEAD re-claim branch — the
+//! COMMON case for a re-birth at a known address — still unstamped, while the
+//! first branch had the line twice).  A stale stamp does not look stale: it
+//! reads as a legitimate earlier value, and it made every ordering verdict in
+//! §13.167 compare against the wrong birth.
 thread_local unsigned tl_dl_prev_relcnt = 0, tl_dl_prev_concnt = 0;
 thread_local unsigned long long tl_dl_prev_freeseq = 0;
 thread_local bool tl_dl_prev_relcnt_valid = false;
@@ -757,6 +764,11 @@ thread_local bool tl_dl_prev_relcnt_valid = false;
 //! legitimate `delete` runs the destructor (and so the death hook) before
 //! operator delete, so a legitimate free always sees 0 here.
 extern "C" int kame_rc_dl_islive(const void *p) noexcept;
+static inline void dl_stamp_(DLSlot &s, const void *obj) noexcept {
+    s.relcnt  = dl_relcnt_(obj);
+    s.concnt  = dl_concnt_(obj);
+    s.freeseq = dl_freeseq_();
+}
 static const void *dl_born_(const void *, const void *, unsigned long long) noexcept;
 extern "C" int kame_rc_dl_islive(const void *p) noexcept {
     DLSlot *t = dl_table_();
@@ -786,10 +798,7 @@ static const void *dl_born_(const void *obj, const void *site,
             if(!(cur & DL_EVERDEAD)) {       // never proven to be a heap slot
                 s.addr.store(a | DL_LIVE, std::memory_order_release);
                 s.site = site; s.seq = seq;
-                s.relcnt = dl_relcnt_(obj);          // §13.164
-                s.concnt = dl_concnt_(obj);
-            s.freeseq = dl_freeseq_();           // §13.165
-                s.freeseq = dl_freeseq_();       // §13.165
+                dl_stamp_(s, obj);                   // §13.168
                 return nullptr;
             }
             g_dl_enforced.fetch_add(1, std::memory_order_relaxed);
@@ -805,8 +814,7 @@ static const void *dl_born_(const void *obj, const void *site,
             }
             s.addr.store(a | DL_LIVE | DL_EVERDEAD, std::memory_order_release);
             s.site = site; s.seq = seq;
-            s.relcnt = dl_relcnt_(obj);              // §13.164
-            s.concnt = dl_concnt_(obj);
+            dl_stamp_(s, obj);                       // §13.168 (was MISSING)
             if(unsigned iv = dl_inject_()) {
                 static std::atomic<unsigned> n{0};
                 if((n.fetch_add(1, std::memory_order_relaxed) % iv) == 0)
@@ -822,8 +830,7 @@ static const void *dl_born_(const void *obj, const void *site,
                 // §13.164/§13.165  MUST be set on EVERY branch that claims a
                 // slot.  Missing it here left `at_prev_birth = 0`, which reads
                 // as a legitimate zero and makes the delta verdicts vacuous.
-                s.relcnt = dl_relcnt_(obj); s.concnt = dl_concnt_(obj);
-                s.freeseq = dl_freeseq_();
+                dl_stamp_(s, obj);                   // §13.168
                 return nullptr;
             }
             --i;                             // lost the slot; re-examine it
@@ -839,8 +846,7 @@ static const void *dl_born_(const void *obj, const void *site,
         if(s.addr.compare_exchange_strong(cur, a | DL_LIVE,
                 std::memory_order_acq_rel, std::memory_order_acquire)) {
             s.site = site; s.seq = seq;
-            s.relcnt = dl_relcnt_(obj); s.concnt = dl_concnt_(obj);   // §13.164/§13.165
-            s.freeseq = dl_freeseq_();
+            dl_stamp_(s, obj);                       // §13.168
             g_dl_steal.fetch_add(1, std::memory_order_relaxed);
             return nullptr;
         }

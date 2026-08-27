@@ -10849,6 +10849,15 @@ birth stamp:
 | 5 | `freelist_push` | 4 760 359 | 1 107 851 | 17 |
 | 6 | `freelist_push` | 16 655 167 | 580 775 | 92 |
 
+> **§13.168 WITHDRAWS THIS TABLE.**  `prev_birth_seq` was stale: the §13.165
+> patch stamped the first branch of `dl_born_` *twice* and left the
+> `DL_EVERDEAD` re-claim branch — the common case for a re-birth at an address
+> the table already knows — **unstamped**.  So every comparison below is
+> against some earlier birth at that address, not the occupant that was live at
+> the hit.  A stale stamp does not look stale; it reads as a legitimate smaller
+> number, which is exactly why all six agreed.  Read §13.168 instead; the
+> conclusion reverses.
+
 **6 of 6: freed AFTER the occupant was born.**  Zero "predates", zero "no
 record" (the 2^20 table retains what the earlier 2^16 one evicted), six
 distinct threads, and — the part that matters — **both** free paths behave
@@ -10870,6 +10879,9 @@ duplicate ownership in 34 k adoptions §13.163(c); no whole-chunk recycle
 
 > **The pool faithfully recycles blocks it is told to free.  Something is
 > telling it to free live objects.**
+
+**(That reading is withdrawn — see §13.168.  With the stamp fixed, the free
+turns out to PREDATE the live occupant, which points the opposite way.)**
 
 **The load-bearing assumption, named.**  All of this rests on §13.107's claim
 that the live-set's destruction feed is complete — that a `DL_LIVE` slot means
