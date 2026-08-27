@@ -13898,3 +13898,67 @@ At `release_dll_chunks_for_thread`, before draining, count the exiting thread's 
 `tls_cross_dealloc_batch.count` and compare its entries against the slots the drain
 is about to return.  Any intersection is the defect, and it is inspectable
 **without concurrency** — a single thread's two data structures at one instant.
+
+### 13.211 Stepping the exit in gdb: the "stale entry after `~CrossDeallocBatch`" reading is WRONG — the applied entry is the thread's own, and its batch is not dead
+
+§13.210 established the 1:1 identity (one violation per thread exit) and pointed
+at `release_dll_chunks_for_thread` versus the thread's own batch.  Stepping it.
+
+#### What the first two-stop session appeared to show, and why it was wrong
+
+Breaking on `~CrossDeallocBatch` then on the violation, the entry applied at the
+violation was byte-identical to the one pending in `buf[0]` at the destructor —
+which reads as a stale entry applied twice after the batch was destroyed.  It is
+not.  **I had not checked that the two stops were the same thread.**  With
+`$_thread` printed:
+
+```
+DTOR      thread 4   batch obj 0x7ffff17fb090   buf[0]={0x7ffff2a7f040,0x7ffff2a80840}
+VIOLATION thread 3   batch obj 0x7ffff1ffb090   dead_=0
+          applying {0x7ffff21bf040,0x7ffff21c05a0}  ==  its OWN buf[0]
+```
+
+Different threads, **different batch objects**, and the violating thread's batch
+is **alive** (`dead_ = 0`).  The apparent match was an artefact of printing
+`tls_cross_dealloc_batch` at the second stop — which resolves to *that* thread's
+batch, and naturally contains the entry being applied.
+
+**The allocator's own counter said so before I did:**
+`push-after-batch-dtor = 0`.  §13.207 had already added exactly this counter for
+exactly this hypothesis, and it reads zero in every run.  I built a story that
+contradicted an existing measurement and only checked it afterwards.
+
+#### What the stepped data does show
+
+* the violating flush applies **its own just-pushed entry**, not a stale one;
+* the pushing thread's batch is alive and `count` is consistent;
+* the entry's bit is nevertheless already clear at the apply, **microseconds**
+  after `FREE-OF-FREE` verified it SET at the push (`cap = 1` flushes on the same
+  call);
+* `~CrossDeallocBatch` runs **before** `release_dll_chunks_for_thread` at exit,
+  and at `cap = 1` the batch is empty by then, so the teardown flush is not the
+  clearer either.
+
+So the window is genuinely tiny and it is **not** explained by batch lifetime.
+What survives untouched is §13.210's identity — violations == thread exits,
+exactly, across a 20× sweep — which is a measurement, not an interpretation.
+
+#### The correction that matters for the next step
+
+§13.210 framed the target as "the exiting thread's drain versus its own batch,
+single-threaded".  The single-threaded part is now doubtful: the violating thread
+(3) is **not** the thread that was exiting (4).  A thread exit elsewhere coincides
+with a violation *here*, one for one.  That reopens the cross-thread question that
+§13.185/§13.194/§13.195 closed for the *batch*, and relocates it: not two threads
+sharing a batch, but **one thread's exit drain clearing a bit under another
+thread's in-flight free**.
+
+That is consistent with every zero collected: the batch is never touched
+cross-thread (§13.185), no slot is pending in two batches (§13.195), and every
+free is of an in-use slot (§13.192) — because the second clear comes from the
+**drain**, which does not go through any batch at all.
+
+**The check this now calls for** is the one §13.210 proposed, with the threads
+swapped: at `release_dll_chunks_for_thread`, before returning each slot, test
+whether that slot is stamped `PENDING` by **any** thread.  §13.194's stamp is
+already per-slot and exact; only the query site changes.
