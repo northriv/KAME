@@ -11738,3 +11738,43 @@ was supposed to vary.  §13.170's rule earns itself again: **a probe reports a
 zero only after proving it can report a one** — and for a *knob*, the
 equivalent proof is a liveness readout, which is why §13.179's per-site gate
 counting `suppressed`/`taken` is the right shape.
+### 13.181 Can a non-owner reach `allocate_chunk_path`?  No — but `owner_release` is a landmine if it is ever revived
+
+Asked whether some path lets a non-owner thread call `allocate_chunk_path`.  Put
+precisely: `allocate_chunk_path` is static and takes no chunk — it *acquires* one
+(own DLL, adopt from the chain, or create), so the hazard shape is **operating on
+a chunk it does not own**, and adoption is the legitimate version of that.
+
+**The one route that could produce the illegitimate version is dead code.**
+`owner_release` — "owner observes an empty DLL neighbour, clears `BIT_OWNED`,
+releases if it is the unique releaser" — is **declared and defined with no call
+site anywhere in the pool**.  (Its 10 symbols in the library come from explicit
+template instantiation, which instantiates unused members.)  The TLA notes agree:
+"the `owner_release` path was probed empirically (did not fire)."  So the answer
+to the question as asked is **no**.
+
+**But if it is ever revived it breaks the invariant the free path depends on.**
+It clears `BIT_OWNED` **before** deciding:
+
+```cpp
+uint32_t old = atomicFetchAnd(&palloc->m_flags_packed, ~BIT_OWNED);
+if((old & ~BIT_OWNED) != 0) return false;   // BIT_OWNED already cleared
+```
+
+On that `return false` the chunk is left **`BIT_OWNED` clear, non-empty, NOT on
+the orphan chain** (only owner-exit pushes) and **still on a live thread's DLL**.
+The FS `OnClearFn`s decline to release a `BIT_OWNED`-clear chunk on exactly this
+reasoning: *"such a chunk is an ORPHAN on the atomic_shared_ptr chain (its
+chain-ref keeps it mapped), reclaimed by `orphan_chain_scrub` once drained"* —
+which is **false for this chunk**, since the scrub only walks the chain.  So
+`BIT_OWNED clear ⟹ on the chain` is an invariant the current free path relies on
+and `owner_release` would violate.  Landmine, not a live bug — worth saying at the
+function rather than leaving for whoever revives it.
+
+**And the comment block around it documents a design that no longer exists** —
+the fourth instance of the pattern §13.160 flagged three times.  It lists three
+release paths, of which `cross_release` and the `BIT_RELEASED` CAS are both gone
+(`BIT_RELEASED` explicitly: "Bit 30 is intentionally left unused (previously
+BIT_RELEASED)").  Reading that block is how one reconstructs a cross-thread
+releaser that was removed — which is exactly the wrong model §13.116 and §13.159
+both built from stale comments.

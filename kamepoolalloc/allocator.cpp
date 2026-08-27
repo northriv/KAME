@@ -3371,6 +3371,19 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 //      walks THIS thread's DLL: empty chunks claim `BIT_RELEASED`
 //      directly, non-empty set `BIT_OWNER_EXITED`.  No floor: thread
 //      is exiting, the chunks belong to nobody.
+//! §13.181 DEAD CODE, and a landmine if revived.  No call site exists anywhere in
+//! the pool (the symbols in the library come from explicit template
+//! instantiation); the TLA notes record the path as "probed empirically (did not
+//! fire)".  If it is revived, note that it clears BIT_OWNED BEFORE deciding, so
+//! its `return false` leaves a chunk BIT_OWNED-clear, non-empty, NOT on the
+//! orphan chain and still on a live thread's DLL.  The FS OnClearFns decline to
+//! release a BIT_OWNED-clear chunk precisely because "such a chunk is an ORPHAN on
+//! the chain, reclaimed by orphan_chain_scrub" -- false for this one, since the
+//! scrub walks only the chain.  `BIT_OWNED clear => on the chain` is a live
+//! invariant of the free path; this function would break it.
+//! The comment block above also describes `cross_release` and a `BIT_RELEASED`
+//! CAS, neither of which exists any more (bit 30 is documented as unused,
+//! "previously BIT_RELEASED").
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
