@@ -8812,3 +8812,72 @@ the fault 15/20 → 0/20.
 The discrepancy in §13.131 is therefore not a loose end but **the** finding:
 the chain is necessary, and none of scrub/dispose, adopt, or back_offset
 derivation is where it goes wrong.
+
+### 13.137 Correction to §13.133: the TLS block is NOT pool storage — measured, so the mechanism I proposed does not stand (the window still does)
+
+§13.136 clears the last of the three named chain paths, which left §13.133 as
+the surviving candidate.  Before that gets run on the strength of my reasoning,
+I measured the premise it rests on — and it fails.
+
+**§13.133's mechanism required** the owner's TLS block to be freed at thread exit
+and **reused as ordinary pool storage**, so the stray `p->store(true)` would land
+on a live object (a `Packet`'s refcount byte, say).  I asserted that from a
+memory note about the pool self-allocating its TLV block through interposed
+malloc.  Measured instead, against the allocator's **own** TLS via
+`PoolAllocator<ALLOC_SIZE4,true>::dll_head_tls_addr()` (not a TU-local
+`thread_local`, which is a different TLV block and would not have answered the
+question):
+
+```
+allocator TLS addrs: n=64 distinct=1 first=0x703007358 reserved=33554432
+pool-owned: 0 / 1
+allocations covering an allocator-TLS address: 0     (400 000 allocations)
+```
+
+- **`pool-owned: 0`** — the allocator's `s_tls` is not pool storage on
+  macOS/arm64.  The leak fix `e6d6cd0b` moved that block to the real heap, which
+  also removed its pool provenance; my memory of the pre-fix state was what I
+  reasoned from.
+- **0 overlaps in 400 000 allocations** — no pool block ever covered it.
+- **`distinct = 1` across 64 sequential threads** — the TLS address is *identical*
+  every time, so a stale pointer from thread N points at thread N+1's **live**
+  TLS.  The write then sets `dll_force_walk_from_head = true` on an innocent
+  thread, which is a **hint** ("one-cycle false-negative delay acceptable"):
+  harmless.
+
+**So the specific path to this fault is not supported.**  Stated plainly because
+I was one message away from having the other side spend a run on it as "the live
+lead" on mechanism grounds that measurement does not carry.
+
+**What still stands, and is unaffected by the above:**
+
+1. The window `[load, deref]` spanning `batch_return_to_bitmap` is real, and the
+   comment's safety argument ("the freer must have loaded before our release, so
+   our TLS is still live") is invalid as written — loading before the release
+   says nothing about the deref preceding the TLS's death.
+2. The field already produced one SEGV (`alloc_stress`, 1000 threads), and the
+   teardown path is *already* guarded with `at_teardown ? nullptr` **because the
+   pointer may dangle**.  Only the general path rests on the invalid inference.
+3. It is therefore a bug to close on its own merits, and the gate closes it at
+   the cost of a delayed DLL walk.
+
+**What would revive the mechanism, and it is a Linux question I cannot settle
+here.**  The dangerous case needs the TLS block **freed and reused by something
+else**, which needs genuine concurrent thread churn (not the sequential
+create/join above) and depends on where TLS comes from: libc heap on macOS via
+`_tlv_get_addr`, the dynamic-TLS arena for a `dlopen`'d DSO on Linux.  The probe
+is four lines — record `PA::dll_head_tls_addr()` per thread with threads running
+**concurrently**, then check `kame_pool_malloc_usable_size()` on each address and
+whether any later allocation covers one.  If Linux answers "pool-owned" or
+"overlaps", §13.133's mechanism revives and the gate becomes the primary
+experiment again; if it answers as macOS did, the gate is a correctness fix and
+**not** this fault.
+
+**Revised standing.**  With §13.136, all three named chain paths are clean on
+failing runs and §13.133 is demoted from mechanism to unrelated-bug-plus-open-
+question.  The chain remains necessary by ablation (15/20 → 0/20) with nothing
+inside it accounting for that — so §13.122's whole-unit codegen reading is again
+the only explanation standing, and `nonclone_memop_diff.py` on §13.119's minimal
+pair is the tool that has not yet been run.  The poke gate is still worth one
+job: it is cheap, and a positive result would be decisive whatever the mechanism
+turns out to be.
