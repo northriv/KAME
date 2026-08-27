@@ -10697,3 +10697,136 @@ adoption is a ratio from four samples and should not be quoted as one.  A zero �
 produced by a hash collision evicting the table entry (the census is
 direct-mapped), which the self-test does not cover — with ~120 distinct chunk
 bases in 8192 slots that is unlikely, but it is not excluded.
+
+### 13.166 The double-free hypothesis, built and refuted: 0/40 in the shipping configuration, and the 37% that looked like it was a false positive
+
+§13.165 left one shape: a slot inside a single live chunk became re-allocatable
+while its occupant was still constructed.  A slot parked on the owner freelist
+keeps its bitmap bit SET, so the list is the only record that it is free —
+which means pushing an address **already on the list** puts it there twice, and
+two pops hand one block to two live objects.  That is exactly §13.104's
+DOUBLE-LIVE, with the first occupant's destructor never running.  So I built a
+detector for it: one bit per slot address, set by push, cleared by pop and by
+`batch_return_to_bitmap`.
+
+**It works, and it fires.**  But the answer is the opposite of the hypothesis.
+
+#### The detector had to be wrong twice first
+
+* **13 295 208 "double frees"** on the first build.  That absurd magnitude is
+  the finding: the hot allocation path pops the freelist **inline at seven
+  sites** rather than through `freelist_pop()`, so the bit was never cleared.
+  Hooking every pop site, the second push path (`allocator_prv.h:2963`) and the
+  chunk-claim pre-fill dropped it to 0–1 per run.  **A new counter's first
+  duty is a magnitude sanity-check**; had this one come back plausible-looking
+  instead of absurd, I would have published it.
+* **`construct_chunk_at`'s pre-fill marks every slot of a chunk as on-list**,
+  so warm-reusing a chunk whose slots were still marked re-sets bits with no
+  free having happened.  That is a false positive aimed squarely at this
+  claim, and it is now counted in a separate bucket rather than assumed away.
+
+It also carries a **positive control** that runs at load — push/push must count
+once, push/pop/push must not, counter restored afterwards — and prints
+`PASS` beside every number.  After §13.155, §13.163(b) and §13.164, no probe in
+this investigation gets to report a zero without first proving it can report a
+one.
+
+#### An intermediate result that was WRONG, and how the separation caught it
+
+Before the pre-fill bucket existed, the detector reported **a double free in 10
+of 27 failing runs (37%)**, and I came within one write-up of publishing that
+as the mechanism.  With pre-fill counted apart, the numbers are:
+
+| build | metric | rate |
+|---|---|---|
+| conflated (old) | "double frees" | **10/27** |
+| separated (new) | double frees only | **0/40** |
+| separated (new) | pre-fill re-sets only | **4/25** |
+
+10/27 vs 4/25 → **p = 0.12: statistically the same population.**
+10/27 vs 0/40 → **p = 0.00003: a different one.**
+
+So the 37% was **pre-fill re-sets misattributed to double frees** — the exact
+false positive the separation was built for, confirmed quantitatively rather
+than assumed.  The claim is withdrawn.
+
+#### The controlled measurement
+
+One binary, runtime gate, arms interleaved within each round, 15 rounds:
+
+| arm | failures | runs with a double free | pre-fill re-sets |
+|---|---|---|---|
+| `base` | **15/15** | **0/15** | 0 in 14/15 |
+| `KAME_ORPHAN_NO_ADOPT=1` | **0/15** | **2/15** | 2–7 in 12/15 |
+
+An uninterleaved 25-run base batch on the same binary agrees: **0/25** double
+frees (22 failures, 3 clean), 4 runs with pre-fill re-sets.
+
+The suppressor replicates perfectly: **15/15 vs 0/15, p = 1.3 × 10⁻⁸** — the
+cleanest reproduction of §13.150 so far, on one binary with zero codegen delta.
+
+And **the double frees are in the arm that does not fail.**  Every failing run
+in this A/B had zero; the only two runs that double-freed both completed
+cleanly.  A double free is therefore **neither necessary nor sufficient** for
+the fault:
+
+> In the shipping configuration the allocator does **not** double-free at all:
+> **0 in 40 base runs**, with the detector's positive control passing on every
+> one.  The only double frees seen anywhere are 2/15 in the `NO_ADOPT` arm —
+> and that arm is an **ablation** that deliberately strands orphaned chunks
+> instead of re-owning them, so it is not evidence of a defect in the real
+> allocator either.
+
+I had earlier written that a genuine double free existed and was worth fixing
+on its own merits.  **That is retracted**: it rested on the conflated counter
+above.  What survives is the negative — the double-free path is not the
+mechanism, and in the configuration that ships it does not occur.
+
+(The elevated pre-fill re-sets under `NO_ADOPT` are expected, not anomalous:
+with adoption gated off, orphaned chunks are stranded and fresh chunks are
+constructed more often, and a stranded chunk's slots keep their on-list bits.)
+
+#### A pre-registered prediction of mine failed, and it is worth more than the result
+
+Before the last-free data landed I wrote down (scratchpad, timestamped): since
+`kame_slot_link_()` writes the freelist link at **word 0** when
+`KAME_POISON_FORENSIC` is off, a `freelist_push` would leave a *pool pointer*
+in word 0, whereas §13.113 measured "W0 reads a LIVE refcount".  I therefore
+predicted the last free would be `batch_return_to_bitmap`.
+
+Both recorded hits said **`freelist_push`**.  My first reading was that one of
+the two instruments must be wrong.  **That was too strong, and the same
+captures settle it**, because they carry the W-probe and the free record for
+the *same* hit:
+
+```
+RC-DLIVE-LASTFREE path=freelist_push (owner park) tid=76 seq=11481462 prev_birth_seq=0
+RC-DLIVE-ADOPTED  0x74620d026d60 chunk-was-adopted=YES [selftest ok=122 BAD=0 TRUSTWORTHY]
+RC-DLIVE-WPRE     0x74620d026d60 w=0x2          <- a refcount, not a pool pointer
+RC-DLIVE-W1       0x74620d026d60 w=0x7461e24c3de0
+```
+
+`WPRE = 0x2` is the word as it stood *before* the second occupant's
+`refcnt = 1` landed, and it is a small integer — the previous occupant's live
+refcount — not the freelist link a `freelist_push` writes there.  Both
+instruments are right, and they are consistent under one reading: **the
+recorded free predates the previous occupant's birth.**  The slot was pushed
+and popped, then O1 was born into it and wrote its own refcount over the link,
+and then O2 was born on top of O1 **with no free in between**.
+
+That is not a reconciliation I get to assert, because the very field that
+would test it — `prev_birth_seq` — read 0 on both hits, the §13.165 bug where
+`dl_born_` stamped its counters on only two of four slot-claim branches.  Both
+verdicts ("FREED AFTER…") were therefore vacuous, and are withdrawn.  With all
+four branches stamped, a hit carrying **both** a present free record and a real
+`prev_birth_seq` decides it:
+
+* free-seq **after** the previous birth → an ordinary free landed on a live
+  object (a premature free, the STM side);
+* free-seq **before** it → the allocator handed out a slot that nothing freed
+  since its occupant was born, which sends the search back into the pool.
+
+That measurement is queued.  (The lookup is lossy — a 2^20 table under ~10⁸
+frees per run evicts fast, so most hits report "no record"; a *present* record
+is address-verified and is the true last free of that address, while an absent
+one says nothing.)
