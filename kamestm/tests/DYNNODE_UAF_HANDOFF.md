@@ -12749,3 +12749,93 @@ throughput, because it moves only the post-call deref of a pointer into another
 thread's TLS.  If it cures on x86-64 it is a **fix**, not a mitigation — and it is
 the one arm that holds the clone fixed, which §13.186 shows
 `KAME_NO_XTHREAD_FORCEWALK_POKE` never did.
+
+### 13.195 §13.194 could not run on x86-64 — `__builtin_return_address(n>0)` — and with that fixed: `cross_thread = 0` over 2.9 M pending observations
+
+#### The instrument crashed here, and gdb named it exactly
+
+`KAME_BATCH_VERIFY` built from §13.192–§13.194 dies **SIGSEGV with zero output**
+on x86-64, on the stock source as well as the hand-specialised one — so not a
+consequence of §13.184's workaround.  Under gdb:
+
+```
+Thread 3 SIGSEGV at allocator.cpp:3134
+    kame_bv_slot_stamp(p, ALIGN, BV_ST_PENDING, __builtin_return_address(1));
+si_addr = 0x40008
+
+mov  0x0(%rbp),%rax      ; *rbp        <- rbp is NOT a frame pointer at -O2
+mov  $0x30,%esi          ; ALIGN = 48
+mov  %rbx,%rdi           ; p
+=>   mov 0x8(%rax),%rdx  ; *(0x40000+8)   FAULT
+call kame_bv_slot_stamp
+```
+
+`__builtin_return_address(1)` compiles to a frame-chain walk `*(*rbp + 8)`.
+GCC documents any level above 0 as unsafe, and at `-O2` on x86-64 `%rbp` is a
+general register — here holding `0x40000` (= `ALLOC_MIN_CHUNK_SIZE`), so the
+load faults.  It works on the Mac's aarch64 because that ABI keeps frame
+pointers.  **`-fno-omit-frame-pointer` does not save it** (tested): the caller
+is tail-called, so the frame it wants is not on the chain either.
+
+Three sites: `allocator.cpp:3134`, and `:1154–1157` which uses levels **1, 2 and
+3**.  Fixing only the first still crashed — worth stating, because it is the
+same trap twice.  With all levels above 0 neutralised the build runs.
+
+> **`__builtin_return_address(n>0)` is not portable instrumentation.**  For a
+> caller identity that must work at `-O2` on x86-64, pass the PC explicitly from
+> the frame that has it, or capture a warmed `backtrace()` at the rare event —
+> never walk the chain.
+
+#### The measurement, now that it runs
+
+Hand-specialised source (shape guaranteed), `KAME_BATCH_CAP=1`, full workload:
+
+```
+BATCHVERIFY checked=23 643 570  pushes=2 480 385  pairing_bad=0  bit_clear_bad=800
+  site flush   checked=2 480 384   bad=800
+  site drain   checked=20 724 400  bad=0
+BATCHVERIFY pending-at-clear: total=2 918 370  cross_thread=0
+```
+
+**`cross_thread = 0`, and the denominator is real** — 2.9 M pending observations
+against 2.5 M pushes, so the stamp survives the window and the arm demonstrably
+runs (§13.194's own liveness criterion, and the failure mode §13.178 hit three
+times).
+
+**So no slot is ever held pending by two threads at once, on the platform where
+the fault occurs.**  §13.194's hypothesis is refuted here, not merely unconfirmed
+on a quiet target.
+
+#### Which sharpens the contradiction rather than resolving it
+
+Every measurement at both ends is now clean:
+
+| | |
+|---|---|
+| free of an already-free slot | **0** (§13.192, reads the live bitmap) |
+| slot pending in two threads | **0** (this section, 2.9 M observations) |
+| batch reached cross-thread | **0/36** (§13.185) |
+| entries mis-paired to a chunk | **0** |
+| entries applied twice | conservation ±1 |
+| **bit clear at its own apply** | **800/run, all at `flush`** |
+
+And the prior clearer is always `site=flush`, with gaps now printed:
+
+```
+47060  49104  49047  48860  100019  97790  78036  52560
+```
+
+Clustered near ~49 k **and ~98 k — twice that**, which strengthens §13.190's
+"something periodic" over "an arbitrary double free".
+
+**What is left, stated precisely:** a slot's bit is set when freed, no second
+free exists, no second thread holds it, no entry is applied twice — yet a flush
+clears the bit before that slot's own entry is applied.  The remaining
+possibility the measurements have not excluded is that the clearing flush is
+clearing a bit it was **not asked to clear**: the merge loop in
+`batch_clear_impl` builds one mask per word from several entries, and
+`pairing_bad` only checks that each entry's slot belongs to the chunk — never
+that the *bit index* it contributes is the one that entry owns.  That is
+checkable with the existing machinery: assert, per merged entry, that
+`mask_fn`'s bit is the entry's own `sidx`, and that no two entries in a run
+contribute the same bit.
