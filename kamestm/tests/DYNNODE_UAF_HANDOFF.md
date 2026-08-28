@@ -15525,3 +15525,62 @@ KAME_INCARNATION_PROBE, one run on the crashing reproducer
 Both probes (`KAME_INCARNATION_PROBE`, `KAME_LATEAPPLY_PROBE`) are in the same
 build, so one run answers this and re-measures the leftover counts on the platform
 where they matter.
+
+### 13.234 The right question was `push`'s flush after teardown — and the symbol evidence I answered it with does not transfer
+
+Two corrections, both narrowing what this machine can contribute.
+
+#### The path I measured was not the path asked about
+
+§13.226 counted frees arriving after teardown that **took** the TLS-free bypass —
+805, one per thread.  That says nothing about frees that **miss** the bypass and
+reach `push`, which is the path that matters: `push` touches `count`/`buf` in TLS
+and, when the batch is full, calls `flush()` — the **cloned** body, whose loop
+§13.176 saw reloading `count` through `__tls_get_addr` every iteration.  All of that
+in a state the cleanup has already declared dead (`s_alloc_tls_off = true`).
+
+`KAME_LATEAPPLY_PROBE` now counts it directly:
+
+```
+push AFTER teardown: N   (of which triggered a clone flush: M)
+```
+
+arm64 gives 0/0, and **that is not evidence** — the bypass's guard is
+`kame_page() == &g_teardown_page`, and when the sentinel is installed relative to
+the last frees is exactly the sort of thing that differs between Mach-O fast-TSD and
+glibc's TLS teardown.  The number has to be read on x86-64.
+
+#### And the symbol evidence is withdrawn
+
+I argued from `nm`/`objdump` on this machine that the destructor **inlines** its
+`flush(true)` and never calls the `.constprop.0` clone, concluding that the clone
+cannot be what runs at teardown.  That object is **aarch64 Mach-O built by MacPorts
+GCC**, and both the inlining and the IPA-CP decisions behind it are cost-model
+driven and target dependent — §13.216 already recorded "instrumenting deletes the
+clone" as a per-target fact and this is the same class.  **The conclusion does not
+transfer and is withdrawn as a statement about the failing platform.**
+
+It remains a question worth one command there:
+
+```bash
+objdump -d -C libkamepoolalloc.so | \
+  awk '/CrossDeallocBatch::~CrossDeallocBatch/,/ret/' | grep -c constprop
+```
+
+Non-zero means the teardown flush **is** the clone on x86-64, and the whole
+"post-teardown clone touches TLS" reading is live.  Zero means the destructor has
+its own inlined copy there too.
+
+#### What this machine can still contribute
+
+Narrowed to two things, and I will keep to them:
+
+* **the source text**, which is identical everywhere — this is where §13.228's
+  virtual dispatch, §13.216's unspecified destruction order and §13.214's
+  `owner_release` landmine came from;
+* **TLA+**, which is platform-independent — §13.227's proof that a spurious clear
+  alone suffices for the double hand-out is the strongest result of the last
+  stretch and needed no machine at all.
+
+Symbols, disassembly and runtime counts from here are all non-transferable.  What I
+can still do is build the instruments and say precisely what each number would mean.

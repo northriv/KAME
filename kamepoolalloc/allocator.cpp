@@ -1932,6 +1932,8 @@ struct CrossDeallocBatch {
                                                   s_life_emptied_owned{0},
                                                   s_life_emptied_orphan{0};
     static inline thread_local bool s_in_td_flush = false;
+    static inline std::atomic<unsigned long long> s_push_after_td{0},
+                                                  s_push_after_td_flushed{0};
 #endif
     ~CrossDeallocBatch() noexcept {
 #ifdef KAME_LATEAPPLY_PROBE
@@ -6729,6 +6731,10 @@ namespace { struct LateApplyReport { ~LateApplyReport() {
             "re-constructible)\n",
             CrossDeallocBatch::s_td_emptied_owned.load(),
             CrossDeallocBatch::s_td_emptied_orphan.load());
+    fprintf(stderr, "LATEAPPLY push AFTER teardown: %llu  (of which triggered a "
+            "clone flush: %llu)\n",
+            CrossDeallocBatch::s_push_after_td.load(),
+            CrossDeallocBatch::s_push_after_td_flushed.load());
     fprintf(stderr, "LATEAPPLY normal-life  EMPTIED a chunk: owner_live=%llu "
             "ownerless=%llu\n",
             CrossDeallocBatch::s_life_emptied_owned.load(),
