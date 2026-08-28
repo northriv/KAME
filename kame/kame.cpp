@@ -28,6 +28,7 @@
 #include <QPropertyAnimation>
 #include <QCursor>
 #include <QTabBar>
+#include <QProxyStyle>
 #include <QCloseEvent>
 #include <QMdiArea>
 #include <QMdiSubWindow>
@@ -209,14 +210,24 @@ FrmKameMain::FrmKameMain()
         //to bring it back with.  A minimized toolbox leaves nothing.
         dockLeft->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
             Qt::CustomizeWindowHint | Qt::WindowTitleHint);
-        dockLeft->setWindowOpacity(0.8);
+        //Both toolboxes run from the top of the screen down to just above the
+        //message window, which parks itself at the bottom-left corner and
+        //keeps its top edge there (it grows downwards when a popup appears).
+        int msg_top = XMessageBox::form()->frameGeometry().top();
+        int deco = std::max(0, dockLeft->frameSize().height() - dockLeft->height());
+        int toolbox_h = std::max(msg_top - 6 - rect.top() - deco, 360);
         dockLeft->resize(std::max(rect.width() / 5, XMessageBox::form()->width() + 80),
-            std::max(rect.height() / 2, 360));
+            toolbox_h);
         dockLeft->move(0, rect.top());
+        //Self-correcting: the window frame may not be realized yet, in which
+        //case `deco` came out 0 and the toolbox would reach a title bar's
+        //worth too far down.
+        int over = dockLeft->frameGeometry().bottom() - (msg_top - 6);
+        if(over > 0)
+            dockLeft->resize(dockLeft->width(), std::max(dockLeft->height() - over, 360));
         dockRight->setFloating(true);
         dockRight->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
             Qt::CustomizeWindowHint | Qt::WindowTitleHint);
-        dockRight->setWindowOpacity(0.8);
         dockRight->resize(std::max(rect.width() / 5, 450), dockLeft->height());
         dockRight->move(rect.right() - dockRight->frameSize().width() - 6, rect.top());
         setupEdgeAutoHide(rect);
@@ -354,6 +365,31 @@ FrmKameMain::updateToolboxStrips() {
             pane.action->setChecked(shown);
     }
 }
+namespace {
+//! Widens a toolbox's tab column, which is all one sees of it while it rests
+//! collapsed at the screen edge.  Neither obvious route works: a stylesheet
+//! can set the width but switches the tabs to stylesheet rendering, losing the
+//! native look, and enlarging the tab icons drags the tab's *length* along
+//! with its thickness until the panes no longer fit in the column.  Going
+//! through the style keeps native painting and touches only the one
+//! measurement.  For a vertical tab bar the thickness comes out of the
+//! CT_TabBarTab *width* — measured, not assumed; setting the height does
+//! nothing.
+class WideTabStyle : public QProxyStyle {
+public:
+    explicit WideTabStyle(int thickness) : m_thickness(thickness) {}
+    QSize sizeFromContents(ContentsType type, const QStyleOption *option,
+        const QSize &size, const QWidget *widget) const override {
+        QSize s = QProxyStyle::sizeFromContents(type, option, size, widget);
+        if((type == CT_TabBarTab) && (s.width() < m_thickness))
+            s.setWidth(m_thickness);
+        return s;
+    }
+private:
+    const int m_thickness;
+};
+} // namespace
+
 FrmKameMain::EdgeSlider *
 FrmKameMain::edgeSliderFor(QDockWidget *dock) {
     for(auto &&s: m_edgeSliders)
@@ -381,8 +417,16 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
         //into, and an activated toolbox would also pin itself open below.
         dock->setAttribute(Qt::WA_ShowWithoutActivating);
         int tabw = 24;
-        if(QTabBar *tabs = area->findChild<QTabBar *>())
+        if(QTabBar *tabs = area->findChild<QTabBar *>()) {
+            //A fifth wider than the style's own idea, for a comfortable hover
+            //target and a more legible resting bar.  One constant: 2x also
+            //works and still fits every pane, if that reads better.
+            auto *wide = new WideTabStyle(tabs->sizeHint().width() * 6 / 5);
+            wide->setParent(this);
+            tabs->setStyle(wide);
+            tabs->updateGeometry();
             tabw = std::max(tabw, tabs->sizeHint().width());
+        }
         auto *anim = new QPropertyAnimation(dock, "geometry", this);
         anim->setDuration(220);
         anim->setEasingCurve(QEasingCurve::OutCubic);
