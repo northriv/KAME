@@ -204,15 +204,18 @@ FrmKameMain::FrmKameMain()
     bool can_place_windows = !QGuiApplication::platformName().startsWith("wayland");
     if(can_place_windows) {
         dockLeft->setFloating(true);
+        //No minimize button: shrinking to the edge bar is what getting a
+        //toolbox out of the way means now, and it leaves something on screen
+        //to bring it back with.  A minimized toolbox leaves nothing.
         dockLeft->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
-            Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
+            Qt::CustomizeWindowHint | Qt::WindowTitleHint);
         dockLeft->setWindowOpacity(0.8);
         dockLeft->resize(std::max(rect.width() / 5, XMessageBox::form()->width() + 80),
             std::max(rect.height() / 2, 360));
         dockLeft->move(0, rect.top());
         dockRight->setFloating(true);
         dockRight->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
-            Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
+            Qt::CustomizeWindowHint | Qt::WindowTitleHint);
         dockRight->setWindowOpacity(0.8);
         dockRight->resize(std::max(rect.width() / 5, 450), dockLeft->height());
         dockRight->move(rect.right() - dockRight->frameSize().width() - 6, rect.top());
@@ -310,7 +313,8 @@ FrmKameMain::toggleToolboxPane(QMdiSubWindow *wnd) {
     for(auto &&pane: m_toolboxPanes) {
         if(pane.wnd != wnd) continue;
         EdgeSlider *slider = edgeSliderFor(pane.dock);
-        bool folded = !pane.dock->isVisible() || (slider && slider->collapsed);
+        bool folded = !pane.dock->isVisible() || pane.dock->isMinimized() ||
+            (slider && slider->collapsed);
         if( !folded && (pane.area->activeSubWindow() == pane.wnd)) {
             //The pane on screen was clicked: fold the toolbox away — shrink it
             //to its edge bar where it has one, else hide the dock outright.
@@ -318,11 +322,21 @@ FrmKameMain::toggleToolboxPane(QMdiSubWindow *wnd) {
             else pane.dock->hide();
         }
         else {
-            pane.dock->show();
+            //A toolbox that got minimized is out of reach of its hover bar, so
+            //this menu is its only way back — and it cannot trust Qt's own
+            //answer about the state: a Qt::Tool window sent to the macOS Dock
+            //still reports isVisible() == true and isMinimized() == false
+            //(measured), which is why nothing here used to bring it back.  So
+            //clear the state where the platform does report it, and otherwise
+            //rely on raise() + activateWindow(), which deminiaturizes.
+            if(pane.dock->isMinimized())
+                pane.dock->setWindowState(pane.dock->windowState() & ~Qt::WindowMinimized);
+            pane.dock->showNormal();
             if(slider && slider->collapsed) setToolboxCollapsed( *slider, false);
             pane.area->setActiveSubWindow(pane.wnd);
             pane.wnd->showMaximized();
             pane.dock->raise();
+            pane.dock->activateWindow(); //asked for explicitly, unlike a hover
         }
         break;
     }
@@ -415,6 +429,7 @@ FrmKameMain::pollEdgeAutoHide() {
     for(auto &&s: m_edgeSliders) {
         if(s.anim->state() == QAbstractAnimation::Running) continue;
         if( !s.dock->isFloating() || !s.dock->isVisible()) continue;
+        if(s.dock->isMinimized()) continue; //out of reach until the View menu restores it
         bool over = s.dock->frameGeometry().contains(c);
         if(s.collapsed) {
             if(over) setToolboxCollapsed(s, false);
