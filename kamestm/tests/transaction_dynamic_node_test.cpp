@@ -20,16 +20,37 @@ atomic<long> total = 0; //The sum of payloads.
 //#define TRANSACTIONAL_STRICT_assert
 
 class LongNode;
+
+//! Opt-in leak localiser for the `objcnt != 0` failure (a live node surviving
+//! the reset of every root).  OFF by default and deliberately so: the
+//! registry takes a mutex in every LongNode ctor/dtor, and the nodes are
+//! created in hot loops, so it perturbs exactly the interleaving that makes
+//! the failure appear at all (2/18 on -m32 -march=i486 -O3, never yet on
+//! x86-64 / arm64).  Build the plain binary to reproduce, this one to look:
+//!   -DDYN_TEST_LEAK_REGISTRY
+#ifdef DYN_TEST_LEAK_REGISTRY
+#include <mutex>
+#include <set>
+static std::mutex g_live_mutex;
+static std::set<LongNode*> &live_set() {static std::set<LongNode*> s; return s;}
+#endif
+
 typedef Transactional::Snapshot<LongNode> Snapshot;
 typedef Transactional::Transaction<LongNode> Transaction;
 
 class LongNode : public Transactional::Node<LongNode> {
 public:
 	LongNode() : Transactional::Node<LongNode>() {
+#ifdef DYN_TEST_LEAK_REGISTRY
+		{std::lock_guard<std::mutex> lock(g_live_mutex); live_set().insert(this);}
+#endif
 		++objcnt;
 	//	trans(*this) = 0;
 	}
 	virtual ~LongNode() {
+#ifdef DYN_TEST_LEAK_REGISTRY
+		{std::lock_guard<std::mutex> lock(g_live_mutex); live_set().erase(this);}
+#endif
 		--objcnt;
 	}
 
@@ -167,7 +188,14 @@ start_routine(void) {
     return;
 }
 
+//! Overridable from the build (-DNUM_THREADS=16): the failure this test hunts
+//! needs MORE CONCURRENT READERS ON ONE SLOT than the tagged pointer's local
+//! refcount can hold (LOCAL_REF_CAPACITY), so the thread count -- not the
+//! machine load -- is the knob.  Running N copies of the process does NOT
+//! substitute: each process has its own nodes.
+#ifndef NUM_THREADS
 #define NUM_THREADS 4
+#endif
 
 int
 main(int argc, char **argv) {
@@ -345,6 +373,9 @@ main(int argc, char **argv) {
 			return -1;
 		}
 
+#ifdef DYN_TEST_LEAK_REGISTRY
+		void *root_addrs[5] = {gn1.get(), gn2.get(), gn3.get(), gn4.get(), p1.get()};
+#endif
 		gn1.reset();
 		gn2.reset();
 		gn3.reset();
@@ -352,7 +383,25 @@ main(int argc, char **argv) {
 		p1.reset();
 
 		if(objcnt != 0) {
-			printf("failed1\n");
+			//! Distinct from the payload check above: this one means live
+			//! LongNode objects survived the reset of every root, i.e. a
+			//! reference leak, not a value error.  It used to print the same
+			//! "failed1" as the payload branch, which made a sporadic i486
+			//! (KAME_STM_COMPACT_STATE) failure indistinguishable from it in
+			//! the log -- the only clue was the ABSENCE of the Gn lines.
+			printf("failed objcnt=%d total=%ld\n", (int)objcnt, (long)total);
+#ifdef DYN_TEST_LEAK_REGISTRY
+			{
+				std::lock_guard<std::mutex> lock(g_live_mutex);
+				printf("survivors=%d (roots were gn1=%p gn2=%p gn3=%p gn4=%p p1=%p)\n",
+					(int)live_set().size(), root_addrs[0], root_addrs[1],
+					root_addrs[2], root_addrs[3], root_addrs[4]);
+				for(auto *pn : live_set()) {
+					printf("survivor %p: ", (void *)pn);
+					pn->print_();   //!< shows missing/bundled state + subnodes
+				}
+			}
+#endif
 			return -1;
 		}
 		if(total != 0) {

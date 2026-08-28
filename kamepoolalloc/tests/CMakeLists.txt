@@ -158,17 +158,18 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_thread_exit_free_test_dynamic alloc_thread_exit_free_test.cpp)
     target_link_libraries(alloc_thread_exit_free_test_dynamic kamepoolalloc Threads::Threads)
 
-    # Exclusivity across thread teardown -- the allocator must never hand out
-    # a block that is still live.  Guards the batch-after-destructor defect
-    # (design/BATCH_AFTER_DESTRUCTOR.md): frees from a pthread_key destructor
-    # run AFTER ~CrossDeallocBatch (glibc calls __call_tls_dtors before
-    # __nptl_deallocate_tsd) and were resurrecting the destroyed batch, so a
+    # Exclusivity across thread teardown -- the allocator must never hand out a
+    # block that is still live.  Guards the post-teardown free bypass: frees from
+    # a pthread_key destructor run AFTER the C++ thread_local destructors (glibc
+    # calls __call_tls_dtors before __nptl_deallocate_tsd, and kamestm registers
+    # such a key), and were resurrecting the destroyed cross-dealloc batch, so a
     # slot went back to the bitmap after its owner had re-issued it.
     #
-    # Its sibling above models the same teardown ORDERING but asserts against
-    # leaks; nothing asserted exclusivity, which is why this defect surfaced
-    # four levels away, as garbage inside a still-referenced STM Packet.
-    # Measured on the unfixed allocator: 5/20 runs, in 0.39 s each.
+    # Its sibling above models the same teardown ORDERING but asserts only against
+    # leaks; nothing asserted exclusivity, which is why the defect surfaced four
+    # levels away as garbage inside a still-referenced STM Packet.  Measured on the
+    # unfixed allocator: 5/20 runs, 0.39 s each, against two minutes for the STM
+    # reproducer that originally found it.
     add_executable(alloc_tsd_exclusivity_test alloc_tsd_exclusivity_test.cpp)
     target_link_libraries(alloc_tsd_exclusivity_test kamepoolalloc Threads::Threads)
 

@@ -1042,6 +1042,46 @@ remove the `canFinalize` gating in `BundlePhase4`.
 
 ---
 
+## 5b. Pool-allocator slot custody and thread exit (TLA+)
+
+Two specs cover the pool allocator rather than the STM, and both are checked with
+plain TLC (no GenMC counterpart — they are about a state machine, not a memory
+model).  Each carries its expected results in its header, including which bug
+knobs are expected NOT to fire and why.
+
+| spec | what it models | configs |
+|---|---|---|
+| `OrphanAdoptFreelist.tla` | per-chunk slot custody: the bitmap, live slots, the parked word-cache mask, the owner freelist (`m_freelist_head[0]`, whose slots keep their bit SET), and per-thread batched cross-thread frees.  Thread exit is two ordered phases and an exited thread is permanently gone. | `OrphanAdoptFreelist_none.cfg` (3 slots × 2 threads, 1185 states), `..._none_4s3t.cfg` (4 × 3, 37639 states, depth 16) |
+| `ExitWalk.tla` | the thread-exit DLL walk over several chunks, with the per-chunk drain and disown as separate steps so a peer can adopt in between | `ExitWalk_none.cfg` (2 chunks × 2 slots × 2 threads, 13600 states) |
+
+```bash
+cd kamestm/tests/tlaplus
+java -XX:+UseParallelGC -cp tla2tools.jar tlc2.TLC -deadlock -workers 8 \
+     -config OrphanAdoptFreelist_none.cfg OrphanAdoptFreelist
+java -XX:+UseParallelGC -cp tla2tools.jar tlc2.TLC -deadlock -workers 8 \
+     -config ExitWalk_none.cfg ExitWalk
+```
+
+Two results are worth stating outside the headers, because production code depends
+on them:
+
+* **`ExitWalk`'s `BUG_STALE_FLIST` violates while `BUG_DRAIN_AFTER_DISOWN` does
+  not.**  The exit walk is safe iff the drain's view of the freelist is current —
+  the per-chunk drain/disown *order* is not what carries safety.  The code captures
+  the chain (`fh = head; head = NULL; walk fh`), and what makes that safe is that
+  `BIT_OWNED` is still set while the walk holds it.
+* **`OrphanAdoptFreelist`'s `BUG_NO_BATCH_AT_EXIT` violates `NoLostEntries`.**  That
+  is a real failure mode of thread exit: a thread whose pending cross-thread frees
+  are applied after its chunks have been disowned.  Whether the production teardown
+  admits it, and where a flush would have to go to close it, is open — an attempt
+  that flushed at the head of `~AllocThreadExitCleanup` made the crashing
+  reproducer worse, so the spec result is a statement about the model, not an
+  endorsement of that placement.
+  The three "forgot to drain" knobs deliberately do *not* fire — a non-drained mask
+  or freelist is inherited by whoever adopts the chunk — and an `X ⊆ bits` invariant
+  family cannot detect a failure to *clear* at all, which is why `BitsAccounted` and
+  `NoLostEntries` are in the spec.
+
 ## 6. Runtime Stress Tests (C++)
 
 **Directory:** `tests/`

@@ -551,9 +551,14 @@ inline void pf_excl_report_at_exit() noexcept {
     (void)once;
 }
 inline std::size_t pf_shadow_slot(std::uintptr_t a) noexcept {
-    a >>= 4;                                    // pool blocks are 16-aligned
-    a *= 0x9E3779B97F4A7C15ull;
-    return static_cast<std::size_t>(a >> (64 - PF_SHADOW_BITS));
+    // Mix in uint64_t, NOT in uintptr_t: on ILP32 the multiply truncates to 32
+    // bits and `>> (64 - PF_SHADOW_BITS)` then shifts a 32-bit value by 41 —
+    // undefined, and in practice every address landing on slot 0, i.e. a
+    // detector that reports nothing on the width where the original fault
+    // reproduced at 10-25%.  Same bug was in alloc_tsd_exclusivity_test.
+    std::uint64_t h = static_cast<std::uint64_t>(a) >> 4;  // blocks are 16-aligned
+    h *= 0x9E3779B97F4A7C15ull;
+    return static_cast<std::size_t>(h >> (64 - PF_SHADOW_BITS));
 }
 
 //! `KAME_PF_NO_TALLY` drops the per-type counters and the slot provenance.

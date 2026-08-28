@@ -34,7 +34,17 @@ QMAKE_CXXFLAGS += -Wno-register
 # writes text and is always built, and .kam files are loaded by the Python
 # loader whenever USE_PYBIND11 is set, which is already the default path.
 # What goes away is running .rb files and the Ruby line shell.
-!no_ruby: DEFINES += USE_RUBY
+#
+# USE_RUBY is deliberately NOT defined here.  Every target includes this file,
+# but only kame/kame.pro looks for ruby.h -- so defining it here handed the
+# modules a "yes" that the app itself could answer "no", and a macro that some
+# translation units see and others do not is an ABI split waiting for a
+# header to key a class layout on it.  8bb86a9b6 is what that costs: one
+# member of XMeasure behind #ifdef USE_RUBY moved every later member by 16
+# bytes, the modules' m_interfaces landed on the app's m_drivers, and adding
+# any driver corrupted the node tree on the spot.  The define now lives with
+# the detection, in kame/kame.pro, and only that target's own sources
+# (kame.cpp, measure.cpp, kame.h) may test it.
 
 # Run the kamepoolalloc pool allocator (NOT std::allocator) in production.
 # `-= USE_STD_ALLOCATOR` clears any inherited definition so the pool path in

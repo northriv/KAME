@@ -739,11 +739,16 @@ void FrmKameMain::scriptRunAction_activated() {
 void FrmKameMain::pythonLineShellAction_activated() {
     scriptLineShellAction_activated(PY_LINESHELL_FILE);
 }
-#ifdef USE_RUBY
 void FrmKameMain::rubyLineShellAction_activated() {
+#ifdef USE_RUBY
     scriptLineShellAction_activated(RB_LINESHELL_FILE);
-}
+#else
+    //Unreachable: the menu action itself is only created under USE_RUBY.
+    //The FUNCTION still exists in every build so that the vtable does not
+    //depend on the macro -- see the note on its declaration.
+    gErrPrint(i18n("Built without the Ruby interpreter."));
 #endif
+}
 
 
 void FrmKameMain::scriptLineShellAction_activated(const char *name) {

@@ -61,9 +61,13 @@ std::atomic<int>             g_violations{0};
 std::atomic<bool>            g_stop{false};
 
 std::size_t shadow_slot(std::uintptr_t a) noexcept {
-    a >>= 4;
-    a *= 0x9E3779B97F4A7C15ull;
-    return static_cast<std::size_t>(a >> (64 - SHADOW_BITS));
+    // Mix in uint64_t, not in uintptr_t: on ILP32 the multiply would truncate and
+    // `>> (64 - SHADOW_BITS)` would shift a 32-bit value by 44 — undefined, and in
+    // practice every address collapsing onto slot 0, i.e. a test that reports
+    // nothing.  i486 is one of the platforms the original fault reproduced on.
+    std::uint64_t h = static_cast<std::uint64_t>(a) >> 4;
+    h *= 0x9E3779B97F4A7C15ull;
+    return static_cast<std::size_t>(h >> (64 - SHADOW_BITS));
 }
 
 void *tracked_alloc() {

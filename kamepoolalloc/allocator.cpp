@@ -44,6 +44,51 @@
 //     All other workloads parity.
 #define LEAVE_VACANT_CHUNKS_PER_THREAD 2
 
+//! GCC targeting macOS cannot host this file, and the reason is structural
+//! rather than a bug to fix here.  Measured with GCC 15.2 / arm64 macOS 25
+//! (2026-08-22):
+//!
+//!  1. `__attribute__((constructor(N)))` is rejected on Mach-O
+//!     ("constructor priorities are not supported"), so it does not compile.
+//!     Drop the priority to get past that, and then:
+//!  2. GCC on Mach-O has no native TLS — every `thread_local` (and every
+//!     `__thread`, INCLUDING one marked `tls_model("initial-exec")`: measured,
+//!     the attribute is silently ignored) becomes libgcc's EMULATED TLS, and
+//!     `__emutls_get_address()` ALLOCATES.  With the pool interposing malloc
+//!     that is an unbounded cycle.  One lldb backtrace holds the whole loop:
+//!
+//!         #0 __emutls_get_address        emutls.c:149
+//!         #1 new_redirected_cold         <- the pool's own thread_local
+//!         #2 kame_malloc_slow            <- our interposed malloc
+//!         #3 emutls_alloc                emutls.c:119  <- emutls calls malloc
+//!         #4 __emutls_get_address        emutls.c:204
+//!         #5 new_redirected_cold         <- and around again
+//!         #6 kame_malloc_slow
+//!         #7 libsystem_malloc <- libobjc _objc_init <- dyld initializers
+//!
+//!     It starts in dyld's initializers, so the process dies of stack
+//!     exhaustion in `__emutls_get_address` before `main` — every run, any
+//!     workload.  This is the one case the usual defence does not cover: the
+//!     pool already avoids allocating TLS the way mimalloc does (initial-exec
+//!     on ELF, direct TPIDRRO_EL0 + TSD-slot reads on macOS, an OS-direct
+//!     path before init), but emutls cannot be made non-allocating, and
+//!     arming the fast-TSD path itself needs TLS.
+//!
+//! Unconditional, with no version bound: upstream GCC has shown no intent to
+//! implement native Mach-O TLS, so gating on __GNUC__ would only invite a
+//! future reader to assume a newer GCC had fixed it.  If one ever does, this
+//! is a one-line change, and the check is a one-liner too:
+//!
+//!     printf 'thread_local int x; int*f(){return &x;}\n' \
+//!       | g++ -O2 -S -x c++ - -o - | grep -c __emutls_get_address
+//!
+//! The fix is the same either way: build with clang (the supported macOS
+//! toolchain; Linux GCC has native TLS and is fine), or configure with
+//! USE_KAME_ALLOCATOR=OFF, which never compiles this file.
+#if defined(__APPLE__) && defined(__GNUC__) && !defined(__clang__)
+#  error "kamepoolalloc: GCC on macOS is unsupported -- its emulated TLS allocates, so the pool's own thread_local recurses through the interposed malloc until the stack is gone (dies in __emutls_get_address before main). Use clang, or configure with USE_KAME_ALLOCATOR=OFF."
+#endif
+
 #include "allocator.h"
 #include "kame_pool.h"        // C-API stats struct + version macro
 #if defined(__linux__)
@@ -565,6 +610,11 @@ struct AllocThreadExitCleanup {
         // `PoolAllocator<>::release_dll_chunks_for_thread` for details.
         for(int i = 0; i < count; ++i)
             release_fns[i]();
+        // Free-path teardown flag, in the page the free path already loads.  Set
+        // BEFORE `s_alloc_tls_off` so the two cannot disagree in the window between
+        // them.  `~CrossDeallocBatch` arms the same flag — see
+        // `kame_mark_thread_torn_down()` for why either destructor may be first.
+        kame_mark_thread_torn_down();
         // Signal that pool-allocator TLS is dead.  Read by
         // `is_allocator_thread_active()` from later (pthread_key) TLS
         // dtors.  `new_redirected` itself no longer checks this flag —
@@ -574,8 +624,8 @@ struct AllocThreadExitCleanup {
         // slot at the static teardown sentinel.  After this, any later
         // pthread_key dtor (e.g. libc++ ~__thread_struct) that frees a pool
         // pointer reaches `deallocate` → owner-id mismatch (sentinel
-        // owner_id == 0) → cold `deallocate_pooled`, which identity-compares
-        // `kame_page() == &g_teardown_page` and takes a TLS-free path
+        // owner_id == 0) → cold `deallocate_pooled`, whose
+        // `kame_thread_torn_down()` reads that page's `torn_down` and takes a TLS-free path
         // WITHOUT re-touching `s_tls` / `&s_tls.dll_head` — whose TLV may
         // already be finalized, so a `_tlv_get_addr` re-instantiation would
         // `malloc` mid-teardown and trap.  This write is value-only (a
@@ -583,9 +633,11 @@ struct AllocThreadExitCleanup {
         //
         // macOS-only: the sentinel exists solely to give the fast-TSD
         // `kame_page()` a teardown-safe value to return.  On Linux/Windows
-        // `tls_page_ie` does not exist (the page is read directly as IE TLS)
-        // and `kame_thread_torn_down()` uses the teardown-safe `s_alloc_tls_off`
-        // flag set above — nothing to redirect here.
+        // `tls_page_ie` does not exist (the page is read directly as IE TLS),
+        // so there is nothing to redirect — the `torn_down` store above is what
+        // `kame_thread_torn_down()` reads there.  Note the asymmetry that this
+        // implies, and that cost a real bug: a predicate written as a compare
+        // against this sentinel is macOS-only by construction.
 #if KAME_FAST_TSD
         tls_page_ie = &g_teardown_page;
         if(s_kame_page_tsd_offset != 0) {
@@ -675,23 +727,6 @@ static ALLOC_TLS_IE bool  tls_batch_destroyed = false;
 static ALLOC_TLS_IE bool  tls_batch_warned = false;
 static ALLOC_TLS_IE int   tls_batch_count_at_destroy = -1;
 #endif
-//! (§batch-after-death) Set by `~CrossDeallocBatch`, read by `push`.
-//!
-//! MUST be namespace-scope TLS, not a member: the store happens inside the
-//! destructor, i.e. into an object whose lifetime is ending, where the
-//! compiler may legally drop it (-flifetime-dse).  A member flag reads back
-//! stale for exactly the accesses this is meant to catch.
-//!
-//! Why it is needed at all: glibc runs `__call_tls_dtors()` (C++
-//! thread_local destructors, including ~CrossDeallocBatch) BEFORE
-//! `__nptl_deallocate_tsd()` (pthread_key destructors).  KAME registers a
-//! pthread_key destructor -- `Transactional::detail::pthread_destroy`,
-//! kamestm/threadlocal.cpp -- which frees STM objects.  Those frees run
-//! after this batch has been destroyed, and were resurrecting it: measured
-//! here refilling to the full 1024 entries and flushing, from both teardown
-//! phases.  Using an object after its destructor is UB regardless of what
-//! it appears to do.
-static ALLOC_TLS_IE bool tls_batch_dead = false;
 
 struct CrossDeallocBatch {
     // FS=true-only small-slot batch (FS=false bypasses
@@ -735,18 +770,6 @@ struct CrossDeallocBatch {
     //! FS=true path: hold and batch.  Caller passes its own `this`
     //! as `c` (the chunk).
     void push(PoolAllocatorBase *c, void *s) noexcept {
-        if(__builtin_expect(tls_batch_dead, 0)) {
-            // Post-destructor free (see tls_batch_dead): settle it directly
-            // instead of buffering into a destroyed object.  Nothing would
-            // ever flush what we buffered here -- ~CrossDeallocBatch has
-            // already run and will not run again -- so this is also the
-            // only way these slots get returned at all.  Same shape as
-            // `push_direct`'s direct arm, minus the DLL-cursor poke, which
-            // is pointless once this thread is exiting.
-            CrossDeallocEntry tmp[2] = {{c, s}, {nullptr, nullptr}};
-            c->batch_return_to_bitmap(tmp);
-            return;
-        }
         if(count >= cap) flush();
         buf[count++] = {c, s};
     }
@@ -774,17 +797,6 @@ struct CrossDeallocBatch {
 
     template <unsigned ALIGN>
     void push_direct(PoolAllocatorBase *c, void *s) noexcept {
-        if(__builtin_expect(tls_batch_dead, 0)) {
-            // Same reason as `push` (see tls_batch_dead).  Guarding here
-            // too keeps the post-destructor path from reading `this`'s
-            // members (`explore_counter`) at all -- the hold arm would
-            // reach the guard in `push` anyway, but only after touching a
-            // destroyed object.  The TLS base is already live in this
-            // function, so the test is a load and a predicted branch.
-            CrossDeallocEntry tmp[2] = {{c, s}, {nullptr, nullptr}};
-            c->batch_return_to_bitmap(tmp);
-            return;
-        }
         constexpr uint8_t threshold_x16 =
             (ALIGN <=  64) ? 20 :
             (ALIGN <= 128) ? 24 :
@@ -843,12 +855,6 @@ struct CrossDeallocBatch {
     // The poke is a pure slot-reuse hint, worthless at teardown, so we
     // simply drop it there — the slots are still returned to the bitmap.
     void flush(bool at_teardown = false) noexcept {
-        // A flush after ~CrossDeallocBatch would be operating on a
-        // destroyed object.  With the guards in `push`/`push_direct`
-        // nothing accumulates post-destruction, so this is belt-and-braces
-        // for the external callers (the realtime-mode switch, the RT
-        // pending-cap drain) rather than a live path.
-        if(__builtin_expect(tls_batch_dead, 0)) return;
 #ifdef KAME_ALLOC_TIER_TRACE
         // (§tier-trace) Two ways this batch can return a slot twice, both
         // of which would clear a LIVE slot's bitmap bit:
@@ -954,10 +960,18 @@ struct CrossDeallocBatch {
     }
     ~CrossDeallocBatch() noexcept {
         flush(/*at_teardown=*/true);
-        tls_batch_dead = true;
+        // Arm the free-path bypass AFTER the real backlog has gone back to the
+        // bitmaps: from here on `this` is a destroyed object, and a later free
+        // (a pthread_key destructor — glibc runs `__nptl_deallocate_tsd` after
+        // `__call_tls_dtors`, and kamestm registers one) must not resurrect it.
+        // If `~AllocThreadExitCleanup` ran first the flag is already set; if it
+        // did NOT, this is the only thing standing between that later free and a
+        // dead batch, which is why the flag has two arming sites.
+        kame_mark_thread_torn_down();
 #ifdef KAME_ALLOC_TIER_TRACE
-        // Both stores target namespace-scope TLS, NOT members: a member
-        // written here is a dead store into a dying object and vanishes.
+        // Diagnostics only.  Both stores target namespace-scope TLS, NOT
+        // members: a member written here is a dead store into a dying object
+        // and vanishes under -flifetime-dse.
         tls_batch_count_at_destroy = count;
         tls_batch_destroyed = true;
 #endif
@@ -1954,12 +1968,15 @@ template <unsigned int ALIGN, bool DUMMY>
 bool
 PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// (§hot-tls teardown) COLD path only.  If THIS thread has run its
-	// allocator cleanup, the fast-TSD page is the static teardown sentinel
-	// (pure pointer compare — no `_tlv_get_addr`, no `g_tls_page` deref).
-	// In that state `s_tls.my_chunk` (1540) and `&s_tls.dll_head` (the
-	// cursor-reset below) may be torn down; route the slot straight to the
-	// bitmap and return, touching no thread-local.
-	if(__builtin_expect(kame_page() == &g_teardown_page, 0)) {
+	// allocator cleanup, `s_tls.my_chunk` (1540) and `&s_tls.dll_head` (the
+	// cursor-reset below) may be torn down, and so may the cross-dealloc batch
+	// this would otherwise push into; route the slot straight to the bitmap and
+	// return, touching no thread-local.
+	//
+	// The predicate MUST be `kame_thread_torn_down()`, not a compare against
+	// `&g_teardown_page`: only macOS repoints `kame_page()`, so the compare is
+	// tautologically false elsewhere and this bypass was dead on Linux/Windows.
+	if(__builtin_expect(kame_thread_torn_down(), 0)) {
 		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
 		this->batch_return_to_bitmap(tmp);
 		return false;
@@ -2417,13 +2434,17 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// (§hot-tls teardown) This is the COLD path — `deallocate`'s hot
 	// owner-match returns before invoking the trampoline, so nothing here
 	// affects the hot path.  If THIS thread has already run its allocator
-	// cleanup, its fast-TSD page is the static teardown sentinel; detect it
-	// with a pure pointer compare (NO `_tlv_get_addr`, NO deref of
-	// `g_tls_page`'s possibly-finalized TLV storage).  In that state `s_tls`
-	// and `&s_tls.dll_head` may be torn down, so we must touch NO thread-local:
-	// route the single slot straight to the bitmap (TLS-free, scratch +
-	// sentinel) and return.  Subsumes the former `s_alloc_tls_off` bypass.
-	if(__builtin_expect(kame_page() == &g_teardown_page, 0)) {
+	// cleanup, `s_tls` and `&s_tls.dll_head` may be torn down and the
+	// cross-dealloc batch below may already have been flushed and destroyed, so
+	// we must touch NO thread-local: route the single slot straight to the bitmap
+	// (TLS-free, scratch + sentinel) and return.  Subsumes the former
+	// `s_alloc_tls_off` bypass, and is the only bypass — the batch push further
+	// down assumes it has run.
+	//
+	// The predicate MUST be `kame_thread_torn_down()`, not a compare against
+	// `&g_teardown_page`: only macOS repoints `kame_page()`, so the compare is
+	// tautologically false elsewhere and this bypass was dead on Linux/Windows.
+	if(__builtin_expect(kame_thread_torn_down(), 0)) {
 		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
 		this->batch_return_to_bitmap(tmp);
 		return false;
@@ -2458,12 +2479,19 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// (warm-recycled) once its last live slot is returned.
 	//
 	// (§hot-tls teardown) The former `if(s_alloc_tls_off)` post-teardown
-	// bypass that lived here is gone: the teardown-sentinel check at the TOP
-	// of this function already routed thread-exit frees to a TLS-free bitmap
+	// bypass that lived here is gone: the `kame_thread_torn_down()` check at the
+	// TOP of this function already routed thread-exit frees to a TLS-free bitmap
 	// return (it also subsumed that branch's `&s_tls.dll_head` cursor reset,
 	// which is moot for a dying thread).  Reaching this point therefore
 	// implies the freeing thread is alive, so the `tls_cross_dealloc_batch`
 	// touch below is safe.
+	//
+	// That premise is load-bearing and was FALSE for two years on Linux and
+	// Windows: the check at the top used to be a compare against
+	// `&g_teardown_page`, which only macOS ever repoints, so it folded to a
+	// constant false and torn-down threads pushed into a destroyed batch from
+	// here.  If the top-of-function predicate is ever changed, re-derive this
+	// paragraph — do not assume it still holds.
 	// FS=true ALIGN ≤ 48 (sizes 16/32/48): hold-and-batch path.  1
 	// bit per slot in m_flags ⇒ up to 64 slots per FUINT word; a
 	// deep (CAP=1024) accumulation window gives same-chunk same-
@@ -2831,13 +2859,17 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// memory growth = mmap rate (one new chunk per chunk-fill); this
 	// release path balances it at the same cadence.
 	//
-	// Safety: an earlier change `owner_release` CAS's `BIT_RELEASED` on the
-	// chunk's `m_flags_packed` — this races safely against any
-	// cross-thread `cross_release`, but cross_release additionally
-	// requires `BIT_OWNER_EXITED == 1` which only the owner's
-	// exit-path sets, so while we're alive only `owner_release` can
-	// win the race.  Caller (us) handles the post-CAS DLL unlink +
-	// `delete` + `deallocate_chunk`.
+	// Safety: `owner_release` clears BIT_OWNED with an atomicFetchAnd and only
+	// reports success when the word reached 0, i.e. when it is the unique
+	// releaser; the caller then does the DLL unlink + `delete` +
+	// `deallocate_chunk`.  Note what its give-up return leaves behind: BIT_OWNED
+	// already cleared on a chunk that is NOT on the orphan chain, which is a state
+	// the free path's `OnClearFn`s assume cannot occur (they decline to release a
+	// BIT_OWNED-clear chunk precisely because they take it to be chained).  The
+	// give-up needs MASK_CNT to rise between the pre-check and the fetch-and, and
+	// MASK_CNT is only ever raised by the owner's own claim path, so it is
+	// unreachable today — do not make it reachable without revisiting those
+	// OnClearFns.
 	if(s_tls.my_chunk) {
 		auto *nx = s_tls.my_chunk->m_dll_next;
 		for(int released = 0; nx && released < 2; ) {
@@ -4758,17 +4790,18 @@ void *cold_first_access(unsigned bucket, std::size_t size) noexcept {
 // `g_tls_page.owner_id` defaults to 0 (unassigned).
 // `g_tls_page.m_slots[]` defaults to all-zeros (nullptr freelist heads).
 #if KAME_FAST_TSD
-ALLOC_TLS    KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, 0, {}};
+ALLOC_TLS    KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, {}};
 ALLOC_TLS_IE KameTlsPage *tls_page_ie = nullptr;
 #else
-ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, 0, {}};
+ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, {}};
 #endif
 
 // (§hot-tls teardown sentinel) NOT thread-local: one process-global page,
 // never freed, owner_id == 0.  See allocator_prv.h for the two-role rationale.
-// owner_id 0 guarantees the hot owner-check never matches it; the cold dealloc
-// path identity-compares against `&g_teardown_page` to take a TLS-free route.
-KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, 0, {}};
+// owner_id 0 guarantees the hot owner-check never matches it; `torn_down` is SET
+// statically so `kame_thread_torn_down()` reports torn-down through this page as
+// well as through a real page whose cleanup has run.
+KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/1, {}};
 
 #ifdef KAME_ALLOC_TIER_TRACE
 //! (§tier-trace) See allocator_prv.h.  extern "C" + default visibility so a
@@ -7757,6 +7790,11 @@ extern "C" void kame_pool_set_realtime_mode(int enable) noexcept {
 
 extern "C" void kame_pool_set_realtime_thread(int level) noexcept {
 	if(level < 0 || level > 2) return;                  // ignore out-of-range
+	// The only `flush()` caller outside the alloc/free paths, and a public entry
+	// point, so it is the one place a destroyed batch is reachable without going
+	// through `deallocate_pooled`'s bypass.  A thread past its own allocator
+	// teardown has no RT section left to tune, and `g_rt_thread` is TLS too.
+	if(__builtin_expect(kame_thread_torn_down(), 0)) return;
 	g_rt_thread = level;
 	// (§75 / G5) STRICT only: drop the cross-thread batch to per-free
 	// flushing, and settle whatever ordinary work left in it — otherwise the

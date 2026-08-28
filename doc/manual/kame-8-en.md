@@ -252,9 +252,9 @@ udev configuration is required for serial ports and linux-gpib.
 
 For x86 64-bit
 
-Install Qt 6.10 or later (including the llvm-mingw64 configuration; preferably not containing multiple versions), with Qt 5 Compatibility Support. If launching from kame.bat, also install the MinGW 64-bit configuration. https://www.qt.io/
+Install Qt 6.10 or later (including the llvm-mingw64 configuration), with Qt 5 Compatibility Support. If launching from kame.bat, also install the MinGW 64-bit configuration. https://www.qt.io/
 
-If startup fails due to multiple Qt versions, edit qtdir.txt to keep only entries for 6.10 or later.
+Several Qt versions may coexist: the launcher takes the highest one it finds and caches the choice in qtdir.txt. To pin a different one, put the full path of that kit's Qt6Core.dll in qtdir.txt. If your Qt is somewhere unusual, set QTROOT to the folder holding the version directories (e.g. `set QTROOT=D:\Qt`), which also skips the search entirely.
 
 When using NI GPIB, install the National Instruments 488.2 driver (without removing ANSI C support or Direct Entry).
 

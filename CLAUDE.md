@@ -40,11 +40,37 @@ tree and a release get an identical set. Two traps this cost once:
   this project is built) cannot execute.
 
 `.bat` files under `tools/` are the tracked originals; the copies in a build
-directory are disposable. `findstr` has no alternation and its `*` repeats only
-the preceding element, so a Qt-version filter needs two `/c:` patterns
-(`6.[5-9]` **plus** `6.[1-9][0-9]`) — `6.[5-9]` alone silently fails to match a
-two-digit minor such as 6.10, which is how `kame-msyspython.bat` stopped finding
-Qt while `kame.bat` (plain `6.*`) still did.
+directory are disposable.
+
+**Qt discovery lives in `tools/kame-qtenv.bat`**, which `kame.bat` and
+`kame-msyspython.bat` both `call`. The `kame-` prefix is load-bearing:
+`mkzip.bat` packages a release with `copy kame*.bat`, so a plainer name would be
+absent from the zip and every launcher in it would die on its first line. Run it
+as `kame-qtenv.bat print` to see what it would choose without launching KAME.
+`kame.bat` calls it with `mingw`, which additionally puts Qt's sibling
+`mingw_64` kit on PATH for `libgcc_s_seh` / `api-ms-win-core-path`; that kit
+holds a second, GCC-built `Qt6Core.dll`, so it is opt-in and always ordered
+behind `QTDIR\bin`. The MSYS2 launcher omits it and takes those DLLs from
+`C:\msys64\mingw64` instead.
+It replaced an inline search that had three faults worth not reintroducing:
+`dir /S/B` from a drive root (a full disk walk per uncached launch — Qt lives at
+`<root>\<version>\<kit>\bin`, so two levels of globbing suffice); `set /p`
+taking the **first** line, i.e. lexicographic order, which preferred 6.10 over
+6.9 only because `6.1` sorts before `6.9` and would equally prefer 6.10 over
+6.20 (versions are now folded into one integer key, patch included); and a
+`goto start` retry loop that rescanned for ever on a machine with no Qt.
+Version text is never matched with `findstr` any more — worth remembering why:
+`findstr` has no alternation and its `*` repeats only the preceding element, so
+`6.[5-9]` silently missed two-digit minors, which is how `kame-msyspython.bat`
+stopped finding Qt 6.10 while `kame.bat` (plain `6.*`) still did.
+
+Two lines in `kame.bat` had also never executed: `unset PYTHONHOME` (`unset` is
+a Unix builtin, so an inherited `PYTHONHOME` survived into the bundled
+interpreter and anything it spawns) and a `#`-commented `ldd` line (`#` is not a
+cmd comment, so it ran and failed). `rem` is the only comment; `set "VAR="`
+clears. `kame-nooverpaint.bat` was deleted rather than ported: it looked for a
+Qt5 `mingw_32` kit and passed `--nooverpaint`, which `QCommandLineParser` in
+`main.cpp` has not accepted for several major versions and rejects with exit 1.
 
 **macOS dependencies** (via MacPorts under `/opt/local`):
 - `gsl`, `fftw3`, `libtool-ltdl`, `zlib`, `libusb`, `eigen3`, `pybind11` (no boost)
@@ -311,6 +337,26 @@ Details, whichever archetype:
 ## Code Conventions
 
 - All exported symbols use `DECLSPEC_KAME` macro
+- **Never let a build-file macro change a class's layout.** A data member or
+  virtual function behind `#ifdef SOMETHING` in a header is safe only while
+  every translation unit agrees on `SOMETHING` — and macros from `.pro`/`.pri`
+  do not have to agree, because each target evaluates its own. `kame.pri`
+  handed `USE_RUBY` to `libkame` and all 44 module targets while only
+  `kame/kame.pro` looked for `ruby.h`; on a Mac without it the app answered
+  "no" and everyone else "yes". `shared_ptr<XRuby> m_ruby` behind that macro
+  split `sizeof(XMeasure)` by 16 bytes, so the modules' `m_interfaces` landed
+  exactly on the app's `m_drivers` — `meas->interfaces()->insert()` from a
+  module put an `XInterface` into the *driver* list, and the next
+  `static_pointer_cast<XDriver>` walked it. Adding any driver crashed
+  (`8bb86a9b6`). A conditional *virtual* does the same to the vtable.
+  Two rules follow: a macro that only one target can decide must be defined by
+  that target's own `.pro` (`USE_RUBY` now lives in `kame/kame.pro`, and only
+  `kame.cpp` / `measure.cpp` / `kame.h` may test it), and a class member must
+  never sit inside a conditional — gate the *body* in the `.cpp` instead.
+  Guarding a whole class or file is fine: it then either exists or fails to
+  compile, rather than silently disagreeing about offsets. Enforced by
+  `tools/audit/check_conditional_layout.py`, which derives the risky macro set
+  from the build files themselves.
 - **Never use `slots`, `signals`, or `emit` as C++ identifiers** (variable / parameter / member / function names) in any header reachable from a Qt translation unit — i.e. anything `kame/` includes, which includes the entire `kamestm/` STM core (`transaction.h` etc.). Qt's `<QObject>` does `#define slots`, `#define signals public`, `#define emit`, so a parameter named `slots` makes `slots[i]` expand to `[i]` — parsed as a stray lambda → `error: expected body of lambda expression`. These build fine in the Qt-free standalone `kamestm/tests/` harness, so the breakage only surfaces when a Qt module (e.g. `modules/levelmeter/`) is compiled. Use a distinct name (e.g. `slotv` for a slot array — see `Snapshot::LookupMemo::find_slow_`/`set`/`archive_`). The uppercase `SLOTS` constant and prefixed names like `s_sleep_slots` / `m_lookup_slots` / `NEGOTIATE_SLEEP_SLOTS` are safe (the macro is the bare lowercase token). To check a header in isolation: `clang++ -fsyntax-only -D slots= -D 'signals=public' -D emit= ...`.
 - Node payload fields are public members of the nested `Payload` struct inside each node class
 - Prefer `iterate_commit` / `iterate_commit_if` over manual retry loops for transactions
@@ -344,7 +390,8 @@ Details, whichever archetype:
 Rules 1, 3, 4, and 6 — plus the Payload pointer-to-const rule from the STM
 section — are enforced mechanically by `tools/audit/run_audits.sh`
 (node-name collisions, iterate_commit side effects, pybind GIL, UI-touching
-listeners, non-const Payload pointees) — run it after touching any driver; it
+listeners, non-const Payload pointees, build-macro-dependent class layout) —
+run it after touching any driver; it
 also runs as a pre-commit hook (enable once per clone:
 `git config core.hooksPath .githooks`) and in CI (`.github/workflows/audit.yml`).
 Pre-existing findings are grandfathered in `tools/audit/stm_closures.baseline`

@@ -104,9 +104,11 @@ public slots:
     virtual void mesStopAction_activated();
     virtual void scriptMenu_activated();
     virtual void scriptRunAction_activated();
-#ifdef USE_RUBY
+    //! Declared unconditionally even though only a USE_RUBY build can reach
+    //! it: a virtual behind a build-file macro moves every later vtable slot
+    //! for the targets that lack the macro.  Same failure as 8bb86a9b6, one
+    //! table over.  The body is what is gated, in kame.cpp.
     virtual void rubyLineShellAction_activated();
-#endif
     virtual void pythonLineShellAction_activated();
     virtual void jupyterConsoleAction_activated( QAction *act );
     virtual void jupyterQtConsoleAction_activated( QAction *act );

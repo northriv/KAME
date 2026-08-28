@@ -555,6 +555,7 @@ notebook files, `kame_mcp_server.py`, `kame_pydantic_ai.py`,
 |---|---|
 | `kame.bat` | Standard launch — bundled `.\resources\python3.12` (standard library only, no `pip`). Scripting works; there is no `ipykernel`, so no in-process Jupyter kernel — and therefore nothing for the MCP server to attach to |
 | `kame-msyspython.bat` | Launch with MSYS2 Python (`PYTHONHOME=C:\msys64\mingw64`) — the one to use for the in-process Jupyter kernel, given the `python-ipykernel` packages above |
+| `kame-qtenv.bat` | Not launched directly; both of the above `call` it to find Qt. Several Qt versions may coexist — it takes the highest and caches the choice in `qtdir.txt`. Run `kame-qtenv.bat print` to see what it would use, put a specific `Qt6Core.dll` path in `qtdir.txt` to pin one, or `set QTROOT=D:\Qt` if your Qt is somewhere unusual |
 
 To launch from Qt Creator, add to **Projects → Environment**:
 
