@@ -14973,3 +14973,61 @@ failures are `alloc_thread_exit_free_test` and its `_dynamic` twin, which assert
 that thread-exit frees return slots.  Under this arm they deliberately do not.  That
 is the arm working, not a defect, and it is also the reason `leak-all` can only ever
 be a diagnostic: it leaks every slot an exiting thread held.
+
+### 13.225 The three arms are not monotone in "work done after teardown" — the monotone variable is how long an entry is deferred, and there is an arm that bounds only the span that matters
+
+The inference offered: `cap = 1` cures and the exit flush does not, so the problem
+is batch processing after teardown.  The direction is right and the variable is
+not — laid out, the arms disagree with it:
+
+| arm | entries still pending when `~CrossDeallocBatch` runs | failures |
+|---|---|---|
+| `cap = 1` | **1** (`push` flushes *before* it appends, §13.220) | **0/12** (§13.180) |
+| default cap, no exit flush | up to 1024 | 8/28 |
+| default cap, exit flush (v1/v2) | **0** | 21–22/28 |
+
+Ordered by post-teardown work: 1 → cured, many → 29 %, **0 → 75 %**.  Non-monotone,
+with the zero worst, so "processing after teardown" is not it.
+
+**What is monotone is how long an entry sits in the batch.**  `cap = 1` makes that
+~0 for every entry.  The exit flush shortens only the *last* entry's wait — and adds
+an early return, which §13.222 measured as harmful.  It treats the tail while the
+disease is the body, which is exactly why it cannot cure.
+
+> **The fault is a cross-thread free deferred ACROSS a change of chunk ownership**,
+> and §13.222's 32/32 says the exit window — where chunks are disowned, orphaned and
+> adopted — is when ownership changes.  `cap = 1` cures by removing deferral
+> altogether, at ~2.6 M flushes per run.
+
+#### `KAME_FLUSH_ON_EXIT_GEN` — forbid the span, keep the batching
+
+A global generation is bumped at every thread exit; a batch holding entries from an
+older generation flushes before appending.  **No entry outlives a thread exit**, and
+nothing else changes:
+
+```cpp
+unsigned g = s_exit_gen.load(std::memory_order_relaxed);
+if(count != 0 && g != gen_) flush();
+gen_ = g;
+```
+
+Cost is one relaxed load per push on the already-batched path, plus roughly one
+extra flush per thread exit — **~800 per run against `cap = 1`'s ~2.6 M**.  It is
+also the first candidate that is a plausible *fix* rather than a diagnostic: it does
+not leak, does not empty the batch at exit, and does not defeat batching.
+
+**arm64**: `ctest` 41/41, reproducer 3/3, `bench_xthread` 19.83 vs 19.49 M free/s
+(noise — that bench creates no thread exits, so it measures only the added load, not
+the added flushes).
+
+#### How it reads
+
+| gen | reading |
+|---|---|
+| **≈ `cap = 1` (cured)** | confirmed: the span across an ownership change is the variable, and this is the cheap form of the cure.  It then also explains §13.180's dose — a deeper batch is likelier to span an exit. |
+| **≈ rev (8/28)** | spanning a *thread exit* is not the span that matters; the deferral hurts for another reason (depth itself, or spanning some other ownership change such as adoption).  The next arm would bump the generation on **adoption** instead. |
+| **worse than rev** | the added flushes are themselves harmful, which would put it with v1/v2 and point back at early returns. |
+
+Best run alongside `leak`/`leak-all` (§13.223/§13.224): those test whether *returning*
+storage is harmful, this tests whether *deferring* it across an ownership change is.
+The two are independent and the pair of answers is what narrows it.

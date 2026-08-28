@@ -480,6 +480,9 @@ KameTlsPage *kame_page_cold() noexcept {
 // `release_dll_chunks_for_thread` before that chunk's BIT_OWNED clear.
 // Kept as a symbol so the `~AllocThreadExitCleanup` call site stays valid.
 namespace { void drain_thread_slot_freelists() noexcept; }
+#ifdef KAME_FLUSH_ON_EXIT_GEN
+namespace { void kame_bump_exit_generation() noexcept; }   // §13.225
+#endif
 
 // (§22) Unified per-thread large-recycle cache, shared by BOTH large
 // tiers so a tight alloc/free loop of 64 KiB–32 MiB reuses warm VA+pages
@@ -540,6 +543,9 @@ struct AllocThreadExitCleanup {
         if(count < MAX) release_fns[count++] = fn;
     }
     ~AllocThreadExitCleanup() noexcept {
+#ifdef KAME_FLUSH_ON_EXIT_GEN
+        kame_bump_exit_generation();                      // §13.225
+#endif
 #ifdef KAME_BATCH_VERIFY
         g_bv_exits.fetch_add(1, std::memory_order_relaxed);      // §13.204
 #endif
@@ -1474,7 +1480,35 @@ struct CrossDeallocBatch {
 
     //! FS=true path: hold and batch.  Caller passes its own `this`
     //! as `c` (the chunk).
+#ifdef KAME_FLUSH_ON_EXIT_GEN
+    //! §13.225  Bound the DEFERRAL instead of emptying the batch at exit.
+    //!
+    //! The three measured arms are not monotone in "entries processed after
+    //! teardown": cap=1 leaves exactly ONE (push flushes before it appends) and
+    //! cures, no-flush leaves up to 1024 and fails 8/28, and the exit flush leaves
+    //! ZERO and fails 21-22/28.  So that is not the variable.  What IS monotone is
+    //! how long an entry sits in the batch: cap=1 makes it ~0, and the exit flush
+    //! shortens only the last entry's wait while adding an early return.
+    //!
+    //! The reading that fits: the fault is a cross-thread free deferred ACROSS a
+    //! change of chunk ownership, and the exit window is when ownership changes.
+    //! cap=1 cures by removing deferral entirely -- at the cost of ~2.6M flushes a
+    //! run.
+    //!
+    //! This arm keeps batching and forbids only the span that matters: a global
+    //! generation is bumped at every thread exit, and a batch holding entries from
+    //! an older generation flushes before appending.  No entry outlives a thread
+    //! exit; everything else batches as before.  Cost is one relaxed load per push
+    //! on the already-batched path.
+    static inline std::atomic<unsigned> s_exit_gen{0};
+    unsigned gen_ = 0;
     void push(PoolAllocatorBase *c, void *s) noexcept {
+        unsigned g = s_exit_gen.load(std::memory_order_relaxed);
+        if(count != 0 && g != gen_) flush();
+        gen_ = g;
+#else
+    void push(PoolAllocatorBase *c, void *s) noexcept {
+#endif
         verify_owner("push");                                    // §13.182
 #ifdef KAME_ORPHAN_CHAIN_RUNTIME_GATE
         if( !cap_inited_) { cap_inited_ = true; init_cap_from_env_(); }   // §13.159
@@ -1877,6 +1911,12 @@ thread_local CrossDeallocBatch tls_cross_dealloc_batch;
 // AFTER `drain_thread_slot_freelists` in `~AllocThreadExitCleanup`), so
 // the cross_release inside batch_return_to_bitmap returns false
 // — the owner thread (us) is still alive, no release allowed.
+#ifdef KAME_FLUSH_ON_EXIT_GEN
+void kame_bump_exit_generation() noexcept {
+    CrossDeallocBatch::s_exit_gen.fetch_add(1, std::memory_order_relaxed);
+}
+#endif
+
 void drain_thread_slot_freelists() noexcept {
 	//! §13.221  THE FIX, now unconditional.  §13.220's x86-64 A/B: this takes
 	//! `bit_clear_bad` from 1600 to 0, three reps out of three, and the B-null
