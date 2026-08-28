@@ -52,7 +52,13 @@ extern "C" void kame_pool_adopt_selftest_stats(unsigned long long *ok,
    to the bitmap.  Both are recorded here, keyed by slot address. */
 enum {
     KAME_FREEPATH_FREELIST_PUSH = 1,   /* owner-side park onto m_freelist_head */
-    KAME_FREEPATH_RETURN_BITMAP = 2    /* batch_return_to_bitmap (bit cleared) */
+    KAME_FREEPATH_RETURN_BITMAP = 2,   /* batch_return_to_bitmap (bit cleared) */
+    /* §13.236  The cross-thread free as ISSUED, before the batch defers it.  The
+       other two paths observe a free where the bit is cleared, which for a batched
+       free is after an arbitrary delay -- and §13.235 shows that delay is
+       protective, so a liveness check placed there is biased toward zero by
+       exactly the effect under investigation. */
+    KAME_FREEPATH_XTHREAD_PUSH  = 3
 };
 extern "C" void kame_pool_free_note(const void *slot, unsigned path) noexcept;
 /* §13.166  DOUBLE-FREE detector, exact and at full volume.  A slot parked on

@@ -1547,6 +1547,13 @@ struct CrossDeallocBatch {
         s_pushes.fetch_add(1, std::memory_order_relaxed);
         if(count >= cap) s_flushes.fetch_add(1, std::memory_order_relaxed);
 #endif
+#ifdef KAME_POOL_FREE_CENSUS
+        //! §13.236  Ask about liveness where the free is ISSUED, not where the bit
+        //! is finally cleared.  §13.235's ordering (never applied = cured, sooner =
+        //! worse) is only explicable if the slot still has a live reference at the
+        //! moment of the free, so this is the placement that can see it.
+        kame_pool_free_note(s, KAME_FREEPATH_XTHREAD_PUSH);
+#endif
         if(count >= cap) flush();
 #ifdef KAME_BATCH_VERIFY
         g_bv_pushes.fetch_add(1, std::memory_order_relaxed);
@@ -10751,6 +10758,12 @@ inline islive_fn islive_() noexcept {
     return g_islive.load(std::memory_order_acquire);
 }
 }
+std::atomic<unsigned long long> g_fol_by_path[4][2];   // §13.236 [path][was_live]
+//! §13.236  [path][was_live], so the ISSUE site and the CLEAR site are separable.
+extern "C" unsigned long long kame_pool_fol_by_path(unsigned path, int live) noexcept {
+    return (path < 4 && (live == 0 || live == 1))
+        ? g_fol_by_path[path][live].load(std::memory_order_relaxed) : 0;
+}
 extern "C" unsigned long long kame_pool_free_of_live_count() noexcept {
     return g_free_of_live.load(std::memory_order_relaxed);
 }
@@ -10788,6 +10801,12 @@ extern "C" void kame_pool_free_note(const void *slot, unsigned path) noexcept {
             tl_in_islive = true;
             g_free_checked.fetch_add(1, std::memory_order_relaxed);
             live_at_free = f(slot) ? 1 : 0;
+            //! §13.236  Per-path split, so "live at the free" can be compared
+            //! between where the free is ISSUED (XTHREAD_PUSH) and where the bit is
+            //! finally CLEARED (RETURN_BITMAP).  A global count cannot separate
+            //! them, and the deferral between the two is the effect under study.
+            g_fol_by_path[path < 4 ? path : 0][live_at_free ? 1 : 0]
+                .fetch_add(1, std::memory_order_relaxed);
             if(live_at_free) {
                 g_free_of_live.fetch_add(1, std::memory_order_relaxed);
                 int e = 0;

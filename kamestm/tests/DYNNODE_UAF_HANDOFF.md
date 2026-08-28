@@ -15649,3 +15649,74 @@ counters: the gate alone accounts for it.  The counters were not the suppressor.
 The `leak` / `leakall` cure and the four-arm ordering are on **ungated** builds and
 are unaffected.  The mechanism they point at is a return of still-referenced
 storage, whose timing — not its quantity — is the dose.
+
+### 13.236 §13.235's ordering is itself proof that the free is premature — and the liveness check has been asking at the wrong moment all along
+
+Taking §13.235's five arms as given:
+
+```
+never applied (leak / leakall)   0 %
+applied late (control)          38 %
+applied at teardown (v1 / v2)   75 %
+applied per generation (gen)   100 %
+applied immediately (pcap)     100 %
+```
+
+#### The ordering forces the conclusion
+
+| arm | what happens to the slot |
+|---|---|
+| never cleared | the slot is never offered again → no second hand-out → cured |
+| cleared immediately | a **still-referenced** slot becomes available at once → re-handed-out at once |
+| cleared late | the reference has had time to die before the slot is offered |
+
+**If the free were legitimate — no live reference left — clearing the bit at any
+moment would be equally harmless, and the ordering would be flat.**  A monotone
+"sooner is worse" is only explicable if the slot still has a live reference *at the
+moment of the free*, with the deferral buying time for that reference to die.
+
+> The batch's delay is not the defect.  It is an accidental protection against a
+> free that was issued too early, and every arm that shortens it removes protection.
+
+That agrees with §13.172 (`alloc_of_live > 0` in every failing run), §13.104's
+DOUBLE-LIVE, §13.113 (the previous occupant found live and unfreed), and it does not
+conflict with §13.192's `FREE-OF-FREE = 0` — the bitmap does not know about
+references, so a free of a still-referenced slot is perfectly "legitimate" to it.
+
+**And it makes my cap-axis sections irrelevant rather than merely confounded**:
+§13.225, §13.230, §13.231, §13.232 and §13.233 were all measuring properties of the
+deferral, which is the protection, not the fault.  §13.235 already withdrew their
+premise; this withdraws their subject.
+
+#### The check that would confirm it exists — at the wrong site
+
+`kame_pool_free_note(slot, path)` (§13.165/§13.167) asks the tracer whether a slot
+still holds a constructed object.  Its call sites:
+
+```
+freelist_push            (owner-side park)          KAME_FREEPATH_FREELIST_PUSH
+batch_return_to_bitmap   (the bit is CLEARED)       KAME_FREEPATH_RETURN_BITMAP
+```
+
+**`CrossDeallocBatch::push` is not among them.**  So for a batched cross-thread
+free, liveness is asked where the bit is *cleared* — after the deferral.  And
+§13.235 shows that deferral is exactly what lets the reference die, so **the check
+is biased toward zero by the very effect under investigation.**  Any
+`free_of_live = 0` reported for the cross-thread path has been measuring the wrong
+instant.
+
+Added: `KAME_FREEPATH_XTHREAD_PUSH = 3`, a `kame_pool_free_note` at the push, and a
+per-path split (`kame_pool_fol_by_path(path, live)`) so the two instants are
+comparable rather than pooled.  `ctest` 41/41 with the census compiled in.
+
+#### How it reads
+
+| at ISSUE (push) | at CLEAR (apply) | reading |
+|---|---|---|
+| **> 0** | ≈ 0 | the free is premature and the deferral hides it — confirms the above, and moves the target to whatever drops the last reference too early |
+| ≈ 0 | ≈ 0 | the free is not premature; "sooner is worse" needs a different account and this one is dead |
+| > 0 | > 0 | premature frees that the deferral does not even hide — then the deferral's protection is something else again |
+
+This is one run on the crashing reproducer with `KAME_POOL_FREE_CENSUS`, and unlike
+every arm since §13.222 it does not change program behaviour — it only asks the
+question at the moment the ordering says matters.
