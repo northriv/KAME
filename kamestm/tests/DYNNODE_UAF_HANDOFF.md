@@ -15720,3 +15720,58 @@ comparable rather than pooled.  `ctest` 41/41 with the census compiled in.
 This is one run on the crashing reproducer with `KAME_POOL_FREE_CENSUS`, and unlike
 every arm since §13.222 it does not change program behaviour — it only asks the
 question at the moment the ordering says matters.
+
+### 13.237 §13.236 withdrawn — and `alloc_of_live > 0` with `free_of_live = 0` is not a tension, it is the signature of a wrong-bit clear
+
+`xthread_push live = 0` over 2.02 M cross-thread pushes, with
+`checked == notes == 26 377 017`, so the tracer resolved and the zero is not the
+§13.167 vacuity trap.  The free is **not** premature, and §13.236's argument — that
+a monotone "sooner is worse" ordering requires a live reference at the free — is
+wrong.  Withdrawn.
+
+#### The two counters do not conflict
+
+`free_of_live` asks whether the object is still **constructed** when its storage is
+freed.  For `delete p` the destructor runs first, so in correct code the answer is
+always no.  **That zero is close to tautological**; the check can only fire when
+storage is released out from under an object that nobody destructed.
+
+`alloc_of_live > 0` is the real anomaly: storage handed out while an object is still
+constructed on it.
+
+One sequence satisfies both:
+
+1. slot **A**'s free is issued correctly, after A's destructor;
+2. its apply clears **B**'s bit — the wrong index;
+3. B is live, but its bit now reads free;
+4. B is handed out → `alloc_of_live`;
+5. no free was ever issued for B while live → `free_of_live = 0`.
+
+So the pair is not a contradiction about one object's lifetime.  It is **two
+different slots**, which is exactly what a wrong-bit clear produces — §13.228's
+mechanism, and `BUG_WRONG_BIT` in `OrphanAdoptFreelist.tla`.
+
+#### And it explains §13.235's ordering without a premature free
+
+A spurious clear of B's bit lands either **after** B's own legitimate free — the bit
+was going to be cleared anyway, so it is harmless, and it is counted as
+`bit_clear_bad` — or **before** it, in which case a live B is offered again.
+
+* deferral makes "after" more likely;
+* immediate application makes "before" more likely;
+* never applying produces neither.
+
+That is the monotone ordering, with the same sign, and it also explains why
+`bit_clear_bad` counts only the benign half — which is what §13.192 concluded from
+the other direction.
+
+#### What to run
+
+Both are already in the build and neither changes behaviour:
+
+* `KAME_INCARNATION_PROBE` — does an entry get applied through a different chunk
+  incarnation than the one it was pushed for (§13.229);
+* the §13.208 verify loop — does an entry clear a bit other than its own.
+
+A nonzero from either names the wrong-bit source.  Zero from both, on a crashing
+run, and the wrong-bit account joins the premature-free account in the discard pile.
