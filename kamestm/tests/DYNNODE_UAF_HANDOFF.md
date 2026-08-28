@@ -16028,3 +16028,63 @@ Three arms are now distinguishable where I had conflated two:
 | `leak` / `leakall` | nothing | 0 % |
 | **bypass made portable** | the arriving free only | **never run** |
 | **park in the chunk** | nothing, but nothing is lost either | never run |
+
+### 13.242 The guard, implemented in `_pad`: one predicate on every target, no second TLS access
+
+Ubuntu's arm settles it — restoring a portable predicate at the top of
+`deallocate_pooled` is **12/12 clean against 9/24**, shape gate intact.  This is
+that fix, with the flag placed so Linux pays nothing extra.
+
+#### Why not `s_alloc_tls_off` directly
+
+`kame_thread_torn_down()`'s old Linux body read `s_alloc_tls_off`, a separate
+IE-TLS bool: one extra `mov %fs:offset` at the top of `deallocate_pooled`, which is
+the hot free path.  The flag now lives in `KameTlsPage`, in what was `_pad`, so the
+guard is a **field load off the pointer `kame_page()` already yields** — no second
+TLS access, and the same cache line as `owner_id`, which the free path reads
+immediately after.
+
+```cpp
+inline bool kame_thread_torn_down() noexcept {
+    return kame_page()->torn_down != 0u;   // one expression, every target
+}
+```
+
+`g_teardown_page` is initialised with the flag **set**, so on a target whose
+`kame_page()` is repointed at the sentinel at teardown (macOS fast-TSD) the pointer
+swap and the flag agree and one predicate covers both designs.  The cleanup sets the
+flag on this thread's own page just before `s_alloc_tls_off`, so the two never
+disagree in the window between.
+
+`s_alloc_tls_off` stays as the alloc-side / C-shim predicate; this is the free-path
+one.
+
+#### Layout is pinned
+
+The flag went into existing padding, so nothing may move:
+
+```cpp
+static_assert(offsetof(KameTlsPage, m_slots) == 16, …);
+static_assert(sizeof(KameTlsPage) == 16 + sizeof(AllocSlot) * ALLOC_NUM_BUCKETS, …);
+```
+
+A layout change here would shift the hot TLS cache lines, which is the one way this
+could regress throughput.  The asserts make that a build failure rather than a
+benchmark surprise.
+
+#### Verified here
+
+* `ctest` 41/41, reproducer 3/3;
+* real GCC 15.2 `-O3`: `flush` symbols 4, constprop clones 1 — unchanged, so
+  §13.206's shape gate holds and this is not the codegen-perturbation class.
+
+macOS behaviour is unchanged by construction: the sentinel carries the flag, so both
+the old compare and the new field read are true in exactly the same states.
+
+#### What it fixes, in one sentence
+
+`8dd6365da` replaced the free path's `if(s_alloc_tls_off)` with the teardown-sentinel
+compare and wrote down why that was safe — *"reaching this point therefore implies
+the freeing thread is alive"* — and on Linux, where `kame_page()` returns
+`&g_tls_page` unconditionally, that compare folds to a constant false and the premise
+was wrong.  Dead threads reached the batch, which §13.238 caught in gdb.

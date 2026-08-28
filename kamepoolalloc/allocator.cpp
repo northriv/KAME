@@ -623,6 +623,16 @@ struct AllocThreadExitCleanup {
         // `is_allocator_thread_active()` from later (pthread_key) TLS
         // dtors.  `new_redirected` itself no longer checks this flag —
         // the per-bucket slot rewrite above is its analogue.
+        // Free-path teardown flag, in the page the free path already loads.  Set
+        // BEFORE `s_alloc_tls_off` so the two never disagree in the window between.
+        {
+#if KAME_FAST_TSD
+            KameTlsPage *pg = tls_page_ie ? tls_page_ie : &g_tls_page;
+#else
+            KameTlsPage *pg = &g_tls_page;
+#endif
+            pg->torn_down = 1u;
+        }
         s_alloc_tls_off = true;
         // (§hot-tls teardown sentinel) Point this thread's fast-TSD page
         // slot at the static teardown sentinel.  After this, any later
@@ -3131,7 +3141,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	//! Still treat an edit here as an experiment arm rather than a cleanup: it
 	//! deletes a branch that is dead on Linux, which is a codegen change on a hot
 	//! path (see the flush-region shape lesson), so gate it on the shape check.
-	if(__builtin_expect(kame_page() == &g_teardown_page, 0)) {
+	if(__builtin_expect(kame_thread_torn_down(), 0)) {
 #ifdef KAME_POSTEXIT_PROBE
 		g_pe_free_after_exit.fetch_add(1, std::memory_order_relaxed);
 #endif
@@ -3825,7 +3835,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	//! Still treat an edit here as an experiment arm rather than a cleanup: it
 	//! deletes a branch that is dead on Linux, which is a codegen change on a hot
 	//! path (see the flush-region shape lesson), so gate it on the shape check.
-	if(__builtin_expect(kame_page() == &g_teardown_page, 0)) {
+	if(__builtin_expect(kame_thread_torn_down(), 0)) {
 #ifdef KAME_POSTEXIT_PROBE
 		g_pe_free_after_exit.fetch_add(1, std::memory_order_relaxed);
 #endif
@@ -6756,7 +6766,7 @@ ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, 0, {}};
 // never freed, owner_id == 0.  See allocator_prv.h for the two-role rationale.
 // owner_id 0 guarantees the hot owner-check never matches it; the cold dealloc
 // path identity-compares against `&g_teardown_page` to take a TLS-free route.
-KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, 0, {}};
+KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/1, {}};
 #ifdef KAME_LATEAPPLY_PROBE
 bool kame_in_teardown_flush() noexcept { return CrossDeallocBatch::s_in_td_flush; }
 #endif

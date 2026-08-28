@@ -3441,7 +3441,18 @@ inline unsigned int bucket_for_aligned(std::size_t alignment,
 struct KameTlsPage {
     uintptr_t  last_region_base;           // radix 1-entry cache; RADIX_CACHE_EMPTY = unmatchable
     uint32_t   owner_id;                   // this thread's chunk-owner stamp; 0 = unassigned
-    uint32_t   _pad;
+    //! Was `_pad`.  1 once this thread has run its allocator cleanup.
+    //!
+    //! Lives here, in the padding, so the post-teardown guard is a field load off
+    //! the pointer `kame_page()` already yields -- no second TLS access -- and
+    //! shares a cache line with `owner_id`, which the free path reads immediately
+    //! after.  `s_alloc_tls_off` remains as the alloc-side / C-shim predicate; this
+    //! is the free-path one.
+    //!
+    //! `g_teardown_page` is initialised with this field SET, so on a target whose
+    //! `kame_page()` is repointed at the sentinel at teardown (macOS fast-TSD) the
+    //! pointer swap and this flag agree, and one predicate covers both designs.
+    uint32_t   torn_down;
     AllocSlot  m_slots[ALLOC_NUM_BUCKETS];  // replaces g_thread_slots[]
     // Named m_slots, NOT slots — Qt defines `slots` as an empty preprocessor
     // token in <QtCore> (the same reason RadixL2Node uses `entries` instead of
@@ -3651,11 +3662,19 @@ inline KameTlsPage *kame_page_or_null() noexcept {
 //!     teardown crash observed, and the §31 IAT path differs — left as a
 //!     latent item to mirror the macOS sentinel if it ever surfaces.)
 inline bool kame_thread_torn_down() noexcept {
-#if KAME_FAST_TSD
-    return kame_page() == &g_teardown_page;
-#else
-    return s_alloc_tls_off;
-#endif
+    //! One expression on every target: a field of the page `kame_page()` returns.
+    //! On macOS that is either this thread's page (flag set by the cleanup) or the
+    //! sentinel (flag set statically); on Linux it is always this thread's page.
+    //!
+    //! The former body was `kame_page() == &g_teardown_page` under KAME_FAST_TSD and
+    //! `s_alloc_tls_off` otherwise.  The pointer compare is only meaningful where
+    //! the fast-TSD indirection exists, and `8dd6365da` had put that compare in the
+    //! free path with the comment "the former if(s_alloc_tls_off) bypass is gone:
+    //! the teardown-sentinel check at the TOP of this function already routed
+    //! thread-exit frees to a TLS-free bitmap return.  Reaching this point therefore
+    //! implies the freeing thread is alive."  On Linux the compare folds to a
+    //! constant false, so that premise was false and dead threads reached the batch.
+    return kame_page()->torn_down != 0u;
 }
 
 // Out-of-class inline body for PoolAllocatorBase::radix_lookup.
