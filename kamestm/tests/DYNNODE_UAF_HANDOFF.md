@@ -15410,3 +15410,58 @@ If the mechanism is the one §13.228 describes, then on the crashing reproducer 
 incarnation mismatches should be a subset of these 37 302 — entries whose target was
 not merely ownerless but re-constructed.  Both probes are in the same build and can
 be read from one run.
+
+### 13.232 Yes — the teardown flush empties orphaned chunks: 1 097 times a run at the default cap, once at `cap = 1`
+
+The question was whether the **bitmap** goes empty at the teardown flush, not the
+freelist.  It does, and the count is the sharpest discriminator this section has
+produced.
+
+The FS `on_clear` deliberately ignores the dec-to-zero result for a
+`BIT_OWNED`-clear chunk, on the reasoning that such a chunk is an orphan on the
+chain which `orphan_chain_scrub` will reclaim **once drained**.  So an apply that
+brings `MASK_CNT` to 0 on an ownerless chunk is exactly the event that makes it
+reclaimable — and therefore releasable, and therefore re-constructible.
+
+Counted per teardown flush (801 threads):
+
+| `cap` | entries applied after the walk | target ownerless | **emptied an ownerless chunk** |
+|---|---|---|---|
+| 1 | 801 | 1 | **1** |
+| 1024 | 66 262 | 35 785 | **1 097** |
+
+**1 versus 1 097**, between the configuration that cures and the one that fails.
+
+This is a better discriminator than §13.231's "ownerless target" count (35 785),
+because it is not a property of the target but the *event that enables its release*.
+And it closes the loop with §13.228: once the scrub can release the chunk, the
+storage can be re-constructed, after which any other still-pending entry for it — in
+another thread's batch, or later in the same one — is applied to foreign storage.
+
+The chain, end to end and all of it measured or read from the source:
+
+1. the cleanup destructor runs first, disowning and orphaning this thread's chunks
+   and declaring `s_alloc_tls_off = true`;
+2. `~CrossDeallocBatch` then applies up to ~84 leftover entries per thread
+   (§13.230), of which more than half target ownerless chunks (§13.231);
+3. **1 097 of those applies empty an ownerless chunk**, making it reclaimable;
+4. the scrub releases it and the storage is re-constructed — possibly for another
+   size class (§13.220's gdb sample);
+5. any remaining pending entry for that address is applied through the **new**
+   incarnation's virtual `batch_return_to_bitmap` and clears the wrong bit
+   (§13.228), which the model shows is sufficient for the double hand-out
+   (§13.227).
+
+`cap` sets the size of step 2, which is why it is a dose and why `cap = 1` cures
+without fixing anything.
+
+#### Instrument note — the third scoping bug of this kind
+
+The first run reported `owner_live = 222 894` at `cap = 1`, against 801 late applies
+of one entry each.  The `s_in_td_flush` flag was set at the destructor's entry and
+never cleared, so it counted every clear the thread performed afterwards — later TLS
+destructors freeing through the bypass.  Scoped to the flush itself, the numbers
+above.  A flag that is set and not reset has now produced a wrong number three times
+in this section (§13.186's sticky site byte, §13.212's never-cleared
+`pending_owner`, and this); the pattern is a probe whose lifetime is longer than the
+event it names.

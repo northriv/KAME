@@ -506,6 +506,9 @@ KameTlsPage *kame_page_cold() noexcept {
 // `release_dll_chunks_for_thread` before that chunk's BIT_OWNED clear.
 // Kept as a symbol so the `~AllocThreadExitCleanup` call site stays valid.
 namespace { void drain_thread_slot_freelists() noexcept; }
+#ifdef KAME_LATEAPPLY_PROBE
+bool kame_in_teardown_flush() noexcept;
+#endif
 #ifdef KAME_INCARNATION_PROBE
 void kame_incarnation_mismatch(const void *, const void *, unsigned, unsigned) noexcept;
 #endif
@@ -1924,9 +1927,13 @@ struct CrossDeallocBatch {
     static inline std::atomic<unsigned long long> s_late_threads{0}, s_late_entries{0};
     static inline std::atomic<unsigned long long> s_late_histo[17];
     static inline std::atomic<unsigned long long> s_late_owned{0}, s_late_unowned{0};
+    static inline std::atomic<unsigned long long> s_td_emptied_owned{0},
+                                                  s_td_emptied_orphan{0};
+    static inline thread_local bool s_in_td_flush = false;
 #endif
     ~CrossDeallocBatch() noexcept {
 #ifdef KAME_LATEAPPLY_PROBE
+        s_in_td_flush = true;
         {
             unsigned n = (unsigned)(count < 0 ? 0 : count);
             s_late_threads.fetch_add(1, std::memory_order_relaxed);
@@ -1952,6 +1959,9 @@ struct CrossDeallocBatch {
 #ifdef KAME_BATCH_VERIFY
 #endif
         flush(/*at_teardown=*/true);
+#ifdef KAME_LATEAPPLY_PROBE
+        s_in_td_flush = false;      // §13.232: scope the flag to the flush ONLY
+#endif
 #ifdef KAME_BATCH_VERIFY
         //! §13.207  §13.204 measures `checked_flush - pushes` at exactly **-801**
         //! (cap 1) and **-17 601** (cap 32) on Linux, invariant across runs, while
@@ -3654,8 +3664,25 @@ KAME_CLONE_LICENCE(4) /*§13.112 arm 4*/ PoolAllocator<ALIGN, FS, DUMMY>::batch_
 		[this](FUINT oldv, FUINT newv) {
 			if(oldv == ~(FUINT)0u)
 				atomicDec( &this->m_flags_filled_cnt);
-			if(newv == 0 && oldv != 0)
+			if(newv == 0 && oldv != 0) {
+#ifdef KAME_LATEAPPLY_PROBE
+				//! §13.232  Does a teardown-flush apply EMPTY a chunk?  The
+				//! dec return is deliberately ignored here because a
+				//! BIT_OWNED-clear chunk is taken to be an orphan on the chain
+				//! that `orphan_chain_scrub` will reclaim once drained -- so an
+				//! apply that brings MASK_CNT to 0 is exactly what makes such a
+				//! chunk reclaimable, and therefore re-constructible.
+				if(kame_in_teardown_flush()) {
+					if(this->m_owner_id != 0)
+						CrossDeallocBatch::s_td_emptied_owned
+						    .fetch_add(1, std::memory_order_relaxed);
+					else
+						CrossDeallocBatch::s_td_emptied_orphan
+						    .fetch_add(1, std::memory_order_relaxed);
+				}
+#endif
 				(void)atomicDecAndTest(&this->m_flags_packed);
+			}
 		});
 	return n;
 }
@@ -6671,6 +6698,9 @@ ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, 0, {}};
 // path identity-compares against `&g_teardown_page` to take a TLS-free route.
 KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, 0, {}};
 #ifdef KAME_LATEAPPLY_PROBE
+bool kame_in_teardown_flush() noexcept { return CrossDeallocBatch::s_in_td_flush; }
+#endif
+#ifdef KAME_LATEAPPLY_PROBE
 namespace { struct LateApplyReport { ~LateApplyReport() {
     unsigned long long t = CrossDeallocBatch::s_late_threads.load();
     unsigned long long e = CrossDeallocBatch::s_late_entries.load();
@@ -6679,6 +6709,11 @@ namespace { struct LateApplyReport { ~LateApplyReport() {
             t, e, t ? (double)e / (double)t : 0.0,
             CrossDeallocBatch::s_late_owned.load(),
             CrossDeallocBatch::s_late_unowned.load());
+    fprintf(stderr, "LATEAPPLY teardown-flush EMPTIED a chunk: owner_live=%llu "
+            "ownerless=%llu  (ownerless => now reclaimable by the scrub, hence "
+            "re-constructible)\n",
+            CrossDeallocBatch::s_td_emptied_owned.load(),
+            CrossDeallocBatch::s_td_emptied_orphan.load());
     for(int k = 0; k <= 16; ++k) {
         unsigned long long v = CrossDeallocBatch::s_late_histo[k].load();
         if(v) fprintf(stderr, "LATEAPPLY   %2d%s entries : %llu threads\n",
