@@ -33,6 +33,17 @@
   Dock still reports isVisible() == true and isMinimized() == false, so nothing
   could tell it was gone: the toolboxes no longer carry a minimize button, and
   the View menu restores one that ends up minimized anyway.
+- UI: the message window's popup row could end up below the bottom of the
+  screen.  That row sits under the log list and is hidden until something is
+  posted, and the window is parked with its bottom on the screen edge, so
+  showing it grows the window downwards.  At the size the window opens with
+  (186 px) the list absorbs the row and nothing moves; but once shrunk towards
+  its minimum, showing the row raises the layout minimum from 98 to 131 px and
+  pushes 33 px of window -- the row carrying the message -- off the screen.
+  The window now keeps its bottom edge on that screen edge whenever the row
+  appears or goes, which also closes the gap the row used to leave behind.  A
+  window dragged away from the edge is left where it is, and at the default
+  size the whole thing is inert.
 - UI: the Node Browser advertised "Supported Ruby methods" on a Python build.
   The object line above it already said Root(), but the method list under it
   was a hand-written one in Ruby's spelling (value=x, <<x, to_ary), printed
