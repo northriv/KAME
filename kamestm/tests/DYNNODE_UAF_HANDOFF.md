@@ -15874,3 +15874,65 @@ before any of these stops were read.
 suppresses one mode and not another, those rates average different diseases.  Most
 of those arms discarded stderr, so this is **not** retrospectively fixable — the
 arm table needs re-running with logs retained before its ordering can carry weight.
+
+### 13.239 The post-teardown bypass is dead code on Linux by construction — and repairing it would reproduce `pcap`, the worst arm
+
+Source-only, and it explains the platform split between §13.226 and §13.238.
+
+`deallocate_pooled` has two TLS-free bypass sites, both guarded by a raw pointer
+compare:
+
+```cpp
+if(__builtin_expect(kame_page() == &g_teardown_page, 0)) { … }   // lines 3116, 3792
+```
+
+And on Linux / Windows:
+
+```cpp
+inline KameTlsPage *kame_page() noexcept { return &g_tls_page; }   // unconditionally
+```
+
+So the compare is **tautologically false there**, and both bypasses are unreachable.
+The portable predicate exists and is used at 13 other sites:
+
+```cpp
+inline bool kame_thread_torn_down() noexcept {
+#if KAME_FAST_TSD
+    return kame_page() == &g_teardown_page;   // macOS
+#else
+    return s_alloc_tls_off;                   // Linux / Windows
+#endif
+}
+```
+
+That resolves the platform split directly: §13.226's arm64 `free_after_exit = 805`
+were frees taking the bypass, and §13.238's gdb capture is the same free on x86-64
+reaching `push` instead — not a race, not timing, just a guard that cannot be true
+on that target.
+
+#### But the obvious repair is already refuted
+
+The bypass calls `batch_return_to_bitmap` **immediately**.  Enabling it on Linux
+therefore makes post-teardown frees apply at once — which is precisely `pcap` (cap 1
+from the end of `~AllocThreadExitCleanup`), measured at **12/12 failures** (§13.235).
+
+> The dead bypass is on the protective side of §13.235's ordering.  Substituting
+> `kame_thread_torn_down()` at those two sites is a one-word change that would
+> reproduce the worst arm.
+
+Recorded so the oddity is not "fixed" by someone reading only the source.  It is
+still worth a comment at both sites saying the guard is macOS-only *and* that making
+it portable is contraindicated.
+
+#### The one direction left
+
+Of the arms measured, only "do not apply them at all" cures (`leak` 0/24, `leakall`
+0/12).  Doing that without leaking has a formal basis already: in
+`OrphanAdoptFreelist.tla`, `BUG_NO_DRAIN` and `BUG_NO_FLIST_DRAIN` deliberately do
+**not** violate, because cells left undrained are **inherited by whoever adopts the
+chunk**.  Not returning is therefore not the same as losing — provided adoption
+happens, which is also why `KAME_ORPHAN_NO_ADOPT` turns those two into real leaks.
+
+So the candidate to design is: at teardown, hand the pending entries to the chunk's
+next owner rather than applying or discarding them.  That is the only shape
+consistent with every arm measured so far.
