@@ -1910,7 +1910,29 @@ struct CrossDeallocBatch {
         if(count != 0) { fprintf(stderr, "BATCHVERIFY count != 0 AFTER flush: %d\n", count); abort(); }
 #endif
     }
+#ifdef KAME_LATEAPPLY_PROBE
+    //! §13.230  How many entries does this thread apply AFTER its DLL walk?
+    //!
+    //! The cleanup destructor runs first on every thread, so everything still in
+    //! the batch here is applied to chunks that have already been disowned and
+    //! orphaned.  `cap` matters only because it decides this number: at cap = 1 it
+    //! is exactly 1 (push flushes before it appends), at the default it is up to
+    //! 1024 -- and those are the two points that share an axis.  The exit-flush
+    //! arms are NOT on this axis: they move the applies into the cleanup
+    //! destructor instead of leaving them here, which is a different
+    //! configuration rather than a third point.
+    static inline std::atomic<unsigned long long> s_late_threads{0}, s_late_entries{0};
+    static inline std::atomic<unsigned long long> s_late_histo[17];
+#endif
     ~CrossDeallocBatch() noexcept {
+#ifdef KAME_LATEAPPLY_PROBE
+        {
+            unsigned n = (unsigned)(count < 0 ? 0 : count);
+            s_late_threads.fetch_add(1, std::memory_order_relaxed);
+            s_late_entries.fetch_add(n, std::memory_order_relaxed);
+            s_late_histo[n > 16 ? 16 : n].fetch_add(1, std::memory_order_relaxed);
+        }
+#endif
 #ifdef KAME_BATCH_VERIFY
 #endif
         flush(/*at_teardown=*/true);
@@ -6632,6 +6654,19 @@ ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, 0, {}};
 // owner_id 0 guarantees the hot owner-check never matches it; the cold dealloc
 // path identity-compares against `&g_teardown_page` to take a TLS-free route.
 KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, 0, {}};
+#ifdef KAME_LATEAPPLY_PROBE
+namespace { struct LateApplyReport { ~LateApplyReport() {
+    unsigned long long t = CrossDeallocBatch::s_late_threads.load();
+    unsigned long long e = CrossDeallocBatch::s_late_entries.load();
+    fprintf(stderr, "LATEAPPLY threads=%llu entries_after_walk=%llu mean=%.2f\n",
+            t, e, t ? (double)e / (double)t : 0.0);
+    for(int k = 0; k <= 16; ++k) {
+        unsigned long long v = CrossDeallocBatch::s_late_histo[k].load();
+        if(v) fprintf(stderr, "LATEAPPLY   %2d%s entries : %llu threads\n",
+                      k, k == 16 ? "+" : " ", v);
+    }
+} } g_la_report; }
+#endif
 #ifdef KAME_INCARNATION_PROBE
 std::atomic<unsigned long long> g_inc_mismatch{0};
 void kame_incarnation_mismatch(const void *slot, const void *chunk,

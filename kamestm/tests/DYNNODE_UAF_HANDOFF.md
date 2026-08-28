@@ -15296,3 +15296,69 @@ detecting it is to make re-construction impossible while entries are pending —
 batch holding a reference to the chunk.  That is the earlier `local_shared_ptr`
 proposal, and it is the only variant of it this investigation has produced a precise
 justification for.
+
+### 13.230 The axis is post-teardown after all — `cap` sets how much work is left over, and the batch flush runs after the pool has declared its TLS dead
+
+Two corrections to my own reasoning, both from the same objection: *the failure is
+established as post-teardown, so pre-teardown deferral cannot matter.*
+
+#### `cap` counts operations, not time — so "narrow window" was wrong
+
+§13.225 argued that `cap` bounds how long an entry is deferred.  It does not: it
+bounds deferral in units of **that thread's own subsequent frees**, so a thread that
+goes quiet holds its entry arbitrarily long.  The window-width account cannot be
+right.
+
+Counted properly, every quantity that matters is post-teardown.  The cleanup
+destructor runs first on every thread (§13.220), so whatever is still in the batch
+when `~CrossDeallocBatch` runs is applied to chunks that have already been disowned
+and orphaned.  Measured directly (`KAME_LATEAPPLY_PROBE`, 801 threads):
+
+| `cap` | entries applied **after** the DLL walk, per thread | failures |
+|---|---|---|
+| 1 | **1.00** | **0/12** (§13.180) |
+| 32 | 18.26 | crashes (§13.222's arm) |
+| 1024 | 83.96 | 8/28 |
+
+Monotone, and purely a post-teardown quantity.  `cap` matters because it decides
+**how much work is left over at teardown**, which is exactly the objection's
+framing.  §13.180's dose-response reads the same way.
+
+**And the exit-flush arms are not points on this axis.**  They move the applies into
+the cleanup destructor rather than leaving them for `~CrossDeallocBatch`, which is a
+different configuration.  §13.225 treated them as a third point and concluded
+"non-monotone"; that was wrong — the two points that share an axis are monotone, and
+v1/v2's 75 % is a separate effect still to be explained.
+
+#### And the flush runs after the pool has declared this thread's TLS dead
+
+§13.189 caught the applying flush under gdb running from **`__call_tls_dtors`**, and
+§13.220 confirmed it was not a one-sample coincidence.  Put beside the ordering:
+
+1. `~AllocThreadExitCleanup` runs **first** on every thread; its last statement sets
+   **`s_alloc_tls_off = true`** — "pool-allocator TLS is dead" — after clearing every
+   per-bucket pointer and walking the DLL;
+2. `~CrossDeallocBatch` then calls `flush(true)`, sorts `buf`, and calls
+   `batch_return_to_bitmap` per chunk.
+
+So the batch does pool work **in a state the pool has declared dead**.  And the
+treatment is asymmetric: a free that *arrives* after teardown is handled by the
+`g_teardown_page` bypass, TLS-free and straight to the bitmap — §13.226 measured 805
+of them, one per thread — while entries **already in the batch** do not take that
+bypass at all.
+
+> A late-arriving free is handled safely.  A late-applied *batched* free is not, and
+> there are up to 84 of them per thread.
+
+#### What that changes about the fix
+
+The direction stops being "reduce the leftovers" and becomes **"do not do pool work
+in the dead state"**.  Half of it already exists — the bypass — and the missing half
+is to give the batched entries the same treatment: apply them through the TLS-free
+path, or drop the ones the incarnation check (§13.229) shows are stale.  Both are
+compatible with everything measured, and neither touches the exit path in the way
+v1/v2 did.
+
+The one thing this does **not** explain is why moving the applies *earlier*
+(v1/v2, into the cleanup) is worse than leaving them late.  That remains open, and
+it is now the only measured result without an account.
