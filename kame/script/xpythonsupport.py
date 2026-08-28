@@ -1902,6 +1902,18 @@ def _find_python_with(mods, env_override=None, extra=()):
 		key=lambda _p: int(_re.search(r'python3\.(\d+)$', _p).group(1)),
 		reverse=True)
 	_probe = ';'.join('import ' + _m for _m in mods)
+	# Every candidate is a DIFFERENT interpreter from the one embedded in KAME,
+	# so KAME's own Python environment must not follow it into the probe.  On
+	# Windows this decides the answer rather than merely tidying it up:
+	# kame-msyspython.bat exports PYTHONHOME=C:\msys64\mingw64 and MSYS2's
+	# PYTHONPATH, and a real CPython told to use those loads mingw-built C
+	# extensions it cannot open -- `ModuleNotFoundError: No module named
+	# '_socket'` -- so EVERY candidate fails and the caller reports "no Python
+	# with mcp and jupyter_client" while the very same venv starts the server
+	# fine from launchJupyterConsole, which does strip them.
+	_env = dict(os.environ)
+	for _v in ('PYTHONHOME', 'PYTHONPATH', 'VIRTUAL_ENV', 'PYTHONSTARTUP'):
+		_env.pop(_v, None)
 	_seen = set()
 	for _c in _cands:
 		_rp = os.path.realpath(_c)
@@ -1910,7 +1922,8 @@ def _find_python_with(mods, env_override=None, extra=()):
 		_seen.add(_rp)
 		try:
 			_sp.check_call([_c, '-c', _probe],
-						   stdout=_sp.DEVNULL, stderr=_sp.DEVNULL, timeout=10)
+						   stdout=_sp.DEVNULL, stderr=_sp.DEVNULL, timeout=10,
+						   env=_env)
 			return _c
 		except Exception:
 			continue
