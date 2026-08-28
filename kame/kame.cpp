@@ -356,12 +356,13 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
         QDockWidget *dock = side.first;
         bool left = side.second;
         QMdiArea *area = left ? m_pMdiLeft : m_pMdiRight;
-        //A QMdiArea's minimum size hint (~200 px, inherited from its
-        //subwindows) would clamp the shrink; lifting it on the area and on the
-        //dock is enough — measured — so the panes keep their own minimums and
-        //are merely clipped while the toolbox is narrow.
+        //A QMdiArea's minimum size hint (~196 px, inherited from its
+        //subwindows) would clamp the shrink.  Lifting it on the area sticks;
+        //lifting it on the dock does NOT — QDockWidget re-derives its own
+        //minimum from that hint on every layout pass — so the dock's half is
+        //re-applied in setToolboxCollapsed() each time.  The panes keep their
+        //own minimums and are merely clipped while the toolbox is narrow.
         area->setMinimumWidth(0);
-        dock->setMinimumWidth(0);
         //Growing must not steal the keyboard from whatever is being typed
         //into, and an activated toolbox would also pin itself open below.
         dock->setAttribute(Qt::WA_ShowWithoutActivating);
@@ -371,8 +372,19 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
         auto *anim = new QPropertyAnimation(dock, "geometry", this);
         anim->setDuration(220);
         anim->setEasingCurve(QEasingCurve::OutCubic);
-        connect(anim, &QPropertyAnimation::finished, this, [this]{updateToolboxStrips();});
-        m_edgeSliders.push_back({dock, anim, dock->geometry(), tabw + 6, left, false, 0});
+        m_edgeSliders.push_back({dock, area, anim, dock->geometry(), tabw + 6, left, false, 0});
+        //Pointers into a deque stay valid across push_back.
+        EdgeSlider *s = &m_edgeSliders.back();
+        connect(anim, &QPropertyAnimation::finished, this, [this, s]{
+            //Belt and braces for the edge-clinging side: should the width ever
+            //come out wider than asked (a layout minimum reasserting itself),
+            //the window would have grown past the screen edge it clings to and
+            //pushed its tab column off-screen — exactly what the user sees as
+            //"the wrong side is showing".  Re-anchor instead.
+            if(s->collapsed && !s->left)
+                s->dock->move(s->expanded.right() - s->dock->width() + 1, s->dock->y());
+            updateToolboxStrips();
+        });
     }
     m_pEdgeHoverTimer = new QTimer(this);
     connect(m_pEdgeHoverTimer, &QTimer::timeout, this, &FrmKameMain::pollEdgeAutoHide);
@@ -420,6 +432,11 @@ void
 FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
     QRect to = s.expanded;
     if(collapse) {
+        //Re-applied here, not once at setup: QDockWidget re-derives its
+        //minimum width from the QMdiArea's size hint on every layout pass, and
+        //a stale ~196 px minimum silently clamps the shrink.
+        s.area->setMinimumWidth(0);
+        s.dock->setMinimumWidth(0);
         //Keep the edge the toolbox clings to; give up the width on the other
         //side, so it grows out of the screen edge rather than sliding along.
         if(s.left) to.setWidth(s.collapsedWidth);

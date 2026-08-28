@@ -159,6 +159,7 @@ private:
 	//! (not Wayland), and only while the toolbox is floating.
 	struct EdgeSlider {
 		QDockWidget *dock;
+		QMdiArea *area;             //!< the toolbox's pane stack, for its minimum
 		QPropertyAnimation *anim;   //!< animates dock->geometry()
 		QRect expanded;             //!< full size; follows the user's own moves
 		int collapsedWidth;
