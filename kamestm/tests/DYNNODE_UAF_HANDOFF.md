@@ -15986,3 +15986,45 @@ unaffected.
 A first pass put the same comment on a third site — my own `KAME_POSTEXIT_PROBE`
 guard inside `kame_owner_id` — because the pattern match keyed on the compare rather
 than on the enclosing function.  Removed.
+
+### 13.241 Correction: `pcap` did not test what §13.239/§13.240 said it did, so the bypass is untested rather than contraindicated
+
+§13.239 and §13.240 both claimed that making the post-teardown bypass portable would
+reproduce `pcap`'s 12/12.  That does not follow.
+
+`pcap` lowered `cap` to 1 from the end of `~AllocThreadExitCleanup`.  `push` is
+
+```cpp
+if(count >= cap) flush();
+buf[count++] = …;
+```
+
+so with `cap = 1` the **first** post-teardown free flushes whatever the batch was
+already holding — up to ~84 entries (§13.230).  `pcap` therefore measured *apply the
+pre-teardown backlog early*, which is the same family as the exit flush (v1/v2) and
+the generation arm, and it lands at the same 100 %.  It is not a measurement of
+"apply the arriving post-teardown free immediately".
+
+The bypass does something different: a single-entry `batch_return_to_bitmap` for the
+arriving slot only, leaving `buf` untouched.  **No arm has measured that.**
+
+So the correct status of the two sites is **untested**, not contraindicated.  The
+comment at both sites is amended accordingly.  What stands unchanged:
+
+* the guard is macOS-only by construction (`kame_page()` returns `&g_tls_page`
+  unconditionally on Linux), so the bypass is dead there — that is a source fact;
+* editing it is still an experiment arm, because deleting a dead branch from
+  `deallocate_cold`'s callee is a codegen change on a path that has already shown
+  itself sensitive;
+* and it is a *different* arm from the park-in-the-chunk design, which does not apply
+  the free at all.
+
+Three arms are now distinguishable where I had conflated two:
+
+| arm | what is applied | measured |
+|---|---|---|
+| exit flush / `gen` / `pcap` | the backlog, early | 75–100 % |
+| control | the backlog, late | 38 % |
+| `leak` / `leakall` | nothing | 0 % |
+| **bypass made portable** | the arriving free only | **never run** |
+| **park in the chunk** | nothing, but nothing is lost either | never run |

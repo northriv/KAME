@@ -3120,12 +3120,17 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	//! therefore tautologically false on those targets.  The portable predicate is
 	//! `kame_thread_torn_down()`, used at 13 other sites.
 	//!
-	//! DO NOT substitute it here.  This bypass applies the free IMMEDIATELY, and an
-	//! arm that made post-teardown frees apply immediately on Linux was measured at
-	//! 12/12 failures against a 9/24 control.  On the timing ordering this branch
-	//! being dead is PROTECTIVE.  Even `#if KAME_FAST_TSD`-ing it for honesty is a
-	//! codegen change on a hot path, so treat any edit here as an experiment arm and
-	//! gate it on the shape check, not as a cleanup.
+	//! Substituting it here is UNTESTED, not contraindicated.  An earlier note said
+	//! it would reproduce the `pcap` arm (12/12 failures); that was wrong.  `pcap`
+	//! lowered `cap` to 1 after teardown, and since `push` flushes when
+	//! `count >= cap`, the first post-teardown free there flushed the ENTIRE
+	//! pre-teardown backlog -- so it measured "apply the backlog early", the same
+	//! family as the exit-flush and generation arms.  This bypass applies only the
+	//! arriving free and leaves `buf` alone, which no arm has measured.
+	//!
+	//! Still treat an edit here as an experiment arm rather than a cleanup: it
+	//! deletes a branch that is dead on Linux, which is a codegen change on a hot
+	//! path (see the flush-region shape lesson), so gate it on the shape check.
 	if(__builtin_expect(kame_page() == &g_teardown_page, 0)) {
 #ifdef KAME_POSTEXIT_PROBE
 		g_pe_free_after_exit.fetch_add(1, std::memory_order_relaxed);
@@ -3809,12 +3814,17 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	//! therefore tautologically false on those targets.  The portable predicate is
 	//! `kame_thread_torn_down()`, used at 13 other sites.
 	//!
-	//! DO NOT substitute it here.  This bypass applies the free IMMEDIATELY, and an
-	//! arm that made post-teardown frees apply immediately on Linux was measured at
-	//! 12/12 failures against a 9/24 control.  On the timing ordering this branch
-	//! being dead is PROTECTIVE.  Even `#if KAME_FAST_TSD`-ing it for honesty is a
-	//! codegen change on a hot path, so treat any edit here as an experiment arm and
-	//! gate it on the shape check, not as a cleanup.
+	//! Substituting it here is UNTESTED, not contraindicated.  An earlier note said
+	//! it would reproduce the `pcap` arm (12/12 failures); that was wrong.  `pcap`
+	//! lowered `cap` to 1 after teardown, and since `push` flushes when
+	//! `count >= cap`, the first post-teardown free there flushed the ENTIRE
+	//! pre-teardown backlog -- so it measured "apply the backlog early", the same
+	//! family as the exit-flush and generation arms.  This bypass applies only the
+	//! arriving free and leaves `buf` alone, which no arm has measured.
+	//!
+	//! Still treat an edit here as an experiment arm rather than a cleanup: it
+	//! deletes a branch that is dead on Linux, which is a codegen change on a hot
+	//! path (see the flush-region shape lesson), so gate it on the shape check.
 	if(__builtin_expect(kame_page() == &g_teardown_page, 0)) {
 #ifdef KAME_POSTEXIT_PROBE
 		g_pe_free_after_exit.fetch_add(1, std::memory_order_relaxed);
