@@ -165,9 +165,7 @@ private:
 		QRect expanded;             //!< full size; follows the user's own moves
 		int collapsedWidth;         //!< resting width of a toolbox; unused when vertical
 		//! Fold downwards to half height (the main window) instead of sideways
-		//! to a tab column.  Vertical sliders also leave tab hovering alone:
-		//! their tab bar is not tucked against a screen edge, so the pointer
-		//! crosses it on the way in and would flip panes by accident.
+		//! to a tab column.
 		bool vertical;
 		bool left;                  //!< which screen edge it clings to
 		bool collapsed;

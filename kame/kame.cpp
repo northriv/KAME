@@ -569,12 +569,14 @@ FrmKameMain::pollEdgeAutoHide() {
         if( !s.win->isVisible()) continue;
         if(s.win->isMinimized()) continue; //out of reach until the View menu restores it
         bool over = s.win->frameGeometry().contains(c);
-        //Hovering a tab picks that pane, collapsed or open: the tab column is
+        //Hovering a tab picks that pane, collapsed or open: the tab strip is
         //all one sees of a resting toolbox, so pointing at a name there should
-        //be what brings that pane up as it grows.  Only the column reacts, and
-        //it sits against the screen edge, so the pointer never crosses it on
-        //its way to the panes' own contents.
-        if(over && !s.vertical) {
+        //be what brings that pane up as it grows.  The main window's strip
+        //runs across its top instead of down a screen edge, so the pointer can
+        //cross it on the way in — accepted deliberately: the pane it lands on
+        //is the one under the pointer, and picking by hover there is worth
+        //more than the occasional pass-through.
+        if(over) {
             if(QTabBar *tabs = s.area->findChild<QTabBar *>()) {
                 QPoint local = tabs->mapFromGlobal(c);
                 if(tabs->isVisible() && tabs->rect().contains(local)) {
