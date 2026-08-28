@@ -1070,6 +1070,23 @@ class PoolAllocatorBase;
 struct CrossDeallocEntry {
 	PoolAllocatorBase *chunk;
 	void              *slot;
+#ifdef KAME_INCARNATION_PROBE
+    //! §13.228  The size class the chunk had when this entry was PUSHED.
+    //!
+    //! `batch_return_to_bitmap` is `virtual`, so a deferred entry is applied
+    //! through the chunk's CURRENT vtable.  If the chunk was released and
+    //! placement-new'd as a different size class in between, the apply computes
+    //! `bit = (slot - mempool) / ALIGN` with the NEW ALIGN and clears a bit
+    //! belonging to a different -- possibly live -- slot.  Comparing the bucket at
+    //! push against the bucket at apply detects exactly that, and only that: a
+    //! re-construction into the SAME class leaves the bit index unchanged and is
+    //! harmless.
+    //! 0xFFFF = NOT STAMPED.  Only `CrossDeallocBatch::push` sets it; the direct
+    //! pair in `push_direct` and the three teardown drains build entries by
+    //! aggregate initialisation, which would otherwise leave this 0 and make every
+    //! one of them look like a mismatch (measured: 8.7 M false hits).
+    unsigned short bucket_at_push = 0xFFFFu;
+#endif
 };
 
 //! (§hot-tls) Unified per-thread hot TLS page — forward declaration.

@@ -506,6 +506,9 @@ KameTlsPage *kame_page_cold() noexcept {
 // `release_dll_chunks_for_thread` before that chunk's BIT_OWNED clear.
 // Kept as a symbol so the `~AllocThreadExitCleanup` call site stays valid.
 namespace { void drain_thread_slot_freelists() noexcept; }
+#ifdef KAME_INCARNATION_PROBE
+void kame_incarnation_mismatch(const void *, const void *, unsigned, unsigned) noexcept;
+#endif
 #ifdef KAME_FLUSH_ON_EXIT_GEN
 namespace { void kame_bump_exit_generation() noexcept; }   // §13.225
 #endif
@@ -1565,7 +1568,12 @@ struct CrossDeallocBatch {
             kame_bv_note_push((uintptr_t)s, f);
         }
 #endif
+#ifdef KAME_INCARNATION_PROBE
+        buf[count] = {c, s, c->m_base_bucket};                 // §13.228
+        ++count;
+#else
         buf[count++] = {c, s};
+#endif
     }
 
     //! Direct/adaptive dispatch path — FS=true only (    //! FS=false bypasses cross-batch entirely in `deallocate_pooled`
@@ -3327,6 +3335,18 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 	// in batch_clear_impl at high cross-thread rates, dominated by
 	// the m_count terms — gone now.
 	constexpr int FUINT_BITS = sizeof(FUINT) * 8;
+#ifdef KAME_INCARNATION_PROBE
+	//! §13.228  Was this chunk re-constructed into a different size class between
+	//! the push and this apply?  If so the bit index below is computed with the
+	//! WRONG ALIGN and clears somebody else's slot.
+	for(int k = 0; entries[k].chunk == this; ++k) {
+		if(entries[k].bucket_at_push != 0xFFFFu &&
+		   entries[k].bucket_at_push != this->m_base_bucket)
+			kame_incarnation_mismatch(entries[k].slot, this,
+			                          entries[k].bucket_at_push,
+			                          this->m_base_bucket);
+	}
+#endif
 	int i = 0;
 	int n_words = 0;   // unique m_flags words touched — for coalesce hint
 	while(entries[i].chunk == this) {
@@ -6588,6 +6608,19 @@ ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, 0, {}};
 // owner_id 0 guarantees the hot owner-check never matches it; the cold dealloc
 // path identity-compares against `&g_teardown_page` to take a TLS-free route.
 KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, 0, {}};
+#ifdef KAME_INCARNATION_PROBE
+std::atomic<unsigned long long> g_inc_mismatch{0};
+void kame_incarnation_mismatch(const void *slot, const void *chunk,
+                               unsigned was, unsigned now) noexcept {
+    if(g_inc_mismatch.fetch_add(1, std::memory_order_relaxed) < 8)
+        fprintf(stderr, "INCARNATION MISMATCH: slot=%p chunk=%p bucket_at_push=%u "
+                "bucket_now=%u -- the apply will use the WRONG bit index\n",
+                slot, chunk, was, now);
+}
+namespace { struct IncReport { ~IncReport() {
+    fprintf(stderr, "INCARNATION mismatches=%llu\n", g_inc_mismatch.load());
+} } g_inc_report; }
+#endif
 #ifdef KAME_POSTEXIT_PROBE
 std::atomic<unsigned long long> g_pe_ownerid_after_exit{0}, g_pe_ownerid_shared{0},
                                g_pe_freelist_after_exit{0}, g_pe_free_after_exit{0};

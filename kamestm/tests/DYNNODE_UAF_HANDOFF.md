@@ -15160,3 +15160,89 @@ picking TLC's first *progress* line rather than the final count; the real figure
 554 910.  A state count that *drops* when an action is added is impossible, which is
 what made it visible — the same tell §13.214 used on inert knobs, this time on my
 own reporting rather than on a knob.
+
+### 13.228 The mechanism closes on one word of the source: `batch_return_to_bitmap` is `virtual`, so a deferred entry is applied through the chunk's CURRENT vtable
+
+Source fact, `allocator_prv.h:1231`:
+
+```cpp
+virtual int batch_return_to_bitmap(const CrossDeallocEntry *entries) noexcept;
+```
+
+A `CrossDeallocEntry` is `{PoolAllocatorBase *chunk, void *slot}` — a raw pointer
+and an address, and **nothing that identifies which incarnation of that chunk the
+entry belongs to**.  The flush does `chunk->batch_return_to_bitmap(&buf[i])`, so
+the apply runs whatever the chunk **is now**:
+
+1. entry `{C, A}` pushed while `C` is a `PoolAllocator<32,…>`;
+2. `C` is released and placement-new'd as, say, `PoolAllocator<48,…>` — new vtable,
+   new `ALIGN`;
+3. the apply dispatches to the **48-byte** body, which computes
+   `bit = (A − mempool) / 48` — **a different bit, belonging to a different and
+   possibly live slot.**
+
+That is `BUG_WRONG_BIT`, the knob that violates `OccCoveredByBits` in
+`OrphanAdoptFreelist.tla`, and §13.220's gdb sample is literally it: a 32 B chunk's
+push applied by `PoolAllocator<48u,…>`.
+
+**Every zero this section collected is consistent with it**, which is why none of
+them found it:
+
+| measurement | why it reads clean |
+|---|---|
+| `pairing_bad = 0` | `A` is still inside the chunk's address range |
+| `FREE-OF-FREE = 0` | the bit *was* set at the free — in the **old** incarnation |
+| `freed-while-pending = 0` | there is only one push |
+| conservation ±1 | the entry is applied exactly once |
+| `cross_thread = 0` | one owner throughout |
+| `bit_clear_bad` | the **wrong** bit is cleared; when it happens to be clear already, that is what gets reported |
+
+And the behavioural results follow: the cap is a **dose** (a deeper batch leaves
+more time for a re-construction), the exit window is when chunks are released, and
+the exit flush is **worse** because returning slots sooner produces more
+re-construction, not less.
+
+#### Debugging method — `KAME_INCARNATION_PROBE`
+
+`CrossDeallocEntry` gains the chunk's **size class at push time** and the apply
+compares it with the chunk's class now.  A re-construction into the *same* class is
+harmless (same bit index), so this detects exactly the damaging case and only it.
+
+```
+INCARNATION MISMATCH: slot=… chunk=… bucket_at_push=0 bucket_now=5
+                      -- the apply will use the WRONG bit index
+```
+
+**The first version reported 8 731 488 mismatches**, all with `bucket_at_push = 0`:
+only `push` stamps the field, while `push_direct`'s direct pair and the three
+teardown drains build entries by aggregate initialisation, which zeroed it.  The
+default is now `0xFFFF` = *not stamped* and those are skipped.  That failure is also
+the liveness proof the arm needs — the comparison demonstrably executes and reports;
+what is zero now is the filtered condition, not the code path.
+
+#### The fix, and it is one comparison
+
+If the probe fires on x86-64, the fix is at the same place:
+
+```cpp
+if(entries[k].bucket_at_push != chunk_class_now) continue;   // drop the entry
+```
+
+Dropping is **correct, not a leak**: the slot's address now belongs to a different
+chunk incarnation, which owns and accounts for its own bitmap.  The stale free
+refers to an object that no longer exists, so applying it is the bug and discarding
+it is the whole repair.  Cost is one comparison per entry, no timing change, no
+leak, and batching is untouched.
+
+The heavier alternative is to make re-construction impossible while entries are
+pending — the batch holding a reference to the chunk (`local_shared_ptr`), which is
+the idea raised earlier and now has a precise justification rather than a general
+one.  It costs a refcount pair per cross-thread free; the comparison costs nothing
+and fixes the same window, so it is the one to try first.
+
+#### What to run
+
+1. `KAME_INCARNATION_PROBE` on the crashing reproducer.  Non-zero confirms it.
+2. If confirmed, the one-line drop, A/B'd against stock with the shape gate — and
+   unlike every previous candidate it does not touch the exit path, so it should
+   not carry §13.222's aggravation.
