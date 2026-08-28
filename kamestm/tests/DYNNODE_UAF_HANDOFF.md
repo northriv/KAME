@@ -15465,3 +15465,63 @@ above.  A flag that is set and not reset has now produced a wrong number three t
 in this section (§13.186's sticky site byte, §13.212's never-cleared
 `pending_owner`, and this); the pattern is a probe whose lifetime is longer than the
 event it names.
+
+### 13.233 §13.232's mechanism is falsified by the next measurement — and the pattern across all three of my proposals is that ZERO is worst
+
+§13.232 counted "a teardown-flush apply empties an ownerless chunk" only *inside*
+the teardown flush.  Counting the same event during normal operation as well:
+
+| `cap` | in the teardown flush | in normal life | **total** |
+|---|---|---|---|
+| 1 | 1 | 2 342 | **2 343** |
+| 1024 | 1 107 | 338 | **1 445** |
+
+**The configuration that cures has MORE of them.**  `cap` does not change how often
+an ownerless chunk is emptied; it changes **where** it happens.  So §13.232's
+framing — that this event is what enables the release and therefore the fault — is
+inverted by its own totals, and is withdrawn.
+
+Restricting to "inside the teardown flush" gives 1 vs 1 107, which does track the
+two cap arms — but **v1/v2 drive it to 0 and are the worst arm (75 %)**, so that
+axis fails too.
+
+#### The pattern, stated because it is the useful part
+
+Three quantities have now been proposed as the variable and all three are falsified:
+
+| § | proposed variable | how it dies |
+|---|---|---|
+| 13.225 | how long an entry is deferred | `cap` counts the thread's own frees, not time; a quiet thread defers indefinitely at any cap |
+| 13.230 | entries left over at teardown | 1 → cured, 84 → 29 %, **0 → 75 %** |
+| 13.232 | applies that empty an ownerless chunk | curing arm has more of them in total; restricted to the teardown flush, **0 → 75 %** |
+
+Every one of them is worst when driven to **zero** by the flush arms.  That is not
+three coincidences: it says the flush arms are not points on any of these axes, and
+that something about applying the entries *inside the cleanup destructor* is harmful
+independently of how many entries there are or what they do to chunk occupancy.
+
+#### What survives, and the one unrun test
+
+Two facts have survived every measurement:
+
+* `cap = 1` cures (0/12) — the only intervention measured to do so;
+* every arm that removes the teardown applies by **moving** them is worse.
+
+And exactly one candidate remains unrun, which is qualitatively different because it
+**moves none of these quantities**: §13.229's incarnation check.  It leaves the
+leftovers, the deferral and the emptying exactly as they are, and only makes a
+*stale* apply harmless.  It therefore cannot be a "driven to zero → worse" case.
+
+```
+KAME_INCARNATION_PROBE, one run on the crashing reproducer
+```
+
+* **mismatches > 0** — §13.228's mechanism is confirmed and the fix is
+  `if(entries[k].gen_at_push != chunk->m_incarnation) continue;`
+* **mismatches = 0** — the whole "a stale apply lands on a different incarnation"
+  family dies, and what is left standing is only the two facts above.  I would then
+  be starting the hypothesis over rather than refining one.
+
+Both probes (`KAME_INCARNATION_PROBE`, `KAME_LATEAPPLY_PROBE`) are in the same
+build, so one run answers this and re-measures the leftover counts on the platform
+where they matter.

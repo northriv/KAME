@@ -1928,7 +1928,9 @@ struct CrossDeallocBatch {
     static inline std::atomic<unsigned long long> s_late_histo[17];
     static inline std::atomic<unsigned long long> s_late_owned{0}, s_late_unowned{0};
     static inline std::atomic<unsigned long long> s_td_emptied_owned{0},
-                                                  s_td_emptied_orphan{0};
+                                                  s_td_emptied_orphan{0},
+                                                  s_life_emptied_owned{0},
+                                                  s_life_emptied_orphan{0};
     static inline thread_local bool s_in_td_flush = false;
 #endif
     ~CrossDeallocBatch() noexcept {
@@ -3672,12 +3674,25 @@ KAME_CLONE_LICENCE(4) /*§13.112 arm 4*/ PoolAllocator<ALIGN, FS, DUMMY>::batch_
 				//! that `orphan_chain_scrub` will reclaim once drained -- so an
 				//! apply that brings MASK_CNT to 0 is exactly what makes such a
 				//! chunk reclaimable, and therefore re-constructible.
-				if(kame_in_teardown_flush()) {
-					if(this->m_owner_id != 0)
+				//! §13.233  Count the SAME event outside the teardown flush too.
+				//! Emptying an ownerless chunk is what makes it reclaimable; if
+				//! normal-life flushes do it far more often than the teardown
+				//! flush, then killing the teardown leftovers cannot cure
+				//! anything -- which is what v1/v2 measured.
+				if(this->m_owner_id != 0) {
+					if(kame_in_teardown_flush())
 						CrossDeallocBatch::s_td_emptied_owned
 						    .fetch_add(1, std::memory_order_relaxed);
 					else
+						CrossDeallocBatch::s_life_emptied_owned
+						    .fetch_add(1, std::memory_order_relaxed);
+				}
+				else {
+					if(kame_in_teardown_flush())
 						CrossDeallocBatch::s_td_emptied_orphan
+						    .fetch_add(1, std::memory_order_relaxed);
+					else
+						CrossDeallocBatch::s_life_emptied_orphan
 						    .fetch_add(1, std::memory_order_relaxed);
 				}
 #endif
@@ -6714,6 +6729,10 @@ namespace { struct LateApplyReport { ~LateApplyReport() {
             "re-constructible)\n",
             CrossDeallocBatch::s_td_emptied_owned.load(),
             CrossDeallocBatch::s_td_emptied_orphan.load());
+    fprintf(stderr, "LATEAPPLY normal-life  EMPTIED a chunk: owner_live=%llu "
+            "ownerless=%llu\n",
+            CrossDeallocBatch::s_life_emptied_owned.load(),
+            CrossDeallocBatch::s_life_emptied_orphan.load());
     for(int k = 0; k <= 16; ++k) {
         unsigned long long v = CrossDeallocBatch::s_late_histo[k].load();
         if(v) fprintf(stderr, "LATEAPPLY   %2d%s entries : %llu threads\n",
