@@ -246,7 +246,33 @@ ALLOC_TLS_IE bool s_alloc_tls_off = false;
 // is defined further down.  We use `kame_page()->owner_id` here.
 // See allocator_prv.h for the rationale.
 static std::atomic<uint32_t> s_owner_id_next{1};
+#ifdef KAME_POSTEXIT_PROBE
+//! §13.226  Is anything touching per-thread state AFTER this thread's teardown?
+//!
+//! `kame_owner_id()` reads and, when zero, WRITES `kame_page()->owner_id`.  After
+//! teardown `kame_page()` is `&g_teardown_page`, a non-const global whose
+//! `owner_id` starts at 0 -- so a post-teardown call stamps an id into the shared
+//! sentinel, and every later post-teardown thread then reads the SAME id.  A chunk
+//! whose `m_owner_id` equals it is taken for owned, which routes a free down the
+//! OWNER path into `freelist_push` -- touching the freelist of a chunk this thread
+//! does not own.
+//!
+//! Two counters: how often the id is taken from the teardown page at all, and how
+//! often it is taken while the page's `owner_id` is already non-zero (i.e. stamped
+//! by some earlier post-teardown thread, so the value is shared).
+extern std::atomic<unsigned long long> g_pe_ownerid_after_exit;
+extern std::atomic<unsigned long long> g_pe_ownerid_shared;
+extern std::atomic<unsigned long long> g_pe_freelist_after_exit;
+extern std::atomic<unsigned long long> g_pe_free_after_exit;
+#endif
 static inline uint32_t kame_owner_id() noexcept {
+#ifdef KAME_POSTEXIT_PROBE
+    if(__builtin_expect(kame_page() == &g_teardown_page, 0)) {
+        g_pe_ownerid_after_exit.fetch_add(1, std::memory_order_relaxed);
+        if(g_teardown_page.owner_id != 0)
+            g_pe_ownerid_shared.fetch_add(1, std::memory_order_relaxed);
+    }
+#endif
     uint32_t id = kame_page()->owner_id;
     if(__builtin_expect(id == 0, 0)) {
         do { id = s_owner_id_next.fetch_add(1, std::memory_order_relaxed); }
@@ -3014,6 +3040,9 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// cursor-reset below) may be torn down; route the slot straight to the
 	// bitmap and return, touching no thread-local.
 	if(__builtin_expect(kame_page() == &g_teardown_page, 0)) {
+#ifdef KAME_POSTEXIT_PROBE
+		g_pe_free_after_exit.fetch_add(1, std::memory_order_relaxed);
+#endif
 		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
 		#ifdef KAME_BATCH_VERIFY
 		KAME_BV_SITE(BV_TEARDOWN);
@@ -3628,6 +3657,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// route the single slot straight to the bitmap (TLS-free, scratch +
 	// sentinel) and return.  Subsumes the former `s_alloc_tls_off` bypass.
 	if(__builtin_expect(kame_page() == &g_teardown_page, 0)) {
+#ifdef KAME_POSTEXIT_PROBE
+		g_pe_free_after_exit.fetch_add(1, std::memory_order_relaxed);
+#endif
 		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
 		#ifdef KAME_BATCH_VERIFY
 		KAME_BV_SITE(BV_TEARDOWN);
@@ -3653,6 +3685,10 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 		// freelist is local-id 0 (§12.3); the owner's next alloc on this
 		// bucket pops it back immediately via the TLS shortcut at
 		// `g_thread_freelist_ptr[bucket]` -> `m_freelist_head[0]`.
+#ifdef KAME_POSTEXIT_PROBE
+		if(__builtin_expect(kame_page() == &g_teardown_page, 0))
+			g_pe_freelist_after_exit.fetch_add(1, std::memory_order_relaxed);
+#endif
 		this->freelist_push(0, p);
 		return false;
 	}
@@ -5583,6 +5619,10 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 				return;
 			}
 #endif /* KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH */
+#ifdef KAME_POSTEXIT_PROBE
+		if(__builtin_expect(kame_page() == &g_teardown_page, 0))
+			g_pe_freelist_after_exit.fetch_add(1, std::memory_order_relaxed);
+#endif
 			chunk_obj->freelist_push(0, p);
 			return;
 		}
@@ -5816,6 +5856,10 @@ PoolAllocatorBase::deallocate_cold(void *p) noexcept {
 			// dead code on this hottest path (5 % bench_loop regression
 			// when folded together).
 			if(chunk_obj->m_fs_flag) {
+#ifdef KAME_POSTEXIT_PROBE
+				if(__builtin_expect(kame_page() == &g_teardown_page, 0))
+					g_pe_freelist_after_exit.fetch_add(1, std::memory_order_relaxed);
+#endif
 				chunk_obj->freelist_push(0, p);
 				return;
 			}
@@ -6544,6 +6588,16 @@ ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, 0, {}};
 // owner_id 0 guarantees the hot owner-check never matches it; the cold dealloc
 // path identity-compares against `&g_teardown_page` to take a TLS-free route.
 KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, 0, {}};
+#ifdef KAME_POSTEXIT_PROBE
+std::atomic<unsigned long long> g_pe_ownerid_after_exit{0}, g_pe_ownerid_shared{0},
+                               g_pe_freelist_after_exit{0}, g_pe_free_after_exit{0};
+namespace { struct PostExitReport { ~PostExitReport() {
+    fprintf(stderr, "POSTEXIT owner_id_from_teardown_page=%llu shared=%llu "
+            "freelist_push_after_exit=%llu free_after_exit=%llu\n",
+            g_pe_ownerid_after_exit.load(), g_pe_ownerid_shared.load(),
+            g_pe_freelist_after_exit.load(), g_pe_free_after_exit.load());
+} } g_pe_report; }
+#endif
 
 // Cold off-ramp for the lean freelist-pop entries (`new_redirected` and
 // `new_redirected_large`; declared in allocator_prv.h): an empty owner

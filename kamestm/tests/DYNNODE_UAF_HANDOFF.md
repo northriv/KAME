@@ -15031,3 +15031,49 @@ the added flushes).
 Best run alongside `leak`/`leak-all` (§13.223/§13.224): those test whether *returning*
 storage is harmful, this tests whether *deferring* it across an ownership change is.
 The two are independent and the pair of answers is what narrows it.
+
+### 13.226 Is the freelist touched after teardown?  No — but post-teardown frees exist, exactly one per thread, and they bypass the batch
+
+Asked directly.  Measured with three counters at the sites that could do it
+(`KAME_POSTEXIT_PROBE`, arm64, full reproducer):
+
+```
+POSTEXIT owner_id_from_teardown_page=0  shared=0
+         freelist_push_after_exit=0     free_after_exit=805
+```
+
+* **`freelist_push_after_exit = 0`**, at all three `freelist_push(0, p)` sites.  The
+  freelist is not touched after this thread's teardown.
+* **`owner_id_from_teardown_page = 0`.**  Worth keeping even so, because the code
+  admits the shape: `kame_owner_id()` reads and, when zero, **writes**
+  `kame_page()->owner_id`, and after teardown `kame_page()` is `&g_teardown_page` —
+  a **non-const global** initialised with `owner_id = 0`.  A post-teardown call
+  would stamp an id into the shared sentinel, after which every later
+  post-teardown thread reads the *same* id, and a chunk whose `m_owner_id` matched
+  would be taken for owned and routed down the owner path into `freelist_push`.
+  Unreached in this workload, and a two-line fix if it is ever wanted (make the
+  sentinel `const`, or return 0 without stamping when the page is the sentinel).
+* **`free_after_exit = 805`** — post-teardown frees are real, and there is
+  **exactly one per thread** (805 ≈ 801 exits + main).  They take the TLS-free
+  bypass: straight to the bitmap, **not** through the batch.
+
+Note the owner check the probe had to chase: the hot free path compares against
+`s_tls_owner_id`, a POD thread-local, not via `kame_owner_id()`.  Being POD it has
+no destructor and keeps the exited thread's id, which is why the freelist route was
+worth measuring rather than reasoning about.
+
+#### The cadence again, and why it is still not the culprit
+
+"Exactly one per thread" is now the fourth quantity with that shape: violations ==
+thread exits (§13.210), `excess = −801` (§13.204), the one entry `cap = 1` always
+leaves pending (§13.220), and these 805 post-teardown frees.
+
+But this one cannot be the mechanism on its own: **the bypass does not go through
+the batch, so it is `cap`-independent** — and `cap = 1` cures (§13.180).  A
+cap-independent path cannot explain a cap-dependent cure.
+
+What it does add is that the exit window contains a bitmap clear that no batching
+knob can move: one per thread, issued after that thread's chunks have been disowned
+and orphaned.  If `leak-all` (§13.224) comes back near zero, this is one of the
+returns it suppresses, and it is the only one that survives every batch-side arm —
+so it would then be worth its own arm.
