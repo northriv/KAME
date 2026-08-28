@@ -391,9 +391,9 @@ private:
 } // namespace
 
 FrmKameMain::EdgeSlider *
-FrmKameMain::edgeSliderFor(QDockWidget *dock) {
+FrmKameMain::edgeSliderFor(QWidget *win) {
     for(auto &&s: m_edgeSliders)
-        if(s.dock == dock) return &s;
+        if(s.win == win) return &s;
     return nullptr;
 }
 void
@@ -420,8 +420,10 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
         int tabw = 24;
         if(QTabBar *tabs = area->findChild<QTabBar *>()) {
             //Clicking the tab already in front pins/unpins this toolbox; see
-            //eventFilter().
+            //eventFilter().  (The poll installs this for a tab bar that does
+            //not exist yet at this point.)
             tabs->installEventFilter(this);
+            tabs->setProperty("kame_pin_filter", true);
             //A fifth wider than the style's own idea, for a comfortable hover
             //target and a more legible resting bar.  One constant: 2x also
             //works and still fits every pane, if that reads better.
@@ -439,8 +441,8 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
         autohide->setCheckable(true);
         autohide->setChecked(true);
         m_pViewMenu->addAction(autohide);
-        m_edgeSliders.push_back({dock, area, anim, dock->geometry(), tabw + 6, left,
-            false, 0, true, autohide, false});
+        m_edgeSliders.push_back({dock, area, anim, dock->geometry(), tabw + 6,
+            false, left, false, 0, true, autohide, false});
         //Pointers into a deque stay valid across push_back.
         EdgeSlider *s = &m_edgeSliders.back();
         connect(autohide, &QAction::toggled, this, [this, s](bool on){
@@ -457,9 +459,31 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
             //pushed its tab column off-screen — exactly what the user sees as
             //"the wrong side is showing".  Re-anchor instead.
             if(s->collapsed && !s->left)
-                s->dock->move(s->expanded.right() - s->dock->width() + 1, s->dock->y());
+                s->win->move(s->expanded.right() - s->win->width() + 1, s->win->y());
             updateToolboxStrips();
         });
+    }
+    //The main window folds too, but downwards and only half way: it is worked
+    //IN rather than glanced at, so what it gives back is the lower half of the
+    //screen while it waits, not all of itself.  Its top edge stays put, so the
+    //menu bar and the pane tabs never move.
+    {
+        QAction *autohide = new QAction(i18n("Auto-hide &Main Window"), this);
+        autohide->setCheckable(true);
+        autohide->setChecked(true);
+        m_pViewMenu->addAction(autohide);
+        auto *anim = new QPropertyAnimation(this, "geometry", this);
+        anim->setDuration(220);
+        anim->setEasingCurve(QEasingCurve::OutCubic);
+        m_edgeSliders.push_back({this, m_pMdiCentral, anim, geometry(), 0,
+            true, true, false, 0, true, autohide, false});
+        EdgeSlider *s = &m_edgeSliders.back();
+        connect(autohide, &QAction::toggled, this, [this, s](bool on){
+            s->autoHide = on;
+            s->idleTicks = 0;
+            if( !on && s->collapsed) setToolboxCollapsed( *s, false);
+        });
+        connect(anim, &QPropertyAnimation::finished, this, [this]{updateToolboxStrips();});
     }
     m_pEdgeHoverTimer = new QTimer(this);
     connect(m_pEdgeHoverTimer, &QTimer::timeout, this, &FrmKameMain::pollEdgeAutoHide);
@@ -486,11 +510,12 @@ FrmKameMain::fitToolboxHeights() {
     //long.  Measure where each one actually landed and take the excess off.
     int msg_top = XMessageBox::form()->frameGeometry().top();
     for(auto &&s: m_edgeSliders) {
-        if( !s.dock->isFloating()) continue;
-        int over = s.dock->frameGeometry().bottom() - (msg_top - 8);
+        auto *dock = qobject_cast<QDockWidget *>(s.win);
+        if( !dock || !dock->isFloating()) continue; //the main window is not ours to trim
+        int over = s.win->frameGeometry().bottom() - (msg_top - 8);
         if(over > 0)
-            s.dock->resize(s.dock->width(), std::max(s.dock->height() - over, 360));
-        s.expanded = s.dock->geometry();
+            s.win->resize(s.win->width(), std::max(s.win->height() - over, 360));
+        s.expanded = s.win->geometry();
     }
 }
 void
@@ -527,20 +552,29 @@ FrmKameMain::pollEdgeAutoHide() {
     //Typing always implies both, so nothing can shrink away mid-edit.
     QWidget *focus = QApplication::focusWidget();
     for(auto &&s: m_edgeSliders) {
-        //Sampled for every toolbox, pinned or not: it is what tells a tab
-        //click whether the user was already working in this toolbox.
-        s.wasFocused = focus && s.dock->isAncestorOf(focus) && s.dock->isActiveWindow();
+        //Sampled for every window, pinned or not: it is what tells a tab click
+        //whether the user was already working in this one.
+        s.wasFocused = focus && s.win->isAncestorOf(focus) && s.win->isActiveWindow();
+        //The central pane stack has no tab bar until the first script pane
+        //exists, so the pin gesture's filter cannot all be installed at setup.
+        if(QTabBar *tabs = s.area->findChild<QTabBar *>())
+            if( !tabs->property("kame_pin_filter").toBool()) {
+                tabs->installEventFilter(this);
+                tabs->setProperty("kame_pin_filter", true);
+            }
         if( !s.autoHide) continue;
         if(s.anim->state() == QAbstractAnimation::Running) continue;
-        if( !s.dock->isFloating() || !s.dock->isVisible()) continue;
-        if(s.dock->isMinimized()) continue; //out of reach until the View menu restores it
-        bool over = s.dock->frameGeometry().contains(c);
+        if(auto *dock = qobject_cast<QDockWidget *>(s.win))
+            if( !dock->isFloating()) continue; //re-docked by the user: not ours to move
+        if( !s.win->isVisible()) continue;
+        if(s.win->isMinimized()) continue; //out of reach until the View menu restores it
+        bool over = s.win->frameGeometry().contains(c);
         //Hovering a tab picks that pane, collapsed or open: the tab column is
         //all one sees of a resting toolbox, so pointing at a name there should
         //be what brings that pane up as it grows.  Only the column reacts, and
         //it sits against the screen edge, so the pointer never crosses it on
         //its way to the panes' own contents.
-        if(over) {
+        if(over && !s.vertical) {
             if(QTabBar *tabs = s.area->findChild<QTabBar *>()) {
                 QPoint local = tabs->mapFromGlobal(c);
                 if(tabs->isVisible() && tabs->rect().contains(local)) {
@@ -554,7 +588,7 @@ FrmKameMain::pollEdgeAutoHide() {
             if(over) setToolboxCollapsed(s, false);
             continue;
         }
-        s.expanded = s.dock->geometry(); //follows the user moving or resizing it
+        s.expanded = s.win->geometry(); //follows the user moving or resizing it
         if(over || busy || s.wasFocused)
             s.idleTicks = 0;
         else if(++s.idleTicks >= 4) //~0.6 s with the pointer elsewhere
@@ -565,20 +599,29 @@ void
 FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
     QRect to = s.expanded;
     if(collapse) {
-        //Re-applied here, not once at setup: QDockWidget re-derives its
-        //minimum width from the QMdiArea's size hint on every layout pass, and
-        //a stale ~196 px minimum silently clamps the shrink.
-        s.area->setMinimumWidth(0);
-        s.dock->setMinimumWidth(0);
-        //Keep the edge the toolbox clings to; give up the width on the other
-        //side, so it grows out of the screen edge rather than sliding along.
-        if(s.left) to.setWidth(s.collapsedWidth);
-        else to.setLeft(s.expanded.right() - s.collapsedWidth + 1);
+        //Re-applied here, not once at setup: a window re-derives its minimum
+        //from the QMdiArea's size hint on every layout pass, and a stale one
+        //(~196 px for a toolbox) silently clamps the shrink.
+        if(s.vertical) {
+            s.area->setMinimumHeight(0);
+            s.win->setMinimumHeight(0);
+            //Half of whatever it is now, keeping the top edge.
+            to.setHeight(std::max(s.expanded.height() / 2, 200));
+        }
+        else {
+            s.area->setMinimumWidth(0);
+            s.win->setMinimumWidth(0);
+            //Keep the edge the toolbox clings to; give up the width on the
+            //other side, so it grows out of the screen edge rather than
+            //sliding along it.
+            if(s.left) to.setWidth(s.collapsedWidth);
+            else to.setLeft(s.expanded.right() - s.collapsedWidth + 1);
+        }
     }
     s.idleTicks = 0;
     s.collapsed = collapse;
     s.anim->stop();
-    s.anim->setStartValue(s.dock->geometry());
+    s.anim->setStartValue(s.win->geometry());
     s.anim->setEndValue(to);
     s.anim->start();
 }
@@ -599,11 +642,10 @@ FrmKameMain::eventFilter(QObject *obj, QEvent *event) {
             int idx = tabs->tabAt(me->position().toPoint());
             if((idx < 0) || (idx != tabs->currentIndex())) break;
             s.autoHideAction->setChecked( !s.autoHide); //drives the toggle
-            gMessagePrint(s.autoHide ?
-                (s.left ? i18n("West toolbox auto-hides again.")
-                        : i18n("East toolbox auto-hides again."))
-                : (s.left ? i18n("West toolbox pinned open.")
-                          : i18n("East toolbox pinned open.")));
+            XString what = s.vertical ? i18n("Main window") :
+                (s.left ? i18n("West toolbox") : i18n("East toolbox"));
+            gMessagePrint(what + (s.autoHide ? i18n(" auto-hides again.")
+                                             : i18n(" pinned open.")));
             return true; //the click meant this, not a tab change
         }
     }

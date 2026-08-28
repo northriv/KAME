@@ -152,21 +152,27 @@ private:
 	//! Syncs the check marks with what is actually on screen.
 	void updateToolboxStrips();
 
-	//! Dock-style auto-hide for a toolbox floating at a screen edge: it rests
-	//! shrunk to a narrow bar there — just its MDI tab column — and grows back
-	//! to full width under the pointer, shrinking again once the pointer has
-	//! been elsewhere for a moment.  Only where windows can actually be placed
-	//! (not Wayland), and only while the toolbox is floating.
+	//! Dock-style auto-hide.  A toolbox floating at a screen edge rests shrunk
+	//! to a narrow bar there — just its MDI tab column — and grows back to full
+	//! width under the pointer, shrinking again once the pointer has been
+	//! elsewhere for a moment.  The main window does the same downwards: it
+	//! keeps its top edge and rests at half height.  Only where windows can
+	//! actually be placed (not Wayland), and a toolbox only while it floats.
 	struct EdgeSlider {
-		QDockWidget *dock;
-		QMdiArea *area;             //!< the toolbox's pane stack, for its minimum
-		QPropertyAnimation *anim;   //!< animates dock->geometry()
+		QWidget *win;               //!< a floating toolbox, or the main window
+		QMdiArea *area;             //!< its pane stack, for the layout minimum
+		QPropertyAnimation *anim;   //!< animates win->geometry()
 		QRect expanded;             //!< full size; follows the user's own moves
-		int collapsedWidth;
+		int collapsedWidth;         //!< resting width of a toolbox; unused when vertical
+		//! Fold downwards to half height (the main window) instead of sideways
+		//! to a tab column.  Vertical sliders also leave tab hovering alone:
+		//! their tab bar is not tucked against a screen edge, so the pointer
+		//! crosses it on the way in and would flip panes by accident.
+		bool vertical;
 		bool left;                  //!< which screen edge it clings to
 		bool collapsed;
 		int idleTicks;
-		bool autoHide;              //!< per-toolbox switch, from the View menu
+		bool autoHide;              //!< per-window switch, from the View menu
 		QAction *autoHideAction;    //!< the View-menu entry, kept in sync
 		//! Whether the toolbox held the keyboard as of the last poll — read
 		//! when a tab is clicked, since the click itself may have just
@@ -183,8 +189,8 @@ private:
 	void focusToolbox(bool left);
 	void pollEdgeAutoHide();
 	void setToolboxCollapsed(EdgeSlider &slider, bool collapse);
-	//! nullptr where a dock has no edge slider (docked layout, or Wayland).
-	EdgeSlider *edgeSliderFor(QDockWidget *dock);
+	//! nullptr where a window has no edge slider (docked layout, or Wayland).
+	EdgeSlider *edgeSliderFor(QWidget *win);
 	int m_cascadeIndex = 0;
 	void closeEvent( QCloseEvent* ce );
 	shared_ptr<XScriptingThread> runNewScript(const XString &label, const XString &filename);
