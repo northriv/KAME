@@ -15775,3 +15775,102 @@ Both are already in the build and neither changes behaviour:
 
 A nonzero from either names the wrong-bit source.  Zero from both, on a crashing
 run, and the wrong-bit account joins the premature-free account in the discard pile.
+
+### 13.238 Caught in gdb: a post-teardown free pushed into the batch for an ALREADY-ORPHANED chunk, from a later TLS destructor, through the UNGUARDED flush
+
+Asked to stop at a `flush`/`push` occurring after the worker thread's teardown.
+Done, on an ungated production build whose only change is an externally-visible
+`kame_tl_torn` flag set at the end of `~AllocThreadExitCleanup` — the same arm
+§13.235 validated as a measurement platform (5/14 failures vs 3/14 control, so the
+flag does not suppress the fault).
+
+```gdb
+break …CrossDeallocBatch::flush… if kame_tl_torn == 1
+break …CrossDeallocBatch::push…  if kame_tl_torn == 1
+```
+
+#### Capture 1 — the flush, and its guard is OFF
+
+```
+kame_tl_torn = true                  <- this thread's cleanup has COMPLETED
+#0  flush (at_teardown=FALSE)        <- the unguarded arm
+#1  push  (c=0x7ffff457f040, s=0x7ffff4580220)
+#2  PoolAllocator<16u,true,true>::deallocate_pooled
+#3  deallocate_pooled_static
+#4  PoolAllocatorBase::deallocate_cold
+#5  Transactional::detail::PerThread::~PerThread    kamestm/threadlocal.cpp:79
+#6  Transactional::detail::pthread_destroy          kamestm/threadlocal.cpp:128
+#7  __GI___nptl_deallocate_tsd
+#8  start_thread
+```
+
+`push` calls `flush()` with the **default argument**, so `at_teardown = false` — the
+guard that exists precisely for this window ("the owner's TLS force-walk pointer may
+dangle") is off *after* teardown.  And this is one thread, in order, inside its own
+teardown chain: **no race is involved.**
+
+#### Capture 2 — the other caller, and the chunk is already orphaned
+
+```
+kame_tl_torn = 1
+#0  push (c=0x7ffff4b3f040, s=0x7ffff4b40000)
+#1  PoolAllocator<32u,true,true>::deallocate_pooled
+#3  PoolAllocatorBase::deallocate_cold
+#4  __GI___call_tls_dtors            cxa_thread_atexit_impl.c:163
+#5  start_thread
+
+chunk 0x7ffff4b3f040:
+    m_owner_id                 = 0        <- ORPHANED, no live owner
+    m_owner_dll_force_walk_ptr = 0x0      <- already nulled by the exit walk
+    m_freelist_head            = {0,…}    <- already drained
+```
+
+So the entry being queued names a chunk the exit walk has **already disowned,
+nulled and drained** — the state in which it is adoptable, releasable and
+re-constructible.
+
+#### What this pins down, by observation rather than inference
+
+1. after `~AllocThreadExitCleanup` completes, **other** TLS destructors still free
+   pool memory — two distinct callers seen: KAME's own `PerThread` via the
+   pthread-key path, and `__call_tls_dtors` via C++ `thread_local`;
+2. those frees reach `push`, i.e. they do **not** take the TLS-free bypass — which
+   §13.226 measured as `free_after_exit = 805` "bypassing the batch" on arm64.  On
+   x86-64 they demonstrably enter the batch;
+3. the target chunk can already be ownerless at the push;
+4. the flush that applies them runs with `at_teardown = false`.
+
+That is the concrete population §13.231/§13.232 counted (37 302 ownerless targets;
+1 097 applies that empty one) and the exact predicate the curing `sf` arm filters on
+— now seen at a single stop instead of aggregated.
+
+#### And it is allocator-side throughout
+
+The failure signatures are STM assertions (`&m_packet->node() == &node` and four
+others) plus one negotiation HANG, but those are **detection points, not origins**:
+they are what a slot live in two places looks like to the first code that
+dereferences it.  Every intervention that moves the rate is in the allocator
+(`leak`, `leakall`, `sf`, `gen`, `pcap`, the exit flush, the orphan-chain gate), and
+§13.172's `alloc_of_live > 0` says the allocator hands out a live slot.  `PerThread`
+appears here only as one of the clients whose teardown frees late.
+
+#### Caveat recorded: two of my instrumented builds are NOT measurement platforms
+
+* the census build (`KAME_POOL_FREE_CENSUS` + `rc_trace.cpp` linked) crashes **7–8
+  of 8** against a 27 % control, so its `xthread_push live = 0` — which I offered as
+  a refutation of §13.236 — came from an unrepresentative build, and from a partial
+  run that had not yet crashed.  **Withdrawn** pending a reading from a failing run;
+* the `KAME_ORPHAN_CHAIN_RUNTIME_GATE` build suppresses the fault entirely
+  (§13.235).
+
+Both are the §13.206 hazard, and the `kame_tl_torn` arm above was gated against it
+before any of these stops were read.
+
+#### Also: my arm results pooled distinct failure modes
+
+§13.235 scored `rc != 0` as one class.  Classifying the stderr I still have gives
+`&m_packet->node() == &node` ×7, `*this` ×6, `supscope->packet()->size()` ×2,
+`&subpacket_new->node() == child.get()` ×2, `m_pref` ×1, plus the HANG.  If an arm
+suppresses one mode and not another, those rates average different diseases.  Most
+of those arms discarded stderr, so this is **not** retrospectively fixable — the
+arm table needs re-running with logs retained before its ordering can carry weight.
