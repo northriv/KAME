@@ -3113,6 +3113,19 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// In that state `s_tls.my_chunk` (1540) and `&s_tls.dll_head` (the
 	// cursor-reset below) may be torn down; route the slot straight to the
 	// bitmap and return, touching no thread-local.
+	//! NOTE (post-teardown bypass): this guard is macOS-ONLY by construction.
+	//! `kame_page()` returns `&g_tls_page` unconditionally on Linux/Windows -- there
+	//! is no TLV thunk to bypass there, so the fast-TSD indirection that lets the
+	//! teardown sentinel be swapped in does not exist -- and the compare is
+	//! therefore tautologically false on those targets.  The portable predicate is
+	//! `kame_thread_torn_down()`, used at 13 other sites.
+	//!
+	//! DO NOT substitute it here.  This bypass applies the free IMMEDIATELY, and an
+	//! arm that made post-teardown frees apply immediately on Linux was measured at
+	//! 12/12 failures against a 9/24 control.  On the timing ordering this branch
+	//! being dead is PROTECTIVE.  Even `#if KAME_FAST_TSD`-ing it for honesty is a
+	//! codegen change on a hot path, so treat any edit here as an experiment arm and
+	//! gate it on the shape check, not as a cleanup.
 	if(__builtin_expect(kame_page() == &g_teardown_page, 0)) {
 #ifdef KAME_POSTEXIT_PROBE
 		g_pe_free_after_exit.fetch_add(1, std::memory_order_relaxed);
@@ -3789,6 +3802,19 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// and `&s_tls.dll_head` may be torn down, so we must touch NO thread-local:
 	// route the single slot straight to the bitmap (TLS-free, scratch +
 	// sentinel) and return.  Subsumes the former `s_alloc_tls_off` bypass.
+	//! NOTE (post-teardown bypass): this guard is macOS-ONLY by construction.
+	//! `kame_page()` returns `&g_tls_page` unconditionally on Linux/Windows -- there
+	//! is no TLV thunk to bypass there, so the fast-TSD indirection that lets the
+	//! teardown sentinel be swapped in does not exist -- and the compare is
+	//! therefore tautologically false on those targets.  The portable predicate is
+	//! `kame_thread_torn_down()`, used at 13 other sites.
+	//!
+	//! DO NOT substitute it here.  This bypass applies the free IMMEDIATELY, and an
+	//! arm that made post-teardown frees apply immediately on Linux was measured at
+	//! 12/12 failures against a 9/24 control.  On the timing ordering this branch
+	//! being dead is PROTECTIVE.  Even `#if KAME_FAST_TSD`-ing it for honesty is a
+	//! codegen change on a hot path, so treat any edit here as an experiment arm and
+	//! gate it on the shape check, not as a cleanup.
 	if(__builtin_expect(kame_page() == &g_teardown_page, 0)) {
 #ifdef KAME_POSTEXIT_PROBE
 		g_pe_free_after_exit.fetch_add(1, std::memory_order_relaxed);

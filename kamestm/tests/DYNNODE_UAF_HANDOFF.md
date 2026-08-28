@@ -15936,3 +15936,53 @@ happens, which is also why `KAME_ORPHAN_NO_ADOPT` turns those two into real leak
 So the candidate to design is: at teardown, hand the pending entries to the chunk's
 next owner rather than applying or discarding them.  That is the only shape
 consistent with every arm measured so far.
+
+### 13.240 What to do with the two bypass sites: comment now, and make the mistake a compile error later — but that is an arm, not a cleanup
+
+Asked what to do with them, and then whether `kame_page()` needs to exist on
+Linux/Windows at all.
+
+**It does.**  It is the single hot accessor, and being single is the point:
+`9ecc613d3` (2026-06-03) replaced three separate IE-TLS variables with one
+`KameTlsPage` reached by one call, because on macOS every `thread_local` access is a
+`_tlv_get_addr` **thunk call** and alloc/dealloc were paying two or three of them.
+Bypassing the thunk via `TPIDRRO_EL0` + a TSD-slot load bought +22 % at 64 B on an
+M3 Max.  On Linux there is no thunk — initial-exec TLS is one `mov %fs:offset` — so
+the Linux body just returns `&g_tls_page`, and the commit message says as much
+("same as individual IE vars, no regression").
+
+So the split is right on its own terms.  What it created as a side effect is an
+indirection that exists **only** on macOS, and therefore a pointer whose *identity*
+is meaningful only there.
+
+#### The type is what lies, not the platform
+
+`kame_page()` returns a pointer, so `kame_page() == &g_teardown_page` can be
+written, and it means something on macOS and is tautologically false on Linux.  The
+portable predicate `kame_thread_torn_down()` exists and is used at 13 sites; these
+two just predate it.
+
+The way to make the mistake impossible is to move `g_teardown_page`'s declaration
+inside `#if KAME_FAST_TSD`.  Then the raw compare **fails to compile** on Linux, and
+whoever hits it has to choose deliberately between the portable predicate and an
+explicit macOS-only guard.  A silent false becomes a diagnostic.
+
+**But that necessarily deletes a live branch from `deallocate_pooled` on Linux** —
+one compare, one branch, and whatever register allocation follows, on a hot path.
+§13.206's lesson applies: this is an experiment arm to be run behind the shape gate,
+not a tidy-up to be committed as one.  And per §13.239 the *behavioural* repair is
+contraindicated anyway: the bypass applies the free immediately, which `pcap`
+measured at 12/12.
+
+#### Done now
+
+Both production sites (`deallocate_pooled`, two instantiations) carry a comment
+stating that the guard is macOS-only by construction, that
+`kame_thread_torn_down()` is the portable predicate, that substituting it here is
+contraindicated with the measured numbers, and that even `#if`-ing the branch for
+honesty is a codegen change to be treated as an arm.  No code changed; `ctest`
+unaffected.
+
+A first pass put the same comment on a third site — my own `KAME_POSTEXIT_PROBE`
+guard inside `kame_owner_id` — because the pattern match keyed on the compare rather
+than on the enclosing function.  Removed.
