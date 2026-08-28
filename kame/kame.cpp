@@ -29,6 +29,7 @@
 #include <QCursor>
 #include <QTabBar>
 #include <QProxyStyle>
+#include <QMouseEvent>
 #include <QCloseEvent>
 #include <QMdiArea>
 #include <QMdiSubWindow>
@@ -418,6 +419,9 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
         dock->setAttribute(Qt::WA_ShowWithoutActivating);
         int tabw = 24;
         if(QTabBar *tabs = area->findChild<QTabBar *>()) {
+            //Clicking the tab already in front pins/unpins this toolbox; see
+            //eventFilter().
+            tabs->installEventFilter(this);
             //A fifth wider than the style's own idea, for a comfortable hover
             //target and a more legible resting bar.  One constant: 2x also
             //works and still fits every pane, if that reads better.
@@ -436,7 +440,7 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
         autohide->setChecked(true);
         m_pViewMenu->addAction(autohide);
         m_edgeSliders.push_back({dock, area, anim, dock->geometry(), tabw + 6, left,
-            false, 0, true});
+            false, 0, true, autohide, false});
         //Pointers into a deque stay valid across push_back.
         EdgeSlider *s = &m_edgeSliders.back();
         connect(autohide, &QAction::toggled, this, [this, s](bool on){
@@ -523,6 +527,9 @@ FrmKameMain::pollEdgeAutoHide() {
     //Typing always implies both, so nothing can shrink away mid-edit.
     QWidget *focus = QApplication::focusWidget();
     for(auto &&s: m_edgeSliders) {
+        //Sampled for every toolbox, pinned or not: it is what tells a tab
+        //click whether the user was already working in this toolbox.
+        s.wasFocused = focus && s.dock->isAncestorOf(focus) && s.dock->isActiveWindow();
         if( !s.autoHide) continue;
         if(s.anim->state() == QAbstractAnimation::Running) continue;
         if( !s.dock->isFloating() || !s.dock->isVisible()) continue;
@@ -548,8 +555,7 @@ FrmKameMain::pollEdgeAutoHide() {
             continue;
         }
         s.expanded = s.dock->geometry(); //follows the user moving or resizing it
-        if(over || busy ||
-            (focus && s.dock->isAncestorOf(focus) && s.dock->isActiveWindow()))
+        if(over || busy || s.wasFocused)
             s.idleTicks = 0;
         else if(++s.idleTicks >= 4) //~0.6 s with the pointer elsewhere
             setToolboxCollapsed(s, true);
@@ -578,6 +584,29 @@ FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
 }
 bool
 FrmKameMain::eventFilter(QObject *obj, QEvent *event) {
+    if(event->type() == QEvent::MouseButtonPress) {
+        //Pin gesture: while already working in a toolbox, clicking the tab of
+        //the pane in front toggles its auto-hide.  Only the pane in front, so
+        //clicking any other tab still just switches panes; and only when the
+        //toolbox already held the keyboard, which is why the poll's remembered
+        //answer is used rather than a fresh one — this very click may have
+        //activated the window, and a fresh test would say yes every time.
+        for(auto &&s: m_edgeSliders) {
+            QTabBar *tabs = s.area->findChild<QTabBar *>();
+            if(obj != tabs) continue;
+            if( !s.wasFocused) break;
+            auto *me = static_cast<QMouseEvent *>(event);
+            int idx = tabs->tabAt(me->position().toPoint());
+            if((idx < 0) || (idx != tabs->currentIndex())) break;
+            s.autoHideAction->setChecked( !s.autoHide); //drives the toggle
+            gMessagePrint(s.autoHide ?
+                (s.left ? i18n("West toolbox auto-hides again.")
+                        : i18n("East toolbox auto-hides again."))
+                : (s.left ? i18n("West toolbox pinned open.")
+                          : i18n("East toolbox pinned open.")));
+            return true; //the click meant this, not a tab change
+        }
+    }
     if(event->type() == QEvent::Show) {
         auto w = qobject_cast<QWidget*>(obj);
         if(w && !w->property("kame_placed").toBool()) {

@@ -167,6 +167,11 @@ private:
 		bool collapsed;
 		int idleTicks;
 		bool autoHide;              //!< per-toolbox switch, from the View menu
+		QAction *autoHideAction;    //!< the View-menu entry, kept in sync
+		//! Whether the toolbox held the keyboard as of the last poll — read
+		//! when a tab is clicked, since the click itself may have just
+		//! activated the window and would answer "yes" either way.
+		bool wasFocused;
 	};
 	std::deque<EdgeSlider> m_edgeSliders;
 	QTimer *m_pEdgeHoverTimer = nullptr;
