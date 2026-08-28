@@ -464,10 +464,23 @@ enum : std::size_t {
 //! most recent allocation on this thread, in a TLS word we read straight
 //! after the call.  Weak, so a pool built without KAME_ALLOC_TIER_TRACE
 //! still links and simply reports tier 0.
-extern "C" __thread unsigned g_kame_alloc_tier __attribute__((weak));
-inline unsigned pf_alloc_tier() noexcept {
-    return ( &g_kame_alloc_tier) ? g_kame_alloc_tier : 0u;
-}
+//! A weak *TLS* symbol cannot be null-tested.  `&g_kame_alloc_tier` on an
+//! undefined weak thread_local does not yield null -- the TLS access sequence
+//! itself faults -- so the obvious guard `(&x) ? x : 0` SEGFAULTS at the first
+//! allocation whenever the linked pool was built without
+//! KAME_ALLOC_TIER_TRACE.  That is not hypothetical: it silently turned one
+//! arm of an A/B into 14 startup crashes that scored as 14 clean runs, because
+//! the arm was classified by grepping its (empty) log.
+//!
+//! So the tier is a COMPILE-TIME opt-in that must match the pool being linked.
+//! Define KAME_PF_TIER only when the pool carries KAME_ALLOC_TIER_TRACE; a
+//! mismatch is then a link error naming the symbol, not a runtime crash.
+#ifdef KAME_PF_TIER
+extern "C" __thread unsigned g_kame_alloc_tier;
+inline unsigned pf_alloc_tier() noexcept { return g_kame_alloc_tier; }
+#else
+inline unsigned pf_alloc_tier() noexcept { return 0u; }
+#endif
 inline const char *pf_tier_name(unsigned t) noexcept {
     switch(t) {
     case 1: return "new_redirected: TLS cell freelist pop";

@@ -80,28 +80,48 @@ was the gap.
 
 ## 3. Result
 
-Interleaved, one binary per arm, pool rpath-pinned:
+> **RETRACTED (2026-08-28): the headline "11/14 → 0/14" was invalid.**
+> Its fixed arm's binary **segfaulted at startup**, at the first
+> allocation, and the A/B classified an arm by grepping its log — so 14
+> startup crashes were scored as 14 clean runs.  Cause: `pf_alloc_tier()`
+> null-tested a **weak `__thread` symbol** as `(&g_kame_alloc_tier) ? … : 0`.
+> A weak TLS symbol cannot be null-tested that way: the TLS access sequence
+> itself faults when the symbol is undefined, which it is whenever the
+> linked pool was built without `KAME_ALLOC_TIER_TRACE`.  The two arms had
+> also been built from different revisions of the instrumentation header —
+> the baseline predated `pf_alloc_tier`, the fixed arm did not — so they
+> were never comparable.  See §4.
+>
+> **Two lessons, both now enforced:** never classify an A/B arm by the
+> absence of a marker (score the exit status too — a crash and a pass look
+> identical to `grep -L`), and never rebuild one arm of an A/B without the
+> other.
+
+Valid measurements, arms verified to actually execute:
 
 | measurement | baseline | fixed |
 |---|---|---|
-| double allocations, exclusivity detector on the STM reproducer | **11 / 14** | **0 / 14** |
-| `alloc_tsd_exclusivity_test` (this commit) | **5 / 20** | **0 / 20** |
+| `alloc_tsd_exclusivity_test`, this branch's fix | **5 / 20** | **0 / 20** |
+| `alloc_tsd_exclusivity_test`, `origin/master` vs `06d046d6e` | **10 / 24** | **0 / 24** |
 | crashes, original `tmin_dynnode` reproducer | 2 / 16 | 0 / 16 |
 
-Read the third row as consistent, not as proof: at a 12 % baseline it has
-almost no power on its own (p ≈ 0.48).  The first two rows are the
-evidence.  `transaction_dynamic_node_test` itself passes, and so does the
-rest of the suite bar four pre-existing failures — `starvation`,
-`priv_strip`, `highest_older_wins`, `priv_expiry` — which fail identically
-without the fix.  Those are an artifact of a scratch tree configured with
+The first two are the evidence; both are independent of the broken
+instrumentation, since `alloc_tsd_exclusivity_test` includes none of it.
+The third is consistent but has almost no power on its own at a 12 %
+baseline (p ≈ 0.48).
+
+`transaction_dynamic_node_test` passes, and so does the rest of the suite
+bar four pre-existing failures — `starvation`, `priv_strip`,
+`highest_older_wins`, `priv_expiry` — verified to fail identically with the
+fix stashed.  Those are an artifact of a scratch tree configured with
 `-DKAME_STM_COMPACT_STATE=1` by hand: compact mode seals the privilege
 bits, but the `kamestm_tests_need_prio` exclusion in `tests/CMakeLists.txt`
 only fires on genuine no-DCAS detection.
 
 `alloc_tsd_exclusivity_test` is the one to keep: it reproduces in **0.39
-seconds** against the STM reproducer's two minutes, and it fails on the
-unfixed allocator, which is what makes it a regression test rather than a
-demonstration.
+seconds** against the STM reproducer's two minutes, it fails on the unfixed
+allocator, and it uses only the `kame_pool_*` C API — no forensics header,
+so it cannot be undermined the way the retracted row was.
 
 ## 4. Instrumentation traps
 
@@ -119,6 +139,13 @@ re-walk them.
   `-flifetime-dse` legally drops stores into an object whose lifetime is
   ending, so an in-object `destroyed` flag read back false on a thread
   whose destructor had demonstrably already run.
+- **Null-testing a weak `__thread` symbol.**  `(&weak_tls) ? weak_tls : 0`
+  does not degrade gracefully — the TLS access sequence faults when the
+  symbol is undefined.  Linking the exclusivity detector against a pool
+  built WITHOUT `KAME_ALLOC_TIER_TRACE` therefore segfaulted at the first
+  allocation, silently voiding a whole A/B arm (§3).  The tier is a
+  compile-time opt-in now (`KAME_PF_TIER`), so a mismatch is a link error
+  naming the symbol rather than a runtime crash.
 
 ## 5. Refuted, with the numbers
 
