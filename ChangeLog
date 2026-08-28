@@ -33,6 +33,15 @@
   Dock still reports isVisible() == true and isMinimized() == false, so nothing
   could tell it was gone: the toolboxes no longer carry a minimize button, and
   the View menu restores one that ends up minimized anyway.
+- UI: the New Driver dialog has a live search box.  Typing narrows the list of
+  120 drivers as you go; every space-separated word must appear somewhere in
+  the label or the type name, so "agilent dmm" finds the two of them however
+  the labels happen to be worded, and a driver known by the name that appears
+  in a .kam file ("KE2000") is found by that too.  While a search is in
+  progress the first match is selected, so Enter creates it; an empty box goes
+  back to demanding a deliberate choice.  The chosen type now travels on the
+  list item instead of being recovered by counting rows into a sorted map,
+  which would have picked the wrong driver the moment the list was filtered.
 - UI: layout to go with it.  Both toolboxes now run from the top of the screen
   down to just above the message window, which parks at the bottom-left corner
   and keeps its top edge there, instead of stopping at half the screen height;
