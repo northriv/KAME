@@ -22,6 +22,7 @@
 #include <QApplication>
 #include <QScreen>
 #include <QDockWidget>
+#include <QToolBar>
 #include <QCloseEvent>
 #include <QMdiArea>
 #include <QMdiSubWindow>
@@ -91,6 +92,7 @@ FrmKameMain::FrmKameMain()
 //    setDockOptions(QMainWindow::ForceTabbedDocks | QMainWindow::VerticalTabs);
     //Left MDI area.
     QDockWidget* dockLeft = new QDockWidget(i18n("KAME Toolbox West"), this);
+    m_pDockLeft = dockLeft;
     dockLeft->setFeatures(QDockWidget::DockWidgetFloatable);
     dockLeft->setWindowIcon(*g_pIconDriver);
     m_pMdiLeft = new QMdiArea( this );
@@ -103,6 +105,7 @@ FrmKameMain::FrmKameMain()
 
     //Right MDI area.
     QDockWidget* dockRight = new QDockWidget(i18n("KAME Toolbox East"), this);
+    m_pDockRight = dockRight;
     dockRight->setFeatures(QDockWidget::DockWidgetFloatable);
     dockRight->setWindowIcon(*g_pIconInterface);
     m_pMdiRight= new QMdiArea( this );
@@ -113,6 +116,28 @@ FrmKameMain::FrmKameMain()
     dockRight->setWidget(m_pMdiRight);
     addDockWidget(Qt::RightDockWidgetArea, dockRight);
 //    addDockWidget(Qt::TopDockWidgetArea, dockRight);
+
+    //Auto-hide strips: a thin bar of pane icons pinned to each window edge.
+    //They stay put whether the toolbox is docked or floating, so a hidden
+    //toolbox is always one click away — the reason a toolbox may be hidden at
+    //all (the docks are not Closable, and a hidden dock swallows the plain
+    //showMaximized() the View menu used to do).
+    for(auto &&s: {std::make_pair( &m_pStripLeft, Qt::LeftToolBarArea),
+                   std::make_pair( &m_pStripRight, Qt::RightToolBarArea)}) {
+        QToolBar *strip = new QToolBar(
+            (s.second == Qt::LeftToolBarArea) ? i18n("West Toolbox Bar") : i18n("East Toolbox Bar"), this);
+        strip->setObjectName((s.second == Qt::LeftToolBarArea) ? "stripWest" : "stripEast");
+        strip->setMovable(false);
+        strip->setFloatable(false);
+        strip->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        strip->setIconSize(QSize(20, 20));
+        addToolBar(s.second, strip);
+        *s.first = strip;
+    }
+    connect(dockLeft, &QDockWidget::visibilityChanged, this, [this](bool){updateToolboxStrips();});
+    connect(dockRight, &QDockWidget::visibilityChanged, this, [this](bool){updateToolboxStrips();});
+    connect(m_pMdiLeft, &QMdiArea::subWindowActivated, this, [this](QMdiSubWindow *){updateToolboxStrips();});
+    connect(m_pMdiRight, &QMdiArea::subWindowActivated, this, [this](QMdiSubWindow *){updateToolboxStrips();});
 
     Transactional::SignalBuffer::initialize();
 
@@ -192,6 +217,8 @@ FrmKameMain::FrmKameMain()
     if(can_place_windows)
         move((rect.width() - frameSize().width()) / 2, rect.top());
 
+    updateToolboxStrips(); //initial check marks, after the panes are laid out.
+
     // The root for all nodes.
     m_measure = XNode::createOrphan<XMeasure>("Measurement", false);
 
@@ -247,8 +274,20 @@ FrmKameMain::addDockableWindow(QMdiArea *area, QWidget *widget, bool closable) {
 	else {
          wnd = new MySubWindow(); //delegated class, which ignores closing events.
 		 QAction *act = new QAction(widget->windowIcon(), widget->windowTitle(), this);
-         connect(act, SIGNAL(triggered()), wnd, SLOT(showMaximized()));
+         act->setCheckable(true);
+         //The same action drives the View menu and the edge strip: showing a
+         //pane has to reveal its toolbox first, which a bare showMaximized()
+         //on the subwindow cannot do once the toolbox is hidden.
+         connect(act, &QAction::triggered, this, [this, wnd](bool){toggleToolboxPane(wnd);});
 	     m_pViewMenu->addAction(act);
+         QDockWidget *dock = (area == m_pMdiLeft) ? m_pDockLeft :
+             ((area == m_pMdiRight) ? m_pDockRight : nullptr);
+         QToolBar *strip = (area == m_pMdiLeft) ? m_pStripLeft :
+             ((area == m_pMdiRight) ? m_pStripRight : nullptr);
+         if(dock && strip) {
+             strip->addAction(act);
+             m_toolboxPanes.push_back({act, dock, area, wnd});
+         }
 	}
     widget->setAutoFillBackground(true);
 	wnd->setWidget(widget);
@@ -259,6 +298,35 @@ FrmKameMain::addDockableWindow(QMdiArea *area, QWidget *widget, bool closable) {
 //    auto sub = area->addSubWindow(wnd,Qt::Window);
 //    area->setActiveSubWindow(sub);
     return wnd;
+}
+void
+FrmKameMain::toggleToolboxPane(QMdiSubWindow *wnd) {
+    for(auto &&pane: m_toolboxPanes) {
+        if(pane.wnd != wnd) continue;
+        if(pane.dock->isVisible() && (pane.area->activeSubWindow() == pane.wnd)) {
+            pane.dock->hide(); //the pane on screen was clicked: fold the toolbox away.
+        }
+        else {
+            //Reveals the toolbox (still floating or docked wherever it was) and
+            //brings this pane to the front of its tab stack.
+            pane.dock->show();
+            pane.area->setActiveSubWindow(pane.wnd);
+            pane.wnd->showMaximized();
+            pane.dock->raise(); //a floating toolbox may sit behind the main window.
+        }
+        break;
+    }
+    updateToolboxStrips();
+}
+void
+FrmKameMain::updateToolboxStrips() {
+    //A check mark means "this pane is the one you can see right now".  Driven
+    //from the real widget state, so tab clicks and dock closes stay in sync.
+    for(auto &&pane: m_toolboxPanes) {
+        bool shown = pane.dock->isVisible() && (pane.area->activeSubWindow() == pane.wnd);
+        if(pane.action->isChecked() != shown)
+            pane.action->setChecked(shown);
+    }
 }
 
 bool

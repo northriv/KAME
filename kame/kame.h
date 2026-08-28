@@ -42,6 +42,8 @@ class XMeasure;
 class XScriptingThread;
 class QMdiArea;
 class QMdiSubWindow;
+class QDockWidget;
+class QToolBar;
 class QUrl;
 
 /*! Main window widget of KAME.
@@ -129,6 +131,25 @@ private:
 	void placeNewWindow(QWidget *w);
 	QMdiSubWindow* addDockableWindow(QMdiArea *area, QWidget *widget, bool closable);
 	QMdiArea *m_pMdiCentral, *m_pMdiLeft, *m_pMdiRight;
+	QDockWidget *m_pDockLeft, *m_pDockRight;
+	//! Thin always-visible bars at the window edges, one button per toolbox
+	//! pane: click to reveal that pane, click the revealed one to hide the
+	//! toolbox again (auto-hide, VS/Dock style but click-driven — a
+	//! hover-driven panel would pop open while the pointer travels to a graph).
+	QToolBar *m_pStripLeft, *m_pStripRight;
+	//! One entry per toolbox pane, tying its strip/View-menu action to the
+	//! subwindow it reveals.  The action lives in both the strip and the View
+	//! menu, so both routes go through toggleToolboxPane().
+	struct ToolboxPane {
+		QAction *action;
+		QDockWidget *dock;
+		QMdiArea *area;
+		QMdiSubWindow *wnd;
+	};
+	std::deque<ToolboxPane> m_toolboxPanes;
+	void toggleToolboxPane(QMdiSubWindow *wnd);
+	//! Syncs the check marks with what is actually on screen.
+	void updateToolboxStrips();
 	int m_cascadeIndex = 0;
 	void closeEvent( QCloseEvent* ce );
 	shared_ptr<XScriptingThread> runNewScript(const XString &label, const XString &filename);
