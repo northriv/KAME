@@ -229,7 +229,10 @@ FrmKameMain::FrmKameMain()
         setupEdgeAutoHide(rect);
     }
     //The following 2 lines should be after setting up docks. Otherwise, crashes in windows.
-    resize(QSize(std::max(rect.width() / 4, 500), minimumHeight()));
+    //A third wider than it used to be, both terms alike (screen/4 -> 13/40,
+    //500 -> 650), now that the toolboxes fold themselves away and the space
+    //between them is the main window's to use.
+    resize(QSize(std::max(rect.width() * 13 / 40, 650), minimumHeight()));
     if(can_place_windows)
         move((rect.width() - frameSize().width()) / 2, rect.top());
 
