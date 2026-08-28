@@ -115,9 +115,30 @@ allocator's existing `kame_thread_torn_down()` predicate, with the flag in
 the TLS page the free path already loads, rather than adding a second
 mechanism.
 
-The first two are the evidence; both are independent of the broken
+### ILP32 — the width the fault originally reproduced on
+
+`alloc_tsd_exclusivity_test`, real `-m32` builds, one pool per arm,
+interleaved, 20 runs each:
+
+| target | `origin/master` | `b1d127a14` |
+|---|---|---|
+| `-m32 -march=i486` (no CMPXCHG8B, `KAME_STM_COMPACT_STATE`) | **11 / 20** | **0 / 20** |
+| `-m32 -march=i586` (has CMPXCHG8B, compact off) | **12 / 20** | **0 / 20** |
+
+This is the check `b1d127a14` itself asked for — its own run had the i486
+audit phases *skip*, and a skip is not a pass.  Two things it settles: the
+width-based `static_assert`s do build on ILP32 (all three audit phases
+green), and the fix holds on the platform where the original fault ran at
+10–25 %, not only on LP64.
+
+It also confirms the ILP32 hash correction in the test was load-bearing:
+with the old `uintptr_t` mix every address collapsed onto slot 0, so the
+32-bit arms above would have reported 0/20 on BOTH sides — a clean sweep
+that meant nothing.
+
+The rows above are the evidence; all are independent of the broken
 instrumentation, since `alloc_tsd_exclusivity_test` includes none of it.
-The third is consistent but has almost no power on its own at a 12 %
+The crash row is consistent but has almost no power on its own at a 12 %
 baseline (p ≈ 0.48).
 
 `transaction_dynamic_node_test` passes, and so does the rest of the suite
