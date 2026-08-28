@@ -1569,7 +1569,7 @@ struct CrossDeallocBatch {
         }
 #endif
 #ifdef KAME_INCARNATION_PROBE
-        buf[count] = {c, s, c->m_base_bucket};                 // §13.228
+        buf[count] = {c, s, c->m_base_bucket, c->m_incarnation};   // §13.229
         ++count;
 #else
         buf[count++] = {c, s};
@@ -2403,6 +2403,13 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	//   m_base_bucket= the single bucket an FS=true chunk serves
 	//                  (slot size == ALIGN); constexpr-folds.  Unused for
 	//                  FS=false (its bucket comes from the slot prefix).
+#ifdef KAME_INCARNATION_PROBE
+	{   //! §13.229  Bump the generation for this storage.  Keyed by address so a
+		//! chunk re-constructed at the same base is distinguishable from itself.
+		static std::atomic<uint32_t> s_gen{0};
+		this->m_incarnation = s_gen.fetch_add(1, std::memory_order_relaxed) + 1;
+	}
+#endif
 	this->m_fs_flag = (FS && DUMMY);
 	this->m_base_bucket = (FS && DUMMY)
 	    ? static_cast<uint16_t>(bucket_for_size(ALIGN)) : 0;
@@ -3339,12 +3346,29 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 	//! §13.228  Was this chunk re-constructed into a different size class between
 	//! the push and this apply?  If so the bit index below is computed with the
 	//! WRONG ALIGN and clears somebody else's slot.
+	{   //! §13.229 positive control: `KAME_INCARNATION_INJECT=N` bumps this chunk's
+		//! generation for 1 apply in N, manufacturing the mismatch the check exists
+		//! to see.  Without a run in which it fires, the zero means nothing.
+		static std::atomic<int> inj{-1};
+		int iv = inj.load(std::memory_order_relaxed);
+		if(iv < 0) {
+			const char *e = getenv("KAME_INCARNATION_INJECT");
+			iv = (e && e[0]) ? atoi(e) : 0;
+			inj.store(iv, std::memory_order_relaxed);
+		}
+		if(iv > 0) {
+			static std::atomic<unsigned long long> c{0};
+			if((c.fetch_add(1, std::memory_order_relaxed) % (unsigned)iv) == 0)
+				++const_cast<PoolAllocatorBase *>(
+				    static_cast<const PoolAllocatorBase *>(this))->m_incarnation;
+		}
+	}
 	for(int k = 0; entries[k].chunk == this; ++k) {
-		if(entries[k].bucket_at_push != 0xFFFFu &&
-		   entries[k].bucket_at_push != this->m_base_bucket)
+		if(entries[k].gen_at_push != 0u &&
+		   entries[k].gen_at_push != this->m_incarnation)
 			kame_incarnation_mismatch(entries[k].slot, this,
-			                          entries[k].bucket_at_push,
-			                          this->m_base_bucket);
+			                          entries[k].gen_at_push,
+			                          this->m_incarnation);
 	}
 #endif
 	int i = 0;
@@ -6613,8 +6637,8 @@ std::atomic<unsigned long long> g_inc_mismatch{0};
 void kame_incarnation_mismatch(const void *slot, const void *chunk,
                                unsigned was, unsigned now) noexcept {
     if(g_inc_mismatch.fetch_add(1, std::memory_order_relaxed) < 8)
-        fprintf(stderr, "INCARNATION MISMATCH: slot=%p chunk=%p bucket_at_push=%u "
-                "bucket_now=%u -- the apply will use the WRONG bit index\n",
+        fprintf(stderr, "INCARNATION MISMATCH: slot=%p chunk=%p gen_at_push=%u gen_now=%u"
+                " -- this storage was re-constructed since the push\n",
                 slot, chunk, was, now);
 }
 namespace { struct IncReport { ~IncReport() {

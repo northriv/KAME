@@ -15246,3 +15246,53 @@ and fixes the same window, so it is the one to try first.
 2. If confirmed, the one-line drop, A/B'd against stock with the shape gate — and
    unlike every previous candidate it does not touch the exit path, so it should
    not carry §13.222's aggravation.
+
+### 13.229 A function pointer does not fix it — and asking the question exposed a hole in §13.228's probe
+
+The proposal: if the vtable is the root, capture a function pointer instead.
+
+**It stabilises the dispatch and does not fix the bug.**  Calling the 32-byte body
+that was current at push time computes `bit = (A − mempool) / 32`, which is the
+right index *for the incarnation that no longer exists*.  The `m_flags` it writes
+belong to the **new** incarnation, so a correct old index still clears a bit that
+now means something else.  The entry refers to an object that is gone: the correct
+action is **not to apply it**, not to apply it through a different implementation.
+(A captured pointer would remove a virtual call from the flush loop, which is a
+small win on its own terms — just not this one.)
+
+**But the question exposes a real hole in §13.228's probe.**  It compared the
+chunk's *size class*, and a re-construction into the **same** class keeps the
+vtable, the function address **and** the bit index — while the slot at that address
+is still a different object, so applying a stale free to it is equally wrong.  The
+probe would have reported nothing.
+
+So the discriminator is neither the class nor the function pointer but the
+**construction generation**: `PoolAllocatorBase::m_incarnation`, bumped every time
+storage is (re-)constructed as a chunk, captured into the entry at push, compared at
+apply.  That catches every re-construction, same-class included.
+
+```
+baseline                          INCARNATION mismatches=0
+KAME_INCARNATION_INJECT=5000      INCARNATION mismatches=2185
+```
+
+The injector bumps the chunk's generation for 1 apply in N, manufacturing the
+mismatch the check exists to see — so the comparison demonstrably fires and a zero
+from it is a real zero.  `ctest` 41/41 with the probe compiled in.
+
+#### The fix is unchanged, and the generation is what it should test
+
+```cpp
+if(entries[k].gen_at_push != chunk->m_incarnation) continue;   // drop the entry
+```
+
+Dropping remains correct rather than a leak: the address belongs to a different
+incarnation which owns and accounts for its own bitmap, so the stale free names an
+object that no longer exists.
+
+If the generation is judged too heavy for production (a 32-bit field per chunk and a
+compare per entry, both trivial), the alternative that removes the window instead of
+detecting it is to make re-construction impossible while entries are pending — the
+batch holding a reference to the chunk.  That is the earlier `local_shared_ptr`
+proposal, and it is the only variant of it this investigation has produced a precise
+justification for.

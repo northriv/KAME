@@ -1086,6 +1086,8 @@ struct CrossDeallocEntry {
     //! aggregate initialisation, which would otherwise leave this 0 and make every
     //! one of them look like a mismatch (measured: 8.7 M false hits).
     unsigned short bucket_at_push = 0xFFFFu;
+    //! §13.229  The chunk's construction generation at push time.  0 = not stamped.
+    unsigned int   gen_at_push = 0u;
 #endif
 };
 
@@ -1457,6 +1459,14 @@ public:
 	//! as before, never touching m_mempool / the m_sizes array.
 	uint8_t   m_align_shift;
 	uint16_t  m_base_bucket;     // unused on hot paths; kept for diagnostics
+#ifdef KAME_INCARNATION_PROBE
+	//! §13.229  Monotonic construction generation, bumped every time this storage is
+	//! (re-)constructed as a chunk.  The size class is NOT enough: a re-construction
+	//! into the SAME class keeps the vtable, the function address and the bit index,
+	//! yet the slot at a given address is a DIFFERENT object, so applying a stale
+	//! free to it is equally wrong.  A generation catches every re-construction.
+	uint32_t  m_incarnation;
+#endif
 	//! (§L0-FIFO) m_sizes is null for every FS=true chunk, so its 8 bytes
 	//! are reused as the {r, w} counters of a depth-4 free-slot ring kept
 	//! in the (equally unused for FS=true) m_freelist_head[1..4] cells —
