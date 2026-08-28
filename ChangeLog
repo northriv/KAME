@@ -1,3 +1,32 @@
+* Fri Aug 28 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamepoolalloc: frees arriving after a thread had run its own allocator
+  teardown went into a destroyed object on Linux and Windows. The cold free
+  path's post-teardown bypass tested `kame_page() == &g_teardown_page`, but only
+  macOS ever repoints that pointer, so elsewhere the compare folded to a
+  constant false and the branch was dead code: a pthread_key destructor (glibc
+  runs those after the C++ thread_local ones, and kamestm registers one) pushed
+  into a cross-dealloc batch whose destructor had already run, and a slot went
+  back to the bitmap after its owner had re-issued it -- the same block handed
+  out to two live users. It surfaced far downstream, as garbage inside a
+  still-referenced STM Packet, so `transaction_dynamic_node_test` failed in five
+  unrelated-looking ways, the negotiation HANG watchdog among them. The
+  predicate is now portable and its flag lives in the TLS page the free path
+  already loads, armed by BOTH thread-exit destructors because either can run
+  first (thread_locals go in reverse order of construction, and which of the two
+  a thread touches first depends on whether its first pool operation was an
+  allocation or a cross-thread free). Measured on Linux x86-64 at 17 failures in
+  44 control runs against 0 in 44 -- five distinct signatures against none --
+  and on real -m32 i486/i586 builds, the width the fault originally reproduced
+  on, at 11/20 and 12/20 against 0/20. macOS is unchanged in behaviour and one
+  branch cheaper. `alloc_tsd_exclusivity_test` now asserts the exclusivity
+  invariant directly, in 0.4 s, instead of waiting two minutes for the
+  downstream crash. The full investigation record is deliberately not in the
+  tree: see branch `claude/uaf-rc-trace`, `kamestm/tests/DYNNODE_UAF_HANDOFF.md`
+  (the experiment log, and note it sits well behind master), and
+  `kamepoolalloc/design/BATCH_AFTER_DESTRUCTOR.md` on branch
+  `claude/great-turing-Ufao2` (the glibc ordering, the gdb captures and the A/B
+  methodology lessons) -- an independent session that reached the same defect.
+
 * Fri Aug 21 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - script: the web UI had no model to choose. Not passing -m to a user's own
   agent (right, for chat: clai would override the model bound in their module)
