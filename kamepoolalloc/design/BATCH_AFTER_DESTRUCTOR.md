@@ -170,6 +170,13 @@ re-walk them.
   `-flifetime-dse` legally drops stores into an object whose lifetime is
   ending, so an in-object `destroyed` flag read back false on a thread
   whose destructor had demonstrably already run.
+- **An A/B whose BASELINE never fails.**  The ILP32 run of the original
+  `tmin_dynnode` reproducer first came back 0/24 vs 0/24 and reads like a
+  pass; it is a *null result*.  The parameters (60 rounds, 8 threads) were
+  simply too weak to reproduce at all — at `100 16 1250` the same unfixed
+  binary fails 4/4.  An arm can only be cleared by a comparison whose
+  control actually fired, so always confirm the baseline reproduces at the
+  chosen parameters BEFORE reading anything into the fixed arm.
 - **Null-testing a weak `__thread` symbol.**  `(&weak_tls) ? weak_tls : 0`
   does not degrade gracefully — the TLS access sequence faults when the
   symbol is undefined.  Linking the exclusivity detector against a pool
