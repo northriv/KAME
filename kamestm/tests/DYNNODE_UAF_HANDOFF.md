@@ -15077,3 +15077,86 @@ knob can move: one per thread, issued after that thread's chunks have been disow
 and orphaned.  If `leak-all` (§13.224) comes back near zero, this is one of the
 returns it suppresses, and it is the only one that survives every batch-side arm —
 so it would then be worth its own arm.
+
+### 13.227 Static only, and it pays: the spurious clear ALONE is sufficient for the double hand-out — machine-checked, no recycle needed
+
+Accepting that arm64 runtime results carry no information about a fault that does
+not occur there, this section is source analysis and TLC only.
+
+#### First, what the model already said
+
+`ExitWalk.tla` permits `FreeCross` → ownership change → `Flush`, i.e. **an entry
+deferred across a change of chunk ownership**, and passes (13 600 states).  So
+§13.225's hypothesis is **not supported by the model** — the span itself is safe
+under its abstractions.
+
+Adding chunk release and re-construction (`CHUNK_RECYCLE`: bitmap zeroed, per-chunk
+incarnation flipped, `pgen` recording the incarnation at push) also passes —
+**554 910 states, depth 36** — and the reason is instructive: a pending entry keeps
+its bit **set**, the exit walk's `onChain = (occ ≠ {} ∨ bits ≠ {})` therefore
+chains the chunk, and a chained chunk is not released.  The model's own answer:
+
+> a chunk cannot be recycled while an entry is pending for it — **because that
+> entry's bit is still set**.
+
+#### Which is exactly the premise §13.184 measured to be false
+
+The observed fact is that the bit is **already clear** when the entry is applied.
+Modelled as an action rather than derived, since its cause is outside this model:
+
+```tla
+SpuriousClear(c, s) ==
+    /\ \E t \in Threads : <<c, s>> \in pending[t]
+    /\ s \in bits[c]
+    /\ bits' = [bits EXCEPT ![c] = @ \ {s}]
+```
+
+Checked against an invariant set with `PendingCoveredByBits` removed — that one is
+broken *by* the injection, so keeping it would report the injection instead of its
+consequence.  The counterexample is seven states:
+
+```
+2  RecycleChunk(c1)          (enabled from Init; not required — see below)
+3  Claim(t1,c1)
+4  AllocBitmap(t1,c1)        s1 handed out, bit set
+5  FreeCross(t2,c1)          t2 frees s1 -> pending[t2] = {(c1,s1)}
+6  SpuriousClear(c1,s1)      the pending slot's bit is cleared
+7  AllocBitmap(t1,c1)        the bitmap offers s1 again -> handed out a SECOND time
+```
+
+and it breaks all three downstream invariants independently:
+
+| invariant | meaning |
+|---|---|
+| `NoDoubleCustody` | the slot is **live and pending at once** |
+| `NoDoubleHandOut` | it is **handed out twice** |
+| `OccCoveredByBits` | the pending apply later clears a **live** slot's bit |
+
+**`CHUNK_RECYCLE = FALSE` violates too**, so the recycle is not part of the
+mechanism — the spurious clear is sufficient on its own, in a model where
+everything else is correct.
+
+#### What that settles
+
+* **The double-clear is not a benign symptom.**  §13.192 read the reported
+  violations as "the benign half"; that is true of individual *instances* (one
+  landing before re-allocation does no harm), but the mechanism is **sufficient**
+  for the DOUBLE-LIVE.  A model with nothing else wrong produces it in five steps.
+* **It explains why the exit flush is worse** (§13.222).  Removing the pending
+  entry earlier does nothing about the spurious clear, and returning the slot
+  sooner makes step 7 — the re-hand-out — *more* likely.  v1/v2 attack step 5 while
+  the damage is done by steps 6–7.
+* **The target is unambiguous**: whatever performs the spurious clear.  §13.190's
+  census already names its site — `flush`, with a `flush` as the prior clearer, the
+  same slot passing the one clearing CAS twice.
+
+`ExitWalk_clearpending.cfg` checks `InvDownstream` with the injection on;
+`ExitWalk_none.cfg` gains `BUG_CLEAR_PENDING = FALSE` and is unchanged at 13 600.
+
+#### One reporting error of mine, same class as before
+
+I first reported the recycle arm as **508 states**.  That was `grep … | head -1`
+picking TLC's first *progress* line rather than the final count; the real figure is
+554 910.  A state count that *drops* when an action is added is impossible, which is
+what made it visible — the same tell §13.214 used on inert knobs, this time on my
+own reporting rather than on a knob.
