@@ -14921,3 +14921,55 @@ The mode I called "a `kamepoolalloc` assertion the control never hits" is
 itself**, not an allocator-internal invariant.  I read it off a truncated path and
 built a "the fix breaks a new invariant" story on it.  Both arms die of the same
 family; what differs is the rate.
+
+### 13.224 Which of the two is it — storage still referenced, or a missing teardown step?  The flush's direction already answers, and `KAME_EXIT_LEAK_ALL` settles it
+
+Asked whether the exiting thread's memory is still referenced after teardown, or
+whether teardown itself is buggy.  **The evidence already rules out the second**,
+and the reasoning is short enough to state before running anything else.
+
+The exit flush is a change that makes teardown do **more** — it returns a slot to
+circulation *sooner*.  If the fault were a missing teardown step, doing more at
+teardown would help or be neutral.  It is **2.6× worse** (8/28 → 21–22/28, §13.222),
+at either placement.  So the harm comes from *returning storage*, not from failing
+to.
+
+Three independent facts point the same way:
+
+* the crash is `local_shared_ptr<Node<LongNode>::Payload>::operator->`
+  (`atomic_smart_ptr.h:1053`) — a use-after-free of an STM Payload, which lives in a
+  pool slot;
+* §13.172: the allocator hands out a **live** slot (`alloc_of_live > 0`) in every
+  failing run;
+* the control still fails 8/28, so **the plain teardown already returns live
+  storage** — the flush merely adds a second instance of the same class.
+
+> **Reading: teardown returns storage that something still references.  It is not a
+> missing step; it is a return that should not happen.**
+
+#### The arm that makes it a measurement rather than a reading
+
+`KAME_EXIT_LEAK_ALL` makes an exiting thread return **nothing** — it skips all three
+teardown drains (park cells, word-cache mask, per-bucket freelists) and discards the
+batch, so no slot the thread held re-enters circulation.
+
+```
+rev        no thread-exit flush                          8 / 28   (§13.222)
+v1, v2     flush at either placement                    21, 22 / 28
+leak       discard the batch only (§13.223)                   ?
+leak-all   return nothing at all                              ?
+```
+
+| leak-all | reading |
+|---|---|
+| **≈ 0 failures** | teardown is returning storage that is still referenced, and the exit flush was a second instance of the same class rather than a fix.  The search moves to *which* return, and to what put a live slot on a freelist. |
+| **≈ rev (8/28)** | the returns are innocent and the exit window matters for another reason — the disown/orphan itself, or how peers behave when a thread vanishes.  §13.222's reading would then need replacing. |
+
+`leak` vs `leak-all` also separates the batch from the drains, which no arm so far
+has done.
+
+**On arm64**: builds clean, reproducer 3/3, and `ctest` is **39/41** — the two
+failures are `alloc_thread_exit_free_test` and its `_dynamic` twin, which assert
+that thread-exit frees return slots.  Under this arm they deliberately do not.  That
+is the arm working, not a defect, and it is also the reason `leak-all` can only ever
+be a diagnostic: it leaks every slot an exiting thread held.

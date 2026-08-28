@@ -1671,7 +1671,18 @@ struct CrossDeallocBatch {
             abort();
         }
 #endif
-#ifdef KAME_EXIT_DISCARD_BATCH
+#if defined(KAME_EXIT_DISCARD_BATCH) || defined(KAME_EXIT_LEAK_ALL)
+        //! §13.224  `KAME_EXIT_LEAK_ALL` additionally skips the three teardown
+        //! drains (park cells, word-cache mask, per-bucket freelists), so an
+        //! exiting thread returns NOTHING: no slot it held re-enters circulation.
+        //! That separates the two readings of §13.222 outright --
+        //!   near-zero failures -> teardown is returning storage that is still
+        //!     referenced, and the exit flush was a second instance of the same
+        //!     class rather than a fix;
+        //!   unchanged from rev -> the exit window matters for some other reason
+        //!     (the disown/orphan itself, or how peers behave when a thread
+        //!     vanishes) and the returns are innocent.
+        //!
         //! §13.223  The arm that tests §13.222's reading in the OPPOSITE direction.
         //!
         //! §13.222: flushing the last pending entry at thread exit -- at either
@@ -4787,7 +4798,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 						#ifdef KAME_BATCH_VERIFY
 						KAME_BV_SITE(BV_DRAIN);
 						#endif
+						#ifndef KAME_EXIT_LEAK_ALL
 						c->batch_return_to_bitmap(fdrain);
+#endif
 					}
 				}
 #if KAME_FS_CHUNK_FIFO
@@ -4816,7 +4829,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 					#ifdef KAME_BATCH_VERIFY
 					KAME_BV_SITE(BV_DRAIN);
 					#endif
-					c->batch_return_to_bitmap(fdrain);
+					#ifndef KAME_EXIT_LEAK_ALL
+						c->batch_return_to_bitmap(fdrain);
+#endif
 				}
 			}
 #endif
@@ -4832,7 +4847,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 					#ifdef KAME_BATCH_VERIFY
 					KAME_BV_SITE(BV_DRAIN);
 					#endif
-					c->batch_return_to_bitmap(fdrain);
+					#ifndef KAME_EXIT_LEAK_ALL
+						c->batch_return_to_bitmap(fdrain);
+#endif
 					fh = fnext;
 				}
 			}
