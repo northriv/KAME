@@ -125,6 +125,21 @@ interleaved, 20 runs each:
 | `-m32 -march=i486` (no CMPXCHG8B, `KAME_STM_COMPACT_STATE`) | **11 / 20** | **0 / 20** |
 | `-m32 -march=i586` (has CMPXCHG8B, compact off) | **12 / 20** | **0 / 20** |
 
+And the original reproducer itself, `tmin_dynnode` built `-m32 -march=i586`,
+at `100 16 1250` (the parameters at which it reproduces — see §4 on the
+null-baseline trap), 14 interleaved runs each:
+
+| | `origin/master` | `b1d127a14` |
+|---|---|---|
+| `tmin_dynnode`, ILP32 | **14 / 14** | **0 / 14** |
+
+Master's 14 split 8 `SIGABRT` / 6 `SIGSEGV`.  The `SIGABRT`s are the
+uncaught `NodeNotFoundError` the handoff lists as a separate loose end
+(§7), and one carries `tr_serial=0` — a zeroed serial, i.e. the transaction
+was reading a `Packet` whose storage had been handed to someone else.  That
+is the ILP32 face of the same defect, and it is exactly the signature the
+original 2026-08-22 soak recorded.
+
 This is the check `b1d127a14` itself asked for — its own run had the i486
 audit phases *skip*, and a skip is not a pass.  Two things it settles: the
 width-based `static_assert`s do build on ILP32 (all three audit phases
