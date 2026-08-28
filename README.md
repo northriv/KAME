@@ -657,18 +657,19 @@ server:
 | **Codex: CLI / fugu / app** | Codex in a terminal, with the server passed as a session-scoped override — nothing is written to `~/.codex/config.toml` |
 | **Pydantic AI: CLI / web / ⚙ agent** | The venv's `clai`, handed an agent; the model comes from your clai setup, `-m` overrides. **web** picks a free port and opens the browser on it once the server answers; if your module builds an app with `Agent.to_web(models=…)`, that app is served (with `uvicorn`) so your own model list is the one in the UI. **⚙ agent** picks an agent module of your own — KAME checks it exposes a `pydantic_ai.Agent`, remembers which variable, and runs it from its own directory; Cancel returns to the one KAME ships |
 
-Prerequisites are `pip install "mcp<2" jupyter_client` for the server, and
-`pip install pydantic-ai clai` if you want the Pydantic AI links. **Keep the
-`<2`** if you are running a released build: 8.6 and earlier import
-`mcp.server.fastmcp`, which mcp 2.x removed, so an unpinned install lands a
-package that imports yet cannot start the server. A build from `master`
-accepts either line, and the pin is harmless there — so `"mcp<2"` is the one
-instruction that works everywhere. The server
+Prerequisites are `pip install mcp jupyter_client` for the server, and
+`pip install pydantic-ai clai` if you want the Pydantic AI links. Either mcp
+1.x or 2.x works from **8.6.1** on: 2.0 renamed the server class and moved its
+module (`mcp.server.fastmcp.FastMCP` → `mcp.server.MCPServer`), and both the
+server and KAME's interpreter probe take whichever is installed. **On 8.6 and
+earlier, pin it — `pip install "mcp<2"`** — those builds import
+`mcp.server.fastmcp` only, so an unpinned install there lands a package that
+imports yet cannot start the server. The server
 runs as its **own process**, so this need not be the interpreter embedded in
 KAME: KAME probes candidates — Jupyter's own interpreter, a `kame-mcp-venv`
 (preferred, searched upward from the resource directory), `python3`, and
 versioned `python3.X` names — and picks the first that can actually import
-both `jupyter_client` and `mcp.server.fastmcp`.
+`jupyter_client` and either of the two mcp entry points.
 
 > **On Windows, use a `kame-mcp-venv`.** None of the interpreters KAME can
 > otherwise reach will do: the bundled `resources\python3.12` has no `pip`,
@@ -681,7 +682,7 @@ both `jupyter_client` and `mcp.server.fastmcp`.
 >
 > ```
 > uv venv --python 3.12 kame-mcp-venv
-> uv pip install --python kame-mcp-venv\Scripts\python.exe "mcp<2" jupyter_client
+> uv pip install --python kame-mcp-venv\Scripts\python.exe mcp jupyter_client
 > ```
 >
 > The probe searches upward from the resource directory, so the venv may also

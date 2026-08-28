@@ -1311,12 +1311,14 @@ Instruct the assistant in natural language:
 1. Install the server's requirements:
 
    ```
-   pip install "mcp<2" jupyter_client
+   pip install mcp jupyter_client
    ```
 
-   Keep the `<2`. Released builds (8.6 and earlier) import
+   Either mcp 1.x or 2.x will do from 8.6.1 on — 2.0 renamed the server class
+   and moved its module, and the server takes whichever it finds. **On 8.6 and
+   earlier, install `"mcp<2"` instead**: those builds import
    `mcp.server.fastmcp`, which mcp 2.x removed, so a plain `pip install mcp`
-   installs a package that imports yet cannot start the server — the symptom
+   gives them a package that imports yet cannot start the server — the symptom
    is a `ModuleNotFoundError` on that submodule, not a missing `mcp`.
 
    This need not be the Python embedded in KAME. The MCP server is a separate
@@ -1431,7 +1433,7 @@ guessable from the message. This table is symptom-first.
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `ModuleNotFoundError: mcp.server.fastmcp` | `pip install mcp` installed 2.x | `pip install "mcp<2"` |
+| `ModuleNotFoundError: mcp.server.fastmcp` | `pip install mcp` installed 2.x, on a build that only reads 1.x | Use 8.6.1 or later, which takes either; on 8.6 and earlier, `pip install "mcp<2"` |
 | `can't open file ...\Resources\kame_mcp_server.py` (Windows) | The 8.5 and earlier Windows binaries could ship without it: nothing deployed the script files, and the packaging step copied whatever the build tree happened to hold | Use 8.6 or later. On an older one, copy `kame/script/kame_mcp_server.py` (and `kame/script/notebook/*.py`) from the source archive into `resources\` |
 | `No module named '_socket'`, or exit code 103 | KAME was started from `kame-msyspython.bat`, whose `PYTHONHOME` a real CPython cannot use | Fixed in current builds; otherwise start KAME with `kame.bat` |
 | Clicking the Claude or Codex **app** link does nothing (Windows) | Those apps are MSIX packages, not on `PATH` | Fixed in current builds |
