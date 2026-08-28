@@ -101,9 +101,19 @@ Valid measurements, arms verified to actually execute:
 
 | measurement | baseline | fixed |
 |---|---|---|
-| `alloc_tsd_exclusivity_test`, this branch's fix | **5 / 20** | **0 / 20** |
+| STM reproducer + exclusivity detector, `origin/master` vs `06d046d6e` | **11 / 12** | **0 / 12** |
 | `alloc_tsd_exclusivity_test`, `origin/master` vs `06d046d6e` | **10 / 24** | **0 / 24** |
+| `alloc_tsd_exclusivity_test`, this branch's fix | **5 / 20** | **0 / 20** |
 | crashes, original `tmin_dynnode` reproducer | 2 / 16 | 0 / 16 |
+
+The first row is the re-run of the retracted A/B with the harness bug fixed
+and both arms smoke-tested before use: `origin/master` gives 10 double
+allocations plus one `SIGABRT` in 12, `06d046d6e` gives 12 clean runs.
+That is the upstream fix (`fix/post-teardown-free-bypass`), which supersedes
+this branch's `tls_batch_dead`: it reaches the same invariant through the
+allocator's existing `kame_thread_torn_down()` predicate, with the flag in
+the TLS page the free path already loads, rather than adding a second
+mechanism.
 
 The first two are the evidence; both are independent of the broken
 instrumentation, since `alloc_tsd_exclusivity_test` includes none of it.
