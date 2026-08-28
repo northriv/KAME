@@ -16088,3 +16088,69 @@ compare and wrote down why that was safe — *"reaching this point therefore imp
 the freeing thread is alive"* — and on Linux, where `kame_page()` returns
 `&g_tls_page` unconditionally, that compare folds to a constant false and the premise
 was wrong.  Dead threads reached the batch, which §13.238 caught in gdb.
+
+### 13.243 The post-teardown bypass, A/B'd on the failing platform: 11/32 → 0/32, and it takes EVERY failure mode with it
+
+§13.241 left the bypass "untested rather than contraindicated".  Tested.
+
+```
+ctl  (macOS-only tautology restored)   11 / 32   (34 %)
+fix  (kame_thread_torn_down())          0 / 32   ( 0 %)
+                                   Fisher p = 0.000347
+```
+
+Interleaved on one machine, 32 reps each.  **Both arms have the exit flush
+removed**, so the only variable is the bypass predicate; the control restores
+`kame_page() == &g_teardown_page` at both sites, a two-line diff.
+
+#### Scored per failure mode, which the earlier arm table could not do
+
+§13.238 recorded that my arms pooled `rc != 0` across six distinct signatures.
+stderr was retained here:
+
+| mode | ctl | fix |
+|---|---|---|
+| `*this` (`local_shared_ptr` deref) | 5 | 0 |
+| `&subpacket_new->node() == child.get()` | 2 | 0 |
+| `&m_packet->node() == &node` | 1 | 0 |
+| `STM lookup failed` (`domain_error`) | 1 | 0 |
+| negotiation HANG watchdog | 1 | 0 |
+| **total** | **11** | **0** |
+
+**The fix takes all five to zero.**  So the modes are not responding differently to
+this intervention — pooling did not mislead for this arm — and the negotiation HANG
+being cured by an *allocator* change confirms it was a symptom (a stale stamp in
+recycled storage), not an STM defect.
+
+#### Shape gate, done correctly this time
+
+Asked whether the clone was even present.  My production-side check had been
+`grep -c 'CrossDeallocBatch::flush'` = 5, which counts the constprop clone **plus
+four `std::__introsort_loop` / `__insertion_sort` / `__adjust_heap` /
+`__final_insertion_sort` instantiations** whose mangled names carry `flush` in their
+template arguments.  It would read 5 with the clone gone.  **That was not a shape
+gate.**  The correct production check is
+
+```bash
+nm -C <so> | grep -c 'CrossDeallocBatch::flush(bool) \[clone .constprop'
+```
+
+which is **1** in `arm6_ctl`, `arm6_fix`, `arm2_rev2`, `arm3_pt` and `arm5_gdb` —
+so every arm and every gdb platform in §13.235/§13.238/this section did carry the
+clone.  The conclusion survives; the gate that was supposed to guarantee it did not.
+(The instrumented builds were gated correctly all along, on `flush_impl<false>` = 4.)
+
+#### Why this is a fix and the earlier cures were not
+
+`leak` / `leakall` leak by construction and `sf` drops entries; this one routes a
+post-teardown free straight to the bitmap, applying **only the arriving free** and
+leaving `buf` untouched.  It also closes the loop with §13.238: those frees reached
+`push` on Linux precisely because the old guard was tautologically false there
+(§13.239), and the gdb stop caught one naming an already-orphaned chunk.
+
+#### Still open
+
+The §13.235 ordering (`gen` and `pcap` at 100 %) remains unexplained, and §13.241
+showed `pcap` measured "apply the backlog early" rather than what I claimed.  That
+table still needs re-running with stderr retained before its monotonicity can be
+trusted — this section shows the retained-stderr method works.
