@@ -166,10 +166,16 @@ private:
 		bool left;                  //!< which screen edge it clings to
 		bool collapsed;
 		int idleTicks;
+		bool autoHide;              //!< per-toolbox switch, from the View menu
 	};
 	std::deque<EdgeSlider> m_edgeSliders;
 	QTimer *m_pEdgeHoverTimer = nullptr;
 	void setupEdgeAutoHide(const QRect &screen);
+	//! Trims the toolboxes against the message window once their frames exist.
+	void fitToolboxHeights();
+	//! Reveals a toolbox and hands it the keyboard: west at startup, east once
+	//! a .kam has finished loading.
+	void focusToolbox(bool left);
 	void pollEdgeAutoHide();
 	void setToolboxCollapsed(EdgeSlider &slider, bool collapse);
 	//! nullptr where a dock has no edge slider (docked layout, or Wayland).
