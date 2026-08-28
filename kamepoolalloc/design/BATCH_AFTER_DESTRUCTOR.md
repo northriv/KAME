@@ -62,21 +62,39 @@ Note the 32 B class takes the `push` (buffering) arm of
 `deallocate_pooled`, not `push_direct` — `ALIGN <= 48` — so this is
 precisely the path in the reports.
 
-## 2. The fix
+## 2. The fix (upstream, on `master`)
 
-`push` settles a slot directly when the batch is dead instead of buffering
-into a destroyed object.  That is also the only way those slots get
-returned at all: `~CrossDeallocBatch` will not run a second time, so
-anything buffered afterwards was never going to be flushed.
+`b1d127a14` / `06d046d6e`, merged to `master` as of `796d9fe1e`.
 
-The flag **must** be namespace-scope TLS (`tls_batch_dead`), not a member.
-A member is written inside `~CrossDeallocBatch`, i.e. into an object whose
-lifetime is ending, where `-flifetime-dse` may legally delete the store —
-see §4.
+A thread's frees are unsafe from the moment the FIRST of its two exit
+objects is destroyed, so both arm one flag —
+`kame_mark_thread_torn_down()`, read by the allocator's existing
+`kame_thread_torn_down()` predicate:
 
-This is the same class of problem the allocator already solves elsewhere
-for the TLS page (`kame_thread_torn_down()` / `g_teardown_page`); the batch
-was the gap.
+- `~AllocThreadExitCleanup` — after it, `s_tls.my_chunk` / `&s_tls.dll_head`
+  are torn down and the thread's chunks disowned.
+- `~CrossDeallocBatch` — after it, `tls_cross_dealloc_batch` is a destroyed
+  object that `push` / `push_direct` would resurrect.
+
+Their order is not fixed: thread_locals are destroyed in reverse order of
+construction, so which goes first depends on whether the thread's first
+pool operation was an allocation or a cross-thread free.  Both occur, which
+is why arming from only one of them (as `06d046d6e` and an earlier version
+of this branch each did, from opposite ends) still leaves a window.
+`kame_pool_set_realtime_thread` is guarded too — the one `flush` caller
+outside the alloc/free paths.
+
+The predicate lives in `KameTlsPage`, in what used to be alignment padding,
+so the free path reads it off a pointer it already holds.  Two
+`static_assert`s pin that layout — stated in **widths**, not LP64 byte
+counts (§3, ILP32).
+
+Superseded, and removed from this branch: a second namespace-scope flag
+(`tls_batch_dead`) guarding `push` / `push_direct` / `flush` directly.  It
+worked, but it is a parallel mechanism for one invariant, it armed from
+only `~CrossDeallocBatch`, and guarding `flush` is the worse trade —
+`flush` runs per-free at `cap = 1` and sits in the region a measurement had
+already shown codegen-sensitive enough to delete the fault.
 
 ## 3. Result
 
@@ -155,6 +173,23 @@ The rows above are the evidence; all are independent of the broken
 instrumentation, since `alloc_tsd_exclusivity_test` includes none of it.
 The crash row is consistent but has almost no power on its own at a 12 %
 baseline (p ≈ 0.48).
+
+### Verified against shipped `master` (`796d9fe1e`)
+
+Built from the merged tree, not from this branch:
+
+| | result |
+|---|---|
+| `alloc_tsd_exclusivity_test`, LP64 | **0 / 20** |
+| `alloc_tsd_exclusivity_test`, `-m32 -march=i486` | **0 / 20** |
+| `tmin_dynnode`, `-m32 -march=i586`, `100 16 1250` | **0 / 10** |
+| `tools/audit/check_no_dcas.sh` | all 3 phases ok |
+
+(One near-miss worth recording: the first ILP32 attempt reported 10/10
+failures because its compile had failed — a `cd` left the source path
+relative — and the run used a STALE binary from the previous arm.  Always
+confirm the binary you are about to measure was actually produced by the
+build you just ran.)
 
 `transaction_dynamic_node_test` passes, and so does the rest of the suite
 bar four pre-existing failures — `starvation`, `priv_strip`,
