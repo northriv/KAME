@@ -1923,6 +1923,7 @@ struct CrossDeallocBatch {
     //! configuration rather than a third point.
     static inline std::atomic<unsigned long long> s_late_threads{0}, s_late_entries{0};
     static inline std::atomic<unsigned long long> s_late_histo[17];
+    static inline std::atomic<unsigned long long> s_late_owned{0}, s_late_unowned{0};
 #endif
     ~CrossDeallocBatch() noexcept {
 #ifdef KAME_LATEAPPLY_PROBE
@@ -1931,6 +1932,21 @@ struct CrossDeallocBatch {
             s_late_threads.fetch_add(1, std::memory_order_relaxed);
             s_late_entries.fetch_add(n, std::memory_order_relaxed);
             s_late_histo[n > 16 ? 16 : n].fetch_add(1, std::memory_order_relaxed);
+            //! §13.231  What state are the TARGET chunks in at this moment?  The
+            //! walk has already drained and disowned THIS thread's chunks, but
+            //! these entries are cross-thread frees, so they point at OTHER
+            //! threads' chunks and the walk never touched them.  BIT_OWNED set
+            //! means a live owner; clear means the owner has exited, i.e. the
+            //! chunk is orphaned (or already released).
+            for(int k = 0; k < count; ++k) {
+                //! `m_flags_packed` lives on the FS=true template, not on the
+                //! base, so classify with `m_owner_id`, which does: a released
+                //! chunk has it cleared to 0 (see the release paths).
+                if(buf[k].chunk->m_owner_id != 0)
+                    s_late_owned.fetch_add(1, std::memory_order_relaxed);
+                else
+                    s_late_unowned.fetch_add(1, std::memory_order_relaxed);
+            }
         }
 #endif
 #ifdef KAME_BATCH_VERIFY
@@ -6658,8 +6674,11 @@ KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, 0, {}};
 namespace { struct LateApplyReport { ~LateApplyReport() {
     unsigned long long t = CrossDeallocBatch::s_late_threads.load();
     unsigned long long e = CrossDeallocBatch::s_late_entries.load();
-    fprintf(stderr, "LATEAPPLY threads=%llu entries_after_walk=%llu mean=%.2f\n",
-            t, e, t ? (double)e / (double)t : 0.0);
+    fprintf(stderr, "LATEAPPLY threads=%llu entries_after_walk=%llu mean=%.2f "
+            "target_chunk_owned=%llu unowned=%llu\n",
+            t, e, t ? (double)e / (double)t : 0.0,
+            CrossDeallocBatch::s_late_owned.load(),
+            CrossDeallocBatch::s_late_unowned.load());
     for(int k = 0; k <= 16; ++k) {
         unsigned long long v = CrossDeallocBatch::s_late_histo[k].load();
         if(v) fprintf(stderr, "LATEAPPLY   %2d%s entries : %llu threads\n",

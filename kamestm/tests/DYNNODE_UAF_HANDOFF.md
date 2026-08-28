@@ -15362,3 +15362,51 @@ v1/v2 did.
 The one thing this does **not** explain is why moving the applies *earlier*
 (v1/v2, into the cleanup) is worse than leaving them late.  That remains open, and
 it is now the only measured result without an account.
+
+### 13.231 The freelist is already 0 by then — and classifying the batch's targets separates the curing configuration from the failing one in one number
+
+Asked whether the teardown flush leaves the freelist at zero.  Two separate things,
+and the answer is in the source:
+
+* **the chunk freelists** (`m_freelist_head[0..]`) are emptied by
+  `release_dll_chunks_for_thread`, which assigns `nullptr` as it walks — and that
+  runs **before** the batch flush, since the cleanup destructor goes first.  So this
+  thread's freelists are already 0 when `~CrossDeallocBatch` runs;
+* **the teardown flush touches only the bitmap.**  `batch_return_to_bitmap`
+  CAS-clears bits; it neither reads nor writes a freelist.
+
+So the two never meet — which is exactly why the question is worth asking of the
+*other* side: the batch's entries are **cross-thread** frees, so they point at other
+threads' chunks, which this thread's walk never touched.  **What state are those in
+at that moment?**
+
+#### Measured, and it is the whole difference between the two configurations
+
+Classifying each entry still pending at `~CrossDeallocBatch` by whether its target
+chunk has a live owner (`m_owner_id != 0`; zero means orphaned, released, or
+dedicated — i.e. **no live owner**):
+
+| `cap` | entries applied after the walk | target has a live owner | **target has none** |
+|---|---|---|---|
+| 1 | 801 | 800 | **1** |
+| 1024 | 68 315 | 31 013 | **37 302 (55 %)** |
+
+At `cap = 1` — the configuration that cures — essentially **no** late apply lands on
+an ownerless chunk.  At the default, **more than half of them do.**
+
+That is the same axis as §13.230 (post-teardown leftovers), now with the population
+that matters isolated: not "how many entries are left" but **how many of them are
+written into chunks with no live owner**, which is precisely the state in which a
+chunk can be adopted, released, and re-constructed — §13.228's window.
+
+`m_owner_id == 0` conflates orphaned-but-mapped with released, so this does not by
+itself say the storage was reused; §13.229's incarnation probe is what distinguishes
+those.  But as a discriminator between the curing and failing configurations it is
+about as sharp as a single number gets: **1 versus 37 302.**
+
+#### What it predicts
+
+If the mechanism is the one §13.228 describes, then on the crashing reproducer the
+incarnation mismatches should be a subset of these 37 302 — entries whose target was
+not merely ownerless but re-constructed.  Both probes are in the same build and can
+be read from one run.
