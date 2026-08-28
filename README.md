@@ -75,6 +75,16 @@ Windows 64-bit binaries: [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kam
 
 ## What's New in 8.6.1
 
+- **A block of memory could be handed out twice — Windows and Linux.** Frees
+  arriving from a thread that had already finished its own allocator teardown
+  went into an object that no longer existed, and a slot went back to the pool
+  after its owner had already reissued it, so two live users held the same
+  memory. It surfaced far from its cause and never the same way twice: garbage
+  inside a value still being referenced, a node that reported the wrong
+  identity, or the transaction watchdog firing on a stall that was not one.
+  macOS was never affected — the guard that was supposed to prevent this
+  compiled to a constant *false* everywhere else. **8.5 and 8.6 carry the
+  defect on Windows and Linux; update.**
 - **The MCP pre-check no longer cries wolf.** On Windows, KAME could announce
   that no Python with `mcp` and `jupyter_client` was found — and then start the
   server anyway, on the next line. The startup pre-check probed candidates with
