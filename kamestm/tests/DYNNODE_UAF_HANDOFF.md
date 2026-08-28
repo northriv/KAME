@@ -16154,3 +16154,82 @@ The §13.235 ordering (`gen` and `pcap` at 100 %) remains unexplained, and §13.
 showed `pcap` measured "apply the backlog early" rather than what I claimed.  That
 table still needs re-running with stderr retained before its monotonicity can be
 trusted — this section shows the retained-stderr method works.
+
+### 13.244 Closed on the failing platform: both reproducers cured, the bitmap violation gone, and `ctest` clean — with the one red test proven pre-existing
+
+§13.243 A/B'd the post-teardown bypass on `tmin3`.  The remaining questions were
+whether it generalises, whether it also removes §13.220's bitmap violation, and
+whether it regresses the suite **on Linux** (arm64's 41/41 cannot speak for a
+platform where the fault does not occur).  All three are now answered.
+
+#### Both reproducers, interleaved, stderr retained
+
+| reproducer | control | fix | Fisher p |
+|---|---|---|---|
+| `tmin3` | 11 / 32 | **0 / 32** | 0.00035 |
+| `tmin_rr` | 6 / 12 | **0 / 12** | 0.014 |
+
+**17 failures in 44 control runs, 0 in 44 fix runs.**  Control failures span five
+signatures (`*this` ×5, `&subpacket_new->node() == child.get()` ×2,
+`&m_packet->node() == &node`, `STM lookup failed`, negotiation HANG); the fix
+produces none of them.
+
+#### And it removes §13.220's violation, not just the crash
+
+`KAME_BATCH_VERIFY`, `cap = 1`, both arms hand-specialised so the clone survives
+instrumentation and both gated at `flush_impl<false>` = 4:
+
+```
+control   bit_clear_bad = 1599    thread exits = 1601
+fix       bit_clear_bad =    0    thread exits = 1601   (3/3)
+```
+
+§13.220 measured 1600 double-clears with `hit = 1600 / miss = 0` by address —
+reproducible to the digit — and the bypass takes it to **zero while the workload is
+unchanged** (1601 exits either way).  So the crash and the bitmap violation are the
+**same defect**, not two, and this fix closes both.
+
+#### `ctest` on Linux: 40/41, and the red one is pre-existing
+
+The failure is `alloc_invariants` — a test I added in §13.170 — and it is **not a
+regression**.  Same binary, two libraries:
+
+```
+PRE-FIX lib   pushes=65  flushes=0   FAIL
+HEAD (fix)    pushes=32  flushes=0   FAIL
+```
+
+What fires is that test's own anti-vacuity guard: it refuses to report
+"flush depth max = 1, nested = 0" as a pass on a run that never flushed.  The ctest
+workload (8 threads × 20 000 iters × 3 rounds) yields only 32–65 cross-thread
+pushes, and `KAME_BATCH_CAP=1` visibly does not take effect despite the gate being
+compiled into `kamepoolalloc_checked` — a second, separate bug.  The guard is doing
+its job: without it the test would report a green flush-depth invariant on **zero
+observations**, which is the vacuous pass this investigation has been burned by
+repeatedly (§13.61, §13.163, §13.164, §13.179, §13.219).
+
+**Owed on my side:** raise that test's workload (or repair the cap knob) so the
+assertion stops being vacuous.  It is a test defect, not an allocator one.
+
+#### What the fix is
+
+Post-teardown frees are routed to the TLS-free path on **every** target, via the
+portable `kame_thread_torn_down()` predicate rather than the
+`kame_page() == &g_teardown_page` compare that is tautologically false off macOS
+(§13.239).  It applies only the arriving free and leaves `buf` alone — unlike the
+exit-flush, `gen` and `pcap` arms, which apply the accumulated backlog and were all
+**worse** than doing nothing.
+
+#### Still open, none of it blocking
+
+* **§13.235's ordering** — `gen` and `pcap` at 100 % is unexplained, and §13.241
+  showed `pcap` measured "apply the backlog early" rather than what I claimed.  That
+  table pooled six failure modes under `rc != 0` and needs re-running with stderr
+  retained; §13.243/this section show the method works.
+* **§13.236's premature-free reading** — my census refutation was withdrawn in
+  §13.238 for coming from a build that crashes 7–8/8, then re-measured across six
+  *crashing* runs: `xthread_push live = 0` in 32/32 dumps (~26 M samples), with one
+  run showing `return_bitmap live = 7`.  The free is not premature; the apply
+  sometimes lands on a re-allocated slot.  Only 1 of 6 runs showed it, so this is a
+  route rather than the whole story.
+* the `alloc_invariants` workload and the dead `KAME_BATCH_CAP` knob under the gate.
