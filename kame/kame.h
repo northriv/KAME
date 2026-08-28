@@ -44,6 +44,7 @@ class QMdiArea;
 class QMdiSubWindow;
 class QDockWidget;
 class QToolBar;
+class QPropertyAnimation;
 class QUrl;
 
 /*! Main window widget of KAME.
@@ -150,6 +151,28 @@ private:
 	void toggleToolboxPane(QMdiSubWindow *wnd);
 	//! Syncs the check marks with what is actually on screen.
 	void updateToolboxStrips();
+
+	//! Dock-style auto-hide for a toolbox floating at a screen edge: it rests
+	//! shrunk to a narrow bar there — just its MDI tab column — and grows back
+	//! to full width under the pointer, shrinking again once the pointer has
+	//! been elsewhere for a moment.  Only where windows can actually be placed
+	//! (not Wayland), and only while the toolbox is floating.
+	struct EdgeSlider {
+		QDockWidget *dock;
+		QPropertyAnimation *anim;   //!< animates dock->geometry()
+		QRect expanded;             //!< full size; follows the user's own moves
+		int collapsedWidth;
+		bool left;                  //!< which screen edge it clings to
+		bool collapsed;
+		int idleTicks;
+	};
+	std::deque<EdgeSlider> m_edgeSliders;
+	QTimer *m_pEdgeHoverTimer = nullptr;
+	void setupEdgeAutoHide(const QRect &screen);
+	void pollEdgeAutoHide();
+	void setToolboxCollapsed(EdgeSlider &slider, bool collapse);
+	//! nullptr where a dock has no edge slider (docked layout, or Wayland).
+	EdgeSlider *edgeSliderFor(QDockWidget *dock);
 	int m_cascadeIndex = 0;
 	void closeEvent( QCloseEvent* ce );
 	shared_ptr<XScriptingThread> runNewScript(const XString &label, const XString &filename);

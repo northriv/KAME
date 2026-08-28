@@ -23,6 +23,11 @@
 #include <QScreen>
 #include <QDockWidget>
 #include <QToolBar>
+#include <QToolButton>
+#include <QVBoxLayout>
+#include <QPropertyAnimation>
+#include <QCursor>
+#include <QTabBar>
 #include <QCloseEvent>
 #include <QMdiArea>
 #include <QMdiSubWindow>
@@ -211,6 +216,7 @@ FrmKameMain::FrmKameMain()
         dockRight->setWindowOpacity(0.8);
         dockRight->resize(std::max(rect.width() / 5, 450), dockLeft->height());
         dockRight->move(rect.right() - dockRight->frameSize().width() - 6, rect.top());
+        setupEdgeAutoHide(rect);
     }
     //The following 2 lines should be after setting up docks. Otherwise, crashes in windows.
     resize(QSize(std::max(rect.width() / 4, 500), minimumHeight()));
@@ -303,16 +309,20 @@ void
 FrmKameMain::toggleToolboxPane(QMdiSubWindow *wnd) {
     for(auto &&pane: m_toolboxPanes) {
         if(pane.wnd != wnd) continue;
-        if(pane.dock->isVisible() && (pane.area->activeSubWindow() == pane.wnd)) {
-            pane.dock->hide(); //the pane on screen was clicked: fold the toolbox away.
+        EdgeSlider *slider = edgeSliderFor(pane.dock);
+        bool folded = !pane.dock->isVisible() || (slider && slider->collapsed);
+        if( !folded && (pane.area->activeSubWindow() == pane.wnd)) {
+            //The pane on screen was clicked: fold the toolbox away — shrink it
+            //to its edge bar where it has one, else hide the dock outright.
+            if(slider) setToolboxCollapsed( *slider, true);
+            else pane.dock->hide();
         }
         else {
-            //Reveals the toolbox (still floating or docked wherever it was) and
-            //brings this pane to the front of its tab stack.
             pane.dock->show();
+            if(slider && slider->collapsed) setToolboxCollapsed( *slider, false);
             pane.area->setActiveSubWindow(pane.wnd);
             pane.wnd->showMaximized();
-            pane.dock->raise(); //a floating toolbox may sit behind the main window.
+            pane.dock->raise();
         }
         break;
     }
@@ -323,12 +333,105 @@ FrmKameMain::updateToolboxStrips() {
     //A check mark means "this pane is the one you can see right now".  Driven
     //from the real widget state, so tab clicks and dock closes stay in sync.
     for(auto &&pane: m_toolboxPanes) {
-        bool shown = pane.dock->isVisible() && (pane.area->activeSubWindow() == pane.wnd);
+        EdgeSlider *slider = edgeSliderFor(pane.dock);
+        bool shown = pane.dock->isVisible() && !(slider && slider->collapsed) &&
+            (pane.area->activeSubWindow() == pane.wnd);
         if(pane.action->isChecked() != shown)
             pane.action->setChecked(shown);
     }
 }
-
+FrmKameMain::EdgeSlider *
+FrmKameMain::edgeSliderFor(QDockWidget *dock) {
+    for(auto &&s: m_edgeSliders)
+        if(s.dock == dock) return &s;
+    return nullptr;
+}
+void
+FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
+    //Each floating toolbox becomes its own edge bar: it shrinks against the
+    //screen edge it was placed at, leaving its MDI tab column visible, and
+    //grows back under the pointer.  Nothing else is added to the screen — the
+    //bar IS the toolbox, so its tabs keep working while it is narrow.
+    for(auto &&side: {std::make_pair(m_pDockLeft, true), std::make_pair(m_pDockRight, false)}) {
+        QDockWidget *dock = side.first;
+        bool left = side.second;
+        QMdiArea *area = left ? m_pMdiLeft : m_pMdiRight;
+        //A QMdiArea's minimum size hint (~200 px, inherited from its
+        //subwindows) would clamp the shrink; lifting it on the area and on the
+        //dock is enough — measured — so the panes keep their own minimums and
+        //are merely clipped while the toolbox is narrow.
+        area->setMinimumWidth(0);
+        dock->setMinimumWidth(0);
+        //Growing must not steal the keyboard from whatever is being typed
+        //into, and an activated toolbox would also pin itself open below.
+        dock->setAttribute(Qt::WA_ShowWithoutActivating);
+        int tabw = 24;
+        if(QTabBar *tabs = area->findChild<QTabBar *>())
+            tabw = std::max(tabw, tabs->sizeHint().width());
+        auto *anim = new QPropertyAnimation(dock, "geometry", this);
+        anim->setDuration(220);
+        anim->setEasingCurve(QEasingCurve::OutCubic);
+        connect(anim, &QPropertyAnimation::finished, this, [this]{updateToolboxStrips();});
+        m_edgeSliders.push_back({dock, anim, dock->geometry(), tabw + 6, left, false, 0});
+    }
+    m_pEdgeHoverTimer = new QTimer(this);
+    connect(m_pEdgeHoverTimer, &QTimer::timeout, this, &FrmKameMain::pollEdgeAutoHide);
+    m_pEdgeHoverTimer->start(150);
+    //The in-window strips would only duplicate what the edge bars now do.
+    m_pStripLeft->hide();
+    m_pStripRight->hide();
+}
+void
+FrmKameMain::pollEdgeAutoHide() {
+    //Polling the pointer beats enter/leave events here: these are separate
+    //top-level windows, and a leave event fires for every excursion over a
+    //child widget.
+    QPoint c = QCursor::pos();
+    //Signs that the user is in the middle of something, where shrinking the
+    //toolbox would be sabotage: an open popup (a combo list is its own window,
+    //outside the toolbox rectangle) or a held mouse button (dragging a
+    //scrollbar or a spin box).
+    bool busy = QApplication::activePopupWidget() ||
+        (QApplication::mouseButtons() != Qt::NoButton);
+    //Focus inside a toolbox AND that toolbox being the active window means the
+    //user clicked in and is working there, so it stays open until they click
+    //elsewhere.  Both halves are needed: a pane holding a line edit can take
+    //focus merely by being shown (that alone would pin it open for ever), and
+    //what counts as "active" for a Qt::Tool window varies between platforms.
+    //Typing always implies both, so nothing can shrink away mid-edit.
+    QWidget *focus = QApplication::focusWidget();
+    for(auto &&s: m_edgeSliders) {
+        if(s.anim->state() == QAbstractAnimation::Running) continue;
+        if( !s.dock->isFloating() || !s.dock->isVisible()) continue;
+        bool over = s.dock->frameGeometry().contains(c);
+        if(s.collapsed) {
+            if(over) setToolboxCollapsed(s, false);
+            continue;
+        }
+        s.expanded = s.dock->geometry(); //follows the user moving or resizing it
+        if(over || busy ||
+            (focus && s.dock->isAncestorOf(focus) && s.dock->isActiveWindow()))
+            s.idleTicks = 0;
+        else if(++s.idleTicks >= 8) //~1.2 s with the pointer elsewhere
+            setToolboxCollapsed(s, true);
+    }
+}
+void
+FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
+    QRect to = s.expanded;
+    if(collapse) {
+        //Keep the edge the toolbox clings to; give up the width on the other
+        //side, so it grows out of the screen edge rather than sliding along.
+        if(s.left) to.setWidth(s.collapsedWidth);
+        else to.setLeft(s.expanded.right() - s.collapsedWidth + 1);
+    }
+    s.idleTicks = 0;
+    s.collapsed = collapse;
+    s.anim->stop();
+    s.anim->setStartValue(s.dock->geometry());
+    s.anim->setEndValue(to);
+    s.anim->start();
+}
 bool
 FrmKameMain::eventFilter(QObject *obj, QEvent *event) {
     if(event->type() == QEvent::Show) {
