@@ -15584,3 +15584,68 @@ Narrowed to two things, and I will keep to them:
 
 Symbols, disassembly and runtime counts from here are all non-transferable.  What I
 can still do is build the instruments and say precisely what each number would mean.
+### 13.235 x86-64 arms: suppressing the deferred clears CURES it, every arm that applies them sooner is WORSE — and the `cap = 1` premise is unmeasurable here, because the gate that provides the knob suppresses the fault
+
+Five arms on `tmin3`, one base, production build, interleaved on one machine.
+
+#### The ordering, and it is monotone in WHEN the deferred bits are cleared
+
+| arm | pending entries at teardown are… | failures | vs control |
+|---|---|---|---|
+| `leak` (`KAME_EXIT_DISCARD_BATCH`) | **discarded — never applied** | **0 / 24** | p = 0.0016 |
+| `leakall` (`KAME_EXIT_LEAK_ALL`) | nothing returned at all | **0 / 12** | — |
+| **`rev2` control** | applied **late**, at `~CrossDeallocBatch` | **9 / 24** | — |
+| `v1` / `v2` exit flush (§13.222) | applied **at teardown** | 21–22 / 28 | p ≈ 0.001 |
+| `gen` (`KAME_FLUSH_ON_EXIT_GEN`, §13.225) | applied **per exit generation** | **12 / 12** | p = 0.00026 |
+| `pcap` (cap 1 *after* teardown only) | applied **immediately, post-teardown** | **12 / 12** | p = 0.00026 |
+
+never → 0 %, late → 38 %, at teardown → 75 %, per-generation → 100 %, immediately
+→ 100 %.  **Every arm that makes the deferred clears happen sooner makes it worse;
+both arms that stop them happening cure it outright.**
+
+This lands §13.224's fork on its first branch — teardown returns storage something
+still references — and matches §13.227's TLC counterexample, where the spurious
+clear ALONE suffices for a double hand-out.
+
+#### Two proposed fixes are refuted, in opposite directions
+
+* **`gen` (§13.225)** is the worst arm, 12/12.  Bounding the deferral *span* makes
+  the clears land sooner, which this ordering says is exactly wrong.  §13.225 listed
+  this as its third possible outcome ("the added flushes are themselves harmful");
+  that is the outcome.
+* **`pcap`** — the targeted form of "capless after teardown is evil": normal
+  batching for the thread's whole life, `cap = 1` from the end of
+  `~AllocThreadExitCleanup` onward, so post-teardown frees are never deferred.  Also
+  **12/12**.  The *dose* reading (fewer deferred entries ⇒ better) is refuted; the
+  *timing* reading (sooner ⇒ worse) survives.  The two predicted opposite signs and
+  the sign came out against the dose.
+
+#### And the premise several sections reason from cannot be tested on this platform
+
+`KAME_BATCH_CAP` only exists when `KAME_ORPHAN_CHAIN_RUNTIME_GATE` is defined.
+Build the control **with the gate and nothing else** — same source, same default cap:
+
+```
+rev2   (ungated, cap 1024)   9 / 24  failures
+capg   (gated,   cap 1024)   0 / 12  failures      p = 0.037
+capg   (gated,   cap    1)   0 / 12  failures      cap1 vs cap1024: p = 1.000
+```
+
+> **The gate itself suppresses the fault.  With it, `tmin3` does not crash at ANY
+> cap; without it, the knob does not exist.**
+
+So on `tmin3` the cap knob is **unmeasurable**, and "`cap = 1` cures" is confounded
+with "the gate suppresses" — the two cannot be separated on this reproducer.  Any
+run that set `KAME_BATCH_CAP=1` and saw no crash was also, necessarily, a gated
+build; the ungated default-cap build is a different binary in more than its cap.
+§13.225's table and §13.226's "a cap-independent path cannot explain a cap-dependent
+cure" both rest on that premise, and it has no x86-64 support.
+
+This also explains §13.219's void sweep (0/24 at every cap) without blaming my
+counters: the gate alone accounts for it.  The counters were not the suppressor.
+
+#### What survives
+
+The `leak` / `leakall` cure and the four-arm ordering are on **ungated** builds and
+are unaffected.  The mechanism they point at is a return of still-referenced
+storage, whose timing — not its quantity — is the dose.
