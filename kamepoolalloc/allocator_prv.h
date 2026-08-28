@@ -2891,10 +2891,17 @@ struct KameTlsPage {
 // load-bearing twice over: it must stay 16 B of header (or the hot `m_slots` cache
 // lines shift), and no field may be inserted before `m_slots`.  Fail at build time
 // rather than in a benchmark.
-static_assert(offsetof(KameTlsPage, m_slots) == 16,
-    "KameTlsPage header must stay 16 B — m_slots' offset sets the hot TLS cache lines");
-static_assert(sizeof(KameTlsPage) == 16 + sizeof(AllocSlot) * ALLOC_NUM_BUCKETS,
-    "KameTlsPage must stay packed — no padding beyond the 16 B header");
+// Stated in widths, NOT in LP64 byte counts: on ILP32 the header is 12 B, and a
+// hardcoded 16 breaks every 32-bit build — including the i486 phase of
+// tools/audit/check_no_dcas.sh, which is SKIPPED on macOS, so a wrong constant
+// here cannot be caught on the machine most likely to write it.
+static_assert(offsetof(KameTlsPage, m_slots)
+                  == sizeof(uintptr_t) + 2 * sizeof(uint32_t),
+    "KameTlsPage header must be exactly its three declared fields — no padding, "
+    "and nothing inserted before the hot m_slots array");
+static_assert(sizeof(KameTlsPage)
+                  == offsetof(KameTlsPage, m_slots) + sizeof(AllocSlot) * ALLOC_NUM_BUCKETS,
+    "KameTlsPage must stay packed — no trailing padding");
 
 // Platform split for the TLS page storage:
 //   macOS: g_tls_page is global-dynamic (struct too large for IE budget);
@@ -3107,6 +3114,34 @@ inline KameTlsPage *kame_page_or_null() noexcept {
 //! predicate belongs here, not open-coded at a call site.
 inline bool kame_thread_torn_down() noexcept {
     return kame_page()->torn_down != 0u;
+}
+
+//! Arm `kame_thread_torn_down()` for THIS thread.  Called from both thread-exit
+//! objects, because either can be destroyed first and the free path is unsafe
+//! from the moment the FIRST of them goes:
+//!
+//!   `~AllocThreadExitCleanup` — after it, `s_tls.my_chunk` / `&s_tls.dll_head`
+//!     are torn down and this thread's chunks are disowned.
+//!   `~CrossDeallocBatch`      — after it, `tls_cross_dealloc_batch` is a
+//!     destroyed object, so `push` / `push_direct` would resurrect it.
+//!
+//! Their order is not fixed: C++ destroys thread_locals in reverse order of
+//! construction, and which of the two a thread touches first depends on whether
+//! its first pool operation is an allocation or a cross-thread free.  Both
+//! orders occur in practice, so arming on the earlier is the only correct rule —
+//! and a single flag with two arming sites is cheaper than two predicates.
+//!
+//! Writes the page directly rather than through `kame_page()`, to stay off that
+//! function's cold fallback during teardown.  Where the cleanup has already
+//! swapped in the sentinel this stores 1 over its statically-set 1 — harmless,
+//! the sentinel is a process-global that is never freed.
+inline void kame_mark_thread_torn_down() noexcept {
+#if KAME_FAST_TSD
+    KameTlsPage *pg = tls_page_ie ? tls_page_ie : &g_tls_page;
+#else
+    KameTlsPage *pg = &g_tls_page;
+#endif
+    pg->torn_down = 1u;
 }
 
 // Out-of-class inline body for PoolAllocatorBase::radix_lookup.

@@ -612,18 +612,9 @@ struct AllocThreadExitCleanup {
             release_fns[i]();
         // Free-path teardown flag, in the page the free path already loads.  Set
         // BEFORE `s_alloc_tls_off` so the two cannot disagree in the window between
-        // them, and set unconditionally: on macOS the sentinel swap below carries the
-        // same flag statically, so either page a later `kame_page()` returns reports
-        // torn-down.  Value-only store into static TLS / a TSD-reachable struct — no
-        // TLV re-instantiation.
-        {
-#if KAME_FAST_TSD
-            KameTlsPage *pg = tls_page_ie ? tls_page_ie : &g_tls_page;
-#else
-            KameTlsPage *pg = &g_tls_page;
-#endif
-            pg->torn_down = 1u;
-        }
+        // them.  `~CrossDeallocBatch` arms the same flag — see
+        // `kame_mark_thread_torn_down()` for why either destructor may be first.
+        kame_mark_thread_torn_down();
         // Signal that pool-allocator TLS is dead.  Read by
         // `is_allocator_thread_active()` from later (pthread_key) TLS
         // dtors.  `new_redirected` itself no longer checks this flag —
@@ -888,7 +879,17 @@ struct CrossDeallocBatch {
         }
         count = 0;
     }
-    ~CrossDeallocBatch() noexcept { flush(/*at_teardown=*/true); }
+    ~CrossDeallocBatch() noexcept {
+        flush(/*at_teardown=*/true);
+        // Arm the free-path bypass AFTER the real backlog has gone back to the
+        // bitmaps: from here on `this` is a destroyed object, and a later free
+        // (a pthread_key destructor — glibc runs `__nptl_deallocate_tsd` after
+        // `__call_tls_dtors`, and kamestm registers one) must not resurrect it.
+        // If `~AllocThreadExitCleanup` ran first the flag is already set; if it
+        // did NOT, this is the only thing standing between that later free and a
+        // dead batch, which is why the flag has two arming sites.
+        kame_mark_thread_torn_down();
+    }
 };
 thread_local CrossDeallocBatch tls_cross_dealloc_batch;
 
@@ -7666,6 +7667,11 @@ extern "C" void kame_pool_set_realtime_mode(int enable) noexcept {
 
 extern "C" void kame_pool_set_realtime_thread(int level) noexcept {
 	if(level < 0 || level > 2) return;                  // ignore out-of-range
+	// The only `flush()` caller outside the alloc/free paths, and a public entry
+	// point, so it is the one place a destroyed batch is reachable without going
+	// through `deallocate_pooled`'s bypass.  A thread past its own allocator
+	// teardown has no RT section left to tune, and `g_rt_thread` is TLS too.
+	if(__builtin_expect(kame_thread_torn_down(), 0)) return;
 	g_rt_thread = level;
 	// (§75 / G5) STRICT only: drop the cross-thread batch to per-free
 	// flushing, and settle whatever ordinary work left in it — otherwise the
