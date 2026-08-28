@@ -269,8 +269,16 @@ XDriverListConnector::onCreateTouched(const Snapshot &shot, XTouchableNode *) {
         gErrPrint(i18n("Driver creation failed."));
         return;
     }
+    //Creating a driver by hand means configuring it next, so open its own
+    //window.  Loading a .kam deliberately does not: it would throw open a
+    //window for every driver in the file.
+    if(auto drv = dynamic_pointer_cast<XDriver>(driver))
+        drv->showForms();
+
     //A driver that came with an interface cannot be started until its port is
-    //set, so put the Interface pane in front.  One that talks to no hardware
+    //set, so put the Interface pane in front — after the driver's own window,
+    //so that is what ends up with the keyboard.  A driver with no interface
+    //leaves its own window in front instead, there being no port to set.  One that talks to no hardware
     //of its own — an analysis or management driver — leaves the layout alone.
     //An interface is a child node of its driver (XCharDeviceDriver and
     //XDummyDriver both create it as one), so the driver itself can be asked.

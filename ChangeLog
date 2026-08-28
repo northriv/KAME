@@ -33,9 +33,13 @@
   Dock still reports isVisible() == true and isMinimized() == false, so nothing
   could tell it was gone: the toolboxes no longer carry a minimize button, and
   the View menu restores one that ends up minimized anyway.
-- UI: adding a driver that came with an interface brings the Interface pane to
-  the front, since its port has to be set before the driver can be started.  A
-  driver that talks to no hardware of its own leaves the layout alone.  An
+- UI: a driver created from the New Driver dialog now opens its own settings
+  window, which is what one wants next after adding one by hand; loading a .kam
+  deliberately still does not, since it would throw open a window for every
+  driver in the file.  If the driver came with an interface, the Interface pane
+  is brought to the front after that window, since its port has to be set
+  before the driver can be started; a driver that talks to no hardware of its
+  own leaves its own window in front instead.  An
   interface is a child node of its driver (XNode::create inserts it as one,
   which both XCharDeviceDriver and XDummyDriver rely on), so the new driver
   itself is asked rather than watching the interface list for a new arrival.

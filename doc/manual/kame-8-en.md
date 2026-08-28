@@ -354,7 +354,7 @@ Error logs are saved to /tmp/kame.log (on Windows, the execution folder), so che
 
 ![](media/image2.png)
 
-(First time) In the “Driver” tab, add the driver corresponding to your instrument using “New”. The dialog’s search box narrows the list as you type; each word you type must appear in the driver’s description or in its type name, so “agilent dmm” is enough to find one. The first match is selected as you type, so pressing Enter creates it.
+(First time) In the “Driver” tab, add the driver corresponding to your instrument using “New”. The new driver’s settings window opens by itself. (Loading a .kam file does not open them, as there would be one window per driver.) The dialog’s search box narrows the list as you type; each word you type must appear in the driver’s description or in its type name, so “agilent dmm” is enough to find one. The first match is selected as you type, so pressing Enter creates it.
 
 (Subsequently) Load the saved .kam file via “File” → “Open”.
 
