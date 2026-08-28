@@ -1,3 +1,55 @@
+* Sat Aug 29 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- UI: the toolboxes and the main window now get out of the way by themselves.
+  A toolbox floating at a screen edge rests shrunk to its tab column and grows
+  back to full width when the pointer touches it; the main window keeps its top
+  edge and rests at half height, so the menu bar and the pane tabs never move.
+  Hovering a tab picks that pane, which makes a resting toolbox a menu of its
+  panes.  Nothing extra is put on the screen -- the bar IS the toolbox, which is
+  why its tabs keep working while it is narrow.  Neither QMdiArea nor
+  QDockWidget has an auto-hide feature (Qt has never shipped one for Widgets
+  docking, and Qt Quick has no docking at all), and a third-party docking
+  framework was not worth the dependency for this, so it is built from the
+  windows that were already there.  A window stays put, pointer or no pointer,
+  while a popup is up (a combo list is its own window, outside the toolbox
+  rectangle), while a mouse button is held (dragging a scrollbar), and while it
+  both holds the keyboard and is the active window -- the user clicked in and is
+  typing.  Both halves of that last test are needed: a pane holding a line edit
+  can take focus merely by being shown, and that alone would pin it open for
+  ever.  Pointer position is polled rather than tracked by enter/leave events,
+  which fire for every excursion over a child widget and cannot see the gap
+  between two top-level windows.  Clicking the tab of the pane already in front
+  pins or unpins that window -- only that tab, so every other tab still just
+  switches panes, and only when the window already held the keyboard, judged
+  from the state the poll sampled, since the click itself may be what activated
+  it.  "Auto-hide West/East Toolbox" and "Auto-hide Main Window" in the View
+  menu are the same switch.  Three traps, each of which produced a visible
+  fault: a QMdiArea's minimum size hint (~196 px, inherited from its subwindows)
+  clamps the shrink, and lifting it on the area sticks while lifting it on the
+  window does not -- a QDockWidget and a QMainWindow both re-derive their own
+  minimum from that hint on every layout pass, so it is re-applied before each
+  collapse.  Clamped, the east toolbox slid off the screen edge it clings to and
+  showed its content instead of its tabs, which is what a clamp looks like when
+  the anchored edge is the right one.  And a Qt::Tool window sent to the macOS
+  Dock still reports isVisible() == true and isMinimized() == false, so nothing
+  could tell it was gone: the toolboxes no longer carry a minimize button, and
+  the View menu restores one that ends up minimized anyway.
+- UI: layout to go with it.  Both toolboxes now run from the top of the screen
+  down to just above the message window, which parks at the bottom-left corner
+  and keeps its top edge there, instead of stopping at half the screen height;
+  the height is measured once the event loop is running, since a window asked to
+  sit at the top of the screen is placed below the menu bar and its title bar
+  cannot be measured until the frame exists.  The tab column is a fifth wider,
+  through a QProxyStyle over CT_TabBarTab: a stylesheet can set the width but
+  switches the tabs to stylesheet rendering, and larger tab icons drag each
+  tab's length along with its thickness until the panes no longer fit in the
+  column.  The 0.8 window opacity is gone -- a toolbox that shrinks itself out
+  of the way does not need to be see-through, and text over whatever happens to
+  be behind it reads worse.  The main window starts a third wider, now that the
+  space between the toolboxes is its to use.  The west toolbox has the keyboard
+  at startup and the east one once a .kam has finished loading, waiting for the
+  loading thread because drivers, graphs and their windows go on appearing until
+  it ends and would take the focus back.
+
 * Fri Aug 28 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - Release 8.6.1.
 - kamepoolalloc: frees arriving after a thread had run its own allocator
@@ -76,6 +128,14 @@
   standalone and under six concurrent copies of itself. The primitive is not at
   fault; the generations are now snapshotted in the parent, which is also how a
   real caller uses the API.
+- UI: the driver list's columns could not be resized with the mouse.  Setting
+  the three sections to ResizeToContents / Fixed / Stretch had made every one of
+  them non-interactive -- only QHeaderView::Interactive accepts a drag -- so this
+  was the one list in KAME whose columns were frozen, and the explicit
+  setColumnWidth calls above were dead for two of them.  They are Interactive
+  again, with the last section still filling the width and the name column
+  widening when a driver's label does not fit; that auto-fit is grow-only, so a
+  width set by hand is never taken back.
 
 * Fri Aug 21 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - script: the web UI had no model to choose. Not passing -m to a user's own

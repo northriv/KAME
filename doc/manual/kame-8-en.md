@@ -368,6 +368,18 @@ Clicking on the driver name in the “Driver” or “Interface” tab opens the
 
 “File” → “Save” saves most settings to a .kam file. Do this regularly.
 
+### Window Layout
+
+KAME spreads its work over several windows: the main window in the middle of the screen, and two toolboxes — “West” (Driver, Graph, Calibration Table, Node Browser) and “East” (Interface, Scalar Entry, Record Reader) — floating against the left and right screen edges.
+
+These windows get out of the way by themselves. A toolbox you are not pointing at shrinks against its screen edge until only its column of tabs is left, and grows back to full width as soon as the pointer touches it. The main window does the same downwards: it keeps its top edge, so the menu bar and the pane tabs never move, and rests at half height. Since the shrunken toolbox is the toolbox itself, its tabs still work — pointing at a tab brings up that pane, so a resting toolbox reads as a menu of its panes.
+
+A window will not shrink away while you are using it. It stays as it is while a drop-down list is open, while a mouse button is held down, and while it holds the keyboard — that is, after you have clicked into it and are typing. Only after you click elsewhere does it fold up again.
+
+To keep a window open regardless, click the tab of the pane already in front: that pins it, and clicking that tab again releases it. (Clicking any other tab just switches panes, as usual.) The same switches are in the “View” menu as “Auto-hide West Toolbox”, “Auto-hide East Toolbox” and “Auto-hide Main Window”, and the “View” menu also lists every pane by name, which is the way to bring back a toolbox that has been minimized or hidden.
+
+These settings are not remembered between runs; every start comes up with all three windows auto-hiding.
+
 ### Text Box Operations
 
 To prevent typos and adverse effects on instruments, most settings are not applied until you press the Enter key. Text turns blue while editing. If an incorrect format is entered, it turns red. Selecting another location without pressing Enter discards the input and shows the original value.
