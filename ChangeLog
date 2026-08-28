@@ -33,6 +33,13 @@
   Dock still reports isVisible() == true and isMinimized() == false, so nothing
   could tell it was gone: the toolboxes no longer carry a minimize button, and
   the View menu restores one that ends up minimized anyway.
+- UI: the Node Browser advertised "Supported Ruby methods" on a Python build.
+  The object line above it already said Root(), but the method list under it
+  was a hand-written one in Ruby's spelling (value=x, <<x, to_ary), printed
+  whichever interpreter the build carried.  A Python build now prints nothing
+  there: the "Supported Python methods" line that follows is introspected from
+  the bound object itself, so it is both correct and complete.  A Ruby-only
+  build is unchanged.
 - UI: a driver created from the New Driver dialog now opens its own settings
   window, which is what one wants next after adding one by hand; loading a .kam
   deliberately still does not, since it would throw open a window for every
