@@ -91,6 +91,11 @@ public:
 	FrmEntry *m_pFrmScalarEntry;
 	FrmNodeBrowser *m_pFrmNodeBrowser;
 
+	//! Brings the Interface pane to the front and gives it the keyboard.
+	//! Called after creating a driver that came with an interface, whose port
+	//! has to be set before it can be started.
+	void revealInterfacePane();
+
 	int openMes(const XString &filename);
     void signalAllModulesLoaded(); //!< Call after all driver modules are loaded.
 
@@ -149,6 +154,7 @@ private:
 	};
 	std::deque<ToolboxPane> m_toolboxPanes;
 	void toggleToolboxPane(QMdiSubWindow *wnd);
+	void revealToolboxPane(ToolboxPane &pane);
 	//! Syncs the check marks with what is actually on screen.
 	void updateToolboxStrips();
 

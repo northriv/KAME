@@ -33,6 +33,12 @@
   Dock still reports isVisible() == true and isMinimized() == false, so nothing
   could tell it was gone: the toolboxes no longer carry a minimize button, and
   the View menu restores one that ends up minimized anyway.
+- UI: adding a driver that came with an interface brings the Interface pane to
+  the front, since its port has to be set before the driver can be started.  A
+  driver that talks to no hardware of its own leaves the layout alone.  An
+  interface is a child node of its driver (XNode::create inserts it as one,
+  which both XCharDeviceDriver and XDummyDriver rely on), so the new driver
+  itself is asked rather than watching the interface list for a new arrival.
 - UI: the New Driver dialog has a live search box.  Typing narrows the list of
   120 drivers as you go; every space-separated word must appear somewhere in
   the label or the type name, so "agilent dmm" finds the two of them however

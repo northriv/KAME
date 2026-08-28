@@ -358,7 +358,7 @@ Error logs are saved to /tmp/kame.log (on Windows, the execution folder), so che
 
 (Subsequently) Load the saved .kam file via “File” → “Open”.
 
-In the “Interface” tab, click “Start” for the driver. For GPIB/serial port etc., specify the address (port) in advance (see the chapter below).
+In the “Interface” tab, click “Start” for the driver. (After you add a driver that talks to an instrument, this tab comes to the front by itself, since its port must be set first.) For GPIB/serial port etc., specify the address (port) in advance (see the chapter below).
 
 Clicking on the driver name in the “Driver” or “Interface” tab opens the driver-specific settings window. (Some drivers do not have a settings window.)
 

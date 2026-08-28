@@ -18,6 +18,8 @@
 #include "driverlistconnector.h"
 #include "driver.h"
 #include "measure.h"
+#include "interface.h"
+#include "kame.h"
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPushButton>
@@ -263,8 +265,23 @@ XDriverListConnector::onCreateTouched(const Snapshot &shot, XTouchableNode *) {
             }
         }
 	}
-	if( !driver)
+	if( !driver) {
         gErrPrint(i18n("Driver creation failed."));
+        return;
+    }
+    //A driver that came with an interface cannot be started until its port is
+    //set, so put the Interface pane in front.  One that talks to no hardware
+    //of its own — an analysis or management driver — leaves the layout alone.
+    //An interface is a child node of its driver (XCharDeviceDriver and
+    //XDummyDriver both create it as one), so the driver itself can be asked.
+    Snapshot shot_driver( *driver);
+    bool has_interface = false;
+    if(shot_driver.size())
+        for(auto &&child: *shot_driver.list())
+            if(dynamic_pointer_cast<XInterface>(child)) {has_interface = true; break;}
+    if(has_interface)
+        if(auto *frm = dynamic_cast<FrmKameMain *>(g_pFrmMain))
+            frm->revealInterfacePane();
 }
 void
 XDriverListConnector::onReleaseTouched(const Snapshot &shot, XTouchableNode *) {

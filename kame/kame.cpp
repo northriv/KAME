@@ -332,26 +332,39 @@ FrmKameMain::toggleToolboxPane(QMdiSubWindow *wnd) {
             if(slider) setToolboxCollapsed( *slider, true);
             else pane.dock->hide();
         }
-        else {
-            //A toolbox that got minimized is out of reach of its hover bar, so
-            //this menu is its only way back — and it cannot trust Qt's own
-            //answer about the state: a Qt::Tool window sent to the macOS Dock
-            //still reports isVisible() == true and isMinimized() == false
-            //(measured), which is why nothing here used to bring it back.  So
-            //clear the state where the platform does report it, and otherwise
-            //rely on raise() + activateWindow(), which deminiaturizes.
-            if(pane.dock->isMinimized())
-                pane.dock->setWindowState(pane.dock->windowState() & ~Qt::WindowMinimized);
-            pane.dock->showNormal();
-            if(slider && slider->collapsed) setToolboxCollapsed( *slider, false);
-            pane.area->setActiveSubWindow(pane.wnd);
-            pane.wnd->showMaximized();
-            pane.dock->raise();
-            pane.dock->activateWindow(); //asked for explicitly, unlike a hover
-        }
+        else
+            revealToolboxPane(pane);
         break;
     }
     updateToolboxStrips();
+}
+void
+FrmKameMain::revealToolboxPane(ToolboxPane &pane) {
+    //A toolbox that got minimized is out of reach of its hover bar, so this is
+    //its only way back — and it cannot trust Qt's own answer about the state:
+    //a Qt::Tool window sent to the macOS Dock still reports isVisible() ==
+    //true and isMinimized() == false (measured), which is why nothing here
+    //used to bring it back.  So clear the state where the platform does report
+    //it, and otherwise rely on raise() + activateWindow(), which
+    //deminiaturizes.
+    EdgeSlider *slider = edgeSliderFor(pane.dock);
+    if(pane.dock->isMinimized())
+        pane.dock->setWindowState(pane.dock->windowState() & ~Qt::WindowMinimized);
+    pane.dock->showNormal();
+    if(slider && slider->collapsed) setToolboxCollapsed( *slider, false);
+    pane.area->setActiveSubWindow(pane.wnd);
+    pane.wnd->showMaximized();
+    pane.dock->raise();
+    pane.dock->activateWindow(); //asked for explicitly, unlike a hover
+    updateToolboxStrips();
+}
+void
+FrmKameMain::revealInterfacePane() {
+    for(auto &&pane: m_toolboxPanes)
+        if(pane.wnd->widget() == m_pFrmInterface) {
+            revealToolboxPane(pane);
+            break;
+        }
 }
 void
 FrmKameMain::updateToolboxStrips() {
