@@ -1671,6 +1671,26 @@ struct CrossDeallocBatch {
             abort();
         }
 #endif
+#ifdef KAME_EXIT_DISCARD_BATCH
+        //! §13.223  The arm that tests §13.222's reading in the OPPOSITE direction.
+        //!
+        //! §13.222: flushing the last pending entry at thread exit -- at either
+        //! placement -- takes tmin3 from 8/28 failures to 21-22/28, and its
+        //! proposed reading is that applying the entry earlier returns a slot to
+        //! circulation sooner and widens whatever window actually kills it.
+        //!
+        //! If that is right, the converse must hold: NOT returning the slot at all
+        //! should push the failure rate BELOW the control.  This arm discards the
+        //! batch at teardown instead of applying it -- the slots are leaked, which
+        //! is unacceptable in production and exactly right for one A/B arm.
+        //!
+        //!   leak < rev  -> slot-return TIMING is the variable, and the fault is a
+        //!                  slot returned while something still references it;
+        //!   leak ~ rev  -> the exit flush's harm is not about returning slots, and
+        //!                  §13.222's reading needs replacing;
+        //!   leak > rev  -> touching the batch at teardown at all is what hurts.
+        if(at_teardown) { count = 0; return; }
+#endif
         if(count == 0) return;
 #ifdef KAME_ORPHAN_CHAIN_RUNTIME_GATE
         g_flush_nonempty.fetch_add(1, std::memory_order_relaxed);

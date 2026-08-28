@@ -14858,3 +14858,66 @@ that B removes it, which is not the same claim.
   family.
 * I reported after one rep that `tmin3` "runs to completion with the fix in".  That
   was extrapolation from rep 1; the full A/B says the opposite.
+
+### 13.223 §13.221 unshipped on master, v2 withdrawn, and the arm that tests §13.222's reading in the opposite direction
+
+#### Master is back to no thread-exit flush
+
+§13.221's commit reached `GitHub/master` before §13.222 landed.  It is published, so
+it was undone forward, not rewritten:
+
+```
+159246b8e  TLA+ specs for pool slot custody and the thread-exit DLL walk   (kept)
+dc850a9c5  Revert "flush the cross-dealloc batch before the thread-exit DLL walk"
+1b7434733  keep the stale-comment deletion the revert undid; correct one
+           VERIFICATION.md claim
+```
+
+`ctest` 40/40 on the reverted tree; `tls_cross_dealloc_batch.flush` is back to its
+three pre-existing call sites.  The specs stay — they are model results and do not
+depend on the flush.  The one sentence in VERIFICATION.md that called
+`BUG_NO_BATCH_AT_EXIT` "the failure mode `drain_thread_slot_freelists()` exists to
+prevent" was overclaiming even before §13.222 and now says so, including that the
+head placement made the crashing reproducer worse.
+
+**v2 (`f49b578a2`) is withdrawn as a candidate.**  Its argument — after the
+bucket-pointer clear because a flush can release a chunk, before the DLL walk
+because the walk orphans them — may still be right about *where* such a flush would
+have to go, but §13.222 measured v1 vs v2 at **p = 1.00**: placement is not the
+variable, and both are ~2.6× worse than not flushing.  It stays on its branch as a
+documented dead end, not a third arm.
+
+#### The arm §13.222's reading demands
+
+§13.222 proposes that applying the entry earlier returns a slot to circulation
+sooner and widens whatever window actually kills `tmin3`.  That is falsifiable in
+the direction nobody has run: if returning the slot *sooner* hurts, then not
+returning it *at all* should help.
+
+`KAME_EXIT_DISCARD_BATCH` discards the batch at teardown instead of applying it —
+the slots are leaked, which is unacceptable in production and exactly right for one
+A/B arm:
+
+```cpp
+if(at_teardown) { count = 0; return; }
+```
+
+| result | reading |
+|---|---|
+| **leak < rev** | slot-return **timing** is the variable, and the fault is a slot returned while something still references it.  That also makes §13.220's identity (the violating slot IS the late-pending one) a *consequence* rather than the cause. |
+| **leak ≈ rev** | the exit flush's harm is not about returning slots at all, and §13.222's reading needs replacing. |
+| **leak > rev** | touching the batch at teardown in any way is what hurts, which points at the teardown path rather than at slot lifetime. |
+
+Four arms from one base — `rev`, `v1`, `v2`, `leak` — and `rev` and `leak` are the
+pair that matters; `v1`/`v2` are already measured and indistinguishable, so they
+only serve as scale.  arm64: builds clean, `ctest` 41/41 (it leaks, so do not read
+anything into a passing suite).
+
+#### What §13.222 fixed in my reporting, recorded here too
+
+The mode I called "a `kamepoolalloc` assertion the control never hits" is
+`atomic_smart_ptr.h:1053`,
+`local_shared_ptr<Node<LongNode>::Payload>::operator->` — **the UAF signature
+itself**, not an allocator-internal invariant.  I read it off a truncated path and
+built a "the fix breaks a new invariant" story on it.  Both arms die of the same
+family; what differs is the rate.
