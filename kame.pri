@@ -54,7 +54,7 @@ QMAKE_CXXFLAGS += -Wno-register
 DEFINES -= USE_STD_ALLOCATOR
 
 
-VERSTR = 8.6
+VERSTR = 8.6.1
 DEFINES += VERSION=\"quotedefined($${VERSTR})\"
 
 KAME_COREMODULES = coremodules

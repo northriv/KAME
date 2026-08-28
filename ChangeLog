@@ -1,4 +1,56 @@
 * Fri Aug 28 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Release 8.6.1.
+- script: KAME told the user the MCP server could not start, and then started
+  it. The startup pre-check reported "No Python with mcp and jupyter_client was
+  found, so the MCP server cannot start and the AI links above will fail" while
+  the same log went on to announce the HTTP server on its port. Both messages
+  were right about their own code path: launchJupyterConsole's probe strips
+  KAME's Python environment before testing a candidate, but _find_python_with --
+  the newer path behind the pre-check and the Pydantic AI interpreter search --
+  inherited it. Under kame-msyspython.bat that environment carries
+  PYTHONHOME=C:\msys64\mingw64 and MSYS2's PYTHONPATH, and every candidate
+  there is a DIFFERENT interpreter from KAME's own, so a real CPython was told
+  to load mingw-built C extensions it cannot open and died on `_socket`; every
+  candidate failed and a perfectly good kame-mcp-venv was declared unusable. It
+  now probes with PYTHONHOME / PYTHONPATH / VIRTUAL_ENV / PYTHONSTARTUP
+  stripped, as the other path already did. Verified by calling the real function
+  with PYTHONHOME set: it returns the venv instead of None.
+- tests: the CMake test builds now configure and link under MSVC. Three things
+  blocked cl before any source-level portability question arose. /utf-8 was set
+  on the kamepoolalloc target alone, so every test that includes allocator_prv.h
+  met the CP932 mis-decode head-on (`C2065: 'ALLOC_CHUNK_HEADER' undeclared` --
+  a comment's box-drawing byte swallows the newline and hides the next #define);
+  it is directory-wide now, and set before the first add_library, since
+  add_compile_options reaches only targets created after it -- which is why the
+  copy of the pool built from kamestm/tests still failed. The force-include of
+  support_standalone.h was probed as `-include`, which cl rejects, and the
+  result then silently ignored; that is not optional, because several tests open
+  with `#define msecsleep(x) (x)` on line 1 and without the header going first
+  that macro eats its own declaration. It is asked for as /FI on MSVC, and an
+  unusable force-include is a FATAL_ERROR rather than a puzzle later. And MSVC
+  emits no import library for a DLL that exports nothing, so fifteen consumers
+  died on `LNK1181: cannot open input file kamepoolalloc.lib` --
+  WINDOWS_EXPORT_ALL_SYMBOLS is the CMake equivalent of the
+  `-Wl,--export-all-symbols` kamepoolalloc.pro already uses for MinGW. cl now
+  builds 18/29 kamepoolalloc targets and 16/25 kamestm ones and every test that
+  builds passes; the rest need GNU inline asm, __builtin_return_address,
+  __attribute__((noinline)), pthread.h, or turn on a friend-access divergence,
+  and are left for later. clang/llvm-mingw is unaffected.
+- kamestm/tests: two tests could not run on Windows. transaction_priority_mixed
+  used SCHED_FIFO / SCHED_RR, which MinGW does not define, though its call sites
+  are already inert off Linux (os_set_policy has a `#else return false` arm and
+  the OS arm then reports itself SKIPPED); only the names were missing, so they
+  are defined behind #ifndef rather than excluding a test whose STM half is
+  worth running anyway. And xwaitcell_test had a race of its own: each waiter
+  read cells[i].gen() INSIDE its thread, so a thread scheduled after the
+  parent's wake_one() asked to sleep past a generation that had already arrived,
+  waited out the full five seconds and was counted as stranded -- "only 4 of 8
+  sleepers were woken" under `ctest -j4`, while the same binary passed
+  standalone and under six concurrent copies of itself. The primitive is not at
+  fault; the generations are now snapshotted in the parent, which is also how a
+  real caller uses the API.
+
+* Fri Aug 28 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - kamepoolalloc: frees arriving after a thread had run its own allocator
   teardown went into a destroyed object on Linux and Windows. The cold free
   path's post-teardown bypass tested `kame_page() == &g_teardown_page`, but only

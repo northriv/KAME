@@ -2,7 +2,7 @@
 
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![GitHub](https://img.shields.io/badge/GitHub-northriv%2FKAME-181717?logo=github)](https://github.com/northriv/KAME)
-[![Version](https://img.shields.io/badge/version-8.6-green)]()
+[![Version](https://img.shields.io/badge/version-8.6.1-green)]()
 [![arXiv](https://img.shields.io/badge/arXiv-2608.12024-b31b1b.svg)](https://arxiv.org/abs/2608.12024)
 
 KAME is an open-source, multi-threaded program for automated physical property measurements,
@@ -72,6 +72,18 @@ Windows 64-bit binaries: [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kam
 | **Monte Carlo simulation** | Monte Carlo driver |
 
 ---
+
+## What's New in 8.6.1
+
+- **The MCP pre-check no longer cries wolf.** On Windows, KAME could announce
+  that no Python with `mcp` and `jupyter_client` was found — and then start the
+  server anyway, on the next line. The startup pre-check probed candidates with
+  KAME's own `PYTHONHOME` still set, which under `kame-msyspython.bat` points a
+  real CPython at MSYS2's standard library and kills it on `_socket`; it now
+  strips that environment, as the other probe already did. The same fix cures
+  the Pydantic AI interpreter search.
+- **The test suites build under MSVC**, not only clang/MinGW, and every test
+  that builds there passes.
 
 ## What's New in 8.6
 
