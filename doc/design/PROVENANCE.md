@@ -579,6 +579,31 @@ compatibility surface is scripts.  It can therefore stop being a sibling node
 and become an object the journal owns, in the same breath as the `.kam`
 retirement — one break for users rather than two.
 
+**Demote it; do not dissolve it.**  Folding the raw writing into
+`XJournalRecorder` or `XJournal` looks like the tidier end state and is worse
+on three counts:
+
+- **Two disciplines that must not be confused.**  The journal's capture path
+  runs inside every commit and is lock-free and allocation-light by
+  construction; the raw writer takes a file mutex and does I/O from inside a
+  listener.  In one class, nothing stops a later edit from taking the
+  writer's mutex on the capture path — the exact deadlock the "never hold a
+  plain mutex across a Snapshot/Transaction" rule exists for.  The separation
+  is a safety property, not tidiness.
+- **The friendship would widen.**  `XPrimaryDriver` makes both the recorder
+  and the reader `friend`s, for the raw data.  Moving the writing into the
+  journal means making *the thing that watches every node* a friend of every
+  primary driver, where today it is the thing that writes the raw stream.
+  Privileged access should stay narrow.
+- **The base survives either way.**  `XRawStream` — the gz handle, the driver
+  list, the mutex, the filename node — is shared with
+  `XRawStreamRecordReader`, which is staying.  Dissolving the writer leaves
+  that base with a single user, which is worse than what exists now.
+
+What the demotion buys is exactly what is wrong today and nothing more: one
+control surface instead of two, both files opened and closed at one moment,
+byte accounting in one place, and `/RawStreamRecorder` out of the tree.
+
 Left as an escape hatch meanwhile: a script that sets `Recording` directly
 still gets a `.kamb`, now with no `.kamj` beside it.  That is the old
 behaviour preserved rather than a state anyone should want, and if it ever
