@@ -208,30 +208,22 @@ XJournal::captureValue(Sink &sink, const Snapshot &shot,
         == ThreadClass::UNKNOWN);
     uint32_t where = FLAG_SESSION | FLAG_RUN;
     if(isReport) {
-        where = 0;
-        //Silence detection, so it measures from the last WRITE: a report
-        //after a quiet stretch is the state a device announces, a report
-        //inside one is the acquisition stream.
+        //A run keeps every report; only the always-on session journal thins
+        //them, and by silence rather than by rate.  Measured from the last
+        //WRITE for that reason: a node written at 4 Hz has never been
+        //silent, and what is kept is the first report after a quiet stretch
+        //-- the state a device announces at open or when something changed.
         int64_t lastWrite = sink.lastReportUs.load(std::memory_order_relaxed);
         sink.lastReportUs.store(nowUs, std::memory_order_relaxed);
-        if(nowUs - lastWrite > (int64_t)SESSION_QUIET_US)
-            where |= FLAG_SESSION;
-        //A rate cap, so it measures from the last one KEPT.  From the last
-        //write it would drop everything a node faster than the cap ever
-        //produces.
-        int64_t cap = m_runCapUs.load(std::memory_order_relaxed);
-        int64_t lastKept = sink.lastRunKeptUs.load(std::memory_order_relaxed);
-        if( !cap || (nowUs - lastKept > cap)) {
-            where |= FLAG_RUN;
-            sink.lastRunKeptUs.store(nowUs, std::memory_order_relaxed);
+        if(nowUs - lastWrite <= (int64_t)SESSION_QUIET_US) {
+            where &= ~(uint32_t)FLAG_SESSION;
+            ++m_sessionSkipped;
         }
     }
     if( !m_runKeepsValues)
         where &= ~(uint32_t)FLAG_RUN;
-    if( !where) {
-        ++m_cappedReports;
+    if( !where)
         return; //!< nobody would keep it, so it is not even formatted
-    }
     Record r;
     r.id = sink.id;
     r.kind = KIND_VALUE;

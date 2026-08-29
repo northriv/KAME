@@ -200,17 +200,12 @@ private:
         uint32_t id;
         //! Decided once, at subscribe time, so the capture path never asks.
         bool isDouble;
-        //! When a DRIVER last WROTE this node, kept or not.  The session
-        //! journal's rule is silence detection, so it must see every write:
-        //! a node written at 4 Hz has never been silent.
+        //! When a DRIVER last wrote this node.  Read and written from
+        //! whatever thread is committing; a lost update costs one extra
+        //! entry, which is why it needs no lock.  Silence detection, so it
+        //! counts every write: a node written at 4 Hz has never been silent.
         atomic<int64_t> lastReportUs {0};
-        //! When a driver's write was last KEPT for a run.  A rate cap has to
-        //! measure from what it kept, not from what it saw -- measuring from
-        //! the last write means a node faster than the cap is dropped for
-        //! ever, which is exactly what happened to a 4 Hz TestDriver under a
-        //! 2/s cap.  Both are read and written from committing threads; a
-        //! lost update costs one extra entry, which is why neither locks.
-        atomic<int64_t> lastRunKeptUs {0};
+
         void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
         void onTouch(const Snapshot &shot, XTouchableNode *node);
         //! Membership is the ONLY way a node joins or leaves the tree, and it
@@ -356,15 +351,16 @@ private:
     atomic<bool> m_runKeepsValues {false};
     bool m_runOpen = false;
     uintptr_t m_bytesJournal = 0, m_bytesLast = 0, m_rawBytesAtStart = 0;
-    uintptr_t m_cappedReports = 0;
+    uintptr_t m_sessionSkipped = 0;
     //! A report on a node a driver has written within this long is the
-    //! acquisition stream, and is not what an always-on journal is for.  A
+    //! acquisition stream, and is not what an ALWAYS-ON journal is for.  A
     //! report after a longer silence is the state a device announces -- at
     //! `open`, or when something changed -- and is exactly what it is for.
+    //!
+    //! This governs the session journal alone.  A run keeps everything: the
+    //! Logbook tier is what the user asked for, and thinning it silently is
+    //! what a provenance record must not do.  \sa doc/design/PROVENANCE.md
     enum : int64_t {SESSION_QUIET_US = 10 * 1000000};
-    //! Per-node rate cap for a run's Logbook, in microseconds between kept
-    //! reports.  \sa doc/design/PROVENANCE.md
-    atomic<int64_t> m_runCapUs {500000};
     XTime m_statsAt;
 
     XTime m_started;

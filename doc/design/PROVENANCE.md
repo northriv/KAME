@@ -57,14 +57,19 @@ and a listener each is well under a megabyte — and decide at *record* time.
 | | Default | Rule |
 |---|---|---|
 | Requests (any node) | **always on** | the user operated something; never dropped |
-| Reports, rarely changing | **always on** | falls under any cap; this is how the state a device reports at open is captured |
-| Reports, at acquisition rate | capped | decimated by the same cap; "what was the temperature at 3:14" needs no kHz |
+| Reports, rarely changing | **always on** | this is how the state a device reports at open is captured |
+| Reports, at acquisition rate | **kept by a run, not by the session journal** | a Logbook is what the user asked for; the always-on file is not the place for an acquisition stream |
 | Raw driver records | opt-in | the one thing the run mode chooses, being the one that costs 10 GB/hr |
 
-The rate cap is keyed on attribution rather than on the flag, and it does more
-than guard against floods: it **classifies**.  A value a device reports once
-when the interface opens passes any cap untouched; a measurement updating ten
-times a second is thinned.  Nobody has to decide which is which.
+The rule that separates them is keyed on attribution rather than on the flag,
+and it does more than keep the always-on file small: it **classifies**.  A
+value a device reports once when the interface opens is kept; a measurement
+updating ten times a second is not, in the session journal.  Nobody has to
+decide which is which.
+
+It is **silence, not rate** — the first report after a quiet stretch, ten
+seconds in the implementation.  A rate cap was tried and removed (user,
+2026-08-29): see below.
 
 Two things make that deliberate rather than incidental.  Interfaces already
 announce themselves — `onOpen` and `onClose` — so the journal dumps a driver's
@@ -77,18 +82,27 @@ Settings cost a few hundred KB a day, so there is no reason to make the user
 decide.  Observations cost roughly 36 MB/hr at 20 values × 10 Hz — nothing
 against 10 GB/hr of raw data, but no longer free.
 
-**Observations are always kept, under a per-node rate cap** — no per-driver
-checkbox (120 drivers' worth of them is not a user interface) and, since
-2026-08-29, no rule about the raw stream either.  The draft this replaces
-recorded a driver's observations only when its raw records were *not* being
-recorded, on the grounds that raw plus settings regenerates them.  It costs
-0.4% of the raw stream to keep them anyway (user: an option that trades the
-published numbers for 0.4% is not worth offering) — and regeneration depends
-on the analysis code, so a KAME upgrade can change a number that was
-published.  A rule that saves 0.4% and can lose the number that was in the
-paper is a bad trade to leave lying around, so it is gone: what remains is
-the cap, which keeps a driver committing at kHz from flooding the file.
-"What was the temperature at 3:14" does not need kHz resolution.
+**A run keeps every observation** — no per-driver checkbox (120 drivers' worth
+of them is not a user interface), no rule about the raw stream, and no rate
+cap either.  Two things were removed on the way here, both for the same
+reason:
+
+- the draft recorded a driver's observations only when its raw records were
+  *not* being recorded, since raw plus settings regenerates them.  But
+  regeneration depends on the analysis code, so a KAME upgrade can change a
+  number that was published, and keeping them costs 0.4% of the raw stream.
+- a per-node rate cap then survived as a flood guard.  It cost the one thing
+  a provenance file must not lose — **records dropped silently** — to save a
+  fraction of a percent, and it is the tier the user explicitly asked for.
+  It also produced exactly one bug in its short life.
+
+What bounds the damage instead is the mechanism that was already there and is
+already honest: **the ring**.  If a driver floods faster than the drain, the
+ring refuses and *counts* what it refused, and the count goes in the file.  A
+loss that says where it is beats a decimation that does not.
+
+The always-on session journal is a different question and keeps its own rule
+(silence, above) — it is not a tier anybody chose.
 
 **Node flags are not journaled.**  `setUIEnabled` is called from 452 places
 and flips on every tuning cycle; it is derived UI state that drivers
@@ -652,10 +666,10 @@ instrument said firmware 2.31 that day" gets recorded.  And the always-on
 session journal always caps: it has to stay a few hundred KB a day, so the
 mode is a property of a run, not of the session.
 
-The cap itself is a number, not a mode (samples per second per node, 0 =
-keep everything), and it is an `XNode` like everything else, so a script can
-set it and the journal records that it was set.  What its default should be
-is exactly what the stage-1 survey's `peak/s` column is measuring.
+There is no cap to configure.  The `peak/s` column of the stage-1 survey
+still earns its place — it says what a Logbook will cost per hour, and
+whether the ring can keep up — but it is a sizing number now, not a tuning
+one.
 
 ### Where they live
 
