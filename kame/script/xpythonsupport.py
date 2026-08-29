@@ -417,7 +417,15 @@ def loadJournalDump(xpythread, filename):
 						if pid in runtime or rec.get('runtime'):
 							runtime.add(nid)
 						name = rec.get('name', '')
-						child = parent[name] if name else parent[rec.get('i', 0)]
+						# A name that is absent comes back as _KamFakeNode; an
+						# INDEX that is absent raises, and absent is the normal
+						# case here -- the nameless children of a list (a
+						# calibration table's rows) do not exist until this
+						# loader creates them.
+						try:
+							child = parent[name] if name else parent[rec.get('i', 0)]
+						except Exception:
+							child = _KamFakeNode(name)
 						if isinstance(child, _KamFakeNode) and (pid in owning):
 							child = parent.create(rec.get('type', ''), name)
 							created += 1
