@@ -326,8 +326,17 @@ private:
     //! The condition IS the queue's mutex, so a caught node wakes the thread
     //! at once instead of waiting out a poll: the gap between a node joining
     //! the tree and being subscribed is a gap in the record.
+    //! A caught node is held (it has to be walked), a released one is NOT:
+    //! keeping a released node alive changes the ORDER a teardown destroys
+    //! things in, and the framework's shutdown paths are sensitive to that --
+    //! `XPointerItemNode` binds its release listener by raw reference and
+    //! commits on itself from inside it, so a node that outlives its
+    //! neighbours by 20 ms is a genuine hazard.  Identity is enough for a
+    //! release, and it is checked against the record before use.
     struct Pending {
-        shared_ptr<XNode> node;
+        shared_ptr<XNode> node;  //!< caught only
+        weak_ptr<XNode> released;
+        const XNode *identity;   //!< only ever compared, never dereferenced
         uint32_t listId;
         bool caught;
         int index; //!< position, which is the meaning in the lists that have one

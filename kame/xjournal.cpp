@@ -302,7 +302,9 @@ XJournal::pushPending(const shared_ptr<XNode> &node, uint32_t listId, bool caugh
     if( !node)
         return;
     XScopedLock<XCondition> lock(m_wake);
-    m_pending.push_back(Pending{node, listId, caught, index});
+    m_pending.push_back(Pending{caught ? node : shared_ptr<XNode>(),
+        caught ? weak_ptr<XNode>() : weak_ptr<XNode>(node), node.get(),
+        listId, caught, index});
     m_wake.signal();
 }
 
@@ -870,8 +872,12 @@ XJournal::processPending() {
         }
         else {
             ++m_releases;
-            auto it = m_index.find(p.node.get());
-            if(it != m_index.end()) {
+            auto it = m_index.find(p.identity);
+            //The address is only a key while the node it named is the node
+            //the record names: verify before believing it, since a node
+            //freed since the event may have had its address reused.
+            if((it != m_index.end())
+                && (m_nodes[it->second].node.lock() == p.released.lock())) {
                 XString line = formatString("{\"t\":\"released\",\"id\":%u,",
                     (unsigned)it->second)
                     + "\"ts\":\"" + jsonEscape(XTime::now().getTimeStr()) + "\"}\n";
