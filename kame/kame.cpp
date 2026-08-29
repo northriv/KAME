@@ -246,16 +246,21 @@ FrmKameMain::FrmKameMain()
     //underneath a driver form, and always underneath the toolboxes, which are
     //Qt::Tool panels marked stays-on-top.  Asking for it is the way out.
     //
-    //Only when the activation left nothing of ours focused, which is what a
-    //Dock click looks like; activating the app by clicking one of our own
-    //windows makes that window active, and it is not for us to overrule.
-    //Deferred by a tick because the window activation lands after the
-    //application-state change.
+    //Which window was activated cannot decide this: measured, AppKit hands the
+    //key back to whichever plain window held it last — a driver form, say —
+    //whether the app was raised from the Dock or by clicking that form.  (And
+    //asking `flags & Qt::Tool` cannot tell them apart either: Qt::Tool is a
+    //composite of Popup|Dialog|Window, so that test is true of every ordinary
+    //window as well.)
+    //
+    //Where the pointer is does decide it.  Clicking the Dock leaves it over
+    //the Dock; clicking a window of ours leaves it over that window, and then
+    //the choice of window is the user's and not ours to overrule.
     connect(qApp, &QGuiApplication::applicationStateChanged, this,
         [this](Qt::ApplicationState state) {
             if(state != Qt::ApplicationActive) return;
             QTimer::singleShot(0, this, [this]{
-                if(QApplication::activeWindow()) return;
+                if(QApplication::widgetAt(QCursor::pos())) return;
                 raise();
                 activateWindow();
             });

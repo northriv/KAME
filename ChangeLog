@@ -70,10 +70,14 @@
   order among themselves, so the main window stays wherever it was in the
   stack -- underneath a driver form, and always underneath the toolboxes,
   which are Qt::Tool panels marked stays-on-top.  It now asks to come forward
-  when the application is activated, but only when that activation left
-  nothing of ours focused, which is what a Dock click looks like: activating
-  the app by clicking one of our own windows makes that window active, and it
-  is not for KAME to overrule the choice.
+  when the application is activated, unless the pointer is over one of KAME's
+  own windows -- clicking a driver form to raise the app is a choice of window,
+  and not for KAME to overrule, while a Dock click leaves the pointer over the
+  Dock.  Which window got activated cannot decide it: measured, AppKit hands
+  the key back to whichever plain window held it last, by either route.  (Nor
+  can `flags & Qt::Tool` tell a palette from an ordinary window: Qt::Tool is a
+  composite of Popup|Dialog|Window, so that test is true of every window that
+  is a window at all -- `flags & Qt::WindowType_Mask` is the comparison.)
 - UI: the pane tab columns are flat.  The platform's boxed, shaded tabs with
   rotated labels were what dated the resting toolbox more than anything else
   about it: no frames now, room to breathe, and the pane in front marked by an
