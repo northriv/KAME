@@ -147,10 +147,25 @@ set, that format — so `.kam` does not round-trip a double today, and a node
 displayed to three digits is *saved* to three digits.  Tolerable for a
 settings file; not for provenance, where it produces both a spurious `diff`
 between identical settings and a "reproduction" that used a different number
-than the original.  So a numeric entry carries the displayed string **and** a
-round-trip form (`%.17g`): the first is what a human greps, the second is what
-restoration and strict comparison use.  Where the two coincide — strings,
-combos, booleans, integers — only one is written.
+than the original.
+
+So a floating-point entry carries the displayed string **and** the exact
+value as **base64 of its eight bytes, binary64, little-endian** — stated in
+the format rather than inherited from whichever machines happen to run KAME.
+The readable half is already `to_str()`; the exact half only has to be exact,
+and as bytes it is exact by construction:
+
+- nothing depends on `to_chars` being available for floating point, which has
+  real version floors across libstdc++, libc++ and MinGW;
+- there is no locale to get wrong — `snprintf("%.17g")` writes `3,14` under a
+  German or French locale, which is both a wrong number and invalid JSON;
+- `inf`, `nan`, `-0` and subnormals need no special case, where decimal would
+  have to escape them into strings because JSON admits no such literals, and
+  that branch is where such writers go wrong.
+
+Only floating-point nodes get it.  Strings, combos, booleans and integers
+round-trip through `to_str()` already, so the presence of the exact field is
+itself a marker that the readable one is rounded.
 
 (That `.kam` itself rounds is a separate, pre-existing matter.  Changing its
 precision would make old and new files differ for reasons that have nothing
