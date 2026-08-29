@@ -375,7 +375,13 @@ def loadJournalDump(xpythread, filename):
 	try:
 		xpythread["ThreadID"] = str(threading.current_thread().native_id)
 		xpythread["Status"] = "run"
-		opener = gzip.open if filename.endswith('.gz') else open
+		# Sniffed, not guessed from the name: a .kamj is gzip because that is
+		# part of the format, and someone who unpacks one to edit it by hand
+		# -- which the format is meant to allow -- should still be able to
+		# open it.
+		with open(filename, 'rb') as probe:
+			packed = probe.read(2) == b'\x1f\x8b'
+		opener = gzip.open if packed else open
 		nodes = {}          # journal id -> _KamNode
 		runtime = set()     # ids whose values are the driver's to write
 		owning = set()      # ids of lists that CREATE their children

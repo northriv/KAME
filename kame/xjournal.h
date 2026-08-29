@@ -252,10 +252,12 @@ private:
         uintptr_t bucketCount = 0, peakPerSec = 0;
     };
 
-    //! One journal file.  Gzip, because the dump dominates and compresses
-    //! ten to one -- 608 KB of an ODMR tree becomes 62 KB, measured -- and
-    //! because `zcat` and `zgrep` keep it as readable as the plain text a
-    //! provenance file has to be in ten years.  Flushed at a line boundary
+    //! One journal file: JSON Lines, gzipped, named `.kamj`.  The dump
+    //! dominates and compresses ten to one (608 KB of an ODMR tree becomes
+    //! 62 KB, measured), and the compression is part of the FORMAT rather
+    //! than something done to the file afterwards -- which is why the name
+    //! does not carry `.gz`, the same choice `.docx`, `.jar` and `.epub`
+    //! make.  Flushed at a line boundary
     //! with Z_FULL_FLUSH, so a copy taken mid-write is both current and
     //! parsable, which is also what makes a killed session readable.
     struct Out {

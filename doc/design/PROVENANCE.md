@@ -490,7 +490,7 @@ the session dies a second later.
 | File | Extension | Contents |
 |---|---|---|
 | Settings snapshot (legacy) | `.kam` | as today; readable for ever, written until the dump replaces it |
-| Journal | **`.kamj.gz`** | header record, dump, then one JSON object per line, gzipped |
+| Journal | **`.kamj`** | header record, dump, then one JSON object per line — gzip inside, as `.docx` is a zip |
 | Raw stream | **`.kamb`** (was `.bin`) | unchanged format; `.bin` keeps loading for ever |
 
 JSON Lines because the two operations that matter — `diff run1.kamj
@@ -555,8 +555,8 @@ makes the choice a ladder of magnitude rather than a matrix of switches:
 
 | `m_journalMode` | files | holds | order of cost |
 |---|---|---|---|
-| **`Setup`** | `run042.kamj` | the dump: how the instrument was configured | a few hundred KB |
-| **`Logbook`** | `run042.kamj.gz` | and everything it reported, capped | ~36 MB/hr |
+| **`Setup`** | `run042.kamj` | the dump: how the instrument was configured | ~60 KB, measured |
+| **`Logbook`** | `run042.kamj` | and everything it reported | ~11 MB/hr, measured |
 | **`Logbook + raw`** | `+ run042.kamb` | and the raw records behind it | ~10 GB/hr |
 
 The default is **`Setup`**, the cheapest, so that a KAME nobody has configured
@@ -671,29 +671,23 @@ still earns its place — it says what a Logbook will cost per hour, and
 whether the ring can keep up — but it is a sizing number now, not a tuning
 one.
 
-### Two extensions in front of the user, and why `.gz` is one of them
+### One extension, and the compression inside it
 
-`.kamj.gz` is a double extension and it will be new to everybody, which is a
-fair thing to be uneasy about.  Hiding the compression — naming it `.kamj`
-and letting it be gzip inside, as `.docx` and `.jar` do — was measured rather
-than argued: `zgrep` and `gzip -dc` are happy either way, but **`zcat` refuses
-a file that is not named `.gz`**, and `zcat` is the command people actually
-type.  A format that answers "what is in this file" with an error message is
-worse than one with a long name.  There is also a smaller reason with a
-receipt: this project has already shipped one bug from a file whose name
-lied about its contents (the session journal was `.kamj` after the switch to
-gzip, and every comparison against it silently failed).
+`.kamj` is gzip, and its name does not say so — the same choice `.docx`,
+`.jar`, `.epub` and `.nb` make.  The compression is part of the **format**,
+not something done to the file afterwards, and `foo.kamj.gz` says the
+opposite: a text file that someone has compressed.
 
-So the extension stays, and the confusion is addressed where it actually
-lives — in what the file *means*, not in what it is called:
+An earlier draft kept the `.gz` on the grounds that `zcat` refuses a file not
+named that way.  That argument does not survive contact with who would type
+it (user): anyone reaching for `zcat` will rename the file or reach for
+`gzip -dc`, and `zgrep` works on it either way.  Office formats do not append
+`.gz`, and neither does this.
 
-- the Open dialog names the two in words rather than by extension —
-  "Settings, saved by hand" against "Journals, written as you work" — with a
-  combined filter first so that either can simply be double-clicked, and
-  `.kam` named first inside it because that is still what everyone has;
-- and the confusion ends by itself when `.kam` retires, since Save will then
-  write a journal whose body is empty and there will be one kind of file
-  again.
+The reader **sniffs** rather than trusting the name — two bytes, `1f 8b` —
+so a journal someone has unpacked to edit by hand still opens.  Editing one
+by hand is a thing the format is meant to allow, so it should not depend on
+whether the file was re-packed afterwards.
 
 ### Where they live
 
@@ -855,7 +849,7 @@ Worth stating plainly, since the writer has run ahead of the reader:
 | File | Read by KAME | Read by anything |
 |---|---|---|
 | `.kamb` | **yes** — `XRawStreamRecordReader`, unchanged: the format is byte-identical to the `.bin` it renames, so old files and new ones are the same file with two names.  Its dialog offers both, and always will | — |
-| `.kamj.gz` | **the dump, yes** — `File → Open Measurement` applies it exactly as it applies a `.kam`; the entries after it are not read yet | `zcat`, `zgrep`, `zdiff` — which is not a placeholder but half of why the format is JSON Lines |
+| `.kamj` | **the dump, yes** — `File → Open Measurement` applies it exactly as it applies a `.kam`; the entries after it are not read yet | `zcat`, `zgrep`, `zdiff` — which is not a placeholder but half of why the format is JSON Lines |
 | `.kam` | yes, as ever | a Ruby interpreter |
 
 **Two doors, and the file decides which half you get** (user, 2026-08-29):

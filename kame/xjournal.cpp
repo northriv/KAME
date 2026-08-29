@@ -144,7 +144,7 @@ XJournalRecorder::rawBytesWritten() const {
     return m_rawstream->bytesWritten();
 }
 
-XString XJournalRecorder::journalPathOf(const XString &given) {return withExtension(given, ".kamj.gz");}
+XString XJournalRecorder::journalPathOf(const XString &given) {return withExtension(given, ".kamj");}
 XString XJournalRecorder::rawPathOf(const XString &given) {return withExtension(given, ".kamb");}
 
 //! The raw stream follows: its path is set only as recording starts, since
@@ -597,7 +597,7 @@ XJournal::openSession() {
     }
     m_session = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
     m_sessionPath = dir + "/session-"
-        + QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss").toStdString() + ".kamj.gz";
+        + QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss").toStdString() + ".kamj";
     if( !m_sessionOut.open(m_sessionPath)) {
         gWarnPrint(i18n_noncontext("Journal: cannot write ") + m_sessionPath);
         return;

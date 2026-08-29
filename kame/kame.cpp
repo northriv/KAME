@@ -981,9 +981,9 @@ void FrmKameMain::fileOpenAction_activated() {
         //double-clicked, and .kam is named first inside it because that is
         //still what everyone has.
         //\sa doc/design/PROVENANCE.md
-        "Measurement files (*.kam *.kamj.gz *.kamj);;"
+        "Measurement files (*.kam *.kamj);;"
         "Settings, saved by hand (*.kam);;"
-        "Journals, written as you work (*.kamj.gz *.kamj);;"
+        "Journals, written as you work (*.kamj);;"
         "KAME1 Measurement files (*.mes);;"
         "All files (*.*)"
         );
