@@ -477,7 +477,7 @@ the session dies a second later.
 | Settings snapshot (legacy) | `.kam` | as today; readable for ever, written until the dump replaces it |
 | Journal | **`.kamj`** | header record, dump, then one JSON object per line |
 | Journal with observations | **`.kamj.gz`** | same format, gzip *members* per block |
-| Raw stream | unchanged | as today |
+| Raw stream | **`.kamb`** (was `.bin`) | unchanged format; `.bin` keeps loading for ever |
 
 JSON Lines because the two operations that matter — `diff run1.kamj
 run2.kamj` and `grep` — then work with no tool at all, and because a
@@ -550,6 +550,40 @@ on Windows the executable's own folder may not be writable at all.  That move
 is two-stage: the log stream is opened during static initialisation and
 therefore cannot touch Qt (`QStandardPaths` needs `QCoreApplication`), so it
 starts where it does today and is redirected once `main()` has Qt up.
+
+### The user names the run, not the binary
+
+The natural inversion (user, 2026-08-29): the file setting that exists today
+belongs to `XRawStreamRecorder`, and it should belong to the **journal**, with
+the raw stream taking the same basename — `run042.kamj` beside
+`run042.kamb`.
+
+The reason is not tidiness.  The journal always exists and the raw stream is
+optional, so naming the optional one is backwards; and of the two, only the
+journal is interpretable alone.  A lone `.kamb` cannot even say what wrote it
+(see below), while a lone `.kamj` is a complete record of the session that
+also names its data file.
+
+One thing the inversion must not lose: **a separate path for the raw stream,
+auto-filled from the journal's**.  10 GB/hr belongs on a scratch disk while
+the few hundred KB belong next to the notebook, and that is a real way people
+work.  So: one name for the run, one checkbox for "record raw records too",
+and a raw path that is derived until someone overrides it.
+
+### The raw stream does not say what it is
+
+Worth recording while renaming it: the raw stream has **no header at all**.
+It is a gzip of `[allsize u32][sec i32][usec i32][name\0\0][data][allsize
+u32]` records, with no magic, no version and no writer identification — the
+extension is the only clue there has ever been, which is an argument for a
+distinctive one and a stronger argument for a header.
+
+Adding one is compatible, and this is the moment: the first field of an old
+file is a record length — a few hundred to a few million — so a magic word
+(`KAMB`, 0x424D414B ≈ 1.1e9 as a little-endian `uint32`) cannot be confused
+with one.  A reader that peeks four bytes accepts both, and new files gain a
+version and a session UUID to pair them with their journal.  Cosmetic rename
+alone, without this, leaves the file as anonymous as it is today.
 
 ### Copying a journal that is still being written
 
