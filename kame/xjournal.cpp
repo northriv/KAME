@@ -101,14 +101,17 @@ XJournalRecorder::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 
 void
 XJournalRecorder::updateRunControls() {
-    XString path = Snapshot( *this)[ *m_filename].to_str();
+    Snapshot shot_this( *this);
+    XString path = shot_this[ *m_filename].to_str();
+    //A run's tier is fixed for its duration: its header says what it is.
+    bool running = shot_this[ *m_recording];
     //Compared through journalPathOf on both sides: the field holds whatever
     //the user typed, the session path its full name, and "the same file" has
     //to mean the same file.
     bool own = path.length()
         && ( !m_sessionPath.length() || (journalPathOf(path) != journalPathOf(m_sessionPath)));
     iterate_commit([=](Transaction &tr){
-        tr[ *m_mode].setUIEnabled(own);
+        tr[ *m_mode].setUIEnabled(own && !running);
         tr[ *m_recording].setUIEnabled(own);
         if( !own)
             tr[ *m_recording] = false;
@@ -159,6 +162,7 @@ XJournalRecorder::onRecordingChanged(const Snapshot &shot, XValueNodeBase *) {
             trans( *raws->filename()) = path;
     }
     trans( *raws->recording()) = wantsRaw;
+    updateRunControls(); //!< the tier freezes while a run is open
 }
 
 //! The capture path: no lookup, no allocation, no lock.  The id is baked into
@@ -649,6 +653,7 @@ XJournal::syncRun() {
         m_bytesLast = 0;
         m_rawBytesAtStart = rec->rawBytesWritten();
         m_runOpen = true;
+        m_runKeepsValues = (mode != XJournalRecorder::Mode::SETUP);
         writeHeader(m_runOut, "run");
         writeDump(m_runOut);
         m_runOut.flush(true);
@@ -660,8 +665,11 @@ XJournal::syncRun() {
         m_sessionOut.flush();
         gMessagePrint(i18n_noncontext("Journal: ") + m_openPath);
     }
-    //The mode can change mid-run; only the tier above Setup keeps values.
-    m_runKeepsValues = m_runOpen && (mode != XJournalRecorder::Mode::SETUP);
+    //Deliberately NOT re-read while a run is open: the header states the
+    //tier, and a tier that changed underneath it would make the file lie
+    //about its own contents.  A run keeps the tier it was opened with; the
+    //combo is greyed meanwhile, and this is what makes that true even for a
+    //script that writes the node directly.
     if( !on && m_runOpen) {
         drainOnce(); //!< whatever is still in the ring belongs in the file
         m_runOut.close();
