@@ -208,16 +208,23 @@ XJournal::captureValue(Sink &sink, const Snapshot &shot,
         == ThreadClass::UNKNOWN);
     uint32_t where = FLAG_SESSION | FLAG_RUN;
     if(isReport) {
-        int64_t last = sink.lastReportUs.load(std::memory_order_relaxed);
-        sink.lastReportUs.store(nowUs, std::memory_order_relaxed);
         where = 0;
-        //A report after a silence is the state a device announces; a report
+        //Silence detection, so it measures from the last WRITE: a report
+        //after a quiet stretch is the state a device announces, a report
         //inside one is the acquisition stream.
-        if(nowUs - last > (int64_t)SESSION_QUIET_US)
+        int64_t lastWrite = sink.lastReportUs.load(std::memory_order_relaxed);
+        sink.lastReportUs.store(nowUs, std::memory_order_relaxed);
+        if(nowUs - lastWrite > (int64_t)SESSION_QUIET_US)
             where |= FLAG_SESSION;
+        //A rate cap, so it measures from the last one KEPT.  From the last
+        //write it would drop everything a node faster than the cap ever
+        //produces.
         int64_t cap = m_runCapUs.load(std::memory_order_relaxed);
-        if( !cap || (nowUs - last > cap))
+        int64_t lastKept = sink.lastRunKeptUs.load(std::memory_order_relaxed);
+        if( !cap || (nowUs - lastKept > cap)) {
             where |= FLAG_RUN;
+            sink.lastRunKeptUs.store(nowUs, std::memory_order_relaxed);
+        }
     }
     if( !m_runKeepsValues)
         where &= ~(uint32_t)FLAG_RUN;
@@ -916,6 +923,14 @@ XJournal::subscribe(const shared_ptr<XNode> &node, const XString &path) {
     auto vnode = dynamic_pointer_cast<XValueNodeBase>(node);
     auto tnode = dynamic_pointer_cast<XTouchableNode>(node);
     auto lnode = dynamic_pointer_cast<XListNodeBase>(node);
+    //The throughput readout is the journal talking about itself, once a
+    //second, and it is derived from the files rather than from the
+    //instrument.  It goes in the dump like any other node and is not
+    //subscribed: a journal whose entries are mostly its own bookkeeping is
+    //not a record of the measurement.
+    if(auto rec = m_recorder.lock())
+        if(node == rec->statistics())
+            vnode.reset();
 
     uint32_t id = (uint32_t)m_nodes.size();
     m_nodes.emplace_back();
