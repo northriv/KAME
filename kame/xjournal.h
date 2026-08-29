@@ -87,6 +87,8 @@ public:
 private:
     void onRecordingChanged(const Snapshot &shot, XValueNodeBase *);
     void onFilenameChanged(const Snapshot &shot, XValueNodeBase *);
+    //! Mode and Recording mean something only once the field names a run.
+    void updateRunControls();
     XString m_sessionPath;
     const shared_ptr<XStringNode> m_filename;
     const shared_ptr<XComboNode> m_mode;

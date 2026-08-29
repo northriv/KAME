@@ -43,7 +43,10 @@ XJournalRecorder::XJournalRecorder(const char *name, bool runtime,
     //Transient like the raw stream's own path: a run's file is chosen for
     //that run.  The mode is a preference and is saved.
     m_filename(create<XStringNode>("Filename", true)),
-    m_mode(create<XComboNode>("Mode", false)),
+    //auto_set_any: a journal and a .kam store a combo by its LABEL, and the
+    //value can arrive before the items do (loading sets it, the constructor
+    //fills the list).  Without it the label is dropped on the floor.
+    m_mode(create<XComboNode>("Mode", false, true)),
     m_recording(create<XBoolNode>("Recording", true)),
     //Saved, unlike the run's switch: whether this rig journals its sessions
     //at all is a property of the rig, not of today.
@@ -75,8 +78,17 @@ XJournalRecorder::XJournalRecorder(const char *name, bool runtime,
 
 void
 XJournalRecorder::setSessionPath(const XString &path) {
+    XString was = m_sessionPath;
     m_sessionPath = path;
-    trans( *m_filename) = path;
+    XString shown = Snapshot( *this)[ *m_filename].to_str();
+    //Fill the field only when it is not naming a run: switching the session
+    //journal back on must not wipe a name the user typed.
+    bool showsSession = !shown.length()
+        || (was.length() && (journalPathOf(shown) == journalPathOf(was)));
+    if(showsSession)
+        trans( *m_filename) = path;
+    else
+        updateRunControls();
 }
 
 //! A run needs a file of its own; while the field still names the session
@@ -84,8 +96,17 @@ XJournalRecorder::setSessionPath(const XString &path) {
 //! are disabled rather than hidden -- a collapsing form looks broken.
 void
 XJournalRecorder::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
+    updateRunControls();
+}
+
+void
+XJournalRecorder::updateRunControls() {
     XString path = Snapshot( *this)[ *m_filename].to_str();
-    bool own = path.length() && (journalPathOf(path) != m_sessionPath);
+    //Compared through journalPathOf on both sides: the field holds whatever
+    //the user typed, the session path its full name, and "the same file" has
+    //to mean the same file.
+    bool own = path.length()
+        && ( !m_sessionPath.length() || (journalPathOf(path) != journalPathOf(m_sessionPath)));
     iterate_commit([=](Transaction &tr){
         tr[ *m_mode].setUIEnabled(own);
         tr[ *m_recording].setUIEnabled(own);
@@ -573,7 +594,7 @@ XJournal::openSession() {
     }
     m_session = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
     m_sessionPath = dir + "/session-"
-        + QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss").toStdString() + ".kamj";
+        + QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss").toStdString() + ".kamj.gz";
     if( !m_sessionOut.open(m_sessionPath)) {
         gWarnPrint(i18n_noncontext("Journal: cannot write ") + m_sessionPath);
         return;
@@ -603,16 +624,18 @@ XJournal::syncRun() {
         m_sessionOut.line(XString("{\"t\":\"session\",\"state\":\"end\",\"ts\":\"")
             + jsonEscape(XTime::now().getTimeStr()) + "\"}\n");
         m_sessionOut.close();
-        //Do not leave the field naming a file nothing is writing.
-        if(shot[ *rec->filename()].to_str() == m_sessionPath)
-            trans( *rec->filename()) = XString();
         m_sessionPath.clear();
+        //Do not leave the field naming a file nothing is writing -- but do
+        //not wipe a run name either; setSessionPath knows the difference.
+        rec->setSessionPath(XString());
     }
     bool on = shot[ *rec->recording()];
     auto mode = rec->modeOf(shot);
     if(on && !m_runOpen) {
         XString path = XJournalRecorder::journalPathOf(shot[ *rec->filename()].to_str());
-        if( !path.length() || (path == m_sessionPath)) {
+        if( !path.length()
+            || (m_sessionPath.length()
+                && (path == XJournalRecorder::journalPathOf(m_sessionPath)))) {
             gWarnPrint(i18n_noncontext("Journal: name the run first."));
             trans( *rec->recording()) = false;
             return;
