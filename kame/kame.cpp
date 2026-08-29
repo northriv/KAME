@@ -379,28 +379,26 @@ FrmKameMain::updateToolboxStrips() {
     }
 }
 namespace {
-//! Widens a toolbox's tab column, which is all one sees of it while it rests
-//! collapsed at the screen edge.  Neither obvious route works: a stylesheet
-//! can set the width but switches the tabs to stylesheet rendering, losing the
-//! native look, and enlarging the tab icons drags the tab's *length* along
-//! with its thickness until the panes no longer fit in the column.  Going
-//! through the style keeps native painting and touches only the one
-//! measurement.  For a vertical tab bar the thickness comes out of the
-//! CT_TabBarTab *width* — measured, not assumed; setting the height does
-//! nothing.
-class WideTabStyle : public QProxyStyle {
-public:
-    explicit WideTabStyle(int thickness) : m_thickness(thickness) {}
-    QSize sizeFromContents(ContentsType type, const QStyleOption *option,
-        const QSize &size, const QWidget *widget) const override {
-        QSize s = QProxyStyle::sizeFromContents(type, option, size, widget);
-        if((type == CT_TabBarTab) && (s.width() < m_thickness))
-            s.setWidth(m_thickness);
-        return s;
-    }
-private:
-    const int m_thickness;
-};
+//! Flat styling for a pane tab column: no frames, room to breathe, and the
+//! pane in front marked by an accent line against the edge the column sits at.
+//! The old look — the platform's boxed, shaded tabs with rotated labels — is
+//! what dated the resting toolbox more than anything else about it.
+//!
+//! Every colour is taken from the palette rather than written down, so this
+//! follows the platform's light/dark setting; literal colours would be wrong
+//! in one of the two.  The width here is also what sets the column's
+//! thickness, which is why no style proxy is needed for that any more.
+QString flatTabStyleSheet(Qt::Edge accent) {
+    const char *side = (accent == Qt::LeftEdge) ? "left" :
+        ((accent == Qt::RightEdge) ? "right" : "bottom");
+    return QString(
+        "QTabBar{background:transparent;border:none;}"
+        "QTabBar::tab{background:transparent;border:none;color:palette(text);"
+        "  width:26px;padding:10px 4px;margin:2px 3px;border-radius:6px;}"
+        "QTabBar::tab:hover{background:palette(midlight);}"
+        "QTabBar::tab:selected{background:palette(alternate-base);"
+        "  border-%1:3px solid palette(highlight);}").arg(side);
+}
 } // namespace
 
 FrmKameMain::EdgeSlider *
@@ -437,24 +435,24 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
             //not exist yet at this point.)
             tabs->installEventFilter(this);
             tabs->setProperty("kame_pin_filter", true);
-            //A fifth wider than the style's own idea, for a comfortable hover
-            //target and a more legible resting bar.  One constant: 2x also
-            //works and still fits every pane, if that reads better.
-            auto *wide = new WideTabStyle(tabs->sizeHint().width() * 6 / 5);
-            wide->setParent(this);
-            tabs->setStyle(wide);
+            tabs->setStyleSheet(flatTabStyleSheet(left ? Qt::LeftEdge : Qt::RightEdge));
             tabs->updateGeometry();
             tabw = std::max(tabw, tabs->sizeHint().width());
         }
         auto *anim = new QPropertyAnimation(dock, "geometry", this);
-        anim->setDuration(220);
-        anim->setEasingCurve(QEasingCurve::OutCubic);
+        anim->setDuration(170);
+        anim->setEasingCurve(QEasingCurve::OutQuint);
         QAction *autohide = new QAction(left ? i18n("Auto-hide &West Toolbox")
                                             : i18n("Auto-hide &East Toolbox"), this);
         autohide->setCheckable(true);
         autohide->setChecked(true);
         m_pViewMenu->addAction(autohide);
-        m_edgeSliders.push_back({dock, area, anim, dock->geometry(), tabw + 6,
+        auto *fade = new QPropertyAnimation(dock, "windowOpacity", this);
+        fade->setDuration(170);
+        fade->setEasingCurve(QEasingCurve::OutQuint);
+        fade->setStartValue(0.75);
+        fade->setEndValue(1.0);
+        m_edgeSliders.push_back({dock, area, anim, fade, dock->geometry(), tabw + 6,
             false, left, false, 0, true, autohide, false});
         //Pointers into a deque stay valid across push_back.
         EdgeSlider *s = &m_edgeSliders.back();
@@ -486,9 +484,9 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
         autohide->setChecked(true);
         m_pViewMenu->addAction(autohide);
         auto *anim = new QPropertyAnimation(this, "geometry", this);
-        anim->setDuration(220);
-        anim->setEasingCurve(QEasingCurve::OutCubic);
-        m_edgeSliders.push_back({this, m_pMdiCentral, anim, geometry(), 0,
+        anim->setDuration(170);
+        anim->setEasingCurve(QEasingCurve::OutQuint);
+        m_edgeSliders.push_back({this, m_pMdiCentral, anim, nullptr, geometry(), 0,
             true, true, false, 0, true, autohide, false});
         EdgeSlider *s = &m_edgeSliders.back();
         connect(autohide, &QAction::toggled, this, [this, s](bool on){
@@ -574,6 +572,8 @@ FrmKameMain::pollEdgeAutoHide() {
             if( !tabs->property("kame_pin_filter").toBool()) {
                 tabs->installEventFilter(this);
                 tabs->setProperty("kame_pin_filter", true);
+                //Its tabs run along the top, so the accent goes underneath.
+                tabs->setStyleSheet(flatTabStyleSheet(Qt::BottomEdge));
             }
         if( !s.autoHide) continue;
         if(s.anim->state() == QAbstractAnimation::Running) continue;
@@ -635,6 +635,17 @@ FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
     }
     s.idleTicks = 0;
     s.collapsed = collapse;
+    if(s.fade) {
+        //Whatever the fade was doing, the window must not be left part-way
+        //transparent: only a reveal fades, and only while it grows.
+        s.fade->stop();
+        if(collapse)
+            s.win->setWindowOpacity(1.0);
+        else {
+            s.win->setWindowOpacity(0.75);
+            s.fade->start();
+        }
+    }
     s.anim->stop();
     s.anim->setStartValue(s.win->geometry());
     s.anim->setEndValue(to);

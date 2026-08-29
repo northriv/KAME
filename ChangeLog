@@ -65,6 +65,18 @@
   output, so a command that cannot be run or wording that changes means "no
   opinion", never "reject".  Only an application directory that is there and
   empty condemns a program.  Probes run without a console window on Windows.
+- UI: the pane tab columns are flat.  The platform's boxed, shaded tabs with
+  rotated labels were what dated the resting toolbox more than anything else
+  about it: no frames now, room to breathe, and the pane in front marked by an
+  accent line against the edge its column sits at (underneath, for the main
+  window's tabs along the top).  Every colour is taken from the palette rather
+  than written down, so it follows the platform's light/dark setting -- checked
+  in both -- and the width in that same stylesheet is what sets the column's
+  thickness, so the style proxy that used to widen it is gone.  The fold and
+  unfold are quicker too, 220 ms to 170 and a snappier curve, and a toolbox
+  fades the last quarter of the way in as it grows, so it arrives rather than
+  appears.  The main window does not fade: fading what is being worked in,
+  live graphs and console output included, would be an effect for its own sake.
 - UI: an interface that appears is selected and scrolled into view in the
   Interface pane.  Bringing that pane to the front after a driver was added by
   hand only half finished the job while the row whose port has to be set was

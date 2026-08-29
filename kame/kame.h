@@ -168,6 +168,11 @@ private:
 		QWidget *win;               //!< a floating toolbox, or the main window
 		QMdiArea *area;             //!< its pane stack, for the layout minimum
 		QPropertyAnimation *anim;   //!< animates win->geometry()
+		//! A short fade as a toolbox grows, so it arrives rather than appears.
+		//! Null for the main window: fading what is being worked in, live
+		//! graphs and console output included, would be an effect for its own
+		//! sake.
+		QPropertyAnimation *fade;
 		QRect expanded;             //!< full size; follows the user's own moves
 		int collapsedWidth;         //!< resting width of a toolbox; unused when vertical
 		//! Fold downwards to half height (the main window) instead of sideways
