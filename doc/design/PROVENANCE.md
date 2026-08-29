@@ -70,7 +70,8 @@ wholesale, since the flag propagates to descendants.
 ### Node identity
 
 A **session-local id assigned when the node is first subscribed**, plus a
-table record carrying its path, type and flags.  Not a path hash:
+table record carrying its path, its relationship to its parent, its
+registered type name, its position and its flags.  Not a path hash:
 
 - paths are not unique — this is a DAG, and a hard-linked node has several;
 - a path hash conflates a node that was deleted with a different node later
@@ -82,6 +83,35 @@ same node changes identity mid-session.  Cross-session stability is not
 needed — each journal carries its own id → path table, and runs are compared
 on paths.  The path is computed once, at subscribe time, so no DAG walk ever
 happens on the capture path.
+
+### Enough to rebuild the tree, not merely to re-set it
+
+Values alone cannot reconstruct anything: `.kam` writes
+`create(typename, name)` because dynamically created children — drivers,
+entries, graphs, math tools — have to be brought into existence before
+anything can be set on them.  A dump that stands in for `.kam` has to carry
+the same three-way distinction its writer makes:
+
+- a child of an `XListNodeBase` — **created**, with its registered type name
+  (omitted for `XListNode`, whose element type is already fixed);
+- a child of an `XAliasListNode` — **navigated** by name, never created;
+- any other child — exists as soon as its parent does; navigated.
+
+Plus its position, where order carries meaning (a graph's axes).
+
+The same applies to structure that appears mid-session: a driver added at
+14:22 is an `onListChanged` event, and unless the type name is recorded **at
+that moment** the addition cannot be replayed.  Type names travel with
+structural events, not only with the opening dump.
+
+One trap comes along with this.  `getTypename()` defaults to
+`typeid(*this).name()`, which for a template instantiation alias
+(`using XFoo = XFooX<Functor>`) is a mangled name that matches no key in
+`XTypeHolder` — the same defect that breaks `.kam` round-trips.  A dump
+should resolve every type name it writes against the registry and **say so
+loudly** when one does not resolve, rather than writing a line that will
+quietly fail to recreate anything.  (`.kam` writes it regardless today, and
+the Python loader's `_KamFakeNode` swallows the failure on the way back in.)
 
 ### Attribution
 
@@ -102,6 +132,29 @@ and can be added later — but only together with a `tools/audit` checker, or
 it will leak exactly as `runtime` did.
 
 ### Values
+
+Recorded in the node's **own textual form** (`to_str()`), the one `.kam`
+uses.  That is not a shortcut but the point: `.kam` stores an `XComboNode` as
+its item label rather than its index precisely because the list of choices is
+built at run time, so an index means something different tomorrow.  The rule
+generalises — record a value in the form that survives changes to the state
+around it — and it has the side benefit that restoring goes through exactly
+the setter `.kam` uses.
+
+Numbers need a second field.  `to_str()` on an `XDoubleNode` goes through
+`formatDouble()`, which is `%.12g` by default and, where a display format is
+set, that format — so `.kam` does not round-trip a double today, and a node
+displayed to three digits is *saved* to three digits.  Tolerable for a
+settings file; not for provenance, where it produces both a spurious `diff`
+between identical settings and a "reproduction" that used a different number
+than the original.  So a numeric entry carries the displayed string **and** a
+round-trip form (`%.17g`): the first is what a human greps, the second is what
+restoration and strict comparison use.  Where the two coincide — strings,
+combos, booleans, integers — only one is written.
+
+(That `.kam` itself rounds is a separate, pre-existing matter.  Changing its
+precision would make old and new files differ for reasons that have nothing
+to do with the settings, so it wants its own decision.)
 
 Captured as a pool-allocated blob whose ownership passes through the ring
 (freed by the drain, or by the producer when the ring is full).  **No
