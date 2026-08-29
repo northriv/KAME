@@ -33,6 +33,12 @@
   Dock still reports isVisible() == true and isMinimized() == false, so nothing
   could tell it was gone: the toolboxes no longer carry a minimize button, and
   the View menu restores one that ends up minimized anyway.
+- UI: an interface that appears is selected and scrolled into view in the
+  Interface pane.  Bringing that pane to the front after a driver was added by
+  hand only half finished the job while the row whose port has to be set was
+  left for the user to find among all the others.  A .kam load ends up showing
+  the last interface it added, which costs nothing: the pane is not in front
+  until the load has finished anyway.
 - UI: the message window's popup row could end up below the bottom of the
   screen.  That row sits under the log list and is hidden until something is
   posted, and the window is parked with its bottom on the screen edge, so
