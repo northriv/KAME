@@ -831,15 +831,29 @@ Worth stating plainly, since the writer has run ahead of the reader:
 | File | Read by KAME | Read by anything |
 |---|---|---|
 | `.kamb` | **yes** — `XRawStreamRecordReader`, unchanged: the format is byte-identical to the `.bin` it renames, so old files and new ones are the same file with two names.  Its dialog offers both, and always will | — |
-| `.kamj.gz` | **no** | `zcat`, `zgrep`, `zdiff` — which is not a placeholder but half of why the format is JSON Lines |
+| `.kamj.gz` | **the dump, yes** — `File → Open Measurement` applies it exactly as it applies a `.kam`; the entries after it are not read yet | `zcat`, `zgrep`, `zdiff` — which is not a placeholder but half of why the format is JSON Lines |
 | `.kam` | yes, as ever | a Ruby interpreter |
 
-So a run recorded today can be *replayed* through the raw reader exactly as
-before, and its journal can be *read* by a person or a script, but nothing
-yet joins them — the reader that restores a driver's settings from the
-journal before re-analysing its records is the next stage, below.  The
-`session`/`raw` cross-references in the header exist so that a joiner has
-something to join on.
+**Two doors, and the file decides which half you get** (user, 2026-08-29):
+
+- **`File → Open Measurement`** on a journal applies its **dump and stops**.
+  The dump is what the tree was at one instant, so applying it is the same
+  act as loading a `.kam` — which is why it belongs on the same menu item
+  rather than on a new one, and why it is written in `xpythonsupport.py`
+  beside `loadKam`, reusing the main-thread dispatch for lists that cannot
+  be created off it and the `_KamFakeNode` tolerance for a tree that has
+  moved on.  Values on device-reported (runtime) nodes are skipped, exactly
+  as `.kam` comments them out: they are outputs, and writing them back would
+  fight the drivers that produce them.
+- **The record reader** is where the entries belong: opened beside the raw
+  stream, it can restore the settings of the moment before re-analysing the
+  records of that moment.  That is the hole this whole design exists to
+  fill, and it is the next stage.
+
+Measured against a real run (`test2.kamj.gz`, 50 nodes): 12 values applied,
+26 runtime nodes skipped, nothing unresolved — and on a KAME where the driver
+does not exist yet, one node created from its recorded type key, after which
+its whole subtree resolves.
 
 The `.kamb` magic header discussed above is also still unwritten, so a raw
 file remains anonymous: the extension is the only clue to what wrote it.

@@ -976,6 +976,10 @@ void FrmKameMain::fileOpenAction_activated() {
         this, i18n("Open Measurement File"), "",
         //! No trailing ";;": it appends an empty name filter, which shows up as a
         //! blank row in the file-type combo of Qt's own widget dialog.
+        //A journal's head IS a settings file, so it opens the same way.
+        //\sa doc/design/PROVENANCE.md
+        "Measurement files (*.kamj.gz *.kamj *.kam);;"
+        "KAME journals (*.kamj.gz *.kamj);;"
         "KAME2 Measurement files (*.kam);;"
         "KAME1 Measurement files (*.mes);;"
         "All files (*.*)"

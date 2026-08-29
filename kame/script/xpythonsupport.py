@@ -354,6 +354,86 @@ def loadKam(xpythread, filename):
 	finally:
 		TLS.xscrthread["Status"] = ""
 
+def loadJournalDump(xpythread, filename):
+	"""Apply the dump at the head of a journal (.kamj / .kamj.gz).
+
+	This is the "open a measurement" half of reading a journal, and it is
+	deliberately the smaller one: the dump is what the tree WAS at one
+	instant, so applying it is the same act as loading a .kam -- which is why
+	it belongs on the same menu item.  Everything after the dump is the
+	entries, and replaying those against the raw records belongs to the
+	record reader.
+
+	Values on device-reported (runtime) nodes are NOT applied, for the same
+	reason .kam comments them out: they are outputs, the drivers own them,
+	and writing them back would fight the code that produces them.  The flag
+	is inherited, as the .kam writer inherits it down the tree.
+	"""
+	import gzip, json
+	TLS.xscrthread = xpythread
+	TLS.logfile = None
+	try:
+		xpythread["ThreadID"] = str(threading.current_thread().native_id)
+		xpythread["Status"] = "run"
+		opener = gzip.open if filename.endswith('.gz') else open
+		nodes = {}          # journal id -> _KamNode
+		runtime = set()     # ids whose values are the driver's to write
+		owning = set()      # ids of lists that CREATE their children
+		created = valued = unresolved = 0
+		root = Root()
+		with opener(filename, 'rt', encoding='utf-8', errors='replace') as f:
+			for line in f:
+				line = line.strip()
+				if not line:
+					continue
+				try:
+					rec = json.loads(line)
+				except ValueError:
+					# A truncated final line is expected, not an error: the
+					# file may have been copied while it was being written,
+					# or its session killed.
+					break
+				t = rec.get('t')
+				if t is None:
+					continue                    # the header
+				if ('ts' in rec) or (t in ('run', 'session', 'released')):
+					break                       # the dump ends here
+				if t == 'n':
+					nid = rec.get('id')
+					pid = rec.get('p')
+					if pid is None:
+						nodes[nid] = _KamNode(root)
+					else:
+						parent = nodes.get(pid)
+						if parent is None:
+							unresolved += 1
+							continue
+						if pid in runtime or rec.get('runtime'):
+							runtime.add(nid)
+						name = rec.get('name', '')
+						child = parent[name] if name else parent[rec.get('i', 0)]
+						if isinstance(child, _KamFakeNode) and (pid in owning):
+							child = parent.create(rec.get('type', ''), name)
+							created += 1
+						if isinstance(child, _KamFakeNode):
+							unresolved += 1
+							continue
+						nodes[nid] = child
+					if rec.get('list') == 'own':
+						owning.add(nid)
+				elif t == 'v':
+					nid = rec.get('id')
+					if (nid in runtime) or (nid not in nodes):
+						continue
+					nodes[nid].load(rec.get('v', ''))
+					valued += 1
+		print("%s loaded: %d values, %d nodes created, %d unresolved." %
+			(filename, valued, created, unresolved))
+	except Exception:
+		sys.stderr.write(str(traceback.format_exc()))
+	finally:
+		TLS.xscrthread["Status"] = ""
+
 def loadSequence(xpythread, filename):
 	TLS.xscrthread = xpythread #thread-local-storage
 	TLS.logfile = None
@@ -430,7 +510,12 @@ def kame_pybind_one_iteration():
 					STDERR.write("Starting a new thread")
 					filename = str(xpythread_filename)
 					STDERR.write("Loading "+ filename)
-					target = loadKam if filename.endswith('.kam') else loadSequence
+					if filename.endswith('.kamj') or filename.endswith('.kamj.gz'):
+						target = loadJournalDump
+					elif filename.endswith('.kam'):
+						target = loadKam
+					else:
+						target = loadSequence
 					thread = threading.Thread(daemon=True, target=target, args=(xpythread, filename))
 					thread.start()
 				if action == "kill":
