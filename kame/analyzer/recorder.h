@@ -42,6 +42,10 @@ class XRawStreamRecorder : public XRawStream {
 public:
 	XRawStreamRecorder(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist);
 	const shared_ptr<XBoolNode> &recording() const {return m_recording;}
+	//! Bytes handed to zlib since this process started -- what the run is
+	//! costing, for the Journal group's readout.  Uncompressed: it is the
+	//! rate the instrument is producing, not what the disk ends up with.
+	uintptr_t bytesWritten() const {return m_bytesWritten;}
 protected:
 	virtual void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
 	virtual void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
@@ -57,6 +61,7 @@ private:
 	void onRecord(const Snapshot &shot, XDriver *driver);
 	void onFlush(const Snapshot &shot, XValueNodeBase *);
 	const shared_ptr<XBoolNode> m_recording;
+	atomic<uintptr_t> m_bytesWritten {0};
 };
 
 

@@ -1045,8 +1045,11 @@ void FrmKameMain::signalAllModulesLoaded() {
     //Provenance capture starts here, with the driver types registered and
     //before any .kam is loaded, so the loading itself is journaled.  Nodes
     //created later are picked up through onListChanged.
-    if(m_measure && XJournal::enabledByEnvironment())
-        m_journal = XJournal::start(m_measure);
+    //The capture engine runs whether or not anything is being written: the
+    //Journal group's Write switch chooses the file, not whether the tree is
+    //being watched.  KAME_JOURNAL only adds the developer survey report.
+    if(m_measure)
+        m_journal = XJournal::start(m_measure, m_measure->journal());
 }
 
 void FrmKameMain::mesStopAction_activated() {

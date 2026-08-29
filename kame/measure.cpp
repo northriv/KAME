@@ -22,6 +22,7 @@
 #include "interface.h"
 #include "analyzer.h"
 #include "recorder.h"
+#include "xjournal.h"
 #include "recordreader.h"
 
 #include "thermometer.h"
@@ -62,6 +63,7 @@ m_calibratedEntryList(create<XCalibratedEntryList>("CalibratedEntries", false, s
                                                        static_pointer_cast<XMeasure>(shared_from_this()))),
 m_textWriter(create<XTextWriter>("TextWriter", false, drivers(), scalarEntries())),
 m_rawStreamRecorder(create<XRawStreamRecorder>("RawStreamRecorder", false, drivers())),
+m_journal(create<XJournalRecorder>("Journal", false, rawStreamRecorder())),
 m_rawStreamRecordReader(create<XRawStreamRecordReader>("RawStreamRecordReader", false,
 		drivers())),
 m_conRecordReader(xqcon_create<XRawStreamRecordReaderConnector>(
@@ -106,14 +108,21 @@ m_conLogURL(xqcon_create<XFilePathConnector>(
 m_conLogEvery(xqcon_create<XQLineEditConnector>(
 		textWriter()->logEvery(),
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_edLoggerEvery)),
-m_conBinURL(xqcon_create<XFilePathConnector>(
-		rawStreamRecorder()->filename(),
-        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_edRec,
-        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_btnRec,
-        "Binary files (*.bin);;All files (*.*)", true)),
-m_conBinWrite(xqcon_create<XQToggleButtonConnector>(
-		rawStreamRecorder()->recording(),
-		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_ckbBinRecWrite)),
+m_conJournalURL(xqcon_create<XFilePathConnector>(
+        journal()->filename(),
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_edJournal,
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_btnJournal,
+        "KAME journal (*.kamj);;All files (*.*)", true)),
+m_conJournalMode(xqcon_create<XQComboBoxConnector>(
+        journal()->mode(),
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_cmbJournalMode,
+        Snapshot( *journal()->mode()))),
+m_conJournalWrite(xqcon_create<XQToggleButtonConnector>(
+        journal()->recording(),
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_ckbJournalWrite)),
+m_conJournalStats(xqcon_create<XQLabelConnector>(
+        journal()->statistics(),
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_lblJournalStats)),
 m_conUrlRubyThread(),
 m_conCalTable(xqcon_create<XConCalTable>(
                 m_thermometers, dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmCalTable)),

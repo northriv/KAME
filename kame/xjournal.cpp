@@ -13,13 +13,99 @@
  ***************************************************************************/
 #include "xjournal.h"
 #include "xlistnode.h"
+#include "xitemnode.h"
+#include "analyzer/recorder.h"
 #include "support.h"
 #include <fstream>
 #include <algorithm>
 #include <cstdlib>
+#include <QByteArray>
 #include <QDateTime>
 #include <QDir>
+#include <QFileInfo>
 #include <QStandardPaths>
+#include <QUuid>
+
+
+const char *
+XJournalRecorder::modeLabel(Mode m) {
+    switch(m) {
+    case Mode::SETUP: return "Setup";
+    case Mode::LOGBOOK: return "Logbook";
+    default: return "Logbook + raw";
+    }
+}
+
+XJournalRecorder::XJournalRecorder(const char *name, bool runtime,
+    const shared_ptr<XRawStreamRecorder> &rawstream) :
+    XNode(name, runtime),
+    //Transient like the raw stream's own path: a run's file is chosen for
+    //that run.  The mode is a preference and is saved.
+    m_filename(create<XStringNode>("Filename", true)),
+    m_mode(create<XComboNode>("Mode", false)),
+    m_recording(create<XBoolNode>("Recording", true)),
+    m_statistics(create<XStringNode>("Statistics", true)),
+    m_rawstream(rawstream) {
+    //Own transaction, not the caller's: these children are inserted outside
+    //any transaction the constructor was handed.
+    iterate_commit([=](Transaction &tr){
+        tr[ *m_mode].add({modeLabel(Mode::SETUP), modeLabel(Mode::LOGBOOK),
+            modeLabel(Mode::LOGBOOK_RAW)});
+        tr[ *m_mode] = (int)Mode::LOGBOOK_RAW;
+        tr[ *m_recording] = false;
+        m_lsnOnRecordingChanged = tr[ *m_recording].onValueChanged().connectWeakly(
+            shared_from_this(), &XJournalRecorder::onRecordingChanged);
+    });
+}
+
+XJournalRecorder::Mode
+XJournalRecorder::modeOf(const Snapshot &shot) const {
+    int idx = shot[ *m_mode];
+    if((idx < 0) || (idx > (int)Mode::LOGBOOK_RAW))
+        return Mode::LOGBOOK_RAW;
+    return (Mode)idx;
+}
+
+static XString withExtension(const XString &given, const char *ext) {
+    QString s = QString::fromStdString(given).trimmed();
+    if(s.isEmpty())
+        return {};
+    //Strip whichever of the family the user happened to type, and nothing
+    //else: a name with a dot in it is a name, not an extension.
+    for(auto &&known: {".kamj", ".kamb", ".kam", ".bin", ".gz"})
+        if(s.endsWith(known, Qt::CaseInsensitive)) {
+            s.chop(QString(known).length());
+            break;
+        }
+    return (s + ext).toStdString();
+}
+uintptr_t
+XJournalRecorder::rawBytesWritten() const {
+    auto raws = m_rawstream.lock();
+    return raws ? raws->bytesWritten() : 0;
+}
+
+XString XJournalRecorder::journalPathOf(const XString &given) {return withExtension(given, ".kamj");}
+XString XJournalRecorder::rawPathOf(const XString &given) {return withExtension(given, ".kamb");}
+
+//! The raw stream follows: its path is set only as recording starts, since
+//! XRawStreamRecorder opens (and truncates) its file the moment its filename
+//! changes -- a Setup run must not leave an empty .kamb behind.
+void
+XJournalRecorder::onRecordingChanged(const Snapshot &shot, XValueNodeBase *) {
+    auto raws = m_rawstream.lock();
+    if( !raws)
+        return;
+    Snapshot shot_this( *this);
+    bool rec = shot_this[ *m_recording];
+    bool wantsRaw = rec && (modeOf(shot_this) == Mode::LOGBOOK_RAW);
+    if(wantsRaw) {
+        XString path = rawPathOf(shot_this[ *m_filename].to_str());
+        if(path.length())
+            trans( *raws->filename()) = path;
+    }
+    trans( *raws->recording()) = wantsRaw;
+}
 
 //! The capture path: no lookup, no allocation, no lock.  The id is baked into
 //! the Sink the talker holds, and the serial carries both the ordering and the
@@ -35,12 +121,56 @@ XJournal::capture(uint32_t id, uint32_t kind, const Snapshot &shot,
     r.id = id;
     r.kind = kind;
     r.when = XTime::now();
+    r.value = nullptr;
+    r.exact = 0.0;
+    r.flags = 0;
     m_ring.capture(serial, r);
 }
 
 void
 XJournal::Sink::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
-    journal->capture(id, KIND_VALUE, shot, *node);
+    journal->captureValue( *this, shot, *node);
+}
+
+//! The value travels with the record, as a pool-allocated string the ring
+//! owns: freed by the drain that writes it, or by this producer when the ring
+//! is full.  No truncation -- the allocator is lock-free, so allocating here
+//! is acceptable, and a provenance record that silently shortens a string is
+//! not one.
+//!
+//! Nothing is formatted at all unless a Logbook is actually being written:
+//! to_str() on a double goes through formatDouble(), which is not free at
+//! acquisition rate, and a run that keeps no values must not pay for them.
+void
+XJournal::captureValue(const Sink &sink, const Snapshot &shot,
+    XValueNodeBase &node) noexcept {
+    if( !m_writingEntries) {
+        capture(sink.id, KIND_VALUE, shot, node);
+        return;
+    }
+    Record r;
+    r.id = sink.id;
+    r.kind = KIND_VALUE;
+    r.when = XTime::now();
+    r.exact = 0.0;
+    r.flags = 0;
+    r.value = nullptr;
+    try {
+        XString str = shot[node].to_str();
+        char *blob = new char[str.size() + 1];
+        memcpy(blob, str.c_str(), str.size() + 1);
+        r.value = blob;
+        if(sink.isDouble) {
+            r.exact = (double)static_cast<const XDoubleNode::Payload &>(shot[node]);
+            r.flags |= FLAG_EXACT;
+        }
+    }
+    catch(...) {
+        //A node whose to_str() throws is still worth an entry saying it
+        //changed; it is not worth taking the committing thread down.
+    }
+    if( !m_ring.capture(shot[node].serial(), r))
+        delete[] r.value; //!< refused: nobody else will free it
 }
 void
 XJournal::Sink::onTouch(const Snapshot &shot, XTouchableNode *node) {
@@ -56,13 +186,13 @@ void
 XJournal::Sink::onCatch(const Snapshot &shot,
     const XListNodeBase::Payload::CatchEvent &e) {
     journal->capture(id, KIND_CATCH, shot, *e.emitter);
-    journal->pushPending(e.caught, id, true);
+    journal->pushPending(e.caught, id, true, e.index);
 }
 void
 XJournal::Sink::onRelease(const Snapshot &shot,
     const XListNodeBase::Payload::ReleaseEvent &e) {
     journal->capture(id, KIND_RELEASE, shot, *e.emitter);
-    journal->pushPending(e.released, id, false);
+    journal->pushPending(e.released, id, false, e.index);
 }
 void
 XJournal::Sink::onMove(const Snapshot &shot,
@@ -76,11 +206,12 @@ XJournal::Sink::onMove(const Snapshot &shot,
 //! marking off) touches the node table and takes transactions, neither of
 //! which may happen here: this runs inside the committing thread's commit.
 void
-XJournal::pushPending(const shared_ptr<XNode> &node, uint32_t listId, bool caught) {
+XJournal::pushPending(const shared_ptr<XNode> &node, uint32_t listId, bool caught,
+    int index) {
     if( !node)
         return;
     XScopedLock<XCondition> lock(m_wake);
-    m_pending.push_back(Pending{node, listId, caught});
+    m_pending.push_back(Pending{node, listId, caught, index});
     m_wake.signal();
 }
 
@@ -97,24 +228,32 @@ XJournal::enabledByEnvironment() {
 }
 
 shared_ptr<XJournal>
-XJournal::start(const shared_ptr<XNode> &root) {
+XJournal::start(const shared_ptr<XNode> &root,
+    const shared_ptr<XJournalRecorder> &recorder) {
     auto journal = std::make_shared<XJournal>();
     journal->m_root = root;
+    journal->m_recorder = recorder;
     journal->m_started = XTime::now();
     if(const char *v = getenv("KAME_JOURNAL_REPORT_SEC")) {
         int sec = atoi(v);
         if(sec > 0)
             journal->m_reportInterval = sec;
     }
-    XString dir = managedDirectory("journal");
-    if(dir.empty())
-        gWarnPrint(i18n_noncontext("Journal: no writable directory; capturing without a report."));
-    else
-        journal->m_reportPath = dir + "/capture-"
-            + QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss").toStdString()
-            + ".txt";
-    gMessagePrint(XString(i18n_noncontext("Journaling this session: "))
-        + (journal->m_reportPath.empty() ? XString("(no report)") : journal->m_reportPath));
+    //The survey report is a developer artifact -- what a listener on every
+    //node costs, and who writes what -- so it stays behind KAME_JOURNAL.
+    //Capture itself is unconditional now that a run can be written.
+    if(enabledByEnvironment()) {
+        XString dir = managedDirectory("journal");
+        if(dir.empty())
+            gWarnPrint(i18n_noncontext("Journal: no writable directory for the survey."));
+        else {
+            journal->m_reportPath = dir + "/capture-"
+                + QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss").toStdString()
+                + ".txt";
+            gMessagePrint(XString(i18n_noncontext("Journal survey: "))
+                + journal->m_reportPath);
+        }
+    }
     journal->m_thread.reset(new XThread(journal, &XJournal::execute));
     return journal;
 }
@@ -189,6 +328,210 @@ XJournal::managedDirectory(const char *sub) {
 //! records may sit in the ring, which has room for 8192 of them.
 static const int DRAIN_INTERVAL_US = 20000;
 
+
+//! Text, so `diff run1.kamj run2.kamj` and `grep` work with no tool at all --
+//! which is most of the value of a provenance file ten years from now.
+static XString jsonEscape(const XString &str) {
+    XString out;
+    out.reserve(str.size() + 8);
+    for(unsigned char c: str) {
+        switch(c) {
+        case '"': out += "\\\""; break;
+        case '\\': out += "\\\\"; break;
+        case '\n': out += "\\n"; break;
+        case '\r': out += "\\r"; break;
+        case '\t': out += "\\t"; break;
+        default:
+            if(c < 0x20)
+                out += formatString("\\u%04x", (int)c);
+            else
+                out += (char)c;
+        }
+    }
+    return out;
+}
+
+//! The exact number, as the eight bytes it is: base64 of binary64,
+//! little-endian.  to_str() goes through formatDouble() and is %.12g at best
+//! -- fine for a settings file, not for provenance, where a rounded value is
+//! both a spurious diff and a reproduction that used a different number.
+static XString exactOf(double v) {
+    unsigned char b[8];
+    uint64_t bits;
+    static_assert(sizeof(bits) == sizeof(v), "binary64 expected");
+    memcpy( &bits, &v, sizeof(bits));
+    for(int i = 0; i < 8; ++i)
+        b[i] = (unsigned char)((bits >> (8 * i)) & 0xffu); //little-endian, stated
+    return QByteArray((const char *)b, 8).toBase64().toStdString();
+}
+
+void
+XJournal::writeHeader() {
+    auto rec = m_recorder.lock();
+    Snapshot shot( *rec);
+    XString raw = XJournalRecorder::rawPathOf(shot[ *rec->filename()].to_str());
+    *m_out << "{\"format\":\"kame-journal\",\"version\":1"
+        << ",\"session\":\"" << m_session << "\""
+        << ",\"started\":\"" << jsonEscape(XTime::now().getTimeStr()) << "\""
+        << ",\"kame\":\"" VERSION "\""
+        << ",\"mode\":\"" << XJournalRecorder::modeLabel(rec->modeOf(shot)) << "\"";
+    if(rec->modeOf(shot) == XJournalRecorder::Mode::LOGBOOK_RAW)
+        *m_out << ",\"raw\":\"" << jsonEscape(QFileInfo(QString::fromStdString(raw))
+            .fileName().toStdString()) << "\"";
+    *m_out << "}\n";
+}
+
+//! The dump: what the tree was, at one instant.
+//!
+//! ONE root snapshot, deliberately.  Reading node by node has no consistency
+//! cut at all -- each value would carry its own serial and the collection as
+//! a whole never existed.  A root Snapshot is an ordinary operation here (the
+//! node browser takes one whenever the pointed node changes); what is
+//! forbidden is a root TRANSACTION.
+void
+XJournal::writeDump() {
+    auto root = m_root.lock();
+    if( !root)
+        return;
+    Snapshot shot( *root);
+    dumpSubtree(shot, root, "", 0, -1);
+}
+
+void
+XJournal::dumpSubtree(const Snapshot &shot, const shared_ptr<XNode> &node,
+    const XString &path, uint32_t parentId, int index) {
+    uint32_t id = subscribe(node, path);
+    NodeRec &rec = m_nodes[id];
+    rec.reachable = true;
+    rec.inTree = true;
+
+    *m_out << "{\"t\":\"n\",\"id\":" << id;
+    if(index >= 0)
+        *m_out << ",\"p\":" << parentId << ",\"i\":" << index;
+    *m_out << ",\"name\":\"" << jsonEscape(node->getName()) << "\""
+        << ",\"path\":\"" << jsonEscape(path) << "\"";
+    //The registry key, and only when there IS one: a mangled type name is
+    //never written as an instruction.  \sa doc/design/PROVENANCE.md
+    XString key = node->storedTypename();
+    if(key.length())
+        *m_out << ",\"type\":\"" << jsonEscape(key) << "\"";
+    *m_out << ",\"class\":\"" << jsonEscape(node->getTypename()) << "\"";
+    if(shot[ *node].isRuntime())
+        *m_out << ",\"runtime\":true";
+    auto lnode = dynamic_pointer_cast<XListNodeBase>(node);
+    if(lnode)
+        *m_out << ",\"list\":\"" << (lnode->isAliasList() ? "alias" : "own") << "\"";
+    *m_out << "}\n";
+
+    if(auto vnode = dynamic_pointer_cast<XValueNodeBase>(node)) {
+        *m_out << "{\"t\":\"v\",\"id\":" << id
+            << ",\"s\":" << (long long)shot[ *vnode].serial()
+            << ",\"v\":\"" << jsonEscape(shot[ *vnode].to_str()) << "\"";
+        if(auto dnode = dynamic_pointer_cast<XDoubleNode>(node))
+            *m_out << ",\"x\":\"" << exactOf((double)shot[ *dnode]) << "\"";
+        *m_out << "}\n";
+    }
+
+    if( !shot.size(node))
+        return;
+    if(lnode && lnode->isAliasList())
+        return; //!< referenced, not owned -- navigated by name, never created
+    int i = 0;
+    for(auto &&child: *shot.list(node)) {
+        XString name = child->getName();
+        dumpSubtree(shot, child, path + "/" + (name.length() ? name : formatString("[%d]", i)),
+            id, i);
+        ++i;
+    }
+}
+
+void
+XJournal::writeEntry(const JournalT::Entry &e) {
+    if( !m_out || (e.record.kind != KIND_VALUE))
+        return; //structure is written where it is subscribed, with its names
+    *m_out << "{\"t\":\"v\",\"id\":" << e.record.id
+        << ",\"ts\":\"" << jsonEscape(e.record.when.getTimeStr()) << "\""
+        << ",\"s\":" << (long long)e.serial
+        << ",\"c\":\"" << ((threadClassOf((unsigned int)((uint64_t)e.serial & 0xffffu))
+            == ThreadClass::UNKNOWN) ? "report" : "request") << "\"";
+    if(e.record.value)
+        *m_out << ",\"v\":\"" << jsonEscape(e.record.value) << "\"";
+    if(e.record.flags & FLAG_EXACT)
+        *m_out << ",\"x\":\"" << exactOf(e.record.exact) << "\"";
+    *m_out << "}\n";
+}
+
+void
+XJournal::syncRun() {
+    auto rec = m_recorder.lock();
+    if( !rec)
+        return;
+    Snapshot shot( *rec);
+    bool on = shot[ *rec->recording()];
+    auto mode = rec->modeOf(shot);
+    if(on && !m_runOpen) {
+        XString path = XJournalRecorder::journalPathOf(shot[ *rec->filename()].to_str());
+        if( !path.length()) {
+            gWarnPrint(i18n_noncontext("Journal: name the run first."));
+            trans( *rec->recording()) = false;
+            return;
+        }
+        m_out.reset(new std::ofstream(path.c_str(), std::ios::out | std::ios::trunc));
+        if( !m_out->good()) {
+            m_out.reset();
+            gErrPrint(i18n_noncontext("Journal: cannot write ") + path);
+            trans( *rec->recording()) = false;
+            return;
+        }
+        m_openPath = path;
+        m_session = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
+        m_bytesJournal = 0;
+        m_bytesLast = 0;
+        m_rawBytesAtStart = rec->rawBytesWritten();
+        m_runOpen = true;
+        writeHeader();
+        writeDump();
+        m_out->flush();
+        gMessagePrint(i18n_noncontext("Journal: ") + m_openPath);
+    }
+    //The mode can change mid-run; only the tier above Setup keeps values.
+    m_writingEntries = m_runOpen && (mode != XJournalRecorder::Mode::SETUP);
+    if( !on && m_runOpen) {
+        drainOnce(); //!< whatever is still in the ring belongs in the file
+        m_out->flush();
+        m_out.reset();
+        m_runOpen = false;
+        m_writingEntries = false;
+    }
+}
+
+void
+XJournal::updateStatistics() {
+    auto rec = m_recorder.lock();
+    if( !rec)
+        return;
+    XTime now = XTime::now();
+    if( !m_statsAt.isSet()) {
+        m_statsAt = now;
+        return;
+    }
+    double dt = now.diff_msec(m_statsAt) / 1000.0;
+    if(dt < 1.0)
+        return;
+    uintptr_t total = m_bytesJournal
+        + (m_runOpen ? (rec->rawBytesWritten() - m_rawBytesAtStart) : 0);
+    double rate = (total >= m_bytesLast) ? (total - m_bytesLast) / dt : 0.0;
+    m_statsAt = now;
+    m_bytesLast = total;
+    XString s = m_runOpen
+        ? formatString("%.1f MB/s  %.2f GB", rate / 1e6, total / 1e9)
+        : XString();
+    //Only when it actually changed: this node is journaled like any other,
+    //and an idle run should not write a line a second saying so.
+    if(Snapshot( *rec)[ *rec->statistics()].to_str() != s)
+        trans( *rec->statistics()) = s;
+}
+
 void
 XJournal::execute(const atomic<bool> &terminated) {
     XTime lastReport = XTime::now();
@@ -199,8 +542,10 @@ XJournal::execute(const atomic<bool> &terminated) {
     XTime lastSweep = XTime::now();
     sweep(); //!< the one full walk that has to happen: the opening state.
     while( !terminated) {
+        syncRun();
         processPending();
         drainOnce();
+        updateStatistics();
         //The sweep is a safety net and a measurement, not the mechanism --
         //hence periodic and slow, where the events are prompt.
         if(XTime::now().diff_msec(lastSweep) > (long)m_sweepInterval * 1000) {
@@ -221,6 +566,9 @@ XJournal::execute(const atomic<bool> &terminated) {
             m_wake.wait(DRAIN_INTERVAL_US);
     }
     processPending();
+    if(auto rec = m_recorder.lock())
+        trans( *rec->recording()) = false; //!< closes the run file through syncRun()
+    syncRun();
     drainOnce();
     writeReport();
 }
@@ -295,7 +643,16 @@ XJournal::processPending() {
             //A caught node arrives with the children its constructor made,
             //so the subtree is walked -- bounded by what was added, never
             //the whole tree.
-            walk(p.node, path);
+            if(m_out) {
+                //Structure is written where it is learned, with the names and
+                //the type keys: a driver added at 14:22 cannot be replayed
+                //from a line that only says something changed.
+                Snapshot shot( *p.node);
+                dumpSubtree(shot, p.node, path, p.listId, p.index);
+                m_out->flush();
+            }
+            else
+                walk(p.node, path);
             auto it = m_index.find(p.node.get());
             if(it != m_index.end()) {
                 m_nodes[it->second].catchAnnounced = true;
@@ -305,8 +662,13 @@ XJournal::processPending() {
         else {
             ++m_releases;
             auto it = m_index.find(p.node.get());
-            if(it != m_index.end())
+            if(it != m_index.end()) {
+                if(m_out)
+                    *m_out << "{\"t\":\"released\",\"id\":" << it->second
+                        << ",\"ts\":\"" << jsonEscape(XTime::now().getTimeStr())
+                        << "\"}\n";
                 detachSubtree(it->second);
+            }
         }
     }
 }
@@ -385,7 +747,7 @@ XJournal::subscribe(const shared_ptr<XNode> &node, const XString &path) {
     rec.isValue = !!vnode;
     rec.isTouchable = !!tnode;
     rec.isList = !!lnode;
-    m_sinks.push_back(Sink{this, id});
+    m_sinks.push_back(Sink{this, id, !!dynamic_pointer_cast<XDoubleNode>(node)});
     Sink &sink = m_sinks.back();
 
     if(vnode || tnode || lnode) {
@@ -452,7 +814,16 @@ XJournal::drainOnce() {
         ++m_captured;
         if(e.record.kind < NUM_KINDS)
             ++m_byKind[e.record.kind];
+        //A Setup run is the dump and nothing after it; entries belong to a
+        //Logbook.
+        if(m_out && m_writingEntries)
+            writeEntry(e);
+        delete[] e.record.value;
     });
+    if(m_out) {
+        m_out->flush(); //!< a copy taken now is current AND parsable
+        m_bytesJournal = (uintptr_t)m_out->tellp();
+    }
 }
 
 XString

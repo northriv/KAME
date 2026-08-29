@@ -87,6 +87,10 @@ public:
     //! Records the registry key a node was created with.  Called by
     //! `XListNodeBase::createByTypename()`; there should be no other caller.
     void setStoredTypename(const XString &);
+    //! The key it was created with, or empty when it was not created by name.
+    //! Unlike getTypename(), this never falls back on the mangled type name,
+    //! so a writer can tell an instruction from a mere description.
+    XString storedTypename() const;
 
     shared_ptr<XNode> getChild(const XString &var) const;
 

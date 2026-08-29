@@ -117,6 +117,7 @@ XRawStreamRecorder::onRecord(const Snapshot &shot, XDriver *d) {
                 header.push((uint32_t)allsize);
                 gzwrite(static_cast<gzFile>(m_pGFD), &header[0], header.size());
                 m_filemutex.unlock();
+                m_bytesWritten += allsize;
             }
         }
     } 

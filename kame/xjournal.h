@@ -18,6 +18,7 @@
 
 #include "xnode.h"
 #include "xlistnode.h" //!< for the catch/release events, which are its Payload's
+#include "xitemnode.h" //!< XComboNode, for the run mode
 #include "transaction_journal.h"
 #include "xthread.h"
 #include <deque>
@@ -26,6 +27,50 @@
 
 class XValueNodeBase;
 class XTouchableNode;
+class XRawStreamRecorder;
+
+//! What a run records, and what it is costing: the nodes behind the Journal
+//! group in the driver pane.
+//!
+//! The user names the RUN here, not the binary -- the journal always exists
+//! where the raw stream is optional, and of the two only the journal is
+//! interpretable alone, since it names its own data file.  The raw path is
+//! derived from this one (`run042.kamj` / `run042.kamb`).
+class DECLSPEC_KAME XJournalRecorder : public XNode {
+public:
+    XJournalRecorder(const char *name, bool runtime,
+        const shared_ptr<XRawStreamRecorder> &rawstream);
+
+    //! The run's name.  Extensions are derived, not typed.
+    const shared_ptr<XStringNode> &filename() const {return m_filename;}
+    //! How much this run keeps.  \sa Mode
+    const shared_ptr<XComboNode> &mode() const {return m_mode;}
+    const shared_ptr<XBoolNode> &recording() const {return m_recording;}
+    //! "12.4 MB/s   3.2 GB" -- what it is costing, beside the controls.
+    const shared_ptr<XStringNode> &statistics() const {return m_statistics;}
+
+    //! Cumulative tiers, in order of magnitude: a few hundred KB, ~36 MB/hr,
+    //! ~10 GB/hr.  **The labels are what a file carries** and are not to be
+    //! respelled -- see doc/design/PROVENANCE.md.
+    enum class Mode {SETUP = 0, LOGBOOK = 1, LOGBOOK_RAW = 2};
+    static const char *modeLabel(Mode);
+    Mode modeOf(const Snapshot &shot) const;
+
+    //! Uncompressed bytes the raw stream has taken, 0 when there is none.
+    uintptr_t rawBytesWritten() const;
+
+    //! `<base>.kamj` / `<base>.kamb`, whatever extension the user typed.
+    static XString journalPathOf(const XString &given);
+    static XString rawPathOf(const XString &given);
+private:
+    void onRecordingChanged(const Snapshot &shot, XValueNodeBase *);
+    const shared_ptr<XStringNode> m_filename;
+    const shared_ptr<XComboNode> m_mode;
+    const shared_ptr<XBoolNode> m_recording;
+    const shared_ptr<XStringNode> m_statistics;
+    const weak_ptr<XRawStreamRecorder> m_rawstream;
+    shared_ptr<Listener> m_lsnOnRecordingChanged;
+};
 
 //! Subscribes to every node in the tree and records what changes, who changed
 //! it and when — the capture half of the provenance journal, with no file
@@ -53,7 +98,10 @@ public:
     //! \a KAME_JOURNAL — unset means the journal never subscribes.
     static bool enabledByEnvironment();
     //! Subscribes to everything under \a root and starts the drain thread.
-    static shared_ptr<XJournal> start(const shared_ptr<XNode> &root);
+    //! \a recorder carries what the user chose for the run; the capture
+    //! itself runs whether or not anything is being written.
+    static shared_ptr<XJournal> start(const shared_ptr<XNode> &root,
+        const shared_ptr<XJournalRecorder> &recorder);
     //! Joins the drain thread after a last drain and a final report.
     //! **Must be called by the owner**: the running thread holds a
     //! shared_ptr back to this object, so the destructor cannot be what
@@ -86,6 +134,7 @@ public:
     XString writeReport();
 
 private:
+    enum : uint32_t {FLAG_EXACT = 0x1};
     enum : uint32_t {KIND_VALUE = 0, KIND_TOUCH = 1, KIND_CATCH = 2,
         KIND_RELEASE = 3, KIND_MOVE = 4, NUM_KINDS = 5};
 
@@ -95,6 +144,15 @@ private:
     struct Record {
         uint32_t id;
         uint32_t kind;
+        //! The value as text, pool-allocated and owned by the ring: freed by
+        //! whoever ends up with it, the drain or the producer that could not
+        //! place it.  Null unless a Logbook is actually being written -- the
+        //! capture path does not format numbers nobody asked for.
+        const char *value;
+        //! The same number without the rounding to_str() applies, for the
+        //! exact field.  Only meaningful with FLAG_EXACT.
+        double exact;
+        uint32_t flags;
         //! Stamped where the write happened, not where it is drained.  A
         //! journal that answers "what was it at 3:14" cannot take its times
         //! from whenever the reader got around to looking: that granularity
@@ -109,6 +167,8 @@ private:
     struct Sink {
         XJournal *journal;
         uint32_t id;
+        //! Decided once, at subscribe time, so the capture path never asks.
+        bool isDouble;
         void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
         void onTouch(const Snapshot &shot, XTouchableNode *node);
         //! Membership is the ONLY way a node joins or leaves the tree, and it
@@ -156,7 +216,18 @@ private:
     };
 
     void capture(uint32_t id, uint32_t kind, const Snapshot &shot, const XNode &node) noexcept;
-    void pushPending(const shared_ptr<XNode> &node, uint32_t listId, bool caught);
+    void captureValue(const Sink &sink, const Snapshot &shot, XValueNodeBase &node) noexcept;
+    //! Opens / closes the run file as the user's switch says, writes the
+    //! dump when it opens, and keeps the statistics node current.
+    void syncRun();
+    void writeHeader();
+    void writeDump();
+    void dumpSubtree(const Snapshot &shot, const shared_ptr<XNode> &node,
+        const XString &path, uint32_t parentId, int index);
+    void writeEntry(const JournalT::Entry &e);
+    void updateStatistics();
+    void pushPending(const shared_ptr<XNode> &node, uint32_t listId, bool caught,
+        int index);
     void execute(const atomic<bool> &terminated);
     //! Subscribes what onCatch announced and marks off what onRelease did,
     //! on this object's own thread rather than inside somebody's commit.
@@ -186,6 +257,7 @@ private:
         shared_ptr<XNode> node;
         uint32_t listId;
         bool caught;
+        int index; //!< position, which is the meaning in the lists that have one
     };
     XCondition m_wake;
     std::deque<Pending> m_pending;
@@ -198,6 +270,15 @@ private:
     std::deque<NodeRec> m_nodes;
     std::unordered_map<const XNode *, uint32_t> m_index;
     unique_ptr<XThread> m_thread;
+
+    weak_ptr<XJournalRecorder> m_recorder;
+    unique_ptr<std::ofstream> m_out;
+    XString m_openPath, m_session;
+    //! Whether values are being captured at all.  Read on the capture path.
+    atomic<bool> m_writingEntries {false};
+    bool m_runOpen = false;
+    uintptr_t m_bytesJournal = 0, m_bytesLast = 0, m_rawBytesAtStart = 0;
+    XTime m_statsAt;
 
     XTime m_started;
     uintptr_t m_captured = 0, m_dropped = 0;

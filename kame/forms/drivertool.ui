@@ -23,9 +23,12 @@
       </sizepolicy>
      </property>
      <property name="title">
-      <string>Raw Stream Recorder</string>
+      <string>Journal</string>
      </property>
-     <layout class="QHBoxLayout" name="horizontalLayout_2">
+     <layout class="QVBoxLayout" name="verticalLayout_journal">
+      <property name="spacing">
+       <number>4</number>
+      </property>
       <property name="leftMargin">
        <number>2</number>
       </property>
@@ -39,15 +42,15 @@
        <number>2</number>
       </property>
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout">
+       <layout class="QHBoxLayout" name="horizontalLayout_journalfile">
         <property name="spacing">
          <number>0</number>
         </property>
         <item>
-         <widget class="QLineEdit" name="m_edRec"/>
+         <widget class="QLineEdit" name="m_edJournal"/>
         </item>
         <item>
-         <widget class="QToolButton" name="m_btnRec">
+         <widget class="QToolButton" name="m_btnJournal">
           <property name="text">
            <string>...</string>
           </property>
@@ -56,30 +59,44 @@
        </layout>
       </item>
       <item>
-       <spacer name="spacer4">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
+       <layout class="QHBoxLayout" name="horizontalLayout_journalmode">
+        <property name="spacing">
+         <number>4</number>
         </property>
-        <property name="sizeType">
-         <enum>QSizePolicy::Fixed</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>16</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="m_ckbBinRecWrite">
-        <property name="enabled">
-         <bool>false</bool>
-        </property>
-        <property name="text">
-         <string>Write</string>
-        </property>
-       </widget>
+        <item>
+         <widget class="QComboBox" name="m_cmbJournalMode">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="m_lblJournalStats">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignVCenter</set>
+          </property>
+          <property name="text">
+           <string/>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="m_ckbJournalWrite">
+          <property name="text">
+           <string>Write</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </item>
      </layout>
     </widget>
@@ -141,9 +158,10 @@
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <tabstops>
-  <tabstop>m_edRec</tabstop>
-  <tabstop>m_btnRec</tabstop>
-  <tabstop>m_ckbBinRecWrite</tabstop>
+  <tabstop>m_edJournal</tabstop>
+  <tabstop>m_btnJournal</tabstop>
+  <tabstop>m_cmbJournalMode</tabstop>
+  <tabstop>m_ckbJournalWrite</tabstop>
   <tabstop>m_tblDrivers</tabstop>
   <tabstop>m_btnNew</tabstop>
   <tabstop>m_btnDelete</tabstop>

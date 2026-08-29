@@ -53,6 +53,12 @@ XNode::setStoredTypename(const XString &t) {
         m_storedTypename.reset(new XString(t));
 }
 XString
+XNode::storedTypename() const {
+    if(local_shared_ptr<XString> stored{m_storedTypename})
+        return *stored;
+    return {};
+}
+XString
 XNode::getTypename() const {
     if(local_shared_ptr<XString> stored{m_storedTypename})
         return *stored;

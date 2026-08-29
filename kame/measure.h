@@ -31,6 +31,7 @@ class XChartList;
 class XCalibratedEntryList;
 class XTextWriter;
 class XRawStreamRecorder;
+class XJournalRecorder;
 class XRawStreamRecordReader;
 class XRuby;
 class XPython;
@@ -62,6 +63,9 @@ public:
     const shared_ptr<XCalibratedEntryList> &calibratedEntries() const {return m_calibratedEntryList;}
 	const shared_ptr<XTextWriter> &textWriter() const {return m_textWriter;}
 	const shared_ptr<XRawStreamRecorder> &rawStreamRecorder() const {return m_rawStreamRecorder;}
+	//! What the run is called, how much of it is kept, and what it costs.
+	//! \sa doc/design/PROVENANCE.md
+	const shared_ptr<XJournalRecorder> &journal() const {return m_journal;}
 	const shared_ptr<XRawStreamRecordReader> &rawStreamRecordReader() const {return m_rawStreamRecordReader;}
 
 	//! Null unless the build has the Ruby interpreter (USE_RUBY).
@@ -93,6 +97,7 @@ private:
     const shared_ptr<XCalibratedEntryList> m_calibratedEntryList;
     const shared_ptr<XTextWriter> m_textWriter;
 	const shared_ptr<XRawStreamRecorder> m_rawStreamRecorder;
+	const shared_ptr<XJournalRecorder> m_journal;
 	const shared_ptr<XRawStreamRecordReader> m_rawStreamRecordReader;
 
     shared_ptr<XNode> m_lastPointedByNodeBrowser;
@@ -102,7 +107,8 @@ private:
         m_conDrivers, m_conInterfaces, m_conEntries, m_conGraphs, m_conCalibEntries,
         m_conTextWrite, m_conTextURL, m_conTextLastLine,
         m_conLogURL, m_conLogWrite, m_conLogEvery,
-        m_conBinURL, m_conBinWrite, m_conUrlRubyThread,
+        m_conJournalURL, m_conJournalMode, m_conJournalWrite, m_conJournalStats,
+        m_conUrlRubyThread,
         m_conCalTable, m_conNodeBrowser;
 	shared_ptr<Listener> m_lsnOnReleaseDriver;
 	void onReleaseDriver(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
