@@ -67,6 +67,42 @@ and needs no global flag and no branch to say so.  KAME subscribes to
 grows (drivers created, `.kam` loaded).  Runtime subtrees can be pruned
 wholesale, since the flag propagates to descendants.
 
+### Starting: subscribe first, read second
+
+Beginning to journal means two things — writing down what is there now, and
+subscribing to what happens next — and whichever comes first leaves a window.
+Dump before subscribing and a change in the gap appears **nowhere**: the dump
+holds the old value and no entry records the new one.  Subscribe before
+dumping and it appears **twice**.  A loss cannot be repaired; a duplicate can
+be dropped, and re-applying a value that is already set is idempotent anyway.
+So: subscribe first, and give every dumped value the serial of the snapshot it
+was read from, so a reader can discard the entries that predate it.
+
+The window closes entirely at node granularity, without any global
+transaction:
+
+```
+for each subtree:
+    subscribe to the list's onListChanged        <- before enumerating
+    for each child:
+        subscribe to its onValueChanged / onTouch <- before reading
+        read its value and write it to the dump, with the serial
+        recurse
+```
+
+Anything committed after the subscription is caught; the dumped value is read
+after the subscription, so the worst case is a change that appears both as an
+entry and in the dump, which the serial identifies.  A child inserted between
+subscribing to a list and enumerating it likewise shows up in both.
+
+**No root transaction, and no root snapshot.**  Strictness by atomicity is the
+wrong instrument here: a snapshot of an ancestor bundles the subtree, and with
+a hard link present it forces unrelated transactions to fail their CAS and
+retry — stopping the whole tree to start a journal contradicts what the
+journal is for.  Correctness comes instead from "nothing is lost, and
+duplicates are identifiable", which is the same reasoning that keeps restore
+per driver rather than per tree.
+
 ### Node identity
 
 A **session-local id assigned when the node is first subscribed**, plus a
