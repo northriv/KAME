@@ -527,6 +527,42 @@ state is not lost if the user forgets to save; that is the whole point of an
 always-on journal, and it is why `.kam`'s status changes from "save often or
 lose your setup" to a checkpoint.
 
+### The option for a fatter journal, and what it is NOT called
+
+It is tempting to offer "include runtime nodes", and that would be the one
+name to avoid.  The flag does not decide what goes in — attribution does, and
+the two disagree on real nodes (`RXGain` is `runtime == true` and is a
+setting; `ODMR2D/Average` is `runtime == false` and is written by its driver).
+A runtime node the *user* sets is a request and is journaled either way.  What
+the option actually governs is the **high-rate report stream**: what a driver
+writes to any node, at acquisition rate.
+
+Most of it is decided already, and by a rule rather than by the user:
+
+| raw records | reports beyond the cap | what the run holds | chosen how |
+|---|---|---|---|
+| on | dropped | `.kamb` + `.kamj` | **default** — raw plus settings regenerates them |
+| on | kept | + the values as published (~0.4% of the raw stream) | the one explicit option |
+| off | kept | `.kamj.gz` alone — then the journal *is* the data | automatic; there is nothing else to keep |
+| off | dropped | settings only | that is `File → Save`, not a run |
+
+So the run pane needs exactly one extra control beyond the raw-records
+checkbox, and it is worth naming for its purpose rather than its mechanism:
+**"keep values as published"** — for when the number that was published must
+survive a KAME upgrade that changes how it is computed.  Everything else
+follows from whether raw records are being recorded.
+
+Two things stay out of the user's hands.  Requests are never dropped, whatever
+the setting, and neither are reports that change rarely — that is how "the
+instrument said firmware 2.31 that day" gets recorded.  And the always-on
+session journal always caps: it has to stay a few hundred KB a day, so the
+option is a property of a run, not of the session.
+
+The cap itself is a number, not a mode (samples per second per node, 0 =
+keep everything), and it is an `XNode` like everything else, so a script can
+set it and the journal records that it was set.  What its default should be
+is exactly what the stage-1 survey's `peak/s` column is measuring.
+
 ### Where they live
 
 `QStandardPaths::AppLocalDataLocation` — `~/Library/Application Support/kame`
