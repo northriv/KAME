@@ -565,8 +565,25 @@ number that was published (user).  Not an option; a trap.
 
 The combo is where a *human* chooses; the mechanism stays where it is.
 `XRawStreamRecorder`'s `Recording` node keeps being what turns the raw stream
-on, driven by the combo, so scripts and `.kam` files that set it directly go
-on working.
+on, driven by the combo, so scripts that set it directly go on working.
+
+**Does `XRawStreamRecorder` still need to exist?**  The class does: somebody
+has to subscribe to every driver's `onRecord`, hold the file mutex and write
+the gz, and its base `XRawStream` is shared with the *reader*, which is
+staying.  What it no longer is, is a place where anything is decided — its
+`Filename` and `Recording` are now derived from the journal's.
+
+The retirement path is short, and cheap to leave for later: those two nodes
+are `runtime == true`, so **no `.kam` file references them** and the whole
+compatibility surface is scripts.  It can therefore stop being a sibling node
+and become an object the journal owns, in the same breath as the `.kam`
+retirement — one break for users rather than two.
+
+Left as an escape hatch meanwhile: a script that sets `Recording` directly
+still gets a `.kamb`, now with no `.kamj` beside it.  That is the old
+behaviour preserved rather than a state anyone should want, and if it ever
+matters the journal should notice and open a run of its own rather than the
+two disagreeing.
 
 Two things stay out of the user's hands.  Requests are never dropped, whatever
 the setting, and neither are reports that change rarely — that is how "the
