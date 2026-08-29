@@ -34,6 +34,7 @@ XJournal::capture(uint32_t id, uint32_t kind, const Snapshot &shot,
     Record r;
     r.id = id;
     r.kind = kind;
+    r.when = XTime::now();
     m_ring.capture(serial, r);
 }
 
@@ -78,8 +79,9 @@ void
 XJournal::pushPending(const shared_ptr<XNode> &node, uint32_t listId, bool caught) {
     if( !node)
         return;
-    XScopedLock<XMutex> lock(m_pendingMutex);
+    XScopedLock<XCondition> lock(m_wake);
     m_pending.push_back(Pending{node, listId, caught});
+    m_wake.signal();
 }
 
 XJournal::XJournal() {}
@@ -122,6 +124,12 @@ XJournal::stop() {
     if( !m_thread)
         return;
     m_thread->terminate();
+    {
+        //It may be asleep on the condition; do not make quitting wait out a
+        //drain interval.
+        XScopedLock<XCondition> lock(m_wake);
+        m_wake.broadcast();
+    }
     m_thread->join();
     m_thread.reset();
     //Release the listeners while the Sinks they point at are still alive.
@@ -175,6 +183,12 @@ XJournal::managedDirectory(const char *sub) {
     return path.toStdString();
 }
 
+//! How long the thread sleeps with nothing to do.  Not a latency for
+//! structural events (a condition signal wakes it for those) and not a
+//! resolution for timestamps (they are stamped at the write): only how long
+//! records may sit in the ring, which has room for 8192 of them.
+static const int DRAIN_INTERVAL_US = 20000;
+
 void
 XJournal::execute(const atomic<bool> &terminated) {
     XTime lastReport = XTime::now();
@@ -198,7 +212,13 @@ XJournal::execute(const atomic<bool> &terminated) {
             lastReport = XTime::now();
             first = false;
         }
-        msecsleep(200);
+        //Sleeps until a structural event arrives, or the drain interval is
+        //up -- whichever first.  A caught node is subscribed within the
+        //latency of a condition signal; the timeout is only there to keep
+        //the ring from filling, which needs no urgency at 8192 entries.
+        XScopedLock<XCondition> lock(m_wake);
+        if(m_pending.empty())
+            m_wake.wait(DRAIN_INTERVAL_US);
     }
     processPending();
     drainOnce();
@@ -264,7 +284,7 @@ void
 XJournal::processPending() {
     std::deque<Pending> pending;
     {
-        XScopedLock<XMutex> lock(m_pendingMutex);
+        XScopedLock<XCondition> lock(m_wake);
         pending.swap(m_pending);
     }
     for(auto &&p: pending) {
@@ -411,16 +431,15 @@ XJournal::subscribe(const shared_ptr<XNode> &node, const XString &path) {
 void
 XJournal::drainOnce() {
     m_dropped += m_ring.takeDropped();
-    XTime now = XTime::now();
-    m_ring.drain([this, &now](const JournalT::Entry &e){
+    m_ring.drain([this](const JournalT::Entry &e){
         if(e.record.id >= m_nodes.size())
             return;
         NodeRec &rec = m_nodes[e.record.id];
         ++rec.writes;
         ++rec.byThread[(unsigned int)((uint64_t)e.serial & 0xFFFFu)];
         if( !rec.first.isSet())
-            rec.first = now;
-        rec.last = now;
+            rec.first = e.record.when;
+        rec.last = e.record.when;
         ++m_captured;
         if(e.record.kind < NUM_KINDS)
             ++m_byKind[e.record.kind];
@@ -528,8 +547,8 @@ XJournal::writeReport() {
         << "  reports are counted here as requests.\n\n"
         << "  'session/s' averages over the whole session; 'active/s' over the node's\n"
         << "  own first-to-last window, which is the rate a rate cap has to survive.\n"
-        << "  Times are stamped when the ring is drained (every 200 ms), so a window\n"
-        << "  shorter than that is not resolved and 'active/s' is floored at 1 s.\n\n"
+        << "  Times come from the write itself, so a burst is resolved as a burst;\n"
+        << "  'active/s' is blank for a node written only once.\n\n"
         << "  session/s  active/s      writes   request    report  rt  path\n"
         << "  ('d' = left the tree but still alive, 'x' = destroyed)\n";
     std::deque<size_t> order;
@@ -550,11 +569,13 @@ XJournal::writeReport() {
         for(auto &&t: rec.byThread)
             ((threadClassOf(t.first) == ThreadClass::UNKNOWN) ? report : request)
                 += t.second;
-        double active = rec.last.diff_msec(rec.first) / 1000.0;
-        if(active < 1.0)
-            active = 1.0; //!< a burst inside one drain says nothing finer.
-        ofs << formatString("  %9.3f  %8.3f  %10llu  %8llu  %8llu  %s%s  %s\n",
-            rec.writes / elapsed, rec.writes / active,
+        double active = rec.last.diff_usec(rec.first) / 1e6;
+        if(active < 1e-3)
+            active = 1e-3; //!< finer than a millisecond says nothing here.
+        XString activeStr = (rec.writes > 1)
+            ? formatString("%8.3f", rec.writes / active) : XString("       -");
+        ofs << formatString("  %9.3f  %s  %10llu  %8llu  %8llu  %s%s  %s\n",
+            rec.writes / elapsed, activeStr.c_str(),
             (unsigned long long)rec.writes,
             (unsigned long long)request, (unsigned long long)report,
             rec.runtime ? "R" : "-",

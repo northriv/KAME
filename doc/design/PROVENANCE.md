@@ -361,7 +361,15 @@ Three things in it are load-bearing beyond the measurement:
   transaction and says only that *something* changed.  A caught node's
   subtree is subscribed, and a released node's subtree marked off, on the
   journal's own thread; nothing but a ring push happens inside the
-  committing thread's commit.
+  committing thread's commit.  That hand-over **wakes the thread**, rather
+  than waiting for its next pass: the gap between a node joining the tree
+  and being subscribed is a gap in the record, so it is a condition signal
+  and not a poll interval.
+- **Entries are timestamped where the write happens**, not where they are
+  drained.  Stamping at the drain would make the journal's time resolution
+  the drain period — an answer to "what was it at 3:14" no better than the
+  reader's own laziness.  The drain interval is then only how long records
+  may sit in a ring that holds 8192 of them.
 - **A full walk remains, but as a measurement rather than the mechanism.**
   Every 30 s it counts what the events failed to announce: arrivals the
   sweep found first, and departures it noticed first.  Both should be zero,

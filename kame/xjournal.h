@@ -95,6 +95,11 @@ private:
     struct Record {
         uint32_t id;
         uint32_t kind;
+        //! Stamped where the write happened, not where it is drained.  A
+        //! journal that answers "what was it at 3:14" cannot take its times
+        //! from whenever the reader got around to looking: that granularity
+        //! would be the drain period, not the instrument's.
+        XTime when;
     };
     using JournalT = Transactional::Journal<Record, 8192>;
 
@@ -164,12 +169,16 @@ private:
     //! What onCatch / onRelease handed over, waiting for the journal's own
     //! thread.  A structural event is rare enough that a short mutex costs
     //! nothing; it is taken for a push and a swap, never across a snapshot.
+    //!
+    //! The condition IS the queue's mutex, so a caught node wakes the thread
+    //! at once instead of waiting out a poll: the gap between a node joining
+    //! the tree and being subscribed is a gap in the record.
     struct Pending {
         shared_ptr<XNode> node;
         uint32_t listId;
         bool caught;
     };
-    XMutex m_pendingMutex;
+    XCondition m_wake;
     std::deque<Pending> m_pending;
     weak_ptr<XNode> m_root;
     //! Declared BEFORE the node table on purpose: a talker holds a reference
