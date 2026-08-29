@@ -171,9 +171,10 @@ label already exists).  Thread identity classifies nodes empirically:
 - written by UI or script threads → a setting (intent);
 - written only by driver threads → an output (observation).
 
-This is worth more than a flag.  `runtime` leakage is real (some outputs are
-almost certainly not marked), and a flag is only as good as the discipline
-maintaining it, whereas the behavioural test is self-maintaining.  It also
+This is worth more than a flag — though not for the reason first supposed.
+Mis-flagged outputs were expected and have not been found; what exists instead
+is nodes written by both, where no flag could decide because both answers are
+correct at different moments (see the measurements below).  Attribution also
 implements "my edits win" during replay: a node the user has touched since
 opening a recording is theirs, and the journal does not overwrite it.  A
 `NODE_NOT_JOURNALED` bit costs nothing in memory (`m_flags` has spare bits)
@@ -357,10 +358,25 @@ list.  A listener each is tens of kilobytes, and the whole tree walks in
 0.02 s, so per-node subscription is affordable and the design's central
 assumption holds.  83% of the tree is runtime and gets pruned.
 
-The leakage the design predicts is real: `/Drivers/ODMR2D/Average` changes
-about 0.43 times a second with nobody touching anything, while being
-`runtime == false`.  One confirmed instance is enough to settle that the
-`runtime` flag cannot be trusted on its own, which is what attribution is for.
+One node changed with nobody touching anything while being
+`runtime == false`: `/Drivers/ODMR2D/Average`, about 0.43 times a second.
+That is **not** a missing flag — it is deliberately a setting, and the driver
+writes it back while accumulating in incremental mode.  So the leakage this
+design assumed exists has **no confirmed instance**; every other candidate in
+that run was an artefact of the survey.
+
+What the run did find is a category the design did not have: **a setting that
+drivers also write**.  The user decides "average 100"; the driver reports 37
+on its way there, through the same node.  Attribution is still needed, then,
+but for this rather than for catching mis-flagged outputs:
+
+- **Restore takes the last *user-attributed* value** — 100, the request, not
+  37, the progress.  A driver's write-back is recorded and never restored,
+  which is the same asymmetry that governs outputs.
+- **The rate cap is keyed on attribution, not on the flag.**  `Average` is
+  non-runtime and written at the acquisition rate, so capping only
+  "observations" would have missed it.  What needs capping is what a *driver*
+  writes, whatever the node is.
 
 (The same run reported nodes changing hundreds of times a second, impossible
 at four samples a second.  Two faults in the survey, both instructive: it
