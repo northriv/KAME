@@ -363,6 +363,29 @@ Two operations, and they want opposite things:
   with the raw records.  Here analysis *should* re-run on each change: that is
   what happened.
 
+### What overrides the journal, and how it is decided
+
+Nothing needs to reason about authority.  Replay remembers, per node, the
+serial its own write produced, and applies the next entry for that node only
+while the node still carries it.  If the serial has moved, someone else wrote
+— and whoever that was, they are more current than a recording.  It is a
+compare-and-set, the same optimistic control the framework already runs on.
+
+Everything intended falls out of that one test.  A user who edits a node keeps
+it, because the edit moves the serial.  A driver writing back its own progress
+keeps it, for the same reason, so the internal state it maintains is never
+contradicted by a value read out of a file.  A node nobody has touched still
+carries what replay last put there, and the next entry applies.
+
+Note that serials cannot be compared *between* sessions — the counter is
+thread-local and advances past whatever state it observes, so a recorded
+serial means nothing here — and wall clocks are no help either, a recording
+being always in the past.  The question is not "which is newer" but "has
+anyone written since I did", and that is answerable exactly.
+
+Attribution is then needed only to decide **what** to restore (a request, not
+a report), never to decide whether an override happened.
+
 Three policies, not two:
 
 1. **off** — today's behaviour; re-analyse with current settings.  This is a
