@@ -1,13 +1,25 @@
 * Sat Aug 29 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
-- Provenance journal, first stage (developer-only, off by default): with
-  KAME_JOURNAL set in the environment, KAME subscribes to every node and
-  records what changed, on which thread and when, writing a survey to
-  <AppLocalDataLocation>/journal/.  Nothing is restored and no journal file
-  format exists yet; the point is to measure, on a real instrument, which
-  nodes are written by the UI, by a script and by a driver -- the distinction
-  the design rests on and that no flag on a node can express.  Subscription is
-  the switch, so with the variable unset not one listener is attached and the
-  commit path is untouched.  See doc/design/PROVENANCE.md.
+- Measurement journal.  KAME now keeps a record of what it was set to and
+  what it did, without being asked: the "Raw Stream Recorder" group in the
+  driver pane is now "Journal", where you name the RUN and the raw stream
+  follows it (run042.kamj beside run042.kamb), choose how much is kept, and
+  watch what it costs in MB/s.  Three tiers, cumulative: Setup (the settings,
+  ~60 KB), Logbook (and everything the instruments reported, ~11 MB/hr at 144
+  readings a second), Logbook + raw (and the raw records, ~10 GB/hr).
+  Alongside it, and whether or not a run is being recorded, a session journal
+  is written to KAME's own directory -- so a session in which you forgot to
+  save is no longer a session with nothing to show.  It keeps what you did in
+  full and what the instruments reported only after a silence, which is how
+  it stays a few tens of KB; a checkbox turns it off.
+  .kamj is JSON Lines, gzipped: `zgrep` and `zdiff` read it with no tool, and
+  File > Open Measurement applies the dump at its head exactly as it applies
+  a .kam.  Replaying its entries against the raw records -- re-analysing with
+  the settings OF THAT MOMENT rather than today's -- is the next step.
+  Doubles are stored twice, as the rounded text you would read and as the
+  exact eight bytes, since a settings file that rounds makes both a spurious
+  diff and a reproduction that used a different number.
+  See doc/design/PROVENANCE.md.  KAME_JOURNAL=1 additionally writes a
+  developer survey of what every node costs.
 - XListNodeBase::isAliasList(), replacing name tests on getTypename() that
   could never have matched: the mangled name arrives with everything up to the
   first 'X' stripped, and the alias-list subclasses do not carry the template's
