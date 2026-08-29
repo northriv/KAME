@@ -224,14 +224,43 @@ The same applies to structure that appears mid-session: a driver added at
 that moment** the addition cannot be replayed.  Type names travel with
 structural events, not only with the opening dump.
 
-One trap comes along with this.  `getTypename()` defaults to
-`typeid(*this).name()`, which for a template instantiation alias
-(`using XFoo = XFooX<Functor>`) is a mangled name that matches no key in
-`XTypeHolder` — the same defect that breaks `.kam` round-trips.  A dump
-should resolve every type name it writes against the registry and **say so
-loudly** when one does not resolve, rather than writing a line that will
-quietly fail to recreate anything.  (`.kam` writes it regardless today, and
-the Python loader's `_KamFakeNode` swallows the failure on the way back in.)
+### The mangled name goes no further than this file
+
+`getTypename()` is `typeid(*this).name()` with everything up to the first
+`X` cut off.  For a plain `XLakeShore` that yields `LakeShore`, which is also
+what `REGISTER_TYPE(XDriverList, LakeShore, …)` registers — the two agree by
+coincidence of spelling, and that coincidence is the only reason `.kam` works
+today.  It fails wherever the spelling stops coinciding:
+
+- **template instantiations** — `XListNode<XInterface>` becomes
+  `ListNodeI10XInterfaceE`, which matches no registry key;
+- **compilers** — MSVC's `typeid().name()` is `class XListNode<class
+  XInterface>`, so the same node writes a different string on Windows.  A
+  settings file that does not cross platforms is not a settings file;
+- **refactoring** — renaming a template parameter changes the identifier of
+  every node instantiated from it, though nothing about the node changed.
+
+So **a mangled name is never written as an instruction**.  What identifies a
+type, for the purpose of bringing a node back, is *the string it was created
+with* — the registry key — and the reliable way to have that string is to
+record it at creation rather than derive it afterwards from the C++ type.
+The mechanism already exists for exactly this reason:
+`XGraphMathTool::setStoredTypename()` was added because template-alias tools
+could not otherwise round-trip.  Generalising it — `createByTypename()`
+stamping every node it creates — makes the round trip true by construction
+instead of true by coincidence.
+
+Where no key is needed at all, none is written: an alias-list child is
+navigated, a fixed child exists as soon as its parent does, and an
+`XListNode<NT>` child has its element type fixed by the list.  That leaves
+the mangled name with no job in the file except documentation ("this was an
+`XDoubleNode`"), which a reader may print and must never act on.
+
+A dump therefore resolves every key it writes against the parent list's
+registry and **says so loudly** when one does not resolve, rather than
+writing a line that will quietly fail to recreate anything.  (`.kam` writes
+it regardless today, and the Python loader's `_KamFakeNode` swallows the
+failure on the way back in.)
 
 ### Attribution
 
