@@ -78,7 +78,14 @@
   is left to size itself around its titles.  The fold and
   unfold are quicker too, 220 ms to 170 and a snappier curve, and a toolbox
   fades the last quarter of the way in as it grows, so it arrives rather than
-  appears.  The main window does not fade: fading what is being worked in,
+  appears.  (The layout minimum has to be lifted for the way OUT as well, not
+  just the way in: a window re-derives it from the QMdiArea on every layout
+  pass, so the early frames were clamped up to it -- measured, the first frame
+  jumped straight from the 43 px bar to 196 px.  On the toolbox that keeps its
+  right edge that showed as the tab column vanishing for an instant, the width
+  being forced wide while the animation's x was still at the collapsed
+  position, so the window overhung the screen edge and took its own tabs with
+  it.)  The main window does not fade: fading what is being worked in,
   live graphs and console output included, would be an effect for its own sake.
 - UI: an interface that appears is selected and scrolled into view in the
   Interface pane.  Bringing that pane to the front after a driver was added by

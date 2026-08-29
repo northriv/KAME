@@ -621,26 +621,32 @@ FrmKameMain::pollEdgeAutoHide() {
 }
 void
 FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
+    //Lifted for BOTH directions, not just the collapse.  A window re-derives
+    //its minimum from the QMdiArea's size hint on every layout pass, so on the
+    //way back OUT the early frames were clamped up to that minimum: measured,
+    //the first frame jumped straight from the 43 px bar to 196 px, skipping
+    //most of the animation.  On the toolbox that keeps its RIGHT edge that is
+    //visible as the tab column disappearing for an instant — the width is
+    //forced wide while the animation's x is still back at the collapsed
+    //position, so the window overhangs the screen edge and takes its own tabs
+    //off-screen with it.
+    if(s.vertical) {
+        s.area->setMinimumHeight(0);
+        s.win->setMinimumHeight(0);
+    }
+    else {
+        s.area->setMinimumWidth(0);
+        s.win->setMinimumWidth(0);
+    }
     QRect to = s.expanded;
     if(collapse) {
-        //Re-applied here, not once at setup: a window re-derives its minimum
-        //from the QMdiArea's size hint on every layout pass, and a stale one
-        //(~196 px for a toolbox) silently clamps the shrink.
-        if(s.vertical) {
-            s.area->setMinimumHeight(0);
-            s.win->setMinimumHeight(0);
+        if(s.vertical)
             //Half of whatever it is now, keeping the top edge.
             to.setHeight(std::max(s.expanded.height() / 2, 200));
-        }
-        else {
-            s.area->setMinimumWidth(0);
-            s.win->setMinimumWidth(0);
-            //Keep the edge the toolbox clings to; give up the width on the
-            //other side, so it grows out of the screen edge rather than
-            //sliding along it.
-            if(s.left) to.setWidth(s.collapsedWidth);
-            else to.setLeft(s.expanded.right() - s.collapsedWidth + 1);
-        }
+        //Keep the edge the toolbox clings to; give up the width on the other
+        //side, so it grows out of the screen edge rather than sliding along it.
+        else if(s.left) to.setWidth(s.collapsedWidth);
+        else to.setLeft(s.expanded.right() - s.collapsedWidth + 1);
     }
     s.idleTicks = 0;
     s.collapsed = collapse;
