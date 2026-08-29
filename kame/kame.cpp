@@ -389,15 +389,24 @@ namespace {
 //! in one of the two.  The width here is also what sets the column's
 //! thickness, which is why no style proxy is needed for that any more.
 QString flatTabStyleSheet(Qt::Edge accent) {
+    const bool vertical = (accent == Qt::LeftEdge) || (accent == Qt::RightEdge);
     const char *side = (accent == Qt::LeftEdge) ? "left" :
         ((accent == Qt::RightEdge) ? "right" : "bottom");
+    //`width` means different things to the two orientations, and getting that
+    //wrong is not subtle: for a column of rotated labels it is the column's
+    //thickness, but for tabs running along the top it is each tab's LENGTH, so
+    //fixing it there squeezes every title out of existence.  Only the columns
+    //get a width; a row is left to size itself around its titles.
+    const QString metrics = vertical
+        ? "width:26px;padding:10px 4px;margin:2px 3px;"
+        : "padding:6px 14px;margin:3px 2px;";
     return QString(
         "QTabBar{background:transparent;border:none;}"
         "QTabBar::tab{background:transparent;border:none;color:palette(text);"
-        "  width:26px;padding:10px 4px;margin:2px 3px;border-radius:6px;}"
+        "  %1border-radius:6px;}"
         "QTabBar::tab:hover{background:palette(midlight);}"
         "QTabBar::tab:selected{background:palette(alternate-base);"
-        "  border-%1:3px solid palette(highlight);}").arg(side);
+        "  border-%2:3px solid palette(highlight);}").arg(metrics).arg(side);
 }
 } // namespace
 

@@ -72,7 +72,10 @@
   window's tabs along the top).  Every colour is taken from the palette rather
   than written down, so it follows the platform's light/dark setting -- checked
   in both -- and the width in that same stylesheet is what sets the column's
-  thickness, so the style proxy that used to widen it is gone.  The fold and
+  thickness, so the style proxy that used to widen it is gone.  Only a column
+  gets that width: to tabs running along the top, `width` means each tab's
+  LENGTH, and fixing it there squeezed every title out of existence, so a row
+  is left to size itself around its titles.  The fold and
   unfold are quicker too, 220 ms to 170 and a snappier curve, and a toolbox
   fades the last quarter of the way in as it grows, so it arrives rather than
   appears.  The main window does not fade: fading what is being worked in,
