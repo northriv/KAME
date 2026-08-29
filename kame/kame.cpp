@@ -456,12 +456,7 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
         autohide->setCheckable(true);
         autohide->setChecked(true);
         m_pViewMenu->addAction(autohide);
-        auto *fade = new QPropertyAnimation(dock, "windowOpacity", this);
-        fade->setDuration(170);
-        fade->setEasingCurve(QEasingCurve::OutQuint);
-        fade->setStartValue(0.75);
-        fade->setEndValue(1.0);
-        m_edgeSliders.push_back({dock, area, anim, fade, dock->geometry(), tabw + 6,
+        m_edgeSliders.push_back({dock, area, anim, dock->geometry(), tabw + 6,
             false, left, false, 0, true, autohide, false});
         //Pointers into a deque stay valid across push_back.
         EdgeSlider *s = &m_edgeSliders.back();
@@ -495,7 +490,7 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
         auto *anim = new QPropertyAnimation(this, "geometry", this);
         anim->setDuration(170);
         anim->setEasingCurve(QEasingCurve::OutQuint);
-        m_edgeSliders.push_back({this, m_pMdiCentral, anim, nullptr, geometry(), 0,
+        m_edgeSliders.push_back({this, m_pMdiCentral, anim, geometry(), 0,
             true, true, false, 0, true, autohide, false});
         EdgeSlider *s = &m_edgeSliders.back();
         connect(autohide, &QAction::toggled, this, [this, s](bool on){
@@ -650,17 +645,10 @@ FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
     }
     s.idleTicks = 0;
     s.collapsed = collapse;
-    if(s.fade) {
-        //Whatever the fade was doing, the window must not be left part-way
-        //transparent: only a reveal fades, and only while it grows.
-        s.fade->stop();
-        if(collapse)
-            s.win->setWindowOpacity(1.0);
-        else {
-            s.win->setWindowOpacity(0.75);
-            s.fade->start();
-        }
-    }
+    //No fade on the way in.  It was tried, and a window at 0.75 opacity shows
+    //what is behind it: on a bar barely wider than its tabs that reads as the
+    //tabs blinking out, not as an entrance.  These windows are opaque.
+    s.win->setWindowOpacity(1.0);
     s.anim->stop();
     s.anim->setStartValue(s.win->geometry());
     s.anim->setEndValue(to);

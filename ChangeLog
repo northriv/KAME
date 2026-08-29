@@ -76,17 +76,18 @@
   gets that width: to tabs running along the top, `width` means each tab's
   LENGTH, and fixing it there squeezed every title out of existence, so a row
   is left to size itself around its titles.  The fold and
-  unfold are quicker too, 220 ms to 170 and a snappier curve, and a toolbox
-  fades the last quarter of the way in as it grows, so it arrives rather than
-  appears.  (The layout minimum has to be lifted for the way OUT as well, not
+  unfold are quicker too, 220 ms to 170 and a snappier curve.  A fade on the
+  way in was tried and dropped: a window at 0.75 opacity shows what is behind
+  it, and on a bar barely wider than its tabs that reads as the tabs blinking
+  out rather than as an entrance.  These windows are opaque.  (The layout
+  minimum has to be lifted for the way OUT as well, not
   just the way in: a window re-derives it from the QMdiArea on every layout
   pass, so the early frames were clamped up to it -- measured, the first frame
   jumped straight from the 43 px bar to 196 px.  On the toolbox that keeps its
   right edge that showed as the tab column vanishing for an instant, the width
   being forced wide while the animation's x was still at the collapsed
   position, so the window overhung the screen edge and took its own tabs with
-  it.)  The main window does not fade: fading what is being worked in,
-  live graphs and console output included, would be an effect for its own sake.
+  it.)
 - UI: an interface that appears is selected and scrolled into view in the
   Interface pane.  Bringing that pane to the front after a driver was added by
   hand only half finished the job while the row whose port has to be set was
