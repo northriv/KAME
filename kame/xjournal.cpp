@@ -171,13 +171,16 @@ XJournal::walk(const shared_ptr<XNode> &node, const XString &path) {
     //Read AFTER subscribing, never before -- see the ordering rule in
     //subscribe().
     //
-    //multi_nodal = false, and that matters more than it looks: a full
-    //Snapshot of a node BUNDLES its subtree, so walking from the root would
-    //bundle the whole tree -- and with a hard link present that forces
-    //unrelated transactions to fail their CAS and retry.  Stopping the
-    //instrument to look at it is precisely what a journal must not do.  A
-    //single-node snapshot still carries this node's own payload (its runtime
-    //flag) and its child list, which is all the walk reads.
+    //multi_nodal = false.  Not because a root snapshot would be forbidden --
+    //XNodeBrowser takes one whenever the pointed node changes, and
+    //XRubyWriter for every .kam save -- but because THIS walk re-runs on
+    //every structural change and has nothing to gain from a consistent view:
+    //it enumerates children and reads one flag.  A full Snapshot bundles the
+    //subtree, so doing it from the root would bundle the whole tree at every
+    //driver creation and all the way through a .kam load.  A single-node
+    //snapshot still carries this node's own payload and its child list, which
+    //is all the walk reads.  The dump, which runs once and does need a
+    //consistency cut, is the opposite case -- see doc/design/PROVENANCE.md.
     Snapshot shot( *node, false);
     if(id != NO_NODE)
         m_nodes[id].runtime = shot[ *node].isRuntime();

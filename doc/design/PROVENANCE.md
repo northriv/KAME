@@ -140,13 +140,29 @@ after the subscription, so the worst case is a change that appears both as an
 entry and in the dump, which the serial identifies.  A child inserted between
 subscribing to a list and enumerating it likewise shows up in both.
 
-**No root transaction, and no root snapshot.**  Strictness by atomicity is the
-wrong instrument here: a snapshot of an ancestor bundles the subtree, and with
-a hard link present it forces unrelated transactions to fail their CAS and
-retry — stopping the whole tree to start a journal contradicts what the
-journal is for.  Correctness comes instead from "nothing is lost, and
-duplicates are identifiable", which is the same reasoning that keeps restore
-per driver rather than per tree.
+**No root transaction — but the dump does take a root snapshot.**  An earlier
+draft of this section forbade both, and that was wrong about the snapshot
+(user, 2026-08-29).  A root Snapshot is ordinary in KAME: `XNodeBrowser`
+takes one every time the pointed node changes, on a 500 ms timer, and
+`XRubyWriter` takes one for every `.kam` save.  It bundles, so other threads
+may lose a CAS once and retry — a cost the application already pays several
+times a second whenever the node browser is open.  What is genuinely
+forbidden is different and stays forbidden: a **root transaction**, which
+would serialise every writer in the tree behind the journal, and a snapshot
+taken from *inside* a transaction on a descendant, where the bundling changes
+the packet the CAS compares against and the transaction can never commit.
+
+And the dump *needs* it.  Reading values node by node has no consistency cut
+at all: each value carries its own serial and the collection as a whole never
+existed.  One root snapshot gives one serial, one instant, and an exact
+de-duplication rule — an entry whose node and serial match the dumped
+payload's serial IS the write that produced the dumped value, so no ordering
+comparison is required to drop it.
+
+The walk that *subscribes* is a different operation and stays single-nodal:
+it re-runs on every structural change, and enumerating children needs no
+cross-node consistency.  So: subscribe with per-node single-nodal snapshots,
+then take one root snapshot and dump from that.
 
 ### Node identity
 
@@ -296,11 +312,13 @@ Three things in it are load-bearing beyond the measurement:
 
 - **The walk never bundles.**  Both the per-node snapshot and the transaction
   that attaches the listeners are single-nodal (`Snapshot(node, false)`, the
-  same `false` the `trans()` macro passes).  A full snapshot of a node bundles
-  its subtree, so walking from the root would bundle the whole tree and, with
-  a hard link present, force unrelated transactions to fail their CAS and
-  retry.  Stopping the instrument to look at it is exactly what a journal must
-  not do.
+  same `false` the `trans()` macro passes).  Not because a root snapshot is
+  forbidden — the node browser takes one every time the pointed node changes
+  — but because this walk **re-runs on every structural change** and needs no
+  consistency: it only enumerates children and reads one flag.  Paying for a
+  bundle of the whole tree at every driver creation, and again through a
+  `.kam` load, is a cost with nothing to show for it.  The dump, which runs
+  once and does need a consistency cut, is the opposite case and takes one.
 - **Identity is a session-local id baked into the object the talker holds**, so
   the capture path does no lookup at all: it reads the write's serial off the
   committed payload and pushes one record into the ring.  A node reached again
