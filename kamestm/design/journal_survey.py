@@ -25,12 +25,16 @@ REPORT = os.path.expanduser("~/kame_journal_survey.txt")
 def walk(node, path, out, depth=0):
     """Collect (path, node, runtime) for every node under `node`.
 
-    Paths are NOT unique in this tree and cannot be used as keys: calibration
-    tables hold hundreds of children with empty names, and every driver's
-    interface is called "Interface" in the same list.  Measured -- keying by
-    path made unrelated siblings share a counter and report rates several
-    hundred times the sampling rate.  Each node therefore gets an index, which
-    is what everything downstream keys on; the path is for reading only.
+    Alias lists are not descended into, the same rule the .kam writer follows
+    (`XAliasListNode` children are navigated, never created).  They reference
+    nodes another parent owns -- /Interfaces holds every driver's "Interface"
+    -- so walking them counts hard-linked nodes once per parent and invents
+    ambiguity that KAME itself never has: the address of that node is
+    /Drivers/<name>/Interface, and nothing addresses it through the list.
+
+    Even so, paths are not unique keys here: a calibration table holds
+    hundreds of children with empty names, where order is what carries the
+    meaning.  Each node therefore gets an index; the path is for reading only.
     """
     try:
         shot = Snapshot(node)
@@ -44,6 +48,11 @@ def walk(node, path, out, depth=0):
     out.append((path, node, runtime, depth, bool(children)))
     if not children:
         return
+    try:
+        if node.getTypename().startswith("XAliasListNode"):
+            return      #references, not ownership -- see the docstring
+    except Exception:
+        pass
     for child in children:
         try:
             name = child.getName()

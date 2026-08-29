@@ -114,11 +114,18 @@ registered type name, its position and its flags.  Not a path hash:
   created at the same path, which is exactly the case provenance must
   distinguish.
 
-And not the path itself, which is not even unique before the DAG is
-considered: measured on an ODMR rig, a calibration table holds hundreds of
-children with **empty names**, and every driver's interface is called
-`Interface` in the same list.  Paths are for reading; identity is the id, and
-a table entry needs its position within its parent to be unambiguous at all.
+And not the path itself.  KAME's own rule is that a node which cannot be told
+from its siblings by name is **not addressed through that list at all**: the
+interface listed as `/Interfaces/Interface` for every driver is reached at
+`/Drivers/<name>/Interface`, where the name is unique, and `XInterfaceList` is
+an `XAliasListNode` precisely to say so — the same class the `.kam` writer
+refuses to emit `create()` for.  So the canonical path runs through the parent
+that **owns** a node, never through a list that merely references it.
+
+Position cannot stand in either: it moves as the user reorders things in the
+UI and depends on registration order.  It is meaningful only in the lists
+where order *is* the meaning — a calibration table's rows, whose children have
+empty names for that very reason.
 
 Not topology indices either: sibling insertion and release shift them, so the
 same node changes identity mid-session.  Cross-session stability is not
@@ -355,10 +362,13 @@ about 0.43 times a second with nobody touching anything, while being
 `runtime == false`.  One confirmed instance is enough to settle that the
 `runtime` flag cannot be trusted on its own, which is what attribution is for.
 
-(The same run reported several nodes changing hundreds of times a second,
-which is impossible at four samples a second.  That was the survey keying by
-path — see above on why paths collide.  The finding stands as evidence for the
-id, not as a measurement.)
+(The same run reported nodes changing hundreds of times a second, impossible
+at four samples a second.  Two faults in the survey, both instructive: it
+keyed by path, and it descended into alias lists.  The second inflates the
+node count — a hard-linked node is counted once per parent — and manufactures
+the very ambiguity KAME avoids by never addressing those nodes that way.  The
+7103 above is therefore an upper bound; the shape of the answer is not in
+doubt, but the number will come down when it is measured again.)
 
 ## Deferred
 
