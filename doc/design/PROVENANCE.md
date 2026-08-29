@@ -695,6 +695,31 @@ still earns its place — it says what a Logbook will cost per hour, and
 whether the ring can keep up — but it is a sizing number now, not a tuning
 one.
 
+**What a Logbook line costs, measured** (a TestDriver run, 2313 entries):
+
+| | per line | share |
+|---|---|---|
+| `"ts"` (readable time) | 39 B | 33% |
+| `"x"` (exact double, base64) | 19 B | 16% |
+| `"s"` (serial) | 15 B | 13% |
+| `"v"` (value as text) | 15 B | 13% |
+| `"c"` (request/report) | 13 B | 11% |
+| `"t"`, `"id"` | 16 B | 14% |
+| **total** | **118 B** | |
+
+At 144 readings a second that is 17 kB/s *produced* — and **3 kB/s on disk**,
+because the JSON is repetitive and gzip removes nearly all of it.  Which is
+the useful lesson: **trimming the format buys almost nothing.**  Dropping the
+readable timestamp for an epoch number and removing `"c"` takes 27% off the
+produced bytes and **3% off the file**.
+
+What does cost is the one field that is not repetitive: **the exact double is
+half the compressed file** (removing it: 50% smaller on disk), since base64
+of a measured value is pure entropy.  It stays anyway — `to_str()` on a node
+with a display format renders `-0.1258[K]`, four digits and a unit, so
+without the exact bytes an observation is not recoverable at all, which is a
+worse failure than a file twice the size.
+
 ### One extension, and the compression inside it
 
 `.kamj` is gzip, and its name does not say so — the same choice `.docx`,
