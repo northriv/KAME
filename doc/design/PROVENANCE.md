@@ -476,8 +476,7 @@ the session dies a second later.
 | File | Extension | Contents |
 |---|---|---|
 | Settings snapshot (legacy) | `.kam` | as today; readable for ever, written until the dump replaces it |
-| Journal | **`.kamj`** | header record, dump, then one JSON object per line |
-| Journal with observations | **`.kamj.gz`** | same format, gzip *members* per block |
+| Journal | **`.kamj.gz`** | header record, dump, then one JSON object per line, gzipped |
 | Raw stream | **`.kamb`** (was `.bin`) | unchanged format; `.bin` keeps loading for ever |
 
 JSON Lines because the two operations that matter — `diff run1.kamj
@@ -682,8 +681,22 @@ something actually changed, and precisely not the stream a driver produces
 while measuring.  That is what keeps a day's session in the hundreds of KB
 the design assumed, without anyone choosing anything.
 
-(Retention is not yet handled: one file per session, kept for ever.  They are
-small, but "for ever" wants a policy eventually.)  **When a recording is started, the journal is
+**Measured, and it decided the format** (2026-08-29): a session journal of an
+ODMR rig was 608 KB after a few seconds, of which the dump was 592 KB and the
+entries 30 — the silence rule was doing its job, and the *dump* is the cost.
+3051 nodes at ~190 bytes each.  Gzipped it is 62 KB, so the file is gzip
+throughout rather than plain for settings and compressed only for
+observations: even the smallest tier is a full dump, and no rig's tree is
+small.  `zcat` and `zgrep` keep it as readable as a provenance file has to be
+in ten years.
+
+The user's conclusion from the same measurement, and it is right: **it must
+be possible to switch off**.  `Journal/SessionJournal` (saved, default on)
+does that.  A dump is not free, and a background writer nobody can refuse is
+impolite whatever its size.
+
+(Retention is still not handled: one file per session, kept for ever.  They
+are small now, but "for ever" wants a policy eventually.)  **When a recording is started, the journal is
 also written beside the user's chosen file with a matching basename** —
 `run042.gz` / `run042.kamj` — because users manage measurements as files and a
 journal left behind in a hidden directory is a journal lost the first time the

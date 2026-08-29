@@ -106,7 +106,7 @@ private:
         m_conDrivers, m_conInterfaces, m_conEntries, m_conGraphs, m_conCalibEntries,
         m_conTextWrite, m_conTextURL, m_conTextLastLine,
         m_conLogURL, m_conLogWrite, m_conLogEvery,
-        m_conJournalURL, m_conJournalMode, m_conJournalWrite, m_conJournalStats,
+        m_conJournalURL, m_conJournalSession, m_conJournalMode, m_conJournalWrite, m_conJournalStats,
         m_conUrlRubyThread,
         m_conCalTable, m_conNodeBrowser;
 	shared_ptr<Listener> m_lsnOnReleaseDriver;

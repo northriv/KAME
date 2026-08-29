@@ -16,6 +16,7 @@
 #include "xitemnode.h"
 #include "analyzer/recorder.h"
 #include "support.h"
+#include <zlib.h>
 #include <fstream>
 #include <algorithm>
 #include <cstdlib>
@@ -44,6 +45,9 @@ XJournalRecorder::XJournalRecorder(const char *name, bool runtime,
     m_filename(create<XStringNode>("Filename", true)),
     m_mode(create<XComboNode>("Mode", false)),
     m_recording(create<XBoolNode>("Recording", true)),
+    //Saved, unlike the run's switch: whether this rig journals its sessions
+    //at all is a property of the rig, not of today.
+    m_sessionJournal(create<XBoolNode>("SessionJournal", false)),
     m_statistics(create<XStringNode>("Statistics", true)),
     //Runtime: a run's stream is chosen for that run, and nothing about it
     //belongs in a settings file.
@@ -58,6 +62,7 @@ XJournalRecorder::XJournalRecorder(const char *name, bool runtime,
         //non-runtime), so a rig that records raw says so once and remembers.
         tr[ *m_mode] = (int)Mode::SETUP;
         tr[ *m_recording] = false;
+        tr[ *m_sessionJournal] = true;
         m_lsnOnRecordingChanged = tr[ *m_recording].onValueChanged().connectWeakly(
             shared_from_this(), &XJournalRecorder::onRecordingChanged);
         m_lsnOnFilenameChanged = tr[ *m_filename].onValueChanged().connectWeakly(
@@ -103,7 +108,7 @@ static XString withExtension(const XString &given, const char *ext) {
         return {};
     //Strip whichever of the family the user happened to type, and nothing
     //else: a name with a dot in it is a name, not an extension.
-    for(auto &&known: {".kamj", ".kamb", ".kam", ".bin", ".gz"})
+    for(auto &&known: {".kamj.gz", ".kamj", ".kamb", ".kam", ".bin", ".gz"})
         if(s.endsWith(known, Qt::CaseInsensitive)) {
             s.chop(QString(known).length());
             break;
@@ -115,7 +120,7 @@ XJournalRecorder::rawBytesWritten() const {
     return m_rawstream->bytesWritten();
 }
 
-XString XJournalRecorder::journalPathOf(const XString &given) {return withExtension(given, ".kamj");}
+XString XJournalRecorder::journalPathOf(const XString &given) {return withExtension(given, ".kamj.gz");}
 XString XJournalRecorder::rawPathOf(const XString &given) {return withExtension(given, ".kamb");}
 
 //! The raw stream follows: its path is set only as recording starts, since
@@ -193,9 +198,7 @@ XJournal::captureValue(Sink &sink, const Snapshot &shot,
         if( !cap || (nowUs - last > cap))
             where |= FLAG_RUN;
     }
-    if( !m_runOut)
-        where &= ~(uint32_t)FLAG_RUN;
-    else if( !m_runKeepsValues)
+    if( !m_runKeepsValues)
         where &= ~(uint32_t)FLAG_RUN;
     if( !where) {
         ++m_cappedReports;
@@ -382,7 +385,44 @@ XJournal::managedDirectory(const char *sub) {
 static const int DRAIN_INTERVAL_US = 20000;
 
 
-//! Text, so `diff run1.kamj run2.kamj` and `grep` work with no tool at all --
+bool
+XJournal::Out::open(const XString &path) {
+    close();
+    m_gz = gzopen(path.c_str(), "wb");
+    m_bytes = 0;
+    return !!m_gz;
+}
+void
+XJournal::Out::line(const XString &s) {
+    if( !m_gz)
+        return;
+    gzwrite((gzFile)m_gz, s.c_str(), (unsigned)s.size());
+    m_bytes += s.size();
+    m_dirty = true;
+}
+void
+XJournal::Out::flush(bool force) {
+    if( !m_gz || !m_dirty)
+        return;
+    XTime now = XTime::now();
+    if( !force && m_flushedAt.isSet() && (now.diff_msec(m_flushedAt) < 1000))
+        return;
+    //Z_FULL_FLUSH, not Z_SYNC_FLUSH: it ends the deflate block AND resets the
+    //dictionary, so everything up to here stays readable on its own -- the
+    //property a half-copied or half-killed file needs.  It costs compression,
+    //which is why it is once a second and not once a drain.
+    gzflush((gzFile)m_gz, Z_FULL_FLUSH);
+    m_flushedAt = now;
+    m_dirty = false;
+}
+void
+XJournal::Out::close() {
+    if(m_gz)
+        gzclose((gzFile)m_gz);
+    m_gz = nullptr;
+}
+
+//! Text, so `zdiff run1.kamj.gz run2.kamj.gz` and `zgrep` work with no tool at all --
 //! which is most of the value of a provenance file ten years from now.
 static XString jsonEscape(const XString &str) {
     XString out;
@@ -419,23 +459,24 @@ static XString exactOf(double v) {
 }
 
 void
-XJournal::writeHeader(std::ofstream &out, const char *kind) {
+XJournal::writeHeader(Out &out, const char *kind) {
     auto rec = m_recorder.lock();
     Snapshot shot( *rec);
-    XString raw = XJournalRecorder::rawPathOf(shot[ *rec->filename()].to_str());
-    out << "{\"format\":\"kame-journal\",\"version\":1"
-        << ",\"kind\":\"" << kind << "\"" 
-        << ",\"session\":\"" << m_session << "\""
-        << ",\"started\":\"" << jsonEscape(XTime::now().getTimeStr()) << "\""
-        << ",\"kame\":\"" VERSION "\""
-        ;
-    if(XString("run") == kind)
-        out << ",\"mode\":\"" << XJournalRecorder::modeLabel(rec->modeOf(shot)) << "\"";
-    if((XString("run") == kind)
-        && (rec->modeOf(shot) == XJournalRecorder::Mode::LOGBOOK_RAW))
-        out << ",\"raw\":\"" << jsonEscape(QFileInfo(QString::fromStdString(raw))
-            .fileName().toStdString()) << "\"";
-    out << "}\n";
+    XString s = XString("{\"format\":\"kame-journal\",\"version\":1,\"kind\":\"")
+        + kind + "\",\"session\":\"" + m_session
+        + "\",\"started\":\"" + jsonEscape(XTime::now().getTimeStr())
+        + "\",\"kame\":\"" VERSION "\"";
+    if(XString("run") == kind) {
+        s += XString(",\"mode\":\"") + XJournalRecorder::modeLabel(rec->modeOf(shot)) + "\"";
+        if(rec->modeOf(shot) == XJournalRecorder::Mode::LOGBOOK_RAW) {
+            XString raw = XJournalRecorder::rawPathOf(shot[ *rec->filename()].to_str());
+            s += ",\"raw\":\"" + jsonEscape(QFileInfo(QString::fromStdString(raw))
+                .fileName().toStdString()) + "\"";
+        }
+        s += ",\"sessionfile\":\"" + jsonEscape(QFileInfo(
+            QString::fromStdString(m_sessionPath)).fileName().toStdString()) + "\"";
+    }
+    out.line(s + "}\n");
 }
 
 //! The dump: what the tree was, at one instant.
@@ -446,7 +487,7 @@ XJournal::writeHeader(std::ofstream &out, const char *kind) {
 //! node browser takes one whenever the pointed node changes); what is
 //! forbidden is a root TRANSACTION.
 void
-XJournal::writeDump(std::ofstream &out) {
+XJournal::writeDump(Out &out) {
     auto root = m_root.lock();
     if( !root)
         return;
@@ -455,7 +496,7 @@ XJournal::writeDump(std::ofstream &out) {
 }
 
 void
-XJournal::dumpSubtree(std::ofstream &out, const Snapshot &shot,
+XJournal::dumpSubtree(Out &out, const Snapshot &shot,
     const shared_ptr<XNode> &node, const XString &path,
     uint32_t parentId, int index) {
     uint32_t id = subscribe(node, path);
@@ -463,31 +504,31 @@ XJournal::dumpSubtree(std::ofstream &out, const Snapshot &shot,
     rec.reachable = true;
     rec.inTree = true;
 
-    out << "{\"t\":\"n\",\"id\":" << id;
+    XString s = formatString("{\"t\":\"n\",\"id\":%u", (unsigned)id);
     if(index >= 0)
-        out << ",\"p\":" << parentId << ",\"i\":" << index;
-    out << ",\"name\":\"" << jsonEscape(node->getName()) << "\""
-        << ",\"path\":\"" << jsonEscape(path) << "\"";
+        s += formatString(",\"p\":%u,\"i\":%d", (unsigned)parentId, index);
+    s += ",\"name\":\"" + jsonEscape(node->getName())
+        + "\",\"path\":\"" + jsonEscape(path) + "\"";
     //The registry key, and only when there IS one: a mangled type name is
     //never written as an instruction.  \sa doc/design/PROVENANCE.md
     XString key = node->storedTypename();
     if(key.length())
-        out << ",\"type\":\"" << jsonEscape(key) << "\"";
-    out << ",\"class\":\"" << jsonEscape(node->getTypename()) << "\"";
+        s += ",\"type\":\"" + jsonEscape(key) + "\"";
+    s += ",\"class\":\"" + jsonEscape(node->getTypename()) + "\"";
     if(shot[ *node].isRuntime())
-        out << ",\"runtime\":true";
+        s += ",\"runtime\":true";
     auto lnode = dynamic_pointer_cast<XListNodeBase>(node);
     if(lnode)
-        out << ",\"list\":\"" << (lnode->isAliasList() ? "alias" : "own") << "\"";
-    out << "}\n";
+        s += XString(",\"list\":\"") + (lnode->isAliasList() ? "alias" : "own") + "\"";
+    out.line(s + "}\n");
 
     if(auto vnode = dynamic_pointer_cast<XValueNodeBase>(node)) {
-        out << "{\"t\":\"v\",\"id\":" << id
-            << ",\"s\":" << (long long)shot[ *vnode].serial()
-            << ",\"v\":\"" << jsonEscape(shot[ *vnode].to_str()) << "\"";
+        XString v = formatString("{\"t\":\"v\",\"id\":%u,\"s\":%lld", (unsigned)id,
+            (long long)shot[ *vnode].serial())
+            + ",\"v\":\"" + jsonEscape(shot[ *vnode].to_str()) + "\"";
         if(auto dnode = dynamic_pointer_cast<XDoubleNode>(node))
-            out << ",\"x\":\"" << exactOf((double)shot[ *dnode]) << "\"";
-        out << "}\n";
+            v += ",\"x\":\"" + exactOf((double)shot[ *dnode]) + "\"";
+        out.line(v + "}\n");
     }
 
     if( !shot.size(node))
@@ -504,19 +545,19 @@ XJournal::dumpSubtree(std::ofstream &out, const Snapshot &shot,
 }
 
 void
-XJournal::writeEntry(std::ofstream &out, const JournalT::Entry &e) {
+XJournal::writeEntry(Out &out, const JournalT::Entry &e) {
     if(e.record.kind != KIND_VALUE)
         return; //structure is written where it is subscribed, with its names
-    out << "{\"t\":\"v\",\"id\":" << e.record.id
-        << ",\"ts\":\"" << jsonEscape(e.record.when.getTimeStr()) << "\""
-        << ",\"s\":" << (long long)e.serial
-        << ",\"c\":\"" << ((threadClassOf((unsigned int)((uint64_t)e.serial & 0xffffu))
-            == ThreadClass::UNKNOWN) ? "report" : "request") << "\"";
+    XString s = formatString("{\"t\":\"v\",\"id\":%u", (unsigned)e.record.id)
+        + ",\"ts\":\"" + jsonEscape(e.record.when.getTimeStr()) + "\""
+        + formatString(",\"s\":%lld", (long long)e.serial)
+        + ",\"c\":\"" + ((threadClassOf((unsigned int)((uint64_t)e.serial & 0xffffu))
+            == ThreadClass::UNKNOWN) ? "report" : "request") + "\"";
     if(e.record.value)
-        out << ",\"v\":\"" << jsonEscape(e.record.value) << "\"";
+        s += ",\"v\":\"" + jsonEscape(e.record.value) + "\"";
     if(e.record.flags & FLAG_EXACT)
-        out << ",\"x\":\"" << exactOf(e.record.exact) << "\"";
-    out << "}\n";
+        s += ",\"x\":\"" + exactOf(e.record.exact) + "\"";
+    out.line(s + "}\n");
 }
 
 //! Provenance must exist for a session in which nobody started a recording --
@@ -533,16 +574,13 @@ XJournal::openSession() {
     m_session = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
     m_sessionPath = dir + "/session-"
         + QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss").toStdString() + ".kamj";
-    m_sessionOut.reset(new std::ofstream(m_sessionPath.c_str(),
-        std::ios::out | std::ios::trunc));
-    if( !m_sessionOut->good()) {
-        m_sessionOut.reset();
+    if( !m_sessionOut.open(m_sessionPath)) {
         gWarnPrint(i18n_noncontext("Journal: cannot write ") + m_sessionPath);
         return;
     }
-    writeHeader( *m_sessionOut, "session");
-    writeDump( *m_sessionOut);
-    m_sessionOut->flush();
+    writeHeader(m_sessionOut, "session");
+    writeDump(m_sessionOut);
+    m_sessionOut.flush(true);
     //Show what is being written, so "always on" is visible rather than
     //merely true.
     if(auto rec = m_recorder.lock())
@@ -555,6 +593,21 @@ XJournal::syncRun() {
     if( !rec)
         return;
     Snapshot shot( *rec);
+    //The always-on journal is refusable.  A dump is not free -- an ODMR tree
+    //is 3000 nodes, 600 KB before compression -- and a background writer
+    //nobody can switch off is impolite whatever its size.
+    bool wantSession = shot[ *rec->sessionJournal()];
+    if(wantSession && !m_sessionOut.isOpen())
+        openSession();
+    else if( !wantSession && m_sessionOut.isOpen()) {
+        m_sessionOut.line(XString("{\"t\":\"session\",\"state\":\"end\",\"ts\":\"")
+            + jsonEscape(XTime::now().getTimeStr()) + "\"}\n");
+        m_sessionOut.close();
+        //Do not leave the field naming a file nothing is writing.
+        if(shot[ *rec->filename()].to_str() == m_sessionPath)
+            trans( *rec->filename()) = XString();
+        m_sessionPath.clear();
+    }
     bool on = shot[ *rec->recording()];
     auto mode = rec->modeOf(shot);
     if(on && !m_runOpen) {
@@ -564,9 +617,7 @@ XJournal::syncRun() {
             trans( *rec->recording()) = false;
             return;
         }
-        m_runOut.reset(new std::ofstream(path.c_str(), std::ios::out | std::ios::trunc));
-        if( !m_runOut->good()) {
-            m_runOut.reset();
+        if( !m_runOut.open(path)) {
             gErrPrint(i18n_noncontext("Journal: cannot write ") + path);
             trans( *rec->recording()) = false;
             return;
@@ -576,33 +627,28 @@ XJournal::syncRun() {
         m_bytesLast = 0;
         m_rawBytesAtStart = rec->rawBytesWritten();
         m_runOpen = true;
-        writeHeader( *m_runOut, "run");
-        writeDump( *m_runOut);
-        m_runOut->flush();
+        writeHeader(m_runOut, "run");
+        writeDump(m_runOut);
+        m_runOut.flush(true);
         //The session journal says where its runs went, so either half leads
         //to the other.
-        if(m_sessionOut) {
-            *m_sessionOut << "{\"t\":\"run\",\"state\":\"start\",\"file\":\""
-                << jsonEscape(QFileInfo(QString::fromStdString(m_openPath)).fileName().toStdString())
-                << "\",\"ts\":\"" << jsonEscape(XTime::now().getTimeStr()) << "\"}\n";
-            m_sessionOut->flush();
-        }
+        m_sessionOut.line(XString("{\"t\":\"run\",\"state\":\"start\",\"file\":\"")
+            + jsonEscape(QFileInfo(QString::fromStdString(m_openPath)).fileName().toStdString())
+            + "\",\"ts\":\"" + jsonEscape(XTime::now().getTimeStr()) + "\"}\n");
+        m_sessionOut.flush();
         gMessagePrint(i18n_noncontext("Journal: ") + m_openPath);
     }
     //The mode can change mid-run; only the tier above Setup keeps values.
     m_runKeepsValues = m_runOpen && (mode != XJournalRecorder::Mode::SETUP);
     if( !on && m_runOpen) {
         drainOnce(); //!< whatever is still in the ring belongs in the file
-        m_runOut->flush();
-        m_runOut.reset();
+        m_runOut.close();
         m_runOpen = false;
         m_runKeepsValues = false;
-        if(m_sessionOut) {
-            *m_sessionOut << "{\"t\":\"run\",\"state\":\"end\",\"file\":\""
-                << jsonEscape(QFileInfo(QString::fromStdString(m_openPath)).fileName().toStdString())
-                << "\",\"ts\":\"" << jsonEscape(XTime::now().getTimeStr()) << "\"}\n";
-            m_sessionOut->flush();
-        }
+        m_sessionOut.line(XString("{\"t\":\"run\",\"state\":\"end\",\"file\":\"")
+            + jsonEscape(QFileInfo(QString::fromStdString(m_openPath)).fileName().toStdString())
+            + "\",\"ts\":\"" + jsonEscape(XTime::now().getTimeStr()) + "\"}\n");
+        m_sessionOut.flush();
     }
 }
 
@@ -642,7 +688,6 @@ XJournal::execute(const atomic<bool> &terminated) {
     bool first = true;
     XTime lastSweep = XTime::now();
     sweep(); //!< the one full walk that has to happen: the opening state.
-    openSession();
     while( !terminated) {
         syncRun();
         processPending();
@@ -672,12 +717,9 @@ XJournal::execute(const atomic<bool> &terminated) {
         trans( *rec->recording()) = false; //!< closes the run file through syncRun()
     syncRun();
     drainOnce();
-    if(m_sessionOut) {
-        *m_sessionOut << "{\"t\":\"session\",\"state\":\"end\",\"ts\":\""
-            << jsonEscape(XTime::now().getTimeStr()) << "\"}\n";
-        m_sessionOut->flush();
-        m_sessionOut.reset();
-    }
+    m_sessionOut.line(XString("{\"t\":\"session\",\"state\":\"end\",\"ts\":\"")
+        + jsonEscape(XTime::now().getTimeStr()) + "\"}\n");
+    m_sessionOut.close();
     writeReport();
 }
 
@@ -755,15 +797,15 @@ XJournal::processPending() {
             //the type keys: a driver added at 14:22 cannot be replayed from
             //a line that only says something changed.
             walk(p.node, path);
-            if(m_sessionOut || m_runOut) {
+            if(m_sessionOut.isOpen() || m_runOut.isOpen()) {
                 Snapshot shot( *p.node);
-                if(m_sessionOut) {
-                    dumpSubtree( *m_sessionOut, shot, p.node, path, p.listId, p.index);
-                    m_sessionOut->flush();
+                if(m_sessionOut.isOpen()) {
+                    dumpSubtree(m_sessionOut, shot, p.node, path, p.listId, p.index);
+                    m_sessionOut.flush(true);
                 }
-                if(m_runOut) {
-                    dumpSubtree( *m_runOut, shot, p.node, path, p.listId, p.index);
-                    m_runOut->flush();
+                if(m_runOut.isOpen()) {
+                    dumpSubtree(m_runOut, shot, p.node, path, p.listId, p.index);
+                    m_runOut.flush(true);
                 }
             }
             auto it = m_index.find(p.node.get());
@@ -779,8 +821,8 @@ XJournal::processPending() {
                 XString line = formatString("{\"t\":\"released\",\"id\":%u,",
                     (unsigned)it->second)
                     + "\"ts\":\"" + jsonEscape(XTime::now().getTimeStr()) + "\"}\n";
-                if(m_sessionOut) *m_sessionOut << line;
-                if(m_runOut) *m_runOut << line;
+                m_sessionOut.line(line);
+                m_runOut.line(line);
                 detachSubtree(it->second);
             }
         }
@@ -928,25 +970,19 @@ XJournal::drainOnce() {
         ++m_captured;
         if(e.record.kind < NUM_KINDS)
             ++m_byKind[e.record.kind];
-        if(m_sessionOut && (e.record.flags & FLAG_SESSION))
-            writeEntry( *m_sessionOut, e);
+        if(e.record.flags & FLAG_SESSION)
+            writeEntry(m_sessionOut, e);
         //A Setup run is the dump and nothing after it; entries belong to a
         //Logbook.
-        if(m_runOut && m_runKeepsValues && (e.record.flags & FLAG_RUN))
-            writeEntry( *m_runOut, e);
+        if(m_runKeepsValues && (e.record.flags & FLAG_RUN))
+            writeEntry(m_runOut, e);
         delete[] e.record.value;
     });
     //Flushed at a line boundary, so a copy taken now is both current and
     //parsable -- the same property that makes a killed session readable.
-    m_bytesJournal = 0;
-    if(m_sessionOut) {
-        m_sessionOut->flush();
-        m_bytesJournal += (uintptr_t)m_sessionOut->tellp();
-    }
-    if(m_runOut) {
-        m_runOut->flush();
-        m_bytesJournal += (uintptr_t)m_runOut->tellp();
-    }
+    m_sessionOut.flush();
+    m_runOut.flush();
+    m_bytesJournal = m_sessionOut.bytes() + m_runOut.bytes();
 }
 
 XString

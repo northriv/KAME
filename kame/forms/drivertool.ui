@@ -56,6 +56,16 @@
           </property>
          </widget>
         </item>
+        <item>
+         <widget class="QCheckBox" name="m_ckbSessionJournal">
+          <property name="toolTip">
+           <string>Journal every session to KAME's own directory, whether or not a run is being recorded.</string>
+          </property>
+          <property name="text">
+           <string>Session</string>
+          </property>
+         </widget>
+        </item>
        </layout>
       </item>
       <item>
@@ -160,6 +170,7 @@
  <tabstops>
   <tabstop>m_edJournal</tabstop>
   <tabstop>m_btnJournal</tabstop>
+  <tabstop>m_ckbSessionJournal</tabstop>
   <tabstop>m_cmbJournalMode</tabstop>
   <tabstop>m_ckbJournalWrite</tabstop>
   <tabstop>m_tblDrivers</tabstop>

@@ -56,6 +56,10 @@ public:
     //! How much this run keeps.  \sa Mode
     const shared_ptr<XComboNode> &mode() const {return m_mode;}
     const shared_ptr<XBoolNode> &recording() const {return m_recording;}
+    //! Whether the always-on session journal is written at all.  It has to
+    //! be refusable: a dump is not free (an ODMR tree is 3000 nodes), and a
+    //! background writer nobody can switch off is impolite whatever its size.
+    const shared_ptr<XBoolNode> &sessionJournal() const {return m_sessionJournal;}
     //! "12.4 MB/s   3.2 GB" -- what it is costing, beside the controls.
     const shared_ptr<XStringNode> &statistics() const {return m_statistics;}
 
@@ -87,6 +91,7 @@ private:
     const shared_ptr<XStringNode> m_filename;
     const shared_ptr<XComboNode> m_mode;
     const shared_ptr<XBoolNode> m_recording;
+    const shared_ptr<XBoolNode> m_sessionJournal;
     const shared_ptr<XStringNode> m_statistics;
     const shared_ptr<XRawStreamRecorder> m_rawstream;
     shared_ptr<Listener> m_lsnOnRecordingChanged, m_lsnOnFilenameChanged;
@@ -243,17 +248,42 @@ private:
         uintptr_t bucketCount = 0, peakPerSec = 0;
     };
 
+    //! One journal file.  Gzip, because the dump dominates and compresses
+    //! ten to one -- 608 KB of an ODMR tree becomes 62 KB, measured -- and
+    //! because `zcat` and `zgrep` keep it as readable as the plain text a
+    //! provenance file has to be in ten years.  Flushed at a line boundary
+    //! with Z_FULL_FLUSH, so a copy taken mid-write is both current and
+    //! parsable, which is also what makes a killed session readable.
+    struct Out {
+        ~Out() {close();}
+        bool open(const XString &path);
+        void line(const XString &s);
+        //! Ends a deflate block so everything so far reads on its own.
+        //! Throttled: Z_FULL_FLUSH resets the dictionary, so flushing on
+        //! every drain would both cost compression and bloat the file.
+        //! \param force at a boundary that matters -- a run opening or
+        //!        closing, a structural change, the end of the session.
+        void flush(bool force = false);
+        void close();
+        bool isOpen() const {return !!m_gz;}
+        uintptr_t bytes() const {return m_bytes;} //!< uncompressed
+    private:
+        void *m_gz = nullptr; //!< gzFile
+        uintptr_t m_bytes = 0;
+        bool m_dirty = false;
+        XTime m_flushedAt;
+    };
     void capture(uint32_t id, uint32_t kind, const Snapshot &shot, const XNode &node) noexcept;
     void captureValue(Sink &sink, const Snapshot &shot, XValueNodeBase &node) noexcept;
     //! Opens / closes the run file as the user's switch says, writes the
     //! dump when it opens, and keeps the statistics node current.
     void syncRun();
-    void writeHeader(std::ofstream &out, const char *kind);
-    void writeDump(std::ofstream &out);
-    void dumpSubtree(std::ofstream &out, const Snapshot &shot,
+    void writeHeader(Out &out, const char *kind);
+    void writeDump(Out &out);
+    void dumpSubtree(Out &out, const Snapshot &shot,
         const shared_ptr<XNode> &node, const XString &path,
         uint32_t parentId, int index);
-    void writeEntry(std::ofstream &out, const JournalT::Entry &e);
+    void writeEntry(Out &out, const JournalT::Entry &e);
     //! Opens the always-on session journal and writes its dump.
     void openSession();
     void updateStatistics();
@@ -303,12 +333,13 @@ private:
     unique_ptr<XThread> m_thread;
 
     weak_ptr<XJournalRecorder> m_recorder;
-    //! Always open: provenance must exist for a session in which the user
-    //! started no recording at all.  Requests and structure go here in full;
-    //! an acquisition stream does not, or it would not stay small.
-    unique_ptr<std::ofstream> m_sessionOut;
+    //! Always open unless the user says otherwise: provenance must exist for
+    //! a session in which no recording was started.  Requests and structure
+    //! go here in full; an acquisition stream does not, or it would not stay
+    //! small.
+    Out m_sessionOut;
     //! Open between the Write switch going on and off: the run.
-    unique_ptr<std::ofstream> m_runOut;
+    Out m_runOut;
     XString m_sessionPath, m_openPath, m_session;
     //! Whether the RUN wants values -- false for a Setup run, and while no
     //! run is open.  The session journal keeps its own (much sparser) share
