@@ -164,6 +164,16 @@ it re-runs on every structural change, and enumerating children needs no
 cross-node consistency.  So: subscribe with per-node single-nodal snapshots,
 then take one root snapshot and dump from that.
 
+### Leaving is a membership question
+
+An earlier version of the capture stage decided a node had gone by testing
+whether its `weak_ptr` had expired, and reported nothing at all when a driver
+was released — correctly, as it turned out: the script that had created it
+still held its nodes, so nothing had been destroyed.  **Detached and
+destroyed are two different states**, and the first is the interesting one.
+Membership is what changed, membership is what a list announces, and only a
+list can announce it.  The record and its statistics survive both.
+
 ### Node identity
 
 A **session-local id assigned when the node is first subscribed**, plus a
@@ -341,11 +351,24 @@ Three things in it are load-bearing beyond the measurement:
   committed payload and pushes one record into the ring.  A node reached again
   through a hard link is already subscribed and is skipped, so the count is of
   distinct nodes rather than of paths.
-- **Subscribing to new nodes happens on the journal's own thread**, woken by
-  `onListChanged`, never inside the committing thread's own commit.  The
-  window that leaves — a value written on a node created moments earlier —
-  is the one thing this stage does not close; closing it means subscribing
-  from the catch event itself, which belongs with the dump in stage 2.
+- **Structure is an event, not something to be rediscovered.**  Whether a
+  node is in the tree is decided by one thing only: whether a list holds it
+  (user, 2026-08-29).  Every other child is made by its parent's constructor
+  and lives exactly as long as the parent, so the question never arises for
+  it.  So the journal listens to `onCatch` / `onRelease` / `onMove` rather
+  than `onListChanged` — they name the node, the list and the index at the
+  moment it happens, where `onListChanged` is coalesced to one per
+  transaction and says only that *something* changed.  A caught node's
+  subtree is subscribed, and a released node's subtree marked off, on the
+  journal's own thread; nothing but a ring push happens inside the
+  committing thread's commit.
+- **A full walk remains, but as a measurement rather than the mechanism.**
+  Every 30 s it counts what the events failed to announce: arrivals the
+  sweep found first, and departures it noticed first.  Both should be zero,
+  and if they are on a real instrument then the rule above is proven and the
+  sweep can go.  (`Node::insert` / `Node::release` are framework operations
+  on *any* node; only `XListNodeBase` turns them into signals.  That is the
+  gap the counter measures.)
 
 ### The alias guard that never fired
 

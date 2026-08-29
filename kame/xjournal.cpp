@@ -45,12 +45,41 @@ void
 XJournal::Sink::onTouch(const Snapshot &shot, XTouchableNode *node) {
     journal->capture(id, KIND_TOUCH, shot, *node);
 }
+//! Whether a node is in the tree is decided by one thing only: whether a
+//! list holds it (user, 2026-08-29).  Every other child is created by its
+//! parent's constructor and lives exactly as long as the parent, so it never
+//! has to be asked.  That makes structure an EVENT rather than something to
+//! be rediscovered by walking: onCatch and onRelease name the node, the list
+//! and the index, at the moment it happens and with the committing serial.
 void
-XJournal::Sink::onListChanged(const Snapshot &shot, XListNodeBase *node) {
-    journal->capture(id, KIND_LIST, shot, *node);
-    //Structure moved; the walk that subscribes to the new nodes runs on the
-    //drain thread, not here inside somebody's commit.
-    journal->m_structureDirty = true;
+XJournal::Sink::onCatch(const Snapshot &shot,
+    const XListNodeBase::Payload::CatchEvent &e) {
+    journal->capture(id, KIND_CATCH, shot, *e.emitter);
+    journal->pushPending(e.caught, id, true);
+}
+void
+XJournal::Sink::onRelease(const Snapshot &shot,
+    const XListNodeBase::Payload::ReleaseEvent &e) {
+    journal->capture(id, KIND_RELEASE, shot, *e.emitter);
+    journal->pushPending(e.released, id, false);
+}
+void
+XJournal::Sink::onMove(const Snapshot &shot,
+    const XListNodeBase::Payload::MoveEvent &e) {
+    //Order is the meaning in the lists that have one, so a reordering is a
+    //change like any other.
+    journal->capture(id, KIND_MOVE, shot, *e.emitter);
+}
+
+//! Hands a structural event to the journal's own thread.  Subscribing (or
+//! marking off) touches the node table and takes transactions, neither of
+//! which may happen here: this runs inside the committing thread's commit.
+void
+XJournal::pushPending(const shared_ptr<XNode> &node, uint32_t listId, bool caught) {
+    if( !node)
+        return;
+    XScopedLock<XMutex> lock(m_pendingMutex);
+    m_pending.push_back(Pending{node, listId, caught});
 }
 
 XJournal::XJournal() {}
@@ -101,7 +130,9 @@ XJournal::stop() {
     for(auto &&rec: m_nodes) {
         rec.lsnValue.reset();
         rec.lsnTouch.reset();
-        rec.lsnList.reset();
+        rec.lsnCatch.reset();
+        rec.lsnRelease.reset();
+        rec.lsnMove.reset();
     }
 }
 
@@ -151,10 +182,17 @@ XJournal::execute(const atomic<bool> &terminated) {
     //what a listener on every node costs is visible without waiting out an
     //interval -- that being the first thing this stage is here to measure.
     bool first = true;
+    XTime lastSweep = XTime::now();
+    sweep(); //!< the one full walk that has to happen: the opening state.
     while( !terminated) {
-        if(m_structureDirty.exchange(false))
-            walkAll();
+        processPending();
         drainOnce();
+        //The sweep is a safety net and a measurement, not the mechanism --
+        //hence periodic and slow, where the events are prompt.
+        if(XTime::now().diff_msec(lastSweep) > (long)m_sweepInterval * 1000) {
+            sweep();
+            lastSweep = XTime::now();
+        }
         if(first || XTime::now().diff_msec(lastReport) > (long)m_reportInterval * 1000) {
             writeReport();
             lastReport = XTime::now();
@@ -162,6 +200,7 @@ XJournal::execute(const atomic<bool> &terminated) {
         }
         msecsleep(200);
     }
+    processPending();
     drainOnce();
     writeReport();
 }
@@ -171,25 +210,40 @@ XJournal::execute(const atomic<bool> &terminated) {
 //! interface listed as /Interfaces/Interface for every driver is reached at
 //! /Drivers/<name>/Interface, where the name is unique.
 void
-XJournal::walkAll() {
+XJournal::sweep() {
     XTime t0 = XTime::now();
-    //Reachability is decided by the walk itself, not by asking each node
-    //whether it is still alive: a node LEAVES THE TREE long before it dies.
-    //Releasing a driver from a script leaves its nodes fully alive as long
-    //as the script still holds them -- measured, the first time this ran --
-    //so an expiry test alone reports nothing at the moment it happens.
+    bool opening = (m_walks == 0);
+    size_t known = m_nodes.size();
     for(auto &&rec: m_nodes)
         rec.reachable = false;
     if(auto root = m_root.lock())
         walk(root, "");
-    for(auto &&rec: m_nodes) {
+    ++m_walks;
+
+    for(size_t i = 0; i < m_nodes.size(); ++i) {
+        NodeRec &rec = m_nodes[i];
+        //What the events should have told us, and did not.  Zero here says
+        //the sweep is redundant and can go; anything else is a hole in the
+        //rule that membership is a list's business alone.
+        if( !opening) {
+            if((i >= known) && !rec.catchAnnounced)
+                ++m_sweepFoundNew;
+            if( !rec.reachable && rec.inTree && !rec.detachAnnounced)
+                ++m_sweepFoundDetached;
+        }
+        if( !rec.reachable)
+            rec.inTree = false;
+        else
+            rec.inTree = true;
         if(rec.destroyed || !rec.node.expired())
             continue;
         rec.destroyed = true;
         //Its talker went with its payload; the listener is dead weight now.
         rec.lsnValue.reset();
         rec.lsnTouch.reset();
-        rec.lsnList.reset();
+        rec.lsnCatch.reset();
+        rec.lsnRelease.reset();
+        rec.lsnMove.reset();
     }
     //A raw address is only a key while its node lives, and a later node
     //allocated at the same address would otherwise inherit this record --
@@ -201,9 +255,59 @@ XJournal::walkAll() {
         else
             ++it;
     }
-    ++m_walks;
     m_lastWalkMS = (unsigned int)XTime::now().diff_msec(t0);
     m_totalWalkMS += m_lastWalkMS;
+}
+
+//! Subscribes what onCatch announced, and marks off what onRelease did.
+void
+XJournal::processPending() {
+    std::deque<Pending> pending;
+    {
+        XScopedLock<XMutex> lock(m_pendingMutex);
+        pending.swap(m_pending);
+    }
+    for(auto &&p: pending) {
+        if(p.caught) {
+            ++m_catches;
+            XString path = (p.listId < m_nodes.size() ? m_nodes[p.listId].path : XString())
+                + "/" + p.node->getName();
+            //A caught node arrives with the children its constructor made,
+            //so the subtree is walked -- bounded by what was added, never
+            //the whole tree.
+            walk(p.node, path);
+            auto it = m_index.find(p.node.get());
+            if(it != m_index.end()) {
+                m_nodes[it->second].catchAnnounced = true;
+                m_nodes[it->second].inTree = true;
+            }
+        }
+        else {
+            ++m_releases;
+            auto it = m_index.find(p.node.get());
+            if(it != m_index.end())
+                detachSubtree(it->second);
+        }
+    }
+}
+
+void
+XJournal::detachSubtree(uint32_t id) {
+    NodeRec &rec = m_nodes[id];
+    rec.inTree = false;
+    rec.reachable = false;
+    rec.detachAnnounced = true;
+    auto node = rec.node.lock();
+    if( !node)
+        return;
+    Snapshot shot( *node, false);
+    if( !shot.size())
+        return;
+    for(auto &&child: *shot.list()) {
+        auto it = m_index.find(child.get());
+        if(it != m_index.end())
+            detachSubtree(it->second);
+    }
 }
 
 void
@@ -285,9 +389,17 @@ XJournal::subscribe(const shared_ptr<XNode> &node, const XString &path) {
             if(tnode)
                 rec.lsnTouch = tr[ *tnode].onTouch().connect(
                     sink, &Sink::onTouch);
-            if(lnode)
-                rec.lsnList = tr[ *lnode].onListChanged().connect(
-                    sink, &Sink::onListChanged);
+            if(lnode) {
+                //onCatch/onRelease rather than onListChanged: the latter is
+                //coalesced to one per transaction and says only THAT
+                //something changed, where these name what did.
+                rec.lsnCatch = tr[ *lnode].onCatch().connect(
+                    sink, &Sink::onCatch);
+                rec.lsnRelease = tr[ *lnode].onRelease().connect(
+                    sink, &Sink::onRelease);
+                rec.lsnMove = tr[ *lnode].onMove().connect(
+                    sink, &Sink::onMove);
+            }
             if(tr.commitOrNext())
                 break;
         }
@@ -335,9 +447,10 @@ XJournal::writeReport() {
         if(rec.isTouchable) ++touchables;
         if(rec.isList) ++lists;
         if(rec.runtime) ++runtimes;
-        if( !rec.reachable) ++detached;
+        if( !rec.inTree) ++detached;
         if(rec.destroyed) ++destroyed;
-        listeners += !!rec.lsnValue + !!rec.lsnTouch + !!rec.lsnList;
+        listeners += !!rec.lsnValue + !!rec.lsnTouch + !!rec.lsnCatch
+            + !!rec.lsnRelease + !!rec.lsnMove;
         if(rec.writes) ++written;
         for(auto &&t: rec.byThread)
             byThread[t.first] += t.second;
@@ -357,6 +470,14 @@ XJournal::writeReport() {
         << formatString("    runtime == true     : %d\n", (int)runtimes)
         << formatString("    left the tree       : %d (of which destroyed: %d)\n",
             (int)detached, (int)destroyed)
+        << formatString("  structural events     : %u caught, %u released\n",
+            m_catches, m_releases)
+        << formatString("  the sweep found first : %llu arrivals, %llu departures\n",
+            (unsigned long long)m_sweepFoundNew,
+            (unsigned long long)m_sweepFoundDetached)
+        << "                          (both should stay 0: membership is a list's\n"
+        << "                           business alone, so onCatch/onRelease should\n"
+        << "                           be the whole story and the sweep redundant)\n"
         << formatString("  listeners held        : %d\n", (int)listeners)
         << formatString("  tree walks            : %u (last %u ms, total %u ms)\n\n",
             m_walks, m_lastWalkMS, m_totalWalkMS);
@@ -365,10 +486,13 @@ XJournal::writeReport() {
         << formatString("  entries recorded      : %llu (%.2f /s)\n",
             (unsigned long long)m_captured, m_captured / elapsed)
         << formatString("  dropped (ring full)   : %llu\n", (unsigned long long)m_dropped)
-        << formatString("  by kind               : value %llu, touch %llu, list %llu\n",
+        << formatString("  by kind               : value %llu, touch %llu, "
+            "catch %llu, release %llu, move %llu\n",
             (unsigned long long)m_byKind[KIND_VALUE],
             (unsigned long long)m_byKind[KIND_TOUCH],
-            (unsigned long long)m_byKind[KIND_LIST])
+            (unsigned long long)m_byKind[KIND_CATCH],
+            (unsigned long long)m_byKind[KIND_RELEASE],
+            (unsigned long long)m_byKind[KIND_MOVE])
         << formatString("  nodes ever written    : %d of %d\n",
             (int)written, (int)m_nodes.size())
         << "  by committing thread  : (a thread says what it is at its start; one\n"
@@ -434,7 +558,7 @@ XJournal::writeReport() {
             (unsigned long long)rec.writes,
             (unsigned long long)request, (unsigned long long)report,
             rec.runtime ? "R" : "-",
-            rec.destroyed ? "x" : (rec.reachable ? " " : "d"),
+            rec.destroyed ? "x" : (rec.inTree ? " " : "d"),
             rec.path.c_str());
     }
     ofs.flush();

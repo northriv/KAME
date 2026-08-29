@@ -17,6 +17,7 @@
 #define xjournalH
 
 #include "xnode.h"
+#include "xlistnode.h" //!< for the catch/release events, which are its Payload's
 #include "transaction_journal.h"
 #include "xthread.h"
 #include <deque>
@@ -25,7 +26,6 @@
 
 class XValueNodeBase;
 class XTouchableNode;
-class XListNodeBase;
 
 //! Subscribes to every node in the tree and records what changes, who changed
 //! it and when — the capture half of the provenance journal, with no file
@@ -86,7 +86,8 @@ public:
     XString writeReport();
 
 private:
-    enum : uint32_t {KIND_VALUE = 0, KIND_TOUCH = 1, KIND_LIST = 2, NUM_KINDS = 3};
+    enum : uint32_t {KIND_VALUE = 0, KIND_TOUCH = 1, KIND_CATCH = 2,
+        KIND_RELEASE = 3, KIND_MOVE = 4, NUM_KINDS = 5};
 
     //! What the capture path knows: which node, and what kind of change.
     //! The serial travels beside it in the ring and carries both the ordering
@@ -105,7 +106,13 @@ private:
         uint32_t id;
         void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
         void onTouch(const Snapshot &shot, XTouchableNode *node);
-        void onListChanged(const Snapshot &shot, XListNodeBase *node);
+        //! Membership is the ONLY way a node joins or leaves the tree, and it
+        //! happens exclusively through a list -- so these two events are the
+        //! whole structural story, and they name the node rather than merely
+        //! saying that something changed.
+        void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
+        void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
+        void onMove(const Snapshot &shot, const XListNodeBase::Payload::MoveEvent &e);
     };
 
     //! The node table: written by the drain thread alone, which is also the
@@ -121,16 +128,31 @@ private:
         //! script still holds -- so being detached and being destroyed are
         //! two different things, and the survey has to say which.
         bool reachable = true;
+        //! Still a member of the tree as far as we have been told.
+        bool inTree = true;
+        //! onRelease said so, rather than a sweep noticing afterwards.
+        bool detachAnnounced = false;
+        //! onCatch announced its arrival, rather than a sweep finding it.
+        bool catchAnnounced = false;
         bool destroyed = false;
-        shared_ptr<Listener> lsnValue, lsnTouch, lsnList;
+        shared_ptr<Listener> lsnValue, lsnTouch, lsnCatch, lsnRelease, lsnMove;
         uintptr_t writes = 0;
         std::map<unsigned int, uintptr_t> byThread; //!< serial's low 16 bits
         XTime first, last;
     };
 
     void capture(uint32_t id, uint32_t kind, const Snapshot &shot, const XNode &node) noexcept;
+    void pushPending(const shared_ptr<XNode> &node, uint32_t listId, bool caught);
     void execute(const atomic<bool> &terminated);
-    void walkAll();
+    //! Subscribes what onCatch announced and marks off what onRelease did,
+    //! on this object's own thread rather than inside somebody's commit.
+    void processPending();
+    //! Marks \a id and everything under it as no longer in the tree.
+    void detachSubtree(uint32_t id);
+    //! The safety net, and a measurement in itself: a full walk that counts
+    //! what the structural events failed to announce.  If those counts stay
+    //! at zero on a real instrument, the sweep is provably redundant.
+    void sweep();
     void walk(const shared_ptr<XNode> &node, const XString &path);
     //! \return the node's id, new or already known.  Known also covers
     //! "reached again through a hard link", which is how a node hard-linked
@@ -139,7 +161,16 @@ private:
     void drainOnce();
 
     JournalT m_ring;
-    atomic<bool> m_structureDirty {true};
+    //! What onCatch / onRelease handed over, waiting for the journal's own
+    //! thread.  A structural event is rare enough that a short mutex costs
+    //! nothing; it is taken for a push and a swap, never across a snapshot.
+    struct Pending {
+        shared_ptr<XNode> node;
+        uint32_t listId;
+        bool caught;
+    };
+    XMutex m_pendingMutex;
+    std::deque<Pending> m_pending;
     weak_ptr<XNode> m_root;
     //! Declared BEFORE the node table on purpose: a talker holds a reference
     //! to a Sink, and the shared_ptr that keeps that listener alive lives in
@@ -154,7 +185,12 @@ private:
     uintptr_t m_captured = 0, m_dropped = 0;
     uintptr_t m_byKind[NUM_KINDS] = {};
     unsigned int m_walks = 0, m_lastWalkMS = 0, m_totalWalkMS = 0;
+    unsigned int m_catches = 0, m_releases = 0;
+    //! Nodes a sweep had to discover, and detachments a sweep had to notice:
+    //! both are event-path misses, and both should be zero.
+    uintptr_t m_sweepFoundNew = 0, m_sweepFoundDetached = 0;
     unsigned int m_reportInterval = 60; //!< s
+    unsigned int m_sweepInterval = 30; //!< s
     XString m_reportPath;
 };
 
