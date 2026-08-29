@@ -87,7 +87,6 @@ public:
 
 private:
     enum : uint32_t {KIND_VALUE = 0, KIND_TOUCH = 1, KIND_LIST = 2, NUM_KINDS = 3};
-    enum : uint32_t {NO_NODE = ~(uint32_t)0u};
 
     //! What the capture path knows: which node, and what kind of change.
     //! The serial travels beside it in the ring and carries both the ordering
@@ -117,7 +116,12 @@ private:
         XString type;
         bool runtime = false;
         bool isValue = false, isTouchable = false, isList = false;
-        bool released = false;
+        //! Still reachable from the root at the last walk.  A node can leave
+        //! the tree and go on living -- a released driver whose object a
+        //! script still holds -- so being detached and being destroyed are
+        //! two different things, and the survey has to say which.
+        bool reachable = true;
+        bool destroyed = false;
         shared_ptr<Listener> lsnValue, lsnTouch, lsnList;
         uintptr_t writes = 0;
         std::map<unsigned int, uintptr_t> byThread; //!< serial's low 16 bits
@@ -128,7 +132,9 @@ private:
     void execute(const atomic<bool> &terminated);
     void walkAll();
     void walk(const shared_ptr<XNode> &node, const XString &path);
-    //! \return the new node's id, or NO_NODE when it was already subscribed.
+    //! \return the node's id, new or already known.  Known also covers
+    //! "reached again through a hard link", which is how a node hard-linked
+    //! under two parents is counted once and keeps its owner's path.
     uint32_t subscribe(const shared_ptr<XNode> &node, const XString &path);
     void drainOnce();
 

@@ -173,21 +173,34 @@ XJournal::execute(const atomic<bool> &terminated) {
 void
 XJournal::walkAll() {
     XTime t0 = XTime::now();
-    //Retire what has gone: a raw address is only a key while its node lives,
-    //and a later node allocated at the same address would otherwise inherit
-    //its record -- exactly the case provenance has to keep apart.  The record
-    //stays, with its statistics and the path it had.
+    //Reachability is decided by the walk itself, not by asking each node
+    //whether it is still alive: a node LEAVES THE TREE long before it dies.
+    //Releasing a driver from a script leaves its nodes fully alive as long
+    //as the script still holds them -- measured, the first time this ran --
+    //so an expiry test alone reports nothing at the moment it happens.
     for(auto &&rec: m_nodes)
-        if( !rec.released && rec.node.expired())
-            rec.released = true;
+        rec.reachable = false;
+    if(auto root = m_root.lock())
+        walk(root, "");
+    for(auto &&rec: m_nodes) {
+        if(rec.destroyed || !rec.node.expired())
+            continue;
+        rec.destroyed = true;
+        //Its talker went with its payload; the listener is dead weight now.
+        rec.lsnValue.reset();
+        rec.lsnTouch.reset();
+        rec.lsnList.reset();
+    }
+    //A raw address is only a key while its node lives, and a later node
+    //allocated at the same address would otherwise inherit this record --
+    //exactly the case provenance has to keep apart.  The record itself stays,
+    //with its statistics and the path it had.
     for(auto it = m_index.begin(); it != m_index.end();) {
-        if(m_nodes[it->second].released)
+        if(m_nodes[it->second].destroyed)
             it = m_index.erase(it);
         else
             ++it;
     }
-    if(auto root = m_root.lock())
-        walk(root, "");
     ++m_walks;
     m_lastWalkMS = (unsigned int)XTime::now().diff_msec(t0);
     m_totalWalkMS += m_lastWalkMS;
@@ -196,6 +209,7 @@ XJournal::walkAll() {
 void
 XJournal::walk(const shared_ptr<XNode> &node, const XString &path) {
     uint32_t id = subscribe(node, path);
+    m_nodes[id].reachable = true;
     //Read AFTER subscribing, never before -- see the ordering rule in
     //subscribe().
     //
@@ -210,8 +224,7 @@ XJournal::walk(const shared_ptr<XNode> &node, const XString &path) {
     //is all the walk reads.  The dump, which runs once and does need a
     //consistency cut, is the opposite case -- see doc/design/PROVENANCE.md.
     Snapshot shot( *node, false);
-    if(id != NO_NODE)
-        m_nodes[id].runtime = shot[ *node].isRuntime();
+    m_nodes[id].runtime = shot[ *node].isRuntime();
     if( !shot.size())
         return;
     if(auto lnode = dynamic_pointer_cast<XListNodeBase>(node)) {
@@ -233,7 +246,7 @@ uint32_t
 XJournal::subscribe(const shared_ptr<XNode> &node, const XString &path) {
     auto it = m_index.find(node.get());
     if(it != m_index.end())
-        return NO_NODE; //!< already subscribed, or reached again by a hard link.
+        return it->second; //!< already subscribed, or reached again by a hard link.
 
     auto vnode = dynamic_pointer_cast<XValueNodeBase>(node);
     auto tnode = dynamic_pointer_cast<XTouchableNode>(node);
@@ -314,15 +327,16 @@ XJournal::writeReport() {
     if(elapsed < 1e-3)
         elapsed = 1e-3;
 
-    size_t values = 0, touchables = 0, lists = 0, runtimes = 0, released = 0,
-        listeners = 0, written = 0;
+    size_t values = 0, touchables = 0, lists = 0, runtimes = 0, detached = 0,
+        destroyed = 0, listeners = 0, written = 0;
     std::map<unsigned int, uintptr_t> byThread;
     for(auto &&rec: m_nodes) {
         if(rec.isValue) ++values;
         if(rec.isTouchable) ++touchables;
         if(rec.isList) ++lists;
         if(rec.runtime) ++runtimes;
-        if(rec.released) ++released;
+        if( !rec.reachable) ++detached;
+        if(rec.destroyed) ++destroyed;
         listeners += !!rec.lsnValue + !!rec.lsnTouch + !!rec.lsnList;
         if(rec.writes) ++written;
         for(auto &&t: rec.byThread)
@@ -341,7 +355,8 @@ XJournal::writeReport() {
         << formatString("    touchable nodes     : %d\n", (int)touchables)
         << formatString("    lists               : %d\n", (int)lists)
         << formatString("    runtime == true     : %d\n", (int)runtimes)
-        << formatString("    released since start: %d\n", (int)released)
+        << formatString("    left the tree       : %d (of which destroyed: %d)\n",
+            (int)detached, (int)destroyed)
         << formatString("  listeners held        : %d\n", (int)listeners)
         << formatString("  tree walks            : %u (last %u ms, total %u ms)\n\n",
             m_walks, m_lastWalkMS, m_totalWalkMS);
@@ -391,7 +406,8 @@ XJournal::writeReport() {
         << "  own first-to-last window, which is the rate a rate cap has to survive.\n"
         << "  Times are stamped when the ring is drained (every 200 ms), so a window\n"
         << "  shorter than that is not resolved and 'active/s' is floored at 1 s.\n\n"
-        << "  session/s  active/s      writes   request    report  rt  path\n";
+        << "  session/s  active/s      writes   request    report  rt  path\n"
+        << "  ('d' = left the tree but still alive, 'x' = destroyed)\n";
     std::deque<size_t> order;
     for(size_t i = 0; i < m_nodes.size(); ++i)
         if(m_nodes[i].writes)
@@ -417,7 +433,8 @@ XJournal::writeReport() {
             rec.writes / elapsed, rec.writes / active,
             (unsigned long long)rec.writes,
             (unsigned long long)request, (unsigned long long)report,
-            rec.runtime ? "R" : "-", rec.released ? "x" : " ",
+            rec.runtime ? "R" : "-",
+            rec.destroyed ? "x" : (rec.reachable ? " " : "d"),
             rec.path.c_str());
     }
     ofs.flush();
