@@ -671,6 +671,30 @@ still earns its place — it says what a Logbook will cost per hour, and
 whether the ring can keep up — but it is a sizing number now, not a tuning
 one.
 
+### Two extensions in front of the user, and why `.gz` is one of them
+
+`.kamj.gz` is a double extension and it will be new to everybody, which is a
+fair thing to be uneasy about.  Hiding the compression — naming it `.kamj`
+and letting it be gzip inside, as `.docx` and `.jar` do — was measured rather
+than argued: `zgrep` and `gzip -dc` are happy either way, but **`zcat` refuses
+a file that is not named `.gz`**, and `zcat` is the command people actually
+type.  A format that answers "what is in this file" with an error message is
+worse than one with a long name.  There is also a smaller reason with a
+receipt: this project has already shipped one bug from a file whose name
+lied about its contents (the session journal was `.kamj` after the switch to
+gzip, and every comparison against it silently failed).
+
+So the extension stays, and the confusion is addressed where it actually
+lives — in what the file *means*, not in what it is called:
+
+- the Open dialog names the two in words rather than by extension —
+  "Settings, saved by hand" against "Journals, written as you work" — with a
+  combined filter first so that either can simply be double-clicked, and
+  `.kam` named first inside it because that is still what everyone has;
+- and the confusion ends by itself when `.kam` retires, since Save will then
+  write a journal whose body is empty and there will be one kind of file
+  again.
+
 ### Where they live
 
 `QStandardPaths::AppLocalDataLocation` — `~/Library/Application Support/kame`
