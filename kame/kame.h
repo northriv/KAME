@@ -46,6 +46,7 @@ class QDockWidget;
 class QToolBar;
 class QPropertyAnimation;
 class QUrl;
+class XJournal;
 
 /*! Main window widget of KAME.
  * use \a g_pFrmMain to access this.
@@ -200,6 +201,9 @@ private:
 	shared_ptr<XScriptingThread> runNewScript(const XString &label, const XString &filename);
 	QTimer *m_pTimer;
 	shared_ptr<XMeasure> m_measure;
+	//! Provenance capture, off unless KAME_JOURNAL is set.
+	//! \sa doc/design/PROVENANCE.md
+	shared_ptr<XJournal> m_journal;
 	std::deque<xqcon_ptr> m_conScriptThreadList;
 };
 

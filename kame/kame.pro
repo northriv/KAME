@@ -56,6 +56,7 @@ HEADERS += \
     graph/onscreenobject.h \
     graph/x2dimage.h \
     kame.h \
+    xjournal.h \
     script/xscriptingthread.h \
     script/xscriptingthreadconnector.h \
     ../kamestm/threadlocal.h \
@@ -171,6 +172,7 @@ SOURCES += icons/icon.cpp \
     analyzer/recorder.cpp \
     analyzer/recordreader.cpp\
     kame.cpp \
+    xjournal.cpp \
     main.cpp \
     messagebox.cpp \
     math/tikhonovreg.cpp

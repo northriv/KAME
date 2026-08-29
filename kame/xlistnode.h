@@ -30,6 +30,17 @@ public:
 
 	virtual bool isThreadSafeDuringCreationByTypename() const = 0;
 
+    //! True when this list only REFERENCES nodes that another parent owns, so
+    //! its children are navigated by name and never created.
+    //!
+    //! A predicate rather than a name test on purpose.  getTypename() strips
+    //! everything up to and including the first 'X' (see XNode::getTypename),
+    //! so the class arrives as "AliasListNodeI10XInterfaceE" and matching
+    //! "XAliasListNode" — as xrubywriter.cpp does — never matches; and the
+    //! subclasses (XInterfaceList, XScalarEntryList, XChartList, ...) do not
+    //! carry the template's name at all.
+    virtual bool isAliasList() const {return false;}
+
     //! Registered typenames for createByTypename(), in registration
     //! order. Default returns empty (lists without DEFINE_TYPE_HOLDER
     //! don't accept arbitrary types). Overridden by DEFINE_TYPE_HOLDER.
@@ -97,6 +108,7 @@ public:
     virtual ~XAliasListNode() = default;
 
     virtual bool isThreadSafeDuringCreationByTypename() const override {return true;}
+    virtual bool isAliasList() const override {return true;}
 
 	virtual shared_ptr<XNode> createByTypename(
         const XString &, const XString &) override {

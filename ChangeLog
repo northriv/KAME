@@ -1,4 +1,17 @@
 * Sat Aug 29 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Provenance journal, first stage (developer-only, off by default): with
+  KAME_JOURNAL set in the environment, KAME subscribes to every node and
+  records what changed, on which thread and when, writing a survey to
+  <AppLocalDataLocation>/journal/.  Nothing is restored and no journal file
+  format exists yet; the point is to measure, on a real instrument, which
+  nodes are written by the UI, by a script and by a driver -- the distinction
+  the design rests on and that no flag on a node can express.  Subscription is
+  the switch, so with the variable unset not one listener is attached and the
+  commit path is untouched.  See doc/design/PROVENANCE.md.
+- XListNodeBase::isAliasList(), replacing name tests on getTypename() that
+  could never have matched: the mangled name arrives with everything up to the
+  first 'X' stripped, and the alias-list subclasses do not carry the template's
+  name at all.
 - UI: the toolboxes and the main window now get out of the way by themselves.
   A toolbox floating at a screen edge rests shrunk to its tab column and grows
   back to full width when the pointer touches it; the main window keeps its top

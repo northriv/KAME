@@ -56,6 +56,7 @@
 #include "kame.h"
 #include "xscheduler.h"
 #include "measure.h"
+#include "xjournal.h"
 #include "interface.h"
 #include "xrubywriter.h"
 #include "xdotwriter.h"
@@ -737,6 +738,10 @@ FrmKameMain::placeNewWindow(QWidget *w) {
 
 FrmKameMain::~FrmKameMain() {
     m_pTimer->stop();
+    if(m_journal) {
+        m_journal->stop();
+        m_journal.reset();
+    }
 //	while( !g_signalBuffer->synchronize()) {}
     Transactional::SignalBuffer::cleanup();
     s_pMessageBox.reset();
@@ -942,6 +947,11 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
         //them the Python thread still calling into KAME mid-teardown.  With the
         //accept last, exit() cannot start until every join has returned.
         printf("quit\n");
+        //Before the tree goes: the journal's last drain and report walk it.
+        if(m_journal) {
+            m_journal->stop();
+            m_journal.reset();
+        }
         m_measure->terminate_all();
         m_measure.reset();
         ce->accept();
@@ -1028,6 +1038,11 @@ void FrmKameMain::signalAllModulesLoaded() {
     if(m_measure && m_measure->python())
         m_measure->python()->signalModulesLoaded();
 #endif
+    //Provenance capture starts here, with the driver types registered and
+    //before any .kam is loaded, so the loading itself is journaled.  Nodes
+    //created later are picked up through onListChanged.
+    if(m_measure && XJournal::enabledByEnvironment())
+        m_journal = XJournal::start(m_measure);
 }
 
 void FrmKameMain::mesStopAction_activated() {

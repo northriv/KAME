@@ -1,8 +1,10 @@
 # Measurement provenance: journal and replay
 
 Status: the library core has landed (`kamestm/transaction_journal.h`,
-`atomic_bounded_ring` in `kamestm/atomic_queue.h`, `transaction_journal_test`).
-Everything below the core is design, not code.
+`atomic_bounded_ring` in `kamestm/atomic_queue.h`, `transaction_journal_test`),
+and so has the capture stage above it (`kame/xjournal.{h,cpp}` — subscription,
+attribution and a survey report, no file format and no replay yet; see
+"Stage 1: capture only" below).  Everything else is design, not code.
 
 ## Why this, and why it is cheap here
 
@@ -274,6 +276,61 @@ so nothing constructs or destructs inside the ring.
 Losing records under pressure is allowed; losing them silently is not.  What
 the ring refused is counted, and the drain writes a gap where it belongs.
 
+## Stage 1: capture only
+
+`kame/xjournal.{h,cpp}`.  It subscribes to every node, records what changes,
+who changed it and when, and writes a survey — no file format, no dump, no
+replay.  It exists to be measured on a real instrument, because the design
+turns on a question no amount of reading the source answers: **which nodes are
+written by the UI, by a script, and by a driver.**
+
+Off unless `KAME_JOURNAL` is set in the environment
+(`KAME_JOURNAL_REPORT_SEC` sets the report interval, default 60 s).  Not a
+flag the capture path tests — subscription IS the switch, so an unset variable
+means no listener is ever attached and `Talker::createMessage()` returns
+nullptr before allocating anything.  The report lands in
+`<AppLocalDataLocation>/journal/capture-<stamp>.txt` and is rewritten in place;
+the last one is written as the session ends.
+
+Three things in it are load-bearing beyond the measurement:
+
+- **The walk never bundles.**  Both the per-node snapshot and the transaction
+  that attaches the listeners are single-nodal (`Snapshot(node, false)`, the
+  same `false` the `trans()` macro passes).  A full snapshot of a node bundles
+  its subtree, so walking from the root would bundle the whole tree and, with
+  a hard link present, force unrelated transactions to fail their CAS and
+  retry.  Stopping the instrument to look at it is exactly what a journal must
+  not do.
+- **Identity is a session-local id baked into the object the talker holds**, so
+  the capture path does no lookup at all: it reads the write's serial off the
+  committed payload and pushes one record into the ring.  A node reached again
+  through a hard link is already subscribed and is skipped, so the count is of
+  distinct nodes rather than of paths.
+- **Subscribing to new nodes happens on the journal's own thread**, woken by
+  `onListChanged`, never inside the committing thread's own commit.  The
+  window that leaves — a value written on a node created moments earlier —
+  is the one thing this stage does not close; closing it means subscribing
+  from the catch event itself, which belongs with the dump in stage 2.
+
+### The alias guard that never fired
+
+`XNode::getTypename()` strips everything up to and including the first `X` of
+the mangled name, so `XAliasListNode<XInterface>` arrives as
+`AliasListNodeI10XInterfaceE`.  Both existing tests for it — in
+`xrubywriter.cpp` and in the survey script this stage replaces — compare
+against `"XAliasListNode"` and therefore **never match anything**; and the
+subclasses (`XInterfaceList`, `XScalarEntryList`, `XChartList`,
+`XScriptingThreadList`, ...) do not carry the template's name at all, so no
+string test could have worked.  Hence `XListNodeBase::isAliasList()`, a
+predicate the classes answer themselves.
+
+That is also why the node count below is an over-count: the survey walked the
+alias lists after all, and counted every hard-linked node once per parent.
+(The same dead check makes `.kam` emit `create()` for alias children, which
+the loader silently ignores and the owning parent then restores correctly —
+so it round-trips by luck.  Fixing that changes `.kam` output and wants its
+own decision.)
+
 ## Files
 
 One file, self-contained: **the dump is the head of the journal**.  That
@@ -446,11 +503,14 @@ but for this rather than for catching mis-flagged outputs:
 
 (The same run reported nodes changing hundreds of times a second, impossible
 at four samples a second.  Two faults in the survey, both instructive: it
-keyed by path, and it descended into alias lists.  The second inflates the
-node count — a hard-linked node is counted once per parent — and manufactures
-the very ambiguity KAME avoids by never addressing those nodes that way.  The
-7103 above is therefore an upper bound; the shape of the answer is not in
-doubt, but the number will come down when it is measured again.)
+keyed by path, and it descended into alias lists — and its guard against the
+latter could not have worked, for the reason given above.  Walking them
+inflates the node count, since a hard-linked node is counted once per parent,
+and manufactures the very ambiguity KAME avoids by never addressing those
+nodes that way.  The 7103 is therefore an upper bound.  Stage 1 measures the
+same things from inside the framework, where identity is the node itself
+rather than its path; the survey script it replaces has been removed rather
+than left around to be trusted again.)
 
 ## Deferred
 
@@ -458,3 +518,6 @@ doubt, but the number will come down when it is measured again.)
   linear.  Independent of this work, and increasingly needed at 10 GB/hr.
 - `NODE_NOT_JOURNALED`, only with an audit checker.
 - Migrating the scattered `~/.kame_*` dotfiles under the managed directory.
+- `xrubywriter.cpp`'s two dead name tests (alias lists, and `XListNode`'s
+  "no typename wanted"), which now have a predicate to use.  It changes what
+  `.kam` files look like, so it is not a side effect of this work.
