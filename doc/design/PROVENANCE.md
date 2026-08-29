@@ -493,8 +493,7 @@ the session dies a second later.
 | Journal | **`.kamj`** | header record, dump, then one JSON object per line — gzip inside, as `.docx` is a zip |
 | Raw stream | **`.kamb`** (was `.bin`) | unchanged format; `.bin` keeps loading for ever |
 
-JSON Lines because the two operations that matter — `diff run1.kamj
-run2.kamj` and `grep` — then work with no tool at all, and because a
+JSON Lines because the two operations that matter — `diff run1.kamj run2.kamj` and `grep` — then work with no tool at all, and because a
 provenance record's value is in ten years, when the reader may be gone but
 text with an obvious schema is not.  **Doubles are written `%.17g`**: JSON
 does not distinguish int from float, and a value that fails to round-trip

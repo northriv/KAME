@@ -355,7 +355,7 @@ def loadKam(xpythread, filename):
 		TLS.xscrthread["Status"] = ""
 
 def loadJournalDump(xpythread, filename):
-	"""Apply the dump at the head of a journal (.kamj / .kamj.gz).
+	"""Apply the dump at the head of a journal (.kamj).
 
 	This is the "open a measurement" half of reading a journal, and it is
 	deliberately the smaller one: the dump is what the tree WAS at one
@@ -516,7 +516,7 @@ def kame_pybind_one_iteration():
 					STDERR.write("Starting a new thread")
 					filename = str(xpythread_filename)
 					STDERR.write("Loading "+ filename)
-					if filename.endswith('.kamj') or filename.endswith('.kamj.gz'):
+					if filename.endswith('.kamj'):
 						target = loadJournalDump
 					elif filename.endswith('.kam'):
 						target = loadKam

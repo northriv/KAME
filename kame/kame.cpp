@@ -1115,8 +1115,7 @@ FrmKameMain::runNewScript(const XString &label, const XString &filename) {
         return (filename.length() >= n)
             && (filename.compare(filename.length() - n, n, suffix) == 0);
     };
-    bool for_python = endsWith(".py") || endsWith(".kam")
-        || endsWith(".kamj") || endsWith(".kamj.gz");
+    bool for_python = endsWith(".py") || endsWith(".kam") || endsWith(".kamj");
 #ifdef USE_PYBIND11
     if(for_python) {
         threadlist = m_measure->python();

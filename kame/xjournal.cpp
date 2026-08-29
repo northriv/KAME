@@ -136,12 +136,18 @@ static XString withExtension(const XString &given, const char *ext) {
     if(s.isEmpty())
         return {};
     //Strip whichever of the family the user happened to type, and nothing
-    //else: a name with a dot in it is a name, not an extension.
-    for(auto &&known: {".kamj.gz", ".kamj", ".kamb", ".kam", ".bin", ".gz"})
-        if(s.endsWith(known, Qt::CaseInsensitive)) {
-            s.chop(QString(known).length());
-            break;
-        }
+    //else: a name with a dot in it is a name, not an extension.  Repeated,
+    //so a stray pairing ("run042.kamj.gz", typed by someone who knows the
+    //file is gzip) comes apart without enumerating the pairs.
+    for(bool again = true; again; ) {
+        again = false;
+        for(auto &&known: {".kamj", ".kamb", ".kam", ".bin", ".gz"})
+            if(s.endsWith(known, Qt::CaseInsensitive)) {
+                s.chop(QString(known).length());
+                again = true;
+                break;
+            }
+    }
     return (s + ext).toStdString();
 }
 uintptr_t
@@ -451,7 +457,7 @@ XJournal::Out::close() {
     m_gz = nullptr;
 }
 
-//! Text, so `zdiff run1.kamj.gz run2.kamj.gz` and `zgrep` work with no tool at all --
+//! Text, so `zdiff run1.kamj run2.kamj` and `zgrep` work with no tool at all --
 //! which is most of the value of a provenance file ten years from now.
 static XString jsonEscape(const XString &str) {
     XString out;
