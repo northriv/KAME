@@ -59,7 +59,7 @@ and a listener each is well under a megabyte — and decide at *record* time.
 | Requests (any node) | **always on** | the user operated something; never dropped |
 | Reports, rarely changing | **always on** | falls under any cap; this is how the state a device reports at open is captured |
 | Reports, at acquisition rate | capped | decimated by the same cap; "what was the temperature at 3:14" needs no kHz |
-| Raw driver records | unchanged | user-chosen file, as today |
+| Raw driver records | opt-in | the one thing the run mode chooses, being the one that costs 10 GB/hr |
 
 The rate cap is keyed on attribution rather than on the flag, and it does more
 than guard against floods: it **classifies**.  A value a device reports once
@@ -77,17 +77,18 @@ Settings cost a few hundred KB a day, so there is no reason to make the user
 decide.  Observations cost roughly 36 MB/hr at 20 values × 10 Hz — nothing
 against 10 GB/hr of raw data, but no longer free.
 
-**Observations are selected by a rule, not by a per-driver checkbox** (120
-drivers' worth of checkboxes is not a user interface): record a driver's
-observations only when its raw records are *not* being recorded, since raw
-records plus settings can regenerate them.  A per-node rate cap keeps a driver
-that commits at kHz from flooding the file; "what was the temperature at 3:14"
-does not need kHz resolution.
-
-The one case where recording both is right: regenerating an observation
-depends on the analysis code, so a KAME upgrade can change the number.  If the
-value as published must be preserved, capture both — it costs 0.4% of the raw
-stream.  Hence: exclusive by default, both selectable.
+**Observations are always kept, under a per-node rate cap** — no per-driver
+checkbox (120 drivers' worth of them is not a user interface) and, since
+2026-08-29, no rule about the raw stream either.  The draft this replaces
+recorded a driver's observations only when its raw records were *not* being
+recorded, on the grounds that raw plus settings regenerates them.  It costs
+0.4% of the raw stream to keep them anyway (user: an option that trades the
+published numbers for 0.4% is not worth offering) — and regeneration depends
+on the analysis code, so a KAME upgrade can change a number that was
+published.  A rule that saves 0.4% and can lose the number that was in the
+paper is a bad trade to leave lying around, so it is gone: what remains is
+the cap, which keeps a driver committing at kHz from flooding the file.
+"What was the temperature at 3:14" does not need kHz resolution.
 
 **Node flags are not journaled.**  `setUIEnabled` is called from 452 places
 and flips on every tuning cycle; it is derived UI state that drivers
@@ -527,44 +528,40 @@ state is not lost if the user forgets to save; that is the whole point of an
 always-on journal, and it is why `.kam`'s status changes from "save often or
 lose your setup" to a checkpoint.
 
-### The option for a fatter journal, and what it is NOT called
+### What a run records: three tiers, one combo
 
-It is tempting to offer "include runtime nodes", and that would be the one
-name to avoid.  The flag does not decide what goes in — attribution does, and
-the two disagree on real nodes (`RXGain` is `runtime == true` and is a
-setting; `ODMR2D/Average` is `runtime == false` and is written by its driver).
-A runtime node the *user* sets is a request and is journaled either way.  What
-the option actually governs is the **high-rate report stream**: what a driver
-writes to any node, at acquisition rate.
+It is tempting to call this "include runtime nodes", and that is the one name
+to avoid.  The flag does not decide what goes in — attribution does, and the
+two disagree on real nodes (`RXGain` is `runtime == true` and is a setting;
+`ODMR2D/Average` is `runtime == false` and is written by its driver).  A
+runtime node the *user* sets is a request and is journaled either way.
 
-Most of it is decided already, and by a rule rather than by the user:
+What is left to choose, once observations are always kept, is one thing: **is
+the raw stream recorded too** — the only part that costs 10 GB/hr.  That
+makes the choice a ladder of magnitude rather than a matrix of switches:
 
-| raw records | reports beyond the cap | what the run holds | chosen how |
+| `m_journalMode` | files | holds | order of cost |
 |---|---|---|---|
-| on | dropped | `.kamb` + `.kamj` | **default** — raw plus settings regenerates them |
-| on | kept | + the values as published (~0.4% of the raw stream) | the one explicit option |
-| off | kept | `.kamj.gz` alone — then the journal *is* the data | automatic; there is nothing else to keep |
-| off | dropped | settings only | that is `File → Save`, not a run |
+| **`Setup`** | `run042.kamj` | the dump: how the instrument was configured | a few hundred KB |
+| **`Logbook`** | `run042.kamj.gz` | and everything it reported, capped | ~36 MB/hr |
+| **`Logbook + raw`** | `+ run042.kamb` | and the raw records behind it | ~10 GB/hr |
 
-**One combo rather than two checkboxes** (`m_journalMode`, an `XComboNode`).
-The four rows above are not two independent switches — three of the four
-combinations are sensible and the fourth is not a run at all — so a pair of
-checkboxes would offer a state that has to be explained away.  A combo also
-suits what these files are for: a combo is stored by its **label**, which is
-the same reason `.kam` stores one that way, so a journal says what the run
-was set to record in words rather than in a pair of booleans whose meaning
-depends on the version of the code that wrote them.
+A *logbook* is exactly what the middle tier is — what was set, and what the
+instruments said, written down as it happened — and the word survives being
+read in ten years by someone who never used KAME, which a label stored in a
+file has to do.
 
-The labels are load-bearing — old files carry them — so they are fixed now
-and kept mechanical:
+**One combo rather than checkboxes** (`m_journalMode`, an `XComboNode`).  The
+tiers are cumulative, so they are one choice, not two independent switches;
+and a combo is stored by its **label**, which is the same reason `.kam`
+stores one that way — a journal then says in words what the run was set to
+record, rather than in booleans whose meaning depends on the version of the
+code that wrote them.  The labels above are therefore load-bearing and fixed
+now.
 
-    "Settings only"          settings and structure; reports capped
-    "Settings + values"      no raw stream, so the journal IS the data
-    "Settings + raw"         the default
-    "Settings + raw + values"  also keeps the values as published (~0.4%)
-
-The last exists for one reason: the number that was published must survive a
-KAME upgrade that changes how it is computed.
+The dropped fourth state is worth naming so it is not reinvented: "raw
+records, but drop the reports".  It saves 0.4% of the run and can lose the
+number that was published (user).  Not an option; a trap.
 
 The combo is where a *human* chooses; the mechanism stays where it is.
 `XRawStreamRecorder`'s `Recording` node keeps being what turns the raw stream
@@ -575,7 +572,7 @@ Two things stay out of the user's hands.  Requests are never dropped, whatever
 the setting, and neither are reports that change rarely — that is how "the
 instrument said firmware 2.31 that day" gets recorded.  And the always-on
 session journal always caps: it has to stay a few hundred KB a day, so the
-option is a property of a run, not of the session.
+mode is a property of a run, not of the session.
 
 The cap itself is a number, not a mode (samples per second per node, 0 =
 keep everything), and it is an `XNode` like everything else, so a script can
