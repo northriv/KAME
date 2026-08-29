@@ -406,7 +406,7 @@ the session dies a second later.
 
 | File | Extension | Contents |
 |---|---|---|
-| Settings snapshot (unchanged) | `.kam` | as today |
+| Settings snapshot (legacy) | `.kam` | as today; readable for ever, written until the dump replaces it |
 | Journal | **`.kamj`** | header record, dump, then one JSON object per line |
 | Journal with observations | **`.kamj.gz`** | same format, gzip *members* per block |
 | Raw stream | unchanged | as today |
@@ -529,16 +529,41 @@ provenance for its own sake — diffing two runs, answering "what was it at
 3:14" — is an offline tool, and deliberately not in the live application,
 where a reconstructed past state could be confused with the present one.
 
-## `.kam` is not deprecated
+## `.kam` is on its way out — kept for now
 
-A diff stream without a baseline means nothing, and every event-sourced design
-keeps snapshots for the same reason.  Users also carry `.kam` files between
-rigs and colleagues, which a session journal cannot do.
+The decision (user, 2026-08-29): **`.kam` is to be retired eventually, and
+maintained until then.**  What retires is the **writer**, not the reader.
+Files that exist must keep loading essentially for ever — the requirement
+stated earlier for the journal applies here just as much: backward
+compatibility is needed, forward compatibility is not.
 
-What changes is its status: from "save it often or lose your setup" to a
-checkpoint KAME writes at session start and end by itself.  Its executable,
-Ruby-flavoured form also stops being load-bearing for *reading*, since the
-dump at the head of the journal gives tools a neutral path → value view.
+The baseline argument does not save the format, only the *idea* of a
+baseline: a diff stream without one means nothing, which is why the dump sits
+at the head of every journal.  Once the dump can do everything a saved `.kam`
+is used for, the format has no remaining job.
+
+What the dump has to absorb first — this is the retirement checklist:
+
+- **Portability.**  Users carry settings between rigs and to colleagues.  A
+  session journal as such cannot do that, but a journal whose head is a dump
+  and whose body is empty *is* exactly a settings file.  "Save" becomes
+  "write a journal with no entries after the head", and the same reader opens
+  both.
+- **Readable and editable by hand.**  `.kam` is text, and people edit it.
+  JSON Lines is text too, `diff`s and `grep`s better, and the dump's neutral
+  path → value view is easier to edit correctly than executable Ruby whose
+  statements have to be run in order.
+- **Version skew.**  `.kam` loading tolerates a tree that has changed since
+  the file was written — the Python loader's `_KamFakeNode` silently absorbs
+  nodes that are absent or of an unexpected type.  The dump reader needs the
+  same tolerance, and should be able to *report* what it could not place
+  rather than only swallowing it.
+- **Structure, not just values.**  Everything `x.last.create(type, name)`
+  does today: create for a list child, navigate for an alias-list child or a
+  fixed child, and position where order is the meaning.
+
+Until all four hold, `.kam` stays as it is: no format changes, no behaviour
+changes, no new dependencies on it.
 
 ## Measured, on an ODMR setup (2026-08-29)
 
