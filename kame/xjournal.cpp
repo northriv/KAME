@@ -440,6 +440,15 @@ XJournal::drainOnce() {
         if( !rec.first.isSet())
             rec.first = e.record.when;
         rec.last = e.record.when;
+        if( !rec.bucketStart.isSet())
+            rec.bucketStart = e.record.when;
+        if(e.record.when.diff_msec(rec.bucketStart) >= 1000) {
+            if(rec.bucketCount > rec.peakPerSec)
+                rec.peakPerSec = rec.bucketCount;
+            rec.bucketStart = e.record.when;
+            rec.bucketCount = 0;
+        }
+        ++rec.bucketCount;
         ++m_captured;
         if(e.record.kind < NUM_KINDS)
             ++m_byKind[e.record.kind];
@@ -545,11 +554,15 @@ XJournal::writeReport() {
         << "  and the reason attribution is per write rather than per node.\n"
         << "  Caveat: a Python driver commits from the scripting thread, so its\n"
         << "  reports are counted here as requests.\n\n"
-        << "  'session/s' averages over the whole session; 'active/s' over the node's\n"
-        << "  own first-to-last window, which is the rate a rate cap has to survive.\n"
-        << "  Times come from the write itself, so a burst is resolved as a burst;\n"
-        << "  'active/s' is blank for a node written only once.\n\n"
-        << "  session/s  active/s      writes   request    report  rt  path\n"
+        << "  Two rates, because the design asks two different questions of them.\n"
+        << "  'session/s' x elapsed is what the node COSTS -- bytes per hour of\n"
+        << "  session.  'peak/s' is the most writes in any one second, which is\n"
+        << "  what a rate cap has to survive and what separates a node running at\n"
+        << "  acquisition rate from one written now and then.  Times come from the\n"
+        << "  write itself, so a burst is resolved as a burst; the buckets tumble,\n"
+        << "  so a burst split across a boundary reads low -- peak/s is a lower\n"
+        << "  bound.\n\n"
+        << "  session/s    peak/s      writes   request    report  rt  path\n"
         << "  ('d' = left the tree but still alive, 'x' = destroyed)\n";
     std::deque<size_t> order;
     for(size_t i = 0; i < m_nodes.size(); ++i)
@@ -569,13 +582,10 @@ XJournal::writeReport() {
         for(auto &&t: rec.byThread)
             ((threadClassOf(t.first) == ThreadClass::UNKNOWN) ? report : request)
                 += t.second;
-        double active = rec.last.diff_usec(rec.first) / 1e6;
-        if(active < 1e-3)
-            active = 1e-3; //!< finer than a millisecond says nothing here.
-        XString activeStr = (rec.writes > 1)
-            ? formatString("%8.3f", rec.writes / active) : XString("       -");
-        ofs << formatString("  %9.3f  %s  %10llu  %8llu  %8llu  %s%s  %s\n",
-            rec.writes / elapsed, activeStr.c_str(),
+        //The bucket still open can hold the maximum.
+        uintptr_t peak = std::max(rec.peakPerSec, rec.bucketCount);
+        ofs << formatString("  %9.3f  %8llu  %10llu  %8llu  %8llu  %s%s  %s\n",
+            rec.writes / elapsed, (unsigned long long)peak,
             (unsigned long long)rec.writes,
             (unsigned long long)request, (unsigned long long)report,
             rec.runtime ? "R" : "-",

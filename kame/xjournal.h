@@ -144,6 +144,15 @@ private:
         uintptr_t writes = 0;
         std::map<unsigned int, uintptr_t> byThread; //!< serial's low 16 bits
         XTime first, last;
+        //! Most writes seen in any one second -- the number a rate cap has to
+        //! survive, and the one that says whether this node runs at
+        //! acquisition rate or is written now and then.  An average over the
+        //! node's whole active window cannot answer either question: it is
+        //! diluted by every idle stretch inside that window.  Tumbling
+        //! buckets, so a burst split across a boundary reads low: this is a
+        //! LOWER BOUND on the peak.
+        XTime bucketStart;
+        uintptr_t bucketCount = 0, peakPerSec = 0;
     };
 
     void capture(uint32_t id, uint32_t kind, const Snapshot &shot, const XNode &node) noexcept;
