@@ -695,6 +695,24 @@ be possible to switch off**.  `Journal/SessionJournal` (saved, default on)
 does that.  A dump is not free, and a background writer nobody can refuse is
 impolite whatever its size.
 
+**The switch is on probation, not permanent** (user): it stays while there is
+any doubt, and goes when there is none.  What would settle it is measurable,
+so it is worth writing down rather than deciding by feel:
+
+- a session costs tens of KB, not hundreds, across real sessions rather than
+  one;
+- `dropped (ring full)` stays at zero on a rig that is actually acquiring;
+- the opening dump does not show up in startup time (the survey reports the
+  walk);
+- and **a retention policy exists** — this is the real gate.  Always-on with
+  no policy means files for ever, and a KAME restarted twenty times in an
+  afternoon writes twenty near-identical dumps.  Keeping the last N sessions,
+  or coalescing a dump that is identical to the previous one, is the missing
+  piece.
+
+When those hold, the switch leaves the pane; the node can stay for the rig
+with no disk to spare, and for scripts.
+
 (Retention is still not handled: one file per session, kept for ever.  They
 are small now, but "for ever" wants a policy eventually.)  **When a recording is started, the journal is
 also written beside the user's chosen file with a matching basename** —
