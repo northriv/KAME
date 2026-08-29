@@ -503,20 +503,83 @@ def jupyterProgramFor(subcommand):
 	when the package cannot be imported, which is the question being asked.
 	Cached for the session, since the probe is not cheap.
 	"""
-	import subprocess
 	for prog in listOfJupyterPrograms():
 		key = (prog, subcommand)
 		if key not in JUPYTER_CAPABLE:
-			try:
-				JUPYTER_CAPABLE[key] = (subprocess.run(
-					[prog, subcommand, '--version'],
-					stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-					timeout=30).returncode == 0)
-			except Exception:
-				JUPYTER_CAPABLE[key] = False
+			out = _runJupyter(prog, [subcommand, '--version'])
+			ok = out is not None
+			if ok and _needsLabSchemas(subcommand, out):
+				ok = _jupyterLabSchemasPresent(prog)
+			JUPYTER_CAPABLE[key] = ok
 		if JUPYTER_CAPABLE[key]:
 			return prog
 	return ''
+
+def _runJupyter(prog, argv):
+	"""Run a jupyter subcommand; its stdout, or None if it failed to run.
+
+	Console windows are suppressed on Windows: these are probes, and a jupyter
+	that flashed a window per candidate would be worse than the problem.
+	"""
+	import subprocess
+	kwargs = {}
+	if os.name == 'nt':
+		kwargs['creationflags'] = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+	try:
+		r = subprocess.run([prog] + argv, capture_output=True, text=True,
+			timeout=30, **kwargs)
+	except Exception:
+		return None
+	return r.stdout if r.returncode == 0 else None
+
+def _needsLabSchemas(subcommand, version_out):
+	"""Is this a JupyterLab-based front end, whose schemas have to be there?
+
+	`jupyter lab` always is.  `jupyter notebook` is from version 7 on -- but
+	notebook 6 is a different application that does not read lab schemas at
+	all, and demanding them would reject a perfectly good install.  An
+	unreadable version says nothing, so nothing is demanded.
+	"""
+	if subcommand == 'lab':
+		return True
+	if subcommand != 'notebook':
+		return False
+	try:
+		return int((version_out or '').strip().split('.')[0]) >= 7
+	except Exception:
+		return False
+
+def _jupyterLabSchemasPresent(prog):
+	"""Does this jupyter's JupyterLab application directory carry its schemas?
+
+	`notebook --version` only proves the package imports.  Notebook 7 IS a
+	JupyterLab application, and its front-end reads a settings schema for every
+	plugin out of `<app dir>/schemas`; with those missing, the bundle loads and
+	then every single plugin fails to activate, leaving a page showing nothing
+	but the Jupyter logo.  Diagnosed exactly that way here: one of the two
+	jupyters on this machine had no `share/jupyter/lab` directory at all, and
+	it was the one being picked.  The application directory is what
+	`jupyter lab path` reports, and it differs per program.
+
+	Deliberately fails OPEN.  This is a second opinion on a program whose
+	package already imported, and the answer is read out of a line of English
+	CLI output; if that command cannot be run or its wording ever changes, the
+	right conclusion is "no opinion", not "reject".  Only an application
+	directory that is actually there and actually empty of schemas condemns a
+	program.
+	"""
+	out = _runJupyter(prog, ['lab', 'path'])
+	if out is None:
+		return True     #could not ask
+	for line in out.splitlines():
+		if line.startswith('Application directory:'):
+			appdir = line.split(':', 1)[1].strip()
+			schemas = os.path.join(appdir, 'schemas')
+			try:
+				return os.path.isdir(schemas) and bool(os.listdir(schemas))
+			except OSError:
+				return True
+	return True         #wording not recognised
 
 
 NOTEBOOK_TOKEN = None

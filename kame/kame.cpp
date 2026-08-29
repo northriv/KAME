@@ -1091,8 +1091,10 @@ void FrmKameMain::onScriptLinkClicked(const QUrl &url) {
             gMessagePrint(i18n("Looking for a usable Jupyter..."));
             std::string prog = m_measure->python()->jupyterProgramFor("notebook");
             if(prog.empty()) {
-                gMessagePrint(i18n("No Jupyter that can run \"notebook\" was found. "
-                    "Install it with: pip install notebook"));
+                gMessagePrint(i18n("No usable Jupyter found. A jupyter is skipped "
+                    "when the notebook package is missing, and also when its "
+                    "JupyterLab data files are (that one serves a page showing "
+                    "nothing but the logo). Try: pip install notebook jupyterlab"));
                 return;
             }
             gMessagePrint(i18n("Choose root directory of notebook."));

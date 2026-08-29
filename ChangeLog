@@ -50,6 +50,21 @@
   cannot be imported, and the first that passes is used; the result is cached
   per session because the probe costs about a second.  When none passes, that
   is said plainly along with what to install.
+  For notebook and lab the probe goes further and checks that the program's
+  JupyterLab application directory carries its settings schemas, because
+  importing the package proves nothing about its data files: Notebook 7 IS a
+  JupyterLab application and reads a schema per plugin out of
+  `<app dir>/schemas`.  With those missing the bundle loads and then every
+  plugin fails to activate, and what reaches the browser is a page showing
+  nothing but the Jupyter logo -- diagnosed exactly that way here, where one
+  of the two jupyters on the machine had no `share/jupyter/lab` directory at
+  all and was the one being picked.  That extra check is careful about where
+  it applies: only for a notebook reporting version 7 or above (notebook 6 is
+  a different application that reads no lab schemas, and demanding them would
+  reject a good install) and it fails OPEN -- it reads a line of English CLI
+  output, so a command that cannot be run or wording that changes means "no
+  opinion", never "reject".  Only an application directory that is there and
+  empty condemns a program.  Probes run without a console window on Windows.
 - UI: an interface that appears is selected and scrolled into view in the
   Interface pane.  Bringing that pane to the front after a driver was added by
   hand only half finished the job while the row whose port has to be set was
