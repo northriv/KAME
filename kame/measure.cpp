@@ -112,9 +112,12 @@ m_conJournalURL(xqcon_create<XFilePathConnector>(
         dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_edJournal,
         dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_btnJournal,
         "KAME journal (*.kamj);;All files (*.*)", true)),
-m_conJournalSessionFile(xqcon_create<XQLabelConnector>(
+//Read-only line edit rather than a label: a path has to be selectable and
+//copyable, and a label clips a long one at whichever end the alignment
+//chooses -- which hid the file name, the one part anybody wants.
+m_conJournalSessionFile(xqcon_create<XQLineEditConnector>(
         journal()->sessionFile(),
-        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_lblSessionFile)),
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_edSessionFile)),
 m_conJournalSession(xqcon_create<XQToggleButtonConnector>(
         journal()->sessionJournal(),
         dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_ckbSessionJournal)),

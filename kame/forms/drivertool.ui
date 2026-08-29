@@ -57,21 +57,18 @@
          </widget>
         </item>
         <item>
-         <widget class="QLabel" name="m_lblSessionFile">
+         <widget class="QLineEdit" name="m_edSessionFile">
+          <property name="toolTip">
+           <string>Where this session is being journaled. Read-only: select and copy it, or drop it on a terminal.</string>
+          </property>
           <property name="sizePolicy">
            <sizepolicy hsizetype="Ignored" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
-          <property name="alignment">
-           <set>Qt::AlignRight|Qt::AlignVCenter</set>
-          </property>
-          <property name="textInteractionFlags">
-           <set>Qt::TextSelectableByMouse</set>
-          </property>
-          <property name="text">
-           <string/>
+          <property name="readOnly">
+           <bool>true</bool>
           </property>
          </widget>
         </item>
@@ -205,6 +202,7 @@
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <tabstops>
   <tabstop>m_ckbSessionJournal</tabstop>
+  <tabstop>m_edSessionFile</tabstop>
   <tabstop>m_edJournal</tabstop>
   <tabstop>m_btnJournal</tabstop>
   <tabstop>m_cmbJournalMode</tabstop>
