@@ -114,6 +114,12 @@ registered type name, its position and its flags.  Not a path hash:
   created at the same path, which is exactly the case provenance must
   distinguish.
 
+And not the path itself, which is not even unique before the DAG is
+considered: measured on an ODMR rig, a calibration table holds hundreds of
+children with **empty names**, and every driver's interface is called
+`Interface` in the same list.  Paths are for reading; identity is the id, and
+a table entry needs its position within its parent to be unambiguous at all.
+
 Not topology indices either: sibling insertion and release shift them, so the
 same node changes identity mid-session.  Cross-session stability is not
 needed — each journal carries its own id → path table, and runs are compared
@@ -336,6 +342,23 @@ What changes is its status: from "save it often or lose your setup" to a
 checkpoint KAME writes at session start and end by itself.  Its executable,
 Ruby-flavoured form also stops being load-bearing for *reading*, since the
 dump at the head of the journal gives tools a neutral path → value view.
+
+## Measured, on an ODMR setup (2026-08-29)
+
+7103 nodes, of which **1213 are non-runtime** — the journal's subscription
+list.  A listener each is tens of kilobytes, and the whole tree walks in
+0.02 s, so per-node subscription is affordable and the design's central
+assumption holds.  83% of the tree is runtime and gets pruned.
+
+The leakage the design predicts is real: `/Drivers/ODMR2D/Average` changes
+about 0.43 times a second with nobody touching anything, while being
+`runtime == false`.  One confirmed instance is enough to settle that the
+`runtime` flag cannot be trusted on its own, which is what attribution is for.
+
+(The same run reported several nodes changing hundreds of times a second,
+which is impossible at four samples a second.  That was the survey keying by
+path — see above on why paths collide.  The finding stands as evidence for the
+id, not as a measurement.)
 
 ## Deferred
 

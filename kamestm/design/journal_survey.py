@@ -23,7 +23,15 @@ REPORT = os.path.expanduser("~/kame_journal_survey.txt")
 
 
 def walk(node, path, out, depth=0):
-    """Collect (path, node, runtime) for every node under `node`."""
+    """Collect (path, node, runtime) for every node under `node`.
+
+    Paths are NOT unique in this tree and cannot be used as keys: calibration
+    tables hold hundreds of children with empty names, and every driver's
+    interface is called "Interface" in the same list.  Measured -- keying by
+    path made unrelated siblings share a counter and report rates several
+    hundred times the sampling rate.  Each node therefore gets an index, which
+    is what everything downstream keys on; the path is for reading only.
+    """
     try:
         shot = Snapshot(node)
         children = shot.list(node)
@@ -67,13 +75,17 @@ def main():
     # Only non-runtime value nodes matter: those are what the journal would
     # subscribe to.
     watched = []
-    for path, node, runtime, _, _ in nodes:
+    for i, (path, node, runtime, _, _) in enumerate(nodes):
         if runtime:
             continue
         v = value_of(node)
         if v is None:
             continue
-        watched.append((path, node, v))
+        watched.append((i, path, node, v))
+
+    #How badly paths collide is itself a design input.
+    seen_paths = collections.Counter(path for _, path, _, _ in watched)
+    colliding = {p: n for p, n in seen_paths.items() if n > 1}
 
     lines = []
     lines.append("KAME journal survey  %s" % time.strftime("%Y-%m-%d %H:%M:%S"))
@@ -86,6 +98,8 @@ def main():
     lines.append("  max depth          : %d" % maxdepth)
     lines.append("value nodes the journal would subscribe to (non-runtime): %d"
                  % len(watched))
+    lines.append("  distinct paths among them: %d  (%d paths cover %d nodes)"
+                 % (len(seen_paths), len(colliding), sum(colliding.values())))
     lines.append("tree walk took       : %.2f s" % (time.time() - t0))
     lines.append("")
     lines.append("Sampling %.0f s at %.2f s -- keep the measurement running and "
@@ -93,20 +107,20 @@ def main():
     print("\n".join(lines))
 
     # --- who changes by itself?
-    last = {path: v for path, _, v in watched}
+    last = {i: v for i, _, _, v in watched}
     counts = collections.Counter()
     samples = 0
     t_end = time.time() + SAMPLE_SECONDS
     while time.time() < t_end:
         sleep(SAMPLE_INTERVAL)
         samples += 1
-        for path, node, _ in watched:
+        for i, _, node, _ in watched:
             v = value_of(node)
             if v is None:
                 continue
-            if v != last.get(path):
-                counts[path] += 1
-                last[path] = v
+            if v != last.get(i):
+                counts[i] += 1
+                last[i] = v
 
     duration = samples * SAMPLE_INTERVAL
     lines.append("")
@@ -115,9 +129,13 @@ def main():
                  % len(counts))
     lines.append("(each is an output whose runtime flag is missing, or a "
                  "setting a driver writes back)")
+    lines.append("A rate above %.2f /s would be impossible at this sampling "
+                 "interval and means the key is wrong." % (1.0 / SAMPLE_INTERVAL))
     lines.append("")
-    for path, n in counts.most_common():
-        lines.append("  %6.2f /s  %s" % (n / duration if duration else 0, path))
+    paths = {i: path for i, path, _, _ in watched}
+    for i, n in counts.most_common():
+        lines.append("  %6.2f /s  [#%d] %s" %
+                     (n / duration if duration else 0, i, paths.get(i, "?")))
     if not counts:
         lines.append("  (none -- the runtime flag is doing its job here)")
 
