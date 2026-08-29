@@ -65,6 +65,15 @@
   output, so a command that cannot be run or wording that changes means "no
   opinion", never "reject".  Only an application directory that is there and
   empty condemns a program.  Probes run without a console window on Windows.
+- UI (macOS): choosing KAME in the Dock did not necessarily bring the main
+  window forward.  AppKit orders an application's windows front keeping their
+  order among themselves, so the main window stays wherever it was in the
+  stack -- underneath a driver form, and always underneath the toolboxes,
+  which are Qt::Tool panels marked stays-on-top.  It now asks to come forward
+  when the application is activated, but only when that activation left
+  nothing of ours focused, which is what a Dock click looks like: activating
+  the app by clicking one of our own windows makes that window active, and it
+  is not for KAME to overrule the choice.
 - UI: the pane tab columns are flat.  The platform's boxed, shaded tabs with
   rotated labels were what dated the resting toolbox more than anything else
   about it: no frames now, room to breathe, and the pane in front marked by an

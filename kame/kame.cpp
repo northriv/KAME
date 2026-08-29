@@ -239,6 +239,29 @@ FrmKameMain::FrmKameMain()
 
     updateToolboxStrips(); //initial check marks, after the panes are laid out.
 
+#if defined __MACOSX__ || defined __APPLE__
+    //Bringing the application forward from the Dock does NOT bring this window
+    //forward: AppKit orders the app's windows front keeping their order among
+    //themselves, so the main window stays wherever it was in the stack —
+    //underneath a driver form, and always underneath the toolboxes, which are
+    //Qt::Tool panels marked stays-on-top.  Asking for it is the way out.
+    //
+    //Only when the activation left nothing of ours focused, which is what a
+    //Dock click looks like; activating the app by clicking one of our own
+    //windows makes that window active, and it is not for us to overrule.
+    //Deferred by a tick because the window activation lands after the
+    //application-state change.
+    connect(qApp, &QGuiApplication::applicationStateChanged, this,
+        [this](Qt::ApplicationState state) {
+            if(state != Qt::ApplicationActive) return;
+            QTimer::singleShot(0, this, [this]{
+                if(QApplication::activeWindow()) return;
+                raise();
+                activateWindow();
+            });
+        });
+#endif
+
     // The root for all nodes.
     m_measure = XNode::createOrphan<XMeasure>("Measurement", false);
 
