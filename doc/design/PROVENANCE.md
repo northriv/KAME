@@ -496,6 +496,37 @@ The extension is a hint; the file declares itself in its first line:
 Block compression uses concatenated gzip members (as BGZF does), so the file
 stays seekable *and* `zcat`/`zgrep` still read it.
 
+### Saving is not appending — three things, none overloading another
+
+A journal that keeps being written to the file the user "saved" is the most
+natural thing to *use* and the wrong thing to call **Save**.  Ordinary Save
+semantics say: the file is what you saw at that instant, closing without
+saving discards, and copying the file gives you the whole of it.  An
+appending file breaks all three — there is no moment at which it is what the
+user saw when they pressed Save, and a copy taken mid-run is a truncation
+rather than a document.
+
+KAME already has the right idiom for a file that keeps being written, three
+times over: a path field, a browse button and a **Write** toggle — the text
+writer, the logger, and `XRawStreamRecorder`.  A continuously written journal
+is one of those, not a File-menu item.  So:
+
+| | What it is | Where it is said |
+|---|---|---|
+| Session journal | always on, never chosen | managed directory; no UI beyond an indicator and "open folder" |
+| Run journal | the copy beside the user's data | destination + Write toggle, next to the raw-stream recorder, basename following it |
+| **File → Save** | a checkpoint: dump only, no entries | ordinary Save semantics, unchanged |
+
+The third is what replaces `.kam`: a journal whose head is a dump and whose
+body is empty *is* a settings file, finished and portable, read by the same
+reader as any other journal.
+
+And the wish behind the question — "what I saved should stay up to date" — is
+already granted by the first row rather than by changing the third.  The
+state is not lost if the user forgets to save; that is the whole point of an
+always-on journal, and it is why `.kam`'s status changes from "save often or
+lose your setup" to a checkpoint.
+
 ### Where they live
 
 `QStandardPaths::AppLocalDataLocation` — `~/Library/Application Support/kame`
