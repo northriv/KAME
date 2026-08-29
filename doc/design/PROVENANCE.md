@@ -546,11 +546,30 @@ Most of it is decided already, and by a rule rather than by the user:
 | off | kept | `.kamj.gz` alone — then the journal *is* the data | automatic; there is nothing else to keep |
 | off | dropped | settings only | that is `File → Save`, not a run |
 
-So the run pane needs exactly one extra control beyond the raw-records
-checkbox, and it is worth naming for its purpose rather than its mechanism:
-**"keep values as published"** — for when the number that was published must
-survive a KAME upgrade that changes how it is computed.  Everything else
-follows from whether raw records are being recorded.
+**One combo rather than two checkboxes** (`m_journalMode`, an `XComboNode`).
+The four rows above are not two independent switches — three of the four
+combinations are sensible and the fourth is not a run at all — so a pair of
+checkboxes would offer a state that has to be explained away.  A combo also
+suits what these files are for: a combo is stored by its **label**, which is
+the same reason `.kam` stores one that way, so a journal says what the run
+was set to record in words rather than in a pair of booleans whose meaning
+depends on the version of the code that wrote them.
+
+The labels are load-bearing — old files carry them — so they are fixed now
+and kept mechanical:
+
+    "Settings only"          settings and structure; reports capped
+    "Settings + values"      no raw stream, so the journal IS the data
+    "Settings + raw"         the default
+    "Settings + raw + values"  also keeps the values as published (~0.4%)
+
+The last exists for one reason: the number that was published must survive a
+KAME upgrade that changes how it is computed.
+
+The combo is where a *human* chooses; the mechanism stays where it is.
+`XRawStreamRecorder`'s `Recording` node keeps being what turns the raw stream
+on, driven by the combo, so scripts and `.kam` files that set it directly go
+on working.
 
 Two things stay out of the user's hands.  Requests are never dropped, whatever
 the setting, and neither are reports that change rarely — that is how "the
