@@ -546,6 +546,10 @@ makes the choice a ladder of magnitude rather than a matrix of switches:
 | **`Logbook`** | `run042.kamj.gz` | and everything it reported, capped | ~36 MB/hr |
 | **`Logbook + raw`** | `+ run042.kamb` | and the raw records behind it | ~10 GB/hr |
 
+The default is **`Setup`**, the cheapest, so that a KAME nobody has configured
+does not imply that pressing Write means 10 GB/hr.  The mode is non-runtime
+and therefore saved, so a rig that records raw data says so once.
+
 A *logbook* is exactly what the middle tier is — what was set, and what the
 instruments said, written down as it happened — and the word survives being
 read in ten years by someone who never used KAME, which a label stored in a

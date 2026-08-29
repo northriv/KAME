@@ -53,7 +53,10 @@ XJournalRecorder::XJournalRecorder(const char *name, bool runtime,
     iterate_commit([=](Transaction &tr){
         tr[ *m_mode].add({modeLabel(Mode::SETUP), modeLabel(Mode::LOGBOOK),
             modeLabel(Mode::LOGBOOK_RAW)});
-        tr[ *m_mode] = (int)Mode::LOGBOOK_RAW;
+        //Setup, not the top tier: a fresh KAME must not sit there implying
+        //that pressing Write means 10 GB/hr.  The mode is saved (it is
+        //non-runtime), so a rig that records raw says so once and remembers.
+        tr[ *m_mode] = (int)Mode::SETUP;
         tr[ *m_recording] = false;
         m_lsnOnRecordingChanged = tr[ *m_recording].onValueChanged().connectWeakly(
             shared_from_this(), &XJournalRecorder::onRecordingChanged);
