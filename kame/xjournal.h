@@ -51,8 +51,13 @@ public:
     //! disciplines are safer apart.  \sa doc/design/PROVENANCE.md
     const shared_ptr<XRawStreamRecorder> &rawStream() const {return m_rawstream;}
 
-    //! The run's name.  Extensions are derived, not typed.
+    //! The RUN's name -- empty until the user names one.  Extensions are
+    //! derived, not typed.  It never holds the session journal's path: that
+    //! is a different file, written under different rules, and putting both
+    //! in one field made the pane say two things at once.
     const shared_ptr<XStringNode> &filename() const {return m_filename;}
+    //! Where the always-on session journal is being written, for display.
+    const shared_ptr<XStringNode> &sessionFile() const {return m_sessionFile;}
     //! How much this run keeps.  \sa Mode
     const shared_ptr<XComboNode> &mode() const {return m_mode;}
     const shared_ptr<XBoolNode> &recording() const {return m_recording;}
@@ -73,11 +78,9 @@ public:
     //! Uncompressed bytes the raw stream has taken, 0 when there is none.
     uintptr_t rawBytesWritten() const;
 
-    //! Told once, as the session journal opens: the file that is being
-    //! written when the user has named nothing.  Showing it is what makes
-    //! "always on" visible instead of merely true, and Mode and Recording
-    //! mean nothing while it is the target -- a run cannot be started INTO
-    //! the session journal -- so they are disabled until a run is named.
+    //! Told as the session journal opens or closes, for the display beside
+    //! its switch.  Showing it is what makes "always on" visible instead of
+    //! merely true.
     void setSessionPath(const XString &);
     const XString &sessionPath() const {return m_sessionPath;}
 
@@ -94,6 +97,7 @@ private:
     const shared_ptr<XComboNode> m_mode;
     const shared_ptr<XBoolNode> m_recording;
     const shared_ptr<XBoolNode> m_sessionJournal;
+    const shared_ptr<XStringNode> m_sessionFile;
     const shared_ptr<XStringNode> m_statistics;
     const shared_ptr<XRawStreamRecorder> m_rawstream;
     shared_ptr<Listener> m_lsnOnRecordingChanged, m_lsnOnFilenameChanged;

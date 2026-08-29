@@ -604,15 +604,25 @@ The dropped fourth state is worth naming so it is not reinvented: "raw
 records, but drop the reports".  It saves 0.4% of the run and can lose the
 number that was published (user).  Not an option; a trap.
 
-**The field shows what is being written.**  At startup `Filename` holds the
-session journal's path, because the always-on part should be *visible*
-rather than merely true — and because a user who wants to find or copy it
-should not have to know where KAME keeps its files (the browse dialog then
-opens there too).  While that is the target, `Mode` and `Recording` are
-**disabled**: a run cannot be started into the session journal, and there is
-no tier to choose for a file whose contents are governed by the silence rule.
-Name a run and both come alive.  (Disabled, not hidden: a form that collapses
-looks broken.)
+**The pane says two things, so it has two parts** — an earlier version put
+the session journal's path into the run's filename field, which made "always
+on" visible at the price of a field that meant something different depending
+on what was in it (user: the semantics were hard to follow).  Now:
+
+    [x] Session journal          ~/Library/…/journal/session-…kamj
+    Run  [ run042            ] [...]
+    [ Logbook + raw ▾ ]   2.4 kB/s  51.4 kB      [ ] Write
+
+The first row is the always-on file: a switch, and where it is going, shown
+because a user who wants to find or copy it should not have to know where
+KAME keeps its own files.  The rest is **this run** — its name, how much of
+it is kept, what it is costing, and the switch that marks where it begins and
+ends.  `Mode` and `Recording` stay disabled until a run is named, and `Mode`
+also while one is open, since its tier is latched in the file's header.
+
+Separating them also deleted a bug: "is there a run to configure" used to be
+"is the field something other than the session path", a comparison that an
+extension mismatch could get wrong.  Now it is "has one been named".
 
 **Why `Recording` is not redundant.**  It looks like it could go — the mode
 could gain an "Off", or naming a file could be the intent to record — and

@@ -112,6 +112,9 @@ m_conJournalURL(xqcon_create<XFilePathConnector>(
         dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_edJournal,
         dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_btnJournal,
         "KAME journal (*.kamj);;All files (*.*)", true)),
+m_conJournalSessionFile(xqcon_create<XQLabelConnector>(
+        journal()->sessionFile(),
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_lblSessionFile)),
 m_conJournalSession(xqcon_create<XQToggleButtonConnector>(
         journal()->sessionJournal(),
         dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_ckbSessionJournal)),

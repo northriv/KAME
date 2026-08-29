@@ -51,6 +51,7 @@ XJournalRecorder::XJournalRecorder(const char *name, bool runtime,
     //Saved, unlike the run's switch: whether this rig journals its sessions
     //at all is a property of the rig, not of today.
     m_sessionJournal(create<XBoolNode>("SessionJournal", false)),
+    m_sessionFile(create<XStringNode>("SessionFile", true)),
     m_statistics(create<XStringNode>("Statistics", true)),
     //Runtime: a run's stream is chosen for that run, and nothing about it
     //belongs in a settings file.
@@ -78,17 +79,8 @@ XJournalRecorder::XJournalRecorder(const char *name, bool runtime,
 
 void
 XJournalRecorder::setSessionPath(const XString &path) {
-    XString was = m_sessionPath;
     m_sessionPath = path;
-    XString shown = Snapshot( *this)[ *m_filename].to_str();
-    //Fill the field only when it is not naming a run: switching the session
-    //journal back on must not wipe a name the user typed.
-    bool showsSession = !shown.length()
-        || (was.length() && (journalPathOf(shown) == journalPathOf(was)));
-    if(showsSession)
-        trans( *m_filename) = path;
-    else
-        updateRunControls();
+    trans( *m_sessionFile) = path;
 }
 
 //! A run needs a file of its own; while the field still names the session
@@ -102,14 +94,13 @@ XJournalRecorder::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 void
 XJournalRecorder::updateRunControls() {
     Snapshot shot_this( *this);
-    XString path = shot_this[ *m_filename].to_str();
+    //Now that the field holds nothing but the run's name, "is there a run to
+    //configure" is exactly "has one been named".  It used to be a comparison
+    //against the session path, which is how an extension mismatch could make
+    //the whole pane behave as though a run were already named.
+    bool own = shot_this[ *m_filename].to_str().length();
     //A run's tier is fixed for its duration: its header says what it is.
     bool running = shot_this[ *m_recording];
-    //Compared through journalPathOf on both sides: the field holds whatever
-    //the user typed, the session path its full name, and "the same file" has
-    //to mean the same file.
-    bool own = path.length()
-        && ( !m_sessionPath.length() || (journalPathOf(path) != journalPathOf(m_sessionPath)));
     iterate_commit([=](Transaction &tr){
         tr[ *m_mode].setUIEnabled(own && !running);
         tr[ *m_recording].setUIEnabled(own);
