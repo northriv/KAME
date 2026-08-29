@@ -262,6 +262,29 @@ writing a line that will quietly fail to recreate anything.  (`.kam` writes
 it regardless today, and the Python loader's `_KamFakeNode` swallows the
 failure on the way back in.)
 
+**Does stamping at `createByTypename` catch everything?**  Audited on the
+current tree (2026-08-29), and yes:
+
+- 154 classes are registered with `REGISTER_TYPE`, and **not one of them is
+  instantiated anywhere by `create<>`, `createOrphan<>` or `new`** — every
+  instance comes through a list's `createByTypename`.
+- `creator(type)` has exactly four call sites, all of them inside such an
+  implementation (`XDriverList`, `XCalibrationCurveList`,
+  `XGraph1DMathToolList`, `XGraph2DMathToolList`), and the last two already
+  stamp the key.
+- Python cannot construct a node at all — no `XNode` subclass has a
+  `py::init` — and `exportClass` only inserts a creator into the same
+  registry, so a Python driver type also arrives through `createByTypename`.
+- `XCalibratedEntryList::createByTypename` ignores the type string and always
+  builds an `XCalibratedEntry`, so it behaves as a fixed-element list and
+  needs no key either.
+
+That is a fact about today's tree, not a guarantee about tomorrow's, so it
+should be **enforced rather than re-audited**: a node sitting under a
+registry list with no key recorded is a dump-time complaint.  Which is the
+rule above, doing double duty — the day someone creates such a node directly,
+the dump says so instead of writing a line that would not come back.
+
 ### Attribution
 
 The serial already carries the committing thread in its low 16 bits, so
