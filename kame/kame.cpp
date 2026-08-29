@@ -1003,7 +1003,11 @@ void FrmKameMain::fileOpenAction_activated() {
 
 
 void FrmKameMain::fileSaveAction_activated() {
-    QString filter = "KAME2 Measurement files (*.kam)";
+    //Both formats, .kam still first because it is what everyone has.  A
+    //journal saved this way is a file whose head is the state of the tree
+    //and whose body is empty -- which is what a settings file IS, and what
+    //eventually replaces .kam.  \sa doc/design/PROVENANCE.md
+    QString filter = "KAME2 Measurement files (*.kam);;KAME journal (*.kamj)";
 #if QT_VERSION < QT_VERSION_CHECK(5,0,0)
     QString filename = QFileDialog::getSaveFileName (
         this, i18n("Save Measurement File"), "", filter);
@@ -1023,6 +1027,14 @@ void FrmKameMain::fileSaveAction_activated() {
     QString filename = dialog.selectedFiles().at(0);
 #endif
     if( !filename.isEmpty()) {
+        if(filename.endsWith(".kamj", Qt::CaseInsensitive)) {
+            if(m_journal)
+                m_journal->requestSave(filename.toLocal8Bit().data());
+            else
+                gErrPrint(i18n("Journaling is off (KAME_JOURNAL=0); "
+                    "save as .kam instead."));
+            return;
+        }
         std::ofstream ofs(filename.toLocal8Bit().data(), std::ios::out);
 		if(ofs.good()) {
             XRubyWriter writer(m_measure, ofs);

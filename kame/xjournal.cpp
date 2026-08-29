@@ -31,7 +31,6 @@
 const char *
 XJournalRecorder::modeLabel(Mode m) {
     switch(m) {
-    case Mode::SETUP: return "Setup";
     case Mode::LOGBOOK: return "Logbook";
     default: return "Logbook + raw";
     }
@@ -59,12 +58,11 @@ XJournalRecorder::XJournalRecorder(const char *name, bool runtime,
     //Own transaction, not the caller's: these children are inserted outside
     //any transaction the constructor was handed.
     iterate_commit([=](Transaction &tr){
-        tr[ *m_mode].add({modeLabel(Mode::SETUP), modeLabel(Mode::LOGBOOK),
-            modeLabel(Mode::LOGBOOK_RAW)});
-        //Setup, not the top tier: a fresh KAME must not sit there implying
+        tr[ *m_mode].add({modeLabel(Mode::LOGBOOK), modeLabel(Mode::LOGBOOK_RAW)});
+        //The cheaper tier, so that a fresh KAME does not sit there implying
         //that pressing Write means 10 GB/hr.  The mode is saved (it is
         //non-runtime), so a rig that records raw says so once and remembers.
-        tr[ *m_mode] = (int)Mode::SETUP;
+        tr[ *m_mode] = (int)Mode::LOGBOOK;
         tr[ *m_recording] = false;
         tr[ *m_sessionJournal] = true;
         m_lsnOnRecordingChanged = tr[ *m_recording].onValueChanged().connectWeakly(
@@ -117,8 +115,11 @@ XJournalRecorder::updateRunControls() {
 XJournalRecorder::Mode
 XJournalRecorder::modeOf(const Snapshot &shot) const {
     int idx = shot[ *m_mode];
+    //An unknown label (an older file naming a tier that no longer exists)
+    //falls to the CHEAPEST, never the most expensive: nobody should be
+    //upgraded to 10 GB/hr by a string we failed to recognise.
     if((idx < 0) || (idx > (int)Mode::LOGBOOK_RAW))
-        return Mode::LOGBOOK_RAW;
+        return Mode::LOGBOOK;
     return (Mode)idx;
 }
 
@@ -629,6 +630,37 @@ XJournal::openSession() {
 }
 
 void
+XJournal::requestSave(const XString &path) {
+    XScopedLock<XCondition> lock(m_wake);
+    m_savePath = path;
+    m_wake.signal();
+}
+
+//! `File → Save`, in journal form.  Ordinary Save semantics -- one file, one
+//! instant, finished when it returns -- which is exactly what the dump is,
+//! and exactly what a Write switch could never be.
+void
+XJournal::writeSaveFile() {
+    XString path;
+    {
+        XScopedLock<XCondition> lock(m_wake);
+        path.swap(m_savePath);
+    }
+    if( !path.length())
+        return;
+    Out out;
+    if( !out.open(path)) {
+        gErrPrint(i18n_noncontext("Journal: cannot write ") + path);
+        return;
+    }
+    writeHeader(out, "save");
+    writeDump(out);
+    out.flush(true);
+    out.close();
+    gMessagePrint(i18n_noncontext("Saved: ") + path);
+}
+
+void
 XJournal::syncRun() {
     auto rec = m_recorder.lock();
     if( !rec)
@@ -670,7 +702,7 @@ XJournal::syncRun() {
         m_bytesLast = 0;
         m_rawBytesAtStart = rec->rawBytesWritten();
         m_runOpen = true;
-        m_runKeepsValues = (mode != XJournalRecorder::Mode::SETUP);
+        m_runKeepsValues = true;
         writeHeader(m_runOut, "run");
         writeDump(m_runOut);
         m_runOut.flush(true);
@@ -682,11 +714,10 @@ XJournal::syncRun() {
         m_sessionOut.flush();
         gMessagePrint(i18n_noncontext("Journal: ") + m_openPath);
     }
-    //Deliberately NOT re-read while a run is open: the header states the
-    //tier, and a tier that changed underneath it would make the file lie
-    //about its own contents.  A run keeps the tier it was opened with; the
-    //combo is greyed meanwhile, and this is what makes that true even for a
-    //script that writes the node directly.
+    //The tier is latched at open (see below): the header states it, and a
+    //tier that changed underneath would make the file lie about its own
+    //contents.  The combo is greyed meanwhile, and the latch is what makes
+    //that true even for a script that writes the node directly.
     if( !on && m_runOpen) {
         drainOnce(); //!< whatever is still in the ring belongs in the file
         m_runOut.close();
@@ -747,6 +778,7 @@ XJournal::execute(const atomic<bool> &terminated) {
     XTime lastSweep = XTime::now();
     sweep(); //!< the one full walk that has to happen: the opening state.
     while( !terminated) {
+        writeSaveFile();
         syncRun();
         processPending();
         drainOnce();

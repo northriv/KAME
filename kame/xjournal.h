@@ -71,7 +71,11 @@ public:
     //! Cumulative tiers, in order of magnitude: a few hundred KB, ~36 MB/hr,
     //! ~10 GB/hr.  **The labels are what a file carries** and are not to be
     //! respelled -- see doc/design/PROVENANCE.md.
-    enum class Mode {SETUP = 0, LOGBOOK = 1, LOGBOOK_RAW = 2};
+    //! What a RUN keeps.  There is no "settings only" tier: writing the
+    //! settings once is `File → Save`, which is what a user reaches for and
+    //! what a one-shot act should be called.  A Write switch that wrote once
+    //! and then sat there was the confusing thing (user).
+    enum class Mode {LOGBOOK = 0, LOGBOOK_RAW = 1};
     static const char *modeLabel(Mode);
     Mode modeOf(const Snapshot &shot) const;
 
@@ -169,6 +173,12 @@ public:
     //! Writes the accumulated survey.  Drain thread only.
     //! \return the path written, or empty on failure.
     XString writeReport();
+
+    //! Asks for a dump-only journal at \a path -- `File → Save`, in journal
+    //! form: a file whose head is the state of the tree and whose body is
+    //! empty.  Written by the journal's own thread, which is the thread that
+    //! knows the node table.
+    void requestSave(const XString &path);
 
 private:
     //! Which files an entry belongs in, decided where it is captured so that
@@ -302,6 +312,8 @@ private:
     void writeEntry(Out &out, const JournalT::Entry &e);
     //! Opens the always-on session journal and writes its dump.
     void openSession();
+    //! Serves a pending requestSave().
+    void writeSaveFile();
     void updateStatistics();
     void pushPending(const shared_ptr<XNode> &node, uint32_t listId, bool caught,
         int index);
@@ -366,6 +378,8 @@ private:
     //! Open between the Write switch going on and off: the run.
     Out m_runOut;
     XString m_sessionPath, m_openPath, m_session;
+    //! A pending File > Save, handed over under m_wake like everything else.
+    XString m_savePath;
     //! Whether the RUN wants values -- false for a Setup run, and while no
     //! run is open.  The session journal keeps its own (much sparser) share
     //! regardless, so this gates one stream, not capture itself.

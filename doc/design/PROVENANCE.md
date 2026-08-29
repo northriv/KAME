@@ -579,13 +579,22 @@ makes the choice a ladder of magnitude rather than a matrix of switches:
 
 | `m_journalMode` | files | holds | order of cost |
 |---|---|---|---|
-| **`Setup`** | `run042.kamj` | the dump: how the instrument was configured | ~60 KB, measured |
-| **`Logbook`** | `run042.kamj` | and everything it reported | ~11 MB/hr, measured |
-| **`Logbook + raw`** | `+ run042.kamb` | and the raw records behind it | ~10 GB/hr |
+| **`Logbook`** | `run042.kamj` | the dump, and everything the instruments reported | ~11 MB/hr, measured |
+| **`Logbook + raw`** | `+ run042.kamb` | and the raw records behind them | ~10 GB/hr |
 
-The default is **`Setup`**, the cheapest, so that a KAME nobody has configured
-does not imply that pressing Write means 10 GB/hr.  The mode is non-runtime
-and therefore saved, so a rig that records raw data says so once.
+There is no "settings only" tier, and the one that existed was removed
+(user): **writing the settings once is `File → Save`.**  A `Write` switch
+that wrote a file the instant it was pressed and then sat there doing nothing
+is not something a user can be expected to make sense of — a switch that
+records is one thing, an action that saves is another, and the tier list is
+for the first only.  `Logbook` is the default, the cheaper of the two, so a
+KAME nobody has configured does not imply that pressing Write means 10 GB/hr;
+the mode is non-runtime and therefore saved, so a rig that records raw data
+says so once.
+
+`File → Save` accordingly offers `.kamj` beside `.kam`, and writes what it
+has always written: **one file, one instant, finished when it returns**.  In
+journal form that is a head with no body — which is what a settings file is.
 
 A *logbook* is exactly what the middle tier is — what was set, and what the
 instruments said, written down as it happened — and the word survives being
