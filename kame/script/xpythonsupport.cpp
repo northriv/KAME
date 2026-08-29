@@ -60,6 +60,23 @@ XPython::listOfJupyterPrograms() {
     }
     return {};
 }
+std::string
+XPython::jupyterProgramFor(const std::string &subcommand) {
+    pybind11::gil_scoped_acquire guard;
+    try {
+        return py::cast<std::string>(py::eval("jupyterProgramFor(r'" + subcommand + "')"));
+    }
+    catch (pybind11::error_already_set& e) {
+        gErrPrint(i18n("Python error: ") + e.what());
+    }
+    catch (std::runtime_error &e) {
+        gErrPrint(i18n("Python KAME binding error: ") + e.what());
+    }
+    catch (...) {
+        gErrPrint(i18n("Unknown python error."));
+    }
+    return {};
+}
 void XPython::launchJupyterConsole(const std::string &execpath, const std::string &console) {
     pybind11::gil_scoped_acquire guard;
     try {

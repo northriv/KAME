@@ -397,6 +397,20 @@ def kame_pybind_one_iteration():
 				exec(_script, globals())
 			except Exception:
 				STDERR.write(str(traceback.format_exc()))
+	#A notebook server that dies takes its reason with it: the tail of its
+	#output was already being kept for exactly this, and nothing read it, so
+	#the user was left with a half-drawn page and no message anywhere.  A
+	#server killed moments after start serves the page shell and then nothing,
+	#which is what "only the logo appears" looks like.
+	global NOTEBOOK_DEATH_REPORTED
+	if (not NOTEBOOK_DEATH_REPORTED) and (NOTEBOOK_PROC is not None) \
+			and (NOTEBOOK_PROC.poll() is not None):
+		NOTEBOOK_DEATH_REPORTED = True
+		_tail = list(NOTEBOOK_LOG_TAIL or [])[-12:]
+		STDERR.write("Jupyter notebook server exited (code {}).\n{}\n".format(
+			NOTEBOOK_PROC.returncode,
+			"\n".join(_tail) if _tail else "  (it printed nothing)"))
+
 	try:
 		#For node browser pane
 		PyInfoForNodeBrowser().set(str([y[0] for y in inspect.getmembers(LastPointedByNodeBrowser(), inspect.ismethod)]))
@@ -474,6 +488,37 @@ def findExecutables(prog):
 def listOfJupyterPrograms():
 	return findExecutables('jupyter')
 
+JUPYTER_CAPABLE = {}	#(program, subcommand) -> bool; a probe costs about a second
+
+def jupyterProgramFor(subcommand):
+	"""The first jupyter that can actually run `subcommand`, or ''.
+
+	listOfJupyterPrograms() finds executables named jupyter* on PATH, which
+	says nothing about whether the package behind a subcommand is installed
+	for that particular one.  On a machine carrying several Pythons the answer
+	differs per program -- measured on this one: of five, the first ran
+	notebook and lab but not qtconsole, and another ran neither console nor
+	qtconsole -- so taking the first and hoping is how a launch ends in a
+	missing-module traceback.  `<prog> <sub> --version` exits non-zero exactly
+	when the package cannot be imported, which is the question being asked.
+	Cached for the session, since the probe is not cheap.
+	"""
+	import subprocess
+	for prog in listOfJupyterPrograms():
+		key = (prog, subcommand)
+		if key not in JUPYTER_CAPABLE:
+			try:
+				JUPYTER_CAPABLE[key] = (subprocess.run(
+					[prog, subcommand, '--version'],
+					stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+					timeout=30).returncode == 0)
+			except Exception:
+				JUPYTER_CAPABLE[key] = False
+		if JUPYTER_CAPABLE[key]:
+			return prog
+	return ''
+
+
 NOTEBOOK_TOKEN = None
 NOTEBOOK_PROC = None
 NOTEBOOK_MCP_JSON = None
@@ -481,6 +526,7 @@ NOTEBOOK_MCP_HTTP_PROC = None
 NOTEBOOK_MCP_URL_FILE = None
 NOTEBOOK_MCP_HTTP_LOG = None
 NOTEBOOK_LOG_TAIL = None	#last lines of the server's output, for diagnostics
+NOTEBOOK_DEATH_REPORTED = True	#nothing to report until a server is launched
 NOTEBOOK_ATEXIT_DONE = False
 
 
@@ -611,6 +657,8 @@ def launchJupyterConsole(prog, argv):
 		args = [prog, console[0], '--config=' + os.path.join(KAME_ResourceDir, 'jupyter_notebook_config.py')]
 		print("Launching jupyter notebook: ", *args)
 		proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, cwd=console[1])
+		global NOTEBOOK_DEATH_REPORTED
+		NOTEBOOK_DEATH_REPORTED = False
 	else:
 		raise RuntimeError('Unknown console.')
 	

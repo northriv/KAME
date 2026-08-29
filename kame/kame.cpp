@@ -1083,9 +1083,16 @@ void FrmKameMain::onScriptLinkClicked(const QUrl &url) {
         if(action == "notebook") {
             //Prompt for the workspace dir (same as the Script menu) so the
             //notebook is never rooted in the application binary's folder.
-            auto progs = m_measure->python()->listOfJupyterPrograms();
-            if(progs.empty()) {
-                gMessagePrint(i18n("No Jupyter program found."));
+            //Not simply the first jupyter on PATH: which of them carries the
+            //notebook package differs per installation, and picking blindly is
+            //how this quick launch ends in a missing-module traceback.  The
+            //probe runs the candidates once and is cached, so the wait is a
+            //one-off — hence the notice before it.
+            gMessagePrint(i18n("Looking for a usable Jupyter..."));
+            std::string prog = m_measure->python()->jupyterProgramFor("notebook");
+            if(prog.empty()) {
+                gMessagePrint(i18n("No Jupyter that can run \"notebook\" was found. "
+                    "Install it with: pip install notebook"));
                 return;
             }
             gMessagePrint(i18n("Choose root directory of notebook."));
@@ -1093,7 +1100,7 @@ void FrmKameMain::onScriptLinkClicked(const QUrl &url) {
                 this, i18n("Open Notebook Workspace"));
             if(dir.length())
                 m_measure->python()->launchJupyterConsole(
-                    progs.front(), ("notebook " + dir).toUtf8().data());
+                    prog, ("notebook " + dir).toUtf8().data());
         }
         else if(action == "pyai-agent") {
             //Choosing your own agent is a file, not an environment variable:

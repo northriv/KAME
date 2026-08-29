@@ -33,6 +33,23 @@
   Dock still reports isVisible() == true and isMinimized() == false, so nothing
   could tell it was gone: the toolboxes no longer carry a minimize button, and
   the View menu restores one that ends up minimized anyway.
+- script: a Jupyter notebook server that died said nothing.  The tail of its
+  output was already being kept for exactly this diagnosis and nothing ever
+  read it, so a server that started and then exited left a half-drawn page in
+  the browser -- the shell HTML is served, the script bundle that follows is
+  refused -- and no message anywhere.  That is what "only the logo appears"
+  looks like, and it is now reported with the last dozen lines the server
+  printed.
+- script: the Jupyter quick launch took the first jupyter it found on PATH,
+  which says nothing about whether that one carries the package behind the
+  subcommand.  Measured on this machine: of five programs found, the first
+  runs notebook and lab but not qtconsole, and another runs neither console
+  nor qtconsole -- so "the first" is not a safe answer and produced a
+  missing-module traceback instead of a launch.  The candidates are now probed
+  with `<prog> <sub> --version`, which exits non-zero exactly when the package
+  cannot be imported, and the first that passes is used; the result is cached
+  per session because the probe costs about a second.  When none passes, that
+  is said plainly along with what to install.
 - UI: an interface that appears is selected and scrolled into view in the
   Interface pane.  Bringing that pane to the front after a driver was added by
   hand only half finished the job while the row whose port has to be set was
