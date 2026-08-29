@@ -563,6 +563,20 @@ The dropped fourth state is worth naming so it is not reinvented: "raw
 records, but drop the reports".  It saves 0.4% of the run and can lose the
 number that was published (user).  Not an option; a trap.
 
+**Why `Recording` is not redundant.**  It looks like it could go — the mode
+could gain an "Off", or naming a file could be the intent to record — and
+both lose something.  A tier is a *preference* that outlives a run
+(`Mode` is non-runtime and is saved; `Filename` and `Recording` are not), so
+folding "off" into it means saving "off" and forgetting next session that
+this rig records `Logbook + raw`.  And a name that starts recording cannot be
+prepared in advance, nor stopped without destroying it.
+
+The real answer is that the switch is not a mechanism at all: the journal is
+always capturing, and the session journal is always being written.  What
+`Recording` marks is **where a run begins and ends** — the only thing that
+turns a continuous session into "this file is run042".  A design with no such
+switch has no runs, only a session.
+
 The combo is where a *human* chooses; the mechanism stays where it is.
 `XRawStreamRecorder`'s `Recording` node keeps being what turns the raw stream
 on, driven by the combo, so scripts that set it directly go on working.
