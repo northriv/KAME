@@ -703,7 +703,6 @@ template <class PyFunc, class MathTool, class MathToolList>
 class XPythonGraphMathTool : public MathTool {
 public:
     using MathTool::MathTool;
-    virtual XString getTypename() const override { return m_creation_key;}
 
     virtual bool releaseEntries(Transaction &tr) override {
         bool ret = MathTool::releaseEntries(tr);
@@ -731,13 +730,11 @@ public:
             if( !driver)
                 throw std::runtime_error("Tool creation failed.");
             pytool->m_self_creating = obj; //pybind11::cast(driver); //for persistence of python-side class.
-            pytool->m_creation_key = key;
             return pytool;
         }, label);
     }
 private:
     pybind11::object m_self_creating; //to increase reference counter.
-    XString m_creation_key;
 };
 
 template class XPythonGraphMathTool<PyFunc1DMathTool, XGraph1DMathToolX<PyFunc1DMathTool, false>, XGraph1DMathToolList>;

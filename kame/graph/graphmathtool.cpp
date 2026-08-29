@@ -354,7 +354,7 @@ template class XGraphMathToolList<XGraph1DMathTool, XQGraph1DMathToolConnector>;
 template class XGraphMathToolList<XGraph2DMathTool, XQGraph2DMathToolConnector>;
 
 shared_ptr<XNode>
-XGraph1DMathToolList::createByTypename(const XString &type, const XString& name) {
+XGraph1DMathToolList::createByTypename_(const XString &type, const XString& name) {
     shared_ptr<XMeasure> meas(m_measure.lock());
     shared_ptr<XNode> ptr;
     auto plot = m_plot.lock();
@@ -373,7 +373,6 @@ XGraph1DMathToolList::createByTypename(const XString &type, const XString& name)
             (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock(), plot, shared_from_this(),
             name_split);
         if(ptr) {
-            static_pointer_cast<XGraphMathTool>(ptr)->setStoredTypename(type);
             if( !this->insert(tr, ptr, true))
                 return false;
             tr[ *ptr].setUIEnabled(tr[ *this].isUIEnabled());
@@ -384,7 +383,7 @@ XGraph1DMathToolList::createByTypename(const XString &type, const XString& name)
 }
 
 shared_ptr<XNode>
-XGraph2DMathToolList::createByTypename(const XString &type, const XString& name) {
+XGraph2DMathToolList::createByTypename_(const XString &type, const XString& name) {
     shared_ptr<XMeasure> meas(m_measure.lock());
     shared_ptr<XNode> ptr;
     auto plot = m_plot.lock();
@@ -404,7 +403,6 @@ XGraph2DMathToolList::createByTypename(const XString &type, const XString& name)
             tr[ *this].isUIEnabled() ? meas->scalarEntries() : nullptr,
             m_driver.lock(), plot, shared_from_this(), name_split);
         if(ptr) {
-            static_pointer_cast<XGraphMathTool>(ptr)->setStoredTypename(type);
             if( !this->insert(tr, ptr, true))
                 return false;
             tr[ *ptr].setUIEnabled(tr[ *this].isUIEnabled());

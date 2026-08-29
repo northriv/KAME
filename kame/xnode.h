@@ -74,7 +74,19 @@ public:
     XString getName() const {return m_name;}
     //! \return i18n name for UI.
     virtual XString getLabel() const {return getName();}
-    virtual XString getTypename() const; //!< returns demangled name without leading 'X' by default.
+    //! \return the string this node was CREATED with, when it has one, and
+    //! otherwise the demangled type name without its leading 'X'.
+    //!
+    //! The stored key is the identifier that can bring a node back:
+    //! `createByTypename()` records it, and it is what `XTypeHolder` accepts.
+    //! The typeid-derived fallback agrees with it only by a coincidence of
+    //! spelling (`REGISTER_TYPE(list, Foo, …)` registers "Foo" and names the
+    //! class `XFoo`) — a coincidence that fails for a template alias, and
+    //! across compilers, since MSVC spells `typeid().name()` differently.
+    virtual XString getTypename() const;
+    //! Records the registry key a node was created with.  Called by
+    //! `XListNodeBase::createByTypename()`; there should be no other caller.
+    void setStoredTypename(const XString &);
 
     shared_ptr<XNode> getChild(const XString &var) const;
 
@@ -106,6 +118,10 @@ public:
     XNode() = delete;
 private:
     const XString m_name;
+    //! Written once, just after creation, on a node other threads can
+    //! already see -- so it is published the way XDoubleNode::m_format is,
+    //! not as a bare XString.
+    atomic_shared_ptr<XString> m_storedTypename;
     static XThreadLocal<std::deque<shared_ptr<XNode> > > stl_thisCreating;
 };
 

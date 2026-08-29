@@ -346,7 +346,7 @@ XGraphList::XGraphList(const char *name, bool runtime, const shared_ptr<XScalarE
 }
 
 shared_ptr<XNode>
-XGraphList::createByTypename(const XString &, const XString& name)  {
+XGraphList::createByTypename_(const XString &, const XString& name)  {
     shared_ptr<XValGraph> x;
     m_entries->iterate_commit([=, &x](Transaction &tr){
         if(x) release(x);
@@ -458,7 +458,7 @@ XCalibratedEntryList::XCalibratedEntryList(const char *name, bool runtime,
       m_entries(entries), m_curves(curves), m_measure(meas) {
 }
 shared_ptr<XNode>
-XCalibratedEntryList::createByTypename(const XString &, const XString &name) {
+XCalibratedEntryList::createByTypename_(const XString &, const XString &name) {
     auto meas = m_measure.lock();
     if( !meas) return {};
     shared_ptr<XCalibratedEntry> calibEntry;

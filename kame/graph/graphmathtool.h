@@ -56,11 +56,6 @@ public:
     //! a temporary shared_ptr from weak_ptr::lock() extends their lifetime.
     void clearOnScreenObjects();
 
-    virtual XString getTypename() const override {
-        return m_storedTypename.empty() ? XNode::getTypename() : m_storedTypename;
-    }
-    void setStoredTypename(const XString &t) { m_storedTypename = t; }
-
     void updateOnScreenObjects(const Snapshot &shot, const shared_ptr<XQGraphPainter> &painter, const XString &msg);
 
     shared_ptr<XNode> parentList() {return m_parentList.lock();}
@@ -78,7 +73,6 @@ private:
     const shared_ptr<XHexNode> m_baseColor;
     const weak_ptr<XNode> m_parentList;
     bool m_highlight = false;
-    XString m_storedTypename;
     std::deque<shared_ptr<OnScreenObject>> m_osos;
 };
 
@@ -474,7 +468,7 @@ public:
         std::reference_wrapper<Transaction>, const shared_ptr<XScalarEntryList> &,
         const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const shared_ptr<XNode> &, const std::vector<std::string> &
         )
-    virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
+    virtual shared_ptr<XNode> createByTypename_(const XString &, const XString& name) override;
 
     virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter,
         cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend);
@@ -496,7 +490,7 @@ public:
         std::reference_wrapper<Transaction>, const shared_ptr<XScalarEntryList> &,
         const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const shared_ptr<XNode> &, const std::vector<std::string> &
         )
-    virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
+    virtual shared_ptr<XNode> createByTypename_(const XString &, const XString& name) override;
 
     virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter,
         const uint32_t *leftupper,

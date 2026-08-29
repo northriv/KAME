@@ -72,7 +72,7 @@ public:
             m_thermometers(list) {}
 
         virtual bool isThreadSafeDuringCreationByTypename() const override {return false;}
-        virtual shared_ptr<XNode> createByTypename(
+        virtual shared_ptr<XNode> createByTypename_(
             const XString &, const XString &name) override {
             shared_ptr<XZone> node;
             iterate_commit_if([=,&node](Transaction &tr){

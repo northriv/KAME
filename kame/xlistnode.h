@@ -25,9 +25,26 @@ public:
 
 	//! Create a object, whose class is determined from \a type.
 	//! Scripting only. Use XNode::create for coding instead.
-	virtual shared_ptr<XNode> createByTypename(
-        const XString &type, const XString &name) = 0;
+	//!
+	//! NOT virtual: it stamps the created node with the key it was asked
+	//! for, which is the only identifier that can bring that node back --
+	//! `getTypename()` otherwise falls back on a mangled name that matches
+	//! no registry key for a template alias and differs between compilers.
+	//! Three classes had grown their own copy of this stamp (XGraphMathTool,
+	//! XPythonDriver, the Python math-tool wrapper); doing it here means a
+	//! list added tomorrow cannot forget.  Override createByTypename_().
+	shared_ptr<XNode> createByTypename(const XString &type, const XString &name) {
+	    shared_ptr<XNode> node = createByTypename_(type, name);
+	    if(node)
+	        node->setStoredTypename(type);
+	    return node;
+	}
 
+protected:
+	//! What each list actually implements.  \sa createByTypename()
+	virtual shared_ptr<XNode> createByTypename_(
+        const XString &type, const XString &name) = 0;
+public:
 	virtual bool isThreadSafeDuringCreationByTypename() const = 0;
 
     //! True when this list only REFERENCES nodes that another parent owns, so
@@ -93,7 +110,7 @@ public:
 
     virtual bool isThreadSafeDuringCreationByTypename() const override {return true;}
 
-	virtual shared_ptr<XNode> createByTypename(
+	virtual shared_ptr<XNode> createByTypename_(
         const XString &, const XString &name) override {
 		return this->create<NT>(name.c_str(), false);
 	}
@@ -110,7 +127,7 @@ public:
     virtual bool isThreadSafeDuringCreationByTypename() const override {return true;}
     virtual bool isAliasList() const override {return true;}
 
-	virtual shared_ptr<XNode> createByTypename(
+	virtual shared_ptr<XNode> createByTypename_(
         const XString &, const XString &) override {
         return {};
 	}

@@ -262,6 +262,22 @@ writing a line that will quietly fail to recreate anything.  (`.kam` writes
 it regardless today, and the Python loader's `_KamFakeNode` swallows the
 failure on the way back in.)
 
+**Implemented** (2026-08-29): `XListNodeBase::createByTypename()` is now a
+non-virtual wrapper that stamps the key on whatever
+`createByTypename_()` returns, and `XNode` carries it.  Three classes had
+each grown their own copy of exactly this — `XGraphMathTool::m_storedTypename`,
+`XPythonDriver::m_creation_key`, and the Python math-tool wrapper's — which is
+as clear a statement as a codebase makes that the mechanism belonged in the
+base.  All three are gone.
+
+`.kam` is unaffected, which is what made it safe to standardise.  Statically:
+123 of the 154 registered names are plain classes, where the typeid-derived
+string already equals the key by construction (`REGISTER_TYPE(list, Foo, …)`
+names the class `XFoo`); the other 31 are template aliases, every one of them
+in a math-tool list that was already stamping; and the Python-registered types
+already returned their creation key from an override.  So no `.kam` line
+changes.
+
 **Does stamping at `createByTypename` catch everything?**  Audited on the
 current tree (2026-08-29), and yes:
 
