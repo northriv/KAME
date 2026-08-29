@@ -75,6 +75,7 @@ HEADERS += \
     transaction_negotiation.h \
     transaction_neg_impl.h \
     transaction_signal.h \
+    transaction_journal.h \
     xthread.h \
     xwaitcell.h \
     xtime.h
