@@ -824,6 +824,26 @@ matching basename and the embedded cross-references, and can be reduced
 further by mirroring the (tiny) settings changes into the raw stream as well,
 so a lone raw file remains interpretable.
 
+## What can read these files today
+
+Worth stating plainly, since the writer has run ahead of the reader:
+
+| File | Read by KAME | Read by anything |
+|---|---|---|
+| `.kamb` | **yes** — `XRawStreamRecordReader`, unchanged: the format is byte-identical to the `.bin` it renames, so old files and new ones are the same file with two names.  Its dialog offers both, and always will | — |
+| `.kamj.gz` | **no** | `zcat`, `zgrep`, `zdiff` — which is not a placeholder but half of why the format is JSON Lines |
+| `.kam` | yes, as ever | a Ruby interpreter |
+
+So a run recorded today can be *replayed* through the raw reader exactly as
+before, and its journal can be *read* by a person or a script, but nothing
+yet joins them — the reader that restores a driver's settings from the
+journal before re-analysing its records is the next stage, below.  The
+`session`/`raw` cross-references in the header exist so that a joiner has
+something to join on.
+
+The `.kamb` magic header discussed above is also still unwritten, so a raw
+file remains anonymous: the extension is the only clue to what wrote it.
+
 ## Replay
 
 Two operations, and they want opposite things:
