@@ -39,6 +39,14 @@ be right about either, because both answers are right at different moments.
 Attribution is per write, comes free in the serial's low bits, and says
 exactly this.
 
+A useful consequence: `runtime` is used inconsistently across 120 drivers and
+5890 nodes, and **none of this depends on it being right**.  Subscription,
+classification, capping and restore are all decided without consulting it, so
+no audit of those flags is a prerequisite for any of this.  The order in fact
+reverses — running the journal *produces* the audit, since it records which
+nodes are written by whom and how often.  The flag keeps its existing meaning
+for `.kam`, where its inconsistencies are already what users have.
+
 So **subscription is not filtered by the flag**: doing that would have lost
 every change to `RXGain`, which is to say a record of the user operating the
 instrument.  Subscribe to value nodes broadly — 7103 nodes is an upper bound
