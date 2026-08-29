@@ -226,11 +226,28 @@ the Python loader's `_KamFakeNode` swallows the failure on the way back in.)
 ### Attribution
 
 The serial already carries the committing thread in its low 16 bits, so
-"who" costs nothing.  Scripts add context through TLS (the IPython cell
-label already exists).  Thread identity classifies nodes empirically:
+"who" costs nothing.  **The id alone is not enough, though** — measured on a
+live session (2026-08-29): the driver committed as thread 6 and the IPython
+kernel as thread 4, and nothing in either number says which is which.  So
+each thread declares what it is, once, at its own start
+(`XJournal::declareThisThread`): UI, script, or — by never saying anything —
+a driver.  Scripts add further context through TLS (the IPython cell label
+already exists).  Writes then classify:
 
-- written by UI or script threads → a setting (intent);
-- written only by driver threads → an output (observation).
+- committed by the UI or a scripting thread → a request (intent);
+- committed by any other thread → a report (observation).
+
+Two things that run counter to intuition, both observed rather than
+reasoned:
+
+- **A script creating a driver is attributed to the UI thread**, because
+  `createByTypename` on a list that is not thread-safe during creation is
+  dispatched to the main thread by `kame_mainthread()`.  That is the right
+  answer for the wrong-looking reason: both are requests.
+- **A Python driver commits from the scripting thread**, so its reports
+  count as requests.  Thread class cannot fix this; what would is a
+  per-callback marker ("this write is inside a driver's record/analyse"),
+  which is where this should go if the mis-classification ever matters.
 
 This is worth more than a flag — though not for the reason first supposed.
 Mis-flagged outputs were expected and have not been found; what exists instead

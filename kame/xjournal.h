@@ -60,6 +60,21 @@ public:
     //! stops it.
     void stop();
 
+    //! What a thread IS, which is what decides whether a write is a request
+    //! (the user or a script asked for a value) or a report (a driver wrote
+    //! back what the instrument says).  The serial carries the committing
+    //! thread for free, but a thread id alone cannot tell a scripting thread
+    //! from a driver thread -- measured on a real session, where the driver
+    //! was thread 6 and the IPython kernel thread 4, indistinguishable
+    //! without this.  So the threads say who they are, once each.
+    enum class ThreadClass : int {UNKNOWN = 0, UI = 1, SCRIPT = 2};
+    //! Call once from the thread itself.  Cheap, and independent of whether
+    //! a journal is running at all.
+    static void declareThisThread(ThreadClass);
+    //! \param id the serial's low 16 bits.
+    static ThreadClass threadClassOf(unsigned int id);
+    static const char *threadClassName(ThreadClass);
+
     //! Where KAME keeps files of its own: \a AppLocalDataLocation, with
     //! \a sub under it, created if absent.  Local rather than roaming: on
     //! Windows these are machine-local and not small.

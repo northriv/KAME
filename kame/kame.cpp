@@ -269,6 +269,10 @@ FrmKameMain::FrmKameMain()
 #endif
 
     // The root for all nodes.
+    //Say what this thread is before anything is created on it: a write's
+    //class -- request or report -- is read off the committing thread.
+    XJournal::declareThisThread(XJournal::ThreadClass::UI);
+
     m_measure = XNode::createOrphan<XMeasure>("Measurement", false);
 
     // signals and slots connections

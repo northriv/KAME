@@ -105,6 +105,34 @@ XJournal::stop() {
     }
 }
 
+//! Written once per thread at its start, read only when a report is
+//! written, so a plain mutex is the right instrument -- and it keeps this
+//! usable before any journal exists.
+static XMutex s_threadClassMutex;
+static std::map<unsigned int, XJournal::ThreadClass> s_threadClasses;
+
+void
+XJournal::declareThisThread(ThreadClass cls) {
+    XScopedLock<XMutex> lock(s_threadClassMutex);
+    s_threadClasses[(unsigned int)Transactional::ProcessCounter::id()] = cls;
+}
+
+XJournal::ThreadClass
+XJournal::threadClassOf(unsigned int id) {
+    XScopedLock<XMutex> lock(s_threadClassMutex);
+    auto it = s_threadClasses.find(id);
+    return (it == s_threadClasses.end()) ? ThreadClass::UNKNOWN : it->second;
+}
+
+const char *
+XJournal::threadClassName(ThreadClass cls) {
+    switch(cls) {
+    case ThreadClass::UI: return "UI";
+    case ThreadClass::SCRIPT: return "script";
+    default: return "driver?";
+    }
+}
+
 XString
 XJournal::managedDirectory(const char *sub) {
     QString base = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
@@ -328,12 +356,13 @@ XJournal::writeReport() {
             (unsigned long long)m_byKind[KIND_LIST])
         << formatString("  nodes ever written    : %d of %d\n",
             (int)written, (int)m_nodes.size())
-        << "  by committing thread  : (thread 1 is the UI thread; the others are\n"
-        << "                           drivers and scripting threads -- identify\n"
-        << "                           them by what they write, listed below)\n";
+        << "  by committing thread  : (a thread says what it is at its start; one\n"
+        << "                           that never did is a driver thread -- or a\n"
+        << "                           thread nobody has taught to speak yet)\n";
     for(auto &&t: byThread) {
-        ofs << formatString("      thread %-5u      : %10llu%s\n", t.first,
-            (unsigned long long)t.second, (t.first == 1) ? "   <- UI" : "");
+        ofs << formatString("      thread %-3u %-8s: %10llu\n", t.first,
+            threadClassName(threadClassOf(t.first)),
+            (unsigned long long)t.second);
         //What a thread writes says which thread it is, without any registry.
         auto countOf = [this, &t](size_t i)->uintptr_t {
             auto p = m_nodes[i].byThread.find(t.first);
@@ -351,15 +380,18 @@ XJournal::writeReport() {
     }
 
     ofs << "\nWRITES PER NODE\n"
-        << "  'ui' counts writes committed by the UI thread, 'other' by drivers and\n"
-        << "  scripting threads.  A node with both is a SETTING THAT A DRIVER ALSO\n"
-        << "  WRITES -- the category no flag can decide, and the reason attribution\n"
-        << "  is per write rather than per node.\n\n"
+        << "  'request' counts writes committed by the UI or a scripting thread --\n"
+        << "  somebody asked for a value.  'report' counts every other thread: a\n"
+        << "  driver writing back what the instrument says.  A node with BOTH is a\n"
+        << "  SETTING THAT A DRIVER ALSO WRITES -- the category no flag can decide,\n"
+        << "  and the reason attribution is per write rather than per node.\n"
+        << "  Caveat: a Python driver commits from the scripting thread, so its\n"
+        << "  reports are counted here as requests.\n\n"
         << "  'session/s' averages over the whole session; 'active/s' over the node's\n"
         << "  own first-to-last window, which is the rate a rate cap has to survive.\n"
         << "  Times are stamped when the ring is drained (every 200 ms), so a window\n"
         << "  shorter than that is not resolved and 'active/s' is floored at 1 s.\n\n"
-        << "  session/s  active/s      writes        ui     other  rt  path\n";
+        << "  session/s  active/s      writes   request    report  rt  path\n";
     std::deque<size_t> order;
     for(size_t i = 0; i < m_nodes.size(); ++i)
         if(m_nodes[i].writes)
@@ -374,16 +406,17 @@ XJournal::writeReport() {
             break;
         }
         NodeRec &rec = m_nodes[order[k]];
-        uintptr_t ui = 0, other = 0;
+        uintptr_t request = 0, report = 0;
         for(auto &&t: rec.byThread)
-            ((t.first == 1) ? ui : other) += t.second;
+            ((threadClassOf(t.first) == ThreadClass::UNKNOWN) ? report : request)
+                += t.second;
         double active = rec.last.diff_msec(rec.first) / 1000.0;
         if(active < 1.0)
             active = 1.0; //!< a burst inside one drain says nothing finer.
         ofs << formatString("  %9.3f  %8.3f  %10llu  %8llu  %8llu  %s%s  %s\n",
             rec.writes / elapsed, rec.writes / active,
             (unsigned long long)rec.writes,
-            (unsigned long long)ui, (unsigned long long)other,
+            (unsigned long long)request, (unsigned long long)report,
             rec.runtime ? "R" : "-", rec.released ? "x" : " ",
             rec.path.c_str());
     }
