@@ -22,11 +22,46 @@ and the two join on time.
 
 ## What is recorded
 
+**The class belongs to the write, not to the node.**  This is the conclusion
+the design arrived at last, and it overturns the obvious approach.  A flag can
+say one thing about a node; the distinction that matters here is what a
+particular write *was*:
+
+- a **request** — the user or a script asked for a value;
+- a **report** — a driver wrote back what the instrument says, at open or as
+  it goes.
+
+The same node takes both.  `XThamwayPROT` creates `RXGain` and `RXPhase` as
+`runtime == true` — settings the user changes, marked runtime because they are
+read back from the instrument rather than saved.  `ODMR2D/Average` is
+`runtime == false` and written by its driver while accumulating.  No flag can
+be right about either, because both answers are right at different moments.
+Attribution is per write, comes free in the serial's low bits, and says
+exactly this.
+
+So **subscription is not filtered by the flag**: doing that would have lost
+every change to `RXGain`, which is to say a record of the user operating the
+instrument.  Subscribe to value nodes broadly — 7103 nodes is an upper bound
+and a listener each is well under a megabyte — and decide at *record* time.
+
 | | Default | Rule |
 |---|---|---|
-| Settings (`runtime == false`) | **always on** | the nodes `.kam` restores |
-| Observations (`runtime == true`) | opt-in | see the rule below |
+| Requests (any node) | **always on** | the user operated something; never dropped |
+| Reports, rarely changing | **always on** | falls under any cap; this is how the state a device reports at open is captured |
+| Reports, at acquisition rate | capped | decimated by the same cap; "what was the temperature at 3:14" needs no kHz |
 | Raw driver records | unchanged | user-chosen file, as today |
+
+The rate cap is keyed on attribution rather than on the flag, and it does more
+than guard against floods: it **classifies**.  A value a device reports once
+when the interface opens passes any cap untouched; a measurement updating ten
+times a second is thinned.  Nobody has to decide which is which.
+
+Two things make that deliberate rather than incidental.  Interfaces already
+announce themselves — `onOpen` and `onClose` — so the journal dumps a driver's
+subtree when its interface opens, and "the instrument reported firmware 2.31
+that day" is recorded on purpose rather than caught in passing.  And restore
+replays **request entries only**: for `RXGain`, the gain the user asked for,
+never the value the device happened to report.
 
 Settings cost a few hundred KB a day, so there is no reason to make the user
 decide.  Observations cost roughly 36 MB/hr at 20 values × 10 Hz — nothing
