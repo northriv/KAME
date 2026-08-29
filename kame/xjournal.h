@@ -69,17 +69,27 @@ public:
     //! Uncompressed bytes the raw stream has taken, 0 when there is none.
     uintptr_t rawBytesWritten() const;
 
+    //! Told once, as the session journal opens: the file that is being
+    //! written when the user has named nothing.  Showing it is what makes
+    //! "always on" visible instead of merely true, and Mode and Recording
+    //! mean nothing while it is the target -- a run cannot be started INTO
+    //! the session journal -- so they are disabled until a run is named.
+    void setSessionPath(const XString &);
+    const XString &sessionPath() const {return m_sessionPath;}
+
     //! `<base>.kamj` / `<base>.kamb`, whatever extension the user typed.
     static XString journalPathOf(const XString &given);
     static XString rawPathOf(const XString &given);
 private:
     void onRecordingChanged(const Snapshot &shot, XValueNodeBase *);
+    void onFilenameChanged(const Snapshot &shot, XValueNodeBase *);
+    XString m_sessionPath;
     const shared_ptr<XStringNode> m_filename;
     const shared_ptr<XComboNode> m_mode;
     const shared_ptr<XBoolNode> m_recording;
     const shared_ptr<XStringNode> m_statistics;
     const shared_ptr<XRawStreamRecorder> m_rawstream;
-    shared_ptr<Listener> m_lsnOnRecordingChanged;
+    shared_ptr<Listener> m_lsnOnRecordingChanged, m_lsnOnFilenameChanged;
 };
 
 //! Subscribes to every node in the tree and records what changes, who changed

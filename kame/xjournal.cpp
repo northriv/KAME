@@ -60,6 +60,32 @@ XJournalRecorder::XJournalRecorder(const char *name, bool runtime,
         tr[ *m_recording] = false;
         m_lsnOnRecordingChanged = tr[ *m_recording].onValueChanged().connectWeakly(
             shared_from_this(), &XJournalRecorder::onRecordingChanged);
+        m_lsnOnFilenameChanged = tr[ *m_filename].onValueChanged().connectWeakly(
+            shared_from_this(), &XJournalRecorder::onFilenameChanged);
+        //Nothing is named yet, so there is no run to configure.
+        tr[ *m_mode].setUIEnabled(false);
+        tr[ *m_recording].setUIEnabled(false);
+    });
+}
+
+void
+XJournalRecorder::setSessionPath(const XString &path) {
+    m_sessionPath = path;
+    trans( *m_filename) = path;
+}
+
+//! A run needs a file of its own; while the field still names the session
+//! journal there is nothing to start and nothing to choose, so both controls
+//! are disabled rather than hidden -- a collapsing form looks broken.
+void
+XJournalRecorder::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
+    XString path = Snapshot( *this)[ *m_filename].to_str();
+    bool own = path.length() && (journalPathOf(path) != m_sessionPath);
+    iterate_commit([=](Transaction &tr){
+        tr[ *m_mode].setUIEnabled(own);
+        tr[ *m_recording].setUIEnabled(own);
+        if( !own)
+            tr[ *m_recording] = false;
     });
 }
 
@@ -517,6 +543,10 @@ XJournal::openSession() {
     writeHeader( *m_sessionOut, "session");
     writeDump( *m_sessionOut);
     m_sessionOut->flush();
+    //Show what is being written, so "always on" is visible rather than
+    //merely true.
+    if(auto rec = m_recorder.lock())
+        rec->setSessionPath(m_sessionPath);
 }
 
 void
@@ -529,7 +559,7 @@ XJournal::syncRun() {
     auto mode = rec->modeOf(shot);
     if(on && !m_runOpen) {
         XString path = XJournalRecorder::journalPathOf(shot[ *rec->filename()].to_str());
-        if( !path.length()) {
+        if( !path.length() || (path == m_sessionPath)) {
             gWarnPrint(i18n_noncontext("Journal: name the run first."));
             trans( *rec->recording()) = false;
             return;

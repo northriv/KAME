@@ -567,6 +567,16 @@ The dropped fourth state is worth naming so it is not reinvented: "raw
 records, but drop the reports".  It saves 0.4% of the run and can lose the
 number that was published (user).  Not an option; a trap.
 
+**The field shows what is being written.**  At startup `Filename` holds the
+session journal's path, because the always-on part should be *visible*
+rather than merely true — and because a user who wants to find or copy it
+should not have to know where KAME keeps its files (the browse dialog then
+opens there too).  While that is the target, `Mode` and `Recording` are
+**disabled**: a run cannot be started into the session journal, and there is
+no tier to choose for a file whose contents are governed by the silence rule.
+Name a run and both come alive.  (Disabled, not hidden: a form that collapses
+looks broken.)
+
 **Why `Recording` is not redundant.**  It looks like it could go — the mode
 could gain an "Off", or naming a file could be the intent to record — and
 both lose something.  A tier is a *preference* that outlives a run
@@ -580,6 +590,14 @@ always capturing, and the session journal is always being written.  What
 `Recording` marks is **where a run begins and ends** — the only thing that
 turns a continuous session into "this file is run042".  A design with no such
 switch has no runs, only a session.
+
+Once the field shows the session path, one might go further and say that
+*changing the name* is what starts a run, leaving no switch at all.  It ends
+at the same place: a run needs an END as well as a start, and a filename
+cannot express "stopped, but still called run042" — reverting the name to
+stop would destroy the name, and a name typed in advance would start a run
+before its time.  So the switch stays, and what changes is when it means
+anything.
 
 The combo is where a *human* chooses; the mechanism stays where it is.
 `XRawStreamRecorder`'s `Recording` node keeps being what turns the raw stream
