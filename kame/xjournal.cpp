@@ -313,6 +313,12 @@ XJournal::~XJournal() {
 }
 
 bool
+XJournal::engineWanted() {
+    const char *v = getenv("KAME_JOURNAL");
+    return !(v && (XString(v) == "0"));
+}
+
+bool
 XJournal::enabledByEnvironment() {
     const char *v = getenv("KAME_JOURNAL");
     return v && *v && (XString(v) != "0");
@@ -362,6 +368,13 @@ XJournal::stop() {
     }
     m_thread->join();
     m_thread.reset();
+    {
+        //Nothing of the tree outlives the thread: a Pending entry holds a
+        //shared_ptr to a node, and holding one across a teardown would keep
+        //a node alive past the destruction its parent is performing.
+        XScopedLock<XCondition> lock(m_wake);
+        m_pending.clear();
+    }
     //Release the listeners while the Sinks they point at are still alive.
     //A talker keeps only a weak reference, so dropping ours is what
     //unsubscribes.

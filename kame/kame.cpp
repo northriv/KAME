@@ -963,7 +963,18 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
 }
 
 void FrmKameMain::fileCloseAction_activated() {
+    //The journal walks the tree and takes transactions on it from its own
+    //thread.  terminate() destroys that tree, and a background thread
+    //committing across a teardown is indefensible whatever else is true --
+    //so it stops first and starts again on the empty tree, ready for
+    //whatever is loaded next.
+    if(m_journal) {
+        m_journal->stop();
+        m_journal.reset();
+    }
 	m_measure->terminate();
+    if(m_measure && XJournal::engineWanted())
+        m_journal = XJournal::start(m_measure, m_measure->journal());
 }
 
 
@@ -1054,8 +1065,10 @@ void FrmKameMain::signalAllModulesLoaded() {
     //created later are picked up through onListChanged.
     //The capture engine runs whether or not anything is being written: the
     //Journal group's Write switch chooses the file, not whether the tree is
-    //being watched.  KAME_JOURNAL only adds the developer survey report.
-    if(m_measure)
+    //being watched.  KAME_JOURNAL=1 adds the developer survey report;
+    //KAME_JOURNAL=0 keeps the engine out of the process altogether, which is
+    //how a crash gets attributed to it or cleared of it.
+    if(m_measure && XJournal::engineWanted())
         m_journal = XJournal::start(m_measure, m_measure->journal());
 }
 

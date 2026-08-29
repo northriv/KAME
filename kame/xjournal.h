@@ -122,8 +122,14 @@ public:
     //! owner it is handed.
     virtual ~XJournal();
 
-    //! \a KAME_JOURNAL — unset means the journal never subscribes.
+    //! \a KAME_JOURNAL=1 — additionally write the developer survey.
     static bool enabledByEnvironment();
+    //! Whether the capture engine should run at all.  On unless
+    //! \a KAME_JOURNAL=0, which exists so that a crash can be attributed to
+    //! this or cleared of it: a subsystem with no off switch cannot be
+    //! bisected, and one that subscribes to every node in the tree is the
+    //! first thing anyone will suspect.
+    static bool engineWanted();
     //! Subscribes to everything under \a root and starts the drain thread.
     //! \a recorder carries what the user chose for the run; the capture
     //! itself runs whether or not anything is being written.
