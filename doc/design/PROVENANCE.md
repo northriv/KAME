@@ -551,6 +551,34 @@ is two-stage: the log stream is opened during static initialisation and
 therefore cannot touch Qt (`QStandardPaths` needs `QCoreApplication`), so it
 starts where it does today and is redirected once `main()` has Qt up.
 
+### Copying a journal that is still being written
+
+Windows makes this a real question, since sharing there is decided by the
+*writer* at open time and refused for everyone else otherwise.  The answer is
+that it works as long as nothing takes it away, and KAME already relies on
+that: `XRawStreamRecorder` uses `gzopen`, the text writer and logger plain
+`std::ofstream`, and both reach the CRT's default share mode, which denies
+nothing.  A journal opened the same way can be copied by Explorer or
+`robocopy` mid-run.  (Stated from the CRT's documented default rather than
+from a test — worth confirming once on the Windows machine, with the journal
+running.)
+
+Three consequences that are ours to get right, not the OS's:
+
+- **A copy is only as current as the last flush.**  So flush at a boundary —
+  the end of a gzip member, or a whole line for the plain file — and never
+  leave a half-written line in the buffer.
+- **The reader must tolerate a truncated final line.**  A copy taken
+  mid-write ends wherever it ends, and so does a file whose session was
+  killed: the same shape, so one rule covers both.  With gzip *members* per
+  block, everything up to the last complete member stays readable, which is
+  the property whole-file gzip does not have.
+- **On Windows the file cannot be deleted or renamed while KAME holds it
+  open** — the CRT does not ask for `FILE_SHARE_DELETE`, and POSIX
+  intuitions do not transfer.  Rotation, "save as" during a run, and any
+  cleanup on exit have to close first.  Anything that ever opens the journal
+  through `CreateFile` directly must pass all three share flags.
+
 ### Separate from the raw stream, on purpose
 
 Combining them would give one artifact and inherent ordering.  It would also
