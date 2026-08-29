@@ -189,6 +189,31 @@ destroyed are two different states**, and the first is the interesting one.
 Membership is what changed, membership is what a list announces, and only a
 list can announce it.  The record and its statistics survive both.
 
+### The journal must not touch the shape of a teardown
+
+Two rules, both bought with a crash (2026-08-30, closing an NMR setup):
+
+- **Stop before `terminate()`.**  A thread that walks the tree and commits on
+  it has no business doing so while the tree is being destroyed.  The journal
+  stops and restarts on the empty tree.
+- **Never hold a node the tree has released.**  `pushPending` kept a
+  `shared_ptr` to released nodes, which let one outlive its neighbours by up
+  to a drain interval and changed the order `Node::releaseAll` destroyed
+  things in.  Identity is all a release needs: a `weak_ptr` and the address,
+  the address checked against the record before it is believed, since a freed
+  one can be reused.
+
+The crash itself was a null `m_link` — set in `Node`'s constructor and never
+reset, so a null one is freed memory — reached through
+`XPointerItemNode::onItemReleased`, which binds its listener by **raw
+reference** and commits on `this` from inside it.  That shape is safe only
+while the node is guaranteed alive whenever its list can emit a release, and
+a teardown is exactly where that guarantee is in question.  It stopped
+reproducing once the journal stopped perturbing the order; **which of the two
+rules above did it, and how `m_link` came to read as null, are not
+established** — the latent shape is still there for the next subsystem that
+holds a node for a moment.
+
 ### Node identity
 
 A **session-local id assigned when the node is first subscribed**, plus a
