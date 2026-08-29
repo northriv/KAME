@@ -708,6 +708,19 @@ XJournal::syncRun() {
     }
 }
 
+//! Scaled, because a run can be a few hundred bytes a second or ten
+//! megabytes a second and both have to be legible in the same small label --
+//! "0.0 MB/s  0.00 GB" told the user nothing at all about a Logbook.
+static XString byteStr(double b) {
+    if(b < 1e3) return formatString("%.0f B", b);
+    if(b < 1e6) return formatString("%.1f kB", b / 1e3);
+    if(b < 1e9) return formatString("%.1f MB", b / 1e6);
+    return formatString("%.2f GB", b / 1e9);
+}
+static XString byteRateStr(double b) {
+    return byteStr(b) + "/s";
+}
+
 void
 XJournal::updateStatistics() {
     auto rec = m_recorder.lock();
@@ -726,9 +739,7 @@ XJournal::updateStatistics() {
     double rate = (total >= m_bytesLast) ? (total - m_bytesLast) / dt : 0.0;
     m_statsAt = now;
     m_bytesLast = total;
-    XString s = m_runOpen
-        ? formatString("%.1f MB/s  %.2f GB", rate / 1e6, total / 1e9)
-        : XString();
+    XString s = m_runOpen ? (byteRateStr(rate) + "  " + byteStr(total)) : XString();
     //Only when it actually changed: this node is journaled like any other,
     //and an idle run should not write a line a second saying so.
     if(Snapshot( *rec)[ *rec->statistics()].to_str() != s)

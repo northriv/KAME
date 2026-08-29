@@ -85,6 +85,9 @@
         </item>
         <item>
          <widget class="QLabel" name="m_lblJournalStats">
+          <property name="toolTip">
+           <string>What this run is producing per second, and in total. The files on disk are smaller: both the journal and the raw stream are gzip.</string>
+          </property>
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
             <horstretch>0</horstretch>
