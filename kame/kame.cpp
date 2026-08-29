@@ -1105,13 +1105,29 @@ FrmKameMain::runNewScript(const XString &label, const XString &filename) {
     show();
     raise();
     shared_ptr<XScriptingThreadList> threadlist;
+    //Spelt out rather than by rfind()-at-the-end: ".kamj" is not ".kam" with
+    //something after it, and the old test read it as a Ruby script -- which
+    //then met the gzip magic byte and reported an invalid multibyte
+    //character.  A file kind that falls through to the wrong interpreter
+    //fails in the interpreter's vocabulary, not in KAME's.
+    auto endsWith = [&filename](const char *suffix)->bool {
+        size_t n = strlen(suffix);
+        return (filename.length() >= n)
+            && (filename.compare(filename.length() - n, n, suffix) == 0);
+    };
+    bool for_python = endsWith(".py") || endsWith(".kam")
+        || endsWith(".kamj") || endsWith(".kamj.gz");
 #ifdef USE_PYBIND11
-    if(filename.rfind(".py") == filename.length() - 3 ||
-       filename.rfind(".kam") == filename.length() - 4) {
+    if(for_python) {
         threadlist = m_measure->python();
     } else
 #endif
     {
+        if(for_python) {
+            gErrPrint(i18n("Built without pybind11; measurement files and "
+                "journals cannot be loaded."));
+            return shared_ptr<XScriptingThread>();
+        }
 #ifdef USE_RUBY
         threadlist = m_measure->ruby();
 #else
