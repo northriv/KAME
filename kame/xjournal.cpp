@@ -113,7 +113,12 @@ XJournalRecorder::updateRunControls() {
     iterate_commit([=](Transaction &tr){
         tr[ *m_mode].setUIEnabled(own && !running);
         tr[ *m_recording].setUIEnabled(own);
-        if( !own)
+        //Only when it DIFFERS.  An XNode assignment marks its talker whether
+        //or not the value changed, and onRecordingChanged is what calls this
+        //-- so an unconditional write recurses through commit and talk until
+        //the stack is gone.  It did, at 22:55 on 2026-08-29, on every launch:
+        //the field starts empty, so !own is the startup case.
+        if( !own && (bool)tr[ *m_recording])
             tr[ *m_recording] = false;
     });
 }
