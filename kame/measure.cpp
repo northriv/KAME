@@ -62,8 +62,7 @@ m_drivers(create<XDriverList>("Drivers", false, static_pointer_cast<XMeasure>(sh
 m_calibratedEntryList(create<XCalibratedEntryList>("CalibratedEntries", false, scalarEntries(), thermometers(),
                                                        static_pointer_cast<XMeasure>(shared_from_this()))),
 m_textWriter(create<XTextWriter>("TextWriter", false, drivers(), scalarEntries())),
-m_rawStreamRecorder(create<XRawStreamRecorder>("RawStreamRecorder", false, drivers())),
-m_journal(create<XJournalRecorder>("Journal", false, rawStreamRecorder())),
+m_journal(create<XJournalRecorder>("Journal", false, drivers())),
 m_rawStreamRecordReader(create<XRawStreamRecordReader>("RawStreamRecordReader", false,
 		drivers())),
 m_conRecordReader(xqcon_create<XRawStreamRecordReaderConnector>(

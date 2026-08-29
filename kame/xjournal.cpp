@@ -37,7 +37,7 @@ XJournalRecorder::modeLabel(Mode m) {
 }
 
 XJournalRecorder::XJournalRecorder(const char *name, bool runtime,
-    const shared_ptr<XRawStreamRecorder> &rawstream) :
+    const shared_ptr<XDriverList> &drivers) :
     XNode(name, runtime),
     //Transient like the raw stream's own path: a run's file is chosen for
     //that run.  The mode is a preference and is saved.
@@ -45,7 +45,9 @@ XJournalRecorder::XJournalRecorder(const char *name, bool runtime,
     m_mode(create<XComboNode>("Mode", false)),
     m_recording(create<XBoolNode>("Recording", true)),
     m_statistics(create<XStringNode>("Statistics", true)),
-    m_rawstream(rawstream) {
+    //Runtime: a run's stream is chosen for that run, and nothing about it
+    //belongs in a settings file.
+    m_rawstream(create<XRawStreamRecorder>("RawStream", true, drivers)) {
     //Own transaction, not the caller's: these children are inserted outside
     //any transaction the constructor was handed.
     iterate_commit([=](Transaction &tr){
@@ -81,8 +83,7 @@ static XString withExtension(const XString &given, const char *ext) {
 }
 uintptr_t
 XJournalRecorder::rawBytesWritten() const {
-    auto raws = m_rawstream.lock();
-    return raws ? raws->bytesWritten() : 0;
+    return m_rawstream->bytesWritten();
 }
 
 XString XJournalRecorder::journalPathOf(const XString &given) {return withExtension(given, ".kamj");}
@@ -93,9 +94,7 @@ XString XJournalRecorder::rawPathOf(const XString &given) {return withExtension(
 //! changes -- a Setup run must not leave an empty .kamb behind.
 void
 XJournalRecorder::onRecordingChanged(const Snapshot &shot, XValueNodeBase *) {
-    auto raws = m_rawstream.lock();
-    if( !raws)
-        return;
+    auto &raws = m_rawstream;
     Snapshot shot_this( *this);
     bool rec = shot_this[ *m_recording];
     bool wantsRaw = rec && (modeOf(shot_this) == Mode::LOGBOOK_RAW);

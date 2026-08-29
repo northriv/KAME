@@ -28,6 +28,7 @@
 class XValueNodeBase;
 class XTouchableNode;
 class XRawStreamRecorder;
+class XDriverList;
 
 //! What a run records, and what it is costing: the nodes behind the Journal
 //! group in the driver pane.
@@ -39,7 +40,16 @@ class XRawStreamRecorder;
 class DECLSPEC_KAME XJournalRecorder : public XNode {
 public:
     XJournalRecorder(const char *name, bool runtime,
-        const shared_ptr<XRawStreamRecorder> &rawstream);
+        const shared_ptr<XDriverList> &drivers);
+
+    //! The raw stream, which the journal OWNS rather than sits beside.  It
+    //! kept its own Filename and Recording nodes while it was a sibling of
+    //! the journal, which meant two ways to say what one run is doing -- and
+    //! a script that set them got a .kamb with no .kamj.  It is still its own
+    //! class: its capture is a file mutex and I/O from inside a listener,
+    //! where the journal's is lock-free inside every commit, and those two
+    //! disciplines are safer apart.  \sa doc/design/PROVENANCE.md
+    const shared_ptr<XRawStreamRecorder> &rawStream() const {return m_rawstream;}
 
     //! The run's name.  Extensions are derived, not typed.
     const shared_ptr<XStringNode> &filename() const {return m_filename;}
@@ -68,7 +78,7 @@ private:
     const shared_ptr<XComboNode> m_mode;
     const shared_ptr<XBoolNode> m_recording;
     const shared_ptr<XStringNode> m_statistics;
-    const weak_ptr<XRawStreamRecorder> m_rawstream;
+    const shared_ptr<XRawStreamRecorder> m_rawstream;
     shared_ptr<Listener> m_lsnOnRecordingChanged;
 };
 

@@ -62,8 +62,8 @@ public:
 	const shared_ptr<XChartList> &charts() const {return m_chartList;}
     const shared_ptr<XCalibratedEntryList> &calibratedEntries() const {return m_calibratedEntryList;}
 	const shared_ptr<XTextWriter> &textWriter() const {return m_textWriter;}
-	const shared_ptr<XRawStreamRecorder> &rawStreamRecorder() const {return m_rawStreamRecorder;}
 	//! What the run is called, how much of it is kept, and what it costs.
+	//! The raw stream lives under it now, not beside it.
 	//! \sa doc/design/PROVENANCE.md
 	const shared_ptr<XJournalRecorder> &journal() const {return m_journal;}
 	const shared_ptr<XRawStreamRecordReader> &rawStreamRecordReader() const {return m_rawStreamRecordReader;}
@@ -96,7 +96,6 @@ private:
 	const shared_ptr<XDriverList> m_drivers;
     const shared_ptr<XCalibratedEntryList> m_calibratedEntryList;
     const shared_ptr<XTextWriter> m_textWriter;
-	const shared_ptr<XRawStreamRecorder> m_rawStreamRecorder;
 	const shared_ptr<XJournalRecorder> m_journal;
 	const shared_ptr<XRawStreamRecordReader> m_rawStreamRecordReader;
 

@@ -573,11 +573,12 @@ the gz, and its base `XRawStream` is shared with the *reader*, which is
 staying.  What it no longer is, is a place where anything is decided — its
 `Filename` and `Recording` are now derived from the journal's.
 
-The retirement path is short, and cheap to leave for later: those two nodes
-are `runtime == true`, so **no `.kam` file references them** and the whole
-compatibility surface is scripts.  It can therefore stop being a sibling node
-and become an object the journal owns, in the same breath as the `.kam`
-retirement — one break for users rather than two.
+**Done** (2026-08-29).  It was cheap after all: those two nodes are
+`runtime == true`, so no `.kam` file references them; nothing in `kame/` or
+`modules/` used `XMeasure::rawStreamRecorder()` beyond constructing it; and
+the user knows of no script that reaches for `Root()["RawStreamRecorder"]`.
+So it is now `/Journal/RawStream`, created and owned by the journal, and the
+duplicate control surface is gone.
 
 **Demote it; do not dissolve it.**  Folding the raw writing into
 `XJournalRecorder` or `XJournal` looks like the tidier end state and is worse
@@ -604,10 +605,10 @@ What the demotion buys is exactly what is wrong today and nothing more: one
 control surface instead of two, both files opened and closed at one moment,
 byte accounting in one place, and `/RawStreamRecorder` out of the tree.
 
-Left as an escape hatch meanwhile: a script that sets `Recording` directly
-still gets a `.kamb`, now with no `.kamj` beside it.  That is the old
-behaviour preserved rather than a state anyone should want, and if it ever
-matters the journal should notice and open a run of its own rather than the
+A script can still reach `/Journal/RawStream/Recording` and get a `.kamb`
+with no `.kamj` beside it.  It is one node deeper and no longer beside the
+journal's own switch, which is as much discouragement as it needs; if it ever
+matters, the journal should notice and open a run of its own rather than the
 two disagreeing.
 
 Two things stay out of the user's hands.  Requests are never dropped, whatever
