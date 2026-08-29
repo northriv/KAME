@@ -144,7 +144,9 @@ public:
     XString writeReport();
 
 private:
-    enum : uint32_t {FLAG_EXACT = 0x1};
+    //! Which files an entry belongs in, decided where it is captured so that
+    //! a value nobody will keep is never even formatted.
+    enum : uint32_t {FLAG_EXACT = 0x1, FLAG_SESSION = 0x2, FLAG_RUN = 0x4};
     enum : uint32_t {KIND_VALUE = 0, KIND_TOUCH = 1, KIND_CATCH = 2,
         KIND_RELEASE = 3, KIND_MOVE = 4, NUM_KINDS = 5};
 
@@ -175,10 +177,16 @@ private:
     //! so its address must never move — hence a deque, never a vector.  The
     //! id it carries is what removes any lookup from the capture path.
     struct Sink {
+        Sink(XJournal *j, uint32_t i, bool d) noexcept
+            : journal(j), id(i), isDouble(d) {}
         XJournal *journal;
         uint32_t id;
         //! Decided once, at subscribe time, so the capture path never asks.
         bool isDouble;
+        //! When a DRIVER last wrote this node, in microseconds.  The rate cap
+        //! reads and writes it from whatever thread is committing; a lost
+        //! update costs one extra entry, which is why it needs no lock.
+        atomic<int64_t> lastReportUs {0};
         void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
         void onTouch(const Snapshot &shot, XTouchableNode *node);
         //! Membership is the ONLY way a node joins or leaves the tree, and it
@@ -226,15 +234,18 @@ private:
     };
 
     void capture(uint32_t id, uint32_t kind, const Snapshot &shot, const XNode &node) noexcept;
-    void captureValue(const Sink &sink, const Snapshot &shot, XValueNodeBase &node) noexcept;
+    void captureValue(Sink &sink, const Snapshot &shot, XValueNodeBase &node) noexcept;
     //! Opens / closes the run file as the user's switch says, writes the
     //! dump when it opens, and keeps the statistics node current.
     void syncRun();
-    void writeHeader();
-    void writeDump();
-    void dumpSubtree(const Snapshot &shot, const shared_ptr<XNode> &node,
-        const XString &path, uint32_t parentId, int index);
-    void writeEntry(const JournalT::Entry &e);
+    void writeHeader(std::ofstream &out, const char *kind);
+    void writeDump(std::ofstream &out);
+    void dumpSubtree(std::ofstream &out, const Snapshot &shot,
+        const shared_ptr<XNode> &node, const XString &path,
+        uint32_t parentId, int index);
+    void writeEntry(std::ofstream &out, const JournalT::Entry &e);
+    //! Opens the always-on session journal and writes its dump.
+    void openSession();
     void updateStatistics();
     void pushPending(const shared_ptr<XNode> &node, uint32_t listId, bool caught,
         int index);
@@ -282,12 +293,28 @@ private:
     unique_ptr<XThread> m_thread;
 
     weak_ptr<XJournalRecorder> m_recorder;
-    unique_ptr<std::ofstream> m_out;
-    XString m_openPath, m_session;
-    //! Whether values are being captured at all.  Read on the capture path.
-    atomic<bool> m_writingEntries {false};
+    //! Always open: provenance must exist for a session in which the user
+    //! started no recording at all.  Requests and structure go here in full;
+    //! an acquisition stream does not, or it would not stay small.
+    unique_ptr<std::ofstream> m_sessionOut;
+    //! Open between the Write switch going on and off: the run.
+    unique_ptr<std::ofstream> m_runOut;
+    XString m_sessionPath, m_openPath, m_session;
+    //! Whether the RUN wants values -- false for a Setup run, and while no
+    //! run is open.  The session journal keeps its own (much sparser) share
+    //! regardless, so this gates one stream, not capture itself.
+    atomic<bool> m_runKeepsValues {false};
     bool m_runOpen = false;
     uintptr_t m_bytesJournal = 0, m_bytesLast = 0, m_rawBytesAtStart = 0;
+    uintptr_t m_cappedReports = 0;
+    //! A report on a node a driver has written within this long is the
+    //! acquisition stream, and is not what an always-on journal is for.  A
+    //! report after a longer silence is the state a device announces -- at
+    //! `open`, or when something changed -- and is exactly what it is for.
+    enum : int64_t {SESSION_QUIET_US = 10 * 1000000};
+    //! Per-node rate cap for a run's Logbook, in microseconds between kept
+    //! reports.  \sa doc/design/PROVENANCE.md
+    atomic<int64_t> m_runCapUs {500000};
     XTime m_statsAt;
 
     XTime m_started;

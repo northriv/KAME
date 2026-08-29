@@ -646,7 +646,22 @@ small.  KAME already sets `applicationName("kame")` and no organization, so
 the path has no vendor component.
 
 The always-on session journal lives there, so provenance exists even when the
-user has started no recording.  **When a recording is started, the journal is
+user has started no recording — **it is not optional, and that is the point**
+(user, 2026-08-29): a `.kam` you must remember to save is exactly what this
+replaces.  `session-<stamp>.kamj` is opened as KAME starts, headed by the same
+dump a run gets, and it names each run as it begins and ends, so either half
+leads to the other.
+
+What separates it from a run's Logbook is not the format but **how much of
+the acquisition stream reaches it**.  A request is never dropped.  A report
+is kept only when it follows a silence — ten seconds, in the implementation
+— which is precisely the state a device announces at `open` or when
+something actually changed, and precisely not the stream a driver produces
+while measuring.  That is what keeps a day's session in the hundreds of KB
+the design assumed, without anyone choosing anything.
+
+(Retention is not yet handled: one file per session, kept for ever.  They are
+small, but "for ever" wants a policy eventually.)  **When a recording is started, the journal is
 also written beside the user's chosen file with a matching basename** —
 `run042.gz` / `run042.kamj` — because users manage measurements as files and a
 journal left behind in a hidden directory is a journal lost the first time the
