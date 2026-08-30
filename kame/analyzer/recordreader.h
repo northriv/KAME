@@ -15,6 +15,7 @@
 #define RECORDREADER_H_
 
 #include "recorder.h"
+#include "xjournalreplay.h"
 
 class XRawStreamRecordReader : public XRawStream {
 public:
@@ -31,6 +32,10 @@ public:
 	const shared_ptr<XTouchableNode> &next() const {return m_next;}
 	const shared_ptr<XTouchableNode> &back() const {return m_back;}
 	const shared_ptr<XStringNode> &posString() const {return m_posString;}
+	//! The journal opened beside the raw stream, when there is one.  What the
+	//! records were taken with, as opposed to what the tree happens to hold
+	//! now.  \sa doc/design/PROVENANCE.md
+	const XJournalFile &journal() const {return m_journal;}
 private:
 	struct XRecordError : public XKameError {
         XRecordError(const XString &msg, const char *file, int line)
@@ -68,6 +73,7 @@ private:
   
 	uint32_t m_allsize;
 	XTime m_time;
+	XJournalFile m_journal;
 
     //! changes position without parsing
     void first_(void *); // throw (XIOError &)

@@ -20,6 +20,8 @@
 #include <zlib.h>
 #include <vector>
 
+#include <QString>
+
 #define IFSMODE std::ios::in
 #define SPEED_FASTEST "Fastest"
 #define SPEED_FAST "Fast"
@@ -87,10 +89,50 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
         m_threads.emplace_back(new XThread(shared_from_this(), &XRawStreamRecordReader::execute));
     }
 }
+//! A run is two files, and either name opens the pair.
+//!
+//! The `.kamj` is the better one to be given: its header names its raw stream
+//! outright, so a pair that has been renamed still finds itself.  From a
+//! `.kamb` the sibling is guessed by stem, which is what the writer produced
+//! and all that can be done from that end.
+//!
+//! Neither file is required to have the other.  A raw stream from before the
+//! journal existed replays as it always did -- with today's settings, which
+//! is policy `off` and a legitimate use, not a degraded one.
 void
 XRawStreamRecordReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
+	XString given = ( **filename())->to_str();
+	XString rawpath = given, journalpath;
+	if(QString::fromStdString(given).endsWith(".kamj", Qt::CaseInsensitive)) {
+		journalpath = given;
+		rawpath.clear();
+	}
+	else {
+		journalpath = XJournalFile::journalBeside(given);
+	}
+
+	XJournalFile journal;
+	if(journalpath.length()) {
+		XString err;
+		if( !journal.open(journalpath, err))
+			gWarnPrint(i18n("Journal: ") + journalpath + " " + err);
+	}
+	if(journal.isOpen()) {
+		if(rawpath.empty())
+			rawpath = journal.rawPath();
+		if(rawpath.empty())
+			gWarnPrint(i18n("This journal recorded no raw stream: ") + journalpath);
+		else
+			gMessagePrint(i18n("Journal: ") + journalpath
+				+ formatString(" (%u entries)", (unsigned)journal.events().size()));
+	}
+
+	m_filemutex.lock();
+	m_journal = std::move(journal);
 	if(m_pGFD) gzclose(static_cast<gzFile>(m_pGFD));
-	m_pGFD = gzopen(QString(( **filename())->to_str()).toLocal8Bit().data(), "rb");
+	m_pGFD = rawpath.length() ?
+		gzopen(QString::fromStdString(rawpath).toLocal8Bit().data(), "rb") : nullptr;
+	m_filemutex.unlock();
 }
 void
 XRawStreamRecordReader::readHeader(void *_fd) {

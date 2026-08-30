@@ -25,10 +25,12 @@ XRawStreamRecordReaderConnector::XRawStreamRecordReaderConnector(
 	m_pForm(form),
     m_conRecordFile(xqcon_create<XFilePathConnector>(
                         reader->filename(), form->m_edPath, form->m_btnPath,
-                        //Both, for as long as .bin files exist -- which is
-                        //for ever: what retires is the writer, never the
-                        //reader.  \sa doc/design/PROVENANCE.md
-                        ("Raw streams (*.kamb *.bin);;All files (*.*)"), false)),
+                        //A run is the pair, and either half names the other,
+                        //so all three belong in one filter.  .bin stays for as
+                        //long as .bin files exist -- which is for ever: what
+                        //retires is the writer, never the reader.
+                        //\sa doc/design/PROVENANCE.md
+                        ("Runs (*.kamj *.kamb *.bin);;All files (*.*)"), false)),
 	m_conFF(xqcon_create<XQToggleButtonConnector>(reader->fastForward(), form->btnFF)),
 	m_conRW(xqcon_create<XQToggleButtonConnector>(reader->rewind(), form->btnRW)),
 	m_conStop(xqcon_create<XQButtonConnector>(reader->stop(), form->btnStop)),

@@ -89,6 +89,7 @@ HEADERS += \
     analyzer/analyzer.h \
     analyzer/recorder.h \
     analyzer/recordreader.h \
+    xjournalreplay.h \
     script/xdotwriter.h \
     $$RUBY_HEADERS \
     script/xrubywriter.h \
@@ -173,6 +174,7 @@ SOURCES += icons/icon.cpp \
     analyzer/recordreader.cpp\
     kame.cpp \
     xjournal.cpp \
+    xjournalreplay.cpp \
     main.cpp \
     messagebox.cpp \
     math/tikhonovreg.cpp
