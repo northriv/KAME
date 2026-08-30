@@ -739,6 +739,29 @@ with a display format renders `-0.1258[K]`, four digits and a unit, so
 without the exact bytes an observation is not recoverable at all, which is a
 worse failure than a file twice the size.
 
+### The timestamp is written twice, and to the second
+
+Replay has to interleave journal entries with raw records, and those are
+stamped in epoch microseconds.  `ts` cannot do that job: `ctime(3)` is local,
+carries no zone, and parsing it back guesses at DST.  So every timestamped
+line carries **both** — `"ts"` for a human (and for `zgrep` ten years from
+now, which is most of what the format is for) and `"tu"`, the same instant as
+integer microseconds since the epoch, for anything computing with it.  A JSON
+integer holds that exactly until the 2200s.
+
+`ts` lost its milliseconds when `tu` arrived.  The cost table above says
+trimming the format is pointless *on disk*, and that is true of the
+repetitive fields — but the subsecond digits are the exception: they are the
+one part of a line that differs every time, so they are precisely what gzip
+cannot fold away.  They were also, by then, a less precise copy of the number
+on the same line.
+
+The dump is the only thing that carries no timestamp at all, in either
+spelling, and that is the reader's test for it: a line with no stamp is a
+node's initial state, not a change, and it belongs where it appears in the
+stream rather than at some time of its own.  (A driver created mid-run brings
+its whole subtree in exactly this way.)
+
 ### One extension, and the compression inside it
 
 `.kamj` is gzip, and its name does not say so — the same choice `.docx`,

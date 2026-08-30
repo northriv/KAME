@@ -486,6 +486,28 @@ static XString jsonEscape(const XString &str) {
     return out;
 }
 
+//! The same instant as a number, beside the human-readable one.  `ts` is
+//! ctime(3): local, timezone-less, and a chore to parse -- fine to read, no
+//! good to compute with.  Replay has to interleave these entries with raw
+//! records stamped in epoch microseconds, so it needs an epoch here too.
+//! Microseconds fit a JSON integer exactly for the next few centuries.
+static XString microsOf(const XTime &t) {
+    return formatString(",\"tu\":%lld",
+        (long long)t.sec() * 1000000LL + (long long)t.usec());
+}
+
+//! Both spellings of one instant, as the pair of fields every timestamped
+//! line carries.
+//!
+//! To the second, deliberately.  The subsecond digits are the one part of a
+//! timestamp that differs on every single line -- the least compressible text
+//! in the file -- and `tu` beside it already holds the instant exactly.  What
+//! `ts` is for is being readable ten years from now by something that is not
+//! KAME; that does not need milliseconds.
+static XString stampOf(const XTime &t) {
+    return XString("\"ts\":\"") + jsonEscape(t.getTimeStr(false)) + "\"" + microsOf(t);
+}
+
 //! The exact number, as the eight bytes it is: base64 of binary64,
 //! little-endian.  to_str() goes through formatDouble() and is %.12g at best
 //! -- fine for a settings file, not for provenance, where a rounded value is
@@ -504,10 +526,12 @@ void
 XJournal::writeHeader(Out &out, const char *kind) {
     auto rec = m_recorder.lock();
     Snapshot shot( *rec);
+    XTime now = XTime::now();
     XString s = XString("{\"format\":\"kame-journal\",\"version\":1,\"kind\":\"")
         + kind + "\",\"session\":\"" + m_session
-        + "\",\"started\":\"" + jsonEscape(XTime::now().getTimeStr())
-        + "\",\"kame\":\"" VERSION "\"";
+        + "\",\"started\":\"" + jsonEscape(now.getTimeStr(false)) + "\""
+        + microsOf(now)
+        + ",\"kame\":\"" VERSION "\"";
     if(XString("run") == kind) {
         s += XString(",\"mode\":\"") + XJournalRecorder::modeLabel(rec->modeOf(shot)) + "\"";
         if(rec->modeOf(shot) == XJournalRecorder::Mode::LOGBOOK_RAW) {
@@ -591,7 +615,7 @@ XJournal::writeEntry(Out &out, const JournalT::Entry &e) {
     if(e.record.kind != KIND_VALUE)
         return; //structure is written where it is subscribed, with its names
     XString s = formatString("{\"t\":\"v\",\"id\":%u", (unsigned)e.record.id)
-        + ",\"ts\":\"" + jsonEscape(e.record.when.getTimeStr()) + "\""
+        + "," + stampOf(e.record.when)
         + formatString(",\"s\":%lld", (long long)e.serial)
         + ",\"c\":\"" + ((threadClassOf((unsigned int)((uint64_t)e.serial & 0xffffu))
             == ThreadClass::UNKNOWN) ? "report" : "request") + "\"";
@@ -673,8 +697,8 @@ XJournal::syncRun() {
     if(wantSession && !m_sessionOut.isOpen())
         openSession();
     else if( !wantSession && m_sessionOut.isOpen()) {
-        m_sessionOut.line(XString("{\"t\":\"session\",\"state\":\"end\",\"ts\":\"")
-            + jsonEscape(XTime::now().getTimeStr()) + "\"}\n");
+        m_sessionOut.line(XString("{\"t\":\"session\",\"state\":\"end\",")
+            + stampOf(XTime::now()) + "}\n");
         m_sessionOut.close();
         m_sessionPath.clear();
         //Do not leave the field naming a file nothing is writing -- but do
@@ -710,7 +734,7 @@ XJournal::syncRun() {
         //to the other.
         m_sessionOut.line(XString("{\"t\":\"run\",\"state\":\"start\",\"file\":\"")
             + jsonEscape(QFileInfo(QString::fromStdString(m_openPath)).fileName().toStdString())
-            + "\",\"ts\":\"" + jsonEscape(XTime::now().getTimeStr()) + "\"}\n");
+            + "\"," + stampOf(XTime::now()) + "}\n");
         m_sessionOut.flush();
         gMessagePrint(i18n_noncontext("Journal: ") + m_openPath);
     }
@@ -725,7 +749,7 @@ XJournal::syncRun() {
         m_runKeepsValues = false;
         m_sessionOut.line(XString("{\"t\":\"run\",\"state\":\"end\",\"file\":\"")
             + jsonEscape(QFileInfo(QString::fromStdString(m_openPath)).fileName().toStdString())
-            + "\",\"ts\":\"" + jsonEscape(XTime::now().getTimeStr()) + "\"}\n");
+            + "\"," + stampOf(XTime::now()) + "}\n");
         m_sessionOut.flush();
     }
 }
@@ -807,8 +831,8 @@ XJournal::execute(const atomic<bool> &terminated) {
         trans( *rec->recording()) = false; //!< closes the run file through syncRun()
     syncRun();
     drainOnce();
-    m_sessionOut.line(XString("{\"t\":\"session\",\"state\":\"end\",\"ts\":\"")
-        + jsonEscape(XTime::now().getTimeStr()) + "\"}\n");
+    m_sessionOut.line(XString("{\"t\":\"session\",\"state\":\"end\",")
+        + stampOf(XTime::now()) + "}\n");
     m_sessionOut.close();
     writeReport();
 }
@@ -914,7 +938,7 @@ XJournal::processPending() {
                 && (m_nodes[it->second].node.lock() == p.released.lock())) {
                 XString line = formatString("{\"t\":\"released\",\"id\":%u,",
                     (unsigned)it->second)
-                    + "\"ts\":\"" + jsonEscape(XTime::now().getTimeStr()) + "\"}\n";
+                    + stampOf(XTime::now()) + "}\n";
                 m_sessionOut.line(line);
                 m_runOut.line(line);
                 detachSubtree(it->second);
