@@ -11,8 +11,8 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#ifndef RECORDREADER_H_
-#define RECORDREADER_H_
+#ifndef JOURNALREADER_H_
+#define JOURNALREADER_H_
 
 #include "recorder.h"
 #include "xjournalreplay.h"
@@ -124,4 +124,4 @@ private:
 	shared_ptr<Listener> m_lsnPlayCond;
 };
 
-#endif /*RECORDREADER_H_*/
+#endif /*JOURNALREADER_H_*/

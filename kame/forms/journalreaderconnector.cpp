@@ -12,15 +12,15 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 //---------------------------------------------------------------------------
-#include "recordreaderconnector.h"
-#include "recordreader.h"
+#include "journalreaderconnector.h"
+#include "journalreader.h"
 #include <QPushButton>
 #include <QSlider>
 
-#include "ui_recordreaderform.h"
+#include "ui_journalreaderform.h"
 
 XJournalReaderConnector::XJournalReaderConnector(
-    const shared_ptr<XJournalReader> &reader, FrmRecordReader *form) :
+    const shared_ptr<XJournalReader> &reader, FrmJournalReader *form) :
 	XQConnector(reader, form),
 	m_reader(reader),
 	m_pForm(form),

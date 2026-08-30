@@ -62,7 +62,7 @@
 #include "xdotwriter.h"
 #include "xscriptingthreadconnector.h"
 #include "ui_caltableform.h"
-#include "ui_recordreaderform.h"
+#include "ui_journalreaderform.h"
 #include "ui_nodebrowserform.h"
 #include "ui_interfacetool.h"
 #include "ui_graphtool.h"
@@ -177,9 +177,9 @@ FrmKameMain::FrmKameMain()
     m_pFrmScalarEntry->setWindowIcon(*g_pIconScalar);
     addDockableWindow(m_pMdiRight, m_pFrmScalarEntry, false);
 
-    m_pFrmRecordReader = new FrmRecordReader(this);
-    m_pFrmRecordReader->setWindowIcon(*g_pIconReader);
-    addDockableWindow(m_pMdiRight, m_pFrmRecordReader, false);
+    m_pFrmJournalReader = new FrmJournalReader(this);
+    m_pFrmJournalReader->setWindowIcon(*g_pIconReader);
+    addDockableWindow(m_pMdiRight, m_pFrmJournalReader, false);
 
     m_pMdiRight->activatePreviousSubWindow();
     m_pMdiRight->activatePreviousSubWindow();

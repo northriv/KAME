@@ -11,7 +11,7 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#include "recordreader.h"
+#include "journalreader.h"
 #include "analyzer.h"
 #include "primarydriver.h"
 #include "xtime.h"

@@ -18,8 +18,8 @@
 #include "xnodeconnector.h"
 #include <QMainWindow>
 
-class Ui_FrmRecordReader;
-typedef QForm<QWidget, Ui_FrmRecordReader> FrmRecordReader;
+class Ui_FrmJournalReader;
+typedef QForm<QWidget, Ui_FrmJournalReader> FrmJournalReader;
 class Ui_FrmGraphList;
 typedef QForm<QWidget, Ui_FrmGraphList> FrmGraphList;
 class Ui_FrmCalTable;
@@ -84,7 +84,7 @@ public:
     QAction* m_pGraphThemeDaylightAction;
     QActionGroup *m_pGraphThemeActionGroup;
 
-	FrmRecordReader *m_pFrmRecordReader;
+	FrmJournalReader *m_pFrmJournalReader;
 	FrmGraphList *m_pFrmGraphList;
 	FrmCalTable *m_pFrmCalTable;
 	FrmInterface *m_pFrmInterface;

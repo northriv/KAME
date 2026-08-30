@@ -23,7 +23,7 @@
 #include "analyzer.h"
 #include "recorder.h"
 #include "xjournal.h"
-#include "recordreader.h"
+#include "journalreader.h"
 
 #include "thermometer.h"
 #include "caltable.h"
@@ -34,13 +34,13 @@
 #include "entrylistconnector.h"
 #include "graphlistconnector.h"
 #include "calibentryconnector.h"
-#include "recordreaderconnector.h"
+#include "journalreaderconnector.h"
 #include "nodebrowser.h"
 
 #include "ui_caltableform.h"
 #include "ui_drivercreate.h"
 #include "ui_nodebrowserform.h"
-#include "ui_recordreaderform.h"
+#include "ui_journalreaderform.h"
 #include "ui_scriptingthreadtool.h"
 #include "ui_graphtool.h"
 #include "ui_interfacetool.h"
@@ -67,7 +67,7 @@ m_journalReader(create<XJournalReader>("JournalReader", false,
 		drivers())),
 m_conJournalReader(xqcon_create<XJournalReaderConnector>(
 		journalReader(),
-		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmRecordReader)),
+		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmJournalReader)),
 m_conDrivers(xqcon_create<XDriverListConnector>(
 		m_drivers, dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver)),
 m_conInterfaces(xqcon_create<XInterfaceListConnector>(

@@ -7,7 +7,7 @@ include_directories(
 ########### next target ###############
 
 set(forms_SRCS
-	recordreaderconnector.cpp
+	journalreaderconnector.cpp
 	driverlistconnector.cpp
 	interfacelistconnector.cpp
 	graphlistconnector.cpp
@@ -16,7 +16,7 @@ set(forms_SRCS
  )
 
 kde4_add_ui_files(forms_SRCS
-    recordreaderform.ui
+    journalreaderform.ui
 	graphtool.ui 
 	scalarentrytool.ui 
 	drivertool.ui 

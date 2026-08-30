@@ -88,7 +88,7 @@ HEADERS += \
     graph/xwavengraph.h \
     analyzer/analyzer.h \
     analyzer/recorder.h \
-    analyzer/recordreader.h \
+    analyzer/journalreader.h \
     xjournalreplay.h \
     script/xdotwriter.h \
     $$RUBY_HEADERS \
@@ -116,7 +116,7 @@ HEADERS += \
     forms/calibentryconnector.h \
     forms/interfacelistconnector.h \
     forms/nodebrowser.h \
-    forms/recordreaderconnector.h \
+    forms/journalreaderconnector.h \
     messagebox.h \
     math/nllsfit.h \
     math/tikhonovreg.h
@@ -168,10 +168,10 @@ SOURCES += icons/icon.cpp \
     forms/calibentryconnector.cpp \
     forms/interfacelistconnector.cpp \
     forms/nodebrowser.cpp \
-    forms/recordreaderconnector.cpp \
+    forms/journalreaderconnector.cpp \
     analyzer/analyzer.cpp \
     analyzer/recorder.cpp \
-    analyzer/recordreader.cpp\
+    analyzer/journalreader.cpp\
     kame.cpp \
     xjournal.cpp \
     xjournalreplay.cpp \
@@ -223,7 +223,7 @@ FORMS += \
     forms/graphtool.ui \
     forms/interfacetool.ui \
     forms/nodebrowserform.ui \
-    forms/recordreaderform.ui \
+    forms/journalreaderform.ui \
     forms/scalarentrytool.ui \
     forms/messageform.ui \
     forms/scriptingthreadtool.ui

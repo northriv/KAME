@@ -13,20 +13,20 @@
 ***************************************************************************/
 //---------------------------------------------------------------------------
 
-#ifndef recordreaderconnectorH
-#define recordreaderconnectorH
+#ifndef journalreaderconnectorH
+#define journalreaderconnectorH
 //---------------------------------------------------------------------------
 #include "xnodeconnector.h"
 
-class Ui_FrmRecordReader;
-typedef QForm<QWidget, Ui_FrmRecordReader> FrmRecordReader;
+class Ui_FrmJournalReader;
+typedef QForm<QWidget, Ui_FrmJournalReader> FrmJournalReader;
 
 class XJournalReader;
 class XJournalReaderConnector : public XQConnector {
 	Q_OBJECT
 public:
 	XJournalReaderConnector(
-		const shared_ptr<XJournalReader> &reader, FrmRecordReader *form);
+		const shared_ptr<XJournalReader> &reader, FrmJournalReader *form);
 	virtual ~XJournalReaderConnector() {}
 
 private slots:
@@ -40,7 +40,7 @@ private:
 	void onPositionChanged(const Snapshot &shot, XValueNodeBase *);
 
 	const shared_ptr<XJournalReader> m_reader;
-	FrmRecordReader *const m_pForm;
+	FrmJournalReader *const m_pForm;
   
 	const xqcon_ptr m_conRecordFile, m_conFF, m_conRW, m_conStop,
 		m_conFirst, m_conNext, m_conBack, m_conRecordTime, m_conSpeed;    
