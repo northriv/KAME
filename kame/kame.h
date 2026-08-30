@@ -186,6 +186,12 @@ private:
 	};
 	std::deque<EdgeSlider> m_edgeSliders;
 	QTimer *m_pEdgeHoverTimer = nullptr;
+	//! Auto-hide waits for the end of startup and stops at the start of
+	//! shutdown.  Loading the driver modules takes seconds, during which the
+	//! pointer is wherever the user left it and nothing on screen is theirs to
+	//! keep open yet -- a toolbox that folds itself away then looks like a
+	//! failure rather than a feature.  \sa pollEdgeAutoHide()
+	bool m_edgeAutoHideArmed = false;
 	void setupEdgeAutoHide(const QRect &screen);
 	//! Trims the toolboxes against the message window once their frames exist.
 	void fitToolboxHeights();

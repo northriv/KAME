@@ -618,6 +618,7 @@ FrmKameMain::pollEdgeAutoHide() {
                 //Its tabs run along the top, so the accent goes underneath.
                 tabs->setStyleSheet(flatTabStyleSheet(Qt::BottomEdge));
             }
+        if( !m_edgeAutoHideArmed) continue;  //!< before the modules are up, or after Quit
         if( !s.autoHide) continue;
         if(s.anim->state() == QAbstractAnimation::Running) continue;
         if(auto *dock = qobject_cast<QDockWidget *>(s.win))
@@ -930,6 +931,12 @@ FrmKameMain::processSignals() {
 
 void
 FrmKameMain::closeEvent( QCloseEvent* ce ) {
+    //Nothing folds while shutting down: closing interfaces and joining threads
+    //takes long enough for the poll to fire, and a window animating itself
+    //narrow on the way out is at best pointless.  Set before the confirmation
+    //below, which can put a modal dialog up and hand the poll a pointer that
+    //is over neither toolbox.
+    m_edgeAutoHideArmed = false;
 	bool opened = false;
     {
         Snapshot shot( *m_measure->interfaces());
@@ -1074,6 +1081,8 @@ void FrmKameMain::helpIndexAction_activated() {
 */
 
 void FrmKameMain::signalAllModulesLoaded() {
+    //Startup is over, so the toolboxes may start folding themselves away.
+    m_edgeAutoHideArmed = true;
 #ifdef USE_PYBIND11
     if(m_measure && m_measure->python())
         m_measure->python()->signalModulesLoaded();
