@@ -241,11 +241,13 @@ struct XTypeHolder {
     typedef XTypeHolder<__VA_ARGS__> TypeHolder; \
     static TypeHolder s_types; \
     static TypeHolder::creator_t creator__(const XString &tp) {return s_types.creator(tp);} \
+    /* not override: the base has no creator(), XTypeHolder::creator() being a \
+       different class's member with a per-instantiation return type. */ \
     virtual TypeHolder::creator_t creator(const XString &tp) {return creator__(tp);} \
     static std::deque<XString> typenames__() {return s_types.keys();} \
     static std::deque<XString> typelabels__() {return s_types.labels();} \
-    virtual std::deque<XString> typenames() {return typenames__();} \
-    virtual std::deque<XString> typelabels() {return typelabels__();}
+    virtual std::deque<XString> typenames() override {return typenames__();} \
+    virtual std::deque<XString> typelabels() override {return typelabels__();}
 
 #define DECLARE_TYPE_HOLDER(list) \
     list::TypeHolder list::s_types;

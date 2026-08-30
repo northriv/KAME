@@ -203,7 +203,7 @@ private:
 	//! nullptr where a window has no edge slider (docked layout, or Wayland).
 	EdgeSlider *edgeSliderFor(QWidget *win);
 	int m_cascadeIndex = 0;
-	void closeEvent( QCloseEvent* ce );
+	void closeEvent( QCloseEvent* ce ) override;
 	shared_ptr<XScriptingThread> runNewScript(const XString &label, const XString &filename);
 	QTimer *m_pTimer;
 	shared_ptr<XMeasure> m_measure;
