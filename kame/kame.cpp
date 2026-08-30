@@ -218,7 +218,13 @@ FrmKameMain::FrmKameMain()
         int msg_top = XMessageBox::form()->frameGeometry().top();
         int deco = std::max(0, dockLeft->frameSize().height() - dockLeft->height());
         int toolbox_h = std::max(msg_top - 6 - rect.top() - deco, 360);
-        dockLeft->resize(std::max(rect.width() / 5, XMessageBox::form()->width() + 80),
+        //A quarter of the screen rather than a fifth, and never below what the
+        //widest pane in this toolbox actually wants: rendered on their own,
+        //the West panes come to 375 px (the calibration table) and the East
+        //ones to 439 (the replay pane, since it grew a scrub bar), and each
+        //needs about 40 more for the MDI tab strip down the side and the
+        //window frame.  Below that the pane is not narrow, it is cut off.
+        dockLeft->resize(std::max({rect.width() / 4, XMessageBox::form()->width() + 80, 420}),
             toolbox_h);
         dockLeft->move(0, rect.top());
         //Only a first guess: see fitToolboxHeights(), which trims both once
@@ -226,7 +232,7 @@ FrmKameMain::FrmKameMain()
         dockRight->setFloating(true);
         dockRight->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
             Qt::CustomizeWindowHint | Qt::WindowTitleHint);
-        dockRight->resize(std::max(rect.width() / 5, 450), dockLeft->height());
+        dockRight->resize(std::max(rect.width() / 4, 490), dockLeft->height());
         dockRight->move(rect.right() - dockRight->frameSize().width() - 6, rect.top());
         setupEdgeAutoHide(rect);
     }
