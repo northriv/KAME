@@ -27,6 +27,7 @@ INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/forms\
     $${_PRO_FILE_PWD_}/thermometer\
     $${_PRO_FILE_PWD_}/analyzer\
+    $${_PRO_FILE_PWD_}/journal\
     $${_PRO_FILE_PWD_}/driver\
     $${_PRO_FILE_PWD_}/graph\
     $${_PRO_FILE_PWD_}/script\
@@ -56,7 +57,7 @@ HEADERS += \
     graph/onscreenobject.h \
     graph/x2dimage.h \
     kame.h \
-    xjournal.h \
+    journal/xjournal.h \
     script/xscriptingthread.h \
     script/xscriptingthreadconnector.h \
     ../kamestm/threadlocal.h \
@@ -88,8 +89,8 @@ HEADERS += \
     graph/xwavengraph.h \
     analyzer/analyzer.h \
     analyzer/recorder.h \
-    analyzer/journalreader.h \
-    xjournalreplay.h \
+    journal/journalreader.h \
+    journal/xjournalreplay.h \
     script/xdotwriter.h \
     $$RUBY_HEADERS \
     script/xrubywriter.h \
@@ -171,10 +172,10 @@ SOURCES += icons/icon.cpp \
     forms/journalreaderconnector.cpp \
     analyzer/analyzer.cpp \
     analyzer/recorder.cpp \
-    analyzer/journalreader.cpp\
+    journal/journalreader.cpp\
     kame.cpp \
-    xjournal.cpp \
-    xjournalreplay.cpp \
+    journal/xjournal.cpp \
+    journal/xjournalreplay.cpp \
     main.cpp \
     messagebox.cpp \
     math/tikhonovreg.cpp

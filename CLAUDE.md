@@ -180,7 +180,8 @@ parent.iterate_commit_if([&](Transaction<NodeA> &tr) -> bool {
 |---|---|
 | `kame/` | Core framework: XNode, STM, thread/scheduler, scripting glue |
 | `kame/driver/` | `XDriver` base, `XPrimaryDriver`, `XSecondaryDriver`, Python driver bridge |
-| `kame/analyzer/` | `XAnalyzer`, `XScalarEntry`, `XCalibratedEntry` — extract and calibrate scalar values from driver records |
+| `kame/analyzer/` | `XAnalyzer`, `XScalarEntry`, `XCalibratedEntry` — extract and calibrate scalar values from driver records; also `XRawStream`/`XRawStreamRecorder`/`XTextWriter` (`recorder.h`), which are output rather than analysis and are there for historical reasons |
+| `kame/journal/` | The provenance journal: `XJournal` (the node the tree shows), `XJournalWriter` (subscribes to every node and writes `.kamj`), `XJournalFile` (reads one back, streaming), `XJournalReader` (the Replay pane's node, which plays a `.kamb` beside its journal). Reader and writer live together deliberately: the reader tracks a byte format the writer defines, and adjacency is the cheapest thing keeping them in step. \sa `doc/design/PROVENANCE.md` |
 | `kame/math/` | FFT, AR, spectral analysis helpers |
 | `kame/script/` | Python (pybind11) and Ruby scripting integration |
 | `kame/graph/` | Plotting/graphing framework |
