@@ -627,9 +627,12 @@ through the same node — 37 on its way to the 100 you asked for — is recorded
 but never restored, because the driver that owns it would contradict it on
 its next record. Readings are never restored at all.
 
-Nothing is put back while an interface is open: a recording must not drive
-live instruments merely by being opened. **File > Open Measurement** is the
-deliberate way to do that.
+A setting is left alone when the driver that owns it is **running** — its
+interface open — because that is the only way a restored value reaches an
+instrument. Everything else is put back: an analysis parameter, a setting of
+a driver that is stopped, anything outside the drivers. KAME says how much it
+held back. **File > Open Measurement** is the deliberate way to push a
+recorded setup at live instruments.
 
 **Follow raw records** decides whether the records are fed to the drivers at
 all. Untick it and the same transport walks the settings history alone.
@@ -642,9 +645,13 @@ and the same transport walks *that*: each step is one instant of the history,
 and the tree follows it.
 
 This is also what **Follow raw records** unticked does to a run that has one.
-Opening the raw stream instead of the journal, or having an interface open,
-leaves the tree untouched: the position and the time still move, so a history
-can be read without being replayed.
+Opening the raw stream instead of the journal leaves the tree untouched: the
+position and the time still move, so a history can be read without being
+replayed.
+
+Playback stops when it reaches the end. It does not start over — with a
+journal attached that would put the whole tree back to the beginning of the
+recording without saying so.
 
 ## Recovering from a crash
 

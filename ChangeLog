@@ -22,7 +22,15 @@
   choose is the expensive half, so the one switch is "Follow raw records" --
   untick it and the same transport walks the settings history alone.  Nothing
   is written to the tree while an interface is open; File > Open Measurement
-  is the deliberate way to push a recorded setup at live instruments.
+  is the deliberate way to push a recorded setup at live instruments.  What is
+  withheld is decided per node: only a driver whose interface is open has a
+  listener that could carry a value to hardware, so a stopped driver's
+  settings and an analysis parameter -- NMRPulseAnalyzer's NumEcho, which
+  talks to nothing -- are put back like anything else.  Refusing every write
+  while any interface was open made replay look broken on a live rig.
+- Playback stops at the end instead of starting over.  With a journal
+  attached, lapping put the whole tree back to the head of the recording
+  without saying so.
 - Playback re-analyses each record with the
   with the settings that were in force when it was taken: the reader walks the
   journal forward to the record's own timestamp and puts back what was set

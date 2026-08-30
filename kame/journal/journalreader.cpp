@@ -181,18 +181,10 @@ XJournalReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	//Opening the journal IS the request for its settings; asking again with a
 	//switch would be ceremony.  Opening the raw stream instead is the other
 	//answer -- re-analyse with today's settings -- and is how a recording is
-	//run through again with one parameter changed.
-	if(settings && wantsSettings) {
-		unsigned int open = openInterfaces();
-		if( !open)
-			restoreDump();
-		else
-			gWarnPrint(formatString_tr(I18N_NOOP(
-				"%u interfaces are open, so this run's %u settings are NOT being put "
-				"back: a recording must not drive live instruments by being opened. "
-				"File > Open Measurement is the deliberate way to do that."),
-				open, settings));
-	}
+	//run through again with one parameter changed.  What a running driver
+	//owns is left alone, and restoreDump() says how much that was.
+	if(settings && wantsSettings)
+		restoreDump();
 	else if(settings)
 		gMessagePrint(formatString_tr(I18N_NOOP(
 			"Its %u settings are not applied: the raw stream was opened, so the "
@@ -308,7 +300,7 @@ XJournalReader::parseOne(void *_fd, XMutex &mutex) {
 	if(rewound)
 		restoreDump(true);
 	if( !pending.empty())
-		applyValues(pending, nullptr);
+		applyValues(pending, busyDrivers(), nullptr, nullptr);
 
 	{ XScopedLock<XMutex> lock(m_drivermutex);
 	driver->finishWritingRaw(rawdata, XTime::now(), time);
@@ -461,6 +453,22 @@ static shared_ptr<XNode> nodeAt(const shared_ptr<XNode> &root, const XString &pa
 //! `create<XDoubleNode>("Value", false)` and its listener writes to the
 //! instrument.  What makes a restore harmless is the interface being closed,
 //! since those listeners are connected in start() and dropped in stop().
+std::set<XString>
+XJournalReader::busyDrivers() const {
+	std::set<XString> names;
+	auto meas = dynamic_pointer_cast<XMeasure>(m_root.lock());
+	if( !meas)
+		return names;
+	Snapshot shot( *meas->interfaces());
+	if(shot.size())
+		for(auto &&x: *shot.list())
+			if(auto intf = dynamic_pointer_cast<XInterface>(x))
+				if(intf->isOpened())
+					if(auto drv = intf->driver())
+						names.insert(drv->getName());
+	return names;
+}
+
 unsigned int
 XJournalReader::openInterfaces() const {
 	auto meas = dynamic_pointer_cast<XMeasure>(m_root.lock());
@@ -485,7 +493,7 @@ XJournalReader::openInterfaces() const {
 //! instruments, and this pane is not.
 bool
 XJournalReader::mayApply_() const {
-	return m_restoreWanted && !openInterfaces();
+	return m_restoreWanted;
 }
 
 //! No raw stream, or not being asked for: either way the journal itself is
@@ -523,24 +531,46 @@ XJournalReader::restoreDump(bool quiet) {
 		gWarnPrint(i18n("No settings in this journal to restore."));
 		return 0;
 	}
-	unsigned int missing = 0;
-	unsigned int done = applyValues(items, &missing);
+	unsigned int missing = 0, held = 0;
+	unsigned int done = applyValues(items, busyDrivers(), &missing, &held);
 	if(quiet)
 		return done;
-	gMessagePrint(formatString_tr(I18N_NOOP("Restored %u settings; %u not found, %u skipped."),
-		done, missing, skipped + (unsigned int)items.size() - done - missing));
+	gMessagePrint(formatString_tr(
+		I18N_NOOP("Restored %u settings; %u not found, %u skipped."),
+		done, missing, skipped + (unsigned int)items.size() - done - missing - held));
+	if(held)
+		gWarnPrint(formatString_tr(I18N_NOOP(
+			"%u of them belong to drivers that are running and were left alone."), held));
 	return done;
 }
 
 //! \sa restoreDump(), which is this over the head of a journal, and parseOne(),
 //! which is this over the entries that reach the record being played.
+//! A value is withheld only from a driver that is running.  Blocking every
+//! write while any interface was open blocked far too much: an analysis
+//! parameter of a secondary driver -- NMRPulseAnalyzer's NumEcho, say -- talks
+//! to nothing at all, and refusing it made replay look broken on a live rig.
 unsigned int
-XJournalReader::applyValues(const std::vector<RestoreItem> &items, unsigned int *missing) {
+XJournalReader::applyValues(const std::vector<RestoreItem> &items,
+	const std::set<XString> &busy, unsigned int *missing, unsigned int *held) {
 	auto root = m_root.lock();
 	if( !root)
 		return 0;
 	unsigned int done = 0;
 	for(auto &&item: items) {
+		if( !busy.empty()) {
+			//"/Drivers/<name>/..." -- the only paths that can reach hardware.
+			static const XString prefix = "/Drivers/";
+			if(item.path.compare(0, prefix.size(), prefix) == 0) {
+				auto end = item.path.find('/', prefix.size());
+				if((end != XString::npos) &&
+					busy.count(item.path.substr(prefix.size(), end - prefix.size()))) {
+					if(held)
+						++( *held);
+					continue;
+				}
+			}
+		}
 		auto node = nodeAt(root, item.path);
 		auto vnode = dynamic_pointer_cast<XValueNodeBase>(node);
 		if( !vnode) {
@@ -632,7 +662,7 @@ XJournalReader::journalStep_() {
 	//readout still says where it is: walking the history to see what changed
 	//when is worth having on its own, and it touches nothing.
 	if(mayApply_())
-		applyValues(pending, nullptr);
+		applyValues(pending, busyDrivers(), nullptr, nullptr);
 	m_journalVisited.push_back(when);
 	if(m_journalVisited.size() > 4096)
 		m_journalVisited.pop_front();
@@ -658,7 +688,7 @@ XJournalReader::journalBack_() {
 	});
 	m_filemutex.unlock();
 	if(mayApply_())
-		applyValues(pending, nullptr);
+		applyValues(pending, busyDrivers(), nullptr, nullptr);
 	m_journalVisited.swap(keep);
 	reportJournalPosition_(target);
 }
@@ -673,6 +703,8 @@ XJournalReader::journalSeek_(int permille) {
 	if(permille <= 0)
 		return;
 	uint64_t target = m_journalSize * (uint64_t)permille / 1000u;
+	//Once, not once per step: a seek can walk thousands of instants.
+	std::set<XString> busy = busyDrivers();
 	XTime when, last;
 	for(;;) {
 		std::vector<RestoreItem> pending;
@@ -689,13 +721,24 @@ XJournalReader::journalSeek_(int permille) {
 		if( !more)
 			break;
 		if(mayApply_())
-			applyValues(pending, nullptr);
+			applyValues(pending, busy, nullptr, nullptr);
 		last = when;
 		m_journalVisited.push_back(when);
 		if(m_journalVisited.size() > 4096)
 			m_journalVisited.pop_front();
 	}
 	reportJournalPosition_(last);
+}
+
+void
+XJournalReader::stopPlayback_(const XString &msg) {
+	m_periodicTerm = 0.0;
+	iterate_commit([=](Transaction &tr){
+		tr[ *m_fastForward] = false;
+		tr[ *m_rewind] = false;
+		tr.unmark(m_lsnPlayCond);
+	});
+	g_statusPrinter->printMessage(msg);
 }
 
 void
@@ -857,8 +900,10 @@ void *XJournalReader::execute(const atomic<bool> &terminated) {
 			if(req >= 0)
 				journalSeek_(req);
 			else if(ms > 0.0) {
-				if( !journalStep_())
-					journalFirst_();    //!< round again, as forward play does at EOF
+				if( !journalStep_()) {
+					stopPlayback_(i18n("End of journal"));
+					continue;
+				}
 			}
 			else if(ms < 0.0) {
 				if(m_journalVisited.size() < 2) {
@@ -883,7 +928,13 @@ void *XJournalReader::execute(const atomic<bool> &terminated) {
 				seek_(m_pGFD, req);
 			}
 			else if(ms > 0.0 && gzeof(static_cast<gzFile>(m_pGFD))) {
-				first_(m_pGFD);
+				//It used to start over here.  With a journal attached that put
+				//the whole tree back to the head of the recording without
+				//saying so; and a replay that has reached the end has reached
+				//the end.  FIRST is one button away.
+				m_filemutex.unlock();
+				stopPlayback_(i18n("End of records"));
+				continue;
 			}
 			else if(ms < 0.0) {
 				if( !stepBack_(m_pGFD)) {

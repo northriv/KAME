@@ -18,6 +18,7 @@
 #include "xjournalreplay.h"
 
 #include <deque>
+#include <set>
 
 class XJournalReader : public XRawStream {
 public:
@@ -115,21 +116,31 @@ private:
 	void journalBack_();
 	void journalSeek_(int permille);
 	void reportJournalPosition_(const XTime &when);
+	//! Ends playback where it ran out, rather than starting again.  Looping
+	//! silently put the whole tree back to the head of the recording.
+	void stopPlayback_(const XString &msg);
 	//! The rule for what a replay puts back, shared by both playback paths.
 	void takeIfRequest_(const XJournalFile::Event &e, std::vector<RestoreItem> &out) const;
 
 	//! \return how many landed; \a missing counts paths this tree does not have.
-	unsigned int applyValues(const std::vector<RestoreItem> &items, unsigned int *missing);
+	//! \a busy names the drivers to leave alone.  \a missing counts paths this
+	//! tree does not have; \a held counts values withheld from a running driver.
+	unsigned int applyValues(const std::vector<RestoreItem> &items,
+		const std::set<XString> &busy, unsigned int *missing, unsigned int *held);
 	//! Puts the held dump into the live tree.  \return how many values landed.
 	//! \a quiet for the playback paths, which reach it once per lap.
 	unsigned int restoreDump(bool quiet = false);
 	//! Whether a replay may write to the tree at all: the user asked it to,
 	//! and no interface is open to carry a setting to an instrument.
 	bool mayApply_() const;
-	//! How many interfaces are open, which is what decides whether restoring
-	//! a setting reaches an instrument: a driver's I/O listeners exist only
-	//! between its start() and stop(), and those follow the interface.
+	//! How many interfaces are open.  For saying so, not for deciding: the
+	//! decision is per node.  \sa busyDrivers()
 	unsigned int openInterfaces() const;
+	//! The drivers whose interface is open -- the only ones a restored value
+	//! could reach an instrument through, since a driver's I/O listeners exist
+	//! only between its start() and stop().  A node anywhere else in the tree,
+	//! an analysis parameter of a secondary driver included, reaches nothing.
+	std::set<XString> busyDrivers() const;
 	shared_ptr<Listener> m_lsnOnOpen, m_lsnOnSeek;
 
 	//! One value out of the dump, kept by the id the journal gave its node.
