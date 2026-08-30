@@ -442,17 +442,25 @@ XJournal::Out::line(const XString &s) {
     m_bytes += s.size();
     m_dirty = true;
 }
+//! How often a full flush happens, in both files.  \sa Out::flush()
+static const unsigned int FLUSH_INTERVAL_MS = 60000;
+
 void
 XJournal::Out::flush(bool force) {
     if( !m_gz || !m_dirty)
         return;
     XTime now = XTime::now();
-    if( !force && m_flushedAt.isSet() && (now.diff_msec(m_flushedAt) < 1000))
+    if( !force && m_flushedAt.isSet() && (now.diff_msec(m_flushedAt) < FLUSH_INTERVAL_MS))
         return;
     //Z_FULL_FLUSH, not Z_SYNC_FLUSH: it ends the deflate block AND resets the
     //dictionary, so everything up to here stays readable on its own -- the
-    //property a half-copied or half-killed file needs.  It costs compression,
-    //which is why it is once a second and not once a drain.
+    //property a half-copied or half-killed file needs.
+    //
+    //A minute, not a second.  Resetting the dictionary that often on a stream
+    //this repetitive throws away most of what makes it compress, and what the
+    //extra flushes buy is only the difference between losing a second of
+    //provenance to a kill and losing a minute of it.  The same interval as the
+    //raw stream, for the same reason.  \sa XRawStreamRecorder::onRecord()
     gzflush((gzFile)m_gz, Z_FULL_FLUSH);
     m_flushedAt = now;
     m_dirty = false;

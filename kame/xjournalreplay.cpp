@@ -134,7 +134,7 @@ XJournalFile::nextLine(Event &e) {
     while(gzline((gzFile)m_gz, line)) {
         QJsonDocument doc = QJsonDocument::fromJson(line);
         if( !doc.isObject()) {
-            //A journal is flushed once a second and a killed KAME leaves a
+            //A journal is flushed once a minute and a killed KAME leaves a
             //partial last line.  That is expected, not corruption.
             ++m_unknown;
             continue;

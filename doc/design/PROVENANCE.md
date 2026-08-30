@@ -1041,11 +1041,30 @@ The scan reads a window forward from the target and takes the first offset
 that passes; nothing before the target is ever accepted, so a drag can only
 move where the user asked or later, never earlier.
 
-(If this ever needs to be fast, the fix is the one the journal already has by
-accident: `Z_FULL_FLUSH` resets the dictionary, so a stream flushed
-periodically can be restarted at each flush marker.  The journal is flushed
-once a second for crash-safety; the raw stream is flushed only when recording
-stops, and giving it the same treatment would buy both.)
+(If this ever needs to be fast, the fix is already half-built: `Z_FULL_FLUSH`
+resets the dictionary, so a stream flushed periodically can be restarted at
+each flush marker rather than from the beginning.  Both files now flush once a
+minute -- see below -- which leaves the restart points in place; what is
+missing is a reader that starts a raw inflate at one, which `gzFile` cannot
+do.)
+
+### Both files flush once a minute
+
+The raw stream used to be flushed only when recording stopped, which meant a
+KAME killed mid-run left a `.kamb` that stopped being decodable at whatever
+block boundary zlib happened to have emitted.  It now takes a `Z_FULL_FLUSH`
+every 60 seconds, and so a crash costs at most the last minute of it.
+
+The journal came down to the same interval from one second (user, 2026-08-30:
+"毎秒フラッシュは重い").  Resetting the dictionary every second on a stream
+this repetitive throws away most of what makes it compress -- and the journal
+is repetitive by construction, which is where its 6:1 on disk comes from.
+What the extra flushes bought was only the difference between losing a second
+of provenance to a kill and losing a minute of it.
+
+The interval is the one number both files share, and deliberately: a run is a
+pair, and a pair that survives a crash to two different points is harder to
+reason about than one that survives to the same point.
 
 ### A journal can be a gigabyte, so the reader streams
 

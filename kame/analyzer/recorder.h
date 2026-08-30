@@ -62,6 +62,8 @@ private:
 	void onFlush(const Snapshot &shot, XValueNodeBase *);
 	const shared_ptr<XBoolNode> m_recording;
 	atomic<uintptr_t> m_bytesWritten {0};
+	//! Last Z_FULL_FLUSH.  \sa onRecord()
+	XTime m_lastFlushed;
 };
 
 

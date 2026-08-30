@@ -72,6 +72,7 @@ void
 XRawStreamRecorder::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	if(m_pGFD) gzclose(static_cast<gzFile>(m_pGFD));
 	m_pGFD = gzopen(QString(( **filename())->to_str()).toLocal8Bit().data(), "wb");
+	m_lastFlushed = XTime();
 }
 void
 XRawStreamRecorder::onFlush(const Snapshot &shot, XValueNodeBase *) {
@@ -116,6 +117,21 @@ XRawStreamRecorder::onRecord(const Snapshot &shot, XDriver *d) {
                 header.clear(); //using as a footer.
                 header.push((uint32_t)allsize);
                 gzwrite(static_cast<gzFile>(m_pGFD), &header[0], header.size());
+                //Z_FULL_FLUSH ends the deflate block AND resets the dictionary,
+                //so everything up to here stays readable on its own: a KAME that
+                //is killed mid-run leaves a .kamb missing at most the last
+                //minute, rather than a stream that stops being decodable at the
+                //last block boundary zlib happened to emit.  It also leaves
+                //restart points a seek could one day use.
+                //
+                //A minute, not a second (which is what the journal does): this
+                //is the high-rate file, and each flush costs compression on
+                //every byte written after it.
+                XTime now = XTime::now();
+                if( !m_lastFlushed.isSet() || (now.diff_msec(m_lastFlushed) > 60000)) {
+                    gzflush(static_cast<gzFile>(m_pGFD), Z_FULL_FLUSH);
+                    m_lastFlushed = now;
+                }
                 m_filemutex.unlock();
                 m_bytesWritten += allsize;
             }
