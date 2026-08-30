@@ -43,7 +43,7 @@ private:
 	FrmJournalReader *const m_pForm;
   
 	const xqcon_ptr m_conRecordFile, m_conFF, m_conRW, m_conStop,
-		m_conFirst, m_conNext, m_conBack, m_conRecordTime, m_conSpeed;    
+		m_conFirst, m_conNext, m_conBack, m_conRecordTime, m_conSpeed, m_conRestore;    
 	//! Last, so that it is destroyed first: members go in reverse order of
 	//! declaration, and a listener that outlived m_reader could still be
 	//! dispatched into a callback that reads it.

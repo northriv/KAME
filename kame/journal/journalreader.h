@@ -19,7 +19,11 @@
 
 class XJournalReader : public XRawStream {
 public:
-	XJournalReader(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist);
+	//! \a root is where a journal's paths are resolved from -- the whole tree,
+	//! not just the drivers, since a run's settings are spread across it.
+	//! Weak, because it is this node's own ancestor.
+	XJournalReader(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist,
+		const weak_ptr<XNode> &root);
   
 	void terminate();
     void join();
@@ -32,6 +36,11 @@ public:
 	const shared_ptr<XTouchableNode> &next() const {return m_next;}
 	const shared_ptr<XTouchableNode> &back() const {return m_back;}
 	const shared_ptr<XStringNode> &recordTime() const {return m_recordTime;}
+	//! Puts the settings the run was recorded with back into the live tree.
+	//! An action rather than a mode, deliberately: restoring a setting sends
+	//! it to the instrument, so it happens when someone asks for it and never
+	//! because a file was opened.
+	const shared_ptr<XTouchableNode> &restore() const {return m_restore;}
 	//! Where the next record is, in thousandths of the file.  By size, not by
 	//! time: the length of a gzip stream is not known until it is read, and
 	//! records are not evenly spaced in time anyway.
@@ -70,6 +79,7 @@ private:
 	const shared_ptr<XTouchableNode> m_stop;
 	const shared_ptr<XTouchableNode> m_first, m_next, m_back;
 	const shared_ptr<XStringNode> m_recordTime;
+	const shared_ptr<XTouchableNode> m_restore;
 	const shared_ptr<XUIntNode> m_position, m_seek;
 	void onPlayCondChanged(const Snapshot &shot, XValueNodeBase *);
 	void onStop(const Snapshot &shot, XTouchableNode *);
@@ -79,7 +89,20 @@ private:
   
 	void onOpen(const Snapshot &shot, XValueNodeBase *); 
 	void onSeek(const Snapshot &shot, XValueNodeBase *);
-	shared_ptr<Listener> m_lsnOnOpen, m_lsnOnSeek;
+	void onRestore(const Snapshot &shot, XTouchableNode *);
+	shared_ptr<Listener> m_lsnOnOpen, m_lsnOnSeek, m_lsnOnRestore;
+
+	//! One value out of the dump, kept by the id the journal gave its node.
+	struct DumpValue {
+		uint32_t id = 0;
+		XString value;
+		double exact = 0.0;
+		bool hasExact = false;
+	};
+	//! The state the run started in, read at open and held until another file
+	//! is opened.  One entry per value node, so it is bounded by the tree.
+	std::vector<DumpValue> m_dump;
+	const weak_ptr<XNode> m_root;
   
 	uint32_t m_allsize;
 	//! Of the record last read: records written before the magic existed have

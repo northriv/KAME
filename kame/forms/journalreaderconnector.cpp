@@ -39,7 +39,8 @@ XJournalReaderConnector::XJournalReaderConnector(
 	m_conNext(xqcon_create<XQButtonConnector>(reader->next(), form->btnNext)),
 	m_conBack(xqcon_create<XQButtonConnector>(reader->back(), form->btnBack)),
 	m_conRecordTime(xqcon_create<XQLineEditConnector>(reader->recordTime(), form->edTime)),
-	m_conSpeed(xqcon_create<XQComboBoxConnector>(reader->speed(), form->cmbSpeed, Snapshot( *reader->speed()))) {
+	m_conSpeed(xqcon_create<XQComboBoxConnector>(reader->speed(), form->cmbSpeed, Snapshot( *reader->speed()))),
+	m_conRestore(xqcon_create<XQButtonConnector>(reader->restore(), form->m_btnRestore)) {
 
     form->btnNext->setIcon(
         QApplication::style()->standardIcon(QStyle::SP_MediaSeekForward));

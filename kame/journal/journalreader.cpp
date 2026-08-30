@@ -22,6 +22,7 @@
 
 #include <QFileInfo>
 #include <QString>
+#include <QStringList>
 
 #define IFSMODE std::ios::in
 #define SPEED_FASTEST "Fastest"
@@ -45,8 +46,10 @@ XNoDriverError(const XString &driver_name, const char *file, int line)
 	: XRecordError(i18n("No Driver Error: ") + driver_name, file, line),
 	  name(driver_name) {}
          
-XJournalReader::XJournalReader(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist)
+XJournalReader::XJournalReader(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist,
+	const weak_ptr<XNode> &root)
 	: XRawStream(name, runtime, driverlist),
+	  m_root(root),
 	  m_speed(create<XComboNode>("Speed", true, true)),
 	  m_fastForward(create<XBoolNode>("FastForward", true)),
 	  m_rewind(create<XBoolNode>("Rewind", true)),
@@ -57,6 +60,7 @@ XJournalReader::XJournalReader(const char *name, bool runtime, const shared_ptr<
 	  m_recordTime(create<XStringNode>("RecordTime", true)),
 	  m_position(create<XUIntNode>("Position", true)),
 	  m_seek(create<XUIntNode>("Seek", true)),
+	  m_restore(create<XTouchableNode>("RestoreSettings", true)),
 	  m_periodicTerm(0) {
 
     iterate_commit([=](Transaction &tr){
@@ -70,6 +74,9 @@ XJournalReader::XJournalReader(const char *name, bool runtime, const shared_ptr<
             shared_from_this(), &XJournalReader::onOpen);
         m_lsnOnSeek = tr[ *m_seek].onValueChanged().connectWeakly(
             shared_from_this(), &XJournalReader::onSeek);
+        m_lsnOnRestore = tr[ *m_restore].onTouch().connectWeakly(
+            shared_from_this(), &XJournalReader::onRestore,
+            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
 		m_lsnFirst = tr[ *m_first].onTouch().connectWeakly(
 			shared_from_this(), &XJournalReader::onFirst,
 			Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
@@ -117,11 +124,17 @@ XJournalReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	}
 
 	XJournalFile journal;
+	std::vector<DumpValue> dump;
 	if(journalpath.length()) {
 		XString err;
-		//Nothing is restored yet, so the dump goes nowhere; opening still
-		//reads it, which is what settles whether this is a journal at all.
-		if( !journal.open(journalpath, [](const XJournalFile::Event &){}, err))
+		//The dump is the state the run began in.  It is kept, not applied:
+		//putting a setting back sends it to the instrument, which is not
+		//something opening a file may do on its own.  \sa onRestore()
+		dump.reserve(1024);
+		if( !journal.open(journalpath, [&dump](const XJournalFile::Event &e) {
+				if((e.kind == XJournalFile::Event::Kind::VALUE) && e.fromDump)
+					dump.push_back({e.id, e.value, e.exact, e.hasExact});
+			}, err))
 			gWarnPrint(i18n("Journal: ") + journalpath + " " + err);
 	}
 	if(journal.isOpen()) {
@@ -134,12 +147,13 @@ XJournalReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 			gWarnPrint(i18n("This journal recorded no raw stream: ") + journalpath);
 		else
 			gMessagePrint(i18n("Journal: ") + journalpath
-				+ formatString(" (%s, %u nodes)", journal.kind().c_str(),
-					(unsigned)journal.nodes().size()));
+				+ formatString(" (%s, %u settings of %u nodes)", journal.kind().c_str(),
+					(unsigned)dump.size(), (unsigned)journal.nodes().size()));
 	}
 
 	m_filemutex.lock();
 	m_journal = std::move(journal);
+	m_dump = std::move(dump);
 	if(m_pGFD) gzclose(static_cast<gzFile>(m_pGFD));
 	m_pGFD = rawpath.length() ?
 		gzopen(QString::fromStdString(rawpath).toLocal8Bit().data(), "rb") : nullptr;
@@ -371,6 +385,85 @@ XJournalReader::seek_(void *_fd, int permille) {
 	}
 	//Past the last record, or a stream that says nothing we recognise.
 	first_(fd);
+}
+//! Walks a dumped path ("/Drivers/ODMR2D/Average") down the live tree.
+//! Null when any step is missing, which is the normal answer for a journal
+//! recorded on a rig that is not this one.
+static shared_ptr<XNode> nodeAt(const shared_ptr<XNode> &root, const XString &path) {
+	shared_ptr<XNode> node = root;
+	for(auto &&part: QString::fromStdString(path).split('/', Qt::SkipEmptyParts)) {
+		if( !node)
+			return {};
+		node = node->getChild(part.toStdString());
+	}
+	return node;
+}
+
+//! Puts the settings the run was recorded with back into the live tree.
+//!
+//! Deliberately an action.  Every value restored here is published to whatever
+//! listens, which for a driver means a command on the wire -- so this happens
+//! when someone asks for it, and never as a side effect of opening a file.
+//!
+//! Runtime nodes are skipped: what they hold is a reading, not a setting, and
+//! the driver that owns one would contradict it on its next record anyway.
+void
+XJournalReader::onRestore(const Snapshot &shot, XTouchableNode *) {
+	auto root = m_root.lock();
+	if( !root)
+		return;
+	//Copied under the lock and applied outside it: applying means a
+	//transaction per node, and the playback thread must not wait on that.
+	struct Item {XString path; XString value; double exact; bool hasExact;};
+	std::vector<Item> items;
+	unsigned int skipped = 0;
+	{
+		m_filemutex.lock();
+		items.reserve(m_dump.size());
+		for(auto &&v: m_dump) {
+			auto it = m_journal.nodes().find(v.id);
+			if((it == m_journal.nodes().end()) || it->second.runtime) {
+				++skipped;
+				continue;
+			}
+			items.push_back({it->second.path, v.value, v.exact, v.hasExact});
+		}
+		m_filemutex.unlock();
+	}
+	if(items.empty()) {
+		gWarnPrint(i18n("No settings in this journal to restore."));
+		return;
+	}
+	unsigned int done = 0, missing = 0;
+	for(auto &&item: items) {
+		auto node = nodeAt(root, item.path);
+		auto vnode = dynamic_pointer_cast<XValueNodeBase>(node);
+		if( !vnode) {
+			++missing;   //!< absent here, or not a value: a tree that has moved on
+			continue;
+		}
+		try {
+			auto dnode = dynamic_pointer_cast<XDoubleNode>(vnode);
+			if(item.hasExact && dnode) {
+				//The eight bytes, not the four digits to_str() would have
+				//printed: a restored number should be the number recorded.
+				dnode->iterate_commit([&](Transaction &tr){
+					tr[ *dnode] = item.exact;
+				});
+			}
+			else {
+				vnode->iterate_commit([&](Transaction &tr){
+					tr[ *vnode].str(item.value);
+				});
+			}
+			++done;
+		}
+		catch (XKameError &) {
+			++skipped;   //!< a value this node will not take any more
+		}
+	}
+	gMessagePrint(formatString_tr(I18N_NOOP("Restored %u settings; %u not found, %u skipped."),
+		done, missing, skipped));
 }
 void
 XJournalReader::onSeek(const Snapshot &shot, XValueNodeBase *) {

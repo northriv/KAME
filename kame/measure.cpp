@@ -65,7 +65,7 @@ m_calibratedEntryList(create<XCalibratedEntryList>("CalibratedEntries", false, s
 m_textWriter(create<XTextWriter>("TextWriter", false, drivers(), scalarEntries())),
 m_journal(create<XJournal>("Journal", false, drivers())),
 m_journalReader(create<XJournalReader>("JournalReader", false,
-		drivers())),
+		drivers(), static_pointer_cast<XNode>(shared_from_this()))),
 m_conJournalReader(xqcon_create<XJournalReaderConnector>(
 		journalReader(),
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmJournalReader)),
