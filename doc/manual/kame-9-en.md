@@ -622,9 +622,22 @@ Readings are never restored, only settings: a reading belongs to the driver
 that took it, and it would be contradicted by the next record anyway.
 
 Then FIRST / NEXT / FF feed the records back through the drivers, which
-analyse them again. What is not yet done is re-analysing each record with the
-settings **of that moment** rather than the ones you restored; the journal
-holds everything needed for it.
+analyse them again — and with **Follow journal** ticked, each record is
+preceded by the settings changes recorded before it, so every record is
+re-analysed with the settings that were in force when it was taken rather
+than with the ones in the tree now.
+
+Only what a person asked for is put back. A driver reporting its own progress
+through the same node — 37 on its way to the 100 you asked for — is recorded
+but never restored, because the driver that owns it would contradict it on
+its next record.
+
+Untick **Follow journal** to re-analyse with today's settings instead. That is
+a real choice, not a fallback: changing one parameter and running the whole
+recording through again is the normal thing to want.
+
+Following is skipped while any interface is open, for the reason a restore
+waits for the button there.
 
 ## Recovering from a crash
 

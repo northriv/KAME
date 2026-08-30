@@ -41,6 +41,12 @@ public:
 	//! because then it cannot reach an instrument; with one open it waits to
 	//! be pressed.  \sa openInterfaces()
 	const shared_ptr<XTouchableNode> &restore() const {return m_restore;}
+	//! Whether each record is preceded by the settings changes recorded before
+	//! it -- re-analysing with the settings OF THAT MOMENT, which is what the
+	//! journal exists for.  Off means today's settings, which is a real use
+	//! and not a fallback: changing one parameter and re-running is the normal
+	//! scientific move.
+	const shared_ptr<XBoolNode> &follow() const {return m_follow;}
 	//! Where the next record is, in thousandths of the file.  By size, not by
 	//! time: the length of a gzip stream is not known until it is read, and
 	//! records are not evenly spaced in time anyway.
@@ -80,6 +86,7 @@ private:
 	const shared_ptr<XTouchableNode> m_first, m_next, m_back;
 	const shared_ptr<XStringNode> m_recordTime;
 	const shared_ptr<XTouchableNode> m_restore;
+	const shared_ptr<XBoolNode> m_follow;
 	const shared_ptr<XUIntNode> m_position, m_seek;
 	void onPlayCondChanged(const Snapshot &shot, XValueNodeBase *);
 	void onStop(const Snapshot &shot, XTouchableNode *);
@@ -90,6 +97,15 @@ private:
 	void onOpen(const Snapshot &shot, XValueNodeBase *); 
 	void onSeek(const Snapshot &shot, XValueNodeBase *);
 	void onRestore(const Snapshot &shot, XTouchableNode *);
+	//! One value on its way back into the tree, resolved by path.
+	struct RestoreItem {
+		XString path;
+		XString value;
+		double exact = 0.0;
+		bool hasExact = false;
+	};
+	//! \return how many landed; \a missing counts paths this tree does not have.
+	unsigned int applyValues(const std::vector<RestoreItem> &items, unsigned int *missing);
 	//! Puts the held dump into the live tree.  \return how many values landed.
 	unsigned int restoreDump();
 	//! How many interfaces are open, which is what decides whether restoring
@@ -119,6 +135,11 @@ private:
 	//! Of the compressed file, from the filesystem.  The uncompressed length
 	//! is not knowable without reading the whole thing, which is the point.
 	uint64_t m_fileSize = 0;
+	//! The cursor is behind the record about to be played -- set whenever the
+	//! raw stream is moved backwards, since a journal can only be walked
+	//! forwards.  Acted on where the settings are applied, not where the seek
+	//! happens, because rewinding means re-applying the dump.
+	atomic<bool> m_journalRewind {false};
 	//! Thousandths, or -1.  Set from the UI, acted on by the playback thread:
 	//! a seek reads everything before its target, and the main thread must
 	//! not be the one waiting for that.

@@ -86,6 +86,19 @@
           <number>4</number>
          </property>
          <item>
+          <widget class="QCheckBox" name="m_ckbFollow">
+           <property name="toolTip">
+            <string>Put each record back through the settings that were in force when it was taken, instead of the ones in the tree now. Off is a real choice, not a fallback: changing one parameter and re-running is the normal thing to do.</string>
+           </property>
+           <property name="text">
+            <string>Follow journal</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
           <spacer name="spacer_restore">
            <property name="orientation">
             <enum>Qt::Horizontal</enum>

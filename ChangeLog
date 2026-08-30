@@ -15,6 +15,16 @@
   would contradict it on its next record.  A double is restored from the
   exact eight bytes rather than from the four digits its text would have
   shown.
+- With "Follow journal" ticked, playback re-analyses each record with the
+  settings that were in force when it was taken: the reader walks the journal
+  forward to the record's own timestamp and puts back what was set before it.
+  Only requests are restored -- a driver reporting its own progress through a
+  setting it shares, 37 on its way to the 100 that was asked for, is recorded
+  and never put back, since the driver that owns it would contradict it on its
+  next record.  Going backwards re-reads the journal from its head, because a
+  journal is a stream and only goes forwards.  Unticking it re-analyses with
+  today's settings, which is what changing one parameter and running the
+  recording through again means.
 - A position slider in that pane, by size of the compressed file.  The other
   two candidates do not exist: how long a gzip stream is unpacked is not
   knowable without unpacking it, and records are not evenly spaced in time.

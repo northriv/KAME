@@ -62,6 +62,7 @@ XJournalReader::XJournalReader(const char *name, bool runtime, const shared_ptr<
 	  m_position(create<XUIntNode>("Position", true)),
 	  m_seek(create<XUIntNode>("Seek", true)),
 	  m_restore(create<XTouchableNode>("RestoreSettings", true)),
+	  m_follow(create<XBoolNode>("FollowJournal", true)),
 	  m_periodicTerm(0) {
 
     iterate_commit([=](Transaction &tr){
@@ -70,6 +71,7 @@ XJournalReader::XJournalReader(const char *name, bool runtime, const shared_ptr<
         tr[ *m_speed].add(SPEED_NORMAL);
         tr[ *m_speed].add(SPEED_SLOW);
         tr[ *m_speed] = SPEED_FAST;
+        tr[ *m_follow] = true;
 
         m_lsnOnOpen = tr[ *filename()].onValueChanged().connectWeakly(
             shared_from_this(), &XJournalReader::onOpen);
@@ -156,6 +158,7 @@ XJournalReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	m_filemutex.lock();
 	m_journal = std::move(journal);
 	m_dump = std::move(dump);
+	m_journalRewind = false;   //!< a freshly opened cursor is already at the first entry
 	if(m_pGFD) gzclose(static_cast<gzFile>(m_pGFD));
 	m_pGFD = rawpath.length() ?
 		gzopen(QString::fromStdString(rawpath).toLocal8Bit().data(), "rb") : nullptr;
@@ -275,7 +278,40 @@ XJournalReader::parseOne(void *_fd, XMutex &mutex) {
 		driver->finishWritingRaw(rawdata, XTime(), XTime());
 		throw e;
 	}
+	//The settings this record was taken with, gathered while the file is still
+	//ours and applied once it is not: applying is a transaction per node, and
+	//the mutex here guards the streams, not the tree.
+	std::vector<RestoreItem> pending;
+	bool rewound = false;
+	if(m_journal.isOpen() && Snapshot( *m_follow)[ *m_follow] && !openInterfaces()) {
+		if(m_journalRewind.exchange(false)) {
+			//A journal is a stream and only goes forwards, so reaching an
+			//earlier record means starting again from its head -- and the head
+			//is the dump, which has to go back too.
+			rewound = m_journal.rewind([](const XJournalFile::Event &){});
+		}
+		m_journal.advanceTo(time, [&](const XJournalFile::Event &e) {
+			if((e.kind != XJournalFile::Event::Kind::VALUE) || e.fromDump)
+				return;
+			//Requests only.  A report is a driver talking about itself -- the
+			//37 it was passing through on its way to the 100 that was asked
+			//for -- and restoring it would contradict the driver that owns it.
+			if( !e.request)
+				return;
+			auto it = m_journal.nodes().find(e.id);
+			if((it == m_journal.nodes().end()) || it->second.runtime)
+				return;
+			pending.push_back({it->second.path, e.value, e.exact, e.hasExact});
+		});
+	}
+
 	mutex.unlock();
+
+	if(rewound)
+		restoreDump();
+	if( !pending.empty())
+		applyValues(pending, nullptr);
+
 	{ XScopedLock<XMutex> lock(m_drivermutex);
 	driver->finishWritingRaw(rawdata, XTime::now(), time);
 	}
@@ -296,6 +332,7 @@ XJournalReader::gzgetline(void* _fd, unsigned char*buf, unsigned int len, int de
 void
 XJournalReader::first_(void *fd) {
 	gzrewind(static_cast<gzFile>(fd));
+	m_journalRewind = true;
 }
 //! Where the next record is, in thousandths of the compressed file.
 int
@@ -319,6 +356,7 @@ XJournalReader::reportPosition_(void *fd) {
 //! for the length word ran off the front of the file.
 bool
 XJournalReader::stepBack_(void *fd) {
+	m_journalRewind = true;
 	if(gztell(static_cast<gzFile>(fd)) == 0)
 		return false;   //!< nothing has been read: the first record is next anyway
 	previous_(fd);      //!< to the start of the record just parsed
@@ -344,6 +382,7 @@ XJournalReader::seek_(void *_fd, int permille) {
 		first_(fd);
 		return;
 	}
+	m_journalRewind = true;
 	uint64_t target = m_fileSize * (uint64_t)permille / 1000u;
 	if(gzrewind(fd) != 0)
 		throw XIOError(__FILE__, __LINE__);
@@ -457,8 +496,7 @@ XJournalReader::restoreDump() {
 		return 0;
 	//Copied under the lock and applied outside it: applying means a
 	//transaction per node, and the playback thread must not wait on that.
-	struct Item {XString path; XString value; double exact; bool hasExact;};
-	std::vector<Item> items;
+	std::vector<RestoreItem> items;
 	unsigned int skipped = 0;
 	{
 		m_filemutex.lock();
@@ -477,12 +515,27 @@ XJournalReader::restoreDump() {
 		gWarnPrint(i18n("No settings in this journal to restore."));
 		return 0;
 	}
-	unsigned int done = 0, missing = 0;
+	unsigned int missing = 0;
+	unsigned int done = applyValues(items, &missing);
+	gMessagePrint(formatString_tr(I18N_NOOP("Restored %u settings; %u not found, %u skipped."),
+		done, missing, skipped + (unsigned int)items.size() - done - missing));
+	return done;
+}
+
+//! \sa restoreDump(), which is this over the head of a journal, and parseOne(),
+//! which is this over the entries that reach the record being played.
+unsigned int
+XJournalReader::applyValues(const std::vector<RestoreItem> &items, unsigned int *missing) {
+	auto root = m_root.lock();
+	if( !root)
+		return 0;
+	unsigned int done = 0;
 	for(auto &&item: items) {
 		auto node = nodeAt(root, item.path);
 		auto vnode = dynamic_pointer_cast<XValueNodeBase>(node);
 		if( !vnode) {
-			++missing;   //!< absent here, or not a value: a tree that has moved on
+			if(missing)
+				++( *missing);   //!< absent here, or not a value: a tree that has moved on
 			continue;
 		}
 		try {
@@ -502,11 +555,9 @@ XJournalReader::restoreDump() {
 			++done;
 		}
 		catch (XKameError &) {
-			++skipped;   //!< a value this node will not take any more
+			//A value this node will not take any more.
 		}
 	}
-	gMessagePrint(formatString_tr(I18N_NOOP("Restored %u settings; %u not found, %u skipped."),
-		done, missing, skipped));
 	return done;
 }
 void
