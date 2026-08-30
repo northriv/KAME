@@ -28,6 +28,15 @@
   settings and an analysis parameter -- NMRPulseAnalyzer's NumEcho, which
   talks to nothing -- are put back like anything else.  Refusing every write
   while any interface was open made replay look broken on a live rig.
+- Opening a journal creates the drivers it names and this KAME does not have.
+  Only values were restored before, which on a fresh tree restored nothing at
+  all: every path named a driver that was not there.  The dump says what each
+  node was created as, so what is missing can be made -- and the whole file is
+  read once for those names, not just its head, because a driver added while
+  the run was running is named in the body and a session journal's head is
+  nearly empty.  Nodes are made parents-first by the depth of their path: ids
+  are handed out when a node is first seen, and in a real run three of them
+  came out ahead of their parent's.
 - Playback stops at the end instead of starting over.  With a journal
   attached, lapping put the whole tree back to the head of the recording
   without saying so.

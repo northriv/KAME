@@ -627,6 +627,12 @@ through the same node — 37 on its way to the 100 you asked for — is recorded
 but never restored, because the driver that owns it would contradict it on
 its next record. Readings are never restored at all.
 
+**Drivers the journal names are created if this KAME does not have them**,
+with the type each was created as. Values alone would be useless: a path
+means nothing on a tree that never held it. Opening the journal reads it once
+through for those names, including the drivers a run created while it was
+running — a session journal's are nearly all of that kind.
+
 A setting is left alone when the driver that owns it is **running** — its
 interface open — because that is the only way a restored value reaches an
 instrument. Everything else is put back: an analysis parameter, a setting of

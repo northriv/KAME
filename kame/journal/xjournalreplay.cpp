@@ -107,6 +107,41 @@ XJournalFile::close() {
     m_held = false;
 }
 
+bool
+XJournalFile::scanNodes(const XString &path, std::map<uint32_t, NodeInfo> &out) {
+    gzFile fd = gzopen(QString::fromStdString(path).toLocal8Bit().data(), "rb");
+    if( !fd)
+        return false;
+    QByteArray line;
+    while(gzline(fd, line)) {
+        //Cheap first: most of a journal is values, and parsing them here would
+        //make this pass cost several times what decompressing it does.
+        if( !line.contains("\"t\":\"n\""))
+            continue;
+        QJsonDocument doc = QJsonDocument::fromJson(line);
+        if( !doc.isObject())
+            continue;
+        QJsonObject o = doc.object();
+        if(o.value("t").toString() != "n")
+            continue;
+        NodeInfo n;
+        n.id = (uint32_t)o.value("id").toInteger(0);
+        n.parent = (uint32_t)o.value("p").toInteger(0);
+        n.index = (int)o.value("i").toInteger(-1);
+        n.name = o.value("name").toString().toStdString();
+        n.path = o.value("path").toString().toStdString();
+        n.type = o.value("type").toString().toStdString();
+        n.cls = o.value("class").toString().toStdString();
+        n.runtime = o.value("runtime").toBool(false);
+        XString list = o.value("list").toString().toStdString();
+        n.isList = !list.empty();
+        n.isAliasList = (list == "alias");
+        out[n.id] = n;
+    }
+    gzclose(fd);
+    return true;
+}
+
 XString
 XJournalFile::journalBeside(const XString &rawpath) {
     XString j = withExtension(rawpath, ".kamj");

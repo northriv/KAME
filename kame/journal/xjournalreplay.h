@@ -143,6 +143,17 @@ public:
     //! than refused: a file that says more than we know still says it.
     unsigned int unknownLines() const {return m_unknown;}
 
+    //! Every node the file ever mentions, read from a handle of its own and
+    //! leaving any cursor alone.
+    //!
+    //! O(the file), which nothing else here is -- and the price of being able
+    //! to create what a run created while it was running.  A run's head holds
+    //! the tree as it was when recording began; a driver added afterwards is
+    //! only ever named in the body, and a session journal's head is nearly
+    //! empty, so without this a replay has nowhere to put most of what it
+    //! reads.  Only lines that are node identities are parsed.
+    static bool scanNodes(const XString &path, std::map<uint32_t, NodeInfo> &out);
+
     //! `run042.kamb` -> `run042.kamj`, the sibling a raw stream was written
     //! beside.  Empty when that file does not exist.
     static XString journalBeside(const XString &rawpath);

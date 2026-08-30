@@ -127,6 +127,10 @@ private:
 	//! tree does not have; \a held counts values withheld from a running driver.
 	unsigned int applyValues(const std::vector<RestoreItem> &items,
 		const std::set<XString> &busy, unsigned int *missing, unsigned int *held);
+	//! Creates what the dump names and this tree does not have -- the drivers,
+	//! above all.  Values alone are useless on a tree that never held them.
+	//! \return how many were made.
+	unsigned int restoreStructure_(bool quiet);
 	//! Puts the held dump into the live tree.  \return how many values landed.
 	//! \a quiet for the playback paths, which reach it once per lap.
 	unsigned int restoreDump(bool quiet = false);
@@ -175,6 +179,11 @@ private:
 	//! Instants already stepped through, so that going back one has something
 	//! to aim at.  Bounded: past its cap, back goes to the beginning instead.
 	std::deque<XTime> m_journalVisited;
+	//! Every node the journal ever names, not only those in its head.  A
+	//! driver created while the run was running is named in the body, and
+	//! restoring one has to happen on the main thread -- so it cannot wait
+	//! until playback reaches it.  \sa XJournalFile::scanNodes()
+	std::map<uint32_t, XJournalFile::NodeInfo> m_allNodes;
 	//! The cursor is behind the record about to be played -- set whenever the
 	//! raw stream is moved backwards, since a journal can only be walked
 	//! forwards.  Acted on where the settings are applied, not where the seek

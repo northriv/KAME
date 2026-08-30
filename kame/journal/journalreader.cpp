@@ -17,8 +17,10 @@
 #include "xtime.h"
 #include "measure.h"
 #include "interface.h"
+#include "xlistnode.h"
 
 #include <zlib.h>
+#include <algorithm>
 #include <vector>
 
 #include <QFileInfo>
@@ -154,12 +156,19 @@ XJournalReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	unsigned int settings = (unsigned int)dump.size();
 	uint64_t journalsize = journal.isOpen() ?
 		(uint64_t)QFileInfo(QString::fromStdString(journalpath)).size() : 0;
+	//The head names only what existed when recording began.  Everything else
+	//-- a driver added during the run, and nearly all of a session journal --
+	//is named in the body, so the body is read once for those names alone.
+	std::map<uint32_t, XJournalFile::NodeInfo> allnodes;
+	if(journal.isOpen())
+		XJournalFile::scanNodes(journalpath, allnodes);
 	m_filemutex.lock();
 	m_journal = std::move(journal);
 	m_dump = std::move(dump);
 	m_journalRewind = false;   //!< a freshly opened cursor is already at the first entry
 	m_journalSize = journalsize;
 	m_journalVisited.clear();
+	m_allNodes = std::move(allnodes);
 	m_restoreWanted = wantsSettings && journal.isOpen();
 	if(m_pGFD) gzclose(static_cast<gzFile>(m_pGFD));
 	m_pGFD = rawpath.length() ?
@@ -491,6 +500,65 @@ XJournalReader::openInterfaces() const {
 //! exist only between its start() and stop(); with one open, File > Open
 //! Measurement is the deliberate way to push a recorded setup at live
 //! instruments, and this pane is not.
+//! A journal names its nodes by path, and a path means nothing on a tree that
+//! does not have it: opening a run on a fresh KAME used to restore precisely
+//! nothing, because every driver it spoke of was absent.  The dump says what
+//! each node was created as -- the registry key, when it has one -- so what is
+//! missing can be made.
+//!
+//! Main thread only.  XDriverList says it is not safe to create in from
+//! anywhere else (isThreadSafeDuringCreationByTypename), which is why the
+//! .kam loaders hop to the main thread for the same call.
+unsigned int
+XJournalReader::restoreStructure_(bool quiet) {
+	auto root = m_root.lock();
+	if( !root)
+		return 0;
+	if( !isMainThread()) {
+		if( !quiet)
+			gWarnPrint(i18n("Drivers can only be created from the main thread; "
+				"open the journal from the pane rather than from a script."));
+		return 0;
+	}
+	//By depth, so a parent is made before its children.  NOT by id: an id is
+	//handed out when a node is first seen, and three of them in a real run
+	//came out ahead of their parent's.
+	std::vector<const XJournalFile::NodeInfo *> order;
+	for(auto &&kv: m_allNodes)
+		order.push_back( &kv.second);
+	std::stable_sort(order.begin(), order.end(),
+		[](const XJournalFile::NodeInfo *a, const XJournalFile::NodeInfo *b) {
+			return std::count(a->path.begin(), a->path.end(), '/')
+				< std::count(b->path.begin(), b->path.end(), '/');
+		});
+	unsigned int made = 0, failed = 0;
+	for(auto &&np: order) {
+		const XJournalFile::NodeInfo &n = *np;
+		//No registry key means it was not created by name in the first place:
+		//a fixed child, which exists as soon as its parent does.
+		if(n.type.empty() || n.runtime || n.path.empty() || n.name.empty())
+			continue;
+		auto slash = n.path.rfind('/');
+		if(slash == XString::npos)
+			continue;
+		auto parent = nodeAt(root, n.path.substr(0, slash));
+		auto list = dynamic_pointer_cast<XListNodeBase>(parent);
+		if( !list || list->isAliasList())
+			continue;   //!< referenced, not owned: navigated by name, never created
+		if(list->getChild(n.name))
+			continue;
+		if(list->createByTypename(n.type, n.name))
+			++made;
+		else
+			++failed;   //!< a type this build does not have: a module not loaded
+	}
+	if(failed && !quiet)
+		gWarnPrint(formatString_tr(I18N_NOOP(
+			"%u nodes could not be created: a driver type this build does not have, "
+			"or a name already taken by something else."), failed));
+	return made;
+}
+
 bool
 XJournalReader::mayApply_() const {
 	return m_restoreWanted;
@@ -510,6 +578,9 @@ XJournalReader::restoreDump(bool quiet) {
 	auto root = m_root.lock();
 	if( !root)
 		return 0;
+	unsigned int made = restoreStructure_(quiet);
+	if(made && !quiet)
+		gMessagePrint(formatString_tr(I18N_NOOP("Created %u nodes this tree did not have."), made));
 	//Copied under the lock and applied outside it: applying means a
 	//transaction per node, and the playback thread must not wait on that.
 	std::vector<RestoreItem> items;
@@ -608,10 +679,21 @@ void
 XJournalReader::takeIfRequest_(const XJournalFile::Event &e, std::vector<RestoreItem> &out) const {
 	if((e.kind != XJournalFile::Event::Kind::VALUE) || e.fromDump || !e.request)
 		return;
-	auto it = m_journal.nodes().find(e.id);
-	if((it == m_journal.nodes().end()) || it->second.runtime)
+	//The full map, not the cursor's: the cursor knows a node only once it has
+	//walked past the line that named it, and an entry can precede that in a
+	//journal whose head did not have it.
+	const XJournalFile::NodeInfo *info = nullptr;
+	auto it = m_allNodes.find(e.id);
+	if(it != m_allNodes.end())
+		info = &it->second;
+	else {
+		auto jt = m_journal.nodes().find(e.id);
+		if(jt != m_journal.nodes().end())
+			info = &jt->second;
+	}
+	if( !info || info->runtime)
 		return;
-	out.push_back({it->second.path, e.value, e.exact, e.hasExact});
+	out.push_back({info->path, e.value, e.exact, e.hasExact});
 }
 
 void
