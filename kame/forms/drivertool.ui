@@ -82,14 +82,14 @@
         <item>
          <widget class="QLabel" name="textLabelRun">
           <property name="text">
-           <string>Run journal </string>
+           <string>Write to </string>
           </property>
          </widget>
         </item>
         <item>
          <widget class="QLineEdit" name="m_edJournal">
           <property name="toolTip">
-           <string>Name this run. It becomes &lt;name&gt;.kamj, and &lt;name&gt;.kamb beside it when the tier keeps raw records. The session journal above runs whether or not you name one.</string>
+           <string>Name this run. It becomes &lt;name&gt;.kamj, and &lt;name&gt;.kamb beside it when the tier keeps raw records. Nothing is written until Write is ticked; the session journal above runs whether or not you name one.</string>
           </property>
          </widget>
         </item>
