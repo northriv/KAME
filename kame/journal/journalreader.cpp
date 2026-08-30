@@ -220,48 +220,75 @@ XJournalReader::readHeader(void *_fd) {
 		first = reader.pop<uint32_t>();
 	}
 	bool magic = (first == (uint32_t)KAMB_RECORD_MAGIC);
-	m_headerBytes = magic ? KAMB_HEADER_SIZE : KAMB_HEADER_SIZE_LEGACY;
-	std::vector<char> buf(m_headerBytes - sizeof(uint32_t));
-	if(gzread(fd, &buf[0], (unsigned)buf.size()) == -1) throw XIOError(__FILE__, __LINE__);
+	uint32_t second = 0;
+	if(magic) {
+		if(gzread(fd, &head[0], (unsigned)head.size()) == -1) throw XIOError(__FILE__, __LINE__);
+		XPrimaryDriver::RawDataReader reader(head);
+		second = reader.pop<uint32_t>();
+	}
+	//A plausible length says the header carries its own; otherwise those four
+	//bytes are the check word of the layout that briefly had none.
+	bool haslen = magic && (second >= KAMB_FIXED_SIZE)
+		&& (second <= KAMB_HEADER_SIZE_MAX) && !(second % sizeof(uint32_t));
+	uint32_t fixed = !magic ? (uint32_t)KAMB_HEADER_SIZE_LEGACY :
+		(haslen ? (uint32_t)KAMB_FIXED_SIZE : (uint32_t)KAMB_HEADER_SIZE_NOLEN);
+
+	uint32_t taken = magic ? 2 * sizeof(uint32_t) : sizeof(uint32_t);
+	std::vector<char> buf(fixed - taken);
+	if(buf.size() && (gzread(fd, &buf[0], (unsigned)buf.size()) == -1))
+		throw XIOError(__FILE__, __LINE__);
 	XPrimaryDriver::RawDataReader reader(buf);
-	uint32_t check = magic ? reader.pop<uint32_t>() : 0;
+	uint32_t check = 0;
+	if(magic)
+		check = haslen ? reader.pop<uint32_t>() : second;
 	m_allsize = magic ? reader.pop<uint32_t>() : first;
 	long sec = reader.pop<int32_t>();
 	long usec = reader.pop<int32_t>();
+	long long awared = haslen ? reader.pop<int64_t>() : 0;
 	if(magic && (check != kamb_record_check(m_allsize, (int32_t)sec, (int32_t)usec)))
 		throw XBrokenRecordError(__FILE__, __LINE__);
+
+	//The name is inside the declared header now.  Older layouts put it after
+	//the fixed part, followed by the reserved string that the header's length
+	//replaced.
+	char name[256], sup[256];
+	gzgetline(fd, (unsigned char*)name, sizeof(name), '\0');
+	if( !haslen)
+		gzgetline(fd, (unsigned char*)sup, sizeof(sup), '\0');
+	m_recordName = name;
+	uint32_t consumed = fixed + (uint32_t)strlen(name) + 1
+		+ (haslen ? 0 : (uint32_t)strlen(sup) + 1);
+	if(haslen) {
+		//Whatever a later KAME put after the name, skipped by the length it
+		//declared -- which is the whole reason the length is there.
+		if(second < consumed)
+			throw XBrokenRecordError(__FILE__, __LINE__);
+		if((second > consumed) && (gzseek(fd, second - consumed, SEEK_CUR) == -1))
+			throw XIOError(__FILE__, __LINE__);
+		consumed = second;
+	}
+	//From the start of the record to the payload, whichever layout this was.
+	m_headerBytes = consumed;
+
     m_time = XTime(sec, usec);
+    //Absent means "the same as time()", which is what every file written
+    //before this said.
+    long long us = (long long)sec * 1000000LL + usec + awared;
+    m_timeAwared = XTime(us / 1000000, us % 1000000);
 }
 void
 XJournalReader::parseOne(void *_fd, XMutex &mutex) {
 	gzFile fd = static_cast<gzFile>(_fd);
 
 	readHeader(fd);
-	char name[256], sup[256];
-	gzgetline(fd, (unsigned char*)name, 256, '\0');
-	gzgetline(fd, (unsigned char*)sup, 256, '\0');
-	if(strlen(name) == 0) {
+	if( !m_recordName.length())
 		throw XBrokenRecordError(__FILE__, __LINE__);
-	}
+	XString name = m_recordName;
 	shared_ptr<XNode> driver_precast = m_drivers->getChild(name);
 	auto driver = dynamic_pointer_cast<XPrimaryDriver>(driver_precast);
-	uint32_t size = 
-		m_allsize - (
-			m_headerBytes //magic, check, allsize, sec, usec -- or fewer, in an old file
-			+ strlen(name) //name of driver
-			+ strlen(sup) //reserved
-			+ 2 //two null chars
-			+ sizeof(uint32_t)  //allsize
-			);
-    //timeAwared, as microseconds from time().  Absent means "the same as
-    //time()", which is also what a file written before this said.
-    m_timeAwared = m_time;
-    if(sup[0] == 't') {
-        long long delta = strtoll(sup + 1, nullptr, 10);
-        long long us = (long long)m_time.sec() * 1000000LL + m_time.usec() + delta;
-        m_timeAwared = XTime(us / 1000000, us % 1000000);
-    }
-
+	//m_headerBytes reaches the payload, so what is left is the payload and the
+	//length word that closes the record.
+	uint32_t size = m_allsize - (m_headerBytes + sizeof(uint32_t));
     // m_time must be copied before unlocking
     XTime time(m_time);
     //Both read before the transaction: an iterate_commit closure re-runs on
@@ -278,7 +305,7 @@ XJournalReader::parseOne(void *_fd, XMutex &mutex) {
 		if(driver)
 			throw XBrokenRecordError(__FILE__, __LINE__);
 		if(driver_precast)
-	        throw XNoDriverError(formatString_tr(I18N_NOOP("Typemismatch: %s"), name),
+	        throw XNoDriverError(formatString_tr(I18N_NOOP("Typemismatch: %s"), name.c_str()),
 	         __FILE__, __LINE__);
 		else
 	        throw XNoDriverError(name, __FILE__, __LINE__);
@@ -419,7 +446,7 @@ XJournalReader::seek_(void *_fd, int permille) {
 		int n = gzread(fd, &win[0], (unsigned)win.size());
 		if(n < 0) throw XIOError(__FILE__, __LINE__);
 		if(n < 24) break;
-		for(int i = 0; i + (int)KAMB_HEADER_SIZE <= n; ++i) {
+		for(int i = 0; i + (int)KAMB_FIXED_SIZE <= n; ++i) {
 			auto le32 = [&](int at) -> uint32_t {
 				const unsigned char *p = &win[at];
 				return (uint32_t)p[0] | ((uint32_t)p[1] << 8)
@@ -430,11 +457,17 @@ XJournalReader::seek_(void *_fd, int permille) {
 				//The record says what it is.  Magic and check together are
 				//2^-64 against arbitrary bytes, so this is the answer, not a
 				//candidate -- and it holds without reading anything else.
-				allsize = le32(i + 8);
-				if((allsize < KAMB_HEADER_SIZE + 6) || (allsize > MAX_RAW_RECORD_SIZE))
+				//Where the fields sit depends on whether the header carries
+				//its own length, told apart exactly as readHeader() does.
+				uint32_t second = le32(i + 4);
+				bool haslen = (second >= KAMB_FIXED_SIZE)
+					&& (second <= KAMB_HEADER_SIZE_MAX) && !(second % sizeof(uint32_t));
+				int at = haslen ? i + 8 : i + 4;    //!< the check word
+				allsize = le32(at + 4);
+				if((allsize < KAMB_FIXED_SIZE + 6) || (allsize > MAX_RAW_RECORD_SIZE))
 					continue;
-				if(le32(i + 4) != kamb_record_check(allsize,
-						(int32_t)le32(i + 12), (int32_t)le32(i + 16)))
+				if(le32(at) != kamb_record_check(allsize,
+						(int32_t)le32(at + 8), (int32_t)le32(at + 12)))
 					continue;
 			}
 			else {

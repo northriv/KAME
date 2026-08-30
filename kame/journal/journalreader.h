@@ -160,9 +160,12 @@ private:
 	const weak_ptr<XNode> m_root;
   
 	uint32_t m_allsize;
-	//! Of the record last read: records written before the magic existed have
-	//! a shorter one, and both kinds are read without being told which.
+	//! From the start of the record last read to its payload -- which is what
+	//! the header declares, and what an older layout's fixed part plus its two
+	//! strings comes to.  One number, whichever generation wrote it.
 	uint32_t m_headerBytes = KAMB_HEADER_SIZE_LEGACY;
+	//! The driver named by the record last read.
+	XString m_recordName;
 	XTime m_time;
 	//! Of the record last read, from the reserved field.  Read back so the
 	//! field round-trips; deliberately NOT yet handed to the drivers.

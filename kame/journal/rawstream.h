@@ -30,9 +30,42 @@
 //! be read without being told which is which.  \sa doc/design/PROVENANCE.md
 #define KAMB_RECORD_MAGIC 0x424d414buL
 
-//! Bytes before the driver name: magic, check, allsize, sec, usec.
-#define KAMB_HEADER_SIZE (5 * sizeof(uint32_t))
-//! The same, for a record written before the magic existed.
+//! The header says how far it is to the payload, so a field can be added
+//! without the format breaking again: a reader skips to `record start +
+//! headersize` and ignores what it does not know.  The same trick as BMP's
+//! biSize, ELF's e_ehsize and PE's SizeOfOptionalHeader.
+//!
+//! \verbatim
+//!   [magic][headersize][check][allsize][sec][usec][awared i64][name\0] payload [allsize]
+//!   |<---------------------- 32 ---------------------------->|
+//!   |<------------------------- headersize ------------------------->|
+//! \endverbatim
+//!
+//! The name is inside it, which is why there is no "reserved" field any more:
+//! the empty string that used to follow the name existed to be somewhere to
+//! put a future something, and a declared length does that job properly.
+//! Leaving the name out would have meant a reader still had to parse it by
+//! the rules of today to find the payload, which is most of what
+//! self-description was for.
+//!
+//! **Anything added later goes after the name**, never before it: a reader
+//! that does not know the new field must still be able to find the name, and
+//! it finds it at a fixed offset.  The fixed part is therefore constant, and
+//! timeAwared is always present -- writing it only when it differs from
+//! time() would have made headersize ambiguous (24+8-byte name reads exactly
+//! like 32+0), and it usually does differ, so the flag word that would have
+//! disambiguated costs more than the eight bytes it saves.
+#define KAMB_FIXED_SIZE (6 * sizeof(uint32_t) + sizeof(int64_t))
+//! A header longer than this is not a header: the test that tells a length
+//! field from the check word of the first, briefly-lived magic layout, which
+//! had no length and put the check where the length now is.  A check is a
+//! hash, so it lands in this window and 4-aligned about once in 10^7.  The
+//! bound has to clear the longest driver name a record can carry.
+#define KAMB_HEADER_SIZE_MAX 1024u
+//! magic, check, allsize, sec, usec -- then name and an empty reserved string.
+//! Written for one afternoon, kept readable because it costs six lines.
+#define KAMB_HEADER_SIZE_NOLEN (5 * sizeof(uint32_t))
+//! allsize, sec, usec -- everything written before the magic existed.
 #define KAMB_HEADER_SIZE_LEGACY (3 * sizeof(uint32_t))
 
 //! FNV-1a over the twelve bytes the header commits to.

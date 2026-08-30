@@ -89,60 +89,46 @@ XRawStreamRecorder::onRecord(const Snapshot &shot, XDriver *d) {
         	const XPrimaryDriver::RawData &rawdata(shot[ *driver].rawData());
             uint32_t size = rawdata.size();
             if(size) {
-                uint32_t headersize = KAMB_HEADER_SIZE;
                 int32_t sec = shot[ *driver].time().sec();
                 int32_t usec = shot[ *driver].time().usec();
-                //timeAwared(), as microseconds from time(), in the field that
-                //has been an empty string since the format was written.
-                //
-                //Every reader ever written accounts for its length, so putting
-                //something there breaks neither direction: an older KAME reads
-                //these files, and this one reads files that leave it empty.
-                //Extending the binary header instead would have cost the first
-                //of those.
-                //
-                //It matters because secondary drivers read the emitter's
-                //timeAwared to decide whether a record is fresher than the
-                //state it depends on, and one of them stamps its own record
-                //with it -- and a replay currently hands them the time it is
-                //replaying at.  Recording it is the half that cannot be done
-                //later; feeding it back is a change of behaviour and waits.
-                //\sa doc/design/PROVENANCE.md
-                XString reserved;
+                //timeAwared() -- when the phenomenon started being measured,
+                //against time(), when it happened -- as microseconds from it,
+                //and only when the two differ.  Secondary drivers read the
+                //emitter's to decide whether a record is fresher than the
+                //state it depends on, and one stamps its own record with it;
+                //a replay that does not have it hands them the time it is
+                //replaying at.  \sa doc/design/PROVENANCE.md
+                long long awared = 0;
                 const XTime &ta = shot[ *driver].timeAwared();
-                if(ta.isSet()) {
-                    long long delta = ((long long)ta.sec() - sec) * 1000000LL
+                if(ta.isSet())
+                    awared = ((long long)ta.sec() - sec) * 1000000LL
                         + ((long long)ta.usec() - usec);
-                    if(delta)
-                        reserved = formatString("t%lld", delta);
-                }
-                // size of raw record wrapped by header and footer
+                //To the payload, name included: what a reader needs to skip a
+                //header it does not fully understand.
+                uint32_t headersize = KAMB_FIXED_SIZE + driver->getName().size() + 1;
                 uint32_t allsize =
                     headersize
-                    + driver->getName().size() //name of driver
-                    + reserved.size() //timeAwared, when it differs from time()
-                    + 2 //two null chars
                     + size //rawData
-                    + sizeof(uint32_t); //allsize
+                    + sizeof(uint32_t); //allsize, again, at the end
                 XPrimaryDriver::RawData header;
                 //The magic and the check come first so that a record can be
                 //found by looking for it, rather than by guessing at every
-                //offset which four bytes might be a length.
+                //offset which four bytes might be a length; the header's own
+                //length comes second, where a reader can always find it.
                 //\sa kamb_record_check(), XJournalReader::seek_()
                 header.push((uint32_t)KAMB_RECORD_MAGIC);
+                header.push((uint32_t)headersize);
                 header.push((uint32_t)kamb_record_check(allsize, sec, usec));
                 header.push((uint32_t)allsize);
                 header.push((int32_t)sec);
                 header.push((int32_t)usec);
-                assert(header.size() == headersize);
+                header.push((int64_t)awared);
     
                 m_filemutex.lock();
                 gzwrite(static_cast<gzFile>(m_pGFD), &header[0], header.size());
                 gzprintf(static_cast<gzFile>(m_pGFD), "%s", (const char*)driver->getName().c_str());
                 gzputc(static_cast<gzFile>(m_pGFD), '\0');
-                if(reserved.length())
-                    gzprintf(static_cast<gzFile>(m_pGFD), "%s", reserved.c_str());
-                gzputc(static_cast<gzFile>(m_pGFD), '\0'); //end of the reserved field
+                assert(header.size() + driver->getName().size() + 1 == headersize);
                 gzwrite(static_cast<gzFile>(m_pGFD), &rawdata[0], size);
                 header.clear(); //using as a footer.
                 header.push((uint32_t)allsize);

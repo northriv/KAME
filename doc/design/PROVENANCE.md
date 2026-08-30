@@ -1075,8 +1075,10 @@ do.)
 A `.kamb` record now begins with `KAMB` and a check word:
 
 ```
-[magic 'KAMB'][check][allsize][sec][usec][name\0][reserved\0][data][allsize]
+[magic 'KAMB'][headersize][check][allsize][sec][usec][awared][name\0][data][allsize]
 ```
+
+(The layout grew a self-describing length soon after; see below.)
 
 The magic is 0x424d414b read little-endian, which is more than ten times
 `MAX_RAW_RECORD_SIZE` -- so four bytes that are a plausible *length* instead
@@ -1113,19 +1115,32 @@ be restarted at any of them.  The magic is then what answers "where does a
 record start" after restarting mid-stream.  Together those two are the fast
 seek; the journal index is not part of it.
 
-### timeAwared rides in the field that was always empty
+### The header says how far it is to the payload
 
-A raw record has carried a second, unused NUL-terminated string since the
-format was written — `sup`, "Reserved".  `timeAwared()` goes there, as decimal
-microseconds from `time()`, and only when the two differ.
+```
+[magic][headersize][check][allsize][sec][usec][awared i64][name\0] payload [allsize]
+|<---------------------- 32 ---------------------------->|
+|<------------------------- headersize ------------------------->|
+```
 
-The field costs nothing to use: every reader ever written accounts for its
-length (`m_allsize - (header + strlen(name) + strlen(sup) + 2 + 4)`), so an
-older KAME reads these files and this one reads files that leave it empty.
-Extending the binary header instead would have cost the first of those, and
-the whole point of the magic word is that both generations stay readable.
+`headersize` is the distance from the start of the record to the payload, so a
+reader can skip a header it does not fully understand -- the trick BMP spells
+`biSize`, ELF `e_ehsize` and PE `SizeOfOptionalHeader`.  **The name is inside
+it**, which is why the record no longer carries a "reserved" field: the empty
+string that used to follow the name existed to be somewhere to put a future
+something, and a declared length does that job properly.  Leaving the name
+out would have meant a reader still had to parse it by today's rules to find
+the payload, which is most of what self-description was for.
 
-**Why it is worth any bytes at all.**  `time()` is when the phenomenon
+Anything added later goes **after** the name, never before it: a reader that
+does not know the new field must still find the name, and it finds it at a
+fixed offset.  So the fixed part stays 32 bytes and `timeAwared` is always
+present -- writing it only when it differs from `time()` would have made
+`headersize` ambiguous (24 + an 8-byte name reads exactly like 32 + none),
+and the flag word that would have disambiguated costs more than the eight
+bytes it saves, since the two usually do differ.
+
+**Why timeAwared is worth recording.**  `time()` is when the phenomenon
 happened; `timeAwared()` is when it started being measured, and secondary
 drivers read the *emitter's* to decide whether a record is fresher than the
 state it depends on:
@@ -1135,12 +1150,12 @@ if(shot_emitter[ *dso].timeAwared() < shot_others[ *sg].time()) return false;
 ```
 
 There are eight such sites, and `XSecondaryDriverInterface` stamps a
-secondary's own record with it.  Replay hands them `XTime::now()` — the time
-it is replaying at — which is newer than anything recorded, so every one of
+secondary's own record with it.  Replay hands them `XTime::now()` -- the time
+it is replaying at -- which is newer than anything recorded, so every one of
 those guards passes and the derived values are stamped today.
 
 **And why it is recorded but not yet used.**  Feeding the recorded value back
-makes those comparisons mean something again, which is the point — but their
+makes those comparisons mean something again, which is the point -- but their
 other operand is not always from the recording.  A `.kamb` holds every primary
 driver's records, so a whole run replayed together is consistent; a partial
 one is not, and neither is a driver's own session-local member
@@ -1150,8 +1165,15 @@ and the guard fails the other way: **the analysis silently does not run**.
 
 Recording is the half that cannot be done later, so it is done now.  The flip
 is one argument at the `finishWritingRaw()` call and waits for a real NMR run
-to be tried against — `pulseanalyzer` is the sharp case, since it compares
+to be tried against -- `pulseanalyzer` is the sharp case, since it compares
 against the signal generator.
+
+**Three generations, one reader.**  Files exist in three shapes: the original
+(`[allsize][sec][usec][name\0][reserved\0]`), the one that gained the magic
+but not the length (a single afternoon), and this one.  They are told apart by
+the first four bytes and then by whether the second four are a plausible
+length -- a check word is a hash, so it lands in that window, 4-aligned, about
+once in 10^7.  Nothing anyone has recorded stops being readable.
 
 ### Both files flush once a minute
 
