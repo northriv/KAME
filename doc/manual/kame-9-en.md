@@ -611,33 +611,28 @@ Open either file in the **Journal Reader** and the other is found: a journal
 names its raw stream in its own header, and a raw stream is matched to the
 journal beside it by name.
 
-Opening a journal puts the settings the run was recorded with back into the
-tree — **but only while every interface is closed.** A driver's connection to
-its instrument exists only between Start and Stop, so with nothing open a
-restore cannot reach an instrument. If an interface *is* open, KAME says so
-and waits for you to press **Restore settings**, and afterwards tells you how
-many interfaces those settings reached.
+**Which file you open is the choice you are making:**
 
-Readings are never restored, only settings: a reading belongs to the driver
-that took it, and it would be contradicted by the next record anyway.
+| you open | you get |
+|---|---|
+| `run042.kamj` | the settings of that moment — the state the run began in, and every change to it as playback reaches the time it was made |
+| `run042.kamb` | the records alone, re-analysed with the settings in the tree now |
 
-Then FIRST / NEXT / FF feed the records back through the drivers, which
-analyse them again — and with **Follow journal** ticked, each record is
-preceded by the settings changes recorded before it, so every record is
-re-analysed with the settings that were in force when it was taken rather
-than with the ones in the tree now.
+Both play the same records; the pair is found either way. The second is not a
+degraded case — running a whole recording through again with one parameter
+changed is the normal thing to want.
 
 Only what a person asked for is put back. A driver reporting its own progress
 through the same node — 37 on its way to the 100 you asked for — is recorded
 but never restored, because the driver that owns it would contradict it on
-its next record.
+its next record. Readings are never restored at all.
 
-Untick **Follow journal** to re-analyse with today's settings instead. That is
-a real choice, not a fallback: changing one parameter and running the whole
-recording through again is the normal thing to want.
+Nothing is put back while an interface is open: a recording must not drive
+live instruments merely by being opened. **File > Open Measurement** is the
+deliberate way to do that.
 
-Following is skipped while any interface is open, for the reason a restore
-waits for the button there.
+**Follow raw records** decides whether the records are fed to the drivers at
+all. Untick it and the same transport walks the settings history alone.
 
 ### A journal with no raw stream
 
@@ -646,9 +641,10 @@ re-analyse — but they still hold everything that was set and when. Open one
 and the same transport walks *that*: each step is one instant of the history,
 and the tree follows it.
 
-Untick **Follow journal** to walk the history without changing anything: the
-position and the time still move, and nothing is written. That is also what
-happens while an interface is open.
+This is also what **Follow raw records** unticked does to a run that has one.
+Opening the raw stream instead of the journal, or having an interface open,
+leaves the tree untouched: the position and the time still move, so a history
+can be read without being replayed.
 
 ## Recovering from a crash
 

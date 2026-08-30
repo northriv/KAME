@@ -38,17 +38,15 @@ public:
 	const shared_ptr<XTouchableNode> &next() const {return m_next;}
 	const shared_ptr<XTouchableNode> &back() const {return m_back;}
 	const shared_ptr<XStringNode> &recordTime() const {return m_recordTime;}
-	//! Puts the settings the run was recorded with back into the live tree.
-	//! Opening a journal does this by itself while every interface is closed,
-	//! because then it cannot reach an instrument; with one open it waits to
-	//! be pressed.  \sa openInterfaces()
-	const shared_ptr<XTouchableNode> &restore() const {return m_restore;}
-	//! Whether each record is preceded by the settings changes recorded before
-	//! it -- re-analysing with the settings OF THAT MOMENT, which is what the
-	//! journal exists for.  Off means today's settings, which is a real use
-	//! and not a fallback: changing one parameter and re-running is the normal
-	//! scientific move.
-	const shared_ptr<XBoolNode> &follow() const {return m_follow;}
+
+	//! Whether the raw records are fed back through the drivers at all.
+	//!
+	//! The settings need no switch: opening the `.kamj` rather than the
+	//! `.kamb` is the intent, and saying it twice is ceremony.  What is left
+	//! to choose is the expensive half -- untick this and the same transport
+	//! walks the settings history alone, which is also what a journal with no
+	//! raw stream does.
+	const shared_ptr<XBoolNode> &followRaw() const {return m_followRaw;}
 	//! Where the next record is, in thousandths of the file.  By size, not by
 	//! time: the length of a gzip stream is not known until it is read, and
 	//! records are not evenly spaced in time anyway.
@@ -87,8 +85,7 @@ private:
 	const shared_ptr<XTouchableNode> m_stop;
 	const shared_ptr<XTouchableNode> m_first, m_next, m_back;
 	const shared_ptr<XStringNode> m_recordTime;
-	const shared_ptr<XTouchableNode> m_restore;
-	const shared_ptr<XBoolNode> m_follow;
+	const shared_ptr<XBoolNode> m_followRaw;
 	const shared_ptr<XUIntNode> m_position, m_seek;
 	void onPlayCondChanged(const Snapshot &shot, XValueNodeBase *);
 	void onStop(const Snapshot &shot, XTouchableNode *);
@@ -98,7 +95,6 @@ private:
   
 	void onOpen(const Snapshot &shot, XValueNodeBase *); 
 	void onSeek(const Snapshot &shot, XValueNodeBase *);
-	void onRestore(const Snapshot &shot, XTouchableNode *);
 	//! One value on its way back into the tree, resolved by path.
 	struct RestoreItem {
 		XString path;
@@ -109,7 +105,7 @@ private:
 	//! True when there is no raw stream to play and the journal itself is what
 	//! is walked: a session journal, or a run recorded as settings only.  There
 	//! is nothing to re-analyse then, but the settings history is all there.
-	bool journalOnly() const {return !m_pGFD && m_journal.isOpen();}
+	bool journalOnly() const;
 	void journalFirst_();
 	//! One step: everything stamped with the next instant in the journal.
 	//! \return false at the end of it.
@@ -134,7 +130,7 @@ private:
 	//! a setting reaches an instrument: a driver's I/O listeners exist only
 	//! between its start() and stop(), and those follow the interface.
 	unsigned int openInterfaces() const;
-	shared_ptr<Listener> m_lsnOnOpen, m_lsnOnSeek, m_lsnOnRestore;
+	shared_ptr<Listener> m_lsnOnOpen, m_lsnOnSeek;
 
 	//! One value out of the dump, kept by the id the journal gave its node.
 	struct DumpValue {
@@ -160,6 +156,11 @@ private:
 	//! Of the journal, for the position readout when it is what is being
 	//! walked.  Compressed, as m_fileSize is, and for the same reason.
 	uint64_t m_journalSize = 0;
+	//! Set when the file that was opened was the journal, which is how the
+	//! user says the settings are wanted.  Opening the raw stream instead
+	//! means today's settings -- re-running a recording with one parameter
+	//! changed, which is the normal scientific move.
+	bool m_restoreWanted = false;
 	//! Instants already stepped through, so that going back one has something
 	//! to aim at.  Bounded: past its cap, back goes to the beginning instead.
 	std::deque<XTime> m_journalVisited;

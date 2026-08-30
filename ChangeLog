@@ -15,9 +15,18 @@
   would contradict it on its next record.  A double is restored from the
   exact eight bytes rather than from the four digits its text would have
   shown.
-- With "Follow journal" ticked, playback re-analyses each record with the
-  settings that were in force when it was taken: the reader walks the journal
-  forward to the record's own timestamp and puts back what was set before it.
+- Which file you open is the choice: `.kamj` replays with the settings of
+  that moment, `.kamb` re-analyses with today's.  There was a "Restore
+  settings" button and a "Follow journal" switch, which asked a second time
+  for something already said by picking the file (user).  What is left to
+  choose is the expensive half, so the one switch is "Follow raw records" --
+  untick it and the same transport walks the settings history alone.  Nothing
+  is written to the tree while an interface is open; File > Open Measurement
+  is the deliberate way to push a recorded setup at live instruments.
+- Playback re-analyses each record with the
+  with the settings that were in force when it was taken: the reader walks the
+  journal forward to the record's own timestamp and puts back what was set
+  before it.
   Only requests are restored -- a driver reporting its own progress through a
   setting it shares, 37 on its way to the 100 that was asked for, is recorded
   and never put back, since the driver that owns it would contradict it on its

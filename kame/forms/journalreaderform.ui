@@ -88,10 +88,10 @@
          <item>
           <widget class="QCheckBox" name="m_ckbFollow">
            <property name="toolTip">
-            <string>Put each record back through the settings that were in force when it was taken, instead of the ones in the tree now. Off is a real choice, not a fallback: changing one parameter and re-running is the normal thing to do.</string>
+            <string>Feed the raw records back through the drivers, which analyse them again. Untick to walk the settings history alone. Whether the recorded settings are used is decided by which file you opened: the .kamj means the settings of that moment, the .kamb means today's.</string>
            </property>
            <property name="text">
-            <string>Follow journal</string>
+            <string>Follow raw records</string>
            </property>
            <property name="checked">
             <bool>true</bool>
@@ -113,16 +113,6 @@
             </size>
            </property>
           </spacer>
-         </item>
-         <item>
-          <widget class="QPushButton" name="m_btnRestore">
-           <property name="toolTip">
-            <string>Put the settings this run was recorded with back into the tree. Opening a journal already does this while every interface is closed; with one open, pressing this sends those settings to the instruments.</string>
-           </property>
-           <property name="text">
-            <string>Restore settings</string>
-           </property>
-          </widget>
          </item>
         </layout>
        </item>
@@ -430,7 +420,6 @@
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <tabstops>
   <tabstop>m_edPath</tabstop>
-  <tabstop>m_btnRestore</tabstop>
   <tabstop>m_btnPath</tabstop>
   <tabstop>btnRW</tabstop>
   <tabstop>btnStop</tabstop>

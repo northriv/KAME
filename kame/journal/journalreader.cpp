@@ -61,8 +61,7 @@ XJournalReader::XJournalReader(const char *name, bool runtime, const shared_ptr<
 	  m_recordTime(create<XStringNode>("RecordTime", true)),
 	  m_position(create<XUIntNode>("Position", true)),
 	  m_seek(create<XUIntNode>("Seek", true)),
-	  m_restore(create<XTouchableNode>("RestoreSettings", true)),
-	  m_follow(create<XBoolNode>("FollowJournal", true)),
+	  m_followRaw(create<XBoolNode>("FollowRawRecords", true)),
 	  m_periodicTerm(0) {
 
     iterate_commit([=](Transaction &tr){
@@ -71,15 +70,12 @@ XJournalReader::XJournalReader(const char *name, bool runtime, const shared_ptr<
         tr[ *m_speed].add(SPEED_NORMAL);
         tr[ *m_speed].add(SPEED_SLOW);
         tr[ *m_speed] = SPEED_FAST;
-        tr[ *m_follow] = true;
+        tr[ *m_followRaw] = true;
 
         m_lsnOnOpen = tr[ *filename()].onValueChanged().connectWeakly(
             shared_from_this(), &XJournalReader::onOpen);
         m_lsnOnSeek = tr[ *m_seek].onValueChanged().connectWeakly(
             shared_from_this(), &XJournalReader::onSeek);
-        m_lsnOnRestore = tr[ *m_restore].onTouch().connectWeakly(
-            shared_from_this(), &XJournalReader::onRestore,
-            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
 		m_lsnFirst = tr[ *m_first].onTouch().connectWeakly(
 			shared_from_this(), &XJournalReader::onFirst,
 			Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
@@ -118,7 +114,8 @@ void
 XJournalReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	XString given = ( **filename())->to_str();
 	XString rawpath = given, journalpath;
-	if(QString::fromStdString(given).endsWith(".kamj", Qt::CaseInsensitive)) {
+	bool wantsSettings = QString::fromStdString(given).endsWith(".kamj", Qt::CaseInsensitive);
+	if(wantsSettings) {
 		journalpath = given;
 		rawpath.clear();
 	}
@@ -130,9 +127,8 @@ XJournalReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	std::vector<DumpValue> dump;
 	if(journalpath.length()) {
 		XString err;
-		//The dump is the state the run began in.  It is kept, not applied:
-		//putting a setting back sends it to the instrument, which is not
-		//something opening a file may do on its own.  \sa onRestore()
+		//The dump is the state the run began in.  Whether it is put back is
+		//decided by which file was opened, not by a switch pressed afterwards.
 		dump.reserve(1024);
 		if( !journal.open(journalpath, [&dump](const XJournalFile::Event &e) {
 				if((e.kind == XJournalFile::Event::Kind::VALUE) && e.fromDump)
@@ -164,6 +160,7 @@ XJournalReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	m_journalRewind = false;   //!< a freshly opened cursor is already at the first entry
 	m_journalSize = journalsize;
 	m_journalVisited.clear();
+	m_restoreWanted = wantsSettings && journal.isOpen();
 	if(m_pGFD) gzclose(static_cast<gzFile>(m_pGFD));
 	m_pGFD = rawpath.length() ?
 		gzopen(QString::fromStdString(rawpath).toLocal8Bit().data(), "rb") : nullptr;
@@ -181,20 +178,26 @@ XJournalReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	if(rawpath.length() && !m_pGFD)
 		gErrPrint(i18n("Cannot open ") + rawpath);
 
-	//With every interface closed, restoring is a private act -- the listeners
-	//that would carry a setting to an instrument do not exist -- so it is what
-	//opening a run means, and waiting to be asked would only be ceremony.
-	//With one open it is not, and then it waits for the button.
-	if(settings) {
+	//Opening the journal IS the request for its settings; asking again with a
+	//switch would be ceremony.  Opening the raw stream instead is the other
+	//answer -- re-analyse with today's settings -- and is how a recording is
+	//run through again with one parameter changed.
+	if(settings && wantsSettings) {
 		unsigned int open = openInterfaces();
 		if( !open)
 			restoreDump();
 		else
-			gMessagePrint(formatString_tr(I18N_NOOP(
-				"%u interfaces are open: press Restore settings to put this run's "
-				"%u settings back, and they will reach the instruments."),
+			gWarnPrint(formatString_tr(I18N_NOOP(
+				"%u interfaces are open, so this run's %u settings are NOT being put "
+				"back: a recording must not drive live instruments by being opened. "
+				"File > Open Measurement is the deliberate way to do that."),
 				open, settings));
 	}
+	else if(settings)
+		gMessagePrint(formatString_tr(I18N_NOOP(
+			"Its %u settings are not applied: the raw stream was opened, so the "
+			"records are re-analysed with today's settings. Open the .kamj instead "
+			"to use the recorded ones."), settings));
 }
 void
 XJournalReader::readHeader(void *_fd) {
@@ -473,20 +476,25 @@ XJournalReader::openInterfaces() const {
 	return n;
 }
 
-void
-XJournalReader::onRestore(const Snapshot &shot, XTouchableNode *) {
-	unsigned int open = openInterfaces();
-	unsigned int done = restoreDump();
-	if(done && open)
-		gWarnPrint(formatString_tr(I18N_NOOP(
-			"Those %u settings went to %u open interfaces."), done, open));
-}
-
 //! Runtime nodes are skipped: what they hold is a reading, not a setting, and
 //! the driver that owns one would contradict it on its next record anyway.
+//! The settings are wanted when the journal is what was opened.  They are
+//! safe to put back when no interface is open, since a driver's I/O listeners
+//! exist only between its start() and stop(); with one open, File > Open
+//! Measurement is the deliberate way to push a recorded setup at live
+//! instruments, and this pane is not.
 bool
 XJournalReader::mayApply_() const {
-	return Snapshot( *m_follow)[ *m_follow] && !openInterfaces();
+	return m_restoreWanted && !openInterfaces();
+}
+
+//! No raw stream, or not being asked for: either way the journal itself is
+//! what the transport walks.
+bool
+XJournalReader::journalOnly() const {
+	if( !m_journal.isOpen())
+		return false;
+	return !m_pGFD || !Snapshot( *m_followRaw)[ *m_followRaw];
 }
 
 unsigned int
