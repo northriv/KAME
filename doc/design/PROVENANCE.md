@@ -579,8 +579,8 @@ makes the choice a ladder of magnitude rather than a matrix of switches:
 
 | `m_journalMode` | files | holds | order of cost |
 |---|---|---|---|
-| **`Logbook`** | `run042.kamj` | the dump, and everything the instruments reported | ~11 MB/hr, measured |
-| **`Logbook + raw`** | `+ run042.kamb` | and the raw records behind them | ~10 GB/hr |
+| **`Settings only`** | `run042.kamj` | the dump, and everything the instruments reported | ~11 MB/hr, measured |
+| **`Settings + raw records`** | `+ run042.kamb` | and the raw records behind them | ~10 GB/hr |
 
 There is no "settings only" tier, and the one that existed was removed
 (user): **writing the settings once is `File → Save`.**  A `Write` switch
@@ -613,14 +613,36 @@ The dropped fourth state is worth naming so it is not reinvented: "raw
 records, but drop the reports".  It saves 0.4% of the run and can lose the
 number that was published (user).  Not an option; a trap.
 
+**The noun is the field, the combo is the difference** (user, 2026-08-30).
+The tiers were spelled `Logbook` and `Logbook + raw` and the field above them
+was labelled `Run`, which was wrong twice over.  `Run` reads as a verb, and
+"is correct English and useless as a label if the reader has to already know
+that" — the user is not a native speaker, and neither are most of KAME's
+users.  Then `Logbook`, the obvious noun to put there instead, collided with
+`Logbook` one row below, where it was a *value*: the same word at two levels
+of the same group reads as a mistake.
+
+So the noun moved up to name the file — `Logbook  [run042]` — and the combo
+was left saying only what it actually chooses: `Settings only` /
+`Settings + raw records`.  It had been repeating the noun for no gain, since
+the one thing being decided is whether the raw stream is kept.  The combo
+takes a row of its own, because those strings do not fit beside anything else
+in a toolbox this wide.
+
+`"mode"` in a journal header carries these strings, so journals written before
+this say `Logbook`; the combo is `auto_set_any`, and `modeOf()` reads the
+*index*, so an old `.kam` naming a tier that no longer exists falls back to
+the cheaper one rather than to whatever happens to sit at that index.
+
 **The pane says two things, so it has two parts** — an earlier version put
 the session journal's path into the run's filename field, which made "always
 on" visible at the price of a field that meant something different depending
 on what was in it (user: the semantics were hard to follow).  Now:
 
     [x] Session journal          ~/Library/…/journal/session-…kamj
-    Run  [ run042            ] [...]
-    [ Logbook + raw ▾ ]   2.4 kB/s  51.4 kB      [ ] Write
+    Logbook  [ run042                            ] [...]
+    [ Settings + raw records                      ▾ ]
+                              2.4 kB/s  51.4 kB   [ ] Write
 
 The first row is the always-on file: a switch, and where it is going, shown
 because a user who wants to find or copy it should not have to know where

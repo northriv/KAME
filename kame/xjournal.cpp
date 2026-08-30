@@ -31,8 +31,11 @@
 const char *
 XJournalRecorder::modeLabel(Mode m) {
     switch(m) {
-    case Mode::LOGBOOK: return "Logbook";
-    default: return "Logbook + raw";
+    //What the tier chooses is how much of the run is kept, so that is what
+    //these say.  The noun is on the label of the field above them ("Logbook"),
+    //and repeating it here made the row read like a duplicate of it.
+    case Mode::LOGBOOK: return "Settings only";
+    default: return "Settings + raw records";
     }
 }
 

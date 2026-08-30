@@ -82,7 +82,7 @@
         <item>
          <widget class="QLabel" name="textLabelRun">
           <property name="text">
-           <string>Write to </string>
+           <string>Logbook </string>
           </property>
          </widget>
         </item>
@@ -103,24 +103,34 @@
        </layout>
       </item>
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_journalmode">
+       <layout class="QHBoxLayout" name="horizontalLayout_journaltier">
         <property name="spacing">
          <number>4</number>
         </property>
         <item>
          <widget class="QComboBox" name="m_cmbJournalMode">
+          <property name="toolTip">
+           <string>How much of the run the logbook keeps. Settings are always kept; raw records are what a driver captured, and they are what makes the run replayable.</string>
+          </property>
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
          </widget>
         </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_journalmode">
+        <property name="spacing">
+         <number>4</number>
+        </property>
         <item>
          <widget class="QLabel" name="m_lblJournalStats">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
