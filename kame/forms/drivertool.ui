@@ -58,14 +58,14 @@
         </item>
         <item>
          <widget class="QLineEdit" name="m_edSessionFile">
-          <property name="toolTip">
-           <string>Where this session is being journaled. Read-only: select and copy it, or drop it on a terminal.</string>
-          </property>
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Ignored" vsizetype="Fixed">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>Where this session is being journaled. Read-only: select and copy it, or drop it on a terminal.</string>
           </property>
           <property name="readOnly">
            <bool>true</bool>
@@ -82,12 +82,16 @@
         <item>
          <widget class="QLabel" name="textLabelRun">
           <property name="text">
-           <string>Run </string>
+           <string>Run journal </string>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QLineEdit" name="m_edJournal"/>
+         <widget class="QLineEdit" name="m_edJournal">
+          <property name="toolTip">
+           <string>Name this run. It becomes &lt;name&gt;.kamj, and &lt;name&gt;.kamb beside it when the tier keeps raw records. The session journal above runs whether or not you name one.</string>
+          </property>
+         </widget>
         </item>
         <item>
          <widget class="QToolButton" name="m_btnJournal">
@@ -115,20 +119,20 @@
         </item>
         <item>
          <widget class="QLabel" name="m_lblJournalStats">
-          <property name="toolTip">
-           <string>What this run is producing per second, and in total. The files on disk are smaller: both the journal and the raw stream are gzip.</string>
-          </property>
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Ignored" vsizetype="Fixed">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
-          <property name="alignment">
-           <set>Qt::AlignRight|Qt::AlignVCenter</set>
+          <property name="toolTip">
+           <string>What this run is producing per second, and in total. The files on disk are smaller: both the journal and the raw stream are gzip.</string>
           </property>
           <property name="text">
            <string/>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
           </property>
          </widget>
         </item>
@@ -179,10 +183,10 @@
    <item row="2" column="0">
     <spacer name="spacer2">
      <property name="orientation">
-      <enum>Qt::Horizontal</enum>
+      <enum>Qt::Orientation::Horizontal</enum>
      </property>
      <property name="sizeType">
-      <enum>QSizePolicy::Expanding</enum>
+      <enum>QSizePolicy::Policy::Expanding</enum>
      </property>
      <property name="sizeHint" stdset="0">
       <size>
