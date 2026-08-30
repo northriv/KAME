@@ -476,6 +476,22 @@ XGraph2DMathToolList::update(Transaction &tr, const shared_ptr<XQGraphPainter> &
     }
 }
 
+//! "Sum0", "Sum1", ... -- the first of those a sibling does not already hold.
+//!
+//! The count alone is not a name: deleting Sum0 and adding another tool asks
+//! for "Sum1" again, and a second child under one name is unreachable by name
+//! from Python, from a .kam and from the node browser.  createByTypename()
+//! refuses to make one now, which without this would silently retarget the
+//! tool that already had the name instead of adding one.
+static XString
+freshToolName(const XNode *list, const XString &label, unsigned int count) {
+    for(unsigned int i = count; ; ++i) {
+        XString name = formatString("%s%u", label.c_str(), i);
+        if( !list->getChild(name))
+            return name;
+    }
+}
+
 void
 XGraph1DMathToolList::onAxisSelectedByToolForCreate(const Snapshot &shot,
     const std::tuple<XString, XGraph::VFloat, XGraph::VFloat, XQGraph*>& res) {
@@ -492,7 +508,7 @@ XGraph1DMathToolList::onAxisSelectedByToolForCreate(const Snapshot &shot,
     Snapshot shot_this( *this);
     shared_ptr<XNode> node;
     try {
-        node = createByTypename(typenames().at(idx), formatString("%s%u", label.c_str(), shot_this.size()));
+        node = createByTypename(typenames().at(idx), freshToolName(this, label, shot_this.size()));
     }
 #ifdef USE_PYBIND11
     catch (pybind11::error_already_set& e) {
@@ -535,7 +551,7 @@ XGraph2DMathToolList::onPlaneSelectedByToolForCreate(const Snapshot &shot,
     Snapshot shot_this( *this);
     shared_ptr<XNode> node;
     try {
-        node = createByTypename(typenames().at(idx), formatString("%s%u", label.c_str(), shot_this.size()));
+        node = createByTypename(typenames().at(idx), freshToolName(this, label, shot_this.size()));
     }
 #ifdef USE_PYBIND11
     catch (pybind11::error_already_set& e) {
