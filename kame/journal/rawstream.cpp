@@ -90,15 +90,40 @@ XRawStreamRecorder::onRecord(const Snapshot &shot, XDriver *d) {
             uint32_t size = rawdata.size();
             if(size) {
                 uint32_t headersize = KAMB_HEADER_SIZE;
+                int32_t sec = shot[ *driver].time().sec();
+                int32_t usec = shot[ *driver].time().usec();
+                //timeAwared(), as microseconds from time(), in the field that
+                //has been an empty string since the format was written.
+                //
+                //Every reader ever written accounts for its length, so putting
+                //something there breaks neither direction: an older KAME reads
+                //these files, and this one reads files that leave it empty.
+                //Extending the binary header instead would have cost the first
+                //of those.
+                //
+                //It matters because secondary drivers read the emitter's
+                //timeAwared to decide whether a record is fresher than the
+                //state it depends on, and one of them stamps its own record
+                //with it -- and a replay currently hands them the time it is
+                //replaying at.  Recording it is the half that cannot be done
+                //later; feeding it back is a change of behaviour and waits.
+                //\sa doc/design/PROVENANCE.md
+                XString reserved;
+                const XTime &ta = shot[ *driver].timeAwared();
+                if(ta.isSet()) {
+                    long long delta = ((long long)ta.sec() - sec) * 1000000LL
+                        + ((long long)ta.usec() - usec);
+                    if(delta)
+                        reserved = formatString("t%lld", delta);
+                }
                 // size of raw record wrapped by header and footer
                 uint32_t allsize =
                     headersize
                     + driver->getName().size() //name of driver
+                    + reserved.size() //timeAwared, when it differs from time()
                     + 2 //two null chars
                     + size //rawData
                     + sizeof(uint32_t); //allsize
-                int32_t sec = shot[ *driver].time().sec();
-                int32_t usec = shot[ *driver].time().usec();
                 XPrimaryDriver::RawData header;
                 //The magic and the check come first so that a record can be
                 //found by looking for it, rather than by guessing at every
@@ -115,7 +140,9 @@ XRawStreamRecorder::onRecord(const Snapshot &shot, XDriver *d) {
                 gzwrite(static_cast<gzFile>(m_pGFD), &header[0], header.size());
                 gzprintf(static_cast<gzFile>(m_pGFD), "%s", (const char*)driver->getName().c_str());
                 gzputc(static_cast<gzFile>(m_pGFD), '\0');
-                gzputc(static_cast<gzFile>(m_pGFD), '\0'); //Reserved
+                if(reserved.length())
+                    gzprintf(static_cast<gzFile>(m_pGFD), "%s", reserved.c_str());
+                gzputc(static_cast<gzFile>(m_pGFD), '\0'); //end of the reserved field
                 gzwrite(static_cast<gzFile>(m_pGFD), &rawdata[0], size);
                 header.clear(); //using as a footer.
                 header.push((uint32_t)allsize);

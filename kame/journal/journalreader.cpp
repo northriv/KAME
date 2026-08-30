@@ -21,6 +21,7 @@
 
 #include <zlib.h>
 #include <algorithm>
+#include <cstdlib>
 #include <vector>
 
 #include <QFileInfo>
@@ -252,6 +253,15 @@ XJournalReader::parseOne(void *_fd, XMutex &mutex) {
 			+ 2 //two null chars
 			+ sizeof(uint32_t)  //allsize
 			);
+    //timeAwared, as microseconds from time().  Absent means "the same as
+    //time()", which is also what a file written before this said.
+    m_timeAwared = m_time;
+    if(sup[0] == 't') {
+        long long delta = strtoll(sup + 1, nullptr, 10);
+        long long us = (long long)m_time.sec() * 1000000LL + m_time.usec() + delta;
+        m_timeAwared = XTime(us / 1000000, us % 1000000);
+    }
+
     // m_time must be copied before unlocking
     XTime time(m_time);
     //Both read before the transaction: an iterate_commit closure re-runs on
@@ -315,6 +325,13 @@ XJournalReader::parseOne(void *_fd, XMutex &mutex) {
 		applyValues(pending, busyDrivers(), nullptr, nullptr);
 
 	{ XScopedLock<XMutex> lock(m_drivermutex);
+	//NOT m_timeAwared, yet, though that is the recorded value and this is the
+	//time we are replaying at.  (Copy it beside `time` above when flipping:
+	//the member is overwritten by the next record's header.)  Handing it over changes what every secondary
+	//driver's checkDependency() decides -- eight sites compare it against
+	//state that a partial replay leaves at live time, and the failure is
+	//silent: the analysis simply does not run.  It waits for a run on real
+	//hardware to be tried against.  \sa doc/design/PROVENANCE.md
 	driver->finishWritingRaw(rawdata, XTime::now(), time);
 	}
 }

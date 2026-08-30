@@ -70,6 +70,19 @@
   Stepping back at the head of a file used to raise an IO error, because the
   seek for the length word ran off the front of it.  A file that will not
   open says so, where every button used to do nothing for no stated reason.
+- A raw record carries timeAwared() -- when the phenomenon started being
+  measured, as against time(), when it happened -- in the reserved field that
+  had been an empty string since the format was written.  Every reader ever
+  written accounts for that field's length, so nothing breaks in either
+  direction; extending the header instead would have cost older KAMEs the
+  ability to read new files.  Only when it differs from time(), as decimal
+  microseconds from it.
+  It matters because eight secondary drivers read the emitter's timeAwared to
+  decide whether a record is fresher than the state it depends on, and one
+  stamps its own record with it, while replay hands them the time it is
+  replaying at.  Recording it is the half that cannot be done later; feeding
+  it back changes what those eight decide and waits for a run on real
+  hardware.
 - Both journal files take a full flush once a minute.  The raw stream had
   been flushed only when recording stopped, so a KAME killed mid-run left a
   .kamb that stopped being decodable wherever zlib last happened to end a

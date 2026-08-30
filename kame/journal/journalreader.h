@@ -164,6 +164,10 @@ private:
 	//! a shorter one, and both kinds are read without being told which.
 	uint32_t m_headerBytes = KAMB_HEADER_SIZE_LEGACY;
 	XTime m_time;
+	//! Of the record last read, from the reserved field.  Read back so the
+	//! field round-trips; deliberately NOT yet handed to the drivers.
+	//! \sa XRawStreamRecorder::onRecord(), parseOne()
+	XTime m_timeAwared;
 	XJournalFile m_journal;
 	//! Of the compressed file, from the filesystem.  The uncompressed length
 	//! is not knowable without reading the whole thing, which is the point.

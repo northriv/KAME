@@ -1113,6 +1113,46 @@ be restarted at any of them.  The magic is then what answers "where does a
 record start" after restarting mid-stream.  Together those two are the fast
 seek; the journal index is not part of it.
 
+### timeAwared rides in the field that was always empty
+
+A raw record has carried a second, unused NUL-terminated string since the
+format was written — `sup`, "Reserved".  `timeAwared()` goes there, as decimal
+microseconds from `time()`, and only when the two differ.
+
+The field costs nothing to use: every reader ever written accounts for its
+length (`m_allsize - (header + strlen(name) + strlen(sup) + 2 + 4)`), so an
+older KAME reads these files and this one reads files that leave it empty.
+Extending the binary header instead would have cost the first of those, and
+the whole point of the magic word is that both generations stay readable.
+
+**Why it is worth any bytes at all.**  `time()` is when the phenomenon
+happened; `timeAwared()` is when it started being measured, and secondary
+drivers read the *emitter's* to decide whether a record is fresher than the
+state it depends on:
+
+```cpp
+if(shot_emitter[ *dso].timeAwared() < shot_others[ *sg].time()) return false;
+```
+
+There are eight such sites, and `XSecondaryDriverInterface` stamps a
+secondary's own record with it.  Replay hands them `XTime::now()` — the time
+it is replaying at — which is newer than anything recorded, so every one of
+those guards passes and the derived values are stamped today.
+
+**And why it is recorded but not yet used.**  Feeding the recorded value back
+makes those comparisons mean something again, which is the point — but their
+other operand is not always from the recording.  A `.kamb` holds every primary
+driver's records, so a whole run replayed together is consistent; a partial
+one is not, and neither is a driver's own session-local member
+(`autolctuner`'s `timeSTMChanged`, `motor`'s `m_timeMovementStarted`), which
+no file holds.  Then a restored past `timeAwared` loses against a live "now"
+and the guard fails the other way: **the analysis silently does not run**.
+
+Recording is the half that cannot be done later, so it is done now.  The flip
+is one argument at the `finishWritingRaw()` call and waits for a real NMR run
+to be tried against — `pulseanalyzer` is the sharp case, since it compares
+against the signal generator.
+
 ### Both files flush once a minute
 
 The raw stream used to be flushed only when recording stopped, which meant a
