@@ -639,6 +639,17 @@ recording through again is the normal thing to want.
 Following is skipped while any interface is open, for the reason a restore
 waits for the button there.
 
+### A journal with no raw stream
+
+A session journal, and a run recorded as "Settings only", have no records to
+re-analyse — but they still hold everything that was set and when. Open one
+and the same transport walks *that*: each step is one instant of the history,
+and the tree follows it.
+
+Untick **Follow journal** to walk the history without changing anything: the
+position and the time still move, and nothing is written. That is also what
+happens while an interface is open.
+
 ## Recovering from a crash
 
 Both files are flushed once a minute, so a KAME that is killed loses at most

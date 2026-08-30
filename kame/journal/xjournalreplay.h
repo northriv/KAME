@@ -118,6 +118,16 @@ public:
     //! steps backwards through a month.
     bool rewind(const Apply &apply);
 
+    //! The time of the next line, without consuming it.  \return false at
+    //! end of file.  What a caller stepping one entry at a time needs: the
+    //! step is "everything stamped with that instant", and the instant has to
+    //! be known before advanceTo() can be asked for it.
+    bool peekTime(XTime *when);
+    //! Where the cursor is in the COMPRESSED file, which is what a position
+    //! readout can be made of: the unpacked length is not knowable without
+    //! unpacking it.  -1 when closed.
+    int64_t offset() const;
+
     //! Where the cursor is: the time of the last line handed over.
     const XTime &at() const {return m_at;}
     //! Identities seen so far.  Grows as the body introduces nodes, and is

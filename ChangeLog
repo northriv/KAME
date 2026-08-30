@@ -25,6 +25,14 @@
   journal is a stream and only goes forwards.  Unticking it re-analyses with
   today's settings, which is what changing one parameter and running the
   recording through again means.
+- A journal with no raw stream plays too.  A session journal, and a run
+  recorded as "Settings only", have nothing to re-analyse, but they hold what
+  was set and when -- so the same transport walks that instead, a step being
+  one instant of the history rather than one line of the file (settings
+  changed together are one act, and stopping between them would show a state
+  that never was).  With following off, or an interface open, the cursor and
+  the readout still move and nothing is written, which is how a history is
+  read without being replayed.
 - A position slider in that pane, by size of the compressed file.  The other
   two candidates do not exist: how long a gzip stream is unpacked is not
   knowable without unpacking it, and records are not evenly spaced in time.

@@ -17,6 +17,8 @@
 #include "rawstream.h"
 #include "xjournalreplay.h"
 
+#include <deque>
+
 class XJournalReader : public XRawStream {
 public:
 	//! \a root is where a journal's paths are resolved from -- the whole tree,
@@ -104,10 +106,30 @@ private:
 		double exact = 0.0;
 		bool hasExact = false;
 	};
+	//! True when there is no raw stream to play and the journal itself is what
+	//! is walked: a session journal, or a run recorded as settings only.  There
+	//! is nothing to re-analyse then, but the settings history is all there.
+	bool journalOnly() const {return !m_pGFD && m_journal.isOpen();}
+	void journalFirst_();
+	//! One step: everything stamped with the next instant in the journal.
+	//! \return false at the end of it.
+	bool journalStep_();
+	//! Back one step, by starting again and replaying to the instant before
+	//! this one -- a journal is a stream and only goes forwards.
+	void journalBack_();
+	void journalSeek_(int permille);
+	void reportJournalPosition_(const XTime &when);
+	//! The rule for what a replay puts back, shared by both playback paths.
+	void takeIfRequest_(const XJournalFile::Event &e, std::vector<RestoreItem> &out) const;
+
 	//! \return how many landed; \a missing counts paths this tree does not have.
 	unsigned int applyValues(const std::vector<RestoreItem> &items, unsigned int *missing);
 	//! Puts the held dump into the live tree.  \return how many values landed.
-	unsigned int restoreDump();
+	//! \a quiet for the playback paths, which reach it once per lap.
+	unsigned int restoreDump(bool quiet = false);
+	//! Whether a replay may write to the tree at all: the user asked it to,
+	//! and no interface is open to carry a setting to an instrument.
+	bool mayApply_() const;
 	//! How many interfaces are open, which is what decides whether restoring
 	//! a setting reaches an instrument: a driver's I/O listeners exist only
 	//! between its start() and stop(), and those follow the interface.
@@ -135,6 +157,12 @@ private:
 	//! Of the compressed file, from the filesystem.  The uncompressed length
 	//! is not knowable without reading the whole thing, which is the point.
 	uint64_t m_fileSize = 0;
+	//! Of the journal, for the position readout when it is what is being
+	//! walked.  Compressed, as m_fileSize is, and for the same reason.
+	uint64_t m_journalSize = 0;
+	//! Instants already stepped through, so that going back one has something
+	//! to aim at.  Bounded: past its cap, back goes to the beginning instead.
+	std::deque<XTime> m_journalVisited;
 	//! The cursor is behind the record about to be played -- set whenever the
 	//! raw stream is moved backwards, since a journal can only be walked
 	//! forwards.  Acted on where the settings are applied, not where the seek

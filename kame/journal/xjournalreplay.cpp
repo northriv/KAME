@@ -274,6 +274,27 @@ XJournalFile::rewind(const Apply &apply) {
 }
 
 bool
+XJournalFile::peekTime(XTime *when) {
+    if( !m_gz)
+        return false;
+    if( !m_held) {
+        if( !nextLine(m_holding))
+            return false;
+        m_held = true;
+    }
+    if(when)
+        *when = m_holding.when;
+    return true;
+}
+
+int64_t
+XJournalFile::offset() const {
+    if( !m_gz)
+        return -1;
+    return (int64_t)gzoffset((gzFile)m_gz);
+}
+
+bool
 XJournalFile::advanceTo(const XTime &until, const Apply &apply) {
     if( !m_gz)
         return false;

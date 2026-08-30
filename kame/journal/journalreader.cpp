@@ -147,7 +147,8 @@ XJournalReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 			gWarnPrint(i18n("This journal predates the machine-readable timestamp; "
 				"its entries cannot be placed against the records: ") + journalpath);
 		if(rawpath.empty())
-			gWarnPrint(i18n("This journal recorded no raw stream: ") + journalpath);
+			gMessagePrint(i18n("No raw stream in this journal, so there is nothing to "
+				"re-analyse: playback steps through its settings instead."));
 		else
 			gMessagePrint(i18n("Journal: ") + journalpath
 				+ formatString(" (%s, %u settings of %u nodes)", journal.kind().c_str(),
@@ -155,10 +156,14 @@ XJournalReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	}
 
 	unsigned int settings = (unsigned int)dump.size();
+	uint64_t journalsize = journal.isOpen() ?
+		(uint64_t)QFileInfo(QString::fromStdString(journalpath)).size() : 0;
 	m_filemutex.lock();
 	m_journal = std::move(journal);
 	m_dump = std::move(dump);
 	m_journalRewind = false;   //!< a freshly opened cursor is already at the first entry
+	m_journalSize = journalsize;
+	m_journalVisited.clear();
 	if(m_pGFD) gzclose(static_cast<gzFile>(m_pGFD));
 	m_pGFD = rawpath.length() ?
 		gzopen(QString::fromStdString(rawpath).toLocal8Bit().data(), "rb") : nullptr;
@@ -283,7 +288,7 @@ XJournalReader::parseOne(void *_fd, XMutex &mutex) {
 	//the mutex here guards the streams, not the tree.
 	std::vector<RestoreItem> pending;
 	bool rewound = false;
-	if(m_journal.isOpen() && Snapshot( *m_follow)[ *m_follow] && !openInterfaces()) {
+	if(m_journal.isOpen() && mayApply_()) {
 		if(m_journalRewind.exchange(false)) {
 			//A journal is a stream and only goes forwards, so reaching an
 			//earlier record means starting again from its head -- and the head
@@ -291,24 +296,14 @@ XJournalReader::parseOne(void *_fd, XMutex &mutex) {
 			rewound = m_journal.rewind([](const XJournalFile::Event &){});
 		}
 		m_journal.advanceTo(time, [&](const XJournalFile::Event &e) {
-			if((e.kind != XJournalFile::Event::Kind::VALUE) || e.fromDump)
-				return;
-			//Requests only.  A report is a driver talking about itself -- the
-			//37 it was passing through on its way to the 100 that was asked
-			//for -- and restoring it would contradict the driver that owns it.
-			if( !e.request)
-				return;
-			auto it = m_journal.nodes().find(e.id);
-			if((it == m_journal.nodes().end()) || it->second.runtime)
-				return;
-			pending.push_back({it->second.path, e.value, e.exact, e.hasExact});
+			takeIfRequest_(e, pending);
 		});
 	}
 
 	mutex.unlock();
 
 	if(rewound)
-		restoreDump();
+		restoreDump(true);
 	if( !pending.empty())
 		applyValues(pending, nullptr);
 
@@ -489,8 +484,13 @@ XJournalReader::onRestore(const Snapshot &shot, XTouchableNode *) {
 
 //! Runtime nodes are skipped: what they hold is a reading, not a setting, and
 //! the driver that owns one would contradict it on its next record anyway.
+bool
+XJournalReader::mayApply_() const {
+	return Snapshot( *m_follow)[ *m_follow] && !openInterfaces();
+}
+
 unsigned int
-XJournalReader::restoreDump() {
+XJournalReader::restoreDump(bool quiet) {
 	auto root = m_root.lock();
 	if( !root)
 		return 0;
@@ -517,6 +517,8 @@ XJournalReader::restoreDump() {
 	}
 	unsigned int missing = 0;
 	unsigned int done = applyValues(items, &missing);
+	if(quiet)
+		return done;
 	gMessagePrint(formatString_tr(I18N_NOOP("Restored %u settings; %u not found, %u skipped."),
 		done, missing, skipped + (unsigned int)items.size() - done - missing));
 	return done;
@@ -560,6 +562,134 @@ XJournalReader::applyValues(const std::vector<RestoreItem> &items, unsigned int 
 	}
 	return done;
 }
+//! Requests only.  A report is a driver talking about itself -- the 37 it was
+//! passing through on its way to the 100 that was asked for, written to the
+//! node that holds the request -- and putting one back would contradict the
+//! driver that owns it.  Runtime nodes are not settings at all.
+void
+XJournalReader::takeIfRequest_(const XJournalFile::Event &e, std::vector<RestoreItem> &out) const {
+	if((e.kind != XJournalFile::Event::Kind::VALUE) || e.fromDump || !e.request)
+		return;
+	auto it = m_journal.nodes().find(e.id);
+	if((it == m_journal.nodes().end()) || it->second.runtime)
+		return;
+	out.push_back({it->second.path, e.value, e.exact, e.hasExact});
+}
+
+void
+XJournalReader::reportJournalPosition_(const XTime &when) {
+	XString timestr = when.getTimeStr();
+	unsigned int permille = 0;
+	if(m_journalSize) {
+		int64_t off = m_journal.offset();
+		if(off > 0)
+			permille = (unsigned int)std::min((uint64_t)off * 1000u / m_journalSize,
+				(uint64_t)1000u);
+	}
+	iterate_commit([&](Transaction &tr){
+		tr[ *m_recordTime] = timestr;
+		tr[ *m_position] = permille;
+	});
+}
+
+//! Back to the state the journal opens with.
+void
+XJournalReader::journalFirst_() {
+	m_filemutex.lock();
+	m_journal.rewind([](const XJournalFile::Event &){});
+	m_filemutex.unlock();
+	m_journalVisited.clear();
+	if(mayApply_())
+		restoreDump(true);
+	reportJournalPosition_(XTime());
+}
+
+bool
+XJournalReader::journalStep_() {
+	std::vector<RestoreItem> pending;
+	XTime when;
+	m_filemutex.lock();
+	bool more = m_journal.peekTime( &when);
+	if(more)
+		m_journal.advanceTo(when, [&](const XJournalFile::Event &e) {
+			takeIfRequest_(e, pending);
+		});
+	m_filemutex.unlock();
+	if( !more)
+		return false;
+	//A step is an INSTANT, not a line: several settings changed together are
+	//one act, and stopping between them would show a state that never was.
+	//
+	//With following off, or an interface open, the cursor still moves and the
+	//readout still says where it is: walking the history to see what changed
+	//when is worth having on its own, and it touches nothing.
+	if(mayApply_())
+		applyValues(pending, nullptr);
+	m_journalVisited.push_back(when);
+	if(m_journalVisited.size() > 4096)
+		m_journalVisited.pop_front();
+	reportJournalPosition_(when);
+	return true;
+}
+
+void
+XJournalReader::journalBack_() {
+	if(m_journalVisited.size() < 2) {
+		journalFirst_();
+		return;
+	}
+	m_journalVisited.pop_back();             //!< where we are now
+	XTime target = m_journalVisited.back();
+	std::deque<XTime> keep;
+	keep.swap(m_journalVisited);
+	journalFirst_();                          //!< clears the history it just used
+	std::vector<RestoreItem> pending;
+	m_filemutex.lock();
+	m_journal.advanceTo(target, [&](const XJournalFile::Event &e) {
+		takeIfRequest_(e, pending);
+	});
+	m_filemutex.unlock();
+	if(mayApply_())
+		applyValues(pending, nullptr);
+	m_journalVisited.swap(keep);
+	reportJournalPosition_(target);
+}
+
+//! To a point in the journal by size of the file, as the raw stream's seek is.
+//! Cheaper here: lines are self-delimiting, so there is no boundary to find --
+//! but the journal is a state, so everything before the target has to be
+//! applied on the way rather than skipped.
+void
+XJournalReader::journalSeek_(int permille) {
+	journalFirst_();
+	if(permille <= 0)
+		return;
+	uint64_t target = m_journalSize * (uint64_t)permille / 1000u;
+	XTime when, last;
+	for(;;) {
+		std::vector<RestoreItem> pending;
+		m_filemutex.lock();
+		bool more = m_journal.peekTime( &when);
+		int64_t off = m_journal.offset();
+		if(more && ((off < 0) || ((uint64_t)off < target)))
+			m_journal.advanceTo(when, [&](const XJournalFile::Event &e) {
+				takeIfRequest_(e, pending);
+			});
+		else
+			more = false;
+		m_filemutex.unlock();
+		if( !more)
+			break;
+		if(mayApply_())
+			applyValues(pending, nullptr);
+		last = when;
+		m_journalVisited.push_back(when);
+		if(m_journalVisited.size() > 4096)
+			m_journalVisited.pop_front();
+	}
+	reportJournalPosition_(last);
+}
+
 void
 XJournalReader::onSeek(const Snapshot &shot, XValueNodeBase *) {
 	//Handed to the playback thread rather than done here: this call arrives
@@ -633,6 +763,11 @@ XJournalReader::onStop(const Snapshot &shot, XTouchableNode *) {
 }
 void
 XJournalReader::onFirst(const Snapshot &shot, XTouchableNode *) {
+	if(journalOnly()) {
+		journalFirst_();
+		g_statusPrinter->printMessage(i18n("First"));
+		return;
+	}
 	if(m_pGFD) {
 		try {
 			m_filemutex.lock();
@@ -648,6 +783,10 @@ XJournalReader::onFirst(const Snapshot &shot, XTouchableNode *) {
 }
 void
 XJournalReader::onNext(const Snapshot &shot, XTouchableNode *) {
+	if(journalOnly()) {
+		g_statusPrinter->printMessage(journalStep_() ? i18n("Next") : i18n("End of journal"));
+		return;
+	}
 	if(m_pGFD) {
 		try {
 			m_filemutex.lock(); 
@@ -662,6 +801,11 @@ XJournalReader::onNext(const Snapshot &shot, XTouchableNode *) {
 }
 void
 XJournalReader::onBack(const Snapshot &shot, XTouchableNode *) {
+	if(journalOnly()) {
+		journalBack_();
+		g_statusPrinter->printMessage(i18n("Previous"));
+		return;
+	}
 	if(m_pGFD) {
 		try {
 			m_filemutex.lock(); 
@@ -688,7 +832,7 @@ void *XJournalReader::execute(const atomic<bool> &terminated) {
     
 		if(terminated) break;
 
-		if( !m_pGFD) {
+		if( !m_pGFD && !journalOnly()) {
 			m_seekRequest = -1;     //!< nothing to seek in
 			msecsleep(100);
 			continue;
@@ -697,6 +841,33 @@ void *XJournalReader::execute(const atomic<bool> &terminated) {
 		//Claimed here, so a slider dragged while playing moves the same
 		//cursor the playback is walking, rather than racing it.
 		int req = m_seekRequest.exchange(-1);
+
+		//No raw stream: the journal itself is the recording, and a step is one
+		//instant of it.  Nothing is re-analysed -- there are no records -- so
+		//what plays back is the settings history.
+		if(journalOnly()) {
+			if(req >= 0)
+				journalSeek_(req);
+			else if(ms > 0.0) {
+				if( !journalStep_())
+					journalFirst_();    //!< round again, as forward play does at EOF
+			}
+			else if(ms < 0.0) {
+				if(m_journalVisited.size() < 2) {
+					//At the head: stopping is the honest end of a rewind.
+					m_periodicTerm = 0.0;
+					iterate_commit([=](Transaction &tr){
+						tr[ *m_rewind] = false;
+						tr.unmark(m_lsnPlayCond);
+					});
+					g_statusPrinter->printMessage(i18n("First"));
+					continue;
+				}
+				journalBack_();
+			}
+			msecsleep(lrint(fabs(ms)));
+			continue;
+		}
 
 		try {
 			m_filemutex.lock();
