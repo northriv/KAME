@@ -1048,6 +1048,49 @@ minute -- see below -- which leaves the restart points in place; what is
 missing is a reader that starts a raw inflate at one, which `gzFile` cannot
 do.)
 
+### A raw record says that it is one
+
+A `.kamb` record now begins with `KAMB` and a check word:
+
+```
+[magic 'KAMB'][check][allsize][sec][usec][name\0][reserved\0][data][allsize]
+```
+
+The magic is 0x424d414b read little-endian, which is more than ten times
+`MAX_RAW_RECORD_SIZE` -- so four bytes that are a plausible *length* instead
+are unmistakably a record from before this existed, and one reader handles
+both without being told which it has.  Old files keep working, which is the
+compatibility direction that matters.  New files will not open in an older
+KAME, which is the direction that does not.
+
+The check is FNV-1a over `(allsize, sec, usec)` -- over the values, so it does
+not depend on the host's byte order, and over the length as well as the time
+because the length is what a scan relies on afterwards.  Not md5: 32 bits
+already put a false positive at 2^-32 *given* the magic matched, so searching
+every offset of an 8 GB file expects 2^33 x 2^-64, about 5x10^-10 spurious
+hits, and md5 would cost a hundred times more per record to improve a number
+that is already zero in practice.  It is not a checksum of the data -- gzip
+carries one of those -- but a test that these bytes are a header at all.
+
+Eight bytes a record, of which the four constant ones cost nothing after
+compression.
+
+**Why not put the record offsets in the journal instead** (user's question,
+2026-08-30).  Because it would not buy the thing it looks like it buys:
+`gzseek` takes an *uncompressed* offset and a gzip stream has no index, so
+knowing where a record is does not save decompressing everything before it.
+It would also cost more, not less -- a line per record is some 60 B against
+the 8 B here, on files that record hundreds of times a second -- and it would
+leave a `.kamb` recorded with the journal switched off with no way to be read
+from the middle at all.
+
+What *would* make seeking fast needs neither: the 60 s full flushes leave
+`00 00 FF FF` markers in the compressed stream, which can be found by
+scanning the file **as bytes**, with no decompression at all, and inflate can
+be restarted at any of them.  The magic is then what answers "where does a
+record start" after restarting mid-stream.  Together those two are the fast
+seek; the journal index is not part of it.
+
 ### Both files flush once a minute
 
 The raw stream used to be flushed only when recording stopped, which meant a

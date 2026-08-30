@@ -91,10 +91,7 @@ XRawStreamRecorder::onRecord(const Snapshot &shot, XDriver *d) {
         	const XPrimaryDriver::RawData &rawdata(shot[ *driver].rawData());
             uint32_t size = rawdata.size();
             if(size) {
-                uint32_t headersize =
-                    sizeof(uint32_t) //allsize
-                    + sizeof(int32_t) //time().sec()
-                    + sizeof(int32_t); //time().usec()            
+                uint32_t headersize = KAMB_HEADER_SIZE;
                 // size of raw record wrapped by header and footer
                 uint32_t allsize =
                     headersize
@@ -102,10 +99,18 @@ XRawStreamRecorder::onRecord(const Snapshot &shot, XDriver *d) {
                     + 2 //two null chars
                     + size //rawData
                     + sizeof(uint32_t); //allsize
+                int32_t sec = shot[ *driver].time().sec();
+                int32_t usec = shot[ *driver].time().usec();
                 XPrimaryDriver::RawData header;
+                //The magic and the check come first so that a record can be
+                //found by looking for it, rather than by guessing at every
+                //offset which four bytes might be a length.
+                //\sa kamb_record_check(), XRawStreamRecordReader::seek_()
+                header.push((uint32_t)KAMB_RECORD_MAGIC);
+                header.push((uint32_t)kamb_record_check(allsize, sec, usec));
                 header.push((uint32_t)allsize);
-                header.push((int32_t)shot[ *driver].time().sec());
-                header.push((int32_t)shot[ *driver].time().usec());
+                header.push((int32_t)sec);
+                header.push((int32_t)usec);
                 assert(header.size() == headersize);
     
                 m_filemutex.lock();

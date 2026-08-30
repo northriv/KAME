@@ -82,6 +82,9 @@ private:
 	shared_ptr<Listener> m_lsnOnOpen, m_lsnOnSeek;
   
 	uint32_t m_allsize;
+	//! Of the record last read: records written before the magic existed have
+	//! a shorter one, and both kinds are read without being told which.
+	uint32_t m_headerBytes = KAMB_HEADER_SIZE_LEGACY;
 	XTime m_time;
 	XJournalFile m_journal;
 	//! Of the compressed file, from the filesystem.  The uncompressed length

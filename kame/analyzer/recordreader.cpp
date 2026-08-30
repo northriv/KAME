@@ -163,16 +163,26 @@ XRawStreamRecordReader::readHeader(void *_fd) {
 
 	if(gzeof(fd))
 		throw XIOError(__FILE__, __LINE__);
-	uint32_t size =
-		sizeof(uint32_t) //allsize
-		+ sizeof(int32_t) //time().sec()
-		+ sizeof(int32_t); //time().usec()
-	std::vector<char> buf(size);
+	//Four bytes first, because they decide which layout this is: the magic,
+	//or -- in a file written before it existed -- the length itself.
+	std::vector<char> head(sizeof(uint32_t));
+	if(gzread(fd, &head[0], (unsigned)head.size()) == -1) throw XIOError(__FILE__, __LINE__);
+	uint32_t first;
+	{
+		XPrimaryDriver::RawDataReader reader(head);
+		first = reader.pop<uint32_t>();
+	}
+	bool magic = (first == (uint32_t)KAMB_RECORD_MAGIC);
+	m_headerBytes = magic ? KAMB_HEADER_SIZE : KAMB_HEADER_SIZE_LEGACY;
+	std::vector<char> buf(m_headerBytes - sizeof(uint32_t));
+	if(gzread(fd, &buf[0], (unsigned)buf.size()) == -1) throw XIOError(__FILE__, __LINE__);
 	XPrimaryDriver::RawDataReader reader(buf);
-	if(gzread(fd, &buf[0], size) == -1) throw XIOError(__FILE__, __LINE__);
-	m_allsize = reader.pop<uint32_t>();
+	uint32_t check = magic ? reader.pop<uint32_t>() : 0;
+	m_allsize = magic ? reader.pop<uint32_t>() : first;
 	long sec = reader.pop<int32_t>();
 	long usec = reader.pop<int32_t>();
+	if(magic && (check != kamb_record_check(m_allsize, (int32_t)sec, (int32_t)usec)))
+		throw XBrokenRecordError(__FILE__, __LINE__);
     m_time = XTime(sec, usec);
 }
 void
@@ -190,9 +200,7 @@ XRawStreamRecordReader::parseOne(void *_fd, XMutex &mutex) {
 	auto driver = dynamic_pointer_cast<XPrimaryDriver>(driver_precast);
 	uint32_t size = 
 		m_allsize - (
-			sizeof(uint32_t) //allsize
-			+ sizeof(int32_t) //time().sec()
-			+ sizeof(int32_t) //time().usec()
+			m_headerBytes //magic, check, allsize, sec, usec -- or fewer, in an old file
 			+ strlen(name) //name of driver
 			+ strlen(sup) //reserved
 			+ 2 //two null chars
@@ -322,19 +330,36 @@ XRawStreamRecordReader::seek_(void *_fd, int permille) {
 		int n = gzread(fd, &win[0], (unsigned)win.size());
 		if(n < 0) throw XIOError(__FILE__, __LINE__);
 		if(n < 24) break;
-		for(int i = 0; i + 24 <= n; ++i) {
-			const unsigned char *p = &win[i];
-			uint32_t allsize = (uint32_t)p[0] | ((uint32_t)p[1] << 8)
-				| ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
-			if((allsize < 23) || (allsize > MAX_RAW_RECORD_SIZE))
-				continue;   //!< 12 header + a name + 2 nulls + 4 footer, at least
-			if((int64_t)i + allsize > n)
-				continue;   //!< cannot be checked from here; a later window will
-			const unsigned char *f = &win[i + allsize - 4];
-			uint32_t footer = (uint32_t)f[0] | ((uint32_t)f[1] << 8)
-				| ((uint32_t)f[2] << 16) | ((uint32_t)f[3] << 24);
-			if(footer != allsize)
-				continue;
+		for(int i = 0; i + (int)KAMB_HEADER_SIZE <= n; ++i) {
+			auto le32 = [&](int at) -> uint32_t {
+				const unsigned char *p = &win[at];
+				return (uint32_t)p[0] | ((uint32_t)p[1] << 8)
+					| ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+			};
+			uint32_t allsize;
+			if(le32(i) == (uint32_t)KAMB_RECORD_MAGIC) {
+				//The record says what it is.  Magic and check together are
+				//2^-64 against arbitrary bytes, so this is the answer, not a
+				//candidate -- and it holds without reading anything else.
+				allsize = le32(i + 8);
+				if((allsize < KAMB_HEADER_SIZE + 6) || (allsize > MAX_RAW_RECORD_SIZE))
+					continue;
+				if(le32(i + 4) != kamb_record_check(allsize,
+						(int32_t)le32(i + 12), (int32_t)le32(i + 16)))
+					continue;
+			}
+			else {
+				//Written before the magic existed.  All such a record offers
+				//is its length at both ends, so a boundary is where the two
+				//agree -- weaker, and the reason the magic was added.
+				allsize = le32(i);
+				if((allsize < KAMB_HEADER_SIZE_LEGACY + 6) || (allsize > MAX_RAW_RECORD_SIZE))
+					continue;
+				if((int64_t)i + allsize > n)
+					continue;   //!< cannot be checked from here; a later window will
+				if(le32(i + allsize - 4) != allsize)
+					continue;
+			}
 			//Found.  Going back to it rewinds and re-reads, since zlib cannot
 			//seek backwards either -- twice the work, and still the only way.
 			if(gzseek(fd, base + i, SEEK_SET) == -1)
@@ -364,10 +389,8 @@ XRawStreamRecordReader::previous_(void *fd) {
 void
 XRawStreamRecordReader::next_(void *fd) {
 	readHeader(fd);
-	uint32_t headersize = sizeof(uint32_t) //allsize
-		+ sizeof(int32_t) //time().sec()
-		+ sizeof(int32_t); //time().usec()
-	if(gzseek(static_cast<gzFile>(fd), m_allsize - headersize, SEEK_CUR) == -1) throw XIOError(__FILE__, __LINE__);
+	if(gzseek(static_cast<gzFile>(fd), m_allsize - m_headerBytes, SEEK_CUR) == -1)
+		throw XIOError(__FILE__, __LINE__);
 }
 void
 XRawStreamRecordReader::goToHeader(void *_fd) {

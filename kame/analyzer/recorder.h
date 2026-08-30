@@ -24,6 +24,38 @@
 
 #define MAX_RAW_RECORD_SIZE 100000000uL
 
+//! A raw record starts with this.
+//!
+//! 'K','A','M','B' little-endian is 0x424d414b, which is far larger than
+//! MAX_RAW_RECORD_SIZE -- so four bytes that are a plausible *length* instead
+//! are unmistakably a record written before this existed, and both kinds can
+//! be read without being told which is which.  \sa doc/design/PROVENANCE.md
+#define KAMB_RECORD_MAGIC 0x424d414buL
+
+//! Bytes before the driver name: magic, check, allsize, sec, usec.
+#define KAMB_HEADER_SIZE (5 * sizeof(uint32_t))
+//! The same, for a record written before the magic existed.
+#define KAMB_HEADER_SIZE_LEGACY (3 * sizeof(uint32_t))
+
+//! FNV-1a over the twelve bytes the header commits to.
+//!
+//! Not a checksum of the data -- gzip already carries one of those -- but a
+//! test that these bytes really are a record header rather than something
+//! that happens to look like one, which is what searching a file from the
+//! middle needs.  Over the *values*, so it does not depend on the host's
+//! byte order; over allsize as well as the time, because the length is what
+//! a scan actually relies on afterwards.
+inline uint32_t kamb_record_check(uint32_t allsize, int32_t sec, int32_t usec) {
+    uint32_t w[3] = {allsize, (uint32_t)sec, (uint32_t)usec};
+    uint32_t h = 2166136261u;
+    for(int i = 0; i < 3; ++i)
+        for(int b = 0; b < 4; ++b) {
+            h ^= (w[i] >> (8 * b)) & 0xffu;
+            h *= 16777619u;
+        }
+    return h;
+}
+
 class XRawStream : public XNode {
 public:
 	XRawStream(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist);
