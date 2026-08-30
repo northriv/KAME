@@ -33,7 +33,33 @@ public:
 	//! Three classes had grown their own copy of this stamp (XGraphMathTool,
 	//! XPythonDriver, the Python math-tool wrapper); doing it here means a
 	//! list added tomorrow cannot forget.  Override createByTypename_().
+	//! A name that is taken is answered with the node that has it, when that
+	//! node is of the type asked for; a mismatch is refused.
+	//!
+	//! Creating a second child under a name a sibling already holds is never
+	//! what a caller wanted: getChild() stops at the first match, so the new
+	//! one is unreachable by name from Python, from a .kam and from the node
+	//! browser, and a .kam written from that tree no longer round-trips.  The
+	//! UI has always checked before asking ("Duplicated name."); the loaders
+	//! did not, which made loading a .kam onto a tree that already held its
+	//! drivers quietly destructive rather than idempotent.
+	//!
+	//! Best-effort against a race: two threads creating one name can still
+	//! both find nothing.  The lists that accept concurrent creation say so
+	//! through isThreadSafeDuringCreationByTypename(), and the callers that
+	//! matter serialise on the main thread.
 	shared_ptr<XNode> createByTypename(const XString &type, const XString &name) {
+	    if(name.length())
+	        if(shared_ptr<XNode> old = getChild(name)) {
+	            //getTypename() answers the registry key for a node created
+	            //through here (it is stamped below) and, for one created in
+	            //code, the class name with its leading X stripped -- which is
+	            //the same string, since REGISTER_TYPE(list, Foo, ...) names
+	            //the class XFoo.
+	            if( !type.length() || (old->getTypename() == type))
+	                return old;
+	            return {};
+	        }
 	    shared_ptr<XNode> node = createByTypename_(type, name);
 	    if(node)
 	        node->setStoredTypename(type);
