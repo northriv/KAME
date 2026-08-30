@@ -184,6 +184,9 @@ private:
 	//! restoring one has to happen on the main thread -- so it cannot wait
 	//! until playback reaches it.  \sa XJournalFile::scanNodes()
 	std::map<uint32_t, XJournalFile::NodeInfo> m_allNodes;
+	//! What the last step put back, so a step can say so.  Silence is what let
+	//! a replay that applied nothing at all look like a replay that worked.
+	unsigned int m_lastApplied = 0;
 	//! The cursor is behind the record about to be played -- set whenever the
 	//! raw stream is moved backwards, since a journal can only be walked
 	//! forwards.  Acted on where the settings are applied, not where the seek

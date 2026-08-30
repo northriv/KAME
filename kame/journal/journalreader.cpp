@@ -169,7 +169,10 @@ XJournalReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	m_journalSize = journalsize;
 	m_journalVisited.clear();
 	m_allNodes = std::move(allnodes);
-	m_restoreWanted = wantsSettings && journal.isOpen();
+	//m_journal, NOT journal: it was moved from two lines ago, so asking the
+	//husk whether it is open answers no, always -- and every value a replay
+	//would have applied was silently dropped.
+	m_restoreWanted = wantsSettings && m_journal.isOpen();
 	if(m_pGFD) gzclose(static_cast<gzFile>(m_pGFD));
 	m_pGFD = rawpath.length() ?
 		gzopen(QString::fromStdString(rawpath).toLocal8Bit().data(), "rb") : nullptr;
@@ -677,8 +680,13 @@ XJournalReader::applyValues(const std::vector<RestoreItem> &items,
 //! driver that owns it.  Runtime nodes are not settings at all.
 void
 XJournalReader::takeIfRequest_(const XJournalFile::Event &e, std::vector<RestoreItem> &out) const {
-	if((e.kind != XJournalFile::Event::Kind::VALUE) || e.fromDump || !e.request)
+	if((e.kind != XJournalFile::Event::Kind::VALUE) || !e.request)
 		return;
+	//An unstamped value IS taken here, unlike at the head: a node that appears
+	//in the middle of a journal brings its initial state with it, and that
+	//state is what it had at the moment it appeared.  A driver created while
+	//the run was running would otherwise start from whatever this tree
+	//happened to hold.
 	//The full map, not the cursor's: the cursor knows a node only once it has
 	//walked past the line that named it, and an entry can precede that in a
 	//journal whose head did not have it.
@@ -743,8 +751,8 @@ XJournalReader::journalStep_() {
 	//With following off, or an interface open, the cursor still moves and the
 	//readout still says where it is: walking the history to see what changed
 	//when is worth having on its own, and it touches nothing.
-	if(mayApply_())
-		applyValues(pending, busyDrivers(), nullptr, nullptr);
+	m_lastApplied = mayApply_() ?
+		applyValues(pending, busyDrivers(), nullptr, nullptr) : 0;
 	m_journalVisited.push_back(when);
 	if(m_journalVisited.size() > 4096)
 		m_journalVisited.pop_front();
@@ -917,7 +925,11 @@ XJournalReader::onFirst(const Snapshot &shot, XTouchableNode *) {
 void
 XJournalReader::onNext(const Snapshot &shot, XTouchableNode *) {
 	if(journalOnly()) {
-		g_statusPrinter->printMessage(journalStep_() ? i18n("Next") : i18n("End of journal"));
+		if( !journalStep_())
+			g_statusPrinter->printMessage(i18n("End of journal"));
+		else
+			g_statusPrinter->printMessage(formatString_tr(
+				I18N_NOOP("Next: %u settings"), m_lastApplied));
 		return;
 	}
 	if(m_pGFD) {
