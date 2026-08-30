@@ -14,7 +14,7 @@
 #ifndef JOURNALREADER_H_
 #define JOURNALREADER_H_
 
-#include "recorder.h"
+#include "rawstream.h"
 #include "xjournalreplay.h"
 
 class XJournalReader : public XRawStream {

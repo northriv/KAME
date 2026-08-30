@@ -21,7 +21,8 @@
 #include "primarydriver.h"
 #include "interface.h"
 #include "analyzer.h"
-#include "recorder.h"
+#include "rawstream.h"
+#include "textwriter.h"
 #include "xjournal.h"
 #include "journalreader.h"
 

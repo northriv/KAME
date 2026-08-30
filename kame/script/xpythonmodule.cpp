@@ -25,7 +25,6 @@
 #include "xitemnode.h"
 #include "measure.h"
 
-#include "recorder.h"
 #include "driver.h"
 #include "analyzer.h"
 #include "primarydriver.h"

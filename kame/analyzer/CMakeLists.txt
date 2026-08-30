@@ -6,7 +6,7 @@ include_directories(
 
 ########### next target ###############
 set(analyzer_SRCS
-    recorder.cpp
+    textwriter.cpp
 	analyzer.cpp)
 
 kde4_add_library(analyzer STATIC ${analyzer_SRCS})

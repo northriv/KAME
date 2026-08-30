@@ -88,7 +88,8 @@ HEADERS += \
     graph/graphwidget.h \
     graph/xwavengraph.h \
     analyzer/analyzer.h \
-    analyzer/recorder.h \
+    analyzer/textwriter.h \
+    journal/rawstream.h \
     journal/journalreader.h \
     journal/xjournalreplay.h \
     script/xdotwriter.h \
@@ -171,7 +172,8 @@ SOURCES += icons/icon.cpp \
     forms/nodebrowser.cpp \
     forms/journalreaderconnector.cpp \
     analyzer/analyzer.cpp \
-    analyzer/recorder.cpp \
+    analyzer/textwriter.cpp \
+    journal/rawstream.cpp \
     journal/journalreader.cpp\
     kame.cpp \
     journal/xjournal.cpp \

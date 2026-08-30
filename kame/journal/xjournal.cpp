@@ -14,7 +14,7 @@
 #include "xjournal.h"
 #include "xlistnode.h"
 #include "xitemnode.h"
-#include "analyzer/recorder.h"
+#include "rawstream.h"
 #include "support.h"
 #include <zlib.h>
 #include <fstream>
