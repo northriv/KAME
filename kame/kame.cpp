@@ -277,7 +277,7 @@ FrmKameMain::FrmKameMain()
     // The root for all nodes.
     //Say what this thread is before anything is created on it: a write's
     //class -- request or report -- is read off the committing thread.
-    XJournal::declareThisThread(XJournal::ThreadClass::UI);
+    XJournalWriter::declareThisThread(XJournalWriter::ThreadClass::UI);
 
     m_measure = XNode::createOrphan<XMeasure>("Measurement", false);
 
@@ -748,9 +748,9 @@ FrmKameMain::placeNewWindow(QWidget *w) {
 
 FrmKameMain::~FrmKameMain() {
     m_pTimer->stop();
-    if(m_journal) {
-        m_journal->stop();
-        m_journal.reset();
+    if(m_journalWriter) {
+        m_journalWriter->stop();
+        m_journalWriter.reset();
     }
 //	while( !g_signalBuffer->synchronize()) {}
     Transactional::SignalBuffer::cleanup();
@@ -958,9 +958,9 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
         //accept last, exit() cannot start until every join has returned.
         printf("quit\n");
         //Before the tree goes: the journal's last drain and report walk it.
-        if(m_journal) {
-            m_journal->stop();
-            m_journal.reset();
+        if(m_journalWriter) {
+            m_journalWriter->stop();
+            m_journalWriter.reset();
         }
         m_measure->terminate_all();
         m_measure.reset();
@@ -974,13 +974,13 @@ void FrmKameMain::fileCloseAction_activated() {
     //committing across a teardown is indefensible whatever else is true --
     //so it stops first and starts again on the empty tree, ready for
     //whatever is loaded next.
-    if(m_journal) {
-        m_journal->stop();
-        m_journal.reset();
+    if(m_journalWriter) {
+        m_journalWriter->stop();
+        m_journalWriter.reset();
     }
 	m_measure->terminate();
-    if(m_measure && XJournal::engineWanted())
-        m_journal = XJournal::start(m_measure, m_measure->journal());
+    if(m_measure && XJournalWriter::engineWanted())
+        m_journalWriter = XJournalWriter::start(m_measure, m_measure->journal());
 }
 
 
@@ -1034,8 +1034,8 @@ void FrmKameMain::fileSaveAction_activated() {
 #endif
     if( !filename.isEmpty()) {
         if(filename.endsWith(".kamj", Qt::CaseInsensitive)) {
-            if(m_journal)
-                m_journal->requestSave(filename.toLocal8Bit().data());
+            if(m_journalWriter)
+                m_journalWriter->requestSave(filename.toLocal8Bit().data());
             else
                 gErrPrint(i18n("Journaling is off (KAME_JOURNAL=0); "
                     "save as .kam instead."));
@@ -1086,8 +1086,8 @@ void FrmKameMain::signalAllModulesLoaded() {
     //being watched.  KAME_JOURNAL=1 adds the developer survey report;
     //KAME_JOURNAL=0 keeps the engine out of the process altogether, which is
     //how a crash gets attributed to it or cleared of it.
-    if(m_measure && XJournal::engineWanted())
-        m_journal = XJournal::start(m_measure, m_measure->journal());
+    if(m_measure && XJournalWriter::engineWanted())
+        m_journalWriter = XJournalWriter::start(m_measure, m_measure->journal());
 }
 
 void FrmKameMain::mesStopAction_activated() {

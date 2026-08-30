@@ -19,8 +19,8 @@
 
 #include "ui_recordreaderform.h"
 
-XRawStreamRecordReaderConnector::XRawStreamRecordReaderConnector(
-    const shared_ptr<XRawStreamRecordReader> &reader, FrmRecordReader *form) :
+XJournalReaderConnector::XJournalReaderConnector(
+    const shared_ptr<XJournalReader> &reader, FrmRecordReader *form) :
 	XQConnector(reader, form),
 	m_reader(reader),
 	m_pForm(form),
@@ -38,7 +38,7 @@ XRawStreamRecordReaderConnector::XRawStreamRecordReaderConnector(
 	m_conFirst(xqcon_create<XQButtonConnector>(reader->first(), form->btnFirst)),
 	m_conNext(xqcon_create<XQButtonConnector>(reader->next(), form->btnNext)),
 	m_conBack(xqcon_create<XQButtonConnector>(reader->back(), form->btnBack)),
-	m_conPosString(xqcon_create<XQLineEditConnector>(reader->posString(), form->edTime)),
+	m_conRecordTime(xqcon_create<XQLineEditConnector>(reader->recordTime(), form->edTime)),
 	m_conSpeed(xqcon_create<XQComboBoxConnector>(reader->speed(), form->cmbSpeed, Snapshot( *reader->speed()))) {
 
     form->btnNext->setIcon(
@@ -61,13 +61,13 @@ XRawStreamRecordReaderConnector::XRawStreamRecordReaderConnector(
 
     reader->iterate_commit([=](Transaction &tr){
         m_lsnPosition = tr[ *reader->position()].onValueChanged().connectWeakly(
-            shared_from_this(), &XRawStreamRecordReaderConnector::onPositionChanged,
+            shared_from_this(), &XJournalReaderConnector::onPositionChanged,
             Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP
                 | Listener::FLAG_DELAY_ADAPTIVE);
     });
 }
 void
-XRawStreamRecordReaderConnector::onPositionChanged(const Snapshot &shot, XValueNodeBase *) {
+XJournalReaderConnector::onPositionChanged(const Snapshot &shot, XValueNodeBase *) {
     if( !m_pForm || m_pForm->m_slPos->isSliderDown())
         return;     //!< the user is holding it; theirs wins until they let go
     m_pForm->m_slPos->blockSignals(true);
@@ -75,6 +75,6 @@ XRawStreamRecordReaderConnector::onPositionChanged(const Snapshot &shot, XValueN
     m_pForm->m_slPos->blockSignals(false);
 }
 void
-XRawStreamRecordReaderConnector::onSliderChanged(int value) {
+XJournalReaderConnector::onSliderChanged(int value) {
     trans( *m_reader->seek()) = (unsigned int)value;
 }

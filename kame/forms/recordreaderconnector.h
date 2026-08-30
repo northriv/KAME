@@ -21,13 +21,13 @@
 class Ui_FrmRecordReader;
 typedef QForm<QWidget, Ui_FrmRecordReader> FrmRecordReader;
 
-class XRawStreamRecordReader;
-class XRawStreamRecordReaderConnector : public XQConnector {
+class XJournalReader;
+class XJournalReaderConnector : public XQConnector {
 	Q_OBJECT
 public:
-	XRawStreamRecordReaderConnector(
-		const shared_ptr<XRawStreamRecordReader> &reader, FrmRecordReader *form);
-	virtual ~XRawStreamRecordReaderConnector() {}
+	XJournalReaderConnector(
+		const shared_ptr<XJournalReader> &reader, FrmRecordReader *form);
+	virtual ~XJournalReaderConnector() {}
 
 private slots:
 	//! The user let go of the scrub bar, or paged it.  Seeking is expensive,
@@ -39,11 +39,11 @@ private:
 	//! user has hold of it, so the two do not fight over the handle.
 	void onPositionChanged(const Snapshot &shot, XValueNodeBase *);
 
-	const shared_ptr<XRawStreamRecordReader> m_reader;
+	const shared_ptr<XJournalReader> m_reader;
 	FrmRecordReader *const m_pForm;
   
 	const xqcon_ptr m_conRecordFile, m_conFF, m_conRW, m_conStop,
-		m_conFirst, m_conNext, m_conBack, m_conPosString, m_conSpeed;    
+		m_conFirst, m_conNext, m_conBack, m_conRecordTime, m_conSpeed;    
 	//! Last, so that it is destroyed first: members go in reverse order of
 	//! declaration, and a listener that outlived m_reader could still be
 	//! dispatched into a callback that reads it.

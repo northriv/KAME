@@ -32,20 +32,20 @@
 #define RECORDREADER_DELAY 20
 #define RECORD_READER_NUM_THREADS 1
 
-XRawStreamRecordReader::XIOError::XIOError(const char *file, int line)
+XJournalReader::XIOError::XIOError(const char *file, int line)
 	: XRecordError(i18n("IO Error"), file, line) {}
-XRawStreamRecordReader::XIOError::XIOError(const XString &msg, const char *file, int line)
+XJournalReader::XIOError::XIOError(const XString &msg, const char *file, int line)
 	: XRecordError(msg, file, line) {}
-XRawStreamRecordReader::XBufferOverflowError::XBufferOverflowError(const char *file, int line)
+XJournalReader::XBufferOverflowError::XBufferOverflowError(const char *file, int line)
 	: XIOError(i18n("Buffer Overflow Error"), file, line) {}
-XRawStreamRecordReader::XBrokenRecordError::XBrokenRecordError(const char *file, int line)
+XJournalReader::XBrokenRecordError::XBrokenRecordError(const char *file, int line)
 	: XRecordError(i18n("Broken Record Error"), file, line) {}
-XRawStreamRecordReader::XNoDriverError::
+XJournalReader::XNoDriverError::
 XNoDriverError(const XString &driver_name, const char *file, int line)
 	: XRecordError(i18n("No Driver Error: ") + driver_name, file, line),
 	  name(driver_name) {}
          
-XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist)
+XJournalReader::XJournalReader(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist)
 	: XRawStream(name, runtime, driverlist),
 	  m_speed(create<XComboNode>("Speed", true, true)),
 	  m_fastForward(create<XBoolNode>("FastForward", true)),
@@ -54,7 +54,7 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
 	  m_first(create<XTouchableNode>("First", true)),
 	  m_next(create<XTouchableNode>("Next", true)),
 	  m_back(create<XTouchableNode>("Back", true)),
-	  m_posString(create<XStringNode>("PosString", true)),
+	  m_recordTime(create<XStringNode>("RecordTime", true)),
 	  m_position(create<XUIntNode>("Position", true)),
 	  m_seek(create<XUIntNode>("Seek", true)),
 	  m_periodicTerm(0) {
@@ -67,31 +67,31 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
         tr[ *m_speed] = SPEED_FAST;
 
         m_lsnOnOpen = tr[ *filename()].onValueChanged().connectWeakly(
-            shared_from_this(), &XRawStreamRecordReader::onOpen);
+            shared_from_this(), &XJournalReader::onOpen);
         m_lsnOnSeek = tr[ *m_seek].onValueChanged().connectWeakly(
-            shared_from_this(), &XRawStreamRecordReader::onSeek);
+            shared_from_this(), &XJournalReader::onSeek);
 		m_lsnFirst = tr[ *m_first].onTouch().connectWeakly(
-			shared_from_this(), &XRawStreamRecordReader::onFirst,
+			shared_from_this(), &XJournalReader::onFirst,
 			Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
 		m_lsnBack = tr[ *m_back].onTouch().connectWeakly(
-			shared_from_this(), &XRawStreamRecordReader::onBack,
+			shared_from_this(), &XJournalReader::onBack,
 			Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
 		m_lsnNext = tr[ *m_next].onTouch().connectWeakly(
-			shared_from_this(), &XRawStreamRecordReader::onNext,
+			shared_from_this(), &XJournalReader::onNext,
 			Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
 		m_lsnStop = tr[ *m_stop].onTouch().connectWeakly(
-			shared_from_this(), &XRawStreamRecordReader::onStop,
+			shared_from_this(), &XJournalReader::onStop,
 			Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
 	    m_lsnPlayCond = tr[ *m_fastForward].onValueChanged().connectWeakly(
 			shared_from_this(),
-			&XRawStreamRecordReader::onPlayCondChanged,
+			&XJournalReader::onPlayCondChanged,
 			Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
 	    tr[ *m_rewind].onValueChanged().connect(m_lsnPlayCond);
 	    tr[ *m_speed].onValueChanged().connect(m_lsnPlayCond);
     });
     
     for(int i = 0; i < RECORD_READER_NUM_THREADS; ++i) {
-        m_threads.emplace_back(new XThread(shared_from_this(), &XRawStreamRecordReader::execute));
+        m_threads.emplace_back(new XThread(shared_from_this(), &XJournalReader::execute));
     }
 }
 //! A run is two files, and either name opens the pair.
@@ -105,7 +105,7 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
 //! journal existed replays as it always did -- with today's settings, which
 //! is policy `off` and a legitimate use, not a degraded one.
 void
-XRawStreamRecordReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
+XJournalReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	XString given = ( **filename())->to_str();
 	XString rawpath = given, journalpath;
 	if(QString::fromStdString(given).endsWith(".kamj", Qt::CaseInsensitive)) {
@@ -158,7 +158,7 @@ XRawStreamRecordReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 		gErrPrint(i18n("Cannot open ") + rawpath);
 }
 void
-XRawStreamRecordReader::readHeader(void *_fd) {
+XJournalReader::readHeader(void *_fd) {
 	gzFile fd = static_cast<gzFile>(_fd);
 
 	if(gzeof(fd))
@@ -186,7 +186,7 @@ XRawStreamRecordReader::readHeader(void *_fd) {
     m_time = XTime(sec, usec);
 }
 void
-XRawStreamRecordReader::parseOne(void *_fd, XMutex &mutex) {
+XJournalReader::parseOne(void *_fd, XMutex &mutex) {
 	gzFile fd = static_cast<gzFile>(_fd);
 
 	readHeader(fd);
@@ -213,7 +213,7 @@ XRawStreamRecordReader::parseOne(void *_fd, XMutex &mutex) {
     XString timestr = time.getTimeStr();
     unsigned int permille = (unsigned int)permilleOf_(fd);
     iterate_commit([&](Transaction &tr){
-        tr[ *m_posString] = timestr;
+        tr[ *m_recordTime] = timestr;
         tr[ *m_position] = permille;
     });
     if( !driver || (size > MAX_RAW_RECORD_SIZE)) {
@@ -250,7 +250,7 @@ XRawStreamRecordReader::parseOne(void *_fd, XMutex &mutex) {
 	}
 }
 void
-XRawStreamRecordReader::gzgetline(void* _fd, unsigned char*buf, unsigned int len, int del) {
+XJournalReader::gzgetline(void* _fd, unsigned char*buf, unsigned int len, int del) {
 	gzFile fd = static_cast<gzFile>(_fd);
 
 	int c;
@@ -263,12 +263,12 @@ XRawStreamRecordReader::gzgetline(void* _fd, unsigned char*buf, unsigned int len
 	throw XBufferOverflowError(__FILE__, __LINE__);
 }
 void
-XRawStreamRecordReader::first_(void *fd) {
+XJournalReader::first_(void *fd) {
 	gzrewind(static_cast<gzFile>(fd));
 }
 //! Where the next record is, in thousandths of the compressed file.
 int
-XRawStreamRecordReader::permilleOf_(void *fd) const {
+XJournalReader::permilleOf_(void *fd) const {
 	if( !m_fileSize)
 		return 0;
 	auto off = gzoffset(static_cast<gzFile>(fd));
@@ -278,7 +278,7 @@ XRawStreamRecordReader::permilleOf_(void *fd) const {
 	return (int)std::min(p, (uint64_t)1000u);
 }
 void
-XRawStreamRecordReader::reportPosition_(void *fd) {
+XJournalReader::reportPosition_(void *fd) {
 	int permille = permilleOf_(fd);
 	trans( *m_position) = (unsigned int)permille;
 }
@@ -287,7 +287,7 @@ XRawStreamRecordReader::reportPosition_(void *fd) {
 //! start and then stepping back used to raise an IO error, because the seek
 //! for the length word ran off the front of the file.
 bool
-XRawStreamRecordReader::stepBack_(void *fd) {
+XJournalReader::stepBack_(void *fd) {
 	if(gztell(static_cast<gzFile>(fd)) == 0)
 		return false;   //!< nothing has been read: the first record is next anyway
 	previous_(fd);      //!< to the start of the record just parsed
@@ -307,7 +307,7 @@ XRawStreamRecordReader::stepBack_(void *fd) {
 //! Four bytes matching a length that lands exactly on itself is not something
 //! arbitrary data does often.
 void
-XRawStreamRecordReader::seek_(void *_fd, int permille) {
+XJournalReader::seek_(void *_fd, int permille) {
 	gzFile fd = static_cast<gzFile>(_fd);
 	if((permille <= 0) || !m_fileSize) {
 		first_(fd);
@@ -373,7 +373,7 @@ XRawStreamRecordReader::seek_(void *_fd, int permille) {
 	first_(fd);
 }
 void
-XRawStreamRecordReader::onSeek(const Snapshot &shot, XValueNodeBase *) {
+XJournalReader::onSeek(const Snapshot &shot, XValueNodeBase *) {
 	//Handed to the playback thread rather than done here: this call arrives
 	//on whichever thread moved the slider, and a seek reads everything before
 	//its target.
@@ -382,18 +382,18 @@ XRawStreamRecordReader::onSeek(const Snapshot &shot, XValueNodeBase *) {
 	m_condition.broadcast();
 }
 void
-XRawStreamRecordReader::previous_(void *fd) {
+XJournalReader::previous_(void *fd) {
 	if(gzseek(static_cast<gzFile>(fd), -sizeof(uint32_t), SEEK_CUR) == -1) throw XIOError(__FILE__, __LINE__);
 	goToHeader(fd);
 }
 void
-XRawStreamRecordReader::next_(void *fd) {
+XJournalReader::next_(void *fd) {
 	readHeader(fd);
 	if(gzseek(static_cast<gzFile>(fd), m_allsize - m_headerBytes, SEEK_CUR) == -1)
 		throw XIOError(__FILE__, __LINE__);
 }
 void
-XRawStreamRecordReader::goToHeader(void *_fd) {
+XJournalReader::goToHeader(void *_fd) {
 	gzFile fd = static_cast<gzFile>(_fd);
 
 	if(gzeof(fd)) throw XIOError(__FILE__, __LINE__);
@@ -404,7 +404,7 @@ XRawStreamRecordReader::goToHeader(void *_fd) {
 	if(gzseek(fd, -allsize, SEEK_CUR) == -1) throw XIOError(__FILE__, __LINE__);
 }
 void
-XRawStreamRecordReader::terminate() {
+XJournalReader::terminate() {
     m_periodicTerm = 0;
     for(auto &&x: m_threads) {
         x->terminate();
@@ -413,14 +413,14 @@ XRawStreamRecordReader::terminate() {
     m_condition.broadcast();
 }
 void
-XRawStreamRecordReader::join() {
+XJournalReader::join() {
     for(auto &&x: m_threads) {
         x->join();
     }
 }
 
 void
-XRawStreamRecordReader::onPlayCondChanged(const Snapshot &shot, XValueNodeBase *) {
+XJournalReader::onPlayCondChanged(const Snapshot &shot, XValueNodeBase *) {
 	Snapshot shot_this( *this);
     double ms = 1.0;
     if(shot_this[ *m_speed].to_str() == SPEED_FASTEST) ms = 0.1;
@@ -434,7 +434,7 @@ XRawStreamRecordReader::onPlayCondChanged(const Snapshot &shot, XValueNodeBase *
     m_condition.broadcast();
 }
 void
-XRawStreamRecordReader::onStop(const Snapshot &shot, XTouchableNode *) {
+XJournalReader::onStop(const Snapshot &shot, XTouchableNode *) {
     m_periodicTerm = 0;
     g_statusPrinter->printMessage(i18n("Stopped"));
 	iterate_commit([=](Transaction &tr){
@@ -444,7 +444,7 @@ XRawStreamRecordReader::onStop(const Snapshot &shot, XTouchableNode *) {
     });
 }
 void
-XRawStreamRecordReader::onFirst(const Snapshot &shot, XTouchableNode *) {
+XJournalReader::onFirst(const Snapshot &shot, XTouchableNode *) {
 	if(m_pGFD) {
 		try {
 			m_filemutex.lock();
@@ -459,7 +459,7 @@ XRawStreamRecordReader::onFirst(const Snapshot &shot, XTouchableNode *) {
 	}
 }
 void
-XRawStreamRecordReader::onNext(const Snapshot &shot, XTouchableNode *) {
+XJournalReader::onNext(const Snapshot &shot, XTouchableNode *) {
 	if(m_pGFD) {
 		try {
 			m_filemutex.lock(); 
@@ -473,7 +473,7 @@ XRawStreamRecordReader::onNext(const Snapshot &shot, XTouchableNode *) {
 	}
 }
 void
-XRawStreamRecordReader::onBack(const Snapshot &shot, XTouchableNode *) {
+XJournalReader::onBack(const Snapshot &shot, XTouchableNode *) {
 	if(m_pGFD) {
 		try {
 			m_filemutex.lock(); 
@@ -488,7 +488,7 @@ XRawStreamRecordReader::onBack(const Snapshot &shot, XTouchableNode *) {
 	}
 }
 
-void *XRawStreamRecordReader::execute(const atomic<bool> &terminated) {
+void *XJournalReader::execute(const atomic<bool> &terminated) {
     Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
     while( !terminated) {
 		double ms = 0.0;

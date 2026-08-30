@@ -105,7 +105,7 @@ XRawStreamRecorder::onRecord(const Snapshot &shot, XDriver *d) {
                 //The magic and the check come first so that a record can be
                 //found by looking for it, rather than by guessing at every
                 //offset which four bytes might be a length.
-                //\sa kamb_record_check(), XRawStreamRecordReader::seek_()
+                //\sa kamb_record_check(), XJournalReader::seek_()
                 header.push((uint32_t)KAMB_RECORD_MAGIC);
                 header.push((uint32_t)kamb_record_check(allsize, sec, usec));
                 header.push((uint32_t)allsize);

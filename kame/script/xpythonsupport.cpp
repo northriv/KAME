@@ -167,7 +167,7 @@ XPython::execute(const atomic<bool> &terminated) {
     Transactional::setCurrentPriorityMode(Transactional::Priority::UI_DEFERRABLE);
     //What a script writes is a request, like what the user types -- and no
     //thread id tells that apart from a driver's thread on its own.
-    XJournal::declareThisThread(XJournal::ThreadClass::SCRIPT);
+    XJournalWriter::declareThisThread(XJournalWriter::ThreadClass::SCRIPT);
 
     {
         py::scoped_interpreter guard{}; // start the interpreter and keep it alive

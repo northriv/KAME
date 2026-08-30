@@ -17,7 +17,7 @@ parameter by walking its objects, this would not be worth doing.
 
 There is also a concrete hole to fill.  `XRawStreamRecorder` writes each
 driver's raw record with its timestamp — and nothing else.  Replaying that
-stream through `XRawStreamRecordReader` therefore re-analyses it **with
+stream through `XJournalReader` therefore re-analyses it **with
 today's settings**, not the window function, fit range or calibration curve
 that were in force when it was taken.  The journal supplies the missing half,
 and the two join on time.
@@ -712,7 +712,7 @@ on three counts:
   Privileged access should stay narrow.
 - **The base survives either way.**  `XRawStream` — the gz handle, the driver
   list, the mutex, the filename node — is shared with
-  `XRawStreamRecordReader`, which is staying.  Dissolving the writer leaves
+  `XJournalReader`, which is staying.  Dissolving the writer leaves
   that base with a single user, which is worse than what exists now.
 
 What the demotion buys is exactly what is wrong today and nothing more: one
@@ -961,7 +961,7 @@ Worth stating plainly, since the writer has run ahead of the reader:
 
 | File | Read by KAME | Read by anything |
 |---|---|---|
-| `.kamb` | **yes** — `XRawStreamRecordReader`, unchanged: the format is byte-identical to the `.bin` it renames, so old files and new ones are the same file with two names.  Its dialog offers both, and always will | — |
+| `.kamb` | **yes** — `XJournalReader`, unchanged: the format is byte-identical to the `.bin` it renames, so old files and new ones are the same file with two names.  Its dialog offers both, and always will | — |
 | `.kamj` | **the dump, yes** — `File → Open Measurement` applies it exactly as it applies a `.kam`; the entries after it are not read yet | `zcat`, `zgrep`, `zdiff` — which is not a placeholder but half of why the format is JSON Lines |
 | `.kam` | yes, as ever | a Ruby interpreter |
 
@@ -1154,7 +1154,7 @@ offset paired with a copy of the caller's state, taken every so often.  That
 is a bounded amount of memory (one value per node, times however many
 checkpoints are kept) and it is not built yet.
 
-Replay lives in kame.app, because `XRawStreamRecordReader` does.  Reading
+Replay lives in kame.app, because `XJournalReader` does.  Reading
 provenance for its own sake — diffing two runs, answering "what was it at
 3:14" — is an offline tool, and deliberately not in the live application,
 where a reconstructed past state could be confused with the present one.

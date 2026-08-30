@@ -62,11 +62,11 @@ m_drivers(create<XDriverList>("Drivers", false, static_pointer_cast<XMeasure>(sh
 m_calibratedEntryList(create<XCalibratedEntryList>("CalibratedEntries", false, scalarEntries(), thermometers(),
                                                        static_pointer_cast<XMeasure>(shared_from_this()))),
 m_textWriter(create<XTextWriter>("TextWriter", false, drivers(), scalarEntries())),
-m_journal(create<XJournalRecorder>("Journal", false, drivers())),
-m_rawStreamRecordReader(create<XRawStreamRecordReader>("RawStreamRecordReader", false,
+m_journal(create<XJournal>("Journal", false, drivers())),
+m_journalReader(create<XJournalReader>("JournalReader", false,
 		drivers())),
-m_conRecordReader(xqcon_create<XRawStreamRecordReaderConnector>(
-		rawStreamRecordReader(),
+m_conJournalReader(xqcon_create<XJournalReaderConnector>(
+		journalReader(),
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmRecordReader)),
 m_conDrivers(xqcon_create<XDriverListConnector>(
 		m_drivers, dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver)),
@@ -218,7 +218,7 @@ void XMeasure::terminate_all() {
     m_python.reset();
 #endif
     stage("stopping the record reader", [&]{
-        m_rawStreamRecordReader->terminate(); m_rawStreamRecordReader->join();});
+        m_journalReader->terminate(); m_journalReader->join();});
     g_statusPrinter.reset();
     fprintf(stderr, "ed.\n");
 }

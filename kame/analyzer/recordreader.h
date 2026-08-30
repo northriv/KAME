@@ -17,9 +17,9 @@
 #include "recorder.h"
 #include "xjournalreplay.h"
 
-class XRawStreamRecordReader : public XRawStream {
+class XJournalReader : public XRawStream {
 public:
-	XRawStreamRecordReader(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist);
+	XJournalReader(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist);
   
 	void terminate();
     void join();
@@ -31,7 +31,7 @@ public:
 	const shared_ptr<XTouchableNode> &first() const {return m_first;}
 	const shared_ptr<XTouchableNode> &next() const {return m_next;}
 	const shared_ptr<XTouchableNode> &back() const {return m_back;}
-	const shared_ptr<XStringNode> &posString() const {return m_posString;}
+	const shared_ptr<XStringNode> &recordTime() const {return m_recordTime;}
 	//! Where the next record is, in thousandths of the file.  By size, not by
 	//! time: the length of a gzip stream is not known until it is read, and
 	//! records are not evenly spaced in time anyway.
@@ -69,7 +69,7 @@ private:
 	const shared_ptr<XBoolNode> m_rewind;
 	const shared_ptr<XTouchableNode> m_stop;
 	const shared_ptr<XTouchableNode> m_first, m_next, m_back;
-	const shared_ptr<XStringNode> m_posString;
+	const shared_ptr<XStringNode> m_recordTime;
 	const shared_ptr<XUIntNode> m_position, m_seek;
 	void onPlayCondChanged(const Snapshot &shot, XValueNodeBase *);
 	void onStop(const Snapshot &shot, XTouchableNode *);

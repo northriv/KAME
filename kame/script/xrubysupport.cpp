@@ -316,7 +316,7 @@ void *
 XRuby::execute(const atomic<bool> &terminated) {
     int dummy;
     Transactional::setCurrentPriorityMode(Transactional::Priority::UI_DEFERRABLE);
-    XJournal::declareThisThread(XJournal::ThreadClass::SCRIPT);
+    XJournalWriter::declareThisThread(XJournalWriter::ThreadClass::SCRIPT);
     m_ruby.reset(new Ruby("KAME", &dummy));
     shared_ptr<XRuby> xruby = dynamic_pointer_cast<XRuby>(shared_from_this());
     m_rubyClassNode.reset(new Ruby::Class<XRuby, XNode>(xruby, "XNode"));

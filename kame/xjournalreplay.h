@@ -38,7 +38,7 @@
 //! carries no time.  The body is then walked forward by advanceTo(), which
 //! hands each line to a caller that knows what to do with it.
 //!
-//! \sa doc/design/PROVENANCE.md, XJournal (the writer).
+//! \sa doc/design/PROVENANCE.md, XJournalWriter (the writer).
 class XJournalFile {
 public:
     //! A node as the journal saw it: enough to find it again in a live tree,

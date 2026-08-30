@@ -29,7 +29,7 @@
 
 
 const char *
-XJournalRecorder::modeLabel(Mode m) {
+XJournal::modeLabel(Mode m) {
     switch(m) {
     //What the tier chooses is how much of the run is kept, so that is what
     //these say.  The noun is on the label of the field above them ("Logbook"),
@@ -39,7 +39,7 @@ XJournalRecorder::modeLabel(Mode m) {
     }
 }
 
-XJournalRecorder::XJournalRecorder(const char *name, bool runtime,
+XJournal::XJournal(const char *name, bool runtime,
     const shared_ptr<XDriverList> &drivers) :
     XNode(name, runtime),
     //Transient like the raw stream's own path: a run's file is chosen for
@@ -69,9 +69,9 @@ XJournalRecorder::XJournalRecorder(const char *name, bool runtime,
         tr[ *m_recording] = false;
         tr[ *m_sessionJournal] = true;
         m_lsnOnRecordingChanged = tr[ *m_recording].onValueChanged().connectWeakly(
-            shared_from_this(), &XJournalRecorder::onRecordingChanged);
+            shared_from_this(), &XJournal::onRecordingChanged);
         m_lsnOnFilenameChanged = tr[ *m_filename].onValueChanged().connectWeakly(
-            shared_from_this(), &XJournalRecorder::onFilenameChanged);
+            shared_from_this(), &XJournal::onFilenameChanged);
         //Nothing is named yet, so there is no run to configure.
         tr[ *m_mode].setUIEnabled(false);
         tr[ *m_recording].setUIEnabled(false);
@@ -79,7 +79,7 @@ XJournalRecorder::XJournalRecorder(const char *name, bool runtime,
 }
 
 void
-XJournalRecorder::setSessionPath(const XString &path) {
+XJournal::setSessionPath(const XString &path) {
     m_sessionPath = path;
     trans( *m_sessionFile) = path;
 }
@@ -88,12 +88,12 @@ XJournalRecorder::setSessionPath(const XString &path) {
 //! journal there is nothing to start and nothing to choose, so both controls
 //! are disabled rather than hidden -- a collapsing form looks broken.
 void
-XJournalRecorder::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
+XJournal::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
     updateRunControls();
 }
 
 void
-XJournalRecorder::updateRunControls() {
+XJournal::updateRunControls() {
     Snapshot shot_this( *this);
     //Now that the field holds nothing but the run's name, "is there a run to
     //configure" is exactly "has one been named".  It used to be a comparison
@@ -115,8 +115,8 @@ XJournalRecorder::updateRunControls() {
     });
 }
 
-XJournalRecorder::Mode
-XJournalRecorder::modeOf(const Snapshot &shot) const {
+XJournal::Mode
+XJournal::modeOf(const Snapshot &shot) const {
     int idx = shot[ *m_mode];
     //An unknown label (an older file naming a tier that no longer exists)
     //falls to the CHEAPEST, never the most expensive: nobody should be
@@ -146,18 +146,18 @@ static XString withExtension(const XString &given, const char *ext) {
     return (s + ext).toStdString();
 }
 uintptr_t
-XJournalRecorder::rawBytesWritten() const {
+XJournal::rawBytesWritten() const {
     return m_rawstream->bytesWritten();
 }
 
-XString XJournalRecorder::journalPathOf(const XString &given) {return withExtension(given, ".kamj");}
-XString XJournalRecorder::rawPathOf(const XString &given) {return withExtension(given, ".kamb");}
+XString XJournal::journalPathOf(const XString &given) {return withExtension(given, ".kamj");}
+XString XJournal::rawPathOf(const XString &given) {return withExtension(given, ".kamb");}
 
 //! The raw stream follows: its path is set only as recording starts, since
 //! XRawStreamRecorder opens (and truncates) its file the moment its filename
 //! changes -- a Setup run must not leave an empty .kamb behind.
 void
-XJournalRecorder::onRecordingChanged(const Snapshot &shot, XValueNodeBase *) {
+XJournal::onRecordingChanged(const Snapshot &shot, XValueNodeBase *) {
     auto &raws = m_rawstream;
     Snapshot shot_this( *this);
     bool rec = shot_this[ *m_recording];
@@ -175,7 +175,7 @@ XJournalRecorder::onRecordingChanged(const Snapshot &shot, XValueNodeBase *) {
 //! the Sink the talker holds, and the serial carries both the ordering and the
 //! committing thread, so this is a ring push and nothing else.
 void
-XJournal::capture(uint32_t id, uint32_t kind, const Snapshot &shot,
+XJournalWriter::capture(uint32_t id, uint32_t kind, const Snapshot &shot,
     const XNode &node) noexcept {
     //The emitting node is in the snapshot by construction -- this is the
     //transaction that just committed the write.  Its payload's serial is the
@@ -192,7 +192,7 @@ XJournal::capture(uint32_t id, uint32_t kind, const Snapshot &shot,
 }
 
 void
-XJournal::Sink::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+XJournalWriter::Sink::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
     journal->captureValue( *this, shot, *node);
 }
 
@@ -206,7 +206,7 @@ XJournal::Sink::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
 //! to_str() on a double goes through formatDouble(), which is not free at
 //! acquisition rate, and a run that keeps no values must not pay for them.
 void
-XJournal::captureValue(Sink &sink, const Snapshot &shot,
+XJournalWriter::captureValue(Sink &sink, const Snapshot &shot,
     XValueNodeBase &node) noexcept {
     XTime now = XTime::now();
     int64_t nowUs = (int64_t)now.sec() * 1000000 + now.usec();
@@ -259,7 +259,7 @@ XJournal::captureValue(Sink &sink, const Snapshot &shot,
         delete[] r.value; //!< refused: nobody else will free it
 }
 void
-XJournal::Sink::onTouch(const Snapshot &shot, XTouchableNode *node) {
+XJournalWriter::Sink::onTouch(const Snapshot &shot, XTouchableNode *node) {
     journal->capture(id, KIND_TOUCH, shot, *node);
 }
 //! Whether a node is in the tree is decided by one thing only: whether a
@@ -269,19 +269,19 @@ XJournal::Sink::onTouch(const Snapshot &shot, XTouchableNode *node) {
 //! be rediscovered by walking: onCatch and onRelease name the node, the list
 //! and the index, at the moment it happens and with the committing serial.
 void
-XJournal::Sink::onCatch(const Snapshot &shot,
+XJournalWriter::Sink::onCatch(const Snapshot &shot,
     const XListNodeBase::Payload::CatchEvent &e) {
     journal->capture(id, KIND_CATCH, shot, *e.emitter);
     journal->pushPending(e.caught, id, true, e.index);
 }
 void
-XJournal::Sink::onRelease(const Snapshot &shot,
+XJournalWriter::Sink::onRelease(const Snapshot &shot,
     const XListNodeBase::Payload::ReleaseEvent &e) {
     journal->capture(id, KIND_RELEASE, shot, *e.emitter);
     journal->pushPending(e.released, id, false, e.index);
 }
 void
-XJournal::Sink::onMove(const Snapshot &shot,
+XJournalWriter::Sink::onMove(const Snapshot &shot,
     const XListNodeBase::Payload::MoveEvent &e) {
     //Order is the meaning in the lists that have one, so a reordering is a
     //change like any other.
@@ -292,7 +292,7 @@ XJournal::Sink::onMove(const Snapshot &shot,
 //! marking off) touches the node table and takes transactions, neither of
 //! which may happen here: this runs inside the committing thread's commit.
 void
-XJournal::pushPending(const shared_ptr<XNode> &node, uint32_t listId, bool caught,
+XJournalWriter::pushPending(const shared_ptr<XNode> &node, uint32_t listId, bool caught,
     int index) {
     if( !node)
         return;
@@ -303,28 +303,28 @@ XJournal::pushPending(const shared_ptr<XNode> &node, uint32_t listId, bool caugh
     m_wake.signal();
 }
 
-XJournal::XJournal() {}
+XJournalWriter::XJournalWriter() {}
 
-XJournal::~XJournal() {
+XJournalWriter::~XJournalWriter() {
     stop();
 }
 
 bool
-XJournal::engineWanted() {
+XJournalWriter::engineWanted() {
     const char *v = getenv("KAME_JOURNAL");
     return !(v && (XString(v) == "0"));
 }
 
 bool
-XJournal::enabledByEnvironment() {
+XJournalWriter::enabledByEnvironment() {
     const char *v = getenv("KAME_JOURNAL");
     return v && *v && (XString(v) != "0");
 }
 
-shared_ptr<XJournal>
-XJournal::start(const shared_ptr<XNode> &root,
-    const shared_ptr<XJournalRecorder> &recorder) {
-    auto journal = std::make_shared<XJournal>();
+shared_ptr<XJournalWriter>
+XJournalWriter::start(const shared_ptr<XNode> &root,
+    const shared_ptr<XJournal> &recorder) {
+    auto journal = std::make_shared<XJournalWriter>();
     journal->m_root = root;
     journal->m_recorder = recorder;
     journal->m_started = XTime::now();
@@ -348,12 +348,12 @@ XJournal::start(const shared_ptr<XNode> &root,
                 + journal->m_reportPath);
         }
     }
-    journal->m_thread.reset(new XThread(journal, &XJournal::execute));
+    journal->m_thread.reset(new XThread(journal, &XJournalWriter::execute));
     return journal;
 }
 
 void
-XJournal::stop() {
+XJournalWriter::stop() {
     if( !m_thread)
         return;
     m_thread->terminate();
@@ -388,23 +388,23 @@ XJournal::stop() {
 //! written, so a plain mutex is the right instrument -- and it keeps this
 //! usable before any journal exists.
 static XMutex s_threadClassMutex;
-static std::map<unsigned int, XJournal::ThreadClass> s_threadClasses;
+static std::map<unsigned int, XJournalWriter::ThreadClass> s_threadClasses;
 
 void
-XJournal::declareThisThread(ThreadClass cls) {
+XJournalWriter::declareThisThread(ThreadClass cls) {
     XScopedLock<XMutex> lock(s_threadClassMutex);
     s_threadClasses[(unsigned int)Transactional::ProcessCounter::id()] = cls;
 }
 
-XJournal::ThreadClass
-XJournal::threadClassOf(unsigned int id) {
+XJournalWriter::ThreadClass
+XJournalWriter::threadClassOf(unsigned int id) {
     XScopedLock<XMutex> lock(s_threadClassMutex);
     auto it = s_threadClasses.find(id);
     return (it == s_threadClasses.end()) ? ThreadClass::UNKNOWN : it->second;
 }
 
 const char *
-XJournal::threadClassName(ThreadClass cls) {
+XJournalWriter::threadClassName(ThreadClass cls) {
     switch(cls) {
     case ThreadClass::UI: return "UI";
     case ThreadClass::SCRIPT: return "script";
@@ -413,7 +413,7 @@ XJournal::threadClassName(ThreadClass cls) {
 }
 
 XString
-XJournal::managedDirectory(const char *sub) {
+XJournalWriter::managedDirectory(const char *sub) {
     QString base = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
     if(base.isEmpty())
         return {};
@@ -431,14 +431,14 @@ static const int DRAIN_INTERVAL_US = 20000;
 
 
 bool
-XJournal::Out::open(const XString &path) {
+XJournalWriter::Out::open(const XString &path) {
     close();
     m_gz = gzopen(path.c_str(), "wb");
     m_bytes = 0;
     return !!m_gz;
 }
 void
-XJournal::Out::line(const XString &s) {
+XJournalWriter::Out::line(const XString &s) {
     if( !m_gz)
         return;
     gzwrite((gzFile)m_gz, s.c_str(), (unsigned)s.size());
@@ -449,7 +449,7 @@ XJournal::Out::line(const XString &s) {
 static const unsigned int FLUSH_INTERVAL_MS = 60000;
 
 void
-XJournal::Out::flush(bool force) {
+XJournalWriter::Out::flush(bool force) {
     if( !m_gz || !m_dirty)
         return;
     XTime now = XTime::now();
@@ -469,7 +469,7 @@ XJournal::Out::flush(bool force) {
     m_dirty = false;
 }
 void
-XJournal::Out::close() {
+XJournalWriter::Out::close() {
     if(m_gz)
         gzclose((gzFile)m_gz);
     m_gz = nullptr;
@@ -534,7 +534,7 @@ static XString exactOf(double v) {
 }
 
 void
-XJournal::writeHeader(Out &out, const char *kind) {
+XJournalWriter::writeHeader(Out &out, const char *kind) {
     auto rec = m_recorder.lock();
     Snapshot shot( *rec);
     XTime now = XTime::now();
@@ -544,9 +544,9 @@ XJournal::writeHeader(Out &out, const char *kind) {
         + microsOf(now)
         + ",\"kame\":\"" VERSION "\"";
     if(XString("run") == kind) {
-        s += XString(",\"mode\":\"") + XJournalRecorder::modeLabel(rec->modeOf(shot)) + "\"";
-        if(rec->modeOf(shot) == XJournalRecorder::Mode::LOGBOOK_RAW) {
-            XString raw = XJournalRecorder::rawPathOf(shot[ *rec->filename()].to_str());
+        s += XString(",\"mode\":\"") + XJournal::modeLabel(rec->modeOf(shot)) + "\"";
+        if(rec->modeOf(shot) == XJournal::Mode::LOGBOOK_RAW) {
+            XString raw = XJournal::rawPathOf(shot[ *rec->filename()].to_str());
             s += ",\"raw\":\"" + jsonEscape(QFileInfo(QString::fromStdString(raw))
                 .fileName().toStdString()) + "\"";
         }
@@ -564,7 +564,7 @@ XJournal::writeHeader(Out &out, const char *kind) {
 //! node browser takes one whenever the pointed node changes); what is
 //! forbidden is a root TRANSACTION.
 void
-XJournal::writeDump(Out &out) {
+XJournalWriter::writeDump(Out &out) {
     auto root = m_root.lock();
     if( !root)
         return;
@@ -573,7 +573,7 @@ XJournal::writeDump(Out &out) {
 }
 
 void
-XJournal::dumpSubtree(Out &out, const Snapshot &shot,
+XJournalWriter::dumpSubtree(Out &out, const Snapshot &shot,
     const shared_ptr<XNode> &node, const XString &path,
     uint32_t parentId, int index) {
     uint32_t id = subscribe(node, path);
@@ -622,7 +622,7 @@ XJournal::dumpSubtree(Out &out, const Snapshot &shot,
 }
 
 void
-XJournal::writeEntry(Out &out, const JournalT::Entry &e) {
+XJournalWriter::writeEntry(Out &out, const JournalT::Entry &e) {
     if(e.record.kind != KIND_VALUE)
         return; //structure is written where it is subscribed, with its names
     XString s = formatString("{\"t\":\"v\",\"id\":%u", (unsigned)e.record.id)
@@ -642,7 +642,7 @@ XJournal::writeEntry(Out &out, const JournalT::Entry &e) {
 //! stops being something you must remember to save.  Opened once, where KAME
 //! keeps its own files, and headed by the same dump a run gets.
 void
-XJournal::openSession() {
+XJournalWriter::openSession() {
     XString dir = managedDirectory("journal");
     if(dir.empty()) {
         gWarnPrint(i18n_noncontext("Journal: no writable directory; this session is not journaled."));
@@ -665,7 +665,7 @@ XJournal::openSession() {
 }
 
 void
-XJournal::requestSave(const XString &path) {
+XJournalWriter::requestSave(const XString &path) {
     XScopedLock<XCondition> lock(m_wake);
     m_savePath = path;
     m_wake.signal();
@@ -675,7 +675,7 @@ XJournal::requestSave(const XString &path) {
 //! instant, finished when it returns -- which is exactly what the dump is,
 //! and exactly what a Write switch could never be.
 void
-XJournal::writeSaveFile() {
+XJournalWriter::writeSaveFile() {
     XString path;
     {
         XScopedLock<XCondition> lock(m_wake);
@@ -696,7 +696,7 @@ XJournal::writeSaveFile() {
 }
 
 void
-XJournal::syncRun() {
+XJournalWriter::syncRun() {
     auto rec = m_recorder.lock();
     if( !rec)
         return;
@@ -719,10 +719,10 @@ XJournal::syncRun() {
     bool on = shot[ *rec->recording()];
     auto mode = rec->modeOf(shot);
     if(on && !m_runOpen) {
-        XString path = XJournalRecorder::journalPathOf(shot[ *rec->filename()].to_str());
+        XString path = XJournal::journalPathOf(shot[ *rec->filename()].to_str());
         if( !path.length()
             || (m_sessionPath.length()
-                && (path == XJournalRecorder::journalPathOf(m_sessionPath)))) {
+                && (path == XJournal::journalPathOf(m_sessionPath)))) {
             gWarnPrint(i18n_noncontext("Journal: name the run first."));
             trans( *rec->recording()) = false;
             return;
@@ -779,7 +779,7 @@ static XString byteRateStr(double b) {
 }
 
 void
-XJournal::updateStatistics() {
+XJournalWriter::updateStatistics() {
     auto rec = m_recorder.lock();
     if( !rec)
         return;
@@ -804,7 +804,7 @@ XJournal::updateStatistics() {
 }
 
 void
-XJournal::execute(const atomic<bool> &terminated) {
+XJournalWriter::execute(const atomic<bool> &terminated) {
     XTime lastReport = XTime::now();
     //The first report goes out as soon as the tree is subscribed, so that
     //what a listener on every node costs is visible without waiting out an
@@ -853,7 +853,7 @@ XJournal::execute(const atomic<bool> &terminated) {
 //! interface listed as /Interfaces/Interface for every driver is reached at
 //! /Drivers/<name>/Interface, where the name is unique.
 void
-XJournal::sweep() {
+XJournalWriter::sweep() {
     XTime t0 = XTime::now();
     bool opening = (m_walks == 0);
     size_t known = m_nodes.size();
@@ -904,7 +904,7 @@ XJournal::sweep() {
 
 //! Subscribes what onCatch announced, and marks off what onRelease did.
 void
-XJournal::processPending() {
+XJournalWriter::processPending() {
     std::deque<Pending> pending;
     {
         XScopedLock<XCondition> lock(m_wake);
@@ -959,7 +959,7 @@ XJournal::processPending() {
 }
 
 void
-XJournal::detachSubtree(uint32_t id) {
+XJournalWriter::detachSubtree(uint32_t id) {
     NodeRec &rec = m_nodes[id];
     rec.inTree = false;
     rec.reachable = false;
@@ -978,7 +978,7 @@ XJournal::detachSubtree(uint32_t id) {
 }
 
 void
-XJournal::walk(const shared_ptr<XNode> &node, const XString &path) {
+XJournalWriter::walk(const shared_ptr<XNode> &node, const XString &path) {
     uint32_t id = subscribe(node, path);
     m_nodes[id].reachable = true;
     //Read AFTER subscribing, never before -- see the ordering rule in
@@ -1014,7 +1014,7 @@ XJournal::walk(const shared_ptr<XNode> &node, const XString &path) {
 }
 
 uint32_t
-XJournal::subscribe(const shared_ptr<XNode> &node, const XString &path) {
+XJournalWriter::subscribe(const shared_ptr<XNode> &node, const XString &path) {
     auto it = m_index.find(node.get());
     if(it != m_index.end())
         return it->second; //!< already subscribed, or reached again by a hard link.
@@ -1084,7 +1084,7 @@ XJournal::subscribe(const shared_ptr<XNode> &node, const XString &path) {
 }
 
 void
-XJournal::drainOnce() {
+XJournalWriter::drainOnce() {
     m_dropped += m_ring.takeDropped();
     m_ring.drain([this](const JournalT::Entry &e){
         if(e.record.id >= m_nodes.size())
@@ -1123,7 +1123,7 @@ XJournal::drainOnce() {
 }
 
 XString
-XJournal::writeReport() {
+XJournalWriter::writeReport() {
     if(m_reportPath.empty())
         return {};
     std::ofstream ofs(m_reportPath.c_str(), std::ios::trunc);

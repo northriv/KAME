@@ -37,9 +37,9 @@ class XDriverList;
 //! where the raw stream is optional, and of the two only the journal is
 //! interpretable alone, since it names its own data file.  The raw path is
 //! derived from this one (`run042.kamj` / `run042.kamb`).
-class DECLSPEC_KAME XJournalRecorder : public XNode {
+class DECLSPEC_KAME XJournal : public XNode {
 public:
-    XJournalRecorder(const char *name, bool runtime,
+    XJournal(const char *name, bool runtime,
         const shared_ptr<XDriverList> &drivers);
 
     //! The raw stream, which the journal OWNS rather than sits beside.  It
@@ -107,28 +107,29 @@ private:
     shared_ptr<Listener> m_lsnOnRecordingChanged, m_lsnOnFilenameChanged;
 };
 
-//! Subscribes to every node in the tree and records what changes, who changed
-//! it and when — the capture half of the provenance journal, with no file
-//! format and no replay yet.
+//! Subscribes to every node in the tree and writes down what changes, who
+//! changed it and when.
 //!
-//! This stage exists to be measured rather than shipped: what a listener on
-//! every node costs, how fast settings actually change, and which nodes are
-//! written by the UI, by a script, or by a driver.  That last question is the
-//! one the design turns on — the class of a write, not a flag on the node —
-//! and nothing but running it on a real instrument can answer it.  The report
-//! it writes is therefore also the audit of `runtime` flags that the design
-//! says the journal produces rather than requires.
+//! The writer, as opposed to XJournal, which is the *node* the tree and the
+//! user see: this one is not in the tree at all, and the main window owns it.
+//! What it produces is read back by XJournalFile.
 //!
-//! Off unless \a KAME_JOURNAL is set in the environment.  Subscription is the
-//! switch: with no listener attached `Talker::createMessage()` returns nullptr
-//! before allocating anything, so not starting this costs exactly nothing —
-//! there is no global flag and no branch in the commit path to say so.
-class XJournal {
+//! Attribution — whether a write came from the UI, a script or a driver — is
+//! what the design turns on, rather than a flag on the node: `RXGain` is
+//! `runtime == true` and is a setting, `ODMR2D/Average` is `runtime == false`
+//! and is written by its driver.  The journal therefore produces an audit of
+//! the `runtime` flags rather than depending on them.
+//!
+//! Subscription is the switch.  With no listener attached
+//! `Talker::createMessage()` returns nullptr before allocating anything, so a
+//! KAME started with \a KAME_JOURNAL=0 costs exactly nothing — there is no
+//! global flag and no branch in the commit path to say so.
+class XJournalWriter {
 public:
-    XJournal();
+    XJournalWriter();
     //! Virtual only because XThread's constructor dynamic_pointer_casts the
     //! owner it is handed.
-    virtual ~XJournal();
+    virtual ~XJournalWriter();
 
     //! \a KAME_JOURNAL=1 — additionally write the developer survey.
     static bool enabledByEnvironment();
@@ -141,8 +142,8 @@ public:
     //! Subscribes to everything under \a root and starts the drain thread.
     //! \a recorder carries what the user chose for the run; the capture
     //! itself runs whether or not anything is being written.
-    static shared_ptr<XJournal> start(const shared_ptr<XNode> &root,
-        const shared_ptr<XJournalRecorder> &recorder);
+    static shared_ptr<XJournalWriter> start(const shared_ptr<XNode> &root,
+        const shared_ptr<XJournal> &recorder);
     //! Joins the drain thread after a last drain and a final report.
     //! **Must be called by the owner**: the running thread holds a
     //! shared_ptr back to this object, so the destructor cannot be what
@@ -214,9 +215,9 @@ private:
     //! so its address must never move — hence a deque, never a vector.  The
     //! id it carries is what removes any lookup from the capture path.
     struct Sink {
-        Sink(XJournal *j, uint32_t i, bool d) noexcept
+        Sink(XJournalWriter *j, uint32_t i, bool d) noexcept
             : journal(j), id(i), isDouble(d) {}
-        XJournal *journal;
+        XJournalWriter *journal;
         uint32_t id;
         //! Decided once, at subscribe time, so the capture path never asks.
         bool isDouble;
@@ -369,7 +370,7 @@ private:
     std::unordered_map<const XNode *, uint32_t> m_index;
     unique_ptr<XThread> m_thread;
 
-    weak_ptr<XJournalRecorder> m_recorder;
+    weak_ptr<XJournal> m_recorder;
     //! Always open unless the user says otherwise: provenance must exist for
     //! a session in which no recording was started.  Requests and structure
     //! go here in full; an acquisition stream does not, or it would not stay
