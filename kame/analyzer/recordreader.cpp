@@ -114,17 +114,23 @@ XRawStreamRecordReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	XJournalFile journal;
 	if(journalpath.length()) {
 		XString err;
-		if( !journal.open(journalpath, err))
+		//Nothing is restored yet, so the dump goes nowhere; opening still
+		//reads it, which is what settles whether this is a journal at all.
+		if( !journal.open(journalpath, [](const XJournalFile::Event &){}, err))
 			gWarnPrint(i18n("Journal: ") + journalpath + " " + err);
 	}
 	if(journal.isOpen()) {
 		if(rawpath.empty())
 			rawpath = journal.rawPath();
+		if( !journal.timesKnown())
+			gWarnPrint(i18n("This journal predates the machine-readable timestamp; "
+				"its entries cannot be placed against the records: ") + journalpath);
 		if(rawpath.empty())
 			gWarnPrint(i18n("This journal recorded no raw stream: ") + journalpath);
 		else
 			gMessagePrint(i18n("Journal: ") + journalpath
-				+ formatString(" (%u entries)", (unsigned)journal.events().size()));
+				+ formatString(" (%s, %u nodes)", journal.kind().c_str(),
+					(unsigned)journal.nodes().size()));
 	}
 
 	m_filemutex.lock();

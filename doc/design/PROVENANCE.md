@@ -1019,6 +1019,29 @@ analysis recomputes them from the restored inputs, and writing them back would
 conflict with the driver that owns them.  The record/restore asymmetry is
 deliberate: record generously, restore conservatively.
 
+### A journal can be a gigabyte, so the reader streams
+
+KAME is left running for a month at a time, and a run lasts as long as the
+measurement does.  At the measured Logbook rate -- 3 kB/s on disk -- that is
+**260 MB a day and some 8 GB a month** for a single run's `.kamj`.  The
+session journal is not in this class (the silence rule keeps it to a few
+hundred KB a day, so a month of it is tens of MB), but the run journal
+plainly is, and it is exactly the file replay has to read.
+
+So nothing in the reader is allowed to scale with the length of the file.
+`XJournalFile` holds the **head** -- the header and the dump -- which is
+bounded by the size of the tree, and then one line at a time.  Opening reads
+only as far as the first timestamped line, which is where the dump ends by
+construction: a dump line is the one kind that carries no time.
+
+The cost this leaves is **backwards**.  Reaching a moment costs everything
+before it, because a gzip stream has no index; stepping back one record in an
+8 GB journal re-reads 8 GB.  Forward playback -- the normal case -- is
+unaffected, and the fix when someone needs it is checkpoints: the cursor's
+offset paired with a copy of the caller's state, taken every so often.  That
+is a bounded amount of memory (one value per node, times however many
+checkpoints are kept) and it is not built yet.
+
 Replay lives in kame.app, because `XRawStreamRecordReader` does.  Reading
 provenance for its own sake — diffing two runs, answering "what was it at
 3:14" — is an offline tool, and deliberately not in the live application,

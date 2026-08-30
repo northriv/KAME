@@ -73,6 +73,40 @@ static XString withExtension(const XString &given, const char *ext) {
     return (s + ext).toStdString();
 }
 
+XJournalFile::~XJournalFile() {
+    close();
+}
+XJournalFile::XJournalFile(XJournalFile &&x) {
+    *this = std::move(x);
+}
+XJournalFile &
+XJournalFile::operator=(XJournalFile &&x) {
+    if(this == &x)
+        return *this;
+    close();
+    m_gz = x.m_gz; x.m_gz = nullptr;
+    m_path = std::move(x.m_path);
+    m_kind = std::move(x.m_kind);
+    m_session = std::move(x.m_session);
+    m_mode = std::move(x.m_mode);
+    m_rawFile = std::move(x.m_rawFile);
+    m_nodes = std::move(x.m_nodes);
+    m_at = x.m_at;
+    m_unknown = x.m_unknown;
+    m_timesKnown = x.m_timesKnown;
+    m_held = x.m_held;
+    m_holding = std::move(x.m_holding);
+    return *this;
+}
+
+void
+XJournalFile::close() {
+    if(m_gz)
+        gzclose((gzFile)m_gz);
+    m_gz = nullptr;
+    m_held = false;
+}
+
 XString
 XJournalFile::journalBeside(const XString &rawpath) {
     XString j = withExtension(rawpath, ".kamj");
@@ -92,28 +126,17 @@ XJournalFile::rawPath() const {
         .filePath(QString::fromStdString(m_rawFile)).toStdString();
 }
 
+//! \return false at end of file.  Header lines are consumed here rather than
+//! reported: they are about the file, not about the run.
 bool
-XJournalFile::open(const XString &path, XString &errmsg) {
-    gzFile fd = gzopen(QString::fromStdString(path).toLocal8Bit().data(), "rb");
-    if( !fd) {
-        errmsg = i18n_noncontext("cannot be opened");
-        return false;
-    }
-    XJournalFile got;
-    got.m_path = path;
-
-    //Written by whoever wrote the line before: a line that carries no stamp
-    //of its own -- the initial state of a node that appeared mid-run -- did
-    //happen there, and dropping it to zero would sort it before the run.
-    XTime now;
-    bool haveHeader = false;
+XJournalFile::nextLine(Event &e) {
     QByteArray line;
-    while(gzline(fd, line)) {
+    while(gzline((gzFile)m_gz, line)) {
         QJsonDocument doc = QJsonDocument::fromJson(line);
         if( !doc.isObject()) {
             //A journal is flushed once a second and a killed KAME leaves a
             //partial last line.  That is expected, not corruption.
-            ++got.m_unknown;
+            ++m_unknown;
             continue;
         }
         QJsonObject o = doc.object();
@@ -123,21 +146,14 @@ XJournalFile::open(const XString &path, XString &errmsg) {
             //(48-bit counter over a 16-bit thread id) and microseconds since
             //the epoch are 51 today.  Qt 6 keeps whole numbers whole.
             long long tu = (long long)o.value("tu").toInteger(0);
-            now = XTime(tu / 1000000, tu % 1000000);
+            m_at = XTime(tu / 1000000, tu % 1000000);
         }
-
         if(o.contains("format")) {
-            if(o.value("format").toString() != "kame-journal") {
-                gzclose(fd);
-                errmsg = i18n_noncontext("is not a KAME journal");
-                return false;
-            }
-            if( !haveHeader) {
-                got.m_kind = o.value("kind").toString().toStdString();
-                got.m_session = o.value("session").toString().toStdString();
-                got.m_mode = o.value("mode").toString().toStdString();
-                got.m_rawFile = o.value("raw").toString().toStdString();
-                haveHeader = true;
+            if( !m_kind.length()) {
+                m_kind = o.value("kind").toString().toStdString();
+                m_session = o.value("session").toString().toStdString();
+                m_mode = o.value("mode").toString().toStdString();
+                m_rawFile = o.value("raw").toString().toStdString();
             }
             continue;
         }
@@ -147,8 +163,10 @@ XJournalFile::open(const XString &path, XString &errmsg) {
         //dump omits both -- it is a state, not an act -- so this is also the
         //test for that.
         bool stamped = o.contains("tu") || o.contains("ts");
-        Event e;
-        e.when = now;
+        if(stamped && !o.contains("tu"))
+            m_timesKnown = false;
+        e = Event();
+        e.when = m_at;
         e.stamped = stamped;
         e.id = (uint32_t)o.value("id").toInteger(0);
 
@@ -165,14 +183,11 @@ XJournalFile::open(const XString &path, XString &errmsg) {
             XString list = o.value("list").toString().toStdString();
             n.isList = !list.empty();
             n.isAliasList = (list == "alias");
-            got.m_nodes[n.id] = n;
+            m_nodes[n.id] = n;
             e.kind = Event::Kind::NODE;
         }
         else if(t == "v") {
             e.kind = Event::Kind::VALUE;
-            //No stamp of its own means it is a node's initial state, written
-            //where the node was first seen -- the dump at the head, or a
-            //subtree that appeared later.  It is a baseline, not a change.
             e.fromDump = !stamped;
             e.serial = (int64_t)o.value("s").toInteger(0);
             //A dump line carries no attribution -- it is a state, not an act.
@@ -192,18 +207,88 @@ XJournalFile::open(const XString &path, XString &errmsg) {
             e.file = o.value("file").toString().toStdString();
         }
         else {
-            ++got.m_unknown;
+            ++m_unknown;
             continue;
         }
-        got.m_events.push_back(std::move(e));
+        return true;
     }
-    gzclose(fd);
+    return false;
+}
 
-    if( !haveHeader) {
+//! The head is everything before the first timestamped line: the header, and
+//! the dump that is the baseline for everything after it.  Bounded by the tree.
+bool
+XJournalFile::readHead(const Apply &apply, XString &errmsg) {
+    m_nodes.clear();
+    m_at = XTime();
+    m_held = false;
+    for(;;) {
+        Event e;
+        if( !nextLine(e))
+            break;      //!< a journal that recorded nothing is a legal journal
+        if(e.stamped) {
+            m_holding = std::move(e);
+            m_held = true;
+            break;
+        }
+        apply(e);
+    }
+    if( !m_kind.length()) {
         errmsg = i18n_noncontext("has no journal header");
         return false;
     }
-    got.m_isOpen = true;
-    *this = std::move(got);
     return true;
+}
+
+bool
+XJournalFile::open(const XString &path, const Apply &apply, XString &errmsg) {
+    close();
+    m_kind.clear(); m_session.clear(); m_mode.clear(); m_rawFile.clear();
+    m_unknown = 0;
+    m_timesKnown = true;
+    m_gz = gzopen(QString::fromStdString(path).toLocal8Bit().data(), "rb");
+    if( !m_gz) {
+        errmsg = i18n_noncontext("cannot be opened");
+        return false;
+    }
+    m_path = path;
+    if( !readHead(apply, errmsg)) {
+        close();
+        return false;
+    }
+    return true;
+}
+
+bool
+XJournalFile::rewind(const Apply &apply) {
+    if( !m_gz)
+        return false;
+    //gzrewind rather than a reopen: it restarts the same open stream, so a
+    //journal that is still being appended to -- the session's own, most
+    //likely -- is not swapped for a different file halfway through a replay.
+    if(gzrewind((gzFile)m_gz) != 0)
+        return false;
+    XString errmsg;
+    m_kind.clear(); m_session.clear(); m_mode.clear(); m_rawFile.clear();
+    return readHead(apply, errmsg);
+}
+
+bool
+XJournalFile::advanceTo(const XTime &until, const Apply &apply) {
+    if( !m_gz)
+        return false;
+    for(;;) {
+        if( !m_held) {
+            if( !nextLine(m_holding))
+                return false;
+            m_held = true;
+        }
+        //A line with no stamp of its own belongs where it appears -- a node
+        //that came into existence between two entries -- so it travels with
+        //the entry before it and is never what stops the walk.
+        if(m_holding.stamped && (m_holding.when > until))
+            return true;
+        m_held = false;
+        apply(m_holding);
+    }
 }

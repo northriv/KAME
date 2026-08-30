@@ -17,19 +17,26 @@
 #include "support.h"
 #include "xtime.h"
 
+#include <functional>
 #include <map>
-#include <vector>
 
-//! One journal file (`.kamj`), read into memory.
+//! A journal file (`.kamj`), read as a stream.
 //!
 //! Reading, not replaying: this class knows the format and nothing about the
 //! tree.  It is what both halves need -- the record reader, which replays a
 //! run beside its `.kamb`, and anything offline that wants to ask what a
 //! setting was at a given moment.
 //!
-//! Whole-file, because journals are small: a session of a real ODMR run
-//! compressed to 62 kB, and a run journal is a fraction of that.  A streaming
-//! reader would buy nothing and cost the ability to step backwards.
+//! **Nothing here is bounded by the length of the file.**  KAME is left
+//! running for a month at a time, and a Logbook produces about 3 kB/s on
+//! disk, so a journal is a gigabyte-scale object and has to be treated as
+//! one.  What is held is the head -- the header and the dump -- which is
+//! bounded by the size of the *tree*, plus one line at a time of the body.
+//!
+//! Opening therefore reads only as far as the first timestamped line: the
+//! dump ends there by construction, since a dump line is the one kind that
+//! carries no time.  The body is then walked forward by advanceTo(), which
+//! hands each line to a caller that knows what to do with it.
 //!
 //! \sa doc/design/PROVENANCE.md, XJournal (the writer).
 class XJournalFile {
@@ -48,11 +55,7 @@ public:
         bool isList = false;
         bool isAliasList = false;
     };
-    //! One line of the body, in the order it was written.
-    //!
-    //! Order is the timeline, not the timestamps: a value that arrives with
-    //! a node (a driver created mid-run brings its whole subtree) has no
-    //! stamp of its own, and belongs exactly where it appears.
+    //! One line, valid only for the duration of the call it is handed to.
     struct Event {
         enum class Kind {
             NODE,       //!< a node appeared, and here is its identity
@@ -73,12 +76,19 @@ public:
         XString marker;         //!< "run start", "session end", ... for Kind::MARKER
         XString file;           //!< the run file a marker refers to
     };
+    typedef std::function<void(const Event &)> Apply;
 
     XJournalFile() {}
+    ~XJournalFile();
+    XJournalFile(XJournalFile &&);
+    XJournalFile &operator=(XJournalFile &&);
 
-    //! Reads the whole file.  \return false with \a errmsg set, and nothing changed.
-    bool open(const XString &path, XString &errmsg);
-    bool isOpen() const {return m_isOpen;}
+    //! Reads the header and the dump, and leaves the cursor at the first
+    //! entry.  \a apply sees the dump, which is the baseline everything after
+    //! it is a change to.  \return false with \a errmsg set, and nothing opened.
+    bool open(const XString &path, const Apply &apply, XString &errmsg);
+    void close();
+    bool isOpen() const {return m_gz;}
 
     const XString &path() const {return m_path;}
     //! "run", "session", or "save".
@@ -94,11 +104,33 @@ public:
     //! pair actually is, which is what a reader needs.  Empty when there is none.
     XString rawPath() const;
 
-    const std::vector<Event> &events() const {return m_events;}
+    //! Walks forward, handing every line up to and including \a until to
+    //! \a apply, and stops holding the first line after it.  \return false at
+    //! end of file, which is not an error.
+    bool advanceTo(const XTime &until, const Apply &apply);
+    //! Back to the first entry, re-reading the head.  \a apply sees the dump
+    //! again, so a caller that rebuilt its state from it can do so again.
+    //!
+    //! This is how backwards is done, and on a long journal it is expensive:
+    //! reaching a moment costs everything before it.  Bounded seeking wants
+    //! checkpoints -- the cursor's offset paired with a copy of the caller's
+    //! state, every so often -- which is worth building when someone actually
+    //! steps backwards through a month.
+    bool rewind(const Apply &apply);
+
+    //! Where the cursor is: the time of the last line handed over.
+    const XTime &at() const {return m_at;}
+    //! Identities seen so far.  Grows as the body introduces nodes, and is
+    //! bounded by how many have ever existed, not by the length of the file.
     const std::map<uint32_t, NodeInfo> &nodes() const {return m_nodes;}
-    //! Lines the reader did not understand -- a journal written by a later
-    //! KAME, most likely.  Counted rather than refused: a file that says more
-    //! than we know is still worth everything it does say.
+    //! False when the body carries `ts` but not `tu` -- a journal from
+    //! before the epoch stamp existed.  Its lines are still in order, but
+    //! none of them can be placed against a raw record's clock, so a replay
+    //! driven by time would silently restore the wrong state.  Say so instead.
+    bool timesKnown() const {return m_timesKnown;}
+    //! Lines that could not be understood -- a journal from a later KAME, or
+    //! the half-written last line a killed process leaves.  Counted rather
+    //! than refused: a file that says more than we know still says it.
     unsigned int unknownLines() const {return m_unknown;}
 
     //! `run042.kamb` -> `run042.kamj`, the sibling a raw stream was written
@@ -106,11 +138,20 @@ public:
     static XString journalBeside(const XString &rawpath);
 
 private:
-    bool m_isOpen = false;
+    XJournalFile(const XJournalFile &) = delete;
+    XJournalFile &operator=(const XJournalFile &) = delete;
+    //! \return false at end of file.
+    bool readHead(const Apply &apply, XString &errmsg);
+    bool nextLine(Event &e);
+
+    void *m_gz = nullptr;
     XString m_path, m_kind, m_session, m_mode, m_rawFile;
-    std::vector<Event> m_events;
     std::map<uint32_t, NodeInfo> m_nodes;
+    XTime m_at;
     unsigned int m_unknown = 0;
+    bool m_timesKnown = true;
+    bool m_held = false;    //!< a line was read past the cursor and not yet used
+    Event m_holding;
 };
 
 #endif /*xjournalreplayH*/
