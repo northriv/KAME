@@ -226,25 +226,23 @@ XJournalReader::readHeader(void *_fd) {
 		XPrimaryDriver::RawDataReader reader(head);
 		second = reader.pop<uint32_t>();
 	}
-	//A plausible length says the header carries its own; otherwise those four
-	//bytes are the check word of the layout that briefly had none.
-	bool haslen = magic && (second >= KAMB_FIXED_SIZE)
-		&& (second <= KAMB_HEADER_SIZE_MAX) && !(second % sizeof(uint32_t));
-	uint32_t fixed = !magic ? (uint32_t)KAMB_HEADER_SIZE_LEGACY :
-		(haslen ? (uint32_t)KAMB_FIXED_SIZE : (uint32_t)KAMB_HEADER_SIZE_NOLEN);
+	//Where a magic is, a length follows it: this is a check, not a guess.
+	//\sa KAMB_HEADER_SIZE_MAX for the guess that used to be here
+	if(magic && ((second < KAMB_FIXED_SIZE) || (second > KAMB_HEADER_SIZE_MAX)
+		|| (second % sizeof(uint32_t))))
+		throw XBrokenRecordError(__FILE__, __LINE__);
+	uint32_t fixed = magic ? (uint32_t)KAMB_FIXED_SIZE : (uint32_t)KAMB_HEADER_SIZE_LEGACY;
 
 	uint32_t taken = magic ? 2 * sizeof(uint32_t) : sizeof(uint32_t);
 	std::vector<char> buf(fixed - taken);
 	if(buf.size() && (gzread(fd, &buf[0], (unsigned)buf.size()) == -1))
 		throw XIOError(__FILE__, __LINE__);
 	XPrimaryDriver::RawDataReader reader(buf);
-	uint32_t check = 0;
-	if(magic)
-		check = haslen ? reader.pop<uint32_t>() : second;
+	uint32_t check = magic ? reader.pop<uint32_t>() : 0;
 	m_allsize = magic ? reader.pop<uint32_t>() : first;
 	long sec = reader.pop<int32_t>();
 	long usec = reader.pop<int32_t>();
-	long long awared = haslen ? reader.pop<int64_t>() : 0;
+	long long awared = magic ? reader.pop<int64_t>() : 0;
 	if(magic && (check != kamb_record_check(m_allsize, (int32_t)sec, (int32_t)usec)))
 		throw XBrokenRecordError(__FILE__, __LINE__);
 
@@ -253,12 +251,12 @@ XJournalReader::readHeader(void *_fd) {
 	//replaced.
 	char name[256], sup[256];
 	gzgetline(fd, (unsigned char*)name, sizeof(name), '\0');
-	if( !haslen)
+	if( !magic)
 		gzgetline(fd, (unsigned char*)sup, sizeof(sup), '\0');
 	m_recordName = name;
 	uint32_t consumed = fixed + (uint32_t)strlen(name) + 1
-		+ (haslen ? 0 : (uint32_t)strlen(sup) + 1);
-	if(haslen) {
+		+ (magic ? 0 : (uint32_t)strlen(sup) + 1);
+	if(magic) {
 		//Whatever a later KAME put after the name, skipped by the length it
 		//declared -- which is the whole reason the length is there.
 		if(second < consumed)
@@ -457,17 +455,15 @@ XJournalReader::seek_(void *_fd, int permille) {
 				//The record says what it is.  Magic and check together are
 				//2^-64 against arbitrary bytes, so this is the answer, not a
 				//candidate -- and it holds without reading anything else.
-				//Where the fields sit depends on whether the header carries
-				//its own length, told apart exactly as readHeader() does.
-				uint32_t second = le32(i + 4);
-				bool haslen = (second >= KAMB_FIXED_SIZE)
-					&& (second <= KAMB_HEADER_SIZE_MAX) && !(second % sizeof(uint32_t));
-				int at = haslen ? i + 8 : i + 4;    //!< the check word
-				allsize = le32(at + 4);
-				if((allsize < KAMB_FIXED_SIZE + 6) || (allsize > MAX_RAW_RECORD_SIZE))
+				uint32_t hdrsize = le32(i + 4);
+				if((hdrsize < KAMB_FIXED_SIZE) || (hdrsize > KAMB_HEADER_SIZE_MAX)
+					|| (hdrsize % sizeof(uint32_t)))
 					continue;
-				if(le32(at) != kamb_record_check(allsize,
-						(int32_t)le32(at + 8), (int32_t)le32(at + 12)))
+				allsize = le32(i + 12);
+				if((allsize < hdrsize + 5) || (allsize > MAX_RAW_RECORD_SIZE))
+					continue;
+				if(le32(i + 8) != kamb_record_check(allsize,
+						(int32_t)le32(i + 16), (int32_t)le32(i + 20)))
 					continue;
 			}
 			else {

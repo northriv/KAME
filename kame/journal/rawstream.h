@@ -56,15 +56,19 @@
 //! like 32+0), and it usually does differ, so the flag word that would have
 //! disambiguated costs more than the eight bytes it saves.
 #define KAMB_FIXED_SIZE (6 * sizeof(uint32_t) + sizeof(int64_t))
-//! A header longer than this is not a header: the test that tells a length
-//! field from the check word of the first, briefly-lived magic layout, which
-//! had no length and put the check where the length now is.  A check is a
-//! hash, so it lands in this window and 4-aligned about once in 10^7.  The
-//! bound has to clear the longest driver name a record can carry.
+//! A declared header longer than this is not one -- a sanity bound, not a
+//! discriminator.  It has to clear the longest driver name a record can carry.
+//!
+//! There was briefly a third layout, written for one afternoon before the
+//! length field existed: magic, then the check where the length now is.  It
+//! was told apart by asking whether those four bytes looked like a plausible
+//! length, and that was wrong -- the question is asked once per RECORD, and a
+//! check word is a hash, so it lands in the window and 4-aligned once in
+//! 5.8e-8, which at 144 records a second is once every 33 hours of recording.
+//! A guess that is certain to be wrong eventually is not worth the pre-release
+//! files it rescued (user).  Those files do not open; everything written
+//! before the magic still does.
 #define KAMB_HEADER_SIZE_MAX 1024u
-//! magic, check, allsize, sec, usec -- then name and an empty reserved string.
-//! Written for one afternoon, kept readable because it costs six lines.
-#define KAMB_HEADER_SIZE_NOLEN (5 * sizeof(uint32_t))
 //! allsize, sec, usec -- everything written before the magic existed.
 #define KAMB_HEADER_SIZE_LEGACY (3 * sizeof(uint32_t))
 

@@ -1168,12 +1168,21 @@ is one argument at the `finishWritingRaw()` call and waits for a real NMR run
 to be tried against -- `pulseanalyzer` is the sharp case, since it compares
 against the signal generator.
 
-**Three generations, one reader.**  Files exist in three shapes: the original
-(`[allsize][sec][usec][name\0][reserved\0]`), the one that gained the magic
-but not the length (a single afternoon), and this one.  They are told apart by
-the first four bytes and then by whether the second four are a plausible
-length -- a check word is a hash, so it lands in that window, 4-aligned, about
-once in 10^7.  Nothing anyone has recorded stops being readable.
+**Two generations, one reader, no guessing.**  The original shape
+(`[allsize][sec][usec][name\0][reserved\0]`) and this one, told apart by the
+first four bytes -- a length or the magic, and the magic is ten times
+`MAX_RAW_RECORD_SIZE`, so neither can be mistaken for the other.  Where the
+magic is, a declared length follows it, and the range test on that length is a
+validity check rather than a discriminator.
+
+There was briefly a third shape, written for one afternoon: the magic, then
+the check word where the length now sits.  Telling it apart meant asking
+whether those four bytes *looked like* a plausible length, and that question
+is asked **once per record**.  249 values in the window out of 2^32 is
+5.8x10^-8 each time -- one every 33 hours of recording at 144 records a
+second, certain rather than unlikely (user).  A guess that will eventually be
+wrong is not worth the pre-release files it rescued, so those files do not
+open and the branch is gone.
 
 ### Both files flush once a minute
 
