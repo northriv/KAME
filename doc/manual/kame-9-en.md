@@ -1,4 +1,4 @@
-# KAME ver. 8.0 — User's Manual
+# KAME ver. 9 — User's Manual
 
 *2026/4/2 — Kentaro Kitagawa*
 
@@ -27,6 +27,9 @@ Nearly full control via Python3/Ruby scripts
 Communication errors are safely handled via exception catching
 
 All data acquired from instruments is logged / can be re-analyzed later
+
+Every session is journaled without being asked: what was set, who set it, and
+when (see [Measurement Journal](#measurement-journal))
 
 ### NMR Section
 
@@ -438,11 +441,11 @@ Adds a path for loading modules. Convenient when installed from source code.
 
 #### Open
 
-Loads a .kam file. The contents are Ruby scripts, so a script execution window opens in the center, and any errors are displayed in red.
+Loads a `.kam` or a `.kamj`. The contents of a `.kam` are Ruby scripts, so a script execution window opens in the center, and any errors are displayed in red. From a `.kamj` (a journal) only the dump at its head is applied — the settings as they were when the journal was opened. Replaying a run against its raw records is the Journal Reader's job, not this one.
 
 #### Save
 
-Saves all currently open drivers and some other settings to a .kam file. Internally, a snapshot is saved of all nodes controllable from Ruby that have the save attribute set.
+Saves all currently open drivers and some other settings, to a `.kam` or a `.kamj`. Internally, a snapshot is saved of all nodes controllable from a script that have the save attribute set. A `.kamj` written here is a journal with a head and no body, which is what a settings file is; the same reader opens it and a saved run alike.
 
 #### Close
 
@@ -499,9 +502,9 @@ Drivers can be added or removed. Clicking on a driver name in the driver list op
 Pressing “New Driver” opens the following window, where you can name and create the required driver. The name is difficult to change later, so choose carefully.  
 ![](media/image1_t.png)
 
-##### Raw Stream Recorder
+##### Journal
 
-Saves raw data as much as possible. While the “Write” checkbox is checked, for example, all oscilloscope waveforms are recorded. Data is compressed in GZIP format, but naturally consumes significant disk space.
+Names and starts the recording of a run, and shows where the always-on session journal is going. See [Measurement Journal](#measurement-journal) for what the two files hold and what they cost.
 
 #### Graph
 
@@ -559,11 +562,82 @@ To reorder items, hold CTRL and drag by the number.
 
 Outputs all values to a text file, one line at specified intervals, space-separated.
 
-#### Raw Stream Reader
+#### Journal Reader
 
 ![](media/image11.png)
 
-Reads and analyzes files output by the Raw Stream Recorder above. The rewind function has bugs, so for repeated analysis, go to “Start” and fast-forward with “Forward”. Fast-forward speed is set by “Speed”. “Position” shows the time when the record was recorded.
+Plays back a recorded run: it feeds each raw record to the driver that produced it, which analyses it again. Open either half of a run — the journal (`.kamj`) or the raw stream (`.kamb`) — and the other is found automatically. See [Measurement Journal](#measurement-journal).
+
+“Speed” sets how fast records are fed. The slider is the position in the file, by size rather than by time; drag it to go elsewhere and playback resumes at the first whole record after that point. The field beside it shows when the record being shown was recorded.
+
+# Measurement Journal
+
+KAME writes down what it was set to and what it did, without being asked.
+
+## The two files of a run
+
+A run is one name and two files. Type a name in **Logbook** in the Driver tab
+and tick **Write**, and you get:
+
+| file | holds |
+|---|---|
+| `run042.kamj` | the settings as they were when the run began, and every change to them afterwards — what you set, and what the instruments reported |
+| `run042.kamb` | the raw records behind those readings, exactly as the drivers captured them |
+
+The tier below the name chooses whether the second file is written at all:
+
+| tier | cost |
+|---|---|
+| **Settings only** | ~11 MB/hour at 144 readings a second |
+| **Settings + raw records** | ~10 GB/hour |
+
+Both are gzip. `.kamj` is JSON Lines inside, so `zgrep` and `zdiff` read it
+with no tool at all — which is most of what a provenance file is for ten
+years from now. Neither name says `.gz`, for the same reason `.docx` and
+`.epub` do not.
+
+Every value is written twice where it matters: as the text you would read,
+and — for a number — as the exact eight bytes it was. A settings file that
+rounds makes both a spurious difference and a reproduction that used a
+different number.
+
+## The session journal
+
+Whether or not you are recording a run, KAME journals the **session** to its
+own directory (the path is shown beside the switch). A session in which you
+forgot to save is no longer a session with nothing to show.
+
+It stays small — a few tens of KB — because it keeps everything *you* did in
+full but records an instrument's readings only after that reading has been
+quiet for a while. The checkbox turns it off for a rig with no disk to spare.
+
+## Replaying a run
+
+Open either file in the **Journal Reader** and the other is found: a journal
+names its raw stream in its own header, and a raw stream is matched to the
+journal beside it by name.
+
+Opening a journal puts the settings the run was recorded with back into the
+tree — **but only while every interface is closed.** A driver's connection to
+its instrument exists only between Start and Stop, so with nothing open a
+restore cannot reach an instrument. If an interface *is* open, KAME says so
+and waits for you to press **Restore settings**, and afterwards tells you how
+many interfaces those settings reached.
+
+Readings are never restored, only settings: a reading belongs to the driver
+that took it, and it would be contradicted by the next record anyway.
+
+Then FIRST / NEXT / FF feed the records back through the drivers, which
+analyse them again. What is not yet done is re-analysing each record with the
+settings **of that moment** rather than the ones you restored; the journal
+holds everything needed for it.
+
+## Recovering from a crash
+
+Both files are flushed once a minute, so a KAME that is killed loses at most
+the last minute of either. A raw stream can also be read from the middle: each
+record begins with a marker and a check word, so a reader can find where
+records start without reading the file from the beginning.
 
 # Driver-Specific Settings
 
@@ -1275,7 +1349,7 @@ Why KAME’s STM is effective for laboratory software:
 
 # AI-Assisted Experiment Automation (MCP)
 
-> **This chapter is maintained in `doc/manual/kame-8-en.md`, not in the `.docx`.**
+> **This chapter is maintained in `doc/manual/kame-9-en.md`, not in the `.docx`.**
 > It changes far more often than the rest of the manual, and it is also the
 > version AI assistants read (the `kame_manual` tool serves this file). Do not
 > overwrite it from a docx conversion; regenerate the docx from here instead.

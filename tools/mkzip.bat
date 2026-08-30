@@ -14,7 +14,7 @@ rem     notebook_kame_kernel_manager.py predating the orphan-server watchdog and
 rem     the working interrupt/restart overrides, and no kame_mcp_server.py at
 rem     all.  Copying the whole set from source every time keeps that from
 rem     silently rotting again; it mirrors the macOS Contents/Resources layout.
-rem     kame_python_api.md / kame-8-en.md + media\ back the kame_api and
+rem     kame_python_api.md / kame-9-en.md + media\ back the kame_api and
 rem     kame_manual MCP tools.  plugin\ is for macOS parity -- it is inert on
 rem     Windows (its .mcp.json invokes a POSIX-sh launcher).
 rem     Shared with kame.pro's win32 QMAKE_POST_LINK, so a build tree and a

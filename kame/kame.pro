@@ -248,7 +248,7 @@ scriptfile.files = script/rubylineshell.rb \
     script/kame_mcp_server.py \
     script/kame_pydantic_ai.py \
     script/kame_python_api.md \
-    ../doc/manual/kame-8-en.md \
+    ../doc/manual/kame-9-en.md \
     script/notebook/jupyter_notebook_config.py \
     script/notebook/notebook_kame_kernel_manager.py
 
@@ -356,7 +356,7 @@ else {
             script/kame_mcp_server.py \
             script/kame_pydantic_ai.py \
             script/kame_python_api.md \
-            ../doc/manual/kame-8-en.md \
+            ../doc/manual/kame-9-en.md \
             script/notebook/jupyter_notebook_config.py \
             script/notebook/notebook_kame_kernel_manager.py
 

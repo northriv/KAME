@@ -557,7 +557,7 @@ x64-msvcrt-ruby3**.dll
 The **script files are deployed for you** at link time, into `.\resources`
 next to `kame.exe` — `rubylineshell.rb`, `pythonlineshell.py`, the two
 notebook files, `kame_mcp_server.py`, `kame_pydantic_ai.py`,
-`kame_python_api.md`, the user's manual (`kame-8-en.md` + `media\`), and
+`kame_python_api.md`, the user's manual (`kame-9-en.md` + `media\`), and
 `plugin\`. Qt Creator needs no extra step; `tools\deploy_scripts.bat
 <resources-dir>` does the same by hand if you ever need it, and
 `tools\mkzip.bat` calls it when assembling a release.
@@ -567,7 +567,7 @@ notebook files, `kame_mcp_server.py`, `kame_pydantic_ai.py`,
 > into `resources\` once. That is worth knowing if you inherit one: without
 > `kame_mcp_server.py` there is no MCP server to launch at all, and the
 > `kame_api` / `kame_manual` tools read `kame_python_api.md` and
-> `kame-8-en.md` from that directory. `plugin\` ships for parity with macOS
+> `kame-9-en.md` from that directory. `plugin\` ships for parity with macOS
 > but is inert on Windows — its `.mcp.json` invokes a POSIX-sh launcher,
 > which is why the **Claude: Code** quick-launch link omits `--plugin-dir`
 > there.
