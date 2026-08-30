@@ -1,11 +1,81 @@
+* Sun Aug 30 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- The Raw Stream Reader is the Journal Reader, and a run is opened by either
+  of its halves.  Given run042.kamj it takes the raw stream the journal's own
+  header names, which is the direction that survives the pair being renamed;
+  given run042.kamb it looks for the sibling by stem.  Neither file needs the
+  other, so a .kamb from before the journal existed opens exactly as it
+  always did.
+  Opening one puts the settings the run was recorded with back into the tree
+  -- but only while every interface is closed, because a driver's I/O
+  listeners exist only between its start() and stop(), so with nothing open
+  there is nobody to carry a value to an instrument.  With an interface open
+  it says so and waits for the "Restore settings" button, which afterwards
+  reports how many interfaces those settings reached.  Runtime nodes are
+  never restored: what they hold is a reading, and the driver that owns one
+  would contradict it on its next record.  A double is restored from the
+  exact eight bytes rather than from the four digits its text would have
+  shown.
+- A position slider in that pane, by size of the compressed file.  The other
+  two candidates do not exist: how long a gzip stream is unpacked is not
+  knowable without unpacking it, and records are not evenly spaced in time.
+  Dragging it decompresses to the target -- a gzip stream has no index -- and
+  lands on a record boundary rather than guessing at one, since a record now
+  begins with "KAMB" and a check word over its own length and time.  Old
+  .kamb files, whose records begin with a plausible length instead, are told
+  apart by that alone and still open.
+  Stepping back at the head of a file used to raise an IO error, because the
+  seek for the length word ran off the front of it.  A file that will not
+  open says so, where every button used to do nothing for no stated reason.
+- Both journal files take a full flush once a minute.  The raw stream had
+  been flushed only when recording stopped, so a KAME killed mid-run left a
+  .kamb that stopped being decodable wherever zlib last happened to end a
+  block; the journal had been flushing every second, which on a stream this
+  repetitive throws away most of what makes it compress.  One interval for
+  both, since a run is a pair and a pair that survives a crash to two
+  different points is harder to reason about than one that survives to the
+  same point.
+- Every timestamped line of a .kamj now carries the instant twice: "ts" to
+  read, and "tu" -- microseconds since the epoch -- to compute with.  ctime(3)
+  is local, zoneless and DST-ambiguous, and replay has to line these up
+  against records stamped in epoch time.  "ts" lost its milliseconds in the
+  same move: they changed on every line, which made them the least
+  compressible text in the file, and the number beside them is exact.
+- A journal is read as a stream now, not into memory.  KAME is left running
+  for a month, and at the measured Logbook rate a single run's .kamj is 260 MB
+  a day; what is held is the head -- the header and the dump -- which is
+  bounded by the size of the tree.
+- A name that a sibling already holds is answered with the node that holds
+  it, instead of making a second child nobody can reach by name.  The Ruby
+  loader had always checked; the Python loader that replaced it as the .kam
+  path did not, so loading a .kam onto a tree that already held its drivers
+  was quietly destructive rather than idempotent.  On-graph math tools were
+  named after the length of their list, so deleting the first and adding
+  another asked for a name that was still taken; they now take the first free
+  one.
+- UI: the toolboxes are as wide as the widest pane in them (the replay pane
+  outgrew the old floor when it gained a slider), and nothing auto-hides
+  during startup or shutdown -- the hover poll used to start before the
+  driver modules had loaded, and a toolbox that folds itself away while the
+  user is still waiting reads as a failure rather than a feature.
+- Internals: the journal is one directory, kame/journal/, holding the node
+  (XJournal), the writer (XJournalWriter), the raw stream, the file reader
+  and the Journal Reader.  The engine had been called XJournal while the node
+  the tree shows was XJournalRecorder, which is backwards; analyzer/recorder.h
+  had held the raw stream and XTextWriter, which share nothing but a file
+  name.  Deleted the KDE4 cmake tree -- 50 files that cannot build anything
+  (no project(), no root to include them) and had been maintained as recently
+  as July as though they could.
+
 * Sat Aug 29 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - Measurement journal.  KAME now keeps a record of what it was set to and
   what it did, without being asked: the "Raw Stream Recorder" group in the
-  driver pane is now "Journal", where you name the RUN and the raw stream
+  driver pane is now "Journal", where you name the logbook and the raw stream
   follows it (run042.kamj beside run042.kamb), choose how much is kept, and
-  watch what it costs in MB/s.  Three tiers, cumulative: Setup (the settings,
-  ~60 KB), Logbook (and everything the instruments reported, ~11 MB/hr at 144
-  readings a second), Logbook + raw (and the raw records, ~10 GB/hr).
+  watch what it costs in MB/s.  Two tiers: "Settings only" (what you set and
+  everything the instruments reported, ~11 MB/hr at 144 readings a second)
+  and "Settings + raw records" (and the raw records behind them, ~10 GB/hr).
+  Writing the settings once, with no run at all, is what File > Save has
+  always been, and it now offers .kamj beside .kam.
   Alongside it, and whether or not a run is being recorded, a session journal
   is written to KAME's own directory -- so a session in which you forgot to
   save is no longer a session with nothing to show.  It keeps what you did in
@@ -13,8 +83,7 @@
   it stays a few tens of KB; a checkbox turns it off.
   .kamj is JSON Lines, gzipped: `zgrep` and `zdiff` read it with no tool, and
   File > Open Measurement applies the dump at its head exactly as it applies
-  a .kam.  Replaying its entries against the raw records -- re-analysing with
-  the settings OF THAT MOMENT rather than today's -- is the next step.
+  a .kam.
   Doubles are stored twice, as the rounded text you would read and as the
   exact eight bytes, since a settings file that rounds makes both a spurious
   diff and a reproduction that used a different number.
