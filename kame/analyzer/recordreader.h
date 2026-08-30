@@ -32,6 +32,14 @@ public:
 	const shared_ptr<XTouchableNode> &next() const {return m_next;}
 	const shared_ptr<XTouchableNode> &back() const {return m_back;}
 	const shared_ptr<XStringNode> &posString() const {return m_posString;}
+	//! Where the next record is, in thousandths of the file.  By size, not by
+	//! time: the length of a gzip stream is not known until it is read, and
+	//! records are not evenly spaced in time anyway.
+	const shared_ptr<XUIntNode> &position() const {return m_position;}
+	//! Written to go somewhere else, in the same thousandths.  Separate from
+	//! position() so that reporting where we are cannot be mistaken for being
+	//! asked to move.
+	const shared_ptr<XUIntNode> &seek() const {return m_seek;}
 	//! The journal opened beside the raw stream, when there is one.  What the
 	//! records were taken with, as opposed to what the tree happens to hold
 	//! now.  \sa doc/design/PROVENANCE.md
@@ -62,6 +70,7 @@ private:
 	const shared_ptr<XTouchableNode> m_stop;
 	const shared_ptr<XTouchableNode> m_first, m_next, m_back;
 	const shared_ptr<XStringNode> m_posString;
+	const shared_ptr<XUIntNode> m_position, m_seek;
 	void onPlayCondChanged(const Snapshot &shot, XValueNodeBase *);
 	void onStop(const Snapshot &shot, XTouchableNode *);
 	void onFirst(const Snapshot &shot, XTouchableNode *);
@@ -69,14 +78,29 @@ private:
 	void onBack(const Snapshot &shot, XTouchableNode *);
   
 	void onOpen(const Snapshot &shot, XValueNodeBase *); 
-	shared_ptr<Listener> m_lsnOnOpen;
+	void onSeek(const Snapshot &shot, XValueNodeBase *);
+	shared_ptr<Listener> m_lsnOnOpen, m_lsnOnSeek;
   
 	uint32_t m_allsize;
 	XTime m_time;
 	XJournalFile m_journal;
+	//! Of the compressed file, from the filesystem.  The uncompressed length
+	//! is not knowable without reading the whole thing, which is the point.
+	uint64_t m_fileSize = 0;
+	//! Thousandths, or -1.  Set from the UI, acted on by the playback thread:
+	//! a seek reads everything before its target, and the main thread must
+	//! not be the one waiting for that.
+	atomic<int> m_seekRequest {-1};
 
     //! changes position without parsing
     void first_(void *); // throw (XIOError &)
+    //! Back one record.  \return false when there is nothing before this one --
+    //! which is an answer, not an error.
+    bool stepBack_(void *); // throw (XRecordError &)
+    //! To the first whole record at or after \a permille of the file.
+    void seek_(void *, int permille); // throw (XRecordError &)
+    void reportPosition_(void *);
+    int permilleOf_(void *) const;
     void previous_(void *); // throw (XRecordError &)
     void next_(void *); // throw (XRecordError &)
     void goToHeader(void *); // throw (XRecordError &)

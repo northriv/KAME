@@ -15,6 +15,7 @@
 #include "recordreaderconnector.h"
 #include "recordreader.h"
 #include <QPushButton>
+#include <QSlider>
 
 #include "ui_recordreaderform.h"
 
@@ -52,4 +53,28 @@ XRawStreamRecordReaderConnector::XRawStreamRecordReaderConnector(
         QApplication::style()->standardIcon(QStyle::SP_MediaPlay));
     form->btnStop->setIcon(
         QApplication::style()->standardIcon(QStyle::SP_MediaPause));
+
+    //Not tracking: a seek decompresses everything before its target, so it
+    //must happen once per drag, not once per pixel of one.
+    form->m_slPos->setTracking(false);
+    connect(form->m_slPos, SIGNAL( valueChanged(int) ), this, SLOT( onSliderChanged(int) ));
+
+    reader->iterate_commit([=](Transaction &tr){
+        m_lsnPosition = tr[ *reader->position()].onValueChanged().connectWeakly(
+            shared_from_this(), &XRawStreamRecordReaderConnector::onPositionChanged,
+            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP
+                | Listener::FLAG_DELAY_ADAPTIVE);
+    });
+}
+void
+XRawStreamRecordReaderConnector::onPositionChanged(const Snapshot &shot, XValueNodeBase *) {
+    if( !m_pForm || m_pForm->m_slPos->isSliderDown())
+        return;     //!< the user is holding it; theirs wins until they let go
+    m_pForm->m_slPos->blockSignals(true);
+    m_pForm->m_slPos->setValue((int)(unsigned int)shot[ *m_reader->position()]);
+    m_pForm->m_slPos->blockSignals(false);
+}
+void
+XRawStreamRecordReaderConnector::onSliderChanged(int value) {
+    trans( *m_reader->seek()) = (unsigned int)value;
 }

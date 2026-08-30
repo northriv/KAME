@@ -20,6 +20,7 @@
 #include <zlib.h>
 #include <vector>
 
+#include <QFileInfo>
 #include <QString>
 
 #define IFSMODE std::ios::in
@@ -54,6 +55,8 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
 	  m_next(create<XTouchableNode>("Next", true)),
 	  m_back(create<XTouchableNode>("Back", true)),
 	  m_posString(create<XStringNode>("PosString", true)),
+	  m_position(create<XUIntNode>("Position", true)),
+	  m_seek(create<XUIntNode>("Seek", true)),
 	  m_periodicTerm(0) {
 
     iterate_commit([=](Transaction &tr){
@@ -65,6 +68,8 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
 
         m_lsnOnOpen = tr[ *filename()].onValueChanged().connectWeakly(
             shared_from_this(), &XRawStreamRecordReader::onOpen);
+        m_lsnOnSeek = tr[ *m_seek].onValueChanged().connectWeakly(
+            shared_from_this(), &XRawStreamRecordReader::onSeek);
 		m_lsnFirst = tr[ *m_first].onTouch().connectWeakly(
 			shared_from_this(), &XRawStreamRecordReader::onFirst,
 			Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
@@ -138,7 +143,19 @@ XRawStreamRecordReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	if(m_pGFD) gzclose(static_cast<gzFile>(m_pGFD));
 	m_pGFD = rawpath.length() ?
 		gzopen(QString::fromStdString(rawpath).toLocal8Bit().data(), "rb") : nullptr;
+	//By size of the compressed file, which the filesystem knows.  How long a
+	//gzip stream is when unpacked is not knowable without unpacking it, and
+	//that is exactly what a position readout must not do.
+	m_fileSize = m_pGFD ?
+		(uint64_t)QFileInfo(QString::fromStdString(rawpath)).size() : 0;
+	if(m_pGFD)
+		reportPosition_(m_pGFD);
 	m_filemutex.unlock();
+
+	//A file that will not open used to be silent, and every button then did
+	//nothing for no stated reason.
+	if(rawpath.length() && !m_pGFD)
+		gErrPrint(i18n("Cannot open ") + rawpath);
 }
 void
 XRawStreamRecordReader::readHeader(void *_fd) {
@@ -183,7 +200,14 @@ XRawStreamRecordReader::parseOne(void *_fd, XMutex &mutex) {
 			);
     // m_time must be copied before unlocking
     XTime time(m_time);
-    trans( *m_posString) = time.getTimeStr();
+    //Both read before the transaction: an iterate_commit closure re-runs on
+    //every retry, and nothing inside it may touch the file.
+    XString timestr = time.getTimeStr();
+    unsigned int permille = (unsigned int)permilleOf_(fd);
+    iterate_commit([&](Transaction &tr){
+        tr[ *m_posString] = timestr;
+        tr[ *m_position] = permille;
+    });
     if( !driver || (size > MAX_RAW_RECORD_SIZE)) {
         if(gzseek(fd, size + sizeof(uint32_t), SEEK_CUR) == -1)
 			throw XIOError(__FILE__, __LINE__);
@@ -233,6 +257,104 @@ XRawStreamRecordReader::gzgetline(void* _fd, unsigned char*buf, unsigned int len
 void
 XRawStreamRecordReader::first_(void *fd) {
 	gzrewind(static_cast<gzFile>(fd));
+}
+//! Where the next record is, in thousandths of the compressed file.
+int
+XRawStreamRecordReader::permilleOf_(void *fd) const {
+	if( !m_fileSize)
+		return 0;
+	auto off = gzoffset(static_cast<gzFile>(fd));
+	if(off < 0)
+		return 0;
+	uint64_t p = (uint64_t)off * 1000u / m_fileSize;
+	return (int)std::min(p, (uint64_t)1000u);
+}
+void
+XRawStreamRecordReader::reportPosition_(void *fd) {
+	int permille = permilleOf_(fd);
+	trans( *m_position) = (unsigned int)permille;
+}
+//! Back one record.  At the head of the file there is nothing before the
+//! first record, and saying so is not the same as failing: seeking to the
+//! start and then stepping back used to raise an IO error, because the seek
+//! for the length word ran off the front of the file.
+bool
+XRawStreamRecordReader::stepBack_(void *fd) {
+	if(gztell(static_cast<gzFile>(fd)) == 0)
+		return false;   //!< nothing has been read: the first record is next anyway
+	previous_(fd);      //!< to the start of the record just parsed
+	if(gztell(static_cast<gzFile>(fd)) == 0)
+		return false;   //!< that was the first one; it is what comes next
+	previous_(fd);
+	return true;
+}
+//! To the first whole record at or after a point in the file.
+//!
+//! A gzip stream has no index, so reaching a point costs decompressing
+//! everything before it.  That is why this runs on the playback thread and
+//! not on the one drawing the window.
+//!
+//! Landing is by structure, not by luck: a record carries its own length as
+//! the first and the last four bytes, so a boundary is where those two agree.
+//! Four bytes matching a length that lands exactly on itself is not something
+//! arbitrary data does often.
+void
+XRawStreamRecordReader::seek_(void *_fd, int permille) {
+	gzFile fd = static_cast<gzFile>(_fd);
+	if((permille <= 0) || !m_fileSize) {
+		first_(fd);
+		return;
+	}
+	uint64_t target = m_fileSize * (uint64_t)permille / 1000u;
+	if(gzrewind(fd) != 0)
+		throw XIOError(__FILE__, __LINE__);
+	std::vector<char> skip(65536);
+	while( !gzeof(fd) && ((uint64_t)std::max<int64_t>(gzoffset(fd), 0) < target)) {
+		int n = gzread(fd, &skip[0], (unsigned)skip.size());
+		if(n < 0) throw XIOError(__FILE__, __LINE__);
+		if(n == 0) break;
+	}
+	//The length words are little-endian on disk whatever the host is
+	//(RawDataReader::pop() reads them that way), so read them as bytes.
+	std::vector<unsigned char> win(1024 * 1024);
+	for(int chunk = 0; chunk < 8; ++chunk) {
+		int64_t base = gztell(fd);
+		int n = gzread(fd, &win[0], (unsigned)win.size());
+		if(n < 0) throw XIOError(__FILE__, __LINE__);
+		if(n < 24) break;
+		for(int i = 0; i + 24 <= n; ++i) {
+			const unsigned char *p = &win[i];
+			uint32_t allsize = (uint32_t)p[0] | ((uint32_t)p[1] << 8)
+				| ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+			if((allsize < 23) || (allsize > MAX_RAW_RECORD_SIZE))
+				continue;   //!< 12 header + a name + 2 nulls + 4 footer, at least
+			if((int64_t)i + allsize > n)
+				continue;   //!< cannot be checked from here; a later window will
+			const unsigned char *f = &win[i + allsize - 4];
+			uint32_t footer = (uint32_t)f[0] | ((uint32_t)f[1] << 8)
+				| ((uint32_t)f[2] << 16) | ((uint32_t)f[3] << 24);
+			if(footer != allsize)
+				continue;
+			//Found.  Going back to it rewinds and re-reads, since zlib cannot
+			//seek backwards either -- twice the work, and still the only way.
+			if(gzseek(fd, base + i, SEEK_SET) == -1)
+				throw XIOError(__FILE__, __LINE__);
+			return;
+		}
+		if(n < (int)win.size())
+			break;  //!< end of file, and no boundary after the target
+	}
+	//Past the last record, or a stream that says nothing we recognise.
+	first_(fd);
+}
+void
+XRawStreamRecordReader::onSeek(const Snapshot &shot, XValueNodeBase *) {
+	//Handed to the playback thread rather than done here: this call arrives
+	//on whichever thread moved the slider, and a seek reads everything before
+	//its target.
+	m_seekRequest = (int)(unsigned int)shot[ *m_seek];
+	XScopedLock<XCondition> lock(m_condition);
+	m_condition.broadcast();
 }
 void
 XRawStreamRecordReader::previous_(void *fd) {
@@ -332,10 +454,9 @@ XRawStreamRecordReader::onBack(const Snapshot &shot, XTouchableNode *) {
 	if(m_pGFD) {
 		try {
 			m_filemutex.lock(); 
-			previous_(m_pGFD);
-			previous_(m_pGFD);
+			bool moved = stepBack_(m_pGFD);
 			parseOne(m_pGFD, m_filemutex);
-			g_statusPrinter->printMessage(i18n("Previous"));
+			g_statusPrinter->printMessage(moved ? i18n("Previous") : i18n("First"));
 		}
 		catch (XRecordError &e) {
 			m_filemutex.unlock();
@@ -350,25 +471,43 @@ void *XRawStreamRecordReader::execute(const atomic<bool> &terminated) {
 		double ms = 0.0;
 		{
 			XScopedLock<XCondition> lock(m_condition);
-			while((fabs((ms = m_periodicTerm)) < 1e-4) && !terminated)
+			while((fabs((ms = m_periodicTerm)) < 1e-4) && (m_seekRequest < 0) && !terminated)
 				m_condition.wait();
 		}
     
 		if(terminated) break;
 
 		if( !m_pGFD) {
+			m_seekRequest = -1;     //!< nothing to seek in
 			msecsleep(100);
 			continue;
 		}
 
+		//Claimed here, so a slider dragged while playing moves the same
+		//cursor the playback is walking, rather than racing it.
+		int req = m_seekRequest.exchange(-1);
+
 		try {
 			m_filemutex.lock();
-			if(ms > 0.0 && gzeof(static_cast<gzFile>(m_pGFD))) {
+			if(req >= 0) {
+				seek_(m_pGFD, req);
+			}
+			else if(ms > 0.0 && gzeof(static_cast<gzFile>(m_pGFD))) {
 				first_(m_pGFD);
 			}
-			if(ms < 0.0) {
-				previous_(m_pGFD);
-				previous_(m_pGFD);
+			else if(ms < 0.0) {
+				if( !stepBack_(m_pGFD)) {
+					//At the head.  Stopping is the honest end of a rewind;
+					//the alternative is replaying the first record for ever.
+					m_periodicTerm = 0.0;
+					m_filemutex.unlock();
+					iterate_commit([=](Transaction &tr){
+						tr[ *m_rewind] = false;
+						tr.unmark(m_lsnPlayCond);
+					});
+					g_statusPrinter->printMessage(i18n("First"));
+					continue;
+				}
 			}
 			parseOne(m_pGFD, m_filemutex);
 		}

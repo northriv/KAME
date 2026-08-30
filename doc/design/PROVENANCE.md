@@ -1019,6 +1019,34 @@ analysis recomputes them from the restored inputs, and writing them back would
 conflict with the driver that owns them.  The record/restore asymmetry is
 deliberate: record generously, restore conservatively.
 
+### Scrubbing a stream that cannot be indexed
+
+The Replay pane has a slider, and it is **by size of the compressed file**,
+not by time.  Neither of the other two candidates works: how long a gzip
+stream is unpacked is not knowable without unpacking it, and records are not
+evenly spaced in time anyway, so a time axis would need an index nobody has.
+`gzoffset()` against the file's own size is exact, monotonic, and free.
+
+Dragging it costs, and honestly so.  There is no index into a gzip stream, so
+reaching a point means decompressing everything before it -- and then again,
+because zlib cannot seek backwards either, so landing exactly on the record
+boundary rewinds once more.  Two passes over the prefix.  That is why the
+seek runs on the playback thread and not on the one drawing the window.
+
+Landing is by structure rather than by luck.  A raw record carries its own
+length as both its first and its last four bytes -- a footer written for
+exactly this -- so a boundary is where those two agree.  Arbitrary bytes
+rarely spell a plausible length that lands precisely on a copy of itself.
+The scan reads a window forward from the target and takes the first offset
+that passes; nothing before the target is ever accepted, so a drag can only
+move where the user asked or later, never earlier.
+
+(If this ever needs to be fast, the fix is the one the journal already has by
+accident: `Z_FULL_FLUSH` resets the dictionary, so a stream flushed
+periodically can be restarted at each flush marker.  The journal is flushed
+once a second for crash-safety; the raw stream is flushed only when recording
+stops, and giving it the same treatment would buy both.)
+
 ### A journal can be a gigabyte, so the reader streams
 
 KAME is left running for a month at a time, and a run lasts as long as the

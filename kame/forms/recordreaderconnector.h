@@ -29,12 +29,25 @@ public:
 		const shared_ptr<XRawStreamRecordReader> &reader, FrmRecordReader *form);
 	virtual ~XRawStreamRecordReaderConnector() {}
 
+private slots:
+	//! The user let go of the scrub bar, or paged it.  Seeking is expensive,
+	//! so the slider does not track: this arrives once, not per pixel.
+	void onSliderChanged(int value);
+
 private:
+	//! Where the reader has got to, back onto the slider.  Skipped while the
+	//! user has hold of it, so the two do not fight over the handle.
+	void onPositionChanged(const Snapshot &shot, XValueNodeBase *);
+
 	const shared_ptr<XRawStreamRecordReader> m_reader;
 	FrmRecordReader *const m_pForm;
   
 	const xqcon_ptr m_conRecordFile, m_conFF, m_conRW, m_conStop,
 		m_conFirst, m_conNext, m_conBack, m_conPosString, m_conSpeed;    
+	//! Last, so that it is destroyed first: members go in reverse order of
+	//! declaration, and a listener that outlived m_reader could still be
+	//! dispatched into a callback that reads it.
+	shared_ptr<Listener> m_lsnPosition;
 };
   
 #endif
