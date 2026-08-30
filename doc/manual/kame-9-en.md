@@ -225,21 +225,15 @@ The DAQmx driver is really troublesome.
 
 ### KAME Installation
 
-#### Installing from Binary (Easy)
+#### Installing from Source Code
 
-Use the rpm command as root to install kame and kame-modules-standard. Installing kame-modules-nmr adds NMR modules; installing kame-modules-nidaqmx adds modules for National Instruments DAQ devices.
+KAME is distributed as source: `kame-<version>.zip` (or `.tar.bz2`), which
+`tools/mkzip.sh` makes from a clean copy of the tree. The version comes from
+`VERSTR` in `kame.pri`, which is the one place it is written.
 
-Installing kame-debuginfo allows you to investigate crashes with a debugger if KAME unfortunately crashes.
-
-#### Installing from Source Code (Tarball)
-
-##### Building RPM
-
-Refer to tools/mkrpm.sh.
-
-If the DAQmx module is not needed, add --define="build_nidaqmx 0"
-
-to the rpmbuild command.
+RPM packages are no longer built. `kame.spec` and `tools/mkrpm.sh` were
+removed in 9.0; earlier releases still have them if you need to package an
+older version.
 
 ##### Without Creating a Package
 
