@@ -16,6 +16,7 @@
 #include "primarydriver.h"
 #include "xtime.h"
 #include "measure.h"
+#include "interface.h"
 
 #include <zlib.h>
 #include <vector>
@@ -151,6 +152,7 @@ XJournalReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 					(unsigned)dump.size(), (unsigned)journal.nodes().size()));
 	}
 
+	unsigned int settings = (unsigned int)dump.size();
 	m_filemutex.lock();
 	m_journal = std::move(journal);
 	m_dump = std::move(dump);
@@ -170,6 +172,21 @@ XJournalReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	//nothing for no stated reason.
 	if(rawpath.length() && !m_pGFD)
 		gErrPrint(i18n("Cannot open ") + rawpath);
+
+	//With every interface closed, restoring is a private act -- the listeners
+	//that would carry a setting to an instrument do not exist -- so it is what
+	//opening a run means, and waiting to be asked would only be ceremony.
+	//With one open it is not, and then it waits for the button.
+	if(settings) {
+		unsigned int open = openInterfaces();
+		if( !open)
+			restoreDump();
+		else
+			gMessagePrint(formatString_tr(I18N_NOOP(
+				"%u interfaces are open: press Restore settings to put this run's "
+				"%u settings back, and they will reach the instruments."),
+				open, settings));
+	}
 }
 void
 XJournalReader::readHeader(void *_fd) {
@@ -399,19 +416,45 @@ static shared_ptr<XNode> nodeAt(const shared_ptr<XNode> &root, const XString &pa
 	return node;
 }
 
-//! Puts the settings the run was recorded with back into the live tree.
+//! What decides whether restoring is a private act or a public one.
 //!
-//! Deliberately an action.  Every value restored here is published to whatever
-//! listens, which for a driver means a command on the wire -- so this happens
-//! when someone asks for it, and never as a side effect of opening a file.
-//!
-//! Runtime nodes are skipped: what they hold is a reading, not a setting, and
-//! the driver that owns one would contradict it on its next record anyway.
+//! Skipping runtime nodes does NOT keep a restore off the wire, which is worth
+//! stating because it looks as though it should: a driver's settings are
+//! precisely the non-runtime ones -- XDCSource's `Value` is
+//! `create<XDoubleNode>("Value", false)` and its listener writes to the
+//! instrument.  What makes a restore harmless is the interface being closed,
+//! since those listeners are connected in start() and dropped in stop().
+unsigned int
+XJournalReader::openInterfaces() const {
+	auto meas = dynamic_pointer_cast<XMeasure>(m_root.lock());
+	if( !meas)
+		return 0;
+	unsigned int n = 0;
+	Snapshot shot( *meas->interfaces());
+	if(shot.size())
+		for(auto &&x: *shot.list())
+			if(auto intf = dynamic_pointer_cast<XInterface>(x))
+				if(intf->isOpened())
+					++n;
+	return n;
+}
+
 void
 XJournalReader::onRestore(const Snapshot &shot, XTouchableNode *) {
+	unsigned int open = openInterfaces();
+	unsigned int done = restoreDump();
+	if(done && open)
+		gWarnPrint(formatString_tr(I18N_NOOP(
+			"Those %u settings went to %u open interfaces."), done, open));
+}
+
+//! Runtime nodes are skipped: what they hold is a reading, not a setting, and
+//! the driver that owns one would contradict it on its next record anyway.
+unsigned int
+XJournalReader::restoreDump() {
 	auto root = m_root.lock();
 	if( !root)
-		return;
+		return 0;
 	//Copied under the lock and applied outside it: applying means a
 	//transaction per node, and the playback thread must not wait on that.
 	struct Item {XString path; XString value; double exact; bool hasExact;};
@@ -432,7 +475,7 @@ XJournalReader::onRestore(const Snapshot &shot, XTouchableNode *) {
 	}
 	if(items.empty()) {
 		gWarnPrint(i18n("No settings in this journal to restore."));
-		return;
+		return 0;
 	}
 	unsigned int done = 0, missing = 0;
 	for(auto &&item: items) {
@@ -464,6 +507,7 @@ XJournalReader::onRestore(const Snapshot &shot, XTouchableNode *) {
 	}
 	gMessagePrint(formatString_tr(I18N_NOOP("Restored %u settings; %u not found, %u skipped."),
 		done, missing, skipped));
+	return done;
 }
 void
 XJournalReader::onSeek(const Snapshot &shot, XValueNodeBase *) {

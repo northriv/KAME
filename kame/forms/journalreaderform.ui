@@ -104,7 +104,7 @@
          <item>
           <widget class="QPushButton" name="m_btnRestore">
            <property name="toolTip">
-            <string>Put the settings this run was recorded with back into the tree. Every one of them is published, which for a driver means a command to the instrument, so it happens only when you ask.</string>
+            <string>Put the settings this run was recorded with back into the tree. Opening a journal already does this while every interface is closed; with one open, pressing this sends those settings to the instruments.</string>
            </property>
            <property name="text">
             <string>Restore settings</string>

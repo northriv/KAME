@@ -37,9 +37,9 @@ public:
 	const shared_ptr<XTouchableNode> &back() const {return m_back;}
 	const shared_ptr<XStringNode> &recordTime() const {return m_recordTime;}
 	//! Puts the settings the run was recorded with back into the live tree.
-	//! An action rather than a mode, deliberately: restoring a setting sends
-	//! it to the instrument, so it happens when someone asks for it and never
-	//! because a file was opened.
+	//! Opening a journal does this by itself while every interface is closed,
+	//! because then it cannot reach an instrument; with one open it waits to
+	//! be pressed.  \sa openInterfaces()
 	const shared_ptr<XTouchableNode> &restore() const {return m_restore;}
 	//! Where the next record is, in thousandths of the file.  By size, not by
 	//! time: the length of a gzip stream is not known until it is read, and
@@ -90,6 +90,12 @@ private:
 	void onOpen(const Snapshot &shot, XValueNodeBase *); 
 	void onSeek(const Snapshot &shot, XValueNodeBase *);
 	void onRestore(const Snapshot &shot, XTouchableNode *);
+	//! Puts the held dump into the live tree.  \return how many values landed.
+	unsigned int restoreDump();
+	//! How many interfaces are open, which is what decides whether restoring
+	//! a setting reaches an instrument: a driver's I/O listeners exist only
+	//! between its start() and stop(), and those follow the interface.
+	unsigned int openInterfaces() const;
 	shared_ptr<Listener> m_lsnOnOpen, m_lsnOnSeek, m_lsnOnRestore;
 
 	//! One value out of the dump, kept by the id the journal gave its node.
