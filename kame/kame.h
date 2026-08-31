@@ -17,6 +17,7 @@
 #include "support.h"
 #include "xnodeconnector.h"
 #include <QMainWindow>
+#include <QPointer>
 
 class Ui_FrmJournalReader;
 typedef QForm<QWidget, Ui_FrmJournalReader> FrmJournalReader;
@@ -186,6 +187,13 @@ private:
 	};
 	std::deque<EdgeSlider> m_edgeSliders;
 	QTimer *m_pEdgeHoverTimer = nullptr;
+	//! Magnifying the tab under the pointer.  The icon is redrawn larger, not
+	//! the tab: the icon rect is fixed, so the strip never re-lays out and
+	//! nothing jumps.  Style sheets cannot animate, and a tab that changed
+	//! size would move its neighbours on every frame.
+	class QVariantAnimation *m_pTabMagnify = nullptr;
+	QPointer<class QTabBar> m_tabMagnifyBar;
+	int m_tabMagnifyIdx = -1;
 	//! Auto-hide waits for the end of startup and stops at the start of
 	//! shutdown.  Loading the driver modules takes seconds, during which the
 	//! pointer is wherever the user left it and nothing on screen is theirs to
@@ -193,6 +201,11 @@ private:
 	//! failure rather than a feature.  \sa pollEdgeAutoHide()
 	bool m_edgeAutoHideArmed = false;
 	void setupEdgeAutoHide(const QRect &screen);
+	//! Fixes the icon rect a tab bar draws into, so magnifying inside it moves
+	//! nothing.  Idempotent: the poll calls it for bars that appear later.
+	void setupTabMagnify(class QTabBar *tabs);
+	//! Starts the pointer's tab growing and lets the one it left shrink back.
+	void magnifyTab(class QTabBar *tabs, int idx);
 	//! Trims the toolboxes against the message window once their frames exist.
 	void fitToolboxHeights();
 	//! Reveals a toolbox and hands it the keyboard: west at startup, east once

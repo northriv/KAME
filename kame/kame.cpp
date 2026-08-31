@@ -26,6 +26,8 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QPropertyAnimation>
+#include <QVariantAnimation>
+#include <QPainter>
 #include <QCursor>
 #include <QTabBar>
 #include <QProxyStyle>
@@ -437,28 +439,20 @@ QString flatTabStyleSheet(Qt::Edge accent) {
     //fixing it there squeezes every title out of existence.  Only the columns
     //get a width; a row is left to size itself around its titles.
     const QString metrics = vertical
-        ? "width:26px;padding:10px 4px;margin:2px 3px;"
+        ? "width:30px;padding:10px 4px;margin:2px 3px;"
         : "padding:6px 14px;margin:3px 2px;";
-    //The tab under the pointer grows along the strip, the way a dock icon
-    //does: in a resting toolbox the tab column is all there is to see, so the
-    //one being pointed at should say so with its size and not only its
-    //shade.  It moves its neighbours along, which is the effect and not a
-    //side effect.
-    //
-    //A step, not a slide.  Qt style sheets do not animate, and re-parsing one
-    //per frame to fake it would cost more than the motion is worth; growing
-    //it smoothly needs a QTabBar of our own, since tab sizes come from
-    //tabSizeHint() and QMdiArea does not lend out its bar.
-    const QString grown = vertical
-        ? "width:26px;padding:18px 4px;margin:2px 3px;"
-        : "padding:6px 22px;margin:3px 2px;";
+    //Growing the hovered tab was tried here first, as :hover with more
+    //padding, and it did not read as growth (user) -- a style sheet's hover
+    //state repaints, and whether it re-runs tabSizeHint() is not something to
+    //depend on.  The magnification is done by redrawing the icon instead,
+    //inside a rect that never changes.  \sa magnifyTab()
     return QString(
         "QTabBar{background:transparent;border:none;}"
         "QTabBar::tab{background:transparent;border:none;color:palette(text);"
         "  %1border-radius:6px;}"
-        "QTabBar::tab:hover{background:palette(midlight);%3}"
+        "QTabBar::tab:hover{background:palette(midlight);}"
         "QTabBar::tab:selected{background:palette(alternate-base);"
-        "  border-%2:3px solid palette(highlight);}").arg(metrics).arg(side).arg(grown);
+        "  border-%2:3px solid palette(highlight);}").arg(metrics).arg(side);
 }
 } // namespace
 
@@ -468,6 +462,91 @@ FrmKameMain::edgeSliderFor(QWidget *win) {
         if(s.win == win) return &s;
     return nullptr;
 }
+//! Resting and hovered size of a tab's icon, inside a rect fixed at the
+//! larger.  The gap between them is the whole effect.
+static const int TAB_ICON_REST = 16;
+static const int TAB_ICON_GROWN = 24;
+
+void
+FrmKameMain::setupTabMagnify(QTabBar *tabs) {
+    if(tabs->property("kame_magnify").toBool())
+        return;
+    tabs->setProperty("kame_magnify", true);
+    //Fixed at the larger of the two, and the resting icon drawn small inside
+    //it: growing then costs the layout nothing, so neighbours hold still.
+    tabs->setIconSize(QSize(TAB_ICON_GROWN, TAB_ICON_GROWN));
+    tabs->setAttribute(Qt::WA_Hover, true);
+    tabs->setMouseTracking(true);
+    for(int i = 0; i < tabs->count(); ++i)
+        magnifyTab(tabs, -1); //!< draws every tab at rest
+}
+
+//! Redraws one tab's icon at a size, centred in the rect the bar reserves.
+static void drawTabIcon(QTabBar *tabs, QMdiArea *area, int idx, int size) {
+    auto wins = area->subWindowList();
+    if((idx < 0) || (idx >= tabs->count()) || (idx >= wins.size()))
+        return;
+    QIcon base = wins.at(idx)->windowIcon();
+    if(base.isNull())
+        return;
+    QPixmap canvas(QSize(TAB_ICON_GROWN, TAB_ICON_GROWN)
+        * tabs->devicePixelRatioF());
+    canvas.setDevicePixelRatio(tabs->devicePixelRatioF());
+    canvas.fill(Qt::transparent);
+    {
+        QPainter p( &canvas);
+        QPixmap pm = base.pixmap(QSize(size, size), tabs->devicePixelRatioF());
+        p.drawPixmap((TAB_ICON_GROWN - size) / 2, (TAB_ICON_GROWN - size) / 2,
+            QSize(size, size).width(), QSize(size, size).height(), pm);
+    }
+    tabs->setTabIcon(idx, QIcon(canvas));
+}
+
+void
+FrmKameMain::magnifyTab(QTabBar *tabs, int idx) {
+    QMdiArea *area = nullptr;
+    for(auto &&s: m_edgeSliders)
+        if(s.area->findChild<QTabBar *>() == tabs)
+            area = s.area;
+    if( !area)
+        return;
+    if((m_tabMagnifyBar == tabs) && (m_tabMagnifyIdx == idx))
+        return;
+    //Whatever was growing goes back, at once: two tabs part-grown at the same
+    //time reads as a glitch rather than as a transition.
+    if(m_tabMagnifyBar && (m_tabMagnifyIdx >= 0)) {
+        for(auto &&s: m_edgeSliders)
+            if(s.area->findChild<QTabBar *>() == m_tabMagnifyBar)
+                drawTabIcon(m_tabMagnifyBar, s.area, m_tabMagnifyIdx, TAB_ICON_REST);
+    }
+    m_tabMagnifyBar = tabs;
+    m_tabMagnifyIdx = idx;
+    if( !m_pTabMagnify) {
+        m_pTabMagnify = new QVariantAnimation(this);
+        m_pTabMagnify->setDuration(120);
+        m_pTabMagnify->setEasingCurve(QEasingCurve::OutCubic);
+        connect(m_pTabMagnify, &QVariantAnimation::valueChanged, this,
+            [this](const QVariant &v) {
+                if( !m_tabMagnifyBar || (m_tabMagnifyIdx < 0))
+                    return;
+                for(auto &&s: m_edgeSliders)
+                    if(s.area->findChild<QTabBar *>() == m_tabMagnifyBar)
+                        drawTabIcon(m_tabMagnifyBar, s.area, m_tabMagnifyIdx,
+                            v.toInt());
+            });
+    }
+    m_pTabMagnify->stop();
+    if(idx < 0) {
+        //Nothing under the pointer: every tab is already back at rest.
+        for(int i = 0; i < tabs->count(); ++i)
+            drawTabIcon(tabs, area, i, TAB_ICON_REST);
+        return;
+    }
+    m_pTabMagnify->setStartValue(TAB_ICON_REST);
+    m_pTabMagnify->setEndValue(TAB_ICON_GROWN);
+    m_pTabMagnify->start();
+}
+
 void
 FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
     //Each floating toolbox becomes its own edge bar: it shrinks against the
@@ -496,6 +575,7 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
             //not exist yet at this point.)
             tabs->installEventFilter(this);
             tabs->setProperty("kame_pin_filter", true);
+            setupTabMagnify(tabs);
             tabs->setStyleSheet(flatTabStyleSheet(left ? Qt::LeftEdge : Qt::RightEdge));
             tabs->updateGeometry();
             tabw = std::max(tabw, tabs->sizeHint().width());
@@ -630,6 +710,7 @@ FrmKameMain::pollEdgeAutoHide() {
             if( !tabs->property("kame_pin_filter").toBool()) {
                 tabs->installEventFilter(this);
                 tabs->setProperty("kame_pin_filter", true);
+                setupTabMagnify(tabs);
                 //Its tabs run along the top, so the accent goes underneath.
                 tabs->setStyleSheet(flatTabStyleSheet(Qt::BottomEdge));
             }
@@ -722,10 +803,9 @@ FrmKameMain::eventFilter(QObject *obj, QEvent *event) {
         //land on the tab already in front — two conditions to satisfy before
         //a gesture would answer, which is one more than a gesture may ask.
         //
-        //Not the main window: its tabs are script panes along the top, where
-        //a click is a click and pinning belongs in the View menu.
+        //Every strip, the main window's included (user): a rule that holds in
+        //one place and not another is a rule nobody remembers.
         for(auto &&s: m_edgeSliders) {
-            if(s.vertical) continue;
             QTabBar *tabs = s.area->findChild<QTabBar *>();
             if(obj != tabs) continue;
             auto *me = static_cast<QMouseEvent *>(event);
@@ -737,6 +817,20 @@ FrmKameMain::eventFilter(QObject *obj, QEvent *event) {
                                              : i18n(" pinned open.")));
             return true; //the click meant this, not a tab change
         }
+    }
+    if((event->type() == QEvent::HoverMove) || (event->type() == QEvent::MouseMove)) {
+        //Not the 150 ms poll: this is motion, and it has to follow the pointer
+        //rather than catch up with it.
+        if(auto *tabs = qobject_cast<QTabBar *>(obj)) {
+            QPoint at = (event->type() == QEvent::HoverMove) ?
+                static_cast<QHoverEvent *>(event)->position().toPoint() :
+                static_cast<QMouseEvent *>(event)->position().toPoint();
+            magnifyTab(tabs, tabs->tabAt(at));
+        }
+    }
+    if((event->type() == QEvent::HoverLeave) || (event->type() == QEvent::Leave)) {
+        if(auto *tabs = qobject_cast<QTabBar *>(obj))
+            magnifyTab(tabs, -1);
     }
     if(event->type() == QEvent::Show) {
         auto w = qobject_cast<QWidget*>(obj);
