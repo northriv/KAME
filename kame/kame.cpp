@@ -666,6 +666,16 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
         //poll's focus guard, which meant the first thing on screen was a
         //panel demanding to be dismissed.  The toolboxes are simply there,
         //and fold away on their own once the modules are up.
+        //
+        //The main window is activated, though, and has to be: the poll keeps a
+        //window open while it holds the keyboard AND is active, and several
+        //toolbox panes hold a line edit that takes focus merely by being
+        //shown.  Left to the window server, whichever toolbox came up key
+        //stayed open until the user clicked the main window -- which is what
+        //the east one did.  Activating the main window is the opposite of
+        //handing over a toolbox: it is where the work happens.
+        raise();
+        activateWindow();
     });
     //The in-window strips would only duplicate what the edge bars now do.
     m_pStripLeft->hide();
