@@ -113,6 +113,11 @@
   named after the length of their list, so deleting the first and adding
   another asked for a name that was still taken; they now take the first free
   one.
+- UI: the main window has a title.  Nothing had ever set one, so it carried
+  none at all -- and the pinned mark had nowhere to go.  It says what is
+  loaded, then whose window it is: "run042.kam - KAME 9.0", the order every
+  document-shaped application uses, since the file is what differs between two
+  of them.  Opening, saving and closing a measurement each update it.
 - UI: a pinned toolbox says so in its own title bar, with a mark after its
   name, and the status-line message that used to announce it is gone.  That is
   where every docking UI with this feature keeps it -- Visual Studio, VS Code

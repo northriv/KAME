@@ -207,6 +207,12 @@ private:
 	//! Puts the pinned state in the window's own title bar, where a docking UI
 	//! conventionally keeps it.
 	void markPinned(EdgeSlider &s);
+	//! The window's own title: what is loaded, the version, and the pin mark.
+	//! Nothing set one at all, so the main window carried no title of any
+	//! kind, and the pinned mark had nowhere to go.
+	void updateWindowTitle();
+	//! Base name of the measurement file in the tree, for the title bar.
+	QString m_titleDoc;
 	//! Starts the pointer's tab growing and lets the one it left shrink back.
 	void magnifyTab(class QTabBar *tabs, int idx);
 	//! Trims the toolboxes against the message window once their frames exist.

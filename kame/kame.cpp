@@ -28,6 +28,7 @@
 #include <QPropertyAnimation>
 #include <QVariantAnimation>
 #include <QStatusBar>
+#include <QFileInfo>
 #include <QPainter>
 #include <QCursor>
 #include <QTabBar>
@@ -258,6 +259,7 @@ FrmKameMain::FrmKameMain()
     if(can_place_windows)
         move((rect.width() - frameSize().width()) / 2, rect.top());
 
+    updateWindowTitle();   //nothing had ever set one, so there was none at all
     updateToolboxStrips(); //initial check marks, after the panes are laid out.
 
 #if defined __MACOSX__ || defined __APPLE__
@@ -524,9 +526,23 @@ static void resetTabIcons(QTabBar *tabs, QMdiArea *area, int size) {
 //! pinned.  Being permanent, it also does the job the transient status line
 //! message was doing, which is now gone.
 void
+FrmKameMain::updateWindowTitle() {
+    //What is loaded, then whose window it is: the order every document-shaped
+    //application uses, since the file is what differs between two of them.
+    QString t = m_titleDoc.isEmpty() ? QString("KAME " VERSION)
+        : m_titleDoc + QString::fromUtf8(" \u2014 KAME " VERSION);
+    for(auto &&s: m_edgeSliders)
+        if(s.vertical && !s.autoHide)
+            t += QString::fromUtf8(" \u2731");
+    setWindowTitle(t);
+}
+
+void
 FrmKameMain::markPinned(EdgeSlider &s) {
-    if(s.vertical)
-        return;   //!< the main window's title is the measurement's, not ours
+    if(s.vertical) {
+        updateWindowTitle();
+        return;
+    }
     QString base = s.win->property("kame_title").toString();
     if(base.isEmpty()) {
         base = s.win->windowTitle();
@@ -1184,6 +1200,8 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
 }
 
 void FrmKameMain::fileCloseAction_activated() {
+    m_titleDoc.clear();       //!< nothing is loaded any more, and the title says so
+    updateWindowTitle();
     //The journal walks the tree and takes transactions on it from its own
     //thread.  terminate() destroys that tree, and a background thread
     //committing across a teardown is indefensible whatever else is true --
@@ -1260,6 +1278,8 @@ void FrmKameMain::fileSaveAction_activated() {
 		if(ofs.good()) {
             XRubyWriter writer(m_measure, ofs);
 			writer.write();
+            m_titleDoc = QFileInfo(filename).fileName();
+            updateWindowTitle();
         }
 	}
 }
@@ -1320,6 +1340,8 @@ void FrmKameMain::mesStopAction_activated() {
 int
 FrmKameMain::openMes(const XString &filename) {
 	if( !filename.empty()) {
+        m_titleDoc = QFileInfo(QString::fromStdString(filename)).fileName();
+        updateWindowTitle();
 		shared_ptr<XScriptingThread> th = runNewScript("Open Measurement", filename );
         //Interfaces and entries are what one turns to after loading a
         //measurement, so hand the east toolbox the keyboard — but only once
