@@ -246,22 +246,23 @@ FrmKameMain::FrmKameMain()
     //A third wider than it used to be, both terms alike (screen/4 -> 13/40,
     //500 -> 650), now that the toolboxes fold themselves away and the space
     //between them is the main window's to use.
-    //As tall as the toolboxes, which is the top of the screen down to just
-    //above the message window -- a measurement that already exists here and
-    //describes the layout the three windows actually make.
+    //Two fifths of the screen, and never less than the layout plus the status
+    //bar.  A CHOSEN proportion, like the width beside it -- not derived from
+    //anything, and nobody should read it as though it were.
     //
-    //Not minimumSizeHint(): a QMdiArea does not report a minimum that follows
-    //what is in it, so every number derived from that hint came out short --
-    //twice in a row, and each time by an amount nobody could name.  Nor
-    //minimumHeight(), which is the minimum somebody SET and so was 0; what the
-    //window used to open at was Qt clamping that up to the layout's minimum.
-    //The status bar is in none of them, XStatusPrinter creating it and hiding
-    //it in the same breath, and the first message to appear took its space out
-    //of the central pane.
+    //Three attempts to derive it all failed, in both directions.
+    //minimumHeight() is the minimum somebody SET, and nobody did, so it was 0
+    //and the window opened at whatever Qt clamped that up to.
+    //minimumSizeHint() does not follow what a QMdiArea contains, so the height
+    //built on it came out short twice.  And the toolboxes' own height -- the
+    //screen down to the message window, which at least describes a real
+    //layout -- is far too much for a window holding a row of script panes.
+    //The status bar is in none of the hints either: XStatusPrinter creates it
+    //and hides it in the same breath, so the first message to appear took its
+    //space out of the central pane and clipped what sat at the bottom.
     int statush = statusBar() ? statusBar()->sizeHint().height() : 0;
-    int main_h = std::max(XMessageBox::form()->frameGeometry().top() - 6 - rect.top(),
-        480 + statush);
-    resize(QSize(std::max(rect.width() * 13 / 40, 650), main_h));
+    resize(QSize(std::max(rect.width() * 13 / 40, 650),
+        std::max(rect.height() * 2 / 5, minimumSizeHint().height() + statush)));
     if(can_place_windows)
         move((rect.width() - frameSize().width()) / 2, rect.top());
 
