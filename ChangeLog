@@ -130,10 +130,12 @@
   the rest are doing -- watching the icon of the thing you are looking at
   shrink as the pointer leaves its tab is the wrong way round.  The three
   meanings look unrelated and say one thing: big is what there is to look at.
-- UI: the main window opens tall enough for its status bar.  XStatusPrinter
-  creates the bar and hides it at once, so the height the window took from
-  minimumHeight() was the height without it, and the first message clipped
-  whatever sat at the bottom of the central pane.
+- UI: the main window opens tall enough for its status bar.  It sized itself
+  from minimumHeight(), which is the minimum somebody SET and so was 0 -- the
+  height it actually came up at was Qt clamping that to the layout's minimum,
+  and the status bar is in neither, XStatusPrinter creating the bar and hiding
+  it in the same breath.  The first message to appear therefore took its space
+  out of the central pane and clipped what sat at the bottom.
 - UI: nothing is put in the user's hand at startup.  KAME opened with the west
   toolbox activated and holding itself open, so the first thing on screen was
   a panel asking to be dismissed.

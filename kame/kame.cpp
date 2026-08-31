@@ -243,12 +243,18 @@ FrmKameMain::FrmKameMain()
     //A third wider than it used to be, both terms alike (screen/4 -> 13/40,
     //500 -> 650), now that the toolboxes fold themselves away and the space
     //between them is the main window's to use.
-    //Plus the status bar, which is not in minimumHeight(): XStatusPrinter
-    //creates it and hides it at once, so the height measured here is the
-    //height without it -- and the moment a message appears it takes its space
-    //out of the central pane, clipping whatever sits at the bottom.
+    //minimumSizeHint(), NOT minimumHeight(): the latter is the minimum somebody
+    //SET, which nobody did, so it is 0 -- the old height came from Qt clamping
+    //the resize up to the layout's minimum, and anything added to 0 vanished
+    //into that same clamp.
+    //
+    //Plus the status bar, which is in neither: XStatusPrinter creates it and
+    //hides it in the same breath, so the layout is measured without one, and
+    //the first message to appear takes its space out of the central pane and
+    //clips whatever sits at the bottom.
     int statush = statusBar() ? statusBar()->sizeHint().height() : 0;
-    resize(QSize(std::max(rect.width() * 13 / 40, 650), minimumHeight() + statush));
+    resize(QSize(std::max(rect.width() * 13 / 40, 650),
+        minimumSizeHint().height() + statush));
     if(can_place_windows)
         move((rect.width() - frameSize().width()) / 2, rect.top());
 
@@ -689,15 +695,20 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
         //panel demanding to be dismissed.  The toolboxes are simply there,
         //and fold away on their own once the modules are up.
         //
-        //The main window is activated, though, and has to be: the poll keeps a
-        //window open while it holds the keyboard AND is active, and several
-        //toolbox panes hold a line edit that takes focus merely by being
-        //shown.  Left to the window server, whichever toolbox came up key
-        //stayed open until the user clicked the main window -- which is what
-        //the east one did.  Activating the main window is the opposite of
-        //handing over a toolbox: it is where the work happens.
+        //The main window is activated, and the keyboard is taken off whatever
+        //grabbed it.  Both are needed, and the second is the one that works:
+        //a Qt::Tool window counts as active while its parent is, so activating
+        //the main window leaves isActiveWindow() true for the toolboxes -- and
+        //the poll holds a window open while it is active AND holds the focus
+        //widget.  Several toolbox panes have a line edit that takes focus
+        //merely by being shown (the poll's own comment says so), so the east
+        //toolbox sat open until a click moved the focus somewhere else.
         raise();
         activateWindow();
+        if(QWidget *f = QApplication::focusWidget())
+            f->clearFocus();
+        if(m_pMdiCentral)
+            m_pMdiCentral->setFocus(Qt::OtherFocusReason);
     });
     //The in-window strips would only duplicate what the edge bars now do.
     m_pStripLeft->hide();
