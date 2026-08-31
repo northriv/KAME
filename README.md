@@ -34,7 +34,7 @@ orchestration across compatible instruments.
 - Fourier step-sum spectrum measurement with field / frequency sweeping
 - Complete data logging with post-measurement re-analysis
 - Save / restore full measurement config to `.kam` files
-- Provenance journal — the settings and their every change to `.kamj`, the raw records behind the readings to `.kamb`, either replayable in the Journal Reader (9.0)
+- Provenance journal: settings and every change to them in `.kamj`, raw records in `.kamb`, either file replayable (9.0)
 - Modular driver plug-in architecture; Python drivers redefinable at runtime
 - Calibration curves (cspline, Chebyshev, polynomial) for resistance thermometers and generic sensors; calibrated entries feed into graphs, charts, and data recording like any native scalar
 
@@ -78,25 +78,37 @@ Builds before 8.6.1 carry the double-allocation defect described under *What's N
 
 ## What's New in 9.0 (alpha)
 
-- **KAME writes down what it was set to and what it did, without being asked.**
-  A run is one name and two files: `.kamj` holds the settings as they were
-  when it began and every change afterwards — what you set, and what the
-  instruments reported — and `.kamb` holds the raw records behind those
-  readings. A tier beside the name decides whether the second is written at all:
-  ~MB/hour for the settings alone, ~GB/hour with heavy records.
-  Both are gzip and `.kamj` is JSON Lines inside.
-- **The session is journalled whether or not you are recording a run**, into its
-  own directory, at a few tens of KB — everything *you* did in full, an
-  instrument's readings only once they have gone quiet. A session in which you
-  forgot to save is no longer a session with nothing to show.
-- **Replay in the Journal Reader.** Open either file and the other is found.
-  Opening the `.kamj` puts the settings of each moment back as playback reaches
-  it; opening the `.kamb` re-analyses the same records with the settings in the
-  tree now, which is what you want when you change one parameter and run a whole
-  recording through again. Drivers the journal names are created if this KAME
-  does not have them. Only what a person asked for is restored, never into a
-  driver that is running — that being the only path by which a value would reach
-  an instrument — and KAME says how much it held back.
+- **KAME records what it was set to and what it did, without being asked.** A
+  run is one name and two files. `run042.kamj` holds the settings the run
+  started with, and every change made afterwards, yours and the instruments'.
+  `run042.kamb` holds the raw records behind those readings. You choose whether
+  the second file is written at all: settings alone cost about 11 MB/hour at 144
+  readings a second, settings plus records about 10 GB/hour. Both files are
+  gzip, and `.kamj` is JSON Lines inside, so `zgrep` and `zdiff` read one with
+  no special tool. Numbers are stored twice, as the text you would read and as
+  the exact eight bytes they were.
+- **The session is recorded even when you are not recording a run.** It goes to
+  a directory of its own and stays at a few tens of KB. Everything you did is
+  kept in full; an instrument's readings are kept only once they settle. A
+  session you forgot to save now has something to show.
+- **Replay, in the Journal Reader.** Open either file and the other is found.
+  Open the `.kamj` and the settings of each moment come back as playback reaches
+  them. Open the `.kamb` and the same records are re-analysed with the settings
+  you have now, which is what you want after changing one parameter. Drivers
+  named in the journal are created if this KAME does not have them. Only what a
+  person set is restored, never into a running driver, and KAME reports how much
+  it held back.
+- **The toolboxes and the main window get out of the way by themselves.** A
+  toolbox at a screen edge shrinks to its tab column, and grows back when the
+  pointer touches it. The main window keeps its top edge and rests at half
+  height, so the menu bar and the pane tabs never move. Hovering a tab picks
+  that pane, which makes a resting toolbox a menu of its panes. Click the front
+  tab to pin a window open. Both are switches in the View menu.
+- **Smaller UI changes.** The New Driver dialog has a live search box. A driver
+  you create opens its own window, and one with an interface brings up the
+  Interface pane. The pane tabs are flat and move faster. An interface that
+  appears is selected and scrolled to. On macOS, choosing KAME in the Dock
+  brings the main window forward.
 
 ## What's New in 8.6.1
 
