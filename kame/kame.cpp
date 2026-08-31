@@ -246,18 +246,22 @@ FrmKameMain::FrmKameMain()
     //A third wider than it used to be, both terms alike (screen/4 -> 13/40,
     //500 -> 650), now that the toolboxes fold themselves away and the space
     //between them is the main window's to use.
-    //minimumSizeHint(), NOT minimumHeight(): the latter is the minimum somebody
-    //SET, which nobody did, so it is 0 -- the old height came from Qt clamping
-    //the resize up to the layout's minimum, and anything added to 0 vanished
-    //into that same clamp.
+    //As tall as the toolboxes, which is the top of the screen down to just
+    //above the message window -- a measurement that already exists here and
+    //describes the layout the three windows actually make.
     //
-    //Plus the status bar, which is in neither: XStatusPrinter creates it and
-    //hides it in the same breath, so the layout is measured without one, and
-    //the first message to appear takes its space out of the central pane and
-    //clips whatever sits at the bottom.
+    //Not minimumSizeHint(): a QMdiArea does not report a minimum that follows
+    //what is in it, so every number derived from that hint came out short --
+    //twice in a row, and each time by an amount nobody could name.  Nor
+    //minimumHeight(), which is the minimum somebody SET and so was 0; what the
+    //window used to open at was Qt clamping that up to the layout's minimum.
+    //The status bar is in none of them, XStatusPrinter creating it and hiding
+    //it in the same breath, and the first message to appear took its space out
+    //of the central pane.
     int statush = statusBar() ? statusBar()->sizeHint().height() : 0;
-    resize(QSize(std::max(rect.width() * 13 / 40, 650),
-        minimumSizeHint().height() + statush));
+    int main_h = std::max(XMessageBox::form()->frameGeometry().top() - 6 - rect.top(),
+        480 + statush);
+    resize(QSize(std::max(rect.width() * 13 / 40, 650), main_h));
     if(can_place_windows)
         move((rect.width() - frameSize().width()) / 2, rect.top());
 
@@ -527,9 +531,9 @@ static void resetTabIcons(QTabBar *tabs, QMdiArea *area, int size) {
 //! wide and shows no title, and a collapsed toolbox is by definition not
 //! pinned.  Being permanent, it also does the job the transient status line
 //! message was doing, which is now gone.
-//! Grows the window when the layout turns out to want more than it was given.
-//! Only ever grows, and only while the user has not moved it themselves: a
-//! window that resizes itself under someone's hands is worse than a short one.
+//! Grows the window when a layout appears that it was not sized for -- a row
+//! of tabs where there were none, most of all.  Only ever grows: a window that
+//! shrinks under someone's hands is worse than a short one.
 void
 FrmKameMain::ensureMinimumHeight() {
     int want = minimumSizeHint().height();
@@ -918,6 +922,16 @@ FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
     //thing on screen, and small icons in it are a smaller target than the bar
     //they sit in.  A step rather than a slide, hidden inside the 170 ms the
     //window itself is moving.
+    //Folding takes the keyboard with it.  A pane's line edit takes focus
+    //merely by being shown, and a folded toolbox is 36 px of bar -- so typing
+    //went into a field nobody could see and nobody had asked for (user).
+    if(collapse)
+        if(QWidget *f = QApplication::focusWidget())
+            if(s.win->isAncestorOf(f)) {
+                f->clearFocus();
+                if(m_pMdiCentral)
+                    m_pMdiCentral->setFocus(Qt::OtherFocusReason);
+            }
     if(QTabBar *tabs = s.area->findChild<QTabBar *>()) {
         if(tabs->property("kame_magnify").toBool()) {
             resetTabIcons(tabs, s.area, collapse ? TAB_ICON_GROWN : TAB_ICON_REST);
