@@ -559,6 +559,8 @@ FrmKameMain::setupTabMagnify(QTabBar *tabs, QMdiArea *area) {
     //Fixed at the larger of the two, and the resting icon drawn small inside
     //it: growing then costs the layout nothing, so neighbours hold still.
     tabs->setIconSize(QSize(TAB_ICON_GROWN, TAB_ICON_GROWN));
+    //Taller tabs than whoever laid this bar out was told about, so say so.
+    tabs->updateGeometry();
     tabs->setAttribute(Qt::WA_Hover, true);
     tabs->setMouseTracking(true);
     //Drawn here, with the area in hand.  Doing it through magnifyTab() left
@@ -578,6 +580,8 @@ FrmKameMain::setupTabMagnify(QTabBar *tabs, QMdiArea *area) {
 
 void
 FrmKameMain::magnifyTab(QTabBar *tabs, int idx) {
+    if( !tabs->property("kame_magnify").toBool())
+        return;   //!< the central row, which is left as Qt drew it
     QMdiArea *area = nullptr;
     for(auto &&s: m_edgeSliders)
         if(s.area->findChild<QTabBar *>() == tabs)
@@ -814,7 +818,12 @@ FrmKameMain::pollEdgeAutoHide() {
             if( !tabs->property("kame_pin_filter").toBool()) {
                 tabs->installEventFilter(this);
                 tabs->setProperty("kame_pin_filter", true);
-                setupTabMagnify(tabs, s.area);
+                //No magnification for the central strip.  It is a normal row
+                //of tabs that never collapses, so nothing there depends on
+                //reading an icon in a bar -- and enlarging them made the row
+                //taller AFTER the window had taken its height from a layout
+                //measured without them, which is a bottom edge clipped until
+                //something forces the row to lay out again.
                 //Its tabs run along the top, so the accent goes underneath.
                 tabs->setStyleSheet(flatTabStyleSheet(Qt::BottomEdge));
             }
@@ -878,10 +887,12 @@ FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
     //they sit in.  A step rather than a slide, hidden inside the 170 ms the
     //window itself is moving.
     if(QTabBar *tabs = s.area->findChild<QTabBar *>()) {
-        resetTabIcons(tabs, s.area, collapse ? TAB_ICON_GROWN : TAB_ICON_REST);
-        if(m_pTabMagnify)
-            m_pTabMagnify->stop();
-        m_tabMagnifyIdx = -1;
+        if(tabs->property("kame_magnify").toBool()) {
+            resetTabIcons(tabs, s.area, collapse ? TAB_ICON_GROWN : TAB_ICON_REST);
+            if(m_pTabMagnify)
+                m_pTabMagnify->stop();
+            m_tabMagnifyIdx = -1;
+        }
     }
     QRect to = s.expanded;
     if(collapse) {
