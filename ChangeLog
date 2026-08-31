@@ -126,9 +126,14 @@
   style sheet cannot be.
   A collapsed strip shows every icon at that larger size instead (user): it is
   then the only thing on screen, and small icons in it are a smaller target
-  than the bar holding them.  The two meanings are opposite -- hovered is big,
-  and resting is big -- and agree on what size is saying: this is what there is
-  to look at.
+  than the bar holding them.  So does the tab of the pane on show, whatever
+  the rest are doing -- watching the icon of the thing you are looking at
+  shrink as the pointer leaves its tab is the wrong way round.  The three
+  meanings look unrelated and say one thing: big is what there is to look at.
+- UI: the main window opens tall enough for its status bar.  XStatusPrinter
+  creates the bar and hides it at once, so the height the window took from
+  minimumHeight() was the height without it, and the first message clipped
+  whatever sat at the bottom of the central pane.
 - UI: nothing is put in the user's hand at startup.  KAME opened with the west
   toolbox activated and holding itself open, so the first thing on screen was
   a panel asking to be dismissed.

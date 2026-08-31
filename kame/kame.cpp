@@ -27,6 +27,7 @@
 #include <QVBoxLayout>
 #include <QPropertyAnimation>
 #include <QVariantAnimation>
+#include <QStatusBar>
 #include <QPainter>
 #include <QCursor>
 #include <QTabBar>
@@ -242,7 +243,12 @@ FrmKameMain::FrmKameMain()
     //A third wider than it used to be, both terms alike (screen/4 -> 13/40,
     //500 -> 650), now that the toolboxes fold themselves away and the space
     //between them is the main window's to use.
-    resize(QSize(std::max(rect.width() * 13 / 40, 650), minimumHeight()));
+    //Plus the status bar, which is not in minimumHeight(): XStatusPrinter
+    //creates it and hides it at once, so the height measured here is the
+    //height without it -- and the moment a message appears it takes its space
+    //out of the central pane, clipping whatever sits at the bottom.
+    int statush = statusBar() ? statusBar()->sizeHint().height() : 0;
+    resize(QSize(std::max(rect.width() * 13 / 40, 650), minimumHeight() + statush));
     if(can_place_windows)
         move((rect.width() - frameSize().width()) / 2, rect.top());
 
@@ -488,10 +494,17 @@ static void drawTabIcon(QTabBar *tabs, QMdiArea *area, int idx, int size) {
     tabs->setTabIcon(idx, QIcon(canvas));
 }
 
-//! Every tab of one bar at one size.
+//! Every tab of one bar at one size -- except the one in front, which stays
+//! large whatever the rest are doing.
+//!
+//! Its pane is what is on screen, and watching the icon of the thing you are
+//! looking at shrink as the pointer moves off its tab is the wrong way round
+//! (user).  Big means "this is what there is to look at", and the pane on
+//! show qualifies as much as a collapsed strip or a hovered tab does.
 static void resetTabIcons(QTabBar *tabs, QMdiArea *area, int size) {
     for(int i = 0; i < tabs->count(); ++i)
-        drawTabIcon(tabs, area, i, size);
+        drawTabIcon(tabs, area, i,
+            (i == tabs->currentIndex()) ? TAB_ICON_GROWN : size);
 }
 
 void
@@ -510,6 +523,13 @@ FrmKameMain::setupTabMagnify(QTabBar *tabs, QMdiArea *area) {
     //untouched icon is stretched to fill the rect, which is why they all came
     //up large.
     resetTabIcons(tabs, area, TAB_ICON_REST);
+    connect(tabs, &QTabBar::currentChanged, this, [this, tabs, area](int) {
+        int base = TAB_ICON_REST;
+        for(auto &&s: m_edgeSliders)
+            if(s.area == area)
+                base = s.collapsed ? TAB_ICON_GROWN : TAB_ICON_REST;
+        resetTabIcons(tabs, area, base);
+    });
 }
 
 void
@@ -533,6 +553,8 @@ FrmKameMain::magnifyTab(QTabBar *tabs, int idx) {
         m_tabMagnifyIdx = -1;
         return;
     }
+    if(idx == tabs->currentIndex())
+        idx = -1;   //!< already large, and staying that way
     if((m_tabMagnifyBar == tabs) && (m_tabMagnifyIdx == idx))
         return;
     //Whatever was growing goes back, at once: two tabs part-grown at the same
