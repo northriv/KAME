@@ -16,8 +16,18 @@
 
 #if defined USE_EURESYS_EGRABBER
 
-unique_ptr<Euresys::EGenTL, XEGrabberInterface::NoThrowDeleter<Euresys::EGenTL>> XEGrabberInterface::s_gentl;
-unique_ptr<Euresys::EGrabberDiscovery, XEGrabberInterface::NoThrowDeleter<Euresys::EGrabberDiscovery>> XEGrabberInterface::s_discovery;
+//! Leaked on purpose, and only the holders: what they hold is still released
+//! when the last interface closes.  \sa the comment on these in the header
+unique_ptr<Euresys::EGenTL> &
+XEGrabberInterface::s_gentl() {
+    static auto *p = new unique_ptr<Euresys::EGenTL>();
+    return *p;
+}
+unique_ptr<Euresys::EGrabberDiscovery> &
+XEGrabberInterface::s_discovery() {
+    static auto *p = new unique_ptr<Euresys::EGrabberDiscovery>();
+    return *p;
+}
 int XEGrabberInterface::s_refcnt = 0;
 XRecursiveMutex XEGrabberInterface::s_mutex;
 
@@ -41,10 +51,10 @@ XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const sha
         if(s_refcnt++ == 0) {
             try {
                 using namespace Euresys;
-                s_gentl = decltype(s_gentl)(grablink ?
+                s_gentl().reset(grablink ?
                             new EGenTL(Grablink()) :
                             new EGenTL(Coaxlink()));
-                s_discovery = decltype(s_discovery)(new EGrabberDiscovery( *s_gentl));
+                s_discovery().reset(new EGrabberDiscovery( *s_gentl()));
             }
             catch (const std::exception &e) {                                                 // 7
                 gErrPrint(XString("error: ") + e.what());
@@ -52,10 +62,10 @@ XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const sha
         }
         try {
             using namespace Euresys;
-            s_discovery->discover();
-            fprintf(stderr, "eGrabber count:%i; camera count:%i\n", s_discovery->egrabberCount(), s_discovery->cameraCount());
-            for (int i = 0; i < s_discovery->cameraCount(); ++i) {
-                 EGrabberCameraInfo info = s_discovery->cameras(i);
+            s_discovery()->discover();
+            fprintf(stderr, "eGrabber count:%i; camera count:%i\n", s_discovery()->egrabberCount(), s_discovery()->cameraCount());
+            for (int i = 0; i < s_discovery()->cameraCount(); ++i) {
+                 EGrabberCameraInfo info = s_discovery()->cameras(i);
                  EGrabberInfo grabber = info.grabbers[0];
                  if(grabber.isRemoteAvailable) {
                      names.push_back(
@@ -81,8 +91,8 @@ XEGrabberInterface::~XEGrabberInterface() {
     XScopedLock<XEGrabberInterface> lock( *this);
     XScopedLock<XRecursiveMutex> slock( s_mutex);
     if(--s_refcnt == 0) {
-        s_discovery.reset();
-        s_gentl.reset();
+        s_discovery().reset();
+        s_gentl().reset();
     }
 
 }
@@ -105,14 +115,14 @@ XEGrabberInterface::open() {
     Snapshot shot( *this);
     try {
         using namespace Euresys;
-        s_discovery->discover();
-        for (int i = 0; i < s_discovery->cameraCount(); ++i) {
-             EGrabberCameraInfo info = s_discovery->cameras(i);
+        s_discovery()->discover();
+        for (int i = 0; i < s_discovery()->cameraCount(); ++i) {
+             EGrabberCameraInfo info = s_discovery()->cameras(i);
              EGrabberInfo grabber = info.grabbers[0];
              if(grabber.isRemoteAvailable) {
                  if(shot[ *device()].to_str() ==
                          formatString("%i:", grabber.deviceIndex) + grabber.deviceModelName) {
-                     m_camera = std::make_shared<Camera>(s_discovery->cameras(i));
+                     m_camera = std::make_shared<Camera>(s_discovery()->cameras(i));
                      break;
                  }
              }

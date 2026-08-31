@@ -165,6 +165,14 @@
 - UI: folding a toolbox takes the keyboard with it.  A pane's line edit takes
   focus merely by being shown, so typing went into a field nobody could see
   and nobody had asked for (user).
+- Fixed an abort at exit with a Euresys eGrabber camera present.  The GenTL
+  close throws when the producer is already gone, which it is during static
+  destruction, and it throws out of ~EGrabberDiscovery() -- a destructor, and
+  so implicitly noexcept, meaning std::terminate fires at the throw, frames
+  below any deleter of ours.  A try/catch around the delete could never have
+  caught it.  The holders are leaked instead, so nothing runs at exit, while
+  closing the last interface still releases them, which is the path where the
+  library is alive and the teardown means something.
 - UI: clicking a driver or an interface in a list opens that driver's window
   and folds the toolboxes (user).  The pane has just done its job and would
   otherwise be standing in front of the result.  A toolbox folded this way
