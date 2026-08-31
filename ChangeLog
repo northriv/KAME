@@ -113,6 +113,15 @@
   named after the length of their list, so deleting the first and adding
   another asked for a name that was still taken; they now take the first free
   one.
+- UI: a toolbox folds when the pointer leaves it, whether or not it holds the
+  keyboard.  Clicking into one to change a setting used to keep it open until
+  you clicked somewhere else, however far away the pointer went -- which is a
+  toolbox sitting on top of the window you were trying to get back to, and
+  moving the mouse off it is exactly how anyone says get out of the way (user).
+  The one case that still overrules the pointer is typing: a widget that takes
+  text would be clipped out of sight by a 36 px bar while the keystrokes went
+  on arriving.  A pane merely holding focus because a line edit grabbed it on
+  show no longer counts, which is what it was being mistaken for.
 - UI: the main window has a title.  Nothing had ever set one, so it carried
   none at all -- and the pinned mark had nowhere to go.  It says what is
   loaded, then whose window it is: "run042.kam - KAME 9.0", the order every
@@ -148,7 +157,10 @@
   height it actually came up at was Qt clamping that to the layout's minimum,
   and the status bar is in neither, XStatusPrinter creating the bar and hiding
   it in the same breath.  The first message to appear therefore took its space
-  out of the central pane and clipped what sat at the bottom.
+  out of the central pane and clipped what sat at the bottom.  It is measured
+  again once the window is realized, and again when the central tab row first
+  appears, since the number in the constructor is short of what the polished
+  layout turns out to want.
 - UI: nothing is put in the user's hand at startup.  KAME opened with the west
   toolbox activated and holding itself open, so the first thing on screen was
   a panel asking to be dismissed.

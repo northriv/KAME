@@ -183,6 +183,8 @@ private:
 		//! Whether the toolbox held the keyboard as of the last poll — read
 		//! when a tab is clicked, since the click itself may have just
 		//! activated the window and would answer "yes" either way.
+		//! Text is being typed into this window: the one thing that keeps it
+		//! open with the pointer elsewhere.  \sa pollEdgeAutoHide()
 		bool wasFocused;
 	};
 	std::deque<EdgeSlider> m_edgeSliders;
@@ -211,6 +213,8 @@ private:
 	//! Nothing set one at all, so the main window carried no title of any
 	//! kind, and the pinned mark had nowhere to go.
 	void updateWindowTitle();
+	//! Grows the window if the layout wants more height than it has.
+	void ensureMinimumHeight();
 	//! Base name of the measurement file in the tree, for the title bar.
 	QString m_titleDoc;
 	//! Starts the pointer's tab growing and lets the one it left shrink back.

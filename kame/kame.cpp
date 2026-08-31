@@ -28,6 +28,8 @@
 #include <QPropertyAnimation>
 #include <QVariantAnimation>
 #include <QStatusBar>
+#include <QLineEdit>
+#include <QAbstractSpinBox>
 #include <QFileInfo>
 #include <QPainter>
 #include <QCursor>
@@ -525,6 +527,18 @@ static void resetTabIcons(QTabBar *tabs, QMdiArea *area, int size) {
 //! wide and shows no title, and a collapsed toolbox is by definition not
 //! pinned.  Being permanent, it also does the job the transient status line
 //! message was doing, which is now gone.
+//! Grows the window when the layout turns out to want more than it was given.
+//! Only ever grows, and only while the user has not moved it themselves: a
+//! window that resizes itself under someone's hands is worse than a short one.
+void
+FrmKameMain::ensureMinimumHeight() {
+    int want = minimumSizeHint().height();
+    if(statusBar())
+        want += statusBar()->sizeHint().height();
+    if(height() < want)
+        resize(width(), want);
+}
+
 void
 FrmKameMain::updateWindowTitle() {
     //What is loaded, then whose window it is: the order every document-shaped
@@ -753,6 +767,11 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
             f->clearFocus();
         if(m_pMdiCentral)
             m_pMdiCentral->setFocus(Qt::OtherFocusReason);
+        //Measured again here, and it is a different number: in the constructor
+        //the window is not realized, its style has not been polished and the
+        //status bar has just been created and hidden, so the minimum it
+        //reported then was short of what it turns out to need.
+        ensureMinimumHeight();
     });
     //The in-window strips would only duplicate what the edge bars now do.
     m_pStripLeft->hide();
@@ -801,23 +820,36 @@ FrmKameMain::pollEdgeAutoHide() {
     //scrollbar or a spin box).
     bool busy = QApplication::activePopupWidget() ||
         (QApplication::mouseButtons() != Qt::NoButton);
-    //Focus inside a toolbox AND that toolbox being the active window means the
-    //user clicked in and is working there, so it stays open until they click
-    //elsewhere.  Both halves are needed: a pane holding a line edit can take
-    //focus merely by being shown (that alone would pin it open for ever), and
-    //what counts as "active" for a Qt::Tool window varies between platforms.
-    //Typing always implies both, so nothing can shrink away mid-edit.
+    //The pointer decides, and the only thing that overrules it is typing.
+    //
+    //It used to be enough to hold the keyboard: click into a toolbox to change
+    //a setting and it stayed open until you clicked somewhere else, however
+    //far away the pointer went.  That is a toolbox sitting on top of the window
+    //you were trying to get back to (user), and moving the mouse off it is
+    //exactly how anyone says "get out of the way".
+    //
+    //What survives is the narrow case where folding would do harm: a widget
+    //that takes text has the keyboard, and collapsing to a 36 px bar would
+    //clip it out of sight while the keystrokes went on arriving.  Everything
+    //else -- a button, a combo, a table, a pane merely holding focus because a
+    //line edit grabbed it on show -- gets out of the way with the pointer.
     QWidget *focus = QApplication::focusWidget();
+    bool typing = focus &&
+        (qobject_cast<QLineEdit *>(focus) || qobject_cast<QAbstractSpinBox *>(focus)
+         || focus->inherits("QTextEdit") || focus->inherits("QPlainTextEdit"));
     for(auto &&s: m_edgeSliders) {
         //Sampled for every window, pinned or not: it is what keeps a toolbox
-        //open while the user is working in it, below.
-        s.wasFocused = focus && s.win->isAncestorOf(focus) && s.win->isActiveWindow();
+        //open while text is being typed into it, below.
+        s.wasFocused = typing && s.win->isAncestorOf(focus);
         //The central pane stack has no tab bar until the first script pane
         //exists, so the pin gesture's filter cannot all be installed at setup.
         if(QTabBar *tabs = s.area->findChild<QTabBar *>())
             if( !tabs->property("kame_pin_filter").toBool()) {
                 tabs->installEventFilter(this);
                 tabs->setProperty("kame_pin_filter", true);
+                //A row of tabs where there were none is more layout than the
+                //window was sized for.
+                ensureMinimumHeight();
                 //No magnification for the central strip.  It is a normal row
                 //of tabs that never collapses, so nothing there depends on
                 //reading an icon in a bar -- and enlarging them made the row
