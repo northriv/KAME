@@ -1223,6 +1223,13 @@ FrmKameMain::processSignals() {
 
 void
 FrmKameMain::closeEvent( QCloseEvent* ce ) {
+    //Torn down already: closing twice is normal now that Cmd-Q reaches this
+    //through the application object, and the second pass must not walk a tree
+    //that is gone.  \sa KameApplication::event()
+    if( !m_measure) {
+        ce->accept();
+        return;
+    }
     //Nothing folds while shutting down: closing interfaces and joining threads
     //takes long enough for the poll to fire, and a window animating itself
     //narrow on the way out is at best pointless.  Set before the confirmation

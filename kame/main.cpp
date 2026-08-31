@@ -138,6 +138,31 @@ int main(int argc, char *argv[]) {
     class KameApplication : public QApplication {
     public:
         using QApplication::QApplication;
+        //! Cmd-Q arrives HERE, not at the window.
+        //!
+        //! Qt's cocoa delegate answers -[NSApplication applicationShouldTerminate:]
+        //! by sending a QCloseEvent to the APPLICATION object, and reports
+        //! NSTerminateNow when that event comes back accepted -- whereupon
+        //! AppKit calls exit() and no window has seen a close event at all.
+        //! KAME's teardown lives in FrmKameMain::closeEvent, so on that path it
+        //! never ran: the scripting threads, the journal's two threads and the
+        //! driver tree all went into static destruction alive, which is where a
+        //! camera library's destructor threw and aborted the process
+        //! (2026-09-01).
+        //!
+        //! So the window is closed from here and its answer is the answer: a
+        //! refused close (an interface still running) ignores the event, which
+        //! is Qt's cue for NSTerminateCancel.
+        bool event(QEvent *e) override {
+            if((e->type() == QEvent::Close) || (e->type() == QEvent::Quit)) {
+                if(auto *frm = qobject_cast<QWidget *>(g_pFrmMain))
+                    if( !frm->close()) {
+                        e->ignore();
+                        return true;
+                    }
+            }
+            return QApplication::event(e);
+        }
         bool notify(QObject *receiver, QEvent *event) override {
             try {
                 return QApplication::notify(receiver, event);

@@ -165,6 +165,15 @@
 - UI: folding a toolbox takes the keyboard with it.  A pane's line edit takes
   focus merely by being shown, so typing went into a field nobody could see
   and nobody had asked for (user).
+- Cmd-Q runs KAME's teardown.  Qt's cocoa delegate answers
+  applicationShouldTerminate: by sending a QCloseEvent to the APPLICATION
+  object and reporting NSTerminateNow when it comes back accepted -- AppKit
+  then calls exit() with no window having seen a close event, so the teardown
+  in FrmKameMain::closeEvent never ran and the scripting threads, the
+  journal's two threads and the driver tree all went into static destruction
+  alive.  The application now closes the main window from there and answers
+  with what that close decided, so a refused quit (an interface still running)
+  cancels the termination instead of proceeding without it.
 - Fixed an abort at exit with a Euresys eGrabber camera present.  The GenTL
   close throws when the producer is already gone, which it is during static
   destruction, and it throws out of ~EGrabberDiscovery() -- a destructor, and
