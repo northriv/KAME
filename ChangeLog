@@ -165,6 +165,17 @@
 - UI: folding a toolbox takes the keyboard with it.  A pane's line edit takes
   focus merely by being shown, so typing went into a field nobody could see
   and nobody had asked for (user).
+- UI: nothing takes the keyboard when a measurement finishes loading either.
+  It used to hand it to the east toolbox, interfaces and entries being what one
+  turns to next, which is the same thing as the startup focus that was removed
+  -- and it now reads worse than it did: the toolbox opens, raises itself,
+  takes the keyboard, and folds again on the next poll because the pointer is
+  not over it.
+- UI: only actual windows are placed by the new-window cascade.  This window's
+  event filter is installed on two QTabBars and nothing else, and a tab bar is
+  a widget that gets shown like any other -- so "place the new window" was
+  moving a tab bar to an absolute position inside its own MDI area, which the
+  next layout pass had to undo.
 - UI: nothing is put in the user's hand at startup.  KAME opened with the west
   toolbox activated and holding itself open, so the first thing on screen was
   a panel asking to be dismissed.

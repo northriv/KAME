@@ -800,20 +800,6 @@ FrmKameMain::fitToolboxHeights() {
     }
 }
 void
-FrmKameMain::focusToolbox(bool left) {
-    QDockWidget *dock = left ? m_pDockLeft : m_pDockRight;
-    QMdiArea *area = left ? m_pMdiLeft : m_pMdiRight;
-    if(EdgeSlider *s = edgeSliderFor(dock))
-        if(s->collapsed) setToolboxCollapsed( *s, false);
-    if(dock->isMinimized())
-        dock->setWindowState(dock->windowState() & ~Qt::WindowMinimized);
-    dock->showNormal();
-    dock->raise();
-    dock->activateWindow();
-    if(QMdiSubWindow *sub = area->activeSubWindow())
-        sub->setFocus();
-}
-void
 FrmKameMain::pollEdgeAutoHide() {
     //Polling the pointer beats enter/leave events here: these are separate
     //top-level windows, and a leave event fires for every excursion over a
@@ -1001,8 +987,14 @@ FrmKameMain::eventFilter(QObject *obj, QEvent *event) {
             magnifyTab(tabs, -1);
     }
     if(event->type() == QEvent::Show) {
+        //Windows, and nothing else.  The only objects this filter is installed
+        //on are two QTabBars, which are QWidgets and get shown like any other
+        //-- so "place the new window" was moving a tab bar to an absolute
+        //position inside its own MDI area, where the next layout pass had to
+        //put it back.  Whatever that looked like, it was not what this code
+        //was written to do.
         auto w = qobject_cast<QWidget*>(obj);
-        if(w && !w->property("kame_placed").toBool()) {
+        if(w && w->isWindow() && !w->property("kame_placed").toBool()) {
             placeNewWindow(w);
             w->setProperty("kame_placed", true);
         }
@@ -1401,23 +1393,12 @@ FrmKameMain::openMes(const XString &filename) {
         m_titleDoc = QFileInfo(QString::fromStdString(filename)).fileName();
         updateWindowTitle();
 		shared_ptr<XScriptingThread> th = runNewScript("Open Measurement", filename );
-        //Interfaces and entries are what one turns to after loading a
-        //measurement, so hand the east toolbox the keyboard — but only once
-        //the loading thread is done, since drivers, graphs and their windows
-        //go on appearing until then and would take it back.
-        if(th) {
-            auto *timer = new QTimer(this);
-            auto ticks = std::make_shared<int>(0);
-            connect(timer, &QTimer::timeout, this, [this, th, timer, ticks]{
-                //Bounded, so a thread that never reports itself finished does
-                //not leave a timer polling for the rest of the session.
-                if(th->isAlive() && (++( *ticks) < 300)) return;
-                timer->stop();
-                timer->deleteLater();
-                focusToolbox(false);
-            });
-            timer->start(200);
-        }
+        //Nothing is handed the keyboard when the load finishes.  It used to
+        //hand it to the east toolbox, interfaces and entries being what one
+        //turns to next -- but that is the same thing as the startup focus that
+        //was taken out, and it now reads worse: the toolbox opens, raises
+        //itself, takes the keyboard, and folds again on the next poll because
+        //the pointer is not over it.
 //		while(rbthread->isAlive()) {
 //			KApplication::kApplication()->processEvents();
 //			g_signalBuffer->synchronize();

@@ -223,7 +223,6 @@ private:
 	void fitToolboxHeights();
 	//! Reveals a toolbox and hands it the keyboard: west at startup, east once
 	//! a .kam has finished loading.
-	void focusToolbox(bool left);
 	void pollEdgeAutoHide();
 	void setToolboxCollapsed(EdgeSlider &slider, bool collapse);
 	//! nullptr where a window has no edge slider (docked layout, or Wayland).
