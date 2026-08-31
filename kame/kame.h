@@ -100,6 +100,11 @@ public:
 
 	int openMes(const XString &filename);
     void signalAllModulesLoaded(); //!< Call after all driver modules are loaded.
+    //! Folds every auto-hiding toolbox, and keeps it folded until the pointer
+    //! has left it.  For the moment a pane opens a window of its own: the
+    //! toolbox has just done its job and is now standing in front of the
+    //! result.  \sa XDriverListConnector, XInterfaceListConnector
+    void foldToolboxes();
 
     bool running() const {return !!m_measure;}
 public slots:
@@ -180,12 +185,12 @@ private:
 		int idleTicks;
 		bool autoHide;              //!< per-window switch, from the View menu
 		QAction *autoHideAction;    //!< the View-menu entry, kept in sync
-		//! Whether the toolbox held the keyboard as of the last poll — read
-		//! when a tab is clicked, since the click itself may have just
-		//! activated the window and would answer "yes" either way.
 		//! Text is being typed into this window: the one thing that keeps it
 		//! open with the pointer elsewhere.  \sa pollEdgeAutoHide()
 		bool wasFocused;
+		//! Folded on purpose, and not to be reopened by the pointer that is
+		//! still sitting on it -- until that pointer leaves and comes back.
+		bool dismissed = false;
 	};
 	std::deque<EdgeSlider> m_edgeSliders;
 	QTimer *m_pEdgeHoverTimer = nullptr;

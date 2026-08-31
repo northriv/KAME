@@ -545,6 +545,18 @@ FrmKameMain::ensureMinimumHeight() {
 }
 
 void
+FrmKameMain::foldToolboxes() {
+    for(auto &&s: m_edgeSliders) {
+        if(s.vertical || !s.autoHide || s.collapsed)
+            continue;
+        //Dismissed, or the pointer that is still on the pane just clicked
+        //would have it open again on the next poll.
+        s.dismissed = true;
+        setToolboxCollapsed(s, true);
+    }
+}
+
+void
 FrmKameMain::updateWindowTitle() {
     //What is loaded, then whose window it is: the order every document-shaped
     //application uses, since the file is what differs between two of them.
@@ -876,7 +888,13 @@ FrmKameMain::pollEdgeAutoHide() {
             }
         }
         if(s.collapsed) {
-            if(over) setToolboxCollapsed(s, false);
+            //A toolbox folded on purpose stays folded until the pointer has
+            //been away: reopening under the hand that just dismissed it is
+            //the opposite of what the gesture meant.
+            if( !over)
+                s.dismissed = false;
+            else if( !s.dismissed)
+                setToolboxCollapsed(s, false);
             continue;
         }
         s.expanded = s.win->geometry(); //follows the user moving or resizing it

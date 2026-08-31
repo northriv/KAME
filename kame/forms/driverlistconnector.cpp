@@ -137,7 +137,13 @@ void
 XDriverListConnector::cellClicked ( int row, int col) {
 	for(auto it = m_cons.begin(); it != m_cons.end(); it++) {
 		if(m_pItem->cellWidget(row, 2) == ( *it)->label) {
-			if(col < 3) ( *it)->driver->showForms();
+			if(col < 3) {
+				( *it)->driver->showForms();
+				//The toolbox has just done its job and is now standing in
+				//front of the result.
+				if(auto *frm = dynamic_cast<FrmKameMain *>(g_pFrmMain))
+					frm->foldToolboxes();
+			}
 		}
 	}
 }

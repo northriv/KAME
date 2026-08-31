@@ -165,6 +165,13 @@
 - UI: folding a toolbox takes the keyboard with it.  A pane's line edit takes
   focus merely by being shown, so typing went into a field nobody could see
   and nobody had asked for (user).
+- UI: clicking a driver or an interface in a list opens that driver's window
+  and folds the toolboxes (user).  The pane has just done its job and would
+  otherwise be standing in front of the result.  A toolbox folded this way
+  stays folded until the pointer has left it, since reopening under the hand
+  that just dismissed it is the opposite of what the click meant.  Creating a
+  driver is left alone: that path deliberately brings the Interface pane
+  forward, a new driver having a port to set before it can start.
 - UI: nothing takes the keyboard when a measurement finishes loading either.
   It used to hand it to the east toolbox, interfaces and entries being what one
   turns to next, which is the same thing as the startup focus that was removed
