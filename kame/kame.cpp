@@ -467,20 +467,6 @@ FrmKameMain::edgeSliderFor(QWidget *win) {
 static const int TAB_ICON_REST = 16;
 static const int TAB_ICON_GROWN = 24;
 
-void
-FrmKameMain::setupTabMagnify(QTabBar *tabs) {
-    if(tabs->property("kame_magnify").toBool())
-        return;
-    tabs->setProperty("kame_magnify", true);
-    //Fixed at the larger of the two, and the resting icon drawn small inside
-    //it: growing then costs the layout nothing, so neighbours hold still.
-    tabs->setIconSize(QSize(TAB_ICON_GROWN, TAB_ICON_GROWN));
-    tabs->setAttribute(Qt::WA_Hover, true);
-    tabs->setMouseTracking(true);
-    for(int i = 0; i < tabs->count(); ++i)
-        magnifyTab(tabs, -1); //!< draws every tab at rest
-}
-
 //! Redraws one tab's icon at a size, centred in the rect the bar reserves.
 static void drawTabIcon(QTabBar *tabs, QMdiArea *area, int idx, int size) {
     auto wins = area->subWindowList();
@@ -502,6 +488,30 @@ static void drawTabIcon(QTabBar *tabs, QMdiArea *area, int idx, int size) {
     tabs->setTabIcon(idx, QIcon(canvas));
 }
 
+//! Every tab of one bar at one size.
+static void resetTabIcons(QTabBar *tabs, QMdiArea *area, int size) {
+    for(int i = 0; i < tabs->count(); ++i)
+        drawTabIcon(tabs, area, i, size);
+}
+
+void
+FrmKameMain::setupTabMagnify(QTabBar *tabs, QMdiArea *area) {
+    if(tabs->property("kame_magnify").toBool())
+        return;
+    tabs->setProperty("kame_magnify", true);
+    //Fixed at the larger of the two, and the resting icon drawn small inside
+    //it: growing then costs the layout nothing, so neighbours hold still.
+    tabs->setIconSize(QSize(TAB_ICON_GROWN, TAB_ICON_GROWN));
+    tabs->setAttribute(Qt::WA_Hover, true);
+    tabs->setMouseTracking(true);
+    //Drawn here, with the area in hand.  Doing it through magnifyTab() left
+    //them untouched at startup -- this runs before the slider it belongs to is
+    //in m_edgeSliders, so the lookup found nothing and returned -- and an
+    //untouched icon is stretched to fill the rect, which is why they all came
+    //up large.
+    resetTabIcons(tabs, area, TAB_ICON_REST);
+}
+
 void
 FrmKameMain::magnifyTab(QTabBar *tabs, int idx) {
     QMdiArea *area = nullptr;
@@ -510,6 +520,19 @@ FrmKameMain::magnifyTab(QTabBar *tabs, int idx) {
             area = s.area;
     if( !area)
         return;
+    //Collapsed, the strip is all one can see, so every icon is already at its
+    //largest and there is nothing for a hover to add (user).  It reads as the
+    //opposite of the expanded state, and it is: what the size means is "this
+    //is what there is to look at".
+    int base = TAB_ICON_REST;
+    for(auto &&s: m_edgeSliders)
+        if(s.area == area)
+            base = s.collapsed ? TAB_ICON_GROWN : TAB_ICON_REST;
+    if(base >= TAB_ICON_GROWN) {
+        m_tabMagnifyBar = tabs;
+        m_tabMagnifyIdx = -1;
+        return;
+    }
     if((m_tabMagnifyBar == tabs) && (m_tabMagnifyIdx == idx))
         return;
     //Whatever was growing goes back, at once: two tabs part-grown at the same
@@ -517,7 +540,7 @@ FrmKameMain::magnifyTab(QTabBar *tabs, int idx) {
     if(m_tabMagnifyBar && (m_tabMagnifyIdx >= 0)) {
         for(auto &&s: m_edgeSliders)
             if(s.area->findChild<QTabBar *>() == m_tabMagnifyBar)
-                drawTabIcon(m_tabMagnifyBar, s.area, m_tabMagnifyIdx, TAB_ICON_REST);
+                drawTabIcon(m_tabMagnifyBar, s.area, m_tabMagnifyIdx, base);
     }
     m_tabMagnifyBar = tabs;
     m_tabMagnifyIdx = idx;
@@ -537,12 +560,10 @@ FrmKameMain::magnifyTab(QTabBar *tabs, int idx) {
     }
     m_pTabMagnify->stop();
     if(idx < 0) {
-        //Nothing under the pointer: every tab is already back at rest.
-        for(int i = 0; i < tabs->count(); ++i)
-            drawTabIcon(tabs, area, i, TAB_ICON_REST);
+        resetTabIcons(tabs, area, base);
         return;
     }
-    m_pTabMagnify->setStartValue(TAB_ICON_REST);
+    m_pTabMagnify->setStartValue(base);
     m_pTabMagnify->setEndValue(TAB_ICON_GROWN);
     m_pTabMagnify->start();
 }
@@ -575,7 +596,7 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
             //not exist yet at this point.)
             tabs->installEventFilter(this);
             tabs->setProperty("kame_pin_filter", true);
-            setupTabMagnify(tabs);
+            setupTabMagnify(tabs, area);
             tabs->setStyleSheet(flatTabStyleSheet(left ? Qt::LeftEdge : Qt::RightEdge));
             tabs->updateGeometry();
             tabw = std::max(tabw, tabs->sizeHint().width());
@@ -710,7 +731,7 @@ FrmKameMain::pollEdgeAutoHide() {
             if( !tabs->property("kame_pin_filter").toBool()) {
                 tabs->installEventFilter(this);
                 tabs->setProperty("kame_pin_filter", true);
-                setupTabMagnify(tabs);
+                setupTabMagnify(tabs, s.area);
                 //Its tabs run along the top, so the accent goes underneath.
                 tabs->setStyleSheet(flatTabStyleSheet(Qt::BottomEdge));
             }
@@ -768,6 +789,16 @@ FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
     else {
         s.area->setMinimumWidth(0);
         s.win->setMinimumWidth(0);
+    }
+    //All of them, in step with the window: collapsed, the strip is the only
+    //thing on screen, and small icons in it are a smaller target than the bar
+    //they sit in.  A step rather than a slide, hidden inside the 170 ms the
+    //window itself is moving.
+    if(QTabBar *tabs = s.area->findChild<QTabBar *>()) {
+        resetTabIcons(tabs, s.area, collapse ? TAB_ICON_GROWN : TAB_ICON_REST);
+        if(m_pTabMagnify)
+            m_pTabMagnify->stop();
+        m_tabMagnifyIdx = -1;
     }
     QRect to = s.expanded;
     if(collapse) {

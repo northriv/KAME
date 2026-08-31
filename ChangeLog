@@ -120,12 +120,15 @@
   already picks that pane, so the gesture is hover to choose, click to keep.
   It used to want the window to hold the keyboard AND the click to land on the
   tab already in front, which is one condition more than a gesture may ask.
-- UI: the tab under the pointer magnifies, the way a dock icon does.  In a
-  resting toolbox the tab strip is all there is to see, so the one being
-  pointed at should say so with its size and not only its shade.  What grows
-  is the icon, inside a rect fixed at its largest -- so the strip never
+- UI: the tab under the pointer magnifies, the way a dock icon does.  What
+  grows is the icon, inside a rect fixed at its largest -- so the strip never
   re-lays out, no neighbour moves, and it can be animated at all, which a
   style sheet cannot be.
+  A collapsed strip shows every icon at that larger size instead (user): it is
+  then the only thing on screen, and small icons in it are a smaller target
+  than the bar holding them.  The two meanings are opposite -- hovered is big,
+  and resting is big -- and agree on what size is saying: this is what there is
+  to look at.
 - UI: nothing is put in the user's hand at startup.  KAME opened with the west
   toolbox activated and holding itself open, so the first thing on screen was
   a panel asking to be dismissed.
