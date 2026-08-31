@@ -34,6 +34,7 @@ orchestration across compatible instruments.
 - Fourier step-sum spectrum measurement with field / frequency sweeping
 - Complete data logging with post-measurement re-analysis
 - Save / restore full measurement config to `.kam` files
+- Provenance journal — the settings and their every change to `.kamj`, the raw records behind the readings to `.kamb`, either replayable in the Journal Reader (9.0)
 - Modular driver plug-in architecture; Python drivers redefinable at runtime
 - Calibration curves (cspline, Chebyshev, polynomial) for resistance thermometers and generic sensors; calibrated entries feed into graphs, charts, and data recording like any native scalar
 
@@ -42,6 +43,7 @@ Source: [kame-8.6.1.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.6.
 [All other source archives](https://kitag.issp.u-tokyo.ac.jp/web/kame/src).
 Windows 64-bit binaries: [8.6.1](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.1.zip) (21.8MB) · [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.zip) (21.8MB) · [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.5.zip) (20.4MB) · [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.4.zip). At least Qt is additionally needed, follow instructions below to install.
 Builds before 8.6.1 carry the double-allocation defect described under *What's New in 8.6.1* on Windows and Linux.
+**9.0 alpha** — the measurement journal, below: [source](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.0-alpha.zip) (5.2MB) · [Windows 64-bit](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-9.0alpha.zip) (22.0MB). A pre-release; 8.6.1 remains the current stable version.
 
 ### Supported instruments
 
@@ -73,6 +75,31 @@ Builds before 8.6.1 carry the double-allocation defect described under *What's N
 | **Monte Carlo simulation** | Monte Carlo driver |
 
 ---
+
+## What's New in 9.0 (alpha)
+
+- **KAME writes down what it was set to and what it did, without being asked.**
+  A run is one name and two files: `run042.kamj` holds the settings as they were
+  when it began and every change afterwards — what you set, and what the
+  instruments reported — and `run042.kamb` holds the raw records behind those
+  readings. A tier beside the name decides whether the second is written at all:
+  ~11 MB/hour for the settings alone at 144 readings a second, ~10 GB/hour with
+  the records. Both are gzip and `.kamj` is JSON Lines inside, so `zgrep` and
+  `zdiff` read it with no tool at all — which is most of what a provenance file
+  is for ten years from now. Numbers are written twice: as the text you would
+  read, and as the exact eight bytes they were.
+- **The session is journalled whether or not you are recording a run**, into its
+  own directory, at a few tens of KB — everything *you* did in full, an
+  instrument's readings only once they have gone quiet. A session in which you
+  forgot to save is no longer a session with nothing to show.
+- **Replay in the Journal Reader.** Open either file and the other is found.
+  Opening the `.kamj` puts the settings of each moment back as playback reaches
+  it; opening the `.kamb` re-analyses the same records with the settings in the
+  tree now, which is what you want when you change one parameter and run a whole
+  recording through again. Drivers the journal names are created if this KAME
+  does not have them. Only what a person asked for is restored, never into a
+  driver that is running — that being the only path by which a value would reach
+  an instrument — and KAME says how much it held back.
 
 ## What's New in 8.6.1
 
