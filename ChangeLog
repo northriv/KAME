@@ -113,6 +113,21 @@
   named after the length of their list, so deleting the first and adding
   another asked for a name that was still taken; they now take the first free
   one.
+- UI: one click on a toolbox's tab column pins it open, and another lets it
+  hide again.  A single click can mean that because clicking a tab has nothing
+  else left to do -- hovering one already picks that pane -- so the gesture is
+  hover to choose, click to keep.  It used to want the toolbox to hold the
+  keyboard AND the click to land on the tab already in front, which is one
+  condition more than a gesture may ask.  The main window is unchanged: its
+  tabs are script panes, where a click is a click.
+- UI: the tab under the pointer grows along the strip, the way a dock icon
+  does.  In a resting toolbox the tab column is all there is to see, so the
+  one being pointed at should say so with its size and not only its shade.  A
+  step rather than a slide: style sheets do not animate, and growing it
+  smoothly needs a tab bar of our own, since QMdiArea does not lend out its.
+- UI: nothing is put in the user's hand at startup.  KAME opened with the west
+  toolbox activated and holding itself open, so the first thing on screen was
+  a panel asking to be dismissed.
 - UI: the toolboxes are as wide as the widest pane in them (the replay pane
   outgrew the old floor when it gained a slider), and nothing auto-hides
   during startup or shutdown -- the hover poll used to start before the

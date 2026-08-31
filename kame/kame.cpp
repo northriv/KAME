@@ -439,13 +439,26 @@ QString flatTabStyleSheet(Qt::Edge accent) {
     const QString metrics = vertical
         ? "width:26px;padding:10px 4px;margin:2px 3px;"
         : "padding:6px 14px;margin:3px 2px;";
+    //The tab under the pointer grows along the strip, the way a dock icon
+    //does: in a resting toolbox the tab column is all there is to see, so the
+    //one being pointed at should say so with its size and not only its
+    //shade.  It moves its neighbours along, which is the effect and not a
+    //side effect.
+    //
+    //A step, not a slide.  Qt style sheets do not animate, and re-parsing one
+    //per frame to fake it would cost more than the motion is worth; growing
+    //it smoothly needs a QTabBar of our own, since tab sizes come from
+    //tabSizeHint() and QMdiArea does not lend out its bar.
+    const QString grown = vertical
+        ? "width:26px;padding:18px 4px;margin:2px 3px;"
+        : "padding:6px 22px;margin:3px 2px;";
     return QString(
         "QTabBar{background:transparent;border:none;}"
         "QTabBar::tab{background:transparent;border:none;color:palette(text);"
         "  %1border-radius:6px;}"
-        "QTabBar::tab:hover{background:palette(midlight);}"
+        "QTabBar::tab:hover{background:palette(midlight);%3}"
         "QTabBar::tab:selected{background:palette(alternate-base);"
-        "  border-%2:3px solid palette(highlight);}").arg(metrics).arg(side);
+        "  border-%2:3px solid palette(highlight);}").arg(metrics).arg(side).arg(grown);
 }
 } // namespace
 
@@ -547,9 +560,11 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
     //would land.
     QTimer::singleShot(0, this, [this]{
         fitToolboxHeights();
-        //Start with the west toolbox in hand.  It also holds itself open until
-        //the user clicks elsewhere, through the focus guard in the poll.
-        focusToolbox(true);
+        //Nothing is put in the user's hand at startup (user).  KAME opened
+        //with the west toolbox activated and holding itself open through the
+        //poll's focus guard, which meant the first thing on screen was a
+        //panel demanding to be dismissed.  The toolboxes are simply there,
+        //and fold away on their own once the modules are up.
     });
     //The in-window strips would only duplicate what the edge bars now do.
     m_pStripLeft->hide();
@@ -606,8 +621,8 @@ FrmKameMain::pollEdgeAutoHide() {
     //Typing always implies both, so nothing can shrink away mid-edit.
     QWidget *focus = QApplication::focusWidget();
     for(auto &&s: m_edgeSliders) {
-        //Sampled for every window, pinned or not: it is what tells a tab click
-        //whether the user was already working in this one.
+        //Sampled for every window, pinned or not: it is what keeps a toolbox
+        //open while the user is working in it, below.
         s.wasFocused = focus && s.win->isAncestorOf(focus) && s.win->isActiveWindow();
         //The central pane stack has no tab bar until the first script pane
         //exists, so the pin gesture's filter cannot all be installed at setup.
@@ -697,19 +712,24 @@ FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
 bool
 FrmKameMain::eventFilter(QObject *obj, QEvent *event) {
     if(event->type() == QEvent::MouseButtonPress) {
-        //Pin gesture: while already working in a toolbox, clicking the tab of
-        //the pane in front toggles its auto-hide.  Only the pane in front, so
-        //clicking any other tab still just switches panes; and only when the
-        //toolbox already held the keyboard, which is why the poll's remembered
-        //answer is used rather than a fresh one — this very click may have
-        //activated the window, and a fresh test would say yes every time.
+        //Pin gesture: one click on a toolbox's tab column pins it open, and
+        //another lets it hide again.
+        //
+        //A single click can mean this because clicking a tab has nothing else
+        //left to do: hovering one already picks that pane, so the pointer has
+        //chosen before the button goes down.  Hover to choose, click to keep.
+        //It used to want the toolbox to hold the keyboard AND the click to
+        //land on the tab already in front — two conditions to satisfy before
+        //a gesture would answer, which is one more than a gesture may ask.
+        //
+        //Not the main window: its tabs are script panes along the top, where
+        //a click is a click and pinning belongs in the View menu.
         for(auto &&s: m_edgeSliders) {
+            if(s.vertical) continue;
             QTabBar *tabs = s.area->findChild<QTabBar *>();
             if(obj != tabs) continue;
-            if( !s.wasFocused) break;
             auto *me = static_cast<QMouseEvent *>(event);
-            int idx = tabs->tabAt(me->position().toPoint());
-            if((idx < 0) || (idx != tabs->currentIndex())) break;
+            if(tabs->tabAt(me->position().toPoint()) < 0) break;
             s.autoHideAction->setChecked( !s.autoHide); //drives the toggle
             XString what = s.vertical ? i18n("Main window") :
                 (s.left ? i18n("West toolbox") : i18n("East toolbox"));
