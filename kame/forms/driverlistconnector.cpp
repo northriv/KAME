@@ -18,7 +18,10 @@
 #include "driverlistconnector.h"
 #include "driver.h"
 #include "measure.h"
+#include "interface.h"
+#include "kame.h"
 #include <QLineEdit>
+#include <QListWidget>
 #include <QPushButton>
 #include <QTableWidget>
 #include <QHeaderView>
@@ -197,25 +200,55 @@ XDriverListConnector::onCreateTouched(const Snapshot &shot, XTouchableNode *) {
             icon = iconMaker("ODMR", 0x000080u);
         if(icon.isNull())
             icon = iconMaker(label.substr(0, 1).c_str());
-        new QListWidgetItem(icon, label.c_str(), dlg->m_lstType);
+        auto *item = new QListWidgetItem(icon, label.c_str(), dlg->m_lstType);
+        //Carry the type name on the item itself.  Resolving the choice by row
+        //number would break the moment the list is filtered, and the search
+        //below matches against this too — a driver may be known by the name
+        //that appears in a .kam file rather than by its label.
+        item->setData(Qt::UserRole, QString(x.second.c_str()));
     }
+
+    //Live search: every space-separated word must appear somewhere in the
+    //label or the type name, so "agilent dmm" narrows to one line however the
+    //label happens to be worded.
+    DlgCreateDriver *d = dlg.get();
+    connect(d->m_edSearch, &QLineEdit::textChanged, d, [d](const QString &text){
+        QStringList words = text.simplified().split(' ', Qt::SkipEmptyParts);
+        int first_shown = -1;
+        for(int i = 0; i < d->m_lstType->count(); ++i) {
+            QListWidgetItem *item = d->m_lstType->item(i);
+            QString hay = item->text() + " " + item->data(Qt::UserRole).toString();
+            bool shown = true;
+            for(auto &&w: words)
+                if( !hay.contains(w, Qt::CaseInsensitive)) {shown = false; break;}
+            item->setHidden( !shown);
+            if(shown && (first_shown < 0)) first_shown = i;
+        }
+        //Keeps Enter meaningful while typing: with a search in progress the
+        //first match is selected, so the dialog's default button creates it.
+        //An empty box goes back to demanding a deliberate choice.
+        QListWidgetItem *cur = d->m_lstType->currentItem();
+        if(words.isEmpty())
+            d->m_lstType->setCurrentRow(-1);
+        else if( !cur || cur->isHidden())
+            d->m_lstType->setCurrentRow(first_shown);
+    });
+    d->m_edSearch->setFocus();
    
     dlg->m_lstType->setCurrentRow(-1);
 	if(dlg->exec() == QDialog::Rejected) {
 		return;
 	}
-    int idx = dlg->m_lstType->currentRow();
+    QListWidgetItem *chosen = dlg->m_lstType->currentItem();
 	shared_ptr<XNode> driver;
-    if((idx >= 0) && (idx < (int)map.size())) {
-        auto map_it = map.begin();
-        for(int i = 0; i < idx; ++i)
-            map_it++;
+    if(chosen && !chosen->isHidden()) {
+        XString type = chosen->data(Qt::UserRole).toString().toUtf8().data();
         if(m_list->getChild(dlg->m_edName->text().toUtf8().data())) {
 	        gErrPrint(i18n("Duplicated name."));
 		}
 		else {
             try {
-               driver = m_list->createByTypename(map_it->second,
+               driver = m_list->createByTypename(type,
 											  dlg->m_edName->text().toUtf8().data());
             }
 #ifdef USE_PYBIND11
@@ -232,8 +265,31 @@ XDriverListConnector::onCreateTouched(const Snapshot &shot, XTouchableNode *) {
             }
         }
 	}
-	if( !driver)
+	if( !driver) {
         gErrPrint(i18n("Driver creation failed."));
+        return;
+    }
+    //Creating a driver by hand means configuring it next, so open its own
+    //window.  Loading a .kam deliberately does not: it would throw open a
+    //window for every driver in the file.
+    if(auto drv = dynamic_pointer_cast<XDriver>(driver))
+        drv->showForms();
+
+    //A driver that came with an interface cannot be started until its port is
+    //set, so put the Interface pane in front — after the driver's own window,
+    //so that is what ends up with the keyboard.  A driver with no interface
+    //leaves its own window in front instead, there being no port to set.  One that talks to no hardware
+    //of its own — an analysis or management driver — leaves the layout alone.
+    //An interface is a child node of its driver (XCharDeviceDriver and
+    //XDummyDriver both create it as one), so the driver itself can be asked.
+    Snapshot shot_driver( *driver);
+    bool has_interface = false;
+    if(shot_driver.size())
+        for(auto &&child: *shot_driver.list())
+            if(dynamic_pointer_cast<XInterface>(child)) {has_interface = true; break;}
+    if(has_interface)
+        if(auto *frm = dynamic_cast<FrmKameMain *>(g_pFrmMain))
+            frm->revealInterfacePane();
 }
 void
 XDriverListConnector::onReleaseTouched(const Snapshot &shot, XTouchableNode *) {

@@ -27,6 +27,7 @@ INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/forms\
     $${_PRO_FILE_PWD_}/thermometer\
     $${_PRO_FILE_PWD_}/analyzer\
+    $${_PRO_FILE_PWD_}/journal\
     $${_PRO_FILE_PWD_}/driver\
     $${_PRO_FILE_PWD_}/graph\
     $${_PRO_FILE_PWD_}/script\
@@ -56,11 +57,13 @@ HEADERS += \
     graph/onscreenobject.h \
     graph/x2dimage.h \
     kame.h \
+    journal/xjournal.h \
     script/xscriptingthread.h \
     script/xscriptingthreadconnector.h \
     ../kamestm/threadlocal.h \
     ../kamestm/transaction_impl.h \
     ../kamestm/transaction_signal.h \
+    ../kamestm/transaction_journal.h \
     ../kamestm/transaction.h \
     ../kamestm/transaction_detail.h \
     ../kamestm/transaction_negotiation.h \
@@ -85,8 +88,10 @@ HEADERS += \
     graph/graphwidget.h \
     graph/xwavengraph.h \
     analyzer/analyzer.h \
-    analyzer/recorder.h \
-    analyzer/recordreader.h \
+    analyzer/textwriter.h \
+    journal/rawstream.h \
+    journal/journalreader.h \
+    journal/xjournalreplay.h \
     script/xdotwriter.h \
     $$RUBY_HEADERS \
     script/xrubywriter.h \
@@ -113,7 +118,7 @@ HEADERS += \
     forms/calibentryconnector.h \
     forms/interfacelistconnector.h \
     forms/nodebrowser.h \
-    forms/recordreaderconnector.h \
+    forms/journalreaderconnector.h \
     messagebox.h \
     math/nllsfit.h \
     math/tikhonovreg.h
@@ -165,11 +170,14 @@ SOURCES += icons/icon.cpp \
     forms/calibentryconnector.cpp \
     forms/interfacelistconnector.cpp \
     forms/nodebrowser.cpp \
-    forms/recordreaderconnector.cpp \
+    forms/journalreaderconnector.cpp \
     analyzer/analyzer.cpp \
-    analyzer/recorder.cpp \
-    analyzer/recordreader.cpp\
+    analyzer/textwriter.cpp \
+    journal/rawstream.cpp \
+    journal/journalreader.cpp\
     kame.cpp \
+    journal/xjournal.cpp \
+    journal/xjournalreplay.cpp \
     main.cpp \
     messagebox.cpp \
     math/tikhonovreg.cpp
@@ -218,7 +226,7 @@ FORMS += \
     forms/graphtool.ui \
     forms/interfacetool.ui \
     forms/nodebrowserform.ui \
-    forms/recordreaderform.ui \
+    forms/journalreaderform.ui \
     forms/scalarentrytool.ui \
     forms/messageform.ui \
     forms/scriptingthreadtool.ui
@@ -240,7 +248,7 @@ scriptfile.files = script/rubylineshell.rb \
     script/kame_mcp_server.py \
     script/kame_pydantic_ai.py \
     script/kame_python_api.md \
-    ../doc/manual/kame-8-en.md \
+    ../doc/manual/kame-9-en.md \
     script/notebook/jupyter_notebook_config.py \
     script/notebook/notebook_kame_kernel_manager.py
 
@@ -348,7 +356,7 @@ else {
             script/kame_mcp_server.py \
             script/kame_pydantic_ai.py \
             script/kame_python_api.md \
-            ../doc/manual/kame-8-en.md \
+            ../doc/manual/kame-9-en.md \
             script/notebook/jupyter_notebook_config.py \
             script/notebook/notebook_kame_kernel_manager.py
 

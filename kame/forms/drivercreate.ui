@@ -35,7 +35,7 @@
    <property name="bottomMargin">
     <number>4</number>
    </property>
-   <item row="2" column="0">
+   <item row="3" column="0">
     <layout class="QHBoxLayout">
      <item>
       <spacer name="Horizontal Spacing2">
@@ -97,9 +97,33 @@
     </layout>
    </item>
    <item row="0" column="0">
-    <widget class="QListWidget" name="m_lstType"/>
+    <layout class="QHBoxLayout">
+     <item>
+      <widget class="QLabel" name="textLabel2">
+       <property name="text">
+        <string>Search</string>
+       </property>
+       <property name="wordWrap">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="m_edSearch">
+       <property name="placeholderText">
+        <string>vendor, model or function</string>
+       </property>
+       <property name="clearButtonEnabled">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </item>
    <item row="1" column="0">
+    <widget class="QListWidget" name="m_lstType"/>
+   </item>
+   <item row="2" column="0">
     <layout class="QHBoxLayout">
      <item>
       <widget class="QLabel" name="textLabel1">
@@ -121,6 +145,7 @@
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <tabstops>
+  <tabstop>m_edSearch</tabstop>
   <tabstop>m_lstType</tabstop>
   <tabstop>m_edName</tabstop>
   <tabstop>m_buttonOk</tabstop>

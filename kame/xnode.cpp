@@ -47,8 +47,21 @@ XNode::XNode(const char *name, bool runtime)
 XNode::~XNode() {
 	dbgPrint(QString("xnode %1 is being deleted., addr=0x%2").arg(getLabel()).arg((uintptr_t)this, 0, 16));
 }
+void
+XNode::setStoredTypename(const XString &t) {
+    if(t.length())
+        m_storedTypename.reset(new XString(t));
+}
+XString
+XNode::storedTypename() const {
+    if(local_shared_ptr<XString> stored{m_storedTypename})
+        return *stored;
+    return {};
+}
 XString
 XNode::getTypename() const {
+    if(local_shared_ptr<XString> stored{m_storedTypename})
+        return *stored;
     XString name = typeid( *this).name();
     size_t i = name.find('X');
     if(i != std::string::npos && i + 1 < name.length())

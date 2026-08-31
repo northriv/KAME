@@ -354,6 +354,100 @@ def loadKam(xpythread, filename):
 	finally:
 		TLS.xscrthread["Status"] = ""
 
+def loadJournalDump(xpythread, filename):
+	"""Apply the dump at the head of a journal (.kamj).
+
+	This is the "open a measurement" half of reading a journal, and it is
+	deliberately the smaller one: the dump is what the tree WAS at one
+	instant, so applying it is the same act as loading a .kam -- which is why
+	it belongs on the same menu item.  Everything after the dump is the
+	entries, and replaying those against the raw records belongs to the
+	record reader.
+
+	Values on device-reported (runtime) nodes are NOT applied, for the same
+	reason .kam comments them out: they are outputs, the drivers own them,
+	and writing them back would fight the code that produces them.  The flag
+	is inherited, as the .kam writer inherits it down the tree.
+	"""
+	import gzip, json
+	TLS.xscrthread = xpythread
+	TLS.logfile = None
+	try:
+		xpythread["ThreadID"] = str(threading.current_thread().native_id)
+		xpythread["Status"] = "run"
+		# Sniffed, not guessed from the name: a .kamj is gzip because that is
+		# part of the format, and someone who unpacks one to edit it by hand
+		# -- which the format is meant to allow -- should still be able to
+		# open it.
+		with open(filename, 'rb') as probe:
+			packed = probe.read(2) == b'\x1f\x8b'
+		opener = gzip.open if packed else open
+		nodes = {}          # journal id -> _KamNode
+		runtime = set()     # ids whose values are the driver's to write
+		owning = set()      # ids of lists that CREATE their children
+		created = valued = unresolved = 0
+		root = Root()
+		with opener(filename, 'rt', encoding='utf-8', errors='replace') as f:
+			for line in f:
+				line = line.strip()
+				if not line:
+					continue
+				try:
+					rec = json.loads(line)
+				except ValueError:
+					# A truncated final line is expected, not an error: the
+					# file may have been copied while it was being written,
+					# or its session killed.
+					break
+				t = rec.get('t')
+				if t is None:
+					continue                    # the header
+				if ('ts' in rec) or (t in ('run', 'session', 'released')):
+					break                       # the dump ends here
+				if t == 'n':
+					nid = rec.get('id')
+					pid = rec.get('p')
+					if pid is None:
+						nodes[nid] = _KamNode(root)
+					else:
+						parent = nodes.get(pid)
+						if parent is None:
+							unresolved += 1
+							continue
+						if pid in runtime or rec.get('runtime'):
+							runtime.add(nid)
+						name = rec.get('name', '')
+						# A name that is absent comes back as _KamFakeNode; an
+						# INDEX that is absent raises, and absent is the normal
+						# case here -- the nameless children of a list (a
+						# calibration table's rows) do not exist until this
+						# loader creates them.
+						try:
+							child = parent[name] if name else parent[rec.get('i', 0)]
+						except Exception:
+							child = _KamFakeNode(name)
+						if isinstance(child, _KamFakeNode) and (pid in owning):
+							child = parent.create(rec.get('type', ''), name)
+							created += 1
+						if isinstance(child, _KamFakeNode):
+							unresolved += 1
+							continue
+						nodes[nid] = child
+					if rec.get('list') == 'own':
+						owning.add(nid)
+				elif t == 'v':
+					nid = rec.get('id')
+					if (nid in runtime) or (nid not in nodes):
+						continue
+					nodes[nid].load(rec.get('v', ''))
+					valued += 1
+		print("%s loaded: %d values, %d nodes created, %d unresolved." %
+			(filename, valued, created, unresolved))
+	except Exception:
+		sys.stderr.write(str(traceback.format_exc()))
+	finally:
+		TLS.xscrthread["Status"] = ""
+
 def loadSequence(xpythread, filename):
 	TLS.xscrthread = xpythread #thread-local-storage
 	TLS.logfile = None
@@ -397,6 +491,20 @@ def kame_pybind_one_iteration():
 				exec(_script, globals())
 			except Exception:
 				STDERR.write(str(traceback.format_exc()))
+	#A notebook server that dies takes its reason with it: the tail of its
+	#output was already being kept for exactly this, and nothing read it, so
+	#the user was left with a half-drawn page and no message anywhere.  A
+	#server killed moments after start serves the page shell and then nothing,
+	#which is what "only the logo appears" looks like.
+	global NOTEBOOK_DEATH_REPORTED
+	if (not NOTEBOOK_DEATH_REPORTED) and (NOTEBOOK_PROC is not None) \
+			and (NOTEBOOK_PROC.poll() is not None):
+		NOTEBOOK_DEATH_REPORTED = True
+		_tail = list(NOTEBOOK_LOG_TAIL or [])[-12:]
+		STDERR.write("Jupyter notebook server exited (code {}).\n{}\n".format(
+			NOTEBOOK_PROC.returncode,
+			"\n".join(_tail) if _tail else "  (it printed nothing)"))
+
 	try:
 		#For node browser pane
 		PyInfoForNodeBrowser().set(str([y[0] for y in inspect.getmembers(LastPointedByNodeBrowser(), inspect.ismethod)]))
@@ -416,7 +524,12 @@ def kame_pybind_one_iteration():
 					STDERR.write("Starting a new thread")
 					filename = str(xpythread_filename)
 					STDERR.write("Loading "+ filename)
-					target = loadKam if filename.endswith('.kam') else loadSequence
+					if filename.endswith('.kamj'):
+						target = loadJournalDump
+					elif filename.endswith('.kam'):
+						target = loadKam
+					else:
+						target = loadSequence
 					thread = threading.Thread(daemon=True, target=target, args=(xpythread, filename))
 					thread.start()
 				if action == "kill":
@@ -474,6 +587,100 @@ def findExecutables(prog):
 def listOfJupyterPrograms():
 	return findExecutables('jupyter')
 
+JUPYTER_CAPABLE = {}	#(program, subcommand) -> bool; a probe costs about a second
+
+def jupyterProgramFor(subcommand):
+	"""The first jupyter that can actually run `subcommand`, or ''.
+
+	listOfJupyterPrograms() finds executables named jupyter* on PATH, which
+	says nothing about whether the package behind a subcommand is installed
+	for that particular one.  On a machine carrying several Pythons the answer
+	differs per program -- measured on this one: of five, the first ran
+	notebook and lab but not qtconsole, and another ran neither console nor
+	qtconsole -- so taking the first and hoping is how a launch ends in a
+	missing-module traceback.  `<prog> <sub> --version` exits non-zero exactly
+	when the package cannot be imported, which is the question being asked.
+	Cached for the session, since the probe is not cheap.
+	"""
+	for prog in listOfJupyterPrograms():
+		key = (prog, subcommand)
+		if key not in JUPYTER_CAPABLE:
+			out = _runJupyter(prog, [subcommand, '--version'])
+			ok = out is not None
+			if ok and _needsLabSchemas(subcommand, out):
+				ok = _jupyterLabSchemasPresent(prog)
+			JUPYTER_CAPABLE[key] = ok
+		if JUPYTER_CAPABLE[key]:
+			return prog
+	return ''
+
+def _runJupyter(prog, argv):
+	"""Run a jupyter subcommand; its stdout, or None if it failed to run.
+
+	Console windows are suppressed on Windows: these are probes, and a jupyter
+	that flashed a window per candidate would be worse than the problem.
+	"""
+	import subprocess
+	kwargs = {}
+	if os.name == 'nt':
+		kwargs['creationflags'] = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+	try:
+		r = subprocess.run([prog] + argv, capture_output=True, text=True,
+			timeout=30, **kwargs)
+	except Exception:
+		return None
+	return r.stdout if r.returncode == 0 else None
+
+def _needsLabSchemas(subcommand, version_out):
+	"""Is this a JupyterLab-based front end, whose schemas have to be there?
+
+	`jupyter lab` always is.  `jupyter notebook` is from version 7 on -- but
+	notebook 6 is a different application that does not read lab schemas at
+	all, and demanding them would reject a perfectly good install.  An
+	unreadable version says nothing, so nothing is demanded.
+	"""
+	if subcommand == 'lab':
+		return True
+	if subcommand != 'notebook':
+		return False
+	try:
+		return int((version_out or '').strip().split('.')[0]) >= 7
+	except Exception:
+		return False
+
+def _jupyterLabSchemasPresent(prog):
+	"""Does this jupyter's JupyterLab application directory carry its schemas?
+
+	`notebook --version` only proves the package imports.  Notebook 7 IS a
+	JupyterLab application, and its front-end reads a settings schema for every
+	plugin out of `<app dir>/schemas`; with those missing, the bundle loads and
+	then every single plugin fails to activate, leaving a page showing nothing
+	but the Jupyter logo.  Diagnosed exactly that way here: one of the two
+	jupyters on this machine had no `share/jupyter/lab` directory at all, and
+	it was the one being picked.  The application directory is what
+	`jupyter lab path` reports, and it differs per program.
+
+	Deliberately fails OPEN.  This is a second opinion on a program whose
+	package already imported, and the answer is read out of a line of English
+	CLI output; if that command cannot be run or its wording ever changes, the
+	right conclusion is "no opinion", not "reject".  Only an application
+	directory that is actually there and actually empty of schemas condemns a
+	program.
+	"""
+	out = _runJupyter(prog, ['lab', 'path'])
+	if out is None:
+		return True     #could not ask
+	for line in out.splitlines():
+		if line.startswith('Application directory:'):
+			appdir = line.split(':', 1)[1].strip()
+			schemas = os.path.join(appdir, 'schemas')
+			try:
+				return os.path.isdir(schemas) and bool(os.listdir(schemas))
+			except OSError:
+				return True
+	return True         #wording not recognised
+
+
 NOTEBOOK_TOKEN = None
 NOTEBOOK_PROC = None
 NOTEBOOK_MCP_JSON = None
@@ -481,6 +688,7 @@ NOTEBOOK_MCP_HTTP_PROC = None
 NOTEBOOK_MCP_URL_FILE = None
 NOTEBOOK_MCP_HTTP_LOG = None
 NOTEBOOK_LOG_TAIL = None	#last lines of the server's output, for diagnostics
+NOTEBOOK_DEATH_REPORTED = True	#nothing to report until a server is launched
 NOTEBOOK_ATEXIT_DONE = False
 
 
@@ -611,6 +819,8 @@ def launchJupyterConsole(prog, argv):
 		args = [prog, console[0], '--config=' + os.path.join(KAME_ResourceDir, 'jupyter_notebook_config.py')]
 		print("Launching jupyter notebook: ", *args)
 		proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, cwd=console[1])
+		global NOTEBOOK_DEATH_REPORTED
+		NOTEBOOK_DEATH_REPORTED = False
 	else:
 		raise RuntimeError('Unknown console.')
 	
@@ -1902,6 +2112,18 @@ def _find_python_with(mods, env_override=None, extra=()):
 		key=lambda _p: int(_re.search(r'python3\.(\d+)$', _p).group(1)),
 		reverse=True)
 	_probe = ';'.join('import ' + _m for _m in mods)
+	# Every candidate is a DIFFERENT interpreter from the one embedded in KAME,
+	# so KAME's own Python environment must not follow it into the probe.  On
+	# Windows this decides the answer rather than merely tidying it up:
+	# kame-msyspython.bat exports PYTHONHOME=C:\msys64\mingw64 and MSYS2's
+	# PYTHONPATH, and a real CPython told to use those loads mingw-built C
+	# extensions it cannot open -- `ModuleNotFoundError: No module named
+	# '_socket'` -- so EVERY candidate fails and the caller reports "no Python
+	# with mcp and jupyter_client" while the very same venv starts the server
+	# fine from launchJupyterConsole, which does strip them.
+	_env = dict(os.environ)
+	for _v in ('PYTHONHOME', 'PYTHONPATH', 'VIRTUAL_ENV', 'PYTHONSTARTUP'):
+		_env.pop(_v, None)
 	_seen = set()
 	for _c in _cands:
 		_rp = os.path.realpath(_c)
@@ -1910,7 +2132,8 @@ def _find_python_with(mods, env_override=None, extra=()):
 		_seen.add(_rp)
 		try:
 			_sp.check_call([_c, '-c', _probe],
-						   stdout=_sp.DEVNULL, stderr=_sp.DEVNULL, timeout=10)
+						   stdout=_sp.DEVNULL, stderr=_sp.DEVNULL, timeout=10,
+						   env=_env)
 			return _c
 		except Exception:
 			continue

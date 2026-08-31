@@ -27,8 +27,8 @@ public:
     XInterfaceListConnector(const shared_ptr<XInterfaceList> &node, QTableWidget *item);
 	virtual ~XInterfaceListConnector() {}
 protected:
-	virtual void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
-	virtual void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
+	virtual void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) override;
+	virtual void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) override;
 protected slots:
     void cellClicked ( int row, int col);
 private:

@@ -2,7 +2,7 @@
 
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![GitHub](https://img.shields.io/badge/GitHub-northriv%2FKAME-181717?logo=github)](https://github.com/northriv/KAME)
-[![Version](https://img.shields.io/badge/version-8.6-green)]()
+[![Version](https://img.shields.io/badge/version-8.6.1-green)]()
 [![arXiv](https://img.shields.io/badge/arXiv-2608.12024-b31b1b.svg)](https://arxiv.org/abs/2608.12024)
 
 KAME is an open-source, multi-threaded program for automated physical property measurements,
@@ -34,13 +34,16 @@ orchestration across compatible instruments.
 - Fourier step-sum spectrum measurement with field / frequency sweeping
 - Complete data logging with post-measurement re-analysis
 - Save / restore full measurement config to `.kam` files
+- Provenance journal: settings and every change to them in `.kamj`, raw records in `.kamb`, either file replayable (9.0)
 - Modular driver plug-in architecture; Python drivers redefinable at runtime
 - Calibration curves (cspline, Chebyshev, polynomial) for resistance thermometers and generic sensors; calibrated entries feed into graphs, charts, and data recording like any native scalar
 
 ### Released versions/Binaries
-Source: [kame-8.6.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.6.zip) (4.8MB, Aug. 2026).
+Source: [kame-8.6.1.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.6.1.zip) (4.8MB, Aug. 2026).
 [All other source archives](https://kitag.issp.u-tokyo.ac.jp/web/kame/src).
-Windows 64-bit binaries: [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.zip) (21.8MB) · [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.5.zip) (20.4MB) · [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.4.zip). At least Qt is additionally needed, follow instructions below to install.
+Windows 64-bit binaries: [8.6.1](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.1.zip) (21.8MB) · [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.zip) (21.8MB) · [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.5.zip) (20.4MB) · [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.4.zip). At least Qt is additionally needed, follow instructions below to install.
+Builds before 8.6.1 carry the double-allocation defect described under *What's New in 8.6.1* on Windows and Linux.
+**9.0 alpha** — the measurement journal, below: [source](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.0-alpha.zip) (5.2MB) · [Windows 64-bit](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-9.0alpha.zip) (22.0MB). A pre-release; 8.6.1 remains the current stable version.
 
 ### Supported instruments
 
@@ -72,6 +75,62 @@ Windows 64-bit binaries: [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kam
 | **Monte Carlo simulation** | Monte Carlo driver |
 
 ---
+
+## What's New in 9.0 (alpha)
+
+- **KAME records what it was set to and what it did, without being asked.** A
+  run is one name and two files. The `.kamj` holds the settings the run started
+  with, and every change made afterwards, yours and the instruments'. The
+  `.kamb` holds the raw records behind those readings. You choose whether
+  the second file is written at all: settings alone cost about 11 MB/hour at 144
+  readings a second, settings plus records about 10 GB/hour. Both files are
+  gzip, and `.kamj` is JSON Lines inside, so `zgrep` and `zdiff` read one with
+  no special tool. Numbers are stored twice, as the text you would read and as
+  the exact eight bytes they were.
+- **The session is recorded even when you are not recording a run.** It goes to
+  a directory of its own and stays at a few tens of KB. Everything you did is
+  kept in full; an instrument's readings are kept only once they settle. A
+  session you forgot to save now has something to show.
+- **Replay, in the Journal Reader.** Open either file and the other is found.
+  Open the `.kamj` and the settings of each moment come back as playback reaches
+  them. Open the `.kamb` and the same records are re-analysed with the settings
+  you have now, which is what you want after changing one parameter. Drivers
+  named in the journal are created if this KAME does not have them. Only what a
+  person set is restored, never into a running driver, and KAME reports how much
+  it held back.
+- **The toolboxes and the main window get out of the way by themselves.** A
+  toolbox at a screen edge shrinks to its tab column, and grows back when the
+  pointer touches it. The main window keeps its top edge and rests at half
+  height, so the menu bar and the pane tabs never move. Hovering a tab picks
+  that pane, which makes a resting toolbox a menu of its panes. Click the front
+  tab to pin a window open. Both are switches in the View menu.
+- **Smaller UI changes.** The New Driver dialog has a live search box. A driver
+  you create opens its own window, and one with an interface brings up the
+  Interface pane. The pane tabs are flat and move faster. An interface that
+  appears is selected and scrolled to. On macOS, choosing KAME in the Dock
+  brings the main window forward.
+
+## What's New in 8.6.1
+
+- **A block of memory could be handed out twice — Windows and Linux.** Frees
+  arriving from a thread that had already finished its own allocator teardown
+  went into an object that no longer existed, and a slot went back to the pool
+  after its owner had already reissued it, so two live users held the same
+  memory. It surfaced far from its cause and never the same way twice: garbage
+  inside a value still being referenced, a node that reported the wrong
+  identity, or the transaction watchdog firing on a stall that was not one.
+  macOS was never affected — the guard that was supposed to prevent this
+  compiled to a constant *false* everywhere else. **8.5 and 8.6 carry the
+  defect on Windows and Linux; update.**
+- **The MCP pre-check no longer cries wolf.** On Windows, KAME could announce
+  that no Python with `mcp` and `jupyter_client` was found — and then start the
+  server anyway, on the next line. The startup pre-check probed candidates with
+  KAME's own `PYTHONHOME` still set, which under `kame-msyspython.bat` points a
+  real CPython at MSYS2's standard library and kills it on `_socket`; it now
+  strips that environment, as the other probe already did. The same fix cures
+  the Pydantic AI interpreter search.
+- **The test suites build under MSVC**, not only clang/MinGW, and every test
+  that builds there passes.
 
 ## What's New in 8.6
 
@@ -534,7 +593,7 @@ x64-msvcrt-ruby3**.dll
 The **script files are deployed for you** at link time, into `.\resources`
 next to `kame.exe` — `rubylineshell.rb`, `pythonlineshell.py`, the two
 notebook files, `kame_mcp_server.py`, `kame_pydantic_ai.py`,
-`kame_python_api.md`, the user's manual (`kame-8-en.md` + `media\`), and
+`kame_python_api.md`, the user's manual (`kame-9-en.md` + `media\`), and
 `plugin\`. Qt Creator needs no extra step; `tools\deploy_scripts.bat
 <resources-dir>` does the same by hand if you ever need it, and
 `tools\mkzip.bat` calls it when assembling a release.
@@ -544,7 +603,7 @@ notebook files, `kame_mcp_server.py`, `kame_pydantic_ai.py`,
 > into `resources\` once. That is worth knowing if you inherit one: without
 > `kame_mcp_server.py` there is no MCP server to launch at all, and the
 > `kame_api` / `kame_manual` tools read `kame_python_api.md` and
-> `kame-8-en.md` from that directory. `plugin\` ships for parity with macOS
+> `kame-9-en.md` from that directory. `plugin\` ships for parity with macOS
 > but is inert on Windows — its `.mcp.json` invokes a POSIX-sh launcher,
 > which is why the **Claude: Code** quick-launch link omits `--plugin-dir`
 > there.
@@ -634,18 +693,19 @@ server:
 | **Codex: CLI / fugu / app** | Codex in a terminal, with the server passed as a session-scoped override — nothing is written to `~/.codex/config.toml` |
 | **Pydantic AI: CLI / web / ⚙ agent** | The venv's `clai`, handed an agent; the model comes from your clai setup, `-m` overrides. **web** picks a free port and opens the browser on it once the server answers; if your module builds an app with `Agent.to_web(models=…)`, that app is served (with `uvicorn`) so your own model list is the one in the UI. **⚙ agent** picks an agent module of your own — KAME checks it exposes a `pydantic_ai.Agent`, remembers which variable, and runs it from its own directory; Cancel returns to the one KAME ships |
 
-Prerequisites are `pip install "mcp<2" jupyter_client` for the server, and
-`pip install pydantic-ai clai` if you want the Pydantic AI links. **Keep the
-`<2`** if you are running a released build: 8.6 and earlier import
-`mcp.server.fastmcp`, which mcp 2.x removed, so an unpinned install lands a
-package that imports yet cannot start the server. A build from `master`
-accepts either line, and the pin is harmless there — so `"mcp<2"` is the one
-instruction that works everywhere. The server
+Prerequisites are `pip install mcp jupyter_client` for the server, and
+`pip install pydantic-ai clai` if you want the Pydantic AI links. Either mcp
+1.x or 2.x works from **8.6.1** on: 2.0 renamed the server class and moved its
+module (`mcp.server.fastmcp.FastMCP` → `mcp.server.MCPServer`), and both the
+server and KAME's interpreter probe take whichever is installed. **On 8.6 and
+earlier, pin it — `pip install "mcp<2"`** — those builds import
+`mcp.server.fastmcp` only, so an unpinned install there lands a package that
+imports yet cannot start the server. The server
 runs as its **own process**, so this need not be the interpreter embedded in
 KAME: KAME probes candidates — Jupyter's own interpreter, a `kame-mcp-venv`
 (preferred, searched upward from the resource directory), `python3`, and
 versioned `python3.X` names — and picks the first that can actually import
-both `jupyter_client` and `mcp.server.fastmcp`.
+`jupyter_client` and either of the two mcp entry points.
 
 > **On Windows, use a `kame-mcp-venv`.** None of the interpreters KAME can
 > otherwise reach will do: the bundled `resources\python3.12` has no `pip`,
@@ -658,7 +718,7 @@ both `jupyter_client` and `mcp.server.fastmcp`.
 >
 > ```
 > uv venv --python 3.12 kame-mcp-venv
-> uv pip install --python kame-mcp-venv\Scripts\python.exe "mcp<2" jupyter_client
+> uv pip install --python kame-mcp-venv\Scripts\python.exe mcp jupyter_client
 > ```
 >
 > The probe searches upward from the resource directory, so the venv may also

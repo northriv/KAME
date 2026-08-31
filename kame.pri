@@ -54,7 +54,11 @@ QMAKE_CXXFLAGS += -Wno-register
 DEFINES -= USE_STD_ALLOCATOR
 
 
-VERSTR = 8.6
+# The one place the version is written.  It reaches the binary as VERSION, the
+# journal's header, and the release archive's name -- tools/mkzip.sh reads it
+# from here.  It used to live in kame.spec, which is gone with the RPM
+# packaging that was its only reader.
+VERSTR = 9.0
 DEFINES += VERSION=\"quotedefined($${VERSTR})\"
 
 KAME_COREMODULES = coremodules

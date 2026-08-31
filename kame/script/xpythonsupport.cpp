@@ -24,6 +24,7 @@
 namespace py = pybind11;
 
 #include "xpythonsupport.h"
+#include "xjournal.h"
 #include "xscriptingthread.h"
 #include "measure.h"
 #include <QFile>
@@ -48,6 +49,23 @@ XPython::listOfJupyterPrograms() {
     pybind11::gil_scoped_acquire guard;
     try {
         return py::cast<std::vector<std::string>>(py::eval("listOfJupyterPrograms()"));
+    }
+    catch (pybind11::error_already_set& e) {
+        gErrPrint(i18n("Python error: ") + e.what());
+    }
+    catch (std::runtime_error &e) {
+        gErrPrint(i18n("Python KAME binding error: ") + e.what());
+    }
+    catch (...) {
+        gErrPrint(i18n("Unknown python error."));
+    }
+    return {};
+}
+std::string
+XPython::jupyterProgramFor(const std::string &subcommand) {
+    pybind11::gil_scoped_acquire guard;
+    try {
+        return py::cast<std::string>(py::eval("jupyterProgramFor(r'" + subcommand + "')"));
     }
     catch (pybind11::error_already_set& e) {
         gErrPrint(i18n("Python error: ") + e.what());
@@ -147,6 +165,9 @@ XPython::my_defin(shared_ptr<XNode> node) {
 void *
 XPython::execute(const atomic<bool> &terminated) {
     Transactional::setCurrentPriorityMode(Transactional::Priority::UI_DEFERRABLE);
+    //What a script writes is a request, like what the user types -- and no
+    //thread id tells that apart from a driver's thread on its own.
+    XJournalWriter::declareThisThread(XJournalWriter::ThreadClass::SCRIPT);
 
     {
         py::scoped_interpreter guard{}; // start the interpreter and keep it alive

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-KAME is a scientific instrument control and measurement software framework written in C++11/Qt. It provides a plugin-based architecture for controlling laboratory instruments (oscilloscopes, lock-in amplifiers, temperature controllers, magnet power supplies, etc.) with Python and Ruby scripting support. Version 8.6.
+KAME is a scientific instrument control and measurement software framework written in C++11/Qt. It provides a plugin-based architecture for controlling laboratory instruments (oscilloscopes, lock-in amplifiers, temperature controllers, magnet power supplies, etc.) with Python and Ruby scripting support. Version 8.6.1.
 
 **Platforms:** macOS, Windows (64-bit), Linux (x86-64) — **Linux is a
 supported platform from 8.5** (Qt 6, qmake; verified on Ubuntu 26.04,
@@ -180,7 +180,8 @@ parent.iterate_commit_if([&](Transaction<NodeA> &tr) -> bool {
 |---|---|
 | `kame/` | Core framework: XNode, STM, thread/scheduler, scripting glue |
 | `kame/driver/` | `XDriver` base, `XPrimaryDriver`, `XSecondaryDriver`, Python driver bridge |
-| `kame/analyzer/` | `XAnalyzer`, `XScalarEntry`, `XCalibratedEntry` — extract and calibrate scalar values from driver records |
+| `kame/analyzer/` | `XAnalyzer`, `XScalarEntry`, `XCalibratedEntry` — extract and calibrate scalar values from driver records — and `XTextWriter` (`textwriter.h`), which writes them out as text |
+| `kame/journal/` | The provenance journal, writer and reader together: `XJournal` (the node the tree shows), `XJournalWriter` (subscribes to every node, writes `.kamj`), `XRawStream`/`XRawStreamRecorder` (`rawstream.h` — the `.kamb` the journal owns, and the base the reader shares), `XJournalFile` (reads a `.kamj` back, streaming), `XJournalReader` (the Replay pane's node). Reader and writer live together deliberately: the reader tracks a byte format the writer defines, and adjacency is the cheapest thing keeping them in step. \sa `doc/design/PROVENANCE.md` |
 | `kame/math/` | FFT, AR, spectral analysis helpers |
 | `kame/script/` | Python (pybind11) and Ruby scripting integration |
 | `kame/graph/` | Plotting/graphing framework |
@@ -225,24 +226,27 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
 - **Startup sequence:** only `xpythonsupport.py` is exec'd immediately; `pytestdriver.py` and `pydrivers.py` are collected as deferred scripts via `kame_deferred_scripts()` and executed on the first `kame_pybind_one_iteration()` tick (after the IPython kernel is up). Optional extension files that are absent produce a stderr warning, not a UI error.
 - Script thread launch no longer has fixed `sleep()` delays; deferred scripts execute in the global namespace via `exec(script, globals())`
 - **GIL startup synchronization** — `FrmKameMain` constructor creates `XMeasure` immediately, which starts the Python thread. Driver modules (including Python modules whose `PyDriverExporter`/`PyXNodeExporter` global constructors need the GIL) are loaded afterward in `main.cpp`. To prevent the main thread from blocking on `gil_scoped_acquire` while the Python thread holds the GIL during heavy imports, `XPython::execute()` releases the GIL and waits on `m_modules_loaded` before running `xpythonsupport.py`. `main.cpp` calls `form->signalAllModulesLoaded()` after the `lt_dlopenext` loop to unblock it.
-- **The manual's MCP chapter is md-master.** `doc/manual/kame-8-en.md`'s
-  "AI-Assisted Experiment Automation (MCP)" chapter is edited there, NOT in
-  `kame-8.docx` / `kame-8-en.docx` (which live outside the repo and are the
-  master for every other chapter). It changes with the code far more often than
-  the rest of the manual, and it is the only version an agent reads, since
+- **Two of the manual's chapters are md-master.** In `doc/manual/kame-9-en.md`,
+  "AI-Assisted Experiment Automation (MCP)" and "Measurement Journal" are
+  edited there, NOT in the `.docx` pair outside the repo (which is the master
+  for every other chapter). Both change with the code far more often than the
+  rest of the manual, and the md is the only version an agent reads, since
   `kame_manual` serves this file. Regenerate the docx from it; never overwrite
   it from a docx conversion. Consequence to keep in mind: the Japanese manual
-  lags this chapter until it is regenerated.
-- **MCP server** (`kame/script/kame_mcp_server.py`) — connects to the embedded IPython kernel via `jupyter_client`, providing AI assistants (Claude Code, etc.) with 11 tools: `kame_api`, `kame_manual` (user's manual TOC / per-section retrieval), `execute_code` (returns text + matplotlib plots as MCP ImageContent), `execute_code_async`/`get_result`/`stop_job` (background thread for long experiments, with `mcp_checkpoint()` progress reporting and cooperative stop), `tree` (recursive node browser with configurable depth, compact indented output), `kame_status`, and `notebook_status`/`notebook_read`/`notebook_edit` (Jupyter contents-API cell editing: the server is located among Jupyter runtime files by the token/workspace-dir KAME records in `~/.kame_kernel_connection.json`; a dedicated second ZMQ connection watches iopub `execute_input`/`status` so the currently executing cell is known even while the kernel is busy — a busy kernel cannot answer `execute_code`; edits clear the cell's outputs, refuse to touch the currently-executing cell, and every edit response instructs the LLM to have the user reload the stale browser tab). Previous helper tools (`read_node`, `set_node`, `read_scalar`, `list_children`, `list_scalars`) were removed as redundant — `execute_code` handles all read/write operations directly. Kernel connection is reused across calls; `%matplotlib inline` is set automatically on first connect. `execute_code_async` runs code in a daemon thread on the kernel — KAME STM operations are thread-safe, but Python-level shared variables should not be read until the job completes. Auto-configured when launching a Jupyter notebook: `xpythonsupport.py` writes `.mcp.json` and `~/.kame_kernel_connection.json` in `launchJupyterConsole()` (notebook path only); both files are cleaned up on exit. Tool-generated code uses IPython expression results (bare last-line evaluation) instead of `print()`, because KAME's `MYDEFOUT` wraps print output in HTML via `display(IPython.display.HTML(...))` when a notebook is connected. The `_execute` message handler also filters out `display_data` messages containing HTML object reprs. API reference in `kame/script/kame_python_api.md` is served by the `kame_api` tool. The user's manual lives at `doc/manual/kame-8-en.md` (converted from the official docx; images in `doc/manual/media/`) and is served section-wise by the `kame_manual` tool; the md is deployed next to the server script via `scriptfile.files` in `kame.pro`, with a source-tree fallback path.
+  lags these chapters until it is regenerated.
+  The file was `kame-8-en.md` through 8.6.1; it is `kame-9-en.md` from the
+  journal onwards, and the deployment (`scriptfile.files` in `kame.pro`,
+  `tools/deploy_scripts.bat`) and the server's two search paths name it.
+- **MCP server** (`kame/script/kame_mcp_server.py`) — connects to the embedded IPython kernel via `jupyter_client`, providing AI assistants (Claude Code, etc.) with 11 tools: `kame_api`, `kame_manual` (user's manual TOC / per-section retrieval), `execute_code` (returns text + matplotlib plots as MCP ImageContent), `execute_code_async`/`get_result`/`stop_job` (background thread for long experiments, with `mcp_checkpoint()` progress reporting and cooperative stop), `tree` (recursive node browser with configurable depth, compact indented output), `kame_status`, and `notebook_status`/`notebook_read`/`notebook_edit` (Jupyter contents-API cell editing: the server is located among Jupyter runtime files by the token/workspace-dir KAME records in `~/.kame_kernel_connection.json`; a dedicated second ZMQ connection watches iopub `execute_input`/`status` so the currently executing cell is known even while the kernel is busy — a busy kernel cannot answer `execute_code`; edits clear the cell's outputs, refuse to touch the currently-executing cell, and every edit response instructs the LLM to have the user reload the stale browser tab). Previous helper tools (`read_node`, `set_node`, `read_scalar`, `list_children`, `list_scalars`) were removed as redundant — `execute_code` handles all read/write operations directly. Kernel connection is reused across calls; `%matplotlib inline` is set automatically on first connect. `execute_code_async` runs code in a daemon thread on the kernel — KAME STM operations are thread-safe, but Python-level shared variables should not be read until the job completes. Auto-configured when launching a Jupyter notebook: `xpythonsupport.py` writes `.mcp.json` and `~/.kame_kernel_connection.json` in `launchJupyterConsole()` (notebook path only); both files are cleaned up on exit. Tool-generated code uses IPython expression results (bare last-line evaluation) instead of `print()`, because KAME's `MYDEFOUT` wraps print output in HTML via `display(IPython.display.HTML(...))` when a notebook is connected. The `_execute` message handler also filters out `display_data` messages containing HTML object reprs. API reference in `kame/script/kame_python_api.md` is served by the `kame_api` tool. The user's manual lives at `doc/manual/kame-9-en.md` (converted from the official docx; images in `doc/manual/media/`) and is served section-wise by the `kame_manual` tool; the md is deployed next to the server script via `scriptfile.files` in `kame.pro`, with a source-tree fallback path.
 - **MCP server interpreter** — the server is a **separate process** and a *client*
   of KAME's kernel (ZMQ via `jupyter_client`), so it need not be — and on Windows
   cannot be — the interpreter embedded in KAME. Three hard constraints, each of
   which produced a silent failure:
-  - **Either `mcp` line works on `master`** — but **8.6 and earlier are 1.x
-    only**, so the README must keep telling users `pip install "mcp<2"`:
-    that is the one instruction that works for a released binary and for a
-    build from master alike. Do not unpin it in the docs until a release
-    ships this code. 2.0
+  - **Either `mcp` line works from 8.6.1 on** — the docs were unpinned to a
+    plain `pip install mcp` when that release shipped (2026-08-28), which is
+    the condition the old rule here waited for. **8.6 and earlier are 1.x
+    only**, so every place that gives the install line must still name the
+    pin for them; do not delete `"mcp<2"` from the docs, only demote it. 2.0
     renamed the class and moved the module
     (`mcp.server.fastmcp.FastMCP` → `mcp.server.MCPServer`) and moved transport
     options from settings into `run()`; the server picks whichever it finds

@@ -131,6 +131,12 @@ XNodeBrowser::process_() {
                 str += "<font color=#550000>Ruby object:</font><br> Measurement";
 #endif
                 str += nodeabspath.c_str();
+#ifndef USE_PYBIND11
+                //Ruby-only build.  A Python build says nothing here: the
+                //"Supported Python methods" line appended below carries the
+                //real bound methods, introspected from the object itself, and
+                //this hand-written list is in Ruby's spelling anyway
+                //(value=x, <<x, to_ary) so it would only mislead.
 				str += "<br><font color=#550000>Supported Ruby methods:</font>"
 					" name() touch() child(<font color=#000088><i>name/idx</i></font>)"
 					" [](<font color=#000088><i>name/idx</i></font>) count() each() to_ary()";
@@ -141,6 +147,7 @@ XNodeBrowser::process_() {
 				if(listnode)
 					str += " create(<font color=#000088><i>type</i></font>, <font color=#000088><i>name</i></font>)"
 						" release()";
+#endif
 				str += "<br>";
 				break;
 			}

@@ -640,6 +640,17 @@ static long env_long(const char *name, long defv) {
 //! threads do not preempt one another, and the load arm would wedge the box
 //! rather than starve a holder.  Starvation is modelled with SCHED_IDLE, which
 //! cannot.
+//! SCHED_FIFO / SCHED_RR are POSIX; MinGW's headers define neither, so the call
+//! sites below would not compile on Windows even though they are inert there --
+//! `os_set_policy()` already returns false off Linux and the OS arm then reports
+//! itself SKIPPED, exactly as on a Linux box without CAP_SYS_NICE.  Only the
+//! NAMES need to exist; #ifndef leaves macOS (where they are real) untouched.
+#ifndef SCHED_FIFO
+#  define SCHED_FIFO 1
+#endif
+#ifndef SCHED_RR
+#  define SCHED_RR 2
+#endif
 static bool os_set_policy(int policy, int prio) noexcept {
 #if defined(__linux__)
     sched_param sp;

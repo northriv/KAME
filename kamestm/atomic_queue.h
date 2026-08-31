@@ -35,6 +35,7 @@
 // include reordering).
 #include <cstdlib>
 #include <cassert>
+#include <type_traits>
 
 //! Atomic FIFO with a pre-defined size for POD-type data of non-zero values (e.g. pointers).
 //! \sa atomic_queue, atomic_pointer_queue
@@ -316,6 +317,107 @@ private:
     key key_index_serial(int index, int serial) {return index * 0x100 + (serial % 0xff) + 1;}
     atomic_nonzero_pod_queue<key, SIZE> m_queue, m_reservoir;
     T m_array[SIZE];
+};
+
+
+//! Bounded, non-allocating FIFO for fat POD records, safe for any number of
+//! producers and consumers.
+//!
+//! The queues above cannot serve a producer that must not block, allocate or
+//! fail silently: `atomic_queue` allocates per item, and the pod queues carry
+//! one word and reserve zero as a sentinel.  This one owns its storage, moves
+//! records by assignment into a slot claimed with a single CAS, and answers
+//! false rather than waiting when it is full — so a caller on a real-time or
+//! signal-bounded path can offer a record and carry on.
+//!
+//! Each slot carries a sequence number, which is what makes claiming a slot
+//! and publishing its contents two separate steps (Vyukov's bounded MPMC
+//! queue): a producer may only write to a slot whose sequence equals the
+//! position it claimed, and a consumer may only read one that is a full lap
+//! ahead.  A slow producer therefore holds up only its own slot, never the
+//! queue.
+//!
+//! The positions are `uintptr_t`, not `uint64_t`, deliberately: a 64-bit
+//! atomic is NOT lock-free on RV32, ARMv5/v6, MIPS32 or i486, where it becomes
+//! a libatomic call taking a lock — which is precisely what this class exists
+//! to avoid.  Pointer width wraps sooner, and wrapping is harmless here since
+//! positions are only ever compared as a signed difference.
+template <typename T, unsigned int SIZE>
+class atomic_bounded_ring {
+public:
+    static_assert(std::is_trivially_copyable<T>::value,
+        "atomic_bounded_ring stores records by plain copy: no allocation and no "
+        "destructor may run while a slot is claimed.");
+    static_assert(SIZE && !(SIZE & (SIZE - 1)),
+        "SIZE must be a power of two, so the position wraps into an index with a mask.");
+
+    atomic_bounded_ring() noexcept : m_enqueue(0), m_dequeue(0) {
+        for(unsigned int i = 0; i < SIZE; ++i)
+            m_cells[i].seq.store(i, std::memory_order_relaxed);
+    }
+
+    //! Offers \a t.  Never blocks and never allocates.
+    //! \return false if the ring is full, in which case nothing was stored.
+    bool push(const T &t) noexcept {
+        uintptr_t pos = m_enqueue.load(std::memory_order_relaxed);
+        Cell *cell;
+        for(;;) {
+            cell = &m_cells[pos & (SIZE - 1)];
+            uintptr_t seq = cell->seq.load(std::memory_order_acquire);
+            intptr_t diff = (intptr_t)(seq - pos);
+            if(diff == 0) {
+                //The slot is ours if the claim lands; the CAS is relaxed
+                //because the acquire above already ordered the read of seq.
+                if(m_enqueue.compare_exchange_weak(pos, pos + 1,
+                        std::memory_order_relaxed))
+                    break;
+            }
+            else if(diff < 0)
+                return false;   //a full lap behind: the ring is full
+            else
+                pos = m_enqueue.load(std::memory_order_relaxed);
+        }
+        cell->data = t;
+        //Publishes the record: a consumer that sees this sequence sees the
+        //write above.
+        cell->seq.store(pos + 1, std::memory_order_release);
+        return true;
+    }
+
+    //! Takes the oldest record.  \return false if the ring is empty.
+    bool pop(T &t) noexcept {
+        uintptr_t pos = m_dequeue.load(std::memory_order_relaxed);
+        Cell *cell;
+        for(;;) {
+            cell = &m_cells[pos & (SIZE - 1)];
+            uintptr_t seq = cell->seq.load(std::memory_order_acquire);
+            intptr_t diff = (intptr_t)(seq - (pos + 1));
+            if(diff == 0) {
+                if(m_dequeue.compare_exchange_weak(pos, pos + 1,
+                        std::memory_order_relaxed))
+                    break;
+            }
+            else if(diff < 0)
+                return false;   //nothing published here yet: empty
+            else
+                pos = m_dequeue.load(std::memory_order_relaxed);
+        }
+        t = cell->data;
+        //Releases the slot for the producer a lap ahead.
+        cell->seq.store(pos + SIZE, std::memory_order_release);
+        return true;
+    }
+
+    constexpr unsigned int capacity() const noexcept {return SIZE;}
+private:
+    struct Cell {
+        atomic<uintptr_t> seq;
+        T data;
+    };
+    Cell m_cells[SIZE];
+    //Kept apart so producers and consumers do not share a cache line.
+    alignas(64) atomic<uintptr_t> m_enqueue;
+    alignas(64) atomic<uintptr_t> m_dequeue;
 };
 
 #endif /*ATOMIC_QUEUE_H_*/

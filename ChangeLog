@@ -1,4 +1,323 @@
+* Sun Aug 30 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- The Raw Stream Reader is the Journal Reader, and a run is opened by either
+  of its halves.  Given run042.kamj it takes the raw stream the journal's own
+  header names, which is the direction that survives the pair being renamed;
+  given run042.kamb it looks for the sibling by stem.  Neither file needs the
+  other, so a .kamb from before the journal existed opens exactly as it
+  always did.
+  Opening one puts the settings the run was recorded with back into the tree
+  -- but only while every interface is closed, because a driver's I/O
+  listeners exist only between its start() and stop(), so with nothing open
+  there is nobody to carry a value to an instrument.  With an interface open
+  it says so and waits for the "Restore settings" button, which afterwards
+  reports how many interfaces those settings reached.  Runtime nodes are
+  never restored: what they hold is a reading, and the driver that owns one
+  would contradict it on its next record.  A double is restored from the
+  exact eight bytes rather than from the four digits its text would have
+  shown.
+- Which file you open is the choice: `.kamj` replays with the settings of
+  that moment, `.kamb` re-analyses with today's.  There was a "Restore
+  settings" button and a "Follow journal" switch, which asked a second time
+  for something already said by picking the file (user).  What is left to
+  choose is the expensive half, so the one switch is "Follow raw records" --
+  untick it and the same transport walks the settings history alone.  Nothing
+  is written to the tree while an interface is open; File > Open Measurement
+  is the deliberate way to push a recorded setup at live instruments.  What is
+  withheld is decided per node: only a driver whose interface is open has a
+  listener that could carry a value to hardware, so a stopped driver's
+  settings and an analysis parameter -- NMRPulseAnalyzer's NumEcho, which
+  talks to nothing -- are put back like anything else.  Refusing every write
+  while any interface was open made replay look broken on a live rig.
+- Opening a journal creates the drivers it names and this KAME does not have.
+  Only values were restored before, which on a fresh tree restored nothing at
+  all: every path named a driver that was not there.  The dump says what each
+  node was created as, so what is missing can be made -- and the whole file is
+  read once for those names, not just its head, because a driver added while
+  the run was running is named in the body and a session journal's head is
+  nearly empty.  Nodes are made parents-first by the depth of their path: ids
+  are handed out when a node is first seen, and in a real run three of them
+  came out ahead of their parent's.
+- Playback stops at the end instead of starting over.  With a journal
+  attached, lapping put the whole tree back to the head of the recording
+  without saying so.
+- Playback re-analyses each record with the
+  with the settings that were in force when it was taken: the reader walks the
+  journal forward to the record's own timestamp and puts back what was set
+  before it.
+  Only requests are restored -- a driver reporting its own progress through a
+  setting it shares, 37 on its way to the 100 that was asked for, is recorded
+  and never put back, since the driver that owns it would contradict it on its
+  next record.  Going backwards re-reads the journal from its head, because a
+  journal is a stream and only goes forwards.  Unticking it re-analyses with
+  today's settings, which is what changing one parameter and running the
+  recording through again means.
+- A journal with no raw stream plays too.  A session journal, and a run
+  recorded as "Settings only", have nothing to re-analyse, but they hold what
+  was set and when -- so the same transport walks that instead, a step being
+  one instant of the history rather than one line of the file (settings
+  changed together are one act, and stopping between them would show a state
+  that never was).  With following off, or an interface open, the cursor and
+  the readout still move and nothing is written, which is how a history is
+  read without being replayed.
+- A position slider in that pane, by size of the compressed file.  The other
+  two candidates do not exist: how long a gzip stream is unpacked is not
+  knowable without unpacking it, and records are not evenly spaced in time.
+  Dragging it decompresses to the target -- a gzip stream has no index -- and
+  lands on a record boundary rather than guessing at one, since a record now
+  begins with "KAMB" and a check word over its own length and time.  Old
+  .kamb files, whose records begin with a plausible length instead, are told
+  apart by that alone and still open.
+  Stepping back at the head of a file used to raise an IO error, because the
+  seek for the length word ran off the front of it.  A file that will not
+  open says so, where every button used to do nothing for no stated reason.
+- A raw record's header says how far it is to the payload, and carries
+  timeAwared() -- when the phenomenon started being measured, as against
+  time(), when it happened.  The declared length means a field can be added
+  later without the format breaking again, the way BMP, ELF and PE all do it;
+  the driver's name is inside it, so the "reserved" empty string that used to
+  follow the name is gone, that field having existed to be somewhere to put a
+  future something.  Anything added later goes after the name, so a reader
+  that does not know it can still find the name and still reach the payload.
+  timeAwared matters because eight secondary drivers read the emitter's to
+  decide whether a record is fresher than the state it depends on, and one
+  stamps its own record with it, while replay hands them the time it is
+  replaying at.  Recording it is the half that cannot be done later; feeding
+  it back changes what those eight decide and waits for a run on real
+  hardware.
+  Files written before the magic still open: a length or the magic in the
+  first four bytes tells them apart, and the magic is ten times the largest
+  record a length may describe.
+- Both journal files take a full flush once a minute.  The raw stream had
+  been flushed only when recording stopped, so a KAME killed mid-run left a
+  .kamb that stopped being decodable wherever zlib last happened to end a
+  block; the journal had been flushing every second, which on a stream this
+  repetitive throws away most of what makes it compress.  One interval for
+  both, since a run is a pair and a pair that survives a crash to two
+  different points is harder to reason about than one that survives to the
+  same point.
+- Every timestamped line of a .kamj now carries the instant twice: "ts" to
+  read, and "tu" -- microseconds since the epoch -- to compute with.  ctime(3)
+  is local, zoneless and DST-ambiguous, and replay has to line these up
+  against records stamped in epoch time.  "ts" lost its milliseconds in the
+  same move: they changed on every line, which made them the least
+  compressible text in the file, and the number beside them is exact.
+- A journal is read as a stream now, not into memory.  KAME is left running
+  for a month, and at the measured Logbook rate a single run's .kamj is 260 MB
+  a day; what is held is the head -- the header and the dump -- which is
+  bounded by the size of the tree.
+- A name that a sibling already holds is answered with the node that holds
+  it, instead of making a second child nobody can reach by name.  The Ruby
+  loader had always checked; the Python loader that replaced it as the .kam
+  path did not, so loading a .kam onto a tree that already held its drivers
+  was quietly destructive rather than idempotent.  On-graph math tools were
+  named after the length of their list, so deleting the first and adding
+  another asked for a name that was still taken; they now take the first free
+  one.
+- UI: the toolboxes are as wide as the widest pane in them (the replay pane
+  outgrew the old floor when it gained a slider), and nothing auto-hides
+  during startup or shutdown -- the hover poll used to start before the
+  driver modules had loaded, and a toolbox that folds itself away while the
+  user is still waiting reads as a failure rather than a feature.
+- Internals: the journal is one directory, kame/journal/, holding the node
+  (XJournal), the writer (XJournalWriter), the raw stream, the file reader
+  and the Journal Reader.  The engine had been called XJournal while the node
+  the tree shows was XJournalRecorder, which is backwards; analyzer/recorder.h
+  had held the raw stream and XTextWriter, which share nothing but a file
+  name.  Deleted the KDE4 cmake tree -- 50 files that cannot build anything
+  (no project(), no root to include them) and had been maintained as recently
+  as July as though they could.
+
+* Sat Aug 29 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Measurement journal.  KAME now keeps a record of what it was set to and
+  what it did, without being asked: the "Raw Stream Recorder" group in the
+  driver pane is now "Journal", where you name the logbook and the raw stream
+  follows it (run042.kamj beside run042.kamb), choose how much is kept, and
+  watch what it costs in MB/s.  Two tiers: "Settings only" (what you set and
+  everything the instruments reported, ~11 MB/hr at 144 readings a second)
+  and "Settings + raw records" (and the raw records behind them, ~10 GB/hr).
+  Writing the settings once, with no run at all, is what File > Save has
+  always been, and it now offers .kamj beside .kam.
+  Alongside it, and whether or not a run is being recorded, a session journal
+  is written to KAME's own directory -- so a session in which you forgot to
+  save is no longer a session with nothing to show.  It keeps what you did in
+  full and what the instruments reported only after a silence, which is how
+  it stays a few tens of KB; a checkbox turns it off.
+  .kamj is JSON Lines, gzipped: `zgrep` and `zdiff` read it with no tool, and
+  File > Open Measurement applies the dump at its head exactly as it applies
+  a .kam.
+  Doubles are stored twice, as the rounded text you would read and as the
+  exact eight bytes, since a settings file that rounds makes both a spurious
+  diff and a reproduction that used a different number.
+  See doc/design/PROVENANCE.md.  KAME_JOURNAL=1 additionally writes a
+  developer survey of what every node costs.
+- XListNodeBase::isAliasList(), replacing name tests on getTypename() that
+  could never have matched: the mangled name arrives with everything up to the
+  first 'X' stripped, and the alias-list subclasses do not carry the template's
+  name at all.
+- UI: the toolboxes and the main window now get out of the way by themselves.
+  A toolbox floating at a screen edge rests shrunk to its tab column and grows
+  back to full width when the pointer touches it; the main window keeps its top
+  edge and rests at half height, so the menu bar and the pane tabs never move.
+  Hovering a tab picks that pane, which makes a resting toolbox a menu of its
+  panes.  Nothing extra is put on the screen -- the bar IS the toolbox, which is
+  why its tabs keep working while it is narrow.  Neither QMdiArea nor
+  QDockWidget has an auto-hide feature (Qt has never shipped one for Widgets
+  docking, and Qt Quick has no docking at all), and a third-party docking
+  framework was not worth the dependency for this, so it is built from the
+  windows that were already there.  A window stays put, pointer or no pointer,
+  while a popup is up (a combo list is its own window, outside the toolbox
+  rectangle), while a mouse button is held (dragging a scrollbar), and while it
+  both holds the keyboard and is the active window -- the user clicked in and is
+  typing.  Both halves of that last test are needed: a pane holding a line edit
+  can take focus merely by being shown, and that alone would pin it open for
+  ever.  Pointer position is polled rather than tracked by enter/leave events,
+  which fire for every excursion over a child widget and cannot see the gap
+  between two top-level windows.  Clicking the tab of the pane already in front
+  pins or unpins that window -- only that tab, so every other tab still just
+  switches panes, and only when the window already held the keyboard, judged
+  from the state the poll sampled, since the click itself may be what activated
+  it.  "Auto-hide West/East Toolbox" and "Auto-hide Main Window" in the View
+  menu are the same switch.  Three traps, each of which produced a visible
+  fault: a QMdiArea's minimum size hint (~196 px, inherited from its subwindows)
+  clamps the shrink, and lifting it on the area sticks while lifting it on the
+  window does not -- a QDockWidget and a QMainWindow both re-derive their own
+  minimum from that hint on every layout pass, so it is re-applied before each
+  collapse.  Clamped, the east toolbox slid off the screen edge it clings to and
+  showed its content instead of its tabs, which is what a clamp looks like when
+  the anchored edge is the right one.  And a Qt::Tool window sent to the macOS
+  Dock still reports isVisible() == true and isMinimized() == false, so nothing
+  could tell it was gone: the toolboxes no longer carry a minimize button, and
+  the View menu restores one that ends up minimized anyway.
+- script: a Jupyter notebook server that died said nothing.  The tail of its
+  output was already being kept for exactly this diagnosis and nothing ever
+  read it, so a server that started and then exited left a half-drawn page in
+  the browser -- the shell HTML is served, the script bundle that follows is
+  refused -- and no message anywhere.  That is what "only the logo appears"
+  looks like, and it is now reported with the last dozen lines the server
+  printed.
+- script: the Jupyter quick launch took the first jupyter it found on PATH,
+  which says nothing about whether that one carries the package behind the
+  subcommand.  Measured on this machine: of five programs found, the first
+  runs notebook and lab but not qtconsole, and another runs neither console
+  nor qtconsole -- so "the first" is not a safe answer and produced a
+  missing-module traceback instead of a launch.  The candidates are now probed
+  with `<prog> <sub> --version`, which exits non-zero exactly when the package
+  cannot be imported, and the first that passes is used; the result is cached
+  per session because the probe costs about a second.  When none passes, that
+  is said plainly along with what to install.
+  For notebook and lab the probe goes further and checks that the program's
+  JupyterLab application directory carries its settings schemas, because
+  importing the package proves nothing about its data files: Notebook 7 IS a
+  JupyterLab application and reads a schema per plugin out of
+  `<app dir>/schemas`.  With those missing the bundle loads and then every
+  plugin fails to activate, and what reaches the browser is a page showing
+  nothing but the Jupyter logo -- diagnosed exactly that way here, where one
+  of the two jupyters on the machine had no `share/jupyter/lab` directory at
+  all and was the one being picked.  That extra check is careful about where
+  it applies: only for a notebook reporting version 7 or above (notebook 6 is
+  a different application that reads no lab schemas, and demanding them would
+  reject a good install) and it fails OPEN -- it reads a line of English CLI
+  output, so a command that cannot be run or wording that changes means "no
+  opinion", never "reject".  Only an application directory that is there and
+  empty condemns a program.  Probes run without a console window on Windows.
+- UI (macOS): choosing KAME in the Dock did not necessarily bring the main
+  window forward.  AppKit orders an application's windows front keeping their
+  order among themselves, so the main window stays wherever it was in the
+  stack -- underneath a driver form, and always underneath the toolboxes,
+  which are Qt::Tool panels marked stays-on-top.  It now asks to come forward
+  when the application is activated, unless the pointer is over one of KAME's
+  own windows -- clicking a driver form to raise the app is a choice of window,
+  and not for KAME to overrule, while a Dock click leaves the pointer over the
+  Dock.  Which window got activated cannot decide it: measured, AppKit hands
+  the key back to whichever plain window held it last, by either route.  (Nor
+  can `flags & Qt::Tool` tell a palette from an ordinary window: Qt::Tool is a
+  composite of Popup|Dialog|Window, so that test is true of every window that
+  is a window at all -- `flags & Qt::WindowType_Mask` is the comparison.)
+- UI: the pane tab columns are flat.  The platform's boxed, shaded tabs with
+  rotated labels were what dated the resting toolbox more than anything else
+  about it: no frames now, room to breathe, and the pane in front marked by an
+  accent line against the edge its column sits at (underneath, for the main
+  window's tabs along the top).  Every colour is taken from the palette rather
+  than written down, so it follows the platform's light/dark setting -- checked
+  in both -- and the width in that same stylesheet is what sets the column's
+  thickness, so the style proxy that used to widen it is gone.  Only a column
+  gets that width: to tabs running along the top, `width` means each tab's
+  LENGTH, and fixing it there squeezed every title out of existence, so a row
+  is left to size itself around its titles.  The fold and
+  unfold are quicker too, 220 ms to 170 and a snappier curve.  A fade on the
+  way in was tried and dropped: a window at 0.75 opacity shows what is behind
+  it, and on a bar barely wider than its tabs that reads as the tabs blinking
+  out rather than as an entrance.  These windows are opaque.  (The layout
+  minimum has to be lifted for the way OUT as well, not
+  just the way in: a window re-derives it from the QMdiArea on every layout
+  pass, so the early frames were clamped up to it -- measured, the first frame
+  jumped straight from the 43 px bar to 196 px.  On the toolbox that keeps its
+  right edge that showed as the tab column vanishing for an instant, the width
+  being forced wide while the animation's x was still at the collapsed
+  position, so the window overhung the screen edge and took its own tabs with
+  it.)
+- UI: an interface that appears is selected and scrolled into view in the
+  Interface pane.  Bringing that pane to the front after a driver was added by
+  hand only half finished the job while the row whose port has to be set was
+  left for the user to find among all the others.  A .kam load ends up showing
+  the last interface it added, which costs nothing: the pane is not in front
+  until the load has finished anyway.
+- UI: the message window's popup row could end up below the bottom of the
+  screen.  That row sits under the log list and is hidden until something is
+  posted, and the window is parked with its bottom on the screen edge, so
+  showing it grows the window downwards.  At the size the window opens with
+  (186 px) the list absorbs the row and nothing moves; but once shrunk towards
+  its minimum, showing the row raises the layout minimum from 98 to 131 px and
+  pushes 33 px of window -- the row carrying the message -- off the screen.
+  The window now keeps its bottom edge on that screen edge whenever the row
+  appears or goes, which also closes the gap the row used to leave behind.  A
+  window dragged away from the edge is left where it is, and at the default
+  size the whole thing is inert.
+- UI: the Node Browser advertised "Supported Ruby methods" on a Python build.
+  The object line above it already said Root(), but the method list under it
+  was a hand-written one in Ruby's spelling (value=x, <<x, to_ary), printed
+  whichever interpreter the build carried.  A Python build now prints nothing
+  there: the "Supported Python methods" line that follows is introspected from
+  the bound object itself, so it is both correct and complete.  A Ruby-only
+  build is unchanged.
+- UI: a driver created from the New Driver dialog now opens its own settings
+  window, which is what one wants next after adding one by hand; loading a .kam
+  deliberately still does not, since it would throw open a window for every
+  driver in the file.  If the driver came with an interface, the Interface pane
+  is brought to the front after that window, since its port has to be set
+  before the driver can be started; a driver that talks to no hardware of its
+  own leaves its own window in front instead.  An
+  interface is a child node of its driver (XNode::create inserts it as one,
+  which both XCharDeviceDriver and XDummyDriver rely on), so the new driver
+  itself is asked rather than watching the interface list for a new arrival.
+- UI: the New Driver dialog has a live search box.  Typing narrows the list of
+  120 drivers as you go; every space-separated word must appear somewhere in
+  the label or the type name, so "agilent dmm" finds the two of them however
+  the labels happen to be worded, and a driver known by the name that appears
+  in a .kam file ("KE2000") is found by that too.  While a search is in
+  progress the first match is selected, so Enter creates it; an empty box goes
+  back to demanding a deliberate choice.  The chosen type now travels on the
+  list item instead of being recovered by counting rows into a sorted map,
+  which would have picked the wrong driver the moment the list was filtered.
+- UI: layout to go with it.  Both toolboxes now run from the top of the screen
+  down to just above the message window, which parks at the bottom-left corner
+  and keeps its top edge there, instead of stopping at half the screen height;
+  the height is measured once the event loop is running, since a window asked to
+  sit at the top of the screen is placed below the menu bar and its title bar
+  cannot be measured until the frame exists.  The tab column is a fifth wider,
+  through a QProxyStyle over CT_TabBarTab: a stylesheet can set the width but
+  switches the tabs to stylesheet rendering, and larger tab icons drag each
+  tab's length along with its thickness until the panes no longer fit in the
+  column.  The 0.8 window opacity is gone -- a toolbox that shrinks itself out
+  of the way does not need to be see-through, and text over whatever happens to
+  be behind it reads worse.  The main window starts a third wider, now that the
+  space between the toolboxes is its to use.  The west toolbox has the keyboard
+  at startup and the east one once a .kam has finished loading, waiting for the
+  loading thread because drivers, graphs and their windows go on appearing until
+  it ends and would take the focus back.
+
 * Fri Aug 28 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Release 8.6.1.
 - kamepoolalloc: frees arriving after a thread had run its own allocator
   teardown went into a destroyed object on Linux and Windows. The cold free
   path's post-teardown bypass tested `kame_page() == &g_teardown_page`, but only
@@ -26,6 +345,63 @@
   `kamepoolalloc/design/BATCH_AFTER_DESTRUCTOR.md` on branch
   `claude/great-turing-Ufao2` (the glibc ordering, the gdb captures and the A/B
   methodology lessons) -- an independent session that reached the same defect.
+- script: KAME told the user the MCP server could not start, and then started
+  it. The startup pre-check reported "No Python with mcp and jupyter_client was
+  found, so the MCP server cannot start and the AI links above will fail" while
+  the same log went on to announce the HTTP server on its port. Both messages
+  were right about their own code path: launchJupyterConsole's probe strips
+  KAME's Python environment before testing a candidate, but _find_python_with --
+  the newer path behind the pre-check and the Pydantic AI interpreter search --
+  inherited it. Under kame-msyspython.bat that environment carries
+  PYTHONHOME=C:\msys64\mingw64 and MSYS2's PYTHONPATH, and every candidate
+  there is a DIFFERENT interpreter from KAME's own, so a real CPython was told
+  to load mingw-built C extensions it cannot open and died on `_socket`; every
+  candidate failed and a perfectly good kame-mcp-venv was declared unusable. It
+  now probes with PYTHONHOME / PYTHONPATH / VIRTUAL_ENV / PYTHONSTARTUP
+  stripped, as the other path already did. Verified by calling the real function
+  with PYTHONHOME set: it returns the venv instead of None.
+- tests: the CMake test builds now configure and link under MSVC. Three things
+  blocked cl before any source-level portability question arose. /utf-8 was set
+  on the kamepoolalloc target alone, so every test that includes allocator_prv.h
+  met the CP932 mis-decode head-on (`C2065: 'ALLOC_CHUNK_HEADER' undeclared` --
+  a comment's box-drawing byte swallows the newline and hides the next #define);
+  it is directory-wide now, and set before the first add_library, since
+  add_compile_options reaches only targets created after it -- which is why the
+  copy of the pool built from kamestm/tests still failed. The force-include of
+  support_standalone.h was probed as `-include`, which cl rejects, and the
+  result then silently ignored; that is not optional, because several tests open
+  with `#define msecsleep(x) (x)` on line 1 and without the header going first
+  that macro eats its own declaration. It is asked for as /FI on MSVC, and an
+  unusable force-include is a FATAL_ERROR rather than a puzzle later. And MSVC
+  emits no import library for a DLL that exports nothing, so fifteen consumers
+  died on `LNK1181: cannot open input file kamepoolalloc.lib` --
+  WINDOWS_EXPORT_ALL_SYMBOLS is the CMake equivalent of the
+  `-Wl,--export-all-symbols` kamepoolalloc.pro already uses for MinGW. cl now
+  builds 18/29 kamepoolalloc targets and 16/25 kamestm ones and every test that
+  builds passes; the rest need GNU inline asm, __builtin_return_address,
+  __attribute__((noinline)), pthread.h, or turn on a friend-access divergence,
+  and are left for later. clang/llvm-mingw is unaffected.
+- kamestm/tests: two tests could not run on Windows. transaction_priority_mixed
+  used SCHED_FIFO / SCHED_RR, which MinGW does not define, though its call sites
+  are already inert off Linux (os_set_policy has a `#else return false` arm and
+  the OS arm then reports itself SKIPPED); only the names were missing, so they
+  are defined behind #ifndef rather than excluding a test whose STM half is
+  worth running anyway. And xwaitcell_test had a race of its own: each waiter
+  read cells[i].gen() INSIDE its thread, so a thread scheduled after the
+  parent's wake_one() asked to sleep past a generation that had already arrived,
+  waited out the full five seconds and was counted as stranded -- "only 4 of 8
+  sleepers were woken" under `ctest -j4`, while the same binary passed
+  standalone and under six concurrent copies of itself. The primitive is not at
+  fault; the generations are now snapshotted in the parent, which is also how a
+  real caller uses the API.
+- UI: the driver list's columns could not be resized with the mouse.  Setting
+  the three sections to ResizeToContents / Fixed / Stretch had made every one of
+  them non-interactive -- only QHeaderView::Interactive accepts a drag -- so this
+  was the one list in KAME whose columns were frozen, and the explicit
+  setColumnWidth calls above were dead for two of them.  They are Interactive
+  again, with the last section still filling the width and the name column
+  widening when a driver's label does not fit; that auto-fit is grow-only, so a
+  width set by hand is never taken back.
 
 * Fri Aug 21 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - script: the web UI had no model to choose. Not passing -m to a user's own

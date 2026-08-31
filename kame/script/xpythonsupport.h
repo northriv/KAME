@@ -110,6 +110,10 @@ public:
     XPython(const char *name, bool runtime, const shared_ptr<XMeasure> &measure);
     virtual ~XPython();
 
+    //! First jupyter that can actually run \a subcommand, empty if none can.
+    //! Which of the programs on PATH carries a given package differs per
+    //! installation, so the first one found is not necessarily usable.
+    std::string jupyterProgramFor(const std::string &subcommand);
     void launchJupyterConsole(const std::string &execpath, const std::string &console);
     //! Dispatch a "kame:" hyperlink action (e.g. Jupyter / Claude launch)
     //! to the Python helper kame_handle_link().

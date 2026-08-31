@@ -18,8 +18,8 @@
 #include "xnodeconnector.h"
 #include <QMainWindow>
 
-class Ui_FrmRecordReader;
-typedef QForm<QWidget, Ui_FrmRecordReader> FrmRecordReader;
+class Ui_FrmJournalReader;
+typedef QForm<QWidget, Ui_FrmJournalReader> FrmJournalReader;
 class Ui_FrmGraphList;
 typedef QForm<QWidget, Ui_FrmGraphList> FrmGraphList;
 class Ui_FrmCalTable;
@@ -42,7 +42,11 @@ class XMeasure;
 class XScriptingThread;
 class QMdiArea;
 class QMdiSubWindow;
+class QDockWidget;
+class QToolBar;
+class QPropertyAnimation;
 class QUrl;
+class XJournalWriter;
 
 /*! Main window widget of KAME.
  * use \a g_pFrmMain to access this.
@@ -80,13 +84,18 @@ public:
     QAction* m_pGraphThemeDaylightAction;
     QActionGroup *m_pGraphThemeActionGroup;
 
-	FrmRecordReader *m_pFrmRecordReader;
+	FrmJournalReader *m_pFrmJournalReader;
 	FrmGraphList *m_pFrmGraphList;
 	FrmCalTable *m_pFrmCalTable;
 	FrmInterface *m_pFrmInterface;
 	FrmDriver *m_pFrmDriver;
 	FrmEntry *m_pFrmScalarEntry;
 	FrmNodeBrowser *m_pFrmNodeBrowser;
+
+	//! Brings the Interface pane to the front and gives it the keyboard.
+	//! Called after creating a driver that came with an interface, whose port
+	//! has to be set before it can be started.
+	void revealInterfacePane();
 
 	int openMes(const XString &filename);
     void signalAllModulesLoaded(); //!< Call after all driver modules are loaded.
@@ -129,11 +138,78 @@ private:
 	void placeNewWindow(QWidget *w);
 	QMdiSubWindow* addDockableWindow(QMdiArea *area, QWidget *widget, bool closable);
 	QMdiArea *m_pMdiCentral, *m_pMdiLeft, *m_pMdiRight;
+	QDockWidget *m_pDockLeft, *m_pDockRight;
+	//! Thin always-visible bars at the window edges, one button per toolbox
+	//! pane: click to reveal that pane, click the revealed one to hide the
+	//! toolbox again (auto-hide, VS/Dock style but click-driven — a
+	//! hover-driven panel would pop open while the pointer travels to a graph).
+	QToolBar *m_pStripLeft, *m_pStripRight;
+	//! One entry per toolbox pane, tying its strip/View-menu action to the
+	//! subwindow it reveals.  The action lives in both the strip and the View
+	//! menu, so both routes go through toggleToolboxPane().
+	struct ToolboxPane {
+		QAction *action;
+		QDockWidget *dock;
+		QMdiArea *area;
+		QMdiSubWindow *wnd;
+	};
+	std::deque<ToolboxPane> m_toolboxPanes;
+	void toggleToolboxPane(QMdiSubWindow *wnd);
+	void revealToolboxPane(ToolboxPane &pane);
+	//! Syncs the check marks with what is actually on screen.
+	void updateToolboxStrips();
+
+	//! Dock-style auto-hide.  A toolbox floating at a screen edge rests shrunk
+	//! to a narrow bar there — just its MDI tab column — and grows back to full
+	//! width under the pointer, shrinking again once the pointer has been
+	//! elsewhere for a moment.  The main window does the same downwards: it
+	//! keeps its top edge and rests at half height.  Only where windows can
+	//! actually be placed (not Wayland), and a toolbox only while it floats.
+	struct EdgeSlider {
+		QWidget *win;               //!< a floating toolbox, or the main window
+		QMdiArea *area;             //!< its pane stack, for the layout minimum
+		QPropertyAnimation *anim;   //!< animates win->geometry()
+		QRect expanded;             //!< full size; follows the user's own moves
+		int collapsedWidth;         //!< resting width of a toolbox; unused when vertical
+		//! Fold downwards to half height (the main window) instead of sideways
+		//! to a tab column.
+		bool vertical;
+		bool left;                  //!< which screen edge it clings to
+		bool collapsed;
+		int idleTicks;
+		bool autoHide;              //!< per-window switch, from the View menu
+		QAction *autoHideAction;    //!< the View-menu entry, kept in sync
+		//! Whether the toolbox held the keyboard as of the last poll — read
+		//! when a tab is clicked, since the click itself may have just
+		//! activated the window and would answer "yes" either way.
+		bool wasFocused;
+	};
+	std::deque<EdgeSlider> m_edgeSliders;
+	QTimer *m_pEdgeHoverTimer = nullptr;
+	//! Auto-hide waits for the end of startup and stops at the start of
+	//! shutdown.  Loading the driver modules takes seconds, during which the
+	//! pointer is wherever the user left it and nothing on screen is theirs to
+	//! keep open yet -- a toolbox that folds itself away then looks like a
+	//! failure rather than a feature.  \sa pollEdgeAutoHide()
+	bool m_edgeAutoHideArmed = false;
+	void setupEdgeAutoHide(const QRect &screen);
+	//! Trims the toolboxes against the message window once their frames exist.
+	void fitToolboxHeights();
+	//! Reveals a toolbox and hands it the keyboard: west at startup, east once
+	//! a .kam has finished loading.
+	void focusToolbox(bool left);
+	void pollEdgeAutoHide();
+	void setToolboxCollapsed(EdgeSlider &slider, bool collapse);
+	//! nullptr where a window has no edge slider (docked layout, or Wayland).
+	EdgeSlider *edgeSliderFor(QWidget *win);
 	int m_cascadeIndex = 0;
-	void closeEvent( QCloseEvent* ce );
+	void closeEvent( QCloseEvent* ce ) override;
 	shared_ptr<XScriptingThread> runNewScript(const XString &label, const XString &filename);
 	QTimer *m_pTimer;
 	shared_ptr<XMeasure> m_measure;
+	//! Provenance capture, off unless KAME_JOURNAL is set.
+	//! \sa doc/design/PROVENANCE.md
+	shared_ptr<XJournalWriter> m_journalWriter;
 	std::deque<xqcon_ptr> m_conScriptThreadList;
 };
 

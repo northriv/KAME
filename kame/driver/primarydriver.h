@@ -92,7 +92,7 @@ public:
 	virtual void stop() = 0;
 
 private:
-	friend class XRawStreamRecordReader;
+	friend class XJournalReader;
 	friend class XRawStreamRecorder;
 protected:
 	//! Starts up your threads, connects GUI, and activates signals.
@@ -135,7 +135,7 @@ public:
 		const_iterator &popIterator() {return it;}
 	private:
 		friend class XPrimaryDriver;
-		friend class XRawStreamRecordReader;
+		friend class XJournalReader;
 		RawDataReader(const std::vector<char> &data) : m_data(data) {it = data.begin();}
 		RawDataReader();
 		const_iterator it;

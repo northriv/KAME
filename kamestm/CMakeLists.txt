@@ -68,6 +68,7 @@ install(FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/transaction_negotiation.h
     ${CMAKE_CURRENT_SOURCE_DIR}/transaction_neg_impl.h
     ${CMAKE_CURRENT_SOURCE_DIR}/transaction_signal.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/transaction_journal.h
     ${CMAKE_CURRENT_SOURCE_DIR}/xthread.h
     ${CMAKE_CURRENT_SOURCE_DIR}/xtime.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/kamestm)

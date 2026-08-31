@@ -70,8 +70,8 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 CONN_INFO_PATH = Path.home() / ".kame_kernel_connection.json"
 API_DOC_PATH = Path(__file__).parent / "kame_python_api.md"
 MANUAL_DOC_PATHS = [
-    Path(__file__).parent / "kame-8-en.md",  # deployed (e.g. Contents/Resources)
-    Path(__file__).parent.parent.parent / "doc" / "manual" / "kame-8-en.md",  # source tree
+    Path(__file__).parent / "kame-9-en.md",  # deployed (e.g. Contents/Resources)
+    Path(__file__).parent.parent.parent / "doc" / "manual" / "kame-9-en.md",  # source tree
 ]
 
 # ---------------------------------------------------------------------------

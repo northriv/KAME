@@ -31,7 +31,8 @@ class XChartList;
 class XCalibratedEntryList;
 class XTextWriter;
 class XRawStreamRecorder;
-class XRawStreamRecordReader;
+class XJournal;
+class XJournalReader;
 class XRuby;
 class XPython;
 class XNodeBrowser;
@@ -61,8 +62,11 @@ public:
 	const shared_ptr<XChartList> &charts() const {return m_chartList;}
     const shared_ptr<XCalibratedEntryList> &calibratedEntries() const {return m_calibratedEntryList;}
 	const shared_ptr<XTextWriter> &textWriter() const {return m_textWriter;}
-	const shared_ptr<XRawStreamRecorder> &rawStreamRecorder() const {return m_rawStreamRecorder;}
-	const shared_ptr<XRawStreamRecordReader> &rawStreamRecordReader() const {return m_rawStreamRecordReader;}
+	//! What the run is called, how much of it is kept, and what it costs.
+	//! The raw stream lives under it now, not beside it.
+	//! \sa doc/design/PROVENANCE.md
+	const shared_ptr<XJournal> &journal() const {return m_journal;}
+	const shared_ptr<XJournalReader> &journalReader() const {return m_journalReader;}
 
 	//! Null unless the build has the Ruby interpreter (USE_RUBY).
 	const shared_ptr<XRuby> &ruby() const {return m_ruby;}
@@ -92,17 +96,18 @@ private:
 	const shared_ptr<XDriverList> m_drivers;
     const shared_ptr<XCalibratedEntryList> m_calibratedEntryList;
     const shared_ptr<XTextWriter> m_textWriter;
-	const shared_ptr<XRawStreamRecorder> m_rawStreamRecorder;
-	const shared_ptr<XRawStreamRecordReader> m_rawStreamRecordReader;
+	const shared_ptr<XJournal> m_journal;
+	const shared_ptr<XJournalReader> m_journalReader;
 
     shared_ptr<XNode> m_lastPointedByNodeBrowser;
     shared_ptr<XStringNode> m_pyInfoForNodeBrowser;
 
-    const xqcon_ptr m_conRecordReader,
+    const xqcon_ptr m_conJournalReader,
         m_conDrivers, m_conInterfaces, m_conEntries, m_conGraphs, m_conCalibEntries,
         m_conTextWrite, m_conTextURL, m_conTextLastLine,
         m_conLogURL, m_conLogWrite, m_conLogEvery,
-        m_conBinURL, m_conBinWrite, m_conUrlRubyThread,
+        m_conJournalURL, m_conJournalSessionFile, m_conJournalSession, m_conJournalMode, m_conJournalWrite, m_conJournalStats,
+        m_conUrlRubyThread,
         m_conCalTable, m_conNodeBrowser;
 	shared_ptr<Listener> m_lsnOnReleaseDriver;
 	void onReleaseDriver(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);

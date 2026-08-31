@@ -120,6 +120,16 @@ XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payl
         });
         onControlChanged(shot, xinterface->control().get());
     }
+
+    //Show the interface that has just appeared.  After a driver is added by
+    //hand this is the row whose port has to be set, and the Interface pane has
+    //just been brought to the front for exactly that — leaving the user to
+    //find the row among all the others would only half finish the job.  A .kam
+    //load ends up showing the last interface it added, which is harmless: the
+    //pane is not even in front until the load has finished.
+    m_pItem->selectRow(i);
+    if(QTableWidgetItem *cell = m_pItem->item(i, 0))
+        m_pItem->scrollToItem(cell);
 }
 void
 XInterfaceListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {

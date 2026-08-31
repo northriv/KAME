@@ -32,7 +32,7 @@ for %%f in (
   )
 )
 
-if exist "%SRC%\doc\manual\kame-8-en.md" copy /Y "%SRC%\doc\manual\kame-8-en.md" "%DEST%\" >nul
+if exist "%SRC%\doc\manual\kame-9-en.md" copy /Y "%SRC%\doc\manual\kame-9-en.md" "%DEST%\" >nul
 if exist "%SRC%\doc\manual\media" xcopy /S /I /Y /Q "%SRC%\doc\manual\media" "%DEST%\media\" >nul
 if exist "%SRC%\kame\script\plugin" xcopy /S /I /Y /Q "%SRC%\kame\script\plugin" "%DEST%\plugin\" >nul
 

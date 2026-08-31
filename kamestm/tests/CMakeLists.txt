@@ -12,6 +12,19 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# MSVC on a Japanese Windows (CP932) misreads the UTF-8 box-drawing and
+# Japanese characters in the sources' comments: the trailing byte of some
+# sequences is a valid CP932 lead byte, which swallows the following newline
+# and hides the next preprocessor directive inside the comment.  Symptom:
+# `error C2065: 'ALLOC_CHUNK_HEADER': undeclared identifier`.  Must be set
+# BEFORE the first add_library/add_executable -- add_compile_options only
+# reaches targets created after it -- and directory-wide, because every target
+# that includes these headers is exposed, not just the library.
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
+
 # Reuse parent USE_KAME_ALLOCATOR if defined; otherwise compute default.
 if(NOT DEFINED USE_KAME_ALLOCATOR)
     # Default ON wherever the pool builds — matches production (kame.pri
@@ -34,7 +47,14 @@ if(USE_KAME_ALLOCATOR AND NOT TARGET kamepoolalloc)
     target_include_directories(kamepoolalloc PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/../../kamepoolalloc)
     target_compile_definitions(kamepoolalloc PUBLIC KAMEPOOLALLOC_DYLIB)
+    # MSVC emits no import library for a DLL that exports nothing, so every
+    # consumer fails with `LNK1181: cannot open input file kamepoolalloc.lib`.
+    # The pool's public surface is annotated with DECLSPEC_KAMEPOOLALLOC, which
+    # only kamepoolalloc.pro defines; rather than duplicate that here, take the
+    # CMake equivalent of the `-Wl,--export-all-symbols` the .pro already uses
+    # for MinGW.  No effect off Windows.
     set_target_properties(kamepoolalloc PROPERTIES
+        WINDOWS_EXPORT_ALL_SYMBOLS TRUE
         INSTALL_NAME_DIR "@rpath"
         BUILD_WITH_INSTALL_RPATH TRUE)
     # CMAKE_DL_LIBS: empty on glibc >= 2.34 (dlsym in libc); -ldl on
@@ -68,11 +88,26 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/../../kamepoolalloc)
 
 include(CheckCXXSourceCompiles)
-set(CMAKE_REQUIRED_FLAGS "-include ${CMAKE_CURRENT_SOURCE_DIR}/support_standalone.h")
+# The force-include is load-bearing, not a convenience: several tests open with
+# `#define msecsleep(x) (x)` on line 1, and unless the header is processed
+# FIRST that macro eats its own declaration
+# (`void msecsleep(unsigned int)` -> `void (unsigned int)`).  MSVC spells the
+# flag /FI and rejects -include, so ask it in its own dialect rather than
+# silently dropping the option.
+if(MSVC)
+    set(KAMESTM_FORCE_INCLUDE_FLAG "/FI${CMAKE_CURRENT_SOURCE_DIR}/support_standalone.h")
+else()
+    set(KAMESTM_FORCE_INCLUDE_FLAG "-include${CMAKE_CURRENT_SOURCE_DIR}/support_standalone.h")
+endif()
+set(CMAKE_REQUIRED_FLAGS "${KAMESTM_FORCE_INCLUDE_FLAG}")
 check_cxx_source_compiles("int main(){return 0;}" KAMESTM_TESTS_HAVE_FORCE_INCLUDE)
 unset(CMAKE_REQUIRED_FLAGS)
 if(KAMESTM_TESTS_HAVE_FORCE_INCLUDE)
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-include${CMAKE_CURRENT_SOURCE_DIR}/support_standalone.h>)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:${KAMESTM_FORCE_INCLUDE_FLAG}>)
+else()
+    message(FATAL_ERROR
+        "kamestm/tests: the compiler rejected ${KAMESTM_FORCE_INCLUDE_FLAG}; "
+        "support_standalone.h must be force-included (see above).")
 endif()
 
 set(support_SRCS
@@ -131,6 +166,7 @@ set(kamestm_test_names
     atomic_shared_ptr_test
     atomic_scoped_ptr_test
     atomic_queue_test
+    transaction_journal_test
     mutex_test
     xwaitcell_test
     transaction_test
@@ -214,6 +250,7 @@ add_test(NAME fast_vector_test COMMAND fast_vector_test)
 add_test(NAME atomic_shared_ptr_test COMMAND atomic_shared_ptr_test)
 add_test(NAME atomic_scoped_ptr_test COMMAND atomic_scoped_ptr_test)
 add_test(NAME atomic_queue_test COMMAND atomic_queue_test)
+add_test(NAME transaction_journal_test COMMAND transaction_journal_test)
 add_test(NAME mutex_test COMMAND mutex_test)
 # The backend behind negotiate_sleep's parking is chosen at compile time
 # (__ulock / futex / mutex+condvar) and nothing else exercises it directly.

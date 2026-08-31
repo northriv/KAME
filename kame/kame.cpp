@@ -22,6 +22,14 @@
 #include <QApplication>
 #include <QScreen>
 #include <QDockWidget>
+#include <QToolBar>
+#include <QToolButton>
+#include <QVBoxLayout>
+#include <QPropertyAnimation>
+#include <QCursor>
+#include <QTabBar>
+#include <QProxyStyle>
+#include <QMouseEvent>
 #include <QCloseEvent>
 #include <QMdiArea>
 #include <QMdiSubWindow>
@@ -48,12 +56,13 @@
 #include "kame.h"
 #include "xscheduler.h"
 #include "measure.h"
+#include "xjournal.h"
 #include "interface.h"
 #include "xrubywriter.h"
 #include "xdotwriter.h"
 #include "xscriptingthreadconnector.h"
 #include "ui_caltableform.h"
-#include "ui_recordreaderform.h"
+#include "ui_journalreaderform.h"
 #include "ui_nodebrowserform.h"
 #include "ui_interfacetool.h"
 #include "ui_graphtool.h"
@@ -91,6 +100,7 @@ FrmKameMain::FrmKameMain()
 //    setDockOptions(QMainWindow::ForceTabbedDocks | QMainWindow::VerticalTabs);
     //Left MDI area.
     QDockWidget* dockLeft = new QDockWidget(i18n("KAME Toolbox West"), this);
+    m_pDockLeft = dockLeft;
     dockLeft->setFeatures(QDockWidget::DockWidgetFloatable);
     dockLeft->setWindowIcon(*g_pIconDriver);
     m_pMdiLeft = new QMdiArea( this );
@@ -103,6 +113,7 @@ FrmKameMain::FrmKameMain()
 
     //Right MDI area.
     QDockWidget* dockRight = new QDockWidget(i18n("KAME Toolbox East"), this);
+    m_pDockRight = dockRight;
     dockRight->setFeatures(QDockWidget::DockWidgetFloatable);
     dockRight->setWindowIcon(*g_pIconInterface);
     m_pMdiRight= new QMdiArea( this );
@@ -113,6 +124,28 @@ FrmKameMain::FrmKameMain()
     dockRight->setWidget(m_pMdiRight);
     addDockWidget(Qt::RightDockWidgetArea, dockRight);
 //    addDockWidget(Qt::TopDockWidgetArea, dockRight);
+
+    //Auto-hide strips: a thin bar of pane icons pinned to each window edge.
+    //They stay put whether the toolbox is docked or floating, so a hidden
+    //toolbox is always one click away — the reason a toolbox may be hidden at
+    //all (the docks are not Closable, and a hidden dock swallows the plain
+    //showMaximized() the View menu used to do).
+    for(auto &&s: {std::make_pair( &m_pStripLeft, Qt::LeftToolBarArea),
+                   std::make_pair( &m_pStripRight, Qt::RightToolBarArea)}) {
+        QToolBar *strip = new QToolBar(
+            (s.second == Qt::LeftToolBarArea) ? i18n("West Toolbox Bar") : i18n("East Toolbox Bar"), this);
+        strip->setObjectName((s.second == Qt::LeftToolBarArea) ? "stripWest" : "stripEast");
+        strip->setMovable(false);
+        strip->setFloatable(false);
+        strip->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        strip->setIconSize(QSize(20, 20));
+        addToolBar(s.second, strip);
+        *s.first = strip;
+    }
+    connect(dockLeft, &QDockWidget::visibilityChanged, this, [this](bool){updateToolboxStrips();});
+    connect(dockRight, &QDockWidget::visibilityChanged, this, [this](bool){updateToolboxStrips();});
+    connect(m_pMdiLeft, &QMdiArea::subWindowActivated, this, [this](QMdiSubWindow *){updateToolboxStrips();});
+    connect(m_pMdiRight, &QMdiArea::subWindowActivated, this, [this](QMdiSubWindow *){updateToolboxStrips();});
 
     Transactional::SignalBuffer::initialize();
 
@@ -144,9 +177,9 @@ FrmKameMain::FrmKameMain()
     m_pFrmScalarEntry->setWindowIcon(*g_pIconScalar);
     addDockableWindow(m_pMdiRight, m_pFrmScalarEntry, false);
 
-    m_pFrmRecordReader = new FrmRecordReader(this);
-    m_pFrmRecordReader->setWindowIcon(*g_pIconReader);
-    addDockableWindow(m_pMdiRight, m_pFrmRecordReader, false);
+    m_pFrmJournalReader = new FrmJournalReader(this);
+    m_pFrmJournalReader->setWindowIcon(*g_pIconReader);
+    addDockableWindow(m_pMdiRight, m_pFrmJournalReader, false);
 
     m_pMdiRight->activatePreviousSubWindow();
     m_pMdiRight->activatePreviousSubWindow();
@@ -174,25 +207,78 @@ FrmKameMain::FrmKameMain()
     bool can_place_windows = !QGuiApplication::platformName().startsWith("wayland");
     if(can_place_windows) {
         dockLeft->setFloating(true);
+        //No minimize button: shrinking to the edge bar is what getting a
+        //toolbox out of the way means now, and it leaves something on screen
+        //to bring it back with.  A minimized toolbox leaves nothing.
         dockLeft->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
-            Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
-        dockLeft->setWindowOpacity(0.8);
-        dockLeft->resize(std::max(rect.width() / 5, XMessageBox::form()->width() + 80),
-            std::max(rect.height() / 2, 360));
+            Qt::CustomizeWindowHint | Qt::WindowTitleHint);
+        //Both toolboxes run from the top of the screen down to just above the
+        //message window, which parks itself at the bottom-left corner and
+        //keeps its top edge there (it grows downwards when a popup appears).
+        int msg_top = XMessageBox::form()->frameGeometry().top();
+        int deco = std::max(0, dockLeft->frameSize().height() - dockLeft->height());
+        int toolbox_h = std::max(msg_top - 6 - rect.top() - deco, 360);
+        //A quarter of the screen rather than a fifth, and never below what the
+        //widest pane in this toolbox actually wants: rendered on their own,
+        //the West panes come to 375 px (the calibration table) and the East
+        //ones to 439 (the replay pane, since it grew a scrub bar), and each
+        //needs about 40 more for the MDI tab strip down the side and the
+        //window frame.  Below that the pane is not narrow, it is cut off.
+        dockLeft->resize(std::max({rect.width() / 4, XMessageBox::form()->width() + 80, 420}),
+            toolbox_h);
         dockLeft->move(0, rect.top());
+        //Only a first guess: see fitToolboxHeights(), which trims both once
+        //their frames exist and the window server has placed them.
         dockRight->setFloating(true);
         dockRight->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
-            Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
-        dockRight->setWindowOpacity(0.8);
-        dockRight->resize(std::max(rect.width() / 5, 450), dockLeft->height());
+            Qt::CustomizeWindowHint | Qt::WindowTitleHint);
+        dockRight->resize(std::max(rect.width() / 4, 490), dockLeft->height());
         dockRight->move(rect.right() - dockRight->frameSize().width() - 6, rect.top());
+        setupEdgeAutoHide(rect);
     }
     //The following 2 lines should be after setting up docks. Otherwise, crashes in windows.
-    resize(QSize(std::max(rect.width() / 4, 500), minimumHeight()));
+    //A third wider than it used to be, both terms alike (screen/4 -> 13/40,
+    //500 -> 650), now that the toolboxes fold themselves away and the space
+    //between them is the main window's to use.
+    resize(QSize(std::max(rect.width() * 13 / 40, 650), minimumHeight()));
     if(can_place_windows)
         move((rect.width() - frameSize().width()) / 2, rect.top());
 
+    updateToolboxStrips(); //initial check marks, after the panes are laid out.
+
+#if defined __MACOSX__ || defined __APPLE__
+    //Bringing the application forward from the Dock does NOT bring this window
+    //forward: AppKit orders the app's windows front keeping their order among
+    //themselves, so the main window stays wherever it was in the stack —
+    //underneath a driver form, and always underneath the toolboxes, which are
+    //Qt::Tool panels marked stays-on-top.  Asking for it is the way out.
+    //
+    //Which window was activated cannot decide this: measured, AppKit hands the
+    //key back to whichever plain window held it last — a driver form, say —
+    //whether the app was raised from the Dock or by clicking that form.  (And
+    //asking `flags & Qt::Tool` cannot tell them apart either: Qt::Tool is a
+    //composite of Popup|Dialog|Window, so that test is true of every ordinary
+    //window as well.)
+    //
+    //Where the pointer is does decide it.  Clicking the Dock leaves it over
+    //the Dock; clicking a window of ours leaves it over that window, and then
+    //the choice of window is the user's and not ours to overrule.
+    connect(qApp, &QGuiApplication::applicationStateChanged, this,
+        [this](Qt::ApplicationState state) {
+            if(state != Qt::ApplicationActive) return;
+            QTimer::singleShot(0, this, [this]{
+                if(QApplication::widgetAt(QCursor::pos())) return;
+                raise();
+                activateWindow();
+            });
+        });
+#endif
+
     // The root for all nodes.
+    //Say what this thread is before anything is created on it: a write's
+    //class -- request or report -- is read off the committing thread.
+    XJournalWriter::declareThisThread(XJournalWriter::ThreadClass::UI);
+
     m_measure = XNode::createOrphan<XMeasure>("Measurement", false);
 
     // signals and slots connections
@@ -247,8 +333,20 @@ FrmKameMain::addDockableWindow(QMdiArea *area, QWidget *widget, bool closable) {
 	else {
          wnd = new MySubWindow(); //delegated class, which ignores closing events.
 		 QAction *act = new QAction(widget->windowIcon(), widget->windowTitle(), this);
-         connect(act, SIGNAL(triggered()), wnd, SLOT(showMaximized()));
+         act->setCheckable(true);
+         //The same action drives the View menu and the edge strip: showing a
+         //pane has to reveal its toolbox first, which a bare showMaximized()
+         //on the subwindow cannot do once the toolbox is hidden.
+         connect(act, &QAction::triggered, this, [this, wnd](bool){toggleToolboxPane(wnd);});
 	     m_pViewMenu->addAction(act);
+         QDockWidget *dock = (area == m_pMdiLeft) ? m_pDockLeft :
+             ((area == m_pMdiRight) ? m_pDockRight : nullptr);
+         QToolBar *strip = (area == m_pMdiLeft) ? m_pStripLeft :
+             ((area == m_pMdiRight) ? m_pStripRight : nullptr);
+         if(dock && strip) {
+             strip->addAction(act);
+             m_toolboxPanes.push_back({act, dock, area, wnd});
+         }
 	}
     widget->setAutoFillBackground(true);
 	wnd->setWidget(widget);
@@ -260,9 +358,366 @@ FrmKameMain::addDockableWindow(QMdiArea *area, QWidget *widget, bool closable) {
 //    area->setActiveSubWindow(sub);
     return wnd;
 }
+void
+FrmKameMain::toggleToolboxPane(QMdiSubWindow *wnd) {
+    for(auto &&pane: m_toolboxPanes) {
+        if(pane.wnd != wnd) continue;
+        EdgeSlider *slider = edgeSliderFor(pane.dock);
+        bool folded = !pane.dock->isVisible() || pane.dock->isMinimized() ||
+            (slider && slider->collapsed);
+        if( !folded && (pane.area->activeSubWindow() == pane.wnd)) {
+            //The pane on screen was clicked: fold the toolbox away — shrink it
+            //to its edge bar where it has one, else hide the dock outright.
+            if(slider) setToolboxCollapsed( *slider, true);
+            else pane.dock->hide();
+        }
+        else
+            revealToolboxPane(pane);
+        break;
+    }
+    updateToolboxStrips();
+}
+void
+FrmKameMain::revealToolboxPane(ToolboxPane &pane) {
+    //A toolbox that got minimized is out of reach of its hover bar, so this is
+    //its only way back — and it cannot trust Qt's own answer about the state:
+    //a Qt::Tool window sent to the macOS Dock still reports isVisible() ==
+    //true and isMinimized() == false (measured), which is why nothing here
+    //used to bring it back.  So clear the state where the platform does report
+    //it, and otherwise rely on raise() + activateWindow(), which
+    //deminiaturizes.
+    EdgeSlider *slider = edgeSliderFor(pane.dock);
+    if(pane.dock->isMinimized())
+        pane.dock->setWindowState(pane.dock->windowState() & ~Qt::WindowMinimized);
+    pane.dock->showNormal();
+    if(slider && slider->collapsed) setToolboxCollapsed( *slider, false);
+    pane.area->setActiveSubWindow(pane.wnd);
+    pane.wnd->showMaximized();
+    pane.dock->raise();
+    pane.dock->activateWindow(); //asked for explicitly, unlike a hover
+    updateToolboxStrips();
+}
+void
+FrmKameMain::revealInterfacePane() {
+    for(auto &&pane: m_toolboxPanes)
+        if(pane.wnd->widget() == m_pFrmInterface) {
+            revealToolboxPane(pane);
+            break;
+        }
+}
+void
+FrmKameMain::updateToolboxStrips() {
+    //A check mark means "this pane is the one you can see right now".  Driven
+    //from the real widget state, so tab clicks and dock closes stay in sync.
+    for(auto &&pane: m_toolboxPanes) {
+        EdgeSlider *slider = edgeSliderFor(pane.dock);
+        bool shown = pane.dock->isVisible() && !(slider && slider->collapsed) &&
+            (pane.area->activeSubWindow() == pane.wnd);
+        if(pane.action->isChecked() != shown)
+            pane.action->setChecked(shown);
+    }
+}
+namespace {
+//! Flat styling for a pane tab column: no frames, room to breathe, and the
+//! pane in front marked by an accent line against the edge the column sits at.
+//! The old look — the platform's boxed, shaded tabs with rotated labels — is
+//! what dated the resting toolbox more than anything else about it.
+//!
+//! Every colour is taken from the palette rather than written down, so this
+//! follows the platform's light/dark setting; literal colours would be wrong
+//! in one of the two.  The width here is also what sets the column's
+//! thickness, which is why no style proxy is needed for that any more.
+QString flatTabStyleSheet(Qt::Edge accent) {
+    const bool vertical = (accent == Qt::LeftEdge) || (accent == Qt::RightEdge);
+    const char *side = (accent == Qt::LeftEdge) ? "left" :
+        ((accent == Qt::RightEdge) ? "right" : "bottom");
+    //`width` means different things to the two orientations, and getting that
+    //wrong is not subtle: for a column of rotated labels it is the column's
+    //thickness, but for tabs running along the top it is each tab's LENGTH, so
+    //fixing it there squeezes every title out of existence.  Only the columns
+    //get a width; a row is left to size itself around its titles.
+    const QString metrics = vertical
+        ? "width:26px;padding:10px 4px;margin:2px 3px;"
+        : "padding:6px 14px;margin:3px 2px;";
+    return QString(
+        "QTabBar{background:transparent;border:none;}"
+        "QTabBar::tab{background:transparent;border:none;color:palette(text);"
+        "  %1border-radius:6px;}"
+        "QTabBar::tab:hover{background:palette(midlight);}"
+        "QTabBar::tab:selected{background:palette(alternate-base);"
+        "  border-%2:3px solid palette(highlight);}").arg(metrics).arg(side);
+}
+} // namespace
 
+FrmKameMain::EdgeSlider *
+FrmKameMain::edgeSliderFor(QWidget *win) {
+    for(auto &&s: m_edgeSliders)
+        if(s.win == win) return &s;
+    return nullptr;
+}
+void
+FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
+    //Each floating toolbox becomes its own edge bar: it shrinks against the
+    //screen edge it was placed at, leaving its MDI tab column visible, and
+    //grows back under the pointer.  Nothing else is added to the screen — the
+    //bar IS the toolbox, so its tabs keep working while it is narrow.
+    m_pViewMenu->addSeparator();
+    for(auto &&side: {std::make_pair(m_pDockLeft, true), std::make_pair(m_pDockRight, false)}) {
+        QDockWidget *dock = side.first;
+        bool left = side.second;
+        QMdiArea *area = left ? m_pMdiLeft : m_pMdiRight;
+        //A QMdiArea's minimum size hint (~196 px, inherited from its
+        //subwindows) would clamp the shrink.  Lifting it on the area sticks;
+        //lifting it on the dock does NOT — QDockWidget re-derives its own
+        //minimum from that hint on every layout pass — so the dock's half is
+        //re-applied in setToolboxCollapsed() each time.  The panes keep their
+        //own minimums and are merely clipped while the toolbox is narrow.
+        area->setMinimumWidth(0);
+        //Growing must not steal the keyboard from whatever is being typed
+        //into, and an activated toolbox would also pin itself open below.
+        dock->setAttribute(Qt::WA_ShowWithoutActivating);
+        int tabw = 24;
+        if(QTabBar *tabs = area->findChild<QTabBar *>()) {
+            //Clicking the tab already in front pins/unpins this toolbox; see
+            //eventFilter().  (The poll installs this for a tab bar that does
+            //not exist yet at this point.)
+            tabs->installEventFilter(this);
+            tabs->setProperty("kame_pin_filter", true);
+            tabs->setStyleSheet(flatTabStyleSheet(left ? Qt::LeftEdge : Qt::RightEdge));
+            tabs->updateGeometry();
+            tabw = std::max(tabw, tabs->sizeHint().width());
+        }
+        auto *anim = new QPropertyAnimation(dock, "geometry", this);
+        anim->setDuration(170);
+        anim->setEasingCurve(QEasingCurve::OutQuint);
+        QAction *autohide = new QAction(left ? i18n("Auto-hide &West Toolbox")
+                                            : i18n("Auto-hide &East Toolbox"), this);
+        autohide->setCheckable(true);
+        autohide->setChecked(true);
+        m_pViewMenu->addAction(autohide);
+        m_edgeSliders.push_back({dock, area, anim, dock->geometry(), tabw + 6,
+            false, left, false, 0, true, autohide, false});
+        //Pointers into a deque stay valid across push_back.
+        EdgeSlider *s = &m_edgeSliders.back();
+        connect(autohide, &QAction::toggled, this, [this, s](bool on){
+            s->autoHide = on;
+            s->idleTicks = 0;
+            //Switching it off has to undo it: a toolbox left sitting as a bar
+            //with nothing watching the pointer could not be opened by hover.
+            if( !on && s->collapsed) setToolboxCollapsed( *s, false);
+        });
+        connect(anim, &QPropertyAnimation::finished, this, [this, s]{
+            //Belt and braces for the edge-clinging side: should the width ever
+            //come out wider than asked (a layout minimum reasserting itself),
+            //the window would have grown past the screen edge it clings to and
+            //pushed its tab column off-screen — exactly what the user sees as
+            //"the wrong side is showing".  Re-anchor instead.
+            if(s->collapsed && !s->left)
+                s->win->move(s->expanded.right() - s->win->width() + 1, s->win->y());
+            updateToolboxStrips();
+        });
+    }
+    //The main window folds too, but downwards and only half way: it is worked
+    //IN rather than glanced at, so what it gives back is the lower half of the
+    //screen while it waits, not all of itself.  Its top edge stays put, so the
+    //menu bar and the pane tabs never move.
+    {
+        QAction *autohide = new QAction(i18n("Auto-hide &Main Window"), this);
+        autohide->setCheckable(true);
+        autohide->setChecked(true);
+        m_pViewMenu->addAction(autohide);
+        auto *anim = new QPropertyAnimation(this, "geometry", this);
+        anim->setDuration(170);
+        anim->setEasingCurve(QEasingCurve::OutQuint);
+        m_edgeSliders.push_back({this, m_pMdiCentral, anim, geometry(), 0,
+            true, true, false, 0, true, autohide, false});
+        EdgeSlider *s = &m_edgeSliders.back();
+        connect(autohide, &QAction::toggled, this, [this, s](bool on){
+            s->autoHide = on;
+            s->idleTicks = 0;
+            if( !on && s->collapsed) setToolboxCollapsed( *s, false);
+        });
+        connect(anim, &QPropertyAnimation::finished, this, [this]{updateToolboxStrips();});
+    }
+    m_pEdgeHoverTimer = new QTimer(this);
+    connect(m_pEdgeHoverTimer, &QTimer::timeout, this, &FrmKameMain::pollEdgeAutoHide);
+    m_pEdgeHoverTimer->start(150);
+    //Deferred to the first turn of the event loop: window frames do not exist
+    //yet inside this constructor, so neither the trim nor the activation below
+    //would land.
+    QTimer::singleShot(0, this, [this]{
+        fitToolboxHeights();
+        //Start with the west toolbox in hand.  It also holds itself open until
+        //the user clicks elsewhere, through the focus guard in the poll.
+        focusToolbox(true);
+    });
+    //The in-window strips would only duplicate what the edge bars now do.
+    m_pStripLeft->hide();
+    m_pStripRight->hide();
+}
+void
+FrmKameMain::fitToolboxHeights() {
+    //A toolbox asked to sit at the top of the screen does not end up with its
+    //frame there — the window server places it below the menu bar, and the
+    //title bar is not measurable until the frame exists — so a height worked
+    //out in the constructor overshoots by that much and the toolbox runs too
+    //long.  Measure where each one actually landed and take the excess off.
+    int msg_top = XMessageBox::form()->frameGeometry().top();
+    for(auto &&s: m_edgeSliders) {
+        auto *dock = qobject_cast<QDockWidget *>(s.win);
+        if( !dock || !dock->isFloating()) continue; //the main window is not ours to trim
+        int over = s.win->frameGeometry().bottom() - (msg_top - 8);
+        if(over > 0)
+            s.win->resize(s.win->width(), std::max(s.win->height() - over, 360));
+        s.expanded = s.win->geometry();
+    }
+}
+void
+FrmKameMain::focusToolbox(bool left) {
+    QDockWidget *dock = left ? m_pDockLeft : m_pDockRight;
+    QMdiArea *area = left ? m_pMdiLeft : m_pMdiRight;
+    if(EdgeSlider *s = edgeSliderFor(dock))
+        if(s->collapsed) setToolboxCollapsed( *s, false);
+    if(dock->isMinimized())
+        dock->setWindowState(dock->windowState() & ~Qt::WindowMinimized);
+    dock->showNormal();
+    dock->raise();
+    dock->activateWindow();
+    if(QMdiSubWindow *sub = area->activeSubWindow())
+        sub->setFocus();
+}
+void
+FrmKameMain::pollEdgeAutoHide() {
+    //Polling the pointer beats enter/leave events here: these are separate
+    //top-level windows, and a leave event fires for every excursion over a
+    //child widget.
+    QPoint c = QCursor::pos();
+    //Signs that the user is in the middle of something, where shrinking the
+    //toolbox would be sabotage: an open popup (a combo list is its own window,
+    //outside the toolbox rectangle) or a held mouse button (dragging a
+    //scrollbar or a spin box).
+    bool busy = QApplication::activePopupWidget() ||
+        (QApplication::mouseButtons() != Qt::NoButton);
+    //Focus inside a toolbox AND that toolbox being the active window means the
+    //user clicked in and is working there, so it stays open until they click
+    //elsewhere.  Both halves are needed: a pane holding a line edit can take
+    //focus merely by being shown (that alone would pin it open for ever), and
+    //what counts as "active" for a Qt::Tool window varies between platforms.
+    //Typing always implies both, so nothing can shrink away mid-edit.
+    QWidget *focus = QApplication::focusWidget();
+    for(auto &&s: m_edgeSliders) {
+        //Sampled for every window, pinned or not: it is what tells a tab click
+        //whether the user was already working in this one.
+        s.wasFocused = focus && s.win->isAncestorOf(focus) && s.win->isActiveWindow();
+        //The central pane stack has no tab bar until the first script pane
+        //exists, so the pin gesture's filter cannot all be installed at setup.
+        if(QTabBar *tabs = s.area->findChild<QTabBar *>())
+            if( !tabs->property("kame_pin_filter").toBool()) {
+                tabs->installEventFilter(this);
+                tabs->setProperty("kame_pin_filter", true);
+                //Its tabs run along the top, so the accent goes underneath.
+                tabs->setStyleSheet(flatTabStyleSheet(Qt::BottomEdge));
+            }
+        if( !m_edgeAutoHideArmed) continue;  //!< before the modules are up, or after Quit
+        if( !s.autoHide) continue;
+        if(s.anim->state() == QAbstractAnimation::Running) continue;
+        if(auto *dock = qobject_cast<QDockWidget *>(s.win))
+            if( !dock->isFloating()) continue; //re-docked by the user: not ours to move
+        if( !s.win->isVisible()) continue;
+        if(s.win->isMinimized()) continue; //out of reach until the View menu restores it
+        bool over = s.win->frameGeometry().contains(c);
+        //Hovering a tab picks that pane, collapsed or open: the tab strip is
+        //all one sees of a resting toolbox, so pointing at a name there should
+        //be what brings that pane up as it grows.  The main window's strip
+        //runs across its top instead of down a screen edge, so the pointer can
+        //cross it on the way in — accepted deliberately: the pane it lands on
+        //is the one under the pointer, and picking by hover there is worth
+        //more than the occasional pass-through.
+        if(over) {
+            if(QTabBar *tabs = s.area->findChild<QTabBar *>()) {
+                QPoint local = tabs->mapFromGlobal(c);
+                if(tabs->isVisible() && tabs->rect().contains(local)) {
+                    int idx = tabs->tabAt(local);
+                    if((idx >= 0) && (idx != tabs->currentIndex()))
+                        tabs->setCurrentIndex(idx);
+                }
+            }
+        }
+        if(s.collapsed) {
+            if(over) setToolboxCollapsed(s, false);
+            continue;
+        }
+        s.expanded = s.win->geometry(); //follows the user moving or resizing it
+        if(over || busy || s.wasFocused)
+            s.idleTicks = 0;
+        else if(++s.idleTicks >= 4) //~0.6 s with the pointer elsewhere
+            setToolboxCollapsed(s, true);
+    }
+}
+void
+FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
+    //Lifted for BOTH directions, not just the collapse.  A window re-derives
+    //its minimum from the QMdiArea's size hint on every layout pass, so on the
+    //way back OUT the early frames were clamped up to that minimum: measured,
+    //the first frame jumped straight from the 43 px bar to 196 px, skipping
+    //most of the animation.  On the toolbox that keeps its RIGHT edge that is
+    //visible as the tab column disappearing for an instant — the width is
+    //forced wide while the animation's x is still back at the collapsed
+    //position, so the window overhangs the screen edge and takes its own tabs
+    //off-screen with it.
+    if(s.vertical) {
+        s.area->setMinimumHeight(0);
+        s.win->setMinimumHeight(0);
+    }
+    else {
+        s.area->setMinimumWidth(0);
+        s.win->setMinimumWidth(0);
+    }
+    QRect to = s.expanded;
+    if(collapse) {
+        if(s.vertical)
+            //Half of whatever it is now, keeping the top edge.
+            to.setHeight(std::max(s.expanded.height() / 2, 200));
+        //Keep the edge the toolbox clings to; give up the width on the other
+        //side, so it grows out of the screen edge rather than sliding along it.
+        else if(s.left) to.setWidth(s.collapsedWidth);
+        else to.setLeft(s.expanded.right() - s.collapsedWidth + 1);
+    }
+    s.idleTicks = 0;
+    s.collapsed = collapse;
+    //No fade on the way in.  It was tried, and a window at 0.75 opacity shows
+    //what is behind it: on a bar barely wider than its tabs that reads as the
+    //tabs blinking out, not as an entrance.  These windows are opaque.
+    s.win->setWindowOpacity(1.0);
+    s.anim->stop();
+    s.anim->setStartValue(s.win->geometry());
+    s.anim->setEndValue(to);
+    s.anim->start();
+}
 bool
 FrmKameMain::eventFilter(QObject *obj, QEvent *event) {
+    if(event->type() == QEvent::MouseButtonPress) {
+        //Pin gesture: while already working in a toolbox, clicking the tab of
+        //the pane in front toggles its auto-hide.  Only the pane in front, so
+        //clicking any other tab still just switches panes; and only when the
+        //toolbox already held the keyboard, which is why the poll's remembered
+        //answer is used rather than a fresh one — this very click may have
+        //activated the window, and a fresh test would say yes every time.
+        for(auto &&s: m_edgeSliders) {
+            QTabBar *tabs = s.area->findChild<QTabBar *>();
+            if(obj != tabs) continue;
+            if( !s.wasFocused) break;
+            auto *me = static_cast<QMouseEvent *>(event);
+            int idx = tabs->tabAt(me->position().toPoint());
+            if((idx < 0) || (idx != tabs->currentIndex())) break;
+            s.autoHideAction->setChecked( !s.autoHide); //drives the toggle
+            XString what = s.vertical ? i18n("Main window") :
+                (s.left ? i18n("West toolbox") : i18n("East toolbox"));
+            gMessagePrint(what + (s.autoHide ? i18n(" auto-hides again.")
+                                             : i18n(" pinned open.")));
+            return true; //the click meant this, not a tab change
+        }
+    }
     if(event->type() == QEvent::Show) {
         auto w = qobject_cast<QWidget*>(obj);
         if(w && !w->property("kame_placed").toBool()) {
@@ -294,6 +749,10 @@ FrmKameMain::placeNewWindow(QWidget *w) {
 
 FrmKameMain::~FrmKameMain() {
     m_pTimer->stop();
+    if(m_journalWriter) {
+        m_journalWriter->stop();
+        m_journalWriter.reset();
+    }
 //	while( !g_signalBuffer->synchronize()) {}
     Transactional::SignalBuffer::cleanup();
     s_pMessageBox.reset();
@@ -472,6 +931,12 @@ FrmKameMain::processSignals() {
 
 void
 FrmKameMain::closeEvent( QCloseEvent* ce ) {
+    //Nothing folds while shutting down: closing interfaces and joining threads
+    //takes long enough for the poll to fire, and a window animating itself
+    //narrow on the way out is at best pointless.  Set before the confirmation
+    //below, which can put a modal dialog up and hand the poll a pointer that
+    //is over neither toolbox.
+    m_edgeAutoHideArmed = false;
 	bool opened = false;
     {
         Snapshot shot( *m_measure->interfaces());
@@ -499,6 +964,11 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
         //them the Python thread still calling into KAME mid-teardown.  With the
         //accept last, exit() cannot start until every join has returned.
         printf("quit\n");
+        //Before the tree goes: the journal's last drain and report walk it.
+        if(m_journalWriter) {
+            m_journalWriter->stop();
+            m_journalWriter.reset();
+        }
         m_measure->terminate_all();
         m_measure.reset();
         ce->accept();
@@ -506,7 +976,18 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
 }
 
 void FrmKameMain::fileCloseAction_activated() {
+    //The journal walks the tree and takes transactions on it from its own
+    //thread.  terminate() destroys that tree, and a background thread
+    //committing across a teardown is indefensible whatever else is true --
+    //so it stops first and starts again on the empty tree, ready for
+    //whatever is loaded next.
+    if(m_journalWriter) {
+        m_journalWriter->stop();
+        m_journalWriter.reset();
+    }
 	m_measure->terminate();
+    if(m_measure && XJournalWriter::engineWanted())
+        m_journalWriter = XJournalWriter::start(m_measure, m_measure->journal());
 }
 
 
@@ -519,7 +1000,14 @@ void FrmKameMain::fileOpenAction_activated() {
         this, i18n("Open Measurement File"), "",
         //! No trailing ";;": it appends an empty name filter, which shows up as a
         //! blank row in the file-type combo of Qt's own widget dialog.
-        "KAME2 Measurement files (*.kam);;"
+        //A journal's head IS a settings file, so it opens the same way.  The
+        //combined filter is first so that either kind can just be
+        //double-clicked, and .kam is named first inside it because that is
+        //still what everyone has.
+        //\sa doc/design/PROVENANCE.md
+        "Measurement files (*.kam *.kamj);;"
+        "Settings, saved by hand (*.kam);;"
+        "Journals, written as you work (*.kamj);;"
         "KAME1 Measurement files (*.mes);;"
         "All files (*.*)"
         );
@@ -528,7 +1016,11 @@ void FrmKameMain::fileOpenAction_activated() {
 
 
 void FrmKameMain::fileSaveAction_activated() {
-    QString filter = "KAME2 Measurement files (*.kam)";
+    //Both formats, .kam still first because it is what everyone has.  A
+    //journal saved this way is a file whose head is the state of the tree
+    //and whose body is empty -- which is what a settings file IS, and what
+    //eventually replaces .kam.  \sa doc/design/PROVENANCE.md
+    QString filter = "KAME2 Measurement files (*.kam);;KAME journal (*.kamj)";
 #if QT_VERSION < QT_VERSION_CHECK(5,0,0)
     QString filename = QFileDialog::getSaveFileName (
         this, i18n("Save Measurement File"), "", filter);
@@ -548,6 +1040,14 @@ void FrmKameMain::fileSaveAction_activated() {
     QString filename = dialog.selectedFiles().at(0);
 #endif
     if( !filename.isEmpty()) {
+        if(filename.endsWith(".kamj", Qt::CaseInsensitive)) {
+            if(m_journalWriter)
+                m_journalWriter->requestSave(filename.toLocal8Bit().data());
+            else
+                gErrPrint(i18n("Journaling is off (KAME_JOURNAL=0); "
+                    "save as .kam instead."));
+            return;
+        }
         std::ofstream ofs(filename.toLocal8Bit().data(), std::ios::out);
 		if(ofs.good()) {
             XRubyWriter writer(m_measure, ofs);
@@ -581,10 +1081,22 @@ void FrmKameMain::helpIndexAction_activated() {
 */
 
 void FrmKameMain::signalAllModulesLoaded() {
+    //Startup is over, so the toolboxes may start folding themselves away.
+    m_edgeAutoHideArmed = true;
 #ifdef USE_PYBIND11
     if(m_measure && m_measure->python())
         m_measure->python()->signalModulesLoaded();
 #endif
+    //Provenance capture starts here, with the driver types registered and
+    //before any .kam is loaded, so the loading itself is journaled.  Nodes
+    //created later are picked up through onListChanged.
+    //The capture engine runs whether or not anything is being written: the
+    //Journal group's Write switch chooses the file, not whether the tree is
+    //being watched.  KAME_JOURNAL=1 adds the developer survey report;
+    //KAME_JOURNAL=0 keeps the engine out of the process altogether, which is
+    //how a crash gets attributed to it or cleared of it.
+    if(m_measure && XJournalWriter::engineWanted())
+        m_journalWriter = XJournalWriter::start(m_measure, m_measure->journal());
 }
 
 void FrmKameMain::mesStopAction_activated() {
@@ -600,7 +1112,24 @@ void FrmKameMain::mesStopAction_activated() {
 int
 FrmKameMain::openMes(const XString &filename) {
 	if( !filename.empty()) {
-		runNewScript("Open Measurement", filename );
+		shared_ptr<XScriptingThread> th = runNewScript("Open Measurement", filename );
+        //Interfaces and entries are what one turns to after loading a
+        //measurement, so hand the east toolbox the keyboard — but only once
+        //the loading thread is done, since drivers, graphs and their windows
+        //go on appearing until then and would take it back.
+        if(th) {
+            auto *timer = new QTimer(this);
+            auto ticks = std::make_shared<int>(0);
+            connect(timer, &QTimer::timeout, this, [this, th, timer, ticks]{
+                //Bounded, so a thread that never reports itself finished does
+                //not leave a timer polling for the rest of the session.
+                if(th->isAlive() && (++( *ticks) < 300)) return;
+                timer->stop();
+                timer->deleteLater();
+                focusToolbox(false);
+            });
+            timer->start(200);
+        }
 //		while(rbthread->isAlive()) {
 //			KApplication::kApplication()->processEvents();
 //			g_signalBuffer->synchronize();
@@ -616,13 +1145,28 @@ FrmKameMain::runNewScript(const XString &label, const XString &filename) {
     show();
     raise();
     shared_ptr<XScriptingThreadList> threadlist;
+    //Spelt out rather than by rfind()-at-the-end: ".kamj" is not ".kam" with
+    //something after it, and the old test read it as a Ruby script -- which
+    //then met the gzip magic byte and reported an invalid multibyte
+    //character.  A file kind that falls through to the wrong interpreter
+    //fails in the interpreter's vocabulary, not in KAME's.
+    auto endsWith = [&filename](const char *suffix)->bool {
+        size_t n = strlen(suffix);
+        return (filename.length() >= n)
+            && (filename.compare(filename.length() - n, n, suffix) == 0);
+    };
+    bool for_python = endsWith(".py") || endsWith(".kam") || endsWith(".kamj");
 #ifdef USE_PYBIND11
-    if(filename.rfind(".py") == filename.length() - 3 ||
-       filename.rfind(".kam") == filename.length() - 4) {
+    if(for_python) {
         threadlist = m_measure->python();
     } else
 #endif
     {
+        if(for_python) {
+            gErrPrint(i18n("Built without pybind11; measurement files and "
+                "journals cannot be loaded."));
+            return shared_ptr<XScriptingThread>();
+        }
 #ifdef USE_RUBY
         threadlist = m_measure->ruby();
 #else
@@ -665,9 +1209,18 @@ void FrmKameMain::onScriptLinkClicked(const QUrl &url) {
         if(action == "notebook") {
             //Prompt for the workspace dir (same as the Script menu) so the
             //notebook is never rooted in the application binary's folder.
-            auto progs = m_measure->python()->listOfJupyterPrograms();
-            if(progs.empty()) {
-                gMessagePrint(i18n("No Jupyter program found."));
+            //Not simply the first jupyter on PATH: which of them carries the
+            //notebook package differs per installation, and picking blindly is
+            //how this quick launch ends in a missing-module traceback.  The
+            //probe runs the candidates once and is cached, so the wait is a
+            //one-off — hence the notice before it.
+            gMessagePrint(i18n("Looking for a usable Jupyter..."));
+            std::string prog = m_measure->python()->jupyterProgramFor("notebook");
+            if(prog.empty()) {
+                gMessagePrint(i18n("No usable Jupyter found. A jupyter is skipped "
+                    "when the notebook package is missing, and also when its "
+                    "JupyterLab data files are (that one serves a page showing "
+                    "nothing but the logo). Try: pip install notebook jupyterlab"));
                 return;
             }
             gMessagePrint(i18n("Choose root directory of notebook."));
@@ -675,7 +1228,7 @@ void FrmKameMain::onScriptLinkClicked(const QUrl &url) {
                 this, i18n("Open Notebook Workspace"));
             if(dir.length())
                 m_measure->python()->launchJupyterConsole(
-                    progs.front(), ("notebook " + dir).toUtf8().data());
+                    prog, ("notebook " + dir).toUtf8().data());
         }
         else if(action == "pyai-agent") {
             //Choosing your own agent is a file, not an environment variable:

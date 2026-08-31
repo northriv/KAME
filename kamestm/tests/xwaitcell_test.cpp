@@ -118,9 +118,21 @@ int main() {
         XWaitCell cells[N];
         std::atomic<int> awake{0};
         std::thread th[N];
+        //! Snapshot the generation HERE rather than inside the thread.
+        //! `wait(g)` means "sleep until the cell moves past the state I saw",
+        //! so a thread that reads gen() only after the wake_one() below has
+        //! landed would be asking to sleep past a generation that has ALREADY
+        //! arrived: it waits out the full 5 s and is then reported stranded,
+        //! blaming the primitive for the test's own race.  Seen on Windows
+        //! under `ctest -j4`, where CPU contention delayed some of these
+        //! threads past the parent's 50 ms head start.  Taking the snapshot
+        //! before any thread starts makes a late thread return true at once,
+        //! which is also how a real caller uses the API.
+        uint32_t g0[N];
+        for(int i = 0; i < N; i++) g0[i] = cells[i].gen();
         for(int i = 0; i < N; i++) {
             th[i] = std::thread([&, i]{
-                if(cells[i].wait(cells[i].gen(), 5000000))
+                if(cells[i].wait(g0[i], 5000000))
                     awake.fetch_add(1, std::memory_order_relaxed);
             });
         }
