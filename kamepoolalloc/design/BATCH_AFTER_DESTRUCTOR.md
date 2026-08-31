@@ -174,6 +174,29 @@ instrumentation, since `alloc_tsd_exclusivity_test` includes none of it.
 The crash row is consistent but has almost no power on its own at a 12 %
 baseline (p ≈ 0.48).
 
+### Re-verified against `master` @ `6147097ad` (132 commits later)
+
+The 9.0 line landed on top — the `kamb` journal / replay work, a new
+`transaction_journal.h` and `transaction_journal_test`, `atomic_queue.h`
+changes, and a build-system move off the per-module CMake files.  None of
+it disturbs this:
+
+| | result |
+|---|---|
+| `alloc_tsd_exclusivity_test`, LP64 | **0 / 20** |
+| `alloc_tsd_exclusivity_test`, `-m32 -march=i486` | **0 / 20** |
+| `alloc_tsd_exclusivity_test`, `-m32 -march=i586` | **0 / 20** |
+| `tmin_dynnode`, `-m32 -march=i586`, `100 16 1250` | **0 / 10** |
+| `tools/audit/check_no_dcas.sh` | all 3 phases ok |
+| ctest (merged tree) | 37 / 41 — the same four pre-existing privilege failures |
+
+The new `transaction_journal_test` is NOT in either no-DCAS exclusion
+group (`kamestm_tests_need_prio`, `kamestm_tests_need_atomic64`), so it was
+worth checking rather than assuming: a probe TU including
+`transaction_journal.h` and instantiating a `Node<>` compiles at
+`-m32 -march=i486` and links **zero** `__atomic_*_8`.  The journal is
+no-DCAS clean and belongs outside the exclusion groups.
+
 ### Verified against shipped `master` (`796d9fe1e`)
 
 Built from the merged tree, not from this branch:
