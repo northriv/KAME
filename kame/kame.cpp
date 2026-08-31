@@ -513,6 +513,28 @@ static void resetTabIcons(QTabBar *tabs, QMdiArea *area, int size) {
             (i == tabs->currentIndex()) ? TAB_ICON_GROWN : size);
 }
 
+//! A pinned window says so in its own title bar, which is where every docking
+//! UI that has this feature puts it -- Visual Studio, VS Code and Qt Creator
+//! all use a pushpin there, upright when pinned and lying on its side when
+//! not.  A mark on a tab would read as belonging to that pane; pinning belongs
+//! to the window.
+//!
+//! It is legible exactly when it needs to be: a collapsed toolbox is 36 px
+//! wide and shows no title, and a collapsed toolbox is by definition not
+//! pinned.  Being permanent, it also does the job the transient status line
+//! message was doing, which is now gone.
+void
+FrmKameMain::markPinned(EdgeSlider &s) {
+    if(s.vertical)
+        return;   //!< the main window's title is the measurement's, not ours
+    QString base = s.win->property("kame_title").toString();
+    if(base.isEmpty()) {
+        base = s.win->windowTitle();
+        s.win->setProperty("kame_title", base);
+    }
+    s.win->setWindowTitle(s.autoHide ? base : base + QString::fromUtf8(" \u2731"));
+}
+
 void
 FrmKameMain::setupTabMagnify(QTabBar *tabs, QMdiArea *area) {
     if(tabs->property("kame_magnify").toBool())
@@ -644,6 +666,7 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
         connect(autohide, &QAction::toggled, this, [this, s](bool on){
             s->autoHide = on;
             s->idleTicks = 0;
+            markPinned( *s);
             //Switching it off has to undo it: a toolbox left sitting as a bar
             //with nothing watching the pointer could not be opened by hover.
             if( !on && s->collapsed) setToolboxCollapsed( *s, false);
@@ -677,6 +700,7 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
         connect(autohide, &QAction::toggled, this, [this, s](bool on){
             s->autoHide = on;
             s->idleTicks = 0;
+            markPinned( *s);
             if( !on && s->collapsed) setToolboxCollapsed( *s, false);
         });
         connect(anim, &QPropertyAnimation::finished, this, [this]{updateToolboxStrips();});
@@ -885,10 +909,6 @@ FrmKameMain::eventFilter(QObject *obj, QEvent *event) {
             auto *me = static_cast<QMouseEvent *>(event);
             if(tabs->tabAt(me->position().toPoint()) < 0) break;
             s.autoHideAction->setChecked( !s.autoHide); //drives the toggle
-            XString what = s.vertical ? i18n("Main window") :
-                (s.left ? i18n("West toolbox") : i18n("East toolbox"));
-            gMessagePrint(what + (s.autoHide ? i18n(" auto-hides again.")
-                                             : i18n(" pinned open.")));
             return true; //the click meant this, not a tab change
         }
     }

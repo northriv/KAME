@@ -113,6 +113,14 @@
   named after the length of their list, so deleting the first and adding
   another asked for a name that was still taken; they now take the first free
   one.
+- UI: a pinned toolbox says so in its own title bar, with a mark after its
+  name, and the status-line message that used to announce it is gone.  That is
+  where every docking UI with this feature keeps it -- Visual Studio, VS Code
+  and Qt Creator all put a pushpin in the dock's title bar, upright when
+  pinned and on its side when not.  A mark on a tab would read as belonging to
+  that pane, and pinning belongs to the window; a message says it once and
+  then the state is unreadable.  It is legible exactly when it needs to be, a
+  collapsed toolbox being 36 px wide and, by definition, not pinned.
 - UI: one click on a tab strip pins that window open, and another lets it hide
   again -- every strip, the main window's included, since a rule that holds in
   one place and not another is a rule nobody remembers.  A single click can

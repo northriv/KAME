@@ -204,6 +204,9 @@ private:
 	//! Fixes the icon rect a tab bar draws into, so magnifying inside it moves
 	//! nothing.  Idempotent: the poll calls it for bars that appear later.
 	void setupTabMagnify(class QTabBar *tabs, class QMdiArea *area);
+	//! Puts the pinned state in the window's own title bar, where a docking UI
+	//! conventionally keeps it.
+	void markPinned(EdgeSlider &s);
 	//! Starts the pointer's tab growing and lets the one it left shrink back.
 	void magnifyTab(class QTabBar *tabs, int idx);
 	//! Trims the toolboxes against the message window once their frames exist.
