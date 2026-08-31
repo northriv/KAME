@@ -79,15 +79,12 @@ Builds before 8.6.1 carry the double-allocation defect described under *What's N
 ## What's New in 9.0 (alpha)
 
 - **KAME writes down what it was set to and what it did, without being asked.**
-  A run is one name and two files: `run042.kamj` holds the settings as they were
+  A run is one name and two files: `.kamj` holds the settings as they were
   when it began and every change afterwards — what you set, and what the
-  instruments reported — and `run042.kamb` holds the raw records behind those
+  instruments reported — and `.kamb` holds the raw records behind those
   readings. A tier beside the name decides whether the second is written at all:
-  ~11 MB/hour for the settings alone at 144 readings a second, ~10 GB/hour with
-  the records. Both are gzip and `.kamj` is JSON Lines inside, so `zgrep` and
-  `zdiff` read it with no tool at all — which is most of what a provenance file
-  is for ten years from now. Numbers are written twice: as the text you would
-  read, and as the exact eight bytes they were.
+  ~MB/hour for the settings alone, ~GB/hour with heavy records.
+  Both are gzip and `.kamj` is JSON Lines inside.
 - **The session is journalled whether or not you are recording a run**, into its
   own directory, at a few tens of KB — everything *you* did in full, an
   instrument's readings only once they have gone quiet. A session in which you
