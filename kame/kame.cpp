@@ -557,6 +557,18 @@ FrmKameMain::foldToolboxes() {
 }
 
 void
+FrmKameMain::pinToolboxes() {
+    for(auto &&s: m_edgeSliders) {
+        if(s.vertical || !s.autoHide)
+            continue;
+        s.dismissed = false;
+        //Through the View-menu action, so the menu says what is true and the
+        //toolbox unfolds itself: both hang off the same toggle.
+        s.autoHideAction->setChecked(false);
+    }
+}
+
+void
 FrmKameMain::updateWindowTitle() {
     //What is loaded, then whose window it is: the order every document-shaped
     //application uses, since the file is what differs between two of them.
@@ -1417,6 +1429,11 @@ FrmKameMain::openMes(const XString &filename) {
 	if( !filename.empty()) {
         m_titleDoc = QFileInfo(QString::fromStdString(filename)).fileName();
         updateWindowTitle();
+        //Loading is the start of a stretch of work across several drivers and
+        //their interfaces (user), so the toolboxes are pinned open for it
+        //rather than folding away between one driver and the next.  A pin, not
+        //the keyboard: nothing is raised and nothing is taken.
+        pinToolboxes();
 		shared_ptr<XScriptingThread> th = runNewScript("Open Measurement", filename );
         //Nothing is handed the keyboard when the load finishes.  It used to
         //hand it to the east toolbox, interfaces and entries being what one

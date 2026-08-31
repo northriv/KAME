@@ -105,6 +105,10 @@ public:
     //! toolbox has just done its job and is now standing in front of the
     //! result.  \sa XDriverListConnector, XInterfaceListConnector
     void foldToolboxes();
+    //! Holds every auto-hiding toolbox open.  For loading a measurement: what
+    //! follows is a stretch of work across several drivers and their
+    //! interfaces, and a toolbox that folds between each one is in the way.
+    void pinToolboxes();
 
     bool running() const {return !!m_measure;}
 public slots:

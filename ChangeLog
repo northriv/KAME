@@ -182,6 +182,12 @@
   caught it.  The holders are leaked instead, so nothing runs at exit, while
   closing the last interface still releases them, which is the path where the
   library is alive and the teardown means something.
+- UI: opening a measurement pins the toolboxes open (user).  What follows a
+  load is a stretch of work across several drivers and their interfaces, and a
+  toolbox that folds away between one and the next is in the way.  A pin, not
+  the keyboard: nothing is raised and nothing is taken, which is what the
+  focus grab that used to be here got wrong.  The View menu's switches say so,
+  being what it is done through, and unticking one puts it back.
 - UI: clicking a driver or an interface in a list opens that driver's window
   and folds the toolboxes (user).  The pane has just done its job and would
   otherwise be standing in front of the result.  A toolbox folded this way
