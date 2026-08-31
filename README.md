@@ -79,9 +79,9 @@ Builds before 8.6.1 carry the double-allocation defect described under *What's N
 ## What's New in 9.0 (alpha)
 
 - **KAME records what it was set to and what it did, without being asked.** A
-  run is one name and two files. `run042.kamj` holds the settings the run
-  started with, and every change made afterwards, yours and the instruments'.
-  `run042.kamb` holds the raw records behind those readings. You choose whether
+  run is one name and two files. The `.kamj` holds the settings the run started
+  with, and every change made afterwards, yours and the instruments'. The
+  `.kamb` holds the raw records behind those readings. You choose whether
   the second file is written at all: settings alone cost about 11 MB/hour at 144
   readings a second, settings plus records about 10 GB/hour. Both files are
   gzip, and `.kamj` is JSON Lines inside, so `zgrep` and `zdiff` read one with

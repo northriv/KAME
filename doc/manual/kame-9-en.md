@@ -571,12 +571,12 @@ KAME writes down what it was set to and what it did, without being asked.
 ## The two files of a run
 
 A run is one name and two files. Type a name in **Logbook** in the Driver tab
-and tick **Write**, and you get:
+and tick **Write**, and you get that name with two extensions:
 
 | file | holds |
 |---|---|
-| `run042.kamj` | the settings as they were when the run began, and every change to them afterwards — what you set, and what the instruments reported |
-| `run042.kamb` | the raw records behind those readings, exactly as the drivers captured them |
+| `.kamj` | the settings as they were when the run began, and every change to them afterwards — what you set, and what the instruments reported |
+| `.kamb` | the raw records behind those readings, exactly as the drivers captured them |
 
 The tier below the name chooses whether the second file is written at all:
 
@@ -615,8 +615,8 @@ journal beside it by name.
 
 | you open | you get |
 |---|---|
-| `run042.kamj` | the settings of that moment — the state the run began in, and every change to it as playback reaches the time it was made |
-| `run042.kamb` | the records alone, re-analysed with the settings in the tree now |
+| the `.kamj` | the settings of that moment — the state the run began in, and every change to it as playback reaches the time it was made |
+| the `.kamb` | the records alone, re-analysed with the settings in the tree now |
 
 Both play the same records; the pair is found either way. The second is not a
 degraded case — running a whole recording through again with one parameter
