@@ -29,6 +29,9 @@
 #include <QVariantAnimation>
 #include <QStatusBar>
 #include <QStyleHints>
+#if defined __MACOSX__ || defined __APPLE__
+    #include "support_osx.h"
+#endif
 #include <QActionGroup>
 #include <QLineEdit>
 #include <QAbstractSpinBox>
@@ -216,11 +219,7 @@ FrmKameMain::FrmKameMain()
             act->setChecked(c.scheme == g_kameColorSchemeRequested);
             Qt::ColorScheme scheme = c.scheme;
             connect(act, &QAction::triggered, this, [scheme]{
-                g_kameColorSchemeRequested = scheme;
-                if(scheme == Qt::ColorScheme::Unknown)
-                    QGuiApplication::styleHints()->unsetColorScheme();
-                else
-                    QGuiApplication::styleHints()->setColorScheme(scheme);
+                kameApplyColorScheme(scheme);
             });
         }
     }
@@ -523,6 +522,26 @@ QString flatTabStyleSheet(Qt::Edge accent) {
 //! system asks for.
 Qt::ColorScheme g_kameColorSchemeRequested = Qt::ColorScheme::Unknown;
 
+//! Twice on macOS, deliberately.
+//!
+//! QStyleHints is what Qt's own palette follows, and AppKit is what the native
+//! chrome follows -- and going back to "follow the desktop" means handing
+//! NSApplication a nil appearance, which is not something to assume Qt's
+//! unset path does.  Setting both leaves nothing to trust: whichever of them
+//! would have been enough, they now agree.
+void
+kameApplyColorScheme(Qt::ColorScheme scheme) {
+    g_kameColorSchemeRequested = scheme;
+    if(scheme == Qt::ColorScheme::Unknown)
+        QGuiApplication::styleHints()->unsetColorScheme();
+    else
+        QGuiApplication::styleHints()->setColorScheme(scheme);
+#if defined __MACOSX__ || defined __APPLE__
+    setAppAppearance((scheme == Qt::ColorScheme::Unknown) ? 0 :
+        ((scheme == Qt::ColorScheme::Light) ? 1 : 2));
+#endif
+}
+
 FrmKameMain::EdgeSlider *
 FrmKameMain::edgeSliderFor(QWidget *win) {
     for(auto &&s: m_edgeSliders)
@@ -814,6 +833,17 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
         });
         connect(anim, &QPropertyAnimation::finished, this, [this]{updateToolboxStrips();});
     }
+    //A style sheet resolves palette(...) when it is set, so the tab strips
+    //keep the colours of the scheme they were polished under until they are
+    //given the sheet again.  Whoever changed it -- the menu, the command line,
+    //or the desktop itself while KAME is running.
+    connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged,
+        this, [this](Qt::ColorScheme) {
+            for(auto &&s: m_edgeSliders)
+                if(QTabBar *tabs = s.area->findChild<QTabBar *>())
+                    tabs->setStyleSheet(flatTabStyleSheet(s.vertical ? Qt::BottomEdge :
+                        (s.left ? Qt::LeftEdge : Qt::RightEdge)));
+        });
     m_pEdgeHoverTimer = new QTimer(this);
     connect(m_pEdgeHoverTimer, &QTimer::timeout, this, &FrmKameMain::pollEdgeAutoHide);
     m_pEdgeHoverTimer->start(150);

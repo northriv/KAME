@@ -218,8 +218,7 @@ int main(int argc, char *argv[]) {
         else if(want == "light") g_kameColorSchemeRequested = Qt::ColorScheme::Light;
         else if(want.length() && (want != "dark"))
             fprintf(stderr, "--appearance takes system, light or dark\n");
-        if(g_kameColorSchemeRequested != Qt::ColorScheme::Unknown)
-            QGuiApplication::styleHints()->setColorScheme(g_kameColorSchemeRequested);
+        kameApplyColorScheme(g_kameColorSchemeRequested);
     }
 
     QStringList args = parser.positionalArguments();

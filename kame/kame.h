@@ -24,6 +24,8 @@
 //! scheme and cannot tell a forced Dark from a system that happens to be dark.
 //! Qt::ColorScheme::Unknown means nothing was forced.
 extern Qt::ColorScheme g_kameColorSchemeRequested;
+//! Puts one of the three choices into effect, everywhere it has to be said.
+void kameApplyColorScheme(Qt::ColorScheme scheme);
 
 class Ui_FrmJournalReader;
 typedef QForm<QWidget, Ui_FrmJournalReader> FrmJournalReader;

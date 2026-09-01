@@ -218,7 +218,11 @@
   combinations are a menu apart -- View > Appearance for the window,
   View > Theme Color of Graph for the graph.  --appearance system|light|dark
   chooses at startup, "system" being the old behaviour of following the
-  desktop.
+  desktop.  Going back to "system" hands NSApplication a nil appearance
+  directly as well as unsetting Qt's, since which of the two would have been
+  enough is not something to assume; and the tab strips are given their style
+  sheet again whenever the scheme changes, a sheet resolving palette(...) when
+  it is set and not afterwards.
 - UI: the toolboxes are as wide as what is in them and no wider (user).  The
   screen fraction that used to share the decision was doing nothing the floor
   did not already do -- keeping a small display from cramping them -- while on
