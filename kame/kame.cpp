@@ -224,21 +224,29 @@ FrmKameMain::FrmKameMain()
         int msg_top = XMessageBox::form()->frameGeometry().top();
         int deco = std::max(0, dockLeft->frameSize().height() - dockLeft->height());
         int toolbox_h = std::max(msg_top - 6 - rect.top() - deco, 360);
-        //A quarter of the screen rather than a fifth, and never below what the
-        //widest pane in this toolbox actually wants: rendered on their own,
-        //the West panes come to 375 px (the calibration table) and the East
-        //ones to 439 (the replay pane, since it grew a scrub bar), and each
-        //needs about 40 more for the MDI tab strip down the side and the
-        //window frame.  Below that the pane is not narrow, it is cut off.
-        dockLeft->resize(std::max({rect.width() / 4, XMessageBox::form()->width() + 80, 420}),
-            toolbox_h);
+        //By what is in them, not by the size of the screen (user).
+        //
+        //Rendered on their own the West panes come to 375 px (the calibration
+        //table) and the East ones to 439 (the replay pane, since it grew a
+        //scrub bar), and each needs about 40 more for the MDI tab strip down
+        //the side and the window frame.  Below that a pane is not narrow, it
+        //is cut off; above it, everything but the three table panes is
+        //collecting whitespace.
+        //
+        //There used to be a screen fraction here as well, and it was doing
+        //nothing the floor did not already do -- its job was to keep a small
+        //display from cramping them, which the floor does -- while on a large
+        //one it won and made both toolboxes far wider than anything they hold.
+        //A width dragged out by hand is remembered for the session (see the
+        //poll), so wanting more costs one drag.
+        dockLeft->resize(std::max(XMessageBox::form()->width() + 80, 420), toolbox_h);
         dockLeft->move(0, rect.top());
         //Only a first guess: see fitToolboxHeights(), which trims both once
         //their frames exist and the window server has placed them.
         dockRight->setFloating(true);
         dockRight->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
             Qt::CustomizeWindowHint | Qt::WindowTitleHint);
-        dockRight->resize(std::max(rect.width() / 4, 490), dockLeft->height());
+        dockRight->resize(490, dockLeft->height());
         dockRight->move(rect.right() - dockRight->frameSize().width() - 6, rect.top());
         setupEdgeAutoHide(rect);
     }

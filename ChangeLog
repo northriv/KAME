@@ -209,6 +209,12 @@
 - UI: nothing is put in the user's hand at startup.  KAME opened with the west
   toolbox activated and holding itself open, so the first thing on screen was
   a panel asking to be dismissed.
+- UI: the toolboxes are as wide as what is in them and no wider (user).  The
+  screen fraction that used to share the decision was doing nothing the floor
+  did not already do -- keeping a small display from cramping them -- while on
+  a large one it won and made both far wider than anything they hold.  A width
+  dragged out by hand is remembered for the session, so wanting more costs one
+  drag.
 - UI: the toolboxes are as wide as the widest pane in them (the replay pane
   outgrew the old floor when it gained a slider), and nothing auto-hides
   during startup or shutdown -- the hover poll used to start before the
