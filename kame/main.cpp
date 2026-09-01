@@ -201,9 +201,9 @@ int main(int argc, char *argv[]) {
     //NSApplication appearance.  \sa the View > Appearance menu
     QCommandLineOption appearanceOption("appearance",
             QCoreApplication::translate("main",
-                "light, dark, or system to follow the desktop (default: dark). "
-                "This is the reliable way: switching from the View menu while "
-                "KAME runs leaves parts of the window as they were built"),
+                "light, dark, or system to follow the desktop. Overrides what "
+                "View > Appearance was last set to, for this run only "
+                "(default: dark, until the menu says otherwise)"),
             QCoreApplication::translate("main", "system|light|dark"));
     parser.addOption(appearanceOption);
 
@@ -214,7 +214,7 @@ int main(int argc, char *argv[]) {
         //been the default all along -- a measurement is looked at in the dark
         //as often as not, and a white window beside a black graph is the worse
         //half of the four combinations the two switches make.
-        g_kameColorSchemeRequested = Qt::ColorScheme::Dark;
+        g_kameColorSchemeRequested = kameStoredColorScheme();
         QString want = parser.value(appearanceOption).toLower();
         if(want == "system") g_kameColorSchemeRequested = Qt::ColorScheme::Unknown;
         else if(want == "light") g_kameColorSchemeRequested = Qt::ColorScheme::Light;

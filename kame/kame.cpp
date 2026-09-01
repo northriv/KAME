@@ -275,7 +275,8 @@ FrmKameMain::FrmKameMain()
             Qt::ColorScheme scheme = c.scheme;
             //No message: the window changing colour is the confirmation.
             connect(act, &QAction::triggered, this, [scheme]{
-                kameApplyColorScheme(scheme); });
+                kameApplyColorScheme(scheme);
+                kameStoreColorScheme(scheme); });
         }
     }
     m_pGraphThemeMenu = m_pViewMenu->addMenu(i18n( "Theme Color of &Graph" ) );
@@ -584,6 +585,26 @@ QString flatTabStyleSheet(Qt::Edge accent) {
 //! Dark.  Unknown means "follow the desktop", which is what --appearance
 //! system asks for.
 Qt::ColorScheme g_kameColorSchemeRequested = Qt::ColorScheme::Unknown;
+
+//! The same three words the --appearance option takes, so the stored line
+//! reads as what a user would have typed.
+static const char *nameOfColorScheme(Qt::ColorScheme scheme) {
+    return (scheme == Qt::ColorScheme::Unknown) ? "system" :
+        ((scheme == Qt::ColorScheme::Light) ? "light" : "dark");
+}
+Qt::ColorScheme
+kameStoredColorScheme() {
+    QString name = KameSettings().value("appearance", "dark").toString();
+    if(name == "system") return Qt::ColorScheme::Unknown;
+    if(name == "light") return Qt::ColorScheme::Light;
+    return Qt::ColorScheme::Dark;
+}
+//! Only the menu stores one.  --appearance is how somebody says "this run",
+//! and a flag that quietly rewrote the setting would take that away.
+void
+kameStoreColorScheme(Qt::ColorScheme scheme) {
+    KameSettings().setValue("appearance", nameOfColorScheme(scheme));
+}
 
 //! Qt alone: an AppKit call was added here on the suspicion that
 //! unsetColorScheme() might not hand NSApplication a nil appearance, and then
@@ -920,6 +941,9 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
                             (s.left ? Qt::LeftEdge : Qt::RightEdge)));
                     followPalette(s.area);
                 }
+                //Both of the above re-lay the toolboxes out, and a folded one
+                //does not survive a layout pass on its own.
+                reassertToolboxFolds();
             });
         });
     m_pEdgeHoverTimer = new QTimer(this);
@@ -1070,6 +1094,44 @@ FrmKameMain::pollEdgeAutoHide() {
             setToolboxCollapsed(s, true);
     }
 }
+QRect
+FrmKameMain::collapsedGeometryOf(const EdgeSlider &s) const {
+    QRect to = s.expanded;
+    if(s.vertical)
+        //Half of whatever it is now, keeping the top edge.
+        to.setHeight(std::max(s.expanded.height() / 2, 200));
+    //Keep the edge the toolbox clings to; give up the width on the other
+    //side, so it grows out of the screen edge rather than sliding along it.
+    else if(s.left) to.setWidth(s.collapsedWidth);
+    else to.setLeft(s.expanded.right() - s.collapsedWidth + 1);
+    return to;
+}
+void
+FrmKameMain::reassertToolboxFolds() {
+    //A folded toolbox is held narrow against a minimum that keeps coming back:
+    //the window re-derives it from the QMdiArea's size hint on EVERY layout
+    //pass (~196 px), which is why setToolboxCollapsed() lifts it each time it
+    //runs rather than once at setup.  Changing the appearance is such a pass,
+    //and it happens with nothing folding -- so the 43 px bar was clamped wide
+    //again where it stood, which on the east toolbox, whose left edge was
+    //moved to keep its right one, put the window out over the screen edge
+    //until the next fold or hover put it back.
+    for(auto &&s: m_edgeSliders) {
+        if( !s.collapsed || (s.anim->state() == QAbstractAnimation::Running))
+            continue;
+        if(s.vertical) {
+            s.area->setMinimumHeight(0);
+            s.win->setMinimumHeight(0);
+        }
+        else {
+            s.area->setMinimumWidth(0);
+            s.win->setMinimumWidth(0);
+        }
+        QRect to = collapsedGeometryOf(s);
+        if(s.win->geometry() != to)
+            s.win->setGeometry(to);
+    }
+}
 void
 FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
     //Lifted for BOTH directions, not just the collapse.  A window re-derives
@@ -1111,16 +1173,7 @@ FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
             m_tabMagnifyIdx = -1;
         }
     }
-    QRect to = s.expanded;
-    if(collapse) {
-        if(s.vertical)
-            //Half of whatever it is now, keeping the top edge.
-            to.setHeight(std::max(s.expanded.height() / 2, 200));
-        //Keep the edge the toolbox clings to; give up the width on the other
-        //side, so it grows out of the screen edge rather than sliding along it.
-        else if(s.left) to.setWidth(s.collapsedWidth);
-        else to.setLeft(s.expanded.right() - s.collapsedWidth + 1);
-    }
+    QRect to = collapse ? collapsedGeometryOf(s) : s.expanded;
     s.idleTicks = 0;
     s.collapsed = collapse;
     //No fade on the way in.  It was tried, and a window at 0.75 opacity shows

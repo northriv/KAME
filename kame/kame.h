@@ -26,6 +26,10 @@
 extern Qt::ColorScheme g_kameColorSchemeRequested;
 //! Puts one of the three choices into effect, everywhere it has to be said.
 void kameApplyColorScheme(Qt::ColorScheme scheme);
+//! What the View menu was last set to, Dark if it never was.  The
+//! --appearance option overrides it for one run without replacing it.
+Qt::ColorScheme kameStoredColorScheme();
+void kameStoreColorScheme(Qt::ColorScheme scheme);
 
 class Ui_FrmJournalReader;
 typedef QForm<QWidget, Ui_FrmJournalReader> FrmJournalReader;
@@ -252,6 +256,10 @@ private:
     //! The geometry \a win would have open, which for a folded toolbox is not
     //! the one it has.
     QRect layoutGeometryOf(QWidget *win) const;
+    //! Where folding puts a toolbox: its resting bar, at the edge it clings to.
+    QRect collapsedGeometryOf(const struct EdgeSlider &s) const;
+    //! Re-applies that after something else has re-laid the toolboxes out.
+    void reassertToolboxFolds();
 	shared_ptr<XScriptingThread> runNewScript(const XString &label, const XString &filename);
 	QTimer *m_pTimer;
 	shared_ptr<XMeasure> m_measure;

@@ -201,6 +201,20 @@
   -- and it now reads worse than it did: the toolbox opens, raises itself,
   takes the keyboard, and folds again on the next poll because the pointer is
   not over it.
+- UI: the appearance chosen from View > Appearance is remembered as well, in
+  the same file and as the same word the command line takes ("system", "light"
+  or "dark").  --appearance still wins for the run it is given on, and does
+  NOT overwrite the stored choice: a flag says "start this way this time", and
+  one that quietly rewrote the setting would take that meaning away.
+- UI: a folded toolbox no longer jumps when the appearance changes.  The
+  window re-derives its minimum width from the QMdiArea's size hint on every
+  layout pass -- which is why setToolboxCollapsed() lifts that minimum each
+  time it runs rather than once at setup -- and re-setting the application
+  style sheet is such a pass, arriving while nothing is folding.  The 43 px
+  bar was clamped back to ~196 px where it stood, and on the east toolbox,
+  which keeps its right edge by moving its left one, that pushed the window
+  out past the screen edge until the next hover put it back.  The fold is now
+  re-applied after the appearance work.
 - UI: the four hand-placed windows -- the main window, both toolboxes and the
   message log -- come back where they were left.  Their geometries go to
   ~/.config/kame/kame.ini (a text file on every platform, macOS included,
