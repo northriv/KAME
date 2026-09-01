@@ -201,6 +201,18 @@
   -- and it now reads worse than it did: the toolbox opens, raises itself,
   takes the keyboard, and folds again on the next poll because the pointer is
   not over it.
+- UI: the four hand-placed windows -- the main window, both toolboxes and the
+  message log -- come back where they were left.  Their geometries go to
+  ~/.config/kame/kame.ini (a text file on every platform, macOS included,
+  which is a plist's caching daemon less to fight when a layout has to be
+  reset by deleting it), written on the way out and read in the constructor's
+  layout pass, so the computed first-run positions are still what a fresh
+  installation gets.  A folded toolbox saves the size it had open rather than
+  its 30 px resting width, and a geometry whose screen no longer exists -- a
+  laptop away from its desk -- is discarded in favour of the computed default
+  rather than restored somewhere invisible.  Driver forms are deliberately not
+  included: there are dozens, they come and go with the measurement, and what
+  belongs to a measurement belongs in its .kam file.
 - UI: only actual windows are placed by the new-window cascade.  This window's
   event filter is installed on two QTabBars and nothing else, and a tab bar is
   a widget that gets shown like any other -- so "place the new window" was

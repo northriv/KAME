@@ -29,6 +29,7 @@
 #include <QVariantAnimation>
 #include <QStatusBar>
 #include <QStyleHints>
+#include <QSettings>
 #include <QActionGroup>
 #include <QLineEdit>
 #include <QAbstractSpinBox>
@@ -91,6 +92,46 @@ static std::unique_ptr<XMessageBox> s_pMessageBox;
 static void followPalette(QMdiArea *area) {
     if(area)
         area->setBackground(area->palette().brush(QPalette::Window));
+}
+
+//! Where the four windows remember how they were left.
+//!
+//! An INI file rather than the platform's native store, and deliberately: on
+//! macOS a plist is owned by cfprefsd, which caches it and writes it back, so
+//! deleting the file -- what somebody does when a layout has gone wrong --
+//! does not reliably take.  This one is a text file at ~/.config/kame/kame.ini
+//! on every platform Qt puts it there, macOS included (measured: 6.10.1 does
+//! NOT use ~/Library/Preferences for an IniFormat store), and it can be read,
+//! edited or thrown away.
+struct KameSettings : public QSettings {
+    KameSettings() : QSettings(QSettings::IniFormat, QSettings::UserScope,
+        "kame", "kame") {}
+};
+static void saveWindowGeometry(const char *key, const QRect &geom) {
+    if(geom.isValid())
+        KameSettings().setValue(QString("geometry/") + key, geom);
+}
+//! \return false if nothing usable was stored, leaving \a win untouched.
+static bool restoreWindowGeometry(const char *key, QWidget *win) {
+    QRect geom = KameSettings().value(QString("geometry/") + key).toRect();
+    if( !geom.isValid()) return false;
+    //The screen it was saved on does not have to still be there -- a laptop
+    //away from its desk is the everyday case -- and a window restored onto a
+    //screen that is gone is invisible with nothing left to grab it by.  Less
+    //than a title bar's worth of it landing on a screen that exists now counts
+    //as that, and the computed default is used instead.
+    int on_screen = 0;
+    for(const QScreen *scr: QGuiApplication::screens()) {
+        QRect vis = geom.intersected(scr->availableGeometry());
+        on_screen = std::max(on_screen, vis.width() * std::min(vis.height(), 40));
+    }
+    if(on_screen < 120 * 40) return false;
+    //setGeometry, and nothing that moves the frame instead: geometry() is the
+    //client rectangle, so saving and restoring the same call is exact, while
+    //pairing it with move() would walk the window down the screen by the
+    //height of its title bar on every run.
+    win->setGeometry(geom);
+    return true;
 }
 
 FrmKameMain::FrmKameMain()
@@ -267,6 +308,8 @@ FrmKameMain::FrmKameMain()
         //Both toolboxes run from the top of the screen down to just above the
         //message window, which parks itself at the bottom-left corner and
         //keeps its top edge there (it grows downwards when a popup appears).
+        //Before the toolboxes, whose height is measured down to it.
+        restoreWindowGeometry("messages", XMessageBox::form());
         int msg_top = XMessageBox::form()->frameGeometry().top();
         int deco = std::max(0, dockLeft->frameSize().height() - dockLeft->height());
         int toolbox_h = std::max(msg_top - 6 - rect.top() - deco, 360);
@@ -287,6 +330,10 @@ FrmKameMain::FrmKameMain()
         //poll), so wanting more costs one drag.
         dockLeft->resize(std::max(XMessageBox::form()->width() + 80, 420), toolbox_h);
         dockLeft->move(0, rect.top());
+        //Everything above is the first run.  Afterwards the four windows come
+        //back where they were left, and this is the point to do it: before
+        //setupEdgeAutoHide() takes each toolbox's geometry as its open size.
+        restoreWindowGeometry("west", dockLeft);
         //Only a first guess: see fitToolboxHeights(), which trims both once
         //their frames exist and the window server has placed them.
         dockRight->setFloating(true);
@@ -294,6 +341,7 @@ FrmKameMain::FrmKameMain()
             Qt::CustomizeWindowHint | Qt::WindowTitleHint);
         dockRight->resize(490, dockLeft->height());
         dockRight->move(rect.right() - dockRight->frameSize().width() - 6, rect.top());
+        restoreWindowGeometry("east", dockRight);
         setupEdgeAutoHide(rect);
     }
     //The following 2 lines should be after setting up docks. Otherwise, crashes in windows.
@@ -319,6 +367,7 @@ FrmKameMain::FrmKameMain()
         std::max(rect.height() * 2 / 5, minimumSizeHint().height() + statush)));
     if(can_place_windows)
         move((rect.width() - frameSize().width()) / 2, rect.top());
+    restoreWindowGeometry("main", this);
 
     updateWindowTitle();   //nothing had ever set one, so there was none at all
     updateToolboxStrips(); //initial check marks, after the panes are laid out.
@@ -1339,6 +1388,32 @@ FrmKameMain::processSignals() {
 }
 
 void
+FrmKameMain::saveWindowLayout() {
+    //Only the four that are placed by hand: the main window, both toolboxes
+    //and the message log.  Driver forms are not saved -- there are dozens of
+    //them, they come and go with the measurement, and the .kam file is where
+    //what belongs to a measurement is kept.
+    saveWindowGeometry("main", layoutGeometryOf(this));
+    //Docked, i.e. on Wayland, they are part of the main window and have no
+    //geometry of their own to save.
+    if(m_pDockLeft->isFloating())
+        saveWindowGeometry("west", layoutGeometryOf(m_pDockLeft));
+    if(m_pDockRight->isFloating())
+        saveWindowGeometry("east", layoutGeometryOf(m_pDockRight));
+    if(QWidget *msg = XMessageBox::form())
+        saveWindowGeometry("messages", msg->geometry());
+}
+QRect
+FrmKameMain::layoutGeometryOf(QWidget *win) const {
+    //What the window would be if it were open.  A toolbox folded against the
+    //edge is 30 px wide, and coming back to that on the next run would look
+    //like damage rather than like where it was left.
+    for(auto &&s: m_edgeSliders)
+        if((s.win == win) && s.collapsed)
+            return s.expanded;
+    return win->geometry();
+}
+void
 FrmKameMain::closeEvent( QCloseEvent* ce ) {
     //Torn down already: closing twice is normal now that Cmd-Q reaches this
     //through the application object, and the second pass must not walk a tree
@@ -1380,6 +1455,7 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
         //them the Python thread still calling into KAME mid-teardown.  With the
         //accept last, exit() cannot start until every join has returned.
         printf("quit\n");
+        saveWindowLayout();
         //Before the tree goes: the journal's last drain and report walk it.
         if(m_journalWriter) {
             m_journalWriter->stop();

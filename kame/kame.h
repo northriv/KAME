@@ -246,6 +246,12 @@ private:
 	EdgeSlider *edgeSliderFor(QWidget *win);
 	int m_cascadeIndex = 0;
 	void closeEvent( QCloseEvent* ce ) override;
+    //! Writes the four hand-placed windows' geometries out, on the way to a
+    //! clean exit.  Restoring them is done in the constructor's layout pass.
+    void saveWindowLayout();
+    //! The geometry \a win would have open, which for a folded toolbox is not
+    //! the one it has.
+    QRect layoutGeometryOf(QWidget *win) const;
 	shared_ptr<XScriptingThread> runNewScript(const XString &label, const XString &filename);
 	QTimer *m_pTimer;
 	shared_ptr<XMeasure> m_measure;
