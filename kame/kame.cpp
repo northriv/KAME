@@ -219,7 +219,14 @@ FrmKameMain::FrmKameMain()
     //hand-painted Fusion palette.
     //\sa the --appearance option, which is the same thing at startup
     {
-        QMenu *menu = m_pViewMenu->addMenu(i18n("&Appearance"));
+        //(Experimental), because switching while KAME is running does not
+        //finish the job (user, who had found the same before).  Some of it is
+        //Qt: a style sheet resolves palette(...) when it is set and never
+        //again, measured here, and re-setting every sheet on the change --
+        //which this does -- still leaves widgets holding the old colours.  So
+        //the menu stays, labelled for what it is, and the way to get a clean
+        //one is the command line, which decides before anything is built.
+        QMenu *menu = m_pViewMenu->addMenu(i18n("&Appearance (Experimental)"));
         auto *group = new QActionGroup(this);
         const struct {const char *label; Qt::ColorScheme scheme;} choices[] = {
             {I18N_NOOP("&System"), Qt::ColorScheme::Unknown},
@@ -233,6 +240,9 @@ FrmKameMain::FrmKameMain()
             Qt::ColorScheme scheme = c.scheme;
             connect(act, &QAction::triggered, this, [scheme]{
                 kameApplyColorScheme(scheme);
+                gMessagePrint(i18n("Appearance changed. Parts of the window keep "
+                    "the colours they were built with until KAME is restarted; "
+                    "kame --appearance system|light|dark starts clean."));
             });
         }
     }

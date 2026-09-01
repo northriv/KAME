@@ -201,7 +201,9 @@ int main(int argc, char *argv[]) {
     //NSApplication appearance.  \sa the View > Appearance menu
     QCommandLineOption appearanceOption("appearance",
             QCoreApplication::translate("main",
-                "light, dark, or system to follow the desktop (default: dark)"),
+                "light, dark, or system to follow the desktop (default: dark). "
+                "This is the reliable way: switching from the View menu while "
+                "KAME runs leaves parts of the window as they were built"),
             QCoreApplication::translate("main", "system|light|dark"));
     parser.addOption(appearanceOption);
 

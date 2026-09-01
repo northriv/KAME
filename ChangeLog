@@ -218,15 +218,17 @@
   combinations are a menu apart -- View > Appearance for the window,
   View > Theme Color of Graph for the graph.  --appearance system|light|dark
   chooses at startup, "system" being the old behaviour of following the
-  desktop.  Going back to "system" hands NSApplication a nil appearance
+  desktop, and is the reliable way: the View menu's switch is marked
+  (Experimental) because changing it while KAME runs does not finish the job,
+  which the user had found before and which nothing here fixed.  Going back to "system" hands NSApplication a nil appearance
   directly as well as unsetting Qt's, since which of the two would have been
-  enough is not something to assume.  And every style sheet that names a
-  palette role is set again whenever the scheme changes: a sheet resolves
+  enough is not something to assume.  Every style sheet that names a palette
+  role is also set again whenever the scheme changes, a sheet resolving
   palette(...) when it is SET and never afterwards -- measured, by grabbing a
   QTabBar carrying KAME's own sheet, whose pixel read #d9d9d9 under Dark, still
   #d9d9d9 after switching to Light, and #555555 once the same string was set a
-  second time.  That is what left the tab strips with a near-black background
-  and inverted text.
+  second time.  Neither that nor the QMdiArea background was enough to make a
+  runtime switch come out clean, hence the (Experimental).
 - UI: the toolboxes are as wide as what is in them and no wider (user).  The
   screen fraction that used to share the decision was doing nothing the floor
   did not already do -- keeping a small display from cramping them -- while on
