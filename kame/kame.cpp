@@ -86,6 +86,16 @@
 QWidget *g_pFrmMain = nullptr;
 static std::unique_ptr<XMessageBox> s_pMessageBox;
 
+//! A QMdiArea's background is frozen at construction: measured against Qt
+//! 6.10.1 on this Mac, it read #bfbfbf through Light, Dark and back again
+//! while the palette around it did change, so all three of KAME's pane stacks
+//! kept one grey whatever the scheme was.  Give it the window's colour, and
+//! give it again whenever that colour moves.
+static void followPalette(QMdiArea *area) {
+    if(area)
+        area->setBackground(area->palette().brush(QPalette::Window));
+}
+
 FrmKameMain::FrmKameMain()
     :QMainWindow(NULL) {
     resize(0,0);
@@ -107,6 +117,7 @@ FrmKameMain::FrmKameMain()
     m_pMdiCentral->setViewMode(QMdiArea::TabbedView);
     m_pMdiCentral->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_pMdiCentral->setTabsClosable(true);
+    followPalette(m_pMdiCentral);
 
 //    setDockOptions(QMainWindow::ForceTabbedDocks | QMainWindow::VerticalTabs);
     //Left MDI area.
@@ -119,6 +130,7 @@ FrmKameMain::FrmKameMain()
     m_pMdiLeft->setViewMode(QMdiArea::TabbedView);
     m_pMdiLeft->setTabPosition(QTabWidget::West);
 //    m_pMdiLeft->setTabPosition(QTabWidget::North);
+    followPalette(m_pMdiLeft);
     dockLeft->setWidget(m_pMdiLeft);
     addDockWidget(Qt::LeftDockWidgetArea, dockLeft);
 
@@ -132,6 +144,7 @@ FrmKameMain::FrmKameMain()
     m_pMdiRight->setViewMode(QMdiArea::TabbedView);
     m_pMdiRight->setTabPosition(QTabWidget::East);
 //    m_pMdiRight->setTabPosition(QTabWidget::North);
+    followPalette(m_pMdiRight);
     dockRight->setWidget(m_pMdiRight);
     addDockWidget(Qt::RightDockWidgetArea, dockRight);
 //    addDockWidget(Qt::TopDockWidgetArea, dockRight);
@@ -839,10 +852,12 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
     //or the desktop itself while KAME is running.
     connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged,
         this, [this](Qt::ColorScheme) {
-            for(auto &&s: m_edgeSliders)
+            for(auto &&s: m_edgeSliders) {
                 if(QTabBar *tabs = s.area->findChild<QTabBar *>())
                     tabs->setStyleSheet(flatTabStyleSheet(s.vertical ? Qt::BottomEdge :
                         (s.left ? Qt::LeftEdge : Qt::RightEdge)));
+                followPalette(s.area);
+            }
         });
     m_pEdgeHoverTimer = new QTimer(this);
     connect(m_pEdgeHoverTimer, &QTimer::timeout, this, &FrmKameMain::pollEdgeAutoHide);
