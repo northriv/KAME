@@ -859,14 +859,25 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
     //changed it -- the menu, the command line, or the desktop while KAME runs.
     connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged,
         this, [this](Qt::ColorScheme) {
-            if(qApp->styleSheet().length())
-                qApp->setStyleSheet(qApp->styleSheet());
-            for(auto &&s: m_edgeSliders) {
-                if(QTabBar *tabs = s.area->findChild<QTabBar *>())
-                    tabs->setStyleSheet(flatTabStyleSheet(s.vertical ? Qt::BottomEdge :
-                        (s.left ? Qt::LeftEdge : Qt::RightEdge)));
-                followPalette(s.area);
-            }
+            //One turn of the event loop later, and that is the whole point:
+            //colorSchemeChanged is emitted BEFORE QApplication's palette is
+            //replaced, so everything below -- which reads the palette, whether
+            //through palette(...) in a style sheet or through followPalette()
+            //-- would take the colours of the scheme being left behind.
+            //Between two schemes, one step stale is exactly inverted: asking
+            //for Dark painted these widgets white.  Measured on 6.10.1:
+            //  in the handler       app Window == #ffffff  (still Light)
+            //  next turn            app Window == #1e1e1e
+            QTimer::singleShot(0, this, [this]{
+                if(qApp->styleSheet().length())
+                    qApp->setStyleSheet(qApp->styleSheet());
+                for(auto &&s: m_edgeSliders) {
+                    if(QTabBar *tabs = s.area->findChild<QTabBar *>())
+                        tabs->setStyleSheet(flatTabStyleSheet(s.vertical ? Qt::BottomEdge :
+                            (s.left ? Qt::LeftEdge : Qt::RightEdge)));
+                    followPalette(s.area);
+                }
+            });
         });
     m_pEdgeHoverTimer = new QTimer(this);
     connect(m_pEdgeHoverTimer, &QTimer::timeout, this, &FrmKameMain::pollEdgeAutoHide);

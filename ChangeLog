@@ -223,7 +223,13 @@
   which the user had found before and which nothing here fixed.  Two real
   defects did come out of chasing it -- a QMdiArea's background never followed
   the palette, and a style sheet resolves palette(...) once and never again --
-  and both are fixed on their own merits, the first mattering at startup too.  Every style sheet that names a palette
+  and both are fixed on their own merits, the first mattering at startup too.
+  A third one explained the strangest half of the symptom, widgets coming out
+  inverted -- white when Dark was asked for.  colorSchemeChanged is emitted
+  before QApplication's palette is replaced, so re-reading the palette from
+  inside the handler picks up the scheme being left behind, and between two
+  schemes one step stale is inversion.  The work is now done one turn of the
+  event loop later.  Every style sheet that names a palette
   role is set again whenever the scheme changes, a sheet resolving
   palette(...) when it is SET and never afterwards -- measured, by grabbing a
   QTabBar carrying KAME's own sheet, whose pixel read #d9d9d9 under Dark, still
