@@ -28,6 +28,8 @@
 #include <QPropertyAnimation>
 #include <QVariantAnimation>
 #include <QStatusBar>
+#include <QStyleHints>
+#include <QActionGroup>
 #include <QLineEdit>
 #include <QAbstractSpinBox>
 #include <QFileInfo>
@@ -191,6 +193,37 @@ FrmKameMain::FrmKameMain()
     m_pMdiRight->activatePreviousSubWindow();
 
     m_pViewMenu->addSeparator();
+    //Dark by default, which with the graph's Night theme -- the default there
+    //all along -- makes dark-on-dark what KAME starts as.  The two switches
+    //are independent, so all four combinations are a menu apart.
+    //
+    //Qt follows the desktop unless told otherwise, and since 6.8 it can be
+    //told without leaving the native style: QStyleHints::setColorScheme() sets
+    //the NSApplication appearance on macOS rather than swapping in a
+    //hand-painted Fusion palette.
+    //\sa the --appearance option, which is the same thing at startup
+    {
+        QMenu *menu = m_pViewMenu->addMenu(i18n("&Appearance"));
+        auto *group = new QActionGroup(this);
+        const struct {const char *label; Qt::ColorScheme scheme;} choices[] = {
+            {I18N_NOOP("&System"), Qt::ColorScheme::Unknown},
+            {I18N_NOOP("&Light"), Qt::ColorScheme::Light},
+            {I18N_NOOP("&Dark"), Qt::ColorScheme::Dark}};
+        for(auto &&c: choices) {
+            QAction *act = menu->addAction(i18n_noncontext(c.label));
+            act->setCheckable(true);
+            act->setActionGroup(group);
+            act->setChecked(c.scheme == g_kameColorSchemeRequested);
+            Qt::ColorScheme scheme = c.scheme;
+            connect(act, &QAction::triggered, this, [scheme]{
+                g_kameColorSchemeRequested = scheme;
+                if(scheme == Qt::ColorScheme::Unknown)
+                    QGuiApplication::styleHints()->unsetColorScheme();
+                else
+                    QGuiApplication::styleHints()->setColorScheme(scheme);
+            });
+        }
+    }
     m_pGraphThemeMenu = m_pViewMenu->addMenu(i18n( "Theme Color of &Graph" ) );
     m_pGraphThemeMenu->setIcon( QIcon( *g_pIconGraph));
     m_pGraphThemeMenu->addAction(m_pGraphThemeNightAction);
@@ -484,6 +517,11 @@ QString flatTabStyleSheet(Qt::Edge accent) {
         "  border-%2:3px solid palette(highlight);}").arg(metrics).arg(side);
 }
 } // namespace
+
+//! Set before the window exists, from the command line, which defaults it to
+//! Dark.  Unknown means "follow the desktop", which is what --appearance
+//! system asks for.
+Qt::ColorScheme g_kameColorSchemeRequested = Qt::ColorScheme::Unknown;
 
 FrmKameMain::EdgeSlider *
 FrmKameMain::edgeSliderFor(QWidget *win) {

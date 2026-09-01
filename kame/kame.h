@@ -19,6 +19,12 @@
 #include <QMainWindow>
 #include <QPointer>
 
+//! What the command line asked the appearance to be, so the View menu can say
+//! which one is in force: QStyleHints::colorScheme() reports the EFFECTIVE
+//! scheme and cannot tell a forced Dark from a system that happens to be dark.
+//! Qt::ColorScheme::Unknown means nothing was forced.
+extern Qt::ColorScheme g_kameColorSchemeRequested;
+
 class Ui_FrmJournalReader;
 typedef QForm<QWidget, Ui_FrmJournalReader> FrmJournalReader;
 class Ui_FrmGraphList;

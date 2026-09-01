@@ -209,6 +209,16 @@
 - UI: nothing is put in the user's hand at startup.  KAME opened with the west
   toolbox activated and holding itself open, so the first thing on screen was
   a panel asking to be dismissed.
+- UI: KAME starts dark.  Qt follows the desktop appearance by default and,
+  since 6.8, can be told otherwise without leaving the native style
+  (QStyleHints::setColorScheme sets the NSApplication appearance on macOS
+  rather than swapping in a hand-painted Fusion palette).  The graph's Night
+  theme has been the default all along, so dark-on-dark is what the two
+  defaults now agree on; the switches stay independent, so all four
+  combinations are a menu apart -- View > Appearance for the window,
+  View > Theme Color of Graph for the graph.  --appearance system|light|dark
+  chooses at startup, "system" being the old behaviour of following the
+  desktop.
 - UI: the toolboxes are as wide as what is in them and no wider (user).  The
   screen fraction that used to share the decision was doing nothing the floor
   did not already do -- keeping a small display from cramping them -- while on

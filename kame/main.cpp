@@ -22,6 +22,7 @@
 #else
 	#include <QCommandLineParser>
 	#include <QCommandLineOption>
+#include <QStyleHints>
 	#include <QApplication>
     #include <QMainWindow>
 #endif
@@ -195,7 +196,31 @@ int main(int argc, char *argv[]) {
             QCoreApplication::translate("main", "path"));
     parser.addOption(moduleDirectoryOption);
 
+    //Qt follows the system appearance, and since 6.8 can be told not to
+    //without leaving the native style -- on macOS setColorScheme() sets the
+    //NSApplication appearance.  \sa the View > Appearance menu
+    QCommandLineOption appearanceOption("appearance",
+            QCoreApplication::translate("main",
+                "light, dark, or system to follow the desktop (default: dark)"),
+            QCoreApplication::translate("main", "system|light|dark"));
+    parser.addOption(appearanceOption);
+
     parser.process(app); //processes args.
+
+    {
+        //Dark unless told otherwise, to match the graph, whose Night theme has
+        //been the default all along -- a measurement is looked at in the dark
+        //as often as not, and a white window beside a black graph is the worse
+        //half of the four combinations the two switches make.
+        g_kameColorSchemeRequested = Qt::ColorScheme::Dark;
+        QString want = parser.value(appearanceOption).toLower();
+        if(want == "system") g_kameColorSchemeRequested = Qt::ColorScheme::Unknown;
+        else if(want == "light") g_kameColorSchemeRequested = Qt::ColorScheme::Light;
+        else if(want.length() && (want != "dark"))
+            fprintf(stderr, "--appearance takes system, light or dark\n");
+        if(g_kameColorSchemeRequested != Qt::ColorScheme::Unknown)
+            QGuiApplication::styleHints()->setColorScheme(g_kameColorSchemeRequested);
+    }
 
     QStringList args = parser.positionalArguments();
 
