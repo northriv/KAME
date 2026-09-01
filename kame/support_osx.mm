@@ -1,7 +1,6 @@
 #include "support_osx.h"
 
 #include <Foundation/Foundation.h>
-#include <AppKit/AppKit.h>
 
 static id activity;
 
@@ -15,15 +14,6 @@ void suspendLazySleeps() {
 
 void resumeLazySleeps() {
     [[NSProcessInfo processInfo] endActivity:activity];
-}
-
-void setAppAppearance(int mode) {
-    NSAppearance *appearance = nil;   //!< nil is "whatever the desktop says"
-    if(mode == 1)
-        appearance = [NSAppearance appearanceNamed:NSAppearanceNameAqua];
-    else if(mode == 2)
-        appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
-    [NSApplication sharedApplication].appearance = appearance;
 }
 
 void *autoReleasePoolInit() {

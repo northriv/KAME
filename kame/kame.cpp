@@ -29,9 +29,6 @@
 #include <QVariantAnimation>
 #include <QStatusBar>
 #include <QStyleHints>
-#if defined __MACOSX__ || defined __APPLE__
-    #include "support_osx.h"
-#endif
 #include <QActionGroup>
 #include <QLineEdit>
 #include <QAbstractSpinBox>
@@ -545,13 +542,12 @@ QString flatTabStyleSheet(Qt::Edge accent) {
 //! system asks for.
 Qt::ColorScheme g_kameColorSchemeRequested = Qt::ColorScheme::Unknown;
 
-//! Twice on macOS, deliberately.
-//!
-//! QStyleHints is what Qt's own palette follows, and AppKit is what the native
-//! chrome follows -- and going back to "follow the desktop" means handing
-//! NSApplication a nil appearance, which is not something to assume Qt's
-//! unset path does.  Setting both leaves nothing to trust: whichever of them
-//! would have been enough, they now agree.
+//! Qt alone: an AppKit call was added here on the suspicion that
+//! unsetColorScheme() might not hand NSApplication a nil appearance, and then
+//! measured to be unnecessary -- on 6.10.1 the palette follows Light, Dark and
+//! back to the desktop exactly as it should.  It is gone rather than kept as a
+//! belt, since a line nobody can point at a reason for is the kind that gets
+//! maintained for years.
 void
 kameApplyColorScheme(Qt::ColorScheme scheme) {
     g_kameColorSchemeRequested = scheme;
@@ -559,10 +555,6 @@ kameApplyColorScheme(Qt::ColorScheme scheme) {
         QGuiApplication::styleHints()->unsetColorScheme();
     else
         QGuiApplication::styleHints()->setColorScheme(scheme);
-#if defined __MACOSX__ || defined __APPLE__
-    setAppAppearance((scheme == Qt::ColorScheme::Unknown) ? 0 :
-        ((scheme == Qt::ColorScheme::Light) ? 1 : 2));
-#endif
 }
 
 FrmKameMain::EdgeSlider *
