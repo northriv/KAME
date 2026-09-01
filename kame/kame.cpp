@@ -846,12 +846,19 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
         });
         connect(anim, &QPropertyAnimation::finished, this, [this]{updateToolboxStrips();});
     }
-    //A style sheet resolves palette(...) when it is set, so the tab strips
-    //keep the colours of the scheme they were polished under until they are
-    //given the sheet again.  Whoever changed it -- the menu, the command line,
-    //or the desktop itself while KAME is running.
+    //A style sheet resolves palette(...) when it is SET and never again --
+    //measured, by grabbing a QTabBar carrying this very sheet: the pixel read
+    //#d9d9d9 under Dark, still #d9d9d9 after switching to Light, and #555555
+    //once the same string was set a second time.  That is why the tab strips
+    //kept a near-black background and inverted text after the scheme changed.
+    //
+    //So every sheet that names a palette role is set again here: the strips',
+    //and the application's own (QGroupBox borders, palette(mid)).  Whoever
+    //changed it -- the menu, the command line, or the desktop while KAME runs.
     connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged,
         this, [this](Qt::ColorScheme) {
+            if(qApp->styleSheet().length())
+                qApp->setStyleSheet(qApp->styleSheet());
             for(auto &&s: m_edgeSliders) {
                 if(QTabBar *tabs = s.area->findChild<QTabBar *>())
                     tabs->setStyleSheet(flatTabStyleSheet(s.vertical ? Qt::BottomEdge :
