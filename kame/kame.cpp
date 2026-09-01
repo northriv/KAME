@@ -215,15 +215,12 @@ FrmKameMain::FrmKameMain()
     //the NSApplication appearance on macOS rather than swapping in a
     //hand-painted Fusion palette.
     //\sa the --appearance option, which is the same thing at startup
+    //Switching while KAME runs works, which took three fixes to be able to
+    //say: a style sheet resolves palette(...) once when it is set, a QMdiArea
+    //never follows the palette at all, and colorSchemeChanged arrives one turn
+    //before the palette it announces.
     {
-        //(Experimental), because switching while KAME is running does not
-        //finish the job (user, who had found the same before).  Some of it is
-        //Qt: a style sheet resolves palette(...) when it is set and never
-        //again, measured here, and re-setting every sheet on the change --
-        //which this does -- still leaves widgets holding the old colours.  So
-        //the menu stays, labelled for what it is, and the way to get a clean
-        //one is the command line, which decides before anything is built.
-        QMenu *menu = m_pViewMenu->addMenu(i18n("&Appearance (Experimental)"));
+        QMenu *menu = m_pViewMenu->addMenu(i18n("&Appearance"));
         auto *group = new QActionGroup(this);
         const struct {const char *label; Qt::ColorScheme scheme;} choices[] = {
             {I18N_NOOP("&System"), Qt::ColorScheme::Unknown},
@@ -235,12 +232,9 @@ FrmKameMain::FrmKameMain()
             act->setActionGroup(group);
             act->setChecked(c.scheme == g_kameColorSchemeRequested);
             Qt::ColorScheme scheme = c.scheme;
+            //No message: the window changing colour is the confirmation.
             connect(act, &QAction::triggered, this, [scheme]{
-                kameApplyColorScheme(scheme);
-                gMessagePrint(i18n("Appearance changed. Parts of the window keep "
-                    "the colours they were built with until KAME is restarted; "
-                    "kame --appearance system|light|dark starts clean."));
-            });
+                kameApplyColorScheme(scheme); });
         }
     }
     m_pGraphThemeMenu = m_pViewMenu->addMenu(i18n( "Theme Color of &Graph" ) );
