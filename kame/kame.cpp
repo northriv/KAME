@@ -886,6 +886,9 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
             //"the wrong side is showing".  Re-anchor instead.
             if(s->collapsed && !s->left)
                 s->win->move(s->expanded.right() - s->win->width() + 1, s->win->y());
+            //Folded, and now held there: see pinFold().
+            if(s->collapsed)
+                pinFold( *s, true);
             updateToolboxStrips();
         });
     }
@@ -910,7 +913,11 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
             markPinned( *s);
             if( !on && s->collapsed) setToolboxCollapsed( *s, false);
         });
-        connect(anim, &QPropertyAnimation::finished, this, [this]{updateToolboxStrips();});
+        connect(anim, &QPropertyAnimation::finished, this, [this, s]{
+            if(s->collapsed)
+                pinFold( *s, true);
+            updateToolboxStrips();
+        });
     }
     //A style sheet resolves palette(...) when it is SET and never again --
     //measured, by grabbing a QTabBar carrying this very sheet: the pixel read
@@ -941,9 +948,6 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
                             (s.left ? Qt::LeftEdge : Qt::RightEdge)));
                     followPalette(s.area);
                 }
-                //Both of the above re-lay the toolboxes out, and a folded one
-                //does not survive a layout pass on its own.
-                reassertToolboxFolds();
             });
         });
     m_pEdgeHoverTimer = new QTimer(this);
@@ -1107,30 +1111,29 @@ FrmKameMain::collapsedGeometryOf(const EdgeSlider &s) const {
     return to;
 }
 void
-FrmKameMain::reassertToolboxFolds() {
+FrmKameMain::pinFold(EdgeSlider &s, bool pin) {
     //A folded toolbox is held narrow against a minimum that keeps coming back:
     //the window re-derives it from the QMdiArea's size hint on EVERY layout
-    //pass (~196 px), which is why setToolboxCollapsed() lifts it each time it
-    //runs rather than once at setup.  Changing the appearance is such a pass,
-    //and it happens with nothing folding -- so the 43 px bar was clamped wide
-    //again where it stood, which on the east toolbox, whose left edge was
-    //moved to keep its right one, put the window out over the screen edge
-    //until the next fold or hover put it back.
-    for(auto &&s: m_edgeSliders) {
-        if( !s.collapsed || (s.anim->state() == QAbstractAnimation::Running))
-            continue;
-        if(s.vertical) {
-            s.area->setMinimumHeight(0);
-            s.win->setMinimumHeight(0);
-        }
-        else {
-            s.area->setMinimumWidth(0);
-            s.win->setMinimumWidth(0);
-        }
-        QRect to = collapsedGeometryOf(s);
-        if(s.win->geometry() != to)
-            s.win->setGeometry(to);
-    }
+    //pass (~196 px), which is why setToolboxCollapsed() lifts it on each call
+    //rather than once at setup.  Changing the appearance is such a pass, and
+    //one that arrives with nothing folding -- so a 43 px bar was clamped back
+    //out to 196 where it stood, until the next hover folded it again.
+    //
+    //A maximum is the answer rather than another pass of the minimum: it is a
+    //property the window keeps, not something re-derived from a child's hint,
+    //so nothing has to run at the right moment for it to hold.  Re-applying
+    //the fold afterwards was tried first and is a race that cannot be won --
+    //measured, the clamp lands a turn after the change is made, so the
+    //re-apply either runs too early or has to guess how long to wait.
+    //
+    //Lifted before every transition, since the animation grows the window
+    //back through widths this would otherwise forbid, and put back when a
+    //fold has finished.  QPropertyAnimation::stop() does not emit finished(),
+    //so a fold interrupted half-way does not leave a maximum behind.
+    if(s.vertical)
+        s.win->setMaximumHeight(pin ? s.win->height() : QWIDGETSIZE_MAX);
+    else
+        s.win->setMaximumWidth(pin ? s.win->width() : QWIDGETSIZE_MAX);
 }
 void
 FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
@@ -1181,6 +1184,7 @@ FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
     //tabs blinking out, not as an entrance.  These windows are opaque.
     s.win->setWindowOpacity(1.0);
     s.anim->stop();
+    pinFold(s, false);   //the animation moves through widths a pin forbids
     s.anim->setStartValue(s.win->geometry());
     s.anim->setEndValue(to);
     s.anim->start();

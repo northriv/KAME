@@ -258,8 +258,9 @@ private:
     QRect layoutGeometryOf(QWidget *win) const;
     //! Where folding puts a toolbox: its resting bar, at the edge it clings to.
     QRect collapsedGeometryOf(const struct EdgeSlider &s) const;
-    //! Re-applies that after something else has re-laid the toolboxes out.
-    void reassertToolboxFolds();
+    //! Holds a folded toolbox at the size folding left it, against a minimum
+    //! the window re-derives on every layout pass.
+    void pinFold(struct EdgeSlider &s, bool pin);
 	shared_ptr<XScriptingThread> runNewScript(const XString &label, const XString &filename);
 	QTimer *m_pTimer;
 	shared_ptr<XMeasure> m_measure;

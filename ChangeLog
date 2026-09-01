@@ -206,15 +206,21 @@
   or "dark").  --appearance still wins for the run it is given on, and does
   NOT overwrite the stored choice: a flag says "start this way this time", and
   one that quietly rewrote the setting would take that meaning away.
-- UI: a folded toolbox no longer jumps when the appearance changes.  The
+- UI: a folded toolbox no longer grows when the appearance changes.  The
   window re-derives its minimum width from the QMdiArea's size hint on every
-  layout pass -- which is why setToolboxCollapsed() lifts that minimum each
-  time it runs rather than once at setup -- and re-setting the application
-  style sheet is such a pass, arriving while nothing is folding.  The 43 px
-  bar was clamped back to ~196 px where it stood, and on the east toolbox,
-  which keeps its right edge by moving its left one, that pushed the window
-  out past the screen edge until the next hover put it back.  The fold is now
-  re-applied after the appearance work.
+  layout pass -- which is why setToolboxCollapsed() lifts that minimum on each
+  call rather than once at setup -- and a palette change is such a pass,
+  arriving while nothing is folding: measured in a three-pane reproduction,
+  a 43 px bar came back out to exactly the 196 px minimum and stayed there.
+  setColorScheme() alone does it, so re-setting the style sheet was never the
+  cause.  A maximum holds it instead, which is a property the window keeps
+  rather than one re-derived from a child's hint, so nothing has to run at the
+  right moment: it is lifted before every fold or unfold, since the animation
+  passes through widths it would forbid, and put back when a fold finishes
+  (a fold interrupted half-way leaves none, stop() not emitting finished()).
+  Re-applying the fold after the change was tried first and is a race nobody
+  wins -- the clamp lands a turn later than the change, so the re-apply either
+  runs too early, as it did, or has to guess how long to wait.
 - UI: the four hand-placed windows -- the main window, both toolboxes and the
   message log -- come back where they were left.  Their geometries go to
   ~/.config/kame/kame.ini (a text file on every platform, macOS included,
