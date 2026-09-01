@@ -43,42 +43,28 @@ XSecondaryDriverInterface<T>::onConnectedRecorded(const Snapshot &shot_emitter, 
 	// dispatch happens when finishWritingRaw's transaction commits.  So the
 	// thread here is the primary driver's acquisition thread.
 	//
-	// **Dormant as of 2026-08-14, and kept deliberately.**  No thread that can
-	// reach this function is at HIGHEST today: AcquisitionPriority grants only
-	// the OS elevation, and the four remaining direct HIGHEST sites (the
-	// realtime DSO reader, the Thamway async reader, the NI-DAQ DMA writer, the
-	// DigilentWF reader) are DAQ threads that never take the record path — the
-	// recording thread is a different one.  The fifth, the pulser's free-run
-	// loop, is gone: it did no STM work and leaked HIGHEST into visualize()'s
-	// caller.  What keeps this guard here is that arming it costs one TLS read
-	// on a path that already snapshots the whole driver list, while re-deriving
-	// WHY it is needed costs the argument below all over again.
+	// **Inert in KAME, and kept deliberately.**  KAME sets no STM tier above
+	// NORMAL anywhere, so the guard never arms here; it demotes a realtime
+	// committer only, and leaves a NORMAL or lowprio one alone.  What keeps it
+	// is the invariant it protects for a host that DOES use kamestm's realtime
+	// tier: that tier is safe only while realtime threads do not share a
+	// Linkage, and this function breaks that by construction — it snapshots the
+	// ENTIRE driver list, and re-snapshots it on every iteration of the retry
+	// loop below.  Two acquisition threads each running a secondary driver's
+	// analysis (an NMR pulse analyzer on a DSO, an ODMR analysis on a camera)
+	// would then contend at whole-driver-list scope, the regime measured at 10x
+	// throughput loss for four such threads and 42x for eight.  Arming costs one
+	// TLS read on a path that already snapshots the whole driver list.
 	//
-	// HIGHEST is safe only under a deployment invariant: realtime threads must
-	// not share a Linkage.  This function breaks it by construction — it
-	// snapshots the ENTIRE driver list, and re-snapshots it on every iteration
-	// of the retry loop below.  Two acquisition threads each running a secondary
-	// driver's analysis (an NMR pulse analyzer on a DSO, an ODMR analysis on a
-	// camera) then contend at whole-driver-list scope at HIGHEST, which is the
-	// regime measured at 10x throughput loss for four such threads and 42x for
-	// eight.
+	// The general rule this is an instance of: a listener that widens the scope
+	// it touches should drop the priority it was entered at.  One-directional —
+	// entered from a UI or script thread via requestAnalysis(), raising the
+	// caller would hand lowprio work a priority it cannot claim itself.
 	//
-	// So the fan-out point lowers itself.  Secondary-driver analysis is not
-	// realtime work; it should not inherit HIGHEST merely because a realtime
-	// thread happened to invoke it.  The general rule this is an instance of: a
-	// listener that widens the scope it touches should drop the priority it was
-	// entered at.
-	//
-	// Demote HIGHEST only.  An earlier version used
-	// ScopedPriority(Priority::NORMAL) here, which was wrong in the other
-	// direction: entered from a UI or script thread via requestAnalysis() it
-	// would have RAISED the caller to NORMAL, handing lowprio work a priority it
-	// cannot claim itself.
-	//
-	// This is still needed after kamestm demotes at
+	// Needed here in addition to kamestm's guard at
 	// Transaction::finalizeCommitment's messaging loop, because
 	// requestAnalysis() calls this directly rather than through a marked
-	// message, so that demotion does not cover it.
+	// message, so that one does not cover it.
 	Transactional::ScopedDemoteRealtime _no_realtime_in_analysis;
 	Snapshot shot_all_drivers( *m_drivers.lock());
 	if( !shot_all_drivers.isUpperOf( *this))

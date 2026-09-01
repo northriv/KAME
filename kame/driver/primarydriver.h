@@ -167,29 +167,20 @@ protected:
     //! finishWritingRaw, in µs.  0 (the default) = unbounded, i.e. today's
     //! behaviour.
     //!
-    //! Only realtime acquisition loops need this, and the reason is specific.
-    //! An acquisition loop at Priority::HIGHEST is demoted to NORMAL for
-    //! everything downstream of the record -- the marked-message dispatch inside
-    //! the commit, then visualize() and onVisualization -- because that is other
-    //! people's work and must not inherit an exemption from politeness.  But once
-    //! demoted it can WAIT, so the loop's period becomes exposed to whatever
-    //! downstream contends with, which is the one thing HIGHEST was supposed to
-    //! protect.
+    //! What it bounds is the acquisition loop's PERIOD.  Everything downstream
+    //! of the record -- the marked-message dispatch inside the commit, then
+    //! visualize() and onVisualization -- is other people's work, and while it
+    //! waits, the loop is not going round.  The budget is how much of its period
+    //! the loop declares it will lend; beyond that the negotiator stops waiting.
+    //! It is a thread-local ABSOLUTE limit, so one guard at the top of
+    //! finishWritingRaw covers the commit and the downstream half together.
     //!
-    //! A wait budget closes that without handing downstream any privilege: the
-    //! loop declares how much of its period it will lend, and beyond that the
-    //! negotiator stops waiting.  The budget is a thread-local ABSOLUTE limit, so
-    //! one guard at the top of finishWritingRaw covers both demoted regions --
-    //! and it is inert during the HIGHEST part, since HIGHEST leaves the round
-    //! loop before it can sleep.  (An earlier note here claimed a budget was
-    //! simply inert on a HIGHEST thread; that holds only while it IS HIGHEST.)
-    //!
-    //! **Default 20 ms, on every primary driver, realtime or not.**  KAME is a
+    //! **Default 20 ms, on every primary driver.**  KAME is a
     //! measurement instrument: a record whose commit stalls for a third of a
     //! second is a bad data point, not merely a slow one, and past about 20 ms
     //! that starts to show up in the measurement whatever the driver's priority.
-    //! So the bound is not a realtime luxury to be gated on Priority::HIGHEST --
-    //! it is the acquisition path's contract.
+    //! So the bound is not a realtime luxury to be gated on anything -- it is
+    //! the acquisition path's contract.
     //!
     //! It is not free.  Grand-scope arm, 8 threads --
     //!

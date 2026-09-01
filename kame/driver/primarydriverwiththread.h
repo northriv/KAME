@@ -43,33 +43,11 @@ protected:
     //! is what an OS scheduling class has to be (POSIX RT attributes are set at
     //! thread setup; MMCSS registers a thread once).
     //!
-    //! **It grants no STM priority, and that is the whole history of this
-    //! class.**  It used to raise the loop to `Priority::HIGHEST`, and the
-    //! field and the lab converged on a structural incompatibility at the tier
-    //! contracts' meeting point: HIGHEST never waits (its fair-mode immunity IS
-    //! the contract), so it is the one contender a NORMAL transaction's
-    //! privilege cannot stop.  When any privilege-holding transaction's closure
-    //! takes longer than the HIGHEST commit period (closure x rate >= 1 — e.g.
-    //! a 20 ms PNR analysis against a 50 /s record stream), it resonates into
-    //! quasi-starvation, re-running its closure every record (measured: 1.1 ->
-    //! 15.5 closure runs per commit) while its privilege pins every OTHER
-    //! negotiator — a system-wide freeze that ends in the HANG watchdog.  At
-    //! NORMAL the acquisition commits negotiate like everyone, fair-mode works
-    //! on them, and the same load runs clean.  (User verdict, 2026-07-31; the
-    //! reasoning is in kamestm/design/RT_READINESS.md.)
-    //!
-    //! The STM half was a `ScopedPriority(Priority::NORMAL)` base for a while
-    //! after that verdict, which was dead weight: `execute_internal` below
-    //! already declares NORMAL at thread entry, so the base saved NORMAL and
-    //! restored NORMAL.  Removed 2026-08-14 — an RAII that restores what was
-    //! never changed only invites the reader to believe a tier is in play here.
-    //!
-    //! The OS half stays: CPU preference is a thread property with no
-    //! fair-mode immunity, so it keeps the acquisition thread scheduled
-    //! without letting it starve anyone at the STM level.  The kamestm
-    //! HIGHEST tier itself remains available to hosts that can honour its
-    //! deployment precondition (HIGHEST commit rate x longest peer closure
-    //! << 1); KAME with per-record analyses cannot.
+    //! **It grants no STM priority.**  CPU preference is a thread property; an
+    //! STM tier is a transaction property.  This is only the former, so it keeps
+    //! the acquisition thread scheduled without giving its commits any standing
+    //! against other negotiators.  `execute_internal` below declares
+    //! `Priority::NORMAL` at thread entry and nothing here changes it.
     //!
     //! An alias, not a class of its own: a driver's EXTRA acquisition threads
     //! — DMA writers, async chunk readers, DSO read loops — need exactly this
