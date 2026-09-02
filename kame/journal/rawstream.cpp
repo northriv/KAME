@@ -69,8 +69,19 @@ XRawStreamRecorder::onRelease(const Snapshot &shot, const XListNodeBase::Payload
 void
 XRawStreamRecorder::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	if(m_pGFD) gzclose(static_cast<gzFile>(m_pGFD));
-	m_pGFD = gzopen(QString(( **filename())->to_str()).toLocal8Bit().data(), "wb");
+    XString path = ( **filename())->to_str();
+	m_pGFD = gzopen(QString(path).toLocal8Bit().data(), "wb");
 	m_lastFlushed = XTime();
+    m_writeFailSaid = false;   //!< a new file deserves to be believed again
+    //A path that will not open used to be silent, and the switch stayed on:
+    //KAME then said it was recording raw records while onRecord() skipped
+    //every one of them for want of a handle.  The journal beside this one has
+    //reported exactly this and cleared exactly this kind of switch since it
+    //existed; here it is for the file the data itself goes in.
+    if( !m_pGFD && path.length()) {
+        gErrPrint(i18n("Cannot write ") + path);
+        trans( *recording()) = false;
+    }
 }
 void
 XRawStreamRecorder::onFlush(const Snapshot &shot, XValueNodeBase *) {
@@ -125,14 +136,21 @@ XRawStreamRecorder::onRecord(const Snapshot &shot, XDriver *d) {
                 header.push((int64_t)awared);
     
                 m_filemutex.lock();
-                gzwrite(static_cast<gzFile>(m_pGFD), &header[0], header.size());
-                gzprintf(static_cast<gzFile>(m_pGFD), "%s", (const char*)driver->getName().c_str());
-                gzputc(static_cast<gzFile>(m_pGFD), '\0');
+                gzFile fd = static_cast<gzFile>(m_pGFD);
+                //Checked, all of it.  gzwrite answers with the count and 0 for
+                //an error, so a disk filling up mid-run shows as a short write
+                //-- and unchecked it was invisible: the switch stayed on, the
+                //byte counter went on climbing, and the file stopped growing.
+                const XString &dname(driver->getName());
+                bool ok = (gzwrite(fd, &header[0], header.size()) == (int)header.size());
+                ok = ok && (gzwrite(fd, dname.c_str(), (unsigned)dname.size())
+                        == (int)dname.size());
+                ok = ok && (gzputc(fd, '\0') != -1);
                 assert(header.size() + driver->getName().size() + 1 == headersize);
-                gzwrite(static_cast<gzFile>(m_pGFD), &rawdata[0], size);
+                ok = ok && (gzwrite(fd, &rawdata[0], size) == (int)size);
                 header.clear(); //using as a footer.
                 header.push((uint32_t)allsize);
-                gzwrite(static_cast<gzFile>(m_pGFD), &header[0], header.size());
+                ok = ok && (gzwrite(fd, &header[0], header.size()) == (int)header.size());
                 //Z_FULL_FLUSH ends the deflate block AND resets the dictionary,
                 //so everything up to here stays readable on its own: a KAME that
                 //is killed mid-run leaves a .kamb missing at most the last
@@ -144,12 +162,22 @@ XRawStreamRecorder::onRecord(const Snapshot &shot, XDriver *d) {
                 //is the high-rate file, and each flush costs compression on
                 //every byte written after it.
                 XTime now = XTime::now();
-                if( !m_lastFlushed.isSet() || (now.diff_msec(m_lastFlushed) > 60000)) {
-                    gzflush(static_cast<gzFile>(m_pGFD), Z_FULL_FLUSH);
+                if(ok && ( !m_lastFlushed.isSet()
+                    || (now.diff_msec(m_lastFlushed) > 60000))) {
+                    ok = (gzflush(fd, Z_FULL_FLUSH) == Z_OK);
                     m_lastFlushed = now;
                 }
                 m_filemutex.unlock();
-                m_bytesWritten += allsize;
+                if(ok)
+                    m_bytesWritten += allsize;
+                else if( !m_writeFailSaid) {
+                    //A torn record ends the recording rather than being
+                    //carried past: what follows it would be read as a header.
+                    m_writeFailSaid = true;
+                    gErrPrint(i18n("Writing failed (disk full?): ")
+                        + ( **filename())->to_str());
+                    trans( *recording()) = false;
+                }
             }
         }
     } 

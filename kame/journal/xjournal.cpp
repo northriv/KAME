@@ -435,13 +435,22 @@ XJournalWriter::Out::open(const XString &path) {
     close();
     m_gz = gzopen(path.c_str(), "wb");
     m_bytes = 0;
+    m_failed = false;   //!< a new file deserves to be believed again
     return !!m_gz;
 }
 void
 XJournalWriter::Out::line(const XString &s) {
-    if( !m_gz)
+    if( !m_gz || m_failed)
         return;
-    gzwrite((gzFile)m_gz, s.c_str(), (unsigned)s.size());
+    //gzwrite answers with the uncompressed count and 0 for an error, so a
+    //short write is a failure like any other.  Unchecked, a disk that filled
+    //up mid-run left the session convinced it was journaled: the statistics
+    //went on counting bytes that never landed, and nothing said otherwise
+    //until somebody opened the file.
+    if(gzwrite((gzFile)m_gz, s.c_str(), (unsigned)s.size()) != (int)s.size()) {
+        m_failed = true;
+        return;
+    }
     m_bytes += s.size();
     m_dirty = true;
 }
@@ -450,7 +459,7 @@ static const unsigned int FLUSH_INTERVAL_MS = 60000;
 
 void
 XJournalWriter::Out::flush(bool force) {
-    if( !m_gz || !m_dirty)
+    if( !m_gz || !m_dirty || m_failed)
         return;
     XTime now = XTime::now();
     if( !force && m_flushedAt.isSet() && (now.diff_msec(m_flushedAt) < FLUSH_INTERVAL_MS))
@@ -464,15 +473,50 @@ XJournalWriter::Out::flush(bool force) {
     //extra flushes buy is only the difference between losing a second of
     //provenance to a kill and losing a minute of it.  The same interval as the
     //raw stream, for the same reason.  \sa XRawStreamRecorder::onRecord()
-    gzflush((gzFile)m_gz, Z_FULL_FLUSH);
+    if(gzflush((gzFile)m_gz, Z_FULL_FLUSH) != Z_OK) {
+        m_failed = true;
+        return;
+    }
     m_flushedAt = now;
     m_dirty = false;
 }
 void
 XJournalWriter::Out::close() {
-    if(m_gz)
-        gzclose((gzFile)m_gz);
+    //zlib finishes the stream here, so this is the last chance for a write to
+    //fail -- and the one that costs the tail of the file rather than one line.
+    if(m_gz && (gzclose((gzFile)m_gz) != Z_OK))
+        m_failed = true;
     m_gz = nullptr;
+}
+void
+XJournalWriter::reportWriteFailures() {
+    //Once per file: this is checked every drain, and a full disk does not
+    //stop being full.  Said from the journal thread, where every other
+    //journal message comes from.
+    auto rec = m_recorder.lock();
+    if(m_sessionOut.failed() && !m_sessionFailSaid) {
+        m_sessionFailSaid = true;
+        gErrPrint(i18n_noncontext("Journal: writing failed (disk full?): ")
+            + m_sessionPath + i18n_noncontext(" -- this session is no longer journaled."));
+        m_sessionOut.close();
+        m_sessionPath.clear();
+        if(rec) {
+            //The switch says what is true.  Left on, it would offer to stop
+            //something that had already stopped.
+            trans( *rec->sessionJournal()) = false;
+            rec->setSessionPath(XString());
+        }
+    }
+    if(m_runOut.failed() && !m_runFailSaid) {
+        m_runFailSaid = true;
+        gErrPrint(i18n_noncontext("Journal: writing failed (disk full?): ")
+            + m_openPath + i18n_noncontext(" -- the logbook is closed."));
+        m_runOut.close();
+        m_runOpen = false;
+        m_openPath.clear();
+        if(rec)
+            trans( *rec->recording()) = false;
+    }
 }
 
 //! Text, so `zdiff run1.kamj run2.kamj` and `zgrep` work with no tool at all --
@@ -651,6 +695,7 @@ XJournalWriter::openSession() {
     m_session = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
     m_sessionPath = dir + "/session-"
         + QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss").toStdString() + ".kamj";
+    m_sessionFailSaid = false;
     if( !m_sessionOut.open(m_sessionPath)) {
         gWarnPrint(i18n_noncontext("Journal: cannot write ") + m_sessionPath);
         return;
@@ -727,6 +772,7 @@ XJournalWriter::syncRun() {
             trans( *rec->recording()) = false;
             return;
         }
+        m_runFailSaid = false;
         if( !m_runOut.open(path)) {
             gErrPrint(i18n_noncontext("Journal: cannot write ") + path);
             trans( *rec->recording()) = false;
@@ -1119,6 +1165,7 @@ XJournalWriter::drainOnce() {
     //parsable -- the same property that makes a killed session readable.
     m_sessionOut.flush();
     m_runOut.flush();
+    reportWriteFailures();
     m_bytesJournal = m_sessionOut.bytes() + m_runOut.bytes();
 }
 

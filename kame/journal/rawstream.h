@@ -128,6 +128,9 @@ private:
 	void onRecord(const Snapshot &shot, XDriver *driver);
 	void onFlush(const Snapshot &shot, XValueNodeBase *);
 	const shared_ptr<XBoolNode> m_recording;
+    //! Said once per file: a disk that filled up does not un-fill, and the
+    //! check runs per record.
+    bool m_writeFailSaid = false;
 	atomic<uintptr_t> m_bytesWritten {0};
 	//! Last Z_FULL_FLUSH.  \sa onRecord()
 	XTime m_lastFlushed;

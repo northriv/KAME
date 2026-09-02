@@ -201,6 +201,25 @@
   -- and it now reads worse than it did: the toolbox opens, raises itself,
   takes the keyboard, and folds again on the next poll because the pointer is
   not over it.
+- Journal: a write that fails is noticed.  Neither file checked any write
+  return, and the realistic failure for a month-long run is not a bad path
+  (caught at open) but a disk that fills up in the middle, which arrives as a
+  short return from gzwrite long after the file opened.  It was invisible:
+  the Recording switch stayed on, the statistics went on counting bytes that
+  were not landing, and the file stopped growing, with nothing said until
+  somebody opened it.  Both files now say it once, close, and turn the switch
+  off, so what is on screen is what is on disk.  The .kamb also gained the
+  open check the .kamj had all along -- a path that would not open left the
+  switch on while every record was dropped for want of a handle.
+- Journal: a short read is a broken file, not a success.  gzread answers with
+  a count, and a file cut short -- what a killed KAME leaves, which is the
+  case this format was shaped around -- returns fewer bytes than asked
+  without being an error, so "== -1" let a truncated tail through and the
+  header fields were read out of whatever the buffer held.  Checked against
+  the requested count now, throughout the .kamb reader.  One of them was
+  worse: goToHeader() tested "== Z_NULL", i.e. zero, which caught the end of
+  the file and let the -1 error return through into a length that then
+  decided where to seek.
 - UI: File > Open Recent, holding the last eight measurements.  Every route
   in goes through openMes(), so the dialog, the list itself and the file named
   on the command line all feed it, and saving a .kam or .kamj adds it too.

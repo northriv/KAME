@@ -294,12 +294,20 @@ private:
         void close();
         bool isOpen() const {return !!m_gz;}
         uintptr_t bytes() const {return m_bytes;} //!< uncompressed
+        //! A write, a flush or the close has failed -- a full disk, most
+        //! likely, which is what a month-long run does to one.  Sticky: the
+        //! file is not to be believed again after it.
+        bool failed() const {return m_failed;}
     private:
         void *m_gz = nullptr; //!< gzFile
         uintptr_t m_bytes = 0;
         bool m_dirty = false;
+        bool m_failed = false;
         XTime m_flushedAt;
     };
+    //! Says so once per file, and stops writing what is not being written.
+    void reportWriteFailures();
+    bool m_sessionFailSaid = false, m_runFailSaid = false;
     void capture(uint32_t id, uint32_t kind, const Snapshot &shot, const XNode &node) noexcept;
     void captureValue(Sink &sink, const Snapshot &shot, XValueNodeBase &node) noexcept;
     //! Opens / closes the run file as the user's switch says, writes the

@@ -213,7 +213,12 @@ XJournalReader::readHeader(void *_fd) {
 	//Four bytes first, because they decide which layout this is: the magic,
 	//or -- in a file written before it existed -- the length itself.
 	std::vector<char> head(sizeof(uint32_t));
-	if(gzread(fd, &head[0], (unsigned)head.size()) == -1) throw XIOError(__FILE__, __LINE__);
+	//Not "== -1": gzread answers with the count, and a file cut short -- which
+	//is what a killed KAME leaves, the case this format was shaped around --
+	//returns fewer bytes than asked without being an error.  Unchecked, the
+	//fields below were read out of whatever the buffer held.
+	if(gzread(fd, &head[0], (unsigned)head.size()) != (int)head.size())
+		throw XIOError(__FILE__, __LINE__);
 	uint32_t first;
 	{
 		XPrimaryDriver::RawDataReader reader(head);
@@ -222,7 +227,8 @@ XJournalReader::readHeader(void *_fd) {
 	bool magic = (first == (uint32_t)KAMB_RECORD_MAGIC);
 	uint32_t second = 0;
 	if(magic) {
-		if(gzread(fd, &head[0], (unsigned)head.size()) == -1) throw XIOError(__FILE__, __LINE__);
+		if(gzread(fd, &head[0], (unsigned)head.size()) != (int)head.size())
+			throw XIOError(__FILE__, __LINE__);
 		XPrimaryDriver::RawDataReader reader(head);
 		second = reader.pop<uint32_t>();
 	}
@@ -235,7 +241,7 @@ XJournalReader::readHeader(void *_fd) {
 
 	uint32_t taken = magic ? 2 * sizeof(uint32_t) : sizeof(uint32_t);
 	std::vector<char> buf(fixed - taken);
-	if(buf.size() && (gzread(fd, &buf[0], (unsigned)buf.size()) == -1))
+	if(buf.size() && (gzread(fd, &buf[0], (unsigned)buf.size()) != (int)buf.size()))
 		throw XIOError(__FILE__, __LINE__);
 	XPrimaryDriver::RawDataReader reader(buf);
 	uint32_t check = magic ? reader.pop<uint32_t>() : 0;
@@ -311,10 +317,10 @@ XJournalReader::parseOne(void *_fd, XMutex &mutex) {
     auto rawdata = std::make_shared<XPrimaryDriver::RawData>();
 	try {
 		rawdata->resize(size);
-		if(gzread(fd, &rawdata->at(0), size) == -1)
+		if(gzread(fd, &rawdata->at(0), size) != (int)size)
 			throw XIOError(__FILE__, __LINE__);
 		std::vector<char> buf(sizeof(uint32_t));
-		if(gzread(fd, &buf[0], sizeof(uint32_t)) == -1)
+		if(gzread(fd, &buf[0], sizeof(uint32_t)) != (int)sizeof(uint32_t))
 			throw XIOError(__FILE__, __LINE__);
 		XPrimaryDriver::RawDataReader reader(buf);
 		uint32_t footer_allsize = reader.pop<uint32_t>();
@@ -904,7 +910,10 @@ XJournalReader::goToHeader(void *_fd) {
 	if(gzeof(fd)) throw XIOError(__FILE__, __LINE__);
 	std::vector<char> buf(sizeof(uint32_t));
 	XPrimaryDriver::RawDataReader reader(buf);
-	if(gzread(fd, &buf[0], sizeof(uint32_t)) == Z_NULL) throw XIOError(__FILE__, __LINE__);
+	//Z_NULL is 0, so this used to catch the end of the file and let the error
+	//return of -1 through -- into a length that then decided where to seek.
+	if(gzread(fd, &buf[0], sizeof(uint32_t)) != (int)sizeof(uint32_t))
+		throw XIOError(__FILE__, __LINE__);
 	int allsize = reader.pop<uint32_t>();
 	if(gzseek(fd, -allsize, SEEK_CUR) == -1) throw XIOError(__FILE__, __LINE__);
 }
