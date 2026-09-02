@@ -12,6 +12,7 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "xnodeconnector.h"
+#include "kamesettings.h"
 #include <deque>
 #include <QPushButton>
 #include <QLineEdit>
@@ -448,6 +449,11 @@ XFilePathConnector::onClick() {
     // and list nothing at all; the native helpers silently treated it as a
     // preselected file instead.  Do that split explicitly.
     QString curpath = m_pItem->text();
+    //Nothing typed yet: start where a file was last browsed for rather than
+    //in the process's working directory, which on a lab machine is wherever
+    //KAME happened to be launched from.
+    if( !curpath.length())
+        dialog.setDirectory(kameLastDir("data"));
     if(curpath.length()) {
         QFileInfo fi(curpath);
         if(fi.isDir())
@@ -467,6 +473,7 @@ XFilePathConnector::onClick() {
     QString str = dialog.selectedFiles().at(0);
 #endif
     if(str.length()) {
+        kameStoreLastDir("data", str);
 	    m_pItem->blockSignals(true);
         m_pItem->setText(str);
 	    m_pItem->blockSignals(false);

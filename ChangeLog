@@ -201,6 +201,25 @@
   -- and it now reads worse than it did: the toolbox opens, raises itself,
   takes the keyboard, and folds again on the next poll because the pointer is
   not over it.
+- UI: File > Open Recent, holding the last eight measurements.  Every route
+  in goes through openMes(), so the dialog, the list itself and the file named
+  on the command line all feed it, and saving a .kam or .kamj adds it too.
+  Entries are listed whether or not the file is reachable at this moment -- a
+  measurement on a share that is not mounted this morning is still the one
+  somebody wants, and trying to open it says so plainly enough -- and show the
+  file name with the directory behind it as a tool tip, these paths being long
+  and a lab's files ending in the same handful of names.
+- UI: file dialogs start where that kind of file was last used.  All of them
+  passed "" as the starting directory, which is the process's working
+  directory -- on a lab machine, wherever KAME happened to be launched from --
+  so opening a measurement, running a script, or browsing for a driver's dump
+  file meant navigating there again every single time.  Three keys, not one:
+  measurements, scripts and data files live in different places on a working
+  machine, and a single shared "last directory" would send each of them to
+  wherever the previous one went.  A stored directory that has since gone away
+  is ignored rather than handed to a dialog that cannot list it.  Driver forms
+  keep their existing behaviour of following the path already in the field;
+  the stored one is the fallback when that field is empty.
 - UI: View > Theme Color of Graph is remembered too, as its own word in the
   same file ("night" or "daylight").  It stays independent of the window's
   appearance rather than being derived from it -- a bright graph in a dark

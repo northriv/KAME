@@ -29,7 +29,7 @@
 #include <QVariantAnimation>
 #include <QStatusBar>
 #include <QStyleHints>
-#include <QSettings>
+#include "kamesettings.h"
 #include <QActionGroup>
 #include <QLineEdit>
 #include <QAbstractSpinBox>
@@ -94,19 +94,21 @@ static void followPalette(QMdiArea *area) {
         area->setBackground(area->palette().brush(QPalette::Window));
 }
 
-//! Where the four windows remember how they were left.
-//!
-//! An INI file rather than the platform's native store, and deliberately: on
-//! macOS a plist is owned by cfprefsd, which caches it and writes it back, so
-//! deleting the file -- what somebody does when a layout has gone wrong --
-//! does not reliably take.  This one is a text file at ~/.config/kame/kame.ini
-//! on every platform Qt puts it there, macOS included (measured: 6.10.1 does
-//! NOT use ~/Library/Preferences for an IniFormat store), and it can be read,
-//! edited or thrown away.
-struct KameSettings : public QSettings {
-    KameSettings() : QSettings(QSettings::IniFormat, QSettings::UserScope,
-        "kame", "kame") {}
-};
+QString
+kameLastDir(const char *key) {
+    QString dir = KameSettings().value(QString("lastdir/") + key).toString();
+    //A directory that has gone away -- an unmounted share, a scratch folder
+    //cleaned out -- would send the dialog somewhere it cannot list.
+    return QDir(dir).exists() ? dir : QString();
+}
+void
+kameStoreLastDir(const char *key, const QString &path) {
+    if(path.isEmpty()) return;
+    QFileInfo fi(path);
+    QString dir = fi.isDir() ? fi.absoluteFilePath() : fi.absolutePath();
+    if(dir.length())
+        KameSettings().setValue(QString("lastdir/") + key, dir);
+}
 static void saveWindowGeometry(const char *key, const QRect &geom) {
     if(geom.isValid())
         KameSettings().setValue(QString("geometry/") + key, geom);
@@ -1396,6 +1398,11 @@ FrmKameMain::createMenus() {
     // menubar
     m_pFileMenu = menuBar()->addMenu(i18n( "&File" ) );
     m_pFileMenu->addAction(m_pFileOpenAction);
+    //Under Open, where the hand already is.  What KAME starts with is almost
+    //always what it was last working on.
+    m_pRecentMesMenu = m_pFileMenu->addMenu(i18n( "Open &Recent" ) );
+    m_pRecentMesMenu->setToolTipsVisible(true);   //the directory, behind the name
+    updateRecentMesMenu();
     m_pFileMenu->addAction(m_pFileSaveAction);
     m_pFileMenu->addAction(m_pFileCloseAction);
     m_pFileMenu->addSeparator();
@@ -1465,6 +1472,40 @@ FrmKameMain::processSignals() {
         m_pTimer->setInterval(interval); //restarts the running timer.
 }
 
+void
+FrmKameMain::rememberRecentMes(const QString &path) {
+    if(path.isEmpty()) return;
+    QString full = QFileInfo(path).absoluteFilePath();
+    KameSettings settings;
+    QStringList recent = settings.value("recent").toStringList();
+    recent.removeAll(full);          //re-opening one moves it up, not in twice
+    recent.prepend(full);
+    while(recent.size() > RECENT_MES_MAX)
+        recent.removeLast();
+    settings.setValue("recent", recent);
+    updateRecentMesMenu();
+}
+void
+FrmKameMain::updateRecentMesMenu() {
+    if( !m_pRecentMesMenu) return;
+    m_pRecentMesMenu->clear();
+    QStringList recent = KameSettings().value("recent").toStringList();
+    //Listed whether or not the file is there right now: a measurement on a
+    //share that is not mounted this morning is still the one somebody wants,
+    //and trying to open it says so plainly enough.  Only the name is shown,
+    //with the directory behind it, since these paths are long and a lab's
+    //files end in the same handful of names.
+    for(const QString &path: recent) {
+        QAction *act = m_pRecentMesMenu->addAction(QFileInfo(path).fileName());
+        act->setStatusTip(path);
+        act->setToolTip(path);
+        connect(act, &QAction::triggered, this, [this, path]{
+            kameStoreLastDir("mes", path);
+            openMes(path.toLocal8Bit().data());
+        });
+    }
+    m_pRecentMesMenu->setEnabled( !recent.isEmpty());
+}
 void
 FrmKameMain::saveWindowLayout() {
     //Only the four that are placed by hand: the main window, both toolboxes
@@ -1569,7 +1610,10 @@ void FrmKameMain::fileExitAction_activated() {
 
 void FrmKameMain::fileOpenAction_activated() {
     QString filename = QFileDialog::getOpenFileName (
-        this, i18n("Open Measurement File"), "",
+        //Where measurements were last opened or saved, so a machine whose data
+        //lives one place does not start from the process's working directory
+        //every time.
+        this, i18n("Open Measurement File"), kameLastDir("mes"),
         //! No trailing ";;": it appends an empty name filter, which shows up as a
         //! blank row in the file-type combo of Qt's own widget dialog.
         //A journal's head IS a settings file, so it opens the same way.  The
@@ -1583,6 +1627,7 @@ void FrmKameMain::fileOpenAction_activated() {
         "KAME1 Measurement files (*.mes);;"
         "All files (*.*)"
         );
+    kameStoreLastDir("mes", filename);
 	openMes(filename);
 }
 
@@ -1595,7 +1640,7 @@ void FrmKameMain::fileSaveAction_activated() {
     QString filter = "KAME2 Measurement files (*.kam);;KAME journal (*.kamj)";
 #if QT_VERSION < QT_VERSION_CHECK(5,0,0)
     QString filename = QFileDialog::getSaveFileName (
-        this, i18n("Save Measurement File"), "", filter);
+        this, i18n("Save Measurement File"), kameLastDir("mes"), filter);
 #else
     //old qt cannot make native dialog in this mode.
     QFileDialog dialog(this);
@@ -1606,15 +1651,19 @@ void FrmKameMain::fileSaveAction_activated() {
         dialog.setConfirmOverwrite(true);
     #endif
     dialog.setDefaultSuffix("kam");
+    dialog.setDirectory(kameLastDir("mes"));
     dialog.setAcceptMode(QFileDialog::AcceptSave);
     if( !dialog.exec())
         return;
     QString filename = dialog.selectedFiles().at(0);
 #endif
     if( !filename.isEmpty()) {
+        kameStoreLastDir("mes", filename);
         if(filename.endsWith(".kamj", Qt::CaseInsensitive)) {
-            if(m_journalWriter)
+            if(m_journalWriter) {
                 m_journalWriter->requestSave(filename.toLocal8Bit().data());
+                rememberRecentMes(filename);
+            }
             else
                 gErrPrint(i18n("Journaling is off (KAME_JOURNAL=0); "
                     "save as .kam instead."));
@@ -1626,6 +1675,7 @@ void FrmKameMain::fileSaveAction_activated() {
 			writer.write();
             m_titleDoc = QFileInfo(filename).fileName();
             updateWindowTitle();
+            rememberRecentMes(filename);
         }
 	}
 }
@@ -1686,6 +1736,9 @@ void FrmKameMain::mesStopAction_activated() {
 int
 FrmKameMain::openMes(const XString &filename) {
 	if( !filename.empty()) {
+        //Every route in lands here -- the dialog, the recent list, the command
+        //line -- so this is the one place the list has to be told.
+        rememberRecentMes(QString::fromStdString(filename));
         m_titleDoc = QFileInfo(QString::fromStdString(filename)).fileName();
         updateWindowTitle();
         //Loading is the start of a stretch of work across several drivers and
@@ -1841,7 +1894,7 @@ void FrmKameMain::onScriptLinkClicked(const QUrl &url) {
 }
 void FrmKameMain::scriptRunAction_activated() {
     QString filename = QFileDialog::getOpenFileName (
-        this, i18n("Open Script File"), "",
+        this, i18n("Open Script File"), kameLastDir("script"),
 #ifdef USE_PYBIND11
         "Python Script files (*.py);;"
 #endif
@@ -1850,6 +1903,7 @@ void FrmKameMain::scriptRunAction_activated() {
         "All files (*.*)"
     );
 	if( !filename.isEmpty()) {
+        kameStoreLastDir("script", filename);
 		static unsigned int thread_no = 1;
 		runNewScript(formatString("Thread%d", thread_no), filename );
 		thread_no++;

@@ -82,6 +82,7 @@ public:
     QMenu* m_pJupyterNotebookMenu;
     QMenu *m_pViewMenu;
     QMenu *m_pGraphThemeMenu;
+    QMenu *m_pRecentMesMenu = nullptr;
 	QMenu *m_pHelpMenu;
 	QAction* m_pFileOpenAction;
 	QAction* m_pFileSaveAction;
@@ -253,6 +254,11 @@ private:
 	EdgeSlider *edgeSliderFor(QWidget *win);
 	int m_cascadeIndex = 0;
 	void closeEvent( QCloseEvent* ce ) override;
+    //! Moves \a path to the top of the File > Open Recent list.
+    void rememberRecentMes(const QString &path);
+    void updateRecentMesMenu();
+    //! Long enough to hold a week of work, short enough to read at a glance.
+    static constexpr int RECENT_MES_MAX = 8;
     //! Writes the four hand-placed windows' geometries out, on the way to a
     //! clean exit.  Restoring them is done in the constructor's layout pass.
     void saveWindowLayout();

@@ -57,6 +57,7 @@ HEADERS += \
     graph/onscreenobject.h \
     graph/x2dimage.h \
     kame.h \
+    kamesettings.h \
     journal/xjournal.h \
     script/xscriptingthread.h \
     script/xscriptingthreadconnector.h \
