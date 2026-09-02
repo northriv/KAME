@@ -826,9 +826,8 @@ Bug reports and pull requests are welcome on [GitHub](https://github.com/northri
 
 Developed at [Kitagawa Laboratory, ISSP, University of Tokyo](https://kitag.issp.u-tokyo.ac.jp/).
 
-This work was supported by JSPS KAKENHI Grant Numbers JP24K00580 and
-JP25K00951, and by the MEXT Supporting Pioneering Research through AI for
-1,000 Discovery challenges Program (SPReAD), Japan, Grant Number
+This work was supported by the MEXT Supporting Pioneering Research through
+AI for 1,000 Discovery challenges Program (SPReAD), Japan, Grant Number
 JPMXP1726275196.  Model checking used the facilities of the Supercomputer
 Center, Institute for Solid State Physics, the University of Tokyo
 (2026-A-0004).
