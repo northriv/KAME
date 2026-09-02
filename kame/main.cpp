@@ -222,6 +222,10 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "--appearance takes system, light or dark\n");
         kameApplyColorScheme(g_kameColorSchemeRequested);
     }
+    //The graph's own light and dark, which is a separate switch and a separate
+    //memory.  Here, where nothing has been built yet: a graph takes the
+    //current theme when it is constructed.
+    kameApplyStoredGraphTheme();
 
     QStringList args = parser.positionalArguments();
 

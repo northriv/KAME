@@ -30,6 +30,9 @@ void kameApplyColorScheme(Qt::ColorScheme scheme);
 //! --appearance option overrides it for one run without replacing it.
 Qt::ColorScheme kameStoredColorScheme();
 void kameStoreColorScheme(Qt::ColorScheme scheme);
+//! Puts the graph back on the light or dark it was last set to.  Independent
+//! of the window's appearance, and to be called before any graph is built.
+void kameApplyStoredGraphTheme();
 
 class Ui_FrmJournalReader;
 typedef QForm<QWidget, Ui_FrmJournalReader> FrmJournalReader;

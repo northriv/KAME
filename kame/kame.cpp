@@ -605,6 +605,22 @@ void
 kameStoreColorScheme(Qt::ColorScheme scheme) {
     KameSettings().setValue("appearance", nameOfColorScheme(scheme));
 }
+//! The graph's own light and dark, remembered separately from the window's.
+//!
+//! The two stay independent -- a bright graph in a dark window is a
+//! combination people choose -- so this is a second stored word rather than
+//! something derived from the appearance.  Applied before any graph exists,
+//! since XGraph::applyTheme() takes the current theme at construction.
+void
+kameApplyStoredGraphTheme() {
+    XGraph::setCurrentTheme(
+        (KameSettings().value("graphtheme", "night").toString() == "daylight") ?
+            XGraph::Theme::DayLight : XGraph::Theme::Night);
+}
+static void kameStoreGraphTheme(XGraph::Theme theme) {
+    KameSettings().setValue("graphtheme",
+        (theme == XGraph::Theme::DayLight) ? "daylight" : "night");
+}
 
 //! Qt alone: an AppKit call was added here on the suspicion that
 //! unsetColorScheme() might not hand NSApplication a nil appearance, and then
@@ -1338,10 +1354,15 @@ FrmKameMain::createActions() {
     m_pGraphThemeNightAction = new QAction( this);
     m_pGraphThemeNightAction->setEnabled( true );
     m_pGraphThemeNightAction->setCheckable( true );
-    m_pGraphThemeNightAction->setChecked( true );
     m_pGraphThemeDaylightAction = new QAction( this);
     m_pGraphThemeDaylightAction->setEnabled( true );
     m_pGraphThemeDaylightAction->setCheckable( true );
+    //Whichever was stored, ticked here rather than after the connect below:
+    //createActions() runs first, so the toggle that follows reaches nobody
+    //and no graph is re-themed at a moment when there are none to re-theme.
+    bool night = (XGraph::currentTheme() != XGraph::Theme::DayLight);
+    m_pGraphThemeNightAction->setChecked(night);
+    m_pGraphThemeDaylightAction->setChecked( !night);
     m_pGraphThemeActionGroup = new QActionGroup(this);
     m_pGraphThemeActionGroup->setExclusive( true );
     m_pGraphThemeActionGroup->addAction(m_pGraphThemeNightAction);
@@ -1944,5 +1965,6 @@ void FrmKameMain::graphThemeNightAction_toggled( bool var ) {
     auto theme = var ? XGraph::Theme::Night : XGraph::Theme::DayLight;
     applyGraphThemeToAll(Snapshot( *m_measure), m_measure, theme);
     XGraph::setCurrentTheme(theme);
+    kameStoreGraphTheme(theme);
 }
 

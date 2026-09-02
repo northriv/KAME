@@ -201,6 +201,11 @@
   -- and it now reads worse than it did: the toolbox opens, raises itself,
   takes the keyboard, and folds again on the next poll because the pointer is
   not over it.
+- UI: View > Theme Color of Graph is remembered too, as its own word in the
+  same file ("night" or "daylight").  It stays independent of the window's
+  appearance rather than being derived from it -- a bright graph in a dark
+  window is a combination people choose -- and it is applied before anything
+  is built, a graph taking the current theme when it is constructed.
 - UI: the appearance chosen from View > Appearance is remembered as well, in
   the same file and as the same word the command line takes ("system", "light"
   or "dark").  --appearance still wins for the run it is given on, and does
