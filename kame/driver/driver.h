@@ -33,7 +33,13 @@ public:
     virtual ~XDriver() = default;
 
 	//! Shows all forms belonging to the driver.
-	virtual void showForms() = 0;
+	//!
+	//! Not pure any more, and not something a driver has to write: the default
+	//! finds the window through the connectors the driver already made, which
+	//! is what 34 of the 37 implementations of this did by hand.  Override it
+	//! only when showing a driver's forms means more than one window.
+	//! \sa XQConnector::windowOf()
+	virtual void showForms();
  
     struct DECLSPEC_KAME Payload : public XNode::Payload {
 		//! Recorded time.

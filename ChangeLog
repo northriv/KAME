@@ -201,6 +201,24 @@
   -- and it now reads worse than it did: the toolbox opens, raises itself,
   takes the keyboard, and folds again on the next poll because the pointer is
   not over it.
+- UI: the driver forms that were open for a measurement open again with it,
+  where and as big as they were.  Loading a .kam is a script on its own
+  thread, so the drivers appear one at a time and there is no "load finished"
+  to wait for: each one is answered as it is caught (on the main thread, and
+  without FLAG_AVOID_DUP, since every driver matters).  Kept per measurement
+  file in ~/.config/kame/kame.ini, pruned to the files Open Recent still
+  names, and holding nothing but a name and a rectangle -- what belongs to a
+  measurement stays in its .kam.
+- Framework: showForms() is no longer every driver's job.  34 of its 37
+  implementations were the same two lines, m_form->showNormal() and raise(),
+  and existed only because the framework had no way to tell which window
+  belonged to which driver.  It has had one all along: every XQConnector
+  registers its widget against its node, so XQConnector::windowOf(node) finds
+  the window whose widgets are bound to that node's subtree -- an O(1)
+  isUpperOf() containment test, which also tells two drivers of the same type
+  apart.  XDriver::showForms() is now a virtual with that as its default
+  implementation rather than a pure virtual; the three that do more than show
+  one window keep their override, and the 34 that do not can go.
 - Journal: a write that fails is noticed.  Neither file checked any write
   return, and the realistic failure for a month-long run is not a bad path
   (caught at open) but a disk that fills up in the middle, which arrives as a

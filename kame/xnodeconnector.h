@@ -134,6 +134,13 @@ public:
 	virtual ~XQConnector();
 
 	static shared_ptr<XNode> connectedNode(const QWidget *item);
+	//! The window \a owner's own widgets are in, nullptr if it has none.
+	//!
+	//! Every connector puts its widget in the same map connectedNode() reads,
+	//! so which window belongs to which node is something the framework
+	//! already knows -- a driver does not have to hand its form over.  Main
+	//! thread only, as the map is.
+	static QWidget *windowOf(const XNode &owner);
 private slots:
 protected slots:
 protected:

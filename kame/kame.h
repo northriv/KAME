@@ -254,6 +254,18 @@ private:
 	EdgeSlider *edgeSliderFor(QWidget *win);
 	int m_cascadeIndex = 0;
 	void closeEvent( QCloseEvent* ce ) override;
+    //! A driver has appeared: if this measurement had its form open when it
+    //! was last closed, open it again, where and as big as it was.
+    void onDriverCaught(const Snapshot &shot,
+        const XListNodeBase::Payload::CatchEvent &e);
+    //! Which driver forms are open, and where, for the measurement now loaded.
+    void saveOpenForms();
+    void loadOpenForms();
+    //! The measurement the forms below belong to.  Empty when none is loaded,
+    //! and nothing is stored then: these are per-measurement.
+    XString m_docPath;
+    std::map<XString, QRect> m_formsWanted;
+    shared_ptr<Listener> m_lsnDriverCaught;
     //! Moves \a path to the top of the File > Open Recent list.
     void rememberRecentMes(const QString &path);
     void updateRecentMesMenu();

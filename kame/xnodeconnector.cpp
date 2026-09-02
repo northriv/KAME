@@ -12,6 +12,7 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "xnodeconnector.h"
+#include "driver/driver.h"
 #include "kamesettings.h"
 #include <deque>
 #include <QPushButton>
@@ -156,6 +157,28 @@ XQConnector::~XQConnector() {
     else {
         dbgPrint(QString("connector %1 & widget released., addr=0x%2").arg(objectName()).arg((uintptr_t)this, 0, 16));
     }
+}
+//! Here rather than in driver.cpp, which includes no Qt at all: what a
+//! driver's form IS is a question only the connector registry can answer.
+void
+XDriver::showForms() {
+    if(QWidget *w = XQConnector::windowOf( *this)) {
+        w->showNormal();
+        w->raise();
+    }
+}
+QWidget *
+XQConnector::windowOf(const XNode &owner) {
+    //isUpperOf, not a lookup that can throw: an O(1) containment predicate is
+    //exactly the question here, and two drivers of the same type are told
+    //apart by it, each form's widgets being bound to their own driver's nodes.
+    Snapshot shot(owner);
+    for(auto &&x: s_widgetMap) {
+        shared_ptr<XNode> node = x.second.lock();
+        if(node && shot.isUpperOf( *node))
+            return const_cast<QWidget *>(x.first)->window();
+    }
+    return nullptr;
 }
 shared_ptr<XNode>
 XQConnector::connectedNode(const QWidget *item) {

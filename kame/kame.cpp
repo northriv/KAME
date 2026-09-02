@@ -67,6 +67,7 @@
 #include "measure.h"
 #include "xjournal.h"
 #include "interface.h"
+#include "driver.h"     //!< the forms this remembers belong to drivers
 #include "xrubywriter.h"
 #include "xdotwriter.h"
 #include "xscriptingthreadconnector.h"
@@ -409,6 +410,17 @@ FrmKameMain::FrmKameMain()
     XJournalWriter::declareThisThread(XJournalWriter::ThreadClass::UI);
 
     m_measure = XNode::createOrphan<XMeasure>("Measurement", false);
+    //Drivers arrive one at a time while a .kam is being read -- the load is a
+    //script on its own thread -- so the forms are not restored by waiting for
+    //the load to finish, but by answering each driver as it appears.  This
+    //also covers a driver added by hand afterwards.
+    //
+    //FLAG_MAIN_THREAD_CALL because it shows windows, and NO FLAG_AVOID_DUP
+    //because every driver matters (driver-authoring rule 6).
+    m_measure->drivers()->iterate_commit([=](Transaction &tr){
+        m_lsnDriverCaught = tr[ *m_measure->drivers()].onCatch().connect(
+            *this, &FrmKameMain::onDriverCaught, Listener::FLAG_MAIN_THREAD_CALL);
+    });
 
     // signals and slots connections
     connect( m_pFileCloseAction, SIGNAL( triggered() ), this, SLOT( fileCloseAction_activated() ) );
@@ -1472,6 +1484,83 @@ FrmKameMain::processSignals() {
         m_pTimer->setInterval(interval); //restarts the running timer.
 }
 
+//! One INI key per measurement.  Percent-encoded because a "/" in a QSettings
+//! key is a group separator, and these are paths.
+static QString openFormsKeyOf(const XString &path) {
+    return QString::fromLatin1(QUrl::toPercentEncoding(
+        QString::fromStdString(path)));
+}
+void
+FrmKameMain::onDriverCaught(const Snapshot &shot,
+    const XListNodeBase::Payload::CatchEvent &e) {
+    auto driver = dynamic_pointer_cast<XDriver>(e.caught);
+    if( !driver) return;
+    auto it = m_formsWanted.find(driver->getName());
+    if(it == m_formsWanted.end()) return;
+    driver->showForms();
+    //After showForms(), which is what creates the window's first Show and so
+    //runs the cascade: put it back where it was instead.
+    if(QWidget *w = XQConnector::windowOf( *driver)) {
+        if(it->second.isValid())
+            w->setGeometry(it->second);
+        w->setProperty("kame_placed", true);
+    }
+    //Once per driver: a form the user then closes stays closed.
+    m_formsWanted.erase(it);
+}
+void
+FrmKameMain::loadOpenForms() {
+    m_formsWanted.clear();
+    if(m_docPath.empty()) return;
+    KameSettings settings;
+    settings.beginGroup("openforms");
+    for(const QString &entry:
+        settings.value(openFormsKeyOf(m_docPath)).toStringList()) {
+        //"x,y,w,h|name" -- the geometry first, so a driver name may contain
+        //anything at all, separator included.
+        int bar = entry.indexOf('|');
+        if(bar < 0) continue;
+        QStringList g = entry.left(bar).split(',');
+        QRect rect;
+        if(g.size() == 4)
+            rect = QRect(g[0].toInt(), g[1].toInt(), g[2].toInt(), g[3].toInt());
+        m_formsWanted[entry.mid(bar + 1).toStdString()] = rect;
+    }
+}
+void
+FrmKameMain::saveOpenForms() {
+    if( !m_measure || m_docPath.empty()) return;
+    QStringList entries;
+    Snapshot shot( *m_measure->drivers());
+    if(shot.size()) {
+        for(auto &&node: *shot.list()) {
+            auto driver = dynamic_pointer_cast<XDriver>(node);
+            if( !driver) continue;
+            //The framework knows which window is whose, through the widgets
+            //the driver's own connectors registered.  \sa XQConnector::windowOf()
+            QWidget *w = XQConnector::windowOf( *driver);
+            if( !w || !w->isVisible()) continue;
+            QRect g = w->geometry();
+            entries << QString("%1,%2,%3,%4|%5").arg(g.x()).arg(g.y())
+                .arg(g.width()).arg(g.height())
+                .arg(QString::fromStdString(driver->getName()));
+        }
+    }
+    KameSettings settings;
+    settings.beginGroup("openforms");
+    //Kept only for measurements the recent list still names, so this does not
+    //grow for ever.
+    QStringList recent = KameSettings().value("recent").toStringList();
+    for(const QString &key: settings.childKeys()) {
+        QString path = QUrl::fromPercentEncoding(key.toLatin1());
+        if( !recent.contains(path) && (path != QString::fromStdString(m_docPath)))
+            settings.remove(key);
+    }
+    if(entries.isEmpty())
+        settings.remove(openFormsKeyOf(m_docPath));
+    else
+        settings.setValue(openFormsKeyOf(m_docPath), entries);
+}
 void
 FrmKameMain::rememberRecentMes(const QString &path) {
     if(path.isEmpty()) return;
@@ -1575,6 +1664,7 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
         //accept last, exit() cannot start until every join has returned.
         printf("quit\n");
         saveWindowLayout();
+        saveOpenForms();
         //Before the tree goes: the journal's last drain and report walk it.
         if(m_journalWriter) {
             m_journalWriter->stop();
@@ -1587,6 +1677,9 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
 }
 
 void FrmKameMain::fileCloseAction_activated() {
+    saveOpenForms();          //!< while the forms are still there to be seen
+    m_docPath.clear();
+    m_formsWanted.clear();
     m_titleDoc.clear();       //!< nothing is loaded any more, and the title says so
     updateWindowTitle();
     //The journal walks the tree and takes transactions on it from its own
@@ -1739,6 +1832,12 @@ FrmKameMain::openMes(const XString &filename) {
         //Every route in lands here -- the dialog, the recent list, the command
         //line -- so this is the one place the list has to be told.
         rememberRecentMes(QString::fromStdString(filename));
+        //Before the load starts: the drivers it creates are answered one by
+        //one as they appear.  \sa onDriverCaught()
+        saveOpenForms();   //!< whatever was open belongs to the measurement leaving
+        m_docPath = QFileInfo(QString::fromStdString(filename))
+            .absoluteFilePath().toStdString();
+        loadOpenForms();
         m_titleDoc = QFileInfo(QString::fromStdString(filename)).fileName();
         updateWindowTitle();
         //Loading is the start of a stretch of work across several drivers and
