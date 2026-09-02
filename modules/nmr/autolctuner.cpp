@@ -525,8 +525,7 @@ XAutoLCTuner::~XAutoLCTuner() {
 }
 void XAutoLCTuner::showForms() {
     m_form->resize(100,100); //avoids bug on Windows.
-    m_form->showNormal();
-    m_form->raise();
+    showForm(m_form.get());
 }
 void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
     Snapshot shot_this( *this);

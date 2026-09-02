@@ -222,6 +222,16 @@
   file in ~/.config/kame/kame.ini, pruned to the files Open Recent still
   names, and holding nothing but a name and a rectangle -- what belongs to a
   measurement stays in its .kam.
+- Framework: what "show a form" means is decided in one place.  The five
+  overrides that remain still open-coded showNormal() + raise(), as did the
+  default and the three buttons that bring up a driver's second window, so
+  the answer lived in nine copies (user).  XDriver::showForm(QWidget *) is
+  that answer -- showNormal() so a minimised form comes back rather than
+  staying in the dock, raise() so an open but buried one answers the click,
+  and null-safe, nullptr being what windowOf() says about a driver with no
+  form.  Everything else is now one line.  Named singular against the plural
+  showForms(), which is the distinction itself: one window versus all of a
+  driver's.
 - Framework: 30 hand-written showForms() are gone, and the two conditions for
   removing one were checked mechanically rather than by eye: every connector
   made in the constructor (so the window is findable when the driver is

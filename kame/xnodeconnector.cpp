@@ -161,11 +161,15 @@ XQConnector::~XQConnector() {
 //! Here rather than in driver.cpp, which includes no Qt at all: what a
 //! driver's form IS is a question only the connector registry can answer.
 void
-XDriver::showForms() {
-    if(QWidget *w = XQConnector::windowOf( *this)) {
+XDriver::showForm(QWidget *w) {
+    if(w) {
         w->showNormal();
         w->raise();
     }
+}
+void
+XDriver::showForms() {
+    showForm(XQConnector::windowOf( *this));
 }
 QWidget *
 XQConnector::windowOf(const XNode &owner) {

@@ -37,9 +37,18 @@ public:
 	//! Not pure any more, and not something a driver has to write: the default
 	//! finds the window through the connectors the driver already made, which
 	//! is what 34 of the 37 implementations of this did by hand.  Override it
-	//! only when showing a driver's forms means more than one window.
+	//! only when showing a driver's forms means more than one window, or when
+	//! something has to happen first -- and call showForm() from the override
+	//! rather than open-coding it again.
 	//! \sa XQConnector::windowOf()
 	virtual void showForms();
+	//! Brings one form window up, and is where what that MEANS is decided.
+	//!
+	//! showNormal() rather than show(), so a form the user had minimised comes
+	//! back rather than staying in the dock, and raise() after it, so a form
+	//! already open but buried answers the click that asked for it.  Null-safe,
+	//! nullptr being what windowOf() says about a driver with no form.
+	static void showForm(class QWidget *w);
  
     struct DECLSPEC_KAME Payload : public XNode::Payload {
 		//! Recorded time.

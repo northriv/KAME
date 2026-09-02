@@ -233,8 +233,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 XNMRPulseAnalyzer::~XNMRPulseAnalyzer() {
 }
 void XNMRPulseAnalyzer::onSpectrumShow(const Snapshot &shot, XTouchableNode *) {
-    m_spectrumForm->showNormal();
-    m_spectrumForm->raise();
+    showForm(m_spectrumForm.get());
 }
 
 void XNMRPulseAnalyzer::backgroundSub(Transaction &tr,

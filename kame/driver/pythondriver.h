@@ -41,10 +41,8 @@ public:
 
     //! Shows all forms belonging to the driver.
     virtual void showForms() override {
-        if(m_form) {
-            m_form->showNormal();
-            m_form->raise();
-        }
+        //Qualified, m_form being a qshared_ptr and this a dependent base.
+        XDriver::showForm(m_form.get());
     }
 
     //! setups a form window using Qt designer .ui file.

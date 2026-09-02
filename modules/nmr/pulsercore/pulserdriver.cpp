@@ -289,14 +289,12 @@ XPulser::XPulser(const char *name, bool runtime,
 
 void
 XPulser::showForms() {
-	// impliment form->show() here
-    m_form->showNormal();
-    m_form->raise();
+    //m_formMore is the user's to open, from this one.
+    showForm(m_form.get());
 }
 void
 XPulser::onMoreConfigShow(const Snapshot &shot, XTouchableNode *)  {
-    m_formMore->showNormal();
-    m_formMore->raise();
+    showForm(m_formMore.get());
 }
 
 void
