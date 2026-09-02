@@ -391,7 +391,8 @@ C11 translations of each layer are verified with [GenMC](https://github.com/MPI-
   (C2131 / C3493).
 - [`kamepoolalloc`](../kamepoolalloc) — sibling library providing
   `Transactional::allocator<T>` and the lock-free pool used by every
-  Snapshot allocation.  It is **also the single home of the Layer-0 atomic
+  Snapshot allocation (benchmarkable against the usual field as `kp` in
+  [mimalloc-bench](https://github.com/daanx/mimalloc-bench)).  It is **also the single home of the Layer-0 atomic
   primitives** (`atomic.h` / `atomic_mfence.h` / `atomic_smart_ptr.h` —
   `atomic_shared_ptr` / `local_shared_ptr`), which `transaction.h` includes
   HEADER-ONLY (no `libkamepoolalloc` runtime link is needed for them).  The

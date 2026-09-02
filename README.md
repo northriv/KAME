@@ -190,7 +190,9 @@ be carved out as their own subtrees for downstream embedding:
   allocators on every OS via the native interposition: ELF strong symbols on
   Linux, Mach-O `__DATA,__interpose` on macOS, free-family IAT redirect on
   Windows (§31).  Builds on the same four toolchains; MSVC live pool is
-  default-on (opt OUT with `KAME_DISABLE_POOL_MSVC`).  See
+  default-on (opt OUT with `KAME_DISABLE_POOL_MSVC`).  Included in
+  [mimalloc-bench](https://github.com/daanx/mimalloc-bench) as `kp`, so it
+  can be measured against the usual field with the suite's own harness.  See
   [`kamepoolalloc/README.md`](kamepoolalloc/README.md) and the
   [INVARIANTS](kamepoolalloc/design/INVARIANTS.md) / [SUBSYSTEMS](kamepoolalloc/design/SUBSYSTEMS.md)
   navigation map.
