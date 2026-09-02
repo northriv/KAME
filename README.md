@@ -242,6 +242,14 @@ An independent run of the contention-heavy multi-thread benches from
 [mimalloc-bench](https://github.com/daanx/mimalloc-bench) (M3, median of 5,
 mimalloc 3.3.2 / jemalloc 5.3.0).  kame is the FS=true word-cache build.
 
+The suite carries kamepoolalloc upstream as **`kp`**, so nothing here has to
+be taken on trust — the table below is two commands on any Linux host:
+
+```sh
+./build-bench-env.sh kp mi je      # clones kamepoolalloc at its pinned tag
+./bench.sh sys mi je kp allt
+```
+
 | bench (M ops/s, ↑) | system | mimalloc | jemalloc |      kame |
 |--------------------|--------|----------|----------|-----------|
 | larson             |   21.4 |    108.3 |    108.6 | **113.0** |
