@@ -34,8 +34,6 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XNMRPulseAnalyzer();
   
-	//! Shows all forms belonging to driver
-    virtual void showForms() override;
 protected:
 
 	//! This function is called when a connected driver emit a signal

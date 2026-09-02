@@ -111,12 +111,6 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
     };
 }
 
-void
-XMotorDriver::showForms() {
-//! impliment form->show() here
-    m_form->showNormal();
-    m_form->raise();
-}
 
 void
 XMotorDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) {

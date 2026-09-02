@@ -143,12 +143,6 @@ XNMRSpectrumBase<FRM>::~XNMRSpectrumBase() {
 }
 template <class FRM>
 void
-XNMRSpectrumBase<FRM>::showForms() {
-    m_form->showNormal();
-	m_form->raise();
-}
-template <class FRM>
-void
 XNMRSpectrumBase<FRM>::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {
 //    if((node == phase()) && *autoPhase()) return;
 	if((node == bandWidth().get()) || onCondChangedImpl(shot, node))

@@ -104,12 +104,6 @@ XImageProcessor::XImageProcessor(const char *name, bool runtime,
 XImageProcessor::~XImageProcessor() {
 }
 void
-XImageProcessor::showForms() {
-// impliment form->show() here
-    m_form->showNormal();
-    m_form->raise();
-}
-void
 XImageProcessor::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {
     if(node == incrementalAverage().get())
         trans( *average()) = 0;

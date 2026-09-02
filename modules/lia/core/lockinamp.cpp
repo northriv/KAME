@@ -61,12 +61,6 @@ XLIA::XLIA(const char *name, bool runtime,
 	m_conFetchFreq = xqcon_create<XQLineEditConnector>(m_fetchFreq, m_form->m_edFetchFreq);
 }
 
-void
-XLIA::showForms() {
-//! impliment form->show() here
-    m_form->showNormal();
-    m_form->raise();
-}
 
 void
 XLIA::analyzeRaw(RawDataReader &reader, Transaction &tr) {

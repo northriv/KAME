@@ -60,7 +60,6 @@ public:
     virtual ~XThamwayPROT() {}
 
     //! show all forms belonging to driver
-    virtual void showForms() override; //!< overrides XSG::showForms()
 
     const shared_ptr<XDoubleNode> &rxGain() const {return m_rxGain;} //!< Receiver Gain [dB] (0 -- 95)
     const shared_ptr<XDoubleNode> &rxPhase() const {return m_rxPhase;} //!< Receiver phase [deg.]

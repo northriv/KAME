@@ -173,7 +173,6 @@ public:
     const shared_ptr<tCurve>       &curve()  const { return m_curve; }
     const shared_ptr<XScalarEntry> &entry()  const { return m_entry; }
 
-    virtual void showForms() override {}
 protected:
     virtual void visualize(const Snapshot &) override {}
 private:

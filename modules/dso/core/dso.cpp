@@ -153,12 +153,6 @@ XDSO::XDSO(const char *name, bool runtime,
 		tr[ *m_waveForm].clearPoints();
     });
 }
-void
-XDSO::showForms() {
-//! impliment form->show() here
-    m_form->showNormal();
-    m_form->raise();
-}
 
 unsigned int
 XDSO::Payload::length() const {

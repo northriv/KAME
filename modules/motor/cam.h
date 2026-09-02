@@ -29,8 +29,6 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XMicroCAM() {}
 
-    //! Shows all forms belonging to driver
-    virtual void showForms();
 protected:
     //! This function is called when a connected driver emit a signal
     virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,

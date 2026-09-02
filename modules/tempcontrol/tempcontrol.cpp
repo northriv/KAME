@@ -401,11 +401,6 @@ XTempControl::XTempControl(const char *name, bool runtime,
 	m_form->setWindowTitle(i18n("TempControl - ") + getLabel());
 }
 
-void XTempControl::showForms() {
-	//! impliment form->show() here
-    m_form->showNormal();
-    m_form->raise();
-}
 
 void XTempControl::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 	try {

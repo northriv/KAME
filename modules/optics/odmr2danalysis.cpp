@@ -87,11 +87,6 @@ XODMR2DAnalysis::XODMR2DAnalysis(const char *name, bool runtime,
 }
 //---------------------------------------------------------------------------
 
-void
-XODMR2DAnalysis::showForms() {
-    m_form->showNormal();
-    m_form->raise();
-}
 
 void
 XODMR2DAnalysis::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {

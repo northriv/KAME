@@ -63,12 +63,6 @@ XFlowControllerDriver::XFlowControllerDriver(const char *name, bool runtime,
 	m_conCloseValve = xqcon_create<XQButtonConnector>(m_closeValve, m_form->m_btnCloseValve);
 }
 
-void
-XFlowControllerDriver::showForms() {
-//! impliment form->show() here
-    m_form->showNormal();
-    m_form->raise();
-}
 
 void
 XFlowControllerDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) {

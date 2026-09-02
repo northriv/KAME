@@ -236,10 +236,6 @@ void XNMRPulseAnalyzer::onSpectrumShow(const Snapshot &shot, XTouchableNode *) {
     m_spectrumForm->showNormal();
     m_spectrumForm->raise();
 }
-void XNMRPulseAnalyzer::showForms() {
-    m_form->showNormal();
-    m_form->raise();
-}
 
 void XNMRPulseAnalyzer::backgroundSub(Transaction &tr,
     std::vector<std::complex<double> > &wave,

@@ -66,12 +66,6 @@ XFilterWheel::XFilterWheel(const char *name, bool runtime,
 }
 XFilterWheel::~XFilterWheel() {
 }
-void
-XFilterWheel::showForms() {
-// impliment form->show() here
-    m_form->showNormal();
-    m_form->raise();
-}
 void XFilterWheel::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
                         XDriver *emitter) {
     Snapshot &shot_this(tr);

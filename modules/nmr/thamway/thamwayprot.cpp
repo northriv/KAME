@@ -97,12 +97,6 @@ XThamwayPROT<tInterface>::XThamwayPROT(const char *name, bool runtime,
     rxPhase()->setUIEnabled(false);
     rxLPFBW()->setUIEnabled(false);
 }
-template <class tInterface>
-void
-XThamwayPROT<tInterface>::showForms() {
-    m_form->showNormal();
-    m_form->raise();
-}
 
 template <class tInterface>
 void

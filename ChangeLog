@@ -209,6 +209,19 @@
   file in ~/.config/kame/kame.ini, pruned to the files Open Recent still
   names, and holding nothing but a name and a rectangle -- what belongs to a
   measurement stays in its .kam.
+- Framework: 30 hand-written showForms() are gone, and the two conditions for
+  removing one were checked mechanically rather than by eye: every connector
+  made in the constructor (so the window is findable when the driver is
+  caught), and only ONE form window among the driver's connected widgets.
+  The second one earned its keep -- XPulser has m_form and m_formMore, and
+  XMagnetPS m_form and m_formConfig, so windowOf() could return the wrong one
+  of the two; both keep their override.  So do XPumpControl, which builds its
+  connectors inside showForms(), and XAutoLCTuner and XODMRFMControl, which
+  resize their form first to dodge a Windows bug.  The empty ones on drivers
+  that have no form at all went too: "nothing happens" is what the default
+  does for them.  The deletion removed 30 definitions and 30 declarations --
+  a mismatch either way would have been a compile or link error, so the count
+  is the check.
 - Framework: showForms() is no longer every driver's job.  34 of its 37
   implementations were the same two lines, m_form->showNormal() and raise(),
   and existed only because the framework had no way to tell which window

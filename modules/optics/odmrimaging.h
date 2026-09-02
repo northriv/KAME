@@ -39,8 +39,6 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do.
     virtual ~XODMRImaging();
-	//! Shows all forms belonging to driver.
-    virtual void showForms() override;
 
     //! driver specific part below
     const shared_ptr<XItemNode<XDriverList, XDigitalCamera> > &camera() const {return m_camera;}

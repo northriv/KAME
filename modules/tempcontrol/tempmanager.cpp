@@ -167,10 +167,6 @@ XTempManager::~XTempManager() {
     m_lsnOnExtDeviceChanged.reset();
 }
 
-void XTempManager::showForms() {
-    m_form->showNormal();
-    m_form->raise();
-}
 
 void XTempManager::visualize(const Snapshot &shot) {
     if( !shot[ *isActivated()]) {

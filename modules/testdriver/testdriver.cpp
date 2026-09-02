@@ -33,10 +33,6 @@ XTestDriver::XTestDriver(const char *name, bool runtime,
 }
 
 void
-XTestDriver::showForms() {
-// impliment form->show() here
-}
-void
 XTestDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     // Since raw buffer is FIFO, use the same sequence of push()es for pop()s
 	tr[ *this].m_x = reader.pop<double>();

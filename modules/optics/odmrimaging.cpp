@@ -136,12 +136,6 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
 XODMRImaging::~XODMRImaging() {
 }
 void
-XODMRImaging::showForms() {
-// impliment form->show() here
-    m_form->showNormal();
-    m_form->raise();
-}
-void
 XODMRImaging::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {
     if(node == incrementalAverage().get())
         trans( *average()) = 0;

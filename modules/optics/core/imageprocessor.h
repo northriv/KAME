@@ -35,8 +35,6 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do.
     virtual ~XImageProcessor();
-	//! Shows all forms belonging to driver.
-    virtual void showForms() override;
 
     //! driver specific part below
     const shared_ptr<XUIntNode> &average() const {return m_average;} //

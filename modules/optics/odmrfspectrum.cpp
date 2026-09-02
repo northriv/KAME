@@ -90,11 +90,6 @@ XODMRFSpectrum::XODMRFSpectrum(const char *name, bool runtime,
 }
 //---------------------------------------------------------------------------
 
-void
-XODMRFSpectrum::showForms() {
-    m_form->showNormal();
-    m_form->raise();
-}
 
 void
 XODMRFSpectrum::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {

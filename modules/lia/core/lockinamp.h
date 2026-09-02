@@ -29,8 +29,6 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do
 	virtual ~XLIA() {}
-	//! Shows all forms belonging to driver
-	virtual void showForms();
 
     struct Payload : public XPrimaryDriver::Payload {
         double x() const {return std::real(m_z);}

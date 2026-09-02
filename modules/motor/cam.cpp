@@ -187,10 +187,6 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
     endmillRadius()->disable();
 }
 
-void XMicroCAM::showForms() {
-    m_form->showNormal();
-    m_form->raise();
-}
 
 double
 XMicroCAM::posToSTM(const Snapshot &shot, Axis axis, double pos) {

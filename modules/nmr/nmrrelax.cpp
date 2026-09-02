@@ -309,11 +309,6 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
     });
 }
 void
-XNMRT1::showForms() {
-    m_form->showNormal();
-    m_form->raise();
-}
-void
 XNMRT1::onClearAll(const Snapshot &shot, XTouchableNode *) {
     trans( *this).m_timeClearRequested = XTime::now();
     trans( *this).m_timeMapClearRequested = XTime::now();

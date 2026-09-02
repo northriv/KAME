@@ -61,10 +61,6 @@ XArbFuncGen::XArbFuncGen(const char *name, bool runtime,
     m_form->setWindowTitle(i18n("Arbitrary Func. Gen. - ") + getLabel());
 }
 
-void XArbFuncGen::showForms() {
-    m_form->showNormal();
-    m_form->raise();
-}
 
 void XArbFuncGen::onOutputChanged(const Snapshot &, XValueNodeBase *) {
     Snapshot shot( *this);
