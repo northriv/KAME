@@ -208,7 +208,12 @@
   sits ON it -- so where the two overlap, auto-hide is the better answer and
   the pin is skipped.  Decided per toolbox rather than for both, from the
   form geometries just read, before the load starts: the forms themselves
-  arrive one at a time and much later.
+  arrive one at a time and much later.  Any overlap counts: a first attempt
+  asked for 40 px in both directions and, measured against a real layout,
+  the two forms that reach a toolbox reach it by 11 px and by 9.  The two
+  mistakes are not the same size either -- not pinning costs nothing but the
+  ordinary auto-hide, while pinning wrongly parks an always-on-top window on
+  a form being worked on.  Touching still is not overlapping.
 - UI: the driver forms that were open for a measurement open again with it,
   where and as big as they were.  Loading a .kam is a script on its own
   thread, so the drivers appear one at a time and there is no "load finished"

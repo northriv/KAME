@@ -738,10 +738,16 @@ FrmKameMain::formsWouldBeCovered(const EdgeSlider &s) const {
     //time with their drivers, but their rectangles are already known, which
     //is enough to decide before the load starts.  \sa loadOpenForms()
     for(auto &&x: m_formsWanted) {
-        QRect over = s.expanded.intersected(x.second);
-        //A CHOSEN 40 px in both directions: less than that is a sliver along
-        //an edge, not a form with something parked on top of it.
-        if((over.width() > 40) && (over.height() > 40))
+        //Any overlap at all.  There was a threshold here -- 40 px in both
+        //directions, on the theory that a sliver is not worth acting on --
+        //and the user's own layout says otherwise: the two forms that reach a
+        //toolbox reach it by 11 px and by 9, and neither counted.  The two
+        //mistakes are not the same size, either.  Refusing to pin costs
+        //nothing but KAME's ordinary auto-hide; pinning wrongly parks an
+        //always-on-top window on the edge of a form being worked on.
+        //Touching is not overlapping: QRect::intersected() of two adjacent
+        //rectangles is empty, so a form flush against a toolbox is fine.
+        if( !s.expanded.intersected(x.second).isEmpty())
             return true;
     }
     return false;
