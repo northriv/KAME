@@ -730,10 +730,28 @@ FrmKameMain::foldToolboxes() {
     }
 }
 
+bool
+FrmKameMain::formsWouldBeCovered(const EdgeSlider &s) const {
+    //The toolboxes are always-on-top tool windows, so pinning one open does
+    //not merely take space beside the forms -- it sits ON them.  The forms
+    //this measurement will restore are not on screen yet, arriving one at a
+    //time with their drivers, but their rectangles are already known, which
+    //is enough to decide before the load starts.  \sa loadOpenForms()
+    for(auto &&x: m_formsWanted) {
+        QRect over = s.expanded.intersected(x.second);
+        //A CHOSEN 40 px in both directions: less than that is a sliver along
+        //an edge, not a form with something parked on top of it.
+        if((over.width() > 40) && (over.height() > 40))
+            return true;
+    }
+    return false;
+}
 void
 FrmKameMain::pinToolboxes() {
     for(auto &&s: m_edgeSliders) {
-        if(s.vertical || !s.autoHide)
+        //Per toolbox, not both together: a form over the east one is no
+        //reason to leave the west one folding away (user).
+        if(s.vertical || !s.autoHide || formsWouldBeCovered(s))
             continue;
         s.dismissed = false;
         //Through the View-menu action, so the menu says what is true and the
@@ -1844,6 +1862,11 @@ FrmKameMain::openMes(const XString &filename) {
         //their interfaces (user), so the toolboxes are pinned open for it
         //rather than folding away between one driver and the next.  A pin, not
         //the keyboard: nothing is raised and nothing is taken.
+        //
+        //Unless this measurement's forms are where the toolbox would be, in
+        //which case pinning it would park it on top of them and auto-hide is
+        //the better answer (user).  Decided per toolbox, from the geometries
+        //loadOpenForms() just read.  \sa formsWouldBeCovered()
         pinToolboxes();
 		shared_ptr<XScriptingThread> th = runNewScript("Open Measurement", filename );
         //Nothing is handed the keyboard when the load finishes.  It used to

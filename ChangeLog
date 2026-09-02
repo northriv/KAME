@@ -201,6 +201,14 @@
   -- and it now reads worse than it did: the toolbox opens, raises itself,
   takes the keyboard, and folds again on the next poll because the pointer is
   not over it.
+- UI: a toolbox the measurement's own forms sit on top of is not pinned open
+  when that measurement is loaded (user).  Pinning was added because loading
+  starts a stretch of work across several drivers, but the toolboxes are
+  always-on-top tool windows -- a pinned one does not sit beside a form, it
+  sits ON it -- so where the two overlap, auto-hide is the better answer and
+  the pin is skipped.  Decided per toolbox rather than for both, from the
+  form geometries just read, before the load starts: the forms themselves
+  arrive one at a time and much later.
 - UI: the driver forms that were open for a measurement open again with it,
   where and as big as they were.  Loading a .kam is a script on its own
   thread, so the drivers appear one at a time and there is no "load finished"

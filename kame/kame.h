@@ -254,6 +254,9 @@ private:
 	EdgeSlider *edgeSliderFor(QWidget *win);
 	int m_cascadeIndex = 0;
 	void closeEvent( QCloseEvent* ce ) override;
+    //! \return true if a form this measurement is about to restore would end
+    //! up under \a s held open -- the toolboxes are always-on-top windows.
+    bool formsWouldBeCovered(const struct EdgeSlider &s) const;
     //! A driver has appeared: if this measurement had its form open when it
     //! was last closed, open it again, where and as big as it was.
     void onDriverCaught(const Snapshot &shot,
