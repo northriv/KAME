@@ -1,4 +1,13 @@
 * Thu Sep 3 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- The source release contains the project and nothing else.  8.6 and 8.6.1
+  went out carrying a vendor PDF that happened to be sitting in the working
+  tree, for two independent reasons, both now fixed in tools/mkzip.sh: rsync
+  copies the WORKING tree and nothing told it to leave untracked files alone
+  (git lists them; rsync anchors each with a leading slash), and `zip` UPDATES
+  an archive that already exists rather than replacing it, so a file packaged
+  once survived into every later run even after it was deleted -- measured, a
+  stray PDF removed from the tree was still in the zip a fresh run produced.
+  Both archives are removed before they are written now.
 - 9.0-alpha2.  47 changes since the first 9.0 alpha.
   The journal's own faults, all found on real recordings: the reader rejected
   every record whose header was not a multiple of four, which the writer never
