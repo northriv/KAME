@@ -1053,16 +1053,27 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         }
         //calculates capacitance changes.
         double dc1dtest = (shot_this[ *this].fitRotated->c1() - shot_this[ *this].fitOrig->c1()) / testdelta;
-        double dc1dtest_err = sqrt(pow(shot_this[ *this].fitRotated->c1err(), 2.0)
-                + pow(shot_this[ *this].fitOrig->c1err(), 2.0)) / fabs(testdelta);
         double dc2dtest = (shot_this[ *this].fitRotated->c2() - shot_this[ *this].fitOrig->c2()) / testdelta;
-        double dc2dtest_err = sqrt(pow(shot_this[ *this].fitRotated->c2err(), 2.0)
-                + pow(shot_this[ *this].fitOrig->c2err(), 2.0)) / fabs(testdelta);
+        //In quadrature, all of it.  The third fit's error used to be added as
+        //c1err^2/|testdelta| -- a variance where a standard deviation belongs,
+        //which is not only dimensionally wrong but numerically nothing: with
+        //c1err of order 0.1 pF that term is ~1e-27 against a ~1e-14 error, so
+        //the -Delta measurement's uncertainty was in effect discarded, and
+        //sigma_per_change below came out too small to ask for a wider test
+        //when a wider test was exactly what was needed.
+        double dc1var = pow(shot_this[ *this].fitRotated->c1err(), 2.0)
+                + pow(shot_this[ *this].fitOrig->c1err(), 2.0);
+        double dc2var = pow(shot_this[ *this].fitRotated->c2err(), 2.0)
+                + pow(shot_this[ *this].fitOrig->c2err(), 2.0);
         if(lcrfit) {
-            dc1dtest_err += pow(lcrfit->c1err(), 2.0) / fabs(testdelta);
-            dc2dtest_err += pow(lcrfit->c2err(), 2.0) / fabs(testdelta);
+            dc1var += pow(lcrfit->c1err(), 2.0);
+            dc2var += pow(lcrfit->c2err(), 2.0);
         }
-        else {
+        double dc1dtest_err = sqrt(dc1var) / fabs(testdelta);
+        double dc2dtest_err = sqrt(dc2var) / fabs(testdelta);
+        if( !lcrfit) {
+            //Nothing has come back from the -Delta rotation yet: no estimate
+            //of the backlash, so be pessimistic about the derivative.
             dc1dtest_err *= 2;
             dc2dtest_err *= 2;
         }
@@ -1103,10 +1114,26 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             }
             else {
                 //Capacitance is sticking, test angle is too small, or poor fitting.
-                testdelta *= std::min(MULTIPLIER_MAX, 2L + lrint(fabs(backlash / testdelta) * 5));
-                testdelta = fabs(testdelta) * shot_this[ *this].lastDirection(target_stm); //follows the last direction to minimize backlash.
+                //
+                //As large as the backlash makes necessary, and no larger.  The
+                //rule was a blind multiplier, min(6, 2 + 5*|backlash/delta|),
+                //which is the CAP for anything past |backlash/delta| = 0.8 --
+                //so a 10 deg. test became 60, and one noisy backlash estimate
+                //took 60 to 360 and 360 to the 720 that aborts the tune.  What
+                //the test actually needs is an angle the backlash is small
+                //against: aim at half the threshold that asked for a wider
+                //test in the first place, i.e. |backlash/delta| = 0.3 at the
+                //default.  Never more than the old rule gave (3.33x <= 2+5x
+                //for every x >= 0) and never less than doubling, which is what
+                //a poor fit with no backlash to speak of still deserves.
+                double th = shot_this[ *backlushPlusTh()];
+                double wanted = (th > 0.0) ? fabs(backlash) / (0.5 * th) : 0.0;
+                double mult = std::min<double>(MULTIPLIER_MAX,
+                    std::max<double>(2.0, wanted / fabs(testdelta)));
+                testdelta = fabs(testdelta) * mult * shot_this[ *this].lastDirection(target_stm); //follows the last direction to minimize backlash.
                 message +=
-                     formatString("Increasing test angle to %.1f, Testing +Delta.", (double)fabs(testdelta));
+                     formatString("Increasing test angle x%.1f to %.1f, Testing +Delta.",
+                        mult, (double)fabs(testdelta));
             }
            if(fabs(testdelta) > Payload::TestDeltaMax) {
                abortTuningFromAnalyze(tr, rl_at_f0, std::move(message));//C1/C2 is useless. Aborts.

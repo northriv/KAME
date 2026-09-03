@@ -1,4 +1,21 @@
 * Thu Sep 3 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- AutoLCTuner: the test angle grows to what the backlash makes necessary and
+  no further, and the derivative's error is added in quadrature (user, who saw
+  it testing at needlessly large angles).
+  The escalation was a blind multiplier, min(6, 2 + 5*|backlash/delta|), which
+  is already the cap for anything past |backlash/delta| = 0.8 -- so a 10 deg.
+  test became 60 whatever the backlash was, and one noisy estimate took 60 to
+  360 and 360 to the 720 that aborts the tune.  It now asks for the angle the
+  backlash is actually small against, half the threshold that called for a
+  wider test (|backlash/delta| = 0.3 at the default), keeping the old 2x floor
+  and 6x cap.  It is never larger than the old rule -- 3.33x <= 2 + 5x for
+  every x >= 0 -- so at |b/d| = 0.6 a 10 deg. test now grows to 20 rather than
+  50, and only from |b/d| = 2 up do the two agree.
+  The derivative error had the third fit's contribution added as c1err^2 where
+  a standard deviation belongs: dimensionally wrong, and numerically nothing
+  (~1e-27 against ~1e-14), so the -Delta measurement's uncertainty was in
+  effect discarded and sigma_per_change came out too small to ask for a wider
+  test when one was genuinely needed.
 - UI: the LEDs and the LCD readouts are legible in the dark theme (user, who
   wants to keep both -- this is an instrument panel).  Both were measured by
   rendering them and looking, not reasoned about.
