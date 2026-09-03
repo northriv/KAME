@@ -79,7 +79,9 @@ protected:
 	bool m_currMode;
 };
 
-//! Signal Recovery Model7265 Lock-in Amplifier
+//! Model 7265 DSP Lock-in Amplifier. One instrument, several badges: EG&G Instruments ->
+//! PerkinElmer Instruments -> SIGNAL RECOVERY -> AMETEK. The native mnemonic command set
+//! (X. Y. TC SEN OA. OF.) is identical across them, so this driver covers all of them.
 class XSignalRecovery7265 : public XCharDeviceDriver<XLIA> {
 public:
     XSignalRecovery7265(const char *name, bool runtime,
@@ -90,6 +92,7 @@ protected:
     virtual void changeFreq(double freq);
     virtual void changeSensitivity(int);
     virtual void changeTimeConst(int);
+    virtual void changeFilterSlope(int);
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
     virtual void open();
