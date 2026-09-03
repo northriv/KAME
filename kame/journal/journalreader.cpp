@@ -234,8 +234,15 @@ XJournalReader::readHeader(void *_fd) {
 	}
 	//Where a magic is, a length follows it: this is a check, not a guess.
 	//\sa KAMB_HEADER_SIZE_MAX for the guess that used to be here
-	if(magic && ((second < KAMB_FIXED_SIZE) || (second > KAMB_HEADER_SIZE_MAX)
-		|| (second % sizeof(uint32_t))))
+	//NOT tested for 4-byte alignment: the writer emits
+	//KAMB_FIXED_SIZE + strlen(name) + 1, so the header is only a multiple of
+	//four when the driver's name happens to be 3 mod 4 -- "NewDriver1" is not,
+	//and every one of the 4666 records in the file that first showed this was
+	//rejected on its first record.  Nothing downstream needs the alignment
+	//either: the name is read with gzgetline and the remainder skipped by the
+	//declared length.  The range above and the check word below are what
+	//actually distinguish a header from noise.
+	if(magic && ((second < KAMB_FIXED_SIZE) || (second > KAMB_HEADER_SIZE_MAX)))
 		throw XBrokenRecordError(__FILE__, __LINE__);
 	uint32_t fixed = magic ? (uint32_t)KAMB_FIXED_SIZE : (uint32_t)KAMB_HEADER_SIZE_LEGACY;
 
