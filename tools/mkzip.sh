@@ -35,6 +35,8 @@ rsync --exclude "linux686" \
          --exclude "*tlaplus/*.md" --exclude "*tlaplus/*.html" --exclude "*tlaplus/*.py" \
 	 --exclude "attic" \
 	 --exclude "*.o" --exclude "*.a" --exclude "*.la"  \
+	 --exclude "*.app" \
+	 --exclude "tools/uipreview/Makefile" \
 	 --exclude "*.cache" --exclude ".*" --exclude "*.log"\
          --exclude "*.pyc" --exclude "*.rej" --exclude "*.orig"\
          --exclude "~$*.docx" \
@@ -56,7 +58,11 @@ rsync --exclude "linux686" \
          --exclude "tests/Makefile.dyn" --exclude "tests/Makefile.tx" \
          --exclude "tests/Makefile.asp" --exclude "tests/Makefile.3level_mixed" \
 	 . $dir/$file -av --delete
-(cd $dir/$file/tests; make clean)
+# tests/ is a CMake tree now and has no Makefile, so this stopped the script
+# dead under set -e.  It is a leftover from the qmake days; the exclusions
+# above already keep object files and build directories out, so it only has to
+# run where it still applies.
+(cd $dir/$file/tests; [ -f Makefile ] && make clean || true)
 (cd $dir; tar jcvf $file.tar.bz2 $file)
 (cd $dir; zip -9 -r $file.zip $file)
 rm -fR $dir/$file

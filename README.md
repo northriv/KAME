@@ -43,7 +43,7 @@ Source: [kame-8.6.1.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.6.
 [All other source archives](https://kitag.issp.u-tokyo.ac.jp/web/kame/src).
 Windows 64-bit binaries: [8.6.1](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.1.zip) (21.8MB) · [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.zip) (21.8MB) · [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.5.zip) (20.4MB) · [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.4.zip). At least Qt is additionally needed, follow instructions below to install.
 Builds before 8.6.1 carry the double-allocation defect described under *What's New in 8.6.1* on Windows and Linux.
-**9.0 alpha** — the measurement journal, below: [source](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.0-alpha.zip) (5.2MB) · [Windows 64-bit](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-9.0alpha.zip) (22.0MB). A pre-release; 8.6.1 remains the current stable version.
+**9.0 alpha2** — the measurement journal, below: [source](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.0-alpha2.zip) · [Windows 64-bit](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-9.0alpha2.zip). A pre-release; 8.6.1 remains the current stable version.
 
 ### Supported instruments
 

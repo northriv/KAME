@@ -1,3 +1,23 @@
+* Thu Sep 3 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- 9.0-alpha2.  47 changes since the first 9.0 alpha.
+  The journal's own faults, all found on real recordings: the reader rejected
+  every record whose header was not a multiple of four, which the writer never
+  promised and which meant most driver names; a driver added mid-run was
+  written with no type and so could not be replayed; and a write that failed
+  -- a full disk, which is what a month-long run does to one -- was invisible,
+  the switch staying on and the counter still climbing while nothing landed.
+- KAME remembers what it is set to.  The four hand-placed windows, the
+  appearance, the graph theme, the directory each kind of file dialog was last
+  used in, the last eight measurements, and the driver forms, charts and
+  graphs a measurement had open -- with their geometry -- all in
+  ~/.config/kame/kame.ini.  What belongs to a measurement stays in its .kam.
+- The window starts dark, and can be told otherwise from the command line or
+  the View menu.  Three separate Qt defects had to be fixed before switching
+  it while KAME runs came out right.
+- showForms() is no longer every driver's job: 30 of them said nothing but
+  showNormal() and raise(), and the framework can find a driver's window
+  through the connectors it already made.
+
 * Sun Aug 30 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - The Raw Stream Reader is the Journal Reader, and a run is opened by either
   of its halves.  Given run042.kamj it takes the raw stream the journal's own
