@@ -560,15 +560,30 @@ XQTextEditConnector::onTextChanged() {
 XQLCDNumberConnector::XQLCDNumberConnector(const shared_ptr<XDoubleNode> &node, QLCDNumber *item)
 	: XValueQConnector(node, item),
 	  m_node(node), m_pItem(item) {
-    //Flat, not Qt's default Outline.  Rendered in both palettes and looked at:
-    //Outline draws the segments as edges in QPalette::Light, which is washed
-    //out on a light window and all but invisible on a dark one -- the reading
-    //a driver form exists to show, unreadable in the theme KAME now starts in.
-    //Flat paints in the foreground colour, so it follows the theme by itself,
-    //and it is the highest contrast of the three in both.  No colour of its
-    //own, unlike the LED beside it: there the colour is the signal, here the
-    //number is, and cyan digits measured plainly weaker on a light window.
+    //A readout, made to look like one: dark panel, bright digits, the same in
+    //either theme.  A measured value should not change colour because the
+    //window did.
+    //
+    //Flat, not Qt's default Outline: Outline draws the segments as edges in
+    //QPalette::Light, washed out on a light window and all but invisible on a
+    //dark one.  Flat fills them.
+    //
+    //Button and ButtonText, NOT Window/WindowText, and this is the whole
+    //reason a first attempt did nothing: QLCDNumber's backgroundRole() is
+    //Button and its foregroundRole() ButtonText -- measured by setting each
+    //role in turn and counting the pixels of every colour the widget painted.
+    //Left alone, the digits come out in whatever ButtonText is, which on a
+    //dark theme is a thin grey line on the form's own background, with a
+    //frame in Dark/Light that is invisible there as well: the reading a
+    //driver form exists to show, hard to read in the theme KAME now starts in
+    //(user, on TempControl, whose LCDs were already Flat in their .ui and so
+    //were untouched by the style alone).
     item->setSegmentStyle(QLCDNumber::Flat);
+    item->setAutoFillBackground(true);
+    QPalette pal(item->palette());
+    pal.setColor(QPalette::Button, QColor(0x0b, 0x10, 0x13));
+    pal.setColor(QPalette::ButtonText, QColor(0x7c, 0xe4, 0xff));
+    item->setPalette(pal);
     onValueChanged(Snapshot( *node), node.get());
 }
 

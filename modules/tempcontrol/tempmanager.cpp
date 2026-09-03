@@ -773,10 +773,12 @@ XTempManager::refreshZoneUIs() {
 
 void
 XTempManager::sanityCheckOfZones(const Snapshot &shot) {
+    //The table's own palette for the ordinary case, not black: black text is
+    //only "normal" on a light theme, and KAME starts dark.  Red still means
+    //what it means in both.
     QPalette palette(m_form->m_tblZone->palette());
     QPalette palette_err(m_form->m_tblZone->palette());
-    palette.setColor(QPalette::Text, Qt::black);
-    palette_err.setColor(QPalette::Text, Qt::red);
+    palette_err.setColor(QPalette::Text, QColor(0xff, 0x55, 0x55));
     if(shot.size(zones())) {
         double uppertemp = 0.0;
         double maxramprate = 0.0;

@@ -14,10 +14,22 @@
   also sharp on a Retina display, which a 16 px bitmap never was.
   QLCDNumber was worse, and in BOTH themes: Qt's default Outline style draws
   the segments as edges in QPalette::Light, which is washed out on a light
-  window and all but invisible on a dark one.  Flat paints in the foreground
-  colour, follows the theme by itself, and has the highest contrast of the
-  three styles either way.  One line in the connector, so all 15 forms that
-  carry an LCD are fixed without one of them being touched.
+  window and all but invisible on a dark one.  Flat fills them instead.
+  Flat alone was not enough, though -- TempControl's LCDs were already Flat in
+  their .ui and the user found them no easier to read -- because the digits
+  come out in whatever ButtonText happens to be, a thin grey line on the
+  form's own background, inside a frame drawn in Dark/Light that a dark theme
+  makes invisible too.  Button and ButtonText, not Window/WindowText, is the
+  part that had to be measured: the roles were found by setting each in turn
+  and counting the pixels of every colour the widget painted, which is also
+  why a first attempt through Window/WindowText changed nothing at all.
+  So the readout is now made to look like one -- a dark panel with bright
+  digits, the same in either theme, because a measured value should not change
+  colour just because the window did.  All 15 forms with an LCD, from one
+  place, without touching any of them.
+  The zone table in the Temperature Manager stopped painting its normal text
+  black while it was at it: black is only "normal" on a light theme, and KAME
+  starts dark.  The table's own colour is used, and red still means red.
 - The source release contains the project and nothing else.  8.6 and 8.6.1
   went out carrying a vendor PDF that happened to be sitting in the working
   tree, for two independent reasons, both now fixed in tools/mkzip.sh: rsync
