@@ -17,6 +17,8 @@
 #include "secondarydriver.h"
 #include "motor.h"
 #include "networkanalyzer.h"
+#include <vector>
+#include <utility>
 //---------------------------------------------------------------------------
 class Ui_FrmAutoLCTuner;
 typedef QForm<QMainWindow, Ui_FrmAutoLCTuner> FrmAutoLCTuner;
@@ -36,6 +38,11 @@ public:
 	virtual void showForms();
 protected:
 
+    //! One record taken while an axis is being rotated through: keeps the
+    //! point, and when the run is over decides whether the trajectory is
+    //! usable.  Always throws, like every other stage of analyze().
+    void scanContinue(Transaction &tr, const Snapshot &shot_this,
+        const Snapshot &shot_others, const Snapshot &shot_na, double f0);
 	//! This function is called when a connected driver emit a signal
 	virtual void analyze(Transaction &tr, const Snapshot &shot_emitter,
 		const Snapshot &shot_others,
@@ -67,6 +74,11 @@ public:
     const shared_ptr<XDoubleNode> &backlushMinusTh() const {return m_backlushMinusTh;}
     const shared_ptr<XDoubleNode> &backlushPlusTh() const {return m_backlushPlusTh;}
     const shared_ptr<XIntNode> &timeMax() const {return m_timeMax;}
+    //! Hand over to a continuous scan when the step-by-step search has stopped
+    //! improving but already knows the capacitance derivatives.  Off by
+    //! default: it rotates an axis through in one run, which is a motion the
+    //! stepwise search never makes.
+    const shared_ptr<XBoolNode> &scanAssist() const {return m_scanAssist;}
     const shared_ptr<XIntNode> &origBackMax() const {return m_origBackMax;}
     const shared_ptr<XComboNode> &fitFunc() const {return m_fitFunc;}
     const shared_ptr<XDoubleNode> &backlashRecoveryFactor() const {return m_backlashRecoveryFactor;}
@@ -114,6 +126,18 @@ public:
         std::array<double, 2> deltaC1perDeltaSTM; //[F/deg.]
         std::array<double, 2> deltaC2perDeltaSTM; //[F/deg.]
 
+        //! The continuous-scan phase.  -1 when it is not running; otherwise
+        //! the axis being rotated through, with the traces taken DURING the
+        //! motion kept instead of discarded.
+        int scanAxis = -1;
+        int scanDir = 1;
+        double scanSpan = 0.0; //[deg] how far the run was asked to go
+        //! (angle [deg], |S11| at f0) for this run, pointer-to-const because a
+        //! Payload is shallow-copied into every live Snapshot: a fresh vector
+        //! is published, never mutated in place.
+        shared_ptr<const std::vector<std::pair<double, double>>> scanPoints;
+        //! Analyses since smallestRLAtF0 last fell.  What "stuck" means.
+        int noImprovement = 0;
 		XTime started;
         int iterationCount;
         bool isTargetAbondoned;
@@ -136,6 +160,7 @@ private:
     const shared_ptr<XStringNode> m_status;
     const shared_ptr<XDoubleNode> m_backlushMinusTh, m_backlushPlusTh;
     const shared_ptr<XIntNode> m_timeMax, m_origBackMax;
+    const shared_ptr<XBoolNode> m_scanAssist;
     const shared_ptr<XComboNode> m_fitFunc;
     const shared_ptr<XDoubleNode> m_backlashRecoveryFactor;
     const shared_ptr<XIntNode> m_relaySettleTime;

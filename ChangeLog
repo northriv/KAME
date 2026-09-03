@@ -1,4 +1,20 @@
 * Thu Sep 3 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- AutoLCTuner: "Scan assist when stuck", off by default.  When the stepwise
+  search has stopped improving for three analyses but already knows the
+  capacitance derivatives, it hands the next turn over to a continuous scan:
+  one axis is rotated through in a single run and the traces taken DURING the
+  motion -- which every other stage of analyze() discards -- are kept and the
+  minimum read off the trajectory.  That order is deliberate: the stepwise
+  phase supplies the axis, the direction and how far the derivative can be
+  trusted, which a scan started cold would have to guess.  It also never pays
+  backlash, since it does not reverse.
+  Whether a run is usable is decided from the run itself, with no constant
+  that would have to be measured per rig (user): at least five frames, a span
+  at least four times the largest gap between consecutive frames -- that gap
+  is the position readout's rate against the sweep rate -- and a minimum that
+  is bracketed rather than at an end.  A run that fails any of these is
+  dropped and the stepwise search simply carries on, which is what makes the
+  attempt safe to make at all.
 - AutoLCTuner: the test angle grows to what the backlash makes necessary and
   no further, and the derivative's error is added in quadrature (user, who saw
   it testing at needlessly large angles).

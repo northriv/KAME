@@ -426,6 +426,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         m_backlushMinusTh(create<XDoubleNode>("BacklushMinusTh", false)),
         m_backlushPlusTh(create<XDoubleNode>("BacklushPlusTh", false)),
         m_timeMax(create<XIntNode>("TimeMax", false)),
+        m_scanAssist(create<XBoolNode>("ScanAssist", false)),
         m_origBackMax(create<XIntNode>("OrigBackMax", false)),
         m_fitFunc(create<XComboNode>("FitFunc", false, true)),
         m_backlashRecoveryFactor(create<XDoubleNode>("BacklashRecoveryFactor", false)),
@@ -464,6 +465,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         xqcon_create<XQLineEditConnector>(backlushMinusTh(), m_form->m_edBacklushMinusTh),
         xqcon_create<XQLineEditConnector>(backlushPlusTh(), m_form->m_edBacklushPlusTh),
         xqcon_create<XQLineEditConnector>(timeMax(), m_form->m_edTimeMax),
+        xqcon_create<XQToggleButtonConnector>(scanAssist(), m_form->m_ckbScanAssist),
         xqcon_create<XQLineEditConnector>(relaySettleTime(), m_form->m_edRelaySettleTime),
         xqcon_create<XQLineEditConnector>(origBackMax(), m_form->m_edOrigBackMax),
         xqcon_create<XQComboBoxConnector>(fitFunc(), m_form->m_cmbFitFunc, Snapshot( *m_fitFunc)),
@@ -489,6 +491,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         tr[ *m_backlushMinusTh] = 0.3;
         tr[ *m_backlushPlusTh] = 0.6;
         tr[ *m_timeMax] = 600; //10 min.
+        tr[ *m_scanAssist] = false; //rotates an axis through; opt in.
         tr[ *m_origBackMax] = 2;
         tr[ *fitFunc()].add({"Abs.&Gaussian", "Abs.&Lorentzian", "Smith&Gaussian", "Smith&Lorentzian"});
         tr[ *m_fitFunc] = 3;
@@ -584,6 +587,9 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
         tr[ *this].residue_offset = 0;
         tr[ *this].taintedCount = 0;
         tr[ *this].sor = 1.0;
+        tr[ *this].noImprovement = 0;
+        tr[ *this].scanAxis = -1;
+        tr[ *this].scanPoints.reset();
     });
 
     shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
@@ -722,6 +728,97 @@ XAutoLCTuner::clearUIAndPlot(Transaction &tr) {
     m_lcrPlot.reset();
 }
 void
+XAutoLCTuner::scanContinue(Transaction &tr, const Snapshot &shot_this,
+    const Snapshot &shot_others, const Snapshot &shot_na, double f0) {
+    int axis = shot_this[ *this].scanAxis;
+    shared_ptr<XMotorDriver> stm = axis ? shot_this[ *stm2()] : shot_this[ *stm1()];
+    const shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
+    if( !stm || !na__) {
+        tr[ *this].scanAxis = -1;
+        tr[ *this].scanPoints.reset();
+        throw XSkippedRecordError(__FILE__, __LINE__);
+    }
+    //The move was commanded once, when the scan began; nothing is to re-issue
+    //it while the run is in progress.  visualize() acts on this being set.
+    if(shot_this[ *this].timeSTMChanged.isSet())
+        tr[ *this].timeSTMChanged = {};
+
+    //|S11| straight off the trace at f0.  No LCR fit here: fitting is what the
+    //stepwise search does between motions, and the point of a scan is that the
+    //motion never stops.
+    int trace_len = shot_na[ *na__].length();
+    double trace_dfreq = shot_na[ *na__].freqInterval();
+    double trace_start = shot_na[ *na__].startFreq();
+    long idx = lrint((f0 - trace_start) / trace_dfreq);
+    if((trace_len < 1) || (idx < 0) || (idx >= trace_len)) {
+        tr[ *this].scanAxis = -1;
+        tr[ *this].scanPoints.reset();
+        tr[ *m_status] = "Scan: f0 is outside the sweep.";
+        throw XSkippedRecordError(__FILE__, __LINE__);
+    }
+    double rl = std::abs(shot_na[ *na__].trace()[idx]);
+    double angle = shot_others[ *stm->position()->value()];
+
+    auto points = std::make_shared<std::vector<std::pair<double, double>>>();
+    if(shot_this[ *this].scanPoints)
+        *points = *shot_this[ *this].scanPoints;
+    points->emplace_back(angle, rl);
+    tr[ *this].scanPoints = points;
+
+    bool running = !shot_others[ *stm->ready()];
+    if(running && (points->size() < 200)) {
+        tr[ *m_status] = formatString("Scanning STM%d: %.1f deg., %.2f dB (%u frames).",
+            axis + 1, angle, 20.0 * log10(std::max(rl, 1e-10)), (unsigned)points->size());
+        throw XSkippedRecordError(__FILE__, __LINE__);
+    }
+
+    //The run is over.  Whether it is usable is decided from the run itself,
+    //with no constant that would have to be measured per rig (user): the
+    //frames have to be enough to show a shape, and the angle each frame can be
+    //blamed for -- the gap to its neighbour, which is the position readout's
+    //rate against the sweep rate -- has to be small against the whole span.
+    tr[ *this].scanAxis = -1;
+    tr[ *this].scanPoints.reset();
+    auto &pts = *points;
+    double span = fabs(pts.back().first - pts.front().first);
+    double gapmax = 0.0;
+    for(size_t i = 1; i < pts.size(); ++i)
+        gapmax = std::max(gapmax, fabs(pts[i].first - pts[i - 1].first));
+    size_t imin = 0;
+    for(size_t i = 1; i < pts.size(); ++i)
+        if(pts[i].second < pts[imin].second) imin = i;
+    XString message = formatString("Scan STM%d: %u frames over %.1f deg., largest gap %.1f deg.\n",
+        axis + 1, (unsigned)pts.size(), span, gapmax);
+    if((pts.size() < 5) || (span < 4 * gapmax)) {
+        //Not this rig, or not this speed.  Nothing is adopted and the stepwise
+        //search simply carries on -- which is why this can be tried at all.
+        tr[ *m_status] = message + "Not usable; back to stepwise.";
+        throw XSkippedRecordError(__FILE__, __LINE__);
+    }
+    if((imin == 0) || (imin + 1 == pts.size())) {
+        tr[ *m_status] = message + "Minimum not bracketed; back to stepwise.";
+        throw XSkippedRecordError(__FILE__, __LINE__);
+    }
+    //Parabola through the three points around the smallest one.
+    double x0 = pts[imin - 1].first, x1 = pts[imin].first, x2 = pts[imin + 1].first;
+    double y0 = pts[imin - 1].second, y1 = pts[imin].second, y2 = pts[imin + 1].second;
+    double d1 = (y2 - y1) / (x2 - x1), d0 = (y1 - y0) / (x1 - x0);
+    double best = x1;
+    if(fabs(d1 - d0) > 1e-12)
+        best = 0.5 * ((x1 + x2) - d1 * (x2 - x0) / (d1 - d0));
+    //Only inside the bracket: an extrapolated vertex is the fit failing, not
+    //an angle to drive to.
+    if((best < std::min(x0, x2)) || (best > std::max(x0, x2)))
+        best = x1;
+    tr[ *this].targetSTMValues[axis] = best;
+    tr[ *this].timeSTMChanged = XTime::now();
+    tr[ *this].resetToFirstStage();
+    tr[ *this].noImprovement = 0;
+    tr[ *m_status] = message + formatString("Minimum %.2f dB at %.1f deg.",
+        20.0 * log10(std::max(pts[imin].second, 1e-10)), best);
+    throw XSkippedRecordError(__FILE__, __LINE__);
+}
+void
 XAutoLCTuner::abortTuningFromAnalyze(Transaction &tr, double rl_at_f0, XString &&message) {
     message += "\n";
     double tune_approach_goal2 = pow(10.0, 0.05 * tr[ *reflectionRequired()]);
@@ -770,21 +867,29 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
     shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
 
+    //A scan keeps what every other stage throws away: the traces taken WHILE
+    //an axis is turning are the trajectory it reads the minimum off.  The
+    //target is left alone too, since it is the far end of the run and the
+    //motor is on its way there.
+    bool scanning = (shot_this[ *this].scanAxis >= 0);
+
     //remembers original position.
-    if(stm1__)
-        tr[ *this].targetSTMValues[0] = shot_others[ *stm1__->position()->value()];
-    if(stm2__)
-        tr[ *this].targetSTMValues[1] = shot_others[ *stm2__->position()->value()];
+    if( !scanning) {
+        if(stm1__)
+            tr[ *this].targetSTMValues[0] = shot_others[ *stm1__->position()->value()];
+        if(stm2__)
+            tr[ *this].targetSTMValues[1] = shot_others[ *stm2__->position()->value()];
+    }
 
     if( !shot_this[ *useSTM1()]) stm1__.reset();
     if( !shot_this[ *useSTM2()]) stm2__.reset();
-    if( (stm1__ && !shot_others[ *stm1__->ready()]) ||
-            ( stm2__  && !shot_others[ *stm2__->ready()])) {
+    if( !scanning && ((stm1__ && !shot_others[ *stm1__->ready()]) ||
+            ( stm2__  && !shot_others[ *stm2__->ready()]))) {
         tr[ *this].timeSTMChanged = XTime::now();
         throw XSkippedRecordError(__FILE__, __LINE__); //STM is moving. skip.
     }
 
-    if(shot_this[ *this].timeSTMChanged.isSet()) {
+    if( !scanning && shot_this[ *this].timeSTMChanged.isSet()) {
         if((stm1__ && (shot_others[ *stm1__].timeAwared() < shot_this[ *this].timeSTMChanged)) ||
             (stm2__ && (shot_others[ *stm2__].timeAwared() < shot_this[ *this].timeSTMChanged))) {
             throw XSkippedRecordError(__FILE__, __LINE__); //STM ready status is too old. Useless.
@@ -795,7 +900,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 //            (stm2__ && (shot_this[ *this].timeAwared() - shot_others[ *stm2__].time() < 0)))
 //            throw XSkippedRecordError(__FILE__, __LINE__); //the present data may involve one during STM movement. reload.
     }
-    if(shot_this[ *this].taintedCount) {
+    if( !scanning && shot_this[ *this].taintedCount) {
         tr[ *this].taintedCount--;
         throw XSkippedRecordError(__FILE__, __LINE__); //the present data might be unreliable due to STM movement. reload.
     }
@@ -809,6 +914,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
     XString message;
     double f0 = shot_this[ *target()];
+
+    if(scanning) {
+        scanContinue(tr, shot_this, shot_others, shot_na, f0); //always throws
+        return;
+    }
 
     if( !shot_this[ *this].fitOrig) {
         double trust_preset_angles = shot_this[trustPresetAnglesInPercent()] * 0.01;
@@ -1008,10 +1118,13 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
     if(shot_this[ *this].smallestRLAtF0 > rl_at_f0 + rl_at_f0_sigma) {
         tr[ *this].iterationCount = 0;
+        tr[ *this].noImprovement = 0;
         //remembers good positions.
         tr[ *this].bestSTMValues = tr[ *this].targetSTMValues;
         tr[ *this].smallestRLAtF0 = rl_at_f0 + rl_at_f0_sigma;
     }
+    else
+        tr[ *this].noImprovement++;
 
     bool timeout = (XTime::now() - shot_this[ *this].started > shot_this[ *timeMax()]);
     if(timeout) {
@@ -1024,6 +1137,32 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
     if( !shot_this[ *this].fitOrig) {
     //The stage just before +Delta rotation.
+        //Hand over to a scan, if the search has learned what a scan needs and
+        //has stopped getting anywhere with it (user).  This order matters: the
+        //stepwise phase is what supplies the axis, the direction and how far
+        //the trajectory can be trusted -- a scan started cold would have to
+        //guess all three.  Off unless asked for.
+        if(shot_this[ *scanAssist()] && (shot_this[ *this].noImprovement >= 3)) {
+            int axis = ((shot_this[ *this].deltaC1perDeltaSTM[0] != 0.0) && stm1__) ? 0 : 1;
+            shared_ptr<XMotorDriver> stm = axis ? stm2__ : stm1__;
+            if(stm && (shot_this[ *this].deltaC1perDeltaSTM[axis] != 0.0)
+                && (shot_this[ *this].stmTrustArea[axis] > 0.0)) {
+                //As far as the derivative is still believed to hold, in the
+                //direction the last step wanted to go.
+                int dir = shot_this[ *this].lastDirection(axis);
+                double span = std::min(std::max(shot_this[ *this].stmTrustArea[axis], 60.0), 360.0);
+                tr[ *this].scanAxis = axis;
+                tr[ *this].scanDir = dir;
+                tr[ *this].scanSpan = span;
+                tr[ *this].scanPoints.reset();
+                tr[ *this].targetSTMValues[axis] += dir * span;
+                tr[ *this].timeSTMChanged = XTime::now();
+                tr[ *m_status] = message + formatString(
+                    "Stuck for %d analyses; scanning STM%d through %.0f deg.",
+                    shot_this[ *this].noImprovement, axis + 1, span);
+                throw XSkippedRecordError(__FILE__, __LINE__);
+            }
+        }
         tr[ *this].iterationCount++;
         message += formatString("Iteration %d after the best fit so far.\n", tr[ *this].iterationCount);
         if((shot_this[ *this].iterationCount > shot_this[ *origBackMax()]) && (rl_at_f0 - rl_at_f0_sigma > shot_this[ *this].smallestRLAtF0)) {

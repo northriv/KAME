@@ -698,9 +698,19 @@
         </item>
        </layout>
       </item>
-     </layout>
+      </layout>
     </item>
     <item>
+       <widget class="QCheckBox" name="m_ckbScanAssist">
+        <property name="toolTip">
+         <string>When the step-by-step search stops improving but the capacitance derivatives are already known, rotate one axis through and read the minimum off the trajectory.</string>
+        </property>
+        <property name="text">
+         <string>Scan assist when stuck</string>
+        </property>
+       </widget>
+      </item>
+     <item>
      <layout class="QHBoxLayout" name="horizontalLayout_20">
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_30">
@@ -837,6 +847,7 @@
   <tabstop>m_edBacklushPlusTh</tabstop>
   <tabstop>m_edOrigBackMax</tabstop>
   <tabstop>m_edTimeMax</tabstop>
+  <tabstop>m_ckbScanAssist</tabstop>
   <tabstop>m_edRelaySettleTime</tabstop>
   <tabstop>m_cmbFitFunc</tabstop>
   <tabstop>m_edBacklashRecoveryFactor</tabstop>
