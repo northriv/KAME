@@ -98,10 +98,16 @@ protected:
     const shared_ptr<XDoubleNode> &strobeSignalDuration() const {return m_strobeSignalDuration;}
 
     const shared_ptr<XDoubleNode> &analogOutput() const {return m_analogOutput;}
-    //! In an external/software trigger mode, requests exactly ONE triggered acquisition.
-    //! Touch this (e.g. from a script) right before issuing the hardware/software trigger.
-    //! Between requests the driver stays idle and never arms the device, so it emits no
-    //! stray strobe and cannot wedge. Ignored in Free Run (which acquires continuously).
+    //! When set, the driver stays idle and captures exactly ONE spectrum per acquireTrig()
+    //! touch, in every trigger mode including Free Run. Clear it for continuous streaming
+    //! (needed for alignment / live view), which is the default.
+    const shared_ptr<XBoolNode> &onDemand() const {return m_onDemand;}
+    //! Requests one on-demand acquisition; ignored unless onDemand() is set.
+    //! The in-flight exposure is discarded first, so the published spectrum is guaranteed to
+    //! have STARTED after the touch — in Free Run the sensor integrates whether or not it was
+    //! asked, so without that the returned frame could predate the request (or be far older,
+    //! captured while the loop was idle). Cost: the request takes up to two exposures.
+    //! With average() > 1 a record is published only once that many requests have been served.
     const shared_ptr<XTouchableNode> &acquireTrig() const {return m_acquireTrig;}
 protected:
     virtual void onStartWavelenChanged(const Snapshot &shot, XValueNodeBase *) = 0;
@@ -144,9 +150,10 @@ private:
 
     const shared_ptr<XDoubleNode> m_analogOutput;
 
+    const shared_ptr<XBoolNode> m_onDemand;
     const shared_ptr<XTouchableNode> m_acquireTrig;
-    //!< Set by touching acquireTrig(); consumed by execute() to perform one on-demand
-    //!< triggered acquisition. Atomic: written from a listener thread, read in execute().
+    //!< Set by touching acquireTrig(), consumed by execute() when onDemand() is set.
+    //!< Atomic: written from a listener thread, read/cleared in execute().
     atomic<bool> m_acquireRequested{false};
 
     const qshared_ptr<FrmOpticalSpectrometer> m_form;
