@@ -75,8 +75,12 @@ XAgilent33250A::changePulseCond() {
         if(width > 0)
             interface()->sendf("PULS:WIDT %g", width);
     }
-    if( !is_burst)
+    if( !is_burst) {
         interface()->send("BURST:STAT OFF");
+        //Continuous output: phase of the running waveform (see the 3390 path). Any rejection
+        //by this model surfaces in the error drain just below rather than failing silently.
+        interface()->sendf("PHAS %g", (double)shot[ *phase()]);
+    }
     //Drain the error queue: clears the front-panel ERR and surfaces any command the 33250A
     //still rejects (so an incompatibility shows up here instead of silently).
     for(int i = 0; i < 8; ++i) {
@@ -199,8 +203,11 @@ XArbFuncGenSCPI::changePulseCond() {
     }
     else {
         interface()->send("BURST:STAT OFF");
-        //hack for studpid LXI3390
-        interface()->sendf("PHAS %g", (double)shot[ *burstPhase()]);
+        //Continuous output: "PHAS" sets the phase of the running waveform. This used to be fed
+        //from burstPhase() (a node that means "BURS:PHAS"), which made a continuous-mode phase
+        //sweep have to write a node named after burst. phase() is the node for this.
+        //Only meaningful when the units share a timebase (10 MHz ref in/out chained).
+        interface()->sendf("PHAS %g", (double)shot[ *phase()]);
     }
 }
 

@@ -32,6 +32,11 @@ public:
     const shared_ptr<XBoolNode> output() const {return m_output;}
     const shared_ptr<XBoolNode> burst() const {return m_burst;}
     const shared_ptr<XDoubleNode> burstPhase() const {return m_burstPhase;} //!< Burst Start Phase[deg.]
+    //! Phase of the CONTINUOUS waveform [deg.], sent as SCPI "PHAS". Distinct from
+    //! burstPhase(), which is "BURS:PHAS" and only applies while burst() is set. Meaningful
+    //! only when the generators share a timebase (10 MHz reference in/out chained), which is
+    //! what fixes the relative phase between two units running continuously.
+    const shared_ptr<XDoubleNode> phase() const {return m_phase;} //!< [deg.]
     const shared_ptr<XUIntNode> burstCycles() const {return m_burstCycles;} //!< Burst cycle count, 0 = INFinity
     const shared_ptr<XComboNode> trigSrc() const {return m_trigSrc;}
     const shared_ptr<XComboNode> waveform() const {return m_waveform;}
@@ -67,6 +72,7 @@ private:
     const shared_ptr<XBoolNode> m_output;
     const shared_ptr<XBoolNode> m_burst;
     const shared_ptr<XDoubleNode> m_burstPhase;
+    const shared_ptr<XDoubleNode> m_phase;
     const shared_ptr<XUIntNode> m_burstCycles;
     const shared_ptr<XComboNode> m_trigSrc, m_waveform;
     const shared_ptr<XDoubleNode> m_freq, m_ampl, m_offset, m_duty;
