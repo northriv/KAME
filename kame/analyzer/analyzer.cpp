@@ -121,6 +121,10 @@ XValChart::onVisualization(const Snapshot &shot, bool afterRecorded, XDriver *dr
         }
     }
 }
+QWidget *
+XValChart::formWindow() const {
+    return m_graphForm.get();
+}
 void
 XValChart::showChart(void) {
 	m_graphForm->setWindowTitle(i18n("Chart - ") + getLabel() );
@@ -163,6 +167,10 @@ XChartList::onReleaseEntry(const Snapshot &shot, const XListNodeBase::Payload::R
     });
 }
 
+QWidget *
+XValGraph::formWindow() const {
+    return m_graphForm.get();
+}
 FrmGraph *
 XValGraph::graphForm() {
     if( !m_graphForm)

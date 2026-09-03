@@ -68,6 +68,7 @@
 #include "xjournal.h"
 #include "interface.h"
 #include "driver.h"     //!< the forms this remembers belong to drivers
+#include "analyzer.h"   //!< ...and to charts and graphs, which are not drivers
 #include "xrubywriter.h"
 #include "xdotwriter.h"
 #include "xscriptingthreadconnector.h"
@@ -420,6 +421,15 @@ FrmKameMain::FrmKameMain()
     m_measure->drivers()->iterate_commit([=](Transaction &tr){
         m_lsnDriverCaught = tr[ *m_measure->drivers()].onCatch().connect(
             *this, &FrmKameMain::onDriverCaught, Listener::FLAG_MAIN_THREAD_CALL);
+    });
+    //Charts and graphs arrive the same way and are answered the same way.
+    m_measure->charts()->iterate_commit([=](Transaction &tr){
+        m_lsnChartCaught = tr[ *m_measure->charts()].onCatch().connect(
+            *this, &FrmKameMain::onChartCaught, Listener::FLAG_MAIN_THREAD_CALL);
+    });
+    m_measure->graphs()->iterate_commit([=](Transaction &tr){
+        m_lsnGraphCaught = tr[ *m_measure->graphs()].onCatch().connect(
+            *this, &FrmKameMain::onGraphCaught, Listener::FLAG_MAIN_THREAD_CALL);
     });
 
     // signals and slots connections
@@ -1514,22 +1524,75 @@ static QString openFormsKeyOf(const XString &path) {
     return QString::fromLatin1(QUrl::toPercentEncoding(
         QString::fromStdString(path)));
 }
+//! The three kinds of window a measurement remembers.  A driver form, a chart
+//! and a graph can all be called the same thing -- a chart is NAMED after the
+//! scalar entry it plots, and that entry is named after its driver -- so the
+//! kind is part of the key and not decoration.
+static const char *const WINDOW_DRIVER = "driver";
+static const char *const WINDOW_CHART = "chart";
+static const char *const WINDOW_GRAPH = "graph";
+static XString windowKeyOf(const char *kind, const XString &name) {
+    return XString(kind) + ":" + name;
+}
 void
 FrmKameMain::onDriverCaught(const Snapshot &shot,
     const XListNodeBase::Payload::CatchEvent &e) {
     auto driver = dynamic_pointer_cast<XDriver>(e.caught);
     if( !driver) return;
-    auto it = m_formsWanted.find(driver->getName());
-    if(it == m_formsWanted.end()) return;
+    XString key = windowKeyOf(WINDOW_DRIVER, driver->getName());
+    if(m_formsWanted.find(key) == m_formsWanted.end()) return;
     driver->showForms();
     //After showForms(), which is what creates the window's first Show and so
-    //runs the cascade: put it back where it was instead.
-    if(QWidget *w = XQConnector::windowOf( *driver)) {
-        if(it->second.isValid())
-            w->setGeometry(it->second);
-        w->setProperty("kame_placed", true);
-    }
-    //Once per driver: a form the user then closes stays closed.
+    //lets the window server place it: put it back where it was instead.
+    //\sa XQConnector::windowOf()
+    placeRememberedWindow(WINDOW_DRIVER, driver->getName(),
+        XQConnector::windowOf( *driver));
+    //Dropped even when there was no window to place, so this is once per
+    //driver either way: a form the user then closes stays closed.
+    m_formsWanted.erase(key);
+}
+void
+FrmKameMain::onChartCaught(const Snapshot &shot,
+    const XListNodeBase::Payload::CatchEvent &e) {
+    auto chart = dynamic_pointer_cast<XValChart>(e.caught);
+    if( !chart) return;
+    XString key = windowKeyOf(WINDOW_CHART, chart->getName());
+    if(m_formsWanted.find(key) == m_formsWanted.end()) return;
+    //A chart is made for every scalar entry there is, open or not, and nothing
+    //opens one but the user double-clicking it -- so unlike a driver form and
+    //unlike a graph, being wanted is the whole of the reason it is shown here.
+    chart->showChart();
+    placeRememberedWindow(WINDOW_CHART, chart->getName(), chart->formWindow());
+    m_formsWanted.erase(key);
+}
+void
+FrmKameMain::onGraphCaught(const Snapshot &shot,
+    const XListNodeBase::Payload::CatchEvent &e) {
+    auto graph = dynamic_pointer_cast<XValGraph>(e.caught);
+    if( !graph) return;
+    if(m_formsWanted.find(windowKeyOf(WINDOW_GRAPH, graph->getName())) ==
+        m_formsWanted.end()) return;
+    //Not shown here.  A graph has no axes yet at the moment it is caught --
+    //the file sets them on the next lines -- and XValGraph::showGraph() does
+    //nothing until it has them; it is XValGraph::onAxisChanged() that shows
+    //the graph, a little later.  Giving the window its geometry now is enough,
+    //because that is what showNormal() will use when it gets there.
+    graph->graphForm();  //!< makes the window if this graph has none yet
+    placeRememberedWindow(WINDOW_GRAPH, graph->getName(), graph->formWindow());
+}
+void
+FrmKameMain::placeRememberedWindow(const char *kind, const XString &name,
+    QWidget *w) {
+    if( !w) return;
+    auto it = m_formsWanted.find(windowKeyOf(kind, name));
+    if(it == m_formsWanted.end()) return;
+    //setGeometry, and nothing that moves the frame instead -- the same call
+    //saveOpenForms() read it with.  \sa restoreWindowGeometry()
+    if(it->second.isValid())
+        w->setGeometry(it->second);
+    w->setProperty("kame_placed", true);
+    //Once: a window the user then moves is theirs, and showing it again must
+    //not drag it back to where the file said.
     m_formsWanted.erase(it);
 }
 void
@@ -1540,35 +1603,61 @@ FrmKameMain::loadOpenForms() {
     settings.beginGroup("openforms");
     for(const QString &entry:
         settings.value(openFormsKeyOf(m_docPath)).toStringList()) {
-        //"x,y,w,h|name" -- the geometry first, so a driver name may contain
-        //anything at all, separator included.
+        //"x,y,w,h,kind|name" -- geometry and kind first, so the name may
+        //contain anything at all, separator included.
         int bar = entry.indexOf('|');
         if(bar < 0) continue;
         QStringList g = entry.left(bar).split(',');
         QRect rect;
-        if(g.size() == 4)
+        if(g.size() >= 4)
             rect = QRect(g[0].toInt(), g[1].toInt(), g[2].toInt(), g[3].toInt());
-        m_formsWanted[entry.mid(bar + 1).toStdString()] = rect;
+        //Four fields and no kind is what this wrote before charts and graphs
+        //were in it, and everything it wrote then was a driver form.
+        XString kind = (g.size() > 4) ? g[4].toStdString() : XString(WINDOW_DRIVER);
+        m_formsWanted[windowKeyOf(kind.c_str(),
+            entry.mid(bar + 1).toStdString())] = rect;
     }
 }
 void
 FrmKameMain::saveOpenForms() {
     if( !m_measure || m_docPath.empty()) return;
     QStringList entries;
-    Snapshot shot( *m_measure->drivers());
-    if(shot.size()) {
-        for(auto &&node: *shot.list()) {
-            auto driver = dynamic_pointer_cast<XDriver>(node);
-            if( !driver) continue;
-            //The framework knows which window is whose, through the widgets
-            //the driver's own connectors registered.  \sa XQConnector::windowOf()
-            QWidget *w = XQConnector::windowOf( *driver);
-            if( !w || !w->isVisible()) continue;
-            QRect g = w->geometry();
-            entries << QString("%1,%2,%3,%4|%5").arg(g.x()).arg(g.y())
-                .arg(g.width()).arg(g.height())
-                .arg(QString::fromStdString(driver->getName()));
-        }
+    auto record = [&entries](const char *kind, const XString &name, QWidget *w) {
+        if( !w || !w->isVisible()) return;
+        QRect g = w->geometry();
+        entries << QString("%1,%2,%3,%4,%5|%6").arg(g.x()).arg(g.y())
+            .arg(g.width()).arg(g.height()).arg(QString::fromLatin1(kind))
+            .arg(QString::fromStdString(name));
+    };
+    {
+        Snapshot shot( *m_measure->drivers());
+        if(shot.size())
+            for(auto &&node: *shot.list()) {
+                auto driver = dynamic_pointer_cast<XDriver>(node);
+                if( !driver) continue;
+                //The framework knows which window is whose, through the widgets
+                //the driver's own connectors registered.  \sa XQConnector::windowOf()
+                record(WINDOW_DRIVER, driver->getName(),
+                    XQConnector::windowOf( *driver));
+            }
+    }
+    //A chart and a graph own their FrmGraph outright and register no connector
+    //for it -- XQGraph::setGraph() makes a painter, not a connector -- so
+    //windowOf() has nothing to find them by, and they are asked directly.
+    //Leaving them out is what "the chart windows do not come back" was.
+    {
+        Snapshot shot( *m_measure->charts());
+        if(shot.size())
+            for(auto &&node: *shot.list())
+                if(auto chart = dynamic_pointer_cast<XValChart>(node))
+                    record(WINDOW_CHART, chart->getName(), chart->formWindow());
+    }
+    {
+        Snapshot shot( *m_measure->graphs());
+        if(shot.size())
+            for(auto &&node: *shot.list())
+                if(auto graph = dynamic_pointer_cast<XValGraph>(node))
+                    record(WINDOW_GRAPH, graph->getName(), graph->formWindow());
     }
     KameSettings settings;
     settings.beginGroup("openforms");

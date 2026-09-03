@@ -82,6 +82,13 @@ class DECLSPEC_KAME XValChart : public XNode {
 public:
 	XValChart(const char *name, bool runtime, const shared_ptr<XScalarEntry> &entry);
 	void showChart();
+	//! The window this chart draws in, or nullptr while it has none.  Does NOT
+	//! make one: saving the layout asks every chart where its window is, and
+	//! materialising a window for each of them to answer would be absurd.
+	//! Out of line, and a QWidget rather than a FrmGraph, because FrmGraph is
+	//! QForm<QWidget, Ui_FrmGraph> and Ui_FrmGraph is incomplete wherever
+	//! ui_graphform.h is not included -- which is everywhere but analyzer.cpp.
+	QWidget *formWindow() const;
 	const shared_ptr<XScalarEntry> &entry() const {return m_entry;}
 private:
     shared_ptr<Listener> m_lsnOnRecord;
@@ -114,6 +121,9 @@ public:
 	void showGraph();
 	void clearAllPoints();
     FrmGraph *graphForm();
+	//! As XValChart::formWindow(): the window if there is one, and never a
+	//! new one -- graphForm() above is the call that makes it.
+	QWidget *formWindow() const;
 
 	typedef XItemNode<XScalarEntryList, XScalarEntry> tAxis;
   

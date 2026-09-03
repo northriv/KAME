@@ -261,7 +261,19 @@ private:
     //! was last closed, open it again, where and as big as it was.
     void onDriverCaught(const Snapshot &shot,
         const XListNodeBase::Payload::CatchEvent &e);
-    //! Which driver forms are open, and where, for the measurement now loaded.
+    //! The same for the two kinds of window that are not a driver's.  A chart
+    //! is asked to show itself, because nothing else ever will; a graph shows
+    //! itself once its axes are set (XValGraph::onAxisChanged), so there it is
+    //! enough to have put the geometry on the window before that happens.
+    void onChartCaught(const Snapshot &shot,
+        const XListNodeBase::Payload::CatchEvent &e);
+    void onGraphCaught(const Snapshot &shot,
+        const XListNodeBase::Payload::CatchEvent &e);
+    //! Puts  w where this measurement left it, and only once: a window the
+    //! user then moves is theirs, and re-showing it must not drag it back.
+    void placeRememberedWindow(const char *kind, const XString &name,
+        class QWidget *w);
+    //! Which windows are open, and where, for the measurement now loaded.
     void saveOpenForms();
     void loadOpenForms();
     //! The measurement the forms below belong to.  Empty when none is loaded,
@@ -269,6 +281,7 @@ private:
     XString m_docPath;
     std::map<XString, QRect> m_formsWanted;
     shared_ptr<Listener> m_lsnDriverCaught;
+    shared_ptr<Listener> m_lsnChartCaught, m_lsnGraphCaught;
     //! Moves \a path to the top of the File > Open Recent list.
     void rememberRecentMes(const QString &path);
     void updateRecentMesMenu();
