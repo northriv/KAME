@@ -80,7 +80,7 @@ def xnode_closure(files):
     bases = {}  # name -> set(base names)
     for f in files:
         try:
-            text = f.read_text(errors='replace')
+            text = f.read_text(encoding='utf-8', errors='replace')
         except OSError:
             continue
         for m in CLASS_RE.finditer(text):
@@ -107,7 +107,7 @@ def main(argv):
     payloads = 0
     for f in files:
         try:
-            text = f.read_text(errors='replace')
+            text = f.read_text(encoding='utf-8', errors='replace')
         except OSError:
             continue
         for m in PAYLOAD_RE.finditer(text):
