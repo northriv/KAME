@@ -309,10 +309,12 @@ public:
 protected slots:
 protected:
     virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override;
+    bool eventFilter(QObject *obj, QEvent *event) override;
+    //! Draws the lamp for the state and the palette it is in.
+    void updateIcon();
     const shared_ptr<XBoolNode> m_node;
     QPushButton *const m_pItem;
-    QIcon *m_pIconOn;
-    QIcon *m_pIconOff;
+    bool m_lit = false;
 };
 
 class DECLSPEC_KAME XQToggleButtonConnector : public XValueQConnector {

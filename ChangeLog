@@ -1,4 +1,23 @@
 * Thu Sep 3 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- UI: the LEDs and the LCD readouts are legible in the dark theme (user, who
+  wants to keep both -- this is an instrument panel).  Both were measured by
+  rendering them and looking, not reasoned about.
+  The LEDs were two bitmaps drawn in 2016 for a light window: a pale blue disc
+  lit and a pale grey one dark, which on a dark window are two bright smudges
+  of nearly equal weight.  They are painted now -- lit is a white core in the
+  lamp's colour with a halo outside it, so light appears to come OUT of it;
+  unlit is a lamp rather than a hole, a disc a shade away from the window
+  colour in whichever direction that has to be, with a rim and a highlight.
+  The first unlit attempt was a grey dot at the 16 px this ships at, which for
+  a panel is worse than wrong -- an indicator has to be visibly there while it
+  is off -- so it is lighter than it looks in the source.  Being drawn, it is
+  also sharp on a Retina display, which a 16 px bitmap never was.
+  QLCDNumber was worse, and in BOTH themes: Qt's default Outline style draws
+  the segments as edges in QPalette::Light, which is washed out on a light
+  window and all but invisible on a dark one.  Flat paints in the foreground
+  colour, follows the theme by itself, and has the highest contrast of the
+  three styles either way.  One line in the connector, so all 15 forms that
+  carry an LCD are fixed without one of them being touched.
 - The source release contains the project and nothing else.  8.6 and 8.6.1
   went out carrying a vendor PDF that happened to be sitting in the working
   tree, for two independent reasons, both now fixed in tools/mkzip.sh: rsync

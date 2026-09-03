@@ -560,6 +560,15 @@ XQTextEditConnector::onTextChanged() {
 XQLCDNumberConnector::XQLCDNumberConnector(const shared_ptr<XDoubleNode> &node, QLCDNumber *item)
 	: XValueQConnector(node, item),
 	  m_node(node), m_pItem(item) {
+    //Flat, not Qt's default Outline.  Rendered in both palettes and looked at:
+    //Outline draws the segments as edges in QPalette::Light, which is washed
+    //out on a light window and all but invisible on a dark one -- the reading
+    //a driver form exists to show, unreadable in the theme KAME now starts in.
+    //Flat paints in the foreground colour, so it follows the theme by itself,
+    //and it is the highest contrast of the three in both.  No colour of its
+    //own, unlike the LED beside it: there the colour is the signal, here the
+    //number is, and cyan digits measured plainly weaker on a light window.
+    item->setSegmentStyle(QLCDNumber::Flat);
     onValueChanged(Snapshot( *node), node.get());
 }
 
@@ -572,6 +581,78 @@ XQLCDNumberConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node)
     m_pItem->update(); //is this necessary?
 }
   
+//KAME_LED_BEGIN -- tools extract this verbatim; keep it self-contained.
+//! An instrument LED, drawn rather than loaded.
+//!
+//! The two bitmaps it replaces were made in 2016 for a light window: a pale
+//! blue disc lit and a pale grey one dark.  On a dark window both read as
+//! bright smudges and they barely differ from each other, which is the whole
+//! of "the LEDs are hard to see" -- and being bitmaps they were soft on every
+//! display since.
+//!
+//! Lit is luminous: a white core inside the lamp's own colour, with a halo
+//! outside it, so the eye reads light coming OUT of the thing rather than a
+//! coloured circle.  Unlit is a lamp, not a hole -- a disc a shade away from
+//! the window colour, whichever direction that has to be, with a rim to give
+//! it an edge and a small highlight so the glass is still glass.  The lit
+//! colour is deliberately not from the palette: it carries the meaning, and
+//! it must not change with the theme.  Blue-cyan, as the old artwork was,
+//! because these nodes are plain booleans -- green or red would promise a
+//! good/bad reading that "Slipping" or "PCSHeater" does not have.
+static QPixmap kameLedPixmap(bool on, const QPalette &pal, qreal dpr) {
+    const qreal S = 16.0;
+    QPixmap pm(QSize(int(S * dpr), int(S * dpr)));
+    pm.setDevicePixelRatio(dpr);
+    pm.fill(Qt::transparent);
+    QPainter p( &pm);
+    p.setRenderHint(QPainter::Antialiasing);
+    QRectF lamp(2.0, 2.0, S - 4.0, S - 4.0);
+    QPointF spec = lamp.center() - QPointF(lamp.width() * 0.20, lamp.height() * 0.24);
+    QColor win = pal.color(QPalette::Window);
+    bool darkui = (win.lightness() < 128);
+    if(on) {
+        QColor lit(0x2f, 0xb8, 0xff);
+        QRadialGradient halo(lamp.center(), S / 2.0);
+        halo.setColorAt(0.0, QColor(lit.red(), lit.green(), lit.blue(), darkui ? 170 : 120));
+        halo.setColorAt(0.60, QColor(lit.red(), lit.green(), lit.blue(), darkui ? 70 : 45));
+        halo.setColorAt(1.0, QColor(lit.red(), lit.green(), lit.blue(), 0));
+        p.setPen(Qt::NoPen);
+        p.setBrush(halo);
+        p.drawEllipse(QRectF(0.0, 0.0, S, S));
+        QRadialGradient body(spec, lamp.width() * 1.05, spec);
+        body.setColorAt(0.0, QColor(255, 255, 255, 235));
+        body.setColorAt(0.30, lit.lighter(125));
+        body.setColorAt(1.0, lit.darker(150));
+        p.setBrush(body);
+        p.setPen(QPen(lit.darker(darkui ? 260 : 190), 1.0));
+        p.drawEllipse(lamp);
+    }
+    else {
+        //Away from the window colour in whichever direction is visible, so the
+        //unlit lamp is never the background with a line around it.  Rendered
+        //and looked at rather than reasoned about: at the 16 px this actually
+        //ships at, the first attempt (lighter(190) on #1e1e1e) was a grey dot
+        //that read as nothing being there, which for a panel is worse than
+        //wrong -- an indicator has to be visibly PRESENT while it is off.
+        QColor body = darkui ? win.lighter(260) : win.darker(112);
+        QRadialGradient g(spec, lamp.width() * 1.1, spec);
+        g.setColorAt(0.0, body.lighter(darkui ? 135 : 112));
+        g.setColorAt(1.0, body.darker(darkui ? 120 : 130));
+        p.setBrush(g);
+        QColor rim = pal.color(QPalette::Mid);
+        p.setPen(QPen(darkui ? rim.lighter(150) : rim, 1.0));
+        p.drawEllipse(lamp);
+    }
+    //The glass, lit or not.
+    QRectF hi(lamp.left() + lamp.width() * 0.22, lamp.top() + lamp.height() * 0.16,
+        lamp.width() * 0.36, lamp.height() * 0.26);
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(255, 255, 255, on ? 150 : (darkui ? 60 : 90)));
+    p.drawEllipse(hi);
+    return pm;
+}
+//KAME_LED_END
+
 XQLedConnector::XQLedConnector(const shared_ptr<XBoolNode> &node, QPushButton *item)
 	: XValueQConnector(node, item),
 	  m_node(node), m_pItem(item) {
@@ -580,13 +661,28 @@ XQLedConnector::XQLedConnector(const shared_ptr<XBoolNode> &node, QPushButton *i
     item->setFlat(true);
     item->setFocusPolicy(Qt::NoFocus);
     item->setIconSize(QSize(16, 16));
+    item->installEventFilter(this);
     onValueChanged(Snapshot( *node), node.get());
 }
 
 void
 XQLedConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
-    m_pItem->setIcon(shot[ *m_node] ?
-        *g_pIconLEDOn : *g_pIconLEDOff);
+    m_lit = shot[ *m_node];
+    updateIcon();
+}
+void
+XQLedConnector::updateIcon() {
+    m_pItem->setIcon(QIcon(kameLedPixmap(m_lit, m_pItem->palette(),
+        m_pItem->devicePixelRatioF())));
+}
+bool
+XQLedConnector::eventFilter(QObject *obj, QEvent *event) {
+    //Half of the drawing comes from the palette, so it is redrawn when the
+    //palette moves -- an appearance change reaches every widget as this.
+    if((event->type() == QEvent::PaletteChange)
+        || (event->type() == QEvent::ScreenChangeInternal))
+        updateIcon();
+    return XValueQConnector::eventFilter(obj, event);
 }
 
 XQToggleButtonConnector::XQToggleButtonConnector(const shared_ptr<XBoolNode> &node, QAbstractButton *item)
