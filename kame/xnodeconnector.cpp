@@ -584,6 +584,16 @@ XQLCDNumberConnector::XQLCDNumberConnector(const shared_ptr<XDoubleNode> &node, 
     pal.setColor(QPalette::Button, QColor(0x0b, 0x10, 0x13));
     pal.setColor(QPalette::ButtonText, QColor(0x7c, 0xe4, 0xff));
     item->setPalette(pal);
+    //And a gap between the digits and the frame.  QLCDNumber draws into
+    //contentsRect(), which by default is the frame's own margin and no more --
+    //so on a 102x23 readout with eight digits the top bar of a 7 lands ON the
+    //frame line and reads as a 1 (user).  Two pixels beside the frame width,
+    //one above and below: measured on the real form, 91x19 becomes 87x17, so
+    //the gap appears all round while the digits keep their height.  Set once
+    //is enough -- the margins survive setFrameStyle(), a StyleChange, a
+    //colour-scheme change and setSegmentStyle(), all four measured.
+    int fw = item->frameWidth();
+    item->setContentsMargins(fw + 2, fw + 1, fw + 2, fw + 1);
     onValueChanged(Snapshot( *node), node.get());
 }
 
