@@ -1,12 +1,14 @@
 * Thu Sep 3 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
-- UI: the LCD digits stand clear of the frame.  QLCDNumber draws into
-  contentsRect(), which by default is the frame width and nothing more, so on
-  a 102x23 readout carrying eight digits the top bar of a 7 lands on the frame
-  line and cannot be told from a 1 (user).  Two pixels beside the frame width
-  and one above it: measured on the real form, the digit area goes from 91x19
-  to 87x17, which is a gap all round at no cost in height.  Set once in the
-  connector -- the margins were measured to survive setFrameStyle(), a
-  StyleChange, a colour-scheme change and setSegmentStyle().
+- UI: the LCD readouts lose their frame, which is what gives the digits room.
+  The forms ask for a raised Box and QLCDNumber draws inside contentsRect(),
+  so the frame both takes the space and puts a line exactly where the top bar
+  of a 7 goes -- which is why a 7 could not be told from a 1 (user).
+  Insetting the digits from that line was tried first and made it worse, as
+  the user saw and the measurement confirms: on the real form the digit area
+  is 87x17 with frame and margin, 91x19 with the frame alone, and 95x23 with
+  neither.  Taller and wider both, so the segments are thicker and further
+  apart, and there is no longer a line for a segment to merge with.  The dark
+  panel behind them is the boundary now, which is what a display looks like.
 - AutoLCTuner: "Scan assist when stuck", off by default.  When the stepwise
   search has stopped improving for three analyses but already knows the
   capacitance derivatives, it hands the next turn over to a continuous scan:
