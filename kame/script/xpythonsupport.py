@@ -2479,7 +2479,10 @@ def kame_handle_link(action):
 				"web UI" if action == 'pyai-web' else "CLI", _wd,
 				("via clai, agent " + _agent + ("; its own model" if _own
 					else "; model from -m or clai's default"))
-				if _via_clai else _py + "; needs --model or KAME_PYAI_MODEL"))
+				if _via_clai else _py + ("; no clai next to it, so --web cannot "
+					"start -- uv sync / uv pip install clai in that venv"
+					if action == 'pyai-web'
+					else "; needs --model or KAME_PYAI_MODEL")))
 		else:
 			_kame_gui_html('<font color="#cc0000">Unknown link action: {}</font>'.format(
 				html.escape(str(action))))

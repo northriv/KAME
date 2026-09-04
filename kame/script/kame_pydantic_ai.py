@@ -275,8 +275,19 @@ def main():
                     os.path.dirname(sys.executable), 'clai'))
                 else shutil.which('clai'))
         if not clai:
-            sys.exit("`clai` not found — pip install clai (into the same "
-                     "Python as pydantic-ai), or run without --web.")
+            #Name the interpreter: this is looked for NEXT TO sys.executable
+            #before PATH, so "not found" is about that environment, not about
+            #PATH -- and a uv-created venv has no pip in it at all, which made
+            #the old "pip install clai" advice fail on its own terms.
+            sys.exit(
+                "`clai` not found in {}\n"
+                "Install it into that environment -- for a uv project:\n"
+                "    uv sync            (if clai is in its pyproject)\n"
+                "    uv pip install --python {} clai\n"
+                "or, for a pip venv:  {} -m pip install clai\n"
+                "Otherwise run without --web.".format(
+                    os.path.dirname(sys.executable), sys.executable,
+                    sys.executable))
         env = dict(os.environ)
         env['PYTHONPATH'] = os.pathsep.join(
             (os.path.dirname(os.path.abspath(__file__)),
