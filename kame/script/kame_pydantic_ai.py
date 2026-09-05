@@ -20,7 +20,10 @@ Model resolution: --model, else $KAME_PYAI_MODEL, else $PYDANTIC_AI_MODEL.
 `--web` hands this module's agent to `clai web` (needs the `clai` package).
 `--check` connects, prints the tool roster, and exits — no model needed.
 
-Requires: pip install pydantic-ai   (and `clai` for --web)
+Requires: pydantic-ai (and `clai` for --web) in THIS interpreter --
+    uv pip install --python <python> pydantic-ai clai
+    <python> -m pip install pydantic-ai clai       (pip venvs only;
+                                                    uv venvs carry no pip)
 """
 import argparse
 import json
@@ -176,6 +179,124 @@ SYSTEM_PROMPT = (
 )
 
 
+def _shell_profile():
+    """Where an `export` has to go for it to reach this process.
+
+    KAME opens a terminal WINDOW for this client; that window runs the login
+    shell, so the shell profile is the one place a key or model setting
+    reaches both this script and `clai`.  KAME's own environment does not
+    inherit shell exports (it is a GUI application), so an export that is only
+    in the shell that started KAME is not seen either."""
+    if sys.platform == 'darwin':
+        return '~/.zshrc (macOS Terminal runs zsh as a login shell)'
+    if os.name == 'nt':
+        return ('the user environment (setx NAME value, then open a new '
+                'window)')
+    return '~/.bashrc or ~/.profile (whichever your terminal reads)'
+
+
+def _tilde(path):
+    home = os.path.expanduser('~')
+    return '~' + path[len(home):] if path.startswith(home + os.sep) else path
+
+
+def _install_lines():
+    py = sys.executable
+    if sys.prefix == getattr(sys, 'base_prefix', sys.prefix):
+        #Not a venv at all.  Installing into a system or Xcode/Homebrew
+        #interpreter is the wrong fix; make an environment and point KAME at it.
+        venv = '~/kame-pyai'
+        vpy = venv + ('\\Scripts\\python.exe' if os.name == 'nt' else '/bin/python')
+        return ("  (this is a system interpreter, not a venv -- make one; on macOS "
+                "keep it out of\n   Documents, Desktop, Downloads and iCloud "
+                "Drive, which privacy protection walls off)\n"
+                "    uv venv {0} && uv pip install --python {1} pydantic-ai clai\n"
+                "    {2} -m venv {0} && {1} -m pip install pydantic-ai clai\n"
+                "  then delete ~/.kame_pyai_python and click the KAME link again "
+                "to pick {0}".format(venv, vpy, py))
+    return ("    uv pip install --python {0} pydantic-ai clai\n"
+            "    {0} -m pip install pydantic-ai clai      (pip venvs only; a uv "
+            "venv has no pip)".format(_tilde(py)))
+
+
+def _need_pydantic_ai():
+    """Import pydantic_ai or say, precisely, which interpreter lacks it."""
+    try:
+        import pydantic_ai  # noqa: F401
+    except ImportError as e:
+        sys.exit(
+            "This interpreter has no pydantic_ai:\n"
+            "    {}\n"
+            "    ({})\n"
+            "Install it there:\n{}\n"
+            "If that is the wrong interpreter, delete ~/.kame_pyai_python and "
+            "click the KAME link again to pick another venv.".format(
+                _tilde(sys.executable), e, _install_lines()))
+
+
+def _explain_and_exit(exc):
+    """Turn the errors people actually meet into instructions.
+
+    Anything not recognised is re-raised with its traceback: a message that
+    guesses wrong is worse than one that says nothing."""
+    msg = str(exc)
+    tail = ("\nManual: MCP chapter, Troubleshooting table -- "
+            "https://github.com/northriv/KAME#ai-assisted-experiment-automation-mcp")
+    try:
+        from pydantic_ai.exceptions import UserError
+    except ImportError:
+        UserError = ()
+    if isinstance(exc, UserError):
+        if 'environment variable' in msg:
+            import re
+            m = re.search(r'`?([A-Z][A-Z0-9_]*_API_KEY)`?', msg)
+            var = m.group(1) if m else 'the provider API key'
+            sys.exit(
+                "{}\n\n"
+                "The model needs {}, and this process does not have it.\n"
+                "  * Put   export {}=...   in {} and open the link again.\n"
+                "  * Or use a model that needs no key, e.g. a local Ollama:\n"
+                "        export KAME_PYAI_MODEL=openai:qwen3:32b\n"
+                "        export OPENAI_BASE_URL=http://127.0.0.1:11434/v1\n"
+                "  (clai without a model falls back to openai:gpt-5, which is "
+                "why an OPENAI key\n   is demanded when you never chose "
+                "OpenAI -- set KAME_PYAI_MODEL.)"
+                .format(msg, var, var if m else 'it', _shell_profile()) + tail)
+        if 'Unknown model' in msg:
+            sys.exit(
+                "{}\n\n"
+                "The form is provider:name, for example\n"
+                "    anthropic:claude-sonnet-4-5    openai:gpt-5    "
+                "google-gla:gemini-2.5-pro\n"
+                "    openai:<any name>  with OPENAI_BASE_URL for Ollama / "
+                "llama.cpp / LM Studio\n"
+                "It came from --model, else KAME_PYAI_MODEL, else "
+                "PYDANTIC_AI_MODEL.".format(msg) + tail)
+        sys.exit(msg + tail)
+    if isinstance(exc, (RuntimeError, OSError, ConnectionError)) and (
+            'connect' in msg.lower() or 'refused' in msg.lower()):
+        url = ''
+        try:
+            with open(URL_FILE) as f:
+                url = json.load(f).get('url', '')
+        except (OSError, ValueError):
+            pass
+        sys.exit(
+            "Could not reach KAME's MCP server{}.\n"
+            "    {}\n"
+            "The server lives inside KAME's Jupyter kernel, so KAME must be "
+            "running and its\n'Jupyter notebook' link (Script pane) must have "
+            "been clicked in THIS KAME session --\n{} is rewritten each time "
+            "and removed when KAME exits, so a stale one\nmeans KAME was "
+            "restarted without the notebook.{}".format(
+                ' at ' + url if url else '', msg, _tilde(URL_FILE),
+                '' if '--check' in sys.argv else
+                "  Then verify with:\n    {} {} --check".format(
+                    _tilde(sys.executable), _tilde(os.path.abspath(__file__))))
+            + tail)
+    raise exc
+
+
 def _server_url():
     """(url, token) of the running KAME MCP HTTP server."""
     try:
@@ -186,9 +307,15 @@ def _server_url():
         url, token = None, ''
     if not url:
         sys.exit(
-            "KAME's MCP server is not reachable: {} is missing or has no "
-            "url.\nStart KAME and click 'Jupyter notebook' in the Script "
-            "pane, then retry.".format(URL_FILE))
+            "KAME's MCP server address is not known: {} is missing or has no "
+            "url.\n"
+            "KAME writes that file when its Jupyter notebook is launched and "
+            "removes it on exit, so:\n"
+            "  1. KAME must be running now, and\n"
+            "  2. 'Jupyter notebook' in its Script pane must have been clicked "
+            "in this session\n     (the MCP server runs inside that kernel).\n"
+            "Then click the Pydantic AI link again, or verify with --check."
+            .format(_tilde(URL_FILE)))
     return url, token
 
 
@@ -211,6 +338,7 @@ def _toolset(url, token):
 
 
 def _build_agent(model):
+    _need_pydantic_ai()   #also on the clai import path, which skips main()
     from pydantic_ai import Agent
     url, token = _server_url()
     #Capabilities, not a wrapper around agent.run(): both entry points here
@@ -262,9 +390,15 @@ def main():
     p.add_argument('--check', action='store_true',
                    help="connect to the MCP server, list tools, exit")
     args = p.parse_args()
+    #First, because every other message presumes it: `clai` needs it in this
+    #same interpreter too, and its own import error names no interpreter.
+    _need_pydantic_ai()
 
     if args.check:
-        return _check()
+        try:
+            return _check()
+        except Exception as e:
+            _explain_and_exit(e)
 
     if args.web:
         # `clai web --agent module:variable` serves this module's agent; the
@@ -301,17 +435,34 @@ def main():
 
     if not args.model:
         sys.exit(
-            "No model given. Pass --model or set KAME_PYAI_MODEL, e.g.\n"
-            "  --model anthropic:claude-sonnet-4-5      (needs ANTHROPIC_API_KEY)\n"
-            "  --model openai:gpt-5                     (needs OPENAI_API_KEY)\n"
-            "  --model openai:qwen3:32b                 (local: set OPENAI_BASE_URL\n"
-            "      to your Ollama/llama.cpp endpoint, e.g. http://127.0.0.1:11434/v1)")
-    _build_agent(args.model).to_cli_sync(prog_name='kame')
+            "No model given.  This script binds none itself; name one with "
+            "--model, or\nset KAME_PYAI_MODEL in {} so every launch has it:\n"
+            "  anthropic:claude-sonnet-4-5      (needs ANTHROPIC_API_KEY)\n"
+            "  openai:gpt-5                     (needs OPENAI_API_KEY)\n"
+            "  google-gla:gemini-2.5-pro        (needs GOOGLE_API_KEY)\n"
+            "  openai:qwen3:32b                 (local, no key: also set "
+            "OPENAI_BASE_URL to your\n      Ollama / llama.cpp / LM Studio "
+            "endpoint, e.g. http://127.0.0.1:11434/v1)\n"
+            "The key goes in the same file.  With `clai` installed next to "
+            "this interpreter,\nKAME launches that instead and its default "
+            "(openai:gpt-5) applies when nothing is set.".format(
+                _shell_profile()))
+    try:
+        _build_agent(args.model).to_cli_sync(prog_name='kame')
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        _explain_and_exit(e)
 
 
 if __name__ != '__main__':
-    # Imported by `clai web --agent kame_pydantic_ai:agent`.
-    agent = _build_agent(os.environ.get(
-        'KAME_PYAI_MODEL', os.environ.get('PYDANTIC_AI_MODEL')) or None)
+    # Imported by `clai [web] --agent kame_pydantic_ai:agent`.  A failure
+    # here surfaces inside clai's import machinery, so make it a plain
+    # message rather than a traceback through importlib.
+    try:
+        agent = _build_agent(os.environ.get(
+            'KAME_PYAI_MODEL', os.environ.get('PYDANTIC_AI_MODEL')) or None)
+    except Exception as _e:
+        _explain_and_exit(_e)
 else:
     main()
