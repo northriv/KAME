@@ -728,6 +728,32 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         }
 
         if(mode__ == MeasMode::T2_Multi){
+            //The axis of a multi-echo train IS the train: the first echo is at
+            //2 tau, the last at 2 tau x echoNum, and there is one point per
+            //echo.  Read from the pulser rather than typed in (user).  It was
+            //half done before -- onActiveChanged() set the two ends once, when
+            //the measurement was switched on, and they went stale the moment
+            //tau or the echo count moved; the sample count was never set at
+            //all, so a train of 16 echoes was smoothed into whatever number
+            //happened to be in the box.
+            //
+            //Written only when it actually differs.  These three nodes clear
+            //the accumulated T-map through onMapClearCondRequested, which is
+            //exactly right when the axis really moves and ruinous once per
+            //record.
+            double tau__ = shot_pulser[ *pulser__].tau();
+            unsigned int nechoes__ = shot_pulser[ *pulser__].echoNum();
+            if((tau__ > 0.0) && nechoes__) {
+                double p1min__ = 2.0 * tau__;
+                double p1max__ = 2.0 * tau__ * nechoes__;
+                if((fabs((double)shot_this[ *p1Min()] - p1min__) > 1e-6 * p1min__) ||
+                    (fabs((double)shot_this[ *p1Max()] - p1max__) > 1e-6 * p1max__) ||
+                    ((unsigned int)shot_this[ *smoothSamples()] != nechoes__)) {
+                    tr[ *p1Min()] = p1min__;
+                    tr[ *p1Max()] = p1max__;
+                    tr[ *smoothSamples()] = nechoes__;
+                }
+            }
             if(shot_pulser[ *pulser__].combMode() != XPulser::N_COMB_MODE_OFF)
                 m_statusPrinter->printWarning(i18n("T2 mode with comb pulse!"));
 
@@ -1243,9 +1269,15 @@ XNMRT1::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
         });
         setNextP1(shot_this);
         if(shot_this[ *mode()] == (int)MeasMode::T2_Multi){
+            //The ends AND the sample count, so the axis is right before the
+            //first record rather than after it.  analyze() keeps all three
+            //following the pulser from here on.
             iterate_commit([=](Transaction &tr){
+                unsigned int nechoes = shot_pulser[ *pulser__].echoNum();
                 tr[ *p1Min()] = 2.0 * shot_pulser[ *pulser__].tau();
-                tr[ *p1Max()] = 2.0 * shot_pulser[ *pulser__].tau() * shot_pulser[ *pulser__].echoNum();
+                tr[ *p1Max()] = 2.0 * shot_pulser[ *pulser__].tau() * nechoes;
+                if(nechoes)
+                    tr[ *smoothSamples()] = nechoes;
             });
         }
 

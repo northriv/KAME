@@ -9,6 +9,16 @@
   neither.  Taller and wider both, so the segments are thicker and further
   apart, and there is no longer a line for a segment to merge with.  The dark
   panel behind them is the boundary now, which is what a display looks like.
+- NMR T1: in T2 multi-echo mode the relaxation axis is read from the echo
+  train instead of being typed in (user).  The first echo is at 2 tau and the
+  last at 2 tau x echoNum, and there is one point per echo, so Min, Max and
+  Samples are all the pulser's to say.  Two of the three were already set from
+  it, but only once, when the measurement was switched on -- they went stale
+  as soon as tau or the echo count moved -- and the sample count was never set
+  at all, so a train of 16 echoes was smoothed into whatever number happened
+  to be in the box.  All three follow the pulser on every record now, written
+  only when they actually differ: these nodes clear the accumulated T-map,
+  which is right when the axis really moves and ruinous once per record.
 - Pulser: an RF pulse is a whole number of QAM samples long, so the gate and
   the envelope inside it are the same length (user: "4.5 us looks wrong", and
   it was).  The widths were quantised to two PATTERN samples, which on a
