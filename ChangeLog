@@ -9,6 +9,21 @@
   neither.  Taller and wider both, so the segments are thicker and further
   apart, and there is no longer a line for a segment to merge with.  The dark
   panel behind them is the boundary now, which is what a display looks like.
+- Pulser: an RF pulse is a whole number of QAM samples long, so the gate and
+  the envelope inside it are the same length (user: "4.5 us looks wrong", and
+  it was).  The widths were quantised to two PATTERN samples, which on a
+  100 MHz pattern generator is 0.02 us -- but the QAM waveform is written one
+  QAM sample at a time, and on a 5 MSPS QAM device that is 20 pattern samples.
+  4.5 us is 450 of them: 22.5 QAM samples, and the half that does not fill a
+  sample is discarded when the next pulse begins, so the gate stayed 4.5 us
+  while the RF inside it was 4.4.  4.4 and 4.6 divide exactly, which is why
+  only 4.5 misbehaved.  Widths now land on the QAM sample where there is one
+  (0.2 us here, so 4.5 becomes 4.6) and on two pattern samples where there is
+  not, which is what they did before.
+  Rounding is by llround rather than llrint, and with a 1e-9 nudge: llrint
+  takes a tie to the even multiple, and even llround splits halfway widths by
+  binary representation alone -- 4.5/0.2 is exactly 22.5 and rounds up while
+  4.3/0.2 is 21.499999999999996 and rounds down.  Measured, both of them.
 - AutoLCTuner: "Scan assist when stuck", off by default.  When the stepwise
   search has stopped improving for three analyses but already knows the
   capacitance derivatives, it hands the next turn over to a continuous scan:

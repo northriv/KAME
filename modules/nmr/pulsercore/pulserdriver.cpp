@@ -704,12 +704,38 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
     uint64_t asw_setup__ = rintSampsMilliSec(shot[ *this].aswSetup());
     uint64_t asw_hold__ = rintSampsMilliSec(shot[ *this].aswHold());
     uint64_t alt_sep__ = rintSampsMilliSec(shot[ *this].altSep());
-    uint64_t pw1__ = hasQAMPorts() ?
-		ceilSampsMicroSec(shot[ *this].pw1()/2)*2 : rintSampsMicroSec(shot[ *this].pw1()/2)*2;
-    uint64_t pw2__ = hasQAMPorts() ?
-		ceilSampsMicroSec(shot[ *this].pw2()/2)*2 : rintSampsMicroSec(shot[ *this].pw2()/2)*2;
-    uint64_t comb_pw__ = hasQAMPorts() ?
-		ceilSampsMicroSec(shot[ *this].combPW()/2)*2 : rintSampsMicroSec(shot[ *this].combPW()/2)*2;
+    //RF pulse widths land on a grid, and what the grid IS depends on the
+    //back-end.  Two pattern samples at least, because the pulse is placed as
+    //pos +- pw/2 and half of it has to be a whole sample.  With QAM it is the
+    //QAM sample instead -- 20 pattern samples on a 100 MHz pattern feeding a
+    //5 MSPS QAM, i.e. 0.2 us -- because the envelope is written one QAM sample
+    //at a time and a pulse that does not fill its last one loses it: the tail
+    //is discarded at the next pulse (thamwaypulser.cpp, "decimation"), so the
+    //gate stays the width that was asked for while the RF inside it is
+    //shorter.  4.5 us was exactly that: 450 pattern samples, 22.5 QAM samples,
+    //gate 4.5 us and envelope 4.4 (user).
+    //
+    //llround, not llrint: llrint rounds a tie to EVEN under the default
+    //rounding mode, so half-grid widths went down or up depending on which
+    //multiple they sat between.  Rounding a width is fine (user); rounding it
+    //unpredictably is not.
+    uint64_t pwgrid = hasQAMPorts() ?
+        std::max(2u, 2u * ((patternSampsPerQAMSamp() + 1) / 2)) : 2;
+    auto widthSamps = [this, pwgrid](double us)->uint64_t {
+        double res = resolution() * 1e3; //[us] per pattern sample
+        long long g = (long long)pwgrid;
+        //The 1e-9 is for the halfway widths, and it was measured rather than
+        //feared: 4.5/0.2 comes out exactly 22.5 and rounds up, but 4.3/0.2 is
+        //21.499999999999996 and rounds DOWN, so without it 4.3 would go to 4.2
+        //while 4.5 goes to 4.6.  A relative nudge a thousand times smaller than
+        //one sample of the shortest pulse anyone writes puts every halfway
+        //width on the same side.
+        return (uint64_t)std::max(0LL,
+            llround(us / (res * g) * (1.0 + 1e-9))) * g;
+    };
+    uint64_t pw1__ = widthSamps(shot[ *this].pw1());
+    uint64_t pw2__ = widthSamps(shot[ *this].pw2());
+    uint64_t comb_pw__ = widthSamps(shot[ *this].combPW());
     uint64_t comb_pt__ = rintSampsMicroSec(shot[ *this].combPT());
     uint64_t comb_p1__ = rintSampsMilliSec(shot[ *this].combP1());
     uint64_t comb_p1_alt__ = rintSampsMilliSec(shot[ *this].combP1Alt());
