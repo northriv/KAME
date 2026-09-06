@@ -68,7 +68,7 @@ public:
 			std::complex<double> c;
 			double p1;
 			int isigma; /// weight
-			std::deque<std::complex<double> > value_by_cond;
+			std::vector<std::complex<double> > value_by_cond;
 		};
 		struct ConvolutionCache {
 			std::vector<std::complex<double> > wave;
@@ -80,7 +80,7 @@ public:
 		};
 		//! Raw measured points
 		struct RawPt {
-			std::deque<std::complex<double> > value_by_cond;
+			std::vector<std::complex<double> > value_by_cond;
 			double p1;
 		};
 		//pointer-to-const: entries are shared with live Snapshots; rebuild via a fresh object (83bb9ffaf).
@@ -241,7 +241,7 @@ private:
 
 	void analyzeSpectrum(Transaction &tr,
 		const std::vector< std::complex<double> >&wave, int origin, double cf,
-		std::deque<std::complex<double> > &value_by_cond);
+		std::vector<std::complex<double> > &value_by_cond);
     void storePulseForMapping(Transaction &tr, double p1_or_2tau,
         const std::vector< std::complex<double> >&wave, const Snapshot &shot_pulse, const XNMRPulseAnalyzer &pulse);
     void ZFFFT(Transaction &tr,

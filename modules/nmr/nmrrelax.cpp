@@ -476,7 +476,7 @@ XNMRT1::onMapClearCondRequested(const Snapshot &shot, XValueNodeBase *node) {
 void
 XNMRT1::analyzeSpectrum(Transaction &tr,
     const std::vector< std::complex<double> >&wave, int origin, double cf,
-    std::deque<std::complex<double> > &value_by_cond) {
+    std::vector<std::complex<double> > &value_by_cond) {
     const Snapshot &shot_this(tr);
 
     value_by_cond.clear();
@@ -735,7 +735,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
             throw XSkippedRecordError(__FILE__, __LINE__);
         }
 
-        std::deque<std::complex<double> > cmp1, cmp2;
+        std::vector<std::complex<double> > cmp1, cmp2;
         double cfreq = shot_this[ *freq()] * 1e3 * shot_pulse1[ *pulse1__].interval();
         if(shot_this[ *trackPeak()]) {
             if(((mode__ == MeasMode::T1) && (shot_pulser[ *pulser__].combP1() > distributeP1(shot_this, 0.66))) ||
@@ -911,7 +911,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         }
     }
 
-    std::deque<std::complex<double> > sum_c(
+    std::vector<std::complex<double> > sum_c(
         shot_this[ *this].m_convolutionCache.size()), corr(shot_this[ *this].m_convolutionCache.size());
     double sum_t = 0.0;
     int n = 0;
