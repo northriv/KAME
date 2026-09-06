@@ -9,6 +9,17 @@
   neither.  Taller and wider both, so the segments are thicker and further
   apart, and there is no longer a line for a segment to merge with.  The dark
   panel behind them is the boundary now, which is what a display looks like.
+- Replay: an interface's wiring is left alone (user).  Restoring a journal
+  wrote its recorded Device, Port and Address over the live ones -- they are
+  ordinary non-runtime nodes, so applyValues() took them like any setting --
+  and a session's head dump is written at startup, BEFORE a .kam has set
+  them, so what it usually holds is nothing at all.  The correct port a rig
+  was working on was therefore replaced by an empty one.  Nothing was gained
+  by restoring them either: a replay re-analyses records and opens no
+  hardware, and which port a rig is plugged into is the machine's state, not
+  the measurement's.  Detected by walking the path and asking whether it
+  passes through an XInterface, not by matching the name "Interface", since
+  the node's type is what the rule is about.  Loading a .kam is untouched.
 - Thamway USB: the IDN is read from a synchronised stream, so a device is not
   dropped from the list it belongs in (user).  examineDeviceAfterFWLoad() has
   always thrown away the first DIP-switch read and kept the second -- the

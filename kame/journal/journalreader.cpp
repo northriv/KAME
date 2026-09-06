@@ -515,6 +515,31 @@ static shared_ptr<XNode> nodeAt(const shared_ptr<XNode> &root, const XString &pa
 	}
 	return node;
 }
+//! \return true if \a path passes through an XInterface on its way down.
+//!
+//! Which port a rig is plugged into is the machine's state, not the
+//! measurement's, and a replay must not touch it.  The journal records those
+//! nodes like any other -- Device is an XComboNode, Port an XStringNode, both
+//! non-runtime -- and the session's own head dump is written at startup,
+//! BEFORE a .kam has set them, so what it holds is usually nothing at all.
+//! Replaying it therefore overwrote a correct, live port setting with an empty
+//! one (user, 2026-09-06).  Nothing is gained by restoring them either: a
+//! replay re-analyses records and opens no hardware.
+//!
+//! Tested by walking the path rather than by matching "Interface" in it: the
+//! node's own type is what the rule is about, and a driver is free to name
+//! its interface anything.
+static bool underInterface(const shared_ptr<XNode> &root, const XString &path) {
+	shared_ptr<XNode> node = root;
+	for(auto &&part: QString::fromStdString(path).split('/', Qt::SkipEmptyParts)) {
+		if( !node)
+			return false;
+		node = node->getChild(part.toStdString());
+		if(dynamic_pointer_cast<XInterface>(node))
+			return true;
+	}
+	return false;
+}
 
 //! What decides whether restoring is a private act or a public one.
 //!
@@ -704,6 +729,8 @@ XJournalReader::applyValues(const std::vector<RestoreItem> &items,
 				}
 			}
 		}
+		if(underInterface(root, item.path))
+			continue;   //!< the rig's wiring, not the measurement.  \sa underInterface()
 		auto node = nodeAt(root, item.path);
 		auto vnode = dynamic_pointer_cast<XValueNodeBase>(node);
 		if( !vnode) {
