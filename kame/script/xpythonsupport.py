@@ -2025,6 +2025,12 @@ PYAI_SETTINGS_TEMPLATE = """\
 #KAME_PYAI_MODEL=google-gla:gemini-2.5-pro
 #KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5, openai:gpt-5
 
+# Sakana AI (fugu, namazu): sakana:<model>, with SAKANA_API_KEY below.  The
+# agent KAME ships resolves this prefix itself (pydantic-ai has no Sakana
+# provider); in the web UI it is the bound model, not a menu entry.
+#KAME_PYAI_MODEL=sakana:fugu
+#KAME_PYAI_MODEL=sakana:fugu-ultra-v1.1
+
 # A model of your own through an OpenAI-compatible server (Ollama, LM Studio,
 # llama.cpp): name it openai:<model>, point OPENAI_BASE_URL at the server, and
 # give any non-empty OPENAI_API_KEY, which such servers ignore.
@@ -2033,9 +2039,11 @@ PYAI_SETTINGS_TEMPLATE = """\
 #OPENAI_API_KEY=ollama
 
 # ---- The key the chosen provider needs -------------------------------------
+# (Your own agent module sees these too, once it imports kame_pydantic_ai.)
 #ANTHROPIC_API_KEY=
 #OPENAI_API_KEY=
 #GOOGLE_API_KEY=
+#SAKANA_API_KEY=
 """
 
 
@@ -2153,7 +2161,7 @@ def _pyai_help_file(py, script, agent, own, model, wd, system):
 		'  interpreter  delete ~/.kame_pyai_python, click the link again, pick the venv',
 		'  agent        the "agent" link in KAME (Cancel there = back to the one KAME ships)',
 		'  model        KAME_PYAI_MODEL=provider:name   in {}'.format(_prof),
-		'               e.g. anthropic:claude-sonnet-4-5 | openai:gpt-5 |',
+		'               e.g. anthropic:claude-sonnet-4-5 | openai:gpt-5 | sakana:fugu |',
 		'               openai:<local name> together with OPENAI_BASE_URL (Ollama, LM Studio)',
 		'The usual messages, and the fix for each:',
 		'  "Set the XXX_API_KEY environment variable"',
@@ -2704,6 +2712,13 @@ def kame_handle_link(action):
 				else:
 					_models = [_x for _x in re.split(r'[,\s]+', _model) if _x] \
 							  if _model and (not _own or action == 'pyai-web') else []
+					# clai's infer_model() knows no `sakana:`; the module resolves
+					# that prefix itself and binds the FIRST listed model.  Any -m
+					# makes clai override that binding, so with a sakana default
+					# pass none, and never pass a sakana entry.
+					if _models and _models[0].startswith('sakana:'):
+						_models = []
+					_models = [_x for _x in _models if not _x.startswith('sakana:')]
 					_cmd = [_clai] + (['web'] if action == 'pyai-web' else []) \
 						   + ['-a', _agent] \
 						   + [_a for _x in _models for _a in ('-m', _x)] \

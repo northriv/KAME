@@ -21,7 +21,9 @@ lines; KAME's "settings" link creates and opens the first).  Anything already
 in the environment wins, so a shell export still works, but none is needed.
 Model resolution: --model, else KAME_PYAI_MODEL, else PYDANTIC_AI_MODEL — from
 the environment or those files.  A comma-separated list binds the first and
-offers the rest in the web UI's menu.
+offers the rest in the web UI's menu.  `sakana:<model>` (fugu, namazu) is
+resolved here against SAKANA_API_KEY; every other provider:name is
+pydantic-ai's own.
 `--web` hands this module's agent to `clai web` (needs the `clai` package).
 `--check` connects, prints the tool roster, and exits — no model needed.
 
@@ -47,6 +49,11 @@ from datetime import datetime, timezone
 
 URL_FILE = os.path.join(os.path.expanduser('~'), '.kame_mcp_url')
 SETTINGS_FILE = os.path.join(os.path.expanduser('~'), '.kame_pyai.env')
+#Sakana AI (fugu, namazu) serves an OpenAI-compatible API but is not a
+#provider pydantic-ai knows, so `sakana:<model>` is resolved here rather than
+#by making the user repurpose OPENAI_BASE_URL / OPENAI_API_KEY -- which would
+#also shut out real OpenAI models in the same file.
+SAKANA_BASE_URL = 'https://api.sakana.ai/v1'
 
 
 def _read_env_file(path):
@@ -349,7 +356,7 @@ def _explain_and_exit(exc):
                 "{}\n\n"
                 "The form is provider:name, for example\n"
                 "    anthropic:claude-sonnet-4-5    openai:gpt-5    "
-                "google-gla:gemini-2.5-pro\n"
+                "google-gla:gemini-2.5-pro    sakana:fugu\n"
                 "    openai:<any name>  with OPENAI_BASE_URL for Ollama / "
                 "llama.cpp / LM Studio\n"
                 "It came from --model, else KAME_PYAI_MODEL, else "
@@ -419,9 +426,30 @@ def _toolset(url, token):
         return MCPServerStreamableHTTP(url, headers=headers)
 
 
+def _resolve_model(spec):
+    """A model string pydantic-ai can infer, or a Model object for the
+    providers it cannot: `sakana:<name>` -> Sakana AI's OpenAI-compatible
+    endpoint with SAKANA_API_KEY.  Everything else passes through."""
+    if not spec or not spec.startswith('sakana:'):
+        return spec
+    from pydantic_ai.exceptions import UserError
+    from pydantic_ai.models.openai import OpenAIChatModel
+    from pydantic_ai.providers.openai import OpenAIProvider
+    key = os.environ.get('SAKANA_API_KEY')
+    if not key:
+        #Worded like pydantic-ai's own, so _explain_and_exit's API-key branch
+        #recognises it and names the variable.
+        raise UserError('Set the `SAKANA_API_KEY` environment variable to use '
+                        'the Sakana AI provider (model {}).'.format(spec))
+    return OpenAIChatModel(spec[len('sakana:'):],
+                           provider=OpenAIProvider(base_url=SAKANA_BASE_URL,
+                                                   api_key=key))
+
+
 def _build_agent(model):
     _need_pydantic_ai()   #also on the clai import path, which skips main()
     from pydantic_ai import Agent
+    model = _resolve_model(model)
     url, token = _server_url()
     #Capabilities, not a wrapper around agent.run(): both entry points here
     #hand the agent to someone else's loop (to_cli_sync, and `clai web`, which
@@ -548,6 +576,8 @@ def main():
             "OPENAI_API_KEY)\n"
             "    KAME_PYAI_MODEL=google-gla:gemini-2.5-pro        (needs "
             "GOOGLE_API_KEY)\n"
+            "    KAME_PYAI_MODEL=sakana:fugu                      (needs "
+            "SAKANA_API_KEY)\n"
             "    KAME_PYAI_MODEL=openai:qwen3:32b                 (local, no "
             "key: add OPENAI_BASE_URL=\n        http://127.0.0.1:11434/v1 for "
             "Ollama / llama.cpp / LM Studio, and OPENAI_API_KEY=ollama)\n"

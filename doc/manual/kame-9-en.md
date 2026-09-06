@@ -1536,6 +1536,10 @@ Which model is used:
   may be listed, separated by commas; they populate the web UI's model menu.
   With none set, `clai`'s own default (`openai:gpt-5`) applies, which needs an
   OpenAI key.
+- `sakana:<model>` (`fugu`, `fugu-ultra-v1.1`, …) reaches Sakana AI with
+  `SAKANA_API_KEY`. pydantic-ai has no Sakana provider, so KAME's agent resolves
+  the prefix itself; that makes it the bound model in the web UI rather than a
+  menu entry, and it cannot be given to `clai -m` directly.
 
 ## What each client can show you
 
