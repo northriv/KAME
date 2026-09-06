@@ -1455,10 +1455,20 @@ The Script pane offers one-click launches, each already pointed at this KAME:
 | **Claude: Code / app** | Claude Code in a terminal, with KAME's plugin loaded automatically / the Claude desktop app |
 | **Codex: CLI / fugu / app** | Codex in a terminal. The server is passed for that session only — nothing is written to your Codex configuration |
 | **Pydantic AI: CLI / web** | The `clai` command from your virtualenv, given KAME's agent. **web** also opens your browser once the server answers |
+| **Pydantic AI: ⚙ settings** | Creates `~/.kame_pyai.env` from a commented template on first use and opens it in your editor: the model and the API key go there, one line each |
 | **Pydantic AI: ⚙ agent** | Use an agent module of your own instead of KAME's (see below) |
 
 On first use of a Pydantic AI link, KAME asks for the virtualenv that has
 `pydantic-ai` installed and remembers it.
+
+Two things are needed before the first chat: a model name and that provider's
+API key. Both go into the file that **⚙ settings** opens — uncomment one
+`KAME_PYAI_MODEL=` line and fill in the matching `..._API_KEY=` line, save,
+and click **CLI** or **web**. Nothing has to be exported in a shell profile:
+neither pydantic-ai nor `clai` reads a `.env` by itself, and a GUI application
+does not see shell exports anyway, so KAME's agent reads this file (and a
+`.env` in the notebook workspace) on every launch. A key that *is* in the
+environment takes precedence over the file.
 
 ## Registering a client permanently
 
@@ -1493,13 +1503,39 @@ directory. If the module also builds a web app with `Agent.to_web(models=…)`,
 the **web** link serves that app, so the model list in the browser is the one
 you declared. Cancel in the dialog returns to the agent KAME ships.
 
+Nothing about KAME needs to be hard-coded in such a module: KAME puts the
+`kame_pydantic_ai` module on `PYTHONPATH` when it launches yours, and that
+module knows where the running KAME is (from `~/.kame_mcp_url`, rewritten at
+every notebook launch) and has already loaded `~/.kame_pyai.env` into the
+environment by the time yours imports it:
+
+```python
+from pydantic_ai import Agent
+from kame_pydantic_ai import kame_mcp        # KAME's MCP server, as a capability
+
+agent = Agent('anthropic:claude-sonnet-4-5',
+              capabilities=[kame_mcp()],      # plus Coder(), Memory(), WebSearch()...
+              instructions='...')
+```
+
+`kame_toolset()` is the same server as a toolset (`toolsets=[...]`) for older
+pydantic-ai APIs, and `kame_settings()` returns what the settings file held,
+for anything that wants the keys without `python-dotenv`. `kame_mcp()` speaks
+HTTP to the running KAME, so the virtualenv needs neither `jupyter_client`
+nor the stdio launcher, and a path such as `.../kame.app/Contents/Resources/
+plugin/bin/kame-mcp-server` — which exists on one machine only — has no place
+in the module. To run the same module outside KAME (`clai web -a app:agent`
+from a shell), add KAME's `Resources` directory to `PYTHONPATH`, or copy
+`kame_pydantic_ai.py` next to it.
+
 Which model is used:
 
 - Your own agent uses the model bound in your module. KAME does not override it.
-- KAME's agent binds none, so `clai` supplies one. Set `KAME_PYAI_MODEL` to
-  choose (several may be listed, separated by commas, to populate the web UI's
-  model menu); otherwise `clai`'s own default applies, which needs a matching
-  API key.
+- KAME's agent binds the first model named in `KAME_PYAI_MODEL` — from the
+  environment, the workspace `.env`, or `~/.kame_pyai.env`, in that order. Several
+  may be listed, separated by commas; they populate the web UI's model menu.
+  With none set, `clai`'s own default (`openai:gpt-5`) applies, which needs an
+  OpenAI key.
 
 ## What each client can show you
 
@@ -1553,8 +1589,9 @@ guessable from the message. This table is symptom-first.
 | `No interpreter inside <folder>` | uv, poetry and pdm keep the interpreter in a hidden `.venv` | Pick the project folder; KAME looks inside it |
 | `PermissionError: [Errno 1] Operation not permitted` | macOS privacy protection. The path is under Documents, Desktop, Downloads or iCloud Drive | Put the virtualenv and project outside those folders, or grant Terminal access to them in System Settings → Privacy & Security |
 | `KeyError` on an API-key variable | A `.env` file is not read by anything automatically | Call `load_dotenv()` in your module, or export the variable |
-| `Set the XXX_API_KEY environment variable` | The key is not in the environment of the terminal window KAME opened. That window runs your **login shell**, so exports must be in its profile (`~/.zshrc` on macOS); KAME's own environment is not inherited, being a GUI process | Put `export XXX_API_KEY=…` in the shell profile. `OPENAI_API_KEY` demanded although you never chose OpenAI: no model was named, so `clai`'s default `openai:gpt-5` applied — set `KAME_PYAI_MODEL` |
-| `No model given` | The fallback script (no `clai` in the venv) binds no model itself | `export KAME_PYAI_MODEL=provider:name` in the shell profile, e.g. `anthropic:claude-sonnet-4-5`; a local model is `openai:<name>` plus `OPENAI_BASE_URL` |
+| `Set the XXX_API_KEY environment variable` | The key is neither in `~/.kame_pyai.env` nor in the environment of the terminal window KAME opened (that window runs your login shell; KAME's own environment is not inherited, being a GUI process) | **⚙ settings**, add the line `XXX_API_KEY=…`, save, click again. `OPENAI_API_KEY` demanded although you never chose OpenAI: no model was named, so `clai`'s default `openai:gpt-5` applied — add a `KAME_PYAI_MODEL=` line |
+| `No model given` | The fallback script (no `clai` in the venv) binds no model itself | **⚙ settings** and uncomment a `KAME_PYAI_MODEL=provider:name` line, e.g. `anthropic:claude-sonnet-4-5`; a local model is `openai:<name>` plus `OPENAI_BASE_URL` |
+| Your own agent module fails on another machine | It hard-codes a path to KAME or to its stdio launcher, or reads a `.env` that is not there | Replace the MCP line with `kame_mcp()` from `kame_pydantic_ai` (see above); keep keys in `~/.kame_pyai.env`, which that import loads |
 | `` `clai` not found in <venv>/bin `` — or the **web** link refuses | KAME looks for `clai` next to the interpreter it was given, not on `PATH`; that venv has `pydantic-ai` but not `clai` | `uv pip install --python <venv>/bin/python clai` (or `uv sync` in a uv project whose pyproject lists it). A uv venv has no `pip` inside, so `python -m pip` fails there. The **CLI** link works without `clai` |
 | `This interpreter has no pydantic_ai` / `<venv> lacks pydantic_ai` | The remembered or picked interpreter is the wrong one, or the package was never installed there | The message prints the install line for that exact interpreter; or `rm ~/.kame_pyai_python` and click the link again to pick another venv |
 | `No Python with pydantic_ai found` | None of the searched places (`KAME_PYAI_PYTHON`, the remembered one, `$VIRTUAL_ENV`, `<workspace>/.venv`, `python3` on `PATH`, versioned `python3.N`) has it | The message lists a two-line recipe: `uv venv ~/kame-pyai && uv pip install --python ~/kame-pyai/bin/python pydantic-ai clai`, then pick `~/kame-pyai` |

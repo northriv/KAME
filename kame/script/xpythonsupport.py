@@ -2004,6 +2004,121 @@ def _free_port():
 		_sk.close()
 
 
+PYAI_SETTINGS_FILE = os.path.join(os.path.expanduser('~'), '.kame_pyai.env')
+
+PYAI_SETTINGS_TEMPLATE = """\
+# KAME -- Pydantic AI settings.
+#
+# Read each time a Pydantic AI link is clicked, by the agent KAME ships and by
+# KAME itself (for the model list).  A line here replaces any shell `export`:
+# nothing needs to be in ~/.zshrc, and no environment variable needs setting.
+# Format: NAME=value, one per line; `#` starts a comment.  Remove the `#` in
+# front of a line to activate it.  Your own agent module gets these too: they
+# are loaded into the environment when it imports kame_pydantic_ai (see the
+# manual, "Using your own Pydantic AI agent").
+
+# ---- Which model ------------------------------------------------------------
+# provider:name.  Several, separated by commas, fill the web UI's model menu;
+# the first is the default.
+#KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5
+#KAME_PYAI_MODEL=openai:gpt-5
+#KAME_PYAI_MODEL=google-gla:gemini-2.5-pro
+#KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5, openai:gpt-5
+
+# A model of your own through an OpenAI-compatible server (Ollama, LM Studio,
+# llama.cpp): name it openai:<model>, point OPENAI_BASE_URL at the server, and
+# give any non-empty OPENAI_API_KEY, which such servers ignore.
+#KAME_PYAI_MODEL=openai:qwen3:32b
+#OPENAI_BASE_URL=http://127.0.0.1:11434/v1
+#OPENAI_API_KEY=ollama
+
+# ---- The key the chosen provider needs -------------------------------------
+#ANTHROPIC_API_KEY=
+#OPENAI_API_KEY=
+#GOOGLE_API_KEY=
+"""
+
+
+def _pyai_read_env(path):
+	"""NAME=value lines of a .env-style file as a dict; {} when absent.
+
+	Same grammar the script uses (kame_pydantic_ai._load_settings): comments,
+	blank lines, an optional `export `, and matching single or double quotes
+	around the value are all accepted.  Unparseable lines are skipped, never
+	fatal -- a typo in the settings must not take the links down."""
+	_out = {}
+	try:
+		with open(path, encoding='utf-8') as _f:
+			for _line in _f:
+				_line = _line.strip()
+				if not _line or _line.startswith('#') or '=' not in _line:
+					continue
+				if _line.startswith('export '):
+					_line = _line[7:].lstrip()
+				_k, _v = _line.split('=', 1)
+				_k, _v = _k.strip(), _v.strip()
+				if len(_v) >= 2 and _v[0] == _v[-1] and _v[0] in '"\'':
+					_v = _v[1:-1]
+				if re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', _k):
+					_out[_k] = _v
+	except OSError:
+		pass
+	return _out
+
+
+def _pyai_setting(name, wd=None):
+	"""One setting: the environment first, then <workspace>/.env, then
+	~/.kame_pyai.env -- the order the script resolves them in, so KAME and the
+	agent it launches agree on the model."""
+	if os.environ.get(name):
+		return os.environ[name]
+	if wd:
+		_v = _pyai_read_env(os.path.join(wd, '.env')).get(name)
+		if _v:
+			return _v
+	return _pyai_read_env(PYAI_SETTINGS_FILE).get(name, '')
+
+
+def _pyai_open_settings():
+	"""Create ~/.kame_pyai.env from the template if absent, then open it.
+
+	The link is the whole of the configuration UI on purpose: the file holds
+	API keys, so it is created private (0600) and edited in the user's own
+	editor rather than typed into a dialog KAME would have to store somewhere."""
+	import subprocess as _sp4, platform as _pf4
+	_new = not os.path.exists(PYAI_SETTINGS_FILE)
+	if _new:
+		try:
+			_fd = os.open(PYAI_SETTINGS_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+			with os.fdopen(_fd, 'w', encoding='utf-8') as _f:
+				_f.write(PYAI_SETTINGS_TEMPLATE)
+		except OSError as _e:
+			_kame_gui_html('<font color="#cc0000">Could not create <tt>{}</tt>: {}</font>'
+				.format(html.escape(PYAI_SETTINGS_FILE), html.escape(str(_e))))
+			return
+	_sysname = _pf4.system()
+	try:
+		if _sysname == 'Darwin':
+			_sp4.Popen(['open', '-t', PYAI_SETTINGS_FILE])
+		elif _sysname == 'Windows':
+			_sp4.Popen(['notepad', PYAI_SETTINGS_FILE])
+		else:
+			_sp4.Popen(['xdg-open', PYAI_SETTINGS_FILE])
+		_how = 'opened in your editor'
+	except OSError:
+		_how = 'open it in any text editor'
+	_cur = _pyai_read_env(PYAI_SETTINGS_FILE)
+	_model = _cur.get('KAME_PYAI_MODEL', '')
+	_keys = sorted(_k for _k, _v in _cur.items() if _k.endswith('_API_KEY') and _v)
+	_kame_gui_html('<font color="#008800">Pydantic AI settings: <tt>{}</tt> ({}{}).<br/>'
+		'Uncomment a <tt>KAME_PYAI_MODEL</tt> line and fill in that provider\'s key, '
+		'save, then click <b>CLI</b> or <b>web</b>.&nbsp; Currently: model {}, '
+		'keys {}.</font>'.format(
+		html.escape(PYAI_SETTINGS_FILE), 'created, ' if _new else '', _how,
+		'<tt>' + html.escape(_model) + '</tt>' if _model else '<i>none</i>',
+		html.escape(', '.join(_keys)) if _keys else '<i>none</i>'))
+
+
 def _pyai_help_file(py, script, agent, own, model, wd, system):
 	"""Write the after-failure footer for the Pydantic AI terminal; return its path.
 
@@ -2017,12 +2132,8 @@ def _pyai_help_file(py, script, agent, own, model, wd, system):
 	_home = os.path.expanduser('~')
 	def _t(p):
 		return '~' + p[len(_home):] if p and p.startswith(_home + os.sep) else p
-	if system == 'Darwin':
-		_prof, _ex = '~/.zshrc (the Terminal window is a zsh login shell)', 'export '
-	elif system == 'Windows':
-		_prof, _ex = 'the user environment: setx NAME value, then a new window', 'set '
-	else:
-		_prof, _ex = '~/.bashrc or ~/.profile, whichever your terminal reads', 'export '
+	_prof = '~/.kame_pyai.env  (the "settings" link in KAME creates and opens it)'
+	_ex = ''
 	if own:
 		_modeltxt = 'bound inside your agent module (KAME does not override it)'
 	elif model:
@@ -2041,12 +2152,13 @@ def _pyai_help_file(py, script, agent, own, model, wd, system):
 		'To change them:',
 		'  interpreter  delete ~/.kame_pyai_python, click the link again, pick the venv',
 		'  agent        the "agent" link in KAME (Cancel there = back to the one KAME ships)',
-		'  model        {}KAME_PYAI_MODEL=provider:name   in {}'.format(_ex, _prof),
+		'  model        KAME_PYAI_MODEL=provider:name   in {}'.format(_prof),
 		'               e.g. anthropic:claude-sonnet-4-5 | openai:gpt-5 |',
 		'               openai:<local name> together with OPENAI_BASE_URL (Ollama, LM Studio)',
 		'The usual messages, and the fix for each:',
 		'  "Set the XXX_API_KEY environment variable"',
-		'        {}XXX_API_KEY=...   in {}.'.format(_ex, _prof),
+		'        XXX_API_KEY=...   in {}.'.format(_prof),
+		'        (a shell export in the profile of this window works as well)',
 		'        Asked for an OPENAI key you never chose?  No model was named -- see above.',
 		'  "Unknown model: ..."            the form is provider:name (examples above)',
 		'  "Could not reach KAME\'s MCP server" / "failed to connect"',
@@ -2354,6 +2466,10 @@ def kame_handle_link(action):
 			# choice is remembered in ~/.kame_pyai_python. A remembered
 			# interpreter that stopped importing pydantic_ai is deleted so the
 			# next click re-asks — self-healing, no manual cleanup.
+			if action == 'pyai-settings':
+				#Needs neither an interpreter nor the script: it is a file.
+				_pyai_open_settings()
+				return
 			action, _, _agentfile = action.partition('?file=')
 			_agentfile = _agentfile.strip()
 			action, _, _venvdir = action.partition('?venv=')
@@ -2547,8 +2663,8 @@ def kame_handle_link(action):
 				# which says nothing about what to do. With neither the env var
 				# nor a key, clai's default and its error are the right owner
 				# of the problem -- KAME still does not pick a model.
-				_model = (os.environ.get('KAME_PYAI_MODEL')
-						  or os.environ.get('PYDANTIC_AI_MODEL') or '')
+				_model = (_pyai_setting('KAME_PYAI_MODEL', _wd)
+						  or _pyai_setting('PYDANTIC_AI_MODEL', _wd) or '')
 				# Which agent: the one picked in the dialog (kame:pyai-agent),
 				# else KAME_PYAI_AGENT for scripted setups, else the one shipped
 				# in Resources.  KAME has no business owning the capability
@@ -2609,8 +2725,8 @@ def kame_handle_link(action):
 										'kame_pydantic_ai (run directly)',
 										_own if _via_clai else False,
 										(_model if _via_clai else
-										 os.environ.get('KAME_PYAI_MODEL')
-										 or os.environ.get('PYDANTIC_AI_MODEL') or ''),
+										 _pyai_setting('KAME_PYAI_MODEL', _wd)
+										 or _pyai_setting('PYDANTIC_AI_MODEL', _wd) or ''),
 										_wd, _sys)
 			if _sys == 'Darwin':
 				_osa = ('tell application "Terminal" to do script "cd {0} && {1}; '
@@ -2681,7 +2797,7 @@ else:
 				MYDEFOUT.write("#Use sleep() instead of time.sleep().")
 				#Grouped by vendor: eight flat entries on one line stopped being
 				#readable, and the terminal/desktop pair now repeats per vendor.
-				MYDEFOUT.write_html(r'<font color="#0066cc">Quick launch:&nbsp; <a href="kame:notebook">&#9654; Jupyter notebook</a> &nbsp;&nbsp;|&nbsp;&nbsp; Claude: <a href="kame:claude-cli">&#9654; Code</a> &nbsp;<a href="kame:claude-app">&#9654; app</a> &nbsp;&nbsp;|&nbsp;&nbsp; Codex: <a href="kame:codex-cli">&#9654; CLI</a> &nbsp;<a href="kame:codex-fugu-cli">&#9654; fugu</a> &nbsp;<a href="kame:codex-app">&#9654; app</a> &nbsp;&nbsp;|&nbsp;&nbsp; Pydantic AI: <a href="kame:pyai-cli">&#9654; CLI</a> &nbsp;<a href="kame:pyai-web">&#9654; web</a> &nbsp;<a href="kame:pyai-agent">&#9881; agent</a></font>')
+				MYDEFOUT.write_html(r'<font color="#0066cc">Quick launch:&nbsp; <a href="kame:notebook">&#9654; Jupyter notebook</a> &nbsp;&nbsp;|&nbsp;&nbsp; Claude: <a href="kame:claude-cli">&#9654; Code</a> &nbsp;<a href="kame:claude-app">&#9654; app</a> &nbsp;&nbsp;|&nbsp;&nbsp; Codex: <a href="kame:codex-cli">&#9654; CLI</a> &nbsp;<a href="kame:codex-fugu-cli">&#9654; fugu</a> &nbsp;<a href="kame:codex-app">&#9654; app</a> &nbsp;&nbsp;|&nbsp;&nbsp; Pydantic AI: <a href="kame:pyai-cli">&#9654; CLI</a> &nbsp;<a href="kame:pyai-web">&#9654; web</a> &nbsp;<a href="kame:pyai-settings">&#9881; settings</a> &nbsp;<a href="kame:pyai-agent">&#9881; agent</a></font>')
 				#A client KAME does not launch gets no per-session override, so it
 				#needs a one-time entry in its own config; this reports the change
 				#first and only writes on the follow-up link.  The names must track

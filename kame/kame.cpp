@@ -2082,6 +2082,11 @@ void FrmKameMain::onScriptLinkClicked(const QUrl &url) {
             m_measure->python()->handleLink(
                 (action + "?file=" + file).toUtf8().constData());
         }
+        else if(action == "pyai-settings") {
+            //The settings file (model, API keys) needs no interpreter, so it
+            //must not fall into the venv dialog below.
+            m_measure->python()->handleLink(action.toUtf8().constData());
+        }
         else if(action.startsWith("pyai-")) {
             //Pydantic AI normally lives in a venv, which no PATH probe can
             //see. First use asks for the venv folder (the same gesture as the

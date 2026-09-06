@@ -16,9 +16,22 @@ is the thing being controlled and is therefore running anyway.
 Usage:
     kame_pydantic_ai.py [--model provider:name] [--web] [--check]
 
-Model resolution: --model, else $KAME_PYAI_MODEL, else $PYDANTIC_AI_MODEL.
+Settings: ~/.kame_pyai.env and <cwd>/.env are read on import (NAME=value
+lines; KAME's "settings" link creates and opens the first).  Anything already
+in the environment wins, so a shell export still works, but none is needed.
+Model resolution: --model, else KAME_PYAI_MODEL, else PYDANTIC_AI_MODEL — from
+the environment or those files.  A comma-separated list binds the first and
+offers the rest in the web UI's menu.
 `--web` hands this module's agent to `clai web` (needs the `clai` package).
 `--check` connects, prints the tool roster, and exits — no model needed.
+
+For an agent of your own (KAME puts this module on PYTHONPATH when it launches
+one):
+    from kame_pydantic_ai import kame_mcp, kame_toolset, kame_settings
+    agent = Agent('anthropic:claude-sonnet-4-5', capabilities=[kame_mcp()])
+kame_mcp() is KAME's MCP server as a capability, kame_toolset() the same as a
+toolset, kame_settings() the dict read from the files above — importing this
+module has already put them into os.environ.
 
 Requires: pydantic-ai (and `clai` for --web) in THIS interpreter --
     uv pip install --python <python> pydantic-ai clai
@@ -33,6 +46,68 @@ import threading
 from datetime import datetime, timezone
 
 URL_FILE = os.path.join(os.path.expanduser('~'), '.kame_mcp_url')
+SETTINGS_FILE = os.path.join(os.path.expanduser('~'), '.kame_pyai.env')
+
+
+def _read_env_file(path):
+    """NAME=value lines as a dict; {} when the file is absent.
+
+    Accepts comments, blank lines, an optional `export `, and matching quotes
+    around the value; skips what it cannot parse.  The same grammar KAME uses
+    to read the model back out (xpythonsupport._pyai_read_env)."""
+    import re
+    out = {}
+    try:
+        with open(path, encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#') or '=' not in line:
+                    continue
+                if line.startswith('export '):
+                    line = line[7:].lstrip()
+                k, v = line.split('=', 1)
+                k, v = k.strip(), v.strip()
+                if len(v) >= 2 and v[0] == v[-1] and v[0] in '"\'':
+                    v = v[1:-1]
+                if re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', k):
+                    out[k] = v
+    except OSError:
+        pass
+    return out
+
+
+def _load_settings():
+    """Put ~/.kame_pyai.env, then <cwd>/.env, into os.environ; the environment
+    itself wins over both.  Returns what the files held.
+
+    Neither pydantic-ai nor clai reads a .env, and KAME (a GUI process) does
+    not see shell exports -- so without this the agent KAME ships could only be
+    configured by editing a shell profile.  One file, created by KAME's
+    "settings" link, is the whole configuration instead.  Runs at import so
+    the clai path (`clai -a kame_pydantic_ai:agent`) gets it too, and so does
+    a user's own module that imports this one for kame_mcp()."""
+    merged = _read_env_file(SETTINGS_FILE)
+    merged.update(_read_env_file(os.path.join(os.getcwd(), '.env')))
+    for k, v in merged.items():
+        if v and not os.environ.get(k):
+            os.environ[k] = v
+    return merged
+
+
+_SETTINGS = _load_settings()
+
+
+def kame_settings():
+    """The settings read from ~/.kame_pyai.env and <cwd>/.env, as a dict."""
+    return dict(_SETTINGS)
+
+
+def _first_model(spec):
+    """The model to bind from a KAME_PYAI_MODEL value, which may list several
+    (comma or space separated) to fill the web UI's menu."""
+    import re
+    parts = [x for x in re.split(r'[,\s]+', spec or '') if x]
+    return parts[0] if parts else None
 
 # ---------------------------------------------------------------------------
 # LLM usage logging
@@ -179,25 +254,28 @@ SYSTEM_PROMPT = (
 )
 
 
-def _shell_profile():
-    """Where an `export` has to go for it to reach this process.
-
-    KAME opens a terminal WINDOW for this client; that window runs the login
-    shell, so the shell profile is the one place a key or model setting
-    reaches both this script and `clai`.  KAME's own environment does not
-    inherit shell exports (it is a GUI application), so an export that is only
-    in the shell that started KAME is not seen either."""
-    if sys.platform == 'darwin':
-        return '~/.zshrc (macOS Terminal runs zsh as a login shell)'
-    if os.name == 'nt':
-        return ('the user environment (setx NAME value, then open a new '
-                'window)')
-    return '~/.bashrc or ~/.profile (whichever your terminal reads)'
-
-
 def _tilde(path):
     home = os.path.expanduser('~')
     return '~' + path[len(home):] if path.startswith(home + os.sep) else path
+
+
+def _shell_profile():
+    """Where a shell `export` would have to go to reach this process -- the
+    alternative to the settings file.  KAME opens a terminal WINDOW for this
+    client; that window runs the login shell.  KAME's own environment does not
+    inherit shell exports (it is a GUI application)."""
+    if sys.platform == 'darwin':
+        return '~/.zshrc'
+    if os.name == 'nt':
+        return 'the user environment (setx)'
+    return '~/.bashrc or ~/.profile'
+
+
+def _settings_hint():
+    """Where to put a NAME=value so this process sees it, file first."""
+    return ('{}  (the "settings" link in KAME creates and opens it; a shell '
+            'export in {} works too)'.format(_tilde(SETTINGS_FILE),
+                                              _shell_profile()))
 
 
 def _install_lines():
@@ -254,14 +332,18 @@ def _explain_and_exit(exc):
             sys.exit(
                 "{}\n\n"
                 "The model needs {}, and this process does not have it.\n"
-                "  * Put   export {}=...   in {} and open the link again.\n"
-                "  * Or use a model that needs no key, e.g. a local Ollama:\n"
-                "        export KAME_PYAI_MODEL=openai:qwen3:32b\n"
-                "        export OPENAI_BASE_URL=http://127.0.0.1:11434/v1\n"
+                "  * Put a line   {}=...   in {}\n    and click the link "
+                "again.\n"
+                "  * Or use a model that needs no key, e.g. a local Ollama -- "
+                "in the same file:\n"
+                "        KAME_PYAI_MODEL=openai:qwen3:32b\n"
+                "        OPENAI_BASE_URL=http://127.0.0.1:11434/v1\n"
+                "        OPENAI_API_KEY=ollama\n"
                 "  (clai without a model falls back to openai:gpt-5, which is "
                 "why an OPENAI key\n   is demanded when you never chose "
-                "OpenAI -- set KAME_PYAI_MODEL.)"
-                .format(msg, var, var if m else 'it', _shell_profile()) + tail)
+                "OpenAI -- set KAME_PYAI_MODEL there.)"
+                .format(msg, var, var if m else 'NAME_API_KEY', _settings_hint())
+                + tail)
         if 'Unknown model' in msg:
             sys.exit(
                 "{}\n\n"
@@ -351,6 +433,28 @@ def _build_agent(model):
                  toolsets=[_toolset(url, token)], **kwargs)
 
 
+def kame_server():
+    """(url, token) of the running KAME's MCP server, from ~/.kame_mcp_url."""
+    return _server_url()
+
+
+def kame_toolset():
+    """KAME's MCP server as a toolset: `Agent(model, toolsets=[kame_toolset()])`."""
+    return _toolset(*_server_url())
+
+
+def kame_mcp(**kwargs):
+    """KAME's MCP server as a capability: `Agent(model, capabilities=[kame_mcp()])`.
+
+    Nothing to hard-code: the URL and token come from the file KAME writes at
+    each notebook launch, so the same module works on every machine KAME runs
+    on.  Extra keyword arguments go to pydantic_ai.capabilities.MCP
+    (allowed_tools=..., description=..., ...)."""
+    from pydantic_ai.capabilities import MCP
+    url, token = _server_url()
+    return MCP(url, authorization_token=(token or None), **kwargs)
+
+
 def _check():
     """Connect and report — verifies URL, token and the MCP handshake."""
     import asyncio
@@ -429,40 +533,65 @@ def main():
         if args.model:
             env['KAME_PYAI_MODEL'] = args.model
         cmd = [clai, 'web', '--agent', 'kame_pydantic_ai:agent']
-        if args.model:
-            cmd += ['-m', args.model]
+        import re
+        for m in [x for x in re.split(r'[,\s]+', args.model or '') if x]:
+            cmd += ['-m', m]   #several fill the menu; the first is the default
         os.execve(cmd[0], cmd, env)
 
     if not args.model:
         sys.exit(
-            "No model given.  This script binds none itself; name one with "
-            "--model, or\nset KAME_PYAI_MODEL in {} so every launch has it:\n"
-            "  anthropic:claude-sonnet-4-5      (needs ANTHROPIC_API_KEY)\n"
-            "  openai:gpt-5                     (needs OPENAI_API_KEY)\n"
-            "  google-gla:gemini-2.5-pro        (needs GOOGLE_API_KEY)\n"
-            "  openai:qwen3:32b                 (local, no key: also set "
-            "OPENAI_BASE_URL to your\n      Ollama / llama.cpp / LM Studio "
-            "endpoint, e.g. http://127.0.0.1:11434/v1)\n"
-            "The key goes in the same file.  With `clai` installed next to "
-            "this interpreter,\nKAME launches that instead and its default "
-            "(openai:gpt-5) applies when nothing is set.".format(
-                _shell_profile()))
+            "No model given.  This script binds none itself; put one line in\n"
+            "  {}\n"
+            "    KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5      (needs "
+            "ANTHROPIC_API_KEY)\n"
+            "    KAME_PYAI_MODEL=openai:gpt-5                     (needs "
+            "OPENAI_API_KEY)\n"
+            "    KAME_PYAI_MODEL=google-gla:gemini-2.5-pro        (needs "
+            "GOOGLE_API_KEY)\n"
+            "    KAME_PYAI_MODEL=openai:qwen3:32b                 (local, no "
+            "key: add OPENAI_BASE_URL=\n        http://127.0.0.1:11434/v1 for "
+            "Ollama / llama.cpp / LM Studio, and OPENAI_API_KEY=ollama)\n"
+            "and the key on its own line in the same file; or pass --model.\n"
+            "With `clai` installed next to this interpreter, KAME launches that "
+            "instead and\nits default (openai:gpt-5) applies when nothing is "
+            "set.".format(_settings_hint()))
     try:
-        _build_agent(args.model).to_cli_sync(prog_name='kame')
+        _build_agent(_first_model(args.model)).to_cli_sync(prog_name='kame')
     except KeyboardInterrupt:
         pass
     except Exception as e:
         _explain_and_exit(e)
 
 
-if __name__ != '__main__':
-    # Imported by `clai [web] --agent kame_pydantic_ai:agent`.  A failure
-    # here surfaces inside clai's import machinery, so make it a plain
-    # message rather than a traceback through importlib.
+def __getattr__(name):
+    # `agent` is what `clai [web] --agent kame_pydantic_ai:agent` asks for.
+    # Built on first access (PEP 562) rather than at import, so that a user's
+    # own module can `from kame_pydantic_ai import kame_mcp` without this one
+    # also building an agent -- and needing ~/.kame_mcp_url -- as a side
+    # effect.  clai's load_agent() swallows ordinary exceptions from the import
+    # (pydantic's ImportString turns them into a ValidationError, and it
+    # returns None), which would leave the user with a generic "could not
+    # load" line; a SystemExit passes through, so every failure becomes one,
+    # explained where it can be, with the traceback where it cannot.
+    if name != 'agent':
+        raise AttributeError(name)
     try:
-        agent = _build_agent(os.environ.get(
-            'KAME_PYAI_MODEL', os.environ.get('PYDANTIC_AI_MODEL')) or None)
-    except Exception as _e:
-        _explain_and_exit(_e)
-else:
+        g = globals()
+        g['agent'] = _build_agent(_first_model(
+            os.environ.get('KAME_PYAI_MODEL')
+            or os.environ.get('PYDANTIC_AI_MODEL')))
+        return g['agent']
+    except SystemExit:
+        raise
+    except Exception as e:
+        try:
+            _explain_and_exit(e)
+        except SystemExit:
+            raise
+        except Exception:
+            import traceback
+            sys.exit(traceback.format_exc())
+
+
+if __name__ == '__main__':
     main()
