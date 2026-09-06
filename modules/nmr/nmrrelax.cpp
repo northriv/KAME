@@ -473,6 +473,36 @@ XNMRT1::onMapClearCondRequested(const Snapshot &shot, XValueNodeBase *node) {
         trans( *this).m_timeMapClearRequested = XTime::now();
     requestAnalysis();
 }
+//! The abscissa repeats.  T2_Multi walks the same 2 tau x i train every record,
+//! and P1STRATEGY_FLATTEN picks P1 out of the same bins; what changes record to
+//! record is the value, not where it sits.  Summing into the point already there
+//! holds m_pts at the number of DISTINCT abscissae instead of letting it grow for
+//! the life of the measurement -- and the result is identical, because the
+//! reduction below sums exactly these numbers and two points with one p1 always
+//! fall in one bin (user, 2026-09-06).
+//!
+//! P1STRATEGY_RANDOM draws a fresh P1 every record, so the search never hits and
+//! is pure cost.  It only pays while the list is short; past that, stop looking
+//! and let the list grow -- a point is 64 bytes now, not 4 KB.
+void
+XNMRT1::accumulateRawPt(std::deque<Payload::RawPt> &pts, const Payload::RawPt &pt) {
+    constexpr size_t SEARCH_MAX = 1000; //!< a bin count never approaches this
+    if(pts.size() <= SEARCH_MAX) {
+        for(auto &&x: pts) {
+            if(fabs(x.p1 - pt.p1) > 1e-10 * fabs(pt.p1))
+                continue;
+            //A changed condition count is a different measurement, not a repeat.
+            if(x.value_by_cond.size() != pt.value_by_cond.size())
+                break;
+            for(size_t i = 0; i < pt.value_by_cond.size(); ++i)
+                x.value_by_cond[i] += pt.value_by_cond[i];
+            x.weight++;
+            return;
+        }
+    }
+    pts.push_back(pt);
+    pts.back().weight = 1;
+}
 void
 XNMRT1::analyzeSpectrum(Transaction &tr,
     const std::vector< std::complex<double> >&wave, int origin, double cf,
@@ -788,7 +818,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 double twotau = 2.0 * shot_pulser[ *pulser__].tau() * (i + 1);
                 pt1.p1 = twotau;
                 std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
-                tr[ *this].m_pts.push_back(pt1);
+                accumulateRawPt(tr[ *this].m_pts, pt1);
 
                 storePulseForMapping(tr, twotau, shot_pulse1[ *pulse1__].echoesT2()[i], shot_pulse1, *pulse1__);
             }
@@ -813,7 +843,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 pt1.p1 = p1;
                 for(int i = 0; i < cmp1.size(); i++)
                     pt1.value_by_cond[i] = (cmp1[i] - cmp2[i]) / cmp1[i];
-                tr[ *this].m_pts.push_back(pt1);
+                accumulateRawPt(tr[ *this].m_pts, pt1);
                 if((MapMode)(int)shot_this[ *mapMode()] != MapMode::Off)
                     throw XRecordError(i18n("Unsupported Comb Mode for Mapping!"), __FILE__, __LINE__);
                 break;
@@ -825,11 +855,11 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 double p1 = shot_pulser[ *pulser__].combP1();
                 pt1.p1 = p1;
                 std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
-                tr[ *this].m_pts.push_back(pt1);
+                accumulateRawPt(tr[ *this].m_pts, pt1);
                 double p1_alt = shot_pulser[ *pulser__].combP1Alt();
                 pt2.p1 = p1_alt;
                 std::copy(cmp2.begin(), cmp2.end(), pt2.value_by_cond.begin());
-                tr[ *this].m_pts.push_back(pt2);
+                accumulateRawPt(tr[ *this].m_pts, pt2);
                 storePulseForMapping(tr, p1, shot_pulse1[ *pulse1__].wave(), shot_pulse1, *pulse1__);
                 storePulseForMapping(tr, p1_alt, shot_pulse2[ *pulse2__].wave(), shot_pulse2, *pulse2__);
                 break;
@@ -839,7 +869,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                     double p1 = shot_pulser[ *pulser__].combP1();
                     pt1.p1 = p1;
                     std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
-                    tr[ *this].m_pts.push_back(pt1);
+                    accumulateRawPt(tr[ *this].m_pts, pt1);
                     storePulseForMapping(tr, p1, shot_pulse1[ *pulse1__].wave(), shot_pulse1, *pulse1__);
                     break;
                 }
@@ -853,7 +883,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 double twotau = 2.0 * shot_pulser[ *pulser__].tau();
                 pt1.p1 = twotau;
                 std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
-                tr[ *this].m_pts.push_back(pt1);
+                accumulateRawPt(tr[ *this].m_pts, pt1);
                 storePulseForMapping(tr, twotau, shot_pulse1[ *pulse1__].wave(), shot_pulse1, *pulse1__);
                 break;
             }
@@ -904,8 +934,8 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
             //For St.E., T+tau = P1+3*tau.
             if(mode__ == MeasMode::ST_E)
                 p1 += 3 * shot_pulser[ *pulser__].tau() * 1e-3;
-            sumpts[idx].isigma += 1;
-            sumpts[idx].p1 += p1;
+            sumpts[idx].isigma += it->weight;
+            sumpts[idx].p1 += p1 * it->weight;
             for(unsigned int i = 0; i < it->value_by_cond.size(); i++)
                 sumpts[idx].value_by_cond[i] += it->value_by_cond[i];
         }
