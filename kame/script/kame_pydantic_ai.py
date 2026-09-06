@@ -480,7 +480,14 @@ def kame_mcp(**kwargs):
     (allowed_tools=..., description=..., ...)."""
     from pydantic_ai.capabilities import MCP
     url, token = _server_url()
-    return MCP(url, authorization_token=(token or None), **kwargs)
+    #headers=, not authorization_token=: pydantic-ai copies the latter into
+    #the Authorization header VERBATIM (capabilities/mcp.py, "Merge
+    #authorization_token into headers"), while KAME's server checks for
+    #"Bearer <token>" exactly -- so the token alone came back 401 on the
+    #first live run from a user's own agent.
+    if token and 'headers' not in kwargs:
+        kwargs['headers'] = {'Authorization': 'Bearer ' + token}
+    return MCP(url, **kwargs)
 
 
 def _check():
