@@ -9,6 +9,25 @@
   neither.  Taller and wider both, so the segments are thicker and further
   apart, and there is no longer a line for a segment to merge with.  The dark
   panel behind them is the boundary now, which is what a display looks like.
+- Thamway USB: the IDN is read from a synchronised stream, so a device is not
+  dropped from the list it belongs in (user).  examineDeviceAfterFWLoad() has
+  always thrown away the first DIP-switch read and kept the second -- the
+  first read after an open comes back stale -- but getIDN() had no such
+  guard.  For a single register a stale read costs one wrong byte; for the
+  IDN it costs the PHASE, because the string is a cyclic byte stream that
+  getIDN resynchronises on the terminator: one stale byte shifts every later
+  read by one, and the string arrives without its first character.
+  "G027QAM_MEMORY" for "PG027QAM_MEMORY" is not cosmetic -- the name is
+  tested with find(m_idString, 0) != 0, so the device fails its own prefix
+  and never reaches the selectable list, while the log prints an IDN that
+  looks right.  It is a per-session state, which is why restarting cleared it.
+- NMR pulser/SG: the Thamway PROT keeps its own window.  Deleting its
+  showForms() with the 30 others was wrong: it has TWO forms -- its own and
+  the FrmSG that XSG builds on the same driver's nodes -- and the default
+  implementation walks the widget registry in pointer order, so it handed the
+  user the plain SG form (user).  The audit that cleared those 30 counted the
+  form members written in each class's own files, which is exactly the count
+  that misses a form a BASE class makes; the rule in driver.h now says so.
 - NMR T1: in T2 multi-echo mode the relaxation axis is read from the echo
   train instead of being typed in (user).  The first echo is at 2 tau and the
   last at 2 tau x echoNum, and there is one point per echo, so Min, Max and
