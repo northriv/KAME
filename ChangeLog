@@ -9,6 +9,14 @@
   neither.  Taller and wider both, so the segments are thicker and further
   apart, and there is no longer a line for a segment to merge with.  The dark
   panel behind them is the boundary now, which is what a display looks like.
+- NMR T1: the relaxation curve is drawn from one Snapshot, not from one per
+  point.  XFuncPlot::snapshot() calls func() maxCount() times -- hundreds --
+  and XRelaxFuncPlot::func() opened a Snapshot of the whole XNMRT1 subtree on
+  every one of them, on the drawing thread, for every frame.  Beyond the cost,
+  a Snapshot of a node that size can bundle its subtree, so a running T1
+  measurement was paying hundreds of bundles per repaint.  The values func()
+  needs are read once, in snapshot(), which is where the redraw already has a
+  consistent view; the curve drawn is unchanged.
 - Replay: an interface's wiring is left alone (user).  Restoring a journal
   wrote its recorded Device, Port and Address over the live ones -- they are
   ordinary non-runtime nodes, so applyValues() took them like any setting --

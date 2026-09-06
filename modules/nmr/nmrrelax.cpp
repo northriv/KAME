@@ -44,20 +44,40 @@ public:
         : XFuncPlot(name, runtime, tr, graph), m_item(item), m_owner(owner)
     {}
     ~XRelaxFuncPlot() {}
-    virtual double func(double t) const {
-        shared_ptr<XNMRT1> owner = m_owner.lock();
-        if( !owner) return 0;
-        Snapshot shot( *owner);
-        shared_ptr<XRelaxFunc> func1 = shot[ *m_item];
-        if( !func1) return 0;
+    virtual double func(double t) const override {
+        //Reads what snapshot() below put here, and takes none of its own.
+        if( !m_curve) return 0;
         double f, df;
-        double it1 = shot[ *owner].m_params[0];
-        double c = shot[ *owner].m_params[1];
-        double a = shot[ *owner].m_params[2];
-        func1->relax( &f, &df, t, it1);
-        return c * f + a;
+        m_curve->relax( &f, &df, t, m_it1);
+        return m_c * f + m_a;
+    }
+protected:
+    //! ONE snapshot per redraw, where there used to be one per point.
+    //!
+    //! XFuncPlot::snapshot() calls func() maxCount() times -- hundreds -- and
+    //! func() used to open a Snapshot of the whole XNMRT1 subtree on every one
+    //! of them, on the drawing thread, for every frame.  Beyond the cost, a
+    //! Snapshot of a node this size can bundle its subtree, so this was
+    //! hundreds of bundles per frame while a T1 measurement ran.  KAME died of
+    //! it on 2026-09-06: vm_map_enter refused another mapping (17908 already,
+    //! 97% of the writable space never written), the allocation threw, and the
+    //! throw came out of a Snapshot constructor in paintGL.
+    virtual void snapshot(const Snapshot &shot) override {
+        m_curve.reset();
+        if(shared_ptr<XNMRT1> owner = m_owner.lock()) {
+            Snapshot shot_owner( *owner);
+            m_curve = shot_owner[ *m_item];
+            m_it1 = shot_owner[ *owner].m_params[0];
+            m_c = shot_owner[ *owner].m_params[1];
+            m_a = shot_owner[ *owner].m_params[2];
+        }
+        XFuncPlot::snapshot(shot);
     }
 private:
+    //! Filled by snapshot(), read by func(), both on the drawing thread within
+    //! one redraw.
+    shared_ptr<XRelaxFunc> m_curve;
+    double m_it1 = 0.0, m_c = 0.0, m_a = 0.0;
     shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > > m_item;
     weak_ptr<XNMRT1> m_owner;
 };
