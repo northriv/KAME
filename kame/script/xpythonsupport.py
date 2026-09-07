@@ -2214,7 +2214,11 @@ def _pyai_agent(py):
 		_saved = ''
 	_spec = _saved or os.environ.get('KAME_PYAI_AGENT') or ''
 	if not _spec:
-		return ('kame_pydantic_ai:agent', None, '')
+		# The shipped agent names its own web app too: served with uvicorn it
+		# carries KAME's saved figures at /plots, which `clai web`'s app --
+		# not ours to mount on -- never could.  clai remains the CLI path and
+		# the web fallback when the venv has no uvicorn.
+		return ('kame_pydantic_ai:agent', None, 'kame_pydantic_ai:app')
 	#A spec file (clai reads .yml/.yaml/.json itself) is passed as a path;
 	#a module spec needs its own directory as cwd so the import resolves.
 	_parts = _spec.split('|')
@@ -2813,9 +2817,11 @@ def kame_handle_link(action):
 				_open_when_listening(_weburl, "127.0.0.1", _port)
 			_kame_gui_log("#Launching Pydantic AI {} in {} ({}) ...".format(
 				"web UI" if action == 'pyai-web' else "CLI", _wd,
-				("via clai, agent " + _agent + ("; its own model" if _own
+				("serving " + _webapp + " with uvicorn; figures at /plots"
+				 if _via_clai and action == 'pyai-web' and _cmd and _cmd[0] == _uvi
+				 else ("via clai, agent " + _agent + ("; its own model" if _own
 					else "; model from -m or clai's default"))
-				if _via_clai else _py + "; needs --model or KAME_PYAI_MODEL"))
+				if _via_clai else _py + "; needs --model or KAME_PYAI_MODEL")))
 		else:
 			_kame_gui_html('<font color="#cc0000">Unknown link action: {}</font>'.format(
 				html.escape(str(action))))

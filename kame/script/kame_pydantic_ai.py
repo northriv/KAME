@@ -24,7 +24,9 @@ the environment or those files.  A comma-separated list binds the first and
 offers the rest in the web UI's menu.  `sakana:<model>` (fugu, namazu) is
 resolved here against SAKANA_API_KEY; every other provider:name is
 pydantic-ai's own.
-`--web` hands this module's agent to `clai web` (needs the `clai` package).
+`--web` serves this module's own web app (`kame_pydantic_ai:app`: the chat UI
+plus KAME's saved figures at /plots) with uvicorn, falling back to `clai web`
+when uvicorn is absent — that fallback cannot show figures.
 `--check` connects, prints the tool roster, and exits — no model needed.
 
 For an agent of your own (KAME puts this module on PYTHONPATH when it launches
@@ -570,7 +572,11 @@ def main():
     p.add_argument('--model', default=os.environ.get(
         'KAME_PYAI_MODEL', os.environ.get('PYDANTIC_AI_MODEL', '')))
     p.add_argument('--web', action='store_true',
-                   help="serve a web UI via `clai web` instead of the REPL")
+                   help="serve the web UI (with KAME's figures at /plots) "
+                        "instead of the REPL")
+    p.add_argument('--host', default='127.0.0.1')
+    p.add_argument('--port', type=int, default=0,
+                   help="web UI port (default: a free one, printed)")
     p.add_argument('--check', action='store_true',
                    help="connect to the MCP server, list tools, exit")
     args = p.parse_args()
@@ -585,8 +591,32 @@ def main():
             _explain_and_exit(e)
 
     if args.web:
-        # `clai web --agent module:variable` serves this module's agent; the
-        # module-level `agent` below is created lazily on import by clai.
+        if args.model:
+            os.environ['KAME_PYAI_MODEL'] = args.model
+        try:
+            import uvicorn
+        except ImportError:
+            uvicorn = None
+        if uvicorn is not None:
+            #Our own app, so /plots is served and figures show inline.
+            port = args.port
+            if not port:
+                import socket
+                with socket.socket() as sk:
+                    sk.bind((args.host, 0))
+                    port = sk.getsockname()[1]
+            app = __getattr__('app')
+            print("KAME Pydantic AI web UI: http://{}:{}/  (figures at /plots)"
+                  .format(args.host, port), flush=True)
+            uvicorn.run(app, host=args.host, port=port, log_level='warning')
+            return
+        # No uvicorn: `clai web --agent module:variable` serves the agent
+        # through clai's own app -- the chat works, figures do not show.
+        print("uvicorn is not installed next to {}, so the web UI comes from "
+              "`clai web`; it cannot show figures.  For that:\n"
+              "    uv pip install --python {} uvicorn".format(
+                  _tilde(sys.executable), _tilde(sys.executable)),
+              file=sys.stderr, flush=True)
         import shutil
         clai = (os.path.join(os.path.dirname(sys.executable), 'clai')
                 if os.path.isfile(os.path.join(
@@ -645,8 +675,46 @@ def main():
         _explain_and_exit(e)
 
 
+def _web_models():
+    """The web UI's model menu from KAME_PYAI_MODEL, as {label: Model}.
+
+    Resolved here rather than handed to the UI as strings so that `sakana:`
+    works in the menu too, and so that a listed model whose key is missing
+    fails at start-up with the API-key explanation, not on the first message."""
+    import re
+    from pydantic_ai.models import infer_model
+    spec = os.environ.get('KAME_PYAI_MODEL') or os.environ.get('PYDANTIC_AI_MODEL') or ''
+    out = {}
+    for name in [x for x in re.split(r'[,\s]+', spec) if x]:
+        m = _resolve_model(name)
+        out[name] = m if not isinstance(m, str) else infer_model(m)
+    return out
+
+
+def _build_app():
+    """This module's web app: the chat UI on the agent, KAME's figures at /plots.
+
+    `clai web -a kame_pydantic_ai:agent` builds an app of its own that nothing
+    can mount on, so a figure execute_code produced never appeared there.
+    Serving our own app is what lets kame_web_plots() apply to the agent KAME
+    ships, not only to a user's module."""
+    models = _web_models()
+    if not models:
+        sys.exit(
+            "No model given for the web UI.  Put one line in\n  {}\n"
+            "    KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5\n"
+            "(several, comma-separated, fill the menu) and the key on its own "
+            "line.".format(_settings_hint()))
+    first = next(iter(models.values()))
+    agent = _build_agent(None)
+    agent.model = first
+    return kame_web_plots(agent.to_web(models=models,
+                                       instructions=FIGURE_INSTRUCTIONS))
+
+
 def __getattr__(name):
-    # `agent` is what `clai [web] --agent kame_pydantic_ai:agent` asks for.
+    # `agent` is what `clai [web] --agent kame_pydantic_ai:agent` asks for;
+    # `app` is what `uvicorn kame_pydantic_ai:app` asks for.
     # Built on first access (PEP 562) rather than at import, so that a user's
     # own module can `from kame_pydantic_ai import kame_mcp` without this one
     # also building an agent -- and needing ~/.kame_mcp_url -- as a side
@@ -655,14 +723,17 @@ def __getattr__(name):
     # returns None), which would leave the user with a generic "could not
     # load" line; a SystemExit passes through, so every failure becomes one,
     # explained where it can be, with the traceback where it cannot.
-    if name != 'agent':
+    if name not in ('agent', 'app'):
         raise AttributeError(name)
     try:
         g = globals()
-        g['agent'] = _build_agent(_first_model(
-            os.environ.get('KAME_PYAI_MODEL')
-            or os.environ.get('PYDANTIC_AI_MODEL')))
-        return g['agent']
+        if name == 'agent':
+            g['agent'] = _build_agent(_first_model(
+                os.environ.get('KAME_PYAI_MODEL')
+                or os.environ.get('PYDANTIC_AI_MODEL')))
+        else:
+            g['app'] = _build_app()
+        return g[name]
     except SystemExit:
         raise
     except Exception as e:
