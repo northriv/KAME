@@ -323,6 +323,19 @@ class _KamStack(list):
 			self.append(val)
 		return self
 
+def _kame_declare_script_thread():
+	"""Say that this thread is a script's, so what it writes is journalled as a
+	request rather than as a driver reporting on itself.
+
+	Tolerant of a binary without the binding: this is a diagnostic, and it sits
+	at the top of the loaders, where a NameError would abort a .kam load
+	outright -- no drivers, and none of the forms that come back with them.
+	"""
+	try:
+		kame_declare_script_thread()
+	except NameError:
+		pass
+
 def loadKam(xpythread, filename):
 	"""Execute a .kam measurement configuration file using Python."""
 	import re
@@ -334,7 +347,7 @@ def loadKam(xpythread, filename):
 		#or report -- is read off the committing thread.  Undeclared, what
 		#a .kam restores is filed as a driver's own chatter, and a replay,
 		#which puts back requests only, will not restore it (user, port).
-		kame_declare_script_thread()
+		_kame_declare_script_thread()
 		xpythread["Status"] = "run"
 		with open(filename, 'r', encoding='utf-8') as f:
 			src = f.read()
@@ -383,7 +396,7 @@ def loadJournalDump(xpythread, filename):
 		#or report -- is read off the committing thread.  Undeclared, what
 		#a .kam restores is filed as a driver's own chatter, and a replay,
 		#which puts back requests only, will not restore it (user, port).
-		kame_declare_script_thread()
+		_kame_declare_script_thread()
 		xpythread["Status"] = "run"
 		# Sniffed, not guessed from the name: a .kamj is gzip because that is
 		# part of the format, and someone who unpacks one to edit it by hand
@@ -467,7 +480,7 @@ def loadSequence(xpythread, filename):
 		#or report -- is read off the committing thread.  Undeclared, what
 		#a .kam restores is filed as a driver's own chatter, and a replay,
 		#which puts back requests only, will not restore it (user, port).
-		kame_declare_script_thread()
+		_kame_declare_script_thread()
 		xpythread["Status"] = "run"
 		if "lineshell" in filename:
 			print("#KAME Python interpreter>")
@@ -2999,7 +3012,7 @@ else:
 				#typed value is.  The kernel executes on a thread of its own,
 				#so say so here: undeclared, every node a cell writes is filed
 				#as a driver's own report and a replay will not restore it.
-				kame_declare_script_thread()
+				_kame_declare_script_thread()
 				if TLS.xscrthread:
 					lines = (getattr(info, 'raw_cell', '') or '').strip().splitlines()
 					head = lines[0][:60] if lines else ''
