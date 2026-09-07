@@ -98,6 +98,34 @@ _LOG_DIR = Path(os.environ.get("KAME_MCP_LOG_DIR",
                                str(Path.home() / ".kame_mcp_log")))
 _SESSION_ID = uuid.uuid4().hex[:8]
 _LOG_LOCK = threading.Lock()
+
+# Every figure a tool call produces is ALSO written under <log dir>/plots/.
+# The image itself travels to the model as MCP ImageContent, which not every
+# client shows the user -- the Pydantic AI web UI renders only images the
+# model generates, never a tool's -- so a file gives each client a second
+# route: a path for a person, and a URL path for a web UI that serves the
+# directory (kame_pydantic_ai.kame_web_plots() mounts it at /plots).  Bounded
+# by count, not switched by a flag: the newest _PLOT_KEEP files stay.
+_PLOT_KEEP = 200
+
+
+def _save_plot(png: bytes) -> str:
+    """Write one returned figure to <log dir>/plots/ and say where, or ''."""
+    try:
+        d = _LOG_DIR / "plots"
+        d.mkdir(parents=True, exist_ok=True)
+        # Milliseconds keep several figures from one cell distinct; the
+        # sortable name doubles as the pruning order.
+        name = datetime.now().strftime("%Y%m%d-%H%M%S-%f")[:-3] + ".png"
+        (d / name).write_bytes(png)
+        for old in sorted(d.glob("*.png"))[:-_PLOT_KEEP]:
+            try:
+                old.unlink()
+            except OSError:
+                pass
+        return f"[figure saved: {d / name} ; URL path /plots/{name} in a web UI that serves that directory]"
+    except Exception:
+        return ""
 _LOG_SEQ = 0
 _ARG_CHARS_CAP = 200_000     # keep code args essentially whole (provenance)
 _RESULT_CHARS_CAP = 20_000   # truncate long result text stored in the log
@@ -406,10 +434,11 @@ def _execute(code: str, timeout: float = 30.0) -> list:
                 data = content.get("data", {})
                 # Return images via MCP Image content
                 if "image/png" in data:
-                    outputs.append(Image(
-                        data=base64.b64decode(data["image/png"]),
-                        format="png",
-                    ))
+                    png = base64.b64decode(data["image/png"])
+                    outputs.append(Image(data=png, format="png"))
+                    saved = _save_plot(png)
+                    if saved:
+                        outputs.append(saved)
                 else:
                     # Prefer text/plain; skip HTML object reprs
                     text = data.get("text/plain", "")
@@ -546,6 +575,9 @@ def execute_code(code: str) -> list:
         print(float(...))
 
     Returns the stdout/stderr output, execution results, and matplotlib plots.
+    Each plot is also saved as a PNG under ~/.kame_mcp_log/plots/ and the
+    output names the file (and its /plots/<name> URL path, for a web UI that
+    serves that directory) right after the image.
     """
     return _execute(code)
 

@@ -1520,7 +1520,11 @@ agent = Agent('anthropic:claude-sonnet-4-5',
 
 `kame_toolset()` is the same server as a toolset (`toolsets=[...]`) for older
 pydantic-ai APIs, and `kame_settings()` returns what the settings file held,
-for anything that wants the keys without `python-dotenv`. `kame_mcp()` speaks
+for anything that wants the keys without `python-dotenv`. `kame_usage_logging()`
+returns the per-request usage recorder as capabilities (`capabilities=[...,
+*kame_usage_logging('my-agent')]`), so your agent's calls land in the same
+`usage.jsonl` as KAME's; `kame_web_plots(app)` and `FIGURE_INSTRUCTIONS` are
+described under *What each client can show you*. `kame_mcp()` speaks
 HTTP to the running KAME, so the virtualenv needs neither `jupyter_client`
 nor the stdio launcher, and a path such as `.../kame.app/Contents/Resources/
 plugin/bin/kame-mcp-server` — which exists on one machine only — has no place
@@ -1551,11 +1555,17 @@ assistant can analyse a figure in all of them. What differs is what *you* see:
 - The Pydantic AI web chat UI does not: it renders images the model generates,
   not images a tool returns.
 
-When you need to look at a figure in a client that will not show it, ask the
-assistant to put the plotting code in a **notebook cell** instead. It renders
-inline there, and it stays in the notebook as part of the measurement record.
-Reload the notebook tab and run the new cell — appending a cell is a file
-edit, so it is not executed for you.
+Two ways around that. Every figure `execute_code` returns is **also saved** as
+a PNG under `~/.kame_mcp_log/plots/` (the newest 200 are kept), and the tool
+output names the file right after the image. An agent module of your own can
+serve that directory from its web app — `kame_web_plots(app)` mounts it at
+`/plots`, and appending `FIGURE_INSTRUCTIONS` to the agent's instructions
+tells the model to write `![figure](/plots/<name>.png)` in its reply, which the
+UI renders inline (it accepts any image URL; a relative one is same-origin, so
+the port does not matter). Or ask the assistant to put the plotting code in a
+**notebook cell**: it renders inline there and stays in the notebook as part
+of the measurement record. Reload the notebook tab and run the new cell —
+appending a cell is a file edit, so it is not executed for you.
 
 ## Long measurements
 
@@ -1600,7 +1610,7 @@ guessable from the message. This table is symptom-first.
 | `This interpreter has no pydantic_ai` / `<venv> lacks pydantic_ai` | The remembered or picked interpreter is the wrong one, or the package was never installed there | The message prints the install line for that exact interpreter; or `rm ~/.kame_pyai_python` and click the link again to pick another venv |
 | `No Python with pydantic_ai found` | None of the searched places (`KAME_PYAI_PYTHON`, the remembered one, `$VIRTUAL_ENV`, `<workspace>/.venv`, `python3` on `PATH`, versioned `python3.N`) has it | The message lists a two-line recipe: `uv venv ~/kame-pyai && uv pip install --python ~/kame-pyai/bin/python pydantic-ai clai`, then pick `~/kame-pyai` |
 | `Could not reach KAME's MCP server` / `failed to connect` / `MCP server address is not known` | The server runs inside KAME's Jupyter kernel and `~/.kame_mcp_url` is rewritten at each notebook launch and removed on exit — KAME was closed or restarted without the notebook | Start KAME, click **Jupyter notebook** in the Script pane, then the Pydantic AI link. `python kame_pydantic_ai.py --check` verifies the connection without a model |
-| Plots do not appear in the web UI | That UI does not render tool-returned images | Use a notebook cell (see above), or a client that does |
+| Plots do not appear in the web UI | That UI does not render tool-returned images | In your own agent module, `kame_web_plots(app)` plus `FIGURE_INSTRUCTIONS`: the figure KAME saved is shown from `/plots/`. Otherwise a notebook cell, or a client that does |
 | A long job cannot be stopped | The code never reports progress, so there is no point at which a stop can be honoured | Ask the assistant to report progress every iteration |
 
 ## Technical notes

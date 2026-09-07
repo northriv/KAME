@@ -33,7 +33,10 @@ one):
     agent = Agent('anthropic:claude-sonnet-4-5', capabilities=[kame_mcp()])
 kame_mcp() is KAME's MCP server as a capability, kame_toolset() the same as a
 toolset, kame_settings() the dict read from the files above — importing this
-module has already put them into os.environ.
+module has already put them into os.environ.  kame_usage_logging() is the
+per-request usage recorder (usage.jsonl) as capabilities; kame_web_plots(app)
+serves the figures KAME's server saves so `![…](/plots/<name>.png)` renders in
+the web UI, with FIGURE_INSTRUCTIONS the line that tells the model to do that.
 
 Requires: pydantic-ai (and `clai` for --web) in THIS interpreter --
     uv pip install --python <python> pydantic-ai clai
@@ -464,6 +467,48 @@ def _build_agent(model):
 def kame_server():
     """(url, token) of the running KAME's MCP server, from ~/.kame_mcp_url."""
     return _server_url()
+
+
+def kame_usage_logging(tag=None):
+    """KAME's usage recorder, as Agent capabilities.
+
+    One row per model request in ~/.kame_mcp_log/usage.jsonl -- calls,
+    tokens, inference time, never text -- the same ledger the agent KAME
+    ships writes, so a module of your own lands in it too.  `tag` keys the
+    rows (`model_key`); KAME_USAGE_TAG overrides.  [] when OpenTelemetry is
+    absent, so `capabilities=[*kame_usage_logging(), ...]` is always valid."""
+    return _install_usage_logging(tag or 'agent')
+
+
+def kame_plot_dir():
+    """Where KAME's MCP server saves every figure a tool call produced:
+    <KAME_MCP_LOG_DIR or ~/.kame_mcp_log>/plots, created if absent."""
+    d = os.path.join(USAGE_LOG_DIR, 'plots')
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def kame_web_plots(app, url_path='/plots'):
+    """Serve KAME's saved figures from an `agent.to_web()` app; returns app.
+
+    The chat UI renders images the model GENERATES, not images a tool
+    returns, so a plot from execute_code never appears there on its own.
+    KAME's server also writes each one under kame_plot_dir() and names it in
+    the tool output; mounted here, `![figure](/plots/<name>.png)` in a reply
+    shows it inline -- a relative URL, so the port the UI happens to be on
+    does not matter.  FIGURE_INSTRUCTIONS tells the model to write that."""
+    from starlette.staticfiles import StaticFiles
+    app.mount(url_path, StaticFiles(directory=kame_plot_dir()), name='kame-plots')
+    return app
+
+
+#Append to an agent's instructions when its web app calls kame_web_plots().
+FIGURE_INSTRUCTIONS = (
+    "When a KAME tool result contains '[figure saved: ... URL path /plots/<name>]', "
+    "show that figure to the user by writing ![figure](/plots/<name>) on its own "
+    "line in your reply; the web UI renders it inline. Do not describe a plot "
+    "you could show."
+)
 
 
 def kame_toolset():
