@@ -1621,6 +1621,17 @@ FrmKameMain::loadOpenForms() {
 void
 FrmKameMain::saveOpenForms() {
     if( !m_measure || m_docPath.empty()) return;
+    //A measurement that never loaded has no forms to record -- and recording
+    //nothing DELETES what the last good run remembered, at the bottom of this
+    //function.  So a .kam whose script died, for any reason at all, left the
+    //user with the layout wiped rather than merely not restored: the next run
+    //had nothing to come back to (user, 2026-09-07).  An empty driver list is
+    //what that state looks like.  Drivers present with every form closed is a
+    //real answer and still erases, which is what it should do.
+    {
+        Snapshot shot( *m_measure->drivers());
+        if( !shot.size()) return;
+    }
     QStringList entries;
     auto record = [&entries](const char *kind, const XString &name, QWidget *w) {
         if( !w || !w->isVisible()) return;
