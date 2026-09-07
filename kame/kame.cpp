@@ -1788,7 +1788,10 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
         //accept last, exit() cannot start until every join has returned.
         printf("quit\n");
         saveWindowLayout();
-        saveOpenForms();
+        //saveOpenForms() is deliberately NOT here.  Quitting is when a user
+        //tidies up, so the forms still open at that point are the ones they
+        //had not got around to closing -- the worst possible sample of where
+        //they like their windows (user, 2026-09-07).  File > Save records it.
         //Before the tree goes: the journal's last drain and report walk it.
         if(m_journalWriter) {
             m_journalWriter->stop();
@@ -1891,8 +1894,18 @@ void FrmKameMain::fileSaveAction_activated() {
             XRubyWriter writer(m_measure, ofs);
 			writer.write();
             m_titleDoc = QFileInfo(filename).fileName();
+            //What was saved is what "this measurement" means from here, which
+            //the title already said and m_docPath did not: Save As filed the
+            //window layout under the file that had been OPENED, and a
+            //measurement built from nothing had no path to file it under at all.
+            m_docPath = QFileInfo(filename).absoluteFilePath().toStdString();
             updateWindowTitle();
             rememberRecentMes(filename);
+            //Where a measurement's windows sit is part of the measurement, and
+            //saving it is the moment the user asks for that to be kept.  NOT at
+            //exit, which is the one moment it cannot be trusted: by then they
+            //may well have closed the forms they had finished with (user).
+            saveOpenForms();
         }
 	}
 }
