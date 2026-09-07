@@ -418,6 +418,13 @@ def _execute(code: str, timeout: float = 30.0) -> list:
     try:
         msg_id = client.execute(code)
         outputs = []  # str for text, Image for images
+        # A cell that calls plt.show() AND ends with the figure as its last
+        # expression yields the same PNG twice: once as display_data, once as
+        # the execute_result repr -- and our own "end with a bare expression"
+        # advice invites exactly that.  Every client then showed the plot
+        # twice, and the file was saved twice.  Drop byte-identical repeats
+        # within one execution; the model need not know to plt.close().
+        seen_png = set()
         while True:
             try:
                 msg = client.get_iopub_msg(timeout=timeout)
@@ -435,6 +442,9 @@ def _execute(code: str, timeout: float = 30.0) -> list:
                 # Return images via MCP Image content
                 if "image/png" in data:
                     png = base64.b64decode(data["image/png"])
+                    if png in seen_png:
+                        continue
+                    seen_png.add(png)
                     outputs.append(Image(data=png, format="png"))
                     saved = _save_plot(png)
                     if saved:
@@ -577,7 +587,9 @@ def execute_code(code: str) -> list:
     Returns the stdout/stderr output, execution results, and matplotlib plots.
     Each plot is also saved as a PNG under ~/.kame_mcp_log/plots/ and the
     output names the file (and its /plots/<name> URL path, for a web UI that
-    serves that directory) right after the image.
+    serves that directory) right after the image.  plt.show() is enough to
+    return a figure; a figure repeated as the cell's last expression is the
+    same image and is dropped.
     """
     return _execute(code)
 
