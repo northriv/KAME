@@ -1521,14 +1521,15 @@ agent = Agent('anthropic:claude-sonnet-4-5',
 `kame_toolset()` is the same server as a toolset (`toolsets=[...]`) for older
 pydantic-ai APIs, and `kame_settings()` returns what the settings file held,
 for anything that wants the keys without `python-dotenv`. `kame_usage_logging()`
-returns the per-request usage recorder as capabilities (`capabilities=[...,
-*kame_usage_logging('my-agent')]`), so your agent's calls land in the same
+returns the per-request usage recorder as capabilities
+(`capabilities=[..., *kame_usage_logging('my-agent')]`), so your agent's calls
+land in the same
 `usage.jsonl` as KAME's; `kame_web_plots(app)` and `FIGURE_INSTRUCTIONS` are
 described under *What each client can show you*. `kame_mcp()` speaks
 HTTP to the running KAME, so the virtualenv needs neither `jupyter_client`
-nor the stdio launcher, and a path such as `.../kame.app/Contents/Resources/
-plugin/bin/kame-mcp-server` — which exists on one machine only — has no place
-in the module. To run the same module outside KAME (`clai web -a app:agent`
+nor the stdio launcher, and a path such as
+`.../kame.app/Contents/Resources/plugin/bin/kame-mcp-server` — which exists on
+one machine only — has no place in the module. To run the same module outside KAME (`clai web -a app:agent`
 from a shell), add KAME's `Resources` directory to `PYTHONPATH`, or copy
 `kame_pydantic_ai.py` next to it.
 

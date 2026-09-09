@@ -596,9 +596,9 @@ The **script files are deployed for you** at link time, into `.\resources`
 next to `kame.exe` — `rubylineshell.rb`, `pythonlineshell.py`, the two
 notebook files, `kame_mcp_server.py`, `kame_pydantic_ai.py`,
 `kame_python_api.md`, the user's manual (`kame-9-en.md` + `media\`), and
-`plugin\`. Qt Creator needs no extra step; `tools\deploy_scripts.bat
-<resources-dir>` does the same by hand if you ever need it, and
-`tools\mkzip.bat` calls it when assembling a release.
+`plugin\`. Qt Creator needs no extra step;
+`tools\deploy_scripts.bat <resources-dir>` does the same by hand if you ever
+need it, and `tools\mkzip.bat` calls it when assembling a release.
 
 > Older trees had no such step (qmake only lists these in `DISTFILES`, which
 > copies nothing), so a Windows build ran with whatever had been hand-copied
