@@ -693,10 +693,34 @@ server:
 |---|---|
 | **Claude: Code / app** | Claude Code in a terminal (with the bundled plugin, below) / the Claude desktop app |
 | **Codex: CLI / fugu / app** | Codex in a terminal, with the server passed as a session-scoped override — nothing is written to `~/.codex/config.toml` |
-| **Pydantic AI: CLI / web / ⚙ settings / ⚙ agent** | The venv's `clai`, handed an agent. **⚙ settings** creates `~/.kame_pyai.env` from a commented template and opens it: the model (`KAME_PYAI_MODEL=provider:name`, several comma-separated fill the web UI's menu; `sakana:fugu` is resolved by KAME's agent with `SAKANA_API_KEY`) and the provider's API key go there, one line each — no shell export needed, since neither pydantic-ai nor `clai` reads a `.env` and a GUI process sees no exports. **web** picks a free port and opens the browser on it once the server answers; if your module builds an app with `Agent.to_web(models=…)`, that app is served (with `uvicorn`) so your own model list is the one in the UI. **⚙ agent** picks an agent module of your own — KAME checks it exposes a `pydantic_ai.Agent`, remembers which variable, and runs it from its own directory; Cancel returns to the one KAME ships. Such a module needs nothing hard-coded: `from kame_pydantic_ai import kame_mcp` gives it the running KAME as a capability |
+| **Pydantic AI: CLI / web / ⚙ settings / ⚙ agent** | A vendor-neutral client in your virtualenv — any `provider:model`, local models included. **CLI** is `clai` in a terminal; **web** is a chat UI in the browser, with the figures a tool call produced shown inline; **⚙ settings** opens the one file that holds the model and the API key; **⚙ agent** swaps in an agent module of your own. Details below the table |
+
+**Pydantic AI, in more detail.** On the first click KAME asks for the
+virtualenv that has `pydantic-ai` installed and remembers it. Two things are
+needed before the first chat, and **⚙ settings** is where both go: it creates
+`~/.kame_pyai.env` from a commented template and opens it in your editor —
+uncomment a `KAME_PYAI_MODEL=provider:name` line (several, comma-separated,
+fill the web UI's model menu; `sakana:fugu` reaches Sakana AI with
+`SAKANA_API_KEY`) and fill in that provider's key. Nothing has to be exported
+in a shell profile: neither pydantic-ai nor `clai` reads a `.env` by itself,
+and a GUI process sees no shell exports anyway, so KAME's agent reads this
+file on every launch. **web** serves the agent's own web app with `uvicorn`
+on a free port and opens the browser once it answers; every figure
+`execute_code` returns is also saved under `~/.kame_mcp_log/plots/` and
+served at `/plots`, so the assistant shows it inline (without `uvicorn` in
+the venv the link falls back to `clai web`, which cannot show figures).
+**⚙ agent** picks a module of your own — KAME checks it exposes a
+`pydantic_ai.Agent`, remembers which variable, and runs it from its own
+directory; if it builds an app with `Agent.to_web(models=…)`, that app is
+served, so your own model list is the one in the UI; Cancel returns to the
+agent KAME ships. Such a module needs nothing hard-coded:
+`from kame_pydantic_ai import kame_mcp` is the running KAME as a capability,
+`kame_usage_logging()` puts its calls into the same usage ledger, and
+`kame_web_plots(app)` gives its web app the same `/plots`.
 
 Prerequisites are `pip install mcp jupyter_client` for the server, and
-`pip install pydantic-ai clai` if you want the Pydantic AI links. Either mcp
+`pip install pydantic-ai clai uvicorn` if you want the Pydantic AI links
+(`uvicorn` only for the web UI). Either mcp
 1.x or 2.x works from **8.6.1** on: 2.0 renamed the server class and moved its
 module (`mcp.server.fastmcp.FastMCP` → `mcp.server.MCPServer`), and both the
 server and KAME's interpreter probe take whichever is installed. **On 8.6 and
@@ -794,8 +818,9 @@ support skills. Removing the skill must never make an agent unsafe.
 ### Usage records
 
 KAME appends one JSONL line per MCP tool call to `~/.kame_mcp_log/`, and the
-Pydantic AI client appends one line per model request to `usage.jsonl` beside
-it — calls, tokens and inference time, never prompt or response text. The
+Pydantic AI client — KAME's agent, or your own through `kame_usage_logging()` —
+appends one line per model request to `usage.jsonl` beside it — calls, tokens
+and inference time, never prompt or response text. The
 first is provenance for reconstructing what an assistant did; the second
 gives API-cost and local-inference figures that providers do not always
 report back. Both default on; disable with `KAME_MCP_NO_LOG` and
