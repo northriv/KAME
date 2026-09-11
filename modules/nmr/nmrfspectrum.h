@@ -15,10 +15,14 @@
 #define nmrfspectrumH
 
 #include "nmrspectrumbase.h"
+#include "nmrrelaxmap.h"
 
 class XSG;
 class XPulser;
 class XAutoLCTuner;
+class XRelaxFunc;
+class XRelaxFuncList;
+class XWaveNGraph;
 class QMainWindow;
 class Ui_FrmNMRFSpectrum;
 typedef QForm<QMainWindow, Ui_FrmNMRFSpectrum> FrmNMRFSpectrum;
@@ -43,6 +47,16 @@ protected:
         XDriver *emitter) const override;
 
     virtual void rearrangeInstrum(const Snapshot &shot) override;
+
+    //! Inverts the time-resolved accumulation into a T2 map, on top of what the
+    //! base class draws. \sa nmrrelaxmap.h
+    virtual void visualize(const Snapshot &shot) override;
+    //! One record per CPMG echo, grouped \a mapEchoesPerBin() at a time.
+    virtual bool mapBinning(const Snapshot &shot_this, const Snapshot &shot_pulse,
+        MapBinning &) const override;
+    virtual const std::vector<std::complex<double> > &
+        waveOfRecord(const Snapshot &shot_pulse, const XNMRPulseAnalyzer &pulse,
+        int idx) const override;
 public:
 	//! driver specific part below 
 	const shared_ptr<XItemNode<XDriverList, XSG> > &sg1() const {return m_sg1;}
@@ -63,6 +77,18 @@ public:
     const shared_ptr<XComboNode> &tuneCycleStrategy() const {return m_tuneCycleStrategy;}
     enum class TuneCycleStrategy {ASIS = 0, TUNE_AWAIT = 1, AUTOTUNE = 2,
                             CYCLE_DBL = 3, CYCLE_QUAD = 4, CYCLE_OCT = 5};
+
+    //! Relaxation map: a T2 distribution per frequency, out of the CPMG train
+    //! the pulse analyzer stores echo by echo. \sa NMRRelaxMapMode
+    const shared_ptr<XComboNode> &mapMode() const {return m_mapMode;}
+    const shared_ptr<XComboNode> &mapTikhonovMatrix() const {return m_mapTikhonovMatrix;}
+    //! # of consecutive echoes summed into one time bin, which then sits at the
+    //! mean of their 2 tau n -- i.e. bins of 2 tau n/m rather than 2 tau n.
+    const shared_ptr<XUIntNode> &mapEchoesPerBin() const {return m_mapEchoesPerBin;}
+    //! Resolution of the map's frequency axis [kHz]; <= 0 takes the spectrum's.
+    const shared_ptr<XDoubleNode> &mapFreqRes() const {return m_mapFreqRes;}
+    //! Shape of the decay, e.g. multi-exponential for I > 1/2.
+    const shared_ptr<XItemNode<XRelaxFuncList, XRelaxFunc> > &relaxFunc() const {return m_relaxFunc;}
 private:
 	const shared_ptr<XItemNode<XDriverList, XSG> > m_sg1;
     const shared_ptr<XItemNode<XDriverList, XAutoLCTuner> > m_autoTuner, m_autoTunerSecondary;
@@ -75,6 +101,19 @@ private:
 	const shared_ptr<XBoolNode> m_active;
     const shared_ptr<XDoubleNode> m_tuneCycleStep;
     const shared_ptr<XComboNode> m_tuneCycleStrategy;
+
+    const shared_ptr<XRelaxFuncList> m_relaxFuncs;
+    const shared_ptr<XComboNode> m_mapMode;
+    const shared_ptr<XComboNode> m_mapTikhonovMatrix;
+    const shared_ptr<XUIntNode> m_mapEchoesPerBin;
+    const shared_ptr<XDoubleNode> m_mapFreqRes;
+    const shared_ptr<XWaveNGraph> m_waveMapCurves, m_waveMap;
+    shared_ptr<XItemNode<XRelaxFuncList, XRelaxFunc> > m_relaxFunc;
+    //! Touched by visualize() only; analyze() may ask it to drop its kernel.
+    NMRRelaxMapSolver m_mapSolver;
+
+    //! Empties both map graphs, unless they are empty already.
+    void clearRelaxMapGraphs();
 
     shared_ptr<Listener> m_lsnOnActiveChanged, m_lsnOnTuningChanged;
     

@@ -464,6 +464,8 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
         tr[ *tr[ *waveGraph()].axisx()->maxValue()] = starttime * 1e3 + t * 1.3;
     }
     tr[ *this].m_waveWidth = length;
+    //The Payload member, not the node of the same name it is copied from.
+    tr[ *this].m_echoPeriod = shot_this[ *echoPeriod()];
     bool skip = shot_this[ *this].m_timeClearRequested.isSet();
     tr[ *this].m_timeClearRequested = {};
     bool avgclear = skip;
