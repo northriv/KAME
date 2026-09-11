@@ -87,6 +87,17 @@ public:
     const shared_ptr<XUIntNode> &mapEchoesPerBin() const {return m_mapEchoesPerBin;}
     //! Resolution of the map's frequency axis [kHz]; <= 0 takes the spectrum's.
     const shared_ptr<XDoubleNode> &mapFreqRes() const {return m_mapFreqRes;}
+    //! What the inversion is fed at each frequency of the sweep. \sa MapPhaseMode
+    const shared_ptr<XComboNode> &mapPhase() const {return m_mapPhase;}
+    //! A swept carrier does not keep one phase -- the probe, the cables and the
+    //! synthesizer all turn it -- so the single phase() the spectrum carries
+    //! cannot put every frequency in phase at once.  \a AutoPerFreq settles it
+    //! frequency by frequency instead, from the phase of the sum over the time
+    //! bins; the train at one frequency does share one phase, since relaxation
+    //! is real.  \a Global keeps phase() for a rig whose sweep is coherent, and
+    //! \a Absolute gives up the phase altogether -- noisier, and biased away
+    //! from zero at long times, which is why it is not the default.
+    enum class MapPhaseMode {AutoPerFreq = 0, Global = 1, Absolute = 2};
     //! Shape of the decay, e.g. multi-exponential for I > 1/2.
     const shared_ptr<XItemNode<XRelaxFuncList, XRelaxFunc> > &relaxFunc() const {return m_relaxFunc;}
 private:
@@ -107,6 +118,7 @@ private:
     const shared_ptr<XComboNode> m_mapTikhonovMatrix;
     const shared_ptr<XUIntNode> m_mapEchoesPerBin;
     const shared_ptr<XDoubleNode> m_mapFreqRes;
+    const shared_ptr<XComboNode> m_mapPhase;
     const shared_ptr<XWaveNGraph> m_waveMapCurves, m_waveMap;
     shared_ptr<XItemNode<XRelaxFuncList, XRelaxFunc> > m_relaxFunc;
     //! Touched by visualize() only; analyze() may ask it to drop its kernel.
