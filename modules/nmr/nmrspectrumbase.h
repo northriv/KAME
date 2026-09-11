@@ -17,6 +17,8 @@
 #include <secondarydriver.h>
 #include <xnodeconnector.h>
 #include <complex>
+#include <deque>
+#include <vector>
 #include "nmrspectrumsolver.h"
 
 class XNMRPulseAnalyzer;
@@ -57,6 +59,27 @@ public:
 		double res() const {return m_res;}
 		//! Value of the first point [Hz].
 		double min() const {return m_min;}
+
+		//! One time bin of a relaxation map: the sweep-axis accumulators of the
+		//! records that share a time slot, on the same grid (\a min(), \a res(),
+		//! same length) as the spectrum itself.  \a times carries every abscissa
+		//! summed here -- more than one when the driver groups records, e.g. m
+		//! CPMG echoes at a time, whose bin then sits at 2 tau n/m.
+		struct MapBin {
+			std::vector<double> times; //!< 2 tau, P1, ... of the summed records
+			int avgCount = 0; //!< # of records summed
+			std::deque<std::complex<double> > accum;
+			std::deque<double> accum_weights;
+			std::deque<double> accum_dark;
+		};
+		//! Empty unless the driver overrides mapBinning(); one entry per time bin.
+		//! Shared by pointer-to-const with live Snapshots, so a bin is replaced,
+		//! never written through.
+		const std::vector<shared_ptr<const MapBin> > &mapBins() const {return m_mapBins;}
+		//! Turns \a MapBin::accum_dark into a variance [V^2], as analyzeIFT() does
+		//! for darkPSD(): the reciprocal of the period of the wave. 0 until a
+		//! record has been binned.
+		double mapPSDCoeff() const {return m_mapPSDCoeff;}
 	private:
 		template <class>
 		friend class XNMRSpectrumBase;
@@ -73,6 +96,9 @@ public:
 		std::deque<double> m_accum_dark[ACCUM_BANKS]; //[V^2/Hz].
 
 		std::deque<std::pair<double, double> > m_peaks;
+
+		std::vector<shared_ptr<const MapBin> > m_mapBins;
+		double m_mapPSDCoeff = 0.0;
 
 		shared_ptr<const FFT> m_ift, m_preFFT;
 
@@ -110,6 +136,24 @@ protected:
 	//! [Hz]
 	virtual double getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &shot_others) const = 0;
     virtual void rearrangeInstrum(const Snapshot &) {}
+
+	//! How the records of ONE acquisition are distributed over the time bins of
+	//! a relaxation map.  A CPMG train gives one record per echo, grouped m at a
+	//! time; a driver that has nothing to resolve in time gives none.
+	struct MapBinning {
+		int binCount = 0;
+		std::vector<int> binOfRecord; //!< the bin each record belongs to
+		std::vector<double> timeOfRecord; //!< its abscissa, 2 tau n, P1, ...
+	};
+	//! \return false (the default) to stay time-integrated: one record per
+	//! acquisition, no map.  Called from analyze(), so read \a shot_this and
+	//! \a shot_pulse only.
+	virtual bool mapBinning(const Snapshot &shot_this, const Snapshot &shot_pulse,
+		MapBinning &) const {return false;}
+	//! \return the wave of record \a idx of one acquisition: an individual CPMG
+	//! echo for a time-resolving driver, the (echo-averaged) wave otherwise.
+	virtual const std::vector<std::complex<double> > &
+		waveOfRecord(const Snapshot &shot_pulse, const XNMRPulseAnalyzer &pulse, int idx) const;
 	virtual void getValues(const Snapshot &shot_this, std::vector<double> &values) const = 0;
 	virtual bool checkDependencyImpl(const Snapshot &shot_this,
 		const Snapshot &shot_emitter, const Snapshot &shot_others,
@@ -117,6 +161,12 @@ protected:
 private:
 	//! Fourier Step Summation.
 	void fssum(Transaction &tr, const Snapshot &shot_pulse, const Snapshot &shot_others);
+	//! The same summation, one record at a time into the time bins of the map.
+	void fssumTimeResolved(Transaction &tr, const Snapshot &shot_pulse,
+		int len, double df, double cfreq, int bw_org);
+	//! Creates, clears or shifts the map's time bins along with the sweep axis.
+	void updateMapBins(Transaction &tr, const Snapshot &shot_pulse,
+		bool axis_rebuilt, int head_shift, int length);
 	void analyzeIFT(Transaction &tr, const Snapshot &shot_pulse);
 
 	const shared_ptr<XItemNode<XDriverList, XNMRPulseAnalyzer> > m_pulse;

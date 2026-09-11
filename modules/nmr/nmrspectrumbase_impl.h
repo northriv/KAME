@@ -204,7 +204,11 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
     //small change is discarded.
 	if(fabs(log(shot_this[ *this].res() / res)) < log(2.0))
 		res = shot_this[ *this].res();
-	if((shot_this[ *this].res() != res) || clear) {
+	//The time bins of a relaxation map ride on this same axis, and are told
+	//below whether it was rebuilt or merely shifted.
+	bool axis_rebuilt = (shot_this[ *this].res() != res) || clear;
+	int diff = 0;
+	if(axis_rebuilt) {
 		tr[ *this].m_res = res;
 		for(int bank = 0; bank < Payload::ACCUM_BANKS; bank++) {
 			tr[ *this].m_accum[bank].clear();
@@ -214,7 +218,7 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 	}
 	else {
         //expands/shrinks the begining of buffers.
-        int diff = lrint(shot_this[ *this].min() / res) - lrint(min__ / res);
+        diff = lrint(shot_this[ *this].min() / res) - lrint(min__ / res);
 		for(int bank = 0; bank < Payload::ACCUM_BANKS; bank++) {
             auto &accum = tr[ *this].m_accum[bank];
             auto &accum_weights = tr[ *this].m_accum_weights[bank];
@@ -241,6 +245,7 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 		tr[ *this].m_accum_weights[bank].resize(length, 0);
 		tr[ *this].m_accum_dark[bank].resize(length, 0.0);
 	}
+	updateMapBins(tr, shot_pulse, axis_rebuilt, diff, length);
 	tr[ *this].m_wave.resize(length);
 	std::fill(tr[ *this].m_wave.begin(), tr[ *this].m_wave.end(), std::complex<double>(0.0));
 	tr[ *this].m_weights.resize(length);
@@ -377,6 +382,7 @@ XNMRSpectrumBase<FRM>::fssum(Transaction &tr, const Snapshot &shot_pulse, const 
 	if(bw >= len) {
 		throw XRecordError(i18n("BW beyond Nyquist freq."), __FILE__, __LINE__);
 	}
+	int bw_org = bw; //before the banks halve and redouble it.
 	double cfreq = getCurrentCenterFreq(shot_this, shot_others);
 	std::vector<std::complex<double> > ftwavein(len, 0.0), ftwaveout(len);
 	if( !shot_this[ *this].m_preFFT || (shot_this[ *this].m_preFFT->length() != len)) {
@@ -415,6 +421,151 @@ XNMRSpectrumBase<FRM>::fssum(Transaction &tr, const Snapshot &shot_pulse, const 
 		}
 		bw *= 2.0;
 	}
+	//Time-resolved accumulation for a relaxation map, if the driver wants one.
+	fssumTimeResolved(tr, shot_pulse, len, df, cfreq, bw_org);
+}
+template <class FRM>
+const std::vector<std::complex<double> > &
+XNMRSpectrumBase<FRM>::waveOfRecord(const Snapshot &shot_pulse,
+	const XNMRPulseAnalyzer &pulse, int) const {
+	return shot_pulse[pulse].wave();
+}
+template <class FRM>
+void
+XNMRSpectrumBase<FRM>::updateMapBins(Transaction &tr, const Snapshot &shot_pulse,
+	bool axis_rebuilt, int head_shift, int length) {
+	const Snapshot &shot_this(tr);
+	MapBinning binning;
+	std::vector<std::vector<double> > times;
+	if(mapBinning(shot_this, shot_pulse, binning) && (binning.binCount > 0)) {
+		times.resize(binning.binCount);
+		int nrec = (int)std::min(binning.binOfRecord.size(), binning.timeOfRecord.size());
+		for(int r = 0; r < nrec; ++r) {
+			int b = binning.binOfRecord[r];
+			if((b >= 0) && (b < binning.binCount))
+				times[b].push_back(binning.timeOfRecord[r]);
+		}
+	}
+	//A copy of the pointers: the payload below is rewritten under our feet.
+	auto bins = shot_this[ *this].m_mapBins;
+	if(times.empty() && bins.empty())
+		return; //no map at all, which is what this costs in the common case.
+	bool rebuild = axis_rebuilt || (bins.size() != times.size());
+	for(size_t b = 0; !rebuild && (b < bins.size()); ++b)
+		rebuild = (bins[b]->times != times[b]);
+	if(rebuild) {
+		//The axis or the binning moved and what was accumulated cannot be
+		//reinterpreted, so it goes.  Only the bins: turning a map on, or
+		//regrouping the echoes, must not throw a whole sweep of the spectrum away.
+		std::vector<shared_ptr<const typename Payload::MapBin> > fresh(times.size());
+		for(size_t b = 0; b < times.size(); ++b) {
+			auto bin = std::make_shared<typename Payload::MapBin>();
+			bin->times = times[b];
+			bin->accum.resize(length, 0.0);
+			bin->accum_weights.resize(length, 0.0);
+			bin->accum_dark.resize(length, 0.0);
+			fresh[b] = bin; //filled before publishing (pointer-to-const).
+		}
+		tr[ *this].m_mapBins = std::move(fresh);
+		return;
+	}
+	if( !head_shift && !bins.empty() && ((int)bins[0]->accum.size() == length))
+		return; //the axis did not move.
+	for(size_t b = 0; b < bins.size(); ++b) {
+		//Clone-on-write: a committed bin is shared with every live Snapshot.
+		auto bin = std::make_shared<typename Payload::MapBin>( *bins[b]);
+		for(int i = 0; i < head_shift; i++) {
+			bin->accum.push_front(0.0);
+			bin->accum_weights.push_front(0.0);
+			bin->accum_dark.push_front(0.0);
+		}
+		for(int i = 0; i < -head_shift; i++) {
+			if( !bin->accum.empty()) {
+				bin->accum.pop_front();
+				bin->accum_weights.pop_front();
+				bin->accum_dark.pop_front();
+			}
+		}
+		bin->accum.resize(length, 0.0);
+		bin->accum_weights.resize(length, 0.0);
+		bin->accum_dark.resize(length, 0.0);
+		tr[ *this].m_mapBins[b] = bin;
+	}
+}
+template <class FRM>
+void
+XNMRSpectrumBase<FRM>::fssumTimeResolved(Transaction &tr, const Snapshot &shot_pulse,
+	int len, double df, double cfreq, int bw_org) {
+	const Snapshot &shot_this(tr);
+	auto bins = shot_this[ *this].m_mapBins; //a copy of the pointers, see above.
+	if(bins.empty())
+		return;
+	MapBinning binning;
+	if( !mapBinning(shot_this, shot_pulse, binning) || (binning.binCount != (int)bins.size()))
+		return;
+	shared_ptr<XNMRPulseAnalyzer> pulse__ = shot_this[ *pulse()];
+	if( !pulse__ || !shot_this[ *this].m_preFFT)
+		return;
+	int bank = shot_this[ *bwList()];
+	if((bank < 0) || (bank >= Payload::ACCUM_BANKS))
+		return;
+	//The map follows the bank the spectrum is displaying, so that the two weight
+	//the excitation profile identically.
+	int bw = bw_org / 2;
+	for(int i = 0; i < bank; ++i)
+		bw *= 2;
+	if((bw < 2) || (bw >= len))
+		return;
+	double min = shot_this[ *this].min();
+	double res = shot_this[ *this].res();
+	double darknormalize = res / df;
+	const std::vector<double> &pulse_dark(shot_pulse[ *pulse__].darkPSD());
+	//One fresh copy per bin, published only once every record of this
+	//acquisition has been summed: several records may share a bin, and a
+	//committed bin is shared with live Snapshots.  A commit retry re-runs this
+	//from the committed state, so the sum is applied exactly once.
+	std::vector<shared_ptr<typename Payload::MapBin> > fresh(bins.size());
+	for(size_t b = 0; b < bins.size(); ++b)
+		fresh[b] = std::make_shared<typename Payload::MapBin>( *bins[b]);
+
+	std::vector<std::complex<double> > ftwavein(len, 0.0), ftwaveout(len);
+	int nrec = (int)binning.binOfRecord.size();
+	for(int r = 0; r < nrec; ++r) {
+		int b = binning.binOfRecord[r];
+		if((b < 0) || (b >= (int)fresh.size()))
+			continue;
+		const std::vector<std::complex<double> > &wave(waveOfRecord(shot_pulse, *pulse__, r));
+		if(wave.empty())
+			continue;
+		int wlen = std::min(len, (int)wave.size());
+		int ftpos = shot_pulse[ *pulse__].waveFTPos();
+		int woff = -ftpos + len * ((ftpos > 0) ? (ftpos / len + 1) : 0);
+		std::fill(ftwavein.begin(), ftwavein.end(), std::complex<double>(0.0));
+		for(int i = 0; i < wlen; i++)
+			ftwavein[(i + woff) % len] = wave[i];
+		shot_this[ *this].m_preFFT->exec(ftwavein, ftwaveout);
+		double normalize = 1.0 / (double)wave.size();
+		auto &bin( *fresh[b]);
+		int size = (int)bin.accum.size();
+		for(int i = -bw / 2; i <= bw / 2; i++) {
+			double freq = i * df;
+			int idx = lrint((cfreq + freq - min) / res);
+			if((idx >= size) || (idx < 0))
+				continue;
+			double w = FFT::windowFuncKaiser1((double)i / bw);
+			int j = (i + len) % len;
+			bin.accum[idx] += ftwaveout[j] * w * normalize;
+			bin.accum_weights[idx] += w;
+			bin.accum_dark[idx] += pulse_dark[j] * w * w * darknormalize;
+		}
+		bin.avgCount++;
+	}
+	auto &dst(tr[ *this].m_mapBins);
+	for(size_t b = 0; b < fresh.size(); ++b)
+		dst[b] = fresh[b]; //publish (pointer-to-const).
+	double wave_period = shot_pulse[ *pulse__].waveWidth() * shot_pulse[ *pulse__].interval();
+	if(wave_period > 0.0)
+		tr[ *this].m_mapPSDCoeff = 1.0 / wave_period;
 }
 template <class FRM>
 void
