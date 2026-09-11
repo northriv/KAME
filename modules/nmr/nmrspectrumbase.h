@@ -154,6 +154,13 @@ protected:
 	//! echo for a time-resolving driver, the (echo-averaged) wave otherwise.
 	virtual const std::vector<std::complex<double> > &
 		waveOfRecord(const Snapshot &shot_pulse, const XNMRPulseAnalyzer &pulse, int idx) const;
+	//! \return by how much darkPSD() understates the noise of what
+	//! waveOfRecord() hands over.  It is quoted for the echo-AVERAGED wave, so a
+	//! driver binning individual echoes must undo that averaging or every
+	//! criterion that reads an absolute noise level (Noise Analysis, and the
+	//! weights on the curves) is optimistic by that factor.
+	virtual double mapNoiseFactor(const Snapshot &shot_pulse,
+		const XNMRPulseAnalyzer &pulse) const {return 1.0;}
 	virtual void getValues(const Snapshot &shot_this, std::vector<double> &values) const = 0;
 	virtual bool checkDependencyImpl(const Snapshot &shot_this,
 		const Snapshot &shot_emitter, const Snapshot &shot_others,

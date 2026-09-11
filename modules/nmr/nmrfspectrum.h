@@ -57,6 +57,9 @@ protected:
     virtual const std::vector<std::complex<double> > &
         waveOfRecord(const Snapshot &shot_pulse, const XNMRPulseAnalyzer &pulse,
         int idx) const override;
+    //! Every record binned here is one echo of the train, not their mean.
+    virtual double mapNoiseFactor(const Snapshot &shot_pulse,
+        const XNMRPulseAnalyzer &pulse) const override;
 public:
 	//! driver specific part below 
 	const shared_ptr<XItemNode<XDriverList, XSG> > &sg1() const {return m_sg1;}

@@ -36,7 +36,8 @@ TikhonovRegular::TikhonovRegular(const Matrix &matrixA, TikhonovMatrix matStype,
         m_V = svd.matrixV().leftCols(rank);
         m_UT = svd.matrixU().leftCols(rank).transpose();
         m_AinvReg = m_V * Eigen::VectorXd(1.0 / m_sigma.array()).asDiagonal() * m_UT;
-        fprintf(stderr, "Rank=%ld, sigma_max=%.3g, sigma_min=%.3g\n", rank, sigma_max, m_sigma.minCoeff());
+        dbgPrint(formatString("Tikhonov: rank=%ld, sigma_max=%.3g, sigma_min=%.3g",
+            rank, sigma_max, m_sigma.minCoeff()));
         }
         break;
     case TikhonovMatrix::D2: {
@@ -91,7 +92,7 @@ TikhonovRegular::testLambda(double lambda, Method method, const Vector &vec_y, V
         //curvature
         double kappa = 2 * xi*rho/dxi_dl* (pow(lambda,2)*dxi_dl*rho+2*lambda*xi*rho+pow(lambda,4)*xi*dxi_dl)
             / pow(pow(lambda,4)*xi*xi+rho*rho, 1.5);
-        fprintf(stderr, "kappa=%.3g, lambda=%.3g; ", kappa, lambda);
+        dbgPrint(formatString("Tikhonov: kappa=%.3g, lambda=%.3g", kappa, lambda));
         bool ret = (index < kappa);
         index = kappa;
         return ret;
@@ -99,18 +100,18 @@ TikhonovRegular::testLambda(double lambda, Method method, const Vector &vec_y, V
     case Method::MinGCV:
         {
         double gcv = dy.squaredNorm() / pow((Eigen::MatrixXd::Identity(m_ylen, m_ylen) - (m_A * m_AinvReg)).trace(), 2.0);
-        fprintf(stderr, "gcv=%.3g, lambda=%.3g; ", gcv, lambda);
+        dbgPrint(formatString("Tikhonov: gcv=%.3g, lambda=%.3g", gcv, lambda));
         bool ret = (index > gcv);
         index = gcv;
         return ret;
         }
     case Method::KnownError: {
         double dy_sqnorm = dy.squaredNorm();
-        fprintf(stderr, "dy_sqnorm=%.3g, lambda=%.3g; ", dy_sqnorm, lambda);
+        dbgPrint(formatString("Tikhonov: dy_sqnorm=%.3g, lambda=%.3g", dy_sqnorm, lambda));
         return dy_sqnorm / m_ylen < error_sq;
         }
     case Method::AllNonNegative:
-        fprintf(stderr, "min x=%.3g, lambda=%.3g; ", vec_x.minCoeff(), lambda);
+        dbgPrint(formatString("Tikhonov: min x=%.3g, lambda=%.3g", vec_x.minCoeff(), lambda));
         return (vec_x.array() < 0.0).any();
     }
     // Exhaustive over Method, but GCC still warns "control reaches end of
@@ -170,7 +171,11 @@ TikhonovRegular::chooseLambda(Method method, const Vector &vec_y, double error_s
         break;
     }
 
-    fprintf(stderr, "lambda = %g\n", m_lambda);
+    //One line per trial of lambda, and the search runs every record: a scan
+    //(L-curve, GCV) spends ~110 of them.  The chosen value is not lost with
+    //them -- it is put on the graph itself, where the measurement can be read
+    //against it (\sa lambda(), drawRelaxDensityMap()).
+    dbgPrint(formatString("Tikhonov: lambda = %g", m_lambda));
     return vec_x;
 }
 

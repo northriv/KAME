@@ -43,6 +43,14 @@ public:
     }
     double xlen() const {return m_xlen;}
     double ylen() const {return m_ylen;}
+    //! The regularization parameter chooseLambda() settled on.
+    double lambda() const {return m_lambda;}
+    //! \return ||A x - y||^2, what \a x leaves unexplained of \a y.  Against
+    //! the known noise level it says whether the choice of lambda has fitted
+    //! the data, the noise, or neither.
+    double residualSq(const Vector &y, const Vector &x) const {
+        return (m_A * x - y).squaredNorm();
+    }
 private:
     long m_xlen, m_ylen;
     Matrix m_A;

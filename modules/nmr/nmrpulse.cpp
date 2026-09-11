@@ -642,8 +642,13 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
         }
     }
     double darknormalize = normalize * normalize;
-    if(bg_off_echotrain)
+    //The published PSD is that of m_wave, the mean of the echoes; what it takes
+    //to read it as the noise of ONE of them is published alongside.
+    tr[ *this].m_darkPSDFactorPerEcho = 1.0;
+    if(bg_off_echotrain) {
         darknormalize /= (double)numechoes;
+        tr[ *this].m_darkPSDFactorPerEcho = numechoes;
+    }
     double *darkpsd( &tr[ *this].m_darkPSD[0]);
     for(int i = 0; i < fftlen; i++) {
         darkpsd[i] = darkpsdsum[i] * darknormalize;

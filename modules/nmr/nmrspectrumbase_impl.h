@@ -565,7 +565,7 @@ XNMRSpectrumBase<FRM>::fssumTimeResolved(Transaction &tr, const Snapshot &shot_p
 		dst[b] = fresh[b]; //publish (pointer-to-const).
 	double wave_period = shot_pulse[ *pulse__].waveWidth() * shot_pulse[ *pulse__].interval();
 	if(wave_period > 0.0)
-		tr[ *this].m_mapPSDCoeff = 1.0 / wave_period;
+		tr[ *this].m_mapPSDCoeff = mapNoiseFactor(shot_pulse, *pulse__) / wave_period;
 }
 template <class FRM>
 void

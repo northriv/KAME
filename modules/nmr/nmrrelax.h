@@ -248,8 +248,12 @@ private:
 	//! Files one measurement into \a pts, summing it into the point already at
 	//! that abscissa when there is one.
 	static void accumulateRawPt(std::deque<Payload::RawPt> &pts, const Payload::RawPt &pt);
+    //! \param noisefactor by how much darkPSD() understates the noise of \a wave;
+    //! 1 for the (echo-averaged) wave it is quoted for, \a darkPSDFactorPerEcho()
+    //! for one echo of a train.
     void storePulseForMapping(Transaction &tr, double p1_or_2tau,
-        const std::vector< std::complex<double> >&wave, const Snapshot &shot_pulse, const XNMRPulseAnalyzer &pulse);
+        const std::vector< std::complex<double> >&wave, const Snapshot &shot_pulse,
+        const XNMRPulseAnalyzer &pulse, double noisefactor = 1.0);
     void ZFFFT(Transaction &tr,
         std::vector< std::complex<double> >&bufin, std::vector< std::complex<double> >&bufout,
         shared_ptr<Payload::Pulse> p, double interval);

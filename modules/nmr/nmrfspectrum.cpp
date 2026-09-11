@@ -457,12 +457,17 @@ XNMRFSpectrum::waveOfRecord(const Snapshot &shot_pulse, const XNMRPulseAnalyzer 
         return echoes[idx];
     return shot_pulse[pulse].wave();
 }
+double
+XNMRFSpectrum::mapNoiseFactor(const Snapshot &shot_pulse, const XNMRPulseAnalyzer &pulse) const {
+    return shot_pulse[pulse].darkPSDFactorPerEcho();
+}
 void
 XNMRFSpectrum::clearRelaxMapGraphs() {
     for(auto &&graph: {m_waveMapCurves, m_waveMap}) {
         if( !Snapshot( *graph)[ *graph].rowCount())
             continue; //already empty; spares a commit per record while off.
         graph->iterate_commit([&](Transaction &tr){
+            tr[ *graph->graph()->onScreenStrings()] = "";
             tr[ *graph].clearPoints();
             graph->drawGraph(tr);
         });
@@ -615,5 +620,5 @@ XNMRFSpectrum::visualize(const Snapshot &shot) {
     Eigen::MatrixXd density = m_mapSolver.exec(data, tgrid, relax_fn, -1.0,
         (TikhonovRegular::TikhonovMatrix)(int)shot[ *mapTikhonovMatrix()],
         tikhonovMethodOf(mapmode), data.strongestRow());
-    drawRelaxDensityMap(m_waveMap, data, tgrid, density, "T2 [us]");
+    drawRelaxDensityMap(m_waveMap, data, tgrid, density, "T2 [us]", m_mapSolver.status());
 }

@@ -106,6 +106,10 @@ public:
     //! Drops the cached kernel.  Safe to call from analyze(): the request is a
     //! flag, consumed by the next exec(), and never touches the kernel itself.
     void invalidate() {m_invalidated = 1;}
+    //! One line on what the last exec() settled on -- the regularization
+    //! parameter above all, which no other number in the map reveals -- for the
+    //! graph to carry. \sa drawRelaxDensityMap()
+    const XString &status() const {return m_status;}
 private:
     bool isCacheValid(const NMRRelaxMapData &, const std::vector<double> &tgrid,
         const XRelaxFunc *, TikhonovRegular::TikhonovMatrix) const;
@@ -116,6 +120,7 @@ private:
     const XRelaxFunc *m_relaxFn = nullptr;
     TikhonovRegular::TikhonovMatrix m_matStype = TikhonovRegular::TikhonovMatrix::I;
     atomic<int> m_invalidated{0};
+    XString m_status;
 };
 
 //! Sets \a graph up as the color map of the inverted density.
@@ -130,9 +135,11 @@ bool setupRelaxCurvesGraph(Transaction &tr, const shared_ptr<XWaveNGraph> &graph
 void drawRelaxCurves(const shared_ptr<XWaveNGraph> &graph,
     const NMRRelaxMapData &data, const char *tlabel);
 //! Draws the density from NMRRelaxMapSolver::exec(). \a tlabel e.g. "T2 [us]".
+//! \a note goes on the graph itself (NMRRelaxMapSolver::status()), and is put
+//! there even when \a density is empty -- that is when it has something to say.
 void drawRelaxDensityMap(const shared_ptr<XWaveNGraph> &graph,
     const NMRRelaxMapData &data, const std::vector<double> &tgrid,
-    const Eigen::MatrixXd &density, const char *tlabel);
+    const Eigen::MatrixXd &density, const char *tlabel, const XString &note);
 
 //---------------------------------------------------------------------------
 #endif

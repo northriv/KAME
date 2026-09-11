@@ -59,6 +59,10 @@ public:
         double darkPSDFactorToVoltSq() const {return m_ftWavePSDCoeff / (m_wave.size() * interval());}
         //! Stored multi-echoes for T2 measurement
         const std::vector<std::vector<std::complex<double> > > &echoesT2() const {return m_echoesT2;}
+        //! darkPSD() describes the noise of wave(), which is the MEAN of the
+        //! echoes; one echo of echoesT2() is noisier by this factor.  1 when no
+        //! such averaging took place.
+        double darkPSDFactorPerEcho() const {return m_darkPSDFactorPerEcho;}
         //! [ms] spacing of the echoes in echoesT2(), i.e. the 2 tau of a CPMG
         //! train.  Published so that a secondary driver can put a time axis on
         //! them without having to be connected to the pulser as well.
@@ -97,6 +101,7 @@ public:
 		double m_startTime;
         std::vector<std::vector<std::complex<double> > > m_echoesT2;
         double m_echoPeriod = 0.0; //!< [ms], the node's value at record time.
+        double m_darkPSDFactorPerEcho = 1.0;
         //! Stored averaged multi-echoes for T2 measurement
         std::vector<std::vector<std::complex<double> > > m_echoesT2Sum;
 
