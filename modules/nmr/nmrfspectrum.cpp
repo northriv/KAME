@@ -609,7 +609,23 @@ XNMRFSpectrum::visualize(const Snapshot &shot) {
         }
     }
 
-    drawRelaxCurves(m_waveMapCurves, data, "2tau [us]");
+    const char *phname = "global";
+    switch(phmode) {
+    case MapPhaseMode::AutoPerFreq:
+        phname = "auto";
+        break;
+    case MapPhaseMode::Absolute:
+        phname = "abs";
+        break;
+    default:
+        break;
+    }
+    //What it took to acquire these curves; the inversion's own settings go on
+    //the density map instead, and neither line holds much text.
+    drawRelaxCurves(m_waveMapCurves, data, "2tau [us]",
+        formatString("2tau=%.4gus x%u/bin df=%.4gkHz ph=%s", tmin,
+            std::max(1u, (unsigned int)shot[ *mapEchoesPerBin()]),
+            decim * res * 1e-3, phname));
 
     shared_ptr<XRelaxFunc> relax_fn = shot[ *relaxFunc()];
     if( !relax_fn)

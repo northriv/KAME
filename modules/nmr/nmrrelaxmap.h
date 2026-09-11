@@ -106,9 +106,11 @@ public:
     //! Drops the cached kernel.  Safe to call from analyze(): the request is a
     //! flag, consumed by the next exec(), and never touches the kernel itself.
     void invalidate() {m_invalidated = 1;}
-    //! One line on what the last exec() settled on -- the regularization
-    //! parameter above all, which no other number in the map reveals -- for the
-    //! graph to carry. \sa drawRelaxDensityMap()
+    //! One line on what the last exec() settled on, and on what it was asked:
+    //! enough of the inversion to repeat it from a picture of the map -- the
+    //! criterion, the regularization matrix and parameter, the relaxation
+    //! function, the grid -- since none of it shows in the picture itself.
+    //! \sa drawRelaxDensityMap()
     const XString &status() const {return m_status;}
 private:
     bool isCacheValid(const NMRRelaxMapData &, const std::vector<double> &tgrid,
@@ -132,8 +134,11 @@ bool setupRelaxDensityMapGraph(Transaction &tr, const shared_ptr<XWaveNGraph> &g
 bool setupRelaxCurvesGraph(Transaction &tr, const shared_ptr<XWaveNGraph> &graph,
     const char *xlabel, const char *ylabel);
 //! Draws the raw curves of \a data. \a tlabel names the time axis, e.g. "2tau [us]".
+//! \a note goes on the graph itself: what it took to ACQUIRE these curves, the
+//! inversion's own settings being on the density map instead.  Neither graph
+//! holds much text before it runs off its edges, so keep both short.
 void drawRelaxCurves(const shared_ptr<XWaveNGraph> &graph,
-    const NMRRelaxMapData &data, const char *tlabel);
+    const NMRRelaxMapData &data, const char *tlabel, const XString &note);
 //! Draws the density from NMRRelaxMapSolver::exec(). \a tlabel e.g. "T2 [us]".
 //! \a note goes on the graph itself (NMRRelaxMapSolver::status()), and is put
 //! there even when \a density is empty -- that is when it has something to say.

@@ -1139,7 +1139,13 @@ XNMRT1::visualize(const Snapshot &shot) {
         assert(i == pcount_stored);
         data.noiseSq = noisesq / pcount_stored;
 
-        drawRelaxCurves(m_waveAllRelaxCurves, data, tlabel.c_str());
+        //What it took to acquire these curves; the inversion's own settings go
+        //on the density map instead, and neither line holds much text.
+        drawRelaxCurves(m_waveAllRelaxCurves, data, tlabel.c_str(),
+            formatString("res=%.4gkHz BW=%.4gkHz w=%s@%.0f%%",
+                shot[ *this].m_mapFreqRes * 1e-3, shot[ *this].m_mapBandWidth * 1e-3,
+                shot[ *mapWindowFunc()].to_str().c_str(),
+                (double)shot[ *mapWindowWidth()]));
 
         shared_ptr<XRelaxFunc> relax_fn = shot[ *relaxFunc()];
         if( !relax_fn) return;

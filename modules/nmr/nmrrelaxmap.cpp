@@ -18,6 +18,25 @@
 #include "graph.h"
 #include "xwavengraph.h"
 
+//! Short enough for the one line a graph can hold.
+static const char *
+methodName(TikhonovRegular::Method method) {
+    switch(method) {
+    case TikhonovRegular::Method::KnownError:
+        return "noise";
+    case TikhonovRegular::Method::MinGCV:
+        return "GCV";
+    case TikhonovRegular::Method::L_Curve:
+        return "L-curve";
+    case TikhonovRegular::Method::AllNonNegative:
+    default:
+        return "nonneg";
+    }
+}
+static const char *
+matrixName(TikhonovRegular::TikhonovMatrix mattype) {
+    return (mattype == TikhonovRegular::TikhonovMatrix::D2) ? "D2" : "I";
+}
 TikhonovRegular::Method
 tikhonovMethodOf(NMRRelaxMapMode mode) {
     switch(mode) {
@@ -166,11 +185,19 @@ NMRRelaxMapSolver::exec(const NMRRelaxMapData &data, const std::vector<double> &
     //part of the picture shows.  With it, how much of the reference row it left
     //unexplained, against the noise there: about 1 is a fit, well above says
     //over-smoothed, well below says the noise is being fitted.
-    m_status = formatString("lambda=%.3g", m_regularization->lambda());
+    m_status = formatString("%s/%s lam=%.3g", methodName(method), matrixName(mattype),
+        m_regularization->lambda());
     if(data.noiseSq > 0.0) {
         double rms = sqrt(m_regularization->residualSq(yrow, xrow) / nbin);
-        m_status += formatString(" rms/sigma=%.2f", rms / sqrt(data.noiseSq));
+        m_status += formatString(" rms/sig=%.2f", rms / sqrt(data.noiseSq));
     }
+    //The rest of what it would take to repeat this inversion: the kernel's
+    //shape and grid.  relax_coeff only when it is not the plain decay, i.e.
+    //when a recovery's own fit is feeding it and is therefore worth recording.
+    m_status += formatString(" T=%.4g-%.4g(%d) bins=%d", tgrid.front(), tgrid.back(), nt, nbin);
+    if(fabs(relax_coeff + 1.0) > 1e-6)
+        m_status += formatString(" coeff=%.3g", relax_coeff);
+    m_status += " f=" + relax_fn->getLabel();
 
     density.setZero(nx, nt);
     for(int i = 0; i < nx; ++i) {
@@ -229,10 +256,11 @@ setupRelaxDensityMapGraph(Transaction &tr, const shared_ptr<XWaveNGraph> &graph,
 }
 void
 drawRelaxCurves(const shared_ptr<XWaveNGraph> &graph,
-    const NMRRelaxMapData &data, const char *tlabel) {
+    const NMRRelaxMapData &data, const char *tlabel, const XString &note) {
     int nx = data.xCount();
     int nbin = data.binCount();
     graph->iterate_commit([&](Transaction &tr){
+        tr[ *graph->graph()->onScreenStrings()] = note;
         tr[ *graph].setLabel(1, tlabel);
         tr[ *tr[ *graph].axisz()->label()] = tlabel;
         size_t length = (size_t)nx * nbin;
