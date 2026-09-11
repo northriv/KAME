@@ -21,6 +21,13 @@
         CONDITIONS OF ANY KIND, either express or implied
 ***************************************************************************/
 #include "transaction.h"
+#ifndef NDEBUG
+    // For the debug-only sleep-in-transaction reporter below.  At file scope:
+    // a standard header cannot be included inside a namespace.
+    #include <set>
+    #include <mutex>
+    #include <cstdlib>
+#endif
 #include "transaction_definitions.h"
 #include <vector>
 #include <thread>
@@ -69,6 +76,47 @@ namespace detail {
 // dllimport, which is what `detail::tls_storage()` uses as the slot key.
 // (See threadlocal.h for the type-erased dispatcher design.)
 DECLSPEC_KAME XThreadLocal<int, STxNestTag>     s_tx_nest;
+DECLSPEC_KAME std::atomic<diag_counter_t>       g_priv_strips{0};
+
+// Rule 0c counter: thread-local tally, folded into the global at thread exit.
+// See the rationale in transaction_detail.h — it fires orders of magnitude
+// more often than g_priv_strips above, so it must not sit on a shared cache
+// line in the negotiation hot path.
+namespace {
+std::atomic<diag_counter_t> s_highest_tag_shields{0};
+//! Folds this thread's tally into `sink` when the thread exits.
+struct FlushTally {
+    diag_counter_t n = 0;
+    std::atomic<diag_counter_t> *sink;
+    explicit FlushTally(std::atomic<diag_counter_t> *s) noexcept : sink(s) {}
+    ~FlushTally() { if(n) sink->fetch_add(n, std::memory_order_relaxed); }
+};
+} // namespace
+
+namespace { std::atomic<diag_counter_t> s_tx_linkages_max{0}; }
+DECLSPEC_KAME void note_tx_linkages(std::uint64_t n) noexcept {
+    // The parameter stays uint64_t (public signature); the counter is
+    // pointer-width.  Saturate rather than truncate on a 32-bit host — the
+    // caller passes `m_tagged_linkages.size()`, which cannot exceed
+    // SIZE_MAX there anyway, so the clamp is unreachable in practice and
+    // exists only so the narrowing is explicit and monotonic.
+    const diag_counter_t v = (n > (std::uint64_t)(diag_counter_t)-1)
+        ? (diag_counter_t)-1 : (diag_counter_t)n;
+    // Relaxed load/compare/store: a lost race only drops one max update, and
+    // the next Tx that reaches the same depth restores it.
+    if(v > s_tx_linkages_max.load(std::memory_order_relaxed))
+        s_tx_linkages_max.store(v, std::memory_order_relaxed);
+}
+DECLSPEC_KAME std::uint64_t tx_linkages_max() noexcept {
+    return s_tx_linkages_max.load(std::memory_order_relaxed);
+}
+DECLSPEC_KAME void count_highest_tag_shield() noexcept {
+    static thread_local FlushTally t{&s_highest_tag_shields};
+    ++t.n;
+}
+DECLSPEC_KAME std::uint64_t highest_tag_shields() noexcept {
+    return s_highest_tag_shields.load(std::memory_order_relaxed);
+}
 DECLSPEC_KAME XThreadLocal<int, SSleepNestTag>  s_sleep_nest;
 DECLSPEC_KAME XThreadLocal<void*, TlsPayloadCreatorPtrTag>
                                                 tls_payload_creator_ptr;
@@ -77,6 +125,80 @@ DECLSPEC_KAME XThreadLocal<RunnerCounterEntry*, TlsRunnerCounterPtrTag>
                                                 tls_runner_counter_ptr;
 DECLSPEC_KAME XThreadLocal<StampKind, SCurrentOpKindTag>
                                                 s_current_op_kind;
+
+#ifndef NDEBUG
+DECLSPEC_KAME std::atomic<int> s_in_tx_reports{0};
+#endif
+
+} // namespace detail
+
+bool isInTransaction() noexcept {return *detail::s_tx_nest != 0;}
+
+#ifndef NDEBUG
+void warnIfInTransaction(const char *what, const char *where,
+                         const void *site) noexcept {
+    if( !isInTransaction()) return;
+    // std::mutex / std::set rather than XMutex: this header is also compiled in
+    // the Qt-free standalone harness, where XMutex does not exist.  Debug-only
+    // path, so the choice costs nothing.
+    static std::mutex s_mutex;
+    static std::set<const void *> s_reported;
+    static const bool s_abort = []{
+        const char *v = std::getenv("KAME_STM_ABORT_IN_TX");
+        return v && *v && *v != '0';
+    }();
+    const void *key = where ? (const void *)where : site;
+    {
+        std::lock_guard<std::mutex> lock(s_mutex);
+        if(s_reported.size() >= 64u) return;   // cap the bookkeeping, not the bug
+        if( !s_reported.insert(key).second) return;
+    }
+    ++detail::s_in_tx_reports;
+    char loc[64];
+    if(where) snprintf(loc, sizeof(loc), "%s", where);
+    else      snprintf(loc, sizeof(loc), "%p", site);
+#ifdef gErrPrint
+    gErrPrint(formatString("%s (%s). Set KAME_STM_ABORT_IN_TX=1 to abort here.",
+                           what, loc));
+#else
+    fprintf(stderr, "%s (%s)\n", what, loc);
+#endif
+    if(s_abort) std::abort();
+}
+#endif
+
+namespace detail {
+
+#ifndef NDEBUG
+// The msecsleep detector.  xtime cannot call warnIfInTransaction directly -- it
+// must know nothing about transactions, and binaries that never instantiate the
+// STM (mutex_test, atomic_queue_test, the pool-allocator tests) would then fail
+// to link against s_tx_nest -- so xtime exposes a function pointer and this is
+// the adapter that fills in the message.  Deduplicated by the CALLER's address,
+// there being no source location to use: resolve it with
+// `atos -o <binary> <addr>` or `addr2line -e <binary> <addr>`.
+static void report_sleep_in_transaction_(
+    unsigned int ms, const void *caller) noexcept {
+    if( !isInTransaction()) return;     // before formatting anything
+    char what[320];
+    snprintf(what, sizeof(what),
+        "msecsleep(%u) was called while a Transaction is alive on this thread. "
+        "The transaction stays open for the whole sleep, so every thread "
+        "negotiating against it waits; inside an iterate_commit closure it also "
+        "re-sleeps on every CAS retry, and it exceeds any ScopedWaitBudget. "
+        "Sleep outside the transaction", ms);
+    warnIfInTransaction(what, nullptr, caller);
+}
+
+// One TU per binary (see the note at the top of this namespace), so a plain
+// namespace-scope object is the right installer; it runs before any driver
+// thread exists.
+static const struct SleepReporterInstaller {
+    SleepReporterInstaller() noexcept {
+        ::g_sleep_in_transaction_reporter = &report_sleep_in_transaction_;
+    }
+} s_sleep_reporter_installer;
+#endif
 #if KAME_ENABLE_RUNNER_DIGEST
 DECLSPEC_KAME XThreadLocal<RunnerDigest>        tls_runner_digest;
 #endif
@@ -117,22 +239,34 @@ DECLSPEC_KAME XThreadLocal<RunnerDigest>        tls_runner_digest;
 
 #ifdef __linux__
 #include <unistd.h>
+#include <sched.h>      // getcpu(3) — vDSO, no syscall
 #include <sys/syscall.h>
 // Returns the NUMA node of the CPU currently scheduling this thread,
 // or -1 if unknown / syscall failed.  Used by `runner_counter_register`
 // to pick entries on the calling thread's local NUMA preferentially.
 //
-// `getcpu(2)` is fast (vDSO-accelerated on x86_64); call frequency
-// is once per thread first-register, so even a plain syscall would
-// be acceptable.  No `::` prefix on `syscall` — glibc declares it
-// in the unistd.h namespace without making it a global-scope symbol
-// reachable via `::`.
+// Prefer glibc's `getcpu(3)` wrapper: it resolves through the vDSO and
+// issues no syscall at all.  The raw `syscall(SYS_getcpu, ...)` this used
+// to do BYPASSES the vDSO by construction, so the "vDSO-accelerated" the
+// old comment claimed was never true of the way it was called -- caught by
+// the KAME_MIX_NOSYSCALL census, which saw it trap on a HIGHEST thread.
+// Frequency is once per thread first-register either way, so the cost was
+// never the point; the point is that the acquisition tier is required to
+// reach the kernel zero times.  Fallback keeps the raw call for pre-2.29
+// glibc and non-glibc, where it remains a real syscall -- documented rather
+// than hidden.  No `::` prefix on `syscall` -- glibc declares it in the
+// unistd.h namespace without making it a global-scope symbol.
 static inline int8_t kame_current_numa_node() noexcept {
-#ifdef SYS_getcpu
     unsigned int cpu = 0, node = 0;
+#if defined(__GLIBC__) \
+    && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 29))
+    if(getcpu( &cpu, &node) == 0)
+        return (int8_t)((node > 127) ? 127 : node);
+#elif defined(SYS_getcpu)
     if(syscall(SYS_getcpu, &cpu, &node, nullptr) == 0)
         return (int8_t)((node > 127) ? 127 : node);
 #endif
+    (void)cpu; (void)node;
     return -1;
 }
 #else
@@ -869,20 +1003,28 @@ namespace detail {
 
     // Fires the livelock probe. The caller (negotiate_internal, which
     // has access to Snapshot's protected members via enclosing-class
-    // friendship) pre-computes the tag-ownership counts, the
-    // retry-threshold (chosen from Priority), and the priority label,
-    // then passes plain values here.
+    // friendship) pre-computes the tag-ownership counts and the priority
+    // label, then passes plain values here.
     //
     // Verdict:
     //   tags_owned == tags_total > 0                  AND
-    //   my_tx_retries >= retry_threshold              AND
-    //   tx_age_us > KAME_STM_LIVELOCK_MIN_AGE_US (20 ms default)
+    //   my_tx_retries >= clamp(sig_C*2, 3, hardware_concurrency())
     //
-    // retry_threshold is priority-dependent:
-    //   HIGHEST         → 2  (real-time, must not retry)
-    //   NORMAL          → 3
-    //   UI_DEFERRABLE   → 5  (deferred UI repaint — retries tolerated)
-    //   LOWEST          → 5  (background — tolerates yielding)
+    // The threshold is derived from observed CONTENTION, not priority: each
+    // peer contributes roughly two expected CAS retries, capped at
+    // hardware_concurrency() because beyond that count the threads cannot all
+    // be running CAS at once.  It was priority-derived until 30a0ab0a5
+    // (2026-05-10); the per-priority table that used to be described here is
+    // gone, along with the struct field that carried it.
+    //
+    // Note what this costs: priority no longer decides when privilege becomes
+    // claimable.  Priority still separates HIGHEST (skips negotiation) and the
+    // lowprio set (evictable privilege stamps) — see the Priority enum's
+    // doc-comment in transaction_detail.h — but not the claim timing.
+    //
+    // The age condition that used to sit here (tx_age_us >
+    // KAME_STM_LIVELOCK_MIN_AGE_US) was also dropped; tx_age_us is still
+    // printed for diagnosis.
     //
     // Two unrelated time scales appear in the printout:
     //   tx_age_us  = age of the current Tx/Snapshot (set by Snapshot or
@@ -971,6 +1113,32 @@ ProcessCounter::cnt_t ProcessCounter::id() noexcept { return *stl_processID; }
 //! Value-initialised by XThreadLocal's placement `new(mem) T()`, so an
 //! untouched thread reads {NORMAL, 0} and takes every pre-existing path.
 XThreadLocal<TxContext> stl_currentTxContext;
+
+//! Null by default: no handler means no throw, so enabling the starvation bound
+//! cannot by itself introduce an unhandled exception.  See StarvationHandler.
+static std::atomic<StarvationHandler> s_starvation_handler{nullptr};
+
+void setStarvationHandler(StarvationHandler h) noexcept {
+    s_starvation_handler.store(h, std::memory_order_relaxed);
+}
+StarvationHandler starvationHandler() noexcept {
+    return s_starvation_handler.load(std::memory_order_relaxed);
+}
+void throwStarvationTimeout(unsigned retries, long long age_us) {
+    throw StarvationTimeoutError(
+        "Transactional: a transaction at a revocable priority retried "
+        + std::to_string(retries) + " times over " + std::to_string(age_us / 1000)
+        + " ms without committing.  Its privilege can be taken away, so it is "
+          "given a way to fail rather than retrying forever; retry the operation "
+          "or run it at Priority::NORMAL if it must complete.");
+}
+
+#ifndef NDEBUG
+namespace detail { XThreadLocal<int, SForeignLockTag> s_foreign_lock_nest; }
+void enterForeignLock() noexcept { ++*detail::s_foreign_lock_nest; }
+void leaveForeignLock() noexcept { --*detail::s_foreign_lock_nest; }
+int  foreignLockDepth() noexcept { return *detail::s_foreign_lock_nest; }
+#endif
 
 const TxContext &currentTxContext() noexcept { return *stl_currentTxContext; }
 
@@ -1139,6 +1307,11 @@ Node<XN>::print_recoverable_error(const char* reason) {
 #endif
         fprintf(stderr, "Memory allocation has failed: %s\nTransaction is delaying...\n", reason);
     }
+    // Legitimate: this IS the out-of-memory backoff, and it is called from inside
+    // the transaction it is delaying.
+#ifndef NDEBUG
+    ScopedSleepInTransactionOK _sleep_ok;
+#endif
     msecsleep(1000);
 }
 
@@ -2091,6 +2264,112 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
     for(int retry = 0;; ++retry) {
         if(retry)
             ++snapshot.m_tx_retry_count;
+#if KAME_STM_NEG_DIAG
+        //! \sa NegDiag::snapshot_retries — counted here rather than read off
+        //! m_tx_retry_count, which the guard above restores on the way out.
+        if(retry) {
+            auto &_d = detail::neg_diag();
+            ++_d.snapshot_retries;
+            //! \sa NegDiag::snapshot_retries_max.  Recorded at the TOP of the
+            //! iteration rather than at exit: this loop returns from several
+            //! points inside, and the running maximum is monotonic anyway.
+            if((std::uint64_t)retry > _d.snapshot_retries_max)
+                _d.snapshot_retries_max = (std::uint64_t)retry;
+        }
+#endif
+        // A Snapshot has no operator++, so this loop is the only place its
+        // retries can be bounded — and it is the path a graph redraw takes when
+        // it snapshots an ancestor.  See Node::throw_if_starved_.
+        Node<XN>::throw_if_starved_(snapshot);
+        //! The 2L bound, asserted where it breaks rather than reported at the
+        //! end of the run (user, 2026-08-12).  A correctly built HIGHEST must
+        //! not lose a Linkage more than THREE times — interference by an
+        //! OLDER HIGHEST excepted — and a bundle coming back DISTURBED is a
+        //! loss like any other, so its rebuilds are bounded by 3L.  The three
+        //! are the untagged entry, the CAS-fail-to-tag race, and the window
+        //! between negotiate finding fair mode clear and the CAS landing.
+        //! Exceeding it is not a tuning result: it says a lower tier is
+        //! displacing a thread holding a Reserved stamp on every Linkage it
+        //! has touched, which is an implementation error.  Checked only at
+        //! HIGHEST, and only once the tag list is non-empty (before the first
+        //! tag there is nothing to be bounded by).
+        //!
+        //! Reports once and carries on -- never aborts.  `retry` rises by one
+        //! per pass, so an aborting check always reads bound+1 and then ends
+        //! the run: it cannot measure how far the excursion would have gone.
+        //! Judge this on a LONG run: twelve-second runs cannot sample this
+        //! extreme and swing wildly; do not read them.  What five 30-minute
+        //! runs at the default 4 leaves say (Release+diag, ~115 M acquisition
+        //! commits each, 578 M total) is that THE BOUND DOES NOT HOLD:
+        //!
+        //!     max     25    39    40    36    50
+        //!     3L      24    24    24    27    24   (L = 8,8,8,9,8)
+        //!     over    +1   +15   +16    +9   +26
+        //!
+        //! The first of those was written up as "over by one, once, in 115 M
+        //! commits -- the negotiate/CAS window at the rate a rare race
+        //! should".  It was n=1, and the low draw of five: the excursion runs
+        //! to 2.1x the bound, which no CAS-width window explains.  See the
+        //! block after Node::snapshot for what the excursion actually is.
+#if KAME_STM_NEG_DIAG
+        if(getCurrentPriorityMode() == Priority::HIGHEST
+                && !snapshot.m_tagged_linkages.empty()
+                && (std::size_t)retry
+                       > 3 * snapshot.m_tagged_linkages.size()) {
+            //! Print the state before aborting: the bound breaking says a
+            //! lower tier displaced us, and the only way to tell WHICH way is
+            //! to see whether our own stamp is still Reserved on each Linkage
+            //! we tagged, and whose stamp is there if it is not.
+            //! Report ONCE and carry on, per the watchdog doctrine this
+            //! file follows elsewhere: report, never kill.  Aborting also
+            //! destroyed the measurement -- `retry` rises by one per pass, so
+            //! the first violation is ALWAYS bound+1 and the run dies there.
+            //! Raising the constant from +2 to +3 duly moved the "observed"
+            //! value from 37 to 38.  Let it run and the release build's
+            //! run-wide max says what actually happens.
+            static std::atomic<bool> s_reported{false};
+            bool _exp = false;
+            if( !s_reported.compare_exchange_strong(_exp, true))
+                goto _2l_done;
+            {
+            using NC = typename Node<XN>::NegotiationCounter;
+            std::fprintf(stderr,
+                "[3L] HIGHEST rebuild %d > 3L (L=%zu)  my tid=%u\n",
+                retry, snapshot.m_tagged_linkages.size(),
+                (unsigned)NC::stamp_tid(started_time));
+            for(auto &lp : snapshot.m_tagged_linkages) {
+                const auto sl = lp->m_transaction_started_time.load(
+                    std::memory_order_relaxed);
+                std::fprintf(stderr,
+                    "     linkage %p slot tid=%u kind=%u priv=%d highest=%d "
+                    "mine=%d\n",
+                    (void *)lp.get(), (unsigned)NC::stamp_tid(sl),
+                    (unsigned)NC::stamp_kind(sl),
+                    (int)NC::is_priv_stamp(sl), (int)NC::stamp_is_highest(sl),
+                    (int)(NC::stamp_tid(sl) == NC::stamp_tid(started_time)));
+            }
+            //! WHAT IT FOUND, first time it fired (LEAVES=16): retry=5,
+            //! L=1, and the one tagged Linkage still carries OUR stamp,
+            //! Reserved and HIGHEST.  Every later firing says the same at
+            //! the shipped shape -- the four 30-minute soaks all opened with
+            //! `rebuild 16 > 3L (L=5)` and five slots reading
+            //! `kind=3 priv=1 highest=1 mine=1`.  Nobody displaced us.  So
+            //! the rebuild is
+            //! not a lost Linkage at all: we tag the SUBTREE ROOT, and the
+            //! bundle covers everything beneath it, so a peer writing a CHILD
+            //! invalidates the bundle without ever touching the Linkage our
+            //! privilege sits on.  The shielded surface is one Linkage; the
+            //! exposed surface is the subtree.  That is why the rebuild count
+            //! tracks LEAVES, why Rule 0d (same narrow surface) moved nothing,
+            //! and why "HIGHEST tag == privilege" bounds it at 4-8 leaves and
+            //! not at 16.  For the design rule to hold, HIGHEST needs
+            //! privilege on every Linkage it BUNDLES, not on the one it
+            //! tagged -- and until it does, this bound is a statement about
+            //! the wrong L.
+            }
+        _2l_done: ;
+        }
+#endif
         // First iter: if caller supplied a pre-loaded view (e.g. from
         // the outer ScopedNeg in snapshot(Transaction&, ...) wrap),
         // use the move-in ctor (zero negotiate, zero view-acquire).
@@ -2224,6 +2503,59 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
         }
     }
 }
+
+//! THE BOUND DOES NOT HOLD, AND THE REASON IS NOT A RACE WINDOW.
+//!
+//! Five 30-minute soaks (Release+diag, default 4 leaves, one HIGHEST acq
+//! thread + UI + NORMAL + SCRIPTING, ~115 M acquisition commits each,
+//! 578,635,152 in total, no stall in any of them):
+//!
+//!     max              25      39      40      36      50
+//!     3L bound         24      24      24      27      24
+//!     L (tags)          8       8       8       9       8
+//!     excursion        +1     +15     +16      +9     +26   (1.04x .. 2.08x)
+//!
+//! The first run was published as "over by ONE, once, in 115 M commits --
+//! the negotiate/CAS window at the rate a rare race should".  That was n=1.
+//! Four more runs put the excursion at +9..+26, and a window whose width is a
+//! CAS cannot produce 26 extra failures on 8 Linkages.  (The five soaks span
+//! a small code delta -- the age gate on the HIGHEST spin, the RT_FAST_PRIV
+//! deletion -- but none of it can fire with a single HIGHEST thread, and one
+//! draw per tree cannot separate a shift from the spread regardless.  The
+//! five are reported as five draws of one quantity.)
+//!
+//! Short runs are still unreadable -- 12 s cannot sample this extreme, and
+//! the worst old readings additionally came from 16 leaves (not the shipped
+//! shape) or a Debug build's ~10x-slower contention regime -- but "read it
+//! long enough and it converges to 3L" is now refuted, not unproven.
+//!
+//! WHY: the bound is about the wrong L.  3L counts LINKAGE DISPLACEMENTS, and
+//! a rebuild is not one.  Every [3L] dump this check produced -- all five,
+//! and the earlier LEAVES=16 ones -- reads the same: every Linkage in
+//! m_tagged_linkages still carries OUR stamp, Reserved and HIGHEST.  Nobody
+//! displaced us.  We are privileged on the L Linkages we tagged; the bundle's
+//! exposed surface is the whole SUBTREE beneath them, and a peer writing any
+//! child invalidates it without ever touching a word privilege guards.  The
+//! rebuild count therefore scales with the subtree and the peers' write rate,
+//! not with L, and nothing in the design bounds it today.
+//!
+//! WHAT THE (now deleted) PROBES FOUND, 2026-08-12:
+//!
+//!   * The rebuild loop retries on `bundle()` returning DISTURBED and on
+//!     nothing else, and 94 % of those returns come from two sites -- Phase
+//!     2's `compareAndSetRetain` and Phase 4's `compareAndSetWithHint`, both
+//!     CASes on the SUPER-node's Linkage (806 and 538 of 1433 in 25 s).
+//!   * At every one of those losses the parent Linkage's tag is OURS,
+//!     Reserved and HIGHEST -- 10 of 10 sampled.  Nobody displaced us.
+//!
+//! So the disturber replaces the PacketWrapper while leaving the tag alone.
+//! The tag (`m_transaction_started_time`) and the packet
+//! (`atomic_shared_ptr<PacketWrapper>`) are separate words, and privilege
+//! guards the tag.  Every mechanism this branch tried -- Rule 0d,
+//! HIGHEST-tag-as-privilege, eager tagging from retry 0 -- operates on the
+//! tag word, which is why they moved the rebuild count so little and why
+//! only ~7 % of retries were attributable to peers at the tag level.
+//!
 
 //=============================================================================
 // bundle_subpacket() — prepare one child's packet for inclusion in a bundle
@@ -2378,6 +2710,13 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
     // with op_kind = BUNDLE.  Read side (peer-piggyback) not yet wired —
     // see VERIFICATION.md / paper notes.
     detail::ScopedOpKind _op_kind_scope(detail::StampKind::BUNDLE);
+#if KAME_STM_NEG_DIAG
+    //! \sa NegDiag::bundle_ns — the retry-path attribution was never
+    //! multiplied out against a measured pass cost.  Outermost call only.
+    detail::ScopedPassTimer _bundle_timer(
+        &detail::NegDiag::bundle_ns, &detail::NegDiag::bundle_calls,
+        &detail::NegDiag::bundle_calls_all, &detail::NegDiag::bundle_depth);
+#endif
     auto &started_time = snap.m_started_time;
     auto &tid_bitset = snap.m_tid_bitset;
 
@@ -2444,6 +2783,11 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
     fast_vector<scoped_atomic_view<PacketWrapper>, 16> subwrappers_org(supscope->packet()->subpackets()->size());
 
     for(int retry = 0;; ++retry) {
+#if KAME_STM_NEG_DIAG
+        //! \sa NegDiag::bundle_cas_retries — the bundle protocol's own
+        //! multi-phase retry, likewise invisible to `attempts`.
+        if(retry) ++detail::neg_diag().bundle_cas_retries;
+#endif
         // RAII OnEntry: negotiates supernode.m_link + tags eagerly (retry > 0).
         ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, retry,
             ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
@@ -2541,8 +2885,9 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             scope.confirm_contention();
             return BundledStatus::DISTURBED;
         }
-        if( !scope.compareAndSetRetain(superwrapper))
+        if( !scope.compareAndSetRetain(superwrapper)) {
             return BundledStatus::DISTURBED;
+        }
         // Update supscope.view to track the new m_link state.
         // Pass copy of superwrapper (still needed for Phase 4).
         supscope.set_view(local_shared_ptr<PacketWrapper>(superwrapper));
@@ -2801,6 +3146,12 @@ Node<XN>::commit(Transaction<XN> &tr) {
 
     local_shared_ptr<PacketWrapper> newwrapper(make_local_shared<PacketWrapper>(tr.m_packet, tr.m_serial));
     for(int retry = 0;; ++retry) {
+#if KAME_STM_NEG_DIAG
+        //! Counted because `attempts` cannot see it: this loop retries the CAS
+        //! WITHOUT restarting the transaction, so it does not re-run the
+        //! caller's lambda.  \sa NegDiag::commit_cas_retries.
+        if(retry) ++detail::neg_diag().commit_cas_retries;
+#endif
         // RAII OnEntry: negotiates + tag-bit acquires view of m_link
         // + tags eagerly (retry > 0).  scope's internal view is the
         // CAS oldr.
@@ -2928,6 +3279,12 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
     // Mark every linkage we tag during this unbundle (via tag_as_contender)
     // with op_kind = UNBUNDLE.  Read side not yet wired.
     detail::ScopedOpKind _op_kind_scope(detail::StampKind::UNBUNDLE);
+#if KAME_STM_NEG_DIAG
+    //! \sa NegDiag::bundle_ns.  Outermost call only — unbundle recurses too.
+    detail::ScopedPassTimer _unbundle_timer(
+        &detail::NegDiag::unbundle_ns, &detail::NegDiag::unbundle_calls,
+        &detail::NegDiag::unbundle_calls_all, &detail::NegDiag::unbundle_depth);
+#endif
     auto &time_started = snap.m_started_time;
     auto &tid_bitset = snap.m_tid_bitset;
 
@@ -3054,20 +3411,20 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
     return UnbundledStatus::W_NEW_SUBVALUE;
 }
 
-#if defined __WIN32__ || defined WINDOWS || defined _WIN32
-    #include <windows.h>
-#endif
-
 void setCurrentPriorityMode(Priority pr) {
 #if KAME_STM_WAIT_BUDGET
     stl_currentTxContext->priority = pr;
 #else
     *stl_currentPriority = pr;
 #endif
-#if defined __WIN32__ || defined WINDOWS || defined _WIN32
-    SetThreadPriority(GetCurrentThread(),
-        (pr == Priority::HIGHEST) ? THREAD_PRIORITY_TIME_CRITICAL : THREAD_PRIORITY_NORMAL);
-#endif
+    // Deliberately no OS-scheduler coupling.  STM priority is a per-TRANSACTION
+    // property and toggles with transaction phases; an OS scheduling class is a
+    // per-THREAD property the host sets once at thread setup (KAME:
+    // AcquisitionPriority in kame/driver/primarydriverwiththread.h).  A Windows
+    // SetThreadPriority(TIME_CRITICAL) arm lived here historically, and briefly
+    // a host-installable hook -- both made every ScopedDemoteRealtime hand the
+    // CPU to arbitrary threads mid-acquisition-cycle, which is backwards for
+    // meeting the next trigger.  See RT_READINESS.md.
 }
 
 } //namespace Transactional

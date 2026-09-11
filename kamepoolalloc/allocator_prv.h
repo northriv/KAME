@@ -2831,10 +2831,10 @@ inline unsigned int bucket_for_aligned(std::size_t alignment,
 // reference (Linux: mov %fs:offset — same as today's ALLOC_TLS_IE)
 // covers every field.
 //
-// Layout (packed, no padding gaps beyond the _pad field):
+// Layout (packed; the former `_pad` now carries `torn_down`):
 //   last_region_base  — radix 1-entry sentinel cache (see RADIX_CACHE_EMPTY)
 //   owner_id          — this thread's chunk-owner stamp; 0 = unassigned
-//   _pad              — alignment to 8 B boundary
+//   torn_down         — 1 once this thread has run its allocator cleanup
 //   m_slots[]         — per-thread freelist arrays (replaced g_thread_slots[])
 //                       m_slots[b].freelist_head is the owner-thread freelist
 //                       head for bucket b; &m_slots[b].freelist_head replaces
@@ -2871,7 +2871,15 @@ inline unsigned int bucket_for_aligned(std::size_t alignment,
 struct KameTlsPage {
     uintptr_t  last_region_base;           // radix 1-entry cache; RADIX_CACHE_EMPTY = unmatchable
     uint32_t   owner_id;                   // this thread's chunk-owner stamp; 0 = unassigned
-    uint32_t   _pad;
+    //! Was `_pad`.  1 once this thread has run its allocator cleanup; read via
+    //! `kame_thread_torn_down()`.  Kept here, in the padding, so the predicate is a
+    //! field load off the pointer `kame_page()` already yields — no second TLS
+    //! access — sharing a cache line with `owner_id`, which the free path reads
+    //! immediately after.  `g_teardown_page` is initialised with this field SET, so
+    //! where `kame_page()` is repointed at that sentinel at teardown (macOS
+    //! fast-TSD) the pointer swap and the flag agree.  `s_alloc_tls_off` remains the
+    //! alloc-side / C-shim predicate.
+    uint32_t   torn_down;
     AllocSlot  m_slots[ALLOC_NUM_BUCKETS];  // replaces g_thread_slots[]
     // Named m_slots, NOT slots — Qt defines `slots` as an empty preprocessor
     // token in <QtCore> (the same reason RadixL2Node uses `entries` instead of
@@ -2879,6 +2887,21 @@ struct KameTlsPage {
     // produce a "decomposition declaration not permitted" error when this header
     // is included from a Qt TU (e.g. kame/main.cpp → kame/allocator.h → here).
 };
+// `torn_down` reuses what used to be alignment padding, so the layout above is now
+// load-bearing twice over: it must stay 16 B of header (or the hot `m_slots` cache
+// lines shift), and no field may be inserted before `m_slots`.  Fail at build time
+// rather than in a benchmark.
+// Stated in widths, NOT in LP64 byte counts: on ILP32 the header is 12 B, and a
+// hardcoded 16 breaks every 32-bit build — including the i486 phase of
+// tools/audit/check_no_dcas.sh, which is SKIPPED on macOS, so a wrong constant
+// here cannot be caught on the machine most likely to write it.
+static_assert(offsetof(KameTlsPage, m_slots)
+                  == sizeof(uintptr_t) + 2 * sizeof(uint32_t),
+    "KameTlsPage header must be exactly its three declared fields — no padding, "
+    "and nothing inserted before the hot m_slots array");
+static_assert(sizeof(KameTlsPage)
+                  == offsetof(KameTlsPage, m_slots) + sizeof(AllocSlot) * ALLOC_NUM_BUCKETS,
+    "KameTlsPage must stay packed — no trailing padding");
 
 // Platform split for the TLS page storage:
 //   macOS: g_tls_page is global-dynamic (struct too large for IE budget);
@@ -2891,20 +2914,22 @@ extern ALLOC_TLS_IE KameTlsPage *tls_page_ie;    // IE cached pointer (one per t
 extern ALLOC_TLS_IE KameTlsPage  g_tls_page;     // Linux: IE → mov %fs:offset
 #endif
 
-//! (§hot-tls teardown sentinel) A single process-global, never-freed,
-//! zero-initialised page (owner_id == 0).  `AllocThreadExitCleanup` points
+//! (§hot-tls teardown sentinel) A single process-global, never-freed page
+//! (owner_id == 0, `torn_down` == 1).  `AllocThreadExitCleanup` points
 //! this thread's fast-TSD page slot at `&g_teardown_page` once the thread's
 //! allocator cleanup has run.  Two roles, both branchless on the hot path:
 //!   1. Hot owner-check `chunk->m_owner_id == kame_page()->owner_id` reads
 //!      owner_id 0 from the sentinel → never matches a live (non-zero) owner
 //!      → naturally routes the post-cleanup free to the cold path.  No new
 //!      hot-path instruction; the existing compare does the work.
-//!   2. The cold `deallocate_pooled` detects teardown via the pure pointer
-//!      compare `kame_page() == &g_teardown_page` — NO `_tlv_get_addr`, NO
-//!      deref of `g_tls_page`'s (possibly finalized) TLV storage — and takes
-//!      a TLS-free direct-to-bitmap path instead of touching `s_tls` /
-//!      `s_alloc_tls_off` / `&s_tls.dll_head`, any of which would re-instantiate
-//!      a torn-down TLV (→ malloc during `_pthread_tsd_cleanup` → crash).
+//!   2. The cold `deallocate_pooled` detects teardown via
+//!      `kame_thread_torn_down()`, i.e. this page's statically-set `torn_down`
+//!      — NO `_tlv_get_addr`, NO deref of `g_tls_page`'s (possibly finalized)
+//!      TLV storage — and takes a TLS-free direct-to-bitmap path instead of
+//!      touching `s_tls` / `s_alloc_tls_off` / `&s_tls.dll_head`, any of which
+//!      would re-instantiate a torn-down TLV (→ malloc during
+//!      `_pthread_tsd_cleanup` → crash).  The flag, not the pointer identity, is
+//!      the predicate — the identity compare exists only on this platform.
 //! Single instance with external linkage (kame.app inline-compiles this TU;
 //! modules reach the same address through the exported deallocate path).
 extern KameTlsPage g_teardown_page;
@@ -3054,38 +3079,69 @@ inline KameTlsPage *kame_page_or_null() noexcept {
 #endif  // KAME_FAST_TSD
 
 //! (§hot-tls teardown) Unified "this thread has run its allocator cleanup"
-//! predicate.  Cold-path only (alloc fallbacks / C shims / dealloc cold), so
-//! the extra read never touches the alloc/free hot path.
+//! predicate: one expression on every target — a field of the page
+//! `kame_page()` returns.  Cold-path only (alloc fallbacks / C shims / dealloc
+//! cold), so the read never touches the alloc/free hot path.
 //!
-//!   macOS (KAME_FAST_TSD): a pure pointer compare against the static
-//!     `g_teardown_page` sentinel via the fast-TSD slot — NO `_tlv_get_addr`,
-//!     NO deref of `g_tls_page`'s (possibly finalized) TLV storage.  This is
-//!     the macOS-safe replacement for reading the `s_alloc_tls_off`
-//!     `thread_local`, whose access would lazily re-instantiate a torn-down
-//!     TLV (→ malloc mid-`_pthread_tsd_cleanup` → trap).
+//! Why the flag lives in the page rather than in its own `thread_local`:
 //!
-//!   Linux: `s_alloc_tls_off` is initial-exec TLS — its storage lives in the
-//!     thread's static TLS block (allocated at pthread_create, freed only at
-//!     full thread termination, after all destructors), so a plain
-//!     `mov %fs:offset` read is valid throughout teardown with no malloc.  No
-//!     trick needed — read the flag directly (the standard glibc/tcmalloc/
-//!     mimalloc approach: IE-TLS thread-cache flag on Linux, OS-TLS slot on
-//!     macOS).
+//!   macOS (KAME_FAST_TSD): reading a `thread_local` here would lazily
+//!     re-instantiate a torn-down TLV (→ malloc mid-`_pthread_tsd_cleanup` →
+//!     trap).  `kame_page()` is `mrs TPIDRRO_EL0` + one TSD slot load, and the
+//!     cleanup repoints that slot at the static `g_teardown_page`, which carries
+//!     `torn_down = 1` statically — so the swap and the flag always agree, and
+//!     neither derefs `g_tls_page`'s (possibly finalized) TLV storage.
 //!
-//!   Windows: KAME_FAST_TSD is macOS-only, so this is the `#else` branch —
-//!     identical to the pre-existing behaviour (read `s_alloc_tls_off`).
-//!     MSVC native TLS (.tls / TEB slot) is also static-per-thread, so the
-//!     read is teardown-safe like Linux.  (MinGW gcc *emulated* TLS routes
-//!     through `__emutls_get_address`, which is lazily malloc-backed and could
-//!     in principle share the macOS hazard; not introduced here, no Windows
-//!     teardown crash observed, and the §31 IAT path differs — left as a
-//!     latent item to mirror the macOS sentinel if it ever surfaces.)
+//!   Linux / Windows: correctness was never the problem — `s_alloc_tls_off` is
+//!     initial-exec TLS, its storage in the thread's static TLS block (freed
+//!     only at full thread termination, after all destructors), so a plain
+//!     `mov %fs:offset` is valid throughout teardown.  It is simply a SECOND
+//!     TLS access on a path whose caller already holds the page pointer.
+//!     (MinGW gcc *emulated* TLS routes through `__emutls_get_address`, lazily
+//!     malloc-backed; that hazard is unchanged in kind, but this reads the same
+//!     variable the free path touches anyway instead of adding another.)
+//!
+//! History — the reason this is one expression and not `#if`-split: the body was
+//! `kame_page() == &g_teardown_page` under KAME_FAST_TSD and `s_alloc_tls_off`
+//! otherwise, and `8dd6365da` open-coded the pointer compare at the top of
+//! `deallocate_pooled`, recording "the teardown-sentinel check at the TOP of this
+//! function already routed thread-exit frees to a TLS-free bitmap return.
+//! Reaching this point therefore implies the freeing thread is alive."  Nothing
+//! repoints `kame_page()` where there is no TLV thunk to bypass, so on Linux that
+//! compare folded to a constant false: the bypass was dead code, and threads that
+//! had already run their cleanup reached the cross-dealloc batch and pushed into
+//! it (caught under gdb from two distinct late TLS destructors).  A teardown
+//! predicate belongs here, not open-coded at a call site.
 inline bool kame_thread_torn_down() noexcept {
+    return kame_page()->torn_down != 0u;
+}
+
+//! Arm `kame_thread_torn_down()` for THIS thread.  Called from both thread-exit
+//! objects, because either can be destroyed first and the free path is unsafe
+//! from the moment the FIRST of them goes:
+//!
+//!   `~AllocThreadExitCleanup` — after it, `s_tls.my_chunk` / `&s_tls.dll_head`
+//!     are torn down and this thread's chunks are disowned.
+//!   `~CrossDeallocBatch`      — after it, `tls_cross_dealloc_batch` is a
+//!     destroyed object, so `push` / `push_direct` would resurrect it.
+//!
+//! Their order is not fixed: C++ destroys thread_locals in reverse order of
+//! construction, and which of the two a thread touches first depends on whether
+//! its first pool operation is an allocation or a cross-thread free.  Both
+//! orders occur in practice, so arming on the earlier is the only correct rule —
+//! and a single flag with two arming sites is cheaper than two predicates.
+//!
+//! Writes the page directly rather than through `kame_page()`, to stay off that
+//! function's cold fallback during teardown.  Where the cleanup has already
+//! swapped in the sentinel this stores 1 over its statically-set 1 — harmless,
+//! the sentinel is a process-global that is never freed.
+inline void kame_mark_thread_torn_down() noexcept {
 #if KAME_FAST_TSD
-    return kame_page() == &g_teardown_page;
+    KameTlsPage *pg = tls_page_ie ? tls_page_ie : &g_tls_page;
 #else
-    return s_alloc_tls_off;
+    KameTlsPage *pg = &g_tls_page;
 #endif
+    pg->torn_down = 1u;
 }
 
 // Out-of-class inline body for PoolAllocatorBase::radix_lookup.

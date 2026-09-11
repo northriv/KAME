@@ -27,8 +27,6 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do
 	virtual ~XTestDriver() {}
-	//! show all forms belonging to driver
-	virtual void showForms();
 
 	struct Payload : public XPrimaryDriver::Payload {
 		double x() const {return m_x;}

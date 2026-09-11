@@ -66,8 +66,6 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do.
     virtual ~XDigitalCamera() {}
-	//! Shows all forms belonging to driver.
-    virtual void showForms() override;
 
     const shared_ptr<XGraph> &graph() const {return m_graph;}
 

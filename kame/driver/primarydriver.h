@@ -19,12 +19,70 @@
 #include <atomic>
 #include <cstdint>
 
+//! OS half of \a AcquisitionPriority (primarydriverwiththread.h): marks the
+//! CALLING thread as an acquisition thread for the OS scheduler, for the
+//! thread's lifetime.  Deliberately not coupled to STM priority changes -- an
+//! OS scheduling class is a per-thread property, set once at thread setup
+//! (POSIX RT and MMCSS practice alike), while STM priority toggles with
+//! transaction phases.  Toggling the OS class along with it (the historic
+//! Windows behaviour) handed the CPU to arbitrary threads for the demoted
+//! downstream half of every acquisition cycle, which is backwards for meeting
+//! the next trigger: the loop should finish its iteration at acquisition
+//! priority and yield naturally in the device wait.
+//!
+//! Windows: THREAD_PRIORITY_TIME_CRITICAL (level 15 in the normal class,
+//! documented, no privilege needed).  PREEMPT_RT, when it comes, goes HERE and
+//! only here -- SCHED_FIFO/RR/DEADLINE and the numeric level are deployment
+//! decisions (relative to threaded irqs, needing RLIMIT_RTPRIO), so this is a
+//! single visible place to make them.  Elsewhere: no-op.
+//! Returns the caller's previous OS priority so nested/inline use can restore
+//! exactly what it inherited rather than assuming THREAD_PRIORITY_NORMAL.
+DECLSPEC_KAME int raiseAcquisitionOSPriority_() noexcept;
+DECLSPEC_KAME void restoreAcquisitionOSPriority_(int saved_priority) noexcept;
+
+//! RAII for the OS half ALONE, for a realtime thread that never enters the STM.
+//!
+//! Pulser DMA writers, free-run trigger predictors and async chunk readers feed
+//! hardware and take no Snapshot, so they have no use for an STM tier — but
+//! they do need the CPU.  Historically they asked for it by calling
+//! `Transactional::setCurrentPriorityMode(Priority::HIGHEST)`, whose Windows arm
+//! mapped HIGHEST to THREAD_PRIORITY_TIME_CRITICAL.  That arm was removed when
+//! STM priority was decoupled from the OS scheduler, which silently turned every
+//! such call into a no-op: the thread lost TIME_CRITICAL and nothing replaced it
+//! (a Windows thread does not inherit its creator's priority, and these threads
+//! are separate XThreads that never construct \a AcquisitionPriority).  This is
+//! what those call sites meant, said directly.
+//!
+//! `XPrimaryDriverWithThread::AcquisitionPriority` is an alias of this: the
+//! driver's own acquisition thread wants exactly the same object, and a
+//! driver's EXTRA threads cannot all name the nested spelling — one of them,
+//! `XNIDAQmxPulser::executeWriter`, is not under `XPrimaryDriverWithThread` at
+//! all, since `XPulser` derives from `XPrimaryDriver` directly.  One
+//! implementation, so the two cannot drift into meaning different things.
+//!
+//! Use this — not `setCurrentPriorityMode` — whenever the thread is realtime but
+//! STM-free.  It is also the safer spelling for a function that can additionally
+//! be called inline on someone else's thread: `setCurrentPriorityMode` is a
+//! PERSISTENT thread mode with no restore, so one such call leaks its tier into
+//! whatever runs next on that thread (`ScopedDemoteRealtime` cannot catch it —
+//! it arms only when the thread was ALREADY HIGHEST on entry).
+class DECLSPEC_KAME ScopedAcquisitionOSPriority {
+public:
+    ScopedAcquisitionOSPriority() noexcept
+        : m_savedPriority(raiseAcquisitionOSPriority_()) {}
+    ~ScopedAcquisitionOSPriority() noexcept {
+        restoreAcquisitionOSPriority_(m_savedPriority);
+    }
+    ScopedAcquisitionOSPriority(const ScopedAcquisitionOSPriority &) = delete;
+    ScopedAcquisitionOSPriority &operator=(const ScopedAcquisitionOSPriority &) = delete;
+private:
+    int m_savedPriority;
+};
+
 class DECLSPEC_KAME XPrimaryDriver : public XDriver {
 public:
 	XPrimaryDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
   
-	//! Shows all forms belonging to driver
-	virtual void showForms() = 0;
   
 	//! Shuts down your threads, unconnects GUI, and deactivates signals.\n
 	//! This function may be called even if driver has already stopped.
@@ -32,7 +90,7 @@ public:
 	virtual void stop() = 0;
 
 private:
-	friend class XRawStreamRecordReader;
+	friend class XJournalReader;
 	friend class XRawStreamRecorder;
 protected:
 	//! Starts up your threads, connects GUI, and activates signals.
@@ -75,7 +133,7 @@ public:
 		const_iterator &popIterator() {return it;}
 	private:
 		friend class XPrimaryDriver;
-		friend class XRawStreamRecordReader;
+		friend class XJournalReader;
 		RawDataReader(const std::vector<char> &data) : m_data(data) {it = data.begin();}
 		RawDataReader();
 		const_iterator it;
@@ -102,6 +160,51 @@ protected:
 	//! \sa Payload::time()
 	void finishWritingRaw(const shared_ptr<const RawData> &rawdata,
 		const XTime &time_awared, const XTime &time_recorded);
+
+    //! How long this driver is willing to spend WAITING inside one
+    //! finishWritingRaw, in µs.  0 (the default) = unbounded, i.e. today's
+    //! behaviour.
+    //!
+    //! What it bounds is the acquisition loop's PERIOD.  Everything downstream
+    //! of the record -- the marked-message dispatch inside the commit, then
+    //! visualize() and onVisualization -- is other people's work, and while it
+    //! waits, the loop is not going round.  The budget is how much of its period
+    //! the loop declares it will lend; beyond that the negotiator stops waiting.
+    //! It is a thread-local ABSOLUTE limit, so one guard at the top of
+    //! finishWritingRaw covers the commit and the downstream half together.
+    //!
+    //! **Default 20 ms, on every primary driver.**  KAME is a
+    //! measurement instrument: a record whose commit stalls for a third of a
+    //! second is a bad data point, not merely a slow one, and past about 20 ms
+    //! that starts to show up in the measurement whatever the driver's priority.
+    //! So the bound is not a realtime luxury to be gated on anything -- it is
+    //! the acquisition path's contract.
+    //!
+    //! It is not free.  Grand-scope arm, 8 threads --
+    //!
+    //!                throughput   p99.99    p99.999   MAX
+    //!     no budget    2.36 M/s   3.67 ms   67.1 ms   326.6 ms
+    //!     20 ms        2.25 M/s   16.8 ms   21.0 ms    20.3 ms
+    //!
+    //! -- so it costs 4.7 % of commit throughput, because a clipped commit stops
+    //! waiting and retries and the retry adds CAS pressure.  (8-of-8 and 1-of-8
+    //! budgeted measured the same, 2.25 vs 2.26 M/s, so that is the clipping
+    //! itself and not a cascade.)  The p99.99 rising from 3.67 to 16.8 ms is
+    //! movement *within* the budget, not a regression against it: with the budget
+    //! every percentile including MAX lands under the 20 ms line, which is the
+    //! property being bought.  Throughput is the thing traded away.
+    //!
+    //! No record is lost: the budget bounds *waiting*, and the clipped commit
+    //! retries through iterate_commit until it succeeds.
+    //! One wait is exempt from the bound (2026-07-31): the wait behind a
+    //! LIVE privileged peer — privilege is the completion guarantee and a
+    //! budget that declined it froze the whole system in the field.  A record
+    //! can therefore be late by that holder's closure; still never lost.
+    //!
+    //! Override to pick it from the cycle -- comfortably less than the
+    //! acquisition period, so a blown budget costs a late record rather than a
+    //! lost one.  Return 0 to disable.
+    virtual unsigned int downstreamWaitBudgetUS() const {return 20000;}
 public:
     //! \name Record-commit latency telemetry
     //!

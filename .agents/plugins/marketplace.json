@@ -1,0 +1,17 @@
+{
+  "name": "kame",
+  "plugins": [
+    {
+      "name": "kame",
+      "source": {
+        "source": "local",
+        "path": "./kame/script/plugin"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Science"
+    }
+  ]
+}

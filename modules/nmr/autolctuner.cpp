@@ -426,9 +426,11 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         m_backlushMinusTh(create<XDoubleNode>("BacklushMinusTh", false)),
         m_backlushPlusTh(create<XDoubleNode>("BacklushPlusTh", false)),
         m_timeMax(create<XIntNode>("TimeMax", false)),
+        m_scanAssist(create<XBoolNode>("ScanAssist", false)),
         m_origBackMax(create<XIntNode>("OrigBackMax", false)),
         m_fitFunc(create<XComboNode>("FitFunc", false, true)),
         m_backlashRecoveryFactor(create<XDoubleNode>("BacklashRecoveryFactor", false)),
+        m_relaySettleTime(create<XIntNode>("RelaySettleTime", false)),
         m_l1(create<XStringNode>("L1", true)),
         m_r1(create<XStringNode>("R1", true)),
         m_r2(create<XStringNode>("R2", true)),
@@ -437,6 +439,8 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         m_addPresetAngles(create<XTouchableNode>("AddPresetAngles", true)),
         m_trustPresetAnglesInPercent(create<XDoubleNode>("TrustPresetAnglesInPercent", false)),
         m_descPresetAngles(create<XStringNode>("DescPresetAngles", false)),
+        m_presetAutoSave(create<XBoolNode>("PresetAutoSave", false)),
+        m_presetMaxRows(create<XUIntNode>("PresetMaxRows", false)),
         m_form(new FrmAutoLCTuner)  {
     connect(stm1());
     connect(stm2());
@@ -461,6 +465,8 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         xqcon_create<XQLineEditConnector>(backlushMinusTh(), m_form->m_edBacklushMinusTh),
         xqcon_create<XQLineEditConnector>(backlushPlusTh(), m_form->m_edBacklushPlusTh),
         xqcon_create<XQLineEditConnector>(timeMax(), m_form->m_edTimeMax),
+        xqcon_create<XQToggleButtonConnector>(scanAssist(), m_form->m_ckbScanAssist),
+        xqcon_create<XQLineEditConnector>(relaySettleTime(), m_form->m_edRelaySettleTime),
         xqcon_create<XQLineEditConnector>(origBackMax(), m_form->m_edOrigBackMax),
         xqcon_create<XQComboBoxConnector>(fitFunc(), m_form->m_cmbFitFunc, Snapshot( *m_fitFunc)),
         xqcon_create<XQLineEditConnector>(backlashRecoveryFactor(), m_form->m_edBacklashRecoveryFactor),
@@ -470,6 +476,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         xqcon_create<XQLabelConnector>(m_c1, m_form->m_lblC1),
         xqcon_create<XQLabelConnector>(m_c2, m_form->m_lblC2),
         xqcon_create<XQTextBrowserConnector>(descPresetAngles(), m_form->m_txtDescPresetAngles),
+        xqcon_create<XQToggleButtonConnector>(m_presetAutoSave, m_form->m_ckbPresetAutoSave),
         xqcon_create<XQButtonConnector>(m_addPresetAngles, m_form->m_btnAddPresetAngles),
         xqcon_create<XQDoubleSpinBoxConnector>(m_trustPresetAnglesInPercent, m_form->m_dblTrustPresetAnglesInPercent),
     };
@@ -484,10 +491,17 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         tr[ *m_backlushMinusTh] = 0.3;
         tr[ *m_backlushPlusTh] = 0.6;
         tr[ *m_timeMax] = 600; //10 min.
+        tr[ *m_scanAssist] = false; //rotates an axis through; opt in.
         tr[ *m_origBackMax] = 2;
         tr[ *fitFunc()].add({"Abs.&Gaussian", "Abs.&Lorentzian", "Smith&Gaussian", "Smith&Lorentzian"});
         tr[ *m_fitFunc] = 3;
         tr[ *m_backlashRecoveryFactor] = 0.0;
+        tr[ *m_relaySettleTime] = 1000; //[ms] see visualize().  500 proved
+        //insufficient in the field (2026-07-31): the first pulses after a tune
+        //cycle hit the still-switching external relay and the reflected spike
+        //tripped the amplifier protection, which cut the drive level.
+        tr[ *m_presetAutoSave] = false; //rewrites descPresetAngles(); opt in.
+        tr[ *m_presetMaxRows] = 6;
         tr[ *abortTuning()].setUIEnabled(false);
         m_lsnOnTargetChanged = tr[ *m_target].onValueChanged().connectWeakly(
             shared_from_this(), &XAutoLCTuner::onTargetChanged);
@@ -514,8 +528,7 @@ XAutoLCTuner::~XAutoLCTuner() {
 }
 void XAutoLCTuner::showForms() {
     m_form->resize(100,100); //avoids bug on Windows.
-    m_form->showNormal();
-    m_form->raise();
+    showForm(m_form.get());
 }
 void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
     Snapshot shot_this( *this);
@@ -524,6 +537,18 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
     shared_ptr<XMotorDriver> relay = shot_this [*relayDriver()];
     const shared_ptr<XMotorDriver> stms[] = {stm1__, stm2__};
     const unsigned int tunebits = 0x1u;
+    //Entry-side settle, symmetric with the exit-side wait in visualize().
+    //Every caller turns the pulser off just before writing Target, but that
+    //stops the pattern at a boundary: emission can continue for up to one
+    //repetition period after the commit.  Flipping the relay to the VNA path
+    //below while the tail is still transmitting is a hot switch -- the
+    //reflected spike trips the amplifier protection, which cuts the drive
+    //level in hardware (intermittent, observed 2026-07-31; the entry side had
+    //no wait at all, which is why raising the exit-side settle did not cure it).
+    {
+        int settle_ms = shot_this[ *m_relaySettleTime];
+        msecsleep((settle_ms > 0) ? settle_ms : 0);
+    }
     for(auto &&stm: stms) {
         if(stm) {
             stm->iterate_commit([=](Transaction &tr){
@@ -562,6 +587,9 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
         tr[ *this].residue_offset = 0;
         tr[ *this].taintedCount = 0;
         tr[ *this].sor = 1.0;
+        tr[ *this].noImprovement = 0;
+        tr[ *this].scanAxis = -1;
+        tr[ *this].scanPoints.reset();
     });
 
     shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
@@ -588,6 +616,64 @@ void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) 
         tr[ *this].timeSTMChanged = {};
         return true;
     });
+}
+XString
+XAutoLCTuner::updatePresetAngleTable(const XString &table, double freq,
+    double stm1, double stm2, bool has_stm2, unsigned int maxrows) {
+    struct Row {double f, stms[2];};
+    std::deque<Row> rows;
+    {
+        std::stringstream ss;
+        ss << table;
+        std::string line;
+        while(std::getline(ss, line)) {
+            if(line.empty())
+                break; //the reader in analyze() stops here too.
+            Row r; r.stms[0] = 0.0; r.stms[1] = 0.0;
+            int ret = sscanf(line.c_str(), "%lf %lf %lf", &r.f, &r.stms[0], &r.stms[1]);
+            if(ret >= 2)
+                rows.push_back(r);
+        }
+    }
+    //Drop rows at (nearly) the same frequency as the new one.  Two rows with
+    //equal frequencies would make the interpolation in analyze() divide by
+    //zero, fall through its bracketing test and use uninitialized angles.
+    const double merge = 5e-3; //[MHz]
+    for(auto it = rows.begin(); it != rows.end();)
+        it = (fabs(it->f - freq) < merge) ? rows.erase(it) : it + 1;
+
+    Row nr; nr.f = freq; nr.stms[0] = stm1; nr.stms[1] = stm2;
+    rows.push_back(nr);
+    std::sort(rows.begin(), rows.end(),
+        [](const Row &a, const Row &b){return a.f < b.f;});
+
+    //Thin out to maxrows.  Repeatedly drop one of the closest neighbouring
+    //pair, never the row just recorded: that keeps the spacing as even as the
+    //measured frequencies allow, and even spacing is what sets how far outside
+    //the table analyze() will still extrapolate (half of the end interval).
+    while((maxrows >= 2) && (rows.size() > maxrows)) {
+        unsigned int drop = 0;
+        double best = -1.0;
+        for(unsigned int i = 0; i + 1 < rows.size(); ++i) {
+            double gap = rows[i + 1].f - rows[i].f;
+            if((best < 0.0) || (gap < best)) {
+                //of the too-close pair, discard the one that is not the new row
+                unsigned int cand = (fabs(rows[i].f - freq) < merge) ? i + 1 : i;
+                best = gap;
+                drop = cand;
+            }
+        }
+        rows.erase(rows.begin() + drop);
+    }
+
+    XString out;
+    for(auto &&r: rows) {
+        if(has_stm2)
+            out += formatString("%.4f %.3f %.3f\n", r.f, r.stms[0], r.stms[1]);
+        else
+            out += formatString("%.4f %.3f\n", r.f, r.stms[0]);
+    }
+    return out;
 }
 void XAutoLCTuner::onAddPresetAnglesTouched(const Snapshot &shot, XTouchableNode *) {
     // Freq[MHz] STM1[deg] STM2[deg]
@@ -642,6 +728,97 @@ XAutoLCTuner::clearUIAndPlot(Transaction &tr) {
     m_lcrPlot.reset();
 }
 void
+XAutoLCTuner::scanContinue(Transaction &tr, const Snapshot &shot_this,
+    const Snapshot &shot_others, const Snapshot &shot_na, double f0) {
+    int axis = shot_this[ *this].scanAxis;
+    shared_ptr<XMotorDriver> stm = axis ? shot_this[ *stm2()] : shot_this[ *stm1()];
+    const shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
+    if( !stm || !na__) {
+        tr[ *this].scanAxis = -1;
+        tr[ *this].scanPoints.reset();
+        throw XSkippedRecordError(__FILE__, __LINE__);
+    }
+    //The move was commanded once, when the scan began; nothing is to re-issue
+    //it while the run is in progress.  visualize() acts on this being set.
+    if(shot_this[ *this].timeSTMChanged.isSet())
+        tr[ *this].timeSTMChanged = {};
+
+    //|S11| straight off the trace at f0.  No LCR fit here: fitting is what the
+    //stepwise search does between motions, and the point of a scan is that the
+    //motion never stops.
+    int trace_len = shot_na[ *na__].length();
+    double trace_dfreq = shot_na[ *na__].freqInterval();
+    double trace_start = shot_na[ *na__].startFreq();
+    long idx = lrint((f0 - trace_start) / trace_dfreq);
+    if((trace_len < 1) || (idx < 0) || (idx >= trace_len)) {
+        tr[ *this].scanAxis = -1;
+        tr[ *this].scanPoints.reset();
+        tr[ *m_status] = "Scan: f0 is outside the sweep.";
+        throw XSkippedRecordError(__FILE__, __LINE__);
+    }
+    double rl = std::abs(shot_na[ *na__].trace()[idx]);
+    double angle = shot_others[ *stm->position()->value()];
+
+    auto points = std::make_shared<std::vector<std::pair<double, double>>>();
+    if(shot_this[ *this].scanPoints)
+        *points = *shot_this[ *this].scanPoints;
+    points->emplace_back(angle, rl);
+    tr[ *this].scanPoints = points;
+
+    bool running = !shot_others[ *stm->ready()];
+    if(running && (points->size() < 200)) {
+        tr[ *m_status] = formatString("Scanning STM%d: %.1f deg., %.2f dB (%u frames).",
+            axis + 1, angle, 20.0 * log10(std::max(rl, 1e-10)), (unsigned)points->size());
+        throw XSkippedRecordError(__FILE__, __LINE__);
+    }
+
+    //The run is over.  Whether it is usable is decided from the run itself,
+    //with no constant that would have to be measured per rig (user): the
+    //frames have to be enough to show a shape, and the angle each frame can be
+    //blamed for -- the gap to its neighbour, which is the position readout's
+    //rate against the sweep rate -- has to be small against the whole span.
+    tr[ *this].scanAxis = -1;
+    tr[ *this].scanPoints.reset();
+    auto &pts = *points;
+    double span = fabs(pts.back().first - pts.front().first);
+    double gapmax = 0.0;
+    for(size_t i = 1; i < pts.size(); ++i)
+        gapmax = std::max(gapmax, fabs(pts[i].first - pts[i - 1].first));
+    size_t imin = 0;
+    for(size_t i = 1; i < pts.size(); ++i)
+        if(pts[i].second < pts[imin].second) imin = i;
+    XString message = formatString("Scan STM%d: %u frames over %.1f deg., largest gap %.1f deg.\n",
+        axis + 1, (unsigned)pts.size(), span, gapmax);
+    if((pts.size() < 5) || (span < 4 * gapmax)) {
+        //Not this rig, or not this speed.  Nothing is adopted and the stepwise
+        //search simply carries on -- which is why this can be tried at all.
+        tr[ *m_status] = message + "Not usable; back to stepwise.";
+        throw XSkippedRecordError(__FILE__, __LINE__);
+    }
+    if((imin == 0) || (imin + 1 == pts.size())) {
+        tr[ *m_status] = message + "Minimum not bracketed; back to stepwise.";
+        throw XSkippedRecordError(__FILE__, __LINE__);
+    }
+    //Parabola through the three points around the smallest one.
+    double x0 = pts[imin - 1].first, x1 = pts[imin].first, x2 = pts[imin + 1].first;
+    double y0 = pts[imin - 1].second, y1 = pts[imin].second, y2 = pts[imin + 1].second;
+    double d1 = (y2 - y1) / (x2 - x1), d0 = (y1 - y0) / (x1 - x0);
+    double best = x1;
+    if(fabs(d1 - d0) > 1e-12)
+        best = 0.5 * ((x1 + x2) - d1 * (x2 - x0) / (d1 - d0));
+    //Only inside the bracket: an extrapolated vertex is the fit failing, not
+    //an angle to drive to.
+    if((best < std::min(x0, x2)) || (best > std::max(x0, x2)))
+        best = x1;
+    tr[ *this].targetSTMValues[axis] = best;
+    tr[ *this].timeSTMChanged = XTime::now();
+    tr[ *this].resetToFirstStage();
+    tr[ *this].noImprovement = 0;
+    tr[ *m_status] = message + formatString("Minimum %.2f dB at %.1f deg.",
+        20.0 * log10(std::max(pts[imin].second, 1e-10)), best);
+    throw XSkippedRecordError(__FILE__, __LINE__);
+}
+void
 XAutoLCTuner::abortTuningFromAnalyze(Transaction &tr, double rl_at_f0, XString &&message) {
     message += "\n";
     double tune_approach_goal2 = pow(10.0, 0.05 * tr[ *reflectionRequired()]);
@@ -690,21 +867,29 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
     shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
 
+    //A scan keeps what every other stage throws away: the traces taken WHILE
+    //an axis is turning are the trajectory it reads the minimum off.  The
+    //target is left alone too, since it is the far end of the run and the
+    //motor is on its way there.
+    bool scanning = (shot_this[ *this].scanAxis >= 0);
+
     //remembers original position.
-    if(stm1__)
-        tr[ *this].targetSTMValues[0] = shot_others[ *stm1__->position()->value()];
-    if(stm2__)
-        tr[ *this].targetSTMValues[1] = shot_others[ *stm2__->position()->value()];
+    if( !scanning) {
+        if(stm1__)
+            tr[ *this].targetSTMValues[0] = shot_others[ *stm1__->position()->value()];
+        if(stm2__)
+            tr[ *this].targetSTMValues[1] = shot_others[ *stm2__->position()->value()];
+    }
 
     if( !shot_this[ *useSTM1()]) stm1__.reset();
     if( !shot_this[ *useSTM2()]) stm2__.reset();
-    if( (stm1__ && !shot_others[ *stm1__->ready()]) ||
-            ( stm2__  && !shot_others[ *stm2__->ready()])) {
+    if( !scanning && ((stm1__ && !shot_others[ *stm1__->ready()]) ||
+            ( stm2__  && !shot_others[ *stm2__->ready()]))) {
         tr[ *this].timeSTMChanged = XTime::now();
         throw XSkippedRecordError(__FILE__, __LINE__); //STM is moving. skip.
     }
 
-    if(shot_this[ *this].timeSTMChanged.isSet()) {
+    if( !scanning && shot_this[ *this].timeSTMChanged.isSet()) {
         if((stm1__ && (shot_others[ *stm1__].timeAwared() < shot_this[ *this].timeSTMChanged)) ||
             (stm2__ && (shot_others[ *stm2__].timeAwared() < shot_this[ *this].timeSTMChanged))) {
             throw XSkippedRecordError(__FILE__, __LINE__); //STM ready status is too old. Useless.
@@ -715,7 +900,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 //            (stm2__ && (shot_this[ *this].timeAwared() - shot_others[ *stm2__].time() < 0)))
 //            throw XSkippedRecordError(__FILE__, __LINE__); //the present data may involve one during STM movement. reload.
     }
-    if(shot_this[ *this].taintedCount) {
+    if( !scanning && shot_this[ *this].taintedCount) {
         tr[ *this].taintedCount--;
         throw XSkippedRecordError(__FILE__, __LINE__); //the present data might be unreliable due to STM movement. reload.
     }
@@ -729,6 +914,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
     XString message;
     double f0 = shot_this[ *target()];
+
+    if(scanning) {
+        scanContinue(tr, shot_this, shot_others, shot_na, f0); //always throws
+        return;
+    }
 
     if( !shot_this[ *this].fitOrig) {
         double trust_preset_angles = shot_this[trustPresetAnglesInPercent()] * 0.01;
@@ -755,23 +945,43 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             }
             if(presetAngles.size()) {
                 std::sort(presetAngles.begin(), presetAngles.end());
-                double stms[2];
-                message += "Using preset angles.\n";
+                //`stms` used to be read even when no interval matched, i.e.
+                //uninitialised stack driven into the capacitor targets.  Three
+                //ways to reach that: a single-row table (the loop below never
+                //runs), a frequency outside the table and outside the +-half
+                //interval extrapolation window, and duplicate frequencies
+                //making `a` inf/nan so every test is false.  Whatever happened
+                //to be on the stack was then blended in with weight
+                //trust_preset_angles and the motors were told to go there.
+                double stms[2] = {0.0, 0.0};
+                bool bracketed = false;
                 for(unsigned int i = 1; i < presetAngles.size(); ++i) {
-                    double a = (f0 - presetAngles[i - 1].targetFreq) / (presetAngles[i].targetFreq - presetAngles[i - 1].targetFreq);
+                    double df = presetAngles[i].targetFreq - presetAngles[i - 1].targetFreq;
+                    if(df == 0.0)
+                        continue; //duplicate frequencies: no interval to interpolate over.
+                    double a = (f0 - presetAngles[i - 1].targetFreq) / df;
                     if(((0 <= a) && (a <= 1)) ||
                             ((i == 1) && (a < 0) && (a > -0.5)) ||
                             ((i == presetAngles.size() - 1) && (a > 1) && (a < 1.5))) {
                         //bilinear interpolation/extrapolation
                         for(int j: {0,1})
                             stms[j] = presetAngles[i - 1].stms[j] * (1 - a) + presetAngles[i].stms[j] * a;
+                        bracketed = true;
                     }
                 }
-                //modifies the original positions before an iteration.
-                for(int j: {0,1}) {
-                    tr[ *this].targetSTMValues[j] = shot_this[ *this].targetSTMValues[j] * (1 - trust_preset_angles) + stms[j] * trust_preset_angles;
+                if(bracketed) {
+                    message += "Using preset angles.\n";
+                    //modifies the original positions before an iteration.
+                    for(int j: {0,1}) {
+                        tr[ *this].targetSTMValues[j] = shot_this[ *this].targetSTMValues[j] * (1 - trust_preset_angles) + stms[j] * trust_preset_angles;
+                    }
+                    tr[ *this].timeSTMChanged = XTime::now();
                 }
-                tr[ *this].timeSTMChanged = XTime::now();
+                else {
+                    //Leave the targets alone rather than move towards a number
+                    //nothing computed.  Tuning then proceeds on its own search.
+                    message += "Preset angles do not cover this frequency.\n";
+                }
             }
         }
         if(shot_this[ *this].timeSTMChanged.isSet() && (trust_preset_angles > 0.99)) {
@@ -908,10 +1118,13 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
     if(shot_this[ *this].smallestRLAtF0 > rl_at_f0 + rl_at_f0_sigma) {
         tr[ *this].iterationCount = 0;
+        tr[ *this].noImprovement = 0;
         //remembers good positions.
         tr[ *this].bestSTMValues = tr[ *this].targetSTMValues;
         tr[ *this].smallestRLAtF0 = rl_at_f0 + rl_at_f0_sigma;
     }
+    else
+        tr[ *this].noImprovement++;
 
     bool timeout = (XTime::now() - shot_this[ *this].started > shot_this[ *timeMax()]);
     if(timeout) {
@@ -924,6 +1137,32 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
     if( !shot_this[ *this].fitOrig) {
     //The stage just before +Delta rotation.
+        //Hand over to a scan, if the search has learned what a scan needs and
+        //has stopped getting anywhere with it (user).  This order matters: the
+        //stepwise phase is what supplies the axis, the direction and how far
+        //the trajectory can be trusted -- a scan started cold would have to
+        //guess all three.  Off unless asked for.
+        if(shot_this[ *scanAssist()] && (shot_this[ *this].noImprovement >= 3)) {
+            int axis = ((shot_this[ *this].deltaC1perDeltaSTM[0] != 0.0) && stm1__) ? 0 : 1;
+            shared_ptr<XMotorDriver> stm = axis ? stm2__ : stm1__;
+            if(stm && (shot_this[ *this].deltaC1perDeltaSTM[axis] != 0.0)
+                && (shot_this[ *this].stmTrustArea[axis] > 0.0)) {
+                //As far as the derivative is still believed to hold, in the
+                //direction the last step wanted to go.
+                int dir = shot_this[ *this].lastDirection(axis);
+                double span = std::min(std::max(shot_this[ *this].stmTrustArea[axis], 60.0), 360.0);
+                tr[ *this].scanAxis = axis;
+                tr[ *this].scanDir = dir;
+                tr[ *this].scanSpan = span;
+                tr[ *this].scanPoints.reset();
+                tr[ *this].targetSTMValues[axis] += dir * span;
+                tr[ *this].timeSTMChanged = XTime::now();
+                tr[ *m_status] = message + formatString(
+                    "Stuck for %d analyses; scanning STM%d through %.0f deg.",
+                    shot_this[ *this].noImprovement, axis + 1, span);
+                throw XSkippedRecordError(__FILE__, __LINE__);
+            }
+        }
         tr[ *this].iterationCount++;
         message += formatString("Iteration %d after the best fit so far.\n", tr[ *this].iterationCount);
         if((shot_this[ *this].iterationCount > shot_this[ *origBackMax()]) && (rl_at_f0 - rl_at_f0_sigma > shot_this[ *this].smallestRLAtF0)) {
@@ -953,16 +1192,27 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         }
         //calculates capacitance changes.
         double dc1dtest = (shot_this[ *this].fitRotated->c1() - shot_this[ *this].fitOrig->c1()) / testdelta;
-        double dc1dtest_err = sqrt(pow(shot_this[ *this].fitRotated->c1err(), 2.0)
-                + pow(shot_this[ *this].fitOrig->c1err(), 2.0)) / fabs(testdelta);
         double dc2dtest = (shot_this[ *this].fitRotated->c2() - shot_this[ *this].fitOrig->c2()) / testdelta;
-        double dc2dtest_err = sqrt(pow(shot_this[ *this].fitRotated->c2err(), 2.0)
-                + pow(shot_this[ *this].fitOrig->c2err(), 2.0)) / fabs(testdelta);
+        //In quadrature, all of it.  The third fit's error used to be added as
+        //c1err^2/|testdelta| -- a variance where a standard deviation belongs,
+        //which is not only dimensionally wrong but numerically nothing: with
+        //c1err of order 0.1 pF that term is ~1e-27 against a ~1e-14 error, so
+        //the -Delta measurement's uncertainty was in effect discarded, and
+        //sigma_per_change below came out too small to ask for a wider test
+        //when a wider test was exactly what was needed.
+        double dc1var = pow(shot_this[ *this].fitRotated->c1err(), 2.0)
+                + pow(shot_this[ *this].fitOrig->c1err(), 2.0);
+        double dc2var = pow(shot_this[ *this].fitRotated->c2err(), 2.0)
+                + pow(shot_this[ *this].fitOrig->c2err(), 2.0);
         if(lcrfit) {
-            dc1dtest_err += pow(lcrfit->c1err(), 2.0) / fabs(testdelta);
-            dc2dtest_err += pow(lcrfit->c2err(), 2.0) / fabs(testdelta);
+            dc1var += pow(lcrfit->c1err(), 2.0);
+            dc2var += pow(lcrfit->c2err(), 2.0);
         }
-        else {
+        double dc1dtest_err = sqrt(dc1var) / fabs(testdelta);
+        double dc2dtest_err = sqrt(dc2var) / fabs(testdelta);
+        if( !lcrfit) {
+            //Nothing has come back from the -Delta rotation yet: no estimate
+            //of the backlash, so be pessimistic about the derivative.
             dc1dtest_err *= 2;
             dc2dtest_err *= 2;
         }
@@ -1003,10 +1253,26 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             }
             else {
                 //Capacitance is sticking, test angle is too small, or poor fitting.
-                testdelta *= std::min(MULTIPLIER_MAX, 2L + lrint(fabs(backlash / testdelta) * 5));
-                testdelta = fabs(testdelta) * shot_this[ *this].lastDirection(target_stm); //follows the last direction to minimize backlash.
+                //
+                //As large as the backlash makes necessary, and no larger.  The
+                //rule was a blind multiplier, min(6, 2 + 5*|backlash/delta|),
+                //which is the CAP for anything past |backlash/delta| = 0.8 --
+                //so a 10 deg. test became 60, and one noisy backlash estimate
+                //took 60 to 360 and 360 to the 720 that aborts the tune.  What
+                //the test actually needs is an angle the backlash is small
+                //against: aim at half the threshold that asked for a wider
+                //test in the first place, i.e. |backlash/delta| = 0.3 at the
+                //default.  Never more than the old rule gave (3.33x <= 2+5x
+                //for every x >= 0) and never less than doubling, which is what
+                //a poor fit with no backlash to speak of still deserves.
+                double th = shot_this[ *backlushPlusTh()];
+                double wanted = (th > 0.0) ? fabs(backlash) / (0.5 * th) : 0.0;
+                double mult = std::min<double>(MULTIPLIER_MAX,
+                    std::max<double>(2.0, wanted / fabs(testdelta)));
+                testdelta = fabs(testdelta) * mult * shot_this[ *this].lastDirection(target_stm); //follows the last direction to minimize backlash.
                 message +=
-                     formatString("Increasing test angle to %.1f, Testing +Delta.", (double)fabs(testdelta));
+                     formatString("Increasing test angle x%.1f to %.1f, Testing +Delta.",
+                        mult, (double)fabs(testdelta));
             }
            if(fabs(testdelta) > Payload::TestDeltaMax) {
                abortTuningFromAnalyze(tr, rl_at_f0, std::move(message));//C1/C2 is useless. Aborts.
@@ -1145,9 +1411,33 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
                 relay->iterate_commit([=](Transaction &tr){
                     tr[ *relay->auxBits()] = tunebits; //For external RF relays.
                 });
-            msecsleep(50); //waits for relays.
+            //XMotorDriver::onAUXChanged is an immediate (non-main-thread) listener,
+            //so setAUXBits() has already blocked until the bits were written by the
+            //time the commit above returns: this wait is purely for the external
+            //relays to physically throw.  A sweep switches the pulser back on the
+            //instant tuning() goes false (XNMRFSpectrum::onTuningChanged), so if
+            //this is too short the first pulse goes into the still-selected VNA
+            //path -- which reads back as a bogus FWD/BWD spike, not as a mismatch.
+            {
+                int settle_ms = shot_this[ *m_relaySettleTime];
+                msecsleep((settle_ms > 0) ? settle_ms : 0);
+            }
             iterate_commit([=](Transaction &tr){
                 tr[ *tuning()] = false;//finishes tuning successfully.
+                //Record the angles that just worked, so a later tune nearby can
+                //be fed forward from them instead of hunting.  Done here, in the
+                //same commit that ends a SUCCESSFUL tune, because this is the
+                //only place where both "it worked" and the final
+                //targetSTMValues are known.  A failed or aborted tune must not
+                //be recorded: its angles are wherever the search gave up.
+                if(tr[ *m_presetAutoSave]) {
+                    tr[ *m_descPresetAngles] = updatePresetAngleTable(
+                        tr[ *m_descPresetAngles].to_str(),
+                        (double)tr[ *target()],
+                        tr[ *this].targetSTMValues[0],
+                        tr[ *this].targetSTMValues[1],
+                        (bool)stm2__, (unsigned int)tr[ *m_presetMaxRows]);
+                }
                 clearUIAndPlot(tr);
             });
         }

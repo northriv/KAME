@@ -19,10 +19,6 @@ XLevelMeter::XLevelMeter(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas) {
 }
-void
-XLevelMeter::showForms() {
-//! impliment form->show() here
-}
 
 void
 XLevelMeter::analyzeRaw(RawDataReader &reader, Transaction &tr) {

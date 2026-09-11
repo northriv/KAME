@@ -44,20 +44,40 @@ public:
         : XFuncPlot(name, runtime, tr, graph), m_item(item), m_owner(owner)
     {}
     ~XRelaxFuncPlot() {}
-    virtual double func(double t) const {
-        shared_ptr<XNMRT1> owner = m_owner.lock();
-        if( !owner) return 0;
-        Snapshot shot( *owner);
-        shared_ptr<XRelaxFunc> func1 = shot[ *m_item];
-        if( !func1) return 0;
+    virtual double func(double t) const override {
+        //Reads what snapshot() below put here, and takes none of its own.
+        if( !m_curve) return 0;
         double f, df;
-        double it1 = shot[ *owner].m_params[0];
-        double c = shot[ *owner].m_params[1];
-        double a = shot[ *owner].m_params[2];
-        func1->relax( &f, &df, t, it1);
-        return c * f + a;
+        m_curve->relax( &f, &df, t, m_it1);
+        return m_c * f + m_a;
+    }
+protected:
+    //! ONE snapshot per redraw, where there used to be one per point.
+    //!
+    //! XFuncPlot::snapshot() calls func() maxCount() times -- hundreds -- and
+    //! func() used to open a Snapshot of the whole XNMRT1 subtree on every one
+    //! of them, on the drawing thread, for every frame.  Beyond the cost, a
+    //! Snapshot of a node this size can bundle its subtree, so this was
+    //! hundreds of bundles per frame while a T1 measurement ran.  KAME died of
+    //! it on 2026-09-06: vm_map_enter refused another mapping (17908 already,
+    //! 97% of the writable space never written), the allocation threw, and the
+    //! throw came out of a Snapshot constructor in paintGL.
+    virtual void snapshot(const Snapshot &shot) override {
+        m_curve.reset();
+        if(shared_ptr<XNMRT1> owner = m_owner.lock()) {
+            Snapshot shot_owner( *owner);
+            m_curve = shot_owner[ *m_item];
+            m_it1 = shot_owner[ *owner].m_params[0];
+            m_c = shot_owner[ *owner].m_params[1];
+            m_a = shot_owner[ *owner].m_params[2];
+        }
+        XFuncPlot::snapshot(shot);
     }
 private:
+    //! Filled by snapshot(), read by func(), both on the drawing thread within
+    //! one redraw.
+    shared_ptr<XRelaxFunc> m_curve;
+    double m_it1 = 0.0, m_c = 0.0, m_a = 0.0;
     shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > > m_item;
     weak_ptr<XNMRT1> m_owner;
 };
@@ -309,11 +329,6 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
     });
 }
 void
-XNMRT1::showForms() {
-    m_form->showNormal();
-    m_form->raise();
-}
-void
 XNMRT1::onClearAll(const Snapshot &shot, XTouchableNode *) {
     trans( *this).m_timeClearRequested = XTime::now();
     trans( *this).m_timeMapClearRequested = XTime::now();
@@ -458,10 +473,40 @@ XNMRT1::onMapClearCondRequested(const Snapshot &shot, XValueNodeBase *node) {
         trans( *this).m_timeMapClearRequested = XTime::now();
     requestAnalysis();
 }
+//! The abscissa repeats.  T2_Multi walks the same 2 tau x i train every record,
+//! and P1STRATEGY_FLATTEN picks P1 out of the same bins; what changes record to
+//! record is the value, not where it sits.  Summing into the point already there
+//! holds m_pts at the number of DISTINCT abscissae instead of letting it grow for
+//! the life of the measurement -- and the result is identical, because the
+//! reduction below sums exactly these numbers and two points with one p1 always
+//! fall in one bin (user, 2026-09-06).
+//!
+//! P1STRATEGY_RANDOM draws a fresh P1 every record, so the search never hits and
+//! is pure cost.  It only pays while the list is short; past that, stop looking
+//! and let the list grow -- a point is 64 bytes now, not 4 KB.
+void
+XNMRT1::accumulateRawPt(std::deque<Payload::RawPt> &pts, const Payload::RawPt &pt) {
+    constexpr size_t SEARCH_MAX = 1000; //!< a bin count never approaches this
+    if(pts.size() <= SEARCH_MAX) {
+        for(auto &&x: pts) {
+            if(fabs(x.p1 - pt.p1) > 1e-10 * fabs(pt.p1))
+                continue;
+            //A changed condition count is a different measurement, not a repeat.
+            if(x.value_by_cond.size() != pt.value_by_cond.size())
+                break;
+            for(size_t i = 0; i < pt.value_by_cond.size(); ++i)
+                x.value_by_cond[i] += pt.value_by_cond[i];
+            x.weight++;
+            return;
+        }
+    }
+    pts.push_back(pt);
+    pts.back().weight = 1;
+}
 void
 XNMRT1::analyzeSpectrum(Transaction &tr,
     const std::vector< std::complex<double> >&wave, int origin, double cf,
-    std::deque<std::complex<double> > &value_by_cond) {
+    std::vector<std::complex<double> > &value_by_cond) {
     const Snapshot &shot_this(tr);
 
     value_by_cond.clear();
@@ -720,7 +765,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
             throw XSkippedRecordError(__FILE__, __LINE__);
         }
 
-        std::deque<std::complex<double> > cmp1, cmp2;
+        std::vector<std::complex<double> > cmp1, cmp2;
         double cfreq = shot_this[ *freq()] * 1e3 * shot_pulse1[ *pulse1__].interval();
         if(shot_this[ *trackPeak()]) {
             if(((mode__ == MeasMode::T1) && (shot_pulser[ *pulser__].combP1() > distributeP1(shot_this, 0.66))) ||
@@ -733,6 +778,32 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         }
 
         if(mode__ == MeasMode::T2_Multi){
+            //The axis of a multi-echo train IS the train: the first echo is at
+            //2 tau, the last at 2 tau x echoNum, and there is one point per
+            //echo.  Read from the pulser rather than typed in (user).  It was
+            //half done before -- onActiveChanged() set the two ends once, when
+            //the measurement was switched on, and they went stale the moment
+            //tau or the echo count moved; the sample count was never set at
+            //all, so a train of 16 echoes was smoothed into whatever number
+            //happened to be in the box.
+            //
+            //Written only when it actually differs.  These three nodes clear
+            //the accumulated T-map through onMapClearCondRequested, which is
+            //exactly right when the axis really moves and ruinous once per
+            //record.
+            double tau__ = shot_pulser[ *pulser__].tau();
+            unsigned int nechoes__ = shot_pulser[ *pulser__].echoNum();
+            if((tau__ > 0.0) && nechoes__) {
+                double p1min__ = 2.0 * tau__;
+                double p1max__ = 2.0 * tau__ * nechoes__;
+                if((fabs((double)shot_this[ *p1Min()] - p1min__) > 1e-6 * p1min__) ||
+                    (fabs((double)shot_this[ *p1Max()] - p1max__) > 1e-6 * p1max__) ||
+                    ((unsigned int)shot_this[ *smoothSamples()] != nechoes__)) {
+                    tr[ *p1Min()] = p1min__;
+                    tr[ *p1Max()] = p1max__;
+                    tr[ *smoothSamples()] = nechoes__;
+                }
+            }
             if(shot_pulser[ *pulser__].combMode() != XPulser::N_COMB_MODE_OFF)
                 m_statusPrinter->printWarning(i18n("T2 mode with comb pulse!"));
 
@@ -747,7 +818,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 double twotau = 2.0 * shot_pulser[ *pulser__].tau() * (i + 1);
                 pt1.p1 = twotau;
                 std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
-                tr[ *this].m_pts.push_back(pt1);
+                accumulateRawPt(tr[ *this].m_pts, pt1);
 
                 storePulseForMapping(tr, twotau, shot_pulse1[ *pulse1__].echoesT2()[i], shot_pulse1, *pulse1__);
             }
@@ -772,7 +843,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 pt1.p1 = p1;
                 for(int i = 0; i < cmp1.size(); i++)
                     pt1.value_by_cond[i] = (cmp1[i] - cmp2[i]) / cmp1[i];
-                tr[ *this].m_pts.push_back(pt1);
+                accumulateRawPt(tr[ *this].m_pts, pt1);
                 if((MapMode)(int)shot_this[ *mapMode()] != MapMode::Off)
                     throw XRecordError(i18n("Unsupported Comb Mode for Mapping!"), __FILE__, __LINE__);
                 break;
@@ -784,11 +855,11 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 double p1 = shot_pulser[ *pulser__].combP1();
                 pt1.p1 = p1;
                 std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
-                tr[ *this].m_pts.push_back(pt1);
+                accumulateRawPt(tr[ *this].m_pts, pt1);
                 double p1_alt = shot_pulser[ *pulser__].combP1Alt();
                 pt2.p1 = p1_alt;
                 std::copy(cmp2.begin(), cmp2.end(), pt2.value_by_cond.begin());
-                tr[ *this].m_pts.push_back(pt2);
+                accumulateRawPt(tr[ *this].m_pts, pt2);
                 storePulseForMapping(tr, p1, shot_pulse1[ *pulse1__].wave(), shot_pulse1, *pulse1__);
                 storePulseForMapping(tr, p1_alt, shot_pulse2[ *pulse2__].wave(), shot_pulse2, *pulse2__);
                 break;
@@ -798,7 +869,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                     double p1 = shot_pulser[ *pulser__].combP1();
                     pt1.p1 = p1;
                     std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
-                    tr[ *this].m_pts.push_back(pt1);
+                    accumulateRawPt(tr[ *this].m_pts, pt1);
                     storePulseForMapping(tr, p1, shot_pulse1[ *pulse1__].wave(), shot_pulse1, *pulse1__);
                     break;
                 }
@@ -812,7 +883,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 double twotau = 2.0 * shot_pulser[ *pulser__].tau();
                 pt1.p1 = twotau;
                 std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
-                tr[ *this].m_pts.push_back(pt1);
+                accumulateRawPt(tr[ *this].m_pts, pt1);
                 storePulseForMapping(tr, twotau, shot_pulse1[ *pulse1__].wave(), shot_pulse1, *pulse1__);
                 break;
             }
@@ -863,14 +934,14 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
             //For St.E., T+tau = P1+3*tau.
             if(mode__ == MeasMode::ST_E)
                 p1 += 3 * shot_pulser[ *pulser__].tau() * 1e-3;
-            sumpts[idx].isigma += 1;
-            sumpts[idx].p1 += p1;
+            sumpts[idx].isigma += it->weight;
+            sumpts[idx].p1 += p1 * it->weight;
             for(unsigned int i = 0; i < it->value_by_cond.size(); i++)
                 sumpts[idx].value_by_cond[i] += it->value_by_cond[i];
         }
     }
 
-    std::deque<std::complex<double> > sum_c(
+    std::vector<std::complex<double> > sum_c(
         shot_this[ *this].m_convolutionCache.size()), corr(shot_this[ *this].m_convolutionCache.size());
     double sum_t = 0.0;
     int n = 0;
@@ -1248,9 +1319,15 @@ XNMRT1::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
         });
         setNextP1(shot_this);
         if(shot_this[ *mode()] == (int)MeasMode::T2_Multi){
+            //The ends AND the sample count, so the axis is right before the
+            //first record rather than after it.  analyze() keeps all three
+            //following the pulser from here on.
             iterate_commit([=](Transaction &tr){
+                unsigned int nechoes = shot_pulser[ *pulser__].echoNum();
                 tr[ *p1Min()] = 2.0 * shot_pulser[ *pulser__].tau();
-                tr[ *p1Max()] = 2.0 * shot_pulser[ *pulser__].tau() * shot_pulser[ *pulser__].echoNum();
+                tr[ *p1Max()] = 2.0 * shot_pulser[ *pulser__].tau() * nechoes;
+                if(nechoes)
+                    tr[ *smoothSamples()] = nechoes;
             });
         }
 

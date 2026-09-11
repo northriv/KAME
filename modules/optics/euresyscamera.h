@@ -55,19 +55,23 @@ private:
 
     static XRecursiveMutex s_mutex;
     shared_ptr<Camera> m_camera;
-    //! eGrabber's GenTL close (EGenTL::ifClose -> GenTLImpl::chk) can throw.
-    //! These singletons may be torn down during static destruction at exit()
-    //! (when the driver tree is not released on quit), where an escaping
-    //! exception aborts the whole app via std::terminate. Swallow it.
-    template <class T>
-    struct NoThrowDeleter {
-        void operator()(T *p) const noexcept {
-            try { delete p; }
-            catch(...) {} //must not throw across a destructor / atexit handler.
-        }
-    };
-    static unique_ptr<Euresys::EGenTL, NoThrowDeleter<Euresys::EGenTL>> s_gentl;
-    static unique_ptr<Euresys::EGrabberDiscovery, NoThrowDeleter<Euresys::EGrabberDiscovery>> s_discovery;
+    //! eGrabber's GenTL close (EGenTL::tlClose -> GenTLImpl::chk) throws when
+    //! the producer is already gone, which is what it is at exit() -- and the
+    //! throw comes out of ~EGrabberDiscovery(), a destructor, which C++11 made
+    //! implicitly noexcept.  std::terminate() therefore fires AT THE THROW,
+    //! several frames below any deleter of ours: a try/catch around `delete`
+    //! cannot see it, and one that used to be here (NoThrowDeleter, "swallow
+    //! it") never could.  Observed as an abort during __cxa_finalize_ranges,
+    //! reached from -[NSApplication terminate:] when Quit bypasses the orderly
+    //! shutdown.
+    //!
+    //! So the destructor must not run at all in that path.  These are held in
+    //! unique_ptrs that are themselves leaked -- allocated once and never
+    //! destroyed -- so nothing happens at exit, while closing the last
+    //! interface still reset()s them, which is the path where the library is
+    //! alive and the teardown is real.
+    static unique_ptr<Euresys::EGenTL> &s_gentl();
+    static unique_ptr<Euresys::EGrabberDiscovery> &s_discovery();
     static int s_refcnt;
 
     XString m_serialTCPIPEOS;

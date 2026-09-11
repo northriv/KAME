@@ -197,12 +197,6 @@ XMonteCarloDriver::~XMonteCarloDriver() {
     }	
 }
 void
-XMonteCarloDriver::showForms() {
-//! impliment form->show() here
-    m_form->showNormal();
-    m_form->raise();
-}
-void
 XMonteCarloDriver::start() {
 	Snapshot shot( *this);
     MonteCarlo::setupField(shot[ *m_L], 0.0, shot[ *m_cutoffReal], shot[ *m_cutoffRec], shot[ *m_alpha]);

@@ -10,6 +10,10 @@
 # bench_kame_full — live in this directory and use the Qt-aware kame/
 # tree; they're not registered in CMake yet, only via per-test .pro
 # files.  Add inline targets here as they get a CMake build path.)
+#
+# xnode_ctorthrow_test is Qt-free by construction (it pins the
+# constructor-to-factory hand-off algorithm, not the Qt-dependent
+# XNode::createOrphan template), so it builds and runs here.
 
 cmake_minimum_required(VERSION 3.14)
 project(kame_tests LANGUAGES CXX C)
@@ -46,3 +50,10 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../kamestm/tests
                  ${CMAKE_CURRENT_BINARY_DIR}/kamestm-tests)
 
 enable_testing()
+
+# --- Kame-side self-contained tests ---
+# Constructor-to-factory hand-off (XNode::createOrphan / XQConnectorHolder_ /
+# XStatusPrinter::create): a throwing constructor must neither double-free the
+# object `new` already destroyed nor let the next factory call adopt it.
+add_executable(xnode_ctorthrow_test xnode_ctorthrow_test.cpp)
+add_test(NAME xnode_ctorthrow_test COMMAND xnode_ctorthrow_test)

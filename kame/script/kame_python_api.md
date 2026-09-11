@@ -31,6 +31,99 @@ for _ in range(60):
 ```
 Switch to `execute_code_async` + `get_result(job_id)` for the same code.
 
+The async shape, on the MCP side. Poll on the timescale of the work, not
+faster: `get_result` returns the latest `mcp_checkpoint` message, so one call
+per checkpoint is all the information there is.
+
+```python
+job = execute_code_async(code)         # -> {"job_id": ...}
+# then, repeatedly:
+get_result(job["job_id"])              # -> {"status": "running", "progress": "3/60 ..."}
+                                       #    "done" | "stopped" | "error" ends it
+# read the job's variables with execute_code only after status is done/stopped
+stop_job(job["job_id"])                # honoured at the next mcp_checkpoint
+```
+
+The job runs on a plain worker thread, not a KAME script thread. Node
+operations (`Root`, `Snapshot`, `Transaction`, writes), `sleep()` and
+`print()` all work there; the per-thread script context behind the Script
+tab's status line is simply absent, so do not reach for it.
+
+Every `mcp_checkpoint()` also writes the job's state to
+`~/.kame_mcp_log/jobs/<job_id>.json` and looks for a `<job_id>.stop` marker
+beside it. That is why `get_result` and `stop_job` keep working when the
+kernel does not answer: the worker thread is still running in that state, and
+neither path needs the kernel's shell socket. Code that never checkpoints
+still cannot be stopped, and now also cannot be observed — checkpoint every
+iteration.
+
+## Showing a figure to the user
+
+`execute_code` returns matplotlib figures as MCP image content, and the model
+receives them either way — you can analyse a plot you cannot display. What
+varies is whether the *client* renders a tool-returned image. Claude Code,
+Claude Desktop and Antigravity do. The Pydantic AI web chat UI does not:
+pydantic-ai carries the image to the model, but its browser event stream emits
+only model-generated files, so a tool's image never reaches the page.
+
+When the human needs to look at the figure, put the plotting code in a
+notebook cell instead of relying on the client:
+
+```python
+notebook_edit(path="", index=-1, mode="insert", cell_type="code", source=CODE)
+# then tell the user to reload the tab and run the new cell
+```
+
+It renders inline wherever notebooks render, and it stays in the notebook as
+part of the experiment record. The cell is not executed for you — appending it
+is a file edit, and output can only be attributed to a cell the front end
+itself ran.
+
+**Never** embed a figure as a base64 data URI in returned text. Tool text goes
+into the model's context: a 30 KB PNG is ~10k tokens spent on something the
+image channel already delivers.
+
+## Converting a `.seq` script to Python
+
+`.seq` files are Ruby with KAME bindings, and users migrating one will ask you
+to translate it. The shapes map directly, but several differences are silent if
+you translate by eye:
+
+| `.seq` (Ruby) | Python | Note |
+|---|---|---|
+| `measurement["Drivers"]["X"]`, `Measurement[...]` | `Root()["Drivers"]["X"]` | both spellings occur; returns `None` if absent — check it |
+| `node.get()` | `float(node)` / `int(node)` / `bool(node)` / `str(node)` | **there is no `.get()`** — use the conversion matching the node's value type; no Snapshot needed |
+| `node.set(v)` | `node.set(v)` or `parent["Child"] = v` | `set()` is TYPED here; `parent[...] = v` converts for you |
+| `node.value = v` | same as `set` above | the older idiom; the manual's Ruby example uses it, the `.seq` samples use `set` |
+| `node.value` | same as `get` above | likewise |
+| `node.name` | `node.getName()` | |
+| `node.touch()` | `node.touch()` | unchanged |
+| `while TRUE ... end` | `while True:` | |
+| `begin ... end while cond` | `while True: ...` + `if not cond: break` | Ruby runs the body FIRST; a plain `while cond:` may never run it |
+| `sleep(n)` | `sleep(n)` | same name, same KAME-aware sleep |
+
+**Use the conversion that matches the node's type.** Each value-node class is
+bound with exactly one: `bool()` for XBoolNode, `int()` for the integer nodes,
+`float()` for XDoubleNode, and `str()` for any of them. A mismatched `int()`
+or `float()` raises TypeError, which is harmless.
+
+**A mismatched `bool()` does not raise — it silently reports whether the node
+has CHILDREN.** `XNode.__len__` is the child count and Python falls back to it,
+so `bool()` on an integer node holding 300 is `False`. Measured, not reasoned:
+a value node never has children, so this is always `False` for every type
+except XBoolNode, where it is the value. Read a non-bool node with the right
+conversion, or with `bool(shot[node])`.
+
+Two more things before handing back a translation:
+
+- **Verify every node path with `tree` first.** These scripts are old — the
+  ones shipped with KAME were written in 2003-2005 — and node names have
+  changed since. A path that reads plausibly may simply not exist any more,
+  and `Root()[...]` returns `None` rather than raising, so the failure surfaces
+  much later as a confusing `NoneType` error.
+- **A loop that sleeps belongs in `execute_code_async`**, not `execute_code`;
+  the originals often loop forever, which no synchronous call can host.
+
 ## Globals (pre-imported from `kame`)
 
 ```python
@@ -81,14 +174,31 @@ shot.size(node)                   # Number of children
 len(shot)                         # Children of snapshot root
 ```
 
+**`len(node)` is the child count, and `bool(node)` falls back to it** for
+every node except XBoolNode, which is bound with a real `__bool__`. So
+`bool()` on an integer node holding 300 is `False`, silently. Each value-node
+class carries exactly one conversion — `bool` / `int` / `float` / `str` by its
+value type — and using the right one needs no Snapshot at all:
+`float(double_node)`, `int(int_node)`, `bool(bool_node)`, `str(any_node)`.
+
 ## Writing Values
 
 ```python
 # Simple assignment (auto-transactional, by child name)
 node["ChildName"] = 3.14         # float, int, bool, or str
 
-# Set a value node directly
-value_node.set("300.0")           # XValueNodeBase.set(str)
+# Set a value node directly.  set() is TYPED per node class — there is no
+# XValueNodeBase.set(str) that accepts anything.  Passing a string to a bool
+# or double node raises TypeError:
+double_node.set(300.0)            # XDoubleNode.set(float)
+bool_node.set(True)               # XBoolNode.set(bool)   NOT set("true")
+int_node.set(3)                   # XIntNode/XUIntNode/XLongNode/XULongNode/XHexNode
+string_node.set("text")           # XStringNode.set(str)
+combo_node.set("Item label")      # XComboNode — set(str) and set(int) both exist
+combo_node.set(2)                 #   (index), and .itemStrings() lists the choices
+
+# node["Child"] = value converts for you, so it is the forgiving form:
+node["Control"] = True
 
 # Explicit transaction
 for tr in Transaction(node):
@@ -381,6 +491,70 @@ driver = dc.createByTypename("TestDriver", "Test1")
 # Release: also removes the driver's ChartList / ScalarEntries
 dc.release(driver)
 ```
+
+## Driver lifecycle
+
+Creating a driver does **not** touch hardware. Opening its interface does.
+
+| Step | Call | Touches hardware? |
+|---|---|---|
+| discover types | `dc.typenames()` | no |
+| create | `dc.createByTypename(type, name)` | no |
+| configure | set `Interface` children (`Device`, `Port`, `Address`, …) | no |
+| **start** | `iface["Control"] = True` | **yes — opens the port** |
+| read | `Snapshot(driver)` / scalar entries | no |
+| **stop** | `iface["Control"] = False` | yes — closes the port |
+| delete | `dc.release(driver)` | no (stop first) |
+
+```python
+iface = driver["Interface"]
+bool(Snapshot(iface)[iface["Control"]])   # current state: True = open
+iface["Control"] = True                   # start
+```
+
+Notes that matter before you write `Control`:
+
+- **`Control = True` means "open the port and start the driver's thread."**
+  It is handled asynchronously on a worker thread, so the write returns
+  before the port is actually open — poll `Control` (it reverts to False if
+  opening failed) rather than assuming success. Errors surface in KAME's
+  message area, not as a Python exception.
+- **Configure before starting.** `Device` / `Port` / `Address` are read when
+  the port opens; changing them afterwards does not re-open it.
+- **It is reversible** — `Control = False` closes the port and is the
+  supported stop. But what the instrument *did* while running may not be:
+  see the motion, temperature and RF rules in the server instructions before
+  starting anything attached to real hardware.
+- **`TestDriver` is synthetic** (no interface, no hardware) and is the safe
+  choice for checking that a connection works end to end.
+
+```python
+# End-to-end check with no hardware involved
+dc = Root()["Drivers"].dynamic_cast()
+d = dc.createByTypename("TestDriver", "MCP_Test")
+# ... read Snapshot(d) / its scalar entries ...
+dc.release(d)
+```
+
+**If your code can raise, clean up in `finally`** — a driver left in the tree
+with its port open is the normal outcome of a half-finished script, and the
+next run then fails on the name it already used:
+
+```python
+d = dc.createByTypename("TestDriver", "MCP_Test")
+try:
+    ...                                  # measure
+finally:
+    dc.release(d)                        # runs even if the body raised
+```
+
+**Do NOT wrap a real instrument in unconditional teardown.** For a synthetic
+driver, closing and releasing on the way out is always right, and a `with`
+block would be a fine way to say it. For hardware it is a judgement call the
+operator owns: a temperature controller mid-ramp, a magnet supply at field or
+an amplifier gate mid-sequence may be safer left running under supervision
+than closed because a Python exception happened somewhere above. Write
+`Control = False` where you mean it, not in a blanket handler.
 
 ## Common Recipes
 

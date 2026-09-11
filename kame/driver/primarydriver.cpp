@@ -16,7 +16,37 @@
 #endif
 
 #include "primarydriver.h"
+
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+    #include <windows.h>
+#endif
+
+// See the doc block in primarydriver.h.  Save and restore the actual inherited
+// priority: most guards span a dedicated acquisition thread, but the pulser's
+// one-shot prefill can run inline and the guard may therefore be nested.
+int raiseAcquisitionOSPriority_() noexcept {
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+    HANDLE thread = GetCurrentThread();
+    int saved = GetThreadPriority(thread);
+    if(saved == THREAD_PRIORITY_ERROR_RETURN)
+        return THREAD_PRIORITY_ERROR_RETURN;
+    if(!SetThreadPriority(thread, THREAD_PRIORITY_TIME_CRITICAL))
+        return THREAD_PRIORITY_ERROR_RETURN;
+    return saved;
+#else
+    return 0;
+#endif
+}
+void restoreAcquisitionOSPriority_(int saved_priority) noexcept {
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+    if(saved_priority != THREAD_PRIORITY_ERROR_RETURN)
+        SetThreadPriority(GetCurrentThread(), saved_priority);
+#else
+    (void)saved_priority;
+#endif
+}
 #include <chrono>
+#include <memory>
 
 XPrimaryDriver::XPrimaryDriver(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -30,6 +60,17 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
     XTime time_recorded = time_recorded_org;
     XKameError err;
     bool skipped = false;
+    // Bounds the WAITING this call may do: past ~20 ms a stalled record starts
+    // to distort the measurement, whatever the acquisition thread's priority.
+    // See downstreamWaitBudgetUS() for the default and for the throughput this
+    // trades away.
+    //
+    // One guard covers the whole call because the budget is an absolute
+    // thread-local limit, not a per-scope duration: it binds throughout,
+    // including the record commit itself and everything downstream of it.
+    std::unique_ptr<Transactional::ScopedWaitBudget> _downstream_budget;
+    if(unsigned int _b = downstreamWaitBudgetUS())
+        _downstream_budget.reset(new Transactional::ScopedWaitBudget((int64_t)_b));
     // Telemetry only — see the counters' doc block in primarydriver.h.  Two
     // steady_clock reads and one comparison per record, against a commit that
     // already does a tree walk; nothing is printed here.
@@ -96,6 +137,21 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
     }
     if(err.msg().length())
         err.print(getLabel() + ": ");
+    // Realtime ends with the record: everything below is downstream work --
+    // visualize() touches graphs, and the onVisualization listeners are other
+    // people's code, on paths that widen scope (a graph object snapshots its
+    // plot; the secondary-driver chain snapshots the whole driver list).
+    //
+    // Inert in KAME, which sets no STM tier above NORMAL anywhere: the guard
+    // demotes a realtime committer only, and a NORMAL one is untouched.  It is
+    // kept because kamestm's tier is a library feature a host may use, and
+    // arming it costs one TLS read on a path that already commits.
+    //
+    // The onRecord listeners are NOT covered here: XDriver::record() marks the
+    // talker, so they are dispatched inside the commit above, where kamestm
+    // applies the same guard at Transaction::finalizeCommitment's messaging
+    // loop.
+    Transactional::ScopedDemoteRealtime _no_realtime_downstream;
     try {
         visualize(shot);
         trans( *this).onVisualization().talk(shot, !skipped, this);

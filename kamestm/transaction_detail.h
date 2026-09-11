@@ -55,6 +55,8 @@
 #include <support.h>
 #include "threadlocal.h"
 #include "atomic_smart_ptr.h"
+#include <stdexcept>
+#include <string>
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -104,38 +106,109 @@ class ScopedNegotiateLinkage;
 template <class XN>
 struct ScopedLookupMemoInvalidate;
 
-//! Per-Tx priority used by the privilege ("fair-mode oldest-Tx
-//! escape") mechanism in `negotiate_internal`.
+//! Per-Tx priority, consumed by the negotiator.
 //!
-//! The privilege machinery promotes a Tx to "stuck oldest" status
-//! after it has been waiting longer than `min_privilege_age_us(pr)`,
-//! allowing it to preempt forward progress.  Lower priorities use
-//! a larger age threshold so they yield to measurement traffic
-//! by default and only escalate on prolonged starvation.
+//! **What this actually does in a default build**, which is less than the five
+//! levels suggest.  The description below used to promise a graduated ladder of
+//! per-priority age thresholds; that ladder only operates when
+//! `KAME_PER_LINKAGE_PRIVILEGE=0` (the non-default global-privilege mode).  In
+//! the default per-Linkage mode the privilege claim opens with a literal
+//! `(void)entry_pr;` and the livelock verdict uses
+//! `clamp(sig_C*2, 3, hardware_concurrency())` — contention, not priority — so
+//! priority does not decide *when* privilege becomes claimable at all.
 //!
-//!   HIGHEST / NORMAL  — production measurement and driver activity
-//!   UI_DEFERRABLE     — interactive UI updates (50 ms threshold)
-//!   LOWEST            — bulk/analysis (30 ms threshold)
-//!   SCRIPTING         — external scripting / inspection callers:
-//!                       MCP server / AI agents, Python or Ruby
-//!                       user scripts via the IPython kernel,
-//!                       future ZMQ command handlers.  1-second
-//!                       threshold: yields to *everything* for the
-//!                       first second of any contention, then
-//!                       claims privilege so the request still
-//!                       eventually completes.  Prevents scripted
-//!                       inspection from disrupting a live
-//!                       measurement loop while bounding starvation.
+//! What it does decide:
+//!
+//!   HIGHEST        — skips negotiation entirely: `if(entry_pr ==
+//!                    Priority::HIGHEST) break;` is the first statement of the
+//!                    round loop, so the thread never spins and never sleeps.
+//!                    Since 2026-08-12 it also DOES buy deference: a HIGHEST
+//!                    tag is planted as a Reserved (privilege) stamp, from the
+//!                    first pass rather than after the livelock probe reaches
+//!                    a verdict, so peers meet privilege on every Linkage it
+//!                    has touched and yield on the ordinary fair-mode path.
+//!                    (The note that used to sit here said the opposite --
+//!                    "buys no deference ... privilege is granted
+//!                    priority-blind" -- which was true when privilege was
+//!                    probe-gated.)  Between two HIGHESTs the loser defers by
+//!                    spinning, never parking, per the tier contract.
+//!                    Deliberately not exposed to Python.
+//!   LOWEST,        — the "low set".  `now_us_tagged()` folds a lowprio bit
+//!   UI_DEFERRABLE,   into their stamps, which makes a privilege stamp they hold
+//!   SCRIPTING        *evictable on timeout* (`stamp_is_expired_lowprio`) while
+//!                    NORMAL / HIGHEST stamps are immune, and which excludes
+//!                    them from the per-Linkage owner-skip lease
+//!                    (`_neg_apply_lease`).  This is what keeps a script or a
+//!                    UI redraw from pinning privilege against a measurement
+//!                    loop.  LOWEST is additionally excluded from the jittered
+//!                    gate / lottery in `_negotiate_internal`.
+//!   NORMAL         — the baseline: production measurement and driver activity.
+//!
+//! Intended callers, unchanged: NORMAL for drivers, UI_DEFERRABLE for
+//! interactive UI, LOWEST for bulk/analysis, SCRIPTING for external scripting
+//! (MCP / AI agents, Python or Ruby via the IPython kernel, future ZMQ
+//! handlers) — the last being a one-way trapdoor once set, so a script cannot
+//! elevate itself.
+//!
+//! (The old text also gave SCRIPTING a "1-second threshold".  The value is
+//! `min_privilege_age_us(Priority::SCRIPTING) == 1'000` µs = 1 ms — the doc was
+//! out by a factor of 1000, and it described a path that the default build does
+//! not take.)
 enum class Priority {NORMAL = 0, LOWEST, UI_DEFERRABLE, HIGHEST, SCRIPTING};
 DECLSPEC_KAME void setCurrentPriorityMode(Priority pr);
 DECLSPEC_KAME Priority getCurrentPriorityMode();
 
+//! Thrown by `iterate_commit*` when a transaction at a priority whose privilege
+//! can be revoked (LOWEST / UI_DEFERRABLE / SCRIPTING) has been retrying for
+//! longer than `KAME_STM_LOWPRIO_STARVE_MS`.
+//!
+//! Derives from `std::runtime_error` rather than KAME's XKameError so kamestm
+//! stays Qt-free, and so pybind11 translates it to a plain Python exception for
+//! the SCRIPTING caller, which is the one that can most reasonably retry.
+//!
+//! NORMAL and HIGHEST never see this: their privilege never expires, so they are
+//! never revoked, and losing a driver record to STM contention is a semantic no
+//! driver expects.
+class StarvationTimeoutError : public std::runtime_error {
+public:
+    explicit StarvationTimeoutError(const std::string &what)
+        : std::runtime_error(what) {}
+};
+
+//! Called when a transaction at a revocable priority passes the starvation
+//! bound.  \a retries and \a age_us describe the victim.
+//!
+//! A hook rather than a hard throw, because the type the host wants is the
+//! host's business and getting it wrong is fatal.  KAME catches `XKameError` at
+//! its connector boundaries and nowhere catches `std::runtime_error`; there is no
+//! `QApplication::notify` override and no try/catch around `app.exec()`, so
+//! throwing a NEW type from a GUI thread — and `main.cpp` puts the whole GUI
+//! thread at UI_DEFERRABLE — terminates the process.  Adding catch sites for a
+//! new type meant seven thread entry points plus six connector chains.  Instead
+//! the host installs ONE handler that throws its own error type, and every
+//! catch site it already has works unchanged.
+//!
+//! **No handler installed is the default, and means no throw** — the transaction
+//! keeps retrying exactly as before.  That way enabling
+//! `KAME_STM_LOWPRIO_STARVE_MS` can never introduce an unhandled exception on
+//! its own; the host opts in by installing a handler it knows it can catch.
+//!
+//! A handler that returns rather than throwing is allowed and useful: count and
+//! log, and let the retry continue.
+using StarvationHandler = void (*)(unsigned retries, long long age_us);
+DECLSPEC_KAME void setStarvationHandler(StarvationHandler h) noexcept;
+DECLSPEC_KAME StarvationHandler starvationHandler() noexcept;
+//! Ready-made handler throwing `StarvationTimeoutError`, for hosts (and tests)
+//! that want kamestm's own type.
+DECLSPEC_KAME void throwStarvationTimeout(unsigned retries, long long age_us);
+
 //! RAII priority change, restored on scope exit including by exception.
 //!
-//! Exists because `setCurrentPriorityMode` is a persistent thread mode: the
-//! only other user in the tree (`strict_escalate_if_oldest`) saves and restores
-//! by hand, and a hand-rolled restore is exactly what gets skipped on an early
-//! return or a throw.  Scope it instead.
+//! Exists because `setCurrentPriorityMode` is a persistent thread mode, and a
+//! hand-rolled save/restore is exactly what gets skipped on an early return or
+//! a throw.  Scope it instead.  (The one previous hand-rolled user,
+//! `strict_escalate_if_oldest`, was removed — it had been dead since its gate
+//! macro stopped being defined anywhere.)
 //!
 //! The `Priority` enumerators are NOT ordered by urgency (NORMAL is 0 and
 //! SCRIPTING is 4), so this deliberately does not try to "never weaken an
@@ -162,6 +235,69 @@ private:
     Priority m_saved;
     bool m_armed;
 };
+
+//! Demotes a realtime committer for the duration of a scope, and ONLY a
+//! realtime one.
+//!
+//! Used where a commit hands control to other people's code: the listeners of a
+//! marked message.  The committer's priority must not leak into them — a
+//! secondary driver's analysis, a scalar-entry update or a recorder write is not
+//! realtime work, and at HIGHEST it inherits an exemption from politeness it has
+//! no claim to.  Worse, those listeners widen scope: the secondary-driver
+//! interface snapshots the entire driver list, which puts two realtime
+//! acquisition threads on one Linkage and breaks the invariant HIGHEST rests on.
+//!
+//! **One-directional on purpose.**  A lowprio committer must NOT be raised to
+//! NORMAL here: a script or a UI redraw committing something would then dispatch
+//! its listeners at a priority it cannot claim itself, which is an escalation
+//! path, not a fix.
+class ScopedDemoteRealtime {
+public:
+    ScopedDemoteRealtime() noexcept
+        : m_saved(getCurrentPriorityMode()),
+          m_armed(m_saved == Priority::HIGHEST) {
+        if(m_armed) setCurrentPriorityMode(Priority::NORMAL);
+    }
+    ~ScopedDemoteRealtime() noexcept {
+        if(m_armed) setCurrentPriorityMode(m_saved);
+    }
+    ScopedDemoteRealtime(const ScopedDemoteRealtime &) = delete;
+    ScopedDemoteRealtime &operator=(const ScopedDemoteRealtime &) = delete;
+private:
+    Priority m_saved;
+    bool m_armed;
+};
+
+//! \name Foreign-lock guard (debug builds only)
+//!
+//! Detects the OTHER direction of the lock/transaction hazard: holding a plain
+//! mutex *across* a Snapshot or Transaction, rather than doing I/O inside one.
+//! This is the direction that actually deadlocked KAME on 2026-07-10 — the GUI
+//! thread slept in STM negotiation while holding an on-screen-object mutex, and
+//! a driver's transaction blocked on that same mutex from inside
+//! `finishWritingRaw`, so neither could finish and the negotiation HANG
+//! watchdog aborted the process.
+//!
+//! Why a counter in kamestm that kame/ increments, rather than a check in
+//! kame/: the hazard is only realised when the STM *sleeps*, and only the STM
+//! knows when that happens.  Putting the predicate here keeps the dependency
+//! one-way — kamestm exposes a counter and never looks at kame/ — while the
+//! check fires at exactly the point where holding the lock becomes fatal
+//! (`_negotiate_internal`, the slow path), not at every Snapshot construction,
+//! most of which never wait and are perfectly safe under a lock.
+//!
+//! Debug builds only, on both sides, so a release build is untouched.
+//! \{
+#ifndef NDEBUG
+namespace detail { struct SForeignLockTag; }
+//! Tell the STM this thread now holds a plain lock that it must not sleep
+//! under.  Nests; pair each call with `leaveForeignLock()`.
+DECLSPEC_KAME void enterForeignLock() noexcept;
+DECLSPEC_KAME void leaveForeignLock() noexcept;
+//! Nesting depth of the above; 0 = safe to negotiate.
+DECLSPEC_KAME int foreignLockDepth() noexcept;
+#endif
+//! \}
 
 //! \name Wait budget
 //!
@@ -225,9 +361,117 @@ namespace detail {
     struct STxNestTag;
     DECLSPEC_KAME extern XThreadLocal<int, STxNestTag> s_tx_nest;
 
+    //! Width of the always-on diagnostic counters below.  Pointer-width, NOT
+    //! `uint64_t`: these are unconditional (not behind KAME_ENABLE_*), so on a
+    //! host where `atomic<uint64_t>` is not lock-free — exactly the hosts
+    //! KAME_STM_COMPACT_STATE exists for (i386/i486, ARMv5/v6, RV32, MIPS32)
+    //! — a 64-bit one lowers to a LOCKED libatomic call.  That both fails to
+    //! link (no libatomic in the default link line) and would put a lock in
+    //! the negotiation path if it did.  These count negotiation events, so
+    //! pointer width is ample; the accessors keep returning `uint64_t` by
+    //! implicit widening, so no caller changes.  \sa rt_counter_t in
+    //! kamepoolalloc/allocator.cpp, which solves the same problem there, and
+    //! tools/audit/check_no_dcas.sh, which now guards both.
+    using diag_counter_t = std::size_t;
+
+    //! Foreign non-HIGHEST Reserved stamps stripped by a HIGHEST tagger
+    //! (tag_as_contender Rule 0).  Always-on so a plain build can verify the
+    //! mechanism actually fired — a strip is rare by construction (it needs a
+    //! Reserved stamp in the way), so one relaxed fetch_add costs nothing.
+    DECLSPEC_KAME extern std::atomic<diag_counter_t> g_priv_strips;
+
+    //! Rule 0c: tag overwrites refused because the slot held a validated
+    //! HIGHEST tag and the tagger was lower-priority.  \sa tag_as_contender.
+    //!
+    //! Deliberately NOT `atomic` the way `g_priv_strips` above is.  That
+    //! one's comment justifies the bare global with "a strip is rare by
+    //! construction ... so one relaxed fetch_add costs nothing", and on the
+    //! mixed workload it measures literally 0.  The justification does not
+    //! carry over: this fires ~500/s there, and a global atomic RMW on a
+    //! negotiation path is a shared cache line bounced between every
+    //! negotiating core, inside the code whose whole job is to not do that.
+    //!
+    //! Increment a plain thread-local instead and fold it into the global at
+    //! thread exit.  The count stays visible in a plain build — the property
+    //! the Rule 0 family wanted — while the hot path touches only a line this
+    //! thread owns.  Definitions live in transaction_impl.h so there is ONE
+    //! TLS object in libkame rather than one per plugin DLL (see the
+    //! singleton note at the top of that file); the increment is therefore an
+    //! exported call, still far cheaper than the bounce.
+    //!
+    //! Reads are exact once the counting threads have joined, which is how
+    //! the sole consumer (transaction_priority_mixed_test) reads it.  A
+    //! mid-run read undercounts by whatever live threads have not flushed.
+    //!
+    //! Rule 0d has no counter on purpose.  It briefly had one, at ~9,500/s
+    //! and only in the ON arm, which put the instrument inside the
+    //! experiment; and it counted spin-loop iterations rather than distinct
+    //! blocks, which it proved by RISING 190k -> 250k per 20 s when it was
+    //! made cheaper.  Build with the knob and read the throughput instead.
+    //! L for the 2L bound on HIGHEST's failures: the largest
+    //! `m_tagged_linkages.size()` any single Tx reached.  Sampled in
+    //! `drop_tags_n_privilege()`, which runs exactly once per Tx with the tag
+    //! list complete -- NOT at livelock-probe ticks, which only fire during
+    //! slow commits and so undercount L, making the verdict read worse than
+    //! it is.  A global max rather than a per-thread tally: max is idempotent,
+    //! and it only writes when a new high is reached, which is rare.
+    //! Lives here rather than in NegDiag because `drop_tags_n_privilege()` is
+    //! in transaction.h, which is included before neg_diag() is declared.
+    DECLSPEC_KAME void          note_tx_linkages(std::uint64_t n) noexcept;
+    DECLSPEC_KAME std::uint64_t tx_linkages_max() noexcept;
+    DECLSPEC_KAME void          count_highest_tag_shield() noexcept;
+    DECLSPEC_KAME std::uint64_t highest_tag_shields() noexcept;
+
+#ifndef NDEBUG
+    //! Debug-only, for `transaction_sleep_in_tx_test`: counts reports actually
+    //! emitted by `Transactional::warnIfInTransaction`.  Exists because the gate
+    //! that matters -- `*s_tx_nest == 0` -- is inside that function, so a test
+    //! cannot pin it by substituting a hook of its own.
+    DECLSPEC_KAME extern std::atomic<int> s_in_tx_reports;
+#endif
+
     //! Per-thread nesting depth of ReleaseOneCount (sleeping) scopes.
     struct SSleepNestTag;
     DECLSPEC_KAME extern XThreadLocal<int, SSleepNestTag> s_sleep_nest;
+
+} // namespace detail
+
+//! True while a `Transaction` is alive on this thread — the exact predicate for
+//! "we are inside a transaction", and the one place that knowledge is published.
+//!
+//! Exact rather than approximate: `detail::s_tx_nest` is held for a Transaction's
+//! whole lifetime (its `AcquireOneCount` is a value member) but only during a
+//! Snapshot's *construction* (a ctor local).  So ordinary
+//! `Snapshot shot(*this); ... interface()->query(...)` driver code does not
+//! register as being in a transaction, which is correct: a Snapshot blocks
+//! nothing.
+DECLSPEC_KAME bool isInTransaction() noexcept;
+
+#ifndef NDEBUG
+//! Debug-only diagnostic: report, once per `where`/`site`, that something
+//! happened while a transaction was alive.  No-op outside a transaction.
+//!
+//! This is the single implementation behind every such check — `XInterface::lock`
+//! (interface I/O inside a transaction, driver rule 5) and `msecsleep` (sleeping
+//! with a transaction open) both land here rather than each carrying its own copy
+//! of the gate, the deduplication and the abort switch.  `kame/support.h` wraps it
+//! as `gWarnIfInTransaction(what)`, which fills in `where` from `__FILE__:__LINE__`.
+//!
+//! Reports rather than aborting by default, because this is a diagnostic and not a
+//! safeguard: an unknown number of sites may still reach it through indirection
+//! the audit cannot see, and a debug build that aborts on the first one is a debug
+//! build nobody runs.  Set `KAME_STM_ABORT_IN_TX=1` when actually hunting one.
+//!
+//! \param what  a full sentence for a driver author, stating what was done and
+//!              why it is wrong; the location and the abort hint are appended.
+//! \param where source location, or nullptr; deduplicates and is printed.
+//! \param site  fallback deduplication key when there is no source location
+//!              (`msecsleep` has only its caller's return address).
+DECLSPEC_KAME void warnIfInTransaction(const char *what, const char *where,
+                                       const void *site = nullptr) noexcept;
+#endif
+
+namespace detail {
 
     //! Payload-creator slot: create<T>() stores the typed creator
     //! here; Node<XN>::Node() reads and clears it.
@@ -856,6 +1100,16 @@ public:
 //! able to grant itself more time than its caller allowed, or the
 //! caller's budget would mean nothing.
 #if KAME_STM_WAIT_BUDGET
+//!
+//! **Exemption (2026-07-31, measured):** the budget may not decline the wait
+//! behind a LIVE privileged peer.  Privilege is the system's completion
+//! guarantee and nothing may be immune to it — a budget-expired thread that
+//! barged past fair-mode became a fair-mode-immune spinner, the same disease
+//! that retired STM-HIGHEST, re-invalidating a long-closure holder while
+//! honest negotiators pinned behind its privilege for 12+ s (372 HANG dumps
+//! vs 0 in the field-parameter harness).  The budget bounds every OTHER wait;
+//! expired-lowprio stamps still unblock inside fair_mode_blocks_me, so a dead
+//! holder cannot pin a budgeted thread.
 class ScopedWaitBudget {
 public:
     //! \param max_wait_us Duration, µs from now.  Values <= 0 arm an

@@ -91,11 +91,6 @@ XQDPPMS::XQDPPMS(const char *name, bool runtime,
 
 }
 void
-XQDPPMS::showForms() {
-    m_form->showNormal();
-    m_form->raise();
-}
-void
 XQDPPMS::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     tr[ *this].m_sampleTemp = reader.pop<float>();
     tr[ *this].m_sampleUserTemp = reader.pop<float>();

@@ -74,7 +74,23 @@ public:
     XString getName() const {return m_name;}
     //! \return i18n name for UI.
     virtual XString getLabel() const {return getName();}
-    virtual XString getTypename() const; //!< returns demangled name without leading 'X' by default.
+    //! \return the string this node was CREATED with, when it has one, and
+    //! otherwise the demangled type name without its leading 'X'.
+    //!
+    //! The stored key is the identifier that can bring a node back:
+    //! `createByTypename()` records it, and it is what `XTypeHolder` accepts.
+    //! The typeid-derived fallback agrees with it only by a coincidence of
+    //! spelling (`REGISTER_TYPE(list, Foo, …)` registers "Foo" and names the
+    //! class `XFoo`) — a coincidence that fails for a template alias, and
+    //! across compilers, since MSVC spells `typeid().name()` differently.
+    virtual XString getTypename() const;
+    //! Records the registry key a node was created with.  Called by
+    //! `XListNodeBase::createByTypename()`; there should be no other caller.
+    void setStoredTypename(const XString &);
+    //! The key it was created with, or empty when it was not created by name.
+    //! Unlike getTypename(), this never falls back on the mangled type name,
+    //! so a writer can tell an instruction from a mere description.
+    XString storedTypename() const;
 
     shared_ptr<XNode> getChild(const XString &var) const;
 
@@ -106,6 +122,10 @@ public:
     XNode() = delete;
 private:
     const XString m_name;
+    //! Written once, just after creation, on a node other threads can
+    //! already see -- so it is published the way XDoubleNode::m_format is,
+    //! not as a bare XString.
+    atomic_shared_ptr<XString> m_storedTypename;
     static XThreadLocal<std::deque<shared_ptr<XNode> > > stl_thisCreating;
 };
 
@@ -314,7 +334,41 @@ XIntNodeBase<bool, 10>::Payload::to_str() const {
 template <class T, typename... Args>
 shared_ptr<T>
 XNode::createOrphan(const char *name, bool runtime, Args&&... args) {
-    Transactional::Node<XNode>::create<T>(name, runtime, std::forward<Args>(args)...);
+    // XNode's constructor pushes shared_ptr(this) so that constructors can use
+    // shared_from_this(); this pops it.  A constructor that throws after that
+    // push leaves an entry that is BOTH dangling and owning: `new T` has
+    // already run the base destructor and freed the memory, yet the entry's
+    // shared_ptr still holds a refcount on it.  Popping such an entry
+    // double-frees; leaving it makes the next createOrphan adopt freed memory.
+    // Node constructors can throw for real — they run transactions (the
+    // documented child-init pattern), so the STM starvation throw reaches
+    // them, as do XKameError and bad_alloc.
+    const size_t depth = XNode::stl_thisCreating->size();
+    T *raw;
+    try {
+        raw = Transactional::Node<XNode>::create<T>(
+            name, runtime, std::forward<Args>(args)...);
+    }
+    catch(...) {
+        // Neutralise every entry the failed construction left (its own, plus
+        // any child it had created and not yet popped) by leaking the control
+        // block: refcount never reaches zero, so the deleter never runs on the
+        // freed memory.  A few dozen bytes on an error path, versus a double
+        // free.
+        while(XNode::stl_thisCreating->size() > depth) {
+            new shared_ptr<XNode>(std::move(XNode::stl_thisCreating->back()));
+            XNode::stl_thisCreating->pop_back();
+        }
+        throw;
+    }
+    // Positional pop verified by identity: if these ever disagree the deque
+    // has been desynchronised and adopting the back() entry would hand out
+    // someone else's object.
+    if(XNode::stl_thisCreating->empty() ||
+        (XNode::stl_thisCreating->back().get() != static_cast<XNode *>(raw)))
+        throw std::runtime_error(
+            "XNode::createOrphan: the creation stack is desynchronised "
+            "(an exception escaped a node constructor).");
     shared_ptr<T> ptr = dynamic_pointer_cast<T>(XNode::stl_thisCreating->back());
     XNode::stl_thisCreating->pop_back();
     return ptr;

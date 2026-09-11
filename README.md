@@ -2,7 +2,8 @@
 
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![GitHub](https://img.shields.io/badge/GitHub-northriv%2FKAME-181717?logo=github)](https://github.com/northriv/KAME)
-[![Version](https://img.shields.io/badge/version-8.4-green)]()
+[![Version](https://img.shields.io/badge/version-8.6.1-green)]()
+[![arXiv](https://img.shields.io/badge/arXiv-2608.12024-b31b1b.svg)](https://arxiv.org/abs/2608.12024)
 
 KAME is an open-source, multi-threaded program for automated physical property measurements,
 developed at [Kitagawa Laboratory, ISSP, University of Tokyo](https://kitag.issp.u-tokyo.ac.jp/).
@@ -11,8 +12,9 @@ orchestration across compatible instruments.
 
 **License:** GPL v2 or later (prior to 8.0: LGPL v2 or later)
 **Authors:** Kentaro Kitagawa, Shota Suetsugu
-**Platforms:** macOS, Windows (64-bit); Linux builds and runs (see `INSTALL.linux`) but is unsupported
+**Platforms:** macOS, Windows (64-bit), Linux (x86-64, **supported from 8.5** — see `INSTALL.linux`)
 **Manual:** [日本語](https://kitag.issp.u-tokyo.ac.jp/%e8%87%aa%e5%8b%95%e5%8c%96%e5%af%be%e5%bf%9c%e6%b8%ac%e5%ae%9a%e3%83%97%e3%83%ad%e3%82%b0%e3%83%a9%e3%83%a0kame/) · [English](https://kitag.issp.u-tokyo.ac.jp/web/kame/kame-7-en.pdf)
+**Paper:** K. Kitagawa, *Formally Verified Lock-Free Software Transactional Memory for Scientific Measurement*, [arXiv:2608.12024](https://arxiv.org/abs/2608.12024) (2026)
 
 ![KAME screenshot](https://kitag.issp.u-tokyo.ac.jp/wordpress/wp-content/uploads/2025/01/dd21dff192ba7bde3beb0830a80d886c-930x620.png)
 
@@ -26,19 +28,22 @@ orchestration across compatible instruments.
   [`kamepoolalloc/`](kamepoolalloc/) (four-tier pool allocator) — see
   [Reusable subsystems](#reusable-subsystems)
 - Python (+Jupyter notebook) and Ruby scripting — nearly full control from scripts
-- **AI-assisted experiment automation via [MCP](https://modelcontextprotocol.io/)** — Claude and other AI assistants can read instruments, control parameters, and run measurement sequences through natural language
+- **AI-assisted experiment automation via [MCP](https://modelcontextprotocol.io/)** — Claude Code, Codex, Antigravity, Claude Desktop, LM Studio / Bionic and any other MCP client (local models included, through Pydantic AI) can read instruments, control parameters, and run measurement sequences through natural language, with the instrument-safety rules delivered by the server itself
 - OpenGL-based 2-D / 1-D graph display; arbitrary scalar combinations (T, V, …)
 - Real-time NMR relaxation fitting (T1, T2, Tst.e.), Inverse Laplace Transform
 - Fourier step-sum spectrum measurement with field / frequency sweeping
 - Complete data logging with post-measurement re-analysis
 - Save / restore full measurement config to `.kam` files
+- Provenance journal: settings and every change to them in `.kamj`, raw records in `.kamb`, either file replayable (9.0)
 - Modular driver plug-in architecture; Python drivers redefinable at runtime
 - Calibration curves (cspline, Chebyshev, polynomial) for resistance thermometers and generic sensors; calibrated entries feed into graphs, charts, and data recording like any native scalar
 
 ### Released versions/Binaries
-Source: [kame-8.4.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.4.zip) (2MB, Jul. 2026).
+Source: [kame-8.6.1.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.6.1.zip) (3.7MB, Aug. 2026).
 [All other source archives](https://kitag.issp.u-tokyo.ac.jp/web/kame/src).
-Windows 64-bit binaries: [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.4.zip). At least Qt is additionally needed, follow instructions below to install.
+Windows 64-bit binaries: [8.6.1](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.1.zip) (21.8MB) · [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.zip) (21.8MB) · [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.5.zip) (20.4MB) · [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.4.zip). At least Qt is additionally needed, follow instructions below to install.
+Builds before 8.6.1 carry the double-allocation defect described under *What's New in 8.6.1* on Windows and Linux.
+**9.0 alpha2** — the measurement journal, below: [source](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.0-alpha2.zip) (3.8MB) · [Windows 64-bit](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-9.0alpha2.zip). A pre-release; 8.6.1 remains the current stable version.
 
 ### Supported instruments
 
@@ -71,15 +76,94 @@ Windows 64-bit binaries: [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kam
 
 ---
 
+## What's New in 9.0 (alpha)
+
+- **KAME records what it was set to and what it did, without being asked.** A
+  run is one name and two files. The `.kamj` holds the settings the run started
+  with, and every change made afterwards, yours and the instruments'. The
+  `.kamb` holds the raw records behind those readings. You choose whether
+  the second file is written at all: settings alone cost about 11 MB/hour at 144
+  readings a second, settings plus records about 10 GB/hour. Both files are
+  gzip, and `.kamj` is JSON Lines inside, so `zgrep` and `zdiff` read one with
+  no special tool. Numbers are stored twice, as the text you would read and as
+  the exact eight bytes they were.
+- **The session is recorded even when you are not recording a run.** It goes to
+  a directory of its own and stays at a few tens of KB. Everything you did is
+  kept in full; an instrument's readings are kept only once they settle. A
+  session you forgot to save now has something to show.
+- **Replay, in the Journal Reader.** Open either file and the other is found.
+  Open the `.kamj` and the settings of each moment come back as playback reaches
+  them. Open the `.kamb` and the same records are re-analysed with the settings
+  you have now, which is what you want after changing one parameter. Drivers
+  named in the journal are created if this KAME does not have them. Only what a
+  person set is restored, never into a running driver, and KAME reports how much
+  it held back.
+- **The toolboxes and the main window get out of the way by themselves.** A
+  toolbox at a screen edge shrinks to its tab column, and grows back when the
+  pointer touches it. The main window keeps its top edge and rests at half
+  height, so the menu bar and the pane tabs never move. Hovering a tab picks
+  that pane, which makes a resting toolbox a menu of its panes. Click the front
+  tab to pin a window open. Both are switches in the View menu.
+- **Smaller UI changes.** The New Driver dialog has a live search box. A driver
+  you create opens its own window, and one with an interface brings up the
+  Interface pane. The pane tabs are flat and move faster. An interface that
+  appears is selected and scrolled to. On macOS, choosing KAME in the Dock
+  brings the main window forward.
+
+## What's New in 8.6.1
+
+- **A block of memory could be handed out twice — Windows and Linux.** Frees
+  arriving from a thread that had already finished its own allocator teardown
+  went into an object that no longer existed, and a slot went back to the pool
+  after its owner had already reissued it, so two live users held the same
+  memory. It surfaced far from its cause and never the same way twice: garbage
+  inside a value still being referenced, a node that reported the wrong
+  identity, or the transaction watchdog firing on a stall that was not one.
+  macOS was never affected — the guard that was supposed to prevent this
+  compiled to a constant *false* everywhere else. **8.5 and 8.6 carry the
+  defect on Windows and Linux; update.**
+- **The MCP pre-check no longer cries wolf.** On Windows, KAME could announce
+  that no Python with `mcp` and `jupyter_client` was found — and then start the
+  server anyway, on the next line. The startup pre-check probed candidates with
+  KAME's own `PYTHONHOME` still set, which under `kame-msyspython.bat` points a
+  real CPython at MSYS2's standard library and kills it on `_socket`; it now
+  strips that environment, as the other probe already did. The same fix cures
+  the Pydantic AI interpreter search.
+- **The test suites build under MSVC**, not only clang/MinGW, and every test
+  that builds there passes.
+
+## What's New in 8.6
+
+- **Windows: MCP works — and the release zip now actually contains it.** Nothing deployed `scriptfile.files` on Windows (they sat in `DISTFILES`, which copies nothing), and `mkzip.bat` packaged the build tree's `resources\` wholesale, so whether `kame_mcp_server.py` reached a release depended on whether someone had once hand-copied it there. **The 8.4 and 8.5 Windows binaries could therefore be missing it**, and the resulting `can't open file …\Resources\kame_mcp_server.py` gave no hint that the fix was to fetch the file from the source archive. Both a build and a release now run `tools/deploy_scripts.bat`, so they get an identical, complete set. Three further faults each hid the next: `pip install mcp` now serves 2.x without the `mcp.server.fastmcp` the server imports, the MSYS2 launcher's `PYTHONHOME` was inherited by a real CPython that cannot load mingw extensions, and `FastMCP.run(host=…)` is a `TypeError` in mcp 1.x.
+- **Permanent client registration.** One Script-pane action registers KAME with Codex, Antigravity CLI (`agy`) and Claude Desktop, each through the mechanism that client provides, and reports every change before it writes. LM Studio / Bionic need nothing — a project opened on the notebook workspace reads the `.mcp.json` KAME already writes there.
+- **The model stays yours.** The Pydantic AI links hand KAME's agent to your own `clai` (`clai -a kame_pydantic_ai:agent`), so provider, keys and default come from the setup you already have and KAME never asks which model to use.
+- Agent plugin: the MCP server and a `kame-measurement` skill as one directory, both a Claude Code plugin and an [Agent Plugins 1.0.0](https://agent-plugins.org/) one.
+- Usage records: one JSONL line per MCP tool call and per model request — counts and timings only, never prompt or response text.
+- Windows: the Claude and Codex desktop links open the apps, which ship as MSIX and are reachable only by AppUserModelID.
+- macOS: idle CPU back to a few percent — the main loop never asked to wait, so it could not sleep.
+- The Jupyter server exits with KAME instead of orphaning itself; a second click reopens the running one.
+- MCP async jobs can read their own thread context, and tracebacks arrive without IPython's colour escapes.
+
+---
+
+## What's New in 8.5
+
+- **Linux is a supported platform** — Qt 6 / qmake, verified on Ubuntu 26.04 including `PREEMPT_RT`. Two paths have real hardware behind them: the Thamway FX2/FX3 USB path, whose first Linux run found and fixed four crashes, and the usermode NI USB-GPIB driver. See `INSTALL.linux`.
+- **Crash audit with automated checkers** — `tools/audit/run_audits.sh` mechanically enforces the driver-authoring rules (node-name collisions, side effects in `iterate_commit` closures, pybind GIL discipline, UI-touching listeners, non-const Payload pointees), as a pre-commit hook and in CI.
+- **Pulser correctness** — overlapping RF pulses are refused rather than played, two operator-precedence bugs that left the amplifier gate open are fixed, and the `ASWSetup` clamp that recursed on itself is gone.
+- **One-click Codex launch** — Codex and codex-fugu join Claude Code in the Script pane, each started already pointed at this KAME's MCP server.
+
+---
+
 ## What's New in 8.0
 
-- **MCP server for AI-assisted experiment automation** — built-in [Model Context Protocol](https://modelcontextprotocol.io/) server lets AI assistants (Claude Code, Claude Desktop, etc.) execute Python code in the running KAME process, read instrument values, and control measurements through natural language. Matplotlib plots are returned inline. Long-running experiments (sweeps, scans) run asynchronously. To our knowledge, this is the first measurement software to integrate an MCP server.
+- **MCP server for AI-assisted experiment automation** — built-in [Model Context Protocol](https://modelcontextprotocol.io/) server lets AI assistants (Claude Code, Claude Desktop, etc.) execute Python code in the running KAME process, read instrument values, and control measurements through natural language. Matplotlib plots are returned inline. Long-running experiments (sweeps, scans) run asynchronously.
 - **Calibrated scalar entries** — `XCalibratedEntry` applies a calibration curve to any scalar entry; the result appears in graphs, charts, and data recording like a native scalar.
 - **Usermode NI USB-GPIB on Apple Silicon** — the embedded userspace linux-gpib port now works reliably on macOS ARM64 without any kernel module.
 - **Window cascade placement** — instrument windows are automatically arranged on show.
 - **Comprehensive bug audit** — 20 bug fixes across 12 source files (GIL safety, buffer bounds, null-pointer guards, logic errors).
-- **Arbitrary mask support for 2D math tools** — ROI math tools (Average, Sum) now support arbitrary binary masks in addition to Rectangle and Ellipse shapes. Masks can be set programmatically from Python via `setArbitraryMask()`. Highlighted masks are rendered as GPU textures.
-- **Math tool API cleanup** — ROI endpoint naming changed from `Begin/End` to `First/Last` (inclusive endpoints, avoids STL naming confusion). Added `imageWidth()`/`imageHeight()` to `X2DImagePlot` for Python access. Old `.kam` files with `Begin/End` names load transparently via compatibility aliases.
+- **Arbitrary masks for 2D math tools** — Rectangle, Ellipse, or a binary mask set from Python; highlights render as GPU textures.
+- **Math tool API cleanup** — ROI endpoints renamed `Begin/End` to `First/Last` (inclusive); old `.kam` files still load.
 
 ---
 
@@ -96,8 +180,9 @@ be carved out as their own subtrees for downstream embedding:
   plus the `atomic_shared_ptr<T>` engine, homed in `kamepoolalloc/`) extracted as a
   header-only library plus three small `.cpp` (`threadlocal` / `xthread` / `xtime`).
   TLA+ specs for the protocol; GenMC RC11-checked C translations.  Builds on
-  macOS clang / Linux gcc/clang (64+32-bit) / Windows **MinGW + MSVC** — all
-  11 standalone tests pass on each.  See [`kamestm/README.md`](kamestm/README.md).
+  macOS clang / Linux gcc/clang (64+32-bit) / Windows **MinGW + MSVC**, and the
+  registered standalone test suite passes on each (the exact test count is
+  platform-dependent).  See [`kamestm/README.md`](kamestm/README.md).
 - **[`kamepoolalloc/`](kamepoolalloc/) — Four-tier lock-free pool allocator.**
   1 B to multi-GiB span (buckets / dedicated chunks / large `mmap` / huge),
   per-thread DLL + cross-thread coalescing, two-level recycle cache, TLA+ /
@@ -105,7 +190,9 @@ be carved out as their own subtrees for downstream embedding:
   allocators on every OS via the native interposition: ELF strong symbols on
   Linux, Mach-O `__DATA,__interpose` on macOS, free-family IAT redirect on
   Windows (§31).  Builds on the same four toolchains; MSVC live pool is
-  default-on (opt OUT with `KAME_DISABLE_POOL_MSVC`).  See
+  default-on (opt OUT with `KAME_DISABLE_POOL_MSVC`).  Included in
+  [mimalloc-bench](https://github.com/daanx/mimalloc-bench) as `kp`, so it
+  can be measured against the usual field with the suite's own harness.  See
   [`kamepoolalloc/README.md`](kamepoolalloc/README.md) and the
   [INVARIANTS](kamepoolalloc/design/INVARIANTS.md) / [SUBSYSTEMS](kamepoolalloc/design/SUBSYSTEMS.md)
   navigation map.
@@ -153,7 +240,7 @@ any proprietary driver. On macOS this is the only viable path for USB-GPIB on Ap
 
 ### Python Integration
 
-*This section was written by Claude (Anthropic) based on analysis of the source code.*
+*This section was drafted with AI assistance (Anthropic Claude) and technically reviewed and verified by the maintainers.*
 
 Python access is provided via [pybind11](https://pybind11.readthedocs.io/). The embedded
 interpreter runs in its own OS thread; the Qt main thread and the Python thread communicate
@@ -206,10 +293,11 @@ a custom ipykernel integration (`loop_kamepysupport`).
 **AI-assisted experiment automation (MCP):**
 
 KAME includes an [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server
-that lets AI assistants such as Claude execute Python code directly in the running KAME
-interpreter. The MCP server connects to the embedded IPython kernel, giving the AI full
-access to `Root()`, `Snapshot()`, `Transaction()`, and all loaded drivers — the same
-environment available in Jupyter notebooks.
+that lets an AI assistant execute Python code directly in the running KAME interpreter.
+The MCP server connects to the embedded IPython kernel, giving the AI full access to
+`Root()`, `Snapshot()`, `Transaction()`, and all loaded drivers — the same environment
+available in Jupyter notebooks. Any MCP client works: Claude Code, Codex, Antigravity, Claude Desktop, LM Studio / Bionic, and a bundled
+Pydantic AI client that reaches any `provider:model`, local models included.
 
 This enables scenarios like:
 - Conversational experiment control ("sweep temperature from 100 K to 300 K and record resistance")
@@ -298,8 +386,10 @@ the negotiate machinery (`ScopedNegotiateLinkage::_negotiate()`) lets the
 single *oldest* transaction win — each contended linkage is tagged with the
 tagger's start-time stamp (oldest-wins), a starved Tx escalating to a
 privileged Reserved tag; non-privileged contenders **park** until it commits,
-so the oldest/highest-priority Tx always makes progress. Model-checked livelock-free in TLA+ (exhaustively for the checked
-thread counts and tree shapes). Full details + the comparison
+so the oldest/highest-priority Tx makes progress ahead of the contenders parked
+behind it. Model-checked livelock-free in TLA+ (exhaustively for the checked,
+finite thread counts and tree shapes — not a proof for arbitrary deployment
+sizes). Full details + the comparison
 against other STMs (Haskell `TVar` / Clojure `Ref` / ScalaSTM, HTM TSX/RTM,
 TinySTM / NOrec) live in [`kamestm/README.md`](kamestm/README.md) — KAME's
 STM core is dual-licensed and maintained as a standalone library, with its
@@ -319,14 +409,14 @@ threads. Traditional mutex-based designs either serialize too aggressively
 (dropping samples) or require intricate lock ordering that is error-prone
 to extend. The STM approach offers three concrete benefits for this domain:
 
-- **Deadlock-free by design.** No locks are held across hardware I/O or UI redraws.
-  A slow UI thread can never stall a fast acquisition thread.
+- **Deadlock-free by design.** No locks are held across hardware I/O or UI redraws,
+  so a slow UI thread does not block a fast acquisition thread behind a lock.
 - **Consistent multi-instrument views.** A `Snapshot` of any subtree is always
   internally consistent — the UI always sees a coherent set of readings even when
   multiple drivers update simultaneously.
 - **Safe scripting from Python/Ruby.** Scripts read and write the node tree through
-  the same transaction API as C++ code, so user scripts cannot corrupt instrument
-  state regardless of when they run.
+  the same transaction API as C++ code, so a user script cannot leave the node
+  tree in a partially-updated state, whenever it runs.
 
 For *what makes KAME's STM distinctive* among STMs (tree-structured /
 per-packet conflict granularity / bundling instead of read-write logs),
@@ -334,7 +424,10 @@ see the [comparison tables in `kamestm/README.md`](kamestm/README.md#comparison-
 
 #### Formal verification (TLA+)
 
-The STM protocol is formally specified and model-checked with TLA+ / TLC:
+The STM *protocol* is formally specified and exhaustively model-checked with
+TLA+ / TLC for the documented finite thread counts and tree topologies. This is
+model checking of the protocol model, not a proof of the C++ implementation for
+arbitrary deployment sizes, compiler mappings, or real-time WCET:
 
 - **Layer 1 — `atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting, drain release, and `scoped_atomic_view` ([spec](kamestm/tests/tlaplus/atomic_shared_ptr.tla)). Safety only — the bare primitive is intentionally *not* livelock-free.
 - **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](kamestm/tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](kamestm/tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](kamestm/tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Exhaustively model-checked **safe + livelock-free** without `CONSTRAINT` (the LL-free design makes the state space naturally finite — no artificial bound); the largest single exhaustive run reaches **~641 M distinct states** (3-level all-root, 15 h on the ISSP ohtaka supercomputer), over a billion across the LL-free configurations combined. (Raw state counts are **spec-version-specific** and shift as the spec evolves — see [kamestm/tests/VERIFICATION.md](kamestm/tests/VERIFICATION.md) §3–§4 for current-spec figures.) These are exhaustive results for the checked configurations (fixed thread counts and tree shapes), not an unbounded ∀-thread proof.
@@ -350,7 +443,7 @@ C11 translations of each layer are verified with [GenMC](https://github.com/MPI-
 
 | Library | Notes |
 |---|---|
-| **Qt** ≥ 5.7 or Qt 6 | Qt 5 compatibility module required for Qt 6 |
+| **Qt** ≥ 5.7 or Qt 6 | Qt 6 needs `uitools`; the Qt5 compatibility module is **no longer** required |
 | **Ruby** | scripting |
 | **pybind11** | Python scripting |
 | **GSL** | |
@@ -365,7 +458,8 @@ C11 translations of each layer are verified with [GenMC](https://github.com/MPI-
 
 A C++11-capable compiler is required (the build uses `CONFIG += c++11` via qmake).
 
-Optional: IPython / Jupyter notebook, linux-gpib or NI 488.2, NI DAQmx, libdc1394 (macOS cameras).
+Optional: IPython / Jupyter notebook, linux-gpib or NI 488.2, NI DAQmx,
+libdc1394 (IIDC cameras, macOS/Linux), Euresys eGrabber SDK (frame grabbers).
 
 ---
 
@@ -392,8 +486,61 @@ Additional notes:
 - Add `/opt/local/bin` to PATH in the Qt Creator build-environment pane if needed.
 - In Qt Creator's **executable environment** pane, **deactivate** "Add build library search path to DYLD_LIBRARY_PATH …", otherwise KAME crashes on launch.
 - If `ruby.h` is not found, reinstall Xcode command-line tools: `xcode-select --install`.
-- Qt 6: the **Qt5 compatibility module** must be selected during Qt installation.
+- Qt 6: the **Qt5 compatibility module is no longer needed** — the last user of it was a dead `QTextCodec` include, now removed.
 - NI 488.2 is not supported on Apple Silicon; use the built-in usermode NI USB-GPIB driver instead (no kernel module required).
+
+---
+
+### Linux (x86-64, Qt 6 / GCC) — *supported from 8.5*
+
+> Build from source; there is no packaged Linux binary yet.  Full notes,
+> including the serial/GPIB smoke test and the remaining gaps, are in
+> **`INSTALL.linux`**.
+
+Verified on Ubuntu 26.04, x86-64, including the `PREEMPT_RT` kernel the
+realtime measurements below use.
+
+```sh
+sudo apt install -y \
+    qt6-base-dev qt6-base-dev-tools qt6-tools-dev qt6-tools-dev-tools \
+    libgl1-mesa-dev libglu1-mesa-dev \
+    libgsl-dev libfftw3-dev libltdl-dev libeigen3-dev zlib1g-dev \
+    libusb-1.0-0-dev ruby-dev python3-dev python3-pybind11
+```
+
+```sh
+mkdir build && cd build
+qmake6 ../kame.pro          # prints which Ruby and which Python it picked
+make -j$(nproc)
+./bin/kame                  # modules are found automatically; no --moduledir needed
+```
+
+Notes:
+
+- The executable lands in **`build/bin/kame`**, and the driver modules are
+  grouped beside it under `bin/{coremodules,coremodules2,modules}` — which is
+  where `QApplication::libraryPaths()` looks, so the build tree runs as-is.
+- **Ruby headers are mandatory** (`script/xrubysupport.cpp` is compiled
+  unconditionally). `kame.pro` asks the interpreter via `RbConfig`, so any
+  packaged or rbenv/rvm Ruby works and its libdir is recorded as a RUNPATH.
+- **pybind11 is optional but strongly recommended**: without it there is no
+  Python scripting, no Jupyter/IPython console, no MCP server, and `.kam`
+  files fall back to the legacy Ruby loader. `python3 -m pybind11 --includes`
+  must succeed for the interpreter qmake selects.
+- Jupyter is a separate runtime dependency and must be installed into the
+  interpreter KAME *embeds*:
+  `python3 -m pip install ipykernel ipython jupyter nest_asyncio numpy`.
+- **Installing:** `qmake6 ../kame.pro PREFIX=/usr/local && make && sudo make install`
+  deploys the binary, the modules to `$PREFIX/lib/kame/`, the scripts, manual
+  and translations to `$PREFIX/share/kame/`, a `.desktop` entry, hicolor icons,
+  and udev rules for the libusb instruments (`kame/70-kame.rules`).
+- **GPIB:** with linux-gpib headers present, `HAVE_LINUX_GPIB` selects the
+  native kernel-driver path; without them, `Device = GPIB` falls back to the
+  bundled usermode NI USB-GPIB driver (libusb, no kernel module).
+  `PrologixGPIBUSB` is available either way.
+- **Vendor SDKs** (NI-DAQmx, Digilent WaveForms, Euresys eGrabber) are probed
+  and enable their drivers when installed; when absent, those modules build but
+  register nothing.
 
 ---
 
@@ -416,6 +563,25 @@ pacman -S make \
     mingw-w64-x86_64-ruby
 ```
 
+For the in-process Jupyter kernel and the notebook server (the
+`kame-msyspython.bat` route below), add the notebook stack — MSYS2's Python is
+`EXTERNALLY-MANAGED` and ships no `pip` module, so these must come from
+`pacman`, not `pip`:
+
+```sh
+pacman -S mingw-w64-x86_64-python-ipykernel \
+    mingw-w64-x86_64-python-ipython \
+    mingw-w64-x86_64-python-jupyter_notebook \
+    mingw-w64-x86_64-python-pyzmq \
+    mingw-w64-x86_64-python-matplotlib
+```
+
+`python-jupyter_notebook` is the one that provides the `jupyter-notebook`
+subcommand — note the name: there is no `python-notebook` in MSYS2. Installing
+only `ipykernel` gives a working kernel but leaves `jupyter notebook` failing
+with *"Jupyter command `jupyter-notebook` not found"* (its `jupyter.exe` comes
+from `jupyter_core`, which has no notebook server in it).
+
 NI 488.2 or DAQmx drivers are optional.
 
 **Before running KAME**, copy the following DLLs from `C:\msys64\mingw64\bin` alongside the KAME executable:
@@ -426,14 +592,31 @@ zlib1.dll  libgmp-10.dll  libusb-1.0.dll
 x64-msvcrt-ruby3**.dll
 ```
 
-Also copy `kame/script/rubylineshell.rb` and `kame/script/pythonlineshell.py` to `./Resources`.
+The **script files are deployed for you** at link time, into `.\resources`
+next to `kame.exe` — `rubylineshell.rb`, `pythonlineshell.py`, the two
+notebook files, `kame_mcp_server.py`, `kame_pydantic_ai.py`,
+`kame_python_api.md`, the user's manual (`kame-9-en.md` + `media\`), and
+`plugin\`. Qt Creator needs no extra step; `tools\deploy_scripts.bat
+<resources-dir>` does the same by hand if you ever need it, and
+`tools\mkzip.bat` calls it when assembling a release.
+
+> Older trees had no such step (qmake only lists these in `DISTFILES`, which
+> copies nothing), so a Windows build ran with whatever had been hand-copied
+> into `resources\` once. That is worth knowing if you inherit one: without
+> `kame_mcp_server.py` there is no MCP server to launch at all, and the
+> `kame_api` / `kame_manual` tools read `kame_python_api.md` and
+> `kame-9-en.md` from that directory. `plugin\` ships for parity with macOS
+> but is inert on Windows — its `.mcp.json` invokes a POSIX-sh launcher,
+> which is why the **Claude: Code** quick-launch link omits `--plugin-dir`
+> there.
 
 **Launch scripts:**
 
 | Script | Purpose |
 |---|---|
-| `kame.bat` | Standard launch (system Python) |
-| `kame-msyspython.bat` | Launch with MSYS2 Python (numpy, etc.) |
+| `kame.bat` | Standard launch — bundled `.\resources\python3.12` (standard library only, no `pip`). Scripting works; there is no `ipykernel`, so no in-process Jupyter kernel — and therefore nothing for the MCP server to attach to |
+| `kame-msyspython.bat` | Launch with MSYS2 Python (`PYTHONHOME=C:\msys64\mingw64`) — the one to use for the in-process Jupyter kernel, given the `python-ipykernel` packages above |
+| `kame-qtenv.bat` | Not launched directly; both of the above `call` it to find Qt. Several Qt versions may coexist — it takes the highest and caches the choice in `qtdir.txt`. Run `kame-qtenv.bat print` to see what it would use, put a specific `Qt6Core.dll` path in `qtdir.txt` to pin one, or `set QTROOT=D:\Qt` if your Qt is somewhere unusual |
 
 To launch from Qt Creator, add to **Projects → Environment**:
 
@@ -475,42 +658,161 @@ This enables conversational experiment control:
 
 ### Available MCP tools
 
+Every tool carries MCP annotations, so a client can tell reads from writes
+without parsing prose: the seven read-only ones are marked `readOnlyHint`, and
+`execute_code`, `execute_code_async` and `notebook_edit` are marked
+`destructiveHint`.
+
 | Tool | Description |
 |---|---|
-| `kame_api` | Return the Python API quick reference (call first) |
+| `kame_api` | Python API reference, one topic at a time (call first; no argument lists the topics) |
+| `kame_manual` | The user's manual, section-wise — UI operation, per-driver settings, NMR workflow |
 | `execute_code` | Run Python in KAME's interpreter (returns text + matplotlib plots) |
 | `execute_code_async` | Run long experiments asynchronously (sweeps, scans) |
-| `get_result` | Check status of an async job |
+| `get_result` / `stop_job` | Poll progress of an async job, or ask it to stop at its next checkpoint |
 | `tree` | Browse the node tree with configurable depth (compact indented output) |
-| `kame_status` | Check if KAME is running and list active drivers (JSON) |
+| `kame_status` | Check if KAME is running and list active drivers |
+| `notebook_status` / `notebook_read` / `notebook_edit` | Inspect and edit the user's Jupyter measurement cells |
+
+The instrument-safety rules — motion, cryogenic warming, RF duty, and reading
+camera counts rather than the display image — live in the server's MCP
+`instructions`, which every client receives, rather than in any one client's
+prompt.
 
 ### Quick start
 
-1. Install prerequisites:
-   ```sh
-   pip install mcp jupyter_client
-   ```
-2. Start KAME and launch a Jupyter notebook (Script → Launch Jupyter Notebook).
-   KAME writes `.mcp.json` to the notebook workspace directory automatically.
-3. Open Claude Code in the same directory — the MCP server is discovered and
-   connected automatically.
-4. Ask Claude to interact with your instruments. The `.mcp.json` file is removed
-   when KAME exits.
+Start KAME and launch a Jupyter notebook (Script → Launch Jupyter Notebook,
+or the **▶ Jupyter notebook** link in the Script pane). KAME then starts the
+MCP server itself and writes its address and token to `~/.kame_mcp_url` and a
+`.mcp.json` in the notebook workspace; both are removed when KAME exits.
 
-**Manual setup** (without Jupyter):
+The Script pane then offers one-click launches, each already pointed at that
+server:
+
+| Link | Launches |
+|---|---|
+| **Claude: Code / app** | Claude Code in a terminal (with the bundled plugin, below) / the Claude desktop app |
+| **Codex: CLI / fugu / app** | Codex in a terminal, with the server passed as a session-scoped override — nothing is written to `~/.codex/config.toml` |
+| **Pydantic AI: CLI / web / ⚙ settings / ⚙ agent** | The venv's `clai`, handed an agent. **⚙ settings** creates `~/.kame_pyai.env` from a commented template and opens it: the model (`KAME_PYAI_MODEL=provider:name`, several comma-separated fill the web UI's menu; `sakana:fugu` is resolved by KAME's agent with `SAKANA_API_KEY`) and the provider's API key go there, one line each — no shell export needed, since neither pydantic-ai nor `clai` reads a `.env` and a GUI process sees no exports. **web** picks a free port and opens the browser on it once the server answers; if your module builds an app with `Agent.to_web(models=…)`, that app is served (with `uvicorn`) so your own model list is the one in the UI. **⚙ agent** picks an agent module of your own — KAME checks it exposes a `pydantic_ai.Agent`, remembers which variable, and runs it from its own directory; Cancel returns to the one KAME ships. Such a module needs nothing hard-coded: `from kame_pydantic_ai import kame_mcp` gives it the running KAME as a capability |
+
+Prerequisites are `pip install mcp jupyter_client` for the server, and
+`pip install pydantic-ai clai` if you want the Pydantic AI links. Either mcp
+1.x or 2.x works from **8.6.1** on: 2.0 renamed the server class and moved its
+module (`mcp.server.fastmcp.FastMCP` → `mcp.server.MCPServer`), and both the
+server and KAME's interpreter probe take whichever is installed. **On 8.6 and
+earlier, pin it — `pip install "mcp<2"`** — those builds import
+`mcp.server.fastmcp` only, so an unpinned install there lands a package that
+imports yet cannot start the server. The server
+runs as its **own process**, so this need not be the interpreter embedded in
+KAME: KAME probes candidates — Jupyter's own interpreter, a `kame-mcp-venv`
+(preferred, searched upward from the resource directory), `python3`, and
+versioned `python3.X` names — and picks the first that can actually import
+`jupyter_client` and either of the two mcp entry points.
+
+> **On Windows, use a `kame-mcp-venv`.** None of the interpreters KAME can
+> otherwise reach will do: the bundled `resources\python3.12` has no `pip`,
+> MSYS2's Python is `EXTERNALLY-MANAGED` with no `pip` module (and `mcp` /
+> `pydantic-ai` are not in `pacman`), and `python3` on `PATH` is usually the
+> Microsoft Store App-Execution-Alias stub, which only prints an
+> "install from the Store" message. Create the venv from a real CPython
+> ≥ 3.10 (what `mcp` requires) — [`uv`](https://docs.astral.sh/uv/) is the
+> least intrusive way — and put it next to `kame.exe`:
+>
+> ```
+> uv venv --python 3.12 kame-mcp-venv
+> uv pip install --python kame-mcp-venv\Scripts\python.exe mcp jupyter_client
+> ```
+>
+> The probe searches upward from the resource directory, so the venv may also
+> sit further up — one level above the unzipped folder, or beside the source
+> checkout for a Qt Creator build — whichever is convenient.
+
+**Registering permanently** — a client KAME did not launch gets no
+per-session override, so it needs an entry of its own. The Script pane's
+**▶ Register KAME with your AI clients** link writes one into whichever
+clients are installed. The first click only reports what would change — every
+target path, and the old and new entry for any file that gets edited — and a
+second applies it.
+
+| Client | How it is registered |
+|---|---|
+| Codex | `codex mcp add` |
+| Antigravity CLI (`agy`) | `agy mcp add` — writes `~/.gemini/config/mcp_config.json` |
+| Claude Desktop | additive edit of `claude_desktop_config.json`, after a backup |
+| Bionic / LM Studio | nothing to do — open the notebook workspace as a project and it reads the `.mcp.json` KAME writes there |
+
+Where a client ships a CLI for this, that CLI is used rather than an edit to
+its file: it knows fields we would not think to write (`agy` records
+`"disabled": false` beside the command). Only clients offering neither a CLI
+nor a workspace convention get their JSON edited, and then only the one key.
+
+The entry runs the plugin's stdio launcher rather than the HTTP URL, so it
+survives KAME restarts (the port does not) and is inert — tools simply report
+that KAME is not running — while KAME is closed.
+
+**Connecting a client KAME did not launch** — read the URL and bearer token
+from `~/.kame_mcp_url`; the port is assigned per launch, so do not hard-code
+it. For example, with Pydantic AI:
+
+```python
+import json, pathlib
+from pydantic_ai.mcp import MCPToolset
+
+info = json.loads((pathlib.Path.home() / '.kame_mcp_url').read_text())
+kame = MCPToolset(info['url'], auth=info['token'])   # instructions included
+```
+
+### Agent plugin (skill + server in one directory)
+
+`kame/script/plugin/` packages the MCP server together with a
+`kame-measurement` skill, so an assistant carries KAME's measurement
+procedures in any directory — not only the notebook workspace. The directory
+is dual-format: `.claude-plugin/` for Claude Code, and root `plugin.json` +
+`mcp.json` conforming to the cross-vendor
+[Agent Plugins 1.0.0](https://agent-plugins.org/) specification used by Codex,
+ChatGPT, Cursor, GitHub Copilot, Kiro and VS Code. The `skills/` directory
+serves both.
 
 ```sh
-claude mcp add kame /path/to/python /path/to/KAME/Resources/kame_mcp_server.py
+# Claude Code
+/plugin marketplace add northriv/KAME
+/plugin install kame@kame
+
+# Codex (and other Agent Plugins clients)
+codex plugin marketplace add northriv/KAME
+codex plugin add kame@kame
 ```
+
+Sessions started from KAME's **▶ Claude Code** link get the plugin passed with
+`--plugin-dir` automatically and need no install at all.
+
+The split of duties is deliberate: rules an agent must obey to avoid damaging
+an instrument stay in the server's `instructions`, because every MCP client
+sees those, while the skill carries the longer procedures for clients that
+support skills. Removing the skill must never make an agent unsafe.
+
+### Usage records
+
+KAME appends one JSONL line per MCP tool call to `~/.kame_mcp_log/`, and the
+Pydantic AI client appends one line per model request to `usage.jsonl` beside
+it — calls, tokens and inference time, never prompt or response text. The
+first is provenance for reconstructing what an assistant did; the second
+gives API-cost and local-inference figures that providers do not always
+report back. Both default on; disable with `KAME_MCP_NO_LOG` and
+`KAME_USAGE_NO_LOG` respectively.
 
 ### How it works
 
-1. When KAME launches a Jupyter notebook, it writes the kernel connection path to
-   `~/.kame_kernel_connection.json`.
-2. The MCP server reads that file and connects to the kernel via ZMQ (`jupyter_client`).
-3. The AI client launches the MCP server as a subprocess (stdio transport).
-4. The server ships `kame_python_api.md` — an API reference that Claude reads
-   automatically before writing code, reducing trial-and-error.
+1. When KAME launches a Jupyter notebook, it writes the kernel connection path
+   and its own resource directory to `~/.kame_kernel_connection.json`.
+2. The MCP server reads that file and connects to the kernel via ZMQ
+   (`jupyter_client`), so it is unaffected by which port anything is on.
+3. KAME starts the server over streamable HTTP on an OS-assigned port with a
+   bearer token, which it hands over in the environment rather than in the
+   command line. stdio remains available (`--transport=stdio`) and is what the
+   plugin's launcher uses.
+4. The server ships `kame_python_api.md` and the user's manual, which the
+   assistant reads a topic at a time before writing code.
 
 ---
 
@@ -520,4 +822,16 @@ Bug reports and pull requests are welcome on [GitHub](https://github.com/northri
 
 ---
 
-*This README was written with the assistance of [Claude](https://claude.ai) (Anthropic).*
+## Acknowledgements
+
+Developed at [Kitagawa Laboratory, ISSP, University of Tokyo](https://kitag.issp.u-tokyo.ac.jp/).
+
+This work was supported by the MEXT Supporting Pioneering Research through
+AI for 1,000 Discovery challenges Program (SPReAD), Japan, Grant Number
+JPMXP1726275196.  Model checking used the facilities of the Supercomputer
+Center, Institute for Solid State Physics, the University of Tokyo
+(2026-A-0004).
+
+---
+
+*This README was drafted with AI assistance ([Claude](https://claude.ai), Anthropic) and reviewed and verified by the maintainers.*

@@ -99,8 +99,17 @@ static inline void retry_pause(int retry) noexcept {
 inline int effective_runners(int c_obs) noexcept;
 #else
 inline int effective_runners(int) noexcept {
-    int hw = (int)std::thread::hardware_concurrency();
-    return hw > 0 ? hw : 1;
+    //! Cached: on Linux/glibc hardware_concurrency() re-reads
+    //! /sys/devices/system/cpu/online per call (3 syscalls) — see the
+    //! livelock-probe comment in transaction_neg_impl.h, where the same
+    //! uncached call was found costing ~2 us per probe tick inside RT
+    //! commits.  This overload is dead in the default configuration
+    //! (MIN/MAX_RUNNERS gate it out), fixed for whoever un-deads it.
+    static const int hw = []{
+        int h = (int)std::thread::hardware_concurrency();
+        return h > 0 ? h : 1;
+    }();
+    return hw;
 }
 #endif
 
@@ -236,7 +245,64 @@ class ScopedNegotiateLinkage {
     scoped_atomic_view<PacketWrapper> m_view;
     float           m_mult_wait;             // retained from ctor for dtor's negotiate
     bool            m_eager;
-    bool            m_should_tag;            // retry != 0 — fast-path optimization
+    bool            m_should_tag;            // retry != 0, or HIGHEST
+    //! `retry != 0` is a fast-path optimisation: do not pay a tag CAS until
+    //! the first pass has actually collided.  For HIGHEST that optimisation
+    //! is the bug.  `bundle()` walks every child with a retry==0 scope, so on
+    //! the pass that matters it touches each child's Linkage and leaves it
+    //! UNSTAMPED.  A peer then writes that child freely, the bundle returns
+    //! DISTURBED, and the privilege HIGHEST holds on the subtree ROOT never
+    //! enters it -- the peer never went through the root.  Shielded surface
+    //! one Linkage, exposed surface the whole subtree; it shows up as a
+    //! rebuild count that tracks LEAVES and blows the 2L bound.
+    //!
+    //! (`_force_tag_for_preempt` cannot substitute: it requires
+    //! `fair_mode_blocks_me` to be true already, i.e. somebody ELSE holding
+    //! privilege on that Linkage.  It is a way to preempt, not to claim.)
+    //!
+    //! Tagging HIGHEST from retry 0 makes the shielded surface equal the
+    //! bundled one.  Costs one TLS read per scope, and a tag CAS per child
+    //! per bundle pass -- which is the throughput this buys the bound with.
+    static bool highest_tags_eagerly_() noexcept {
+        return getCurrentPriorityMode() == Priority::HIGHEST;
+    }
+    //! HIGHEST stamps the slot BEFORE it takes the view; everyone else keeps
+    //! the original order (view, then tag).  Two things follow, and the second
+    //! is the reason to do it.
+    //!
+    //!   * The untagged entry disappears.  Between the acquire and the tag,
+    //!     HIGHEST holds a view of a Linkage it has not claimed, and a peer
+    //!     CAS landing there stales a view already taken -- one loss per
+    //!     Linkage per Snapshot, since every later touch finds the tag
+    //!     already down.  NegotiateReserve.tla prices it exactly: the bound
+    //!     goes from (T-1)K + 1 to (T-1)K per Linkage, exhaustively at
+    //!     T in {3,4} and K in {1,2}.
+    //!
+    //!   * The FIRST touch stops being weak.  `we_hold_priv` used to be read
+    //!     before our own tag existed, so it was false on every Linkage's
+    //!     first touch and the ctor took the weak acquire and the weak CAS
+    //!     there.  On x86 a weak CAS failure means real contention, but on a
+    //!     weak-memory target it can be spurious, and a spurious failure on
+    //!     the first touch of every Linkage is not something a realtime bound
+    //!     can absorb.  Tagging first makes i_am_privileged_now true, so the
+    //!     acquire is DEFER_THRESHOLD + strong and the CAS dispatches to
+    //!     compareAndSetStrong*, which fails only on a real pointer change.
+    //!
+    //! Older-first between HIGHESTs is unaffected: the arbitration lives
+    //! entirely in tag_as_contender's rule cascade, which reads the slot and
+    //! our own stamp and nothing else -- no view is involved.  If anything it
+    //! is served better, because the older HIGHEST's Reserved stamp is down
+    //! sooner, so a younger HIGHEST's negotiate is likelier to see it and
+    //! defer on the age gate in _negotiate_internal.
+    //!
+    //! What it costs: a scope that tags and then fails its acquire leaves a
+    //! Reserved stamp on a Linkage it never used, until drop_tags_n_privilege.
+    //! Peers stay off it in the meantime.  That is the same exposure as any
+    //! never-expiring HIGHEST privilege here, and the earlier claim is the
+    //! intent rather than an accident.
+    bool _tag_before_acquire_() const noexcept {
+        return m_eager && m_should_tag && highest_tags_eagerly_();
+    }
     bool            m_committed = false;
     bool            m_contention_observed = false;  // forces dtor tag despite retry==0
     //! True iff the privileged thread (s_privileged_tidstamp holder)
@@ -379,7 +445,7 @@ public:
         : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
-          m_should_tag(retry != 0)
+          m_should_tag(retry != 0 || highest_tags_eagerly_())
 #if KAME_ENABLE_RUNNER_DIGEST
         , m_caller_line(caller_line)
 #endif
@@ -436,10 +502,40 @@ public:
         // stale after preemption (a peer's older Tx may have
         // overwritten our Reserved stamp via tag_as_contender).
         // Strong-mode acquire is only safe when we *actually* still
-        // hold the Reserved stamp on this Linkage.
+        // hold the Reserved stamp on this Linkage (or, under Rule 0d, a
+        // validated HIGHEST tag — same predicate, see i_am_privileged_now).
         using NC = typename Node<XN>::NegotiationCounter;
-        bool we_hold_priv = NC::i_am_privileged_now(m_snap->m_started_time,
-                                                    m_link.get());
+        const bool _tag_first = _tag_before_acquire_();
+        bool we_hold_priv;
+        if(_tag_first) {
+            we_hold_priv = m_snap->tag_as_contender(m_link);
+            // StoreLoad fence (per the 2026-08-14 memory-order audit): the
+            // reorder's bound assumes the tag is VISIBLE before the view is
+            // read, and that is the one ordering release/acquire cannot buy.
+            // The store-verify above does not prove it either -- an
+            // own-location acquire load is satisfied from the store buffer
+            // (store forwarding), on x86 and ARM alike.  Without this fence
+            // the guarantee was parasitic on x86 only (the view pin's locked
+            // RMW drains the buffer) and absent on ARM64 (casal's acquire
+            // half does not order an earlier store before its own load), so
+            // a ns-scale window re-admitted the +1 the reorder deletes.
+            // Cost: HIGHEST first-touch per Linkage per Snapshot only.
+            // This closes H's half of the store-buffering pair and GenMC
+            // confirms it is individually necessary (tests/tlaplus/
+            // test_negotiate_reserve.c: violation with it removed even when
+            // the peer is fenced).  The peer's half -- its NEXT licence
+            // check reordering above its own commit CAS -- is closed for
+            // free on x86 (a locked RMW is a full barrier) and left open on
+            // ARMv8 (casal is not) as a deliberate trade: fencing it costs
+            // a dmb on every tier's commit, and the exposure is one
+            // +1-class licensed win per store-buffer drain.  The litmus
+            // carries the provable (both-fenced) and as-implemented
+            // variants, the latter as a checked-in counterexample.
+            std::atomic_thread_fence(std::memory_order_seq_cst);
+        }
+        else
+            we_hold_priv = NC::i_am_privileged_now(
+                m_snap->m_started_time, m_link.get());
         // STRONG-mode acquire+CAS for the privileged thread: privilege
         // is exclusive and fair_mode blocks all other threads' CAS on
         // this linkage, so a strong spin has no peer to contend with.
@@ -481,9 +577,9 @@ public:
         // stamp during walkUpChain / snapshotForUnbundle.
         using NC2 = typename Node<XN>::NegotiationCounter;
         const bool _force_tag_for_preempt =
-            m_eager && !m_should_tag
+            !_tag_first && m_eager && !m_should_tag
             && NC2::fair_mode_blocks_me(m_snap->m_started_time, m_link.get());
-        if((m_eager && m_should_tag) || _force_tag_for_preempt)
+        if(( !_tag_first && m_eager && m_should_tag) || _force_tag_for_preempt)
             m_snap->tag_as_contender(m_link);
     }
 
@@ -512,7 +608,7 @@ public:
         : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
-          m_should_tag(retry != 0)
+          m_should_tag(retry != 0 || highest_tags_eagerly_())
 #if KAME_ENABLE_RUNNER_DIGEST
         , m_caller_line(caller_line)
 #endif
@@ -545,8 +641,17 @@ public:
         _shift_gate_history();   // captures decision before _on_cas_* clears it
 #endif
         m_view = scoped_atomic_view<PacketWrapper>(*m_link, std::move(from));
-        m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
-                            m_snap->m_started_time, m_link.get());
+        const bool _tag_first = _tag_before_acquire_();
+        if(_tag_first) {
+            m_strong_mode = m_snap->tag_as_contender(m_link);
+            // StoreLoad fence -- see the first _tag_first site for the full
+            // rationale (store forwarding defeats the verify; x86 was
+            // parasitically safe via the pin's locked RMW, ARM64 was not).
+            std::atomic_thread_fence(std::memory_order_seq_cst);
+        }
+        else
+            m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
+                m_snap->m_started_time, m_link.get());
         // Per user ("olderがpreemptできるように"): when someone else
         // holds per-Linkage privilege on this slot, force tag_as_contender
         // even on retry=0 (m_should_tag=false).  tag_as_contender's window
@@ -559,9 +664,9 @@ public:
         // stamp during walkUpChain / snapshotForUnbundle.
         using NC2 = typename Node<XN>::NegotiationCounter;
         const bool _force_tag_for_preempt =
-            m_eager && !m_should_tag
+            !_tag_first && m_eager && !m_should_tag
             && NC2::fair_mode_blocks_me(m_snap->m_started_time, m_link.get());
-        if((m_eager && m_should_tag) || _force_tag_for_preempt)
+        if(( !_tag_first && m_eager && m_should_tag) || _force_tag_for_preempt)
             m_snap->tag_as_contender(m_link);
     }
 
@@ -580,7 +685,7 @@ public:
         : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
-          m_should_tag(retry != 0)
+          m_should_tag(retry != 0 || highest_tags_eagerly_())
 #if KAME_ENABLE_RUNNER_DIGEST
         , m_caller_line(caller_line)
 #endif
@@ -613,8 +718,17 @@ public:
         _shift_gate_history();   // captures decision before _on_cas_* clears it
 #endif
         m_view = std::move(from);
-        m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
-                            m_snap->m_started_time, m_link.get());
+        const bool _tag_first = _tag_before_acquire_();
+        if(_tag_first) {
+            m_strong_mode = m_snap->tag_as_contender(m_link);
+            // StoreLoad fence -- see the first _tag_first site for the full
+            // rationale (store forwarding defeats the verify; x86 was
+            // parasitically safe via the pin's locked RMW, ARM64 was not).
+            std::atomic_thread_fence(std::memory_order_seq_cst);
+        }
+        else
+            m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
+                m_snap->m_started_time, m_link.get());
         // Per user ("olderがpreemptできるように"): when someone else
         // holds per-Linkage privilege on this slot, force tag_as_contender
         // even on retry=0 (m_should_tag=false).  tag_as_contender's window
@@ -627,9 +741,9 @@ public:
         // stamp during walkUpChain / snapshotForUnbundle.
         using NC2 = typename Node<XN>::NegotiationCounter;
         const bool _force_tag_for_preempt =
-            m_eager && !m_should_tag
+            !_tag_first && m_eager && !m_should_tag
             && NC2::fair_mode_blocks_me(m_snap->m_started_time, m_link.get());
-        if((m_eager && m_should_tag) || _force_tag_for_preempt)
+        if(( !_tag_first && m_eager && m_should_tag) || _force_tag_for_preempt)
             m_snap->tag_as_contender(m_link);
     }
 
@@ -773,6 +887,19 @@ public:
     //! scopes use the WEAK fast path; conservative dtor tag on
     //! spurious failure (m_contention_observed).
     bool compareAndSet(const local_shared_ptr<PacketWrapper> &desired) noexcept {
+        //! THE RULE, made checkable (user, 2026-08-12): every CAS on a
+        //! Linkage's packet is preceded by negotiate, and negotiate makes a
+        //! thread yield while a peer holds privilege there.  That is what
+        //! protects the PACKET -- privilege sits on the tag word, the packet
+        //! is a different word, and only this rule connects them.  So being
+        //! here while `fair_mode_blocks_me` is true means some path reached a
+        //! CAS without negotiating, and the stack says which.
+        //!
+        //! Why it is worth an assert: a HIGHEST bundle loses these two CASes
+        //! ~1300 times in 25 s at 16 leaves with its OWN Reserved stamp still
+        //! on the parent Linkage (10 of 10 sampled), and that is the whole of
+        //! the rebuild count.  Either a peer is breaking the rule or the
+        //! yield has an exit that lets it through.
         if (m_strong_mode) {
             if (m_link->compareAndSetStrong(m_view, desired)) {
                 _on_cas_success();
@@ -839,6 +966,19 @@ public:
     //! failure undo is fetch_sub(2) (same op count).
     //! Strong/weak dispatch as in compareAndSet.
     bool compareAndSetRetain(const local_shared_ptr<PacketWrapper> &desired) noexcept {
+        //! THE RULE, made checkable (user, 2026-08-12): every CAS on a
+        //! Linkage's packet is preceded by negotiate, and negotiate makes a
+        //! thread yield while a peer holds privilege there.  That is what
+        //! protects the PACKET -- privilege sits on the tag word, the packet
+        //! is a different word, and only this rule connects them.  So being
+        //! here while `fair_mode_blocks_me` is true means some path reached a
+        //! CAS without negotiating, and the stack says which.
+        //!
+        //! Why it is worth an assert: a HIGHEST bundle loses these two CASes
+        //! ~1300 times in 25 s at 16 leaves with its OWN Reserved stamp still
+        //! on the parent Linkage (10 of 10 sampled), and that is the whole of
+        //! the rebuild count.  Either a peer is breaking the rule or the
+        //! yield has an exit that lets it through.
         if (m_strong_mode) {
             if (m_link->compareAndSetStrongRetain(m_view, desired)) {
                 _on_cas_success();

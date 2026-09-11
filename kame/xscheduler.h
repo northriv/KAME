@@ -27,6 +27,12 @@ public:
     static void registerEvent(std::unique_ptr<BufferedEvent> event);
 	//! be called by thread pool
     static bool synchronize(); //!< \return true if not busy
+    //! \return true if ordinary events are still queued, i.e. synchronize()
+    //! stopped on its drain budget with work left and should be re-entered at
+    //! once.  Distinguishes that from the other reason it reports busy --
+    //! nothing queued but an event parked in the skipped queue, waiting out
+    //! its listener's delay_ms(), which no amount of polling can hasten.
+    static bool hasImmediateEvents();
 
     static void initialize();
     static void cleanup();

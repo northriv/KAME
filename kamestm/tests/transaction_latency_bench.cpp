@@ -72,16 +72,11 @@ public:
 };
 typedef Transactional::Transaction<MyNode> Tr;
 
-// ------------------------------------------------------------------ clock
-static inline std::uint64_t now_ns() {
-    return (std::uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()).count();
-}
+// ------------------------------------------- clock + histogram (shared)
+// now_ns(), HB and Hist moved to latency_hist.h when
+// transaction_priority_mixed_test needed the same distribution machinery.
+#include "latency_hist.h"
 
-// -------------------------------------------------------------- histogram
-// 1 ns resolution below 64 ns, then 4 buckets per octave: O(1) memory and no
-// allocation, so the harness cannot perturb the allocator under the STM.
-enum { HB = 256 };
 //! Retry accounting for the slow tail.  `iterate_commit` invokes its lambda
 //! once per ATTEMPT, so the retry count is observable from outside with no
 //! change to kamestm — worth exhausting before instrumenting the library.
@@ -119,67 +114,7 @@ struct NegDiagAcc {
 };
 #endif
 
-struct Retries {
-    std::uint64_t slow_n = 0, slow_attempts = 0, slow_max = 0;   // >= threshold
-    std::uint64_t slow_sys = 0, slow_sys_max = 0;   // system commits during it
-    std::uint64_t all_n = 0, all_attempts = 0;
-    void add(std::uint64_t ns, std::uint64_t att, std::uint64_t thresh,
-             std::uint64_t sysd = 0) {
-        all_n++; all_attempts += att;
-        if(ns >= thresh) {
-            slow_n++; slow_attempts += att; slow_sys += sysd;
-            if(att > slow_max) slow_max = att;
-            if(sysd > slow_sys_max) slow_sys_max = sysd;
-        }
-    }
-    void merge(const Retries &o) {
-        slow_n += o.slow_n; slow_attempts += o.slow_attempts;
-        slow_sys += o.slow_sys;
-        if(o.slow_sys_max > slow_sys_max) slow_sys_max = o.slow_sys_max;
-        if(o.slow_max > slow_max) slow_max = o.slow_max;
-        all_n += o.all_n; all_attempts += o.all_attempts;
-    }
-};
 
-struct Hist {
-    std::uint64_t bucket[HB];
-    std::uint64_t n, max, sum;
-    void reset() { std::memset(this, 0, sizeof(*this)); }
-    static unsigned idx(std::uint64_t v) {
-        if(v < 64) return (unsigned)v;
-        unsigned oct = 63u - (unsigned)__builtin_clzll(v);
-        unsigned i = 64u + (oct - 6u) * 4u + (unsigned)((v >> (oct - 2)) & 3u);
-        return i < (unsigned)HB ? i : (unsigned)HB - 1u;
-    }
-    static std::uint64_t value(unsigned i) {
-        if(i < 64) return i;
-        unsigned oct = 6u + (i - 64u) / 4u, frac = (i - 64u) % 4u;
-        return (std::uint64_t)(4u + frac + 1u) << (oct - 2);
-    }
-    void add(std::uint64_t v) {
-        bucket[idx(v)]++; n++; sum += v; if(v > max) max = v;
-    }
-    void merge(const Hist &o) {
-        for(unsigned i = 0; i < HB; i++) bucket[i] += o.bucket[i];
-        n += o.n; sum += o.sum; if(o.max > max) max = o.max;
-    }
-    std::uint64_t pct(double p) const {
-        if( !n) return 0;
-        std::uint64_t want = (std::uint64_t)(p * (double)n), acc = 0;
-        if(want >= n) want = n - 1;
-        for(unsigned i = 0; i < HB; i++)
-            if((acc += bucket[i]) > want) return value(i);
-        return max;
-    }
-    //! A percentile is only meaningful with >= 10 samples beyond it.
-    bool supports(double p) const { return (double)n * (1.0 - p) >= 10.0; }
-    //! Commits at or above `v` ns — used for the "reached the sleep" estimate.
-    std::uint64_t at_or_above(std::uint64_t v) const {
-        std::uint64_t acc = 0;
-        for(unsigned i = 0; i < HB; i++) if(value(i) >= v) acc += bucket[i];
-        return acc;
-    }
-};
 
 //! (diag) System-wide commit counter, bumped by every worker after every
 //! commit.  For a slow commit, the delta across its own duration answers the
@@ -228,7 +163,7 @@ enum Mode { M_LEAF = 0, M_GRAND = 1, M_MIXED = 2 };
 static const std::uint64_t kSlowNs = 100000ull;
 
 static Hist run_arm(Mode mode, int threads, double secs, double warmup,
-                    int grand_pct, int wait_budget_us, int highest_n,
+                    int grand_pct, int wait_budget_us, int highest_n, int lowprio_n,
                     double *out_secs, Retries *out_r
 #if KAME_STM_NEG_DIAG
                     , NegDiagAcc *out_d
@@ -270,6 +205,12 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
         if(tid < highest_n)
             Transactional::setCurrentPriorityMode(
                 Transactional::Priority::HIGHEST);
+        // -L N: the first N threads run at SCRIPTING, the most deferential of
+        // the lowprio set, to test whether a below-NORMAL Tx ever holds
+        // privilege long enough for stamp_is_expired_lowprio (51 ms) to matter.
+        else if(tid < highest_n + lowprio_n)
+            Transactional::setCurrentPriorityMode(
+                Transactional::Priority::SCRIPTING);
         unsigned seq = 0;
         ready.fetch_add(1);
         while( !go.load(std::memory_order_acquire)) { }
@@ -342,16 +283,40 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
 
     Hist all; all.reset();
     for(auto &h : per_thread) all.merge(h);
+    // Per-priority histograms, one line per priority-group thread.  A group
+    // merge alone can hide one starved member behind a healthy peer -- which is
+    // the exact question when two HIGHEST threads share a linkage -- so with
+    // -P/-L the group members are reported individually (N is small there).
+    if(highest_n > 0 || lowprio_n > 0) {
+        const char *tag = highest_n ? "HIGHEST" : "SCRIPTING";
+        const int pn = highest_n + lowprio_n;
+        char lbl[48];
+        Hist grp; grp.reset();
+        for(int t = 0; t < pn && t < threads; t++)
+            grp.merge(per_thread[(size_t)t]);
+        std::snprintf(lbl, sizeof(lbl), "  %s group", tag);
+        report(lbl, grp, elapsed);
+        for(int t = 0; t < pn && t < threads; t++) {
+            std::snprintf(lbl, sizeof(lbl), "  %s thr#%d", tag, t);
+            report(lbl, per_thread[(size_t)t], elapsed);
+        }
+        Hist rest; rest.reset();
+        for(int t = pn; t < threads; t++)
+            rest.merge(per_thread[(size_t)t]);
+        report("  others (NORMAL)", rest, elapsed);
+        std::printf("    priv strips by HIGHEST (Rule 0, cumulative): %llu\n",
+            (unsigned long long)Transactional::detail::g_priv_strips.load());
+    }
     if(out_r) { out_r->merge(Retries()); for(auto &r : per_thread_r) out_r->merge(r); }
 #if KAME_STM_NEG_DIAG
     if(out_d) for(auto &d : per_thread_d) out_d->merge(*&d);
     // Per-priority attribution.  The aggregate cannot say WHICH thread claimed
     // privilege, and adding a HIGHEST thread raises everyone's retry count, so
     // an aggregate rise proves nothing about HIGHEST itself.
-    if(highest_n > 0) {
+    if(highest_n > 0 || lowprio_n > 0) {
         NegDiagAcc hi, lo;
         for(int t = 0; t < threads; t++)
-            (t < highest_n ? hi : lo).merge(per_thread_d[(size_t)t]);
+            (t < highest_n + lowprio_n ? hi : lo).merge(per_thread_d[(size_t)t]);
         auto line = [](const char *tag, const NegDiagAcc &d) {
             if( !d.n) { std::printf("  %-22s   %-8s slow n=0\n", "", tag); return; }
             std::printf("  %-22s   %-8s slow n=%llu | rounds/commit %.2f | "
@@ -362,7 +327,7 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
                         (double)d.tries  / (double)d.n,
                         (double)d.grants / (double)d.n);
         };
-        line("HIGHEST", hi);
+        line(highest_n ? "HIGHEST" : "SCRIPTING", hi);
         line("NORMAL", lo);
     }
 #endif
@@ -371,7 +336,7 @@ static Hist run_arm(Mode mode, int threads, double secs, double warmup,
 }
 
 int main(int argc, char **argv) {
-    int threads = 4, grand_pct = 10, wait_budget_us = 0, highest_n = 0;
+    int threads = 4, grand_pct = 10, wait_budget_us = 0, highest_n = 0, lowprio_n = 0;
     double secs = 2.0, warmup = 0.5;
     const char *mode = "all";
     for(int i = 1; i < argc; i++) {
@@ -382,10 +347,11 @@ int main(int argc, char **argv) {
         else if( !std::strcmp(argv[i], "-m") && i + 1 < argc) mode = argv[++i];
         else if( !std::strcmp(argv[i], "-b") && i + 1 < argc) wait_budget_us = std::atoi(argv[++i]);
         else if( !std::strcmp(argv[i], "-P") && i + 1 < argc) highest_n = std::atoi(argv[++i]);
+        else if( !std::strcmp(argv[i], "-L") && i + 1 < argc) lowprio_n = std::atoi(argv[++i]);
         else {
             std::fprintf(stderr,
                 "usage: %s [-t THREADS] [-s SEC] [-w WARMUP] [-x GRAND%%] "
-                "[-m leaf|grand|mixed|all] [-b WAIT_BUDGET_US] [-P N_HIGHEST]\n", argv[0]);
+                "[-m leaf|grand|mixed|all] [-b WAIT_BUDGET_US] [-P N_HIGHEST] [-L N_SCRIPTING]\n", argv[0]);
             return 2;
         }
     }
@@ -422,10 +388,10 @@ int main(int argc, char **argv) {
 #if KAME_STM_NEG_DIAG
         NegDiagAcc dg;
         Hist h = run_arm(a.m, threads, secs, warmup, grand_pct,
-                         wait_budget_us, highest_n, &el, &r, &dg);
+                         wait_budget_us, highest_n, lowprio_n, &el, &r, &dg);
 #else
         Hist h = run_arm(a.m, threads, secs, warmup, grand_pct,
-                         wait_budget_us, highest_n, &el, &r);
+                         wait_budget_us, highest_n, lowprio_n, &el, &r);
 #endif
         report(a.name, h, el);
         // If slow commits show ~1 attempt, the time is spent INSIDE one

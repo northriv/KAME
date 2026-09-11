@@ -108,7 +108,11 @@ protected:
     shared_ptr<SoftwareTrigger> softwareTrigger() const {return m_softwareTrigger;}
 
     enum {CAL_POLY_ORDER = 4};
-    double m_coeffAI[4][CAL_POLY_ORDER];
+    //! Physical AI channels this class can carry calibration for.  The count
+    //! that goes on the wire in getWave()/convertRaw() is up to twice this,
+    //! because a complex record sends I and Q as separate channels.
+    enum {MAX_NUM_CH = 4, MAX_NUM_CH_ON_WIRE = MAX_NUM_CH * 2};
+    double m_coeffAI[MAX_NUM_CH][CAL_POLY_ORDER];
     unsigned int m_preTriggerPos;
 
     unsigned int sizeofRecordBuf() const {return m_recordBuf.size();}

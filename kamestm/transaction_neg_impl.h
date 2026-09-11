@@ -51,6 +51,11 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#if defined(__linux__)
+#  include <sched.h>       // sched_getscheduler — the RT fast-priv gate
+#elif defined(__APPLE__)
+#  include <pthread.h>     // pthread_getschedparam — same gate
+#endif
 #include <cmath>
 #include <condition_variable>
 #include <cstdint>
@@ -86,6 +91,16 @@ struct Node<XN>::WalkUpResult {
 // (age-ordered preemption window + per-priority floor) live in
 // transaction_definitions.h.
 
+//! Per-priority claim-age floor.
+//!
+//! Reachable with a per-level `pr` ONLY from `try_register_privileged_tidstamp`,
+//! which is the `#else` arm of `KAME_PER_LINKAGE_PRIVILEGE` — i.e. the
+//! non-default global-privilege mode.  In the default per-Linkage mode the claim
+//! path opens with a literal `(void)entry_pr;`, and the only calls that survive
+//! pass `Priority::SCRIPTING` explicitly (`stamp_is_expired_lowprio`, and one
+//! diagnostic print), so the LOWEST / UI_DEFERRABLE / NORMAL branches are dead
+//! there.  Kept because the global mode still compiles, not because the
+//! graduated ladder is operative by default.
 template <class XN>
 int64_t Node<XN>::NegotiationCounter::min_privilege_age_us(Priority pr) noexcept {
     switch (pr) {
@@ -115,6 +130,7 @@ bool Node<XN>::NegotiationCounter::stamp_is_expired_lowprio(cnt_t stamp) noexcep
                     + (int64_t)KAME_STM_PRIV_MAX_HOLD_US;
     return age > max_age;
 }
+
 
 template <class XN>
 bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
@@ -185,15 +201,24 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     return true;
 }
 
+
+
 template <class XN>
 bool Node<XN>::NegotiationCounter::i_am_privileged_now(
         cnt_t my_tidstamp,
         const Linkage *link) noexcept {
     // Expiration check delegated to `stamp_is_expired_lowprio`: a
     // LOW-priority priv stamp older than `min_privilege_age_us(SCRIPTING)
-    // + PRIV_MAX_HOLD_US` is considered expired (holder lost privilege
-    // by timeout).  NORMAL / HIGHEST priv never expires — measurement
-    // / driver-critical Tx must not be disrupted.
+    // + PRIV_MAX_HOLD_US` is considered expired (holder lost privilege by
+    // timeout).  NORMAL / HIGHEST priv never expires — deliberately (user
+    // ruling, reaffirmed 2026-07-30): their privilege is the COMPLETION
+    // guarantee.  The revocable tiers get the starvation timeout as their
+    // exit; NORMAL has no exit by design, so its shield must outlast any
+    // wall clock, and the TLA+ liveness argument assumes exactly that.  An
+    // OWNERLESS stamp (the 2026-07-30 T1Mode abort) is not a holder — it
+    // was a mid-construction-throw leak, fixed at the source in the
+    // Snapshot/Transaction constructors; the HANG watchdog remains the
+    // terminal backstop.
 #if KAME_PER_LINKAGE_PRIVILEGE
     // Per-Linkage: "mine" iff this Linkage's slot carries a Reserved-
     // kind stamp with matching TID.  Compare by TID alone (NOT
@@ -204,6 +229,13 @@ bool Node<XN>::NegotiationCounter::i_am_privileged_now(
     // the else branch below.  (Fix 2026-05-20: was `strip_kind`.)
     if(link == nullptr) return false;
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
+    // Rule 0d, self side — the mirror of the peer test in
+    // `fair_mode_blocks_me`, same two words, `==` instead of `!=`.  It has to
+    // be here or the rule is all cost and no benefit: peers defer while the
+    // holder still takes the weak-acquire / ADAPTIVE-threshold path built for
+    // a CAS that is no longer contended.  Note this widens the CAS-fail-twice
+    // assertion in `_on_cas_fail` to cover Rule 0d, which is what we want —
+    // if it fires, peers are racing a tag they were supposed to defer to.
     if( !is_priv_stamp(slot)) return false;
     if(stamp_tid(slot) != stamp_tid(my_tidstamp)) return false;
     // Expiration: stale priv stamp from a stuck Tx no longer grants
@@ -280,6 +312,15 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // above for the nested-Tx self-deadlock rationale).
     if(link == nullptr) return false;
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
+    // (Rule 0d lived here: a validated HIGHEST BUNDLE/UNBUNDLE tag deferring
+    // lower tiers, behind KAME_STM_HIGHEST_BUNDLE_BLOCK, default OFF.  Removed
+    // as UNREACHABLE.  It required `is_bundling_kind(slot)`, i.e. kind BUNDLE
+    // or UNBUNDLE, together with `stamp_is_highest(slot)` -- and since a
+    // HIGHEST tag became a privilege claim its kind is always Reserved, so the
+    // conjunction cannot be satisfied.  It never bounded anything while it
+    // could fire either: rebuild max 3/6/11/60 OFF vs 4/6/11/64 ON across 2 to
+    // 16 leaves, for -8.4 % throughput on disjoint distributions.  The shield
+    // it was reaching for is now the ordinary Reserved path below.)
     if( !is_priv_stamp(slot)) return false;
     if(stamp_tid(slot) == stamp_tid(tidstamp)) return false;
     if(stamp_is_expired_lowprio(slot)) { report_expired(slot); return false; }
@@ -310,96 +351,20 @@ template <class XN>
 typename Node<XN>::NegotiationCounter::PriorityProbeInfo
 Node<XN>::NegotiationCounter::priority_probe_info(Priority pr) noexcept {
     switch (pr) {
-        case Priority::HIGHEST:       return { 2, "HIGHEST" };
-        case Priority::NORMAL:        return { KAME_STM_RETRY_THRESH_NORMAL, "NORMAL" };
-        case Priority::UI_DEFERRABLE: return { 4, "UI_DEFERRABLE" };
-        case Priority::LOWEST:        return { 4, "LOWEST" };
-        case Priority::SCRIPTING:     return { 4, "SCRIPTING" };
-        default:                      return { 3, "?" };
+        case Priority::HIGHEST:       return { "HIGHEST" };
+        case Priority::NORMAL:        return { "NORMAL" };
+        case Priority::UI_DEFERRABLE: return { "UI_DEFERRABLE" };
+        case Priority::LOWEST:        return { "LOWEST" };
+        case Priority::SCRIPTING:     return { "SCRIPTING" };
+        default:                      return { "?" };
     }
 }
 
-template <class XN>
-bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
-    const void *linkage,
-    uint32_t my_tx_retries,
-    uint64_t tx_commit_count,
-    int tags_owned,
-    int tags_total,
-    int sig_C,
-    int64_t tx_age_us,
-    Priority prio) noexcept
-{
-    auto &p = LivelockProbe::state();
-    if (p.linkage_id != linkage) {
-        p.linkage_id       = linkage;
-        p.t_window_us      = LivelockProbe::now_us();
-        p.tx_retry_window  = my_tx_retries;
-        p.tx_commit_window = tx_commit_count;
-        return false;
-    }
-    int64_t now_us    = LivelockProbe::now_us();
-    int64_t window_us = now_us - p.t_window_us;
 
-    // m_tx_retry_count restarts at 0 when a new Transaction ctor fires;
-    // handle wrap-to-smaller-value by treating delta as the current value.
-    uint32_t my_retry_delta = my_tx_retries >= p.tx_retry_window
-                            ? my_tx_retries - p.tx_retry_window
-                            : my_tx_retries;
-    uint64_t cmt_delta      = tx_commit_count - p.tx_commit_window;
-
-    double elapsed_sec     = window_us * 1e-6;
-    double my_retry_rate   = my_retry_delta / elapsed_sec;
-    double tx_commit_rate  = cmt_delta       / elapsed_sec;
-    double ratio           = my_retry_rate /
-                             std::max(1.0, tx_commit_rate);
-
-    const auto pinfo = priority_probe_info(prio);
-
-    // Dynamic LL-probe retry threshold: each peer contributes ~2
-    // expected CAS retries (bidirectional contention), capped at
-    // hardware_concurrency() since beyond that count, threads can't all
-    // be physically running CAS simultaneously. Floor 3 keeps the
-    // early-call (sig_C ≈ 0) path safe before the bitset has accumulated
-    // peers. Machine-generic: no per-platform tuning constants — the
-    // hardware_concurrency() call adapts to SMT / core count.
-    int hw_procs = (int)std::thread::hardware_concurrency();
-    if (hw_procs <= 0) hw_procs = 4;
-    int retry_thresh_dyn = sig_C * 2;
-    if (retry_thresh_dyn < 3) retry_thresh_dyn = 3;
-    if (retry_thresh_dyn > hw_procs) retry_thresh_dyn = hw_procs;
-
-    // Age condition (`tx_age_us > min_privilege_age_us(prio)`)
-    // dropped — claim eligibility now depends on tag-ownership +
-    // retry count.  `tx_age_us` is still logged below for diagnostic.
-    const char *verdict =
-        (tags_total > 0 && tags_owned == tags_total
-         && (int)my_tx_retries >= retry_thresh_dyn)
-            ? "LIVELOCK" : "ok";
-
-    if(window_us > 100'000)
-        if(verdict[0] == 'L')
-            std::fprintf(stderr,
-                "[ll-probe] tid=%u linkage=%p prio=%s threshold=%d (sig_C=%d) "
-                "my_tx_retries=%u my_tx_retry_rate=%.0f/s "
-                "tx_commit_rate=%.0f/s ratio=%.1f "
-                "tags_owned=%d/%d tx_age_us=%lld "
-                "verdict=%s window_ms=%lld\n",
-                (unsigned)ProcessCounter::id(), linkage,
-                pinfo.name, retry_thresh_dyn, sig_C,
-                (unsigned)my_tx_retries, my_retry_rate, tx_commit_rate,
-                ratio, tags_owned, tags_total,
-                (long long)(tx_age_us), verdict,
-                (long long)(window_us / 1'000));
-
-    bool saw_livelock = (verdict[0] == 'L');
-
-    p.t_window_us      = now_us;
-    p.tx_retry_window  = my_tx_retries;
-    p.tx_commit_window = tx_commit_count;
-    return saw_livelock;
-}
-
+// The negotiation diagnostic counters are defined HERE, above the first
+// template that touches them: `detail::neg_diag()` is a NON-dependent name
+// inside `livelock_probe_tx_tick`, so two-phase lookup resolves it at the
+// point of definition and a later declaration would not be found.
 #if KAME_STM_NEG_DIAG
 namespace detail {
 //! Plain (non-atomic) per-thread counters: only the owning thread writes, and
@@ -432,8 +397,155 @@ struct NegDiag {
     std::uint64_t ms_sum;
     std::uint64_t ms_max;
     std::uint64_t entries;   //!< calls into _negotiate_internal
+    //! Rounds entered while a peer's privilege blocks us — the rounds in which
+    //! `_wb_round` is forced to 0, i.e. the wait budget is CONTRACTUALLY
+    //! SUSPENDED.  Any latency past the budget has to live in these, so this
+    //! is the field that decides whether an overshoot is the exemption or a
+    //! defect in the clamping.
+    std::uint64_t rounds_exempt;
+    //! Wall time inside the `_fair_blocks` busy-spin (bounded by
+    //! KAME_STM_FAIR_SPIN_MAX_US, but its deadline is only re-checked every
+    //! 2^18 PAUSEs, so it can overshoot its own cap).
+    std::uint64_t spin_ns;
+    std::uint64_t spins;        //!< entries into that spin
+    //! `slept_ns` split by whether the round was exempt.  budgeted + exempt
+    //! == slept_ns; the interesting one is `slept_exempt_ns`.
+    std::uint64_t slept_exempt_ns;
+    //! Worst single `cell.wait()` OVERSHOOT (actual − requested).  The one
+    //! number that separates "the STM chose to wait this long" from "the OS
+    //! did not run us again for this long", per wait rather than summed —
+    //! a sum cannot tell one 700 us late wake-up from seventy 10 us ones.
+    std::uint64_t late_max_ns;
+    //! The deadline-tail spin that replaces the last KAME_NEG_SPIN_TAIL_US of
+    //! a budget: how often it fired and how long it actually held the core.
+    std::uint64_t tail_spins;
+    //! HIGHEST-vs-HIGHEST deferral: pause4spin() iterations spent by a
+    //! HIGHEST loser spinning behind a live privileged HIGHEST peer (the
+    //! never-park analogue of a NORMAL loser's fair-mode sleep).
+    std::uint64_t hi_peer_spins;
+    std::uint64_t tail_spin_ns;
+    //! The two INNER CAS loops, which nothing else counts.  `attempts` as a
+    //! harness measures it is `iterate_commit` re-running the caller's lambda
+    //! — the OUTERMOST loop.  Inside one such attempt, commit() and bundle()
+    //! each spin their own `for(int retry = 0;; ++retry)` (transaction_impl.h
+    //! :2928 and :2571) which retry a CAS without restarting the transaction,
+    //! so a commit can be expensive with `attempts` at 2.  That is exactly the
+    //! gap the 2026-08 tail investigation ran into: 8,496 slow commits averaged
+    //! 2.1 attempts and 100 % of their time was unaccounted for by every field
+    //! above.  These two say whether the time is bundle churn or the final CAS.
+    std::uint64_t commit_cas_retries;
+    std::uint64_t bundle_cas_retries;
+    //! And the third, which is the one on the hot path nobody had looked at:
+    //! Node<XN>::snapshot()'s own `for(int retry = 0;; ++retry)`
+    //! (transaction_impl.h:2212).  Transaction construction takes a snapshot,
+    //! iterate_commit rebuilds the Transaction every attempt, and a
+    //! multi-nodal snapshot bundles the subtree to get a consistent view — so
+    //! this loop can call bundle()/unbundle() repeatedly while bundle itself
+    //! never retries, which is exactly the shape observed (bundle_cas = 0.00
+    //! over 8,013 slow commits).  Its retries are deliberately hidden from the
+    //! livelock probe: GuardSnapshotRetryCount RESTORES m_tx_retry_count on
+    //! scope exit, because they are snapshot-internal rather than
+    //! transaction-level.  Correct for the probe, invisible for latency.
+    std::uint64_t snapshot_retries;
+    //! The LARGEST rebuild count any single snapshot reached.  The sum above
+    //! cannot answer the question this quantity exists for: the bundle-rebuild
+    //! count is the one thing in the negotiation with no reachable upper
+    //! bound (measured 2 -> 142 as the subtree grew 2 -> 13 linkages), and a
+    //! bound is a statement about the MAXIMUM, not about a rate.  Anything
+    //! claiming to bound HIGHEST's tail has to be judged here.
+    std::uint64_t snapshot_retries_max;
+    //! The livelock probe, which is the only door to a privilege claim
+    //! (`if(_ll_saw && !registered)` — no priority term, so HIGHEST claims on
+    //! the same terms as anyone).  priv strips have been 0 in every run of
+    //! transaction_priority_mixed_test, and three AND-ed conditions inside the
+    //! probe can each account for that; these counters separate them instead
+    //! of leaving it to a reading of the source.  What they found (container,
+    //! 1.15 M commits — see that test's header for the full write-up): the
+    //! retry threshold `clamp(sig_C*2, 3, hardware_concurrency)` is the
+    //! largest blocker at 55 % of ticks, because outer attempts peak at 3 and
+    //! so `m_tx_retry_count` peaks at 2 against a floor of 3; the per-linkage
+    //! window RESET is 36 % (the state holds ONE linkage_id and a multi-nodal
+    //! commit negotiates on several); `tags_owned == tags_total` is 9 %.  A
+    //! fourth gate sits OUTSIDE the probe and is bigger than any of them —
+    //! `if(!snap.m_tagged_linkages.empty())` — so a transaction that is merely
+    //! losing a CAS never ticks at all.  The gate itself converts 100 % of the
+    //! verdicts it is given, so a 0 here is upstream of the gate, never in it.
+    std::uint64_t ll_ticks;        //!< calls into livelock_probe_tx_tick
+    std::uint64_t ll_resets;       //!< ... that returned early, linkage changed
+    std::uint64_t ll_no_tags;      //!< ... blocked by tags_owned != tags_total
+    std::uint64_t ll_few_retries;  //!< ... blocked by the retry threshold alone
+    std::uint64_t ll_verdicts;     //!< ... that returned LIVELOCK
+    //! The retry threshold turned out to be the largest blocker on both hosts,
+    //! so these say by HOW MUCH — and guard against an inference that looked
+    //! safe and is not.  "Outer attempts peak at 3, so m_tx_retry_count peaks
+    //! at 2, below the floor of 3" ignores Node::snapshot()'s own retry loop,
+    //! which increments the SAME field live (transaction_impl.h:2214) and only
+    //! restores it when GuardSnapshotRetryCount goes out of scope.  A probe
+    //! tick taken from inside that loop therefore sees a value the outer
+    //! attempt count does not bound.  Measure the margin, do not derive it.
+    std::uint64_t ll_retry_max;    //!< max my_tx_retries seen at any tick
+    std::uint64_t ll_retry_sum;    //!< ... summed, for a mean
+    std::uint64_t ll_thresh_max;   //!< max clamp(sig_C*2, 3, nproc) seen
+    //! tags_total (= m_tagged_linkages.size(), "L") at each tick.  There to
+    //! test the analytic retry bound Rule 0c makes possible: a HIGHEST Tx
+    //! can lose a linkage at most TWICE — once on the retry==0 fast path,
+    //! which CASes with no tag planted, and once in the race between that
+    //! CAS failing and the scope dtor planting the tag — after which Rule 0c
+    //! forbids any lower-priority overwrite.  So retries <= 2L.  Printed
+    //! beside ll_retry_max so the two read against each other in one run,
+    //! and KAME_MIX_LEAVES sweeps L directly, which turns the bound into a
+    //! SLOPE rather than a single coincidence.
+    std::uint64_t ll_tags_max;
+    std::uint64_t ll_tags_sum;
+    //! Wall time inside bundle() / unbundle(), which is the one term the tail
+    //! investigation asserted and never multiplied out.  "A failed attempt
+    //! re-bundles the subtree and throws it away" has the right shape, but
+    //! bounding one bundle pass by the SUCCESSFUL commit phase (1,199 ns,
+    //! which contains one) makes 2 entries x bundle+unbundle come to 4.8 us
+    //! against a measured 15.6 us per failed attempt — short by 3.2x, and by
+    //! 6.5x if only bundle is counted.  bundle_cas_retries is 0.00, so it is
+    //! not spinning either.  Nothing here could close that gap because
+    //! nothing timed the pass; these do.
+    //!
+    //! Both functions RECURSE (bundle bundles its children), so the timer runs
+    //! only at depth 0 — otherwise a 3-level subtree would report its own time
+    //! three times over.  `*_calls` counts outermost passes, `*_calls_all`
+    //! every level, and their ratio is the fan-out per pass.
+    std::uint64_t bundle_ns, bundle_calls, bundle_calls_all;
+    std::uint64_t unbundle_ns, unbundle_calls, unbundle_calls_all;
+    int           bundle_depth, unbundle_depth;   //!< not counters
+    //! Set by the round loop, read by negotiate_sleep — not a counter.
+    std::uint8_t  exempt_round;
 };
 inline NegDiag &neg_diag() { static thread_local NegDiag d{}; return d; }
+//! Times the OUTERMOST call only; see NegDiag::bundle_ns.  Counting at every
+//! level and timing at one is deliberate — the fan-out and the cost are
+//! different questions and a nested timer answers neither.
+struct ScopedPassTimer {
+    ScopedPassTimer(std::uint64_t NegDiag::*ns, std::uint64_t NegDiag::*calls,
+                    std::uint64_t NegDiag::*all, int NegDiag::*depth) noexcept
+        : m_ns(ns), m_calls(calls), m_depth(depth) {
+        auto &d = neg_diag();
+        ++(d.*all);
+        m_outer = (d.*depth == 0);
+        ++(d.*depth);
+        if(m_outer) m_t0 = std::chrono::steady_clock::now();
+    }
+    ~ScopedPassTimer() {
+        auto &d = neg_diag();
+        --(d.*m_depth);
+        if( !m_outer) return;
+        d.*m_ns += (std::uint64_t)std::chrono::duration_cast<
+            std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - m_t0).count();
+        ++(d.*m_calls);
+    }
+    std::uint64_t NegDiag::*m_ns;
+    std::uint64_t NegDiag::*m_calls;
+    int NegDiag::*m_depth;
+    std::chrono::steady_clock::time_point m_t0;
+    bool m_outer;
+};
 }
 //! Snapshot this thread's negotiation breakdown (and optionally zero it).
 //! Only compiled when KAME_STM_NEG_DIAG=1; callers guard on the same macro.
@@ -443,6 +555,140 @@ inline detail::NegDiag neg_diag_snapshot(bool reset) {
     return out;
 }
 #endif
+
+template <class XN>
+bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
+    const void *linkage,
+    uint32_t my_tx_retries,
+    uint64_t tx_commit_count,
+    int tags_owned,
+    int tags_total,
+    int sig_C,
+    int64_t tx_age_us,
+    Priority prio) noexcept
+{
+    // ---- RT fast privilege (opt-in) -----------------------------------
+    // (A KAME_STM_RT_FAST_PRIV knob lived here until 2026-08-13: an early
+    // privilege claim at N retries, gated on HIGHEST && SCHED_FIFO/RR via an
+    // os_sched_rt() probe.  Deleted, twice over.  Measured null -- three
+    // 300 s arms per side, grants neither spread nor stick while tags are
+    // being overwritten; the numbers live at the Rule 0c comment in
+    // tag_as_contender.  Then subsumed: a HIGHEST tag IS a Reserved claim
+    // from retry 0 (184dd1b5d), so there is nothing left for an "earlier"
+    // trigger to fire before.  The OS-policy AND was the knob's only reason
+    // to detect the scheduler, and HIGHEST is de facto the RT tier (user),
+    // so os_sched_rt() went with it -- the tier contract, not the OS policy,
+    // is the design's authority.)
+    // ---- organic livelock detection ------------------------------------
+    auto &p = LivelockProbe::state();
+#if KAME_STM_NEG_DIAG
+    ++detail::neg_diag().ll_ticks;
+    if(p.linkage_id != linkage) ++detail::neg_diag().ll_resets;
+#endif
+    if (p.linkage_id != linkage) {
+        p.linkage_id       = linkage;
+        p.t_window_us      = LivelockProbe::now_us();
+        p.tx_retry_window  = my_tx_retries;
+        p.tx_commit_window = tx_commit_count;
+        return false;
+    }
+    int64_t now_us    = LivelockProbe::now_us();
+    int64_t window_us = now_us - p.t_window_us;
+
+    // m_tx_retry_count restarts at 0 when a new Transaction ctor fires;
+    // handle wrap-to-smaller-value by treating delta as the current value.
+    uint32_t my_retry_delta = my_tx_retries >= p.tx_retry_window
+                            ? my_tx_retries - p.tx_retry_window
+                            : my_tx_retries;
+    uint64_t cmt_delta      = tx_commit_count - p.tx_commit_window;
+
+    double elapsed_sec     = window_us * 1e-6;
+    double my_retry_rate   = my_retry_delta / elapsed_sec;
+    double tx_commit_rate  = cmt_delta       / elapsed_sec;
+    double ratio           = my_retry_rate /
+                             std::max(1.0, tx_commit_rate);
+
+    const auto pinfo = priority_probe_info(prio);
+
+    // Dynamic LL-probe retry threshold: each peer contributes ~2
+    // expected CAS retries (bidirectional contention), capped at
+    // hardware_concurrency() since beyond that count, threads can't all
+    // be physically running CAS simultaneously. Floor 3 keeps the
+    // early-call (sig_C ≈ 0) path safe before the bitset has accumulated
+    // peers. Machine-generic: no per-platform tuning constants — the
+    // hardware_concurrency() call adapts to SMT / core count.
+    //
+    // CACHED, and the cache is not an optimisation nicety.  On Linux/glibc,
+    // std::thread::hardware_concurrency() is get_nprocs(), which is an
+    // openat+read+close of /sys/devices/system/cpu/online ON EVERY CALL —
+    // three syscalls through PTI+IBRS, inside the negotiation of a realtime
+    // commit.  Found by Intel PT on the RT host, not by reading: the sparse
+    // trace windows of the slow-commit tail were __read_nocancel /
+    // __close_nocancel_nostatus / memchr / strtoul clusters, and the
+    // arithmetic closed — 5,565 ns of unattributed retry cost per slow
+    // commit over 2.83 probe ticks is 1,966 ns per tick, a 3-syscall sysfs
+    // read.  A cycles profile could never see it (0.27 % of total time).
+    // effective_runners() three hundred lines down already caches the same
+    // call with the same `static const` pattern; this site predates it.
+    // Hotplug caveat: the value is now process-lifetime.  A stale cap only
+    // shifts this heuristic clamp, while the per-call read put syscalls
+    // into an RT thread's commit path — strictly worse.
+    static const int s_hw_procs = []{
+        int h = (int)std::thread::hardware_concurrency();
+        return h > 0 ? h : 4;
+    }();
+    const int hw_procs = s_hw_procs;
+    int retry_thresh_dyn = sig_C * 2;
+    if (retry_thresh_dyn < 3) retry_thresh_dyn = 3;
+    if (retry_thresh_dyn > hw_procs) retry_thresh_dyn = hw_procs;
+
+    // Age condition (`tx_age_us > min_privilege_age_us(prio)`)
+    // dropped — claim eligibility now depends on tag-ownership +
+    // retry count.  `tx_age_us` is still logged below for diagnostic.
+    const char *verdict =
+        (tags_total > 0 && tags_owned == tags_total
+         && (int)my_tx_retries >= retry_thresh_dyn)
+            ? "LIVELOCK" : "ok";
+
+    if(window_us > 100'000)
+        if(verdict[0] == 'L')
+            std::fprintf(stderr,
+                "[ll-probe] tid=%u linkage=%p prio=%s threshold=%d (sig_C=%d) "
+                "my_tx_retries=%u my_tx_retry_rate=%.0f/s "
+                "tx_commit_rate=%.0f/s ratio=%.1f "
+                "tags_owned=%d/%d tx_age_us=%lld "
+                "verdict=%s window_ms=%lld\n",
+                (unsigned)ProcessCounter::id(), linkage,
+                pinfo.name, retry_thresh_dyn, sig_C,
+                (unsigned)my_tx_retries, my_retry_rate, tx_commit_rate,
+                ratio, tags_owned, tags_total,
+                (long long)(tx_age_us), verdict,
+                (long long)(window_us / 1'000));
+
+    bool saw_livelock = (verdict[0] == 'L');
+#if KAME_STM_NEG_DIAG
+    {   auto &_d = detail::neg_diag();
+        const bool _tags_ok = (tags_total > 0 && tags_owned == tags_total);
+        const bool _retry_ok = ((int)my_tx_retries >= retry_thresh_dyn);
+        if(saw_livelock)      ++_d.ll_verdicts;
+        else if( !_tags_ok)   ++_d.ll_no_tags;
+        else if( !_retry_ok)  ++_d.ll_few_retries;
+        _d.ll_retry_sum += my_tx_retries;
+        if(my_tx_retries > _d.ll_retry_max) _d.ll_retry_max = my_tx_retries;
+        if((std::uint64_t)retry_thresh_dyn > _d.ll_thresh_max)
+            _d.ll_thresh_max = (std::uint64_t)retry_thresh_dyn;
+        _d.ll_tags_sum += (std::uint64_t)tags_total;
+        if((std::uint64_t)tags_total > _d.ll_tags_max)
+            _d.ll_tags_max = (std::uint64_t)tags_total;
+    }
+#endif
+
+    p.t_window_us      = now_us;
+    p.tx_retry_window  = my_tx_retries;
+    p.tx_commit_window = tx_commit_count;
+    return saw_livelock;
+}
+
 
 template <class XN>
 void Node<XN>::NegotiationCounter::negotiate_sleep(
@@ -480,9 +726,14 @@ void Node<XN>::NegotiationCounter::negotiate_sleep(
         d.req_ns += (std::uint64_t)us * 1000ull;
         auto t0 = std::chrono::steady_clock::now();
         st.cell.wait(g, us);
-        d.slept_ns += (std::uint64_t)std::chrono::duration_cast<
+        const std::uint64_t _dt = (std::uint64_t)std::chrono::duration_cast<
             std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now() - t0).count();
+        d.slept_ns += _dt;
+        if(d.exempt_round) d.slept_exempt_ns += _dt;
+        const std::uint64_t _want = (std::uint64_t)us * 1000ull;
+        if(_dt > _want && _dt - _want > d.late_max_ns)
+            d.late_max_ns = _dt - _want;
     }
 #else
     st.cell.wait(g, us);
@@ -1176,6 +1427,26 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif
     const float mult_wait = m_mult_wait;
     auto &started_time = snap.m_started_time;
+#ifndef NDEBUG
+    // Reached only under real contention, i.e. exactly when this call may sleep.
+    // Sleeping here while holding a plain lock that a peer's transaction can
+    // block on is the 2026-07-10 deadlock; see the foreign-lock block in
+    // transaction_detail.h.  Reported once per thread, never fatal — a
+    // diagnostic has no business aborting a measurement.
+    if(foreignLockDepth() > 0) [[unlikely]] {
+        static thread_local bool s_told = false;
+        if( !s_told) {
+            s_told = true;
+            std::fprintf(stderr,
+                "kamestm: negotiating (and possibly sleeping) while holding %d "
+                "foreign lock(s).  A peer transaction blocking on that lock "
+                "cannot finish, and neither can this one — the 2026-07-10 "
+                "negotiation stall.  Copy what you need under a short lock, "
+                "release it, then take the Snapshot/Transaction.\n",
+                foreignLockDepth());
+        }
+    }
+#endif
     //! Wait budget (absolute µs, 0 = none) — see Transactional::ScopedWaitBudget.
     //!
     //! Read here, once per call, and NOT captured in the Snapshot.  An earlier
@@ -1303,10 +1574,16 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif
             bool claimed = false;
 #if KAME_PER_LINKAGE_PRIVILEGE
-            (void)entry_pr;
             const auto my_id = NegotiationCounter::strip_kind(snap.m_started_time);
             const auto my_priv = NegotiationCounter::with_kind(
                 snap.m_started_time, detail::StampKind::Reserved);
+            // No holder-class side word to pre-publish: `my_priv` is
+            // `m_started_time` with the kind bits swapped for Reserved, so it
+            // still carries this Tx's PRIO field and the Reserved stamp
+            // describes its own class.  (It reports the class the Tx STARTED
+            // at rather than `entry_pr`, the class at negotiation entry.  Those
+            // differ only for a thread that changed tier mid-Tx, and the stamp
+            // is the one the peers will read.)
             for (auto &l : snap.m_tagged_linkages) {
                 auto cur = l->m_transaction_started_time.load(
                     std::memory_order_relaxed);
@@ -1321,6 +1598,9 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 }
             }
 #else
+            // Global mode plants no per-Linkage Reserved stamps, so
+            // tag_as_contender's Rule 0 (which requires one) stays inert —
+            // conservative by construction.
             claimed = NegotiationCounter::try_register_privileged_tidstamp(
                           entry_pr, snap.m_started_time);
 #endif
@@ -1381,8 +1661,31 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     // helper internally skips the lease/owner-skip block for those
     // priorities.  Returns true iff the owner-skip fired (we hold the
     // soft lease and our age < lease_us) — caller returns early.
+    //
+    // GATED on fair_mode_blocks_me, for the same reason and by the same
+    // rule as the budget-expired break below (2026-07-31): "privilege is
+    // the completion guarantee, and NOTHING may be immune to it".  The
+    // owner-skip returns from `_negotiate_internal` BEFORE any fair-mode
+    // consultation, so without this gate a lease holder is a fair-mode-
+    // immune chainer — precisely the shape that made budget-expired record
+    // paths produce 372 HANG dumps.  And it is reachable: the owner test is
+    // `ps.tid` (the priority state's last committer) while the thing that
+    // would block us is `m_transaction_started_time` (the slot's tag).  They
+    // are different words, so "I committed here 3 us ago" says nothing about
+    // whether a peer has since planted a Reserved stamp — a HIGHEST claim,
+    // or a NORMAL one escalated by budget expiry — that we owe a yield to.
+    // The self-tagged short-circuit above does not cover it either: that one
+    // compares the SLOT's tid, and it is exactly the case where the slot is
+    // NOT ours that reaches here.
+    //
+    // Costs nothing on the common path: `&&` runs the lease helper first, so
+    // its drift write-back still happens, and the check is reached only when
+    // the skip would actually have fired.  fair_mode_blocks_me then re-reads
+    // a line this function loaded two statements ago and does three bit
+    // tests on it.
     if(_neg_apply_lease(ps, transaction_started_time, sig_C,
-                        now_us_entry, entry_pr))
+                        now_us_entry, entry_pr)
+            && !NegotiationCounter::fair_mode_blocks_me(started_time, self))
         return;
 
     // Thread-local LCG for sleep-duration jitter randomization.
@@ -1414,11 +1717,29 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     int C_obs = sig_C < KAME_STM_C_OBS_MIN ? KAME_STM_C_OBS_MIN : sig_C;
 
     // Per-call hang counter (counts how many times we've hit the
-    // "ms > 5000" sleep-cap branch).  After KAME_STM_HANG_ABORT_N
-    // such hits we abort() so we can get a core dump + stack trace
-    // for offline analysis (set =0 to disable abort, keeping dump).
+    // "ms > 5000" sleep-cap branch).  After KAME_STM_HANG_ABORT_N such hits
+    // we abort() for a core dump + stack trace; 0 disables the abort while
+    // keeping the [HANG] dumps.
+    //
+    // **Release default is 0 — the watchdog reports, it does not kill —
+    // since 2026-07-31 (user).**  The abort was tuned for true deadlocks,
+    // but the 2026-07-30/31 field incidents showed it executing recoverable
+    // states: one freeze self-recovered at 11 s (4 s short of the abort),
+    // another was a LIVE privilege holder legitimately grinding for 33+ s —
+    // waiting behind it is the completion guarantee working, and killing the
+    // process took the unsaved measurement with it.  With the orphaned-stamp
+    // class fixed at the source (ctor exception safety) and the fair-mode
+    // immunities removed (STM-HIGHEST retired, budget exempted), a >15 s
+    // wait behind a live holder is contract-legitimate; a true deadlock is
+    // diagnosed from the [HANG] dumps + `sample` and killed by the operator,
+    // who first gets to save.  Debug builds keep 3: there the core dump IS
+    // the point.
 #ifndef KAME_STM_HANG_ABORT_N
-#define KAME_STM_HANG_ABORT_N 3
+    #ifdef NDEBUG
+        #define KAME_STM_HANG_ABORT_N 0
+    #else
+        #define KAME_STM_HANG_ABORT_N 3
+    #endif
 #endif
     int _hang_hits = 0;
 
@@ -1431,16 +1752,99 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // fair-spin `continue` below, which measured 14.23 rounds/commit and
         // 0.18 sleeps/commit against a 1 us budget.
         //
-        // Deliberately NOT gated on fair_mode_blocks_me: an expired budget must
-        // stop waiting even while a peer holds privilege, or the budget is not
-        // a bound at all.  Returning is not barging — the caller simply
-        // attempts its CAS, which loses to a committing privilege holder the
-        // same as any other loser and comes back.  What we decline to do is
-        // sleep.
-        if(_wb_limit && NegotiationCounter::now_us() >= _wb_limit)
+        // GATED on fair_mode_blocks_me since 2026-07-31 — this reverses the
+        // original rule, and the reversal is measurement, not caution.  The
+        // old rationale ("returning is not barging — the caller's CAS loses
+        // to a committing holder the same as any other loser") assumed the
+        // holder commits in microseconds.  A privilege holder with a long
+        // closure (the 20 ms PNR analysis) broke it: budget-expired record
+        // paths became fair-mode-IMMUNE spinners — the same disease that
+        // retired STM-HIGHEST the same day — re-invalidating the holder every
+        // closure (re-runs 1.1 -> 2.3) while honest negotiators pinned behind
+        // its privilege for 12+ s (372 HANG dumps vs 0 without budgets, in
+        // the field-parameter harness).  Principle: privilege is the
+        // completion guarantee, and NOTHING may be immune to it.  The budget
+        // bounds every OTHER wait (lottery, runner gate, ladder); the wait
+        // behind a live privileged peer is contractually exempt — declining
+        // it is what freezes the system.  (Expired-lowprio stamps unblock
+        // inside fair_mode_blocks_me as always, so a dead holder cannot pin
+        // a budgeted thread either.)
+        if(_wb_limit && NegotiationCounter::now_us() >= _wb_limit
+                && !NegotiationCounter::fair_mode_blocks_me(started_time, self))
             break;
-        if(entry_pr == Priority::HIGHEST)
+        if(entry_pr == Priority::HIGHEST) {
+            // HIGHEST never parks — but older-wins between HIGHESTs must
+            // have the same teeth it has at NORMAL (per user, 2026-08-11:
+            // a loser that keeps firing CAS instead of yielding empties the
+            // stamp comparison of meaning).  So the younger HIGHEST defers
+            // to a live privileged HIGHEST peer on the SAME predicate a
+            // NORMAL loser sleeps on — fair_mode_blocks_me — with the one
+            // difference the tier contract requires: the wait is an on-CPU
+            // spin, never a park.  Gated on the blocker being HIGHEST-class:
+            // deferring to a foreign-tier privilege stays as it was (the
+            // meeting-point/resonance issue is between HIGHEST and ms-scale
+            // NORMAL closures, and Rule 0 already strips a STUCK foreign
+            // holder after patience; a live one keeps the documented
+            // precondition).  Plain HIGHEST tags do not spin-block, exactly
+            // as plain tags never sleep-block a NORMAL.  Exposure: a dead
+            // HIGHEST holder pins this spinner forever — the same class as
+            // never-expiring NORMAL/HIGHEST privilege, accepted on the same
+            // grounds; unlike a sleeper this spinner never reaches the HANG
+            // dump, so a stuck HIGHEST-behind-HIGHEST reads as a hot core.
+            int64_t _spin_t0_us = 0, _spin_next_dump_us = 0;
+            for(unsigned _it = 0;; ++_it) {
+                auto _slot = self->m_transaction_started_time.load(
+                    std::memory_order_relaxed);
+                if( !NegotiationCounter::stamp_is_highest(_slot))
+                    break;
+                // Older-wins needs the AGE GATE now that every HIGHEST tag
+                // is a Reserved claim (184dd1b5d): Reserved is no longer the
+                // probe-elected singleton, so an unconditional defer would
+                // make the OLDER spin on a younger's tag too — the wrong
+                // direction outright, and with two HIGHESTs crossing scopes
+                // a symmetric spin with no one to break it.  Spin only while
+                // the blocker is strictly older; the younger's own spin on
+                // OUR tag is what resolves once we finish.  (NORMAL never
+                // needed this gate because its Reserved population was the
+                // singleton privilege holder by construction.)
+                if(NegotiationCounter::signed_diff_us_packed(
+                        _slot, started_time) >= 0)
+                    break;
+                if( !NegotiationCounter::fair_mode_blocks_me(
+                        started_time, self))
+                    break;
+#if KAME_STM_NEG_DIAG
+                ++detail::neg_diag().hi_peer_spins;
+#endif
+                // The sleeper path gets its [HANG] dumps from the 5 s sleep
+                // cap; a spinner would otherwise be invisible — a stuck
+                // HIGHEST-behind-HIGHEST reading as nothing but a hot core.
+                // Same doctrine as the watchdog: report, never kill.  Clock
+                // read amortised (~4k pauses per check).
+                if((_it & 0xFFFu) == 0) {
+                    const int64_t _now =
+                        (int64_t)NegotiationCounter::now_us();
+                    if( !_spin_t0_us) {
+                        _spin_t0_us = _now;
+                        _spin_next_dump_us = _now + 5'000'000;
+                    }
+                    else if(_now >= _spin_next_dump_us) {
+                        std::fprintf(stderr,
+                            "[HANG] tid=%u HIGHEST spinning %llds behind a "
+                            "HIGHEST privilege (holder tid=%u, linkage %p) — "
+                            "never expires by contract; report only.\n",
+                            (unsigned)NegotiationCounter::stamp_tid(
+                                started_time),
+                            (long long)((_now - _spin_t0_us) / 1'000'000),
+                            (unsigned)NegotiationCounter::stamp_tid(_slot),
+                            (void *)self);
+                        _spin_next_dump_us = _now + 5'000'000;
+                    }
+                }
+                pause4spin();
+            }
             break;
+        }
         // Single-contender fast path: only this thread is visible in
         // tid_bitset (sig_C=1). The probabilistic √C lottery is
         // meaningless when there is no peer to share the slot with —
@@ -1511,6 +1915,16 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // / spin work).
         const bool _fair_blocks =
             NegotiationCounter::fair_mode_blocks_me(started_time, self);
+        // The budget's sleep clamps are suspended while fair-blocked (see the
+        // loop-top comment): otherwise an expired budget shrinks the CV waits
+        // to zero and the thread busy-spins behind the holder instead of
+        // waiting — cheaper than barging, but still a wasted core.
+        const int64_t _wb_round = _fair_blocks ? 0 : _wb_limit;
+#if KAME_STM_NEG_DIAG
+        {   auto &_d = detail::neg_diag();
+            _d.exempt_round = (_wb_limit && !_wb_round) ? 1u : 0u;
+            if(_d.exempt_round) ++_d.rounds_exempt; }
+#endif
 
 #if KAME_NEGSITE_ENABLED
         NegSite::last_was_gate_return() = false;
@@ -1864,9 +2278,9 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 // A 2 ms busy-spin is longer than most budgets; end it at
                 // whichever comes first.
                 const int64_t _spin_deadline_us =
-                    (_wb_limit && _wb_limit - _spin_start_us
+                    (_wb_round && _wb_round - _spin_start_us
                                   < KAME_STM_FAIR_SPIN_MAX_US)
-                        ? _wb_limit
+                        ? _wb_round
                         : _spin_start_us + KAME_STM_FAIR_SPIN_MAX_US;
                 unsigned iter = 0;
                 bool _spin_timed_out = false;
@@ -1883,6 +2297,13 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 } while(NegotiationCounter::fair_mode_blocks_me(
                                 started_time, self));
                 s_fair_spinners.fetch_sub(1, std::memory_order_relaxed);
+#if KAME_STM_NEG_DIAG
+                {   auto &_d = detail::neg_diag();
+                    ++_d.spins;
+                    _d.spin_ns += (std::uint64_t)
+                        ((int64_t)NegotiationCounter::now_us()
+                         - _spin_start_us) * 1000ull; }
+#endif
                 if( !_spin_timed_out)
                     continue;
                 // Timed out: fall through to CV-sleep section so we
@@ -1957,6 +2378,124 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             }
         }
         else {
+            // ---- Deadline tail: do not sleep through the end of a budget.
+            //
+            // A timed wait cannot deliver a wake-up more precisely than the
+            // host's idle-exit + timer-slack cost, and near the end of a
+            // budget that cost is LARGER THAN THE WAIT ITSELF.  Measured on
+            // the PREEMPT_RT reference host (i5-7500, acquisition thread
+            // alone on an isolated core, 200 us budget): the last chunk was
+            // clamped to 198 us exactly as designed, and `cell.wait()`
+            // returned 695 us later, with 6 us of STM work in the whole
+            // commit.  The "MAX = budget + ~200 us constant" recorded in
+            // design/RT_READINESS.md was never the STM and never the
+            // documented budget-exempt wait behind a privileged peer —
+            // `rounds_exempt` is 0 across 17,274 slow commits, and stays 0
+            // under every scheduling class, C-state setting and budget tried.
+            //
+            // What the wake-up is made of, measured directly as the worst
+            // single cell.wait() overshoot (20 s arms, 20 ms budget, root):
+            //
+            //     plain        662 us     fifo            124 us
+            //     slack 1 us   475 us     pmqos + fifo     20 us
+            //     pmqos        605 us   (pm-qos verified: cpu3 C8 entries 0)
+            //
+            // Read the ordering, because it is counter-intuitive and the
+            // obvious guess is wrong: the SCHEDULING CLASS dominates (5.3x),
+            // and holding PM-QoS at 0 buys almost nothing on its own
+            // (662 -> 605) while buying 6x on top of SCHED_FIFO
+            // (124 -> 20).  The two are super-additive, so testing either
+            // alone understates it.  An earlier reading of this attributed
+            // the constant to the deepest C-state's 200 us exit latency
+            // because that number matches the observed overshoot almost
+            // exactly; the pmqos row above refutes it.  Timer slack (50 us by
+            // default, and zero for any RT class) is a component of what FIFO
+            // buys, but not most of it.
+            //
+            // So spend the remainder on-CPU instead.  Polling is strictly
+            // better than waiting here on every axis that matters:
+            //   * it observes the blocker clearing IMMEDIATELY rather than at
+            //     the next wake-up, so the common case gets FASTER, not just
+            //     more predictable;
+            //   * the cost is bounded by the threshold and paid only by a
+            //     thread that has already declared a deadline;
+            //   * it removes both the C-state and the slack from the deadline
+            //     path without needing root, a PM-QoS hold, or a tuned kernel.
+            //
+            // Gated on `_wb_round` — i.e. on the caller having constructed a
+            // ScopedWaitBudget AND on not being fair-blocked — so ordinary
+            // throughput callers, who have no deadline to protect and would
+            // only lose a core to this, are untouched.
+            //
+            // Measured (same host, 25 s arms, acq at NORMAL — the shipped
+            // tier — pinned alone on the isolated core), MAX-budget with the
+            // reserve off -> on:
+            //
+            //     budget    MAX-budget          acq/s        UI/s   SCRIPT/s
+            //      20 ms   122 us -> 7.1 us   +2 %          -2 %     +2 %
+            //       1 ms   216 us -> 34 us    +10 %        -13 %    -15 %
+            //     200 us   721 us -> 19 us    +1 %       **-94 %** **-98 %**
+            //
+            // …and in the configuration KAME should actually ship
+            // (SCHED_FIFO + isolation + PM-QoS held at 0, 20 ms budget):
+            // **76 us -> 3.0 us**, with UI and SCRIPTING both slightly UP.
+            // 3 us is below this host's own 17 us floor (rtla osnoise), i.e.
+            // the STM's contribution to the record commit's tail is now
+            // smaller than the machine's noise.
+            //
+            // THE 200 us ROW IS A CLIFF, NOT A TREND, and it is the reason
+            // this constant may not simply be raised.  Once the reserve
+            // reaches the whole budget the thread never sleeps at all: it
+            // stops backing off the linkage, wins every CAS from its own
+            // uncontended core, and the deferrable roles stop committing (UI
+            // 24.1k -> 1.5k /s, SCRIPTING 67.5k -> 1.1k /s).  A budget is the
+            // deadline-bearer's patience, and spending all of it on-CPU is
+            // indistinguishable from having none.  So: keep this WELL BELOW
+            // the smallest budget in play, and before recommending budgets
+            // near it, cap the reserve at a FRACTION of the budget span
+            // (which means plumbing the span, not just the deadline, through
+            // ScopedWaitBudget).  At KAME's shipped 20 ms the reserve is
+            // 1.5 % of the budget and the row above is free.
+#ifndef KAME_NEG_SPIN_TAIL_US
+#define KAME_NEG_SPIN_TAIL_US 300
+#endif
+#if KAME_NEG_SPIN_TAIL_US > 0
+            if(_wb_round) {
+                int64_t _rem = _wb_round
+                    - (int64_t)NegotiationCounter::now_us();
+                if(_rem <= 0) goto _exit_cv_sleep;
+                if(_rem <= (int64_t)KAME_NEG_SPIN_TAIL_US) {
+                    // Keep the running-count slot: we ARE running.  (The
+                    // sleep path below releases it precisely because it is
+                    // about to stop running.)
+                    unsigned _it = 0;
+                    for(;;) {
+                        pause4spin();
+                        // Leave the moment the blocker is gone or we became
+                        // the oldest — the whole point of not sleeping.
+                        auto _v = self->m_transaction_started_time.load(
+                            std::memory_order_relaxed);
+                        if( !NegotiationCounter::is_active_stamp(_v)
+                            || NegotiationCounter::signed_diff_us_packed(
+                                   started_time, _v) <= 0)
+                            break;
+                        // now_us() is far dearer than a PAUSE; amortise it.
+                        if((++_it & 0x3Fu) == 0
+                           && (int64_t)NegotiationCounter::now_us()
+                              >= _wb_round)
+                            break;
+                    }
+#if KAME_STM_NEG_DIAG
+                    {   auto &_d = detail::neg_diag();
+                        ++_d.tail_spins;
+                        _d.tail_spin_ns += (std::uint64_t)
+                            (((int64_t)NegotiationCounter::now_us()
+                              - (_wb_round - _rem)) * 1000); }
+#endif
+                    goto _exit_cv_sleep;
+                }
+            }
+#endif
             // Do NOT drop this Tx's tags before sleeping.  It looks free —
             // a sleeper holding a tag keeps `fair_mode_blocks_me` true for
             // every peer on that linkage, measured at 38 % of sleeps in the
@@ -1989,8 +2528,13 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             // A round may not outlive the caller's wait budget.  This alone is
             // not enough — a chunk can still overshoot by its own length — so
             // the per-chunk clamp below handles the sub-millisecond tail.
-            if(_wb_limit && t_end > _wb_limit)
-                t_end = _wb_limit;
+            // Both stop KAME_NEG_SPIN_TAIL_US SHORT of the budget, leaving
+            // that much for the deadline-tail spin above to cover: a wait
+            // clamped to land exactly ON the deadline hands its own wake-up
+            // latency straight to the caller's tail, which is the entire
+            // measured overshoot (see the tail-spin comment).
+            if(_wb_round && t_end > _wb_round - KAME_NEG_SPIN_TAIL_US)
+                t_end = _wb_round - KAME_NEG_SPIN_TAIL_US;
             do {
                 // Advance seed for de-phasing; chunk sleep = 1 or 2 ms.
                 s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
@@ -2097,9 +2641,10 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif
                 {
                     unsigned _chunk_us_ov = 0;
-                    if(_wb_limit) {
-                        const int64_t _rem =
-                            _wb_limit - NegotiationCounter::now_us();
+                    if(_wb_round) {
+                        const int64_t _rem = _wb_round
+                            - KAME_NEG_SPIN_TAIL_US
+                            - (int64_t)NegotiationCounter::now_us();
                         if(_rem <= 0) goto _exit_cv_sleep;
                         else if(_rem < (int64_t)KAME_NEG_SLEEP_US_PER_MS)
                             _chunk_us_ov = (unsigned)_rem;
@@ -2130,9 +2675,12 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 {
                     int _chunk_ms = 1 + (int)(s_backoff_seed >> 31);
                     unsigned _chunk_us_ov = 0;
-                    if(_wb_limit) {
-                        const int64_t _rem =
-                            _wb_limit - NegotiationCounter::now_us();
+                    if(_wb_round) {
+                        // …minus the tail reserve, so this wait's wake-up
+                        // jitter lands INSIDE the budget rather than past it.
+                        const int64_t _rem = _wb_round
+                            - KAME_NEG_SPIN_TAIL_US
+                            - (int64_t)NegotiationCounter::now_us();
                         if(_rem <= 0)
                             goto _exit_cv_sleep;   // budget spent: never sleep
                         else if(_rem < (int64_t)_chunk_ms
@@ -2166,9 +2714,10 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif
             {
                 unsigned _us_ov = 0;
-                if(_wb_limit) {
-                    const int64_t _rem =
-                        _wb_limit - NegotiationCounter::now_us();
+                if(_wb_round) {
+                    const int64_t _rem = _wb_round
+                        - KAME_NEG_SPIN_TAIL_US
+                        - (int64_t)NegotiationCounter::now_us();
                     if(_rem <= 0) goto _exit_cv_sleep;
                     else if(_rem < (int64_t)ms_actual
                                    * (int64_t)KAME_NEG_SLEEP_US_PER_MS)
@@ -2180,8 +2729,10 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif
         }
         // Wait budget, again at the tail: the round may have expired it after
-        // the top-of-loop check.  Same unconditional rule as the top.
-        if(_wb_limit && NegotiationCounter::now_us() >= _wb_limit)
+        // the top-of-loop check.  Same rule as the top — the wait behind a
+        // live privileged peer is exempt (_wb_round is zeroed while
+        // fair-blocked).
+        if(_wb_round && NegotiationCounter::now_us() >= _wb_round)
             break;
     }
 _exit_cv_sleep:;

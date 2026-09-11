@@ -29,12 +29,33 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+# Both mcp lines are supported.  2.0 renamed the class and moved the module
+# (mcp.server.fastmcp.FastMCP -> mcp.server.MCPServer), and moved transport
+# options from settings into run(); everything this server actually uses is
+# otherwise identical, including mcp.types.ToolAnnotations and the tool
+# decorator's annotations= keyword.  Verified against 1.29.0 and 2.0.0.
 try:
-    from mcp.server.fastmcp import FastMCP, Image
+    from mcp.server.fastmcp import FastMCP as MCPServerClass, Image
+    MCP_MAJOR = 1
 except ImportError:
-    print("Error: 'mcp' package not installed. Run:", file=sys.stderr)
-    print(f"  {sys.executable} -m pip install mcp jupyter_client", file=sys.stderr)
-    sys.exit(1)
+    try:
+        from mcp.server import MCPServer as MCPServerClass
+        # NOT re-exported by mcp.server, unlike the server class itself.
+        from mcp.server.mcpserver import Image
+        MCP_MAJOR = 2
+    except ImportError:
+        try:
+            from importlib.metadata import version as _v
+            _have = f" (found mcp {_v('mcp')})"
+        except Exception:
+            _have = ""
+        print(f"Error: no usable 'mcp' package{_have}: neither the 1.x "
+              "mcp.server.fastmcp nor the 2.x mcp.server.MCPServer could be "
+              "imported. Run:", file=sys.stderr)
+        print(f"  {sys.executable} -m pip install mcp jupyter_client",
+              file=sys.stderr)
+        sys.exit(1)
+from mcp.types import ToolAnnotations
 try:
     import jupyter_client
 except ImportError:
@@ -42,11 +63,15 @@ except ImportError:
     print(f"  {sys.executable} -m pip install jupyter_client", file=sys.stderr)
     sys.exit(1)
 
+#CSI sequences only: IPython's traceback colouring is all SGR, and a
+#narrow pattern cannot eat anything from the user's own output.
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
 CONN_INFO_PATH = Path.home() / ".kame_kernel_connection.json"
 API_DOC_PATH = Path(__file__).parent / "kame_python_api.md"
 MANUAL_DOC_PATHS = [
-    Path(__file__).parent / "kame-8-en.md",  # deployed (e.g. Contents/Resources)
-    Path(__file__).parent.parent.parent / "doc" / "manual" / "kame-8-en.md",  # source tree
+    Path(__file__).parent / "kame-9-en.md",  # deployed (e.g. Contents/Resources)
+    Path(__file__).parent.parent.parent / "doc" / "manual" / "kame-9-en.md",  # source tree
 ]
 
 # ---------------------------------------------------------------------------
@@ -179,7 +204,7 @@ def _logged(fn):
     return wrapper
 
 
-server = FastMCP("kame", instructions="""You are connected to a running KAME measurement application
+server = MCPServerClass("kame", instructions="""You are connected to a running KAME measurement application
 via its embedded IPython kernel. The `kame` module is pre-imported:
 Root(), Snapshot(), Transaction() are available directly.
 
@@ -270,14 +295,19 @@ def _get_client() -> jupyter_client.BlockingKernelClient:
         return _client
     if not CONN_INFO_PATH.exists():
         raise RuntimeError(
-            "KAME is not running (no ~/.kame_kernel_connection.json). "
-            "Start KAME first."
+            "KAME is not connected (no ~/.kame_kernel_connection.json). "
+            "The file is written when KAME launches its Jupyter notebook: "
+            "ask the user to start KAME and click 'Jupyter notebook' in the "
+            "Script pane, then retry."
         )
     with open(CONN_INFO_PATH) as f:
         info = json.load(f)
     cf = info["connection_file"]
     if not os.path.exists(cf):
-        raise RuntimeError(f"Kernel connection file not found: {cf}")
+        raise RuntimeError(
+            f"Kernel connection file not found: {cf} — stale from a previous "
+            "KAME run. Ask the user to relaunch the Jupyter notebook from "
+            "KAME's Script pane, then retry.")
     client = jupyter_client.BlockingKernelClient()
     client.load_connection_file(cf)
     client.start_channels()
@@ -290,7 +320,14 @@ def _get_client() -> jupyter_client.BlockingKernelClient:
     # to PNG at a modest dpi with a tight bbox so figures come back crisp
     # but compact (fast over MCP); a bare `plt.plot(...)` in a cell is
     # captured automatically at cell end — no explicit display() needed.
-    client.execute("%matplotlib inline")
+    #
+    # stop_on_error=False on ALL of these pipelined setups: with the default
+    # True, one setup raising (e.g. `%matplotlib inline` on a kernel without
+    # matplotlib) makes ipykernel ABORT every already-queued request behind
+    # it — including the caller's first real execute, which then produces no
+    # iopub output at all and times out. Observed live: every fresh
+    # connection's first tool call timed out, the second was instant.
+    client.execute("%matplotlib inline", stop_on_error=False)
     client.execute(
         "try:\n"
         "    import matplotlib as _mpl\n"
@@ -299,7 +336,8 @@ def _get_client() -> jupyter_client.BlockingKernelClient:
         "    get_ipython().run_line_magic('config', "
         "\"InlineBackend.figure_formats = {'png'}\")\n"
         "except Exception:\n"
-        "    pass\n"
+        "    pass\n",
+        stop_on_error=False,
     )
     # MCP-driven Tx are external scripting — should yield to the
     # measurement loop for the first ~1 s of any contention before
@@ -310,8 +348,38 @@ def _get_client() -> jupyter_client.BlockingKernelClient:
         "    import kame\n"
         "    kame.setCurrentPriorityMode(kame.Priority.SCRIPTING)\n"
         "except (AttributeError, ImportError):\n"
-        "    pass\n"
+        "    pass\n",
+        stop_on_error=False,
     )
+    # Barrier handshake, AFTER the setup burst, for two reasons at once.
+    # (a) ZMQ slow-joiner: the iopub SUB subscription completes
+    # asynchronously and anything published before that is silently lost, so
+    # without an iopub echo the first tool call can miss its whole output.
+    # (b) Some embedded kernels drop a shell request that arrives in the
+    # middle of a pipelined burst — observed live on the development Mac
+    # (embedded Python 3.14.7, ipykernel 7.2.0): the request following the
+    # three setups vanished with neither an iopub trace nor a shell reply
+    # (an abort would at least reply status='aborted'), on every fresh
+    # connection, while other hosts are fine. A silent no-op is re-sent
+    # until its idle status echoes back: a dropped no-op is retried
+    # harmlessly — which a resend of the CALLER's code must never be, on an
+    # instrument-control kernel — and once it echoes, the burst has drained
+    # and the caller's first execute travels alone.
+    _joined = False
+    _hs_deadline = time.monotonic() + 15
+    while not _joined and time.monotonic() < _hs_deadline:
+        _mid = client.execute("pass", silent=True, store_history=False)
+        _round = time.monotonic() + 0.3
+        while time.monotonic() < _round:
+            try:
+                _msg = client.get_iopub_msg(timeout=0.3)
+            except queue.Empty:
+                break
+            if (_msg["parent_header"].get("msg_id") == _mid
+                    and _msg["msg_type"] == "status"
+                    and _msg["content"].get("execution_state") == "idle"):
+                _joined = True
+                break
     _client = client
     return client
 
@@ -348,7 +416,12 @@ def _execute(code: str, timeout: float = 30.0) -> list:
                     if "HTML object" not in text:
                         outputs.append(text)
             elif msg_type == "error":
-                tb = "\n".join(content.get("traceback", []))
+                # IPython colours its traceback, and those escapes reached the
+                # client verbatim: a third of the payload was SGR codes wrapping
+                # every token, spent on a reader that cannot render them.  The
+                # summary line stays first so the failure is readable without
+                # parsing the traceback at all.
+                tb = _ANSI_RE.sub("", "\n".join(content.get("traceback", [])))
                 outputs.append(f"ERROR: {content.get('ename')}: {content.get('evalue')}\n{tb}")
             elif msg_type == "status" and content.get("execution_state") == "idle":
                 break
@@ -377,20 +450,63 @@ def _nav_code(path: str) -> str:
     return nav
 
 
-@server.tool()
-@_logged
-def kame_api() -> str:
-    """Return the KAME Python API quick reference.
+def _doc_section(path, section: str, tool: str) -> str:
+    """Table of contents, or one heading's body, from a Markdown file.
 
-    Call this FIRST before writing any code to learn the correct patterns
-    for reading values, navigating nodes, and controlling instruments.
+    Shared by kame_api and kame_manual so both stay navigable the same way.
+    Returning a whole reference on every call is not free: these documents are
+    read at the start of essentially every session, and the API one alone is
+    ~26 kB, which is context the model then does not have for the task.
     """
-    if API_DOC_PATH.exists():
-        return API_DOC_PATH.read_text()
-    return "API documentation not found at " + str(API_DOC_PATH)
+    lines = path.read_text().splitlines()
+    headings = []  # (level, title, line_idx)
+    in_fence = False
+    for i, ln in enumerate(lines):
+        if ln.startswith("```"):
+            in_fence = not in_fence
+            continue
+        m = re.match(r"^(#{1,6})\s+(.+?)\s*$", ln)
+        if m and not in_fence:
+            headings.append((len(m.group(1)), m.group(2), i))
+    if not section.strip():
+        toc = [f"Table of contents — call {tool}(<heading>) to read one:"]
+        toc += ["  " * (lvl - 1) + "- " + title for lvl, title, _ in headings]
+        return "\n".join(toc)
+    sec = section.strip().lower()
+    idx = next((k for k, h in enumerate(headings) if h[1].lower() == sec), None)
+    if idx is None:
+        idx = next((k for k, h in enumerate(headings) if sec in h[1].lower()), None)
+    if idx is None:
+        return (f"Section {section!r} not found. Call {tool}() for the table "
+                "of contents.")
+    lvl, _, start = headings[idx]
+    end = next((h[2] for h in headings[idx + 1:] if h[0] <= lvl), len(lines))
+    body = "\n".join(lines[start:end]).strip()
+    # Image references are dead weight over MCP (text-only consumers)
+    return re.sub(r"!\[[^\]]*\]\([^)]*\)", "", body)
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(
+    readOnlyHint=True, destructiveHint=False, idempotentHint=True))
+@_logged
+def kame_api(topic: str = "") -> str:
+    """Return the KAME Python API reference, one topic at a time.
+
+    Call this FIRST, before writing any code. With no argument it returns the
+    list of topics; pass one to read it. Start with "MCP tool selection" and
+    the topic your task needs, e.g. "Writing Values", "Driver lifecycle",
+    "Transactional Patterns", "2D Math Tools".
+
+    Args:
+        topic: Heading to retrieve, case-insensitive substring match.
+               Empty string returns the table of contents.
+    """
+    if not API_DOC_PATH.exists():
+        return "API documentation not found at " + str(API_DOC_PATH)
+    return _doc_section(API_DOC_PATH, topic, "kame_api")
+
+
+@server.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
 @_logged
 def kame_manual(section: str = "") -> str:
     """Return the KAME user's manual (Markdown), whole-section at a time.
@@ -408,35 +524,10 @@ def kame_manual(section: str = "") -> str:
     path = next((p for p in MANUAL_DOC_PATHS if p.exists()), None)
     if path is None:
         return "Manual not found: " + ", ".join(str(p) for p in MANUAL_DOC_PATHS)
-    lines = path.read_text().splitlines()
-    headings = []  # (level, title, line_idx)
-    in_fence = False
-    for i, ln in enumerate(lines):
-        if ln.startswith("```"):
-            in_fence = not in_fence
-            continue
-        m = re.match(r"^(#{1,6})\s+(.+?)\s*$", ln)
-        if m and not in_fence:
-            headings.append((len(m.group(1)), m.group(2), i))
-    if not section.strip():
-        toc = ["Table of contents — call kame_manual(section=<heading>) to read one:"]
-        toc += ["  " * (lvl - 1) + "- " + title for lvl, title, _ in headings]
-        return "\n".join(toc)
-    sec = section.strip().lower()
-    idx = next((k for k, h in enumerate(headings) if h[1].lower() == sec), None)
-    if idx is None:
-        idx = next((k for k, h in enumerate(headings) if sec in h[1].lower()), None)
-    if idx is None:
-        return f"Section {section!r} not found. Call kame_manual() for the table of contents."
-    lvl, _, start = headings[idx]
-    end = next((h[2] for h in headings[idx + 1:] if h[0] <= lvl), len(lines))
-    body = "\n".join(lines[start:end]).strip()
-    # Image references are dead weight over MCP (text-only consumers)
-    body = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", body)
-    return body
+    return _doc_section(path, section, "kame_manual")
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True))
 @_logged
 def execute_code(code: str) -> list:
     """Execute Python code in KAME's interpreter.
@@ -459,7 +550,7 @@ def execute_code(code: str) -> list:
     return _execute(code)
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True))
 @_logged
 def execute_code_async(code: str) -> str:
     """Execute long-running Python code asynchronously.
@@ -502,6 +593,7 @@ def execute_code_async(code: str) -> str:
     Returns a job_id string for use with get_result() / stop_job().
     """
     job_id = f"_mcp_{int(time.time() * 1000)}"
+    jobdir = str(_JOB_DIR)
     wrapper = f"""
 import threading as _th, traceback as _tb
 _mcp_jobs = globals().setdefault("_mcp_jobs", {{}})
@@ -509,6 +601,25 @@ _mcp_tls = globals().setdefault("_mcp_tls", _th.local())
 if "_McpStopped" not in globals():
     class _McpStopped(Exception):
         pass
+if "_mcp_publish" not in globals():
+    import json as _mcp_json, os as _mcp_os, time as _mcp_time
+    def _mcp_publish(job_id, job):
+        # Runs on the WORKER thread, which keeps going even when the kernel's
+        # message loop is starved -- that is the whole point of writing it.
+        try:
+            _mcp_os.makedirs({jobdir!r}, exist_ok=True)
+            _p = _mcp_os.path.join({jobdir!r}, job_id + ".json")
+            with open(_p + ".tmp", "w", encoding="utf-8") as _f:
+                _mcp_json.dump(dict(job, ts=_mcp_time.time()), _f)
+            _mcp_os.replace(_p + ".tmp", _p)
+        except Exception:
+            pass
+    def _mcp_stop_requested(job_id):
+        try:
+            return _mcp_os.path.exists(
+                _mcp_os.path.join({jobdir!r}, job_id + ".stop"))
+        except Exception:
+            return False
 if "mcp_checkpoint" not in globals():
     def mcp_checkpoint(progress=None):
         _job = getattr(_mcp_tls, "job", None)
@@ -516,26 +627,30 @@ if "mcp_checkpoint" not in globals():
             return
         if progress is not None:
             _job["progress"] = str(progress)
-        if _job.get("stop"):
+        _jid = _job.get("id", "")
+        _mcp_publish(_jid, _job)
+        if _job.get("stop") or _mcp_stop_requested(_jid):
             raise _McpStopped()
-_mcp_jobs[{job_id!r}] = {{"status": "running", "progress": ""}}
+_mcp_jobs[{job_id!r}] = {{"status": "running", "progress": "", "id": {job_id!r}}}
 def _mcp_run():
-    _mcp_tls.job = _mcp_jobs[{job_id!r}]
+    _job = _mcp_jobs[{job_id!r}]
+    _mcp_tls.job = _job
     try:
         exec({code!r}, globals())
-        _mcp_jobs[{job_id!r}]["status"] = "done"
+        _job["status"] = "done"
     except _McpStopped:
-        _mcp_jobs[{job_id!r}]["status"] = "stopped"
+        _job["status"] = "stopped"
     except Exception:
-        _mcp_jobs[{job_id!r}]["status"] = "error"
-        _mcp_jobs[{job_id!r}]["error"] = _tb.format_exc()
+        _job["status"] = "error"
+        _job["error"] = _tb.format_exc()
+    _mcp_publish({job_id!r}, _job)
 _th.Thread(target=_mcp_run, daemon=True).start()
 {job_id!r}
 """
     return _execute_text(wrapper)
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
 @_logged
 def get_result(job_id: str) -> str:
     """Check the status of an async job started with execute_code_async.
@@ -551,10 +666,17 @@ def get_result(job_id: str) -> str:
 import json as _json
 _json.dumps(_mcp_jobs.get({repr(job_id)}, {{"status": "unknown"}}))
 """
-    return _execute_text(code)
+    try:
+        out = _execute_text(code)
+        if out and "unknown" not in out:
+            return out
+    except Exception:
+        out = None
+    #The kernel is busy or wedged; the job records its own state for this.
+    return _job_from_disk(job_id) or out or json.dumps({"status": "unknown"})
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
 @_logged
 def stop_job(job_id: str) -> str:
     """Request a cooperative stop of an async job.
@@ -568,6 +690,17 @@ def stop_job(job_id: str) -> str:
 
     Returns JSON with the job's status at the time of the request.
     """
+    # Drop the marker FIRST, from this process.  A job that has wedged the
+    # kernel's message loop is exactly the job you cannot reach by executing
+    # code on the kernel, and it is also the one you most need to stop; the
+    # worker thread reads this file at its next checkpoint regardless.
+    marker = None
+    try:
+        _JOB_DIR.mkdir(parents=True, exist_ok=True)
+        _job_stopfile(job_id).write_text("stop\n", encoding="utf-8")
+        marker = str(_job_stopfile(job_id))
+    except Exception:
+        pass
     code = f"""
 import json as _json
 _job = globals().get("_mcp_jobs", {{}}).get({job_id!r})
@@ -578,10 +711,24 @@ else:
     _r = {{"status": _job["status"], "stop_requested": True}}
 _json.dumps(_r)
 """
-    return _execute_text(code)
+    try:
+        out = _execute_text(code)
+        if out and "unknown" not in out:
+            return out
+    except Exception:
+        out = None
+    return json.dumps({
+        "stop_requested": True,
+        "via": "stop marker on disk" if marker else "kernel only",
+        "note": ("The kernel did not answer, so the request went through the "
+                 "marker file the job checks at each mcp_checkpoint(). Code "
+                 "that never checkpoints still cannot be stopped."),
+        "marker": marker,
+        "kernel_reply": out,
+    })
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
 @_logged
 def tree(path: str = "", depth: int = 2) -> str:
     """List child nodes at a given path as an indented tree.
@@ -625,12 +772,20 @@ def _mcp_tree(_node, _depth, _max_depth, _indent=0):
     return _execute_text(code)
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
 @_logged
 def kame_status() -> str:
     """Check if KAME is running and show basic measurement info."""
+    # Say what to DO, not just what is wrong: the connection file only
+    # appears when KAME launches its Jupyter notebook, so a plain "not
+    # running" sent an assistant speculating about ports and build options
+    # when the fix was one menu action away.
     if not CONN_INFO_PATH.exists():
-        return "KAME is not running."
+        return ("KAME is not connected: ~/.kame_kernel_connection.json does "
+                "not exist. It is written when KAME launches its Jupyter "
+                "notebook — ask the user to start KAME and click 'Jupyter "
+                "notebook' in the Script pane (or Script menu), then retry. "
+                "No other diagnosis is useful before that.")
     try:
         code = """
 import os as _os
@@ -803,7 +958,7 @@ RELOAD_NOTICE = (
     "in progress.")
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
 @_logged
 def notebook_status() -> str:
     """KAME notebook overview: open notebooks, kernel busy/idle, and the
@@ -844,7 +999,7 @@ def notebook_status() -> str:
     return "\n".join(lines) if lines else "No notebook sessions."
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
 @_logged
 def notebook_read(path: str = "", with_outputs: bool = False) -> str:
     """Read a notebook's cells with indices (for notebook_edit).
@@ -874,7 +1029,7 @@ def notebook_read(path: str = "", with_outputs: bool = False) -> str:
     return "\n".join(out)
 
 
-@server.tool()
+@server.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False))
 @_logged
 def notebook_edit(path: str, index: int, source: str = "",
                   mode: str = "replace", cell_type: str = "code") -> str:
@@ -936,6 +1091,69 @@ def notebook_edit(path: str, index: int, source: str = "",
     return f"{action} ({path}){note}\n\n{RELOAD_NOTICE}"
 
 
+# ---------------------------------------------------------------------------
+# Async-job state on disk
+#
+# get_result and stop_job used to work only by executing code on the kernel,
+# which is exactly the thing that stops working when a job wedges the kernel's
+# message loop: the job becomes unstoppable and unobservable at the moment you
+# most need both.  The WORKER thread is still running in that state -- only the
+# main thread is starved -- so a channel that does not go through the kernel's
+# shell socket reaches it.  Each checkpoint writes a small JSON file, and looks
+# for a stop marker beside it.  The kernel path stays primary because it is
+# authoritative and immediate; these files are the fallback.
+# ---------------------------------------------------------------------------
+_JOB_DIR = _LOG_DIR / "jobs"
+
+
+def _job_file(job_id: str) -> Path:
+    return _JOB_DIR / f"{job_id}.json"
+
+
+def _job_stopfile(job_id: str) -> Path:
+    return _JOB_DIR / f"{job_id}.stop"
+
+
+def _job_from_disk(job_id: str) -> str | None:
+    """Last state the job itself recorded, or None if it never wrote one."""
+    try:
+        with open(_job_file(job_id), encoding="utf-8") as f:
+            d = json.load(f)
+        d["source"] = "file (the kernel did not answer; the job writes this itself)"
+        return json.dumps(d)
+    except Exception:
+        return None
+
+
+def _serve(server, transport, host=None, port=None):
+    """Start `server` on `transport`, binding host/port the way this mcp wants.
+
+    The two lines are exact opposites here, so this cannot be papered over
+    with one call.  In 1.x, run() takes only (transport, mount_path) and
+    host/port are settings -- passing them to run() raises
+    `TypeError: ... unexpected keyword argument 'host'` and the HTTP
+    transport never comes up (KAME then reports the exit code and falls back
+    to stdio).  In 2.x they are run() keywords, forwarded to
+    run_streamable_http_async(host=, port=, ...), and settings no longer
+    carries them.
+    """
+    if transport == "stdio" or host is None:
+        server.run(transport=transport)
+        return
+    if MCP_MAJOR >= 2:
+        server.run(transport=transport, host=host, port=port)
+        return
+    for _obj in (getattr(server, "settings", None), server):
+        if _obj is None:
+            continue
+        try:
+            _obj.host, _obj.port = host, port
+            break
+        except Exception:
+            continue
+    server.run(transport=transport)
+
+
 def _run_http_with_token(server, host, port, token):
     """Run streamable-http server with Bearer-token middleware.
 
@@ -968,7 +1186,7 @@ def _run_http_with_token(server, host, port, token):
             f"Warning: token auth unavailable ({e}); falling back to "
             f"unauthenticated streamable-http on {host}:{port}.",
             file=sys.stderr)
-        server.run(transport="streamable-http", host=host, port=port)
+        _serve(server, "streamable-http", host, port)
 
 
 if __name__ == "__main__":
@@ -982,7 +1200,10 @@ if __name__ == "__main__":
     p.add_argument("--port", type=int, default=0,
                    help="port for sse/http (0 = OS-assigned)")
     p.add_argument("--token", default="",
-                   help="bearer token for http transport (optional)")
+                   help="DEPRECATED: pass the bearer token in KAME_MCP_TOKEN "
+                        "instead. A token in argv is readable by every local "
+                        "user through ps for the life of the process, which "
+                        "defeats the point of having one.")
     p.add_argument("--log-dir", default="",
                    help="directory for JSONL tool-call logs "
                         "(default: ~/.kame_mcp_log; env KAME_MCP_LOG_DIR)")
@@ -999,13 +1220,22 @@ if __name__ == "__main__":
               f"(session {_SESSION_ID})", file=sys.stderr)
 
     if args.transport == "stdio":
-        server.run(transport="stdio")
+        _serve(server, "stdio")
     elif args.transport == "sse":
-        server.run(transport="sse", host=args.host, port=args.port)
+        _serve(server, "sse", args.host, args.port)
     else:
         # streamable-http is the MCP 1.0+ recommended transport.
+        # KAME_MCP_TOKEN is the supported way in: the environment of a process
+        # is private to its owner, whereas argv is world-readable through ps
+        # (and gets copied into crash reports, sudo logs and support dumps),
+        # so a token on the command line is legible to exactly the local users
+        # this token exists to keep out. The env var is popped so the token is
+        # not inherited by anything the server itself may spawn.
+        _token = os.environ.pop("KAME_MCP_TOKEN", "") or args.token
         if args.token:
-            _run_http_with_token(server, args.host, args.port, args.token)
+            print("kame-mcp: --token is deprecated and exposes the token to "
+                  "`ps`; pass it in KAME_MCP_TOKEN instead.", file=sys.stderr)
+        if _token:
+            _run_http_with_token(server, args.host, args.port, _token)
         else:
-            server.run(transport="streamable-http",
-                       host=args.host, port=args.port)
+            _serve(server, "streamable-http", args.host, args.port)

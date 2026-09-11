@@ -35,6 +35,12 @@ c.NotebookApp.kernel_manager_class      = 'notebook_kame_kernel_manager.KAMENote
 
 # inject our kernel connection
 # file into the kernel manager
-from notebook_kame_kernel_manager import KAMENotebookKernelManager
+from notebook_kame_kernel_manager import (
+    KAMENotebookKernelManager, start_kame_parent_watchdog)
 KAMENotebookKernelManager.connfile = os.environ.get('KAME_IPYTHON_CONNECTION_FILE')
 KAMENotebookKernelManager.kame_pid = int(os.environ.get('KAME_PID'))
+
+# Outlive KAME and this server is dead weight holding a port: the kernel it
+# serves is KAME's.  KAME stops it on a clean exit, but a crash runs no code
+# there, so the decisive check is this one, made from inside.
+start_kame_parent_watchdog(KAMENotebookKernelManager.kame_pid)

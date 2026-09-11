@@ -3,8 +3,9 @@
 Status: prepared 2026-06-11.  Prerequisites all met:
 * standalone repo: https://github.com/northriv/kamepoolalloc (subtree mirror
   of `KAME/kamepoolalloc/`, synced via `git subtree split`)
-* pinned tag: v1.0.1+ (must include the banner gating AND the Linux
-  `malloc_usable_size` co-interpose — see Notes)
+* pinned tag: v1.1.0+ (see Notes — earlier tags carry a double-allocation
+  defect, and v1.0.0 predates the banner gating and the Linux
+  `malloc_usable_size` co-interpose)
 * top-level CMake builds `out/libkamepoolalloc.so` with the full malloc
   interpose default-on for `LD_PRELOAD` use
 * **Full-suite soak complete** (glibc/x86-64, 4-core container,
@@ -30,7 +31,7 @@ and allocator implementations -- please do so!"
 ### 1. `build-bench-env.sh` — version pin (in the version block)
 
 ```sh
-readonly version_kp=v1.0.1
+readonly version_kp=v1.1.0
 ```
 
 ### 2. `build-bench-env.sh` — flag plumbing + help + build section
@@ -77,10 +78,18 @@ regenerates results himself), no benchmark changes.
 
 ## Notes / open items before submitting
 
-* DONE: `v1.0.1` is tagged and contains BOTH the dylib banner gating
-  and the Linux `malloc_usable_size` co-interpose (v1.0.0 predates both
-  — its redis run would crash), so `version_kp` is pinned to `v1.0.1`
-  in hunk 1 above.  It also carries the word-cache FS=true cold path
+* The pin is `v1.1.0`, and it is not a preference.  Every earlier tag can
+  hand the SAME BLOCK to two live users on Linux: a free arriving from a
+  thread that had finished its own allocator teardown went into a destroyed
+  cross-dealloc batch, and a slot returned to the bitmap after its owner had
+  reissued it.  pthread_key destructors that free run after the C++
+  thread_local ones, so any preloaded program with such a key is exposed —
+  which is most of them.  Measured 17 failures in 44 runs of the reproducer
+  it was found with, 0 in 44 after; a benchmark suite would see it as
+  unexplained corruption, not as a slow allocator.
+  `v1.1.0` also keeps what the older pin was chosen for: the dylib banner
+  gating and the Linux `malloc_usable_size` co-interpose (v1.0.0 predates
+  both — its redis run would crash), plus the word-cache FS=true cold path
   (default ON).
 * Optional: one `./bench.sh kp allt` pass on a normal-network Linux host
   to exercise the suite's own result-parsing wrappers (the benches
@@ -89,7 +98,7 @@ regenerates results himself), no benchmark changes.
   them to this repo; the suite downloads them itself.
 * The activation banner ("Reserve swap space ... ") is **silent in the
   dylib build** (gated on `KAMEPOOLALLOC_DYLIB`; re-enable with
-  `KAME_POOL_VERBOSE=1`), so the suite sees a quiet allocator.  Pin the
-  tag that contains this gating (v1.0.1 or later), not v1.0.0.
+  `KAME_POOL_VERBOSE=1`), so the suite sees a quiet allocator.  Present from
+  v1.0.1; the pin above is later than that for a different reason.
 * `out/libkamepoolalloc.so` is a symlink to `libkamepoolalloc.so.8`
   (SOVERSION); `LD_PRELOAD` through the symlink is fine.

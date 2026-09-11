@@ -149,11 +149,6 @@ XLaserModule::XLaserModule(const char *name, bool runtime,
     m_form->setWindowTitle(i18n("Laser Module - ") + getLabel());
 }
 void
-XLaserModule::showForms() {
-    m_form->showNormal();
-    m_form->raise();
-}
-void
 XLaserModule::createLaserChannels(Transaction &tr_meas, const shared_ptr<XMeasure> &meas, unsigned int n) {
     if(n == 0)
         return; //panel stays hidden.

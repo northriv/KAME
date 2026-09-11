@@ -3,21 +3,46 @@
 [![License: Apache-2.0 OR GPL-2.0+](https://img.shields.io/badge/License-Apache--2.0_OR_GPL--2.0%2B-blue.svg)](#license)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(MinGW%20%2B%20MSVC)-lightgrey)]()
+[![arXiv](https://img.shields.io/badge/arXiv-2608.12024-b31b1b.svg)](https://arxiv.org/abs/2608.12024)
 
 Lock-free software transactional memory (STM) primitives — the
 snapshot/transaction core from the [KAME](https://github.com/northriv/KAME)
-measurement framework, extracted as a stand-alone, **header-only**
-library plus three small `.cpp` (`threadlocal` / `xthread` / `xtime`).
+measurement framework, extracted as a stand-alone, **predominantly
+header-only** library: templates in headers plus three small support
+translation units (`threadlocal` / `xthread` / `xtime`).
+
+**Paper:** the design, its 16 years of measurement-platform service and the
+formal verification are described in K. Kitagawa, *Formally Verified
+Lock-Free Software Transactional Memory for Scientific Measurement*,
+[arXiv:2608.12024](https://arxiv.org/abs/2608.12024) (2026) — see
+[Citing](#citing).
+
+**What it is for.**  Shared **tree-structured** state with many concurrent
+writers and readers, where a reader may hold an immutable subtree snapshot
+for as long as it likes — a plot redrawing from one, an analysis pass, a
+script inspecting the tree.  It offers O(1) snapshot acquisition, atomic
+publication of a whole subtree, and oldest-wins arbitration under
+contention, none of which lock the live tree.  If your shared state is a
+flat set of independent variables, a conventional STM (or plain atomics)
+will serve you better; the tree, the retained snapshots and the
+subtree-consistency guarantee are what this one buys.
 
 Dual-licensed under your choice of **Apache 2.0 OR GPL-2.0-or-later**
 so it embeds cleanly into permissive / proprietary projects (Apache
 path) or links into GPLv2-only projects such as KAME itself (GPL path).
 
-**Production-stable in KAME since 2008** — the STM core has been the
-foundation of the KAME node tree under 24/7 research-lab operation on
-every release from that year onwards.  Builds and passes all 11
-standalone tests on macOS clang, Linux gcc/clang (64-bit + 32-bit),
+**Production-stable in KAME** — the STM core has been the foundation of the
+KAME node tree in continuous research-lab use since around 2010 (its
+`atomic_shared_ptr` engine dates to 2006).  Builds and passes the standalone
+test suite on macOS clang, Linux gcc/clang (64-bit + 32-bit),
 Windows MinGW64 + lld, and Windows MSVC.
+
+**Try it** (builds the 19-test standalone suite; see
+[Build / Use](#build--use) to consume the library from your own project):
+
+```bash
+cmake -S tests -B build && cmake --build build && ctest --test-dir build
+```
 
 ## What's in here
 
@@ -33,6 +58,7 @@ shared home (shared with the pool allocator), and are included header-only here
 |---|---|
 | `atomic_queue.h` | Lock-free MPMC queue |
 | `xthread.h` + `xthread.cpp` | `XMutex` / `XCondition` / `XRecursiveMutex` wrappers around `std::mutex` |
+| `xwaitcell.h` | `XWaitCell` — timed wait-on-address, the primitive a losing transaction parks on. **Mutex-less** on macOS (`__ulock_wait`) and Linux (`futex(FUTEX_WAIT_PRIVATE)`); portable mutex + condvar fallback elsewhere (see [Realtime behaviour](#realtime-behaviour)) |
 | `threadlocal.h` + `threadlocal.cpp` | `XThreadLocal<T, Tag>` with deterministic per-thread teardown |
 | `xtime.h` + `xtime.cpp` | Monotonic time helpers used by Lamport-clock serial numbers |
 | `transaction.h`, `transaction_definitions.h`, `transaction_impl.h`, `transaction_signal.h` | The STM core: `Snapshot<XN>`, `Transaction<XN>`, `Node<XN>`, `Talker<...>` |
@@ -107,8 +133,10 @@ carries a fixed `m_started_time` tidstamp (start time packed with its thread
 id, never re-stamped across retries); on contention it tags each contended
 linkage's own `m_transaction_started_time` slot via
 `Snapshot::tag_as_contender()` under an **oldest-wins** rule (older = earlier
-start), with a symmetric ~100 µs `KAME_STM_PREEMPT_WINDOW_US` burst window
-damping preemption between near-contemporaneous threads. A transaction that
+start) applied *within a priority class* — a validated `HIGHEST` tag is never
+overwritten by a lower-priority tagger (Rule 0c: priority sits above age for
+the HIGHEST class) — with a symmetric ~100 µs `KAME_STM_PREEMPT_WINDOW_US`
+burst window damping preemption between near-contemporaneous threads. A transaction that
 keeps losing escalates its tag to a *privileged* (Reserved-kind) stamp once
 the livelock probe fires (eligibility keyed on tag-ownership + retry count,
 not wall-clock age); only such Reserved stamps hard-block a peer's CAS
@@ -118,9 +146,11 @@ UI_DEFERRABLE / SCRIPTING) can be expired or evicted; NORMAL / HIGHEST
 (measurement / driver-critical) are immune. Tags are released by
 `drop_tags_n_privilege()` (a CAS-based mine-only clear) at commit success, at
 `~Transaction()` (abort / RAII), and at standalone-`Snapshot` completion.
-Non-privileged contenders **park** (adaptive backoff / condition-variable
-wait) instead of spinning, so the oldest / highest-priority transaction
-always makes progress — model-checked livelock-free in TLA+ (the Layer-2
+Non-privileged contenders **park** (adaptive backoff, then a timed
+wait-on-address — `XWaitCell`, mutex-less on macOS and Linux; see
+[Realtime behaviour](#realtime-behaviour)) instead of spinning, so the
+oldest / highest-priority transaction
+makes progress ahead of the parked contenders — model-checked livelock-free in TLA+ (the Layer-2
 `BundleUnbundle_*_LLfree` specs below model this per-linkage tag as a
 per-node `priorityTag`; see [tests/VERIFICATION.md](tests/VERIFICATION.md) §3
 — exhaustive for the checked thread counts and tree shapes). The global
@@ -136,7 +166,7 @@ replaces the earlier proportional-timestamp-wait backoff.
 
 ## Comparison with other STM designs
 
-*The following comparison was written by Claude (Anthropic) based on analysis of the source code.*
+*The following comparison was drafted with AI assistance (Anthropic Claude) and technically reviewed and verified by the maintainers.*
 
 Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are **flat**: the unit of transaction is a set of independent transactional variables. KAME's STM is instead **tree-structured** — the entire instrument node tree is the shared state, and snapshots are always subtree-consistent. This difference drives several design choices:
 
@@ -149,20 +179,194 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 | Retry primitive | `retry` / `orElse` (Haskell) | `iterate_commit` / `iterate_commit_while` |
 | Blocking | `retry` suspends on read-set change | No data-structure locks; a repeatedly-colliding Tx yields/parks to the privileged (oldest / highest-priority) Tx |
 | Memory management | GC | Lock-free `atomic_shared_ptr` (ref-counted) |
-| Hard real-time suitability | Limited (GC pauses) | Better (no GC pauses); livelock-free negotiation keeps the oldest Tx progressing — though CAS retry *counts* are not hard-bounded, so not hard-RT in a strict WCET sense |
+| Cost of an atomic multi-object commit | Per-variable logging, paid at commit | **p50 ≈ 439 ns + 94.5 ns × nodes**, measured to 17 nodes; free in the tail, where 17× the nodes costs 1.6× the worst case ([below](#realtime-behaviour)) |
+| Hard real-time suitability | Limited (GC pauses) | No GC pauses, and a declared wait budget puts a chosen ceiling on the ordinary wait path — **measured** on a `PREEMPT_RT` host, MAX − budget = 3–7 µs at the shipped 20 ms budget (the host's own floor being 219 ns, measured), 38.3 M commits with zero over 3 ms at a 1 ms budget ([below](#realtime-behaviour)). Still not hard-RT in a strict WCET sense: CAS retry *counts* are not bounded, and the budget cannot bound the wait behind a live privilege holder — that one is the deployment's to bound, with core isolation |
 
 **Compared to Hardware Transactional Memory (Intel TSX/RTM):** HTM aborts on cache-line conflicts regardless of logical independence, and has strict capacity limits. KAME's STM aborts only on semantic conflicts (packet identity change), tolerates large read sets, and degrades gracefully to age-ordered privileged-Tx negotiation (the colliding losers yield to the oldest transaction) rather than falling back to a global lock.
 
-**Compared to TinySTM / NOrec (C libraries):** Both use a global version clock and keep a read/write log per transaction, but differ on per-object metadata — TinySTM uses per-object version locks, whereas NOrec deliberately keeps *none* (it validates the read set by value against the global clock; the name is "No Ownership Records"). KAME avoids the read log entirely — a `Snapshot` is just an immutable pointer, so reads outside a transaction are truly zero-overhead. The trade-off is that KAME's write path must clone the payload upfront (copy-on-write), whereas log-based STMs defer that cost to commit time.
+**Compared to TinySTM / NOrec (C libraries):** Both use a global version clock and keep a read/write log per transaction, but differ on per-object metadata — TinySTM uses per-object version locks, whereas NOrec deliberately keeps *none* (it validates the read set by value against the global clock; the name is "No Ownership Records"). KAME avoids the read log entirely — a `Snapshot` is just an immutable pointer, so reads outside a transaction require no transactional read-set logging (O(1) acquisition). The trade-off is that KAME's write path must clone the payload upfront (copy-on-write), whereas log-based STMs defer that cost to commit time.
 
 **What makes KAME's design distinctive** is the *bundling* protocol: rather than tracking which variables a transaction touched, it tracks whether the packet at the subtree root has been replaced since the transaction started. This is efficient for KAME's access pattern (many readers of a stable tree, infrequent writes from acquisition threads) but would be coarser than necessary for workloads with many independent fine-grained variables.
 
+## Realtime behaviour
+
+**A commit's ordinary wait path has a ceiling you choose.**  Declare a wait
+budget (`ScopedWaitBudget`; KAME sets 20 ms from
+`XPrimaryDriver::downstreamWaitBudgetUS()`) and every ordinary wait inside the
+commit is clipped to it.  The **sole exception** is the wait behind a live
+privileged peer, which is exempt by design and bounded instead by the holder's
+scheduling delay — [below](#the-one-wait-the-budget-cannot-clip), and the
+reason core isolation is item 1 of the deployment recipe.  Measured
+MAX − budget is **3–7 µs** from 20 ms down to 1 ms, and a 300 s stress run at a
+1 ms budget closed 38.3 M commits with zero over a 3 ms deadline — that run is
+a *separate* configuration from the table below, which is at the shipped 20 ms
+budget; its 38.3 M is not those rows' sample count.  Keep the
+budget well above the 300 µs deadline-spin reserve — at or below it the
+committer never sleeps, and the deferrable tiers starve (measured −94 % /
+−98 % at a 200 µs budget).
+
+Read every number below as an **observed maximum under a tested
+configuration**, never as a WCET: the budget bounds *time* on the ordinary
+path, the model checking proves *starvation-freedom*, and neither yields a
+retry-count bound for a deployment — the three are set side by side in
+[Note: retry counts vs time](#note-retry-counts-vs-time).
+
+**Measure the host before quoting any number here.**
+`tests/rt_measure.sh floor` runs both instruments with the preconditions
+enforced: `tests/latency_floor` (the floor of a timed loop; this host spans
+67.9 µs bare → 17.0 µs isolated → **219 ns** under PM-QoS) and `rtla
+osnoise` (how long the OS takes the CPU away from a spinning thread; here
+50 ms of noise per minute bare → **19–21 µs, C-state exits are essentially
+all of it** — so a MAX at or under ~19 µs is not separable from the machine,
+while p50–p99.999 are *dominated by* the STM path: one 19 µs hole a minute
+cannot lift 1000 commits out of 10⁸ above 7 µs.  Dominated, not free of it —
+those holes land inside commits too; what the arithmetic excludes is their
+*setting* those percentiles).  `rtla hwnoise` must itself run under
+PM-QoS or it re-measures C-states; it has not yet produced a reproducible
+firmware figure on this host, so no claim is made about a firmware floor.
+
+Results, PREEMPT_RT i5-7500, isolated core, `SCHED_FIFO`, per-thread
+pinning, the pool's realtime contract honoured, plain `Release` build
+(**not** `KAME_STM_NEG_DIAG`, whose pass timer puts two clock reads per
+bundle inside the measured path).  Three runs each, worst-of-three:
+
+| workload | p50 | p99.9 | p99.999 | **MAX** |
+|---|---|---|---|---|
+| HIGHEST, 5-node commit, peers writing into the same subtree (3 × 300 s) | 896 ns | 3.07 µs | 7.17 µs | **14.8 µs** |
+| the same commit with no peer on its subtree (3 × 60 s) | 896 ns | 1.28 µs | 1.28 µs | **1.84 µs** |
+| NORMAL under the 20 ms budget (3 × 120 s) | 896 ns | 2.10 ms | 12.6 ms | **20.01 ms** |
+
+**Reproduce with `sudo tests/rt_measure.sh latency <binary>`** — its
+`ROW=1|2|3` presets are exactly the three lines.  The script is the
+configuration below wrapped so it cannot be half-applied: it pre-flights
+`/dev/cpu_dma_latency` and `RLIMIT_RTPRIO` and refuses rather than degrade
+to `SCHED_OTHER` with live C-states, pins the governor and restores it, and
+rejects a `KAME_STM_NEG_DIAG` binary.  By hand:
+`tests/transaction_priority_mixed_test` under `tests/with_pmqos`,
+`KAME_MIX_OS_FIFO=1 KAME_MIX_OS_PIN=1`, `taskset` onto the isolated pair,
+at the DEFAULT `KAME_MIX_LEAVES=4` (that default *is* the 5-node commit;
+raising it changes which phenomena occur, not just their size).  Rows 2
+and 3 add `KAME_MIX_DISJOINT=1` / `KAME_MIX_ACQ_NORMAL=1`.
+
+**Read every figure as its histogram bucket, not as a number.**
+`latency_hist.h` reports the bucket's upper edge at 4 buckets per octave, so
+adjacent-edge differences (768 vs 896 ns; 1.05 vs 1.31 ms) can reflect a
+true shift of nanoseconds across a boundary.  Rows 1–2 repeat to the digit
+across their three runs; row 3 repeats through p99 and scatters past it
+(p99.9 1.31 / 1.31 / 2.10 ms) — a 0.1 % percentile sitting on the shoulder
+of the 0.054 % budget-clip population is a poorly conditioned statistic,
+and MAX stays pinned to the budget in every run.  Sub-bucket p50 movements
+observed across revisions remain unexplained and are treated as noise; the
+running record is [`design/RT_READINESS.md`](design/RT_READINESS.md).
+
+A percentile appears here only when the run has the samples to carry it:
+`latency_hist.h` prints one only if at least **10 commits fall beyond it**
+(`n × (1 − p) ≥ 10`), so a quoted p99.999 means ≥ 1 M warm commits in that
+run — every row above quotes one, and an absent percentile is one the harness
+refused rather than one omitted here.  The harness reports the exact warm `n`
+on its latency line, and `rt_measure.sh` records it per run in
+`provenance.txt` with the CPU model and the thread/core split.
+
+Three facts a deployment can act on:
+
+* **Composability is cheap and does not set the tail.**  The median is
+  linear in the commit's node count — **p50 ≈ 439 ns + 94.5 ns × nodes**,
+  measured to 17 nodes within 2 % — while 17× the nodes moves the worst
+  case only 1.6×.
+* **Contention is the tail, and the lever is topological.**  Rows 1 and 2
+  differ only in whether peers touch the committed subtree: **8× in MAX**
+  (14.8 vs 1.84 µs), 2.4× at p99.9, and the uncontended runs put not one
+  commit past the slow threshold.  A root-scope `Snapshot` or `Transaction`
+  bundles every subtree beneath it — a subtree with no bundling of its own
+  still pays for its parent's — so keep other threads, and root-scope
+  operations above all, off the deadline-bearing subtree.
+* **The contended remainder is the snapshot assembling a consistent view
+  under fire** — bundle rebuilds at ~2 µs a pass while peers dirty the
+  subtree.  What bounds it in practice: a HIGHEST tag *is* a Reserved
+  privilege claim, planted on scope entry *before* the view is taken (with
+  a `seq_cst` fence between the two — the guarantee is StoreLoad, which
+  neither the release store nor the own-location verify provides), and no
+  lower-priority tagger ever overwrites it (Rule 0c).  Measured effect of
+  the shield: slow commits 62 → 15 per 900 s (5.4σ), organic privilege
+  grants ~30×, +4–6 % throughput, no tier paying.  The result is an
+  *observed* maximum, not a WCET.  The how and the dead ends live in
+  [`tests/transaction_priority_mixed_test.cpp`](tests/transaction_priority_mixed_test.cpp)
+  and `design/RT_READINESS.md`.
+
+### The configuration
+
+1. **Isolate the deadline-bearing thread** (`isolcpus`), everything else
+   together on the housekeeping cores.
+2. **`SCHED_FIFO` only on top of (1)** — alone it preempts the very peers it
+   then waits behind, a measured priority inversion.
+3. **A wait budget sized to the deadline**, kept well above the 300 µs
+   reserve.
+4. **`kame_pool_prewarm()` from that thread** before the time-critical
+   section — the unwarmed first commit measured ~400 µs.
+5. **`kame_pool_set_realtime_thread(KAME_RT_STRICT)` on that thread** — a
+   commit frees cross-thread whenever a peer allocated on its subtree, and
+   an ungated free batches ~1000 deep with one unlucky free paying the whole
+   flush (3.5× of the slow-commit population until set).  KAME itself does
+   not yet mark the thread; see [`kamepoolalloc`](../kamepoolalloc)'s
+   contract.
+
+### The one wait the budget cannot clip
+
+The wait behind a **live privileged peer** is exempt by design — privilege is
+the completion guarantee (it never expires above the LOW band), so waiting
+the holder out is correctness.  Its bound is the holder's scheduling delay,
+which is what configuration (1) is for: unpinned, MAX sticks at 12–13 ms
+whatever the budget; pinned, the exemption never shows above the budget.
+
+### HIGHEST, and its precondition
+
+Everything above the first table row runs at NORMAL.  `Priority::HIGHEST`
+additionally never parks and is immune to fair-mode, so each of its commits
+landing inside a privileged peer's closure re-runs that closure.  Its
+ceiling therefore has a precondition: **HIGHEST commit rate × longest peer
+closure ≪ 1** — negligible at µs closures, divergent past the meeting point
+(22 ms closures against a flat-out churner: 1.1 → 15.5 re-runs per commit).
+KAME runs acquisition at NORMAL + OS elevation because its analysis closures
+are ms-scale; use HIGHEST only where the precondition is a design property.
+
+### No lock on the negotiation route
+
+A losing transaction parks on `XWaitCell` (`xwaitcell.h`), and on macOS and
+Linux the park is **mutex-less** — `__ulock_wait` / `futex(FUTEX_WAIT_PRIVATE)`
+on a generation word.  The portable fallback's `std::mutex` has no priority
+inheritance, so a high-priority committer could wait behind a preempted
+low-priority one, unbounded once a medium thread interposes; removing the
+mutex removes the question.  Throughput is measurably identical (the sleep
+path is reached in 0.0001–0.05 % of commits).  Force the fallback with
+`-DKAME_XWAITCELL_ULOCK=0` / `-DKAME_XWAITCELL_FUTEX=0`; `xwaitcell_test`
+covers all three backends.
+
+### Note: retry counts vs time
+
+The model checking proves **starvation-freedom**, not a retry-count bound —
+the right way around for a user, since the budget bounds *time* on the ordinary
+wait path and
+measured attempts sit at 1.002 mean / 5 worst.  A finite bound exists for
+each checked configuration; none is established for a deployment, whose
+arrival stream never drains.  "Retries are not bounded" means that, not
+"retries can diverge": a losing transaction escalates to a privileged stamp
+every peer must yield to.  That escalation is the *divergence* argument, not
+the common case — it is probe-gated and fires a few times per million
+commits, because a short CAS race resolves first.  Details in
+[tests/VERIFICATION.md](tests/VERIFICATION.md).
+
 ## Formal verification (TLA+)
 
-The STM protocol is formally specified and model-checked with TLA+ / TLC:
+The STM *protocol* is formally specified and exhaustively model-checked with
+TLA+ / TLC for the documented finite thread counts and tree topologies — this
+is model checking of the protocol model, not a proof of the C++ implementation
+for arbitrary deployment sizes, compiler mappings, or real-time WCET.
+The [paper](https://arxiv.org/abs/2608.12024) presents this verification in
+full, including the spec-to-C++ fidelity argument; this section is the
+repository-level map of the specs themselves:
 
 - **Layer 1 — `atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting, drain release, and `scoped_atomic_view` ([spec](tests/tlaplus/atomic_shared_ptr.tla)). Safety only — the bare primitive is intentionally *not* livelock-free.
-- **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Exhaustively model-checked **safe + livelock-free** without `CONSTRAINT` (the LL-free design makes the state space naturally finite — no artificial bound); the largest single exhaustive run reaches **~641 M distinct states** (3-level all-root, 15 h on the ISSP ohtaka supercomputer), over a billion across the LL-free configurations combined. (Raw state counts are **spec-version-specific** — they shift as the spec evolves, so cross-version comparison isn't meaningful; see [tests/VERIFICATION.md](tests/VERIFICATION.md) §3–§4 for the current-spec figures.) These are exhaustive results for the checked configurations (fixed thread counts and tree shapes), not an unbounded ∀-thread proof.
+- **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Exhaustively model-checked **safe + livelock-free** without `CONSTRAINT` (the LL-free design makes the state space naturally finite — no artificial bound); the largest single exhaustive run reaches **~641 M distinct states** (3-level all-root, 15 h on the ISSP ohtaka supercomputer), over a billion across the LL-free configurations combined. (Raw state counts are **spec-version-specific** — they shift as the spec evolves, so cross-version comparison isn't meaningful; see [tests/VERIFICATION.md](tests/VERIFICATION.md) §3–§4 for the current-spec figures.) These are exhaustive results for the checked configurations (fixed thread counts and tree shapes), not an unbounded ∀-thread proof. The property is `<>AllDone` over a *draining* workload, so it is starvation-freedom, **not** a bound on retry counts — [Realtime behaviour](#note-retry-counts-vs-time) sets the two side by side.
 - **Hard-link topologies:** multi-parent / one-child races that reproduce and fix a production abort via a Phase-4 reachability gate and a Phase-3 skip-Null fix (`tests/tlaplus/BundleUnbundle_hardlink_*.tla`).
 
 **Slide decks** — start at the **coverage overview** ([EN](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_overview_en.html) · [JA](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc_ja/slides_overview.html)), a hub linking every layer with a full coverage matrix. Individual decks (each with a Japanese counterpart under `doc_ja/`): [Layer 1](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer1_en.html), [Layer 2 base](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_en.html), [Layer 2 LLfree](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree.html), [3-level](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_3level_en.html), [dynamic](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_dynamic_en.html), [hard-link](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_hardlink_en.html).
@@ -171,9 +375,13 @@ C11 translations of each layer are verified with [GenMC](https://github.com/MPI-
 
 ## Dependencies
 
-- C++17 toolchain — gcc 9+, clang 10+, **and MSVC (cl)**.  All 11
-  standalone tests build and pass on macOS clang, Linux gcc/clang
+- C++17 toolchain — gcc 9+, clang 10+, **and MSVC (cl)**.  The standalone
+  tests build and pass on macOS clang, Linux gcc/clang
   (64-bit + 32-bit), Windows MinGW64 + lld, and Windows MSVC (cl 19.51).
+  Nothing in the library is POSIX-only; the one platform-gated *test*
+  feature is `transaction_priority_mixed_test`'s OS-scheduling arm
+  (`#if defined(__linux__)`, and `SKIPPED` rather than silently green
+  when the process may not set `SCHED_FIFO`).
   The MSVC build needs no opt-in flag: kamestm already used
   `std::atomic` / `thread_local` and carried `_MSC_VER` branches for
   the few primitives (popcount, fences, rdtsc); commit `60cfc7dc`
@@ -183,7 +391,8 @@ C11 translations of each layer are verified with [GenMC](https://github.com/MPI-
   (C2131 / C3493).
 - [`kamepoolalloc`](../kamepoolalloc) — sibling library providing
   `Transactional::allocator<T>` and the lock-free pool used by every
-  Snapshot allocation.  It is **also the single home of the Layer-0 atomic
+  Snapshot allocation (benchmarkable against the usual field as `kp` in
+  [mimalloc-bench](https://github.com/daanx/mimalloc-bench)).  It is **also the single home of the Layer-0 atomic
   primitives** (`atomic.h` / `atomic_mfence.h` / `atomic_smart_ptr.h` —
   `atomic_shared_ptr` / `local_shared_ptr`), which `transaction.h` includes
   HEADER-ONLY (no `libkamepoolalloc` runtime link is needed for them).  The
@@ -214,12 +423,13 @@ A stand-alone `kamestm.pro` / `CMakeLists.txt` producing a
 ## Tests
 
 Built by the `tests/` CMake scaffold and run with `ctest`
-(`cmake -S tests -B build && cmake --build build && ctest --test-dir build`).
-(The two `*_mixed` throughput drivers are built but not `ctest`-registered —
-they take command-line arguments and are run manually.)
-Four layers, from primitive to whole-protocol:
+(`cmake -S tests -B build && cmake --build build && ctest --test-dir build`):
+**19 registered tests**, plus three drivers that are built but deliberately not
+registered because they take command-line arguments and are run on purpose (the
+two `*_mixed` throughput drivers and `transaction_latency_bench`).
+Five layers, from primitive to whole-protocol:
 
-**Atomic primitives** — exercise the lock-free building blocks directly:
+**Primitives** — the lock-free building blocks, exercised directly:
 
 | test | covers |
 |---|---|
@@ -227,6 +437,8 @@ Four layers, from primitive to whole-protocol:
 | `atomic_scoped_ptr_test` | single-owner scoped pointer + `local_weak_ptr` promotion |
 | `atomic_queue_test` | lock-free MPMC queue |
 | `mutex_test` | the `std::mutex` / `shared_mutex` wrappers |
+| `xwaitcell_test` | the timed wait-on-address primitive negotiation parks on — the ordinary timeout, `usec == 0` meaning poll rather than forever, the lost-wakeup window, a real cross-thread wake, and eight sleepers none stranded. Passes on all three backends, so a compile-time backend choice cannot drift unnoticed |
+| `fast_vector_test` | union discipline of `fast_vector<T,N>` — the inline array and the heap vector are union'd, so any method reaching for the inactive member is UB |
 
 **STM functional** — concurrent transactions on the node tree:
 
@@ -251,6 +463,23 @@ The `3level_mixed` driver takes `seconds threads max_payload cross_ratio` and
 reports commits/s; because it is dominated by small per-payload allocations it
 also doubles as the STM-workload allocator benchmark (vs `kamepoolalloc`).
 
+**Negotiation, priority and realtime** — who wins a collision, whether the
+loser is ever pinned, and how long the winner takes.  The three white-box tests
+build with `-fno-access-control` because privilege claims are probe-gated and
+cannot be manufactured deterministically through the public API:
+
+| test | covers |
+|---|---|
+| `transaction_wait_budget_test` | a `ScopedWaitBudget` commit finishes within budget + slack (the slack covers OS scheduling and post-expiry retries — everything the library deliberately does not model) |
+| `transaction_starvation_test` | the starvation bound on revocable (LOW-band) priorities; the production default (10 s, `KAME_STM_LOWPRIO_STARVE_MS`, arming after `KAME_STM_LOWPRIO_STARVE_MIN_RETRIES = 2` retries) is exercised by *not* firing in the uncontended arm |
+| `transaction_sleep_in_tx_test` | debug-only detector for `msecsleep()` inside a Transaction (built `-UNDEBUG`, or it would pass having checked nothing) |
+| `transaction_priv_strip_test` | white-box: `tag_as_contender`'s Rule 0 — HIGHEST strips a stuck foreign non-HIGHEST privilege stamp |
+| `transaction_priv_expiry_test` | white-box: the expiry rules on the negotiation predicates themselves, both agreeing consumers |
+| `transaction_priv_pin_test` | the behavioural net over the same fix: **no thread may ever be pinned for a watchdog-class stretch**, keeping a 2026-07-30 field crash (SIGABRT via the negotiation HANG watchdog) as a regression |
+| `transaction_reanchor_test` | white-box: `newTransactionUsingSnapshotFor` must not orphan planted stamps when it re-anchors the snapshot base |
+| `transaction_priority_mixed_test` | the deployment's role mix — HIGHEST acquisition, a budgeted NORMAL downstream, a main-thread UI doing snapshots + structural churn, SCRIPTING — under a stall watchdog (any thread stuck > 5 s = livelock = FAIL). `KAME_MIX_*` add an OS-scheduling arm (`SCHED_FIFO`, pinning from the affinity mask, SCHED_IDLE starvation; Linux, and `SKIPPED` when unprivileged), the cross-subtree `XSecondaryDriver` role, and the record-commit latency distribution with an optional deadline assertion |
+| `transaction_latency_bench` | the per-commit latency *tail* (not throughput) under four symmetric threads; not registered, because absolute latencies are machine-specific. Pure observation — it times `iterate_commit` from outside |
+
 **Formal / memory-model verification** — see *Formal verification* above and
 [`tests/VERIFICATION.md`](tests/VERIFICATION.md).  GenMC RC11-model-checks both
 the C++ `atomic_smart_ptr` implementation directly
@@ -260,6 +489,25 @@ variants that caught real refcount bugs) and the TLA+-derived C translations of
 each protocol layer ([`tests/tlaplus/`](tests/tlaplus) — `test_*.c`).  The TLA+
 specs themselves (`atomic_shared_ptr.tla`, `BundleUnbundle*.tla` incl. 2-/3-level,
 lock-free, dynamic, and hard-link variants) are checked with TLC.
+
+## Citing
+
+If this library or its verification artifacts contribute to your work,
+please cite the paper:
+
+```bibtex
+@misc{kitagawa2026kamestm,
+  title         = {Formally Verified Lock-Free Software Transactional Memory
+                   for Scientific Measurement},
+  author        = {Kitagawa, Kentaro},
+  year          = {2026},
+  eprint        = {2608.12024},
+  archivePrefix = {arXiv},
+  primaryClass  = {cond-mat.other},
+  doi           = {10.48550/arXiv.2608.12024},
+  url           = {https://arxiv.org/abs/2608.12024}
+}
+```
 
 ## License
 

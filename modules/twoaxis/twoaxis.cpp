@@ -106,11 +106,6 @@ XTwoAxis::XTwoAxis(const char *name, bool runtime,
 XTwoAxis::~XTwoAxis() {
 }
 
-void
-XTwoAxis::showForms() {
-    m_form->showNormal();
-    m_form->raise();
-}
 
 bool
 XTwoAxis::checkDependency(const Snapshot &shot_this,

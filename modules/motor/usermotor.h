@@ -16,6 +16,8 @@
 #define USERMOTOR_H_
 
 #include "motor.h"
+#include <cstdint>   //!< Kept locally: this header's include chain does
+                     //!< not reach support.h.
 #include "modbusrtuinterface.h"
 #include "chardevicedriver.h"
 
@@ -41,6 +43,11 @@ protected:
     //! stores current settings to the NV memory of the instrumeMotornt.
     virtual void storeToROM() override;
     virtual void clearPosition() override;
+protected:
+    //! Alarm/warning codes already reported, to keep the 100 ms poll from
+    //! reprinting a condition that persists. Touched only by getStatus(),
+    //! i.e. the poll thread.
+    uint32_t m_alarmReported = 0, m_warnReported = 0;
 private:
 	void sendStopSignal(bool wait);
 };
@@ -68,6 +75,9 @@ protected:
     //! stores current settings to the NV memory of the instrumeMotornt.
     virtual void storeToROM() override;
     virtual void clearPosition() override;
+protected:
+    //! \sa XFlexCRK::m_alarmReported
+    uint32_t m_alarmReported = 0, m_infoReported = 0;
 private:
     void sendStopSignal(bool wait);
 

@@ -35,7 +35,26 @@
     #include <errno.h>
 #endif
 
+#ifndef NDEBUG
+void (*g_sleep_in_transaction_reporter)(
+    unsigned int ms, const void *caller) noexcept = nullptr;
+static thread_local int s_sleep_in_tx_ok = 0;
+void enterSleepInTransactionOK() noexcept {++s_sleep_in_tx_ok;}
+void leaveSleepInTransactionOK() noexcept {--s_sleep_in_tx_ok;}
+#endif
+
 void msecsleep(unsigned int ms) noexcept {
+#ifndef NDEBUG
+    if(g_sleep_in_transaction_reporter && !s_sleep_in_tx_ok) {
+    #ifdef _MSC_VER
+        g_sleep_in_transaction_reporter(ms, nullptr);
+    #else
+        // The caller's address, not ours: msecsleep is out-of-line in this TU, so
+        // this identifies the offending site for atos / addr2line.
+        g_sleep_in_transaction_reporter(ms, __builtin_return_address(0));
+    #endif
+    }
+#endif
     using namespace std::chrono;
     auto start = steady_clock::now();
 #ifdef __WIN32__
@@ -77,6 +96,34 @@ timestamp_t timeStamp() noexcept {
     #endif
     memoryBarrier();
     return r;
+#elif defined __aarch64__ && !defined _MSC_VER
+    // ARM64: CNTVCT_EL0 is the architectural virtual counter and the direct
+    // analogue of rdtsc — readable from EL0 on Linux and on Apple Silicon,
+    // with no syscall and no vDSO hop.  Without this branch aarch64 fell
+    // through to the XTime::now() fallback below, whose resolution is one
+    // MICROSECOND: on the platform that is most likely to be the realtime
+    // target from here on, the lowest-level timing primitive was 1000x
+    // coarser than on x86, silently.
+    //
+    // `isb` before the read: the counter read is not otherwise ordered
+    // against surrounding instruction execution, so without it the CPU may
+    // satisfy the mrs early and the interval comes out short.  This is the
+    // idiom the kernel's own arch_timer reader uses.
+    //
+    // Resolution is CNTFRQ_EL0, typically 24 MHz on Apple Silicon and
+    // 19.2-100 MHz on ARM SoCs — i.e. ~40 ns, coarser than rdtsc but 25x
+    // finer than the fallback.  Nothing here needs the frequency as a
+    // constant: timeStampCountsPerMilliSec() calibrates against XTime::now()
+    // empirically, so it works out whatever CNTFRQ_EL0 happens to be.
+    //
+    // (MSVC/Windows-on-ARM is excluded: it needs `_ReadStatusReg(ARM64_CNTVCT)`
+    // rather than inline asm, and there is no Windows-on-ARM build to test it
+    // against.  It keeps the fallback.)
+    memoryBarrier();
+    uint64_t r;
+    asm volatile("isb\n\tmrs %0, cntvct_el0" : "=r" (r) :: "memory");
+    memoryBarrier();
+    return r;
 #else
     XTime time(XTime::now());
     return (time.usec() + time.sec() * 1000000uL);
@@ -93,6 +140,11 @@ DECLSPEC_KAME timestamp_t timeStampCountsPerMilliSec() noexcept {
             s_time_stamp_calc = time_stamp_start;
             XTime time_start(XTime::now());
             timestamp_t time_stamp_start2 = timeStamp();
+            // Legitimate: one-time TSC calibration, and it can be triggered
+            // lazily by the first timeStamp() inside a transaction.
+#ifndef NDEBUG
+            ScopedSleepInTransactionOK _sleep_ok;
+#endif
             msecsleep(20);
             timestamp_t dt = timeStamp() - time_stamp_start2;
             unsigned int msec = XTime::now().diff_msec(time_start);

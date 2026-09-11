@@ -47,11 +47,6 @@ XRelayDriver::XRelayDriver(const char *name, bool runtime,
     }
 }
 
-void
-XRelayDriver::showForms() {
-    m_form->showNormal();
-    m_form->raise();
-}
 
 void
 XRelayDriver::start() {

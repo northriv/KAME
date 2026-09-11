@@ -153,12 +153,6 @@ XDSO::XDSO(const char *name, bool runtime,
 		tr[ *m_waveForm].clearPoints();
     });
 }
-void
-XDSO::showForms() {
-//! impliment form->show() here
-    m_form->showNormal();
-    m_form->raise();
-}
 
 unsigned int
 XDSO::Payload::length() const {
@@ -309,13 +303,12 @@ XDSO::execute(const atomic<bool> &terminated) {
     });
 
 	// Acquisition loop only — deliberately after the two setup commits above,
-	// which run once at driver start (often while a .kam load is starting many
-	// drivers at once, the one case where several impolite threads hurt).
-	// Everything inside this loop belongs to the record: the Snapshot below and
-	// the per-iteration settings reads, the hardware I/O, the
-	// `trans(*this).m_rawDisplayOnly` one-liner and finishWritingRaw.  None of
-	// it should be polite.  See
-	// XPrimaryDriverWithThread::AcquisitionPriority.
+	// which run once at driver start.  Everything inside this loop belongs to
+	// the record: the Snapshot below and the per-iteration settings reads, the
+	// hardware I/O, the `trans(*this).m_rawDisplayOnly` one-liner and
+	// finishWritingRaw — i.e. the loop IS this thread's working life, which is
+	// the span an OS scheduling class wants.  It grants no STM priority; see
+	// XPrimaryDriverWithThread::AcquisitionPriority for why not.
 	AcquisitionPriority acq_priority;
 	while( !terminated) {
 		Snapshot shot( *this);

@@ -47,8 +47,6 @@ public:
     XLaserModule(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XLaserModule() {}
-    //! Shows all forms belonging to driver.
-    virtual void showForms() override;
 
     //! One laser current-source channel, bound to a fixed slot (1-based). Its readbacks are
     //! populated only while readLaser() reports the channel present; its setpoints/enable are

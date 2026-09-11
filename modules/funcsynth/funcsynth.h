@@ -27,8 +27,6 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do
 	virtual ~XFuncSynth() {}
-	//! Shows all forms belonging to driver
-	virtual void showForms();
 protected:
 	//! Starts up your threads, connects GUI, and activates signals.
 	virtual void start();

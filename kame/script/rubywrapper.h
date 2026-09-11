@@ -1,5 +1,9 @@
 #include <memory>
 #include <string>
+#include <cstdint>   //!< uintptr_t for `Value`.  Reached this header only
+                     //!< transitively through <string> on older libstdc++;
+                     //!< newer ones have trimmed that, so the include has to
+                     //!< be explicit or the whole Ruby bridge fails to parse.
 #ifdef _MSC_VER
     #ifndef snprintf
         #define snprintf _snprintf

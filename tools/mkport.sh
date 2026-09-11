@@ -1,12 +1,12 @@
 #!/bin/bash
-version=`grep Version ./kame.spec | sed -e 's/Version: //'`
+version=`grep -m1 '^VERSTR' ./kame.pri | sed -e 's/.*=[[:space:]]*//' -e 's/[[:space:]]*$//'`
 file=kame-$version
-logfile=mkrpm.log
+logfile=mkport.log
 echo $file
 
 dir=../2.1-backups
 
-./tools/maketarball.sh
+./tools/mkzip.sh
 
 tarfile=$dir/${file}.tar.bz2
 portfile=/opt/localrepo/science/kame/Portfile

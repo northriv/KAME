@@ -23,7 +23,6 @@
 #include <QTableWidget>
 #include <QApplication>
 
-#include "recorder.h"
 #include "analyzer.h"
 #include "ui_graphform.h"
 

@@ -74,8 +74,7 @@ XODMRFMControl::~XODMRFMControl() {
 }
 void XODMRFMControl::showForms() {
     m_form->resize(100,100); //avoids bug on Windows.
-    m_form->showNormal();
-    m_form->raise();
+    showForm(m_form.get());
 }
 
 bool XODMRFMControl::checkDependency(const Snapshot &shot_this,

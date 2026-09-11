@@ -63,11 +63,25 @@
 //! the control run did not itself breach that arm's limit.  A 10 ms slack
 //! marks every arm no-power on this host.
 //!
-//! **By default every thread carries a budget, which is deliberately the
-//! worst configuration and not how a budget is meant to be deployed.**  Set
-//! `KAME_WB_TEST_NBUDGET=1` for the intended shape — one deadline-carrying
-//! thread among ordinary ones.  The difference is not a detail; measured on
-//! 8 threads with a 100 µs budget:
+//! **One thread carries a budget by default — the intended deployment.**  Pass
+//! `KAME_WB_TEST_NBUDGET=<threads>` for the hostile all-budgeted shape.
+//!
+//! That default is a correction.  It was originally the hostile shape, on the
+//! argument that "if the bound holds there it holds anywhere".  The argument was
+//! wrong, and measuring under load says why: with a parallel 8-way build
+//! running, the all-budgeted arms fail — the unbudgeted p99.99 was 4.5 ms while
+//! the 100 µs arm reached 10.0 ms, i.e. *worse than no budget at all*, with
+//! commits down from 4.00 M to 2.46 M.  Under CPU starvation a budget's early
+//! return becomes "spin instead of sleep" and the threads fight for the scarce
+//! CPU.  That is a real property of putting a tight budget on every thread, not
+//! a measurement artefact — which is exactly why it cannot be the asserted
+//! configuration: the test would fail for a true reason that is not the
+//! property under test.  With one budgeted thread the same loaded runs pass 3/3
+//! with margin (unbudgeted p99.99 5.7–9.7 ms; budgeted arms 144–663 µs and
+//! 1.13–1.16 ms).
+//!
+//! The two shapes differ sharply on an idle machine too; measured on 8 threads
+//! with a 100 µs budget:
 //!
 //!                        p99      p99.9    p99.99   system throughput
 //!     no budget        0.50 µs   0.58 µs   3380 µs        —
@@ -250,10 +264,12 @@ int main(int argc, char **argv) {
     const int threads = env_int("KAME_WB_TEST_THREADS",
         std::max(4, std::min(8, (int)std::thread::hardware_concurrency())));
     const double secs = (double)env_int("KAME_WB_TEST_SECS", 2);
-    // How many threads carry a budget.  Default = all, which is the hostile
-    // shape (see the header).  KAME_WB_TEST_NBUDGET=1 is the intended
-    // deployment: one deadline-carrying thread among ordinary ones.
-    int n_budget = env_int("KAME_WB_TEST_NBUDGET", threads);
+    // How many threads carry a budget.  Default 1 — the intended deployment.
+    // Pass KAME_WB_TEST_NBUDGET=<threads> for the hostile all-budgeted shape,
+    // which is informative but must not be the asserted configuration (see the
+    // header: it is genuinely bad under CPU starvation, so asserting on it
+    // fails for a true reason that is not the property under test).
+    int n_budget = env_int("KAME_WB_TEST_NBUDGET", 1);
     if(n_budget > threads) n_budget = threads;
     const std::int64_t slack_ns =
         (std::int64_t)env_int("KAME_WB_TEST_SLACK_US", 1000) * 1000;

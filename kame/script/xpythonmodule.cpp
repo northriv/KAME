@@ -25,7 +25,6 @@
 #include "xitemnode.h"
 #include "measure.h"
 
-#include "recorder.h"
 #include "driver.h"
 #include "analyzer.h"
 #include "primarydriver.h"
@@ -57,7 +56,18 @@ PYBIND11_DECLARE_HOLDER_TYPE(T, local_shared_ptr<T>, true)
 
 namespace py = pybind11;
 
-KAMEPyBind XPython::bind; //should be here before PYBIND11_EMBEDDED_MODULE.
+//Leaked on purpose, and never destroyed.  As a static OBJECT its destructor
+//ran during __cxa_finalize_ranges at exit(), and it holds two things that must
+//not be touched then: a pybind11::module_, whose release DECREFs a Python
+//object after the interpreter is no longer in a state to dealloc one, and maps
+//of std::function whose lambdas live in driver-module dylibs that may already
+//be unloaded.  Observed as KAME "hanging" on quit: the DECREF segfaulted
+//inside _Py_Dealloc, libruby's SIGSEGV handler (installed because KAME embeds
+//Ruby too) caught it, and the process spun there at 100% instead of dying --
+//identical stack across samples seconds apart.  The OS reclaims this at exit;
+//nothing else needs it torn down.
+//Still defined here, before PYBIND11_EMBEDDED_MODULE, for initialisation order.
+KAMEPyBind &XPython::bind = *new KAMEPyBind();
 
 PYBIND11_EMBEDDED_MODULE(kame, m
 #ifdef PYBIND11_HAS_SUBINTERPRETER_SUPPORT //for free-threading python.
@@ -88,6 +98,16 @@ py::object KAMEPyBind::cast_to_pyobject(XNode::Payload *y) {
     //manages to use its downmost base class.
     std::map<size_t, decltype(casters->begin()->second.second)> cand;
     for(auto &c: *casters) {
+        //Cached results (serial >= SerialBaseForCache) serve the exact-match
+        //find() above only.  They must not vote here: the election below picks
+        //the LARGEST serial as "most derived", relying on declaration order
+        //(base declared before derived), and cache serials sit above every
+        //declaration.  Worst is the trivial cache a hopeless type leaves
+        //behind (plain py::cast, succeeds for anything): one such entry made
+        //every later fallback resolve to bare XNode/Payload for the rest of
+        //the session (2026-07-30, RelaxFunc).
+        if(c.second.first >= SerialBaseForCache)
+            continue;
         try {
             auto x = (c.second.second)(y);
             if(x.cast<XNode::Payload*>()) {
@@ -122,6 +142,12 @@ py::object KAMEPyBind::cast_to_pyobject(shared_ptr<XNode> y) {
     //manages to use its downmost base class.
     std::map<size_t, decltype(casters->begin()->second.second)> cand;
     for(auto &c: *casters) {
+        //Same rule as the Payload overload above: cached results are for the
+        //exact-match find() only and carry no declaration order — letting them
+        //vote hands the election to a trivial cache entry and everything
+        //resolves to bare XNode.
+        if(c.second.first >= SerialBaseForCache)
+            continue;
         auto x = (c.second.second)(y);
         if(x.cast<shared_ptr<XNode>>())
             cand.emplace(c.second.first, c.second.second);
@@ -270,6 +296,9 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         }), py::keep_alive<1, 2>(), py::call_guard<py::gil_scoped_release>())
         .def("__iter__", [](Transaction &self)->Transaction &{ return self; })
         .def("__next__", [](Transaction &self)->Transaction &{
+            // No starvation check needed here: commitOrNext() below calls
+            // ++(*this) when the commit fails, and Transaction::operator++ is
+            // where the bound lives.  See Node::throw_if_starved_.
             if(self.isModified() && self.commitOrNext())
                 throw pybind11::stop_iteration();
             else
@@ -673,7 +702,6 @@ template <class PyFunc, class MathTool, class MathToolList>
 class XPythonGraphMathTool : public MathTool {
 public:
     using MathTool::MathTool;
-    virtual XString getTypename() const override { return m_creation_key;}
 
     virtual bool releaseEntries(Transaction &tr) override {
         bool ret = MathTool::releaseEntries(tr);
@@ -701,13 +729,11 @@ public:
             if( !driver)
                 throw std::runtime_error("Tool creation failed.");
             pytool->m_self_creating = obj; //pybind11::cast(driver); //for persistence of python-side class.
-            pytool->m_creation_key = key;
             return pytool;
         }, label);
     }
 private:
     pybind11::object m_self_creating; //to increase reference counter.
-    XString m_creation_key;
 };
 
 template class XPythonGraphMathTool<PyFunc1DMathTool, XGraph1DMathToolX<PyFunc1DMathTool, false>, XGraph1DMathToolList>;

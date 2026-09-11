@@ -23,9 +23,12 @@
       </sizepolicy>
      </property>
      <property name="title">
-      <string>Raw Stream Recorder</string>
+      <string>Journal</string>
      </property>
-     <layout class="QHBoxLayout" name="horizontalLayout_2">
+     <layout class="QVBoxLayout" name="verticalLayout_journal">
+      <property name="spacing">
+       <number>4</number>
+      </property>
       <property name="leftMargin">
        <number>2</number>
       </property>
@@ -39,15 +42,59 @@
        <number>2</number>
       </property>
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout">
+       <layout class="QHBoxLayout" name="horizontalLayout_journalsession">
+        <property name="spacing">
+         <number>4</number>
+        </property>
+        <item>
+         <widget class="QCheckBox" name="m_ckbSessionJournal">
+          <property name="toolTip">
+           <string>Journal every session to KAME's own directory, whether or not a run is being recorded.</string>
+          </property>
+          <property name="text">
+           <string>Session journal</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="m_edSessionFile">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>Where this session is being journaled. Read-only: select and copy it, or drop it on a terminal.</string>
+          </property>
+          <property name="readOnly">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_journalfile">
         <property name="spacing">
          <number>0</number>
         </property>
         <item>
-         <widget class="QLineEdit" name="m_edRec"/>
+         <widget class="QLabel" name="textLabelRun">
+          <property name="text">
+           <string>Logbook </string>
+          </property>
+         </widget>
         </item>
         <item>
-         <widget class="QToolButton" name="m_btnRec">
+         <widget class="QLineEdit" name="m_edJournal">
+          <property name="toolTip">
+           <string>Name this run. It becomes &lt;name&gt;.kamj, and &lt;name&gt;.kamb beside it when the tier keeps raw records. Nothing is written until Write is ticked; the session journal above runs whether or not you name one.</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="m_btnJournal">
           <property name="text">
            <string>...</string>
           </property>
@@ -56,30 +103,57 @@
        </layout>
       </item>
       <item>
-       <spacer name="spacer4">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
+       <layout class="QHBoxLayout" name="horizontalLayout_journaltier">
+        <property name="spacing">
+         <number>4</number>
         </property>
-        <property name="sizeType">
-         <enum>QSizePolicy::Fixed</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>16</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
+        <item>
+         <widget class="QComboBox" name="m_cmbJournalMode">
+          <property name="toolTip">
+           <string>How much of the run the logbook keeps. Settings are always kept; raw records are what a driver captured, and they are what makes the run replayable.</string>
+          </property>
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </item>
       <item>
-       <widget class="QCheckBox" name="m_ckbBinRecWrite">
-        <property name="enabled">
-         <bool>false</bool>
+       <layout class="QHBoxLayout" name="horizontalLayout_journalmode">
+        <property name="spacing">
+         <number>4</number>
         </property>
-        <property name="text">
-         <string>Write</string>
-        </property>
-       </widget>
+        <item>
+         <widget class="QLabel" name="m_lblJournalStats">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>What this run is producing per second, and in total. The files on disk are smaller: both the journal and the raw stream are gzip.</string>
+          </property>
+          <property name="text">
+           <string/>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="m_ckbJournalWrite">
+          <property name="text">
+           <string>Write</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </item>
      </layout>
     </widget>
@@ -119,10 +193,10 @@
    <item row="2" column="0">
     <spacer name="spacer2">
      <property name="orientation">
-      <enum>Qt::Horizontal</enum>
+      <enum>Qt::Orientation::Horizontal</enum>
      </property>
      <property name="sizeType">
-      <enum>QSizePolicy::Expanding</enum>
+      <enum>QSizePolicy::Policy::Expanding</enum>
      </property>
      <property name="sizeHint" stdset="0">
       <size>
@@ -141,9 +215,12 @@
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <tabstops>
-  <tabstop>m_edRec</tabstop>
-  <tabstop>m_btnRec</tabstop>
-  <tabstop>m_ckbBinRecWrite</tabstop>
+  <tabstop>m_ckbSessionJournal</tabstop>
+  <tabstop>m_edSessionFile</tabstop>
+  <tabstop>m_edJournal</tabstop>
+  <tabstop>m_btnJournal</tabstop>
+  <tabstop>m_cmbJournalMode</tabstop>
+  <tabstop>m_ckbJournalWrite</tabstop>
   <tabstop>m_tblDrivers</tabstop>
   <tabstop>m_btnNew</tabstop>
   <tabstop>m_btnDelete</tabstop>

@@ -43,8 +43,6 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	~XNMRT1 () {}
   
-	//! Shows all forms belonging to driver
-	virtual void showForms();
 protected:
 	//! This function is called when a connected driver emit a signal
 	virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
@@ -70,7 +68,7 @@ public:
 			std::complex<double> c;
 			double p1;
 			int isigma; /// weight
-			std::deque<std::complex<double> > value_by_cond;
+			std::vector<std::complex<double> > value_by_cond;
 		};
 		struct ConvolutionCache {
 			std::vector<std::complex<double> > wave;
@@ -80,10 +78,12 @@ public:
 			double cfreq;
 			double power;
 		};
-		//! Raw measured points
+		//! Raw measured points, one per DISTINCT abscissa.
+		//! \sa accumulateRawPt(), which sums repeats into the point already here.
 		struct RawPt {
-			std::deque<std::complex<double> > value_by_cond;
+			std::vector<std::complex<double> > value_by_cond; //!< sum over \a weight records
 			double p1;
+			int weight = 0; //!< how many records are summed in \a value_by_cond
 		};
 		//pointer-to-const: entries are shared with live Snapshots; rebuild via a fresh object (83bb9ffaf).
 		std::deque<shared_ptr<const ConvolutionCache> > m_convolutionCache;
@@ -243,7 +243,10 @@ private:
 
 	void analyzeSpectrum(Transaction &tr,
 		const std::vector< std::complex<double> >&wave, int origin, double cf,
-		std::deque<std::complex<double> > &value_by_cond);
+		std::vector<std::complex<double> > &value_by_cond);
+	//! Files one measurement into \a pts, summing it into the point already at
+	//! that abscissa when there is one.
+	static void accumulateRawPt(std::deque<Payload::RawPt> &pts, const Payload::RawPt &pt);
     void storePulseForMapping(Transaction &tr, double p1_or_2tau,
         const std::vector< std::complex<double> >&wave, const Snapshot &shot_pulse, const XNMRPulseAnalyzer &pulse);
     void ZFFFT(Transaction &tr,

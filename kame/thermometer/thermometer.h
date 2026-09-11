@@ -77,7 +77,7 @@ public:
         return static_pointer_cast<XCalibrationCurve>(createByTypename(type, name));
     }
 protected:
-    virtual shared_ptr<XNode> createByTypename(const XString &type, const XString &name) {
+    virtual shared_ptr<XNode> createByTypename_(const XString &type, const XString &name) override {
         shared_ptr<XNode> ptr = (creator(type))(name.c_str(), false);
         if(ptr) insert(ptr);
         return ptr;

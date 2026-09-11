@@ -34,6 +34,40 @@ using namespace std::chrono;
 //! Sleeps in ms
 DECLSPEC_KAME void msecsleep(unsigned int ms) noexcept; //<!\todo {std::this_thread::sleep_for(std::chrono::milliseconds(ms));}
 
+#ifndef NDEBUG
+//! \name Debug-only detector: msecsleep() while a Transaction is alive.
+//!
+//! Sleeping inside a transaction is the same defect class as taking an interface
+//! lock inside one (driver rule 5), and worse for latency: the transaction stays
+//! open for the whole sleep, so every thread negotiating against it waits; if the
+//! sleep is inside an `iterate_commit` closure it also re-sleeps on every CAS
+//! retry; and it blows any `ScopedWaitBudget` outright.
+//!
+//! `tools/audit/check_stm_closures.py` already flags a literal `msecsleep(` inside
+//! an `iterate_commit` closure.  This catches what the source scan cannot see: a
+//! sleep several call levels down from the closure, and a sleep anywhere else in a
+//! transaction's lifetime.
+//!
+//! The hook is a function pointer rather than a direct call so that xtime keeps
+//! knowing nothing about transactions and, more practically, so that binaries
+//! which never instantiate the STM (mutex_test, atomic_queue_test, the pool
+//! allocator tests) do not fail to link against `detail::s_tx_nest` -- which
+//! `transaction_impl.h` defines, and they never include.  The STM installs it at
+//! static-init time; it stays null everywhere else.
+//! @{
+DECLSPEC_KAME extern void (*g_sleep_in_transaction_reporter)(
+    unsigned int ms, const void *caller) noexcept;
+//! Suppresses the report on this thread, for a sleep that is legitimately inside
+//! a transaction (kamestm has two of its own; see the call sites).
+DECLSPEC_KAME void enterSleepInTransactionOK() noexcept;
+DECLSPEC_KAME void leaveSleepInTransactionOK() noexcept;
+struct ScopedSleepInTransactionOK {
+    ScopedSleepInTransactionOK() noexcept {enterSleepInTransactionOK();}
+    ~ScopedSleepInTransactionOK() noexcept {leaveSleepInTransactionOK();}
+};
+//! @}
+#endif
+
 //! Fetches CPU counter.
 using timestamp_t = uint64_t;
 DECLSPEC_KAME timestamp_t timeStamp() noexcept;

@@ -112,10 +112,15 @@ public:
         }
         return *this;
     }
-    iterator begin() noexcept {return is_fixed() ? &m_array[0] : &m_vector[0];}
-    const_iterator begin() const noexcept {return is_fixed() ? &m_array[0] : &m_vector[0];}
-    iterator end() noexcept {return is_fixed() ? &m_array[m_size] : &m_vector[m_vector.size()];}
-    const_iterator end() const noexcept {return is_fixed() ? &m_array[m_size] : &m_vector[m_vector.size()];}
+    // Heap mode uses data() rather than &m_vector[n]: operator[] is only
+    // valid for n < size(), so `&m_vector[0]` on an empty vector and
+    // `&m_vector[m_vector.size()]` for end() are both out-of-range
+    // subscripts (UB, and a hard abort under _GLIBCXX_ASSERTIONS).
+    // data() / data()+size() are the well-defined spellings.
+    iterator begin() noexcept {return is_fixed() ? &m_array[0] : m_vector.data();}
+    const_iterator begin() const noexcept {return is_fixed() ? &m_array[0] : m_vector.data();}
+    iterator end() noexcept {return is_fixed() ? &m_array[m_size] : m_vector.data() + m_vector.size();}
+    const_iterator end() const noexcept {return is_fixed() ? &m_array[m_size] : m_vector.data() + m_vector.size();}
     size_type size() const noexcept {return is_fixed() ? m_size : m_vector.size();}
     bool empty() const noexcept {return !size();}
     reference operator[](size_type n) {return is_fixed() ? m_array[n] : m_vector[n];}
@@ -161,8 +166,12 @@ public:
             return const_cast<iterator>(position);
         }
         else {
-            auto it = m_vector.erase(m_vector.begin() + (position - begin()));
-            return &*it;
+            auto idx = position - begin();
+            m_vector.erase(m_vector.begin() + idx);
+            // Not `&*it`: erasing the last element returns end(), and
+            // dereferencing it is UB.  data() + idx is the same address,
+            // well-defined even when idx == size() (one-past-the-end).
+            return m_vector.data() + idx;
         }
     }
 //    iterator erase(const_iterator first, const_iterator last);
@@ -190,11 +199,27 @@ public:
         }
         else {
             m_vector.resize(sz);
-//            shrink_to_fit();
+            // Deliberately NOT shrink_to_fit() here.  It is safe to call now
+            // that the is_fixed() test below is right, but it would be a
+            // pessimisation: both call sites grow by one
+            // (transaction_impl.h, `resize(size() + 1)`), and after a
+            // geometric grow the slack exceeds max_fixed_size for any list
+            // past a handful of elements -- so every insertion would
+            // reallocate, making child insertion O(n) instead of amortized
+            // O(1).  Callers that really want the memory back can call
+            // shrink_to_fit() explicitly.
         }
     }
     void shrink_to_fit() {
-        if( !is_fixed()) return;
+        // Inline (fixed) storage has no spare capacity to release, and
+        // m_vector is NOT the active union member here -- touching it at all
+        // (even just capacity()/size()) reads m_array's bytes reinterpreted
+        // as a std::vector's three pointers.  The test used to be inverted,
+        // which returned early exactly when a real vector existed and ran the
+        // shrink on garbage otherwise; whether that corrupted memory depended
+        // on the stale bytes past the live elements, so it crashed only
+        // sporadically (Linux shutdown SIGSEGV via Talker::disconnect).
+        if(is_fixed()) return;
         if(m_vector.capacity() - m_vector.size() > max_fixed_size) {
             m_vector.shrink_to_fit();
         }

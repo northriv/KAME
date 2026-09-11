@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>423</width>
-    <height>822</height>
+    <height>833</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -162,7 +162,7 @@
        <property name="bottomMargin">
         <number>4</number>
        </property>
-       <item row="0" column="0" rowspan="2">
+       <item row="0" column="0" rowspan="3">
         <layout class="QVBoxLayout" name="verticalLayout">
          <item>
           <widget class="QLabel" name="textLabel20_10">
@@ -222,6 +222,13 @@
         </layout>
        </item>
        <item row="1" column="1">
+        <widget class="QCheckBox" name="m_ckbPresetAutoSave">
+         <property name="text">
+          <string>Auto Save Preset</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
         <widget class="QPushButton" name="m_btnAddPresetAngles">
          <property name="text">
           <string>Add Current Pos</string>
@@ -359,10 +366,10 @@
        </font>
       </property>
       <property name="frameShape">
-       <enum>QFrame::Box</enum>
+       <enum>QFrame::Shape::Box</enum>
       </property>
       <property name="frameShadow">
-       <enum>QFrame::Raised</enum>
+       <enum>QFrame::Shadow::Raised</enum>
       </property>
      </widget>
     </item>
@@ -375,10 +382,10 @@
        </sizepolicy>
       </property>
       <property name="frameShape">
-       <enum>QFrame::StyledPanel</enum>
+       <enum>QFrame::Shape::StyledPanel</enum>
       </property>
       <property name="frameShadow">
-       <enum>QFrame::Raised</enum>
+       <enum>QFrame::Shadow::Raised</enum>
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout_8">
        <property name="spacing">
@@ -420,7 +427,7 @@
           <bool>true</bool>
          </property>
          <property name="alignment">
-          <set>Qt::AlignCenter</set>
+          <set>Qt::AlignmentFlag::AlignCenter</set>
          </property>
         </widget>
        </item>
@@ -654,7 +661,7 @@
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout_13">
       <property name="sizeConstraint">
-       <enum>QLayout::SetDefaultConstraint</enum>
+       <enum>QLayout::SizeConstraint::SetDefaultConstraint</enum>
       </property>
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_18">
@@ -691,9 +698,19 @@
         </item>
        </layout>
       </item>
-     </layout>
+      </layout>
     </item>
     <item>
+       <widget class="QCheckBox" name="m_ckbScanAssist">
+        <property name="toolTip">
+         <string>When the step-by-step search stops improving but the capacitance derivatives are already known, rotate one axis through and read the minimum off the trajectory.</string>
+        </property>
+        <property name="text">
+         <string>Scan assist when stuck</string>
+        </property>
+       </widget>
+      </item>
+     <item>
      <layout class="QHBoxLayout" name="horizontalLayout_20">
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_30">
@@ -733,11 +750,38 @@
      </layout>
     </item>
     <item>
+     <layout class="QHBoxLayout" name="horizontalLayoutRelaySettle">
+      <item>
+       <widget class="QLabel" name="textLabelRelaySettle">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Relay Settle Time</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="m_edRelaySettleTime"/>
+      </item>
+      <item>
+       <widget class="QLabel" name="labelRelaySettleUnit">
+        <property name="text">
+         <string>ms</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item>
      <layout class="QHBoxLayout" name="horizontalLayout_14">
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_15">
         <property name="sizeConstraint">
-         <enum>QLayout::SetFixedSize</enum>
+         <enum>QLayout::SizeConstraint::SetFixedSize</enum>
         </property>
         <item>
          <widget class="QLabel" name="label_8">
@@ -754,7 +798,7 @@
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_16">
         <property name="sizeConstraint">
-         <enum>QLayout::SetFixedSize</enum>
+         <enum>QLayout::SizeConstraint::SetFixedSize</enum>
         </property>
         <item>
          <widget class="QLabel" name="label_9">
@@ -788,6 +832,7 @@
   <tabstop>m_btnAbortTuning</tabstop>
   <tabstop>m_txtDescPresetAngles</tabstop>
   <tabstop>m_dblTrustPresetAnglesInPercent</tabstop>
+  <tabstop>m_ckbPresetAutoSave</tabstop>
   <tabstop>m_btnAddPresetAngles</tabstop>
   <tabstop>m_edReflectionTargeted</tabstop>
   <tabstop>m_edReflectionRequired</tabstop>
@@ -802,6 +847,8 @@
   <tabstop>m_edBacklushPlusTh</tabstop>
   <tabstop>m_edOrigBackMax</tabstop>
   <tabstop>m_edTimeMax</tabstop>
+  <tabstop>m_ckbScanAssist</tabstop>
+  <tabstop>m_edRelaySettleTime</tabstop>
   <tabstop>m_cmbFitFunc</tabstop>
   <tabstop>m_edBacklashRecoveryFactor</tabstop>
  </tabstops>

@@ -33,7 +33,27 @@ public:
     virtual ~XDriver() = default;
 
 	//! Shows all forms belonging to the driver.
-	virtual void showForms() = 0;
+	//!
+	//! Not pure any more, and not something a driver has to write: the default
+	//! finds the window through the connectors the driver already made, which
+	//! is what 34 of the 37 implementations of this did by hand.  Override it
+	//! only when showing a driver's forms means more than one window, or when
+	//! something has to happen first -- and call showForm() from the override
+	//! rather than open-coding it again.
+	//!
+	//! "More than one window" counts the ones a BASE class makes: XThamwayPROT
+	//! has its own form and the FrmSG that XSG builds on the same driver's
+	//! nodes, and deleting its override handed the user the plain SG form.
+	//! Count the forms up the whole chain, not the ones in this class's file.
+	//! \sa XQConnector::windowOf()
+	virtual void showForms();
+	//! Brings one form window up, and is where what that MEANS is decided.
+	//!
+	//! showNormal() rather than show(), so a form the user had minimised comes
+	//! back rather than staying in the dock, and raise() after it, so a form
+	//! already open but buried answers the click that asked for it.  Null-safe,
+	//! nullptr being what windowOf() says about a driver with no form.
+	static void showForm(class QWidget *w);
  
     struct DECLSPEC_KAME Payload : public XNode::Payload {
 		//! Recorded time.
@@ -102,7 +122,7 @@ public:
         std::reference_wrapper<Transaction>,
 		const shared_ptr<XMeasure> &
 		)
-    virtual shared_ptr<XNode> createByTypename(const XString &type, const XString& name) override;
+    virtual shared_ptr<XNode> createByTypename_(const XString &type, const XString& name) override;
 
 private:
 	const weak_ptr<XMeasure> m_measure;

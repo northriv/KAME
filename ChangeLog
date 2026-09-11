@@ -1,3 +1,1463 @@
+* Thu Sep 3 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- UI: the LCD readouts lose their frame, which is what gives the digits room.
+  The forms ask for a raised Box and QLCDNumber draws inside contentsRect(),
+  so the frame both takes the space and puts a line exactly where the top bar
+  of a 7 goes -- which is why a 7 could not be told from a 1 (user).
+  Insetting the digits from that line was tried first and made it worse, as
+  the user saw and the measurement confirms: on the real form the digit area
+  is 87x17 with frame and margin, 91x19 with the frame alone, and 95x23 with
+  neither.  Taller and wider both, so the segments are thicker and further
+  apart, and there is no longer a line for a segment to merge with.  The dark
+  panel behind them is the boundary now, which is what a display looks like.
+- NMR T1: the relaxation curve is drawn from one Snapshot, not from one per
+  point.  XFuncPlot::snapshot() calls func() maxCount() times -- hundreds --
+  and XRelaxFuncPlot::func() opened a Snapshot of the whole XNMRT1 subtree on
+  every one of them, on the drawing thread, for every frame.  Beyond the cost,
+  a Snapshot of a node that size can bundle its subtree, so a running T1
+  measurement was paying hundreds of bundles per repaint.  The values func()
+  needs are read once, in snapshot(), which is where the redraw already has a
+  consistent view; the curve drawn is unchanged.
+- Replay: an interface's wiring is left alone (user).  Restoring a journal
+  wrote its recorded Device, Port and Address over the live ones -- they are
+  ordinary non-runtime nodes, so applyValues() took them like any setting --
+  and a session's head dump is written at startup, BEFORE a .kam has set
+  them, so what it usually holds is nothing at all.  The correct port a rig
+  was working on was therefore replaced by an empty one.  Nothing was gained
+  by restoring them either: a replay re-analyses records and opens no
+  hardware, and which port a rig is plugged into is the machine's state, not
+  the measurement's.  Detected by walking the path and asking whether it
+  passes through an XInterface, not by matching the name "Interface", since
+  the node's type is what the rule is about.  Loading a .kam is untouched.
+- Thamway USB: the IDN is read from a synchronised stream, so a device is not
+  dropped from the list it belongs in (user).  examineDeviceAfterFWLoad() has
+  always thrown away the first DIP-switch read and kept the second -- the
+  first read after an open comes back stale -- but getIDN() had no such
+  guard.  For a single register a stale read costs one wrong byte; for the
+  IDN it costs the PHASE, because the string is a cyclic byte stream that
+  getIDN resynchronises on the terminator: one stale byte shifts every later
+  read by one, and the string arrives without its first character.
+  "G027QAM_MEMORY" for "PG027QAM_MEMORY" is not cosmetic -- the name is
+  tested with find(m_idString, 0) != 0, so the device fails its own prefix
+  and never reaches the selectable list, while the log prints an IDN that
+  looks right.  It is a per-session state, which is why restarting cleared it.
+- NMR pulser/SG: the Thamway PROT keeps its own window.  Deleting its
+  showForms() with the 30 others was wrong: it has TWO forms -- its own and
+  the FrmSG that XSG builds on the same driver's nodes -- and the default
+  implementation walks the widget registry in pointer order, so it handed the
+  user the plain SG form (user).  The audit that cleared those 30 counted the
+  form members written in each class's own files, which is exactly the count
+  that misses a form a BASE class makes; the rule in driver.h now says so.
+- NMR T1: in T2 multi-echo mode the relaxation axis is read from the echo
+  train instead of being typed in (user).  The first echo is at 2 tau and the
+  last at 2 tau x echoNum, and there is one point per echo, so Min, Max and
+  Samples are all the pulser's to say.  Two of the three were already set from
+  it, but only once, when the measurement was switched on -- they went stale
+  as soon as tau or the echo count moved -- and the sample count was never set
+  at all, so a train of 16 echoes was smoothed into whatever number happened
+  to be in the box.  All three follow the pulser on every record now, written
+  only when they actually differ: these nodes clear the accumulated T-map,
+  which is right when the axis really moves and ruinous once per record.
+- Pulser: an RF pulse is a whole number of QAM samples long, so the gate and
+  the envelope inside it are the same length (user: "4.5 us looks wrong", and
+  it was).  The widths were quantised to two PATTERN samples, which on a
+  100 MHz pattern generator is 0.02 us -- but the QAM waveform is written one
+  QAM sample at a time, and on a 5 MSPS QAM device that is 20 pattern samples.
+  4.5 us is 450 of them: 22.5 QAM samples, and the half that does not fill a
+  sample is discarded when the next pulse begins, so the gate stayed 4.5 us
+  while the RF inside it was 4.4.  4.4 and 4.6 divide exactly, which is why
+  only 4.5 misbehaved.  Widths now land on the QAM sample where there is one
+  (0.2 us here, so 4.5 becomes 4.6) and on two pattern samples where there is
+  not, which is what they did before.
+  Rounding is by llround rather than llrint, and with a 1e-9 nudge: llrint
+  takes a tie to the even multiple, and even llround splits halfway widths by
+  binary representation alone -- 4.5/0.2 is exactly 22.5 and rounds up while
+  4.3/0.2 is 21.499999999999996 and rounds down.  Measured, both of them.
+- AutoLCTuner: "Scan assist when stuck", off by default.  When the stepwise
+  search has stopped improving for three analyses but already knows the
+  capacitance derivatives, it hands the next turn over to a continuous scan:
+  one axis is rotated through in a single run and the traces taken DURING the
+  motion -- which every other stage of analyze() discards -- are kept and the
+  minimum read off the trajectory.  That order is deliberate: the stepwise
+  phase supplies the axis, the direction and how far the derivative can be
+  trusted, which a scan started cold would have to guess.  It also never pays
+  backlash, since it does not reverse.
+  Whether a run is usable is decided from the run itself, with no constant
+  that would have to be measured per rig (user): at least five frames, a span
+  at least four times the largest gap between consecutive frames -- that gap
+  is the position readout's rate against the sweep rate -- and a minimum that
+  is bracketed rather than at an end.  A run that fails any of these is
+  dropped and the stepwise search simply carries on, which is what makes the
+  attempt safe to make at all.
+- AutoLCTuner: the test angle grows to what the backlash makes necessary and
+  no further, and the derivative's error is added in quadrature (user, who saw
+  it testing at needlessly large angles).
+  The escalation was a blind multiplier, min(6, 2 + 5*|backlash/delta|), which
+  is already the cap for anything past |backlash/delta| = 0.8 -- so a 10 deg.
+  test became 60 whatever the backlash was, and one noisy estimate took 60 to
+  360 and 360 to the 720 that aborts the tune.  It now asks for the angle the
+  backlash is actually small against, half the threshold that called for a
+  wider test (|backlash/delta| = 0.3 at the default), keeping the old 2x floor
+  and 6x cap.  It is never larger than the old rule -- 3.33x <= 2 + 5x for
+  every x >= 0 -- so at |b/d| = 0.6 a 10 deg. test now grows to 20 rather than
+  50, and only from |b/d| = 2 up do the two agree.
+  The derivative error had the third fit's contribution added as c1err^2 where
+  a standard deviation belongs: dimensionally wrong, and numerically nothing
+  (~1e-27 against ~1e-14), so the -Delta measurement's uncertainty was in
+  effect discarded and sigma_per_change came out too small to ask for a wider
+  test when one was genuinely needed.
+- UI: the LEDs and the LCD readouts are legible in the dark theme (user, who
+  wants to keep both -- this is an instrument panel).  Both were measured by
+  rendering them and looking, not reasoned about.
+  The LEDs were two bitmaps drawn in 2016 for a light window: a pale blue disc
+  lit and a pale grey one dark, which on a dark window are two bright smudges
+  of nearly equal weight.  They are painted now -- lit is a white core in the
+  lamp's colour with a halo outside it, so light appears to come OUT of it;
+  unlit is a lamp rather than a hole, a disc a shade away from the window
+  colour in whichever direction that has to be, with a rim and a highlight.
+  The first unlit attempt was a grey dot at the 16 px this ships at, which for
+  a panel is worse than wrong -- an indicator has to be visibly there while it
+  is off -- so it is lighter than it looks in the source.  Being drawn, it is
+  also sharp on a Retina display, which a 16 px bitmap never was.
+  QLCDNumber was worse, and in BOTH themes: Qt's default Outline style draws
+  the segments as edges in QPalette::Light, which is washed out on a light
+  window and all but invisible on a dark one.  Flat fills them instead.
+  Flat alone was not enough, though -- TempControl's LCDs were already Flat in
+  their .ui and the user found them no easier to read -- because the digits
+  come out in whatever ButtonText happens to be, a thin grey line on the
+  form's own background, inside a frame drawn in Dark/Light that a dark theme
+  makes invisible too.  Button and ButtonText, not Window/WindowText, is the
+  part that had to be measured: the roles were found by setting each in turn
+  and counting the pixels of every colour the widget painted, which is also
+  why a first attempt through Window/WindowText changed nothing at all.
+  So the readout is now made to look like one -- a dark panel with bright
+  digits, the same in either theme, because a measured value should not change
+  colour just because the window did.  All 15 forms with an LCD, from one
+  place, without touching any of them.
+  The zone table in the Temperature Manager stopped painting its normal text
+  black while it was at it: black is only "normal" on a light theme, and KAME
+  starts dark.  The table's own colour is used, and red still means red.
+- The source release contains the project and nothing else.  8.6 and 8.6.1
+  went out carrying a vendor PDF that happened to be sitting in the working
+  tree, for two independent reasons, both now fixed in tools/mkzip.sh: rsync
+  copies the WORKING tree and nothing told it to leave untracked files alone
+  (git lists them; rsync anchors each with a leading slash), and `zip` UPDATES
+  an archive that already exists rather than replacing it, so a file packaged
+  once survived into every later run even after it was deleted -- measured, a
+  stray PDF removed from the tree was still in the zip a fresh run produced.
+  Both archives are removed before they are written now.
+- 9.0-alpha2.  47 changes since the first 9.0 alpha.
+  The journal's own faults, all found on real recordings: the reader rejected
+  every record whose header was not a multiple of four, which the writer never
+  promised and which meant most driver names; a driver added mid-run was
+  written with no type and so could not be replayed; and a write that failed
+  -- a full disk, which is what a month-long run does to one -- was invisible,
+  the switch staying on and the counter still climbing while nothing landed.
+- KAME remembers what it is set to.  The four hand-placed windows, the
+  appearance, the graph theme, the directory each kind of file dialog was last
+  used in, the last eight measurements, and the driver forms, charts and
+  graphs a measurement had open -- with their geometry -- all in
+  ~/.config/kame/kame.ini.  What belongs to a measurement stays in its .kam.
+- The window starts dark, and can be told otherwise from the command line or
+  the View menu.  Three separate Qt defects had to be fixed before switching
+  it while KAME runs came out right.
+- showForms() is no longer every driver's job: 30 of them said nothing but
+  showNormal() and raise(), and the framework can find a driver's window
+  through the connectors it already made.
+
+* Sun Aug 30 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- The Raw Stream Reader is the Journal Reader, and a run is opened by either
+  of its halves.  Given run042.kamj it takes the raw stream the journal's own
+  header names, which is the direction that survives the pair being renamed;
+  given run042.kamb it looks for the sibling by stem.  Neither file needs the
+  other, so a .kamb from before the journal existed opens exactly as it
+  always did.
+  Opening one puts the settings the run was recorded with back into the tree
+  -- but only while every interface is closed, because a driver's I/O
+  listeners exist only between its start() and stop(), so with nothing open
+  there is nobody to carry a value to an instrument.  With an interface open
+  it says so and waits for the "Restore settings" button, which afterwards
+  reports how many interfaces those settings reached.  Runtime nodes are
+  never restored: what they hold is a reading, and the driver that owns one
+  would contradict it on its next record.  A double is restored from the
+  exact eight bytes rather than from the four digits its text would have
+  shown.
+- Which file you open is the choice: `.kamj` replays with the settings of
+  that moment, `.kamb` re-analyses with today's.  There was a "Restore
+  settings" button and a "Follow journal" switch, which asked a second time
+  for something already said by picking the file (user).  What is left to
+  choose is the expensive half, so the one switch is "Follow raw records" --
+  untick it and the same transport walks the settings history alone.  Nothing
+  is written to the tree while an interface is open; File > Open Measurement
+  is the deliberate way to push a recorded setup at live instruments.  What is
+  withheld is decided per node: only a driver whose interface is open has a
+  listener that could carry a value to hardware, so a stopped driver's
+  settings and an analysis parameter -- NMRPulseAnalyzer's NumEcho, which
+  talks to nothing -- are put back like anything else.  Refusing every write
+  while any interface was open made replay look broken on a live rig.
+- Opening a journal creates the drivers it names and this KAME does not have.
+  Only values were restored before, which on a fresh tree restored nothing at
+  all: every path named a driver that was not there.  The dump says what each
+  node was created as, so what is missing can be made -- and the whole file is
+  read once for those names, not just its head, because a driver added while
+  the run was running is named in the body and a session journal's head is
+  nearly empty.  Nodes are made parents-first by the depth of their path: ids
+  are handed out when a node is first seen, and in a real run three of them
+  came out ahead of their parent's.
+- Playback stops at the end instead of starting over.  With a journal
+  attached, lapping put the whole tree back to the head of the recording
+  without saying so.
+- Playback re-analyses each record with the
+  with the settings that were in force when it was taken: the reader walks the
+  journal forward to the record's own timestamp and puts back what was set
+  before it.
+  Only requests are restored -- a driver reporting its own progress through a
+  setting it shares, 37 on its way to the 100 that was asked for, is recorded
+  and never put back, since the driver that owns it would contradict it on its
+  next record.  Going backwards re-reads the journal from its head, because a
+  journal is a stream and only goes forwards.  Unticking it re-analyses with
+  today's settings, which is what changing one parameter and running the
+  recording through again means.
+- A journal with no raw stream plays too.  A session journal, and a run
+  recorded as "Settings only", have nothing to re-analyse, but they hold what
+  was set and when -- so the same transport walks that instead, a step being
+  one instant of the history rather than one line of the file (settings
+  changed together are one act, and stopping between them would show a state
+  that never was).  With following off, or an interface open, the cursor and
+  the readout still move and nothing is written, which is how a history is
+  read without being replayed.
+- A position slider in that pane, by size of the compressed file.  The other
+  two candidates do not exist: how long a gzip stream is unpacked is not
+  knowable without unpacking it, and records are not evenly spaced in time.
+  Dragging it decompresses to the target -- a gzip stream has no index -- and
+  lands on a record boundary rather than guessing at one, since a record now
+  begins with "KAMB" and a check word over its own length and time.  Old
+  .kamb files, whose records begin with a plausible length instead, are told
+  apart by that alone and still open.
+  Stepping back at the head of a file used to raise an IO error, because the
+  seek for the length word ran off the front of it.  A file that will not
+  open says so, where every button used to do nothing for no stated reason.
+- A raw record's header says how far it is to the payload, and carries
+  timeAwared() -- when the phenomenon started being measured, as against
+  time(), when it happened.  The declared length means a field can be added
+  later without the format breaking again, the way BMP, ELF and PE all do it;
+  the driver's name is inside it, so the "reserved" empty string that used to
+  follow the name is gone, that field having existed to be somewhere to put a
+  future something.  Anything added later goes after the name, so a reader
+  that does not know it can still find the name and still reach the payload.
+  timeAwared matters because eight secondary drivers read the emitter's to
+  decide whether a record is fresher than the state it depends on, and one
+  stamps its own record with it, while replay hands them the time it is
+  replaying at.  Recording it is the half that cannot be done later; feeding
+  it back changes what those eight decide and waits for a run on real
+  hardware.
+  Files written before the magic still open: a length or the magic in the
+  first four bytes tells them apart, and the magic is ten times the largest
+  record a length may describe.
+- Both journal files take a full flush once a minute.  The raw stream had
+  been flushed only when recording stopped, so a KAME killed mid-run left a
+  .kamb that stopped being decodable wherever zlib last happened to end a
+  block; the journal had been flushing every second, which on a stream this
+  repetitive throws away most of what makes it compress.  One interval for
+  both, since a run is a pair and a pair that survives a crash to two
+  different points is harder to reason about than one that survives to the
+  same point.
+- Every timestamped line of a .kamj now carries the instant twice: "ts" to
+  read, and "tu" -- microseconds since the epoch -- to compute with.  ctime(3)
+  is local, zoneless and DST-ambiguous, and replay has to line these up
+  against records stamped in epoch time.  "ts" lost its milliseconds in the
+  same move: they changed on every line, which made them the least
+  compressible text in the file, and the number beside them is exact.
+- A journal is read as a stream now, not into memory.  KAME is left running
+  for a month, and at the measured Logbook rate a single run's .kamj is 260 MB
+  a day; what is held is the head -- the header and the dump -- which is
+  bounded by the size of the tree.
+- A name that a sibling already holds is answered with the node that holds
+  it, instead of making a second child nobody can reach by name.  The Ruby
+  loader had always checked; the Python loader that replaced it as the .kam
+  path did not, so loading a .kam onto a tree that already held its drivers
+  was quietly destructive rather than idempotent.  On-graph math tools were
+  named after the length of their list, so deleting the first and adding
+  another asked for a name that was still taken; they now take the first free
+  one.
+- UI: a toolbox folds when the pointer leaves it, whether or not it holds the
+  keyboard.  Clicking into one to change a setting used to keep it open until
+  you clicked somewhere else, however far away the pointer went -- which is a
+  toolbox sitting on top of the window you were trying to get back to, and
+  moving the mouse off it is exactly how anyone says get out of the way (user).
+  The one case that still overrules the pointer is typing: a widget that takes
+  text would be clipped out of sight by a 36 px bar while the keystrokes went
+  on arriving.  A pane merely holding focus because a line edit grabbed it on
+  show no longer counts, which is what it was being mistaken for.
+- UI: the main window has a title.  Nothing had ever set one, so it carried
+  none at all -- and the pinned mark had nowhere to go.  It says what is
+  loaded, then whose window it is: "run042.kam - KAME 9.0", the order every
+  document-shaped application uses, since the file is what differs between two
+  of them.  Opening, saving and closing a measurement each update it.
+- UI: a pinned toolbox says so in its own title bar, with a mark after its
+  name, and the status-line message that used to announce it is gone.  That is
+  where every docking UI with this feature keeps it -- Visual Studio, VS Code
+  and Qt Creator all put a pushpin in the dock's title bar, upright when
+  pinned and on its side when not.  A mark on a tab would read as belonging to
+  that pane, and pinning belongs to the window; a message says it once and
+  then the state is unreadable.  It is legible exactly when it needs to be, a
+  collapsed toolbox being 36 px wide and, by definition, not pinned.
+- UI: one click on a tab strip pins that window open, and another lets it hide
+  again -- every strip, the main window's included, since a rule that holds in
+  one place and not another is a rule nobody remembers.  A single click can
+  mean this because clicking a tab has nothing else left to do: hovering one
+  already picks that pane, so the gesture is hover to choose, click to keep.
+  It used to want the window to hold the keyboard AND the click to land on the
+  tab already in front, which is one condition more than a gesture may ask.
+- UI: the tab under the pointer magnifies, the way a dock icon does.  What
+  grows is the icon, inside a rect fixed at its largest -- so the strip never
+  re-lays out, no neighbour moves, and it can be animated at all, which a
+  style sheet cannot be.
+  A collapsed strip shows every icon at that larger size instead (user): it is
+  then the only thing on screen, and small icons in it are a smaller target
+  than the bar holding them.  So does the tab of the pane on show, whatever
+  the rest are doing -- watching the icon of the thing you are looking at
+  shrink as the pointer leaves its tab is the wrong way round.  The three
+  meanings look unrelated and say one thing: big is what there is to look at.
+- UI: the main window opens at two fifths of the screen, never less than its
+  layout plus the status bar.  A chosen proportion, like the width beside it:
+  three attempts to derive one failed in both directions -- minimumHeight() is
+  the minimum somebody SET and so was 0, minimumSizeHint() does not follow what
+  a QMdiArea contains, and the toolboxes' own height is far too much for a
+  window holding a row of script panes.  The status bar is in none of the
+  hints, XStatusPrinter creating it and hiding it in the same breath, which is
+  what clipped the bottom of the pane when the first message appeared.  It
+  still grows itself if a layout appears that it was not sized for, a row of
+  tabs where there were none especially.
+- UI: folding a toolbox takes the keyboard with it.  A pane's line edit takes
+  focus merely by being shown, so typing went into a field nobody could see
+  and nobody had asked for (user).
+- Cmd-Q runs KAME's teardown.  Qt's cocoa delegate answers
+  applicationShouldTerminate: by sending a QCloseEvent to the APPLICATION
+  object and reporting NSTerminateNow when it comes back accepted -- AppKit
+  then calls exit() with no window having seen a close event, so the teardown
+  in FrmKameMain::closeEvent never ran and the scripting threads, the
+  journal's two threads and the driver tree all went into static destruction
+  alive.  The application now closes the main window from there and answers
+  with what that close decided, so a refused quit (an interface still running)
+  cancels the termination instead of proceeding without it.
+- Fixed an abort at exit with a Euresys eGrabber camera present.  The GenTL
+  close throws when the producer is already gone, which it is during static
+  destruction, and it throws out of ~EGrabberDiscovery() -- a destructor, and
+  so implicitly noexcept, meaning std::terminate fires at the throw, frames
+  below any deleter of ours.  A try/catch around the delete could never have
+  caught it.  The holders are leaked instead, so nothing runs at exit, while
+  closing the last interface still releases them, which is the path where the
+  library is alive and the teardown means something.
+- UI: opening a measurement pins the toolboxes open (user).  What follows a
+  load is a stretch of work across several drivers and their interfaces, and a
+  toolbox that folds away between one and the next is in the way.  A pin, not
+  the keyboard: nothing is raised and nothing is taken, which is what the
+  focus grab that used to be here got wrong.  The View menu's switches say so,
+  being what it is done through, and unticking one puts it back.
+- UI: clicking a driver or an interface in a list opens that driver's window
+  and folds the toolboxes (user).  The pane has just done its job and would
+  otherwise be standing in front of the result.  A toolbox folded this way
+  stays folded until the pointer has left it, since reopening under the hand
+  that just dismissed it is the opposite of what the click meant.  Creating a
+  driver is left alone: that path deliberately brings the Interface pane
+  forward, a new driver having a port to set before it can start.
+- UI: nothing takes the keyboard when a measurement finishes loading either.
+  It used to hand it to the east toolbox, interfaces and entries being what one
+  turns to next, which is the same thing as the startup focus that was removed
+  -- and it now reads worse than it did: the toolbox opens, raises itself,
+  takes the keyboard, and folds again on the next poll because the pointer is
+  not over it.
+- UI: a toolbox the measurement's own forms sit on top of is not pinned open
+  when that measurement is loaded (user).  Pinning was added because loading
+  starts a stretch of work across several drivers, but the toolboxes are
+  always-on-top tool windows -- a pinned one does not sit beside a form, it
+  sits ON it -- so where the two overlap, auto-hide is the better answer and
+  the pin is skipped.  Decided per toolbox rather than for both, from the
+  form geometries just read, before the load starts: the forms themselves
+  arrive one at a time and much later.  Any overlap counts: a first attempt
+  asked for 40 px in both directions and, measured against a real layout,
+  the two forms that reach a toolbox reach it by 11 px and by 9.  The two
+  mistakes are not the same size either -- not pinning costs nothing but the
+  ordinary auto-hide, while pinning wrongly parks an always-on-top window on
+  a form being worked on.  Touching still is not overlapping.
+- UI: the driver forms that were open for a measurement open again with it,
+  where and as big as they were.  Loading a .kam is a script on its own
+  thread, so the drivers appear one at a time and there is no "load finished"
+  to wait for: each one is answered as it is caught (on the main thread, and
+  without FLAG_AVOID_DUP, since every driver matters).  Kept per measurement
+  file in ~/.config/kame/kame.ini, pruned to the files Open Recent still
+  names, and holding nothing but a name and a rectangle -- what belongs to a
+  measurement stays in its .kam.
+- Framework: what "show a form" means is decided in one place.  The five
+  overrides that remain still open-coded showNormal() + raise(), as did the
+  default and the three buttons that bring up a driver's second window, so
+  the answer lived in nine copies (user).  XDriver::showForm(QWidget *) is
+  that answer -- showNormal() so a minimised form comes back rather than
+  staying in the dock, raise() so an open but buried one answers the click,
+  and null-safe, nullptr being what windowOf() says about a driver with no
+  form.  Everything else is now one line.  Named singular against the plural
+  showForms(), which is the distinction itself: one window versus all of a
+  driver's.
+- Framework: 30 hand-written showForms() are gone, and the two conditions for
+  removing one were checked mechanically rather than by eye: every connector
+  made in the constructor (so the window is findable when the driver is
+  caught), and only ONE form window among the driver's connected widgets.
+  The second one earned its keep -- XPulser has m_form and m_formMore, and
+  XMagnetPS m_form and m_formConfig, so windowOf() could return the wrong one
+  of the two; both keep their override.  So do XPumpControl, which builds its
+  connectors inside showForms(), and XAutoLCTuner and XODMRFMControl, which
+  resize their form first to dodge a Windows bug.  The empty ones on drivers
+  that have no form at all went too: "nothing happens" is what the default
+  does for them.  The deletion removed 30 definitions and 30 declarations --
+  a mismatch either way would have been a compile or link error, so the count
+  is the check.
+- Framework: showForms() is no longer every driver's job.  34 of its 37
+  implementations were the same two lines, m_form->showNormal() and raise(),
+  and existed only because the framework had no way to tell which window
+  belonged to which driver.  It has had one all along: every XQConnector
+  registers its widget against its node, so XQConnector::windowOf(node) finds
+  the window whose widgets are bound to that node's subtree -- an O(1)
+  isUpperOf() containment test, which also tells two drivers of the same type
+  apart.  XDriver::showForms() is now a virtual with that as its default
+  implementation rather than a pure virtual; the three that do more than show
+  one window keep their override, and the 34 that do not can go.
+- Journal: a write that fails is noticed.  Neither file checked any write
+  return, and the realistic failure for a month-long run is not a bad path
+  (caught at open) but a disk that fills up in the middle, which arrives as a
+  short return from gzwrite long after the file opened.  It was invisible:
+  the Recording switch stayed on, the statistics went on counting bytes that
+  were not landing, and the file stopped growing, with nothing said until
+  somebody opened it.  Both files now say it once, close, and turn the switch
+  off, so what is on screen is what is on disk.  The .kamb also gained the
+  open check the .kamj had all along -- a path that would not open left the
+  switch on while every record was dropped for want of a handle.
+- Journal: a short read is a broken file, not a success.  gzread answers with
+  a count, and a file cut short -- what a killed KAME leaves, which is the
+  case this format was shaped around -- returns fewer bytes than asked
+  without being an error, so "== -1" let a truncated tail through and the
+  header fields were read out of whatever the buffer held.  Checked against
+  the requested count now, throughout the .kamb reader.  One of them was
+  worse: goToHeader() tested "== Z_NULL", i.e. zero, which caught the end of
+  the file and let the -1 error return through into a length that then
+  decided where to seek.
+- UI: File > Open Recent, holding the last eight measurements.  Every route
+  in goes through openMes(), so the dialog, the list itself and the file named
+  on the command line all feed it, and saving a .kam or .kamj adds it too.
+  Entries are listed whether or not the file is reachable at this moment -- a
+  measurement on a share that is not mounted this morning is still the one
+  somebody wants, and trying to open it says so plainly enough -- and show the
+  file name with the directory behind it as a tool tip, these paths being long
+  and a lab's files ending in the same handful of names.
+- UI: file dialogs start where that kind of file was last used.  All of them
+  passed "" as the starting directory, which is the process's working
+  directory -- on a lab machine, wherever KAME happened to be launched from --
+  so opening a measurement, running a script, or browsing for a driver's dump
+  file meant navigating there again every single time.  Three keys, not one:
+  measurements, scripts and data files live in different places on a working
+  machine, and a single shared "last directory" would send each of them to
+  wherever the previous one went.  A stored directory that has since gone away
+  is ignored rather than handed to a dialog that cannot list it.  Driver forms
+  keep their existing behaviour of following the path already in the field;
+  the stored one is the fallback when that field is empty.
+- UI: View > Theme Color of Graph is remembered too, as its own word in the
+  same file ("night" or "daylight").  It stays independent of the window's
+  appearance rather than being derived from it -- a bright graph in a dark
+  window is a combination people choose -- and it is applied before anything
+  is built, a graph taking the current theme when it is constructed.
+- UI: the appearance chosen from View > Appearance is remembered as well, in
+  the same file and as the same word the command line takes ("system", "light"
+  or "dark").  --appearance still wins for the run it is given on, and does
+  NOT overwrite the stored choice: a flag says "start this way this time", and
+  one that quietly rewrote the setting would take that meaning away.
+- UI: a folded toolbox no longer grows when the appearance changes.  The
+  window re-derives its minimum width from the QMdiArea's size hint on every
+  layout pass -- which is why setToolboxCollapsed() lifts that minimum on each
+  call rather than once at setup -- and a palette change is such a pass,
+  arriving while nothing is folding: measured in a three-pane reproduction,
+  a 43 px bar came back out to exactly the 196 px minimum and stayed there.
+  setColorScheme() alone does it, so re-setting the style sheet was never the
+  cause.  A maximum holds it instead, which is a property the window keeps
+  rather than one re-derived from a child's hint, so nothing has to run at the
+  right moment: it is lifted before every fold or unfold, since the animation
+  passes through widths it would forbid, and put back when a fold finishes
+  (a fold interrupted half-way leaves none, stop() not emitting finished()).
+  Re-applying the fold after the change was tried first and is a race nobody
+  wins -- the clamp lands a turn later than the change, so the re-apply either
+  runs too early, as it did, or has to guess how long to wait.
+- UI: the four hand-placed windows -- the main window, both toolboxes and the
+  message log -- come back where they were left.  Their geometries go to
+  ~/.config/kame/kame.ini (a text file on every platform, macOS included,
+  which is a plist's caching daemon less to fight when a layout has to be
+  reset by deleting it), written on the way out and read in the constructor's
+  layout pass, so the computed first-run positions are still what a fresh
+  installation gets.  A folded toolbox saves the size it had open rather than
+  its 30 px resting width, and a geometry whose screen no longer exists -- a
+  laptop away from its desk -- is discarded in favour of the computed default
+  rather than restored somewhere invisible.  Driver forms are deliberately not
+  included: there are dozens, they come and go with the measurement, and what
+  belongs to a measurement belongs in its .kam file.
+- UI: only actual windows are placed by the new-window cascade.  This window's
+  event filter is installed on two QTabBars and nothing else, and a tab bar is
+  a widget that gets shown like any other -- so "place the new window" was
+  moving a tab bar to an absolute position inside its own MDI area, which the
+  next layout pass had to undo.
+- UI: nothing is put in the user's hand at startup.  KAME opened with the west
+  toolbox activated and holding itself open, so the first thing on screen was
+  a panel asking to be dismissed.
+- UI: KAME starts dark.  Qt follows the desktop appearance by default and,
+  since 6.8, can be told otherwise without leaving the native style
+  (QStyleHints::setColorScheme sets the NSApplication appearance on macOS
+  rather than swapping in a hand-painted Fusion palette).  The graph's Night
+  theme has been the default all along, so dark-on-dark is what the two
+  defaults now agree on; the switches stay independent, so all four
+  combinations are a menu apart -- View > Appearance for the window,
+  View > Theme Color of Graph for the graph.  --appearance system|light|dark
+  chooses at startup, "system" being the old behaviour of following the
+  desktop.  Switching from the menu while KAME runs works too, which took
+  three separate defects to be able to say, each measured against 6.10.1 on
+  this Mac rather than reasoned about:
+  a style sheet resolves palette(...) when it is SET and never afterwards (a
+  QTabBar carrying KAME's own sheet read #d9d9d9 under Dark, still #d9d9d9
+  after switching to Light, and #555555 once the same string was set a second
+  time), so every sheet naming a palette role is set again on the change;
+  a QMdiArea's background follows nothing at all, sitting at #bfbfbf through
+  every scheme, which was wrong at startup as much as during a switch;
+  and colorSchemeChanged is emitted one turn BEFORE the palette it announces,
+  so a handler that re-reads the palette gets the scheme being left behind --
+  between two schemes, one step stale is inversion, and asking for Dark was
+  turning widgets white.  That work now happens on the next turn of the event
+  loop.  An AppKit call added while chasing this was measured unnecessary and
+  removed: Qt's own setColorScheme/unsetColorScheme were right all along.
+- UI: the toolboxes are as wide as what is in them and no wider (user).  The
+  screen fraction that used to share the decision was doing nothing the floor
+  did not already do -- keeping a small display from cramping them -- while on
+  a large one it won and made both far wider than anything they hold.  A width
+  dragged out by hand is remembered for the session, so wanting more costs one
+  drag.
+- UI: the toolboxes are as wide as the widest pane in them (the replay pane
+  outgrew the old floor when it gained a slider), and nothing auto-hides
+  during startup or shutdown -- the hover poll used to start before the
+  driver modules had loaded, and a toolbox that folds itself away while the
+  user is still waiting reads as a failure rather than a feature.
+- Internals: the journal is one directory, kame/journal/, holding the node
+  (XJournal), the writer (XJournalWriter), the raw stream, the file reader
+  and the Journal Reader.  The engine had been called XJournal while the node
+  the tree shows was XJournalRecorder, which is backwards; analyzer/recorder.h
+  had held the raw stream and XTextWriter, which share nothing but a file
+  name.  Deleted the KDE4 cmake tree -- 50 files that cannot build anything
+  (no project(), no root to include them) and had been maintained as recently
+  as July as though they could.
+
+* Sat Aug 29 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Measurement journal.  KAME now keeps a record of what it was set to and
+  what it did, without being asked: the "Raw Stream Recorder" group in the
+  driver pane is now "Journal", where you name the logbook and the raw stream
+  follows it (run042.kamj beside run042.kamb), choose how much is kept, and
+  watch what it costs in MB/s.  Two tiers: "Settings only" (what you set and
+  everything the instruments reported, ~11 MB/hr at 144 readings a second)
+  and "Settings + raw records" (and the raw records behind them, ~10 GB/hr).
+  Writing the settings once, with no run at all, is what File > Save has
+  always been, and it now offers .kamj beside .kam.
+  Alongside it, and whether or not a run is being recorded, a session journal
+  is written to KAME's own directory -- so a session in which you forgot to
+  save is no longer a session with nothing to show.  It keeps what you did in
+  full and what the instruments reported only after a silence, which is how
+  it stays a few tens of KB; a checkbox turns it off.
+  .kamj is JSON Lines, gzipped: `zgrep` and `zdiff` read it with no tool, and
+  File > Open Measurement applies the dump at its head exactly as it applies
+  a .kam.
+  Doubles are stored twice, as the rounded text you would read and as the
+  exact eight bytes, since a settings file that rounds makes both a spurious
+  diff and a reproduction that used a different number.
+  See doc/design/PROVENANCE.md.  KAME_JOURNAL=1 additionally writes a
+  developer survey of what every node costs.
+- XListNodeBase::isAliasList(), replacing name tests on getTypename() that
+  could never have matched: the mangled name arrives with everything up to the
+  first 'X' stripped, and the alias-list subclasses do not carry the template's
+  name at all.
+- UI: the toolboxes and the main window now get out of the way by themselves.
+  A toolbox floating at a screen edge rests shrunk to its tab column and grows
+  back to full width when the pointer touches it; the main window keeps its top
+  edge and rests at half height, so the menu bar and the pane tabs never move.
+  Hovering a tab picks that pane, which makes a resting toolbox a menu of its
+  panes.  Nothing extra is put on the screen -- the bar IS the toolbox, which is
+  why its tabs keep working while it is narrow.  Neither QMdiArea nor
+  QDockWidget has an auto-hide feature (Qt has never shipped one for Widgets
+  docking, and Qt Quick has no docking at all), and a third-party docking
+  framework was not worth the dependency for this, so it is built from the
+  windows that were already there.  A window stays put, pointer or no pointer,
+  while a popup is up (a combo list is its own window, outside the toolbox
+  rectangle), while a mouse button is held (dragging a scrollbar), and while it
+  both holds the keyboard and is the active window -- the user clicked in and is
+  typing.  Both halves of that last test are needed: a pane holding a line edit
+  can take focus merely by being shown, and that alone would pin it open for
+  ever.  Pointer position is polled rather than tracked by enter/leave events,
+  which fire for every excursion over a child widget and cannot see the gap
+  between two top-level windows.  Clicking the tab of the pane already in front
+  pins or unpins that window -- only that tab, so every other tab still just
+  switches panes, and only when the window already held the keyboard, judged
+  from the state the poll sampled, since the click itself may be what activated
+  it.  "Auto-hide West/East Toolbox" and "Auto-hide Main Window" in the View
+  menu are the same switch.  Three traps, each of which produced a visible
+  fault: a QMdiArea's minimum size hint (~196 px, inherited from its subwindows)
+  clamps the shrink, and lifting it on the area sticks while lifting it on the
+  window does not -- a QDockWidget and a QMainWindow both re-derive their own
+  minimum from that hint on every layout pass, so it is re-applied before each
+  collapse.  Clamped, the east toolbox slid off the screen edge it clings to and
+  showed its content instead of its tabs, which is what a clamp looks like when
+  the anchored edge is the right one.  And a Qt::Tool window sent to the macOS
+  Dock still reports isVisible() == true and isMinimized() == false, so nothing
+  could tell it was gone: the toolboxes no longer carry a minimize button, and
+  the View menu restores one that ends up minimized anyway.
+- script: a Jupyter notebook server that died said nothing.  The tail of its
+  output was already being kept for exactly this diagnosis and nothing ever
+  read it, so a server that started and then exited left a half-drawn page in
+  the browser -- the shell HTML is served, the script bundle that follows is
+  refused -- and no message anywhere.  That is what "only the logo appears"
+  looks like, and it is now reported with the last dozen lines the server
+  printed.
+- script: the Jupyter quick launch took the first jupyter it found on PATH,
+  which says nothing about whether that one carries the package behind the
+  subcommand.  Measured on this machine: of five programs found, the first
+  runs notebook and lab but not qtconsole, and another runs neither console
+  nor qtconsole -- so "the first" is not a safe answer and produced a
+  missing-module traceback instead of a launch.  The candidates are now probed
+  with `<prog> <sub> --version`, which exits non-zero exactly when the package
+  cannot be imported, and the first that passes is used; the result is cached
+  per session because the probe costs about a second.  When none passes, that
+  is said plainly along with what to install.
+  For notebook and lab the probe goes further and checks that the program's
+  JupyterLab application directory carries its settings schemas, because
+  importing the package proves nothing about its data files: Notebook 7 IS a
+  JupyterLab application and reads a schema per plugin out of
+  `<app dir>/schemas`.  With those missing the bundle loads and then every
+  plugin fails to activate, and what reaches the browser is a page showing
+  nothing but the Jupyter logo -- diagnosed exactly that way here, where one
+  of the two jupyters on the machine had no `share/jupyter/lab` directory at
+  all and was the one being picked.  That extra check is careful about where
+  it applies: only for a notebook reporting version 7 or above (notebook 6 is
+  a different application that reads no lab schemas, and demanding them would
+  reject a good install) and it fails OPEN -- it reads a line of English CLI
+  output, so a command that cannot be run or wording that changes means "no
+  opinion", never "reject".  Only an application directory that is there and
+  empty condemns a program.  Probes run without a console window on Windows.
+- UI (macOS): choosing KAME in the Dock did not necessarily bring the main
+  window forward.  AppKit orders an application's windows front keeping their
+  order among themselves, so the main window stays wherever it was in the
+  stack -- underneath a driver form, and always underneath the toolboxes,
+  which are Qt::Tool panels marked stays-on-top.  It now asks to come forward
+  when the application is activated, unless the pointer is over one of KAME's
+  own windows -- clicking a driver form to raise the app is a choice of window,
+  and not for KAME to overrule, while a Dock click leaves the pointer over the
+  Dock.  Which window got activated cannot decide it: measured, AppKit hands
+  the key back to whichever plain window held it last, by either route.  (Nor
+  can `flags & Qt::Tool` tell a palette from an ordinary window: Qt::Tool is a
+  composite of Popup|Dialog|Window, so that test is true of every window that
+  is a window at all -- `flags & Qt::WindowType_Mask` is the comparison.)
+- UI: the pane tab columns are flat.  The platform's boxed, shaded tabs with
+  rotated labels were what dated the resting toolbox more than anything else
+  about it: no frames now, room to breathe, and the pane in front marked by an
+  accent line against the edge its column sits at (underneath, for the main
+  window's tabs along the top).  Every colour is taken from the palette rather
+  than written down, so it follows the platform's light/dark setting -- checked
+  in both -- and the width in that same stylesheet is what sets the column's
+  thickness, so the style proxy that used to widen it is gone.  Only a column
+  gets that width: to tabs running along the top, `width` means each tab's
+  LENGTH, and fixing it there squeezed every title out of existence, so a row
+  is left to size itself around its titles.  The fold and
+  unfold are quicker too, 220 ms to 170 and a snappier curve.  A fade on the
+  way in was tried and dropped: a window at 0.75 opacity shows what is behind
+  it, and on a bar barely wider than its tabs that reads as the tabs blinking
+  out rather than as an entrance.  These windows are opaque.  (The layout
+  minimum has to be lifted for the way OUT as well, not
+  just the way in: a window re-derives it from the QMdiArea on every layout
+  pass, so the early frames were clamped up to it -- measured, the first frame
+  jumped straight from the 43 px bar to 196 px.  On the toolbox that keeps its
+  right edge that showed as the tab column vanishing for an instant, the width
+  being forced wide while the animation's x was still at the collapsed
+  position, so the window overhung the screen edge and took its own tabs with
+  it.)
+- UI: an interface that appears is selected and scrolled into view in the
+  Interface pane.  Bringing that pane to the front after a driver was added by
+  hand only half finished the job while the row whose port has to be set was
+  left for the user to find among all the others.  A .kam load ends up showing
+  the last interface it added, which costs nothing: the pane is not in front
+  until the load has finished anyway.
+- UI: the message window's popup row could end up below the bottom of the
+  screen.  That row sits under the log list and is hidden until something is
+  posted, and the window is parked with its bottom on the screen edge, so
+  showing it grows the window downwards.  At the size the window opens with
+  (186 px) the list absorbs the row and nothing moves; but once shrunk towards
+  its minimum, showing the row raises the layout minimum from 98 to 131 px and
+  pushes 33 px of window -- the row carrying the message -- off the screen.
+  The window now keeps its bottom edge on that screen edge whenever the row
+  appears or goes, which also closes the gap the row used to leave behind.  A
+  window dragged away from the edge is left where it is, and at the default
+  size the whole thing is inert.
+- UI: the Node Browser advertised "Supported Ruby methods" on a Python build.
+  The object line above it already said Root(), but the method list under it
+  was a hand-written one in Ruby's spelling (value=x, <<x, to_ary), printed
+  whichever interpreter the build carried.  A Python build now prints nothing
+  there: the "Supported Python methods" line that follows is introspected from
+  the bound object itself, so it is both correct and complete.  A Ruby-only
+  build is unchanged.
+- UI: a driver created from the New Driver dialog now opens its own settings
+  window, which is what one wants next after adding one by hand; loading a .kam
+  deliberately still does not, since it would throw open a window for every
+  driver in the file.  If the driver came with an interface, the Interface pane
+  is brought to the front after that window, since its port has to be set
+  before the driver can be started; a driver that talks to no hardware of its
+  own leaves its own window in front instead.  An
+  interface is a child node of its driver (XNode::create inserts it as one,
+  which both XCharDeviceDriver and XDummyDriver rely on), so the new driver
+  itself is asked rather than watching the interface list for a new arrival.
+- UI: the New Driver dialog has a live search box.  Typing narrows the list of
+  120 drivers as you go; every space-separated word must appear somewhere in
+  the label or the type name, so "agilent dmm" finds the two of them however
+  the labels happen to be worded, and a driver known by the name that appears
+  in a .kam file ("KE2000") is found by that too.  While a search is in
+  progress the first match is selected, so Enter creates it; an empty box goes
+  back to demanding a deliberate choice.  The chosen type now travels on the
+  list item instead of being recovered by counting rows into a sorted map,
+  which would have picked the wrong driver the moment the list was filtered.
+- UI: layout to go with it.  Both toolboxes now run from the top of the screen
+  down to just above the message window, which parks at the bottom-left corner
+  and keeps its top edge there, instead of stopping at half the screen height;
+  the height is measured once the event loop is running, since a window asked to
+  sit at the top of the screen is placed below the menu bar and its title bar
+  cannot be measured until the frame exists.  The tab column is a fifth wider,
+  through a QProxyStyle over CT_TabBarTab: a stylesheet can set the width but
+  switches the tabs to stylesheet rendering, and larger tab icons drag each
+  tab's length along with its thickness until the panes no longer fit in the
+  column.  The 0.8 window opacity is gone -- a toolbox that shrinks itself out
+  of the way does not need to be see-through, and text over whatever happens to
+  be behind it reads worse.  The main window starts a third wider, now that the
+  space between the toolboxes is its to use.  The west toolbox has the keyboard
+  at startup and the east one once a .kam has finished loading, waiting for the
+  loading thread because drivers, graphs and their windows go on appearing until
+  it ends and would take the focus back.
+
+* Fri Aug 28 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Release 8.6.1.
+- kamepoolalloc: frees arriving after a thread had run its own allocator
+  teardown went into a destroyed object on Linux and Windows. The cold free
+  path's post-teardown bypass tested `kame_page() == &g_teardown_page`, but only
+  macOS ever repoints that pointer, so elsewhere the compare folded to a
+  constant false and the branch was dead code: a pthread_key destructor (glibc
+  runs those after the C++ thread_local ones, and kamestm registers one) pushed
+  into a cross-dealloc batch whose destructor had already run, and a slot went
+  back to the bitmap after its owner had re-issued it -- the same block handed
+  out to two live users. It surfaced far downstream, as garbage inside a
+  still-referenced STM Packet, so `transaction_dynamic_node_test` failed in five
+  unrelated-looking ways, the negotiation HANG watchdog among them. The
+  predicate is now portable and its flag lives in the TLS page the free path
+  already loads, armed by BOTH thread-exit destructors because either can run
+  first (thread_locals go in reverse order of construction, and which of the two
+  a thread touches first depends on whether its first pool operation was an
+  allocation or a cross-thread free). Measured on Linux x86-64 at 17 failures in
+  44 control runs against 0 in 44 -- five distinct signatures against none --
+  and on real -m32 i486/i586 builds, the width the fault originally reproduced
+  on, at 11/20 and 12/20 against 0/20. macOS is unchanged in behaviour and one
+  branch cheaper. `alloc_tsd_exclusivity_test` now asserts the exclusivity
+  invariant directly, in 0.4 s, instead of waiting two minutes for the
+  downstream crash. The full investigation record is deliberately not in the
+  tree: see branch `claude/uaf-rc-trace`, `kamestm/tests/DYNNODE_UAF_HANDOFF.md`
+  (the experiment log, and note it sits well behind master), and
+  `kamepoolalloc/design/BATCH_AFTER_DESTRUCTOR.md` on branch
+  `claude/great-turing-Ufao2` (the glibc ordering, the gdb captures and the A/B
+  methodology lessons) -- an independent session that reached the same defect.
+- script: KAME told the user the MCP server could not start, and then started
+  it. The startup pre-check reported "No Python with mcp and jupyter_client was
+  found, so the MCP server cannot start and the AI links above will fail" while
+  the same log went on to announce the HTTP server on its port. Both messages
+  were right about their own code path: launchJupyterConsole's probe strips
+  KAME's Python environment before testing a candidate, but _find_python_with --
+  the newer path behind the pre-check and the Pydantic AI interpreter search --
+  inherited it. Under kame-msyspython.bat that environment carries
+  PYTHONHOME=C:\msys64\mingw64 and MSYS2's PYTHONPATH, and every candidate
+  there is a DIFFERENT interpreter from KAME's own, so a real CPython was told
+  to load mingw-built C extensions it cannot open and died on `_socket`; every
+  candidate failed and a perfectly good kame-mcp-venv was declared unusable. It
+  now probes with PYTHONHOME / PYTHONPATH / VIRTUAL_ENV / PYTHONSTARTUP
+  stripped, as the other path already did. Verified by calling the real function
+  with PYTHONHOME set: it returns the venv instead of None.
+- tests: the CMake test builds now configure and link under MSVC. Three things
+  blocked cl before any source-level portability question arose. /utf-8 was set
+  on the kamepoolalloc target alone, so every test that includes allocator_prv.h
+  met the CP932 mis-decode head-on (`C2065: 'ALLOC_CHUNK_HEADER' undeclared` --
+  a comment's box-drawing byte swallows the newline and hides the next #define);
+  it is directory-wide now, and set before the first add_library, since
+  add_compile_options reaches only targets created after it -- which is why the
+  copy of the pool built from kamestm/tests still failed. The force-include of
+  support_standalone.h was probed as `-include`, which cl rejects, and the
+  result then silently ignored; that is not optional, because several tests open
+  with `#define msecsleep(x) (x)` on line 1 and without the header going first
+  that macro eats its own declaration. It is asked for as /FI on MSVC, and an
+  unusable force-include is a FATAL_ERROR rather than a puzzle later. And MSVC
+  emits no import library for a DLL that exports nothing, so fifteen consumers
+  died on `LNK1181: cannot open input file kamepoolalloc.lib` --
+  WINDOWS_EXPORT_ALL_SYMBOLS is the CMake equivalent of the
+  `-Wl,--export-all-symbols` kamepoolalloc.pro already uses for MinGW. cl now
+  builds 18/29 kamepoolalloc targets and 16/25 kamestm ones and every test that
+  builds passes; the rest need GNU inline asm, __builtin_return_address,
+  __attribute__((noinline)), pthread.h, or turn on a friend-access divergence,
+  and are left for later. clang/llvm-mingw is unaffected.
+- kamestm/tests: two tests could not run on Windows. transaction_priority_mixed
+  used SCHED_FIFO / SCHED_RR, which MinGW does not define, though its call sites
+  are already inert off Linux (os_set_policy has a `#else return false` arm and
+  the OS arm then reports itself SKIPPED); only the names were missing, so they
+  are defined behind #ifndef rather than excluding a test whose STM half is
+  worth running anyway. And xwaitcell_test had a race of its own: each waiter
+  read cells[i].gen() INSIDE its thread, so a thread scheduled after the
+  parent's wake_one() asked to sleep past a generation that had already arrived,
+  waited out the full five seconds and was counted as stranded -- "only 4 of 8
+  sleepers were woken" under `ctest -j4`, while the same binary passed
+  standalone and under six concurrent copies of itself. The primitive is not at
+  fault; the generations are now snapshotted in the parent, which is also how a
+  real caller uses the API.
+- UI: the driver list's columns could not be resized with the mouse.  Setting
+  the three sections to ResizeToContents / Fixed / Stretch had made every one of
+  them non-interactive -- only QHeaderView::Interactive accepts a drag -- so this
+  was the one list in KAME whose columns were frozen, and the explicit
+  setColumnWidth calls above were dead for two of them.  They are Interactive
+  again, with the last section still filling the width and the name column
+  widening when a driver's label does not fit; that auto-fit is grow-only, so a
+  width set by hand is never taken back.
+
+* Fri Aug 21 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- script: the web UI had no model to choose. Not passing -m to a user's own
+  agent (right, for chat: clai would override the model bound in their module)
+  also emptied the web UI's picker, which clai builds from repeated -m. But a
+  module that calls Agent.to_web(models=...) already declares the roster its
+  author wants, and `clai web` cannot see it because it takes an Agent, not an
+  app. So the picker now records that app too, and the web link serves it with
+  the venv's uvicorn -- the switcher then works exactly as written. Modules
+  without one still go through clai, where KAME_PYAI_MODEL may now list several
+  models (comma or space separated) to populate the picker.
+- build: the two scripting languages had their failure modes backwards. A
+  missing Ruby stopped the build (error() on Linux and MSVC) while a missing
+  Python was silent on macOS and Windows and a mere message on Linux -- so the
+  deprecated language could block a build that never wanted it, and the
+  supported one could go missing without a word, leaving a KAME with no
+  scripting, no Jupyter and no MCP, discovered at runtime. Swapped: no Python
+  is now an error naming `CONFIG+=no_python` as the way to mean it, and no Ruby
+  drops the interpreter with a message (`CONFIG+=no_ruby` to silence). macOS
+  gained the existence test its framework arm never had. Verified by generating
+  Makefiles: default has both, no_python clears USE_PYBIND11 and the
+  xpythonsupport.o rule, no_ruby clears USE_RUBY and xrubysupport.o, and the
+  auto-disable path was checked separately -- SOURCES/HEADERS -= removes
+  exactly the Ruby entries and leaves the rest.
+- script: the Ruby line shell says it is deprecated, in its greeting, where it
+  cannot be missed: planned OFF by default from 9.0, droppable today with
+  `qmake CONFIG+=no_ruby`, and port a .seq by asking the AI assistant, whose
+  mapping is in kame_api. The .kam format is unaffected either way.
+- script: the Python banner warns when nothing on the machine can run the MCP
+  server, beside the links that would then fail. The detection already existed
+  but printed to stderr only, which in a GUI session is nowhere. Probed on a
+  daemon thread so the banner is never delayed, and the candidate list mirrors
+  the real search -- the interpreter behind Jupyter first, then a
+  kame-mcp-venv -- because a false alarm on a working setup would be worse than
+  silence. Verified both ways: silent against a venv that has the packages,
+  and it reports with the setup URL when nothing does.
+- build: `qmake CONFIG+=no_ruby` builds without the Ruby interpreter. Ruby had
+  no switch at all, unlike USE_PYBIND11: XRuby was constructed unconditionally
+  and Linux refused to configure without ruby-dev ("KAME compiles
+  script/xrubysupport.cpp unconditionally"). Default is unchanged -- this only
+  makes the question measurable, since deciding to drop Ruby needs a build that
+  can be tried. What is NOT affected is the .kam format: XRubyWriter merely
+  writes text, needs no libruby and is always built, and .kam files already load
+  through the Python loader whenever USE_PYBIND11 is set. What goes away is
+  running .rb files and the Ruby line shell. Verified by generating both
+  Makefiles: with no_ruby there is no compile rule for xrubysupport.o, no
+  USE_RUBY define and no libruby in LIBS, while xrubywriter is untouched; and
+  measure.cpp / kame.cpp / xrubywriter.cpp syntax-check both ways.
+  Motivation, for the record: libruby installs a SIGSEGV handler, which is what
+  turned a segfault in Python teardown into an endless spin rather than a crash
+  -- a cost paid on every platform for an interpreter most installations no
+  longer use.
+- script: setup-time failures now carry a link to the setup instructions.
+  Someone getting MCP working for the first time cannot consult the manual: it
+  is served THROUGH MCP, so it is unreachable until the thing they are fixing
+  works, and by then they no longer need it. The only surface they have is
+  KAME's own message and the plugin launcher's stderr, so the URL travels in
+  those.
+- script: the web link opens the browser. `clai web` prints its URL and waits,
+  and nothing opened it, so choosing "web" looked like it had merely opened a
+  terminal. KAME picks a free port, passes --host/--port, and opens
+  http://127.0.0.1:<port> once something answers there -- from a daemon thread,
+  because kame: link handlers run on the main thread and blocking it would
+  freeze the GUI while the server starts. The terminal window stays: it is
+  where the server lives, and where its errors are legible.
+- script: -m is passed only to the agent KAME ships. clai overrides
+  unconditionally when -m is present (`if agent.model is None or
+  model_arg_set`), and the shipped agent binds no model precisely so clai can
+  fill it in -- but an agent the user wrote usually binds its own, and passing
+  -m then silently replaced the model chosen in their module, which is the
+  opposite of the point of picking one. The launch log now names the agent and
+  says which of the two supplied the model.
+- script: choosing your own Pydantic AI agent is a file dialog, not an
+  environment variable -- a GUI application should not require one exported
+  before launch. The Script pane's Pydantic AI row gains an agent picker: it
+  accepts a .py module or a .yml/.json spec, and for a module it asks the venv's
+  interpreter whether the file really exposes a pydantic_ai.Agent and under
+  which name, rather than assuming `agent` and failing later inside clai with
+  nothing to go on. The choice is remembered in ~/.kame_pyai_agent, the module
+  runs from its own directory so its imports resolve, and Cancel returns to the
+  agent KAME ships. KAME_PYAI_AGENT still works for scripted setups. The point
+  is that KAME owns the MCP endpoint and nothing else: an agent that also wants
+  a Coder capability, run-spanning memory, web search or a roster of models to
+  switch between belongs in the user's own module, needing only KAME's toolset
+  added to it as one capability.
+- kame/script: KAME "hung" on quit instead of exiting. The stack was identical
+  across samples taken seconds apart while CPU kept climbing: exit() ->
+  __cxa_finalize_ranges -> _Py_Dealloc -> _sigtramp -> libruby's sigsegv ->
+  check_stack_overflow. So it was not a hang at all -- a segfault during Python
+  teardown, caught by Ruby's SIGSEGV handler (installed because KAME embeds
+  Ruby as well), which then spun there rather than dying. XPython::bind was a
+  static KAMEPyBind, so its destructor ran in that finalisation phase holding
+  two things that must not be touched then: a pybind11::module_, whose release
+  DECREFs a Python object when the interpreter can no longer dealloc one, and
+  maps of std::function whose lambdas live in driver-module dylibs that may
+  already be unloaded -- the static-destruction-order hazard already flagged in
+  CLAUDE.md, now with a symptom attached. It is a reference to a never-freed
+  object now; the OS reclaims it. Suspicion fell first on a leftover async job,
+  but no worker thread existed in the sample: the only other Python threads were
+  ipykernel's _watch_pipe_fd pair, parked in PyThread_hang_thread, which is
+  CPython 3.14 doing what it should to daemon threads after finalisation starts.
+- mcp: an async job that starves the kernel's message loop used to be
+  unstoppable and unobservable, because get_result and stop_job were both
+  implemented by executing code ON the kernel -- the one thing that stops
+  working exactly then. Reported from a temperature-monitoring loop where the
+  GUI stayed responsive (so this was Python-side starvation, not an STM stall)
+  and get_result, stop_job, tree and execute_code all went silent. The worker
+  thread keeps running in that state, so each mcp_checkpoint() now also writes
+  ~/.kame_mcp_log/jobs/<job_id>.json and checks for a <job_id>.stop marker
+  that stop_job drops from the SERVER process, before it tries the kernel at
+  all. Both tools fall back to the files when the kernel does not answer.
+  Verified with no kernel in the loop: a 200-iteration job stops within one
+  checkpoint of the marker appearing, and its progress is readable throughout.
+  Note this is recoverability, not the root cause: the starvation itself is
+  still open -- Timer.start() only polls shell_stream.flush() after on_timer()
+  returns, so anything that blocks inside on_timer() stops all message
+  handling. The async mechanism alone does not do it (a Snapshot+sleep loop
+  leaves the kernel answering normally with no drivers loaded).
+- mcp 2.x is supported alongside 1.x, so `pip install mcp` will be the right
+  instruction from the next release. 2.0 renamed the class and moved the module
+  (mcp.server.fastmcp.FastMCP -> mcp.server.MCPServer) and moved transport
+  options out of settings into run(); the server now picks whichever line it
+  finds. Verified against 1.29.0 and 2.0.0: both list all eleven tools with
+  their annotations over stdio, and both bind the streamable-http transport.
+  Two details a plain import swap would have missed -- Image lives at
+  mcp.server.mcpserver.Image on 2.x and is NOT re-exported from mcp.server,
+  and the host/port handling is exactly inverted (1.x: settings, run() takes
+  only transport/mount_path; 2.x: run() kwargs, gone from settings), which is
+  why _bind() became _serve(). mcp.types.ToolAnnotations and the annotations=
+  keyword are unchanged. The interpreter probes accept either line -- requiring
+  the 1.x module would have rejected a perfectly good `pip install mcp` -- and
+  the plugin launchers' `import mcp` check, which would pass a package too
+  broken to serve, now reaches the server class itself. That probe has to stay
+  a single line: \n inside sh single quotes is a literal backslash-n, so a
+  multi-line -c is a SyntaxError that rejects every candidate.
+
+* Fri Aug 21 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Release 8.6.
+- script: an MCP async job could not touch the per-thread script context.
+  execute_code_async runs the code in a daemon thread, and TLS was a plain
+  threading.local(), so every field was unset there and a read raised
+  `AttributeError: '_thread._local' object has no attribute 'xscrthread'`.
+  Reproduced first, which narrowed it usefully: Root(), Snapshot, Transaction,
+  print() and sleep() all work on that thread already -- only the direct TLS
+  reads failed. TLS is now a threading.local subclass whose __init__ (called
+  once per thread that touches it) defaults xscrthread / logfile / cell_status
+  to None, so a non-script thread reads None instead of raising, and no thread
+  can see another's context. That is also what the hasattr/getattr guards
+  scattered through this file were working around. kame_python_api says what an
+  async job may rely on.
+- Windows: MCP did not work at all, for four independent reasons, and each hid
+  the next. Nothing ever deployed kame.pro's scriptfile.files there -- they sit
+  in DISTFILES, which copies nothing, while the macOS bundle and the Linux
+  QMAKE_POST_LINK do the real work -- so kame.exe ran against a resources\ dir
+  holding only whatever had once been hand-copied, and the server launch failed
+  with `can't open file '...\Resources\kame_mcp_server.py'`. A win32
+  QMAKE_POST_LINK now runs tools/deploy_scripts.bat at link time and
+  tools/mkzip.bat calls the same script, so a build tree and a release get an
+  identical set; the recipe needs system_path() rather than shell_path(),
+  because with MSYS on PATH qmake decides the make shell is sh and emits
+  /C/Users/... which a recipe run under `mingw32-make SHELL=cmd.exe` cannot
+  execute. Second, `pip install mcp` now serves 2.0.0, which dropped
+  mcp.server.fastmcp: `import mcp` still succeeds, so the only symptom is a
+  ModuleNotFoundError on the submodule -- pinned to 1.x explicitly. Third,
+  kame-msyspython.bat exports PYTHONHOME=C:\msys64\mingw64 and MSYS2's
+  PYTHONPATH, and both the interpreter probe and the server launch inherited
+  os.environ verbatim, so a real CPython was told to load mingw-built C
+  extensions it cannot open (`No module named '_socket'`, or exit 103 through a
+  uv trampoline). Worse, the probe failed for that same reason, so the venv
+  looked unusable and the fallback picked it anyway. Both now run with
+  PYTHONHOME / PYTHONPATH / VIRTUAL_ENV / PYTHONSTARTUP stripped. Fourth,
+  FastMCP.run(host=, port=) raises TypeError in mcp 1.x, where those are
+  constructor/settings values, so all three HTTP call sites could never bring
+  the server up even with a clean environment.
+- script: the Windows Claude and Codex desktop apps are MSIX packages -- not on
+  PATH, no executable under Program Files, and absent from both App Paths and
+  the Uninstall registry -- so `start "" Claude` opened nothing and the Codex
+  link reported its CLI missing on a machine where the app was installed. They
+  are launched by AppUserModelID through the AppsFolder shell namespace, with
+  the id resolved from the OS rather than hardcoded (Claude_pzs8sxrjxfjjc!Claude,
+  OpenAI.Codex_2p2nqsd0c76g0!App); a plain-exe install has no AUMID and keeps
+  the old route. The session-scoped -c MCP overrides cannot ride along that
+  path, which the log line now says. The same packaging redirects %APPDATA%
+  into Packages\<pkg>\LocalCache, which is why an interpreter installed from
+  inside such a container resolves there and not for KAME.
+- plugin launcher: both launchers now walk up for kame-mcp-venv, the same
+  interpreter KAME's own probe prefers, ahead of the system ones. They searched
+  only KAME_MCP_PYTHON, `py -3`, `python` and `python3` -- on Windows typically
+  the Microsoft Store alias stub or an MSYS2 python that cannot host mcp at all
+  -- so an installed plugin reported "no Python with 'mcp'" while KAME was
+  happily using the venv.
+- script: an MCP client config that exists but is empty is read as {} rather
+  than raising. Antigravity CLI leaves a 0-byte ~/.gemini/config/mcp_config.json
+  until it first writes one, and json.load() rejects that. Malformed-but-
+  non-empty still raises: that is somebody's real configuration. The directory
+  is created when absent, which would have failed one step later.
+- tools: mkzip.bat's cleanup never ran -- the trailing lines used `remove`,
+  which is not a cmd command, so qtdir.txt and kame.log shipped in every
+  release; and __pycache__ is nested, while the single rmdir matched only the
+  top level (12 -> 0 on the current release folder). findstr has no alternation
+  and its `*` repeats only the preceding element, so the Qt-version filter needs
+  `6.[5-9]` *and* `6.[1-9][0-9]`: without the second, kame-msyspython.bat
+  silently stopped finding Qt at 6.10 while kame.bat still did.
+
+- macOS: the GUI held a full core with nothing running. main() does not use
+  app.exec() on this platform -- since 2018 it runs its own
+  while(form->running()) { pool; app.processEvents(); } so each pass can be
+  wrapped in an autorelease pool -- and processEvents() defaults to AllEvents,
+  which does NOT include WaitForMoreEvents. Qt computes
+  canWait &= (flags & WaitForMoreEvents), so that loop could never block: it
+  was a busy-wait from the day it was written. It did not show because
+  processSignals() slept 5 ms per idle pass and that sleep paced the loop as a
+  side effect; moving the pacing to the timer interval (right on Linux, where
+  app.exec() asks to wait) left macOS with nothing holding it back. Sampling
+  put 92% of the main thread in running states and 44% of it inside the Cocoa
+  dispatcher re-arming its CFRunLoop timer -- work whose whole purpose is to
+  prepare a sleep that never came. A bare QApplication whose only timer is a
+  do-nothing zero-interval one reproduces the same two frames at 85% of a core.
+  The loop now asks to wait, and the signal pump's timer is never 0: 0 means
+  "never sleep", not "soon".
+- kame/xscheduler: SignalBuffer::synchronize() reported "busy" for two
+  unrelated states and the single bool could not tell them apart -- a real
+  backlog left by the 30 ms drain budget, where returning at once is exactly
+  right, and an empty queue with an event parked in the skipped queue waiting
+  out its listener's delay_ms(), where nothing can progress before the delay
+  expires and polling is pure spin. hasImmediateEvents() separates them, so
+  the aggressive path keeps its 0 ms and the deadline that has not arrived is
+  simply waited out.
+- script: the Jupyter server KAME launches now dies with KAME. finish() only
+  runs on a clean kernel-loop exit, so a crash or a kill left the server alive
+  holding its port -- seven had accumulated in eleven hours, each pushing the
+  next launch to 8889, 8890, ... The decisive check therefore lives in the
+  server: a daemon thread watches the KAME pid and sends itself SIGTERM when it
+  goes (0.09 s, measured), taking the kernels it started with it. It must not
+  probe with os.kill(pid, 0) on Windows, where Python maps every signal other
+  than CTRL_C_EVENT/CTRL_BREAK_EVENT onto TerminateProcess -- the probe would
+  kill KAME. Three parent-side defects went with it: only the last launch was
+  remembered (a second click orphaned the first for good), terminate() was
+  called twice with nothing checking that the server had gone, and stdout was a
+  PIPE nobody read after the 0.5 s launch check, so the server would block once
+  the ~64 KB buffer filled. Clicking the link again now reopens the running
+  server.
+- script: MCP clients that KAME did not launch can be registered permanently
+  from the Script pane. The entry names the plugin's stdio launcher, not the
+  HTTP URL, so it survives KAME restarts and is inert while KAME is closed.
+  Each client is reached the way it provides: `codex mcp add`, `agy mcp add`
+  (Antigravity CLI -- and its CLI records "disabled": false beside the command,
+  which a hand-built entry would omit, which is the argument for using it), and
+  an additive edit of claude_desktop_config.json for Claude Desktop, which
+  offers neither. Bionic / LM Studio need nothing: a project opened on the
+  notebook workspace reads the .mcp.json KAME already writes there. Two clicks,
+  not one -- the first reports every target path and the old and new entry, and
+  only the second writes.
+- script: the Pydantic AI links hand KAME's agent to the user's own clai
+  (`clai -a kame_pydantic_ai:agent`) instead of running the script with a model
+  KAME had to ask for. Imported as a module, kame_pydantic_ai exposes `agent`
+  with no model bound and only KAME's MCP toolset and safety instructions, and
+  clai fills the model in from -m or its own default -- so provider, keys and
+  defaults stay in the setup the user already has.
+- script: the venv dialog accepts the folder people actually pick. uv, poetry
+  and pdm keep the interpreter in a .venv that macOS's file dialog does not
+  show, so demanding <picked>/bin/python turned the natural choice into an
+  error; .venv/, venv/ and env/ inside it, a bin/ directory and the interpreter
+  itself are all accepted now, and every candidate is probed rather than the
+  first assumed. A venv under Documents that fails with EPERM is reported as
+  what it is -- macOS privacy, not a missing package.
+- mcp: tracebacks reach the client without IPython's colour escapes, which were
+  43% of the payload on the sample measured and unrenderable by the reader.
+  kame_python_api gains the async polling shape and, for driver cleanup, the
+  `finally` idiom -- explicitly NOT a blanket context manager, because
+  unconditional teardown is wrong for a controller mid-ramp, a magnet at field
+  or a gate mid-sequence.
+
+* Wed Aug 19 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Release 8.5.
+- Linux: first run against real instrument hardware. The Thamway FX2/FX3 USB
+  path had never been exercised on Linux before, and it produced four crashes
+  in one session; all four are fixed here, and three of them were the same
+  bug. Taking &v[0] on a std::vector whose size is 0 is undefined, but the
+  capacity is allocated, so on macOS and Windows it returns exactly the
+  address the caller wanted and the code had "worked" for years. Qt6's headers
+  define _GLIBCXX_ASSERTIONS whenever QT_NO_DEBUG is absent, so libstdc++
+  checks operator[] and aborts -- which is why a debug build on Linux was the
+  first thing to see it. Every site of that shape across the DSO, NMR and ODMR
+  modules moved to .data(), which is defined for an empty vector and yields
+  the same address; they were found by enumerating the containers rather than
+  the syntax. Two ways the vectors are
+  legitimately empty at those points: stopAcquision() reserve()s each ring
+  chunk and then clear()s it, and visualize() runs even when analyze() bailed
+  out with an XSkippedRecordError.
+- charinterface: four defects on the libusb async path, found from a SIGSEGV
+  inside libusb_cancel_transfer in that same session. AsyncIO::abort()
+  cancelled a transfer without checking the device was still open, and held no
+  reference with which to check -- it now carries one. waitFor()'s watchdog
+  used a 6 s deadline while the transfers are issued with 10 s, so libusb
+  could never report LIBUSB_TRANSFER_TIMED_OUT and the clean outcome the code
+  below already handled was dead: the deadline now comes from
+  transfer->timeout. Past the deadline the loop re-issued the cancel on every
+  iteration; it now cancels once, grants a grace period, then raises a
+  catchable error. close() cleared its handle only after libusb_close() had
+  freed it, leaving every !handle guard in the file a window to walk through.
+- kame/70-kame.rules: TAG+="uaccess" alone grants access only while the user
+  holds an active local seat, so a measurement host driven over SSH, from cron
+  or from a systemd unit failed every libusb open with LIBUSB_ERROR_ACCESS
+  although the same user succeeded from the console a moment earlier.
+  GROUP="plugdev", MODE="0660" alongside uaccess on all ten devices.
+  INSTALL.linux gains the usermod step, the re-plug requirement and the
+  ls/getfacl checks, because nothing USB works until the rules are installed.
+- pulser: two operator-precedence bugs and a unit mismatch. '!pw2__/2' parses
+  as '(!pw2__)/2' == 0, so the "no pi pulse follows, close the PreGate now"
+  branch was dead: with PW2 == 0 and a short Tau the amplifier gate stayed
+  high across the rest of the sequence, and in ODMR mode it was never released
+  inside the echo loop either. Both fixes strictly close the gate earlier.
+  Separately, ASWSetup is [ms] while Tau is [us], so its clamp compared the
+  two directly -- about 1000x too permissive, which is why it had never once
+  fired. Correcting the units made it fire, and that proved worse than leaving
+  it wrong: the clamp writes a node onPulseChanged itself listens to, without
+  the re-entry guard and the return that its neighbour two lines below
+  carries, so every firing re-entered the callback. Nor did it settle -- the
+  value written is not a fixed point of the rounding the next invocation reads
+  it back through, so the comparison can stay true indefinitely, and one click
+  on Output recursed 232 levels and took the stack with it. The clamp is gone.
+  ASWSetup is no longer bounded by Tau, which is what every release so far
+  has shipped.
+- pulser: refuse pulse widths that exceed Tau rather than playing them.
+  Nothing checked that the RF pulses in a sequence are disjoint, so
+  PW1 = PW2 = 6 us against Tau = 0.6 us was accepted: twenty pi pulses 600
+  ticks wide on a 120-tick spacing, overlapping five deep. Their QAM pulse
+  indices then merge into a single ~2400-tick span, while the waveform behind
+  that index is built for one 600-tick pulse, and the back-end walks off the
+  end of it. createRelPatListNMRPulser now raises an XRecordError, which
+  blanks the ports through the record's time-stamp gate. The Thamway back-end's
+  own guard against the overrun was an assert, which NDEBUG drops -- so the
+  release build read past the end of the vector instead of stopping. It
+  throws now, and remains as a backstop, since on its own it only fires when
+  the pulse width sits near an integer multiple of the spacing.
+- pulser: blank the output when the record has no valid time stamp.
+  visualize() emitted the output unconditionally, so a pattern-generation
+  failure left the hardware running the pattern from before the failure: RF
+  kept being emitted from a setup KAME had already rejected, and the UI
+  advertised parameters the hardware was not playing. Both changeOutput()
+  calls are now gated on the stamp. XSkippedRecordError paths are unaffected.
+- optics: the Euresys eGrabber probe sat inside optics.pro's `unix { }` block
+  along with libdc1394 and libusb. For those two that is a library fact; for
+  eGrabber it was an accident, and it left a Windows build with no camera
+  driver of any kind, while the ODMR imaging, FM tracker and 2-D analysis
+  drivers all build there. The probe now has a per-platform default and still
+  honours EGENTL_HOME. The dc1394 probe also accepts `libdc1394-25`.
+- The ODMR driver is built by default.
+- kame,modules: the OS elevation is now asked for directly instead of through
+  an STM tier. Five acquisition threads called setCurrentPriorityMode(HIGHEST)
+  outside AcquisitionPriority; three of them never enter the STM at all, so
+  what they were buying was the Windows arm that mapped HIGHEST to
+  THREAD_PRIORITY_TIME_CRITICAL -- and when that arm was removed, those calls
+  became no-ops and the threads silently lost their priority. The two that do
+  commit sat at STM HIGHEST outside the reach of the 2026-07-31 verdict. The
+  OS half is now an RAII wrapper, and the STM half of AcquisitionPriority,
+  which was dead, is gone.
+- Linux is a supported platform from 8.5: the "unsupported" label is dropped
+  from README and INSTALL.linux. Since the 2026-07 port the tree compiles
+  warning-clean, loads all 43 driver modules, runs both script engines,
+  renders its OpenGL graphs on a real X11 server, builds the usermode NI
+  USB-GPIB driver, and is the host the realtime campaign measures on. Two
+  facts stay as facts rather than disclaimers: there is no packaged Linux
+  binary yet, and -- as of this release -- the hardware run above is the
+  first, so reports naming the driver and the device are wanted.
+- script: one-click Codex / codex-fugu launch alongside the existing Claude
+  entries, wired to the same throwaway .mcp.json KAME already writes, so the
+  CLI is pointed at exactly the server this KAME started. On macOS and Linux
+  the registration is an ephemeral, session-scoped `-c mcp_servers.kame.*`
+  override, so ~/.codex/config.toml is never touched; Windows delegates to
+  `codex mcp add` so cmd.exe need not quote a TOML array. The bearer token
+  never appears in argv -- where any local user could read it out of ps for
+  the life of the terminal -- but in a 0700 launch script that deletes itself
+  on first read.
+- STM: the tail on a PREEMPT_RT host is contention, not composability, and the
+  campaign that established that is summarised in the Aug 10 entry below;
+  since then Rule 0c (a lower-priority tagger never overwrites a validated
+  HIGHEST tag) took slow commits from 62 to 15 per 900 s at 5.4 sigma, HIGHEST
+  now tags from retry 0 so a bundle no longer leaves its children unstamped,
+  and a 30-minute soak holds the 3L retry bound to within one in 115 M
+  commits. Two published results were retracted on re-measurement and the
+  reasons kept: "RT fast privilege makes the tail worse" did not replicate,
+  and the no_tags result tracked run order rather than the binary.
+  KAME_STM_RT_FAST_PRIV and the OS-scheduler probe are deleted outright.
+- kamestm: diagnostic counters are pointer-width -- the STM core would not
+  link on i486, where a 64-bit atomic becomes a locked libatomic call and one
+  in a free path destroys lock-freedom.
+
+* Mon Aug 10 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- STM realtime, measured end to end on a PREEMPT_RT host (i5-7500, isolated
+  core, SCHED_FIFO, per-thread pinning, PM-QoS): a HIGHEST 5-node commit with
+  peers writing into the same subtree runs p50 896 ns / MAX 21.9 us; with no
+  peer on its subtree, p50 448 ns / MAX 1.06 us. NORMAL under the 20 ms wait
+  budget lands at MAX 20.03 ms, i.e. the budget. Contention -- not the number
+  of nodes a commit spans -- is what sets the tail: 21x in MAX between those
+  two rows, while 17x the nodes moves the worst case only 1.6x (p50 is linear,
+  439 ns + 94.5 ns per node). The lever is topological: a root-scope Snapshot
+  or Transaction bundles every subtree beneath it, so keep other threads, and
+  root-scope operations above all, off the deadline-bearing subtree.
+- STM: the livelock probe called std::thread::hardware_concurrency() on every
+  tick. On Linux/glibc that is get_nprocs(), i.e. an openat + read + close of
+  /sys/devices/system/cpu/online each time -- three syscalls through PTI+IBRS
+  inside the negotiation of a realtime commit, and the probe sits above the
+  round loop that HIGHEST breaks out of, so HIGHEST paid them too. Now cached
+  per process. Slow commits (>= 15 us) fell 879 -> 5 in a 60 s contended arm,
+  MAX 40.8 -> 21.9 us, p50 and throughput unchanged; on macOS the same fix is
+  worth ~16 % of 3level_mixed throughput. It was found with Intel PT after
+  five other instruments missed it: fault and context-switch counters do not
+  see a syscall, a cycles profile smeared it to 0.27 % of samples, the STM's
+  own counters account sleeps and CAS but not kernel entries, and strace is
+  not an option on the thread under test.
+- STM: KAME_STM_RT_FAST_PRIV (default off) fires the privilege claim early --
+  at N retries -- for a HIGHEST transaction on SCHED_FIFO/RR. Measured, it
+  makes the tail WORSE (MAX 27.6 -> 34.5 us) and the reason is worth the knob
+  existing: privilege blocks a peer at its next negotiation entry and can do
+  nothing about CASes already in flight, so cutting the snapshot loop short
+  converts cheap rebuild conflicts into commit-CAS losses. The organic gate's
+  tags_owned == tags_total condition, which the fast path bypasses, is
+  therefore an anti-leak filter rather than conservatism -- owning every tag
+  means the storm has drained and the commit can actually win. The knob keeps
+  its own measurement in a comment so the next person does not re-run it.
+- atomic_smart_ptr: the exponential-backoff knob has never been reachable --
+  BACKOFF_IN_ATOMIC_SMART_PTR is always defined (0 by default) and all four
+  use sites guarded on #ifndef, so every one took the no-op branch and
+  -DBACKOFF_IN_ATOMIC_SMART_PTR=4 changed nothing. Guards corrected to
+  #if > 0; the default remains 0, so no shipped behaviour changes.
+- kamestm/README: the realtime section is now 83 lines of contract and
+  conclusions (from 420 during the campaign). tests/latency_floor plus
+  tests/with_pmqos measure the host's own floor -- 67.9 us with no isolation,
+  17.0 us with isolcpus/nohz_full, 219 ns with PM-QoS on top -- because a
+  commit latency read against the wrong floor mis-attributes the machine to
+  the STM, which happened twice during this campaign. The investigation
+  record lives in design/RT_READINESS.md and in the test headers.
+
+* Sat Aug 08 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- fast_vector<T,N>: shrink_to_fit() ran on the INACTIVE union member. The
+  fixed inline array and the std::vector are union'd, and the is_fixed() test
+  was inverted -- so in inline mode it read m_array's bytes as a vector's
+  three pointers and reallocated through them. Talker::connect and
+  Talker::disconnect call it on every connect and disconnect, and the listener
+  list is inline for the usual case of four listeners or fewer, so this was
+  live on every platform; whether it corrupted anything depended on the stale
+  bytes, which is why it surfaced as an intermittent SIGSEGV at window close
+  (XMeasure::terminate_all -> Talker::disconnect) rather than a reliable one.
+  Two adjacent defects of the same class fixed with it: begin()/end() used
+  out-of-range operator[] subscripts in heap mode, and erase() dereferenced
+  end() when the last element went. New kamestm/tests/fast_vector_test.
+- STM: a budgeted wait is never armed to land ON the deadline any more. The
+  ~200 us of overshoot recorded for every budget size was not the STM and not
+  the budget-exempt wait behind a privileged peer (instrumentation found zero
+  exempt rounds in 17,274 slow commits) -- it was the timed wait's own
+  wake-up: one cell.wait() asked for 198 us returned 696 us later with 6 us
+  of STM work in the whole commit. The scheduling class dominates that cost
+  and a PM-QoS hold buys its remaining 6x only on top of FIFO. Every budgeted
+  sleep now stops KAME_NEG_SPIN_TAIL_US (300 us) short of the deadline and
+  polls the remainder, which also notices the blocker clearing immediately:
+  MAX - budget 122 -> 7.1 us at 20 ms, 3.0 us in the full configuration.
+  Unbudgeted callers execute the pre-existing code. Keep budgets well above
+  the reserve: at or below it the committer never sleeps and the deferrable
+  tiers starve (-94 % / -98 % measured at a 200 us budget).
+- XWaitCell parks on futex(FUTEX_WAIT_PRIVATE) on Linux, matching the
+  __ulock_wait path already used on macOS, so the negotiation route has no
+  mutex on either. The portable fallback's std::mutex has no priority
+  inheritance, which is a real hazard under a scheduler that enforces
+  priority; it remains for other platforms and xwaitcell_test covers all
+  three backends.
+- timeStamp() reads CNTVCT_EL0 on aarch64 instead of falling through to
+  XTime::now(), whose resolution is one microsecond. Apple Silicon and any
+  ARM realtime target had the library's lowest-level timing primitive 1000x
+  coarser than x86 with nothing saying so.
+
+* Fri Aug 07 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Linux: file dialogs work properly. XFilePathConnector passed a
+  ";;"-separated filter LIST to QFileDialog::setNameFilter(), which is
+  singular and does not split on ";;", so the type combo showed the raw
+  string as one garbled entry and only the trailing glob was ever in force;
+  and it handed the line edit's FILE path to setDirectory(), which roots
+  Qt's own widget dialog at a non-directory and lists nothing at all. Both
+  were masked by the native macOS/Windows dialogs. Also drops the trailing
+  ";;" from two getOpenFileName() filters, which rendered as a blank row.
+- Linux: File > Open and the colour picker no longer map as an empty frame
+  that never paints. FrmKameMain::processSignals() -- the timeout slot of a
+  zero-interval QTimer -- slept 5 ms whenever the STM signal buffer was idle,
+  and Qt's GTK3 platform theme runs those dialogs through gtk_dialog_run() on
+  the same GMainContext as Qt's dispatcher, so a blocking zero-interval timer
+  kept GLib from ever reaching GDK's lower-priority redraw source. The same
+  pacing is now expressed as the timer's interval, so the thread blocks in
+  poll() and the other sources get their turn.
+- Every header in the tree now compiles on its own. 38 of them used
+  fixed-width integer types without including <cstdint> and parsed only
+  because older libstdc++ leaked it through <string> -- newer ones do not,
+  and rubywrapper.h's `using Value = uintptr_t` then takes the whole Ruby
+  bridge down. <cstdint> now comes from the two prelude headers (kame/
+  support.h and kamestm/support.h) with the local include kept only where the
+  include graph does not reach a prelude.
+- Building the tree with clang for the first time found three defects GCC did
+  not: XDSOWithRealtimeAcq's raw-stream reader sized two variable-length
+  arrays straight from a channel count read out of the stream, so a truncated
+  or corrupt recorded .dat was an unbounded stack allocation (now a fixed
+  bound plus validation, which also lets the header compile on MSVC); a
+  bitwise | where a || was meant in pulserdriverh8; and an indeterminate int
+  copied by a lambda capture in usertempcontrol.
+
+* Wed Aug 05 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamepoolalloc: a recipe for the PREEMPT_RT host the allocator's WCET caveat
+  needs, and the measurements that gate it. Ubuntu 26.04 ships the realtime
+  kernel without an Ubuntu Pro subscription, which the first draft of the
+  recipe wrongly told you to buy; the host is verified with the checks written
+  down beside it (core isolation actually taking effect, C-state residency,
+  sustained temperature under a PM-QoS hold), because every number taken on it
+  is meaningless without that provenance. 13 us on the iMac, no hardware
+  purchased.
+- XAutoLCTuner: Auto Save Preset and Relay Settle Time are now on the form.
+  Both nodes shipped without a UI connector and were reachable only from
+  scripts and .kam files -- and Relay Settle Time exists precisely so the real
+  settling time can be found without a rebuild, which needs it visible.
+- README: a Linux section under Building, and the stale Qt5Compat claim
+  dropped.
+
+* Fri Jul 31 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- The field freezes reported while operating T1Mode during an NMR
+  measurement, and the SIGABRTs that ended some of them, are fixed. One
+  principle explains the whole set: privilege is the STM's completion
+  guarantee, and nothing may be immune to it. Two immunities existed and both
+  are gone.
+- (1) STM-HIGHEST is retired from KAME. AcquisitionPriority now keeps only
+  the OS-level elevation, which is a thread property rather than a
+  transaction property. A HIGHEST commit never parks, and therefore also
+  never yields to a privileged peer -- so each of its commits landing inside
+  that peer's closure re-runs the whole closure. Where closures are
+  microseconds this is negligible; where they are milliseconds, as KAME's
+  analysis closures are, the privilege holder stops converging and everything
+  waiting behind it waits through every re-run (reproduced in the lab as 1.1
+  -> 15.5 closure re-runs per commit). The tier remains in kamestm for hosts
+  that satisfy HIGHEST rate x longest peer closure << 1.
+- (2) The wait budget's expiry no longer bypasses fair mode. Its escapes and
+  clamps are now gated on the same fair_mode_blocks_me the ordinary path
+  consults, so a budget cannot barge past a live privilege holder. Before the
+  fix the field freeze reproduced in the lab as 372 HANG dumps and 12.5 s
+  pins; after it, none. The budget's other bounds are unchanged.
+- The HANG watchdog reports in release builds and no longer aborts
+  (KAME_STM_HANG_ABORT_N defaults to 0 there, 3 in debug where the core dump
+  is the point). It was tuned for true deadlocks and twice executed
+  recoverable states instead: an 11 s self-recovery had 4 s of margin on it,
+  and a live privilege holder legitimately grinding for 33 s was killed with
+  the unsaved measurement. The starvation bound is now the exit -- 10 s, and
+  arming after 2 retries rather than 8, because a thread already sunk in 5 s
+  sleep caps accrues retries at one per cap and eight of them deferred the
+  exit to ~40 s. The revocable tiers (LOWEST / UI_DEFERRABLE / SCRIPTING) get
+  an exception with a message telling the operator to save; NORMAL and
+  HIGHEST privilege never expires, by design.
+- Constructor exception safety in the base machinery, which the starvation
+  throw made reachable and which was a latent double-free before it. XNode's
+  constructor pushes shared_ptr(this) onto a per-thread stack so that
+  constructors can use shared_from_this(), and createOrphan() pops the back
+  -- a positional hand-off that assumed every constructor completes. When one
+  throws, `new T` has already run the base destructor and freed the memory
+  while the pushed entry still owns it: popping it double-frees, leaving it
+  hands the next createOrphan() freed memory. Node constructors run
+  transactions by design, so this was live for every driver. All three sites
+  (XNode::createOrphan, XQConnectorHolder_, XStatusPrinter::create) now
+  neutralise stale entries and verify the pop by identity; Snapshot and
+  Transaction constructors drop their own stamps before rethrowing, so a
+  throw during construction can no longer orphan a Reserved stamp that every
+  negotiator then waits behind. New tests/xnode_ctorthrow_test.
+- NMR: the PNR (LS-MDL) background solve is memoized, so an iterate_commit
+  retry costs microseconds instead of repeating a 10-20 ms solve. The key is
+  provenance -- the DSO record's time() plus the scalar inputs -- rather than
+  a content hash, which also reuses the solve across re-analyses triggered by
+  unrelated settings; the slot is an atomic_shared_ptr, so there is no mutex
+  anywhere near a transaction.
+* Thu Jul 30 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- NMR, four problems found setting up a two-site T-sweep: RelaySettleTime
+  [ms] on XAutoLCTuner (default 500) replaces a hard-coded 50 ms wait, so a
+  sweep that switches the pulser back on the instant tuning() clears no
+  longer fires the first pulse into a still-selected VNA path and reads it
+  back as a bogus FWD/BWD spike; the tuner hand-off, preset recording and a
+  hang on quit are fixed with it.
+- NMR/Thamway: the PROT status poll no longer writes a stale reading over a
+  fresh setting. fetchStatus reads every setting in one batch of USB round
+  trips and must drop the interface lock before its status transaction, so a
+  GUI or script write can land in between -- the device was already
+  programmed, but the poll then stored its pre-write reading into the node
+  and left the two disagreeing until the next poll (observed as PROT.Freq
+  showing 17.99 for one poll period after a script wrote 17.36043).
+- NMR: the avgClear() touch moved out of analyze() into visualize(). Firing
+  it inside the analysis transaction published a nested commit that restarts
+  the DSO sequence over the instrument interface -- a side effect the
+  enclosing transaction cannot roll back, and one that ran again on every
+  retry because the guard flag rolled back with it.
+- The record path declares a 20 ms wait budget by default, at every priority
+  (XPrimaryDriver::downstreamWaitBudgetUS()). Measurement quality suffers
+  past 20 ms whether or not the thread is elevated, so this is not gated on
+  the tier. Realtime ends with the record: the demoted downstream work runs
+  at NORMAL under the same budget.
+- Transactional::isInTransaction() and KAME's gWarnIfInTransaction() replace
+  the ad-hoc detectors: a debug build now reports msecsleep() or a mutex
+  acquired inside an in-flight transaction, deduplicated by call site, which
+  is the deadlock class the driver-authoring rules warn about.
+- kame/script: the Python downcaster cache no longer votes in the fallback
+  election. cast_to_pyobject elects the applicable downcaster with the
+  largest serial, which is correct only because declaration order puts a
+  derived class after its base -- cached resolutions carry no declaration
+  order, and the trivial cache left behind by a type with no registered base
+  (every XScalarEntry read, constantly) outranked every real declaration.
+- Interface I/O inside a transaction is now caught where all of it is
+  visible, and the audit script sees it one call away; QIODevice::open
+  results are no longer discarded; tools/audit gained a guard for
+  kamepoolalloc's no-DCAS invariant (which had been passing vacuously on
+  macOS) after pointer-width RT counters restored the 32-bit lock-free
+  property.
+
+* Tue Jul 28 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- The embedded IPython kernel works on ipykernel 7. Kernel.do_one_iteration
+  is gone there, and simply silencing the AttributeError traded it for a
+  worse failure: Timer.start() then entered its own loop and never returned,
+  a %gui hook owns the kernel thread while it runs, and the kernel stopped
+  answering at all -- which also took out the MCP server, since it talks over
+  the same channel. Now driven the way ipykernel's own loop_* hooks are.
+- Transactional::ScopedWaitBudget: a caller-supplied soft bound on how long a
+  commit may spend waiting in negotiation, asserted in ctest at p99.99. This
+  is the mechanism the record path's 20 ms default uses.
+- Priority.HIGHEST is withdrawn from the Python API. A Python transaction can
+  hold the GIL, and the tier's contract is that it never parks; the two do
+  not compose.
+- kamestm: the A/B/C/D negotiator knobs added while diagnosing the ms-scale
+  tail are removed, keeping what they measured -- (D) oldest-returns-and-tags
+  took MAX from 290 ms to 14 ms and is free below core count, and it is now
+  unconditional; B=4 beat B=1 head to head; the "uncapped
+  numThreadsRunning" optimisation was retracted as not a win when measured.
+- Fixed the platform-dependency defects found by auditing the tree for Linux,
+  and recorded that the earlier Linux allocator measurements were NOT taken
+  on a realtime kernel.
+
 * Mon Jul 27 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - Linux builds and runs again (Qt 6, qmake, GCC 13, Ubuntu 24.04). It is still
   NOT a supported platform -- no instrument hardware has been exercised and the

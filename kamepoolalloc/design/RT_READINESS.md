@@ -337,6 +337,22 @@ Two observations from that survey:
   "don't return memory" + "don't grow" (ROS 2's real-time tutorial and the
   `pendulum_control` demo; the PREEMPT_RT / cyclictest community does the same).
   It is established as *application* practice, not an allocator feature.
+* **A `PREEMPT_RT` kernel has no THP at all, so (a) is a general-purpose-kernel
+  knob.** Upstream `mm/Kconfig` gates `TRANSPARENT_HUGEPAGE` on
+  `HAVE_ARCH_TRANSPARENT_HUGEPAGE && !PREEMPT_RT`, and Ubuntu's
+  `7.0.0-29-realtime` confirms it: the symbol is *absent* from the config
+  (`/sys/kernel/mm/transparent_hugepage/enabled` does not exist) while the
+  matching generic build has `CONFIG_TRANSPARENT_HUGEPAGE=y`.  Coherent —
+  khugepaged collapses are the class of spike such a kernel exists to remove.
+  Consequences: the fault-path spike (a) suppresses **cannot occur** on an RT
+  kernel, so the knob is aimed at soft-realtime work on a stock kernel;
+  `kame_pool_set_thp_policy()` there is a silent no-op (`MADV_NOHUGEPAGE`
+  returns `EINVAL`, and the re-advise walk's `0 MiB` cannot be told apart from
+  "nothing to re-advise"); and (a)'s evidence must stay the generic-kernel
+  measurement below, since the arms are unmeasurable on an RT host.  Note also
+  that Ubuntu's generic build is `TRANSPARENT_HUGEPAGE_MADVISE`, not
+  `_ALWAYS` — unadvised ranges get no hugepages there either, so `SYSTEM` ≈
+  `NEVER` and the only informative A/B is `ALWAYS` against `NEVER`.
 * THP splits the field: jemalloc offers `never` because a 2 MiB huge page held
   by one small live allocation bloats RSS; tcmalloc went the other way and
   manages hugepages deliberately for TLB. **For realtime, jemalloc's side is
@@ -695,6 +711,240 @@ quote `kame_pool_get_rt_pending_cap()`, or raise it for the block size in
 play.  In the same runs the RT arm's *malloc* was slower on the 300 MiB band
 (p99.9 115 µs vs 57 µs), consistent with the trade already recorded in
 Result 1: holding VA means fresh mappings instead of reuse.
+
+#### Result — a real `PREEMPT_RT` host (Ubuntu 26.04, i5-7500, isolated cores)
+
+Everything above was measured on a non-realtime kernel, which is why G7's
+absolute numbers carried a caveat.  This is the same harness on a host that
+removes it: `7.0.0-29-realtime` (`CONFIG_PREEMPT_RT=y`), cores 2-3 isolated
+with `isolcpus`/`nohz_full`/`rcu_nocbs`, all IRQs steered to 0-1, PM-QoS held
+at 0 µs, `performance` governor, `sched_rt_runtime_us = -1`, no thermal
+throttling.  `--full`, five repetitions, medians.  Setup and provenance are in
+`design/RT_LINUX_HANDOFF.md`.
+
+**Cross-thread free** — a producer thread allocates, the measured thread frees:
+
+| | mean | p50 | p99.99 | p99.999 | **MAX** |
+|---|---|---|---|---|---|
+| **RT** | 55 ns | 55 ns | **160 ns** | **192 ns** | **352 ns** |
+| OFF | 43 ns | 31 ns | 20,480 ns | 32,768 ns | **42,356 ns** |
+| ratio | 1.3× | 1.8× | **128×** | **171×** | **120×** |
+
+**1.8× on the median buys 120× on the worst case.**  The mechanism is the one
+the harness footnotes: OFF batches to `CAP=1024` and one unlucky free then
+pays for the whole buffer, while RT takes `push_direct` every time.  Unlike
+the 300 MiB result above, the pending cap is not in play here — the band is
+32 B — so this is the gate working in the regime it was designed for.
+
+Steady-state maxima, same runs:
+
+| band | RT malloc MAX | RT free MAX |
+|---|---|---|
+| 64 B (bucket) | 449 ns | 332 ns |
+| 4 KiB (bucket) | 415 ns | 301 ns |
+| 256 KiB (dedicated) | 673 ns | 237 ns |
+| 8 MiB (large) | 16,087 ns | 239 ns |
+
+**Stated with the host's resolution, which is the point of measuring on an RT
+box at all**: `hwlatdetect` recorded no sample above 10 µs in 300 s and
+`cyclictest` maxed at 12–16 µs, so the bucket-band figures sit a factor of ~30
+below the floor and are allocator numbers, while the 8 MiB malloc max sits *at*
+the floor and must not be attributed to the allocator.  Quote them together.
+
+**The hard assertion fails on this host, with a characterised cause.**
+`rt_violations` is deterministic and `reps`-shaped — 0 / 2 / 2 / 4 / 8 / 18 at
+`--reps` 2 / 3 / 4 / 6 / 10 / 20, i.e. `reps − 2` at even counts, with odd ones
+not fitting (3 gives 2) — and is unchanged by removing the interferers or by
+pinning to four cores.  The registered `bench_rt_wcet_smoke` ctest runs
+`--reps 2`, which is exactly the zero of that sequence, which is why CI has
+never seen it.  `--rt-os-policy 3` names the site as `large_va_raw_map`, not the radix
+leaf — one of the two sites that degrade safely to libc under
+`KAME_RT_OS_FAIL`, so the bound is not what breaks.  The 8 MiB band is far
+below `LRC_HI`, so the large recycle cache is meant to absorb it: this is a
+prewarm/recycle shortfall of one mapping per repetition, open and tracked in
+the handoff document rather than papered over here.
+
+**One harness bug was found by running on two cores instead of four.**
+`interferer()` and `xt_producer()` are documented as deliberately not
+realtime, but `pthread_create` defaults to `PTHREAD_INHERIT_SCHED` and both
+are started after the measuring thread promotes itself, so they were running
+at `SCHED_FIFO` 80 as well.  Beyond measuring the wrong contention, that
+deadlocks outright once runnable threads exceed CPUs — equal-priority FIFO
+threads never preempt each other, and `sched_rt_runtime_us = -1` has already
+removed the throttle.  It hid for as long as threads ≤ CPUs, which was true of
+every host used before.  Fixed by `demote_this_thread()`; **numbers taken
+before that fix are not comparable** — the same cross-thread RT max read
+1,988 ns under the old regime against 352 ns after.
+
+#### Result — the STM's commit latency under the deployment's roles
+
+G7's bands measure the allocator.  What an acquisition deadline actually asks
+about is the *transaction*, and `transaction_priority_mixed_test` now reports
+it: the HIGHEST record commit, timed, under the role mix that deployment
+actually has (NORMAL driver peers, a UI thread taking root Snapshots, a
+SCRIPTING thread), with the acquisition thread at `SCHED_FIFO` 20 on an
+isolated core.  120 s, **6,568,736 commits**, on the PREEMPT_RT host:
+
+| mean | p50 | p99 | p99.9 | p99.99 | p99.999 | **MAX** |
+|---|---|---|---|---|---|---|
+| 800 ns | 768 ns | 2.05 µs | 20.5 µs | 32.8 µs | 81.9 µs | **95.1 µs** |
+
+> **This tail was largely G7's own subject, measured with G7's contract
+> unhonoured.**  `transaction_priority_mixed_test` called `prewarm` and nothing
+> else — no `set_realtime_mode`, no `set_realtime_thread` — so the acquisition
+> thread's **cross-thread** frees ran ungated, batched to `CAP=1024` with one
+> unlucky free paying the whole sort+merge+CAS.  A commit frees cross-thread
+> exactly when a peer allocated on its subtree, which is why the effect tracked
+> the cross-subtree role and nothing else, and why the slow-commit RATE scales
+> with payload clones per commit (31.6 → 117.9 per million from 4 to 16 leaves,
+> against the 3.4× the clone count predicts) while the MAGNITUDE of an event
+> stays fixed.  Adding `kame_pool_set_realtime_thread(KAME_RT_STRICT)`: slow
+> commits 28.8 → **8.3** per million, MAX 92.6 → **66.7 µs**, throughput
+> **+8 %**.  Mode alone (31.0) and `KAME_RT_DEFER` (29.3) are within noise —
+> only STRICT, the one level that drops the batch.  The test now defaults to
+> the contract; **KAME still does not mark the thread**, so precondition 3
+> remains outstanding in the application.
+>
+> This block used to end "66.7 µs is *below* the 67.9 µs `latency_floor`
+> measures as this host's worst case with no STM at all" — **retracted**.  The
+> arms ran *with* isolation and 67.9 µs is `latency_floor`'s *un-isolated* row;
+> the right floor for the regime is 17 µs, the same one the next paragraph
+> already quoted, two lines apart and contradicting it.  66.7 µs is therefore
+> 3.9x the machine, not level with it.
+
+The host's floor is **17 µs** (`rtla osnoise`, 120 s, Max Single, which bounds
+C-states, SMIs and `nohz_full` wake-ups in one number) — and 219 ns once
+`/dev/cpu_dma_latency` is held at 0, which `rtla` does not tell you.  So the
+66.7 µs worst case is **3.9x** the 17 µs floor, and removing the floor
+altogether moves it only to 53.1 µs: the tail is the STM's own retry path, not
+the machine.  Everything through p99 stays a factor of eight below the floor.
+
+Three things about that number are worth stating with it.
+
+**It requires precondition 2.**  Before the test called `kame_pool_prewarm()`
+the MAX was ~400 µs, and immovably so — unchanged across four workload
+configurations, two run lengths, isolated versus housekeeping cores, and
+PM-QoS held at 0 or not.  It was the pool's §29 freelist pre-fill faulting five
+`FS=true` size classes' first chunks in the first commit: 321 page faults at
+t=0 and none for the next 56 s.  Not a bound, a cold-start artefact.  **Nothing
+in `kame/` or `modules/` calls `kame_pool_prewarm()`**, so that spike is live
+in the application; one call on `XPrimaryDriver`'s acquisition thread removes
+it, and unlike `KAME_POOL_DISABLE_PREFILL=1` it costs no throughput.
+
+**It is not the negotiation sleep, and not a retry storm.**  The sleep chunk is
+1 ms and nothing approached it.  Slow commits (>= 50 µs) averaged 2.08 attempts
+with a maximum of 4, and two passes of an 800 ns commit is 1.6 µs — so the
+passes are long, ~25 µs each, rather than numerous.  The other roles completed
+a mean of 13 commits during each slow one, i.e. their normal rate: nobody was
+stuck.  Kernel tracing of such a window finds no syscall, no fault, no context
+switch and no IRQ.  Locating the remaining ~25 µs needs instrumentation inside
+`commit()`; the kernel cannot see it.
+
+**The priority machinery is what keeps it there.**  `transaction_latency_bench`
+on the same host, four symmetric threads with no priority differentiation, is
+the control: its leaf band is flat at 384 ns to p99.9 and then jumps to 3.1 ms
+at p99.99 with a 32.6 ms max, and 1,217 of its 1,234 slow commits had reached
+at least one 1 ms negotiation sleep chunk while the rest of the system
+completed a mean of 15,708 commits.  That is a thread losing and sleeping.  The
+acquisition thread, at HIGHEST under the deployment's roles, never gets there.
+
+#### …but KAME does not ship HIGHEST, and the shipped arm answers differently
+
+Everything above is the **library's ceiling**.
+`XPrimaryDriverWithThread::AcquisitionPriority` is `ScopedPriority(NORMAL)`
+plus an OS elevation — the kamestm HIGHEST tier was retired for KAME because
+per-record analyses cannot honour its precondition — and the two tiers are not
+a matter of degree.  `if(entry_pr == Priority::HIGHEST) break;` sits at the top
+of the negotiator's round loop, above both `negotiate_sleep` call sites, so
+HIGHEST cannot park; NORMAL parks in 1–2 ms chunks.  Same host, same roles,
+120 s, only the tier:
+
+| tier | p50 | p99 | p99.9 | **MAX** |
+|---|---|---|---|---|
+| HIGHEST | 768 ns | 2.05 µs | 20.5 µs | **95.1 µs** |
+| NORMAL (shipped), 20 ms budget | 768 ns | 1.28 µs | 3.67 ms | **20.15 ms** |
+
+Identical median, 200× apart in the tail, and the signature is unambiguous:
+the other roles completed a mean of 2,004 commits during each slow NORMAL
+commit against 13 in the HIGHEST arm.  `SCHED_FIFO` changed nothing in *this*
+measurement (43.8 k/s and MAX 20.15 ms with, 43.3 k/s and 20.19 ms without) —
+but the inference published with it, "no scheduling class shortens a voluntary
+wait", is **false**; see the correction at the end of this subsection.  Both
+arms are budget-dominated at 20 ms, and Linux gives a `SCHED_OTHER` task 50 µs
+of timer slack on a futex timeout and an RT task none, so they were never the
+same measurement at the scale where the difference lives.
+
+**At NORMAL the wait budget is the only bound the record commit has, and —
+isolated — it delivers exactly its value.**  `SCHED_FIFO` + pin, 60 s each:
+
+| budget | commits/s | mean | **MAX** | MAX − budget | clipped |
+|---|---|---|---|---|---|
+| 2 ms | 76,904 | 7.99 µs | 2.179 ms | 179 µs | 0.333 % |
+| 1 ms | 131,721 | 4.10 µs | 1.223 ms | 223 µs | 0.320 % |
+| 500 µs | 185,700 | 2.41 µs | 0.662 ms | 162 µs | 0.304 % |
+| 200 µs | 251,933 | 1.53 µs | **0.408 ms** | 208 µs | 0.334 % |
+
+MAX = budget + a constant ~200 µs, **no floor down to 200 µs**, and throughput
+*rises* 3.3× as the budget falls because a clipped commit stops sleeping and
+retries; the clip rate is invariant at ~0.32 %, i.e. the same population caught
+earlier and cheaper.  (`XPrimaryDriver::downstreamWaitBudgetUS()`'s documented
+"20 ms costs 4.7 %" came from the grand-scope 8-thread arm and does not hold
+here.)  Confirmed at length — 300 s, 1 ms budget: **38,303,308 commits, MAX
+1.288 ms, zero over a 3 ms deadline**, every other role healthy.
+
+> **The ~200 µs constant's attribution was wrong, and the constant is gone.**
+> This subsection credited it to the budget-exempt wait.  Instrumenting the
+> negotiator refuted that — `rounds_exempt` is **zero across 17,274 slow
+> commits** under every scheduling class, C-state setting and budget — and
+> located it in the timed wait's own **wake-up**: scheduling class 5.3×
+> dominant, PM-QoS 6× only on top, super-additive, which is why the single-knob
+> arms in this document called the residue irreducible.  Budgeted sleeps now
+> stop `KAME_NEG_SPIN_TAIL_US` (300 µs) short of the deadline and poll the
+> remainder, taking MAX − budget to **7.1 µs at 20 ms and 3.0 µs in the ship
+> configuration** — under this host's 17 µs floor.  So the table and the soak
+> above are **pre-reserve** data: their shape holds, their constant does not.
+> The full entry, including the open item (the reserve is not yet capped to a
+> fraction of the budget *span*, so budgets at or below 300 µs starve the
+> deferrable tiers) lives in
+> [`kamestm/design/RT_READINESS.md`](../../kamestm/design/RT_READINESS.md) —
+> this is the allocator's readiness record, and the STM's commit latency is
+> quoted here only as the context G7's bands sit in.
+
+**Isolation is what makes the budget work — and this corrects the reading
+above.**  §G7's earlier note that isolation is "marginally faster, and nothing
+argues against it" was a *throughput* observation at a 20 ms budget.  In the
+latency dimension it is not marginal and not optional:
+
+* **Unpinned**, MAX sticks at **12–13 ms for every budget from 5 ms down to
+  500 µs** while the clipped count saturates.  The standing explanation is the
+  wait behind a **live privileged peer**, which is contractually budget-exempt
+  and therefore bounded by the holder's completion time — but this is a
+  **hypothesis, not a measurement**: it is the same one the instrumentation
+  above refuted for the *pinned* arm, and the instrumented build has not been
+  run unpinned.  One `rounds_exempt` reading over an unpinned arm settles it.
+  (And "the holder's scheduling delay and nothing else", as this subsection
+  first put it, is one term short in any case — a HIGHEST peer's commits
+  re-run a privileged holder's closure, which isolation does not touch.  See
+  the precondition in `kamestm/README.md`.)
+* **Pinned** — acquisition alone on the isolated core, all contenders together
+  on the housekeeping core — the holder is always promptly scheduled among its
+  peers and the exempt residue vanishes entirely (table above).
+* **`SCHED_FIFO` without isolation FAILS the livelock watchdog.**  Only the
+  acquisition thread is elevated, so it preempts the very CFS holders it then
+  waits behind: UI fell to 144 commits/s and SCRIPTING to 176 (from 42.3 k and
+  129.7 k), both flagged at 6,001 ms, while acquisition ran away at 337 k/s and
+  still took 50.9 ms on its own worst commit.  A textbook priority inversion.
+  **FIFO and isolation ship together or neither ships.**
+
+Refuted along the way, since it was the obvious suspect: the cross-subtree
+`XSecondaryDriver` role is not what the 12–13 ms residue is made of — turning
+it off halves the clipped population (0.077 % → 0.039 %) and leaves MAX at
+12.0 → 13.0 ms.
+
+**Consequence for `raiseAcquisitionOSPriority_()`**, whose Linux implementation
+was waiting on exactly this measurement: it must not raise to `SCHED_FIFO`
+unless the thread is also isolated from the threads it will negotiate with.
+Raising alone is the failing arm above, not a partial win.
 
 ### G8 — §74 single mmap+radix site — **DONE, no work remaining**
 

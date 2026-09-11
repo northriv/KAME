@@ -38,14 +38,11 @@ public:
 
     virtual ~XPythonDriver() = default;
 
-    virtual XString getTypename() const override { return m_creation_key;}
 
     //! Shows all forms belonging to the driver.
     virtual void showForms() override {
-        if(m_form) {
-            m_form->showNormal();
-            m_form->raise();
-        }
+        //Qualified, m_form being a qshared_ptr and this a dependent base.
+        XDriver::showForm(m_form.get());
     }
 
     //! setups a form window using Qt designer .ui file.
@@ -88,7 +85,6 @@ public:
             if( !driver)
                 throw std::runtime_error("Driver creation failed.");
             driver->m_self_creating = obj; //pybind11::cast(driver); //for persistence of python-side class.
-            driver->m_creation_key = key;
             return driver;
         }, label);
     }
@@ -142,7 +138,6 @@ protected:
     pybind11::object m_self_creating; //to increase reference counter.
 
     qshared_ptr<QWidget> m_form;
-    XString m_creation_key;
 
 private:
     void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {

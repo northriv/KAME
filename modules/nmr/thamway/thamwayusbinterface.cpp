@@ -285,6 +285,20 @@ XThamwayFX2USBInterface::readDIPSW(const shared_ptr<CyFXUSBDevice> &dev) {
 XString
 XThamwayFX2USBInterface::getIDN(const shared_ptr<CyFXUSBDevice> &dev, int maxlen, int addroffset) {
     XScopedLock<XRecursiveMutex> lock(dev->mutex);
+    //One read thrown away first, exactly as examineDeviceAfterFWLoad() does
+    //for the DIP switch (it calls readDIPSW twice and keeps the second): the
+    //first read after an open comes back stale.
+    //
+    //For a single register that only costs a wrong byte.  Here it costs the
+    //PHASE: the IDN is a cyclic byte stream and the loop below resynchronises
+    //on the terminator, so one stale byte shifts every later read by one and
+    //the string comes back missing its first character -- "G027QAM_MEMORY"
+    //where the device says "PG027QAM_MEMORY".  That is not cosmetic: the name
+    //is tested with find(m_idString, 0) != 0, so the device fails its own
+    //prefix and is dropped from the selectable list entirely, while the log
+    //prints an IDN that looks right (user, 2026-09-06 -- and a restart, which
+    //resynchronises it, was what made the device selectable again).
+    singleRead(dev, ADDR_IDN, addroffset);
     //ignores till \0
     for(int i = 0; ; ++i) {
         char c = singleRead(dev, ADDR_IDN, addroffset);

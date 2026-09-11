@@ -14,6 +14,10 @@
 #ifndef ICON_H
 #define ICON_H
 
+#include "support.h"   //!< DECLSPEC_KAME.  This header reached it only by
+                       //!< being included after support.h everywhere it is
+                       //!< used; on its own it did not parse.
+
 class QPixmap;
 
 extern DECLSPEC_KAME QPixmap *g_pIconKame24x24;
@@ -33,8 +37,6 @@ extern DECLSPEC_KAME QPixmap *g_pIconScalar;
 extern DECLSPEC_KAME QPixmap *g_pIconGraph;
 extern DECLSPEC_KAME QPixmap *g_pIconScript;
 extern DECLSPEC_KAME QPixmap *g_pIconRoverT;
-extern DECLSPEC_KAME QPixmap *g_pIconLEDOn;
-extern DECLSPEC_KAME QPixmap *g_pIconLEDOff;
 
 void makeIcons();
 

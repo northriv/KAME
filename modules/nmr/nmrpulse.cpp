@@ -233,17 +233,13 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 XNMRPulseAnalyzer::~XNMRPulseAnalyzer() {
 }
 void XNMRPulseAnalyzer::onSpectrumShow(const Snapshot &shot, XTouchableNode *) {
-    m_spectrumForm->showNormal();
-    m_spectrumForm->raise();
-}
-void XNMRPulseAnalyzer::showForms() {
-    m_form->showNormal();
-    m_form->raise();
+    showForm(m_spectrumForm.get());
 }
 
 void XNMRPulseAnalyzer::backgroundSub(Transaction &tr,
     std::vector<std::complex<double> > &wave,
-    int pos, int length, int bgpos, int bglength) {
+    int pos, int length, int bgpos, int bglength,
+    const XTime &stamp, bool inverted) {
     Snapshot &shot(tr);
 
     std::complex<double> bg = 0;
@@ -266,21 +262,40 @@ void XNMRPulseAnalyzer::backgroundSub(Transaction &tr,
     SpectrumSolver &solverPNR(tr[ *m_solverPNR].solver());
     if(bglength) {
         if(shot[ *usePNR()] && (bgpos > 0)) { //PNR is disabled if bg is before echo train.
-            int dnrlength = FFT::fitLength((bglength + bgpos) * 4);
-            std::vector<std::complex<double> > memin(bglength), memout(dnrlength);
-            for(unsigned int i = 0; i < bglength; i++) {
-                memin[i] = wave[pos + i + bgpos];
-            }
-            try {
-                solverPNR.exec(memin, memout, bgpos, 0.5e-2, &FFT::windowFuncRect, 1.0);
-                int imax = std::min((int)wave.size() - pos, (int)memout.size());
-                for(unsigned int i = 0; i < imax; i++) {
-                    wave[i + pos] -= solverPNR.ifft()[i];
+            //Memoized across iterate_commit retries (and across re-analyses
+            //of the same record): the background segment is rebuilt from the
+            //same DSO record every retry, so the solve is a pure function of
+            //the provenance key below.  See PNRMemo in the header.
+            int solversel = shot[ *pnrSolverList()];
+            local_shared_ptr<const PNRMemo> memo(m_pnrMemo);
+            if(memo && !((memo->stamp == stamp) && (memo->inverted == inverted)
+                    && (memo->pos == pos) && (memo->bgpos == bgpos)
+                    && (memo->bglength == bglength)
+                    && (memo->solversel == solversel)))
+                memo.reset();
+            if( !memo) {
+                int dnrlength = FFT::fitLength((bglength + bgpos) * 4);
+                std::vector<std::complex<double> > memin(bglength), memout(dnrlength);
+                for(unsigned int i = 0; i < bglength; i++) {
+                    memin[i] = wave[pos + i + bgpos];
+                }
+                try {
+                    solverPNR.exec(memin, memout, bgpos, 0.5e-2, &FFT::windowFuncRect, 1.0);
+                    local_shared_ptr<PNRMemo> m(new PNRMemo{stamp, inverted,
+                        pos, bgpos, bglength, solversel, solverPNR.ifft()});
+                    m_pnrMemo = m;  //lock-free single-slot swap.
+                    memo = m;
+                }
+                catch (XKameError &e) {
+                    e.print();
+//				    throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
                 }
             }
-            catch (XKameError &e) {
-                e.print();
-//				throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
+            if(memo) {
+                int imax = std::min((int)wave.size() - pos, (int)memo->ifft.size());
+                for(int i = 0; i < imax; i++) {
+                    wave[i + pos] -= memo->ifft[i];
+                }
             }
         }
     }
@@ -535,7 +550,8 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
     //Background subtraction or dynamic noise reduction
     if(bg_off_echotrain)
-        backgroundSub(tr, tr[ *this].m_dsoWave, pos, length, bgpos, bglength);
+        backgroundSub(tr, tr[ *this].m_dsoWave, pos, length, bgpos, bglength,
+            shot_dso[ *dso__].time(), inverted);
     for(int i = 0; i < numechoes_pulse; i++){
         int rpos = pos + i * echoperiod;
         std::complex<double> *pechoesT2(&echoesT2[i][0]);
@@ -696,8 +712,16 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
         double normalize = 1.0 / shot[ *this].m_wave.size();
         double darknormalize = shot[ *this].darkPSDFactorToVoltSq();
         double dfreq = shot[ *this].m_dFreq;
-        const double *darkpsd( &shot[ *this].m_darkPSD[0]);
-        const std::complex<double> *ftwave( &shot[ *this].m_ftWave[0]);
+        //data(), NOT &...[0].  visualize() runs even when analyze() bailed out
+        //with an XSkippedRecordError (secondarydriverinterface.h calls it
+        //regardless of `skipped`), and then these Payload vectors are still
+        //empty -- ftsize is 0, so the loop below never dereferences the
+        //pointers, but merely FORMING them with operator[](0) on an empty
+        //vector is undefined behaviour, and a hardened libstdc++ (the debug
+        //build, where Qt enables _GLIBCXX_ASSERTIONS) aborts the process.
+        //Seen on Linux as "Position beyond waveforms." followed by a SIGABRT.
+        const double *darkpsd(shot[ *this].m_darkPSD.data());
+        const std::complex<double> *ftwave(shot[ *this].m_ftWave.data());
         std::vector<double> colf(ftsize);
         std::vector<float> colr(ftsize), coli(ftsize), colarg(ftsize),
             colabs(ftsize), coldark(ftsize);
@@ -730,10 +754,13 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
         ftWaveGraph()->drawGraph(tr);
 
         int length = shot[ *this].m_dsoWave.size();
-        const std::complex<double> *dsowave( &shot[ *this].m_dsoWave[0]);
+        //data(): see the note above -- same empty-Payload-vector hazard.
+        const std::complex<double> *dsowave(shot[ *this].m_dsoWave.data());
         if(solver.ifft().size() < ftsize)
             return; //solver has been failed.
-        const std::complex<double> *ifft( &solver.ifft()[0]);
+        //Note this guard does NOT cover ftsize == 0 with an empty ifft(),
+        //where 0 < 0 is false and we fall through to an empty vector.
+        const std::complex<double> *ifft(solver.ifft().data());
         int dsowavestartpos = shot[ *this].m_dsoWaveStartPos;
         double interval = shot[ *this].m_interval;
         double starttime = shot[ *this].startTime();

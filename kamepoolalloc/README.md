@@ -117,7 +117,10 @@ this library.
   page-touches, unlike the allocate+free idiom), an explicit
   `kame_pool_rt_drain()`, and runtime-checkable violation counters.  Measured
   128 ns vs 20.5 µs median free (and 792 ns vs 678 µs max) on the band where
-  the recycle cache cannot help.  Preconditions and exclusions are stated in
+  the recycle cache cannot help; and on a `PREEMPT_RT` host with isolated
+  cores — quiet enough for the figure to mean something — **352 ns vs 42.4 µs
+  worst case** on cross-thread small free, bought with 1.8× on the median.
+  Preconditions and exclusions are stated in
   [The realtime contract](#the-realtime-contract) — not implied.
 
 ## Status
@@ -238,6 +241,14 @@ earlier dependency-cut experiments at ~300 M ops/s on that core.
 An independent run of the contention-heavy multi-thread benches from
 [mimalloc-bench](https://github.com/daanx/mimalloc-bench) (M3, median of 5,
 mimalloc 3.3.2 / jemalloc 5.3.0).  kame is the FS=true word-cache build.
+
+The suite carries kamepoolalloc upstream as **`kp`**, so nothing here has to
+be taken on trust — the table below is two commands on any Linux host:
+
+```sh
+./build-bench-env.sh kp mi je      # clones kamepoolalloc at its pinned tag
+./bench.sh sys mi je kp allt
+```
 
 | bench (M ops/s, ↑) | system | mimalloc | jemalloc |      kame |
 |--------------------|--------|----------|----------|-----------|
@@ -718,11 +729,29 @@ p99.9; that is why only DEFER can be a process-wide default.
 
 * **No numeric WCET.** Lock-free is not wait-free; there is no machine-checked
   bound and no static-analysis budget. Measured tails are evidence for one
-  machine and load, not a proof.
+  machine and load, not a proof — including the `PREEMPT_RT` figures below,
+  which are quoted against that host's own noise floor precisely so the part
+  that is *not* the allocator stays visible.
 * **Multiprocessor interference is a system property.** CAS retries are bounded
   by *interfering successes*, so converting that to wall-clock needs a bound on
   peer allocation rate or core partitioning — an argument about your task set,
   which this allocator cannot make for you.
+* **Your threads' priorities are part of that task set, and Linux propagates
+  them behind your back.** `pthread_create` defaults to
+  `PTHREAD_INHERIT_SCHED`, so every thread spawned *after* one promotes itself
+  to `SCHED_FIFO` inherits that policy **and priority** — worker, logging and
+  producer threads included, however ordinary you meant them to be.  Two ways
+  that breaks a realtime design.  The interference bound in precondition 6 is
+  no longer the one you reasoned about.  And once the runnable count of
+  equal-priority `SCHED_FIFO` threads exceeds the CPUs available to them they
+  never preempt one another, so a spinning helper can starve the very thread
+  it was meant to feed — permanently, because `sched_rt_runtime_us = -1`,
+  which a realtime host wants, is exactly the throttle that would otherwise
+  have broken the tie.  Pass `PTHREAD_EXPLICIT_SCHED` in the attribute, or
+  have the helper demote itself on entry (`std::thread` gives you no attribute,
+  so it has to be the latter).  This project's own WCET harness had the bug,
+  and it stayed invisible for as long as threads ≤ CPUs — which was true of
+  every host it had ever run on.
 * **Blocks above 256 MiB cannot be cached** (the recycle cache is bypassed by
   construction), so each such allocation maps and each free unmaps. Realtime
   code should not size-class there; the gate defers the *free* side, which
@@ -763,7 +792,12 @@ p99.9; that is why only DEFER can be a process-wide default.
   khugepaged collapses, but does not split hugepages that already exist), and
   note that returning to `KAME_THP_SYSTEM` cannot un-advise a region — Linux
   has no "clear" advice. Numbers and method in `design/RT_READINESS.md`
-  §G6(a).
+  §G6(a).  **On a `PREEMPT_RT` kernel none of this applies**: upstream
+  `mm/Kconfig` gates `TRANSPARENT_HUGEPAGE` on `!PREEMPT_RT`, so the hazard
+  cannot arise and `kame_pool_set_thp_policy()` is a silent no-op there
+  (`MADV_NOHUGEPAGE` returns `EINVAL`, and the re-advise walk's `0 MiB` cannot
+  be told apart from "nothing to re-advise").  This paragraph is for
+  soft-realtime work on a stock kernel.
 * **Hard-realtime (avionics/automotive) wants a different design**: a fixed
   arena the allocator never grows (TLSF-style) plus bounded-retry with an
   emergency reserve. That is not a tuning of this allocator.
@@ -781,6 +815,25 @@ p99.9; that is why only DEFER can be a process-wide default.
 For every band at or below 256 MiB the two are *statistically identical*: the
 recycle cache already absorbs those releases without a syscall, so the gating is
 a safety net for the cases above rather than a steady-state necessity.
+
+**On a `PREEMPT_RT` host** (Ubuntu 26.04 `7.0.0-29-realtime`, i5-7500, cores
+2-3 isolated with `isolcpus`/`nohz_full`/`rcu_nocbs`, IRQs steered away, PM-QoS
+0 µs, `--full`, median of 5):
+
+| 32 B cross-thread free | realtime | default | ratio |
+|---|---:|---:|---:|
+| median | 55 ns | 31 ns | 1.8× *slower* |
+| p99.99 | **160 ns** | 20,480 ns | 128× |
+| max | **352 ns** | 42,356 ns | **120×** |
+
+1.8× on the median buys 120× on the worst case — the trade the gate exists to
+make, on a host quiet enough to see it.  Read it against that machine's own
+floor: `hwlatdetect` saw no sample above 10 µs in 300 s and `cyclictest` maxed
+at 12–16 µs, which puts these figures a factor of ~30 clear of the OS noise,
+while the same runs' 8 MiB malloc max (16 µs) sits *on* the floor and is not
+an allocator number.  Setup, provenance and the two findings the campaign
+turned up are in `design/RT_LINUX_HANDOFF.md`; the full tables are in
+`design/RT_READINESS.md` §G7.
 
 **Observability:**
 

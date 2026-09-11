@@ -23,7 +23,7 @@ XDriverList::XDriverList(const char *name, bool runtime,
 }
 
 shared_ptr<XNode>
-XDriverList::createByTypename(const XString &type, const XString& name) {
+XDriverList::createByTypename_(const XString &type, const XString& name) {
 	shared_ptr<XMeasure> measure(m_measure.lock());
 	shared_ptr<XNode> ptr;
     measure->iterate_commit_if([=, &ptr](Transaction &tr)->bool{

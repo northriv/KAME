@@ -27,10 +27,21 @@ INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/forms\
     $${_PRO_FILE_PWD_}/thermometer\
     $${_PRO_FILE_PWD_}/analyzer\
+    $${_PRO_FILE_PWD_}/journal\
     $${_PRO_FILE_PWD_}/driver\
     $${_PRO_FILE_PWD_}/graph\
     $${_PRO_FILE_PWD_}/script\
     $${_PRO_FILE_PWD_}/icons
+
+# The Ruby INTERPRETER, dropped by `qmake CONFIG+=no_ruby` (see kame.pri).
+# xrubywriter.* is NOT here: it only writes text, needs no libruby, and the
+# .kam format depends on it.
+RUBY_HEADERS =
+RUBY_SOURCES =
+!no_ruby {
+    RUBY_HEADERS = script/xrubysupport.h script/rubywrapper.h
+    RUBY_SOURCES = script/xrubysupport.cpp script/rubywrapper.cpp
+}
 
 HEADERS += \
     ../kamepoolalloc/allocator.h \
@@ -46,11 +57,14 @@ HEADERS += \
     graph/onscreenobject.h \
     graph/x2dimage.h \
     kame.h \
+    kamesettings.h \
+    journal/xjournal.h \
     script/xscriptingthread.h \
     script/xscriptingthreadconnector.h \
     ../kamestm/threadlocal.h \
     ../kamestm/transaction_impl.h \
     ../kamestm/transaction_signal.h \
+    ../kamestm/transaction_journal.h \
     ../kamestm/transaction.h \
     ../kamestm/transaction_detail.h \
     ../kamestm/transaction_negotiation.h \
@@ -75,12 +89,13 @@ HEADERS += \
     graph/graphwidget.h \
     graph/xwavengraph.h \
     analyzer/analyzer.h \
-    analyzer/recorder.h \
-    analyzer/recordreader.h \
+    analyzer/textwriter.h \
+    journal/rawstream.h \
+    journal/journalreader.h \
+    journal/xjournalreplay.h \
     script/xdotwriter.h \
-    script/xrubysupport.h \
+    $$RUBY_HEADERS \
     script/xrubywriter.h \
-    script/rubywrapper.h \
     xitemnode.h \
     xlistnode.h \
     xnode.h \
@@ -104,7 +119,7 @@ HEADERS += \
     forms/calibentryconnector.h \
     forms/interfacelistconnector.h \
     forms/nodebrowser.h \
-    forms/recordreaderconnector.h \
+    forms/journalreaderconnector.h \
     messagebox.h \
     math/nllsfit.h \
     math/tikhonovreg.h
@@ -139,9 +154,8 @@ SOURCES += icons/icon.cpp \
     math/rand.cpp \
     math/spectrumsolver.cpp \
     script/xdotwriter.cpp \
-    script/xrubysupport.cpp \
+    $$RUBY_SOURCES \
     script/xrubywriter.cpp \
-    script/rubywrapper.cpp \
     measure.cpp \
     ../kamestm/threadlocal.cpp \
     xnode.cpp \
@@ -157,11 +171,14 @@ SOURCES += icons/icon.cpp \
     forms/calibentryconnector.cpp \
     forms/interfacelistconnector.cpp \
     forms/nodebrowser.cpp \
-    forms/recordreaderconnector.cpp \
+    forms/journalreaderconnector.cpp \
     analyzer/analyzer.cpp \
-    analyzer/recorder.cpp \
-    analyzer/recordreader.cpp\
+    analyzer/textwriter.cpp \
+    journal/rawstream.cpp \
+    journal/journalreader.cpp\
     kame.cpp \
+    journal/xjournal.cpp \
+    journal/xjournalreplay.cpp \
     main.cpp \
     messagebox.cpp \
     math/tikhonovreg.cpp
@@ -210,7 +227,7 @@ FORMS += \
     forms/graphtool.ui \
     forms/interfacetool.ui \
     forms/nodebrowserform.ui \
-    forms/recordreaderform.ui \
+    forms/journalreaderform.ui \
     forms/scalarentrytool.ui \
     forms/messageform.ui \
     forms/scriptingthreadtool.ui
@@ -230,14 +247,23 @@ unix:!macx: DESTDIR = $$OUT_PWD/../bin
 scriptfile.files = script/rubylineshell.rb \
     script/pythonlineshell.py \
     script/kame_mcp_server.py \
+    script/kame_pydantic_ai.py \
     script/kame_python_api.md \
-    ../doc/manual/kame-8-en.md \
+    ../doc/manual/kame-9-en.md \
     script/notebook/jupyter_notebook_config.py \
     script/notebook/notebook_kame_kernel_manager.py
 
 macx {
     scriptfile.path = Contents/Resources
     QMAKE_BUNDLE_DATA += scriptfile
+
+    # The Claude Code plugin (kame skill + MCP server launcher), copied as a
+    # whole directory to Contents/Resources/plugin.  The kame:claude-cli
+    # quick-launch link passes it to `claude --plugin-dir`, and the plugin's
+    # own launcher finds kame_mcp_server.py right above it at ../ .
+    pluginfiles.files = script/plugin
+    pluginfiles.path = Contents/Resources
+    QMAKE_BUNDLE_DATA += pluginfiles
 
     LIBS += -L$$OUT_PWD/ -llibkame
 }
@@ -272,11 +298,16 @@ else {
         }
         scriptfile.path = $${PREFIX}/share/kame
         INSTALLS += scriptfile
+        # The Claude Code plugin directory, whole (see the macx block).
+        pluginfiles.files = script/plugin
+        pluginfiles.path = $${PREFIX}/share/kame
+        INSTALLS += pluginfiles
         # Also stage them beside the binary so an uninstalled build tree is
         # directly runnable — the equivalent of QMAKE_BUNDLE_DATA on macOS.
         for(f, scriptfile.files): \
             QMAKE_POST_LINK += $$quote(cp -f $${_PRO_FILE_PWD_}/$${f} $${DESTDIR}/ &&) \
 
+        QMAKE_POST_LINK += $$quote(cp -Rf $${_PRO_FILE_PWD_}/script/plugin $${DESTDIR}/ &&)
         QMAKE_POST_LINK += true
 
         # The executable itself was never in INSTALLS, so `make install`
@@ -317,13 +348,32 @@ else {
         exists($${_PRO_FILE_PWD_}/hi32-app-kame.png): INSTALLS += icon32
     }
     else {
+        # Keep in step with scriptfile.files above and with
+        # tools/deploy_scripts.bat, which is what actually copies on Windows.
+        # This list only makes the files visible in the IDE, so an omission
+        # here is invisible -- and a tempting template for the next addition.
         DISTFILES += script/rubylineshell.rb  \
             script/pythonlineshell.py \
             script/kame_mcp_server.py \
+            script/kame_pydantic_ai.py \
             script/kame_python_api.md \
-            ../doc/manual/kame-8-en.md \
+            ../doc/manual/kame-9-en.md \
             script/notebook/jupyter_notebook_config.py \
             script/notebook/notebook_kame_kernel_manager.py
+
+        # DISTFILES only lists files for the IDE -- it copies nothing, so the
+        # Windows build used to leave $$DESTDIR/resources without any of them
+        # and kame.exe started with no kame_mcp_server.py beside it (the MCP
+        # link then died with "can't open file ...\Resources\
+        # kame_mcp_server.py").  Deploy them at link time, the way the macOS
+        # bundle and the Linux QMAKE_POST_LINK above already do.  The work
+        # lives in a batch file rather than inline qmake so the quoting stays
+        # legible and it can be run by hand (tools/mkzip.bat uses it too).
+        # system_path(), not shell_path(): with MSYS on PATH qmake decides the
+        # make shell is sh and shell_path() emits /C/Users/... , which the
+        # recipe -- run under `mingw32-make SHELL=cmd.exe`, as this project is
+        # built -- cannot execute.  system_path() gives native C:\Users\... .
+        QMAKE_POST_LINK += $$quote(cmd /c $$system_path($${_PRO_FILE_PWD_}/../tools/deploy_scripts.bat) $$system_path($${DESTDIR}/$${SCRIPT_DIR}))
     }
 }
 
@@ -333,6 +383,7 @@ macx: ICON = kame.icns
 
 #Ruby, pybind11
 macx {
+  !no_ruby {
     exists("/opt/local/include/ruby-*") {
         #for macports ruby3
         RUBYH = $$files("/opt/local/include/ruby-*")
@@ -342,17 +393,20 @@ macx {
         INCLUDEPATH += /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Ruby.framework/Versions/Current/Headers/
         LIBS += $$files(/opt/local/lib/libruby.*.dylib)
         message("using ruby from macports.")
+        CONFIG += ruby_found
     }
-    else {
+    else:exists("/System/Library/Frameworks/Ruby.framework/Versions/Current/Headers/ruby.h") {
         INCLUDEPATH += /System/Library/Frameworks/Ruby.framework/Versions/Current/Headers
         INCLUDEPATH += /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Ruby.framework/Versions/Current/Headers/
         LIBS += -framework Ruby
     #for ruby.h incompatible with C++11
         QMAKE_CXXFLAGS += -Wno-error=reserved-user-defined-literal
         message("using framework ruby.")
+        CONFIG += ruby_found
     }
+  }
 
-    greaterThan(QT_MAJOR_VERSION, 5) {
+    !no_python: greaterThan(QT_MAJOR_VERSION, 5) {
         pythons="python3" $$files("/opt/local/bin/python3*") $$files("/usr/local/bin/python3*")
         for(PYTHON, pythons) {
             system("$${PYTHON} -m pybind11 --includes") {
@@ -378,6 +432,7 @@ else:unix {
     # distribution for many years; ask the interpreter instead, exactly as
     # the macOS branch above globs MacPorts.  `rubyhdrdir` holds ruby.h and
     # `rubyarchhdrdir` the per-arch ruby/config.h — BOTH are required.
+  !no_ruby {
     RUBY_BIN = $$system(which ruby)
     !isEmpty(RUBY_BIN) {
         RUBY_HDRDIR = $$system($${RUBY_BIN} -rrbconfig -e \'print RbConfig::CONFIG[\"rubyhdrdir\"]\')
@@ -397,18 +452,16 @@ else:unix {
         !contains(RUBY_LIBDIR, "^/usr/lib.*"): !equals(RUBY_LIBDIR, /lib): \
             QMAKE_RPATHDIR += $${RUBY_LIBDIR}
         message("using ruby headers from $${RUBY_HDRDIR}.")
+        CONFIG += ruby_found
     }
-    else {
-        error("No Ruby development headers found (install ruby-dev / ruby-devel).  \
-KAME compiles script/xrubysupport.cpp unconditionally.")
-    }
+  }
 
     # Python / pybind11.  The macOS and win32-g++ branches each grow their
     # own copy of this block; Linux never had one, so USE_PYBIND11 was never
     # defined here — which silently disabled the Python scripting engine, the
     # Jupyter/IPython console, the MCP server AND the preferred .kam loader
     # (xrubysupport is then the only reader left).  Same probe as the others.
-    greaterThan(QT_MAJOR_VERSION, 5) {
+    !no_python: greaterThan(QT_MAJOR_VERSION, 5) {
         pythons=$$system(which python3) $$files("/usr/bin/python3.[0-9]") $$files("/usr/bin/python3.[0-9][0-9]")
         for(PYTHON, pythons) {
             system("$${PYTHON} -m pybind11 --includes > /dev/null 2>&1") {
@@ -447,12 +500,10 @@ KAME compiles script/xrubysupport.cpp unconditionally.")
                 }
             }
         }
-        !contains(DEFINES, USE_PYBIND11): \
-            message("pybind11 not found for any python3 — Python scripting, \
-Jupyter and the MCP server are DISABLED, and .kam files fall back to the Ruby loader.")
     }
 }
 win32-*g++ {
+  !no_ruby {
     exists($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include/ruby.h) {
     #for user-build ruby
         INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
@@ -470,7 +521,9 @@ win32-*g++ {
         LIBS += $$files(c:/msys64/mingw64/lib/libx64-msvcrt-ruby*[0-9].dll.a)
         message("using ruby from msys2.")
     }
-    greaterThan(QT_MAJOR_VERSION, 5) {
+    CONFIG += ruby_found
+  }
+    !no_python: greaterThan(QT_MAJOR_VERSION, 5) {
         pythons="c:/msys64/mingw64/bin/python.exe"
         for(PYTHON, pythons) {
             system("$${PYTHON} -m pybind11 --includes") {
@@ -495,11 +548,42 @@ win32-*g++ {
 win32-msvc* {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/i386-mswin32_120
-    !exists($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/libmsvcr*-ruby2*[0-9].lib) {
-        error("No Ruby2 library!")
-    }
+    exists($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/libmsvcr*-ruby2*[0-9].lib): \
+        CONFIG += ruby_found
     LIBS += $$files($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/libmsvcr*-ruby2*[0-9].lib)
 #    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby -lmsvcr120-ruby212 #-static -lWS2_32 -lAdvapi32 -lShell32 -limagehlp -lShlwapi -lIphlpapi
+}
+
+# USE_RUBY is set HERE and nowhere else, because this is the only target that
+# runs the detection above.  Positive form on purpose: `DEFINES -=` needs an
+# exact textual match to undo an inherited define, and a define the modules
+# inherit but cannot verify is what made 8bb86a9b6 a crash instead of a
+# warning.  See the note in kame.pri.
+!no_ruby:ruby_found: DEFINES += USE_RUBY
+
+# Ruby is deprecated, so its absence must NOT stop the build -- the opposite of
+# Python below.  Until now a missing ruby-dev was error() on Linux and MSVC,
+# which meant the deprecated language could block a build that never wanted it.
+# Drop it and say so instead; CONFIG+=no_ruby silences the message.
+!no_ruby:!ruby_found {
+    SOURCES -= script/xrubysupport.cpp script/rubywrapper.cpp
+    HEADERS -= script/xrubysupport.h script/rubywrapper.h
+    message("No Ruby development files found: the deprecated Ruby scripting is \
+disabled (.seq scripts and the Ruby line shell).  The .kam format is \
+unaffected.  Pass CONFIG+=no_ruby to make this deliberate and silent.")
+}
+
+# Python is the supported scripting language, so its absence must stop the
+# build rather than quietly produce a KAME without scripting, Jupyter or MCP --
+# which is what happened: only the Linux branch even mentioned it, and only as
+# a message, while a missing RUBY (deprecated) has always been a hard error on
+# two platforms.  `CONFIG+=no_python` is the way to say you meant it.
+!contains(DEFINES, USE_PYBIND11) {
+    no_python: message("Python scripting disabled by CONFIG+=no_python: no \
+scripting, no Jupyter, no MCP server; .kam files fall back to the Ruby loader.")
+    else: error("pybind11 not found for any python3, so Python scripting, \
+Jupyter and the MCP server would all be missing.  Install it (pip install \
+pybind11) or build deliberately without it: qmake CONFIG+=no_python")
 }
 
 win32 {

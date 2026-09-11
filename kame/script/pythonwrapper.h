@@ -1,4 +1,8 @@
 #include <memory>
+#include <cstdint>   //!< Kept locally, not taken from support.h: like
+                     //!< rubywrapper.h this header deliberately hides the
+                     //!< interpreter's own headers from the rest of KAME
+                     //!< and pulls in nothing of ours.
 #include <string>
 #ifdef _MSC_VER
     #ifndef snprintf

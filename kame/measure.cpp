@@ -12,15 +12,19 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "xpythonsupport.h"
-#include "xrubysupport.h"
+#ifdef USE_RUBY
+    #include "xrubysupport.h"
+#endif
 #include "measure.h"
 #include "kame.h"
 
 #include "primarydriver.h"
 #include "interface.h"
 #include "analyzer.h"
-#include "recorder.h"
-#include "recordreader.h"
+#include "rawstream.h"
+#include "textwriter.h"
+#include "xjournal.h"
+#include "journalreader.h"
 
 #include "thermometer.h"
 #include "caltable.h"
@@ -31,13 +35,13 @@
 #include "entrylistconnector.h"
 #include "graphlistconnector.h"
 #include "calibentryconnector.h"
-#include "recordreaderconnector.h"
+#include "journalreaderconnector.h"
 #include "nodebrowser.h"
 
 #include "ui_caltableform.h"
 #include "ui_drivercreate.h"
 #include "ui_nodebrowserform.h"
-#include "ui_recordreaderform.h"
+#include "ui_journalreaderform.h"
 #include "ui_scriptingthreadtool.h"
 #include "ui_graphtool.h"
 #include "ui_interfacetool.h"
@@ -59,12 +63,12 @@ m_drivers(create<XDriverList>("Drivers", false, static_pointer_cast<XMeasure>(sh
 m_calibratedEntryList(create<XCalibratedEntryList>("CalibratedEntries", false, scalarEntries(), thermometers(),
                                                        static_pointer_cast<XMeasure>(shared_from_this()))),
 m_textWriter(create<XTextWriter>("TextWriter", false, drivers(), scalarEntries())),
-m_rawStreamRecorder(create<XRawStreamRecorder>("RawStreamRecorder", false, drivers())),
-m_rawStreamRecordReader(create<XRawStreamRecordReader>("RawStreamRecordReader", false,
-		drivers())),
-m_conRecordReader(xqcon_create<XRawStreamRecordReaderConnector>(
-		rawStreamRecordReader(),
-		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmRecordReader)),
+m_journal(create<XJournal>("Journal", false, drivers())),
+m_journalReader(create<XJournalReader>("JournalReader", false,
+		drivers(), static_pointer_cast<XNode>(shared_from_this()))),
+m_conJournalReader(xqcon_create<XJournalReaderConnector>(
+		journalReader(),
+		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmJournalReader)),
 m_conDrivers(xqcon_create<XDriverListConnector>(
 		m_drivers, dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver)),
 m_conInterfaces(xqcon_create<XInterfaceListConnector>(
@@ -104,14 +108,30 @@ m_conLogURL(xqcon_create<XFilePathConnector>(
 m_conLogEvery(xqcon_create<XQLineEditConnector>(
 		textWriter()->logEvery(),
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_edLoggerEvery)),
-m_conBinURL(xqcon_create<XFilePathConnector>(
-		rawStreamRecorder()->filename(),
-        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_edRec,
-        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_btnRec,
-        "Binary files (*.bin);;All files (*.*)", true)),
-m_conBinWrite(xqcon_create<XQToggleButtonConnector>(
-		rawStreamRecorder()->recording(),
-		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_ckbBinRecWrite)),
+m_conJournalURL(xqcon_create<XFilePathConnector>(
+        journal()->filename(),
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_edJournal,
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_btnJournal,
+        "KAME journal (*.kamj);;All files (*.*)", true)),
+//Read-only line edit rather than a label: a path has to be selectable and
+//copyable, and a label clips a long one at whichever end the alignment
+//chooses -- which hid the file name, the one part anybody wants.
+m_conJournalSessionFile(xqcon_create<XQLineEditConnector>(
+        journal()->sessionFile(),
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_edSessionFile)),
+m_conJournalSession(xqcon_create<XQToggleButtonConnector>(
+        journal()->sessionJournal(),
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_ckbSessionJournal)),
+m_conJournalMode(xqcon_create<XQComboBoxConnector>(
+        journal()->mode(),
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_cmbJournalMode,
+        Snapshot( *journal()->mode()))),
+m_conJournalWrite(xqcon_create<XQToggleButtonConnector>(
+        journal()->recording(),
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_ckbJournalWrite)),
+m_conJournalStats(xqcon_create<XQLabelConnector>(
+        journal()->statistics(),
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_lblJournalStats)),
 m_conUrlRubyThread(),
 m_conCalTable(xqcon_create<XConCalTable>(
                 m_thermometers, dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmCalTable)),
@@ -138,9 +158,11 @@ m_conNodeBrowser(xqcon_create<XNodeBrowser>(
 #endif
     m_pyInfoForNodeBrowser = XNode::createOrphan<XStringNode>("PyInfoForNodeBrowser", true);
 
+#ifdef USE_RUBY
     m_ruby = createOrphan<XRuby>("RubySupport", true,
         dynamic_pointer_cast<XMeasure>(shared_from_this()));
     m_ruby->startExecutionThread();
+#endif
 
     initialize();
 }
@@ -161,19 +183,43 @@ void XMeasure::terminate() {
 	initialize();
 }
 void XMeasure::terminate_all() {
-    terminate();
+    //Every stage is isolated because the joins below are the safety-critical
+    //part: terminate() runs releaseAll() on five lists plus the driver stops,
+    //all of which can throw, and an unwound terminate_all() would leave the
+    //scripting threads running on into static destruction -- which is fatal
+    //(see FrmKameMain::closeEvent).  This is a guard, not the fix for the
+    //2026-08-20 quit crash: the run that reproduced that crash reported no
+    //failing stage once these markers existed, so nothing was throwing.  The
+    //ordering in closeEvent was what mattered.
+    //Reported to stderr, not through XKameError::print(), which would post to a
+    //GUI that is already being torn down.
+    auto stage = [](const char *what, auto &&fn) noexcept {
+        try { fn(); }
+        catch (XKameError &e) {
+            fprintf(stderr, "kame: %s failed during shutdown: %s\n",
+                what, (const char *)e.msg().c_str());
+        }
+        catch (std::exception &e) {
+            fprintf(stderr, "kame: %s failed during shutdown: %s\n", what, e.what());
+        }
+        catch (...) {
+            fprintf(stderr, "kame: %s failed during shutdown.\n", what);
+        }
+    };
+    stage("releasing nodes", [&]{ terminate();});
     fprintf(stderr, "terminat");
-    m_ruby->terminate();
-    m_ruby->join();
+#ifdef USE_RUBY
+    stage("stopping the Ruby thread", [&]{ m_ruby->terminate(); m_ruby->join();});
     m_ruby.reset();
+#endif
 #ifdef USE_PYBIND11
-    m_python->terminate(); //pybind11 should free shared_ptr to XMeasure
+    //pybind11 should free shared_ptr to XMeasure.
     //With IPython, sys.exit(0) is called, and stdout/err seem to be closed.
-    m_python->join();
+    stage("stopping the Python thread", [&]{ m_python->terminate(); m_python->join();});
     m_python.reset();
 #endif
-    m_rawStreamRecordReader->terminate();
-    m_rawStreamRecordReader->join();
+    stage("stopping the record reader", [&]{
+        m_journalReader->terminate(); m_journalReader->join();});
     g_statusPrinter.reset();
     fprintf(stderr, "ed.\n");
 }

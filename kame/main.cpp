@@ -22,6 +22,7 @@
 #else
 	#include <QCommandLineParser>
 	#include <QCommandLineOption>
+#include <QStyleHints>
 	#include <QApplication>
     #include <QMainWindow>
 #endif
@@ -128,7 +129,52 @@ int main(int argc, char *argv[]) {
     XString mesfile = args->count() ? args->arg(0) : "";
     args->clear();
 #else
-    QApplication app(argc, argv);
+    // Last-resort net for XKameError crossing a Qt event boundary — paint
+    // handlers snapshot graphs, menu actions and stray timers commit, and the
+    // STM starvation timeout (rare by design at 10 s, but reachable) must not
+    // escape into Qt dispatch, which does not support exceptions.  The two
+    // structured paths (SignalBuffer::synchronize__ for main-thread listeners,
+    // the connectors' per-slot catches) stay the first line; this catches
+    // whatever they do not enclose.
+    class KameApplication : public QApplication {
+    public:
+        using QApplication::QApplication;
+        //! Cmd-Q arrives HERE, not at the window.
+        //!
+        //! Qt's cocoa delegate answers -[NSApplication applicationShouldTerminate:]
+        //! by sending a QCloseEvent to the APPLICATION object, and reports
+        //! NSTerminateNow when that event comes back accepted -- whereupon
+        //! AppKit calls exit() and no window has seen a close event at all.
+        //! KAME's teardown lives in FrmKameMain::closeEvent, so on that path it
+        //! never ran: the scripting threads, the journal's two threads and the
+        //! driver tree all went into static destruction alive, which is where a
+        //! camera library's destructor threw and aborted the process
+        //! (2026-09-01).
+        //!
+        //! So the window is closed from here and its answer is the answer: a
+        //! refused close (an interface still running) ignores the event, which
+        //! is Qt's cue for NSTerminateCancel.
+        bool event(QEvent *e) override {
+            if((e->type() == QEvent::Close) || (e->type() == QEvent::Quit)) {
+                if(auto *frm = qobject_cast<QWidget *>(g_pFrmMain))
+                    if( !frm->close()) {
+                        e->ignore();
+                        return true;
+                    }
+            }
+            return QApplication::event(e);
+        }
+        bool notify(QObject *receiver, QEvent *event) override {
+            try {
+                return QApplication::notify(receiver, event);
+            }
+            catch (XKameError &e) {
+                e.print();
+                return false;
+            }
+        }
+    };
+    KameApplication app(argc, argv);
     QApplication::setApplicationName("kame");
     QApplication::setApplicationVersion(VERSION);
     app.setAttribute(Qt::AA_DontShowIconsInMenus, false); //In recent Mac/Qt, icons hidden by default.
@@ -150,7 +196,36 @@ int main(int argc, char *argv[]) {
             QCoreApplication::translate("main", "path"));
     parser.addOption(moduleDirectoryOption);
 
+    //Qt follows the system appearance, and since 6.8 can be told not to
+    //without leaving the native style -- on macOS setColorScheme() sets the
+    //NSApplication appearance.  \sa the View > Appearance menu
+    QCommandLineOption appearanceOption("appearance",
+            QCoreApplication::translate("main",
+                "light, dark, or system to follow the desktop. Overrides what "
+                "View > Appearance was last set to, for this run only "
+                "(default: dark, until the menu says otherwise)"),
+            QCoreApplication::translate("main", "system|light|dark"));
+    parser.addOption(appearanceOption);
+
     parser.process(app); //processes args.
+
+    {
+        //Dark unless told otherwise, to match the graph, whose Night theme has
+        //been the default all along -- a measurement is looked at in the dark
+        //as often as not, and a white window beside a black graph is the worse
+        //half of the four combinations the two switches make.
+        g_kameColorSchemeRequested = kameStoredColorScheme();
+        QString want = parser.value(appearanceOption).toLower();
+        if(want == "system") g_kameColorSchemeRequested = Qt::ColorScheme::Unknown;
+        else if(want == "light") g_kameColorSchemeRequested = Qt::ColorScheme::Light;
+        else if(want.length() && (want != "dark"))
+            fprintf(stderr, "--appearance takes system, light or dark\n");
+        kameApplyColorScheme(g_kameColorSchemeRequested);
+    }
+    //The graph's own light and dark, which is a separate switch and a separate
+    //memory.  Here, where nothing has been built yet: a graph takes the
+    //current theme when it is constructed.
+    kameApplyStoredGraphTheme();
 
     QStringList args = parser.positionalArguments();
 
@@ -219,6 +294,43 @@ int main(int argc, char *argv[]) {
 #endif
             Transactional::setCurrentPriorityMode(Priority::UI_DEFERRABLE);
 //            Transactional::setCurrentPriorityMode(Priority::NORMAL);
+
+            // The one place KAME opts into the STM's starvation bound
+            // (KAME_STM_LOWPRIO_STARVE_MS).  A priority whose privilege can be
+            // revoked — LOWEST / UI_DEFERRABLE / SCRIPTING, and this very thread
+            // is UI_DEFERRABLE — must have a way to fail, or it retries forever
+            // with no protection; the only pre-existing exit was the negotiation
+            // HANG watchdog aborting the process after 3 x 5 s.
+            //
+            // It throws XKameError deliberately, and that is why this is one
+            // line rather than thirteen: every catch site KAME already has works
+            // unchanged (the connector boundaries in xnodeconnector.cpp, the
+            // driver threads, the scripting threads).  A new exception type would
+            // have needed catches added at seven UI_DEFERRABLE thread entry
+            // points plus six connector chains, and anything missed escapes a Qt
+            // slot and terminates the process — worse than the freeze this
+            // prevents.
+            //
+            // Note this makes starvation an ordinary reported KAME error, on the
+            // same footing (and with the same coverage) as every other
+            // XKameError. It does not create a new unhandled class.
+            Transactional::setStarvationHandler(
+                [](unsigned retries, long long age_us) {
+                    // Never throw while a connector chain is under
+                    // construction — a throw there is a use-after-free and an
+                    // exception into Qt dispatch; see xnodeconnector.h.  The
+                    // construction keeps retrying with its accumulated
+                    // seniority instead, the pre-timeout behaviour.
+                    if(xqcon_starvationExempted())
+                        return;
+                    throw XKameError(formatString_tr(I18N_NOOP(
+                        "STM starvation: gave up after %u retries over %lld ms. "
+                        "Consider SAVING YOUR DATA now, then retry the "
+                        "operation. It runs at a priority whose privilege can "
+                        "be revoked; run it at NORMAL priority if it must "
+                        "complete."), retries, age_us / 1000),
+                        __FILE__, __LINE__);
+                });
 
             app.setStyleSheet(
                 "QGroupBox {"
@@ -537,8 +649,38 @@ int main(int argc, char *argv[]) {
 
 #if defined __MACOSX__ || defined __APPLE__
     while(form->running()) {
-        void *p = autoReleasePoolInit(); //may be needed to release OpenGL related objects.
-        app.processEvents();
+        //This exists because macOS QOpenGL once leaked heavily here, a finding
+        //that was never written up anywhere else -- keep that provenance, it
+        //is the only record.  It no longer reproduces: on Qt 6.10.1 a
+        //QOpenGLWidget doing a paintGL QPainter text overpaint, the shape of
+        //XQGraph, held a flat footprint over 4000 frames with the pool and
+        //without it (-0.5 vs -0.7 MB from frame 500).  The leak was most
+        //likely in QGLWidget, the Qt5 class the #ifdef in graphwidget.h still
+        //names but that Qt 6 no longer has.
+        //Two things now drain what this used to: QCocoaEventDispatcher wraps
+        //every processEvents() pass in a QMacAutoReleasePool, so anything
+        //autoreleased during event processing goes with it (measured: 1 live
+        //at peak, 0 leaked, pool or no pool).  Only autoreleases OUTSIDE
+        //processEvents accumulate, and this loop body has none.
+        //Kept anyway: it costs one push/pop per 1-5 ms pass, it covers
+        //whatever is added to this body later, and it is genuinely
+        //load-bearing under -platform offscreen/minimal, whose
+        //QUnixEventDispatcherQPA drains nothing at all.
+        void *p = autoReleasePoolInit();
+        //WaitForMoreEvents is what makes this a loop rather than a spin.  The
+        //default flags omit it, and Qt's dispatcher then blocks only when
+        //asked to (canWait &= flags & WaitForMoreEvents), so a bare
+        //processEvents() in a while loop pegs a core forever -- measured at a
+        //steady 100%, all of it inside the Cocoa dispatcher re-arming its
+        //CFRunLoop timer, none of it in KAME's own code.  Only this platform
+        //was affected: everywhere else app.exec() below asks to wait.
+        //
+        //Until 7801fd5a1 the spin was hidden by processSignals() sleeping 5 ms
+        //per pass, which paced THIS loop as a side effect; moving that pacing
+        //to the timer interval (correct on Linux, where app.exec() waits) left
+        //macOS with nothing holding it back.  The timer still bounds how long
+        //we block, so form->running() is re-checked every 1-5 ms.
+        app.processEvents(QEventLoop::WaitForMoreEvents);
         autoReleasePoolRelease(p);
     }
     int ret = 0;

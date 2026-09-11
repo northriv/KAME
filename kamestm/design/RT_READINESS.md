@@ -1498,3 +1498,1777 @@ default build and that nothing else came out with them.
 
 What remains in the negotiator is one realtime affordance,
 `ScopedWaitBudget` — tested in ctest, default on, and measured free when unused.
+
+## Why the sleeper is invisible: the ctor tags *after* it negotiates
+
+The starvation chain diagnosed earlier ends at `tags_total == 0`. This is the
+mechanism, and it is an ordering inversion rather than a missing call.
+
+`ScopedNegotiateLinkage`'s constructor does, in this order
+(`transaction_negotiation.h`):
+
+    :404    _negotiate();                     // or _negotiate_after_retry_pause
+            ...                               // 83 lines
+    :487    m_snap->tag_as_contender(m_link);
+
+`_negotiate()` is what reaches `_negotiate_internal()` and therefore
+`negotiate_sleep()`. So **the CV wait always happens before the tag**. This holds
+for all twelve construction sites and for both `TagMode`s — `OnEntry` vs
+`OnExit` only selects *which* of ctor/dtor tags, not whether the tag precedes the
+ctor's own negotiation.
+
+The destructor gets it right, and says so:
+
+    // Tag is performed BEFORE the wait below so that any subsequent
+    // notify_n_contenders walking tid_bitset can find us and wake our
+    // sleep slot.
+
+So the rule is stated in the code and followed in one of the two places.
+
+### Measured (grand/mixed/leaf arms, 8 threads, 3 s)
+
+    arm     tagged-list size at sleep    sleeps holding >= 1 tag
+    leaf    — (never sleeps: uncontended)
+    grand   0.00                         0.0 %
+    mixed   1.05                         39.9 %
+
+Grand-scope is 100 % untagged at sleep. Mixed is roughly 60 % untagged, and the
+tags that *are* present belong to **other** linkages the same transaction already
+walked (a multi-nodal commit visits several, and `Transaction::operator++` tags on
+retry) — not to the linkage about to be slept on. The invariant is therefore:
+
+  **a thread is never tagged on the linkage it is about to sleep on.**
+
+That is exactly why `notify_n_contenders`, which walks `tid_bitset` for the
+linkage it is waking, cannot find the sleeper, and why the livelock verdict's
+`tags_total > 0` was unsatisfiable in the grand arm.
+
+### Not a defect to fix — it is the −97 % result, already on record above
+
+**Correction to how this section was first written.** It framed "the ctor tags
+after it negotiates" as an ordering defect awaiting a two-line fix. That fix is
+§"Candidate *just place the tag*" earlier in this file: the tag was placed
+unconditionally immediately before entering the sleep path — the site that *is*
+reached — and throughput at 128 threads went **9.6 M/s → 0.32 M/s, −97 %**.
+Reverted. The ordering is a *consequence* of the throughput constraint, not an
+oversight, and the same applies to the intuitive "the sleeper should register
+itself": sleeper-registry broadcast cost −38 %, wake-one −8 % with a worse tail.
+
+The reason is structural and stated with the −97 % result: the sleep cell is a
+shared **userspace** atomic, not a kernel futex queue. Spreading waiters across
+512 cells by tid is load-bearing for throughput, so any scheme that makes a
+waiter findable *by the contended address* concentrates waiters onto that
+address's cell — which is the cost. Findable implies concentrated implies slow;
+spread implies fast implies unfindable.
+
+What this section does add is the second half of the picture, which the earlier
+entries did not spell out: the wake machinery can only ever target
+
+  * previous successful **owners** — `observe()` has one call site
+    (`transaction_neg_impl.h:1394`) and it records `loadPriority().tid`, written
+    by `tags_successful_cas()`, i.e. by whoever's CAS succeeded;
+  * the current **blocker** — the chunk loop's direct `stamp_tid` wake;
+  * the **privileged** TID — woken unconditionally, outside any bitset.
+
+Both passes of `notify_n_contenders` iterate only the waker's bitset; there is no
+catch-all sweep of the 512 slots. So a thread that has never yet committed on a
+linkage belongs to none of the three sets, and its only exit from `cv.wait` is
+the timeout. That is not a missing bit to set — a waiter has no bit that
+identifies *itself* anywhere, by design.
+
+The one direction not yet costed remains the one named with the −97 % result: a
+per-linkage **list** of waiter slots, keeping waiters spread across cells while
+the Linkage carries the state to enumerate them. That adds state to `Linkage`, a
+hot structure, and should be costed before it is attempted.
+
+### Correction recorded
+
+A first pass at this concluded that `OnEntry` sites with `retry != 0` never tag
+at all, from the dtor condition `!(m_eager && m_should_tag)` plus an apparent
+absence of any tag in the constructor. The constructor does tag — the call is at
+the end of a long ctor body, in each of three overloads, and the first reading
+covered only the first overload's opening lines. The dtor comment claiming "ctor
+already tagged" is accurate. The defect is the ordering, not a missing tag.
+
+## The uncosted direction, costed: waking the waiter is neutral and useless
+
+The section above named one direction still worth trying — publish the waiter's
+identity so a committer can wake it, without touching either the arbitration
+stamp (that was the −97 %) or `m_tid_bitset` (whose popcount is `sig_C`, feeding
+`retry_thresh_dyn = sig_C*2`, the adaptive lease growth, and
+effective_min/max_runners; inflating it moves every consumer the wrong way).
+
+Implemented as the cheapest possible form, mirroring the one wake that already
+bypasses the bitset (the chunk loop's `stamp_tid` → slot → `wake_one()`):
+
+* `Linkage::m_waiter_tid`, one 16-bit word.  One **relaxed store** of the
+  sleeper's tid immediately before the sleep section — no tag, no bitset, no RMW.
+* A wake from `Linkage::tags_successful_cas()`, i.e. **on release** — the wake
+  the system never had: `drop_tags_n_privilege` zero-stores the stamp and
+  notifies nobody, and `_negotiate()` returns before `_negotiate_internal` (which
+  owns every wake site) once the stamp is clear.  Load, `exchange(0)` only when
+  somebody is asleep, `wake_one()`.
+
+### The mechanism fires, abundantly
+
+    WAITER: published 2.82/commit, woken by a committer 3.17/commit
+            (112.6 % of publishes)
+
+Waiters are found and woken. And:
+
+    metric                OFF        ON
+    sleeps/commit         14.21      17.49
+    slept/commit          23.9 ms    27.0 ms
+    rounds/commit          3.81       4.01
+    priv grants            0.000      0.000
+    asked/got per sleep    1.12x      1.03x
+
+    throughput 128t         —        −0.8 %
+    throughput 8t           —        −0.3 %
+    grand p99.99        2 621 440  2 621 440   (identical)
+    grand p99.999      83 886 080 83 886 080   (identical)
+    grand MAX             332 ms     330 ms
+
+It wakes, the gate refuses, it sleeps again — so the sleep *count* rises while
+the total sleep time rises with it, and the tail does not move by one bucket.
+
+### Why this is the decisive one
+
+Every earlier attempt in this line was confounded by its own cost: at −97 %,
+−38 % or −8 % a null tail result could always be blamed on the damage rather than
+on the hypothesis. This one costs 0.3–0.8 % — it touches neither the arbitration
+nor the contention estimate — and is *still* null. So the wake is not the binding
+constraint; the sleeper is refused at the **admission gate**, exactly as the
+56,000 system-wide commits completing during one slow commit's wait already
+suggested.
+
+That also closes the per-linkage waiter-list design named above as the one
+uncosted option. Its only advantage over this experiment is waking *more*
+waiters, and waking one produced no tail movement while adding sleeps and rounds.
+There is no version of "make the waiter findable" left to try.
+
+Reverted, as A/B/C/D were, and for the same reason: an untested `#if` in the
+hottest function in the library will rot, and the value is in the measurement.
+
+**What remains is unchanged and is not inside the negotiator**: fewer contenders
+per linkage (commit at a narrower scope) and less per-commit work (bundle churn
+is O(subtree)). A bounded commit is a contract precondition on the caller.
+
+## "Take privilege away from a slow below-NORMAL Tx" — already there, and unreachable
+
+The lever exists and is coherent. `stamp_is_expired_lowprio` treats a
+lowprio-tagged privilege stamp older than
+`min_privilege_age_us(SCRIPTING) + KAME_STM_PRIV_MAX_HOLD_US` = 1 ms + 50 ms =
+**51 ms** as expired, and all five consumers agree, which is what stops a
+Reserved stamp going stuck:
+
+    :165  try_register_privileged_tidstamp  a challenger may take it over
+    :223  i_am_privileged_now               the holder stops believing it has it
+    :235  i_am_privileged_now
+    :295  fair_mode_blocks_me               peers stop yielding to it
+    :313  fair_mode_blocks_me
+
+It is never reached. Grand arm, 8 threads, 4 s, with `-L N` putting N threads at
+`Priority::SCRIPTING`:
+
+    SCRIPTING 1 / NORMAL 7    both groups: priv tries 0.000  grants 0.000
+    SCRIPTING 2 / NORMAL 6    both groups: priv tries 0.000  grants 0.000
+    SCRIPTING 4 / NORMAL 4    both groups: priv tries 0.000  grants 0.000
+
+Nobody claims privilege at any mix, so there is nothing to evict. The claim needs
+the livelock verdict — `tags_total > 0 && tags_owned == tags_total &&
+retries >= clamp(sig_C*2, 3, hw_procs)` — and `tags_total` is 0 at sleep. The
+eviction sits downstream of a gate that does not open.
+
+### But the bench is symmetric and the real case is not
+
+Every thread here does the same whole-tree commit. In KAME the below-NORMAL work
+is shaped differently: a UI redraw or a Python/MCP session takes a **Snapshot of
+an ancestor** (often the measurement root) while drivers commit their own
+subtrees. That asymmetry is the documented bundling collision — an ancestor
+snapshot absorbs the target's packet — and it is precisely the case where a
+SCRIPTING thread could plausibly hold privilege long enough for the 51 ms
+eviction to matter. This bench cannot produce it.
+
+So the question "does a below-NORMAL thread ever hold privilege in KAME" is open,
+and only the application answers it. The instrumentation is now in place:
+`XPrimaryDriver`'s record-commit counters on the acquisition side, and
+`[ll-probe]` under `KAME_STM_PRIV_DIAG` for the verdict itself. If those show
+grants in a real session, the 51 ms figure becomes worth tuning; until then it is
+a correct mechanism with no observed trigger.
+
+`transaction_latency_bench` gains `-L N` alongside `-P N`.
+
+### Should the 51 ms be capped by the wait budget?
+
+Right instinct, and it is already satisfied — in the waiter, not in the predicate.
+
+A budget-carrying thread never waits 51 ms for a lowprio holder's privilege to
+expire, because the budget escape is **deliberately ungated** on
+`fair_mode_blocks_me` (`transaction_neg_impl.h:1464-1470`): "an expired budget
+must stop waiting even while a peer holds privilege, or the budget is not a bound
+at all." Whatever the eviction deadline is, the budget thread has already left.
+
+Putting the cap inside `stamp_is_expired_lowprio` would break the invariant that
+makes the mechanism safe. That predicate is documented as a single source of
+truth for three consumers that must agree, and their positions differ:
+
+    try_register_privileged_tidstamp   challenger    its own budget is meaningful
+    i_am_privileged_now                HOLDER        has no wait to bound
+    fair_mode_blocks_me                yielding peer its own budget is meaningful
+
+Making it caller-dependent puts the holder and its peers in structural
+disagreement — a budget peer would read "expired" while the holder still reads
+"valid" — and that disagreement is precisely what the comment says makes a
+per-Linkage Reserved stamp go stuck. The predicate is shared by a party that has
+no waiting to bound, so a waiting-derived cap cannot live there.
+
+What 51 ms still governs for a budget thread is only whether it may *take over* a
+stale holder's privilege, which it does not need. For a thread **without** a
+budget the full 51 ms applies; whether that is too long is a tuning question that
+cannot be answered while grants are 0.000 in every configuration measured.
+
+## A revocable priority must be given a way to fail
+
+The rule (user): **a priority that can have its privilege taken away must have a
+timeout.** Revocability without a failure path is not fairness — the thread keeps
+retrying with no protection and no exit. The revocable set is exactly what
+`stamp_is_expired_lowprio` acts on, i.e. `lowprio_mask_for_current_priority()`
+(`transaction.h:517-524`): **LOWEST, UI_DEFERRABLE, SCRIPTING**. NORMAL and
+HIGHEST are excluded by the same symmetry — their privilege never expires, so
+they are never revoked, and losing a driver record to STM contention is a
+semantic no driver expects.
+
+That is a better rule than the per-level reasoning it replaced (which weighed
+"a frozen GUI is worse than a failed .kam load"), because it is derived rather
+than judged.
+
+The risk is not theoretical and this programme increased it: a HIGHEST
+acquisition loop never negotiates and a budget-carrying thread stops waiting, so
+slow below-NORMAL work on a node they touch can be retried indefinitely. The
+only pre-existing exit was the HANG watchdog `abort()`ing the whole process after
+3 x 5 s.
+
+### The throw is a host-installed hook, which is why it is one line in KAME
+
+The first cut threw a new `StarvationTimeoutError` unconditionally. That was a
+crash risk, caught by asking whether KAME catches it — it does not. KAME catches
+`XKameError` at its connector boundaries (`kame/xnodeconnector.cpp`, six sites)
+and nowhere catches `std::runtime_error`; there is no `QApplication::notify`
+override and no try/catch around `app.exec()` / `processEvents()`; and
+`main.cpp:220` puts the whole GUI thread at UI_DEFERRABLE, squarely in the
+revocable set. A new type escaping a Qt slot terminates the process, which is a
+worse outcome than the freeze the bound prevents.
+
+Covering a new type meant catches at **seven** UI_DEFERRABLE thread entry points
+— `main.cpp:220`, `graphntoolbox.cpp:122`, `xpythonmodule.cpp:347`,
+`xpythonsupport.cpp:149`, `xrubysupport.cpp:179` and `:317`,
+`xscriptingthread.cpp:108` — plus the six connector chains, and anything missed
+is fatal.
+
+So kamestm calls a hook instead:
+
+    using StarvationHandler = void (*)(unsigned retries, long long age_us);
+    setStarvationHandler(h);
+
+**No handler is the default and means no throw** — the transaction keeps
+retrying exactly as before, so enabling the bound cannot by itself introduce an
+unhandled exception. KAME installs one handler in `main.cpp` that throws
+`XKameError`, and every catch site it already has works unchanged. Starvation
+becomes an ordinary reported KAME error on the same footing, and with the same
+coverage, as every other `XKameError` — no new unhandled class. A handler that
+returns instead of throwing is also allowed, for hosts that want to count and log
+and let the retry continue.
+
+The bound itself is **1000 ms**, which has provenance rather than being
+invented: the Priority enum's original doc-comment promised SCRIPTING
+"yields to *everything* for the first second of any contention, then claims
+privilege so the request still eventually completes". Privilege never fires
+(grants measured 0.000 in every configuration), so the promise was never kept.
+This keeps it by the other route — "then gives up cleanly" instead of "then
+claims privilege". `StarvationTimeoutError` derives from `std::runtime_error`, so
+pybind11 hands the SCRIPTING caller a clean Python exception.
+
+    default 1000 ms, 4 SCRIPTING threads, grand arm, 5 s : 0 firings
+    fast-path cost, 8 threads, 11 interleaved reps       : +0.78 %, lower 4/11
+    128 threads / 4 threads                              : +2.08 % / +0.82 %
+
+So it neither hair-triggers nor costs anything measurable.
+
+### One lowprio thread does not starve; two do
+
+Measured with the bench at a 2 ms bound, grand arm, 8 threads:
+
+    -L 1   does not fire        -L 4   fires
+    -L 2   fires                -L 8   fires
+
+A lone lowprio thread gets through. Lowprio threads starve **each other** —
+they are excluded from the per-Linkage owner-skip lease (`_neg_apply_lease`) and,
+for LOWEST, from the jittered gate, so neither can inherit its way past the
+other.
+
+**KAME is already in that regime.** It runs three UI_DEFERRABLE threads: the
+main/GUI thread (`main.cpp:220`), the graph toolbox
+(`graphntoolbox.cpp:122`) and the Python interpreter
+(`xpythonsupport.cpp:149`). And `Priority::LOWEST` is set nowhere in the tree, so
+the revocable set in practice is UI_DEFERRABLE (three threads) plus SCRIPTING
+(MCP/AI, opt-in behind the sticky trapdoor).
+
+### The test pins the mechanism, not the contention
+
+`transaction_starvation_test` drives `iterate_commit_if`'s retry path directly —
+returning false retries unconditionally, so one thread ages one transaction past
+the bound with no contention at all — and asserts all five priorities plus the
+retry-gate case. Deterministic: 3/3 runs, 6/6 cases.
+
+Manufacturing real starvation was tried first and is not usable as a ctest. It
+was flaky in both directions: a two-level tree never starved where the bench's
+three-level one did (bundle churn is O(subtree), and the intermediate level is
+what makes a root commit heavy enough), and once the starved *peers* caught their
+own exceptions and restarted, the victim stopped starving too. Contention
+dynamics are what the bench is for.
+
+### There is no "time for HIGHEST to take privilege back"
+
+Asked whether the budget should set it. It cannot, because HIGHEST never concedes
+privilege in the first place.
+
+`_negotiate_after_retry_pause` (`transaction_neg_impl.h:697-703`) does route a
+thread into negotiation when a peer holds privilege, even at `retry == 0`:
+
+    if(retry == 0 && !NC::fair_mode_blocks_me(...)) [[likely]] return;
+    retry_pause(retry);
+    _negotiate();
+
+But `_negotiate()` reaches `_negotiate_internal()`, whose round loop opens with
+`if(entry_pr == Priority::HIGHEST) break;`, so HIGHEST returns without spinning
+or sleeping — it pays `retry_pause(0)`'s CPU relax and nothing else. Measured: one
+HIGHEST thread among seven NORMAL shows **sleeps/commit 0.00** and 5 slow commits
+in four seconds.
+
+So the times that exist, and who they bind:
+
+    party      waits for a privilege holder      budget-settable?
+    HIGHEST    never                             no — a budget is inert on it
+    NORMAL     51 ms (stamp_is_expired_lowprio)  not in the predicate (the
+    lowprio    51 ms                             three-way agreement), but a
+                                                 budget-carrying thread leaves
+                                                 earlier via its own ungated
+                                                 escape
+
+"How long until I stop deferring to a privilege holder" **is** budget-settable —
+for the threads that defer. HIGHEST is not one of them, and that immunity is
+exactly why it does not scale past one such thread (the -P sweep: 1 costs 4 %,
+4 cost 10x, 8 cost 42x) and why `AcquisitionPriority` is scoped to the
+acquisition loop rather than the thread.
+
+### Where the check belongs: two sites, not four
+
+First placed in `iterate_commit` / `_if` / `_while`. Wrong on both counts.
+
+**Too many sites, and it missed Python entirely.** The commit retry step is
+`Transaction::operator++`; all three `iterate_commit` variants reach it through
+`for(...;;++tr)`, and Python's `Transaction.__next__` reaches it through
+`commitOrNext()`, which calls `++(*this)` when the commit fails. So one site
+replaces four — and the fourth was the one that mattered, because the Python
+retry loop lives in the binding, not in `iterate_commit`, so the priorities most
+likely to starve (the interpreter thread is UI_DEFERRABLE, and a script may raise
+itself to SCRIPTING) were the only ones with no bound at all.
+
+**And it missed Snapshots, which is arguably the more important path.** A
+`Snapshot` is read-only and has no `operator++`; its retry loop is
+`for(int retry = 0;; ++retry)` inside `Node::snapshot()`
+(`transaction_impl.h:2125`), unbounded. That is the path a graph redraw takes when
+it snapshots an ancestor — the GUI-freeze case that motivated the bound in the
+first place.
+
+So `throw_if_starved_` now takes a `Snapshot` (both fields it reads live on the
+base) and is called from exactly those two places. `Node::snapshot()`'s loop body
+runs on *every* snapshot, so this is now a hot path; the retry-count gate keeps it
+to one integer compare there, and it measures free:
+
+    threads   OFF        ON         delta      ON lower in
+       8      6.772 M    6.809 M    +0.54 %       2 / 9
+       4      5.990 M    6.005 M    +0.26 %       2 / 5
+     128      9.423 M    9.337 M    −0.91 %       3 / 5
+    leaf p50  192 ns     192 ns     identical
+
+`transaction_starvation_test` covers the commit side deterministically (it drives
+`iterate_commit_if`'s retry path). **The Snapshot side is not covered by a test**:
+that loop only retries on a genuinely DISTURBED CAS, which cannot be forced on
+demand, and the same shared helper is what both call. Worth stating rather than
+implying the coverage is complete.
+
+### Probing it from inside KAME — attempted, then dropped
+
+A `kame/script/starvation_probe.py` existed briefly. Its first version
+manufactured real contention — several threads at a revocable priority committing
+at whole-tree scope for ten seconds — and was replaced (user) with a **single slow
+transaction**: deterministic, no other threads, no drivers, a dozen writes instead
+of thousands. Then the script itself was dropped (user: not needed). What it taught
+is kept here, because both points are properties of the bound rather than of the
+script, and the second one is a trap for anyone driving the STM from Python:
+
+* **Slow is not enough.** The bound needs an age past the limit *and* at least
+  `KAME_STM_LOWPRIO_STARVE_MIN_RETRIES` (8) retries — the gate is what keeps the
+  clock off the fast path. A transaction that merely takes two seconds has a retry
+  count of 0 and does not fire.
+* **In Python the retry count only advances on a FAILED commit.**
+  `Transaction.__next__` calls `commitOrNext()` only when the transaction was
+  modified, and `commitOrNext()` reaches `++(*this)` — the increment, and the
+  bound — only when that commit fails. A body that just sleeps loops without
+  incrementing anything, because Python has no `iterate_commit_if` whose
+  `continue` would drive `++tr`.
+
+So reaching the bound from outside `iterate_commit_if` means modifying the target
+and then committing a **nested** transaction on the same node, invalidating
+itself. `transaction_starvation_test` pins that (measured: 5 retries,
+deterministic over 3 runs) and keeps doing so now that the script is gone — no
+Python-side test can run on a host without the Qt build, so this is the only place
+the fact is checked rather than merely asserted.
+
+The consequence worth remembering: **a Python transaction that is merely slow can
+never hit the starvation bound**, however long it runs, because nothing increments
+its retry count. The bound protects against being *starved by others*, not against
+being slow on your own.
+
+## "grants 0.000" is a frequency measurement, not a verdict on necessity
+
+This file says several times that the privilege claim never fires — grants
+measured 0.000 in every configuration, across arms, thread counts and
+NORMAL/SCRIPTING mixes. That is accurate and it is easy to misread, as I did:
+I proposed that the per-linkage privilege machinery was therefore dead weight and
+a removal candidate. **That is wrong, and it would break a verified property.**
+
+`kamestm/tests/VERIFICATION.md:317` is explicit: *"The TLA+ priority mechanism
+mirrors the per-linkage privilege path in `transaction.h`
+(`KAME_PER_LINKAGE_PRIVILEGE=1`, the default)"*, with a symbol-by-symbol
+correspondence —
+
+    TLA+                 C++
+    priorityTag[n]       Linkage::m_transaction_started_time
+    MyTag(t)             Snapshot::m_started_time
+    TagAfterFail         Snapshot::tag_as_contender(link)
+    CanProceed           i_am_privileged_now / fair_mode_blocks_me
+    PreemptTag           the preempt window inside tag_as_contender
+    ClearMyTags          drop_tags_n_privilege()
+
+— and `Privilege = TRUE` is set in the model-checked configs, the liveness one
+included. The machinery **is** the implementation of the verified
+livelock-freedom mechanism. Removing it severs the spec-to-code correspondence
+and deletes the mechanism whose absence TLC says produces livelock.
+
+The error has a name worth remembering: **for a livelock-freedom mechanism, the
+cases that matter are exactly the rare adversarial interleavings that measurement
+does not reach.** Never observing it fire at eight threads says something about
+frequency and nothing about necessity — covering what measurement cannot is what
+the model checking is for. Treating an absence of observations as an absence of
+need inverts the relationship between the two.
+
+### Two guarantees, two mechanisms, and they are not substitutes
+
+    property                        mechanism                     verified by
+    bounded waiting / failure       ScopedWaitBudget, the          measurement
+                                    starvation timeout             (ctest, bench)
+    livelock freedom (progress)     per-linkage privilege          TLA+ TLC
+
+So a NORMAL transaction carrying no budget is not unguaranteed — it has
+**progress**, just not a *time* bound. The earlier framing ("NORMAL with no budget
+is still unbounded") was about time and is correct about time; it silently implied
+there was no guarantee at all, which is not.
+
+That also settles the three-tier design's relationship to privilege. The tiers do
+not *depend* on it for their bounds — HIGHEST never waits, NORMAL's escape is the
+budget and is deliberately ungated on `fair_mode_blocks_me`, and the lowprio
+timeout reads only age and retry count. But privilege is the separate pillar that
+makes progress hold at all. Independent, not redundant.
+
+## HIGHEST's invariant is broken by the standard secondary-driver pattern
+
+The three-tier design rests HIGHEST on a deployment invariant: **realtime threads
+must not share a Linkage.** Empirically it held — KAME has run five HIGHEST sites
+(the NMR pulser, the realtime DSOs, NI-DAQ, DigilentWF) without the collapse the
+`-P` sweep shows, because those threads commit disjoint subtrees.
+
+It does not hold. `XSecondaryDriverInterface::onConnectedRecorded`
+(`kame/driver/secondarydriverinterface.h`) breaks it by construction:
+
+* it is connected to `onRecord` **with no flags** (`:215`), so it is an immediate
+  listener;
+* `XDriver::record()` marks the talker (`driver.cpp:52`
+  `tr.mark(tr[*this].onRecord(), this)`), so the dispatch happens when
+  `finishWritingRaw`'s transaction commits — **inline, on the primary driver's
+  acquisition thread**;
+* that thread is at HIGHEST (`AcquisitionPriority`, plus the five pre-existing
+  sites);
+* and the function's first act is `Snapshot shot_all_drivers(*m_drivers.lock())`
+  — **the entire driver list** — re-taken on every iteration of its `for(;;)`
+  retry loop via `newTransactionUsingSnapshotFor`.
+
+So two acquisition threads each running a secondary driver's analysis — an NMR
+pulse analyzer on a DSO, an ODMR analysis on a camera, i.e. exactly the two
+drivers wired for `AcquisitionPriority` — contend at whole-driver-list scope at
+HIGHEST. That is the regime measured at 10x throughput loss for four such threads
+and 42x for eight.
+
+### Fix: the fan-out point lowers itself
+
+`onConnectedRecorded` now opens with
+`Transactional::ScopedPriority(Priority::NORMAL)`. The commit dispatch cannot be
+separated from the commit (`tr.mark` sends on `commit()`), so the priority has to
+drop on the *other* side of the boundary — and that is the right side anyway:
+**secondary-driver analysis is not realtime work and should not inherit HIGHEST
+merely because a realtime thread invoked it.**
+
+The general rule this instantiates: **a listener that widens the scope it touches
+should drop the priority it was entered at.** Worth applying to any future
+immediate listener that snapshots an ancestor.
+
+Audited the other `onRecord` listeners for the same shape:
+
+    kame/forms/driverlistconnector.cpp:101      FLAG_MAIN_THREAD_CALL — deferred, safe
+    modules/nmr/.../pulserdriverconnector.cpp:31 FLAG_MAIN_THREAD_CALL — safe
+    kame/analyzer/recorder.cpp:60               immediate, but uses the passed
+                                                shot; no ancestor snapshot
+    kame/analyzer/analyzer.cpp:398              immediate; snapshots itself and
+                                                the source entry, both leaf-ish,
+                                                not the driver list
+
+Only the secondary-driver interface fans out to the list, so it is the only site
+that needed this.
+
+### The general fix: realtime ends with the record
+
+Patching the secondary-driver interface was treating a symptom. The rule (user) is
+that a primary driver must be back at NORMAL after `record()` — everything
+downstream is somebody else's work. Two places implement that, because the
+downstream work is split across the commit boundary:
+
+* **`Transaction::finalizeCommitment`'s messaging loop** (kamestm). `XDriver::record()`
+  *marks* the talker, so `onRecord` listeners are dispatched inside the commit and
+  cannot be reached from outside it. The loop is now wrapped in
+  `ScopedDemoteRealtime`. Two lines above it, this function already does
+  `m_oneup.release(); // yield the running slot before messaging` — shedding a
+  realtime priority is the same idea, for a sharper reason. This one guard covers
+  every marked-message listener at once: the secondary-driver chain, the
+  scalar/calibrated entries, the recorders, `onVisualization`.
+* **`XPrimaryDriver::finishWritingRaw`** after the commit, for `visualize()` and
+  the `onVisualization` talk, which are plain calls outside it.
+
+`ScopedDemoteRealtime` is **one-directional by design**: it demotes HIGHEST and
+leaves everything else alone. Raising a lowprio committer to NORMAL would be an
+escalation path, not a fix — a script or a redraw would dispatch its listeners at
+a priority it cannot claim itself.
+
+That is not hypothetical. The first version of the secondary-driver patch used
+`ScopedPriority(Priority::NORMAL)`, which raises as readily as it lowers, and
+`requestAnalysis()` is reachable from `xpythonmodule.cpp:972` — i.e. from the
+Python thread. It would have escalated script-initiated analysis on every call.
+The secondary-driver guard is still needed alongside the general one, because
+`requestAnalysis()` calls `onConnectedRecorded` directly rather than through a
+marked message.
+
+## What HIGHEST actually buys, and the budget that closes the hole it left
+
+Demotion shrinks HIGHEST's reach, and the observation that follows (user) is
+correct: with the listeners still on the acquisition thread, HIGHEST buys much
+less than it looks like.
+
+What is left is **the contention window** — loop top through CAS success: the
+settings Snapshots (`***node()`), `Node::snapshot()` for the ctor and each retry,
+and the bundle/commit chain. That is where starvation lives, so nothing the thread
+*needed* was given up: the demotion only releases the part after it has already
+won.
+
+What was given up is **the period**. The dispatch runs on this thread at NORMAL, so
+a slow secondary-driver analysis delays the loop's next iteration, and at NORMAL it
+can wait. HIGHEST protects the contention window; it does not protect cadence.
+(Not a regression — before `AcquisitionPriority` those threads were NORMAL and the
+dispatch was NORMAL too. HIGHEST is a strict improvement on NORMAL, just a smaller
+one than it appears.)
+
+### The wait budget closes it, and this corrects an earlier claim
+
+Earlier in this file: *"a budget is inert on HIGHEST"*. That holds only **while it
+is HIGHEST**. The moment `ScopedDemoteRealtime` drops the thread to NORMAL, the
+budget binds — so a budget on a realtime acquisition thread is not useless, it is
+precisely the tool for the demoted region.
+
+And because the budget is an **absolute thread-local limit** rather than a
+per-scope duration, one guard at the top of `finishWritingRaw` covers both demoted
+regions at once: the marked-message dispatch inside the commit
+(`finalizeCommitment`'s messaging loop, which kamestm cannot give a policy value
+to) and `visualize()` / `onVisualization` after it.
+
+    XPrimaryDriver::downstreamWaitBudgetUS()     virtual, default 20 ms
+
+So the two mechanisms now do exactly what each is for, and neither substitutes for
+the other:
+
+    demote HIGHEST     downstream does not impose on others
+    wait budget        downstream does not block the realtime loop's period
+
+This is also the first real user of `ScopedWaitBudget`, which had zero call sites
+and was recorded as a feature without a consumer. Its consumer turns out to be the
+realtime loop bounding the non-realtime work it must wait for — not, as first
+guessed, a driver bounding its own commit.
+
+### Why the default is 20 ms and not 0, and not gated on HIGHEST
+
+Shipped first as `default 0 = unbounded`, with the reasoning that the value comes
+from the acquisition cycle and is therefore the deployment's to pick. Then, offered
+a 20 ms default, I proposed arming it **only** for a thread that entered at
+HIGHEST — since on a NORMAL thread the guard binds the record commit too, not just
+the demoted downstream, and the measurement below shows that is not free.
+
+Both were wrong, and the correction is a domain fact, not a tuning preference
+(user): **past roughly 20 ms a stalled record starts to distort the measurement,
+and that is as true at NORMAL as at HIGHEST.** KAME is an instrument. A record whose
+commit sat for a third of a second is a bad data point, not a slow one. So the bound
+is not a realtime feature to be gated on priority — it is the acquisition path's
+contract, unconditional, 20 ms.
+
+Grand-scope arm, 8 threads:
+
+                   throughput   p99.99    p99.999   MAX
+        no budget    2.36 M/s   3.67 ms   67.1 ms   326.6 ms
+        20 ms        2.25 M/s   16.8 ms   21.0 ms    20.3 ms
+
+−4.7 % of commit throughput: a clipped commit stops waiting and retries, and the
+retry adds CAS pressure. 8-of-8 and 1-of-8 budgeted measured 2.25 vs 2.26 M/s, so
+that cost is the clipping itself and not a cascade through the other threads.
+
+**And my reading of the p99.99 was wrong too.** I reported "4.6× worse p99.99
+(3.67 → 16.8 ms)" as a cost. Against the criterion that matters — nothing over
+20 ms — 16.8 ms is *inside* the budget. The budget does not thicken the tail past
+its own line; it compresses everything above it down onto it. Read correctly, the
+budgeted row has **every percentile including MAX under 20 ms**, which is the whole
+property being bought. Throughput is the only thing actually traded, and for a
+measurement path that is the right direction to trade.
+
+Generalisable: a percentile moving *within* a declared bound is not a regression
+against that bound, and quoting it as one argues against the very guarantee being
+added. Compare against the requirement, not against the unbounded baseline.
+
+No record is lost either way — the budget bounds *waiting*, and the clipped commit
+retries through `iterate_commit` until it succeeds. The failure mode is CPU spent
+retrying instead of sleeping, which is why the number wants to stay comfortably
+under the acquisition period: then a blown budget costs a late record rather than a
+lost one. A driver with a period near or under 20 ms should override it downward;
+`return 0` disables.
+
+## The `kame/` side now at least compiles — and how, since there is no build here
+
+Every `kame/` and `modules/` change in this file shipped **uncompiled**: this
+session has no Qt Creator build, and `kamestm/tests/` is a Qt-free harness, so
+`ctest` passing said nothing about the host side. The starvation handler in
+`main.cpp`, `AcquisitionPriority`, the in-transaction interface detector, the
+`queryStatus` refactor, the pybind changes, the `ScopedDemoteRealtime` sites and
+`downstreamWaitBudgetUS()` were all reasoned-about, not built. One of them
+(`modules/python/basicdrivers.cpp`, missed by a directory-scoped grep during the
+`queryStatus` refactor) had already broken the build once.
+
+A full build is not needed to close most of that — `clang++ -fsyntax-only` is,
+once three build-system inputs are supplied:
+
+* `-DVERSION=... -DKAME_MODULE_DIR_SURFIX=... -DPACKAGE=...` — qmake passes these;
+  without them `main.cpp` fails with *undeclared identifier* and then a cascade.
+* **uic output.** `#include "ui_*.h"` is generated, so run it first:
+  `for ui in $(find kame modules -name '*.ui'); do
+  $QTDIR/libexec/uic "$ui" -o gen/ui_$(basename ${ui%.ui}).h; done` (54 headers).
+* **Qt as frameworks on macOS**: `-iframework $QTDIR/lib` plus one
+  `-I $QTDIR/lib/Qt<Module>.framework/Headers` per module. Plain `-I $QTDIR/include`
+  does not resolve `<QString>`.
+
+And one trap worth recording: do **not** pass `-D slots= -D 'signals=public'`
+here, even though CLAUDE.md gives them for checking a header in isolation.
+CPython's `object.h` has a real member named `slots`, so with pybind11 in the
+translation unit those defines produce *expected member name* errors in
+`Python.h` — the mirror image of the hazard they exist to catch. The defines are
+for Qt-free headers; a TU that includes `<QObject>` for real does not need them.
+
+Result — all 15 touched translation units pass with no errors (two pre-existing
+`-Winconsistent-missing-override` warnings from `DEFINE_TYPE_HOLDER`, unrelated):
+
+    kame/       main, primarydriver, secondarydriver, interface, xpythonmodule,
+                xpythonsupport, x2dimage, analyzer
+    modules/    optics/core/digitalcamera, dso/core/dso, dcsource/core/dcsource,
+                dcsource/userdcsource, relay/core/relaydriver,
+                python/basicdrivers, tempcontrol/tempcontrol
+
+`-fsyntax-only` is not a link, so it does not prove the `queryStatus` overrides
+match their bases across every module, nor that anything *runs*. It does close
+the class of error that has actually bitten here — a missed call site, a
+mistyped member, a wrong signature — for every file this work touched.
+
+## One detector, two call sites: `isInTransaction()` / `gWarnIfInTransaction()`
+
+`XInterface::lock()` got a debug-only "you are inside a transaction" report
+earlier in this work. Adding `msecsleep()` to the list, I wrote the machinery a
+second time — its own gate, its own deduplicating set, its own abort environment
+variable, its own message assembly. Correctly called out (user) as inelegant: the
+remedy is to publish the *predicate* and share the *reporter*, not to copy them.
+
+    Transactional::isInTransaction()               the predicate, published once
+    Transactional::warnIfInTransaction(what, ...)  the one report body (debug-only)
+    gWarnIfInTransaction(what)                     kame/support.h wrapper, fills in
+                                                   __FILE__:__LINE__
+
+On the naming, which was asked about: `isDuringTX` is not idiomatic English —
+"during" wants an event, not a state, and `TX` reads as an abbreviation nobody
+outside this file would expand. `isInTransaction()` is the ordinary phrasing.
+The kame-side wrapper follows `gErrPrint`/`gWarnPrint`, and is a macro for the
+same reason `gErrPrint` is: only a macro can capture the caller's source line.
+
+Deduplication key: the wrapper passes `__FILE__ ":" __LINE__`, which is both the
+key and a printable location. `msecsleep` has no source location to offer, so it
+passes its caller's return address instead, printed as a pointer for `atos` /
+`addr2line`.
+
+### Why `msecsleep` still goes through a function pointer
+
+It cannot call `isInTransaction()` directly. `xtime` must know nothing about
+transactions, and more concretely: `detail::s_tx_nest` is *defined* in
+`transaction_impl.h`, which `mutex_test`, `atomic_queue_test` and the
+pool-allocator tests never include. A direct call would make those binaries fail
+to link. So `xtime.h` exposes `g_sleep_in_transaction_reporter` plus a
+`ScopedSleepInTransactionOK` suppression, `transaction_impl.h` installs a
+three-line adapter into it at static-init time, and the adapter calls the shared
+reporter. The pointer stays null in binaries without the STM.
+
+kamestm has two legitimate in-transaction sleeps, both suppressed at the call
+site: the out-of-memory backoff in `print_recoverable_error` (it *is* the delay,
+and it is called from inside the transaction it delays) and lazy TSC calibration
+in `timeStampCountsPerMilliSec` (one-time, and the first `timeStamp()` can fall
+inside a transaction).
+
+### The static and the dynamic check cover different things
+
+`tools/audit/check_stm_closures.py` already flags a literal `msecsleep(` inside an
+`iterate_commit` closure — that was there before, in `SIDE_EFFECT_RE`. The runtime
+detector exists for the two cases a source scan cannot reach: a sleep several call
+levels *below* the closure, and a sleep anywhere else in a transaction's lifetime.
+Neither subsumes the other; the static one needs no debug build and no execution,
+the dynamic one needs no call-graph.
+
+### Two ways the verification of this nearly fooled me
+
+* **A debug-only check in a Release test tree tests nothing.** The first build of
+  the new `transaction_sleep_in_tx_test` "passed" — `CMAKE_BUILD_TYPE=Release`
+  means `NDEBUG`, so the detector and the whole test compiled to nothing. The
+  target now carries `-UNDEBUG`, and the `#ifdef NDEBUG` arm of the test *fails*
+  rather than skipping, so the flag cannot be silently lost.
+* **`__builtin_return_address(0)` is only the caller's address while the frame is
+  real.** The standalone harness had `msecsleep` `inline` in
+  `support_standalone.h`; at `-O3` it inlined, and every call site reported the
+  same libsystem address — two distinct sites counted as one. Fixed by making the
+  harness's `msecsleep` out-of-line, matching the shape of the real `xtime.cpp`.
+  Then the deduplication case *still* failed at +2, because `-O3` **unrolled** the
+  two-iteration loop into two distinct return addresses. There the detector was
+  right and the test was wrong: the case now calls one `noinline` function twice.
+
+The test also pins that a **Snapshot** alone does not trip the detector. That is
+the intended semantics — a Snapshot blocks nothing — and it is exactly what
+`s_tx_nest` gives, being held for a Transaction's whole lifetime but only during a
+Snapshot's construction.
+
+## OS priority is policy, not mechanism: `setOSPriorityHook`
+
+Asked (user), with PREEMPT_RT support on the horizon: *shouldn't the current
+STM-priority → OS-priority coupling change?* Yes — and the Windows measurement
+above already showed why in miniature. `setCurrentPriorityMode` contained a
+Windows-only arm (pre-existing, `59d942f36`) mapping HIGHEST ↔
+`THREAD_PRIORITY_TIME_CRITICAL` inside kamestm itself. Three things are wrong
+with that once an RT Linux port is real:
+
+* **The mapping is a deployment decision a library cannot make.** On PREEMPT_RT
+  the numeric level is chosen relative to the kernel's threaded irqs (default 50)
+  and ksoftirqd; the policy might be `SCHED_FIFO`, `SCHED_RR` or
+  `SCHED_DEADLINE` (which has no static priority at all); and raising it needs
+  `CAP_SYS_NICE` or an `RLIMIT_RTPRIO` grant, so the call can *fail* and policy
+  decides what that means. Hardcoding any of it into the STM would be exactly the
+  "RT-only design mixed into the general code" this work is required to avoid.
+* **Documented RT practice is set-once, not toggle-per-record.** POSIX RT
+  scheduling attributes are set at thread setup (`pthread_attr_setschedparam`,
+  explicit-sched); Windows' own low-latency path (MMCSS) likewise registers a
+  thread once. A hidden per-record `pthread_setschedparam` issued from inside an
+  STM commit would be a surprise to anyone auditing an RT deployment.
+* **A standalone library silently promoting host threads was already a smell.**
+  Any Windows program linking kamestm and using `Priority::HIGHEST` got
+  TIME_CRITICAL whether it wanted it or not.
+
+The change mirrors `setStarvationHandler` exactly — the host installs policy,
+the library provides the call site:
+
+    Transactional::setOSPriorityHook(hook)   null by default; called by
+                                             setCurrentPriorityMode with the new
+                                             priority, on the changing thread
+
+The hook type is a `noexcept` function pointer because it is reached from
+`ScopedDemoteRealtime`'s noexcept destructor. With it, the STM core's only
+`<windows.h>` dependency is gone.
+
+**Windows behaviour is preserved where it belongs**: `kame/main.cpp` installs the
+historic mapping as the hook, with a `thread_local` skip — every priority except
+HIGHEST maps to `THREAD_PRIORITY_NORMAL`, so transitions among NORMAL / SCRIPTING
+/ UI_DEFERRABLE / LOWEST no longer pay a no-op syscall (previously *every*
+`setCurrentPriorityMode` call on Windows was one). One deliberate subtlety: the
+skip means an OS priority set externally on a thread is left alone until HIGHEST
+is involved, where the old arm forced NORMAL on every call.
+
+**The PREEMPT_RT plan this enables** (a plan, not an implementation — no RT host
+here): leave the hook null. The acquisition thread's OS class is set once at
+thread start by the deployment; `ScopedDemoteRealtime` then moves only the STM
+priority, and whether downstream listeners may run at FIFO for their (bounded by
+the wait budget, at NORMAL STM priority) duration — or whether a hook should
+toggle the OS class too — is the deployment's call, made in one visible place.
+
+Also gated in the same commit: `finalizeCommitment`'s demote guard now skips when
+`m_messages` is empty, so a listener-less commit — most settings commits — pays
+neither the guard nor, with a hook installed, its two syscalls.
+
+Non-RT regression check: with a null hook `setCurrentPriorityMode` is the same
+TLS store as before on macOS/Linux (12/12 ctest, audits clean); on Windows the
+KAME application installs the old mapping before any driver thread exists. The
+hook install and the mapping itself sit in an `#if _WIN32` arm this host cannot
+compile — same standing caveat as every Windows-side line in this work.
+
+**Superseded the same day, before ever being pushed — see the next section: the
+hook is gone again.** The layering argument above stands; what was wrong is the
+behaviour any installed hook would produce.
+
+## Correction: OS priority is a thread property, not a transaction property
+
+The hook was the right *layering* and the wrong *behaviour* (user): an OS
+scheduling class should be **permanent for the thread**, not toggled with STM
+priority changes — and once it is permanent, there is nothing for kamestm to
+call, so the implementation belongs to KAME. The hook lasted one commit and was
+removed unused rather than left as an attractive nuisance (the A/B/C/D lesson:
+an API whose only use case has been judged wrong will rot).
+
+The argument is not just "set-once is the documented practice" (it is — POSIX
+RT attributes at thread setup, MMCSS one-time registration). It is an RT
+argument: with the OS class coupled to `ScopedDemoteRealtime`, every
+acquisition cycle handed the CPU to arbitrary threads for its entire demoted
+downstream half — listeners, `visualize()` — right when the loop is racing the
+next trigger. Being preempted there eats period margin unpredictably, which is
+backwards: the loop should finish its whole iteration at acquisition priority
+and yield *naturally* in the device wait, where it blocks and the CPU frees
+anyway. The demotion's real job was never CPU allocation:
+
+    ScopedDemoteRealtime   STM-level.  Stays.  Prevents an immediate listener
+                           that widens scope from negotiating at HIGHEST and
+                           putting two realtime threads on one Linkage.
+    OS scheduling class    thread-level, thread-lifetime.  KAME-side.
+
+So now:
+
+* `Transactional::setCurrentPriorityMode` is a pure TLS store on every
+  platform. kamestm has **zero** OS-scheduler awareness — no windows.h, no
+  hook. (The brief hook, `eab100ec8`, never reached the remote.)
+* `AcquisitionPriority` (kame/driver/primarydriverwiththread.h) raises the OS
+  class in its constructor and restores it in its destructor — the RAII spans
+  the acquisition loop, which spans the thread, so this *is* set-once. The OS
+  half lives in `raiseAcquisitionOSPriority_()` / `restoreAcquisitionOSPriority_()`
+  (primarydriver.h/.cpp): Windows `THREAD_PRIORITY_TIME_CRITICAL`, no-op
+  elsewhere, and the single visible place where PREEMPT_RT's
+  SCHED_FIFO/RR/DEADLINE decision goes when it comes.
+
+**Deliberate Windows behaviour change** (the historic arm toggled): the demoted
+downstream now runs at TIME_CRITICAL. That is the point — the STM priority
+drops, the CPU stays. A listener too long to tolerate at acquisition priority
+was already too long for the acquisition loop, and the wait budget, the
+`FLAG_MAIN_THREAD_CALL` rule and the record-commit telemetry are the tools for
+noticing it.
+
+Restore goes to `THREAD_PRIORITY_NORMAL` rather than a saved value, on the
+grounds that acquisition threads are created for the loop and die with it. The
+same reasoning says nesting `AcquisitionPriority` twice on one thread would
+restore early — it has no reason to ever nest.
+
+## Should HIGHEST use privilege among its own tier? Measured: no — tags suffice
+
+Asked (user), given that KAME now really deploys HIGHEST: *should tag/privilege
+work between HIGHEST threads, with NORMAL subordinated to HIGHEST's
+tag/privilege — or, since HIGHEST is not supposed to starve, are tags alone
+enough?*
+
+**What the code already does.** Tags are unconditional on the retry path
+(`transaction_impl.h`: "the retry-path tag_as_contender call sites are now
+unconditional") — a HIGHEST contender is counted in `sig_C`, participates in the
+age-ordered stamp preemption (older-always-wins), and is seen by the owner-skip
+lease. The privilege *claim* is on a path HIGHEST can reach in principle, but
+gated behind the livelock probe (`_ll_saw`), which a promptly-winning spinner
+never trips — measured 0.000 claims. And `fair_mode_blocks_me` is consulted
+below the round-loop-top HIGHEST breakout, so HIGHEST ignores everyone's
+privilege. So "tags only" is not a proposal; it is the present design.
+
+**The measurement** — the *forbidden* deployment (two+ HIGHEST on one linkage),
+worst-case grand scope at 100 % duty, M3, 4 s runs, per-thread split added to
+the latency bench for this question:
+
+    -t 2 -P 2 (two spinners, nothing else; 3 reps)
+        thr#0 / thr#1 balanced within 1 % (e.g. 3.48 vs 3.45 Mcommit/s)
+        p99.99 = 57–98 µs, STM-attributable MAX sub-ms
+        (one rep showed 60–68 ms MAX on BOTH threads at once: OS preemption,
+        not STM starvation — correlated across threads.)
+    -t 8 -P 2 (plus six NORMAL)
+        HIGHEST thr#0/#1 balanced within 5 % (0.41 / 0.39 Mcommit/s),
+        p99.99 = 163–327 µs
+        NORMAL group: ~8 k commits per 4 s vs HIGHEST's 3.2 M — mean ~3 ms,
+        MAX 81–183 ms
+    aggregate cost of the violation: 2.40 -> 0.80 Mcommit/s (3x)
+
+**Verdict: tags suffice; privilege for HIGHEST would make it worse.**
+
+* Privilege is a shield for a thread that *yields* — it protects a sleeper from
+  being starved while it waits its turn. HIGHEST never yields, so it has
+  nothing to shield. Between exactly-two spinners, CAS linearization already
+  hands one of them the win each collision round; the measured alternation is
+  the theory working.
+* Granting HIGHEST privilege would convert "loser retries and usually lands in
+  the winner's gap" into **strict serialization behind the holder — including
+  any OS preemption of the holder**. Today a 60 ms preemption of one spinner is
+  60 ms of free run for the other; under privilege it would be 60 ms of spinning
+  behind a stamp. On a normal OS that worsens the RT tier's tail, and it adds a
+  waiting relation inside the RT tier that the TLA+ liveness model does not
+  have — re-verification surface spent on the case the deployment contract
+  forbids anyway.
+* Structural NORMAL subordination (wait on a HIGHEST stamp) has the same trap:
+  NORMAL's ~8 k commits above are exactly the gap-sneaking that a stamp wait
+  would forbid. NORMAL's *bound* never depended on beating HIGHEST — it is the
+  wait budget; its *completion* depends on HIGHEST's duty cycle either way, and
+  100 % duty is synthetic (real acquisition loops block in device waits).
+
+**One consequence for the doctrine.** The "no two HIGHEST on one linkage"
+deployment invariant is hereby *downgraded*: it is not a liveness precondition
+(no starvation, no livelock — measured), it is a **throughput contract** (3x).
+HIGHEST between spinners is lock-free, not wait-free; its per-thread bound is
+statistical (geometric tail, p99.99 in the 10^2 µs range) — which is also its
+exact status against NORMAL churn even *with* the invariant, since a NORMAL
+commit invalidates a HIGHEST snapshot all the same. The invariant buys
+throughput and tightens the tail; it does not buy the liveness it was earlier
+assumed to carry. A debug-time detector for two HIGHEST negotiating one linkage
+is accordingly a *performance*-bug detector, and still worth having.
+
+### Does a privileged NORMAL yield to a HIGHEST tag? — the interaction matrix
+
+Asked (user) as the natural follow-up to the verdict above. The letter-answer is
+**no — and at the time it could not**: the stamp then carried exactly one
+priority bit (`STAMP_LOWPRIO_MASK`, set for the three revocable levels, sealed
+entirely under `KAME_STM_COMPACT_STATE`), so a HIGHEST tag was bit-identical to
+a NORMAL tag and nothing on the linkage could key on "the contender is
+HIGHEST".  *(Superseded 2026-08-11: that bit is now the low half of a 2-bit
+PRIO field — see "The mechanism is a stamp field" below — so a tag does
+identify its class.  The four-layer answer that follows stands on its own and
+did not depend on the limitation.)*  But the intent
+behind the question — *can NORMAL privilege delay an acquisition thread?* — is
+answered by construction, in four layers:
+
+1. **Privilege never blocks HIGHEST.** `fair_mode_blocks_me` is consulted below
+   the round-loop-top HIGHEST breakout. A privileged NORMAL vs a HIGHEST is two
+   non-sleeping CAS racers — the same benign alternation measured in the
+   two-spinner run (p99.99 = 57–98 µs). The privilege does not need to be
+   yielded because it was never in HIGHEST's way.
+2. **A NORMAL's privilege actually helps the HIGHEST.** It blocks the *other*
+   NORMAL/lowprio contenders via fair-mode, reducing the HIGHEST's opposition to
+   one thread and lowering `sig_C` churn.
+3. **Age arbitrates the stamp slot, not priority** — the symmetric preempt
+   window (user-designed, `KAME_STM_PREEMPT_WINDOW_US` = 100 µs): an *older*
+   HIGHEST's tag respects a younger privilege holder's burst window, then
+   preempts the Reserved stamp; the holder's preempt-recovery clears
+   `m_registered_privileged` — privilege revoked by age, the TLA+ older-wins
+   axis. A *younger* HIGHEST leaves the slot alone and just keeps racing.
+4. **The structural subordination exists — dormant, probe-gated.** HIGHEST is
+   not excluded from the livelock probe or the claim path (its age floor is
+   `KAME_STM_PRIV_AGE_NORMAL_US`, same as NORMAL). A HIGHEST that genuinely
+   stalled would claim Reserved, and `fair_mode_blocks_me` is priority-blind
+   (TID compare; non-lowprio stamps never expire), so every NORMAL would then
+   yield to it structurally. Measured grants = 0.000 means this ladder has
+   never been needed, not that it is missing.
+
+Making the privileged NORMAL *actively* step aside on a HIGHEST tag would
+require adding a HIGHEST bit to the stamp (five consumers plus the
+COMPACT_STATE seal to re-verify) in order to void the privilege exactly when
+the probe had just certified its holder as stalling — re-creating the
+starvation privilege exists to cure, to speed up a race the HIGHEST is not
+delayed by in the first place.
+
+### "If LOWPRIO is unused, make it the HIGHEST bit"? — it is not spare
+
+Proposed (user) against the section above. The premise does not hold: in the
+deployed (64-bit) build the lowprio bit is load-bearing for two shipped
+mechanisms —
+
+* **The 51 ms privilege revocation.** `stamp_is_expired_lowprio` keys on it,
+  with three consumers that must agree (`fair_mode_blocks_me`,
+  `try_register_privileged_tidstamp`, `i_am_privileged_now`). Remove it and a
+  stuck SCRIPTING / UI_DEFERRABLE / LOWEST holder leaves what the code's own
+  comment calls "a frozen Linkage nobody can overwrite" — the failure whose
+  terminal form is the HANG-watchdog abort, and the property that made those
+  priorities "revocable" in the first place.
+* **The starvation bound's gate.** `throw_if_starved_` reads
+  `stamp_is_lowprio(shot.m_started_time)` off the transaction's own stamp —
+  chosen deliberately over TLS so the check costs nothing on the fast path and
+  reflects the priority the operation *started* at. The revocation and the
+  timeout are two halves of one design: privilege can be taken away, therefore
+  there is a way to fail.
+
+The bit is "unused" only under `KAME_STM_COMPACT_STATE` — and that mode exists
+for 32-bit no-DCAS hosts where the stamp is `[us:24|tid:8]` in an `int32_t`:
+no priority bit of any kind fits there, HIGHEST included.
+
+Nor is there a spare bit to add instead: the 64-bit stamp is exactly full,
+`45 (µs) + 1 (lowprio) + 2 (kind) + 16 (tid) = 64`, and all four kind values
+are taken — `Reserved` (= 3) *was* the spare, already reclaimed for per-Linkage
+privilege. Sharing the lowprio bit ("set = not NORMAL") corrupts both
+consumers: HIGHEST privilege would expire at 51 ms and, worse,
+`throw_if_starved_` would throw on HIGHEST — the one tier that must never get a
+starvation timeout.
+
+If a justified consumer ever materialises, the honest door is stealing one µs
+bit (45 → 44 still wraps at ~200 days, modular comparisons safe far below
+half-range). Today there is no such consumer: the only proposed use — NORMAL
+yielding structurally to HIGHEST — was measured and rejected above, and the
+two-HIGHEST *detector* does not need a stamp bit either. `Linkage`'s
+`PriorityState` is `{tid, lease_us, start_us}` — despite the accessor's name
+(`loadPriority`) it records no `Priority` — so the detector's natural shape is
+a debug-only (`#ifndef NDEBUG`) per-Linkage field written by HIGHEST
+contenders, costing the release layout nothing.
+
+## Rule 0: HIGHEST strips a stuck foreign privilege — the bundle-protocol hole
+
+The interaction matrix above said a privileged NORMAL was never in HIGHEST's
+way. Objected to (user), correctly: that conclusion came from the *leaf-
+symmetric* measurement. In the **bundle protocol** the pair is asymmetric — a
+wide-scope HIGHEST must re-bundle O(N) on every disturbance while the holder
+redoes O(1) — and it is the one pairing with **no yielding mechanism at all**:
+HIGHEST never consults fair-mode (round-loop breakout), the holder never sleeps
+(that is what privilege means), its privilege ends only with its own commit,
+and the tag rules 1–4 key on age, so a *younger* HIGHEST never preempts. In the
+no-winner pathology (mutual bundle/unbundle invalidation, the hard-link
+CAS-never-succeeds shape) nothing breaks the tie. The remedy (user): HIGHEST
+forcibly strips the privilege and tags itself — **which requires knowing the
+holder is not HIGHEST**, since stripping a fellow HIGHEST's probe-gated
+escalation would invite strip wars inside the RT tier. One turn earlier this
+file said the HIGHEST bit had "no justified consumer"; this is the consumer.
+
+### The mechanism is a stamp field (was a side word)
+
+**Now (2026-08-11).** The stamp's single `lowprio` bit was widened into a
+2-bit **PRIO field** by taking one bit from the µs range (`STAMP_US_BITS`
+45 → 44, halving the wrap window from ~1.1 yr to ~0.56 yr against a longest
+real diff of `KAME_STM_LOWPRIO_STARVE_MS` = 10 s):
+
+    [ us:44 | prio:2 | kind:2 | tid:16 ]
+    bit 44 STAMP_HIGHEST_MASK   bit 45 STAMP_LOWPRIO_MASK
+    00 = NORMAL   01 = HIGHEST   10 = LOW   11 = never
+
+NORMAL is the all-zero encoding on purpose: a zero word means "empty slot"
+throughout `transaction.h`, so a torn or zeroed read degrades to the ordinary
+tier and can never claim HIGHEST. LOW keeps bit 45, so `STAMP_LOWPRIO_MASK` is
+numerically unchanged and every expiry / starvation path stays bit-identical;
+`kind` and `tid` do not move either. Every tag is therefore self-describing,
+and Rule 0 / 0c / 0d each reduce to one test on the word they already loaded.
+
+Measured against the side word it replaced, 6 interleaved 20 s pairs at 16
+leaves: acq +0.9 %, NORMAL +1.4 %, UI +1.3 %, SCRIPTING null, p99 unchanged —
+each within its own spread, consistent in direction across all four.
+`sizeof(Linkage)` 48 → 40 bytes. The point is not the percent; it is the three
+things deleted below.
+
+**Before.** `Linkage::m_priv_owner_prio`, `[15:0] = holder tid, bit 16 =
+claimed at HIGHEST`, adopted because the stamp layout was full and the lowprio
+bit load-bearing. Its race analysis, which answered "tid を CAS してから prio
+を CAS? race ある?", was sound and is preserved here because it is what the
+field change made unnecessary:
+
+* Two separate atomics would race — a reader could pair A's tid with B's
+  priority. **One packed word removes the pairing race, and no CAS is needed
+  at all**: only the thread whose own plain stamp occupies the slot may
+  upgrade it to Reserved, so writers are already serialized by slot ownership.
+* The claimant release-stores the word **before** its Reserved CAS. A reader
+  that acquire-loads the stamp and sees Reserved(A) therefore sees A's word.
+* The reader validates `tid(word) == tid(stamp)`; any mismatch — claim gap,
+  epoch change, global-privilege mode (which never writes the word) — reads as
+  "unknown: do not strip". Every residual race degrades toward not stripping;
+  none can strip a HIGHEST holder.
+
+Three things went with it: the release/release pre-publish ordering, the
+acquire load on all three read paths, and the tid-validation fallback — which
+existed only because a word and the tag it described could disagree, and which
+showed up in the RT-host numbers as the 2.3-4.9 residual `no_tags` ticks per
+slow commit that Rule 0c could not remove.
+
+Whether deleting the word deletes them is **unresolved**, and the way it
+failed to resolve is worth more than the answer would have been.
+
+RT host, 5 × 300 s each side, interleaved, default 4 leaves (side word =
+`e4db5f455`, PRIO field + lease gate = `bf213a168`):
+
+| | side word | PRIO field |
+|---|---|---|
+| `no_tags` / slow commit (weighted) | **4.60** | **0.81** |
+| per run | 5.33 / 3.60 / 6.17 / – / 3.50 | 0.25 / 2.20 / 0.00 / 0.17 / – |
+| acq /s (median) | 120,199 | **124,004** (+3.2 %, disjoint) |
+| p99 | 1,024 ns (5/5) | **896 ns** (5/5) |
+| MAX, worst of 5 | 36,989 ns | 28,088 ns |
+| slow (≥ 15 µs), total | 20 | 16 |
+
+That was published as confirmation. The very next A/B on the same host — Rule
+0d, whose OFF arm is the *same binary* as the PRIO column above — put it at
+**4.33**, with the same within-session consistency (4.50 / 4.60 / – / 4.75 /
+3.50 across its runs, against 0.25 / 2.20 / 0.00 / 0.17 / – across the
+other's). One build, two sessions, a factor of 5.7 apart.
+
+The two sessions line up by **position**, not by binary — and a later
+order-balanced run confirmed the slot effect directly, in a third metric:
+running ABBA (OFF, ON, ON, OFF) × 3, the SAME binary reads `slow_n` 583.7 in
+slot 1 and 486.0 in slot 4, a monotonic 20 % decay across one rep of four
+60 s runs. **Interleave ABBA, never ABAB**, and read no single-slot A/B in
+this file without checking which arm ran first:
+
+| | ran first | ran second |
+|---|---|---|
+| session 1 (preprio, diag) | preprio 4.60 | diag 0.75 |
+| session 2 (diag, 0d) | diag 4.33 | 0d 1.00 |
+
+But the defect is narrower than "everything drifts with position", and the
+check that shows it is asking what ELSE the repeated binary reproduced. `diag`
+ran in both sessions, in opposite slots:
+
+| `diag`, same build | session 1 (2nd) | session 2 (1st) | |
+|---|---|---|---|
+| acq /s, median | 124,004 | 124,382 | 0.3 % apart |
+| MAX, median | 17,550 ns | 19,009 ns | 8 % apart |
+| MAX, sorted | 14647 16657 17550 20240 28088 | 14913 16637 19009 22303 24904 | interleave |
+| `no_tags` | 0.75 | 4.33 | **5.7 ×** |
+
+Throughput and the tail reproduce across the slot swap; `no_tags` does not.
+So this is not an environmental shift between sessions and not a general
+order effect — it is `no_tags` specifically, and the reason is almost
+certainly that it is an average over the run's *slow commits*, of which there
+are 0–6 per 300 s at `KAME_MIX_SLOW_NS=15000`: 14–20 events per arm, and
+they arrive in episodes rather than independently, so four runs are not four
+observations.
+
+**`no_tags` is not a usable A/B metric**, and lowering the threshold does not
+rescue it — that was the obvious fix and it is wrong. Tried: four 60 s runs of
+one binary at `KAME_MIX_SLOW_NS=7000` give 460–541 events each (vs 0–6 at
+15,000) and `no_tags` = 0.00 in all four. Not stability: **MAX in those runs
+was 12.9–14.0 µs, so no commit reached 15 µs at all.** The threshold does not
+add samples of the same population, it selects a different and benign one.
+The ≥ 15 µs residue stays at a handful per 300 s, so ~100 events costs hours
+per arm. Retire the metric rather than pay that.
+
+**Use `slow_n` instead** — the COUNT of commits over a chosen threshold. At
+≥ 7 µs it reads 460 / 468 / 521 / 541 across those four runs: ±8 % on a
+high-count statistic, so four runs resolve a ~10–15 % change in the tail
+population. It is also the quantity the budget contract is about ("how many
+commits missed the deadline"), where `no_tags` was a probe internal. MAX stays
+as the headline but is an extreme value and moves with run length — the same
+binary reads 12.9–14.0 µs over 60 s and 14.9–24.9 µs over 300 s, which is
+sampling, not a change.
+
+**And the tail columns from the confounded sessions survive**, since the
+binary that ran in both slots gave the same MAX distribution in each; an
+order-balanced design (ABBA per rep) is still the right hygiene, but it is not
+what stands between us and the MAX numbers.
+
+Two further cautions the same measurement cost. **The leaf count decides
+whether the phenomenon exists at all**: at `KAME_MIX_LEAVES=16` the residue is
+0.08–0.32 on BOTH sides, so an A/B there is null for want of the phenomenon,
+not for want of an effect. The published rows and the 2.3-4.9 figure are the
+default 4 leaves (= the "5-node commit"). **And `bf213a168` bundles the lease
+gate with the PRIO field**, so any result here attributes to the pair.
+
+### Stripping on sight measured NET NEGATIVE — the patience gate
+
+The first implementation stripped on first encounter. Interleaved A/B (grand,
+`-t 8 -P 1`, 5 reps): aggregate 2.37 → 2.26 Mcommit/s (−4.6 %), HIGHEST p99.9
+1.5 → 2.6 µs, **no** tail win, 183 k strips per 4 s. The reason was already
+written in the interaction matrix and I failed to apply it: *a NORMAL's
+privilege helps the HIGHEST* — while held, fair-mode silences every other
+NORMAL, thinning the HIGHEST's opposition to one thread. Stripping on sight
+destroyed exactly that thinning and returned the pack to churn. And the common
+case needs no strip at all: privilege is per-transaction, ends at its commit —
+a healthy holder holds for microseconds; base HIGHEST p99.99 was already
+7–12 µs.
+
+So Rule 0 is **patience-gated**: a HIGHEST strips only a holder it has been
+stuck behind — same Reserved episode, tracked per-transaction — for
+`KAME_STM_PREEMPT_WINDOW_US` (100 µs, the constant the burst window already
+uses). Re-measured: parity with base on every metric (p99.9, p99.99, MAX,
+aggregate, `-P 0`, `-t 2 -P 2`), and **zero strips in every benchmark run** —
+the healthy holder is never touched, and 100 µs bounds HIGHEST's exposure to
+the pathological one.
+
+### Proving both halves
+
+Zero strips proves the zero-cost half only. The insurance half cannot be
+manufactured through the public API (claims are probe-gated), so
+`transaction_priv_strip_test` — built with `-fno-access-control`, deliberately
+white-box — plants a synthetic foreign Reserved stamp plus side word on the
+Linkage and pins all four arms: stuck non-HIGHEST holder → stripped after the
+window; holder marked HIGHEST → untouched; side-word tid mismatch → untouched
+(unknown is conservative); patience not elapsed → untouched. 13/13 ctest.
+
+Also fixed while here: `g_priv_strips` (always-on relaxed counter) so a plain
+build can verify the mechanism fired; the latency bench prints it with `-P/-L`.
+
+### NORMAL-only workloads: unchanged in principle, and what "in principle" means
+
+Asked (user). The *decision logic* is structurally unreachable without a
+HIGHEST thread: Rule 0 is gated on `getCurrentPriorityMode() == HIGHEST`, so in
+a NORMAL-only process no strip, no counter bump and no side-word read can
+occur, and rules 1–4 / fair-mode / claim / expiry execute exactly the old
+instructions. What is *not* zero is the executed-instruction delta, and each
+item is incapable of changing a branch outcome:
+
+* two zero-initialisations (+16 B) per Snapshot construction — the patience
+  memory, read only inside the HIGHEST-gated block;
+* one release-store per tagged linkage at privilege claim — **NORMAL claimants
+  write the side word too**, deliberately: the word must already be correct at
+  the instant a HIGHEST first appears, which is what makes the tid validation
+  sound (a write-when-HIGHEST-appears scheme would race against exactly the
+  reader it serves);
+* one TLS read + store when a privileged transaction extends Reserved to a new
+  linkage, and one TLS read when any tagger meets a Reserved stamp (the
+  short-circuited right operand of `_cur_is_priv && ...`);
+* +4 B (8 B with padding) per Linkage.
+
+Under `KAME_STM_COMPACT_STATE`, `is_priv_stamp` is constant-false and Rule 0 is
+dead-code-eliminated entirely. Empirical cross-check of precisely this
+question: the `-P 0` interleaved A/B (parity) and 13/13 ctest.
+
+### Rule 0 and `ScopedDemoteRealtime`: the demotion's justification, corrected
+
+Asked (user): with Rule 0, does KAME's HIGHEST still need the demotion to
+NORMAL after the record? My first answer defended it with the 3× aggregate and
+the 8 → 163–327 µs tail from the `-P 2` runs. **Rejected (user), correctly: the
+3× has no basis here.** Those are 100 %-duty synthetic-spin numbers; a real
+deployment's collision probability scales with duty (µs commits × kHz rates ≈
+10⁻²–10⁻³) and each collision costs one peer-TX length. The numbers do not
+transfer, and quoting them as the demotion's justification was wrong.
+
+The correct principle (user): **if it is clear a HIGHEST TX contains no
+msecsleep, no lock and the like, it cannot starve anything and cannot be
+starved.** Optimistic STM holds nothing during a transaction — a clean TX is
+visible to others only as a CAS loss at its commit instant, so the loser's
+delay is bounded by the peer's TX length, at any priority. The two-spinner
+measurement (balanced alternation) was this principle observed, not a
+surprising discovery.
+
+What the demotion's justification then reduces to: **making the antecedent
+constructively true for code the driver author cannot vouch for.** Split by
+tier:
+
+* C++ listeners: the antecedent is machine-checkable — rule-5 static audit,
+  `gWarnIfInTransaction` on interface locks, the msecsleep detector, the
+  foreign-lock guard. "明確" is achievable.
+* Python-involved paths: the GIL is a lock structurally inside the TX, so the
+  antecedent cannot hold — **but the demotion does not guard that boundary
+  anyway**: math-tool functors run inside `analyzeRaw`, upstream of the
+  demote, at HIGHEST today. And a GIL-holding TX at HIGHEST never sleeps in
+  negotiation, so the rule-4 deadlock shape (GIL holder blocking in
+  negotiation) becomes less reachable, not more.
+
+Rule 0's role is unchanged by this correction: it caps the demoted-NORMAL
+(or any privileged-NORMAL) holder at 100 µs in the no-winner pathology, and
+is indifferent to whether kame demotes.
+
+So the demotion is **not load-bearing for starvation-freedom**; it is a
+policy choice about whether unvouched code runs in the RT tier. Whether to
+keep it, drop it, or turn it into a per-driver vouch is the deployment's
+call, not a correctness requirement.
+
+**Decision (user): status quo — the demotion stays.** The deciding fact is
+Python: the downstream can reach it (secondary drivers invoking a Python
+driver's analysis, `onVisualization` callbacks, math-tool functors), and the
+GIL is a lock structurally inside those transactions, so the clean-TX
+antecedent cannot be made true for the downstream *as a class* — no audit or
+detector can vouch it. Code that can reach the GIL does not run in the RT
+tier; that is now the demotion's one justification on record, replacing both
+withdrawn ones. No per-driver vouch virtual either — same reason, a driver
+author cannot vouch what their listeners' listeners do.
+
+Known residual, accepted as-is: `analyzeRaw`'s math-tool functors take the GIL
+at HIGHEST *upstream* of the demote, inside the record commit. That is the
+driver author's own vouched zone — the caller-side-time-management contract —
+and unchanged by this decision.
+
+## Field-livelock triage: why "no starvation timeout" is itself a clue
+
+Field report: rare livelock when operating the UI during an NMR measurement,
+HIGHEST-ification suspected. Asked (user): why did the UI's starvation timeout
+not fire? Verified in code first: **both sides of the bound are armed** — the
+plain-Snapshot constructor stamps `m_started_time` with the lowprio bit
+(transaction.h:1554) and `Node::snapshot()`'s retry loop bumps
+`m_tx_retry_count` and calls `throw_if_starved_` per retry, alongside the
+Transaction-side check in `operator++`; and the `XInterface::start()/stop()`
+plain `setCurrentPriorityMode(NORMAL)` calls run on their own freshly spawned
+XThread, so the main thread's UI_DEFERRABLE (and with it the lowprio stamp
+bit) is not clobbered. So on current code a UI transaction or snapshot loop
+that starves ≥1 s at ≥8 retries throws XKameError into KAME's existing catch
+boundaries.
+
+A hang with *no* timeout therefore means one of exactly three things:
+
+1. the running binary predates the bound or the main.cpp handler (commits are
+   from the same arc but not the same push);
+2. the stuck point is not an STM retry loop at all — the mutex/GIL class
+   (graph OSO mutexes, `kame_mainthread` handshake against a stuck Python
+   thread, interface mutex from a rule-6 listener). The bound sees only STM
+   retries, and the HANG watchdog needs a single negotiate call to sleep 5 s,
+   which spin-retry loops never do. **A silent hang points at non-STM
+   blocking**;
+3. it fired and a boundary swallowed it into a retry loop — then the message
+   log shows the XKameError once per second.
+
+Triage recipe for the next occurrence: `sample kame 5 -file /tmp/hang.txt` —
+`_negotiate_internal`/CV frames = STM negotiation, hot `iterate_commit`/
+`bundle` frames = CAS livelock, `psynch_mutexwait` = mutex deadlock,
+`PyEval_*` = GIL; plus check the message log for the starvation XKameError
+and record the build's commit.
+
+The hunt tool (`transaction_priority_mixed_test`) has so far NOT reproduced
+any stall: 120 s flat-out with both lowprio threads, and 300 s with every UI
+action a root-scope Tx plus four NORMAL drivers, on the field-equivalent
+build (pushed tip, no Rule 0) — all PASSED on this M-series host. The
+remaining modelled-vs-field gaps: tree size (a real root bundle is ms-scale,
+the test's 16-node one is µs — `KAME_MIX_LEAVES` added for this), and
+everything the standalone harness cannot host (Qt event loop, GIL, interface
+mutexes) — which is exactly the class that a missing timeout points at.
+
+## The T1Mode field abort: the user's diagnosis was right twice
+
+Crash report analysed (SIGABRT, thread 23, `_negotiate_internal` → `abort()` =
+the HANG watchdog; every other STM thread asleep in `negotiate_sleep`; main
+thread mid-`XNodeBrowser::process()` building connectors). My first two
+readings — "seconds-long FFT inside the Tx" (refuted by the user: the stack
+only proves where the thread was at the snapshot instant), then "retry storm ×
+never-expiring NORMAL privilege" — each contributed a hardening but missed the
+trigger. The user's questions found it: *did the UI timeout cause this?* and
+*why would RAII not run the destructor?*
+
+**The ghost-stamp leak.** `throw_if_starved_` sits inside `Node::snapshot()`'s
+retry loop, which runs during `Snapshot`/`Transaction` **construction**. A
+throw there means the object never began its lifetime: unwinding destroys the
+fully-constructed members (`~vector` frees the list of linkage pointers), but
+the *stamps those linkages carry* are external side effects whose release
+exists only in `~Transaction()`'s body and at the constructor's tail — both
+unreachable. The orphaned stamp ages forever, is always the oldest contender,
+is never preempted (older-wins) and never cleared (only its owner clears it;
+`tags_successful_cas` writes the lease word, not the stamp slot) — and the
+negotiation protocol lets contenders CV-sleep waiting for an older peer to
+finish. Everyone on that linkage waits for a ghost until the watchdog kills
+the process. This explains 以前は起こらなかった (the starvation check is new),
+the T1Mode reproducibility (it reliably drives the UI past the 1 s bound), and
+HIGHEST's irrelevance. Fixed by catch → `drop_tags_n_privilege()` → rethrow in
+the two constructors; `operator++` throws were always safe (complete object,
+destructor runs).
+
+**The engine, and why connectors must not throw at all.** The timeout's
+throw-and-restart cycle is *forever young* under older-wins arbitration — each
+restart discards the seniority that would have won — so a contended UI
+operation that used to be slow-but-completing became never-completing at
+maximal churn. Worse, `XQConnector`'s constructor pushes `shared_ptr(this)`
+onto `s_conCreating` before its STM work: a throw shifts the holder pairing
+(the next `XQConnectorHolder_` pops the dead entry — use-after-free) and then
+escapes into Qt's event dispatch, which does not support exceptions. So for
+connector construction the throw is not merely unhelpful, it is a crash of its
+own. kame now (a) suppresses the starvation throw for the duration of
+`xqcon_create` (`XQConnector_StarvationExempt`, consulted by main.cpp's
+handler — construction retries with accumulated seniority, the pre-timeout
+behaviour), and (b) gives `XNodeBrowser::process()` a catch-and-back-off (10
+ticks) so any remaining XKameError from its snapshots reports once instead of
+retrying at timer cadence or reaching Qt.
+
+The privilege-expiry change earlier in this arc stays as defence in depth:
+`stamp_is_expired_priv` bounds ANY Reserved holder (NORMAL included, ~51 ms;
+side-word-confirmed HIGHEST exempt) so no future not-winning holder can pin
+peers into the watchdog. `transaction_priv_expiry_test` pins the predicate
+matrix on both agreeing consumers (it FAILED before the fix — aged NORMAL
+blocked forever); `transaction_priv_pin_test` keeps the field shape
+(budget-expired spinner + fresh-commit burst + third-party NORMAL) as a
+behavioural regression net.
+
+## Corrections and decisions after the T1Mode fix landed
+
+**The NORMAL-privilege expiry is reverted (user ruling: 「privilege expiryは
+NORMAL/HIGHESTに適用してはダメだ」).** My `stamp_is_expired_priv` — shipped as
+"defence in depth" — changed the meaning of the tier table: NORMAL's
+never-expiring privilege *is* the completion guarantee. The revocable tiers
+have the starvation timeout as their exit; NORMAL has no exit **by design**,
+so its shield must outlast any wall clock, and the TLA+ liveness argument
+assumes privilege persists until its holder finishes. The field abort's
+blocker was an OWNERLESS stamp — a leak, not a live holder — and leaks are
+fixed at the source (ctor exception safety), not by taxing live holders.
+"NORMAL priv never expires was falsified" in e5b27bf4e's message was wrong:
+what was falsified was only the assumption that a Reserved stamp always has an
+owner. `transaction_priv_expiry_test` now pins the restored tier rule (aged
+NORMAL **still shields**) and would catch the rejected design as a regression;
+`transaction_priv_pin_test`'s stall bound moved 5 s → 12 s, since a live
+NORMAL holder may legitimately shield for multi-second stretches — only the
+ghost-class (watchdog-class) pin is a failure.
+
+**The starvation bound is 10 s now (user: 「１０秒程度にして、ユーザーがデータ
+保存する機会を与える」).** The throw lands in constructors and Qt-adjacent
+paths that cannot all be made exception-safe, so firing must be rare; the
+bound's role shifts from responsiveness to a **last exit before the 3 × 5 s
+HANG watchdog aborts the process** — the UI thread unfreezes with an error
+telling the user to save, instead of the app dying with the data. Transient
+1–2 s stalls now resolve by seniority (older-wins) rather than by a throw
+that restarts the transaction forever-young.
+
+**The timeout-retry-loop audit (user: 「タイムアウトでリトライループに陥る
+ところがないかのチェックが必要だ」).** Where a thrown XKameError lands, and
+whether anything auto-retries:
+
+| path | state |
+|---|---|
+| main-thread listeners (`SignalBuffer::synchronize__`) | already caught, event consumed — no retry loop |
+| connector value slots (`xnodeconnector.cpp`, 7 sites) | already caught per-slot, red text, human-paced retry only |
+| connector construction (`xqcon_create`) | exempted from the throw entirely (UAF + Qt-dispatch hazard) |
+| `XNodeBrowser::process` (QTimer) | caught + 10-tick backoff (was the retry engine) |
+| driver threads (`execute_internal`) | caught → thread exits; no loop |
+| Ruby (`evalProtect`) / Python (`mainthread_callback`, pybind) | caught / marshalled to script exceptions |
+| graph dump XThread (`graphntoolbox`, UI_DEFERRABLE) | **was uncaught → terminate; now caught, dump lost with a message** |
+| paint handlers, menus, stray timers | **now backstopped by `KameApplication::notify`** — a last-resort catch at the Qt event boundary, since Qt does not support exceptions crossing dispatch |
+
+No auto-retry-on-timeout loop remains; every landing site either consumes the
+failure or backs off.
+
+## The 2026-07-31 freeze investigation: what the lab settled and what it could not
+
+Field: with PNR on, MCP traffic at 30–47 writes/s and idle pollers, a
+privilege-holding transaction on the acquisition thread pins every negotiator
+for 33+ s; one episode self-recovered at 11 s with NO starvation message.
+A parallel assistant session attributed it to "one 35 s PNR call"; measured
+here (solver extracted standalone, M4, -O2, IC early-stop active):
+
+    n=16k: 11 ms   n=32k: 19 ms   n=128k: 99 ms   n=1M: 1.2 s
+    n=4M: 5.1 s    n=16M: 22.5 s  n=64M: 108 s
+
+The wave was ~30 k points → ~19 ms/call: a single 35 s call is off by three
+orders (it would need a ≥30 M-point wave; a briefly reported "50 M" retracted
+to "30 k" flipped the verdict twice — first-hand parameters before theories).
+The loop caps the user remembered are real: 32 IC-gated outer iterations,
+10 inner.
+
+Harness reproduction with the exact field parameters (22 ms closure,
+40 writes/s, 3 idle pollers, 30/s root snapshots, up to 384 nodes):
+
+  * a fresh writer INSIDE the analyze scope is throttled from 40/s to ~4/s —
+    fresh commits on a bundled subtree DO negotiate (unbundle path) and DO
+    respect privilege.  The "fresh ops bypass fair-mode" asymmetry applies
+    only to paths that never need an unbundle;
+  * the field COUPLING is the shared entries list: when the analyze
+    transaction also writes its scalar entry (root-scope commit spanning its
+    subtree + the shared list), victims degrade ×50 (max gap 9 ms → 459 ms)
+    and the MCP-like writer is throttled to ~15 %, while the analyze itself
+    stays healthy (1.1 closure runs per commit);
+  * but 33 s was NOT reached at any size tried — the quantitative pin needs
+    an ingredient outside the pure-STM harness (interface mutexes interleaved
+    with negotiation, the real listener topology, main-thread event-loop
+    granularity...).  Decisive artifact: the field is reproducible on demand
+    now, so `sample kame 5` DURING the pin (not the post-mortem .ips) will
+    name the holder and its blockage directly.
+
+Also explained from code: 33 s of pinning without the HANG abort is expected —
+`_hang_hits` is local to one `_negotiate_internal` call, so only a thread that
+sits in ONE call for 3 x 5 s caps aborts; threads cycling in and out of
+negotiation can be pinned indefinitely without tripping it.  And the 11 s
+recovery without a starvation message means the bound did not fire there
+(lucky gap instead); MIN_RETRIES=8 with 5 s sleep caps can defer the bound
+past any realistic freeze — the proposed MIN_RETRIES=2 remains open, as does
+the release-default KAME_STM_HANG_ABORT_N=0 (the 11 s self-recovery was 4 s
+short of today's abort).
+
+## The verdict: KAME retires STM-HIGHEST (user, 2026-07-31)
+
+The arc's measurements reached their terminus. Each tier contract is sound in
+isolation — HIGHEST never waits; NORMAL privilege never expires (completion
+guarantee); revocable tiers time out — but their **meeting point** is a
+structural hole:
+
+    HIGHEST's fair-mode immunity is its defining contract,
+    so it is the ONE contender privilege cannot stop.
+    When closure_time x HIGHEST_rate >= 1 on a shared linkage,
+    the privilege holder resonates into quasi-starvation
+    while its privilege pins every other negotiator.
+
+Lab (field parameters, 22 ms closure, shared entries list): adding a 50 /s
+HIGHEST commit stream took the analysis transaction from 1.1 to **15.5
+closure re-runs per commit** (Rule 0 acquitted: 1 strip per 30 s).  Field:
+"PNR ON alone hangs it, OFF recovers" — the ON action itself starts a ~20 ms
+closure racing the record stream; every freeze, recovery and abort of
+2026-07-30/31 fits this one mechanism.  No bounded arbitration can bridge it:
+letting HIGHEST wait for the holder breaks HIGHEST's bound; expiring the
+holder breaks NORMAL's completion guarantee (both already ruled out).
+
+So `AcquisitionPriority` now grants only the **OS-level** elevation (CPU
+preference is a thread property with no fair-mode immunity), and the STM tier
+of the acquisition loop is NORMAL again.  What stays, and why:
+
+* the kamestm HIGHEST tier, Rule 0, the side word, the priority tests — the
+  machinery is correct for hosts honouring the deployment precondition
+  `HIGHEST_rate x longest_peer_closure << 1`; KAME with per-record analyses
+  cannot;
+* `ScopedDemoteRealtime` sites — armed only at HIGHEST, now no-ops that
+  document intent and re-arm if a future deployment restores the tier;
+* the 20 ms downstream budget, the starvation bound (10 s), the exemptions
+  and nets — all priority-independent;
+* the OS-priority split (thread property vs transaction property), which this
+  verdict retroactively justifies: the two were never the same thing.
+
+With fair-mode effective against ALL contenders again, the long-closure
+holder completes promptly (lab: 1.1 re-runs), freezes end in well under a
+second, and the watchdog/starvation-bound tuning questions lose their
+urgency (defaults left as shipped).
+
+## The budget was the second immunity — the wait behind privilege is now exempt
+
+With STM-HIGHEST retired, the field still froze under PNR (user: 「PNRだとまだ
+ダメです。budgetのせい？」).  Correct: the wait budget's expiry escape was
+deliberately not gated on fair-mode ("returning is not barging — the caller's
+CAS loses to a committing holder like any other"), a rationale that assumed
+µs holders.  A 20 ms-closure privilege holder breaks it: every primary
+driver's record path carries the 20 ms budget, so any driver fair-blocked
+longer than that became a **fair-mode-immune spinner — the exact disease that
+retired HIGHEST the same day**, re-invalidating the holder each closure while
+honest negotiators pinned behind its privilege.
+
+Field-parameter A/B in the harness (no HIGHEST anywhere):
+
+                        analyze re-runs   HANG dumps   longest pin
+    budgets on (KAME)        2.3             372         12.5+ s   ← the field freeze
+    budgets off              1.1               0         none
+    budgets on + fix         2.2               0         none
+
+The fix: the loop-top and tail budget escapes are gated on
+`fair_mode_blocks_me`, and the budget's sleep clamps are suspended for the
+round while fair-blocked (else the expired thread busy-spins through
+zero-length waits instead of waiting).  The principle, now stated once for
+both incidents: **privilege is the completion guarantee, and nothing may be
+immune to it** — not a priority tier, not a budget.  The budget still bounds
+every other wait (the fixed arm's writers pass 425 vs 83 unbudgeted), and
+expired-lowprio stamps still unblock, so a dead holder cannot pin a budgeted
+thread.  A record can now be late by one holder's closure; it is never lost,
+and the system never freezes for it.
+
+## The watchdog reports; it no longer kills (release)
+
+`KAME_STM_HANG_ABORT_N` release default 3 → 0 (user, after the arc's root
+causes landed).  The abort was tuned for true deadlocks and instead executed
+recoverable states twice in the field: an 11 s self-recovery had a 4 s margin
+on it, and a live holder grinding 33+ s — contract-legitimate waiting — took
+the unsaved measurement with it.  With ghosts structurally prevented and both
+fair-mode immunities gone, the remaining >15 s waits are live-holder waits;
+the [HANG] dumps keep naming the blocker, the starvation bound frees the UI
+tiers, and a genuine deadlock is the operator's call after saving.  Debug
+builds keep 3 — there the core dump is the point.
+
+Residual corner, closed the same day: with no abort, a lowprio thread already
+sunk in 5 s sleep caps accrues retries at ≥5 s each, so with MIN_RETRIES=8 the
+starvation exit could lag to ~40 s — masked before only because the watchdog
+killed the process at 15 s first.  MIN_RETRIES is now 2 (user): the age
+condition (10 s) is the real clock, and two retries merely certify genuine
+contention, so the exit opens at ~bound + one sleep.
+
+## Constructor exception-safety audit of the base machinery
+
+Asked (user) once the starvation throw had been introduced into paths that
+run during construction: is the foundational layer — `create<>`, connector
+constructors — exception-tolerant?  Audited end to end; two real defects, both
+latent before the throw existed and both reachable after it:
+
+* **`Node<XN>::create<T>()` armed a thread-local Payload creator** that the
+  `Node()` base constructor consumes and clears.  A throw between the arming
+  and that base — a derived member's initialiser, an argument expression —
+  left the slot armed.  A bare `new SomeNode` reaching `Node()` before the
+  next `create<>()` re-armed it would then be handed T's creator and build a
+  `PayloadWrapper<T>` for a different node type: a type-confused Payload, the
+  worst outcome available here.  Now scope-guarded (disarmed only after the
+  constructor returns).
+* **The `s_conCreating` / `s_statusPrinterCreating` hand-off is positional**:
+  the constructor pushes `shared_ptr(this)` and the holder pops the back.  A
+  constructor that throws after its push leaves its entry, and the NEXT
+  holder adopts the dead one — use after free.  `xqcon_create`'s starvation
+  exemption removes one source but not the class (any driver's connector
+  constructor can throw).  Both pops now verify identity against the object
+  they were handed and fail loudly instead of adopting a stranger.
+
+**Sweep for the same pattern (user: 「stl_creatingのようなものは他にはもうない？」)
+found the biggest one, and a defect in my own first fix.**
+`XNode::stl_thisCreating` is the same positional hand-off, one layer deeper
+and on the path of EVERY node — so every driver constructor, and node
+constructors run transactions by design (the documented child-init pattern),
+which is exactly where the starvation throw lands.  Worse, the failure mode
+here is not just mis-adoption: when `new T` unwinds it runs the base
+destructor and frees the memory, while the pushed `shared_ptr(this)` keeps a
+refcount — the entry is **dangling AND owning**.  Popping it double-frees;
+leaving it hands the next `createOrphan` freed memory.  My first connector fix
+had precisely that bug (it popped stale entries).  All three sites now
+neutralise stale entries by leaking the control block — refcount never reaches
+zero, so the deleter never runs on freed memory, a few dozen bytes on an error
+path against a double free — and `createOrphan` additionally verifies the pop
+by identity against the pointer `create<T>()` returned, cleaning up by
+construction depth so a child created inside a failing parent is handled too.
+
+Everything else with a thread-local or file-static slot was checked and is
+unrelated: `s_tlBuffer` / `stl_bufferGarbage` (per-thread scratch buffers),
+`stl_rand`, `g_daqmx_sync_routes` (a live registry, not a hand-off),
+`stl_starvationExemptDepth` (a counter).
+
+Verified sound without changes: `Node()` itself (clears the slot before
+using it, and its `make_local_shared` members unwind normally);
+`XDriverList::createByTypename` (the whole creation is inside
+`iterate_commit_if`, so a throw simply leaves the node uninserted — the STM
+rolls the tree back and the `Transaction` destructor drops the tags);
+`driverlistconnector`'s call site (already catches `runtime_error`,
+`pybind11::error_already_set` and `...`); the `.kam` Python loader (throws
+propagate through `kame_mainthread` to `loadKam`'s handler).
+
+## The +200 µs was the wake-up, not the exemption — refuted by instrumentation
+
+The record used to credit the fixed ~200 µs budget overshoot to the one wait
+the budget contractually exempts (behind a live privileged peer).
+Instrumenting the negotiator (NegDiag `rounds_exempt` / `late_max_ns`,
+branch rt-linux-handoff-verify, merged 2026-08-09) refuted that: exempt
+rounds are **zero across 17,274 slow commits** under every scheduling class,
+C-state setting and budget tried; the overshoot is one late `cell.wait()`
+wake-up (worst case: asked 198 µs, returned 696 µs later, 6 µs of STM work in
+the commit).  Decomposition of the wake-up: scheduling class 5.3×, PM-QoS 6×
+only on top of it — super-additive, which is why single-knob tests had
+called the residue irreducible.  Fix shipped in the same commit: budgeted
+sleeps stop `KAME_NEG_SPIN_TAIL_US` (300 µs) short of the deadline, the
+remainder polls.  MAX − budget 122 → 7.1 µs at 20 ms, 3.0 µs in the ship
+config (below the 17 µs host floor); unbudgeted paths byte-identical
+(interleaved A/B on M-series: −0.8 %, noise).  Open: the reserve is not yet
+capped to a fraction of the budget *span*, so budgets at or below 300 µs
+starve the deferrable tiers (measured −94 %/−98 % at 200 µs) — keep budgets
+well above the reserve until the span is plumbed through ScopedWaitBudget.
+The exemption itself remains contractual (fair-block still zeroes the
+budget); what changed is only the attribution of the measured constant.
+
+## HIGHEST-vs-HIGHEST older-wins now has teeth (2026-08-11, user)
+
+The Rule 0c audit surfaced that between two HIGHESTs the stamp comparison
+decided only tag slots: the loser kept firing CAS (never parks ⇒ never
+consulted fair mode), so privilege between HIGHESTs halted nobody — 「spinする
+のでなく、CASを撃ち続けるのは意図と違う。それなら時刻比較の意味がない」.
+Fixed at the round-loop HIGHEST break: the loser now defers to a live
+privileged HIGHEST peer on the SAME predicate a NORMAL loser sleeps on
+(fair_mode_blocks_me, gated on the blocker being HIGHEST-class), with the one
+tier-contract difference that the wait is an on-CPU spin, never a park.
+Plain HIGHEST tags do not spin-block (mirror: plain tags never sleep-block a
+NORMAL); foreign-tier privilege is unchanged (Rule 0 strips the stuck case).
+A spinner is invisible to the sleep-cap [HANG] dumps, so it emits its own
+report line every 5 s — report, never kill.  Exposure: a dead HIGHEST holder
+pins the spinner forever — the accepted never-expiring-privilege class.
+FAIL-first: transaction_highest_older_wins_test (4 arms) fails exactly its
+first arm against the pre-change library; priv_strip case B rewritten to the
+new contract (its inline fake-holder run would spin forever — caught by the
+user as a CPU-pinned hung ctest).
+
+## The tag-first reorder needs a StoreLoad fence, and GenMC prices every quadrant
+
+Memory-order audit of TagBeforeAcquire (user: 「タグCASのメモリオーダーは適切
+か?」).  The reorder's bound assumes the tag is visible before the view is
+read — StoreLoad, the one ordering release/acquire cannot buy, and the
+store-verify cannot either (own-location acquire loads are satisfied from the
+store buffer).  A first litmus asserted the wrong property (single-round
+check-then-CAS peers are SC-reachable and already charged to (T-1)K; GenMC
+refuted the assertion) — the genuine weak-memory hole is the double
+store-buffering pair: H's tag-store vs view-load AND the peer's commit-CAS vs
+its NEXT licence check.  Fix shipped: seq_cst fence on the _tag_first path
+(HIGHEST first-touch per Linkage only), which GenMC shows individually
+necessary.  The peer half is closed for free on x86 (locked RMW) and left
+open on ARMv8 (casal is not a full barrier) as a priced trade — fencing it
+means a dmb on every tier's commit; exposure is one +1-class licensed win per
+store-buffer drain.  tests/tlaplus/test_negotiate_reserve.c carries the
+provable (both-fenced, GenMC-clean, 3 executions) and as-implemented
+(expected-violation counterexample) variants; all four fence quadrants run,
+only both-fenced passes.  En route the no-DCAS audit gained a toolchain
+pre-probe: Apple clang's fake -m32 -march=i486 (really ARMv4T) now skips both
+phases instead of failing the STM probe on atomic.h's int_cas_max
+fallthrough — a failure no real i486 toolchain produces.
+
+## Open unexplained items, moved out of the README (2026-08-14, user)
+
+The README now carries reproduction (rt_measure.sh, ROW presets, the hand
+recipe) and results only; per the user, the revision-to-revision narrative
+lives here.  Standing unexplained items as of 348c26573, all quantized to
+one latency_hist bucket unless noted:
+
+* p50 stepped 768 → 896 ns in ALL tiers at the eager-tag revision —
+  including row 3, which runs no HIGHEST thread and cannot execute the new
+  code — and row 2's tails did not move, so a straight-line +128 ns is
+  excluded.  One bucket wide; cause not identified.
+* The earlier row-2 p50 448 → 768 ns step is likewise unexplained (a prior
+  attribution to the tagging was withdrawn once rows 2/3 were measured at
+  the same revision).
+* Row 3 p99.9 worst-of-three 1.05 → 2.10 ms: two of three runs read
+  1.31 ms (adjacent bucket to 1.05); the 2.10 ms is one excursion of a
+  0.1 % percentile sitting on the 0.054 % budget-clip shoulder — an
+  ill-conditioned statistic; p99.999 and MAX unchanged.  The 2026-08-14
+  Mac-side check (three order-balanced 9-rep rounds, plus a diagnostic arm
+  with the eager-tag TLS reads compiled out) found no reproducible
+  NORMAL-only throughput change: head-vs-pre medians −4.3 % / −4.5 % /
+  −1.1 % across rounds, within the box's inter-round drift, and the
+  TLS-removed arm was indistinguishable from head.
+
+## Correction: "the demote sites are now no-ops" was never true (2026-08-14)
+
+The retirement section above records that after `AcquisitionPriority` dropped to
+NORMAL, the `ScopedDemoteRealtime` sites became "no-ops that document intent and
+re-arm if a future deployment restores the tier". Asked (user) whether the demote
+machinery could therefore be deleted from KAME outright, since KAME cannot take
+HIGHEST for now. Checking before deleting found the premise wrong in both
+directions.
+
+**HIGHEST never left KAME.** The 2026-07-31 verdict changed the generic wrapper;
+it did not touch the five hand-rolled `setCurrentPriorityMode(HIGHEST)` calls
+that predate it:
+
+    modules/dso/core/dsorealtimeacq_impl.h:299   DAQ reader thread
+    modules/nmr/thamway/thamwayrealtimedso.cpp   async reader thread
+    modules/nidaq/pulserdrivernidaqmx.cpp        DMA writer thread
+    modules/digilentwf/dwfdso.cpp                readAI thread
+    modules/nmr/pulsercore/pulserdriver.cpp:427  free-run loop
+
+So a claim that the sites are unarmed had to be checked per thread, not asserted
+from the wrapper.
+
+**Four of the five cannot reach a demote site.** They are DAQ threads: they fill
+buffers and take Snapshots, while `finishWritingRaw` — and therefore every marked
+message, `visualize()` and the secondary-driver chain — runs on the driver's
+*other* thread, the one holding `AcquisitionPriority`. Their tier is invisible to
+the demote question.
+
+**The fifth was a defect, and it was the only live arming path.**
+`XPulser::freeRunToDetectTriggers` opened with an unrestored HIGHEST declaration.
+It bought nothing on its own thread — the loop takes no Snapshot and opens no
+Transaction; `SoftwareTrigger::stamp()` is a FastQueue push with a mutex fallback
+— and `visualize()` calls the same function *synchronously* (`single = true`).
+`visualize()` runs on whichever thread committed the pulse change, i.e. the GUI
+thread at UI_DEFERRABLE or the scripting thread, so one pulser turn-on left that
+thread at HIGHEST permanently. `ScopedDemoteRealtime` cannot catch this: it arms
+only when the thread was ALREADY HIGHEST on entry, which is the opposite case.
+The declaration is deleted; if that thread ever needs a tier it goes on the
+`XThread` that starts it, where a synchronous caller cannot inherit it.
+
+**What was actually deleted, and what was kept.** Deleted: the pulser
+declaration, and `AcquisitionPriority`'s `ScopedPriority(Priority::NORMAL)` base
+— dead weight, because `execute_internal` already declares NORMAL at thread
+entry, so the base saved NORMAL and restored NORMAL. Kept: `ScopedDemoteRealtime`
+and its three sites, now genuinely dormant. The cost of keeping them is one TLS
+read on paths that already snapshot wide; the cost of deleting them is re-deriving
+the §"realtime ends with the record" argument the next time the tier moves.
+
+**The general lesson, which is why this is written up rather than just fixed.** A
+tier retired at the wrapper is not retired in the tree. "Armed only at HIGHEST,
+now no-ops" was a statement about one class that read as a statement about the
+program; a grep for the enumerator would have refuted it the same day. Any future
+claim that a priority is out of KAME has to name the threads, not the wrapper.

@@ -105,12 +105,6 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
         tr[ *tr[ *m_waveHist].plot(0)->drawLines()] = false;
     });
 }
-void
-XDigitalCamera::showForms() {
-// impliment form->show() here
-    m_form->showNormal();
-    m_form->raise();
-}
 
 void
 XDigitalCamera::onAntiShakeChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -612,9 +606,10 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
 
     XTime time_awared = XTime::now();
     XTime time;
-    // Acquisition loop only — deliberately after the setup commit above.  See
-    // XPrimaryDriverWithThread::AcquisitionPriority for what this buys, what it
-    // costs, and why it is unconditional.
+    // Acquisition loop only — deliberately after the setup commit above.  The
+    // loop is this thread's working life, which is the span an OS scheduling
+    // class wants.  Grants no STM priority; see
+    // XPrimaryDriverWithThread::AcquisitionPriority for why not.
     AcquisitionPriority acq_priority;
     while( !terminated) {
 		auto writer = std::make_shared<RawData>();

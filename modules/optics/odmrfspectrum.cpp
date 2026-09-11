@@ -90,11 +90,6 @@ XODMRFSpectrum::XODMRFSpectrum(const char *name, bool runtime,
 }
 //---------------------------------------------------------------------------
 
-void
-XODMRFSpectrum::showForms() {
-    m_form->showNormal();
-    m_form->raise();
-}
 
 void
 XODMRFSpectrum::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {
@@ -259,8 +254,9 @@ XODMRFSpectrum::visualize(const Snapshot &shot) {
         tr[ *m_spectrum].setColumn(0, std::move(colf), 9);
         for(unsigned int ch = 0; ch < shot[ *this].numChannels(); ch++) {
             std::vector<double> coli(totlen), colw(totlen);
-            const double *wave( &shot[ *this].wave(ch)[0]);
-            const double *weights( &shot[ *this].weights(ch)[0]);
+            //data(), not &...[0] -- see the note in XNMRSpectrumBase::visualize().
+            const double *wave(shot[ *this].wave(ch).data());
+            const double *weights(shot[ *this].weights(ch).data());
             for(int i = 0; i < length; i++) {
                 coli[i] = wave[i];
                 colw[i] = weights[i];

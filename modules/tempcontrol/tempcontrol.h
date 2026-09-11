@@ -29,8 +29,6 @@ public:
 	XTempControl(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do
     virtual ~XTempControl() = default;
-	//! show all forms belonging to driver
-    virtual void showForms() override;
   
 	class XChannel : public XNode {
 	public:

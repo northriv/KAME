@@ -110,6 +110,10 @@ public:
     XPython(const char *name, bool runtime, const shared_ptr<XMeasure> &measure);
     virtual ~XPython();
 
+    //! First jupyter that can actually run \a subcommand, empty if none can.
+    //! Which of the programs on PATH carries a given package differs per
+    //! installation, so the first one found is not necessarily usable.
+    std::string jupyterProgramFor(const std::string &subcommand);
     void launchJupyterConsole(const std::string &execpath, const std::string &console);
     //! Dispatch a "kame:" hyperlink action (e.g. Jupyter / Claude launch)
     //! to the Python helper kame_handle_link().
@@ -120,7 +124,8 @@ public:
     //! Signals execute() to proceed with importing xpythonsupport.py.
     void signalModulesLoaded() { m_modules_loaded.store(true, std::memory_order_release); }
 
-    static KAMEPyBind bind;
+    //! Deliberately a reference to a never-freed object: see the definition.
+    static KAMEPyBind &bind;
 protected:
     virtual void *execute(const atomic<bool> &) override;
     void my_defout(shared_ptr<XNode> node, const std::string &msg);

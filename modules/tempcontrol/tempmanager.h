@@ -30,8 +30,6 @@ class XTempManager : public XSecondaryDriver {
 public:
     XTempManager(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XTempManager();
-	//! show all forms belonging to driver
-    virtual void showForms() override;
   
     static constexpr unsigned int maxNumOfAUXDevices = 6;
 
@@ -72,7 +70,7 @@ public:
             m_thermometers(list) {}
 
         virtual bool isThreadSafeDuringCreationByTypename() const override {return false;}
-        virtual shared_ptr<XNode> createByTypename(
+        virtual shared_ptr<XNode> createByTypename_(
             const XString &, const XString &name) override {
             shared_ptr<XZone> node;
             iterate_commit_if([=,&node](Transaction &tr){

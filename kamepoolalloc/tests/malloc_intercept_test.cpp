@@ -217,6 +217,8 @@ int main() {
         char *fromnew = new char[321];
         CHECK(kame_pool_malloc_usable_size(fromnew) >= 321,
               "new[] pointer not pool-owned before cross-free");
+        // GCC 14+ reports -Wmismatched-new-delete here.  That mismatch IS the
+        // case under test — do not "fix" it by calling delete[].
         free(fromnew);            // free() reconciles a new[]'d pool pointer
     }
 

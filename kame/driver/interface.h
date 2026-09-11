@@ -75,27 +75,32 @@ public:
     //! ordinary `Snapshot shot(*this); ... interface()->query(...)` driver code
     //! — the XDSO acquisition loop, for one — does not trip it.
     virtual void lock() {
-#ifndef NDEBUG
-        reportIfInTransaction_();
-#endif
+        gWarnIfInTransaction(
+            "an interface lock was taken while a Transaction is alive on this "
+            "thread — interface I/O inside a transaction (driver rule 5). It "
+            "re-issues device commands on every CAS retry and takes a plain "
+            "mutex inside an in-flight transaction. Read outside the "
+            "transaction and store the result inside");
         m_mutex.lock();
+#ifndef NDEBUG
+        // ...and the other direction: tell the STM it must not sleep in
+        // negotiation while this is held.  A driver transaction blocking on this
+        // mutex cannot finish, and neither can the holder if it goes to sleep in
+        // the negotiator — the 2026-07-10 stall.  See the foreign-lock block in
+        // kamestm/transaction_detail.h; the check itself fires in
+        // _negotiate_internal, the only point where the sleep actually happens.
+        Transactional::enterForeignLock();
+#endif
     }
-    virtual void unlock() {m_mutex.unlock();}
+    virtual void unlock() {
+#ifndef NDEBUG
+        Transactional::leaveForeignLock();
+#endif
+        m_mutex.unlock();
+    }
 
 	XRecursiveMutex &mutex() {return m_mutex;}
 
-#ifndef NDEBUG
-    //! Debug-only diagnostic for lock().  Reports once per (driver, priority)
-    //! and counts; set KAME_STM_ABORT_IO_IN_TX=1 to abort on the first hit.
-    //!
-    //! Reports rather than aborting by default because this is a diagnostic and
-    //! not a safeguard: an unknown number of sites may still reach it through
-    //! indirection the audit cannot see, and a debug build that aborts on the
-    //! first one is a debug build nobody runs.  The abort is there for whoever
-    //! is actually hunting one.
-    void reportIfInTransaction_() const noexcept;
-#endif
-    
 	virtual bool isOpened() const = 0;
 
 	void start();

@@ -1,0 +1,64 @@
+#!/bin/sh
+# with_pmqos — run a command while holding CPU idle states off.
+#
+#   sudo ./with_pmqos chrt -f 20 taskset -c 3 ./latency_floor 600
+#
+# Writing 0 to /dev/cpu_dma_latency asks the kernel for a 0 us wake-up latency,
+# which keeps the CPUs out of the deeper C-states.  The request lives exactly as
+# long as the FILE DESCRIPTOR: close it and the constraint is dropped, which is
+# why this has to wrap the command rather than run before it.
+#
+# Why any of this matters, measured on the project's PREEMPT_RT host with
+# latency_floor (same clock, same histogram, no STM in the loop), 30 s on an
+# isolated core:
+#
+#     isolation off                 MAX 67,879 ns   >=10 us  660 /s
+#     isolation on (tick stopped)   MAX 17,030 ns   >=10 us  469 /s
+#     + this wrapper                MAX    219 ns   >=10 us    0
+#
+# The middle row is a population entirely inside [10, 17] us arriving ~469
+# times a second with NO interrupt the kernel counts — LOC, RES, NMI and PMI
+# are all zero, and MSR_SMI_COUNT moves by nothing.  It is the package leaving
+# a deep C-state: the measured core is busy, but its idle neighbours are not,
+# and the uncore/LLC ramp is charged to whoever is running.  Note also that
+# `rtla osnoise` reports 17 us Max Single on that host, i.e. exactly this
+# population and nothing about the 219 ns underneath it.
+#
+# So: any absolute latency figure taken WITHOUT this wrapper carries a floor
+# three orders of magnitude above the machine's real one, and a tail whose
+# shape is the C-state exit rather than the code under test.  Quote the wrapper
+# with the number, the way the isolation is quoted.
+#
+# Deliberately a wrapper and not an option inside the harnesses: an earlier
+# attempt added a --cpulatency flag to KAME itself and it was reverted as
+# exactly equivalent to this, which it is.  One copy, outside the code being
+# measured.
+#
+# Needs write access to /dev/cpu_dma_latency (root).  If the open fails the
+# command still runs — with a warning, never silently, because a silent
+# fall-through would produce numbers that look like the table above and are
+# not.
+set -e
+if [ $# -eq 0 ]; then
+    echo "usage: $0 COMMAND [ARGS...]" >&2
+    exit 2
+fi
+exec python3 - "$@" <<'PY'
+import os, struct, subprocess, sys
+
+fd = None
+try:
+    fd = os.open("/dev/cpu_dma_latency", os.O_WRONLY)
+    os.write(fd, struct.pack("i", 0))
+except OSError as e:
+    sys.stderr.write(
+        "with_pmqos: WARNING — could not hold /dev/cpu_dma_latency at 0 (%s).\n"
+        "            Running anyway; C-state exits will be IN the numbers.\n"
+        % e)
+    fd = None
+try:
+    sys.exit(subprocess.run(sys.argv[1:]).returncode)
+finally:
+    if fd is not None:
+        os.close(fd)
+PY

@@ -30,8 +30,6 @@ public:
 	//! usually nothing to do
 	virtual ~XDCSource() {
 	}
-	//! show all forms belonging to driver
-	virtual void showForms();
 
 	//! driver specific part below
 	virtual void changeFunction(int ch, int x) = 0;

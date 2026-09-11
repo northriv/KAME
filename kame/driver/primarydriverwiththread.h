@@ -35,44 +35,27 @@ protected:
 	virtual void *execute(const atomic<bool> &terminated) = 0;
 
 protected:
-    //! RAII guard raising an acquisition loop to `Priority::HIGHEST`.
+    //! RAII guard marking an acquisition loop for the OS scheduler.
     //!
-    //! Construct it immediately before the `while( !terminated)` loop — never
-    //! around the setup commit that precedes it.  That commit runs once at
-    //! driver start, often while a .kam load is starting many drivers at once,
-    //! which is the one case where several impolite threads hurt each other.
-    //! Everything inside the loop, by contrast, belongs to the record: the
-    //! settings Snapshots (`***someNode()` expands to a SingleSnapshot, see
-    //! kame/xnode.h, so those negotiate too), the hardware I/O, and the record
-    //! commit(s).  None of it should be polite.
+    //! Construct it immediately before the `while( !terminated)` loop.  It
+    //! spans the loop, the loop spans the thread, and the thread dies with the
+    //! driver — so this is a set-once thread property in RAII clothing, which
+    //! is what an OS scheduling class has to be (POSIX RT attributes are set at
+    //! thread setup; MMCSS registers a thread once).
     //!
-    //! **Unconditional on purpose.**  This is a safeguard against unforeseen
-    //! contention — a .kam load, a script or an MCP session snapshotting the
-    //! measurement root, a graph redraw bundling an ancestor — and a safeguard
-    //! that has to be switched on ahead of time is not one, because nobody
-    //! predicts the unforeseen.  It is also free until it is needed:
-    //! `ScopedNegotiateLinkage::_negotiate()` returns `[[likely]]` early when
-    //! no peer has tagged the linkage, so `_negotiate_internal()` — the only
-    //! place that looks at the priority at all — is reached only under real
-    //! contention.  Until then a HIGHEST acquisition thread behaves bit-for-bit
-    //! like a NORMAL one.
+    //! **It grants no STM priority.**  CPU preference is a thread property; an
+    //! STM tier is a transaction property.  This is only the former, so it keeps
+    //! the acquisition thread scheduled without giving its commits any standing
+    //! against other negotiators.  `execute_internal` below declares
+    //! `Priority::NORMAL` at thread entry and nothing here changes it.
     //!
-    //! **What it costs when it does act, stated plainly.**  HIGHEST breaks out
-    //! of the negotiator's round loop before the sleep path, which is where
-    //! `fair_mode_blocks_me` gates on a peer's privilege stamp — so a HIGHEST
-    //! thread ignores privilege entirely.  An ancestor-scope operation can
-    //! therefore no longer be protected by privilege against acquisition
-    //! threads, and with several drivers acquiring it can be starved for as
-    //! long as they keep acquiring.  That is a deliberate policy choice:
-    //! measurement beats UI and scripting.  Note the record-commit counters
-    //! above do NOT see it — they only count the acquisition side — so a
-    //! starved .kam load or redraw has to be noticed by other means.
-    class AcquisitionPriority : public Transactional::ScopedPriority {
-    public:
-        AcquisitionPriority()
-            : Transactional::ScopedPriority(
-                  Transactional::Priority::HIGHEST) {}
-    };
+    //! An alias, not a class of its own: a driver's EXTRA acquisition threads
+    //! — DMA writers, async chunk readers, DSO read loops — need exactly this
+    //! object and cannot all name it here (one is not under this class at all;
+    //! see \a ScopedAcquisitionOSPriority in primarydriver.h, whose doc block
+    //! carries the rest of the history).  One implementation, so the two
+    //! cannot drift into meaning different things.
+    using AcquisitionPriority = ScopedAcquisitionOSPriority;
 
 private:
     unique_ptr<XThread> m_thread;

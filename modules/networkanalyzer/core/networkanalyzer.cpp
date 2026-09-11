@@ -124,12 +124,6 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 		tr[ *m_waveForm].clearPoints();
     });
 }
-void
-XNetworkAnalyzer::showForms() {
-// impliment form->show() here
-    m_form->showNormal();
-    m_form->raise();
-}
 
 void
 XNetworkAnalyzer::analyzeRaw(RawDataReader &reader, Transaction &tr) {

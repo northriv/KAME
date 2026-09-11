@@ -56,6 +56,7 @@ private:
 
 #if defined USE_THAMWAY_USB
 #include "thamwayusbinterface.h"
+#include <algorithm>
     class XThamwayPGCUSBInterface : public XThamwayFX2USBInterface {
     public:
         XThamwayPGCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
@@ -90,7 +91,7 @@ private:
 
         virtual shared_ptr<XThamwayPGQAMCUSBInterface> interfaceQAM() const {return nullptr;}
 
-        unsigned int m_qamPeriod; //would be 20
+        unsigned int m_qamPeriod = 1; //would be 20, from the device's SPS at open()
     private:
         double m_resolution;
     };
@@ -105,6 +106,10 @@ private:
         virtual void close() override;
 
         virtual double resolutionQAM() const override {return resolution();} //decimation by 20 is performed within changeOutput().
+        //! The decimation changeOutput() performs, so the core can keep the RF
+        //! pulses a whole number of QAM samples long.
+        virtual unsigned int patternSampsPerQAMSamp() const override {
+            return std::max(1u, m_qamPeriod);}
 
         virtual shared_ptr<XThamwayPGQAMCUSBInterface> interfaceQAM() const override {return m_interfaceQAM;}
     private:

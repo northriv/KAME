@@ -175,13 +175,11 @@ XMagnetPS::XMagnetPS(const char *name, bool runtime,
 }
 void
 XMagnetPS::showForms() {
-    m_form->showNormal();
-    m_form->raise();
+    showForm(m_form.get());
 }
 void
 XMagnetPS::onConfigShow(const Snapshot &shot, XTouchableNode *) {
-    m_formConfig->showNormal();
-    m_formConfig->raise();
+    showForm(m_formConfig.get());
 }
 void
 XMagnetPS::analyzeRaw(RawDataReader &reader, Transaction &tr) {

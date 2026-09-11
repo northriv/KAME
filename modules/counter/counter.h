@@ -26,7 +26,6 @@ public:
 	//! usually nothing to do
 	virtual ~XCounter() {}
 	//! Shows all forms belonging to driver
-	virtual void showForms() {}
 protected:
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).

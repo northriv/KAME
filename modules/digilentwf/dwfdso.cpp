@@ -342,7 +342,10 @@ XDigilentWFDSO::startSequence() {
 
 void *
 XDigilentWFDSO::executeReadAI(const atomic<bool> &terminated) {
-    Transactional::setCurrentPriorityMode(Transactional::Priority::HIGHEST);
+    // Enters the STM via acquire()'s Snapshot, and commits at NORMAL, the
+    // thread default.  What it asks for is the OS half: a separate XThread
+    // never constructs AcquisitionPriority and would otherwise get none.
+    ScopedAcquisitionOSPriority _os_priority;
     while( !terminated) {
         try {
             acquire(terminated);

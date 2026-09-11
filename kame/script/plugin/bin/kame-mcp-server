@@ -1,0 +1,118 @@
+#!/bin/sh
+# Locate and exec KAME's MCP server (kame_mcp_server.py).
+#
+# When this plugin is installed from a marketplace, Claude Code copies only the
+# plugin directory, so the server script cannot be referenced with a relative
+# path out of the plugin.  It is instead located at run time from the KAME
+# installation, which is where it is deployed by kame.pro (scriptfile.files).
+#
+# Overrides, both optional:
+#   KAME_MCP_SERVER  full path to kame_mcp_server.py
+#   KAME_MCP_PYTHON  interpreter to run it with (needs mcp + jupyter_client)
+
+set -eu
+
+die() {
+    # stderr reaches the /plugin manager's Errors tab.
+    echo "kame plugin: $1" >&2
+    exit 1
+}
+
+# ---- locate the server script ------------------------------------------------
+plugin_root="${KAME_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$0")")}}"
+
+# An override that is set but wrong must fail, not fall through to discovery:
+# silently running a different server (or interpreter) than the one named is
+# exactly the confusion the override exists to prevent.
+if [ -n "${KAME_MCP_SERVER:-}" ] && [ ! -f "$KAME_MCP_SERVER" ]; then
+    die "KAME_MCP_SERVER is set to '$KAME_MCP_SERVER' but no such file exists."
+fi
+
+# The resource dir KAME itself recorded on notebook launch: an INSTALLED
+# plugin's cache holds only the plugin directory, so ../ finds nothing, and
+# the fixed /Applications-style candidates below miss dev build trees.  KAME
+# knows where it deployed the server; trust that first among the guesses.
+kame_resdir=""
+if [ -f "$HOME/.kame_kernel_connection.json" ]; then
+    kame_resdir=$(sed -n 's/.*"resource_dir": *"\([^"]*\)".*/\1/p' \
+        "$HOME/.kame_kernel_connection.json" | head -n 1)
+fi
+
+server=""
+for candidate in \
+    "${KAME_MCP_SERVER:-}" \
+    "$plugin_root/kame_mcp_server.py" \
+    "$plugin_root/../kame_mcp_server.py" \
+    "${kame_resdir:+$kame_resdir/kame_mcp_server.py}" \
+    "/Applications/KAME.app/Contents/Resources/kame_mcp_server.py" \
+    "$HOME/Applications/KAME.app/Contents/Resources/kame_mcp_server.py" \
+    "/usr/local/share/kame/kame_mcp_server.py" \
+    "/usr/share/kame/kame_mcp_server.py"
+do
+    if [ -n "$candidate" ] && [ -f "$candidate" ]; then
+        server="$candidate"
+        break
+    fi
+done
+
+[ -n "$server" ] || die "kame_mcp_server.py not found. Set KAME_MCP_SERVER to its\
+ full path (it is installed next to KAME, e.g. KAME.app/Contents/Resources/)."
+
+# ---- locate an interpreter that has the dependencies -------------------------
+# One line on purpose: \n inside sh single quotes is a literal backslash-n, so
+# a multi-line -c would be a SyntaxError and reject every candidate.  Either
+# mcp line counts -- 2.x renamed mcp.server.fastmcp to mcp.server.mcpserver --
+# and reaching .Image proves the module really loaded, not just that `mcp`
+# resolves.
+# KAME itself embeds Python, so the interpreter that satisfies mcp +
+# jupyter_client is whichever one the user installed them into -- the same
+# search xpythonsupport.py performs when it writes .mcp.json.
+if [ -n "${KAME_MCP_PYTHON:-}" ]; then
+    command -v "$KAME_MCP_PYTHON" >/dev/null 2>&1 \
+        || die "KAME_MCP_PYTHON is set to '$KAME_MCP_PYTHON' but it is not executable."
+    "$KAME_MCP_PYTHON" -c 'import jupyter_client, mcp.types, importlib.util; _m = "mcp.server.fastmcp" if importlib.util.find_spec("mcp.server.fastmcp") else "mcp.server.mcpserver"; importlib.import_module(_m).Image' >/dev/null 2>&1 \
+        || die "KAME_MCP_PYTHON ('$KAME_MCP_PYTHON') lacks 'mcp' or 'jupyter_client'."
+fi
+# The versioned globs matter: Homebrew relinks the unversioned python3 on
+# upgrades and MacPorts creates none without `port select`, so the interpreter
+# carrying mcp is often reachable only as python3.X.  An unmatched glob stays
+# literal and is dropped by the `command -v` test below.
+# kame-mcp-venv, beside and above the directory the server script lives in
+# (KAME's resources dir): the same walk xpythonsupport.py does when it picks an
+# interpreter, so the plugin agrees with KAME instead of reporting "no Python
+# with 'mcp'..." while KAME is using that venv. Listed before the system ones
+# because it is the interpreter provisioned for exactly this job.
+_srvdir=$(dirname "$server")
+_venv_candidates=""
+for _up in . .. ../.. ../../.. ../../../.. ../../../../..; do
+    _venv_candidates="$_venv_candidates $_srvdir/$_up/kame-mcp-venv/bin/python3"
+done
+
+python=""
+for candidate in \
+    "${KAME_MCP_PYTHON:-}" \
+    $_venv_candidates \
+    python3 \
+    python \
+    /opt/local/bin/python3 \
+    /opt/homebrew/bin/python3 \
+    /usr/local/bin/python3 \
+    /opt/homebrew/bin/python3.[0-9]* \
+    /opt/local/bin/python3.[0-9]* \
+    /usr/local/bin/python3.[0-9]* \
+    /usr/bin/python3.[0-9]*
+do
+    case "$candidate" in *-config|*t) continue;; esac
+    [ -n "$candidate" ] || continue
+    command -v "$candidate" >/dev/null 2>&1 || continue
+    if "$candidate" -c 'import jupyter_client, mcp.types, importlib.util; _m = "mcp.server.fastmcp" if importlib.util.find_spec("mcp.server.fastmcp") else "mcp.server.mcpserver"; importlib.import_module(_m).Image' >/dev/null 2>&1; then
+        python="$candidate"
+        break
+    fi
+done
+
+[ -n "$python" ] || die "no Python with 'mcp' and 'jupyter_client' found. Install\
+ them (pip install mcp jupyter_client) or set KAME_MCP_PYTHON to an\
+ interpreter that has them.  Setup: https://github.com/northriv/KAME#ai-assisted-experiment-automation-mcp"
+
+exec "$python" "$server" --transport=stdio

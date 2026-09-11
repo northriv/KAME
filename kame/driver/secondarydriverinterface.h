@@ -36,6 +36,36 @@ XSecondaryDriverInterface<T>::requestAnalysis() {
 template <class T>
 void
 XSecondaryDriverInterface<T>::onConnectedRecorded(const Snapshot &shot_emitter, XDriver *driver) {
+	// Drop to NORMAL for the whole analysis, however we were entered.
+	//
+	// This runs INLINE ON THE COMMITTING THREAD: the onRecord listener below is
+	// connected with no flags, and XDriver::record() marks the talker so the
+	// dispatch happens when finishWritingRaw's transaction commits.  So the
+	// thread here is the primary driver's acquisition thread.
+	//
+	// **Inert in KAME, and kept deliberately.**  KAME sets no STM tier above
+	// NORMAL anywhere, so the guard never arms here; it demotes a realtime
+	// committer only, and leaves a NORMAL or lowprio one alone.  What keeps it
+	// is the invariant it protects for a host that DOES use kamestm's realtime
+	// tier: that tier is safe only while realtime threads do not share a
+	// Linkage, and this function breaks that by construction — it snapshots the
+	// ENTIRE driver list, and re-snapshots it on every iteration of the retry
+	// loop below.  Two acquisition threads each running a secondary driver's
+	// analysis (an NMR pulse analyzer on a DSO, an ODMR analysis on a camera)
+	// would then contend at whole-driver-list scope, the regime measured at 10x
+	// throughput loss for four such threads and 42x for eight.  Arming costs one
+	// TLS read on a path that already snapshots the whole driver list.
+	//
+	// The general rule this is an instance of: a listener that widens the scope
+	// it touches should drop the priority it was entered at.  One-directional —
+	// entered from a UI or script thread via requestAnalysis(), raising the
+	// caller would hand lowprio work a priority it cannot claim itself.
+	//
+	// Needed here in addition to kamestm's guard at
+	// Transaction::finalizeCommitment's messaging loop, because
+	// requestAnalysis() calls this directly rather than through a marked
+	// message, so that one does not cover it.
+	Transactional::ScopedDemoteRealtime _no_realtime_in_analysis;
 	Snapshot shot_all_drivers( *m_drivers.lock());
 	if( !shot_all_drivers.isUpperOf( *this))
 		return;

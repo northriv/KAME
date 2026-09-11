@@ -1046,7 +1046,7 @@ driver before recording (marked ✓src).
   Transaction-end (Tx success/fail)", `thread_active[]`) vs body `:287-291` (success-only, removed);
   comment `:294` says "preempted an **older** active holder" — inverted (the code preempts a
   *younger* holder).
-- `transaction.h:1666` "modular at STAMP_US_BITS = 46" — constant is 45 since the lowprio bit.
+- `transaction.h:1666` "modular at STAMP_US_BITS = 46" — constant is 44 since the 2-bit PRIO field (was 45 when that field was a single lowprio bit).
 - Spec comment `2level:191` calls `now_us_tagged()` a "Lamport stamp" — it is a steady-clock stamp;
   the Lamport clock is the *other* system (`SerialGenerator`).
 - VERIFICATION.md §6 mapping table: the `TagAfterFail` row says "(CAS: …)" — production is

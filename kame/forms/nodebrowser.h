@@ -33,6 +33,11 @@ private slots:
 	virtual void process();
 private:
 	QTimer *m_pTimer;
+	//! Ticks to skip after an XKameError out of process() — the STM starvation
+	//! timeout under heavy contention (T1Mode reanalysis).  Full-cadence
+	//! retrying was the engine of the 2026-07-30 field abort.
+	int m_backoffTicks = 0;
+	void process_();
 
     const weak_ptr<XMeasure> m_root;
 	FrmNodeBrowser *const m_pForm;

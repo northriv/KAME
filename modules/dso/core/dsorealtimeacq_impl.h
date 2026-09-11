@@ -179,13 +179,17 @@ XRealTimeAcqDSO<tDriver>::setupTiming() {
         DSORawRecord &rec = m_dsoRawRecordBanks[i];
         rec.record.resize(len * num_ch * (rec.isComplex ? 2 : 1));
         assert(rec.numCh == num_ch);
-        if(isMemLockAvailable()) {
-            mlock(&rec.record[0], rec.record.size() * sizeof(int32_t));
+        if(isMemLockAvailable() && !rec.record.empty()) {
+            //data(), not &record[0] -- see the note in XThamwayPROT3DSO::
+            //stopAcquision().  recordLength() is user-settable and resize(0)
+            //leaves this empty, where indexing is UB and a hardened libstdc++
+            //aborts the process.
+            mlock(rec.record.data(), rec.record.size() * sizeof(int32_t));
         }
     }
     m_recordBuf.resize(len * num_ch);
-    if(isMemLockAvailable()) {
-        mlock( &m_recordBuf[0], m_recordBuf.size() * sizeof(tRawAI));
+    if(isMemLockAvailable() && !m_recordBuf.empty()) {
+        mlock(m_recordBuf.data(), m_recordBuf.size() * sizeof(tRawAI));
     }
 
     m_interval = setupTimeBase();
@@ -296,7 +300,12 @@ XRealTimeAcqDSO<tDriver>::tryReadAISuspend(const atomic<bool> &terminated) {
 template <class tDriver>
 void *
 XRealTimeAcqDSO<tDriver>::executeReadAI(const atomic<bool> &terminated) {
-    Transactional::setCurrentPriorityMode(Transactional::Priority::HIGHEST);
+    // This loop DOES enter the STM (the Snapshot below), and it commits at
+    // NORMAL, the thread default -- the same tier AcquisitionPriority leaves
+    // the driver's own acquisition thread at.  What it asks for is the OS half:
+    // this is a separate XThread that never constructs AcquisitionPriority, so
+    // without this line it would get no elevation at all.
+    ScopedAcquisitionOSPriority _os_priority;
     while( !terminated) {
         try {
             Snapshot shot( *this);
@@ -625,10 +634,22 @@ XRealTimeAcqDSO<tDriver>::convertRaw(typename tDriver::RawDataReader &reader, Tr
     const unsigned int accumCount = reader.template pop<uint32_t>();
     const double interval = reader.template pop<double>();
 
+    // Everything above came off the raw stream — i.e. out of a recorded .dat
+    // that this build did not necessarily write, and may be truncated or
+    // corrupt.  Validate BEFORE sizing anything from it.  `wave`/`coeff` used
+    // to be variable-length arrays dimensioned straight from `num_ch`, so a
+    // bad channel count in a replayed file was an unbounded stack allocation.
+    // (VLAs are also a GCC/clang extension that MSVC does not implement, so
+    // the fixed bound is what lets this header compile there at all.)
+    if((num_ch == 0) || (num_ch > MAX_NUM_CH_ON_WIRE))
+        throw XDriver::XRecordError(i18n("Invalid channel count in the raw stream"), __FILE__, __LINE__);
+    if(accumCount == 0)
+        throw XDriver::XRecordError(i18n("Invalid accumulation count in the raw stream"), __FILE__, __LINE__);
+
     tr[ *this].setParameters(num_ch, - (double)pretrig * interval, interval, len);
 
-    double *wave[num_ch * 2];
-    double coeff[num_ch * 2][CAL_POLY_ORDER];
+    double *wave[MAX_NUM_CH_ON_WIRE];
+    double coeff[MAX_NUM_CH_ON_WIRE][CAL_POLY_ORDER];
     for(unsigned int j = 0; j < num_ch; j++) {
         for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
             coeff[j][i] = reader.template pop<double>();

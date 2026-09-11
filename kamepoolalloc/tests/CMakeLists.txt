@@ -16,6 +16,19 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# MSVC on a Japanese Windows (CP932) misreads the UTF-8 box-drawing and
+# Japanese characters in the sources' comments: the trailing byte of some
+# sequences is a valid CP932 lead byte, which swallows the following newline
+# and hides the next preprocessor directive inside the comment.  Symptom:
+# `error C2065: 'ALLOC_CHUNK_HEADER': undeclared identifier`.  Must be set
+# BEFORE the first add_library/add_executable -- add_compile_options only
+# reaches targets created after it -- and directory-wide, because every target
+# that includes these headers is exposed, not just the library.
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
+
 # Reuse parent USE_KAME_ALLOCATOR if defined; otherwise compute the
 # default (same logic as the historic top-level tests/CMakeLists.txt).
 if(NOT DEFINED USE_KAME_ALLOCATOR)
@@ -55,7 +68,14 @@ if(USE_KAME_ALLOCATOR AND NOT TARGET kamepoolalloc)
         # newlines and hiding #define directives (symptom: C2065 on macros
         # defined just before a box-drawing art block).  /utf-8 fixes this.
         $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
+    # MSVC emits no import library for a DLL that exports nothing, so every
+    # consumer fails with `LNK1181: cannot open input file kamepoolalloc.lib`.
+    # The pool's public surface is annotated with DECLSPEC_KAMEPOOLALLOC, which
+    # only kamepoolalloc.pro defines; rather than duplicate that here, take the
+    # CMake equivalent of the `-Wl,--export-all-symbols` the .pro already uses
+    # for MinGW.  No effect off Windows.
     set_target_properties(kamepoolalloc PROPERTIES
+        WINDOWS_EXPORT_ALL_SYMBOLS TRUE
         INSTALL_NAME_DIR "@rpath"
         BUILD_WITH_INSTALL_RPATH TRUE)
     # CMAKE_DL_LIBS: empty on glibc >= 2.34 (dlsym in libc); -ldl on
@@ -157,6 +177,21 @@ if(USE_KAME_ALLOCATOR)
 
     add_executable(alloc_thread_exit_free_test_dynamic alloc_thread_exit_free_test.cpp)
     target_link_libraries(alloc_thread_exit_free_test_dynamic kamepoolalloc Threads::Threads)
+
+    # Exclusivity across thread teardown -- the allocator must never hand out a
+    # block that is still live.  Guards the post-teardown free bypass: frees from
+    # a pthread_key destructor run AFTER the C++ thread_local destructors (glibc
+    # calls __call_tls_dtors before __nptl_deallocate_tsd, and kamestm registers
+    # such a key), and were resurrecting the destroyed cross-dealloc batch, so a
+    # slot went back to the bitmap after its owner had re-issued it.
+    #
+    # Its sibling above models the same teardown ORDERING but asserts only against
+    # leaks; nothing asserted exclusivity, which is why the defect surfaced four
+    # levels away as garbage inside a still-referenced STM Packet.  Measured on the
+    # unfixed allocator: 5/20 runs, 0.39 s each, against two minutes for the STM
+    # reproducer that originally found it.
+    add_executable(alloc_tsd_exclusivity_test alloc_tsd_exclusivity_test.cpp)
+    target_link_libraries(alloc_tsd_exclusivity_test kamepoolalloc Threads::Threads)
 
     # Narrow-gap regression for the post-3145e139 L1 teardown guard.
     # `alloc_thread_exit_free_test` scenario B covers the SAME-thread
@@ -346,6 +381,7 @@ if(USE_KAME_ALLOCATOR)
     # Valid on all platforms: asserts on madvise-INDEPENDENT units_live/chunks_live.
     add_test(NAME alloc_thread_exit_free_test COMMAND alloc_thread_exit_free_test)
     add_test(NAME alloc_thread_exit_free_test_dynamic COMMAND alloc_thread_exit_free_test_dynamic)
+    add_test(NAME alloc_tsd_exclusivity_test COMMAND alloc_tsd_exclusivity_test)
     add_test(NAME alloc_thread_exit_unarmed_test COMMAND alloc_thread_exit_unarmed_test)
     add_test(NAME alloc_thread_exit_unarmed_test_dynamic COMMAND alloc_thread_exit_unarmed_test_dynamic)
     add_test(NAME alloc_evict_test COMMAND alloc_evict_test)

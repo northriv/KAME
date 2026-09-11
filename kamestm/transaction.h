@@ -175,6 +175,8 @@ public:
     //! \param Closure Typical: [=](Transaction<Node1> &tr){ somecode...; return ret; }
     template <typename Closure>
     Snapshot<XN> iterate_commit_if(Closure&&);
+    //! \sa KAME_STM_LOWPRIO_STARVE_MS
+    static void throw_if_starved_(const Snapshot<XN> &shot);
     //! Iterates a transaction covering the node and children, as long as the closure returns true.
     //! \param Closure Typical: [=](Transaction<Node1> &tr){ somecode...; return ret; }
     template <typename Closure>
@@ -317,34 +319,55 @@ private:
         // analysis at KAME_STM_COMPACT_STATE comment.
         using cnt_t = int32_t;
         static constexpr int   STAMP_US_BITS      = 24;
-        static constexpr int   STAMP_LOWPRIO_BITS = 0;
+        static constexpr int   STAMP_PRIO_BITS    = 0;
         static constexpr int   STAMP_KIND_BITS    = 0;
         static constexpr int   STAMP_TID_BITS     = 8;
-        static constexpr int   STAMP_LOWPRIO_SHIFT = STAMP_US_BITS;     // unused
+        static constexpr int   STAMP_PRIO_SHIFT    = STAMP_US_BITS;     // unused
         static constexpr int   STAMP_KIND_SHIFT    = STAMP_US_BITS;     // unused
         static constexpr int   STAMP_TID_SHIFT     = STAMP_US_BITS;     // tid sits right above us
         static constexpr cnt_t STAMP_US_MASK      = (cnt_t{1} << STAMP_US_BITS) - 1;
         static constexpr cnt_t STAMP_KIND_MASK    = 0;
         static constexpr cnt_t STAMP_LOWPRIO_MASK = 0;
+        static constexpr cnt_t STAMP_HIGHEST_MASK = 0;
 #else
         using cnt_t = int64_t;
 
         //! Packed stamp layout (low → high), 64-bit total:
-        //!   [ us:45 | lowprio:1 | kind:2 | tid:16 ]
-        //! STAMP_US_BITS = 45 gives ~1.1 yr of monotonic µs (wrap-safe
-        //! over any KAME operation; longest real wait is EXPIRE_US = 50
-        //! ms — was 46 bits before, reduced by 1 to make room for the
-        //! `lowprio` flag at bit 45).
+        //!   [ us:44 | prio:2 | kind:2 | tid:16 ]
+        //! STAMP_US_BITS = 44 gives ~0.56 yr of monotonic µs, wrap-safe
+        //! over any KAME operation: every diff taken is bounded by
+        //! KAME_STM_LOWPRIO_STARVE_MS = 10 s, and the next longest is
+        //! EXPIRE_US = 50 ms, against a half-field of 101 days.  (46 → 45
+        //! made room for `lowprio`; 45 → 44 widened that into `prio`.)
         //!
-        //! Bit 45 (`STAMP_LOWPRIO_SHIFT`) is set when the stamp belongs
-        //! to a Tx running at a LOW priority (LOWEST / UI_DEFERRABLE /
-        //! SCRIPTING).  Used by the privilege hold-timeout in
-        //! `try_register_privileged_tidstamp` / `i_am_privileged_now`
-        //! to only evict stuck low-priority holders — NORMAL / HIGHEST
-        //! holders are protected from timeout-based preemption.
-        //! Set once at Tx construction in `m_started_time` and
-        //! propagated transparently through `with_kind` / `strip_kind`
-        //! (which only touch the kind bits).
+        //! PRIO (bits 44-45) is the Tx's priority CLASS, folded in once at
+        //! construction from `getCurrentPriorityMode()` and propagated
+        //! transparently by `with_kind` / `strip_kind` (which only touch the
+        //! kind bits).  Two flags rather than an enum:
+        //!
+        //!   bit 44  STAMP_HIGHEST_MASK   Priority::HIGHEST
+        //!   bit 45  STAMP_LOWPRIO_MASK   LOWEST / UI_DEFERRABLE / SCRIPTING
+        //!   00 = NORMAL      01 = HIGHEST      10 = LOW      11 = never
+        //!
+        //! NORMAL is deliberately the all-zero encoding: a zero word means
+        //! "empty slot" throughout this file, and a torn or zeroed read must
+        //! degrade to the ordinary tier, never claim HIGHEST.  LOW keeps
+        //! bit 45 so `STAMP_LOWPRIO_MASK` is numerically what it always was
+        //! and every lowprio path stays bit-identical; HIGHEST takes the bit
+        //! freed from the µs field.  Each test is a single-bit AND, which
+        //! matters because `throw_if_starved_` does one per commit retry.
+        //!
+        //! Readers.  LOW gates the privilege hold-timeout
+        //! (`stamp_is_expired_lowprio`, consulted by
+        //! `try_register_privileged_tidstamp` / `i_am_privileged_now` /
+        //! `fair_mode_blocks_me` — NORMAL and HIGHEST privilege never
+        //! expires) and the starvation escape in `throw_if_starved_`.
+        //! HIGHEST gates Rule 0 (a HIGHEST tagger strips a stuck foreign
+        //! non-HIGHEST Reserved stamp), Rule 0c (nobody below HIGHEST
+        //! overwrites a HIGHEST tag) and Rule 0d.  Those three used to read
+        //! a per-Linkage side word instead; carrying the class in the stamp
+        //! removed it, along with its acquire load and the window in which
+        //! it could disagree with the tag it described.
         //!
         //! STAMP_KIND_BITS = 2 carries the operation discriminator
         //! (NONE / BUNDLE / UNBUNDLE / Reserved) used by the same-op
@@ -358,19 +381,21 @@ private:
         //! detection in the livelock probe ambiguous. Packing
         //! ProcessCounter::id (16 bits) into the upper bits makes every
         //! stamp unique per-thread.
-        static constexpr int   STAMP_US_BITS      = 45;
-        static constexpr int   STAMP_LOWPRIO_BITS = 1;
+        static constexpr int   STAMP_US_BITS      = 44;
+        static constexpr int   STAMP_PRIO_BITS    = 2;
         static constexpr int   STAMP_KIND_BITS    = 2;
         static constexpr int   STAMP_TID_BITS     = 16;
-        // Shifts are (US_BITS, US_BITS+1, US_BITS+3) = (45, 46, 48).
-        static constexpr int   STAMP_LOWPRIO_SHIFT = STAMP_US_BITS;
+        // Shifts are (US_BITS, US_BITS+2, US_BITS+4) = (44, 46, 48) — kind
+        // and tid sit exactly where they did at us:45 + lowprio:1.
+        static constexpr int   STAMP_PRIO_SHIFT   = STAMP_US_BITS;
         static constexpr int   STAMP_KIND_SHIFT
-                                      = STAMP_LOWPRIO_SHIFT + STAMP_LOWPRIO_BITS;
+                                      = STAMP_PRIO_SHIFT + STAMP_PRIO_BITS;
         static constexpr int   STAMP_TID_SHIFT
                                       = STAMP_KIND_SHIFT + STAMP_KIND_BITS;
         static constexpr cnt_t STAMP_US_MASK      = (cnt_t{1} << STAMP_US_BITS) - 1;
         static constexpr cnt_t STAMP_KIND_MASK    = (cnt_t{1} << STAMP_KIND_BITS) - 1;
-        static constexpr cnt_t STAMP_LOWPRIO_MASK = cnt_t{1} << STAMP_LOWPRIO_SHIFT;
+        static constexpr cnt_t STAMP_HIGHEST_MASK = cnt_t{1} << STAMP_PRIO_SHIFT;
+        static constexpr cnt_t STAMP_LOWPRIO_MASK = cnt_t{1} << (STAMP_PRIO_SHIFT + 1);
 #endif // KAME_STM_COMPACT_STATE
 
         //! Mask for ProcessCounter::id() at STAMP_TID_BITS width, used
@@ -456,13 +481,37 @@ private:
             return (x & STAMP_LOWPRIO_MASK) != 0;
 #endif
         }
-        //! Set the lowprio flag on a stamp (use at Tx construction
-        //! based on `getCurrentPriorityMode()`).
+        //! True iff `x` belongs to a Tx that was at Priority::HIGHEST when it
+        //! started.  The other half of the PRIO field; see the layout comment.
+        //! Rule 0 / 0c / 0d read this and nothing else to decide a tag's
+        //! class, so a stamp is self-describing and there is no second word
+        //! to validate it against.  Sealed (always false) in compact mode,
+        //! where the PRIO field does not exist -- the same way `is_priv_stamp`
+        //! is sealed there, and with the same consequence: the priority
+        //! overlay is simply inactive, peers fall back on age order.
+        static inline bool stamp_is_highest(cnt_t x) noexcept {
+#if KAME_STM_COMPACT_STATE
+            (void)x;
+            return false; // prio field sealed
+#else
+            return (x & STAMP_HIGHEST_MASK) != 0;
+#endif
+        }
+        //! Set the LOW / HIGHEST bit of the PRIO field on a stamp.  Test
+        //! helpers and hand-built stamps; ordinary construction goes through
+        //! `now_us_tagged()`, which folds the whole field in at once.
         static inline cnt_t with_lowprio_flag(cnt_t stamp) noexcept {
 #if KAME_STM_COMPACT_STATE
             return stamp; // no-op
 #else
             return stamp | STAMP_LOWPRIO_MASK;
+#endif
+        }
+        static inline cnt_t with_highest_flag(cnt_t stamp) noexcept {
+#if KAME_STM_COMPACT_STATE
+            return stamp; // no-op
+#else
+            return stamp | STAMP_HIGHEST_MASK;
 #endif
         }
         //! True iff `x` is a stamp whose kind field is `Reserved` (=3),
@@ -483,7 +532,7 @@ private:
         //! Modular µs difference: returns (now - past) mod 2^STAMP_US_BITS,
         //! interpreted as elapsed µs.  Inputs may be raw `now_us()` (64-bit)
         //! or already-masked stamps; correct as long as the true elapsed
-        //! time is < 2^(STAMP_US_BITS-1) µs (~1 yr at 46 bits).  All KAME
+        //! time is < 2^(STAMP_US_BITS-1) µs (101 days at 44 bits).  All KAME
         //! diffs are <= EXPIRE_US = 50 ms.
         static inline cnt_t diff_us(cnt_t now, cnt_t past) noexcept {
             return (cnt_t)((uint64_t)(now - past) & (uint64_t)STAMP_US_MASK);
@@ -506,21 +555,26 @@ private:
             return (int64_t)(((uint64_t)u ^ (uint64_t)SIGN_BIT)
                              - (uint64_t)SIGN_BIT);
         }
-        //! Helper: read the calling thread's priority and return the
-        //! lowprio mask if it's a LOW-priority level (LOWEST /
-        //! UI_DEFERRABLE / SCRIPTING), else 0.  Used by
-        //! `now_us_tagged()` to fold the lowprio bit into the stamp
-        //! at construction.  `getCurrentPriorityMode()` is a single
+        //! Helper: read the calling thread's priority and return the PRIO
+        //! field bits for it — LOW mask for LOWEST / UI_DEFERRABLE /
+        //! SCRIPTING, HIGHEST mask for HIGHEST, 0 for NORMAL.  Used by
+        //! `now_us_tagged()` to fold the class into the stamp at
+        //! construction, which is the ONLY place it is read from the thread:
+        //! everything downstream reads the stamp, so a stamp always reports
+        //! the class the operation STARTED at even if the thread has since
+        //! changed tier.  `getCurrentPriorityMode()` is a single
         //! thread-local read — negligible cost.
-        static inline cnt_t lowprio_mask_for_current_priority() noexcept {
+        static inline cnt_t prio_mask_for_current_priority() noexcept {
 #if KAME_STM_COMPACT_STATE
-            return (cnt_t)0; // lowprio sealed in compact mode
+            return (cnt_t)0; // prio field sealed in compact mode
 #else
-            Priority pr = getCurrentPriorityMode();
-            return (pr == Priority::LOWEST
-                 || pr == Priority::UI_DEFERRABLE
-                 || pr == Priority::SCRIPTING)
-                 ? STAMP_LOWPRIO_MASK : (cnt_t)0;
+            switch(getCurrentPriorityMode()) {
+            case Priority::LOWEST:
+            case Priority::UI_DEFERRABLE:
+            case Priority::SCRIPTING:  return STAMP_LOWPRIO_MASK;
+            case Priority::HIGHEST:    return STAMP_HIGHEST_MASK;
+            default:                   return (cnt_t)0;   // NORMAL
+            }
 #endif
         }
         //! `now_us()` with the current thread's ProcessCounter::id
@@ -534,14 +588,14 @@ private:
         //! bits).
         static inline cnt_t now_us_tagged() noexcept {
             return pack_stamp(now_us(), my_tid_lo())
-                 | lowprio_mask_for_current_priority();
+                 | prio_mask_for_current_priority();
         }
         //! Kind-tagged variant: stamps op_kind into the 2-bit kind slot.
         //! Used by bundle/unbundle entry to advertise the in-flight op.
         //! Lowprio bit handled identically to the no-kind variant.
         static inline cnt_t now_us_tagged(StampKind kind) noexcept {
             return pack_stamp(now_us(), my_tid_lo(), (uint8_t)kind)
-                 | lowprio_mask_for_current_priority();
+                 | prio_mask_for_current_priority();
         }
         //! Replace the kind bits of an existing stamp, preserving us+tid.
         //! For stamping linkage with `m_started_time` + op kind.
@@ -648,8 +702,14 @@ private:
                            const Linkage *link = nullptr) noexcept;
 
         //! Per-priority livelock-probe parameters (retry threshold + label).
+        //! Only the name survives.  The `retry_threshold` field that used to
+        //! sit here was the per-priority livelock-probe threshold, and it has
+        //! been dead since 30a0ab0a5 (2026-05-10) replaced it in the verdict
+        //! with `retry_thresh_dyn = clamp(sig_C*2, 3, hardware_concurrency())`
+        //! — a contention-derived bound rather than a priority-derived one.
+        //! The field stayed behind and was still being printed, which read as
+        //! though priority governed claim eligibility when it no longer does.
         struct PriorityProbeInfo {
-            int retry_threshold;
             const char *name;
         };
         static PriorityProbeInfo priority_probe_info(Priority pr) noexcept;
@@ -910,6 +970,16 @@ private:
             m_recent_ops_state(0) {}
         ~Linkage() {this->reset(); } //Packet should be freed before memory pools.
         atomic<typename NegotiationCounter::cnt_t> m_transaction_started_time;
+
+        //! (A per-Linkage `m_priv_owner_prio` side word used to live here,
+        //! carrying [15:0] = holder tid, bit 16 = "holder is HIGHEST", because
+        //! the stamp's one priority bit was `lowprio` and the 64-bit layout was
+        //! full.  Widening that bit into the 2-bit PRIO field -- one bit taken
+        //! from the µs range, 45 -> 44 -- made every stamp self-describing and
+        //! deleted this word, its release/release pre-publish ordering, its
+        //! acquire load on three read paths, and the whole tid-validation
+        //! fallback that existed only because a word and the tag it described
+        //! could disagree.)
 
         //! Non-atomic Transaction-commit counter — bumped in
         //! `Transaction<XN>::finalizeCommitment()` (only the
@@ -1479,7 +1549,31 @@ T *Node<XN>::create(Args&&... args) {
 #else
     *T::stl_funcPayloadCreator = [](XN &node)->local_shared_ptr<Payload>{ return make_local_shared<PayloadWrapper<T>>(node); };
 #endif
-    return new T(std::forward<Args>(args)...);
+    // The slot is armed for exactly one Node<XN> constructor, which consumes
+    // and clears it.  If T's constructor throws BEFORE reaching the Node base
+    // -- a derived member's initialiser, or an argument-forwarded expression
+    // -- the slot stays armed with T's creator and the NEXT create<U>() on
+    // this thread... would in fact re-arm it, but any bare `new SomeNode`
+    // reaching Node() in between would be handed T's creator and silently
+    // build a PayloadWrapper<T> for a U node: a type-confused Payload, the
+    // worst outcome the constructor throw could produce.  Starvation throws
+    // (throw_if_starved_ fires inside snapshot(), which node constructors
+    // reach through create<>-time transactions) made that reachable, so the
+    // arming is scope-guarded rather than argued about.
+    struct CreatorGuard {
+        bool armed = true;
+        ~CreatorGuard() {
+            if( !armed) return;
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+            *detail::tls_payload_creator_ptr = nullptr;
+#else
+            *T::stl_funcPayloadCreator = nullptr;
+#endif
+        }
+    } _creator_guard;
+    T *ret = new T(std::forward<Args>(args)...);
+    _creator_guard.armed = false;   // Node() consumed it
+    return ret;
 }
 
 //! \brief This class takes a snapshot for a subtree.\n
@@ -1521,7 +1615,26 @@ public:
         // / HIGHEST stamps are immune.
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
         typename Node<XN>::NegotiationCounter::AcquireOneCount oneup{};
-        node.snapshot( *this, multi_nodal);
+        // Exception safety is NOT free RAII here, and the gap was a field
+        // abort (2026-07-30, T1Mode; diagnosed by the user).  If
+        // node.snapshot() throws — throw_if_starved_ sits inside its retry
+        // loop — this object never began its lifetime, so no destructor BODY
+        // ever runs; unwinding destroys the fully-constructed members, but
+        // ~vector on m_tagged_linkages frees a list of pointers, it does not
+        // zero the stamps those linkages carry.  The stamps are an EXTERNAL
+        // side effect whose release lives only in ~Transaction()'s body and
+        // in the line below — both unreachable from a mid-construction
+        // throw.  The orphaned stamp then ages forever, is always the oldest
+        // contender, is never preempted (older-wins) and never cleared (only
+        // its owner clears it), and every later contender on that linkage
+        // CV-waits for a ghost until the HANG watchdog aborts the process.
+        try {
+            node.snapshot( *this, multi_nodal);
+        }
+        catch(...) {
+            drop_tags_n_privilege();
+            throw;
+        }
         drop_tags_n_privilege();
     }
 
@@ -1634,7 +1747,30 @@ public:
     //! Transaction::operator++; this is just the extraction into a
     //! Snapshot-level helper so snapshot()/bundle() can adopt it too in
     //! later refactor passes.
-    void tag_as_contender(const local_shared_ptr<typename Node<XN>::Linkage> &link) noexcept {
+    //! True iff this thread is at Priority::HIGHEST right now: one TLS read.
+    //! Used for the TAGGER's own class -- Rule 0 ("am I entitled to strip?")
+    //! and Rule 0c ("am I the one who must not overwrite?").  The class of
+    //! the tag ALREADY THERE comes from its stamp instead
+    //! (`NC::stamp_is_highest`), so the live mode is only ever asked about
+    //! the caller, never about a third party.
+    static bool highest_mask_current_() noexcept {
+        return getCurrentPriorityMode() == Priority::HIGHEST;
+    }
+    //! \return whether OUR stamp owns \a link's slot when this returns —
+    //! the same predicate `NegotiationCounter::i_am_privileged_now` computes,
+    //! but from the load and the store-verify this function already performs,
+    //! so the caller pays nothing for it.  A caller that tags BEFORE acquiring
+    //! its view (the HIGHEST path) uses this instead of a second slot read,
+    //! which also closes the window between the verify below and that read:
+    //! a peer overwriting in it would send us down the weak acquire even
+    //! though our stamp had landed.
+    //!
+    //! Note the two ways the answer can be true.  Either we preempted and the
+    //! verify passed, or we did not preempt because the slot ALREADY carries
+    //! our own privileged stamp (`_diff == 0` against ourselves, from an
+    //! earlier touch of this Linkage in the same Snapshot) — the dedup path
+    //! below.  Reporting "did I store?" would call that second case a loss.
+    bool tag_as_contender(const local_shared_ptr<typename Node<XN>::Linkage> &link) noexcept {
         // CAS-loop variant (Option A). Atomically claim the linkage's
         // priority slot iff the slot is empty OR the current tagger is
         // YOUNGER than us (compare on stamp_us only — the tid packed in
@@ -1663,14 +1799,38 @@ public:
         // privilege (m_registered_privileged=true), every subsequent
         // tag writes the Reserved kind directly — extending the priv
         // set to new Linkages.
-        const detail::StampKind my_kind = m_registered_privileged
-            ? detail::StampKind::Reserved
-            : *detail::s_current_op_kind;
+        // A HIGHEST tag IS a privilege claim (user, 2026-08-12).  The
+        // escalation used to be probe-gated: HIGHEST tagged plain, and only
+        // became Reserved once the livelock probe reached a verdict, which
+        // needs the thread to have been disturbed enough times first.  So the
+        // tier that must not be disturbed was the one whose shield arrived
+        // last, and until it did its only protection was Rule 0d's plain-tag
+        // shield -- one bundle pass wide, and measured not to bound anything.
+        //
+        // Claiming on the tag makes the shield the tag's own lifetime (the
+        // transaction, cleared by drop_tags_n_privilege from ~Transaction),
+        // costs nothing extra (the kind bits are written either way), and
+        // makes the design statement checkable: a HIGHEST Tx must not lose a
+        // Linkage more than twice -- interference by an OLDER HIGHEST
+        // excepted -- so its failures are bounded by 2L.  `_on_cas_fail`
+        // already asserts exactly that for a privilege holder; this is what
+        // puts HIGHEST under it.
+        //
+        // Exposure, unchanged in kind and larger in frequency: a HIGHEST
+        // stamp never carries the lowprio bit, so it never expires, and a
+        // dead HIGHEST holder pins lower tiers until an equal tier clears it.
+        // Same class as never-expiring NORMAL/HIGHEST privilege, now on every
+        // HIGHEST tag rather than on a probe-gated few.
+        const detail::StampKind my_kind =
+            (m_registered_privileged || highest_mask_current_())
+                ? detail::StampKind::Reserved
+                : *detail::s_current_op_kind;
         const auto my_stamp = NC::with_kind(m_started_time, my_kind);
         //
         // signed_diff_us_packed(cur, my_stamp) > 0  iff  cur is
         // YOUNGER (later in steady-clock µs) than my stamp — modular at
-        // STAMP_US_BITS = 46, wrap-safe over any realistic boot session.
+        // STAMP_US_BITS (44 since the PRIO field; the constant is the
+        // authority), wrap-safe over any realistic boot session.
         auto cur = slot.load(std::memory_order_relaxed);
         //
         // Symmetric "preempt window" rule (per user):
@@ -1699,7 +1859,127 @@ public:
             int64_t _diff = NC::signed_diff_us_packed(cur, my_stamp);
             const bool _i_am_priv  = NC::is_priv_stamp(my_stamp);
             const bool _cur_is_priv = NC::is_priv_stamp(cur);
-            if(_diff > 0) {
+            // Rule 0 (per user; patience-gated): a HIGHEST tagger strips a
+            // non-HIGHEST Reserved stamp it has been stuck behind for
+            // KAME_STM_PREEMPT_WINDOW_US.  A privileged NORMAL is the one
+            // contender with no yielding mechanism against HIGHEST — HIGHEST
+            // never consults fair_mode (round-loop breakout), the holder never
+            // sleeps (that is what privilege means) and its privilege only
+            // ends with its commit — so in the no-winner pathology (mutual
+            // bundle/unbundle invalidation, the hard-link CAS-never-succeeds
+            // shape) the pair HIGHEST vs privileged-NORMAL had no breaker:
+            // rules 2/4 below key on age only, and a younger HIGHEST never
+            // preempts.
+            //
+            // The patience gate is not caution, it is measurement: stripping
+            // UNCONDITIONALLY on sight was built first and measured NET
+            // NEGATIVE (grand, -t 8 -P 1, 5 interleaved reps: HIGHEST p99.9
+            // 1.5 -> 2.6 us, aggregate -4.6%, no tail win, 183 k strips/4 s).
+            // A privileged NORMAL normally holds for ONE commit — µs — and
+            // while it holds, fair-mode silences every other NORMAL, thinning
+            // the HIGHEST's opposition to a single thread; stripping on sight
+            // destroyed exactly that thinning and returned the whole pack to
+            // churn.  So the strip fires only for a holder that has sat on
+            // the SAME Reserved episode past the window — the stall it
+            // insures against, never the healthy µs-holder.
+            //
+            // The strip demotes the holder to an ordinary contender (its
+            // preempt-recovery clears m_registered_privileged; it may
+            // re-claim).  It must never hit a fellow HIGHEST — that would
+            // undo the probe-gated escalation inside the RT tier and invite
+            // strip wars — which the stamp's own PRIO field decides:
+            // `cur` is HIGHEST ⇒ fall through ⇒ do not strip.
+            bool _strip_foreign_priv = false;
+            if(_cur_is_priv
+                    && getCurrentPriorityMode() == Priority::HIGHEST) {
+                if( !NC::stamp_is_highest(cur)) {
+                    const int64_t _now = (int64_t)NC::now_us();
+                    if(cur != m_seen_priv_stamp) {
+                        m_seen_priv_stamp = cur;      // new holder episode
+                        m_seen_priv_first_us = _now;
+                    }
+                    else if(_now - m_seen_priv_first_us
+                                >= (int64_t)KAME_STM_PREEMPT_WINDOW_US)
+                        _strip_foreign_priv = true;
+                }
+            }
+            // Rule 0c (per user, 2026-08-11): PRIORITY SITS ABOVE AGE for
+            // HIGHEST tags — a non-HIGHEST tagger never overwrites a
+            // validated HIGHEST tag, plain or Reserved, however old its own
+            // stamp is.  Age order (the TLA+ older-wins argument) remains
+            // the ordering WITHIN the non-HIGHEST population; HIGHEST's
+            // forward progress never depended on tags (it never parks) —
+            // its tags exist to feed its livelock probe, and that is what
+            // overwrites were breaking: a tag lost to an older peer leaves
+            // tags_owned < tags_total (a yielded tag never enters the list,
+            // an overwritten one does), and that condition blocked 8.5 of
+            // 11.8 probe ticks per slow commit — the reason the rebuild
+            // count had NO reachable bound.  HIGHEST is also structurally
+            // the YOUNGEST contender (stamps are fixed per Tx and it
+            // commits fastest, so its stamp is always freshest), so pure
+            // age order systematically hands its slots to whoever is stuck.
+            // The class comes off `cur` itself (PRIO field), so there is
+            // nothing to validate and no way for the answer to be stale:
+            // the word carrying the class IS the word being tested.  This
+            // replaced a per-Linkage side word whose tid had to match the
+            // tag's, and whose mismatches — raced writers, a word published
+            // for a tag that then lost its CAS — fell back to age order.
+            // Exposure: a dead thread's HIGHEST tag is shielded from lower
+            // tiers until cleared by an equal tier — the same class as
+            // never-expiring NORMAL/HIGHEST privilege, accepted on the same
+            // grounds.
+            // MEASURED (RT host, 3 x 300 s each side, knob-free) — with the
+            // side word, i.e. before the PRIO field absorbed it:
+            //   shields ~83/s (mostly guarding FAST commits)
+            //   no_tags per slow commit 8.4-10.2 -> 2.3-4.9 (residue =
+            //     side-word validation races falling back to age order)
+            // Whether deleting the side word (PRIO field) removes that
+            // residue is UNRESOLVED — see RT_READINESS.md.  An A/B said
+            // 4.60 -> 0.81 and it was published here; the next A/B put the
+            // same build at 4.33, and the two line up by which slot of the
+            // interleaved pair the arm ran in.  The same build reproduced
+            // its acq (0.3 %) and its MAX distribution across that slot
+            // swap, so the fault is in this statistic, not the sessions: it
+            // averages over the run's slow commits, and at
+            // KAME_MIX_SLOW_NS=15000 there are 0-6 of those per 300 s.
+            // Lowering KAME_MIX_SLOW_NS does NOT rescue it: at 7000 the
+            // event count goes 0-6 -> ~500 per 60 s but no_tags reads 0.00,
+            // because MAX in those runs is 12.9-14.0 us and the >= 15 us
+            // population is simply absent — a different and benign set, not
+            // more samples of the same one.  Use `slow_n` (the COUNT over a
+            // threshold) as the tail metric instead; it is high-count, +-8 %,
+            // and it is what the budget contract asks about.  (Leaf count matters too and in the other direction:
+            // at KAME_MIX_LEAVES=16 the residue does not arise at all,
+            // 0.08-0.32 on both sides, so an A/B there is null for want of
+            // the phenomenon.  The figure above is the DEFAULT 4 leaves.)
+            //   organic grants 4 -> 118 per 900 s (~30x); verdicts now fire
+            //     0.8-1.7 per slow commit with no fast-path assistance
+            //   slow (>=15 us) commits 62 -> 15 per 900 s (~5.4 sigma)
+            //   MAX band 24.3-34.6 -> 20.4-23.7 us (bands disjoint)
+            //   p99 1,280 -> 1,024 ns; mean -4 %; throughput +4-6 %
+            // The throughput/median gain is the tag slots going quiet:
+            // ~25 k refused overwrites per 300 s that no longer cascade
+            // into re-tagging churn.
+            // NO TIER PAYS FOR IT, checked rather than argued (60 s, same
+            // shape): acq 125.7 k/s, UI 76.1 k, SCRIPTING 217.6 k, NORMAL
+            // 914.6 k — three up, SCRIPTING -1.7 % (noise) against the
+            // closest same-shape baseline.  Attribute the GAINS to nothing:
+            // that baseline predates the sysfs fix, which taxed the peers
+            // too.  What the check establishes is the absence of a cost.
+            // The structural reason there is none: the shield needs the
+            // tagger to be non-HIGHEST AND the slot's validated owner to be
+            // HIGHEST, so peer-vs-peer tagging never reaches this branch at
+            // all, and the shields that do fire are 79-83/s against ~1.2 M
+            // peer commits/s — 0.0065 %.
+            const bool _shield_highest =
+                !highest_mask_current_() && NC::stamp_is_highest(cur);
+            if(_strip_foreign_priv) {
+                detail::g_priv_strips.fetch_add(1, std::memory_order_relaxed);
+                _preempt = true;
+            } else if(_shield_highest) {
+                detail::count_highest_tag_shield();
+                _preempt = false;
+            } else if(_diff > 0) {
                 // I'm older.  cur is younger.
                 if(!_i_am_priv && _cur_is_priv) {
                     // Older non-priv vs younger priv: respect the
@@ -1729,6 +2009,15 @@ public:
             }
         }
         if(_preempt) {
+            // No side word to publish: `my_stamp` already carries this Tx's
+            // priority class in its PRIO field, folded in by `now_us_tagged`
+            // at construction, so the tag we are about to store describes
+            // itself.  That also disposes of the ordering this block used to
+            // need (side word released BEFORE the slot store, or a peer
+            // could read the new tag against the old owner's class) and of
+            // the priority-change hazard: one thread tagging at HIGHEST for
+            // the record and at NORMAL for the demoted downstream now plants
+            // two stamps that differ, instead of two tags sharing one word.
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
             // ====== PREEMPT-RESERVED DIAGNOSTIC (opt-in) ======
             // If we are about to overwrite a Reserved-kind slot (= we
@@ -1759,7 +2048,7 @@ public:
 #endif
             slot.store(my_stamp, std::memory_order_release);
             if(slot.load(std::memory_order_acquire) != my_stamp) [[unlikely]]
-                return;  // overwritten — don't add to list
+                return false;  // overwritten — don't add to list
 
             // Per-Linkage recent-ops log (m_recent_ops_state) is updated only
             // at confirmed publish points (bundle Phase 4 success with
@@ -1786,13 +2075,24 @@ public:
         //
         // -------------------------------------------------------------------
 
+        // Whether our stamp owns the slot now.  When we preempted, the verify
+        // above already proved it (we would have returned false otherwise).
+        // When we did not, the slot is somebody's -- possibly OURS, from an
+        // earlier touch in this Snapshot -- and the test is the one
+        // `i_am_privileged_now` applies, evaluated on the `cur` we loaded at
+        // the top rather than on a fresh read.
+        const bool _mine_now = _preempt
+            || (NC::is_priv_stamp(cur)
+                && NC::stamp_tid(cur) == NC::stamp_tid(my_stamp));
+
         // Dedup: ++tr re-tags the same primary-node linkage on every
         // retry, which otherwise piles duplicate shared_ptr entries
         // onto m_tagged_linkages.
         for(auto &&l: m_tagged_linkages)
             if(l.get() == link.get())
-                return; //duplicated.
+                return _mine_now; //duplicated.
         m_tagged_linkages.push_back(link);
+        return _mine_now;
     }
 
     //! Walks m_tagged_linkages and clears each linkage's tag only if it
@@ -1808,6 +2108,11 @@ public:
     //! from its own tranaction destructor.
     void drop_tags_n_privilege() noexcept {
         using NC = typename Node<XN>::NegotiationCounter;
+#if KAME_STM_NEG_DIAG
+        //! \sa detail::note_tx_linkages — L for the 2L bound.  Here because
+        //! this runs once per Tx with the tag list complete.
+        detail::note_tx_linkages((std::uint64_t)m_tagged_linkages.size());
+#endif
         // Identity = (us, tid) — kind bits ignored because tag_as_contender
         // may have stamped the linkage with kind=BUNDLE/UNBUNDLE/COMMIT
         // (driven by the thread-local ScopedOpKind) while my_started_time
@@ -2105,6 +2410,14 @@ protected:
     //! m_registered_privileged stays false and its dtor will not steal
     //! the outer's privilege.
     bool m_registered_privileged = false;
+    //! Rule-0 patience (see tag_as_contender): the foreign Reserved stamp this
+    //! Tx is currently waiting behind, and when it first saw it.  Single slot:
+    //! if a grand-scope Tx alternates between different holders on different
+    //! Linkages the memory thrashes and the patience never elapses — that is
+    //! the conservative direction, and the pathological case this exists for
+    //! is being stuck behind ONE holder.
+    typename Node<XN>::NegotiationCounter::cnt_t m_seen_priv_stamp = 0;
+    int64_t m_seen_priv_first_us = 0;
     //! Linkages whose m_transaction_started_time this attempt has tagged
     //! (or intends to tag). Held as shared_ptr to keep the Linkage alive
     //! until clear_tags() runs; otherwise dynamic-node release could leave
@@ -2208,7 +2521,18 @@ public:
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
         // m_oneup (the running-slot acquire) is a by-value member, bumped in
         // the member-init list above — no per-Tx heap allocation.
-        node.snapshot( *this, multi_nodal);
+        //
+        // Same mid-construction-throw gap as the plain Snapshot ctor above
+        // (see its comment): ~Transaction() — the only other place that drops
+        // tags — is never invoked for an object whose constructor did not
+        // complete.  The base ~Snapshot() DOES run, but carries no drop.
+        try {
+            node.snapshot( *this, multi_nodal);
+        }
+        catch(...) {
+            this->drop_tags_n_privilege();
+            throw;
+        }
         assert( &m_packet->node() == &node);
         assert( &m_oldpacket->node() == &node);
     }
@@ -2301,7 +2625,31 @@ public:
         supernode.snapshot( *this, true);
         Snapshot<XN> shot_super( *this);
         Snapshot<XN> shot_this(node, shot_super);
+        // Re-anchor the snapshot CONTENT only; preserve the negotiation
+        // bookkeeping EXPLICITLY.  Before this change the bookkeeping
+        // (m_started_time — the stamp identity; m_tagged_linkages — the
+        // ledger of stamps planted by the ++ above and by
+        // supernode.snapshot()'s bundling; m_registered_privileged) survived
+        // only by accident: Snapshot::operator= is the default member-wise
+        // copy, and shot_this happens to be copy-chained from *this via
+        // shot_super, so the same values flowed back in.  Any future change
+        // to either constructor on that chain would have severed the ledger
+        // from the planted stamps and made them ownerless — a ghost every
+        // negotiator waits behind (verified FAIL-first while investigating
+        // the 2026-07-31 freeze: the accident currently holds, so this was
+        // NOT that bug — transaction_reanchor_test now pins the invariant
+        // rather than trusting the accident).
+        const auto saved_started = this->m_started_time;
+        auto saved_tags = std::move(this->m_tagged_linkages);
+        const auto saved_priv = this->m_registered_privileged;
+        const auto saved_retry = this->m_tx_retry_count;
+        const auto saved_bits = this->m_tid_bitset;
         this->Snapshot<XN>::operator=(shot_this);
+        this->m_started_time = saved_started;
+        this->m_tagged_linkages = std::move(saved_tags);
+        this->m_registered_privileged = saved_priv;
+        this->m_tx_retry_count = saved_retry;
+        this->m_tid_bitset = saved_bits;
         this->m_oldpacket = this->m_packet;
         return shot_super;
     }
@@ -2318,6 +2666,9 @@ private:
 //	}
     //! Takes another snapshot and prepares for a next transaction.
     Transaction &operator++() {
+        // The one commit-side site; see throw_if_starved_ for why here and not
+        // in the three iterate_commit variants.
+        Node<XN>::throw_if_starved_( *this);
         // Tx-layer retry counter feeding the livelock probe. Counts outer
         // iterate_commit iterations. The same field (m_tx_retry_count on
         // the Snapshot base, zero-initialised by default) is also bumped
@@ -2397,9 +2748,21 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
 
     m_oldpacket.reset();
     //Messaging.
-    for(auto &&msg: m_messages)
-        msg->talk( *this);
-    m_messages.clear();
+    // The listeners below are other people's code.  Two lines up, this function
+    // already sheds the running slot "before messaging"; shedding a realtime
+    // priority is the same idea and for a sharper reason — an immediate listener
+    // that widens scope (the secondary-driver interface snapshots the whole
+    // driver list) would otherwise do it at HIGHEST, putting two realtime
+    // acquisition threads on one Linkage.  Demotes HIGHEST only; see
+    // ScopedDemoteRealtime for why raising a lowprio committer would be wrong.
+    // Gated on emptiness: a commit with no listeners -- most settings commits
+    // -- has nothing to demote around.
+    if( !m_messages.empty()) {
+        ScopedDemoteRealtime _no_realtime_in_listeners;
+        for(auto &&msg: m_messages)
+            msg->talk( *this);
+        m_messages.clear();
+    }
 }
 
 // Helper: strict-retry escalation arbiter.
@@ -2409,52 +2772,56 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
 //  saved_pr     — [out] previous priority to restore on success.
 // Returns true if this call flipped priority up (caller must restore
 // on commit). No-op when threshold == 0 (paper-ablation row).
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-inline void strict_escalate_if_oldest(bool at_threshold, int64_t my_time,
-                                      bool &escalated, Priority &saved_pr) {
-    if(!at_threshold || escalated) return;
-    // Min-CAS: update watermark if my_time is smaller.
-    int64_t prev = g_strict_watermark.load(std::memory_order_relaxed);
-    while(my_time < prev &&
-          !g_strict_watermark.compare_exchange_weak(prev, my_time,
-              std::memory_order_relaxed)) {}
-    // Escalate only if we actually own the watermark.
-    if(g_strict_watermark.load(std::memory_order_relaxed) == my_time) {
-        saved_pr = getCurrentPriorityMode();
-        setCurrentPriorityMode(Priority::HIGHEST);
-        escalated = true;
-    }
-}
-inline void strict_release(bool escalated, int64_t my_time, Priority saved_pr) {
-    if(!escalated) return;
-    setCurrentPriorityMode(saved_pr);
-    int64_t expected = my_time;
-    // CAS-release the watermark (strong so we don't leak it on spurious
-    // failure; no-op if some other thread already replaced our value).
-    g_strict_watermark.compare_exchange_strong(expected,
-        (int64_t)0x7fffffffffffffffLL, std::memory_order_relaxed);
-}
+
+//! Starvation check for the revocable priorities — see
+//! KAME_STM_LOWPRIO_STARVE_MS.
+//!
+//! Called from exactly two places, which between them cover every unbounded
+//! retry loop in the STM:
+//!
+//!   * `Transaction::operator++` — the commit retry step.  `iterate_commit`,
+//!     `_if` and `_while` all reach it through `for(...;;++tr)`, and Python's
+//!     `Transaction.__next__` reaches it through `commitOrNext()`, which calls
+//!     `++(*this)` when the commit fails.  One site instead of four.
+//!   * `Node::snapshot()`'s `for(int retry = 0;; ++retry)` — a Snapshot is
+//!     read-only and has no `operator++`, so its retry loop would otherwise be
+//!     unbounded.  This is the path a graph redraw takes when it snapshots an
+//!     ancestor, i.e. the GUI-freeze case, so it matters at least as much as
+//!     the commit side.
+//!
+//! Takes a `Snapshot` rather than a `Transaction` for that reason: both fields
+//! it reads live on the base.  The lowprio bit comes off the object's own stamp
+//! (folded at construction by `now_us_tagged`) rather than the thread-local
+//! priority, so it reflects what the operation started as and costs no TLS
+//! access, and the retry-count gate keeps the clock out of the fast path.
+template <class XN>
+inline void Node<XN>::throw_if_starved_(const Snapshot<XN> &shot) {
+#if KAME_STM_LOWPRIO_STARVE_MS > 0
+    using NC = typename Node<XN>::NegotiationCounter;
+    if(shot.m_tx_retry_count < (uint32_t)KAME_STM_LOWPRIO_STARVE_MIN_RETRIES)
+        return;
+    if( !NC::stamp_is_lowprio(shot.m_started_time)) [[likely]]
+        return;
+    const int64_t age = (int64_t)NC::diff_us_packed(
+        (typename NC::cnt_t)NC::now_us(), shot.m_started_time);
+    if(age <= (int64_t)KAME_STM_LOWPRIO_STARVE_MS * 1000) [[likely]]
+        return;
+    // Null handler = no throw = today's behaviour.  See StarvationHandler.
+    if(StarvationHandler h = starvationHandler())
+        h((unsigned)shot.m_tx_retry_count, (long long)age);
+#else
+    (void)shot;
 #endif
+}
 
 template <class XN>
 template <typename Closure>
 Snapshot<XN> Node<XN>::iterate_commit_if(Closure &&closure) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-    int n = 0; Priority saved_pr = Priority::NORMAL; bool escalated = false;
-#endif
     for(Transaction<XN> tr( *this);;++tr) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-        ++n;
-        strict_escalate_if_oldest(n >= KAME_STM_STRICT_RETRY_THRESHOLD,
-                                  tr.m_started_time, escalated, saved_pr);
-#endif
         try {
             if( !closure(tr))
                 continue; //skipping.
             if(tr.commit()) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-                strict_release(escalated, tr.m_started_time, saved_pr);
-#endif
                 return std::move(tr);
             }
         }
@@ -2466,21 +2833,10 @@ Snapshot<XN> Node<XN>::iterate_commit_if(Closure &&closure) {
 template <class XN>
 template <typename Closure>
 Snapshot<XN> Node<XN>::iterate_commit(Closure &&closure) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-    int n = 0; Priority saved_pr = Priority::NORMAL; bool escalated = false;
-#endif
     for(Transaction<XN> tr( *this);;++tr) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-        ++n;
-        strict_escalate_if_oldest(n >= KAME_STM_STRICT_RETRY_THRESHOLD,
-                                  tr.m_started_time, escalated, saved_pr);
-#endif
           try {
               closure(tr);
               if(tr.commit()) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-                  strict_release(escalated, tr.m_started_time, saved_pr);
-#endif
                   return std::move(tr);
               }
           }
@@ -2492,26 +2848,12 @@ Snapshot<XN> Node<XN>::iterate_commit(Closure &&closure) {
 template <class XN>
 template <typename Closure>
 void Node<XN>::iterate_commit_while(Closure &&closure) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-    int n = 0; Priority saved_pr = Priority::NORMAL; bool escalated = false;
-#endif
     for(Transaction<XN> tr( *this);;++tr) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-        ++n;
-        strict_escalate_if_oldest(n >= KAME_STM_STRICT_RETRY_THRESHOLD,
-                                  tr.m_started_time, escalated, saved_pr);
-#endif
         try {
             if( !closure(tr)) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-                strict_release(escalated, tr.m_started_time, saved_pr);
-#endif
                  return;
             }
             if(tr.commit()) {
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-                strict_release(escalated, tr.m_started_time, saved_pr);
-#endif
                 return;
             }
         }

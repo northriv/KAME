@@ -31,7 +31,8 @@ class XChartList;
 class XCalibratedEntryList;
 class XTextWriter;
 class XRawStreamRecorder;
-class XRawStreamRecordReader;
+class XJournal;
+class XJournalReader;
 class XRuby;
 class XPython;
 class XNodeBrowser;
@@ -61,9 +62,13 @@ public:
 	const shared_ptr<XChartList> &charts() const {return m_chartList;}
     const shared_ptr<XCalibratedEntryList> &calibratedEntries() const {return m_calibratedEntryList;}
 	const shared_ptr<XTextWriter> &textWriter() const {return m_textWriter;}
-	const shared_ptr<XRawStreamRecorder> &rawStreamRecorder() const {return m_rawStreamRecorder;}
-	const shared_ptr<XRawStreamRecordReader> &rawStreamRecordReader() const {return m_rawStreamRecordReader;}
+	//! What the run is called, how much of it is kept, and what it costs.
+	//! The raw stream lives under it now, not beside it.
+	//! \sa doc/design/PROVENANCE.md
+	const shared_ptr<XJournal> &journal() const {return m_journal;}
+	const shared_ptr<XJournalReader> &journalReader() const {return m_journalReader;}
 
+	//! Null unless the build has the Ruby interpreter (USE_RUBY).
 	const shared_ptr<XRuby> &ruby() const {return m_ruby;}
 #ifdef USE_PYBIND11
     const shared_ptr<XPython> &python() const {return m_python;}
@@ -72,6 +77,14 @@ public:
     const shared_ptr<XStringNode> &pyInfoForNodeBrowser() const {return m_pyInfoForNodeBrowser;}
     shared_ptr<XNode> &lastPointedByNodeBrowser() {return m_lastPointedByNodeBrowser;}
 private:
+	//! Declared unconditionally ON PURPOSE.  This header is included by
+	//! libkame and by every module, and only kame.pro runs the ruby-header
+	//! detection -- so USE_RUBY is NOT uniform across the targets that see
+	//! this class.  Putting a member behind it split sizeof(XMeasure) by 16
+	//! bytes between the app and the modules, which aliased the modules'
+	//! m_interfaces onto the app's m_drivers.  A forward-declared
+	//! shared_ptr costs 16 bytes and pulls in no libruby; only the
+	//! construction in measure.cpp is gated.
 	shared_ptr<XRuby> m_ruby;
     shared_ptr<XPython> m_python;
 
@@ -83,17 +96,18 @@ private:
 	const shared_ptr<XDriverList> m_drivers;
     const shared_ptr<XCalibratedEntryList> m_calibratedEntryList;
     const shared_ptr<XTextWriter> m_textWriter;
-	const shared_ptr<XRawStreamRecorder> m_rawStreamRecorder;
-	const shared_ptr<XRawStreamRecordReader> m_rawStreamRecordReader;
+	const shared_ptr<XJournal> m_journal;
+	const shared_ptr<XJournalReader> m_journalReader;
 
     shared_ptr<XNode> m_lastPointedByNodeBrowser;
     shared_ptr<XStringNode> m_pyInfoForNodeBrowser;
 
-    const xqcon_ptr m_conRecordReader,
+    const xqcon_ptr m_conJournalReader,
         m_conDrivers, m_conInterfaces, m_conEntries, m_conGraphs, m_conCalibEntries,
         m_conTextWrite, m_conTextURL, m_conTextLastLine,
         m_conLogURL, m_conLogWrite, m_conLogEvery,
-        m_conBinURL, m_conBinWrite, m_conUrlRubyThread,
+        m_conJournalURL, m_conJournalSessionFile, m_conJournalSession, m_conJournalMode, m_conJournalWrite, m_conJournalStats,
+        m_conUrlRubyThread,
         m_conCalTable, m_conNodeBrowser;
 	shared_ptr<Listener> m_lsnOnReleaseDriver;
 	void onReleaseDriver(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);

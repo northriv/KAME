@@ -24,6 +24,10 @@
 #define TRANSACTION_DEFINITIONS_H
 
 #include <atomic>   // ATOMIC_LLONG_LOCK_FREE for KAME_STM_COMPACT_STATE
+#include <cstdint>   //!< Kept locally: this is a public header of the
+                     //!< standalone kamestm library and does not go
+                     //!< through kamestm/support.h, so a downstream
+                     //!< consumer must not depend on our include order.
 
 // --- 32-bit platform fallback: compact STM state ---------------------
 //
@@ -342,6 +346,78 @@
 // is byte-identical without it, and so a minimal embedding can drop it.
 // With 0 the API is not declared at all, so a caller that expects a budget
 // gets a compile error rather than a silent no-op.
+// Starvation bound for the priorities whose privilege can be REVOKED.
+//
+// The rule (user): a priority that can have its privilege taken away must be
+// given a way to fail.  Revocability without a failure path is not fairness, it
+// is a starvation guarantee — the thread keeps retrying with no protection and
+// no exit.  The revocable set is exactly the one `stamp_is_expired_lowprio`
+// acts on, i.e. `lowprio_mask_for_current_priority()`: LOWEST, UI_DEFERRABLE,
+// SCRIPTING.  NORMAL and HIGHEST are excluded by the same symmetry — their
+// privilege never expires, so they are never revoked and need no failure path,
+// and a driver record must not be lost to STM contention.
+//
+// The risk is not theoretical, and this codebase just increased it: a HIGHEST
+// acquisition loop never negotiates (XPrimaryDriverWithThread::
+// AcquisitionPriority) and a budget-carrying thread stops waiting, so slow
+// below-NORMAL work on a node those touch — a graph redraw, a script reading
+// it — can be retried indefinitely.  The only existing exit is the negotiation
+// HANG watchdog, which `abort()`s the whole process after 3 x 5 s; an exception
+// in the starved thread is strictly better than that.
+//
+// 1000 ms has provenance rather than being invented: the Priority enum's
+// original doc-comment promised SCRIPTING "yields to *everything* for the first
+// second of any contention, then claims privilege so the request still
+// eventually completes".  Privilege never fires (grants measured 0.000 in every
+// configuration), so that promise was never kept.  This keeps it by the other
+// route — instead of "then claims privilege", "then gives up cleanly".
+// On by default, which is safe because the CONSEQUENCE is opt-in: reaching the
+// bound calls `Transactional::starvationHandler()`, and with no handler
+// installed — the default — nothing happens and the transaction keeps retrying
+// exactly as before.  A host opts in by installing a handler that throws a type
+// it already catches.
+//
+// That indirection is not decoration.  A first cut threw a new
+// `StarvationTimeoutError` unconditionally, which was a crash risk: KAME catches
+// XKameError at its connector boundaries and nowhere catches
+// std::runtime_error, there is no QApplication::notify override and no try/catch
+// around app.exec(), and main.cpp puts the whole GUI thread at UI_DEFERRABLE —
+// so a new type escaping a Qt slot terminates the process, a worse outcome than
+// the freeze the bound prevents.  Covering it type-by-type meant seven thread
+// entry points plus six connector chains; one host-installed handler is one
+// place.
+//
+// Was 1000 ms (provenance: the Priority enum's original doc promised SCRIPTING
+// "yields to everything for the first second, then claims privilege" — grants
+// measured 0.000, so a 1 s give-up kept the promise by the other route).
+// Raised to 10 s (user, 2026-07-30, after the T1Mode incident): the throw
+// lands in constructors and Qt-adjacent paths that cannot all be made
+// exception-safe, so firing must be RARE — the bound's role is no longer
+// responsiveness but a last exit BEFORE the 3 x 5 s HANG watchdog aborts the
+// process: the UI thread unfreezes with an error and the user gets the chance
+// to SAVE DATA.  Transient bursts that starve the UI for 1-2 s now resolve by
+// seniority (older-wins) instead of by a throw that restarts the transaction
+// forever-young.
+#ifndef KAME_STM_LOWPRIO_STARVE_MS
+#  define KAME_STM_LOWPRIO_STARVE_MS 10000   // 10 s (user, 2026-07-30)
+#endif
+// Retries before the age is even looked at, so an uncontended commit pays one
+// integer compare and never reads the clock.
+//
+// 2 rather than 8 (user, 2026-07-31): once a fair-blocked thread has sunk
+// into the deep sleep state, one negotiate call sleeps up to the 5 s cap, so
+// retries accrue at one per <=5 s and eight of them defer the exit to ~40 s.
+// The HANG watchdog's 15 s abort used to mask that corner by killing the
+// process first; with the abort disabled in release builds the exit must arm
+// itself.  At 2, the retry gate only certifies "genuinely contended, not a
+// first attempt" and the 10 s age condition is the real clock, so the exit
+// opens at ~bound + one sleep.  A 2-retry transaction older than 10 s is
+// starved or glacial either way, and handing the revocable tiers an
+// exception to save data on is exactly the designed treatment.
+#ifndef KAME_STM_LOWPRIO_STARVE_MIN_RETRIES
+#define KAME_STM_LOWPRIO_STARVE_MIN_RETRIES 2
+#endif
+
 #ifndef KAME_STM_WAIT_BUDGET
 #define KAME_STM_WAIT_BUDGET 1
 #endif
@@ -410,12 +486,6 @@
 #  define KAME_STM_NOINLINE __attribute__((noinline))
 #endif
 
-// Per-Priority retry threshold for the livelock probe's verdict (NORMAL
-// row; HIGHEST/UI_DEFERRABLE/LOWEST are hard-coded in
-// priority_probe_info()).
-#ifndef KAME_STM_RETRY_THRESH_NORMAL
-#define KAME_STM_RETRY_THRESH_NORMAL 3
-#endif
 
 // Floor for the live-contender estimate used in negotiate_internal's
 // √C lottery: C_obs = max(C, KAME_STM_C_OBS_MIN).
