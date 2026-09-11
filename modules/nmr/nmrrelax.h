@@ -20,7 +20,7 @@
 //#include "nmrpulse.h"
 //#include "nmrrelaxfit.h"
 #include <complex>
-#include "tikhonovreg.h"
+#include "nmrrelaxmap.h"
 
 #include "nmrspectrumsolver.h"
 
@@ -163,7 +163,8 @@ public:
 	const shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > >  &relaxFunc() const {return m_relaxFunc;}
 
     //! Fields for Mapping via Tikhonov Regularization.
-    enum class MapMode {Off = 0, AllNonNegative = 1, NoiseAnalysis = 2, LCurve = 3, GCV = 4};
+    //! \sa NMRRelaxMapMode, shared with the frequency-swept spectrometer.
+    using MapMode = NMRRelaxMapMode;
     const shared_ptr<XComboNode> &mapMode() const {return m_mapMode;}
     const shared_ptr<XComboNode> &mapTikhonovMatrix() const {return m_mapTikhonovMatrix;}
     //! [kHz].
@@ -291,7 +292,8 @@ private:
     void setNextP1(const Snapshot &shot);
 
     const shared_ptr<XWaveNGraph> m_waveMap, m_waveAllRelaxCurves;
-    atomic_shared_ptr<TikhonovRegular> m_regularization;
+    //! Touched by visualize() only; analyze() may ask it to drop its kernel.
+    NMRRelaxMapSolver m_mapSolver;
 };
 
 //---------------------------------------------------------------------------
