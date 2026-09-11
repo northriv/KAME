@@ -49,6 +49,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
       m_mapTikhonovMatrix(create<XComboNode>("MapTikhonovMatrix", false, true)),
       m_mapEchoesPerBin(create<XUIntNode>("MapEchoesPerBin", false)),
       m_mapFreqRes(create<XDoubleNode>("MapFreqRes", false, "%.4f")),
+      m_mapPhase(create<XComboNode>("MapPhase", false, true)),
       m_waveMapCurves(create<XWaveNGraph>("RelaxCurves", false, m_form->m_graphMapCurves,
           m_form->m_edMapCurvesDump, m_form->m_tbMapCurvesDump, m_form->m_btnMapCurvesDump)),
       m_waveMap(create<XWaveNGraph>("RelaxMap", false, m_form->m_graphRelaxMap,
@@ -86,6 +87,8 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
         tr[ *relaxFunc()].str(XString("NMR I=1/2"));
         tr[ *mapEchoesPerBin()] = 1;
         tr[ *mapFreqRes()] = 0.0;
+        tr[ *mapPhase()].add({"Auto per Freq.", "Global", "Absolute"});
+        tr[ *mapPhase()] = (int)MapPhaseMode::AutoPerFreq;
         if( !setupRelaxCurvesGraph(tr, m_waveMapCurves, "Freq [MHz]", "2tau [us]")) return;
         if( !setupRelaxDensityMapGraph(tr, m_waveMap, "Freq [MHz]", "T2 [us]")) return;
     });
@@ -109,7 +112,8 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(m_mapTikhonovMatrix, m_form->m_cmbMapTikhonovMatrix, Snapshot( *m_mapTikhonovMatrix)),
         xqcon_create<XQComboBoxConnector>(m_relaxFunc, m_form->m_cmbMapRelaxFunc, Snapshot( *m_relaxFuncs)),
         xqcon_create<XQSpinBoxUnsignedConnector>(m_mapEchoesPerBin, m_form->m_spbMapEchoesPerBin),
-        xqcon_create<XQLineEditConnector>(m_mapFreqRes, m_form->m_edMapFreqRes)
+        xqcon_create<XQLineEditConnector>(m_mapFreqRes, m_form->m_edMapFreqRes),
+        xqcon_create<XQComboBoxConnector>(m_mapPhase, m_form->m_cmbMapPhase, Snapshot( *m_mapPhase))
     };
 
 	iterate_commit([=](Transaction &tr){
@@ -123,7 +127,8 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 		//away.  The bins themselves are rebuilt by updateMapBins() when the
 		//binning no longer matches what was accumulated.
 		for(auto &&x: std::vector<shared_ptr<XValueNodeBase>>(
-			{mapMode(), mapTikhonovMatrix(), mapEchoesPerBin(), mapFreqRes(), relaxFunc()}))
+			{mapMode(), mapTikhonovMatrix(), mapEchoesPerBin(), mapFreqRes(),
+			relaxFunc(), mapPhase()}))
 			tr[ *x].onValueChanged().connect(m_lsnOnCondChanged);
     });
 }
@@ -429,11 +434,17 @@ XNMRFSpectrum::mapBinning(const Snapshot &shot_this, const Snapshot &shot_pulse,
     if((nechoes < 2) || (twotau <= 0.0))
         return false;
     int m = (int)std::max(1u, (unsigned int)shot_this[ *mapEchoesPerBin()]);
-    binning.binCount = (nechoes + m - 1) / m;
+    //A remainder goes into the LAST bin rather than into a short one of its
+    //own: that bin already carries the weakest signal of the train, and the
+    //inversion weights every bin alike, so a bin of m/2 echoes would be the
+    //noisiest point of the curve and still count as much as the first.  Its
+    //kernel row is the mean over the echoes it really holds, so nothing is
+    //biased by being fed more of them.
+    binning.binCount = std::max(1, nechoes / m);
     binning.binOfRecord.resize(nechoes);
     binning.timeOfRecord.resize(nechoes);
     for(int i = 0; i < nechoes; ++i) {
-        binning.binOfRecord[i] = i / m;
+        binning.binOfRecord[i] = std::min(i / m, binning.binCount - 1);
         binning.timeOfRecord[i] = twotau * (i + 1);
     }
     return true;
@@ -503,6 +514,7 @@ XNMRFSpectrum::visualize(const Snapshot &shot) {
     data.resize(nx, nbin);
     for(int i = 0; i < nx; ++i)
         data.xvalues[i] = (min__ + (i * decim + 0.5 * (decim - 1)) * res) * 1e-6; //[MHz]
+    auto phmode = (MapPhaseMode)(int)shot[ *mapPhase()];
     auto cph = std::polar(1.0, -(double)shot[ *phase()] / 180.0 * M_PI);
     //The dark power accumulated alongside the signal, as a variance per point.
     //It is the one the pulse analyzer quotes for the echo-AVERAGED wave, so it
@@ -526,7 +538,8 @@ XNMRFSpectrum::visualize(const Snapshot &shot) {
             }
             if(w <= th)
                 continue; //never swept here, or too far off the excitation.
-            std::complex<double> z = sum / w * cph;
+            //Still unrotated: the phase is settled per frequency below.
+            std::complex<double> z = sum / w;
             data.y.coeffRef(i, b) = std::real(z);
             data.yimag.coeffRef(i, b) = std::imag(z);
             double sigmasq = dark / (w * w) * psdcoeff;
@@ -538,6 +551,58 @@ XNMRFSpectrum::visualize(const Snapshot &shot) {
         }
     }
     data.noiseSq = noisecnt ? (noisesq / noisecnt) : 0.0;
+
+    //A swept carrier does not keep one phase: the probe's tuning, the cable
+    //delay and the synthesizer all turn it as the sweep moves, so the one
+    //phase() the spectrum carries cannot put every frequency in phase at once
+    //-- which is the difference from XNMRT1, where every point is acquired at
+    //the same carrier.  The train at ONE frequency does share a phase, though,
+    //since the relaxation behind it is real and positive.  So the phase is
+    //settled frequency by frequency, from the sum over that frequency's bins,
+    //and the inversion is left with a real signal that decays to zero: what
+    //the kernel says it does, and what makes the non-negativity of the density
+    //meaningful.  Each bin enters the sum weighted by its own magnitude, so
+    //bins whose signal has already decayed contribute noise, not direction.
+    for(int i = 0; i < nx; ++i) {
+        std::complex<double> rot(1.0, 0.0);
+        switch(phmode) {
+        case MapPhaseMode::Global:
+        default:
+            rot = cph;
+            break;
+        case MapPhaseMode::AutoPerFreq: {
+            std::complex<double> sum(0.0, 0.0);
+            for(int b = 0; b < nbin; ++b) {
+                std::complex<double> z(data.y.coeff(i, b), data.yimag.coeff(i, b));
+                sum += z * std::abs(z);
+            }
+            double a = std::abs(sum);
+            if(a > 0.0)
+                rot = std::conj(sum) / a; //exp(-i arg(sum))
+            break;
+            }
+        case MapPhaseMode::Absolute:
+            //The magnitude has no phase to get wrong, but it does not decay to
+            //zero either: it settles on the noise floor, which the kernel has
+            //no term for and the inversion could only explain by inventing a
+            //component that never decays.  Taking its own variance back out
+            //restores the zero asymptote, in expectation.
+            for(int b = 0; b < nbin; ++b) {
+                double re = data.y.coeff(i, b), im = data.yimag.coeff(i, b);
+                double isig = data.isigma.coeff(i, b);
+                double sq = re * re + im * im - ((isig > 0.0) ? 1.0 / (isig * isig) : 0.0);
+                data.y.coeffRef(i, b) = (sq > 0.0) ? sqrt(sq) : 0.0;
+                data.yimag.coeffRef(i, b) = 0.0;
+            }
+            continue;
+        }
+        for(int b = 0; b < nbin; ++b) {
+            std::complex<double> z(data.y.coeff(i, b), data.yimag.coeff(i, b));
+            z *= rot;
+            data.y.coeffRef(i, b) = std::real(z);
+            data.yimag.coeffRef(i, b) = std::imag(z);
+        }
+    }
 
     drawRelaxCurves(m_waveMapCurves, data, "2tau [us]");
 
