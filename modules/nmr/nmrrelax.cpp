@@ -559,7 +559,7 @@ XNMRT1::ZFFFT(Transaction &tr,
 void
 XNMRT1::storePulseForMapping(Transaction &tr, double p1_or_2tau,
     const std::vector< std::complex<double> >&wave, const Snapshot &shot_pulse,
-    const XNMRPulseAnalyzer &pulse) {
+    const XNMRPulseAnalyzer &pulse, double noisefactor) {
     const Snapshot &shot_this(tr);
     if((MapMode)(int)shot_this[ *mapMode()] == MapMode::Off)
         return;
@@ -599,7 +599,10 @@ XNMRT1::storePulseForMapping(Transaction &tr, double p1_or_2tau,
     const std::vector<double>& darkpsd = shot_pulse[pulse].darkPSD();
     auto vec_darkpsd = Eigen::Map<Eigen::VectorXd>(const_cast<double*>( &darkpsd[0]), darkpsd.size());
 
-    p->summedDarkPSDSq += vec_darkpsd.sum() * shot_pulse[pulse].darkPSDFactorToVoltSq() / vec_darkpsd.size(); //[V^2]
+    //\a noisefactor undoes the echo averaging darkPSD() is quoted for when the
+    //wave handed over is one echo of a train rather than their mean.
+    p->summedDarkPSDSq += noisefactor * vec_darkpsd.sum()
+        * shot_pulse[pulse].darkPSDFactorToVoltSq() / vec_darkpsd.size(); //[V^2]
 
     std::vector<std::complex<double> > fftout;
     std::vector<std::complex<double> > fftin;
@@ -775,7 +778,8 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
                 accumulateRawPt(tr[ *this].m_pts, pt1);
 
-                storePulseForMapping(tr, twotau, shot_pulse1[ *pulse1__].echoesT2()[i], shot_pulse1, *pulse1__);
+                storePulseForMapping(tr, twotau, shot_pulse1[ *pulse1__].echoesT2()[i],
+                    shot_pulse1, *pulse1__, shot_pulse1[ *pulse1__].darkPSDFactorPerEcho());
             }
         }
         else {
@@ -1135,7 +1139,13 @@ XNMRT1::visualize(const Snapshot &shot) {
         assert(i == pcount_stored);
         data.noiseSq = noisesq / pcount_stored;
 
-        drawRelaxCurves(m_waveAllRelaxCurves, data, tlabel.c_str());
+        //What it took to acquire these curves; the inversion's own settings go
+        //on the density map instead, and neither line holds much text.
+        drawRelaxCurves(m_waveAllRelaxCurves, data, tlabel.c_str(),
+            formatString("res=%.4gkHz BW=%.4gkHz w=%s@%.0f%%",
+                shot[ *this].m_mapFreqRes * 1e-3, shot[ *this].m_mapBandWidth * 1e-3,
+                shot[ *mapWindowFunc()].to_str().c_str(),
+                (double)shot[ *mapWindowWidth()]));
 
         shared_ptr<XRelaxFunc> relax_fn = shot[ *relaxFunc()];
         if( !relax_fn) return;
@@ -1166,7 +1176,8 @@ XNMRT1::visualize(const Snapshot &shot) {
             maplabel = "Tste [ms]";
             break;
         }
-        drawRelaxDensityMap(m_waveMap, data, tgrid, density, maplabel.c_str());
+        drawRelaxDensityMap(m_waveMap, data, tgrid, density, maplabel.c_str(),
+            m_mapSolver.status());
     }
 }
 
