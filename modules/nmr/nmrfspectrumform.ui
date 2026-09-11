@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>942</width>
+    <width>916</width>
     <height>487</height>
    </rect>
   </property>
@@ -62,7 +62,7 @@
            <string>Center Freq</string>
           </property>
           <property name="alignment">
-           <set>Qt::AlignCenter</set>
+           <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
           <property name="wordWrap">
            <bool>false</bool>
@@ -129,7 +129,7 @@
            <string>Span</string>
           </property>
           <property name="alignment">
-           <set>Qt::AlignCenter</set>
+           <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
           <property name="wordWrap">
            <bool>false</bool>
@@ -196,7 +196,7 @@
            <string>Step</string>
           </property>
           <property name="alignment">
-           <set>Qt::AlignCenter</set>
+           <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
           <property name="wordWrap">
            <bool>false</bool>
@@ -263,7 +263,7 @@
            <string>Band Width</string>
           </property>
           <property name="alignment">
-           <set>Qt::AlignCenter</set>
+           <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
           <property name="wordWrap">
            <bool>false</bool>
@@ -318,7 +318,7 @@
            <string>Pulse Analyzer</string>
           </property>
           <property name="alignment">
-           <set>Qt::AlignCenter</set>
+           <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
           <property name="wordWrap">
            <bool>false</bool>
@@ -362,7 +362,7 @@
               <string>Offset</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignCenter</set>
+              <set>Qt::AlignmentFlag::AlignCenter</set>
              </property>
              <property name="wordWrap">
               <bool>false</bool>
@@ -468,7 +468,7 @@
               <string>Step</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignCenter</set>
+              <set>Qt::AlignmentFlag::AlignCenter</set>
              </property>
              <property name="wordWrap">
               <bool>false</bool>
@@ -515,7 +515,7 @@
       <item>
        <spacer name="verticalSpacer">
         <property name="orientation">
-         <enum>Qt::Vertical</enum>
+         <enum>Qt::Orientation::Vertical</enum>
         </property>
         <property name="sizeHint" stdset="0">
          <size>
@@ -532,7 +532,7 @@
       <item>
        <widget class="QTabWidget" name="m_tabGraphs">
         <property name="currentIndex">
-         <number>0</number>
+         <number>1</number>
         </property>
         <widget class="QWidget" name="m_tabSpectrum">
          <attribute name="title">
@@ -551,169 +551,151 @@
           <property name="bottomMargin">
            <number>2</number>
           </property>
-      <item>
-       <layout class="QHBoxLayout">
-        <item>
-         <widget class="QLineEdit" name="m_edDump"/>
-        </item>
-        <item>
-         <widget class="QToolButton" name="m_tbDump">
-          <property name="text">
-           <string>...</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="m_btnDump">
-          <property name="text">
-           <string>D&amp;UMP</string>
-          </property>
-          <property name="autoDefault">
-           <bool>false</bool>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QToolButton" name="m_tlbMath">
-          <property name="text">
-           <string>MATH</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <widget class="XQGraph" name="m_graph" native="true">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-       </widget>
-      </item>
+          <item>
+           <layout class="QHBoxLayout">
+            <item>
+             <widget class="QLineEdit" name="m_edDump"/>
+            </item>
+            <item>
+             <widget class="QToolButton" name="m_tbDump">
+              <property name="text">
+               <string>...</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="m_btnDump">
+              <property name="text">
+               <string>D&amp;UMP</string>
+              </property>
+              <property name="autoDefault">
+               <bool>false</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QToolButton" name="m_tlbMath">
+              <property name="text">
+               <string>MATH</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="XQGraph" name="m_graph" native="true">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+           </widget>
+          </item>
          </layout>
         </widget>
         <widget class="QWidget" name="m_tabRelaxMap">
          <attribute name="title">
           <string>Relax. Map</string>
          </attribute>
-         <layout class="QVBoxLayout" name="verticalLayoutRelaxMap">
+         <layout class="QVBoxLayout" name="verticalLayout_7">
           <property name="leftMargin">
-           <number>2</number>
+           <number>4</number>
           </property>
           <property name="topMargin">
-           <number>2</number>
+           <number>4</number>
           </property>
           <property name="rightMargin">
-           <number>2</number>
+           <number>4</number>
           </property>
           <property name="bottomMargin">
-           <number>2</number>
+           <number>4</number>
           </property>
           <item>
-           <layout class="QVBoxLayout" name="verticalLayoutRelaxMapCtl">
+           <layout class="QHBoxLayout" name="horizontalLayoutRelaxMap">
             <item>
-             <layout class="QHBoxLayout" name="horizontalLayoutRelaxMap">
-              <item>
-               <widget class="QLabel" name="textLabelMapMode">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="text">
-                 <string>Regularization</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QComboBox" name="m_cmbMapMode"/>
-              </item>
-              <item>
-               <widget class="QLabel" name="textLabelMapMatrix">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="text">
-                 <string>Matrix</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QComboBox" name="m_cmbMapTikhonovMatrix"/>
-              </item>
-              <item>
-               <widget class="QLabel" name="textLabelMapRelaxFunc">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="text">
-                 <string>Relax. Func.</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QComboBox" name="m_cmbMapRelaxFunc"/>
-              </item>
-              <item>
-               <widget class="QLabel" name="textLabelMapPhase">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="text">
-                 <string>Phase</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QComboBox" name="m_cmbMapPhase"/>
-              </item>
-             </layout>
+             <widget class="QLabel" name="textLabelMapMode">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="text">
+               <string>Regularization</string>
+              </property>
+             </widget>
             </item>
             <item>
-             <layout class="QHBoxLayout" name="horizontalLayoutRelaxMap2">
-              <item>
-               <widget class="QLabel" name="textLabelMapEchoesPerBin">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="text">
-                 <string>Echoes/Bin</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QSpinBox" name="m_spbMapEchoesPerBin"/>
-              </item>
-              <item>
-               <widget class="QLabel" name="textLabelMapFreqRes">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="text">
-                 <string>Res. [kHz]</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLineEdit" name="m_edMapFreqRes">
+             <widget class="QComboBox" name="m_cmbMapMode"/>
+            </item>
+            <item>
+             <widget class="QLabel" name="textLabelMapMatrix">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="text">
+               <string>Matrix</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="m_cmbMapTikhonovMatrix"/>
+            </item>
+            <item>
+             <widget class="QLabel" name="textLabelMapRelaxFunc">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="text">
+               <string>Relax. Func.</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="m_cmbMapRelaxFunc"/>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_9">
+            <item>
+             <widget class="QLabel" name="textLabelMapEchoesPerBin">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="text">
+               <string>Echoes/Bin</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="m_spbMapEchoesPerBin"/>
+            </item>
+            <item>
+             <widget class="QLabel" name="textLabelMapFreqRes">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="text">
+               <string>Res. [kHz]</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="m_edMapFreqRes">
               <property name="maximumSize">
                <size>
                 <width>80</width>
@@ -721,103 +703,129 @@
                </size>
               </property>
              </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacerRelaxMap">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QLabel" name="textLabelMapPhase">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="text">
+               <string>Phase</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="m_cmbMapPhase"/>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_8">
+            <item>
+             <layout class="QVBoxLayout" name="verticalLayout_5">
+              <item>
+               <layout class="QHBoxLayout" name="layout_m_edMapCurvesDump">
+                <item>
+                 <widget class="QLineEdit" name="m_edMapCurvesDump"/>
+                </item>
+                <item>
+                 <widget class="QToolButton" name="m_tbMapCurvesDump">
+                  <property name="text">
+                   <string>...</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="m_btnMapCurvesDump">
+                  <property name="text">
+                   <string>D&amp;UMP</string>
+                  </property>
+                  <property name="autoDefault">
+                   <bool>false</bool>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
               </item>
               <item>
-               <spacer name="horizontalSpacerRelaxMap">
-                <property name="orientation">
-                 <enum>Qt::Horizontal</enum>
+               <widget class="XQGraph" name="m_graphMapCurves" native="true">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                  <horstretch>0</horstretch>
+                  <verstretch>1</verstretch>
+                 </sizepolicy>
                 </property>
-                <property name="sizeHint" stdset="0">
+                <property name="minimumSize">
                  <size>
-                  <width>40</width>
-                  <height>20</height>
+                  <width>300</width>
+                  <height>120</height>
                  </size>
                 </property>
-               </spacer>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <layout class="QVBoxLayout" name="verticalLayout_6">
+              <item>
+               <layout class="QHBoxLayout" name="layout_m_edRelaxMapDump">
+                <item>
+                 <widget class="QLineEdit" name="m_edRelaxMapDump"/>
+                </item>
+                <item>
+                 <widget class="QToolButton" name="m_tbRelaxMapDump">
+                  <property name="text">
+                   <string>...</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="m_btnRelaxMapDump">
+                  <property name="text">
+                   <string>D&amp;UMP</string>
+                  </property>
+                  <property name="autoDefault">
+                   <bool>false</bool>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="XQGraph" name="m_graphRelaxMap" native="true">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                  <horstretch>0</horstretch>
+                  <verstretch>1</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>300</width>
+                  <height>120</height>
+                 </size>
+                </property>
+               </widget>
               </item>
              </layout>
             </item>
            </layout>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="layout_m_edMapCurvesDump">
-            <item>
-             <widget class="QLineEdit" name="m_edMapCurvesDump"/>
-            </item>
-            <item>
-             <widget class="QToolButton" name="m_tbMapCurvesDump">
-              <property name="text">
-               <string>...</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="m_btnMapCurvesDump">
-              <property name="text">
-               <string>D&amp;UMP</string>
-              </property>
-              <property name="autoDefault">
-               <bool>false</bool>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item>
-           <widget class="XQGraph" name="m_graphMapCurves" native="true">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-              <horstretch>0</horstretch>
-              <verstretch>1</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>300</width>
-              <height>120</height>
-             </size>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="layout_m_edRelaxMapDump">
-            <item>
-             <widget class="QLineEdit" name="m_edRelaxMapDump"/>
-            </item>
-            <item>
-             <widget class="QToolButton" name="m_tbRelaxMapDump">
-              <property name="text">
-               <string>...</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="m_btnRelaxMapDump">
-              <property name="text">
-               <string>D&amp;UMP</string>
-              </property>
-              <property name="autoDefault">
-               <bool>false</bool>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item>
-           <widget class="XQGraph" name="m_graphRelaxMap" native="true">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-              <horstretch>0</horstretch>
-              <verstretch>1</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>300</width>
-              <height>120</height>
-             </size>
-            </property>
-           </widget>
           </item>
          </layout>
         </widget>
@@ -857,7 +865,7 @@
                 <string>Solver</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignCenter</set>
+                <set>Qt::AlignmentFlag::AlignCenter</set>
                </property>
                <property name="wordWrap">
                 <bool>false</bool>
@@ -901,7 +909,7 @@
               </size>
              </property>
              <property name="orientation">
-              <enum>Qt::Horizontal</enum>
+              <enum>Qt::Orientation::Horizontal</enum>
              </property>
             </widget>
            </item>
@@ -945,7 +953,7 @@
                 <string>Window Func.</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignCenter</set>
+                <set>Qt::AlignmentFlag::AlignCenter</set>
                </property>
                <property name="wordWrap">
                 <bool>false</bool>
@@ -971,7 +979,7 @@
                 <string>Width</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignCenter</set>
+                <set>Qt::AlignmentFlag::AlignCenter</set>
                </property>
                <property name="wordWrap">
                 <bool>false</bool>
@@ -981,7 +989,7 @@
              <item>
               <widget class="QSlider" name="m_slWindowWidth">
                <property name="orientation">
-                <enum>Qt::Horizontal</enum>
+                <enum>Qt::Orientation::Horizontal</enum>
                </property>
               </widget>
              </item>
@@ -1052,7 +1060,7 @@
                 <string>Band Width</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignCenter</set>
+                <set>Qt::AlignmentFlag::AlignCenter</set>
                </property>
                <property name="wordWrap">
                 <bool>false</bool>
@@ -1119,7 +1127,6 @@
   <tabstop>m_cmbMapMode</tabstop>
   <tabstop>m_cmbMapTikhonovMatrix</tabstop>
   <tabstop>m_cmbMapRelaxFunc</tabstop>
-  <tabstop>m_cmbMapPhase</tabstop>
   <tabstop>m_spbMapEchoesPerBin</tabstop>
   <tabstop>m_edMapFreqRes</tabstop>
   <tabstop>m_edMapCurvesDump</tabstop>
