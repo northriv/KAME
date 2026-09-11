@@ -55,8 +55,34 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
         //the USB-level equivalent of a manual interface Control off/on, which is known to
         //recover the device.
         close(); //does libusb_reset_device + release_interface + libusb_close.
-        open();  //does libusb_open(dev) + claim_interface + set_interface_alt_setting.
+        //The reopen must not be immediate. libusb_reset_device() puts the port through a
+        //USB reset, and the device is not addressable again until it has re-enumerated —
+        //libusb_open() in that window fails (NO_DEVICE / NOT_FOUND / ACCESS depending on
+        //the backend), open() leaves handle == nullptr and throws, and the caller
+        //(XOceanOpticsSpectrometer::onTrigCondChnaged) only prints the error. The device is
+        //then dead for the rest of the session: every transfer fails, so no spectrum
+        //arrives in ANY trigger mode, Free Run included. How long re-enumeration takes is
+        //per-device (a fast unit hides the bug entirely), so retry rather than guess a
+        //single delay.
+        XString last;
+        for(int i = 0; i < RESET_REOPEN_RETRIES; ++i) {
+            msecsleep(RESET_REOPEN_WAIT_MS);
+            try {
+                open(); //libusb_open(dev) + claim_interface + set_interface_alt_setting.
+                return;
+            }
+            catch (XInterface::XInterfaceError &e) {
+                last = e.msg();
+            }
+        }
+        throw XInterface::XInterfaceError(
+            formatString("USB: device did not come back %.1fs after a port reset. Last error: %s",
+                RESET_REOPEN_RETRIES * RESET_REOPEN_WAIT_MS * 1e-3, last.c_str()),
+            __FILE__, __LINE__);
     }
+    //! Reopen policy after a port reset: total wait = retries x wait.
+    static constexpr int RESET_REOPEN_WAIT_MS = 200;
+    static constexpr int RESET_REOPEN_RETRIES = 15; //3 s in total.
 
     XString virtual getString(int descid) override;
 

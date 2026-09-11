@@ -194,6 +194,9 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer, const ato
     // held across a Snapshot. It also replaces the former status[7] probe — deciding this from
     // a status query is what forced a USB round trip to an armed device on every cycle.
     const bool in_trig_mode = ((unsigned int)Snapshot( *this)[ *trigMode()] != 0);
+    // Same reason for the commanded exposure: it selects the read strategy below and must be
+    // read outside the device mutex.
+    const double commanded_exposure = Snapshot( *this)[ *integrationTime()];
 
     XScopedLock<XOceanOpticsUSBInterface> lock( *interface());
     bool isusb2000 = interface()->isUSB2000();
@@ -201,12 +204,27 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer, const ato
     if(isusb2000) //USB2000 can respond control commands even after requestSpectrum().
         interface()->requestSpectrum();
 
-    // External/software trigger mode (HR4000-class): the spectrometer yields a spectrum only
-    // after a trigger edge, so we arm (requestSpectrum) and read with an interruptible, polled
-    // async read (readSpectrumInterruptible): it returns as soon as the triggered data is
-    // ready, aborts on thread termination, and only times out (then skips) if no trigger ever
-    // arrives.
-    bool trig_mode = !isusb2000 && in_trig_mode;
+    // Two situations need the interruptible, polled read (readSpectrumInterruptible) instead
+    // of the synchronous one, and they need it for the same underlying reason: the synchronous
+    // path arms a FIXED libusb timeout (USB_TIMEOUT, 6 s) on both the status query and the
+    // spectrum transfer, and a device that is busy integrating answers neither within it.
+    //
+    //   (a) External/software trigger: the spectrometer yields a spectrum only after an edge,
+    //       which may be arbitrarily far away.
+    //   (b) Free Run with a long exposure: the frame is simply not ready for `exposure`
+    //       seconds. Past ~6 s the status read blocks for the whole timeout and comes back
+    //       short (XConvError), and the spectrum read is cancelled before the device sends
+    //       anything -- so the loop retries forever, never producing a frame, while each
+    //       attempt holds the interface mutex for 6 s (which also stalls any GUI/script write
+    //       to a node of this driver). Setting IntegrationTime to 10 s did exactly this.
+    //
+    // Treat both the same: skip the acq_ready gate, arm, and poll for the data with a timeout
+    // derived from the exposure. SLOW_READ_EXPOSURE_SEC is well under USB_TIMEOUT so that the
+    // synchronous path is only used when the frame is certain to be ready in time.
+    static constexpr double SLOW_READ_EXPOSURE_SEC = 2.0;
+    const bool slow_read = !isusb2000 &&
+        (in_trig_mode || (commanded_exposure > SLOW_READ_EXPOSURE_SEC));
+    bool trig_mode = slow_read; //!< selects the polled read path, see above.
 
     uint16_t pixels = 2048u;
     uint8_t usb_speed = 0u;
@@ -215,10 +233,11 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer, const ato
     std::vector<uint8_t> status;
     if(interface()->hasStatusQuery()) {
         if(trig_mode && m_statusCacheValid && !m_cachedStatus.empty()) {
-            // Armed and waiting for an edge: reuse the cached status rather than polling the
-            // device. A status read issued while it is armed can block for the entire USB
-            // timeout and come back short, which readInstrumStatus() reports as XConvError.
-            // acq_ready is only consulted on the non-trigger path, so a stale copy is fine.
+            // Armed, or integrating for a long time: reuse the cached status rather than
+            // polling the device. A status read issued against a busy device can block for the
+            // entire USB timeout and come back short, which readInstrumStatus() reports as
+            // XConvError. acq_ready is only consulted on the path this branch excludes, so a
+            // stale copy is fine.
             status = m_cachedStatus;
         }
         else {
