@@ -50,6 +50,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
       m_mapEchoesPerBin(create<XUIntNode>("MapEchoesPerBin", false)),
       m_mapFreqRes(create<XDoubleNode>("MapFreqRes", false, "%.4f")),
       m_mapPhase(create<XComboNode>("MapPhase", false, true)),
+      m_mapTExtDecades(create<XDoubleNode>("MapTExtDecades", false, "%.2f")),
       m_waveMapCurves(create<XWaveNGraph>("RelaxCurves", false, m_form->m_graphMapCurves,
           m_form->m_edMapCurvesDump, m_form->m_tbMapCurvesDump, m_form->m_btnMapCurvesDump)),
       m_waveMap(create<XWaveNGraph>("RelaxMap", false, m_form->m_graphRelaxMap,
@@ -89,6 +90,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
         tr[ *mapFreqRes()] = 0.0;
         tr[ *mapPhase()].add({"Auto per Freq.", "Global", "Absolute"});
         tr[ *mapPhase()] = (int)MapPhaseMode::AutoPerFreq;
+        tr[ *mapTExtDecades()] = 1.0;
         if( !setupRelaxCurvesGraph(tr, m_waveMapCurves, "Freq [MHz]", "2tau [us]")) return;
         if( !setupRelaxDensityMapGraph(tr, m_waveMap, "Freq [MHz]", "T2 [us]")) return;
     });
@@ -113,7 +115,8 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(m_relaxFunc, m_form->m_cmbMapRelaxFunc, Snapshot( *m_relaxFuncs)),
         xqcon_create<XQSpinBoxUnsignedConnector>(m_mapEchoesPerBin, m_form->m_spbMapEchoesPerBin),
         xqcon_create<XQLineEditConnector>(m_mapFreqRes, m_form->m_edMapFreqRes),
-        xqcon_create<XQComboBoxConnector>(m_mapPhase, m_form->m_cmbMapPhase, Snapshot( *m_mapPhase))
+        xqcon_create<XQComboBoxConnector>(m_mapPhase, m_form->m_cmbMapPhase, Snapshot( *m_mapPhase)),
+        xqcon_create<XQLineEditConnector>(m_mapTExtDecades, m_form->m_edMapTExtDecades)
     };
 
 	iterate_commit([=](Transaction &tr){
@@ -128,7 +131,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 		//binning no longer matches what was accumulated.
 		for(auto &&x: std::vector<shared_ptr<XValueNodeBase>>(
 			{mapMode(), mapTikhonovMatrix(), mapEchoesPerBin(), mapFreqRes(),
-			relaxFunc(), mapPhase()}))
+			relaxFunc(), mapPhase(), mapTExtDecades()}))
 			tr[ *x].onValueChanged().connect(m_lsnOnCondChanged);
     });
 }
@@ -485,17 +488,24 @@ XNMRFSpectrum::visualize(const Snapshot &shot) {
         clearRelaxMapGraphs();
         return;
     }
-    //The grid of relaxation times spans exactly what was measured, 2 tau to
-    //2 tau x n; nothing is extrapolated beyond the train.
-    double tmin = 0.0, tmax = 0.0;
+    //The grid of relaxation times covers what was measured, 2 tau to 2 tau x n,
+    //and -- by mapTExtDecades() -- however much beyond it the user is prepared
+    //to read as "did not finish decaying".  Out there nothing is resolved: past
+    //the last echo every column decays by less than 1/e across the whole train,
+    //so they are nearly one column, and only the total weight that lands there
+    //carries meaning.  With no extension at all, though, such a component has
+    //nowhere to go but the last grid point, and piles up on it.
+    double tmin = 0.0, tmeas = 0.0;
     for(auto &&bin: bins) {
         for(double t: bin->times) {
             if((tmin == 0.0) || (t < tmin)) tmin = t;
-            if(t > tmax) tmax = t;
+            if(t > tmeas) tmeas = t;
         }
     }
-    if(tmax <= tmin)
+    if(tmeas <= tmin)
         return;
+    double ext = std::max(0.0, std::min(3.0, (double)shot[ *mapTExtDecades()]));
+    double tmax = tmeas * pow(10.0, ext);
     int ntcount = std::min(200, nbin * 10);
 
     double res = shot[ *this].res();
@@ -636,5 +646,10 @@ XNMRFSpectrum::visualize(const Snapshot &shot) {
     Eigen::MatrixXd density = m_mapSolver.exec(data, tgrid, relax_fn, -1.0,
         (TikhonovRegular::TikhonovMatrix)(int)shot[ *mapTikhonovMatrix()],
         tikhonovMethodOf(mapmode), data.strongestRow());
-    drawRelaxDensityMap(m_waveMap, data, tgrid, density, "T2 [us]", m_mapSolver.status());
+    //The extension is a setting of the inversion, so it belongs on that graph's
+    //line, next to the grid it widened.
+    XString note = m_mapSolver.status();
+    if(ext > 0.0)
+        note += formatString(" ext=%.2gdec>%.4g", ext, tmeas);
+    drawRelaxDensityMap(m_waveMap, data, tgrid, density, "T2 [us]", note);
 }
