@@ -723,6 +723,29 @@
              </widget>
               </item>
               <item>
+               <widget class="QLabel" name="textLabelMapTExtDecades">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="text">
+                 <string>T ext [dec]</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLineEdit" name="m_edMapTExtDecades">
+                <property name="maximumSize">
+                 <size>
+                  <width>80</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
+               </widget>
+              </item>
+              <item>
                <spacer name="horizontalSpacerRelaxMap">
                 <property name="orientation">
                  <enum>Qt::Horizontal</enum>
@@ -1122,6 +1145,7 @@
   <tabstop>m_cmbMapPhase</tabstop>
   <tabstop>m_spbMapEchoesPerBin</tabstop>
   <tabstop>m_edMapFreqRes</tabstop>
+  <tabstop>m_edMapTExtDecades</tabstop>
   <tabstop>m_edMapCurvesDump</tabstop>
   <tabstop>m_tbMapCurvesDump</tabstop>
   <tabstop>m_btnMapCurvesDump</tabstop>

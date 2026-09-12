@@ -92,6 +92,14 @@ public:
     const shared_ptr<XDoubleNode> &mapFreqRes() const {return m_mapFreqRes;}
     //! What the inversion is fed at each frequency of the sweep. \sa MapPhaseMode
     const shared_ptr<XComboNode> &mapPhase() const {return m_mapPhase;}
+    //! Decades of relaxation time to put on the grid BEYOND the echo train,
+    //! for what has not finished decaying by its end.  Nothing out there is
+    //! resolved -- every column past the last echo decays by less than 1/e
+    //! across the whole train, so they are nearly the same column -- and only
+    //! the weight that lands there means anything: "longer than the train".
+    //! 0 keeps the grid to what was measured, and then such a component has
+    //! nowhere to go but the last grid point, where it piles up.
+    const shared_ptr<XDoubleNode> &mapTExtDecades() const {return m_mapTExtDecades;}
     //! A swept carrier does not keep one phase -- the probe, the cables and the
     //! synthesizer all turn it -- so the single phase() the spectrum carries
     //! cannot put every frequency in phase at once.  \a AutoPerFreq settles it
@@ -122,6 +130,7 @@ private:
     const shared_ptr<XUIntNode> m_mapEchoesPerBin;
     const shared_ptr<XDoubleNode> m_mapFreqRes;
     const shared_ptr<XComboNode> m_mapPhase;
+    const shared_ptr<XDoubleNode> m_mapTExtDecades;
     const shared_ptr<XWaveNGraph> m_waveMapCurves, m_waveMap;
     shared_ptr<XItemNode<XRelaxFuncList, XRelaxFunc> > m_relaxFunc;
     //! Touched by visualize() only; analyze() may ask it to drop its kernel.
