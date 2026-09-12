@@ -92,13 +92,20 @@ public:
     const shared_ptr<XDoubleNode> &mapFreqRes() const {return m_mapFreqRes;}
     //! What the inversion is fed at each frequency of the sweep. \sa MapPhaseMode
     const shared_ptr<XComboNode> &mapPhase() const {return m_mapPhase;}
-    //! Decades of relaxation time to put on the grid BEYOND the echo train,
-    //! for what has not finished decaying by its end.  Nothing out there is
-    //! resolved -- every column past the last echo decays by less than 1/e
-    //! across the whole train, so they are nearly the same column -- and only
-    //! the weight that lands there means anything: "longer than the train".
-    //! 0 keeps the grid to what was measured, and then such a component has
-    //! nowhere to go but the last grid point, where it piles up.
+    //! Decades of relaxation time to put on the grid beyond the echo train, so
+    //! that what has not finished decaying by its end, or had already finished
+    //! before its start, has somewhere to go other than piling up on the last
+    //! grid point.  Nothing out there is resolved: past the last echo every
+    //! column decays by less than 1/e across the whole train, so they are
+    //! nearly the same column, and only the weight that lands there means
+    //! anything -- "longer than the train".
+    //!
+    //! It reaches HALF AS FAR below the first echo as above the last.  Below,
+    //! the columns do not merely resemble each other, they vanish: a component
+    //! at 2 tau / 3 still leaves 5% of itself in the first echo, one a decade
+    //! down leaves nothing in any of them, and an unknown the data cannot touch
+    //! buys nothing -- while the non-negativity criterion answers the negative
+    //! lobes it invites with more smoothing, over the whole map.
     const shared_ptr<XDoubleNode> &mapTExtDecades() const {return m_mapTExtDecades;}
     //! A swept carrier does not keep one phase -- the probe, the cables and the
     //! synthesizer all turn it -- so the single phase() the spectrum carries

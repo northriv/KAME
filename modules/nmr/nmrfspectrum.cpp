@@ -489,23 +489,30 @@ XNMRFSpectrum::visualize(const Snapshot &shot) {
         return;
     }
     //The grid of relaxation times covers what was measured, 2 tau to 2 tau x n,
-    //and -- by mapTExtDecades() -- however much beyond it the user is prepared
-    //to read as "did not finish decaying".  Out there nothing is resolved: past
-    //the last echo every column decays by less than 1/e across the whole train,
-    //so they are nearly one column, and only the total weight that lands there
-    //carries meaning.  With no extension at all, though, such a component has
-    //nowhere to go but the last grid point, and piles up on it.
-    double tmin = 0.0, tmeas = 0.0;
+    //and -- by mapTExtDecades() -- however far beyond the user is prepared to
+    //read as "did not finish decaying" or "was over before we looked".  Out
+    //there nothing is resolved: past the last echo every column decays by less
+    //than 1/e across the whole train, so they are nearly one column, and only
+    //the total weight that lands there carries meaning.  With no extension at
+    //all, though, such a component has nowhere to go but the end grid point,
+    //and piles up on it.
+    double tfirst = 0.0, tlast = 0.0;
     for(auto &&bin: bins) {
         for(double t: bin->times) {
-            if((tmin == 0.0) || (t < tmin)) tmin = t;
-            if(t > tmeas) tmeas = t;
+            if((tfirst == 0.0) || (t < tfirst)) tfirst = t;
+            if(t > tlast) tlast = t;
         }
     }
-    if(tmeas <= tmin)
+    if(tlast <= tfirst)
         return;
     double ext = std::max(0.0, std::min(3.0, (double)shot[ *mapTExtDecades()]));
-    double tmax = tmeas * pow(10.0, ext);
+    //Half as far below as above: below the first echo the columns do not merely
+    //resemble one another, they vanish.  A component at 2 tau / 3 still leaves
+    //5% of itself in the first echo; one a decade down leaves nothing in any of
+    //them, and an unknown the data cannot touch buys nothing -- while the
+    //negative lobes it invites are answered with more smoothing, map-wide.
+    double tmax = tlast * pow(10.0, ext);
+    double tmin = tfirst * pow(10.0, -0.5 * ext);
     int ntcount = std::min(200, nbin * 10);
 
     double res = shot[ *this].res();
@@ -647,9 +654,10 @@ XNMRFSpectrum::visualize(const Snapshot &shot) {
         (TikhonovRegular::TikhonovMatrix)(int)shot[ *mapTikhonovMatrix()],
         tikhonovMethodOf(mapmode), data.strongestRow());
     //The extension is a setting of the inversion, so it belongs on that graph's
-    //line, next to the grid it widened.
+    //line, next to the grid it widened -- with the window it widened away from,
+    //since the solver's own T=... is the grid, not the measurement.
     XString note = m_mapSolver.status();
     if(ext > 0.0)
-        note += formatString(" ext=%.2gdec>%.4g", ext, tmeas);
+        note += formatString(" ext=%.2gdec meas=%.4g-%.4g", ext, tfirst, tlast);
     drawRelaxDensityMap(m_waveMap, data, tgrid, density, "T2 [us]", note);
 }
