@@ -502,6 +502,69 @@ XNMRSpectrumBase<FRM>::updateMapBins(Transaction &tr, const Snapshot &shot_pulse
 }
 template <class FRM>
 void
+XNMRSpectrumBase<FRM>::filterMapBins(Transaction &tr, int min_idx, int max_idx,
+	int iftlen, int iftorigin, int tdsize) {
+	const Snapshot &shot_this(tr);
+	auto bins = shot_this[ *this].m_mapBins; //a copy of the pointers.
+	if(bins.empty())
+		return;
+	FFT::twindowfunc wndfunc = mapWindowFunc(shot_this);
+	if( !wndfunc || (tdsize < 2) || (iftlen < 4) ||
+		!shot_this[ *this].m_ift || (shot_this[ *this].m_ift->length() != iftlen)) {
+		//Nothing to lay down, so the accumulators are read as they stand.
+		tr[ *this].m_mapWindowPSDCoeff = 1.0;
+		if( !bins[0]->filtered.empty()) {
+			for(size_t b = 0; b < bins.size(); ++b) {
+				auto bin = std::make_shared<typename Payload::MapBin>( *bins[b]);
+				bin->filtered.clear();
+				tr[ *this].m_mapBins[b] = bin;
+			}
+		}
+		return;
+	}
+	if( !shot_this[ *this].m_mapFFT || (shot_this[ *this].m_mapFFT->length() != iftlen))
+		tr[ *this].m_mapFFT.reset(new FFT( -1, iftlen));
+
+	std::vector<double> wnd;
+	SpectrumSolver::window(tdsize, -iftorigin, wndfunc, mapWindowWidth(shot_this), wnd);
+	double wsq = 0.0;
+	for(int i = 0; i < tdsize; i++)
+		wsq += wnd[i] * wnd[i];
+	tr[ *this].m_mapWindowPSDCoeff = wsq / tdsize;
+
+	double th = FFT::windowFuncHamming(0.49);
+	int centre = (max_idx + min_idx) / 2;
+	std::vector<std::complex<double> > in(iftlen), out(iftlen), td(iftlen);
+	for(size_t b = 0; b < bins.size(); ++b) {
+		const typename Payload::MapBin &bin( *bins[b]);
+		if((int)bin.accum.size() <= max_idx)
+			continue;
+		//Back to the time domain on the spectrum's own grid, windowed there,
+		//and forward again: one linear filter along the frequency axis, the
+		//same one for every bin (\sa mapWindowFunc()).
+		std::fill(in.begin(), in.end(), std::complex<double>(0.0));
+		for(int i = min_idx; i <= max_idx; i++) {
+			double w = bin.accum_weights[i];
+			if(w > th)
+				in[(i - centre + iftlen) % iftlen] = bin.accum[i] / w;
+		}
+		shot_this[ *this].m_ift->exec(in, td);
+		std::fill(in.begin(), in.end(), std::complex<double>(0.0));
+		for(int i = 0; i < tdsize; i++) {
+			int k = ( -iftorigin + i + iftlen) % iftlen;
+			in[k] = td[k] * wnd[i];
+		}
+		shot_this[ *this].m_mapFFT->exec(in, out);
+		//Clone-on-write, as everywhere a committed bin is touched.
+		auto fresh = std::make_shared<typename Payload::MapBin>(bin);
+		fresh->filtered.assign(bin.accum.size(), std::complex<double>(0.0));
+		for(int i = min_idx; i <= max_idx; i++)
+			fresh->filtered[i] = out[(i - centre + iftlen) % iftlen] / (double)iftlen;
+		tr[ *this].m_mapBins[b] = fresh;
+	}
+}
+template <class FRM>
+void
 XNMRSpectrumBase<FRM>::fssumTimeResolved(Transaction &tr, const Snapshot &shot_pulse,
 	int len, double df, double cfreq, int bw_org) {
 	const Snapshot &shot_this(tr);
@@ -676,6 +739,11 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 		weights[i] = w;
 		darkpsd[i] = accum_dark[i] / (w * w) * psdcoeff;
 	}
+	//The map's bins ride on the same axis and the same geometry; they are
+	//filtered here rather than at draw time so that a window can be changed
+	//without a sweep being thrown away.
+	filterMapBins(tr, min_idx, max_idx, iftlen, iftorigin, tdsize);
+
 	th = FFT::windowFuncHamming(0.1);
 	tr[ *this].m_peaks.clear();
 	int weights_size = shot_this[ *this].weights().size();

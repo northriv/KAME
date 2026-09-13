@@ -71,6 +71,10 @@ public:
 			std::deque<std::complex<double> > accum;
 			std::deque<double> accum_weights;
 			std::deque<double> accum_dark;
+			//! \a accum / \a accum_weights after the map's own window, on the
+			//! same grid.  Empty when no window is asked for, and then the
+			//! accumulators are read as they stand. \sa filterMapBins()
+			std::vector<std::complex<double> > filtered;
 		};
 		//! Empty unless the driver overrides mapBinning(); one entry per time bin.
 		//! Shared by pointer-to-const with live Snapshots, so a bin is replaced,
@@ -80,6 +84,9 @@ public:
 		//! for darkPSD(): the reciprocal of the period of the wave. 0 until a
 		//! record has been binned.
 		double mapPSDCoeff() const {return m_mapPSDCoeff;}
+		//! What the map's window did to the noise: the mean square of it, as
+		//! analyzeIFT() accounts for its own in psdcoeff.  1 with no window.
+		double mapWindowPSDCoeff() const {return m_mapWindowPSDCoeff;}
 	private:
 		template <class>
 		friend class XNMRSpectrumBase;
@@ -99,6 +106,8 @@ public:
 
 		std::vector<shared_ptr<const MapBin> > m_mapBins;
 		double m_mapPSDCoeff = 0.0;
+		double m_mapWindowPSDCoeff = 1.0;
+		shared_ptr<const FFT> m_mapFFT;
 		//! The bwList() bank the bins were accumulated with.  The spectrum keeps
 		//! all three and picks one at display time, so switching is free for it;
 		//! the map keeps only the one, and switching therefore changes what is
@@ -166,6 +175,19 @@ protected:
 	//! weights on the curves) is optimistic by that factor.
 	virtual double mapNoiseFactor(const Snapshot &shot_pulse,
 		const XNMRPulseAnalyzer &pulse) const {return 1.0;}
+	//! \return the window to lay along the frequency axis of every map bin, or
+	//! nullptr to read the bins exactly as they were accumulated.
+	//!
+	//! It is a window and not the solver the spectrum uses, and the difference
+	//! is not a matter of taste.  The window is LINEAR, so laying the same one
+	//! on every bin leaves the ratios between them -- which are the decay --
+	//! untouched, and only the frequency axis is changed.  A solver that
+	//! estimates (MEM, AR, and the rest) is not: applied bin by bin it would
+	//! give each time bin a treatment of its own, and the decay between them
+	//! would be its artefact rather than the sample's.
+	virtual FFT::twindowfunc mapWindowFunc(const Snapshot &) const {return nullptr;}
+	//! [0-1] of the time-domain image the window spans. \sa mapWindowFunc()
+	virtual double mapWindowWidth(const Snapshot &) const {return 1.0;}
 	virtual void getValues(const Snapshot &shot_this, std::vector<double> &values) const = 0;
 	virtual bool checkDependencyImpl(const Snapshot &shot_this,
 		const Snapshot &shot_emitter, const Snapshot &shot_others,
@@ -179,6 +201,12 @@ private:
 	//! Creates, clears or shifts the map's time bins along with the sweep axis.
 	void updateMapBins(Transaction &tr, const Snapshot &shot_pulse,
 		bool axis_rebuilt, int head_shift, int length);
+	//! Lays mapWindowFunc() along each bin's frequency axis, on the geometry
+	//! analyzeIFT() has just worked out for the spectrum, so that the two see
+	//! the same axis.  Re-derived from the accumulators every record, so a
+	//! change of window costs a redraw and never a sweep.
+	void filterMapBins(Transaction &tr, int min_idx, int max_idx,
+		int iftlen, int iftorigin, int tdsize);
 	void analyzeIFT(Transaction &tr, const Snapshot &shot_pulse);
 
 	const shared_ptr<XItemNode<XDriverList, XNMRPulseAnalyzer> > m_pulse;

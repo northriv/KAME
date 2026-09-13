@@ -51,6 +51,10 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
       m_mapFreqRes(create<XDoubleNode>("MapFreqRes", false, "%.4f")),
       m_mapPhase(create<XComboNode>("MapPhase", false, true)),
       m_mapTExtDecades(create<XDoubleNode>("MapTExtDecades", false, "%.2f")),
+      m_mapWindowFunc(create<XComboNode>("MapWindowFunc", false, true)),
+      m_mapWindowWidth(create<XDoubleNode>("MapWindowWidth", false, "%.1f")),
+      m_solverMapBin(create<SpectrumSolverWrapper>("SpectrumSolverMapBin", true,
+          shared_ptr<XComboNode>(), m_mapWindowFunc, m_mapWindowWidth)),
       m_waveMapCurves(create<XWaveNGraph>("RelaxCurves", false, m_form->m_graphMapCurves,
           m_form->m_edMapCurvesDump, m_form->m_tbMapCurvesDump, m_form->m_btnMapCurvesDump)),
       m_waveMap(create<XWaveNGraph>("RelaxMap", false, m_form->m_graphRelaxMap,
@@ -59,6 +63,10 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 	connect(sg1());
 //	connect(autoTuner());
 //	connect(pulser());
+
+    //A filter, not an estimator: the map is windowed and transformed, never
+    //fitted. \sa XNMRSpectrumBase::mapWindowFunc()
+    m_solverMapBin->selectSolver(SpectrumSolverWrapper::SPECTRUM_SOLVER_ZF_FFT);
 
 	m_form->setWindowTitle(i18n("NMR Spectrum (Freq. Sweep) - ") + getLabel() );
 
@@ -91,6 +99,8 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
         tr[ *mapPhase()].add({"Auto per Freq.", "Global", "Absolute"});
         tr[ *mapPhase()] = (int)MapPhaseMode::AutoPerFreq;
         tr[ *mapTExtDecades()] = 1.0;
+        tr[ *mapWindowFunc()].str(XString(SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT));
+        tr[ *mapWindowWidth()] = 100.0;
         if( !setupRelaxCurvesGraph(tr, m_waveMapCurves, "Freq [MHz]", "2tau [us]")) return;
         if( !setupRelaxDensityMapGraph(tr, m_waveMap, "Freq [MHz]", "T2 [us]")) return;
     });
@@ -116,7 +126,9 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
         xqcon_create<XQSpinBoxUnsignedConnector>(m_mapEchoesPerBin, m_form->m_spbMapEchoesPerBin),
         xqcon_create<XQLineEditConnector>(m_mapFreqRes, m_form->m_edMapFreqRes),
         xqcon_create<XQComboBoxConnector>(m_mapPhase, m_form->m_cmbMapPhase, Snapshot( *m_mapPhase)),
-        xqcon_create<XQLineEditConnector>(m_mapTExtDecades, m_form->m_edMapTExtDecades)
+        xqcon_create<XQLineEditConnector>(m_mapTExtDecades, m_form->m_edMapTExtDecades),
+        xqcon_create<XQComboBoxConnector>(m_mapWindowFunc, m_form->m_cmbMapWindowFunc, Snapshot( *m_mapWindowFunc)),
+        xqcon_create<XQLineEditConnector>(m_mapWindowWidth, m_form->m_edMapWindowWidth)
     };
 
 	iterate_commit([=](Transaction &tr){
@@ -131,7 +143,8 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 		//binning no longer matches what was accumulated.
 		for(auto &&x: std::vector<shared_ptr<XValueNodeBase>>(
 			{mapMode(), mapTikhonovMatrix(), mapEchoesPerBin(), mapFreqRes(),
-			relaxFunc(), mapPhase(), mapTExtDecades()}))
+			relaxFunc(), mapPhase(), mapTExtDecades(),
+			mapWindowFunc(), mapWindowWidth()}))
 			tr[ *x].onValueChanged().connect(m_lsnOnCondChanged);
     });
 }
@@ -464,6 +477,14 @@ double
 XNMRFSpectrum::mapNoiseFactor(const Snapshot &shot_pulse, const XNMRPulseAnalyzer &pulse) const {
     return shot_pulse[pulse].darkPSDFactorPerEcho();
 }
+FFT::twindowfunc
+XNMRFSpectrum::mapWindowFunc(const Snapshot &shot_this) const {
+    return m_solverMapBin->windowFunc(shot_this);
+}
+double
+XNMRFSpectrum::mapWindowWidth(const Snapshot &shot_this) const {
+    return shot_this[ *mapWindowWidth()] / 100.0;
+}
 void
 XNMRFSpectrum::clearRelaxMapGraphs() {
     for(auto &&graph: {m_waveMapCurves, m_waveMap}) {
@@ -542,7 +563,9 @@ XNMRFSpectrum::visualize(const Snapshot &shot) {
     //It is the one the pulse analyzer quotes for the echo-AVERAGED wave, so it
     //underestimates that of a single echo; only the KnownError criterion (Noise
     //Analysis) reads it as an absolute, the others use the curves themselves.
-    double psdcoeff = shot[ *this].mapPSDCoeff();
+    //The window laid on the bins raised or lowered the noise with the signal,
+    //by its mean square, exactly as analyzeIFT()'s does for the spectrum.
+    double psdcoeff = shot[ *this].mapPSDCoeff() * shot[ *this].mapWindowPSDCoeff();
     double th = FFT::windowFuncHamming(0.1);
     double noisesq = 0.0;
     int noisecnt = 0;
@@ -550,18 +573,32 @@ XNMRFSpectrum::visualize(const Snapshot &shot) {
         const Payload::MapBin &bin( *bins[b]);
         data.timesOfBin[b] = bin.times;
         int size = (int)bin.accum.size();
+        //filtered[] is already a value per point, the accumulators are a sum
+        //and their weight; either way what comes out of the merge is a mean.
+        bool filtered = ((int)bin.filtered.size() >= size);
         for(int i = 0; i < nx; ++i) {
             std::complex<double> sum(0.0);
             double w = 0.0, dark = 0.0;
+            int nfilt = 0;
             for(int k = i * decim; (k < (i + 1) * decim) && (k < size); ++k) {
-                sum += bin.accum[k];
+                if(filtered) {
+                    if(bin.accum_weights[k] > 0.0) {
+                        sum += bin.filtered[k];
+                        ++nfilt;
+                    }
+                }
+                else
+                    sum += bin.accum[k];
                 w += bin.accum_weights[k];
                 dark += bin.accum_dark[k];
             }
-            if(w <= th)
+            if((w <= th) || (filtered && !nfilt))
                 continue; //never swept here, or too far off the excitation.
             //Still unrotated: the phase is settled per frequency below.
-            std::complex<double> z = sum / w;
+            //(The noise below treats the merged points as independent.  The
+            //window correlates its neighbours, so a merge over several of them
+            //averages the noise down less than this says.)
+            std::complex<double> z = filtered ? (sum / (double)nfilt) : (sum / w);
             data.y.coeffRef(i, b) = std::real(z);
             data.yimag.coeffRef(i, b) = std::imag(z);
             double sigmasq = dark / (w * w) * psdcoeff;
@@ -646,9 +683,10 @@ XNMRFSpectrum::visualize(const Snapshot &shot) {
     //doubles it, and it is what weighted every record into these curves.
     double bw_khz = shot[ *bandWidth()] * 0.5 * pow(2.0, (double)(int)shot[ *bwList()]);
     drawRelaxCurves(m_waveMapCurves, data, "2tau [us]",
-        formatString("2tau=%.4gus x%u/bin df=%.4gkHz bw=%.4gkHz ph=%s", tfirst,
+        formatString("2tau=%.4gus x%u/bin df=%.4gkHz bw=%.4gkHz ph=%s w=%s@%.0f%%", tfirst,
             std::max(1u, (unsigned int)shot[ *mapEchoesPerBin()]),
-            decim * res * 1e-3, bw_khz, phname));
+            decim * res * 1e-3, bw_khz, phname,
+            shot[ *mapWindowFunc()].to_str().c_str(), (double)shot[ *mapWindowWidth()]));
 
     shared_ptr<XRelaxFunc> relax_fn = shot[ *relaxFunc()];
     if( !relax_fn)
