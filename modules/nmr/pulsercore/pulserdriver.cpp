@@ -699,6 +699,18 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 	unsigned int qpskmask;
     qpskmask = bitpatternsOfQPSK(shot, qpsk, qpskinv, invert_phase__); //prepares pattern arrays
 
+    //Whether the RF pulses overlap is a statement about the RECORDED
+    //microseconds, so it is made in them, before anything is divided by the
+    //device's resolution().  analyzeRaw() reaches here on a replay too, where
+    //there is no device to have asked -- and where the recorded fact must not
+    //be reinterpreted through whatever the currently attached rig would have
+    //done with it.  Refusing the record here is refusing a setting; refusing it
+    //after the conversion would be refusing the machine it is replayed on.
+    if((shot[ *this].pw2() > 0) &&
+        (shot[ *this].pw1() / 2 + shot[ *this].pw2() / 2 > shot[ *this].tau()))
+        throw XDriver::XRecordError(
+            i18n("Pulse widths exceed Tau; the RF pulses would overlap."), __FILE__, __LINE__);
+
     uint64_t rtime__ = rintSampsMilliSec(shot[ *this].rtime());
     uint64_t tau__ = rintSampsMicroSec(shot[ *this].tau());
     uint64_t asw_setup__ = rintSampsMilliSec(shot[ *this].aswSetup());
