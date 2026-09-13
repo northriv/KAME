@@ -525,6 +525,13 @@ XNMRSpectrumBase<FRM>::filterMapBins(Transaction &tr, int min_idx, int max_idx,
 	if( !shot_this[ *this].m_mapFFT || (shot_this[ *this].m_mapFFT->length() != iftlen))
 		tr[ *this].m_mapFFT.reset(new FFT( -1, iftlen));
 
+	//\a iftorigin is where the image has its origin, not where the spectrum's
+	//solver moved it to: SpectrumSolver::window() measures the width from it,
+	//and off by iftlen/2 the whole window falls outside its own support --
+	//every sample zero as soon as the width leaves 100%, which is what a map
+	//that stopped changing looked like (user).  The solver's convolution
+	//compensation is deliberately not copied: the width asked for here is the
+	//width laid down.
 	std::vector<double> wnd;
 	SpectrumSolver::window(tdsize, -iftorigin, wndfunc, mapWindowWidth(shot_this), wnd);
 	double wsq = 0.0;
@@ -677,6 +684,10 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 	iftlen = ((iftlen * 3 / 2 + npad) / trunc2 + 1) * trunc2;
 	int tdsize = lrint(wave_period * res * iftlen);
 	int iftorigin = lrint(shot_pulse[ *pulse__].waveFTPos() * shot_pulse[ *pulse__].interval() * res * iftlen);
+	//Where the time-domain image actually has its origin.  The solver's branch
+	//below moves iftorigin to the middle of the input it builds for itself,
+	//and everything after that means the solver's frame, not this one.
+	const int iftorigin_td = iftorigin;
 	int bwinv = abs(lrint(1.0 / (shot_this[ *bandWidth()] * bw_coeff * 1000.0 * shot_pulse[ *pulse__].interval() * res * iftlen)));
 	
 	if( !shot_this[ *this].m_ift || (shot_this[ *this].m_ift->length() != iftlen)) {
@@ -742,7 +753,7 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 	//The map's bins ride on the same axis and the same geometry; they are
 	//filtered here rather than at draw time so that a window can be changed
 	//without a sweep being thrown away.
-	filterMapBins(tr, min_idx, max_idx, iftlen, iftorigin, tdsize);
+	filterMapBins(tr, min_idx, max_idx, iftlen, iftorigin_td, tdsize);
 
 	th = FFT::windowFuncHamming(0.1);
 	tr[ *this].m_peaks.clear();

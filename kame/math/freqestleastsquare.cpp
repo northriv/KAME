@@ -12,6 +12,7 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "freqestleastsquare.h"
+#include "support.h"
 
 #include <Eigen/LU>
 #include <Eigen/SVD>
@@ -44,7 +45,8 @@ TSVDFourierSeries::genSpectrum(const std::vector<std::complex<double> >& memin,
         Eigen::MatrixXcd sigma = svd.singularValues();
         long rank = std::min(t, n);
         sigma = sigma.topRows(rank);
-        std::cerr << sigma << std::endl;
+        dbgPrint(formatString("tSVD Fourier: rank=%ld, sigma_max=%.3g, sigma_min=%.3g",
+            (long)rank, std::abs(sigma.coeff(0)), std::abs(sigma.coeff(sigma.size() - 1))));
         Eigen::MatrixXcd v = svd.matrixV().leftCols(rank);
         Eigen::MatrixXcd uT = svd.matrixU().leftCols(rank).transpose();
 
@@ -53,10 +55,8 @@ TSVDFourierSeries::genSpectrum(const std::vector<std::complex<double> >& memin,
         for(int i = 0; i < sigma.size(); ++i)
             m_AinvReg.col(i) *= 1.0 / sigma.coeff(i);
         m_AinvReg *= uT;
-        std::cerr << m_AinvReg.row(0) << std::endl;
     }
     Eigen::VectorXcd xtilde = m_AinvReg * Eigen::Map<Eigen::VectorXcd>(const_cast<std::complex<double>*>(&memin[0]), memin.size());
-    std::cerr << xtilde << std::endl;
     Eigen::Map<Eigen::VectorXcd>( &memout[0], memout.size()) = xtilde;
 
     m_ifftN->exec(memout, m_ifft);
@@ -120,14 +120,30 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 		}
 		ic = ic_new;
 		
-		double freq = 0.0;
-		std::complex<double> z(0.0);
+		int ipeak = 0;
 		double normz = 0;
 		for(int i = 0; i < n; i++) {
 			if(normz < std::norm(memout[i])) {
-				freq = i;
-				z = memout[i];
-				normz = std::norm(z);
+				ipeak = i;
+				normz = std::norm(memout[i]);
+			}
+		}
+		double freq = ipeak;
+		//Refines the bin index by fitting a parabola through the peak and its
+		//two neighbors (the grid is circular).  Newton's method below converges
+		//to the same answer from a coarser start, but only while the start is
+		//inside the right basin; every bin of initial error is a bin the
+		//non-linear fit has to walk back, and the greedy outer loop subtracts
+		//whatever it lands on.  With this, halving the zero-fill costs nothing.
+		{
+			double a = std::abs(memout[(ipeak + n - 1) % n]);
+			double b = std::abs(memout[ipeak]);
+			double c = std::abs(memout[(ipeak + 1) % n]);
+			double denom = a - 2 * b + c;
+			if(denom < 0) { //a genuine maximum.
+				double delta = 0.5 * (a - c) / denom;
+				if(fabs(delta) <= 0.5)
+					freq += delta;
 			}
 		}
 		freq *= t / (double)n;
@@ -144,6 +160,18 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 				i++;
 			}
 		}
+		//Weighted least-square amplitude at that frequency, rather than the
+		//value of the bin the search landed on.  For an integer bin the two
+		//agree, but freq is no longer an integer bin, and z's phase is
+		//referenced to sample t0 -- so a fraction-of-a-bin shift in freq turns
+		//into a phase error of 2 pi (freq error) t0 / t at the data.  Whenever
+		//t0 is many times t (a background segment taken long after the pulse,
+		//which is the usual case in PNR) that is radians, and Newton's method
+		//below would start from an amplitude pointing the wrong way.
+		std::complex<double> z(0.0);
+		for(int i = 0; i < t; i++)
+			z += wave[i] * coeff[i] * weight[i];
+		z /= wsum;
 		//Standard error.
 		sigma2 = 0.0;
 		for(int i = 0; i < t; i++) {
