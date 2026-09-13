@@ -1,3 +1,29 @@
+* Sun Sep 13 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- NMR pulse analyzer: the PNR transform is half as long, and its length is now
+  derived from what it is used for (user).  The least-square solvers lay their
+  synthesized ringing out around the middle of the transform -- ifft()[k] is
+  the ringing at sample k while k < n/2, and at sample k - n above that -- so
+  only the first half is the wave that backgroundSub() subtracts it from.  The
+  old length, 4 * (bgpos + bglength), met that only while the background ran
+  to the end of the record; that is the usual layout, which is why the other
+  half never showed itself, but a short background well before the end of the
+  record put the wrong branch into the tail of the displayed wave.  It is now
+  twice the span actually subtracted over, which is exact in either layout,
+  and the subtraction is clamped to that half as well.
+- FreqEstLeastSquare: the greedy loop interpolates the peak it finds and
+  solves the amplitude at that frequency, instead of taking both from the bin
+  the search landed on.  These two belong together: z's phase is referenced to
+  sample t0, so a fraction-of-a-bin shift in the frequency is a phase error of
+  2 pi (freq error) t0 / t at the data, and where t0 is many times t -- a
+  background segment taken long after the pulse, the usual PNR case -- that is
+  radians.  Interpolating the frequency while reading the amplitude off the
+  bin is therefore worse than not interpolating at all; solved together they
+  let the transform be half as long for the same answer.  Measured on
+  synthetic ringing over 54 geometries (background length, background
+  position, noise, damping), the pair at half the length matches the old peak
+  search at the old length to four decimals or beats it, at 1.6-2.0x the
+  speed.  The PNR solve dominates a journal replay.
+
 * Thu Sep 3 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - Thamway USB pulser: the pattern resolution is no longer read before it is
   set (user).  m_resolution is assigned only in open(), from the device's
