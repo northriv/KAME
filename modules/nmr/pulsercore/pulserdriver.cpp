@@ -699,6 +699,18 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 	unsigned int qpskmask;
     qpskmask = bitpatternsOfQPSK(shot, qpsk, qpskinv, invert_phase__); //prepares pattern arrays
 
+    //Whether the RF pulses overlap is a statement about the RECORDED
+    //microseconds, so it is made in them, before anything is divided by the
+    //device's resolution().  analyzeRaw() reaches here on a replay too, where
+    //there is no device to have asked -- and where the recorded fact must not
+    //be reinterpreted through whatever the currently attached rig would have
+    //done with it.  Refusing the record here is refusing a setting; refusing it
+    //after the conversion would be refusing the machine it is replayed on.
+    if((shot[ *this].pw2() > 0) &&
+        (shot[ *this].pw1() / 2 + shot[ *this].pw2() / 2 > shot[ *this].tau()))
+        throw XDriver::XRecordError(
+            i18n("Pulse widths exceed Tau; the RF pulses would overlap."), __FILE__, __LINE__);
+
     uint64_t rtime__ = rintSampsMilliSec(shot[ *this].rtime());
     uint64_t tau__ = rintSampsMicroSec(shot[ *this].tau());
     uint64_t asw_setup__ = rintSampsMilliSec(shot[ *this].aswSetup());
@@ -721,7 +733,7 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
     //unpredictably is not.
     uint64_t pwgrid = hasQAMPorts() ?
         std::max(2u, 2u * ((patternSampsPerQAMSamp() + 1) / 2)) : 2;
-    auto widthSamps = [this, pwgrid](double us)->uint64_t {
+    auto widthSamps = [this, pwgrid](double us, bool down = false)->uint64_t {
         double res = resolution() * 1e3; //[us] per pattern sample
         long long g = (long long)pwgrid;
         //The 1e-9 is for the halfway widths, and it was measured rather than
@@ -730,8 +742,9 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
         //while 4.5 goes to 4.6.  A relative nudge a thousand times smaller than
         //one sample of the shortest pulse anyone writes puts every halfway
         //width on the same side.
+        double n = us / (res * g) * (1.0 + 1e-9);
         return (uint64_t)std::max(0LL,
-            llround(us / (res * g) * (1.0 + 1e-9))) * g;
+            down ? (long long)floor(n) : llround(n)) * g;
     };
     uint64_t pw1__ = widthSamps(shot[ *this].pw1());
     uint64_t pw2__ = widthSamps(shot[ *this].pw2());
@@ -746,9 +759,25 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
     //pulses do not merely sound wrong, they produce a pattern no back-end can play:
     //the QAM pulse index stays asserted across what were meant to be separate
     //pulses, and the per-pulse waveform is then far too short for the merged span.
-    if(pw2__/2 && (pw1__/2 + pw2__/2 > tau__))
-        throw XDriver::XRecordError(
-            i18n("Pulse widths exceed Tau; the RF pulses would overlap."), __FILE__, __LINE__);
+    if(pw2__/2 && (pw1__/2 + pw2__/2 > tau__)) {
+        //Landing on the grid must not turn a setting that fits into one that
+        //does not.  Rounding to the NEAREST grid point lengthens a pulse by up
+        //to half of one -- 0.1 us where the grid is a 5 MSPS QAM sample -- and
+        //a tau chosen as short as the pulses allow is then exceeded by widths
+        //that were within it when they were recorded.  A journal replayed
+        //through here loses the pulser's record for it, and with it every
+        //secondary driver that has the pulser among its connections, since an
+        //invalid record stops their analysis outright (user: a swept spectrum
+        //that no longer reproduces).  So round DOWN and look again: a pulse a
+        //fraction of a grid point short is what was asked for, near enough,
+        //and it is the safe direction besides.  Only widths that overlap even
+        //then are the ones the user really did ask to overlap.
+        pw1__ = widthSamps(shot[ *this].pw1(), true);
+        pw2__ = widthSamps(shot[ *this].pw2(), true);
+        if(pw2__/2 && (pw1__/2 + pw2__/2 > tau__))
+            throw XDriver::XRecordError(
+                i18n("Pulse widths exceed Tau; the RF pulses would overlap."), __FILE__, __LINE__);
+    }
 	int echo_num__ = shot[ *this].echoNum();
 	int comb_num__ = shot[ *this].combNum();
 	int comb_mode__ = shot[ *this].combMode();
