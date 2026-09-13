@@ -12,6 +12,7 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "freqestleastsquare.h"
+#include "support.h"
 
 #include <Eigen/LU>
 #include <Eigen/SVD>
@@ -44,7 +45,8 @@ TSVDFourierSeries::genSpectrum(const std::vector<std::complex<double> >& memin,
         Eigen::MatrixXcd sigma = svd.singularValues();
         long rank = std::min(t, n);
         sigma = sigma.topRows(rank);
-        std::cerr << sigma << std::endl;
+        dbgPrint(formatString("tSVD Fourier: rank=%ld, sigma_max=%.3g, sigma_min=%.3g",
+            (long)rank, std::abs(sigma.coeff(0)), std::abs(sigma.coeff(sigma.size() - 1))));
         Eigen::MatrixXcd v = svd.matrixV().leftCols(rank);
         Eigen::MatrixXcd uT = svd.matrixU().leftCols(rank).transpose();
 
@@ -53,10 +55,8 @@ TSVDFourierSeries::genSpectrum(const std::vector<std::complex<double> >& memin,
         for(int i = 0; i < sigma.size(); ++i)
             m_AinvReg.col(i) *= 1.0 / sigma.coeff(i);
         m_AinvReg *= uT;
-        std::cerr << m_AinvReg.row(0) << std::endl;
     }
     Eigen::VectorXcd xtilde = m_AinvReg * Eigen::Map<Eigen::VectorXcd>(const_cast<std::complex<double>*>(&memin[0]), memin.size());
-    std::cerr << xtilde << std::endl;
     Eigen::Map<Eigen::VectorXcd>( &memout[0], memout.size()) = xtilde;
 
     m_ifftN->exec(memout, m_ifft);
