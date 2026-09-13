@@ -60,6 +60,8 @@ protected:
     //! Every record binned here is one echo of the train, not their mean.
     virtual double mapNoiseFactor(const Snapshot &shot_pulse,
         const XNMRPulseAnalyzer &pulse) const override;
+    virtual FFT::twindowfunc mapWindowFunc(const Snapshot &) const override;
+    virtual double mapWindowWidth(const Snapshot &) const override;
 public:
 	//! driver specific part below 
 	const shared_ptr<XItemNode<XDriverList, XSG> > &sg1() const {return m_sg1;}
@@ -116,6 +118,14 @@ public:
     //! \a Absolute gives up the phase altogether -- noisier, and biased away
     //! from zero at long times, which is why it is not the default.
     enum class MapPhaseMode {AutoPerFreq = 0, Global = 1, Absolute = 2};
+    //! The window laid along the map's frequency axis, and how much of the
+    //! time-domain image it spans [%].  Separate from the spectrum's own: the
+    //! S/N of one time bin is nothing like that of the whole accumulation, so
+    //! the two want different trade-offs, and the spectrum's SOLVER is not
+    //! offered here at all -- a nonlinear estimator run bin by bin would make
+    //! the decay its own artefact. \sa XNMRSpectrumBase::mapWindowFunc()
+    const shared_ptr<XComboNode> &mapWindowFunc() const {return m_mapWindowFunc;}
+    const shared_ptr<XDoubleNode> &mapWindowWidth() const {return m_mapWindowWidth;}
     //! Shape of the decay, e.g. multi-exponential for I > 1/2.
     const shared_ptr<XItemNode<XRelaxFuncList, XRelaxFunc> > &relaxFunc() const {return m_relaxFunc;}
 private:
@@ -138,6 +148,11 @@ private:
     const shared_ptr<XDoubleNode> m_mapFreqRes;
     const shared_ptr<XComboNode> m_mapPhase;
     const shared_ptr<XDoubleNode> m_mapTExtDecades;
+    const shared_ptr<XComboNode> m_mapWindowFunc;
+    const shared_ptr<XDoubleNode> m_mapWindowWidth;
+    //! Holds the window combo's items and turns a choice into a function.
+    //! Pinned to the zero-filling FFT: the map is filtered, never estimated.
+    const shared_ptr<SpectrumSolverWrapper> m_solverMapBin;
     const shared_ptr<XWaveNGraph> m_waveMapCurves, m_waveMap;
     shared_ptr<XItemNode<XRelaxFuncList, XRelaxFunc> > m_relaxFunc;
     //! Touched by visualize() only; analyze() may ask it to drop its kernel.
