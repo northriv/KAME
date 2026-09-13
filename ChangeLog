@@ -1,4 +1,15 @@
 * Thu Sep 3 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Pulser: landing a pulse width on the QAM sample grid no longer turns a
+  setting that fits into one that does not.  Rounding to the nearest grid
+  point lengthens a pulse by up to half of one -- 0.1 us where the grid is a
+  5 MSPS QAM sample -- so a tau chosen as short as the pulses allow could be
+  exceeded by widths that were inside it when they were recorded, and
+  "Pulse widths exceed Tau" threw out of analyzeRaw().  That invalidates the
+  pulser's record, and an invalid record stops EVERY secondary driver that has
+  the pulser among its connections before it analyses anything -- which is why
+  a replayed journal of a frequency-swept measurement no longer reproduced its
+  spectrum (user).  The widths are now rounded down to the grid before the
+  overlap is refused; only widths that overlap even then are refused.
 - UI: the LCD readouts lose their frame, which is what gives the digits room.
   The forms ask for a raised Box and QLCDNumber draws inside contentsRect(),
   so the frame both takes the space and puts a line exactly where the top bar
