@@ -450,7 +450,14 @@ XNMRSpectrumBase<FRM>::updateMapBins(Transaction &tr, const Snapshot &shot_pulse
 	auto bins = shot_this[ *this].m_mapBins;
 	if(times.empty() && bins.empty())
 		return; //no map at all, which is what this costs in the common case.
-	bool rebuild = axis_rebuilt || (bins.size() != times.size());
+	//bwList() is display-time for the spectrum -- all three banks are summed in
+	//parallel and one is read -- but the map sums only the bank in use, so
+	//switching it changes the excitation weighting of everything that follows.
+	//What is already in the bins cannot be re-weighted, so the bins go, and
+	//only the bins: the spectrum's own banks are untouched and keep the sweep.
+	int bank = shot_this[ *bwList()];
+	bool rebuild = axis_rebuilt || (bins.size() != times.size())
+		|| (shot_this[ *this].m_mapBank != bank);
 	for(size_t b = 0; !rebuild && (b < bins.size()); ++b)
 		rebuild = (bins[b]->times != times[b]);
 	if(rebuild) {
@@ -467,6 +474,7 @@ XNMRSpectrumBase<FRM>::updateMapBins(Transaction &tr, const Snapshot &shot_pulse
 			fresh[b] = bin; //filled before publishing (pointer-to-const).
 		}
 		tr[ *this].m_mapBins = std::move(fresh);
+		tr[ *this].m_mapBank = bank;
 		return;
 	}
 	if( !head_shift && !bins.empty() && ((int)bins[0]->accum.size() == length))

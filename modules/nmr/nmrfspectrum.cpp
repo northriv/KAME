@@ -639,10 +639,16 @@ XNMRFSpectrum::visualize(const Snapshot &shot) {
     }
     //What it took to acquire these curves; the inversion's own settings go on
     //the density map instead, and neither line holds much text.
+    //tfirst, not tmin: the grid's low end has been extended away from the first
+    //echo and it is the echo that these curves are spaced by.
+    //
+    //The excitation bandwidth is the bank's, not the node's: bwList() halves or
+    //doubles it, and it is what weighted every record into these curves.
+    double bw_khz = shot[ *bandWidth()] * 0.5 * pow(2.0, (double)(int)shot[ *bwList()]);
     drawRelaxCurves(m_waveMapCurves, data, "2tau [us]",
-        formatString("2tau=%.4gus x%u/bin df=%.4gkHz ph=%s", tmin,
+        formatString("2tau=%.4gus x%u/bin df=%.4gkHz bw=%.4gkHz ph=%s", tfirst,
             std::max(1u, (unsigned int)shot[ *mapEchoesPerBin()]),
-            decim * res * 1e-3, phname));
+            decim * res * 1e-3, bw_khz, phname));
 
     shared_ptr<XRelaxFunc> relax_fn = shot[ *relaxFunc()];
     if( !relax_fn)

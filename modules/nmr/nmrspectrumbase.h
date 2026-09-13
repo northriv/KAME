@@ -99,6 +99,11 @@ public:
 
 		std::vector<shared_ptr<const MapBin> > m_mapBins;
 		double m_mapPSDCoeff = 0.0;
+		//! The bwList() bank the bins were accumulated with.  The spectrum keeps
+		//! all three and picks one at display time, so switching is free for it;
+		//! the map keeps only the one, and switching therefore changes what is
+		//! being summed.  \sa updateMapBins()
+		int m_mapBank = -1;
 
 		shared_ptr<const FFT> m_ift, m_preFFT;
 
