@@ -139,7 +139,7 @@ Eigen::MatrixXd
 NMRRelaxMapSolver::exec(const NMRRelaxMapData &data, const std::vector<double> &tgrid,
     const shared_ptr<XRelaxFunc> &relax_fn, double relax_coeff,
     TikhonovRegular::TikhonovMatrix mattype, TikhonovRegular::Method method,
-    int lambda_row) {
+    int lambda_row, bool unconstrained) {
     Eigen::MatrixXd density;
     int nbin = data.binCount();
     int nx = data.xCount();
@@ -224,34 +224,58 @@ NMRRelaxMapSolver::exec(const NMRRelaxMapData &data, const std::vector<double> &
     Eigen::VectorXd yrow = m_weights.cwiseProduct(data.y.row(row).transpose());
     m_regularization->chooseLambda(method, yrow, data.noiseSq);
     double lambda = m_regularization->lambda();
+    //chooseLambda() leaves the linear inverse at the lambda it tried LAST --
+    //for a scan, its smallest -- and the rows want the one it chose.  Before
+    //this the linear map was solved that way: essentially unregularized under
+    //L-curve and GCV while its label named the chosen lambda.
+    m_regularization->setLambda(lambda);
 
-    //Non-negative, row by row, with that lambda.  The previous map seeds the
-    //active set: a row's support changes little between records, so the
-    //solver usually settles in a step or two.
-    bool warm_ok = (m_lastDensity.rows() == nx) && (m_lastDensity.cols() == nt);
     density.setZero(nx, nt);
-    Eigen::VectorXd warm;
-    for(int i = 0; i < nx; ++i) {
-        Eigen::VectorXd yi = m_weights.cwiseProduct(data.y.row(i).transpose());
-        if(warm_ok)
-            warm = m_lastDensity.row(i).transpose();
-        density.row(i) = m_regularization->solveNonNeg(yi, lambda,
-            warm_ok ? &warm : nullptr).transpose();
+    if(unconstrained) {
+        //The diagnostic view.  \sa exec()
+        for(int i = 0; i < nx; ++i)
+            density.row(i) = m_regularization->solve(
+                m_weights.cwiseProduct(data.y.row(i).transpose())).transpose();
     }
-    m_lastDensity = density;
+    else {
+        //Non-negative, row by row, with that lambda.  The previous map seeds
+        //the active set: a row's support changes little between records, so
+        //the solver usually settles in a step or two.
+        bool warm_ok = (m_lastDensity.rows() == nx) && (m_lastDensity.cols() == nt);
+        Eigen::VectorXd warm;
+        for(int i = 0; i < nx; ++i) {
+            Eigen::VectorXd yi = m_weights.cwiseProduct(data.y.row(i).transpose());
+            if(warm_ok)
+                warm = m_lastDensity.row(i).transpose();
+            density.row(i) = m_regularization->solveNonNeg(yi, lambda,
+                warm_ok ? &warm : nullptr).transpose();
+        }
+        m_lastDensity = density;
+    }
 
     //The parameter the whole map hangs on, and the one number of it that no
     //part of the picture shows.  With it, how much of the reference row the
     //solution shown left unexplained, against the noise there: about 1 is a
     //fit, well above says over-smoothed, well below says the noise is being
     //fitted.
-    m_status = formatString("%s/%s nnls lam=%.3g", methodName(method), matrixName(mattype), lambda);
+    m_status = formatString("%s/%s %s lam=%.3g", methodName(method), matrixName(mattype),
+        unconstrained ? "linear" : "nnls", lambda);
     if((m_weights.array() != 1.0).any())
         m_status += " w"; //!< rows weighted by 1/sigma; part of what it took
     if(data.noiseSq > 0.0) {
         Eigen::VectorXd xrow = density.row(row).transpose();
         double rms = sqrt(m_regularization->residualSq(yrow, xrow) / nbin);
         m_status += formatString(" rms/sig=%.2f", rms / sqrt(data.noiseSq));
+    }
+    if( !unconstrained) {
+        //How far the linear solution of the reference row goes negative,
+        //against its peak.  The map cannot show what the constraint removed;
+        //this can say there was something.  Well below zero: look at the
+        //phase or the baseline before believing the map.
+        Eigen::VectorXd xl = m_regularization->solve(yrow);
+        double top = xl.maxCoeff();
+        if(top > 0.0)
+            m_status += formatString(" lin-neg=%.2f", xl.minCoeff() / top);
     }
     //The rest of what it would take to repeat this inversion: the kernel's
     //shape and grid.  relax_coeff only when it is not the plain decay, i.e.

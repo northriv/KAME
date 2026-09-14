@@ -167,6 +167,8 @@ public:
     using MapMode = NMRRelaxMapMode;
     const shared_ptr<XComboNode> &mapMode() const {return m_mapMode;}
     const shared_ptr<XComboNode> &mapTikhonovMatrix() const {return m_mapTikhonovMatrix;}
+    //! Shows the linear inversion instead of the non-negative one, for diagnosis.
+    const shared_ptr<XBoolNode> &mapUnconstrained() const {return m_mapUnconstrained;}
     //! [kHz].
     const shared_ptr<XDoubleNode> &mapBandWidth() const {return m_mapBandWidth;}
     //! [kHz].
@@ -217,6 +219,7 @@ private:
     //! Fields for Mapping via Tikhonov Regularization.
     const shared_ptr<XComboNode> m_mapMode;
     const shared_ptr<XComboNode> m_mapTikhonovMatrix;
+    const shared_ptr<XBoolNode> m_mapUnconstrained;
     const shared_ptr<XDoubleNode> m_mapFreqRes;
     const shared_ptr<XDoubleNode> m_mapBandWidth;
     const shared_ptr<XComboNode> m_mapWindowFunc;

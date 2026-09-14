@@ -47,6 +47,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
       m_relaxFuncs(create<XRelaxFuncList>("RelaxFuncs", true)),
       m_mapMode(create<XComboNode>("MapMode", false, true)),
       m_mapTikhonovMatrix(create<XComboNode>("MapTikhonovMatrix", false, true)),
+      m_mapUnconstrained(create<XBoolNode>("MapUnconstrained", false)),
       m_mapEchoesPerBin(create<XUIntNode>("MapEchoesPerBin", false)),
       m_mapFreqRes(create<XDoubleNode>("MapFreqRes", false, "%.4f")),
       m_mapPhase(create<XComboNode>("MapPhase", false, true)),
@@ -122,6 +123,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(m_tuneCycleStrategy, m_form->m_cmbTuneCycleStrategy, Snapshot( *m_tuneCycleStrategy)),
         xqcon_create<XQComboBoxConnector>(m_mapMode, m_form->m_cmbMapMode, Snapshot( *m_mapMode)),
         xqcon_create<XQComboBoxConnector>(m_mapTikhonovMatrix, m_form->m_cmbMapTikhonovMatrix, Snapshot( *m_mapTikhonovMatrix)),
+        xqcon_create<XQToggleButtonConnector>(m_mapUnconstrained, m_form->m_ckbMapUnconstrained),
         xqcon_create<XQComboBoxConnector>(m_relaxFunc, m_form->m_cmbMapRelaxFunc, Snapshot( *m_relaxFuncs)),
         xqcon_create<XQSpinBoxUnsignedConnector>(m_mapEchoesPerBin, m_form->m_spbMapEchoesPerBin),
         xqcon_create<XQLineEditConnector>(m_mapFreqRes, m_form->m_edMapFreqRes),
@@ -142,7 +144,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 		//away.  The bins themselves are rebuilt by updateMapBins() when the
 		//binning no longer matches what was accumulated.
 		for(auto &&x: std::vector<shared_ptr<XValueNodeBase>>(
-			{mapMode(), mapTikhonovMatrix(), mapEchoesPerBin(), mapFreqRes(),
+			{mapMode(), mapTikhonovMatrix(), mapUnconstrained(), mapEchoesPerBin(), mapFreqRes(),
 			relaxFunc(), mapPhase(), mapTExtDecades(),
 			mapWindowFunc(), mapWindowWidth()}))
 			tr[ *x].onValueChanged().connect(m_lsnOnCondChanged);
@@ -696,7 +698,7 @@ XNMRFSpectrum::visualize(const Snapshot &shot) {
     //Unlike the T1 map, no fit feeds the kernel, so it stands on its own.
     Eigen::MatrixXd density = m_mapSolver.exec(data, tgrid, relax_fn, -1.0,
         (TikhonovRegular::TikhonovMatrix)(int)shot[ *mapTikhonovMatrix()],
-        tikhonovMethodOf(mapmode), data.strongestRow());
+        tikhonovMethodOf(mapmode), data.strongestRow(), shot[ *mapUnconstrained()]);
     //The extension is a setting of the inversion, so it belongs on that graph's
     //line, next to the grid it widened -- with the window it widened away from,
     //since the solver's own T=... is the grid, not the measurement.

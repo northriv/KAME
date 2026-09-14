@@ -108,11 +108,15 @@ public:
     //! \param relax_coeff f(t) enters the kernel as relax_coeff * f(t) + 1;
     //!   -1 for a decay, 1/(c + a) for a recovery fitted to c * f + a.
     //! \param lambda_row the row on which \a method is evaluated.
+    //! \param unconstrained the linear inversion instead of the non-negative
+    //!   one, with the same lambda: the diagnostic view of what the constraint
+    //!   removes.  Negative lobes point at the phase or the baseline; a peak
+    //!   broader here than in the constrained map is one lambda widened.
     //! \return the (x, T) density, empty if the problem is degenerate.
     Eigen::MatrixXd exec(const NMRRelaxMapData &data, const std::vector<double> &tgrid,
         const shared_ptr<XRelaxFunc> &relax_fn, double relax_coeff,
         TikhonovRegular::TikhonovMatrix mattype, TikhonovRegular::Method method,
-        int lambda_row);
+        int lambda_row, bool unconstrained);
     //! Drops the cached kernel.  Safe to call from analyze(): the request is a
     //! flag, consumed by the next exec(), and never touches the kernel itself.
     void invalidate() {m_invalidated = 1;}

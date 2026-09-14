@@ -44,6 +44,11 @@ public:
     enum class Method {L_Curve, MinGCV, KnownError, AllNonNegative};
     //! \arg error_sq estimated noise level squared per \a y data point.
     Vector chooseLambda(Method method, const Vector &y, double error_sq = 0.0);
+    //! Prepares solve() for \a lambda: the regularized inverse A#lambda.
+    //! chooseLambda() leaves solve() at whatever lambda it TRIED last, not the
+    //! one it settled on -- a scan ends at its smallest -- so anything solving
+    //! rows with the chosen lambda must call this first.  Does not touch lambda().
+    void setLambda(double lambda);
     //! \return \a x_lambda
     Vector solve(const Vector &y) const {
         assert(y.size() == m_ylen);

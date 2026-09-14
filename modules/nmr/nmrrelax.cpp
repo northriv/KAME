@@ -121,6 +121,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
       m_solverMapPulse(create<SpectrumSolverWrapper>("SpectrumSolverMapPulse", true, shared_ptr<XComboNode>(), m_mapWindowFunc, m_mapWindowWidth)),
       m_mapMode(create<XComboNode>("MapMode", false, true)),
       m_mapTikhonovMatrix(create<XComboNode>("MapTikhonovMatrix", false, true)),
+      m_mapUnconstrained(create<XBoolNode>("MapUnconstrained", false)),
       m_mapFreqRes(create<XDoubleNode>("MapFreqRes", false, "%.3f")),
       m_mapBandWidth(create<XDoubleNode>("MapBandWidth", false, "%.1f")),
       m_mapWindowFunc(create<XComboNode>("MapWindowFunc", false, true)),
@@ -244,6 +245,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(m_pulse2, m_form->m_cmbPulse2, ref(tr_meas)),
         xqcon_create<XQComboBoxConnector>(m_mapMode, m_form->m_cmbRegularizationChoice, Snapshot( *m_mapMode)),
         xqcon_create<XQComboBoxConnector>(m_mapTikhonovMatrix, m_form->m_cmbTikhonovMatrix, Snapshot( *m_mapTikhonovMatrix)),
+        xqcon_create<XQToggleButtonConnector>(m_mapUnconstrained, m_form->m_ckbMapUnconstrained),
         xqcon_create<XQLineEditConnector>(m_mapFreqRes, m_form->m_edRegularizationResolution),
         xqcon_create<XQLineEditConnector>(m_mapBandWidth, m_form->m_edRegularizationBW),
         xqcon_create<XQComboBoxConnector>(m_mapWindowFunc, m_form->m_cmbMapWindowFunc, Snapshot( *m_mapWindowFunc)),
@@ -262,7 +264,8 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
             shared_from_this(), &XNMRT1::onCondChanged);
         for(auto &&x: std::vector<shared_ptr<XValueNodeBase>>(
             {mInftyFit(), absFit(), relaxFunc(), autoPhase(), freq(), autoWindow(),
-            windowFunc(), windowWidth(), mode()}))
+            windowFunc(), windowWidth(), mode(),
+            mapUnconstrained()})) //!< a view, not a change of kernel: no SVD
             tr[ *x].onValueChanged().connect(m_lsnOnCondChanged);
         m_lsnOnMapCondChanged = tr[ *mode()].onValueChanged().connectWeakly(
             shared_from_this(), &XNMRT1::onMapCondChanged);
@@ -1161,7 +1164,7 @@ XNMRT1::visualize(const Snapshot &shot) {
         //lambda criterion keeps being evaluated on the middle row.
         auto density = m_mapSolver.exec(data, tgrid, relax_fn, relax_coeff,
             (TikhonovRegular::TikhonovMatrix)(int)shot[ *mapTikhonovMatrix()],
-            tikhonovMethodOf(mapmode), data.xCount() / 2);
+            tikhonovMethodOf(mapmode), data.xCount() / 2, shot[ *mapUnconstrained()]);
 
         XString maplabel;
         switch((MeasMode)(int)shot[ *mode()]) {

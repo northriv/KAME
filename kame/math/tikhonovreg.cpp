@@ -59,17 +59,8 @@ TikhonovRegular::TikhonovRegular(const Matrix &matrixA, TikhonovMatrix matStype,
 
 }
 
-bool
-TikhonovRegular::testLambda(double lambda, Method method, const Vector &vec_y, Vector &vec_x, double &index, double error_sq, double lambda_prev, double &xi_prev) {
-    if(method == Method::AllNonNegative) {
-        //The discrepancy principle on the constrained solution.  Its residual
-        //is nondecreasing in lambda -- the feasible set is fixed and the
-        //penalty only grows -- so the bisection below applies unchanged.
-        vec_x = solveNonNeg(vec_y, lambda);
-        double dy_sqnorm = (m_A * vec_x - vec_y).squaredNorm();
-        dbgPrint(formatString("Tikhonov: nnls dy_sqnorm=%.3g, lambda=%.3g", dy_sqnorm, lambda));
-        return dy_sqnorm / m_ylen < error_sq;
-    }
+void
+TikhonovRegular::setLambda(double lambda) {
     switch(m_matStype) {
     case TikhonovMatrix::I: {
         auto slambda = Eigen::VectorXd((m_sigma.array() / (m_sigma.array().square() + lambda*lambda)));
@@ -87,7 +78,20 @@ TikhonovRegular::testLambda(double lambda, Method method, const Vector &vec_y, V
         }
         break;
     }
+}
 
+bool
+TikhonovRegular::testLambda(double lambda, Method method, const Vector &vec_y, Vector &vec_x, double &index, double error_sq, double lambda_prev, double &xi_prev) {
+    if(method == Method::AllNonNegative) {
+        //The discrepancy principle on the constrained solution.  Its residual
+        //is nondecreasing in lambda -- the feasible set is fixed and the
+        //penalty only grows -- so the bisection below applies unchanged.
+        vec_x = solveNonNeg(vec_y, lambda);
+        double dy_sqnorm = (m_A * vec_x - vec_y).squaredNorm();
+        dbgPrint(formatString("Tikhonov: nnls dy_sqnorm=%.3g, lambda=%.3g", dy_sqnorm, lambda));
+        return dy_sqnorm / m_ylen < error_sq;
+    }
+    setLambda(lambda);
     vec_x = m_AinvReg * vec_y;
     auto dy = m_A * vec_x - vec_y;
     switch (method) {

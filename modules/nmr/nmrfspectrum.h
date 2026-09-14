@@ -87,6 +87,8 @@ public:
     //! the pulse analyzer stores echo by echo. \sa NMRRelaxMapMode
     const shared_ptr<XComboNode> &mapMode() const {return m_mapMode;}
     const shared_ptr<XComboNode> &mapTikhonovMatrix() const {return m_mapTikhonovMatrix;}
+    //! Shows the linear inversion instead of the non-negative one, for diagnosis.
+    const shared_ptr<XBoolNode> &mapUnconstrained() const {return m_mapUnconstrained;}
     //! # of consecutive echoes summed into one time bin, which then sits at the
     //! mean of their 2 tau n -- i.e. bins of 2 tau n/m rather than 2 tau n.
     const shared_ptr<XUIntNode> &mapEchoesPerBin() const {return m_mapEchoesPerBin;}
@@ -144,6 +146,7 @@ private:
     const shared_ptr<XRelaxFuncList> m_relaxFuncs;
     const shared_ptr<XComboNode> m_mapMode;
     const shared_ptr<XComboNode> m_mapTikhonovMatrix;
+    const shared_ptr<XBoolNode> m_mapUnconstrained;
     const shared_ptr<XUIntNode> m_mapEchoesPerBin;
     const shared_ptr<XDoubleNode> m_mapFreqRes;
     const shared_ptr<XComboNode> m_mapPhase;

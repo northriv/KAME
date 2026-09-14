@@ -900,6 +900,22 @@
               <item>
                <widget class="QComboBox" name="m_cmbMapTikhonovMatrix"/>
               </item>
+            <item>
+             <widget class="QCheckBox" name="m_ckbMapUnconstrained">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="toolTip">
+               <string>Show the unconstrained (linear) inversion instead of the non-negative one. Negative lobes point at the phase or the baseline.</string>
+              </property>
+              <property name="text">
+               <string>Unconstrained</string>
+              </property>
+             </widget>
+            </item>
               <item>
                <widget class="QLabel" name="textLabelMapRelaxFunc">
                 <property name="sizePolicy">
@@ -1180,6 +1196,7 @@
   <tabstop>m_cmbBWList</tabstop>
   <tabstop>m_cmbMapMode</tabstop>
   <tabstop>m_cmbMapTikhonovMatrix</tabstop>
+  <tabstop>m_ckbMapUnconstrained</tabstop>
   <tabstop>m_cmbMapRelaxFunc</tabstop>
   <tabstop>m_cmbMapPhase</tabstop>
   <tabstop>m_spbMapEchoesPerBin</tabstop>
