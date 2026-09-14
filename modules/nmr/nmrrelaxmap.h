@@ -62,7 +62,9 @@ struct NMRRelaxMapData {
     std::vector<double> xvalues;
     Eigen::MatrixXd y; //!< (x, bin) in-phase signal [V]; what is inverted.
     Eigen::MatrixXd yimag; //!< (x, bin) out-of-phase signal [V]; shown, not inverted.
-    Eigen::MatrixXd isigma; //!< (x, bin) 1/sigma [1/V]; shown, not inverted.
+    //! (x, bin) 1/sigma [1/V].  Shown, and it WEIGHTS the inversion: a bin
+    //! averaged over more records speaks louder.  \sa NMRRelaxMapSolver::exec()
+    Eigen::MatrixXd isigma;
     double noiseSq = 0.0; //!< mean <dy^2> per point [V^2], for MinGCV/KnownError.
 
     int binCount() const {return (int)timesOfBin.size();}
@@ -83,11 +85,16 @@ struct NMRRelaxMapData {
 //! Inverts NMRRelaxMapData row by row into a distribution of relaxation times,
 //! by Tikhonov regularization (\sa TikhonovRegular).
 //!
+//! Rows are weighted by 1/sigma of the bin (NMRRelaxMapData::isigma), scaled so
+//! that a bin fitting its own noise leaves sigma_bar^2 = noiseSq of residual
+//! whatever its count -- which keeps KnownError's error_sq and GCV's trace
+//! meaning what they did unweighted.
+//!
 //! The kernel and its SVD are cached and rebuilt only when the problem itself
-//! changes -- the bin times, the T grid, the relaxation function or the
-//! regularization matrix.  \a relax_coeff deliberately does NOT invalidate the
-//! cache: on a recovery curve it follows the running fit and would demand an
-//! SVD per record.
+//! changes -- the bin times, the T grid, the relaxation function, the
+//! regularization matrix, or a weight that has drifted by more than a tenth.
+//! \a relax_coeff deliberately does NOT invalidate the cache: on a recovery
+//! curve it follows the running fit and would demand an SVD per record.
 //!
 //! exec() is heavy and calls XRelaxFunc::relax(); call it from visualize(),
 //! never from an iterate_commit() closure.
@@ -114,9 +121,12 @@ public:
     const XString &status() const {return m_status;}
 private:
     bool isCacheValid(const NMRRelaxMapData &, const std::vector<double> &tgrid,
-        const XRelaxFunc *, TikhonovRegular::TikhonovMatrix) const;
+        const XRelaxFunc *, TikhonovRegular::TikhonovMatrix, const Eigen::VectorXd &weights) const;
 
     shared_ptr<TikhonovRegular> m_regularization;
+    //! Row weights the cached kernel was built with; y is scaled by THESE, so
+    //! kernel and data always agree even while fresher weights are waiting.
+    Eigen::VectorXd m_weights;
     std::vector<std::vector<double> > m_times;
     std::vector<double> m_tgrid;
     const XRelaxFunc *m_relaxFn = nullptr;

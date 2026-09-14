@@ -112,14 +112,28 @@ NMRRelaxMapData::makeTGrid(double tmin, double tmax, int count) {
 
 bool
 NMRRelaxMapSolver::isCacheValid(const NMRRelaxMapData &data, const std::vector<double> &tgrid,
-    const XRelaxFunc *relax_fn, TikhonovRegular::TikhonovMatrix mattype) const {
+    const XRelaxFunc *relax_fn, TikhonovRegular::TikhonovMatrix mattype,
+    const Eigen::VectorXd &weights) const {
     if( !m_regularization)
         return false;
     if((m_relaxFn != relax_fn) || (m_matStype != mattype))
         return false;
     if(m_tgrid != tgrid)
         return false;
-    return m_times == data.timesOfBin;
+    if(m_times != data.timesOfBin)
+        return false;
+    //Weights drift as records accumulate, and a rebuild is an SVD, so one is
+    //spent only once some bin's weight has moved by more than a tenth.  Until
+    //then the cached kernel's own weights are what y is scaled by too: a
+    //slightly stale weighting, never an inconsistent one.
+    if(m_weights.size() != weights.size())
+        return false;
+    for(long b = 0; b < weights.size(); ++b) {
+        double a = m_weights[b], c = weights[b];
+        if(fabs(a - c) > 0.1 * std::max(a, c))
+            return false;
+    }
+    return true;
 }
 Eigen::MatrixXd
 NMRRelaxMapSolver::exec(const NMRRelaxMapData &data, const std::vector<double> &tgrid,
@@ -148,8 +162,34 @@ NMRRelaxMapSolver::exec(const NMRRelaxMapData &data, const std::vector<double> &
     if(m_invalidated.compare_set_strong(1, 0))
         m_regularization.reset();
 
-    if( !isCacheValid(data, tgrid, relax_fn.get(), mattype)) {
-        Eigen::MatrixXd mat_conv; //Matrix A; y = A x.
+    //Row weights w_b = sigma_bar / sigma_b, sigma_bar^2 = noiseSq.  A bin
+    //averaged over more records speaks louder, and a bin that fits its own
+    //noise leaves sigma_bar^2 of residual whatever its count, so the lambda
+    //criteria keep their meaning.  isigma differs between rows of a swept
+    //spectrum (coverage) while one kernel serves every row, so a bin's weight
+    //is its mean over the rows that have data there -- exact where coverage is
+    //even, an approximation where it is not.  With no noise estimate yet, or no
+    //data anywhere, the rows are unweighted, as they always were.
+    Eigen::VectorXd weights = Eigen::VectorXd::Ones(nbin);
+    if(data.noiseSq > 0.0) {
+        for(int b = 0; b < nbin; ++b) {
+            double sum = 0.0;
+            int cnt = 0;
+            for(int i = 0; i < nx; ++i) {
+                double s = data.isigma.coeff(i, b);
+                if(s > 0.0) {
+                    sum += s;
+                    ++cnt;
+                }
+            }
+            weights[b] = cnt ? sqrt(data.noiseSq) * sum / cnt : 0.0;
+        }
+        if( !(weights.maxCoeff() > 0.0))
+            weights.setOnes();
+    }
+
+    if( !isCacheValid(data, tgrid, relax_fn.get(), mattype, weights)) {
+        Eigen::MatrixXd mat_conv; //Matrix A; y = A x, rows scaled by weights.
         mat_conv.setZero(nbin, nt);
         for(int j = 0; j < nt; ++j) {
             double it1 = 1.0 / tgrid[j];
@@ -167,11 +207,12 @@ NMRRelaxMapSolver::exec(const NMRRelaxMapData &data, const std::vector<double> &
                     relax_fn->relax( &f, &df, t, it1);
                     fsum += f;
                 }
-                mat_conv.coeffRef(i, j) = relax_coeff * (fsum / times.size()) + 1.0;
+                mat_conv.coeffRef(i, j) = weights[i] * (relax_coeff * (fsum / times.size()) + 1.0);
             }
         }
         //very slow due to SVD.
         m_regularization = std::make_shared<TikhonovRegular>(mat_conv, mattype);
+        m_weights = weights;
         m_times = data.timesOfBin;
         m_tgrid = tgrid;
         m_relaxFn = relax_fn.get();
@@ -179,7 +220,8 @@ NMRRelaxMapSolver::exec(const NMRRelaxMapData &data, const std::vector<double> &
     }
 
     int row = std::min(std::max(0, lambda_row), nx - 1);
-    Eigen::VectorXd yrow = data.y.row(row).transpose();
+    //m_weights, not weights: the kernel's own.  \sa isCacheValid()
+    Eigen::VectorXd yrow = m_weights.cwiseProduct(data.y.row(row).transpose());
     Eigen::VectorXd xrow = m_regularization->chooseLambda(method, yrow, data.noiseSq);
     //The parameter the whole map hangs on, and the one number of it that no
     //part of the picture shows.  With it, how much of the reference row it left
@@ -187,6 +229,8 @@ NMRRelaxMapSolver::exec(const NMRRelaxMapData &data, const std::vector<double> &
     //over-smoothed, well below says the noise is being fitted.
     m_status = formatString("%s/%s lam=%.3g", methodName(method), matrixName(mattype),
         m_regularization->lambda());
+    if((m_weights.array() != 1.0).any())
+        m_status += " w"; //!< rows weighted by 1/sigma; part of what it took
     if(data.noiseSq > 0.0) {
         double rms = sqrt(m_regularization->residualSq(yrow, xrow) / nbin);
         m_status += formatString(" rms/sig=%.2f", rms / sqrt(data.noiseSq));
@@ -201,7 +245,7 @@ NMRRelaxMapSolver::exec(const NMRRelaxMapData &data, const std::vector<double> &
 
     density.setZero(nx, nt);
     for(int i = 0; i < nx; ++i) {
-        yrow = data.y.row(i).transpose();
+        yrow = m_weights.cwiseProduct(data.y.row(i).transpose());
         density.row(i) = m_regularization->solve(yrow).transpose();
     }
     return density;
