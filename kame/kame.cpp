@@ -1883,6 +1883,17 @@ void FrmKameMain::fileSaveAction_activated() {
             if(m_journalWriter) {
                 m_journalWriter->requestSave(filename.toLocal8Bit().data());
                 rememberRecentMes(filename);
+                //The same as for .kam below, and for the same reasons: the
+                //saved file is now the measurement, and its window layout is
+                //recorded with it.  requestSave() is asynchronous and reports
+                //no outcome -- the writer's own failure report does -- so the
+                //user's request is the moment taken, not the write.  A .kamj
+                //opened later comes through openMes(), which keys
+                //loadOpenForms() by this same path (user, 2026-09-14).
+                m_titleDoc = QFileInfo(filename).fileName();
+                m_docPath = QFileInfo(filename).absoluteFilePath().toStdString();
+                updateWindowTitle();
+                saveOpenForms();
             }
             else
                 gErrPrint(i18n("Journaling is off (KAME_JOURNAL=0); "
