@@ -222,16 +222,34 @@ NMRRelaxMapSolver::exec(const NMRRelaxMapData &data, const std::vector<double> &
     int row = std::min(std::max(0, lambda_row), nx - 1);
     //m_weights, not weights: the kernel's own.  \sa isCacheValid()
     Eigen::VectorXd yrow = m_weights.cwiseProduct(data.y.row(row).transpose());
-    Eigen::VectorXd xrow = m_regularization->chooseLambda(method, yrow, data.noiseSq);
+    m_regularization->chooseLambda(method, yrow, data.noiseSq);
+    double lambda = m_regularization->lambda();
+
+    //Non-negative, row by row, with that lambda.  The previous map seeds the
+    //active set: a row's support changes little between records, so the
+    //solver usually settles in a step or two.
+    bool warm_ok = (m_lastDensity.rows() == nx) && (m_lastDensity.cols() == nt);
+    density.setZero(nx, nt);
+    Eigen::VectorXd warm;
+    for(int i = 0; i < nx; ++i) {
+        Eigen::VectorXd yi = m_weights.cwiseProduct(data.y.row(i).transpose());
+        if(warm_ok)
+            warm = m_lastDensity.row(i).transpose();
+        density.row(i) = m_regularization->solveNonNeg(yi, lambda,
+            warm_ok ? &warm : nullptr).transpose();
+    }
+    m_lastDensity = density;
+
     //The parameter the whole map hangs on, and the one number of it that no
-    //part of the picture shows.  With it, how much of the reference row it left
-    //unexplained, against the noise there: about 1 is a fit, well above says
-    //over-smoothed, well below says the noise is being fitted.
-    m_status = formatString("%s/%s lam=%.3g", methodName(method), matrixName(mattype),
-        m_regularization->lambda());
+    //part of the picture shows.  With it, how much of the reference row the
+    //solution shown left unexplained, against the noise there: about 1 is a
+    //fit, well above says over-smoothed, well below says the noise is being
+    //fitted.
+    m_status = formatString("%s/%s nnls lam=%.3g", methodName(method), matrixName(mattype), lambda);
     if((m_weights.array() != 1.0).any())
         m_status += " w"; //!< rows weighted by 1/sigma; part of what it took
     if(data.noiseSq > 0.0) {
+        Eigen::VectorXd xrow = density.row(row).transpose();
         double rms = sqrt(m_regularization->residualSq(yrow, xrow) / nbin);
         m_status += formatString(" rms/sig=%.2f", rms / sqrt(data.noiseSq));
     }
@@ -242,12 +260,6 @@ NMRRelaxMapSolver::exec(const NMRRelaxMapData &data, const std::vector<double> &
     if(fabs(relax_coeff + 1.0) > 1e-6)
         m_status += formatString(" coeff=%.3g", relax_coeff);
     m_status += " f=" + relax_fn->getLabel();
-
-    density.setZero(nx, nt);
-    for(int i = 0; i < nx; ++i) {
-        yrow = m_weights.cwiseProduct(data.y.row(i).transpose());
-        density.row(i) = m_regularization->solve(yrow).transpose();
-    }
     return density;
 }
 

@@ -83,7 +83,10 @@ struct NMRRelaxMapData {
 };
 
 //! Inverts NMRRelaxMapData row by row into a distribution of relaxation times,
-//! by Tikhonov regularization (\sa TikhonovRegular).
+//! by Tikhonov regularization under x >= 0 (\sa TikhonovRegular::solveNonNeg()).
+//! lambda is decided on one row by the criterion asked for -- on the linear
+//! solution for L-curve, GCV and the known noise, on the non-negative one for
+//! AllNonNegative -- and every row is then solved non-negatively with it.
 //!
 //! Rows are weighted by 1/sigma of the bin (NMRRelaxMapData::isigma), scaled so
 //! that a bin fitting its own noise leaves sigma_bar^2 = noiseSq of residual
@@ -127,6 +130,9 @@ private:
     //! Row weights the cached kernel was built with; y is scaled by THESE, so
     //! kernel and data always agree even while fresher weights are waiting.
     Eigen::VectorXd m_weights;
+    //! The previous map, as the warm start of the next: a row's support
+    //! changes little between records.  \sa TikhonovRegular::solveNonNeg()
+    Eigen::MatrixXd m_lastDensity;
     std::vector<std::vector<double> > m_times;
     std::vector<double> m_tgrid;
     const XRelaxFunc *m_relaxFn = nullptr;
