@@ -229,6 +229,11 @@ NMRRelaxMapSolver::exec(const NMRRelaxMapData &data, const std::vector<double> &
     //this the linear map was solved that way: essentially unregularized under
     //L-curve and GCV while its label named the chosen lambda.
     m_regularization->setLambda(lambda);
+    //Noise propagated to each T of the linear solution, the same for every
+    //row since they share the kernel and sigma_bar.  A conservative bound for
+    //the constrained solution.  \sa TikhonovRegular::solutionStdDev()
+    Eigen::VectorXd sd = (data.noiseSq > 0.0) ?
+        m_regularization->solutionStdDev(data.noiseSq) : Eigen::VectorXd::Zero(nt);
 
     density.setZero(nx, nt);
     if(unconstrained) {
@@ -250,7 +255,14 @@ NMRRelaxMapSolver::exec(const NMRRelaxMapData &data, const std::vector<double> &
             density.row(i) = m_regularization->solveNonNeg(yi, lambda,
                 warm_ok ? &warm : nullptr).transpose();
         }
-        m_lastDensity = density;
+        m_lastDensity = density; //before the mask: the warm start wants the solution itself
+        //What is below twice its own noise is not shown.  A non-negative
+        //solution is sparse and its speckle is noise fitted; the linear view is
+        //left raw, its negative lobes being what it is for.
+        for(int i = 0; i < nx; ++i)
+            for(int j = 0; j < nt; ++j)
+                if(density.coeff(i, j) < 2.0 * sd[j])
+                    density.coeffRef(i, j) = 0.0;
     }
 
     //The parameter the whole map hangs on, and the one number of it that no
@@ -266,6 +278,14 @@ NMRRelaxMapSolver::exec(const NMRRelaxMapData &data, const std::vector<double> &
         Eigen::VectorXd xrow = density.row(row).transpose();
         double rms = sqrt(m_regularization->residualSq(yrow, xrow) / nbin);
         m_status += formatString(" rms/sig=%.2f", rms / sqrt(data.noiseSq));
+    }
+    //The noise floor of the picture against its peak, on the reference row.
+    //Above about 0.5 the picture is noise with a peak in it; the mask above
+    //has already removed what this says is not there.
+    if(data.noiseSq > 0.0) {
+        double peak = density.row(row).maxCoeff();
+        if(peak > 0.0)
+            m_status += formatString(" sd/pk=%.2f", sd.maxCoeff() / peak);
     }
     if( !unconstrained) {
         //How far the linear solution of the reference row goes negative,

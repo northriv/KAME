@@ -80,6 +80,15 @@ public:
     double residualSq(const Vector &y, const Vector &x) const {
         return (m_A * x - y).squaredNorm();
     }
+    //! \return the standard deviation of each component of solve()'s x under
+    //! noise of variance \a noise_sq on every point of y: Cov(x) = sigma^2
+    //! A# A#t, so sd_j = sigma ||row_j(A#)||.  Propagated noise only -- the
+    //! bias regularization adds is not in it.  For the LINEAR solve: the
+    //! constraint of solveNonNeg() can only lower a component's variance, so
+    //! this is a conservative bound for that solution too.  After setLambda().
+    Vector solutionStdDev(double noise_sq) const {
+        return sqrt(std::max(noise_sq, 0.0)) * m_AinvReg.rowwise().norm();
+    }
 private:
     long m_xlen, m_ylen;
     Matrix m_A;
