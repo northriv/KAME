@@ -1804,7 +1804,10 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
 }
 
 void FrmKameMain::fileCloseAction_activated() {
-    saveOpenForms();          //!< while the forms are still there to be seen
+    //No saveOpenForms() here, nor in openMes() or closeEvent(): leaving a
+    //measurement is when its forms have been closed, so what is still open is
+    //the worst sample of where they belong.  File > Save is the one place the
+    //layout is recorded (user, 2026-09-14).
     m_docPath.clear();
     m_formsWanted.clear();
     m_titleDoc.clear();       //!< nothing is loaded any more, and the title says so
@@ -1981,8 +1984,8 @@ FrmKameMain::openMes(const XString &filename) {
         //line -- so this is the one place the list has to be told.
         rememberRecentMes(QString::fromStdString(filename));
         //Before the load starts: the drivers it creates are answered one by
-        //one as they appear.  \sa onDriverCaught()
-        saveOpenForms();   //!< whatever was open belongs to the measurement leaving
+        //one as they appear.  \sa onDriverCaught().  The measurement leaving
+        //is not recorded here -- see fileCloseAction_activated().
         m_docPath = QFileInfo(QString::fromStdString(filename))
             .absoluteFilePath().toStdString();
         loadOpenForms();
