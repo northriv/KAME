@@ -375,7 +375,9 @@ A window will not shrink away while you are using it. It stays as it is while a 
 
 To keep a window open regardless, click the tab of the pane already in front: that pins it, and clicking that tab again releases it. (Clicking any other tab just switches panes, as usual.) The same switches are in the “View” menu as “Auto-hide West Toolbox”, “Auto-hide East Toolbox” and “Auto-hide Main Window”, and the “View” menu also lists every pane by name, which is the way to bring back a toolbox that has been minimized or hidden.
 
-These settings are not remembered between runs; every start comes up with all three windows auto-hiding.
+Where you leave the four placed windows — the main window, both toolboxes and the message log — is remembered, and the next run puts them back there (on a screen that still exists; a window saved on a monitor that is gone falls back to the computed place). So are “View” → “Appearance”, the graph theme and the folder each kind of file was last taken from. Whether a toolbox was pinned is not: every start comes up with all three windows auto-hiding.
+
+The windows that belong to a *measurement* — driver forms, charts, graphs — are remembered per measurement file, and only when you save it: see “File” → “Save”.
 
 ### Text Box Operations
 
@@ -429,6 +431,10 @@ Never use mlock (does not lock KAME’s memory pages into RAM).
 
 Adds a path for loading modules. Convenient when installed from source code.
 
+### --appearance \<system|light|dark\>
+
+Overrides, for this run only, what “View” → “Appearance” was last set to.
+
 ## Menu Items
 
 ### File
@@ -437,9 +443,13 @@ Adds a path for loading modules. Convenient when installed from source code.
 
 Loads a `.kam` or a `.kamj`. The contents of a `.kam` are Ruby scripts, so a script execution window opens in the center, and any errors are displayed in red. From a `.kamj` (a journal) only the dump at its head is applied — the settings as they were when the journal was opened. Replaying a run against its raw records is the Journal Reader's job, not this one.
 
+The dialog opens in the folder a measurement was last taken from, and “Open Recent” lists the files opened lately. Opening a file also puts its driver forms, charts and graphs back where they were when that file was last saved.
+
 #### Save
 
 Saves all currently open drivers and some other settings, to a `.kam` or a `.kamj`. Internally, a snapshot is saved of all nodes controllable from a script that have the save attribute set. A `.kamj` written here is a journal with a head and no body, which is what a settings file is; the same reader opens it and a saved run alike.
+
+Saving is also when KAME notes which driver forms, charts and graphs are open and where, against the file being saved; opening that file later brings them back. This happens only on “Save”, deliberately — not when quitting or closing — because by then the windows you were done with have usually been closed already, which is the worst moment to record where you like them. Save with the windows arranged as you want to find them.
 
 #### Close
 
@@ -475,7 +485,9 @@ If Jupyter notebook is installed, calls it as a client to KAME’s embedded IPyt
 
 ### View
 
-Same as clicking on the tabs.
+Lists every pane by name — the same as clicking on the tabs, and the way to bring back a toolbox that has been minimized or hidden — together with the “Auto-hide …” switches described under “Window Layout”.
+
+“Appearance” chooses “System” (follow the desktop), “Light” or “Dark”; the window changing color is the confirmation. “Theme Color of Graph” chooses “Night” or “Daylight” for the graphs. Both are remembered.
 
 ### Help
 
@@ -625,7 +637,10 @@ changed is the normal thing to want.
 Only what a person asked for is put back. A driver reporting its own progress
 through the same node — 37 on its way to the 100 you asked for — is recorded
 but never restored, because the driver that owns it would contradict it on
-its next record. Readings are never restored at all.
+its next record. Readings are never restored at all. A value typed into a
+form, set by a script or a notebook cell, or restored by loading a `.kam`
+counts as asked for; a value a driver wrote does not — the journal tells the
+two apart by the thread that wrote them.
 
 **Drivers the journal names are created if this KAME does not have them**,
 with the type each was created as. Values alone would be useless: a path
@@ -1130,7 +1145,23 @@ When the pulser is set to “P1 ALT” or “Comb ALT”, two FID/Echo analysis 
 
 Values (1/T1,2,st.e. and errors) are sent to Scalar Entry.
 
-Scripting nodes: source drivers `Pulser`, `NMRPulseAnalyzer1`, `NMRPulseAnalyzer2` (the second is for P1/Comb ALT); `Active` (“Control Pulser”), `P1Min`, `P1Max`, `P1Next` (“Next”), `P1Strategy` (Random/Flatten), `P1Dist` (“P1 Distribution”, Log/…), `RelaxFunc` (“Relaxation Function”), `Mode`, `Freq` (analysis center frequency), `Phase`, `AutoPhase`, `AutoWindow`, `WindowFunc`, `WindowWidth`, `MInftyFit` (“Fit M(infinity)”), `AbsFit`, `SmoothSamples`, `ResetFit` (“Fitting Reset”), `ClearAll`, `FitStatus`. The `Map*` nodes configure inverse-Laplace (2D) mode.
+### Density Mapping
+
+Besides the single relaxation rate, the “Density Mapping” tab inverts the same recovery (or decay) curves into a **distribution of relaxation times**, one for every frequency across the FID/Echo spectrum, and shows it as a color map of T against frequency. This is an inverse Laplace transform, which is ill-posed: without help, tiny noise turns into wild oscillations. KAME solves it by Tikhonov regularization under the constraint that the distribution is nowhere negative (a non-negative least-squares fit), which is what a population of relaxation components is; the constraint removes most of the oscillation by itself, so far less smoothing is needed than an unconstrained fit would need, and sharp features survive.
+
+“Band Width” and “Resolution” set the frequency axis of the map, with “Window Func” and “Window Width” applied to each pulse before its Fourier transform.
+
+“Tikhonov Matrix” chooses what the smoothing penalizes: “Identity” the size of the distribution (the plainest choice), “2nd Derivative Op.” its curvature, which favors smooth distributions and, on synthetic data, comes closer to the truth for the same noise.
+
+“Regularization Optimizer” chooses how strongly to smooth, i.e. how the regularization parameter λ is found. “Off” disables the map. “Noise Analysis” raises λ until the misfit equals the noise measured on the dark part of each record (the discrepancy principle). “L Curve” and “GCV” need no noise estimate: the former takes the corner of the misfit-versus-roughness curve, the latter minimizes the generalized cross-validation score. All three are evaluated on the reference row and then applied to every row. “AllNonNegative” is the discrepancy principle evaluated on the constrained fit itself.
+
+Each bin is weighted by its own noise — a bin averaged over more records counts for more — and what stands below twice its propagated noise is not drawn, so the speckle of a sparse solution does not read as peaks.
+
+“Unconstrained” shows the linear (unconstrained) inversion with the same λ instead, for diagnosis only: its negative lobes point at a phase or baseline problem in the data, and a peak that is broader there than in the constrained map is one that λ, not the data, has widened.
+
+The line on the density map records what it took to make it: the criterion and matrix, `nnls` or `linear`, `lam` (λ), `w` when the bins are weighted, `rms/sig` (the misfit of the reference row against its noise — about 1 is a fit, well above is over-smoothed, well below is noise being fitted), `sd/pk` (the noise floor of the picture against its peak), `lin-neg` (how far the unconstrained solution goes negative, against its peak — well below zero says look at the phase or the baseline), the T range and grid, the number of bins and the relaxation function.
+
+Scripting nodes: source drivers `Pulser`, `NMRPulseAnalyzer1`, `NMRPulseAnalyzer2` (the second is for P1/Comb ALT); `Active` (“Control Pulser”), `P1Min`, `P1Max`, `P1Next` (“Next”), `P1Strategy` (Random/Flatten), `P1Dist` (“P1 Distribution”, Log/…), `RelaxFunc` (“Relaxation Function”), `Mode`, `Freq` (analysis center frequency), `Phase`, `AutoPhase`, `AutoWindow`, `WindowFunc`, `WindowWidth`, `MInftyFit` (“Fit M(infinity)”), `AbsFit`, `SmoothSamples`, `ResetFit` (“Fitting Reset”), `ClearAll`, `FitStatus`. Density mapping: `MapMode` (“Regularization Optimizer”), `MapTikhonovMatrix`, `MapUnconstrained`, `MapBandWidth`, `MapFreqRes` (“Resolution”), `MapWindowFunc`, `MapWindowWidth`.
 
 ## NMR Frequency Sweep Measurement
 
@@ -1148,7 +1179,13 @@ The FSS “Band Width” can be specified numerically before measurement begins,
 
 “LC Tuning” selects how to tune the circuit during sweeps. “As is” does nothing. “Auto Tune” uses the auto-tuner driver to tune at each “Step”. “Await” turns off the pulse at each “Step” and waits for the user to turn the pulse back on.
 
-Scripting nodes: source drivers `PulseAnalyzer`, `SG1`, `Pulser`, `AutoTuner`/`AutoTunerSecondary`; `Active` (“Start Sweep”), `CenterFreq`, `FreqSpan` (“Span”), `FreqStep` (“Step”), `SG1FreqOffset`, `TuneCycleStep`/`TuneCycleStrategy` (the “LC Tuning” behavior); FSS/FFT shared nodes `BandWidth` (with `BandWidthList`), `AutoPhase`, `Phase`, `WindowFunc`, `WindowWidth`, `SpectrumSolver`, `Clear`.
+### Relax. Map
+
+When the pulser emits an echo train (CPMG), the “Relax. Map” tab inverts the decay of the echoes at every frequency of the swept spectrum into a distribution of T2 against frequency. The inversion is the one described under the relaxation rate driver's “Density Mapping” — the same regularization, criteria, weighting, noise mask, “Unconstrained” view and status line — applied to a decay rather than a recovery, with no fit feeding it.
+
+“Echoes/Bin” sums consecutive echoes into one time bin, trading time resolution for S/N and a smaller problem; a bin's kernel row is the mean over its echoes, so no time is misattributed. “Res. [kHz]” sets the frequency resolution of the map, and “T ext [dec]” extends the T grid beyond the measured time window by that many decades, so components slower than the train can be seen at its edge instead of distorting the rest. “Phase” chooses how the complex signal becomes the real curve that is inverted, “Window” and “Width [%]” the window applied per echo.
+
+Scripting nodes: source drivers `PulseAnalyzer`, `SG1`, `Pulser`, `AutoTuner`/`AutoTunerSecondary`; `Active` (“Start Sweep”), `CenterFreq`, `FreqSpan` (“Span”), `FreqStep` (“Step”), `SG1FreqOffset`, `TuneCycleStep`/`TuneCycleStrategy` (the “LC Tuning” behavior); FSS/FFT shared nodes `BandWidth` (with `BandWidthList`), `AutoPhase`, `Phase`, `WindowFunc`, `WindowWidth`, `SpectrumSolver`, `Clear`. Relax. Map: `MapMode` (“Regularization”), `MapTikhonovMatrix` (“Matrix”), `MapUnconstrained`, `MapEchoesPerBin`, `MapFreqRes`, `MapPhase`, `MapTExtDecades`, `MapWindowFunc`, `MapWindowWidth`.
 
 ## NMR Field Sweep Measurement
 
