@@ -1,6 +1,6 @@
 # KAME ver. 9 — User's Manual
 
-*2026/4/2 — Kentaro Kitagawa*
+*2026/9/15 — Kentaro Kitagawa*
 
 # Preface
 
