@@ -87,6 +87,14 @@ public:
     //! merely true.
     void setSessionPath(const XString &);
     const XString &sessionPath() const {return m_sessionPath;}
+    //! The writer's session id, so the switch can tell a file of its own from
+    //! one an earlier session wrote.  Set once by the writer before any run
+    //! can start, and read on the thread that throws the switch.
+    void setSessionId(const XString &s) {m_sessionId = s;}
+    const XString &sessionId() const {return m_sessionId;}
+    //! \return the session id in the header of the journal at \a path, empty
+    //! if the file cannot be read or has none; \a mode receives its tier label.
+    static XString sessionOfJournal(const XString &path, XString *mode = nullptr);
 
     //! `<base>.kamj` / `<base>.kamb`, whatever extension the user typed.
     static XString journalPathOf(const XString &given);
@@ -96,7 +104,7 @@ private:
     void onFilenameChanged(const Snapshot &shot, XValueNodeBase *);
     //! Mode and Recording mean something only once the field names a run.
     void updateRunControls();
-    XString m_sessionPath;
+    XString m_sessionPath, m_sessionId;
     const shared_ptr<XStringNode> m_filename;
     const shared_ptr<XComboNode> m_mode;
     const shared_ptr<XBoolNode> m_recording;
@@ -283,7 +291,8 @@ private:
     //! parsable, which is also what makes a killed session readable.
     struct Out {
         ~Out() {close();}
-        bool open(const XString &path);
+        //! \a append continues a file that exists, as a further gzip member.
+        bool open(const XString &path, bool append = false);
         void line(const XString &s);
         //! Ends a deflate block so everything so far reads on its own.
         //! Throttled: Z_FULL_FLUSH resets the dictionary, so flushing on
