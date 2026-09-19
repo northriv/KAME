@@ -1,3 +1,19 @@
+* Sat Sep 19 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Journal: switching Write off and on again with the same name continues the
+  run instead of starting it over (user).  It used to open both files anew,
+  and open() truncates: the half already recorded vanished under the half
+  that followed, without a word -- which measurement software must not do,
+  and what the switch means to its user is a pause.  A file this KAME wrote
+  is appended to, as a further gzip member the reader walks as one stream; a
+  "run resume" marker and a fresh dump follow, as ordinary entries, so a
+  replay reaching that point puts back whatever changed while the switch was
+  off, drivers added meanwhile included.  The raw stream is appended to the
+  same way.  A file another session wrote is refused -- its node ids are not
+  ours -- and so is a resumption in a different tier, since the header states
+  the tier and the reader believes it; either refusal clears the switch and
+  says what to change.  The session id that decides this is now in every
+  header, whether or not the session journal is on.  The manual says so.
+
 * Tue Sep 15 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - NMR relaxation map: the distribution of relaxation times is solved under
   x >= 0 (user).  Amplitudes of relaxation components are populations and
