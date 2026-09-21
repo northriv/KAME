@@ -881,16 +881,28 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
     tr[ *this].m_sumpts.resize(samples);
     auto &sumpts(tr[ *this].m_sumpts);
     {
-    //Building recovery curves after rounding log(P1) from all of aquirred points.
+    //Building recovery curves by rounding each point's abscissa to a division.
         Payload::Pt dummy = {};
         dummy.value_by_cond.resize(shot_this[ *this].m_convolutionCache.size());
         std::fill(tr[ *this].m_sumpts.begin(), tr[ *this].m_sumpts.end(), dummy);
-        double k = (shot_this[ *this].m_sumpts.size() - 1) / log(p1max/p1min);
+        //An echo train is LINEAR -- the echoes sit at 2 tau x i -- and rounding
+        //it onto a log axis leaves gaps at the short end and merges the tail,
+        //where log divisions close up: a 32-echo train reached 20 of its 32
+        //divisions, so the count this mode takes from the pulser promised one
+        //point per echo and delivered two thirds of them (user, 2026-09-21).
+        //Linear divisions where the data is linear.  Everywhere else P1 is
+        //spread over decades, which is what the log axis is there for -- and
+        //it also makes Smoothing Samples mean something plain here: the
+        //number of points to reduce the train to, evenly, rather than 1:1 at
+        //the short end and 5:1 at the long one.
+        bool linbin = (mode__ == MeasMode::T2_Multi);
+        double k = (shot_this[ *this].m_sumpts.size() - 1)
+            / (linbin ? (p1max - p1min) : log(p1max/p1min));
         auto pts_begin(shot_this[ *this].m_pts.begin());
         auto pts_end(shot_this[ *this].m_pts.end());
         int sum_size = (int)shot_this[ *this].m_sumpts.size();
         for(auto it = pts_begin; it != pts_end; it++) {
-            int idx = lrint(log(it->p1 / p1min) * k);
+            int idx = lrint((linbin ? (it->p1 - p1min) : log(it->p1 / p1min)) * k);
             if((idx < 0) || (idx >= sum_size)) continue;
             double p1 = it->p1;
             //For St.E., T+tau = P1+3*tau.
