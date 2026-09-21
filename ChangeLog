@@ -1,3 +1,18 @@
+* Mon Sep 21 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- NMR T1: in T2 multi-echo mode the relaxation curve is binned on a linear
+  axis, as the echoes are measured (user).  The divisions are logarithmic,
+  which is right for a P1 spread over decades and wrong for a CPMG train:
+  the echoes sit at 2 tau x i, evenly, so a log axis leaves gaps at the short
+  end and closes up at the long one.  A 32-echo train reached 20 of its 32
+  divisions -- the count this mode takes from the pulser promised one point
+  per echo and delivered two thirds of them, the tail merged two and three at
+  a time.  Linear in that mode, log everywhere else; every echo is its own
+  point, 8 through 128 alike.  Smoothing Samples also means something plain
+  here now: below the echo count the train reduces evenly, 32 echoes to 16
+  points being two echoes each, rather than 1:1 at the short end and 5:1 at
+  the long one.  The density map is untouched -- it reads the pulse slots,
+  not these divisions, and its kernel takes no part of the fit in this mode.
+
 * Sat Sep 19 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - Journal: switching Write off and on again with the same name continues the
   run instead of starting it over (user).  It used to open both files anew,
