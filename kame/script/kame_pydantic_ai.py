@@ -41,8 +41,8 @@ serves the figures KAME's server saves so `![…](/plots/<name>.png)` renders in
 the web UI, with FIGURE_INSTRUCTIONS the line that tells the model to do that.
 
 Requires: pydantic-ai (and `clai` for --web) in THIS interpreter --
-    uv pip install --python <python> pydantic-ai clai
-    <python> -m pip install pydantic-ai clai       (pip venvs only;
+    uv pip install --python <python> pydantic-ai clai uvicorn
+    <python> -m pip install pydantic-ai clai uvicorn       (pip venvs only;
                                                     uv venvs carry no pip)
 """
 import argparse
@@ -300,12 +300,12 @@ def _install_lines():
         return ("  (this is a system interpreter, not a venv -- make one; on macOS "
                 "keep it out of\n   Documents, Desktop, Downloads and iCloud "
                 "Drive, which privacy protection walls off)\n"
-                "    uv venv {0} && uv pip install --python {1} pydantic-ai clai\n"
-                "    {2} -m venv {0} && {1} -m pip install pydantic-ai clai\n"
+                "    uv venv {0} && uv pip install --python {1} pydantic-ai clai uvicorn\n"
+                "    {2} -m venv {0} && {1} -m pip install pydantic-ai clai uvicorn\n"
                 "  then delete ~/.kame_pyai_python and click the KAME link again "
                 "to pick {0}".format(venv, vpy, py))
-    return ("    uv pip install --python {0} pydantic-ai clai\n"
-            "    {0} -m pip install pydantic-ai clai      (pip venvs only; a uv "
+    return ("    uv pip install --python {0} pydantic-ai clai uvicorn\n"
+            "    {0} -m pip install pydantic-ai clai uvicorn      (pip venvs only; a uv "
             "venv has no pip)".format(_tilde(py)))
 
 

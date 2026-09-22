@@ -1483,6 +1483,24 @@ Instruct the assistant in natural language:
    then `python3` and versioned `python3.X` names. Creating `kame-mcp-venv` is
    the recommended way to keep these packages away from your system Python.
 
+   **On Windows it is the only way.** None of the interpreters KAME can
+   otherwise reach will do: the bundled `resources\python3.12` has no `pip`,
+   MSYS2's Python is externally managed with no `pip` module (and `mcp` is not
+   in `pacman`), and `python3` on `PATH` is usually the Microsoft Store stub.
+   Make the venv from a real CPython ≥ 3.10 — [`uv`](https://docs.astral.sh/uv/)
+   is the least intrusive way — next to `kame.exe`:
+
+   ```
+   uv venv --python 3.12 kame-mcp-venv
+   uv pip install --python kame-mcp-venv\Scripts\python.exe mcp jupyter_client
+   ```
+
+   KAME searches upward from its `resources` folder, so the venv may also sit
+   one level above the unzipped folder. Throughout this chapter `~` is your
+   home directory — `C:\Users\<you>` on Windows — and a virtualenv's
+   interpreter is `<venv>\Scripts\python.exe` where the text says
+   `<venv>/bin/python`.
+
 2. Start KAME and click **▶ Jupyter notebook** in the Script pane (or
    Script → Launch Jupyter Notebook). This starts the notebook *and* the MCP
    server, and writes the connection details that clients need.
@@ -1495,14 +1513,18 @@ The Script pane offers one-click launches, each already pointed at this KAME:
 
 | Link | Starts |
 |------|--------|
-| **Claude: Code / app** | Claude Code in a terminal, with KAME's plugin loaded automatically / the Claude desktop app |
+| **Claude: Code / app** | Claude Code in a terminal, with KAME's plugin loaded automatically (macOS and Linux; on Windows the server is still passed, through the workspace `.mcp.json`, but not the skill) / the Claude desktop app |
 | **Codex: CLI / fugu / app** | Codex in a terminal. The server is passed for that session only — nothing is written to your Codex configuration |
 | **Pydantic AI: CLI / web** | The `clai` command from your virtualenv, given KAME's agent. **web** also opens your browser once the server answers |
-| **Pydantic AI: ⚙ settings** | Creates `~/.kame_pyai.env` from a commented template on first use and opens it in your editor: the model and the API key go there, one line each |
+| **Pydantic AI: ⚙ settings** | Creates `~/.kame_pyai.env` from a commented template on first use and opens it in your editor (Notepad on Windows): the model and the API key go there, one line each |
 | **Pydantic AI: ⚙ agent** | Use an agent module of your own instead of KAME's (see below) |
 
 On first use of a Pydantic AI link, KAME asks for the virtualenv that has
-`pydantic-ai` installed and remembers it.
+`pydantic-ai` installed and remembers it. The project folder is fine: KAME
+looks inside it for `.venv`, `venv` or `env`, and accepts `bin/python` or
+`Scripts\python.exe`. On Windows this virtualenv must again be a real CPython
+(see the note under Setup), and it needs `clai` and `uvicorn` beside
+`pydantic-ai` for the **web** link.
 
 Two things are needed before the first chat: a model name and that provider's
 API key. Both go into the file that **⚙ settings** opens — uncomment one
@@ -1530,7 +1552,10 @@ edited — and a second click applies it.
 
 The entry runs a launcher that finds the current kernel by itself, so it stays
 valid across KAME restarts and does nothing while KAME is closed (its tools
-simply report that KAME is not running).
+simply report that KAME is not running). On Windows the entry is the batch
+twin, `plugin\bin\kame-mcp-server.cmd`, run through `cmd /c`, since no client
+starts a `.cmd` directly; it is written to mirror the POSIX launcher but has
+had less use.
 
 ## Using your own Pydantic AI agent
 
@@ -1571,8 +1596,9 @@ land in the same
 described under *What each client can show you*. `kame_mcp()` speaks
 HTTP to the running KAME, so the virtualenv needs neither `jupyter_client`
 nor the stdio launcher, and a path such as
-`.../kame.app/Contents/Resources/plugin/bin/kame-mcp-server` — which exists on
-one machine only — has no place in the module. To run the same module outside KAME (`clai web -a app:agent`
+`.../kame.app/Contents/Resources/plugin/bin/kame-mcp-server` (or
+`...\resources\plugin\bin\kame-mcp-server.cmd`) — which exists on one
+machine only — has no place in the module. To run the same module outside KAME (`clai web -a app:agent`
 from a shell), add KAME's `Resources` directory to `PYTHONPATH`, or copy
 `kame_pydantic_ai.py` next to it.
 
@@ -1652,14 +1678,14 @@ guessable from the message. This table is symptom-first.
 | `No interpreter inside <folder>` | uv, poetry and pdm keep the interpreter in a hidden `.venv` | Pick the project folder; KAME looks inside it |
 | `PermissionError: [Errno 1] Operation not permitted` | macOS privacy protection. The path is under Documents, Desktop, Downloads or iCloud Drive | Put the virtualenv and project outside those folders, or grant Terminal access to them in System Settings → Privacy & Security |
 | `KeyError` on an API-key variable | A `.env` file is not read by anything automatically | Call `load_dotenv()` in your module, or export the variable |
-| `Set the XXX_API_KEY environment variable` | The key is neither in `~/.kame_pyai.env` nor in the environment of the terminal window KAME opened (that window runs your login shell; KAME's own environment is not inherited, being a GUI process) | **⚙ settings**, add the line `XXX_API_KEY=…`, save, click again. `OPENAI_API_KEY` demanded although you never chose OpenAI: no model was named, so `clai`'s default `openai:gpt-5` applied — add a `KAME_PYAI_MODEL=` line |
+| `Set the XXX_API_KEY environment variable` | The key is neither in `~/.kame_pyai.env` nor in the environment of the terminal window KAME opened (that window runs your login shell — a fresh `cmd` on Windows; KAME's own environment is not inherited, being a GUI process) | **⚙ settings**, add the line `XXX_API_KEY=…`, save, click again. `OPENAI_API_KEY` demanded although you never chose OpenAI: no model was named, so `clai`'s default `openai:gpt-5` applied — add a `KAME_PYAI_MODEL=` line |
 | `No model given` | The fallback script (no `clai` in the venv) binds no model itself | **⚙ settings** and uncomment a `KAME_PYAI_MODEL=provider:name` line, e.g. `anthropic:claude-sonnet-4-5`; a local model is `openai:<name>` plus `OPENAI_BASE_URL` |
 | Your own agent module fails on another machine | It hard-codes a path to KAME or to its stdio launcher, or reads a `.env` that is not there | Replace the MCP line with `kame_mcp()` from `kame_pydantic_ai` (see above); keep keys in `~/.kame_pyai.env`, which that import loads |
-| `` `clai` not found in <venv>/bin `` — or the **web** link refuses | KAME looks for `clai` next to the interpreter it was given, not on `PATH`; that venv has `pydantic-ai` but not `clai` | `uv pip install --python <venv>/bin/python clai` (or `uv sync` in a uv project whose pyproject lists it). A uv venv has no `pip` inside, so `python -m pip` fails there. The **CLI** link works without `clai` |
-| `This interpreter has no pydantic_ai` / `<venv> lacks pydantic_ai` | The remembered or picked interpreter is the wrong one, or the package was never installed there | The message prints the install line for that exact interpreter; or `rm ~/.kame_pyai_python` and click the link again to pick another venv |
-| `No Python with pydantic_ai found` | None of the searched places (`KAME_PYAI_PYTHON`, the remembered one, `$VIRTUAL_ENV`, `<workspace>/.venv`, `python3` on `PATH`, versioned `python3.N`) has it | The message lists a two-line recipe: `uv venv ~/kame-pyai && uv pip install --python ~/kame-pyai/bin/python pydantic-ai clai`, then pick `~/kame-pyai` |
+| `` `clai` not found in <venv>/bin `` (`<venv>\Scripts` on Windows) — or the **web** link refuses | KAME looks for `clai` next to the interpreter it was given, not on `PATH`; that venv has `pydantic-ai` but not `clai` | `uv pip install --python <venv>/bin/python clai` (`<venv>\Scripts\python.exe`; or `uv sync` in a uv project whose pyproject lists it). A uv venv has no `pip` inside, so `python -m pip` fails there. The **CLI** link works without `clai` |
+| `This interpreter has no pydantic_ai` / `<venv> lacks pydantic_ai` | The remembered or picked interpreter is the wrong one, or the package was never installed there | The message prints the install line for that exact interpreter; or delete `~/.kame_pyai_python` (`rm`, or `del` on Windows) and click the link again to pick another venv |
+| `No Python with pydantic_ai found` | None of the searched places (`KAME_PYAI_PYTHON`, the remembered one, `$VIRTUAL_ENV`, `<workspace>/.venv`, `python3` on `PATH`, versioned `python3.N`) has it | The message lists a two-line recipe for your OS: `uv venv ~/kame-pyai && uv pip install --python ~/kame-pyai/bin/python pydantic-ai clai uvicorn` (Windows: `%USERPROFILE%\kame-pyai` and `...\Scripts\python.exe`), then pick that folder |
 | `Could not reach KAME's MCP server` / `failed to connect` / `MCP server address is not known` | The server runs inside KAME's Jupyter kernel and `~/.kame_mcp_url` is rewritten at each notebook launch and removed on exit — KAME was closed or restarted without the notebook | Start KAME, click **Jupyter notebook** in the Script pane, then the Pydantic AI link. `python kame_pydantic_ai.py --check` verifies the connection without a model |
-| Plots do not appear in the web UI; `/plots/…` is Not Found | The UI is `clai web`'s own app, which serves no files: the venv has no `uvicorn`, or the browser tab belongs to a web server started before this KAME (each launch picks a new port) | `uv pip install --python <venv>/bin/python uvicorn`, then click **web** again and use the tab it opens. Your own module: `kame_web_plots(app)` plus `FIGURE_INSTRUCTIONS` |
+| Plots do not appear in the web UI; `/plots/…` is Not Found | The UI is `clai web`'s own app, which serves no files: the venv has no `uvicorn`, or the browser tab belongs to a web server started before this KAME (each launch picks a new port) | `uv pip install --python <venv>/bin/python uvicorn` (`<venv>\Scripts\python.exe` on Windows), then click **web** again and use the tab it opens. Your own module: `kame_web_plots(app)` plus `FIGURE_INSTRUCTIONS` |
 | A long job cannot be stopped | The code never reports progress, so there is no point at which a stop can be honoured | Ask the assistant to report progress every iteration |
 
 ## Technical notes

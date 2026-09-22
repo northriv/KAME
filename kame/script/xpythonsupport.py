@@ -1511,14 +1511,21 @@ def _register_stdio_entry():
     while KAME is down is therefore harmless too -- the server starts and its
     tools report that KAME is not running.
     """
+    import platform as _pf
     _pd = _kame_plugin_dir()
-    _launcher = os.path.join(_pd, 'bin', 'kame-mcp-server') if _pd else ''
+    # The POSIX launcher is a sh script; Windows gets its batch twin, run
+    # through cmd.exe because no client spawns a .cmd directly (the npx.cmd
+    # class of problem).  Registering the sh file there -- which this did --
+    # produced an entry no Windows client could start.
+    _win = _pf.system() == 'Windows'
+    _launcher = os.path.join(_pd, 'bin', 'kame-mcp-server' + ('.cmd' if _win else '')) \
+        if _pd else ''
     if not _launcher or not os.path.isfile(_launcher):
         _kame_gui_html('<font color="#cc0000">The plugin launcher was not found'
             '{} &mdash; rebuild/redeploy KAME.</font>'.format(
             ' at ' + html.escape(_launcher) if _launcher else ''))
         return None
-    return _launcher
+    return ['cmd', '/c', _launcher] if _win else [_launcher]
 
 
 def _claude_desktop_config():
@@ -1657,7 +1664,9 @@ def _register_desktop_mcp(apply=False):
     _launcher = _register_stdio_entry()
     if not _launcher:
         return
-    _entry = {'command': _launcher}
+    _entry = {'command': _launcher[0]}
+    if _launcher[1:]:
+        _entry['args'] = _launcher[1:]
     _sys = _pf.system()
     _plan, _done, _fail = [], [], []
 
@@ -1703,9 +1712,9 @@ def _register_desktop_mcp(apply=False):
     # not think to write.  `agy mcp add` records "disabled": false alongside
     # the command, which a hand-built entry would omit.
     for _label, _bin, _argv, _where in (
-            ('Codex', _cx, ['mcp', 'add', 'kame', '--', _launcher],
+            ('Codex', _cx, ['mcp', 'add', 'kame', '--'] + _launcher,
              '~/.codex/config.toml'),
-            ('Antigravity CLI', _agy, ['mcp', 'add', 'kame', _launcher],
+            ('Antigravity CLI', _agy, ['mcp', 'add', 'kame'] + _launcher,
              '~/.gemini/config/mcp_config.json')):
         if not _bin:
             continue
@@ -2185,7 +2194,7 @@ def _pyai_help_file(py, script, agent, own, model, wd, system):
 		'  "Could not reach KAME\'s MCP server" / "failed to connect"',
 		'        KAME must be running, with its Jupyter notebook launched (Script pane)',
 		'        in THIS session.  Test:  {} {} --check'.format(_t(py), _t(script)),
-		'  "No module named ..."           uv pip install --python {} pydantic-ai clai'.format(_t(py)),
+		'  "No module named ..."           uv pip install --python {} pydantic-ai clai uvicorn'.format(_t(py)),
 		'                                  ({} -m pip install ...  for a pip-made venv)'.format(_t(py)),
 		'Manual: MCP chapter, Troubleshooting table -- ' + MCP_SETUP_URL,
 		'-' * 72,
@@ -2484,7 +2493,7 @@ def kame_handle_link(action):
 			# over HTTP from ~/.kame_mcp_url and carries the server's safety
 			# instructions with the toolset.
 			#
-			# The usual install is a VENV (pip install pydantic-ai clai into
+			# The usual install is a VENV (pip install pydantic-ai clai uvicorn into
 			# ~/somewhere/venv), which no PATH probe can see — so the GUI asks
 			# for the venv folder on first use (kame.cpp, like the notebook
 			# workspace dialog), passes it as 'pyai-cli?venv=<dir>', and the
@@ -2587,10 +2596,10 @@ def kame_handle_link(action):
 					_c0 = html.escape(_cands[0])
 					_kame_gui_html('<font color="#cc0000">{0} lacks <tt>pydantic_ai</tt>{1}{2}'
 						'<br/>Install it into that venv &mdash; one of:<br/>'
-						'&nbsp;&nbsp;<tt>uv pip install --python {0} pydantic-ai clai</tt><br/>'
-						'&nbsp;&nbsp;<tt>{0} -m pip install pydantic-ai clai</tt>'
+						'&nbsp;&nbsp;<tt>uv pip install --python {0} pydantic-ai clai uvicorn</tt><br/>'
+						'&nbsp;&nbsp;<tt>{0} -m pip install pydantic-ai clai uvicorn</tt>'
 						'&nbsp; (pip-made venvs only: a venv made by uv has no pip)<br/>'
-						'&nbsp;&nbsp;<tt>uv add pydantic-ai clai</tt> in the project folder, '
+						'&nbsp;&nbsp;<tt>uv add pydantic-ai clai uvicorn</tt> in the project folder, '
 						'if it is a uv project (also records them in pyproject)<br/>'
 						'then click the link again and pick the same folder.</font>'.format(
 						_c0,
@@ -2649,16 +2658,16 @@ def kame_handle_link(action):
 					if os.name == 'nt':
 						_mk = ('&nbsp;&nbsp;<tt>uv venv %USERPROFILE%\\kame-pyai &amp;&amp; '
 							'uv pip install --python %USERPROFILE%\\kame-pyai\\Scripts'
-							'\\python.exe pydantic-ai clai</tt><br/>'
+							'\\python.exe pydantic-ai clai uvicorn</tt><br/>'
 							'&nbsp;&nbsp;<tt>py -m venv %USERPROFILE%\\kame-pyai &amp;&amp; '
 							'%USERPROFILE%\\kame-pyai\\Scripts\\pip install pydantic-ai '
 							'clai</tt><br/>then click the link again and pick '
 							'<tt>%USERPROFILE%\\kame-pyai</tt>')
 					else:
 						_mk = ('&nbsp;&nbsp;<tt>uv venv ~/kame-pyai &amp;&amp; uv pip install '
-							'--python ~/kame-pyai/bin/python pydantic-ai clai</tt><br/>'
+							'--python ~/kame-pyai/bin/python pydantic-ai clai uvicorn</tt><br/>'
 							'&nbsp;&nbsp;<tt>python3 -m venv ~/kame-pyai &amp;&amp; '
-							'~/kame-pyai/bin/pip install pydantic-ai clai</tt><br/>'
+							'~/kame-pyai/bin/pip install pydantic-ai clai uvicorn</tt><br/>'
 							'then click the link again and pick <tt>~/kame-pyai</tt>'
 							+ ('. On macOS keep it out of Documents, Desktop, Downloads '
 							   'and iCloud Drive: privacy protection blocks a child of '
