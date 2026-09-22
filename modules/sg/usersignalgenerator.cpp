@@ -321,6 +321,12 @@ XLibreVNASGSCPI::XLibreVNASGSCPI(const char *name, bool runtime,
     sweepMode()->disable();
 }
 
+void
+XLibreVNASGSCPI::open() {
+    //Before start(): it settles the output settings, and those are events.
+    m_scpi.probeAPI(interface());
+    this->start();
+}
 double
 XLibreVNASGSCPI::getFreq() {
     interface()->query(":GEN:FREQ?");
@@ -329,25 +335,22 @@ XLibreVNASGSCPI::getFreq() {
 void
 XLibreVNASGSCPI::changeFreq(double mhz) {
     XScopedLock<XInterface> lock( *interface());
-    interface()->queryf(":GEN:FREQ %.0f", mhz * 1e6);
-    if(interface()->toStr() == "ERROR\n")
-        throw XInterface::XConvError(__FILE__, __LINE__);
+    m_scpi.sendEvent(interface(), formatString(":GEN:FREQ %.0f", mhz * 1e6));
     msecsleep(50); //wait stabilization of PLL
 }
 void
 XLibreVNASGSCPI::onRFONChanged(const Snapshot &shot, XValueNodeBase *) {
-    interface()->queryf(":DEV:MODE %s", shot[ *rfON()] ? "SA" : "VNA");
-    if(interface()->toStr() == "ERROR\n")
-        throw XInterface::XConvError(__FILE__, __LINE__);
-    interface()->queryf(":GEN:PORT %s", shot[ *rfON()] ? "1" : "0");
-    if(interface()->toStr() == "ERROR\n")
-        throw XInterface::XConvError(__FILE__, __LINE__);
+    XScopedLock<XInterface> lock( *interface());
+    //GEN is the signal generator, and the :GEN: settings below only take
+    //effect once it is the active mode. SA, which stood here, is the spectrum
+    //analyzer: its tracking generator is a separate set of commands
+    //(:SA:TRACK:...), so the output never followed these settings.
+    m_scpi.sendEvent(interface(), shot[ *rfON()] ? ":DEV:MODE GEN" : ":DEV:MODE VNA");
+    m_scpi.sendEvent(interface(), shot[ *rfON()] ? ":GEN:PORT 1" : ":GEN:PORT 0");
 }
 void
 XLibreVNASGSCPI::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
-    interface()->queryf(":GEN:LVL %.0f", (double)shot[ *oLevel()]);
-    if(interface()->toStr() == "ERROR\n")
-        throw XInterface::XConvError(__FILE__, __LINE__);
+    m_scpi.sendEvent(interface(), formatString(":GEN:LVL %.0f", (double)shot[ *oLevel()]));
 }
 
 XDPL32XGF::XDPL32XGF(const char *name, bool runtime,

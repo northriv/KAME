@@ -500,6 +500,14 @@ XLibreVNASCPI::XLibreVNASCPI(const char *name, bool runtime,
 }
 
 void
+XLibreVNASCPI::open() {
+    //Before start(), which settles the sweep settings and would otherwise
+    //send events without knowing how this GUI answers them.
+    m_scpi.probeAPI(interface());
+    this->start();
+}
+
+void
 XLibreVNASCPI::rearrangeIFBW() {
     interface()->query(":VNA:ACQ:POINTS?");
     unsigned int pts = interface()->toUInt();
@@ -514,44 +522,39 @@ XLibreVNASCPI::rearrangeIFBW() {
     interface()->query(":DEV:INF:LIM:MINIFBW?");
     double minifbw = interface()->toDouble();
     ifbw = std::max(minifbw, std::min(ifbw, maxifbw));
-    interface()->queryf(":VNA:ACQ:IFBW %.0f", ifbw);
+    m_scpi.sendEvent(interface(), formatString(":VNA:ACQ:IFBW %.0f", ifbw));
 }
 
 void
 XLibreVNASCPI::onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) {
     XScopedLock<XInterface> lock( *interface());
-    interface()->queryf(":VNA:FREQ:START %.0f", (double)shot[ *startFreq()] * 1e6);
-    if(interface()->toStr() == "ERROR\n")
-        throw XInterface::XConvError(__FILE__, __LINE__);
+    m_scpi.sendEvent(interface(),
+        formatString(":VNA:FREQ:START %.0f", (double)shot[ *startFreq()] * 1e6));
     rearrangeIFBW();
 }
 void
 XLibreVNASCPI::onStopFreqChanged(const Snapshot &shot, XValueNodeBase *node) {
     XScopedLock<XInterface> lock( *interface());
-    interface()->queryf(":VNA:FREQ:STOP %.0f", (double)shot[ *stopFreq()] * 1e6);
-    if(interface()->toStr() == "ERROR\n")
-        throw XInterface::XConvError(__FILE__, __LINE__);
+    m_scpi.sendEvent(interface(),
+        formatString(":VNA:FREQ:STOP %.0f", (double)shot[ *stopFreq()] * 1e6));
     rearrangeIFBW();
 }
 void
 XLibreVNASCPI::onPointsChanged(const Snapshot &shot, XValueNodeBase *) {
     XScopedLock<XInterface> lock( *interface());
-    interface()->queryf(":VNA:ACQ:POINTS %s", shot[ *points()].to_str().c_str());
-    if(interface()->toStr() == "ERROR\n")
-        throw XInterface::XConvError(__FILE__, __LINE__);
+    m_scpi.sendEvent(interface(),
+        formatString(":VNA:ACQ:POINTS %s", shot[ *points()].to_str().c_str()));
     rearrangeIFBW();
 }
 void
 XLibreVNASCPI::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
-    interface()->queryf(":VNA:ACQ:AVG %u", (unsigned int)shot[ *average()]);
-    if(interface()->toStr() == "ERROR\n")
-        throw XInterface::XConvError(__FILE__, __LINE__);
+    m_scpi.sendEvent(interface(),
+        formatString(":VNA:ACQ:AVG %u", (unsigned int)shot[ *average()]));
 }
 void
 XLibreVNASCPI::onPowerChanged(const Snapshot &shot, XValueNodeBase *) {
-    interface()->queryf(":VNA:STIM:LVL %.0f", (double)shot[ *power()]);
-    if(interface()->toStr() == "ERROR\n")
-        throw XInterface::XConvError(__FILE__, __LINE__);
+    m_scpi.sendEvent(interface(),
+        formatString(":VNA:STIM:LVL %.0f", (double)shot[ *power()]));
 }
 void
 XLibreVNASCPI::getMarkerPos(unsigned int num, double &x, double &y) {
@@ -576,9 +579,7 @@ XLibreVNASCPI::getMarkerPos(unsigned int num, double &x, double &y) {
 void
 XLibreVNASCPI::oneSweep() {
 //    XScopedLock<XInterface> lock( *interface());
-    interface()->query(":VNA:ACQ:SINGLE TRUE");
-    if(interface()->toStr() == "ERROR\n")
-        throw XInterface::XConvError(__FILE__, __LINE__);
+    m_scpi.sendEvent(interface(), ":VNA:ACQ:SINGLE TRUE");
     XTime started{XTime::now()};
     while (XTime::now() - started < 1.0) {
         msecsleep(100);
@@ -591,9 +592,7 @@ XLibreVNASCPI::oneSweep() {
 }
 void
 XLibreVNASCPI::startContSweep() {
-    interface()->query(":VNA:ACQ:SINGLE FALSE");
-    if(interface()->toStr() == "ERROR\n")
-        throw XInterface::XConvError(__FILE__, __LINE__);
+    m_scpi.sendEvent(interface(), ":VNA:ACQ:SINGLE FALSE");
 }
 void
 XLibreVNASCPI::acquireTrace(shared_ptr<RawData> &writer, unsigned int ch) {

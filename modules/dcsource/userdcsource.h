@@ -63,6 +63,27 @@ protected:
 	virtual void open();
 };
 
+//!KIKUSUI PMX series regulated DC power supply (PMX18-2A, PMX35-3A, ...), SCPI.
+class XKikusuiPMX:public XCharDeviceDriver<XDCSource> {
+public:
+	XKikusuiPMX(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+	virtual void changeFunction(int ch, int x);
+	virtual void changeOutput(int ch, bool x);
+	virtual void changeValue(int ch, double x, bool autorange);
+	//! The PMX has no range switching; the rated output is the only range.
+	virtual void changeRange(int, int) {}
+	virtual double max(int ch, bool autorange) const;
+	virtual Status queryStatus(int ch) override;
+protected:
+	virtual void open();
+private:
+	//! true while Value edits the current setting rather than the voltage one.
+	bool isCurrentSelected() const;
+	//! Ratings read from the instrument in open(); zero until it has answered.
+	double m_maxVolt = 0.0, m_maxCurr = 0.0;
+};
+
 //!Optotune Industrial Current Controller.
 class XOptotuneICC4C2000:public XCharDeviceDriver<XDCSource> {
 public:
