@@ -1,4 +1,21 @@
 * Wed Sep 23 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- NMR T1: ten Smoothing Samples or fewer is a warning, not a record error
+  (user).  In T2 multi-echo mode the count is the echo count, so a frequency
+  sweep run on eight echoes had the relaxation driver beside it failing every
+  record -- and it could not recover: the check came before the derivation
+  that sets the axis from the pulser, so once a short train had set the
+  count, every later record was refused before the derivation could follow
+  the pulser back.  The derivation now comes first.  A single echo is passed
+  over with a warning saying so, and a count below two because no curve can
+  be built.  The count is also set only when the number of echoes changes,
+  so lowering it now reduces the train evenly as the manual says; it was put
+  back on every record before.
+- UI: a form, chart or graph opened with a click unpins the toolbox that
+  would cover it (user).  A pinned toolbox stays on top of everything, so the
+  window came up underneath it, the click defeated by the pin.  The rule the
+  load already follows before it pins, applied when the window is put up:
+  only the toolbox that covers it goes back to auto-hide, folding as the
+  pointer leaves, and the window stays where it was.
 - Journal: a run file that exists is always continued -- never written over
   and never refused (user).  Sep 19 refused a file another session had
   written, and in "Settings + raw records" refused every new run as well: the
