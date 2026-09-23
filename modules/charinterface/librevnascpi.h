@@ -42,9 +42,19 @@ public:
 	void probeAPI(const shared_ptr<XCharInterface> &intf);
 	//! Sends one event, and reports a rejected command the way this GUI reports it.
 	void sendEvent(const shared_ptr<XCharInterface> &intf, const XString &cmd);
+	//! true when the GUI is known to be this version or newer; false when its
+	//! version could not be read, so that nothing is assumed to exist.
+	bool atLeast(unsigned int major, unsigned int minor, unsigned int patch = 0) const {
+		if( !m_versionKnown) return false;
+		if(m_major != major) return m_major > major;
+		if(m_minor != minor) return m_minor > minor;
+		return m_patch >= patch;
+	}
 private:
 	//! true once the GUI is known to answer an event with nothing at all.
 	bool m_eventsAreSilent = false;
+	bool m_versionKnown = false;
+	unsigned int m_major = 0, m_minor = 0, m_patch = 0;
 };
 
 inline void
@@ -53,14 +63,14 @@ LibreVNASCPI::probeAPI(const shared_ptr<XCharInterface> &intf) {
 	intf->query("*IDN?");
 	XString idn = intf->toStrSimplified();
 	//LibreVNA,LibreVNA-GUI,<serial>,<software version>
-	unsigned int major = 0, minor = 0;
+	unsigned int major = 0, minor = 0, patch = 0;
 	bool parsed = false;
 	auto pos = idn.rfind(',');
 	if(pos != std::string::npos) {
 		const char *ver = idn.c_str() + pos + 1;
 		while( *ver && !isdigit((unsigned char) *ver))
 			ver++; //steps over a leading "v", should the version carry one.
-		parsed = (sscanf(ver, "%u.%u", &major, &minor) == 2);
+		parsed = (sscanf(ver, "%u.%u.%u", &major, &minor, &patch) >= 2); //patch may be absent.
 	}
 	if( !parsed) {
 		//Reading this wrong towards the old protocol would leave every event
@@ -68,9 +78,14 @@ LibreVNASCPI::probeAPI(const shared_ptr<XCharInterface> &intf) {
 		//and name the answer that could not be read.
 		gWarnPrint(i18n("Unreadable LibreVNA-GUI version, assuming the current protocol: ") + idn);
 		m_eventsAreSilent = true;
+		m_versionKnown = false;
 		return;
 	}
-	m_eventsAreSilent = (major > 1) || ((major == 1) && (minor >= 6));
+	m_major = major;
+	m_minor = minor;
+	m_patch = patch;
+	m_versionKnown = true;
+	m_eventsAreSilent = atLeast(1, 6, 0);
 }
 inline void
 LibreVNASCPI::sendEvent(const shared_ptr<XCharInterface> &intf, const XString &cmd) {

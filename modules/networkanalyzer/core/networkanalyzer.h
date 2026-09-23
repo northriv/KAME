@@ -89,6 +89,12 @@ protected:
 	virtual void onCalThruTouched(const Snapshot &shot, XTouchableNode *) = 0;
 	virtual void getMarkerPos(unsigned int num, double &x, double &y) = 0;
 	virtual void oneSweep() = 0;
+	//! When the data about to be read began to be measured: the record's
+	//! timeAwared().  Called once oneSweep() has returned.  \a polled is when
+	//! the loop went to call it, which is right for an analyzer that starts a
+	//! fresh sweep in there.  One that sweeps on regardless and is read as it
+	//! goes started measuring earlier, and has to say how much.
+	virtual XTime acquisitionStarted(const XTime &polled) {return polled;}
 	virtual void startContSweep() = 0;
 	virtual void acquireTrace(shared_ptr<RawData> &, unsigned int ch) = 0;
 	//! Converts raw to dispaly-able

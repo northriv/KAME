@@ -252,6 +252,7 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 				msecsleep(1000); //back off on error (e.g. dead device) so the loop does not hammer.
 			continue;
 		}
+		time_awared = acquisitionStarted(time_awared);
 		writer->push((unsigned int)1); //# of traces.
 		double mx[8], my[8];
 		unsigned int nummk = 0;

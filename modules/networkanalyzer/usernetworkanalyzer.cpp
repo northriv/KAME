@@ -504,6 +504,12 @@ XLibreVNASCPI::open() {
     //Before start(), which settles the sweep settings and would otherwise
     //send events without knowing how this GUI answers them.
     m_scpi.probeAPI(interface());
+    //Whatever mode the GUI was left in; oneSweep() finds out afresh.  Set
+    //before start() spawns the thread that alone touches these afterwards.
+    m_continuous = false;
+    m_lastSweepFreq = -1.0;
+    m_warnedSweepFrozen = false;
+    m_acquisitionStarted = {};
     this->start();
 }
 
@@ -576,9 +582,14 @@ XLibreVNASCPI::getMarkerPos(unsigned int num, double &x, double &y) {
     x *= 1e-6; //[MHz]
     y = 10 * std::log10(re*re + im*im);
 }
+//! How often a running sweep's position is read.  It bounds both how many of
+//! the next sweep's points a record carries, and how late an edge is seen.
+static constexpr unsigned int SWEEP_POLL_MS = 10;
+
 void
-XLibreVNASCPI::oneSweep() {
-//    XScopedLock<XInterface> lock( *interface());
+XLibreVNASCPI::singleSweep() {
+    //SINGLE TRUE starts a sweep, and the GUI stops the device once its
+    //average is full; FIN? says when.
     m_scpi.sendEvent(interface(), ":VNA:ACQ:SINGLE TRUE");
     XTime started{XTime::now()};
     while (XTime::now() - started < 1.0) {
@@ -589,6 +600,103 @@ XLibreVNASCPI::oneSweep() {
         if(interface()->toStr() == "TRUE\n")
             break;
     }
+}
+void
+XLibreVNASCPI::oneSweep() {
+    //Unset unless a sweep read as it ran is returned below; a sweep asked for
+    //starts after the loop's own time, which is then right as it is.
+    m_acquisitionStarted = {};
+    //Nothing before GUI 1.6.5 says where a running sweep is, so there the
+    //only way to know one has completed is to ask for one.
+    if( !m_scpi.atLeast(1, 6, 5)) {
+        singleSweep();
+        return;
+    }
+    //From 1.6.5 the sweep runs on and is read as it goes.  Asking for a single
+    //sweep per record restarts the device every time -- the GUI stops it once
+    //the average is full, and SINGLE TRUE starts it again with the average
+    //reset -- which was both the slow part and the hard use of the
+    //instrument (user).
+    if( !m_continuous) {
+        m_scpi.sendEvent(interface(), ":VNA:ACQ:SINGLE FALSE");
+        m_continuous = true;
+        m_lastSweepFreq = -1.0;
+        //Edges from before are of another sweep, or of none at all.
+        m_lastSweepEdge = {};
+        m_sweepPeriod = 0.0;
+    }
+    //One record per completed sweep, never more: a consumer that discards
+    //"the next record" to be rid of data taken while something moved -- the
+    //Auto LC Tuner does exactly that after each motor step -- must be
+    //discarding a sweep, not whatever arrived within one poll.  FREQ? is the
+    //frequency of the point the GUI received last, so it drops back the moment
+    //the next sweep begins: that is the edge between two sweeps.  The record
+    //then fetched carries the new sweep's first few points; the shorter the
+    //poll, the fewer.
+    bool moved = false;
+    XTime started{XTime::now()};
+    while (XTime::now() - started < 1.0) {
+        interface()->query(":VNA:ACQ:FREQ?");
+        double freq = interface()->toDouble();
+        bool wrapped = false;
+        if(m_lastSweepFreq >= 0.0) {
+            wrapped = (freq < m_lastSweepFreq);
+            moved = moved || (freq != m_lastSweepFreq);
+        }
+        m_lastSweepFreq = freq;
+        if(wrapped) {
+            //The sweep's own period, measured edge to edge rather than worked
+            //out from the points and the IF bandwidth: what each point costs
+            //beyond 1/IFBW (PLL settling, dwell, USB) is not documented, and
+            //an estimate that came out short would claim the data newer than
+            //it is -- the one direction a timestamp must not err in.  A missed
+            //edge only lengthens the period, which errs the safe way.
+            XTime edge = XTime::now();
+            double period = m_lastSweepEdge.isSet() ? (edge - m_lastSweepEdge) : 0.0;
+            m_lastSweepEdge = edge;
+            if(period > 0.0)
+                m_sweepPeriod = period;
+            //A sweep ended, but right after a setting has changed the average
+            //is still filling up -- FIN? is what said "done" in singleSweep()
+            //too.  A changed setting also restarts the sweep, which looks like
+            //an end here and is caught by the same test.  Without a period yet
+            //(the first edge after starting) the start cannot be told, so that
+            //sweep goes unrecorded.
+            interface()->query(":VNA:ACQ:FIN?");
+            if((interface()->toStr() == "TRUE\n") && (m_sweepPeriod > 0.0)) {
+                //The average is a moving one over AVG sweeps, so the oldest data
+                //in it began that many sweeps back.  Both edges are seen up to
+                //a poll late, hence two polls' padding a sweep: early is safe.
+                interface()->query(":VNA:ACQ:AVG?");
+                unsigned int avg = std::max(1u, interface()->toUInt());
+                m_acquisitionStarted = edge;
+                m_acquisitionStarted -= avg * (m_sweepPeriod + 2e-3 * SWEEP_POLL_MS);
+                return;
+            }
+        }
+        msecsleep(SWEEP_POLL_MS);
+    }
+    if( !moved) {
+        //Not one new point in a second: the sweep is stopped, or is not a
+        //frequency sweep, or is so narrow that the six significant digits
+        //FREQ? prints cannot tell its ends apart.  Waiting on would never
+        //record again and never say why, so ask for a sweep instead; the next
+        //call sets it running and looks again.
+        if( !m_warnedSweepFrozen) {
+            gWarnPrint(getLabel() + i18n(": sweep position unreadable, using single sweeps."));
+            m_warnedSweepFrozen = true;
+        }
+        m_continuous = false;
+        singleSweep();
+        return;
+    }
+    //Let the loop look at terminated; the edge is still found on the next
+    //call, since the last frequency seen is kept.
+    throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+}
+XTime
+XLibreVNASCPI::acquisitionStarted(const XTime &polled) {
+    return m_acquisitionStarted.isSet() ? m_acquisitionStarted : polled;
 }
 void
 XLibreVNASCPI::startContSweep() {
@@ -650,8 +758,11 @@ XLibreVNASCPI::convertRaw(RawDataReader &reader, Transaction &tr) {
         double x, re, im;
         if(sscanf(buf.c_str(), "[%lf,%lf,%lf", &x, &re, &im) != 3)
             throw XInterface::XConvError(__FILE__, __LINE__);
-        tr[ *this].trace_()[i++] = std::complex<double>(re, im);
-        if(i > samples)
+        //Checked before the write, not after it: the trace can hold more points
+        //than POINTS? said a moment earlier, if the count is raised between the
+        //two queries, and writing first went one element past the end.
+        if(i >= samples)
             throw XInterface::XConvError(__FILE__, __LINE__);
+        tr[ *this].trace_()[i++] = std::complex<double>(re, im);
     }
 }
