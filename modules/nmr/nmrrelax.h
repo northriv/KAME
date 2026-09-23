@@ -101,6 +101,9 @@ public:
         long mapFreqCount() const {return lrint(m_mapBandWidth / m_mapFreqRes);}
         double mapStartFreq() const {return -(mapFreqCount() / 2) * m_mapFreqRes;} //!<[Hz]
         long m_mapTCount;
+        //! The echo count the T2 multi-echo axis was last set from; 0 outside
+        //! that mode.  \sa analyze()
+        unsigned int m_t2MultiEchoes = 0;
         struct Pulse {
             double p1;
             int avgCount = 0;

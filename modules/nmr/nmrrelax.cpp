@@ -651,6 +651,63 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
     XDriver *emitter) {
     Snapshot &shot_this(tr);
 
+    MeasMode mode__ = (MeasMode)(int)shot_this[ *mode()];
+    shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
+    const Snapshot &shot_pulser(shot_others);
+    assert( pulser__ );
+
+    if(mode__ != MeasMode::T2_Multi) {
+        if(shot_this[ *this].m_t2MultiEchoes)
+            tr[ *this].m_t2MultiEchoes = 0; //!< re-entering the mode takes the train's count again
+    }
+    else if(shot_pulser[ *pulser__].time().isSet()) {
+        //The axis of a multi-echo train IS the train: the first echo is at
+        //2 tau, the last at 2 tau x echoNum, and there is one point per
+        //echo.  Read from the pulser rather than typed in (user).  It was
+        //half done before -- onActiveChanged() set the two ends once, when
+        //the measurement was switched on, and they went stale the moment
+        //tau or the echo count moved; the sample count was never set at
+        //all, so a train of 16 echoes was smoothed into whatever number
+        //happened to be in the box.
+        //
+        //Here, before the checks below, and not after them: they judge the
+        //axis this derives.  While they came first, one train they refused --
+        //a single echo, or ten or fewer -- left the axis refused on every
+        //record after, and the derivation that would have followed the pulser
+        //back out was never reached (user, 2026-09-23).
+        //
+        //Written only when it actually differs.  These three nodes clear
+        //the accumulated T-map through onMapClearCondRequested, which is
+        //exactly right when the axis really moves and ruinous once per
+        //record.
+        unsigned int nechoes__ = shot_pulser[ *pulser__].echoNum();
+        if(nechoes__ < 2) {
+            //A frequency sweep may well run on one echo; this driver has
+            //nothing to say about it then, and says only that.
+            m_statusPrinter->printWarning(i18n("T2 multi-echo needs two echoes or more."));
+            throw XSkippedRecordError(__FILE__, __LINE__);
+        }
+        double tau__ = shot_pulser[ *pulser__].tau();
+        if(tau__ > 0.0) {
+            double p1min__ = 2.0 * tau__;
+            double p1max__ = 2.0 * tau__ * nechoes__;
+            if((fabs((double)shot_this[ *p1Min()] - p1min__) > 1e-6 * p1min__) ||
+                (fabs((double)shot_this[ *p1Max()] - p1max__) > 1e-6 * p1max__)) {
+                tr[ *p1Min()] = p1min__;
+                tr[ *p1Max()] = p1max__;
+            }
+            //The count follows the TRAIN, not the box: set when the number of
+            //echoes changes and left alone otherwise, so that lowering it
+            //reduces the train evenly -- half the count is two echoes a point
+            //-- rather than being put back on the next record.
+            if(nechoes__ != shot_this[ *this].m_t2MultiEchoes) {
+                tr[ *this].m_t2MultiEchoes = nechoes__;
+                if((unsigned int)shot_this[ *smoothSamples()] != nechoes__)
+                    tr[ *smoothSamples()] = nechoes__;
+            }
+        }
+    }
+
     double p1min = shot_this[ *p1Min()];
     double p1max = shot_this[ *p1Max()];
 
@@ -658,23 +715,24 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         throw XRecordError(i18n("Invalid P1Min or P1Max."), __FILE__, __LINE__);
     }
 
+    //A warning, not a refusal (user).  A small count is what a short echo
+    //train gives, and a choice that is the user's to make; only where no
+    //curve can be built at all is the record passed over.
     int samples = shot_this[ *smoothSamples()];
-    if(samples <= 10) {
-        throw XRecordError(i18n("Invalid # of Samples."), __FILE__, __LINE__);
+    if(samples < 2) {
+        m_statusPrinter->printWarning(i18n("Too few Samples to build a curve."));
+        throw XSkippedRecordError(__FILE__, __LINE__);
     }
+    if((samples <= 10) && (mode__ != MeasMode::T2_Multi))
+        m_statusPrinter->printWarning(i18n("Few Samples."));
     if(samples >= 100000) {
         m_statusPrinter->printWarning(i18n("Too many Samples."), true);
     }
 
-    MeasMode mode__ = (MeasMode)(int)shot_this[ *mode()];
     shared_ptr<XNMRPulseAnalyzer> pulse1__ = shot_this[ *pulse1()];
     shared_ptr<XNMRPulseAnalyzer> pulse2__ = shot_this[ *pulse2()];
     const Snapshot &shot_pulse1((emitter == pulse1__.get()) ? shot_emitter : shot_others);
     const Snapshot &shot_pulse2((emitter == pulse2__.get()) ? shot_emitter : shot_others);
-
-    shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
-    const Snapshot &shot_pulser(shot_others);
-    assert( pulser__ );
     if(shot_pulser[ *pulser__].time().isSet()) {
         //Check consitency.
         switch (mode__) {
@@ -739,32 +797,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         }
 
         if(mode__ == MeasMode::T2_Multi){
-            //The axis of a multi-echo train IS the train: the first echo is at
-            //2 tau, the last at 2 tau x echoNum, and there is one point per
-            //echo.  Read from the pulser rather than typed in (user).  It was
-            //half done before -- onActiveChanged() set the two ends once, when
-            //the measurement was switched on, and they went stale the moment
-            //tau or the echo count moved; the sample count was never set at
-            //all, so a train of 16 echoes was smoothed into whatever number
-            //happened to be in the box.
-            //
-            //Written only when it actually differs.  These three nodes clear
-            //the accumulated T-map through onMapClearCondRequested, which is
-            //exactly right when the axis really moves and ruinous once per
-            //record.
-            double tau__ = shot_pulser[ *pulser__].tau();
-            unsigned int nechoes__ = shot_pulser[ *pulser__].echoNum();
-            if((tau__ > 0.0) && nechoes__) {
-                double p1min__ = 2.0 * tau__;
-                double p1max__ = 2.0 * tau__ * nechoes__;
-                if((fabs((double)shot_this[ *p1Min()] - p1min__) > 1e-6 * p1min__) ||
-                    (fabs((double)shot_this[ *p1Max()] - p1max__) > 1e-6 * p1max__) ||
-                    ((unsigned int)shot_this[ *smoothSamples()] != nechoes__)) {
-                    tr[ *p1Min()] = p1min__;
-                    tr[ *p1Max()] = p1max__;
-                    tr[ *smoothSamples()] = nechoes__;
-                }
-            }
+            //The axis was taken from the pulser at the top.  \sa analyze()
             if(shot_pulser[ *pulser__].combMode() != XPulser::N_COMB_MODE_OFF)
                 m_statusPrinter->printWarning(i18n("T2 mode with comb pulse!"));
 

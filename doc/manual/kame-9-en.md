@@ -1137,7 +1137,7 @@ Checking “Control Pulser” clears the results once, and every time data is re
 
 Checking “Auto Phase” selects the phase that maximizes the change.
 
-“Smoothing Samples” specifies the number of divisions for grouping nearby horizontal-axis values before fitting. The divisions are logarithmic, which suits a P1 spread over decades. In T2 multi-echo mode they are linear instead, because an echo train is: the echoes sit at 2 tau, 4 tau, … and the count is taken from the pulser, so each echo becomes one point. Lower it to reduce the train to fewer points, evenly.
+“Smoothing Samples” specifies the number of divisions for grouping nearby horizontal-axis values before fitting. The divisions are logarithmic, which suits a P1 spread over decades. In T2 multi-echo mode they are linear instead, because an echo train is: the echoes sit at 2 tau, 4 tau, … and the count is set from the pulser whenever the number of echoes changes, so each echo becomes one point. Lower it afterwards to reduce the train to fewer points, evenly; it stays as you set it until the echo count changes again. Fewer than about ten samples draws a warning in the other modes.
 
 Checking “Auto Window” selects the window function that maximizes S/N, but turn this OFF if frequency dependence is physically important (e.g., in superconducting states).
 
