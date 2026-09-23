@@ -323,6 +323,19 @@ class _KamStack(list):
 			self.append(val)
 		return self
 
+def _kame_declare_script_thread():
+	"""Say that this thread is a script's, so what it writes is journalled as a
+	request rather than as a driver reporting on itself.
+
+	Tolerant of a binary without the binding: this is a diagnostic, and it sits
+	at the top of the loaders, where a NameError would abort a .kam load
+	outright -- no drivers, and none of the forms that come back with them.
+	"""
+	try:
+		kame_declare_script_thread()
+	except NameError:
+		pass
+
 def loadKam(xpythread, filename):
 	"""Execute a .kam measurement configuration file using Python."""
 	import re
@@ -330,6 +343,11 @@ def loadKam(xpythread, filename):
 	TLS.logfile = None
 	try:
 		xpythread["ThreadID"] = str(threading.current_thread().native_id)
+		#This runs on a thread of its own, and a write's class -- request
+		#or report -- is read off the committing thread.  Undeclared, what
+		#a .kam restores is filed as a driver's own chatter, and a replay,
+		#which puts back requests only, will not restore it (user, port).
+		_kame_declare_script_thread()
 		xpythread["Status"] = "run"
 		with open(filename, 'r', encoding='utf-8') as f:
 			src = f.read()
@@ -374,6 +392,11 @@ def loadJournalDump(xpythread, filename):
 	TLS.logfile = None
 	try:
 		xpythread["ThreadID"] = str(threading.current_thread().native_id)
+		#This runs on a thread of its own, and a write's class -- request
+		#or report -- is read off the committing thread.  Undeclared, what
+		#a .kam restores is filed as a driver's own chatter, and a replay,
+		#which puts back requests only, will not restore it (user, port).
+		_kame_declare_script_thread()
 		xpythread["Status"] = "run"
 		# Sniffed, not guessed from the name: a .kamj is gzip because that is
 		# part of the format, and someone who unpacks one to edit it by hand
@@ -453,6 +476,11 @@ def loadSequence(xpythread, filename):
 	TLS.logfile = None
 	try:
 		xpythread["ThreadID"] = str(threading.current_thread().native_id)
+		#This runs on a thread of its own, and a write's class -- request
+		#or report -- is read off the committing thread.  Undeclared, what
+		#a .kam restores is filed as a driver's own chatter, and a replay,
+		#which puts back requests only, will not restore it (user, port).
+		_kame_declare_script_thread()
 		xpythread["Status"] = "run"
 		if "lineshell" in filename:
 			print("#KAME Python interpreter>")
@@ -1483,14 +1511,21 @@ def _register_stdio_entry():
     while KAME is down is therefore harmless too -- the server starts and its
     tools report that KAME is not running.
     """
+    import platform as _pf
     _pd = _kame_plugin_dir()
-    _launcher = os.path.join(_pd, 'bin', 'kame-mcp-server') if _pd else ''
+    # The POSIX launcher is a sh script; Windows gets its batch twin, run
+    # through cmd.exe because no client spawns a .cmd directly (the npx.cmd
+    # class of problem).  Registering the sh file there -- which this did --
+    # produced an entry no Windows client could start.
+    _win = _pf.system() == 'Windows'
+    _launcher = os.path.join(_pd, 'bin', 'kame-mcp-server' + ('.cmd' if _win else '')) \
+        if _pd else ''
     if not _launcher or not os.path.isfile(_launcher):
         _kame_gui_html('<font color="#cc0000">The plugin launcher was not found'
             '{} &mdash; rebuild/redeploy KAME.</font>'.format(
             ' at ' + html.escape(_launcher) if _launcher else ''))
         return None
-    return _launcher
+    return ['cmd', '/c', _launcher] if _win else [_launcher]
 
 
 def _claude_desktop_config():
@@ -1629,7 +1664,9 @@ def _register_desktop_mcp(apply=False):
     _launcher = _register_stdio_entry()
     if not _launcher:
         return
-    _entry = {'command': _launcher}
+    _entry = {'command': _launcher[0]}
+    if _launcher[1:]:
+        _entry['args'] = _launcher[1:]
     _sys = _pf.system()
     _plan, _done, _fail = [], [], []
 
@@ -1675,9 +1712,9 @@ def _register_desktop_mcp(apply=False):
     # not think to write.  `agy mcp add` records "disabled": false alongside
     # the command, which a hand-built entry would omit.
     for _label, _bin, _argv, _where in (
-            ('Codex', _cx, ['mcp', 'add', 'kame', '--', _launcher],
+            ('Codex', _cx, ['mcp', 'add', 'kame', '--'] + _launcher,
              '~/.codex/config.toml'),
-            ('Antigravity CLI', _agy, ['mcp', 'add', 'kame', _launcher],
+            ('Antigravity CLI', _agy, ['mcp', 'add', 'kame'] + _launcher,
              '~/.gemini/config/mcp_config.json')):
         if not _bin:
             continue
@@ -1989,6 +2026,187 @@ def _free_port():
 		_sk.close()
 
 
+PYAI_SETTINGS_FILE = os.path.join(os.path.expanduser('~'), '.kame_pyai.env')
+
+PYAI_SETTINGS_TEMPLATE = """\
+# KAME -- Pydantic AI settings.
+#
+# Read each time a Pydantic AI link is clicked, by the agent KAME ships and by
+# KAME itself (for the model list).  A line here replaces any shell `export`:
+# nothing needs to be in ~/.zshrc, and no environment variable needs setting.
+# Format: NAME=value, one per line; `#` starts a comment.  Remove the `#` in
+# front of a line to activate it.  Your own agent module gets these too: they
+# are loaded into the environment when it imports kame_pydantic_ai (see the
+# manual, "Using your own Pydantic AI agent").
+
+# ---- Which model ------------------------------------------------------------
+# provider:name.  Several, separated by commas, fill the web UI's model menu;
+# the first is the default.
+#KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5
+#KAME_PYAI_MODEL=openai:gpt-5
+#KAME_PYAI_MODEL=google-gla:gemini-2.5-pro
+#KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5, openai:gpt-5
+
+# Sakana AI (fugu, namazu): sakana:<model>, with SAKANA_API_KEY below.  The
+# agent KAME ships resolves this prefix itself (pydantic-ai has no Sakana
+# provider); in the web UI it is the bound model, not a menu entry.
+#KAME_PYAI_MODEL=sakana:fugu
+#KAME_PYAI_MODEL=sakana:fugu-ultra-v1.1
+
+# A model of your own through an OpenAI-compatible server (Ollama, LM Studio,
+# llama.cpp): name it openai:<model>, point OPENAI_BASE_URL at the server, and
+# give any non-empty OPENAI_API_KEY, which such servers ignore.
+#KAME_PYAI_MODEL=openai:qwen3:32b
+#OPENAI_BASE_URL=http://127.0.0.1:11434/v1
+#OPENAI_API_KEY=ollama
+
+# ---- The key the chosen provider needs -------------------------------------
+# (Your own agent module sees these too, once it imports kame_pydantic_ai.)
+#ANTHROPIC_API_KEY=
+#OPENAI_API_KEY=
+#GOOGLE_API_KEY=
+#SAKANA_API_KEY=
+"""
+
+
+def _pyai_read_env(path):
+	"""NAME=value lines of a .env-style file as a dict; {} when absent.
+
+	Same grammar the script uses (kame_pydantic_ai._load_settings): comments,
+	blank lines, an optional `export `, and matching single or double quotes
+	around the value are all accepted.  Unparseable lines are skipped, never
+	fatal -- a typo in the settings must not take the links down."""
+	_out = {}
+	try:
+		with open(path, encoding='utf-8') as _f:
+			for _line in _f:
+				_line = _line.strip()
+				if not _line or _line.startswith('#') or '=' not in _line:
+					continue
+				if _line.startswith('export '):
+					_line = _line[7:].lstrip()
+				_k, _v = _line.split('=', 1)
+				_k, _v = _k.strip(), _v.strip()
+				if len(_v) >= 2 and _v[0] == _v[-1] and _v[0] in '"\'':
+					_v = _v[1:-1]
+				if re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', _k):
+					_out[_k] = _v
+	except OSError:
+		pass
+	return _out
+
+
+def _pyai_setting(name, wd=None):
+	"""One setting: the environment first, then <workspace>/.env, then
+	~/.kame_pyai.env -- the order the script resolves them in, so KAME and the
+	agent it launches agree on the model."""
+	if os.environ.get(name):
+		return os.environ[name]
+	if wd:
+		_v = _pyai_read_env(os.path.join(wd, '.env')).get(name)
+		if _v:
+			return _v
+	return _pyai_read_env(PYAI_SETTINGS_FILE).get(name, '')
+
+
+def _pyai_open_settings():
+	"""Create ~/.kame_pyai.env from the template if absent, then open it.
+
+	The link is the whole of the configuration UI on purpose: the file holds
+	API keys, so it is created private (0600) and edited in the user's own
+	editor rather than typed into a dialog KAME would have to store somewhere."""
+	import subprocess as _sp4, platform as _pf4
+	_new = not os.path.exists(PYAI_SETTINGS_FILE)
+	if _new:
+		try:
+			_fd = os.open(PYAI_SETTINGS_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+			with os.fdopen(_fd, 'w', encoding='utf-8') as _f:
+				_f.write(PYAI_SETTINGS_TEMPLATE)
+		except OSError as _e:
+			_kame_gui_html('<font color="#cc0000">Could not create <tt>{}</tt>: {}</font>'
+				.format(html.escape(PYAI_SETTINGS_FILE), html.escape(str(_e))))
+			return
+	_sysname = _pf4.system()
+	try:
+		if _sysname == 'Darwin':
+			_sp4.Popen(['open', '-t', PYAI_SETTINGS_FILE])
+		elif _sysname == 'Windows':
+			_sp4.Popen(['notepad', PYAI_SETTINGS_FILE])
+		else:
+			_sp4.Popen(['xdg-open', PYAI_SETTINGS_FILE])
+		_how = 'opened in your editor'
+	except OSError:
+		_how = 'open it in any text editor'
+	_cur = _pyai_read_env(PYAI_SETTINGS_FILE)
+	_model = _cur.get('KAME_PYAI_MODEL', '')
+	_keys = sorted(_k for _k, _v in _cur.items() if _k.endswith('_API_KEY') and _v)
+	_kame_gui_html('<font color="#008800">Pydantic AI settings: <tt>{}</tt> ({}{}).<br/>'
+		'Uncomment a <tt>KAME_PYAI_MODEL</tt> line and fill in that provider\'s key, '
+		'save, then click <b>CLI</b> or <b>web</b>.&nbsp; Currently: model {}, '
+		'keys {}.</font>'.format(
+		html.escape(PYAI_SETTINGS_FILE), 'created, ' if _new else '', _how,
+		'<tt>' + html.escape(_model) + '</tt>' if _model else '<i>none</i>',
+		html.escape(', '.join(_keys)) if _keys else '<i>none</i>'))
+
+
+def _pyai_help_file(py, script, agent, own, model, wd, system):
+	"""Write the after-failure footer for the Pydantic AI terminal; return its path.
+
+	Everything a person needs in order to act on an error they are looking
+	at: what ran (interpreter, agent, model, directory), where each of those is
+	changed, and the fix for each message people actually meet.  Env-var
+	advice names the shell profile because the terminal KAME opens runs the
+	login shell -- an export there reaches clai and the script, whereas one in
+	the shell that started KAME reaches neither (KAME is a GUI process)."""
+	import tempfile as _tf
+	_home = os.path.expanduser('~')
+	def _t(p):
+		return '~' + p[len(_home):] if p and p.startswith(_home + os.sep) else p
+	_prof = '~/.kame_pyai.env  (the "settings" link in KAME creates and opens it)'
+	_ex = ''
+	if own:
+		_modeltxt = 'bound inside your agent module (KAME does not override it)'
+	elif model:
+		_modeltxt = model + '  (from KAME_PYAI_MODEL)'
+	else:
+		_modeltxt = ("none named -> clai's default openai:gpt-5, which wants "
+					 "OPENAI_API_KEY")
+	_lines = [
+		'',
+		'-' * 72,
+		'KAME: the Pydantic AI client stopped with an error.  What ran:',
+		'  interpreter  ' + _t(py),
+		'  agent        ' + agent + ('  (yours)' if own else '  (the one KAME ships)'),
+		'  model        ' + _modeltxt,
+		'  directory    ' + _t(wd),
+		'To change them:',
+		'  interpreter  delete ~/.kame_pyai_python, click the link again, pick the venv',
+		'  agent        the "agent" link in KAME (Cancel there = back to the one KAME ships)',
+		'  model        KAME_PYAI_MODEL=provider:name   in {}'.format(_prof),
+		'               e.g. anthropic:claude-sonnet-4-5 | openai:gpt-5 | sakana:fugu |',
+		'               openai:<local name> together with OPENAI_BASE_URL (Ollama, LM Studio)',
+		'The usual messages, and the fix for each:',
+		'  "Set the XXX_API_KEY environment variable"',
+		'        XXX_API_KEY=...   in {}.'.format(_prof),
+		'        (a shell export in the profile of this window works as well)',
+		'        Asked for an OPENAI key you never chose?  No model was named -- see above.',
+		'  "Unknown model: ..."            the form is provider:name (examples above)',
+		'  "Could not reach KAME\'s MCP server" / "failed to connect"',
+		'        KAME must be running, with its Jupyter notebook launched (Script pane)',
+		'        in THIS session.  Test:  {} {} --check'.format(_t(py), _t(script)),
+		'  "No module named ..."           uv pip install --python {} pydantic-ai clai uvicorn'.format(_t(py)),
+		'                                  ({} -m pip install ...  for a pip-made venv)'.format(_t(py)),
+		'Manual: MCP chapter, Troubleshooting table -- ' + MCP_SETUP_URL,
+		'-' * 72,
+		'',
+	]
+	_f = _tf.NamedTemporaryFile('w', suffix='-kame-pyai-help.txt',
+								delete=False, encoding='utf-8')
+	with _f:
+		_f.write('\n'.join(_lines))
+	return _f.name
+
+
 def _pyai_agent(py):
 	"""(clai --agent spec, directory to run in, ASGI app spec) for the links.
 
@@ -2005,7 +2223,11 @@ def _pyai_agent(py):
 		_saved = ''
 	_spec = _saved or os.environ.get('KAME_PYAI_AGENT') or ''
 	if not _spec:
-		return ('kame_pydantic_ai:agent', None, '')
+		# The shipped agent names its own web app too: served with uvicorn it
+		# carries KAME's saved figures at /plots, which `clai web`'s app --
+		# not ours to mount on -- never could.  clai remains the CLI path and
+		# the web fallback when the venv has no uvicorn.
+		return ('kame_pydantic_ai:agent', None, 'kame_pydantic_ai:app')
 	#A spec file (clai reads .yml/.yaml/.json itself) is passed as a path;
 	#a module spec needs its own directory as cwd so the import resolves.
 	_parts = _spec.split('|')
@@ -2271,18 +2493,51 @@ def kame_handle_link(action):
 			# over HTTP from ~/.kame_mcp_url and carries the server's safety
 			# instructions with the toolset.
 			#
-			# The usual install is a VENV (pip install pydantic-ai clai into
+			# The usual install is a VENV (pip install pydantic-ai clai uvicorn into
 			# ~/somewhere/venv), which no PATH probe can see — so the GUI asks
 			# for the venv folder on first use (kame.cpp, like the notebook
 			# workspace dialog), passes it as 'pyai-cli?venv=<dir>', and the
 			# choice is remembered in ~/.kame_pyai_python. A remembered
 			# interpreter that stopped importing pydantic_ai is deleted so the
 			# next click re-asks — self-healing, no manual cleanup.
+			if action == 'pyai-settings':
+				#Needs neither an interpreter nor the script: it is a file.
+				_pyai_open_settings()
+				return
 			action, _, _agentfile = action.partition('?file=')
 			_agentfile = _agentfile.strip()
 			action, _, _venvdir = action.partition('?venv=')
 			_venvdir = _venvdir.strip()
 			_wd = _kame_workspace_dir()
+			if action in ('pyai-cli', 'pyai-web'):
+				# The client speaks HTTP to KAME's MCP server, and this KAME
+				# starts that server only inside launchJupyterConsole -- so a
+				# Pydantic AI link clicked before the notebook opened a terminal
+				# whose first line was "~/.kame_mcp_url is missing".  Say it
+				# here, with the link that fixes it, and tell "never started"
+				# apart from "started, but the HTTP server died and stdio was
+				# written instead", which needs its log rather than a click.
+				_proc = globals().get('NOTEBOOK_MCP_HTTP_PROC')
+				_up = (bool(globals().get('NOTEBOOK_MCP_URL_FILE'))
+					   and _proc is not None and _proc.poll() is None)
+				if not _up:
+					if globals().get('NOTEBOOK_MCP_JSON'):
+						_log = globals().get('NOTEBOOK_MCP_HTTP_LOG') or ''
+						_why = ('The notebook is up, but KAME\'s MCP <b>HTTP</b> server is '
+							'not, and Pydantic AI has no stdio fallback.  Either it '
+							'failed to start (its output is in <tt>{}</tt>; the message '
+							'above the notebook link said why) or KAME_MCP_TRANSPORT=stdio '
+							'is set.  Fix that, then relaunch the notebook '
+							'(<a href="kame:notebook">&#9654; Jupyter notebook</a>) and '
+							'click here again.'.format(html.escape(_log)))
+					else:
+						_why = ('KAME\'s MCP server has not been started in this '
+							'session.  It lives in the embedded kernel and comes up '
+							'with <a href="kame:notebook">&#9654; Jupyter notebook</a> '
+							'&mdash; click that first (the browser tab it opens can be '
+							'closed), then this link again.')
+					_kame_gui_html('<font color="#cc0000">' + _why + '</font>')
+					return
 			_script = os.path.join(KAME_ResourceDir, 'kame_pydantic_ai.py')
 			if not os.path.isfile(_script):
 				_kame_gui_html('<font color="#cc0000">kame_pydantic_ai.py not '
@@ -2335,10 +2590,19 @@ def kame_handle_link(action):
 						'rebuild.</font>'.format(html.escape(_cands[0])))
 					return
 				if not _py:
-					_kame_gui_html('<font color="#cc0000">{} lacks <tt>pydantic_ai</tt>. '
-						'Install it there: <tt>{} -m pip install pydantic-ai clai</tt>'
-						'{}{}</font>'.format(
-						html.escape(_cands[0]), html.escape(_cands[0]),
+					# The venv was found; the package was not.  Give the command
+					# for the tool that made the venv: one made by uv has no pip
+					# inside it, so the pip line alone sent people in circles.
+					_c0 = html.escape(_cands[0])
+					_kame_gui_html('<font color="#cc0000">{0} lacks <tt>pydantic_ai</tt>{1}{2}'
+						'<br/>Install it into that venv &mdash; one of:<br/>'
+						'&nbsp;&nbsp;<tt>uv pip install --python {0} pydantic-ai clai uvicorn</tt><br/>'
+						'&nbsp;&nbsp;<tt>{0} -m pip install pydantic-ai clai uvicorn</tt>'
+						'&nbsp; (pip-made venvs only: a venv made by uv has no pip)<br/>'
+						'&nbsp;&nbsp;<tt>uv add pydantic-ai clai uvicorn</tt> in the project folder, '
+						'if it is a uv project (also records them in pyproject)<br/>'
+						'then click the link again and pick the same folder.</font>'.format(
+						_c0,
 						'<br/>(also tried: ' + html.escape(', '.join(_cands[1:])) + ')'
 						if len(_cands) > 1 else '',
 						'<br/><tt>' + html.escape(_why.strip().splitlines()[-1][:200]) + '</tt>'
@@ -2371,11 +2635,51 @@ def kame_handle_link(action):
 							os.unlink(PYAI_PYTHON_FILE)
 						except OSError:
 							pass
-					_kame_gui_html('<font color="#cc0000">No Python with '
-						'<tt>pydantic_ai</tt> found. Click the link again and pick '
-						'the venv folder where you installed it '
-						'(<tt>pip install pydantic-ai clai</tt>), or set '
-						'KAME_PYAI_PYTHON.</font>')
+					# Say where it looked, so an existing venv that was simply
+					# not among the places searched is recognised as such, and
+					# give a from-scratch recipe for the case where none exists.
+					_looked = []
+					if os.environ.get('KAME_PYAI_PYTHON'):
+						_looked.append('KAME_PYAI_PYTHON = <tt>{}</tt> (set, but it does '
+							'not import pydantic_ai)'.format(
+							html.escape(os.environ['KAME_PYAI_PYTHON'])))
+					if _saved:
+						_looked.append('the remembered <tt>{}</tt> (gone stale: it no '
+							'longer imports pydantic_ai; forgotten now, so the next '
+							'click asks for a folder)'.format(html.escape(_saved)))
+					if os.environ.get('VIRTUAL_ENV'):
+						_looked.append('$VIRTUAL_ENV = <tt>{}</tt>'.format(
+							html.escape(os.environ['VIRTUAL_ENV'])))
+					_looked.append('<tt>{}</tt>'.format(html.escape(
+						os.path.join(_wd, '.venv'))))
+					_looked.append('<tt>python3</tt> / <tt>python</tt> on PATH, and every '
+						'<tt>python3.N</tt> in /opt/homebrew/bin, /opt/local/bin, '
+						'/usr/local/bin, /usr/bin')
+					if os.name == 'nt':
+						_mk = ('&nbsp;&nbsp;<tt>uv venv %USERPROFILE%\\kame-pyai &amp;&amp; '
+							'uv pip install --python %USERPROFILE%\\kame-pyai\\Scripts'
+							'\\python.exe pydantic-ai clai uvicorn</tt><br/>'
+							'&nbsp;&nbsp;<tt>py -m venv %USERPROFILE%\\kame-pyai &amp;&amp; '
+							'%USERPROFILE%\\kame-pyai\\Scripts\\pip install pydantic-ai '
+							'clai</tt><br/>then click the link again and pick '
+							'<tt>%USERPROFILE%\\kame-pyai</tt>')
+					else:
+						_mk = ('&nbsp;&nbsp;<tt>uv venv ~/kame-pyai &amp;&amp; uv pip install '
+							'--python ~/kame-pyai/bin/python pydantic-ai clai uvicorn</tt><br/>'
+							'&nbsp;&nbsp;<tt>python3 -m venv ~/kame-pyai &amp;&amp; '
+							'~/kame-pyai/bin/pip install pydantic-ai clai uvicorn</tt><br/>'
+							'then click the link again and pick <tt>~/kame-pyai</tt>'
+							+ ('. On macOS keep it out of Documents, Desktop, Downloads '
+							   'and iCloud Drive: privacy protection blocks a child of '
+							   'KAME from reading a venv there.' if _pf.system() == 'Darwin'
+							   else ''))
+					_kame_gui_html('<font color="#cc0000">No Python with <tt>pydantic_ai</tt> '
+						'found.<br/>Looked at: {}.<br/>'
+						'Have one already?&nbsp; Click the link again and pick its folder '
+						'(the project folder is fine; KAME looks inside <tt>.venv</tt>), '
+						'or set KAME_PYAI_PYTHON to the interpreter.<br/>'
+						'Need one?&nbsp; Either line makes it:<br/>{}</font>'.format(
+						'; '.join(_looked), _mk))
 					return
 			if action == 'pyai-agent':
 				#Picking is its own action: it needs the interpreter (to check
@@ -2395,6 +2699,25 @@ def kame_handle_link(action):
 			_clai = os.path.join(os.path.dirname(_py),
 								 'clai.exe' if _sys == 'Windows' else 'clai')
 			_via_clai = os.path.isfile(_clai)
+			if action == 'pyai-web' and not _via_clai:
+				# The web UI IS clai (`clai web`); without it the fallback
+				# script can only print that it is missing.  Say it here, in
+				# the pane, with the command -- not in a terminal that opens,
+				# fails and has to be read.
+				_pyq = html.escape(_py)
+				_kame_gui_html('<font color="#cc0000">The web UI is served by '
+					'<tt>clai</tt>, and this venv has none: <tt>{}</tt> does not exist '
+					'(KAME looks next to the interpreter it was given, not on PATH).'
+					'<br/>Install it beside {} &mdash; one of:<br/>'
+					'&nbsp;&nbsp;<tt>uv pip install --python {} clai</tt><br/>'
+					'&nbsp;&nbsp;<tt>{} -m pip install clai</tt>&nbsp; (pip-made venvs '
+					'only)<br/>'
+					'&nbsp;&nbsp;<tt>uv sync</tt> in the project, if its pyproject '
+					'lists clai<br/>'
+					'The <b>CLI</b> link works without clai.&nbsp; A different venv: '
+					'delete <tt>~/.kame_pyai_python</tt> and click again.</font>'.format(
+					html.escape(_clai), _pyq, _pyq, _pyq))
+				return
 			if _via_clai:
 				# Pass -m when the user has named a model, because clai's own
 				# default is openai:gpt-5 and most people have no key for it:
@@ -2403,8 +2726,8 @@ def kame_handle_link(action):
 				# which says nothing about what to do. With neither the env var
 				# nor a key, clai's default and its error are the right owner
 				# of the problem -- KAME still does not pick a model.
-				_model = (os.environ.get('KAME_PYAI_MODEL')
-						  or os.environ.get('PYDANTIC_AI_MODEL') or '')
+				_model = (_pyai_setting('KAME_PYAI_MODEL', _wd)
+						  or _pyai_setting('PYDANTIC_AI_MODEL', _wd) or '')
 				# Which agent: the one picked in the dialog (kame:pyai-agent),
 				# else KAME_PYAI_AGENT for scripted setups, else the one shipped
 				# in Resources.  KAME has no business owning the capability
@@ -2444,6 +2767,13 @@ def kame_handle_link(action):
 				else:
 					_models = [_x for _x in re.split(r'[,\s]+', _model) if _x] \
 							  if _model and (not _own or action == 'pyai-web') else []
+					# clai's infer_model() knows no `sakana:`; the module resolves
+					# that prefix itself and binds the FIRST listed model.  Any -m
+					# makes clai override that binding, so with a sakana default
+					# pass none, and never pass a sakana entry.
+					if _models and _models[0].startswith('sakana:'):
+						_models = []
+					_models = [_x for _x in _models if not _x.startswith('sakana:')]
 					_cmd = [_clai] + (['web'] if action == 'pyai-web' else []) \
 						   + ['-a', _agent] \
 						   + [_a for _x in _models for _a in ('-m', _x)] \
@@ -2454,20 +2784,39 @@ def kame_handle_link(action):
 			_cmdline = ('PYTHONPATH={} '.format(_shlex.quote(KAME_ResourceDir))
 						if _via_clai else '') \
 					   + ' '.join(_shlex.quote(a) for a in _cmd)
+			# Whatever fails in that window -- a missing key, clai's default
+			# model, KAME closed meanwhile -- fails in someone else's words, in
+			# a window KAME cannot see.  So the command is followed by a footer
+			# that prints, only on a non-zero exit (and not on Ctrl-C), what was
+			# run and where each piece is changed.  Written to a file rather
+			# than inlined: the text then needs no quoting inside AppleScript,
+			# cmd or sh, and the footer is one `cat`.
+			_helpfile = _pyai_help_file(_py, _script, _agent if _via_clai else
+										'kame_pydantic_ai (run directly)',
+										_own if _via_clai else False,
+										(_model if _via_clai else
+										 _pyai_setting('KAME_PYAI_MODEL', _wd)
+										 or _pyai_setting('PYDANTIC_AI_MODEL', _wd) or ''),
+										_wd, _sys)
 			if _sys == 'Darwin':
-				_osa = 'tell application "Terminal" to do script "cd {} && {}"'.format(
-					_shlex.quote(_wd), _cmdline)
+				_osa = ('tell application "Terminal" to do script "cd {0} && {1}; '
+						'rc=$?; if [ $rc -ne 0 ] && [ $rc -ne 130 ]; then cat {2}; fi; '
+						'rm -f {2}"').format(
+					_shlex.quote(_wd), _cmdline, _shlex.quote(_helpfile))
 				_sp.Popen(['osascript', '-e', _osa,
 						   '-e', 'tell application "Terminal" to activate'])
 			elif _sys == 'Windows':
 				_sp.Popen(['cmd', '/c', 'start', 'cmd', '/k',
-						   'cd /d "{}" && {}{}'.format(
+						   'cd /d "{}" && {}{} || type "{}" & del "{}"'.format(
 							_wd,
 							'set "PYTHONPATH={}" && '.format(KAME_ResourceDir)
 							if _via_clai else '',
-							' '.join('"{}"'.format(a) for a in _cmd))])
+							' '.join('"{}"'.format(a) for a in _cmd),
+							_helpfile, _helpfile)])
 			else:
-				_inner = 'cd {} && {}; exec bash'.format(_shlex.quote(_wd), _cmdline)
+				_inner = ('cd {0} && {1}; rc=$?; if [ $rc -ne 0 ] && [ $rc -ne 130 ]; '
+						  'then cat {2}; fi; rm -f {2}; exec bash').format(
+					_shlex.quote(_wd), _cmdline, _shlex.quote(_helpfile))
 				if not _open_linux_terminal(_inner):
 					_kame_gui_html('<font color="#cc0000">No terminal emulator found. '
 						'Set $TERMINAL, or run <tt>{}</tt> yourself.</font>'.format(
@@ -2477,9 +2826,11 @@ def kame_handle_link(action):
 				_open_when_listening(_weburl, "127.0.0.1", _port)
 			_kame_gui_log("#Launching Pydantic AI {} in {} ({}) ...".format(
 				"web UI" if action == 'pyai-web' else "CLI", _wd,
-				("via clai, agent " + _agent + ("; its own model" if _own
+				("serving " + _webapp + " with uvicorn; figures at /plots"
+				 if _via_clai and action == 'pyai-web' and _cmd and _cmd[0] == _uvi
+				 else ("via clai, agent " + _agent + ("; its own model" if _own
 					else "; model from -m or clai's default"))
-				if _via_clai else _py + "; needs --model or KAME_PYAI_MODEL"))
+				if _via_clai else _py + "; needs --model or KAME_PYAI_MODEL")))
 		else:
 			_kame_gui_html('<font color="#cc0000">Unknown link action: {}</font>'.format(
 				html.escape(str(action))))
@@ -2518,7 +2869,7 @@ else:
 				MYDEFOUT.write("#Use sleep() instead of time.sleep().")
 				#Grouped by vendor: eight flat entries on one line stopped being
 				#readable, and the terminal/desktop pair now repeats per vendor.
-				MYDEFOUT.write_html(r'<font color="#0066cc">Quick launch:&nbsp; <a href="kame:notebook">&#9654; Jupyter notebook</a> &nbsp;&nbsp;|&nbsp;&nbsp; Claude: <a href="kame:claude-cli">&#9654; Code</a> &nbsp;<a href="kame:claude-app">&#9654; app</a> &nbsp;&nbsp;|&nbsp;&nbsp; Codex: <a href="kame:codex-cli">&#9654; CLI</a> &nbsp;<a href="kame:codex-fugu-cli">&#9654; fugu</a> &nbsp;<a href="kame:codex-app">&#9654; app</a> &nbsp;&nbsp;|&nbsp;&nbsp; Pydantic AI: <a href="kame:pyai-cli">&#9654; CLI</a> &nbsp;<a href="kame:pyai-web">&#9654; web</a> &nbsp;<a href="kame:pyai-agent">&#9881; agent</a></font>')
+				MYDEFOUT.write_html(r'<font color="#0066cc">Quick launch:&nbsp; <a href="kame:notebook">&#9654; Jupyter notebook</a> &nbsp;&nbsp;|&nbsp;&nbsp; Claude: <a href="kame:claude-cli">&#9654; Code</a> &nbsp;<a href="kame:claude-app">&#9654; app</a> &nbsp;&nbsp;|&nbsp;&nbsp; Codex: <a href="kame:codex-cli">&#9654; CLI</a> &nbsp;<a href="kame:codex-fugu-cli">&#9654; fugu</a> &nbsp;<a href="kame:codex-app">&#9654; app</a> &nbsp;&nbsp;|&nbsp;&nbsp; Pydantic AI: <a href="kame:pyai-cli">&#9654; CLI</a> &nbsp;<a href="kame:pyai-web">&#9654; web</a> &nbsp;<a href="kame:pyai-settings">&#9881; settings</a> &nbsp;<a href="kame:pyai-agent">&#9881; agent</a></font>')
 				#A client KAME does not launch gets no per-session override, so it
 				#needs a one-time entry in its own config; this reports the change
 				#first and only writes on the follow-up link.  The names must track
@@ -2672,6 +3023,11 @@ else:
 		#TLS.cell_status so sleep() can restore it on wakeup/exit.
 		def _kame_pre_run_cell(info):
 			try:
+				#A cell is the user operating the instrument, exactly as a
+				#typed value is.  The kernel executes on a thread of its own,
+				#so say so here: undeclared, every node a cell writes is filed
+				#as a driver's own report and a replay will not restore it.
+				_kame_declare_script_thread()
 				if TLS.xscrthread:
 					lines = (getattr(info, 'raw_cell', '') or '').strip().splitlines()
 					head = lines[0][:60] if lines else ''

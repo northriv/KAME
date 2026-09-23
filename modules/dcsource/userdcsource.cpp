@@ -18,6 +18,7 @@ REGISTER_TYPE(XDriverList, YK7651, "YOKOGAWA 7651 dc source");
 REGISTER_TYPE(XDriverList, ADVR6142, "ADVANTEST TR6142/R6142/R6144 DC V/DC A source");
 REGISTER_TYPE(XDriverList, MicroTaskTCS, "MICROTASK/Leiden Triple Current Source");
 REGISTER_TYPE(XDriverList, OptotuneICC4C2000, "Optotune ICC4C-2000 current controller");
+REGISTER_TYPE(XDriverList, KikusuiPMX, "KIKUSUI PMX series DC power supply");
 
 XYK7651::XYK7651(const char *name, bool runtime, 
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
@@ -394,4 +395,102 @@ XMicroTaskTCS::open() {
     this->start();
     interface()->query("ID?");
     fprintf(stderr, "%s\n", (const char*)&interface()->buffer()[0]);
+}
+
+XKikusuiPMX::XKikusuiPMX(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+   : XCharDeviceDriver<XDCSource>(name, runtime, ref(tr_meas), meas) {
+    interface()->setEOS("\n");
+    //A USB virtual COM port ignores the line settings; an RS-232 link has to
+    //match what the panel is configured for.
+    interface()->setSerialBaudRate(19200);
+    interface()->setSerialStopBits(1);
+    iterate_commit([=](Transaction &tr){
+        tr[ *function()].add("V [V]");
+        tr[ *function()].add("I [A]");
+        tr[ *function()] = 0;
+        tr[ *range()].disable();
+    });
+    channel()->disable(); //single output.
+}
+void
+XKikusuiPMX::open() {
+    //Asks before start(), so that a wrong instrument is rejected while the
+    //controls are still dead, and so changeValue() can never be reached
+    //before the ratings it validates against are known.
+    interface()->query("*IDN?");
+    XString idn = interface()->toStrSimplified();
+    fprintf(stderr, "%s\n", idn.c_str());
+    //The model name states the ratings: PMX18-2A is 18 V / 2 A, PMX110-0.6A
+    //is 110 V / 0.6 A. Reading them from the name covers the whole series,
+    //including models this driver has never seen.
+    double volt = 0.0, curr = 0.0;
+    auto pos = idn.find("PMX");
+    if((pos == std::string::npos) ||
+        (sscanf(idn.c_str() + pos, "PMX%lf-%lf", &volt, &curr) != 2)) {
+        //Not a name this understands. Ask the instrument for its limits.
+        interface()->query("VOLT? MAX");
+        volt = interface()->toDouble();
+        interface()->query("CURR? MAX");
+        curr = interface()->toDouble();
+    }
+    if((volt <= 0.0) || (curr <= 0.0))
+        throw XInterface::XInterfaceError(
+            i18n("Could not read the ratings of: ") + idn, __FILE__, __LINE__);
+    m_maxVolt = volt;
+    m_maxCurr = curr;
+
+    this->start();
+}
+bool
+XKikusuiPMX::isCurrentSelected() const {
+    return Snapshot( *this)[ *function()] == 1;
+}
+XDCSource::Status
+XKikusuiPMX::queryStatus(int) {
+    Status st;
+    const bool is_curr = isCurrentSelected(); //before taking the lock.
+    XScopedLock<XInterface> lock( *interface());
+    if( !interface()->isOpened()) return st;
+    interface()->query(is_curr ? "CURR?" : "VOLT?");
+    st.value = interface()->toDouble();
+    interface()->query("OUTP?");
+    st.output = (interface()->toDouble() != 0.0);
+    st.valid = true;
+    return st;
+}
+void
+XKikusuiPMX::changeFunction(int, int) {
+    //Nothing to send. A PMX holds a voltage setting and a current setting at
+    //all times and runs in whichever mode the load puts it in, CV or CC, so
+    //Function switches nothing on the instrument: it selects which of the two
+    //settings Value edits. Both persist, so setting one then the other gives
+    //the supply its output voltage and its current limit. All that is left to
+    //do here is show the setting now being edited.
+    updateStatus();
+}
+void
+XKikusuiPMX::changeOutput(int, bool x) {
+    XScopedLock<XInterface> lock( *interface());
+    if( !interface()->isOpened()) return;
+    interface()->sendf("OUTP %u", x ? 1u : 0u);
+}
+void
+XKikusuiPMX::changeValue(int, double x, bool) {
+    const bool is_curr = isCurrentSelected();
+    const double limit = is_curr ? m_maxCurr : m_maxVolt;
+    //Out of range, the PMX answers with a SCPI error that nobody reads and
+    //keeps its old setting; say so instead of appearing to have set it.
+    if((x < 0.0) || (x > limit))
+        throw XInterface::XInterfaceError(i18n("Value is out of range."), __FILE__, __LINE__);
+    XScopedLock<XInterface> lock( *interface());
+    if( !interface()->isOpened()) return;
+    if(is_curr)
+        interface()->sendf("CURR %.6g", x);
+    else
+        interface()->sendf("VOLT %.6g", x);
+}
+double
+XKikusuiPMX::max(int, bool) const {
+    return isCurrentSelected() ? m_maxCurr : m_maxVolt;
 }

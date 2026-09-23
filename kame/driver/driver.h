@@ -40,6 +40,11 @@ public:
 	//! only when showing a driver's forms means more than one window, or when
 	//! something has to happen first -- and call showForm() from the override
 	//! rather than open-coding it again.
+	//!
+	//! "More than one window" counts the ones a BASE class makes: XThamwayPROT
+	//! has its own form and the FrmSG that XSG builds on the same driver's
+	//! nodes, and deleting its override handed the user the plain SG form.
+	//! Count the forms up the whole chain, not the ones in this class's file.
 	//! \sa XQConnector::windowOf()
 	virtual void showForms();
 	//! Brings one form window up, and is where what that MEANS is decided.

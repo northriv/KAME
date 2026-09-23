@@ -38,8 +38,6 @@ QPixmap *g_pIconScalar;
 QPixmap *g_pIconGraph;
 QPixmap *g_pIconScript;
 QPixmap *g_pIconRoverT;
-QPixmap *g_pIconLEDOn;
-QPixmap *g_pIconLEDOff;
 
 void makeIcons()
 {
@@ -50,9 +48,7 @@ void makeIcons()
 
     g_pIconRoverT = new QPixmap(":/icons/rovert.png");
 
-    g_pIconLEDOn = new QPixmap(":/icons/ledon.png");
 
-    g_pIconLEDOff = new QPixmap(":/icons/ledoff.png");
 
     g_pIconInfo = new QPixmap(QApplication::style()->standardIcon(QStyle::SP_MessageBoxInformation).pixmap(48,48));
 	

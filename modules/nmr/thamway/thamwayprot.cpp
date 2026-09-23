@@ -100,6 +100,13 @@ XThamwayPROT<tInterface>::XThamwayPROT(const char *name, bool runtime,
 
 template <class tInterface>
 void
+XThamwayPROT<tInterface>::showForms() {
+    //Qualified: this is a template whose base is dependent.
+    XDriver::showForm(this->m_form.get());
+}
+
+template <class tInterface>
+void
 XThamwayPROT<tInterface>::start() {
     fetchStatus({}, true);
 

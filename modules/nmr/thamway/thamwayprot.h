@@ -59,7 +59,14 @@ public:
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XThamwayPROT() {}
 
-    //! show all forms belonging to driver
+    //! Kept, where 30 like it were deleted: this driver has TWO windows.
+    //!
+    //! Its own FrmThamwayPROT, and the FrmSG that XSG -- its base through
+    //! XCharDeviceDriver -- creates and binds to the same driver's nodes.
+    //! XQConnector::windowOf() walks the widget registry in pointer order, so
+    //! the default implementation is free to return either, and it returned
+    //! the plain SG form (user, 2026-09-06).
+    virtual void showForms() override; //!< overrides XSG::showForms()
 
     const shared_ptr<XDoubleNode> &rxGain() const {return m_rxGain;} //!< Receiver Gain [dB] (0 -- 95)
     const shared_ptr<XDoubleNode> &rxPhase() const {return m_rxPhase;} //!< Receiver phase [deg.]

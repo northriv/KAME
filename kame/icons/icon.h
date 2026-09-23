@@ -37,8 +37,6 @@ extern DECLSPEC_KAME QPixmap *g_pIconScalar;
 extern DECLSPEC_KAME QPixmap *g_pIconGraph;
 extern DECLSPEC_KAME QPixmap *g_pIconScript;
 extern DECLSPEC_KAME QPixmap *g_pIconRoverT;
-extern DECLSPEC_KAME QPixmap *g_pIconLEDOn;
-extern DECLSPEC_KAME QPixmap *g_pIconLEDOff;
 
 void makeIcons();
 

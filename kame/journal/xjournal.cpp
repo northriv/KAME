@@ -24,6 +24,8 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
+#include <QJsonObject>
+#include <QJsonDocument>
 #include <QStandardPaths>
 #include <QUuid>
 
@@ -153,9 +155,28 @@ XJournal::rawBytesWritten() const {
 XString XJournal::journalPathOf(const XString &given) {return withExtension(given, ".kamj");}
 XString XJournal::rawPathOf(const XString &given) {return withExtension(given, ".kamb");}
 
+XString
+XJournal::sessionOfJournal(const XString &path, XString *mode) {
+    gzFile fd = gzopen(QString::fromStdString(path).toLocal8Bit().data(), "rb");
+    if( !fd)
+        return {};
+    char buf[16384];
+    char *line = gzgets(fd, buf, sizeof(buf));
+    gzclose(fd);
+    if( !line)
+        return {};
+    QJsonDocument doc = QJsonDocument::fromJson(QByteArray(line));
+    if( !doc.isObject())
+        return {};
+    QJsonObject o = doc.object();
+    if(mode)
+        *mode = o.value("mode").toString().toStdString();
+    return o.value("session").toString().toStdString();
+}
+
 //! The raw stream follows: its path is set only as recording starts, since
-//! XRawStreamRecorder opens (and truncates) its file the moment its filename
-//! changes -- a Setup run must not leave an empty .kamb behind.
+//! XRawStreamRecorder opens its file the moment its filename changes -- a
+//! Setup run must not leave an empty .kamb behind.
 void
 XJournal::onRecordingChanged(const Snapshot &shot, XValueNodeBase *) {
     auto &raws = m_rawstream;
@@ -164,6 +185,21 @@ XJournal::onRecordingChanged(const Snapshot &shot, XValueNodeBase *) {
     bool wantsRaw = rec && (modeOf(shot_this) == Mode::LOGBOOK_RAW);
     if(wantsRaw) {
         XString path = rawPathOf(shot_this[ *m_filename].to_str());
+        //The recorder reopens the moment its filename is set, so the decision
+        //the writer makes for the journal -- continue a file of this session's,
+        //refuse another's -- has to be made here for the raw stream, and
+        //first: by the time the writer looks, this file would already have
+        //been touched.  Appending is harmless for our own; another session's
+        //ids are not ours.  \sa XJournalWriter::syncRun()
+        XString jpath = journalPathOf(shot_this[ *m_filename].to_str());
+        if(path.length() && (QFileInfo::exists(QString::fromStdString(path))
+            || QFileInfo::exists(QString::fromStdString(jpath)))
+            && (sessionOfJournal(jpath) != sessionId())) {
+            gWarnPrint(i18n_noncontext("Journal: ") + path
+                + i18n_noncontext(" exists and is not this session's -- not overwritten. Name the run differently."));
+            trans( *m_recording) = false; //!< comes back through here with rec = false
+            return;
+        }
         if(path.length())
             trans( *raws->filename()) = path;
     }
@@ -431,10 +467,10 @@ static const int DRAIN_INTERVAL_US = 20000;
 
 
 bool
-XJournalWriter::Out::open(const XString &path) {
+XJournalWriter::Out::open(const XString &path, bool append) {
     close();
-    m_gz = gzopen(path.c_str(), "wb");
-    m_bytes = 0;
+    m_gz = gzopen(path.c_str(), append ? "ab" : "wb");
+    m_bytes = append ? (uintptr_t)std::max<qint64>(QFileInfo(QString::fromStdString(path)).size(), 0) : 0;
     m_failed = false;   //!< a new file deserves to be believed again
     return !!m_gz;
 }
@@ -692,7 +728,8 @@ XJournalWriter::openSession() {
         gWarnPrint(i18n_noncontext("Journal: no writable directory; this session is not journaled."));
         return;
     }
-    m_session = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
+    if(m_session.empty())
+        m_session = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
     m_sessionPath = dir + "/session-"
         + QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss").toStdString() + ".kamj";
     m_sessionFailSaid = false;
@@ -746,6 +783,13 @@ XJournalWriter::syncRun() {
     if( !rec)
         return;
     Snapshot shot( *rec);
+    //The id names this KAME in every header it writes, session journal or
+    //not: it is what lets a run be continued by the KAME that began it and
+    //by no other.  \sa sessionOfJournal()
+    if(m_session.empty())
+        m_session = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
+    if(rec->sessionId().empty())
+        rec->setSessionId(m_session);
     //The always-on journal is refusable.  A dump is not free -- an ODMR tree
     //is 3000 nodes, 600 KB before compression -- and a background writer
     //nobody can switch off is impolite whatever its size.
@@ -772,8 +816,37 @@ XJournalWriter::syncRun() {
             trans( *rec->recording()) = false;
             return;
         }
+        //A file that exists is never written over.  The switch is thrown
+        //more than once in a run's life -- off to look at something, off by a
+        //slip -- and open() truncates, so the first half of a run vanished
+        //under its second half without a word (user).  A file this KAME
+        //wrote is CONTINUED instead: the same node ids are still in force,
+        //so the entries that follow mean what the head says.  One another
+        //session wrote is refused: its ids are not ours.  \sa resume below
+        XString raw = XJournal::rawPathOf(shot[ *rec->filename()].to_str());
+        bool exists = QFileInfo::exists(QString::fromStdString(path))
+            || ((mode == XJournal::Mode::LOGBOOK_RAW) && QFileInfo::exists(QString::fromStdString(raw)));
+        bool resume = false;
+        if(exists) {
+            XString tier;
+            if(XJournal::sessionOfJournal(path, &tier) != m_session) {
+                gWarnPrint(i18n_noncontext("Journal: ") + path
+                    + i18n_noncontext(" exists and is not this session's -- not overwritten. Name the run differently."));
+                trans( *rec->recording()) = false;
+                return;
+            }
+            //The header states the tier and the reader believes it.
+            if(tier != XJournal::modeLabel(mode)) {
+                gWarnPrint(i18n_noncontext("Journal: ") + path
+                    + i18n_noncontext(" was recorded as \"") + tier
+                    + i18n_noncontext("\"; set the tier back to continue it, or name the run differently."));
+                trans( *rec->recording()) = false;
+                return;
+            }
+            resume = true;
+        }
         m_runFailSaid = false;
-        if( !m_runOut.open(path)) {
+        if( !m_runOut.open(path, resume)) {
             gErrPrint(i18n_noncontext("Journal: cannot write ") + path);
             trans( *rec->recording()) = false;
             return;
@@ -784,12 +857,24 @@ XJournalWriter::syncRun() {
         m_rawBytesAtStart = rec->rawBytesWritten();
         m_runOpen = true;
         m_runKeepsValues = true;
-        writeHeader(m_runOut, "run");
-        writeDump(m_runOut);
+        if(resume) {
+            //Continued, not restarted: no second header.  A fresh dump instead,
+            //as ordinary entries: the tree may have changed while the switch
+            //was off and drivers may have been added, and a replay reaching
+            //this point puts all of it back -- a mid-journal unstamped value
+            //is a node's state as of that instant, which is what these are.
+            m_runOut.line(XString("{\"t\":\"run\",\"state\":\"resume\",")
+                + stampOf(XTime::now()) + "}\n");
+            writeDump(m_runOut);
+        }
+        else {
+            writeHeader(m_runOut, "run");
+            writeDump(m_runOut);
+        }
         m_runOut.flush(true);
         //The session journal says where its runs went, so either half leads
         //to the other.
-        m_sessionOut.line(XString("{\"t\":\"run\",\"state\":\"start\",\"file\":\"")
+        m_sessionOut.line(XString("{\"t\":\"run\",\"state\":\"") + (resume ? "resume" : "start") + "\",\"file\":\""
             + jsonEscape(QFileInfo(QString::fromStdString(m_openPath)).fileName().toStdString())
             + "\"," + stampOf(XTime::now()) + "}\n");
         m_sessionOut.flush();

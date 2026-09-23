@@ -515,7 +515,6 @@ static shared_ptr<XNode> nodeAt(const shared_ptr<XNode> &root, const XString &pa
 	}
 	return node;
 }
-
 //! What decides whether restoring is a private act or a public one.
 //!
 //! Skipping runtime nodes does NOT keep a restore off the wire, which is worth
@@ -737,6 +736,14 @@ XJournalReader::applyValues(const std::vector<RestoreItem> &items,
 //! passing through on its way to the 100 that was asked for, written to the
 //! node that holds the request -- and putting one back would contradict the
 //! driver that owns it.  Runtime nodes are not settings at all.
+//!
+//! This rests entirely on every non-driver thread having said so:
+//! XJournalWriter::declareThisThread() is what tells a request from a report,
+//! and a thread that never calls it writes reports.  A .kam load runs on a
+//! thread of its own, and while those threads were undeclared, everything a
+//! .kam restored was filed as a report and never came back on a replay.  The
+//! serial port was where a user noticed it, because a port is written once,
+//! at load, so that report was its only record (2026-09-06).
 void
 XJournalReader::takeIfRequest_(const XJournalFile::Event &e, std::vector<RestoreItem> &out) const {
 	if((e.kind != XJournalFile::Event::Kind::VALUE) || !e.request)

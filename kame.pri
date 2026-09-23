@@ -58,7 +58,7 @@ DEFINES -= USE_STD_ALLOCATOR
 # journal's header, and the release archive's name -- tools/mkzip.sh reads it
 # from here.  It used to live in kame.spec, which is gone with the RPM
 # packaging that was its only reader.
-VERSTR = 9.0
+VERSTR = 9.0-alpha2
 DEFINES += VERSION=\"quotedefined($${VERSTR})\"
 
 KAME_COREMODULES = coremodules

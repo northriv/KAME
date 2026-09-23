@@ -15,6 +15,7 @@
 #define usersignalgeneratorH
 
 #include "chardevicedriver.h"
+#include "librevnascpi.h"
 #include "signalgenerator.h"
 
 //! KENWOOD SG-7200
@@ -130,7 +131,10 @@ protected:
     virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
     virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
     virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void open() override;
 private:
+    //! Knows how the connected GUI answers a setting. \sa LibreVNASCPI
+    LibreVNASCPI m_scpi;
 };
 
 //! DS Technology DPL-3.2XGF

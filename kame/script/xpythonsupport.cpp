@@ -186,6 +186,16 @@ XPython::execute(const atomic<bool> &terminated) {
         kame_module.def("my_defout", [=](shared_ptr<XNode> scrthread, const std::string &str){this->my_defout(scrthread, str);});
         kame_module.def("my_defin", [=](shared_ptr<XNode> scrthread)->std::string{return this->my_defin(scrthread);});
         kame_module.def("is_main_terminated", [=](){return this->m_thread->isTerminated();});
+        //Every .kam load, .kamj dump and script runs on a THREAD OF ITS OWN
+        //(xpythonsupport.py starts one per file), and a write's class is read
+        //off the committing thread.  Undeclared, everything a .kam restores
+        //was filed as a report -- a driver talking about itself -- and a
+        //replay, which puts back requests only, then refused to restore it.
+        //The serial port was where that showed: it is written once, at load,
+        //and never touched again, so the report was its ONLY record.
+        kame_module.def("kame_declare_script_thread", [](){
+            XJournalWriter::declareThisThread(XJournalWriter::ThreadClass::SCRIPT);
+        });
         kame_module.def("XScriptingThreads", [=]()->shared_ptr<XListNodeBase>{return dynamic_pointer_cast<XListNodeBase>(this->shared_from_this());});
         kame_module.def("MainWindow", [=]()->QWidget*{return g_pFrmMain;}, py::return_value_policy::reference);
 #ifdef PYBIND11_NO_ASSERT_GIL_HELD_INCREF_DECREF

@@ -1621,6 +1621,17 @@ FrmKameMain::loadOpenForms() {
 void
 FrmKameMain::saveOpenForms() {
     if( !m_measure || m_docPath.empty()) return;
+    //A measurement that never loaded has no forms to record -- and recording
+    //nothing DELETES what the last good run remembered, at the bottom of this
+    //function.  So a .kam whose script died, for any reason at all, left the
+    //user with the layout wiped rather than merely not restored: the next run
+    //had nothing to come back to (user, 2026-09-07).  An empty driver list is
+    //what that state looks like.  Drivers present with every form closed is a
+    //real answer and still erases, which is what it should do.
+    {
+        Snapshot shot( *m_measure->drivers());
+        if( !shot.size()) return;
+    }
     QStringList entries;
     auto record = [&entries](const char *kind, const XString &name, QWidget *w) {
         if( !w || !w->isVisible()) return;
@@ -1777,7 +1788,10 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
         //accept last, exit() cannot start until every join has returned.
         printf("quit\n");
         saveWindowLayout();
-        saveOpenForms();
+        //saveOpenForms() is deliberately NOT here.  Quitting is when a user
+        //tidies up, so the forms still open at that point are the ones they
+        //had not got around to closing -- the worst possible sample of where
+        //they like their windows (user, 2026-09-07).  File > Save records it.
         //Before the tree goes: the journal's last drain and report walk it.
         if(m_journalWriter) {
             m_journalWriter->stop();
@@ -1790,7 +1804,10 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
 }
 
 void FrmKameMain::fileCloseAction_activated() {
-    saveOpenForms();          //!< while the forms are still there to be seen
+    //No saveOpenForms() here, nor in openMes() or closeEvent(): leaving a
+    //measurement is when its forms have been closed, so what is still open is
+    //the worst sample of where they belong.  File > Save is the one place the
+    //layout is recorded (user, 2026-09-14).
     m_docPath.clear();
     m_formsWanted.clear();
     m_titleDoc.clear();       //!< nothing is loaded any more, and the title says so
@@ -1869,6 +1886,17 @@ void FrmKameMain::fileSaveAction_activated() {
             if(m_journalWriter) {
                 m_journalWriter->requestSave(filename.toLocal8Bit().data());
                 rememberRecentMes(filename);
+                //The same as for .kam below, and for the same reasons: the
+                //saved file is now the measurement, and its window layout is
+                //recorded with it.  requestSave() is asynchronous and reports
+                //no outcome -- the writer's own failure report does -- so the
+                //user's request is the moment taken, not the write.  A .kamj
+                //opened later comes through openMes(), which keys
+                //loadOpenForms() by this same path (user, 2026-09-14).
+                m_titleDoc = QFileInfo(filename).fileName();
+                m_docPath = QFileInfo(filename).absoluteFilePath().toStdString();
+                updateWindowTitle();
+                saveOpenForms();
             }
             else
                 gErrPrint(i18n("Journaling is off (KAME_JOURNAL=0); "
@@ -1880,8 +1908,18 @@ void FrmKameMain::fileSaveAction_activated() {
             XRubyWriter writer(m_measure, ofs);
 			writer.write();
             m_titleDoc = QFileInfo(filename).fileName();
+            //What was saved is what "this measurement" means from here, which
+            //the title already said and m_docPath did not: Save As filed the
+            //window layout under the file that had been OPENED, and a
+            //measurement built from nothing had no path to file it under at all.
+            m_docPath = QFileInfo(filename).absoluteFilePath().toStdString();
             updateWindowTitle();
             rememberRecentMes(filename);
+            //Where a measurement's windows sit is part of the measurement, and
+            //saving it is the moment the user asks for that to be kept.  NOT at
+            //exit, which is the one moment it cannot be trusted: by then they
+            //may well have closed the forms they had finished with (user).
+            saveOpenForms();
         }
 	}
 }
@@ -1946,8 +1984,8 @@ FrmKameMain::openMes(const XString &filename) {
         //line -- so this is the one place the list has to be told.
         rememberRecentMes(QString::fromStdString(filename));
         //Before the load starts: the drivers it creates are answered one by
-        //one as they appear.  \sa onDriverCaught()
-        saveOpenForms();   //!< whatever was open belongs to the measurement leaving
+        //one as they appear.  \sa onDriverCaught().  The measurement leaving
+        //is not recorded here -- see fileCloseAction_activated().
         m_docPath = QFileInfo(QString::fromStdString(filename))
             .absoluteFilePath().toStdString();
         loadOpenForms();
@@ -2081,6 +2119,11 @@ void FrmKameMain::onScriptLinkClicked(const QUrl &url) {
                 "Agent module or spec (*.py *.yml *.yaml *.json);;All files (*.*)");
             m_measure->python()->handleLink(
                 (action + "?file=" + file).toUtf8().constData());
+        }
+        else if(action == "pyai-settings") {
+            //The settings file (model, API keys) needs no interpreter, so it
+            //must not fall into the venv dialog below.
+            m_measure->python()->handleLink(action.toUtf8().constData());
         }
         else if(action.startsWith("pyai-")) {
             //Pydantic AI normally lives in a venv, which no PATH probe can
