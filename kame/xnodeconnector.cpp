@@ -12,7 +12,10 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "xnodeconnector.h"
+#include "driver/driver.h"
+#include "kamesettings.h"
 #include <deque>
+#include <QPointer>
 #include <QPushButton>
 #include <QLineEdit>
 #include <QCheckBox>
@@ -155,6 +158,42 @@ XQConnector::~XQConnector() {
     else {
         dbgPrint(QString("connector %1 & widget released., addr=0x%2").arg(objectName()).arg((uintptr_t)this, 0, 16));
     }
+}
+//! Here rather than in driver.cpp, which includes no Qt at all: what a
+//! driver's form IS is a question only the connector registry can answer.
+void
+XDriver::showForm(QWidget *w) {
+    if(w) {
+        w->showNormal();
+        w->raise();
+        //By name: the main window is the application's, not this library's.
+        //A turn later, so that a window shown for the first time has been
+        //placed, frame and all; guarded, since it may be gone by then.
+        if(g_pFrmMain) {
+            QPointer<QWidget> p(w);
+            QTimer::singleShot(0, g_pFrmMain, [p]{
+                if(p && g_pFrmMain)
+                    QMetaObject::invokeMethod(g_pFrmMain, "formShown", Q_ARG(QWidget *, p.data()));
+            });
+        }
+    }
+}
+void
+XDriver::showForms() {
+    showForm(XQConnector::windowOf( *this));
+}
+QWidget *
+XQConnector::windowOf(const XNode &owner) {
+    //isUpperOf, not a lookup that can throw: an O(1) containment predicate is
+    //exactly the question here, and two drivers of the same type are told
+    //apart by it, each form's widgets being bound to their own driver's nodes.
+    Snapshot shot(owner);
+    for(auto &&x: s_widgetMap) {
+        shared_ptr<XNode> node = x.second.lock();
+        if(node && shot.isUpperOf( *node))
+            return const_cast<QWidget *>(x.first)->window();
+    }
+    return nullptr;
 }
 shared_ptr<XNode>
 XQConnector::connectedNode(const QWidget *item) {
@@ -448,6 +487,11 @@ XFilePathConnector::onClick() {
     // and list nothing at all; the native helpers silently treated it as a
     // preselected file instead.  Do that split explicitly.
     QString curpath = m_pItem->text();
+    //Nothing typed yet: start where a file was last browsed for rather than
+    //in the process's working directory, which on a lab machine is wherever
+    //KAME happened to be launched from.
+    if( !curpath.length())
+        dialog.setDirectory(kameLastDir("data"));
     if(curpath.length()) {
         QFileInfo fi(curpath);
         if(fi.isDir())
@@ -467,6 +511,7 @@ XFilePathConnector::onClick() {
     QString str = dialog.selectedFiles().at(0);
 #endif
     if(str.length()) {
+        kameStoreLastDir("data", str);
 	    m_pItem->blockSignals(true);
         m_pItem->setText(str);
 	    m_pItem->blockSignals(false);
@@ -526,6 +571,40 @@ XQTextEditConnector::onTextChanged() {
 XQLCDNumberConnector::XQLCDNumberConnector(const shared_ptr<XDoubleNode> &node, QLCDNumber *item)
 	: XValueQConnector(node, item),
 	  m_node(node), m_pItem(item) {
+    //A readout, made to look like one: dark panel, bright digits, the same in
+    //either theme.  A measured value should not change colour because the
+    //window did.
+    //
+    //Flat, not Qt's default Outline: Outline draws the segments as edges in
+    //QPalette::Light, washed out on a light window and all but invisible on a
+    //dark one.  Flat fills them.
+    //
+    //Button and ButtonText, NOT Window/WindowText, and this is the whole
+    //reason a first attempt did nothing: QLCDNumber's backgroundRole() is
+    //Button and its foregroundRole() ButtonText -- measured by setting each
+    //role in turn and counting the pixels of every colour the widget painted.
+    //Left alone, the digits come out in whatever ButtonText is, which on a
+    //dark theme is a thin grey line on the form's own background, with a
+    //frame in Dark/Light that is invisible there as well: the reading a
+    //driver form exists to show, hard to read in the theme KAME now starts in
+    //(user, on TempControl, whose LCDs were already Flat in their .ui and so
+    //were untouched by the style alone).
+    item->setSegmentStyle(QLCDNumber::Flat);
+    item->setAutoFillBackground(true);
+    QPalette pal(item->palette());
+    pal.setColor(QPalette::Button, QColor(0x0b, 0x10, 0x13));
+    pal.setColor(QPalette::ButtonText, QColor(0x7c, 0xe4, 0xff));
+    item->setPalette(pal);
+    //No frame, which is what gives the digits room.  The forms ask for a
+    //raised Box, and QLCDNumber draws inside contentsRect() -- so the frame
+    //both eats the space and puts a line exactly where the top bar of a 7
+    //goes, which is why a 7 could not be told from a 1 (user).  Insetting the
+    //digits from that line made it worse, and measurably so: on the real form
+    //the digit area is 87x17 with frame and margin, 91x19 with the frame
+    //alone, and 95x23 with neither -- taller AND wider, so the segments are
+    //thicker and further apart.  The dark panel behind them is the boundary
+    //now; a bevel around a display is not what a display looks like anyway.
+    item->setFrameStyle(QFrame::NoFrame);
     onValueChanged(Snapshot( *node), node.get());
 }
 
@@ -538,6 +617,78 @@ XQLCDNumberConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node)
     m_pItem->update(); //is this necessary?
 }
   
+//KAME_LED_BEGIN -- tools extract this verbatim; keep it self-contained.
+//! An instrument LED, drawn rather than loaded.
+//!
+//! The two bitmaps it replaces were made in 2016 for a light window: a pale
+//! blue disc lit and a pale grey one dark.  On a dark window both read as
+//! bright smudges and they barely differ from each other, which is the whole
+//! of "the LEDs are hard to see" -- and being bitmaps they were soft on every
+//! display since.
+//!
+//! Lit is luminous: a white core inside the lamp's own colour, with a halo
+//! outside it, so the eye reads light coming OUT of the thing rather than a
+//! coloured circle.  Unlit is a lamp, not a hole -- a disc a shade away from
+//! the window colour, whichever direction that has to be, with a rim to give
+//! it an edge and a small highlight so the glass is still glass.  The lit
+//! colour is deliberately not from the palette: it carries the meaning, and
+//! it must not change with the theme.  Blue-cyan, as the old artwork was,
+//! because these nodes are plain booleans -- green or red would promise a
+//! good/bad reading that "Slipping" or "PCSHeater" does not have.
+static QPixmap kameLedPixmap(bool on, const QPalette &pal, qreal dpr) {
+    const qreal S = 16.0;
+    QPixmap pm(QSize(int(S * dpr), int(S * dpr)));
+    pm.setDevicePixelRatio(dpr);
+    pm.fill(Qt::transparent);
+    QPainter p( &pm);
+    p.setRenderHint(QPainter::Antialiasing);
+    QRectF lamp(2.0, 2.0, S - 4.0, S - 4.0);
+    QPointF spec = lamp.center() - QPointF(lamp.width() * 0.20, lamp.height() * 0.24);
+    QColor win = pal.color(QPalette::Window);
+    bool darkui = (win.lightness() < 128);
+    if(on) {
+        QColor lit(0x2f, 0xb8, 0xff);
+        QRadialGradient halo(lamp.center(), S / 2.0);
+        halo.setColorAt(0.0, QColor(lit.red(), lit.green(), lit.blue(), darkui ? 170 : 120));
+        halo.setColorAt(0.60, QColor(lit.red(), lit.green(), lit.blue(), darkui ? 70 : 45));
+        halo.setColorAt(1.0, QColor(lit.red(), lit.green(), lit.blue(), 0));
+        p.setPen(Qt::NoPen);
+        p.setBrush(halo);
+        p.drawEllipse(QRectF(0.0, 0.0, S, S));
+        QRadialGradient body(spec, lamp.width() * 1.05, spec);
+        body.setColorAt(0.0, QColor(255, 255, 255, 235));
+        body.setColorAt(0.30, lit.lighter(125));
+        body.setColorAt(1.0, lit.darker(150));
+        p.setBrush(body);
+        p.setPen(QPen(lit.darker(darkui ? 260 : 190), 1.0));
+        p.drawEllipse(lamp);
+    }
+    else {
+        //Away from the window colour in whichever direction is visible, so the
+        //unlit lamp is never the background with a line around it.  Rendered
+        //and looked at rather than reasoned about: at the 16 px this actually
+        //ships at, the first attempt (lighter(190) on #1e1e1e) was a grey dot
+        //that read as nothing being there, which for a panel is worse than
+        //wrong -- an indicator has to be visibly PRESENT while it is off.
+        QColor body = darkui ? win.lighter(260) : win.darker(112);
+        QRadialGradient g(spec, lamp.width() * 1.1, spec);
+        g.setColorAt(0.0, body.lighter(darkui ? 135 : 112));
+        g.setColorAt(1.0, body.darker(darkui ? 120 : 130));
+        p.setBrush(g);
+        QColor rim = pal.color(QPalette::Mid);
+        p.setPen(QPen(darkui ? rim.lighter(150) : rim, 1.0));
+        p.drawEllipse(lamp);
+    }
+    //The glass, lit or not.
+    QRectF hi(lamp.left() + lamp.width() * 0.22, lamp.top() + lamp.height() * 0.16,
+        lamp.width() * 0.36, lamp.height() * 0.26);
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(255, 255, 255, on ? 150 : (darkui ? 60 : 90)));
+    p.drawEllipse(hi);
+    return pm;
+}
+//KAME_LED_END
+
 XQLedConnector::XQLedConnector(const shared_ptr<XBoolNode> &node, QPushButton *item)
 	: XValueQConnector(node, item),
 	  m_node(node), m_pItem(item) {
@@ -546,13 +697,28 @@ XQLedConnector::XQLedConnector(const shared_ptr<XBoolNode> &node, QPushButton *i
     item->setFlat(true);
     item->setFocusPolicy(Qt::NoFocus);
     item->setIconSize(QSize(16, 16));
+    item->installEventFilter(this);
     onValueChanged(Snapshot( *node), node.get());
 }
 
 void
 XQLedConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
-    m_pItem->setIcon(shot[ *m_node] ?
-        *g_pIconLEDOn : *g_pIconLEDOff);
+    m_lit = shot[ *m_node];
+    updateIcon();
+}
+void
+XQLedConnector::updateIcon() {
+    m_pItem->setIcon(QIcon(kameLedPixmap(m_lit, m_pItem->palette(),
+        m_pItem->devicePixelRatioF())));
+}
+bool
+XQLedConnector::eventFilter(QObject *obj, QEvent *event) {
+    //Half of the drawing comes from the palette, so it is redrawn when the
+    //palette moves -- an appearance change reaches every widget as this.
+    if((event->type() == QEvent::PaletteChange)
+        || (event->type() == QEvent::ScreenChangeInternal))
+        updateIcon();
+    return XValueQConnector::eventFilter(obj, event);
 }
 
 XQToggleButtonConnector::XQToggleButtonConnector(const shared_ptr<XBoolNode> &node, QAbstractButton *item)

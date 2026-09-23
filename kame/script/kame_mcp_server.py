@@ -98,6 +98,35 @@ _LOG_DIR = Path(os.environ.get("KAME_MCP_LOG_DIR",
                                str(Path.home() / ".kame_mcp_log")))
 _SESSION_ID = uuid.uuid4().hex[:8]
 _LOG_LOCK = threading.Lock()
+_NOT_FOUND = "__kame_mcp_not_found__:"
+
+# Every figure a tool call produces is ALSO written under <log dir>/plots/.
+# The image itself travels to the model as MCP ImageContent, which not every
+# client shows the user -- the Pydantic AI web UI renders only images the
+# model generates, never a tool's -- so a file gives each client a second
+# route: a path for a person, and a URL path for a web UI that serves the
+# directory (kame_pydantic_ai.kame_web_plots() mounts it at /plots).  Bounded
+# by count, not switched by a flag: the newest _PLOT_KEEP files stay.
+_PLOT_KEEP = 200
+
+
+def _save_plot(png: bytes) -> str:
+    """Write one returned figure to <log dir>/plots/ and say where, or ''."""
+    try:
+        d = _LOG_DIR / "plots"
+        d.mkdir(parents=True, exist_ok=True)
+        # Milliseconds keep several figures from one cell distinct; the
+        # sortable name doubles as the pruning order.
+        name = datetime.now().strftime("%Y%m%d-%H%M%S-%f")[:-3] + ".png"
+        (d / name).write_bytes(png)
+        for old in sorted(d.glob("*.png"))[:-_PLOT_KEEP]:
+            try:
+                old.unlink()
+            except OSError:
+                pass
+        return f"[figure saved: {d / name} ; URL path /plots/{name} in a web UI that serves that directory]"
+    except Exception:
+        return ""
 _LOG_SEQ = 0
 _ARG_CHARS_CAP = 200_000     # keep code args essentially whole (provenance)
 _RESULT_CHARS_CAP = 20_000   # truncate long result text stored in the log
@@ -390,6 +419,13 @@ def _execute(code: str, timeout: float = 30.0) -> list:
     try:
         msg_id = client.execute(code)
         outputs = []  # str for text, Image for images
+        # A cell that calls plt.show() AND ends with the figure as its last
+        # expression yields the same PNG twice: once as display_data, once as
+        # the execute_result repr -- and our own "end with a bare expression"
+        # advice invites exactly that.  Every client then showed the plot
+        # twice, and the file was saved twice.  Drop byte-identical repeats
+        # within one execution; the model need not know to plt.close().
+        seen_png = set()
         while True:
             try:
                 msg = client.get_iopub_msg(timeout=timeout)
@@ -406,10 +442,14 @@ def _execute(code: str, timeout: float = 30.0) -> list:
                 data = content.get("data", {})
                 # Return images via MCP Image content
                 if "image/png" in data:
-                    outputs.append(Image(
-                        data=base64.b64decode(data["image/png"]),
-                        format="png",
-                    ))
+                    png = base64.b64decode(data["image/png"])
+                    if png in seen_png:
+                        continue
+                    seen_png.add(png)
+                    outputs.append(Image(data=png, format="png"))
+                    saved = _save_plot(png)
+                    if saved:
+                        outputs.append(saved)
                 else:
                     # Prefer text/plain; skip HTML object reprs
                     text = data.get("text/plain", "")
@@ -436,18 +476,41 @@ def _execute(code: str, timeout: float = 30.0) -> list:
 
 
 def _execute_text(code: str, timeout: float = 30.0) -> str:
-    """Execute code and return only text output (no images)."""
+    """Execute code and return only text output (no images).
+
+    The fixed tools end their code with a bare string expression, and
+    IPython hands a bare expression back as its repr -- so kame_status came
+    back as 'PID: ...\\nDrivers (0):' with quotes and a literal \\n, and the
+    JSON from execute_code_async as '{"job_id": ...}'.  One model copied that
+    id quotes and all into stop_job, which then wrote a marker file named
+    '_mcp_...'.stop and reported a stop it had not made.  When the whole
+    output is one string literal, unwrap it; mixed output, tracebacks and
+    non-string reprs are left exactly as they were.  execute_code itself is
+    not routed through here, so user code keeps IPython's semantics."""
     results = _execute(code, timeout)
-    return "\n".join(r for r in results if isinstance(r, str)).strip() or "(no output)"
+    text = "\n".join(r for r in results if isinstance(r, str)).strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in "'\"":
+        try:
+            import ast
+            unwrapped = ast.literal_eval(text)
+            if isinstance(unwrapped, str):
+                text = unwrapped
+        except (ValueError, SyntaxError):
+            pass
+    return text or "(no output)"
 
 
-def _nav_code(path: str) -> str:
-    """Build Python navigation expression from a slash-separated path."""
-    parts = path.strip("/").split("/")
-    nav = 'Root()'
-    for p in parts:
-        nav += f'["{p}"]'
-    return nav
+def _path_parts(path: str) -> list:
+    """Node names of a slash-separated path, as data.
+
+    These used to be spliced into Python source (`Root()["a"]["b"]`), so a
+    name holding a quote broke the tool -- and, the tool being declared
+    read-only, a crafted path could run any expression through it.  The
+    list is passed with !r and walked on the kernel; nothing here is code."""
+    parts = [p for p in path.strip("/").split("/") if p != ""]
+    if any(p in (".", "..") for p in parts):
+        raise ValueError(f"Invalid node path {path!r}")
+    return parts
 
 
 def _doc_section(path, section: str, tool: str) -> str:
@@ -546,6 +609,11 @@ def execute_code(code: str) -> list:
         print(float(...))
 
     Returns the stdout/stderr output, execution results, and matplotlib plots.
+    Each plot is also saved as a PNG under ~/.kame_mcp_log/plots/ and the
+    output names the file (and its /plots/<name> URL path, for a web UI that
+    serves that directory) right after the image.  plt.show() is enough to
+    return a figure; a figure repeated as the cell's last expression is the
+    same image and is dropped.
     """
     return _execute(code)
 
@@ -592,7 +660,7 @@ def execute_code_async(code: str) -> str:
 
     Returns a job_id string for use with get_result() / stop_job().
     """
-    job_id = f"_mcp_{int(time.time() * 1000)}"
+    job_id = _new_job_id()
     jobdir = str(_JOB_DIR)
     wrapper = f"""
 import threading as _th, traceback as _tb
@@ -662,9 +730,10 @@ def get_result(job_id: str) -> str:
     and "progress" (the latest string the job passed to mcp_checkpoint).
     If error, includes "error" with the traceback.
     """
+    _check_job_id(job_id)
     code = f"""
 import json as _json
-_json.dumps(_mcp_jobs.get({repr(job_id)}, {{"status": "unknown"}}))
+_json.dumps(globals().get("_mcp_jobs", {{}}).get({repr(job_id)}, {{"status": "unknown"}}))
 """
     try:
         out = _execute_text(code)
@@ -694,38 +763,75 @@ def stop_job(job_id: str) -> str:
     # kernel's message loop is exactly the job you cannot reach by executing
     # code on the kernel, and it is also the one you most need to stop; the
     # worker thread reads this file at its next checkpoint regardless.
+    _check_job_id(job_id)
     marker = None
+    marker_error = None
     try:
         _JOB_DIR.mkdir(parents=True, exist_ok=True)
         _job_stopfile(job_id).write_text("stop\n", encoding="utf-8")
         marker = str(_job_stopfile(job_id))
-    except Exception:
-        pass
+    except Exception as e:
+        marker_error = f"{type(e).__name__}: {e}"
     code = f"""
 import json as _json
 _job = globals().get("_mcp_jobs", {{}}).get({job_id!r})
 if _job is None:
     _r = {{"status": "unknown"}}
-else:
+elif _job["status"] == "running":
     _job["stop"] = True
-    _r = {{"status": _job["status"], "stop_requested": True}}
+    _r = {{"status": "running", "stop_requested": True}}
+else:
+    _r = {{"status": _job["status"], "stop_requested": False,
+           "note": "already finished; nothing to stop"}}
 _json.dumps(_r)
 """
+    kernel_reply = None
     try:
-        out = _execute_text(code)
-        if out and "unknown" not in out:
-            return out
+        kernel_reply = _execute_text(code)
+        reply = json.loads(kernel_reply)
     except Exception:
-        out = None
-    return json.dumps({
-        "stop_requested": True,
-        "via": "stop marker on disk" if marker else "kernel only",
-        "note": ("The kernel did not answer, so the request went through the "
-                 "marker file the job checks at each mcp_checkpoint(). Code "
-                 "that never checkpoints still cannot be stopped."),
-        "marker": marker,
-        "kernel_reply": out,
-    })
+        reply = None
+    if reply is not None and reply.get("status") != "unknown":
+        # The kernel knows the job; its answer is authoritative.  A finished
+        # job gets no marker left behind to confuse the next reader.
+        if not reply.get("stop_requested") and marker:
+            try:
+                os.remove(marker)
+            except OSError:
+                pass
+        return json.dumps(reply)
+    if reply is not None:
+        # The kernel answered and has no such job: the marker can stop
+        # nothing.  This used to come back as stop_requested=true.
+        if marker:
+            try:
+                os.remove(marker)
+            except OSError:
+                pass
+        state = _job_from_disk(job_id)
+        if state:
+            d = json.loads(state)
+            d["stop_requested"] = False
+            d["note"] = ("the kernel has no such job (finished before a "
+                         "restart, or never existed); this is its last "
+                         "recorded state")
+            return json.dumps(d)
+        return json.dumps({"status": "unknown", "stop_requested": False,
+                           "note": "no job with this id in the kernel or on disk"})
+    # The kernel did not answer: the marker is the only route, and only a
+    # marker that was written counts as a request.
+    if marker:
+        return json.dumps({
+            "stop_requested": True,
+            "via": "stop marker on disk",
+            "note": ("The kernel did not answer, so the request went through "
+                     "the marker file the job checks at each mcp_checkpoint(). "
+                     "Code that never checkpoints still cannot be stopped."),
+            "marker": marker,
+        })
+    raise RuntimeError(
+        f"Could not request a stop for {job_id}: the kernel did not answer "
+        f"and the stop marker could not be written ({marker_error}).")
 
 
 @server.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
@@ -741,8 +847,19 @@ def tree(path: str = "", depth: int = 2) -> str:
     Returns compact indented tree: name (type) = value
     """
     depth = max(1, min(depth, 5))
-    nav = _nav_code(path) if path.strip("/") else 'Root()'
+    parts = _path_parts(path)
     code = f"""
+def _mcp_walk(_parts):
+    _node = Root()
+    for _i, _p in enumerate(_parts):
+        try:
+            _next = _node[_p]
+        except Exception:
+            _next = None
+        if _next is None:
+            return None, "/".join(_parts[:_i + 1])
+        _node = _next
+    return _node, None
 def _mcp_tree(_node, _depth, _max_depth, _indent=0):
     _shot = Snapshot(_node)
     _lines = []
@@ -767,9 +884,16 @@ def _mcp_tree(_node, _depth, _max_depth, _indent=0):
             except Exception:
                 pass
     return _lines
-"\\n".join(_mcp_tree({nav}, 1, {depth}))
+_node, _missing = _mcp_walk({parts!r})
+("{_NOT_FOUND}" + _missing) if _missing is not None else "\\n".join(_mcp_tree(_node, 1, {depth}))
 """
-    return _execute_text(code)
+    out = _execute_text(code)
+    if out.startswith(_NOT_FOUND):
+        raise ValueError(f"Node path not found: {out[len(_NOT_FOUND):]}")
+    if out in ("", "(no output)"):
+        where = "/".join(parts) or "Root"
+        return f"({where} has no child nodes)"
+    return out
 
 
 @server.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
@@ -982,6 +1106,23 @@ def notebook_status() -> str:
         k = kernels.get(kid, s.get("kernel") or {})
         lines.append(f"notebook: {s.get('path')}  "
                      f"kernel: {k.get('execution_state', '?')}")
+    if not sessions:
+        # This used to fall through to the watcher footnote alone, whose
+        # "state above" then referred to nothing.
+        lines.append("No notebook sessions: no notebook tab has connected to "
+                     "KAME's kernel (the browser tab may be closed).")
+        try:
+            names = [e["path"] for e in _nb_api("/api/contents").get("content", [])
+                     if e.get("type") == "notebook"]
+        except Exception:
+            names = []
+        if names:
+            lines.append("Notebooks in the workspace: " + ", ".join(sorted(names))
+                         + "  -- open one in the browser (its tab must be live "
+                         "for notebook_edit), or pass its path to notebook_read.")
+        if watcher_note:
+            lines.append(watcher_note)
+        return "\n".join(lines)
     a = dict(_activity)
     if a["execution_count"] is not None:
         ago = f", started {int(time.time() - a['since'])}s ago" \
@@ -1106,12 +1247,40 @@ def notebook_edit(path: str, index: int, source: str = "",
 _JOB_DIR = _LOG_DIR / "jobs"
 
 
+# Every job id has this shape, and every tool that takes one checks it first:
+# the id names files under _JOB_DIR, and an unchecked "../x" read or wrote
+# outside it.  The generator and the pattern move together.
+_JOB_ID_RE = re.compile(r"^_mcp_[0-9]+$")
+_JOB_ID_LOCK = threading.Lock()
+_last_job_ms = 0
+
+
+def _new_job_id() -> str:
+    """_mcp_<ms>, strictly increasing within this process so two calls in
+    the same millisecond cannot share a state file."""
+    global _last_job_ms
+    with _JOB_ID_LOCK:
+        ms = int(time.time() * 1000)
+        if ms <= _last_job_ms:
+            ms = _last_job_ms + 1
+        _last_job_ms = ms
+    return f"_mcp_{ms}"
+
+
+def _check_job_id(job_id: str) -> str:
+    if not isinstance(job_id, str) or not _JOB_ID_RE.match(job_id):
+        raise ValueError(
+            f"Invalid job id {job_id!r}: ids look like _mcp_1712345678901, "
+            "exactly as execute_code_async returned it (no quotes).")
+    return job_id
+
+
 def _job_file(job_id: str) -> Path:
-    return _JOB_DIR / f"{job_id}.json"
+    return _JOB_DIR / f"{_check_job_id(job_id)}.json"
 
 
 def _job_stopfile(job_id: str) -> Path:
-    return _JOB_DIR / f"{job_id}.stop"
+    return _JOB_DIR / f"{_check_job_id(job_id)}.stop"
 
 
 def _job_from_disk(job_id: str) -> str | None:

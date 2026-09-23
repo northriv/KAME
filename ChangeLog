@@ -1,3 +1,424 @@
+* Wed Sep 23 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- NMR T1: ten Smoothing Samples or fewer is a warning, not a record error
+  (user).  In T2 multi-echo mode the count is the echo count, so a frequency
+  sweep run on eight echoes had the relaxation driver beside it failing every
+  record -- and it could not recover: the check came before the derivation
+  that sets the axis from the pulser, so once a short train had set the
+  count, every later record was refused before the derivation could follow
+  the pulser back.  The derivation now comes first.  A single echo is passed
+  over with a warning saying so, and a count below two because no curve can
+  be built.  The count is also set only when the number of echoes changes,
+  so lowering it now reduces the train evenly as the manual says; it was put
+  back on every record before.
+- UI: a form, chart or graph opened with a click unpins the toolbox that
+  would cover it (user).  A pinned toolbox stays on top of everything, so the
+  window came up underneath it, the click defeated by the pin.  The rule the
+  load already follows before it pins, applied when the window is put up:
+  only the toolbox that covers it goes back to auto-hide and folds at once,
+  and the window stays where it was.
+- Journal: a run file that exists is always continued -- never written over
+  and never refused (user).  Sep 19 refused a file another session had
+  written, and in "Settings + raw records" refused every new run as well: the
+  writer looked for the raw stream, which the recorder had created a moment
+  before, found no journal to prove it ours, and took it for a stranger's --
+  leaving that stream behind to refuse the name at every later try.  But a
+  journal is a log; the newest record is always last, so what follows the old
+  records can only read as what came next, and naming a file that belongs to
+  something else is the user's to answer for.  The one thing continuing could
+  break is the old records' meaning: node ids are counted from zero in every
+  session, and a reader resolves them through one table built from the whole
+  file, so another session's ids appended as they were would replay its
+  values onto our nodes.  A run continued by the session that began it keeps
+  its ids; one continued from any other session -- an earlier launch
+  included -- numbers its nodes above every id the file holds.  The writer
+  decides alone, from the journal file, which only it creates; the raw
+  stream is simply appended to.  A tier may change at the resumption, which
+  the resume marker records, and a stream begun after the header was written
+  is found beside the journal by name.  Checked with the real reader on
+  appended files: ids distinct, every value on the node its segment meant,
+  and without the offset three of four earlier values landed on the wrong
+  node.
+
+* Mon Sep 21 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- NMR T1: in T2 multi-echo mode the relaxation curve is binned on a linear
+  axis, as the echoes are measured (user).  The divisions are logarithmic,
+  which is right for a P1 spread over decades and wrong for a CPMG train:
+  the echoes sit at 2 tau x i, evenly, so a log axis leaves gaps at the short
+  end and closes up at the long one.  A 32-echo train reached 20 of its 32
+  divisions -- the count this mode takes from the pulser promised one point
+  per echo and delivered two thirds of them, the tail merged two and three at
+  a time.  Linear in that mode, log everywhere else; every echo is its own
+  point, 8 through 128 alike.  Smoothing Samples also means something plain
+  here now: below the echo count the train reduces evenly, 32 echoes to 16
+  points being two echoes each, rather than 1:1 at the short end and 5:1 at
+  the long one.  The density map is untouched -- it reads the pulse slots,
+  not these divisions, and its kernel takes no part of the fit in this mode.
+
+* Sat Sep 19 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Journal: switching Write off and on again with the same name continues the
+  run instead of starting it over (user).  It used to open both files anew,
+  and open() truncates: the half already recorded vanished under the half
+  that followed, without a word -- which measurement software must not do,
+  and what the switch means to its user is a pause.  A file this KAME wrote
+  is appended to, as a further gzip member the reader walks as one stream; a
+  "run resume" marker and a fresh dump follow, as ordinary entries, so a
+  replay reaching that point puts back whatever changed while the switch was
+  off, drivers added meanwhile included.  The raw stream is appended to the
+  same way.  A file another session wrote is refused -- its node ids are not
+  ours -- and so is a resumption in a different tier, since the header states
+  the tier and the reader believes it; either refusal clears the switch and
+  says what to change.  The session id that decides this is now in every
+  header, whether or not the session journal is on.  The manual says so.
+
+* Tue Sep 15 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- NMR relaxation map: the distribution of relaxation times is solved under
+  x >= 0 (user).  Amplitudes of relaxation components are populations and
+  cannot be negative; the unconstrained Tikhonov minimiser explains a curve
+  with large terms of alternating sign -- neighbouring columns of an
+  exponential kernel are nearly parallel -- and the only thing holding that
+  still was lambda, which blunts real peaks along with the oscillation.
+  Forbidding the negative half removes the oscillation itself, so far less
+  lambda is needed and sharp features survive.  "AllNonNegative" had
+  approximated this by raising lambda until nothing came out negative,
+  smoothing standing in for a constraint.  TikhonovRegular::solveNonNeg() is
+  Lawson-Hanson's active-set method on the normal equations after Bro and de
+  Jong (FNNLS): G = AtA + lambda^2 StS is formed once per lambda and shared by
+  every row of a map, each step solves a subsystem of it by LDLT, and the
+  previous record's row seeds the active set -- m = 200, n = 100 runs 0.26 ms
+  cold and 0.014 ms warm, so a map of hundreds of rows costs a few ms per
+  record.  Eigen 3.4.0 as installed has no NNLS module; none is needed.
+  lambda is still decided where the criteria are defined: L-curve, GCV and
+  the known-noise criterion on the linear solution as before, the rows then
+  solved non-negatively with the lambda they settle on; AllNonNegative
+  becomes the criterion native to the constrained solver, the discrepancy
+  principle on the NNLS residual.  Verified against an independent FISTA
+  reference on a two-peak synthetic distribution: KKT conditions hold on I
+  and D2 from lambda = 0 to 0.1 sigma_max, the objective never exceeds the
+  reference's, a warm start reproduces the cold solution.  The status line
+  says nnls.
+- NMR relaxation map: each bin is weighted by its noise (user).  isigma --
+  1/sigma per bin, from the dark-noise power and the record count -- sat
+  beside the fit, shown but unused, so a bin averaged over fifty records had
+  the say of one averaged over none.  Rows are scaled by sigma_bar/sigma_b
+  with sigma_bar^2 = noiseSq, so a bin fitting its own noise leaves
+  sigma_bar^2 of residual whatever its count and the criteria keep their
+  meaning.  One kernel serves every row of a map while a swept spectrum's
+  isigma differs between rows (coverage), so a bin's weight is its mean over
+  the rows that have data there.  Weights drift as records accumulate and a
+  rebuild is an SVD, so the cache is refreshed only once a weight has moved
+  by more than a tenth; until then y is scaled by the cached kernel's own
+  weights, so the two always agree.  A "w" on the status line says so.
+- NMR relaxation map: an Unconstrained switch on both forms shows the linear
+  inversion with the same lambda -- the diagnostic view of what the
+  constraint removed (user).  The map is a color image, so the two cannot be
+  overlaid; a switch on one color scale is how the difference is seen.  For
+  noticing rather than looking, the status line carries lin-neg, the deepest
+  excursion of the linear solution of the reference row against its peak:
+  well below zero says look at the phase or the baseline before believing a
+  map that cannot show it.  TikhonovRegular::setLambda() was needed for this
+  and closes a bug the linear map had all along: chooseLambda() leaves solve()
+  at whatever lambda it TRIED last, which for the L-curve and GCV scans is the
+  smallest, so every row but the reference was inverted essentially
+  unregularized while the label named the chosen lambda -- 123% apart on the
+  synthetic curve.  The bisection criteria were nearly right (their last
+  trial is near the answer); the non-negative rows were never affected.
+- NMR relaxation map: what stands below its own noise is not shown.  Noise
+  propagates into the linear inversion in closed form, sd_j = sigma
+  ||row_j(A#)||, the same for every row (checked against 4000 Monte Carlo
+  draws: within 2%), and the constraint can only lower a component's
+  variance, so it is a conservative bound for the map shown.  A cell below
+  twice its sd is dropped from the constrained map -- a non-negative solution
+  is sparse and its speckle is noise fitted -- and the status line gains
+  sd/pk, the noise floor against the reference row's peak.  The linear view
+  is left raw.  A free constant term for T2 was considered and declined: a
+  phased CPMG real part has none physically, the receiver's DC sits in the
+  f = 0 row alone, the magnitude bias is already corrected, and a constant is
+  nearly collinear with the longest-T columns the extended grid already
+  provides, so it would split arbitrarily with the slow components it is
+  there to see.
+- TikhonovRegular: the D2 matrix was built by adding a matrix to its own
+  transpose in place, which is aliasing and asserts in a debug Eigen; release
+  builds got the intended matrix only by the luck of column-major traversal
+  over that sparsity.  Found by the solver's test; eval().
+- NMR T1: a T2 multi-echo run grew 0.45 MB per record and reached 5 GB
+  overnight, then died in vm_map_enter (user).  Not the journal (off, same
+  slope), not the pool (it held exactly what had been asked for): live data.
+  RawPt::value_by_cond carried one complex number per condition, typically
+  two or four, in a std::deque, and libc++ gives a deque a whole 4 KB block
+  up front -- a hundred-fold for 32 bytes of payload.  Nothing noticed while
+  T1 was the mode in use, one point per record; T2_Multi pushes one per
+  echo, 32 per record, and every Payload copy deep-copies the lot.  std::
+  vector holds the same values in 16 to 64 bytes; every operation used is
+  common to both and no reference is held across a push_back.
+- NMR T1: the abscissa repeats, so a record is summed into the point already
+  at it (user).  T2_Multi walks the same 2 tau x i train every record and
+  the FLATTEN strategy picks P1 out of the same bins; only the value changes.
+  m_pts is held at the number of distinct abscissae -- 32 for a 32-echo train
+  instead of growing for the life of the measurement -- and the re-binning
+  that ran over all of it on every record shrinks with it.  The result is
+  identical: the reduction sums exactly these numbers, and two points
+  sharing a p1 always land in one bin; RawPt carries the count as weight.
+  P1STRATEGY_RANDOM draws a fresh P1 every record, where the search never
+  hits, so it stops once the list passes 1000.
+- Journal: replaying a session emptied the serial port and no fast-forward
+  brought it back (user).  A write's class -- request or report -- is read
+  off the committing thread, and xpythonsupport.py starts a thread of its
+  own for every .kam, .kamj and script it loads; those threads never declared
+  themselves, so everything a .kam restored was filed as a driver's own
+  report, which a replay does not put back.  The head dump carries no
+  attribution and is applied regardless, so the empty port a session journal
+  holds at startup went in and the real one never followed.  Every other
+  setting survived because the user also touches it during the session.
+  Declared in all three loaders and in the IPython pre_run_cell hook -- a
+  cell is the user operating the instrument -- through a wrapper that
+  tolerates a binary without the binding, since a NameError at the top of a
+  loader would otherwise abort the .kam load outright.  The XInterface
+  exclusion added first was treating the symptom and blocked the very entry
+  that would have restored the port; removed.  Journals already written keep
+  their attribution.
+- UI: the window layout of a measurement is recorded on File > Save, .kam or
+  .kamj, and nowhere else (user).  It was written on the way out -- at exit,
+  at File > Close, when another measurement was opened -- and all three are
+  teardown: quitting is when a user tidies up, so the forms still open then
+  are the ones not yet closed, the worst possible sample of where they
+  belong.  A KAME that crashed, or that refused to quit with an interface
+  running and was killed, remembered nothing at all.  Save As also sets the
+  document path now, which it never did: the layout was filed under the file
+  that had been opened, and a measurement built from nothing had no path to
+  file it under.  And a measurement that never loaded -- a .kam whose script
+  died -- no longer erases the record: an empty form list against a document
+  used to delete what the last good run remembered.
+- MCP / Pydantic AI: a figure from execute_code reaches the web UI.  The UI
+  renders images the model writes, not images a tool returns, so every PNG
+  the server returns is also saved under ~/.kame_mcp_log/plots (newest 200
+  kept) and served at /plots by the shipped agent's own web app,
+  kame_pydantic_ai:app, which KAME's launcher now names; a one-line image
+  reply shows it.  A figure a cell emits twice -- plt.show() and the figure
+  as the last expression -- is one figure.  kame_usage_logging() lets a
+  user's own agent share the usage log.
+- Docs: the README's Pydantic AI row is a row again, its details a paragraph
+  below the table; no inline code span crosses a line break in README or
+  manual, which one viewer rendered as a stray backtick and a lost argument.
+- tests/: run_v0_full_preload.sh duplicated the published copy under
+  kamestm/bench, the newer of the two; reverted.
+
+* Sun Sep 13 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- NMR pulse analyzer: the PNR transform is half as long, and its length is now
+  derived from what it is used for (user).  The least-square solvers lay their
+  synthesized ringing out around the middle of the transform -- ifft()[k] is
+  the ringing at sample k while k < n/2, and at sample k - n above that -- so
+  only the first half is the wave that backgroundSub() subtracts it from.  The
+  old length, 4 * (bgpos + bglength), met that only while the background ran
+  to the end of the record; that is the usual layout, which is why the other
+  half never showed itself, but a short background well before the end of the
+  record put the wrong branch into the tail of the displayed wave.  It is now
+  twice the span actually subtracted over, which is exact in either layout,
+  and the subtraction is clamped to that half as well.
+- FreqEstLeastSquare: the greedy loop interpolates the peak it finds and
+  solves the amplitude at that frequency, instead of taking both from the bin
+  the search landed on.  These two belong together: z's phase is referenced to
+  sample t0, so a fraction-of-a-bin shift in the frequency is a phase error of
+  2 pi (freq error) t0 / t at the data, and where t0 is many times t -- a
+  background segment taken long after the pulse, the usual PNR case -- that is
+  radians.  Interpolating the frequency while reading the amplitude off the
+  bin is therefore worse than not interpolating at all; solved together they
+  let the transform be half as long for the same answer.  Measured on
+  synthetic ringing over 54 geometries (background length, background
+  position, noise, damping), the pair at half the length matches the old peak
+  search at the old length to four decimals or beats it, at 1.6-2.0x the
+  speed.  The PNR solve dominates a journal replay.
+
+* Thu Sep 3 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Thamway USB pulser: the pattern resolution is no longer read before it is
+  set (user).  m_resolution is assigned only in open(), from the device's
+  CLK=...MHZ -- but resolution() is asked wherever a time is turned into
+  pattern samples, including analyzeRaw(), which a REPLAY runs with no
+  hardware opened at all.  Until then the member held whatever was in that
+  memory, so every one of those divisions was undefined: a journal recorded
+  with tau = 40 us and 5 us pulses replayed as "Pulse widths exceed Tau",
+  which invalidated the pulser's record, which stopped every secondary driver
+  connected to it -- no echo, no swept spectrum, nothing.  It now starts at
+  the pattern generator's nominal 100 MHz and open() replaces it as before.
+- Pulser: whether the RF pulses overlap is decided on the recorded
+  microseconds, before anything is divided by the device's resolution.  A
+  record is a fact, and refusing it must not depend on what rig happens to be
+  attached to the machine replaying it.
+- Pulser: landing a pulse width on the QAM sample grid no longer turns a
+  setting that fits into one that does not.  Rounding to the nearest grid
+  point lengthens a pulse by up to half of one -- 0.1 us where the grid is a
+  5 MSPS QAM sample -- so a tau chosen as short as the pulses allow could be
+  exceeded by widths that were inside it when they were recorded, and
+  "Pulse widths exceed Tau" threw out of analyzeRaw().  That invalidates the
+  pulser's record, and an invalid record stops EVERY secondary driver that has
+  the pulser among its connections before it analyses anything -- which is why
+  a replayed journal of a frequency-swept measurement no longer reproduced its
+  spectrum (user).  The widths are now rounded down to the grid before the
+  overlap is refused; only widths that overlap even then are refused.
+- UI: the LCD readouts lose their frame, which is what gives the digits room.
+  The forms ask for a raised Box and QLCDNumber draws inside contentsRect(),
+  so the frame both takes the space and puts a line exactly where the top bar
+  of a 7 goes -- which is why a 7 could not be told from a 1 (user).
+  Insetting the digits from that line was tried first and made it worse, as
+  the user saw and the measurement confirms: on the real form the digit area
+  is 87x17 with frame and margin, 91x19 with the frame alone, and 95x23 with
+  neither.  Taller and wider both, so the segments are thicker and further
+  apart, and there is no longer a line for a segment to merge with.  The dark
+  panel behind them is the boundary now, which is what a display looks like.
+- NMR T1: the relaxation curve is drawn from one Snapshot, not from one per
+  point.  XFuncPlot::snapshot() calls func() maxCount() times -- hundreds --
+  and XRelaxFuncPlot::func() opened a Snapshot of the whole XNMRT1 subtree on
+  every one of them, on the drawing thread, for every frame.  Beyond the cost,
+  a Snapshot of a node that size can bundle its subtree, so a running T1
+  measurement was paying hundreds of bundles per repaint.  The values func()
+  needs are read once, in snapshot(), which is where the redraw already has a
+  consistent view; the curve drawn is unchanged.
+- Replay: an interface's wiring is left alone (user).  Restoring a journal
+  wrote its recorded Device, Port and Address over the live ones -- they are
+  ordinary non-runtime nodes, so applyValues() took them like any setting --
+  and a session's head dump is written at startup, BEFORE a .kam has set
+  them, so what it usually holds is nothing at all.  The correct port a rig
+  was working on was therefore replaced by an empty one.  Nothing was gained
+  by restoring them either: a replay re-analyses records and opens no
+  hardware, and which port a rig is plugged into is the machine's state, not
+  the measurement's.  Detected by walking the path and asking whether it
+  passes through an XInterface, not by matching the name "Interface", since
+  the node's type is what the rule is about.  Loading a .kam is untouched.
+- Thamway USB: the IDN is read from a synchronised stream, so a device is not
+  dropped from the list it belongs in (user).  examineDeviceAfterFWLoad() has
+  always thrown away the first DIP-switch read and kept the second -- the
+  first read after an open comes back stale -- but getIDN() had no such
+  guard.  For a single register a stale read costs one wrong byte; for the
+  IDN it costs the PHASE, because the string is a cyclic byte stream that
+  getIDN resynchronises on the terminator: one stale byte shifts every later
+  read by one, and the string arrives without its first character.
+  "G027QAM_MEMORY" for "PG027QAM_MEMORY" is not cosmetic -- the name is
+  tested with find(m_idString, 0) != 0, so the device fails its own prefix
+  and never reaches the selectable list, while the log prints an IDN that
+  looks right.  It is a per-session state, which is why restarting cleared it.
+- NMR pulser/SG: the Thamway PROT keeps its own window.  Deleting its
+  showForms() with the 30 others was wrong: it has TWO forms -- its own and
+  the FrmSG that XSG builds on the same driver's nodes -- and the default
+  implementation walks the widget registry in pointer order, so it handed the
+  user the plain SG form (user).  The audit that cleared those 30 counted the
+  form members written in each class's own files, which is exactly the count
+  that misses a form a BASE class makes; the rule in driver.h now says so.
+- NMR T1: in T2 multi-echo mode the relaxation axis is read from the echo
+  train instead of being typed in (user).  The first echo is at 2 tau and the
+  last at 2 tau x echoNum, and there is one point per echo, so Min, Max and
+  Samples are all the pulser's to say.  Two of the three were already set from
+  it, but only once, when the measurement was switched on -- they went stale
+  as soon as tau or the echo count moved -- and the sample count was never set
+  at all, so a train of 16 echoes was smoothed into whatever number happened
+  to be in the box.  All three follow the pulser on every record now, written
+  only when they actually differ: these nodes clear the accumulated T-map,
+  which is right when the axis really moves and ruinous once per record.
+- Pulser: an RF pulse is a whole number of QAM samples long, so the gate and
+  the envelope inside it are the same length (user: "4.5 us looks wrong", and
+  it was).  The widths were quantised to two PATTERN samples, which on a
+  100 MHz pattern generator is 0.02 us -- but the QAM waveform is written one
+  QAM sample at a time, and on a 5 MSPS QAM device that is 20 pattern samples.
+  4.5 us is 450 of them: 22.5 QAM samples, and the half that does not fill a
+  sample is discarded when the next pulse begins, so the gate stayed 4.5 us
+  while the RF inside it was 4.4.  4.4 and 4.6 divide exactly, which is why
+  only 4.5 misbehaved.  Widths now land on the QAM sample where there is one
+  (0.2 us here, so 4.5 becomes 4.6) and on two pattern samples where there is
+  not, which is what they did before.
+  Rounding is by llround rather than llrint, and with a 1e-9 nudge: llrint
+  takes a tie to the even multiple, and even llround splits halfway widths by
+  binary representation alone -- 4.5/0.2 is exactly 22.5 and rounds up while
+  4.3/0.2 is 21.499999999999996 and rounds down.  Measured, both of them.
+- AutoLCTuner: "Scan assist when stuck", off by default.  When the stepwise
+  search has stopped improving for three analyses but already knows the
+  capacitance derivatives, it hands the next turn over to a continuous scan:
+  one axis is rotated through in a single run and the traces taken DURING the
+  motion -- which every other stage of analyze() discards -- are kept and the
+  minimum read off the trajectory.  That order is deliberate: the stepwise
+  phase supplies the axis, the direction and how far the derivative can be
+  trusted, which a scan started cold would have to guess.  It also never pays
+  backlash, since it does not reverse.
+  Whether a run is usable is decided from the run itself, with no constant
+  that would have to be measured per rig (user): at least five frames, a span
+  at least four times the largest gap between consecutive frames -- that gap
+  is the position readout's rate against the sweep rate -- and a minimum that
+  is bracketed rather than at an end.  A run that fails any of these is
+  dropped and the stepwise search simply carries on, which is what makes the
+  attempt safe to make at all.
+- AutoLCTuner: the test angle grows to what the backlash makes necessary and
+  no further, and the derivative's error is added in quadrature (user, who saw
+  it testing at needlessly large angles).
+  The escalation was a blind multiplier, min(6, 2 + 5*|backlash/delta|), which
+  is already the cap for anything past |backlash/delta| = 0.8 -- so a 10 deg.
+  test became 60 whatever the backlash was, and one noisy estimate took 60 to
+  360 and 360 to the 720 that aborts the tune.  It now asks for the angle the
+  backlash is actually small against, half the threshold that called for a
+  wider test (|backlash/delta| = 0.3 at the default), keeping the old 2x floor
+  and 6x cap.  It is never larger than the old rule -- 3.33x <= 2 + 5x for
+  every x >= 0 -- so at |b/d| = 0.6 a 10 deg. test now grows to 20 rather than
+  50, and only from |b/d| = 2 up do the two agree.
+  The derivative error had the third fit's contribution added as c1err^2 where
+  a standard deviation belongs: dimensionally wrong, and numerically nothing
+  (~1e-27 against ~1e-14), so the -Delta measurement's uncertainty was in
+  effect discarded and sigma_per_change came out too small to ask for a wider
+  test when one was genuinely needed.
+- UI: the LEDs and the LCD readouts are legible in the dark theme (user, who
+  wants to keep both -- this is an instrument panel).  Both were measured by
+  rendering them and looking, not reasoned about.
+  The LEDs were two bitmaps drawn in 2016 for a light window: a pale blue disc
+  lit and a pale grey one dark, which on a dark window are two bright smudges
+  of nearly equal weight.  They are painted now -- lit is a white core in the
+  lamp's colour with a halo outside it, so light appears to come OUT of it;
+  unlit is a lamp rather than a hole, a disc a shade away from the window
+  colour in whichever direction that has to be, with a rim and a highlight.
+  The first unlit attempt was a grey dot at the 16 px this ships at, which for
+  a panel is worse than wrong -- an indicator has to be visibly there while it
+  is off -- so it is lighter than it looks in the source.  Being drawn, it is
+  also sharp on a Retina display, which a 16 px bitmap never was.
+  QLCDNumber was worse, and in BOTH themes: Qt's default Outline style draws
+  the segments as edges in QPalette::Light, which is washed out on a light
+  window and all but invisible on a dark one.  Flat fills them instead.
+  Flat alone was not enough, though -- TempControl's LCDs were already Flat in
+  their .ui and the user found them no easier to read -- because the digits
+  come out in whatever ButtonText happens to be, a thin grey line on the
+  form's own background, inside a frame drawn in Dark/Light that a dark theme
+  makes invisible too.  Button and ButtonText, not Window/WindowText, is the
+  part that had to be measured: the roles were found by setting each in turn
+  and counting the pixels of every colour the widget painted, which is also
+  why a first attempt through Window/WindowText changed nothing at all.
+  So the readout is now made to look like one -- a dark panel with bright
+  digits, the same in either theme, because a measured value should not change
+  colour just because the window did.  All 15 forms with an LCD, from one
+  place, without touching any of them.
+  The zone table in the Temperature Manager stopped painting its normal text
+  black while it was at it: black is only "normal" on a light theme, and KAME
+  starts dark.  The table's own colour is used, and red still means red.
+- The source release contains the project and nothing else.  8.6 and 8.6.1
+  went out carrying a vendor PDF that happened to be sitting in the working
+  tree, for two independent reasons, both now fixed in tools/mkzip.sh: rsync
+  copies the WORKING tree and nothing told it to leave untracked files alone
+  (git lists them; rsync anchors each with a leading slash), and `zip` UPDATES
+  an archive that already exists rather than replacing it, so a file packaged
+  once survived into every later run even after it was deleted -- measured, a
+  stray PDF removed from the tree was still in the zip a fresh run produced.
+  Both archives are removed before they are written now.
+- 9.0-alpha2.  47 changes since the first 9.0 alpha.
+  The journal's own faults, all found on real recordings: the reader rejected
+  every record whose header was not a multiple of four, which the writer never
+  promised and which meant most driver names; a driver added mid-run was
+  written with no type and so could not be replayed; and a write that failed
+  -- a full disk, which is what a month-long run does to one -- was invisible,
+  the switch staying on and the counter still climbing while nothing landed.
+- KAME remembers what it is set to.  The four hand-placed windows, the
+  appearance, the graph theme, the directory each kind of file dialog was last
+  used in, the last eight measurements, and the driver forms, charts and
+  graphs a measurement had open -- with their geometry -- all in
+  ~/.config/kame/kame.ini.  What belongs to a measurement stays in its .kam.
+- The window starts dark, and can be told otherwise from the command line or
+  the View menu.  Three separate Qt defects had to be fixed before switching
+  it while KAME runs came out right.
+- showForms() is no longer every driver's job: 30 of them said nothing but
+  showNormal() and raise(), and the framework can find a driver's window
+  through the connectors it already made.
+
 * Sun Aug 30 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - The Raw Stream Reader is the Journal Reader, and a run is opened by either
   of its halves.  Given run042.kamj it takes the raw stream the journal's own
@@ -113,6 +534,261 @@
   named after the length of their list, so deleting the first and adding
   another asked for a name that was still taken; they now take the first free
   one.
+- UI: a toolbox folds when the pointer leaves it, whether or not it holds the
+  keyboard.  Clicking into one to change a setting used to keep it open until
+  you clicked somewhere else, however far away the pointer went -- which is a
+  toolbox sitting on top of the window you were trying to get back to, and
+  moving the mouse off it is exactly how anyone says get out of the way (user).
+  The one case that still overrules the pointer is typing: a widget that takes
+  text would be clipped out of sight by a 36 px bar while the keystrokes went
+  on arriving.  A pane merely holding focus because a line edit grabbed it on
+  show no longer counts, which is what it was being mistaken for.
+- UI: the main window has a title.  Nothing had ever set one, so it carried
+  none at all -- and the pinned mark had nowhere to go.  It says what is
+  loaded, then whose window it is: "run042.kam - KAME 9.0", the order every
+  document-shaped application uses, since the file is what differs between two
+  of them.  Opening, saving and closing a measurement each update it.
+- UI: a pinned toolbox says so in its own title bar, with a mark after its
+  name, and the status-line message that used to announce it is gone.  That is
+  where every docking UI with this feature keeps it -- Visual Studio, VS Code
+  and Qt Creator all put a pushpin in the dock's title bar, upright when
+  pinned and on its side when not.  A mark on a tab would read as belonging to
+  that pane, and pinning belongs to the window; a message says it once and
+  then the state is unreadable.  It is legible exactly when it needs to be, a
+  collapsed toolbox being 36 px wide and, by definition, not pinned.
+- UI: one click on a tab strip pins that window open, and another lets it hide
+  again -- every strip, the main window's included, since a rule that holds in
+  one place and not another is a rule nobody remembers.  A single click can
+  mean this because clicking a tab has nothing else left to do: hovering one
+  already picks that pane, so the gesture is hover to choose, click to keep.
+  It used to want the window to hold the keyboard AND the click to land on the
+  tab already in front, which is one condition more than a gesture may ask.
+- UI: the tab under the pointer magnifies, the way a dock icon does.  What
+  grows is the icon, inside a rect fixed at its largest -- so the strip never
+  re-lays out, no neighbour moves, and it can be animated at all, which a
+  style sheet cannot be.
+  A collapsed strip shows every icon at that larger size instead (user): it is
+  then the only thing on screen, and small icons in it are a smaller target
+  than the bar holding them.  So does the tab of the pane on show, whatever
+  the rest are doing -- watching the icon of the thing you are looking at
+  shrink as the pointer leaves its tab is the wrong way round.  The three
+  meanings look unrelated and say one thing: big is what there is to look at.
+- UI: the main window opens at two fifths of the screen, never less than its
+  layout plus the status bar.  A chosen proportion, like the width beside it:
+  three attempts to derive one failed in both directions -- minimumHeight() is
+  the minimum somebody SET and so was 0, minimumSizeHint() does not follow what
+  a QMdiArea contains, and the toolboxes' own height is far too much for a
+  window holding a row of script panes.  The status bar is in none of the
+  hints, XStatusPrinter creating it and hiding it in the same breath, which is
+  what clipped the bottom of the pane when the first message appeared.  It
+  still grows itself if a layout appears that it was not sized for, a row of
+  tabs where there were none especially.
+- UI: folding a toolbox takes the keyboard with it.  A pane's line edit takes
+  focus merely by being shown, so typing went into a field nobody could see
+  and nobody had asked for (user).
+- Cmd-Q runs KAME's teardown.  Qt's cocoa delegate answers
+  applicationShouldTerminate: by sending a QCloseEvent to the APPLICATION
+  object and reporting NSTerminateNow when it comes back accepted -- AppKit
+  then calls exit() with no window having seen a close event, so the teardown
+  in FrmKameMain::closeEvent never ran and the scripting threads, the
+  journal's two threads and the driver tree all went into static destruction
+  alive.  The application now closes the main window from there and answers
+  with what that close decided, so a refused quit (an interface still running)
+  cancels the termination instead of proceeding without it.
+- Fixed an abort at exit with a Euresys eGrabber camera present.  The GenTL
+  close throws when the producer is already gone, which it is during static
+  destruction, and it throws out of ~EGrabberDiscovery() -- a destructor, and
+  so implicitly noexcept, meaning std::terminate fires at the throw, frames
+  below any deleter of ours.  A try/catch around the delete could never have
+  caught it.  The holders are leaked instead, so nothing runs at exit, while
+  closing the last interface still releases them, which is the path where the
+  library is alive and the teardown means something.
+- UI: opening a measurement pins the toolboxes open (user).  What follows a
+  load is a stretch of work across several drivers and their interfaces, and a
+  toolbox that folds away between one and the next is in the way.  A pin, not
+  the keyboard: nothing is raised and nothing is taken, which is what the
+  focus grab that used to be here got wrong.  The View menu's switches say so,
+  being what it is done through, and unticking one puts it back.
+- UI: clicking a driver or an interface in a list opens that driver's window
+  and folds the toolboxes (user).  The pane has just done its job and would
+  otherwise be standing in front of the result.  A toolbox folded this way
+  stays folded until the pointer has left it, since reopening under the hand
+  that just dismissed it is the opposite of what the click meant.  Creating a
+  driver is left alone: that path deliberately brings the Interface pane
+  forward, a new driver having a port to set before it can start.
+- UI: nothing takes the keyboard when a measurement finishes loading either.
+  It used to hand it to the east toolbox, interfaces and entries being what one
+  turns to next, which is the same thing as the startup focus that was removed
+  -- and it now reads worse than it did: the toolbox opens, raises itself,
+  takes the keyboard, and folds again on the next poll because the pointer is
+  not over it.
+- UI: a toolbox the measurement's own forms sit on top of is not pinned open
+  when that measurement is loaded (user).  Pinning was added because loading
+  starts a stretch of work across several drivers, but the toolboxes are
+  always-on-top tool windows -- a pinned one does not sit beside a form, it
+  sits ON it -- so where the two overlap, auto-hide is the better answer and
+  the pin is skipped.  Decided per toolbox rather than for both, from the
+  form geometries just read, before the load starts: the forms themselves
+  arrive one at a time and much later.  Any overlap counts: a first attempt
+  asked for 40 px in both directions and, measured against a real layout,
+  the two forms that reach a toolbox reach it by 11 px and by 9.  The two
+  mistakes are not the same size either -- not pinning costs nothing but the
+  ordinary auto-hide, while pinning wrongly parks an always-on-top window on
+  a form being worked on.  Touching still is not overlapping.
+- UI: the driver forms that were open for a measurement open again with it,
+  where and as big as they were.  Loading a .kam is a script on its own
+  thread, so the drivers appear one at a time and there is no "load finished"
+  to wait for: each one is answered as it is caught (on the main thread, and
+  without FLAG_AVOID_DUP, since every driver matters).  Kept per measurement
+  file in ~/.config/kame/kame.ini, pruned to the files Open Recent still
+  names, and holding nothing but a name and a rectangle -- what belongs to a
+  measurement stays in its .kam.
+- Framework: what "show a form" means is decided in one place.  The five
+  overrides that remain still open-coded showNormal() + raise(), as did the
+  default and the three buttons that bring up a driver's second window, so
+  the answer lived in nine copies (user).  XDriver::showForm(QWidget *) is
+  that answer -- showNormal() so a minimised form comes back rather than
+  staying in the dock, raise() so an open but buried one answers the click,
+  and null-safe, nullptr being what windowOf() says about a driver with no
+  form.  Everything else is now one line.  Named singular against the plural
+  showForms(), which is the distinction itself: one window versus all of a
+  driver's.
+- Framework: 30 hand-written showForms() are gone, and the two conditions for
+  removing one were checked mechanically rather than by eye: every connector
+  made in the constructor (so the window is findable when the driver is
+  caught), and only ONE form window among the driver's connected widgets.
+  The second one earned its keep -- XPulser has m_form and m_formMore, and
+  XMagnetPS m_form and m_formConfig, so windowOf() could return the wrong one
+  of the two; both keep their override.  So do XPumpControl, which builds its
+  connectors inside showForms(), and XAutoLCTuner and XODMRFMControl, which
+  resize their form first to dodge a Windows bug.  The empty ones on drivers
+  that have no form at all went too: "nothing happens" is what the default
+  does for them.  The deletion removed 30 definitions and 30 declarations --
+  a mismatch either way would have been a compile or link error, so the count
+  is the check.
+- Framework: showForms() is no longer every driver's job.  34 of its 37
+  implementations were the same two lines, m_form->showNormal() and raise(),
+  and existed only because the framework had no way to tell which window
+  belonged to which driver.  It has had one all along: every XQConnector
+  registers its widget against its node, so XQConnector::windowOf(node) finds
+  the window whose widgets are bound to that node's subtree -- an O(1)
+  isUpperOf() containment test, which also tells two drivers of the same type
+  apart.  XDriver::showForms() is now a virtual with that as its default
+  implementation rather than a pure virtual; the three that do more than show
+  one window keep their override, and the 34 that do not can go.
+- Journal: a write that fails is noticed.  Neither file checked any write
+  return, and the realistic failure for a month-long run is not a bad path
+  (caught at open) but a disk that fills up in the middle, which arrives as a
+  short return from gzwrite long after the file opened.  It was invisible:
+  the Recording switch stayed on, the statistics went on counting bytes that
+  were not landing, and the file stopped growing, with nothing said until
+  somebody opened it.  Both files now say it once, close, and turn the switch
+  off, so what is on screen is what is on disk.  The .kamb also gained the
+  open check the .kamj had all along -- a path that would not open left the
+  switch on while every record was dropped for want of a handle.
+- Journal: a short read is a broken file, not a success.  gzread answers with
+  a count, and a file cut short -- what a killed KAME leaves, which is the
+  case this format was shaped around -- returns fewer bytes than asked
+  without being an error, so "== -1" let a truncated tail through and the
+  header fields were read out of whatever the buffer held.  Checked against
+  the requested count now, throughout the .kamb reader.  One of them was
+  worse: goToHeader() tested "== Z_NULL", i.e. zero, which caught the end of
+  the file and let the -1 error return through into a length that then
+  decided where to seek.
+- UI: File > Open Recent, holding the last eight measurements.  Every route
+  in goes through openMes(), so the dialog, the list itself and the file named
+  on the command line all feed it, and saving a .kam or .kamj adds it too.
+  Entries are listed whether or not the file is reachable at this moment -- a
+  measurement on a share that is not mounted this morning is still the one
+  somebody wants, and trying to open it says so plainly enough -- and show the
+  file name with the directory behind it as a tool tip, these paths being long
+  and a lab's files ending in the same handful of names.
+- UI: file dialogs start where that kind of file was last used.  All of them
+  passed "" as the starting directory, which is the process's working
+  directory -- on a lab machine, wherever KAME happened to be launched from --
+  so opening a measurement, running a script, or browsing for a driver's dump
+  file meant navigating there again every single time.  Three keys, not one:
+  measurements, scripts and data files live in different places on a working
+  machine, and a single shared "last directory" would send each of them to
+  wherever the previous one went.  A stored directory that has since gone away
+  is ignored rather than handed to a dialog that cannot list it.  Driver forms
+  keep their existing behaviour of following the path already in the field;
+  the stored one is the fallback when that field is empty.
+- UI: View > Theme Color of Graph is remembered too, as its own word in the
+  same file ("night" or "daylight").  It stays independent of the window's
+  appearance rather than being derived from it -- a bright graph in a dark
+  window is a combination people choose -- and it is applied before anything
+  is built, a graph taking the current theme when it is constructed.
+- UI: the appearance chosen from View > Appearance is remembered as well, in
+  the same file and as the same word the command line takes ("system", "light"
+  or "dark").  --appearance still wins for the run it is given on, and does
+  NOT overwrite the stored choice: a flag says "start this way this time", and
+  one that quietly rewrote the setting would take that meaning away.
+- UI: a folded toolbox no longer grows when the appearance changes.  The
+  window re-derives its minimum width from the QMdiArea's size hint on every
+  layout pass -- which is why setToolboxCollapsed() lifts that minimum on each
+  call rather than once at setup -- and a palette change is such a pass,
+  arriving while nothing is folding: measured in a three-pane reproduction,
+  a 43 px bar came back out to exactly the 196 px minimum and stayed there.
+  setColorScheme() alone does it, so re-setting the style sheet was never the
+  cause.  A maximum holds it instead, which is a property the window keeps
+  rather than one re-derived from a child's hint, so nothing has to run at the
+  right moment: it is lifted before every fold or unfold, since the animation
+  passes through widths it would forbid, and put back when a fold finishes
+  (a fold interrupted half-way leaves none, stop() not emitting finished()).
+  Re-applying the fold after the change was tried first and is a race nobody
+  wins -- the clamp lands a turn later than the change, so the re-apply either
+  runs too early, as it did, or has to guess how long to wait.
+- UI: the four hand-placed windows -- the main window, both toolboxes and the
+  message log -- come back where they were left.  Their geometries go to
+  ~/.config/kame/kame.ini (a text file on every platform, macOS included,
+  which is a plist's caching daemon less to fight when a layout has to be
+  reset by deleting it), written on the way out and read in the constructor's
+  layout pass, so the computed first-run positions are still what a fresh
+  installation gets.  A folded toolbox saves the size it had open rather than
+  its 30 px resting width, and a geometry whose screen no longer exists -- a
+  laptop away from its desk -- is discarded in favour of the computed default
+  rather than restored somewhere invisible.  Driver forms are deliberately not
+  included: there are dozens, they come and go with the measurement, and what
+  belongs to a measurement belongs in its .kam file.
+- UI: only actual windows are placed by the new-window cascade.  This window's
+  event filter is installed on two QTabBars and nothing else, and a tab bar is
+  a widget that gets shown like any other -- so "place the new window" was
+  moving a tab bar to an absolute position inside its own MDI area, which the
+  next layout pass had to undo.
+- UI: nothing is put in the user's hand at startup.  KAME opened with the west
+  toolbox activated and holding itself open, so the first thing on screen was
+  a panel asking to be dismissed.
+- UI: KAME starts dark.  Qt follows the desktop appearance by default and,
+  since 6.8, can be told otherwise without leaving the native style
+  (QStyleHints::setColorScheme sets the NSApplication appearance on macOS
+  rather than swapping in a hand-painted Fusion palette).  The graph's Night
+  theme has been the default all along, so dark-on-dark is what the two
+  defaults now agree on; the switches stay independent, so all four
+  combinations are a menu apart -- View > Appearance for the window,
+  View > Theme Color of Graph for the graph.  --appearance system|light|dark
+  chooses at startup, "system" being the old behaviour of following the
+  desktop.  Switching from the menu while KAME runs works too, which took
+  three separate defects to be able to say, each measured against 6.10.1 on
+  this Mac rather than reasoned about:
+  a style sheet resolves palette(...) when it is SET and never afterwards (a
+  QTabBar carrying KAME's own sheet read #d9d9d9 under Dark, still #d9d9d9
+  after switching to Light, and #555555 once the same string was set a second
+  time), so every sheet naming a palette role is set again on the change;
+  a QMdiArea's background follows nothing at all, sitting at #bfbfbf through
+  every scheme, which was wrong at startup as much as during a switch;
+  and colorSchemeChanged is emitted one turn BEFORE the palette it announces,
+  so a handler that re-reads the palette gets the scheme being left behind --
+  between two schemes, one step stale is inversion, and asking for Dark was
+  turning widgets white.  That work now happens on the next turn of the event
+  loop.  An AppKit call added while chasing this was measured unnecessary and
+  removed: Qt's own setColorScheme/unsetColorScheme were right all along.
+- UI: the toolboxes are as wide as what is in them and no wider (user).  The
+  screen fraction that used to share the decision was doing nothing the floor
+  did not already do -- keeping a small display from cramping them -- while on
+  a large one it won and made both far wider than anything they hold.  A width
+  dragged out by hand is remembered for the session, so wanting more costs one
+  drag.
 - UI: the toolboxes are as wide as the widest pane in them (the replay pane
   outgrew the old floor when it gained a slider), and nothing auto-hides
   during startup or shutdown -- the hover poll used to start before the

@@ -47,12 +47,6 @@ XDCSource::XDCSource(const char *name, bool runtime,
 	m_conRange = xqcon_create<XQComboBoxConnector>(m_range, m_form->m_cmbRange, Snapshot( *m_range));
 }
 
-void
-XDCSource::showForms() {
-//! impliment form->show() here
-    m_form->showNormal();
-    m_form->raise();
-}
 
 void
 XDCSource::start() {

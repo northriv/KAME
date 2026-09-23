@@ -17,6 +17,22 @@
 #include "support.h"
 #include "xnodeconnector.h"
 #include <QMainWindow>
+#include <QPointer>
+
+//! What the command line asked the appearance to be, so the View menu can say
+//! which one is in force: QStyleHints::colorScheme() reports the EFFECTIVE
+//! scheme and cannot tell a forced Dark from a system that happens to be dark.
+//! Qt::ColorScheme::Unknown means nothing was forced.
+extern Qt::ColorScheme g_kameColorSchemeRequested;
+//! Puts one of the three choices into effect, everywhere it has to be said.
+void kameApplyColorScheme(Qt::ColorScheme scheme);
+//! What the View menu was last set to, Dark if it never was.  The
+//! --appearance option overrides it for one run without replacing it.
+Qt::ColorScheme kameStoredColorScheme();
+void kameStoreColorScheme(Qt::ColorScheme scheme);
+//! Puts the graph back on the light or dark it was last set to.  Independent
+//! of the window's appearance, and to be called before any graph is built.
+void kameApplyStoredGraphTheme();
 
 class Ui_FrmJournalReader;
 typedef QForm<QWidget, Ui_FrmJournalReader> FrmJournalReader;
@@ -66,6 +82,7 @@ public:
     QMenu* m_pJupyterNotebookMenu;
     QMenu *m_pViewMenu;
     QMenu *m_pGraphThemeMenu;
+    QMenu *m_pRecentMesMenu = nullptr;
 	QMenu *m_pHelpMenu;
 	QAction* m_pFileOpenAction;
 	QAction* m_pFileSaveAction;
@@ -99,6 +116,15 @@ public:
 
 	int openMes(const XString &filename);
     void signalAllModulesLoaded(); //!< Call after all driver modules are loaded.
+    //! Folds every auto-hiding toolbox, and keeps it folded until the pointer
+    //! has left it.  For the moment a pane opens a window of its own: the
+    //! toolbox has just done its job and is now standing in front of the
+    //! result.  \sa XDriverListConnector, XInterfaceListConnector
+    void foldToolboxes();
+    //! Holds every auto-hiding toolbox open.  For loading a measurement: what
+    //! follows is a stretch of work across several drivers and their
+    //! interfaces, and a toolbox that folds between each one is in the way.
+    void pinToolboxes();
 
     bool running() const {return !!m_measure;}
 public slots:
@@ -124,6 +150,9 @@ public slots:
     virtual void jupyterNotebookAction_activated( QAction *act );
     //! Handle clicks on hyperlinks in a script / IPython output pane.
     void onScriptLinkClicked(const QUrl &url);
+    //! A window was put up on request; a pinned toolbox lying over it is
+    //! unpinned.  Invoked by name from XDriver::showForm().
+    void formShown(QWidget *w);
     virtual void fileLogAction_toggled( bool var );
     virtual void graphThemeNightAction_toggled( bool var );
 //    virtual void graphThemeDayightAction_toggled( bool var );
@@ -179,13 +208,22 @@ private:
 		int idleTicks;
 		bool autoHide;              //!< per-window switch, from the View menu
 		QAction *autoHideAction;    //!< the View-menu entry, kept in sync
-		//! Whether the toolbox held the keyboard as of the last poll — read
-		//! when a tab is clicked, since the click itself may have just
-		//! activated the window and would answer "yes" either way.
+		//! Text is being typed into this window: the one thing that keeps it
+		//! open with the pointer elsewhere.  \sa pollEdgeAutoHide()
 		bool wasFocused;
+		//! Folded on purpose, and not to be reopened by the pointer that is
+		//! still sitting on it -- until that pointer leaves and comes back.
+		bool dismissed = false;
 	};
 	std::deque<EdgeSlider> m_edgeSliders;
 	QTimer *m_pEdgeHoverTimer = nullptr;
+	//! Magnifying the tab under the pointer.  The icon is redrawn larger, not
+	//! the tab: the icon rect is fixed, so the strip never re-lays out and
+	//! nothing jumps.  Style sheets cannot animate, and a tab that changed
+	//! size would move its neighbours on every frame.
+	class QVariantAnimation *m_pTabMagnify = nullptr;
+	QPointer<class QTabBar> m_tabMagnifyBar;
+	int m_tabMagnifyIdx = -1;
 	//! Auto-hide waits for the end of startup and stops at the start of
 	//! shutdown.  Loading the driver modules takes seconds, during which the
 	//! pointer is wherever the user left it and nothing on screen is theirs to
@@ -193,17 +231,76 @@ private:
 	//! failure rather than a feature.  \sa pollEdgeAutoHide()
 	bool m_edgeAutoHideArmed = false;
 	void setupEdgeAutoHide(const QRect &screen);
+	//! Fixes the icon rect a tab bar draws into, so magnifying inside it moves
+	//! nothing.  Idempotent: the poll calls it for bars that appear later.
+	void setupTabMagnify(class QTabBar *tabs, class QMdiArea *area);
+	//! Puts the pinned state in the window's own title bar, where a docking UI
+	//! conventionally keeps it.
+	void markPinned(EdgeSlider &s);
+	//! The window's own title: what is loaded, the version, and the pin mark.
+	//! Nothing set one at all, so the main window carried no title of any
+	//! kind, and the pinned mark had nowhere to go.
+	void updateWindowTitle();
+	//! Grows the window if the layout wants more height than it has.
+	void ensureMinimumHeight();
+	//! Base name of the measurement file in the tree, for the title bar.
+	QString m_titleDoc;
+	//! Starts the pointer's tab growing and lets the one it left shrink back.
+	void magnifyTab(class QTabBar *tabs, int idx);
 	//! Trims the toolboxes against the message window once their frames exist.
 	void fitToolboxHeights();
 	//! Reveals a toolbox and hands it the keyboard: west at startup, east once
 	//! a .kam has finished loading.
-	void focusToolbox(bool left);
 	void pollEdgeAutoHide();
 	void setToolboxCollapsed(EdgeSlider &slider, bool collapse);
 	//! nullptr where a window has no edge slider (docked layout, or Wayland).
 	EdgeSlider *edgeSliderFor(QWidget *win);
 	int m_cascadeIndex = 0;
 	void closeEvent( QCloseEvent* ce ) override;
+    //! \return true if a form this measurement is about to restore would end
+    //! up under \a s held open -- the toolboxes are always-on-top windows.
+    bool formsWouldBeCovered(const struct EdgeSlider &s) const;
+    //! A driver has appeared: if this measurement had its form open when it
+    //! was last closed, open it again, where and as big as it was.
+    void onDriverCaught(const Snapshot &shot,
+        const XListNodeBase::Payload::CatchEvent &e);
+    //! The same for the two kinds of window that are not a driver's.  A chart
+    //! is asked to show itself, because nothing else ever will; a graph shows
+    //! itself once its axes are set (XValGraph::onAxisChanged), so there it is
+    //! enough to have put the geometry on the window before that happens.
+    void onChartCaught(const Snapshot &shot,
+        const XListNodeBase::Payload::CatchEvent &e);
+    void onGraphCaught(const Snapshot &shot,
+        const XListNodeBase::Payload::CatchEvent &e);
+    //! Puts  w where this measurement left it, and only once: a window the
+    //! user then moves is theirs, and re-showing it must not drag it back.
+    void placeRememberedWindow(const char *kind, const XString &name,
+        class QWidget *w);
+    //! Which windows are open, and where, for the measurement now loaded.
+    void saveOpenForms();
+    void loadOpenForms();
+    //! The measurement the forms below belong to.  Empty when none is loaded,
+    //! and nothing is stored then: these are per-measurement.
+    XString m_docPath;
+    std::map<XString, QRect> m_formsWanted;
+    shared_ptr<Listener> m_lsnDriverCaught;
+    shared_ptr<Listener> m_lsnChartCaught, m_lsnGraphCaught;
+    //! Moves \a path to the top of the File > Open Recent list.
+    void rememberRecentMes(const QString &path);
+    void updateRecentMesMenu();
+    //! Long enough to hold a week of work, short enough to read at a glance.
+    static constexpr int RECENT_MES_MAX = 8;
+    //! Writes the four hand-placed windows' geometries out, on the way to a
+    //! clean exit.  Restoring them is done in the constructor's layout pass.
+    void saveWindowLayout();
+    //! The geometry \a win would have open, which for a folded toolbox is not
+    //! the one it has.
+    QRect layoutGeometryOf(QWidget *win) const;
+    //! Where folding puts a toolbox: its resting bar, at the edge it clings to.
+    QRect collapsedGeometryOf(const struct EdgeSlider &s) const;
+    //! Holds a folded toolbox at the size folding left it, against a minimum
+    //! the window re-derives on every layout pass.
+    void pinFold(struct EdgeSlider &s, bool pin);
 	shared_ptr<XScriptingThread> runNewScript(const XString &label, const XString &filename);
 	QTimer *m_pTimer;
 	shared_ptr<XMeasure> m_measure;

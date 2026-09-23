@@ -257,6 +257,13 @@ protected:
     //! Converts RelPatList to native patterns
     virtual void createNativePatterns(Transaction &tr) = 0;
     virtual double resolutionQAM() const = 0;
+    //! How many pattern samples the back-end folds into one QAM sample.
+    //!
+    //! 1 where there is no decimation.  It matters because an RF pulse whose
+    //! length is not a whole number of QAM samples cannot have its envelope
+    //! written out: the tail that does not fill a sample is dropped, and the
+    //! gate then outlasts the RF inside it.  \sa XPulser::createNativePatterns()
+    virtual unsigned int patternSampsPerQAMSamp() const {return 1;}
     //! minimum period of pulses [ms]
     virtual double minPulseWidth() const = 0;
     //! existence of AO ports.

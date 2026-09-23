@@ -76,11 +76,6 @@ XSG::XSG(const char *name, bool runtime,
             tr[ *x].setUIEnabled(false);
     });
 }
-void
-XSG::showForms() {
-    m_form->showNormal();
-    m_form->raise();
-}
 
 void
 XSG::analyzeRaw(RawDataReader &reader, Transaction &tr) {

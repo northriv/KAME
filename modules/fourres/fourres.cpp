@@ -53,11 +53,6 @@ XFourRes::XFourRes(const char *name, bool runtime,
 }
 XFourRes::~XFourRes () {
 }
-void
-XFourRes::showForms() {
-    m_form->showNormal();
-    m_form->raise();
-}
 bool
 XFourRes::checkDependency(const Snapshot &shot_this,
 	const Snapshot &shot_emitter, const Snapshot &shot_others,

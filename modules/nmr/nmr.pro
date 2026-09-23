@@ -16,6 +16,7 @@ HEADERS += \
     nmrpulse.h \
     nmrrelax.h \
     nmrrelaxfit.h \
+    nmrrelaxmap.h \
     nmrspectrum.h \
     nmrspectrumbase_impl.h \
     nmrspectrumbase.h \
@@ -29,6 +30,7 @@ SOURCES += \
     nmrpulse.cpp \
     nmrrelax.cpp \
     nmrrelaxfit.cpp \
+    nmrrelaxmap.cpp \
     nmrspectrum.cpp \
     nmrspectrumsolver.cpp \
 

@@ -26,6 +26,15 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QPropertyAnimation>
+#include <QVariantAnimation>
+#include <QStatusBar>
+#include <QStyleHints>
+#include "kamesettings.h"
+#include <QActionGroup>
+#include <QLineEdit>
+#include <QAbstractSpinBox>
+#include <QFileInfo>
+#include <QPainter>
 #include <QCursor>
 #include <QTabBar>
 #include <QProxyStyle>
@@ -58,6 +67,8 @@
 #include "measure.h"
 #include "xjournal.h"
 #include "interface.h"
+#include "driver.h"     //!< the forms this remembers belong to drivers
+#include "analyzer.h"   //!< ...and to charts and graphs, which are not drivers
 #include "xrubywriter.h"
 #include "xdotwriter.h"
 #include "xscriptingthreadconnector.h"
@@ -74,6 +85,58 @@
 
 QWidget *g_pFrmMain = nullptr;
 static std::unique_ptr<XMessageBox> s_pMessageBox;
+
+//! A QMdiArea's background is frozen at construction: measured against Qt
+//! 6.10.1 on this Mac, it read #bfbfbf through Light, Dark and back again
+//! while the palette around it did change, so all three of KAME's pane stacks
+//! kept one grey whatever the scheme was.  Give it the window's colour, and
+//! give it again whenever that colour moves.
+static void followPalette(QMdiArea *area) {
+    if(area)
+        area->setBackground(area->palette().brush(QPalette::Window));
+}
+
+QString
+kameLastDir(const char *key) {
+    QString dir = KameSettings().value(QString("lastdir/") + key).toString();
+    //A directory that has gone away -- an unmounted share, a scratch folder
+    //cleaned out -- would send the dialog somewhere it cannot list.
+    return QDir(dir).exists() ? dir : QString();
+}
+void
+kameStoreLastDir(const char *key, const QString &path) {
+    if(path.isEmpty()) return;
+    QFileInfo fi(path);
+    QString dir = fi.isDir() ? fi.absoluteFilePath() : fi.absolutePath();
+    if(dir.length())
+        KameSettings().setValue(QString("lastdir/") + key, dir);
+}
+static void saveWindowGeometry(const char *key, const QRect &geom) {
+    if(geom.isValid())
+        KameSettings().setValue(QString("geometry/") + key, geom);
+}
+//! \return false if nothing usable was stored, leaving \a win untouched.
+static bool restoreWindowGeometry(const char *key, QWidget *win) {
+    QRect geom = KameSettings().value(QString("geometry/") + key).toRect();
+    if( !geom.isValid()) return false;
+    //The screen it was saved on does not have to still be there -- a laptop
+    //away from its desk is the everyday case -- and a window restored onto a
+    //screen that is gone is invisible with nothing left to grab it by.  Less
+    //than a title bar's worth of it landing on a screen that exists now counts
+    //as that, and the computed default is used instead.
+    int on_screen = 0;
+    for(const QScreen *scr: QGuiApplication::screens()) {
+        QRect vis = geom.intersected(scr->availableGeometry());
+        on_screen = std::max(on_screen, vis.width() * std::min(vis.height(), 40));
+    }
+    if(on_screen < 120 * 40) return false;
+    //setGeometry, and nothing that moves the frame instead: geometry() is the
+    //client rectangle, so saving and restoring the same call is exact, while
+    //pairing it with move() would walk the window down the screen by the
+    //height of its title bar on every run.
+    win->setGeometry(geom);
+    return true;
+}
 
 FrmKameMain::FrmKameMain()
     :QMainWindow(NULL) {
@@ -96,6 +159,7 @@ FrmKameMain::FrmKameMain()
     m_pMdiCentral->setViewMode(QMdiArea::TabbedView);
     m_pMdiCentral->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_pMdiCentral->setTabsClosable(true);
+    followPalette(m_pMdiCentral);
 
 //    setDockOptions(QMainWindow::ForceTabbedDocks | QMainWindow::VerticalTabs);
     //Left MDI area.
@@ -108,6 +172,7 @@ FrmKameMain::FrmKameMain()
     m_pMdiLeft->setViewMode(QMdiArea::TabbedView);
     m_pMdiLeft->setTabPosition(QTabWidget::West);
 //    m_pMdiLeft->setTabPosition(QTabWidget::North);
+    followPalette(m_pMdiLeft);
     dockLeft->setWidget(m_pMdiLeft);
     addDockWidget(Qt::LeftDockWidgetArea, dockLeft);
 
@@ -121,6 +186,7 @@ FrmKameMain::FrmKameMain()
     m_pMdiRight->setViewMode(QMdiArea::TabbedView);
     m_pMdiRight->setTabPosition(QTabWidget::East);
 //    m_pMdiRight->setTabPosition(QTabWidget::North);
+    followPalette(m_pMdiRight);
     dockRight->setWidget(m_pMdiRight);
     addDockWidget(Qt::RightDockWidgetArea, dockRight);
 //    addDockWidget(Qt::TopDockWidgetArea, dockRight);
@@ -185,6 +251,38 @@ FrmKameMain::FrmKameMain()
     m_pMdiRight->activatePreviousSubWindow();
 
     m_pViewMenu->addSeparator();
+    //Dark by default, which with the graph's Night theme -- the default there
+    //all along -- makes dark-on-dark what KAME starts as.  The two switches
+    //are independent, so all four combinations are a menu apart.
+    //
+    //Qt follows the desktop unless told otherwise, and since 6.8 it can be
+    //told without leaving the native style: QStyleHints::setColorScheme() sets
+    //the NSApplication appearance on macOS rather than swapping in a
+    //hand-painted Fusion palette.
+    //\sa the --appearance option, which is the same thing at startup
+    //Switching while KAME runs works, which took three fixes to be able to
+    //say: a style sheet resolves palette(...) once when it is set, a QMdiArea
+    //never follows the palette at all, and colorSchemeChanged arrives one turn
+    //before the palette it announces.
+    {
+        QMenu *menu = m_pViewMenu->addMenu(i18n("&Appearance"));
+        auto *group = new QActionGroup(this);
+        const struct {const char *label; Qt::ColorScheme scheme;} choices[] = {
+            {I18N_NOOP("&System"), Qt::ColorScheme::Unknown},
+            {I18N_NOOP("&Light"), Qt::ColorScheme::Light},
+            {I18N_NOOP("&Dark"), Qt::ColorScheme::Dark}};
+        for(auto &&c: choices) {
+            QAction *act = menu->addAction(i18n_noncontext(c.label));
+            act->setCheckable(true);
+            act->setActionGroup(group);
+            act->setChecked(c.scheme == g_kameColorSchemeRequested);
+            Qt::ColorScheme scheme = c.scheme;
+            //No message: the window changing colour is the confirmation.
+            connect(act, &QAction::triggered, this, [scheme]{
+                kameApplyColorScheme(scheme);
+                kameStoreColorScheme(scheme); });
+        }
+    }
     m_pGraphThemeMenu = m_pViewMenu->addMenu(i18n( "Theme Color of &Graph" ) );
     m_pGraphThemeMenu->setIcon( QIcon( *g_pIconGraph));
     m_pGraphThemeMenu->addAction(m_pGraphThemeNightAction);
@@ -215,35 +313,68 @@ FrmKameMain::FrmKameMain()
         //Both toolboxes run from the top of the screen down to just above the
         //message window, which parks itself at the bottom-left corner and
         //keeps its top edge there (it grows downwards when a popup appears).
+        //Before the toolboxes, whose height is measured down to it.
+        restoreWindowGeometry("messages", XMessageBox::form());
         int msg_top = XMessageBox::form()->frameGeometry().top();
         int deco = std::max(0, dockLeft->frameSize().height() - dockLeft->height());
         int toolbox_h = std::max(msg_top - 6 - rect.top() - deco, 360);
-        //A quarter of the screen rather than a fifth, and never below what the
-        //widest pane in this toolbox actually wants: rendered on their own,
-        //the West panes come to 375 px (the calibration table) and the East
-        //ones to 439 (the replay pane, since it grew a scrub bar), and each
-        //needs about 40 more for the MDI tab strip down the side and the
-        //window frame.  Below that the pane is not narrow, it is cut off.
-        dockLeft->resize(std::max({rect.width() / 4, XMessageBox::form()->width() + 80, 420}),
-            toolbox_h);
+        //By what is in them, not by the size of the screen (user).
+        //
+        //Rendered on their own the West panes come to 375 px (the calibration
+        //table) and the East ones to 439 (the replay pane, since it grew a
+        //scrub bar), and each needs about 40 more for the MDI tab strip down
+        //the side and the window frame.  Below that a pane is not narrow, it
+        //is cut off; above it, everything but the three table panes is
+        //collecting whitespace.
+        //
+        //There used to be a screen fraction here as well, and it was doing
+        //nothing the floor did not already do -- its job was to keep a small
+        //display from cramping them, which the floor does -- while on a large
+        //one it won and made both toolboxes far wider than anything they hold.
+        //A width dragged out by hand is remembered for the session (see the
+        //poll), so wanting more costs one drag.
+        dockLeft->resize(std::max(XMessageBox::form()->width() + 80, 420), toolbox_h);
         dockLeft->move(0, rect.top());
+        //Everything above is the first run.  Afterwards the four windows come
+        //back where they were left, and this is the point to do it: before
+        //setupEdgeAutoHide() takes each toolbox's geometry as its open size.
+        restoreWindowGeometry("west", dockLeft);
         //Only a first guess: see fitToolboxHeights(), which trims both once
         //their frames exist and the window server has placed them.
         dockRight->setFloating(true);
         dockRight->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
             Qt::CustomizeWindowHint | Qt::WindowTitleHint);
-        dockRight->resize(std::max(rect.width() / 4, 490), dockLeft->height());
+        dockRight->resize(490, dockLeft->height());
         dockRight->move(rect.right() - dockRight->frameSize().width() - 6, rect.top());
+        restoreWindowGeometry("east", dockRight);
         setupEdgeAutoHide(rect);
     }
     //The following 2 lines should be after setting up docks. Otherwise, crashes in windows.
     //A third wider than it used to be, both terms alike (screen/4 -> 13/40,
     //500 -> 650), now that the toolboxes fold themselves away and the space
     //between them is the main window's to use.
-    resize(QSize(std::max(rect.width() * 13 / 40, 650), minimumHeight()));
+    //Two fifths of the screen, and never less than the layout plus the status
+    //bar.  A CHOSEN proportion, like the width beside it -- not derived from
+    //anything, and nobody should read it as though it were.
+    //
+    //Three attempts to derive it all failed, in both directions.
+    //minimumHeight() is the minimum somebody SET, and nobody did, so it was 0
+    //and the window opened at whatever Qt clamped that up to.
+    //minimumSizeHint() does not follow what a QMdiArea contains, so the height
+    //built on it came out short twice.  And the toolboxes' own height -- the
+    //screen down to the message window, which at least describes a real
+    //layout -- is far too much for a window holding a row of script panes.
+    //The status bar is in none of the hints either: XStatusPrinter creates it
+    //and hides it in the same breath, so the first message to appear took its
+    //space out of the central pane and clipped what sat at the bottom.
+    int statush = statusBar() ? statusBar()->sizeHint().height() : 0;
+    resize(QSize(std::max(rect.width() * 13 / 40, 650),
+        std::max(rect.height() * 2 / 5, minimumSizeHint().height() + statush)));
     if(can_place_windows)
         move((rect.width() - frameSize().width()) / 2, rect.top());
+    restoreWindowGeometry("main", this);
 
+    updateWindowTitle();   //nothing had ever set one, so there was none at all
     updateToolboxStrips(); //initial check marks, after the panes are laid out.
 
 #if defined __MACOSX__ || defined __APPLE__
@@ -280,6 +411,26 @@ FrmKameMain::FrmKameMain()
     XJournalWriter::declareThisThread(XJournalWriter::ThreadClass::UI);
 
     m_measure = XNode::createOrphan<XMeasure>("Measurement", false);
+    //Drivers arrive one at a time while a .kam is being read -- the load is a
+    //script on its own thread -- so the forms are not restored by waiting for
+    //the load to finish, but by answering each driver as it appears.  This
+    //also covers a driver added by hand afterwards.
+    //
+    //FLAG_MAIN_THREAD_CALL because it shows windows, and NO FLAG_AVOID_DUP
+    //because every driver matters (driver-authoring rule 6).
+    m_measure->drivers()->iterate_commit([=](Transaction &tr){
+        m_lsnDriverCaught = tr[ *m_measure->drivers()].onCatch().connect(
+            *this, &FrmKameMain::onDriverCaught, Listener::FLAG_MAIN_THREAD_CALL);
+    });
+    //Charts and graphs arrive the same way and are answered the same way.
+    m_measure->charts()->iterate_commit([=](Transaction &tr){
+        m_lsnChartCaught = tr[ *m_measure->charts()].onCatch().connect(
+            *this, &FrmKameMain::onChartCaught, Listener::FLAG_MAIN_THREAD_CALL);
+    });
+    m_measure->graphs()->iterate_commit([=](Transaction &tr){
+        m_lsnGraphCaught = tr[ *m_measure->graphs()].onCatch().connect(
+            *this, &FrmKameMain::onGraphCaught, Listener::FLAG_MAIN_THREAD_CALL);
+    });
 
     // signals and slots connections
     connect( m_pFileCloseAction, SIGNAL( triggered() ), this, SLOT( fileCloseAction_activated() ) );
@@ -437,8 +588,13 @@ QString flatTabStyleSheet(Qt::Edge accent) {
     //fixing it there squeezes every title out of existence.  Only the columns
     //get a width; a row is left to size itself around its titles.
     const QString metrics = vertical
-        ? "width:26px;padding:10px 4px;margin:2px 3px;"
+        ? "width:30px;padding:10px 4px;margin:2px 3px;"
         : "padding:6px 14px;margin:3px 2px;";
+    //Growing the hovered tab was tried here first, as :hover with more
+    //padding, and it did not read as growth (user) -- a style sheet's hover
+    //state repaints, and whether it re-runs tabSizeHint() is not something to
+    //depend on.  The magnification is done by redrawing the icon instead,
+    //inside a rect that never changes.  \sa magnifyTab()
     return QString(
         "QTabBar{background:transparent;border:none;}"
         "QTabBar::tab{background:transparent;border:none;color:palette(text);"
@@ -449,12 +605,320 @@ QString flatTabStyleSheet(Qt::Edge accent) {
 }
 } // namespace
 
+//! Set before the window exists, from the command line, which defaults it to
+//! Dark.  Unknown means "follow the desktop", which is what --appearance
+//! system asks for.
+Qt::ColorScheme g_kameColorSchemeRequested = Qt::ColorScheme::Unknown;
+
+//! The same three words the --appearance option takes, so the stored line
+//! reads as what a user would have typed.
+static const char *nameOfColorScheme(Qt::ColorScheme scheme) {
+    return (scheme == Qt::ColorScheme::Unknown) ? "system" :
+        ((scheme == Qt::ColorScheme::Light) ? "light" : "dark");
+}
+Qt::ColorScheme
+kameStoredColorScheme() {
+    QString name = KameSettings().value("appearance", "dark").toString();
+    if(name == "system") return Qt::ColorScheme::Unknown;
+    if(name == "light") return Qt::ColorScheme::Light;
+    return Qt::ColorScheme::Dark;
+}
+//! Only the menu stores one.  --appearance is how somebody says "this run",
+//! and a flag that quietly rewrote the setting would take that away.
+void
+kameStoreColorScheme(Qt::ColorScheme scheme) {
+    KameSettings().setValue("appearance", nameOfColorScheme(scheme));
+}
+//! The graph's own light and dark, remembered separately from the window's.
+//!
+//! The two stay independent -- a bright graph in a dark window is a
+//! combination people choose -- so this is a second stored word rather than
+//! something derived from the appearance.  Applied before any graph exists,
+//! since XGraph::applyTheme() takes the current theme at construction.
+void
+kameApplyStoredGraphTheme() {
+    XGraph::setCurrentTheme(
+        (KameSettings().value("graphtheme", "night").toString() == "daylight") ?
+            XGraph::Theme::DayLight : XGraph::Theme::Night);
+}
+static void kameStoreGraphTheme(XGraph::Theme theme) {
+    KameSettings().setValue("graphtheme",
+        (theme == XGraph::Theme::DayLight) ? "daylight" : "night");
+}
+
+//! Qt alone: an AppKit call was added here on the suspicion that
+//! unsetColorScheme() might not hand NSApplication a nil appearance, and then
+//! measured to be unnecessary -- on 6.10.1 the palette follows Light, Dark and
+//! back to the desktop exactly as it should.  It is gone rather than kept as a
+//! belt, since a line nobody can point at a reason for is the kind that gets
+//! maintained for years.
+void
+kameApplyColorScheme(Qt::ColorScheme scheme) {
+    g_kameColorSchemeRequested = scheme;
+    if(scheme == Qt::ColorScheme::Unknown)
+        QGuiApplication::styleHints()->unsetColorScheme();
+    else
+        QGuiApplication::styleHints()->setColorScheme(scheme);
+}
+
 FrmKameMain::EdgeSlider *
 FrmKameMain::edgeSliderFor(QWidget *win) {
     for(auto &&s: m_edgeSliders)
         if(s.win == win) return &s;
     return nullptr;
 }
+//! Resting and hovered size of a tab's icon, inside a rect fixed at the
+//! larger.  The gap between them is the whole effect.
+static const int TAB_ICON_REST = 16;
+static const int TAB_ICON_GROWN = 24;
+
+//! Redraws one tab's icon at a size, centred in the rect the bar reserves.
+static void drawTabIcon(QTabBar *tabs, QMdiArea *area, int idx, int size) {
+    auto wins = area->subWindowList();
+    if((idx < 0) || (idx >= tabs->count()) || (idx >= wins.size()))
+        return;
+    QIcon base = wins.at(idx)->windowIcon();
+    if(base.isNull())
+        return;
+    QPixmap canvas(QSize(TAB_ICON_GROWN, TAB_ICON_GROWN)
+        * tabs->devicePixelRatioF());
+    canvas.setDevicePixelRatio(tabs->devicePixelRatioF());
+    canvas.fill(Qt::transparent);
+    {
+        QPainter p( &canvas);
+        QPixmap pm = base.pixmap(QSize(size, size), tabs->devicePixelRatioF());
+        p.drawPixmap((TAB_ICON_GROWN - size) / 2, (TAB_ICON_GROWN - size) / 2,
+            QSize(size, size).width(), QSize(size, size).height(), pm);
+    }
+    tabs->setTabIcon(idx, QIcon(canvas));
+}
+
+//! Every tab of one bar at one size -- except the one in front, which stays
+//! large whatever the rest are doing.
+//!
+//! Its pane is what is on screen, and watching the icon of the thing you are
+//! looking at shrink as the pointer moves off its tab is the wrong way round
+//! (user).  Big means "this is what there is to look at", and the pane on
+//! show qualifies as much as a collapsed strip or a hovered tab does.
+static void resetTabIcons(QTabBar *tabs, QMdiArea *area, int size) {
+    for(int i = 0; i < tabs->count(); ++i)
+        drawTabIcon(tabs, area, i,
+            (i == tabs->currentIndex()) ? TAB_ICON_GROWN : size);
+}
+
+//! A pinned window says so in its own title bar, which is where every docking
+//! UI that has this feature puts it -- Visual Studio, VS Code and Qt Creator
+//! all use a pushpin there, upright when pinned and lying on its side when
+//! not.  A mark on a tab would read as belonging to that pane; pinning belongs
+//! to the window.
+//!
+//! It is legible exactly when it needs to be: a collapsed toolbox is 36 px
+//! wide and shows no title, and a collapsed toolbox is by definition not
+//! pinned.  Being permanent, it also does the job the transient status line
+//! message was doing, which is now gone.
+//! Grows the window when a layout appears that it was not sized for -- a row
+//! of tabs where there were none, most of all.  Only ever grows: a window that
+//! shrinks under someone's hands is worse than a short one.
+void
+FrmKameMain::ensureMinimumHeight() {
+    int want = minimumSizeHint().height();
+    if(statusBar())
+        want += statusBar()->sizeHint().height();
+    if(height() < want)
+        resize(width(), want);
+}
+
+void
+FrmKameMain::foldToolboxes() {
+    for(auto &&s: m_edgeSliders) {
+        if(s.vertical || !s.autoHide || s.collapsed)
+            continue;
+        //Dismissed, or the pointer that is still on the pane just clicked
+        //would have it open again on the next poll.
+        s.dismissed = true;
+        setToolboxCollapsed(s, true);
+    }
+}
+
+bool
+FrmKameMain::formsWouldBeCovered(const EdgeSlider &s) const {
+    //The toolboxes are always-on-top tool windows, so pinning one open does
+    //not merely take space beside the forms -- it sits ON them.  The forms
+    //this measurement will restore are not on screen yet, arriving one at a
+    //time with their drivers, but their rectangles are already known, which
+    //is enough to decide before the load starts.  \sa loadOpenForms()
+    for(auto &&x: m_formsWanted) {
+        //Any overlap at all.  There was a threshold here -- 40 px in both
+        //directions, on the theory that a sliver is not worth acting on --
+        //and the user's own layout says otherwise: the two forms that reach a
+        //toolbox reach it by 11 px and by 9, and neither counted.  The two
+        //mistakes are not the same size, either.  Refusing to pin costs
+        //nothing but KAME's ordinary auto-hide; pinning wrongly parks an
+        //always-on-top window on the edge of a form being worked on.
+        //Touching is not overlapping: QRect::intersected() of two adjacent
+        //rectangles is empty, so a form flush against a toolbox is fine.
+        if( !s.expanded.intersected(x.second).isEmpty())
+            return true;
+    }
+    return false;
+}
+//! The rule the load follows before it pins (\sa formsWouldBeCovered()),
+//! applied at the moment a window is actually put up.  A pinned toolbox is
+//! an always-on-top window, and raise() cannot lift anything above it, so a
+//! form, chart or graph asked for with a click came up underneath -- the
+//! click that asked to see it defeated by the pin (user, 2026-09-23).  The
+//! request outranks the convenience: that toolbox goes back to auto-hide and
+//! folds at once.  Only the toolbox that covers the window; the window itself
+//! is not moved, its place being the user's.
+void
+FrmKameMain::formShown(QWidget *w) {
+    if( !w || !w->isVisible())
+        return;
+    QRect g = w->frameGeometry(); //!< the title bar counts: it is what one grabs
+    for(auto &&s: m_edgeSliders) {
+        if(s.vertical || s.autoHide || (s.win == w))
+            continue;
+        //Any overlap, as the load's rule; touching is not overlapping.
+        if(s.expanded.intersected(g).isEmpty())
+            continue;
+        s.autoHideAction->setChecked(true); //!< the title's pin and the View menu follow
+        //Now, not when the pointer leaves: it is still on the list just
+        //clicked, and auto-hide alone would hold the toolbox open over the
+        //very window it was asked for (user).  Dismissed, as foldToolboxes()
+        //does, so that pointer does not unfold it again on the next poll.
+        if( !s.collapsed) {
+            s.dismissed = true;
+            setToolboxCollapsed(s, true);
+        }
+    }
+}
+void
+FrmKameMain::pinToolboxes() {
+    for(auto &&s: m_edgeSliders) {
+        //Per toolbox, not both together: a form over the east one is no
+        //reason to leave the west one folding away (user).
+        if(s.vertical || !s.autoHide || formsWouldBeCovered(s))
+            continue;
+        s.dismissed = false;
+        //Through the View-menu action, so the menu says what is true and the
+        //toolbox unfolds itself: both hang off the same toggle.
+        s.autoHideAction->setChecked(false);
+    }
+}
+
+void
+FrmKameMain::updateWindowTitle() {
+    //What is loaded, then whose window it is: the order every document-shaped
+    //application uses, since the file is what differs between two of them.
+    QString t = m_titleDoc.isEmpty() ? QString("KAME " VERSION)
+        : m_titleDoc + QString::fromUtf8(" \u2014 KAME " VERSION);
+    for(auto &&s: m_edgeSliders)
+        if(s.vertical && !s.autoHide)
+            t += QString::fromUtf8(" \u2731");
+    setWindowTitle(t);
+}
+
+void
+FrmKameMain::markPinned(EdgeSlider &s) {
+    if(s.vertical) {
+        updateWindowTitle();
+        return;
+    }
+    QString base = s.win->property("kame_title").toString();
+    if(base.isEmpty()) {
+        base = s.win->windowTitle();
+        s.win->setProperty("kame_title", base);
+    }
+    s.win->setWindowTitle(s.autoHide ? base : base + QString::fromUtf8(" \u2731"));
+}
+
+void
+FrmKameMain::setupTabMagnify(QTabBar *tabs, QMdiArea *area) {
+    if(tabs->property("kame_magnify").toBool())
+        return;
+    tabs->setProperty("kame_magnify", true);
+    //Fixed at the larger of the two, and the resting icon drawn small inside
+    //it: growing then costs the layout nothing, so neighbours hold still.
+    tabs->setIconSize(QSize(TAB_ICON_GROWN, TAB_ICON_GROWN));
+    //Taller tabs than whoever laid this bar out was told about, so say so.
+    tabs->updateGeometry();
+    tabs->setAttribute(Qt::WA_Hover, true);
+    tabs->setMouseTracking(true);
+    //Drawn here, with the area in hand.  Doing it through magnifyTab() left
+    //them untouched at startup -- this runs before the slider it belongs to is
+    //in m_edgeSliders, so the lookup found nothing and returned -- and an
+    //untouched icon is stretched to fill the rect, which is why they all came
+    //up large.
+    resetTabIcons(tabs, area, TAB_ICON_REST);
+    connect(tabs, &QTabBar::currentChanged, this, [this, tabs, area](int) {
+        int base = TAB_ICON_REST;
+        for(auto &&s: m_edgeSliders)
+            if(s.area == area)
+                base = s.collapsed ? TAB_ICON_GROWN : TAB_ICON_REST;
+        resetTabIcons(tabs, area, base);
+    });
+}
+
+void
+FrmKameMain::magnifyTab(QTabBar *tabs, int idx) {
+    if( !tabs->property("kame_magnify").toBool())
+        return;   //!< the central row, which is left as Qt drew it
+    QMdiArea *area = nullptr;
+    for(auto &&s: m_edgeSliders)
+        if(s.area->findChild<QTabBar *>() == tabs)
+            area = s.area;
+    if( !area)
+        return;
+    //Collapsed, the strip is all one can see, so every icon is already at its
+    //largest and there is nothing for a hover to add (user).  It reads as the
+    //opposite of the expanded state, and it is: what the size means is "this
+    //is what there is to look at".
+    int base = TAB_ICON_REST;
+    for(auto &&s: m_edgeSliders)
+        if(s.area == area)
+            base = s.collapsed ? TAB_ICON_GROWN : TAB_ICON_REST;
+    if(base >= TAB_ICON_GROWN) {
+        m_tabMagnifyBar = tabs;
+        m_tabMagnifyIdx = -1;
+        return;
+    }
+    if(idx == tabs->currentIndex())
+        idx = -1;   //!< already large, and staying that way
+    if((m_tabMagnifyBar == tabs) && (m_tabMagnifyIdx == idx))
+        return;
+    //Whatever was growing goes back, at once: two tabs part-grown at the same
+    //time reads as a glitch rather than as a transition.
+    if(m_tabMagnifyBar && (m_tabMagnifyIdx >= 0)) {
+        for(auto &&s: m_edgeSliders)
+            if(s.area->findChild<QTabBar *>() == m_tabMagnifyBar)
+                drawTabIcon(m_tabMagnifyBar, s.area, m_tabMagnifyIdx, base);
+    }
+    m_tabMagnifyBar = tabs;
+    m_tabMagnifyIdx = idx;
+    if( !m_pTabMagnify) {
+        m_pTabMagnify = new QVariantAnimation(this);
+        m_pTabMagnify->setDuration(120);
+        m_pTabMagnify->setEasingCurve(QEasingCurve::OutCubic);
+        connect(m_pTabMagnify, &QVariantAnimation::valueChanged, this,
+            [this](const QVariant &v) {
+                if( !m_tabMagnifyBar || (m_tabMagnifyIdx < 0))
+                    return;
+                for(auto &&s: m_edgeSliders)
+                    if(s.area->findChild<QTabBar *>() == m_tabMagnifyBar)
+                        drawTabIcon(m_tabMagnifyBar, s.area, m_tabMagnifyIdx,
+                            v.toInt());
+            });
+    }
+    m_pTabMagnify->stop();
+    if(idx < 0) {
+        resetTabIcons(tabs, area, base);
+        return;
+    }
+    m_pTabMagnify->setStartValue(base);
+    m_pTabMagnify->setEndValue(TAB_ICON_GROWN);
+    m_pTabMagnify->start();
+}
+
 void
 FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
     //Each floating toolbox becomes its own edge bar: it shrinks against the
@@ -483,6 +947,7 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
             //not exist yet at this point.)
             tabs->installEventFilter(this);
             tabs->setProperty("kame_pin_filter", true);
+            setupTabMagnify(tabs, area);
             tabs->setStyleSheet(flatTabStyleSheet(left ? Qt::LeftEdge : Qt::RightEdge));
             tabs->updateGeometry();
             tabw = std::max(tabw, tabs->sizeHint().width());
@@ -502,6 +967,7 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
         connect(autohide, &QAction::toggled, this, [this, s](bool on){
             s->autoHide = on;
             s->idleTicks = 0;
+            markPinned( *s);
             //Switching it off has to undo it: a toolbox left sitting as a bar
             //with nothing watching the pointer could not be opened by hover.
             if( !on && s->collapsed) setToolboxCollapsed( *s, false);
@@ -514,6 +980,9 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
             //"the wrong side is showing".  Re-anchor instead.
             if(s->collapsed && !s->left)
                 s->win->move(s->expanded.right() - s->win->width() + 1, s->win->y());
+            //Folded, and now held there: see pinFold().
+            if(s->collapsed)
+                pinFold( *s, true);
             updateToolboxStrips();
         });
     }
@@ -535,10 +1004,46 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
         connect(autohide, &QAction::toggled, this, [this, s](bool on){
             s->autoHide = on;
             s->idleTicks = 0;
+            markPinned( *s);
             if( !on && s->collapsed) setToolboxCollapsed( *s, false);
         });
-        connect(anim, &QPropertyAnimation::finished, this, [this]{updateToolboxStrips();});
+        connect(anim, &QPropertyAnimation::finished, this, [this, s]{
+            if(s->collapsed)
+                pinFold( *s, true);
+            updateToolboxStrips();
+        });
     }
+    //A style sheet resolves palette(...) when it is SET and never again --
+    //measured, by grabbing a QTabBar carrying this very sheet: the pixel read
+    //#d9d9d9 under Dark, still #d9d9d9 after switching to Light, and #555555
+    //once the same string was set a second time.  That is why the tab strips
+    //kept a near-black background and inverted text after the scheme changed.
+    //
+    //So every sheet that names a palette role is set again here: the strips',
+    //and the application's own (QGroupBox borders, palette(mid)).  Whoever
+    //changed it -- the menu, the command line, or the desktop while KAME runs.
+    connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged,
+        this, [this](Qt::ColorScheme) {
+            //One turn of the event loop later, and that is the whole point:
+            //colorSchemeChanged is emitted BEFORE QApplication's palette is
+            //replaced, so everything below -- which reads the palette, whether
+            //through palette(...) in a style sheet or through followPalette()
+            //-- would take the colours of the scheme being left behind.
+            //Between two schemes, one step stale is exactly inverted: asking
+            //for Dark painted these widgets white.  Measured on 6.10.1:
+            //  in the handler       app Window == #ffffff  (still Light)
+            //  next turn            app Window == #1e1e1e
+            QTimer::singleShot(0, this, [this]{
+                if(qApp->styleSheet().length())
+                    qApp->setStyleSheet(qApp->styleSheet());
+                for(auto &&s: m_edgeSliders) {
+                    if(QTabBar *tabs = s.area->findChild<QTabBar *>())
+                        tabs->setStyleSheet(flatTabStyleSheet(s.vertical ? Qt::BottomEdge :
+                            (s.left ? Qt::LeftEdge : Qt::RightEdge)));
+                    followPalette(s.area);
+                }
+            });
+        });
     m_pEdgeHoverTimer = new QTimer(this);
     connect(m_pEdgeHoverTimer, &QTimer::timeout, this, &FrmKameMain::pollEdgeAutoHide);
     m_pEdgeHoverTimer->start(150);
@@ -547,9 +1052,31 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
     //would land.
     QTimer::singleShot(0, this, [this]{
         fitToolboxHeights();
-        //Start with the west toolbox in hand.  It also holds itself open until
-        //the user clicks elsewhere, through the focus guard in the poll.
-        focusToolbox(true);
+        //Nothing is put in the user's hand at startup (user).  KAME opened
+        //with the west toolbox activated and holding itself open through the
+        //poll's focus guard, which meant the first thing on screen was a
+        //panel demanding to be dismissed.  The toolboxes are simply there,
+        //and fold away on their own once the modules are up.
+        //
+        //The main window is activated, and the keyboard is taken off whatever
+        //grabbed it.  Both are needed, and the second is the one that works:
+        //a Qt::Tool window counts as active while its parent is, so activating
+        //the main window leaves isActiveWindow() true for the toolboxes -- and
+        //the poll holds a window open while it is active AND holds the focus
+        //widget.  Several toolbox panes have a line edit that takes focus
+        //merely by being shown (the poll's own comment says so), so the east
+        //toolbox sat open until a click moved the focus somewhere else.
+        raise();
+        activateWindow();
+        if(QWidget *f = QApplication::focusWidget())
+            f->clearFocus();
+        if(m_pMdiCentral)
+            m_pMdiCentral->setFocus(Qt::OtherFocusReason);
+        //Measured again here, and it is a different number: in the constructor
+        //the window is not realized, its style has not been polished and the
+        //status bar has just been created and hidden, so the minimum it
+        //reported then was short of what it turns out to need.
+        ensureMinimumHeight();
     });
     //The in-window strips would only duplicate what the edge bars now do.
     m_pStripLeft->hide();
@@ -573,20 +1100,6 @@ FrmKameMain::fitToolboxHeights() {
     }
 }
 void
-FrmKameMain::focusToolbox(bool left) {
-    QDockWidget *dock = left ? m_pDockLeft : m_pDockRight;
-    QMdiArea *area = left ? m_pMdiLeft : m_pMdiRight;
-    if(EdgeSlider *s = edgeSliderFor(dock))
-        if(s->collapsed) setToolboxCollapsed( *s, false);
-    if(dock->isMinimized())
-        dock->setWindowState(dock->windowState() & ~Qt::WindowMinimized);
-    dock->showNormal();
-    dock->raise();
-    dock->activateWindow();
-    if(QMdiSubWindow *sub = area->activeSubWindow())
-        sub->setFocus();
-}
-void
 FrmKameMain::pollEdgeAutoHide() {
     //Polling the pointer beats enter/leave events here: these are separate
     //top-level windows, and a leave event fires for every excursion over a
@@ -598,23 +1111,42 @@ FrmKameMain::pollEdgeAutoHide() {
     //scrollbar or a spin box).
     bool busy = QApplication::activePopupWidget() ||
         (QApplication::mouseButtons() != Qt::NoButton);
-    //Focus inside a toolbox AND that toolbox being the active window means the
-    //user clicked in and is working there, so it stays open until they click
-    //elsewhere.  Both halves are needed: a pane holding a line edit can take
-    //focus merely by being shown (that alone would pin it open for ever), and
-    //what counts as "active" for a Qt::Tool window varies between platforms.
-    //Typing always implies both, so nothing can shrink away mid-edit.
+    //The pointer decides, and the only thing that overrules it is typing.
+    //
+    //It used to be enough to hold the keyboard: click into a toolbox to change
+    //a setting and it stayed open until you clicked somewhere else, however
+    //far away the pointer went.  That is a toolbox sitting on top of the window
+    //you were trying to get back to (user), and moving the mouse off it is
+    //exactly how anyone says "get out of the way".
+    //
+    //What survives is the narrow case where folding would do harm: a widget
+    //that takes text has the keyboard, and collapsing to a 36 px bar would
+    //clip it out of sight while the keystrokes went on arriving.  Everything
+    //else -- a button, a combo, a table, a pane merely holding focus because a
+    //line edit grabbed it on show -- gets out of the way with the pointer.
     QWidget *focus = QApplication::focusWidget();
+    bool typing = focus &&
+        (qobject_cast<QLineEdit *>(focus) || qobject_cast<QAbstractSpinBox *>(focus)
+         || focus->inherits("QTextEdit") || focus->inherits("QPlainTextEdit"));
     for(auto &&s: m_edgeSliders) {
-        //Sampled for every window, pinned or not: it is what tells a tab click
-        //whether the user was already working in this one.
-        s.wasFocused = focus && s.win->isAncestorOf(focus) && s.win->isActiveWindow();
+        //Sampled for every window, pinned or not: it is what keeps a toolbox
+        //open while text is being typed into it, below.
+        s.wasFocused = typing && s.win->isAncestorOf(focus);
         //The central pane stack has no tab bar until the first script pane
         //exists, so the pin gesture's filter cannot all be installed at setup.
         if(QTabBar *tabs = s.area->findChild<QTabBar *>())
             if( !tabs->property("kame_pin_filter").toBool()) {
                 tabs->installEventFilter(this);
                 tabs->setProperty("kame_pin_filter", true);
+                //A row of tabs where there were none is more layout than the
+                //window was sized for.
+                ensureMinimumHeight();
+                //No magnification for the central strip.  It is a normal row
+                //of tabs that never collapses, so nothing there depends on
+                //reading an icon in a bar -- and enlarging them made the row
+                //taller AFTER the window had taken its height from a layout
+                //measured without them, which is a bottom edge clipped until
+                //something forces the row to lay out again.
                 //Its tabs run along the top, so the accent goes underneath.
                 tabs->setStyleSheet(flatTabStyleSheet(Qt::BottomEdge));
             }
@@ -644,7 +1176,13 @@ FrmKameMain::pollEdgeAutoHide() {
             }
         }
         if(s.collapsed) {
-            if(over) setToolboxCollapsed(s, false);
+            //A toolbox folded on purpose stays folded until the pointer has
+            //been away: reopening under the hand that just dismissed it is
+            //the opposite of what the gesture meant.
+            if( !over)
+                s.dismissed = false;
+            else if( !s.dismissed)
+                setToolboxCollapsed(s, false);
             continue;
         }
         s.expanded = s.win->geometry(); //follows the user moving or resizing it
@@ -653,6 +1191,43 @@ FrmKameMain::pollEdgeAutoHide() {
         else if(++s.idleTicks >= 4) //~0.6 s with the pointer elsewhere
             setToolboxCollapsed(s, true);
     }
+}
+QRect
+FrmKameMain::collapsedGeometryOf(const EdgeSlider &s) const {
+    QRect to = s.expanded;
+    if(s.vertical)
+        //Half of whatever it is now, keeping the top edge.
+        to.setHeight(std::max(s.expanded.height() / 2, 200));
+    //Keep the edge the toolbox clings to; give up the width on the other
+    //side, so it grows out of the screen edge rather than sliding along it.
+    else if(s.left) to.setWidth(s.collapsedWidth);
+    else to.setLeft(s.expanded.right() - s.collapsedWidth + 1);
+    return to;
+}
+void
+FrmKameMain::pinFold(EdgeSlider &s, bool pin) {
+    //A folded toolbox is held narrow against a minimum that keeps coming back:
+    //the window re-derives it from the QMdiArea's size hint on EVERY layout
+    //pass (~196 px), which is why setToolboxCollapsed() lifts it on each call
+    //rather than once at setup.  Changing the appearance is such a pass, and
+    //one that arrives with nothing folding -- so a 43 px bar was clamped back
+    //out to 196 where it stood, until the next hover folded it again.
+    //
+    //A maximum is the answer rather than another pass of the minimum: it is a
+    //property the window keeps, not something re-derived from a child's hint,
+    //so nothing has to run at the right moment for it to hold.  Re-applying
+    //the fold afterwards was tried first and is a race that cannot be won --
+    //measured, the clamp lands a turn after the change is made, so the
+    //re-apply either runs too early or has to guess how long to wait.
+    //
+    //Lifted before every transition, since the animation grows the window
+    //back through widths this would otherwise forbid, and put back when a
+    //fold has finished.  QPropertyAnimation::stop() does not emit finished(),
+    //so a fold interrupted half-way does not leave a maximum behind.
+    if(s.vertical)
+        s.win->setMaximumHeight(pin ? s.win->height() : QWIDGETSIZE_MAX);
+    else
+        s.win->setMaximumWidth(pin ? s.win->width() : QWIDGETSIZE_MAX);
 }
 void
 FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
@@ -673,16 +1248,29 @@ FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
         s.area->setMinimumWidth(0);
         s.win->setMinimumWidth(0);
     }
-    QRect to = s.expanded;
-    if(collapse) {
-        if(s.vertical)
-            //Half of whatever it is now, keeping the top edge.
-            to.setHeight(std::max(s.expanded.height() / 2, 200));
-        //Keep the edge the toolbox clings to; give up the width on the other
-        //side, so it grows out of the screen edge rather than sliding along it.
-        else if(s.left) to.setWidth(s.collapsedWidth);
-        else to.setLeft(s.expanded.right() - s.collapsedWidth + 1);
+    //All of them, in step with the window: collapsed, the strip is the only
+    //thing on screen, and small icons in it are a smaller target than the bar
+    //they sit in.  A step rather than a slide, hidden inside the 170 ms the
+    //window itself is moving.
+    //Folding takes the keyboard with it.  A pane's line edit takes focus
+    //merely by being shown, and a folded toolbox is 36 px of bar -- so typing
+    //went into a field nobody could see and nobody had asked for (user).
+    if(collapse)
+        if(QWidget *f = QApplication::focusWidget())
+            if(s.win->isAncestorOf(f)) {
+                f->clearFocus();
+                if(m_pMdiCentral)
+                    m_pMdiCentral->setFocus(Qt::OtherFocusReason);
+            }
+    if(QTabBar *tabs = s.area->findChild<QTabBar *>()) {
+        if(tabs->property("kame_magnify").toBool()) {
+            resetTabIcons(tabs, s.area, collapse ? TAB_ICON_GROWN : TAB_ICON_REST);
+            if(m_pTabMagnify)
+                m_pTabMagnify->stop();
+            m_tabMagnifyIdx = -1;
+        }
     }
+    QRect to = collapse ? collapsedGeometryOf(s) : s.expanded;
     s.idleTicks = 0;
     s.collapsed = collapse;
     //No fade on the way in.  It was tried, and a window at 0.75 opacity shows
@@ -690,6 +1278,7 @@ FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
     //tabs blinking out, not as an entrance.  These windows are opaque.
     s.win->setWindowOpacity(1.0);
     s.anim->stop();
+    pinFold(s, false);   //the animation moves through widths a pin forbids
     s.anim->setStartValue(s.win->geometry());
     s.anim->setEndValue(to);
     s.anim->start();
@@ -697,30 +1286,50 @@ FrmKameMain::setToolboxCollapsed(EdgeSlider &s, bool collapse) {
 bool
 FrmKameMain::eventFilter(QObject *obj, QEvent *event) {
     if(event->type() == QEvent::MouseButtonPress) {
-        //Pin gesture: while already working in a toolbox, clicking the tab of
-        //the pane in front toggles its auto-hide.  Only the pane in front, so
-        //clicking any other tab still just switches panes; and only when the
-        //toolbox already held the keyboard, which is why the poll's remembered
-        //answer is used rather than a fresh one — this very click may have
-        //activated the window, and a fresh test would say yes every time.
+        //Pin gesture: one click on a toolbox's tab column pins it open, and
+        //another lets it hide again.
+        //
+        //A single click can mean this because clicking a tab has nothing else
+        //left to do: hovering one already picks that pane, so the pointer has
+        //chosen before the button goes down.  Hover to choose, click to keep.
+        //It used to want the toolbox to hold the keyboard AND the click to
+        //land on the tab already in front — two conditions to satisfy before
+        //a gesture would answer, which is one more than a gesture may ask.
+        //
+        //Every strip, the main window's included (user): a rule that holds in
+        //one place and not another is a rule nobody remembers.
         for(auto &&s: m_edgeSliders) {
             QTabBar *tabs = s.area->findChild<QTabBar *>();
             if(obj != tabs) continue;
-            if( !s.wasFocused) break;
             auto *me = static_cast<QMouseEvent *>(event);
-            int idx = tabs->tabAt(me->position().toPoint());
-            if((idx < 0) || (idx != tabs->currentIndex())) break;
+            if(tabs->tabAt(me->position().toPoint()) < 0) break;
             s.autoHideAction->setChecked( !s.autoHide); //drives the toggle
-            XString what = s.vertical ? i18n("Main window") :
-                (s.left ? i18n("West toolbox") : i18n("East toolbox"));
-            gMessagePrint(what + (s.autoHide ? i18n(" auto-hides again.")
-                                             : i18n(" pinned open.")));
             return true; //the click meant this, not a tab change
         }
     }
+    if((event->type() == QEvent::HoverMove) || (event->type() == QEvent::MouseMove)) {
+        //Not the 150 ms poll: this is motion, and it has to follow the pointer
+        //rather than catch up with it.
+        if(auto *tabs = qobject_cast<QTabBar *>(obj)) {
+            QPoint at = (event->type() == QEvent::HoverMove) ?
+                static_cast<QHoverEvent *>(event)->position().toPoint() :
+                static_cast<QMouseEvent *>(event)->position().toPoint();
+            magnifyTab(tabs, tabs->tabAt(at));
+        }
+    }
+    if((event->type() == QEvent::HoverLeave) || (event->type() == QEvent::Leave)) {
+        if(auto *tabs = qobject_cast<QTabBar *>(obj))
+            magnifyTab(tabs, -1);
+    }
     if(event->type() == QEvent::Show) {
+        //Windows, and nothing else.  The only objects this filter is installed
+        //on are two QTabBars, which are QWidgets and get shown like any other
+        //-- so "place the new window" was moving a tab bar to an absolute
+        //position inside its own MDI area, where the next layout pass had to
+        //put it back.  Whatever that looked like, it was not what this code
+        //was written to do.
         auto w = qobject_cast<QWidget*>(obj);
-        if(w && !w->property("kame_placed").toBool()) {
+        if(w && w->isWindow() && !w->property("kame_placed").toBool()) {
             placeNewWindow(w);
             w->setProperty("kame_placed", true);
         }
@@ -823,10 +1432,15 @@ FrmKameMain::createActions() {
     m_pGraphThemeNightAction = new QAction( this);
     m_pGraphThemeNightAction->setEnabled( true );
     m_pGraphThemeNightAction->setCheckable( true );
-    m_pGraphThemeNightAction->setChecked( true );
     m_pGraphThemeDaylightAction = new QAction( this);
     m_pGraphThemeDaylightAction->setEnabled( true );
     m_pGraphThemeDaylightAction->setCheckable( true );
+    //Whichever was stored, ticked here rather than after the connect below:
+    //createActions() runs first, so the toggle that follows reaches nobody
+    //and no graph is re-themed at a moment when there are none to re-theme.
+    bool night = (XGraph::currentTheme() != XGraph::Theme::DayLight);
+    m_pGraphThemeNightAction->setChecked(night);
+    m_pGraphThemeDaylightAction->setChecked( !night);
     m_pGraphThemeActionGroup = new QActionGroup(this);
     m_pGraphThemeActionGroup->setExclusive( true );
     m_pGraphThemeActionGroup->addAction(m_pGraphThemeNightAction);
@@ -860,6 +1474,11 @@ FrmKameMain::createMenus() {
     // menubar
     m_pFileMenu = menuBar()->addMenu(i18n( "&File" ) );
     m_pFileMenu->addAction(m_pFileOpenAction);
+    //Under Open, where the hand already is.  What KAME starts with is almost
+    //always what it was last working on.
+    m_pRecentMesMenu = m_pFileMenu->addMenu(i18n( "Open &Recent" ) );
+    m_pRecentMesMenu->setToolTipsVisible(true);   //the directory, behind the name
+    updateRecentMesMenu();
     m_pFileMenu->addAction(m_pFileSaveAction);
     m_pFileMenu->addAction(m_pFileCloseAction);
     m_pFileMenu->addSeparator();
@@ -929,8 +1548,242 @@ FrmKameMain::processSignals() {
         m_pTimer->setInterval(interval); //restarts the running timer.
 }
 
+//! One INI key per measurement.  Percent-encoded because a "/" in a QSettings
+//! key is a group separator, and these are paths.
+static QString openFormsKeyOf(const XString &path) {
+    return QString::fromLatin1(QUrl::toPercentEncoding(
+        QString::fromStdString(path)));
+}
+//! The three kinds of window a measurement remembers.  A driver form, a chart
+//! and a graph can all be called the same thing -- a chart is NAMED after the
+//! scalar entry it plots, and that entry is named after its driver -- so the
+//! kind is part of the key and not decoration.
+static const char *const WINDOW_DRIVER = "driver";
+static const char *const WINDOW_CHART = "chart";
+static const char *const WINDOW_GRAPH = "graph";
+static XString windowKeyOf(const char *kind, const XString &name) {
+    return XString(kind) + ":" + name;
+}
+void
+FrmKameMain::onDriverCaught(const Snapshot &shot,
+    const XListNodeBase::Payload::CatchEvent &e) {
+    auto driver = dynamic_pointer_cast<XDriver>(e.caught);
+    if( !driver) return;
+    XString key = windowKeyOf(WINDOW_DRIVER, driver->getName());
+    if(m_formsWanted.find(key) == m_formsWanted.end()) return;
+    driver->showForms();
+    //After showForms(), which is what creates the window's first Show and so
+    //lets the window server place it: put it back where it was instead.
+    //\sa XQConnector::windowOf()
+    placeRememberedWindow(WINDOW_DRIVER, driver->getName(),
+        XQConnector::windowOf( *driver));
+    //Dropped even when there was no window to place, so this is once per
+    //driver either way: a form the user then closes stays closed.
+    m_formsWanted.erase(key);
+}
+void
+FrmKameMain::onChartCaught(const Snapshot &shot,
+    const XListNodeBase::Payload::CatchEvent &e) {
+    auto chart = dynamic_pointer_cast<XValChart>(e.caught);
+    if( !chart) return;
+    XString key = windowKeyOf(WINDOW_CHART, chart->getName());
+    if(m_formsWanted.find(key) == m_formsWanted.end()) return;
+    //A chart is made for every scalar entry there is, open or not, and nothing
+    //opens one but the user double-clicking it -- so unlike a driver form and
+    //unlike a graph, being wanted is the whole of the reason it is shown here.
+    chart->showChart();
+    placeRememberedWindow(WINDOW_CHART, chart->getName(), chart->formWindow());
+    m_formsWanted.erase(key);
+}
+void
+FrmKameMain::onGraphCaught(const Snapshot &shot,
+    const XListNodeBase::Payload::CatchEvent &e) {
+    auto graph = dynamic_pointer_cast<XValGraph>(e.caught);
+    if( !graph) return;
+    if(m_formsWanted.find(windowKeyOf(WINDOW_GRAPH, graph->getName())) ==
+        m_formsWanted.end()) return;
+    //Not shown here.  A graph has no axes yet at the moment it is caught --
+    //the file sets them on the next lines -- and XValGraph::showGraph() does
+    //nothing until it has them; it is XValGraph::onAxisChanged() that shows
+    //the graph, a little later.  Giving the window its geometry now is enough,
+    //because that is what showNormal() will use when it gets there.
+    graph->graphForm();  //!< makes the window if this graph has none yet
+    placeRememberedWindow(WINDOW_GRAPH, graph->getName(), graph->formWindow());
+}
+void
+FrmKameMain::placeRememberedWindow(const char *kind, const XString &name,
+    QWidget *w) {
+    if( !w) return;
+    auto it = m_formsWanted.find(windowKeyOf(kind, name));
+    if(it == m_formsWanted.end()) return;
+    //setGeometry, and nothing that moves the frame instead -- the same call
+    //saveOpenForms() read it with.  \sa restoreWindowGeometry()
+    if(it->second.isValid())
+        w->setGeometry(it->second);
+    w->setProperty("kame_placed", true);
+    //Once: a window the user then moves is theirs, and showing it again must
+    //not drag it back to where the file said.
+    m_formsWanted.erase(it);
+}
+void
+FrmKameMain::loadOpenForms() {
+    m_formsWanted.clear();
+    if(m_docPath.empty()) return;
+    KameSettings settings;
+    settings.beginGroup("openforms");
+    for(const QString &entry:
+        settings.value(openFormsKeyOf(m_docPath)).toStringList()) {
+        //"x,y,w,h,kind|name" -- geometry and kind first, so the name may
+        //contain anything at all, separator included.
+        int bar = entry.indexOf('|');
+        if(bar < 0) continue;
+        QStringList g = entry.left(bar).split(',');
+        QRect rect;
+        if(g.size() >= 4)
+            rect = QRect(g[0].toInt(), g[1].toInt(), g[2].toInt(), g[3].toInt());
+        //Four fields and no kind is what this wrote before charts and graphs
+        //were in it, and everything it wrote then was a driver form.
+        XString kind = (g.size() > 4) ? g[4].toStdString() : XString(WINDOW_DRIVER);
+        m_formsWanted[windowKeyOf(kind.c_str(),
+            entry.mid(bar + 1).toStdString())] = rect;
+    }
+}
+void
+FrmKameMain::saveOpenForms() {
+    if( !m_measure || m_docPath.empty()) return;
+    //A measurement that never loaded has no forms to record -- and recording
+    //nothing DELETES what the last good run remembered, at the bottom of this
+    //function.  So a .kam whose script died, for any reason at all, left the
+    //user with the layout wiped rather than merely not restored: the next run
+    //had nothing to come back to (user, 2026-09-07).  An empty driver list is
+    //what that state looks like.  Drivers present with every form closed is a
+    //real answer and still erases, which is what it should do.
+    {
+        Snapshot shot( *m_measure->drivers());
+        if( !shot.size()) return;
+    }
+    QStringList entries;
+    auto record = [&entries](const char *kind, const XString &name, QWidget *w) {
+        if( !w || !w->isVisible()) return;
+        QRect g = w->geometry();
+        entries << QString("%1,%2,%3,%4,%5|%6").arg(g.x()).arg(g.y())
+            .arg(g.width()).arg(g.height()).arg(QString::fromLatin1(kind))
+            .arg(QString::fromStdString(name));
+    };
+    {
+        Snapshot shot( *m_measure->drivers());
+        if(shot.size())
+            for(auto &&node: *shot.list()) {
+                auto driver = dynamic_pointer_cast<XDriver>(node);
+                if( !driver) continue;
+                //The framework knows which window is whose, through the widgets
+                //the driver's own connectors registered.  \sa XQConnector::windowOf()
+                record(WINDOW_DRIVER, driver->getName(),
+                    XQConnector::windowOf( *driver));
+            }
+    }
+    //A chart and a graph own their FrmGraph outright and register no connector
+    //for it -- XQGraph::setGraph() makes a painter, not a connector -- so
+    //windowOf() has nothing to find them by, and they are asked directly.
+    //Leaving them out is what "the chart windows do not come back" was.
+    {
+        Snapshot shot( *m_measure->charts());
+        if(shot.size())
+            for(auto &&node: *shot.list())
+                if(auto chart = dynamic_pointer_cast<XValChart>(node))
+                    record(WINDOW_CHART, chart->getName(), chart->formWindow());
+    }
+    {
+        Snapshot shot( *m_measure->graphs());
+        if(shot.size())
+            for(auto &&node: *shot.list())
+                if(auto graph = dynamic_pointer_cast<XValGraph>(node))
+                    record(WINDOW_GRAPH, graph->getName(), graph->formWindow());
+    }
+    KameSettings settings;
+    settings.beginGroup("openforms");
+    //Kept only for measurements the recent list still names, so this does not
+    //grow for ever.
+    QStringList recent = KameSettings().value("recent").toStringList();
+    for(const QString &key: settings.childKeys()) {
+        QString path = QUrl::fromPercentEncoding(key.toLatin1());
+        if( !recent.contains(path) && (path != QString::fromStdString(m_docPath)))
+            settings.remove(key);
+    }
+    if(entries.isEmpty())
+        settings.remove(openFormsKeyOf(m_docPath));
+    else
+        settings.setValue(openFormsKeyOf(m_docPath), entries);
+}
+void
+FrmKameMain::rememberRecentMes(const QString &path) {
+    if(path.isEmpty()) return;
+    QString full = QFileInfo(path).absoluteFilePath();
+    KameSettings settings;
+    QStringList recent = settings.value("recent").toStringList();
+    recent.removeAll(full);          //re-opening one moves it up, not in twice
+    recent.prepend(full);
+    while(recent.size() > RECENT_MES_MAX)
+        recent.removeLast();
+    settings.setValue("recent", recent);
+    updateRecentMesMenu();
+}
+void
+FrmKameMain::updateRecentMesMenu() {
+    if( !m_pRecentMesMenu) return;
+    m_pRecentMesMenu->clear();
+    QStringList recent = KameSettings().value("recent").toStringList();
+    //Listed whether or not the file is there right now: a measurement on a
+    //share that is not mounted this morning is still the one somebody wants,
+    //and trying to open it says so plainly enough.  Only the name is shown,
+    //with the directory behind it, since these paths are long and a lab's
+    //files end in the same handful of names.
+    for(const QString &path: recent) {
+        QAction *act = m_pRecentMesMenu->addAction(QFileInfo(path).fileName());
+        act->setStatusTip(path);
+        act->setToolTip(path);
+        connect(act, &QAction::triggered, this, [this, path]{
+            kameStoreLastDir("mes", path);
+            openMes(path.toLocal8Bit().data());
+        });
+    }
+    m_pRecentMesMenu->setEnabled( !recent.isEmpty());
+}
+void
+FrmKameMain::saveWindowLayout() {
+    //Only the four that are placed by hand: the main window, both toolboxes
+    //and the message log.  Driver forms are not saved -- there are dozens of
+    //them, they come and go with the measurement, and the .kam file is where
+    //what belongs to a measurement is kept.
+    saveWindowGeometry("main", layoutGeometryOf(this));
+    //Docked, i.e. on Wayland, they are part of the main window and have no
+    //geometry of their own to save.
+    if(m_pDockLeft->isFloating())
+        saveWindowGeometry("west", layoutGeometryOf(m_pDockLeft));
+    if(m_pDockRight->isFloating())
+        saveWindowGeometry("east", layoutGeometryOf(m_pDockRight));
+    if(QWidget *msg = XMessageBox::form())
+        saveWindowGeometry("messages", msg->geometry());
+}
+QRect
+FrmKameMain::layoutGeometryOf(QWidget *win) const {
+    //What the window would be if it were open.  A toolbox folded against the
+    //edge is 30 px wide, and coming back to that on the next run would look
+    //like damage rather than like where it was left.
+    for(auto &&s: m_edgeSliders)
+        if((s.win == win) && s.collapsed)
+            return s.expanded;
+    return win->geometry();
+}
 void
 FrmKameMain::closeEvent( QCloseEvent* ce ) {
+    //Torn down already: closing twice is normal now that Cmd-Q reaches this
+    //through the application object, and the second pass must not walk a tree
+    //that is gone.  \sa KameApplication::event()
+    if( !m_measure) {
+        ce->accept();
+        return;
+    }
     //Nothing folds while shutting down: closing interfaces and joining threads
     //takes long enough for the poll to fire, and a window animating itself
     //narrow on the way out is at best pointless.  Set before the confirmation
@@ -964,6 +1817,11 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
         //them the Python thread still calling into KAME mid-teardown.  With the
         //accept last, exit() cannot start until every join has returned.
         printf("quit\n");
+        saveWindowLayout();
+        //saveOpenForms() is deliberately NOT here.  Quitting is when a user
+        //tidies up, so the forms still open at that point are the ones they
+        //had not got around to closing -- the worst possible sample of where
+        //they like their windows (user, 2026-09-07).  File > Save records it.
         //Before the tree goes: the journal's last drain and report walk it.
         if(m_journalWriter) {
             m_journalWriter->stop();
@@ -976,6 +1834,14 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
 }
 
 void FrmKameMain::fileCloseAction_activated() {
+    //No saveOpenForms() here, nor in openMes() or closeEvent(): leaving a
+    //measurement is when its forms have been closed, so what is still open is
+    //the worst sample of where they belong.  File > Save is the one place the
+    //layout is recorded (user, 2026-09-14).
+    m_docPath.clear();
+    m_formsWanted.clear();
+    m_titleDoc.clear();       //!< nothing is loaded any more, and the title says so
+    updateWindowTitle();
     //The journal walks the tree and takes transactions on it from its own
     //thread.  terminate() destroys that tree, and a background thread
     //committing across a teardown is indefensible whatever else is true --
@@ -997,7 +1863,10 @@ void FrmKameMain::fileExitAction_activated() {
 
 void FrmKameMain::fileOpenAction_activated() {
     QString filename = QFileDialog::getOpenFileName (
-        this, i18n("Open Measurement File"), "",
+        //Where measurements were last opened or saved, so a machine whose data
+        //lives one place does not start from the process's working directory
+        //every time.
+        this, i18n("Open Measurement File"), kameLastDir("mes"),
         //! No trailing ";;": it appends an empty name filter, which shows up as a
         //! blank row in the file-type combo of Qt's own widget dialog.
         //A journal's head IS a settings file, so it opens the same way.  The
@@ -1011,6 +1880,7 @@ void FrmKameMain::fileOpenAction_activated() {
         "KAME1 Measurement files (*.mes);;"
         "All files (*.*)"
         );
+    kameStoreLastDir("mes", filename);
 	openMes(filename);
 }
 
@@ -1023,7 +1893,7 @@ void FrmKameMain::fileSaveAction_activated() {
     QString filter = "KAME2 Measurement files (*.kam);;KAME journal (*.kamj)";
 #if QT_VERSION < QT_VERSION_CHECK(5,0,0)
     QString filename = QFileDialog::getSaveFileName (
-        this, i18n("Save Measurement File"), "", filter);
+        this, i18n("Save Measurement File"), kameLastDir("mes"), filter);
 #else
     //old qt cannot make native dialog in this mode.
     QFileDialog dialog(this);
@@ -1034,15 +1904,30 @@ void FrmKameMain::fileSaveAction_activated() {
         dialog.setConfirmOverwrite(true);
     #endif
     dialog.setDefaultSuffix("kam");
+    dialog.setDirectory(kameLastDir("mes"));
     dialog.setAcceptMode(QFileDialog::AcceptSave);
     if( !dialog.exec())
         return;
     QString filename = dialog.selectedFiles().at(0);
 #endif
     if( !filename.isEmpty()) {
+        kameStoreLastDir("mes", filename);
         if(filename.endsWith(".kamj", Qt::CaseInsensitive)) {
-            if(m_journalWriter)
+            if(m_journalWriter) {
                 m_journalWriter->requestSave(filename.toLocal8Bit().data());
+                rememberRecentMes(filename);
+                //The same as for .kam below, and for the same reasons: the
+                //saved file is now the measurement, and its window layout is
+                //recorded with it.  requestSave() is asynchronous and reports
+                //no outcome -- the writer's own failure report does -- so the
+                //user's request is the moment taken, not the write.  A .kamj
+                //opened later comes through openMes(), which keys
+                //loadOpenForms() by this same path (user, 2026-09-14).
+                m_titleDoc = QFileInfo(filename).fileName();
+                m_docPath = QFileInfo(filename).absoluteFilePath().toStdString();
+                updateWindowTitle();
+                saveOpenForms();
+            }
             else
                 gErrPrint(i18n("Journaling is off (KAME_JOURNAL=0); "
                     "save as .kam instead."));
@@ -1052,6 +1937,19 @@ void FrmKameMain::fileSaveAction_activated() {
 		if(ofs.good()) {
             XRubyWriter writer(m_measure, ofs);
 			writer.write();
+            m_titleDoc = QFileInfo(filename).fileName();
+            //What was saved is what "this measurement" means from here, which
+            //the title already said and m_docPath did not: Save As filed the
+            //window layout under the file that had been OPENED, and a
+            //measurement built from nothing had no path to file it under at all.
+            m_docPath = QFileInfo(filename).absoluteFilePath().toStdString();
+            updateWindowTitle();
+            rememberRecentMes(filename);
+            //Where a measurement's windows sit is part of the measurement, and
+            //saving it is the moment the user asks for that to be kept.  NOT at
+            //exit, which is the one moment it cannot be trusted: by then they
+            //may well have closed the forms they had finished with (user).
+            saveOpenForms();
         }
 	}
 }
@@ -1112,24 +2010,34 @@ void FrmKameMain::mesStopAction_activated() {
 int
 FrmKameMain::openMes(const XString &filename) {
 	if( !filename.empty()) {
+        //Every route in lands here -- the dialog, the recent list, the command
+        //line -- so this is the one place the list has to be told.
+        rememberRecentMes(QString::fromStdString(filename));
+        //Before the load starts: the drivers it creates are answered one by
+        //one as they appear.  \sa onDriverCaught().  The measurement leaving
+        //is not recorded here -- see fileCloseAction_activated().
+        m_docPath = QFileInfo(QString::fromStdString(filename))
+            .absoluteFilePath().toStdString();
+        loadOpenForms();
+        m_titleDoc = QFileInfo(QString::fromStdString(filename)).fileName();
+        updateWindowTitle();
+        //Loading is the start of a stretch of work across several drivers and
+        //their interfaces (user), so the toolboxes are pinned open for it
+        //rather than folding away between one driver and the next.  A pin, not
+        //the keyboard: nothing is raised and nothing is taken.
+        //
+        //Unless this measurement's forms are where the toolbox would be, in
+        //which case pinning it would park it on top of them and auto-hide is
+        //the better answer (user).  Decided per toolbox, from the geometries
+        //loadOpenForms() just read.  \sa formsWouldBeCovered()
+        pinToolboxes();
 		shared_ptr<XScriptingThread> th = runNewScript("Open Measurement", filename );
-        //Interfaces and entries are what one turns to after loading a
-        //measurement, so hand the east toolbox the keyboard — but only once
-        //the loading thread is done, since drivers, graphs and their windows
-        //go on appearing until then and would take it back.
-        if(th) {
-            auto *timer = new QTimer(this);
-            auto ticks = std::make_shared<int>(0);
-            connect(timer, &QTimer::timeout, this, [this, th, timer, ticks]{
-                //Bounded, so a thread that never reports itself finished does
-                //not leave a timer polling for the rest of the session.
-                if(th->isAlive() && (++( *ticks) < 300)) return;
-                timer->stop();
-                timer->deleteLater();
-                focusToolbox(false);
-            });
-            timer->start(200);
-        }
+        //Nothing is handed the keyboard when the load finishes.  It used to
+        //hand it to the east toolbox, interfaces and entries being what one
+        //turns to next -- but that is the same thing as the startup focus that
+        //was taken out, and it now reads worse: the toolbox opens, raises
+        //itself, takes the keyboard, and folds again on the next poll because
+        //the pointer is not over it.
 //		while(rbthread->isAlive()) {
 //			KApplication::kApplication()->processEvents();
 //			g_signalBuffer->synchronize();
@@ -1242,6 +2150,11 @@ void FrmKameMain::onScriptLinkClicked(const QUrl &url) {
             m_measure->python()->handleLink(
                 (action + "?file=" + file).toUtf8().constData());
         }
+        else if(action == "pyai-settings") {
+            //The settings file (model, API keys) needs no interpreter, so it
+            //must not fall into the venv dialog below.
+            m_measure->python()->handleLink(action.toUtf8().constData());
+        }
         else if(action.startsWith("pyai-")) {
             //Pydantic AI normally lives in a venv, which no PATH probe can
             //see. First use asks for the venv folder (the same gesture as the
@@ -1271,7 +2184,7 @@ void FrmKameMain::onScriptLinkClicked(const QUrl &url) {
 }
 void FrmKameMain::scriptRunAction_activated() {
     QString filename = QFileDialog::getOpenFileName (
-        this, i18n("Open Script File"), "",
+        this, i18n("Open Script File"), kameLastDir("script"),
 #ifdef USE_PYBIND11
         "Python Script files (*.py);;"
 #endif
@@ -1280,6 +2193,7 @@ void FrmKameMain::scriptRunAction_activated() {
         "All files (*.*)"
     );
 	if( !filename.isEmpty()) {
+        kameStoreLastDir("script", filename);
 		static unsigned int thread_no = 1;
 		runNewScript(formatString("Thread%d", thread_no), filename );
 		thread_no++;
@@ -1395,5 +2309,6 @@ void FrmKameMain::graphThemeNightAction_toggled( bool var ) {
     auto theme = var ? XGraph::Theme::Night : XGraph::Theme::DayLight;
     applyGraphThemeToAll(Snapshot( *m_measure), m_measure, theme);
     XGraph::setCurrentTheme(theme);
+    kameStoreGraphTheme(theme);
 }
 

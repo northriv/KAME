@@ -97,11 +97,12 @@ XThamwayPROT<tInterface>::XThamwayPROT(const char *name, bool runtime,
     rxPhase()->setUIEnabled(false);
     rxLPFBW()->setUIEnabled(false);
 }
+
 template <class tInterface>
 void
 XThamwayPROT<tInterface>::showForms() {
-    m_form->showNormal();
-    m_form->raise();
+    //Qualified: this is a template whose base is dependent.
+    XDriver::showForm(this->m_form.get());
 }
 
 template <class tInterface>

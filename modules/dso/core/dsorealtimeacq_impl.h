@@ -300,14 +300,11 @@ XRealTimeAcqDSO<tDriver>::tryReadAISuspend(const atomic<bool> &terminated) {
 template <class tDriver>
 void *
 XRealTimeAcqDSO<tDriver>::executeReadAI(const atomic<bool> &terminated) {
-    //! This loop DOES enter the STM (the Snapshot below), so its tier is a real
-    //! choice, and the choice is the one AcquisitionPriority makes for the
-    //! driver's own acquisition thread: NORMAL, the thread default, per the
-    //! 2026-07-31 retirement of STM-HIGHEST for KAME.  A per-record analysis
-    //! closure longer than this loop's period is exactly the resonance that
-    //! verdict names, and a DSO feeding a secondary driver has one.  Only the
-    //! OS half is asked for here; this thread is a separate XThread and never
-    //! constructs AcquisitionPriority, so it would otherwise get neither half.
+    // This loop DOES enter the STM (the Snapshot below), and it commits at
+    // NORMAL, the thread default -- the same tier AcquisitionPriority leaves
+    // the driver's own acquisition thread at.  What it asks for is the OS half:
+    // this is a separate XThread that never constructs AcquisitionPriority, so
+    // without this line it would get no elevation at all.
     ScopedAcquisitionOSPriority _os_priority;
     while( !terminated) {
         try {

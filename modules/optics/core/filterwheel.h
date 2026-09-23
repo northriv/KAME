@@ -33,8 +33,6 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do.
     virtual ~XFilterWheel();
-	//! Shows all forms belonging to driver.
-    virtual void showForms() override;
 
     //! driver specific part below
     static constexpr unsigned int MaxFilterCount = 6;

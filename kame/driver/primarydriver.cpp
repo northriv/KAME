@@ -60,19 +60,14 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
     XTime time_recorded = time_recorded_org;
     XKameError err;
     bool skipped = false;
-    // Bounds the WAITING this call may do, at EVERY priority: past ~20 ms a
-    // stalled record starts to distort the measurement whether or not the
-    // acquisition thread is realtime.  See downstreamWaitBudgetUS() for the
-    // default and for the throughput this trades away.
+    // Bounds the WAITING this call may do: past ~20 ms a stalled record starts
+    // to distort the measurement, whatever the acquisition thread's priority.
+    // See downstreamWaitBudgetUS() for the default and for the throughput this
+    // trades away.
     //
     // One guard covers the whole call because the budget is an absolute
-    // thread-local limit, not a per-scope duration.  On a HIGHEST thread it is
-    // inert over the commit -- HIGHEST leaves the negotiator's round loop before
-    // sleeping -- and binds the moment ScopedDemoteRealtime drops the priority to
-    // NORMAL for the marked-message dispatch below and for
-    // visualize()/onVisualization after, which is exactly where an acquisition
-    // loop's period would otherwise be exposed.  On a NORMAL thread it binds
-    // throughout, including the record commit itself.
+    // thread-local limit, not a per-scope duration: it binds throughout,
+    // including the record commit itself and everything downstream of it.
     std::unique_ptr<Transactional::ScopedWaitBudget> _downstream_budget;
     if(unsigned int _b = downstreamWaitBudgetUS())
         _downstream_budget.reset(new Transactional::ScopedWaitBudget((int64_t)_b));
@@ -142,20 +137,20 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
     }
     if(err.msg().length())
         err.print(getLabel() + ": ");
-    // Realtime ends with the record.  Everything below is downstream work --
+    // Realtime ends with the record: everything below is downstream work --
     // visualize() touches graphs, and the onVisualization listeners are other
-    // people's code -- and at HIGHEST it would inherit an exemption from
-    // politeness it has no claim to, on paths that widen scope (a graph object
-    // snapshots its plot; the secondary-driver chain snapshots the whole driver
-    // list).  Two acquisition threads doing that concurrently put two realtime
-    // threads on one Linkage, which is the invariant HIGHEST rests on.
+    // people's code, on paths that widen scope (a graph object snapshots its
+    // plot; the secondary-driver chain snapshots the whole driver list).
+    //
+    // Inert in KAME, which sets no STM tier above NORMAL anywhere: the guard
+    // demotes a realtime committer only, and a NORMAL one is untouched.  It is
+    // kept because kamestm's tier is a library feature a host may use, and
+    // arming it costs one TLS read on a path that already commits.
     //
     // The onRecord listeners are NOT covered here: XDriver::record() marks the
-    // talker, so they are dispatched inside the commit above.  kamestm demotes
-    // there, at Transaction::finalizeCommitment's messaging loop.
-    //
-    // Demotes HIGHEST only.  A NORMAL driver is unaffected, and a lowprio
-    // committer must not be raised.
+    // talker, so they are dispatched inside the commit above, where kamestm
+    // applies the same guard at Transaction::finalizeCommitment's messaging
+    // loop.
     Transactional::ScopedDemoteRealtime _no_realtime_downstream;
     try {
         visualize(shot);

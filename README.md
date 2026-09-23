@@ -39,11 +39,11 @@ orchestration across compatible instruments.
 - Calibration curves (cspline, Chebyshev, polynomial) for resistance thermometers and generic sensors; calibrated entries feed into graphs, charts, and data recording like any native scalar
 
 ### Released versions/Binaries
-Source: [kame-8.6.1.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.6.1.zip) (4.8MB, Aug. 2026).
+Source: [kame-8.6.1.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.6.1.zip) (3.7MB, Aug. 2026).
 [All other source archives](https://kitag.issp.u-tokyo.ac.jp/web/kame/src).
 Windows 64-bit binaries: [8.6.1](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.1.zip) (21.8MB) · [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.zip) (21.8MB) · [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.5.zip) (20.4MB) · [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.4.zip). At least Qt is additionally needed, follow instructions below to install.
 Builds before 8.6.1 carry the double-allocation defect described under *What's New in 8.6.1* on Windows and Linux.
-**9.0 alpha** — the measurement journal, below: [source](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.0-alpha.zip) (5.2MB) · [Windows 64-bit](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-9.0alpha.zip) (22.0MB). A pre-release; 8.6.1 remains the current stable version.
+**9.0 alpha2** — the measurement journal, below: [source](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.0-alpha2.zip) (3.8MB) · [Windows 64-bit](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-9.0alpha2.zip). A pre-release; 8.6.1 remains the current stable version.
 
 ### Supported instruments
 
@@ -190,7 +190,9 @@ be carved out as their own subtrees for downstream embedding:
   allocators on every OS via the native interposition: ELF strong symbols on
   Linux, Mach-O `__DATA,__interpose` on macOS, free-family IAT redirect on
   Windows (§31).  Builds on the same four toolchains; MSVC live pool is
-  default-on (opt OUT with `KAME_DISABLE_POOL_MSVC`).  See
+  default-on (opt OUT with `KAME_DISABLE_POOL_MSVC`).  Included in
+  [mimalloc-bench](https://github.com/daanx/mimalloc-bench) as `kp`, so it
+  can be measured against the usual field with the suite's own harness.  See
   [`kamepoolalloc/README.md`](kamepoolalloc/README.md) and the
   [INVARIANTS](kamepoolalloc/design/INVARIANTS.md) / [SUBSYSTEMS](kamepoolalloc/design/SUBSYSTEMS.md)
   navigation map.
@@ -594,9 +596,9 @@ The **script files are deployed for you** at link time, into `.\resources`
 next to `kame.exe` — `rubylineshell.rb`, `pythonlineshell.py`, the two
 notebook files, `kame_mcp_server.py`, `kame_pydantic_ai.py`,
 `kame_python_api.md`, the user's manual (`kame-9-en.md` + `media\`), and
-`plugin\`. Qt Creator needs no extra step; `tools\deploy_scripts.bat
-<resources-dir>` does the same by hand if you ever need it, and
-`tools\mkzip.bat` calls it when assembling a release.
+`plugin\`. Qt Creator needs no extra step;
+`tools\deploy_scripts.bat <resources-dir>` does the same by hand if you ever
+need it, and `tools\mkzip.bat` calls it when assembling a release.
 
 > Older trees had no such step (qmake only lists these in `DISTFILES`, which
 > copies nothing), so a Windows build ran with whatever had been hand-copied
@@ -691,10 +693,34 @@ server:
 |---|---|
 | **Claude: Code / app** | Claude Code in a terminal (with the bundled plugin, below) / the Claude desktop app |
 | **Codex: CLI / fugu / app** | Codex in a terminal, with the server passed as a session-scoped override — nothing is written to `~/.codex/config.toml` |
-| **Pydantic AI: CLI / web / ⚙ agent** | The venv's `clai`, handed an agent; the model comes from your clai setup, `-m` overrides. **web** picks a free port and opens the browser on it once the server answers; if your module builds an app with `Agent.to_web(models=…)`, that app is served (with `uvicorn`) so your own model list is the one in the UI. **⚙ agent** picks an agent module of your own — KAME checks it exposes a `pydantic_ai.Agent`, remembers which variable, and runs it from its own directory; Cancel returns to the one KAME ships |
+| **Pydantic AI: CLI / web / ⚙ settings / ⚙ agent** | A vendor-neutral client in your virtualenv — any `provider:model`, local models included. **CLI** is `clai` in a terminal; **web** is a chat UI in the browser, with the figures a tool call produced shown inline; **⚙ settings** opens the one file that holds the model and the API key; **⚙ agent** swaps in an agent module of your own. Details below the table |
+
+**Pydantic AI, in more detail.** On the first click KAME asks for the
+virtualenv that has `pydantic-ai` installed and remembers it. Two things are
+needed before the first chat, and **⚙ settings** is where both go: it creates
+`~/.kame_pyai.env` from a commented template and opens it in your editor —
+uncomment a `KAME_PYAI_MODEL=provider:name` line (several, comma-separated,
+fill the web UI's model menu; `sakana:fugu` reaches Sakana AI with
+`SAKANA_API_KEY`) and fill in that provider's key. Nothing has to be exported
+in a shell profile: neither pydantic-ai nor `clai` reads a `.env` by itself,
+and a GUI process sees no shell exports anyway, so KAME's agent reads this
+file on every launch. **web** serves the agent's own web app with `uvicorn`
+on a free port and opens the browser once it answers; every figure
+`execute_code` returns is also saved under `~/.kame_mcp_log/plots/` and
+served at `/plots`, so the assistant shows it inline (without `uvicorn` in
+the venv the link falls back to `clai web`, which cannot show figures).
+**⚙ agent** picks a module of your own — KAME checks it exposes a
+`pydantic_ai.Agent`, remembers which variable, and runs it from its own
+directory; if it builds an app with `Agent.to_web(models=…)`, that app is
+served, so your own model list is the one in the UI; Cancel returns to the
+agent KAME ships. Such a module needs nothing hard-coded:
+`from kame_pydantic_ai import kame_mcp` is the running KAME as a capability,
+`kame_usage_logging()` puts its calls into the same usage ledger, and
+`kame_web_plots(app)` gives its web app the same `/plots`.
 
 Prerequisites are `pip install mcp jupyter_client` for the server, and
-`pip install pydantic-ai clai` if you want the Pydantic AI links. Either mcp
+`pip install pydantic-ai clai uvicorn` if you want the Pydantic AI links
+(`uvicorn` only for the web UI). Either mcp
 1.x or 2.x works from **8.6.1** on: 2.0 renamed the server class and moved its
 module (`mcp.server.fastmcp.FastMCP` → `mcp.server.MCPServer`), and both the
 server and KAME's interpreter probe take whichever is installed. **On 8.6 and
@@ -792,8 +818,9 @@ support skills. Removing the skill must never make an agent unsafe.
 ### Usage records
 
 KAME appends one JSONL line per MCP tool call to `~/.kame_mcp_log/`, and the
-Pydantic AI client appends one line per model request to `usage.jsonl` beside
-it — calls, tokens and inference time, never prompt or response text. The
+Pydantic AI client — KAME's agent, or your own through `kame_usage_logging()` —
+appends one line per model request to `usage.jsonl` beside it — calls, tokens
+and inference time, never prompt or response text. The
 first is provenance for reconstructing what an assistant did; the second
 gives API-cost and local-inference figures that providers do not always
 report back. Both default on; disable with `KAME_MCP_NO_LOG` and
@@ -817,6 +844,18 @@ report back. Both default on; disable with `KAME_MCP_NO_LOG` and
 ## Contributing
 
 Bug reports and pull requests are welcome on [GitHub](https://github.com/northriv/KAME).
+
+---
+
+## Acknowledgements
+
+Developed at [Kitagawa Laboratory, ISSP, University of Tokyo](https://kitag.issp.u-tokyo.ac.jp/).
+
+This work was supported by the MEXT Supporting Pioneering Research through
+AI for 1,000 Discovery challenges Program (SPReAD), Japan, Grant Number
+JPMXP1726275196.  Model checking used the facilities of the Supercomputer
+Center, Institute for Solid State Physics, the University of Tokyo
+(2026-A-0004).
 
 ---
 

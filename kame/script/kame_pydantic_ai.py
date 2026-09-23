@@ -16,11 +16,34 @@ is the thing being controlled and is therefore running anyway.
 Usage:
     kame_pydantic_ai.py [--model provider:name] [--web] [--check]
 
-Model resolution: --model, else $KAME_PYAI_MODEL, else $PYDANTIC_AI_MODEL.
-`--web` hands this module's agent to `clai web` (needs the `clai` package).
+Settings: ~/.kame_pyai.env and <cwd>/.env are read on import (NAME=value
+lines; KAME's "settings" link creates and opens the first).  Anything already
+in the environment wins, so a shell export still works, but none is needed.
+Model resolution: --model, else KAME_PYAI_MODEL, else PYDANTIC_AI_MODEL — from
+the environment or those files.  A comma-separated list binds the first and
+offers the rest in the web UI's menu.  `sakana:<model>` (fugu, namazu) is
+resolved here against SAKANA_API_KEY; every other provider:name is
+pydantic-ai's own.
+`--web` serves this module's own web app (`kame_pydantic_ai:app`: the chat UI
+plus KAME's saved figures at /plots) with uvicorn, falling back to `clai web`
+when uvicorn is absent — that fallback cannot show figures.
 `--check` connects, prints the tool roster, and exits — no model needed.
 
-Requires: pip install pydantic-ai   (and `clai` for --web)
+For an agent of your own (KAME puts this module on PYTHONPATH when it launches
+one):
+    from kame_pydantic_ai import kame_mcp, kame_toolset, kame_settings
+    agent = Agent('anthropic:claude-sonnet-4-5', capabilities=[kame_mcp()])
+kame_mcp() is KAME's MCP server as a capability, kame_toolset() the same as a
+toolset, kame_settings() the dict read from the files above — importing this
+module has already put them into os.environ.  kame_usage_logging() is the
+per-request usage recorder (usage.jsonl) as capabilities; kame_web_plots(app)
+serves the figures KAME's server saves so `![…](/plots/<name>.png)` renders in
+the web UI, with FIGURE_INSTRUCTIONS the line that tells the model to do that.
+
+Requires: pydantic-ai (and `clai` for --web) in THIS interpreter --
+    uv pip install --python <python> pydantic-ai clai uvicorn
+    <python> -m pip install pydantic-ai clai uvicorn       (pip venvs only;
+                                                    uv venvs carry no pip)
 """
 import argparse
 import json
@@ -30,6 +53,73 @@ import threading
 from datetime import datetime, timezone
 
 URL_FILE = os.path.join(os.path.expanduser('~'), '.kame_mcp_url')
+SETTINGS_FILE = os.path.join(os.path.expanduser('~'), '.kame_pyai.env')
+#Sakana AI (fugu, namazu) serves an OpenAI-compatible API but is not a
+#provider pydantic-ai knows, so `sakana:<model>` is resolved here rather than
+#by making the user repurpose OPENAI_BASE_URL / OPENAI_API_KEY -- which would
+#also shut out real OpenAI models in the same file.
+SAKANA_BASE_URL = 'https://api.sakana.ai/v1'
+
+
+def _read_env_file(path):
+    """NAME=value lines as a dict; {} when the file is absent.
+
+    Accepts comments, blank lines, an optional `export `, and matching quotes
+    around the value; skips what it cannot parse.  The same grammar KAME uses
+    to read the model back out (xpythonsupport._pyai_read_env)."""
+    import re
+    out = {}
+    try:
+        with open(path, encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#') or '=' not in line:
+                    continue
+                if line.startswith('export '):
+                    line = line[7:].lstrip()
+                k, v = line.split('=', 1)
+                k, v = k.strip(), v.strip()
+                if len(v) >= 2 and v[0] == v[-1] and v[0] in '"\'':
+                    v = v[1:-1]
+                if re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', k):
+                    out[k] = v
+    except OSError:
+        pass
+    return out
+
+
+def _load_settings():
+    """Put ~/.kame_pyai.env, then <cwd>/.env, into os.environ; the environment
+    itself wins over both.  Returns what the files held.
+
+    Neither pydantic-ai nor clai reads a .env, and KAME (a GUI process) does
+    not see shell exports -- so without this the agent KAME ships could only be
+    configured by editing a shell profile.  One file, created by KAME's
+    "settings" link, is the whole configuration instead.  Runs at import so
+    the clai path (`clai -a kame_pydantic_ai:agent`) gets it too, and so does
+    a user's own module that imports this one for kame_mcp()."""
+    merged = _read_env_file(SETTINGS_FILE)
+    merged.update(_read_env_file(os.path.join(os.getcwd(), '.env')))
+    for k, v in merged.items():
+        if v and not os.environ.get(k):
+            os.environ[k] = v
+    return merged
+
+
+_SETTINGS = _load_settings()
+
+
+def kame_settings():
+    """The settings read from ~/.kame_pyai.env and <cwd>/.env, as a dict."""
+    return dict(_SETTINGS)
+
+
+def _first_model(spec):
+    """The model to bind from a KAME_PYAI_MODEL value, which may list several
+    (comma or space separated) to fill the web UI's menu."""
+    import re
+    parts = [x for x in re.split(r'[,\s]+', spec or '') if x]
+    return parts[0] if parts else None
 
 # ---------------------------------------------------------------------------
 # LLM usage logging
@@ -176,6 +266,131 @@ SYSTEM_PROMPT = (
 )
 
 
+def _tilde(path):
+    home = os.path.expanduser('~')
+    return '~' + path[len(home):] if path.startswith(home + os.sep) else path
+
+
+def _shell_profile():
+    """Where a shell `export` would have to go to reach this process -- the
+    alternative to the settings file.  KAME opens a terminal WINDOW for this
+    client; that window runs the login shell.  KAME's own environment does not
+    inherit shell exports (it is a GUI application)."""
+    if sys.platform == 'darwin':
+        return '~/.zshrc'
+    if os.name == 'nt':
+        return 'the user environment (setx)'
+    return '~/.bashrc or ~/.profile'
+
+
+def _settings_hint():
+    """Where to put a NAME=value so this process sees it, file first."""
+    return ('{}  (the "settings" link in KAME creates and opens it; a shell '
+            'export in {} works too)'.format(_tilde(SETTINGS_FILE),
+                                              _shell_profile()))
+
+
+def _install_lines():
+    py = sys.executable
+    if sys.prefix == getattr(sys, 'base_prefix', sys.prefix):
+        #Not a venv at all.  Installing into a system or Xcode/Homebrew
+        #interpreter is the wrong fix; make an environment and point KAME at it.
+        venv = '~/kame-pyai'
+        vpy = venv + ('\\Scripts\\python.exe' if os.name == 'nt' else '/bin/python')
+        return ("  (this is a system interpreter, not a venv -- make one; on macOS "
+                "keep it out of\n   Documents, Desktop, Downloads and iCloud "
+                "Drive, which privacy protection walls off)\n"
+                "    uv venv {0} && uv pip install --python {1} pydantic-ai clai uvicorn\n"
+                "    {2} -m venv {0} && {1} -m pip install pydantic-ai clai uvicorn\n"
+                "  then delete ~/.kame_pyai_python and click the KAME link again "
+                "to pick {0}".format(venv, vpy, py))
+    return ("    uv pip install --python {0} pydantic-ai clai uvicorn\n"
+            "    {0} -m pip install pydantic-ai clai uvicorn      (pip venvs only; a uv "
+            "venv has no pip)".format(_tilde(py)))
+
+
+def _need_pydantic_ai():
+    """Import pydantic_ai or say, precisely, which interpreter lacks it."""
+    try:
+        import pydantic_ai  # noqa: F401
+    except ImportError as e:
+        sys.exit(
+            "This interpreter has no pydantic_ai:\n"
+            "    {}\n"
+            "    ({})\n"
+            "Install it there:\n{}\n"
+            "If that is the wrong interpreter, delete ~/.kame_pyai_python and "
+            "click the KAME link again to pick another venv.".format(
+                _tilde(sys.executable), e, _install_lines()))
+
+
+def _explain_and_exit(exc):
+    """Turn the errors people actually meet into instructions.
+
+    Anything not recognised is re-raised with its traceback: a message that
+    guesses wrong is worse than one that says nothing."""
+    msg = str(exc)
+    tail = ("\nManual: MCP chapter, Troubleshooting table -- "
+            "https://github.com/northriv/KAME#ai-assisted-experiment-automation-mcp")
+    try:
+        from pydantic_ai.exceptions import UserError
+    except ImportError:
+        UserError = ()
+    if isinstance(exc, UserError):
+        if 'environment variable' in msg:
+            import re
+            m = re.search(r'`?([A-Z][A-Z0-9_]*_API_KEY)`?', msg)
+            var = m.group(1) if m else 'the provider API key'
+            sys.exit(
+                "{}\n\n"
+                "The model needs {}, and this process does not have it.\n"
+                "  * Put a line   {}=...   in {}\n    and click the link "
+                "again.\n"
+                "  * Or use a model that needs no key, e.g. a local Ollama -- "
+                "in the same file:\n"
+                "        KAME_PYAI_MODEL=openai:qwen3:32b\n"
+                "        OPENAI_BASE_URL=http://127.0.0.1:11434/v1\n"
+                "        OPENAI_API_KEY=ollama\n"
+                "  (clai without a model falls back to openai:gpt-5, which is "
+                "why an OPENAI key\n   is demanded when you never chose "
+                "OpenAI -- set KAME_PYAI_MODEL there.)"
+                .format(msg, var, var if m else 'NAME_API_KEY', _settings_hint())
+                + tail)
+        if 'Unknown model' in msg:
+            sys.exit(
+                "{}\n\n"
+                "The form is provider:name, for example\n"
+                "    anthropic:claude-sonnet-4-5    openai:gpt-5    "
+                "google-gla:gemini-2.5-pro    sakana:fugu\n"
+                "    openai:<any name>  with OPENAI_BASE_URL for Ollama / "
+                "llama.cpp / LM Studio\n"
+                "It came from --model, else KAME_PYAI_MODEL, else "
+                "PYDANTIC_AI_MODEL.".format(msg) + tail)
+        sys.exit(msg + tail)
+    if isinstance(exc, (RuntimeError, OSError, ConnectionError)) and (
+            'connect' in msg.lower() or 'refused' in msg.lower()):
+        url = ''
+        try:
+            with open(URL_FILE) as f:
+                url = json.load(f).get('url', '')
+        except (OSError, ValueError):
+            pass
+        sys.exit(
+            "Could not reach KAME's MCP server{}.\n"
+            "    {}\n"
+            "The server lives inside KAME's Jupyter kernel, so KAME must be "
+            "running and its\n'Jupyter notebook' link (Script pane) must have "
+            "been clicked in THIS KAME session --\n{} is rewritten each time "
+            "and removed when KAME exits, so a stale one\nmeans KAME was "
+            "restarted without the notebook.{}".format(
+                ' at ' + url if url else '', msg, _tilde(URL_FILE),
+                '' if '--check' in sys.argv else
+                "  Then verify with:\n    {} {} --check".format(
+                    _tilde(sys.executable), _tilde(os.path.abspath(__file__))))
+            + tail)
+    raise exc
+
+
 def _server_url():
     """(url, token) of the running KAME MCP HTTP server."""
     try:
@@ -186,9 +401,15 @@ def _server_url():
         url, token = None, ''
     if not url:
         sys.exit(
-            "KAME's MCP server is not reachable: {} is missing or has no "
-            "url.\nStart KAME and click 'Jupyter notebook' in the Script "
-            "pane, then retry.".format(URL_FILE))
+            "KAME's MCP server address is not known: {} is missing or has no "
+            "url.\n"
+            "KAME writes that file when its Jupyter notebook is launched and "
+            "removes it on exit, so:\n"
+            "  1. KAME must be running now, and\n"
+            "  2. 'Jupyter notebook' in its Script pane must have been clicked "
+            "in this session\n     (the MCP server runs inside that kernel).\n"
+            "Then click the Pydantic AI link again, or verify with --check."
+            .format(_tilde(URL_FILE)))
     return url, token
 
 
@@ -210,8 +431,30 @@ def _toolset(url, token):
         return MCPServerStreamableHTTP(url, headers=headers)
 
 
+def _resolve_model(spec):
+    """A model string pydantic-ai can infer, or a Model object for the
+    providers it cannot: `sakana:<name>` -> Sakana AI's OpenAI-compatible
+    endpoint with SAKANA_API_KEY.  Everything else passes through."""
+    if not spec or not spec.startswith('sakana:'):
+        return spec
+    from pydantic_ai.exceptions import UserError
+    from pydantic_ai.models.openai import OpenAIChatModel
+    from pydantic_ai.providers.openai import OpenAIProvider
+    key = os.environ.get('SAKANA_API_KEY')
+    if not key:
+        #Worded like pydantic-ai's own, so _explain_and_exit's API-key branch
+        #recognises it and names the variable.
+        raise UserError('Set the `SAKANA_API_KEY` environment variable to use '
+                        'the Sakana AI provider (model {}).'.format(spec))
+    return OpenAIChatModel(spec[len('sakana:'):],
+                           provider=OpenAIProvider(base_url=SAKANA_BASE_URL,
+                                                   api_key=key))
+
+
 def _build_agent(model):
+    _need_pydantic_ai()   #also on the clai import path, which skips main()
     from pydantic_ai import Agent
+    model = _resolve_model(model)
     url, token = _server_url()
     #Capabilities, not a wrapper around agent.run(): both entry points here
     #hand the agent to someone else's loop (to_cli_sync, and `clai web`, which
@@ -221,6 +464,77 @@ def _build_agent(model):
     kwargs = {'capabilities': caps} if caps else {}
     return Agent(model, system_prompt=SYSTEM_PROMPT,
                  toolsets=[_toolset(url, token)], **kwargs)
+
+
+def kame_server():
+    """(url, token) of the running KAME's MCP server, from ~/.kame_mcp_url."""
+    return _server_url()
+
+
+def kame_usage_logging(tag=None):
+    """KAME's usage recorder, as Agent capabilities.
+
+    One row per model request in ~/.kame_mcp_log/usage.jsonl -- calls,
+    tokens, inference time, never text -- the same ledger the agent KAME
+    ships writes, so a module of your own lands in it too.  `tag` keys the
+    rows (`model_key`); KAME_USAGE_TAG overrides.  [] when OpenTelemetry is
+    absent, so `capabilities=[*kame_usage_logging(), ...]` is always valid."""
+    return _install_usage_logging(tag or 'agent')
+
+
+def kame_plot_dir():
+    """Where KAME's MCP server saves every figure a tool call produced:
+    <KAME_MCP_LOG_DIR or ~/.kame_mcp_log>/plots, created if absent."""
+    d = os.path.join(USAGE_LOG_DIR, 'plots')
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def kame_web_plots(app, url_path='/plots'):
+    """Serve KAME's saved figures from an `agent.to_web()` app; returns app.
+
+    The chat UI renders images the model GENERATES, not images a tool
+    returns, so a plot from execute_code never appears there on its own.
+    KAME's server also writes each one under kame_plot_dir() and names it in
+    the tool output; mounted here, `![figure](/plots/<name>.png)` in a reply
+    shows it inline -- a relative URL, so the port the UI happens to be on
+    does not matter.  FIGURE_INSTRUCTIONS tells the model to write that."""
+    from starlette.staticfiles import StaticFiles
+    app.mount(url_path, StaticFiles(directory=kame_plot_dir()), name='kame-plots')
+    return app
+
+
+#Append to an agent's instructions when its web app calls kame_web_plots().
+FIGURE_INSTRUCTIONS = (
+    "When a KAME tool result contains '[figure saved: ... URL path /plots/<name>]', "
+    "show that figure to the user by writing ![figure](/plots/<name>) on its own "
+    "line in your reply; the web UI renders it inline. Do not describe a plot "
+    "you could show."
+)
+
+
+def kame_toolset():
+    """KAME's MCP server as a toolset: `Agent(model, toolsets=[kame_toolset()])`."""
+    return _toolset(*_server_url())
+
+
+def kame_mcp(**kwargs):
+    """KAME's MCP server as a capability: `Agent(model, capabilities=[kame_mcp()])`.
+
+    Nothing to hard-code: the URL and token come from the file KAME writes at
+    each notebook launch, so the same module works on every machine KAME runs
+    on.  Extra keyword arguments go to pydantic_ai.capabilities.MCP
+    (allowed_tools=..., description=..., ...)."""
+    from pydantic_ai.capabilities import MCP
+    url, token = _server_url()
+    #headers=, not authorization_token=: pydantic-ai copies the latter into
+    #the Authorization header VERBATIM (capabilities/mcp.py, "Merge
+    #authorization_token into headers"), while KAME's server checks for
+    #"Bearer <token>" exactly -- so the token alone came back 401 on the
+    #first live run from a user's own agent.
+    if token and 'headers' not in kwargs:
+        kwargs['headers'] = {'Authorization': 'Bearer ' + token}
+    return MCP(url, **kwargs)
 
 
 def _check():
@@ -258,25 +572,70 @@ def main():
     p.add_argument('--model', default=os.environ.get(
         'KAME_PYAI_MODEL', os.environ.get('PYDANTIC_AI_MODEL', '')))
     p.add_argument('--web', action='store_true',
-                   help="serve a web UI via `clai web` instead of the REPL")
+                   help="serve the web UI (with KAME's figures at /plots) "
+                        "instead of the REPL")
+    p.add_argument('--host', default='127.0.0.1')
+    p.add_argument('--port', type=int, default=0,
+                   help="web UI port (default: a free one, printed)")
     p.add_argument('--check', action='store_true',
                    help="connect to the MCP server, list tools, exit")
     args = p.parse_args()
+    #First, because every other message presumes it: `clai` needs it in this
+    #same interpreter too, and its own import error names no interpreter.
+    _need_pydantic_ai()
 
     if args.check:
-        return _check()
+        try:
+            return _check()
+        except Exception as e:
+            _explain_and_exit(e)
 
     if args.web:
-        # `clai web --agent module:variable` serves this module's agent; the
-        # module-level `agent` below is created lazily on import by clai.
+        if args.model:
+            os.environ['KAME_PYAI_MODEL'] = args.model
+        try:
+            import uvicorn
+        except ImportError:
+            uvicorn = None
+        if uvicorn is not None:
+            #Our own app, so /plots is served and figures show inline.
+            port = args.port
+            if not port:
+                import socket
+                with socket.socket() as sk:
+                    sk.bind((args.host, 0))
+                    port = sk.getsockname()[1]
+            app = __getattr__('app')
+            print("KAME Pydantic AI web UI: http://{}:{}/  (figures at /plots)"
+                  .format(args.host, port), flush=True)
+            uvicorn.run(app, host=args.host, port=port, log_level='warning')
+            return
+        # No uvicorn: `clai web --agent module:variable` serves the agent
+        # through clai's own app -- the chat works, figures do not show.
+        print("uvicorn is not installed next to {}, so the web UI comes from "
+              "`clai web`; it cannot show figures.  For that:\n"
+              "    uv pip install --python {} uvicorn".format(
+                  _tilde(sys.executable), _tilde(sys.executable)),
+              file=sys.stderr, flush=True)
         import shutil
         clai = (os.path.join(os.path.dirname(sys.executable), 'clai')
                 if os.path.isfile(os.path.join(
                     os.path.dirname(sys.executable), 'clai'))
                 else shutil.which('clai'))
         if not clai:
-            sys.exit("`clai` not found — pip install clai (into the same "
-                     "Python as pydantic-ai), or run without --web.")
+            #Name the interpreter: this is looked for NEXT TO sys.executable
+            #before PATH, so "not found" is about that environment, not about
+            #PATH -- and a uv-created venv has no pip in it at all, which made
+            #the old "pip install clai" advice fail on its own terms.
+            sys.exit(
+                "`clai` not found in {}\n"
+                "Install it into that environment -- for a uv project:\n"
+                "    uv sync            (if clai is in its pyproject)\n"
+                "    uv pip install --python {} clai\n"
+                "or, for a pip venv:  {} -m pip install clai\n"
+                "Otherwise run without --web.".format(
+                    os.path.dirname(sys.executable), sys.executable,
+                    sys.executable))
         env = dict(os.environ)
         env['PYTHONPATH'] = os.pathsep.join(
             (os.path.dirname(os.path.abspath(__file__)),
@@ -284,23 +643,108 @@ def main():
         if args.model:
             env['KAME_PYAI_MODEL'] = args.model
         cmd = [clai, 'web', '--agent', 'kame_pydantic_ai:agent']
-        if args.model:
-            cmd += ['-m', args.model]
+        import re
+        for m in [x for x in re.split(r'[,\s]+', args.model or '') if x]:
+            cmd += ['-m', m]   #several fill the menu; the first is the default
         os.execve(cmd[0], cmd, env)
 
     if not args.model:
         sys.exit(
-            "No model given. Pass --model or set KAME_PYAI_MODEL, e.g.\n"
-            "  --model anthropic:claude-sonnet-4-5      (needs ANTHROPIC_API_KEY)\n"
-            "  --model openai:gpt-5                     (needs OPENAI_API_KEY)\n"
-            "  --model openai:qwen3:32b                 (local: set OPENAI_BASE_URL\n"
-            "      to your Ollama/llama.cpp endpoint, e.g. http://127.0.0.1:11434/v1)")
-    _build_agent(args.model).to_cli_sync(prog_name='kame')
+            "No model given.  This script binds none itself; put one line in\n"
+            "  {}\n"
+            "    KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5      (needs "
+            "ANTHROPIC_API_KEY)\n"
+            "    KAME_PYAI_MODEL=openai:gpt-5                     (needs "
+            "OPENAI_API_KEY)\n"
+            "    KAME_PYAI_MODEL=google-gla:gemini-2.5-pro        (needs "
+            "GOOGLE_API_KEY)\n"
+            "    KAME_PYAI_MODEL=sakana:fugu                      (needs "
+            "SAKANA_API_KEY)\n"
+            "    KAME_PYAI_MODEL=openai:qwen3:32b                 (local, no "
+            "key: add OPENAI_BASE_URL=\n        http://127.0.0.1:11434/v1 for "
+            "Ollama / llama.cpp / LM Studio, and OPENAI_API_KEY=ollama)\n"
+            "and the key on its own line in the same file; or pass --model.\n"
+            "With `clai` installed next to this interpreter, KAME launches that "
+            "instead and\nits default (openai:gpt-5) applies when nothing is "
+            "set.".format(_settings_hint()))
+    try:
+        _build_agent(_first_model(args.model)).to_cli_sync(prog_name='kame')
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        _explain_and_exit(e)
 
 
-if __name__ != '__main__':
-    # Imported by `clai web --agent kame_pydantic_ai:agent`.
-    agent = _build_agent(os.environ.get(
-        'KAME_PYAI_MODEL', os.environ.get('PYDANTIC_AI_MODEL')) or None)
-else:
+def _web_models():
+    """The web UI's model menu from KAME_PYAI_MODEL, as {label: Model}.
+
+    Resolved here rather than handed to the UI as strings so that `sakana:`
+    works in the menu too, and so that a listed model whose key is missing
+    fails at start-up with the API-key explanation, not on the first message."""
+    import re
+    from pydantic_ai.models import infer_model
+    spec = os.environ.get('KAME_PYAI_MODEL') or os.environ.get('PYDANTIC_AI_MODEL') or ''
+    out = {}
+    for name in [x for x in re.split(r'[,\s]+', spec) if x]:
+        m = _resolve_model(name)
+        out[name] = m if not isinstance(m, str) else infer_model(m)
+    return out
+
+
+def _build_app():
+    """This module's web app: the chat UI on the agent, KAME's figures at /plots.
+
+    `clai web -a kame_pydantic_ai:agent` builds an app of its own that nothing
+    can mount on, so a figure execute_code produced never appeared there.
+    Serving our own app is what lets kame_web_plots() apply to the agent KAME
+    ships, not only to a user's module."""
+    models = _web_models()
+    if not models:
+        sys.exit(
+            "No model given for the web UI.  Put one line in\n  {}\n"
+            "    KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5\n"
+            "(several, comma-separated, fill the menu) and the key on its own "
+            "line.".format(_settings_hint()))
+    first = next(iter(models.values()))
+    agent = _build_agent(None)
+    agent.model = first
+    return kame_web_plots(agent.to_web(models=models,
+                                       instructions=FIGURE_INSTRUCTIONS))
+
+
+def __getattr__(name):
+    # `agent` is what `clai [web] --agent kame_pydantic_ai:agent` asks for;
+    # `app` is what `uvicorn kame_pydantic_ai:app` asks for.
+    # Built on first access (PEP 562) rather than at import, so that a user's
+    # own module can `from kame_pydantic_ai import kame_mcp` without this one
+    # also building an agent -- and needing ~/.kame_mcp_url -- as a side
+    # effect.  clai's load_agent() swallows ordinary exceptions from the import
+    # (pydantic's ImportString turns them into a ValidationError, and it
+    # returns None), which would leave the user with a generic "could not
+    # load" line; a SystemExit passes through, so every failure becomes one,
+    # explained where it can be, with the traceback where it cannot.
+    if name not in ('agent', 'app'):
+        raise AttributeError(name)
+    try:
+        g = globals()
+        if name == 'agent':
+            g['agent'] = _build_agent(_first_model(
+                os.environ.get('KAME_PYAI_MODEL')
+                or os.environ.get('PYDANTIC_AI_MODEL')))
+        else:
+            g['app'] = _build_app()
+        return g[name]
+    except SystemExit:
+        raise
+    except Exception as e:
+        try:
+            _explain_and_exit(e)
+        except SystemExit:
+            raise
+        except Exception:
+            import traceback
+            sys.exit(traceback.format_exc())
+
+
+if __name__ == '__main__':
     main()

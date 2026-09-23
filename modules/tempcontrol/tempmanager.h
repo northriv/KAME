@@ -30,8 +30,6 @@ class XTempManager : public XSecondaryDriver {
 public:
     XTempManager(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XTempManager();
-	//! show all forms belonging to driver
-    virtual void showForms() override;
   
     static constexpr unsigned int maxNumOfAUXDevices = 6;
 

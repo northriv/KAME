@@ -15,6 +15,7 @@
 #include "interfacelistconnector.h"
 #include "driver.h"
 #include "icon.h"
+#include "kame.h"
 
 #include <QLineEdit>
 #include <QComboBox>
@@ -148,8 +149,13 @@ XInterfaceListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Pa
 void
 XInterfaceListConnector::cellClicked ( int row, int ) {
     for(auto &&con: m_cons) {
-        if(m_pItem->cellWidget(row, 1) == con.btn)
+        if(m_pItem->cellWidget(row, 1) == con.btn) {
             con.xinterface->driver()->showForms();
+            //The toolbox has just done its job and is now standing in front of
+            //the result.
+            if(auto *frm = dynamic_cast<FrmKameMain *>(g_pFrmMain))
+                frm->foldToolboxes();
+        }
 	}
 }
 bool

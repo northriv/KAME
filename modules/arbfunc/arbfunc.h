@@ -26,8 +26,6 @@ public:
     XArbFuncGen(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     //! usually nothing to do
     virtual ~XArbFuncGen() = default;
-    //! show all forms belonging to driver
-    virtual void showForms() override;
 
     const shared_ptr<XBoolNode> output() const {return m_output;}
     const shared_ptr<XBoolNode> burst() const {return m_burst;}

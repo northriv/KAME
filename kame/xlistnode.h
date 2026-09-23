@@ -184,13 +184,35 @@ struct XTypeHolder {
 	}
 		
     creator_t creator(const std::string &tp) {
-        XScopedLock<XMutex> lock(m_mutex);
-        try {
-            return m_map.at(tp).creator;
+        creator_t inner;
+        {
+            XScopedLock<XMutex> lock(m_mutex);
+            try {
+                inner = m_map.at(tp).creator;
+            }
+            catch(std::out_of_range &e) {
+                return [](const char*, bool, ArgTypes&&...){return shared_ptr<XNode>();}; //empty
+            }
         }
-        catch(std::out_of_range &e) {
-            return [](const char*, bool, ArgTypes&&...){return shared_ptr<XNode>();}; //empty
-        }
+        //The registry key is stamped HERE, on a node that is still an orphan,
+        //because the caller's next act is to insert it and publish it.
+        //createByTypename() also stamps, but only after createByTypename_()
+        //has returned -- and that returns with the node already in the list,
+        //so everything listening to the insertion sees an UNstamped node.  The
+        //journal is such a listener: its onCatch writes the node's "type" from
+        //storedTypename(), and a driver added mid-run was therefore recorded
+        //with no type at all, which a replay cannot create from -- while the
+        //drivers present at the start, written by the opening dumpSubtree long
+        //after they were stamped, all carried one.  \sa XNode::storedTypename
+        XString key = tp;
+        return [inner, key](const char *name, bool runtime,
+                            ArgTypes&&... args)->shared_ptr<XNode> {
+            shared_ptr<XNode> node = inner(name, runtime,
+                                           std::forward<ArgTypes>(args)...);
+            if(node)
+                node->setStoredTypename(key);
+            return node;
+        };
 	}
     std::deque<XString> keys() const {
         std::deque<XString> list;

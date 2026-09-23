@@ -44,20 +44,40 @@ public:
         : XFuncPlot(name, runtime, tr, graph), m_item(item), m_owner(owner)
     {}
     ~XRelaxFuncPlot() {}
-    virtual double func(double t) const {
-        shared_ptr<XNMRT1> owner = m_owner.lock();
-        if( !owner) return 0;
-        Snapshot shot( *owner);
-        shared_ptr<XRelaxFunc> func1 = shot[ *m_item];
-        if( !func1) return 0;
+    virtual double func(double t) const override {
+        //Reads what snapshot() below put here, and takes none of its own.
+        if( !m_curve) return 0;
         double f, df;
-        double it1 = shot[ *owner].m_params[0];
-        double c = shot[ *owner].m_params[1];
-        double a = shot[ *owner].m_params[2];
-        func1->relax( &f, &df, t, it1);
-        return c * f + a;
+        m_curve->relax( &f, &df, t, m_it1);
+        return m_c * f + m_a;
+    }
+protected:
+    //! ONE snapshot per redraw, where there used to be one per point.
+    //!
+    //! XFuncPlot::snapshot() calls func() maxCount() times -- hundreds -- and
+    //! func() used to open a Snapshot of the whole XNMRT1 subtree on every one
+    //! of them, on the drawing thread, for every frame.  Beyond the cost, a
+    //! Snapshot of a node this size can bundle its subtree, so this was
+    //! hundreds of bundles per frame while a T1 measurement ran.  KAME died of
+    //! it on 2026-09-06: vm_map_enter refused another mapping (17908 already,
+    //! 97% of the writable space never written), the allocation threw, and the
+    //! throw came out of a Snapshot constructor in paintGL.
+    virtual void snapshot(const Snapshot &shot) override {
+        m_curve.reset();
+        if(shared_ptr<XNMRT1> owner = m_owner.lock()) {
+            Snapshot shot_owner( *owner);
+            m_curve = shot_owner[ *m_item];
+            m_it1 = shot_owner[ *owner].m_params[0];
+            m_c = shot_owner[ *owner].m_params[1];
+            m_a = shot_owner[ *owner].m_params[2];
+        }
+        XFuncPlot::snapshot(shot);
     }
 private:
+    //! Filled by snapshot(), read by func(), both on the drawing thread within
+    //! one redraw.
+    shared_ptr<XRelaxFunc> m_curve;
+    double m_it1 = 0.0, m_c = 0.0, m_a = 0.0;
     shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > > m_item;
     weak_ptr<XNMRT1> m_owner;
 };
@@ -101,6 +121,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
       m_solverMapPulse(create<SpectrumSolverWrapper>("SpectrumSolverMapPulse", true, shared_ptr<XComboNode>(), m_mapWindowFunc, m_mapWindowWidth)),
       m_mapMode(create<XComboNode>("MapMode", false, true)),
       m_mapTikhonovMatrix(create<XComboNode>("MapTikhonovMatrix", false, true)),
+      m_mapUnconstrained(create<XBoolNode>("MapUnconstrained", false)),
       m_mapFreqRes(create<XDoubleNode>("MapFreqRes", false, "%.3f")),
       m_mapBandWidth(create<XDoubleNode>("MapBandWidth", false, "%.1f")),
       m_mapWindowFunc(create<XComboNode>("MapWindowFunc", false, true)),
@@ -177,9 +198,9 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         tr[ *smoothSamples()] = 33;
 
 
-        tr[ *mapMode()].add({"Off", "AllNonNegative", "Noise Analysis", "L Curve", "GCV"});
+        addRelaxMapModeItems(tr, mapMode());
         tr[ *mapMode()] = (int)MapMode::Off;
-        tr[ *mapTikhonovMatrix()].add({"Identity", "2nd Derivative Op."});
+        addTikhonovMatrixItems(tr, mapTikhonovMatrix());
         tr[ *mapTikhonovMatrix()] = (int)TikhonovRegular::TikhonovMatrix::I;
 
         tr[ *mapBandWidth()] = 100.0;
@@ -187,53 +208,8 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         tr[ *m_mapWindowFunc] = SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT;
         tr[ *m_mapWindowWidth] = 100.0;
 
-        {
-            const char *labels[] = {"Freq [kHz]", "P1 [ms] or 2Tau [us]", "Re [V]", "Im [V]", "Weight [1/V]"};
-            tr[ *m_waveAllRelaxCurves].setColCount(5, labels);
-            if( !tr[ *m_waveAllRelaxCurves].insertPlot(tr, i18n("Relaxation"), 0, 2, -1, 4, 1)) return;
-            if( !tr[ *m_waveAllRelaxCurves].insertPlot(tr, i18n("Out-of-Phase"), 0, 3, -1, 4, 1)) return;
-//            tr[ *m_waveAllRelaxCurves].insertPlot(labels[4], 0, 4, -1, 4, 1);
-            shared_ptr<XAxis> axisx = tr[ *m_waveAllRelaxCurves].axisx();
-            shared_ptr<XAxis> axisy = tr[ *m_waveAllRelaxCurves].axisy();
-            shared_ptr<XAxis> axisz = tr[ *m_waveAllRelaxCurves].axisz();
-            tr[ *axisx->label()] = i18n("Freq [kHz]");
-            tr[ *axisz->logScale()] = true;
-            tr[ *axisy->label()] = i18n("Intens [V]");
-            tr[ *tr[ *m_waveAllRelaxCurves].plot(0)->drawLines()] = false;
-            tr[ *tr[ *m_waveAllRelaxCurves].plot(1)->drawLines()] = false;
-            tr[ *tr[ *m_waveAllRelaxCurves].plot(1)->intensity()] = 1.0;
-//            tr[ *tr[ *m_waveAllRelaxCurves].plot(2)->lineColor()] = clLime; //QColor(0xa0, 0xa0, 0x00).rgb();
-//            tr[ *tr[ *m_waveAllRelaxCurves].plot(2)->drawPoints()] = false;
-//            tr[ *tr[ *m_waveAllRelaxCurves].plot(2)->intensity()] = 0.8;
-        }
-        {
-            const char *labels[] = {"Freq [kHz]", "T1 [ms] or T2 [us]", "Density"};
-            tr[ *m_waveMap].setColCount(3, labels);
-            if( !tr[ *m_waveMap].insertPlot(tr, i18n("Density"), 0, 1, -1, -1, 2)) return;
-            shared_ptr<XAxis> axisx = tr[ *m_waveMap].axisx();
-            shared_ptr<XAxis> axisy = tr[ *m_waveMap].axisy();
-            tr[ *axisy->logScale()] = true;
-            tr[ *axisx->label()] = i18n("Freq [kHz]");
-            tr[ *tr[ *m_waveMap].plot(0)->drawLines()] = false;
-            tr[ *m_waveMap->graph()->backGround()] = QColor(0,0,0).rgb();
-            tr[ *tr[ *m_waveMap].plot(0)->intensity()] = 2;
-            tr[ *tr[ *m_waveMap].plot(0)->colorPlot()] = true;
-            tr[ *tr[ *m_waveMap].plot(0)->colorPlotColorHigh()] = QColor(0xFF, 0xFF, 0x2F).rgb();
-            tr[ *tr[ *m_waveMap].plot(0)->colorPlotColorLow()] = QColor(0x00, 0x00, 0xFF).rgb();
-            tr[ *tr[ *m_waveMap].plot(0)->pointColor()] = QColor(0x00, 0xFF, 0x00).rgb();
-            tr[ *tr[ *m_waveMap].plot(0)->majorGridColor()] = QColor(0x4A, 0x4A, 0x4A).rgb();
-            tr[ *m_waveMap->graph()->titleColor()] = clWhite;
-            tr[ *tr[ *m_waveMap].axisx()->ticColor()] = clWhite;
-            tr[ *tr[ *m_waveMap].axisx()->labelColor()] = clWhite;
-            tr[ *tr[ *m_waveMap].axisx()->ticLabelColor()] = clWhite;
-            tr[ *tr[ *m_waveMap].axisy()->ticColor()] = clWhite;
-            tr[ *tr[ *m_waveMap].axisy()->labelColor()] = clWhite;
-            tr[ *tr[ *m_waveMap].axisy()->ticLabelColor()] = clWhite;
-            tr[ *tr[ *m_waveMap].axisz()->ticColor()] = clWhite;
-            tr[ *tr[ *m_waveMap].axisz()->labelColor()] = clWhite;
-            tr[ *tr[ *m_waveMap].axisz()->ticLabelColor()] = clWhite;
-            tr[ *m_waveMap].clearPoints();
-        }
+        if( !setupRelaxCurvesGraph(tr, m_waveAllRelaxCurves, "Freq [kHz]", "P1 [ms] or 2Tau [us]")) return;
+        if( !setupRelaxDensityMapGraph(tr, m_waveMap, "Freq [kHz]", "T1 [ms] or T2 [us]")) return;
     });
 
     //Ranges should be preset in prior to connectors.
@@ -269,6 +245,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(m_pulse2, m_form->m_cmbPulse2, ref(tr_meas)),
         xqcon_create<XQComboBoxConnector>(m_mapMode, m_form->m_cmbRegularizationChoice, Snapshot( *m_mapMode)),
         xqcon_create<XQComboBoxConnector>(m_mapTikhonovMatrix, m_form->m_cmbTikhonovMatrix, Snapshot( *m_mapTikhonovMatrix)),
+        xqcon_create<XQToggleButtonConnector>(m_mapUnconstrained, m_form->m_ckbMapUnconstrained),
         xqcon_create<XQLineEditConnector>(m_mapFreqRes, m_form->m_edRegularizationResolution),
         xqcon_create<XQLineEditConnector>(m_mapBandWidth, m_form->m_edRegularizationBW),
         xqcon_create<XQComboBoxConnector>(m_mapWindowFunc, m_form->m_cmbMapWindowFunc, Snapshot( *m_mapWindowFunc)),
@@ -287,7 +264,8 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
             shared_from_this(), &XNMRT1::onCondChanged);
         for(auto &&x: std::vector<shared_ptr<XValueNodeBase>>(
             {mInftyFit(), absFit(), relaxFunc(), autoPhase(), freq(), autoWindow(),
-            windowFunc(), windowWidth(), mode()}))
+            windowFunc(), windowWidth(), mode(),
+            mapUnconstrained()})) //!< a view, not a change of kernel: no SVD
             tr[ *x].onValueChanged().connect(m_lsnOnCondChanged);
         m_lsnOnMapCondChanged = tr[ *mode()].onValueChanged().connectWeakly(
             shared_from_this(), &XNMRT1::onMapCondChanged);
@@ -307,11 +285,6 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         m_lsnOnResetFit = tr[ *m_resetFit].onTouch().connectWeakly(
             shared_from_this(), &XNMRT1::onResetFit);
     });
-}
-void
-XNMRT1::showForms() {
-    m_form->showNormal();
-    m_form->raise();
 }
 void
 XNMRT1::onClearAll(const Snapshot &shot, XTouchableNode *) {
@@ -458,10 +431,40 @@ XNMRT1::onMapClearCondRequested(const Snapshot &shot, XValueNodeBase *node) {
         trans( *this).m_timeMapClearRequested = XTime::now();
     requestAnalysis();
 }
+//! The abscissa repeats.  T2_Multi walks the same 2 tau x i train every record,
+//! and P1STRATEGY_FLATTEN picks P1 out of the same bins; what changes record to
+//! record is the value, not where it sits.  Summing into the point already there
+//! holds m_pts at the number of DISTINCT abscissae instead of letting it grow for
+//! the life of the measurement -- and the result is identical, because the
+//! reduction below sums exactly these numbers and two points with one p1 always
+//! fall in one bin (user, 2026-09-06).
+//!
+//! P1STRATEGY_RANDOM draws a fresh P1 every record, so the search never hits and
+//! is pure cost.  It only pays while the list is short; past that, stop looking
+//! and let the list grow -- a point is 64 bytes now, not 4 KB.
+void
+XNMRT1::accumulateRawPt(std::deque<Payload::RawPt> &pts, const Payload::RawPt &pt) {
+    constexpr size_t SEARCH_MAX = 1000; //!< a bin count never approaches this
+    if(pts.size() <= SEARCH_MAX) {
+        for(auto &&x: pts) {
+            if(fabs(x.p1 - pt.p1) > 1e-10 * fabs(pt.p1))
+                continue;
+            //A changed condition count is a different measurement, not a repeat.
+            if(x.value_by_cond.size() != pt.value_by_cond.size())
+                break;
+            for(size_t i = 0; i < pt.value_by_cond.size(); ++i)
+                x.value_by_cond[i] += pt.value_by_cond[i];
+            x.weight++;
+            return;
+        }
+    }
+    pts.push_back(pt);
+    pts.back().weight = 1;
+}
 void
 XNMRT1::analyzeSpectrum(Transaction &tr,
     const std::vector< std::complex<double> >&wave, int origin, double cf,
-    std::deque<std::complex<double> > &value_by_cond) {
+    std::vector<std::complex<double> > &value_by_cond) {
     const Snapshot &shot_this(tr);
 
     value_by_cond.clear();
@@ -559,7 +562,7 @@ XNMRT1::ZFFFT(Transaction &tr,
 void
 XNMRT1::storePulseForMapping(Transaction &tr, double p1_or_2tau,
     const std::vector< std::complex<double> >&wave, const Snapshot &shot_pulse,
-    const XNMRPulseAnalyzer &pulse) {
+    const XNMRPulseAnalyzer &pulse, double noisefactor) {
     const Snapshot &shot_this(tr);
     if((MapMode)(int)shot_this[ *mapMode()] == MapMode::Off)
         return;
@@ -599,7 +602,10 @@ XNMRT1::storePulseForMapping(Transaction &tr, double p1_or_2tau,
     const std::vector<double>& darkpsd = shot_pulse[pulse].darkPSD();
     auto vec_darkpsd = Eigen::Map<Eigen::VectorXd>(const_cast<double*>( &darkpsd[0]), darkpsd.size());
 
-    p->summedDarkPSDSq += vec_darkpsd.sum() * shot_pulse[pulse].darkPSDFactorToVoltSq() / vec_darkpsd.size(); //[V^2]
+    //\a noisefactor undoes the echo averaging darkPSD() is quoted for when the
+    //wave handed over is one echo of a train rather than their mean.
+    p->summedDarkPSDSq += noisefactor * vec_darkpsd.sum()
+        * shot_pulse[pulse].darkPSDFactorToVoltSq() / vec_darkpsd.size(); //[V^2]
 
     std::vector<std::complex<double> > fftout;
     std::vector<std::complex<double> > fftin;
@@ -645,6 +651,63 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
     XDriver *emitter) {
     Snapshot &shot_this(tr);
 
+    MeasMode mode__ = (MeasMode)(int)shot_this[ *mode()];
+    shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
+    const Snapshot &shot_pulser(shot_others);
+    assert( pulser__ );
+
+    if(mode__ != MeasMode::T2_Multi) {
+        if(shot_this[ *this].m_t2MultiEchoes)
+            tr[ *this].m_t2MultiEchoes = 0; //!< re-entering the mode takes the train's count again
+    }
+    else if(shot_pulser[ *pulser__].time().isSet()) {
+        //The axis of a multi-echo train IS the train: the first echo is at
+        //2 tau, the last at 2 tau x echoNum, and there is one point per
+        //echo.  Read from the pulser rather than typed in (user).  It was
+        //half done before -- onActiveChanged() set the two ends once, when
+        //the measurement was switched on, and they went stale the moment
+        //tau or the echo count moved; the sample count was never set at
+        //all, so a train of 16 echoes was smoothed into whatever number
+        //happened to be in the box.
+        //
+        //Here, before the checks below, and not after them: they judge the
+        //axis this derives.  While they came first, one train they refused --
+        //a single echo, or ten or fewer -- left the axis refused on every
+        //record after, and the derivation that would have followed the pulser
+        //back out was never reached (user, 2026-09-23).
+        //
+        //Written only when it actually differs.  These three nodes clear
+        //the accumulated T-map through onMapClearCondRequested, which is
+        //exactly right when the axis really moves and ruinous once per
+        //record.
+        unsigned int nechoes__ = shot_pulser[ *pulser__].echoNum();
+        if(nechoes__ < 2) {
+            //A frequency sweep may well run on one echo; this driver has
+            //nothing to say about it then, and says only that.
+            m_statusPrinter->printWarning(i18n("T2 multi-echo needs two echoes or more."));
+            throw XSkippedRecordError(__FILE__, __LINE__);
+        }
+        double tau__ = shot_pulser[ *pulser__].tau();
+        if(tau__ > 0.0) {
+            double p1min__ = 2.0 * tau__;
+            double p1max__ = 2.0 * tau__ * nechoes__;
+            if((fabs((double)shot_this[ *p1Min()] - p1min__) > 1e-6 * p1min__) ||
+                (fabs((double)shot_this[ *p1Max()] - p1max__) > 1e-6 * p1max__)) {
+                tr[ *p1Min()] = p1min__;
+                tr[ *p1Max()] = p1max__;
+            }
+            //The count follows the TRAIN, not the box: set when the number of
+            //echoes changes and left alone otherwise, so that lowering it
+            //reduces the train evenly -- half the count is two echoes a point
+            //-- rather than being put back on the next record.
+            if(nechoes__ != shot_this[ *this].m_t2MultiEchoes) {
+                tr[ *this].m_t2MultiEchoes = nechoes__;
+                if((unsigned int)shot_this[ *smoothSamples()] != nechoes__)
+                    tr[ *smoothSamples()] = nechoes__;
+            }
+        }
+    }
+
     double p1min = shot_this[ *p1Min()];
     double p1max = shot_this[ *p1Max()];
 
@@ -652,23 +715,24 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         throw XRecordError(i18n("Invalid P1Min or P1Max."), __FILE__, __LINE__);
     }
 
+    //A warning, not a refusal (user).  A small count is what a short echo
+    //train gives, and a choice that is the user's to make; only where no
+    //curve can be built at all is the record passed over.
     int samples = shot_this[ *smoothSamples()];
-    if(samples <= 10) {
-        throw XRecordError(i18n("Invalid # of Samples."), __FILE__, __LINE__);
+    if(samples < 2) {
+        m_statusPrinter->printWarning(i18n("Too few Samples to build a curve."));
+        throw XSkippedRecordError(__FILE__, __LINE__);
     }
+    if((samples <= 10) && (mode__ != MeasMode::T2_Multi))
+        m_statusPrinter->printWarning(i18n("Few Samples."));
     if(samples >= 100000) {
         m_statusPrinter->printWarning(i18n("Too many Samples."), true);
     }
 
-    MeasMode mode__ = (MeasMode)(int)shot_this[ *mode()];
     shared_ptr<XNMRPulseAnalyzer> pulse1__ = shot_this[ *pulse1()];
     shared_ptr<XNMRPulseAnalyzer> pulse2__ = shot_this[ *pulse2()];
     const Snapshot &shot_pulse1((emitter == pulse1__.get()) ? shot_emitter : shot_others);
     const Snapshot &shot_pulse2((emitter == pulse2__.get()) ? shot_emitter : shot_others);
-
-    shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
-    const Snapshot &shot_pulser(shot_others);
-    assert( pulser__ );
     if(shot_pulser[ *pulser__].time().isSet()) {
         //Check consitency.
         switch (mode__) {
@@ -705,7 +769,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         }
         tr[ *m_waveMap].clearPoints();
         tr[ *m_waveAllRelaxCurves].clearPoints();
-        m_regularization.reset();
+        m_mapSolver.invalidate();
     }
 
     //Reads spectra from NMRPulseAnalyzers
@@ -720,7 +784,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
             throw XSkippedRecordError(__FILE__, __LINE__);
         }
 
-        std::deque<std::complex<double> > cmp1, cmp2;
+        std::vector<std::complex<double> > cmp1, cmp2;
         double cfreq = shot_this[ *freq()] * 1e3 * shot_pulse1[ *pulse1__].interval();
         if(shot_this[ *trackPeak()]) {
             if(((mode__ == MeasMode::T1) && (shot_pulser[ *pulser__].combP1() > distributeP1(shot_this, 0.66))) ||
@@ -733,6 +797,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         }
 
         if(mode__ == MeasMode::T2_Multi){
+            //The axis was taken from the pulser at the top.  \sa analyze()
             if(shot_pulser[ *pulser__].combMode() != XPulser::N_COMB_MODE_OFF)
                 m_statusPrinter->printWarning(i18n("T2 mode with comb pulse!"));
 
@@ -747,9 +812,10 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 double twotau = 2.0 * shot_pulser[ *pulser__].tau() * (i + 1);
                 pt1.p1 = twotau;
                 std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
-                tr[ *this].m_pts.push_back(pt1);
+                accumulateRawPt(tr[ *this].m_pts, pt1);
 
-                storePulseForMapping(tr, twotau, shot_pulse1[ *pulse1__].echoesT2()[i], shot_pulse1, *pulse1__);
+                storePulseForMapping(tr, twotau, shot_pulse1[ *pulse1__].echoesT2()[i],
+                    shot_pulse1, *pulse1__, shot_pulse1[ *pulse1__].darkPSDFactorPerEcho());
             }
         }
         else {
@@ -772,7 +838,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 pt1.p1 = p1;
                 for(int i = 0; i < cmp1.size(); i++)
                     pt1.value_by_cond[i] = (cmp1[i] - cmp2[i]) / cmp1[i];
-                tr[ *this].m_pts.push_back(pt1);
+                accumulateRawPt(tr[ *this].m_pts, pt1);
                 if((MapMode)(int)shot_this[ *mapMode()] != MapMode::Off)
                     throw XRecordError(i18n("Unsupported Comb Mode for Mapping!"), __FILE__, __LINE__);
                 break;
@@ -784,11 +850,11 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 double p1 = shot_pulser[ *pulser__].combP1();
                 pt1.p1 = p1;
                 std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
-                tr[ *this].m_pts.push_back(pt1);
+                accumulateRawPt(tr[ *this].m_pts, pt1);
                 double p1_alt = shot_pulser[ *pulser__].combP1Alt();
                 pt2.p1 = p1_alt;
                 std::copy(cmp2.begin(), cmp2.end(), pt2.value_by_cond.begin());
-                tr[ *this].m_pts.push_back(pt2);
+                accumulateRawPt(tr[ *this].m_pts, pt2);
                 storePulseForMapping(tr, p1, shot_pulse1[ *pulse1__].wave(), shot_pulse1, *pulse1__);
                 storePulseForMapping(tr, p1_alt, shot_pulse2[ *pulse2__].wave(), shot_pulse2, *pulse2__);
                 break;
@@ -798,7 +864,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                     double p1 = shot_pulser[ *pulser__].combP1();
                     pt1.p1 = p1;
                     std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
-                    tr[ *this].m_pts.push_back(pt1);
+                    accumulateRawPt(tr[ *this].m_pts, pt1);
                     storePulseForMapping(tr, p1, shot_pulse1[ *pulse1__].wave(), shot_pulse1, *pulse1__);
                     break;
                 }
@@ -812,7 +878,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 double twotau = 2.0 * shot_pulser[ *pulser__].tau();
                 pt1.p1 = twotau;
                 std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
-                tr[ *this].m_pts.push_back(pt1);
+                accumulateRawPt(tr[ *this].m_pts, pt1);
                 storePulseForMapping(tr, twotau, shot_pulse1[ *pulse1__].wave(), shot_pulse1, *pulse1__);
                 break;
             }
@@ -848,29 +914,41 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
     tr[ *this].m_sumpts.resize(samples);
     auto &sumpts(tr[ *this].m_sumpts);
     {
-    //Building recovery curves after rounding log(P1) from all of aquirred points.
+    //Building recovery curves by rounding each point's abscissa to a division.
         Payload::Pt dummy = {};
         dummy.value_by_cond.resize(shot_this[ *this].m_convolutionCache.size());
         std::fill(tr[ *this].m_sumpts.begin(), tr[ *this].m_sumpts.end(), dummy);
-        double k = (shot_this[ *this].m_sumpts.size() - 1) / log(p1max/p1min);
+        //An echo train is LINEAR -- the echoes sit at 2 tau x i -- and rounding
+        //it onto a log axis leaves gaps at the short end and merges the tail,
+        //where log divisions close up: a 32-echo train reached 20 of its 32
+        //divisions, so the count this mode takes from the pulser promised one
+        //point per echo and delivered two thirds of them (user, 2026-09-21).
+        //Linear divisions where the data is linear.  Everywhere else P1 is
+        //spread over decades, which is what the log axis is there for -- and
+        //it also makes Smoothing Samples mean something plain here: the
+        //number of points to reduce the train to, evenly, rather than 1:1 at
+        //the short end and 5:1 at the long one.
+        bool linbin = (mode__ == MeasMode::T2_Multi);
+        double k = (shot_this[ *this].m_sumpts.size() - 1)
+            / (linbin ? (p1max - p1min) : log(p1max/p1min));
         auto pts_begin(shot_this[ *this].m_pts.begin());
         auto pts_end(shot_this[ *this].m_pts.end());
         int sum_size = (int)shot_this[ *this].m_sumpts.size();
         for(auto it = pts_begin; it != pts_end; it++) {
-            int idx = lrint(log(it->p1 / p1min) * k);
+            int idx = lrint((linbin ? (it->p1 - p1min) : log(it->p1 / p1min)) * k);
             if((idx < 0) || (idx >= sum_size)) continue;
             double p1 = it->p1;
             //For St.E., T+tau = P1+3*tau.
             if(mode__ == MeasMode::ST_E)
                 p1 += 3 * shot_pulser[ *pulser__].tau() * 1e-3;
-            sumpts[idx].isigma += 1;
-            sumpts[idx].p1 += p1;
+            sumpts[idx].isigma += it->weight;
+            sumpts[idx].p1 += p1 * it->weight;
             for(unsigned int i = 0; i < it->value_by_cond.size(); i++)
                 sumpts[idx].value_by_cond[i] += it->value_by_cond[i];
         }
     }
 
-    std::deque<std::complex<double> > sum_c(
+    std::vector<std::complex<double> > sum_c(
         shot_this[ *this].m_convolutionCache.size()), corr(shot_this[ *this].m_convolutionCache.size());
     double sum_t = 0.0;
     int n = 0;
@@ -974,7 +1052,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 ZFFFT(tr, fftin, fftout, fresh, shot_pulse1[ *pulse1__].interval());
             }
         }
-        m_regularization.reset(); //for mode/relax fn. change.
+        m_mapSolver.invalidate(); //for mode/relax fn. change.
     }
 
     m_isPulserControlRequested = (emitter != this);
@@ -1079,57 +1157,43 @@ XNMRT1::visualize(const Snapshot &shot) {
             ++pcount_stored;
 
     if((mapmode != MapMode::Off) && pcount_stored) {
-        Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> relax_fdep;
-        relax_fdep.setZero(shot[ *this].mapFreqCount(), pcount_stored);
-
-        m_waveAllRelaxCurves->iterate_commit([&](Transaction &tr){
-
-            tr[ *m_waveAllRelaxCurves].setLabel(1, tlabel.c_str());
-            tr[ *tr[ *m_waveAllRelaxCurves].axisz()->label()] = tlabel;
-            size_t length = pcount_stored * shot[ *this].mapFreqCount();
-            std::vector<float> colf(length, 0.0), colp1(length, 0.0),
-                colre(length, 0.0), colim(length, 0.0), colisigma(length, 0.0);
-            auto rot_ph = std::polar(1.0, -shot[ *phase()] / 180.0 * M_PI);
-            int i = 0;
-            int k = 0;
-            for(auto p: shot[ *this].m_allPulses) {
-                if(p->avgCount) {
-                    for(int j = 0; j < shot[ *this].mapFreqCount(); ++j) {
-                        double f = shot[ *this].mapStartFreq() + j * shot[ *this].m_mapFreqRes;
-                        colp1[k] = p->p1;
-                        colf[k] = f * 1e-3;
-                        //ft can be one resize behind mapFreqCount() when a ZFFFT
-                        //throw was committed (XSkipped/XRecordError still commit);
-                        //coeff() is unchecked, so bound j explicitly.
-                        auto z = (j < p->ft.size()) ? p->ft.coeff(j) * rot_ph : std::complex<double>(0.0);
-                        colre[k] = std::real(z);
-                        colim[k] = std::imag(z);
-                        relax_fdep.coeffRef(j, i) = colre[k];
-                        colisigma[k] = p->avgCount / sqrt(p->summedDarkPSDSq);
-//                        colisigma[k] = sqrt(p->summedDarkPSDSq) / p->avgCount;
-                        k++;
-                    }
-                    i++;
-                }
-            }
-            assert(i == pcount_stored);
-            tr[ *m_waveAllRelaxCurves].setRowCount(length);
-            tr[ *m_waveAllRelaxCurves].setColumn(0, std::move(colf), 5);
-            tr[ *m_waveAllRelaxCurves].setColumn(1, std::move(colp1), 5);
-            tr[ *m_waveAllRelaxCurves].setColumn(2, std::move(colre), 4);
-            tr[ *m_waveAllRelaxCurves].setColumn(3, std::move(colim), 4);
-            tr[ *m_waveAllRelaxCurves].setColumn(4, std::move(colisigma), 3);
-            m_waveAllRelaxCurves->drawGraph(tr);
-        });
+        //Hands the accumulated pulses to the shared inversion (\sa nmrrelaxmap.h)
+        //as one decay/recovery curve per frequency of the FT window.  Every bin
+        //holds exactly one P1 or 2tau here; the frequency-swept spectrometer is
+        //the one that groups several abscissae into a bin.
+        NMRRelaxMapData data;
+        data.resize(shot[ *this].mapFreqCount(), pcount_stored);
+        for(int j = 0; j < data.xCount(); ++j)
+            data.xvalues[j] = (shot[ *this].mapStartFreq() + j * shot[ *this].m_mapFreqRes) * 1e-3; //[kHz]
+        auto rot_ph = std::polar(1.0, -shot[ *phase()] / 180.0 * M_PI);
         double noisesq = 0.0;
-        for(auto &p: shot[ *this].m_allPulses)
-            if(p->avgCount)
-                noisesq += p->summedDarkPSDSq / p->avgCount / p->avgCount;
-        noisesq /= pcount_stored;
+        int i = 0;
+        for(auto &p: shot[ *this].m_allPulses) {
+            if( !p->avgCount) continue;
+            data.timesOfBin[i].push_back(p->p1);
+            double isigma = p->avgCount / sqrt(p->summedDarkPSDSq);
+            for(int j = 0; j < data.xCount(); ++j) {
+                //ft can be one resize behind mapFreqCount() when a ZFFFT
+                //throw was committed (XSkipped/XRecordError still commit);
+                //coeff() is unchecked, so bound j explicitly.
+                auto z = (j < p->ft.size()) ? p->ft.coeff(j) * rot_ph : std::complex<double>(0.0);
+                data.y.coeffRef(j, i) = std::real(z);
+                data.yimag.coeffRef(j, i) = std::imag(z);
+                data.isigma.coeffRef(j, i) = isigma;
+            }
+            noisesq += p->summedDarkPSDSq / p->avgCount / p->avgCount;
+            ++i;
+        }
+        assert(i == pcount_stored);
+        data.noiseSq = noisesq / pcount_stored;
 
-        auto mapT = [this](const Snapshot &shot, int i) {
-            return shot[ *p1Min()] * exp(log(shot[ *p1Max()]/shot[ *p1Min()]) / (shot[ *this].m_mapTCount - 1) * i);
-        };
+        //What it took to acquire these curves; the inversion's own settings go
+        //on the density map instead, and neither line holds much text.
+        drawRelaxCurves(m_waveAllRelaxCurves, data, tlabel.c_str(),
+            formatString("res=%.4gkHz BW=%.4gkHz w=%s@%.0f%%",
+                shot[ *this].m_mapFreqRes * 1e-3, shot[ *this].m_mapBandWidth * 1e-3,
+                shot[ *mapWindowFunc()].to_str().c_str(),
+                (double)shot[ *mapWindowWidth()]));
 
         shared_ptr<XRelaxFunc> relax_fn = shot[ *relaxFunc()];
         if( !relax_fn) return;
@@ -1139,69 +1203,29 @@ XNMRT1::visualize(const Snapshot &shot) {
             //ex. 1.0 - exp(-t/T1)
             relax_coeff = 1.0 / (shot[ *this].m_params[1] + shot[ *this].m_params[2]);
         }
+        auto tgrid = NMRRelaxMapData::makeTGrid(
+            shot[ *p1Min()], shot[ *p1Max()], shot[ *this].m_mapTCount);
+        //The FT window is centered on the carrier, where the signal is, so the
+        //lambda criterion keeps being evaluated on the middle row.
+        auto density = m_mapSolver.exec(data, tgrid, relax_fn, relax_coeff,
+            (TikhonovRegular::TikhonovMatrix)(int)shot[ *mapTikhonovMatrix()],
+            tikhonovMethodOf(mapmode), data.xCount() / 2, shot[ *mapUnconstrained()]);
 
-        local_shared_ptr<TikhonovRegular> regularization = m_regularization;
-        if( !regularization || (regularization->ylen() != pcount_stored)) {
-            Eigen::MatrixXd mat_conv; //Matrix A; y = A x.
-            mat_conv.setZero(pcount_stored, shot[ *this].m_mapTCount);
-            for(int j = 0; j < shot[ *this].m_mapTCount; ++j) {
-                double it1 = 1.0 / mapT(shot, j);
-                int i = 0;
-                double f, df;
-                for(auto &p: shot[ *this].m_allPulses) {
-                    if(p->avgCount) {
-                        relax_fn->relax( &f, &df, p->p1, it1); //ex. f(t) = 1 - exp(-t/T1)
-                        mat_conv.coeffRef(i, j) = relax_coeff * f + 1.0;
-                        ++i;
-                    }
-                }
-            }
-            //very slow due to SVD.
-            regularization.reset(new TikhonovRegular(mat_conv, (TikhonovRegular::TikhonovMatrix)(int)shot[ *mapTikhonovMatrix()]));
-            m_regularization = regularization;
-        }
-        auto method = std::map<MapMode, TikhonovRegular::Method>{{MapMode::NoiseAnalysis, TikhonovRegular::Method::KnownError},
-            {MapMode::GCV, TikhonovRegular::Method::MinGCV}, {MapMode::LCurve, TikhonovRegular::Method::L_Curve},
-            {MapMode::AllNonNegative, TikhonovRegular::Method::AllNonNegative}}.at(mapmode);
-        regularization->chooseLambda(method, relax_fdep.row(shot[ *this].mapFreqCount() / 2), noisesq);
-
-        XString tlabel;
+        XString maplabel;
         switch((MeasMode)(int)shot[ *mode()]) {
         case MeasMode::T1:
-            tlabel = "T1 [ms]";
+            maplabel = "T1 [ms]";
             break;
         case MeasMode::T2:
         case MeasMode::T2_Multi:
-            tlabel = "T2 [us]";
+            maplabel = "T2 [us]";
             break;
         case MeasMode::ST_E:
-            tlabel = "Tste [ms]";
+            maplabel = "Tste [ms]";
             break;
         }
-        m_waveMap->iterate_commit([&](Transaction &tr){
-            tr[ *m_waveMap].setLabel(1, tlabel.c_str());
-            tr[ *tr[ *m_waveMap].axisy()->label()] = tlabel;
-            size_t length = shot[ *this].m_mapTCount * shot[ *this].mapFreqCount();
-            std::vector<float> colf(length, 0.0), colt(length, 0.0), colval(length, 0.0);
-            int k = 0;
-            for(int j = 0; j < shot[ *this].mapFreqCount(); ++j) {
-                double f = shot[ *this].mapStartFreq() + j * shot[ *this].m_mapFreqRes;
-
-                auto densities = regularization->solve(relax_fdep.row(j));
-
-                for(int i = 0; i < shot[ *this].m_mapTCount; ++i) {
-                    colt[k] = mapT(shot, i);
-                    colf[k] = f * 1e-3;
-                    colval[k] = densities[i];
-                    k++;
-                }
-            }
-            tr[ *m_waveMap].setRowCount(length);
-            tr[ *m_waveMap].setColumn(0, std::move(colf), 5);
-            tr[ *m_waveMap].setColumn(1, std::move(colt), 5);
-            tr[ *m_waveMap].setColumn(2, std::move(colval), 4);
-            m_waveMap->drawGraph(tr);
-        });
+        drawRelaxDensityMap(m_waveMap, data, tgrid, density, maplabel.c_str(),
+            m_mapSolver.status());
     }
 }
 
@@ -1248,9 +1272,15 @@ XNMRT1::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
         });
         setNextP1(shot_this);
         if(shot_this[ *mode()] == (int)MeasMode::T2_Multi){
+            //The ends AND the sample count, so the axis is right before the
+            //first record rather than after it.  analyze() keeps all three
+            //following the pulser from here on.
             iterate_commit([=](Transaction &tr){
+                unsigned int nechoes = shot_pulser[ *pulser__].echoNum();
                 tr[ *p1Min()] = 2.0 * shot_pulser[ *pulser__].tau();
-                tr[ *p1Max()] = 2.0 * shot_pulser[ *pulser__].tau() * shot_pulser[ *pulser__].echoNum();
+                tr[ *p1Max()] = 2.0 * shot_pulser[ *pulser__].tau() * nechoes;
+                if(nechoes)
+                    tr[ *smoothSamples()] = nechoes;
             });
         }
 

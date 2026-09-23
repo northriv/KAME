@@ -17,8 +17,14 @@
 #include "support.h"
 
 #include <Eigen/Core>
+#include <vector>
 
 //! Tikhonov Regularization Method
+//!
+//! Two solvers over one kernel.  solve() is the unconstrained, linear
+//! minimiser -- what the lambda criteria are defined on, and what a covariance
+//! can be written down for.  solveNonNeg() is the minimiser over x >= 0, which
+//! is what a distribution of relaxation times actually is.
 class DECLSPEC_KAME TikhonovRegular {
 public:
     using Vector = Eigen::VectorXd;
@@ -30,10 +36,19 @@ public:
     TikhonovRegular(const Matrix &matrixA, TikhonovMatrix matStype = TikhonovMatrix::I, double sv_cond_cutoff = 2000.0, unsigned int max_rank = 100);
     ~TikhonovRegular() {}
     //! Criteria for lambda selection.
-    //! L-curve criterion, Genererized cross validation, Known error level for <dy^2>, All Non-negative values for x.
+    //! L-curve criterion, Generalized cross validation and the known error
+    //! level for <dy^2> are evaluated on the LINEAR solution, whose dependence
+    //! on y they assume.  AllNonNegative is the known-error criterion evaluated
+    //! on the non-negative solution instead: the lambda at which the NNLS
+    //! residual meets the noise, which is the criterion native to that solver.
     enum class Method {L_Curve, MinGCV, KnownError, AllNonNegative};
     //! \arg error_sq estimated noise level squared per \a y data point.
     Vector chooseLambda(Method method, const Vector &y, double error_sq = 0.0);
+    //! Prepares solve() for \a lambda: the regularized inverse A#lambda.
+    //! chooseLambda() leaves solve() at whatever lambda it TRIED last, not the
+    //! one it settled on -- a scan ends at its smallest -- so anything solving
+    //! rows with the chosen lambda must call this first.  Does not touch lambda().
+    void setLambda(double lambda);
     //! \return \a x_lambda
     Vector solve(const Vector &y) const {
         assert(y.size() == m_ylen);
@@ -41,8 +56,39 @@ public:
         assert(ret.size() == m_xlen);
         return ret;
     }
+    //! The x >= 0 minimising ||A x - y||^2 + lambda^2 ||S x||^2.
+    //!
+    //! Amplitudes of relaxation components are populations and cannot be
+    //! negative.  The unconstrained minimiser explains y with large terms of
+    //! alternating sign -- neighbouring columns of an exponential kernel are
+    //! nearly parallel -- and the constraint forbids that outright, so far less
+    //! lambda is needed to hold the solution still and sharp features survive.
+    //! Lawson-Hanson's active-set method on the normal equations, after Bro and
+    //! de Jong (FNNLS): G = AtA + lambda^2 StS is formed once per lambda and
+    //! shared by every right-hand side, and each step solves a subsystem of it.
+    //! \arg warm a previous solution for this y or a neighbour's; its support
+    //! seeds the active set, and a map that changes little between records
+    //! converges in a step or two.
+    Vector solveNonNeg(const Vector &y, double lambda, const Vector *warm = nullptr);
     double xlen() const {return m_xlen;}
     double ylen() const {return m_ylen;}
+    //! The regularization parameter chooseLambda() settled on.
+    double lambda() const {return m_lambda;}
+    //! \return ||A x - y||^2, what \a x leaves unexplained of \a y.  Against
+    //! the known noise level it says whether the choice of lambda has fitted
+    //! the data, the noise, or neither.
+    double residualSq(const Vector &y, const Vector &x) const {
+        return (m_A * x - y).squaredNorm();
+    }
+    //! \return the standard deviation of each component of solve()'s x under
+    //! noise of variance \a noise_sq on every point of y: Cov(x) = sigma^2
+    //! A# A#t, so sd_j = sigma ||row_j(A#)||.  Propagated noise only -- the
+    //! bias regularization adds is not in it.  For the LINEAR solve: the
+    //! constraint of solveNonNeg() can only lower a component's variance, so
+    //! this is a conservative bound for that solution too.  After setLambda().
+    Vector solutionStdDev(double noise_sq) const {
+        return sqrt(std::max(noise_sq, 0.0)) * m_AinvReg.rowwise().norm();
+    }
 private:
     long m_xlen, m_ylen;
     Matrix m_A;
@@ -53,6 +99,11 @@ private:
     Matrix m_AinvReg; //!< regularized inverse, A#lambda = (AtA + lambda^2 StS)^-1 At
     double m_lambda;
     double m_sv_cutoff;
+    Matrix m_G; //!< AtA + lambda^2 StS for m_lambdaG.  \sa solveNonNeg()
+    double m_lambdaG = -1.0;
+    void prepareNonNeg_(double lambda);
+    //! Unconstrained minimiser over the columns marked in \a inP, zero elsewhere.
+    Vector solveOnSupport_(const Vector &h, const std::vector<char> &inP) const;
     //\return true if larger lambda is preferable for bi-sect search, true if best so far.
     bool testLambda(double lambda, Method method, const Vector &y, Vector &vec_x, double &index, double error_sq, double lambda_prev, double &xi_prev);
 };

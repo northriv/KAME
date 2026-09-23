@@ -55,12 +55,6 @@ XFuncSynth::XFuncSynth(const char *name, bool runtime,
     m_offset->setUIEnabled(false);
 }
 
-void
-XFuncSynth::showForms() {
-//! impliment form->show() here
-    m_form->showNormal();
-    m_form->raise();
-}
 
 void
 XFuncSynth::start() {

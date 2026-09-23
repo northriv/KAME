@@ -20,7 +20,7 @@
 //#include "nmrpulse.h"
 //#include "nmrrelaxfit.h"
 #include <complex>
-#include "tikhonovreg.h"
+#include "nmrrelaxmap.h"
 
 #include "nmrspectrumsolver.h"
 
@@ -43,8 +43,6 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	~XNMRT1 () {}
   
-	//! Shows all forms belonging to driver
-	virtual void showForms();
 protected:
 	//! This function is called when a connected driver emit a signal
 	virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
@@ -70,7 +68,7 @@ public:
 			std::complex<double> c;
 			double p1;
 			int isigma; /// weight
-			std::deque<std::complex<double> > value_by_cond;
+			std::vector<std::complex<double> > value_by_cond;
 		};
 		struct ConvolutionCache {
 			std::vector<std::complex<double> > wave;
@@ -80,10 +78,12 @@ public:
 			double cfreq;
 			double power;
 		};
-		//! Raw measured points
+		//! Raw measured points, one per DISTINCT abscissa.
+		//! \sa accumulateRawPt(), which sums repeats into the point already here.
 		struct RawPt {
-			std::deque<std::complex<double> > value_by_cond;
+			std::vector<std::complex<double> > value_by_cond; //!< sum over \a weight records
 			double p1;
+			int weight = 0; //!< how many records are summed in \a value_by_cond
 		};
 		//pointer-to-const: entries are shared with live Snapshots; rebuild via a fresh object (83bb9ffaf).
 		std::deque<shared_ptr<const ConvolutionCache> > m_convolutionCache;
@@ -101,6 +101,9 @@ public:
         long mapFreqCount() const {return lrint(m_mapBandWidth / m_mapFreqRes);}
         double mapStartFreq() const {return -(mapFreqCount() / 2) * m_mapFreqRes;} //!<[Hz]
         long m_mapTCount;
+        //! The echo count the T2 multi-echo axis was last set from; 0 outside
+        //! that mode.  \sa analyze()
+        unsigned int m_t2MultiEchoes = 0;
         struct Pulse {
             double p1;
             int avgCount = 0;
@@ -163,9 +166,12 @@ public:
 	const shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > >  &relaxFunc() const {return m_relaxFunc;}
 
     //! Fields for Mapping via Tikhonov Regularization.
-    enum class MapMode {Off = 0, AllNonNegative = 1, NoiseAnalysis = 2, LCurve = 3, GCV = 4};
+    //! \sa NMRRelaxMapMode, shared with the frequency-swept spectrometer.
+    using MapMode = NMRRelaxMapMode;
     const shared_ptr<XComboNode> &mapMode() const {return m_mapMode;}
     const shared_ptr<XComboNode> &mapTikhonovMatrix() const {return m_mapTikhonovMatrix;}
+    //! Shows the linear inversion instead of the non-negative one, for diagnosis.
+    const shared_ptr<XBoolNode> &mapUnconstrained() const {return m_mapUnconstrained;}
     //! [kHz].
     const shared_ptr<XDoubleNode> &mapBandWidth() const {return m_mapBandWidth;}
     //! [kHz].
@@ -216,6 +222,7 @@ private:
     //! Fields for Mapping via Tikhonov Regularization.
     const shared_ptr<XComboNode> m_mapMode;
     const shared_ptr<XComboNode> m_mapTikhonovMatrix;
+    const shared_ptr<XBoolNode> m_mapUnconstrained;
     const shared_ptr<XDoubleNode> m_mapFreqRes;
     const shared_ptr<XDoubleNode> m_mapBandWidth;
     const shared_ptr<XComboNode> m_mapWindowFunc;
@@ -243,9 +250,16 @@ private:
 
 	void analyzeSpectrum(Transaction &tr,
 		const std::vector< std::complex<double> >&wave, int origin, double cf,
-		std::deque<std::complex<double> > &value_by_cond);
+		std::vector<std::complex<double> > &value_by_cond);
+	//! Files one measurement into \a pts, summing it into the point already at
+	//! that abscissa when there is one.
+	static void accumulateRawPt(std::deque<Payload::RawPt> &pts, const Payload::RawPt &pt);
+    //! \param noisefactor by how much darkPSD() understates the noise of \a wave;
+    //! 1 for the (echo-averaged) wave it is quoted for, \a darkPSDFactorPerEcho()
+    //! for one echo of a train.
     void storePulseForMapping(Transaction &tr, double p1_or_2tau,
-        const std::vector< std::complex<double> >&wave, const Snapshot &shot_pulse, const XNMRPulseAnalyzer &pulse);
+        const std::vector< std::complex<double> >&wave, const Snapshot &shot_pulse,
+        const XNMRPulseAnalyzer &pulse, double noisefactor = 1.0);
     void ZFFFT(Transaction &tr,
         std::vector< std::complex<double> >&bufin, std::vector< std::complex<double> >&bufout,
         shared_ptr<Payload::Pulse> p, double interval);
@@ -288,7 +302,8 @@ private:
     void setNextP1(const Snapshot &shot);
 
     const shared_ptr<XWaveNGraph> m_waveMap, m_waveAllRelaxCurves;
-    atomic_shared_ptr<TikhonovRegular> m_regularization;
+    //! Touched by visualize() only; analyze() may ask it to drop its kernel.
+    NMRRelaxMapSolver m_mapSolver;
 };
 
 //---------------------------------------------------------------------------

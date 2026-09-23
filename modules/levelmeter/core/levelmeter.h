@@ -25,8 +25,6 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do
 	virtual ~XLevelMeter() {}
-	//! Shows all forms belonging to driver
-	virtual void showForms();
  
 	struct Payload : public XPrimaryDriver::Payload {
 		unsigned int channelNum() const {return m_levels.size();}

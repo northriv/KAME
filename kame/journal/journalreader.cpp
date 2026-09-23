@@ -213,7 +213,12 @@ XJournalReader::readHeader(void *_fd) {
 	//Four bytes first, because they decide which layout this is: the magic,
 	//or -- in a file written before it existed -- the length itself.
 	std::vector<char> head(sizeof(uint32_t));
-	if(gzread(fd, &head[0], (unsigned)head.size()) == -1) throw XIOError(__FILE__, __LINE__);
+	//Not "== -1": gzread answers with the count, and a file cut short -- which
+	//is what a killed KAME leaves, the case this format was shaped around --
+	//returns fewer bytes than asked without being an error.  Unchecked, the
+	//fields below were read out of whatever the buffer held.
+	if(gzread(fd, &head[0], (unsigned)head.size()) != (int)head.size())
+		throw XIOError(__FILE__, __LINE__);
 	uint32_t first;
 	{
 		XPrimaryDriver::RawDataReader reader(head);
@@ -222,20 +227,28 @@ XJournalReader::readHeader(void *_fd) {
 	bool magic = (first == (uint32_t)KAMB_RECORD_MAGIC);
 	uint32_t second = 0;
 	if(magic) {
-		if(gzread(fd, &head[0], (unsigned)head.size()) == -1) throw XIOError(__FILE__, __LINE__);
+		if(gzread(fd, &head[0], (unsigned)head.size()) != (int)head.size())
+			throw XIOError(__FILE__, __LINE__);
 		XPrimaryDriver::RawDataReader reader(head);
 		second = reader.pop<uint32_t>();
 	}
 	//Where a magic is, a length follows it: this is a check, not a guess.
 	//\sa KAMB_HEADER_SIZE_MAX for the guess that used to be here
-	if(magic && ((second < KAMB_FIXED_SIZE) || (second > KAMB_HEADER_SIZE_MAX)
-		|| (second % sizeof(uint32_t))))
+	//NOT tested for 4-byte alignment: the writer emits
+	//KAMB_FIXED_SIZE + strlen(name) + 1, so the header is only a multiple of
+	//four when the driver's name happens to be 3 mod 4 -- "NewDriver1" is not,
+	//and every one of the 4666 records in the file that first showed this was
+	//rejected on its first record.  Nothing downstream needs the alignment
+	//either: the name is read with gzgetline and the remainder skipped by the
+	//declared length.  The range above and the check word below are what
+	//actually distinguish a header from noise.
+	if(magic && ((second < KAMB_FIXED_SIZE) || (second > KAMB_HEADER_SIZE_MAX)))
 		throw XBrokenRecordError(__FILE__, __LINE__);
 	uint32_t fixed = magic ? (uint32_t)KAMB_FIXED_SIZE : (uint32_t)KAMB_HEADER_SIZE_LEGACY;
 
 	uint32_t taken = magic ? 2 * sizeof(uint32_t) : sizeof(uint32_t);
 	std::vector<char> buf(fixed - taken);
-	if(buf.size() && (gzread(fd, &buf[0], (unsigned)buf.size()) == -1))
+	if(buf.size() && (gzread(fd, &buf[0], (unsigned)buf.size()) != (int)buf.size()))
 		throw XIOError(__FILE__, __LINE__);
 	XPrimaryDriver::RawDataReader reader(buf);
 	uint32_t check = magic ? reader.pop<uint32_t>() : 0;
@@ -311,10 +324,10 @@ XJournalReader::parseOne(void *_fd, XMutex &mutex) {
     auto rawdata = std::make_shared<XPrimaryDriver::RawData>();
 	try {
 		rawdata->resize(size);
-		if(gzread(fd, &rawdata->at(0), size) == -1)
+		if(gzread(fd, &rawdata->at(0), size) != (int)size)
 			throw XIOError(__FILE__, __LINE__);
 		std::vector<char> buf(sizeof(uint32_t));
-		if(gzread(fd, &buf[0], sizeof(uint32_t)) == -1)
+		if(gzread(fd, &buf[0], sizeof(uint32_t)) != (int)sizeof(uint32_t))
 			throw XIOError(__FILE__, __LINE__);
 		XPrimaryDriver::RawDataReader reader(buf);
 		uint32_t footer_allsize = reader.pop<uint32_t>();
@@ -502,7 +515,6 @@ static shared_ptr<XNode> nodeAt(const shared_ptr<XNode> &root, const XString &pa
 	}
 	return node;
 }
-
 //! What decides whether restoring is a private act or a public one.
 //!
 //! Skipping runtime nodes does NOT keep a restore off the wire, which is worth
@@ -724,6 +736,14 @@ XJournalReader::applyValues(const std::vector<RestoreItem> &items,
 //! passing through on its way to the 100 that was asked for, written to the
 //! node that holds the request -- and putting one back would contradict the
 //! driver that owns it.  Runtime nodes are not settings at all.
+//!
+//! This rests entirely on every non-driver thread having said so:
+//! XJournalWriter::declareThisThread() is what tells a request from a report,
+//! and a thread that never calls it writes reports.  A .kam load runs on a
+//! thread of its own, and while those threads were undeclared, everything a
+//! .kam restored was filed as a report and never came back on a replay.  The
+//! serial port was where a user noticed it, because a port is written once,
+//! at load, so that report was its only record (2026-09-06).
 void
 XJournalReader::takeIfRequest_(const XJournalFile::Event &e, std::vector<RestoreItem> &out) const {
 	if((e.kind != XJournalFile::Event::Kind::VALUE) || !e.request)
@@ -904,7 +924,10 @@ XJournalReader::goToHeader(void *_fd) {
 	if(gzeof(fd)) throw XIOError(__FILE__, __LINE__);
 	std::vector<char> buf(sizeof(uint32_t));
 	XPrimaryDriver::RawDataReader reader(buf);
-	if(gzread(fd, &buf[0], sizeof(uint32_t)) == Z_NULL) throw XIOError(__FILE__, __LINE__);
+	//Z_NULL is 0, so this used to catch the end of the file and let the error
+	//return of -1 through -- into a length that then decided where to seek.
+	if(gzread(fd, &buf[0], sizeof(uint32_t)) != (int)sizeof(uint32_t))
+		throw XIOError(__FILE__, __LINE__);
 	int allsize = reader.pop<uint32_t>();
 	if(gzseek(fd, -allsize, SEEK_CUR) == -1) throw XIOError(__FILE__, __LINE__);
 }

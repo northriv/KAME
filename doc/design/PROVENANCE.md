@@ -802,6 +802,32 @@ so a journal someone has unpacked to edit by hand still opens.  Editing one
 by hand is a thing the format is meant to allow, so it should not depend on
 whether the file was re-packed afterwards.
 
+### When the writing fails
+
+Both files answer a failure the same way: **say it once, close the file, and
+turn the switch off**, so the state on screen is the state on disk.
+
+The realistic failure is not a bad path, which is caught at `open`; it is a
+disk that fills up in the middle of a month-long run, which arrives as a
+short return from `gzwrite` on some record long after the file opened.
+Unchecked -- as both writers were until 2026-09-02 -- a full disk was
+*invisible*: the Recording switch stayed on, the statistics went on counting
+bytes that were not landing, and the file simply stopped growing.  Nothing
+said anything until somebody opened the file, by which time the run was over.
+
+Same for the `.kamb`: a raw record that tears halfway ends the recording
+rather than being carried past, since whatever follows a partial record would
+be read as the header of the next one.  What did land stays readable, which
+is the whole point of the `Z_FULL_FLUSH` every minute.
+
+Reading is the mirror image: a **short read is a broken file, not a
+success**.  `gzread` answers with a count, and a file cut short -- what a
+killed KAME leaves, the case this format was shaped around -- returns fewer
+bytes than asked without setting an error.  Every read in the `.kamb` reader
+is checked against the count it asked for, so a truncated tail raises
+`XIOError` at the record that is torn instead of letting the fields be read
+out of whatever the buffer happened to hold.
+
 ### Where they live
 
 `QStandardPaths::AppLocalDataLocation` — `~/Library/Application Support/kame`

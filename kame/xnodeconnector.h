@@ -134,6 +134,13 @@ public:
 	virtual ~XQConnector();
 
 	static shared_ptr<XNode> connectedNode(const QWidget *item);
+	//! The window \a owner's own widgets are in, nullptr if it has none.
+	//!
+	//! Every connector puts its widget in the same map connectedNode() reads,
+	//! so which window belongs to which node is something the framework
+	//! already knows -- a driver does not have to hand its form over.  Main
+	//! thread only, as the map is.
+	static QWidget *windowOf(const XNode &owner);
 private slots:
 protected slots:
 protected:
@@ -302,10 +309,12 @@ public:
 protected slots:
 protected:
     virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override;
+    bool eventFilter(QObject *obj, QEvent *event) override;
+    //! Draws the lamp for the state and the palette it is in.
+    void updateIcon();
     const shared_ptr<XBoolNode> m_node;
     QPushButton *const m_pItem;
-    QIcon *m_pIconOn;
-    QIcon *m_pIconOff;
+    bool m_lit = false;
 };
 
 class DECLSPEC_KAME XQToggleButtonConnector : public XValueQConnector {

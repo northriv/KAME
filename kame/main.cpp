@@ -22,6 +22,7 @@
 #else
 	#include <QCommandLineParser>
 	#include <QCommandLineOption>
+#include <QStyleHints>
 	#include <QApplication>
     #include <QMainWindow>
 #endif
@@ -138,6 +139,31 @@ int main(int argc, char *argv[]) {
     class KameApplication : public QApplication {
     public:
         using QApplication::QApplication;
+        //! Cmd-Q arrives HERE, not at the window.
+        //!
+        //! Qt's cocoa delegate answers -[NSApplication applicationShouldTerminate:]
+        //! by sending a QCloseEvent to the APPLICATION object, and reports
+        //! NSTerminateNow when that event comes back accepted -- whereupon
+        //! AppKit calls exit() and no window has seen a close event at all.
+        //! KAME's teardown lives in FrmKameMain::closeEvent, so on that path it
+        //! never ran: the scripting threads, the journal's two threads and the
+        //! driver tree all went into static destruction alive, which is where a
+        //! camera library's destructor threw and aborted the process
+        //! (2026-09-01).
+        //!
+        //! So the window is closed from here and its answer is the answer: a
+        //! refused close (an interface still running) ignores the event, which
+        //! is Qt's cue for NSTerminateCancel.
+        bool event(QEvent *e) override {
+            if((e->type() == QEvent::Close) || (e->type() == QEvent::Quit)) {
+                if(auto *frm = qobject_cast<QWidget *>(g_pFrmMain))
+                    if( !frm->close()) {
+                        e->ignore();
+                        return true;
+                    }
+            }
+            return QApplication::event(e);
+        }
         bool notify(QObject *receiver, QEvent *event) override {
             try {
                 return QApplication::notify(receiver, event);
@@ -170,7 +196,36 @@ int main(int argc, char *argv[]) {
             QCoreApplication::translate("main", "path"));
     parser.addOption(moduleDirectoryOption);
 
+    //Qt follows the system appearance, and since 6.8 can be told not to
+    //without leaving the native style -- on macOS setColorScheme() sets the
+    //NSApplication appearance.  \sa the View > Appearance menu
+    QCommandLineOption appearanceOption("appearance",
+            QCoreApplication::translate("main",
+                "light, dark, or system to follow the desktop. Overrides what "
+                "View > Appearance was last set to, for this run only "
+                "(default: dark, until the menu says otherwise)"),
+            QCoreApplication::translate("main", "system|light|dark"));
+    parser.addOption(appearanceOption);
+
     parser.process(app); //processes args.
+
+    {
+        //Dark unless told otherwise, to match the graph, whose Night theme has
+        //been the default all along -- a measurement is looked at in the dark
+        //as often as not, and a white window beside a black graph is the worse
+        //half of the four combinations the two switches make.
+        g_kameColorSchemeRequested = kameStoredColorScheme();
+        QString want = parser.value(appearanceOption).toLower();
+        if(want == "system") g_kameColorSchemeRequested = Qt::ColorScheme::Unknown;
+        else if(want == "light") g_kameColorSchemeRequested = Qt::ColorScheme::Light;
+        else if(want.length() && (want != "dark"))
+            fprintf(stderr, "--appearance takes system, light or dark\n");
+        kameApplyColorScheme(g_kameColorSchemeRequested);
+    }
+    //The graph's own light and dark, which is a separate switch and a separate
+    //memory.  Here, where nothing has been built yet: a graph takes the
+    //current theme when it is constructed.
+    kameApplyStoredGraphTheme();
 
     QStringList args = parser.positionalArguments();
 

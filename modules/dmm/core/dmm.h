@@ -30,8 +30,6 @@ public:
 
 	//! usually nothing to do
 	virtual ~XDMM() {}
-	//! Shows all forms belonging to driver
-	virtual void showForms();
 	
 	struct Payload : public XPrimaryDriver::Payload {
         double value(unsigned int ch = 0) const {

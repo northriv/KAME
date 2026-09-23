@@ -152,12 +152,6 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
 
     });
 }
-void
-XOpticalSpectrometer::showForms() {
-// impliment form->show() here
-    m_form->showNormal();
-    m_form->raise();
-}
 
 void
 XOpticalSpectrometer::onStrobeChnagedInternal(const Snapshot &shot, XValueNodeBase *) {

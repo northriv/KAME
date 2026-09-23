@@ -26,7 +26,6 @@ public:
     //! usually nothing to do
     virtual ~XGauge() = default;
     //! show all forms belonging to driver
-    virtual void showForms() override {}
 
     struct Payload : public XPrimaryDriver::Payload {
         unsigned int channelNum() const {return m_pressures.size();}

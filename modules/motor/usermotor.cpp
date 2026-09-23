@@ -25,6 +25,41 @@ REGISTER_TYPE(XDriverList, SigmaPAMC104, "SigmaOptics PAMC-104 piezo-assited mot
 const std::vector<uint32_t> XOrientalMotorCVD2B::s_resolutions_2B = {200,400,800,1000,1600,2000,3200,5000,6400,10000,12800,20000,25000,25600,50000,51200};
 const std::vector<uint32_t> XOrientalMotorCVD2B::s_resolutions_5B = {500,1000,1250,2000,2500,4000,5000,10000,12500,20000,25000,40000,50000,62500, 100000, 125000};
 
+//! Issues an edge-triggered maintenance command: writes 1, then back to 0.
+//!
+//! Every Modbus transfer can throw (CRC, slave and format errors — see
+//! XModbusRTUInterface::query()), and these registers latch. An exception
+//! between the 1 and the 0 used to leave the register asserted, and since the
+//! command fires on the rising edge, no later write of 1 could ever trigger it
+//! again — an alarm reset lost this way stayed lost until the driver was
+//! power-cycled, KAME restart included. Hence the leading 0, which recovers a
+//! register that a previous attempt left latched, and the restore on throw.
+static void
+pulseTwoResistors(const shared_ptr<XModbusRTUInterface> &intf, uint16_t addr) {
+    intf->presetTwoResistors(addr, 0);
+    try {
+        intf->presetTwoResistors(addr, 1);
+    }
+    catch (XKameError &) {
+        try { intf->presetTwoResistors(addr, 0); } catch (XKameError &) {}
+        throw;
+    }
+    intf->presetTwoResistors(addr, 0);
+}
+//! \sa pulseTwoResistors()
+static void
+pulseSingleResistor(const shared_ptr<XModbusRTUInterface> &intf, uint16_t addr) {
+    intf->presetSingleResistor(addr, 0);
+    try {
+        intf->presetSingleResistor(addr, 1);
+    }
+    catch (XKameError &) {
+        try { intf->presetSingleResistor(addr, 0); } catch (XKameError &) {}
+        throw;
+    }
+    intf->presetSingleResistor(addr, 0);
+}
+
 XOrientalMotorCVD2B::XOrientalMotorCVD2B(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XModbusRTUDriver<XMotorDriver>(name, runtime, ref(tr_meas), meas) {
@@ -38,8 +73,7 @@ XOrientalMotorCVD2B::XOrientalMotorCVD2B(const char *name, bool runtime,
 void
 XOrientalMotorCVD2B::storeToROM() {
     XScopedLock<XInterface> lock( *interface());
-    interface()->presetTwoResistors(0x192, 1); //RAM to NV.
-    interface()->presetTwoResistors(0x192, 0);
+    pulseTwoResistors(interface(), 0x192); //RAM to NV.
 }
 void
 XOrientalMotorCVD2B::clearPosition() {
@@ -51,8 +85,7 @@ XOrientalMotorCVD2B::clearPosition() {
 //        interface()->presetSingleResistor(0x7d, 0x0000u);
     }
     else {
-        interface()->presetTwoResistors(0x018a, 1); //counter clear.
-        interface()->presetTwoResistors(0x018a, 0);
+        pulseTwoResistors(interface(), 0x018a); //counter clear.
     }
 }
 void
@@ -61,19 +94,25 @@ XOrientalMotorCVD2B::getStatus(const Snapshot &shot, double *position, bool *sli
     uint32_t output = interface()->readHoldingTwoResistors(0x178);
 //    *slipping = output & 0x20u;
     if(output & 0x2) { //ALM-A
-        uint16_t alarm = interface()->readHoldingTwoResistors(0x80);
-        gErrPrint(getLabel() + i18n(" Alarm %1 has been emitted").arg((int)alarm));
-        interface()->presetTwoResistors(0x180, 1); //clears alarm.
-        interface()->presetTwoResistors(0x180, 0);
-    }
-    if(output & 0x80) { //INFO
-        uint16_t alarm = interface()->readHoldingTwoResistors(0xf6);
-        if(alarm) {
-            gErrPrint(getLabel() + i18n(" Info %1 has been emitted").arg((int)alarm));
-            interface()->presetTwoResistors(0x1a6, 1); //clears info.
-            interface()->presetTwoResistors(0x1a6, 0);
+        uint32_t alarm = interface()->readHoldingTwoResistors(0x80);
+        if(alarm != m_alarmReported) {
+            gErrPrint(getLabel() + i18n(" Alarm %1 has been emitted").arg((int)alarm));
+            m_alarmReported = alarm;
         }
+        pulseTwoResistors(interface(), 0x180); //clears alarm.
     }
+    else
+        m_alarmReported = 0;
+    uint32_t info = (output & 0x80) ? interface()->readHoldingTwoResistors(0xf6) : 0; //INFO
+    if(info) {
+        if(info != m_infoReported) {
+            gErrPrint(getLabel() + i18n(" Info %1 has been emitted").arg((int)info));
+            m_infoReported = info;
+        }
+        pulseTwoResistors(interface(), 0x1a6); //clears info.
+    }
+    else
+        m_infoReported = 0;
     *ready = (output & 0x10u);
 //    if(shot[ *hasEncoder()])
 //        *position = static_cast<int32_t>(interface()->readHoldingTwoResistors(0xc6))
@@ -118,8 +157,7 @@ XOrientalMotorCVD2B::changeConditions(const Snapshot &shot) {
     //    }
     if(interface()->readHoldingSingleResistor(0x17e) & 0x4000u) { //INFO-CFG
         gWarnPrint(i18n("Store settings to NV memory and restart."));
-        interface()->presetTwoResistors(0x018c, 1); //configuration.
-        interface()->presetTwoResistors(0x018c, 0);
+        pulseTwoResistors(interface(), 0x018c); //configuration.
     }
 }
 void
@@ -255,8 +293,7 @@ XOrientalMotorCVD2B::setAUXBits(unsigned int bits) {
     interface()->presetTwoResistors(0x10C2, 81); //DOUT1 to R1_R
     if(interface()->readHoldingSingleResistor(0x17e) & 0x4000u) { //INFO-CFG
         gWarnPrint(i18n("Configuration issued."));
-        interface()->presetTwoResistors(0x018c, 1); //configuration.
-        interface()->presetTwoResistors(0x018c, 0);
+        pulseTwoResistors(interface(), 0x018c); //configuration.
     }
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
     interface()->presetTwoResistors(0x7c, (netin & ~0x300uL) | ((bits & 0x03uL) * 0x100uL)); //R-IN8-10 as R0,1,(2)
@@ -272,14 +309,12 @@ XFlexCRK::XFlexCRK(const char *name, bool runtime,
 void
 XFlexCRK::storeToROM() {
     XScopedLock<XInterface> lock( *interface());
-    interface()->presetSingleResistor(0x45, 1); //RAM to NV.
-    interface()->presetSingleResistor(0x45, 0);
+    pulseSingleResistor(interface(), 0x45); //RAM to NV.
 }
 void
 XFlexCRK::clearPosition() {
     XScopedLock<XInterface> lock( *interface());
-    interface()->presetSingleResistor(0x4b, 1); //counter clear.
-    interface()->presetSingleResistor(0x4b, 0);
+    pulseSingleResistor(interface(), 0x4b); //counter clear.
 }
 void
 XFlexCRK::getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) {
@@ -288,13 +323,19 @@ XFlexCRK::getStatus(const Snapshot &shot, double *position, bool *slipping, bool
     *slipping = output & 0x2000000u;
     if(output & 0x80) {
         uint16_t alarm = interface()->readHoldingSingleResistor(0x100);
-        gErrPrint(getLabel() + i18n(" Alarm %1 has been emitted").arg((int)alarm));
-        interface()->presetSingleResistor(0x40, 1); //clears alarm.
-        interface()->presetSingleResistor(0x40, 0);
+        if(alarm != m_alarmReported) {
+            gErrPrint(getLabel() + i18n(" Alarm %1 has been emitted").arg((int)alarm));
+            m_alarmReported = alarm;
+        }
+        pulseSingleResistor(interface(), 0x40); //clears alarm.
     }
-    if(output & 0x40) {
-        uint16_t warn = interface()->readHoldingSingleResistor(0x10b);
-        gWarnPrint(getLabel() + i18n(" Code = %1").arg((int)warn));
+    else
+        m_alarmReported = 0;
+    uint32_t warn = (output & 0x40) ? interface()->readHoldingSingleResistor(0x10b) : 0;
+    if(warn != m_warnReported) {
+        if(warn)
+            gWarnPrint(getLabel() + i18n(" Code = %1").arg((int)warn));
+        m_warnReported = warn;
     }
 //	uint32_t ierr = interface()->readHoldingTwoResistors(0x128);
 //	if(ierr) {
@@ -439,14 +480,12 @@ XFlexCRK::setAUXBits(unsigned int bits) {
 void
 XFlexAR::storeToROM() {
     XScopedLock<XInterface> lock( *interface());
-    interface()->presetTwoResistors(0x192, 1); //RAM to NV.
-    interface()->presetTwoResistors(0x192, 0);
+    pulseTwoResistors(interface(), 0x192); //RAM to NV.
 }
 void
 XFlexAR::clearPosition() {
     XScopedLock<XInterface> lock( *interface());
-    interface()->presetTwoResistors(0x18a, 1); //counter clear.
-    interface()->presetTwoResistors(0x18a, 0);
+    pulseTwoResistors(interface(), 0x18a); //counter clear.
 }
 void
 XFlexAR::getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) {
@@ -456,17 +495,25 @@ XFlexAR::getStatus(const Snapshot &shot, double *position, bool *slipping, bool 
     *slipping = output & 0x8000;
     if(output & 0x80) {
         uint32_t alarm = interface()->readHoldingTwoResistors(0x80);
-        gErrPrint(getLabel() + i18n(" Alarm %1 has been emitted").arg((int)alarm));
-        interface()->presetTwoResistors(0x180, 1); //clears alarm.
-        interface()->presetTwoResistors(0x180, 0);
-        interface()->presetTwoResistors(0x182, 1); //clears abs. pos. alarm.
-        interface()->presetTwoResistors(0x182, 0);
-        interface()->presetTwoResistors(0x184, 1); //clears alarm history.
-        interface()->presetTwoResistors(0x184, 0);
+        if(alarm != m_alarmReported) {
+            //Reports once per alarm, not once per 100 ms poll: a cause that
+            //persists used to flood the message window at 10 Hz.
+            gErrPrint(getLabel() + i18n(" Alarm %1 has been emitted").arg((int)alarm));
+            m_alarmReported = alarm;
+        }
+        pulseTwoResistors(interface(), 0x180); //clears alarm.
+        pulseTwoResistors(interface(), 0x182); //clears abs. pos. alarm.
+        //The alarm history (0x184) is deliberately left alone: it is the only
+        //record of what tripped, and clearing it every poll wiped it before
+        //anyone could read it. ALM-RST above is what clears the alarm.
     }
-    if(output & 0x40) {
-        uint32_t warn = interface()->readHoldingTwoResistors(0x96);
-        gWarnPrint(getLabel() + i18n(" Code = %1").arg((int)warn));
+    else
+        m_alarmReported = 0;
+    uint32_t warn = (output & 0x40) ? interface()->readHoldingTwoResistors(0x96) : 0;
+    if(warn != m_warnReported) {
+        if(warn)
+            gWarnPrint(getLabel() + i18n(" Code = %1").arg((int)warn));
+        m_warnReported = warn;
     }
     if(shot[ *hasEncoder()])
         *position = static_cast<int32_t>(interface()->readHoldingTwoResistors(0xcc))
@@ -523,8 +570,7 @@ XFlexAR::changeConditions(const Snapshot &shot) {
     if(conf_needed) {
 //        sendStopSignal(true);
         setActive(false);
-        interface()->presetTwoResistors(0x18c, 1);
-        interface()->presetTwoResistors(0x18c, 0);
+        pulseTwoResistors(interface(), 0x18c); //configuration.
     }
 }
 void

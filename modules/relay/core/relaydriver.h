@@ -32,8 +32,6 @@ public:
         unsigned int num_channels = maxNumChannels);
     //! usually nothing to do
     virtual ~XRelayDriver() {}
-    //! show all forms belonging to driver
-    virtual void showForms() override;
 
     unsigned int numChannels() const {return (unsigned int)m_channelOutputs.size();}
     //! \arg ch [0, numChannels() - 1]

@@ -233,12 +233,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 XNMRPulseAnalyzer::~XNMRPulseAnalyzer() {
 }
 void XNMRPulseAnalyzer::onSpectrumShow(const Snapshot &shot, XTouchableNode *) {
-    m_spectrumForm->showNormal();
-    m_spectrumForm->raise();
-}
-void XNMRPulseAnalyzer::showForms() {
-    m_form->showNormal();
-    m_form->raise();
+    showForm(m_spectrumForm.get());
 }
 
 void XNMRPulseAnalyzer::backgroundSub(Transaction &tr,
@@ -279,7 +274,26 @@ void XNMRPulseAnalyzer::backgroundSub(Transaction &tr,
                     && (memo->solversel == solversel)))
                 memo.reset();
             if( !memo) {
-                int dnrlength = FFT::fitLength((bglength + bgpos) * 4);
+                //The least-square solvers lay their synthesized ringing out
+                //around the middle of the transform: ifft()[k] carries the
+                //phase of sample k while k < n/2, and of sample k - n above
+                //that.  Only the first half is therefore the ringing at the
+                //samples it is subtracted from below, so n has to be twice the
+                //span we subtract over -- no more, and no less.  The old
+                //4 * (bgpos + bglength) satisfied that only while the
+                //background ran to the end of the record.  That is the usual
+                //layout, which is why the second half never showed itself; with
+                //a short background well before the end of the record it put
+                //the wrong branch into the tail of the wave.  Sizing it from
+                //the span itself is exact in either layout, and in the usual
+                //one it is half of what was being transformed.  The remaining
+                //factor of two the old expression carried was buying peak
+                //resolution, which genSpectrum() now gets for free by
+                //interpolating the peak and solving the amplitude there instead
+                //of reading it off a bin -- measured on synthetic ringing, the
+                //pair at half the length matches or beats the old full length.
+                //This solve dominates a journal replay.
+                int dnrlength = FFT::fitLength(2 * ((int)wave.size() - pos));
                 std::vector<std::complex<double> > memin(bglength), memout(dnrlength);
                 for(unsigned int i = 0; i < bglength; i++) {
                     memin[i] = wave[pos + i + bgpos];
@@ -297,7 +311,12 @@ void XNMRPulseAnalyzer::backgroundSub(Transaction &tr,
                 }
             }
             if(memo) {
-                int imax = std::min((int)wave.size() - pos, (int)memo->ifft.size());
+                //Never past the half of ifft() that is the ringing; see above.
+                //dnrlength is chosen so this bound is the span itself, so the
+                //n/2 term only matters for a memo made before some earlier
+                //record left a shorter transform behind.
+                int imax = std::min((int)wave.size() - pos,
+                    (int)memo->ifft.size() / 2);
                 for(int i = 0; i < imax; i++) {
                     wave[i + pos] -= memo->ifft[i];
                 }
@@ -469,6 +488,8 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
         tr[ *tr[ *waveGraph()].axisx()->maxValue()] = starttime * 1e3 + t * 1.3;
     }
     tr[ *this].m_waveWidth = length;
+    //The Payload member, not the node of the same name it is copied from.
+    tr[ *this].m_echoPeriod = shot_this[ *echoPeriod()];
     bool skip = shot_this[ *this].m_timeClearRequested.isSet();
     tr[ *this].m_timeClearRequested = {};
     bool avgclear = skip;
@@ -645,8 +666,13 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
         }
     }
     double darknormalize = normalize * normalize;
-    if(bg_off_echotrain)
+    //The published PSD is that of m_wave, the mean of the echoes; what it takes
+    //to read it as the noise of ONE of them is published alongside.
+    tr[ *this].m_darkPSDFactorPerEcho = 1.0;
+    if(bg_off_echotrain) {
         darknormalize /= (double)numechoes;
+        tr[ *this].m_darkPSDFactorPerEcho = numechoes;
+    }
     double *darkpsd( &tr[ *this].m_darkPSD[0]);
     for(int i = 0; i < fftlen; i++) {
         darkpsd[i] = darkpsdsum[i] * darknormalize;

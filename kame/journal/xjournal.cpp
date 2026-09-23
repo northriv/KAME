@@ -15,6 +15,7 @@
 #include "xlistnode.h"
 #include "xitemnode.h"
 #include "rawstream.h"
+#include "xjournalreplay.h"
 #include "support.h"
 #include <zlib.h>
 #include <fstream>
@@ -24,6 +25,8 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
+#include <QJsonObject>
+#include <QJsonDocument>
 #include <QStandardPaths>
 #include <QUuid>
 
@@ -154,8 +157,9 @@ XString XJournal::journalPathOf(const XString &given) {return withExtension(give
 XString XJournal::rawPathOf(const XString &given) {return withExtension(given, ".kamb");}
 
 //! The raw stream follows: its path is set only as recording starts, since
-//! XRawStreamRecorder opens (and truncates) its file the moment its filename
-//! changes -- a Setup run must not leave an empty .kamb behind.
+//! XRawStreamRecorder opens its file the moment its filename changes -- a
+//! Setup run must not leave an empty .kamb behind.  It opens to append, so
+//! nothing here needs to know whether the stream is new.  \sa syncRun()
 void
 XJournal::onRecordingChanged(const Snapshot &shot, XValueNodeBase *) {
     auto &raws = m_rawstream;
@@ -431,17 +435,27 @@ static const int DRAIN_INTERVAL_US = 20000;
 
 
 bool
-XJournalWriter::Out::open(const XString &path) {
+XJournalWriter::Out::open(const XString &path, bool append) {
     close();
-    m_gz = gzopen(path.c_str(), "wb");
+    m_gz = gzopen(path.c_str(), append ? "ab" : "wb");
     m_bytes = 0;
+    idBase = 0;
+    m_failed = false;   //!< a new file deserves to be believed again
     return !!m_gz;
 }
 void
 XJournalWriter::Out::line(const XString &s) {
-    if( !m_gz)
+    if( !m_gz || m_failed)
         return;
-    gzwrite((gzFile)m_gz, s.c_str(), (unsigned)s.size());
+    //gzwrite answers with the uncompressed count and 0 for an error, so a
+    //short write is a failure like any other.  Unchecked, a disk that filled
+    //up mid-run left the session convinced it was journaled: the statistics
+    //went on counting bytes that never landed, and nothing said otherwise
+    //until somebody opened the file.
+    if(gzwrite((gzFile)m_gz, s.c_str(), (unsigned)s.size()) != (int)s.size()) {
+        m_failed = true;
+        return;
+    }
     m_bytes += s.size();
     m_dirty = true;
 }
@@ -450,7 +464,7 @@ static const unsigned int FLUSH_INTERVAL_MS = 60000;
 
 void
 XJournalWriter::Out::flush(bool force) {
-    if( !m_gz || !m_dirty)
+    if( !m_gz || !m_dirty || m_failed)
         return;
     XTime now = XTime::now();
     if( !force && m_flushedAt.isSet() && (now.diff_msec(m_flushedAt) < FLUSH_INTERVAL_MS))
@@ -464,15 +478,50 @@ XJournalWriter::Out::flush(bool force) {
     //extra flushes buy is only the difference between losing a second of
     //provenance to a kill and losing a minute of it.  The same interval as the
     //raw stream, for the same reason.  \sa XRawStreamRecorder::onRecord()
-    gzflush((gzFile)m_gz, Z_FULL_FLUSH);
+    if(gzflush((gzFile)m_gz, Z_FULL_FLUSH) != Z_OK) {
+        m_failed = true;
+        return;
+    }
     m_flushedAt = now;
     m_dirty = false;
 }
 void
 XJournalWriter::Out::close() {
-    if(m_gz)
-        gzclose((gzFile)m_gz);
+    //zlib finishes the stream here, so this is the last chance for a write to
+    //fail -- and the one that costs the tail of the file rather than one line.
+    if(m_gz && (gzclose((gzFile)m_gz) != Z_OK))
+        m_failed = true;
     m_gz = nullptr;
+}
+void
+XJournalWriter::reportWriteFailures() {
+    //Once per file: this is checked every drain, and a full disk does not
+    //stop being full.  Said from the journal thread, where every other
+    //journal message comes from.
+    auto rec = m_recorder.lock();
+    if(m_sessionOut.failed() && !m_sessionFailSaid) {
+        m_sessionFailSaid = true;
+        gErrPrint(i18n_noncontext("Journal: writing failed (disk full?): ")
+            + m_sessionPath + i18n_noncontext(" -- this session is no longer journaled."));
+        m_sessionOut.close();
+        m_sessionPath.clear();
+        if(rec) {
+            //The switch says what is true.  Left on, it would offer to stop
+            //something that had already stopped.
+            trans( *rec->sessionJournal()) = false;
+            rec->setSessionPath(XString());
+        }
+    }
+    if(m_runOut.failed() && !m_runFailSaid) {
+        m_runFailSaid = true;
+        gErrPrint(i18n_noncontext("Journal: writing failed (disk full?): ")
+            + m_openPath + i18n_noncontext(" -- the logbook is closed."));
+        m_runOut.close();
+        m_runOpen = false;
+        m_openPath.clear();
+        if(rec)
+            trans( *rec->recording()) = false;
+    }
 }
 
 //! Text, so `zdiff run1.kamj run2.kamj` and `zgrep` work with no tool at all --
@@ -581,9 +630,9 @@ XJournalWriter::dumpSubtree(Out &out, const Snapshot &shot,
     rec.reachable = true;
     rec.inTree = true;
 
-    XString s = formatString("{\"t\":\"n\",\"id\":%u", (unsigned)id);
+    XString s = formatString("{\"t\":\"n\",\"id\":%u", (unsigned)(id + out.idBase));
     if(index >= 0)
-        s += formatString(",\"p\":%u,\"i\":%d", (unsigned)parentId, index);
+        s += formatString(",\"p\":%u,\"i\":%d", (unsigned)(parentId + out.idBase), index);
     s += ",\"name\":\"" + jsonEscape(node->getName())
         + "\",\"path\":\"" + jsonEscape(path) + "\"";
     //The registry key, and only when there IS one: a mangled type name is
@@ -600,7 +649,7 @@ XJournalWriter::dumpSubtree(Out &out, const Snapshot &shot,
     out.line(s + "}\n");
 
     if(auto vnode = dynamic_pointer_cast<XValueNodeBase>(node)) {
-        XString v = formatString("{\"t\":\"v\",\"id\":%u,\"s\":%lld", (unsigned)id,
+        XString v = formatString("{\"t\":\"v\",\"id\":%u,\"s\":%lld", (unsigned)(id + out.idBase),
             (long long)shot[ *vnode].serial())
             + ",\"v\":\"" + jsonEscape(shot[ *vnode].to_str()) + "\"";
         if(auto dnode = dynamic_pointer_cast<XDoubleNode>(node))
@@ -625,7 +674,7 @@ void
 XJournalWriter::writeEntry(Out &out, const JournalT::Entry &e) {
     if(e.record.kind != KIND_VALUE)
         return; //structure is written where it is subscribed, with its names
-    XString s = formatString("{\"t\":\"v\",\"id\":%u", (unsigned)e.record.id)
+    XString s = formatString("{\"t\":\"v\",\"id\":%u", (unsigned)(e.record.id + out.idBase))
         + "," + stampOf(e.record.when)
         + formatString(",\"s\":%lld", (long long)e.serial)
         + ",\"c\":\"" + ((threadClassOf((unsigned int)((uint64_t)e.serial & 0xffffu))
@@ -648,9 +697,11 @@ XJournalWriter::openSession() {
         gWarnPrint(i18n_noncontext("Journal: no writable directory; this session is not journaled."));
         return;
     }
-    m_session = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
+    if(m_session.empty())
+        m_session = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
     m_sessionPath = dir + "/session-"
         + QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss").toStdString() + ".kamj";
+    m_sessionFailSaid = false;
     if( !m_sessionOut.open(m_sessionPath)) {
         gWarnPrint(i18n_noncontext("Journal: cannot write ") + m_sessionPath);
         return;
@@ -701,6 +752,10 @@ XJournalWriter::syncRun() {
     if( !rec)
         return;
     Snapshot shot( *rec);
+    //The id names this KAME in every header it writes, session journal or
+    //not -- one per launch, whether or not the session journal is on.
+    if(m_session.empty())
+        m_session = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
     //The always-on journal is refusable.  A dump is not free -- an ODMR tree
     //is 3000 nodes, 600 KB before compression -- and a background writer
     //nobody can switch off is impolite whatever its size.
@@ -727,7 +782,41 @@ XJournalWriter::syncRun() {
             trans( *rec->recording()) = false;
             return;
         }
-        if( !m_runOut.open(path)) {
+        //A journal that exists is continued, never written over and never
+        //refused (user).  A journal is a log: the newest record is always the
+        //last, so whatever follows the old records reads as what came next,
+        //and naming a file that belongs to something else is the user's to
+        //answer for.  What must not follow from it is the old records ceasing
+        //to mean what they said, which is the one thing continuing can break:
+        //node ids are counted from zero in every session, and a reader
+        //resolves them through one table built from the whole file.  So a
+        //run continued by the session that began it keeps its ids, and one
+        //continued from any other session -- an earlier launch included --
+        //numbers its nodes above every id the file already holds.
+        //
+        //Decided here, by the only code that creates this file, so the disk
+        //is a true witness.  The raw stream is not asked about: the recorder
+        //creates it the moment its filename is set, and a writer that looked
+        //at it once took the stream it had just made for a stranger's and
+        //refused every new run (2026-09-23).  "ab" throughout -- a new file
+        //is created by it, and an old one can never be truncated by it.
+        bool resume = QFileInfo::exists(QString::fromStdString(path));
+        uint32_t idBase = 0;
+        if(resume) {
+            auto it = m_runIdBases.find(path);
+            if(it != m_runIdBases.end())
+                idBase = it->second;
+            else {
+                std::map<uint32_t, XJournalFile::NodeInfo> known;
+                if( !XJournalFile::scanNodes(path, known))
+                    idBase = 1u << 24; //!< unreadable: stay clear of whatever it holds
+                else if( !known.empty())
+                    idBase = known.rbegin()->first + 1;
+            }
+        }
+        m_runIdBases[path] = idBase;
+        m_runFailSaid = false;
+        if( !m_runOut.open(path, true)) {
             gErrPrint(i18n_noncontext("Journal: cannot write ") + path);
             trans( *rec->recording()) = false;
             return;
@@ -736,14 +825,33 @@ XJournalWriter::syncRun() {
         m_bytesJournal = 0;
         m_bytesLast = 0;
         m_rawBytesAtStart = rec->rawBytesWritten();
+        m_runOut.idBase = idBase;
         m_runOpen = true;
         m_runKeepsValues = true;
-        writeHeader(m_runOut, "run");
-        writeDump(m_runOut);
+        if(resume) {
+            //Continued, not restarted: no second header.  A fresh dump instead,
+            //as ordinary entries: the tree may have changed while the switch
+            //was off and drivers may have been added, and a replay reaching
+            //this point puts all of it back -- a mid-journal unstamped value
+            //is a node's state as of that instant, which is what these are.
+            //The marker says who continued it and in which tier, since both
+            //may differ from what the header says.
+            XString marker = XString("{\"t\":\"run\",\"state\":\"resume\",\"session\":\"")
+                + m_session + "\",\"mode\":\"" + XJournal::modeLabel(mode) + "\"";
+            if(mode == XJournal::Mode::LOGBOOK_RAW)
+                marker += ",\"raw\":\"" + jsonEscape(QFileInfo(QString::fromStdString(
+                    XJournal::rawPathOf(shot[ *rec->filename()].to_str()))).fileName().toStdString()) + "\"";
+            m_runOut.line(marker + "," + stampOf(XTime::now()) + "}\n");
+            writeDump(m_runOut);
+        }
+        else {
+            writeHeader(m_runOut, "run");
+            writeDump(m_runOut);
+        }
         m_runOut.flush(true);
         //The session journal says where its runs went, so either half leads
         //to the other.
-        m_sessionOut.line(XString("{\"t\":\"run\",\"state\":\"start\",\"file\":\"")
+        m_sessionOut.line(XString("{\"t\":\"run\",\"state\":\"") + (resume ? "resume" : "start") + "\",\"file\":\""
             + jsonEscape(QFileInfo(QString::fromStdString(m_openPath)).fileName().toStdString())
             + "\"," + stampOf(XTime::now()) + "}\n");
         m_sessionOut.flush();
@@ -947,11 +1055,10 @@ XJournalWriter::processPending() {
             //freed since the event may have had its address reused.
             if((it != m_index.end())
                 && (m_nodes[it->second].node.lock() == p.released.lock())) {
-                XString line = formatString("{\"t\":\"released\",\"id\":%u,",
-                    (unsigned)it->second)
-                    + stampOf(XTime::now()) + "}\n";
-                m_sessionOut.line(line);
-                m_runOut.line(line);
+                XString stamp = stampOf(XTime::now()) + "}\n";
+                for(Out *out: {&m_sessionOut, &m_runOut})
+                    out->line(formatString("{\"t\":\"released\",\"id\":%u,",
+                        (unsigned)(it->second + out->idBase)) + stamp);
                 detachSubtree(it->second);
             }
         }
@@ -1119,6 +1226,7 @@ XJournalWriter::drainOnce() {
     //parsable -- the same property that makes a killed session readable.
     m_sessionOut.flush();
     m_runOut.flush();
+    reportWriteFailures();
     m_bytesJournal = m_sessionOut.bytes() + m_runOut.bytes();
 }
 

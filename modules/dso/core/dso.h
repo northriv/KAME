@@ -36,8 +36,6 @@ public:
 		 Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do.
 	virtual ~XDSO() {}
-	//! Shows all forms belonging to driver.
-	virtual void showForms();
 protected:
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).

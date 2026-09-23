@@ -91,8 +91,7 @@ void XPumpControl::showForms() {
             lbl_ui++;
         }
     }
-    m_form->showNormal();
-    m_form->raise();
+    showForm(m_form.get());
 }
 
 void XPumpControl::onModeChanged(const Snapshot &, XValueNodeBase *) {

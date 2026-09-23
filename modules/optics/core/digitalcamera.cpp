@@ -105,12 +105,6 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
         tr[ *tr[ *m_waveHist].plot(0)->drawLines()] = false;
     });
 }
-void
-XDigitalCamera::showForms() {
-// impliment form->show() here
-    m_form->showNormal();
-    m_form->raise();
-}
 
 void
 XDigitalCamera::onAntiShakeChanged(const Snapshot &shot, XValueNodeBase *) {
