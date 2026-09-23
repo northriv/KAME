@@ -606,12 +606,12 @@ Every value is written twice where it matters: as the text you would read,
 and — for a number — as the exact eight bytes it was. A settings file that
 rounds makes both a spurious difference and a reproduction that used a
 different number.
-Switching **Write** off and on again with the same name **continues** the
-run: both files are appended to, a fresh dump marks the resumption so a
-replay knows what changed meanwhile, and the tier must be the one the run
-began in. A file this KAME did not write -- one from an earlier session -- is
-never written over: it is refused with a message, because only the KAME that
-began a run can continue it (the node ids in the file are its own).
+A file that exists is **continued**, never written over. Switching **Write**
+off and on again with the same name appends to both files, and a fresh dump
+marks the resumption, so a replay knows what changed meanwhile -- the tier
+may change there too. The same holds for a file from an earlier session or
+another run: the new records simply follow the old ones, as a journal always
+has the newest last, so choose the name with that in mind.
 
 ## The session journal
 

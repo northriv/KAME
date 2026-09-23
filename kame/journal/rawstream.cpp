@@ -70,11 +70,9 @@ void
 XRawStreamRecorder::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	if(m_pGFD) gzclose(static_cast<gzFile>(m_pGFD));
     XString path = ( **filename())->to_str();
-    //"ab": a file that exists is continued as a further gzip member, which
-    //gzread walks as one stream and the record markers make seamless.  The
-    //journal refuses a file another session wrote before this is reached;
-    //for a file of this session's, continuing is what a switch thrown off
-    //and on again means (user).
+    //"ab": a stream that exists is continued as a further gzip member, which
+    //gzread walks as one stream and the record markers make seamless --
+    //never truncated, as the journal beside it never is (user).
 	m_pGFD = gzopen(QString(path).toLocal8Bit().data(), "ab");
 	m_lastFlushed = XTime();
     m_writeFailSaid = false;   //!< a new file deserves to be believed again
