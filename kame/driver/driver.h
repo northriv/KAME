@@ -53,6 +53,11 @@ public:
 	//! back rather than staying in the dock, and raise() after it, so a form
 	//! already open but buried answers the click that asked for it.  Null-safe,
 	//! nullptr being what windowOf() says about a driver with no form.
+	//!
+	//! raise() cannot lift a window above a pinned toolbox, which is always on
+	//! top, so the main window is told as well and unpins a toolbox that lies
+	//! over it.  Every KAME window put up on request comes through here --
+	//! charts and graphs too.  \sa FrmKameMain::formShown()
 	static void showForm(class QWidget *w);
  
     struct DECLSPEC_KAME Payload : public XNode::Payload {

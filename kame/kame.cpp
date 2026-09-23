@@ -762,6 +762,27 @@ FrmKameMain::formsWouldBeCovered(const EdgeSlider &s) const {
     }
     return false;
 }
+//! The rule the load follows before it pins (\sa formsWouldBeCovered()),
+//! applied at the moment a window is actually put up.  A pinned toolbox is
+//! an always-on-top window, and raise() cannot lift anything above it, so a
+//! form, chart or graph asked for with a click came up underneath -- the
+//! click that asked to see it defeated by the pin (user, 2026-09-23).  The
+//! request outranks the convenience: that toolbox goes back to auto-hide and
+//! folds as the pointer leaves it.  Only the toolbox that covers the window;
+//! the window itself is not moved, its place being the user's.
+void
+FrmKameMain::formShown(QWidget *w) {
+    if( !w || !w->isVisible())
+        return;
+    QRect g = w->frameGeometry(); //!< the title bar counts: it is what one grabs
+    for(auto &&s: m_edgeSliders) {
+        if(s.vertical || s.autoHide || (s.win == w))
+            continue;
+        //Any overlap, as the load's rule; touching is not overlapping.
+        if( !s.expanded.intersected(g).isEmpty())
+            s.autoHideAction->setChecked(true); //!< the title's pin and the View menu follow
+    }
+}
 void
 FrmKameMain::pinToolboxes() {
     for(auto &&s: m_edgeSliders) {

@@ -150,6 +150,9 @@ public slots:
     virtual void jupyterNotebookAction_activated( QAction *act );
     //! Handle clicks on hyperlinks in a script / IPython output pane.
     void onScriptLinkClicked(const QUrl &url);
+    //! A window was put up on request; a pinned toolbox lying over it is
+    //! unpinned.  Invoked by name from XDriver::showForm().
+    void formShown(QWidget *w);
     virtual void fileLogAction_toggled( bool var );
     virtual void graphThemeNightAction_toggled( bool var );
 //    virtual void graphThemeDayightAction_toggled( bool var );

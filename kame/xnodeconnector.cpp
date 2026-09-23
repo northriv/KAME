@@ -15,6 +15,7 @@
 #include "driver/driver.h"
 #include "kamesettings.h"
 #include <deque>
+#include <QPointer>
 #include <QPushButton>
 #include <QLineEdit>
 #include <QCheckBox>
@@ -165,6 +166,16 @@ XDriver::showForm(QWidget *w) {
     if(w) {
         w->showNormal();
         w->raise();
+        //By name: the main window is the application's, not this library's.
+        //A turn later, so that a window shown for the first time has been
+        //placed, frame and all; guarded, since it may be gone by then.
+        if(g_pFrmMain) {
+            QPointer<QWidget> p(w);
+            QTimer::singleShot(0, g_pFrmMain, [p]{
+                if(p && g_pFrmMain)
+                    QMetaObject::invokeMethod(g_pFrmMain, "formShown", Q_ARG(QWidget *, p.data()));
+            });
+        }
     }
 }
 void
