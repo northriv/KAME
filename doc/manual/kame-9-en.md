@@ -373,7 +373,7 @@ These windows get out of the way by themselves. A toolbox you are not pointing a
 
 A window will not shrink away while you are using it. It stays as it is while a drop-down list is open, while a mouse button is held down, and while it holds the keyboard — that is, after you have clicked into it and are typing. Only after you click elsewhere does it fold up again.
 
-A form, chart or graph you open that a pinned toolbox would cover releases that toolbox's pin, since a toolbox always stays on top: it folds away as the pointer leaves it, and the window comes up where it was. Pin it again with its tab if you want it back.
+A form, chart or graph you open that a pinned toolbox would cover releases that toolbox's pin, since a toolbox always stays on top: it folds away at once, and the window comes up where it was. Point at it to bring it back, or pin it again with its tab.
 
 To keep a window open regardless, click the tab of the pane already in front: that pins it, and clicking that tab again releases it. (Clicking any other tab just switches panes, as usual.) The same switches are in the “View” menu as “Auto-hide West Toolbox”, “Auto-hide East Toolbox” and “Auto-hide Main Window”, and the “View” menu also lists every pane by name, which is the way to bring back a toolbox that has been minimized or hidden.
 

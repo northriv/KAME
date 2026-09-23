@@ -768,8 +768,8 @@ FrmKameMain::formsWouldBeCovered(const EdgeSlider &s) const {
 //! form, chart or graph asked for with a click came up underneath -- the
 //! click that asked to see it defeated by the pin (user, 2026-09-23).  The
 //! request outranks the convenience: that toolbox goes back to auto-hide and
-//! folds as the pointer leaves it.  Only the toolbox that covers the window;
-//! the window itself is not moved, its place being the user's.
+//! folds at once.  Only the toolbox that covers the window; the window itself
+//! is not moved, its place being the user's.
 void
 FrmKameMain::formShown(QWidget *w) {
     if( !w || !w->isVisible())
@@ -779,8 +779,17 @@ FrmKameMain::formShown(QWidget *w) {
         if(s.vertical || s.autoHide || (s.win == w))
             continue;
         //Any overlap, as the load's rule; touching is not overlapping.
-        if( !s.expanded.intersected(g).isEmpty())
-            s.autoHideAction->setChecked(true); //!< the title's pin and the View menu follow
+        if(s.expanded.intersected(g).isEmpty())
+            continue;
+        s.autoHideAction->setChecked(true); //!< the title's pin and the View menu follow
+        //Now, not when the pointer leaves: it is still on the list just
+        //clicked, and auto-hide alone would hold the toolbox open over the
+        //very window it was asked for (user).  Dismissed, as foldToolboxes()
+        //does, so that pointer does not unfold it again on the next poll.
+        if( !s.collapsed) {
+            s.dismissed = true;
+            setToolboxCollapsed(s, true);
+        }
     }
 }
 void

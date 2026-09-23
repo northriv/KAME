@@ -14,8 +14,8 @@
   would cover it (user).  A pinned toolbox stays on top of everything, so the
   window came up underneath it, the click defeated by the pin.  The rule the
   load already follows before it pins, applied when the window is put up:
-  only the toolbox that covers it goes back to auto-hide, folding as the
-  pointer leaves, and the window stays where it was.
+  only the toolbox that covers it goes back to auto-hide and folds at once,
+  and the window stays where it was.
 - Journal: a run file that exists is always continued -- never written over
   and never refused (user).  Sep 19 refused a file another session had
   written, and in "Settings + raw records" refused every new run as well: the
