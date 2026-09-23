@@ -56,8 +56,28 @@ fi
 #   Echoes its own ok / FAILED / SKIPPED line; sets `status` on failure.
 i486_probe() {
     tag=$1; hint=$2; src=$3; shift 3
-    if ! "$CXX" -m32 -E -x c++ /dev/null >/dev/null 2>&1; then
-        echo "SKIPPED (no 32-bit multilib; install gcc-multilib g++-multilib)"
+    # Probe with the headers the real sources need, not with empty input.
+    # `-m32 -E /dev/null` succeeds on any gcc whether or not the 32-bit libc /
+    # libstdc++ headers are installed -- preprocessing nothing includes
+    # nothing -- so on a Linux box without gcc-multilib it let both phases
+    # through to a compile that then died on <bits/wordsize.h> and was
+    # reported as FAILED.  That turned a missing package into a false
+    # failure, and in the pre-commit hook into a blocked commit for anyone
+    # staging kamepoolalloc/ on such a machine.  Cached: one probe serves
+    # both phases.
+    if [ -z "${NO_DCAS_HDRS_OK+x}" ]; then
+        printf '#include <atomic>\n#include <cstdint>\n#include <cstddef>\n' \
+            > "$tmp/hdrprobe.cpp"
+        if "$CXX" -m32 -march=i486 -std=c++17 -fsyntax-only \
+                "$tmp/hdrprobe.cpp" >/dev/null 2>&1; then
+            NO_DCAS_HDRS_OK=1
+        else
+            NO_DCAS_HDRS_OK=0
+        fi
+    fi
+    if [ "$NO_DCAS_HDRS_OK" != "1" ]; then
+        echo "SKIPPED (no usable 32-bit headers — <atomic> does not compile with"
+        echo "         -m32; install gcc-multilib g++-multilib)"
         return
     fi
     # Pre-probe what -m32 -march=i486 ACTUALLY targets before compiling the
