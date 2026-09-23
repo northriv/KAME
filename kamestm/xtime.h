@@ -113,15 +113,17 @@ public:
     bool operator<(const XTime &x) const noexcept  {
         return (tv_sec < x.tv_sec) || ((tv_sec == x.tv_sec) && (tv_usec < x.tv_usec));
     }
-    bool operator<=(const XTime &x) const noexcept  {
-        return (tv_sec <= x.tv_sec) || ((tv_sec == x.tv_sec) && (tv_usec <= x.tv_usec));
-    }
     bool operator>(const XTime &x) const noexcept  {
         return (tv_sec > x.tv_sec) || ((tv_sec == x.tv_sec) && (tv_usec > x.tv_usec));
     }
-    bool operator>=(const XTime &x) const noexcept  {
-        return (tv_sec >= x.tv_sec) || ((tv_sec == x.tv_sec) && (tv_usec >= x.tv_usec));
-    }
+    //! No <= or >=.  Both were wrong within one second -- the leading
+    //! tv_sec <= / >= already held there, so the microseconds were never
+    //! compared and any two times in the same second passed both ways -- and
+    //! nothing used either.  Two measured instants have no use for "at or
+    //! before": equal stamps mean the same record, which is what == is for,
+    //! not a tie to be ordered.  Use < or >.
+    bool operator<=(const XTime &x) const noexcept = delete;
+    bool operator>=(const XTime &x) const noexcept = delete;
     bool operator!() const noexcept {
         return (tv_sec == 0) && (tv_usec == 0);
     }
