@@ -360,6 +360,15 @@ def _explain_and_exit(exc):
         from pydantic_ai.exceptions import UserError
     except ImportError:
         UserError = ()
+    if 'thinking' in msg.lower() and 'signature' in msg.lower():
+        sys.exit(
+            "{}\n\n"
+            "The history sent to the model was altered after a thinking block "
+            "in it was signed -- the provider checks that.  KAME's own trimming "
+            "now drops those blocks whenever it changes the history; if you use "
+            "a history processor of your own, strip ThinkingPart from every "
+            "ModelResponse when you change anything before it.  Starting a new "
+            "chat clears it.".format(msg) + tail)
     if 'too long' in msg.lower() or 'context length' in msg.lower() \
             or 'context_length' in msg.lower():
         sys.exit(
@@ -536,11 +545,15 @@ def kame_history_budget(max_tokens=None, keep_recent=6):
     default 150k, under every current provider's window), the OLDEST tool
     returns are cut to a one-line note and their images dropped, oldest
     first, until it fits; the last `keep_recent` messages are never touched,
-    and every tool call keeps its return part, so the transcript stays
-    well-formed for every provider.  `capabilities=[*kame_history_budget()]`."""
+    and every tool call keeps its return part.  Trimming happens only at the
+    start of a run, and then every earlier thinking block is dropped: a
+    provider that signs thinking against the preceding content (Anthropic)
+    rejects a block whose prefix changed, so the two go together.
+    `capabilities=[*kame_history_budget()]`."""
     import dataclasses
     from pydantic_ai.capabilities import ProcessHistory
-    from pydantic_ai.messages import (ModelRequest, ToolReturnPart, UserPromptPart,
+    from pydantic_ai.messages import (ModelRequest, ModelResponse, ToolReturnPart,
+                                      UserPromptPart, SystemPromptPart, ThinkingPart,
                                       BinaryContent)
     budget = int(max_tokens or os.environ.get('KAME_PYAI_HISTORY_TOKENS') or 150000)
 
@@ -573,6 +586,16 @@ def kame_history_budget(max_tokens=None, keep_recent=6):
         total = sum(_est(m) for m in messages)
         if total <= budget:
             return messages
+        # Only at the start of a run -- the last message is the user's new
+        # prompt, no tool loop is in flight.  Anthropic signs every thinking
+        # block against everything that precedes it: a prefix changed
+        # mid-run invalidates the block the loop must hand back ("Invalid
+        # signature in thinking block ... content that preceded this block
+        # is missing"), and that is exactly what a first version of this did.
+        last = messages[-1]
+        if not (isinstance(last, ModelRequest)
+                and all(isinstance(p, (UserPromptPart, SystemPromptPart)) for p in last.parts)):
+            return messages
         out = list(messages)
         cutoff = max(0, len(out) - keep_recent)
         for i in range(cutoff):
@@ -590,6 +613,14 @@ def kame_history_budget(max_tokens=None, keep_recent=6):
                 out[i] = dataclasses.replace(m, parts=parts)
             if total <= budget:
                 break
+        # The prefix has changed, so every signed thinking block in the
+        # history is now bound to a conversation that no longer exists.  They
+        # all belong to finished turns (see above), which a provider lets you
+        # omit; dropping them is what keeps the trimmed history sendable.
+        for i, m in enumerate(out):
+            if isinstance(m, ModelResponse) and any(isinstance(p, ThinkingPart) for p in m.parts):
+                kept = [p for p in m.parts if not isinstance(p, ThinkingPart)]
+                out[i] = dataclasses.replace(m, parts=kept)
         return out
 
     return [ProcessHistory(processor)]
