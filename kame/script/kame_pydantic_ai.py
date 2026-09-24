@@ -22,8 +22,9 @@ in the environment wins, so a shell export still works, but none is needed.
 Model resolution: --model, else KAME_PYAI_MODEL, else PYDANTIC_AI_MODEL — from
 the environment or those files.  A comma-separated list binds the first and
 offers the rest in the web UI's menu.  `sakana:<model>` (fugu, namazu) is
-resolved here against SAKANA_API_KEY; every other provider:name is
-pydantic-ai's own.
+resolved here against SAKANA_API_KEY, and `bionic:` / `ollama:` /
+`local:<model>` against that local server's address, so they coexist with
+the OpenAI key; every other provider:name is pydantic-ai's own.
 `--web` serves this module's own web app (`kame_pydantic_ai:app`: the chat UI
 plus KAME's saved figures at /plots) with uvicorn, falling back to `clai web`
 when uvicorn is absent — that fallback cannot show figures.
@@ -61,6 +62,25 @@ SETTINGS_FILE = os.path.join(os.path.expanduser('~'), '.kame_pyai.env')
 #by making the user repurpose OPENAI_BASE_URL / OPENAI_API_KEY -- which would
 #also shut out real OpenAI models in the same file.
 SAKANA_BASE_URL = 'https://api.sakana.ai/v1'
+#Local servers get prefixes of their own for the same reason: pointing
+#OPENAI_BASE_URL at Bionic would hijack the OpenAI key in the same settings
+#file, so `bionic:<model>` and `ollama:<model>` carry their own address and
+#leave OPENAI_* meaning OpenAI.  `local:<model>` is any other OpenAI-compatible
+#server, at KAME_PYAI_LOCAL_URL.
+LOCAL_SERVERS = {
+    'bionic': ('KAME_PYAI_BIONIC_URL', 'http://127.0.0.1:1234/v1'),
+    'ollama': ('KAME_PYAI_OLLAMA_URL', 'http://127.0.0.1:11434/v1'),
+    'local':  ('KAME_PYAI_LOCAL_URL',  ''),
+}
+#Prefixes only this module understands; never handed to clai's -m.
+KAME_PREFIXES = ('sakana:',) + tuple(k + ':' for k in LOCAL_SERVERS)
+
+
+def _local_server(kind):
+    """(base_url, key) of a local server kind, or None when it has no address."""
+    var, default = LOCAL_SERVERS[kind]
+    url = os.environ.get(var) or default
+    return (url, os.environ.get('KAME_PYAI_LOCAL_KEY') or kind) if url else None
 
 
 def _read_env_file(path):
@@ -348,11 +368,9 @@ def _explain_and_exit(exc):
                 "The model needs {}, and this process does not have it.\n"
                 "  * Put a line   {}=...   in {}\n    and click the link "
                 "again.\n"
-                "  * Or use a model that needs no key, e.g. one served by Bionic "
-                "or Ollama -- in the same file:\n"
-                "        KAME_PYAI_MODEL=openai-chat:<model id>\n"
-                "        OPENAI_BASE_URL=http://127.0.0.1:1234/v1     (Ollama: 11434)\n"
-                "        OPENAI_API_KEY=bionic\n"
+                "  * Or use a model that needs no key, served by Bionic or Ollama "
+                "-- one line, it coexists with the cloud keys:\n"
+                "        KAME_PYAI_MODEL=bionic:<model id>      (or ollama:<model id>)\n"
                 "  (clai without a model falls back to openai:gpt-5, which is "
                 "why an OPENAI key\n   is demanded when you never chose "
                 "OpenAI -- set KAME_PYAI_MODEL there.)"
@@ -364,10 +382,8 @@ def _explain_and_exit(exc):
                 "The form is provider:name, for example\n"
                 "    anthropic:claude-sonnet-4-5    openai:gpt-5    "
                 "google-gla:gemini-2.5-pro    sakana:fugu\n"
-                "    openai-chat:<any name>  with OPENAI_BASE_URL for Bionic / "
-                "Ollama / llama.cpp\n"
-                "    (openai: alone means the Responses API, which local servers "
-                "may not serve)\n"
+                "    bionic:<model id>   ollama:<model id>   local:<model id> "
+                "(with KAME_PYAI_LOCAL_URL)\n"
                 "It came from --model, else KAME_PYAI_MODEL, else "
                 "PYDANTIC_AI_MODEL.".format(msg) + tail)
         sys.exit(msg + tail)
@@ -437,20 +453,30 @@ def _toolset(url, token):
 
 def _resolve_model(spec):
     """A model string pydantic-ai can infer, or a Model object for the
-    providers it cannot: `sakana:<name>` -> Sakana AI's OpenAI-compatible
-    endpoint with SAKANA_API_KEY.  Everything else passes through."""
-    if not isinstance(spec, str) or not spec.startswith('sakana:'):
+    providers it cannot: `sakana:<name>` -> Sakana AI with SAKANA_API_KEY;
+    `bionic:` / `ollama:` / `local:<name>` -> that local server's chat
+    completions endpoint.  Everything else passes through."""
+    if not isinstance(spec, str) or not spec.startswith(KAME_PREFIXES):
         return spec          # None, a plain provider:name, or an already-built Model
     from pydantic_ai.exceptions import UserError
     from pydantic_ai.models.openai import OpenAIChatModel
     from pydantic_ai.providers.openai import OpenAIProvider
+    kind, name = spec.split(':', 1)
+    if kind in LOCAL_SERVERS:
+        srv = _local_server(kind)
+        if not srv:
+            raise UserError('Set the `{}` environment variable to the server '
+                            'address (e.g. http://127.0.0.1:8080/v1) to use '
+                            'model {}.'.format(LOCAL_SERVERS[kind][0], spec))
+        return OpenAIChatModel(name, provider=OpenAIProvider(base_url=srv[0],
+                                                             api_key=srv[1]))
     key = os.environ.get('SAKANA_API_KEY')
     if not key:
         #Worded like pydantic-ai's own, so _explain_and_exit's API-key branch
         #recognises it and names the variable.
         raise UserError('Set the `SAKANA_API_KEY` environment variable to use '
                         'the Sakana AI provider (model {}).'.format(spec))
-    return OpenAIChatModel(spec[len('sakana:'):],
+    return OpenAIChatModel(name,
                            provider=OpenAIProvider(base_url=SAKANA_BASE_URL,
                                                    api_key=key))
 
@@ -677,9 +703,8 @@ def main():
             "GOOGLE_API_KEY)\n"
             "    KAME_PYAI_MODEL=sakana:fugu                      (needs "
             "SAKANA_API_KEY)\n"
-            "    KAME_PYAI_MODEL=openai-chat:<model id>           (local, no "
-            "key: add OPENAI_BASE_URL=\n        http://127.0.0.1:1234/v1 for "
-            "Bionic, 11434 for Ollama, and any OPENAI_API_KEY)\n"
+            "    KAME_PYAI_MODEL=bionic:<model id>                (a model Bionic "
+            "serves on 1234; ollama: likewise on 11434)\n"
             "and the key on its own line in the same file; or pass --model.\n"
             "With `clai` installed next to this interpreter, KAME launches that "
             "instead and\nits default (openai:gpt-5) applies when nothing is "
@@ -692,7 +717,7 @@ def main():
         _explain_and_exit(e)
 
 
-def _served_models(base_url, key, timeout=5):
+def _served_models(base_url, key, timeout=5, quiet=False):
     """Model ids an OpenAI-compatible server lists, [] if it cannot be asked."""
     import urllib.request
     try:
@@ -701,8 +726,9 @@ def _served_models(base_url, key, timeout=5):
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return [m['id'] for m in json.load(r).get('data', [])]
     except Exception as e:
-        print('kame_pydantic_ai: could not list models at {}: {}'.format(base_url, e),
-              file=sys.stderr)
+        if not quiet:
+            print('kame_pydantic_ai: could not list models at {}: {}'.format(base_url, e),
+                  file=sys.stderr)
         return []
 
 
@@ -738,9 +764,10 @@ def kame_models():
     Each OpenAI-compatible server is asked for its list at start-up, so a
     model published after this file was written appears without an edit:
     OpenAI's two newest gpt-N families (chat variants only), every fugu /
-    namazu Sakana serves, every chat model of a local server (OPENAI_BASE_URL
-    set: Bionic, Ollama, llama.cpp -- then the OpenAI key belongs to that
-    server, and no cloud entry is offered), and Anthropic's current pair.
+    namazu Sakana serves, Anthropic's newest Opus and Sonnet, and every chat
+    model of a local server that answers -- Bionic on 1234, Ollama on 11434,
+    KAME_PYAI_LOCAL_URL -- alongside the cloud entries, since the local
+    prefixes carry their own addresses and OPENAI_* stays OpenAI's.
     A server that cannot be asked falls back to a short static list.  A model
     named in KAME_PYAI_MODEL is put first when it is in the menu."""
     import re
@@ -748,13 +775,7 @@ def kame_models():
     from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
     from pydantic_ai.providers.openai import OpenAIProvider
     out = {}
-    if os.environ.get('OPENAI_BASE_URL'):
-        base, key = os.environ['OPENAI_BASE_URL'], os.environ.get('OPENAI_API_KEY') or 'local'
-        local = OpenAIProvider(base_url=base, api_key=key)
-        for mid in _served_models(base, key):
-            if 'embed' not in mid:
-                out['Local ' + mid] = OpenAIChatModel(mid, provider=local)
-    elif os.environ.get('OPENAI_API_KEY'):
+    if os.environ.get('OPENAI_API_KEY'):
         key = os.environ['OPENAI_API_KEY']
         openai = OpenAIProvider(api_key=key)
         served = _served_models('https://api.openai.com/v1', key)
@@ -781,6 +802,17 @@ def kame_models():
         # Opus and the newest Sonnet are taken, whatever their numbers are.
         for mid in _anthropic_models(os.environ['ANTHROPIC_API_KEY']):
             out['Anthropic ' + mid] = infer_model('anthropic:' + mid)
+    # Local servers: Bionic and Ollama at their default ports, plus whatever
+    # KAME_PYAI_LOCAL_URL names.  Probed briefly; one that is not running
+    # simply contributes nothing, so this costs a refused connection at most.
+    for kind in LOCAL_SERVERS:
+        srv = _local_server(kind)
+        if not srv:
+            continue
+        prov = OpenAIProvider(base_url=srv[0], api_key=srv[1])
+        for mid in _served_models(srv[0], srv[1], timeout=1.5, quiet=True):
+            if 'embed' not in mid:
+                out[kind.capitalize() + ' ' + mid] = OpenAIChatModel(mid, provider=prov)
     want = (os.environ.get('KAME_PYAI_MODEL') or '').split(',')[0].strip().split(':')[-1]
     for label in list(out):
         if want and label.endswith(' ' + want):

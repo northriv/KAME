@@ -702,7 +702,7 @@ needed before the first chat, and **⚙ settings** is where both go: it creates
 uncomment a `KAME_PYAI_MODEL=provider:name` line (several, comma-separated,
 fill the web UI's model menu; `sakana:fugu` reaches Sakana AI with
 `SAKANA_API_KEY`; a model served locally by Bionic or Ollama is
-`openai-chat:<id>` plus `OPENAI_BASE_URL`) and fill in that provider's key. Nothing has to be exported
+`bionic:<id>` or `ollama:<id>`, no key, beside the cloud ones) and fill in that provider's key. Nothing has to be exported
 in a shell profile: neither pydantic-ai nor `clai` reads a `.env` by itself,
 and a GUI process sees no shell exports anyway, so KAME's agent reads this
 file on every launch. **web** serves the agent's own web app with `uvicorn`
