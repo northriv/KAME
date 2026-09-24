@@ -810,7 +810,18 @@ def kame_models():
         if not srv:
             continue
         prov = OpenAIProvider(base_url=srv[0], api_key=srv[1])
-        for mid in _served_models(srv[0], srv[1], timeout=1.5, quiet=True):
+        served = _served_models(srv[0], srv[1], timeout=1.5, quiet=True)
+        if kind == 'ollama' and not served:
+            # Ollama lists pulled models on its OpenAI-compatible /v1/models;
+            # older builds only on the native /api/tags (name = "qwen3:32b").
+            import urllib.request
+            try:
+                with urllib.request.urlopen(srv[0].rstrip('/').rsplit('/v1', 1)[0]
+                                            + '/api/tags', timeout=1.5) as r:
+                    served = [m['name'] for m in json.load(r).get('models', [])]
+            except Exception:
+                served = []
+        for mid in served:
             if 'embed' not in mid:
                 out[kind.capitalize() + ' ' + mid] = OpenAIChatModel(mid, provider=prov)
     want = (os.environ.get('KAME_PYAI_MODEL') or '').split(',')[0].strip().split(':')[-1]
