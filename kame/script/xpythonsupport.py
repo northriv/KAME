@@ -2053,10 +2053,21 @@ PYAI_SETTINGS_TEMPLATE = """\
 #KAME_PYAI_MODEL=sakana:fugu
 #KAME_PYAI_MODEL=sakana:fugu-ultra-v1.1
 
-# A model of your own through an OpenAI-compatible server (Ollama, LM Studio,
-# llama.cpp): name it openai:<model>, point OPENAI_BASE_URL at the server, and
-# give any non-empty OPENAI_API_KEY, which such servers ignore.
-#KAME_PYAI_MODEL=openai:qwen3:32b
+# A model of your own through an OpenAI-compatible server.  Name it
+# openai-chat:<model> -- NOT openai:, which pydantic-ai 2.x routes to the
+# Responses API that local servers may not serve -- point OPENAI_BASE_URL at
+# the server, and give any non-empty OPENAI_API_KEY, which such servers ignore.
+# The model must support tool calls (Qwen3, Llama 3.1+, Mistral, GPT-OSS do).
+#
+# Bionic (or LM Studio): download a chat model in the app, start its server
+# (Developer tab > Start Server, or `lms server start`), and use the model id
+# that `lms ls` prints.  The server's default port is 1234.
+#KAME_PYAI_MODEL=openai-chat:qwen3.8-27b
+#OPENAI_BASE_URL=http://127.0.0.1:1234/v1
+#OPENAI_API_KEY=bionic
+#
+# Ollama (`ollama pull qwen3:32b`; it serves on 11434):
+#KAME_PYAI_MODEL=openai-chat:qwen3:32b
 #OPENAI_BASE_URL=http://127.0.0.1:11434/v1
 #OPENAI_API_KEY=ollama
 
@@ -2184,7 +2195,7 @@ def _pyai_help_file(py, script, agent, own, model, wd, system):
 		'  agent        the "agent" link in KAME (Cancel there = back to the one KAME ships)',
 		'  model        KAME_PYAI_MODEL=provider:name   in {}'.format(_prof),
 		'               e.g. anthropic:claude-sonnet-4-5 | openai:gpt-5 | sakana:fugu |',
-		'               openai:<local name> together with OPENAI_BASE_URL (Ollama, LM Studio)',
+		'               openai-chat:<local name> together with OPENAI_BASE_URL (Bionic, Ollama)',
 		'The usual messages, and the fix for each:',
 		'  "Set the XXX_API_KEY environment variable"',
 		'        XXX_API_KEY=...   in {}.'.format(_prof),

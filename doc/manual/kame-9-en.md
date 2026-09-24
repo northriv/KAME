@@ -1604,6 +1604,28 @@ machine only — has no place in the module. To run the same module outside KAME
 from a shell), add KAME's `Resources` directory to `PYTHONPATH`, or copy
 `kame_pydantic_ai.py` next to it.
 
+**Local models (Bionic, LM Studio, Ollama, llama.cpp).** Any OpenAI-compatible
+server works, and Bionic has two roles here: as an MCP *client* it opens the
+notebook workspace as a project and needs nothing (above); as a model
+*server* it feeds Pydantic AI. For the latter, download a chat model in
+Bionic, start its local server (Developer tab → Start Server, or
+`lms server start`; the default port is 1234), and put three lines in the
+settings file, with the model id as `lms ls` prints it:
+
+```
+KAME_PYAI_MODEL=openai-chat:qwen3.8-27b
+OPENAI_BASE_URL=http://127.0.0.1:1234/v1
+OPENAI_API_KEY=bionic
+```
+
+The prefix is `openai-chat:`, not `openai:`. pydantic-ai 2.x routes a bare
+`openai:` to the Responses API, which local servers may not serve; the chat
+completions endpoint they all do. The key is ignored by such servers but must
+be non-empty. The model must support tool calls (Qwen3, Llama 3.1 and later,
+Mistral, GPT-OSS do), since everything KAME offers arrives as tools; a model
+without them will chat but never touch an instrument. Ollama is the same with
+port 11434.
+
 Which model is used:
 
 - Your own agent uses the model bound in your module. KAME does not override it.
@@ -1681,7 +1703,7 @@ guessable from the message. This table is symptom-first.
 | `PermissionError: [Errno 1] Operation not permitted` | macOS privacy protection. The path is under Documents, Desktop, Downloads or iCloud Drive | Put the virtualenv and project outside those folders, or grant Terminal access to them in System Settings → Privacy & Security |
 | `KeyError` on an API-key variable | A `.env` file is not read by anything automatically | Call `load_dotenv()` in your module, or export the variable |
 | `Set the XXX_API_KEY environment variable` | The key is neither in `~/.kame_pyai.env` nor in the environment of the terminal window KAME opened (that window runs your login shell — a fresh `cmd` on Windows; KAME's own environment is not inherited, being a GUI process) | **⚙ settings**, add the line `XXX_API_KEY=…`, save, click again. `OPENAI_API_KEY` demanded although you never chose OpenAI: no model was named, so `clai`'s default `openai:gpt-5` applied — add a `KAME_PYAI_MODEL=` line |
-| `No model given` | The fallback script (no `clai` in the venv) binds no model itself | **⚙ settings** and uncomment a `KAME_PYAI_MODEL=provider:name` line, e.g. `anthropic:claude-sonnet-4-5`; a local model is `openai:<name>` plus `OPENAI_BASE_URL` |
+| `No model given` | The fallback script (no `clai` in the venv) binds no model itself | **⚙ settings** and uncomment a `KAME_PYAI_MODEL=provider:name` line, e.g. `anthropic:claude-sonnet-4-5`; a local model is `openai-chat:<name>` plus `OPENAI_BASE_URL` (see *Local models* above) |
 | Your own agent module fails on another machine | It hard-codes a path to KAME or to its stdio launcher, or reads a `.env` that is not there | Replace the MCP line with `kame_mcp()` from `kame_pydantic_ai` (see above); keep keys in `~/.kame_pyai.env`, which that import loads |
 | `` `clai` not found in <venv>/bin `` (`<venv>\Scripts` on Windows) — or the **web** link refuses | KAME looks for `clai` next to the interpreter it was given, not on `PATH`; that venv has `pydantic-ai` but not `clai` | `uv pip install --python <venv>/bin/python clai` (`<venv>\Scripts\python.exe`; or `uv sync` in a uv project whose pyproject lists it). A uv venv has no `pip` inside, so `python -m pip` fails there. The **CLI** link works without `clai` |
 | `This interpreter has no pydantic_ai` / `<venv> lacks pydantic_ai` | The remembered or picked interpreter is the wrong one, or the package was never installed there | The message prints the install line for that exact interpreter; or delete `~/.kame_pyai_python` (`rm`, or `del` on Windows) and click the link again to pick another venv |
