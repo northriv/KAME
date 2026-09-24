@@ -35,7 +35,9 @@ one):
     agent = Agent('anthropic:claude-sonnet-4-5', capabilities=[kame_mcp()])
 kame_mcp() is KAME's MCP server as a capability, kame_toolset() the same as a
 toolset, kame_settings() the dict read from the files above — importing this
-module has already put them into os.environ.  kame_usage_logging() is the
+module has already put them into os.environ.  kame_models() is the menu the
+present keys reach, asked of each provider at start-up (kame_default_model()
+its first entry), for `Agent.to_web(models=kame_models())`.  kame_usage_logging() is the
 per-request usage recorder (usage.jsonl) as capabilities; kame_web_plots(app)
 serves the figures KAME's server saves so `![…](/plots/<name>.png)` renders in
 the web UI, with FIGURE_INSTRUCTIONS the line that tells the model to do that.
@@ -437,8 +439,8 @@ def _resolve_model(spec):
     """A model string pydantic-ai can infer, or a Model object for the
     providers it cannot: `sakana:<name>` -> Sakana AI's OpenAI-compatible
     endpoint with SAKANA_API_KEY.  Everything else passes through."""
-    if not spec or not spec.startswith('sakana:'):
-        return spec
+    if not isinstance(spec, str) or not spec.startswith('sakana:'):
+        return spec          # None, a plain provider:name, or an already-built Model
     from pydantic_ai.exceptions import UserError
     from pydantic_ai.models.openai import OpenAIChatModel
     from pydantic_ai.providers.openai import OpenAIProvider
@@ -651,8 +653,21 @@ def main():
         os.execve(cmd[0], cmd, env)
 
     if not args.model:
+        picked = kame_default_model()
+        if picked is not None:
+            print("No model named; using {} (the first that your keys reach -- "
+                  "set KAME_PYAI_MODEL in {} to choose)".format(
+                      picked.model_name, _tilde(SETTINGS_FILE)), flush=True)
+            try:
+                _build_agent(picked).to_cli_sync(prog_name='kame')
+            except KeyboardInterrupt:
+                pass
+            except Exception as e:
+                _explain_and_exit(e)
+            return
         sys.exit(
-            "No model given.  This script binds none itself; put one line in\n"
+            "No model given, and no API key found to pick one with.  Put a key "
+            "line, or a model line, in\n"
             "  {}\n"
             "    KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5      (needs "
             "ANTHROPIC_API_KEY)\n"
@@ -677,12 +692,117 @@ def main():
         _explain_and_exit(e)
 
 
-def _web_models():
-    """The web UI's model menu from KAME_PYAI_MODEL, as {label: Model}.
+def _served_models(base_url, key, timeout=5):
+    """Model ids an OpenAI-compatible server lists, [] if it cannot be asked."""
+    import urllib.request
+    try:
+        req = urllib.request.Request(base_url.rstrip('/') + '/models',
+                                     headers={'Authorization': 'Bearer ' + key})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return [m['id'] for m in json.load(r).get('data', [])]
+    except Exception as e:
+        print('kame_pydantic_ai: could not list models at {}: {}'.format(base_url, e),
+              file=sys.stderr)
+        return []
 
-    Resolved here rather than handed to the UI as strings so that `sakana:`
-    works in the menu too, and so that a listed model whose key is missing
-    fails at start-up with the API-key explanation, not on the first message."""
+
+def _anthropic_models(key, timeout=5):
+    """Newest Opus and newest Sonnet from Anthropic's model list; a static
+    pair when the list cannot be fetched."""
+    import urllib.request
+    try:
+        req = urllib.request.Request(
+            'https://api.anthropic.com/v1/models?limit=100',
+            headers={'x-api-key': key, 'anthropic-version': '2023-06-01'})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            data = json.load(r).get('data', [])
+        picked = []
+        for family in ('opus', 'sonnet'):
+            cands = sorted((m for m in data if family in m.get('id', '')),
+                           key=lambda m: m.get('created_at', ''), reverse=True)
+            if cands:
+                picked.append(cands[0]['id'])
+        if picked:
+            return picked
+    except Exception as e:
+        print('kame_pydantic_ai: could not list Anthropic models: {}'.format(e),
+              file=sys.stderr)
+    return ['claude-opus-5', 'claude-sonnet-5']
+
+
+def kame_models():
+    """{label: Model} for every provider whose key is present -- the menu a
+    web UI offers and the pool a CLI picks its default from.  First entry is
+    the preferred default.
+
+    Each OpenAI-compatible server is asked for its list at start-up, so a
+    model published after this file was written appears without an edit:
+    OpenAI's two newest gpt-N families (chat variants only), every fugu /
+    namazu Sakana serves, every chat model of a local server (OPENAI_BASE_URL
+    set: Bionic, Ollama, llama.cpp -- then the OpenAI key belongs to that
+    server, and no cloud entry is offered), and Anthropic's current pair.
+    A server that cannot be asked falls back to a short static list.  A model
+    named in KAME_PYAI_MODEL is put first when it is in the menu."""
+    import re
+    from pydantic_ai.models import infer_model
+    from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
+    from pydantic_ai.providers.openai import OpenAIProvider
+    out = {}
+    if os.environ.get('OPENAI_BASE_URL'):
+        base, key = os.environ['OPENAI_BASE_URL'], os.environ.get('OPENAI_API_KEY') or 'local'
+        local = OpenAIProvider(base_url=base, api_key=key)
+        for mid in _served_models(base, key):
+            if 'embed' not in mid:
+                out['Local ' + mid] = OpenAIChatModel(mid, provider=local)
+    elif os.environ.get('OPENAI_API_KEY'):
+        key = os.environ['OPENAI_API_KEY']
+        openai = OpenAIProvider(api_key=key)
+        served = _served_models('https://api.openai.com/v1', key)
+        vers = sorted({float(m.group(1)) for m in
+                       (re.match(r'gpt-(\d+(?:\.\d+)?)(?:-|$)', x) for x in served) if m},
+                      reverse=True)[:2]
+        fam = sorted((x for x in served
+                      if (mm := re.match(r'gpt-(\d+(?:\.\d+)?)(?:-|$)', x)) and float(mm.group(1)) in vers
+                      and not re.search(r'realtime|audio|transcribe|tts|image|search|codex|mini|nano', x)),
+                     key=lambda x: (-float(re.match(r'gpt-(\d+(?:\.\d+)?)', x).group(1)), x))
+        for mid in fam or ['gpt-5']:
+            out['OpenAI ' + mid] = OpenAIResponsesModel(mid, provider=openai)
+    if os.environ.get('SAKANA_API_KEY'):
+        key = os.environ['SAKANA_API_KEY']
+        sakana = OpenAIProvider(base_url=SAKANA_BASE_URL, api_key=key)
+        served = _served_models(SAKANA_BASE_URL, key)
+        fugu = sorted(m for m in served if 'fugu' in m or 'namazu' in m) or ['fugu']
+        # Newest fugu-ultra first, so it is the default when OpenAI is absent.
+        ultra = [m for m in fugu if re.match(r'fugu-ultra-v', m)]
+        for mid in (ultra[-1:] + [m for m in fugu if m not in ultra[-1:]]):
+            out['Sakana ' + mid] = OpenAIChatModel(mid, provider=sakana)
+    if os.environ.get('ANTHROPIC_API_KEY'):
+        # Asked as well: Anthropic's list carries created_at, so the newest
+        # Opus and the newest Sonnet are taken, whatever their numbers are.
+        for mid in _anthropic_models(os.environ['ANTHROPIC_API_KEY']):
+            out['Anthropic ' + mid] = infer_model('anthropic:' + mid)
+    want = (os.environ.get('KAME_PYAI_MODEL') or '').split(',')[0].strip().split(':')[-1]
+    for label in list(out):
+        if want and label.endswith(' ' + want):
+            out = {label: out.pop(label), **out}
+            break
+    return out
+
+
+def kame_default_model():
+    """The model the CLI binds when KAME_PYAI_MODEL names none: the first
+    entry of kame_models(), or None when no key is present."""
+    return next(iter(kame_models().values()), None)
+
+
+def _web_models():
+    """The web UI's model menu, as {label: Model}.
+
+    KAME_PYAI_MODEL, when set, is the menu exactly as written (resolved here
+    rather than handed to the UI as strings so that `sakana:` works and a
+    listed model whose key is missing fails at start-up with the API-key
+    explanation).  Unset, the menu is whatever the present keys reach --
+    kame_models() -- so a key alone is enough to start chatting."""
     import re
     from pydantic_ai.models import infer_model
     spec = os.environ.get('KAME_PYAI_MODEL') or os.environ.get('PYDANTIC_AI_MODEL') or ''
@@ -690,7 +810,7 @@ def _web_models():
     for name in [x for x in re.split(r'[,\s]+', spec) if x]:
         m = _resolve_model(name)
         out[name] = m if not isinstance(m, str) else infer_model(m)
-    return out
+    return out or kame_models()
 
 
 def _build_app():
@@ -703,10 +823,12 @@ def _build_app():
     models = _web_models()
     if not models:
         sys.exit(
-            "No model given for the web UI.  Put one line in\n  {}\n"
-            "    KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5\n"
-            "(several, comma-separated, fill the menu) and the key on its own "
-            "line.".format(_settings_hint()))
+            "No model for the web UI: no KAME_PYAI_MODEL line and no API key "
+            "to build a menu from.  Put one line in\n  {}\n"
+            "    ANTHROPIC_API_KEY=...   (or OPENAI_API_KEY / SAKANA_API_KEY; "
+            "the menu is then what that key reaches)\n"
+            "or name models outright: KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5, "
+            "...".format(_settings_hint()))
     first = next(iter(models.values()))
     agent = _build_agent(None)
     agent.model = first
@@ -732,7 +854,7 @@ def __getattr__(name):
         if name == 'agent':
             g['agent'] = _build_agent(_first_model(
                 os.environ.get('KAME_PYAI_MODEL')
-                or os.environ.get('PYDANTIC_AI_MODEL')))
+                or os.environ.get('PYDANTIC_AI_MODEL')) or kame_default_model())
         else:
             g['app'] = _build_app()
         return g[name]

@@ -1528,10 +1528,14 @@ looks inside it for `.venv`, `venv` or `env`, and accepts `bin/python` or
 (see the note under Setup), and it needs `clai` and `uvicorn` beside
 `pydantic-ai` for the **web** link.
 
-Two things are needed before the first chat: a model name and that provider's
-API key. Both go into the file that **⚙ settings** opens — uncomment one
-`KAME_PYAI_MODEL=` line and fill in the matching `..._API_KEY=` line, save,
-and click **CLI** or **web**. Nothing has to be exported in a shell profile:
+One thing is needed before the first chat: an API key, in the file that
+**⚙ settings** opens — fill in a `..._API_KEY=` line, save, and click **CLI**
+or **web**. KAME's agent then asks that provider which models it serves and
+offers them: OpenAI's two newest `gpt-N` families, every `fugu` Sakana lists,
+Anthropic's newest Opus and Sonnet, or everything a local server (Bionic,
+Ollama) has loaded. The first is the default; a `KAME_PYAI_MODEL=` line names
+the models yourself instead, several comma-separated, and puts its first
+entry in front. Nothing has to be exported in a shell profile:
 neither pydantic-ai nor `clai` reads a `.env` by itself, and a GUI application
 does not see shell exports anyway, so KAME's agent reads this file (and a
 `.env` in the notebook workspace) on every launch. A key that *is* in the
@@ -1632,8 +1636,13 @@ Which model is used:
 - KAME's agent binds the first model named in `KAME_PYAI_MODEL` — from the
   environment, the workspace `.env`, or `~/.kame_pyai.env`, in that order. Several
   may be listed, separated by commas; they populate the web UI's model menu.
-  With none set, `clai`'s own default (`openai:gpt-5`) applies, which needs an
-  OpenAI key.
+  With none set, the menu is what the present keys reach (`kame_models()`,
+  asked of each provider at start-up) and its first entry is bound; only the
+  `clai` fallback path (no `uvicorn`) still applies clai's own default,
+  `openai:gpt-5`, when nothing is named.
+- Your own module gets the same menu from `kame_models()` —
+  `Agent.to_web(models=kame_models())` — so a model published after the file
+  was written appears without an edit.
 - `sakana:<model>` (`fugu`, `fugu-ultra-v1.1`, …) reaches Sakana AI with
   `SAKANA_API_KEY`. pydantic-ai has no Sakana provider, so KAME's agent resolves
   the prefix itself; that makes it the bound model in the web UI rather than a
