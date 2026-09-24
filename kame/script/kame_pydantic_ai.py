@@ -34,8 +34,10 @@ For an agent of your own (KAME puts this module on PYTHONPATH when it launches
 one):
     from kame_pydantic_ai import kame_mcp, kame_toolset, kame_settings
     agent = Agent('anthropic:claude-sonnet-4-5', capabilities=[kame_mcp()])
-kame_mcp() is KAME's MCP server as a capability, kame_toolset() the same as a
-toolset, kame_settings() the dict read from the files above — importing this
+kame_mcp() is KAME's MCP server as a capability, kame_history_budget() keeps
+the conversation under a token budget (old tool results and images are
+trimmed first), kame_toolset() the server as a toolset, kame_settings() the
+dict read from the files above — importing this
 module has already put them into os.environ.  kame_models() is the menu the
 present keys reach, asked of each provider at start-up (kame_default_model()
 its first entry), for `Agent.to_web(models=kame_models())`.  kame_usage_logging() is the
@@ -358,6 +360,16 @@ def _explain_and_exit(exc):
         from pydantic_ai.exceptions import UserError
     except ImportError:
         UserError = ()
+    if 'too long' in msg.lower() or 'context length' in msg.lower() \
+            or 'context_length' in msg.lower():
+        sys.exit(
+            "{}\n\n"
+            "The conversation no longer fits this model's context window.  "
+            "That happens when a chat grown under a model with a large window "
+            "(a local one) is switched to a model with a smaller one: the whole "
+            "history is replayed.  Start a new chat for the new model, or lower "
+            "KAME_PYAI_HISTORY_TOKENS in {} (default 150000) so KAME trims old "
+            "tool results earlier.".format(msg, _tilde(SETTINGS_FILE)) + tail)
     if isinstance(exc, UserError):
         if 'environment variable' in msg:
             import re
@@ -490,7 +502,7 @@ def _build_agent(model):
     #hand the agent to someone else's loop (to_cli_sync, and `clai web`, which
     #imports the module-level `agent` after this process has been replaced), so
     #only something attached to the agent itself sees every call.
-    caps = _install_usage_logging(str(model))
+    caps = _install_usage_logging(str(model)) + kame_history_budget()
     kwargs = {'capabilities': caps} if caps else {}
     return Agent(model, system_prompt=SYSTEM_PROMPT,
                  toolsets=[_toolset(url, token)], **kwargs)
@@ -510,6 +522,77 @@ def kame_usage_logging(tag=None):
     rows (`model_key`); KAME_USAGE_TAG overrides.  [] when OpenTelemetry is
     absent, so `capabilities=[*kame_usage_logging(), ...]` is always valid."""
     return _install_usage_logging(tag or 'agent')
+
+
+def kame_history_budget(max_tokens=None, keep_recent=6):
+    """Keep the conversation under a token budget, as Agent capabilities.
+
+    A chat that grew under a local model with a 256k window replays its whole
+    history to the next model picked from the menu, and Anthropic answers
+    "prompt is too long".  KAME's tool results are what grow it: a deep
+    `tree`, a manual section, and every figure execute_code returned (an
+    image is ~1.5k tokens and a local model may not even have looked at it).
+    When the estimated total exceeds the budget (KAME_PYAI_HISTORY_TOKENS,
+    default 150k, under every current provider's window), the OLDEST tool
+    returns are cut to a one-line note and their images dropped, oldest
+    first, until it fits; the last `keep_recent` messages are never touched,
+    and every tool call keeps its return part, so the transcript stays
+    well-formed for every provider.  `capabilities=[*kame_history_budget()]`."""
+    import dataclasses
+    from pydantic_ai.capabilities import ProcessHistory
+    from pydantic_ai.messages import (ModelRequest, ToolReturnPart, UserPromptPart,
+                                      BinaryContent)
+    budget = int(max_tokens or os.environ.get('KAME_PYAI_HISTORY_TOKENS') or 150000)
+
+    def _size(content):
+        if isinstance(content, str):
+            return len(content) // 4
+        if isinstance(content, BinaryContent):
+            return 1500
+        if isinstance(content, (list, tuple)):
+            return sum(_size(c) for c in content)
+        return len(str(content)) // 4
+
+    def _est(msg):
+        return sum(_size(getattr(p, 'content', '')) for p in msg.parts)
+
+    def _shrunk(part):
+        """The part with its bulk replaced by a note; None if nothing to cut."""
+        c = part.content
+        n = _size(c)
+        if n < 200:
+            return None
+        kind = 'result' if isinstance(part, ToolReturnPart) else 'attachment'
+        images = sum(1 for x in (c if isinstance(c, (list, tuple)) else [c])
+                     if isinstance(x, BinaryContent))
+        note = '[earlier {} trimmed to fit the context window: ~{} tokens{}]'.format(
+            kind, n, ' and {} image(s)'.format(images) if images else '')
+        return dataclasses.replace(part, content=note)
+
+    def processor(messages):
+        total = sum(_est(m) for m in messages)
+        if total <= budget:
+            return messages
+        out = list(messages)
+        cutoff = max(0, len(out) - keep_recent)
+        for i in range(cutoff):
+            m = out[i]
+            if not isinstance(m, ModelRequest):
+                continue
+            parts, changed = [], False
+            for part in m.parts:
+                new = _shrunk(part) if isinstance(part, (ToolReturnPart, UserPromptPart)) else None
+                if new is not None:
+                    total -= _size(part.content) - _size(new.content)
+                    part, changed = new, True
+                parts.append(part)
+            if changed:
+                out[i] = dataclasses.replace(m, parts=parts)
+            if total <= budget:
+                break
+        return out
+
+    return [ProcessHistory(processor)]
 
 
 def kame_plot_dir():
