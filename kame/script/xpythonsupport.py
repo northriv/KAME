@@ -2071,6 +2071,14 @@ PYAI_SETTINGS_TEMPLATE = """\
 #KAME_PYAI_LOCAL_URL=http://127.0.0.1:8080/v1
 # Non-default ports for the two above: KAME_PYAI_BIONIC_URL / KAME_PYAI_OLLAMA_URL.
 
+# ---- How much a model may write ---------------------------------------------
+# Output tokens per reply, thinking included.  Claude models get 32000 from
+# KAME; other providers keep their own default until this line is set, and
+# then it applies to every model.  Raise it if a run ends with "Model token
+# limit ... exceeded before any response was generated" -- a model that
+# thinks at length can spend the whole allowance before writing a word.
+#KAME_PYAI_MAX_TOKENS=64000
+
 # ---- The key the chosen provider needs -------------------------------------
 # (Your own agent module sees these too, once it imports kame_pydantic_ai.)
 #ANTHROPIC_API_KEY=
@@ -2776,8 +2784,15 @@ def kame_handle_link(action):
 				if action == 'pyai-web' and _webapp and os.path.isfile(_uvi):
 					_cmd = [_uvi, _webapp, '--host', '127.0.0.1', '--port', str(_port)]
 				else:
+					# No -m for the CLI: the agent binds its model itself (the first
+					# of KAME_PYAI_MODEL, else the first its keys reach), already
+					# resolved and carrying its output budget, and clai REPLACES a
+					# bound model whenever -m is given (`agent.model =
+					# infer_model(...)`) -- which dropped that budget and cannot
+					# resolve sakana:/bionic: at all.  Only the clai-web fallback
+					# (no uvicorn) still gets -m, to fill its model picker.
 					_models = [_x for _x in re.split(r'[,\s]+', _model) if _x] \
-							  if _model and (not _own or action == 'pyai-web') else []
+							  if _model and action == 'pyai-web' else []
 					# clai's infer_model() knows no `sakana:`; the module resolves
 					# that prefix itself and binds the FIRST listed model.  Any -m
 					# makes clai override that binding, so with a sakana default
@@ -2841,7 +2856,7 @@ def kame_handle_link(action):
 				("serving " + _webapp + " with uvicorn; figures at /plots"
 				 if _via_clai and action == 'pyai-web' and _cmd and _cmd[0] == _uvi
 				 else ("via clai, agent " + _agent + ("; its own model" if _own
-					else "; model from -m or clai's default"))
+					else "; model from ~/.kame_pyai.env, else the first your keys reach"))
 				if _via_clai else _py + "; needs --model or KAME_PYAI_MODEL")))
 		else:
 			_kame_gui_html('<font color="#cc0000">Unknown link action: {}</font>'.format(

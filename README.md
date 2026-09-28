@@ -784,7 +784,9 @@ import json, pathlib
 from pydantic_ai.mcp import MCPToolset
 
 info = json.loads((pathlib.Path.home() / '.kame_mcp_url').read_text())
-kame = MCPToolset(info['url'], auth=info['token'])   # instructions included
+kame = MCPToolset(info['url'], auth=info['token'],
+                  include_instructions=True,     # default False: no safety rules without it
+                  tool_error_behavior='failed')  # a KAME error informs; it need not end the run
 ```
 
 ### Agent plugin (skill + server in one directory)

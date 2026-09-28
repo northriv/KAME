@@ -1535,7 +1535,9 @@ offers them: OpenAI's two newest `gpt-N` families, every `fugu` Sakana lists,
 Anthropic's newest Opus and Sonnet, or everything a local server (Bionic,
 Ollama) has loaded. The first is the default; a `KAME_PYAI_MODEL=` line names
 the models yourself instead, several comma-separated, and puts its first
-entry in front. Nothing has to be exported in a shell profile:
+entry in front. A Claude model may write 32000 tokens per reply, thinking
+included; other providers keep their own limit. `KAME_PYAI_MAX_TOKENS=` in
+the same file sets one limit for every model. Nothing has to be exported in a shell profile:
 neither pydantic-ai nor `clai` reads a `.env` by itself, and a GUI application
 does not see shell exports anyway, so KAME's agent reads this file (and a
 `.env` in the notebook workspace) on every launch. A key that *is* in the
@@ -1721,6 +1723,8 @@ guessable from the message. This table is symptom-first.
 | `Could not reach KAME's MCP server` / `failed to connect` / `MCP server address is not known` | The server runs inside KAME's Jupyter kernel and `~/.kame_mcp_url` is rewritten at each notebook launch and removed on exit — KAME was closed or restarted without the notebook | Start KAME, click **Jupyter notebook** in the Script pane, then the Pydantic AI link. `python kame_pydantic_ai.py --check` verifies the connection without a model |
 | Plots do not appear in the web UI; `/plots/…` is Not Found | The UI is `clai web`'s own app, which serves no files: the venv has no `uvicorn`, or the browser tab belongs to a web server started before this KAME (each launch picks a new port) | `uv pip install --python <venv>/bin/python uvicorn` (`<venv>\Scripts\python.exe` on Windows), then click **web** again and use the tab it opens. Your own module: `kame_web_plots(app)` plus `FIGURE_INSTRUCTIONS` |
 | `prompt is too long` / `context length exceeded` after switching models in the web UI | The chat grew under a model with a large window (a local one, often 256k) and the whole history is replayed to the model now chosen | Start a new chat for the new model. KAME's agent trims the oldest tool results and figures once the history passes `KAME_PYAI_HISTORY_TOKENS` (default 150000); lower it in the settings file to trim earlier. Your own module: `capabilities=[..., *kame_history_budget()]` |
+| `Tool 'tree' exceeded max retries count of 1` (or another tool's name) | pydantic-ai gives each tool one retry, and before this was fixed it counted every KAME tool error — two wrong node paths while looking for the temperature controller were enough to end the run. What still counts is a tool call whose arguments did not validate, most often a long script cut off by the output limit | Current builds let KAME's tool errors through as information and allow 3 retries. If it still happens, raise `KAME_PYAI_MAX_TOKENS` (below), or ask for the code in smaller steps |
+| `Model token limit (provider default) exceeded before any response was generated` | The model spent its whole output allowance before writing anything — on thinking, for a model that thinks. pydantic-ai asks Claude for only 4096 tokens unless told otherwise | Current builds give Claude models 32000. For another provider, or for more, put `KAME_PYAI_MAX_TOKENS=64000` in the settings file and start a new chat |
 | A long job cannot be stopped | The code never reports progress, so there is no point at which a stop can be honoured | Ask the assistant to report progress every iteration |
 
 ## Technical notes
