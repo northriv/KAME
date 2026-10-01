@@ -1,6 +1,6 @@
 # KAME ver. 9 — User's Manual
 
-*2026/4/2 — Kentaro Kitagawa*
+*2026/9/15 — Kentaro Kitagawa*
 
 # Preface
 
@@ -373,9 +373,13 @@ These windows get out of the way by themselves. A toolbox you are not pointing a
 
 A window will not shrink away while you are using it. It stays as it is while a drop-down list is open, while a mouse button is held down, and while it holds the keyboard — that is, after you have clicked into it and are typing. Only after you click elsewhere does it fold up again.
 
+A form, chart or graph you open that a pinned toolbox would cover releases that toolbox's pin, since a toolbox always stays on top: it folds away at once, and the window comes up where it was. Point at it to bring it back, or pin it again with its tab.
+
 To keep a window open regardless, click the tab of the pane already in front: that pins it, and clicking that tab again releases it. (Clicking any other tab just switches panes, as usual.) The same switches are in the “View” menu as “Auto-hide West Toolbox”, “Auto-hide East Toolbox” and “Auto-hide Main Window”, and the “View” menu also lists every pane by name, which is the way to bring back a toolbox that has been minimized or hidden.
 
-These settings are not remembered between runs; every start comes up with all three windows auto-hiding.
+Where you leave the four placed windows — the main window, both toolboxes and the message log — is remembered, and the next run puts them back there (on a screen that still exists; a window saved on a monitor that is gone falls back to the computed place). So are “View” → “Appearance”, the graph theme and the folder each kind of file was last taken from. Whether a toolbox was pinned is not: every start comes up with all three windows auto-hiding.
+
+The windows that belong to a *measurement* — driver forms, charts, graphs — are remembered per measurement file, and only when you save it: see “File” → “Save”.
 
 ### Text Box Operations
 
@@ -429,6 +433,10 @@ Never use mlock (does not lock KAME’s memory pages into RAM).
 
 Adds a path for loading modules. Convenient when installed from source code.
 
+### --appearance \<system|light|dark\>
+
+Overrides, for this run only, what “View” → “Appearance” was last set to.
+
 ## Menu Items
 
 ### File
@@ -437,9 +445,13 @@ Adds a path for loading modules. Convenient when installed from source code.
 
 Loads a `.kam` or a `.kamj`. The contents of a `.kam` are Ruby scripts, so a script execution window opens in the center, and any errors are displayed in red. From a `.kamj` (a journal) only the dump at its head is applied — the settings as they were when the journal was opened. Replaying a run against its raw records is the Journal Reader's job, not this one.
 
+The dialog opens in the folder a measurement was last taken from, and “Open Recent” lists the files opened lately. Opening a file also puts its driver forms, charts and graphs back where they were when that file was last saved.
+
 #### Save
 
 Saves all currently open drivers and some other settings, to a `.kam` or a `.kamj`. Internally, a snapshot is saved of all nodes controllable from a script that have the save attribute set. A `.kamj` written here is a journal with a head and no body, which is what a settings file is; the same reader opens it and a saved run alike.
+
+Saving is also when KAME notes which driver forms, charts and graphs are open and where, against the file being saved; opening that file later brings them back. This happens only on “Save”, deliberately — not when quitting or closing — because by then the windows you were done with have usually been closed already, which is the worst moment to record where you like them. Save with the windows arranged as you want to find them.
 
 #### Close
 
@@ -475,7 +487,9 @@ If Jupyter notebook is installed, calls it as a client to KAME’s embedded IPyt
 
 ### View
 
-Same as clicking on the tabs.
+Lists every pane by name — the same as clicking on the tabs, and the way to bring back a toolbox that has been minimized or hidden — together with the “Auto-hide …” switches described under “Window Layout”.
+
+“Appearance” chooses “System” (follow the desktop), “Light” or “Dark”; the window changing color is the confirmation. “Theme Color of Graph” chooses “Night” or “Daylight” for the graphs. Both are remembered.
 
 ### Help
 
@@ -594,6 +608,12 @@ Every value is written twice where it matters: as the text you would read,
 and — for a number — as the exact eight bytes it was. A settings file that
 rounds makes both a spurious difference and a reproduction that used a
 different number.
+A file that exists is **continued**, never written over. Switching **Write**
+off and on again with the same name appends to both files, and a fresh dump
+marks the resumption, so a replay knows what changed meanwhile -- the tier
+may change there too. The same holds for a file from an earlier session or
+another run: the new records simply follow the old ones, as a journal always
+has the newest last, so choose the name with that in mind.
 
 ## The session journal
 
@@ -625,7 +645,10 @@ changed is the normal thing to want.
 Only what a person asked for is put back. A driver reporting its own progress
 through the same node — 37 on its way to the 100 you asked for — is recorded
 but never restored, because the driver that owns it would contradict it on
-its next record. Readings are never restored at all.
+its next record. Readings are never restored at all. A value typed into a
+form, set by a script or a notebook cell, or restored by loading a `.kam`
+counts as asked for; a value a driver wrote does not — the journal tells the
+two apart by the thread that wrote them.
 
 **Drivers the journal names are created if this KAME does not have them**,
 with the type each was created as. Values alone would be useless: a path
@@ -1116,7 +1139,7 @@ Checking “Control Pulser” clears the results once, and every time data is re
 
 Checking “Auto Phase” selects the phase that maximizes the change.
 
-“Smoothing Samples” specifies the number of divisions for grouping nearby horizontal-axis values before fitting.
+“Smoothing Samples” specifies the number of divisions for grouping nearby horizontal-axis values before fitting. The divisions are logarithmic, which suits a P1 spread over decades. In T2 multi-echo mode they are linear instead, because an echo train is: the echoes sit at 2 tau, 4 tau, … and the count is set from the pulser whenever the number of echoes changes, so each echo becomes one point. Lower it afterwards to reduce the train to fewer points, evenly; it stays as you set it until the echo count changes again. Fewer than about ten samples draws a warning in the other modes.
 
 Checking “Auto Window” selects the window function that maximizes S/N, but turn this OFF if frequency dependence is physically important (e.g., in superconducting states).
 
@@ -1130,7 +1153,23 @@ When the pulser is set to “P1 ALT” or “Comb ALT”, two FID/Echo analysis 
 
 Values (1/T1,2,st.e. and errors) are sent to Scalar Entry.
 
-Scripting nodes: source drivers `Pulser`, `NMRPulseAnalyzer1`, `NMRPulseAnalyzer2` (the second is for P1/Comb ALT); `Active` (“Control Pulser”), `P1Min`, `P1Max`, `P1Next` (“Next”), `P1Strategy` (Random/Flatten), `P1Dist` (“P1 Distribution”, Log/…), `RelaxFunc` (“Relaxation Function”), `Mode`, `Freq` (analysis center frequency), `Phase`, `AutoPhase`, `AutoWindow`, `WindowFunc`, `WindowWidth`, `MInftyFit` (“Fit M(infinity)”), `AbsFit`, `SmoothSamples`, `ResetFit` (“Fitting Reset”), `ClearAll`, `FitStatus`. The `Map*` nodes configure inverse-Laplace (2D) mode.
+### Density Mapping
+
+Besides the single relaxation rate, the “Density Mapping” tab inverts the same recovery (or decay) curves into a **distribution of relaxation times**, one for every frequency across the FID/Echo spectrum, and shows it as a color map of T against frequency. This is an inverse Laplace transform, which is ill-posed: without help, tiny noise turns into wild oscillations. KAME solves it by Tikhonov regularization under the constraint that the distribution is nowhere negative (a non-negative least-squares fit), which is what a population of relaxation components is; the constraint removes most of the oscillation by itself, so far less smoothing is needed than an unconstrained fit would need, and sharp features survive.
+
+“Band Width” and “Resolution” set the frequency axis of the map, with “Window Func” and “Window Width” applied to each pulse before its Fourier transform.
+
+“Tikhonov Matrix” chooses what the smoothing penalizes: “Identity” the size of the distribution (the plainest choice), “2nd Derivative Op.” its curvature, which favors smooth distributions and, on synthetic data, comes closer to the truth for the same noise.
+
+“Regularization Optimizer” chooses how strongly to smooth, i.e. how the regularization parameter λ is found. “Off” disables the map. “Noise Analysis” raises λ until the misfit equals the noise measured on the dark part of each record (the discrepancy principle). “L Curve” and “GCV” need no noise estimate: the former takes the corner of the misfit-versus-roughness curve, the latter minimizes the generalized cross-validation score. All three are evaluated on the reference row and then applied to every row. “AllNonNegative” is the discrepancy principle evaluated on the constrained fit itself.
+
+Each bin is weighted by its own noise — a bin averaged over more records counts for more — and what stands below twice its propagated noise is not drawn, so the speckle of a sparse solution does not read as peaks.
+
+“Unconstrained” shows the linear (unconstrained) inversion with the same λ instead, for diagnosis only: its negative lobes point at a phase or baseline problem in the data, and a peak that is broader there than in the constrained map is one that λ, not the data, has widened.
+
+The line on the density map records what it took to make it: the criterion and matrix, `nnls` or `linear`, `lam` (λ), `w` when the bins are weighted, `rms/sig` (the misfit of the reference row against its noise — about 1 is a fit, well above is over-smoothed, well below is noise being fitted), `sd/pk` (the noise floor of the picture against its peak), `lin-neg` (how far the unconstrained solution goes negative, against its peak — well below zero says look at the phase or the baseline), the T range and grid, the number of bins and the relaxation function.
+
+Scripting nodes: source drivers `Pulser`, `NMRPulseAnalyzer1`, `NMRPulseAnalyzer2` (the second is for P1/Comb ALT); `Active` (“Control Pulser”), `P1Min`, `P1Max`, `P1Next` (“Next”), `P1Strategy` (Random/Flatten), `P1Dist` (“P1 Distribution”, Log/…), `RelaxFunc` (“Relaxation Function”), `Mode`, `Freq` (analysis center frequency), `Phase`, `AutoPhase`, `AutoWindow`, `WindowFunc`, `WindowWidth`, `MInftyFit` (“Fit M(infinity)”), `AbsFit`, `SmoothSamples`, `ResetFit` (“Fitting Reset”), `ClearAll`, `FitStatus`. Density mapping: `MapMode` (“Regularization Optimizer”), `MapTikhonovMatrix`, `MapUnconstrained`, `MapBandWidth`, `MapFreqRes` (“Resolution”), `MapWindowFunc`, `MapWindowWidth`.
 
 ## NMR Frequency Sweep Measurement
 
@@ -1148,7 +1187,13 @@ The FSS “Band Width” can be specified numerically before measurement begins,
 
 “LC Tuning” selects how to tune the circuit during sweeps. “As is” does nothing. “Auto Tune” uses the auto-tuner driver to tune at each “Step”. “Await” turns off the pulse at each “Step” and waits for the user to turn the pulse back on.
 
-Scripting nodes: source drivers `PulseAnalyzer`, `SG1`, `Pulser`, `AutoTuner`/`AutoTunerSecondary`; `Active` (“Start Sweep”), `CenterFreq`, `FreqSpan` (“Span”), `FreqStep` (“Step”), `SG1FreqOffset`, `TuneCycleStep`/`TuneCycleStrategy` (the “LC Tuning” behavior); FSS/FFT shared nodes `BandWidth` (with `BandWidthList`), `AutoPhase`, `Phase`, `WindowFunc`, `WindowWidth`, `SpectrumSolver`, `Clear`.
+### Relax. Map
+
+When the pulser emits an echo train (CPMG), the “Relax. Map” tab inverts the decay of the echoes at every frequency of the swept spectrum into a distribution of T2 against frequency. The inversion is the one described under the relaxation rate driver's “Density Mapping” — the same regularization, criteria, weighting, noise mask, “Unconstrained” view and status line — applied to a decay rather than a recovery, with no fit feeding it.
+
+“Echoes/Bin” sums consecutive echoes into one time bin, trading time resolution for S/N and a smaller problem; a bin's kernel row is the mean over its echoes, so no time is misattributed. “Res. [kHz]” sets the frequency resolution of the map, and “T ext [dec]” extends the T grid beyond the measured time window by that many decades, so components slower than the train can be seen at its edge instead of distorting the rest. “Phase” chooses how the complex signal becomes the real curve that is inverted, “Window” and “Width [%]” the window applied per echo.
+
+Scripting nodes: source drivers `PulseAnalyzer`, `SG1`, `Pulser`, `AutoTuner`/`AutoTunerSecondary`; `Active` (“Start Sweep”), `CenterFreq`, `FreqSpan` (“Span”), `FreqStep` (“Step”), `SG1FreqOffset`, `TuneCycleStep`/`TuneCycleStrategy` (the “LC Tuning” behavior); FSS/FFT shared nodes `BandWidth` (with `BandWidthList`), `AutoPhase`, `Phase`, `WindowFunc`, `WindowWidth`, `SpectrumSolver`, `Clear`. Relax. Map: `MapMode` (“Regularization”), `MapTikhonovMatrix` (“Matrix”), `MapUnconstrained`, `MapEchoesPerBin`, `MapFreqRes`, `MapPhase`, `MapTExtDecades`, `MapWindowFunc`, `MapWindowWidth`.
 
 ## NMR Field Sweep Measurement
 
@@ -1440,6 +1485,24 @@ Instruct the assistant in natural language:
    then `python3` and versioned `python3.X` names. Creating `kame-mcp-venv` is
    the recommended way to keep these packages away from your system Python.
 
+   **On Windows it is the only way.** None of the interpreters KAME can
+   otherwise reach will do: the bundled `resources\python3.12` has no `pip`,
+   MSYS2's Python is externally managed with no `pip` module (and `mcp` is not
+   in `pacman`), and `python3` on `PATH` is usually the Microsoft Store stub.
+   Make the venv from a real CPython ≥ 3.10 — [`uv`](https://docs.astral.sh/uv/)
+   is the least intrusive way — next to `kame.exe`:
+
+   ```
+   uv venv --python 3.12 kame-mcp-venv
+   uv pip install --python kame-mcp-venv\Scripts\python.exe mcp jupyter_client
+   ```
+
+   KAME searches upward from its `resources` folder, so the venv may also sit
+   one level above the unzipped folder. Throughout this chapter `~` is your
+   home directory — `C:\Users\<you>` on Windows — and a virtualenv's
+   interpreter is `<venv>\Scripts\python.exe` where the text says
+   `<venv>/bin/python`.
+
 2. Start KAME and click **▶ Jupyter notebook** in the Script pane (or
    Script → Launch Jupyter Notebook). This starts the notebook *and* the MCP
    server, and writes the connection details that clients need.
@@ -1452,19 +1515,29 @@ The Script pane offers one-click launches, each already pointed at this KAME:
 
 | Link | Starts |
 |------|--------|
-| **Claude: Code / app** | Claude Code in a terminal, with KAME's plugin loaded automatically / the Claude desktop app |
+| **Claude: Code / app** | Claude Code in a terminal, with KAME's plugin loaded automatically (macOS and Linux; on Windows the server is still passed, through the workspace `.mcp.json`, but not the skill) / the Claude desktop app |
 | **Codex: CLI / fugu / app** | Codex in a terminal. The server is passed for that session only — nothing is written to your Codex configuration |
 | **Pydantic AI: CLI / web** | The `clai` command from your virtualenv, given KAME's agent. **web** also opens your browser once the server answers |
-| **Pydantic AI: ⚙ settings** | Creates `~/.kame_pyai.env` from a commented template on first use and opens it in your editor: the model and the API key go there, one line each |
+| **Pydantic AI: ⚙ settings** | Creates `~/.kame_pyai.env` from a commented template on first use and opens it in your editor (Notepad on Windows): the model and the API key go there, one line each |
 | **Pydantic AI: ⚙ agent** | Use an agent module of your own instead of KAME's (see below) |
 
 On first use of a Pydantic AI link, KAME asks for the virtualenv that has
-`pydantic-ai` installed and remembers it.
+`pydantic-ai` installed and remembers it. The project folder is fine: KAME
+looks inside it for `.venv`, `venv` or `env`, and accepts `bin/python` or
+`Scripts\python.exe`. On Windows this virtualenv must again be a real CPython
+(see the note under Setup), and it needs `clai` and `uvicorn` beside
+`pydantic-ai` for the **web** link.
 
-Two things are needed before the first chat: a model name and that provider's
-API key. Both go into the file that **⚙ settings** opens — uncomment one
-`KAME_PYAI_MODEL=` line and fill in the matching `..._API_KEY=` line, save,
-and click **CLI** or **web**. Nothing has to be exported in a shell profile:
+One thing is needed before the first chat: an API key, in the file that
+**⚙ settings** opens — fill in a `..._API_KEY=` line, save, and click **CLI**
+or **web**. KAME's agent then asks that provider which models it serves and
+offers them: OpenAI's two newest `gpt-N` families, every `fugu` Sakana lists,
+Anthropic's newest Opus and Sonnet, or everything a local server (Bionic,
+Ollama) has loaded. The first is the default; a `KAME_PYAI_MODEL=` line names
+the models yourself instead, several comma-separated, and puts its first
+entry in front. A Claude model may write 32000 tokens per reply, thinking
+included; other providers keep their own limit. `KAME_PYAI_MAX_TOKENS=` in
+the same file sets one limit for every model. Nothing has to be exported in a shell profile:
 neither pydantic-ai nor `clai` reads a `.env` by itself, and a GUI application
 does not see shell exports anyway, so KAME's agent reads this file (and a
 `.env` in the notebook workspace) on every launch. A key that *is* in the
@@ -1487,7 +1560,10 @@ edited — and a second click applies it.
 
 The entry runs a launcher that finds the current kernel by itself, so it stays
 valid across KAME restarts and does nothing while KAME is closed (its tools
-simply report that KAME is not running).
+simply report that KAME is not running). On Windows the entry is the batch
+twin, `plugin\bin\kame-mcp-server.cmd`, run through `cmd /c`, since no client
+starts a `.cmd` directly; it is written to mirror the POSIX launcher but has
+had less use.
 
 ## Using your own Pydantic AI agent
 
@@ -1520,13 +1596,42 @@ agent = Agent('anthropic:claude-sonnet-4-5',
 
 `kame_toolset()` is the same server as a toolset (`toolsets=[...]`) for older
 pydantic-ai APIs, and `kame_settings()` returns what the settings file held,
-for anything that wants the keys without `python-dotenv`. `kame_mcp()` speaks
+for anything that wants the keys without `python-dotenv`. `kame_usage_logging()`
+returns the per-request usage recorder as capabilities
+(`capabilities=[..., *kame_usage_logging('my-agent')]`), so your agent's calls
+land in the same
+`usage.jsonl` as KAME's; `kame_web_plots(app)` and `FIGURE_INSTRUCTIONS` are
+described under *What each client can show you*. `kame_mcp()` speaks
 HTTP to the running KAME, so the virtualenv needs neither `jupyter_client`
-nor the stdio launcher, and a path such as `.../kame.app/Contents/Resources/
-plugin/bin/kame-mcp-server` — which exists on one machine only — has no place
-in the module. To run the same module outside KAME (`clai web -a app:agent`
+nor the stdio launcher, and a path such as
+`.../kame.app/Contents/Resources/plugin/bin/kame-mcp-server` (or
+`...\resources\plugin\bin\kame-mcp-server.cmd`) — which exists on one
+machine only — has no place in the module. To run the same module outside KAME (`clai web -a app:agent`
 from a shell), add KAME's `Resources` directory to `PYTHONPATH`, or copy
 `kame_pydantic_ai.py` next to it.
+
+**Local models (Bionic, LM Studio, Ollama, llama.cpp).** Any OpenAI-compatible
+server works, and Bionic has two roles here: as an MCP *client* it opens the
+notebook workspace as a project and needs nothing (above); as a model
+*server* it feeds Pydantic AI. For the latter, download a chat model in
+Bionic and start its local server (Developer tab → Start Server, or
+`lms server start`; the default port is 1234). A running server is already
+offered in the web UI's menu, next to the cloud models; to make one of its
+models the default, one line in the settings file, with the model id as
+`lms ls` prints it:
+
+```
+KAME_PYAI_MODEL=bionic:qwen3.8-27b
+```
+
+`ollama:<id>` is the same for Ollama (port 11434), and `local:<id>` with
+`KAME_PYAI_LOCAL_URL=http://…/v1` for any other server. These prefixes carry
+the server's address themselves, so they coexist with `OPENAI_API_KEY` in the
+same file — do not point `OPENAI_BASE_URL` at a local server, which would
+redirect the OpenAI key there. No key is needed. The model must support tool
+calls (Qwen3, Llama 3.1 and later, Mistral, GPT-OSS do), since everything
+KAME offers arrives as tools; a model without them will chat but never touch
+an instrument.
 
 Which model is used:
 
@@ -1534,8 +1639,13 @@ Which model is used:
 - KAME's agent binds the first model named in `KAME_PYAI_MODEL` — from the
   environment, the workspace `.env`, or `~/.kame_pyai.env`, in that order. Several
   may be listed, separated by commas; they populate the web UI's model menu.
-  With none set, `clai`'s own default (`openai:gpt-5`) applies, which needs an
-  OpenAI key.
+  With none set, the menu is what the present keys reach (`kame_models()`,
+  asked of each provider at start-up) and its first entry is bound; only the
+  `clai` fallback path (no `uvicorn`) still applies clai's own default,
+  `openai:gpt-5`, when nothing is named.
+- Your own module gets the same menu from `kame_models()` —
+  `Agent.to_web(models=kame_models())` — so a model published after the file
+  was written appears without an edit.
 - `sakana:<model>` (`fugu`, `fugu-ultra-v1.1`, …) reaches Sakana AI with
   `SAKANA_API_KEY`. pydantic-ai has no Sakana provider, so KAME's agent resolves
   the prefix itself; that makes it the bound model in the web UI rather than a
@@ -1551,11 +1661,22 @@ assistant can analyse a figure in all of them. What differs is what *you* see:
 - The Pydantic AI web chat UI does not: it renders images the model generates,
   not images a tool returns.
 
-When you need to look at a figure in a client that will not show it, ask the
-assistant to put the plotting code in a **notebook cell** instead. It renders
-inline there, and it stays in the notebook as part of the measurement record.
-Reload the notebook tab and run the new cell — appending a cell is a file
-edit, so it is not executed for you.
+The way around that: every figure `execute_code` returns is **also saved** as
+a PNG under `~/.kame_mcp_log/plots/` (the newest 200 are kept), the tool
+output names the file right after the image, and the web UI KAME launches
+serves that directory at `/plots`, so the assistant's `![figure](/plots/<name>.png)`
+renders inline (the UI accepts any image URL; a relative one is same-origin,
+so the port does not matter). This needs `uvicorn` in the virtualenv — KAME
+then serves the agent's own web app (`kame_pydantic_ai:app`) instead of
+`clai web`, whose app nothing can mount on; without uvicorn the **web** link
+still works but shows no figures, and says so. An agent module of your own
+gets the same by wrapping its app in `kame_web_plots(app)` and appending
+`FIGURE_INSTRUCTIONS` to its instructions.
+
+The other route is a **notebook cell**: ask the assistant to put the plotting
+code there. It renders inline and stays in the notebook as part of the
+measurement record. Reload the notebook tab and run the new cell — appending a
+cell is a file edit, so it is not executed for you.
 
 ## Long measurements
 
@@ -1593,14 +1714,17 @@ guessable from the message. This table is symptom-first.
 | `No interpreter inside <folder>` | uv, poetry and pdm keep the interpreter in a hidden `.venv` | Pick the project folder; KAME looks inside it |
 | `PermissionError: [Errno 1] Operation not permitted` | macOS privacy protection. The path is under Documents, Desktop, Downloads or iCloud Drive | Put the virtualenv and project outside those folders, or grant Terminal access to them in System Settings → Privacy & Security |
 | `KeyError` on an API-key variable | A `.env` file is not read by anything automatically | Call `load_dotenv()` in your module, or export the variable |
-| `Set the XXX_API_KEY environment variable` | The key is neither in `~/.kame_pyai.env` nor in the environment of the terminal window KAME opened (that window runs your login shell; KAME's own environment is not inherited, being a GUI process) | **⚙ settings**, add the line `XXX_API_KEY=…`, save, click again. `OPENAI_API_KEY` demanded although you never chose OpenAI: no model was named, so `clai`'s default `openai:gpt-5` applied — add a `KAME_PYAI_MODEL=` line |
-| `No model given` | The fallback script (no `clai` in the venv) binds no model itself | **⚙ settings** and uncomment a `KAME_PYAI_MODEL=provider:name` line, e.g. `anthropic:claude-sonnet-4-5`; a local model is `openai:<name>` plus `OPENAI_BASE_URL` |
+| `Set the XXX_API_KEY environment variable` | The key is neither in `~/.kame_pyai.env` nor in the environment of the terminal window KAME opened (that window runs your login shell — a fresh `cmd` on Windows; KAME's own environment is not inherited, being a GUI process) | **⚙ settings**, add the line `XXX_API_KEY=…`, save, click again. `OPENAI_API_KEY` demanded although you never chose OpenAI: no model was named, so `clai`'s default `openai:gpt-5` applied — add a `KAME_PYAI_MODEL=` line |
+| `No model given` | The fallback script (no `clai` in the venv) binds no model itself | **⚙ settings** and uncomment a `KAME_PYAI_MODEL=provider:name` line, e.g. `anthropic:claude-sonnet-4-5`; a local model is `bionic:<name>` or `ollama:<name>` (see *Local models* above) |
 | Your own agent module fails on another machine | It hard-codes a path to KAME or to its stdio launcher, or reads a `.env` that is not there | Replace the MCP line with `kame_mcp()` from `kame_pydantic_ai` (see above); keep keys in `~/.kame_pyai.env`, which that import loads |
-| `` `clai` not found in <venv>/bin `` — or the **web** link refuses | KAME looks for `clai` next to the interpreter it was given, not on `PATH`; that venv has `pydantic-ai` but not `clai` | `uv pip install --python <venv>/bin/python clai` (or `uv sync` in a uv project whose pyproject lists it). A uv venv has no `pip` inside, so `python -m pip` fails there. The **CLI** link works without `clai` |
-| `This interpreter has no pydantic_ai` / `<venv> lacks pydantic_ai` | The remembered or picked interpreter is the wrong one, or the package was never installed there | The message prints the install line for that exact interpreter; or `rm ~/.kame_pyai_python` and click the link again to pick another venv |
-| `No Python with pydantic_ai found` | None of the searched places (`KAME_PYAI_PYTHON`, the remembered one, `$VIRTUAL_ENV`, `<workspace>/.venv`, `python3` on `PATH`, versioned `python3.N`) has it | The message lists a two-line recipe: `uv venv ~/kame-pyai && uv pip install --python ~/kame-pyai/bin/python pydantic-ai clai`, then pick `~/kame-pyai` |
+| `` `clai` not found in <venv>/bin `` (`<venv>\Scripts` on Windows) — or the **web** link refuses | KAME looks for `clai` next to the interpreter it was given, not on `PATH`; that venv has `pydantic-ai` but not `clai` | `uv pip install --python <venv>/bin/python clai` (`<venv>\Scripts\python.exe`; or `uv sync` in a uv project whose pyproject lists it). A uv venv has no `pip` inside, so `python -m pip` fails there. The **CLI** link works without `clai` |
+| `This interpreter has no pydantic_ai` / `<venv> lacks pydantic_ai` | The remembered or picked interpreter is the wrong one, or the package was never installed there | The message prints the install line for that exact interpreter; or delete `~/.kame_pyai_python` (`rm`, or `del` on Windows) and click the link again to pick another venv |
+| `No Python with pydantic_ai found` | None of the searched places (`KAME_PYAI_PYTHON`, the remembered one, `$VIRTUAL_ENV`, `<workspace>/.venv`, `python3` on `PATH`, versioned `python3.N`) has it | The message lists a two-line recipe for your OS: `uv venv ~/kame-pyai && uv pip install --python ~/kame-pyai/bin/python pydantic-ai clai uvicorn` (Windows: `%USERPROFILE%\kame-pyai` and `...\Scripts\python.exe`), then pick that folder |
 | `Could not reach KAME's MCP server` / `failed to connect` / `MCP server address is not known` | The server runs inside KAME's Jupyter kernel and `~/.kame_mcp_url` is rewritten at each notebook launch and removed on exit — KAME was closed or restarted without the notebook | Start KAME, click **Jupyter notebook** in the Script pane, then the Pydantic AI link. `python kame_pydantic_ai.py --check` verifies the connection without a model |
-| Plots do not appear in the web UI | That UI does not render tool-returned images | Use a notebook cell (see above), or a client that does |
+| Plots do not appear in the web UI; `/plots/…` is Not Found | The UI is `clai web`'s own app, which serves no files: the venv has no `uvicorn`, or the browser tab belongs to a web server started before this KAME (each launch picks a new port) | `uv pip install --python <venv>/bin/python uvicorn` (`<venv>\Scripts\python.exe` on Windows), then click **web** again and use the tab it opens. Your own module: `kame_web_plots(app)` plus `FIGURE_INSTRUCTIONS` |
+| `prompt is too long` / `context length exceeded` after switching models in the web UI | The chat grew under a model with a large window (a local one, often 256k) and the whole history is replayed to the model now chosen | Start a new chat for the new model. KAME's agent trims the oldest tool results and figures once the history passes `KAME_PYAI_HISTORY_TOKENS` (default 150000); lower it in the settings file to trim earlier. Your own module: `capabilities=[..., *kame_history_budget()]` |
+| `Tool 'tree' exceeded max retries count of 1` (or another tool's name) | pydantic-ai gives each tool one retry, and before this was fixed it counted every KAME tool error — two wrong node paths while looking for the temperature controller were enough to end the run. What still counts is a tool call whose arguments did not validate, most often a long script cut off by the output limit | Current builds let KAME's tool errors through as information and allow 3 retries. If it still happens, raise `KAME_PYAI_MAX_TOKENS` (below), or ask for the code in smaller steps |
+| `Model token limit (provider default) exceeded before any response was generated` | The model spent its whole output allowance before writing anything — on thinking, for a model that thinks. pydantic-ai asks Claude for only 4096 tokens unless told otherwise | Current builds give Claude models 32000. For another provider, or for more, put `KAME_PYAI_MAX_TOKENS=64000` in the settings file and start a new chat |
 | A long job cannot be stopped | The code never reports progress, so there is no point at which a stop can be honoured | Ask the assistant to report progress every iteration |
 
 ## Technical notes

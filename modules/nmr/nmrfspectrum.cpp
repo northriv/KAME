@@ -18,6 +18,10 @@
 #include "nmrspectrumbase_impl.h"
 #include "autolctuner.h"
 #include "pulserdriver.h"
+#include "nmrpulse.h"
+#include "nmrrelaxfit.h"
+#include "graph.h"
+#include "xwavengraph.h"
 
 REGISTER_TYPE(XDriverList, NMRFSpectrum, "NMR frequency-swept spectrum measurement");
 
@@ -39,13 +43,39 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 	  m_freqStep(create<XDoubleNode>("FreqStep", false)),
 	  m_active(create<XBoolNode>("Active", true)),
       m_tuneCycleStep(create<XDoubleNode>("TuneCycleStep", false)),
-      m_tuneCycleStrategy(create<XComboNode>("TuneCycleStrategy", false, true)) {
+      m_tuneCycleStrategy(create<XComboNode>("TuneCycleStrategy", false, true)),
+      m_relaxFuncs(create<XRelaxFuncList>("RelaxFuncs", true)),
+      m_mapMode(create<XComboNode>("MapMode", false, true)),
+      m_mapTikhonovMatrix(create<XComboNode>("MapTikhonovMatrix", false, true)),
+      m_mapUnconstrained(create<XBoolNode>("MapUnconstrained", false)),
+      m_mapEchoesPerBin(create<XUIntNode>("MapEchoesPerBin", false)),
+      m_mapFreqRes(create<XDoubleNode>("MapFreqRes", false, "%.4f")),
+      m_mapPhase(create<XComboNode>("MapPhase", false, true)),
+      m_mapTExtDecades(create<XDoubleNode>("MapTExtDecades", false, "%.2f")),
+      m_mapWindowFunc(create<XComboNode>("MapWindowFunc", false, true)),
+      m_mapWindowWidth(create<XDoubleNode>("MapWindowWidth", false, "%.1f")),
+      m_solverMapBin(create<SpectrumSolverWrapper>("SpectrumSolverMapBin", true,
+          shared_ptr<XComboNode>(), m_mapWindowFunc, m_mapWindowWidth)),
+      m_waveMapCurves(create<XWaveNGraph>("RelaxCurves", false, m_form->m_graphMapCurves,
+          m_form->m_edMapCurvesDump, m_form->m_tbMapCurvesDump, m_form->m_btnMapCurvesDump)),
+      m_waveMap(create<XWaveNGraph>("RelaxMap", false, m_form->m_graphRelaxMap,
+          m_form->m_edRelaxMapDump, m_form->m_tbRelaxMapDump, m_form->m_btnRelaxMapDump)) {
 
 	connect(sg1());
 //	connect(autoTuner());
 //	connect(pulser());
 
+    //A filter, not an estimator: the map is windowed and transformed, never
+    //fitted. \sa XNMRSpectrumBase::mapWindowFunc()
+    m_solverMapBin->selectSolver(SpectrumSolverWrapper::SPECTRUM_SOLVER_ZF_FFT);
+
 	m_form->setWindowTitle(i18n("NMR Spectrum (Freq. Sweep) - ") + getLabel() );
+
+	iterate_commit([=](Transaction &tr){
+		//Inserted online: a node created outside tr would be invisible to it.
+		m_relaxFunc = create<XItemNode<XRelaxFuncList, XRelaxFunc> >(
+			tr, "RelaxFunc", false, tr, m_relaxFuncs, true);
+    });
 
 	iterate_commit([=](Transaction &tr){
 		tr[ *m_spectrum].setLabel(0, "Freq [MHz]");
@@ -59,7 +89,25 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
         for(auto &&x: {"As is", "Await Manual Tune", "Auto Tune", "Cyclic Avg. BPSK", "Cyclic Avg. QPSK", "Cyclic Avg. QPSKxP.I"})
             tr[ *tuneCycleStrategy()].add(x);
         tr[ *tuneCycleStrategy()] = (int)TuneCycleStrategy::ASIS;
+
+        addRelaxMapModeItems(tr, mapMode());
+        tr[ *mapMode()] = (int)NMRRelaxMapMode::Off;
+        addTikhonovMatrixItems(tr, mapTikhonovMatrix());
+        tr[ *mapTikhonovMatrix()] = (int)TikhonovRegular::TikhonovMatrix::I;
+        tr[ *relaxFunc()].str(XString("NMR I=1/2"));
+        tr[ *mapEchoesPerBin()] = 1;
+        tr[ *mapFreqRes()] = 0.0;
+        tr[ *mapPhase()].add({"Auto per Freq.", "Global", "Absolute"});
+        tr[ *mapPhase()] = (int)MapPhaseMode::AutoPerFreq;
+        tr[ *mapTExtDecades()] = 1.0;
+        tr[ *mapWindowFunc()].str(XString(SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT));
+        tr[ *mapWindowWidth()] = 100.0;
+        if( !setupRelaxCurvesGraph(tr, m_waveMapCurves, "Freq [MHz]", "2tau [us]")) return;
+        if( !setupRelaxDensityMapGraph(tr, m_waveMap, "Freq [MHz]", "T2 [us]")) return;
     });
+
+    //Ranges should be preset in prior to connectors.
+    m_form->m_spbMapEchoesPerBin->setRange(1, 1024);
   
     m_conUIs = {
         xqcon_create<XQLineEditConnector>(m_sg1FreqOffset, m_form->m_edSG1FreqOffset),
@@ -72,7 +120,17 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser, ref(tr_meas)),
         xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive),
         xqcon_create<XQLineEditConnector>(m_tuneCycleStep, m_form->m_edTuneCycleStep),
-        xqcon_create<XQComboBoxConnector>(m_tuneCycleStrategy, m_form->m_cmbTuneCycleStrategy, Snapshot( *m_tuneCycleStrategy))
+        xqcon_create<XQComboBoxConnector>(m_tuneCycleStrategy, m_form->m_cmbTuneCycleStrategy, Snapshot( *m_tuneCycleStrategy)),
+        xqcon_create<XQComboBoxConnector>(m_mapMode, m_form->m_cmbMapMode, Snapshot( *m_mapMode)),
+        xqcon_create<XQComboBoxConnector>(m_mapTikhonovMatrix, m_form->m_cmbMapTikhonovMatrix, Snapshot( *m_mapTikhonovMatrix)),
+        xqcon_create<XQToggleButtonConnector>(m_mapUnconstrained, m_form->m_ckbMapUnconstrained),
+        xqcon_create<XQComboBoxConnector>(m_relaxFunc, m_form->m_cmbMapRelaxFunc, Snapshot( *m_relaxFuncs)),
+        xqcon_create<XQSpinBoxUnsignedConnector>(m_mapEchoesPerBin, m_form->m_spbMapEchoesPerBin),
+        xqcon_create<XQLineEditConnector>(m_mapFreqRes, m_form->m_edMapFreqRes),
+        xqcon_create<XQComboBoxConnector>(m_mapPhase, m_form->m_cmbMapPhase, Snapshot( *m_mapPhase)),
+        xqcon_create<XQLineEditConnector>(m_mapTExtDecades, m_form->m_edMapTExtDecades),
+        xqcon_create<XQComboBoxConnector>(m_mapWindowFunc, m_form->m_cmbMapWindowFunc, Snapshot( *m_mapWindowFunc)),
+        xqcon_create<XQLineEditConnector>(m_mapWindowWidth, m_form->m_edMapWindowWidth)
     };
 
 	iterate_commit([=](Transaction &tr){
@@ -81,6 +139,15 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 		tr[ *centerFreq()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *freqSpan()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *freqStep()].onValueChanged().connect(m_lsnOnCondChanged);
+		//None of these clears the spectrum (onCondChangedImpl returns false):
+		//regrouping the echoes or changing the criterion must not throw a sweep
+		//away.  The bins themselves are rebuilt by updateMapBins() when the
+		//binning no longer matches what was accumulated.
+		for(auto &&x: std::vector<shared_ptr<XValueNodeBase>>(
+			{mapMode(), mapTikhonovMatrix(), mapUnconstrained(), mapEchoesPerBin(), mapFreqRes(),
+			relaxFunc(), mapPhase(), mapTExtDecades(),
+			mapWindowFunc(), mapWindowWidth()}))
+			tr[ *x].onValueChanged().connect(m_lsnOnCondChanged);
     });
 }
 
@@ -364,4 +431,279 @@ XNMRFSpectrum::getValues(const Snapshot &shot_this, std::vector<double> &values)
 		double freq = min__ + i * res;
 		values[i] = freq * 1e-6;
 	}
+}
+
+bool
+XNMRFSpectrum::mapBinning(const Snapshot &shot_this, const Snapshot &shot_pulse,
+    MapBinning &binning) const {
+    if((NMRRelaxMapMode)(int)shot_this[ *mapMode()] == NMRRelaxMapMode::Off)
+        return false;
+    shared_ptr<XNMRPulseAnalyzer> pulse__ = shot_this[ *pulse()];
+    if( !pulse__)
+        return false;
+    //The train as the pulse analyzer stored it: one record per echo, the n-th
+    //of them at 2 tau n.  Summing m of them into a bin puts that bin at the
+    //mean of their times, i.e. at 2 tau n/m -- the kernel row of the bin is
+    //then the mean of the rows of its members, which is exact (\sa
+    //NMRRelaxMapData).  It buys S/N and a smaller problem at the price of time
+    //resolution, and m = 1 leaves every echo its own bin.
+    int nechoes = (int)shot_pulse[ *pulse__].echoesT2().size();
+    double twotau = shot_pulse[ *pulse__].echoPeriod() * 1e3; //[ms] -> [us]
+    if((nechoes < 2) || (twotau <= 0.0))
+        return false;
+    int m = (int)std::max(1u, (unsigned int)shot_this[ *mapEchoesPerBin()]);
+    //A remainder goes into the LAST bin rather than into a short one of its
+    //own: that bin already carries the weakest signal of the train, and the
+    //inversion weights every bin alike, so a bin of m/2 echoes would be the
+    //noisiest point of the curve and still count as much as the first.  Its
+    //kernel row is the mean over the echoes it really holds, so nothing is
+    //biased by being fed more of them.
+    binning.binCount = std::max(1, nechoes / m);
+    binning.binOfRecord.resize(nechoes);
+    binning.timeOfRecord.resize(nechoes);
+    for(int i = 0; i < nechoes; ++i) {
+        binning.binOfRecord[i] = std::min(i / m, binning.binCount - 1);
+        binning.timeOfRecord[i] = twotau * (i + 1);
+    }
+    return true;
+}
+const std::vector<std::complex<double> > &
+XNMRFSpectrum::waveOfRecord(const Snapshot &shot_pulse, const XNMRPulseAnalyzer &pulse,
+    int idx) const {
+    const std::vector<std::vector<std::complex<double> > > &echoes(shot_pulse[pulse].echoesT2());
+    if((idx >= 0) && (idx < (int)echoes.size()))
+        return echoes[idx];
+    return shot_pulse[pulse].wave();
+}
+double
+XNMRFSpectrum::mapNoiseFactor(const Snapshot &shot_pulse, const XNMRPulseAnalyzer &pulse) const {
+    return shot_pulse[pulse].darkPSDFactorPerEcho();
+}
+FFT::twindowfunc
+XNMRFSpectrum::mapWindowFunc(const Snapshot &shot_this) const {
+    return m_solverMapBin->windowFunc(shot_this);
+}
+double
+XNMRFSpectrum::mapWindowWidth(const Snapshot &shot_this) const {
+    return shot_this[ *mapWindowWidth()] / 100.0;
+}
+void
+XNMRFSpectrum::clearRelaxMapGraphs() {
+    for(auto &&graph: {m_waveMapCurves, m_waveMap}) {
+        if( !Snapshot( *graph)[ *graph].rowCount())
+            continue; //already empty; spares a commit per record while off.
+        graph->iterate_commit([&](Transaction &tr){
+            tr[ *graph->graph()->onScreenStrings()] = "";
+            tr[ *graph].clearPoints();
+            graph->drawGraph(tr);
+        });
+    }
+}
+void
+XNMRFSpectrum::visualize(const Snapshot &shot) {
+    XNMRSpectrumBase<FrmNMRFSpectrum>::visualize(shot);
+
+    auto mapmode = (NMRRelaxMapMode)(int)shot[ *mapMode()];
+    const std::vector<shared_ptr<const Payload::MapBin> > &bins(shot[ *this].mapBins());
+    int nbin = (int)bins.size();
+    int len = (int)shot[ *this].wave().size();
+    if( !shot[ *this].time() || (mapmode == NMRRelaxMapMode::Off) || (nbin < 2) || (len < 2)) {
+        clearRelaxMapGraphs();
+        return;
+    }
+    //The grid of relaxation times covers what was measured, 2 tau to 2 tau x n,
+    //and -- by mapTExtDecades() -- however far beyond the user is prepared to
+    //read as "did not finish decaying" or "was over before we looked".  Out
+    //there nothing is resolved: past the last echo every column decays by less
+    //than 1/e across the whole train, so they are nearly one column, and only
+    //the total weight that lands there carries meaning.  With no extension at
+    //all, though, such a component has nowhere to go but the end grid point,
+    //and piles up on it.
+    double tfirst = 0.0, tlast = 0.0;
+    for(auto &&bin: bins) {
+        for(double t: bin->times) {
+            if((tfirst == 0.0) || (t < tfirst)) tfirst = t;
+            if(t > tlast) tlast = t;
+        }
+    }
+    if(tlast <= tfirst)
+        return;
+    double ext = std::max(0.0, std::min(3.0, (double)shot[ *mapTExtDecades()]));
+    //Half as far below as above: below the first echo the columns do not merely
+    //resemble one another, they vanish.  A component at 2 tau / 3 still leaves
+    //5% of itself in the first echo; one a decade down leaves nothing in any of
+    //them, and an unknown the data cannot touch buys nothing -- while the
+    //negative lobes it invites are answered with more smoothing, map-wide.
+    double tmax = tlast * pow(10.0, ext);
+    double tmin = tfirst * pow(10.0, -0.5 * ext);
+    int ntcount = std::min(200, nbin * 10);
+
+    double res = shot[ *this].res();
+    double min__ = shot[ *this].min();
+    //The map's frequency axis merges adjacent points of the sweep axis: fewer
+    //unknowns, better S/N per curve, and -- with the cap below, as in XNMRT1 --
+    //a plot that cannot grow without bound when the span or the resolution does.
+    int decim = 1;
+    if(shot[ *mapFreqRes()] > 0.0)
+        decim = std::max(1L, lrint(shot[ *mapFreqRes()] * 1e3 / res));
+    int nx = len / decim;
+    constexpr long MAX_MAP_POINTS = 50000;
+    while((nx > 1) && ((long)nx * std::max(nbin, ntcount) > MAX_MAP_POINTS)) {
+        decim *= 2;
+        nx = len / decim;
+    }
+    if(nx < 1)
+        return;
+
+    NMRRelaxMapData data;
+    data.resize(nx, nbin);
+    for(int i = 0; i < nx; ++i)
+        data.xvalues[i] = (min__ + (i * decim + 0.5 * (decim - 1)) * res) * 1e-6; //[MHz]
+    auto phmode = (MapPhaseMode)(int)shot[ *mapPhase()];
+    auto cph = std::polar(1.0, -(double)shot[ *phase()] / 180.0 * M_PI);
+    //The dark power accumulated alongside the signal, as a variance per point.
+    //It is the one the pulse analyzer quotes for the echo-AVERAGED wave, so it
+    //underestimates that of a single echo; only the KnownError criterion (Noise
+    //Analysis) reads it as an absolute, the others use the curves themselves.
+    //The window laid on the bins raised or lowered the noise with the signal,
+    //by its mean square, exactly as analyzeIFT()'s does for the spectrum.
+    double psdcoeff = shot[ *this].mapPSDCoeff() * shot[ *this].mapWindowPSDCoeff();
+    double th = FFT::windowFuncHamming(0.1);
+    double noisesq = 0.0;
+    int noisecnt = 0;
+    for(int b = 0; b < nbin; ++b) {
+        const Payload::MapBin &bin( *bins[b]);
+        data.timesOfBin[b] = bin.times;
+        int size = (int)bin.accum.size();
+        //filtered[] is already a value per point, the accumulators are a sum
+        //and their weight; either way what comes out of the merge is a mean.
+        bool filtered = ((int)bin.filtered.size() >= size);
+        for(int i = 0; i < nx; ++i) {
+            std::complex<double> sum(0.0);
+            double w = 0.0, dark = 0.0;
+            int nfilt = 0;
+            for(int k = i * decim; (k < (i + 1) * decim) && (k < size); ++k) {
+                if(filtered) {
+                    if(bin.accum_weights[k] > 0.0) {
+                        sum += bin.filtered[k];
+                        ++nfilt;
+                    }
+                }
+                else
+                    sum += bin.accum[k];
+                w += bin.accum_weights[k];
+                dark += bin.accum_dark[k];
+            }
+            if((w <= th) || (filtered && !nfilt))
+                continue; //never swept here, or too far off the excitation.
+            //Still unrotated: the phase is settled per frequency below.
+            //(The noise below treats the merged points as independent.  The
+            //window correlates its neighbours, so a merge over several of them
+            //averages the noise down less than this says.)
+            std::complex<double> z = filtered ? (sum / (double)nfilt) : (sum / w);
+            data.y.coeffRef(i, b) = std::real(z);
+            data.yimag.coeffRef(i, b) = std::imag(z);
+            double sigmasq = dark / (w * w) * psdcoeff;
+            if(sigmasq > 0.0) {
+                data.isigma.coeffRef(i, b) = 1.0 / sqrt(sigmasq);
+                noisesq += sigmasq;
+                ++noisecnt;
+            }
+        }
+    }
+    data.noiseSq = noisecnt ? (noisesq / noisecnt) : 0.0;
+
+    //A swept carrier does not keep one phase: the probe's tuning, the cable
+    //delay and the synthesizer all turn it as the sweep moves, so the one
+    //phase() the spectrum carries cannot put every frequency in phase at once
+    //-- which is the difference from XNMRT1, where every point is acquired at
+    //the same carrier.  The train at ONE frequency does share a phase, though,
+    //since the relaxation behind it is real and positive.  So the phase is
+    //settled frequency by frequency, from the sum over that frequency's bins,
+    //and the inversion is left with a real signal that decays to zero: what
+    //the kernel says it does, and what makes the non-negativity of the density
+    //meaningful.  Each bin enters the sum weighted by its own magnitude, so
+    //bins whose signal has already decayed contribute noise, not direction.
+    for(int i = 0; i < nx; ++i) {
+        std::complex<double> rot(1.0, 0.0);
+        switch(phmode) {
+        case MapPhaseMode::Global:
+        default:
+            rot = cph;
+            break;
+        case MapPhaseMode::AutoPerFreq: {
+            std::complex<double> sum(0.0, 0.0);
+            for(int b = 0; b < nbin; ++b) {
+                std::complex<double> z(data.y.coeff(i, b), data.yimag.coeff(i, b));
+                sum += z * std::abs(z);
+            }
+            double a = std::abs(sum);
+            if(a > 0.0)
+                rot = std::conj(sum) / a; //exp(-i arg(sum))
+            break;
+            }
+        case MapPhaseMode::Absolute:
+            //The magnitude has no phase to get wrong, but it does not decay to
+            //zero either: it settles on the noise floor, which the kernel has
+            //no term for and the inversion could only explain by inventing a
+            //component that never decays.  Taking its own variance back out
+            //restores the zero asymptote, in expectation.
+            for(int b = 0; b < nbin; ++b) {
+                double re = data.y.coeff(i, b), im = data.yimag.coeff(i, b);
+                double isig = data.isigma.coeff(i, b);
+                double sq = re * re + im * im - ((isig > 0.0) ? 1.0 / (isig * isig) : 0.0);
+                data.y.coeffRef(i, b) = (sq > 0.0) ? sqrt(sq) : 0.0;
+                data.yimag.coeffRef(i, b) = 0.0;
+            }
+            continue;
+        }
+        for(int b = 0; b < nbin; ++b) {
+            std::complex<double> z(data.y.coeff(i, b), data.yimag.coeff(i, b));
+            z *= rot;
+            data.y.coeffRef(i, b) = std::real(z);
+            data.yimag.coeffRef(i, b) = std::imag(z);
+        }
+    }
+
+    const char *phname = "global";
+    switch(phmode) {
+    case MapPhaseMode::AutoPerFreq:
+        phname = "auto";
+        break;
+    case MapPhaseMode::Absolute:
+        phname = "abs";
+        break;
+    default:
+        break;
+    }
+    //What it took to acquire these curves; the inversion's own settings go on
+    //the density map instead, and neither line holds much text.
+    //tfirst, not tmin: the grid's low end has been extended away from the first
+    //echo and it is the echo that these curves are spaced by.
+    //
+    //The excitation bandwidth is the bank's, not the node's: bwList() halves or
+    //doubles it, and it is what weighted every record into these curves.
+    double bw_khz = shot[ *bandWidth()] * 0.5 * pow(2.0, (double)(int)shot[ *bwList()]);
+    drawRelaxCurves(m_waveMapCurves, data, "2tau [us]",
+        formatString("2tau=%.4gus x%u/bin df=%.4gkHz bw=%.4gkHz ph=%s w=%s@%.0f%%", tfirst,
+            std::max(1u, (unsigned int)shot[ *mapEchoesPerBin()]),
+            decim * res * 1e-3, bw_khz, phname,
+            shot[ *mapWindowFunc()].to_str().c_str(), (double)shot[ *mapWindowWidth()]));
+
+    shared_ptr<XRelaxFunc> relax_fn = shot[ *relaxFunc()];
+    if( !relax_fn)
+        return;
+    std::vector<double> tgrid = NMRRelaxMapData::makeTGrid(tmin, tmax, ntcount);
+    //An echo train decays: -f + 1 turns the recovery XRelaxFunc quotes into it.
+    //Unlike the T1 map, no fit feeds the kernel, so it stands on its own.
+    Eigen::MatrixXd density = m_mapSolver.exec(data, tgrid, relax_fn, -1.0,
+        (TikhonovRegular::TikhonovMatrix)(int)shot[ *mapTikhonovMatrix()],
+        tikhonovMethodOf(mapmode), data.strongestRow(), shot[ *mapUnconstrained()]);
+    //The extension is a setting of the inversion, so it belongs on that graph's
+    //line, next to the grid it widened -- with the window it widened away from,
+    //since the solver's own T=... is the grid, not the measurement.
+    XString note = m_mapSolver.status();
+    if(ext > 0.0)
+        note += formatString(" ext=%.2gdec meas=%.4g-%.4g", ext, tfirst, tlast);
+    drawRelaxDensityMap(m_waveMap, data, tgrid, density, "T2 [us]", note);
 }

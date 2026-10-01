@@ -152,8 +152,17 @@ XJournalFile::journalBeside(const XString &rawpath) {
 
 XString
 XJournalFile::rawPath() const {
-    if(m_rawFile.empty() || m_path.empty())
+    if(m_path.empty())
         return {};
+    if(m_rawFile.empty()) {
+        //A run begun as Settings only and continued with raw records -- a
+        //journal is continued, never restarted -- has a stream its header
+        //cannot name, having been written before there was one.  Found by
+        //name instead, as a stream finds the journal beside it the other way.
+        //\sa journalBeside()
+        XString beside = withExtension(m_path, ".kamb");
+        return (beside.length() && QFileInfo(QString::fromStdString(beside)).isFile()) ? beside : XString();
+    }
     //The header records a base name, never a path: a pair that is moved or
     //copied together must still find itself, and an absolute path from
     //another machine would be a lie the moment the file was mailed.

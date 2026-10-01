@@ -1,4 +1,259 @@
+* Wed Sep 23 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- NMR T1: ten Smoothing Samples or fewer is a warning, not a record error
+  (user).  In T2 multi-echo mode the count is the echo count, so a frequency
+  sweep run on eight echoes had the relaxation driver beside it failing every
+  record -- and it could not recover: the check came before the derivation
+  that sets the axis from the pulser, so once a short train had set the
+  count, every later record was refused before the derivation could follow
+  the pulser back.  The derivation now comes first.  A single echo is passed
+  over with a warning saying so, and a count below two because no curve can
+  be built.  The count is also set only when the number of echoes changes,
+  so lowering it now reduces the train evenly as the manual says; it was put
+  back on every record before.
+- UI: a form, chart or graph opened with a click unpins the toolbox that
+  would cover it (user).  A pinned toolbox stays on top of everything, so the
+  window came up underneath it, the click defeated by the pin.  The rule the
+  load already follows before it pins, applied when the window is put up:
+  only the toolbox that covers it goes back to auto-hide and folds at once,
+  and the window stays where it was.
+- Journal: a run file that exists is always continued -- never written over
+  and never refused (user).  Sep 19 refused a file another session had
+  written, and in "Settings + raw records" refused every new run as well: the
+  writer looked for the raw stream, which the recorder had created a moment
+  before, found no journal to prove it ours, and took it for a stranger's --
+  leaving that stream behind to refuse the name at every later try.  But a
+  journal is a log; the newest record is always last, so what follows the old
+  records can only read as what came next, and naming a file that belongs to
+  something else is the user's to answer for.  The one thing continuing could
+  break is the old records' meaning: node ids are counted from zero in every
+  session, and a reader resolves them through one table built from the whole
+  file, so another session's ids appended as they were would replay its
+  values onto our nodes.  A run continued by the session that began it keeps
+  its ids; one continued from any other session -- an earlier launch
+  included -- numbers its nodes above every id the file holds.  The writer
+  decides alone, from the journal file, which only it creates; the raw
+  stream is simply appended to.  A tier may change at the resumption, which
+  the resume marker records, and a stream begun after the header was written
+  is found beside the journal by name.  Checked with the real reader on
+  appended files: ids distinct, every value on the node its segment meant,
+  and without the offset three of four earlier values landed on the wrong
+  node.
+
+* Mon Sep 21 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- NMR T1: in T2 multi-echo mode the relaxation curve is binned on a linear
+  axis, as the echoes are measured (user).  The divisions are logarithmic,
+  which is right for a P1 spread over decades and wrong for a CPMG train:
+  the echoes sit at 2 tau x i, evenly, so a log axis leaves gaps at the short
+  end and closes up at the long one.  A 32-echo train reached 20 of its 32
+  divisions -- the count this mode takes from the pulser promised one point
+  per echo and delivered two thirds of them, the tail merged two and three at
+  a time.  Linear in that mode, log everywhere else; every echo is its own
+  point, 8 through 128 alike.  Smoothing Samples also means something plain
+  here now: below the echo count the train reduces evenly, 32 echoes to 16
+  points being two echoes each, rather than 1:1 at the short end and 5:1 at
+  the long one.  The density map is untouched -- it reads the pulse slots,
+  not these divisions, and its kernel takes no part of the fit in this mode.
+
+* Sat Sep 19 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Journal: switching Write off and on again with the same name continues the
+  run instead of starting it over (user).  It used to open both files anew,
+  and open() truncates: the half already recorded vanished under the half
+  that followed, without a word -- which measurement software must not do,
+  and what the switch means to its user is a pause.  A file this KAME wrote
+  is appended to, as a further gzip member the reader walks as one stream; a
+  "run resume" marker and a fresh dump follow, as ordinary entries, so a
+  replay reaching that point puts back whatever changed while the switch was
+  off, drivers added meanwhile included.  The raw stream is appended to the
+  same way.  A file another session wrote is refused -- its node ids are not
+  ours -- and so is a resumption in a different tier, since the header states
+  the tier and the reader believes it; either refusal clears the switch and
+  says what to change.  The session id that decides this is now in every
+  header, whether or not the session journal is on.  The manual says so.
+
+* Tue Sep 15 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- NMR relaxation map: the distribution of relaxation times is solved under
+  x >= 0 (user).  Amplitudes of relaxation components are populations and
+  cannot be negative; the unconstrained Tikhonov minimiser explains a curve
+  with large terms of alternating sign -- neighbouring columns of an
+  exponential kernel are nearly parallel -- and the only thing holding that
+  still was lambda, which blunts real peaks along with the oscillation.
+  Forbidding the negative half removes the oscillation itself, so far less
+  lambda is needed and sharp features survive.  "AllNonNegative" had
+  approximated this by raising lambda until nothing came out negative,
+  smoothing standing in for a constraint.  TikhonovRegular::solveNonNeg() is
+  Lawson-Hanson's active-set method on the normal equations after Bro and de
+  Jong (FNNLS): G = AtA + lambda^2 StS is formed once per lambda and shared by
+  every row of a map, each step solves a subsystem of it by LDLT, and the
+  previous record's row seeds the active set -- m = 200, n = 100 runs 0.26 ms
+  cold and 0.014 ms warm, so a map of hundreds of rows costs a few ms per
+  record.  Eigen 3.4.0 as installed has no NNLS module; none is needed.
+  lambda is still decided where the criteria are defined: L-curve, GCV and
+  the known-noise criterion on the linear solution as before, the rows then
+  solved non-negatively with the lambda they settle on; AllNonNegative
+  becomes the criterion native to the constrained solver, the discrepancy
+  principle on the NNLS residual.  Verified against an independent FISTA
+  reference on a two-peak synthetic distribution: KKT conditions hold on I
+  and D2 from lambda = 0 to 0.1 sigma_max, the objective never exceeds the
+  reference's, a warm start reproduces the cold solution.  The status line
+  says nnls.
+- NMR relaxation map: each bin is weighted by its noise (user).  isigma --
+  1/sigma per bin, from the dark-noise power and the record count -- sat
+  beside the fit, shown but unused, so a bin averaged over fifty records had
+  the say of one averaged over none.  Rows are scaled by sigma_bar/sigma_b
+  with sigma_bar^2 = noiseSq, so a bin fitting its own noise leaves
+  sigma_bar^2 of residual whatever its count and the criteria keep their
+  meaning.  One kernel serves every row of a map while a swept spectrum's
+  isigma differs between rows (coverage), so a bin's weight is its mean over
+  the rows that have data there.  Weights drift as records accumulate and a
+  rebuild is an SVD, so the cache is refreshed only once a weight has moved
+  by more than a tenth; until then y is scaled by the cached kernel's own
+  weights, so the two always agree.  A "w" on the status line says so.
+- NMR relaxation map: an Unconstrained switch on both forms shows the linear
+  inversion with the same lambda -- the diagnostic view of what the
+  constraint removed (user).  The map is a color image, so the two cannot be
+  overlaid; a switch on one color scale is how the difference is seen.  For
+  noticing rather than looking, the status line carries lin-neg, the deepest
+  excursion of the linear solution of the reference row against its peak:
+  well below zero says look at the phase or the baseline before believing a
+  map that cannot show it.  TikhonovRegular::setLambda() was needed for this
+  and closes a bug the linear map had all along: chooseLambda() leaves solve()
+  at whatever lambda it TRIED last, which for the L-curve and GCV scans is the
+  smallest, so every row but the reference was inverted essentially
+  unregularized while the label named the chosen lambda -- 123% apart on the
+  synthetic curve.  The bisection criteria were nearly right (their last
+  trial is near the answer); the non-negative rows were never affected.
+- NMR relaxation map: what stands below its own noise is not shown.  Noise
+  propagates into the linear inversion in closed form, sd_j = sigma
+  ||row_j(A#)||, the same for every row (checked against 4000 Monte Carlo
+  draws: within 2%), and the constraint can only lower a component's
+  variance, so it is a conservative bound for the map shown.  A cell below
+  twice its sd is dropped from the constrained map -- a non-negative solution
+  is sparse and its speckle is noise fitted -- and the status line gains
+  sd/pk, the noise floor against the reference row's peak.  The linear view
+  is left raw.  A free constant term for T2 was considered and declined: a
+  phased CPMG real part has none physically, the receiver's DC sits in the
+  f = 0 row alone, the magnitude bias is already corrected, and a constant is
+  nearly collinear with the longest-T columns the extended grid already
+  provides, so it would split arbitrarily with the slow components it is
+  there to see.
+- TikhonovRegular: the D2 matrix was built by adding a matrix to its own
+  transpose in place, which is aliasing and asserts in a debug Eigen; release
+  builds got the intended matrix only by the luck of column-major traversal
+  over that sparsity.  Found by the solver's test; eval().
+- NMR T1: a T2 multi-echo run grew 0.45 MB per record and reached 5 GB
+  overnight, then died in vm_map_enter (user).  Not the journal (off, same
+  slope), not the pool (it held exactly what had been asked for): live data.
+  RawPt::value_by_cond carried one complex number per condition, typically
+  two or four, in a std::deque, and libc++ gives a deque a whole 4 KB block
+  up front -- a hundred-fold for 32 bytes of payload.  Nothing noticed while
+  T1 was the mode in use, one point per record; T2_Multi pushes one per
+  echo, 32 per record, and every Payload copy deep-copies the lot.  std::
+  vector holds the same values in 16 to 64 bytes; every operation used is
+  common to both and no reference is held across a push_back.
+- NMR T1: the abscissa repeats, so a record is summed into the point already
+  at it (user).  T2_Multi walks the same 2 tau x i train every record and
+  the FLATTEN strategy picks P1 out of the same bins; only the value changes.
+  m_pts is held at the number of distinct abscissae -- 32 for a 32-echo train
+  instead of growing for the life of the measurement -- and the re-binning
+  that ran over all of it on every record shrinks with it.  The result is
+  identical: the reduction sums exactly these numbers, and two points
+  sharing a p1 always land in one bin; RawPt carries the count as weight.
+  P1STRATEGY_RANDOM draws a fresh P1 every record, where the search never
+  hits, so it stops once the list passes 1000.
+- Journal: replaying a session emptied the serial port and no fast-forward
+  brought it back (user).  A write's class -- request or report -- is read
+  off the committing thread, and xpythonsupport.py starts a thread of its
+  own for every .kam, .kamj and script it loads; those threads never declared
+  themselves, so everything a .kam restored was filed as a driver's own
+  report, which a replay does not put back.  The head dump carries no
+  attribution and is applied regardless, so the empty port a session journal
+  holds at startup went in and the real one never followed.  Every other
+  setting survived because the user also touches it during the session.
+  Declared in all three loaders and in the IPython pre_run_cell hook -- a
+  cell is the user operating the instrument -- through a wrapper that
+  tolerates a binary without the binding, since a NameError at the top of a
+  loader would otherwise abort the .kam load outright.  The XInterface
+  exclusion added first was treating the symptom and blocked the very entry
+  that would have restored the port; removed.  Journals already written keep
+  their attribution.
+- UI: the window layout of a measurement is recorded on File > Save, .kam or
+  .kamj, and nowhere else (user).  It was written on the way out -- at exit,
+  at File > Close, when another measurement was opened -- and all three are
+  teardown: quitting is when a user tidies up, so the forms still open then
+  are the ones not yet closed, the worst possible sample of where they
+  belong.  A KAME that crashed, or that refused to quit with an interface
+  running and was killed, remembered nothing at all.  Save As also sets the
+  document path now, which it never did: the layout was filed under the file
+  that had been opened, and a measurement built from nothing had no path to
+  file it under.  And a measurement that never loaded -- a .kam whose script
+  died -- no longer erases the record: an empty form list against a document
+  used to delete what the last good run remembered.
+- MCP / Pydantic AI: a figure from execute_code reaches the web UI.  The UI
+  renders images the model writes, not images a tool returns, so every PNG
+  the server returns is also saved under ~/.kame_mcp_log/plots (newest 200
+  kept) and served at /plots by the shipped agent's own web app,
+  kame_pydantic_ai:app, which KAME's launcher now names; a one-line image
+  reply shows it.  A figure a cell emits twice -- plt.show() and the figure
+  as the last expression -- is one figure.  kame_usage_logging() lets a
+  user's own agent share the usage log.
+- Docs: the README's Pydantic AI row is a row again, its details a paragraph
+  below the table; no inline code span crosses a line break in README or
+  manual, which one viewer rendered as a stray backtick and a lost argument.
+- tests/: run_v0_full_preload.sh duplicated the published copy under
+  kamestm/bench, the newer of the two; reverted.
+
+* Sun Sep 13 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- NMR pulse analyzer: the PNR transform is half as long, and its length is now
+  derived from what it is used for (user).  The least-square solvers lay their
+  synthesized ringing out around the middle of the transform -- ifft()[k] is
+  the ringing at sample k while k < n/2, and at sample k - n above that -- so
+  only the first half is the wave that backgroundSub() subtracts it from.  The
+  old length, 4 * (bgpos + bglength), met that only while the background ran
+  to the end of the record; that is the usual layout, which is why the other
+  half never showed itself, but a short background well before the end of the
+  record put the wrong branch into the tail of the displayed wave.  It is now
+  twice the span actually subtracted over, which is exact in either layout,
+  and the subtraction is clamped to that half as well.
+- FreqEstLeastSquare: the greedy loop interpolates the peak it finds and
+  solves the amplitude at that frequency, instead of taking both from the bin
+  the search landed on.  These two belong together: z's phase is referenced to
+  sample t0, so a fraction-of-a-bin shift in the frequency is a phase error of
+  2 pi (freq error) t0 / t at the data, and where t0 is many times t -- a
+  background segment taken long after the pulse, the usual PNR case -- that is
+  radians.  Interpolating the frequency while reading the amplitude off the
+  bin is therefore worse than not interpolating at all; solved together they
+  let the transform be half as long for the same answer.  Measured on
+  synthetic ringing over 54 geometries (background length, background
+  position, noise, damping), the pair at half the length matches the old peak
+  search at the old length to four decimals or beats it, at 1.6-2.0x the
+  speed.  The PNR solve dominates a journal replay.
+
 * Thu Sep 3 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Thamway USB pulser: the pattern resolution is no longer read before it is
+  set (user).  m_resolution is assigned only in open(), from the device's
+  CLK=...MHZ -- but resolution() is asked wherever a time is turned into
+  pattern samples, including analyzeRaw(), which a REPLAY runs with no
+  hardware opened at all.  Until then the member held whatever was in that
+  memory, so every one of those divisions was undefined: a journal recorded
+  with tau = 40 us and 5 us pulses replayed as "Pulse widths exceed Tau",
+  which invalidated the pulser's record, which stopped every secondary driver
+  connected to it -- no echo, no swept spectrum, nothing.  It now starts at
+  the pattern generator's nominal 100 MHz and open() replaces it as before.
+- Pulser: whether the RF pulses overlap is decided on the recorded
+  microseconds, before anything is divided by the device's resolution.  A
+  record is a fact, and refusing it must not depend on what rig happens to be
+  attached to the machine replaying it.
+- Pulser: landing a pulse width on the QAM sample grid no longer turns a
+  setting that fits into one that does not.  Rounding to the nearest grid
+  point lengthens a pulse by up to half of one -- 0.1 us where the grid is a
+  5 MSPS QAM sample -- so a tau chosen as short as the pulses allow could be
+  exceeded by widths that were inside it when they were recorded, and
+  "Pulse widths exceed Tau" threw out of analyzeRaw().  That invalidates the
+  pulser's record, and an invalid record stops EVERY secondary driver that has
+  the pulser among its connections before it analyses anything -- which is why
+  a replayed journal of a frequency-swept measurement no longer reproduced its
+  spectrum (user).  The widths are now rounded down to the grid before the
+  overlap is refused; only widths that overlap even then are refused.
 - UI: the LCD readouts lose their frame, which is what gives the digits room.
   The forms ask for a raised Box and QLCDNumber draws inside contentsRect(),
   so the frame both takes the space and puts a line exactly where the top bar

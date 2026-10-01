@@ -283,7 +283,11 @@ private:
     //! parsable, which is also what makes a killed session readable.
     struct Out {
         ~Out() {close();}
-        bool open(const XString &path);
+        //! \a append continues a file that exists, as a further gzip member.
+        bool open(const XString &path, bool append = false);
+        //! Added to every node id this output writes.  0 but for a run
+        //! appended to a journal another session began.  \sa syncRun()
+        uint32_t idBase = 0;
         void line(const XString &s);
         //! Ends a deflate block so everything so far reads on its own.
         //! Throttled: Z_FULL_FLUSH resets the dictionary, so flushing on
@@ -387,6 +391,9 @@ private:
     //! Open between the Write switch going on and off: the run.
     Out m_runOut;
     XString m_sessionPath, m_openPath, m_session;
+    //! The id base each run file was given this session, so that switching
+    //! Write off and on again keeps the ids the file already uses.
+    std::map<XString, uint32_t> m_runIdBases;
     //! A pending File > Save, handed over under m_wake like everything else.
     XString m_savePath;
     //! Whether the RUN wants values -- false for a Setup run, and while no

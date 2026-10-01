@@ -10,7 +10,8 @@ HEADERS += \
     pfeifferprotocol.h \
     serial.h \
     tcp.h \
-    modbusrtuinterface.h
+    modbusrtuinterface.h \
+    librevnascpi.h
 
 SOURCES += \
     charinterface.cpp \

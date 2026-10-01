@@ -334,6 +334,19 @@ class _KamStack(list):
 			self.append(val)
 		return self
 
+def _kame_declare_script_thread():
+	"""Say that this thread is a script's, so what it writes is journalled as a
+	request rather than as a driver reporting on itself.
+
+	Tolerant of a binary without the binding: this is a diagnostic, and it sits
+	at the top of the loaders, where a NameError would abort a .kam load
+	outright -- no drivers, and none of the forms that come back with them.
+	"""
+	try:
+		kame_declare_script_thread()
+	except NameError:
+		pass
+
 def loadKam(xpythread, filename):
 	"""Execute a .kam measurement configuration file using Python."""
 	import re
@@ -345,7 +358,7 @@ def loadKam(xpythread, filename):
 		#or report -- is read off the committing thread.  Undeclared, what
 		#a .kam restores is filed as a driver's own chatter, and a replay,
 		#which puts back requests only, will not restore it (user, port).
-		kame_declare_script_thread()
+		_kame_declare_script_thread()
 		xpythread["Status"] = "run"
 		with open(filename, 'r', encoding='utf-8') as f:
 			src = f.read()
@@ -394,7 +407,7 @@ def loadJournalDump(xpythread, filename):
 		#or report -- is read off the committing thread.  Undeclared, what
 		#a .kam restores is filed as a driver's own chatter, and a replay,
 		#which puts back requests only, will not restore it (user, port).
-		kame_declare_script_thread()
+		_kame_declare_script_thread()
 		xpythread["Status"] = "run"
 		# Sniffed, not guessed from the name: a .kamj is gzip because that is
 		# part of the format, and someone who unpacks one to edit it by hand
@@ -478,7 +491,7 @@ def loadSequence(xpythread, filename):
 		#or report -- is read off the committing thread.  Undeclared, what
 		#a .kam restores is filed as a driver's own chatter, and a replay,
 		#which puts back requests only, will not restore it (user, port).
-		kame_declare_script_thread()
+		_kame_declare_script_thread()
 		xpythread["Status"] = "run"
 		if "lineshell" in filename:
 			print("#KAME Python interpreter>")
@@ -1514,14 +1527,21 @@ def _register_stdio_entry():
     while KAME is down is therefore harmless too -- the server starts and its
     tools report that KAME is not running.
     """
+    import platform as _pf
     _pd = _kame_plugin_dir()
-    _launcher = os.path.join(_pd, 'bin', 'kame-mcp-server') if _pd else ''
+    # The POSIX launcher is a sh script; Windows gets its batch twin, run
+    # through cmd.exe because no client spawns a .cmd directly (the npx.cmd
+    # class of problem).  Registering the sh file there -- which this did --
+    # produced an entry no Windows client could start.
+    _win = _pf.system() == 'Windows'
+    _launcher = os.path.join(_pd, 'bin', 'kame-mcp-server' + ('.cmd' if _win else '')) \
+        if _pd else ''
     if not _launcher or not os.path.isfile(_launcher):
         _kame_gui_html('<font color="#cc0000">The plugin launcher was not found'
             '{} &mdash; rebuild/redeploy KAME.</font>'.format(
             ' at ' + html.escape(_launcher) if _launcher else ''))
         return None
-    return _launcher
+    return ['cmd', '/c', _launcher] if _win else [_launcher]
 
 
 def _claude_desktop_config():
@@ -1660,7 +1680,9 @@ def _register_desktop_mcp(apply=False):
     _launcher = _register_stdio_entry()
     if not _launcher:
         return
-    _entry = {'command': _launcher}
+    _entry = {'command': _launcher[0]}
+    if _launcher[1:]:
+        _entry['args'] = _launcher[1:]
     _sys = _pf.system()
     _plan, _done, _fail = [], [], []
 
@@ -1706,9 +1728,9 @@ def _register_desktop_mcp(apply=False):
     # not think to write.  `agy mcp add` records "disabled": false alongside
     # the command, which a hand-built entry would omit.
     for _label, _bin, _argv, _where in (
-            ('Codex', _cx, ['mcp', 'add', 'kame', '--', _launcher],
+            ('Codex', _cx, ['mcp', 'add', 'kame', '--'] + _launcher,
              '~/.codex/config.toml'),
-            ('Antigravity CLI', _agy, ['mcp', 'add', 'kame', _launcher],
+            ('Antigravity CLI', _agy, ['mcp', 'add', 'kame'] + _launcher,
              '~/.gemini/config/mcp_config.json')):
         if not _bin:
             continue
@@ -2047,12 +2069,31 @@ PYAI_SETTINGS_TEMPLATE = """\
 #KAME_PYAI_MODEL=sakana:fugu
 #KAME_PYAI_MODEL=sakana:fugu-ultra-v1.1
 
-# A model of your own through an OpenAI-compatible server (Ollama, LM Studio,
-# llama.cpp): name it openai:<model>, point OPENAI_BASE_URL at the server, and
-# give any non-empty OPENAI_API_KEY, which such servers ignore.
-#KAME_PYAI_MODEL=openai:qwen3:32b
-#OPENAI_BASE_URL=http://127.0.0.1:11434/v1
-#OPENAI_API_KEY=ollama
+# ---- Local models -----------------------------------------------------------
+# A model served on this machine needs no key and coexists with the cloud
+# keys below: the prefix carries the server's address.  The model must
+# support tool calls (Qwen3, Llama 3.1+, Mistral, GPT-OSS do).  A local
+# server that is running is offered in the web UI's menu even with no line
+# here; a line makes it the default.
+#
+# Bionic (or LM Studio): download a chat model in the app, start its server
+# (Developer tab > Start Server, or `lms server start`; port 1234), and use
+# the model id that `lms ls` prints:
+#KAME_PYAI_MODEL=bionic:qwen3.8-27b
+# Ollama (`ollama pull qwen3:32b`; it serves on 11434):
+#KAME_PYAI_MODEL=ollama:qwen3:32b
+# Any other OpenAI-compatible server (llama.cpp, vLLM, ...):
+#KAME_PYAI_MODEL=local:<model id>
+#KAME_PYAI_LOCAL_URL=http://127.0.0.1:8080/v1
+# Non-default ports for the two above: KAME_PYAI_BIONIC_URL / KAME_PYAI_OLLAMA_URL.
+
+# ---- How much a model may write ---------------------------------------------
+# Output tokens per reply, thinking included.  Claude models get 32000 from
+# KAME; other providers keep their own default until this line is set, and
+# then it applies to every model.  Raise it if a run ends with "Model token
+# limit ... exceeded before any response was generated" -- a model that
+# thinks at length can spend the whole allowance before writing a word.
+#KAME_PYAI_MAX_TOKENS=64000
 
 # ---- The key the chosen provider needs -------------------------------------
 # (Your own agent module sees these too, once it imports kame_pydantic_ai.)
@@ -2178,7 +2219,7 @@ def _pyai_help_file(py, script, agent, own, model, wd, system):
 		'  agent        the "agent" link in KAME (Cancel there = back to the one KAME ships)',
 		'  model        KAME_PYAI_MODEL=provider:name   in {}'.format(_prof),
 		'               e.g. anthropic:claude-sonnet-4-5 | openai:gpt-5 | sakana:fugu |',
-		'               openai:<local name> together with OPENAI_BASE_URL (Ollama, LM Studio)',
+		'               bionic:<model id> | ollama:<model id>   (local, no key needed)',
 		'The usual messages, and the fix for each:',
 		'  "Set the XXX_API_KEY environment variable"',
 		'        XXX_API_KEY=...   in {}.'.format(_prof),
@@ -2188,7 +2229,7 @@ def _pyai_help_file(py, script, agent, own, model, wd, system):
 		'  "Could not reach KAME\'s MCP server" / "failed to connect"',
 		'        KAME must be running, with its Jupyter notebook launched (Script pane)',
 		'        in THIS session.  Test:  {} {} --check'.format(_t(py), _t(script)),
-		'  "No module named ..."           uv pip install --python {} pydantic-ai clai'.format(_t(py)),
+		'  "No module named ..."           uv pip install --python {} pydantic-ai clai uvicorn'.format(_t(py)),
 		'                                  ({} -m pip install ...  for a pip-made venv)'.format(_t(py)),
 		'Manual: MCP chapter, Troubleshooting table -- ' + MCP_SETUP_URL,
 		'-' * 72,
@@ -2217,7 +2258,11 @@ def _pyai_agent(py):
 		_saved = ''
 	_spec = _saved or os.environ.get('KAME_PYAI_AGENT') or ''
 	if not _spec:
-		return ('kame_pydantic_ai:agent', None, '')
+		# The shipped agent names its own web app too: served with uvicorn it
+		# carries KAME's saved figures at /plots, which `clai web`'s app --
+		# not ours to mount on -- never could.  clai remains the CLI path and
+		# the web fallback when the venv has no uvicorn.
+		return ('kame_pydantic_ai:agent', None, 'kame_pydantic_ai:app')
 	#A spec file (clai reads .yml/.yaml/.json itself) is passed as a path;
 	#a module spec needs its own directory as cwd so the import resolves.
 	_parts = _spec.split('|')
@@ -2483,7 +2528,7 @@ def kame_handle_link(action):
 			# over HTTP from ~/.kame_mcp_url and carries the server's safety
 			# instructions with the toolset.
 			#
-			# The usual install is a VENV (pip install pydantic-ai clai into
+			# The usual install is a VENV (pip install pydantic-ai clai uvicorn into
 			# ~/somewhere/venv), which no PATH probe can see — so the GUI asks
 			# for the venv folder on first use (kame.cpp, like the notebook
 			# workspace dialog), passes it as 'pyai-cli?venv=<dir>', and the
@@ -2586,10 +2631,10 @@ def kame_handle_link(action):
 					_c0 = html.escape(_cands[0])
 					_kame_gui_html('<font color="#cc0000">{0} lacks <tt>pydantic_ai</tt>{1}{2}'
 						'<br/>Install it into that venv &mdash; one of:<br/>'
-						'&nbsp;&nbsp;<tt>uv pip install --python {0} pydantic-ai clai</tt><br/>'
-						'&nbsp;&nbsp;<tt>{0} -m pip install pydantic-ai clai</tt>'
+						'&nbsp;&nbsp;<tt>uv pip install --python {0} pydantic-ai clai uvicorn</tt><br/>'
+						'&nbsp;&nbsp;<tt>{0} -m pip install pydantic-ai clai uvicorn</tt>'
 						'&nbsp; (pip-made venvs only: a venv made by uv has no pip)<br/>'
-						'&nbsp;&nbsp;<tt>uv add pydantic-ai clai</tt> in the project folder, '
+						'&nbsp;&nbsp;<tt>uv add pydantic-ai clai uvicorn</tt> in the project folder, '
 						'if it is a uv project (also records them in pyproject)<br/>'
 						'then click the link again and pick the same folder.</font>'.format(
 						_c0,
@@ -2648,16 +2693,16 @@ def kame_handle_link(action):
 					if os.name == 'nt':
 						_mk = ('&nbsp;&nbsp;<tt>uv venv %USERPROFILE%\\kame-pyai &amp;&amp; '
 							'uv pip install --python %USERPROFILE%\\kame-pyai\\Scripts'
-							'\\python.exe pydantic-ai clai</tt><br/>'
+							'\\python.exe pydantic-ai clai uvicorn</tt><br/>'
 							'&nbsp;&nbsp;<tt>py -m venv %USERPROFILE%\\kame-pyai &amp;&amp; '
 							'%USERPROFILE%\\kame-pyai\\Scripts\\pip install pydantic-ai '
 							'clai</tt><br/>then click the link again and pick '
 							'<tt>%USERPROFILE%\\kame-pyai</tt>')
 					else:
 						_mk = ('&nbsp;&nbsp;<tt>uv venv ~/kame-pyai &amp;&amp; uv pip install '
-							'--python ~/kame-pyai/bin/python pydantic-ai clai</tt><br/>'
+							'--python ~/kame-pyai/bin/python pydantic-ai clai uvicorn</tt><br/>'
 							'&nbsp;&nbsp;<tt>python3 -m venv ~/kame-pyai &amp;&amp; '
-							'~/kame-pyai/bin/pip install pydantic-ai clai</tt><br/>'
+							'~/kame-pyai/bin/pip install pydantic-ai clai uvicorn</tt><br/>'
 							'then click the link again and pick <tt>~/kame-pyai</tt>'
 							+ ('. On macOS keep it out of Documents, Desktop, Downloads '
 							   'and iCloud Drive: privacy protection blocks a child of '
@@ -2755,15 +2800,23 @@ def kame_handle_link(action):
 				if action == 'pyai-web' and _webapp and os.path.isfile(_uvi):
 					_cmd = [_uvi, _webapp, '--host', '127.0.0.1', '--port', str(_port)]
 				else:
+					# No -m for the CLI: the agent binds its model itself (the first
+					# of KAME_PYAI_MODEL, else the first its keys reach), already
+					# resolved and carrying its output budget, and clai REPLACES a
+					# bound model whenever -m is given (`agent.model =
+					# infer_model(...)`) -- which dropped that budget and cannot
+					# resolve sakana:/bionic: at all.  Only the clai-web fallback
+					# (no uvicorn) still gets -m, to fill its model picker.
 					_models = [_x for _x in re.split(r'[,\s]+', _model) if _x] \
-							  if _model and (not _own or action == 'pyai-web') else []
+							  if _model and action == 'pyai-web' else []
 					# clai's infer_model() knows no `sakana:`; the module resolves
 					# that prefix itself and binds the FIRST listed model.  Any -m
 					# makes clai override that binding, so with a sakana default
 					# pass none, and never pass a sakana entry.
-					if _models and _models[0].startswith('sakana:'):
+					_kame_only = ('sakana:', 'bionic:', 'ollama:', 'local:')
+					if _models and _models[0].startswith(_kame_only):
 						_models = []
-					_models = [_x for _x in _models if not _x.startswith('sakana:')]
+					_models = [_x for _x in _models if not _x.startswith(_kame_only)]
 					_cmd = [_clai] + (['web'] if action == 'pyai-web' else []) \
 						   + ['-a', _agent] \
 						   + [_a for _x in _models for _a in ('-m', _x)] \
@@ -2816,9 +2869,11 @@ def kame_handle_link(action):
 				_open_when_listening(_weburl, "127.0.0.1", _port)
 			_kame_gui_log("#Launching Pydantic AI {} in {} ({}) ...".format(
 				"web UI" if action == 'pyai-web' else "CLI", _wd,
-				("via clai, agent " + _agent + ("; its own model" if _own
-					else "; model from -m or clai's default"))
-				if _via_clai else _py + "; needs --model or KAME_PYAI_MODEL"))
+				("serving " + _webapp + " with uvicorn; figures at /plots"
+				 if _via_clai and action == 'pyai-web' and _cmd and _cmd[0] == _uvi
+				 else ("via clai, agent " + _agent + ("; its own model" if _own
+					else "; model from ~/.kame_pyai.env, else the first your keys reach"))
+				if _via_clai else _py + "; needs --model or KAME_PYAI_MODEL")))
 		else:
 			_kame_gui_html('<font color="#cc0000">Unknown link action: {}</font>'.format(
 				html.escape(str(action))))
@@ -3015,7 +3070,7 @@ else:
 				#typed value is.  The kernel executes on a thread of its own,
 				#so say so here: undeclared, every node a cell writes is filed
 				#as a driver's own report and a replay will not restore it.
-				kame_declare_script_thread()
+				_kame_declare_script_thread()
 				if TLS.xscrthread:
 					lines = (getattr(info, 'raw_cell', '') or '').strip().splitlines()
 					head = lines[0][:60] if lines else ''
