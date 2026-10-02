@@ -26,12 +26,18 @@ XOceanOpticsSpectrometer::XOceanOpticsSpectrometer(const char *name, bool runtim
     XCharDeviceDriver<XOpticalSpectrometer, XOceanOpticsUSBInterface>(name, runtime, ref(tr_meas), meas) {
 //    startWavelen()->disable();
 //    stopWavelen()->disable();
-    trans( *trigMode()).add({"Free Run", "Software Trig.", "Ext. Hardware Trig."
-        , "Ext. Sync. Trig.", "Ext. Hardware Edge Trig."});
+    //! The combo index IS the raw SET_TRIG_MODE value, and the label says so. Only 0 and 1 are
+    //! unambiguous across firmware generations; what 2/3/4 mean depends on the FPGA firmware
+    //! version (see XOceanOpticsUSBInterface::TrigMode), so they are named by value rather than
+    //! by a guessed semantic — a mislabelled external mode previously made the driver sit in a
+    //! mode that returns un-integrated (dark) readouts. open() reports the firmware version.
+    trans( *trigMode()).add({"Free Run (0)", "Software Trig. (1)",
+        "Ext. Trig. 2", "Ext. Trig. 3", "Ext. Trig. 4"});
 }
 
 void
 XOceanOpticsSpectrometer::open() {
+    m_statusCacheValid = false; //nothing cached yet for this device session.
     interface()->initDevice();
 
     auto config = interface()->readConfigurations();
@@ -56,8 +62,20 @@ XOceanOpticsSpectrometer::open() {
 
     try {
         auto status = interface()->readInstrumStatus();
-        uint16_t ver = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::FPGAFirmwareVersion);
-        ver /= 0x1000; //major version.
+        uint16_t ver_raw = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::FPGAFirmwareVersion);
+        uint16_t ver = ver_raw / 0x1000; //major version.
+        //Report the version, but do NOT assert what the external values mean: an HR4000
+        //reporting 0x3000 was measured to follow NEITHER vendor document — value 2 behaved as
+        //Synchronization (exposure tracked the trigger PERIOD, independent of duty), value 3
+        //returned un-integrated frames, and value 4 was ignored (device stayed free-running).
+        //So the candidate meanings are printed as candidates, to be confirmed on the bench.
+        gMessagePrint(formatString("FPGA firmware 0x%04x (major %u). External TrigMode values are "
+            "raw SET_TRIG_MODE payloads; verify on the bench — vendor docs disagree and at least "
+            "one unit follows neither. Candidates: doc<3.0 => 2=Synchronization, "
+            "3=Hardware(edge, exposure=IntegrationTime); doc>=3.0 => 2=Hardware LEVEL"
+            "(exposure=trigger HIGH width), 3=Synchronous, 4=Hardware EDGE. Bench test: at fixed "
+            "frequency, counts that track DUTY mean LEVEL, counts that track PERIOD mean "
+            "SYNCHRONIZATION.", (unsigned)ver_raw, (unsigned)ver));
         uint16_t div = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::MasterClockCounterDivisor);
         uint16_t delay = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::HardwareTriggerDelay);
         uint16_t time_to_strobe = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::SingleStrobeHighClockTransition);
@@ -85,6 +103,7 @@ XOceanOpticsSpectrometer::onAverageChanged(const Snapshot &shot, XValueNodeBase 
 void
 XOceanOpticsSpectrometer::onIntegrationTimeChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
+        m_statusCacheValid = false; //integration time is one of the cached status fields.
         interface()->setIntegrationTime(lrint(shot[ *integrationTime()] * 1e6));
     }
     catch (XKameError &e) {
@@ -111,11 +130,47 @@ XOceanOpticsSpectrometer::onStrobeCondChnaged(const Snapshot &, XValueNodeBase *
     }
 }
 void
-XOceanOpticsSpectrometer::onTrigCondChnaged(const Snapshot &shot, XValueNodeBase *) {
+XOceanOpticsSpectrometer::onTrigCondChnaged(const Snapshot &, XValueNodeBase *) {
     try {
+        m_statusCacheValid = false; //trigger mode and the device reset below both stale it.
         Snapshot shot( *this);
-        interface()->setupTrigCond((XOceanOpticsUSBInterface::TrigMode)(unsigned int)shot[ *trigMode()],
+        if( !interface()->isUSB2000()) {
+            //HR4000-class only. Leaving a trigger mode can latch the FPGA acquisition state
+            //(status[8] stuck at 3 "acquiring", so Free Run never reports ready). Neither
+            //SET_TRIG_MODE nor CMD::INIT clears that — only a USB port reset does (the same as
+            //a manual interface Control off/on). So on any trigger-mode change: reset the
+            //device (close+reopen the handle), re-init, then re-apply the current settings
+            //before applying the new trigger mode. OceanOptics firmware is persistent, so the
+            //reset does not require a firmware reload. USB2000 lacks these FPGA registers and
+            //is left to the original (no-op-ish) path below.
+            interface()->resetDevice();
+            msecsleep(100); //let the port reset settle before talking to the device again.
+            interface()->initDevice();
+            interface()->clearSpectrumEndpoints();
+            interface()->setIntegrationTime(lrint(shot[ *integrationTime()] * 1e6));
+            interface()->enableStrobe(shot[ *enableStrobe()]);
+            interface()->setupStrobeCond(shot[ *timeToStrobeSignal()], shot[ *strobeSignalDuration()]);
+        }
+        unsigned int requested = (unsigned int)shot[ *trigMode()];
+        interface()->setupTrigCond((XOceanOpticsUSBInterface::TrigMode)requested,
             shot[ *delayFromExtTrig()]);
+        //Read the mode back from the device: status[7] is the trigger mode the firmware actually
+        //holds. If it does not echo what we sent, the value is unsupported on this firmware —
+        //which is the failure that silently returns un-integrated (dark) frames. Purely
+        //diagnostic, so a failed read must not abort the mode change.
+        try {
+            auto st = interface()->readInstrumStatus();
+            if(st.size() > 8)
+                gMessagePrint(formatString(
+                    "%s: TrigMode requested %u -> device reports %u (acq. status %u)",
+                    getLabel().c_str(), requested, (unsigned)st[7], (unsigned)st[8]));
+            //Deliberately NOT filled into m_cachedStatus: that vector is written only by the
+            //acquisition thread (this runs on the caller's), and m_statusCacheValid stays false
+            //above, so the acquisition thread refreshes it itself.
+        }
+        catch (XKameError &) {
+            //device busy/armed right after the change; the acquisition loop will re-read it.
+        }
     }
     catch (XKameError &e) {
         e.print(getLabel() + " " + i18n(" Error"));
@@ -134,12 +189,42 @@ XOceanOpticsSpectrometer::onAnalogOutputChnaged(const Snapshot &shot, XValueNode
 
 
 void
-XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
+XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer, const atomic<bool> &terminated) {
+    // Take the commanded trigger mode BEFORE the interface lock: a device mutex must never be
+    // held across a Snapshot. It also replaces the former status[7] probe — deciding this from
+    // a status query is what forced a USB round trip to an armed device on every cycle.
+    const bool in_trig_mode = ((unsigned int)Snapshot( *this)[ *trigMode()] != 0);
+    // Same reason for the commanded exposure: it selects the read strategy below and must be
+    // read outside the device mutex.
+    const double commanded_exposure = Snapshot( *this)[ *integrationTime()];
+
     XScopedLock<XOceanOpticsUSBInterface> lock( *interface());
     bool isusb2000 = interface()->isUSB2000();
 
     if(isusb2000) //USB2000 can respond control commands even after requestSpectrum().
         interface()->requestSpectrum();
+
+    // Two situations need the interruptible, polled read (readSpectrumInterruptible) instead
+    // of the synchronous one, and they need it for the same underlying reason: the synchronous
+    // path arms a FIXED libusb timeout (USB_TIMEOUT, 6 s) on both the status query and the
+    // spectrum transfer, and a device that is busy integrating answers neither within it.
+    //
+    //   (a) External/software trigger: the spectrometer yields a spectrum only after an edge,
+    //       which may be arbitrarily far away.
+    //   (b) Free Run with a long exposure: the frame is simply not ready for `exposure`
+    //       seconds. Past ~6 s the status read blocks for the whole timeout and comes back
+    //       short (XConvError), and the spectrum read is cancelled before the device sends
+    //       anything -- so the loop retries forever, never producing a frame, while each
+    //       attempt holds the interface mutex for 6 s (which also stalls any GUI/script write
+    //       to a node of this driver). Setting IntegrationTime to 10 s did exactly this.
+    //
+    // Treat both the same: skip the acq_ready gate, arm, and poll for the data with a timeout
+    // derived from the exposure. SLOW_READ_EXPOSURE_SEC is well under USB_TIMEOUT so that the
+    // synchronous path is only used when the frame is certain to be ready in time.
+    static constexpr double SLOW_READ_EXPOSURE_SEC = 2.0;
+    const bool slow_read = !isusb2000 &&
+        (in_trig_mode || (commanded_exposure > SLOW_READ_EXPOSURE_SEC));
+    bool trig_mode = slow_read; //!< selects the polled read path, see above.
 
     uint16_t pixels = 2048u;
     uint8_t usb_speed = 0u;
@@ -147,7 +232,26 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
     uint32_t integration_time_us = 0;
     std::vector<uint8_t> status;
     if(interface()->hasStatusQuery()) {
-        status = interface()->readInstrumStatus();
+        if(trig_mode && m_statusCacheValid && !m_cachedStatus.empty()) {
+            // Armed, or integrating for a long time: reuse the cached status rather than
+            // polling the device. A status read issued against a busy device can block for the
+            // entire USB timeout and come back short, which readInstrumStatus() reports as
+            // XConvError. acq_ready is only consulted on the path this branch excludes, so a
+            // stale copy is fine.
+            status = m_cachedStatus;
+        }
+        else {
+            try {
+                status = interface()->readInstrumStatus();
+            }
+            catch (XInterface::XConvError &) {
+                // Short read: the transfer timed out against a busy/armed device. Recoverable,
+                // so skip this cycle quietly instead of reporting a communication failure.
+                throw XSkippedRecordError(__FILE__, __LINE__);
+            }
+            m_cachedStatus = status;
+            m_statusCacheValid = true;
+        }
 
         pixels = isusb2000 ? status[0] * 0x100u + status[1] : status[0] + status[1] * 0x100u;
     //        uint8_t packets_in_spectrum = status[9];
@@ -158,8 +262,9 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
         integration_time_us = isusb2000 ? (status[2] * 0x100u + status[3]) * 1000u:
                     status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
     }
-    if( !acq_ready) {
-//            //waits for completion
+
+    if( !trig_mode && !acq_ready) {
+        //waits for completion
         msecsleep(std::min(100.0, integration_time_us * 1e-3 / 4));
         throw XSkippedRecordError(__FILE__, __LINE__);
     }
@@ -181,7 +286,16 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
     for(double x:  m_nonlinCorrCoeffs)
         writer->push(x);
 
-    int len = interface()->readSpectrum(m_spectrumBuffer, pixels, usb_speed == 0x80u);
+    int len;
+    if(trig_mode) {
+        //On-demand: wait for the requested trigger (its edge then the exposure). Generous,
+        //since the loop is idle between requests; thread stop aborts immediately.
+        double trig_timeout = std::max(15.0, integration_time_us * 1e-6 * 2 + 10.0);
+        len = interface()->readSpectrumInterruptible(m_spectrumBuffer, pixels,
+            usb_speed == 0x80u, terminated, trig_timeout);
+    }
+    else
+        len = interface()->readSpectrum(m_spectrumBuffer, pixels, usb_speed == 0x80u);
     if( !len)
         throw XSkippedRecordError(__FILE__, __LINE__);
     writer->push((uint32_t)len); //be actual pixels + 1(end delimiter 0x69).

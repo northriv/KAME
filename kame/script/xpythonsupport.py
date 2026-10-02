@@ -129,12 +129,25 @@ TLS.logfile = None
 import io
 
 class MyDefIO:
+	def _log(self, s):
+		#Mirroring to the per-script .log file must NEVER be able to raise: this runs
+		#inside sys.stderr.write(), and a raising stderr turns one script error into the
+		#threading.excepthook / sys.unraisablehook cascade (each fallback tries stderr
+		#again and dies the same way).  The concrete case: loadSequence's `with open(...)
+		#as logfile` closes the file while unwinding, but TLS.logfile still points at it,
+		#so the very first write of the traceback hit "I/O operation on closed file".
+		#Drop the handle on any failure so the next line does not retry it.
+		if not s or not getattr(TLS, 'logfile', None):
+			return
+		try:
+			TLS.logfile.write(str(datetime.datetime.now()) + ":" + s + '\n')
+			TLS.logfile.flush()
+		except Exception:
+			TLS.logfile = None
 	def write_html(self, s):
 		if hasattr(TLS, 'xscrthread') and TLS.xscrthread:
 			my_defout(TLS.xscrthread, s)
-			if s and TLS.logfile:
-				TLS.logfile.write(str(datetime.datetime.now()) + ":" + s + '\n')
-				TLS.logfile.flush()
+			self._log(s)
 			return len(s)
 		else:
 			return STDERR.write(s) #redirecting to terminal, for debug purpose.
@@ -167,9 +180,7 @@ class MyDefIO:
 					#redirecting to area beneath the cell, for jupyter notebook.
 					display(IPython.display.HTML(escaped_s))
 			my_defout(TLS.xscrthread, escaped_s)
-			if s and TLS.logfile:
-				TLS.logfile.write(str(datetime.datetime.now()) + ":" + s + '\n')
-				TLS.logfile.flush()
+			self._log(s)
 			return len(s)
 		else:
 			return STDERR.write(s) #redirecting to terminal, for debug purpose.
@@ -505,10 +516,15 @@ def loadSequence(xpythread, filename):
 				_ns["__file__"] = filename
 				exec(compile(_src, filename, "exec"), _ns)
 				print(str(threading.current_thread()) + " Finished.")
-				TLS.logfile = None
 	except Exception:
 		sys.stderr.write(str(traceback.format_exc()))
-	TLS.xscrthread["Status"] = ""
+	finally:
+		#Both in a finally: on the error path the `with` above has already closed the
+		#log file, and leaving TLS.logfile pointing at it made the next write raise.
+		#Status likewise had to be cleared unconditionally -- when the write did raise,
+		#the thread died with Status still "run" and KAME would not start it again.
+		TLS.logfile = None
+		TLS.xscrthread["Status"] = ""
 
 def kame_pybind_one_iteration():
 	global _deferred_done

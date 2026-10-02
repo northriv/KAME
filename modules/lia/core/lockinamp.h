@@ -56,6 +56,9 @@ protected:
 	const shared_ptr<XDoubleNode> & frequency() const {return m_frequency;}
 	const shared_ptr<XComboNode> & sensitivity() const {return m_sensitivity;}
 	const shared_ptr<XComboNode> & timeConst() const {return m_timeConst;}
+	//! Output low-pass filter roll-off [dB/octave]. Left empty by drivers with no such
+	//! control; those simply do not override changeFilterSlope(), whose default is a no-op.
+	const shared_ptr<XComboNode> & filterSlope() const {return m_filterSlope;}
 	const shared_ptr<XBoolNode> & autoScaleX() const {return m_autoScaleX;}
 	const shared_ptr<XBoolNode> & autoScaleY() const {return m_autoScaleY;}
 	const shared_ptr<XDoubleNode> & fetchFreq() const {return m_fetchFreq;}
@@ -65,6 +68,8 @@ protected:
 	virtual void changeFreq(double freq) = 0;
 	virtual void changeSensitivity(int) = 0;
 	virtual void changeTimeConst(int) = 0;
+	//! NOT pure virtual on purpose: only drivers that expose a filter slope override it.
+	virtual void changeFilterSlope(int) {}
 private:
 	const shared_ptr<XScalarEntry> m_valueX, m_valueY;
  
@@ -72,11 +77,12 @@ private:
 	const shared_ptr<XDoubleNode> m_frequency;
 	const shared_ptr<XComboNode> m_sensitivity;
 	const shared_ptr<XComboNode> m_timeConst;
+	const shared_ptr<XComboNode> m_filterSlope;
 	const shared_ptr<XBoolNode> m_autoScaleX;
 	const shared_ptr<XBoolNode> m_autoScaleY;
 	const shared_ptr<XDoubleNode> m_fetchFreq; //Data Acquision Frequency to Time Constant
-	shared_ptr<Listener> m_lsnOutput, m_lsnSens, m_lsnTimeConst, m_lsnFreq;
-	xqcon_ptr m_conSens, m_conTimeConst, m_conOutput, m_conFreq;
+	shared_ptr<Listener> m_lsnOutput, m_lsnSens, m_lsnTimeConst, m_lsnFreq, m_lsnFilterSlope;
+	xqcon_ptr m_conSens, m_conTimeConst, m_conOutput, m_conFreq, m_conFilterSlope;
 	xqcon_ptr m_conAutoScaleX, m_conAutoScaleY, m_conFetchFreq;
  
 	const qshared_ptr<FrmLIA> m_form;
@@ -85,6 +91,7 @@ private:
 	void onFreqChanged(const Snapshot &shot, XValueNodeBase *);
 	void onSensitivityChanged(const Snapshot &shot, XValueNodeBase *);
 	void onTimeConstChanged(const Snapshot &shot, XValueNodeBase *);
+	void onFilterSlopeChanged(const Snapshot &shot, XValueNodeBase *);
 
 	void *execute(const atomic<bool> &);
   

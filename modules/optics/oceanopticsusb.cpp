@@ -78,10 +78,9 @@ XOceanOpticsUSBInterface::setIntegrationTime(unsigned int us) {
     uint8_t ll = us % 0x100uL;
     uint8_t cmds[] = {(uint8_t)CMD::SET_INTEGRATION_TIME, ll, lh, hl, hh}; //littleendian
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
-
-    unsigned int clk = readRegInfo(Register::IntegrationPeriodBaseClock);
-    unsigned int div = readRegInfo(Register::IntegrationClockTimeDivisor);
-    fprintf(stderr, "CLK=%u, DIV=%u\n", clk, div);
+    //(Removed debug-only readRegInfo(CLK)/readRegInfo(DIV): those extra register reads on
+    // every integration-time change can time out and wedge the device when it is armed/busy
+    // in external-trigger mode.)
 }
 
 void
@@ -197,6 +196,20 @@ XOceanOpticsUSBInterface::requestSpectrum() {
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
 }
 
+void
+XOceanOpticsUSBInterface::clearSpectrumEndpoints() {
+    XScopedLock<XOceanOpticsUSBInterface> lock( *this);
+    usb()->clearHalt(m_ep_in_spec);
+    usb()->clearHalt(m_ep_in_spec_first1Kpixels);
+}
+
+void
+XOceanOpticsUSBInterface::resetDevice() {
+    XScopedLock<XOceanOpticsUSBInterface> lock( *this);
+    if(usb())
+        usb()->resetDevice();
+}
+
 int
 XOceanOpticsUSBInterface::readSpectrum(std::vector<uint8_t> &buf, uint16_t pixels, bool usb_highspeed) {
     XScopedLock<XOceanOpticsUSBInterface> lock( *this);
@@ -223,6 +236,40 @@ XOceanOpticsUSBInterface::readSpectrum(std::vector<uint8_t> &buf, uint16_t pixel
         }
     }
 
+    return len;
+}
+
+int
+XOceanOpticsUSBInterface::readSpectrumInterruptible(std::vector<uint8_t> &buf, uint16_t pixels,
+    bool usb_highspeed, const atomic<bool> &terminated, double timeout_sec) {
+    XScopedLock<XOceanOpticsUSBInterface> lock( *this);
+    buf.resize(2 * pixels + 1);
+    int len = 0;
+    //Reads one chunk while polling for completion, so we can wait for an external trigger
+    //without the synchronous path's fixed 6 s cancel-on-timeout. hasFinished() pumps libusb
+    //events but never cancels; we only abort() on thread stop or a long no-trigger timeout.
+    auto poll_read = [&](uint8_t ep, uint8_t *dst, int want) -> int {
+        auto async = usb()->asyncBulkRead(ep, dst, want); //timeout_ms=0: no libusb timeout.
+        XTime start = XTime::now();
+        while( !async->hasFinished()) { //each call handles events for up to ~20 ms.
+            if(terminated || (XTime::now() - start > timeout_sec)) {
+                async->abort();
+                async->waitFor(); //let the cancellation settle before the buffer is freed.
+                usb()->clearHalt(ep); //clear any stall left by the cancelled transfer.
+                return -1;
+            }
+        }
+        return (int)async->waitFor();
+    };
+    if(usb_highspeed && (pixels > 2048)) {
+        //HR4000: first 1K pixels arrive on the dedicated endpoint.
+        int r = poll_read(m_ep_in_spec_first1Kpixels, &buf[0], 1024 * 2);
+        if(r < 0) return 0;
+        len += r;
+    }
+    int r = poll_read(m_ep_in_spec, &buf[len], (int)buf.size() - len);
+    if(r < 0) return 0;
+    len += r;
     return len;
 }
 #endif // OCEANOPTICSUSB_H
