@@ -161,6 +161,7 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
         }
 
         virtual bool hasFinished() const noexcept override;
+        virtual bool waitUntilFinished(unsigned int timeout_ms) noexcept override;
         virtual int64_t waitFor() override;
         virtual bool abort() noexcept override;
 
@@ -280,6 +281,24 @@ CyFXLibUSBDevice::AsyncIO::hasFinished() const noexcept {
         //handles events within 20 ms.
         readBarrier();
     }
+    return completed;
+}
+
+bool
+CyFXLibUSBDevice::AsyncIO::waitUntilFinished(unsigned int timeout_ms) noexcept {
+    //Blocks in libusb until this transfer completes, some other event arrives, or
+    //timeout_ms passes -- the sleeping counterpart of hasFinished(), whose zero
+    //timeval makes every call return at once.  The `completed` form is libusb's
+    //documented pattern for a synchronous wait shared with other threads' events.
+    if(completed)
+        return true;
+    struct timeval tv;
+    tv.tv_sec = timeout_ms / 1000;
+    tv.tv_usec = (timeout_ms % 1000) * 1000;
+    int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, &completed);
+    if(ret)
+        fprintf(stderr, "Error during waiting for a transfer in libusb: %s\n", libusb_error_name(ret));
+    readBarrier();
     return completed;
 }
 

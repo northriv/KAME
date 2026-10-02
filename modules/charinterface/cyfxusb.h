@@ -96,6 +96,20 @@ struct CyFXUSBDevice {
             m_count_imm = count_imm;
         }
         virtual bool hasFinished() const noexcept {return false;} //gcc doesn't accept pure virtual.
+        //! Waits up to \a timeout_ms for completion WITHOUT spinning, and reports whether
+        //! it completed.  hasFinished() only pumps events and returns, so a caller that
+        //! must wait a long time (an external trigger, a long exposure) and loops on it
+        //! burns a core.  The default polls hasFinished() with a short sleep; a backend
+        //! that can block in its event loop overrides it.
+        virtual bool waitUntilFinished(unsigned int timeout_ms) noexcept {
+            for(unsigned int t = 0; ; t += 5) {
+                if(hasFinished())
+                    return true;
+                if(t >= timeout_ms)
+                    return false;
+                msecsleep(5);
+            }
+        }
         virtual int64_t waitFor() {return 0;} //gcc doesn't accept pure virtual.
         //! \return true if a cancelation is successfully requested.
         virtual bool abort() noexcept {return false;} //gcc doesn't accept pure virtual.

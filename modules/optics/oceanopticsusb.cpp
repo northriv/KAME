@@ -251,7 +251,10 @@ XOceanOpticsUSBInterface::readSpectrumInterruptible(std::vector<uint8_t> &buf, u
     auto poll_read = [&](uint8_t ep, uint8_t *dst, int want) -> int {
         auto async = usb()->asyncBulkRead(ep, dst, want); //timeout_ms=0: no libusb timeout.
         XTime start = XTime::now();
-        while( !async->hasFinished()) { //each call handles events for up to ~20 ms.
+        //Sleep in the USB event loop between checks: hasFinished() returns at once, so
+        //looping on it spun a whole core for as long as the trigger took to come (~100% on
+        //Linux and Windows).  50 ms bounds how late a stop or a timeout is noticed.
+        while( !async->waitUntilFinished(50)) {
             if(terminated || (XTime::now() - start > timeout_sec)) {
                 async->abort();
                 async->waitFor(); //let the cancellation settle before the buffer is freed.
