@@ -166,6 +166,19 @@ XAgilent33250A::open() {
     __width = 0.0;
     __period = 0.0;
 
+    //Read the running phase back, so the Phase node starts at the instrument's value.  It
+    //is a runtime node defaulting to 0, and every continuous-mode update sends PHAS from it:
+    //without this the first update after connecting wrote 0 over whatever phase the unit
+    //held.  A model that does not answer PHAS? just keeps 0.
+    double __phase = 0.0;
+    try {
+        interface()->query("PHAS?");
+        __phase = interface()->toDouble();
+    }
+    catch (XKameError &) {
+        __phase = 0.0;
+    }
+
     iterate_commit([=](Transaction &tr){
         tr[ *burst()] = __burst;
         tr[ *burstPhase()] = __burstphase;
@@ -177,6 +190,7 @@ XAgilent33250A::open() {
         tr[ *pulsePeriod()] = __period;
         tr[ *pulseWidth()] = __width;
         tr[ *waveform()].str(__func);
+        tr[ *phase()] = __phase;
         tr[ *trigSrc()].str(__trigsrc);
     });
 
@@ -278,6 +292,19 @@ XArbFuncGenSCPI::open() {
     __width = 0.0;
     __period = 0.0;
 
+    //Read the running phase back, so the Phase node starts at the instrument's value.  It
+    //is a runtime node defaulting to 0, and every continuous-mode update sends PHAS from it:
+    //without this the first update after connecting wrote 0 over whatever phase the unit
+    //held.  A model that does not answer PHAS? just keeps 0.
+    double __phase = 0.0;
+    try {
+        interface()->query("PHAS?");
+        __phase = interface()->toDouble();
+    }
+    catch (XKameError &) {
+        __phase = 0.0;
+    }
+
     iterate_commit([=](Transaction &tr){
         tr[ *burst()] = __burst;
         tr[ *burstPhase()] = __burstphase;
@@ -289,6 +316,7 @@ XArbFuncGenSCPI::open() {
         tr[ *pulsePeriod()] = __period;
         tr[ *pulseWidth()] = __width;
         tr[ *waveform()].str(__func);
+        tr[ *phase()] = __phase;
         tr[ *trigSrc()].str(__trigsrc);
     });
 
