@@ -510,12 +510,20 @@ def loadSequence(xpythread, filename):
 				#and copied so a script cannot clobber them for everyone
 				#else.  compile() with the real path also puts the filename
 				#and correct lines in tracebacks instead of "<string>".
-				_src = open(filename, encoding="utf-8").read()
-				_ns = dict(globals())
-				_ns["__name__"] = "__main__"
-				_ns["__file__"] = filename
-				exec(compile(_src, filename, "exec"), _ns)
-				print(str(threading.current_thread()) + " Finished.")
+				try:
+					_src = open(filename, encoding="utf-8").read()
+					_ns = dict(globals())
+					_ns["__name__"] = "__main__"
+					_ns["__file__"] = filename
+					exec(compile(_src, filename, "exec"), _ns)
+					print(str(threading.current_thread()) + " Finished.")
+				except Exception:
+					#Reported HERE, while the with-block still holds the .log open, so
+					#the traceback reaches the script's own log as well as the pane.
+					#Caught one level out, the file was already closed: the guarded
+					#_log() then dropped the handle and the log ended at "started."
+					#with no sign the run had failed.
+					sys.stderr.write(str(traceback.format_exc()))
 	except Exception:
 		sys.stderr.write(str(traceback.format_exc()))
 	finally:
@@ -3001,7 +3009,14 @@ else:
 				self.finish()
 
 			def finish(self):
-				TLS.logfile.close()
+				#MyDefIO._log() drops TLS.logfile (sets it to None) after a write
+				#fails, so it may already be gone here; an unguarded close() then
+				#raised and skipped the MCP / notebook cleanup below.
+				if TLS.logfile:
+					try:
+						TLS.logfile.close()
+					except Exception:
+						pass
 				TLS.logfile = None
 
 				# Remove MCP files created for Claude Code.
