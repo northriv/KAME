@@ -199,5 +199,6 @@ XLIA::execute(const atomic<bool> &terminated) {
 	m_lsnFreq.reset();
 	m_lsnSens.reset();
 	m_lsnTimeConst.reset();
+	m_lsnFilterSlope.reset();
 	return NULL;
 }
