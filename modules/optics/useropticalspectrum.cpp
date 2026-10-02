@@ -130,11 +130,15 @@ XOceanOpticsSpectrometer::onStrobeCondChnaged(const Snapshot &, XValueNodeBase *
     }
 }
 void
-XOceanOpticsSpectrometer::onTrigCondChnaged(const Snapshot &, XValueNodeBase *) {
+XOceanOpticsSpectrometer::onTrigCondChnaged(const Snapshot &, XValueNodeBase *node) {
     try {
         m_statusCacheValid = false; //trigger mode and the device reset below both stale it.
         Snapshot shot( *this);
-        if( !interface()->isUSB2000()) {
+        //The reset is for leaving or entering a trigger MODE.  DelayFromExtTrig reaches this
+        //handler through the same listener, and resetting the port for a delay edit only
+        //made that edit cost a USB re-enumeration (and its race with the acquisition thread).
+        const bool mode_changed = (node != delayFromExtTrig().get());
+        if( !interface()->isUSB2000() && mode_changed) {
             //HR4000-class only. Leaving a trigger mode can latch the FPGA acquisition state
             //(status[8] stuck at 3 "acquiring", so Free Run never reports ready). Neither
             //SET_TRIG_MODE nor CMD::INIT clears that — only a USB port reset does (the same as
