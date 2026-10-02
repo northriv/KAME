@@ -14,6 +14,7 @@
 //---------------------------------------------------------------------------
 #include "userarbfunc.h"
 #include "charinterface.h"
+#include <cmath>
 
 REGISTER_TYPE(XDriverList, ArbFuncGenSCPI, "LXI 3390 arbitrary function generator");
 REGISTER_TYPE(XDriverList, Agilent33250A, "Agilent/Keysight 33250A arbitrary function generator");
@@ -74,6 +75,15 @@ XAgilent33250A::changePulseCond() {
         if(period > 0)
             interface()->sendf("PULS:PER %g", period);
         double width = shot[ *pulseWidth()];
+        if(width <= 0) {
+            //PulseWidth 0 means "specify by Duty" (the node convention; the 3390 path sends
+            //FUNC:PULS:DCYC for it).  The 33250A has no pulse duty-cycle command, so the
+            //width is derived from Duty here -- before, every Duty edit was dropped and the
+            //pulse kept whatever width the instrument already had.
+            double per = (period > 0) ? period : 1.0 / (double)shot[ *freq()];
+            if((per > 0) && std::isfinite(per))
+                width = per * (double)shot[ *duty()] / 100.0;
+        }
         if(width > 0)
             interface()->sendf("PULS:WIDT %g", width);
     }
