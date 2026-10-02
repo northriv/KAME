@@ -43,23 +43,25 @@ XAgilent33250A::changePulseCond() {
     interface()->send("*CLS"); //clear stale errors so the front-panel ERR reflects this update only
     XString wave = shot[ *waveform()].to_str();
     bool is_burst = shot[ *burst()];
-    //CRITICAL: never put the generator into *continuous* output while reconfiguring. The
-    //base driver uses APPLy (and toggles BURST:STAT OFF), both of which un-burst the 33250A
-    //and emit a continuous waveform. Because the 33250A output is wired to the HR4000
-    //external-trigger input, that transient continuous output fires spurious exposures
-    //(extra frames). Instead, arm the burst first (BURST:STAT ON + BUS/EXT trigger) — then
-    //the generator emits ONLY on a trigger — and stage the waveform with the individual
-    //FUNC/FREQ/VOLT commands, which do not un-burst and do not emit. Also avoids the
-    //33220A-only FUNC:PULSe:* commands the 33250A rejects.
-    if(is_burst) {
-        interface()->send("TRIG:SOUR " + shot[ *trigSrc()].to_str());
-        unsigned int cyc = shot[ *burstCycles()];
-        if(cyc == 0)
-            interface()->send("BURS:NCYC INF");
-        else
-            interface()->sendf("BURS:NCYC %u", cyc);
-        interface()->sendf("BURS:PHAS %g", (double)shot[ *burstPhase()]);
-        interface()->send("BURST:STAT ON"); //armed: no output until a trigger arrives
+    const bool output_on = shot[ *output()];
+    //CRITICAL: never put the generator into *continuous* output while reconfiguring: its
+    //output is wired to the HR4000 external-trigger input, and a continuous waveform there
+    //fires spurious exposures.  APPLy and BURST:STAT OFF both un-burst the 33250A, so the
+    //waveform is staged with the individual FUNC/FREQ/VOLT commands, which keep an armed
+    //burst armed for a burst-capable function and so emit nothing.
+    //The burst is armed LAST, after FUNC.  Arming first, as this used to, failed from DC or
+    //(triggered) NOISE: the 33250A refuses burst for those ("-221 Settings conflict ... burst
+    //turned off"), and the FUNC that followed then ran continuous.  The one remaining window
+    //is entering burst from a state that was not armed with the output on; the output is
+    //held off for that and restored once armed.  If a command fails in between, the output
+    //is left OFF -- the safe side for a trigger line.
+    bool held_off = false;
+    if(is_burst && output_on) {
+        interface()->query("BURST:STAT?");
+        if(interface()->toInt() != 1) {
+            interface()->send("OUTPUT OFF");
+            held_off = true;
+        }
     }
     interface()->sendf("FUNC %s", wave.c_str());
     interface()->sendf("FREQ %g", (double)shot[ *freq()]);
@@ -75,7 +77,23 @@ XAgilent33250A::changePulseCond() {
         if(width > 0)
             interface()->sendf("PULS:WIDT %g", width);
     }
-    if( !is_burst) {
+    if(is_burst) {
+        interface()->send("TRIG:SOUR " + shot[ *trigSrc()].to_str());
+        unsigned int cyc = shot[ *burstCycles()];
+        if(cyc == 0)
+            interface()->send("BURS:NCYC INF");
+        else
+            interface()->sendf("BURS:NCYC %u", cyc);
+        interface()->sendf("BURS:PHAS %g", (double)shot[ *burstPhase()]);
+        interface()->send("BURST:STAT ON"); //armed: no output until a trigger arrives
+        if(held_off)
+            interface()->send("OUTPUT ON");
+        //An infinite BUS burst starts only on a bus trigger, as on the 3390 path; without
+        //this the output stayed silent until a Software Trig.
+        if(output_on && (cyc == 0) && (shot[ *trigSrc()].to_str() == "BUS"))
+            interface()->send("*TRG");
+    }
+    else {
         interface()->send("BURST:STAT OFF");
         //Continuous output: phase of the running waveform (see the 3390 path). Any rejection
         //by this model surfaces in the error drain just below rather than failing silently.
