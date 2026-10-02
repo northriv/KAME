@@ -116,6 +116,9 @@ XArbFuncGen::start() {
                     shared_from_this(), &XArbFuncGen::onOutputChanged);
         m_lsnOnCondChanged = tr[ *m_freq].onValueChanged().connectWeakly(
             shared_from_this(), &XArbFuncGen::onCondChanged);
+        //Waveform was never wired: a Waveform edit reached the instrument only with the
+        //next edit of some other parameter, so KAME could show PULS while the unit ran SIN.
+        tr[ *m_waveform].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *m_burst].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *m_burstPhase].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *m_phase].onValueChanged().connect(m_lsnOnCondChanged);
