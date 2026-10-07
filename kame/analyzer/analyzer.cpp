@@ -128,8 +128,7 @@ XValChart::formWindow() const {
 void
 XValChart::showChart(void) {
 	m_graphForm->setWindowTitle(i18n("Chart - ") + getLabel() );
-    m_graphForm->showNormal();
-    m_graphForm->raise();
+    XDriver::showForm(m_graphForm.get()); //!< as a driver's form is shown, pinned toolboxes and all
 }
 
 XChartList::XChartList(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries)
@@ -343,8 +342,7 @@ void
 XValGraph::showGraph() {
     if(m_graphForm && Snapshot( *this)[ *this].m_graph) {
 		m_graphForm->setWindowTitle(i18n("Graph - ") + getLabel() );
-        m_graphForm->showNormal();
-        m_graphForm->raise();
+        XDriver::showForm(m_graphForm.get()); //!< as a driver's form is shown, pinned toolboxes and all
     }
 }
 

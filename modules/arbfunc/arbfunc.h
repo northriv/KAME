@@ -30,6 +30,11 @@ public:
     const shared_ptr<XBoolNode> output() const {return m_output;}
     const shared_ptr<XBoolNode> burst() const {return m_burst;}
     const shared_ptr<XDoubleNode> burstPhase() const {return m_burstPhase;} //!< Burst Start Phase[deg.]
+    //! Phase of the CONTINUOUS waveform [deg.], sent as SCPI "PHAS". Distinct from
+    //! burstPhase(), which is "BURS:PHAS" and only applies while burst() is set. Meaningful
+    //! only when the generators share a timebase (10 MHz reference in/out chained), which is
+    //! what fixes the relative phase between two units running continuously.
+    const shared_ptr<XDoubleNode> phase() const {return m_phase;} //!< [deg.]
     const shared_ptr<XUIntNode> burstCycles() const {return m_burstCycles;} //!< Burst cycle count, 0 = INFinity
     const shared_ptr<XComboNode> trigSrc() const {return m_trigSrc;}
     const shared_ptr<XComboNode> waveform() const {return m_waveform;}
@@ -39,6 +44,7 @@ public:
     const shared_ptr<XDoubleNode> duty() const {return m_duty;} //!< [%]
     const shared_ptr<XDoubleNode> pulseWidth() const {return m_pulseWidth;} //!< [s], 0 = specify by Duty instead
     const shared_ptr<XDoubleNode> pulsePeriod() const {return m_pulsePeriod;} //!< [s], 0 = follow Freq (period = 1/Freq)
+    const shared_ptr<XTouchableNode> softwareTrig() const {return m_softwareTrig;} //!< sends a bus/software trigger (*TRG)
 
 protected:
     //! This function will be called when raw data are written.
@@ -57,19 +63,25 @@ protected:
 
     virtual void changeOutput(bool active) = 0;
     virtual void changePulseCond() = 0;
+    //! Issues a single software/bus trigger (e.g. SCPI "*TRG"). Effective when the trigger
+    //! source is BUS; arms a burst on demand from the UI button or from a script.
+    virtual void sendSoftwareTrigger() = 0;
 private:
     const shared_ptr<XBoolNode> m_output;
     const shared_ptr<XBoolNode> m_burst;
     const shared_ptr<XDoubleNode> m_burstPhase;
+    const shared_ptr<XDoubleNode> m_phase;
     const shared_ptr<XUIntNode> m_burstCycles;
     const shared_ptr<XComboNode> m_trigSrc, m_waveform;
     const shared_ptr<XDoubleNode> m_freq, m_ampl, m_offset, m_duty;
     const shared_ptr<XDoubleNode> m_pulseWidth, m_pulsePeriod;
+    const shared_ptr<XTouchableNode> m_softwareTrig;
 
-    shared_ptr<Listener> m_lsnOnCondChanged, m_lsnOnOutputChanged;
+    shared_ptr<Listener> m_lsnOnCondChanged, m_lsnOnOutputChanged, m_lsnOnSoftTrigTouched;
 
     void onOutputChanged(const Snapshot &shot, XValueNodeBase *);
     void onCondChanged(const Snapshot &shot, XValueNodeBase *);
+    void onSoftTrigTouched(const Snapshot &shot, XTouchableNode *);
 
     const qshared_ptr<FrmArbFuncGen> m_form;
 

@@ -22,8 +22,9 @@ in the environment wins, so a shell export still works, but none is needed.
 Model resolution: --model, else KAME_PYAI_MODEL, else PYDANTIC_AI_MODEL — from
 the environment or those files.  A comma-separated list binds the first and
 offers the rest in the web UI's menu.  `sakana:<model>` (fugu, namazu) is
-resolved here against SAKANA_API_KEY; every other provider:name is
-pydantic-ai's own.
+resolved here against SAKANA_API_KEY, and `bionic:` / `ollama:` /
+`local:<model>` against that local server's address, so they coexist with
+the OpenAI key; every other provider:name is pydantic-ai's own.
 `--web` serves this module's own web app (`kame_pydantic_ai:app`: the chat UI
 plus KAME's saved figures at /plots) with uvicorn, falling back to `clai web`
 when uvicorn is absent — that fallback cannot show figures.
@@ -33,9 +34,13 @@ For an agent of your own (KAME puts this module on PYTHONPATH when it launches
 one):
     from kame_pydantic_ai import kame_mcp, kame_toolset, kame_settings
     agent = Agent('anthropic:claude-sonnet-4-5', capabilities=[kame_mcp()])
-kame_mcp() is KAME's MCP server as a capability, kame_toolset() the same as a
-toolset, kame_settings() the dict read from the files above — importing this
-module has already put them into os.environ.  kame_usage_logging() is the
+kame_mcp() is KAME's MCP server as a capability, kame_history_budget() keeps
+the conversation under a token budget (old tool results and images are
+trimmed first), kame_toolset() the server as a toolset, kame_settings() the
+dict read from the files above — importing this
+module has already put them into os.environ.  kame_models() is the menu the
+present keys reach, asked of each provider at start-up (kame_default_model()
+its first entry), for `Agent.to_web(models=kame_models())`.  kame_usage_logging() is the
 per-request usage recorder (usage.jsonl) as capabilities; kame_web_plots(app)
 serves the figures KAME's server saves so `![…](/plots/<name>.png)` renders in
 the web UI, with FIGURE_INSTRUCTIONS the line that tells the model to do that.
@@ -59,6 +64,25 @@ SETTINGS_FILE = os.path.join(os.path.expanduser('~'), '.kame_pyai.env')
 #by making the user repurpose OPENAI_BASE_URL / OPENAI_API_KEY -- which would
 #also shut out real OpenAI models in the same file.
 SAKANA_BASE_URL = 'https://api.sakana.ai/v1'
+#Local servers get prefixes of their own for the same reason: pointing
+#OPENAI_BASE_URL at Bionic would hijack the OpenAI key in the same settings
+#file, so `bionic:<model>` and `ollama:<model>` carry their own address and
+#leave OPENAI_* meaning OpenAI.  `local:<model>` is any other OpenAI-compatible
+#server, at KAME_PYAI_LOCAL_URL.
+LOCAL_SERVERS = {
+    'bionic': ('KAME_PYAI_BIONIC_URL', 'http://127.0.0.1:1234/v1'),
+    'ollama': ('KAME_PYAI_OLLAMA_URL', 'http://127.0.0.1:11434/v1'),
+    'local':  ('KAME_PYAI_LOCAL_URL',  ''),
+}
+#Prefixes only this module understands; never handed to clai's -m.
+KAME_PREFIXES = ('sakana:',) + tuple(k + ':' for k in LOCAL_SERVERS)
+
+
+def _local_server(kind):
+    """(base_url, key) of a local server kind, or None when it has no address."""
+    var, default = LOCAL_SERVERS[kind]
+    url = os.environ.get(var) or default
+    return (url, os.environ.get('KAME_PYAI_LOCAL_KEY') or kind) if url else None
 
 
 def _read_env_file(path):
@@ -336,6 +360,43 @@ def _explain_and_exit(exc):
         from pydantic_ai.exceptions import UserError
     except ImportError:
         UserError = ()
+    if 'model token limit' in msg.lower():
+        sys.exit(
+            "{}\n\n"
+            "The model used up its output allowance -- usually on thinking, "
+            "before it wrote anything.  Raise it with a line in {}:\n"
+            "    KAME_PYAI_MAX_TOKENS=64000\n"
+            "Claude models get 32000 from KAME unless that line says otherwise; "
+            "other providers keep their own default until it is set.".format(
+                msg, _tilde(SETTINGS_FILE)) + tail)
+    if 'exceeded max retries' in msg.lower():
+        sys.exit(
+            "{}\n\n"
+            "A tool call failed more often than the retry budget allows.  KAME's "
+            "own tool errors no longer count against it; what still does is a "
+            "call whose arguments did not validate -- most often a long script "
+            "cut off by the output limit.  Raise KAME_PYAI_MAX_TOKENS in {} and "
+            "retry, or ask for the code in smaller steps.".format(
+                msg, _tilde(SETTINGS_FILE)) + tail)
+    if 'thinking' in msg.lower() and 'signature' in msg.lower():
+        sys.exit(
+            "{}\n\n"
+            "The history sent to the model was altered after a thinking block "
+            "in it was signed -- the provider checks that.  KAME's own trimming "
+            "now drops those blocks whenever it changes the history; if you use "
+            "a history processor of your own, strip ThinkingPart from every "
+            "ModelResponse when you change anything before it.  Starting a new "
+            "chat clears it.".format(msg) + tail)
+    if 'too long' in msg.lower() or 'context length' in msg.lower() \
+            or 'context_length' in msg.lower():
+        sys.exit(
+            "{}\n\n"
+            "The conversation no longer fits this model's context window.  "
+            "That happens when a chat grown under a model with a large window "
+            "(a local one) is switched to a model with a smaller one: the whole "
+            "history is replayed.  Start a new chat for the new model, or lower "
+            "KAME_PYAI_HISTORY_TOKENS in {} (default 150000) so KAME trims old "
+            "tool results earlier.".format(msg, _tilde(SETTINGS_FILE)) + tail)
     if isinstance(exc, UserError):
         if 'environment variable' in msg:
             import re
@@ -346,11 +407,9 @@ def _explain_and_exit(exc):
                 "The model needs {}, and this process does not have it.\n"
                 "  * Put a line   {}=...   in {}\n    and click the link "
                 "again.\n"
-                "  * Or use a model that needs no key, e.g. a local Ollama -- "
-                "in the same file:\n"
-                "        KAME_PYAI_MODEL=openai:qwen3:32b\n"
-                "        OPENAI_BASE_URL=http://127.0.0.1:11434/v1\n"
-                "        OPENAI_API_KEY=ollama\n"
+                "  * Or use a model that needs no key, served by Bionic or Ollama "
+                "-- one line, it coexists with the cloud keys:\n"
+                "        KAME_PYAI_MODEL=bionic:<model id>      (or ollama:<model id>)\n"
                 "  (clai without a model falls back to openai:gpt-5, which is "
                 "why an OPENAI key\n   is demanded when you never chose "
                 "OpenAI -- set KAME_PYAI_MODEL there.)"
@@ -362,8 +421,8 @@ def _explain_and_exit(exc):
                 "The form is provider:name, for example\n"
                 "    anthropic:claude-sonnet-4-5    openai:gpt-5    "
                 "google-gla:gemini-2.5-pro    sakana:fugu\n"
-                "    openai:<any name>  with OPENAI_BASE_URL for Ollama / "
-                "llama.cpp / LM Studio\n"
+                "    bionic:<model id>   ollama:<model id>   local:<model id> "
+                "(with KAME_PYAI_LOCAL_URL)\n"
                 "It came from --model, else KAME_PYAI_MODEL, else "
                 "PYDANTIC_AI_MODEL.".format(msg) + tail)
         sys.exit(msg + tail)
@@ -414,41 +473,108 @@ def _server_url():
 
 
 def _toolset(url, token):
-    """MCP toolset across pydantic-ai generations.
+    """KAME's MCP server as a toolset, set up the way KAME needs it.
 
-    Current releases expose MCPToolset(transport, auth=..., and server
-    instructions included by default); older ones MCPServerStreamableHTTP.
+    Two MCPToolset defaults are wrong for KAME and are overridden where the
+    installed pydantic-ai has the parameter:
+
+    include_instructions=True -- the default is False, so the server's
+      instructions, where the motion / temperature / RF safety rules live,
+      never reached the model.  The agent KAME ships ran without them until
+      this was measured (a recording model saw 11 tools and no rules).
+    tool_error_behavior='failed' -- the default 'retry' turns every KAME tool
+      error into a ModelRetry that spends the tool's retry budget, which
+      pydantic-ai sets to 1: a model that looked up two wrong node paths
+      while finding the temperature controller ended the whole run with
+      "Tool 'tree' exceeded max retries count of 1".  A KAME error says what
+      was wrong (no such node, KAME not connected, bad job id); 'failed'
+      shows it to the model to adapt from, without spending the budget.
     """
+    import inspect
     try:
         try:
             from pydantic_ai.mcp import MCPToolset
         except ImportError:
             from pydantic_ai import MCPToolset
-        return MCPToolset(url, auth=(token or None))
     except ImportError:
         from pydantic_ai.mcp import MCPServerStreamableHTTP
         headers = {'Authorization': 'Bearer ' + token} if token else None
         return MCPServerStreamableHTTP(url, headers=headers)
+    params = inspect.signature(MCPToolset).parameters
+    kw = {k: v for k, v in (('include_instructions', True),
+                            ('tool_error_behavior', 'failed'))
+          if k in params}
+    if 'headers' in params and token:
+        #"Bearer <token>" exactly, which is what KAME's server compares.
+        kw['headers'] = {'Authorization': 'Bearer ' + token}
+    elif token:
+        kw['auth'] = token
+    return MCPToolset(url, **kw)
+
+
+#Output budget for Claude models.  pydantic-ai sends max_tokens=4096 to
+#Anthropic when none is set, and a Claude model that thinks spends that on
+#thinking alone for a task like "sweep the temperature and take a spectrum
+#at each step": the run ends with "Model token limit (provider default)
+#exceeded before any response was generated".  32000 is accepted by every
+#Claude model from the 4 series on.  KAME_PYAI_MAX_TOKENS overrides it, and
+#sets a budget for every other provider too, which otherwise keeps its own.
+ANTHROPIC_MAX_TOKENS = 32000
+
+
+def _max_tokens_setting():
+    """KAME_PYAI_MAX_TOKENS as an int, or None when unset or unreadable."""
+    try:
+        v = int(os.environ.get('KAME_PYAI_MAX_TOKENS', '').strip() or 0)
+    except ValueError:
+        return None
+    return v if v > 0 else None
+
+
+def _budget():
+    """Model-level settings carrying KAME_PYAI_MAX_TOKENS, or None."""
+    n = _max_tokens_setting()
+    return {'max_tokens': n} if n else None
 
 
 def _resolve_model(spec):
     """A model string pydantic-ai can infer, or a Model object for the
-    providers it cannot: `sakana:<name>` -> Sakana AI's OpenAI-compatible
-    endpoint with SAKANA_API_KEY.  Everything else passes through."""
-    if not spec or not spec.startswith('sakana:'):
-        return spec
+    providers it cannot: `sakana:<name>` -> Sakana AI with SAKANA_API_KEY;
+    `bionic:` / `ollama:` / `local:<name>` -> that local server's chat
+    completions endpoint.  Everything else passes through."""
+    if isinstance(spec, str) and spec.startswith('anthropic:'):
+        #Built here rather than left to infer_model so the model carries its
+        #output budget -- on the model, not the agent, so it follows the
+        #model through the web UI's menu and survives clai's `agent.model =`.
+        from pydantic_ai.models.anthropic import AnthropicModel
+        return AnthropicModel(spec[len('anthropic:'):],
+                              settings={'max_tokens': _max_tokens_setting()
+                                        or ANTHROPIC_MAX_TOKENS})
+    if not isinstance(spec, str) or not spec.startswith(KAME_PREFIXES):
+        return spec          # None, a plain provider:name, or an already-built Model
     from pydantic_ai.exceptions import UserError
     from pydantic_ai.models.openai import OpenAIChatModel
     from pydantic_ai.providers.openai import OpenAIProvider
+    kind, name = spec.split(':', 1)
+    if kind in LOCAL_SERVERS:
+        srv = _local_server(kind)
+        if not srv:
+            raise UserError('Set the `{}` environment variable to the server '
+                            'address (e.g. http://127.0.0.1:8080/v1) to use '
+                            'model {}.'.format(LOCAL_SERVERS[kind][0], spec))
+        return OpenAIChatModel(name, provider=OpenAIProvider(base_url=srv[0],
+                                                             api_key=srv[1]),
+                               settings=_budget())
     key = os.environ.get('SAKANA_API_KEY')
     if not key:
         #Worded like pydantic-ai's own, so _explain_and_exit's API-key branch
         #recognises it and names the variable.
         raise UserError('Set the `SAKANA_API_KEY` environment variable to use '
                         'the Sakana AI provider (model {}).'.format(spec))
-    return OpenAIChatModel(spec[len('sakana:'):],
+    return OpenAIChatModel(name,
                            provider=OpenAIProvider(base_url=SAKANA_BASE_URL,
-                                                   api_key=key))
+                                                   api_key=key),
+                           settings=_budget())
 
 
 def _build_agent(model):
@@ -460,10 +586,17 @@ def _build_agent(model):
     #hand the agent to someone else's loop (to_cli_sync, and `clai web`, which
     #imports the module-level `agent` after this process has been replaced), so
     #only something attached to the agent itself sees every call.
-    caps = _install_usage_logging(str(model))
+    caps = _install_usage_logging(str(getattr(model, 'model_name', model))) + kame_history_budget()
     kwargs = {'capabilities': caps} if caps else {}
+    if _max_tokens_setting():
+        #Agent level, so it reaches whatever model the menu or clai puts in.
+        kwargs['model_settings'] = {'max_tokens': _max_tokens_setting()}
+    #retries=3, not pydantic-ai's 1: the budget is still spent by a tool call
+    #whose arguments did not validate (a long script cut off by the token
+    #limit is one), and one such slip used to end the run.  KAME's own tool
+    #errors no longer spend it (see _toolset).
     return Agent(model, system_prompt=SYSTEM_PROMPT,
-                 toolsets=[_toolset(url, token)], **kwargs)
+                 toolsets=[_toolset(url, token)], retries=3, **kwargs)
 
 
 def kame_server():
@@ -480,6 +613,99 @@ def kame_usage_logging(tag=None):
     rows (`model_key`); KAME_USAGE_TAG overrides.  [] when OpenTelemetry is
     absent, so `capabilities=[*kame_usage_logging(), ...]` is always valid."""
     return _install_usage_logging(tag or 'agent')
+
+
+def kame_history_budget(max_tokens=None, keep_recent=6):
+    """Keep the conversation under a token budget, as Agent capabilities.
+
+    A chat that grew under a local model with a 256k window replays its whole
+    history to the next model picked from the menu, and Anthropic answers
+    "prompt is too long".  KAME's tool results are what grow it: a deep
+    `tree`, a manual section, and every figure execute_code returned (an
+    image is ~1.5k tokens and a local model may not even have looked at it).
+    When the estimated total exceeds the budget (KAME_PYAI_HISTORY_TOKENS,
+    default 150k, under every current provider's window), the OLDEST tool
+    returns are cut to a one-line note and their images dropped, oldest
+    first, until it fits; the last `keep_recent` messages are never touched,
+    and every tool call keeps its return part.  Trimming happens only at the
+    start of a run, and then every earlier thinking block is dropped: a
+    provider that signs thinking against the preceding content (Anthropic)
+    rejects a block whose prefix changed, so the two go together.
+    `capabilities=[*kame_history_budget()]`."""
+    import dataclasses
+    from pydantic_ai.capabilities import ProcessHistory
+    from pydantic_ai.messages import (ModelRequest, ModelResponse, ToolReturnPart,
+                                      UserPromptPart, SystemPromptPart, ThinkingPart,
+                                      BinaryContent)
+    budget = int(max_tokens or os.environ.get('KAME_PYAI_HISTORY_TOKENS') or 150000)
+
+    def _size(content):
+        if isinstance(content, str):
+            return len(content) // 4
+        if isinstance(content, BinaryContent):
+            return 1500
+        if isinstance(content, (list, tuple)):
+            return sum(_size(c) for c in content)
+        return len(str(content)) // 4
+
+    def _est(msg):
+        return sum(_size(getattr(p, 'content', '')) for p in msg.parts)
+
+    def _shrunk(part):
+        """The part with its bulk replaced by a note; None if nothing to cut."""
+        c = part.content
+        n = _size(c)
+        if n < 200:
+            return None
+        kind = 'result' if isinstance(part, ToolReturnPart) else 'attachment'
+        images = sum(1 for x in (c if isinstance(c, (list, tuple)) else [c])
+                     if isinstance(x, BinaryContent))
+        note = '[earlier {} trimmed to fit the context window: ~{} tokens{}]'.format(
+            kind, n, ' and {} image(s)'.format(images) if images else '')
+        return dataclasses.replace(part, content=note)
+
+    def processor(messages):
+        total = sum(_est(m) for m in messages)
+        if total <= budget:
+            return messages
+        # Only at the start of a run -- the last message is the user's new
+        # prompt, no tool loop is in flight.  Anthropic signs every thinking
+        # block against everything that precedes it: a prefix changed
+        # mid-run invalidates the block the loop must hand back ("Invalid
+        # signature in thinking block ... content that preceded this block
+        # is missing"), and that is exactly what a first version of this did.
+        last = messages[-1]
+        if not (isinstance(last, ModelRequest)
+                and all(isinstance(p, (UserPromptPart, SystemPromptPart)) for p in last.parts)):
+            return messages
+        out = list(messages)
+        cutoff = max(0, len(out) - keep_recent)
+        for i in range(cutoff):
+            m = out[i]
+            if not isinstance(m, ModelRequest):
+                continue
+            parts, changed = [], False
+            for part in m.parts:
+                new = _shrunk(part) if isinstance(part, (ToolReturnPart, UserPromptPart)) else None
+                if new is not None:
+                    total -= _size(part.content) - _size(new.content)
+                    part, changed = new, True
+                parts.append(part)
+            if changed:
+                out[i] = dataclasses.replace(m, parts=parts)
+            if total <= budget:
+                break
+        # The prefix has changed, so every signed thinking block in the
+        # history is now bound to a conversation that no longer exists.  They
+        # all belong to finished turns (see above), which a provider lets you
+        # omit; dropping them is what keeps the trimmed history sendable.
+        for i, m in enumerate(out):
+            if isinstance(m, ModelResponse) and any(isinstance(p, ThinkingPart) for p in m.parts):
+                kept = [p for p in m.parts if not isinstance(p, ThinkingPart)]
+                out[i] = dataclasses.replace(m, parts=kept)
+        return out
+
+    return [ProcessHistory(processor)]
 
 
 def kame_plot_dir():
@@ -527,13 +753,12 @@ def kame_mcp(**kwargs):
     (allowed_tools=..., description=..., ...)."""
     from pydantic_ai.capabilities import MCP
     url, token = _server_url()
-    #headers=, not authorization_token=: pydantic-ai copies the latter into
-    #the Authorization header VERBATIM (capabilities/mcp.py, "Merge
-    #authorization_token into headers"), while KAME's server checks for
-    #"Bearer <token>" exactly -- so the token alone came back 401 on the
-    #first live run from a user's own agent.
-    if token and 'headers' not in kwargs:
-        kwargs['headers'] = {'Authorization': 'Bearer ' + token}
+    #The toolset is built here and handed in as local=, so it carries what
+    #_toolset() sets: the safety instructions, a Bearer header (not
+    #authorization_token=, which pydantic-ai copies into the header verbatim
+    #and KAME's server answers with 401), and tool errors that inform the
+    #model instead of spending its retry budget.
+    kwargs.setdefault('local', _toolset(url, token))
     return MCP(url, **kwargs)
 
 
@@ -649,8 +874,21 @@ def main():
         os.execve(cmd[0], cmd, env)
 
     if not args.model:
+        picked = kame_default_model()
+        if picked is not None:
+            print("No model named; using {} (the first that your keys reach -- "
+                  "set KAME_PYAI_MODEL in {} to choose)".format(
+                      picked.model_name, _tilde(SETTINGS_FILE)), flush=True)
+            try:
+                _build_agent(picked).to_cli_sync(prog_name='kame')
+            except KeyboardInterrupt:
+                pass
+            except Exception as e:
+                _explain_and_exit(e)
+            return
         sys.exit(
-            "No model given.  This script binds none itself; put one line in\n"
+            "No model given, and no API key found to pick one with.  Put a key "
+            "line, or a model line, in\n"
             "  {}\n"
             "    KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5      (needs "
             "ANTHROPIC_API_KEY)\n"
@@ -660,9 +898,8 @@ def main():
             "GOOGLE_API_KEY)\n"
             "    KAME_PYAI_MODEL=sakana:fugu                      (needs "
             "SAKANA_API_KEY)\n"
-            "    KAME_PYAI_MODEL=openai:qwen3:32b                 (local, no "
-            "key: add OPENAI_BASE_URL=\n        http://127.0.0.1:11434/v1 for "
-            "Ollama / llama.cpp / LM Studio, and OPENAI_API_KEY=ollama)\n"
+            "    KAME_PYAI_MODEL=bionic:<model id>                (a model Bionic "
+            "serves on 1234; ollama: likewise on 11434)\n"
             "and the key on its own line in the same file; or pass --model.\n"
             "With `clai` installed next to this interpreter, KAME launches that "
             "instead and\nits default (openai:gpt-5) applies when nothing is "
@@ -675,12 +912,136 @@ def main():
         _explain_and_exit(e)
 
 
-def _web_models():
-    """The web UI's model menu from KAME_PYAI_MODEL, as {label: Model}.
+def _served_models(base_url, key, timeout=5, quiet=False):
+    """Model ids an OpenAI-compatible server lists, [] if it cannot be asked."""
+    import urllib.request
+    try:
+        req = urllib.request.Request(base_url.rstrip('/') + '/models',
+                                     headers={'Authorization': 'Bearer ' + key})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return [m['id'] for m in json.load(r).get('data', [])]
+    except Exception as e:
+        if not quiet:
+            print('kame_pydantic_ai: could not list models at {}: {}'.format(base_url, e),
+                  file=sys.stderr)
+        return []
 
-    Resolved here rather than handed to the UI as strings so that `sakana:`
-    works in the menu too, and so that a listed model whose key is missing
-    fails at start-up with the API-key explanation, not on the first message."""
+
+def _anthropic_models(key, timeout=5):
+    """Newest Opus and newest Sonnet from Anthropic's model list; a static
+    pair when the list cannot be fetched."""
+    import urllib.request
+    try:
+        req = urllib.request.Request(
+            'https://api.anthropic.com/v1/models?limit=100',
+            headers={'x-api-key': key, 'anthropic-version': '2023-06-01'})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            data = json.load(r).get('data', [])
+        picked = []
+        for family in ('opus', 'sonnet'):
+            cands = sorted((m for m in data if family in m.get('id', '')),
+                           key=lambda m: m.get('created_at', ''), reverse=True)
+            if cands:
+                picked.append(cands[0]['id'])
+        if picked:
+            return picked
+    except Exception as e:
+        print('kame_pydantic_ai: could not list Anthropic models: {}'.format(e),
+              file=sys.stderr)
+    return ['claude-opus-5', 'claude-sonnet-5']
+
+
+def kame_models():
+    """{label: Model} for every provider whose key is present -- the menu a
+    web UI offers and the pool a CLI picks its default from.  First entry is
+    the preferred default.
+
+    Each OpenAI-compatible server is asked for its list at start-up, so a
+    model published after this file was written appears without an edit:
+    OpenAI's two newest gpt-N families (chat variants only), every fugu /
+    namazu Sakana serves, Anthropic's newest Opus and Sonnet, and every chat
+    model of a local server that answers -- Bionic on 1234, Ollama on 11434,
+    KAME_PYAI_LOCAL_URL -- alongside the cloud entries, since the local
+    prefixes carry their own addresses and OPENAI_* stays OpenAI's.
+    A server that cannot be asked falls back to a short static list.  A model
+    named in KAME_PYAI_MODEL is put first when it is in the menu."""
+    import re
+    from pydantic_ai.models import infer_model
+    from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
+    from pydantic_ai.providers.openai import OpenAIProvider
+    out = {}
+    if os.environ.get('OPENAI_API_KEY'):
+        key = os.environ['OPENAI_API_KEY']
+        openai = OpenAIProvider(api_key=key)
+        served = _served_models('https://api.openai.com/v1', key)
+        vers = sorted({float(m.group(1)) for m in
+                       (re.match(r'gpt-(\d+(?:\.\d+)?)(?:-|$)', x) for x in served) if m},
+                      reverse=True)[:2]
+        fam = sorted((x for x in served
+                      if (mm := re.match(r'gpt-(\d+(?:\.\d+)?)(?:-|$)', x)) and float(mm.group(1)) in vers
+                      and not re.search(r'realtime|audio|transcribe|tts|image|search|codex|mini|nano', x)),
+                     key=lambda x: (-float(re.match(r'gpt-(\d+(?:\.\d+)?)', x).group(1)), x))
+        for mid in fam or ['gpt-5']:
+            out['OpenAI ' + mid] = OpenAIResponsesModel(mid, provider=openai, settings=_budget())
+    if os.environ.get('SAKANA_API_KEY'):
+        key = os.environ['SAKANA_API_KEY']
+        sakana = OpenAIProvider(base_url=SAKANA_BASE_URL, api_key=key)
+        served = _served_models(SAKANA_BASE_URL, key)
+        fugu = sorted(m for m in served if 'fugu' in m or 'namazu' in m) or ['fugu']
+        # Newest fugu-ultra first, so it is the default when OpenAI is absent.
+        ultra = [m for m in fugu if re.match(r'fugu-ultra-v', m)]
+        for mid in (ultra[-1:] + [m for m in fugu if m not in ultra[-1:]]):
+            out['Sakana ' + mid] = OpenAIChatModel(mid, provider=sakana, settings=_budget())
+    if os.environ.get('ANTHROPIC_API_KEY'):
+        # Asked as well: Anthropic's list carries created_at, so the newest
+        # Opus and the newest Sonnet are taken, whatever their numbers are.
+        for mid in _anthropic_models(os.environ['ANTHROPIC_API_KEY']):
+            out['Anthropic ' + mid] = _resolve_model('anthropic:' + mid)
+    # Local servers: Bionic and Ollama at their default ports, plus whatever
+    # KAME_PYAI_LOCAL_URL names.  Probed briefly; one that is not running
+    # simply contributes nothing, so this costs a refused connection at most.
+    for kind in LOCAL_SERVERS:
+        srv = _local_server(kind)
+        if not srv:
+            continue
+        prov = OpenAIProvider(base_url=srv[0], api_key=srv[1])
+        served = _served_models(srv[0], srv[1], timeout=1.5, quiet=True)
+        if kind == 'ollama' and not served:
+            # Ollama lists pulled models on its OpenAI-compatible /v1/models;
+            # older builds only on the native /api/tags (name = "qwen3:32b").
+            import urllib.request
+            try:
+                with urllib.request.urlopen(srv[0].rstrip('/').rsplit('/v1', 1)[0]
+                                            + '/api/tags', timeout=1.5) as r:
+                    served = [m['name'] for m in json.load(r).get('models', [])]
+            except Exception:
+                served = []
+        for mid in served:
+            if 'embed' not in mid:
+                out[kind.capitalize() + ' ' + mid] = OpenAIChatModel(mid, provider=prov,
+                                                                     settings=_budget())
+    want = (os.environ.get('KAME_PYAI_MODEL') or '').split(',')[0].strip().split(':')[-1]
+    for label in list(out):
+        if want and label.endswith(' ' + want):
+            out = {label: out.pop(label), **out}
+            break
+    return out
+
+
+def kame_default_model():
+    """The model the CLI binds when KAME_PYAI_MODEL names none: the first
+    entry of kame_models(), or None when no key is present."""
+    return next(iter(kame_models().values()), None)
+
+
+def _web_models():
+    """The web UI's model menu, as {label: Model}.
+
+    KAME_PYAI_MODEL, when set, is the menu exactly as written (resolved here
+    rather than handed to the UI as strings so that `sakana:` works and a
+    listed model whose key is missing fails at start-up with the API-key
+    explanation).  Unset, the menu is whatever the present keys reach --
+    kame_models() -- so a key alone is enough to start chatting."""
     import re
     from pydantic_ai.models import infer_model
     spec = os.environ.get('KAME_PYAI_MODEL') or os.environ.get('PYDANTIC_AI_MODEL') or ''
@@ -688,7 +1049,7 @@ def _web_models():
     for name in [x for x in re.split(r'[,\s]+', spec) if x]:
         m = _resolve_model(name)
         out[name] = m if not isinstance(m, str) else infer_model(m)
-    return out
+    return out or kame_models()
 
 
 def _build_app():
@@ -701,10 +1062,12 @@ def _build_app():
     models = _web_models()
     if not models:
         sys.exit(
-            "No model given for the web UI.  Put one line in\n  {}\n"
-            "    KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5\n"
-            "(several, comma-separated, fill the menu) and the key on its own "
-            "line.".format(_settings_hint()))
+            "No model for the web UI: no KAME_PYAI_MODEL line and no API key "
+            "to build a menu from.  Put one line in\n  {}\n"
+            "    ANTHROPIC_API_KEY=...   (or OPENAI_API_KEY / SAKANA_API_KEY; "
+            "the menu is then what that key reaches)\n"
+            "or name models outright: KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5, "
+            "...".format(_settings_hint()))
     first = next(iter(models.values()))
     agent = _build_agent(None)
     agent.model = first
@@ -730,7 +1093,7 @@ def __getattr__(name):
         if name == 'agent':
             g['agent'] = _build_agent(_first_model(
                 os.environ.get('KAME_PYAI_MODEL')
-                or os.environ.get('PYDANTIC_AI_MODEL')))
+                or os.environ.get('PYDANTIC_AI_MODEL')) or kame_default_model())
         else:
             g['app'] = _build_app()
         return g[name]

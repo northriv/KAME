@@ -762,6 +762,36 @@ FrmKameMain::formsWouldBeCovered(const EdgeSlider &s) const {
     }
     return false;
 }
+//! The rule the load follows before it pins (\sa formsWouldBeCovered()),
+//! applied at the moment a window is actually put up.  A pinned toolbox is
+//! an always-on-top window, and raise() cannot lift anything above it, so a
+//! form, chart or graph asked for with a click came up underneath -- the
+//! click that asked to see it defeated by the pin (user, 2026-09-23).  The
+//! request outranks the convenience: that toolbox goes back to auto-hide and
+//! folds at once.  Only the toolbox that covers the window; the window itself
+//! is not moved, its place being the user's.
+void
+FrmKameMain::formShown(QWidget *w) {
+    if( !w || !w->isVisible())
+        return;
+    QRect g = w->frameGeometry(); //!< the title bar counts: it is what one grabs
+    for(auto &&s: m_edgeSliders) {
+        if(s.vertical || s.autoHide || (s.win == w))
+            continue;
+        //Any overlap, as the load's rule; touching is not overlapping.
+        if(s.expanded.intersected(g).isEmpty())
+            continue;
+        s.autoHideAction->setChecked(true); //!< the title's pin and the View menu follow
+        //Now, not when the pointer leaves: it is still on the list just
+        //clicked, and auto-hide alone would hold the toolbox open over the
+        //very window it was asked for (user).  Dismissed, as foldToolboxes()
+        //does, so that pointer does not unfold it again on the next poll.
+        if( !s.collapsed) {
+            s.dismissed = true;
+            setToolboxCollapsed(s, true);
+        }
+    }
+}
 void
 FrmKameMain::pinToolboxes() {
     for(auto &&s: m_edgeSliders) {
@@ -1759,6 +1789,7 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
     //narrow on the way out is at best pointless.  Set before the confirmation
     //below, which can put a modal dialog up and hand the poll a pointer that
     //is over neither toolbox.
+    bool armed = m_edgeAutoHideArmed;
     m_edgeAutoHideArmed = false;
 	bool opened = false;
     {
@@ -1773,6 +1804,11 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
     }
 	if(opened) {
         gWarnPrint(i18n("Stop running first.") );
+        //Refused, so KAME carries on, and auto-hide with it.  Left disarmed,
+        //one refused quit froze every toolbox for the rest of the session --
+        //a Cmd-Q during a run, or a restart for a software update that macOS
+        //asked for in the night and this refusal is what cancels.
+        m_edgeAutoHideArmed = armed;
 		ce->ignore();
 	}
     else {

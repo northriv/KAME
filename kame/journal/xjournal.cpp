@@ -15,6 +15,7 @@
 #include "xlistnode.h"
 #include "xitemnode.h"
 #include "rawstream.h"
+#include "xjournalreplay.h"
 #include "support.h"
 #include <zlib.h>
 #include <fstream>
@@ -155,28 +156,10 @@ XJournal::rawBytesWritten() const {
 XString XJournal::journalPathOf(const XString &given) {return withExtension(given, ".kamj");}
 XString XJournal::rawPathOf(const XString &given) {return withExtension(given, ".kamb");}
 
-XString
-XJournal::sessionOfJournal(const XString &path, XString *mode) {
-    gzFile fd = gzopen(QString::fromStdString(path).toLocal8Bit().data(), "rb");
-    if( !fd)
-        return {};
-    char buf[16384];
-    char *line = gzgets(fd, buf, sizeof(buf));
-    gzclose(fd);
-    if( !line)
-        return {};
-    QJsonDocument doc = QJsonDocument::fromJson(QByteArray(line));
-    if( !doc.isObject())
-        return {};
-    QJsonObject o = doc.object();
-    if(mode)
-        *mode = o.value("mode").toString().toStdString();
-    return o.value("session").toString().toStdString();
-}
-
 //! The raw stream follows: its path is set only as recording starts, since
 //! XRawStreamRecorder opens its file the moment its filename changes -- a
-//! Setup run must not leave an empty .kamb behind.
+//! Setup run must not leave an empty .kamb behind.  It opens to append, so
+//! nothing here needs to know whether the stream is new.  \sa syncRun()
 void
 XJournal::onRecordingChanged(const Snapshot &shot, XValueNodeBase *) {
     auto &raws = m_rawstream;
@@ -185,21 +168,6 @@ XJournal::onRecordingChanged(const Snapshot &shot, XValueNodeBase *) {
     bool wantsRaw = rec && (modeOf(shot_this) == Mode::LOGBOOK_RAW);
     if(wantsRaw) {
         XString path = rawPathOf(shot_this[ *m_filename].to_str());
-        //The recorder reopens the moment its filename is set, so the decision
-        //the writer makes for the journal -- continue a file of this session's,
-        //refuse another's -- has to be made here for the raw stream, and
-        //first: by the time the writer looks, this file would already have
-        //been touched.  Appending is harmless for our own; another session's
-        //ids are not ours.  \sa XJournalWriter::syncRun()
-        XString jpath = journalPathOf(shot_this[ *m_filename].to_str());
-        if(path.length() && (QFileInfo::exists(QString::fromStdString(path))
-            || QFileInfo::exists(QString::fromStdString(jpath)))
-            && (sessionOfJournal(jpath) != sessionId())) {
-            gWarnPrint(i18n_noncontext("Journal: ") + path
-                + i18n_noncontext(" exists and is not this session's -- not overwritten. Name the run differently."));
-            trans( *m_recording) = false; //!< comes back through here with rec = false
-            return;
-        }
         if(path.length())
             trans( *raws->filename()) = path;
     }
@@ -470,7 +438,8 @@ bool
 XJournalWriter::Out::open(const XString &path, bool append) {
     close();
     m_gz = gzopen(path.c_str(), append ? "ab" : "wb");
-    m_bytes = append ? (uintptr_t)std::max<qint64>(QFileInfo(QString::fromStdString(path)).size(), 0) : 0;
+    m_bytes = 0;
+    idBase = 0;
     m_failed = false;   //!< a new file deserves to be believed again
     return !!m_gz;
 }
@@ -661,9 +630,9 @@ XJournalWriter::dumpSubtree(Out &out, const Snapshot &shot,
     rec.reachable = true;
     rec.inTree = true;
 
-    XString s = formatString("{\"t\":\"n\",\"id\":%u", (unsigned)id);
+    XString s = formatString("{\"t\":\"n\",\"id\":%u", (unsigned)(id + out.idBase));
     if(index >= 0)
-        s += formatString(",\"p\":%u,\"i\":%d", (unsigned)parentId, index);
+        s += formatString(",\"p\":%u,\"i\":%d", (unsigned)(parentId + out.idBase), index);
     s += ",\"name\":\"" + jsonEscape(node->getName())
         + "\",\"path\":\"" + jsonEscape(path) + "\"";
     //The registry key, and only when there IS one: a mangled type name is
@@ -680,7 +649,7 @@ XJournalWriter::dumpSubtree(Out &out, const Snapshot &shot,
     out.line(s + "}\n");
 
     if(auto vnode = dynamic_pointer_cast<XValueNodeBase>(node)) {
-        XString v = formatString("{\"t\":\"v\",\"id\":%u,\"s\":%lld", (unsigned)id,
+        XString v = formatString("{\"t\":\"v\",\"id\":%u,\"s\":%lld", (unsigned)(id + out.idBase),
             (long long)shot[ *vnode].serial())
             + ",\"v\":\"" + jsonEscape(shot[ *vnode].to_str()) + "\"";
         if(auto dnode = dynamic_pointer_cast<XDoubleNode>(node))
@@ -705,7 +674,7 @@ void
 XJournalWriter::writeEntry(Out &out, const JournalT::Entry &e) {
     if(e.record.kind != KIND_VALUE)
         return; //structure is written where it is subscribed, with its names
-    XString s = formatString("{\"t\":\"v\",\"id\":%u", (unsigned)e.record.id)
+    XString s = formatString("{\"t\":\"v\",\"id\":%u", (unsigned)(e.record.id + out.idBase))
         + "," + stampOf(e.record.when)
         + formatString(",\"s\":%lld", (long long)e.serial)
         + ",\"c\":\"" + ((threadClassOf((unsigned int)((uint64_t)e.serial & 0xffffu))
@@ -784,12 +753,9 @@ XJournalWriter::syncRun() {
         return;
     Snapshot shot( *rec);
     //The id names this KAME in every header it writes, session journal or
-    //not: it is what lets a run be continued by the KAME that began it and
-    //by no other.  \sa sessionOfJournal()
+    //not -- one per launch, whether or not the session journal is on.
     if(m_session.empty())
         m_session = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
-    if(rec->sessionId().empty())
-        rec->setSessionId(m_session);
     //The always-on journal is refusable.  A dump is not free -- an ODMR tree
     //is 3000 nodes, 600 KB before compression -- and a background writer
     //nobody can switch off is impolite whatever its size.
@@ -816,37 +782,41 @@ XJournalWriter::syncRun() {
             trans( *rec->recording()) = false;
             return;
         }
-        //A file that exists is never written over.  The switch is thrown
-        //more than once in a run's life -- off to look at something, off by a
-        //slip -- and open() truncates, so the first half of a run vanished
-        //under its second half without a word (user).  A file this KAME
-        //wrote is CONTINUED instead: the same node ids are still in force,
-        //so the entries that follow mean what the head says.  One another
-        //session wrote is refused: its ids are not ours.  \sa resume below
-        XString raw = XJournal::rawPathOf(shot[ *rec->filename()].to_str());
-        bool exists = QFileInfo::exists(QString::fromStdString(path))
-            || ((mode == XJournal::Mode::LOGBOOK_RAW) && QFileInfo::exists(QString::fromStdString(raw)));
-        bool resume = false;
-        if(exists) {
-            XString tier;
-            if(XJournal::sessionOfJournal(path, &tier) != m_session) {
-                gWarnPrint(i18n_noncontext("Journal: ") + path
-                    + i18n_noncontext(" exists and is not this session's -- not overwritten. Name the run differently."));
-                trans( *rec->recording()) = false;
-                return;
+        //A journal that exists is continued, never written over and never
+        //refused (user).  A journal is a log: the newest record is always the
+        //last, so whatever follows the old records reads as what came next,
+        //and naming a file that belongs to something else is the user's to
+        //answer for.  What must not follow from it is the old records ceasing
+        //to mean what they said, which is the one thing continuing can break:
+        //node ids are counted from zero in every session, and a reader
+        //resolves them through one table built from the whole file.  So a
+        //run continued by the session that began it keeps its ids, and one
+        //continued from any other session -- an earlier launch included --
+        //numbers its nodes above every id the file already holds.
+        //
+        //Decided here, by the only code that creates this file, so the disk
+        //is a true witness.  The raw stream is not asked about: the recorder
+        //creates it the moment its filename is set, and a writer that looked
+        //at it once took the stream it had just made for a stranger's and
+        //refused every new run (2026-09-23).  "ab" throughout -- a new file
+        //is created by it, and an old one can never be truncated by it.
+        bool resume = QFileInfo::exists(QString::fromStdString(path));
+        uint32_t idBase = 0;
+        if(resume) {
+            auto it = m_runIdBases.find(path);
+            if(it != m_runIdBases.end())
+                idBase = it->second;
+            else {
+                std::map<uint32_t, XJournalFile::NodeInfo> known;
+                if( !XJournalFile::scanNodes(path, known))
+                    idBase = 1u << 24; //!< unreadable: stay clear of whatever it holds
+                else if( !known.empty())
+                    idBase = known.rbegin()->first + 1;
             }
-            //The header states the tier and the reader believes it.
-            if(tier != XJournal::modeLabel(mode)) {
-                gWarnPrint(i18n_noncontext("Journal: ") + path
-                    + i18n_noncontext(" was recorded as \"") + tier
-                    + i18n_noncontext("\"; set the tier back to continue it, or name the run differently."));
-                trans( *rec->recording()) = false;
-                return;
-            }
-            resume = true;
         }
+        m_runIdBases[path] = idBase;
         m_runFailSaid = false;
-        if( !m_runOut.open(path, resume)) {
+        if( !m_runOut.open(path, true)) {
             gErrPrint(i18n_noncontext("Journal: cannot write ") + path);
             trans( *rec->recording()) = false;
             return;
@@ -855,6 +825,7 @@ XJournalWriter::syncRun() {
         m_bytesJournal = 0;
         m_bytesLast = 0;
         m_rawBytesAtStart = rec->rawBytesWritten();
+        m_runOut.idBase = idBase;
         m_runOpen = true;
         m_runKeepsValues = true;
         if(resume) {
@@ -863,8 +834,14 @@ XJournalWriter::syncRun() {
             //was off and drivers may have been added, and a replay reaching
             //this point puts all of it back -- a mid-journal unstamped value
             //is a node's state as of that instant, which is what these are.
-            m_runOut.line(XString("{\"t\":\"run\",\"state\":\"resume\",")
-                + stampOf(XTime::now()) + "}\n");
+            //The marker says who continued it and in which tier, since both
+            //may differ from what the header says.
+            XString marker = XString("{\"t\":\"run\",\"state\":\"resume\",\"session\":\"")
+                + m_session + "\",\"mode\":\"" + XJournal::modeLabel(mode) + "\"";
+            if(mode == XJournal::Mode::LOGBOOK_RAW)
+                marker += ",\"raw\":\"" + jsonEscape(QFileInfo(QString::fromStdString(
+                    XJournal::rawPathOf(shot[ *rec->filename()].to_str()))).fileName().toStdString()) + "\"";
+            m_runOut.line(marker + "," + stampOf(XTime::now()) + "}\n");
             writeDump(m_runOut);
         }
         else {
@@ -1078,11 +1055,10 @@ XJournalWriter::processPending() {
             //freed since the event may have had its address reused.
             if((it != m_index.end())
                 && (m_nodes[it->second].node.lock() == p.released.lock())) {
-                XString line = formatString("{\"t\":\"released\",\"id\":%u,",
-                    (unsigned)it->second)
-                    + stampOf(XTime::now()) + "}\n";
-                m_sessionOut.line(line);
-                m_runOut.line(line);
+                XString stamp = stampOf(XTime::now()) + "}\n";
+                for(Out *out: {&m_sessionOut, &m_runOut})
+                    out->line(formatString("{\"t\":\"released\",\"id\":%u,",
+                        (unsigned)(it->second + out->idBase)) + stamp);
                 detachSubtree(it->second);
             }
         }

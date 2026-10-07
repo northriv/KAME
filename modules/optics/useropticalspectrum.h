@@ -42,12 +42,21 @@ protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
     virtual void open() override;
 
-    virtual void acquireSpectrum(shared_ptr<RawData> &) override;
+    virtual void acquireSpectrum(shared_ptr<RawData> &, const atomic<bool> &terminated) override;
 private:
     std::vector<double> m_wavelenCalibCoeffs; //polynominal func. coeff.
     std::vector<double> m_nonlinCorrCoeffs; //polynominal func. coeff.
     std::vector<double> m_strayLightCoeffs; //polynominal func. coeff.
     std::vector<uint8_t> m_spectrumBuffer;
+    //! Last good instrument status, reused while a trigger mode is armed. Querying the status
+    //! of an armed device can block for the whole USB timeout and then return short, which the
+    //! size check in readInstrumStatus() reports as XConvError ("Conversion Error"). Every
+    //! field read out of the status is static for a run, so one cached copy is equivalent.
+    //! Touched ONLY by the acquisition thread; other threads just clear the flag below.
+    std::vector<uint8_t> m_cachedStatus;
+    //! Cleared (false) by listeners when a setting carried in m_cachedStatus changes, so the
+    //! acquisition thread re-reads it once. Atomic because those listeners run on other threads.
+    atomic<bool> m_statusCacheValid{false};
 };
 #endif //USE_OCEANOPTICS_USB
 

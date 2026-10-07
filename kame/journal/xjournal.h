@@ -87,14 +87,6 @@ public:
     //! merely true.
     void setSessionPath(const XString &);
     const XString &sessionPath() const {return m_sessionPath;}
-    //! The writer's session id, so the switch can tell a file of its own from
-    //! one an earlier session wrote.  Set once by the writer before any run
-    //! can start, and read on the thread that throws the switch.
-    void setSessionId(const XString &s) {m_sessionId = s;}
-    const XString &sessionId() const {return m_sessionId;}
-    //! \return the session id in the header of the journal at \a path, empty
-    //! if the file cannot be read or has none; \a mode receives its tier label.
-    static XString sessionOfJournal(const XString &path, XString *mode = nullptr);
 
     //! `<base>.kamj` / `<base>.kamb`, whatever extension the user typed.
     static XString journalPathOf(const XString &given);
@@ -104,7 +96,7 @@ private:
     void onFilenameChanged(const Snapshot &shot, XValueNodeBase *);
     //! Mode and Recording mean something only once the field names a run.
     void updateRunControls();
-    XString m_sessionPath, m_sessionId;
+    XString m_sessionPath;
     const shared_ptr<XStringNode> m_filename;
     const shared_ptr<XComboNode> m_mode;
     const shared_ptr<XBoolNode> m_recording;
@@ -293,6 +285,9 @@ private:
         ~Out() {close();}
         //! \a append continues a file that exists, as a further gzip member.
         bool open(const XString &path, bool append = false);
+        //! Added to every node id this output writes.  0 but for a run
+        //! appended to a journal another session began.  \sa syncRun()
+        uint32_t idBase = 0;
         void line(const XString &s);
         //! Ends a deflate block so everything so far reads on its own.
         //! Throttled: Z_FULL_FLUSH resets the dictionary, so flushing on
@@ -396,6 +391,9 @@ private:
     //! Open between the Write switch going on and off: the run.
     Out m_runOut;
     XString m_sessionPath, m_openPath, m_session;
+    //! The id base each run file was given this session, so that switching
+    //! Write off and on again keeps the ids the file already uses.
+    std::map<XString, uint32_t> m_runIdBases;
     //! A pending File > Save, handed over under m_wake like everything else.
     XString m_savePath;
     //! Whether the RUN wants values -- false for a Setup run, and while no

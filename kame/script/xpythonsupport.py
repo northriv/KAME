@@ -129,12 +129,25 @@ TLS.logfile = None
 import io
 
 class MyDefIO:
+	def _log(self, s):
+		#Mirroring to the per-script .log file must NEVER be able to raise: this runs
+		#inside sys.stderr.write(), and a raising stderr turns one script error into the
+		#threading.excepthook / sys.unraisablehook cascade (each fallback tries stderr
+		#again and dies the same way).  The concrete case: loadSequence's `with open(...)
+		#as logfile` closes the file while unwinding, but TLS.logfile still points at it,
+		#so the very first write of the traceback hit "I/O operation on closed file".
+		#Drop the handle on any failure so the next line does not retry it.
+		if not s or not getattr(TLS, 'logfile', None):
+			return
+		try:
+			TLS.logfile.write(str(datetime.datetime.now()) + ":" + s + '\n')
+			TLS.logfile.flush()
+		except Exception:
+			TLS.logfile = None
 	def write_html(self, s):
 		if hasattr(TLS, 'xscrthread') and TLS.xscrthread:
 			my_defout(TLS.xscrthread, s)
-			if s and TLS.logfile:
-				TLS.logfile.write(str(datetime.datetime.now()) + ":" + s + '\n')
-				TLS.logfile.flush()
+			self._log(s)
 			return len(s)
 		else:
 			return STDERR.write(s) #redirecting to terminal, for debug purpose.
@@ -167,9 +180,7 @@ class MyDefIO:
 					#redirecting to area beneath the cell, for jupyter notebook.
 					display(IPython.display.HTML(escaped_s))
 			my_defout(TLS.xscrthread, escaped_s)
-			if s and TLS.logfile:
-				TLS.logfile.write(str(datetime.datetime.now()) + ":" + s + '\n')
-				TLS.logfile.flush()
+			self._log(s)
 			return len(s)
 		else:
 			return STDERR.write(s) #redirecting to terminal, for debug purpose.
@@ -505,10 +516,15 @@ def loadSequence(xpythread, filename):
 				_ns["__file__"] = filename
 				exec(compile(_src, filename, "exec"), _ns)
 				print(str(threading.current_thread()) + " Finished.")
-				TLS.logfile = None
 	except Exception:
 		sys.stderr.write(str(traceback.format_exc()))
-	TLS.xscrthread["Status"] = ""
+	finally:
+		#Both in a finally: on the error path the `with` above has already closed the
+		#log file, and leaving TLS.logfile pointing at it made the next write raise.
+		#Status likewise had to be cleared unconditionally -- when the write did raise,
+		#the thread died with Status still "run" and KAME would not start it again.
+		TLS.logfile = None
+		TLS.xscrthread["Status"] = ""
 
 def kame_pybind_one_iteration():
 	global _deferred_done
@@ -2053,12 +2069,31 @@ PYAI_SETTINGS_TEMPLATE = """\
 #KAME_PYAI_MODEL=sakana:fugu
 #KAME_PYAI_MODEL=sakana:fugu-ultra-v1.1
 
-# A model of your own through an OpenAI-compatible server (Ollama, LM Studio,
-# llama.cpp): name it openai:<model>, point OPENAI_BASE_URL at the server, and
-# give any non-empty OPENAI_API_KEY, which such servers ignore.
-#KAME_PYAI_MODEL=openai:qwen3:32b
-#OPENAI_BASE_URL=http://127.0.0.1:11434/v1
-#OPENAI_API_KEY=ollama
+# ---- Local models -----------------------------------------------------------
+# A model served on this machine needs no key and coexists with the cloud
+# keys below: the prefix carries the server's address.  The model must
+# support tool calls (Qwen3, Llama 3.1+, Mistral, GPT-OSS do).  A local
+# server that is running is offered in the web UI's menu even with no line
+# here; a line makes it the default.
+#
+# Bionic (or LM Studio): download a chat model in the app, start its server
+# (Developer tab > Start Server, or `lms server start`; port 1234), and use
+# the model id that `lms ls` prints:
+#KAME_PYAI_MODEL=bionic:qwen3.8-27b
+# Ollama (`ollama pull qwen3:32b`; it serves on 11434):
+#KAME_PYAI_MODEL=ollama:qwen3:32b
+# Any other OpenAI-compatible server (llama.cpp, vLLM, ...):
+#KAME_PYAI_MODEL=local:<model id>
+#KAME_PYAI_LOCAL_URL=http://127.0.0.1:8080/v1
+# Non-default ports for the two above: KAME_PYAI_BIONIC_URL / KAME_PYAI_OLLAMA_URL.
+
+# ---- How much a model may write ---------------------------------------------
+# Output tokens per reply, thinking included.  Claude models get 32000 from
+# KAME; other providers keep their own default until this line is set, and
+# then it applies to every model.  Raise it if a run ends with "Model token
+# limit ... exceeded before any response was generated" -- a model that
+# thinks at length can spend the whole allowance before writing a word.
+#KAME_PYAI_MAX_TOKENS=64000
 
 # ---- The key the chosen provider needs -------------------------------------
 # (Your own agent module sees these too, once it imports kame_pydantic_ai.)
@@ -2184,7 +2219,7 @@ def _pyai_help_file(py, script, agent, own, model, wd, system):
 		'  agent        the "agent" link in KAME (Cancel there = back to the one KAME ships)',
 		'  model        KAME_PYAI_MODEL=provider:name   in {}'.format(_prof),
 		'               e.g. anthropic:claude-sonnet-4-5 | openai:gpt-5 | sakana:fugu |',
-		'               openai:<local name> together with OPENAI_BASE_URL (Ollama, LM Studio)',
+		'               bionic:<model id> | ollama:<model id>   (local, no key needed)',
 		'The usual messages, and the fix for each:',
 		'  "Set the XXX_API_KEY environment variable"',
 		'        XXX_API_KEY=...   in {}.'.format(_prof),
@@ -2765,15 +2800,23 @@ def kame_handle_link(action):
 				if action == 'pyai-web' and _webapp and os.path.isfile(_uvi):
 					_cmd = [_uvi, _webapp, '--host', '127.0.0.1', '--port', str(_port)]
 				else:
+					# No -m for the CLI: the agent binds its model itself (the first
+					# of KAME_PYAI_MODEL, else the first its keys reach), already
+					# resolved and carrying its output budget, and clai REPLACES a
+					# bound model whenever -m is given (`agent.model =
+					# infer_model(...)`) -- which dropped that budget and cannot
+					# resolve sakana:/bionic: at all.  Only the clai-web fallback
+					# (no uvicorn) still gets -m, to fill its model picker.
 					_models = [_x for _x in re.split(r'[,\s]+', _model) if _x] \
-							  if _model and (not _own or action == 'pyai-web') else []
+							  if _model and action == 'pyai-web' else []
 					# clai's infer_model() knows no `sakana:`; the module resolves
 					# that prefix itself and binds the FIRST listed model.  Any -m
 					# makes clai override that binding, so with a sakana default
 					# pass none, and never pass a sakana entry.
-					if _models and _models[0].startswith('sakana:'):
+					_kame_only = ('sakana:', 'bionic:', 'ollama:', 'local:')
+					if _models and _models[0].startswith(_kame_only):
 						_models = []
-					_models = [_x for _x in _models if not _x.startswith('sakana:')]
+					_models = [_x for _x in _models if not _x.startswith(_kame_only)]
 					_cmd = [_clai] + (['web'] if action == 'pyai-web' else []) \
 						   + ['-a', _agent] \
 						   + [_a for _x in _models for _a in ('-m', _x)] \
@@ -2829,7 +2872,7 @@ def kame_handle_link(action):
 				("serving " + _webapp + " with uvicorn; figures at /plots"
 				 if _via_clai and action == 'pyai-web' and _cmd and _cmd[0] == _uvi
 				 else ("via clai, agent " + _agent + ("; its own model" if _own
-					else "; model from -m or clai's default"))
+					else "; model from ~/.kame_pyai.env, else the first your keys reach"))
 				if _via_clai else _py + "; needs --model or KAME_PYAI_MODEL")))
 		else:
 			_kame_gui_html('<font color="#cc0000">Unknown link action: {}</font>'.format(

@@ -23,6 +23,7 @@ XArbFuncGen::XArbFuncGen(const char *name, bool runtime,
     m_output(create<XBoolNode>("Output", true)),
     m_burst(create<XBoolNode>("Burst", true)),
     m_burstPhase(create<XDoubleNode>("BurstPhase", true)),
+    m_phase(create<XDoubleNode>("Phase", true)),
     m_burstCycles(create<XUIntNode>("BurstCycles", true)),
     m_trigSrc(create<XComboNode>("TrigSrc", true)),
     m_waveform(create<XComboNode>("Waveform", true)),
@@ -32,12 +33,15 @@ XArbFuncGen::XArbFuncGen(const char *name, bool runtime,
     m_duty(create<XDoubleNode>("Duty", true)),
     m_pulseWidth(create<XDoubleNode>("PulseWidth", true)),
     m_pulsePeriod(create<XDoubleNode>("PulsePeriod", true)),
+    m_softwareTrig(create<XTouchableNode>("SoftwareTrig", true)),
     m_form(new FrmArbFuncGen) {
 
     m_conUIs = {
+        xqcon_create<XQButtonConnector>(m_softwareTrig, m_form->m_btnSoftTrig),
         xqcon_create<XQToggleButtonConnector>(m_output, m_form->m_ckbOutput),
         xqcon_create<XQToggleButtonConnector>(m_burst, m_form->m_ckbBurst),
         xqcon_create<XQLineEditConnector>(m_burstPhase, m_form->m_edBurstPhase),
+        xqcon_create<XQLineEditConnector>(m_phase, m_form->m_edPhase),
         xqcon_create<XQLineEditConnector>(m_burstCycles, m_form->m_edBurstCycles),
         xqcon_create<XQComboBoxConnector>(m_trigSrc, m_form->m_cmbTrigSrc, Snapshot( *m_trigSrc)),
         xqcon_create<XQComboBoxConnector>(m_waveform, m_form->m_cmbWaveform, Snapshot( *m_waveform)),
@@ -51,8 +55,8 @@ XArbFuncGen::XArbFuncGen(const char *name, bool runtime,
 
     iterate_commit([=](Transaction &tr){
         std::vector<shared_ptr<XNode>> runtime_ui{
-            m_output, m_burst, m_burstPhase, m_burstCycles, m_trigSrc, m_waveform, m_freq, m_ampl, m_offset, m_duty,
-            m_pulseWidth, m_pulsePeriod
+            m_output, m_burst, m_burstPhase, m_phase, m_burstCycles, m_trigSrc, m_waveform, m_freq, m_ampl, m_offset, m_duty,
+            m_pulseWidth, m_pulsePeriod, m_softwareTrig
         };
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(false);
@@ -82,6 +86,15 @@ void XArbFuncGen::onCondChanged(const Snapshot &, XValueNodeBase *) {
         return;
     }
 }
+void XArbFuncGen::onSoftTrigTouched(const Snapshot &, XTouchableNode *) {
+    try {
+        sendSoftwareTrigger();
+    }
+    catch (XKameError& e) {
+        e.print(getLabel() + " " + i18n("Error, "));
+        return;
+    }
+}
 
 void XArbFuncGen::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 }
@@ -91,8 +104,8 @@ void XArbFuncGen::visualize(const Snapshot &shot) {
 void
 XArbFuncGen::start() {
     std::vector<shared_ptr<XNode>> runtime_ui{
-        m_output, m_burst, m_burstPhase, m_burstCycles, m_trigSrc, m_waveform, m_freq, m_ampl, m_offset, m_duty,
-        m_pulseWidth, m_pulsePeriod
+        m_output, m_burst, m_burstPhase, m_phase, m_burstCycles, m_trigSrc, m_waveform, m_freq, m_ampl, m_offset, m_duty,
+        m_pulseWidth, m_pulsePeriod, m_softwareTrig
     };
     iterate_commit([=](Transaction &tr){
         for(auto &&x: runtime_ui)
@@ -105,6 +118,7 @@ XArbFuncGen::start() {
             shared_from_this(), &XArbFuncGen::onCondChanged);
         tr[ *m_burst].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *m_burstPhase].onValueChanged().connect(m_lsnOnCondChanged);
+        tr[ *m_phase].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *m_burstCycles].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *m_trigSrc].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *m_ampl].onValueChanged().connect(m_lsnOnCondChanged);
@@ -112,15 +126,18 @@ XArbFuncGen::start() {
         tr[ *m_duty].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *m_pulseWidth].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *m_pulsePeriod].onValueChanged().connect(m_lsnOnCondChanged);
+        m_lsnOnSoftTrigTouched = tr[ *m_softwareTrig].onTouch().connectWeakly(
+            shared_from_this(), &XArbFuncGen::onSoftTrigTouched);
     });
 }
 void
 XArbFuncGen::stop() {
     m_lsnOnOutputChanged.reset();
     m_lsnOnCondChanged.reset();
+    m_lsnOnSoftTrigTouched.reset();
     std::vector<shared_ptr<XNode>> runtime_ui{
         m_output, m_waveform, m_freq, m_ampl, m_offset, m_duty,
-        m_pulseWidth, m_pulsePeriod
+        m_pulseWidth, m_pulsePeriod, m_softwareTrig
     };
 
     iterate_commit([=](Transaction &tr){

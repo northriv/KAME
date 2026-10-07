@@ -1,3 +1,44 @@
+* Wed Sep 23 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- NMR T1: ten Smoothing Samples or fewer is a warning, not a record error
+  (user).  In T2 multi-echo mode the count is the echo count, so a frequency
+  sweep run on eight echoes had the relaxation driver beside it failing every
+  record -- and it could not recover: the check came before the derivation
+  that sets the axis from the pulser, so once a short train had set the
+  count, every later record was refused before the derivation could follow
+  the pulser back.  The derivation now comes first.  A single echo is passed
+  over with a warning saying so, and a count below two because no curve can
+  be built.  The count is also set only when the number of echoes changes,
+  so lowering it now reduces the train evenly as the manual says; it was put
+  back on every record before.
+- UI: a form, chart or graph opened with a click unpins the toolbox that
+  would cover it (user).  A pinned toolbox stays on top of everything, so the
+  window came up underneath it, the click defeated by the pin.  The rule the
+  load already follows before it pins, applied when the window is put up:
+  only the toolbox that covers it goes back to auto-hide and folds at once,
+  and the window stays where it was.
+- Journal: a run file that exists is always continued -- never written over
+  and never refused (user).  Sep 19 refused a file another session had
+  written, and in "Settings + raw records" refused every new run as well: the
+  writer looked for the raw stream, which the recorder had created a moment
+  before, found no journal to prove it ours, and took it for a stranger's --
+  leaving that stream behind to refuse the name at every later try.  But a
+  journal is a log; the newest record is always last, so what follows the old
+  records can only read as what came next, and naming a file that belongs to
+  something else is the user's to answer for.  The one thing continuing could
+  break is the old records' meaning: node ids are counted from zero in every
+  session, and a reader resolves them through one table built from the whole
+  file, so another session's ids appended as they were would replay its
+  values onto our nodes.  A run continued by the session that began it keeps
+  its ids; one continued from any other session -- an earlier launch
+  included -- numbers its nodes above every id the file holds.  The writer
+  decides alone, from the journal file, which only it creates; the raw
+  stream is simply appended to.  A tier may change at the resumption, which
+  the resume marker records, and a stream begun after the header was written
+  is found beside the journal by name.  Checked with the real reader on
+  appended files: ids distinct, every value on the node its segment meant,
+  and without the offset three of four earlier values landed on the wrong
+  node.
+
 * Mon Sep 21 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - NMR T1: in T2 multi-echo mode the relaxation curve is binned on a linear
   axis, as the echoes are measured (user).  The divisions are logarithmic,

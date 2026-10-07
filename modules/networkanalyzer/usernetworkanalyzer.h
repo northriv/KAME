@@ -179,9 +179,25 @@ protected:
     virtual void convertRaw(RawDataReader &reader, Transaction &tr) override;
 
     virtual void open() override;
+    virtual XTime acquisitionStarted(const XTime &polled) override;
 private:
     void rearrangeIFBW();
+    //! Asks the GUI for one sweep and waits for its average to fill.
+    void singleSweep();
     //! Knows how the connected GUI answers a setting. \sa LibreVNASCPI
     LibreVNASCPI m_scpi;
+    //! GUI >= 1.6.5 only: the sweep has been set running continuously, and
+    //! the sweep frequency last read, to find where one sweep ends.  Touched
+    //! only by the acquisition thread, and by open() before it starts.
+    bool m_continuous = false;
+    double m_lastSweepFreq = -1.0;
+    bool m_warnedSweepFrozen = false;
+    //! When the edge between two sweeps was last seen, and the time between
+    //! the last two [s]; 0 until two have been.
+    XTime m_lastSweepEdge;
+    double m_sweepPeriod = 0.0;
+    //! Start of the data oneSweep() last handed over, when it was read from a
+    //! running sweep; unset when it asked for a fresh one. \sa acquisitionStarted()
+    XTime m_acquisitionStarted;
 };
 #endif

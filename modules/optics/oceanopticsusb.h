@@ -42,12 +42,40 @@ public:
     void setIntegrationTime(unsigned int us);
     void enableStrobe(bool);
     void setupStrobeCond(double singlestrobe_to_high_sec, double singlestrobe_to_low_sec);
-    enum class TrigMode {NORMAL=0,SOFTWARE=1,EXT_HARDWARE=2, EXT_SYNC=3, EXT_HARDWARE_EDGE=4};
+    //! Raw SET_TRIG_MODE payload values. Deliberately NOT named after a trigger semantic:
+    //! what each external value means depends on the FPGA firmware generation, and naming
+    //! them wrongly is what caused a mode to be selected that never integrates at all.
+    //!   FW < 3.0  (doc 200-00000-000): 0 Normal, 1 Ext.Software, 2 Ext.Synchronization,
+    //!                                 3 Ext.Hardware (edge, exposure = IntegrationTime)
+    //!   FW >= 3.0 (doc 200-00000-001): 0 Normal/Free-Run, 1 Software, 2 Ext.Hardware LEVEL
+    //!                                 (exposure = trigger HIGH width), 3 Ext.Synchronous,
+    //!                                 4 Ext.Hardware EDGE (exposure = IntegrationTime)
+    //! Read the version out with Register::FPGAFirmwareVersion (open() reports it) and
+    //! distinguish LEVEL from SYNCHRONIZATION on the bench by changing the trigger DUTY at
+    //! fixed frequency: LEVEL's counts track the HIGH width, SYNCHRONIZATION's do not.
+    enum class TrigMode {VALUE_0 = 0, VALUE_1 = 1, VALUE_2 = 2, VALUE_3 = 3, VALUE_4 = 4};
     void setupTrigCond(TrigMode mode, double delay_sec);
     void setAnalogOutput(double);
 
     void requestSpectrum();
+    //! Clears any halt/stall left on the spectrum bulk-in endpoint(s), e.g. after a
+    //! cancelled triggered read or when the trigger mode changes, so a subsequent read
+    //! (free-run or triggered) is not blocked by a stale endpoint state.
+    void clearSpectrumEndpoints();
+    //! USB port reset to clear a latched acquisition state (e.g. status[8] stuck at 3
+    //! "acquiring" after leaving a trigger mode, which neither SET_TRIG_MODE nor CMD::INIT
+    //! clears). Mirrors a manual interface Control off/on; safe because OceanOptics firmware
+    //! is persistent (no firmware download). Caller must re-apply settings afterwards.
+    void resetDevice();
     int readSpectrum(std::vector<uint8_t> &buf, uint16_t pixels, bool usb_highspeed);
+    //! Like readSpectrum() but reads via interruptible async polling, so it can wait an
+    //! arbitrary time for an external trigger edge without the fixed cancel-on-timeout of
+    //! the synchronous path (which wedges HR4000-class devices). While triggers keep
+    //! arriving no transfer is ever cancelled. Returns 0 if aborted — either \a terminated
+    //! became true (thread stop) or no trigger arrived within \a timeout_sec — leaving the
+    //! device in a clean state.
+    int readSpectrumInterruptible(std::vector<uint8_t> &buf, uint16_t pixels, bool usb_highspeed,
+        const atomic<bool> &terminated, double timeout_sec);
 
     std::vector<uint8_t> readInstrumStatus();
     struct InstrumConfig {

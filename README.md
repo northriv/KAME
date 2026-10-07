@@ -701,7 +701,8 @@ needed before the first chat, and **⚙ settings** is where both go: it creates
 `~/.kame_pyai.env` from a commented template and opens it in your editor —
 uncomment a `KAME_PYAI_MODEL=provider:name` line (several, comma-separated,
 fill the web UI's model menu; `sakana:fugu` reaches Sakana AI with
-`SAKANA_API_KEY`) and fill in that provider's key. Nothing has to be exported
+`SAKANA_API_KEY`; a model served locally by Bionic or Ollama is
+`bionic:<id>` or `ollama:<id>`, no key, beside the cloud ones) and fill in that provider's key. Nothing has to be exported
 in a shell profile: neither pydantic-ai nor `clai` reads a `.env` by itself,
 and a GUI process sees no shell exports anyway, so KAME's agent reads this
 file on every launch. **web** serves the agent's own web app with `uvicorn`
@@ -783,7 +784,9 @@ import json, pathlib
 from pydantic_ai.mcp import MCPToolset
 
 info = json.loads((pathlib.Path.home() / '.kame_mcp_url').read_text())
-kame = MCPToolset(info['url'], auth=info['token'])   # instructions included
+kame = MCPToolset(info['url'], auth=info['token'],
+                  include_instructions=True,     # default False: no safety rules without it
+                  tool_error_behavior='failed')  # a KAME error informs; it need not end the run
 ```
 
 ### Agent plugin (skill + server in one directory)
