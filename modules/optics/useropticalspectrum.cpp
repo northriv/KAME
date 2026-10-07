@@ -309,12 +309,19 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     bool isusb2000 = statussize < 16;
     uint16_t pixels = 2048u;
     if(statussize) {
-        if(isusb2000)
-            pixels = reader.pop<uint8_t>() * 0x100u + reader.pop<uint8_t>(); //MSB,LSB
+        //MSB,LSB in separate statements: the evaluation order of the operands of + is unspecified.
+        if(isusb2000) {
+            unsigned int msb = reader.pop<uint8_t>();
+            pixels = msb * 0x100u + reader.pop<uint8_t>();
+        }
         else
             pixels = reader.pop<uint16_t>();
-        tr[ *this].m_integrationTime = isusb2000 ?
-            (reader.pop<uint8_t>() * 0x100u + reader.pop<uint8_t>()) * 1e-3 : reader.pop<uint32_t>() * 1e-6; //sec
+        if(isusb2000) {
+            unsigned int msb = reader.pop<uint8_t>();
+            tr[ *this].m_integrationTime = (msb * 0x100u + reader.pop<uint8_t>()) * 1e-3; //sec
+        }
+        else
+            tr[ *this].m_integrationTime = reader.pop<uint32_t>() * 1e-6; //sec
         uint8_t lamp_enabled = reader.pop<uint8_t>();
         uint8_t trigger_mode = reader.pop<uint8_t>();
         uint8_t acq_status = reader.pop<uint8_t>(); //in USB2000, is request spectra.
