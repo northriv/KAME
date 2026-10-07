@@ -1,3 +1,6 @@
+* Wed Oct 7 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Release 9.0.
+
 * Wed Sep 23 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - NMR T1: ten Smoothing Samples or fewer is a warning, not a record error
   (user).  In T2 multi-echo mode the count is the echo count, so a frequency
