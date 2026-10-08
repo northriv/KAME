@@ -2,7 +2,11 @@
 
 Written 2026-10-08, x86-64 Linux, g++ 13.3, 4 cores.  Found while testing
 `b23a57ec1` (`claude/asp-serial-orphan-chain`), but **the defect is on
-`master` and predates that branch** — see §3.  Not fixed.
+`master` and predates that branch** — see §3.
+
+**Status:** fixed on `claude/force-walk-hint-table` (`ea8d70766`, the global
+hint table from §4).  Validated on Linux, LP64 and ILP32 (§8).  **That commit
+does not compile on any 32-bit target** without the one-line patch in §8.
 
 ---
 
@@ -351,3 +355,43 @@ Recorded here so it is not re-run:
 | TLA+ `OrphanChain_aba` 2-thread cfgs | not run (stopped) |
 
 The branch's own "Not yet built with -m32" is answered by the `-m32` rows.
+
+## 8. The fix, tested: `ea8d70766` (`claude/force-walk-hint-table`)
+
+Tested 2026-10-08, x86-64 Linux, g++ 13.3, 4 cores, against its parent
+`master` `872d89030` with the same build config.  The commit replaces the TLS
+pointer with a static table `g_force_walk` (owner id mod 4096, one bit per
+DLL-owning template).  All three free sites now cache `m_owner_id` and
+`m_force_walk_bit` before `batch_return_to_bitmap`, and nothing points into
+TLS any more.  The §3a counter therefore no longer applies; the fix is
+validated by crash A/B, as §5 says.
+
+| check | result |
+|---|---|
+| crash A/B, `alloc_tsd_exclusivity_test`, 4 concurrent, interleaved, by exit status | **master 17 / 2000 SIGSEGV, fix 0 / 2000** (two-sided Fisher p = 1.5 × 10⁻⁵).  All 17 at the same store: `flush` via `deallocate_pooled_static<32>`. |
+| ctest, LP64 | 41 / 41 |
+| hint still functional: `bench_xthread_pool -w 2 -t 3`, mmap regions added, 3 reps × 64 / 256 / 1024 B | fix +2 / +1 / +1, master +2 / +1 / +1–2.  A dead hint shows +15–17 (the commit's own measurement), so this rules that out.  Throughput not compared — a 4-core shared box is not a benchmark host. |
+| **32-bit build** | **fails** on `-m32 -march=i486`, `-m32 -march=i586` and plain `-m32`: `force_walk_bit`'s `static_assert` |
+| with the patch below: `check_no_dcas.sh` | 3 / 3 ok — phases 2–3 are the ones the commit had to skip on macOS |
+| with the patch: ctest `-m32 -march=i586` / `-m32 -march=i486` | 41 / 41, 34 / 34 |
+| with the patch: LP64 linked `.text` | byte-identical to `ea8d70766` (301,916 bytes), so every LP64 row above holds for the patched build too |
+
+**The 32-bit break.**  `force_walk_bit` maps the variable-size templates by
+an explicit ALIGN table, {32, 64, 256, 1024, 4096} → bits 24..28.  That set is
+the LP64 one.  The variable-size ALIGNs follow `ALLOC_ALIGN2`, which is 256 on
+LP64 and **128 on ILP32**, so ILP32 has a sixth template, `<128, true, false>`.
+It falls through to 32 and fails the assert.  Enumerated by instantiation:
+LP64 {32, 64, 256, 1024, 4096}; ILP32 {32, 64, 128, 256, 1024, 4096}.  The
+fix gives 128 the free bit 29:
+
+```diff
+-	    : ALIGN == 1024u ? 27u : ALIGN == 4096u ? 28u : 32u;
++	    : ALIGN == 1024u ? 27u : ALIGN == 4096u ? 28u
++	    : ALIGN == 128u ? 29u : 32u;
+```
+
+(plus the comment: "24..29 by ALIGN", and why ILP32 has six).  Same failure
+class as `06d046d6e`'s `KameTlsPage` asserts: written where the i486 audit
+phases skip.  A width-independent alternative is `24 + log2(ALIGN / 32)`, which
+covers 32..4096 in bits 24..31.  It would make the table impossible to fall
+behind `ALLOC_ALIGN*`, at the cost of renumbering the LP64 bits.
