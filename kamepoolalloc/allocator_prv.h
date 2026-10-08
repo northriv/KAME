@@ -1335,31 +1335,14 @@ public:
 	//! perf tax on Linux from spurious cursor resets.
 	void *m_owner_dll_head_addr = nullptr;
 
-	//! pointer to owner thread's "force DLL re-walk" hint
-	//! flag (TLS `std::atomic<bool>` per PoolAllocator template).
-	//! Cross-thread frees set this so the owner's next
-	//! `allocate_chunk_path` notices that one of its DLL chunks got
-	//! a bitmap clear since the last walk and force-restarts the
-	//! walk from `s_dll_head` instead of resuming from a stale
-	//! `s_dll_cursor`.
-	//!
-	//! declared `std::atomic<std::atomic<bool> *>` (atomic
-	//! pointer to atomic bool) so that owner-exit
-	//! (`release_dll_chunks_for_thread`) and concurrent cross-thread
-	//! frees on surviving chunks do not data-race on plain pointer
-	//! access.  Owner-exit stores `nullptr` with `release` BEFORE
-	//! clearing BIT_OWNED; cross-thread freers load with `acquire`
-	//! and skip the deref when null.  The 1000-thread `alloc_stress`
-	//! Linux SEGV that an earlier change exhibited (1000 thr × 20K × 30 %cross)
-	//! is fixed by this ordering — without atomic load/store on the
-	//! pointer, owner-exit's plain `= nullptr` racing with a cross-
-	//! thread freer's plain `->store(...)` was UB and crashed on Linux.
-	//!
-	//! Inner `store(true)` (cross-thread → owner) and the owner's
-	//! `exchange(false)` in `allocate_chunk_path` remain
-	//! `memory_order_relaxed` — the hint itself doesn't require
-	//! synchronisation, only the outer pointer's lifetime does.
-	std::atomic<std::atomic<bool> *> m_owner_dll_force_walk_ptr{nullptr};
+	//! This chunk's bit in the owner's force-walk hint word
+	//! (`force_walk_bit<>()`, allocator.cpp).  A cross-thread free that
+	//! returns a slot here sets it in `g_force_walk[m_owner_id]`, so the
+	//! owner's next `allocate_chunk_path` restarts its DLL walk from the
+	//! head and finds the revived chunk.  Write-once at construction.
+	//! (Replaces a raw pointer into the owner's TLS, which a freer could
+	//! store through after the owner had exited -- see g_force_walk.)
+	uint8_t m_force_walk_bit = 0;
 
 	//! runtime cap on the number of mmap regions
 	//! `allocate_chunk` may claim.  Initialised to
@@ -2002,15 +1985,10 @@ protected:
 	//!       - new chunk append (mmap-fresh path).
 	//!       - own-side `reset_dll_walk_state()` after a
 	//!         `batch_return_to_bitmap`.
-	//!       - cross-thread `dll_force_walk_from_head` exchange in
-	//!         `allocate_chunk_path`.
-	//!   * `dll_force_walk_from_head`: cross-thread
-	//!     revival hint.  `relaxed atomic`; cross-thread frees set
-	//!     true via the chunk's `m_owner_dll_force_walk_ptr` (which
-	//!     points into THIS struct).  `allocate_chunk_path`
-	//!     exchanges it back to false at entry; if it was true,
-	//!     resets cursor + exhausted so the next walk restarts from
-	//!     `dll_head` and visits revived chunks.
+	//!       - a cross-thread revival hint taken from `g_force_walk`
+	//!         (allocator.cpp) in `allocate_chunk_path`.  The hint is
+	//!         not in this struct: a freer reaches it after returning
+	//!         its slot, when this thread may have exited.
 	struct ThreadLocalState {
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *my_chunk;
 #if KAME_POOL_ONEBACK_SKIP
@@ -2026,7 +2004,6 @@ protected:
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_tail;
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_cursor;
 		bool dll_exhausted;
-		std::atomic<bool> dll_force_walk_from_head;
 	};
 	static ALLOC_TLS ThreadLocalState s_tls;
 
