@@ -45,7 +45,10 @@
  * fingerprints: -XX:MaxDirectMemorySize=44g -fpmem 0.9 and
  * -Dtlc2.tool.fp.FPSet.impl=tlc2.tool.fp.OffHeapDiskFPSet).  At that size
  * TLC's own estimate of a fingerprint collision having hidden a state is
- * 0.2 (0.55 optimistic); a second run with another -fp index tightens it.
+ * 0.2 (0.55 optimistic) for that run (-fp 59).  A second run with -fp 7 is
+ * also clean and finds exactly the same 1,500,210,294 distinct states
+ * (estimate 0.1): a collision that hid states would have changed the count
+ * under a different fingerprint polynomial.
  *)
 
 EXTENDS Naturals, FiniteSets
