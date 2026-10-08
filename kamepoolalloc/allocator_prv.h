@@ -1729,6 +1729,22 @@ public:
 //! pool-allocator TLS state is dead.  Defined in allocator.cpp.
 extern ALLOC_TLS bool s_alloc_tls_off;
 
+template <unsigned int ALIGN, bool FS, bool DUMMY> class PoolAllocator;
+//! The orphan chain (atomic_shared_ptr<PoolAllocator<ALIGN, true, DUMMY>>) carries
+//! a serial in its words: a chunk is pushed again after it was popped and
+//! adopted, which makes a pointer-only CAS on the chain ABA-prone (see
+//! orphan_chain_pop).  Every chain node -- the PoolAllocator object of a regular
+//! chunk -- sits at chunk_base + ALLOC_CHUNK_HEADER, and chunk_base sits
+//! ALLOC_CHUNK_K_MAX below a 256 KiB unit boundary (the forward-shift
+//! reservation), so the low 18 bits of every node address are this constant.
+//! Dedicated chunks never go on the chain.
+template <unsigned int ALIGN, bool DUMMY>
+struct atomic_serial_traits<PoolAllocator<ALIGN, true, DUMMY> > {
+	static constexpr unsigned LOW_BITS = ALLOC_MIN_CHUNK_SHIFT;
+	static constexpr uintptr_t LOW_VALUE =
+	    ALLOC_MIN_CHUNK_SIZE - ALLOC_CHUNK_K_MAX + ALLOC_CHUNK_HEADER;
+};
+
 //! \brief Memory blocks in a unit of double-quad word
 //! can be allocated from fixed-size or variable-size memory pools.
 //! \tparam FS determines fixed-size or variable-size.
