@@ -8083,6 +8083,8 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_push(
     PoolAllocator<ALIGN, DUMMY, DUMMY> *craw) noexcept {
 	PoolAllocator *c = static_cast<PoolAllocator *>(craw);  // upcast to FS=true base (chain node type)
+	assert((((uintptr_t)c) & (((uintptr_t)1 << atomic_serial_traits<PoolAllocator>::LOW_BITS) - 1))
+	       == atomic_serial_traits<PoolAllocator>::LOW_VALUE);   // the serial's fixed low bits
 	local_shared_ptr<PoolAllocator> n;
 	if(c->m_owner_self_ref) {
 		// (Path B owner-ref) Re-owned chunk being re-orphaned at owner-exit:
@@ -8115,7 +8117,9 @@ void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_push(
 //! Orphans never refill (adopt deferred) so MASK_CNT==0 is stable; a plain
 //! read of m_flags_packed can only be stale-HIGH (skip now, reclaim next
 //! pass) = safe-side.  Dead-only + reachability-preserving relink; a lost CAS
-//! restarts from head — multiple scrubbers are safe-side.
+//! restarts from head — multiple scrubbers are safe-side.  Like the pop, the
+//! unlink CAS relies on the chain's serial (atomic_serial_traits): pred may be
+//! popped, adopted and pushed back between the loads and the CAS.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_scrub() noexcept {
 	local_shared_ptr<PoolAllocator> pred;                      // empty ⇒ pred is head
@@ -8125,7 +8129,14 @@ void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_scrub() noexcept {
 		if((cur->m_flags_packed & MASK_CNT) == 0u) {           // dead orphan → unlink
 			bool ok = pred ? pred->m_orphan_next.compareAndSet(cur, nxt)
 			               : s_orphan_chain_head().compareAndSet(cur, nxt);
-			if(ok) { cur = nxt; continue; }                    // unlinked; pred unchanged
+			if(ok) {                                           // unlinked; pred unchanged
+				// Reload cur from pred's word rather than taking nxt: nxt was
+				// loaded from the unlinked node's own link, and a CAS on pred's
+				// word must expect the serial of a load from pred's word.
+				cur = pred ? local_shared_ptr<PoolAllocator>(pred->m_orphan_next)
+				           : local_shared_ptr<PoolAllocator>(s_orphan_chain_head());
+				continue;
+			}
 			pred.reset();                                      // CAS lost → restart from head
 			cur = local_shared_ptr<PoolAllocator>(s_orphan_chain_head());
 			continue;
@@ -8138,6 +8149,18 @@ void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_scrub() noexcept {
 //! (Path B adopt) Treiber-pop the head node off the orphan chain — see
 //! allocator_prv.h.  Returns the held local_shared_ptr (the caller keeps it
 //! through the BIT_OWNED claim); clears the popped node's m_orphan_next.
+//!
+//! ABA: between loading old->m_orphan_next and the CAS, another thread can pop
+//! `old`, adopt it, exit and push it back, so the head holds the same pointer
+//! with a different successor.  The pin on `old` stops its memory from being
+//! reused, not this.  A pointer-only CAS then installs the stale successor --
+//! cutting live orphans off the chain, or linking an adopted chunk so it is
+//! claimed twice and pushed twice, a cycle orphan_chain_scrub never leaves
+//! (seen on an M5 Ultra, about 1 in 45 runs of
+//! transaction_payload_integrity_mixed_test 3 64 256 0).  The chain's words
+//! carry a serial (atomic_serial_traits<PoolAllocator<ALIGN, true, DUMMY>>), so
+//! the CAS fails if the head was written since `old` was loaded.
+//! tests/tlaplus/OrphanChain_aba.tla models both.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 local_shared_ptr<PoolAllocator<ALIGN, FS, DUMMY> >
 PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_pop() noexcept {

@@ -540,6 +540,32 @@ struct has_intrusive_dispose<
     T, std::void_t<decltype(T::atomic_intrusive_dispose(std::declval<T*>()))>>
     : std::true_type {};
 
+//! Opt-in serial in atomic_shared_ptr's word, against ABA where the SAME
+//! pointer can be stored into a word again while a reader still holds an
+//! older load of it (the pool allocator's orphan chain pushes a chunk back
+//! after it was popped and adopted).  A type opts in by specializing this
+//! with the low address bits that are the same in EVERY T* -- fixed, not
+//! merely zero: LOW_VALUE may be non-zero.  The bits of that field above
+//! the local refcount then hold a serial, bumped by every store of a pointer
+//! (CAS success, swap); tag-only updates leave it alone.  A local_shared_ptr
+//! loaded from the word remembers the serial it saw, and compareAndSet /
+//! compareAndSwap fail if the word was written since, even with the same
+//! pointer -- so the old value passed to a CAS must have been loaded from
+//! (or last updated by a CAS on) that same atomic_shared_ptr.  Specialize
+//! before the first atomic_shared_ptr<T> is instantiated; T may be
+//! incomplete.  scoped_atomic_view does not support serial types.
+template <typename T>
+struct atomic_serial_traits {
+    static constexpr unsigned LOW_BITS = 0;        //!< 0: no serial (default)
+    static constexpr uintptr_t LOW_VALUE = 0;
+};
+template <typename T>
+inline constexpr bool atomic_serial_on = atomic_serial_traits<std::remove_cv_t<T>>::LOW_BITS > 0;
+//! The serial a local_shared_ptr of a serial type saw at its load.  Empty
+//! (and folded away) for every other instantiation.
+template <bool ON> struct asp_seen_serial_ {};
+template <> struct asp_seen_serial_<true> { uintptr_t m_seen_serial = 0; };
+
 //! \brief Single base class for atomic_shared_ptr / local_shared_ptr.
 //! Mode is driven by `ref_traits<T>`; all four paths
 //! (default / strict / emplaced / intrusive) share this template.
@@ -558,7 +584,8 @@ struct has_intrusive_dispose<
 //! actual allocator alignment.
 template <typename T, typename reflocal_t, typename reflocal_var_t,
           typename Enable = void>
-struct atomic_shared_ptr_base {
+struct atomic_shared_ptr_base
+    : asp_seen_serial_<atomic_serial_on<T> && std::is_same<reflocal_var_t, uintptr_t>::value> {
 protected:
     using Traits = ref_traits<T>;
     using Ref = typename Traits::Ref;
@@ -610,10 +637,20 @@ protected:
             biased_born_(((Ref*)(reflocal_t)m_ref)->refcnt);
     }
 
+    //! m_ref as a Ref*.  In atomic_shared_ptr's own base (reflocal_var_t =
+    //! atomic), a serial type's word keeps its serial (and any tags) at rest,
+    //! so it is decoded; everywhere else m_ref is the bare pointer.
+    Ref *ref_at_rest_() const noexcept {
+        if constexpr (HAS_SERIAL && !std::is_same<reflocal_var_t, uintptr_t>::value)
+            return tag_ptr_((uintptr_t)m_ref);
+        else
+            return (Ref*)(reflocal_t)m_ref;
+    }
+
     T *get() noexcept {
         if constexpr (Traits::is_intrusive) {
             //!< Branchless: `(T*)0` is `nullptr`, no offset (Ref IS T).
-            return (T*)(reflocal_t)this->m_ref;
+            return (T*)ref_at_rest_();
         } else if(this->m_ref) {
             Ref *p = (Ref*)(reflocal_t)this->m_ref;
             if constexpr (Traits::is_emplaced) return p->ptr_();
@@ -626,7 +663,7 @@ protected:
     }
 
     int _use_count_() const noexcept {
-        uintptr_t v = ((const Ref*)(reflocal_t)this->m_ref)->refcnt;
+        uintptr_t v = ((const Ref*)ref_at_rest_())->refcnt;
         if constexpr (is_biased_directpublish<T>::value) return (int)biased_count_(v); //!< §biased — skippable
         return (int)v;
     }
@@ -642,17 +679,46 @@ protected:
 
     //! The word atomic_shared_ptr keeps in m_ref is [ Ref* | local refcount ],
     //! the refcount living in the low bits the pointee's alignment leaves free.
-    //! These three are the only places that put the word together or take it
-    //! apart.  (Unlike the reverted tag_compose_, 796d9fe1e, they carry no
-    //! checks; they exist so the representation can gain a field in one place.)
-    static uintptr_t tag_pack_(const Ref *p, Refcnt rcnt) noexcept {
-        return (uintptr_t)p + rcnt;
+    //! For a serial type (atomic_serial_traits) it is
+    //! [ Ref* above the fixed low bits | serial | local refcount ].
+    //! These are the only places that put the word together or take it apart.
+    using SerialTraits = atomic_serial_traits<std::remove_cv_t<T>>;
+    static constexpr bool HAS_SERIAL = atomic_serial_on<T>;
+    static constexpr unsigned log2_(uintptr_t v) { return v <= 1 ? 0 : 1 + log2_(v >> 1); }
+    static constexpr unsigned LOCAL_BITS = log2_(LOCAL_REF_CAPACITY);
+    static constexpr uintptr_t KNOWN_MASK =
+        HAS_SERIAL ? ((uintptr_t)1 << SerialTraits::LOW_BITS) - 1 : 0;
+    static constexpr uintptr_t SERIAL_MASK =
+        HAS_SERIAL ? ((uintptr_t)1 << (SerialTraits::LOW_BITS - LOCAL_BITS)) - 1 : 0;
+    static_assert( !HAS_SERIAL || Traits::is_intrusive,
+        "atomic_serial_traits: the word holds Ref*, so only an intrusive T has its fixed low bits");
+    static_assert( !HAS_SERIAL || SerialTraits::LOW_BITS > LOCAL_BITS,
+        "atomic_serial_traits: no room for a serial above the local refcount");
+    static_assert( !HAS_SERIAL || (SerialTraits::LOW_VALUE & (LOCAL_REF_CAPACITY - 1)) == 0,
+        "atomic_serial_traits: the local refcount bits must be zero in every T*");
+
+    static uintptr_t tag_pack_(const Ref *p, Refcnt rcnt, uintptr_t ser = 0) noexcept {
+        if constexpr (HAS_SERIAL)
+            return ((uintptr_t)p & ~KNOWN_MASK) | ((ser & SERIAL_MASK) << LOCAL_BITS) | rcnt;
+        else
+            return (uintptr_t)p + rcnt;
     }
     static Ref *tag_ptr_(uintptr_t w) noexcept {
-        return (Ref*)(w & ~(uintptr_t)(LOCAL_REF_CAPACITY - 1));
+        if constexpr (HAS_SERIAL) {
+            uintptr_t hi = w & ~KNOWN_MASK;
+            return hi ? (Ref*)(hi | SerialTraits::LOW_VALUE) : nullptr;
+        }
+        else
+            return (Ref*)(w & ~(uintptr_t)(LOCAL_REF_CAPACITY - 1));
     }
     static Refcnt tag_rcnt_(uintptr_t w) noexcept {
         return (Refcnt)(w & (uintptr_t)(LOCAL_REF_CAPACITY - 1));
+    }
+    static uintptr_t tag_ser_(uintptr_t w) noexcept {
+        if constexpr (HAS_SERIAL)
+            return (w >> LOCAL_BITS) & SERIAL_MASK;
+        else
+            return 0;
     }
 };
 //! \brief This class provides non-reentrant interfaces for atomic_shared_ptr: operator->(), operator*() and so on.\n
@@ -672,7 +738,7 @@ public:
         this->reset_unsafe(y);
     }
 
-    explicit local_shared_ptr(const atomic_shared_ptr<T> &t) noexcept { this->m_ref = reinterpret_cast<TaggedPtr>(t.load_shared_()); }
+    explicit local_shared_ptr(const atomic_shared_ptr<T> &t) noexcept { this->m_ref = reinterpret_cast<TaggedPtr>(t.load_shared_(seen_serial_ptr_())); }
     template<typename Y> local_shared_ptr(const atomic_shared_ptr<Y> &y) {
         static_assert(sizeof(static_cast<const T*>(y.get())), "");
         this->m_ref = reinterpret_cast<TaggedPtr>(y.load_shared_());
@@ -682,6 +748,7 @@ public:
     local_shared_ptr(local_shared_ptr<T, reflocal_var_t> &&t) noexcept {
         this->m_ref = t.m_ref;
         t.m_ref = (TaggedPtr)nullptr;
+        if constexpr (CARRIES_SERIAL) this->m_seen_serial = t.m_seen_serial;
     }
     template<typename Y, typename Z> local_shared_ptr(local_shared_ptr<Y, Z> &&y) noexcept {
         this->m_ref = y.m_ref;
@@ -715,7 +782,7 @@ public:
     //! \param[in] t The pointer held by this instance is replaced with that of \a t.
     local_shared_ptr &operator=(const atomic_shared_ptr<T> &t) noexcept {
         this->reset();
-        this->m_ref = reinterpret_cast<TaggedPtr>(t.load_shared_());
+        this->m_ref = reinterpret_cast<TaggedPtr>(t.load_shared_(seen_serial_ptr_()));
         return *this;
     }
     //! \param[in] y The pointer held by this instance is replaced with that of \a y.
@@ -791,8 +858,16 @@ protected:
     typedef typename atomic_shared_ptr_base<T, uintptr_t, reflocal_var_t>::Refcnt Refcnt;
     typedef uintptr_t TaggedPtr;
 
-    //! A pointer to global reference struct.
-    Ref* ref_ptr_() const noexcept {return (Ref *)(TaggedPtr)(this->m_ref);}
+    //! A pointer to global reference struct (see ref_at_rest_).
+    Ref* ref_ptr_() const noexcept { return this->ref_at_rest_(); }
+
+    //! A local_shared_ptr of a serial type carries the serial it was loaded at.
+    static constexpr bool CARRIES_SERIAL =
+        atomic_serial_on<T> && std::is_same<reflocal_var_t, uintptr_t>::value;
+    uintptr_t *seen_serial_ptr_() noexcept {
+        if constexpr (CARRIES_SERIAL) return &this->m_seen_serial;
+        else return nullptr;
+    }
 };
 
 //! \brief Weak counterpart of `local_shared_ptr<T>`.  Works with any
@@ -941,11 +1016,11 @@ class atomic_shared_ptr : protected local_shared_ptr<T, atomic<uintptr_t>> {
 public:
     atomic_shared_ptr() noexcept : local_shared_ptr<T, atomic<uintptr_t>>() {}
 
-    template<typename Y> explicit atomic_shared_ptr(Y *y) : local_shared_ptr<T, atomic<uintptr_t>>(y) { publish_clear_priv_(); }
-    atomic_shared_ptr(const atomic_shared_ptr<T> &t) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(t) {} //!< source already shared (PRIV clear)
-    template<typename Y> atomic_shared_ptr(const atomic_shared_ptr<Y> &y) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(y) {} //!< source already shared
-    atomic_shared_ptr(const local_shared_ptr<T> &t) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(t) { publish_clear_priv_(); }
-    template<typename Y> atomic_shared_ptr(const local_shared_ptr<Y> &y) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(y) { publish_clear_priv_(); }
+    template<typename Y> explicit atomic_shared_ptr(Y *y) : local_shared_ptr<T, atomic<uintptr_t>>(y) { publish_clear_priv_(); encode_installed_(); }
+    atomic_shared_ptr(const atomic_shared_ptr<T> &t) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(t) { encode_installed_(); } //!< source already shared (PRIV clear)
+    template<typename Y> atomic_shared_ptr(const atomic_shared_ptr<Y> &y) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(y) { encode_installed_(); } //!< source already shared
+    atomic_shared_ptr(const local_shared_ptr<T> &t) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(t) { publish_clear_priv_(); encode_installed_(); }
+    template<typename Y> atomic_shared_ptr(const local_shared_ptr<Y> &y) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(y) { publish_clear_priv_(); encode_installed_(); }
     atomic_shared_ptr(atomic_shared_ptr<T> &&t) noexcept {
         operator=(std::move(t));
     }
@@ -1022,8 +1097,14 @@ public:
     //!   compareAndSetWeakRetain.
     inline bool compareAndSetStrongRetain(scoped_atomic_view<T> &scoped, const local_shared_ptr<T> &newvalue) noexcept;
 
-    bool operator!() const noexcept {return !this->m_ref;}
-    operator bool() const noexcept {return this->m_ref;}
+    bool operator!() const noexcept {
+        if constexpr (atomic_serial_on<T>) return !ref_ptr_();   //!< an empty word keeps its serial
+        else return !this->m_ref;
+    }
+    operator bool() const noexcept {
+        if constexpr (atomic_serial_on<T>) return ref_ptr_();
+        else return this->m_ref;
+    }
 
     template<typename Y> bool operator==(const local_shared_ptr<Y> &x) const noexcept {
         static_assert(sizeof(static_cast<const T*>(x.get())), "");
@@ -1065,19 +1146,31 @@ protected:
         if constexpr (is_biased_directpublish<T>::value)         //!< §biased — skippable
             if(Ref *p = ref_ptr_()) biased_publish_(p->refcnt);
     }
-    //! Single atomic load returning both the pointer and the local refcount.
-    std::pair<Ref*, Refcnt> load_tagged_() const noexcept {
+    //! A value constructor's base init stored a bare pointer; a serial type
+    //! keeps the word encoded (serial 0).  Not yet shared, so a plain store.
+    void encode_installed_() noexcept {
+        if constexpr (atomic_serial_on<T>)
+            this->m_ref = this->tag_pack_((Ref*)(uintptr_t)this->m_ref, 0, 0);
+    }
+    //! Single atomic load returning the pointer, the local refcount and (for a
+    //! serial type; else 0) the serial.
+    struct Tagged { Ref *pref; Refcnt rcnt; uintptr_t ser; };
+    Tagged load_tagged_() const noexcept {
         auto ref = this->m_ref.load(std::memory_order_relaxed);
-        return {this->tag_ptr_(ref), this->tag_rcnt_(ref)};
+        return {this->tag_ptr_(ref), this->tag_rcnt_(ref), this->tag_ser_(ref)};
     }
 
     //internal functions below.
     //! Atomically scans \a m_ref and increases the global reference counter.
     //! \a load_shared_() is used for atomically coping the pointer.
-    inline Ref *load_shared_() const noexcept;
+    //! \param[out] ser_out  For a serial type, the serial of the word loaded.
+    inline Ref *load_shared_(uintptr_t *ser_out = nullptr) const noexcept;
     //! Atomically scans \a m_ref and increases the  local (temporary) reference counter.
     //! use \a release_tag_ref_() to release the temporary reference.
-    inline std::pair<Ref*, bool> acquire_tag_ref_(Refcnt *, bool weakly = false) const noexcept;
+    //! \param[out] ser_out  For a serial type, the serial of the word the tag
+    //!   was taken on (also when the word is empty).
+    inline std::pair<Ref*, bool> acquire_tag_ref_(Refcnt *, bool weakly = false,
+                                                  uintptr_t *ser_out = nullptr) const noexcept;
     //! Tries to decrease local (temporary) reference counter.
     //! In case the reference is lost, \a release_tag_ref_() releases the global reference counter instead.
     //! When \a left_global_rcnt > 0, undoes step 4's
@@ -1184,6 +1277,8 @@ public:
                                      bool weakly = false) noexcept
         : m_asp(&asp), m_pref(nullptr), m_tag_held(false),
           m_acquire_succeeded(true) {
+        static_assert( !atomic_serial_on<T>,
+            "scoped_atomic_view does not carry the serial of atomic_serial_traits types");
         Refcnt rcnt;
         auto [p, ok] = asp.acquire_tag_ref_( &rcnt, weakly);
         if(p && ok) {
@@ -1395,7 +1490,7 @@ private:
     //! Caller is responsible for setting m_tag_held = false after,
     //! since this function only handles the atomic-state transition.
     void promote_tagheld_() noexcept {
-        auto [cur_ptr, rcnt_now] = m_asp->load_tagged_();
+        auto [cur_ptr, rcnt_now, ser_now] = m_asp->load_tagged_();
         if(cur_ptr == m_pref && rcnt_now > 0) {
             // Pre-pay rcnt_now to global: covers all rcnt_now tag
             // holders (us + others present at this moment).  Drain
@@ -1440,7 +1535,7 @@ private:
     //! on the standard refcnt invariant (true_refs = global + tag
     //! when m_ref still points to pref).
     bool release_tagheld_zeroreset_(bool single_attempt) noexcept {
-        auto [cur_ptr, rcnt_now] = m_asp->load_tagged_();
+        auto [cur_ptr, rcnt_now, ser_now] = m_asp->load_tagged_();
         if(cur_ptr == m_pref && rcnt_now > 0) {
             if(rcnt_now > 1) {
                 m_pref->refcnt.fetch_add(rcnt_now - 1,
@@ -1485,7 +1580,7 @@ public:
             rcnt_added = 0;
             return true;
         }
-        auto [cur_ptr, rcnt_now] = m_asp->load_tagged_();
+        auto [cur_ptr, rcnt_now, ser_now] = m_asp->load_tagged_();
         if(cur_ptr != m_pref || rcnt_now == 0) {
             // ptr changed (swapper absorbed our +1) or tag drained.
             // Release our +1 (now in refcnt) + undo our pre-pay.
@@ -1583,6 +1678,7 @@ template <typename T, typename reflocal_var_t>
 inline local_shared_ptr<T, reflocal_var_t>::local_shared_ptr(const local_shared_ptr &y) noexcept {
     static_assert(sizeof(static_cast<const T*>(y.get())), "");
     this->m_ref = (TaggedPtr)y.m_ref;
+    if constexpr (CARRIES_SERIAL) this->m_seen_serial = y.m_seen_serial;
     if(Ref *p = ref_ptr_()) {
         if constexpr (is_biased_directpublish<T>::value) biased_inc_(p->refcnt); //!< §biased — skippable
         else p->refcnt.fetch_add(1, std::memory_order_relaxed);
@@ -1642,12 +1738,15 @@ local_shared_ptr<T, reflocal_var_t>::reset() noexcept {
 //=============================================================================
 template <typename T>
 inline std::pair<typename atomic_shared_ptr<T>::Ref *, bool>
-atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt, bool weakly) const noexcept {
+atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt, bool weakly,
+                                       uintptr_t *ser_out) const noexcept {
     Ref *pref;
     Refcnt rcnt_new;
     for(int spins = 1;; spins *= 2) {
-        auto [p, rcnt_old] = load_tagged_();
+        auto [p, rcnt_old, ser] = load_tagged_();
         pref = p;
+        if constexpr (atomic_serial_on<T>)
+            if(ser_out) *ser_out = ser;
         if( !pref) {
             // target is null.
             *rcnt = rcnt_old;
@@ -1666,16 +1765,16 @@ atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt, bool weakly) const noexcept
         if(weakly) {
             if(rcnt_new < this->LOCAL_REF_CAPACITY
                && const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_weak(
-                   TaggedPtr(this->tag_pack_(pref, rcnt_old)),
-                   TaggedPtr(this->tag_pack_(pref, rcnt_new))))
+                   TaggedPtr(this->tag_pack_(pref, rcnt_old, ser)),
+                   TaggedPtr(this->tag_pack_(pref, rcnt_new, ser))))
                 break;
             return {(Ref*)nullptr, false};
         }
         // Strong path: pause on overflow, exponential backoff on CAS loss.
         if(rcnt_new < this->LOCAL_REF_CAPACITY) {
             if(const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_weak(
-                TaggedPtr(this->tag_pack_(pref, rcnt_old)),
-                TaggedPtr(this->tag_pack_(pref, rcnt_new))))
+                TaggedPtr(this->tag_pack_(pref, rcnt_old, ser)),
+                TaggedPtr(this->tag_pack_(pref, rcnt_new, ser))))
                 break;
         }
         else {
@@ -1694,11 +1793,11 @@ atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt, bool weakly) const noexcept
 }
 template <typename T>
 inline typename atomic_shared_ptr<T>::Ref *
-atomic_shared_ptr<T>::load_shared_() const noexcept {
+atomic_shared_ptr<T>::load_shared_(uintptr_t *ser_out) const noexcept {
     static_assert(load_shared_enabled<T>::value,
         "load_shared_ is disabled for this type; use scoped_atomic_view instead");
     Refcnt rcnt;
-    auto [pref, success] = acquire_tag_ref_( &rcnt);
+    auto [pref, success] = acquire_tag_ref_( &rcnt, false, ser_out);
     if( !pref) return (Ref*)nullptr;
     // Transfer all rcnt tag refs to global at once (instead of just +1). The
     // matching release_tag_ref_(pref, rcnt) attempts to drain rcnt tag refs in
@@ -1744,14 +1843,14 @@ inline bool atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_globa
                                                     bool single_attempt) const noexcept {
     Refcnt sub_amount = added_global_rcnt;
     for(int spins = 1;; spins *= 2) {
-        auto [cur_ptr, rcnt_old] = load_tagged_();
+        auto [cur_ptr, rcnt_old, ser] = load_tagged_();
         if(rcnt_old && (cur_ptr == pref)) {
             Refcnt local_release = std::min(rcnt_old, added_global_rcnt); //1 by default.
             Refcnt rcnt_new = rcnt_old - local_release;
             // trying to dec. reference counter if stored pointer is unchanged.
             if(const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_weak(
-                TaggedPtr(this->tag_pack_(pref, rcnt_old)),
-                TaggedPtr(this->tag_pack_(pref, rcnt_new)))) {
+                TaggedPtr(this->tag_pack_(pref, rcnt_old, ser)),
+                TaggedPtr(this->tag_pack_(pref, rcnt_new, ser)))) {
                 //decreases the rest of global counting.
                 // CRITICAL: must be acq_rel + delete check, NOT relaxed.
                 // Concurrent local_reset() can drop refcnt to (added_global_rcnt -
@@ -1765,7 +1864,7 @@ inline bool atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_globa
             // in pref->refcnt and is balanced by a later call.
             if(single_attempt)
                 return false;
-            auto [cur_ptr, rcnt_old] = load_tagged_();
+            auto [cur_ptr, rcnt_old, ser] = load_tagged_();
             if((cur_ptr == pref) && rcnt_old) {
 #if BACKOFF_IN_ATOMIC_SMART_PTR > 0
                 for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
@@ -1884,9 +1983,10 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
     for(int spins = 1;; spins *= 2) {
         Ref *pref;
         Refcnt rcnt_old;
+        uintptr_t ser = 0;   //!< serial of the word loaded (serial types only)
 
         if constexpr (ACQUIRE) {
-            auto [p, success] = acquire_tag_ref_( &rcnt_old, WEAK);
+            auto [p, success] = acquire_tag_ref_( &rcnt_old, WEAK, &ser);
             if constexpr (WEAK) {
                 if( !success) {
                     new_refcnt_undo();
@@ -1895,10 +1995,18 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
             }
             pref = p;
         } else {
-            std::tie(pref, rcnt_old) = load_tagged_();
+            auto t = load_tagged_();
+            pref = t.pref;
+            rcnt_old = t.rcnt;
+            ser = t.ser;
         }
 
-        if(pref != oldr_pref()) {
+        // A serial type also fails when the word was written since oldr was
+        // loaded from it, even back to the same pointer (ABA).
+        bool serial_moved = false;
+        if constexpr (atomic_serial_on<T>)
+            serial_moved = (ser != oldr.m_seen_serial);
+        if(pref != oldr_pref() || serial_moved) {
             // pointer mismatch
             if constexpr (ACQUIRE) {
                 if(pref) {
@@ -1915,6 +2023,7 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
                     }
                 }
                 oldr.m_ref = (uintptr_t)pref;
+                if constexpr (atomic_serial_on<T>) oldr.m_seen_serial = ser;
             } else if constexpr (SCOPED) {
                 // For TagHeld: pointer changed since acquire; our tag was
                 //   absorbed by the swapper (their step 4 pre-paid us +1).
@@ -1957,11 +2066,11 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
             pref->refcnt.fetch_add(step4_amount, std::memory_order_relaxed);
         }
 
-        // CAS m_ref: pref + rcnt_old → newr + 0
+        // CAS m_ref: pref + rcnt_old → newr + 0 (a serial type: serial + 1)
         Refcnt rcnt_new = 0;
         if(this->m_ref.compare_set_weak(
-                TaggedPtr(this->tag_pack_(pref, rcnt_old)),
-                TaggedPtr(this->tag_pack_(newr_pref(), rcnt_new)))) {
+                TaggedPtr(this->tag_pack_(pref, rcnt_old, ser)),
+                TaggedPtr(this->tag_pack_(newr_pref(), rcnt_new, ser + 1)))) {
             if(pref) {
                 // Release m_ref's implicit ownership.
                 // For SCOPED in TagHeld mode, additionally consume scoped's
@@ -2091,6 +2200,7 @@ local_shared_ptr<T, reflocal_var_t>::swap(local_shared_ptr &r) noexcept {
     TaggedPtr x = this->m_ref;
     this->m_ref = (TaggedPtr)r.m_ref;
     r.m_ref = x;
+    if constexpr (CARRIES_SERIAL) std::swap(this->m_seen_serial, r.m_seen_serial);
 }
 
 template <typename T, typename reflocal_var_t>
@@ -2102,15 +2212,17 @@ local_shared_ptr<T, reflocal_var_t>::swap(atomic_shared_ptr<T> &r) noexcept {
         if(Ref *sp = ref_ptr_()) biased_publish_(sp->refcnt);
     for(int spins = 1;; spins *= 2) {
         Refcnt rcnt_old, rcnt_new;
-        auto [pref, success] = r.acquire_tag_ref_( &rcnt_old);
+        uintptr_t ser = 0;   //!< serial of r's word (serial types only)
+        auto [pref, success] = r.acquire_tag_ref_( &rcnt_old, false, &ser);
         if(pref && (rcnt_old != 1u)) {
             pref->refcnt.fetch_add(rcnt_old - 1u, std::memory_order_relaxed);
         }
         rcnt_new = 0;
         if(r.m_ref.compare_set_weak(
-            TaggedPtr(r.tag_pack_(pref, rcnt_old)),
-            TaggedPtr(r.tag_pack_((Ref*)(uintptr_t)this->m_ref, rcnt_new)))) {
+            TaggedPtr(r.tag_pack_(pref, rcnt_old, ser)),
+            TaggedPtr(r.tag_pack_((Ref*)(uintptr_t)this->m_ref, rcnt_new, ser + 1)))) {
             this->m_ref = (TaggedPtr)pref;
+            if constexpr (CARRIES_SERIAL) this->m_seen_serial = ser;
             return;
         }
         if(pref) {
