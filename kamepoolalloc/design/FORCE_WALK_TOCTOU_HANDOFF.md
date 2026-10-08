@@ -114,6 +114,47 @@ faulted.  glibc also caches and reuses thread stacks:
   stack size, or a later `mmap`, including the pool's own regions), the
   result is a stray one-byte write of `0x01` into live memory, with no fault.
 
+### macOS: not reproduced, and why that does not clear it
+
+The user reported (2026-10-08) that the crash **does not reproduce on
+macOS**.  The run conditions (count, concurrency, build) are not recorded
+here yet.
+
+This is the expected outcome even if the defect is present, because the
+code is the same on both platforms and only the consequence differs.
+`ALLOC_TLS` is `__thread` on GCC and clang on both (`allocator_prv.h`), so
+`s_tls` is a `__thread` variable in a shared library:
+
+- **Linux (glibc):** a startup-linked library's `__thread` data is static
+  TLS, which glibc places inside each thread's **stack mapping**.  A joined
+  thread's stack goes into glibc's stack cache (~40 MiB by default), and the
+  overflow is `munmap`ed.  At 8 MiB stacks, roughly 3 of this test's 8 threads
+  per generation get unmapped.  Writing there faults — the SIGSEGV in §3.
+- **macOS (Mach-O):** a dylib's `__thread` data is a TLV reached through
+  `_tlv_get_addr`.  To my understanding (**not verified on a Mac here**), dyld
+  allocates each thread's TLV block with `malloc` and frees it with `free`
+  from a pthread-key destructor at thread exit.  A freed small heap block stays
+  mapped, so the same window yields a **silent** one-byte write of `0x01`
+  into freed heap.  If the pool interposes `malloc` in that process, the block
+  came from the pool, and the write can land in a slot already reissued to a
+  live object.
+
+So "no crash on macOS" cannot distinguish "the window is never hit there"
+from "it is hit and corrupts silently".  To separate them on any platform:
+
+1. **Count the window directly** (debug builds only; preferred).  At owner
+   exit, alongside the null-out at `:3311`, push
+   `(&s_tls.dll_force_walk_from_head, exit epoch)` onto a small global ring.
+   Each of the three free sites records the epoch when it loads the pointer.
+   Just before the store, it checks the ring for that address with a later
+   exit epoch and counts a hit if it finds one.  This counts TOCTOU hits
+   whether or not the write faults, and whether or not the address has been
+   reused since.
+2. **ASan on macOS** (cheaper, less certain).  If dyld's TLV block comes from
+   an ASan-intercepted `malloc`, the stray store reports as
+   heap-use-after-free.  The pool's own `malloc` / `operator new`
+   interposition may conflict with ASan.
+
 ## 4. Fix directions (none tested)
 
 The hint is only a hint: a lost or spurious `true` costs at most one extra DLL
