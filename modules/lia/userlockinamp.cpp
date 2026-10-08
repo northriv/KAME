@@ -16,7 +16,7 @@
 
 REGISTER_TYPE(XDriverList, SR830, "Stanford Research SR830 lock-in amp.");
 REGISTER_TYPE(XDriverList, LakeshoreM81LIA, "Lakeshore M81-SSM lock-in amp. module");
-REGISTER_TYPE(XDriverList, SignalRecovery7265, "Signal Recovery/EG&G Model7265 lock-in amp.");
+REGISTER_TYPE(XDriverList, SignalRecovery7265, "Signal Recovery/PerkinElmer/EG&G Model7265 DSP lock-in amp.");
 REGISTER_TYPE(XDriverList, LI5640, "NF LI5640 lock-in amp.");
 REGISTER_TYPE(XDriverList, HP4284A, "Agilent/HP4284A Precision LCR Meter");
 REGISTER_TYPE(XDriverList, AH2500A, "Andeen-Hagerling 2500A capacitance bridge");
@@ -365,12 +365,18 @@ XSignalRecovery7265::XSignalRecovery7265(const char *name, bool runtime,
                           "50uV/pA", "100uV/pA", "200uV/pA", "500uV/pA", "1mV/nA", "2mV/nA", "5mV/nA",
                           "10mV/nA", "20mV/nA", "50mV/nA", "100mV/nA", "200mV/nA", "500mV/nA", "1V/uA",
                           ""};
+    //Output low-pass filter roll-off. Index order IS the SLOPE command's argument:
+    //SLOPE 0/1/2/3 = 6/12/18/24 dB per octave.
+    const char *slope[] = {"6dB/oct", "12dB/oct", "18dB/oct", "24dB/oct", ""};
     iterate_commit([=](Transaction &tr){
         for(int i = 0; strlen(tc[i]) > 0; i++) {
             tr[ *timeConst()].add(tc[i]);
         }
         for(int i = 0; strlen(sens[i]) > 0; i++) {
             tr[ *sensitivity()].add(sens[i]);
+        }
+        for(int i = 0; strlen(slope[i]) > 0; i++) {
+            tr[ *filterSlope()].add(slope[i]);
         }
     });
     autoScaleX()->disable();
@@ -400,6 +406,8 @@ XSignalRecovery7265::open() {
     trans( *output()) = interface()->toDouble();
     interface()->query("OF.");
     trans( *frequency()) = interface()->toDouble();
+    interface()->query("SLOPE");
+    trans( *filterSlope()) = interface()->toInt();
 
     start();
 }
@@ -423,6 +431,11 @@ XSignalRecovery7265::changeTimeConst(int x) {
 void
 XSignalRecovery7265::changeFreq(double x) {
     interface()->sendf("OF. %.6g", x);
+}
+void
+XSignalRecovery7265::changeFilterSlope(int x) {
+    //The combo index is the SLOPE argument: 0/1/2/3 = 6/12/18/24 dB/octave.
+    interface()->sendf("SLOPE %d", x);
 }
 
 

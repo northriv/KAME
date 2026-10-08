@@ -1528,10 +1528,16 @@ looks inside it for `.venv`, `venv` or `env`, and accepts `bin/python` or
 (see the note under Setup), and it needs `clai` and `uvicorn` beside
 `pydantic-ai` for the **web** link.
 
-Two things are needed before the first chat: a model name and that provider's
-API key. Both go into the file that **⚙ settings** opens — uncomment one
-`KAME_PYAI_MODEL=` line and fill in the matching `..._API_KEY=` line, save,
-and click **CLI** or **web**. Nothing has to be exported in a shell profile:
+One thing is needed before the first chat: an API key, in the file that
+**⚙ settings** opens — fill in a `..._API_KEY=` line, save, and click **CLI**
+or **web**. KAME's agent then asks that provider which models it serves and
+offers them: OpenAI's two newest `gpt-N` families, every `fugu` Sakana lists,
+Anthropic's newest Opus and Sonnet, or everything a local server (Bionic,
+Ollama) has loaded. The first is the default; a `KAME_PYAI_MODEL=` line names
+the models yourself instead, several comma-separated, and puts its first
+entry in front. A Claude model may write 32000 tokens per reply, thinking
+included; other providers keep their own limit. `KAME_PYAI_MAX_TOKENS=` in
+the same file sets one limit for every model. Nothing has to be exported in a shell profile:
 neither pydantic-ai nor `clai` reads a `.env` by itself, and a GUI application
 does not see shell exports anyway, so KAME's agent reads this file (and a
 `.env` in the notebook workspace) on every launch. A key that *is* in the
@@ -1604,14 +1610,42 @@ machine only — has no place in the module. To run the same module outside KAME
 from a shell), add KAME's `Resources` directory to `PYTHONPATH`, or copy
 `kame_pydantic_ai.py` next to it.
 
+**Local models (Bionic, LM Studio, Ollama, llama.cpp).** Any OpenAI-compatible
+server works, and Bionic has two roles here: as an MCP *client* it opens the
+notebook workspace as a project and needs nothing (above); as a model
+*server* it feeds Pydantic AI. For the latter, download a chat model in
+Bionic and start its local server (Developer tab → Start Server, or
+`lms server start`; the default port is 1234). A running server is already
+offered in the web UI's menu, next to the cloud models; to make one of its
+models the default, one line in the settings file, with the model id as
+`lms ls` prints it:
+
+```
+KAME_PYAI_MODEL=bionic:qwen3.8-27b
+```
+
+`ollama:<id>` is the same for Ollama (port 11434), and `local:<id>` with
+`KAME_PYAI_LOCAL_URL=http://…/v1` for any other server. These prefixes carry
+the server's address themselves, so they coexist with `OPENAI_API_KEY` in the
+same file — do not point `OPENAI_BASE_URL` at a local server, which would
+redirect the OpenAI key there. No key is needed. The model must support tool
+calls (Qwen3, Llama 3.1 and later, Mistral, GPT-OSS do), since everything
+KAME offers arrives as tools; a model without them will chat but never touch
+an instrument.
+
 Which model is used:
 
 - Your own agent uses the model bound in your module. KAME does not override it.
 - KAME's agent binds the first model named in `KAME_PYAI_MODEL` — from the
   environment, the workspace `.env`, or `~/.kame_pyai.env`, in that order. Several
   may be listed, separated by commas; they populate the web UI's model menu.
-  With none set, `clai`'s own default (`openai:gpt-5`) applies, which needs an
-  OpenAI key.
+  With none set, the menu is what the present keys reach (`kame_models()`,
+  asked of each provider at start-up) and its first entry is bound; only the
+  `clai` fallback path (no `uvicorn`) still applies clai's own default,
+  `openai:gpt-5`, when nothing is named.
+- Your own module gets the same menu from `kame_models()` —
+  `Agent.to_web(models=kame_models())` — so a model published after the file
+  was written appears without an edit.
 - `sakana:<model>` (`fugu`, `fugu-ultra-v1.1`, …) reaches Sakana AI with
   `SAKANA_API_KEY`. pydantic-ai has no Sakana provider, so KAME's agent resolves
   the prefix itself; that makes it the bound model in the web UI rather than a
@@ -1681,13 +1715,16 @@ guessable from the message. This table is symptom-first.
 | `PermissionError: [Errno 1] Operation not permitted` | macOS privacy protection. The path is under Documents, Desktop, Downloads or iCloud Drive | Put the virtualenv and project outside those folders, or grant Terminal access to them in System Settings → Privacy & Security |
 | `KeyError` on an API-key variable | A `.env` file is not read by anything automatically | Call `load_dotenv()` in your module, or export the variable |
 | `Set the XXX_API_KEY environment variable` | The key is neither in `~/.kame_pyai.env` nor in the environment of the terminal window KAME opened (that window runs your login shell — a fresh `cmd` on Windows; KAME's own environment is not inherited, being a GUI process) | **⚙ settings**, add the line `XXX_API_KEY=…`, save, click again. `OPENAI_API_KEY` demanded although you never chose OpenAI: no model was named, so `clai`'s default `openai:gpt-5` applied — add a `KAME_PYAI_MODEL=` line |
-| `No model given` | The fallback script (no `clai` in the venv) binds no model itself | **⚙ settings** and uncomment a `KAME_PYAI_MODEL=provider:name` line, e.g. `anthropic:claude-sonnet-4-5`; a local model is `openai:<name>` plus `OPENAI_BASE_URL` |
+| `No model given` | The fallback script (no `clai` in the venv) binds no model itself | **⚙ settings** and uncomment a `KAME_PYAI_MODEL=provider:name` line, e.g. `anthropic:claude-sonnet-4-5`; a local model is `bionic:<name>` or `ollama:<name>` (see *Local models* above) |
 | Your own agent module fails on another machine | It hard-codes a path to KAME or to its stdio launcher, or reads a `.env` that is not there | Replace the MCP line with `kame_mcp()` from `kame_pydantic_ai` (see above); keep keys in `~/.kame_pyai.env`, which that import loads |
 | `` `clai` not found in <venv>/bin `` (`<venv>\Scripts` on Windows) — or the **web** link refuses | KAME looks for `clai` next to the interpreter it was given, not on `PATH`; that venv has `pydantic-ai` but not `clai` | `uv pip install --python <venv>/bin/python clai` (`<venv>\Scripts\python.exe`; or `uv sync` in a uv project whose pyproject lists it). A uv venv has no `pip` inside, so `python -m pip` fails there. The **CLI** link works without `clai` |
 | `This interpreter has no pydantic_ai` / `<venv> lacks pydantic_ai` | The remembered or picked interpreter is the wrong one, or the package was never installed there | The message prints the install line for that exact interpreter; or delete `~/.kame_pyai_python` (`rm`, or `del` on Windows) and click the link again to pick another venv |
 | `No Python with pydantic_ai found` | None of the searched places (`KAME_PYAI_PYTHON`, the remembered one, `$VIRTUAL_ENV`, `<workspace>/.venv`, `python3` on `PATH`, versioned `python3.N`) has it | The message lists a two-line recipe for your OS: `uv venv ~/kame-pyai && uv pip install --python ~/kame-pyai/bin/python pydantic-ai clai uvicorn` (Windows: `%USERPROFILE%\kame-pyai` and `...\Scripts\python.exe`), then pick that folder |
 | `Could not reach KAME's MCP server` / `failed to connect` / `MCP server address is not known` | The server runs inside KAME's Jupyter kernel and `~/.kame_mcp_url` is rewritten at each notebook launch and removed on exit — KAME was closed or restarted without the notebook | Start KAME, click **Jupyter notebook** in the Script pane, then the Pydantic AI link. `python kame_pydantic_ai.py --check` verifies the connection without a model |
 | Plots do not appear in the web UI; `/plots/…` is Not Found | The UI is `clai web`'s own app, which serves no files: the venv has no `uvicorn`, or the browser tab belongs to a web server started before this KAME (each launch picks a new port) | `uv pip install --python <venv>/bin/python uvicorn` (`<venv>\Scripts\python.exe` on Windows), then click **web** again and use the tab it opens. Your own module: `kame_web_plots(app)` plus `FIGURE_INSTRUCTIONS` |
+| `prompt is too long` / `context length exceeded` after switching models in the web UI | The chat grew under a model with a large window (a local one, often 256k) and the whole history is replayed to the model now chosen | Start a new chat for the new model. KAME's agent trims the oldest tool results and figures once the history passes `KAME_PYAI_HISTORY_TOKENS` (default 150000); lower it in the settings file to trim earlier. Your own module: `capabilities=[..., *kame_history_budget()]` |
+| `Tool 'tree' exceeded max retries count of 1` (or another tool's name) | pydantic-ai gives each tool one retry, and before this was fixed it counted every KAME tool error — two wrong node paths while looking for the temperature controller were enough to end the run. What still counts is a tool call whose arguments did not validate, most often a long script cut off by the output limit | Current builds let KAME's tool errors through as information and allow 3 retries. If it still happens, raise `KAME_PYAI_MAX_TOKENS` (below), or ask for the code in smaller steps |
+| `Model token limit (provider default) exceeded before any response was generated` | The model spent its whole output allowance before writing anything — on thinking, for a model that thinks. pydantic-ai asks Claude for only 4096 tokens unless told otherwise | Current builds give Claude models 32000. For another provider, or for more, put `KAME_PYAI_MAX_TOKENS=64000` in the settings file and start a new chat |
 | A long job cannot be stopped | The code never reports progress, so there is no point at which a stop can be honoured | Ask the assistant to report progress every iteration |
 
 ## Technical notes

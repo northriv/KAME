@@ -30,6 +30,7 @@ XLIA::XLIA(const char *name, bool runtime,
     m_frequency(create<XDoubleNode>("Frequency", false)),
     m_sensitivity(create<XComboNode>("Sensitivity", false, true)),
     m_timeConst(create<XComboNode>("TimeConst", false, true)),
+    m_filterSlope(create<XComboNode>("FilterSlope", false, true)),
     m_autoScaleX(create<XBoolNode>("AutoScaleX", false)),
     m_autoScaleY(create<XBoolNode>("AutoScaleY", false)),
     m_fetchFreq(create<XDoubleNode>("FetchFreq", false)),
@@ -48,12 +49,14 @@ XLIA::XLIA(const char *name, bool runtime,
 	m_frequency->setUIEnabled(false);
 	m_sensitivity->setUIEnabled(false);
 	m_timeConst->setUIEnabled(false);
+	m_filterSlope->setUIEnabled(false);
 	m_autoScaleX->setUIEnabled(false);
 	m_autoScaleY->setUIEnabled(false);
 	m_fetchFreq->setUIEnabled(false);
 
 	m_conSens = xqcon_create<XQComboBoxConnector>(m_sensitivity, m_form->m_cmbSens, Snapshot( *m_sensitivity));
 	m_conTimeConst = xqcon_create<XQComboBoxConnector>(m_timeConst, m_form->m_cmbTimeConst, Snapshot( *m_timeConst));
+	m_conFilterSlope = xqcon_create<XQComboBoxConnector>(m_filterSlope, m_form->m_cmbFilterSlope, Snapshot( *m_filterSlope));
 	m_conFreq = xqcon_create<XQLineEditConnector>(m_frequency, m_form->m_edFreq);
 	m_conOutput = xqcon_create<XQLineEditConnector>(m_output, m_form->m_edOutput);
 	m_conAutoScaleX = xqcon_create<XQToggleButtonConnector>(m_autoScaleX, m_form->m_ckbAutoScaleX);
@@ -116,12 +119,24 @@ XLIA::onTimeConstChanged(const Snapshot &shot, XValueNodeBase *) {
     }
 }
 
+void
+XLIA::onFilterSlopeChanged(const Snapshot &shot, XValueNodeBase *) {
+    try {
+        changeFilterSlope(shot[ *filterSlope()]);
+    }
+    catch (XKameError& e) {
+        e.print(getLabel() + " " + i18n("Error while changing filter slope, "));
+        return;
+    }
+}
+
 void *
 XLIA::execute(const atomic<bool> &terminated) {
 	m_output->setUIEnabled(true);
 	m_frequency->setUIEnabled(true);
 	m_sensitivity->setUIEnabled(true);
 	m_timeConst->setUIEnabled(true);
+	m_filterSlope->setUIEnabled(true);
 	m_autoScaleX->setUIEnabled(true);
 	m_autoScaleY->setUIEnabled(true);
 	m_fetchFreq->setUIEnabled(true);
@@ -135,6 +150,8 @@ XLIA::execute(const atomic<bool> &terminated) {
 			shared_from_this(), &XLIA::onSensitivityChanged);
 		m_lsnTimeConst = tr[ *timeConst()].onValueChanged().connectWeakly(
 			shared_from_this(), &XLIA::onTimeConstChanged);
+		m_lsnFilterSlope = tr[ *filterSlope()].onValueChanged().connectWeakly(
+			shared_from_this(), &XLIA::onFilterSlopeChanged);
     });
 
 	while( !terminated) {
@@ -173,6 +190,7 @@ XLIA::execute(const atomic<bool> &terminated) {
 	m_frequency->setUIEnabled(false);
 	m_sensitivity->setUIEnabled(false);
 	m_timeConst->setUIEnabled(false);
+	m_filterSlope->setUIEnabled(false);
 	m_autoScaleX->setUIEnabled(false);
 	m_autoScaleY->setUIEnabled(false);
 	m_fetchFreq->setUIEnabled(false);

@@ -1789,6 +1789,7 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
     //narrow on the way out is at best pointless.  Set before the confirmation
     //below, which can put a modal dialog up and hand the poll a pointer that
     //is over neither toolbox.
+    bool armed = m_edgeAutoHideArmed;
     m_edgeAutoHideArmed = false;
 	bool opened = false;
     {
@@ -1803,6 +1804,11 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
     }
 	if(opened) {
         gWarnPrint(i18n("Stop running first.") );
+        //Refused, so KAME carries on, and auto-hide with it.  Left disarmed,
+        //one refused quit froze every toolbox for the rest of the session --
+        //a Cmd-Q during a run, or a restart for a software update that macOS
+        //asked for in the night and this refusal is what cancels.
+        m_edgeAutoHideArmed = armed;
 		ce->ignore();
 	}
     else {

@@ -23,9 +23,15 @@ REGISTER_TYPE(XDriverList, KikusuiPMX, "KIKUSUI PMX series DC power supply");
 XYK7651::XYK7651(const char *name, bool runtime, 
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
    : XCharDeviceDriver<XDCSource>(name, runtime, ref(tr_meas), meas) {
+	//Displayed as V / A rather than the 7651's raw "F" codes (F1 = DC voltage source,
+	//F5 = DC current source), which is what this combo used to show. XComboNode has no
+	//separate display label -- itemStrings() returns {s, s} and XQComboBoxConnector writes the
+	//selection back through .label -- so the shown text IS the stored text, and .kam files hold
+	//it verbatim. changeFunction() therefore carries a shim that maps a legacy "F1"/"F5"
+	//loaded from an older .kam onto these entries.
 	iterate_commit([=](Transaction &tr){
-		tr[ *function()].add("F1");
-		tr[ *function()].add("F5");
+		tr[ *function()].add("V");
+		tr[ *function()].add("A");
     });
 	channel()->disable();
 	interface()->setGPIBUseSerialPollOnRead(false);
@@ -37,27 +43,48 @@ XYK7651::open() {
 	msecsleep(3000); // wait for instrumental reset.
 }
 void
-XYK7651::changeFunction(int /*ch*/, int ) {
+XYK7651::changeFunction(int /*ch*/, int func) {
+	//"Function" IS the V/A switch: it sends the 7651's "F" command.
+	//  combo index 0 ("V") -> F1 = DC VOLTAGE source,  index 1 ("A") -> F5 = DC CURRENT source.
+	//It also decides which set of ranges is meaningful, so the Range list is rebuilt to match.
+	if(func < 0) {
+		//Nothing selected. A .kam saved while this combo still showed the raw "F" codes holds
+		//Function.load("F1"/"F5"); such a string matches no item, so XComboNode keeps it with
+		//index -1. Remap it here and return: the write re-enters with a valid index. Done
+		//before any interface lock, since it touches STM.
+		XString stale = Snapshot( *this)[ *function()].to_str();
+		if(stale == "F1") {
+			trans( *function()) = 0;
+		}
+		else if(stale == "F5") {
+			trans( *function()) = 1;
+		}
+		return;
+	}
+	const bool is_volt = (func == 0);
 	XScopedLock<XInterface> lock( *interface());
 	if( !interface()->isOpened()) return;
 	iterate_commit([=](Transaction &tr){
-		const Snapshot &shot(tr);
-		if(shot[ *function()] == 0) {
-			tr[ *range()].clear();
+		tr[ *range()].clear();
+		if(is_volt) {
+			//DC V, sent as R2..R6 by changeRange(). The top range is 30V (max output
+			//+-32.000V per the 7651 spec) -- the instrument has NO 100V range.
 			tr[ *range()].add("10mV");
 			tr[ *range()].add("100mV");
 			tr[ *range()].add("1V");
 			tr[ *range()].add("10V");
-			tr[ *range()].add("100V");
+			tr[ *range()].add("30V");
 		}
 		else {
-			tr[ *range()].clear();
+			//DC A, sent as R4..R6 by changeRange(). Max output +-120.000mA on the 100mA range.
 			tr[ *range()].add("1mA");
 			tr[ *range()].add("10mA");
 			tr[ *range()].add("100mA");
 		}
     });
-	interface()->send(( **function())->to_str() + "E");
+	//Derive the F code from the index, NOT from the combo label. The label used to be sent
+	//verbatim (to_str() + "E"), which is why the raw device codes were what the UI displayed.
+	interface()->send(is_volt ? "F1E" : "F5E");
 }
 void
 XYK7651::changeOutput(int /*ch*/, bool x) {
@@ -78,15 +105,22 @@ double
 XYK7651::max(int /*ch*/, bool autorange) const {
 	Snapshot shot( *this);
 	int ran = shot[ *range()];
+	//Nominal full scale per range. The 7651 can actually source 1.2x these, but the nominal
+	//value is the right thing to advertise: tempcontrol clamps its output against max().
 	if(shot[ *function()] == 0) {
-		if(autorange || (ran == -1))
-			ran = 4;
-		return 10e-3 * pow(10.0, (double)ran);
+		//DC V: 10mV, 100mV, 1V, 10V, 30V. NOT a power of ten at the top -- the 7651's highest
+		//voltage range is 30V, so the old 10e-3*10^ran formula wrongly reported 100V.
+		static const double fs_v[] = {10e-3, 100e-3, 1.0, 10.0, 30.0};
+		if(autorange || (ran < 0) || (ran >= (int)(sizeof(fs_v) / sizeof(fs_v[0]))))
+			ran = (int)(sizeof(fs_v) / sizeof(fs_v[0])) - 1;
+		return fs_v[ran];
 	}
 	else {
-		if(autorange || (ran == -1))
-			ran = 2;
-		return 1e-3 * pow(10.0, (double)ran);
+		//DC A: 1mA, 10mA, 100mA.
+		static const double fs_a[] = {1e-3, 10e-3, 100e-3};
+		if(autorange || (ran < 0) || (ran >= (int)(sizeof(fs_a) / sizeof(fs_a[0]))))
+			ran = (int)(sizeof(fs_a) / sizeof(fs_a[0])) - 1;
+		return fs_a[ran];
 	}
 }
 void
@@ -95,6 +129,9 @@ XYK7651::changeRange(int /*ch*/, int ran) {
 	{
 		XScopedLock<XInterface> lock( *interface());
 		if( !interface()->isOpened()) return;
+		//The 7651 numbers all ranges in one "R" sequence, so the combo index needs a per-mode
+		//offset: DC V index 0..4 -> R2..R6 (10mV,100mV,1V,10V,30V);
+		//        DC A index 0..2 -> R4..R6 (1mA,10mA,100mA).
 		if(shot[ *function()] == 0) {
 			if(ran == -1)
 				ran = 4;

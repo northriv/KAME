@@ -54,6 +54,13 @@ struct CyFXUSBDevice {
     //! \arg ep 0x80 will be or-operated
     //! \arg buf be sure that the user buffer stays alive during an asynchronous IO.
     virtual int64_t bulkRead(uint8_t ep, uint8_t* buf, int len);
+    //! Clears a halt/stall condition on an IN endpoint (and resets its data toggle).
+    //! Used to recover a bulk-in endpoint left stalled by a cancelled transfer.
+    //! Default is a no-op; overridden where the backend supports it.
+    virtual void clearHalt(uint8_t ep) {}
+    //! Performs a USB port reset to clear a wedged device/acquisition state, equivalent to a
+    //! manual interface Control off/on. Default is a no-op; overridden where supported.
+    virtual void resetDevice() {}
 
     enum class CtrlReq : uint8_t  {
         GET_STATUS = 0x00, CLEAR_FEATURE = 0x01, SET_FEATURE = 0x03, SET_ADDRESS = 0x05,

@@ -221,7 +221,11 @@ BASELINE = pathlib.Path(__file__).with_name('stm_closures.baseline')
 def load_baseline():
     counts = {}
     if BASELINE.exists():
-        for line in BASELINE.read_text().splitlines():
+        # utf-8 and strict, both ways: this is a file we wrote ourselves, so
+        # a byte that will not decode means it is damaged and should say so.
+        # Without the encoding it was read in the locale's -- which on a
+        # Japanese Windows is cp932, and every run of the audit died there.
+        for line in BASELINE.read_text(encoding='utf-8').splitlines():
             if not line.strip() or line.startswith('#'):
                 continue
             cnt, path, kind = line.split('\t')
@@ -235,7 +239,7 @@ def save_baseline(counts):
              '#   python3 tools/audit/check_stm_closures.py --update-baseline kame modules']
     for (path, kind), cnt in sorted(counts.items()):
         lines.append(f'{cnt}\t{path}\t{kind}')
-    BASELINE.write_text('\n'.join(lines) + '\n')
+    BASELINE.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
 def main(argv):
@@ -257,7 +261,7 @@ def main(argv):
     loaded = []
     for f in sorted(set(files)):
         try:
-            loaded.append((f, f.read_text(errors='replace')))
+            loaded.append((f, f.read_text(encoding='utf-8', errors='replace')))
         except OSError:
             continue
     io_names = io_method_names(loaded)

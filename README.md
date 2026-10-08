@@ -2,7 +2,7 @@
 
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![GitHub](https://img.shields.io/badge/GitHub-northriv%2FKAME-181717?logo=github)](https://github.com/northriv/KAME)
-[![Version](https://img.shields.io/badge/version-8.6.1-green)]()
+[![Version](https://img.shields.io/badge/version-9.0-green)]()
 [![arXiv](https://img.shields.io/badge/arXiv-2608.12024-b31b1b.svg)](https://arxiv.org/abs/2608.12024)
 
 KAME is an open-source, multi-threaded program for automated physical property measurements,
@@ -13,7 +13,7 @@ orchestration across compatible instruments.
 **License:** GPL v2 or later (prior to 8.0: LGPL v2 or later)
 **Authors:** Kentaro Kitagawa, Shota Suetsugu
 **Platforms:** macOS, Windows (64-bit), Linux (x86-64, **supported from 8.5** — see `INSTALL.linux`)
-**Manual:** [日本語](https://kitag.issp.u-tokyo.ac.jp/%e8%87%aa%e5%8b%95%e5%8c%96%e5%af%be%e5%bf%9c%e6%b8%ac%e5%ae%9a%e3%83%97%e3%83%ad%e3%82%b0%e3%83%a9%e3%83%a0kame/) · [English](https://kitag.issp.u-tokyo.ac.jp/web/kame/kame-7-en.pdf)
+**Manual:** [日本語](https://kitag.issp.u-tokyo.ac.jp/%e8%87%aa%e5%8b%95%e5%8c%96%e5%af%be%e5%bf%9c%e6%b8%ac%e5%ae%9a%e3%83%97%e3%83%ad%e3%82%b0%e3%83%a9%e3%83%a0kame/) · [English](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.0.zip) (`doc/manual/kame-9-en.md` in the source archive)
 **Paper:** K. Kitagawa, *Formally Verified Lock-Free Software Transactional Memory for Scientific Measurement*, [arXiv:2608.12024](https://arxiv.org/abs/2608.12024) (2026)
 
 ![KAME screenshot](https://kitag.issp.u-tokyo.ac.jp/wordpress/wp-content/uploads/2025/01/dd21dff192ba7bde3beb0830a80d886c-930x620.png)
@@ -39,11 +39,10 @@ orchestration across compatible instruments.
 - Calibration curves (cspline, Chebyshev, polynomial) for resistance thermometers and generic sensors; calibrated entries feed into graphs, charts, and data recording like any native scalar
 
 ### Released versions/Binaries
-Source: [kame-8.6.1.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.6.1.zip) (3.7MB, Aug. 2026).
+Source: [kame-9.0.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.0.zip) (Oct. 2026).
 [All other source archives](https://kitag.issp.u-tokyo.ac.jp/web/kame/src).
-Windows 64-bit binaries: [8.6.1](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.1.zip) (21.8MB) · [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.zip) (21.8MB) · [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.5.zip) (20.4MB) · [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.4.zip). At least Qt is additionally needed, follow instructions below to install.
+Windows 64-bit binaries: [9.0](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-9.0.zip) (22.1MB) · [8.6.1](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.1.zip) (21.8MB) · [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.zip) (21.8MB) · [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.5.zip) (20.4MB) · [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.4.zip). At least Qt is additionally needed, follow instructions below to install.
 Builds before 8.6.1 carry the double-allocation defect described under *What's New in 8.6.1* on Windows and Linux.
-**9.0 alpha2** — the measurement journal, below: [source](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.0-alpha2.zip) (3.8MB) · [Windows 64-bit](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-9.0alpha2.zip). A pre-release; 8.6.1 remains the current stable version.
 
 ### Supported instruments
 
@@ -51,10 +50,10 @@ Builds before 8.6.1 carry the double-allocation defect described under *What's N
 |---|---|
 | **Oscilloscopes (DSO)** | Tektronix TDS, Lecroy/Teledyne/Iwatsu, Thamway PROT3 streaming DSO, Thamway DV14U25 A/D board, NI-DAQmx as DSO, Digilent WaveForms AIN |
 | **Signal generators** | Kenwood SG7130/7200, HP/Agilent 8643/8644/8648/8664/8665, Keysight/Agilent E44xB SCPI, Rohde-Schwarz SML01/02/03/SMV03, DSTech DPL-3.2XGF, LibreVNA SG SCPI |
-| **Function / pulse generators** | NF WAVE-FACTORY, LXI 3390 arbitrary function generator |
+| **Function / pulse generators** | NF WAVE-FACTORY, LXI 3390 arbitrary function generator, Agilent/Keysight 33250A |
 | **Network analysers** | HP/Agilent 8711/8712/8713/8714, Agilent E5061/E5062, Copper Mountain TR1300/1504/4530, DG8SAQ VNWA3E, LibreVNA SCPI, Thamway T300-1049A impedance analyser |
 | **Lock-in amplifiers / bridges** | Stanford SR830, NF LI5640, Signal Recovery 7265, LakeShore M81-SSM, Agilent/HP 4284A LCR meter, Andeen-Hagerling 2500A capacitance bridge |
-| **DC sources** | Yokogawa 7651, Advantest TR6142/R6142/R6144, MICROTASK/Leiden triple current source, Optotune ICC4C-2000 |
+| **DC sources** | Yokogawa 7651, Advantest TR6142/R6142/R6144, MICROTASK/Leiden triple current source, Optotune ICC4C-2000, KIKUSUI PMX series |
 | **Multimeters / picoammeters** | Keithley 2000/2001, 2182 nanovolt meter, 2700+7700, 6482 picoammeter; Agilent 34420A, 3458A, 3478A; Sanwa PC500/5000 |
 | **Temperature controllers** | Cryocon M32/M62, LakeShore 218/340/350/370/372 (1ch, 8ch, 16ch scanner), Picowatt AVS-47, Oxford ITC-503, Neocera LTC-21, Scientific Instruments 9302/9304/9308, LinearResearch LR-700, OMRON E5\*C Modbus |
 | **Magnet power supplies** | Oxford PS-120, Oxford IPS-120, Cryogenic SMS10/30/120C |
@@ -76,7 +75,7 @@ Builds before 8.6.1 carry the double-allocation defect described under *What's N
 
 ---
 
-## What's New in 9.0 (alpha)
+## What's New in 9.0
 
 - **KAME records what it was set to and what it did, without being asked.** A
   run is one name and two files. The `.kamj` holds the settings the run started
@@ -98,6 +97,36 @@ Builds before 8.6.1 carry the double-allocation defect described under *What's N
   named in the journal are created if this KAME does not have them. Only what a
   person set is restored, never into a running driver, and KAME reports how much
   it held back.
+- **The frequency-swept NMR spectrum draws a T2 map along the sweep.** A CPMG
+  train carries a decay at every frequency it visits; each echo now goes into a
+  time bin of its own and is inverted, frequency by frequency, into a
+  distribution of T2 — the density map the T1 measurement draws against P1,
+  drawn here against frequency, with a window function of its own. The phase is
+  settled at each frequency rather than once for the sweep, so the real part no
+  longer shrinks or changes sign where the probe and the cable have turned the
+  phase away from the centre. The relaxation map's T grid reaches past both ends
+  of the echo train, and both graphs state what it would take to repeat them:
+  the inversion and its λ on the density map, the echo spacing and binning on
+  the raw curves.
+- **LibreVNA works with GUI 1.6 and later.** From 1.6.0 the GUI answers a
+  setting with silence where it used to answer an empty line, so every setting
+  timed out; KAME now reads the GUI version at open and speaks the protocol that
+  version expects. From 1.6.5 the sweep is started once and read as it runs,
+  one record per completed sweep, instead of restarting the device for every
+  record — faster, and gentler on the instrument; older GUIs keep single
+  sweeps. The LibreVNA signal generator now drives the generator, not the
+  spectrum analyser it used to switch the device to.
+- **Pydantic AI needs one file and a key.** The model and the API key are two
+  lines in `~/.kame_pyai.env` (**⚙ settings** opens it), read on every launch,
+  so nothing has to be exported in a shell profile a GUI never sees. With a key
+  present, the web UI's model menu is asked of the provider itself — OpenAI,
+  Anthropic, Sakana — and a running Ollama or Bionic appears beside them with no
+  line at all (`ollama:<id>`, `bionic:<id>`, no key). KAME's own agent now
+  receives the server's motion, temperature and RF safety rules, which
+  pydantic-ai withholds by default; a tool error is shown to the model instead
+  of ending the run; and a long chat is trimmed under a token budget, so
+  switching from a local model to a cloud one mid-conversation no longer fails
+  with "prompt is too long".
 - **The toolboxes and the main window get out of the way by themselves.** A
   toolbox at a screen edge shrinks to its tab column, and grows back when the
   pointer touches it. The main window keeps its top edge and rests at half
@@ -701,7 +730,8 @@ needed before the first chat, and **⚙ settings** is where both go: it creates
 `~/.kame_pyai.env` from a commented template and opens it in your editor —
 uncomment a `KAME_PYAI_MODEL=provider:name` line (several, comma-separated,
 fill the web UI's model menu; `sakana:fugu` reaches Sakana AI with
-`SAKANA_API_KEY`) and fill in that provider's key. Nothing has to be exported
+`SAKANA_API_KEY`; a model served locally by Bionic or Ollama is
+`bionic:<id>` or `ollama:<id>`, no key, beside the cloud ones) and fill in that provider's key. Nothing has to be exported
 in a shell profile: neither pydantic-ai nor `clai` reads a `.env` by itself,
 and a GUI process sees no shell exports anyway, so KAME's agent reads this
 file on every launch. **web** serves the agent's own web app with `uvicorn`
@@ -783,7 +813,9 @@ import json, pathlib
 from pydantic_ai.mcp import MCPToolset
 
 info = json.loads((pathlib.Path.home() / '.kame_mcp_url').read_text())
-kame = MCPToolset(info['url'], auth=info['token'])   # instructions included
+kame = MCPToolset(info['url'], auth=info['token'],
+                  include_instructions=True,     # default False: no safety rules without it
+                  tool_error_behavior='failed')  # a KAME error informs; it need not end the run
 ```
 
 ### Agent plugin (skill + server in one directory)

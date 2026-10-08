@@ -147,7 +147,7 @@ def main(argv):
     findings = []
     for f in sorted(set(files)):
         try:
-            text = f.read_text(errors='replace')
+            text = f.read_text(encoding='utf-8', errors='replace')
         except OSError:
             continue
         findings.extend(scan_file(f, text))
