@@ -40,7 +40,12 @@
  * violates Inv_NoStrandedLive at depth 13 -- the stale-null-next case seen on
  * the M5 Ultra; Serial = TRUE is clean (4.05M distinct states, depth 57).
  * OrphanChain_aba_serial_3t_mc.cfg is the same check with 3 threads, a long
- * run kept out of the regression script.
+ * run kept out of the regression script: clean, 1,500,210,294 distinct
+ * states, depth 73, 49 min on an M5 Ultra (-Xmx24g, 44 GB off-heap
+ * fingerprints: -XX:MaxDirectMemorySize=44g -fpmem 0.9 and
+ * -Dtlc2.tool.fp.FPSet.impl=tlc2.tool.fp.OffHeapDiskFPSet).  At that size
+ * TLC's own estimate of a fingerprint collision having hidden a state is
+ * 0.2 (0.55 optimistic); a second run with another -fp index tightens it.
  *)
 
 EXTENDS Naturals, FiniteSets
