@@ -89,18 +89,96 @@ not touch these lines and neither causes nor fixes this.  It surfaced as an
 - **Established:** the fault is the post-call store through the cached
   force-walk pointer in `flush`.  It reproduces on `master`.  It is
   independent of `b23a57ec1`.
-- **Argued, not measured:** that the pointer is stale because the *owner
-  thread* died, rather than because the field was read from a dead chunk.  The
-  argument: the entries being flushed are freed-but-not-yet-returned slots, so
-  their bits are still set and the chunk cannot be released before
+- **Measured since (§3a):** the window itself.  Stores through a pointer whose
+  owner had already finished its allocator teardown happen in about half of
+  all runs, and never in a control where no owner exits during the frees.
+- **Still argued, not measured:** that each individual SIGSEGV is one of those
+  stores, rather than a read of the field from a dead chunk.  The argument:
+  the entries being flushed are freed-but-not-yet-returned slots, so their
+  bits are still set and the chunk cannot be released before
   `batch_return_to_bitmap` runs.  The chunk is therefore valid at the load,
-  and `r12` is the real field value.  **First next step:** capture `si_addr`
-  and `r12` at the fault (SA_SIGINFO + ucontext) and check them against the
-  stack ranges of the threads that had exited.  Alternatively, A/B a fix.
+  and `r12` is the real field value.  To close it, capture `si_addr` / `r12`
+  at the fault (SA_SIGINFO + ucontext) and match them against a hit logged
+  at the same address.
 - **Not observed:** crashes at the `push_direct` and `deallocate_pooled`
   sites.  The 32 B class takes `push` → `flush` (`ALIGN <= 48`), so this test
   mostly exercises `flush`.  The other two sites have the same shape and
   should be treated as affected.
+
+### 3a. Measured: the window is entered (`KAME_ALLOC_FORCE_WALK_TRACE`)
+
+A debug-only counter in `allocator.cpp` (`namespace fw_trace`).  Without the
+macro it compiles to the shipped code: the linked `.text` of
+`libkamepoolalloc.so` is byte-identical with and without the change
+(299,244 bytes), and every object section has the same name and size.
+
+**What a HIT is.**  A store through the cached force-walk pointer that loaded
+the pointer before the owner nulled it (it read non-null) and runs after that
+owner FINISHED `release_dll_chunks_for_thread` for that size class.  From
+that point nothing keeps the target mapped, so this is exactly the store the
+code's safety argument does not cover.  A hit is not a fault.  Whether it
+faults depends on what the dead thread's TLS has become (§3, macOS).
+
+**How.**  The owner, after its walk, appends (its TLS address, a fresh epoch)
+to a 4096-entry ring.  A freer reads the epoch before loading the pointer.
+Just before storing, it scans only the ring entries newer than that epoch —
+usually none.  The epoch bound is what stops a reused address from matching.
+Every miss is an under-count, never a false hit: an entry not yet written, or
+more than 4096 exits in one window (`overruns`).  All atomics are pointer
+width, so the trace build runs on i486.  A premise self-check counts any
+chunk whose pointer, at the null-out, was not the address the walk then
+records (`premise mismatches`).
+
+Use:
+
+```bash
+cmake ... -DCMAKE_CXX_FLAGS="-DKAME_ALLOC_FORCE_WALK_TRACE"
+./alloc_tsd_exclusivity_test            # prints at exit:
+# [fw-trace] 2 hit(s) in ~11314 cross-thread force-walk stores; 388 owner
+#            exits recorded; overruns 0; premise mismatches 0
+# [fw-trace]   flush   hits 2 / stores ~11314   (and the other two sites)
+KAME_FW_TRACE_SKIP=1 ./...              # skip the store on a hit: a run that
+                                        # would fault survives and reports
+```
+
+The store count is approximate: it is folded per thread at owner exit.  The
+hit count is exact apart from the misses above.
+
+**Results**, `alloc_tsd_exclusivity_test`, x86-64 Linux, g++ 13.3:
+
+| condition | LP64 | `-m32 -march=i486` |
+|---|---|---|
+| one run, no other load | 2 hits / ~11,314 stores | 4 / ~8,093 |
+| 4 concurrent, 100 runs, `SKIP=1` | **52 / 100 runs** hit; 81 / ~253,122 | **44 / 100**; 53 / ~160,839 |
+| **negative control**: all cross-thread frees done, then a barrier, then any exit (24 rounds × 8 threads) | **0** / ~4,032 | **0** / ~4,032 |
+| premise mismatches, every run above | 0 | 0 |
+
+Two readings:
+
+- The window is entered routinely: in about half of all runs on both widths,
+  and in an unloaded single run.  The negative control has owner exits and
+  stores in every round, just never in that order, and reads 0.  So the
+  counter is not firing on owner exits alone.
+- Hits outnumber faults about 100 to 1.  The unmodified build faults in about
+  0.5 % of runs (§3), while about 0.8 hits occur per run.  Most hits land in
+  memory that is still mapped — consistent with glibc's stack cache.  That
+  ratio is why a crash-rate A/B needs thousands of runs, and the hit counter
+  needs about a hundred.
+
+`SKIP=1` runs had 0 non-zero exits, but at a 0.5 % per-run fault rate 100
+runs say nothing about whether skipping prevents the fault.  This is not a
+fix claim.
+
+**Earlier diagnosis this supersedes.**  The comment above
+`CrossDeallocBatch::flush` records a SIGSEGV at this same store, attributed
+it to musl's TSD-destructor ordering ("observed only on Alpine/musl; glibc
+CI is clean"), and dropped the poke only when the *freer* is at teardown.
+The measurement here is on glibc, with the freer in its normal body; it is
+the owner that is exiting.  That fix does not cover this case.
+
+**On macOS** the counter answers the question §3's macOS section leaves
+open: if `hits > 0` there with no crash, the window is hit and the writes
+are silent.
 
 ### Worse than a crash, by implication (not observed)
 
@@ -142,14 +220,10 @@ code is the same on both platforms and only the consequence differs.
 So "no crash on macOS" cannot distinguish "the window is never hit there"
 from "it is hit and corrupts silently".  To separate them on any platform:
 
-1. **Count the window directly** (debug builds only; preferred).  At owner
-   exit, alongside the null-out at `:3311`, push
-   `(&s_tls.dll_force_walk_from_head, exit epoch)` onto a small global ring.
-   Each of the three free sites records the epoch when it loads the pointer.
-   Just before the store, it checks the ring for that address with a later
-   exit epoch and counts a hit if it finds one.  This counts TOCTOU hits
-   whether or not the write faults, and whether or not the address has been
-   reused since.
+1. **Count the window directly** — now implemented as
+   `KAME_ALLOC_FORCE_WALK_TRACE` (§3a).  It counts hits whether or not the
+   write faults, and whether or not the address has been reused since.  On
+   macOS, `hits > 0` with no crash means "hit, and corrupting silently".
 2. **ASan on macOS** (cheaper, less certain).  If dyld's TLV block comes from
    an ASan-intercepted `malloc`, the stray store reports as
    heap-use-after-free.  The pool's own `malloc` / `operator new`
@@ -199,6 +273,18 @@ same to a marker grep).  Then:
   trap);
 - run ctest on LP64 and `-m32` (i586 and i486);
 - run `tools/audit/check_no_dcas.sh`.
+
+**The hit counter (§3a) is the sharper metric, but only for some fixes.**
+Baseline is about 0.8 hits per run, against about 0.005 faults, so ~100
+runs per arm decide what a crash A/B needs thousands for.
+
+- A fix that **keeps** the owner-TLS target and closes the window (for
+  example, owner exit waiting for in-flight freers): hits should go to 0.
+  Use the counter directly.
+- A fix that **changes** the target (the global owner-id table): the store
+  can no longer reach dead TLS, so the counter measures nothing.  Validate by
+  the crash A/B.  Keep the counter's sites until then and confirm they record
+  0 stores.
 
 ## 6. Reproduction
 

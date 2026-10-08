@@ -728,6 +728,149 @@ static ALLOC_TLS_IE bool  tls_batch_warned = false;
 static ALLOC_TLS_IE int   tls_batch_count_at_destroy = -1;
 #endif
 
+#ifdef KAME_ALLOC_FORCE_WALK_TRACE
+//! (§fw-trace) Debug-only.  Counts the stores through a cached owner
+//! force-walk pointer that the code's own safety argument does not cover.
+//! design/FORCE_WALK_TOCTOU_HANDOFF.md has the defect; this is its
+//! measurement.
+//!
+//! Three free paths load `m_owner_dll_force_walk_ptr` -- a pointer into the
+//! OWNER thread's TLS -- then call `batch_return_to_bitmap`, then store
+//! through it.  Owner exit nulls the field, arguing that a freer which saw
+//! the old value "loaded BEFORE our release, in which case our TLS is still
+//! live".  That covers the load, not the later store.  A HIT here is a store
+//! whose load came before the owner nulled the pointer (it read non-null)
+//! and which runs after that owner has FINISHED its allocator teardown walk
+//! for that size class -- from then on nothing keeps the target mapped.
+//!
+//! Not every hit faults: where the dead thread's TLS lands decides that
+//! (unmapped stack on glibc -> SIGSEGV; freed TLV heap on macOS -> a silent
+//! one-byte write).  That is why it is counted rather than waited for.
+//!
+//! Mechanism.  The owner, after its walk, appends (its TLS address, a fresh
+//! epoch) to a ring.  A freer reads the epoch BEFORE loading the pointer and,
+//! just before storing, scans only the ring entries newer than that epoch --
+//! usually none, so the hot cost is two relaxed/acquire loads.  An entry
+//! older than the freer's load cannot match its pointer except by address
+//! reuse, which is why the epoch bound matters.  Misses (under-count only):
+//! an entry not yet written when scanned, or more than RING exits inside one
+//! window (counted in `overruns`).  Every atomic is pointer width, so the
+//! trace build runs on no-DCAS hosts (i486) as well.
+//!
+//! KAME_FW_TRACE_SKIP=1 skips the store on a hit, so a run on a platform
+//! where the hit faults survives and reports every hit.  Default is faithful:
+//! the store happens exactly as in the shipped build.
+namespace fw_trace {
+enum : std::size_t { RING = 4096 };                  // power of two
+struct Slot {
+	std::atomic<std::uintptr_t> epoch;
+	std::atomic<std::uintptr_t> addr;
+};
+static Slot g_ring[RING];                             // zero-initialised
+static std::atomic<std::uintptr_t> g_epoch{0};
+enum Site : int { PUSH_DIRECT, FLUSH, DEALLOC_DIRECT, NSITES };
+static const char *const kSiteName[NSITES] =
+	{"push_direct", "flush", "deallocate_pooled direct"};
+static std::atomic<std::size_t> g_stores[NSITES];
+static std::atomic<std::size_t> g_hits[NSITES];
+static std::atomic<std::size_t> g_owner_exits{0};
+static std::atomic<std::size_t> g_overruns{0};
+static std::atomic<std::size_t> g_mismatch{0};
+//! Stores are counted per thread and folded in at the owner-exit hook, so the
+//! denominator costs no shared cache line on the free path.  Counts made after
+//! a thread's last fold are lost (approximate denominator, exact numerator).
+static ALLOC_TLS std::size_t tls_stores[NSITES];
+
+inline bool skip_on_hit() noexcept {
+	static const bool v = []{
+		const char *e = std::getenv("KAME_FW_TRACE_SKIP");
+		return e && e[0] && e[0] != '0';
+	}();
+	return v;
+}
+inline std::uintptr_t load_epoch() noexcept {
+	return g_epoch.load(std::memory_order_acquire);
+}
+inline void fold_thread_stores() noexcept {
+	for(int i = 0; i < NSITES; ++i) {
+		if(tls_stores[i])
+			g_stores[i].fetch_add(tls_stores[i], std::memory_order_relaxed);
+		tls_stores[i] = 0;
+	}
+}
+//! Owner side.  Called once per (thread, size class), after the teardown walk
+//! has nulled the force-walk pointer of every chunk in that DLL.
+inline void owner_exit(const void *a) noexcept {
+	fold_thread_stores();
+	const std::uintptr_t e =
+		g_epoch.fetch_add(1, std::memory_order_acq_rel) + 1;
+	Slot &s = g_ring[e & (RING - 1)];
+	// Seqlock-style rewrite so a concurrent reader of a WRAPPED slot cannot
+	// pair the new address with the old epoch.
+	s.epoch.store(0, std::memory_order_relaxed);
+	std::atomic_thread_fence(std::memory_order_release);
+	s.addr.store(reinterpret_cast<std::uintptr_t>(a), std::memory_order_relaxed);
+	s.epoch.store(e, std::memory_order_release);
+	g_owner_exits.fetch_add(1, std::memory_order_relaxed);
+}
+//! Self-check of the premise: every chunk the walk nulls should have pointed
+//! at the address the walk then records.
+inline void check_owner_ptr(const void *had, const void *recorded) noexcept {
+	if(had && had != recorded)
+		g_mismatch.fetch_add(1, std::memory_order_relaxed);
+}
+//! Freer side, just before the store.  \return true to SKIP the store.
+inline bool before_store(const void *p, std::uintptr_t loaded_at,
+                         Site site) noexcept {
+	++tls_stores[site];
+	const std::uintptr_t cur = g_epoch.load(std::memory_order_acquire);
+	std::uintptr_t from = loaded_at;
+	if(cur - from > RING) {                    // ring wrapped inside the window
+		g_overruns.fetch_add(1, std::memory_order_relaxed);
+		from = cur - RING;
+	}
+	const std::uintptr_t a = reinterpret_cast<std::uintptr_t>(p);
+	for(std::uintptr_t k = from + 1; k != cur + 1; ++k) {
+		Slot &s = g_ring[k & (RING - 1)];
+		if(s.epoch.load(std::memory_order_acquire) != k) continue;
+		const std::uintptr_t sa = s.addr.load(std::memory_order_relaxed);
+		std::atomic_thread_fence(std::memory_order_acquire);
+		if(s.epoch.load(std::memory_order_relaxed) != k) continue;
+		if(sa == a) {
+			g_hits[site].fetch_add(1, std::memory_order_relaxed);
+			return skip_on_hit();
+		}
+	}
+	return false;
+}
+inline void report() noexcept {
+	fold_thread_stores();                      // the exiting (main) thread
+	std::size_t hits = 0, stores = 0;
+	for(int i = 0; i < NSITES; ++i) {
+		hits += g_hits[i].load();
+		stores += g_stores[i].load();
+	}
+	std::fprintf(stderr,
+		"[fw-trace] %zu hit(s) in ~%zu cross-thread force-walk stores; "
+		"%zu owner exits recorded; overruns %zu; premise mismatches %zu%s\n",
+		hits, stores, g_owner_exits.load(), g_overruns.load(),
+		g_mismatch.load(), skip_on_hit() ? "; hits SKIPPED" : "");
+	for(int i = 0; i < NSITES; ++i)
+		std::fprintf(stderr, "[fw-trace]   %-26s hits %zu / stores ~%zu\n",
+			kSiteName[i], g_hits[i].load(), g_stores[i].load());
+}
+[[maybe_unused]] static const bool kRegistered = []{ std::atexit(report); return true; }();
+} // namespace fw_trace
+#define KAME_FW_LOAD_EPOCH(v) const std::uintptr_t v = fw_trace::load_epoch()
+#define KAME_FW_STORE(ptr, ep, site)                                          \
+	do { if( !fw_trace::before_store((ptr), (ep), fw_trace::site))           \
+		(ptr)->store(true, std::memory_order_relaxed); } while(0)
+#else
+#define KAME_FW_LOAD_EPOCH(v) ((void)0)
+#define KAME_FW_STORE(ptr, ep, site)                                          \
+	(ptr)->store(true, std::memory_order_relaxed)
+#endif
+
 struct CrossDeallocBatch {
     // FS=true-only small-slot batch (FS=false bypasses
     // cross-batch entirely in its `deallocate_pooled` — see that
@@ -825,6 +968,7 @@ struct CrossDeallocBatch {
         // -fsanitize=undefined).  The fields are write-once at chunk
         // construction so the cached values are safe across the call.
         void *cached_dll_head_addr = c->m_owner_dll_head_addr;
+        KAME_FW_LOAD_EPOCH(fw_ep);
         auto *cached_force_walk =
             c->m_owner_dll_force_walk_ptr.load(std::memory_order_acquire);
         c->batch_return_to_bitmap(tmp);
@@ -838,7 +982,9 @@ struct CrossDeallocBatch {
             // `release_dll_chunks_for_thread`.  Null after owner exit
             // → skip deref; non-null means owner's TLS storage is
             // still live (owner-exit nullifies BEFORE thread teardown).
-            cached_force_walk->store(true, std::memory_order_relaxed);
+            // -- Not so: that holds at the load, not at this store.  See
+            //    design/FORCE_WALK_TOCTOU_HANDOFF.md; (§fw-trace) counts it.
+            KAME_FW_STORE(cached_force_walk, fw_ep, PUSH_DIRECT);
     }
 
     // `at_teardown`: set by the dtor (we are running inside this thread's
@@ -949,12 +1095,13 @@ struct CrossDeallocBatch {
             // pointer (it may dangle under musl's TSD-dtor ordering — see
             // the function comment).  Returning the slots is all that
             // matters there.
+            KAME_FW_LOAD_EPOCH(fw_ep);
             std::atomic<bool> *cached_force_walk = at_teardown ? nullptr :
                 chunk->m_owner_dll_force_walk_ptr.load(
                     std::memory_order_acquire);
             i += chunk->batch_return_to_bitmap(&buf[i]);
             if(cached_force_walk)
-                cached_force_walk->store(true, std::memory_order_relaxed);
+                KAME_FW_STORE(cached_force_walk, fw_ep, FLUSH);
         }
         count = 0;
     }
@@ -2071,6 +2218,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// across the call; the force-walk pointer's target lives in the
 	// OWNER thread's TLS (independent of this chunk's lifetime).
 	void *cached_dll_head_addr = this->m_owner_dll_head_addr;
+	KAME_FW_LOAD_EPOCH(fw_ep);
 	auto *cached_force_walk =
 	    this->m_owner_dll_force_walk_ptr.load(std::memory_order_acquire);
 	CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
@@ -2097,7 +2245,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	   static_cast<void *>(&PoolAllocator<ALIGN, true, false>::s_tls.dll_head))
 		PoolAllocator<ALIGN, true, false>::reset_dll_walk_state();
 	else if(cached_force_walk)
-		cached_force_walk->store(true, std::memory_order_relaxed);
+		KAME_FW_STORE(cached_force_walk, fw_ep, DEALLOC_DIRECT);
 	return false;
 }
 
@@ -3329,6 +3477,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 	// thread exit → cursor and exhausted flag both moot.
 	s_tls.dll_cursor = nullptr;
 	s_tls.dll_exhausted = false;
+#ifdef KAME_ALLOC_FORCE_WALK_TRACE
+	const bool fw_had_chunks = (c != nullptr);
+#endif
 	while(c) {
 		auto *next = c->m_dll_next;
 		c->m_dll_prev = nullptr;
@@ -3421,6 +3572,11 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 		// our release, in which case our TLS is still live.  This
 		// fixes the Linux 1000-thread `alloc_stress` SEGV that
 		// the earlier change's plain pointer access exhibited.
+#ifdef KAME_ALLOC_FORCE_WALK_TRACE
+		fw_trace::check_owner_ptr(
+		    c->m_owner_dll_force_walk_ptr.load(std::memory_order_relaxed),
+		    &s_tls.dll_force_walk_from_head);
+#endif
 		c->m_owner_dll_force_walk_ptr.store(
 		    nullptr, std::memory_order_release);
 		uint32_t old = atomicFetchAnd(&c->m_flags_packed,
@@ -3480,6 +3636,13 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 		}
 		c = next;
 	}
+#ifdef KAME_ALLOC_FORCE_WALK_TRACE
+	// Every chunk of this DLL now has a null force-walk pointer, and this
+	// thread is about to leave the allocator's teardown for this size class:
+	// from here nothing keeps &s_tls.dll_force_walk_from_head mapped.
+	if(fw_had_chunks)
+		fw_trace::owner_exit(&s_tls.dll_force_walk_from_head);
+#endif
 }
 inline void
 PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
