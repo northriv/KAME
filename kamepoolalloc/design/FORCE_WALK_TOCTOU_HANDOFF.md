@@ -220,7 +220,7 @@ Recorded here so it is not re-run:
 | ctest, `-m32` i586 / i486, **asserts on** | 42 / 42, 35 / 35 |
 | `orphan_chain_push`'s `0x3F040` low-bits assert on `-m32`, asserts on | held on 771 + 6363 pushes (two tests, gdb hit count) |
 | `tools/audit/check_no_dcas.sh` | 3 / 3 ok |
-| hang A/B, `transaction_payload_integrity_mixed_test 1 64 256 0`, 15 s cut-off | 0 / 73 vs 0 / 73 when this was written.  The master arm had not hung, so this A/B is **null** on this box, neither confirming nor refuting the branch's M5 Ultra result (5 / 300 → 0 / 300). |
+| hang A/B, `transaction_payload_integrity_mixed_test 1 64 256 0`, 15 s cut-off, interleaved | **0 / 200 vs 0 / 200**.  The master arm never hung, so this A/B is **null** on this box (x86-64, 4 cores).  It neither confirms nor refutes the branch's M5 Ultra result (5 / 300 → 0 / 300).  Confirming it needs a machine where master's arm actually hangs. |
 | TLA+ `OrphanChain_aba` 2-thread cfgs | not run (stopped) |
 
 The branch's own "Not yet built with -m32" is answered by the `-m32` rows.
