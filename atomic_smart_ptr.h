@@ -639,6 +639,21 @@ protected:
     enum {LOCAL_REF_CAPACITY =
         (Traits::is_intrusive ? sizeof(double) : sizeof(intptr_t))};
 #endif
+
+    //! The word atomic_shared_ptr keeps in m_ref is [ Ref* | local refcount ],
+    //! the refcount living in the low bits the pointee's alignment leaves free.
+    //! These three are the only places that put the word together or take it
+    //! apart.  (Unlike the reverted tag_compose_, 796d9fe1e, they carry no
+    //! checks; they exist so the representation can gain a field in one place.)
+    static uintptr_t tag_pack_(const Ref *p, Refcnt rcnt) noexcept {
+        return (uintptr_t)p + rcnt;
+    }
+    static Ref *tag_ptr_(uintptr_t w) noexcept {
+        return (Ref*)(w & ~(uintptr_t)(LOCAL_REF_CAPACITY - 1));
+    }
+    static Refcnt tag_rcnt_(uintptr_t w) noexcept {
+        return (Refcnt)(w & (uintptr_t)(LOCAL_REF_CAPACITY - 1));
+    }
 };
 //! \brief This class provides non-reentrant interfaces for atomic_shared_ptr: operator->(), operator*() and so on.\n
 //! Use this class in non-reentrant scopes instead of costly atomic_shared_ptr.
@@ -1036,8 +1051,7 @@ protected:
     typedef atomic<uintptr_t> TaggedPtr;
     //! A pointer to global reference struct.
     Ref* ref_ptr_() const noexcept {
-        auto ref = this->m_ref.load(std::memory_order_relaxed);
-        return (Ref*)(ref & (~(uintptr_t)(this->LOCAL_REF_CAPACITY - 1)));
+        return this->tag_ptr_(this->m_ref.load(std::memory_order_relaxed));
     }
     //! (§biased) PUBLISH from a value/copy constructor that installs a CB
     //! straight into this atomic slot (so it is NOT routed through
@@ -1054,8 +1068,7 @@ protected:
     //! Single atomic load returning both the pointer and the local refcount.
     std::pair<Ref*, Refcnt> load_tagged_() const noexcept {
         auto ref = this->m_ref.load(std::memory_order_relaxed);
-        return {(Ref*)(ref & (~(uintptr_t)(this->LOCAL_REF_CAPACITY - 1))),
-                (Refcnt)(ref & (uintptr_t)(this->LOCAL_REF_CAPACITY - 1))};
+        return {this->tag_ptr_(ref), this->tag_rcnt_(ref)};
     }
 
     //internal functions below.
@@ -1495,8 +1508,8 @@ public:
         }
         // Single-shot drain CAS: tag rcnt_now → 0.
         if(const_cast<atomic_shared_ptr<T> *>(m_asp)->m_ref.compare_set_weak(
-            (uintptr_t)m_pref + rcnt_now,
-            (uintptr_t)m_pref + 0)) {
+            m_asp->tag_pack_(m_pref, rcnt_now),
+            m_asp->tag_pack_(m_pref, 0))) {
             // Adjust for excess pre-pay.
             sub_with_delete_check(rcnt_added - needed);
             rcnt_added = 0;
@@ -1653,16 +1666,16 @@ atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt, bool weakly) const noexcept
         if(weakly) {
             if(rcnt_new < this->LOCAL_REF_CAPACITY
                && const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_weak(
-                   TaggedPtr((uintptr_t)pref + rcnt_old),
-                   TaggedPtr((uintptr_t)pref + rcnt_new)))
+                   TaggedPtr(this->tag_pack_(pref, rcnt_old)),
+                   TaggedPtr(this->tag_pack_(pref, rcnt_new))))
                 break;
             return {(Ref*)nullptr, false};
         }
         // Strong path: pause on overflow, exponential backoff on CAS loss.
         if(rcnt_new < this->LOCAL_REF_CAPACITY) {
             if(const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_weak(
-                TaggedPtr((uintptr_t)pref + rcnt_old),
-                TaggedPtr((uintptr_t)pref + rcnt_new)))
+                TaggedPtr(this->tag_pack_(pref, rcnt_old)),
+                TaggedPtr(this->tag_pack_(pref, rcnt_new))))
                 break;
         }
         else {
@@ -1737,8 +1750,8 @@ inline bool atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_globa
             Refcnt rcnt_new = rcnt_old - local_release;
             // trying to dec. reference counter if stored pointer is unchanged.
             if(const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_weak(
-                TaggedPtr((uintptr_t)pref + rcnt_old),
-                TaggedPtr((uintptr_t)pref + rcnt_new))) {
+                TaggedPtr(this->tag_pack_(pref, rcnt_old)),
+                TaggedPtr(this->tag_pack_(pref, rcnt_new)))) {
                 //decreases the rest of global counting.
                 // CRITICAL: must be acq_rel + delete check, NOT relaxed.
                 // Concurrent local_reset() can drop refcnt to (added_global_rcnt -
@@ -1947,8 +1960,8 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
         // CAS m_ref: pref + rcnt_old → newr + 0
         Refcnt rcnt_new = 0;
         if(this->m_ref.compare_set_weak(
-                TaggedPtr((uintptr_t)pref + rcnt_old),
-                TaggedPtr((uintptr_t)newr_pref() + rcnt_new))) {
+                TaggedPtr(this->tag_pack_(pref, rcnt_old)),
+                TaggedPtr(this->tag_pack_(newr_pref(), rcnt_new)))) {
             if(pref) {
                 // Release m_ref's implicit ownership.
                 // For SCOPED in TagHeld mode, additionally consume scoped's
@@ -2095,8 +2108,8 @@ local_shared_ptr<T, reflocal_var_t>::swap(atomic_shared_ptr<T> &r) noexcept {
         }
         rcnt_new = 0;
         if(r.m_ref.compare_set_weak(
-            TaggedPtr((uintptr_t)pref + rcnt_old),
-            TaggedPtr((uintptr_t)this->m_ref + rcnt_new))) {
+            TaggedPtr(r.tag_pack_(pref, rcnt_old)),
+            TaggedPtr(r.tag_pack_((Ref*)(uintptr_t)this->m_ref, rcnt_new)))) {
             this->m_ref = (TaggedPtr)pref;
             return;
         }
