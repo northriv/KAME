@@ -347,20 +347,19 @@ inline T atomicFetchOr(T *target, T value) noexcept {
 	#define KAME_POOL_ONEBACK_SKIP 1
 #endif
 
-//! (Orphan-chain) The orphan reclaim mechanism: a TLA+-verified
-//! atomic_shared_ptr-refcounted intrusive orphan chain (push at owner-exit,
-//! scrub-reclaim drained orphans, adopt survivors with a chunk self-ref
-//! owner-ref) — see design/ORPHAN_CHAIN_INTEGRATION.md and
-//! tests/tlaplus/OrphanChain_*.tla.  (§S7) It is the sole orphan mechanism: the
-//! §36 orphan Treiber stack (s_orphan_head / orphan_push / orphan_pop) is
-//! retired and the former KAME_ORPHAN_CHAIN opt-in flag is removed — the chain
-//! code below is UNCONDITIONAL.  Verified race-free on Linux (TSan/ASan) with
-//! churn plateau; the regression guard is the TLA model
-//! (tests/tlaplus/run_orphan_chain.sh) — the owner-free vs scrub-pin race it
-//! caught (Inv_NoBadOwnerFree) is not reproducible by runtime stress.
+//! (§group) Orphaned chunks: an exiting thread hands its whole GROUP (its
+//! anchor and every chunk pointing at it) onto one of two atomic_shared_ptr
+//! chains of anchors, ROOM or FULL; an adopter moves the chunks on a group's
+//! head into its own group, and a thread with no group takes one over.  See
+//! the §revive / §group comment at m_anc and tests/tlaplus/RevivalGroup.tla.
+//! The chains are the atomic_shared_ptr Treiber stack of the earlier
+//! chunk-wise orphan chain (design/ORPHAN_CHAIN_INTEGRATION.md,
+//! tests/tlaplus/OrphanChain_*.tla, run_orphan_chain.sh), now of anchors and
+//! with a serial in their words (OrphanChain_aba.tla); the chunk-wise chain,
+//! its scrub and the per-chunk owner-ref are retired.
 #include "atomic_smart_ptr.h"
-//! (Orphan-chain) The chunk's embedded PoolAllocator IS the intrusive
-//! node of the lock-free orphan chain — it uses the intrusive
+//! (§group) The chunk's embedded PoolAllocator IS the intrusive node of the
+//! group chains and the target of m_anc — it uses the intrusive
 //! atomic_shared_ptr path (Ref = T, custom disposer) WITHOUT a sizeof
 //! completeness probe — the type is self-referential (holds an
 //! atomic_shared_ptr<PoolAllocator>) hence incomplete at first use.  Mirrors
@@ -1720,14 +1719,14 @@ public:
 extern ALLOC_TLS bool s_alloc_tls_off;
 
 template <unsigned int ALIGN, bool FS, bool DUMMY> class PoolAllocator;
-//! The orphan chain (atomic_shared_ptr<PoolAllocator<ALIGN, true, DUMMY>>) carries
-//! a serial in its words: a chunk is pushed again after it was popped and
-//! adopted, which makes a pointer-only CAS on the chain ABA-prone (see
-//! orphan_chain_pop).  Every chain node -- the PoolAllocator object of a regular
-//! chunk -- sits at chunk_base + ALLOC_CHUNK_HEADER, and chunk_base sits
+//! The group chains (atomic_shared_ptr<PoolAllocator<ALIGN, true, DUMMY>>) carry
+//! a serial in their words: a group is pushed again after it was popped,
+//! processed and placed, which makes a pointer-only CAS on ROOM ABA-prone (see
+//! room_pop).  Every node -- the PoolAllocator object of a regular chunk --
+//! sits at chunk_base + ALLOC_CHUNK_HEADER, and chunk_base sits
 //! ALLOC_CHUNK_K_MAX below a 256 KiB unit boundary (the forward-shift
 //! reservation), so the low 18 bits of every node address are this constant.
-//! Dedicated chunks never go on the chain.
+//! Dedicated chunks are never chunks of a group.
 template <unsigned int ALIGN, bool DUMMY>
 struct atomic_serial_traits<PoolAllocator<ALIGN, true, DUMMY> > {
 	static constexpr unsigned LOW_BITS = ALLOC_MIN_CHUNK_SHIFT;
@@ -1902,47 +1901,37 @@ protected:
 	// `atomicInc/Dec` on `m_flags_packed` by another thread does not
 	// invalidate the owner's freelist load/store cache line.
 	//
-	// Packed counter + state bits (an earlier change — inverts the old
-	// BIT_OWNER_EXITED → BIT_OWNED and drops BIT_RELEASED):
-	//   * Bits  0..30 — nonzero-flag-word count.  Max value =
-	//     `m_count` ≤ ALLOC_CHUNK_SIZE / ALIGN / 64 ≈ 16 K
-	//     even at ALIGN=16 / chunk-size=1 MiB; 31 bits (= 2 G) is
-	//     comfortably over-provisioned.
-	//   * Bit  31     — `BIT_OWNED`: set when owner thread is alive
-	//     and holds this chunk in its DLL.  Cleared atomically by
-	//     `release_dll_chunks_for_thread` / `owner_release` at owner
-	//     exit / neighbour-release.  Inverted semantics from the old
-	//     `BIT_OWNER_EXITED` so the dec-to-zero CAS uniquely
-	//     identifies the releaser without a separate `BIT_RELEASED`.
-	//
-	// Release identification (no BIT_RELEASED needed):
-	//   - Cross-thread free brings MASK_CNT → 0 via atomicDecAndTest.
-	//     If returns true, m_flags_packed is now 0 → BIT_OWNED was
-	//     CLEAR (owner is gone) AND MASK_CNT was 1 → I'm the unique
-	//     releaser.  If returns false (BIT_OWNED still set, or
-	//     MASK_CNT was > 1), I'm not.
-	//   - Owner exit calls atomicFetchAnd(&m_flags_packed, ~BIT_OWNED).
-	//     If `old & ~BIT_OWNED == 0` (= MASK_CNT was 0), owner is the
-	//     unique releaser.  Else cross-thread will release on its next
-	//     dec-to-zero.
-	//   - Owner_release uses the same
-	//     atomicFetchAnd: chunks observed-empty in our DLL are
-	//     released by us via the AND → newv == 0 check.
-	//
-	// The two operations (dec-to-0 vs AND-clear-BIT_OWNED) are
-	// mutually exclusive because exactly one transitions m_flags_packed
-	// to all-zero.
-	//
+	// Packed counter + state bits:
+	//   * Bits  0..28 — MASK_CNT, the nonzero-flag-word count.  Max value =
+	//     `m_count` ≤ ALLOC_CHUNK_SIZE / ALIGN / 64 ≈ 16 K even at
+	//     ALIGN=16 / chunk-size=1 MiB.
+	//   * Bit  29     — `BIT_A` (§group): the chunk is its group's ANCHOR.
+	//     Set before the chunk is published and never cleared while it
+	//     lives.  An anchor is never moved out of its group nor released by
+	//     owner_release (the word never equals BIT_OWNED alone); it goes when
+	//     its group dissolves.
 	//   * Bit  30     — `BIT_Q` (§revive): set while the chunk is listed for
-	//     revival -- on its anchor's stack or on the owner's taken rest of
-	//     one (s_tls.rv_list) -- or held by the one cross-thread freer about
-	//     to push it.  It keeps the word non-zero, so neither
-	//     owner_release, the exit orphaning nor the scrub releases a chunk
-	//     a freer is still touching.  Taken only on an OWNED chunk, by the
-	//     freer, BEFORE it clears its bit (its own slot keeps the chunk
-	//     alive until then).  (Previously unused; was BIT_RELEASED once.)
-	//     MASK_CNT is bits 0..29 (≤ m_count ≈ 16 K).
-	static constexpr uint32_t MASK_CNT  = 0x3FFFFFFFu; // bits 0..29
+	//     revival -- on its group's head, or on its owner's taken rest of one
+	//     (s_tls.rv_list) -- or held by the one thread about to push it there.
+	//     Taken by a freer BEFORE it clears its bits (its own slot keeps the
+	//     chunk alive until then).  It keeps the word off every release
+	//     pattern below, so nobody releases a chunk a freer may still be
+	//     touching.  An anchor is listed on its own group's head like any
+	//     member; a holder of an orphaned group just drops its Q there.
+	//   * Bit  31     — `BIT_OWNED` (§group): the chunk is in a group.  Every
+	//     live chunk is -- owned or orphaned -- so a cross-thread free only
+	//     decrements MASK_CNT and never releases anything.
+	//
+	// Release is a CAS of the whole word to 0 from exactly one pattern, so
+	// the releaser is unique and nothing else is in flight:
+	//   - BIT_OWNED: the owner, for an empty member (owner_release, exit);
+	//   - BIT_OWNED|BIT_Q: a holder of an orphaned group, for an empty member
+	//     it took off the group's head (Q is its own);
+	//   - BIT_OWNED|BIT_A: whoever dissolves the group, for its empty,
+	//     unlisted anchor.
+	// tests/tlaplus/RevivalGroup.tla.
+	static constexpr uint32_t MASK_CNT  = 0x1FFFFFFFu; // bits 0..28
+	static constexpr uint32_t BIT_A     = 0x20000000u; // bit 29
 	static constexpr uint32_t BIT_Q     = 0x40000000u; // bit 30
 	static constexpr uint32_t BIT_OWNED = 0x80000000u; // bit 31
 	alignas(64) uint32_t m_flags_packed;
@@ -1971,11 +1960,13 @@ protected:
 	//!     chunks owned by this template.  Sole source of truth for
 	//!     "chunks this thread can allocate from" since an earlier change.
 	//!     Single-writer (this thread); no atomic ordering needed.
-	//!   * `anchor` (§revive): this thread's first chunk of the template
-	//!     (fresh, or an adopted orphan nothing references as an anchor),
-	//!     whose `m_rv_head` collects chunks that cross-thread frees gave
-	//!     bitmap room.  Every chunk in the DLL points at it (`m_anc`); it
-	//!     is never released while the thread lives.
+	//!   * `anchor` (§group): the anchor of the group this thread owns --
+	//!     its first fresh chunk of the template, or the anchor of an
+	//!     orphaned group it took over.  Its `m_rv_head` collects the
+	//!     group's chunks that cross-thread frees gave bitmap room.  Every
+	//!     chunk in the DLL is in this group.  A chunk is in this thread's
+	//!     DLL iff its m_owner_id is this thread's (a taken-over group's
+	//!     members join it when first pinned).
 	//!   * `rv_list` (§revive): the revival stack the owner last took off
 	//!     its anchor, popped one chunk per try.  Its chunks keep BIT_Q
 	//!     (still "listed"), linked through m_rv_next; allocate_chunk_path
@@ -2001,46 +1992,44 @@ protected:
 	};
 	static ALLOC_TLS ThreadLocalState s_tls;
 
-	// (§S7) The §36 orphan Treiber stack (s_orphan_head / orphan_push /
-	// orphan_pop, reusing m_dll_next as the stack link) is RETIRED — the
-	// atomic_shared_ptr orphan chain below replaces it.
-
-	//! (Orphan-chain) atomic_shared_ptr orphan chain head — the sole orphan
-	//! mechanism (the §36 s_orphan_head Treiber stack it replaced is retired).
-	//! Same node type as `m_orphan_next` (injected-class-name = the FS=true
-	//! base), NOT the `<ALIGN,DUMMY,DUMMY>` erasure (which re-triggers the
-	//! circular incomplete-type).  chain-ref = this head + each chunk's m_orphan_next.
-	//! Cross-free already defers orphan release (deallocate_pooled OnClearFn),
-	//! so a drained orphan stays here until swept/adopted (steps 4-5).
+	//! (§group) The two chains of orphaned groups, linked through the
+	//! anchors' m_orphan_next; each holds its groups' location references.
+	//! ROOM: groups whose head was non-empty when placed -- popped one at a
+	//! time by an adopter (moving the chunks on the head into its own group)
+	//! or by a thread with no group, which takes the group over.  FULL: groups
+	//! whose head was empty -- taken whole by the sweep, which runs only when
+	//! ROOM is empty, just before an mmap.  Pops from ROOM race with pushes of
+	//! the same group after it was popped, processed and placed again, so the
+	//! chain words carry a serial (atomic_serial_traits below).
 	//!
-	//! NOTE: an ACCESSOR returning a reference to a NEVER-DESTROYED instance,
-	//! not a plain `static` member object.  A static `atomic_shared_ptr`
-	//! member would run its destructor at process exit, dropping the chain-ref
-	//! on the head node OUTSIDE the scrub gate; a still-non-empty orphan would
-	//! then hit refcnt 0 → `atomic_intrusive_dispose` → `~PoolAllocator()` +
-	//! reclaim, destroying a chunk whose slots are still live.  A later
-	//! atexit `free()` of one of those slots resolves the destructed
-	//! PoolAllocator and calls the now-pure-virtual `deallocate_pooled`
-	//! (observed: 12/14 Linux ctest abort with "pure virtual method called"
-	//! after the §S7 chain flip).  Leaking the head (the allocator never
-	//! unmaps regions at teardown anyway — see `mmap_new_region`) keeps every
-	//! orphan chunk's PoolAllocator live through process exit.  See the
-	//! definition in allocator.cpp for the placement-new leak idiom.
-	static atomic_shared_ptr<PoolAllocator> &s_orphan_chain_head() noexcept;
-	static void orphan_chain_push(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept;
-	//! (Path B step 4) reclaim pass: CAS-unlink every DEAD (empty) orphan from
-	//! the chain → its chain-ref drops → refcnt 0 → dispose →
-	//! bucket_release_chunk frees the region units.  Owner DLL is raw, so this
-	//! touches ORPHANS ONLY (no owner-ref).  Multiple scrubbers safe: dead-only
-	//! + reachability-preserving relink, lost-CAS restart = safe-side.
-	static void orphan_chain_scrub() noexcept;
-	//! (Path B adopt) Treiber-pop ONE head node from the chain; returns the
-	//! held local_shared_ptr (empty if the chain is empty).  The CALLER keeps
-	//! it through the BIT_OWNED claim (re-own) so the chunk can't be disposed
-	//! mid-re-own; once BIT_OWNED is set, a residual scrub pin draining →
-	//! refcnt 0 → atomic_intrusive_dispose no-ops (it checks BIT_OWNED).  The
-	//! popped node's own m_orphan_next is cleared (it has left the chain).
-	static local_shared_ptr<PoolAllocator> orphan_chain_pop() noexcept;
+	//! NOTE: accessors returning references to NEVER-DESTROYED instances, not
+	//! plain `static` members.  A static `atomic_shared_ptr` would run its
+	//! destructor at process exit and drop the location reference of the
+	//! groups on it; an anchor with live slots would then be destructed, and a
+	//! later atexit `free()` of one of those slots would call the now-pure-
+	//! virtual `deallocate_pooled` (seen as "pure virtual method called" on
+	//! Linux).  The allocator never unmaps regions at teardown anyway.
+	static atomic_shared_ptr<PoolAllocator> &s_room_head() noexcept;
+	static atomic_shared_ptr<PoolAllocator> &s_full_head() noexcept;
+	//! Treiber push of a group (its location reference) onto `head`.
+	static void group_push(atomic_shared_ptr<PoolAllocator> &head,
+	                       local_shared_ptr<PoolAllocator> g) noexcept;
+	//! Treiber pop of one group off ROOM (empty if none).  The caller holds
+	//! the returned location reference.
+	static local_shared_ptr<PoolAllocator> room_pop() noexcept;
+	//! Put a group that is held, or whose owner is exiting, where it belongs:
+	//! dissolve it if nothing references its anchor but `g` and its anchor's
+	//! own slots are free; else onto ROOM if its head is non-empty, else FULL.
+	//! `at_exit` releases a dissolved anchor as thread exit does (§21).  `g`
+	//! is taken by value: the caller's reference (an exiting owner's
+	//! m_owner_self_ref) must be gone before the group is published.
+	static void group_place(local_shared_ptr<PoolAllocator> g, bool at_exit) noexcept;
+	//! Holding an orphaned group: take its head, release the empty chunks on
+	//! it, and move the others into this thread's group, onto s_tls.rv_list
+	//! (still holding Q).  Returns how many it moved.
+	static unsigned group_take_head(PoolAllocator *g) noexcept;
+	//! A chunk joins this thread's DLL (m_owner_id becomes ours).
+	static void dll_join(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept;
 
 	//! Per-thread DLL pointers.  Single-writer (the owning thread)
 	//! and single-reader (same thread).  No atomic ordering needed
@@ -2056,19 +2045,17 @@ protected:
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *m_dll_next{nullptr};
 
 public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
-	// (Orphan-chain) Intrusive atomic_shared_ptr contract — the embedded
-	// PoolAllocator is its own control block (no separate alloc).  refcnt is a
-	// plain `atomic<uintptr_t>` (NOT the `atomic_countable` base, whose ctor=1 /
-	// dtor `assert(refcnt==0)` would fire on the raw chunk teardown of
-	// never-orphaned chunks).  Initialised 0 while owner-private; orphan_chain_push
-	// establishes 1 and hands the chunk to a local_shared_ptr, and adopt / dispose
-	// manage it thereafter (refcnt = chain-ref + scrub pins + the owner self-ref).
+	// Intrusive atomic_shared_ptr contract — the embedded PoolAllocator is its
+	// own control block (no separate alloc).  refcnt is a plain
+	// `atomic<uintptr_t>` (NOT the `atomic_countable` base, whose ctor=1 / dtor
+	// `assert(refcnt==0)` would fire on the raw teardown of chunks that are never
+	// refcounted).  (§group) Only anchors are refcounted: 0 until the chunk
+	// becomes an anchor, which stores 1 for its location reference (see
+	// m_owner_self_ref).
 	typedef uintptr_t Refcnt;
 	atomic<Refcnt> refcnt{0};
-	//! Forward link of the lock-free orphan chain — DISTINCT from
-	//! `m_dll_next` (the per-thread DLL link).  An orphan may be chain-linked
-	//! while also transiently pin-walked by a sweeper, so the two links must
-	//! not alias (the §36 stack reused `m_dll_next`; the chain cannot).
+	//! (§group) Forward link of an anchor on ROOM or FULL — DISTINCT from
+	//! `m_dll_next` (the per-thread DLL link).
 	//!
 	//! Typed as the SELF / FS=true-base type (injected-class-name
 	//! `PoolAllocator` = `<ALIGN,true,DUMMY>`), NOT the `<ALIGN,DUMMY,DUMMY>`
@@ -2080,71 +2067,73 @@ public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
 	//! the PoC's `atomic_shared_ptr<Node> m_next`); an FS=false chunk links
 	//! through its FS=true base subobject.
 	atomic_shared_ptr<PoolAllocator> m_orphan_next;
-	//! (§revive) Cross-thread revival (replaces the force-walk hint and
-	//! the cursor walk).  Every chunk an owner holds points at that owner's
-	//! ANCHOR -- its first chunk of this template -- through `m_anc`;
-	//! a cross-thread free that takes `BIT_Q` pushes the chunk onto the
-	//! anchor's `m_rv_head` stack after clearing its bits, and the owner
-	//! takes the whole stack with one exchange in allocate_chunk_path.  The
-	//! anchor is reached through a counted load, so it outlives its owner
-	//! for as long as anyone still points at it (no TLS is touched by a
-	//! freer).  Producers only push and the one consumer takes all, so the
-	//! push CAS needs no serial; the owner closes the head (RV_CLOSED) at
-	//! exit and a push that sees it gives up.  An adopted chunk becomes an
-	//! anchor only if nothing references it as one (reopening a closed head
-	//! a stale freer still holds would let it push a foreign chunk).
-	//! kamepoolalloc/tests/tlaplus/RevivalAnchor.tla, RevivalStack.tla.
+	//! (§revive / §group) Cross-thread revival, by groups.  Every live chunk
+	//! belongs to a GROUP, named by its ANCHOR (BIT_A): `m_anc` is a counted
+	//! reference to it (null on the anchor itself, whose head is its own).  A thread owns at most one
+	//! group per template -- its first chunk's, or one it took over -- and at
+	//! exit hands the whole group over, onto ROOM or FULL (s_room_head /
+	//! s_full_head), or dissolves it.  A cross-thread free that takes BIT_Q on
+	//! a chunk pushes it onto its anchor's `m_rv_head` after clearing its
+	//! bits, whoever owns the group or none; the head never closes.  The owner
+	//! takes its head with one exchange; a holder of an orphaned group (an
+	//! adopter, or the sweep before an mmap) takes the group's head, releases
+	//! the empty chunks on it and moves the rest into its own group -- all but
+	//! the group's own anchor, which only drops its Q there.
+	//! tests/tlaplus/RevivalGroup.tla (code cfg), RevivalStack.tla (Q).
 	atomic_shared_ptr<PoolAllocator> m_anc;
-	std::atomic<uintptr_t> m_rv_head{0};      //!< anchors: top | RV_CLOSED
-	//! Link while on a revival stack or the owner's taken rest of one
+	std::atomic<uintptr_t> m_rv_head{0};      //!< anchors: the group's head
+	//! Link while on a group's head or the owner's taken rest of one
 	//! (s_tls.rv_list) -- written only by whoever holds BIT_Q.
 	PoolAllocator *m_rv_next = nullptr;
-	//! Set by the exiting owner on its empty anchor just before dropping the
-	//! self-ref: whoever drops the last reference (the owner, or a freer still
-	//! holding one) releases it as thread exit does (§21), as a fresh chunk
-	//! would be, instead of parking it warm.
+	//! Set on an anchor whose group dissolves at its owner's exit, just
+	//! before the last reference is dropped: it is released as thread exit
+	//! releases chunks (§21), not parked warm.
 	bool m_exit_release = false;
-	static constexpr uintptr_t RV_CLOSED = 1;
-	//! Take BIT_Q if the chunk is owned and not already listed -- called
-	//! BEFORE the freer's bits are cleared.
+	//! Take BIT_Q on a chunk in a group that is not listed -- called BEFORE
+	//! the freer's bits are cleared.  One test: the word must hold BIT_OWNED
+	//! and not BIT_Q.
 	bool rv_take_q() noexcept {
 		uint32_t of = this->m_flags_packed;
 		for(;;) {
-			if( !(of & BIT_OWNED) || (of & BIT_Q)) return false;
+			if((of & (BIT_OWNED | BIT_Q)) != BIT_OWNED) return false;
 			if(atomicCompareAndSet(of, of | BIT_Q, &this->m_flags_packed)) return true;
 			of = this->m_flags_packed;
 		}
 	}
-	//! Holding BIT_Q: push onto the owner's anchor, or (owner gone / going)
-	//! drop BIT_Q -- the exiting owner orphans the chunk itself.
+	//! Holding BIT_Q: push onto the group's head.  An anchor's head is its
+	//! own (no load; our Q keeps it from dissolving).  A member reaches its
+	//! anchor through a counted load, which keeps the anchor alive while we
+	//! touch it.  (m_anc is never null on a member; dropping Q is only a
+	//! backstop.)
 	void rv_push() noexcept {
-		local_shared_ptr<PoolAllocator> a(m_anc);
-		if(a) {
-			uintptr_t h = a->m_rv_head.load(std::memory_order_relaxed);
-			while( !(h & RV_CLOSED)) {
-				m_rv_next = reinterpret_cast<PoolAllocator *>(h);
-				if(a->m_rv_head.compare_exchange_weak(h, reinterpret_cast<uintptr_t>(this),
-				                                       std::memory_order_release,
-				                                       std::memory_order_relaxed))
-					return;
-			}
+		if(this->m_flags_packed & BIT_A) {
+			uintptr_t h = m_rv_head.load(std::memory_order_relaxed);
+			do m_rv_next = reinterpret_cast<PoolAllocator *>(h);
+			while( !m_rv_head.compare_exchange_weak(h, reinterpret_cast<uintptr_t>(this),
+			                                         std::memory_order_release,
+			                                         std::memory_order_relaxed));
+			return;
 		}
-		atomicFetchAnd(&this->m_flags_packed, static_cast<uint32_t>(~BIT_Q));
+		local_shared_ptr<PoolAllocator> a(m_anc);
+		if( !a) {
+			atomicFetchAnd(&this->m_flags_packed, static_cast<uint32_t>(~BIT_Q));
+			return;
+		}
+		uintptr_t h = a->m_rv_head.load(std::memory_order_relaxed);
+		do m_rv_next = reinterpret_cast<PoolAllocator *>(h);
+		while( !a->m_rv_head.compare_exchange_weak(h, reinterpret_cast<uintptr_t>(this),
+		                                            std::memory_order_release,
+		                                            std::memory_order_relaxed));
 	}
-	//! (Path B owner-ref) The OWNER-REF: a local_shared_ptr the re-owned chunk
-	//! holds to ITSELF (a deliberate self-cycle), SEPARATE from the raw DLL.
-	//! Set at adopt (orphan_chain_pop's oc_hold is MOVED in here instead of
-	//! dropped), reset at owner-free (release_dll_chunks_for_thread /
-	//! owner_release) and re-pushed (orphan_chain_push MOVES it onto the chain).
-	//! It makes every owner-side free refcnt-mediated: the owner DROPS this ref
-	//! (m_owner_self_ref.reset()) rather than calling deallocate_chunk directly,
-	//! so a residual scrub `load_shared` pin cannot be freed out from under — the
-	//! chunk is reclaimed by whoever takes refcnt to 0 (the owner if no pins
-	//! remain, else the last pin) via the disposer.  Closes the Inv_NoBadOwnerFree
-	//! gap (kamepoolalloc/tests/tlaplus/OrphanChain_adopt, OwnerRef=TRUE CLEAN).
-	//! A PROPER local_shared_ptr (split-tag release verified at Layer 0), NOT the
-	//! reverted manual refcnt.fetch_* self-ref.  Empty/null on fresh (never-
-	//! adopted) chunks, which keep the direct deallocate_chunk path.
+	//! (§group) On an anchor, the reference that keeps its group where it is
+	//! while a thread owns it -- a deliberate self-cycle.  On ROOM or FULL the
+	//! chain holds that reference instead (group_place moves it there), and a
+	//! thread holding the group holds it in a local_shared_ptr.  So refcnt =
+	//! that one location reference + one per member (m_anc) + one per freer
+	//! between its counted load of m_anc and its push.  refcnt == 1 with the
+	//! anchor's own slots free is exactly "dissolvable": nobody can obtain a
+	//! new reference (no member points at it, and only the group's owner or
+	//! holder adds members).  Empty on every non-anchor chunk.
 	local_shared_ptr<PoolAllocator> m_owner_self_ref;
 	//! Custom intrusive disposer, invoked when refcnt -> 0 (the deleter in
 	//! atomic_smart_ptr.h routes here via has_intrusive_dispose).  The chunk
@@ -2154,29 +2143,14 @@ public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
 	//! bucket_release_chunk.  NEVER frees the object: it is placement-new'd
 	//! in the chunk; the chunk memory is owned by the region claim-bitmap.
 	static void atomic_intrusive_dispose(PoolAllocator *p) noexcept {
-		// Defensive backstop.  With the owner-ref (m_owner_self_ref) an owned
-		// chunk always has refcnt >= 1 (the self-ref), so refcnt reaches 0 only
-		// AFTER the owner has both cleared BIT_OWNED and reset the self-ref —
-		// i.e. this is reached with BIT_OWNED already CLEAR for owner-freed
-		// chunks, and for scrub-reclaimed empty orphans likewise.  The check
-		// thus never fires under the owner-ref design; it is kept as cheap
-		// insurance against a stray refcnt→0 while a chunk is still owned.
-		if(p->m_flags_packed & BIT_OWNED) return;
-		// Live-slot backstop: NEVER reclaim a chunk that still has allocated
-		// slots (MASK_CNT != 0).  At runtime this never fires — scrub only
-		// unlinks DRAINED (MASK_CNT==0) orphans, and the chain-ref keeps a
-		// non-empty orphan's refcnt >= 1 — but it makes a stray refcnt→0 on a
-		// non-empty chunk LEAK (safe: the region is never unmapped) rather
-		// than destruct a chunk whose live slots a later free() still
-		// resolves.  Without it, the §S7 chain head's process-exit destructor
-		// (now leaked — see s_orphan_chain_head) or any future refcnt bug
-		// would `~PoolAllocator()` a live chunk → pure-virtual on the next
-		// free().  Belt to the never-destroyed-head's braces.
-		if(p->m_flags_packed & MASK_CNT) return;
-		// (§revive) Nor one a freer holds BIT_Q on (it is still pushing, or
-		// listed): unreachable -- the owner releases only Q-clear chunks and
-		// the scrub skips Q -- so this too only turns a bug into a leak.
-		if(p->m_flags_packed & BIT_Q) return;
+		// (§group) Only anchors are refcounted, and an anchor's location
+		// reference keeps refcnt >= 1 until its group dissolves -- which first
+		// CASes the word from BIT_OWNED|BIT_A to 0.  So this is reached with
+		// the word zero; the checks only turn a refcount bug into a leak (the
+		// region is never unmapped) instead of destructing a chunk that is
+		// still in a group, listed, or holds live slots a later free() would
+		// resolve (a pure-virtual call on the next free()).
+		if(p->m_flags_packed & (BIT_OWNED | BIT_Q | MASK_CNT)) return;
 		char *cbase = reinterpret_cast<char *>(p) - ALLOC_CHUNK_HEADER;
 		bool exit_release = p->m_exit_release;
 		p->~PoolAllocator();
@@ -2222,16 +2196,6 @@ protected:   // restore the section access in effect before this block
 	int batch_clear_impl(const CrossDeallocEntry *entries,
 	                     MaskFn mask_fn, OnClearFn on_clear) noexcept;
 
-	//! Attempt to adopt an orphaned chunk (m_owner_id == 0) into this
-	//! thread's DLL and push the freed slot `p` (local-id `local`) to
-	//! the chunk's freelist.  Returns true iff adoption succeeded —
-	//! caller should return immediately.  Returns false if another thread
-	//! won the CAS or this thread has no valid owner-id yet.
-	//!
-	//! Safety: `p` is still marked allocated (bit=1 in m_flags), so
-	//! MASK_CNT ≥ 1; the chunk cannot be released between the CAS-win
-	//! and the BIT_OWNED set.
-	bool try_adopt_orphan(char *p, unsigned local) noexcept;
 
 protected:
 

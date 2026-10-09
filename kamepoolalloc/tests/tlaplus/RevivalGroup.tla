@@ -6,8 +6,8 @@
  ***************************************************************************)
 ----------------------------- MODULE RevivalGroup -----------------------------
 (*
- * Design model (stage 2b, not yet code): orphaning a thread's chunks as ONE
- * group.
+ * Orphaning a thread's chunks as ONE group -- kamepoolalloc stage 2b
+ * ("§group"); the code is the code cfg (knobs below).
  *
  * RevivalAnchor.tla orphans an exiting owner's chunks one at a time; between
  * the first and the last, the anchor can already be adopted while the rest
@@ -23,7 +23,8 @@
  *     group.
  *   - Anchors are never pushed onto a head.  An owner checks its own anchor's
  *     room directly; an orphaned anchor's own room waits for the group to
- *     dissolve.
+ *     dissolve.  (AnchorListed, the code: an anchor is listed on its own
+ *     group's head like a member, and a holder only unlists it there.)
  *   - Orphaned groups live on one of two chains: ROOM (head non-empty when
  *     placed; popped one at a time by adopters -- in the code the serial-
  *     protected atomic_shared_ptr chain) and FULL (taken whole with one
@@ -43,14 +44,52 @@
  * Knob (FALSE in the design): DissolveIgnoringRefs dissolves a group without
  * checking for freers that hold a reference to its anchor.
  *
+ * The code (kamepoolalloc stage 2b, "§group") also needs, each TRUE in the
+ * code cfg:
+ *   TakeOver       a thread with no group takes one over -- popped off ROOM,
+ *                  or the first one a sweep picks -- instead of founding one
+ *                  with a fresh chunk (short-lived threads would otherwise
+ *                  mmap a chunk per template; and only a sweep notices that
+ *                  an orphaned anchor has emptied, so threads with one slow
+ *                  path per template must be able to sweep).
+ *   LazyDrain      the own head is taken only when the rest of the last take
+ *                  is used up, then popped one chunk per try; the rest keeps
+ *                  Q; at exit it goes back onto the head.
+ *   MoveToRest     a holder keeps Q on a chunk it moves into its own group and
+ *                  puts it on its rest (needs LazyDrain).
+ *   ExitAnyMember  at exit any member may be listed (the code lists the DLL
+ *                  chunks with room), and empty members may be released.
+ *   ExitDrainsHead at exit, after listing, the owner takes its own head and
+ *                  settles it as a holder would, except that what stays is
+ *                  listed again: the anchor unlisted, empty chunks released.
+ *                  (Otherwise a listed anchor kept every exiting group from
+ *                  dissolving, and nothing was freed after the last worker:
+ *                  alloc_stress_test post-workers chunks = peak.)
+ *   AnchorListed   an anchor is listed on its own group's head like any
+ *                  member (a free takes its Q and pushes it); a holder of an
+ *                  orphaned group only unlists it, and a listed anchor's
+ *                  group does not dissolve.  (Unlisted, the owner looked at
+ *                  its anchor's room only when the rest of its last take ran
+ *                  out, and a producer kept re-pinning the anchor its
+ *                  consumer was still freeing into: bench_xthread_pool -s256
+ *                  lost 18 %.)
+ *
  * Q protocol: RevivalStack's one-bit variant.  Its safety holds; room-loss
  * (Inv_NoLostRoom there) is not checked here.
  *
  * Results (3 chunks, 2 freers, 2 threads, K = 2, symmetry):
- *   design                 clean, 1,678,311 distinct states, depth 81
- *   dissolverefs           Inv_NoUseAfterRelease (23 steps)
- *   witnesses (each violated, i.e. reached): W_NoDissolve (5 steps),
- *   W_NoOrphanPush (17), W_NoSweptMove (21).
+ *   design                 clean, 1,678,311 distinct states
+ *   code                   clean, 57,428,577 distinct states
+ *   dissolverefs           Inv_NoUseAfterRelease (23-state trace)
+ *   witnesses -- each violated, i.e. reached (trace length).  Under design:
+ *   W_NoDissolve (5), W_NoOrphanPush (17), W_NoSweptMove (21).  Under code:
+ *   the same three (7, 14, 20) and, as an Assert in the branch: a takeover
+ *   off ROOM (15), a sweep taking a group over (10), the rest pushed back at
+ *   exit (12), a release while exiting (5), a popped chunk with room (15), a
+ *   chunk moved onto the holder's rest (17), an anchor pushed onto its own
+ *   head (11), an adopter/sweeper unlisting the group's own anchor (18), and
+ *   at exit: a chunk listed again (9), an empty listed chunk released (8),
+ *   the anchor unlisted (13).
  * An earlier draft cleared Q on an adopted chunk before repointing anc; a
  * freer then took Q, loaded the old anchor and pushed the chunk onto the
  * group it had just left (see OAct).
@@ -58,10 +97,14 @@
 
 EXTENDS Naturals, FiniteSets, Sequences, TLC
 
-CONSTANTS Chunks, Freers, Owners, NIL, NONE, K, DissolveIgnoringRefs
+CONSTANTS Chunks, Freers, Owners, NIL, NONE, K, DissolveIgnoringRefs,
+          TakeOver, LazyDrain, ExitAnyMember, MoveToRest, AnchorListed, ExitDrainsHead
 
 ASSUME NIL \notin Chunks /\ NONE \notin Owners /\ K \in Nat \ {0}
 ASSUME DissolveIgnoringRefs \in BOOLEAN
+ASSUME TakeOver \in BOOLEAN /\ LazyDrain \in BOOLEAN /\ ExitAnyMember \in BOOLEAN
+ASSUME MoveToRest \in BOOLEAN /\ (MoveToRest => LazyDrain) /\ AnchorListed \in BOOLEAN
+ASSUME ExitDrainsHead \in BOOLEAN
 
 Ptr == Chunks \cup {NIL}
 Places == {"none", "owned", "room", "full", "held"}
@@ -89,13 +132,15 @@ VARIABLES
     ocur,    \* [Owners -> Ptr]
     onxt,    \* [Owners -> Ptr]
     ohold,   \* [Owners -> SUBSET Chunks]  groups taken by a sweep, not yet processed
+    orest,   \* [Owners -> Ptr]   LazyDrain: the rest of the last take of the own head
+    opop,    \* [Owners -> Ptr]   LazyDrain: the chunk just popped off orest
     fpc, fc, fzero, fwasq, fa, fh
 
 vars == <<st, bits, mcnt, tok, q, nx, anc, isA, hd, ref, gloc, roomCh, fullCh,
-          ost, oanc, avail, omode, otgt, ocur, onxt, ohold,
+          ost, oanc, avail, omode, otgt, ocur, onxt, ohold, orest, opop,
           fpc, fc, fzero, fwasq, fa, fh>>
 CVars == <<st, bits, mcnt, tok, q, nx, anc, isA, hd, ref, gloc, roomCh, fullCh>>
-TVars == <<ost, oanc, avail, omode, otgt, ocur, onxt, ohold>>
+TVars == <<ost, oanc, avail, omode, otgt, ocur, onxt, ohold, orest, opop>>
 FVars == <<fpc, fc, fzero, fwasq, fa, fh>>
 
 TypeOK ==
@@ -106,6 +151,7 @@ TypeOK ==
     /\ hd \in [Chunks -> Ptr] /\ ref \in [Chunks -> 0..MaxRef]
     /\ gloc \in [Chunks -> Places] /\ roomCh \subseteq Chunks /\ fullCh \subseteq Chunks
     /\ oanc \in [Owners -> Ptr] /\ otgt \in [Owners -> Ptr] /\ fa \in [Freers -> Ptr]
+    /\ orest \in [Owners -> Ptr] /\ opop \in [Owners -> Ptr]
 
 RECURSIVE Walk(_, _)
 Walk(c, n) == IF c = NIL \/ n = 0 THEN <<>> ELSE <<c>> \o Walk(nx[c], n - 1)
@@ -131,6 +177,7 @@ Init ==
     /\ avail = [t \in Owners |-> {}] /\ omode = [t \in Owners |-> "own"]
     /\ otgt = [t \in Owners |-> NIL] /\ ocur = [t \in Owners |-> NIL]
     /\ onxt = [t \in Owners |-> NIL] /\ ohold = [t \in Owners |-> {}]
+    /\ orest = [t \in Owners |-> NIL] /\ opop = [t \in Owners |-> NIL]
     /\ fpc = [f \in Freers |-> "idle"] /\ fc = [f \in Freers |-> NIL]
     /\ fzero = [f \in Freers |-> FALSE] /\ fwasq = [f \in Freers |-> FALSE]
     /\ fa = [f \in Freers |-> NIL] /\ fh = [f \in Freers |-> NIL]
@@ -140,6 +187,7 @@ Rel(c) == st' = [st EXCEPT ![c] = "released"]
 (* A group nobody needs any more: no other member, no freer holding its
    anchor, the anchor's own slots all free. *)
 Dissolvable(a) ==
+    /\ ~q[a]
     /\ \A c \in Chunks \ {a} : anc[c] # a
     /\ DissolveIgnoringRefs \/ ~ \E f \in Freers : fpc[f] \in {"pread", "pcas", "unref"} /\ fa[f] = a
     /\ bits[a] = 0 /\ mcnt[a] = 0
@@ -168,6 +216,7 @@ OStart(t) ==
     /\ ost[t] = "idle" /\ ost' = [ost EXCEPT ![t] = "run"]
     /\ UNCHANGED CVars /\ UNCHANGED <<oanc, avail, omode, otgt, ocur, onxt, ohold>>
     /\ UNCHANGED FVars
+    /\ UNCHANGED <<orest, opop>>
 
 (* A fresh chunk joins t's group; the first one becomes its anchor. *)
 OAttach(t, c) ==
@@ -181,6 +230,7 @@ OAttach(t, c) ==
     /\ avail' = [avail EXCEPT ![t] = @ \cup {c}]
     /\ UNCHANGED <<bits, mcnt, tok, q, nx, hd, roomCh, fullCh>>
     /\ UNCHANGED <<ost, omode, otgt, ocur, onxt, ohold>> /\ UNCHANGED FVars
+    /\ UNCHANGED <<orest, opop>>
 
 OAlloc(t, c) ==
     /\ ost[t] = "run" /\ c \in avail[t] /\ bits[c] < K
@@ -190,6 +240,7 @@ OAlloc(t, c) ==
     /\ avail' = [avail EXCEPT ![t] = IF bits[c] + 1 = K THEN @ \ {c} ELSE @]
     /\ UNCHANGED <<st, q, nx, anc, isA, hd, ref, gloc, roomCh, fullCh>>
     /\ UNCHANGED <<ost, oanc, omode, otgt, ocur, onxt, ohold>> /\ UNCHANGED FVars
+    /\ UNCHANGED <<orest, opop>>
 
 (* The owner looks at its own anchor's room directly (anchors are never on
    a head). *)
@@ -199,16 +250,19 @@ OAnchorCheck(t) ==
     /\ avail' = [avail EXCEPT ![t] = @ \cup {a}]
     /\ UNCHANGED CVars /\ UNCHANGED <<ost, oanc, omode, otgt, ocur, onxt, ohold>>
     /\ UNCHANGED FVars
+    /\ UNCHANGED <<orest, opop>>
 
 (* Release an empty, unlisted member of t's own group (never the anchor). *)
 ORelease(t, c) ==
     LET a == oanc[t] IN
-    /\ ost[t] = "run" /\ st[c] = "live" /\ anc[c] = a /\ c # a
+    /\ IF ExitAnyMember THEN ost[t] \in {"run", "xlist"} ELSE ost[t] = "run"
+    /\ st[c] = "live" /\ anc[c] = a /\ c # a /\ a # NIL
     /\ mcnt[c] = 0 /\ ~q[c]
     /\ anc' = [anc EXCEPT ![c] = NIL] /\ ref' = [ref EXCEPT ![a] = @ - 1] /\ Rel(c)
     /\ avail' = [avail EXCEPT ![t] = @ \ {c}]
     /\ UNCHANGED <<bits, mcnt, tok, q, nx, isA, hd, gloc, roomCh, fullCh>>
     /\ UNCHANGED <<ost, oanc, omode, otgt, ocur, onxt, ohold>> /\ UNCHANGED FVars
+    /\ UNCHANGED <<orest, opop>>
 
 (* Take a head with one exchange and walk it. *)
 TakeHead(t, a, mode) ==
@@ -217,10 +271,11 @@ TakeHead(t, a, mode) ==
     /\ ost' = [ost EXCEPT ![t] = "dnext"]
 
 ODrainOwn(t) ==
-    /\ ost[t] = "run" /\ oanc[t] # NIL
+    /\ ~LazyDrain /\ ost[t] = "run" /\ oanc[t] # NIL
     /\ TakeHead(t, oanc[t], "own")
     /\ UNCHANGED <<st, bits, mcnt, tok, q, nx, anc, isA, ref, gloc, roomCh, fullCh>>
     /\ UNCHANGED <<oanc, avail, onxt, ohold>> /\ UNCHANGED FVars
+    /\ UNCHANGED <<orest, opop>>
 
 (* Adopt: pop one group from ROOM; it is ours to process. *)
 OAdoptStart(t, a) ==
@@ -229,33 +284,44 @@ OAdoptStart(t, a) ==
     /\ TakeHead(t, a, "adopt")
     /\ UNCHANGED <<st, bits, mcnt, tok, q, nx, anc, isA, ref, fullCh>>
     /\ UNCHANGED <<oanc, avail, onxt, ohold>> /\ UNCHANGED FVars
+    /\ UNCHANGED <<orest, opop>>
 
 (* Sweep: ROOM empty -> take the whole FULL chain with one exchange. *)
 OSweepStart(t) ==
-    /\ ost[t] = "run" /\ oanc[t] # NIL /\ roomCh = {} /\ fullCh # {}
+    /\ ost[t] = "run" /\ (oanc[t] # NIL \/ TakeOver) /\ roomCh = {} /\ fullCh # {}
     /\ ohold' = [ohold EXCEPT ![t] = fullCh] /\ fullCh' = {}
     /\ gloc' = [c \in Chunks |-> IF c \in fullCh THEN "held" ELSE gloc[c]]
     /\ ost' = [ost EXCEPT ![t] = "spick"]
     /\ UNCHANGED <<st, bits, mcnt, tok, q, nx, anc, isA, hd, ref, roomCh>>
     /\ UNCHANGED <<oanc, avail, omode, otgt, ocur, onxt>> /\ UNCHANGED FVars
+    /\ UNCHANGED <<orest, opop>>
 
+(* TakeOver: a sweeper without a group takes over the first group it picks
+   (its head becomes the own head, drained as such), then processes the rest
+   into it. *)
 OSweepPick(t) ==
     /\ ost[t] = "spick"
     /\ IF ohold[t] = {}
        THEN /\ ost' = [ost EXCEPT ![t] = "run"]
-            /\ UNCHANGED <<hd, ohold, otgt, omode, ocur>>
+            /\ UNCHANGED <<hd, ohold, otgt, omode, ocur, oanc, gloc>>
        ELSE \E a \in ohold[t] :
               /\ ohold' = [ohold EXCEPT ![t] = @ \ {a}]
-              /\ TakeHead(t, a, "sweep")
-    /\ UNCHANGED <<st, bits, mcnt, tok, q, nx, anc, isA, ref, gloc, roomCh, fullCh>>
-    /\ UNCHANGED <<oanc, avail, onxt>> /\ UNCHANGED FVars
+              /\ IF oanc[t] = NIL
+                 THEN /\ oanc' = [oanc EXCEPT ![t] = a]
+                      /\ gloc' = [gloc EXCEPT ![a] = "owned"]
+                      /\ UNCHANGED <<hd, otgt, omode, ocur, ost>>
+                 ELSE /\ TakeHead(t, a, "sweep") /\ UNCHANGED <<oanc, gloc>>
+    /\ UNCHANGED <<st, bits, mcnt, tok, q, nx, anc, isA, ref, roomCh, fullCh>>
+    /\ UNCHANGED <<avail, onxt>> /\ UNCHANGED FVars
+    /\ UNCHANGED <<orest, opop>>
 
 (* Walk a taken head: read next, clear Q, act. *)
 ONext(t) ==
     /\ ost[t] = "dnext"
     /\ IF ocur[t] = NIL
-       THEN IF omode[t] = "own"
-            THEN /\ ost' = [ost EXCEPT ![t] = "run"] /\ otgt' = [otgt EXCEPT ![t] = NIL]
+       THEN IF omode[t] \in {"own", "exit"}
+            THEN /\ ost' = [ost EXCEPT ![t] = IF omode[t] = "exit" THEN "xdone" ELSE "run"]
+                 /\ otgt' = [otgt EXCEPT ![t] = NIL]
                  /\ UNCHANGED <<anc, ref, st, gloc, roomCh, fullCh, onxt>>
             ELSE /\ Place(otgt[t]) /\ otgt' = [otgt EXCEPT ![t] = NIL]
                  /\ ost' = [ost EXCEPT ![t] = IF omode[t] = "sweep" THEN "spick" ELSE "run"]
@@ -265,6 +331,7 @@ ONext(t) ==
             /\ UNCHANGED <<anc, ref, st, gloc, roomCh, fullCh, otgt>>
     /\ UNCHANGED <<bits, mcnt, tok, q, nx, isA, hd>>
     /\ UNCHANGED <<oanc, avail, omode, ocur, ohold>> /\ UNCHANGED FVars
+    /\ UNCHANGED <<orest, opop>>
 
 OClear(t) ==
     LET c == ocur[t] IN
@@ -273,6 +340,7 @@ OClear(t) ==
     /\ ost' = [ost EXCEPT ![t] = "dact"]
     /\ UNCHANGED <<st, bits, mcnt, tok, anc, isA, hd, ref, gloc, roomCh, fullCh>>
     /\ UNCHANGED <<oanc, avail, omode, otgt, ocur, onxt, ohold>> /\ UNCHANGED FVars
+    /\ UNCHANGED <<orest, opop>>
 
 (* Own head (Q already cleared): room -> own list.  Another group's head --
    still HOLDING Q, so no freer pushes it meanwhile and anc cannot change
@@ -286,21 +354,41 @@ OAct(t) ==
     /\ ost[t] = "dact"
     /\ IF omode[t] = "own"
        THEN /\ avail' = [avail EXCEPT ![t] = IF bits[c] < K THEN @ \cup {c} ELSE @]
-            /\ UNCHANGED <<anc, ref, st, q>>
+            /\ UNCHANGED <<anc, ref, st, q, nx, orest, hd>>
             /\ ocur' = [ocur EXCEPT ![t] = onxt[t]] /\ onxt' = [onxt EXCEPT ![t] = NIL]
             /\ ost' = [ost EXCEPT ![t] = "dnext"]
+       ELSE IF c = a
+            THEN (* AnchorListed: the held group's own anchor stays; unlist it *)
+                 /\ UNCHANGED <<anc, ref, st, q, avail, nx, orest, ocur, onxt, hd>>
+                 /\ ost' = [ost EXCEPT ![t] = "dqclr"]
        ELSE IF bits[c] = 0 /\ mcnt[c] = 0
             THEN /\ anc' = [anc EXCEPT ![c] = NIL] /\ ref' = [ref EXCEPT ![a] = @ - 1]
-                 /\ q' = [q EXCEPT ![c] = FALSE] /\ Rel(c) /\ UNCHANGED avail
+                 /\ q' = [q EXCEPT ![c] = FALSE] /\ Rel(c) /\ UNCHANGED <<avail, nx, orest, hd>>
+                 /\ ocur' = [ocur EXCEPT ![t] = onxt[t]] /\ onxt' = [onxt EXCEPT ![t] = NIL]
+                 /\ ost' = [ost EXCEPT ![t] = "dnext"]
+            ELSE IF omode[t] = "exit"
+            THEN (* ExitDrainsHead: it stays in our group; list it again *)
+                 /\ nx' = [nx EXCEPT ![c] = hd[a]] /\ hd' = [hd EXCEPT ![a] = c]
+                 /\ UNCHANGED <<anc, ref, st, q, avail, orest>>
+                 /\ ocur' = [ocur EXCEPT ![t] = onxt[t]] /\ onxt' = [onxt EXCEPT ![t] = NIL]
+                 /\ ost' = [ost EXCEPT ![t] = "dnext"]
+            ELSE IF MoveToRest
+            THEN (* the code: keep Q, put it on our own rest; a later pop
+                    drops Q and looks at its room *)
+                 /\ anc' = [anc EXCEPT ![c] = me]
+                 /\ ref' = [ref EXCEPT ![a] = @ - 1, ![me] = @ + 1]
+                 /\ nx' = [nx EXCEPT ![c] = orest[t]] /\ orest' = [orest EXCEPT ![t] = c]
+                 /\ UNCHANGED <<st, q, avail, hd>>
                  /\ ocur' = [ocur EXCEPT ![t] = onxt[t]] /\ onxt' = [onxt EXCEPT ![t] = NIL]
                  /\ ost' = [ost EXCEPT ![t] = "dnext"]
             ELSE /\ anc' = [anc EXCEPT ![c] = me]
                  /\ ref' = [ref EXCEPT ![a] = @ - 1, ![me] = @ + 1]
                  /\ avail' = [avail EXCEPT ![t] = IF bits[c] < K THEN @ \cup {c} ELSE @]
-                 /\ UNCHANGED <<st, q, ocur, onxt>>
+                 /\ UNCHANGED <<st, q, ocur, onxt, nx, orest, hd>>
                  /\ ost' = [ost EXCEPT ![t] = "dqclr"]
-    /\ UNCHANGED <<bits, mcnt, tok, nx, isA, hd, gloc, roomCh, fullCh>>
+    /\ UNCHANGED <<bits, mcnt, tok, isA, gloc, roomCh, fullCh>>
     /\ UNCHANGED <<oanc, omode, otgt, ohold>> /\ UNCHANGED FVars
+    /\ UNCHANGED opop
 
 ODqClr(t) ==
     LET c == ocur[t] IN
@@ -310,11 +398,12 @@ ODqClr(t) ==
     /\ ost' = [ost EXCEPT ![t] = "dnext"]
     /\ UNCHANGED <<st, bits, mcnt, tok, anc, isA, hd, ref, gloc, roomCh, fullCh>>
     /\ UNCHANGED <<oanc, avail, omode, otgt, ohold>> /\ UNCHANGED FVars
+    /\ UNCHANGED <<orest, opop>>
 
 (* Exit: list what is on our own list (taking Q), then hand the group over. *)
 OExitList(t, c) ==
     LET a == oanc[t] IN
-    /\ ost[t] = "run" /\ c \in avail[t]
+    /\ ~ExitAnyMember /\ ost[t] = "run" /\ c \in avail[t]
     /\ avail' = [avail EXCEPT ![t] = @ \ {c}]
     /\ IF ~q[c] /\ ~isA[c]
        THEN /\ q' = [q EXCEPT ![c] = TRUE] /\ nx' = [nx EXCEPT ![c] = hd[a]]
@@ -323,10 +412,11 @@ OExitList(t, c) ==
     /\ ost' = [ost EXCEPT ![t] = "xlist"]
     /\ UNCHANGED <<st, bits, mcnt, tok, anc, isA, ref, gloc, roomCh, fullCh>>
     /\ UNCHANGED <<oanc, omode, otgt, ocur, onxt, ohold>> /\ UNCHANGED FVars
+    /\ UNCHANGED <<orest, opop>>
 
 OExitMore(t, c) ==
     LET a == oanc[t] IN
-    /\ ost[t] = "xlist" /\ c \in avail[t]
+    /\ ~ExitAnyMember /\ ost[t] = "xlist" /\ c \in avail[t]
     /\ avail' = [avail EXCEPT ![t] = @ \ {c}]
     /\ IF ~q[c] /\ ~isA[c]
        THEN /\ q' = [q EXCEPT ![c] = TRUE] /\ nx' = [nx EXCEPT ![c] = hd[a]]
@@ -334,20 +424,105 @@ OExitMore(t, c) ==
        ELSE UNCHANGED <<q, nx, hd>>
     /\ UNCHANGED <<st, bits, mcnt, tok, anc, isA, ref, gloc, roomCh, fullCh>>
     /\ UNCHANGED <<ost, oanc, omode, otgt, ocur, onxt, ohold>> /\ UNCHANGED FVars
+    /\ UNCHANGED <<orest, opop>>
+
+(* TakeOver: a thread without a group pops one off ROOM and makes it its
+   own (the location reference becomes the owner's).  It then drains the
+   head as its own and checks the anchor directly, as for a group it made. *)
+OTakeOver(t, a) ==
+    /\ TakeOver /\ ost[t] = "run" /\ oanc[t] = NIL /\ a \in roomCh
+    /\ roomCh' = roomCh \ {a} /\ gloc' = [gloc EXCEPT ![a] = "owned"]
+    /\ oanc' = [oanc EXCEPT ![t] = a]
+    /\ UNCHANGED <<st, bits, mcnt, tok, q, nx, anc, isA, hd, ref, fullCh>>
+    /\ UNCHANGED <<ost, avail, omode, otgt, ocur, onxt, ohold, orest, opop>>
+    /\ UNCHANGED FVars
+
+(* LazyDrain (the code): take the own head only when the rest of the last
+   take is used up; pop one chunk of the rest per try, running in between.
+   The rest keeps Q.  A pop reads the link, drops Q, then looks at room. *)
+ODrainLazy(t) ==
+    LET a == oanc[t] IN
+    /\ LazyDrain /\ ost[t] = "run" /\ a # NIL /\ orest[t] = NIL
+    /\ orest' = [orest EXCEPT ![t] = hd[a]] /\ hd' = [hd EXCEPT ![a] = NIL]
+    /\ UNCHANGED <<st, bits, mcnt, tok, q, nx, anc, isA, ref, gloc, roomCh, fullCh>>
+    /\ UNCHANGED <<ost, oanc, avail, omode, otgt, ocur, onxt, ohold, opop>>
+    /\ UNCHANGED FVars
+
+OPopOwn(t) ==
+    LET c == orest[t] IN
+    /\ LazyDrain /\ ost[t] = "run" /\ c # NIL
+    /\ orest' = [orest EXCEPT ![t] = nx[c]]
+    /\ q' = [q EXCEPT ![c] = FALSE] /\ nx' = [nx EXCEPT ![c] = NIL]
+    /\ opop' = [opop EXCEPT ![t] = c] /\ ost' = [ost EXCEPT ![t] = "ppop"]
+    /\ UNCHANGED <<st, bits, mcnt, tok, anc, isA, hd, ref, gloc, roomCh, fullCh>>
+    /\ UNCHANGED <<oanc, avail, omode, otgt, ocur, onxt, ohold>>
+    /\ UNCHANGED FVars
+
+OPopAct(t) ==
+    LET c == opop[t] IN
+    /\ ost[t] = "ppop"
+    /\ avail' = [avail EXCEPT ![t] = IF bits[c] < K THEN @ \cup {c} ELSE @]
+    /\ opop' = [opop EXCEPT ![t] = NIL] /\ ost' = [ost EXCEPT ![t] = "run"]
+    /\ UNCHANGED CVars
+    /\ UNCHANGED <<oanc, omode, otgt, ocur, onxt, ohold, orest>>
+    /\ UNCHANGED FVars
+
+(* ExitAnyMember (the code): exiting, list any member (taking Q if it is
+   clear -- the code lists the DLL chunks with room), dropping it from avail;
+   the anchor is only dropped from avail. *)
+OExitAny(t, c) ==
+    LET a == oanc[t] IN
+    /\ ExitAnyMember /\ ost[t] \in {"run", "xlist"} /\ a # NIL
+    /\ st[c] = "live" /\ anc[c] = a
+    /\ avail' = [avail EXCEPT ![t] = @ \ {c}]
+    /\ IF ~q[c] /\ ~isA[c]
+       THEN /\ q' = [q EXCEPT ![c] = TRUE] /\ nx' = [nx EXCEPT ![c] = hd[a]]
+            /\ hd' = [hd EXCEPT ![a] = c]
+       ELSE UNCHANGED <<q, nx, hd>>
+    /\ ost' = [ost EXCEPT ![t] = "xlist"]
+    /\ UNCHANGED <<st, bits, mcnt, tok, anc, isA, ref, gloc, roomCh, fullCh>>
+    /\ UNCHANGED <<oanc, omode, otgt, ocur, onxt, ohold, orest, opop>> /\ UNCHANGED FVars
+
+(* LazyDrain, exiting: push the rest back onto the own head (still holding
+   Q; the link is the owner's while Q is held). *)
+OExitRest(t) ==
+    LET a == oanc[t]  c == orest[t] IN
+    /\ LazyDrain /\ ost[t] \in {"run", "xlist"} /\ a # NIL /\ c # NIL
+    /\ orest' = [orest EXCEPT ![t] = nx[c]]
+    /\ nx' = [nx EXCEPT ![c] = hd[a]] /\ hd' = [hd EXCEPT ![a] = c]
+    /\ ost' = [ost EXCEPT ![t] = "xlist"]
+    /\ UNCHANGED <<st, bits, mcnt, tok, q, anc, isA, ref, gloc, roomCh, fullCh>>
+    /\ UNCHANGED <<oanc, avail, omode, otgt, ocur, onxt, ohold, opop>> /\ UNCHANGED FVars
+
+(* ExitDrainsHead (the code): after listing, take the own head and settle it
+   as a holder would, except that what stays is listed again on the own head
+   (OAct, mode "exit"): the anchor unlisted, empty chunks released. *)
+OExitHead(t) ==
+    LET a == oanc[t] IN
+    /\ ExitDrainsHead /\ ost[t] \in {"run", "xlist"} /\ a # NIL
+    /\ orest[t] = NIL /\ opop[t] = NIL /\ avail[t] = {}
+    /\ TakeHead(t, a, "exit")
+    /\ UNCHANGED <<st, bits, mcnt, tok, q, nx, anc, isA, ref, gloc, roomCh, fullCh>>
+    /\ UNCHANGED <<oanc, avail, onxt, ohold, orest, opop>> /\ UNCHANGED FVars
 
 OExitPlace(t) ==
     LET a == oanc[t] IN
-    /\ \/ ost[t] = "xlist" /\ avail[t] = {}
-       \/ ost[t] = "run" /\ avail[t] = {} /\ a # NIL
+    /\ IF ExitDrainsHead
+       THEN ost[t] = "xdone"
+       ELSE \/ ost[t] = "xlist" /\ avail[t] = {}
+            \/ ost[t] = "run" /\ avail[t] = {} /\ a # NIL
+    /\ orest[t] = NIL /\ opop[t] = NIL
     /\ Place(a)
     /\ oanc' = [oanc EXCEPT ![t] = NIL] /\ ost' = [ost EXCEPT ![t] = "dead"]
     /\ UNCHANGED <<bits, mcnt, tok, q, nx, isA, hd>>
     /\ UNCHANGED <<avail, omode, otgt, ocur, onxt, ohold>> /\ UNCHANGED FVars
+    /\ UNCHANGED <<orest, opop>>
 
 OExitNoGroup(t) ==
     /\ ost[t] = "run" /\ oanc[t] = NIL /\ ost' = [ost EXCEPT ![t] = "dead"]
     /\ UNCHANGED CVars /\ UNCHANGED <<oanc, avail, omode, otgt, ocur, onxt, ohold>>
     /\ UNCHANGED FVars
+    /\ UNCHANGED <<orest, opop>>
 
 (******************************** freers ********************************)
 
@@ -355,7 +530,7 @@ OExitNoGroup(t) ==
 FPick(f, c) ==
     /\ fpc[f] = "idle" /\ st[c] = "live" /\ tok[c] > 0
     /\ tok' = [tok EXCEPT ![c] = @ - 1] /\ fc' = [fc EXCEPT ![f] = c]
-    /\ IF isA[c]
+    /\ IF isA[c] /\ ~AnchorListed
        THEN /\ fpc' = [fpc EXCEPT ![f] = "fb"] /\ fwasq' = [fwasq EXCEPT ![f] = TRUE]
        ELSE /\ fpc' = [fpc EXCEPT ![f] = "fq1"] /\ UNCHANGED fwasq
     /\ UNCHANGED <<st, bits, mcnt, q, nx, anc, isA, hd, ref, gloc, roomCh, fullCh>>
@@ -428,8 +603,10 @@ Next ==
          \/ OSweepPick(t) \/ ONext(t) \/ OClear(t) \/ OAct(t) \/ ODqClr(t)
          \/ OExitPlace(t)
          \/ OExitNoGroup(t)
+         \/ ODrainLazy(t) \/ OPopOwn(t) \/ OPopAct(t) \/ OExitRest(t) \/ OExitHead(t)
          \/ \E c \in Chunks : OAttach(t, c) \/ OAlloc(t, c) \/ ORelease(t, c)
                               \/ OAdoptStart(t, c) \/ OExitList(t, c) \/ OExitMore(t, c)
+                              \/ OTakeOver(t, c) \/ OExitAny(t, c)
     \/ \E f \in Freers :
          \/ \E c \in Chunks : FPick(f, c)
          \/ FTakeQ(f) \/ FBitClear(f) \/ FDec(f) \/ FLoadAnc(f)
@@ -446,6 +623,8 @@ TouchesA(f) == fpc[f] \in {"pread", "pcas", "unref"}
 Held(t) == (IF omode[t] \in {"adopt", "sweep"} /\ otgt[t] # NIL THEN {otgt[t]} ELSE {})
            \cup ohold[t]
 
+RestSet(t) == Rest(orest[t], Cardinality(Chunks) + 1)
+
 Inv_NoUseAfterRelease ==
     /\ \A f \in Freers : TouchesC(f) => st[fc[f]] = "live"
     /\ \A f \in Freers : TouchesA(f) => st[fa[f]] = "live"
@@ -453,6 +632,7 @@ Inv_NoUseAfterRelease ==
                                    \cup avail[t] : st[c] = "live"
     /\ \A c \in Chunks : anc[c] # NIL => st[anc[c]] = "live"
     /\ \A c \in OnHeads \cup roomCh \cup fullCh : st[c] = "live"
+    /\ \A t \in Owners : \A c \in RestSet(t) \cup ({opop[t]} \ {NIL}) : st[c] = "live"
 
 (* Every live chunk is in a live group; heads list their own group's
    non-anchor members, once each. *)
@@ -462,7 +642,7 @@ Inv_GroupOK ==
          /\ anc[a] = a
          /\ Len(HeadSeq(a)) <= Cardinality(Chunks)
          /\ \A i, j \in 1..Len(HeadSeq(a)) : i # j => HeadSeq(a)[i] # HeadSeq(a)[j]
-         /\ \A c \in HeadSet(a) : q[c] /\ anc[c] = a /\ ~isA[c]
+         /\ \A c \in HeadSet(a) : q[c] /\ anc[c] = a /\ (~isA[c] \/ (AnchorListed /\ c = a))
 
 (* A group is in exactly one place. *)
 Inv_PlaceOK ==
@@ -481,12 +661,23 @@ Inv_RefOK ==
 
 Inv_AvailOK == \A t \in Owners : \A c \in avail[t] : anc[c] = oanc[t]
 
+(* LazyDrain: the rest of a take holds only the owner's own group's members,
+   listed (Q), on no head, and is a proper list. *)
+Inv_RestOK ==
+    \A t \in Owners : orest[t] # NIL =>
+        LET R == Walk(orest[t], Cardinality(Chunks) + 1) IN
+        /\ Len(R) <= Cardinality(Chunks)
+        /\ \A i, j \in 1..Len(R) : i # j => R[i] # R[j]
+        /\ \A i \in 1..Len(R) : q[R[i]] /\ anc[R[i]] = oanc[t]
+                                /\ (~isA[R[i]] \/ (AnchorListed /\ R[i] = oanc[t]))
+                                /\ R[i] \notin OnHeads
+
 Inv_QAccounted ==
     \A c \in Chunks : st[c] = "live" /\ q[c] =>
         \/ c \in OnHeads
         \/ \E f \in Freers : fpc[f] \in {"fb", "fd", "fload", "pread", "pcas"}
                               /\ fc[f] = c /\ ~fwasq[f]
-        \/ \E t \in Owners : c \in DrainRest(t)
+        \/ \E t \in Owners : c \in DrainRest(t) \cup RestSet(t)
 
 (* Witnesses, NOT invariants of the design: each must be violated, showing
    the model reaches the situation (RevivalGroup_witness_*.cfg). *)
