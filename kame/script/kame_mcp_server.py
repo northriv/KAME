@@ -261,9 +261,10 @@ knows whether a sensor exists — only the user — so ask the user to
 confirm a home sensor is present on that axis first.
 See kame_manual("Motor Controller").
 A tripped Scalar Interlock means a watched condition left its safe
-range and its motors were stopped: NEVER press its Reset, untick Armed,
-or change its conditions to get a move through — report its Status to
-the user and let them clear it. See kame_manual("Scalar Interlock").
+range and it stopped motors / switched off lasers, RF or outputs: NEVER
+press its Reset, untick Armed, or change its conditions or actions to
+get a move or an output through — report its Status to the user and let
+them clear it. See kame_manual("Scalar Interlock").
 
 Temperature safety: in a cryogenic setup, raising a controller's
 TargetTemp above ~295 K (room temperature) needs explicit user

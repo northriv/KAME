@@ -13,12 +13,11 @@
 ***************************************************************************/
 #include "scalarinterlock.h"
 #include "ui_scalarinterlockform.h"
-#include "motor.h"
 #include <QStatusBar>
 #include <chrono>
 #include <cmath>
 
-REGISTER_TYPE(XDriverList, ScalarInterlock, "Scalar Interlock (stops motors)");
+REGISTER_TYPE(XDriverList, ScalarInterlock, "Scalar Interlock");
 
 int64_t
 XInterlockCondition::steadyNS() {
@@ -121,6 +120,165 @@ XInterlockCondition::fault(int64_t now_ns, double timeout, unsigned int consecut
     return {};
 }
 
+struct XInterlockAction::Operation {
+    XString label; //!< shown, and saved in a .kam -- so never translated.
+    //! Empty: \a node is the driver's own child.  Otherwise it is looked up
+    //! in every child whose name starts with this, e.g. each "Laser<n>"
+    //! channel of a laser controller -- whose "Tec<n>" channels have an
+    //! "Enabled" too, which must be left alone.
+    XString channelPrefix;
+    XString node;
+    enum class Kind {Touch, SetFalse, SetTrue} kind;
+    bool reassertWhileNotReady; //!< Touch again while the driver's "Ready" is false.
+};
+
+//! Only operations whose result is the safe state.  Left out on purpose:
+//! a magnet supply (its own SafeCond entries ramp it down slowly; cutting it
+//! is the danger), a turbo pump (stopping it vents the vacuum), heater ranges.
+const std::vector<XInterlockAction::Operation> &
+XInterlockAction::operations() {
+    static const std::vector<Operation> ops = [] {
+        std::vector<Operation> v = {
+            {"Stop motor", "", "StopMotor", Operation::Kind::Touch, true},
+            {"Laser off", "Laser", "Enabled", Operation::Kind::SetFalse, false},
+            {"RF off", "", "RFON", Operation::Kind::SetFalse, false},
+            {"Output off", "", "Output", Operation::Kind::SetFalse, false},
+            {"Close valve", "", "CloseValve", Operation::Kind::Touch, false},
+        };
+        for(unsigned int ch = 1; ch <= 8; ++ch) {
+            const XString chname = "Channel" + std::to_string(ch);
+            v.push_back({chname + " off", "", chname, Operation::Kind::SetFalse, false});
+            v.push_back({chname + " on", "", chname, Operation::Kind::SetTrue, false});
+        }
+        return v;
+    }();
+    return ops;
+}
+
+std::vector<shared_ptr<XNode>>
+XInterlockAction::targets(const shared_ptr<XDriver> &drv, const Operation &op) {
+    std::vector<shared_ptr<XNode>> nodes;
+    if( !drv)
+        return nodes;
+    auto add = [&](const shared_ptr<XNode> &parent) {
+        auto node = parent->getChild(op.node);
+        if(op.kind == Operation::Kind::Touch)
+            node = dynamic_pointer_cast<XTouchableNode>(node);
+        else
+            node = dynamic_pointer_cast<XBoolNode>(node);
+        if(node)
+            nodes.push_back(node);
+    };
+    if(op.channelPrefix.empty()) {
+        add(drv);
+        return nodes;
+    }
+    Snapshot shot( *drv);
+    if(shot.size())
+        for(auto &&child: *shot.list())
+            if(child->getName().compare(0, op.channelPrefix.size(), op.channelPrefix) == 0)
+                add(child);
+    return nodes;
+}
+
+XInterlockAction::XInterlockAction(const char *name, bool runtime, Transaction &tr_meas,
+    const shared_ptr<XDriverList> &drivers) :
+    XNode(name, runtime),
+    m_driver(create<tDriver>("Driver", false, ref(tr_meas), drivers)),
+    m_operation(create<XComboNode>("Operation", false)) {
+    iterate_commit([=](Transaction &tr){
+        m_lsnOnDriver = tr[ *m_driver].onValueChanged().connectWeakly(
+            shared_from_this(), &XInterlockAction::onDriverChanged);
+    });
+}
+
+void
+XInterlockAction::onDriverChanged(const Snapshot &, XValueNodeBase *) {
+    shared_ptr<XDriver> drv = Snapshot( *this)[ *m_driver];
+    std::vector<XString> labels;
+    for(auto &op: operations())
+        if( !targets(drv, op).empty())
+            labels.push_back(op.label);
+    //clear() keeps the chosen label, and add() restores it when offered:
+    //a .kam may set Operation before its driver exists.
+    iterate_commit([=](Transaction &tr){
+        tr[ *m_operation].clear();
+        for(auto &label: labels)
+            tr[ *m_operation].add(label);
+    });
+}
+
+const XInterlockAction::Operation *
+XInterlockAction::resolve(std::vector<shared_ptr<XNode>> &nodes, shared_ptr<XDriver> &drv) const {
+    Snapshot shot( *this);
+    drv = shot[ *m_driver];
+    const XString label = shot[ *m_operation].to_str();
+    for(auto &op: operations()) {
+        if(op.label != label)
+            continue;
+        nodes = targets(drv, op);
+        return nodes.empty() ? nullptr : &op;
+    }
+    return nullptr;
+}
+
+bool
+XInterlockAction::isUsed() const {
+    return !Snapshot( *this)[ *m_operation].to_str().empty();
+}
+
+XString
+XInterlockAction::problem() const {
+    const XString label = Snapshot( *this)[ *m_operation].to_str();
+    if(label.empty())
+        return {};
+    std::vector<shared_ptr<XNode>> nodes;
+    shared_ptr<XDriver> drv;
+    if(resolve(nodes, drv))
+        return {};
+    if( !drv)
+        return label + ": " + XString(i18n("no driver chosen"));
+    return label + ": " + XString(i18n("not available on")) + " " + drv->getLabel();
+}
+
+void
+XInterlockAction::perform(bool fresh, int64_t now_ns) {
+    constexpr int64_t REASSERT_NS = 300'000'000;
+    if( !fresh && (now_ns - m_lastNS < REASSERT_NS))
+        return;
+    std::vector<shared_ptr<XNode>> nodes;
+    shared_ptr<XDriver> drv;
+    const Operation *op = resolve(nodes, drv);
+    if( !op)
+        return;
+    for(auto &node: nodes) {
+        switch(op->kind) {
+        case Operation::Kind::Touch: {
+            bool again = fresh;
+            if( !fresh && op->reassertWhileNotReady) {
+                auto ready = dynamic_pointer_cast<XBoolNode>(drv->getChild("Ready"));
+                again = ready && !(bool)Snapshot( *ready)[ *ready];
+            }
+            if(again) {
+                trans( *static_pointer_cast<XTouchableNode>(node)).touch();
+                m_lastNS = now_ns;
+            }
+            break;
+        }
+        case Operation::Kind::SetFalse:
+        case Operation::Kind::SetTrue: {
+            auto b = static_pointer_cast<XBoolNode>(node);
+            const bool want = (op->kind == Operation::Kind::SetTrue);
+            if(fresh || ((bool)Snapshot( *b)[ *b] != want)) {
+                trans( *b) = want;
+                m_lastNS = now_ns;
+            }
+            break;
+        }
+        }
+    }
+}
+
 XScalarInterlock::XScalarInterlock(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
@@ -136,9 +294,9 @@ XScalarInterlock::XScalarInterlock(const char *name, bool runtime,
     for(unsigned int i = 0; i < NumConditions; ++i)
         m_conditions.push_back(create<XInterlockCondition>(
             formatString("Condition%u", i + 1).c_str(), false, ref(tr_meas), meas->scalarEntries()));
-    for(unsigned int i = 0; i < NumMotors; ++i)
-        m_motors.push_back(create<tMotor>(
-            formatString("Motor%u", i + 1).c_str(), false, ref(tr_meas), meas->drivers()));
+    for(unsigned int i = 0; i < NumActions; ++i)
+        m_actions.push_back(create<XInterlockAction>(
+            formatString("Action%u", i + 1).c_str(), false, ref(tr_meas), meas->drivers()));
     m_armed = create<XBoolNode>("Armed", false);
 
     meas->scalarEntries()->insert(tr_meas, m_entryState);
@@ -152,8 +310,12 @@ XScalarInterlock::XScalarInterlock(const char *name, bool runtime,
         m_form->m_cmbMode3, m_form->m_cmbMode4};
     QLineEdit *ed_thresholds[NumConditions] = {m_form->m_edThreshold1, m_form->m_edThreshold2,
         m_form->m_edThreshold3, m_form->m_edThreshold4};
-    QComboBox *cmb_motors[NumMotors] = {m_form->m_cmbMotor1, m_form->m_cmbMotor2,
-        m_form->m_cmbMotor3, m_form->m_cmbMotor4};
+    QComboBox *cmb_drivers[NumActions] = {m_form->m_cmbActionDriver1, m_form->m_cmbActionDriver2,
+        m_form->m_cmbActionDriver3, m_form->m_cmbActionDriver4,
+        m_form->m_cmbActionDriver5, m_form->m_cmbActionDriver6};
+    QComboBox *cmb_operations[NumActions] = {m_form->m_cmbActionOp1, m_form->m_cmbActionOp2,
+        m_form->m_cmbActionOp3, m_form->m_cmbActionOp4,
+        m_form->m_cmbActionOp5, m_form->m_cmbActionOp6};
     m_conUIs = {
         xqcon_create<XQToggleButtonConnector>(m_armed, m_form->m_ckbArmed),
         xqcon_create<XQLedConnector>(m_tripped, m_form->m_ledTripped),
@@ -168,8 +330,11 @@ XScalarInterlock::XScalarInterlock(const char *name, bool runtime,
         m_conUIs.push_back(xqcon_create<XQComboBoxConnector>(c->mode(), cmb_modes[i], Snapshot( *c->mode())));
         m_conUIs.push_back(xqcon_create<XQLineEditConnector>(c->threshold(), ed_thresholds[i]));
     }
-    for(unsigned int i = 0; i < NumMotors; ++i)
-        m_conUIs.push_back(xqcon_create<XQComboBoxConnector>(m_motors[i], cmb_motors[i], ref(tr_meas)));
+    for(unsigned int i = 0; i < NumActions; ++i) {
+        auto &a = m_actions[i];
+        m_conUIs.push_back(xqcon_create<XQComboBoxConnector>(a->driver(), cmb_drivers[i], ref(tr_meas)));
+        m_conUIs.push_back(xqcon_create<XQComboBoxConnector>(a->operation(), cmb_operations[i], Snapshot( *a->operation())));
+    }
 
     iterate_commit([=](Transaction &tr){
         tr[ *m_consecutive] = 3; //~0.1 s at 30 fps: one bad frame is not a trip.
@@ -216,7 +381,6 @@ XScalarInterlock::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 void *
 XScalarInterlock::execute(const atomic<bool> &terminated) {
     constexpr int64_t TICK_MS = 50;
-    constexpr int64_t RESTOP_NS = 300'000'000; //a motor still reporting moving is stopped again this often.
     constexpr int64_t HEARTBEAT_NS = 1'000'000'000; //State is recorded at least this often.
 
     bool was_armed = false, latched = false;
@@ -224,7 +388,6 @@ XScalarInterlock::execute(const atomic<bool> &terminated) {
     XString cause, shown;
     State last_state = State::Disarmed;
     int64_t last_record_ns = 0;
-    std::vector<int64_t> last_stop_ns(NumMotors, 0);
 
     auto show = [&](const XString &status) {
         if(status == shown)
@@ -267,6 +430,16 @@ XScalarInterlock::execute(const atomic<bool> &terminated) {
                 if( !f.empty() && fault.empty())
                     fault = formatString("Condition%u: ", i + 1) + f;
             }
+            unsigned int acting = 0;
+            for(unsigned int i = 0; i < NumActions; ++i) {
+                auto &a = m_actions[i];
+                if( !a->isUsed())
+                    continue;
+                ++acting;
+                XString p = a->problem();
+                if( !p.empty() && fault.empty())
+                    fault = formatString("Action%u: ", i + 1) + p;
+            }
             bool fresh_trip = false;
             if( !latched && !fault.empty()) {
                 latched = true;
@@ -277,18 +450,11 @@ XScalarInterlock::execute(const atomic<bool> &terminated) {
             if(m_resetRequested.exchange(false) && latched && fault.empty())
                 latched = false; //refused, silently, while a fault persists: the status says so.
             if(latched) {
-                //Outside any transaction: the touch runs the motor driver's
+                //Outside any transaction: each action runs the target driver's
                 //listener here, and that talks to the hardware.
-                for(unsigned int j = 0; j < NumMotors; ++j) {
-                    shared_ptr<XMotorDriver> motor = shot[ *m_motors[j]];
-                    if( !motor)
-                        continue;
-                    const bool moving = !(bool)Snapshot( *motor)[ *motor->ready()];
-                    if(fresh_trip || (moving && (now - last_stop_ns[j] > RESTOP_NS))) {
-                        trans( *motor->stopMotor()).touch();
-                        last_stop_ns[j] = now;
-                    }
-                }
+                for(auto &a: m_actions)
+                    if(a->isUsed())
+                        a->perform(fresh_trip, now);
             }
             state = latched ? State::Tripped : State::Armed;
             //formatString() translates its format itself.
@@ -298,7 +464,7 @@ XScalarInterlock::execute(const atomic<bool> &terminated) {
                 show(formatString("TRIPPED (#%u) %s -- %s", trips, cause.c_str(), now_text.c_str()));
             }
             else if(watched)
-                show(formatString("Armed, watching %u", watched));
+                show(formatString("Armed: %u condition(s), %u action(s)", watched, acting));
             else
                 show(i18n("Armed, but no condition is on"));
         }

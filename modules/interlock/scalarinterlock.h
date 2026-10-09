@@ -23,7 +23,6 @@
 #include <atomic>
 #include <limits>
 
-class XMotorDriver;
 class QMainWindow;
 class Ui_FrmScalarInterlock;
 typedef QForm<QMainWindow, Ui_FrmScalarInterlock> FrmScalarInterlock;
@@ -80,10 +79,51 @@ private:
     std::atomic<int64_t> m_lastUpdateNS{0}, m_watchdogFromNS{0};
 };
 
-//! Stops motors when watched scalar entries leave their range -- for
-//! instance a Correlation math tool aimed at a pattern a stage hides when it
-//! goes too far.  Trips latch: the motors stay stopped, and are stopped again
-//! whenever one reports moving, until Reset is pressed with every condition
+//! One thing done on a trip: an operation on a chosen driver -- stop a motor,
+//! switch off a laser, RF or an output, close a valve, set a relay channel.
+//! Operations are found by the driver's node names, not its C++ type, so a
+//! driver from a module with no core library (funcsynth, arbfunc) works too;
+//! the Operation combo offers what the chosen driver actually has.
+class XInterlockAction : public XNode {
+public:
+    XInterlockAction(const char *name, bool runtime, Transaction &tr_meas,
+        const shared_ptr<XDriverList> &drivers);
+    virtual ~XInterlockAction() = default;
+
+    using tDriver = XItemNode<XDriverList, XDriver>;
+    const shared_ptr<tDriver> &driver() const {return m_driver;}
+    const shared_ptr<XComboNode> &operation() const {return m_operation;}
+
+    //! Why this row cannot act, or empty when it can or is unused (no
+    //! Operation).  A row that cannot act holds the interlock tripped: a
+    //! broken action must show on arming, not when it is needed.
+    XString problem() const;
+    bool isUsed() const;
+    //! On the trip ( fresh) does the operation; afterwards only re-asserts
+    //! it -- a motor still moving, an output switched back on -- at most every
+    //! 0.3 s.  Interlock thread only; outside any transaction, since the
+    //! driver's listener talks to its hardware from here.
+    void perform(bool fresh, int64_t now_ns);
+private:
+    struct Operation;
+    static const std::vector<Operation> &operations();
+    //! The nodes of \a drv that \a op acts on; empty when it has none.
+    static std::vector<shared_ptr<XNode>> targets(const shared_ptr<XDriver> &drv, const Operation &op);
+    //! The selected operation and the nodes it acts on, or nullptr.
+    const Operation *resolve(std::vector<shared_ptr<XNode>> &nodes, shared_ptr<XDriver> &drv) const;
+    void onDriverChanged(const Snapshot &, XValueNodeBase *);
+
+    const shared_ptr<tDriver> m_driver;
+    const shared_ptr<XComboNode> m_operation;
+    shared_ptr<Listener> m_lsnOnDriver;
+    int64_t m_lastNS = 0; //!< interlock thread only.
+};
+
+//! Acts when watched scalar entries leave their range -- for instance a
+//! Correlation math tool aimed at a pattern a stage hides when it goes too
+//! far: stops motors, switches off lasers, RF and outputs, closes valves,
+//! sets relays.  Trips latch: the actions stay in force, re-asserted while
+//! something undoes them, until Reset is pressed with every condition
 //! healthy.  A source that goes silent or turns NaN trips it too.  Not a last
 //! line of defence: KAME itself can fail, so hardware limits stay in place.
 class XScalarInterlock : public XPrimaryDriverWithThread {
@@ -93,8 +133,7 @@ public:
     virtual ~XScalarInterlock() = default;
 
     static constexpr unsigned int NumConditions = 4;
-    static constexpr unsigned int NumMotors = 4;
-    using tMotor = XItemNode<XDriverList, XMotorDriver>;
+    static constexpr unsigned int NumActions = 6;
     enum class State {Disarmed = 0, Armed = 1, Tripped = 2};
 
     //! Monitoring runs while this is on; saved, so a loaded setup is armed
@@ -108,7 +147,7 @@ public:
     const shared_ptr<XUIntNode> &consecutive() const {return m_consecutive;}
     const shared_ptr<XDoubleNode> &watchdogTimeout() const {return m_watchdogTimeout;} //!< [s]
     const shared_ptr<XInterlockCondition> &condition(unsigned int i) const {return m_conditions.at(i);}
-    const shared_ptr<tMotor> &motor(unsigned int i) const {return m_motors.at(i);}
+    const shared_ptr<XInterlockAction> &action(unsigned int i) const {return m_actions.at(i);}
 
     struct Payload : public XPrimaryDriver::Payload {
         State state() const {return m_state;}
@@ -136,7 +175,7 @@ private:
     const shared_ptr<XUIntNode> m_consecutive;
     const shared_ptr<XDoubleNode> m_watchdogTimeout;
     std::vector<shared_ptr<XInterlockCondition>> m_conditions;
-    std::vector<shared_ptr<tMotor>> m_motors;
+    std::vector<shared_ptr<XInterlockAction>> m_actions;
     shared_ptr<XBoolNode> m_armed;
     const shared_ptr<XScalarEntry> m_entryState;
 

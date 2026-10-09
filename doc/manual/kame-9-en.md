@@ -1033,19 +1033,28 @@ Spectrometer scripting nodes: `StartWavelen`, `StopWavelen`, `IntegrationTime`, 
 
 ## Scalar Interlock
 
-Scalar Interlock (stops motors)
+Scalar Interlock
 
-Watches up to four scalar entries and stops up to four motor drivers when one leaves its range. Any scalar entry can be watched -- a driver's reading, a calibrated entry, or a 2D math tool such as Correlation aimed at a printed pattern that a stage hides when it goes too far.
+Watches up to four scalar entries and, when one leaves its range, acts on up to six other drivers: stops motors, switches off lasers, RF and outputs, closes valves, sets relay channels. Any scalar entry can be watched -- a driver's reading, a calibrated entry, or a 2D math tool such as Correlation aimed at a printed pattern that a stage hides when it goes too far.
 
 Each condition trips when its value falls below (or rises above) its threshold for `Consecutive` samples in a row, when the value is NaN, or when the entry stops being updated for `WatchdogTimeout` seconds (also when no entry is chosen). A source that dies or cannot measure therefore holds the interlock tripped rather than letting moves through.
 
-A trip latches: the selected motors are sent Stop at once, and again whenever one reports moving, until `Reset` is pressed. Reset is refused while any condition still faults; the status line says which condition tripped and whether it has cleared. `Armed` is saved with the setup, so a loaded setup is armed again and trips until its sources are running. Measurement > Stop unticks `Armed` (the status says so); tick it again to resume watching. The `State` entry (0 disarmed, 1 armed, 2 tripped) records every change for charts and the journal.
+Each action row is a driver and an operation; the operation list shows what the chosen driver offers:
 
-It reacts within a few frames (about 0.2 s with a 30 fps camera and the default three samples) plus the motor controller's stop time. It is not a last line of defence -- KAME itself can stop running -- so keep hardware limit switches in place.
+- "Stop motor" (motor drivers, `StopMotor`) -- sent again every 0.3 s while the motor reports not Ready.
+- "Laser off" (laser modules, `Enabled`), "RF off" (signal generators, `RFON`), "Output off" (NMR pulsers, function and arbitrary-waveform generators, DC sources; `Output`) -- switched off again if something switches them back on.
+- "Close valve" (flow controllers, `CloseValve`).
+- "Channel*n* off" / "Channel*n* on" (relay drivers) -- a relay can act on hardware without KAME's other drivers: cut a motor controller's power, close a shutter, open an external interlock loop.
 
-Scripting nodes: `Armed`, `Reset` (touchable), `Tripped`, `Status`, `Consecutive`, `WatchdogTimeout`; `Condition1`..`Condition4`, each with `Entry`, `Mode` ("Off", "Trip if below", "Trip if above") and `Threshold`; `Motor1`..`Motor4`.
+Only operations whose result is the safe state are offered. A DC source's "Output off" is safe for heaters and LEDs but not for an inductive load: switching a coil's current off abruptly induces a voltage spike. Superconducting magnet supplies are deliberately absent -- give the watched entry to the supply's own safe conditions (SafeCond1/2), which ramp it down slowly -- and so are turbo pumps, whose stopping vents the vacuum. An action row whose operation cannot be carried out (no driver, or the driver lacks it) holds the interlock tripped, so a broken action shows when arming rather than when it is needed.
 
-**An automated agent must never reset, disarm or reconfigure a tripped interlock** to get a move through: report the status to the user and let them clear it.
+A trip latches: the actions are carried out at once and re-asserted as described until `Reset` is pressed. Reset is refused while any condition still faults; the status line says what tripped and whether it has cleared. `Armed` is saved with the setup, so a loaded setup is armed again and trips until its sources are running. Measurement > Stop unticks `Armed` (the status says so); tick it again to resume watching. The `State` entry (0 disarmed, 1 armed, 2 tripped) records every change for charts and the journal.
+
+It reacts within a few frames (about 0.2 s with a 30 fps camera and the default three samples) plus the target instrument's own response time. It is not a last line of defence -- KAME itself can stop running -- so keep hardware limit switches and hardware interlocks in place.
+
+Scripting nodes: `Armed`, `Reset` (touchable), `Tripped`, `Status`, `Consecutive`, `WatchdogTimeout`; `Condition1`..`Condition4`, each with `Entry`, `Mode` ("Off", "Trip if below", "Trip if above") and `Threshold`; `Action1`..`Action6`, each with `Driver` and `Operation`.
+
+**An automated agent must never reset, disarm or reconfigure a tripped interlock** to get an operation through: report the status to the user and let them clear it.
 
 ## Laser Module
 
