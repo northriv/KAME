@@ -69,7 +69,11 @@ template <class XN>
 struct Node<XN>::WalkUpResult {
     SnapshotStatus find_status;  //!< result of findChildSlot (or early-return status)
     SnapshotStatus status;       //!< status after convertRecursiveStatus (before find)
-    bool is_root_level;          //!< true if this parent is the chain root
+    //! true if this parent is the chain root.  Only convertRecursiveStatus's
+    //! non-DISTURBED arms set it; ascendOneLevel's early returns and a
+    //! DISTURBED recursion leave it false, and walkUpChain reads it on every
+    //! path, so a non-root parent_scope is never moved into root_lifetime.
+    bool is_root_level = false;
     local_shared_ptr<Linkage> parent_linkage;    //!< m_link of the parent node (= bundledBy)
     //! ScopedNeg on parent's linkage (1 CAS, with_negotiate=false).
     //! Provides contention tagging on DISTURBED unwind.
