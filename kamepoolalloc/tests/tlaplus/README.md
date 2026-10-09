@@ -543,7 +543,7 @@ results in full.
 |---|---|---|
 | `RevivalStack.tla` | the per-chunk Q protocol; the head in a tagged slot table (superseded by the anchor) | `onebit_safety` (the code's protocol) **clean**; `onebit` violates `Inv_NoLostRoom` by design (rare lost room, accepted); each knob that drops a needed part violates |
 | `RevivalAnchor.tla` | the head in the anchor chunk, reached by counted `atomic_shared_ptr` loads; which chunks may become anchors; the owner taking the stack lazily (stage 2a; stage 2b superseded its orphan side) | `code` **clean**, 795,755,368 distinct states; `adopted` (reopen any closed head) violates `Inv_StackOK` |
-| `RevivalGroup.tla` | the implemented stage 2b (§group): orphaning a thread's chunks as one group, ROOM/FULL chains, adoption by moving a head's chunks, takeover, the FULL sweep, dissolution | `code` **clean**, 57,428,577 distinct states; `dissolverefs` violates `Inv_NoUseAfterRelease` |
+| `RevivalGroup.tla` | the implemented stage 2b (§group): orphaning a thread's chunks as one group, ROOM/FULL chains, adoption by moving a head's chunks, takeover, the FULL sweep, dissolution | `code` **clean**, 57,428,577 distinct states; `code4f1` (4 chunks, 1 freer) **clean**, 51,915,141; `dissolverefs` violates `Inv_NoUseAfterRelease` |
 
 The chains themselves are the `atomic_shared_ptr` Treiber stack of the
 `OrphanChain_*` models above, with the serial of `OrphanChain_aba.tla` on
@@ -554,10 +554,12 @@ exchange as atomic steps and counts anchor references abstractly.
 ```
 java -cp tla2tools.jar tlc2.TLC -workers 16 -deadlock -config RevivalStack_onebit_safety_mc.cfg RevivalStack.tla
 java -cp tla2tools.jar tlc2.TLC -workers 16 -deadlock -config RevivalGroup_code_mc.cfg          RevivalGroup.tla
+java -cp tla2tools.jar tlc2.TLC -workers 16 -deadlock -config RevivalGroup_code4f1_mc.cfg       RevivalGroup.tla
 java -Xmx24g -cp tla2tools.jar tlc2.TLC -workers 24 -deadlock -config RevivalAnchor_code_mc.cfg RevivalAnchor.tla
 ```
 The `RevivalStack` cfgs and `RevivalGroup`'s `design` take seconds, its
-`code` a few minutes; `RevivalAnchor`'s clean cfgs take 30–60 min on 24
+`code` and `code4f1` a few minutes (4 chunks with 2 freers did not finish in
+2 h); `RevivalAnchor`'s clean cfgs take 30–60 min on 24
 workers (`code`: 58 min), so none of them is in `run_orphan_chain.sh`.
 
 ## Regression guard — `run_orphan_chain.sh`

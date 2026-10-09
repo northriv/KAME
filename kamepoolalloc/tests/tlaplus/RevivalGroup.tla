@@ -80,6 +80,10 @@
  * Results (3 chunks, 2 freers, 2 threads, K = 2, symmetry):
  *   design                 clean, 1,678,311 distinct states
  *   code                   clean, 57,428,577 distinct states
+ *   code4f1 (4 chunks, 1 freer)  clean, 51,915,141 distinct states, depth 91
+ *   code with 4 chunks and 2 freers: stopped unfinished, no violation in the
+ *   first 915,434,410 distinct states (breadth-first, 2 h 10 min on 22
+ *   workers, queue still growing)
  *   dissolverefs           Inv_NoUseAfterRelease (23-state trace)
  *   witnesses -- each violated, i.e. reached (trace length).  Under design:
  *   W_NoDissolve (5), W_NoOrphanPush (17), W_NoSweptMove (21).  Under code:
