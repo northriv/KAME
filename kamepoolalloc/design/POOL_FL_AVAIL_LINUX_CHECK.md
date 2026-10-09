@@ -207,5 +207,15 @@ word live until then.  No caller of `batch_return_to_bitmap` / `return_slots`
 touches the chunk after it returns (`flush` advances over its own buffer;
 `push_direct` and both teardown bypasses return at once).  Read and agreed.
 
-Rebuild + ctest of the six trees (LP64 release / asserts, ILP32 i586 / i486
-release / asserts) and the no-DCAS audit: pending.
+Same trees rebuilt from bd7875d06, same method as above:
+
+| check | result |
+|---|---|
+| no-DCAS audit | 3/3 ok |
+| ctest LP64 release / asserts | 43/43, 43/43 |
+| ctest ILP32 i486 release / asserts | 36/36, 36/36 |
+| ctest ILP32 i586 release / asserts | 42/43 each: `transaction_wait_budget_test` again under `ctest -j3`; alone 6/6 PASS (3 per tree) — the §3 load artifact |
+| `alloc_tsd_exclusivity_test`, 2000/arm | **0 / 2000** vs master **34 / 2000** (all SIGSEGV) |
+| thread-exit soak, 4 tests × 80/arm | 0 / 320 vs master 0 / 320 |
+
+Nothing changed for the worse; the TOCTOU result holds on the new head.
