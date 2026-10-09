@@ -371,9 +371,12 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def("set", [](shared_ptr<XValueNodeBase> &self, const std::string &s){trans(*self).str(s);}, py::call_guard<py::gil_scoped_release>())
         .def("load", [](shared_ptr<XValueNodeBase> &self, const std::string &s){
             // Priority-boosted set for .kam loading — same as XRuby::rvaluenode_load.
-            Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
+            // Scoped, not a hand-rolled pair: the pair always fell back to
+            // UI_DEFERRABLE, so one load() from an MCP thread left SCRIPTING
+            // for good.  ScopedPriority leaves a SCRIPTING thread alone and
+            // otherwise restores whatever level the caller had.
+            Transactional::ScopedPriority boost(Transactional::Priority::NORMAL);
             try { trans(*self).str(s); } catch(...) {}
-            Transactional::setCurrentPriorityMode(Transactional::Priority::UI_DEFERRABLE);
         }, py::call_guard<py::gil_scoped_release>());
         //The value as text, for every value payload -- the only reading a combo
         //or item payload has. An item's text is getLabel() of the node it points
@@ -613,12 +616,13 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
     py::implicitly_convertible<system_clock::time_point, XTime>();
 //    py::implicitly_convertible<XTime, system_clock::time_point>();
 
-    //! Per-thread transaction priority for the privilege ("fair-
-    //! mode oldest-Tx escape") mechanism.  Use `SCRIPTING` for
-    //! external scripting callers (MCP, ZMQ, AI-driven inspection,
-    //! Python/Ruby user scripts) so their Tx yields to measurement
-    //! traffic for ~1 s before escalating; that prevents starvation
-    //! while keeping the measurement loop's quick commits undisturbed.
+    //! Per-thread transaction priority for the STM negotiator.  Use
+    //! `SCRIPTING` for external scripting callers (MCP, ZMQ, AI-driven
+    //! inspection): like the other low-set levels, privilege it claims
+    //! is revocable and a starved Tx ends in the starvation exit rather
+    //! than retrying forever (Transactional::Priority says what each
+    //! level does in the default build, which is not the "yields for
+    //! ~1 s, then escalates" this comment used to promise).
     py::enum_<Transactional::Priority>(m, "Priority")
         .value("NORMAL",        Transactional::Priority::NORMAL)
         .value("LOWEST",        Transactional::Priority::LOWEST)
@@ -649,10 +653,14 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
     //! SCRIPTING (from any other level) is allowed; calls with
     //! `SCRIPTING` while already at SCRIPTING are silent no-ops.
     //!
-    //! Non-MCP Python sessions (e.g. a user-launched Jupyter
-    //! notebook) inherit the kernel thread's default (UI_DEFERRABLE)
-    //! and can switch freely among the non-SCRIPTING levels, since
-    //! the trapdoor only triggers once SCRIPTING has been set.
+    //! The level is per OS thread, so the trapdoor alone guards only the
+    //! thread that set it; xpythonsupport.py wraps threading.Thread.start
+    //! so that threads a SCRIPTING thread starts enter SCRIPTING too.
+    //!
+    //! Python sessions that never set SCRIPTING keep the kernel thread's
+    //! default (UI_DEFERRABLE) and can switch freely.  Note a notebook is
+    //! NOT one of them once an MCP client has connected: both execute on
+    //! the one kernel thread, which the MCP server locks on connect.
     m.def("setCurrentPriorityMode", [](Transactional::Priority pr){
         // The enum value is not exported, but pybind11 will still construct a
         // Priority from an int, so reject it here too rather than rely on the

@@ -14,6 +14,8 @@ import os
 import queue
 import sys
 import tempfile
+import threading
+import types
 import unittest
 from pathlib import Path
 
@@ -202,6 +204,69 @@ class StopJob(unittest.TestCase):
         use(FakeKernel(lambda c: [result(repr(json.dumps({"status": "unknown"})))]))
         r = json.loads(m.stop_job("_mcp_6"))
         self.assertEqual((r["status"], r["stop_requested"], r["progress"]), ("done", False, "60/60"))
+
+
+class AsyncJobPriority(unittest.TestCase):
+    """execute_code_async's worker is a new OS thread, which the connect-time
+    SCRIPTING lock does not reach (STM priority is per thread): it has to lock
+    itself before the job's code runs, and still run on a build without the
+    binding."""
+    @staticmethod
+    def fake_kame(with_priority=True):
+        k = types.ModuleType("kame")
+        if not with_priority:
+            return k
+        class Priority:
+            NORMAL, LOWEST, UI_DEFERRABLE, SCRIPTING = 0, 1, 2, 4
+        tls = threading.local()
+        def get():
+            return getattr(tls, "p", Priority.NORMAL)   # a new thread starts at NORMAL
+        def set_(p):
+            if get() == Priority.SCRIPTING and p != Priority.SCRIPTING:
+                raise RuntimeError("Priority::SCRIPTING is sticky")
+            tls.p = p
+        k.Priority, k.getCurrentPriorityMode, k.setCurrentPriorityMode = Priority, get, set_
+        return k
+
+    def run_job(self, kame_mod, code):
+        ns = {}
+        def kernel(src):
+            exec(src, ns)
+            return [result(repr(src.rstrip().splitlines()[-1]))]
+        saved = sys.modules.get("kame")
+        sys.modules["kame"] = kame_mod
+        try:
+            use(FakeKernel(kernel))
+            before = set(threading.enumerate())
+            m.execute_code_async(code)
+            # Join, do not poll the status: the worker sets "error" a line
+            # after "status", and publishes to the job dir after that.
+            for t in set(threading.enumerate()) - before:
+                t.join(5)
+            job = next(iter(ns["_mcp_jobs"].values()))
+        finally:
+            if saved is None:
+                sys.modules.pop("kame", None)
+            else:
+                sys.modules["kame"] = saved
+        return ns, job
+
+    def test_job_runs_at_scripting(self):
+        ns, job = self.run_job(self.fake_kame(),
+                               "import kame as _k\nseen = _k.getCurrentPriorityMode()")
+        self.assertEqual(job["status"], "done", job.get("error"))
+        self.assertEqual(ns["seen"], 4)
+
+    def test_job_cannot_leave_scripting(self):
+        ns, job = self.run_job(self.fake_kame(),
+                               "import kame as _k\n_k.setCurrentPriorityMode(_k.Priority.NORMAL)")
+        self.assertEqual(job["status"], "error")
+        self.assertIn("sticky", job["error"])
+
+    def test_build_without_the_binding_still_runs_the_job(self):
+        ns, job = self.run_job(self.fake_kame(with_priority=False), "seen = 'ran'")
+        self.assertEqual(job["status"], "done", job.get("error"))
+        self.assertEqual(ns["seen"], "ran")
 
 
 class NotebookStatus(unittest.TestCase):

@@ -126,6 +126,52 @@ else:
 	TLS.xscrthread = None
 TLS.logfile = None
 
+def _kame_inherit_scripting_priority(threading_mod, get_priority, set_priority, scripting):
+	"""Make Priority.SCRIPTING follow a thread into the threads it starts.
+
+	STM priority belongs to the OS thread, and a new thread starts at NORMAL.
+	So the trapdoor an MCP session is locked into was left by nothing more than
+	threading.Thread(...).start() -- execute_code_async's own worker included --
+	and NORMAL is not a revocable tier, so the starvation exit never fired for
+	those threads either: a stuck one froze until KAME was killed.  Now a thread
+	started while its creator is at SCRIPTING enters SCRIPTING before its run()
+	does anything.
+
+	Decided in start(), on the creating thread; a thread started from any other
+	level is untouched.  The wrapper goes on the instance's `run`, which is what
+	the thread's bootstrap calls, so subclasses overriding run() (Timer, the
+	executor workers) are covered without touching threading's private methods.
+	_thread.start_new_thread bypasses it.
+
+	KAME starts some threads from the kernel thread on the user's behalf; those
+	set `_kame_inherit_priority = False` before start().  The kernel thread is
+	shared with the notebook, so it is SCRIPTING whenever an MCP client has
+	connected, and a Script-pane run must not be locked by that."""
+	_start = threading_mod.Thread.start
+	if getattr(_start, '_kame_inherits_scripting', False):
+		return
+	def start(self):
+		if getattr(self, '_kame_inherit_priority', True) and get_priority() == scripting:
+			run = self.run
+			def run_at_scripting():
+				set_priority(scripting) #entering SCRIPTING is always allowed
+				try:
+					return run()
+				finally:
+					self.__dict__.pop('run', None) #drop the self -> run -> self cycle
+			self.run = run_at_scripting
+		return _start(self)
+	start._kame_inherits_scripting = True
+	start.__wrapped__ = _start
+	start.__doc__ = _start.__doc__
+	threading_mod.Thread.start = start
+
+try:
+	_kame_inherit_scripting_priority(threading,
+		getCurrentPriorityMode, setCurrentPriorityMode, Priority.SCRIPTING)
+except (NameError, AttributeError):
+	pass #a kame module without the Priority binding has no trapdoor to keep
+
 import io
 
 class MyDefIO:
@@ -575,6 +621,10 @@ def kame_pybind_one_iteration():
 					else:
 						target = loadSequence
 					thread = threading.Thread(daemon=True, target=target, args=(xpythread, filename))
+					#The user's run from the Script pane, not the session's: this
+					#tick runs on the kernel thread, which is SCRIPTING once an
+					#MCP client has connected.
+					thread._kame_inherit_priority = False
 					thread.start()
 				if action == "kill":
 					if str(xpythread_threadid) == "-1":

@@ -300,25 +300,28 @@ Write closures so they are *idempotent under retry*:
 
 ### Priority (light vs. measurement-critical Tx)
 
-`kame.setCurrentPriorityMode(kame.Priority.<level>)` sets the current
-thread's priority for the **privilege ("oldest-Tx escape")** mechanism.
-After waiting longer than the level's threshold, a Tx claims privilege
-to force forward progress; a longer threshold = more deferential.
+`kame.setCurrentPriorityMode(kame.Priority.<level>)` sets the **current
+thread's** priority for the STM negotiator, and
+`kame.getCurrentPriorityMode()` reads it.  The level belongs to the OS
+thread: a new thread starts at `NORMAL` whatever its creator was set to
+(the one exception is SCRIPTING, below).
 
-| Level | Threshold | Use case |
+| Level | What it does (default build) | Use case |
 |---|---|---|
-| `NORMAL` | ~300 µs | Measurement, driver activity |
-| `UI_DEFERRABLE` | 50 ms | Interactive UI updates |
-| `LOWEST` | 30 ms | Bulk / analysis |
-| `SCRIPTING` | **1 s** | **External scripting (MCP / AI / ZMQ)** — yields to *everything* for the first second of contention before escalating; ensures the script command eventually completes without disrupting a live measurement |
+| `NORMAL` | Baseline.  Privilege it claims is never revoked, and it never gives up. | Measurement, driver activity |
+| `UI_DEFERRABLE` | Revocable: privilege it claims is taken back on timeout, so it cannot pin a measurement loop; a Tx starved for ~10 s raises `KAMEError: STM starvation ...` rather than retrying forever. | Interactive UI; the kernel thread's default |
+| `LOWEST` | As `UI_DEFERRABLE`, and never cuts its back-off sleep short. | Bulk / analysis |
+| `SCRIPTING` | As `UI_DEFERRABLE`, plus the one-way trapdoor below. | **External scripting (MCP / AI / ZMQ)** |
 
-The MCP server sets `SCRIPTING` on connection.
+The MCP server sets `SCRIPTING` on the kernel thread when it connects,
+and each `execute_code_async` job sets it again on its own worker.
 
-**Important: SCRIPTING is a one-way trapdoor.** Once a thread has been
-set to `SCRIPTING`, any subsequent `setCurrentPriorityMode(...)` call
-raises `RuntimeError`.  This is a safety guarantee: an MCP / AI session
-cannot elevate its own priority to disrupt a live measurement loop,
-no matter what code the AI generates.
+**Important: SCRIPTING is a one-way trapdoor.** Once a thread is at
+`SCRIPTING`, any `setCurrentPriorityMode(...)` to another level raises
+`RuntimeError` — and **every thread it starts enters `SCRIPTING` too**
+(`threading.Thread`, `threading.Timer`, `concurrent.futures` workers):
+KAME wraps `threading.Thread.start` so that a thread started from a
+SCRIPTING thread switches before its `run()` begins.
 
 ```python
 # Allowed: initial entry into SCRIPTING (set by MCP server on connect)
@@ -332,16 +335,33 @@ try:
     kame.setCurrentPriorityMode(kame.Priority.NORMAL)
 except RuntimeError as e:
     print(e)  # "Priority::SCRIPTING is sticky and cannot be changed..."
+
+# A thread started from here is SCRIPTING as well
+def job():
+    assert kame.getCurrentPriorityMode() == kame.Priority.SCRIPTING
+threading.Thread(target=job).start()
 ```
 
-Non-MCP Python sessions (a user-launched Jupyter notebook, a Ruby
-script via `XScriptingThread`) inherit the kernel's default
-(`UI_DEFERRABLE`) and may switch freely among the non-SCRIPTING
-levels.  The trapdoor only triggers once SCRIPTING has been set.
+What this buys: code an MCP / AI session generates cannot out-compete a
+live measurement loop *by accident* — not through a priority call, and
+not by starting a thread.  It is a guardrail, not a sandbox:
+`_thread.start_new_thread` bypasses the wrapper, a thread pool's workers
+keep the level of whichever thread started them (not of later
+submitters), and in-process code can always reach the C++ symbol
+directly.
 
-If you legitimately need NORMAL priority for measurement-critical
-work, **do not** call `setCurrentPriorityMode(SCRIPTING)` first;
-work from `UI_DEFERRABLE` (the default) and switch as needed.
+**A notebook shares the MCP session's kernel.**  Notebook cells and MCP
+tool calls execute on the same kernel thread, whose default is
+`UI_DEFERRABLE` — until an MCP client connects and locks it.  From then
+on, for the rest of the KAME run, notebook cells and the threads they
+start are at `SCRIPTING` as well.  A notebook no MCP client has touched
+may switch freely among the non-SCRIPTING levels.
+
+If you legitimately need NORMAL priority for measurement-critical work,
+run it as a sequence from KAME's Script pane (each runs on its own
+thread, which starts at `NORMAL` and does not inherit SCRIPTING), or
+from a notebook before any MCP client has connected.  **Do not** call
+`setCurrentPriorityMode(SCRIPTING)` first.
 
 ### SIGINT / KeyboardInterrupt — IS interruptible
 

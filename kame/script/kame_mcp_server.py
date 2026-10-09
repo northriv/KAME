@@ -306,14 +306,18 @@ Key patterns:
 - Drivers: Root()["Drivers"]["DriverName"]
 - Scalar entry value: entry["Value"] is XDoubleNode, float(shot[entry["Value"]])
 
-NOTE: This MCP session runs at `Priority.SCRIPTING` — your Tx will
-yield to active measurement traffic for ~1 s before claiming privilege.
-**SCRIPTING is a one-way trapdoor**: attempting
+NOTE: This MCP session runs at `Priority.SCRIPTING`, and so does every
+thread it starts: execute_code_async jobs and any threading.Thread your
+code creates enter SCRIPTING before running. SCRIPTING is a revocable
+tier — privilege your Tx claims can be taken back, so it cannot pin
+the measurement loop — and a Tx starved for ~10 s raises
+`KAMEError: STM starvation ...` instead of retrying forever (report it
+to the user; retry later). **SCRIPTING is a one-way trapdoor**:
 `kame.setCurrentPriorityMode(...)` to any other level raises
-`RuntimeError`.  This is a safety guarantee — your generated code
-cannot disrupt the measurement loop regardless of priority calls.
-If a measurement-critical operation is needed, ask the user to run
-it from their own Jupyter notebook (which is not locked).
+`RuntimeError`. Do not try to work around it. If an operation truly
+needs NORMAL priority, ask the user to run it as a sequence from
+KAME's Script pane (its own thread, at NORMAL). Their Jupyter notebook
+is not a way out: it shares this kernel, which you have locked.
 
 NOTE: print() in KAME's kernel produces HTML, not plain text.
 In execute_code, use expression results (last line as bare expression)
@@ -706,6 +710,15 @@ if "mcp_checkpoint" not in globals():
             raise _McpStopped()
 _mcp_jobs[{job_id!r}] = {{"status": "running", "progress": "", "id": {job_id!r}}}
 def _mcp_run():
+    # STM priority is per OS thread and a new one starts at NORMAL, so the
+    # connect-time SCRIPTING lock does not reach this worker by itself.  Lock
+    # it before the job's code runs.  Newer kernels also do this in
+    # threading.Thread.start (xpythonsupport.py); this line covers older ones.
+    try:
+        import kame as _mcp_kame
+        _mcp_kame.setCurrentPriorityMode(_mcp_kame.Priority.SCRIPTING)
+    except (AttributeError, ImportError):
+        pass
     _job = _mcp_jobs[{job_id!r}]
     _mcp_tls.job = _job
     try:
