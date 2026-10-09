@@ -803,6 +803,12 @@ static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
 static_assert(ALLOC_CHUNK_HEADER >= ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET + 8 + 8,
               "chunk header must have >= 8 B of pad between SizeOfFn "
               "and the slot-0 reservation at chunk_header[-8..-1].");
+//! `PoolAllocatorBase::m_owner_id`, from chunk_base: past the chunk header,
+//! the hot block's first word.  Unlike the header fields it belongs to the
+//! embedded object, but every chunk -- dedicated ones included -- carries it
+//! here, and `PoolAllocatorBase::chunk_owner_id()` reaches it by this
+//! offset.  Checked against the class after its definition.
+#define ALLOC_CHUNK_OWNER_ID_OFFSET (ALLOC_CHUNK_HEADER + 64)
 
 #define ALLOC_ALIGNMENT 16 //bytes, not 8 but 16 for compatibility
 #define ALLOC_MAX_CHUNKS_OF_TYPE \
@@ -1171,6 +1177,21 @@ public:
 	//!   Both routes converge on chunk->m_freelist_head[local], single
 	//!   storage; no consistency problem.
 	alignas(64) uint32_t m_owner_id;
+	//! `m_owner_id` of the chunk at `chunk_base`, as a plain uint32_t --
+	//! for code that may not yet know a PoolAllocator object lives there.
+	//! The free paths compare it before they know which kind of chunk they
+	//! hold, and a dedicated chunk is stamped here without ever having held
+	//! an object; `chunk_obj->m_owner_id` on such memory is member access
+	//! within no object of the type, which UBSan's -fsanitize=vptr reports
+	//! (GCC's -fsanitize=undefined includes it; Apple clang's does not).
+	//! A plain uint32_t lvalue names only the member's own type, which also
+	//! keeps it aliasable with `m_owner_id` in TBAA -- a separate struct
+	//! describing the hot block would not be.  Same address, same load or
+	//! store.
+	static uint32_t &chunk_owner_id(char *chunk_base) noexcept {
+		return *reinterpret_cast<uint32_t *>(
+		    chunk_base + ALLOC_CHUNK_OWNER_ID_OFFSET);
+	}
 	bool      m_fs_flag;
 	//! (§16) m_sizes mode discriminator/shift for the dealloc fast path.
 	//!   m_sizes      : null for borrow-scheme chunks (FS=true, or FS=false
@@ -1723,6 +1744,24 @@ public:
 	//! chunk free; tentatively cleared when a claim finds no slot for its
 	//! CHUNK_UNITS).
 };
+
+//! `chunk_owner_id()` and `m_owner_id` must name the same word.  offsetof on
+//! a polymorphic class is conditionally-supported; GCC, Clang and MSVC all
+//! support it for a class without virtual bases, but GCC and Clang warn.
+#if defined(__GNUC__)
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Winvalid-offsetof"
+#endif
+static_assert(ALLOC_CHUNK_HEADER + offsetof(PoolAllocatorBase, m_owner_id)
+                  == ALLOC_CHUNK_OWNER_ID_OFFSET,
+              "ALLOC_CHUNK_OWNER_ID_OFFSET must locate "
+              "PoolAllocatorBase::m_owner_id");
+#if defined(__GNUC__)
+  #pragma GCC diagnostic pop
+#endif
+static_assert(std::is_same<decltype(PoolAllocatorBase::m_owner_id),
+                           uint32_t>::value,
+              "chunk_owner_id() reads m_owner_id as a uint32_t");
 
 //! Per-thread flag — true once `AllocThreadExitCleanup::~dtor` has fired.
 //! Read by `new_redirected()` (and other allocator-TLS-aware code via
