@@ -723,6 +723,14 @@ macx {
     QMAKE_BUNDLE_DATA += tsfiles
 
     QMAKE_INFO_PLIST = ../Info.plist
+    # qmake's rule for the bundle's copy has no prerequisite, so it is made
+    # only when missing and an edited Info.plist never reached a rebuilt app
+    # (NSCameraUsageDescription, 2026-10).  A recipe-less rule naming the same
+    # target adds the source as its prerequisite; $(DESTDIR) is the make
+    # variable qmake itself spells that path with, so the strings match.
+    infoplist.target = $(DESTDIR)$${TARGET}.app/Contents/Info.plist
+    infoplist.depends = $$PWD/../Info.plist
+    QMAKE_EXTRA_TARGETS += infoplist
 
 #    exists("/opt/local/include/libusb-1.0/libusb.h") {
     exists("../modules/nmr/thamway/fx2fw.bix") {
