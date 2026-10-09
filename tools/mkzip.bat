@@ -17,8 +17,8 @@ rem     silently rotting again; it mirrors the macOS Contents/Resources layout.
 rem     kame_python_api.md / kame-9-en.md + media\ back the kame_api and
 rem     kame_manual MCP tools.  plugin\ is for macOS parity -- it is inert on
 rem     Windows (its .mcp.json invokes a POSIX-sh launcher).
-rem     Shared with kame.pro's win32 QMAKE_POST_LINK, so a build tree and a
-rem     release get exactly the same set.
+rem     Shared with kame.pro's deployed_scripts.stamp rule, so a build tree
+rem     and a release get exactly the same set.
 call ..\..\tools\deploy_scripts.bat ..\kame-win32\resources
 del /Q ..\kame-win32\qtdir.txt 2>nul
 del /Q ..\kame-win32\kame.log 2>nul

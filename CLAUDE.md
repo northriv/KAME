@@ -24,11 +24,24 @@ The primary build method on macOS is via **Qt Creator** using `kame.pro` (qmake)
 - In `kame/kame.pro`: `SOURCES`/`HEADERS` for C++; `scriptfile.files` for files deployed to `Contents/Resources` (macOS), `$PREFIX/share/kame` (Linux `INSTALLS`) and `$$DESTDIR/resources` (Windows). A new runtime script/doc goes in `scriptfile.files` **and** in `tools/deploy_scripts.bat`'s list.
 
 **Windows script deployment** — qmake deploys `scriptfile.files` on macOS
-(`QMAKE_BUNDLE_DATA`) and Linux (`QMAKE_POST_LINK` / `INSTALLS`), but on Windows
-they are only in `DISTFILES`, which copies nothing. A win32 `QMAKE_POST_LINK`
-therefore runs `tools/deploy_scripts.bat <resources-dir>` at link time, and
-`tools/mkzip.bat` calls the same script when assembling a release, so a build
-tree and a release get an identical set. Two traps this cost once:
+(`QMAKE_BUNDLE_DATA`) and Linux (`INSTALLS`, plus a copy beside the binary), but
+on Windows they are only in `DISTFILES`, which copies nothing. On Windows the
+`deployed_scripts.stamp` rule therefore runs `tools/deploy_scripts.bat
+<resources-dir>`, and `tools/mkzip.bat` calls the same script when assembling a
+release, so a build tree and a release get an identical set.
+
+**Deployed files follow their sources** — the Linux and Windows copies run from
+`deployed_scripts.stamp`, which depends on every deployed file (and the plugin's
+subdirectories), and sits in `ALL_DEPS`: an edited `.py` is copied on the next
+build without relinking. They used to run as `QMAKE_POST_LINK`, so an edit
+waited for an unrelated relink. On macOS `QMAKE_BUNDLE_DATA` has a rule per
+file, but the plugin is copied as a directory and the rule depended on it alone
+(whose time changes only when an entry directly under it is added or removed);
+a recipe-less rule spelled `$(DESTDIR)kame.app/...` adds its contents, as one
+does for `Info.plist`, whose qmake rule has no prerequisite at all. `$$files()`
+skips dot-entries, so the plugin's `.mcp.json` / `.claude-plugin` are named
+explicitly — a new dot-entry must be added there. Two traps the Windows copy
+cost once:
 - Before it existed, `resources/` held only what had been hand-copied there
   once. A missing `kame_mcp_server.py` means there is no MCP server to launch
   at all (`can't open file ...\Resources\kame_mcp_server.py`), and stale

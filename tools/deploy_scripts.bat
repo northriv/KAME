@@ -2,10 +2,11 @@
 rem Deploy kame.pro's scriptfile.files into a build/release resources dir.
 rem
 rem Windows qmake deploys none of them (they are DISTFILES only), unlike the
-rem macOS bundle and the Linux QMAKE_POST_LINK, so kame.exe used to start with
-rem no kame_mcp_server.py next to it and the MCP link died with
-rem "can't open file ...\Resources\kame_mcp_server.py".  Called from
-rem kame/kame.pro's win32 QMAKE_POST_LINK, and by tools/mkzip.bat.
+rem macOS bundle, so kame.exe used to start with no kame_mcp_server.py next to
+rem it and the MCP link died with "can't open file
+rem ...\Resources\kame_mcp_server.py".  Called from kame/kame.pro's
+rem deployed_scripts.stamp rule (whenever a deployed file or this script
+rem changes), and by tools/mkzip.bat.
 rem
 rem Usage: deploy_scripts.bat <dest-resources-dir>
 setlocal

@@ -253,6 +253,17 @@ scriptfile.files = script/rubylineshell.rb \
     script/notebook/jupyter_notebook_config.py \
     script/notebook/notebook_kame_kernel_manager.py
 
+# Every file and directory of the plugin, for rules that copy it as a whole:
+# a rule depending on the directory alone sees only entries added or removed
+# directly under it, so an edit deeper down was never deployed -- the
+# bundle's bin/kame-mcp-server missed the MCP 2.x changes for weeks.  The
+# subdirectories are listed too, so a new file anywhere still counts.
+# $$files() skips dot-entries, hence the format-mandated ones by name.
+PLUGIN_DIR = $$_PRO_FILE_PWD_/script/plugin
+PLUGIN_SOURCES = $$PLUGIN_DIR $$files($$PLUGIN_DIR/*, true)
+for(h, $$list(.mcp.json .claude-plugin .claude-plugin/plugin.json)): \
+    exists($$PLUGIN_DIR/$$h): PLUGIN_SOURCES += $$PLUGIN_DIR/$$h
+
 macx {
     scriptfile.path = Contents/Resources
     QMAKE_BUNDLE_DATA += scriptfile
@@ -264,6 +275,12 @@ macx {
     pluginfiles.files = script/plugin
     pluginfiles.path = Contents/Resources
     QMAKE_BUNDLE_DATA += pluginfiles
+    # qmake's copy rule depends on the directory only; a recipe-less rule
+    # for the same target adds its contents (spelled with $(DESTDIR) so the
+    # strings match -- see the Info.plist rule below).
+    pluginfiles_deps.target = $(DESTDIR)$${TARGET}.app/Contents/Resources/plugin
+    pluginfiles_deps.depends = $$PLUGIN_SOURCES
+    QMAKE_EXTRA_TARGETS += pluginfiles_deps
 
     LIBS += -L$$OUT_PWD/ -llibkame
 }
@@ -290,7 +307,7 @@ else {
         # file fx2fw.bix not found" and there was nowhere the build had put
         # it.  XCyFXUSBInterface looks in QStandardPaths::AppDataLocation
         # (= $$PREFIX/share/kame) and then applicationDirPath(); the staging
-        # loop below covers the second.
+        # rule below covers the second.
         exists(../modules/nmr/thamway/fx2fw.bix) {
             scriptfile.files += ../modules/nmr/thamway/fx2fw.bix \
                 ../modules/nmr/thamway/slow_dat.bin \
@@ -304,11 +321,11 @@ else {
         INSTALLS += pluginfiles
         # Also stage them beside the binary so an uninstalled build tree is
         # directly runnable — the equivalent of QMAKE_BUNDLE_DATA on macOS.
-        for(f, scriptfile.files): \
-            QMAKE_POST_LINK += $$quote(cp -f $${_PRO_FILE_PWD_}/$${f} $${DESTDIR}/ &&) \
-
-        QMAKE_POST_LINK += $$quote(cp -Rf $${_PRO_FILE_PWD_}/script/plugin $${DESTDIR}/ &&)
-        QMAKE_POST_LINK += true
+        # Run by the deployed_scripts.stamp rule after this block, so an
+        # edited script is copied without waiting for the binary to relink.
+        for(f, scriptfile.files): DEPLOY_SOURCES += $$absolute_path($$f, $$_PRO_FILE_PWD_)
+        DEPLOY_COMMAND = mkdir -p $${DESTDIR} && cp -f $$DEPLOY_SOURCES $${DESTDIR}/ && \
+            cp -Rf $$PLUGIN_DIR $${DESTDIR}/
 
         # The executable itself was never in INSTALLS, so `make install`
         # deployed data files and no program.  (macOS installs the .app
@@ -365,16 +382,39 @@ else {
         # Windows build used to leave $$DESTDIR/resources without any of them
         # and kame.exe started with no kame_mcp_server.py beside it (the MCP
         # link then died with "can't open file ...\Resources\
-        # kame_mcp_server.py").  Deploy them at link time, the way the macOS
-        # bundle and the Linux QMAKE_POST_LINK above already do.  The work
-        # lives in a batch file rather than inline qmake so the quoting stays
-        # legible and it can be run by hand (tools/mkzip.bat uses it too).
+        # kame_mcp_server.py").  Deploy them by the deployed_scripts.stamp
+        # rule below, as on Linux.  The work lives in a batch file rather
+        # than inline qmake so the quoting stays legible and it can be run by
+        # hand (tools/mkzip.bat uses it too).
         # system_path(), not shell_path(): with MSYS on PATH qmake decides the
         # make shell is sh and shell_path() emits /C/Users/... , which the
         # recipe -- run under `mingw32-make SHELL=cmd.exe`, as this project is
         # built -- cannot execute.  system_path() gives native C:\Users\... .
-        QMAKE_POST_LINK += $$quote(cmd /c $$system_path($${_PRO_FILE_PWD_}/../tools/deploy_scripts.bat) $$system_path($${DESTDIR}/$${SCRIPT_DIR}))
+        DEPLOY_BAT = $$absolute_path(../tools/deploy_scripts.bat, $$_PRO_FILE_PWD_)
+        DEPLOY_COMMAND = cmd /c $$system_path($$DEPLOY_BAT) $$system_path($${DESTDIR}/$${SCRIPT_DIR})
+        # What the batch file copies, and the batch file itself.
+        for(f, scriptfile.files): DEPLOY_SOURCES += $$absolute_path($$f, $$_PRO_FILE_PWD_)
+        DEPLOY_SOURCES += $$DEPLOY_BAT \
+            $$files($$absolute_path(../doc/manual/media, $$_PRO_FILE_PWD_)/*)
     }
+}
+
+# Linux and Windows copy the deployed files with one command instead of
+# per-file rules, and it used to run as QMAKE_POST_LINK: an edited script
+# waited for the next relink, i.e. for some unrelated C++ change.  A stamp
+# depending on every source re-runs the command on an edit, and ALL_DEPS
+# makes it a prerequisite of `all` rather than of the binary, so a script
+# edit copies without relinking.  (macOS: QMAKE_BUNDLE_DATA already has a
+# rule per file; only the plugin directory needed the rule in its block.)
+!macx {
+    DEPLOY_SOURCES += $$PLUGIN_SOURCES
+    deployscripts.target = deployed_scripts.stamp
+    deployscripts.depends = $$DEPLOY_SOURCES
+    win32: deployscripts.commands = $$DEPLOY_COMMAND && type nul > $$deployscripts.target
+    else: deployscripts.commands = $$DEPLOY_COMMAND && touch $$deployscripts.target
+    QMAKE_EXTRA_TARGETS += deployscripts
+    ALL_DEPS += $$deployscripts.target
+    QMAKE_CLEAN += $$deployscripts.target
 }
 
 #win32: QMAKE_POST_LINK += $$quote(cmd /c copy /y $${_PRO_FILE_PWD_}$${scriptfile.files} $${DESTDIR}$${SCRIPT_DIR}$$escape_expand(\\n\\t))
