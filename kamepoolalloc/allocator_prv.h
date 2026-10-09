@@ -896,7 +896,7 @@ public:
 	//! `chunk_base` is pre-resolved by the caller; only this-thread-owned
 	//! FS=false chunks reach here.  Void: a garbage local-id tail-calls
 	//! `deallocate_cold`.
-	static void deallocate_fs_false_owner(char *chunk_base, void *p) noexcept;
+	static void deallocate_fs_false_owner(char *chunk_base, void *p, KameTlsPage *pg) noexcept;
 	//! Look up the slot size (bytes) for a pointer.  Returns 0 if `p`
 	//! is not a pool slot (foreign / libsystem-malloc'd / null).  Uses
 	//! the same chunk-header pattern as `deallocate` and dispatches
@@ -1174,7 +1174,16 @@ public:
 	//! (already-loaded line), sees null, and falls to the p-8 prefix exactly
 	//! as before, never touching m_mempool / the m_sizes array.
 	uint8_t   m_align_shift;
-	uint16_t  m_base_bucket;     // unused on hot paths; kept for diagnostics
+	uint8_t   m_base_bucket;     // FS=true: the bucket it serves (fl_avail index)
+	//! (§fl-avail) FS=true only: FL_TARGET while this chunk is the one its
+	//! bucket's shortcut (`m_slots[bucket].freelist_head`) points into,
+	//! FL_LINKED while it is on this thread's `KameTlsPage::fl_avail[bucket]`
+	//! list.  In either state its freelist is reachable without a search.
+	//! An owner free that takes the freelist from empty to non-empty links
+	//! the chunk only when the state is 0 -- one byte compare on the hot
+	//! line the free has already loaded.  Owner-only, plain byte.
+	uint8_t   m_fl_state;
+	static constexpr uint8_t FL_TARGET = 1, FL_LINKED = 2;
 	//! (§L0-FIFO) m_sizes is null for every FS=true chunk, so its 8 bytes
 	//! are reused as the {r, w} counters of a depth-4 free-slot ring kept
 	//! in the (equally unused for FS=true) m_freelist_head[1..4] cells —
@@ -1335,6 +1344,19 @@ public:
 	//! perf tax on Linux from spurious cursor resets.
 	void *m_owner_dll_head_addr = nullptr;
 
+	//! (§fl-avail) FS=false, per local id (a variable-size chunk serves
+	//! several buckets, one freelist each): bit `local` (FL_LINKED_BIT) while
+	//! the chunk is on this thread's `KameTlsPage::fl_avail[bucket]` list,
+	//! bit 16 + `local` (FL_TARGET_BIT) while the bucket's shortcut points at
+	//! its freelist.  The target bits are kept for the full-usable tier only,
+	//! whose free path tests "made non-empty, neither target nor listed"
+	//! without touching TLS; the borrow tier compares the shortcut itself
+	//! (its free path re-aims the shortcut anyway).  One load on the line of
+	//! m_freelist_head[6..8].
+	uint32_t m_fl_mask = 0;
+	static constexpr uint32_t FL_LINKED_BIT(unsigned l) { return 1u << l; }
+	static constexpr uint32_t FL_TARGET_BIT(unsigned l) { return 0x10000u << l; }
+
 	//! pointer to owner thread's "force DLL re-walk" hint
 	//! flag (TLS `std::atomic<bool>` per PoolAllocator template).
 	//! Cross-thread frees set this so the owner's next
@@ -1360,6 +1382,12 @@ public:
 	//! `memory_order_relaxed` — the hint itself doesn't require
 	//! synchronisation, only the outer pointer's lifetime does.
 	std::atomic<std::atomic<bool> *> m_owner_dll_force_walk_ptr{nullptr};
+
+	//! (§fl-avail) Links of the owner's `KameTlsPage::fl_avail[bucket]` lists,
+	//! one pair per local id (FS=true uses [0]); doubly linked so a chunk
+	//! released while listed leaves in O(1).  Owner-only, cold.
+	PoolAllocatorBase *m_fl_prev[KAME_LOCAL_BUCKETS] = {};
+	PoolAllocatorBase *m_fl_next[KAME_LOCAL_BUCKETS] = {};
 
 	//! runtime cap on the number of mmap regions
 	//! `allocate_chunk` may claim.  Initialised to
@@ -1791,28 +1819,9 @@ public:
 		s_tls.dll_cursor = nullptr;
 		s_tls.dll_exhausted = false;
 	}
-	//! (§24) Scan this thread's DLL of chunks for one whose freelist at
-	//! `local_id` is non-empty; if found, re-pin it as `s_tls.my_chunk`,
-	//! pop one slot from its freelist, and return the popped pointer.
-	//! Returns nullptr if no chunk has a freelist entry at this local id.
-	//! Inside the class so it can access the protected `m_dll_next` and
-	//! `m_freelist_head` fields of the same template's chunks.  Used by
-	//! `slow_allocate` (FS=true and FS=false) before falling through to
-	//! the bitmap-claim path — without it, freelist entries on
-	//! non-active chunks become unreachable on multi-chunk working sets.
-	static char *scan_dll_freelist(unsigned local_id) noexcept {
-		for(PoolAllocator<ALIGN, DUMMY, DUMMY> *c = s_tls.dll_head;
-		    c; c = c->m_dll_next) {
-			char *head = c->m_freelist_head[local_id];
-			if(head) {
-				s_tls.my_chunk = c;
-				c->m_freelist_head[local_id] =
-				    *reinterpret_cast<char **>(head);
-				return head;
-			}
-		}
-		return nullptr;
-	}
+	//! (§24, retired by §fl-avail) The DLL walk that found other chunks'
+	//! freelist entries on a miss -- O(chunks) per miss -- is gone: chunks
+	//! with entries are on `KameTlsPage::fl_avail` (allocator.cpp).
 
 	//! public accessor for this thread's `s_dll_head` TLS
 	//! address.  Used by external code (CrossDeallocBatch::push_direct
@@ -2881,6 +2890,11 @@ struct KameTlsPage {
     //! alloc-side / C-shim predicate.
     uint32_t   torn_down;
     AllocSlot  m_slots[ALLOC_NUM_BUCKETS];  // replaces g_thread_slots[]
+    //! (§fl-avail) Per bucket: this thread's chunks, other than the
+    //! shortcut's, whose freelist for the bucket is non-empty.  slow_allocate takes from
+    //! here instead of walking the DLL (§24's scan_dll_freelist, which was
+    //! O(chunks) per miss).  Off the header and the m_slots lines.
+    PoolAllocatorBase *fl_avail[ALLOC_NUM_BUCKETS];
     // Named m_slots, NOT slots — Qt defines `slots` as an empty preprocessor
     // token in <QtCore> (the same reason RadixL2Node uses `entries` instead of
     // `slots`), which would turn `AllocSlot slots[N]` into `AllocSlot [N]` and
@@ -2900,7 +2914,8 @@ static_assert(offsetof(KameTlsPage, m_slots)
     "KameTlsPage header must be exactly its three declared fields — no padding, "
     "and nothing inserted before the hot m_slots array");
 static_assert(sizeof(KameTlsPage)
-                  == offsetof(KameTlsPage, m_slots) + sizeof(AllocSlot) * ALLOC_NUM_BUCKETS,
+                  == offsetof(KameTlsPage, m_slots) + sizeof(AllocSlot) * ALLOC_NUM_BUCKETS
+                     + sizeof(KameTlsPage::fl_avail),
     "KameTlsPage must stay packed — no trailing padding");
 
 // Platform split for the TLS page storage:
