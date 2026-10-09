@@ -2870,7 +2870,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 		auto *nx = s_tls.my_chunk->m_dll_next;
 		for(int released = 0; nx && released < 2; ) {
 			auto *nxnext = nx->m_dll_next;
-			if((nx->m_flags_packed & PoolAllocator<ALIGN, DUMMY, DUMMY>::MASK_CNT) != 0
+			if((atomicLoadRelaxed(&nx->m_flags_packed)
+			    & PoolAllocator<ALIGN, DUMMY, DUMMY>::MASK_CNT) != 0
 			   || nx == s_tls.anchor)
 				break;  // hit a non-empty (or the anchor)
 			// `nx` is `PoolAllocator<ALIGN, DUMMY, DUMMY> *` (same
@@ -3270,7 +3271,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 				// via `kame_pool_set_thread_exit_reclaim(0)`.
 				PoolAllocatorBase::exit_release_chunk(cbase, csz);
 			}
-			else if(c->m_flags_filled_cnt < c->m_count && c->rv_take_q()) {
+			else if(atomicLoadRelaxed(&c->m_flags_filled_cnt) < c->m_count
+			        && c->rv_take_q()) {
 				// A member with room: list it on our head, so whoever adopts
 				// the group moves it into theirs.  (A full one stays unlisted
 				// until a free gives it room and lists it.)

@@ -233,6 +233,12 @@ inline T atomicFetchOr(T *target, T value) noexcept {
     else
         return (T)(long)_InterlockedOr((long volatile *)target, (long)value);
 }
+//! Relaxed atomic load (an aligned 4/8-byte volatile read is one access on
+//! every MSVC target).
+template <typename T>
+inline T atomicLoadRelaxed(const T *target) noexcept {
+    return *(const volatile T *)target;
+}
 #else
 template <typename T>
 inline typename std::enable_if<std::is_integral<T>::value || std::is_pointer<T>::value, bool>::type
@@ -263,6 +269,12 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 template <typename T>
 inline T atomicFetchOr(T *target, T value) noexcept {
     return __sync_fetch_and_or(target, value);
+}
+//! Relaxed atomic load: the same instruction as a plain load, but not a data
+//! race against the atomic RMWs on the same word (C++ / ThreadSanitizer).
+template <typename T>
+inline T atomicLoadRelaxed(const T *target) noexcept {
+    return __atomic_load_n(target, __ATOMIC_RELAXED);
 }
 #endif
 
@@ -2092,11 +2104,11 @@ public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
 	//! the freer's bits are cleared.  One test: the word must hold BIT_OWNED
 	//! and not BIT_Q.
 	bool rv_take_q() noexcept {
-		uint32_t of = this->m_flags_packed;
+		uint32_t of = atomicLoadRelaxed(&this->m_flags_packed);
 		for(;;) {
 			if((of & (BIT_OWNED | BIT_Q)) != BIT_OWNED) return false;
 			if(atomicCompareAndSet(of, of | BIT_Q, &this->m_flags_packed)) return true;
-			of = this->m_flags_packed;
+			of = atomicLoadRelaxed(&this->m_flags_packed);
 		}
 	}
 	//! Holding BIT_Q: push onto the group's head.  An anchor's head is its
@@ -2105,7 +2117,7 @@ public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
 	//! touch it.  (m_anc is never null on a member; dropping Q is only a
 	//! backstop.)
 	void rv_push() noexcept {
-		if(this->m_flags_packed & BIT_A) {
+		if(atomicLoadRelaxed(&this->m_flags_packed) & BIT_A) {
 			uintptr_t h = m_rv_head.load(std::memory_order_relaxed);
 			do m_rv_next = reinterpret_cast<PoolAllocator *>(h);
 			while( !m_rv_head.compare_exchange_weak(h, reinterpret_cast<uintptr_t>(this),
