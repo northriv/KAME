@@ -212,8 +212,8 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def("insert", [](shared_ptr<XNode> &self, shared_ptr<XNode> &child){
             if( !child)
                 throw py::type_error("XNode.insert(): child must not be None.");
-            self->insert(child);
-        })
+            self->insert(child); //commits, unlike insert(tr, child) below.
+        }, py::call_guard<py::gil_scoped_release>())
         .def("insert", [](shared_ptr<XNode> &self, Transaction &tr, shared_ptr<XNode> &child){
             if( !child)
                 throw py::type_error("XNode.insert(): child must not be None.");
