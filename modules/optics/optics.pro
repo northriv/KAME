@@ -95,6 +95,34 @@ unix {
     }
 }
 
+# ---- Webcams (built-in / USB video class cameras) --------------------------
+# One driver type, WebCamera, over whichever platform API is found, so a .kam
+# names the same type on every OS.  macOS: AVFoundation, which is always
+# there.  Elsewhere: Qt Multimedia when the module is installed (it is an
+# optional component in the Qt installer).  CONFIG+=webcam_qtmultimedia takes
+# the Qt route on macOS too, to try the code path Windows and Linux run.
+macx:!webcam_qtmultimedia {
+    OBJECTIVE_SOURCES += webcambackend_avf.mm
+    LIBS += -framework AVFoundation -framework CoreMedia -framework CoreVideo -framework Foundation
+    WEBCAM_BACKEND = AVFoundation
+}
+else:qtHaveModule(multimedia) {
+    QT += multimedia
+    SOURCES += webcambackend_qt.cpp
+    WEBCAM_BACKEND = Qt Multimedia
+}
+!isEmpty(WEBCAM_BACKEND) {
+    HEADERS += \
+        webcambackend.h \
+        webcamera.h
+
+    SOURCES += \
+        webcamera.cpp
+}
+else {
+    message("Missing Qt Multimedia: no webcam driver")
+}
+
 # ---- Euresys eGrabber (CoaXPress / CameraLink frame grabbers) --------------
 # Deliberately OUTSIDE the unix block: eGrabber ships for Windows as well —
 # it is the platform Euresys targets first — and keeping the probe unix-only

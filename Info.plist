@@ -20,5 +20,7 @@
 	<string>com.github.northriv.kame</string>
 	<key>LSAppNapIsDisabled</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>KAME records images from a camera when you turn on a Webcam driver.</string>
 </dict>
 </plist>

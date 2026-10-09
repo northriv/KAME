@@ -60,7 +60,7 @@ Builds before 8.6.1 carry the double-allocation defect described under *What's N
 | **Magnet power supplies** | Oxford PS-120, Oxford IPS-120, Cryogenic SMS10/30/120C |
 | **NMR pulsers** | Thamway N210-1026 PG32U40 (USB), PG027QAM (USB), N210-1026S/T (GPIB/TCP); NI-DAQ analog+digital output, digital output only, M+S Series; handmade H8, handmade SH2 |
 | **NMR / RF measurement** | Thamway PROT NMR (USB/TCP), NMR FID/echo analyser, T1/T2 relaxation, field-swept spectrum, frequency-swept spectrum, NMR built-in network analyser, NMR LC autotuner |
-| **Cameras / imaging** | IEEE 1394 IIDC, Euresys eGrabber (CoaXPress), Euresys Grablink (CameraLink), Hamamatsu via Grablink, JAI via Grablink, OceanOptics/Insight USB/HR2000+/4000 spectrometer |
+| **Cameras / imaging** | USB/built-in webcams (AVFoundation on macOS, Qt Multimedia elsewhere), IEEE 1394 IIDC, Euresys eGrabber (CoaXPress), Euresys Grablink (CameraLink), Hamamatsu via Grablink, JAI via Grablink, OceanOptics/Insight USB/HR2000+/4000 spectrometer |
 | **Laser modules** | Coherent Stingray, Newport/ILX LDX-3200, Newport/ILX LDC-3700(C) |
 | **ODMR** | Frequency-swept spectrum, FM peak tracker, 2-D image analysis, filter wheel (STM-driven) |
 | **Motors / positioners** | OrientalMotor FLEX CRK, CVD2B, CVD5B, FLEX AR/DG2, EMP401; SigmaOptics PAMC-104 piezo-assisted; Micro CAM z/x/φ; Two-axis rotator |
@@ -459,7 +459,8 @@ C11 translations of each layer are verified with [GenMC](https://github.com/MPI-
 A C++11-capable compiler is required (the build uses `CONFIG += c++11` via qmake).
 
 Optional: IPython / Jupyter notebook, linux-gpib or NI 488.2, NI DAQmx,
-libdc1394 (IIDC cameras, macOS/Linux), Euresys eGrabber SDK (frame grabbers).
+libdc1394 (IIDC cameras, macOS/Linux), Euresys eGrabber SDK (frame grabbers),
+Qt Multimedia (webcams on Windows/Linux; macOS uses AVFoundation).
 
 ---
 

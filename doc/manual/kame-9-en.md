@@ -1019,7 +1019,11 @@ Hamamatsu camera via Euresys Grablink CameraLink (PCIe)
 
 JAI camera via Euresys Grablink CameraLink (PCIe)
 
+USB / built-in video camera (webcam): AVFoundation on macOS; Qt Multimedia on Windows and Linux (built only when the Qt Multimedia module is installed)
+
 OceanOptics/Insight USB spectrometer HR2000+/4000 (USB)
+
+The webcam driver records 8-bit luminance. A webcam's output is gamma-encoded and auto-exposed, so treat it as a monitor (sample position, the view into a cryostat) rather than as a quantitative detector. The ROI tool crops in software, and a `FrameRate` below the camera's own rate thins frames out. Only the Continuous and Single-shot trigger modes exist. On macOS, exposure and gain are automatic only (`ExposureTime` 0 selects auto exposure). The first time the interface is turned on, macOS asks for camera permission; if it was refused, allow KAME in System Settings > Privacy & Security > Camera.
 
 Camera scripting nodes: `CameraGain` (analog gain), `EMGain`, `BlackLevelOffset`, `ExposureTime`, `FrameRate`, `VideoMode`, `TriggerMode`, `TriggerSrc`; dark-frame handling `StoreDark`, `SubtractDark`, `AntiShakePixels`; display-only `AutoGainForDisp`, `GainForDisp` (these affect the displayed image, not the raw counts read by 2D math tools). Quantitative pixel data is obtained through 2D math tools, not `to_png()` — see Graph Math Tools / the API reference.
 
