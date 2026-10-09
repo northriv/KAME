@@ -755,10 +755,9 @@ bool  large_recycle_push(char *base, std::size_t size, unsigned kind) noexcept;
 // Per-thread cleanup at thread exit.  chunks are no longer
 // pinned via atomic counters; this destructor instead walks each
 // (ALIGN, FS) template's per-thread DLL (via the registered
-// `release_dll_chunks_for_thread` callbacks) and either releases
-// empty chunks directly or marks non-empty chunks with
-// `BIT_OWNER_EXITED` so cross-thread last-slot-returners can release
-// them later.  Capacity covers the count of distinct PoolAllocator
+// `release_dll_chunks_for_thread` callbacks), releases the empty
+// chunks and hands the thread's group over (§group) to whoever adopts
+// it.  Capacity covers the count of distinct PoolAllocator
 // template instantiations actually in use by this thread.
 namespace {
 struct AllocThreadExitCleanup {
@@ -813,10 +812,9 @@ struct AllocThreadExitCleanup {
             }
         }
         // Walk each registered template's per-thread DLL.  Each
-        // callback wipes its own `s_tls.my_chunk` / `s_tls.dll_head` / `s_tls.dll_tail`
-        // first, then iterates with cached-next, setting BIT_OWNER_EXITED
-        // on non-empty chunks and releasing empties directly via
-        // BIT_RELEASED CAS.  See
+        // callback wipes its own `s_tls` slots first, then iterates with
+        // cached-next, releasing the empty chunks and handing the group
+        // over (§group).  See
         // `PoolAllocator<>::release_dll_chunks_for_thread` for details.
         for(int i = 0; i < count; ++i)
             release_fns[i]();
@@ -1048,14 +1046,9 @@ thread_local CrossDeallocBatch tls_cross_dealloc_batch;
 
 // drain_thread_slot_freelists (defined below) is a retained no-op stub.
 // Owner-thread freelists are chunk-local and drained per-chunk by
-// `release_dll_chunks_for_thread` (per-template DLL walk) before each
-// chunk's BIT_OWNED clear — see that function and the stub's own comment.
-//
-// each touched chunk still has `BIT_OWNER_EXITED == 0`
-// at this point (the per-template DLL walk that sets it runs
-// AFTER `drain_thread_slot_freelists` in `~AllocThreadExitCleanup`), so
-// the cross_release inside batch_return_to_bitmap returns false
-// — the owner thread (us) is still alive, no release allowed.
+// `release_dll_chunks_for_thread` (per-template DLL walk) before any
+// chunk is released — see that function and the stub's own comment.
+// (A return through batch_return_to_bitmap never releases a chunk.)
 void drain_thread_slot_freelists() noexcept {
     // Single-slot scratch + trailing nullptr sentinel — satisfies
     // `batch_return_to_bitmap`'s `entries[k].chunk == this` walk
@@ -2216,10 +2209,10 @@ PoolAllocator<ALIGN, false, DUMMY>::return_slots(
 		// and supplies the full barrier).  (§group) Every live chunk is in a
 		// group (BIT_OWNED set), so this never brings the word to 0 and never
 		// releases: the group's owner or holder does.  The return value is
-		// intentionally ignored.
+		// intentionally ignored.  The MASK_CNT decrement comes LAST: once it
+		// brings MASK_CNT to 0, a freer that does not hold BIT_Q must not touch
+		// the chunk again -- whoever holds Q may release it at once.
 		[this](FUINT oldv, FUINT newv) {
-			if(newv == 0 && oldv != 0)
-				(void)atomicDecAndTest(&this->m_flags_packed);
 			// (§max-n-gate) Symmetric with the widened atomicInc in
 			// allocate_pooled — decrement when a bit-clear restores
 			// MAX_N-contiguous-zero room that the word didn't have
@@ -2229,6 +2222,8 @@ PoolAllocator<ALIGN, false, DUMMY>::return_slots(
 			if(find_training_zeros(MAX_N_HERE, oldv) == 0 &&
 			   find_training_zeros(MAX_N_HERE, newv) != 0)
 				atomicDec( &this->m_flags_filled_cnt);
+			if(newv == 0 && oldv != 0)
+				(void)atomicDecAndTest(&this->m_flags_packed);
 		});
 	if(q) this->rv_push();
 	return n;
@@ -2292,6 +2287,22 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 			++j;
 		}
 		++n_words;
+		// Update the adaptive coalescing hint before the LAST word's clear:
+		// factor_x16 = (entries × 16) / unique_words; 16 = 1.0× = no
+		// benefit, > 16 = adjacent merges happened.  Relaxed: it's just a
+		// hint, races benign.  It must precede the last clear because that
+		// clear may bring MASK_CNT to 0, after which a freer that does not
+		// hold BIT_Q must not touch the chunk -- whoever holds Q may release
+		// it at once (§group).  Stored by FS=false chunks too (they run the
+		// FS=true base's instantiation), where nothing reads it.
+		if constexpr (FS) {
+			if(entries[j].chunk != this) {
+				unsigned factor = (unsigned(j) * 16u) / unsigned(n_words);
+				if(factor > 255u) factor = 255u;
+				this->m_last_coalesce_x16.store(uint8_t(factor),
+				                                std::memory_order_relaxed);
+			}
+		}
 		// CAS-clear `m_flags[idx] &= ~mask` with retry; on_clear gets
 		// the (oldv, newv) for counter updates (per-FS-variant logic).
 		FUINT nones = ~mask;
@@ -2305,21 +2316,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 			}
 		}
 		i = j;
-	}
-	// Update adaptive coalescing hint: factor_x16 = (entries × 16) /
-	// unique_words.  16 = 1.0× = no benefit; > 16 = adjacent merges
-	// happened.  Relaxed: it's just a hint, races benign.  Skip for
-	// FS=false — an earlier change bypasses cross-batch entirely on the
-	// FS=false dealloc path (direct single-entry batch_return_to_bitmap
-	// call), so the hint is never consulted and storing it would be
-	// wasted work.
-	if constexpr (FS) {
-		if(n_words > 0) {
-			unsigned factor = (unsigned(i) * 16u) / unsigned(n_words);
-			if(factor > 255u) factor = 255u;
-			this->m_last_coalesce_x16.store(uint8_t(factor),
-			                                std::memory_order_relaxed);
-		}
 	}
 	return i;
 }
@@ -2431,8 +2427,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// non-exiting consumer thread (KAME main) would otherwise strand the
 	// adopted chunk (freed slot parked freelist-bit-set, never drained →
 	// never released).  Falling through to the hold-and-batch path below
-	// routes the free to batch_return_to_bitmap, which releases the chunk
-	// (warm-recycled) once its last live slot is returned.
+	// routes the free to batch_return_to_bitmap; the chunk's group (§group)
+	// sees it emptied and its owner or holder releases it.
 	//
 	// (§hot-tls teardown) The former `if(s_alloc_tls_off)` post-teardown
 	// bypass that lived here is gone: the `kame_thread_torn_down()` check at the
@@ -2706,8 +2702,8 @@ PoolAllocatorBase::allocate_chunk() {
 // the per-thread DLL is the sole source of truth for "chunks this
 // thread can allocate from"; per-chunk ownership is encoded in the
 // chunk header's `PoolAllocatorBase *` (visible to cross-thread frees
-// via `lookup_chunk`) and the chunk's `m_flags_packed` BIT_RELEASED
-// race point.
+// via `lookup_chunk`) and the chunk's `m_flags_packed` (BIT_OWNED: in a
+// group; release is a CAS of that word to 0, §group).
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 PoolAllocator<ALIGN, DUMMY, DUMMY> *
 PoolAllocator<ALIGN, FS, DUMMY>::create_allocator() {
@@ -2976,7 +2972,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// (releasing the empty ones) and place each back, onto FULL again if its
 	// head stayed empty, or dissolved once nothing is left in it.  This is
 	// what reclaims groups whose anchor alone held slots when its owner
-	// exited (an anchor is never listed, so only a sweep sees it emptied).
+	// exited (the anchor's own last free lists it on its own head, but a
+	// group on FULL is looked at only by a sweep).
 	// O(groups on FULL), and only when ROOM is empty, right before an mmap
 	// (RT_READINESS G4).
 	auto sweep = [&]() noexcept -> void * {
@@ -3074,27 +3071,22 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// chunk has 16K+ slots even at ALIGN=16.
 	return fill_check(chunk->allocate_pooled(SIZE));
 }
-// chunk release is a single CAS on the chunk's
-// `m_flags_packed` (BIT_RELEASED).  Whoever wins the CAS is the
-// exclusive releaser; they then call `delete` + `deallocate_chunk()`.
-// The pin field, the bit-0-lock CAS on the per-template chunk
-// registry, and the registry itself are all gone — `BIT_RELEASED`
-// on the packed word is the single serialisation point across:
+// Chunk release is a CAS of the whole `m_flags_packed` word to 0 from exactly
+// one pattern (§group; see the BIT_* doc in allocator_prv.h), so the releaser
+// is unique and nothing is in flight:
 //
-//   1. `owner_release(palloc)` — an earlier change chunk-full neighbour
-//      release in `allocate_chunk_path`.  No `BIT_OWNER_EXITED`
-//      precondition (owner alive, releasing its own empty chunks);
-//      gated by `LEAVE_VACANT_CHUNKS_PER_THREAD` floor (DLL traversal
-//      to count this thread's chunks) so bursty workloads don't
-//      thrash release-then-mmap.
-//   2. `cross_release(palloc)` — cross-thread last-slot returner in
-//      `batch_return_to_bitmap` when dec-to-zero meets
-//      `BIT_OWNER_EXITED == 1`.  No floor: owner is gone, the chunk
-//      has no future, release immediately.
-//   3. `release_dll_chunks_for_thread()` — `AllocThreadExitCleanup::~dtor`
-//      walks THIS thread's DLL: empty chunks claim `BIT_RELEASED`
-//      directly, non-empty set `BIT_OWNER_EXITED`.  No floor: thread
-//      is exiting, the chunks belong to nobody.
+//   1. `owner_release(palloc)` — the chunk-full neighbour release in
+//      `allocate_chunk_path`, from BIT_OWNED: an empty, unlisted member of
+//      the owner's group.  Gated by the `LEAVE_VACANT_CHUNKS_PER_THREAD`
+//      floor (`s_tls.dll_len`) so bursty workloads don't thrash
+//      release-then-mmap.
+//   2. `release_dll_chunks_for_thread()` — thread exit: the same for every
+//      empty member in the DLL, then BIT_OWNED|BIT_Q for the empty listed
+//      chunks on the own head, then the group is placed or dissolved.
+//   3. a holder of an orphaned group (`group_take_head`), from
+//      BIT_OWNED|BIT_Q, and whoever dissolves a group (`group_place`),
+//      from BIT_OWNED|BIT_A.
+// A cross-thread free never releases (`cross_release` is a stub).
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
@@ -3133,18 +3125,14 @@ PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
 	return true;
 }
 
-// cross_release no longer needed as a separate path.
-// Cross-thread releaser identification is inlined in
-// batch_return_to_bitmap's OnClearFn via atomicDecAndTest — when
-// dec brings m_flags_packed to 0 (= BIT_OWNED was clear AND MASK_CNT
-// was 1), that thread is uniquely the releaser.  The function is
-// kept declared in allocator_prv.h for ABI stability across template
-// instantiations but defined as a stub here.
+// cross_release: a cross-thread free never releases (§group: every live
+// chunk is in a group, BIT_OWNED set, so its MASK_CNT decrement never brings
+// the word to 0).  Kept declared in allocator_prv.h for ABI stability across
+// template instantiations but defined as a stub here.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::cross_release(PoolAllocator * /*palloc*/) {
-	// Legacy entry — not used in an earlier change+.  See OnClearFn release
-	// branch in batch_return_to_bitmap.
+	// Legacy entry — never used.
 	return false;
 }
 
