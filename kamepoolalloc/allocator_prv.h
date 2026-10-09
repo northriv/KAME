@@ -1855,35 +1855,25 @@ protected:
 	//! thread's DLL yet — caller is responsible for appending) or
 	//! throws `std::bad_alloc` on mmap failure.
 	static PoolAllocator<ALIGN, DUMMY, DUMMY> *create_allocator();
-	//! Owner-driven release of a chunk this thread owns (DLL member).
-	//! Atomically claims `BIT_RELEASED` on `m_flags_packed`.  Returns
-	//! true ⇒ caller must unlink from DLL + `delete palloc` +
-	//! `PoolAllocatorBase::deallocate_chunk(cbase, csz)`.
-	//! Returns false if the chunk is not actually empty (count > 0),
-	//! `BIT_RELEASED` was already set, or this thread's DLL has fewer
-	//! than `LEAVE_VACANT_CHUNKS_PER_THREAD` chunks (floor — avoid
-	//! thrashing on bursty workloads).
+	//! Owner-driven release of a chunk this thread owns (DLL member): CASes
+	//! `m_flags_packed` from exactly BIT_OWNED to 0 -- an empty, unlisted
+	//! member, not the anchor.  Returns true ⇒ caller must unlink it from
+	//! the DLL, destruct it and release its region units.  Returns false if
+	//! it is not empty, is listed (BIT_Q), is the anchor (BIT_A), or this
+	//! thread's DLL has no more than `LEAVE_VACANT_CHUNKS_PER_THREAD` chunks
+	//! (floor — avoid thrashing on bursty workloads).  A failed CAS changes
+	//! nothing.  See the release patterns at BIT_A / BIT_Q below.
 	//!
-	//! `BIT_RELEASED` on the packed word is the
-	//! single serialisation point across all release paths (owner-
-	//! driven neighbour release, cross-thread last-slot release,
-	//! thread-exit cleanup) — exactly one CAS wins, the winner owns
-	//! the cleanup.  No global registry, no bit-0-lock CAS.
-	//!
-	//! `cross_release` is the cross-thread variant: additionally
-	//! gates on `BIT_OWNER_EXITED == 1` (only the owning thread's
-	//! exit-path or its own slow-path may release while owner is
-	//! alive).  No DLL traversal — the cross-thread caller has no
-	//! access to the owner's DLL.
+	//! `cross_release` is a stub: a cross-thread free never releases.
 	static bool owner_release(PoolAllocator *palloc);
 	static bool cross_release(PoolAllocator *palloc);
-	//! Per-thread DLL teardown for thread-exit cleanup.  Called from
+	//! Per-thread teardown for thread-exit cleanup (§group).  Called from
 	//! `AllocThreadExitCleanup::~dtor` once per (ALIGN, FS) template the
-	//! thread has touched.  Walks the per-thread DLL with cached-next:
-	//! for each chunk, either claims `BIT_RELEASED` (if empty — release
-	//! it) or sets `BIT_OWNER_EXITED` (if non-empty — signal cross-
-	//! thread frees to release on the eventual dec-to-zero).  Clears
-	//! the per-thread `s_dll_head` / `s_dll_tail` / `s_my_chunk` slots
+	//! thread has touched.  Walks the DLL with cached-next, draining each
+	//! chunk's freelists, releasing the empty unlisted members and listing
+	//! those with room; then settles the rest of its last take and its head
+	//! (anchor unlisted, empty chunks released, the others listed again) and
+	//! places or dissolves the group.  Clears the per-thread `s_tls` slots
 	//! before the walk so a stale read by a TLS dtor running afterwards
 	//! cannot route into a released chunk.
 	static void release_dll_chunks_for_thread() noexcept;
@@ -1915,9 +1905,18 @@ protected:
 	//     (s_tls.rv_list) -- or held by the one thread about to push it there.
 	//     Taken by a freer BEFORE it clears its bits (its own slot keeps the
 	//     chunk alive until then).  It keeps the word off every release
-	//     pattern below, so nobody releases a chunk a freer may still be
-	//     touching.  An anchor is listed on its own group's head like any
-	//     member; a holder of an orphaned group just drops its Q there.
+	//     pattern below, so the freer holding it may keep touching the
+	//     chunk.  A freer that does not hold Q touches the chunk last with
+	//     the MASK_CNT decrement of its last word (batch_clear_impl and the
+	//     OnClearFns order their writes so), since the Q holder may release
+	//     the chunk as soon as MASK_CNT is 0.  An anchor is listed on its own
+	//     group's head like any member; a holder of an orphaned group just
+	//     drops its Q there.  A freer that found Q set does not try for Q
+	//     again after its clears, although the owner may have dropped Q and
+	//     missed its room meanwhile (the one-bit protocol's accepted lost
+	//     room): by then no slot of its own keeps the chunk alive, and a CAS
+	//     on a chunk released and reused is a write into someone else's
+	//     memory -- RevivalStack.tla, NoPin, violates Inv_NoUseAfterRelease.
 	//   * Bit  31     — `BIT_OWNED` (§group): the chunk is in a group.  Every
 	//     live chunk is -- owned or orphaned -- so a cross-thread free only
 	//     decrements MASK_CNT and never releases anything.
@@ -2161,11 +2160,8 @@ public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
 	}
 protected:   // restore the section access in effect before this block
 
-	// the previous `std::atomic<bool> m_owner_exited` lives
-	// here as `BIT_OWNER_EXITED` inside `m_flags_packed` (above).
-	// Packing it together with the count lets the cross-thread
-	// last-slot-returner observe both the dec-to-zero transition AND
-	// the owner-gone state on one word, with no extra atomic load.
+	// (The former `m_owner_exited` / BIT_OWNER_EXITED state is gone: see the
+	// BIT_* doc at `m_flags_packed` above.)
 
 	void clear_owner_tls() noexcept override;
 
