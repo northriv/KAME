@@ -36,7 +36,12 @@ atomic_pointer_queue<int, NUM_THREADS - 1> queue2;
 atomic_queue_reserved<int, NUM_THREADS-  1> queue3;
 typedef atomic_queue_reserved<int, NUM_THREADS-  1>::key atomic_queue_reserved_key;
 
-atomic<int> g_queue1_total = 0, g_queue2_total = 0, g_queue3_total = 0;
+// Unsigned: queue1 may hold every i < SIZE * NUM_THREADS before main pops
+// it, so its running total can pass INT_MAX.  The atomic itself wraps, but
+// libc++'s operator+= returns fetch_add(i) + i in plain int: signed
+// overflow.  Unsigned wraps mod 2^32 and still nets to 0; atomic<int64_t>
+// would not link on i486.
+atomic<unsigned> g_queue1_total = 0, g_queue2_total = 0, g_queue3_total = 0;
 atomic<int> g_cnt = 0;
 
 void
