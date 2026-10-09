@@ -299,18 +299,23 @@ its cost is on a hot path, so it is never implied and never global. KAME itself
 enables DEFER process-wide and deliberately does not enable STRICT: its deadlines
 are instrument I/O at millisecond scale.
 
-**(c) The FULL sweep — O(groups on FULL), but unreachable when prewarmed.**
+**(c) The FULL sweep — O(groups on FULL), off a prewarmed thread's path.**
 (§group; it replaced the chunk-wise orphan chain's `orphan_chain_scrub`, which
-was O(chain) and restarted on every lost CAS.)  When ROOM is empty,
-`allocate_chunk_path` takes the whole FULL chain with one exchange and
-processes every group on it: O(groups), no retry.  It runs only immediately
-before mmap'ing a fresh region — the cold claim path that prewarm removes and
-`KAME_RT_OS_FAIL` refuses outright — and also on a thread's first slow path for
-a template when ROOM is empty (it takes over a group instead of mmap'ing).
-Left unbounded deliberately: it is what reclaims groups whose anchor alone held
-slots when their owner exited, and it pays for itself by avoiding an mmap.
-**This is a contract dependency, not a proof** — it belongs in the G10 write-up
-as an explicit precondition.
+was O(chain) and restarted on every lost CAS.)  When the thread's own group has
+no room and ROOM is empty, `allocate_chunk_path` takes the whole FULL chain
+with one exchange and processes every group on it: O(groups), no retry.  That
+is right before it claims a fresh chunk, and also on a thread's first slow path
+for a template (it takes over a group instead of claiming one).  Note what
+`KAME_RT_OS_FAIL` does and does not cover: its gate
+(`rt_allow_new_mapping`) sits where a NEW mapping is about to be made, after
+the sweep — a claim from a reserved, already-mapped region passes it, and the
+sweep has run either way.  (The scrub sat in the same place.)  What keeps the
+sweep off a realtime thread is the contract: a thread prewarmed beyond its
+working set never runs out of room in its own group, so it never reaches the
+claim path at all.  Left unbounded deliberately: it is what reclaims groups
+whose anchor alone held slots when their owner exited, and it pays for itself
+by avoiding a claim.  **This is a contract dependency, not a proof** — it
+belongs in the G10 write-up as an explicit precondition.
 
 **Methodology notes**, both of which cost a wrong conclusion once:
   * At 120 k samples the RT arm looked *worse* at p99.9; at 4 M it wins by 19×.
