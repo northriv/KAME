@@ -368,11 +368,23 @@ KAMEPyBind::export_xnode_with_trampoline(const char *name_) {
             auto node = XNode::createOrphan<Trampoline>(name, runtime, std::forward<Args>(args)...);
             return node;
         }))
+        //These two insert, i.e. commit, with the GIL held, unlike export_xnode's.
+        //Released, another thread could wrap the node -- already in the tree --
+        //before pybind11 registers this Python instance for it, and
+        //PYBIND11_OVERRIDE would then find that bare wrapper instead of the
+        //Python subclass. exportClass() creates Python drivers as orphans, so
+        //these forms are not on its path.
         .def(pybind11::init([](const shared_ptr<XNode> &parent, const char *name, bool runtime, Args&&... args){
+            // audit-ok: GIL kept for the Python instance registration, see above.
+            if( !parent)
+                throw pybind11::type_error("parent must not be None.");
             auto node = parent->create<Trampoline>(name, runtime, std::forward<Args>(args)...);
             return node;
         }))
         .def(pybind11::init([](const shared_ptr<XNode> &parent, Transaction &tr, const char *name, bool runtime, Args&&... args){
+            // audit-ok: GIL kept for the Python instance registration, see above.
+            if( !parent)
+                throw pybind11::type_error("parent must not be None.");
             auto node = parent->create<Trampoline>(tr, name, runtime, std::forward<Args>(args)...);
             return node;
         }));
@@ -411,9 +423,18 @@ KAMEPyBind::export_xnode(const char *name_) {
         ( *pynode)
             .def(pybind11::init([](const char *name, bool runtime, Args&&... args){
             return XNode::createOrphan<N>(name, runtime, std::forward<Args>(args)...);}))
+            //Inserting into a live parent commits, so the GIL is released -- inside
+            //the factory, not by a call_guard: pybind11 registers the returned
+            //holder within the same call, and that needs the GIL.
             .def(pybind11::init([](const shared_ptr<XNode> &parent, const char *name, bool runtime, Args&&... args){
+            if( !parent)
+                throw pybind11::type_error("parent must not be None.");
+            pybind11::gil_scoped_release rel;
             return parent->create<N>(name, runtime, std::forward<Args>(args)...);}))
             .def(pybind11::init([](const shared_ptr<XNode> &parent, Transaction &tr, const char *name, bool runtime, Args&&... args){
+            if( !parent)
+                throw pybind11::type_error("parent must not be None.");
+            pybind11::gil_scoped_release rel;
             return parent->create<N>(tr, name, runtime, std::forward<Args>(args)...);}));
     }
     pynode->def(pybind11::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<N>(x);}));
@@ -440,9 +461,11 @@ KAMEPyBind::export_xvaluenode(const char *name) {
         (*pynode)
             //immediate conversion without explicit use of Snapshot,
             //from XValueNode to bool, int, float, str, depending of the type of V.
-            .def(pyv, [](shared_ptr<N> &self)->V{return ***self;})
+            //Both take a Snapshot / Transaction of their own: GIL released (see
+            //CLAUDE.md driver rule 4). V goes to Python after the GIL is back.
+            .def(pyv, [](shared_ptr<N> &self)->V{return ***self;}, pybind11::call_guard<pybind11::gil_scoped_release>())
             //immediate substitution without explicit use of Transaction.
-            .def("set", [](shared_ptr<N> &self, V x){trans(*self) = x;});
+            .def("set", [](shared_ptr<N> &self, V x){trans(*self) = x;}, pybind11::call_guard<pybind11::gil_scoped_release>());
         (*pypayload)
             //from XValueNode to bool, int, float, str, depending of the type of V.
             .def(pyv, [](typename N::Payload &self)->V{ return self;})
@@ -452,8 +475,8 @@ KAMEPyBind::export_xvaluenode(const char *name) {
     else {
         auto pynode = export_xnode<N, Base, Args...>(name);
         (*pynode)
-            .def(pyv, [](shared_ptr<N> &self)->V{return ***self;})
-            .def("set", [](shared_ptr<N> &self, V x){trans(*self) = x;});
+            .def(pyv, [](shared_ptr<N> &self)->V{return ***self;}, pybind11::call_guard<pybind11::gil_scoped_release>())
+            .def("set", [](shared_ptr<N> &self, V x){trans(*self) = x;}, pybind11::call_guard<pybind11::gil_scoped_release>());
         return std::move(pynode);  //N::Payload is NOT defined.
     }
 }

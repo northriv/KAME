@@ -463,6 +463,11 @@ must say so in a comment and accept that it cannot build on a no-DCAS host.
    overrides and math-tool functors acquire the GIL from *inside* in-flight
    transactions, so GIL-held negotiation deadlocks the STM (HANG watchdog abort) —
    the GIL is just another "plain mutex" for the rule above (`d5aefdc46`).
+   Exception to the call_guard form: a `py::init` factory returning a holder
+   (`shared_ptr<N>`) must release inside the lambda instead, because pybind11
+   registers the returned holder within the guarded call and that registration
+   needs the GIL (`export_xnode` in `kame/driver/pythondriver.h`). A by-value
+   return (`Snapshot`) is registered after the guard and may use call_guard.
 5. **Poll loops and handles must tolerate concurrent close** — back off (`msecsleep`)
    in the `catch(XInterfaceError&)` path of any `while(!terminated)` poll loop, and
    null-check any device handle before passing it to a C API that asserts instead of

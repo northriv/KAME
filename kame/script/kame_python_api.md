@@ -163,6 +163,9 @@ payload = shot[node]              # Node's payload object
 float(shot[double_node])          # XDoubleNode -> float
 int(shot[int_node])               # XIntNode/XUIntNode -> int
 bool(shot[bool_node])             # XBoolNode -> bool
+str(shot[value_node])             # Any value payload -> str, as the UI shows it;
+shot[value_node].to_str()         #   the same.  The only reading a combo or
+                                  #   item (pointer) payload has: its label
 str(node)                         # Any XValueNodeBase -> str (takes own snapshot)
 
 # List children — node must be in the snapshot's subtree
@@ -187,15 +190,29 @@ value type — and using the right one needs no Snapshot at all:
 # Simple assignment (auto-transactional, by child name)
 node["ChildName"] = 3.14         # float, int, bool, or str
 
-# Set a value node directly.  set() is TYPED per node class — there is no
-# XValueNodeBase.set(str) that accepts anything.  Passing a string to a bool
-# or double node raises TypeError:
+# Set a value node directly.  set() is TYPED per node class — no set(str)
+# works on every node.  Passing a string to a bool or double node raises
+# TypeError:
 double_node.set(300.0)            # XDoubleNode.set(float)
 bool_node.set(True)               # XBoolNode.set(bool)   NOT set("true")
 int_node.set(3)                   # XIntNode/XUIntNode/XLongNode/XULongNode/XHexNode
 string_node.set("text")           # XStringNode.set(str)
 combo_node.set("Item label")      # XComboNode — set(str) and set(int) both exist
-combo_node.set(2)                 #   (index), and .itemStrings() lists the choices
+combo_node.set(2)                 #   (index into combo_node.itemStrings())
+item_node.set("DMM1")             # XItemNodeBase.set(str), for an item node
+                                  #   pointing into a list (a secondary driver's
+                                  #   source driver, an entry, ...): the label of
+                                  #   the node to point to
+
+# The choices, for both kinds: list[str] of the labels set(str) accepts.  A
+# current label that is not among them (a .kam naming a device absent here)
+# comes last, in parentheses, as the combo box shows it — not a choice.
+combo_node.itemStrings()          # takes its own Snapshot
+combo_node.itemStrings(shot)      # from `shot`, consistent with other reads of
+                                  #   it.  `shot` must contain the item list (the
+                                  #   combo itself; the pointed-into list for an
+                                  #   item node), else KAMENodeNotFoundError
+str(combo_node)                   # current label ('' when unselected)
 
 # node["Child"] = value converts for you, so it is the forgiving form:
 node["Control"] = True

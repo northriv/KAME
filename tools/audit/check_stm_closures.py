@@ -13,10 +13,13 @@ Flagged tokens inside any iterate_commit/_if/_while lambda:
 
 Check 2 -- pybind11 .def()/py::init() lambdas that enter STM
 negotiation (Snapshot/Transaction construction on a node, commit,
-iterate_commit, trans(), ***node reads) must release the GIL
-(CLAUDE.md rule #4; fixed exemplar: d5aefdc46). Applied only under
-modules/python/ and kame/script/. A binding is compliant if the .def
-call or lambda body mentions gil_scoped_release.
+iterate_commit, trans(), ***node reads, and the calls that commit or
+snapshot inside: insert(child), create<>(), getChild()) must release the
+GIL (CLAUDE.md rule #4; fixed exemplar: d5aefdc46). Applied to every file
+that names pybind11 -- the binding helpers in kame/driver/pythondriver.h
+were outside the old directory list, so float(node)/node.set() entered
+STM holding the GIL unnoticed. A binding is compliant if the .def call
+or lambda body mentions gil_scoped_release.
 
 Suppress a reviewed-and-legitimate hit with `// audit-ok: <reason>`
 on the offending line (check 1) or anywhere in the binding (check 2).
@@ -126,13 +129,18 @@ def check_indirect_io(path, text, io_names):
 STM_ENTRY_RE = re.compile(
     r'\bSnapshot\s+\w+\s*\(\s*\*|\bSnapshot\s*\(\s*\*'
     r'|\bTransaction\s+\w+\s*\(\s*\*|\bTransaction\s*\(\s*\*'
-    r'|\.commit(?:OrNext)?\s*\(|\biterate_commit|\btrans\s*\(\s*\*|\*\*\*')
+    r'|\.commit(?:OrNext)?\s*\(|\biterate_commit|\btrans\s*\(\s*\*|\*\*\*'
+    # insert(child) commits; insert(tr, child) does not unless it goes online
+    # (a trailing `true`), which is what create<>(tr, ...) does.
+    r'|->insert\s*\(\s*[\w*]+\s*\)|->insert\s*\([^;]*?,\s*true\s*\)'
+    r'|->create\s*<|->getChild\s*\(')
 # NOT py::init: an init inside .def(py::init(...), py::call_guard<...>())
 # would be scanned without its sibling call_guard argument and misreported;
 # the .def( span already covers the whole argument list.
 DEF_RE = re.compile(r'\.def(?:_static|_property\w*)?\s*\(')
 GIL_OK = 'gil_scoped_release'
 PYBIND_DIRS = ('modules/python', 'kame/script')
+PYBIND_MARK_RE = re.compile(r'\bpybind11::|\bpy::')
 
 
 def balanced_span(text, open_pos):
@@ -194,7 +202,8 @@ def check_closures(path, text):
 
 
 def check_pybind_gil(path, text):
-    if not any(d in str(path).replace('\\', '/') for d in PYBIND_DIRS):
+    if not (any(d in str(path).replace('\\', '/') for d in PYBIND_DIRS)
+            or PYBIND_MARK_RE.search(text)):
         return []
     findings = []
     for m in DEF_RE.finditer(text):
@@ -210,7 +219,10 @@ def check_pybind_gil(path, text):
                 f'{path}:{ln}: pybind binding enters STM negotiation '
                 f'("{sm.group(0).strip()}") without gil_scoped_release '
                 f'(GIL-vs-STM deadlock; add py::call_guard'
-                f'<py::gil_scoped_release>() or mark // audit-ok: <reason>)',
+                f'<py::gil_scoped_release>() -- in a py::init returning a '
+                f'holder, a py::gil_scoped_release inside the factory instead, '
+                f'as pybind11 registers the holder within the guarded call -- '
+                f'or mark // audit-ok: <reason>)',
                 (str(path), 'gil')))
     return findings
 

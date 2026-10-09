@@ -212,8 +212,8 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def("insert", [](shared_ptr<XNode> &self, shared_ptr<XNode> &child){
             if( !child)
                 throw py::type_error("XNode.insert(): child must not be None.");
-            self->insert(child);
-        })
+            self->insert(child); //commits, unlike insert(tr, child) below.
+        }, py::call_guard<py::gil_scoped_release>())
         .def("insert", [](shared_ptr<XNode> &self, Transaction &tr, shared_ptr<XNode> &child){
             if( !child)
                 throw py::type_error("XNode.insert(): child must not be None.");
@@ -374,7 +374,13 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
             Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
             try { trans(*self).str(s); } catch(...) {}
             Transactional::setCurrentPriorityMode(Transactional::Priority::UI_DEFERRABLE);
-        }, py::call_guard<py::gil_scoped_release>());}
+        }, py::call_guard<py::gil_scoped_release>());
+        //The value as text, for every value payload -- the only reading a combo
+        //or item payload has. An item's text is getLabel() of the node it points
+        //to, which may take a Snapshot: hence the GIL release.
+        (*payload)
+        .def("to_str", [](XValueNodeBase::Payload &self)->std::string{return self.to_str();}, py::call_guard<py::gil_scoped_release>())
+        .def("__str__", [](XValueNodeBase::Payload &self)->std::string{return self.to_str();}, py::call_guard<py::gil_scoped_release>());}
     {   auto [node, payload] = XPython::bind.export_xvaluenode<XIntNode, int, XValueNodeBase>("XIntNode");
         (*payload)
         .def("__int__", [](XIntNode::Payload &self)->int{return self;});}
@@ -399,8 +405,27 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def("__float__", [](XDoubleNode::Payload &self)->double{return self;});}
     XPython::bind.export_xvaluenode<XStringNode, std::string, XValueNodeBase>("XStringNode");
     {   auto [node, payload] = XPython::bind.export_xnode<XItemNodeBase, XValueNodeBase>();
+        //Labels: what set() matches against, and what the combo box lists.
+        auto labels = [](const std::vector<XItemNodeBase::Item> &items) {
+            std::vector<std::string> v;
+            for(auto &&x: items)
+                v.push_back(x.label);
+            return v;
+        };
         (*node)
-        .def("itemStrings", &XItemNodeBase::itemStrings)
+        //Both snapshot (the list, and getLabel() of every item), so the GIL is released.
+        .def("itemStrings", [labels](shared_ptr<XItemNodeBase> &self) {
+            auto list = self->listOfItems();
+            return labels(self->itemStrings(Snapshot(list ? *list : *self)));
+        }, py::call_guard<py::gil_scoped_release>())
+        .def("itemStrings", [labels](shared_ptr<XItemNodeBase> &self, const Snapshot &shot) {
+            //itemStrings() looks the list up through noexcept accessors, where a
+            //list outside \a shot is std::terminate. at() raises instead
+            //(KAMENodeNotFoundError, as shot[node] does for a node outside it).
+            if(auto list = self->listOfItems())
+                shot.at( *list);
+            return labels(self->itemStrings(shot));
+        }, py::call_guard<py::gil_scoped_release>())
         .def("autoSetAny", &XItemNodeBase::autoSetAny);}
     {   auto [node, payload] = XPython::bind.export_xnode<XComboNode, XItemNodeBase, bool>("XComboNode");
         (*node)
