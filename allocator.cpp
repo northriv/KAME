@@ -295,6 +295,214 @@ static inline uint32_t kame_owner_id() noexcept {
     return id;
 }
 
+// (§fl-avail) Owner-side freelist availability.  An FS=true chunk's freelist
+// fills from its owner's frees; the bucket shortcut reaches only one chunk's.
+// §24 found the others by walking the whole DLL on every miss -- O(chunks)
+// per miss, quadratic for allocate-only workloads, and unbounded for a
+// realtime thread.  Instead a chunk whose freelist an owner free takes from
+// empty to non-empty, and that is neither the shortcut's nor already listed
+// (m_fl_state == 0), goes on this thread's KameTlsPage::fl_avail[bucket];
+// the chunk the shortcut leaves goes there too if its freelist is non-empty.
+// slow_allocate takes from the list.  Entries the shortcut has drained since
+// they were linked are dropped as they come up, so the work is O(1)
+// amortised over the links.  Everything here is owner-only.
+static inline void fl_unlink(KameTlsPage *pg, PoolAllocatorBase *c) noexcept {
+	PoolAllocatorBase *pr = c->m_fl_prev[0], *nx = c->m_fl_next[0];
+	if(pr) pr->m_fl_next[0] = nx;
+	else   pg->fl_avail[c->m_base_bucket] = nx;
+	if(nx) nx->m_fl_prev[0] = pr;
+	c->m_fl_prev[0] = c->m_fl_next[0] = nullptr;
+	c->m_fl_state &= static_cast<uint8_t>(~PoolAllocatorBase::FL_LINKED);
+}
+//! Out of line: the lean free path tail-calls it, staying call-free itself.
+static KAME_NOINLINE void fl_link(KameTlsPage *pg, PoolAllocatorBase *c) noexcept {
+	PoolAllocatorBase *&head = pg->fl_avail[c->m_base_bucket];
+	c->m_fl_prev[0] = nullptr;
+	c->m_fl_next[0] = head;
+	if(head) head->m_fl_prev[0] = c;
+	head = c;
+	c->m_fl_state |= PoolAllocatorBase::FL_LINKED;
+}
+//! Point an FS=true bucket's shortcut at `nc` (nullptr: none).  The chunk it
+//! leaves stays reachable by being linked if its freelist is non-empty.
+static inline void fl_retarget(KameTlsPage *pg, unsigned bucket,
+                               PoolAllocatorBase *nc) noexcept {
+	char **fp = reinterpret_cast<char **>(pg->m_slots[bucket].freelist_head);
+	PoolAllocatorBase *oc = fp ? chunk_from_freelist_ptr(fp) : nullptr;
+	if(oc != nc) {
+		if(oc) {
+			oc->m_fl_state &= static_cast<uint8_t>(~PoolAllocatorBase::FL_TARGET);
+			if(oc->m_freelist_head[0] && !(oc->m_fl_state & PoolAllocatorBase::FL_LINKED))
+				fl_link(pg, oc);
+		}
+		if(nc) nc->m_fl_state |= PoolAllocatorBase::FL_TARGET;
+	}
+	pg->m_slots[bucket].freelist_head =
+	    nc ? reinterpret_cast<char *>(&nc->m_freelist_head[0]) : nullptr;
+}
+//! slow_allocate's replacement for the DLL walk: a listed chunk whose
+//! freelist is non-empty, made the shortcut's; nullptr if none.
+static PoolAllocatorBase *fl_take(KameTlsPage *pg, unsigned bucket) noexcept {
+	while(PoolAllocatorBase *c = pg->fl_avail[bucket]) {
+		fl_unlink(pg, c);
+		if(c->m_fl_state & PoolAllocatorBase::FL_TARGET)
+			continue;                 // the shortcut's own chunk: it just missed
+		if(c->m_freelist_head[0]) {
+			fl_retarget(pg, bucket, c);
+			return c;
+		}
+	}
+	return nullptr;
+}
+
+// (§fl-avail) The same for FS=false.  A variable-size chunk serves several
+// buckets, a freelist per local id, so it carries a link pair and a LINKED
+// bit per local id, and "the shortcut's chunk" is read off the shortcut.
+// The free path knows the bucket in the borrow tier (the slot prefix); in the
+// full-usable tier only the local id, so (log2 ALIGN, local id) -> bucket is
+// tabulated here.
+constexpr bool bucket_is_var(unsigned b) noexcept {
+	return b == 6 || b == 8 || b == 10 || b == 12 || b == 14 || b == 16
+	    || (b >= 24 && b < (unsigned)ALLOC_NUM_BUCKETS);
+}
+struct TierLocalBucket {
+	uint8_t v[8][KAME_LOCAL_BUCKETS];     // [log2(ALIGN) - 5][local] -> bucket, 0xFF none
+	constexpr TierLocalBucket() : v{} {
+		for(unsigned t = 0; t < 8; ++t)
+			for(unsigned l = 0; l < (unsigned)KAME_LOCAL_BUCKETS; ++l) v[t][l] = 0xFFu;
+		for(unsigned b = 0; b < (unsigned)ALLOC_NUM_BUCKETS; ++b)
+			if(bucket_is_var(b))
+				v[__builtin_ctz(kBucketAlign[b]) - 5][kBucketLocalId[b]] = static_cast<uint8_t>(b);
+	}
+};
+inline constexpr TierLocalBucket kTierLocalBucket{};
+static_assert(kTierLocalBucket.v[0][0] == 6 && kTierLocalBucket.v[3][0] == 16
+              && kTierLocalBucket.v[3][8] == 39 && kTierLocalBucket.v[7][3] == 51,
+              "kTierLocalBucket must match kBucketAlign / kBucketLocalId");
+
+//! m_fl_mask, mirrored for a full-usable-tier chunk (ALIGN >= 1024, at most
+//! 8 local ids) into the two line-1 bytes an FS=false chunk does not use
+//! otherwise -- m_base_bucket = LINKED bits, m_fl_state = TARGET bits -- so
+//! that tier's free path tests them with one load next to m_align_shift.
+//! (A load of m_fl_mask on line 2 cost the 16 KiB hot loop ~11 %.)
+static inline void flv_mask_store(PoolAllocatorBase *c, uint32_t m) noexcept {
+	c->m_fl_mask = m;
+	if(c->m_align_shift >= 10) {
+		c->m_base_bucket = static_cast<uint8_t>(m & 0xFFu);
+		c->m_fl_state = static_cast<uint8_t>((m >> 16) & 0xFFu);
+	}
+}
+static inline void flv_unlink(KameTlsPage *pg, PoolAllocatorBase *c, unsigned local,
+                              unsigned bucket) noexcept {
+	PoolAllocatorBase *pr = c->m_fl_prev[local], *nx = c->m_fl_next[local];
+	if(pr) pr->m_fl_next[local] = nx;
+	else   pg->fl_avail[bucket] = nx;
+	if(nx) nx->m_fl_prev[local] = pr;
+	c->m_fl_prev[local] = c->m_fl_next[local] = nullptr;
+	flv_mask_store(c, c->m_fl_mask & ~PoolAllocatorBase::FL_LINKED_BIT(local));
+}
+static KAME_NOINLINE void flv_link(KameTlsPage *pg, PoolAllocatorBase *c, unsigned local,
+                                   unsigned bucket) noexcept {
+	PoolAllocatorBase *&head = pg->fl_avail[bucket];
+	c->m_fl_prev[local] = nullptr;
+	c->m_fl_next[local] = head;
+	if(head) head->m_fl_prev[local] = c;
+	head = c;
+	flv_mask_store(c, c->m_fl_mask | PoolAllocatorBase::FL_LINKED_BIT(local));
+}
+//! Point an FS=false bucket's shortcut at `nc`'s freelist `local` (nullptr:
+//! none); the chunk it leaves is linked if that freelist is non-empty.
+static inline void flv_retarget(KameTlsPage *pg, unsigned bucket, unsigned local,
+                                PoolAllocatorBase *nc) noexcept {
+	char **fp = reinterpret_cast<char **>(pg->m_slots[bucket].freelist_head);
+	if(fp) {
+		PoolAllocatorBase *oc = chunk_from_freelist_ptr(fp);
+		if(oc != nc) {
+			flv_mask_store(oc, oc->m_fl_mask & ~PoolAllocatorBase::FL_TARGET_BIT(local));
+			if(*fp && !(oc->m_fl_mask & PoolAllocatorBase::FL_LINKED_BIT(local)))
+				flv_link(pg, oc, local, bucket);
+		}
+	}
+	if(nc) flv_mask_store(nc, nc->m_fl_mask | PoolAllocatorBase::FL_TARGET_BIT(local));
+	pg->m_slots[bucket].freelist_head =
+	    nc ? reinterpret_cast<char *>(&nc->m_freelist_head[local]) : nullptr;
+}
+static PoolAllocatorBase *flv_take(KameTlsPage *pg, unsigned bucket, unsigned local) noexcept {
+	while(PoolAllocatorBase *c = pg->fl_avail[bucket]) {
+		flv_unlink(pg, c, local, bucket);
+		if(pg->m_slots[bucket].freelist_head
+		   == reinterpret_cast<char *>(&c->m_freelist_head[local]))
+			continue;                 // the shortcut's own: it just missed
+		if(c->m_freelist_head[local]) {
+			flv_retarget(pg, bucket, local, c);
+			return c;
+		}
+	}
+	return nullptr;
+}
+//! After an owner free pushed onto `c`'s freelist `local`.  Borrow tier with
+//! `follow` (§freelist-follow): the shortcut moves to `c`, the chunk it
+//! leaves stays reachable.  Otherwise: a freelist made non-empty, on a chunk
+//! that is neither the shortcut's nor listed, is listed.  `bucket` 0: full-
+//! usable tier, looked up.
+static inline void flv_after_push(KameTlsPage *pg, PoolAllocatorBase *c, unsigned local,
+                                  unsigned bucket, bool was_empty, bool follow) noexcept {
+	char *cell = reinterpret_cast<char *>(&c->m_freelist_head[local]);
+	if(bucket == 0) {
+		bucket = kTierLocalBucket.v[(c->m_align_shift - 5u) & 7u][local];
+		if(bucket >= (unsigned)ALLOC_NUM_BUCKETS) return;
+		follow = false;
+	} else if(bucket >= (unsigned)ALLOC_NUM_BUCKETS)
+		return;
+	if(follow) {
+		if(pg->m_slots[bucket].freelist_head != cell)
+			flv_retarget(pg, bucket, local, c);
+		return;
+	}
+	if(was_empty && pg->m_slots[bucket].freelist_head != cell
+	   && !(c->m_fl_mask & PoolAllocatorBase::FL_LINKED_BIT(local)))
+		flv_link(pg, c, local, bucket);
+}
+//! Borrow tier, §freelist-follow moving the shortcut off a chunk whose
+//! freelist is still non-empty: keep that one listed.
+static KAME_NOINLINE void flv_follow_slow(KameTlsPage *pg, PoolAllocatorBase *c,
+                                          unsigned local, unsigned bucket) noexcept {
+	flv_retarget(pg, bucket, local, c);
+}
+//! Full-usable tier: a freelist made non-empty on a chunk that is neither its
+//! bucket's target nor listed (the free path checked the line-1 mirror).
+static KAME_NOINLINE void flv_full_slow(PoolAllocatorBase *c, unsigned local) noexcept {
+	unsigned bucket = kTierLocalBucket.v[(c->m_align_shift - 5u) & 7u][local];
+	if(bucket < (unsigned)ALLOC_NUM_BUCKETS)
+		flv_link(kame_page(), c, local, bucket);
+}
+//! The FS=false owner free's tail, shaped to stay a leaf in the common cases:
+//! borrow tier -- the shortcut already here, or the chunk it leaves empty
+//! (re-aim with one store, as before); full tier -- the freelist was already
+//! non-empty, or the chunk is its bucket's target or listed.  Everything
+//! else is a tail call.
+static inline void flv_free_tail(KameTlsPage *pg, PoolAllocatorBase *c, unsigned local,
+                                 unsigned bucket, char *old) noexcept {
+	if(bucket != 0) {
+		if(bucket >= (unsigned)ALLOC_NUM_BUCKETS) return;
+		char *cell = reinterpret_cast<char *>(&c->m_freelist_head[local]);
+		char *sc = pg->m_slots[bucket].freelist_head;
+		if(sc == cell) return;
+		if(sc && *reinterpret_cast<char **>(sc))
+			return flv_follow_slow(pg, c, local, bucket);
+		pg->m_slots[bucket].freelist_head = cell;
+		return;
+	}
+	// One OR'd test, as on the FS=true path (separately, the branch on `old`
+	// and the mask test each cost the 16 KiB hot loop 4-6 %), on the line-1
+	// mirror of the LINKED / TARGET bits (flv_mask_store).
+	unsigned hot = static_cast<unsigned>(c->m_base_bucket)
+	             | (static_cast<unsigned>(c->m_fl_state) << 8);
+	if(__builtin_expect((reinterpret_cast<uintptr_t>(old)
+	                     | ((hot >> local) & 0x101u)) == 0, 0))
+		return flv_full_slow(c, local);
+}
+
 // (§S7) The §36 orphan Treiber-stack packing (biased chunk ptr + 18-bit ABA
 // tag in s_orphan_head, ORPHAN_PTR_BIAS / ORPHAN_TAG_MASK) is retired with the
 // stack itself — the atomic_shared_ptr orphan chain needs no ABA tag (the
@@ -599,8 +807,10 @@ struct AllocThreadExitCleanup {
 #else
             KameTlsPage *pg = &g_tls_page;
 #endif
-            for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b)
+            for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b) {
                 pg->m_slots[b].freelist_head = nullptr;
+                pg->fl_avail[b] = nullptr;   // (§fl-avail) chunks reset below
+            }
         }
         // Walk each registered template's per-thread DLL.  Each
         // callback wipes its own `s_tls.my_chunk` / `s_tls.dll_head` / `s_tls.dll_tail`
@@ -1314,7 +1524,8 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	//                  FS=false (its bucket comes from the slot prefix).
 	this->m_fs_flag = (FS && DUMMY);
 	this->m_base_bucket = (FS && DUMMY)
-	    ? static_cast<uint16_t>(bucket_for_size(ALIGN)) : 0;
+	    ? static_cast<uint8_t>(bucket_for_size(ALIGN)) : 0;
+	this->m_fl_state = 0;
 	// (§16) "full-usable" m_sizes mode: enabled for FS=false chunks with
 	// ALIGN >= 1024.  The FS=false partial spec constructs through the
 	// `<ALIGN,true,false>` base ctor, so `FS && !DUMMY` uniquely selects an
@@ -1322,17 +1533,21 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	// m_sizes points just past m_flags[count]; m_align_shift = log2(ALIGN).
 	// Borrow-mode chunks (FS=true, or FS=false ALIGN<1024) leave m_sizes
 	// null so the dealloc fast path keeps reading the p-8 prefix.
-	if constexpr (FS && !DUMMY && ALIGN >= 1024u) {
+	// m_align_shift = log2(ALIGN) on every FS=false chunk: full-usable mode
+	// indexes m_sizes with it, and (§fl-avail) all of them look their
+	// bucket up with it.  m_sizes is read only when non-null.
+	if constexpr (FS && !DUMMY && ALIGN >= 1024u)
 		this->m_sizes = reinterpret_cast<uint16_t *>(
 		    reinterpret_cast<char *>(m_flags)
 		    + static_cast<size_t>(count) * sizeof(FUINT));
-		this->m_align_shift =
-		    static_cast<uint8_t>(__builtin_ctz(ALIGN));
-	}
-	else {
+	else
 		this->m_sizes = nullptr;
-		this->m_align_shift = 0;
+	if constexpr (FS && !DUMMY) {
+		static_assert(ALIGN >= 32u && ALIGN <= 4096u, "kTierLocalBucket covers ALIGN 32..4096");
+		this->m_align_shift = static_cast<uint8_t>(__builtin_ctz(ALIGN));
 	}
+	else
+		this->m_align_shift = 0;
 	// (§29) Pre-fill runtime opt-out — set `KAME_POOL_DISABLE_PREFILL=1` to
 	// fall back to the pre-§29 zero-init code path without rebuilding.
 	// Diagnostic switch only — if you're hitting a fresh-chunk corruption
@@ -1912,6 +2127,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 		// (§16) local-id source: full-usable mode reads m_sizes[bit],
 		// borrow mode reads the p-8 prefix.
 		unsigned local;
+		unsigned bucket = 0;
 		if constexpr (ALIGN >= 1024u) {
 			size_t bit_index = static_cast<size_t>(p - this->mempool()) >> this->m_align_shift;
 			local = this->m_sizes[bit_index] & 0xFFu;
@@ -1923,11 +2139,14 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 			// freelist-follow).  Without the mask `local` would include
 			// the bucket bits and fail the KAME_LOCAL_BUCKETS bound check.
 			local = static_cast<unsigned>(hdr) & 0xFFu;
+			bucket = (static_cast<unsigned>(hdr) >> 16) & 0xFFu;
 		}
 		// Defensive bound check (local-id must be valid; misroute on
 		// stale data is detected and falls through to bitmap path).
 		if(local < (unsigned)KAME_LOCAL_BUCKETS) {
+			char *old = this->m_freelist_head[local];
 			this->freelist_push(local, p);
+			flv_after_push(kame_page(), this, local, bucket, old == nullptr, false);  // (§fl-avail)
 			return false;
 		}
 	}
@@ -2259,7 +2478,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::clear_owner_tls() noexcept {
 
 // (§orphan-adopt) Claim an orphaned chunk (m_owner_id==0, BIT_OWNED==0)
 // into this thread's DLL so the freed slot becomes reachable via
-// scan_dll_freelist / Phase-2 allocate_pooled rather than silently
+// the fl_avail list (§fl-avail) / Phase-2 allocate_pooled rather than silently
 // accumulating in the bitmap of a chunk no thread can walk.
 //
 // Called from deallocate_pooled when s_tls.my_chunk != this AND
@@ -2313,7 +2532,12 @@ PoolAllocator<ALIGN, FS, DUMMY>::try_adopt_orphan(char *p, unsigned local) noexc
 	tls_alloc_thread_exit_cleanup.add(
 	    &PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread);
 	// Push freed slot to freelist — no atomics, we own the chunk.
+	char *old = this->m_freelist_head[local];
 	this->freelist_push(local, p);
+	if(this->m_fs_flag) {                 // (§fl-avail)
+		if( !old && this->m_fl_state == 0) fl_link(kame_page(), this);
+	} else
+		flv_after_push(kame_page(), this, local, 0, old == nullptr, false);
 	return true;
 }
 
@@ -2356,7 +2580,10 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 		// freelist is local-id 0 (§12.3); the owner's next alloc on this
 		// bucket pops it back immediately via the TLS shortcut at
 		// `g_thread_freelist_ptr[bucket]` -> `m_freelist_head[0]`.
+		char *old = this->m_freelist_head[0];
 		this->freelist_push(0, p);
+		if( !old && this->m_fl_state == 0)
+			fl_link(kame_page(), this);   // (§fl-avail)
 		return false;
 	}
 	// (§35) Orphan adoption DISABLED here — see the FS=false sibling in the
@@ -2446,7 +2673,7 @@ __attribute__((cold, noinline))
 void *
 PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
                                                std::size_t /*size*/) noexcept {
-	// (§24) Before falling through to bitmap-claim, scan this thread's DLL
+	// (§24) Before falling through to bitmap-claim, look among this thread's chunks
 	// for any OTHER chunk holding freelist entries at the same local id.
 	// `g_thread_freelist_ptr[bucket]` tracks only the most-recently-pinned
 	// chunk's freelist[local]; when a workload's working set spans multiple
@@ -2458,23 +2685,23 @@ PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
 	// bits at word ends) and re-mmaps a fresh chunk every cycle — caught
 	// in the multi-allocator bench as a 100× regression at bucket 45
 	// (ALIGN=1024 N=13) and similarly for other non-power-of-2 N tiers.
-	if(char *head = scan_dll_freelist(/*local_id=*/0u)) {
-		kame_page()->m_slots[bucket].freelist_head =
-		    reinterpret_cast<char *>(&s_tls.my_chunk->m_freelist_head[0]);
+	// (§fl-avail) ...found on this thread's list for the bucket rather than
+	// by walking the DLL.
+	KameTlsPage *pg = kame_page();
+	if(PoolAllocatorBase *c = fl_take(pg, bucket)) {
+		s_tls.my_chunk = static_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(c);
+		char *head = c->m_freelist_head[0];
+		c->m_freelist_head[0] = *reinterpret_cast<char **>(head);
 		return head;
 	}
 	void *p = allocate_chunk_path(ALIGN);
 	PoolAllocatorBase *new_chunk =
 	    static_cast<PoolAllocatorBase *>(s_tls.my_chunk);
-	// (§12.3 / §hot-tls) Update the KameTlsPage slot to store the pointer
-	// to the new chunk's m_freelist_head[local-id-for-this-bucket].
-	// `kBucketLocalId[]` is read HERE (cold path), so the hot path
-	// (new_redirected) needs no remap.  chunk_from_freelist_ptr recovers
-	// the chunk pointer from this stored value via a single mask.
-	kame_page()->m_slots[bucket].freelist_head =
-	    new_chunk ? reinterpret_cast<char *>(
-	                    &new_chunk->m_freelist_head[kBucketLocalId[bucket]])
-	              : nullptr;
+	// (§12.3 / §hot-tls) Point the KameTlsPage slot at the new chunk's
+	// m_freelist_head[0] (an FS=true chunk serves one bucket, local id 0),
+	// so the hot path (new_redirected) needs no remap; chunk_from_freelist_ptr
+	// recovers the chunk from the stored value via a single mask.
+	fl_retarget(pg, bucket, new_chunk);
 	return p;
 }
 
@@ -2520,19 +2747,22 @@ PoolAllocator<ALIGN, false, DUMMY>::slow_allocate(unsigned bucket,
 		if constexpr (ALIGN < 1024u)
 			slot_size -= 8u;
 	}
-	// (§24) Scan this thread's DLL for an OTHER chunk holding freelist
+	// (§24) Look among this thread's chunks for an OTHER one holding freelist
 	// entries at the SAME local id (FS=false: per-bucket local id).
 	// `g_thread_freelist_ptr[bucket]` tracks only the most-recently-pinned
 	// chunk; without this scan the non-active chunks' cached slots stay
 	// unreachable from the fast path on multi-chunk working sets, and
 	// every miss re-mmaps a fresh chunk (100× regression in the fifo:N
 	// bench at bucket 45 / ALIGN=1024 N=13, etc.).  See FS=true sibling.
+	// (§fl-avail) ...found on this thread's list for the bucket rather than
+	// by walking the DLL.
 	using BaseTpl = PoolAllocator<ALIGN, true, false>;
 	const unsigned local_id = kBucketLocalId[bucket];
-	if(char *head = BaseTpl::scan_dll_freelist(local_id)) {
-		kame_page()->m_slots[bucket].freelist_head =
-		    reinterpret_cast<char *>(
-		        &BaseTpl::s_tls.my_chunk->m_freelist_head[local_id]);
+	KameTlsPage *pg = kame_page();
+	if(PoolAllocatorBase *c = flv_take(pg, bucket, local_id)) {
+		BaseTpl::s_tls.my_chunk = static_cast<PoolAllocator<ALIGN, false, false> *>(c);
+		char *head = c->m_freelist_head[local_id];
+		c->m_freelist_head[local_id] = *reinterpret_cast<char **>(head);
 		return head;
 	}
 	// Inherited static; resolves to PoolAllocator<ALIGN, true, false>::
@@ -2542,10 +2772,7 @@ PoolAllocator<ALIGN, false, DUMMY>::slow_allocate(unsigned bucket,
 	PoolAllocatorBase *new_chunk = static_cast<PoolAllocatorBase *>(
 	    PoolAllocator<ALIGN, true, false>::s_tls.my_chunk);
 	// (§12.3 / §hot-tls) cf. FS=true sibling — update the KameTlsPage slot.
-	kame_page()->m_slots[bucket].freelist_head =
-	    new_chunk ? reinterpret_cast<char *>(
-	                    &new_chunk->m_freelist_head[kBucketLocalId[bucket]])
-	              : nullptr;
+	flv_retarget(pg, bucket, local_id, new_chunk);
 	return p;
 }
 
@@ -2809,6 +3036,16 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 					if(fp && chunk_from_freelist_ptr(fp) == nx_pa)
 						pg->m_slots[b].freelist_head = nullptr;
 				}
+				// (§fl-avail) An empty chunk may still be listed (its
+				// freelist drained as the shortcut's after it was linked).
+				if(nx_pa->m_fs_flag && (nx_pa->m_fl_state & PoolAllocatorBase::FL_LINKED))
+					fl_unlink(pg, nx_pa);
+				for(unsigned l = 0; l < (unsigned)KAME_LOCAL_BUCKETS; ++l)
+					if(nx_pa->m_fl_mask & PoolAllocatorBase::FL_LINKED_BIT(l))
+						flv_unlink(pg, nx_pa, l,
+						    kTierLocalBucket.v[(nx_pa->m_align_shift - 5u) & 7u][l]);
+				nx_pa->m_fl_state = 0;
+				if( !nx_pa->m_fs_flag) flv_mask_store(nx_pa, 0);
 				}
 				// if the cursor was pointing at the released
 				// chunk, advance past it.  Also clear the exhaustion
@@ -3220,6 +3457,12 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 		auto *next = c->m_dll_next;
 		c->m_dll_prev = nullptr;
 		c->m_dll_next = nullptr;
+		// (§fl-avail) Off this thread's lists (their heads were cleared with
+		// the shortcut slots); an orphan starts unlisted for its adopter.
+		c->m_fl_state = 0;
+		if( !c->m_fs_flag) flv_mask_store(c, 0);   // m_base_bucket is FS=true's bucket
+		for(unsigned l = 0; l < (unsigned)KAME_LOCAL_BUCKETS; ++l)
+			c->m_fl_prev[l] = c->m_fl_next[l] = nullptr;
 		// Drain this chunk's owner-thread freelists back to the bitmap
 		// BEFORE the BIT_OWNED clear below.  A parked freelist slot is
 		// logically free but still bit-set in m_flags, so MASK_CNT
@@ -3749,7 +3992,20 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 				return;
 			}
 #endif /* KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH */
-			chunk_obj->freelist_push(0, p);
+			// (§fl-avail) An empty freelist becoming non-empty on a chunk
+			// that is neither the shortcut's nor listed: list it.  The
+			// state byte shares the line just read for m_owner_id, and the
+			// link is a tail call, so this path stays call- and spill-free.
+			// One OR'd test, so neither common case -- old head non-null
+			// (fifo-style churn) nor state non-zero (the shortcut's own
+			// chunk) -- takes a branch: `!old && !state` as two branches
+			// cost bench_loop_pool -8 % and fifo:1000 up to -20 %.
+			char *old = chunk_obj->m_freelist_head[0];
+			*reinterpret_cast<char **>(p) = old;
+			chunk_obj->m_freelist_head[0] = static_cast<char *>(p);
+			if(__builtin_expect((reinterpret_cast<uintptr_t>(old)
+			                     | chunk_obj->m_fl_state) == 0, 0))
+				return fl_link(pg, chunk_obj);
 			return;
 		}
 		// FS=false owner free.  Routed to a dedicated noinline helper —
@@ -3760,7 +4016,7 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 		// inlining into `operator delete`).  The helper still receives the
 		// already-resolved `chunk_base`, so FS=false avoids `deallocate_cold`'s
 		// full pg/region/chunk_base re-derivation (≈ the 1 KiB churn win).
-		return deallocate_fs_false_owner(chunk_base, p);
+		return deallocate_fs_false_owner(chunk_base, p, pg);
 	}
 	return deallocate_cold(p);  // owner-mismatch / dedicated / cross / released
 }
@@ -3772,7 +4028,8 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 // coincidental owner match) tail-calls the full cold resolver, which
 // re-validates via palloc + the vtable owner check.
 KAME_NOINLINE void
-PoolAllocatorBase::deallocate_fs_false_owner(char *chunk_base, void *p) noexcept {
+PoolAllocatorBase::deallocate_fs_false_owner(char *chunk_base, void *p,
+                                             KameTlsPage *pg) noexcept {
 	PoolAllocatorBase *chunk_obj = reinterpret_cast<PoolAllocatorBase *>(
 	    chunk_base + ALLOC_CHUNK_HEADER);
 	unsigned local;
@@ -3792,13 +4049,14 @@ PoolAllocatorBase::deallocate_fs_false_owner(char *chunk_base, void *p) noexcept
 		if(local >= (unsigned)KAME_LOCAL_BUCKETS)
 			return deallocate_cold(p);
 	}
-	chunk_obj->freelist_push(local, p);
 	// (§freelist-follow) re-aim this thread's per-bucket alloc shortcut at
-	// the slot we just freed (LIFO) — borrow tier only (bucket != 0).
-	if(bucket != 0 && bucket < (unsigned)ALLOC_NUM_BUCKETS)
-		kame_page()->m_slots[bucket].freelist_head =
-		    reinterpret_cast<char *>(&chunk_obj->m_freelist_head[local]);
-	return;
+	// the slot we just freed (LIFO) — borrow tier only (bucket != 0) — and
+	// (§fl-avail) keep every non-empty freelist reachable.
+	// `pg` is the caller's page (a live owner's: it matched owner_id != 0),
+	// passed in so this stays a leaf -- kame_page() can call out.
+	char *old = chunk_obj->m_freelist_head[local];
+	chunk_obj->freelist_push(local, p);
+	return flv_free_tail(pg, chunk_obj, local, bucket, old);
 }
 
 // Forward decl (real declaration with __attribute__((noinline)) sits next to
@@ -3959,14 +4217,17 @@ PoolAllocatorBase::deallocate_cold(void *p) noexcept {
 			// dead code on this hottest path (5 % bench_loop regression
 			// when folded together).
 			if(chunk_obj->m_fs_flag) {
+				char *old = chunk_obj->m_freelist_head[0];
 				chunk_obj->freelist_push(0, p);
+				if( !old && chunk_obj->m_fl_state == 0)
+					fl_link(pg, chunk_obj);   // (§fl-avail)
 				return;
 			}
 			// FS=false owner free.  `bucket` is extracted (borrow tier
 			// only) so we can re-aim `g_thread_freelist_ptr[bucket]` at
 			// this chunk's freelist head — the next same-bucket alloc
 			// pops the slot we just freed (LIFO) instead of running
-			// `slow_allocate` → `scan_dll_freelist` on a multi-chunk
+			// `slow_allocate` (then a DLL scan, now §fl-avail) on a multi-chunk
 			// working set.  ~3–6× win on FS=false 384..2048 churn.
 			// Full-usable (ALIGN>=1024) leaves bucket = 0 (skip
 			// sentinel) since the bucket isn't encoded in m_sizes[].
@@ -3994,13 +4255,11 @@ PoolAllocatorBase::deallocate_cold(void *p) noexcept {
 				if(local >= (unsigned)KAME_LOCAL_BUCKETS)
 					goto vtable_dispatch;
 			}
+			char *old = chunk_obj->m_freelist_head[local];
 			chunk_obj->freelist_push(local, p);
-			// (§freelist-follow) FS=false borrow only — see comment above.
-			if(bucket != 0 && bucket < (unsigned)ALLOC_NUM_BUCKETS) {
-				kame_page()->m_slots[bucket].freelist_head =
-				    reinterpret_cast<char *>(&chunk_obj->m_freelist_head[local]);
-			}
-			return;
+			// (§freelist-follow) FS=false borrow only — see comment above;
+			// (§fl-avail) and keep every non-empty freelist reachable.
+			return flv_free_tail(pg, chunk_obj, local, bucket, old);
 		}
 		// Owner mismatch.  Either: dedicated chunk (m_owner_id == 0,
 		// never matches), or regular chunk being freed cross-thread /
@@ -4572,8 +4831,10 @@ void *bucket_first_access(std::size_t /*size*/) noexcept {
         // is constexpr-foldable here (B is a template parameter).
         // chunk_from_freelist_ptr recovers the chunk pointer from the
         // stored value via a single mask on the slow path.
-        kame_page()->m_slots[B].freelist_head =
-            reinterpret_cast<char *>(&chunk->m_freelist_head[kBucketLocalId[B]]);
+        if(chunk->m_fs_flag)
+            fl_retarget(kame_page(), B, chunk);   // (§fl-avail) marks FL_TARGET
+        else
+            flv_retarget(kame_page(), B, kBucketLocalId[B], chunk);   // (§fl-avail)
     }
     return p;
 }
@@ -4687,7 +4948,7 @@ ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, 
 // owner_id 0 guarantees the hot owner-check never matches it; `torn_down` is SET
 // statically so `kame_thread_torn_down()` reports torn-down through this page as
 // well as through a real page whose cleanup has run.
-KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/1, {}};
+KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/1, {}, {}};
 
 // Cold off-ramp for the lean freelist-pop entries (`new_redirected` and
 // `new_redirected_large`; declared in allocator_prv.h): an empty owner
@@ -4900,7 +5161,12 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
 __attribute__((noinline))
 static void libsystem_free_for_pool(void *p) noexcept;
 
-inline void deallocate_pooled_or_free(void* p) throw() {
+// KAME_ALWAYS_INLINE: only a wrapper around the always-inline lean
+// `deallocate`, but left to the inliner it stops being expanded into
+// kame_pool_free / operator delete once that body grows a few instructions
+// -- every free then pays a branch to one shared out-of-line copy (seen as
+// -8..-16 % on bench_loop_pool / fifo:13 when §fl-avail added four).
+KAME_ALWAYS_INLINE void deallocate_pooled_or_free(void* p) throw() {
 	// `PoolAllocatorBase::deallocate(p)` is safe to call pre-
 	// `activateAllocator()`.  `deallocate_<0, ALLOC_MIN_CHUNK_SIZE>`
 	// loads `s_mmapped_spaces[0]` which is zero-initialised (so
