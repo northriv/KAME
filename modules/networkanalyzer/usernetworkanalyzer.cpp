@@ -191,8 +191,11 @@ XAgilentE5061::convertRawBlock(RawDataReader &reader, Transaction &tr,
     if(len / sizeof(float) < samples * 2)
 		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	for(unsigned int i = 0; i < samples; i++) {
-		tr[ *this].trace_()[i] = std::complex<double>(
-			reader.pop<float>(), reader.pop<float>());
+		//Separate statements: the evaluation order of function arguments is unspecified
+		//(g++ evaluates right-to-left, which swapped re/im).
+		double re = reader.pop<float>();
+		double im = reader.pop<float>();
+		tr[ *this].trace_()[i] = std::complex<double>(re, im);
 	}
 }
 
@@ -305,7 +308,10 @@ XVNWA3ENetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) {
 	}
 
 	for(unsigned int i = 0; i < samples; i++) {
-		tr[ *this].trace_()[i] = std::complex<double>(reader.pop<double>(), reader.pop<double>());
+		//Separate statements: the evaluation order of function arguments is unspecified.
+		double re = reader.pop<double>();
+		double im = reader.pop<double>();
+		tr[ *this].trace_()[i] = std::complex<double>(re, im);
 	}
 }
 
@@ -316,11 +322,13 @@ XVNWA3ENetworkAnalyzerTCPIP::XVNWA3ENetworkAnalyzerTCPIP(const char *name, bool 
     m_interface2(XNode::create<XCharInterface>("Interface2", false,
         dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
     meas->interfaces()->insert(tr_meas, m_interface2);
-    interface()->setEOS("");
+    //VNWA replies are null-terminated. An empty setEOS() falls back to serialTCPIPEOS()
+    //("\n" by default) for TCP/IP, so the null terminator must be selected here.
+    interface()->setSerialTCPIPEOS("");
     interface()->device()->setUIEnabled(false);
     trans( *interface()->device()) = "TCP/IP";
     trans( *interface()->port()) = "127.0.0.1:55555";
-    interface2()->setEOS("");
+    interface2()->setSerialTCPIPEOS("");
     interface2()->control()->setUIEnabled(false);
     interface2()->device()->setUIEnabled(false);
     trans( *interface2()->device()) = "TCP/IP";
@@ -458,7 +466,10 @@ XVNWA3ENetworkAnalyzerTCPIP::convertRaw(RawDataReader &reader, Transaction &tr) 
     double min_f = 1e10, max_f = -1e10, min_v = 1e10, max_v = -1e10;
     for(unsigned int i = 0; i < samples; i++) {
         double f = reader.pop<double>() * 1e-6; //freq [MHz]
-        auto z = std::complex<double>(reader.pop<double>(), reader.pop<double>());
+        //Separate statements: the evaluation order of function arguments is unspecified.
+        double re = reader.pop<double>(); //s11re
+        double im = reader.pop<double>(); //s11im
+        auto z = std::complex<double>(re, im);
         tr[ *this].trace_()[i] = z;
         reader.pop<double>(); //s21re
         reader.pop<double>(); //s21im

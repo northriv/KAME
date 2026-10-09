@@ -1,3 +1,229 @@
+* Wed Oct 7 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Release 9.0.
+- Network analyzer: the VNWA3E over TCP/IP timed out on every read (reported
+  by Masago).  Since 071afdfe7 an empty setEOS() falls back to "\n" on
+  TCP/IP, and the VNWA's replies are null-terminated, so nothing ever matched;
+  both VNWA3E interfaces now select the null terminator with
+  setSerialTCPIPEOS(""), as the other drivers were adapted then.  And under
+  g++ the real and imaginary parts came back swapped (theta -> pi/2 - theta):
+  std::complex(reader.pop(), reader.pop()) leaves the order of the two pops to
+  the compiler, and g++ takes them right to left.  Popped into named locals in
+  both VNWA3E variants, the Agilent E5061 and the Copper Mountain TR VNA; the
+  USB2000's MSB/LSB pairs in the Ocean Optics driver were the same class
+  (operands of +).  clang builds were never affected.
+- Pydantic AI: the agent KAME ships never received the server's safety rules.
+  MCPToolset defaults include_instructions to False and _toolset() passed
+  nothing, so the motion, temperature and RF rules reached every other MCP
+  client but not this one; a lab member's temperature sweep is what the
+  temperature rule exists for.  Two more pydantic-ai defaults went with it: a
+  tool error counted against the one retry each tool gets, so two wrong node
+  paths while hunting for a controller ended the run ("Tool 'tree' exceeded
+  max retries"); tool_error_behavior is 'failed' now, the model sees the
+  error and adapts, with retries=3 left for arguments that do not validate.
+  And Anthropic was asked for max_tokens=4096, which a thinking Claude spends
+  before writing a word; Claude models built here carry 32000, and
+  KAME_PYAI_MAX_TOKENS in the settings file sets one limit for every model.
+  The CLI no longer hands clai -m, which replaced the bound model with an
+  inferred one.
+- Pydantic AI: the conversation is kept under a token budget, so switching
+  the web UI from a local model to a cloud one mid-chat no longer answers
+  "prompt is too long".  KAME's tool results are what grow a chat -- a deep
+  tree, a manual section, every figure -- and once the estimated history
+  exceeds KAME_PYAI_HISTORY_TOKENS (150k) the oldest tool returns are cut to
+  a one-line note and their images dropped until it fits, the last six
+  messages untouched and every tool call still paired with its return.  It
+  trims only at run start, with the user's new prompt last, and drops every
+  thinking block when it does: Anthropic signs each against everything before
+  it, so trimming mid-loop was a 400 "Invalid signature in thinking block".
+  kame_history_budget() is the capability; a user's own module adds it.
+- Pydantic AI: a key alone is enough.  kame_models() asks each provider whose
+  key is present what it serves -- OpenAI's two newest gpt-N families,
+  Sakana's fugu/namazu, Anthropic's newest Opus and Sonnet by date -- so the
+  web menu and the CLI's default follow the providers instead of a hand-typed
+  list that was already behind.  With no KAME_PYAI_MODEL the web UI opens on
+  the menu and the CLI binds the first entry; set, it is still the menu as
+  written.  A provider that cannot be asked falls back to a short static list.
+- Pydantic AI: local servers have prefixes of their own.  bionic:<id>
+  (127.0.0.1:1234), ollama:<id> (11434) and local:<id> with
+  KAME_PYAI_LOCAL_URL resolve against their own address and no key, so they
+  coexist with the OpenAI key in the same settings file -- the old recipe,
+  openai-chat: plus OPENAI_BASE_URL, redirected that key to the local server.
+  A running Bionic or Ollama appears in the web menu beside the cloud entries
+  with no line at all (an older Ollama that answers only /api/tags is read
+  there).  Local models are openai-chat: everywhere, never openai:, which
+  under pydantic-ai 2.x means the Responses API these servers may not serve.
+- UI: a refused quit left every toolbox stuck open for the rest of the
+  session (user).  closeEvent() disarms auto-hide before it looks for open
+  interfaces and, refusing, never armed it again.  The same refusal is what
+  cancels a restart -- macOS asks each application to quit before it
+  restarts, for an overnight software update as for the Apple menu -- so a
+  measurement that rightly outlived one came to the morning that way.  The
+  previous state is restored on refusal.
+- LibreVNA: from GUI 1.6.5 the sweep is set running once and read as it goes,
+  one record per completed sweep, where SINGLE TRUE restarted the device for
+  every record -- the GUI stops it once the average is full and starts it
+  again with the average reset -- which was the slow part and the hard use
+  of the instrument (user).  A record is taken at the edge between two
+  sweeps, where :VNA:ACQ:FREQ? drops back; never more than one per sweep, so
+  the Auto LC Tuner's "discard the next record" after a motor step still
+  discards a sweep.  FIN? still gates it.  If FREQ? does not move for a
+  second the driver warns once and falls back to single sweeps; GUIs before
+  1.6.5 keep them.  timeAwared() now says when the data began -- the edge,
+  less AVG sweeps, each period measured edge to edge -- through a new
+  XNetworkAnalyzer::acquisitionStarted() (networkanalyzer, nmr and thamway
+  rebuild against it).  convertRaw() wrote one point past the end when the
+  count rose between POINTS? and the trace; checked before the write now.
+- LibreVNA: every setting timed out against GUI 1.6.0 and later.  An event --
+  a command without '?' -- used to answer with an empty line or ERROR; from
+  1.6.0 it answers nothing and a rejected command shows only in the event
+  status register.  LibreVNASCPI (charinterface/librevnascpi.h), shared by
+  the network analyzer and signal generator drivers, reads the GUI version
+  from *IDN? at open() and sends events the way that GUI expects, checking
+  *ESR? on the new protocol.  The LibreVNA signal generator also switched the
+  device to SA, the spectrum analyzer, whose tracking generator is a separate
+  set of commands, so its :GEN: settings never took effect; it is GEN now.
+- DC source: KIKUSUI PMX series regulated DC power supply (PMX18-2A,
+  PMX35-3A, ...), SCPI over USB or RS-232.  The ratings are read from the
+  model name at open(), or asked of the instrument when the name is not one
+  this understands, so the whole series is covered.
+- XTime: operator<= and >= are deleted.  Both held both ways within one
+  second -- the leading tv_sec <= already held for equal seconds, so the
+  microseconds were never compared -- and nothing used them; deleted rather
+  than fixed, so the next use is a compile error.
+- MCP: the manual's AI chapter and "Register KAME with your AI clients" stop
+  assuming a POSIX host.  Setup carries the kame-mcp-venv recipe with
+  Scripts\python.exe beside the POSIX form, the paths and the troubleshooting
+  rows name the Windows form once each, and the registration, which put the
+  sh launcher into every client's config on Windows too -- an entry no client
+  there can start -- registers the batch twin through cmd /c.  The install
+  recipes gain uvicorn, which the web UI needs.
+- MCP server: five findings of an external review.  tree spliced its path
+  into Python source, so a node name holding a quote broke it and a crafted
+  path evaluated any expression through a tool declared read-only; the
+  elements travel as a list now and a missing one is a ValueError naming the
+  path.  A job id was used unchecked in a file name, so "../x" reached
+  outside the job directory; one shape, _mcp_<digits>, is checked at every
+  entry.  stop_job reported a stop it never made when the kernel said
+  "unknown" or the marker write failed; the kernel's answer is authoritative
+  now.  A tool whose result was one bare string arrived quoted with literal
+  \n -- a model copied a job id with its quotes into stop_job and that wrote
+  a marker named with them -- and is unwrapped.  notebook_status with no
+  sessions says so instead of "the state above is authoritative" over
+  nothing.  tests/mcp_server pins all of it against a scripted kernel.
+- NMR frequency-swept spectrometer: a T2 map over the swept axis (user).  A
+  CPMG train carries a decay at every frequency the sweep visits and fssum()
+  summed only the echoes' average; now every echo is accumulated into a time
+  bin of its own on the swept axis and inverted, per frequency, into a
+  distribution of T2 -- the map XNMRT1 draws against P1, drawn against the
+  sweep.  MapEchoesPerBin sums m consecutive echoes into one bin at 2 tau
+  n/m, exact by linearity, for fewer, quieter curves.  The map is a shared
+  layer (nmrrelaxmap.h, plain classes, no XNode), since the two drivers
+  cannot share a base class and moving XNMRT1's nodes would change every
+  .kam path.
+- NMR frequency-swept spectrometer: the swept phase is settled per frequency,
+  not once for the sweep (user).  The probe's tuning, the cable and the
+  synthesizer each turn the phase as the carrier moves, so the real part of a
+  globally phased value shrank, changed sign or vanished wherever the phase
+  had walked away from the centre -- and the magnitude is no escape, since
+  |z| settles on the noise floor, which the kernel has no term for.
+- NMR relaxation map: the T grid reaches past both ends of the train (user).
+  A component that outlives the train piled up on the last grid point, one
+  already over before the first echo on the first; T ext [dec] widens the
+  grid a decade past the last echo by default and half a decade below the
+  first -- past the last echo the columns only resemble one another, below
+  the first they vanish, and half a decade is where that stops being
+  measurable.  Nothing out there is resolved: only the total weight carries
+  information, and the density map's line says how far the grid was widened
+  and where the measurement ended.
+- NMR relaxation map: the two graphs carry what it would take to repeat them
+  (user).  The density map states the inversion -- criterion and matrix,
+  lambda, the unexplained residual of the reference row against its noise,
+  the T grid, the relaxation function -- and the raw curves state the
+  acquisition: echo spacing, grouping, frequency binning.  lambda itself,
+  which nothing in the picture revealed, rides on the density map; the
+  search's trace, a stderr line per trial, is dbgPrint() now.  The noise of
+  a bin of m echoes is the noise of their mean, not of one echo.
+- NMR frequency-swept spectrometer: the map has a window of its own,
+  MapWindowFunc and MapWindowWidth, laid along each bin's frequency axis on
+  the geometry analyzeIFT() has worked out for the spectrum; the map used to
+  take the accumulators as they stood, so two graphs from one set answered to
+  different controls (user).  Any width but 100% had left it unchanged at
+  first, the window being measured from the FT solver's origin rather than
+  the image's.  Post Processing moves in with the spectrum it belongs to.
+  Switching the bandwidth bank now clears the map, which sums only the bank
+  in use, where the spectrum sums all three and loses nothing.
+- Math: the tSVD Fourier solver printed its whole output vector to stderr on
+  every call, and the singular values whenever the sizes changed.  The rank
+  and the extremes of the singular values go to dbgPrint(); the rest goes.
+- Pydantic AI: one settings file, ~/.kame_pyai.env (then <cwd>/.env), instead
+  of shell exports, which a GUI process never inherits -- "use the standard
+  agent" failed on any machine whose .zshrc had not been edited.  The model
+  and the key are two lines in it and reach both launch paths.  sakana:<model>
+  with SAKANA_API_KEY is resolved by the agent KAME ships, since pydantic-ai
+  has no Sakana provider and repurposing OPENAI_BASE_URL shut out real OpenAI
+  models in the same file.  Every launch failure now names the interpreter
+  it used, the place it looked and the command that fixes it for that
+  environment -- a uv venv has no pip, so "pip install clai" there could not
+  work -- and the pane says before any terminal opens that the MCP server is
+  not up (the notebook link not yet clicked, or the HTTP server fallen back
+  to stdio), with the link inline.  kame_mcp() sent the bare token in the
+  Authorization header, which the server answers 401; it is "Bearer <token>".
+- Optics / charinterface / script: three faults found chasing a USB2000+ run.
+  A script error made stderr itself raise -- loadSequence left TLS.logfile
+  pointing at a file the `with` had closed on the error path -- so the
+  traceback was four truncated lines and Status stayed at "run", and KAME
+  would not start the thread again; both are cleared in a finally now.
+  cyfxusb_libusb reopened the device with no delay after a USB reset, before
+  it had re-enumerated, which left it dead for the session in every trigger
+  mode; it retries (200 ms x 15) and fails loudly.  Free Run could not use an
+  exposure longer than the synchronous read's 6 s libusb timeout -- each
+  attempt held the interface mutex for the whole of it, stalling GUI and
+  script writes too; long exposures take the polled reader external trigger
+  already used (checked at 10 s and 30 s).
+- Arbitrary function generator: Agilent/Keysight 33250A (GPIB / NI USB-GPIB).
+  It shares the 33xxx SCPI set with the 3390, but rejects the 33220A/3390
+  FUNC:PULSe:* commands and the stand-alone PHASe the base sequence sent,
+  queueing errors on the front panel; XAgilent33250A sends only what the
+  33250A implements, drains SYST:ERR? afterwards, and reads its settings back
+  at open().  Both drivers reconfigure without APPLy, which forces the output
+  on and emits a continuous waveform while settings change -- stray exposures
+  when the output clocks a spectrometer, light leaking to a laser: the burst
+  is armed first and the waveform staged with the individual FUNC/FREQ/VOLT
+  commands, so nothing is emitted until a trigger.  A software trigger
+  button.  Continuous output gets its own Phase node: it was fed from
+  burstPhase(), so sweeping the phase of a continuous waveform meant writing
+  the burst node and disturbing the burst start phase with it.
+- Ocean Optics HR4000: external and software trigger modes work.
+  acquireSpectrum() skipped every non-free-run mode, because the synchronous
+  bulk read cancelled on a 6 s timeout with no trigger present, froze the UI
+  and wedged the device (status[8]==9, only a USB reset recovers it).
+  Triggered spectra are read with an interruptible polled async read that
+  returns as soon as a trigger edge fires, and only on demand: AcquireTrig
+  requests exactly one triggered acquisition, and between requests the
+  driver never touches the device, so it emits no stray strobe and cannot
+  wedge.  The trigger modes are labelled by their raw value ("Ext. Trig. 2"),
+  since what values 2..4 mean changed between the pre-3.0 and 3.x firmware
+  (LEVEL / Synchronous / EDGE on 3.x) and the old names had armed a mode the
+  unit does not integrate in; open() reports the FPGA version so the operator
+  can tell which table applies.
+- DC source: the YK7651's Function reads V / A instead of the raw F1 / F5,
+  with a shim that maps a .kam holding the old strings, and the nonexistent
+  100 V range is gone.
+- Lock-in: the output filter roll-off (6/12/18/24 dB/oct) is a FilterSlope
+  combo, and the 7265 drives it over SLOPE n with a readback at open();
+  lock-ins without such a control leave it empty.
+- Motor: an alarm that could only be cleared by pulling the power.  The
+  maintenance commands fire on a rising edge and were written 1 then 0; a
+  Modbus error between the two writes left the register asserted and the
+  command dead for good, KAME restart or not.  The trailing 0 is guaranteed
+  and a leading 0 written first, so a latched register recovers on the next
+  attempt.
+- tools/audit: the scripts read as utf-8.  None named a codec, so on a
+  Japanese Windows they read cp932: load_baseline() raised on the first
+  non-ASCII byte and took run_audits.sh with it, and the eight reads with
+  errors='replace' survived by matching regexes against U+FFFD instead of the
+  text.
+
 * Wed Sep 23 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - NMR T1: ten Smoothing Samples or fewer is a warning, not a record error
   (user).  In T2 multi-echo mode the count is the echo count, so a frequency

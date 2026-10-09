@@ -37,7 +37,7 @@ SUPPRESS = 'audit-ok'
 
 def scan(path: pathlib.Path):
     try:
-        text = path.read_text(errors='replace')
+        text = path.read_text(encoding='utf-8', errors='replace')
     except OSError:
         return []
     anchors = [(m.start(), m.group(0).split('(')[0].strip())

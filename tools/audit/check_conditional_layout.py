@@ -49,7 +49,7 @@ def build_macros(root):
         for f in pathlib.Path(root).rglob(pat):
             if any(d in f.parts for d in SKIP_DIRS):
                 continue
-            for line in f.read_text(errors='replace').splitlines():
+            for line in f.read_text(encoding='utf-8', errors='replace').splitlines():
                 line = line.split('#')[0]
                 m = BUILD_DEF.search(line)
                 if not m:
@@ -79,7 +79,7 @@ def macros_of(expr):
 
 def scan(path, risky_macros):
     findings = []
-    lines = path.read_text(errors='replace').splitlines()
+    lines = path.read_text(encoding='utf-8', errors='replace').splitlines()
     # stack of (macro-list, line-no, suppressed, is_include_guard)
     stack = []
     guard_seen = False

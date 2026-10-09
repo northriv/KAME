@@ -20,8 +20,8 @@
 //       the leaking path: on the buggy allocator the orphaned chunk's
 //       m_owner_id (0) collides with the teardown sentinel page's owner_id (0),
 //       so deallocate takes the fast owner-free path (freelist_push) WITHOUT
-//       decrementing MASK_CNT — the orphan never looks empty to
-//       orphan_chain_scrub and is never reclaimed.
+//       decrementing MASK_CNT — the orphan never looks empty to the
+//       reclaim (then orphan_chain_scrub) and is never reclaimed.
 //
 // Assertions use `units_live` / `chunks_live` (claim-bitmap walk, madvise
 // INDEPENDENT), NOT `bytes_reserved` (which is a monotone high-water mark and

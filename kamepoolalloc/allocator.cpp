@@ -295,6 +295,214 @@ static inline uint32_t kame_owner_id() noexcept {
     return id;
 }
 
+// (§fl-avail) Owner-side freelist availability.  An FS=true chunk's freelist
+// fills from its owner's frees; the bucket shortcut reaches only one chunk's.
+// §24 found the others by walking the whole DLL on every miss -- O(chunks)
+// per miss, quadratic for allocate-only workloads, and unbounded for a
+// realtime thread.  Instead a chunk whose freelist an owner free takes from
+// empty to non-empty, and that is neither the shortcut's nor already listed
+// (m_fl_state == 0), goes on this thread's KameTlsPage::fl_avail[bucket];
+// the chunk the shortcut leaves goes there too if its freelist is non-empty.
+// slow_allocate takes from the list.  Entries the shortcut has drained since
+// they were linked are dropped as they come up, so the work is O(1)
+// amortised over the links.  Everything here is owner-only.
+static inline void fl_unlink(KameTlsPage *pg, PoolAllocatorBase *c) noexcept {
+	PoolAllocatorBase *pr = c->m_fl_prev[0], *nx = c->m_fl_next[0];
+	if(pr) pr->m_fl_next[0] = nx;
+	else   pg->fl_avail[c->m_base_bucket] = nx;
+	if(nx) nx->m_fl_prev[0] = pr;
+	c->m_fl_prev[0] = c->m_fl_next[0] = nullptr;
+	c->m_fl_state &= static_cast<uint8_t>(~PoolAllocatorBase::FL_LINKED);
+}
+//! Out of line: the lean free path tail-calls it, staying call-free itself.
+static KAME_NOINLINE void fl_link(KameTlsPage *pg, PoolAllocatorBase *c) noexcept {
+	PoolAllocatorBase *&head = pg->fl_avail[c->m_base_bucket];
+	c->m_fl_prev[0] = nullptr;
+	c->m_fl_next[0] = head;
+	if(head) head->m_fl_prev[0] = c;
+	head = c;
+	c->m_fl_state |= PoolAllocatorBase::FL_LINKED;
+}
+//! Point an FS=true bucket's shortcut at `nc` (nullptr: none).  The chunk it
+//! leaves stays reachable by being linked if its freelist is non-empty.
+static inline void fl_retarget(KameTlsPage *pg, unsigned bucket,
+                               PoolAllocatorBase *nc) noexcept {
+	char **fp = reinterpret_cast<char **>(pg->m_slots[bucket].freelist_head);
+	PoolAllocatorBase *oc = fp ? chunk_from_freelist_ptr(fp) : nullptr;
+	if(oc != nc) {
+		if(oc) {
+			oc->m_fl_state &= static_cast<uint8_t>(~PoolAllocatorBase::FL_TARGET);
+			if(oc->m_freelist_head[0] && !(oc->m_fl_state & PoolAllocatorBase::FL_LINKED))
+				fl_link(pg, oc);
+		}
+		if(nc) nc->m_fl_state |= PoolAllocatorBase::FL_TARGET;
+	}
+	pg->m_slots[bucket].freelist_head =
+	    nc ? reinterpret_cast<char *>(&nc->m_freelist_head[0]) : nullptr;
+}
+//! slow_allocate's replacement for the DLL walk: a listed chunk whose
+//! freelist is non-empty, made the shortcut's; nullptr if none.
+static PoolAllocatorBase *fl_take(KameTlsPage *pg, unsigned bucket) noexcept {
+	while(PoolAllocatorBase *c = pg->fl_avail[bucket]) {
+		fl_unlink(pg, c);
+		if(c->m_fl_state & PoolAllocatorBase::FL_TARGET)
+			continue;                 // the shortcut's own chunk: it just missed
+		if(c->m_freelist_head[0]) {
+			fl_retarget(pg, bucket, c);
+			return c;
+		}
+	}
+	return nullptr;
+}
+
+// (§fl-avail) The same for FS=false.  A variable-size chunk serves several
+// buckets, a freelist per local id, so it carries a link pair and a LINKED
+// bit per local id, and "the shortcut's chunk" is read off the shortcut.
+// The free path knows the bucket in the borrow tier (the slot prefix); in the
+// full-usable tier only the local id, so (log2 ALIGN, local id) -> bucket is
+// tabulated here.
+constexpr bool bucket_is_var(unsigned b) noexcept {
+	return b == 6 || b == 8 || b == 10 || b == 12 || b == 14 || b == 16
+	    || (b >= 24 && b < (unsigned)ALLOC_NUM_BUCKETS);
+}
+struct TierLocalBucket {
+	uint8_t v[8][KAME_LOCAL_BUCKETS];     // [log2(ALIGN) - 5][local] -> bucket, 0xFF none
+	constexpr TierLocalBucket() : v{} {
+		for(unsigned t = 0; t < 8; ++t)
+			for(unsigned l = 0; l < (unsigned)KAME_LOCAL_BUCKETS; ++l) v[t][l] = 0xFFu;
+		for(unsigned b = 0; b < (unsigned)ALLOC_NUM_BUCKETS; ++b)
+			if(bucket_is_var(b))
+				v[__builtin_ctz(kBucketAlign[b]) - 5][kBucketLocalId[b]] = static_cast<uint8_t>(b);
+	}
+};
+inline constexpr TierLocalBucket kTierLocalBucket{};
+static_assert(kTierLocalBucket.v[0][0] == 6 && kTierLocalBucket.v[3][0] == 16
+              && kTierLocalBucket.v[3][8] == 39 && kTierLocalBucket.v[7][3] == 51,
+              "kTierLocalBucket must match kBucketAlign / kBucketLocalId");
+
+//! m_fl_mask, mirrored for a full-usable-tier chunk (ALIGN >= 1024, at most
+//! 8 local ids) into the two line-1 bytes an FS=false chunk does not use
+//! otherwise -- m_base_bucket = LINKED bits, m_fl_state = TARGET bits -- so
+//! that tier's free path tests them with one load next to m_align_shift.
+//! (A load of m_fl_mask on line 2 cost the 16 KiB hot loop ~11 %.)
+static inline void flv_mask_store(PoolAllocatorBase *c, uint32_t m) noexcept {
+	c->m_fl_mask = m;
+	if(c->m_align_shift >= 10) {
+		c->m_base_bucket = static_cast<uint8_t>(m & 0xFFu);
+		c->m_fl_state = static_cast<uint8_t>((m >> 16) & 0xFFu);
+	}
+}
+static inline void flv_unlink(KameTlsPage *pg, PoolAllocatorBase *c, unsigned local,
+                              unsigned bucket) noexcept {
+	PoolAllocatorBase *pr = c->m_fl_prev[local], *nx = c->m_fl_next[local];
+	if(pr) pr->m_fl_next[local] = nx;
+	else   pg->fl_avail[bucket] = nx;
+	if(nx) nx->m_fl_prev[local] = pr;
+	c->m_fl_prev[local] = c->m_fl_next[local] = nullptr;
+	flv_mask_store(c, c->m_fl_mask & ~PoolAllocatorBase::FL_LINKED_BIT(local));
+}
+static KAME_NOINLINE void flv_link(KameTlsPage *pg, PoolAllocatorBase *c, unsigned local,
+                                   unsigned bucket) noexcept {
+	PoolAllocatorBase *&head = pg->fl_avail[bucket];
+	c->m_fl_prev[local] = nullptr;
+	c->m_fl_next[local] = head;
+	if(head) head->m_fl_prev[local] = c;
+	head = c;
+	flv_mask_store(c, c->m_fl_mask | PoolAllocatorBase::FL_LINKED_BIT(local));
+}
+//! Point an FS=false bucket's shortcut at `nc`'s freelist `local` (nullptr:
+//! none); the chunk it leaves is linked if that freelist is non-empty.
+static inline void flv_retarget(KameTlsPage *pg, unsigned bucket, unsigned local,
+                                PoolAllocatorBase *nc) noexcept {
+	char **fp = reinterpret_cast<char **>(pg->m_slots[bucket].freelist_head);
+	if(fp) {
+		PoolAllocatorBase *oc = chunk_from_freelist_ptr(fp);
+		if(oc != nc) {
+			flv_mask_store(oc, oc->m_fl_mask & ~PoolAllocatorBase::FL_TARGET_BIT(local));
+			if(*fp && !(oc->m_fl_mask & PoolAllocatorBase::FL_LINKED_BIT(local)))
+				flv_link(pg, oc, local, bucket);
+		}
+	}
+	if(nc) flv_mask_store(nc, nc->m_fl_mask | PoolAllocatorBase::FL_TARGET_BIT(local));
+	pg->m_slots[bucket].freelist_head =
+	    nc ? reinterpret_cast<char *>(&nc->m_freelist_head[local]) : nullptr;
+}
+static PoolAllocatorBase *flv_take(KameTlsPage *pg, unsigned bucket, unsigned local) noexcept {
+	while(PoolAllocatorBase *c = pg->fl_avail[bucket]) {
+		flv_unlink(pg, c, local, bucket);
+		if(pg->m_slots[bucket].freelist_head
+		   == reinterpret_cast<char *>(&c->m_freelist_head[local]))
+			continue;                 // the shortcut's own: it just missed
+		if(c->m_freelist_head[local]) {
+			flv_retarget(pg, bucket, local, c);
+			return c;
+		}
+	}
+	return nullptr;
+}
+//! After an owner free pushed onto `c`'s freelist `local`.  Borrow tier with
+//! `follow` (§freelist-follow): the shortcut moves to `c`, the chunk it
+//! leaves stays reachable.  Otherwise: a freelist made non-empty, on a chunk
+//! that is neither the shortcut's nor listed, is listed.  `bucket` 0: full-
+//! usable tier, looked up.
+static inline void flv_after_push(KameTlsPage *pg, PoolAllocatorBase *c, unsigned local,
+                                  unsigned bucket, bool was_empty, bool follow) noexcept {
+	char *cell = reinterpret_cast<char *>(&c->m_freelist_head[local]);
+	if(bucket == 0) {
+		bucket = kTierLocalBucket.v[(c->m_align_shift - 5u) & 7u][local];
+		if(bucket >= (unsigned)ALLOC_NUM_BUCKETS) return;
+		follow = false;
+	} else if(bucket >= (unsigned)ALLOC_NUM_BUCKETS)
+		return;
+	if(follow) {
+		if(pg->m_slots[bucket].freelist_head != cell)
+			flv_retarget(pg, bucket, local, c);
+		return;
+	}
+	if(was_empty && pg->m_slots[bucket].freelist_head != cell
+	   && !(c->m_fl_mask & PoolAllocatorBase::FL_LINKED_BIT(local)))
+		flv_link(pg, c, local, bucket);
+}
+//! Borrow tier, §freelist-follow moving the shortcut off a chunk whose
+//! freelist is still non-empty: keep that one listed.
+static KAME_NOINLINE void flv_follow_slow(KameTlsPage *pg, PoolAllocatorBase *c,
+                                          unsigned local, unsigned bucket) noexcept {
+	flv_retarget(pg, bucket, local, c);
+}
+//! Full-usable tier: a freelist made non-empty on a chunk that is neither its
+//! bucket's target nor listed (the free path checked the line-1 mirror).
+static KAME_NOINLINE void flv_full_slow(PoolAllocatorBase *c, unsigned local) noexcept {
+	unsigned bucket = kTierLocalBucket.v[(c->m_align_shift - 5u) & 7u][local];
+	if(bucket < (unsigned)ALLOC_NUM_BUCKETS)
+		flv_link(kame_page(), c, local, bucket);
+}
+//! The FS=false owner free's tail, shaped to stay a leaf in the common cases:
+//! borrow tier -- the shortcut already here, or the chunk it leaves empty
+//! (re-aim with one store, as before); full tier -- the freelist was already
+//! non-empty, or the chunk is its bucket's target or listed.  Everything
+//! else is a tail call.
+static inline void flv_free_tail(KameTlsPage *pg, PoolAllocatorBase *c, unsigned local,
+                                 unsigned bucket, char *old) noexcept {
+	if(bucket != 0) {
+		if(bucket >= (unsigned)ALLOC_NUM_BUCKETS) return;
+		char *cell = reinterpret_cast<char *>(&c->m_freelist_head[local]);
+		char *sc = pg->m_slots[bucket].freelist_head;
+		if(sc == cell) return;
+		if(sc && *reinterpret_cast<char **>(sc))
+			return flv_follow_slow(pg, c, local, bucket);
+		pg->m_slots[bucket].freelist_head = cell;
+		return;
+	}
+	// One OR'd test, as on the FS=true path (separately, the branch on `old`
+	// and the mask test each cost the 16 KiB hot loop 4-6 %), on the line-1
+	// mirror of the LINKED / TARGET bits (flv_mask_store).
+	unsigned hot = static_cast<unsigned>(c->m_base_bucket)
+	             | (static_cast<unsigned>(c->m_fl_state) << 8);
+	if(__builtin_expect((reinterpret_cast<uintptr_t>(old)
+	                     | ((hot >> local) & 0x101u)) == 0, 0))
+		return flv_full_slow(c, local);
+}
+
 // (§S7) The §36 orphan Treiber-stack packing (biased chunk ptr + 18-bit ABA
 // tag in s_orphan_head, ORPHAN_PTR_BIAS / ORPHAN_TAG_MASK) is retired with the
 // stack itself — the atomic_shared_ptr orphan chain needs no ABA tag (the
@@ -547,10 +755,9 @@ bool  large_recycle_push(char *base, std::size_t size, unsigned kind) noexcept;
 // Per-thread cleanup at thread exit.  chunks are no longer
 // pinned via atomic counters; this destructor instead walks each
 // (ALIGN, FS) template's per-thread DLL (via the registered
-// `release_dll_chunks_for_thread` callbacks) and either releases
-// empty chunks directly or marks non-empty chunks with
-// `BIT_OWNER_EXITED` so cross-thread last-slot-returners can release
-// them later.  Capacity covers the count of distinct PoolAllocator
+// `release_dll_chunks_for_thread` callbacks), releases the empty
+// chunks and hands the thread's group over (§group) to whoever adopts
+// it.  Capacity covers the count of distinct PoolAllocator
 // template instantiations actually in use by this thread.
 namespace {
 struct AllocThreadExitCleanup {
@@ -599,14 +806,15 @@ struct AllocThreadExitCleanup {
 #else
             KameTlsPage *pg = &g_tls_page;
 #endif
-            for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b)
+            for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b) {
                 pg->m_slots[b].freelist_head = nullptr;
+                pg->fl_avail[b] = nullptr;   // (§fl-avail) chunks reset below
+            }
         }
         // Walk each registered template's per-thread DLL.  Each
-        // callback wipes its own `s_tls.my_chunk` / `s_tls.dll_head` / `s_tls.dll_tail`
-        // first, then iterates with cached-next, setting BIT_OWNER_EXITED
-        // on non-empty chunks and releasing empties directly via
-        // BIT_RELEASED CAS.  See
+        // callback wipes its own `s_tls` slots first, then iterates with
+        // cached-next, releasing the empty chunks and handing the group
+        // over (§group).  See
         // `PoolAllocator<>::release_dll_chunks_for_thread` for details.
         for(int i = 0; i < count; ++i)
             release_fns[i]();
@@ -626,7 +834,7 @@ struct AllocThreadExitCleanup {
         // pointer reaches `deallocate` → owner-id mismatch (sentinel
         // owner_id == 0) → cold `deallocate_pooled`, whose
         // `kame_thread_torn_down()` reads that page's `torn_down` and takes a TLS-free path
-        // WITHOUT re-touching `s_tls` / `&s_tls.dll_head` — whose TLV may
+        // WITHOUT re-touching `s_tls` — whose TLV may
         // already be finalized, so a `_tlv_get_addr` re-instantiation would
         // `malloc` mid-teardown and trap.  This write is value-only (a
         // pthread TSD slot store, legal during cleanup) — no TLV deref.
@@ -789,46 +997,12 @@ struct CrossDeallocBatch {
             return;
         }
         CrossDeallocEntry tmp[2] = {{c, s}, {nullptr, nullptr}};
-        // (§20) Cache the dll-cursor-reset addresses BEFORE
-        // batch_return_to_bitmap.  If this is `c`'s last slot AND
-        // BIT_OWNED is clear (owner exited), batch_return releases the
-        // chunk: the placement-new destructor runs, and `c` becomes a
-        // stale pointer — accessing `c->m_owner_dll_head_addr` /
-        // `c->m_owner_dll_force_walk_ptr` afterwards is UB by C++'s
-        // object-lifetime rule (UBSAN's vptr check fires under
-        // -fsanitize=undefined).  The fields are write-once at chunk
-        // construction so the cached values are safe across the call.
-        void *cached_dll_head_addr = c->m_owner_dll_head_addr;
-        auto *cached_force_walk =
-            c->m_owner_dll_force_walk_ptr.load(std::memory_order_acquire);
+        // (§revive) The owner learns of the room through its anchor's
+        // revival stack, pushed from inside batch_return_to_bitmap.
         c->batch_return_to_bitmap(tmp);
-        // (§20) `c` may be destructed past this point — use cached values only.
-        if(cached_dll_head_addr ==
-           PoolAllocator<ALIGN, true, true>::dll_head_tls_addr())
-            PoolAllocator<ALIGN, true, true>::reset_dll_walk_state();
-        else if(cached_force_walk)
-            // Acquire load (above) synchronises with owner-exit's
-            // release-store of nullptr in
-            // `release_dll_chunks_for_thread`.  Null after owner exit
-            // → skip deref; non-null means owner's TLS storage is
-            // still live (owner-exit nullifies BEFORE thread teardown).
-            cached_force_walk->store(true, std::memory_order_relaxed);
     }
 
-    // `at_teardown`: set by the dtor (we are running inside this thread's
-    // TLS-destructor chain).  When true, SKIP the owner-`force_walk` poke
-    // below.  That poke dereferences `chunk->m_owner_dll_force_walk_ptr`,
-    // a raw pointer into the OWNER thread's TLS.  Its safety relies on the
-    // owner nullifying that pointer (release-store) before its TLS storage
-    // is reclaimed.  glibc honours that ordering; **musl's
-    // `__pthread_tsd_run_dtors` reclaims a thread's dynamic TLS on a
-    // schedule that can free the owner's `force_walk` slot before the
-    // nullification lands** — so at process/thread shutdown (rocksdb joins
-    // its whole thread pool at exit) the cached pointer dangles and the
-    // store SIGSEGVs (observed only on Alpine/musl; glibc CI is clean).
-    // The poke is a pure slot-reuse hint, worthless at teardown, so we
-    // simply drop it there — the slots are still returned to the bitmap.
-    void flush(bool at_teardown = false) noexcept {
+    void flush() noexcept {
         if(count == 0) return;
         // Sort by (chunk, slot) lex — chunk primary key for grouping,
         // slot pointer secondary key so each chunk run is pointer-
@@ -846,41 +1020,18 @@ struct CrossDeallocBatch {
         // Walk chunk runs.  `batch_return_to_bitmap` consumes the run
         // starting at `&buf[i]` (entries[k].chunk == this until
         // sentinel / next chunk), returns the count, caller advances.
-        //
-        // For each unique chunk the batch returned slots to: signal the
-        // OWNER thread's "force walk from head" hint flag.  Without this
-        // poke, the owner's `allocate_chunk_path` Phase 2 DLL walk stays
-        // gated by its own `dll_exhausted` flag (set after the previous
-        // walk found no space) and keeps mmap'ing fresh chunks instead
-        // of reusing the slots we just returned.  The single-slot
-        // `push_direct` path already does this; the batched flush path
-        // skipped it — caught by `bench_xthread_pool -w2 -s64` where the
-        // pool inflated +32 regions (1 GiB VA) over a 5-second run.
-        //
-        // Cache `m_owner_dll_force_walk_ptr` BEFORE
-        // `batch_return_to_bitmap`: the call may release the chunk on
-        // last-slot return + owner-exit, after which `chunk` is a stale
-        // pointer.  The owner's TLS storage that the cached ptr targets
-        // lives independently of the chunk; null after owner-exit's
-        // release-store, so the post-call deref is safe-or-skipped.
+        // (§revive) It also tells the chunk's owner about the room, by
+        // pushing the chunk onto the owner's anchor -- no owner TLS is
+        // touched, so teardown needs no special case (the force-walk hint
+        // this replaces stored into the owner's TLS through a raw pointer
+        // and was skipped at teardown after musl reclaimed it first).
         int i = 0;
-        while(i < count) {
-            PoolAllocatorBase *chunk = buf[i].chunk;
-            // At teardown, do NOT load/deref the owner's TLS force-walk
-            // pointer (it may dangle under musl's TSD-dtor ordering — see
-            // the function comment).  Returning the slots is all that
-            // matters there.
-            std::atomic<bool> *cached_force_walk = at_teardown ? nullptr :
-                chunk->m_owner_dll_force_walk_ptr.load(
-                    std::memory_order_acquire);
-            i += chunk->batch_return_to_bitmap(&buf[i]);
-            if(cached_force_walk)
-                cached_force_walk->store(true, std::memory_order_relaxed);
-        }
+        while(i < count)
+            i += buf[i].chunk->batch_return_to_bitmap(&buf[i]);
         count = 0;
     }
     ~CrossDeallocBatch() noexcept {
-        flush(/*at_teardown=*/true);
+        flush();
         // Arm the free-path bypass AFTER the real backlog has gone back to the
         // bitmaps: from here on `this` is a destroyed object, and a later free
         // (a pthread_key destructor — glibc runs `__nptl_deallocate_tsd` after
@@ -895,14 +1046,9 @@ thread_local CrossDeallocBatch tls_cross_dealloc_batch;
 
 // drain_thread_slot_freelists (defined below) is a retained no-op stub.
 // Owner-thread freelists are chunk-local and drained per-chunk by
-// `release_dll_chunks_for_thread` (per-template DLL walk) before each
-// chunk's BIT_OWNED clear — see that function and the stub's own comment.
-//
-// each touched chunk still has `BIT_OWNER_EXITED == 0`
-// at this point (the per-template DLL walk that sets it runs
-// AFTER `drain_thread_slot_freelists` in `~AllocThreadExitCleanup`), so
-// the cross_release inside batch_return_to_bitmap returns false
-// — the owner thread (us) is still alive, no release allowed.
+// `release_dll_chunks_for_thread` (per-template DLL walk) before any
+// chunk is released — see that function and the stub's own comment.
+// (A return through batch_return_to_bitmap never releases a chunk.)
 void drain_thread_slot_freelists() noexcept {
     // Single-slot scratch + trailing nullptr sentinel — satisfies
     // `batch_return_to_bitmap`'s `entries[k].chunk == this` walk
@@ -1280,23 +1426,8 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	// rights check (newv == 0 ⇒ I'm the unique releaser).
 	m_flags_packed = BIT_OWNED;
 	m_flags_filled_cnt = 0;
-	// capture this thread's `s_tls.dll_head` TLS address.  Used
-	// by dealloc cursor-reset paths to identify same-thread frees and
-	// skip wasted resets on cross-thread frees.  Note: each (ALIGN, FS)
-	// template has its OWN s_tls.dll_head (TLS variable), so the captured
-	// address is comparable only to `&s_tls.dll_head` taken in the same
-	// template context — which is exactly what the dealloc paths do.
-	this->m_owner_dll_head_addr = (void *)&s_tls.dll_head;
-	// also capture the owner's "force walk from head" flag
-	// pointer.  Cross-thread frees flip this so the owner's next
-	// allocate_chunk_path force-restarts the DLL walk and visits
-	// revived chunks (bitmap-cleared by cross-thread frees since the
-	// last walk).
-	// atomic publish (relaxed — chunk not visible to other
-	// threads yet; bitmap-claim CAS that publishes the chunk has a
-	// release fence which carries this store).
-	this->m_owner_dll_force_walk_ptr.store(
-	    &s_tls.dll_force_walk_from_head, std::memory_order_relaxed);
+	// (§revive) m_anc / m_rv_* start empty; allocate_chunk_path makes the
+	// chunk this thread's anchor or points it at the existing one.
 	// Owner id + chunk-local freelists for the dealloc fast path.
 	// `kame_owner_id()` is non-zero, so a foreign / never-allocated
 	// thread's `s_tls_owner_id == 0` never matches.  All heads start
@@ -1314,7 +1445,8 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	//                  FS=false (its bucket comes from the slot prefix).
 	this->m_fs_flag = (FS && DUMMY);
 	this->m_base_bucket = (FS && DUMMY)
-	    ? static_cast<uint16_t>(bucket_for_size(ALIGN)) : 0;
+	    ? static_cast<uint8_t>(bucket_for_size(ALIGN)) : 0;
+	this->m_fl_state = 0;
 	// (§16) "full-usable" m_sizes mode: enabled for FS=false chunks with
 	// ALIGN >= 1024.  The FS=false partial spec constructs through the
 	// `<ALIGN,true,false>` base ctor, so `FS && !DUMMY` uniquely selects an
@@ -1322,17 +1454,21 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	// m_sizes points just past m_flags[count]; m_align_shift = log2(ALIGN).
 	// Borrow-mode chunks (FS=true, or FS=false ALIGN<1024) leave m_sizes
 	// null so the dealloc fast path keeps reading the p-8 prefix.
-	if constexpr (FS && !DUMMY && ALIGN >= 1024u) {
+	// m_align_shift = log2(ALIGN) on every FS=false chunk: full-usable mode
+	// indexes m_sizes with it, and (§fl-avail) all of them look their
+	// bucket up with it.  m_sizes is read only when non-null.
+	if constexpr (FS && !DUMMY && ALIGN >= 1024u)
 		this->m_sizes = reinterpret_cast<uint16_t *>(
 		    reinterpret_cast<char *>(m_flags)
 		    + static_cast<size_t>(count) * sizeof(FUINT));
-		this->m_align_shift =
-		    static_cast<uint8_t>(__builtin_ctz(ALIGN));
-	}
-	else {
+	else
 		this->m_sizes = nullptr;
-		this->m_align_shift = 0;
+	if constexpr (FS && !DUMMY) {
+		static_assert(ALIGN >= 32u && ALIGN <= 4096u, "kTierLocalBucket covers ALIGN 32..4096");
+		this->m_align_shift = static_cast<uint8_t>(__builtin_ctz(ALIGN));
 	}
+	else
+		this->m_align_shift = 0;
 	// (§29) Pre-fill runtime opt-out — set `KAME_POOL_DISABLE_PREFILL=1` to
 	// fall back to the pre-§29 zero-init code path without rebuilding.
 	// Diagnostic switch only — if you're hitting a fresh-chunk corruption
@@ -1878,8 +2014,7 @@ template <unsigned int ALIGN, bool DUMMY>
 bool
 PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// (§hot-tls teardown) COLD path only.  If THIS thread has run its
-	// allocator cleanup, `s_tls.my_chunk` (1540) and `&s_tls.dll_head` (the
-	// cursor-reset below) may be torn down, and so may the cross-dealloc batch
+	// allocator cleanup, `s_tls` may be torn down, and so may the cross-dealloc batch
 	// this would otherwise push into; route the slot straight to the bitmap and
 	// return, touching no thread-local.
 	//
@@ -1912,6 +2047,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 		// (§16) local-id source: full-usable mode reads m_sizes[bit],
 		// borrow mode reads the p-8 prefix.
 		unsigned local;
+		unsigned bucket = 0;
 		if constexpr (ALIGN >= 1024u) {
 			size_t bit_index = static_cast<size_t>(p - this->mempool()) >> this->m_align_shift;
 			local = this->m_sizes[bit_index] & 0xFFu;
@@ -1923,11 +2059,14 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 			// freelist-follow).  Without the mask `local` would include
 			// the bucket bits and fail the KAME_LOCAL_BUCKETS bound check.
 			local = static_cast<unsigned>(hdr) & 0xFFu;
+			bucket = (static_cast<unsigned>(hdr) >> 16) & 0xFFu;
 		}
 		// Defensive bound check (local-id must be valid; misroute on
 		// stale data is detected and falls through to bitmap path).
 		if(local < (unsigned)KAME_LOCAL_BUCKETS) {
+			char *old = this->m_freelist_head[local];
 			this->freelist_push(local, p);
+			flv_after_push(kame_page(), this, local, bucket, old == nullptr, false);  // (§fl-avail)
 			return false;
 		}
 	}
@@ -1955,8 +2094,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// (§hot-tls teardown) Thread-exit frees never reach here: the
 	// teardown-sentinel check at the TOP of this function already routed
 	// them to a TLS-free bitmap return.  So reaching this point implies the
-	// freeing thread is alive and the `&s_tls.dll_head` cursor compare below
-	// is safe.
+	// freeing thread is alive.
 	// FS=false never participates in cross-thread batch
 	// holding — large slots have small per-word coalescing windows AND
 	// large-slot chunks repeat less frequently than FS=true small-slot
@@ -1971,43 +2109,11 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// batch TLS instance had already been destroyed) — we never touch
 	// `tls_cross_dealloc_batch` here so the post-teardown case is
 	// implicit.
-	// (§20) Cache dll-cursor-reset addresses BEFORE batch_return_to_bitmap.
-	// If this is the chunk's last live slot AND BIT_OWNED is clear
-	// (owner exited), batch_return releases `this`: the placement-new
-	// destructor runs and `this` becomes a stale pointer — accessing
-	// `this->m_owner_dll_head_addr` / `this->m_owner_dll_force_walk_ptr`
-	// afterwards is UB (UBSAN's vptr check fires).  The fields are
-	// write-once at chunk construction so the cached values stay valid
-	// across the call; the force-walk pointer's target lives in the
-	// OWNER thread's TLS (independent of this chunk's lifetime).
-	void *cached_dll_head_addr = this->m_owner_dll_head_addr;
-	auto *cached_force_walk =
-	    this->m_owner_dll_force_walk_ptr.load(std::memory_order_acquire);
+	// (§revive) The owner -- this thread or another -- learns of the room
+	// through its anchor's revival stack, pushed from inside
+	// batch_return_to_bitmap.
 	CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
 	this->batch_return_to_bitmap(tmp);
-	// (§20) `this` may be destructed past this point — use cached values
-	// only.  Direct `batch_return_to_bitmap` cleared 1 bit on `this` chunk
-	// → it may now have space for a future `allocate_pooled` (if not
-	// released).  Two cases:
-	//
-	//   * Same-thread (we are the chunk's owner):
-	//     cached_dll_head_addr == &s_tls.dll_head.  Reset OUR cursor
-	//     directly — next allocate_chunk_path walks our DLL from
-	//     head and finds the revival.
-	//
-	//   * Cross-thread (owner is some other thread):
-	//     Bump the OWNER thread's "force walk from head" hint flag.
-	//     The flag's storage lives in owner TLS (independent of this
-	//     chunk); cached_force_walk is null after owner-exit's
-	//     release-store, so we skip the deref.
-	//
-	// memory_order_relaxed on the store: hint flag, one-cycle false-
-	// negative delay acceptable.
-	if(cached_dll_head_addr ==
-	   static_cast<void *>(&PoolAllocator<ALIGN, true, false>::s_tls.dll_head))
-		PoolAllocator<ALIGN, true, false>::reset_dll_walk_state();
-	else if(cached_force_walk)
-		cached_force_walk->store(true, std::memory_order_relaxed);
 	return false;
 }
 
@@ -2058,11 +2164,19 @@ template <unsigned int ALIGN, bool DUMMY>
 int
 PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
     const CrossDeallocEntry *entries) noexcept {
+	return return_slots(entries, true);
+}
+
+template <unsigned int ALIGN, bool DUMMY>
+int
+PoolAllocator<ALIGN, false, DUMMY>::return_slots(
+    const CrossDeallocEntry *entries, bool revive) noexcept {
 	// Walk entries[k] while .chunk == this — terminates on the next
 	// chunk's group OR the trailing {nullptr, nullptr} sentinel that
 	// `CrossDeallocBatch::flush` plants at buf[count].  No `k < n_max`
 	// test in the inner loop.  Drain / post-teardown single-slot paths
 	// pass a stack-local {this, p_user} + sentinel pair.
+	bool q = revive && this->rv_take_q();   // (§revive) before our bits go
 	int n = this->batch_clear_impl(entries,
 		// MaskFn: FS=false N-bit clear.  `p` is p_user (= slot_start);
 		// `sidx` is the slot's own bit position within m_flags word `idx`.
@@ -2092,17 +2206,13 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 		},
 		// OnClearFn: FS=false.  Decrement MASK_CNT via atomicDecAndTest
 		// when this slot's word goes 1 → 0 (maintains the live-word count
-		// and supplies the full barrier).  We DO NOT release the chunk on the
-		// dec-to-0-with-BIT_OWNED-clear case: such a chunk is an ORPHAN on the
-		// atomic_shared_ptr chain (its chain-ref keeps it mapped), reclaimed by
-		// orphan_chain_scrub (unlink → refcnt 0 → dispose) once drained — not
-		// freed here.  Distinguished from the owner-exit empty release (separate
-		// path in release_dll_chunks_for_thread, where BIT_OWNED is still SET
-		// during the drain) and from the owner-alive case (BIT_OWNED set ⇒ dec
-		// never reaches 0).  The return value is intentionally ignored.
+		// and supplies the full barrier).  (§group) Every live chunk is in a
+		// group (BIT_OWNED set), so this never brings the word to 0 and never
+		// releases: the group's owner or holder does.  The return value is
+		// intentionally ignored.  The MASK_CNT decrement comes LAST: once it
+		// brings MASK_CNT to 0, a freer that does not hold BIT_Q must not touch
+		// the chunk again -- whoever holds Q may release it at once.
 		[this](FUINT oldv, FUINT newv) {
-			if(newv == 0 && oldv != 0)
-				(void)atomicDecAndTest(&this->m_flags_packed);
 			// (§max-n-gate) Symmetric with the widened atomicInc in
 			// allocate_pooled — decrement when a bit-clear restores
 			// MAX_N-contiguous-zero room that the word didn't have
@@ -2112,7 +2222,10 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 			if(find_training_zeros(MAX_N_HERE, oldv) == 0 &&
 			   find_training_zeros(MAX_N_HERE, newv) != 0)
 				atomicDec( &this->m_flags_filled_cnt);
+			if(newv == 0 && oldv != 0)
+				(void)atomicDecAndTest(&this->m_flags_packed);
 		});
+	if(q) this->rv_push();
 	return n;
 }
 
@@ -2174,6 +2287,22 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 			++j;
 		}
 		++n_words;
+		// Update the adaptive coalescing hint before the LAST word's clear:
+		// factor_x16 = (entries × 16) / unique_words; 16 = 1.0× = no
+		// benefit, > 16 = adjacent merges happened.  Relaxed: it's just a
+		// hint, races benign.  It must precede the last clear because that
+		// clear may bring MASK_CNT to 0, after which a freer that does not
+		// hold BIT_Q must not touch the chunk -- whoever holds Q may release
+		// it at once (§group).  Stored by FS=false chunks too (they run the
+		// FS=true base's instantiation), where nothing reads it.
+		if constexpr (FS) {
+			if(entries[j].chunk != this) {
+				unsigned factor = (unsigned(j) * 16u) / unsigned(n_words);
+				if(factor > 255u) factor = 255u;
+				this->m_last_coalesce_x16.store(uint8_t(factor),
+				                                std::memory_order_relaxed);
+			}
+		}
 		// CAS-clear `m_flags[idx] &= ~mask` with retry; on_clear gets
 		// the (oldv, newv) for counter updates (per-FS-variant logic).
 		FUINT nones = ~mask;
@@ -2187,21 +2316,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 			}
 		}
 		i = j;
-	}
-	// Update adaptive coalescing hint: factor_x16 = (entries × 16) /
-	// unique_words.  16 = 1.0× = no benefit; > 16 = adjacent merges
-	// happened.  Relaxed: it's just a hint, races benign.  Skip for
-	// FS=false — an earlier change bypasses cross-batch entirely on the
-	// FS=false dealloc path (direct single-entry batch_return_to_bitmap
-	// call), so the hint is never consulted and storing it would be
-	// wasted work.
-	if constexpr (FS) {
-		if(n_words > 0) {
-			unsigned factor = (unsigned(i) * 16u) / unsigned(n_words);
-			if(factor > 255u) factor = 255u;
-			this->m_last_coalesce_x16.store(uint8_t(factor),
-			                                std::memory_order_relaxed);
-		}
 	}
 	return i;
 }
@@ -2219,6 +2333,13 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 int
 PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
     const CrossDeallocEntry *entries) noexcept {
+	return return_slots(entries, true);
+}
+
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+int
+PoolAllocator<ALIGN, FS, DUMMY>::return_slots(
+    const CrossDeallocEntry *entries, bool revive) noexcept {
 	// Walks entries[k] while .chunk == this — sentinel-terminated, no
 	// length argument; see the FS=false sibling for the full rationale
 	// and the contract with `CrossDeallocBatch::flush`.
@@ -2229,25 +2350,24 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
 			reinterpret_cast<uint64_t *>(p)[j] = GUARDIAN;
 	}
 #endif
+	bool q = revive && this->rv_take_q();   // (§revive) before our bits go
 	int n = this->batch_clear_impl(entries,
 		// MaskFn: FS=true single bit
 		[](int /*idx*/, unsigned sidx, char * /*p*/) -> FUINT {
 			return ((FUINT)1u) << sidx;
 		},
 		// OnClearFn: FS=true.  Decrement MASK_CNT via atomicDecAndTest
-		// when this word goes 1 → 0.  The dec-to-0-with-BIT_OWNED-clear
-		// case (a cross-thread free emptying an orphaned chunk) does NOT
-		// release the chunk here: the orphan is on the atomic_shared_ptr
-		// chain (chain-ref keeps it mapped), and orphan_chain_scrub reclaims
-		// it (unlink → refcnt 0 → dispose) once drained.  Cross-free touches
-		// MASK_CNT only — the dec return value is intentionally ignored, so
-		// it never serialises against / races the chain reclaim.
+		// when this word goes 1 → 0.  (§group) Every live chunk is in a
+		// group (BIT_OWNED set), so a cross-thread free never brings the word
+		// to 0 and never releases: the group's owner or holder does.  The dec
+		// return value is intentionally ignored.
 		[this](FUINT oldv, FUINT newv) {
 			if(oldv == ~(FUINT)0u)
 				atomicDec( &this->m_flags_filled_cnt);
 			if(newv == 0 && oldv != 0)
 				(void)atomicDecAndTest(&this->m_flags_packed);
 		});
+	if(q) this->rv_push();
 	return n;
 }
 
@@ -2257,73 +2377,13 @@ PoolAllocator<ALIGN, FS, DUMMY>::clear_owner_tls() noexcept {
 	s_tls.my_chunk = nullptr;
 }
 
-// (§orphan-adopt) Claim an orphaned chunk (m_owner_id==0, BIT_OWNED==0)
-// into this thread's DLL so the freed slot becomes reachable via
-// scan_dll_freelist / Phase-2 allocate_pooled rather than silently
-// accumulating in the bitmap of a chunk no thread can walk.
-//
-// Called from deallocate_pooled when s_tls.my_chunk != this AND
-// m_owner_id == 0.  Thread-respawn workloads (e.g. larson) otherwise
-// route all frees of the exited thread's objects through the cross-
-// thread batch → bitmap path, leaving freed slots unreachable until
-// the chunk is fully drained and recycled.
-template <unsigned int ALIGN, bool FS, bool DUMMY>
-bool
-PoolAllocator<ALIGN, FS, DUMMY>::try_adopt_orphan(char *p, unsigned local) noexcept {
-	// Need a valid (non-zero) owner-id so the fast-path check
-	// `m_owner_id == kame_page()->owner_id` can fire after adoption.
-	if(__builtin_expect(kame_page()->owner_id == 0, 0)) return false;
-	// CAS m_owner_id: 0 → kame_page()->owner_id.  This CAS is the SOLE
-	// arbitration point — only one thread can flip m_owner_id away from
-	// 0, so concurrent adoption attempts are mutually exclusive and the
-	// winner alone proceeds to set BIT_OWNED / wire the DLL below.  (The
-	// CAS must come first for exactly this reason: setting BIT_OWNED
-	// before knowing we won would leave a chunk with BIT_OWNED set by us
-	// but m_owner_id claimed by another thread.)
-	if(!atomicCompareAndSet((uint32_t)0u, kame_page()->owner_id,
-	                        &this->m_owner_id))
-		return false;
-	// Set BIT_OWNED to mark the chunk as held by a live owner (this
-	// thread) now that it joins our DLL.  Note the window between the CAS
-	// above and this store is NOT protected by BIT_OWNED — it is
-	// protected by p's still-set bitmap bit: p is the slot we are about
-	// to free but have not yet returned, so its m_flags word is nonzero
-	// and MASK_CNT ≥ 1, meaning no cross-thread dec-to-zero can release
-	// the chunk regardless of BIT_OWNED.  p's protection lasts until the
-	// slot is eventually drained back to the bitmap, by which time
-	// BIT_OWNED has long been set — so the two protections chain with no
-	// gap.  BIT_OWNED's real job is to prevent a premature cross-thread
-	// release once the chunk lives in our DLL and is being walked.
-	atomicFetchOr(&this->m_flags_packed, BIT_OWNED);
-	// Wire force-walk pointer (cross-thread frees will now signal us).
-	this->m_owner_dll_head_addr = &s_tls.dll_head;
-	this->m_owner_dll_force_walk_ptr.store(
-	    &s_tls.dll_force_walk_from_head, std::memory_order_release);
-	// Append to this thread's DLL tail.
-	auto *dll_self = static_cast<PoolAllocator<ALIGN, DUMMY, DUMMY>*>(this);
-	dll_self->m_dll_prev = s_tls.dll_tail;
-	dll_self->m_dll_next = nullptr;
-	if(s_tls.dll_tail)
-		s_tls.dll_tail->m_dll_next = dll_self;
-	else
-		s_tls.dll_head = dll_self;
-	s_tls.dll_tail = dll_self;
-	s_tls.dll_exhausted = false;
-	// Ensure thread-exit cleanup walks this template's DLL (deduped).
-	tls_alloc_thread_exit_cleanup.add(
-	    &PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread);
-	// Push freed slot to freelist — no atomics, we own the chunk.
-	this->freelist_push(local, p);
-	return true;
-}
-
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// (§hot-tls teardown) This is the COLD path — `deallocate`'s hot
 	// owner-match returns before invoking the trampoline, so nothing here
 	// affects the hot path.  If THIS thread has already run its allocator
-	// cleanup, `s_tls` and `&s_tls.dll_head` may be torn down and the
+	// cleanup, `s_tls` may be torn down and the
 	// cross-dealloc batch below may already have been flushed and destroyed, so
 	// we must touch NO thread-local: route the single slot straight to the bitmap
 	// (TLS-free, scratch + sentinel) and return.  Subsumes the former
@@ -2356,7 +2416,10 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 		// freelist is local-id 0 (§12.3); the owner's next alloc on this
 		// bucket pops it back immediately via the TLS shortcut at
 		// `g_thread_freelist_ptr[bucket]` -> `m_freelist_head[0]`.
+		char *old = this->m_freelist_head[0];
 		this->freelist_push(0, p);
+		if( !old && this->m_fl_state == 0)
+			fl_link(kame_page(), this);   // (§fl-avail)
 		return false;
 	}
 	// (§35) Orphan adoption DISABLED here — see the FS=false sibling in the
@@ -2364,14 +2427,13 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// non-exiting consumer thread (KAME main) would otherwise strand the
 	// adopted chunk (freed slot parked freelist-bit-set, never drained →
 	// never released).  Falling through to the hold-and-batch path below
-	// routes the free to batch_return_to_bitmap, which releases the chunk
-	// (warm-recycled) once its last live slot is returned.
+	// routes the free to batch_return_to_bitmap; the chunk's group (§group)
+	// sees it emptied and its owner or holder releases it.
 	//
 	// (§hot-tls teardown) The former `if(s_alloc_tls_off)` post-teardown
 	// bypass that lived here is gone: the `kame_thread_torn_down()` check at the
 	// TOP of this function already routed thread-exit frees to a TLS-free bitmap
-	// return (it also subsumed that branch's `&s_tls.dll_head` cursor reset,
-	// which is moot for a dying thread).  Reaching this point therefore
+	// return.  Reaching this point therefore
 	// implies the freeing thread is alive, so the `tls_cross_dealloc_batch`
 	// touch below is safe.
 	//
@@ -2446,7 +2508,7 @@ __attribute__((cold, noinline))
 void *
 PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
                                                std::size_t /*size*/) noexcept {
-	// (§24) Before falling through to bitmap-claim, scan this thread's DLL
+	// (§24) Before falling through to bitmap-claim, look among this thread's chunks
 	// for any OTHER chunk holding freelist entries at the same local id.
 	// `g_thread_freelist_ptr[bucket]` tracks only the most-recently-pinned
 	// chunk's freelist[local]; when a workload's working set spans multiple
@@ -2458,23 +2520,23 @@ PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
 	// bits at word ends) and re-mmaps a fresh chunk every cycle — caught
 	// in the multi-allocator bench as a 100× regression at bucket 45
 	// (ALIGN=1024 N=13) and similarly for other non-power-of-2 N tiers.
-	if(char *head = scan_dll_freelist(/*local_id=*/0u)) {
-		kame_page()->m_slots[bucket].freelist_head =
-		    reinterpret_cast<char *>(&s_tls.my_chunk->m_freelist_head[0]);
+	// (§fl-avail) ...found on this thread's list for the bucket rather than
+	// by walking the DLL.
+	KameTlsPage *pg = kame_page();
+	if(PoolAllocatorBase *c = fl_take(pg, bucket)) {
+		s_tls.my_chunk = static_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(c);
+		char *head = c->m_freelist_head[0];
+		c->m_freelist_head[0] = *reinterpret_cast<char **>(head);
 		return head;
 	}
 	void *p = allocate_chunk_path(ALIGN);
 	PoolAllocatorBase *new_chunk =
 	    static_cast<PoolAllocatorBase *>(s_tls.my_chunk);
-	// (§12.3 / §hot-tls) Update the KameTlsPage slot to store the pointer
-	// to the new chunk's m_freelist_head[local-id-for-this-bucket].
-	// `kBucketLocalId[]` is read HERE (cold path), so the hot path
-	// (new_redirected) needs no remap.  chunk_from_freelist_ptr recovers
-	// the chunk pointer from this stored value via a single mask.
-	kame_page()->m_slots[bucket].freelist_head =
-	    new_chunk ? reinterpret_cast<char *>(
-	                    &new_chunk->m_freelist_head[kBucketLocalId[bucket]])
-	              : nullptr;
+	// (§12.3 / §hot-tls) Point the KameTlsPage slot at the new chunk's
+	// m_freelist_head[0] (an FS=true chunk serves one bucket, local id 0),
+	// so the hot path (new_redirected) needs no remap; chunk_from_freelist_ptr
+	// recovers the chunk from the stored value via a single mask.
+	fl_retarget(pg, bucket, new_chunk);
 	return p;
 }
 
@@ -2520,19 +2582,22 @@ PoolAllocator<ALIGN, false, DUMMY>::slow_allocate(unsigned bucket,
 		if constexpr (ALIGN < 1024u)
 			slot_size -= 8u;
 	}
-	// (§24) Scan this thread's DLL for an OTHER chunk holding freelist
+	// (§24) Look among this thread's chunks for an OTHER one holding freelist
 	// entries at the SAME local id (FS=false: per-bucket local id).
 	// `g_thread_freelist_ptr[bucket]` tracks only the most-recently-pinned
 	// chunk; without this scan the non-active chunks' cached slots stay
 	// unreachable from the fast path on multi-chunk working sets, and
 	// every miss re-mmaps a fresh chunk (100× regression in the fifo:N
 	// bench at bucket 45 / ALIGN=1024 N=13, etc.).  See FS=true sibling.
+	// (§fl-avail) ...found on this thread's list for the bucket rather than
+	// by walking the DLL.
 	using BaseTpl = PoolAllocator<ALIGN, true, false>;
 	const unsigned local_id = kBucketLocalId[bucket];
-	if(char *head = BaseTpl::scan_dll_freelist(local_id)) {
-		kame_page()->m_slots[bucket].freelist_head =
-		    reinterpret_cast<char *>(
-		        &BaseTpl::s_tls.my_chunk->m_freelist_head[local_id]);
+	KameTlsPage *pg = kame_page();
+	if(PoolAllocatorBase *c = flv_take(pg, bucket, local_id)) {
+		BaseTpl::s_tls.my_chunk = static_cast<PoolAllocator<ALIGN, false, false> *>(c);
+		char *head = c->m_freelist_head[local_id];
+		c->m_freelist_head[local_id] = *reinterpret_cast<char **>(head);
 		return head;
 	}
 	// Inherited static; resolves to PoolAllocator<ALIGN, true, false>::
@@ -2542,10 +2607,7 @@ PoolAllocator<ALIGN, false, DUMMY>::slow_allocate(unsigned bucket,
 	PoolAllocatorBase *new_chunk = static_cast<PoolAllocatorBase *>(
 	    PoolAllocator<ALIGN, true, false>::s_tls.my_chunk);
 	// (§12.3 / §hot-tls) cf. FS=true sibling — update the KameTlsPage slot.
-	kame_page()->m_slots[bucket].freelist_head =
-	    new_chunk ? reinterpret_cast<char *>(
-	                    &new_chunk->m_freelist_head[kBucketLocalId[bucket]])
-	              : nullptr;
+	flv_retarget(pg, bucket, local_id, new_chunk);
 	return p;
 }
 
@@ -2640,8 +2702,8 @@ PoolAllocatorBase::allocate_chunk() {
 // the per-thread DLL is the sole source of truth for "chunks this
 // thread can allocate from"; per-chunk ownership is encoded in the
 // chunk header's `PoolAllocatorBase *` (visible to cross-thread frees
-// via `lookup_chunk`) and the chunk's `m_flags_packed` BIT_RELEASED
-// race point.
+// via `lookup_chunk`) and the chunk's `m_flags_packed` (BIT_OWNED: in a
+// group; release is a CAS of that word to 0, §group).
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 PoolAllocator<ALIGN, DUMMY, DUMMY> *
 PoolAllocator<ALIGN, FS, DUMMY>::create_allocator() {
@@ -2704,65 +2766,114 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 		// while we still might dealloc objects originally allocated
 		// from it. New chunk's pin replaces it as the fast-path target.
 	}
-	// Phase 3 (chunk-full trigger): right after detecting that the
-	// active chunk has filled, flush this thread's cross-thread
-	// dealloc batch.  The flushed entries return slots to the
-	// originating chunks (often this thread's own DLL members from
-	// earlier in the run) — by the time the Phase 2 DLL scan below
-	// looks for a chunk with room, those chunks may have just
-	// recovered space.  Net effect:
-	//   * mmap pressure reduced (DLL scan finds reusable chunks
-	//     instead of falling through to `create_allocator`)
-	//   * batched cross-thread frees don't get postponed past the
-	//     point of memory growth
-	//
-	// Cost: O(N log N) sort + per-chunk bitmap CAS on the batch (N ≤
-	// CAP = 1024).  Paid once per chunk-fill event — orders of
-	// magnitude rarer than the per-allocation hot path.  Safe to call
-	// with an empty batch (early-out inside `flush`).
-	//
-	// Other threads' chunks emptied by this flush are NOT released
-	// here — the owning thread (eventually) handles those via the
-	// same trigger, or via Phase 4's thread-exit cleanup.  Own
-	// chunks emptied by the flush are visible to the Phase 2 scan
-	// directly below.
-	// only reset cursor / exhausted if the batch actually
-	// had entries that we are about to flush back to chunk bitmaps.
-	// In pure-alloc workloads (alloc_only, no cross-frees), the batch
-	// stays empty, the flush is a no-op, and we keep the cursor's
-	// O(N) → O(1) advantage.  Stress workloads see real cross-frees,
-	// the count > 0 path fires, and the cursor rewinds so partial
-	// revivals are visited.
-	if(tls_cross_dealloc_batch.count != 0) {
+	typedef PoolAllocator<ALIGN, DUMMY, DUMMY> Chunk;
+	// Make `c` the pin.  A member of a group we took over joins our DLL the
+	// first time.  (§33) The old pin becomes "1-back", which the revival pop
+	// below skips for one pin cycle.
+	auto pin = [](Chunk *c) noexcept {
+		if(c->m_owner_id != kame_owner_id()) dll_join(c);
+#if KAME_POOL_ONEBACK_SKIP
+		s_tls.dll_one_back = s_tls.my_chunk;
+#endif
+		s_tls.my_chunk = c;
+	};
+	auto fill_check = [&](void *p) noexcept -> void * {
+#ifdef GUARDIAN
+		for(unsigned int i = 0; p && i < SIZE / sizeof(uint64_t); ++i) {
+			if(static_cast<uint64_t *>(p)[i] != GUARDIAN)
+				fprintf(stderr, "Memory tainted in %p:64\n", &static_cast<uint64_t *>(p)[i]);
+		}
+#endif
+#ifdef FILLING_AFTER_ALLOC
+		for(unsigned int i = 0; p && i < SIZE / sizeof(uint64_t); ++i)
+			static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC;
+#endif
+		return p;
+	};
+	// (§group) Right after taking a group over, try its anchor once: room it
+	// had when its owner left was never listed.  (Room a free gives it later
+	// lists it on its own head, like any member.)  Its Q, if any, is left to
+	// whatever list holds it.
+	auto try_new_anchor = [&]() noexcept -> void * {
+		Chunk *a = s_tls.anchor;
+		void *p = a->allocate_pooled(SIZE);
+		if(p) pin(a);
+		return p;
+	};
+	// (§revive) Reuse our group's chunks that cross-thread frees gave room.
+	// A freer that takes a chunk's BIT_Q pushes it onto our anchor's head.
+	// When the rest we took last time (s_tls.rv_list; chunks moved in from an
+	// orphaned group go there too) is used up, take the whole head with one
+	// exchange -- at most once per call (`may_take`).  Listed chunks keep Q --
+	// a free into one does not push it again, and nothing releases it --
+	// until we pop it here: read its link, drop Q (from then on the next free
+	// pushes it anew and may rewrite the link), and try it.  One that cannot
+	// serve SIZE is simply dropped; it stays in our group.  O(1) per call
+	// apart from such drops, each paid for by the free that revived the
+	// chunk; no walk of the DLL.
+	auto take_rest = [&](bool may_take) noexcept -> void * {
+		Chunk *skipped = nullptr;   // (§33) the 1-back chunk, kept (with Q)
+		void *p = nullptr;
+		for(;;) {
+			Chunk *c = s_tls.rv_list;
+			if( !c) {
+				Chunk *anc = s_tls.anchor;
+				if( !may_take || !anc || !anc->m_rv_head.load(std::memory_order_relaxed))
+					break;
+				may_take = false;
+				c = static_cast<Chunk *>(reinterpret_cast<PoolAllocator *>(
+				    anc->m_rv_head.exchange(0, std::memory_order_acquire)));
+				if( !c) break;
+			}
+			s_tls.rv_list = static_cast<Chunk *>(c->m_rv_next);
+#if KAME_POOL_ONEBACK_SKIP
+			if(c == s_tls.dll_one_back && !skipped) {
+				skipped = c;
+				continue;
+			}
+#endif
+			atomicFetchAnd(&c->m_flags_packed, static_cast<uint32_t>(~BIT_Q));
+			if((p = c->allocate_pooled(SIZE))) {
+				if(c != s_tls.my_chunk) pin(c);
+				break;
+			}
+		}
+		if(skipped) {
+			skipped->m_rv_next = s_tls.rv_list;
+			s_tls.rv_list = skipped;
+		}
+		return p;
+	};
+	// Phase 3 (chunk-full trigger): flush this thread's cross-thread dealloc
+	// batch.  The flushed entries return slots to the originating chunks; a
+	// chunk of our own group (one freed into the batch during teardown, or
+	// moved in from an orphaned group) is revived onto our own head like any
+	// other and taken below.  Other threads' chunks emptied here are NOT
+	// released -- their groups' owners or holders do that.  Cost: O(N log N)
+	// sort + per-chunk bitmap CAS on the batch (N <= CAP = 1024), once per
+	// chunk-fill event.
+	if(tls_cross_dealloc_batch.count != 0)
 		tls_cross_dealloc_batch.flush();
-		s_tls.dll_cursor = nullptr;
-		s_tls.dll_exhausted = false;
-	}
-	// own-empty-neighbour release.  Walk forward from
-	// `s_tls.my_chunk` along the DLL: if the immediate next chunk is
-	// empty ((m_flags_packed & MASK_CNT) == 0), release it; if its successor
-	// is *also* empty, release that too — capped at two consecutive
-	// releases per trigger so the cost stays bounded.  Steady-state
-	// memory growth = mmap rate (one new chunk per chunk-fill); this
-	// release path balances it at the same cadence.
+	// Own-empty-neighbour release.  Walk forward from `s_tls.my_chunk`
+	// along the DLL: release the next chunk if it is empty, and its
+	// successor too -- capped at two per trigger so the cost stays bounded.
+	// Steady-state memory growth = mmap rate (one new chunk per chunk-fill);
+	// this release path balances it at the same cadence.  The anchor stays
+	// (it names our group; owner_release could not match its word anyway).
 	//
-	// Safety: `owner_release` clears BIT_OWNED with an atomicFetchAnd and only
-	// reports success when the word reached 0, i.e. when it is the unique
-	// releaser; the caller then does the DLL unlink + `delete` +
-	// `deallocate_chunk`.  Note what its give-up return leaves behind: BIT_OWNED
-	// already cleared on a chunk that is NOT on the orphan chain, which is a state
-	// the free path's `OnClearFn`s assume cannot occur (they decline to release a
-	// BIT_OWNED-clear chunk precisely because they take it to be chained).  The
-	// give-up needs MASK_CNT to rise between the pre-check and the fetch-and, and
-	// MASK_CNT is only ever raised by the owner's own claim path, so it is
-	// unreachable today — do not make it reachable without revisiting those
-	// OnClearFns.
+	// Safety: `owner_release` CASes the word from exactly BIT_OWNED to 0, so
+	// it releases only an owned, empty chunk that is not listed for revival
+	// (BIT_Q clear => not on the revival stack nor on s_tls.rv_list, no push
+	// in flight); a failed CAS changes nothing.  The caller then does the DLL
+	// unlink + destruct + region release.
 	if(s_tls.my_chunk) {
 		auto *nx = s_tls.my_chunk->m_dll_next;
 		for(int released = 0; nx && released < 2; ) {
 			auto *nxnext = nx->m_dll_next;
-			if((nx->m_flags_packed & PoolAllocator<ALIGN, DUMMY, DUMMY>::MASK_CNT) != 0)
-				break;  // hit a non-empty
+			if((atomicLoadRelaxed(&nx->m_flags_packed)
+			    & PoolAllocator<ALIGN, DUMMY, DUMMY>::MASK_CNT) != 0
+			   || nx == s_tls.anchor)
+				break;  // hit a non-empty (or the anchor)
 			// `nx` is `PoolAllocator<ALIGN, DUMMY, DUMMY> *` (same
 			// type as `s_tls.my_chunk`).  Use the current template's
 			// `owner_release` (FS=true and FS=false specialisations
@@ -2774,6 +2885,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 				else               s_tls.dll_head = nx->m_dll_next;
 				if(nx->m_dll_next) nx->m_dll_next->m_dll_prev = nx->m_dll_prev;
 				else               s_tls.dll_tail = nx->m_dll_prev;
+				--s_tls.dll_len;
 				// PoolAllocator object now embedded inside chunk_base +
 				// ALLOC_CHUNK_HEADER; chunk_base from `nx` directly.
 				char *cbase = reinterpret_cast<char*>(nx) - ALLOC_CHUNK_HEADER;
@@ -2809,16 +2921,17 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 					if(fp && chunk_from_freelist_ptr(fp) == nx_pa)
 						pg->m_slots[b].freelist_head = nullptr;
 				}
+				// (§fl-avail) An empty chunk may still be listed (its
+				// freelist drained as the shortcut's after it was linked).
+				if(nx_pa->m_fs_flag && (nx_pa->m_fl_state & PoolAllocatorBase::FL_LINKED))
+					fl_unlink(pg, nx_pa);
+				for(unsigned l = 0; l < (unsigned)KAME_LOCAL_BUCKETS; ++l)
+					if(nx_pa->m_fl_mask & PoolAllocatorBase::FL_LINKED_BIT(l))
+						flv_unlink(pg, nx_pa, l,
+						    kTierLocalBucket.v[(nx_pa->m_align_shift - 5u) & 7u][l]);
+				nx_pa->m_fl_state = 0;
+				if( !nx_pa->m_fs_flag) flv_mask_store(nx_pa, 0);
 				}
-				// if the cursor was pointing at the released
-				// chunk, advance past it.  Also clear the exhaustion
-				// flag — DLL was just modified; an earlier chunk
-				// (now closer to head via the unlink) might have had
-				// cross-thread frees we didn't see during the previous
-				// walk.  Conservative reset → next allocate_chunk_path
-				// rewalks from head.
-				if(s_tls.dll_cursor == nx)
-					s_tls.dll_cursor = nxnext;
 #if KAME_POOL_ONEBACK_SKIP
 				// (§33) Clear dll_one_back if it pointed at the chunk
 				// we're releasing — otherwise it dangles and a chunk
@@ -2827,219 +2940,102 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 				if(s_tls.dll_one_back == nx)
 					s_tls.dll_one_back = nullptr;
 #endif
-				s_tls.dll_exhausted = false;
 				// (1b) Clear m_owner_id BEFORE the destructor — see the
 				// FS=true batch_return_to_bitmap sibling for the rationale.
 				nx->m_owner_id = 0;
-				if(nx->m_owner_self_ref) {
-					// (Path B owner-ref) Adopted neighbour: it may still be
-					// pinned by a concurrent scrubber.  DROP the self-ref —
-					// owner_release already cleared BIT_OWNED, so the disposer
-					// reclaims it when refcnt hits 0 (now, or at the last pin
-					// drop).  Don't touch `nx` after this; it may be freed.
-					nx->m_owner_self_ref.reset();
-				} else {
-					// Fresh chunk (never on the chain, no scrub pin) — direct.
-					nx->~PoolAllocator();   // placement-new destructor
-					PoolAllocatorBase::bucket_release_chunk(cbase, csz);  // (§34) park warm
-				}
+				// (§group) Only anchors are refcounted, and the anchor is never
+				// a neighbour we release: destruct directly.  Its m_anc
+				// reference to our anchor drops in the destructor.
+				nx->~PoolAllocator();   // placement-new destructor
+				PoolAllocatorBase::bucket_release_chunk(cbase, csz);  // (§34) park warm
 				++released;
 			}
 			else {
-				// `owner_release` refused (LEAVE_VACANT_CHUNKS floor
-				// or a racing re-allocation).  Stop — don't try
-				// further neighbours, the chunk is still in use.
+				// `owner_release` refused (LEAVE_VACANT_CHUNKS floor, or
+				// a freer holds BIT_Q).  Stop — don't try further
+				// neighbours.
 				break;
 			}
 			nx = nxnext;
 		}
 	}
-	// Phase 2: forward-scan this thread's already-claimed chunks for
-	// one that has room.  Cross-thread frees on our previously-active
-	// chunks routinely empty out bits while those chunks sit older in
-	// the DLL — an earlier change made this the SOLE chunk-reuse mechanism
-	// (the per-template global chunk registry, retired in 4b-final,
-	// no longer mediates cross-thread chunk reclaim).
+	// Revived chunks first, then the anchor: a chunk a consumer is still
+	// freeing into is the one we should not take back yet (cf. §33), and the
+	// anchor of a producer's group is usually that chunk.
+	if(void *p = take_rest(true)) return fill_check(p);
+	// (§group) Our own group has no room: turn to the orphaned groups before
+	// mmap'ing.  Chunks owned by other live threads are never reclaimable here.
 	//
-	// cursor-based DLL walk.  If `s_tls.dll_exhausted` is true,
-	// the previous walk reached end without finding space — skip the
-	// walk entirely (set false again when a new chunk is added below,
-	// or when an owner_release clears it).  Otherwise resume from
-	// `s_tls.dll_cursor` (set by the previous successful claim or end-of-
-	// walk advance), or s_tls.dll_head on first walk after a reset.
-	//
-	// Forward sweep covers the full DLL from the cursor on: newer
-	// chunks appear later (see the tail-append at the mmap-fresh path
-	// below), so iterating from the cursor visits everything added
-	// after the cursor — including the just-mmapped chunk if the
-	// cursor was reset via mmap-fresh.  Skipping `s_tls.my_chunk` avoids
-	// a redundant retry of the just-failed `allocate_pooled` call
-	// above.
-	// check the cross-thread revival hint.  If any cross-
-	// thread free flipped our "force walk from head" flag since the
-	// last walk, restart the walk from `s_tls.dll_head` so we visit
-	// chunks that received bitmap clears we wouldn't see by
-	// resuming from the (possibly past-end) cursor.  `exchange`
-	// resets the flag in the same atomic; subsequent cross-thread
-	// frees re-arm it.
-	if(s_tls.dll_force_walk_from_head.exchange(false, std::memory_order_relaxed)) {
-		s_tls.dll_cursor = nullptr;
-		s_tls.dll_exhausted = false;
-	}
-	if( !s_tls.dll_exhausted) {
-		auto *c = s_tls.dll_cursor ? s_tls.dll_cursor : s_tls.dll_head;
-		while(c) {
-			// (§33) Skip the pinned chunk always; skip "1-back" too when
-			// `KAME_POOL_ONEBACK_SKIP` is enabled — see the macro doc.
-#if KAME_POOL_ONEBACK_SKIP
-			if(c != s_tls.my_chunk && c != s_tls.dll_one_back) {
-#else
-			if(c != s_tls.my_chunk) {
-#endif
-				if(void *p = c->allocate_pooled(SIZE)) {
-#if KAME_POOL_ONEBACK_SKIP
-					s_tls.dll_one_back = s_tls.my_chunk;  // pin shift
-#endif
-					s_tls.my_chunk = c;
-					s_tls.dll_cursor = c;
-#ifdef GUARDIAN
-					for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
-						if(static_cast<uint64_t *>(p)[i] != GUARDIAN) {
-							fprintf(stderr, "Memory tainted in %p:64\n", &static_cast<uint64_t *>(p)[i]);
-						}
-					}
-#endif
-#ifdef FILLING_AFTER_ALLOC
-					for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
-						static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC;
-#endif
-					return p;
-				}
+	// Sweep: take FULL whole.  Without a group of our own we take over the
+	// first group on it -- its anchor is a chunk we reuse instead of an mmap,
+	// even if nothing else is left in the group -- and treat the others as
+	// any holder does: move the chunks on their heads into our group
+	// (releasing the empty ones) and place each back, onto FULL again if its
+	// head stayed empty, or dissolved once nothing is left in it.  This is
+	// what reclaims groups whose anchor alone held slots when its owner
+	// exited (the anchor's own last free lists it on its own head, but a
+	// group on FULL is looked at only by a sweep).
+	// O(groups on FULL), and only when ROOM is empty, right before an mmap
+	// (RT_READINESS G4).
+	auto sweep = [&]() noexcept -> void * {
+		if( !s_full_head()) return nullptr;
+		bool took_over = false;
+		local_shared_ptr<PoolAllocator> g;
+		g.swap(s_full_head());
+		while(g) {
+			local_shared_ptr<PoolAllocator> nxt(g->m_orphan_next);
+			g->m_orphan_next = local_shared_ptr<PoolAllocator>();
+			if( !s_tls.anchor) {
+				Chunk *a = static_cast<Chunk *>(g.get());
+				assert( !a->m_owner_self_ref);
+				a->m_owner_self_ref = std::move(g);
+				s_tls.anchor = a;
+				took_over = true;
+				tls_alloc_thread_exit_cleanup.add(
+				    &PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread);
 			}
-			c = c->m_dll_next;
-		}
-		// Walk reached end without finding space — mark exhausted so
-		// future allocate_chunk_path calls skip the walk until the
-		// DLL is modified (new chunk added or chunk released).
-		s_tls.dll_cursor = nullptr;
-		s_tls.dll_exhausted = true;
-	}
-	// All own chunks full — mmap a fresh chunk.  an earlier change retired the
-	// previous pin-CAS scan of the global registry; chunks owned by
-	// other (live or exited) threads are no longer reclaimable here.
-	// Exited-thread chunks drain naturally via cross-thread frees +
-	// `BIT_OWNER_EXITED`; live-thread chunks are private DLL members
-	// of their owner.
-	//
-	// The fresh chunk is appended to this thread's DLL tail and cached
-	// in `s_tls.my_chunk`.  Also register the per-template DLL teardown
-	// callback with `tls_alloc_thread_exit_cleanup` if not already registered
-	// (deduped inside `add`), so thread-exit walks this template's
-	// DLL.
-	// (§36) Orphan reclaim: before mmap'ing a fresh chunk, try to re-own a
-	// chunk orphaned by an exited thread (its free slots are otherwise
-	// unreachable -> reserved-region growth, alloc_thread_churn scenario 2).
-	// Pop one; CAS BIT_OWNED 0->1 to claim; re-arm owner metadata exactly as
-	// create_allocator's fresh-chunk init does; splice into this thread's DLL
-	// tail.  Then allocate from it if it has room, else leave it adopted in
-	// the DLL and fall through to a fresh mmap.  After this the chunk is a
-	// normal OWNED chunk again — if its owner later exits non-empty it is
-	// pushed again (temporal reuse; never double-linked, one push at a time).
-	// (Path B) Before mmap'ing fresh: (1) scrub — reclaim EMPTY orphans from
-	// the chain (frees their region units); (2) ADOPT — pop ONE head orphan
-	// and re-own it, reusing its free slots so SURVIVOR (non-empty) orphans
-	// are not stranded.  HOLD oc_hold through the BIT_OWNED claim: that keeps
-	// the chunk alive until BIT_OWNED is set; oc_hold is then MOVED into the
-	// chunk's m_owner_self_ref (the owner-ref, see below) so a residual scrub
-	// pin draining → refcnt 0 → atomic_intrusive_dispose no-ops while owned.
-	// oc_hold is the FS=true-base type (the chain's node type); the downcast
-	// reverses the upcast orphan_chain_push applied at owner-exit.
-	orphan_chain_scrub();
-	local_shared_ptr<PoolAllocator<ALIGN, true, DUMMY> > oc_hold = orphan_chain_pop();
-	if(PoolAllocator<ALIGN, DUMMY, DUMMY> *oc =
-	       static_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(oc_hold.get())) {
-		// Claim: set BIT_OWNED, preserving the MASK_CNT survivors that the
-		// holding thread's cross-thread frees may still be decrementing.
-		// We are the SOLE owner of this popped pointer (it is now off the
-		// stack and no other thread can see it), so no concurrent writer can
-		// set BIT_OWNED — the only thing that races us on m_flags_packed is a
-		// cross-thread free's MASK_CNT atomicDecAndTest.  The CAS therefore
-		// retries on a MASK_CNT change (re-reading the value) and supplies
-		// the acquire barrier; it can only OBSERVE BIT_OWNED already set in
-		// the (invariant-violating) duplicate-push case, which we discard.
-		// CRITICAL: a popped orphan must NOT be left stranded — looping
-		// guarantees BIT_OWNED gets set (the chunk is re-owned) unless it
-		// was already owned (impossible under single-push, hence the
-		// defensive discard).  Read m_flags_packed non-atomically (same
-		// access style as the neighbour walk above); the CAS is the
-		// synchronisation point.
-		bool claimed = false;
-		for(;;) {
-			uint32_t of = oc->m_flags_packed;
-			if(of & PoolAllocator<ALIGN, DUMMY, DUMMY>::BIT_OWNED)
-				break;  // duplicate-owned (should never happen) -> discard
-			if(atomicCompareAndSet(of,
-			       of | PoolAllocator<ALIGN, DUMMY, DUMMY>::BIT_OWNED,
-			       &oc->m_flags_packed)) {
-				claimed = true;
-				break;  // BIT_OWNED set, MASK_CNT preserved
+			else {
+				group_take_head(g.get());
+				group_place(std::move(g), false);
 			}
-			// CAS lost to a concurrent MASK_CNT dec — retry with fresh `of`.
+			g = std::move(nxt);
 		}
-		if(claimed) {
-			// Re-arm owner metadata to THIS thread, mirroring
-			// create_allocator's fresh-chunk setup (PoolAllocator ctor):
-			//   m_owner_id                = kame_owner_id()
-			//   m_owner_dll_head_addr     = &s_tls.dll_head
-			//   m_owner_dll_force_walk_ptr= &s_tls.dll_force_walk_from_head
-			//                               (release store)
-			oc->m_owner_id = kame_owner_id();
-			oc->m_owner_dll_head_addr = static_cast<void *>(&s_tls.dll_head);
-			oc->m_owner_dll_force_walk_ptr.store(
-			    &s_tls.dll_force_walk_from_head, std::memory_order_release);
-			// Splice at DLL tail (mirror create_allocator's append below).
-			oc->m_dll_next = nullptr;
-			oc->m_dll_prev = s_tls.dll_tail;
-			if(s_tls.dll_tail) s_tls.dll_tail->m_dll_next = oc;
-			else               s_tls.dll_head = oc;
-			s_tls.dll_tail = oc;
-#if KAME_POOL_ONEBACK_SKIP
-			s_tls.dll_one_back = s_tls.my_chunk;  // (§33) pin shift
-#endif
-			s_tls.my_chunk = oc;
-			s_tls.dll_cursor = oc;
-			s_tls.dll_exhausted = false;
+		if(took_over)
+			if(void *p = try_new_anchor()) return p;
+		return take_rest(true);
+	};
+	if( !s_tls.anchor) {
+		// No group yet: take one over -- pop it off ROOM and own it.  Its
+		// location reference becomes ours (the anchor's self-ref); its members
+		// join our DLL as we pin them.  Then its anchor's room, then its head
+		// (non-empty when it was placed on ROOM).  Without this, every
+		// short-lived thread would mmap a chunk per template for its first
+		// group instead of reusing an orphaned one.  ROOM empty: the sweep
+		// takes over a group off FULL instead.
+		if(local_shared_ptr<PoolAllocator> g = room_pop()) {
+			Chunk *a = static_cast<Chunk *>(g.get());
+			assert( !a->m_owner_self_ref);
+			a->m_owner_self_ref = std::move(g);
+			s_tls.anchor = a;
 			tls_alloc_thread_exit_cleanup.add(
 			    &PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread);
-			// (Path B owner-ref) MOVE oc_hold into the chunk's self-ref instead
-			// of dropping it: the chunk now holds a local_shared_ptr to ITSELF
-			// (the owner-ref), so refcnt = self-ref + any residual scrub pins and
-			// every owner-side free becomes a refcnt-mediated reset() rather than
-			// a direct deallocate_chunk.  No refcnt change (the popped chain-ref
-			// becomes the self-ref); oc_hold goes null.  Closes Inv_NoBadOwnerFree.
-			oc->m_owner_self_ref = std::move(oc_hold);
-			if(void *p = oc->allocate_pooled(SIZE)) {
-#ifdef GUARDIAN
-				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
-					if(static_cast<uint64_t *>(p)[i] != GUARDIAN)
-						fprintf(stderr, "Memory tainted in %p:64\n",
-						        &static_cast<uint64_t *>(p)[i]);
-				}
-#endif
-#ifdef FILLING_AFTER_ALLOC
-				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
-					static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC;
-#endif
-				return p;
-			}
-			// Adopted but full -> fall through to create a fresh chunk; oc
-			// stays in our DLL and is reused once a survivor is freed into it.
+			if(void *p = try_new_anchor()) return fill_check(p);
+			if(void *p = take_rest(true)) return fill_check(p);
 		}
-		// else: BIT_OWNED was already set (single-push invariant violated —
-		// should never happen) -> discard `oc`, fall through to fresh mmap.
-		// (No stranding from a lost CAS: the claim loop above retries until
-		// it sets BIT_OWNED, so a popped orphan is always re-owned here unless
-		// it was the impossible duplicate-owned case.)
+		else if(void *p = sweep()) return fill_check(p);
+	}
+	else {
+		// Adopt: pop groups off ROOM, move the chunks on their heads into our
+		// group (releasing the empty ones), and place each back -- until one
+		// gives us room.  Each popped head is non-empty, so every round
+		// releases or moves at least one chunk.
+		while(local_shared_ptr<PoolAllocator> g = room_pop()) {
+			unsigned moved = group_take_head(g.get());
+			group_place(std::move(g), false);
+			if(moved)
+				if(void *p = take_rest(false)) return fill_check(p);
+		}
+		if(void *p = sweep()) return fill_check(p);
 	}
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *chunk = create_allocator();
 	if( !chunk) {
@@ -3051,10 +3047,18 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	}
 	tls_alloc_thread_exit_cleanup.add(
 	    &PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread);
-#if KAME_POOL_ONEBACK_SKIP
-	s_tls.dll_one_back = s_tls.my_chunk;  // (§33) pin shift on fresh-mmap
-#endif
-	s_tls.my_chunk = chunk;
+	if( !s_tls.anchor) {
+		// (§group) No group yet (ROOM had none to take over): the fresh chunk
+		// founds ours as its anchor.  BIT_A goes in before the chunk is
+		// published; its self-ref is the group's location reference.
+		chunk->m_flags_packed |= BIT_A;
+		chunk->refcnt.store(1, std::memory_order_relaxed);
+		chunk->m_owner_self_ref = local_shared_ptr<PoolAllocator>(chunk);
+		s_tls.anchor = chunk;
+	}
+	else
+		chunk->m_anc = static_cast<PoolAllocator *>(s_tls.anchor)->m_owner_self_ref;
+	// The ctor stamped our m_owner_id; append to the DLL directly.
 	chunk->m_dll_prev = s_tls.dll_tail;
 	chunk->m_dll_next = nullptr;
 	if(s_tls.dll_tail)
@@ -3062,93 +3066,54 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	else
 		s_tls.dll_head = chunk;
 	s_tls.dll_tail = chunk;
-	// fresh chunk has full capacity — clear the exhaustion
-	// flag and point the cursor at it.  Next allocate_chunk_path that
-	// finds `s_tls.my_chunk` full will resume the DLL walk from this
-	// chunk; in alloc_only workloads where this chunk is the only
-	// one with space, the walk does an O(1) skip-self-and-end instead
-	// of the O(N) walk-all-prior-full-chunks.
-	s_tls.dll_cursor = chunk;
-	s_tls.dll_exhausted = false;
-	void *p = chunk->allocate_pooled(SIZE);
+	++s_tls.dll_len;
+	pin(chunk);
 	// Fresh chunk always has room for the first allocation; an mmap
 	// chunk has 16K+ slots even at ALIGN=16.
-#ifdef GUARDIAN
-	for(unsigned int i = 0; p && i < SIZE / sizeof(uint64_t); ++i) {
-		if(static_cast<uint64_t *>(p)[i] != GUARDIAN) {
-			fprintf(stderr, "Memory tainted in %p:64\n", &static_cast<uint64_t *>(p)[i]);
-		}
-	}
-#endif
-#ifdef FILLING_AFTER_ALLOC
-	for(unsigned int i = 0; p && i < SIZE / sizeof(uint64_t); ++i)
-		static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC;
-#endif
-	return p;
+	return fill_check(chunk->allocate_pooled(SIZE));
 }
-// chunk release is a single CAS on the chunk's
-// `m_flags_packed` (BIT_RELEASED).  Whoever wins the CAS is the
-// exclusive releaser; they then call `delete` + `deallocate_chunk()`.
-// The pin field, the bit-0-lock CAS on the per-template chunk
-// registry, and the registry itself are all gone — `BIT_RELEASED`
-// on the packed word is the single serialisation point across:
+// Chunk release is a CAS of the whole `m_flags_packed` word to 0 from exactly
+// one pattern (§group; see the BIT_* doc in allocator_prv.h), so the releaser
+// is unique and nothing is in flight:
 //
-//   1. `owner_release(palloc)` — an earlier change chunk-full neighbour
-//      release in `allocate_chunk_path`.  No `BIT_OWNER_EXITED`
-//      precondition (owner alive, releasing its own empty chunks);
-//      gated by `LEAVE_VACANT_CHUNKS_PER_THREAD` floor (DLL traversal
-//      to count this thread's chunks) so bursty workloads don't
-//      thrash release-then-mmap.
-//   2. `cross_release(palloc)` — cross-thread last-slot returner in
-//      `batch_return_to_bitmap` when dec-to-zero meets
-//      `BIT_OWNER_EXITED == 1`.  No floor: owner is gone, the chunk
-//      has no future, release immediately.
-//   3. `release_dll_chunks_for_thread()` — `AllocThreadExitCleanup::~dtor`
-//      walks THIS thread's DLL: empty chunks claim `BIT_RELEASED`
-//      directly, non-empty set `BIT_OWNER_EXITED`.  No floor: thread
-//      is exiting, the chunks belong to nobody.
+//   1. `owner_release(palloc)` — the chunk-full neighbour release in
+//      `allocate_chunk_path`, from BIT_OWNED: an empty, unlisted member of
+//      the owner's group.  Gated by the `LEAVE_VACANT_CHUNKS_PER_THREAD`
+//      floor (`s_tls.dll_len`) so bursty workloads don't thrash
+//      release-then-mmap.
+//   2. `release_dll_chunks_for_thread()` — thread exit: the same for every
+//      empty member in the DLL, then BIT_OWNED|BIT_Q for the empty listed
+//      chunks on the own head, then the group is placed or dissolved.
+//   3. a holder of an orphaned group (`group_take_head`), from
+//      BIT_OWNED|BIT_Q, and whoever dissolves a group (`group_place`),
+//      from BIT_OWNED|BIT_A.
+// A cross-thread free never releases (`cross_release` is a stub).
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
-	// an earlier change release model:
+	// Release model:
 	//   - Owner thread observes a DLL-neighbour chunk that's empty
 	//     (MASK_CNT == 0).
-	//   - atomicFetchAnd(~BIT_OWNED) clears the owned bit.
-	//   - If `old & ~BIT_OWNED == 0`, owner is the unique releaser
-	//     (= the AND brought m_flags_packed to 0 because MASK_CNT was
-	//     0 and BIT_OWNED was 1).  Return true → caller deletes +
-	//     deallocate_chunks.
-	//   - Else MASK_CNT > 0 (in-flight cross-thread free that hadn't
-	//     completed when owner observed empty — very rare since
-	//     cross-thread dec is atomic and visible) → leave for cross-
-	//     thread releaser.  Return false.  BIT_OWNED is now clear so
-	//     the cross-thread releaser's subsequent atomicDecAndTest will
-	//     bring the word to 0 and identify itself as releaser.
+	//   - CAS the word from exactly BIT_OWNED to 0.  Success makes the
+	//     owner the unique releaser: the chunk was owned, empty, and no
+	//     freer held BIT_Q (§revive: not on the revival stack, no push in
+	//     flight -- a freer takes Q only while BIT_OWNED is set and before
+	//     clearing its bits, so after this CAS none can start).  Return true
+	//     → caller unlinks + releases.
+	//   - Failure (a live slot, or a freer holding Q) changes nothing; the
+	//     chunk stays an ordinary owned chunk.  Return false.  (The old
+	//     atomicFetchAnd(~BIT_OWNED) could leave BIT_OWNED clear on a chunk
+	//     that is not on the orphan chain; with BIT_Q in the word the
+	//     failure would now be reachable, so the CAS is exact.)
 	//
-	// Per-thread floor check: count this thread's DLL chunks and skip
-	// release below the floor.  Cheap — DLL is single-writer (us) and
-	// typically holds 1–3 chunks per template, far below
-	// AllocThreadExitCleanup::MAX = 32.  Called from the slow path only
-	// (chunk-full trigger), so the O(D) walk is invisible to the hot
-	// path.
-	int dll_len = 0;
-	for(auto *c = s_tls.dll_head; c; c = c->m_dll_next) ++dll_len;
-	if(dll_len <= LEAVE_VACANT_CHUNKS_PER_THREAD) return false;
+	// Per-thread floor: skip release below LEAVE_VACANT_CHUNKS_PER_THREAD
+	// chunks, so bursty workloads don't thrash release-then-mmap.
+	// (§revive) `s_tls.dll_len` replaces the O(DLL) count walk.
+	if(s_tls.dll_len <= LEAVE_VACANT_CHUNKS_PER_THREAD) return false;
 
-	// Quick pre-check: bail if not empty.  Avoids the atomicFetchAnd
-	// (and the BIT_OWNED clear that'd hand release to cross-thread).
-	if((palloc->m_flags_packed & MASK_CNT) != 0) return false;
-
-	uint32_t old = atomicFetchAnd(&palloc->m_flags_packed,
-	                              static_cast<uint32_t>(~BIT_OWNED));
-	uint32_t newv = old & ~BIT_OWNED;
-	if(newv != 0) {
-		// MASK_CNT > 0 (cross-thread brought a bit back?) — no, MASK_CNT
-		// monotone non-increases on non-pinned DLL chunks.  Reaching
-		// here means the pre-check raced with our AND completion.  Not
-		// the releaser; cross-thread will handle.
+	if( !atomicCompareAndSet(static_cast<uint32_t>(BIT_OWNED), 0u,
+	                         &palloc->m_flags_packed))
 		return false;
-	}
 #ifdef GUARDIAN
 	void *ppool = palloc->mempool();
 	for(unsigned int i = 0; i < palloc->m_chunk_size / sizeof(uint64_t); ++i) {
@@ -3161,75 +3126,61 @@ PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
 	return true;
 }
 
-// cross_release no longer needed as a separate path.
-// Cross-thread releaser identification is inlined in
-// batch_return_to_bitmap's OnClearFn via atomicDecAndTest — when
-// dec brings m_flags_packed to 0 (= BIT_OWNED was clear AND MASK_CNT
-// was 1), that thread is uniquely the releaser.  The function is
-// kept declared in allocator_prv.h for ABI stability across template
-// instantiations but defined as a stub here.
+// cross_release: a cross-thread free never releases (§group: every live
+// chunk is in a group, BIT_OWNED set, so its MASK_CNT decrement never brings
+// the word to 0).  Kept declared in allocator_prv.h for ABI stability across
+// template instantiations but defined as a stub here.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::cross_release(PoolAllocator * /*palloc*/) {
-	// Legacy entry — not used in an earlier change+.  See OnClearFn release
-	// branch in batch_return_to_bitmap.
+	// Legacy entry — never used.
 	return false;
 }
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void
 PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
-	// Walk this thread's DLL with cached-next.  For each chunk:
-	//   empty (count == 0) → CAS BIT_RELEASED, then delete + deallocate_chunk.
-	//   non-empty           → CAS BIT_OWNER_EXITED, then drop reference.
-	//
-	// Cached-next is essential because once we set BIT_OWNER_EXITED on
-	// a non-empty chunk, the cross-thread last-slot-returner can race
-	// us, win BIT_RELEASED, and delete the chunk — `c->m_dll_next` is
-	// freed memory.  We read `next` BEFORE the OWNER_EXITED CAS.
+	// (§group) Hand this thread's group over.  Every chunk stays in the group
+	// (BIT_OWNED stays set) except the empty members, which we release; the
+	// group then goes onto ROOM or FULL with its location reference, or
+	// dissolves if nothing is left in it.  A cross-thread free pushes onto
+	// the group's head whoever owns it, so there is nothing to close and no
+	// freer to reroute.  tests/tlaplus/RevivalGroup.tla (code cfg: LazyDrain,
+	// ExitAnyMember, ExitDrainsHead).
 	//
 	// `s_tls.dll_head` / `s_tls.dll_tail` / `s_tls.my_chunk` are wiped FIRST so any
 	// later TLS dtor that allocates (via `cold_first_access` →
 	// `is_allocator_thread_active() == false` → libsystem fallback)
-	// cannot route through a chunk we already released.
-	// single atomicFetchAnd per DLL chunk.  Clears BIT_OWNED;
-	// if the resulting value is 0 (MASK_CNT was 0 → chunk was empty),
-	// owner is the unique releaser.  Otherwise the chunk has live
-	// slots — cross-thread free will identify itself as releaser via
-	// atomicDecAndTest when it brings MASK_CNT to 0.
-	//
-	// Race with concurrent cross-thread free:
-	//   Cross-thread dec from (BIT_OWNED=1, MASK_CNT=1) → (1, 0):
-	//     atomicDecAndTest returns false (newv != 0 because BIT_OWNED).
-	//     Owner's subsequent AND brings to 0 → owner releases.
-	//   Owner's AND from (1, 1) → (0, 1):
-	//     newv = 1 ≠ 0; owner not releaser.  Cross-thread dec from
-	//     (0, 1) → 0; cross-thread releases.
-	// Exactly one releaser in each interleaving.
+	// cannot route through a chunk we already released.  `next` is read
+	// before a chunk is released.
 	auto *c = s_tls.dll_head;
 	s_tls.dll_head = nullptr;
 	s_tls.dll_tail = nullptr;
+	s_tls.dll_len = 0;
 	s_tls.my_chunk = nullptr;
 #if KAME_POOL_ONEBACK_SKIP
 	s_tls.dll_one_back = nullptr;  // (§33) all chunks releasing — clear
 #endif
-	// thread exit → cursor and exhausted flag both moot.
-	s_tls.dll_cursor = nullptr;
-	s_tls.dll_exhausted = false;
+	PoolAllocator *rest = s_tls.rv_list;   // still listed; handled after the walk
+	s_tls.rv_list = nullptr;
+	auto *anchor = s_tls.anchor;
+	s_tls.anchor = nullptr;
 	while(c) {
 		auto *next = c->m_dll_next;
 		c->m_dll_prev = nullptr;
 		c->m_dll_next = nullptr;
+		// (§fl-avail) Off this thread's lists (their heads were cleared with
+		// the shortcut slots); an orphan starts unlisted for its adopter.
+		c->m_fl_state = 0;
+		if( !c->m_fs_flag) flv_mask_store(c, 0);   // m_base_bucket is FS=true's bucket
+		for(unsigned l = 0; l < (unsigned)KAME_LOCAL_BUCKETS; ++l)
+			c->m_fl_prev[l] = c->m_fl_next[l] = nullptr;
 		// Drain this chunk's owner-thread freelists back to the bitmap
-		// BEFORE the BIT_OWNED clear below.  A parked freelist slot is
-		// logically free but still bit-set in m_flags, so MASK_CNT
-		// over-counts until we return it; draining first lets the
-		// empty/non-empty decision (newv == 0) see the true live count.
-		// Safe here because BIT_OWNED is still set, so
-		// batch_return_to_bitmap's dec-to-zero releaser check
-		// (atomicDecAndTest) never fires (word stays != 0) — it won't
-		// delete `c` out from under us mid-drain.  Replaces the global
-		// drain_thread_slot_freelists() (freelists are now chunk-local).
+		// first.  A parked freelist slot is logically free but still bit-set
+		// in m_flags, so MASK_CNT over-counts until we return it; draining
+		// first lets the empty check below see the true live count.  No
+		// revival (`return_slots(.., false)`): we are the owner, and list the
+		// chunk ourselves below.
 		{
 			CrossDeallocEntry fdrain[2] = {};
 			// (§L0-FIFO) FS=true: m_freelist_head[1..4] hold depth-4
@@ -3251,7 +3202,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 						c->m_freelist_head[i] = nullptr;
 						fdrain[0].chunk = c;
 						fdrain[0].slot = blk;
-						c->batch_return_to_bitmap(fdrain);
+						c->return_slots(fdrain, false);
 					}
 				}
 #if KAME_FS_CHUNK_FIFO
@@ -3277,7 +3228,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 					inv &= inv - 1u;
 					fdrain[0].chunk = c;
 					fdrain[0].slot = wbase + (size_t)bit * ALIGN;
-					c->batch_return_to_bitmap(fdrain);
+					c->return_slots(fdrain, false);
 				}
 			}
 #endif
@@ -3290,82 +3241,86 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 					char *fnext = *reinterpret_cast<char **>(fh);
 					fdrain[0].chunk = c;
 					fdrain[0].slot = fh;
-					c->batch_return_to_bitmap(fdrain);
+					c->return_slots(fdrain, false);
 					fh = fnext;
 				}
 			}
 		}
-		// an earlier change/5x: nullify the owner-revival-hint pointer BEFORE
-		// clearing BIT_OWNED.  Once BIT_OWNED is clear, cross-thread
-		// frees may target this chunk; if our TLS storage gets
-		// reclaimed in the meantime, their `store(true)` would
-		// dereference a dangling pointer.  atomic
-		// release-store synchronises-with cross-thread `acquire`
-		// loads — a freer that observes nullptr is guaranteed to
-		// have ALL of this thread's TLS-state-tied operations
-		// happen-before its own (it skips the deref).  A freer that
-		// observes the old non-null pointer must have loaded BEFORE
-		// our release, in which case our TLS is still live.  This
-		// fixes the Linux 1000-thread `alloc_stress` SEGV that
-		// the earlier change's plain pointer access exhibited.
-		c->m_owner_dll_force_walk_ptr.store(
-		    nullptr, std::memory_order_release);
-		uint32_t old = atomicFetchAnd(&c->m_flags_packed,
-		                              static_cast<uint32_t>(~BIT_OWNED));
-		uint32_t newv = old & ~BIT_OWNED;
-		if(newv == 0) {
-			// (1b) Clear m_owner_id BEFORE the destructor — see the
-			// FS=true batch_return_to_bitmap sibling for the rationale.
-			c->m_owner_id = 0;
-			if(c->m_owner_self_ref) {
-				// (Path B owner-ref) Re-owned (adopted) chunk: it may still be
-				// pinned by a concurrent scrubber's load_shared.  DROP the
-				// self-ref rather than freeing directly — the disposer reclaims
-				// it when refcnt hits 0 (now, if no pin remains; else when the
-				// last pin drops).  BIT_OWNED was already cleared by the
-				// atomicFetchAnd above, so the disposer will not no-op.  `next`
-				// was cached before this, so disposing `c` here is safe.
-				c->m_owner_self_ref.reset();
-			} else
-			{
-				// Fresh chunk (never on the chain, no scrub pin possible) —
-				// direct free is safe.  PoolAllocator object embedded inside
-				// chunk_base; recover chunk_base from `c` directly.
+		// (1b) Clear m_owner_id BEFORE any destructor — see the FS=true
+		// batch_return_to_bitmap sibling for the rationale.  Our frees of
+		// the group's slots from now on are cross-thread ones.
+		c->m_owner_id = 0;
+		if(c != anchor) {
+			if(atomicCompareAndSet(static_cast<uint32_t>(BIT_OWNED), 0u,
+			                       &c->m_flags_packed)) {
+				// An empty, unlisted member: release it.  Not refcounted (only
+				// anchors are); its m_anc reference to our anchor drops in the
+				// destructor, and the anchor's self-ref keeps it alive.
 				char *cbase = reinterpret_cast<char*>(c) - ALLOC_CHUNK_HEADER;
 				size_t csz = c->m_chunk_size;
 				c->~PoolAllocator();   // placement-new destructor
 				// (§21) madvise the slot pages on thread exit by default
 				// (`s_thread_exit_reclaim`, default TRUE) so RSS is returned
-				// promptly — the only release path that USED to skip madvise.
-				// The skip (reclaim_pages=false) was a perf optimisation:
-				// MADV_DONTNEED here was ~30 % of bench-style alloc_only
-				// runtime (clear_page_erms + free_pages_and_swap_cache), and
-				// pages would otherwise be reclaimed by the kernel at process
-				// exit (exit_mmap, one batch) or recycled warm by the next
-				// claimer.  Workloads that spawn/exit threads rapidly and
-				// don't care about steady-state RSS can restore the skip via
-				// `kame_pool_set_thread_exit_reclaim(0)`.
-				PoolAllocatorBase::deallocate_chunk(cbase, csz,
-				    /*reclaim_pages=*/
-				    s_thread_exit_reclaim.load(std::memory_order_relaxed) != 0);
+				// promptly.  The skip (reclaim_pages=false) was a perf
+				// optimisation: MADV_DONTNEED here was ~30 % of bench-style
+				// alloc_only runtime (clear_page_erms +
+				// free_pages_and_swap_cache), and pages would otherwise be
+				// reclaimed by the kernel at process exit or recycled warm by
+				// the next claimer.  Workloads that spawn/exit threads rapidly
+				// and don't care about steady-state RSS can restore the skip
+				// via `kame_pool_set_thread_exit_reclaim(0)`.
+				PoolAllocatorBase::exit_release_chunk(cbase, csz);
 			}
-		} else {
-			// Non-empty orphaned chunk: clear m_owner_id so future threads
-			// can adopt it via try_adopt_orphan (§orphan-adopt).
-			// m_owner_dll_force_walk_ptr was already nulled (release) above;
-			// atomicFetchAnd provides a full barrier ordering this store.
-			c->m_owner_id = 0;
-			// Push onto the atomic_shared_ptr orphan chain so an allocating
-			// thread can re-own it and reuse its free slots, instead of
-			// mmap'ing fresh (the scenario-2 stranding leak).  PUSH exactly
-			// ONCE, here, AFTER BIT_OWNED was cleared (by the atomicFetchAnd
-			// above) and m_owner_id == 0.  Empty chunks took the `newv == 0`
-			// branch above and were released directly (self-ref reset); they
-			// are never on the chain, so the chain-only no-release invariant
-			// holds.
-			orphan_chain_push(c);   // (Path B) push onto the atomic_shared_ptr chain
+			else if(atomicLoadRelaxed(&c->m_flags_filled_cnt) < c->m_count
+			        && c->rv_take_q()) {
+				// A member with room: list it on our head, so whoever adopts
+				// the group moves it into theirs.  (A full one stays unlisted
+				// until a free gives it room and lists it.)
+				c->rv_push();
+			}
 		}
 		c = next;
+	}
+	// Then the listed chunks -- the rest of our last take and our head --
+	// handled as a holder would handle them, except that the others stay in
+	// our group: the anchor is unlisted (a listed anchor would keep the group
+	// from dissolving), an empty chunk is released (CAS from exactly
+	// BIT_OWNED|BIT_Q), and any other is listed again on our head, still
+	// holding Q, for whoever adopts the group.  After the walk, so its links
+	// are no longer needed and every freelist is drained.  A free racing this
+	// may list the anchor again; the group then just goes onto ROOM.
+	// RevivalGroup.tla, ExitDrainsHead.
+	if(anchor) {
+		PoolAllocator *a = static_cast<PoolAllocator *>(anchor);
+		auto settle = [a](PoolAllocator *q) noexcept {
+			while(q) {
+				PoolAllocator *qn = q->m_rv_next;
+				if(q == a)
+					atomicFetchAnd(&q->m_flags_packed, static_cast<uint32_t>(~BIT_Q));
+				else if(atomicCompareAndSet(static_cast<uint32_t>(BIT_OWNED | BIT_Q), 0u,
+				                            &q->m_flags_packed)) {
+					char *cbase = reinterpret_cast<char *>(q) - ALLOC_CHUNK_HEADER;
+					size_t csz = q->m_chunk_size;
+					static_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(q)->~PoolAllocator();
+					PoolAllocatorBase::exit_release_chunk(cbase, csz);
+				}
+				else {
+					uintptr_t h = a->m_rv_head.load(std::memory_order_relaxed);
+					do q->m_rv_next = reinterpret_cast<PoolAllocator *>(h);
+					while( !a->m_rv_head.compare_exchange_weak(h, reinterpret_cast<uintptr_t>(q),
+					                                            std::memory_order_release,
+					                                            std::memory_order_relaxed));
+				}
+				q = qn;
+			}
+		};
+		settle(rest);
+		settle(reinterpret_cast<PoolAllocator *>(
+		    a->m_rv_head.exchange(0, std::memory_order_acquire)));
+		// The group, with our location reference: dissolved if nothing is
+		// left in it (its anchor is then released as thread exit releases
+		// chunks, §21), else onto ROOM if its head is non-empty, else FULL.
+		group_place(std::move(a->m_owner_self_ref), true);
 	}
 }
 inline void
@@ -3550,6 +3505,12 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 			}
 		}
 	}
+}
+
+void
+PoolAllocatorBase::exit_release_chunk(char *chunk_base, size_t chunk_size) noexcept {
+	deallocate_chunk(chunk_base, chunk_size,
+	    /*reclaim_pages=*/s_thread_exit_reclaim.load(std::memory_order_relaxed) != 0);
 }
 
 // Diagnostic probe — sum popcount across every region's claim bitmap
@@ -3749,7 +3710,20 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 				return;
 			}
 #endif /* KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH */
-			chunk_obj->freelist_push(0, p);
+			// (§fl-avail) An empty freelist becoming non-empty on a chunk
+			// that is neither the shortcut's nor listed: list it.  The
+			// state byte shares the line just read for m_owner_id, and the
+			// link is a tail call, so this path stays call- and spill-free.
+			// One OR'd test, so neither common case -- old head non-null
+			// (fifo-style churn) nor state non-zero (the shortcut's own
+			// chunk) -- takes a branch: `!old && !state` as two branches
+			// cost bench_loop_pool -8 % and fifo:1000 up to -20 %.
+			char *old = chunk_obj->m_freelist_head[0];
+			*reinterpret_cast<char **>(p) = old;
+			chunk_obj->m_freelist_head[0] = static_cast<char *>(p);
+			if(__builtin_expect((reinterpret_cast<uintptr_t>(old)
+			                     | chunk_obj->m_fl_state) == 0, 0))
+				return fl_link(pg, chunk_obj);
 			return;
 		}
 		// FS=false owner free.  Routed to a dedicated noinline helper —
@@ -3760,7 +3734,7 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 		// inlining into `operator delete`).  The helper still receives the
 		// already-resolved `chunk_base`, so FS=false avoids `deallocate_cold`'s
 		// full pg/region/chunk_base re-derivation (≈ the 1 KiB churn win).
-		return deallocate_fs_false_owner(chunk_base, p);
+		return deallocate_fs_false_owner(chunk_base, p, pg);
 	}
 	return deallocate_cold(p);  // owner-mismatch / dedicated / cross / released
 }
@@ -3772,7 +3746,8 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 // coincidental owner match) tail-calls the full cold resolver, which
 // re-validates via palloc + the vtable owner check.
 KAME_NOINLINE void
-PoolAllocatorBase::deallocate_fs_false_owner(char *chunk_base, void *p) noexcept {
+PoolAllocatorBase::deallocate_fs_false_owner(char *chunk_base, void *p,
+                                             KameTlsPage *pg) noexcept {
 	PoolAllocatorBase *chunk_obj = reinterpret_cast<PoolAllocatorBase *>(
 	    chunk_base + ALLOC_CHUNK_HEADER);
 	unsigned local;
@@ -3792,13 +3767,14 @@ PoolAllocatorBase::deallocate_fs_false_owner(char *chunk_base, void *p) noexcept
 		if(local >= (unsigned)KAME_LOCAL_BUCKETS)
 			return deallocate_cold(p);
 	}
-	chunk_obj->freelist_push(local, p);
 	// (§freelist-follow) re-aim this thread's per-bucket alloc shortcut at
-	// the slot we just freed (LIFO) — borrow tier only (bucket != 0).
-	if(bucket != 0 && bucket < (unsigned)ALLOC_NUM_BUCKETS)
-		kame_page()->m_slots[bucket].freelist_head =
-		    reinterpret_cast<char *>(&chunk_obj->m_freelist_head[local]);
-	return;
+	// the slot we just freed (LIFO) — borrow tier only (bucket != 0) — and
+	// (§fl-avail) keep every non-empty freelist reachable.
+	// `pg` is the caller's page (a live owner's: it matched owner_id != 0),
+	// passed in so this stays a leaf -- kame_page() can call out.
+	char *old = chunk_obj->m_freelist_head[local];
+	chunk_obj->freelist_push(local, p);
+	return flv_free_tail(pg, chunk_obj, local, bucket, old);
 }
 
 // Forward decl (real declaration with __attribute__((noinline)) sits next to
@@ -3931,8 +3907,8 @@ PoolAllocatorBase::deallocate_cold(void *p) noexcept {
 		// (owner_id = 0); a later free (e.g. a pthread_key dtor releasing an
 		// XThreadLocal buffer) would then match 0 == 0 here, take the fast
 		// owner path, and freelist_push WITHOUT decrementing MASK_CNT — the
-		// orphan never reaches MASK_CNT == 0 so orphan_chain_scrub never
-		// reclaims it (unbounded thread-exit stranding; see
+		// orphaned chunk never reaches MASK_CNT == 0 so it is never released
+		// (unbounded thread-exit stranding; see
 		// tests/alloc_thread_exit_free_test.cpp).  kame_owner_id() never
 		// returns 0, so requiring a non-zero page owner routes every
 		// post-teardown free to the cold cross-free path, which decrements
@@ -3959,14 +3935,17 @@ PoolAllocatorBase::deallocate_cold(void *p) noexcept {
 			// dead code on this hottest path (5 % bench_loop regression
 			// when folded together).
 			if(chunk_obj->m_fs_flag) {
+				char *old = chunk_obj->m_freelist_head[0];
 				chunk_obj->freelist_push(0, p);
+				if( !old && chunk_obj->m_fl_state == 0)
+					fl_link(pg, chunk_obj);   // (§fl-avail)
 				return;
 			}
 			// FS=false owner free.  `bucket` is extracted (borrow tier
 			// only) so we can re-aim `g_thread_freelist_ptr[bucket]` at
 			// this chunk's freelist head — the next same-bucket alloc
 			// pops the slot we just freed (LIFO) instead of running
-			// `slow_allocate` → `scan_dll_freelist` on a multi-chunk
+			// `slow_allocate` (then a DLL scan, now §fl-avail) on a multi-chunk
 			// working set.  ~3–6× win on FS=false 384..2048 churn.
 			// Full-usable (ALIGN>=1024) leaves bucket = 0 (skip
 			// sentinel) since the bucket isn't encoded in m_sizes[].
@@ -3994,13 +3973,11 @@ PoolAllocatorBase::deallocate_cold(void *p) noexcept {
 				if(local >= (unsigned)KAME_LOCAL_BUCKETS)
 					goto vtable_dispatch;
 			}
+			char *old = chunk_obj->m_freelist_head[local];
 			chunk_obj->freelist_push(local, p);
-			// (§freelist-follow) FS=false borrow only — see comment above.
-			if(bucket != 0 && bucket < (unsigned)ALLOC_NUM_BUCKETS) {
-				kame_page()->m_slots[bucket].freelist_head =
-				    reinterpret_cast<char *>(&chunk_obj->m_freelist_head[local]);
-			}
-			return;
+			// (§freelist-follow) FS=false borrow only — see comment above;
+			// (§fl-avail) and keep every non-empty freelist reachable.
+			return flv_free_tail(pg, chunk_obj, local, bucket, old);
 		}
 		// Owner mismatch.  Either: dedicated chunk (m_owner_id == 0,
 		// never matches), or regular chunk being freed cross-thread /
@@ -4086,12 +4063,11 @@ PoolAllocatorBase::deallocate_cold(void *p) noexcept {
 				// Chunk release happens elsewhere: the owner-side empty
 				// release in `release_dll_chunks_for_thread` / `owner_release`
 				// (BIT_OWNED clear → deallocate_chunk), and the neighbour
-				// release in `allocate_chunk_path`.  A cross-thread free that
-				// empties an ORPHANED chunk no longer releases it — the chunk is
-				// on the atomic_shared_ptr chain and reclaimed by
-				// orphan_chain_scrub, so `batch_return_to_bitmap` performs no
-				// release at all now.  Kept as a defensive shim in case a future
-				// trampoline opts to release at this site.
+				// release in `allocate_chunk_path`, and (§group) a holder of an
+				// orphaned group (group_take_head / group_place).  A
+				// cross-thread free never releases, so `batch_return_to_bitmap`
+				// performs no release at all now.  Kept as a defensive shim in
+				// case a future trampoline opts to release at this site.
 				deallocate_chunk(chunk_base, csz);
 			}
 		}
@@ -4572,8 +4548,10 @@ void *bucket_first_access(std::size_t /*size*/) noexcept {
         // is constexpr-foldable here (B is a template parameter).
         // chunk_from_freelist_ptr recovers the chunk pointer from the
         // stored value via a single mask on the slow path.
-        kame_page()->m_slots[B].freelist_head =
-            reinterpret_cast<char *>(&chunk->m_freelist_head[kBucketLocalId[B]]);
+        if(chunk->m_fs_flag)
+            fl_retarget(kame_page(), B, chunk);   // (§fl-avail) marks FL_TARGET
+        else
+            flv_retarget(kame_page(), B, kBucketLocalId[B], chunk);   // (§fl-avail)
     }
     return p;
 }
@@ -4687,7 +4665,7 @@ ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, 
 // owner_id 0 guarantees the hot owner-check never matches it; `torn_down` is SET
 // statically so `kame_thread_torn_down()` reports torn-down through this page as
 // well as through a real page whose cleanup has run.
-KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/1, {}};
+KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/1, {}, {}};
 
 // Cold off-ramp for the lean freelist-pop entries (`new_redirected` and
 // `new_redirected_large`; declared in allocator_prv.h): an empty owner
@@ -4900,7 +4878,12 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
 __attribute__((noinline))
 static void libsystem_free_for_pool(void *p) noexcept;
 
-inline void deallocate_pooled_or_free(void* p) throw() {
+// KAME_ALWAYS_INLINE: only a wrapper around the always-inline lean
+// `deallocate`, but left to the inliner it stops being expanded into
+// kame_pool_free / operator delete once that body grows a few instructions
+// -- every free then pays a branch to one shared out-of-line copy (seen as
+// -8..-16 % on bench_loop_pool / fifo:13 when §fl-avail added four).
+KAME_ALWAYS_INLINE void deallocate_pooled_or_free(void* p) throw() {
 	// `PoolAllocatorBase::deallocate(p)` is safe to call pre-
 	// `activateAllocator()`.  `deallocate_<0, ALLOC_MIN_CHUNK_SIZE>`
 	// loads `s_mmapped_spaces[0]` which is zero-initialised (so
@@ -8047,24 +8030,29 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 ALLOC_TLS typename PoolAllocator<ALIGN, FS, DUMMY>::ThreadLocalState
     PoolAllocator<ALIGN, FS, DUMMY>::s_tls;
 
-// (§S7) The §36 s_orphan_head Treiber stack is retired — the
-// atomic_shared_ptr orphan chain below is the sole orphan mechanism.
+// (§group) The chains of orphaned groups -- see allocator_prv.h.
 //
-// NEVER-DESTROYED accessor (not a plain static member).  The head holds a
-// chain-ref on the first orphan node; a static member's process-exit
-// destructor would drop that ref outside the scrub gate and dispose a
-// still-non-empty orphan, destructing a live chunk's PoolAllocator (then an
-// atexit free() of one of its slots hits the now-pure-virtual
-// `deallocate_pooled` — the 12/14 Linux ctest "pure virtual method called"
-// abort after the chain flip).  Placement-new into a function-local static
-// byte buffer: the atomic_shared_ptr is constructed once (thread-safe init
-// guard) and its destructor is NEVER registered, so it leaks at exit —
-// exactly as every region mmap does (`mmap_new_region`: "Regions never
-// unmap").  The two backing statics (`buf`, `head`) are trivially
-// destructible, so they add no atexit work either.
+// NEVER-DESTROYED accessors (not plain static members).  A head holds the
+// location reference of the first group on it; a static member's process-exit
+// destructor would drop it and dispose an anchor whose slots are still live
+// (then an atexit free() of one of its slots hits the now-pure-virtual
+// `deallocate_pooled` -- the Linux ctest "pure virtual method called" abort
+// seen with the earlier orphan chain).  Placement-new into a function-local
+// static byte buffer: constructed once (thread-safe init guard), destructor
+// never registered, so it leaks at exit -- exactly as every region mmap does
+// (`mmap_new_region`: "Regions never unmap").
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 atomic_shared_ptr<PoolAllocator<ALIGN, FS, DUMMY> > &
-PoolAllocator<ALIGN, FS, DUMMY>::s_orphan_chain_head() noexcept {
+PoolAllocator<ALIGN, FS, DUMMY>::s_room_head() noexcept {
+	alignas(atomic_shared_ptr<PoolAllocator>)
+	    static unsigned char buf[sizeof(atomic_shared_ptr<PoolAllocator>)];
+	static atomic_shared_ptr<PoolAllocator> *head =
+	    ::new (static_cast<void *>(buf)) atomic_shared_ptr<PoolAllocator>();
+	return *head;
+}
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+atomic_shared_ptr<PoolAllocator<ALIGN, FS, DUMMY> > &
+PoolAllocator<ALIGN, FS, DUMMY>::s_full_head() noexcept {
 	alignas(atomic_shared_ptr<PoolAllocator>)
 	    static unsigned char buf[sizeof(atomic_shared_ptr<PoolAllocator>)];
 	static atomic_shared_ptr<PoolAllocator> *head =
@@ -8072,80 +8060,44 @@ PoolAllocator<ALIGN, FS, DUMMY>::s_orphan_chain_head() noexcept {
 	return *head;
 }
 
-//! (Path B Stage 1) Treiber push onto the atomic_shared_ptr orphan chain.
-//! `refcnt` is established to 1 BEFORE publish — at owner-exit the chunk is
-//! still owner-private (off every per-thread DLL; not yet on the chain), so
-//! no concurrent `load_shared` can have pinned it, making the plain store
-//! race-free.  Adopt into a local_shared_ptr (which takes that 1) and CAS it
-//! onto the head (mirrors atomic_intrusive_chain_test.cpp's push_head); head +
-//! the chunk's m_orphan_next hold the chain-ref.
+//! (§group) Treiber push of a group's location reference.  The head and the
+//! predecessor's m_orphan_next hold the chain's references; `g`'s own
+//! reference drops when it goes out of scope.  By value, so no caller keeps a
+//! reference to the published group (an exiting owner's m_owner_self_ref
+//! still holding one would inflate refcnt -- the group would never dissolve
+//! -- and race the next owner's takeover, which assigns that member).
 template <unsigned int ALIGN, bool FS, bool DUMMY>
-void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_push(
-    PoolAllocator<ALIGN, DUMMY, DUMMY> *craw) noexcept {
-	PoolAllocator *c = static_cast<PoolAllocator *>(craw);  // upcast to FS=true base (chain node type)
-	local_shared_ptr<PoolAllocator> n;
-	if(c->m_owner_self_ref) {
-		// (Path B owner-ref) Re-owned chunk being re-orphaned at owner-exit:
-		// MOVE its self-ref onto the chain (self-ref → chain-ref), preserving
-		// refcnt — INCLUDING any residual scrub pin.  A `refcnt.store(1)` here
-		// would CLOBBER that pin's count, so a later pin-drop would dispose the
-		// chunk while it is back on the chain (premature free).  Move keeps the
-		// true count; oc's self-ref goes null.
-		n = std::move(c->m_owner_self_ref);
-	}
-	else {
-		// Fresh chunk's FIRST orphaning: refcnt is 0 (never refcounted) and no
-		// scrub pin can exist (it was never on the chain) — establish 1 and
-		// adopt.  (Owner-private off every DLL here, so the plain store is safe.)
-		c->refcnt.store(1, std::memory_order_relaxed);
-		n = local_shared_ptr<PoolAllocator>(c);
-	}
-	local_shared_ptr<PoolAllocator> old(s_orphan_chain_head());
+void PoolAllocator<ALIGN, FS, DUMMY>::group_push(
+    atomic_shared_ptr<PoolAllocator> &head, local_shared_ptr<PoolAllocator> g) noexcept {
+	assert((((uintptr_t)g.get()) & (((uintptr_t)1 << atomic_serial_traits<PoolAllocator>::LOW_BITS) - 1))
+	       == atomic_serial_traits<PoolAllocator>::LOW_VALUE);   // the serial's fixed low bits
+	local_shared_ptr<PoolAllocator> old(head);
 	for(;;) {
-		n->m_orphan_next = old;
-		if(s_orphan_chain_head().compareAndSwap(old, n)) break;
+		g->m_orphan_next = old;
+		if(head.compareAndSwap(old, g)) break;
 	}
 }
 
-//! (Path B step 4) Reclaim pass — see allocator_prv.h.  Walks the orphan chain
-//! holding local_shared_ptr pins; CAS-unlinks each DEAD (empty, MASK_CNT==0)
-//! node from its predecessor (or the head).  Unlinking drops the chain-ref;
-//! when this pass releases its own pin on the node (next iteration) refcnt
-//! hits 0 → atomic_intrusive_dispose → bucket_release_chunk frees the region.
-//! Orphans never refill (adopt deferred) so MASK_CNT==0 is stable; a plain
-//! read of m_flags_packed can only be stale-HIGH (skip now, reclaim next
-//! pass) = safe-side.  Dead-only + reachability-preserving relink; a lost CAS
-//! restarts from head — multiple scrubbers are safe-side.
-template <unsigned int ALIGN, bool FS, bool DUMMY>
-void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_scrub() noexcept {
-	local_shared_ptr<PoolAllocator> pred;                      // empty ⇒ pred is head
-	local_shared_ptr<PoolAllocator> cur(s_orphan_chain_head());
-	while(cur) {
-		local_shared_ptr<PoolAllocator> nxt(cur->m_orphan_next);
-		if((cur->m_flags_packed & MASK_CNT) == 0u) {           // dead orphan → unlink
-			bool ok = pred ? pred->m_orphan_next.compareAndSet(cur, nxt)
-			               : s_orphan_chain_head().compareAndSet(cur, nxt);
-			if(ok) { cur = nxt; continue; }                    // unlinked; pred unchanged
-			pred.reset();                                      // CAS lost → restart from head
-			cur = local_shared_ptr<PoolAllocator>(s_orphan_chain_head());
-			continue;
-		}
-		pred = cur;                                            // live orphan → keep, advance
-		cur = nxt;
-	}
-}
-
-//! (Path B adopt) Treiber-pop the head node off the orphan chain — see
-//! allocator_prv.h.  Returns the held local_shared_ptr (the caller keeps it
-//! through the BIT_OWNED claim); clears the popped node's m_orphan_next.
+//! (§group) Treiber pop of one group off ROOM.
+//!
+//! ABA: between loading old->m_orphan_next and the CAS, another thread can pop
+//! `old`, process it and place it back, so the head holds the same pointer
+//! with a different successor.  A pointer-only CAS then installs the stale
+//! successor -- cutting groups off the chain, or linking one so it is held
+//! twice and placed twice, a cycle (seen with the earlier chunk-wise orphan
+//! chain on an M5 Ultra, about 1 in 45 runs of
+//! transaction_payload_integrity_mixed_test 3 64 256 0).  The chain's words
+//! carry a serial (atomic_serial_traits<PoolAllocator<ALIGN, true, DUMMY>>), so
+//! the CAS fails if the head was written since `old` was loaded.
+//! tests/tlaplus/OrphanChain_aba.tla models both.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 local_shared_ptr<PoolAllocator<ALIGN, FS, DUMMY> >
-PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_pop() noexcept {
-	local_shared_ptr<PoolAllocator> old(s_orphan_chain_head());
+PoolAllocator<ALIGN, FS, DUMMY>::room_pop() noexcept {
+	local_shared_ptr<PoolAllocator> old(s_room_head());
 	for(;;) {
-		if( !old) return local_shared_ptr<PoolAllocator>();   // chain empty
+		if( !old) return local_shared_ptr<PoolAllocator>();   // ROOM empty
 		local_shared_ptr<PoolAllocator> nxt(old->m_orphan_next);
-		if(s_orphan_chain_head().compareAndSwap(old, nxt)) {
+		if(s_room_head().compareAndSwap(old, nxt)) {
 			old->m_orphan_next = local_shared_ptr<PoolAllocator>();  // off the chain
 			return old;
 		}
@@ -8153,10 +8105,91 @@ PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_pop() noexcept {
 	}
 }
 
-// (§S7) §36 orphan_push / orphan_pop (the raw Treiber-stack helpers reusing
-// m_dll_next + the 18-bit ABA tag) retired — owner-exit pushes the
-// atomic_shared_ptr chain (orphan_chain_push) and adopt pops it
-// (orphan_chain_pop), both refcount-safe.
+//! (§group) See allocator_prv.h.  refcnt == 1 is `g` alone: no member points
+//! at the anchor, no freer holds it, and nobody can add either (members are
+//! added only by the group's owner or holder -- us).  The CAS from exactly
+//! BIT_OWNED|BIT_A adds "the anchor's own slots are free and it is not
+//! listed" (a listed anchor is on the head, so the group has a place to go)
+//! and makes the dissolution unique; dropping `g` then disposes the anchor.  A group whose
+//! head gets a chunk after we looked waits on FULL for the next sweep.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+void PoolAllocator<ALIGN, FS, DUMMY>::group_place(
+    local_shared_ptr<PoolAllocator> g, bool at_exit) noexcept {
+	PoolAllocator *a = g.get();
+	if(a->refcnt.load(std::memory_order_acquire) == 1
+	   && atomicCompareAndSet(static_cast<uint32_t>(BIT_OWNED | BIT_A), 0u,
+	                          &a->m_flags_packed)) {
+		a->m_owner_id = 0;
+		a->m_exit_release = at_exit;
+		g.reset();   // refcnt 0 → atomic_intrusive_dispose → released
+		return;
+	}
+	a->m_owner_id = 0;
+	group_push(a->m_rv_head.load(std::memory_order_relaxed) ? s_room_head() : s_full_head(),
+	           std::move(g));
+}
+
+//! (§group) A chunk joins this thread's DLL: it was moved into our group, or
+//! it is a member of a group we took over and we pin it for the first time.
+//! Its m_owner_id becomes ours (so our frees of its slots take the owner
+//! path) -- a chunk is in our DLL iff its m_owner_id is ours.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+void PoolAllocator<ALIGN, FS, DUMMY>::dll_join(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept {
+	c->m_owner_id = kame_owner_id();
+	c->m_dll_next = nullptr;
+	c->m_dll_prev = s_tls.dll_tail;
+	if(s_tls.dll_tail) s_tls.dll_tail->m_dll_next = c;
+	else               s_tls.dll_head = c;
+	s_tls.dll_tail = c;
+	++s_tls.dll_len;
+	tls_alloc_thread_exit_cleanup.add(
+	    &PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread);
+}
+
+//! (§group) See allocator_prv.h.  Holding the group: nobody else takes its
+//! head, and every chunk on it is a member (or the group's own anchor, which
+//! we only unlist) whose Q we now hold, so no freer is pushing it and its
+//! m_anc is ours to change.  An empty one is released
+//! with a CAS from exactly BIT_OWNED|BIT_Q (dropping Q in the same step); its
+//! destructor drops its reference to the group, which `g` keeps alive.  Any
+//! other is moved: m_anc repointed to our anchor BEFORE Q is dropped -- the
+//! other order lets a freer take Q, load the old anchor and push the chunk
+//! onto the group it has just left (RevivalGroup.tla, OAct).  It keeps Q on
+//! our rest, where a pop drops Q and tries it.  O(chunks on the head), each
+//! put there by the free that gave it room.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+unsigned PoolAllocator<ALIGN, FS, DUMMY>::group_take_head(PoolAllocator *g) noexcept {
+	typedef PoolAllocator<ALIGN, DUMMY, DUMMY> Chunk;
+	unsigned moved = 0;
+	PoolAllocator *c = reinterpret_cast<PoolAllocator *>(
+	    g->m_rv_head.exchange(0, std::memory_order_acquire));
+	while(c) {
+		PoolAllocator *cn = c->m_rv_next;
+		Chunk *cc = static_cast<Chunk *>(c);
+		if(c == g) {
+			// The group's own anchor: it stays where it is.  Just unlist it.
+			atomicFetchAnd(&c->m_flags_packed, static_cast<uint32_t>(~BIT_Q));
+			c = cn;
+			continue;
+		}
+		if(atomicCompareAndSet(static_cast<uint32_t>(BIT_OWNED | BIT_Q), 0u,
+		                       &c->m_flags_packed)) {
+			char *cbase = reinterpret_cast<char *>(c) - ALLOC_CHUNK_HEADER;
+			size_t csz = c->m_chunk_size;
+			cc->~Chunk();
+			PoolAllocatorBase::bucket_release_chunk(cbase, csz);  // (§34) park warm
+		}
+		else {
+			c->m_anc = static_cast<PoolAllocator *>(s_tls.anchor)->m_owner_self_ref;
+			dll_join(cc);
+			c->m_rv_next = s_tls.rv_list;
+			s_tls.rv_list = cc;
+			++moved;
+		}
+		c = cn;
+	}
+	return moved;
+}
 
 // (Per-template `thread_local TlsGuard s_tls_guard` removed.
 //  AllocThreadExitCleanup::~AllocThreadExitCleanup — fired via the pthread_key dtor
