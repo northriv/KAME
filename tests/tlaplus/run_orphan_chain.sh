@@ -55,6 +55,8 @@ CHECKS=(
   "OrphanChain_adopt|OrphanChain_adopt_mc.cfg|VIOLATION:Inv_NoBadOwnerFree"
   "OrphanChain_adopt|OrphanChain_adopt_nogate_mc.cfg|VIOLATION:Inv_NoBadRelease"
   "OrphanChain_adopt|OrphanChain_adopt_ownerref_mc.cfg|CLEAN"
+  "OrphanChain_aba|OrphanChain_aba_noserial_mc.cfg|VIOLATION:Inv_NoStrandedLive"
+  "OrphanChain_aba|OrphanChain_aba_serial_mc.cfg|CLEAN"
 )
 
 pass=0 fail=0 skip=0
