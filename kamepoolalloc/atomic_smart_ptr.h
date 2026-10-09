@@ -52,6 +52,21 @@ struct load_shared_enabled : detail_asp::load_shared_enabled_impl<T> {};
     #define BACKOFF_IN_ATOMIC_SMART_PTR 0 //disabled by default, in accord with our tests for ARM64 and high-core-count x86_64.
 #endif
 
+namespace detail_asp {
+    //! Next spin count of the retry loops below: doubles, saturating at 2^30
+    //! where `spins *= 2` overflowed int after 31 contended retries.  Only
+    //! BACKOFF_IN_ATOMIC_SMART_PTR > 0 reads the count.  At 0 it stays 1:
+    //! a dead saturating update still left a select in the loops when the
+    //! inliner costed them, un-inlining rv_push and compareAndSet_impl_.
+    constexpr int backoff_next(int spins) noexcept {
+#if BACKOFF_IN_ATOMIC_SMART_PTR > 0
+        return spins < (1 << 30) ? spins * 2 : spins;
+#else
+        return spins;
+#endif
+    }
+}
+
 //! \brief This is an atomic variant of \a std::unique_ptr.
 //! An instance of atomic_unique_ptr can be shared among threads by the use of \a swap(\a _shared_target_).\n
 //! Namely, it is destructive reading.
@@ -1742,7 +1757,7 @@ atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt, bool weakly,
                                        uintptr_t *ser_out) const noexcept {
     Ref *pref;
     Refcnt rcnt_new;
-    for(int spins = 1;; spins *= 2) {
+    for(int spins = 1;; spins = detail_asp::backoff_next(spins)) {
         auto [p, rcnt_old, ser] = load_tagged_();
         pref = p;
         if constexpr (atomic_serial_on<T>)
@@ -1842,7 +1857,7 @@ template <typename T>
 inline bool atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_global_rcnt,
                                                     bool single_attempt) const noexcept {
     Refcnt sub_amount = added_global_rcnt;
-    for(int spins = 1;; spins *= 2) {
+    for(int spins = 1;; spins = detail_asp::backoff_next(spins)) {
         auto [cur_ptr, rcnt_old, ser] = load_tagged_();
         if(rcnt_old && (cur_ptr == pref)) {
             Refcnt local_release = std::min(rcnt_old, added_global_rcnt); //1 by default.
@@ -1980,7 +1995,7 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
             newr_pref()->refcnt.fetch_add(NEWR_ADD, std::memory_order_relaxed);
         }
     }
-    for(int spins = 1;; spins *= 2) {
+    for(int spins = 1;; spins = detail_asp::backoff_next(spins)) {
         Ref *pref;
         Refcnt rcnt_old;
         uintptr_t ser = 0;   //!< serial of the word loaded (serial types only)
@@ -2210,7 +2225,7 @@ local_shared_ptr<T, reflocal_var_t>::swap(atomic_shared_ptr<T> &r) noexcept {
     //!< biased CB is negated -count→+count (release) before the install CAS.
     if constexpr (is_biased_directpublish<T>::value)
         if(Ref *sp = ref_ptr_()) biased_publish_(sp->refcnt);
-    for(int spins = 1;; spins *= 2) {
+    for(int spins = 1;; spins = detail_asp::backoff_next(spins)) {
         Refcnt rcnt_old, rcnt_new;
         uintptr_t ser = 0;   //!< serial of r's word (serial types only)
         auto [pref, success] = r.acquire_tag_ref_( &rcnt_old, false, &ser);
