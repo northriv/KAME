@@ -1083,6 +1083,10 @@ protected:
 	//! compile-time CHUNK_SIZE (256 KiB / 512 KiB / 1 MiB).
 	static void bucket_release_chunk(char *chunk_base,
 	                                 size_t chunk_size) noexcept;
+	//! (§21) Thread-exit release: `deallocate_chunk`, madvising the slot
+	//! pages unless `kame_pool_set_thread_exit_reclaim(0)`.  Also reached
+	//! from the disposer for an exiting owner's anchor (§revive).
+	static void exit_release_chunk(char *chunk_base, size_t chunk_size) noexcept;
 
 public:
 	//! (§75) RT pre-reserve: create `n` fully-published regions up front
@@ -1326,23 +1330,6 @@ protected:
 	size_t m_chunk_size = 0;
 
 public:
-	//! address of the OWNER thread's `s_dll_head` TLS
-	//! variable for THIS chunk's (ALIGN, FS) template.  Set by the
-	//! derived `PoolAllocator<ALIGN, FS, DUMMY>` constructor to
-	//! `(void *)&s_dll_head` taken in the owner thread's context.
-	//!
-	//! `s_dll_head` is `ALLOC_TLS` (= `__thread`); its address is
-	//! per-thread (TCB base + fixed offset per template).  Comparing
-	//! a stored value to `(void *)&s_dll_head` taken later identifies
-	//! whether the comparing thread is the original owner.
-	//!
-	//! Used by the dealloc cursor-reset paths to gate
-	//! `reset_dll_walk_state()`: reset only when we are the owner —
-	//! resetting another thread's cursor would be wasteful no-op
-	//! (their DLL is unaffected by our bitmap-clear).  Without this
-	//! gate, alloc_stress's 50%-cross-thread workload paid a 10-20%
-	//! perf tax on Linux from spurious cursor resets.
-	void *m_owner_dll_head_addr = nullptr;
 
 	//! (§fl-avail) FS=false, per local id (a variable-size chunk serves
 	//! several buckets, one freelist each): bit `local` (FL_LINKED_BIT) while
@@ -1357,31 +1344,6 @@ public:
 	static constexpr uint32_t FL_LINKED_BIT(unsigned l) { return 1u << l; }
 	static constexpr uint32_t FL_TARGET_BIT(unsigned l) { return 0x10000u << l; }
 
-	//! pointer to owner thread's "force DLL re-walk" hint
-	//! flag (TLS `std::atomic<bool>` per PoolAllocator template).
-	//! Cross-thread frees set this so the owner's next
-	//! `allocate_chunk_path` notices that one of its DLL chunks got
-	//! a bitmap clear since the last walk and force-restarts the
-	//! walk from `s_dll_head` instead of resuming from a stale
-	//! `s_dll_cursor`.
-	//!
-	//! declared `std::atomic<std::atomic<bool> *>` (atomic
-	//! pointer to atomic bool) so that owner-exit
-	//! (`release_dll_chunks_for_thread`) and concurrent cross-thread
-	//! frees on surviving chunks do not data-race on plain pointer
-	//! access.  Owner-exit stores `nullptr` with `release` BEFORE
-	//! clearing BIT_OWNED; cross-thread freers load with `acquire`
-	//! and skip the deref when null.  The 1000-thread `alloc_stress`
-	//! Linux SEGV that an earlier change exhibited (1000 thr × 20K × 30 %cross)
-	//! is fixed by this ordering — without atomic load/store on the
-	//! pointer, owner-exit's plain `= nullptr` racing with a cross-
-	//! thread freer's plain `->store(...)` was UB and crashed on Linux.
-	//!
-	//! Inner `store(true)` (cross-thread → owner) and the owner's
-	//! `exchange(false)` in `allocate_chunk_path` remain
-	//! `memory_order_relaxed` — the hint itself doesn't require
-	//! synchronisation, only the outer pointer's lifetime does.
-	std::atomic<std::atomic<bool> *> m_owner_dll_force_walk_ptr{nullptr};
 
 	//! (§fl-avail) Links of the owner's `KameTlsPage::fl_avail[bucket]` lists,
 	//! one pair per local id (FS=true uses [0]); doubly linked so a chunk
@@ -1807,30 +1769,10 @@ public:
 	static PoolAllocatorBase *get_pinned_chunk_base() noexcept {
 		return static_cast<PoolAllocatorBase *>(s_tls.my_chunk);
 	}
-	//! public reset of this thread's DLL walk hints
-	//! (`s_dll_cursor` + `s_dll_exhausted`) for callers outside the
-	//! PoolAllocator class hierarchy — specifically `CrossDeallocBatch::
-	//! push_direct` (anon-namespace, no inheritance) which calls
-	//! `batch_return_to_bitmap` directly on the freeing thread and
-	//! needs to signal "DLL may have revived chunks" to this thread's
-	//! subsequent `allocate_chunk_path`.  See the an earlier change commit /
-	//! the call sites in `deallocate_pooled` for the full rationale.
-	static void reset_dll_walk_state() noexcept {
-		s_tls.dll_cursor = nullptr;
-		s_tls.dll_exhausted = false;
-	}
 	//! (§24, retired by §fl-avail) The DLL walk that found other chunks'
 	//! freelist entries on a miss -- O(chunks) per miss -- is gone: chunks
 	//! with entries are on `KameTlsPage::fl_avail` (allocator.cpp).
 
-	//! public accessor for this thread's `s_dll_head` TLS
-	//! address.  Used by external code (CrossDeallocBatch::push_direct
-	//! in anon namespace) to compare against a chunk's stored
-	//! `m_owner_dll_head_addr` and identify same-thread frees for
-	//! the conditional cursor reset.
-	static void *dll_head_tls_addr() noexcept {
-		return static_cast<void *>(&s_tls.dll_head);
-	}
 	//! Public (was protected) so the per-thread functor-table dispatcher
 	//! in allocator.cpp can call it on freelist miss without needing a
 	//! friend declaration.  Tries `allocate_pooled` on the pinned chunk
@@ -1885,6 +1827,10 @@ protected:
 	inline void *allocate_pooled(unsigned int SIZE);
 	bool deallocate_pooled(char *p) override;
 	int batch_return_to_bitmap(const CrossDeallocEntry *entries) noexcept override;
+	//! (§revive) The body: `revive` = take BIT_Q before clearing and push the
+	//! chunk onto its owner's anchor after -- false only for the owner's own
+	//! exit drain.
+	int return_slots(const CrossDeallocEntry *entries, bool revive) noexcept;
 	void *slow_allocate(unsigned bucket, std::size_t size) noexcept override;
 	//! Mmap a fresh chunk for the current thread.  no global
 	//! registry — the per-thread DLL is the sole source of truth for
@@ -1971,9 +1917,17 @@ protected:
 	// mutually exclusive because exactly one transitions m_flags_packed
 	// to all-zero.
 	//
-	// Bit 30 is intentionally left unused (previously BIT_RELEASED);
-	// available for future ABA-counter / additional state if needed.
-	static constexpr uint32_t MASK_CNT  = 0x7FFFFFFFu; // bits 0..30
+	//   * Bit  30     — `BIT_Q` (§revive): set while the chunk is listed for
+	//     revival -- on its anchor's stack or on the owner's taken rest of
+	//     one (s_tls.rv_list) -- or held by the one cross-thread freer about
+	//     to push it.  It keeps the word non-zero, so neither
+	//     owner_release, the exit orphaning nor the scrub releases a chunk
+	//     a freer is still touching.  Taken only on an OWNED chunk, by the
+	//     freer, BEFORE it clears its bit (its own slot keeps the chunk
+	//     alive until then).  (Previously unused; was BIT_RELEASED once.)
+	//     MASK_CNT is bits 0..29 (≤ m_count ≈ 16 K).
+	static constexpr uint32_t MASK_CNT  = 0x3FFFFFFFu; // bits 0..29
+	static constexpr uint32_t BIT_Q     = 0x40000000u; // bit 30
 	static constexpr uint32_t BIT_OWNED = 0x80000000u; // bit 31
 	alignas(64) uint32_t m_flags_packed;
 	//! # of flags that having fully filled values.
@@ -2001,25 +1955,17 @@ protected:
 	//!     chunks owned by this template.  Sole source of truth for
 	//!     "chunks this thread can allocate from" since an earlier change.
 	//!     Single-writer (this thread); no atomic ordering needed.
-	//!   * `dll_cursor`: pointer into the DLL where the
-	//!     next walk should resume.  Set on successful claim; nulled
-	//!     on walk-to-end / chunk-release.
-	//!   * `dll_exhausted`: if true, the previous walk
-	//!     reached end without finding free space — the next
-	//!     `allocate_chunk_path` skips the walk and goes straight to
-	//!     mmap-fresh.  Cleared by:
-	//!       - new chunk append (mmap-fresh path).
-	//!       - own-side `reset_dll_walk_state()` after a
-	//!         `batch_return_to_bitmap`.
-	//!       - cross-thread `dll_force_walk_from_head` exchange in
-	//!         `allocate_chunk_path`.
-	//!   * `dll_force_walk_from_head`: cross-thread
-	//!     revival hint.  `relaxed atomic`; cross-thread frees set
-	//!     true via the chunk's `m_owner_dll_force_walk_ptr` (which
-	//!     points into THIS struct).  `allocate_chunk_path`
-	//!     exchanges it back to false at entry; if it was true,
-	//!     resets cursor + exhausted so the next walk restarts from
-	//!     `dll_head` and visits revived chunks.
+	//!   * `anchor` (§revive): this thread's first chunk of the template
+	//!     (fresh, or an adopted orphan nothing references as an anchor),
+	//!     whose `m_rv_head` collects chunks that cross-thread frees gave
+	//!     bitmap room.  Every chunk in the DLL points at it (`m_anc`); it
+	//!     is never released while the thread lives.
+	//!   * `rv_list` (§revive): the revival stack the owner last took off
+	//!     its anchor, popped one chunk per try.  Its chunks keep BIT_Q
+	//!     (still "listed"), linked through m_rv_next; allocate_chunk_path
+	//!     drops Q as it pops one and tries it, before orphans and mmap.
+	//!     (Replaces the cursor walk of the whole DLL, which the force-walk
+	//!     hint restarted and which had no realtime bound.)
 	struct ThreadLocalState {
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *my_chunk;
 #if KAME_POOL_ONEBACK_SKIP
@@ -2033,9 +1979,9 @@ protected:
 #endif
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_head;
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_tail;
-		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_cursor;
-		bool dll_exhausted;
-		std::atomic<bool> dll_force_walk_from_head;
+		unsigned dll_len;                               //!< chunks in the DLL (owner_release floor)
+		PoolAllocator<ALIGN, DUMMY, DUMMY> *anchor;     //!< (§revive) see above
+		PoolAllocator<ALIGN, DUMMY, DUMMY> *rv_list;    //!< (§revive) taken revival stack
 	};
 	static ALLOC_TLS ThreadLocalState s_tls;
 
@@ -2118,6 +2064,57 @@ public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
 	//! the PoC's `atomic_shared_ptr<Node> m_next`); an FS=false chunk links
 	//! through its FS=true base subobject.
 	atomic_shared_ptr<PoolAllocator> m_orphan_next;
+	//! (§revive) Cross-thread revival (replaces the force-walk hint and
+	//! the cursor walk).  Every chunk an owner holds points at that owner's
+	//! ANCHOR -- its first chunk of this template -- through `m_anc`;
+	//! a cross-thread free that takes `BIT_Q` pushes the chunk onto the
+	//! anchor's `m_rv_head` stack after clearing its bits, and the owner
+	//! takes the whole stack with one exchange in allocate_chunk_path.  The
+	//! anchor is reached through a counted load, so it outlives its owner
+	//! for as long as anyone still points at it (no TLS is touched by a
+	//! freer).  Producers only push and the one consumer takes all, so the
+	//! push CAS needs no serial; the owner closes the head (RV_CLOSED) at
+	//! exit and a push that sees it gives up.  An adopted chunk becomes an
+	//! anchor only if nothing references it as one (reopening a closed head
+	//! a stale freer still holds would let it push a foreign chunk).
+	//! kamepoolalloc/tests/tlaplus/RevivalAnchor.tla, RevivalStack.tla.
+	atomic_shared_ptr<PoolAllocator> m_anc;
+	std::atomic<uintptr_t> m_rv_head{0};      //!< anchors: top | RV_CLOSED
+	//! Link while on a revival stack or the owner's taken rest of one
+	//! (s_tls.rv_list) -- written only by whoever holds BIT_Q.
+	PoolAllocator *m_rv_next = nullptr;
+	//! Set by the exiting owner on its empty anchor just before dropping the
+	//! self-ref: whoever drops the last reference (the owner, or a freer still
+	//! holding one) releases it as thread exit does (§21), as a fresh chunk
+	//! would be, instead of parking it warm.
+	bool m_exit_release = false;
+	static constexpr uintptr_t RV_CLOSED = 1;
+	//! Take BIT_Q if the chunk is owned and not already listed -- called
+	//! BEFORE the freer's bits are cleared.
+	bool rv_take_q() noexcept {
+		uint32_t of = this->m_flags_packed;
+		for(;;) {
+			if( !(of & BIT_OWNED) || (of & BIT_Q)) return false;
+			if(atomicCompareAndSet(of, of | BIT_Q, &this->m_flags_packed)) return true;
+			of = this->m_flags_packed;
+		}
+	}
+	//! Holding BIT_Q: push onto the owner's anchor, or (owner gone / going)
+	//! drop BIT_Q -- the exiting owner orphans the chunk itself.
+	void rv_push() noexcept {
+		local_shared_ptr<PoolAllocator> a(m_anc);
+		if(a) {
+			uintptr_t h = a->m_rv_head.load(std::memory_order_relaxed);
+			while( !(h & RV_CLOSED)) {
+				m_rv_next = reinterpret_cast<PoolAllocator *>(h);
+				if(a->m_rv_head.compare_exchange_weak(h, reinterpret_cast<uintptr_t>(this),
+				                                       std::memory_order_release,
+				                                       std::memory_order_relaxed))
+					return;
+			}
+		}
+		atomicFetchAnd(&this->m_flags_packed, static_cast<uint32_t>(~BIT_Q));
+	}
 	//! (Path B owner-ref) The OWNER-REF: a local_shared_ptr the re-owned chunk
 	//! holds to ITSELF (a deliberate self-cycle), SEPARATE from the raw DLL.
 	//! Set at adopt (orphan_chain_pop's oc_hold is MOVED in here instead of
@@ -2160,9 +2157,17 @@ public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
 		// would `~PoolAllocator()` a live chunk → pure-virtual on the next
 		// free().  Belt to the never-destroyed-head's braces.
 		if(p->m_flags_packed & MASK_CNT) return;
+		// (§revive) Nor one a freer holds BIT_Q on (it is still pushing, or
+		// listed): unreachable -- the owner releases only Q-clear chunks and
+		// the scrub skips Q -- so this too only turns a bug into a leak.
+		if(p->m_flags_packed & BIT_Q) return;
 		char *cbase = reinterpret_cast<char *>(p) - ALLOC_CHUNK_HEADER;
+		bool exit_release = p->m_exit_release;
 		p->~PoolAllocator();
-		PoolAllocatorBase::bucket_release_chunk(cbase, (std::size_t)CHUNK_SIZE);
+		if(exit_release)
+			PoolAllocatorBase::exit_release_chunk(cbase, (std::size_t)CHUNK_SIZE);
+		else
+			PoolAllocatorBase::bucket_release_chunk(cbase, (std::size_t)CHUNK_SIZE);
 	}
 protected:   // restore the section access in effect before this block
 
@@ -2275,6 +2280,10 @@ protected:
 	inline void *allocate_pooled(unsigned int SIZE);
 	bool deallocate_pooled(char *p) override;
 	int batch_return_to_bitmap(const CrossDeallocEntry *entries) noexcept override;
+	//! (§revive) The body: `revive` = take BIT_Q before clearing and push the
+	//! chunk onto its owner's anchor after -- false only for the owner's own
+	//! exit drain.
+	int return_slots(const CrossDeallocEntry *entries, bool revive) noexcept;
 	void *slow_allocate(unsigned bucket, std::size_t size) noexcept override;
 
 	// FS=false's previous per-chunk size-bucketed freelist
