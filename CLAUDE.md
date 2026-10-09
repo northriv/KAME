@@ -476,6 +476,12 @@ must say so in a comment and accept that it cannot build on a no-DCAS host.
    tempcontrol connector rebuild, XMicroCAM QTextDocument access). Pair with
    `FLAG_AVOID_DUP` unless every event matters. Conversely, callbacks that only do
    STM/interface work should NOT take the flag (adds main-thread latency).
+   `FLAG_AVOID_DUP` is legal **only** together with `FLAG_MAIN_THREAD_CALL`
+   (and `FLAG_DELAY_*` only with `FLAG_AVOID_DUP`): `Listener`'s constructor
+   asserts it, and on clang `KAME_LISTENER_FLAGS_CHECK` (a `diagnose_if` on
+   `Talker::connect`/`connectWeakly` in `kamestm/transaction_signal.h`) turns a
+   constant violation into a compile error. A lone `FLAG_AVOID_DUP` once
+   compiled, passed the audits, and aborted KAME when its driver was created.
 
 ## Ohtaka (ISSP supercomputer) operating rules
 

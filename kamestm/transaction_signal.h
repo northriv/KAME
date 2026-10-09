@@ -127,6 +127,23 @@ protected:
     const int m_flags;
 };
 
+//! Rejects at compile time the flag combinations Listener's constructor
+//! asserts against, when the flags are constants at the call site: a lone
+//! FLAG_AVOID_DUP compiled and passed review once, and aborted KAME the
+//! moment its driver was created.  Clang only (diagnose_if); elsewhere, and
+//! for flags held in a variable, the constructor's assert still applies.
+#if defined(__clang__)
+    #define KAME_LISTENER_FLAGS_CHECK(f) \
+        __attribute__((diagnose_if(((f) & Listener::FLAG_AVOID_DUP) && \
+            !((f) & Listener::FLAG_MAIN_THREAD_CALL), \
+            "FLAG_AVOID_DUP requires FLAG_MAIN_THREAD_CALL", "error"))) \
+        __attribute__((diagnose_if(((f) & (Listener::FLAG_DELAY_SHORT | Listener::FLAG_DELAY_ADAPTIVE)) && \
+            !((f) & Listener::FLAG_AVOID_DUP), \
+            "FLAG_DELAY_SHORT / FLAG_DELAY_ADAPTIVE require FLAG_AVOID_DUP", "error")))
+#else
+    #define KAME_LISTENER_FLAGS_CHECK(f)
+#endif
+
 template <class Event>
 class ListenerBase : public Listener {
 protected:
@@ -188,10 +205,12 @@ public:
     virtual ~Talker() = default;
 
     template <class R, class T, typename...ArgRefs>
-    shared_ptr<Listener> connect(R& obj, void(T::*func)(ArgRefs...), int flags = 0);
+    shared_ptr<Listener> connect(R& obj, void(T::*func)(ArgRefs...), int flags = 0)
+        KAME_LISTENER_FLAGS_CHECK(flags);
     template <class R, class T, typename...ArgRefs>
     shared_ptr<Listener> connectWeakly(const shared_ptr<R> &obj,
-        void (T::*func)(ArgRefs...), int flags = 0);
+        void (T::*func)(ArgRefs...), int flags = 0)
+        KAME_LISTENER_FLAGS_CHECK(flags);
 
     void connect(const shared_ptr<Listener> &x);
     void disconnect(const shared_ptr<Listener> &);
