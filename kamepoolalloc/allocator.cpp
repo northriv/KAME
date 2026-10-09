@@ -3679,7 +3679,10 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 	// garbage local-id (corruption / coincidental owner match on a stray
 	// pointer) tail-calls cold, which re-validates via palloc + the vtable
 	// owner check.
-	if(__builtin_expect(chunk_obj->m_owner_id == page_owner_id
+	// The owner id is read by offset, not through chunk_obj: until it
+	// matches, no PoolAllocator object need live there (a dedicated or
+	// released chunk).
+	if(__builtin_expect(chunk_owner_id(chunk_base) == page_owner_id
 	                    && page_owner_id != 0, 1)) {
 		if(__builtin_expect(chunk_obj->m_fs_flag != 0, 1)) {  // FS=true — 64 B hot
 #if KAME_FS_CHUNK_FIFO
@@ -3914,7 +3917,8 @@ PoolAllocatorBase::deallocate_cold(void *p) noexcept {
 		// post-teardown free to the cold cross-free path, which decrements
 		// MASK_CNT and reclaims correctly.
 		uint32_t page_owner_id = pg->owner_id;   // (hoist) reuse the page read at fn entry
-		if(__builtin_expect(chunk_obj->m_owner_id == page_owner_id
+		// By offset, not through chunk_obj -- see `deallocate`.
+		if(__builtin_expect(chunk_owner_id(chunk_base) == page_owner_id
 		                    && page_owner_id != 0, 1)) {
 			// (§12.3 / §16) Local-id from the cache-line-1 hot block:
 			//   FS=true        : chunk serves one size -> local-id 0.
@@ -4311,9 +4315,9 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 		// owner_ids are non-zero).  Lets `deallocate` skip the bit-7 check
 		// on the hot path and detect dedicated chunks via the natural
 		// owner-id mismatch.  Bucket-origin recycled blocks may carry a
-		// stale m_owner_id here; restamp it unconditionally.
-		reinterpret_cast<PoolAllocatorBase *>(
-		    cached + ALLOC_CHUNK_HEADER)->m_owner_id = 0;
+		// stale m_owner_id here; restamp it unconditionally.  By offset:
+		// no PoolAllocator object lives in a dedicated chunk.
+		chunk_owner_id(cached) = 0;
 		writeBarrier();
 		// (§28.5) dedicated_chunk_bytes is now walked on demand; no
 		// per-alloc counter to bump here.
@@ -4343,9 +4347,9 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 	// chunk.  `claim_chunk` returns mmap-fresh memory (zero-init) on the
 	// truly-first claim, but the unit may have been previously held by a
 	// bucket chunk that left a non-zero m_owner_id behind.  Stamp it
-	// unconditionally — single uint32 store, negligible.
-	reinterpret_cast<PoolAllocatorBase *>(
-	    chunk_base + ALLOC_CHUNK_HEADER)->m_owner_id = 0;
+	// unconditionally — single uint32 store, negligible.  By offset, as
+	// above: there is no object here to name the member through.
+	chunk_owner_id(chunk_base) = 0;
 	writeBarrier();
 	// (§28.5) dedicated_chunk_bytes is now walked on demand; no per-alloc
 	// counter to bump here.
