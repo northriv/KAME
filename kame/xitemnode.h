@@ -25,6 +25,10 @@ public:
 
     struct Item { XString name, label; };
     virtual std::vector<Item> itemStrings(const Snapshot &shot_of_list) const = 0;
+    //! The node \a shot_of_list of itemStrings() must cover: the list pointed into,
+    //! or the node itself for XComboNode. Null once the list is gone, and then
+    //! itemStrings() does not read its argument.
+    virtual shared_ptr<const XNode> listOfItems() const = 0;
 
     bool autoSetAny() const {return !!m_lsnTryAutoSet;}
 
@@ -63,6 +67,8 @@ public:
         m_lsnOnListChanged = tr_list[ *list].onListChanged().connect( *this, &XPointerItemNode<TL>::lsnOnListChanged);
     }
     virtual ~XPointerItemNode() = default;
+
+    virtual shared_ptr<const XNode> listOfItems() const override {return m_list.lock();}
 
     struct Payload : public XItemNodeBase::Payload {
         operator shared_ptr<XNode>() const { return m_var.lock();}
@@ -219,6 +225,7 @@ public:
     virtual std::vector<XItemNodeBase::Item> itemStrings(const Snapshot &shot) const override {
         return shot[ *this].itemStrings();
     }
+    virtual shared_ptr<const XNode> listOfItems() const override {return shared_from_this();}
 
     struct DECLSPEC_KAME Payload : public XItemNodeBase::Payload {
         Payload() : XItemNodeBase::Payload(), m_strings(std::make_shared<std::deque<XString>>()),
