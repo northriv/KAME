@@ -749,6 +749,7 @@ macx {
     modulefiles.files += ../modules/optics/liboptics.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/twoaxis/libtwoaxis.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/relay/librelay.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/interlock/libinterlock.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/python/libpython.$${QMAKE_EXTENSION_SHLIB}
 
     coremodulefiles.path = Contents/MacOS/$${KAME_COREMODULES}

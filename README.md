@@ -63,6 +63,7 @@ Builds before 8.6.1 carry the double-allocation defect described under *What's N
 | **Laser modules** | Coherent Stingray, Newport/ILX LDX-3200, Newport/ILX LDC-3700(C) |
 | **ODMR** | Frequency-swept spectrum, FM peak tracker, 2-D image analysis, filter wheel (STM-driven) |
 | **Motors / positioners** | OrientalMotor FLEX CRK, CVD2B, CVD5B, FLEX AR/DG2, EMP401; SigmaOptics PAMC-104 piezo-assisted; Micro CAM z/x/φ; Two-axis rotator |
+| **Interlock** | Scalar interlock: stops motors when watched scalar entries (e.g. a camera Correlation tool) leave their range, go NaN or stop updating; latched until reset |
 | **Flow controllers** | Fujikin FCST1000 series |
 | **Level meters** | Oxford ILM helium level meter, Cryomagnetics LM-500 |
 | **Vacuum gauges** | Pfeiffer TPG361/362 |
