@@ -174,6 +174,9 @@ them is a property of this code alone.
 | `CrossDeallocBatch` flush | ≤ `CAP` = 1024 entries. Bounded, but 1024× the average — which is why an RT thread bypasses it entirely (G5(b)). |
 | Deferred-unmap backlog | ≤ `rt_pending_cap` bytes; settlement is ≤ **one** block per non-RT free (G5(a)). |
 | Orphan-chain push/pop | Thread-exit path only; adoption pops **one** node. |
+| Freelist miss → another chunk's freelist (§fl-avail) | **O(1)**: chunks with freelist entries sit on per-bucket `KameTlsPage::fl_avail` lists. Replaced the §24 `scan_dll_freelist`, which walked the whole DLL on every miss (quadratic in alloc-only runs; 0.2–0.46 ms max on an RT thread with 200 K live 1 KiB blocks). |
+| Pin miss → reuse a chunk that cross-thread frees gave room (§revive) | **O(1)** per call apart from dropping a revived chunk that cannot serve the size, each drop paid for by the free that revived it: one `exchange` takes the anchor's revival stack when the rest of the last take is used up, then one chunk is popped per try. Replaced the cursor walk over the whole DLL that every cross-thread free restarted (the force-walk hint). |
+| Empty-neighbour release floor | O(1) (`s_tls.dll_len`); was a count walk of the DLL. |
 
 #### (ii) Interference-conditional bounds — need an assumption about the *system*
 

@@ -530,6 +530,37 @@ java -cp tla2tools.jar tlc2.TLC -config OrphanChain_adopt_ownerref_mc.cfg Orphan
 ```
 All terminate in <1s on a single core.
 
+## Revival (§revive) — anchors, revival stacks, the one-bit Q (October 2026)
+
+These replace the O(chunks) DLL walks in `allocate_chunk_path` (the cursor walk
+that every cross-thread free restarted through the force-walk hint).  A
+cross-thread free that gives an owned chunk room pushes the chunk onto a
+revival stack whose head lives in the owner's ANCHOR chunk; the owner takes the
+stack with one exchange.  Each model's header states its protocol, knobs and
+results in full.
+
+| Spec | What it settles | Result |
+|---|---|---|
+| `RevivalStack.tla` | the per-chunk Q protocol; the head in a tagged slot table (superseded by the anchor) | `onebit_safety` (the code's protocol) **clean**; `onebit` violates `Inv_NoLostRoom` by design (rare lost room, accepted); each knob that drops a needed part violates |
+| `RevivalAnchor.tla` | the head in the anchor chunk, reached by counted `atomic_shared_ptr` loads; which chunks may become anchors; the owner taking the stack lazily | `code` (the implemented stage 2a) **clean**, 795,755,368 distinct states; `adopted` (reopen any closed head) violates `Inv_StackOK` |
+| `RevivalGroup.tla` | stage 2b, not yet code: orphaning a thread's chunks as one group, ROOM/FULL chains | `design` **clean**, 1,678,311 distinct states |
+
+Not modelled: the code's stage 2a keeps the existing chunk-wise orphan chain
+(see `OrphanChain_*` above), so Q on an orphan only means a freer that took Q
+under the previous owner is still pushing.  The scrub and the disposer skip a
+chunk with Q set; that interplay is argued in `allocator_prv.h` (`BIT_Q`), not
+checked here.
+
+### Running
+```
+java -cp tla2tools.jar tlc2.TLC -workers 16 -deadlock -config RevivalStack_onebit_safety_mc.cfg RevivalStack.tla
+java -cp tla2tools.jar tlc2.TLC -workers 16 -deadlock -config RevivalGroup_design_mc.cfg        RevivalGroup.tla
+java -Xmx24g -cp tla2tools.jar tlc2.TLC -workers 24 -deadlock -config RevivalAnchor_code_mc.cfg RevivalAnchor.tla
+```
+The `RevivalStack` and `RevivalGroup` cfgs take seconds.  `RevivalAnchor`'s
+clean cfgs take 30–60 min on 24 workers (`code`: 58 min), so they are not in
+`run_orphan_chain.sh`.
+
 ## Regression guard — `run_orphan_chain.sh`
 
 `./run_orphan_chain.sh` runs every `OrphanChain_*` model with each cfg and
