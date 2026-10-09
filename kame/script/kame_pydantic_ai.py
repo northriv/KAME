@@ -521,6 +521,23 @@ def _toolset(url, token):
 #sets a budget for every other provider too, which otherwise keeps its own.
 ANTHROPIC_MAX_TOKENS = 32000
 
+#Claude models whose thinking is on when the request names none, so asking
+#for adaptive thinking explicitly changes nothing about them.  Only these get
+#_THINKING_DROP_BLOCK: on Opus 4.8/4.7 an explicit `thinking` would switch
+#thinking ON, and Sonnet 4.5 and older reject the adaptive type outright.
+_ALWAYS_THINKING_CLAUDE = ('claude-opus-5', 'claude-sonnet-5', 'claude-fable-5',
+                           'claude-mythos-5')
+#Anthropic binds each thinking block to the exact history before it, and an
+#account created on or after 2026-08-31 gets a 400 ("Invalid `signature` in
+#`thinking` block. The block is bound to a different conversation") when a
+#replayed history differs at all.  The web UI rebuilds the history from the
+#browser's copy on every message, so a tool result can come back not
+#byte-identical -- it did, first at messages.2.  "drop_block" makes the API
+#drop the stale blocks (and every later one, for that request) and answer.
+_THINKING_BINDING_BETA = 'thinking-binding-controls-2026-08-01'
+_THINKING_DROP_BLOCK = {'type': 'adaptive',
+                        'block_binding': {'prefix_mismatch_behavior': 'drop_block'}}
+
 
 def _max_tokens_setting():
     """KAME_PYAI_MAX_TOKENS as an int, or None when unset or unreadable."""
@@ -547,9 +564,12 @@ def _resolve_model(spec):
         #output budget -- on the model, not the agent, so it follows the
         #model through the web UI's menu and survives clai's `agent.model =`.
         from pydantic_ai.models.anthropic import AnthropicModel
-        return AnthropicModel(spec[len('anthropic:'):],
-                              settings={'max_tokens': _max_tokens_setting()
-                                        or ANTHROPIC_MAX_TOKENS})
+        name = spec[len('anthropic:'):]
+        settings = {'max_tokens': _max_tokens_setting() or ANTHROPIC_MAX_TOKENS}
+        if name.startswith(_ALWAYS_THINKING_CLAUDE):
+            settings['anthropic_thinking'] = _THINKING_DROP_BLOCK
+            settings['anthropic_betas'] = [_THINKING_BINDING_BETA]
+        return AnthropicModel(name, settings=settings)
     if not isinstance(spec, str) or not spec.startswith(KAME_PREFIXES):
         return spec          # None, a plain provider:name, or an already-built Model
     from pydantic_ai.exceptions import UserError
