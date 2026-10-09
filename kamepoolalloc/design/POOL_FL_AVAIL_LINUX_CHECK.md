@@ -166,7 +166,7 @@ constructed in the same place it sets a relaxed hint byte or leaves
 The `BIT_Q` comment at `allocator_prv.h:1916-1918` ("nobody releases a chunk a
 freer may still be touching") overstates: it holds only for the freer that
 holds Q.  Fix if wanted: do the counter and hint writes before the last
-`MASK_CNT` decrement.
+`MASK_CNT` decrement.  **Fixed in bd7875d06** that way — see §6.
 
 **B. Room not visible to a live owner** (accepted cost, `Inv_NoLostRoom` in
 the onebit model).  A freer finds Q set; the owner's `take_rest` drops Q and
@@ -174,8 +174,14 @@ the onebit model).  A freer finds Q set; the owner's `take_rest` drops Q and
 then the freer's clears land.  With no later free on that chunk it has room
 but is on no list, and nothing scans the DLL any more; while the owner lives
 only the neighbour release (two chunks after the pin) recovers it.  Plausible
-from the code, not observed: §4.4 is where it would show.  Re-checking
-`rv_take_q()` after the clears when `q` was false would close it.
+from the code, not observed: §4.4 is where it would show.
+
+*Retracted suggestion.*  The review proposed re-checking `rv_take_q()` after
+the clears when `q` was false.  That is unsafe, as bd7875d06 points out: by
+then no slot of the freer's keeps the chunk alive, so the CAS can land on a
+chunk already released and rebuilt — finding A's window again, with an atomic
+write in it instead of a counter.  `RevivalStack.tla` with `NoPin` violates
+`Inv_NoUseAfterRelease`.  B stays an accepted cost of the one-bit protocol.
 
 **Comments the branch makes wrong** (most were stale before, but §group makes
 them misleading):
@@ -190,3 +196,16 @@ them misleading):
   decrement to 0 the release path, which §group rules out.
 - `allocator.cpp:2311-2316` — "skip for FS=false"; FS=false chunks run the
   FS=true base's `batch_clear_impl`, so they do store.
+
+## 6. bd7875d06 (finding A fixed, comments corrected)
+
+The FS=false `OnClearFn` now decrements `m_flags_filled_cnt` before
+`MASK_CNT`; FS=true already did.  The coalescing hint is stored inside
+`batch_clear_impl`'s loop just before the last word's clear, which is the only
+clear that can bring `MASK_CNT` to 0 — the freer's own bits keep every later
+word live until then.  No caller of `batch_return_to_bitmap` / `return_slots`
+touches the chunk after it returns (`flush` advances over its own buffer;
+`push_direct` and both teardown bypasses return at once).  Read and agreed.
+
+Rebuild + ctest of the six trees (LP64 release / asserts, ILP32 i586 / i486
+release / asserts) and the no-DCAS audit: pending.
