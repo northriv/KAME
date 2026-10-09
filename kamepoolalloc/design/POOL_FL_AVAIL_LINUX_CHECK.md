@@ -22,9 +22,9 @@ orphan chain's `atomic_shared_ptr` words.
 | ILP32 ctest, i586 and i486, release and asserts on | all pass but `transaction_wait_budget_test`, a load artifact (§3) | — |
 | `alloc_tsd_exclusivity_test`, 4-way, 3000/arm | **0 / 3000** | **34 / 3000**, all SIGSEGV |
 | thread-exit soak, 4 tests × 200/arm | 0 / 800 | 0 / 800 |
-| `tmin_dynnode 100 16 1250`, LP64 | pending | pending |
-| `tmin_dynnode 100 16 1250`, ILP32 i586 | pending | pending |
-| chunk/region growth | pending | pending |
+| `tmin_dynnode 100 16 1250`, LP64 | 0 / 12 | 0 / 12 (no baseline signal) |
+| `tmin_dynnode 100 16 1250`, ILP32 i586 | 0 / 12 | 0 / 12 (no baseline signal) |
+| chunk/region growth (§4.4) | same or fewer chunks | — |
 
 The force-walk TOCTOU (`FORCE_WALK_TOCTOU_HANDOFF.md`) is gone: 0/3000
 against 34/3000, Fisher p ≈ 1e-10.  Nothing regressed that the tests here
@@ -95,11 +95,42 @@ arms**.
 
 ### 4.3 `tmin_dynnode`
 
-Pending (running: 12 rounds per arm, LP64 then ILP32 i586).
+`kamestm/tests/tmin_dynnode.cpp` (from this branch, `DYNNODE_UAF_HANDOFF.md`
+§3), built with `-DA_NO_P1TREE -O3` against each arm's own kamestm headers and
+RPATH-pinned to its pool; one run at a time, arms interleaved, 12 rounds each:
+
+| | pool-fl-avail | master |
+|---|---|---|
+| LP64 | 0 / 12 | 0 / 12 |
+| ILP32 i586 | 0 / 12 | 0 / 12 |
+
+**This does not discriminate.**  Master no longer fires it on this box (the
+handoff's 40–65 % was on an older base), so the 0 on the branch says only that
+the branch did not bring the failure back — it is not evidence that the
+branch fixes anything here.
 
 ### 4.4 Chunk / region growth
 
-Pending (`bench_xthread_pool -w 2 -t 3` at 64/256/1024 B and `alloc_stress_test`, 3 reps per arm).
+One process at a time, arms interleaved, 3 reps.  Throughput is not
+compared — a shared 4-core box is not a benchmark host.
+
+`bench_xthread_pool -w 2 -t 3 -s <size>` — regions added, `chunks_live` at the end:
+
+| size | pool-fl-avail | master |
+|---|---|---|
+| 64 B | +2 / +2 / +2; 287–297 | +2 / +2 / +2; 282–287 |
+| 256 B | +3 / +1 / +1; 101–117 | +1 / +1 / +1; 112–122 |
+| 1024 B | +1 / +1 / +1; 102–127 | +1 / +1 / +1; 156–157 |
+
+`alloc_stress_test` (defaults: 2000 threads, 32 concurrent, 20000 ops,
+10 % cross-thread): PASS ×3 both arms; VmHWM 194 / 202 / 200 MiB against
+211 / 207 / 204 MiB.
+
+No growth.  The branch holds as many or fewer chunks (a third fewer at
+1024 B); the single +3 at 256 B did not repeat.  Review finding B (§5), room
+a live owner cannot see, would appear here as extra chunks, and none appear —
+which bounds it for these workloads but does not rule it out for a
+long-lived owner whose chunks receive no later free.
 
 ## 5. Static review of the diff
 
