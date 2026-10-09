@@ -155,6 +155,14 @@ void XQGraph2DMathToolConnector::toolActivated(QAction *act) {
         Snapshot shot_tool( *tool);
         tool->updateOnScreenObjects(shot_tool, m_graphwidget->painter().lock(), {});
         m_maskActions.clear();
+        m_storeReferenceActions.clear();
+        return;
+    }
+    if(m_storeReferenceActions.count(act)) {
+        auto tool = static_pointer_cast<XGraph2DMathToolCorrelation>(m_storeReferenceActions.at(act));
+        trans( *tool->storeReference()).touch();
+        m_maskActions.clear();
+        m_storeReferenceActions.clear();
         return;
     }
     if(m_actionToToolMap.count(act)) {
@@ -197,6 +205,7 @@ void XQGraph2DMathToolConnector::toolActivated(QAction *act) {
     m_deleteActions.clear(); //not to be called twice.
     m_reselectActions.clear(); //not to be called twice.
     m_maskActions.clear();
+    m_storeReferenceActions.clear();
 }
 
 
@@ -315,6 +324,7 @@ void XQGraph2DMathToolConnector::menuOpenActionActivated() {
     m_actionToExisitingToolMap.clear();
     m_autoRescaleActions.clear();
     m_maskActions.clear();
+    m_storeReferenceActions.clear();
     if(m_lists.empty())
         return;
     auto &list = m_lists[0];
@@ -338,6 +348,11 @@ void XQGraph2DMathToolConnector::menuOpenActionActivated() {
                     QString(maskLabels[m]) + (m == curMask ? " *" : ""), maskMenu);
                 maskMenu->addAction(actmask);
                 m_maskActions[actmask] = {tool, m};
+            }
+            if(auto corr = dynamic_pointer_cast<XGraph2DMathToolCorrelation>(tool)) {
+                QAction *actref = new QAction(i18n("Store Reference"), menuoftool);
+                menuoftool->addAction(actref);
+                m_storeReferenceActions[actref] = corr;
             }
         }
         if(m_isFromPopup) {

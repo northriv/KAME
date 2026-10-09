@@ -693,6 +693,28 @@ Use `createByTypename()` to add math tools; `release()` to remove them.
 |---|---|
 | `Graph2DMathToolAverage` | Average pixel value in ROI |
 | `Graph2DMathToolSum` | Sum of pixel values in ROI |
+| `Graph2DMathToolCorrelation` | Normalized cross-correlation of the ROI with a stored reference image of it (see below) |
+
+### Correlation (change / obstruction detection)
+
+`Graph2DMathToolCorrelation` reports how closely the ROI still matches a
+reference image of itself: 1 while unchanged, falling when anything covers
+or alters the region.  Gain and offset cancel, so auto exposure does not
+move it.  It is **NaN** when either image is flat (no texture to correlate)
+— a consumer (an interlock, a script) must treat NaN as a failure, never as
+a value.  Aim it at something textured, e.g. a printed pattern.
+
+The reference is taken from the first image after the tool is created (also
+after loading a .kam), whenever its ROI or mask changes, and on the
+`StoreReference` touchable — the tool's menu has "Store Reference" too.  It
+is not saved in the .kam on purpose; the on-screen label shows `(ref)` on
+the frame a reference was taken.
+
+```python
+tool = dc.createByTypename("Graph2DMathToolCorrelation", "Marker")
+# ... set FirstX/FirstY/LastX/LastY with the region clear, then:
+tool["StoreReference"].touch()   # retake from the next frame
+```
 
 ### Creating and configuring
 

@@ -75,6 +75,7 @@ private:
     std::multimap<QAction *, std::pair<shared_ptr<XGraph2DMathToolList>, shared_ptr<XNode>>>
         m_actionToExisitingToolMap, m_deleteActions, m_reselectActions;
     std::map<QAction *, std::pair<shared_ptr<XNode>, int>> m_maskActions;
+    std::map<QAction *, shared_ptr<XNode>> m_storeReferenceActions; //!< Correlation tools only.
     std::set<QAction *> m_autoRescaleActions;
     bool m_isFromPopup = false;
 public:

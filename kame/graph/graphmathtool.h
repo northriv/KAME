@@ -145,6 +145,11 @@ public:
 protected:
     virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, const shared_ptr<XQGraphPainter> &painter, const XString &msg) override;
     virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) override;
+    //! The mask for a region of \a width x \a numlines, generated first when
+    //! the shape needs one and none is stored; nullptr when none applies
+    //! (Rectangle, or a stored mask of other dimensions, e.g. a selection
+    //! clipped by the image boundary).  For update().
+    shared_ptr<const std::vector<uint8_t>> maskFor(unsigned int width, unsigned int numlines);
 private:
     const shared_ptr<XDoubleNode> m_firstX, m_firstY, m_lastX, m_lastY;
     const shared_ptr<XComboNode> m_maskType;
@@ -225,23 +230,11 @@ public:
 
     virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter, const uint32_t *leftupper, unsigned int width,
         unsigned int stride, unsigned int numlines, double coefficient, double offset) override {
-        // Ensure mask is generated if MaskType requires one but m_mask is empty.
-        {
-            Snapshot pre( *this);
-            auto shape = (MaskShape)(int)pre[ *this->maskType()];
-            if(shape != MaskShape::Rectangle && shape != MaskShape::Arbitrary && !pre[ *this].m_mask) {
-                this->iterate_commit([&](Transaction &mtr){
-                    this->regenerateMask(mtr);
-                });
-            }
-        }
+        auto maskptr = this->maskFor(width, numlines);
         Snapshot shot( *this); //read-only access to the tool's payload; avoids CoW on the tool node.
-        auto maskptr = shot[ *this].m_mask;
         auto func = shot[ *this].functor; //copy functor locally so non-const operator() can be called.
         static const std::vector<uint8_t> s_empty;
-        //discard mask if dimensions mismatch (e.g. selection clipped by image boundary).
-        const auto &mask = (maskptr && (maskptr->size() == (size_t)width * numlines))
-            ? *maskptr : s_empty;
+        const auto &mask = maskptr ? *maskptr : s_empty;
         XString msg;
         if constexpr(HasSingleEntry) {
             double v = func(leftupper, width, stride, numlines, coefficient, offset, mask);
@@ -418,6 +411,47 @@ struct DECLSPEC_KAME FuncGraph2DMathToolAverage{
     }
 };
 using XGraph2DMathToolAverage = XGraph2DMathToolX<FuncGraph2DMathToolAverage>;
+
+//! Normalized cross-correlation of the region with a reference image of it:
+//! 1 while the region looks as it did, falling when anything covers or alters
+//! it -- so a printed pattern seen past a stage makes an optical interlock,
+//! the stage blocking the view.  Gain and offset cancel, so auto exposure does
+//! not move it.  NaN when either image is flat (no texture to correlate),
+//! which a consumer must take as a failure, not as a value.
+//! The reference is the first image after the tool is created (by hand or
+//! from a .kam), after its region or mask changes, and after StoreReference.
+//! It is deliberately not saved: a reference outliving the setup it was taken
+//! in is the failure an interlock must not have.
+class DECLSPEC_KAME XGraph2DMathToolCorrelation: public XGraphMathToolX<void, XGraph2DMathTool> {
+public:
+    XGraph2DMathToolCorrelation(const char *name, bool runtime, Transaction &tr_meas,
+        const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
+        const shared_ptr<XPlot> &plot, const shared_ptr<XNode> &parentList, const std::vector<std::string> &entrynames);
+    virtual ~XGraph2DMathToolCorrelation() {}
+
+    //! Takes the next image as the reference.
+    const shared_ptr<XTouchableNode> &storeReference() const {return m_storeReference;}
+
+    virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter, const uint32_t *leftupper, unsigned int width,
+        unsigned int stride, unsigned int numlines, double coefficient, double offset) override;
+
+    struct DECLSPEC_KAME Payload : public XGraph2DMathTool::Payload {
+        //! The region's unmasked pixels in scan order, and what they were taken under.
+        struct Reference {
+            std::vector<uint32_t> pixels;
+            double mean = 0.0, norm = 0.0; //!< norm: square root of the summed squared deviations.
+            unsigned int width = 0, numlines = 0;
+            double firstX = 0.0, firstY = 0.0, lastX = 0.0, lastY = 0.0;
+            shared_ptr<const std::vector<uint8_t>> mask;
+        };
+        shared_ptr<const Reference> m_reference;
+        bool m_storeRequested = false;
+    };
+private:
+    const shared_ptr<XTouchableNode> m_storeReference;
+    shared_ptr<Listener> m_lsnOnStoreReference;
+    void onStoreReferenceTouched(const Snapshot &, XTouchableNode *);
+};
 
 class XMeasure;
 

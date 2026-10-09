@@ -42,6 +42,7 @@ REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathLorenzianHeightTool, "LorenzianHe
 
 REGISTER_TYPE(XGraph2DMathToolList, Graph2DMathToolSum, "Sum");
 REGISTER_TYPE(XGraph2DMathToolList, Graph2DMathToolAverage, "Average");
+REGISTER_TYPE(XGraph2DMathToolList, Graph2DMathToolCorrelation, "Correlation");
 
 XGraphMathTool::XGraphMathTool(const char *name, bool runtime, Transaction &tr_meas,
     const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
@@ -136,6 +137,104 @@ XGraph2DMathTool::setArbitraryMask(const std::vector<uint8_t> &mask) {
         tr[ *maskType()] = (int)MaskShape::Arbitrary;
         tr[ *this].m_mask = std::make_shared<std::vector<uint8_t>>(mask);
     });
+}
+
+shared_ptr<const std::vector<uint8_t>>
+XGraph2DMathTool::maskFor(unsigned int width, unsigned int numlines) {
+    {
+        Snapshot pre( *this);
+        auto shape = (MaskShape)(int)pre[ *maskType()];
+        if(shape != MaskShape::Rectangle && shape != MaskShape::Arbitrary && !pre[ *this].m_mask) {
+            iterate_commit([&](Transaction &mtr){
+                regenerateMask(mtr);
+            });
+        }
+    }
+    auto mask = Snapshot( *this)[ *this].m_mask;
+    if(mask && (mask->size() == (size_t)width * numlines))
+        return mask;
+    return {};
+}
+
+XGraph2DMathToolCorrelation::XGraph2DMathToolCorrelation(const char *name, bool runtime, Transaction &tr_meas,
+    const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
+    const shared_ptr<XPlot> &plot, const shared_ptr<XNode> &parentList, const std::vector<std::string> &entrynames) :
+    XGraphMathToolX<void, XGraph2DMathTool>(name, runtime, ref(tr_meas), entries, driver, plot, parentList, entrynames),
+    m_storeReference(create<XTouchableNode>("StoreReference", true)) {
+    iterate_commit([=](Transaction &tr){
+        m_lsnOnStoreReference = tr[ *m_storeReference].onTouch().connectWeakly(
+            shared_from_this(), &XGraph2DMathToolCorrelation::onStoreReferenceTouched);
+    });
+}
+
+void
+XGraph2DMathToolCorrelation::onStoreReferenceTouched(const Snapshot &, XTouchableNode *) {
+    trans( *this).m_storeRequested = true; //taken by the next update(), from that image.
+}
+
+void
+XGraph2DMathToolCorrelation::update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter, const uint32_t *leftupper, unsigned int width,
+    unsigned int stride, unsigned int numlines, double, double) {
+    //coefficient and offset cancel in a normalized correlation.
+    const auto mask = maskFor(width, numlines);
+    auto for_each_pixel = [&](auto fn) {
+        const uint32_t *line = leftupper;
+        for(unsigned int y = 0; y < numlines; ++y, line += stride)
+            for(unsigned int x = 0; x < width; ++x)
+                if( !mask || ( *mask)[y * width + x])
+                    fn(line[x]);
+    };
+    //Through tr, not a fresh Snapshot: a StoreReference committed meanwhile
+    //makes this transaction retry and see it, rather than be overwritten.
+    const Snapshot &shot(tr);
+    const double fx = shot[ *firstX()], fy = shot[ *firstY()], lx = shot[ *lastX()], ly = shot[ *lastY()];
+    auto ref = shot[ *this].m_reference;
+    const bool take = !ref || shot[ *this].m_storeRequested ||
+        (ref->width != width) || (ref->numlines != numlines) || (ref->mask != mask) ||
+        (ref->firstX != fx) || (ref->firstY != fy) || (ref->lastX != lx) || (ref->lastY != ly);
+    if(take) {
+        auto r = std::make_shared<Payload::Reference>();
+        r->pixels.reserve((size_t)width * numlines);
+        for_each_pixel([&](uint32_t v){r->pixels.push_back(v);});
+        if(r->pixels.size()) {
+            double sum = 0.0;
+            for(auto v: r->pixels) sum += v;
+            r->mean = sum / r->pixels.size();
+            double ss = 0.0;
+            for(auto v: r->pixels) ss += (v - r->mean) * (v - r->mean);
+            r->norm = std::sqrt(ss);
+        }
+        r->width = width;
+        r->numlines = numlines;
+        r->mask = mask;
+        r->firstX = fx; r->firstY = fy; r->lastX = lx; r->lastY = ly;
+        ref = r;
+        tr[ *this].m_reference = ref;
+        tr[ *this].m_storeRequested = false;
+    }
+
+    double mean = 0.0;
+    size_t n = 0;
+    for_each_pixel([&](uint32_t v){mean += v; ++n;});
+    double ncc = std::nan("");
+    if(n && (n == ref->pixels.size()) && (ref->norm > 0.0)) {
+        mean /= n;
+        double cov = 0.0, ss = 0.0;
+        const uint32_t *rp = ref->pixels.data();
+        for_each_pixel([&](uint32_t v){
+            const double d = v - mean;
+            cov += d * ( *rp++ - ref->mean);
+            ss += d * d;
+        });
+        if(ss > 0.0)
+            ncc = cov / (std::sqrt(ss) * ref->norm);
+    }
+    entry()->value(tr, ncc);
+    XString msg = tr[ *entry()->value()].to_str();
+    if(take)
+        msg += " (ref)";
+    Snapshot shot_tool( *this);
+    updateOnScreenObjects(shot_tool, painter, msg);
 }
 
 void

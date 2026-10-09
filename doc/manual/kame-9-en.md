@@ -1023,6 +1023,8 @@ USB / built-in video camera (webcam): AVFoundation on macOS; Qt Multimedia on Wi
 
 OceanOptics/Insight USB spectrometer HR2000+/4000 (USB)
 
+The Correlation 2D math tool compares a region of a camera image with a reference image of it and reports their normalized cross-correlation: 1 while the region looks as it did, lower when something covers it. Aimed at a printed pattern that a moving part would hide, it detects obstruction regardless of auto exposure. The reference is taken when the tool is created or its region changes, and on "Store Reference" in the tool's menu; it is not saved. A flat region gives NaN, which must be treated as a failure.
+
 The webcam driver records 8-bit luminance. A webcam's output is gamma-encoded and auto-exposed, so treat it as a monitor (sample position, the view into a cryostat) rather than as a quantitative detector. The ROI tool crops in software, and a `FrameRate` below the camera's own rate thins frames out. Only the Continuous and Single-shot trigger modes exist. On macOS, exposure and gain are automatic only (`ExposureTime` 0 selects auto exposure). The first time the interface is turned on, macOS asks for camera permission; if it was refused, allow KAME in System Settings > Privacy & Security > Camera.
 
 Camera scripting nodes: `CameraGain` (analog gain), `EMGain`, `BlackLevelOffset`, `ExposureTime`, `FrameRate`, `VideoMode`, `TriggerMode`, `TriggerSrc`; dark-frame handling `StoreDark`, `SubtractDark`, `AntiShakePixels`; display-only `AutoGainForDisp`, `GainForDisp` (these affect the displayed image, not the raw counts read by 2D math tools). Quantitative pixel data is obtained through 2D math tools, not `to_png()` — see Graph Math Tools / the API reference.
