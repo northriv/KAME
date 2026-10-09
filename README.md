@@ -760,9 +760,9 @@ p99.9; that is why only DEFER can be a process-wide default.
   `KAME_RT_OS_FAIL`: a region without its leaf would route later frees of
   pointers inside it to libc `free()` — corruption, not degradation. Prewarm is
   what keeps this off the path.
-* **The cold chunk-claim path calls `orphan_chain_scrub()`**, which walks the
-  orphan chain and restarts on CAS loss — unbounded. Precondition 2/4 keep it
-  unreachable; `KAME_RT_OS_FAIL` refuses that path outright.
+* **The cold chunk-claim path sweeps the FULL chain of orphaned groups**,
+  O(groups on it) — unbounded. Precondition 2/4 keep it unreachable;
+  `KAME_RT_OS_FAIL` refuses that path outright.
 * **Page-fault class is only partly ours.** `kame_pool_mlock_regions()` pins
   (and populates) the pool's own regions, which is the part we can see — and it
   is deliberately narrower than `mlockall(MCL_CURRENT|MCL_FUTURE)`, which would

@@ -542,24 +542,23 @@ results in full.
 | Spec | What it settles | Result |
 |---|---|---|
 | `RevivalStack.tla` | the per-chunk Q protocol; the head in a tagged slot table (superseded by the anchor) | `onebit_safety` (the code's protocol) **clean**; `onebit` violates `Inv_NoLostRoom` by design (rare lost room, accepted); each knob that drops a needed part violates |
-| `RevivalAnchor.tla` | the head in the anchor chunk, reached by counted `atomic_shared_ptr` loads; which chunks may become anchors; the owner taking the stack lazily | `code` (the implemented stage 2a) **clean**, 795,755,368 distinct states; `adopted` (reopen any closed head) violates `Inv_StackOK` |
-| `RevivalGroup.tla` | stage 2b, not yet code: orphaning a thread's chunks as one group, ROOM/FULL chains | `design` **clean**, 1,678,311 distinct states |
+| `RevivalAnchor.tla` | the head in the anchor chunk, reached by counted `atomic_shared_ptr` loads; which chunks may become anchors; the owner taking the stack lazily (stage 2a; stage 2b superseded its orphan side) | `code` **clean**, 795,755,368 distinct states; `adopted` (reopen any closed head) violates `Inv_StackOK` |
+| `RevivalGroup.tla` | the implemented stage 2b (§group): orphaning a thread's chunks as one group, ROOM/FULL chains, adoption by moving a head's chunks, takeover, the FULL sweep, dissolution | `code` **clean**, 57,428,577 distinct states; `dissolverefs` violates `Inv_NoUseAfterRelease` |
 
-Not modelled: the code's stage 2a keeps the existing chunk-wise orphan chain
-(see `OrphanChain_*` above), so Q on an orphan only means a freer that took Q
-under the previous owner is still pushing.  The scrub and the disposer skip a
-chunk with Q set; that interplay is argued in `allocator_prv.h` (`BIT_Q`), not
-checked here.
+The chains themselves are the `atomic_shared_ptr` Treiber stack of the
+`OrphanChain_*` models above, with the serial of `OrphanChain_aba.tla` on
+ROOM's multi-consumer pop; `RevivalGroup` treats a push, a pop and the FULL
+exchange as atomic steps and counts anchor references abstractly.
 
 ### Running
 ```
 java -cp tla2tools.jar tlc2.TLC -workers 16 -deadlock -config RevivalStack_onebit_safety_mc.cfg RevivalStack.tla
-java -cp tla2tools.jar tlc2.TLC -workers 16 -deadlock -config RevivalGroup_design_mc.cfg        RevivalGroup.tla
+java -cp tla2tools.jar tlc2.TLC -workers 16 -deadlock -config RevivalGroup_code_mc.cfg          RevivalGroup.tla
 java -Xmx24g -cp tla2tools.jar tlc2.TLC -workers 24 -deadlock -config RevivalAnchor_code_mc.cfg RevivalAnchor.tla
 ```
-The `RevivalStack` and `RevivalGroup` cfgs take seconds.  `RevivalAnchor`'s
-clean cfgs take 30–60 min on 24 workers (`code`: 58 min), so they are not in
-`run_orphan_chain.sh`.
+The `RevivalStack` cfgs and `RevivalGroup`'s `design` take seconds, its
+`code` a few minutes; `RevivalAnchor`'s clean cfgs take 30–60 min on 24
+workers (`code`: 58 min), so none of them is in `run_orphan_chain.sh`.
 
 ## Regression guard — `run_orphan_chain.sh`
 

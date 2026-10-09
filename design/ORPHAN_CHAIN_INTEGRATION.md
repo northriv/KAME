@@ -1,5 +1,16 @@
 # Orphan-chain integration plan (atomic_shared_ptr refcount chunk-release)
 
+> **Superseded (October 2026, §group).** Orphans are now handed over by GROUP:
+> an exiting thread places its whole group (its anchor chunk and every chunk
+> pointing at it) onto one of two atomic_shared_ptr chains of anchors, ROOM or
+> FULL; adopters move the chunks on a group's head into their own group, and
+> the sweep before an mmap processes FULL.  The chunk-wise chain, its scrub and
+> the per-chunk owner-ref described here are retired; the Treiber
+> push/pop on atomic_shared_ptr (now with a serial, OrphanChain_aba.tla) carries
+> over to the group chains.  See the §revive / §group comment in
+> `allocator_prv.h` and `tests/tlaplus/RevivalGroup.tla`.  The text below is
+> kept as the record of the chunk-wise design.
+
 Staged plan to replace the §36 orphan Treiber stack + `BIT_OWNED`
 arbitration with the **TLA+-verified atomic_shared_ptr-refcounted intrusive
 singly-linked orphan chain** (`tests/tlaplus/OrphanChain_atomicshared.tla`).
