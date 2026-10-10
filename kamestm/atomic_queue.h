@@ -230,6 +230,9 @@ private:
 //! Atomic FIFO of a pre-defined size for copy-able class.
 template <typename T, unsigned int SIZE>
 class atomic_queue_reserved {
+    static_assert(std::is_trivially_copyable<T>::value,
+        "atomic_queue_reserved reads items optimistically while a push may be "
+        "rewriting the slot: T must be trivially copyable.");
 public:
     typedef typename atomic_pointer_queue<T, SIZE>::nospace_error nospace_error;
     typedef uint_cas_max key;
@@ -250,7 +253,7 @@ public:
     	if( !pack)
     		throw nospace_error();
     	int idx = key2index(pack);
-    	m_array[idx] = t;
+    	m_array[idx].store(t, std::memory_order_relaxed);
     	int serial = key2serial(pack) + 1;
     	pack = key_index_serial(idx, serial);
     	try {
@@ -278,8 +281,8 @@ public:
     	}
     }
     //! This is not reentrant.
-    T &front() {
-        return m_array[key2index(m_queue.front())];
+    T front() {
+        return m_array[key2index(m_queue.front())].load(std::memory_order_relaxed);
     }
     //! This is not reentrant.
     bool empty() const {
@@ -308,7 +311,7 @@ public:
     key atomicFront(T *val) {
         key pack = m_queue.atomicFront();
         if(pack)
-        	*val = m_array[key2index(pack)];
+        	*val = m_array[key2index(pack)].load(std::memory_order_relaxed);
         return pack;
     }
 private:
@@ -316,7 +319,14 @@ private:
     int key2serial(key i) {return ((unsigned int)i % 0x100) - 1;}
     key key_index_serial(int index, int serial) {return index * 0x100 + (serial % 0xff) + 1;}
     atomic_nonzero_pod_queue<key, SIZE> m_queue, m_reservoir;
-    T m_array[SIZE];
+    //! Item slots.  atomicFront() reads a slot while a push() that reused it
+    //! (after another consumer popped its key) may be writing it; the serial
+    //! in the key then fails the caller's atomicPop(), so the value is
+    //! discarded.  Atomic slots make that overlap well-defined.  Relaxed
+    //! suffices: m_queue's acq_rel CAS publishes a slot's write before its
+    //! key.  Same instructions as plain copies wherever atomic<T> is
+    //! lock-free; elsewhere (a 64-bit T on i486) libatomic's lock.
+    std::atomic<T> m_array[SIZE];
 };
 
 
