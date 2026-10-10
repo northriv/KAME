@@ -535,7 +535,26 @@ correctness / perf drivers built alongside it: `alloc_stress_test`
 (adversarial multi-thread, sentinel-checked), `alloc_minimal_bench`
 (single-size hot / fifo loops), and `alloc_bucket34_repro`.  Sanitizer
 coverage (TSAN / UBSAN / ASan) is obtained by configuring the build with
-the matching `-fsanitize=` flags.
+the matching `-fsanitize=` flags.  Two things to know on macOS:
+
+- **UBSan's `vptr` check is not in Apple clang.**  Its `-fsanitize=undefined`
+  leaves `vptr` out, so a member access through a `PoolAllocatorBase *` where
+  no such object lives never shows up there.  Build with LLVM's clang (or GCC
+  on Linux), whose `-fsanitize=undefined` includes it.  Over the whole
+  `tests/` tree, LLVM 19 reports nothing (2026-10).
+- **ThreadSanitizer and the pool both interpose `malloc`.**  TSan takes it,
+  so the pool's interposition is not in effect.  A block the pool handed out
+  can then reach TSan's `free` (a thread's TSD destructor at exit), and TSan
+  stops on a `sanitizer_allocator_secondary.h` CHECK.  Under TSan on macOS
+  this ends 9 of the pool's 18 ctest entries early: `alloc_huge_test`,
+  `alloc_tsd_exclusivity_test`, `alloc_evict_test`,
+  `alloc_realtime_mode_test`, `alloc_rt_thread_test`, `bench_rt_wcet_smoke`,
+  the two `alloc_thread_exit_*_test_dynamic`, and `malloc_intercept_test`,
+  which finds malloc not interposed and then crashes.  This is a tool limit,
+  not a pool fault.  The other nine run, as do `bench_xthread_pool` and the
+  kamestm tests over the pool.  None of them reports a data race in the pool
+  or the STM (macOS arm64, 2026-10); the one report left is in
+  `atomic_queue_test`'s own code.
 
 ### Windows
 
