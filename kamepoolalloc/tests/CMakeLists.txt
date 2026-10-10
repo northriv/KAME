@@ -349,6 +349,15 @@ if(USE_KAME_ALLOCATOR)
     target_compile_definitions(bench_rt_wcet_malloc PRIVATE WCET_USE_MALLOC)
     target_link_libraries(bench_rt_wcet_malloc Threads::Threads)
 
+    # Producer allocation latency while a consumer frees at random across a
+    # large live set — the shape v1.2.0 (§revive) was measured on.  Plain
+    # malloc/free, NOT linked against kamepoolalloc, so one binary measures
+    # every LD_PRELOAD arm of bench/bench_ab.sh.  POSIX only (mmap, dlsym).
+    if(NOT WIN32)
+        add_executable(bench_xlatency bench/bench_xlatency.cpp)
+        target_link_libraries(bench_xlatency Threads::Threads ${CMAKE_DL_LIBS})
+    endif()
+
     # (§75 / RT_READINESS G6a) TLB-reach cost of the THP policy — a dependent
     # pointer chase over a pool-allocated working set.  The other benches
     # cannot see this: bench_loop keeps one block live, and bench_rt_wcet

@@ -26,6 +26,7 @@ Targets produced (all under `bench/`):
 | `bench_rt_wcet`      | per-op WCET tail (§75) | `kame_pool_malloc`/free |
 | `bench_rt_wcet_malloc` | per-op WCET tail, cross-allocator | `malloc`/free (LD_PRELOAD) |
 | `bench_tlb`          | TLB reach of the THP policy (§75 / G6a) | `kame_pool_malloc`/free |
+| `bench_xlatency`     | producer malloc latency, random x-T frees over a large live set | `malloc`/`free` (LD_PRELOAD) |
 
 `bench_loop_pool` is the single-thread analog of `bench_xthread_pool`: the
 same hot loop, but calling `kame_pool_malloc`/`kame_pool_free` directly.  It
@@ -92,6 +93,39 @@ It auto-detects mimalloc/jemalloc in the usual MacPorts / Homebrew /
 `/usr/lib/x86_64-linux-gnu/` paths and falls back to "-" in the column
 when one is missing.  Build dir defaults to `tests/build`; override
 with `--build-dir`.
+
+### A/B of two builds (`bench_ab.sh`)
+
+`bench_ab.sh` compares allocator builds rather than allocators: by default
+kamepoolalloc `v1.1.0` against `v1.2.0`, each cloned at its tag and built
+with mimalloc-bench's recipe.  Every workload runs as ONE binary with the arm
+switched by preload, each repetition runs every arm back to back, and the arm
+order alternates between repetitions, so drift in machine state cancels
+instead of landing on one arm.  It runs `bench_loop` (the single-thread
+control), `bench_xthread`, mimalloc-bench's `xmalloc-test` / `larson` /
+`rptest` (cloned and built if no checkout is given), and `bench_xlatency`,
+and writes `raw.tsv`, `summary.md` (median, min–max, ratio to the first arm)
+and `provenance.txt` under `WORK/results-HOST-TIME/`.
+
+    ./bench_ab.sh --quick                       # smoke test of the setup
+    ./bench_ab.sh --threads "4 8"               # macOS: stay within the P cores
+    ./bench_ab.sh --arm sys= --arm mi=/path/libmimalloc.dylib   # more arms
+
+On Ohtaka the build runs on the login node and the measurement under
+`srun` — the script refuses to measure on a login node; see `--help`.
+
+`--arm NAME=LIB` also bisects: build the library at intermediate commits and
+line them up as arms (`--tags ""` drops the default pair).  From a KAME
+checkout, `git archive <split-commit> | tar -x -C DIR`, then
+`cmake -S DIR -B DIR/out -DCMAKE_BUILD_TYPE=Release
+-DKAMEPOOLALLOC_BUILD_TESTS=OFF && cmake --build DIR/out`.
+
+`bench_xlatency` is the shape §revive (v1.2.0) was measured on: a producer
+allocates, a consumer keeps LIVE blocks and frees a random one for each it
+receives, and every producer malloc is timed.  An allocator that searches its
+chunks for the room those frees made shows a median that grows with LIVE.
+On Apple silicon its clock steps in 41.7 ns (`tick_ns` in the output), so
+short latencies there are multiples of that.
 
 ## Why these specific patterns
 
