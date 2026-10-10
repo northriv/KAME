@@ -1,3 +1,79 @@
+* Sat Oct 10 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- STM: a snapshot taken through a bundled parent read an uninitialised flag.
+  WalkUpResult::is_root_level had no initialiser.  ascendOneLevel's early
+  returns and a DISTURBED recursion never set it, yet walkUpChain read it on
+  every return, to decide whether to keep that level's scope as the root's
+  (UBSan: "load of value 72, which is not a valid value for type 'bool'").
+  It never gave a wrong packet.  A SUCCESS walk always overwrote it, and the
+  Apple clang build took the branch only on a stray 1.  On a disturbed walk,
+  though, it could delay a level's contention tag or, with two garbage
+  levels, drop it.  It starts false now.
+- atomic_smart_ptr: the CAS retry loops doubled an int spin count on every
+  lost round, so the 31st contended retry overflowed it (UBSan).  It showed
+  on the 30-core M5 Ultra, never on a 4-core x86.  The count feeds only
+  BACKOFF_IN_ATOMIC_SMART_PTR, which defaults to 0.  backoff_next() now
+  saturates at 2^30 when the knob is on and leaves the count at 1 when it is
+  off.  The obvious saturating update, though dead at 0, still changed -O3
+  inlining: rv_push() and a compareAndSet_impl_ fell out of their callers,
+  +2355 instructions in allocator.cpp.  So the default build disassembles as
+  before (assert line numbers aside).
+- kamestm/tests: atomic_queue_test's running totals could pass INT_MAX.  The
+  atomic itself wraps legally, but libc++'s operator+= returns
+  fetch_add(i) + i computed in plain int, and UBSan reports that.
+  libstdc++ returns __atomic_add_fetch and never did.  The totals are
+  unsigned now; atomic<int64_t> would not link at -march=i486.
+- kamepoolalloc: four m_owner_id accesses named the member through a
+  PoolAllocatorBase * aimed at memory where no PoolAllocator need live:
+  - the owner compares on both free paths, which run before they know what
+    kind of chunk they hold;
+  - the two stamps on dedicated chunks.
+  GCC's -fsanitize=undefined includes vptr and reported them (about 137 per
+  ctest run); Apple clang's leaves vptr out.  They go by offset now,
+  through chunk_owner_id(), which a static_assert pins to
+  offsetof(PoolAllocatorBase, m_owner_id).  The code is byte-identical.
+- STM: Node<XN>::Node() built the node's first Payload with
+  creator(static_cast<XN &>(*this)).  That is a downcast to a type the object
+  does not have yet, because XN's part is constructed after the base (UBSan
+  vptr, with LLVM's clang: 15 reports per ctest run).  Payload now keeps its
+  node as the Node<XN> base, and node() casts when called.  The STM's own
+  identity checks compare that pointer directly, since ~Node() runs them
+  after XN is gone.  The tests' instruction streams are unchanged.  XNode's
+  Node<XNode> base sits after enable_shared_from_this, so there node() gains
+  the 16-byte adjustment and the STM's own compares lose it.  The creator's
+  type is in some symbol names, so plugins rebuild with the core.  A user
+  Payload callback that calls node() while its node is being destroyed is
+  now reported too; XNode's Payload overrides none.
+- STM: ThreadSanitizer, with the pool off, reported 501 races over the STM
+  tests, 499 of them one pair.  finalizeCommitment bumped
+  Linkage::m_tx_commit_count with a plain ++ while the livelock probe read
+  it.  The comment called that race-free with one writer, but readers load
+  it concurrently, and two winners can overlap (TSan saw the write/write
+  pair).  It is a relaxed, pointer-width atomic now; the bump stays a load
+  and a store, and an overlap can still lose a count, which a difference
+  over time tolerates.  The commit path's instructions are unchanged.  The
+  library's other race was atomic_queue_reserved::atomicFront: it read a slot
+  while a push() that reused it rewrote it.  The serial discarded the value,
+  but for a non-trivial T that would be real damage.  Its slots are
+  std::atomic<T> now, and T must be trivially copyable.
+- kamepoolalloc: ThreadSanitizer, with the pool on, reported 813 races: three
+  runs of the pool tests and bench_xthread_pool, and one of the STM tests on
+  the pool.  Each was a plain access racing an atomic one: harmless on
+  hardware, undefined in C++.  The accesses were:
+  - the bitmap-word read before each claim or clear CAS;
+  - the filled-word counts;
+  - the FS=false slot headers and m_sizes[], which are written before the
+    claim CAS while the previous occupant's freer may still read them;
+  - every m_owner_id access.
+  They all go through atomicLoadRelaxed or atomicStoreRelaxed now.  On
+  32-bit hosts the 8-byte header is stored as two halves, so i486 meets no
+  64-bit atomic.  The instructions are the same, layout aside:
+  - every FS=true function, and both free fast paths, are byte-identical;
+  - FS=false allocate_pooled is 12 instructions shorter;
+  - bench_loop_pool and bench_xthread_pool A/B came out at 0.98-1.01.  Their
+    one -1.2% cell vanished with -falign-functions=64 on both arms.
+  No data race is left in the pool or the STM.  On macOS, TSan and the
+  pool's malloc interposition collide, and 9 pool tests stop early under
+  TSan (see kamepoolalloc/README).
 * Wed Oct 7 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - Release 9.0.
 - Network analyzer: the VNWA3E over TCP/IP timed out on every read (reported
