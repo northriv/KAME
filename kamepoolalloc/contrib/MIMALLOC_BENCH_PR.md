@@ -83,14 +83,20 @@ regenerates results himself), no benchmark changes.
 
 * The pin is `v1.2.0`, and it is not a preference.  Every earlier tag
   carries a thread-exit use-after-free: a free that returned a slot to
-  another thread's chunk signalled the owner by storing through a pointer
-  into its TLS, and an owner that exited in between had that TLS freed under
-  the store — SIGSEGV on glibc, a silent byte write into a freed TLV block on
-  macOS.  `alloc_tsd_exclusivity_test`: 22–34 crashes in 2000 runs on the code
-  before the fix, 0 in 2000 after (`design/POOL_FL_AVAIL_LINUX_CHECK.md`
-  §6–§7).  §revive removed the signal altogether: no free touches another
-  thread's TLS.  The current bench set happens not to trip it, so CI is green
-  on either pin — which is why the pin has to move rather than wait.
+  another thread's chunk read a pointer into the owner's TLS, returned the
+  slot, and only then stored through the pointer, and an owner that exited
+  in between had that TLS freed under the store.  On glibc the store faults
+  when the dead thread's stack has already been unmapped —
+  `alloc_tsd_exclusivity_test`: 22–34 crashes in 2000 runs on the code before
+  the fix, 0 in 2000 after (`design/POOL_FL_AVAIL_LINUX_CHECK.md` §6–§7) —
+  and about a hundred times as often it lands silently, in a stack glibc
+  still caches (`design/FORCE_WALK_TOCTOU_HANDOFF.md` §3a).  macOS has never
+  crashed on it, which clears nothing: the code is the same, and in the
+  dylib a dead thread's TLS block is freed heap, where a write does not
+  fault.
+  §revive removed the store altogether: no free touches another thread's
+  TLS.  CI is green on either pin, and a silent hit would not turn it red —
+  which is why the pin has to move rather than wait.
 * `v1.1.0`, the previous floor, closed an older defect that v1.2.0 keeps
   closed.  Every tag before it can
   hand the SAME BLOCK to two live users on Linux: a free arriving from a
