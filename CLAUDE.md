@@ -127,11 +127,13 @@ git push https://github.com/northriv/kamepoolalloc.git \
     standalone/kamepoolalloc:master
 ```
 
-Then tag a release on the standalone repo when cutting a version (e.g.
-`v1.0.1` must carry the dylib banner gating, the Linux
-`malloc_usable_size` co-interpose, and word-cache default ON — the
-mimalloc-bench `version_kp` pin tracks this; see
-`kamepoolalloc/contrib/MIMALLOC_BENCH_PR.md`).  The standalone top-level
+Then tag a release on the standalone repo when cutting a version: an
+annotated tag created here on the split commit and pushed to the standalone
+repo only (`git push https://github.com/northriv/kamepoolalloc.git
+vX.Y.Z`), never to KAME's remote.  The mimalloc-bench `version_kp` pin tracks
+the latest tag that closes a defect — v1.2.0 at present, since every earlier
+tag carries the thread-exit use-after-free; the floor and its reasons are in
+`kamepoolalloc/contrib/MIMALLOC_BENCH_PR.md`.  The standalone top-level
 `CMakeLists.txt` builds `out/libkamepoolalloc.{so,dylib}` with the full
 malloc interpose default-on for `LD_PRELOAD` / `DYLD_INSERT_LIBRARIES` use.
 

@@ -1,11 +1,14 @@
 # mimalloc-bench PR draft — adding `kp` (kamepoolalloc)
 
-Status: prepared 2026-06-11.  Prerequisites all met:
+Status: prepared 2026-06-11.  Upstream since: added in daanx/mimalloc-bench
+#265 (merged 2026-09-02, pinned v1.0.2), pin moved to v1.1.0 in #270 (merged
+2026-09-02); v1.2.0 is the next pin (see Notes).  Prerequisites all met:
 * standalone repo: https://github.com/northriv/kamepoolalloc (subtree mirror
   of `KAME/kamepoolalloc/`, synced via `git subtree split`)
-* pinned tag: v1.1.0+ (see Notes — earlier tags carry a double-allocation
-  defect, and v1.0.0 predates the banner gating and the Linux
-  `malloc_usable_size` co-interpose)
+* pinned tag: v1.2.0+ (see Notes — tags up to v1.1.0 carry a thread-exit
+  use-after-free, tags before v1.1.0 also a double-allocation defect, and
+  v1.0.0 predates the banner gating and the Linux `malloc_usable_size`
+  co-interpose)
 * top-level CMake builds `out/libkamepoolalloc.so` with the full malloc
   interpose default-on for `LD_PRELOAD` use
 * **Full-suite soak complete** (glibc/x86-64, 4-core container,
@@ -31,7 +34,7 @@ and allocator implementations -- please do so!"
 ### 1. `build-bench-env.sh` — version pin (in the version block)
 
 ```sh
-readonly version_kp=v1.1.0
+readonly version_kp=v1.2.0
 ```
 
 ### 2. `build-bench-env.sh` — flag plumbing + help + build section
@@ -78,7 +81,18 @@ regenerates results himself), no benchmark changes.
 
 ## Notes / open items before submitting
 
-* The pin is `v1.1.0`, and it is not a preference.  Every earlier tag can
+* The pin is `v1.2.0`, and it is not a preference.  Every earlier tag
+  carries a thread-exit use-after-free: a free that returned a slot to
+  another thread's chunk signalled the owner by storing through a pointer
+  into its TLS, and an owner that exited in between had that TLS freed under
+  the store — SIGSEGV on glibc, a silent byte write into a freed TLV block on
+  macOS.  `alloc_tsd_exclusivity_test`: 22–34 crashes in 2000 runs on the code
+  before the fix, 0 in 2000 after (`design/POOL_FL_AVAIL_LINUX_CHECK.md`
+  §6–§7).  §revive removed the signal altogether: no free touches another
+  thread's TLS.  The current bench set happens not to trip it, so CI is green
+  on either pin — which is why the pin has to move rather than wait.
+* `v1.1.0`, the previous floor, closed an older defect that v1.2.0 keeps
+  closed.  Every tag before it can
   hand the SAME BLOCK to two live users on Linux: a free arriving from a
   thread that had finished its own allocator teardown went into a destroyed
   cross-dealloc batch, and a slot returned to the bitmap after its owner had
