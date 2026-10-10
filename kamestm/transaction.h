@@ -190,9 +190,11 @@ public:
         virtual ~Payload() = default;
 
         //! Points to the corresponding node.
-        XN &node() noexcept {return *m_node;}
+        //! Valid while the node is an XN, i.e. not from inside Node<XN>'s own
+        //! constructor or destructor (\sa m_node).
+        XN &node() noexcept {return static_cast<XN &>( *m_node);}
         //! Points to the corresponding node.
-        const XN &node() const noexcept {return *m_node;}
+        const XN &node() const noexcept {return static_cast<const XN &>( *m_node);}
         int64_t serial() const noexcept {return this->m_serial;}
         Transaction<XN> &tr() noexcept { return *this->m_tr;}
 
@@ -202,11 +204,18 @@ public:
         virtual void listChangeEvent() {}
     private:
         friend class Node;
+        friend class Snapshot<XN>;
         friend class Transaction<XN>;
         using rettype_clone = local_shared_ptr<Payload>;
         virtual rettype_clone clone(Transaction<XN> &tr, int64_t serial) = 0;
 
-        XN *m_node;
+        //! The node, held as its Node<XN> base.  Node<XN>::Node() creates
+        //! the Payload before XN's part exists, so it cannot name the node
+        //! as an XN yet (a static_cast<XN &> there is a downcast to a type
+        //! the object does not have, which UBSan's -fsanitize=vptr
+        //! reports).  node() casts when called; the STM's own identity
+        //! checks compare this pointer, since ~Node() runs them too.
+        Node *m_node;
         //! Serial number of the transaction.
         int64_t m_serial;
         Transaction<XN> *m_tr;
@@ -238,7 +247,7 @@ private:
         }
         PayloadWrapper() = delete;
         PayloadWrapper& operator=(const PayloadWrapper &x) = delete;
-        PayloadWrapper(XN &node) noexcept : P::Payload(){ this->m_node = &node;}
+        PayloadWrapper(Node &node) noexcept : P::Payload(){ this->m_node = &node;}
         PayloadWrapper(const PayloadWrapper &x) = default;
     private:
     };
@@ -260,9 +269,9 @@ private:
         const local_shared_ptr<PacketList> &subpackets() const noexcept { return m_subpackets;}
 
         //! Points to the corresponding node.
-        Node &node() noexcept {return payload()->node();}
+        Node &node() noexcept {return *payload()->m_node;}
         //! Points to the corresponding node.
-        const Node &node() const noexcept {return payload()->node();}
+        const Node &node() const noexcept {return *payload()->m_node;}
 
         //! \return false if the packet contains the up-to-date subpackets for all the subnodes.
         bool missing() const noexcept { return m_missing;}
@@ -1522,7 +1531,7 @@ protected:
     //! Use \a create().
     Node();
 private:
-    using FuncPayloadCreator = local_shared_ptr<Payload> (*)(XN &);
+    using FuncPayloadCreator = local_shared_ptr<Payload> (*)(Node &);
     static XThreadLocal<FuncPayloadCreator> stl_funcPayloadCreator;
     void lookupFailure() const;
     local_shared_ptr<typename Node<XN>::Packet>*lookupFromChild(local_shared_ptr<Packet> &superpacket,
@@ -1544,10 +1553,10 @@ T *Node<XN>::create(Args&&... args) {
     // of which DLL it is compiled into—touches the same TLS slot.
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
     static constexpr FuncPayloadCreator s_fn =
-        [](XN &node)->local_shared_ptr<Payload>{ return make_local_shared<PayloadWrapper<T>>(node); };
+        [](Node &node)->local_shared_ptr<Payload>{ return make_local_shared<PayloadWrapper<T>>(node); };
     *detail::tls_payload_creator_ptr = reinterpret_cast<void *>(s_fn);
 #else
-    *T::stl_funcPayloadCreator = [](XN &node)->local_shared_ptr<Payload>{ return make_local_shared<PayloadWrapper<T>>(node); };
+    *T::stl_funcPayloadCreator = [](Node &node)->local_shared_ptr<Payload>{ return make_local_shared<PayloadWrapper<T>>(node); };
 #endif
     // The slot is armed for exactly one Node<XN> constructor, which consumes
     // and clears it.  If T's constructor throws BEFORE reaching the Node base
@@ -2299,7 +2308,7 @@ protected:
         //! the caller then consults find_slow_().
         typename Node<XN>::Payload *find_mru(const Node<XN> *n) const noexcept {
             auto *p = mru;
-            if(p && ( &p->node() == n))
+            if(p && (p->m_node == n))
                 return p;
             return nullptr;
         }
@@ -2329,13 +2338,13 @@ protected:
             // memoized.  Same-node replacement (e.g. committed -> clone) must
             // NOT archive: the outgoing payload is outdated for that node and
             // tier 1 may hold no fresher entry.
-            if(old && ( &old->node() != n))
+            if(old && (old->m_node != n))
                 archive_(old, slotv);
         }
     private:
         // `slotv` (not `slots`): see find_slow_ — `slots` is a Qt macro.
         KAME_STM_NOINLINE void archive_(typename Node<XN>::Payload *old, Slot *slotv) noexcept {
-            const Node<XN> *on = &old->node();
+            const Node<XN> *on = old->m_node;
             if( !used) {
                 // First use since construction, clear() or copy: the slots
                 // are indeterminate or stale.  Null every node gate before

@@ -1330,7 +1330,7 @@ Node<XN>::Node() : m_link(make_local_shared<Linkage>()) {
     auto creator = *stl_funcPayloadCreator;
     *stl_funcPayloadCreator = nullptr;
 #endif
-    packet->m_payload = creator(static_cast<XN&>( *this));
+    packet->m_payload = creator( *this);
 }
 template <class XN>
 Node<XN>::~Node() {
