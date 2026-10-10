@@ -20,6 +20,7 @@
 #include "xnodeconnector.h"
 #include "graph.h"
 #include <fstream>
+#include <functional>
 
 class XQGraph;
 class QLineEdit;
@@ -40,6 +41,17 @@ public:
     const shared_ptr<XStringNode> &filename() const { return m_filename;}
 
     const shared_ptr<XTouchableNode> &dump() const { return m_dump;}
+
+    //! The next file of the series \a templ names: "<stem>_<NNNN>_<YYYYMMDD-HHMMSS>.<ext>"
+    //! in its folder, \a time in the name.  \a seq is the last number used
+    //! (0: look up the highest already in the folder first) and becomes the
+    //! one returned.  Shared by one-file-per-shot dumps and anything else
+    //! saving images into a numbered series (XImageTrigger).
+    static QString nextNumberedPath(const QString &templ, unsigned int &seq, const XTime &time);
+    //! \a write fills a temporary file beside \a path, which is then renamed
+    //! to it, so a synced folder (iCloud) never picks up half a file.
+    //! \return an error message, empty on success.
+    static XString writeAtomically(const QString &path, const std::function<bool(const QString &tmp)> &write);
 
     struct DECLSPEC_KAME Payload : public XNode::Payload {
         const Talker<bool> &onIconChanged() const { return m_tlkOnIconChanged;}

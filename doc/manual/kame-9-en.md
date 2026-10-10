@@ -1059,6 +1059,20 @@ Scripting nodes: `Armed`, `Reset` (touchable), `Tripped`, `Status`, `Consecutive
 
 **An automated agent must never reset, disarm or reconfigure a tripped interlock** to get an operation through: report the status to the user and let them clear it.
 
+## Image Trigger
+
+Image Trigger (saves camera frames)
+
+Saves a camera's frames around events, unattended -- for watching a room or an experiment overnight. It shares the Scalar Interlock's conditions (up to two scalar entries, "Trip if below" / "Trip if above" a threshold), but behaves as a recorder rather than a safety device: when a condition holds for `Consecutive` samples in a row, the `FramesBefore` frames just before and the `FramesAfter` frames just after are saved, one frame every `Interval` seconds; then, after `HoldOff` seconds, it watches again by itself. A condition whose entry goes silent or reads NaN never fires it -- the status line reports it instead.
+
+The watched entry is typically a 2D math tool on the same camera: Correlation for "something covered or changed this region", or a Python tool computing a motion or person-detection score.
+
+Frames go to `FileName` as a numbered series, the format chosen by its extension: `cam.jpg` gives `cam_0001_20261010-021530.jpg`, `cam_0002_...`, each named with the time the frame was taken, numbered on from the highest number already in the folder, and written under a temporary name first so that a synced folder such as iCloud Drive never receives half a file. JPEG is 8-bit and lossy, about a tenth of the size -- the choice for watching. PNG keeps the camera's counts losslessly (8-bit for a webcam, 16-bit for a scientific camera) -- the choice when the images are data. `MaxFiles` 0 keeps everything; any other value deletes the oldest files of the series beyond it, which a folder that is never cleared needs.
+
+The window shows the last frame saved (or that would have been, with no `FileName`), with its event number and time, so a threshold can be tuned by watching what it catches; `Gamma` there only affects linear (16-bit) counts. Only one frame per `Interval` is held in memory, so saving frames from before an event costs a few frames' worth, not seconds of video. The `Events` entry counts events for charts and the journal. `Armed` is saved with the setup; Measurement > Stop unticks it.
+
+Scripting nodes: `Armed`, `Status`, `Camera`, `Condition1`..`Condition2` (each with `Entry`, `Mode`, `Threshold`), `Consecutive`, `HoldOff`, `FramesBefore`, `FramesAfter`, `Interval`, `FileName`, `MaxFiles`.
+
 ## Laser Module
 
 Coherent Stingray laser diode driver (Serial Port)

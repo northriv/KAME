@@ -63,6 +63,7 @@ motorcore.file = motor/core/motorcore.pro
 motor.depends += motorcore charinterface
 relaycore.file = relay/core/relaycore.pro
 relay.depends += relaycore charinterface motorcore
+interlock.depends += opticscore
 liacore.file = lia/core/liacore.pro
 lia.depends += liacore charinterface
 sgcore.file = sg/core/sgcore.pro

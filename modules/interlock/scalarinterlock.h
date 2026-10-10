@@ -55,6 +55,12 @@ public:
     XString fault(int64_t now_ns, double timeout, unsigned int consecutive) const;
     //! The last value seen, for the status line.
     double lastValue() const {return m_value.load();}
+    //! For an event recorder, which must neither fire on a dead source nor
+    //! on NaN: samples in a row that crossed Threshold with a real value.
+    unsigned int hitStreak() const {return m_hitStreak.load();}
+    //! No entry chosen, or nothing from it for \a timeout [s] (counted from
+    //! the last restartWatchdog() when nothing has come yet).
+    bool isSilent(int64_t now_ns, double timeout) const;
 
     static int64_t steadyNS();
 private:
@@ -75,7 +81,7 @@ private:
     std::atomic<double> m_thresholdCache{0.0};
     std::atomic<const XValueNodeBase *> m_valueNode{nullptr}; //!< the selected entry's, to ignore a stale listener.
     std::atomic<double> m_value{std::numeric_limits<double>::quiet_NaN()};
-    std::atomic<unsigned int> m_badStreak{0};
+    std::atomic<unsigned int> m_badStreak{0}, m_hitStreak{0};
     std::atomic<int64_t> m_lastUpdateNS{0}, m_watchdogFromNS{0};
 };
 

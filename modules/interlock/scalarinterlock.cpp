@@ -56,6 +56,7 @@ XInterlockCondition::onSettingChanged(const Snapshot &, XValueNodeBase *) {
     m_modeCache = (int)shot[ *m_mode];
     m_thresholdCache = (double)shot[ *m_threshold];
     m_badStreak = 0; //counted against the old threshold.
+    m_hitStreak = 0;
 }
 
 void
@@ -64,6 +65,7 @@ XInterlockCondition::onSelectionChanged(const Snapshot &, XValueNodeBase *) {
     m_lsnOnValue.reset();
     m_valueNode = entry ? entry->value().get() : nullptr;
     m_badStreak = 0;
+    m_hitStreak = 0;
     m_value = std::numeric_limits<double>::quiet_NaN();
     m_lastUpdateNS = 0;
     restartWatchdog(steadyNS());
@@ -96,8 +98,19 @@ XInterlockCondition::onValueChanged(const Snapshot &shot, XValueNodeBase *node) 
         ++m_badStreak;
     else
         m_badStreak = 0;
+    if(bad && !std::isnan(v))
+        ++m_hitStreak;
+    else
+        m_hitStreak = 0;
     m_value = v;
     m_lastUpdateNS = steadyNS();
+}
+
+bool
+XInterlockCondition::isSilent(int64_t now_ns, double timeout) const {
+    if( !m_valueNode.load())
+        return true;
+    return now_ns - std::max(m_lastUpdateNS.load(), m_watchdogFromNS.load()) > (int64_t)(timeout * 1e9);
 }
 
 XString
