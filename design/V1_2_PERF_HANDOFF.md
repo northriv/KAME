@@ -91,7 +91,7 @@ likely cost — not yet checked in the disassembly.
 
 - **M5 Ultra** (where §revive's numbers came from):
   `tests/bench/bench_ab.sh --threads "4 8"`; paste `summary.md` and
-  `provenance.txt` here.
+  `provenance.txt` here.  Run 2026-10-10: §4.1.
 - **Ohtaka** (the README's x86-64 reference):
 
       CC=~/llvm-install/bin/clang CXX=~/llvm-install/bin/clang++ \
@@ -104,3 +104,53 @@ likely cost — not yet checked in the disassembly.
 
 Then: whether to move the mimalloc-bench pin to v1.2.0 now for the
 use-after-free, or to fix these first and pin v1.2.1.
+
+### 4.1 M5 Ultra (2026-10-10, 5 repetitions)
+
+`kamepoolalloc/tests/bench/bench_ab.sh --threads "4 8"`, run from `~`
+(work directory `~/bench-ab`); every run exited 0 with a result.  Not idle:
+Chrome Remote Desktop's host used about two cores throughout and the KAME
+app was open; load average 5.5 at the start, 4.1 at the end.  xthread at
+w8 runs 16 threads on 10 P cores.
+
+`provenance.txt`:
+
+    date      2026-10-10T13:39:01Z
+    host      dhcp-029-018.issp.u-tokyo.ac.jp
+    kernel    Darwin 27.0.0 arm64
+    cpu       Apple M5 Ultra, 10P + 20E, 96 GiB, Mac17,15
+    os        macOS 27.0.1 (26A434)
+    power     Now drawing from 'AC Power'
+    benches   /Users/ssp/KAME/kamepoolalloc @ 01ced5831, /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ (Apple clang version 21.0.0 (clang-2100.3.34.2))
+    arm       kp-v1.1.0: /Users/ssp/bench-ab/kp-v1.1.0/out/libkamepoolalloc.dylib (558280 B, sha256 72586741ef27e4af, commit a26213a, built by /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++)
+    arm       kp-v1.2.0: /Users/ssp/bench-ab/kp-v1.2.0/out/libkamepoolalloc.dylib (697480 B, sha256 1ea7c91afbeda2c1, commit f9cd8ed, built by /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++)
+    mbench    /Users/ssp/bench-ab/mimalloc-bench @ 69c41ed, binaries in /Users/ssp/bench-ab/mbench-build
+    params    reps=5 threads="4 8" only="loop xthread xmalloc larson rptest xlat" quick=0 xlat="1024x200000 1024x1000000 3000x200000" xlat_cpu=none loop_iters=20000000
+
+`summary.md`:
+
+| bench | config | metric | kp-v1.1.0 | kp-v1.2.0 | kp-v1.2.0 / kp-v1.1.0 |
+|---|---|---|---|---|---|
+| loop | 64B | Mops ↑ | 1138 (1133–1143) | 1129 (1108–1140) | 0.99× |
+| loop | 1024B | Mops ↑ | 700 (699–701) | 674 (657–692) | 0.96× |
+| loop | 16384B | Mops ↑ | 827 (826–832) | 758 (757–762) | 0.92× |
+| xthread | w4,1KiB | Mfree ↑ | 37.3 (36.9–37.8) | 82.9 (80.6–87.0) | 2.22× |
+| xmalloc | w4 | Mfree ↑ | 354 (297–362) | 375 (370–378) | 1.06× |
+| larson | t4 | Mops ↑ | 138 (138–139) | 99.9 (99.4–100) | 0.72× |
+| rptest | t4 | Mops_cpu ↑ | 4.29 (4.01–4.52) | 4.39 (4.18–4.63) | 1.02× |
+| xthread | w8,1KiB | Mfree ↑ | 43.2 (43.0–44.2) | 122 (118–127) | 2.83× |
+| xmalloc | w8 | Mfree ↑ | 491 (483–491) | 491 (489–494) | 1.00× |
+| larson | t8 | Mops ↑ | 211 (209–213) | 151 (150–152) | 0.71× |
+| rptest | t8 | Mops_cpu ↑ | 2.54 (2.39–2.68) | 2.56 (2.42–2.85) | 1.00× |
+| xlat | 1024Bx200000 | rate_M ↑ | 0.014 (0.012–0.014) | 4.63 (4.57–4.7) | 331.07× |
+| xlat | 1024Bx200000 | med_ns ↓ | 73542 (69792–81083) | 125 (125–125) | 0.00× |
+| xlat | 1024Bx200000 | p999_ns ↓ | 115084 (104375–121125) | 292 (292–333) | 0.00× |
+| xlat | 1024Bx200000 | max_ns ↓ | 226542 (182792–234458) | 15541 (14625–34375) | 0.07× |
+| xlat | 1024Bx1000000 | rate_M ↑ | 0.002 (0.002–0.002) | 4.65 (4.63–4.68) | 2326.00× |
+| xlat | 1024Bx1000000 | med_ns ↓ | 564959 (562958–567459) | 125 (125–125) | 0.00× |
+| xlat | 1024Bx1000000 | p999_ns ↓ | 859875 (858458–864292) | 334 (292–334) | 0.00× |
+| xlat | 1024Bx1000000 | max_ns ↓ | 1518333 (1041666–1649166) | 15042 (13791–16375) | 0.01× |
+| xlat | 3000Bx200000 | rate_M ↑ | 0.006 (0.006–0.006) | 3.81 (3.75–3.85) | 635.50× |
+| xlat | 3000Bx200000 | med_ns ↓ | 178084 (175375–179583) | 167 (167–167) | 0.00× |
+| xlat | 3000Bx200000 | p999_ns ↓ | 295916 (288000–297542) | 334 (334–375) | 0.00× |
+| xlat | 3000Bx200000 | max_ns ↓ | 368417 (368125–379083) | 14042 (13333–34250) | 0.04× |
