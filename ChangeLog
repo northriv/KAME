@@ -1,4 +1,130 @@
 * Sat Oct 10 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Interlock: a new module, modules/interlock, with one driver, Scalar
+  Interlock.  Up to four conditions watch scalar entries, each "trip if
+  below" or "trip if above" a threshold.  The entry can be a driver's
+  reading, a calibrated entry, or a math tool such as Correlation 2D aimed
+  at a pattern a stage hides when it goes too far.  Samples come from the
+  entry's own Value node, so nothing is wired to the owning driver.
+  It is fail-safe throughout.  A condition faults on its threshold for
+  Consecutive samples in a row (default 3), on NaN, on no update for
+  WatchdogTimeout (0.5 s), and with no entry chosen.  A trip latches, and
+  Reset is refused while any condition faults.  Six action rows each name
+  a driver and an operation, and offer only operations that reach the safe
+  state:
+  - Stop motor, again every 0.3 s while the motor is not Ready;
+  - Laser off, on the Laser<n> channels only (the Tec<n> keep regulating);
+  - RF off, Output off, Close valve, and relay channels off or on.
+  An output switched back on during a trip is switched off again.  A row
+  whose operation cannot be carried out holds the interlock tripped, so a
+  broken action shows when arming, not when it is needed.  Armed is saved
+  and created last, so a loaded setup trips until its sources run.  The MCP
+  safety rules tell agents never to reset, disarm or reconfigure a tripped
+  interlock, and the manual has a "Scalar Interlock" section.
+- Optics: a webcam driver, WebCamera, for built-in and USB video class
+  cameras.  macOS uses AVFoundation.  Elsewhere it uses Qt Multimedia when
+  that module is installed; without it the driver is absent.  The record is
+  8-bit luminance, ROI is cropped in software, a FrameRate below the
+  camera's own thins frames, and the trigger modes are Continuous and
+  Single-shot.  On macOS exposure is auto only and gain is disabled, because
+  AVFoundation's manual exposure is iOS-only.  Info.plist gains
+  NSCameraUsageDescription: macOS terminates a process that touches the
+  camera without it, and the driver refuses to open instead.
+- Graph: Correlation 2D math tool, a normalized cross-correlation of the ROI
+  with a reference image of itself.  It is 1 while the region looks as it
+  did, and falls when anything covers or alters it.  Gain and offset cancel,
+  so the webcam's auto exposure does not move it.  A flat region gives NaN,
+  which a consumer must take as a failure.  The reference is the first
+  image after the tool is created, after its ROI or mask changes, and on
+  Store Reference in the tool's menu.  It is not saved, on purpose: a
+  reference that outlives the setup it was taken in is what an interlock
+  must not have.
+- Build: files KAME deploys by copying followed their sources only by
+  chance.  qmake's rule for the bundle's Info.plist has no prerequisite, so
+  an edited Info.plist never reached an existing build.  The bundle's
+  bin/kame-mcp-server was still the 2026-08-20 copy, without the MCP 2.x
+  changes, because the plugin's rule depended on the directory alone.  And
+  Linux and Windows copied scripts as QMAKE_POST_LINK, so an edited .py
+  waited for an unrelated relink.  kame.pro now makes every copy depend on
+  its sources.  On Linux and Windows that goes through a
+  deployed_scripts.stamp in ALL_DEPS, so a script edit copies without
+  relinking.
+- Python: itemStrings() had no no-argument form, though kame_python_api.md
+  promised one, and the Snapshot form could not return at all.  Both now
+  return the labels as list[str].  A list outside the Snapshot raises
+  KAMENodeNotFoundError instead of terminating KAME.  Value payloads read as
+  text: str(Snapshot(dev)[dev]).
+- Python: several bindings entered STM holding the GIL: the typed value
+  nodes' float()/int()/bool()/str()/set(), the node factories that insert
+  into a parent, and XNode.insert(child).  A Python driver's analyzeRaw, or
+  a math-tool functor, takes the GIL inside its transaction, so a call
+  colliding with one deadlocked the two; a NORMAL caller hung until killed.
+  They release the GIL now.  insert(tr, child), which does not commit, is
+  unchanged.  The audit that missed them now scans every file naming
+  pybind11.
+- MCP: STM priority belongs to the OS thread, so the SCRIPTING trapdoor the
+  MCP server sets on connect guarded the kernel thread alone.
+  execute_code_async's worker, and any threading.Thread an agent started,
+  ran at NORMAL, where the starvation exit never fires; a stuck job froze
+  until KAME was killed.  The job worker now enters SCRIPTING before the
+  job's code runs.  A thread started from a SCRIPTING thread enters
+  SCRIPTING before run(), Timer and executor workers included; the Script
+  pane's launcher opts out.  XValueNodeBase.load() no longer leaves
+  SCRIPTING.  Still not covered: _thread.start_new_thread, and pools whose
+  workers were started earlier.
+- kamestm: a Talker::connect with FLAG_AVOID_DUP but no
+  FLAG_MAIN_THREAD_CALL compiled and passed the audits.  It then aborted
+  KAME the moment the driver was created (SIGABRT in Listener::Listener).
+  Under clang a constant violation is now a compile error at the call site,
+  through a diagnose_if on connect and connectWeakly.  Other compilers keep
+  the run-time assert.  No existing call site trips it.
+- kamepoolalloc: about 1 in 45 runs of a 64-thread STM stress test never
+  exited on an M5 Ultra, 9.0 included.  Threads spun in orphan_chain_scrub,
+  reached from a dyld TLS finaliser's malloc at thread exit.  The orphan
+  chain's pop loaded the head and its successor, then CASed the head.  In
+  between, another thread could pop the same chunk, adopt it, exit and push
+  it back.  A pointer-only CAS then installed a stale successor, which
+  emptied the chain or linked a chunk twice, into a cycle that scrub walked
+  forever.  atomic_serial_traits<T> now lets such a type carry a serial in
+  atomic_shared_ptr's word: 15 bits above the local refcount, for chain
+  nodes whose low 18 address bits are fixed.  A CAS then fails when the
+  word was written since it was loaded, even back to the same pointer.
+  OrphanChain_aba.tla reproduces the ABA and checks the fix (3 threads, 1.5
+  G states).  The STM test binaries grow by 22-24 instructions, and
+  throughput is at parity.  In 300 alternating runs each, 872d89030 hung 5
+  times and master none (2026-10-10).
+- kamepoolalloc: no allocation walks a thread's chunks any more.  Three walks
+  grew with the heap:
+  - slow_allocate scanned the whole DLL on every miss for other chunks'
+    freelist entries (§24).  Allocate-only workloads went quadratic: 1 KiB
+    blocks took 21 us each at 200 K live, and 4 M did not finish in 30
+    minutes.
+  - A pin miss walked the DLL from a cursor for room.
+  - Every cross-thread free set the owner's force-walk hint, which restarted
+    that walk from the head.  The hint was a store into the owner's TLS
+    through a raw pointer, which an exiting owner could leave dangling.
+  They are replaced in three stages, each step O(1) bar the sweep of FULL
+  just before an mmap:
+  - §fl-avail: each thread lists, per bucket, its chunks whose freelist is
+    non-empty.
+  - §revive: a cross-thread free that gives an owned chunk room pushes the
+    chunk onto a revival stack in the owner's anchor chunk.  The owner takes
+    the stack with one exchange.
+  - §group: an exiting thread hands its chunks over as one group.  Groups
+    wait on ROOM and FULL chains of anchors, which replace the chunk-wise
+    orphan chain and its scrub.
+  The protocols are TLA+-checked (RevivalStack, RevivalAnchor,
+  RevivalGroup).  A Linux/ILP32 review moved a freer's last writes before
+  the MASK_CNT decrement that may let the chunk be released.  Results on an
+  M5 Ultra:
+  - 1 KiB allocate-only takes 77-94 ns, flat from 50 K to 4 M live.
+  - A realtime producer whose consumer frees, 1 KiB at 1 M live: the median
+    went from 186 us to 0.08 us, and the max from about 1 ms to 16 us.
+  - bench_xthread_pool at 1 KiB: 1.85-3.3x from §fl-avail, and a further
+    1.06-1.61x across sizes from §revive.  §fl-avail cost 4-9 % at 64 B.
+  - bench_loop_pool and alloc_minimal_bench move by less than about 8 %
+    either way at each stage.
+  RT_READINESS G4 lists the walks as gone.
+- AUTHORS: Naoki Yamazaki and Masahiro Manago.
 - STM: a snapshot taken through a bundled parent read an uninitialised flag.
   WalkUpResult::is_root_level had no initialiser.  ascendOneLevel's early
   returns and a DISTURBED recursion never set it, yet walkUpChain read it on
