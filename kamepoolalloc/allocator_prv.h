@@ -239,6 +239,11 @@ template <typename T>
 inline T atomicLoadRelaxed(const T *target) noexcept {
     return *(const volatile T *)target;
 }
+//! Relaxed atomic store (likewise one volatile write).
+template <typename T>
+inline void atomicStoreRelaxed(T *target, T value) noexcept {
+    *(volatile T *)target = value;
+}
 #else
 template <typename T>
 inline typename std::enable_if<std::is_integral<T>::value || std::is_pointer<T>::value, bool>::type
@@ -275,6 +280,12 @@ inline T atomicFetchOr(T *target, T value) noexcept {
 template <typename T>
 inline T atomicLoadRelaxed(const T *target) noexcept {
     return __atomic_load_n(target, __ATOMIC_RELAXED);
+}
+//! Relaxed atomic store: the same instruction as a plain store, for a word
+//! another thread may read at the same time.
+template <typename T>
+inline void atomicStoreRelaxed(T *target, T value) noexcept {
+    __atomic_store_n(target, value, __ATOMIC_RELAXED);
 }
 #endif
 
@@ -1177,20 +1188,31 @@ public:
 	//!   Both routes converge on chunk->m_freelist_head[local], single
 	//!   storage; no consistency problem.
 	alignas(64) uint32_t m_owner_id;
-	//! `m_owner_id` of the chunk at `chunk_base`, as a plain uint32_t --
-	//! for code that may not yet know a PoolAllocator object lives there.
+	//! `m_owner_id` of the chunk at `chunk_base`, read or stamped as a
+	//! uint32_t -- for code that may not yet know a PoolAllocator object
+	//! lives there.
 	//! The free paths compare it before they know which kind of chunk they
 	//! hold, and a dedicated chunk is stamped here without ever having held
 	//! an object; `chunk_obj->m_owner_id` on such memory is member access
 	//! within no object of the type, which UBSan's -fsanitize=vptr reports
 	//! (GCC's -fsanitize=undefined includes it; Apple clang's does not).
-	//! A plain uint32_t lvalue names only the member's own type, which also
+	//! A uint32_t access names only the member's own type, which also
 	//! keeps it aliasable with `m_owner_id` in TBAA -- a separate struct
 	//! describing the hot block would not be.  Same address, same load or
 	//! store.
-	static uint32_t &chunk_owner_id(char *chunk_base) noexcept {
-		return *reinterpret_cast<uint32_t *>(
-		    chunk_base + ALLOC_CHUNK_OWNER_ID_OFFSET);
+	//!
+	//! Relaxed atomics, like every m_owner_id access: other threads compare
+	//! it on their free paths while its owner stamps or clears it (TSan).
+	//! Relaxed is enough because owner ids are never reused and a non-zero
+	//! id is only ever stored by the thread it names, so a thread can match
+	//! only its own store.
+	static uint32_t chunk_owner_id(const char *chunk_base) noexcept {
+		return atomicLoadRelaxed(reinterpret_cast<const uint32_t *>(
+		    chunk_base + ALLOC_CHUNK_OWNER_ID_OFFSET));
+	}
+	static void set_chunk_owner_id(char *chunk_base, uint32_t id) noexcept {
+		atomicStoreRelaxed(reinterpret_cast<uint32_t *>(
+		    chunk_base + ALLOC_CHUNK_OWNER_ID_OFFSET), id);
 	}
 	bool      m_fs_flag;
 	//! (§16) m_sizes mode discriminator/shift for the dealloc fast path.

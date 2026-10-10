@@ -151,10 +151,10 @@ public:
     //! Transaction in finalizeCommitment()). Summing this over the whole
     //! node tree gives the aggregate STM commit count; differencing two
     //! readings against wall-clock time yields the commit throughput
-    //! (commits/s). Read is a plain load of a mutable counter — racy by
-    //! design, adequate for coarse-grained monitoring.
+    //! (commits/s). Read is a relaxed load; two overlapping commits can
+    //! lose one count, which is adequate for coarse-grained monitoring.
     uint64_t numTransactionsCommitted() const noexcept {
-        return m_link->m_tx_commit_count;
+        return m_link->m_tx_commit_count.load(std::memory_order_relaxed);
     }
     //! Swaps orders in the subnode list.
     //! \return True if succeeded.
@@ -981,16 +981,22 @@ private:
         //! fallback that existed only because a word and the tag it described
         //! could disagree.)
 
-        //! Non-atomic Transaction-commit counter — bumped in
-        //! `Transaction<XN>::finalizeCommitment()` (only the
-        //! iterate_commit winner executes that, one writer per tx, no
-        //! concurrent writes on a given Linkage, so the plain ++ is
-        //! race-free). Counts **successful Transactions** rooted at
-        //! this linkage (not individual CAS ops inside a single tx).
-        //! Readers — the optional livelock probe — load via the same
-        //! atomic_shared_ptr CAS acquire they already used to reach
-        //! this Linkage.
-        mutable uint64_t m_tx_commit_count = 0;
+        //! Transaction-commit counter — bumped in
+        //! `Transaction<XN>::finalizeCommitment()` by the iterate_commit
+        //! winner. Counts **successful Transactions** rooted at this
+        //! linkage (not individual CAS ops inside a single tx).
+        //! The livelock probe in negotiate_internal and
+        //! numTransactionsCommitted() read it while a winner bumps it,
+        //! so every access is a relaxed atomic: the same load and store
+        //! instructions as before, minus the data race. The bump is a
+        //! load + store, not an RMW, so two winners whose
+        //! finalizeCommitment() overlap can lose one count (ThreadSanitizer
+        //! saw such a write/write pair). Its readers only difference it
+        //! over time, so that is harmless. Pointer-width, like the other
+        //! detail::diag_counter_t counters: atomic<uint64_t> is not
+        //! lock-free on the no-DCAS hosts. There it wraps after 2^32
+        //! commits, which the probe's unsigned delta reads as progress.
+        mutable std::atomic<detail::diag_counter_t> m_tx_commit_count{0};
 
         // Implicit commit-lease. within a certain window after the
         // current wrapper was installed, the committing TID holds a soft lease —
@@ -2736,9 +2742,12 @@ protected:
 template <class XN>
 void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
     // Bump the per-root-linkage Transaction-commit counter consumed by
-    // the optional livelock probe. Single writer (the iterate_commit
-    // winner) per tx, so the non-atomic ++ is race-free.
-    ++node.m_link->m_tx_commit_count;
+    // the optional livelock probe. Relaxed load + store, not an RMW: a
+    // winner whose finalizeCommitment() overlaps ours may lose one count
+    // (see Linkage::m_tx_commit_count), and its readers tolerate that.
+    auto &commits = node.m_link->m_tx_commit_count;
+    commits.store(commits.load(std::memory_order_relaxed) + 1,
+        std::memory_order_relaxed);
     //Clears the time stamp linked to this object and privilage.
     // Drop all contender tags (including TAG_ON_DISTURB child tags) before
     // zeroing m_started_time; drop_tags_n_privilege() matches on the current value.

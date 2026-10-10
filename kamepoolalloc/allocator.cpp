@@ -1432,7 +1432,7 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	// `kame_owner_id()` is non-zero, so a foreign / never-allocated
 	// thread's `s_tls_owner_id == 0` never matches.  All heads start
 	// empty (no slot handed out yet).
-	this->m_owner_id = kame_owner_id();
+	atomicStoreRelaxed(&this->m_owner_id, kame_owner_id());
 	// Cache-line-1 copies of the chunk_header fast-path discriminators
 	// (follow-up "(1b)") so the dealloc owner-free path reads ONLY this
 	// line, never chunk_header (cache line 0):
@@ -1723,7 +1723,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			for(int walked = 0; walked < this->m_count; ++walked) {
 				FUINT *pflag = &this->m_flags[widx];
 				for(;;) {
-					FUINT oldv = *pflag;
+					FUINT oldv = atomicLoadRelaxed(pflag);
 					if(oldv == ~(FUINT)0u)
 						break;                    // word full
 					FUINT mask = (FUINT)~oldv;
@@ -1756,7 +1756,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	int idx = this->m_idx;
 	for(;;) {
 		FUINT *pflag = &this->m_flags[idx];
-		FUINT oldv = *pflag;
+		FUINT oldv = atomicLoadRelaxed(pflag);
 		if(oldv != ~(FUINT)0u) {
 			one = find_zero_forward(oldv);
 //			assert(count_bits(one) == SIZE / ALIGN);
@@ -1802,7 +1802,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 		// ~6 % slot under-utilisation in exchange for cutting the
 		// worst-case walk.  The check stays inside the loop (not at the
 		// entry) so bench_loop's tight FS=true 64 hot path pays nothing.
-		if(this->m_flags_filled_cnt >=
+		if(atomicLoadRelaxed(&this->m_flags_filled_cnt) >=
 		   this->m_count - this->m_count / 16)
 			return 0;
 		idx++;
@@ -1920,7 +1920,8 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	// must walk normally.
 	constexpr unsigned int MAX_N_HERE =
 	    PoolAllocator<ALIGN, false, DUMMY>::MAX_N;
-	if(this->m_flags_filled_cnt == this->m_count && N >= MAX_N_HERE)
+	if(atomicLoadRelaxed(&this->m_flags_filled_cnt) == this->m_count
+	   && N >= MAX_N_HERE)
 		return 0;
 
 	FUINT oldv, ones, cand;
@@ -1930,7 +1931,7 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	char *slot_start = nullptr;
 	int walked = 0;  // count of distinct m_flags words visited (max = m_count)
 	for(;;) {
-		oldv = *pflag;
+		oldv = atomicLoadRelaxed(pflag);
 		cand = find_training_zeros(N, oldv);
 		if(cand) {
 			ones = cand *
@@ -1949,7 +1950,7 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 				// (§16) Full-usable mode: store (N<<8)|local_id in the
 				// chunk-header m_sizes[] array indexed by slot start bit.
 				// The slot's own bytes are 100 % user-usable — no borrow.
-				this->m_sizes[bit_index] = msize_word;
+				atomicStoreRelaxed(&this->m_sizes[bit_index], msize_word);
 				(void)hdr_word;
 			}
 			else {
@@ -1962,7 +1963,26 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 				//   * Bit B > 0: slot_start - 8 lands in bit (B-1)'s last 8
 				//       bytes (universal reservation invariant — the prior
 				//       slot's user_area excludes its own last 8 B).
-				*reinterpret_cast<std::uint64_t *>(slot_start - 8) = hdr_word;
+				//
+				// Relaxed atomic stores, like the m_sizes[] one above: the
+				// freer of the slot's previous occupant may still be reading
+				// this header in its MaskFn (return_slots) when we re-claim the
+				// slot.  Hardware orders its read first, since our address
+				// depends on the bitmap word its clearing CAS wrote; atomics
+				// make the overlap well-defined C++.  Two 32-bit halves on
+				// 32-bit hosts, where a 64-bit atomic may not be lock-free.
+				if constexpr (sizeof(void *) >= 8) {
+					atomicStoreRelaxed(
+					    reinterpret_cast<std::uint64_t *>(slot_start - 8), hdr_word);
+				}
+				else {
+					atomicStoreRelaxed(
+					    reinterpret_cast<std::uint32_t *>(slot_start - 8),
+					    static_cast<std::uint32_t>(hdr_word));
+					atomicStoreRelaxed(
+					    reinterpret_cast<std::uint32_t *>(slot_start - 4),
+					    static_cast<std::uint32_t>(hdr_word >> 32));
+				}
 				(void)msize_word;
 			}
 			// Always-CAS path (cf. FS=true sibling): TLS s_tls.my_chunk
@@ -2189,11 +2209,14 @@ PoolAllocator<ALIGN, false, DUMMY>::return_slots(
 			if constexpr (ALIGN >= 1024u) {
 				size_t bit_index =
 				    static_cast<size_t>(idx) * (sizeof(FUINT) * 8u) + sidx;
-				N = static_cast<unsigned>(this->m_sizes[bit_index] >> 8);
+				N = static_cast<unsigned>(
+				    atomicLoadRelaxed(&this->m_sizes[bit_index]) >> 8);
 			}
 			else {
-				unsigned size_bytes = *reinterpret_cast<std::uint32_t *>(
-				    p - 4);
+				// Relaxed: the slot's next owner may already be rewriting
+				// this header (see allocate_pooled's borrow-scheme store).
+				unsigned size_bytes = atomicLoadRelaxed(
+				    reinterpret_cast<const std::uint32_t *>(p - 4));
 				N = (size_bytes + 8u + ALIGN - 1u) / ALIGN;
 			}
 			FUINT slot_mask = (((FUINT(1) << N) - FUINT(1))) << sidx;
@@ -2308,7 +2331,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 		FUINT nones = ~mask;
 		FUINT *pflags = &this->m_flags[idx];
 		for(;;) {
-			FUINT oldv = *pflags;
+			FUINT oldv = atomicLoadRelaxed(pflags);
 			FUINT newv = oldv & nones;
 			if(atomicCompareAndSet(oldv, newv, pflags)) {
 				on_clear(oldv, newv);
@@ -2771,7 +2794,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// first time.  (§33) The old pin becomes "1-back", which the revival pop
 	// below skips for one pin cycle.
 	auto pin = [](Chunk *c) noexcept {
-		if(c->m_owner_id != kame_owner_id()) dll_join(c);
+		if(atomicLoadRelaxed(&c->m_owner_id) != kame_owner_id()) dll_join(c);
 #if KAME_POOL_ONEBACK_SKIP
 		s_tls.dll_one_back = s_tls.my_chunk;
 #endif
@@ -2942,7 +2965,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 #endif
 				// (1b) Clear m_owner_id BEFORE the destructor — see the
 				// FS=true batch_return_to_bitmap sibling for the rationale.
-				nx->m_owner_id = 0;
+				atomicStoreRelaxed(&nx->m_owner_id, 0u);
 				// (§group) Only anchors are refcounted, and the anchor is never
 				// a neighbour we release: destruct directly.  Its m_anc
 				// reference to our anchor drops in the destructor.
@@ -3249,7 +3272,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 		// (1b) Clear m_owner_id BEFORE any destructor — see the FS=true
 		// batch_return_to_bitmap sibling for the rationale.  Our frees of
 		// the group's slots from now on are cross-thread ones.
-		c->m_owner_id = 0;
+		atomicStoreRelaxed(&c->m_owner_id, 0u);
 		if(c != anchor) {
 			if(atomicCompareAndSet(static_cast<uint32_t>(BIT_OWNED), 0u,
 			                       &c->m_flags_packed)) {
@@ -4317,7 +4340,7 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 		// owner-id mismatch.  Bucket-origin recycled blocks may carry a
 		// stale m_owner_id here; restamp it unconditionally.  By offset:
 		// no PoolAllocator object lives in a dedicated chunk.
-		chunk_owner_id(cached) = 0;
+		set_chunk_owner_id(cached, 0);
 		writeBarrier();
 		// (§28.5) dedicated_chunk_bytes is now walked on demand; no
 		// per-alloc counter to bump here.
@@ -4349,7 +4372,7 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 	// bucket chunk that left a non-zero m_owner_id behind.  Stamp it
 	// unconditionally — single uint32 store, negligible.  By offset, as
 	// above: there is no object here to name the member through.
-	chunk_owner_id(chunk_base) = 0;
+	set_chunk_owner_id(chunk_base, 0);
 	writeBarrier();
 	// (§28.5) dedicated_chunk_bytes is now walked on demand; no per-alloc
 	// counter to bump here.
@@ -8123,12 +8146,12 @@ void PoolAllocator<ALIGN, FS, DUMMY>::group_place(
 	if(a->refcnt.load(std::memory_order_acquire) == 1
 	   && atomicCompareAndSet(static_cast<uint32_t>(BIT_OWNED | BIT_A), 0u,
 	                          &a->m_flags_packed)) {
-		a->m_owner_id = 0;
+		atomicStoreRelaxed(&a->m_owner_id, 0u);
 		a->m_exit_release = at_exit;
 		g.reset();   // refcnt 0 → atomic_intrusive_dispose → released
 		return;
 	}
-	a->m_owner_id = 0;
+	atomicStoreRelaxed(&a->m_owner_id, 0u);
 	group_push(a->m_rv_head.load(std::memory_order_relaxed) ? s_room_head() : s_full_head(),
 	           std::move(g));
 }
@@ -8139,7 +8162,7 @@ void PoolAllocator<ALIGN, FS, DUMMY>::group_place(
 //! path) -- a chunk is in our DLL iff its m_owner_id is ours.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void PoolAllocator<ALIGN, FS, DUMMY>::dll_join(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept {
-	c->m_owner_id = kame_owner_id();
+	atomicStoreRelaxed(&c->m_owner_id, kame_owner_id());
 	c->m_dll_next = nullptr;
 	c->m_dll_prev = s_tls.dll_tail;
 	if(s_tls.dll_tail) s_tls.dll_tail->m_dll_next = c;
