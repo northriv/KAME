@@ -184,8 +184,7 @@ X2DImage::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, const s
             image.save( &buffer, ext.c_str(), 100); //uncompressed full quality.
         }
         try {
-            stream.write(ba.constData(), ba.size());
-            gMessagePrint(formatString_tr(I18N_NOOP("Succesfully written into %s."), shot[ *filename()].to_str().c_str()));
+            stream.write(ba.constData(), ba.size()); //XGraphNToolBox::dumpOneShot() reports the file it became.
         }
         catch(const std::ios_base::failure& e) {
             gErrPrint(e.what());

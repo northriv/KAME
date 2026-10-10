@@ -50,6 +50,15 @@ public:
     };
 protected:
     virtual void dumpToFileThreaded(std::fstream &, const Snapshot &, const std::string &ext) = 0;
+    //! True when a dump in format \a ext must be a file of its own: an image
+    //! is a whole file, and one appended to another is unreadable past the
+    //! first.  FileName is then a template, each Dump writing
+    //! "<stem>_<NNNN>_<YYYYMMDD-HHMMSS>.<ext>" beside it -- numbered on from
+    //! the highest already there, so a restart never overwrites -- through a
+    //! temporary file renamed into place, so a synced folder (iCloud) never
+    //! picks up half a file.  Formats that accumulate dumps in one file, like
+    //! the .dat text, answer false and keep appending.
+    virtual bool dumpsOneFilePerShot(const std::string &/*ext*/) const {return false;}
 
     std::deque<xqcon_ptr> m_conUIs;
 private:
@@ -68,12 +77,16 @@ private:
     void onDumpTouched(const Snapshot &shot, XTouchableNode *);
     void onFilenameChanged(const Snapshot &shot, XValueNodeBase *);
     void onIconChanged(const Snapshot &shot, bool );
+    //! One dump into a file of its own; under m_filemutex.
+    void dumpOneShot(const Snapshot &shot);
 
     xqcon_ptr m_conFilename, m_conDump;
 
     unique_ptr<XThread> m_threadDump;
     std::fstream m_stream;
     std::string m_ext;
+    bool m_oneFilePerShot = false; //!< under m_filemutex, as are the two above.
+    unsigned int m_shotSeq = 0; //!< last number written for FileName; 0: not yet looked up.
     XMutex m_filemutex;
 };
 #endif

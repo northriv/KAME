@@ -130,11 +130,14 @@ struct XInterlockAction::Operation {
     XString node;
     enum class Kind {Touch, SetFalse, SetTrue} kind;
     bool reassertWhileNotReady; //!< Touch again while the driver's "Ready" is false.
+    bool inEveryChild = false; //!< \a node in each of the driver's children, e.g. each graph's Dump.
 };
 
-//! Only operations whose result is the safe state.  Left out on purpose:
-//! a magnet supply (its own SafeCond entries ramp it down slowly; cutting it
-//! is the danger), a turbo pump (stopping it vents the vacuum), heater ranges.
+//! Only operations whose result is the safe state -- and Dump, which
+//! records what the driver showed at the trip (each graph with a FileName
+//! writes; images go to numbered files).  Left out on purpose: a magnet
+//! supply (its own SafeCond entries ramp it down slowly; cutting it is the
+//! danger), a turbo pump (stopping it vents the vacuum), heater ranges.
 const std::vector<XInterlockAction::Operation> &
 XInterlockAction::operations() {
     static const std::vector<Operation> ops = [] {
@@ -144,6 +147,7 @@ XInterlockAction::operations() {
             {"RF off", "", "RFON", Operation::Kind::SetFalse, false},
             {"Output off", "", "Output", Operation::Kind::SetFalse, false},
             {"Close valve", "", "CloseValve", Operation::Kind::Touch, false},
+            {"Dump", "", "Dump", Operation::Kind::Touch, false, true},
         };
         for(unsigned int ch = 1; ch <= 8; ++ch) {
             const XString chname = "Channel" + std::to_string(ch);
@@ -169,14 +173,15 @@ XInterlockAction::targets(const shared_ptr<XDriver> &drv, const Operation &op) {
         if(node)
             nodes.push_back(node);
     };
-    if(op.channelPrefix.empty()) {
+    if( !op.inEveryChild && op.channelPrefix.empty()) {
         add(drv);
         return nodes;
     }
     Snapshot shot( *drv);
     if(shot.size())
         for(auto &&child: *shot.list())
-            if(child->getName().compare(0, op.channelPrefix.size(), op.channelPrefix) == 0)
+            if(op.inEveryChild ||
+                (child->getName().compare(0, op.channelPrefix.size(), op.channelPrefix) == 0))
                 add(child);
     return nodes;
 }

@@ -21,6 +21,10 @@
 #include <QPushButton>
 #include <QStatusBar>
 #include <QStyle>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QRegularExpression>
 
 #define OFSMODE (std::ios::out | std::ios::app | std::ios::ate)
 
@@ -82,14 +86,26 @@ XGraphNToolBox::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
         if(m_stream.is_open())
             m_stream.close();
         m_stream.clear();
-        m_stream.open(
-            (const char*)QString(shot[ *filename()].to_str().c_str()).toLocal8Bit().data(),
-            OFSMODE);
+        const XString fname = shot[ *filename()].to_str();
+        auto idx = fname.find_last_of('.');
+        m_ext = (idx != std::string::npos) ? fname.substr(idx + 1) : "";
+        m_oneFilePerShot = fname.length() && dumpsOneFilePerShot(m_ext);
+        m_shotSeq = 0;
+        bool ok;
+        if(m_oneFilePerShot) {
+            //Nothing to open yet: each Dump creates its own file in this folder.
+            QFileInfo dir(QFileInfo(QString(fname.c_str())).absolutePath());
+            ok = dir.isDir() && dir.isWritable();
+        }
+        else {
+            m_stream.open(
+                (const char*)QString(fname.c_str()).toLocal8Bit().data(),
+                OFSMODE);
+            ok = m_stream.good();
+        }
 
         iterate_commit([=](Transaction &tr){
-            if(m_stream.good()) {
-                auto idx = shot[ *filename()].to_str().find_last_of('.');
-                m_ext = (idx != std::string::npos) ? shot[ *filename()].to_str().substr(idx + 1) : "";
+            if(ok) {
                 m_lsnOnDumpTouched = tr[ *dump()].onTouch().connectWeakly(
                     shared_from_this(), &XGraphNToolBox::onDumpTouched);
                 tr[ *dump()].setUIEnabled(true);
@@ -97,11 +113,64 @@ XGraphNToolBox::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
             else {
                 m_lsnOnDumpTouched.reset();
                 tr[ *dump()].setUIEnabled(false);
-                gErrPrint(i18n("Failed to open file."));
             }
             tr.mark(tr[ *this].onIconChanged(), false);
         });
+        if( !ok)
+            gErrPrint(i18n("Failed to open file.")); //outside the closure, which may run more than once.
     }
+}
+
+void
+XGraphNToolBox::dumpOneShot(const Snapshot &shot) {
+    const QFileInfo templ(QString(shot[ *filename()].to_str().c_str()));
+    const QString dir = templ.absolutePath(), stem = templ.completeBaseName(), suffix = templ.suffix();
+    if( !m_shotSeq) {
+        //Continues after the highest number already there.
+        const QRegularExpression re("^" + QRegularExpression::escape(stem) + "_(\\d+)_");
+        for(auto &&name: QDir(dir).entryList({stem + "_*." + suffix}, QDir::Files)) {
+            auto m = re.match(name);
+            if(m.hasMatch())
+                m_shotSeq = std::max(m_shotSeq, m.captured(1).toUInt());
+        }
+    }
+    QString path;
+    do {
+        ++m_shotSeq;
+        path = QString("%1/%2_%3_%4.%5").arg(dir, stem)
+            .arg(m_shotSeq, 4, 10, QChar('0'))
+            .arg(QString(XTime::now().getTimeFmtStr("%Y%m%d-%H%M%S", false).c_str()), suffix); //no " +0.123"
+    } while(QFileInfo::exists(path));
+    //Hidden, in the same folder so the rename is atomic.
+    const QString tmp = dir + "/." + QFileInfo(path).fileName() + ".part";
+    {
+        std::fstream stream((const char*)tmp.toLocal8Bit().data(),
+            std::ios::out | std::ios::trunc | std::ios::binary);
+        if( !stream.good()) {
+            gErrPrint(i18n("Failed to open file.") + " " + tmp);
+            return;
+        }
+        try {
+            dumpToFileThreaded(stream, shot, suffix.toStdString());
+        }
+        catch(...) {
+            stream.close();
+            QFile::remove(tmp);
+            throw;
+        }
+        stream.close();
+        if(stream.fail()) {
+            gErrPrint(i18n("Failed to write file.") + " " + tmp);
+            QFile::remove(tmp);
+            return;
+        }
+    }
+    if( !QFile::rename(tmp, path)) {
+        gErrPrint(i18n("Failed to rename file.") + " " + path);
+        QFile::remove(tmp);
+        return;
+    }
+    gMessagePrint(formatString_tr(I18N_NOOP("Succesfully written into %s."), path.toUtf8().constData()));
 }
 
 void
@@ -115,14 +184,17 @@ XGraphNToolBox::onDumpTouched(const Snapshot &, XTouchableNode *) {
     m_threadDump.reset(new XThread{shared_from_this(),
         [this](const atomic<bool>&, Snapshot &&shot){
         XScopedLock<XMutex> filelock(m_filemutex);
-        if( !m_stream.good()) {
+        if( !m_oneFilePerShot && !m_stream.good()) {
             gErrPrint(i18n("File cannot open."));
             return;
         }
         Transactional::setCurrentPriorityMode(Priority::UI_DEFERRABLE);
 
         try {
-            dumpToFileThreaded(m_stream, shot, m_ext);
+            if(m_oneFilePerShot)
+                dumpOneShot(shot);
+            else
+                dumpToFileThreaded(m_stream, shot, m_ext);
         }
         catch (XKameError &e) {
             // UI_DEFERRABLE can hit the STM starvation timeout under heavy
@@ -131,7 +203,8 @@ XGraphNToolBox::onDumpTouched(const Snapshot &, XTouchableNode *) {
             e.print(i18n("Dump failed: "));
         }
 
-        m_stream.flush();
+        if( !m_oneFilePerShot)
+            m_stream.flush();
     }, Snapshot( *this)});
 
     iterate_commit([=](Transaction &tr){

@@ -53,6 +53,10 @@ public:
     const shared_ptr<X2DImagePlot> &colorBarPlot() const {return m_colorbarplot;}
 protected:
     virtual void dumpToFileThreaded(std::fstream &, const Snapshot &, const std::string &ext) override;
+    //! Every image format: only the .dat text accumulates dumps in one file.
+    virtual bool dumpsOneFilePerShot(const std::string &ext) const override {
+        return (ext != "DAT") && (ext != "dat");
+    }
 private:
     shared_ptr<X2DImagePlot> m_plot, m_colorbarplot;
     const shared_ptr<XDoubleNode> m_gamma;
