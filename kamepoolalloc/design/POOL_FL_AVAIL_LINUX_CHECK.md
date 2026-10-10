@@ -219,3 +219,37 @@ Same trees rebuilt from bd7875d06, same method as above:
 | thread-exit soak, 4 tests × 80/arm | 0 / 320 vs master 0 / 320 |
 
 Nothing changed for the worse; the TOCTOU result holds on the new head.
+
+## 7. master 8dbc7d902 (the v1.2.0 candidate)
+
+The same set as §6, on master after §revive / §group landed and the
+sanitizer work followed: d61f792be, 23d843e23 and d6cc5007d (relaxed atomics
+where bitmap words, filled counts, slot headers and `m_owner_id` were
+accessed plainly — TSan), d27a065d9 (`m_owner_id` read and stamped by offset
+— UBSan vptr), ae2603fbc (kamestm `Payload` keeps a `Node<XN>` pointer — UBSan
+vptr), the three UBSan fixes (c34ae60f0, 471a34981, 82ff63d5e), and
+`atomic_queue_reserved` in atomics (5d3a9ce30).  Fresh worktree, the same six
+build configurations, the same baseline (old master 872d89030) for the A/Bs.
+
+| check | result |
+|---|---|
+| builds, six trees | all clean, no undefined reference |
+| no-DCAS audit | 3/3 ok — the 64-bit slot-header store (23d843e23) is split into two 32-bit halves on 32-bit hosts, as the probe confirms |
+| ctest LP64 release / asserts | 43/43, 43/43 |
+| ctest ILP32 i586 release / asserts | 43/43, 43/43 (`transaction_wait_budget_test` happened to pass under `-j3` this time) |
+| ctest ILP32 i486 release / asserts | 36/36, 36/36 |
+| `alloc_tsd_exclusivity_test`, 2000/arm | **0 / 2000** vs old master **22 / 2000** (all SIGSEGV) |
+| thread-exit soak, 4 tests × 80/arm | 0 / 320 vs old master 0 / 320 |
+| LP64 GCC UBSan (pool on), whole tree | **0** `runtime error` lines (old master: 141 — 137 vptr at four `allocator.cpp` sites, 4 invalid-bool in `walkUpChain`) |
+
+UBSan's ctest: 41/43.  `transaction_wait_budget_test` is the load artifact.
+`transaction_nosyscall_highest_test` segfaults, now with no diagnostic at
+all: the first vptr type-cache miss on the seccomp-filtered thread (in
+`std::thread::_State_impl::~_State_impl`, a slow-path check, not a report)
+lazily runs `__ubsan::InitAsStandalone()`, whose read of
+`/proc/self/cmdline` the filter traps; `internal_strncpy(src = 0x9)` faults.
+The sanitizer runtime making syscalls on the filtered thread is exactly what
+the test's CMake note rules out ("NOT sanitizer-compatible, by
+construction"); without UBSan it passes in all six trees.
+
+Nothing regressed; the TOCTOU result holds; the UBSan vptr sites are gone.
