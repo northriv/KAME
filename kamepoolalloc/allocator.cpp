@@ -1784,7 +1784,11 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
                     // (~1 in FUINT_BITS = 64 allocs) so the overhead is
                     // amortised; `flush()` is a no-op when the batch is
                     // empty so post-cross-event calls are cheap.
-                    if(this->m_flags_filled_cnt * 5 >= this->m_count * 4)
+                    // Relaxed load: a cross-thread free's OnClearFn
+                    // atomicDec()s this counter concurrently (TSan).
+                    // m_count is fixed at construction.
+                    if(atomicLoadRelaxed(&this->m_flags_filled_cnt) * 5
+                            >= this->m_count * 4)
                         tls_cross_dealloc_batch.flush();
                 }
 				writeBarrier(); //for the counters.
