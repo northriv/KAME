@@ -239,6 +239,11 @@ template <typename T>
 inline T atomicLoadRelaxed(const T *target) noexcept {
     return *(const volatile T *)target;
 }
+//! Relaxed atomic store (likewise one volatile write).
+template <typename T>
+inline void atomicStoreRelaxed(T *target, T value) noexcept {
+    *(volatile T *)target = value;
+}
 #else
 template <typename T>
 inline typename std::enable_if<std::is_integral<T>::value || std::is_pointer<T>::value, bool>::type
@@ -275,6 +280,12 @@ inline T atomicFetchOr(T *target, T value) noexcept {
 template <typename T>
 inline T atomicLoadRelaxed(const T *target) noexcept {
     return __atomic_load_n(target, __ATOMIC_RELAXED);
+}
+//! Relaxed atomic store: the same instruction as a plain store, for a word
+//! another thread may read at the same time.
+template <typename T>
+inline void atomicStoreRelaxed(T *target, T value) noexcept {
+    __atomic_store_n(target, value, __ATOMIC_RELAXED);
 }
 #endif
 
