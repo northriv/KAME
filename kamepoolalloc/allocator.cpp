@@ -4887,6 +4887,12 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
         reinterpret_cast<pma_t>(dlsym(RTLD_NEXT, "posix_memalign"));
     if( !real_pma || real_pma(&p, alignment, size) != 0)
         return nullptr;
+#  elif defined(__APPLE__)
+    // The dylib interposes `posix_memalign` too (FULL block), so go
+    // through the zone API, as `libsystem_malloc_for_pool` does.
+    p = malloc_zone_memalign(malloc_default_zone(), alignment, size);
+    if( !p)
+        return nullptr;
 #  else
     if(posix_memalign(&p, alignment, size) != 0)
         return nullptr;
@@ -5274,7 +5280,8 @@ void *memalign(std::size_t al, std::size_t sz) noexcept {
 // Pool-aware companions to `free`.  Same interpose / strong-symbol
 // strategy as `free` above:
 //   - macOS: `__DATA,__interpose` table extended so dyld rewrites
-//     every `calloc` / `realloc` import across all dylibs to ours.
+//     every `realloc` import across all dylibs to ours, and under
+//     FULL_INTERCEPT (the dylib's default) every `calloc` import too.
 //   - Linux glibc: emit strong-symbol `calloc` / `realloc`; the
 //     internal "forward to libc" path uses `__libc_calloc` /
 //     `__libc_realloc` to bypass our own shadowing (same trick as
@@ -5415,6 +5422,19 @@ static void *kame_calloc(std::size_t n_elem, std::size_t sz) {
 	                        // a uniquely-freeable non-null pointer.
 	if( !g_sys_image_loaded || kame_thread_torn_down())
 		return libsystem_calloc_for_pool(n_elem, sz);
+	// The §19 mmap tier (the sizes allocate_large_size_or_malloc sends to
+	// allocate_large_va): a fresh mapping is already zero, so skip the
+	// memset — otherwise a large calloc touches every page up front (1 GiB:
+	// 1 GiB RSS and ~50 ms, where libc's calloc leaves the pages untouched
+	// until written, which `np.zeros`-style callers rely on).
+	if(total > (std::size_t)ALLOC_MAX_CHUNK_SIZE - (std::size_t)ALLOC_CHUNK_K_MAX) {
+		bool zeroed = false;
+		void *p = PoolAllocatorBase::allocate_large_va(total, &zeroed);
+		if( !p)  // the mmap failed or the RT policy refused it
+			return libsystem_calloc_for_pool(n_elem, sz);
+		if( !zeroed) std::memset(p, 0, total);
+		return p;
+	}
 	// Pool path.  `new_redirected` may dispatch to libsystem itself for
 	// over-bucket sizes — that branch returns libsystem-malloc'd memory
 	// which `free()` / our interpose will route back to libsystem.
@@ -5477,7 +5497,7 @@ static void *kame_realloc(void *p, std::size_t n) {
 	return libsystem_realloc_for_pool(p, n);
 }
 
-// === Why we interpose `realloc` but NOT `calloc` ===
+// === `realloc` always, `calloc` with FULL_INTERCEPT (macOS) ===
 //
 // `realloc` is the correctness-critical one: pool pointers (from our
 // `::operator new`) are routinely realloc'd by libcxx / glibc / libsystem
@@ -5490,24 +5510,22 @@ static void *kame_realloc(void *p, std::size_t n) {
 // take the in-pool reshape path, foreign pointers fall through to
 // `libsystem_realloc_for_pool`.
 //
-// `calloc` is NOT interposed.  ObjC's class realization (`_objc_init`
-// → `realizeClassMaybeSwiftMaybeRelock`) calls `calloc()` to build
-// the class table, then later checks the allocation via
-// `malloc_size()` to detect dangling references.  If `calloc` is
-// interposed, the class data sits in our pool and libsystem's
-// `malloc_size()` returns 0 — ObjC reports "realized class has
-// corrupt data pointer" and aborts.  Fixing this properly requires
-// also interposing `malloc_size` / `malloc_zone_from_ptr` /
-// `malloc_good_size` — the full mimalloc compat surface — which is
-// out of scope for this work.
-//
-// `kame_calloc` stays available below as a non-interposed entry
-// point: callers who want pool-backed zero-init can call it
-// directly.  Default `calloc()` resolves to libsystem as before;
-// because we DO interpose `free`, libsystem-calloc'd pointers
-// returned by stdlib code still route back to libsystem free via
-// our `kame_free` fallback (`PoolAllocatorBase::deallocate` returns
-// false ⇒ `libsystem_free_for_pool` → `malloc_zone_free`).
+// `calloc` was long left to libsystem: ObjC's class realization
+// (`_objc_init` → `realizeClassMaybeSwiftMaybeRelock`) calls `calloc()`
+// for class data and later checks it with `malloc_size()`; a pooled
+// block whose `malloc_size()` is libsystem's (0) reads as "realized
+// class has corrupt data pointer" and aborts.  The FULL block's
+// `malloc_size` co-interpose answers for pool pointers, which is what
+// made the `malloc` interpose safe, and it covers `calloc` the same
+// way — so the FULL table interposes `calloc` (and `posix_memalign` /
+// `aligned_alloc`) as well.  Leaving them out made the drop-in serve
+// only `malloc`: mimalloc-bench's rptest, which allocates through
+// `calloc` and `posix_memalign` only, measured libsystem's allocator
+// plus our `free` forwarding (M5 Ultra, 10 threads: 2.27 M ops/CPU-s,
+// 5.69 with them interposed).  The CONSERVATIVE build still leaves
+// `calloc()` to libsystem, and `free` routes those pointers back via
+// `kame_free` (`PoolAllocatorBase::deallocate` returns false ⇒
+// `libsystem_free_for_pool` → `malloc_zone_free`).
 extern "C" __attribute__((used))
 void *kame_pool_calloc(std::size_t n_elem, std::size_t sz) noexcept {
 	return kame_calloc(n_elem, sz);
@@ -5724,26 +5742,18 @@ kame_interpose_entry kame_interposers_alloc[]
 } // namespace
 
 #  if defined(KAMEPOOLALLOC_FULL_INTERCEPT)
-// macOS opt-in: also interpose `malloc` so EVERY libc malloc-family call
-// (libstdc++ / libc++ / Foundation / AppKit / Qt / Ruby / Python) routes
-// through the pool — turns kamepoolalloc into a mimalloc-style "full
-// LD_PRELOAD allocator" for head-to-head benchmarking.
+// Full drop-in: also interpose the allocating entries -- `malloc`,
+// `calloc`, `posix_memalign`, `aligned_alloc` -- so EVERY libc
+// malloc-family call (libc++ / Foundation / AppKit / Qt / Ruby / Python)
+// routes through the pool, as mimalloc / jemalloc do when preloaded.
+// Default for the macOS dylib (§32, top of file); the inline kame.app
+// (MH_EXECUTE) is unaffected -- dyld honours __interpose only from an
+// MH_DYLIB.  Opt out with -DKAMEPOOLALLOC_CONSERVATIVE_INTERCEPT.
 //
-// DEFAULT-OFF because:
-//   - production kame.app (`kame/kame.pro`) is the macOS reference build
-//     and has 20+ years of free-only-interpose stability with Qt + ObjC;
-//   - Apple's ObjC runtime checks calloc'd class data via `malloc_size()`,
-//     which would need to be co-interposed for full compat (see comment
-//     above `kame_pool_calloc`) — out of scope for this opt-in.
-//
-// Enable for bench builds:  cmake -DKAMEPOOLALLOC_FULL_INTERCEPT=1 ...
-// or for KAME desktop after on-target soak validation.
-//
-// `calloc` is deliberately NOT added here even under FULL_INTERCEPT —
-// the documented ObjC class-realization issue makes calloc interpose
-// risky without also overriding `malloc_size` / `malloc_zone_from_ptr`
-// / `malloc_good_size`.  `free` and `realloc` interpose above stay
-// unconditional (correctness-critical for the pool's own pointers).
+// The `malloc_size` co-interpose below is what makes this safe for the
+// Swift runtime and ObjC class realization (see the comment above
+// `kame_pool_calloc`).  `free` and `realloc` above stay unconditional
+// (correctness-critical for the pool's own pointers).
 extern "C" void *malloc(std::size_t);
 extern "C" std::size_t malloc_size(const void *);
 
@@ -5768,6 +5778,12 @@ kame_interpose_entry kame_interposers_full[]
           reinterpret_cast<const void *>(&malloc) },
         { reinterpret_cast<const void *>(&kame_malloc_size),
           reinterpret_cast<const void *>(&malloc_size) },
+        { reinterpret_cast<const void *>(&kame_pool_calloc),
+          reinterpret_cast<const void *>(&calloc) },
+        { reinterpret_cast<const void *>(&kame_pool_posix_memalign),
+          reinterpret_cast<const void *>(&posix_memalign) },
+        { reinterpret_cast<const void *>(&kame_pool_aligned_alloc),
+          reinterpret_cast<const void *>(&aligned_alloc) },
 };
 } // namespace
 #  endif // KAMEPOOLALLOC_FULL_INTERCEPT
@@ -7979,7 +7995,7 @@ extern "C" size_t kame_pool_munlock_regions(void) noexcept {
 // KAME_RADIX_LARGE entries so a §19 base never lingers in another
 // thread's TLS after its munmap.
 void *
-PoolAllocatorBase::allocate_large_va(std::size_t size) noexcept {
+PoolAllocatorBase::allocate_large_va(std::size_t size, bool *zeroed) noexcept {
 	std::size_t mmap_size =
 	    (size + ALLOC_PAGE_SIZE + ALLOC_PAGE_SIZE - 1u) &
 	    ~(std::size_t)(ALLOC_PAGE_SIZE - 1u);
@@ -8005,6 +8021,13 @@ PoolAllocatorBase::allocate_large_va(std::size_t size) noexcept {
 		base = large_va_raw_map(mmap_size);
 		if( !base) return nullptr;
 	}
+	// A fresh anonymous mmap is zero-filled; a recycled region holds its
+	// last user's bytes.  (Windows maps with _aligned_malloc: not zeroed.)
+#if !(defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32))
+	if(zeroed) *zeroed = !recycled;
+#else
+	if(zeroed) *zeroed = false;
+#endif
 	// Write/refresh the meta.  On recycle, mmap_size keeps the cached
 	// region's ACTUAL (larger-or-equal) size so a later free re-caches it
 	// at the right size and malloc_usable_size stays truthful.

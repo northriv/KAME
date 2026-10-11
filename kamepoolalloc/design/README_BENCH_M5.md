@@ -93,6 +93,51 @@ mimalloc-bench's recipe (its sha256 matches the `fix` arm of
     mbench    /Users/ssp/bench-ab/mimalloc-bench @ 69c41ed, binaries in /Users/ssp/bench-ab/mbench-build
     params    reps=5 threads="10" only="xmalloc larson rptest" quick=0 xlat="1024x200000 1024x1000000 3000x200000" xlat_cpu=none loop_iters=20000000
 
+### 2.1 rptest with `calloc` / `posix_memalign` interposed (2026-10-12)
+
+The rptest row above did not measure kame.  rptest allocates only through
+`calloc` and `posix_memalign` (its `benchmark_malloc`, `__MACH__` branch), and
+the macOS dylib interposed `malloc` / `free` / `realloc` / `malloc_size` only:
+a `sample` of the kp-tree run shows every allocation in libsystem's xzone
+allocator and kame only in `free` (`kame_free` → `libsystem_free_for_pool`).
+The row was system malloc plus the `free` forwarding, hence just under `sys`.
+xmalloc-test, larson and mstress use `malloc` only and are unaffected; on
+Linux the strong symbols always covered `calloc` / `memalign`.
+
+With `calloc`, `posix_memalign` and `aligned_alloc` added to the dylib's
+interpose table (same command, rptest only, its own work dir):
+
+    kamepoolalloc/tests/bench/bench_ab.sh --tags tree --arm sys= \
+        --arm mi=~/bench-ab/alloc/mimalloc-3.3.2/build/libmimalloc.dylib \
+        --arm je=~/bench-ab/alloc/jemalloc-5.3.0/lib/libjemalloc.dylib \
+        --only "rptest" --threads 10 --reps 5 \
+        --work ~/bench-ab-rpt --mbench ~/bench-ab/mimalloc-bench
+
+| bench | config | metric | kp-tree | sys | mi | je | sys / kp-tree | mi / kp-tree | je / kp-tree |
+|---|---|---|---|---|---|---|---|---|---|
+| rptest | t10 | Mops_cpu ↑ | 6.29 (5.55–7.17) | 2.64 (2.48–2.83) | 5.77 (4.86–6.21) | 6.2 (5.18–6.42) | 0.42× | 0.92× | 0.99× |
+
+An interleaved A/B of the old and new dylibs beside the others (t1 and t10,
+median of 5): old 8.69 / 2.27, new 11.1 / 5.69, sys 9.3 / 2.49, mi 11.1 /
+5.37, je 9.29 / 5.21.  Peak RSS at t10 (one run, rptest's own report): kame
+186 MiB, mi 109, je 93 — kame holds more.
+
+`provenance.txt`:
+
+    date      2026-10-11T15:26:06Z
+    host      dhcp-029-018.issp.u-tokyo.ac.jp
+    kernel    Darwin 27.0.0 arm64
+    cpu       Apple M5 Ultra, 10P + 20E, 96 GiB, Mac17,15
+    os        macOS 27.0.1 (26A434)
+    power     Now drawing from 'AC Power'
+    benches   /Users/ssp/kame-rpt/kamepoolalloc @ 327644452, Apple clang version 21.0.0 (clang-2100.3.34.2)
+    arm       kp-tree: libkamepoolalloc.dylib (685528 B, sha256 15903cd5c08a8c1f, tree at 327644452-dirty = this change)
+    arm       sys: no preload (system malloc)
+    arm       mi: libmimalloc.dylib (233072 B, sha256 5153705f94d7d8b4)
+    arm       je: libjemalloc.dylib (649248 B, sha256 9290fc4e3540a8f2)
+    mbench    mimalloc-bench @ 69c41ed
+    params    reps=5 threads="10" only="rptest"
+
 ## 3. RT (`bench_rt_wcet`)
 
     kamepoolalloc/tests/build/bench_rt_wcet --pressure
