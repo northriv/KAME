@@ -696,7 +696,8 @@ See the header for full per-function semantics.
 | `int    kame_pool_prewarm(const size_t*, const unsigned*, unsigned)` | — | allocate + **page-touch** + free the given size classes, per realtime thread |
 | `unsigned kame_pool_reserve_regions(unsigned n, int prefault)` | — | create `n` 32-MiB regions up front (permanent — regions never unmap) |
 | `size_t kame_pool_mlock_regions(void)` / `munlock` | — | pin **only the pool's** regions into RAM (`mlock`/`VirtualLock`); also populates them.  Surgical where `mlockall(MCL_FUTURE)` is blunt |
-| `void   kame_pool_rt_drain(void)` | — | perform all deferred reclaim (the `mi_collect` / `malloc_trim` analogue). **Never call inside the critical section** |
+| `void   kame_pool_rt_drain(void)` | — | settle the parked large-tier unmaps, once per control cycle; leaves the recycle caches (the prewarmed working set) alone. **Never call inside the critical section** |
+| `void   kame_pool_trim(void)` | — | give back everything without a live owner — parked unmaps, this thread's L1 and the global recycle cache, the pages realtime frees kept (the `mi_collect` / `malloc_trim` analogue).  A realtime thread prewarms again after it |
 | `void   kame_pool_set_rt_os_policy(int)` | `KAME_RT_OS_ALLOW` | `ALLOW` / `COUNT` / `FAIL` (refuse → degrade to libc) / `ABORT` (report + abort) |
 | `size_t kame_pool_set_thp_policy(int)` / `get` | `KAME_THP_SYSTEM` | Linux transparent hugepages for pool memory: `SYSTEM` / `ALWAYS` (`MADV_HUGEPAGE`) / `NEVER` (`MADV_NOHUGEPAGE`).  Covers the 32 MiB regions *and* the large-VA tier, and re-advises regions already mapped (returns the bytes it reached).  Set it **before** prewarm; **not** implied by realtime mode — see the contract below |
 | `void   kame_pool_set_rt_pending_cap(size_t)` | 1 GiB | ceiling on VA parked by deferred unmaps; past it a realtime free releases inline |
@@ -723,7 +724,10 @@ without its assumptions written down is not a claim.
    capacity nobody prewarmed must map, and mapping is unbounded by nature.
 5. `kame_pool_rt_drain()` is called from a *non*-critical phase (between control
    cycles, or on a housekeeping thread) — it is exactly the syscall batch the
-   gating keeps out of the section.
+   gating keeps out of the section.  Once per cycle keeps the parked backlog
+   under `rt_pending_cap`; it does not touch the warm caches (up to v1.2.x it
+   emptied them, so the section after every drain mapped again).
+   `kame_pool_trim()`, which does release them, needs a fresh prewarm.
 6. Thread count is bounded and known (see the interference caveat below).
 
 **Two levels, and the difference is not cosmetic.** `KAME_RT_DEFER` removes
@@ -738,9 +742,9 @@ p99.9; that is why only DEFER can be a process-wide default.
 
 * **No syscall on the free path.** Chunk page-reclaim (`madvise`) is skipped —
   the chunk is still released and immediately recyclable, its pages just stay
-  warm. A large-tier `munmap` is parked (bounded by `rt_pending_cap`) and
-  settled later by `rt_drain()`, or by any ordinary thread's next large free
-  (one block per call).
+  warm (`kame_pool_trim()` hands them back). A large-tier `munmap` is parked
+  (bounded by `rt_pending_cap`) and settled later by `rt_drain()`, or by any
+  ordinary thread's next large free (one block per call).
 * **No lock, no sleep, no yield** anywhere in the allocator — all
   synchronisation is CAS/atomics/seqlock.
 * **No unbounded internal loop**: every loop is either statically bounded or
@@ -828,21 +832,22 @@ p99.9; that is why only DEFER can be a process-wide default.
   arena the allocator never grows (TLSF-style) plus bounded-retry with an
   emergency reserve. That is not a tuning of this allocator.
 
-**Measured** (Apple M3, Release, 3 interferer threads — see
-`tests/bench/bench_rt_wcet.cpp`, and reproduce with `--pressure` / `--xt`):
+**Measured** (Mac Studio M5 Ultra, Release, 3 interferer threads,
+`kame_pool_rt_drain()` once per cycle as in the loop above — see
+`tests/bench/bench_rt_wcet.cpp`, and reproduce with `--pressure` /
+`--xt 2000000`; `design/README_BENCH_M5.md` §3.1):
 
 | Path | realtime | default |
 |---|---:|---:|
-| free, > 256 MiB band — median | **128 ns** | 20,480 ns |
-| free, > 256 MiB band — max | **792 ns** | 677,917 ns |
-| free, 32 B cross-thread — p99.9 | **96 ns** | 1,792 ns |
-| free, 32 B cross-thread — p99.99 | **256 ns** | 10,240 ns |
+| free, > 256 MiB band — median | **192 ns** | 16,384 ns |
+| free, > 256 MiB band — max | **709 ns** | 54,208 ns |
+| free, 32 B cross-thread — p99.9 | **128 ns** | 224 ns |
+| free, 32 B cross-thread — p99.99 | **192 ns** | 7,168 ns |
 
-The > 256 MiB rows predate the 1 GiB deferral cap (G5): with it, this
-harness's realtime arm defers only the 300 MiB frees that fit under the cap
-and releases the rest inline, so on current code its rows look like the
-default arm's.  The cross-thread rows hold — on the M5 Ultra, 2 M samples:
-p99.99 512 vs 7,168 ns (`design/README_BENCH_M5.md` §3).
+The > 256 MiB rows are the median of three `--pressure` runs (800 frees per
+arm each; every realtime free was parked and none was forced inline past the
+cap); one run's realtime max was 11.4 µs.  The cross-thread rows rest on 2 M
+samples.
 
 For every band at or below 256 MiB the two are *statistically identical*: the
 recycle cache already absorbs those releases without a syscall, so the gating is

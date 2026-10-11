@@ -64,6 +64,7 @@ static inline std::size_t kame_pool_set_thp_policy(int) { return 0; }
 static inline unsigned long long kame_pool_rt_deferred_reclaims() { return 0; }
 static inline unsigned long long kame_pool_rt_deferred_unmaps() { return 0; }
 static inline std::size_t kame_pool_rt_pending_bytes() { return 0; }
+static inline unsigned long long kame_pool_rt_forced_releases() { return 0; }
 enum { KAME_THP_SYSTEM = 0, KAME_THP_ALWAYS = 1, KAME_THP_NEVER = 2 };
 //! Portable equivalent of kame_pool_prewarm(): hold `counts[i]` blocks of
 //! `sizes[i]` live at once and touch each, so the arena really has to grow,
@@ -382,6 +383,13 @@ static void run_rep(Arm &arm, bool realtime, unsigned iters,
 				std::uint64_t t1 = now_ns();
 				arm.free_[bi].add(t1 - t0);
 			}
+			// The trough of the control cycle: settle what the RT arm parked,
+			// as kame_pool.h's loop does, untimed.  Once a round, as this used
+			// to be, let the > LRC_HI band's 200 parked 300 MiB blocks pile far
+			// past the pending cap (1 GiB): 12 of 800 frees were deferred and
+			// the rest unmapped inline, so that band measured the cap's
+			// fallback, not the gate.
+			kame_pool_rt_drain();
 		}
 	}
 	if(realtime) kame_pool_set_realtime_thread(KAME_RT_OFF);
@@ -664,12 +672,13 @@ int main(int argc, char **argv) {
 		            "whole buffer; RT takes push_direct)\n");
 	}
 
+	const unsigned long long forced = kame_pool_rt_forced_releases();
 	std::printf("\nrt_violations=%llu  deferred_reclaims=%llu  "
-	            "deferred_unmaps=%llu  pending_bytes=%zu\n",
+	            "deferred_unmaps=%llu  forced_releases=%llu  pending_bytes=%zu\n",
 	            (unsigned long long)rt.violations,
 	            (unsigned long long)kame_pool_rt_deferred_reclaims(),
 	            (unsigned long long)kame_pool_rt_deferred_unmaps(),
-	            kame_pool_rt_pending_bytes());
+	            forced, kame_pool_rt_pending_bytes());
 
 	kame_pool_set_realtime_mode(0);
 
@@ -677,22 +686,34 @@ int main(int argc, char **argv) {
 	// "a realtime thread entered the kernel for a new mapping" is not.  The
 	// bands are prewarmed above, so any violation means a path escaped the
 	// gating — the regression this harness exists to catch.
+	//
+	// Under `--pressure` the > LRC_HI band bypasses the recycle cache by
+	// construction, so each of its RT-arm allocations maps: exactly that many
+	// are expected, not a failure -- what the RT arm changes is WHEN the unmap
+	// happens (rt_drain, outside the critical section), which the band's
+	// free-latency tail above shows.  Any mapping beyond them escaped the
+	// gating as in the default run.  (This branch used to accept any count,
+	// which hid the cached bands' violations under --pressure.)
+	//
+	// A strict realtime check also wants rt_forced_releases() == 0
+	// (kame_pool.h): a forced release is a realtime free that unmapped inline
+	// because the parked backlog had reached the pending cap.
 	int rc = 0;
-	if( !pressure && rt.violations != 0ull) {
+	const unsigned long long expected =
+	    pressure ? (unsigned long long)reps * iters * kBands[NBANDS - 1].live : 0ull;
+	if(rt.violations > expected) {
 		std::printf("FAILED: the realtime arm made %llu new mapping(s) "
 		            "despite prewarming\n",
-		            (unsigned long long)rt.violations);
+		            (unsigned long long)(rt.violations - expected));
 		rc = 1;
 	}
-	else if(pressure) {
-		// Expected here, not a failure: the > LRC_HI band bypasses the recycle
-		// cache by construction, so each of its allocations maps and each free
-		// unmaps.  Counting them is the point — what the RT arm changes is
-		// WHEN the unmap happens (rt_drain, outside the critical section),
-		// which the band's free-latency tail above shows.
+	if(pressure)
 		std::printf("(pressure: %llu mapping(s) expected — the > LRC_HI band "
-		            "cannot be cached)\n",
-		            (unsigned long long)rt.violations);
+		            "cannot be cached)\n", expected);
+	if(forced != 0ull) {
+		std::printf("FAILED: %llu realtime free(s) unmapped inline past the "
+		            "pending cap\n", forced);
+		rc = 1;
 	}
 	if(kame_pool_rt_pending_bytes() != 0) {
 		std::printf("FAILED: %zu bytes still parked after rt_drain\n",

@@ -1123,8 +1123,9 @@ bool g_sys_image_loaded = false;
 // thread-exit reclaim).  This is the complementary PER-THREAD half: a
 // thread marked realtime never enters the kernel to *return* memory
 // (`madvise` / `munmap`) from its own free calls — the pages stay warm
-// and the work is deferred to `kame_pool_rt_drain()` (or performed by
-// any non-RT thread that later releases the same block).
+// and the work is deferred: a parked unmap to `kame_pool_rt_drain()`, a
+// skipped `madvise` to `kame_pool_trim()` (either is also performed by any
+// non-RT thread that later releases the same block).
 //
 // Why per-thread and not another global: the reclaim syscall runs on
 // the *freeing* thread, so gating per-thread confines the RSS cost to
@@ -3399,7 +3400,7 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 	// `madvise` (step 3) is skipped: the header clear, back_offset clear and
 	// claim-bit release all still happen, so the chunk is immediately
 	// recyclable — its pages simply stay resident (warm) instead of being
-	// handed back.  `kame_pool_rt_drain()` returns them later; so does any
+	// handed back.  `kame_pool_trim()` returns them later; so does any
 	// non-RT thread that releases the same chunk.
 	if(reclaim_pages && __builtin_expect(rt_defer_active(), 0)) {
 		reclaim_pages = false;
@@ -7809,23 +7810,27 @@ extern "C" void kame_pool_rt_reset_counters(void) noexcept {
 	g_rt_forced_releases.store(0, std::memory_order_relaxed);
 }
 
-// The `mi_collect` / `malloc_trim` / `arena.N.purge` analogue: perform every
-// piece of reclaim work the RT paths deferred.  Call it from a non-critical
-// phase (between control cycles, on a housekeeping thread) — never from
-// inside the time-critical section, since it is exactly the syscall batch
-// that RT mode exists to keep out of there.
+// Settle what the realtime paths parked: the large-tier unmaps.  Call it in
+// the trough of every control cycle (between critical sections, or on a
+// housekeeping thread) -- never inside one, since it is the syscall batch
+// RT mode keeps out of there.  It keeps the backlog under the pending cap
+// (kame_pool_set_rt_pending_cap), past which a realtime free unmaps inline.
+//
+// It leaves the recycle caches alone.  Up to v1.2.x it also emptied this
+// thread's L1 and the global L2, which is where kame_pool_prewarm() puts the
+// working set of every size above the chunk pool: after a drain the next
+// critical section mapped again, so the documented loop (prewarm once, then
+// rt_section ... rt_drain per cycle) broke its own no-new-mapping guarantee
+// from the second cycle on (bench_rt_wcet: rt_violations = 2, the 8 MiB band
+// after a drain).  Releasing cached memory is kame_pool_trim()'s job now.
 //
 // The calling thread's own RT flag is cleared for the duration, so the
-// releases below actually reach `madvise` / `munmap` instead of being
-// re-deferred by the very gate that queued them (and so the counters do not
-// tick for our own work).
-extern "C" void kame_pool_rt_drain(void) noexcept {
-	const int saved_rt  = g_rt_thread;
-	const int saved_def = g_rt_default.exchange(0, std::memory_order_relaxed);
-	g_rt_thread = 0;
-
-	// (1) Deferred large-tier unmaps — exact, we hold the list.  Copy the
-	// node out before unmapping: it LIVES in the page about to go away.
+// releases below actually reach `munmap` instead of being re-deferred by the
+// very gate that queued them (and so the counters do not tick for our own
+// work).
+static void rt_settle_pending() noexcept {
+	// Copy the node out before unmapping: it LIVES in the page about to go
+	// away.
 	RtPendingUnmap *head =
 	    g_rt_pending_unmap.exchange(nullptr, std::memory_order_acq_rel);
 	while(head) {
@@ -7834,10 +7839,34 @@ extern "C" void kame_pool_rt_drain(void) noexcept {
 		large_va_raw_unmap(reinterpret_cast<char *>(head), cur.mmap_size);
 		head = cur.next;
 	}
+}
 
-	// (2) This thread's L1 recycle cache.  Emptied but left ARMED (unlike
+extern "C" void kame_pool_rt_drain(void) noexcept {
+	const int saved_rt  = g_rt_thread;
+	const int saved_def = g_rt_default.exchange(0, std::memory_order_relaxed);
+	g_rt_thread = 0;
+	rt_settle_pending();
+	g_rt_thread = saved_rt;
+	g_rt_default.store(saved_def, std::memory_order_relaxed);
+}
+
+// The `mi_collect` / `malloc_trim` / `arena.N.purge` analogue: give back
+// everything the allocator holds without a live owner -- the parked unmaps,
+// this thread's L1 recycle cache and the global L2 cache, which also returns
+// the pages of chunks a realtime free released without `madvise`.  What it
+// releases has to be mapped (and faulted) again by whoever needs it next,
+// so a realtime thread prewarms again after it.  Same flag handling as
+// kame_pool_rt_drain.
+extern "C" void kame_pool_trim(void) noexcept {
+	const int saved_rt  = g_rt_thread;
+	const int saved_def = g_rt_default.exchange(0, std::memory_order_relaxed);
+	g_rt_thread = 0;
+
+	rt_settle_pending();
+
+	// This thread's L1 recycle cache.  Emptied but left ARMED (unlike
 	// `l1_drain`, which is the thread-exit path and also clears `tls_l1` /
-	// sets `s_l1_drained`) — an RT thread keeps allocating after the drain.
+	// sets `s_l1_drained`) -- the thread keeps allocating afterwards.
 	if(L1KArray *l1 = tls_l1) {
 		for(int k = 0; k < LRC_K_L1; k++) {
 			for(int idx = 0; idx <= LRC_N_MAX_L1; idx++) {
@@ -7850,8 +7879,8 @@ extern "C" void kame_pool_rt_drain(void) noexcept {
 		}
 	}
 
-	// (3) The global L2 cache.  CAS-steal each slot so a concurrent popper
-	// either gets the block (and owns it) or misses — never both.
+	// The global L2 cache.  CAS-steal each slot so a concurrent popper
+	// either gets the block (and owns it) or misses -- never both.
 	for(int k = 0; k < LRC_K_MAX; k++) {
 		for(int idx = 0; idx <= LRC_N_MAX; idx++) {
 			char *b = g_lrc[k].slots[idx].exchange(

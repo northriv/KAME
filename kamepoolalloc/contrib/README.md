@@ -64,7 +64,7 @@ for (;;) {
         kame::rt_section rt;      // marks this thread; checks itself in debug
         ...                       // your 1 kHz control loop body
     }
-    kame_pool_rt_drain();         // settle deferred reclaim in the trough
+    kame_pool_rt_drain();         // settle parked unmaps in the trough
 }
 ```
 
