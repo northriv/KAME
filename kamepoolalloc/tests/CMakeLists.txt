@@ -146,6 +146,12 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_huge_test alloc_huge_test.cpp)
     target_link_libraries(alloc_huge_test kamepoolalloc Threads::Threads)
 
+    # calloc returns zeros in every tier, fresh and after a dirtied block is
+    # recycled -- the memset a fresh §19 mapping skips must still run on a
+    # recycled one.  kame_pool_* everywhere, plain calloc where it is pooled.
+    add_executable(alloc_calloc_zero_test alloc_calloc_zero_test.cpp)
+    target_link_libraries(alloc_calloc_zero_test kamepoolalloc Threads::Threads)
+
     # Thread-churn / orphan-reuse repro for "driver start/stop -> reserved grows".
     add_executable(alloc_thread_churn_test alloc_thread_churn_test.cpp)
     target_link_libraries(alloc_thread_churn_test kamepoolalloc Threads::Threads)
@@ -384,6 +390,7 @@ if(USE_KAME_ALLOCATOR)
     add_test(NAME c_api_test COMMAND c_api_test)
     add_test(NAME malloc_intercept_test COMMAND malloc_intercept_test)
     add_test(NAME alloc_huge_test COMMAND alloc_huge_test)
+    add_test(NAME alloc_calloc_zero_test COMMAND alloc_calloc_zero_test)
     add_test(NAME atomic_intrusive_dispose_test COMMAND atomic_intrusive_dispose_test)
     add_test(NAME atomic_intrusive_chain_test COMMAND atomic_intrusive_chain_test)
     add_test(NAME atomic_serial_test COMMAND atomic_serial_test)
