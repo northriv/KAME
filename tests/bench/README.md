@@ -105,7 +105,10 @@ switched by preload, each repetition runs every arm back to back, and the arm
 order alternates between repetitions, so drift in machine state cancels
 instead of landing on one arm.  It runs `bench_loop` (the single-thread
 control), `bench_xthread`, mimalloc-bench's `xmalloc-test` / `larson` /
-`rptest` (cloned and built if no checkout is given), and `bench_xlatency`,
+`rptest` (cloned and built if no checkout is given), and `bench_xlatency`;
+`--only` can add `mstress` (timed start to exit, as mimalloc-bench does), and
+`--xmalloc-sizes "64 1024"` runs xmalloc-test at more object sizes than the
+suite's 64 B (its own default is 1024);
 and writes `raw.tsv`, `summary.md` (median, min–max, ratio to the first arm)
 and `provenance.txt` under `WORK/results-HOST-TIME/`.
 
