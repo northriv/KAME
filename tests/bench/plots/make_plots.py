@@ -52,14 +52,15 @@ def sweep(fname, title, sys_, mi, je, kame, note=None, note_xy=None):
     plt.close(fig)
 
 # ── bench_loop single-thread sweeps ────────────────────────────────────
-# Apple M3 (arm64, macOS), kame @ 60971013, median of 7.
-sweep("bench_loop_m3_1t.svg",
-      "bench_loop, 1 thread — Apple M3 (macOS arm64)",
-      sys_=[106, 86, 91, 25, 25, 25, 45],
-      mi=[503, 447, 198, 199, 202, 7, 6],
-      je=[128, 124, 72, 18, 18, 18, 18],
-      kame=[651, 428, 346, 142, 131, 121, 112],
-      note="mmap-per-call cliff", note_xy=(5.0, 10.5))
+# Apple M5 Ultra (arm64, macOS), kame @ 2e8f940fd, median of 7
+# (design/README_BENCH_M5.md §1).
+sweep("bench_loop_m5ultra_1t.svg",
+      "bench_loop, 1 thread — Apple M5 Ultra (macOS arm64)",
+      sys_=[162, 135, 142, 28, 28, 28, 46],
+      mi=[1055, 766, 356, 354, 360, 8, 8],
+      je=[168, 164, 105, 29, 29, 29, 28],
+      kame=[1135, 804, 891, 192, 180, 167, 149],
+      note="mmap-per-call cliff", note_xy=(5.0, 12.5))
 
 # Ohtaka (AMD EPYC 7702, Linux bare metal), kame @ efbe6dcb, median of 5.
 sweep("bench_loop_ohtaka_1t.svg",
