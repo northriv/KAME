@@ -198,6 +198,14 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_tsd_exclusivity_test alloc_tsd_exclusivity_test.cpp)
     target_link_libraries(alloc_tsd_exclusivity_test kamepoolalloc Threads::Threads)
 
+    # The same across every FS=false tier (369 B .. 32 KiB): freelists per
+    # local id, the slot prefix / m_sizes, the borrow tier's re-aimed
+    # shortcut, §fl-scan's FL_UNTRACKED marks an exiting thread leaves for
+    # the next owner, §walk's cursor.  Blocks are painted and verified before
+    # each free, so a partial overlap with another live block counts too.
+    add_executable(alloc_tsd_exclusivity_var_test alloc_tsd_exclusivity_var_test.cpp)
+    target_link_libraries(alloc_tsd_exclusivity_var_test kamepoolalloc Threads::Threads)
+
     # Narrow-gap regression for the post-3145e139 L1 teardown guard.
     # `alloc_thread_exit_free_test` scenario B covers the SAME-thread
     # teardown free (the freer also allocated), so it arms `tls_l1` first
@@ -397,6 +405,7 @@ if(USE_KAME_ALLOCATOR)
     add_test(NAME alloc_thread_exit_free_test COMMAND alloc_thread_exit_free_test)
     add_test(NAME alloc_thread_exit_free_test_dynamic COMMAND alloc_thread_exit_free_test_dynamic)
     add_test(NAME alloc_tsd_exclusivity_test COMMAND alloc_tsd_exclusivity_test)
+    add_test(NAME alloc_tsd_exclusivity_var_test COMMAND alloc_tsd_exclusivity_var_test)
     add_test(NAME alloc_thread_exit_unarmed_test COMMAND alloc_thread_exit_unarmed_test)
     add_test(NAME alloc_thread_exit_unarmed_test_dynamic COMMAND alloc_thread_exit_unarmed_test_dynamic)
     add_test(NAME alloc_evict_test COMMAND alloc_evict_test)
