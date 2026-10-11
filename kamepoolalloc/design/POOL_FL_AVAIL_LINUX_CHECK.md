@@ -288,3 +288,61 @@ are noisy on this box in both arms alike.
 
 Not run here: the `bench_ab.sh` performance A/B.  This is a shared 4-vCPU VM,
 not a benchmark host; the handoff's x86-64 reference is Ohtaka.
+
+## 9. `alloc_tsd_exclusivity_var_test` (master b775f5335, the v1.2.1 candidate)
+
+b775f5335 adds the FS=false sibling of `alloc_tsd_exclusivity_test`: the same
+teardown shape over 369..32768 B (borrow tier at ALIGN 64 / 256, full-usable
+at 1024, page-sized and bucket 51 at 4096), with a paint on every block.  Run
+2026-10-11, fresh container (x86-64, g++ 13.3, 4 vCPU), the six §8 build
+configurations.  Old master is 872d89030 with only the test file and its three
+CMake lines added (`-O3 -g -DNDEBUG`, `-g` for addr2line; the code is the same
+as the baseline's).  Every arm ran with an `LD_PRELOAD` SIGSEGV reporter (frame
+module + offset, then re-raise, so the exit status stays 139), arms interleaved
+round by round, 4 processes at a time.
+
+| check | result |
+|---|---|
+| builds, six trees | all clean, the new test included |
+| no-DCAS audit | 3/3 ok |
+| ctest LP64 / i586, release and asserts | 44/44 ×4 |
+| ctest i486, release and asserts | 37/37 ×2 |
+
+| run | HEAD b775f5335 | old master 872d89030 |
+|---|---|---|
+| var test, LP64 release, 2000/arm | **0 / 2000** | **65 / 2000**, all SIGSEGV (p = 3 × 10⁻²⁰) |
+| 32 B test, LP64 release, 2000/arm | **0 / 2000** | **12 / 2000**, all SIGSEGV (p = 5 × 10⁻⁴) |
+| var test, i586 / i486 release, 500 each | 0 / 500, 0 / 500 | — |
+| 32 B test, i586 / i486 release, 500 each | 0 / 500, 0 / 500 | — |
+| var test, asserts on (LP64 / i586 / i486), 100 each | 0 / 100 ×3 | — |
+
+Where old master falls — the faulting PC, resolved through its inline chain:
+
+| test | site | count | classes |
+|---|---|---|---|
+| var test | `allocator.cpp:2010`, FS=false `deallocate_pooled`, `cached_force_walk->store(true)` | 65 / 65 | ALIGN 256: 29, 1024: 19, 4096: 9, 64: 8 |
+| 32 B test | `allocator.cpp:878`, `CrossDeallocBatch::flush` (via `deallocate_pooled_static<32>`) | 12 / 12 | ALIGN 32 |
+
+Every var-test crash is a cross-thread free of a block taken from the handoff
+(test line 201, `tracked_free(taken)`) — the block of a thread that may have
+exited, so the store lands in its dead TLS.  The two tests therefore cover
+**different** force-walk sites, each one exclusively.
+
+**`push_direct` is reached by neither.**  Its store (`allocator.cpp:815`) is
+on the FS=true free path for ALIGN > 48 (`ALIGN <= 48` goes `push` →
+`flush`); the var test allocates only FS=false sizes, which take the
+FS=false direct site above.  A scratch copy of the var test with
+`pick_size` changed to 49..368 B (not committed), against the same two
+libraries, 1000/arm:
+
+| | HEAD | old master |
+|---|---|---|
+| 49..368 B variant | **0 / 1000** | **21 / 1000** (p = 9 × 10⁻⁷): 20 SIGSEGV + 1 timeout |
+
+Of the 20: **7 at `push_direct<ALIGN>`, `allocator.cpp:815`** (ALIGN 80, 144,
+208, 304, 336, 352, FS=true), 13 at the FS=false store `:2010` (ALIGN 32 and
+256 FS=false classes — 49..368 B spans both).  The timeout (exit 124, nothing
+printed) is not classified.  So all three sites are live on the old code and
+closed on HEAD, but only two of them are covered by the committed tests; a
+49..368 B tier in the var test (or a third variant) would cover the third.
+Not changed here.
