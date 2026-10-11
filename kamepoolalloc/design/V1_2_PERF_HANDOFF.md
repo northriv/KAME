@@ -5,8 +5,12 @@ M5 Ultra (§4.1); their causes and the fix are in §5 (2026-10-11), which
 measures at or above v1.1.0 on every workload here, and so it does on the M3
 (§6).  Its Linux validation is green (`POOL_FL_AVAIL_LINUX_CHECK.md` §8:
 no-DCAS 3/3, six trees, exclusivity 0/2000, soak, UBSan, no growth).
-**Open:** Ohtaka (§4), and the pin decision at the end of §4.  Append results
-here.
+On Ohtaka (§7, x86-64) the fix brings larson back from 0.37–0.42x to
+1.02–1.04x and rptest from 0.59–0.84x to 0.90–1.00x.
+**Open:** two Ohtaka rows below v1.1.0 — rptest t16 0.90x and xthread w64
+0.70x (wide ranges; v1.2.0 0.81x) — the 0.2–0.8 ms xlat maximum there
+against ~15 us on the M5, and the pin decision at the end of §4.  Append
+results here.
 
 ## 1. Summary
 
@@ -102,10 +106,26 @@ likely cost — not yet checked in the disassembly.
         ~/kame/kamepoolalloc/tests/bench/bench_ab.sh --build-only \
         --work ~/kame-claude/bench-ab --mbench ~/mimalloc-bench \
         --tags v1.1.0,v1.2.0,tree
-      srun -p i8cpu --time=03:00:00 --exclusive \
-        ~/kame/kamepoolalloc/tests/bench/bench_ab.sh --run-only \
-        --work ~/kame-claude/bench-ab --mbench ~/mimalloc-bench \
-        --tags v1.1.0,v1.2.0,tree --threads "4 16 64" --xlat-cpu 0,1
+      # one wrapper script per job (srun's check_usage wrapper mangles
+      # compound arguments), e.g. ~/kame-claude/bench-ab/jobs/run_A.sh:
+      #   exec ~/kame/kamepoolalloc/tests/bench/bench_ab.sh --run-only \
+      #     --work ~/kame-claude/bench-ab --mbench ~/mimalloc-bench \
+      #     --tags v1.1.0,v1.2.0,tree --threads "4 16 64" --xlat-cpu 0,1 \
+      #     --only "loop xthread"
+      for n in A B C D1 D2 D3; do
+        srun -p i8cpu --time=00:30:00 --exclusive -c 128 ./run_$n.sh > $n.log 2>&1
+      done
+
+  with A `--only "loop xthread"`, B `"xmalloc larson"`, C `rptest`, and xlat
+  split three ways: D1 `--xlat "1024x200000 3000x200000"`, D2 and D3
+  `--xlat 1024x1000000` with `--reps 3` and `--reps 2`.  Run 2026-10-11: §7.
+
+  Two traps in the single `srun --time=03:00:00` this section first gave:
+  i8cpu's QOS caps a job at 30 minutes (and runs one job per user at a
+  time), so the whole set has to be split, and v1.1.0 alone needs about 25
+  minutes for five repetitions of xlat 1 KiB x 1 M; and **srun without `-c`
+  gives the task one CPU** (`nproc` 1, provenance "1 cpus"), so every
+  multi-thread workload runs on a single core.  `-c 128` gives it 0-127.
 
   (`tree` is the checkout's kamepoolalloc/, i.e. the fix of §5 on master.
   Before 2026-10-11 the default compared v1.1.0 with v1.2.0 and left the fix
@@ -320,3 +340,92 @@ nullptr before anything can pop it; the shortcut is only ever aimed by
 borrow-tier follow (the cell it just pushed onto) or at nullptr; and the
 exit drain treats the marker as empty.  The §walk and §fl-scan cursors are
 moved off a chunk the empty-neighbour release unlinks and reset at exit.
+
+## 7. Ohtaka (2026-10-11)
+
+`bench_ab.sh --tags v1.1.0,v1.2.0,tree --threads "4 16 64" --xlat-cpu 0,1`,
+5 repetitions, split into six i8cpu jobs as in §4 (each job interleaves all
+three arms on one node, so a row's ratios are within one node); every run
+exited 0 with a result.  `tree` is `9f4cdc8be`, whose kamepoolalloc/ is the
+fix of §5 (`2e8f940fd`) plus documentation and the bench script.  The 1 KiB
+x 1 M xlat row merges D2 (3 repetitions) and D3 (2).  A first attempt
+without `-c` ran on one CPU and is discarded.
+
+| bench | config | metric | kp-v1.1.0 | kp-v1.2.0 | kp-tree | kp-v1.2.0 / kp-v1.1.0 | kp-tree / kp-v1.1.0 |
+|---|---|---|---|---|---|---|---|
+| loop | 64B | Mops ↑ | 261 (260–262) | 266 (265–266) | 262 (257–262) | 1.02× | 1.00× |
+| loop | 1024B | Mops ↑ | 229 (228–229) | 247 (172–248) | 229 (228–229) | 1.08× | 1.00× |
+| loop | 16384B | Mops ↑ | 172 (170–172) | 170 (169–171) | 173 (171–173) | 0.99× | 1.01× |
+| xthread | w4,1KiB | Mfree ↑ | 9.64 (9.3–9.96) | 18.7 (16.9–19.2) | 18.5 (17.1–18.9) | 1.94× | 1.92× |
+| xthread | w16,1KiB | Mfree ↑ | 40.0 (37.9–40.8) | 57.8 (52.6–67.5) | 59.3 (52.2–66.7) | 1.44× | 1.48× |
+| xthread | w64,1KiB | Mfree ↑ | 79.8 (55.8–81.1) | 64.9 (51.1–72.1) | 56.1 (51.3–86.4) | 0.81× | 0.70× |
+| xmalloc | w4 | Mfree ↑ | 122 (117–123) | 128 (125–129) | 129 (119–130) | 1.06× | 1.06× |
+| larson | t4 | Mops ↑ | 57.2 (50.1–65.4) | 23.0 (21.8–24.0) | 58.7 (55.1–60.5) | 0.40× | 1.03× |
+| xmalloc | w16 | Mfree ↑ | 469 (454–472) | 464 (456–508) | 493 (493–494) | 0.99× | 1.05× |
+| larson | t16 | Mops ↑ | 216 (212–220) | 90.9 (86.9–92.6) | 221 (217–224) | 0.42× | 1.02× |
+| xmalloc | w64 | Mfree ↑ | 732 (499–1307) | 1112 (635–1243) | 1140 (837–1377) | 1.52× | 1.56× |
+| larson | t64 | Mops ↑ | 618 (615–650) | 226 (215–230) | 644 (638–656) | 0.37× | 1.04× |
+| rptest | t4 | Mops_cpu ↑ | 7.2 (6.92–7.31) | 6.04 (5.84–6.24) | 7.22 (7.02–7.28) | 0.84× | 1.00× |
+| rptest | t16 | Mops_cpu ↑ | 3.53 (2.96–3.61) | 2.5 (2.35–2.62) | 3.17 (3.01–3.49) | 0.71× | 0.90× |
+| rptest | t64 | Mops_cpu ↑ | 1.09 (1.03–1.18) | 0.646 (0.616–0.747) | 1.04 (1–1.09) | 0.59× | 0.95× |
+| xlat | 1024Bx200000 | rate_M ↑ | 0.005 (0.005–0.005) | 2.01 (2.01–2.13) | 2.1 (2.1–2.12) | 402.40× | 420.80× |
+| xlat | 1024Bx200000 | med_ns ↓ | 190309 (189207–191471) | 421 (400–430) | 411 (411–411) | 0.00× | 0.00× |
+| xlat | 1024Bx200000 | p999_ns ↓ | 260741 (259050–261923) | 1573 (1553–1593) | 1433 (1423–1453) | 0.01× | 0.01× |
+| xlat | 1024Bx200000 | max_ns ↓ | 332949 (323881–354077) | 341395 (187714–460949) | 192894 (188315–196220) | 1.03× | 0.58× |
+| xlat | 3000Bx200000 | rate_M ↑ | 0.003 (0.003–0.003) | 2.06 (1.93–2.11) | 2.16 (2.14–2.16) | 686.00× | 719.00× |
+| xlat | 3000Bx200000 | med_ns ↓ | 388872 (387450–390105) | 441 (411–471) | 401 (401–401) | 0.00× | 0.00× |
+| xlat | 3000Bx200000 | p999_ns ↓ | 593188 (591765–596053) | 1232 (1212–1262) | 1163 (1162–1182) | 0.00× | 0.00× |
+| xlat | 3000Bx200000 | max_ns ↓ | 652920 (614407–663549) | 611853 (194577–857661) | 404301 (194047–741557) | 0.94× | 0.62× |
+| xlat | 1024Bx1000000 | rate_M ↑ | 0.001 (0.001–0.001) | 1.97 (1.94–1.99) | 2.04 (2.02–2.06) | 1966.00× | 2036.00× |
+| xlat | 1024Bx1000000 | med_ns ↓ | 895237 (894085–910686) | 431 (431–441) | 421 (421–421) | 0.00× | 0.00× |
+| xlat | 1024Bx1000000 | p999_ns ↓ | 1215261 (1208146–1221563) | 1703 (1523–1743) | 1603 (1393–1603) | 0.00× | 0.00× |
+| xlat | 1024Bx1000000 | max_ns ↓ | 1257761 (1219970–1307425) | 445620 (197362–779900) | 524749 (188385–731899) | 0.35× | 0.42× |
+
+- **larson** is v1.2.0's worst row on x86-64 — 0.37–0.42x, against
+  0.67–0.74x on the M3 — and the fix takes it to 1.02–1.04x.
+- **rptest**: v1.2.0 0.59–0.84x, getting worse with threads, which the Macs
+  (at most 8 threads) did not show; the fix 0.90–1.00x.  t16 is the one
+  below 0.95x, with ranges that overlap (v1.1.0 2.96–3.61, tree 3.01–3.49).
+- **xthread w64** (64 producers + 64 consumers on 128 cores): 0.70x for the
+  tree, 0.81x for v1.2.0, but all three arms span ~50–85 within themselves;
+  not a result until it is repeated with more repetitions.  w4 and w16 are
+  1.9x and 1.5x as on the Macs.
+- **bench_loop**: no single-thread regression here even in v1.2.0 (1 KiB
+  1.08x, 16 KiB 0.99x; one 172 outlier in v1.2.0's 1 KiB), so what §5's
+  cause 1 cost the Macs (the extra free work, and the 16 KiB fetch-width
+  step) does not show on Zen 2; the fix is at 1.00x.
+- **xlat**: the quadratic v1.1.0 fill is 400–2000x off, as on the Macs; the
+  fix is slightly ahead of v1.2.0 in rate (2.04–2.16 against 1.97–2.06 M/s)
+  and p99.9.  The maximum of both is 0.2–0.8 ms, against ~15 us on the M5
+  Ultra with no pinning — not looked into (THP is `always` on these nodes;
+  the producer and consumer are pinned to CPUs 0 and 1).
+
+Provenance (job B; the others differ in date, job, node and params):
+
+    date      2026-10-11T08:41:25Z
+    host      c15u01n2
+    kernel    Linux 4.18.0-372.9.1.el8.x86_64 x86_64
+    cpu       AMD EPYC 7702 64-Core Processor, 128 cpus, 8 NUMA nodes
+    thp       [always] madvise never
+    governor  n/a
+    libc      ldd (GNU libc) 2.28
+    slurm     job 3111785, partition i8cpu, node c15u01n2
+    benches   /home/k0797/k079700/kame/kamepoolalloc @ 9f4cdc8be, /home/k0797/k079700/llvm-install/bin/clang++ (clang version 18.1.8)
+    arm       kp-v1.1.0: /home/k0797/k079700/kame-claude/bench-ab/kp-v1.1.0/out/libkamepoolalloc.so (605504 B, sha256 254863f27cec6dac, commit a26213a, built by /home/k0797/k079700/llvm-install/bin/clang++)
+    arm       kp-v1.2.0: /home/k0797/k079700/kame-claude/bench-ab/kp-v1.2.0/out/libkamepoolalloc.so (826480 B, sha256 c8ed4f197b189c84, commit f9cd8ed, built by /home/k0797/k079700/llvm-install/bin/clang++)
+    arm       kp-tree: /home/k0797/k079700/kame-claude/bench-ab/kp-tree/out/libkamepoolalloc.so (806344 B, sha256 1bd4427d511261ca, tree /home/k0797/k079700/kame/kamepoolalloc at 9f4cdc8be, built by /home/k0797/k079700/llvm-install/bin/clang++)
+    mbench    /home/k0797/k079700/mimalloc-bench @ 941c265, binaries in /home/k0797/k079700/mimalloc-bench/out/bench
+    params    reps=5 threads="4 16 64" only="xmalloc larson" quick=0 xlat="1024x200000 1024x1000000 3000x200000" xlat_cpu=0,1 loop_iters=20000000
+
+| job | slurm job | node | start (UTC) | `--only` / `--xlat` / reps |
+|---|---|---|---|---|
+| A | 3111782 | c15u01n1 | 08:37 | loop xthread |
+| B | 3111785 | c15u01n2 | 08:41 | xmalloc larson |
+| C | 3111789 | c15u01n1 | 08:52 | rptest |
+| D1 | 3111793 | c15u01n1 | 09:10 | xlat, 1024x200000 3000x200000 |
+| D2 | 3111795 | c15u01n2 | 09:15 | xlat, 1024x1000000, 3 reps |
+| D3 | 3111807 | c15u01n1 | 09:31 | xlat, 1024x1000000, 2 reps |
+
+The results directories are `~/kame-claude/bench-ab/results-*` on Ohtaka;
+the job logs, wrappers and the merged `summary-all.md` are in
+`~/kame-claude/bench-ab/jobs/`.
