@@ -392,15 +392,15 @@ committed test that reaches them on Linux: `flush` (`:878`) the 32 B test,
 the FS=false direct store (`:2010`) the var test and `--mid`, and
 `push_direct` (`:815`) `--mid` alone.  HEAD is 0 throughout.
 
-## 11. master 67731ae49 (`kame_pool_rt_drain()` keeps the prewarmed caches)
+## 11. master 67731ae56 (`kame_pool_rt_drain()` keeps the prewarmed caches)
 
-67731ae49 splits the old `kame_pool_rt_drain()` in two: `rt_drain` now settles
+67731ae56 splits the old `kame_pool_rt_drain()` in two: `rt_drain` now settles
 only the parked large-tier unmaps, and the new `kame_pool_trim()` also empties
 this thread's L1 and the global L2 — where `kame_pool_prewarm()` keeps the
 working set above the chunk pool — so a realtime section after a per-cycle
 drain no longer maps again.  `bench_rt_wcet` now drains every iteration and
 fails on forced releases and on any mapping beyond the band's expected ones.
-Same container and six trees as §9–§10, rebuilt at 67731ae49.
+Same container and six trees as §9–§10, rebuilt at 67731ae56.
 
 | check | result |
 |---|---|
@@ -411,11 +411,11 @@ Same container and six trees as §9–§10, rebuilt at 67731ae49.
 | ctest i586 release / asserts | 44/45 each: `transaction_wait_budget_test` under `ctest -j3`; alone 6/6 PASS (3 per tree) — the §3 load artifact |
 
 The fix, A/B'd with **one** `bench_rt_wcet` binary per tree (built at
-67731ae49, which calls only `rt_drain`) against its own library and against the
+67731ae56, which calls only `rt_drain`) against its own library and against the
 3d7fc84e2 library (`LD_LIBRARY_PATH` over its RUNPATH; `ldd` recorded in each
 log), interleaved:
 
-| run | 67731ae49 library | 3d7fc84e2 library |
+| run | 67731ae56 library | 3d7fc84e2 library |
 |---|---|---|
 | default, LP64 / i586 / i486, 3 each | **rt_violations=0**, PASSED ×9 | **rt_violations=1600**, FAILED ×9 ("the realtime arm made 1600 new mapping(s) despite prewarming") |
 | `--rt-os-policy 3`, LP64 | PASSED, 0 | **SIGABRT** (exit 134): "RT violation — large-tier mmap from a realtime thread (KAME_RT_OS_ABORT)" |
