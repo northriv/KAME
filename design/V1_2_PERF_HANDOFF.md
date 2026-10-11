@@ -2,8 +2,9 @@
 
 Started 2026-10-10 on a MacBook Air M3.  The regressions reproduced on the
 M5 Ultra (§4.1); their causes and the fix are in §5 (2026-10-11), which
-measures at or above v1.1.0 on every workload here.  **Open:** Ohtaka (§4),
-and the pin decision at the end of §4.  Append results here.
+measures at or above v1.1.0 on every workload here, and so it does on the M3
+(§6).  **Open:** the Linux validation and Ohtaka (§4), and the pin decision
+at the end of §4.  Append results here.
 
 ## 1. Summary
 
@@ -255,3 +256,60 @@ xthread w4 is the one row below v1.2.0 (0.97x, ranges nearly touching).
     arm       fix: /Users/ssp/bench-ab/arms/final/out/libkamepoolalloc.dylib (685208 B, sha256 6f14cba89be3459c)
     mbench    /Users/ssp/bench-ab/mimalloc-bench @ 69c41ed, binaries in /Users/ssp/bench-ab/mbench-build
     params    reps=5 threads="4 8" only="loop xthread xmalloc larson rptest xlat" quick=0 xlat="1024x200000 1024x1000000 3000x200000" xlat_cpu=none loop_iters=20000000
+
+## 6. The fix on the M3 (2026-10-11)
+
+`2e8f940fd` (master) built with the same recipe, Apple clang 17.0.0 on the
+MacBook Air M3 of §3 (macOS 26.7, AC power), as a third arm.
+
+The single-thread churn of §5 (`replace1`: 5000 live blocks, each iteration
+frees a random one and allocates a replacement; M ops/s / chunks live at the
+end; maximum RSS was v1.1.0's in every row):
+
+| sizes | v1.1.0 | v1.2.0 | fix |
+|---|---|---|---|
+| 400..1000 B | 131 / 29 | 83 / 266 | 127 / 29 |
+| 8..1000 B | 128 / 33 | 84 / 227 | 132 / 33 |
+| 1500..3000 B | 86.5 / 39 | 74.8 / 300 | 86.5 / 39 |
+| 700 B | 334 / 31 | 271 / 31 | 331 / 31 |
+| 1024 B | 290 / 38 | 262 / 38 | 300 / 38 |
+
+`bench_ab.sh --threads "2 4" --xlat "1024x200000 3000x200000"`, 5
+repetitions (the 1 M live configuration left out: v1.1.0 takes over a
+minute per run of it there):
+
+| bench | config | metric | v1.1.0 | v1.2.0 | v1.2.1c | v1.2.0 / v1.1.0 | v1.2.1c / v1.1.0 |
+|---|---|---|---|---|---|---|---|
+| loop | 64B | Mops ↑ | 699 (414–752) | 746 (558–749) | 742 (599–760) | 1.07× | 1.06× |
+| loop | 1024B | Mops ↑ | 499 (418–506) | 443 (441–450) | 537 (513–538) | 0.89× | 1.08× |
+| loop | 16384B | Mops ↑ | 576 (422–580) | 502 (501–505) | 579 (546–580) | 0.87× | 1.01× |
+| xthread | w2,1KiB | Mfree ↑ | 16.4 (15.7–16.5) | 47.6 (36.7–90.5) | 53.0 (35.1–86.5) | 2.90× | 3.23× |
+| xmalloc | w2 | Mfree ↑ | 156 (154–157) | 153 (149–157) | 157 (155–161) | 0.98× | 1.01× |
+| larson | t2 | Mops ↑ | 61.3 (59.9–61.5) | 41.7 (39.9–42.3) | 64.4 (62.2–65.6) | 0.68× | 1.05× |
+| rptest | t2 | Mops_cpu ↑ | 4.2 (3.94–4.69) | 4.18 (3.87–4.94) | 4.1 (3.8–5.05) | 1.00× | 0.98× |
+| xthread | w4,1KiB | Mfree ↑ | 20.2 (19.6–21.4) | 39.8 (35.8–43.9) | 39.1 (36.5–43.6) | 1.96× | 1.93× |
+| xmalloc | w4 | Mfree ↑ | 267 (255–279) | 269 (261–272) | 271 (244–285) | 1.01× | 1.02× |
+| larson | t4 | Mops ↑ | 105 (103–111) | 77.0 (75.0–80.7) | 120 (115–125) | 0.73× | 1.14× |
+| rptest | t4 | Mops_cpu ↑ | 4.06 (3.37–4.17) | 4.03 (3.59–4.35) | 3.88 (3.39–4.33) | 0.99× | 0.96× |
+| xlat | 1024Bx200000 | rate_M ↑ | 0.022 (0.02–0.025) | 6.51 (5.33–6.82) | 6.99 (5.77–7.11) | 296.05× | 317.55× |
+| xlat | 1024Bx200000 | med_ns ↓ | 43333 (40042–49916) | 83.0 (42.0–125) | 42.0 (42.0–125) | 0.00× | 0.00× |
+| xlat | 1024Bx200000 | p999_ns ↓ | 79416 (73958–259708) | 459 (250–833) | 333 (250–625) | 0.01× | 0.00× |
+| xlat | 1024Bx200000 | max_ns ↓ | 144250 (113708–140448459) | 44667 (5334–136958) | 14459 (5167–40917) | 0.31× | 0.10× |
+| xlat | 3000Bx200000 | rate_M ↑ | 0.007 (0.007–0.007) | 4.49 (3.97–6.13) | 5.33 (4.8–5.7) | 642.00× | 760.86× |
+| xlat | 3000Bx200000 | med_ns ↓ | 135959 (133958–141959) | 125 (42.0–166) | 42.0 (42.0–84.0) | 0.00× | 0.00× |
+| xlat | 3000Bx200000 | p999_ns ↓ | 232959 (223250–832041) | 375 (292–1167) | 375 (250–959) | 0.00× | 0.00× |
+| xlat | 3000Bx200000 | max_ns ↓ | 341500 (279333–3636458) | 22792 (7625–146958) | 41209 (5667–123917) | 0.07× | 0.12× |
+
+rptest is the one row under v1.1.0 (0.96-0.98x), within ranges that
+overlap almost entirely; v1.2.0 sits at the same level.  The full ctest
+tree passes, 43/43 (Release), and `tools/audit/run_audits.sh` is clean --
+its no-DCAS i486 probes skip on macOS, so they are still to run on Linux.
+
+Read for the FL_UNTRACKED marker: every free path that can push onto a
+marked head -- the lean, off-lean and cold frees, FS=true and both FS=false
+tiers -- tests bit 0 of the head it loaded and rewrites the slot's next to
+nullptr before anything can pop it; the shortcut is only ever aimed by
+`fl_retarget` (which clears a mark on the cell it aims at), by the
+borrow-tier follow (the cell it just pushed onto) or at nullptr; and the
+exit drain treats the marker as empty.  The §walk and §fl-scan cursors are
+moved off a chunk the empty-neighbour release unlinks and reset at exit.
