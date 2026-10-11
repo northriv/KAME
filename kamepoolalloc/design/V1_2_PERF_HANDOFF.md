@@ -100,11 +100,16 @@ likely cost — not yet checked in the disassembly.
 
       CC=~/llvm-install/bin/clang CXX=~/llvm-install/bin/clang++ \
         ~/kame/kamepoolalloc/tests/bench/bench_ab.sh --build-only \
-        --work ~/kame-claude/bench-ab --mbench ~/mimalloc-bench
-      srun -p i8cpu --time=02:00:00 --exclusive \
+        --work ~/kame-claude/bench-ab --mbench ~/mimalloc-bench \
+        --tags v1.1.0,v1.2.0,tree
+      srun -p i8cpu --time=03:00:00 --exclusive \
         ~/kame/kamepoolalloc/tests/bench/bench_ab.sh --run-only \
         --work ~/kame-claude/bench-ab --mbench ~/mimalloc-bench \
-        --threads "4 16 64" --xlat-cpu 0,1
+        --tags v1.1.0,v1.2.0,tree --threads "4 16 64" --xlat-cpu 0,1
+
+  (`tree` is the checkout's kamepoolalloc/, i.e. the fix of §5 on master.
+  Before 2026-10-11 the default compared v1.1.0 with v1.2.0 and left the fix
+  out.)
 
 Then: whether to move the mimalloc-bench pin to v1.2.0 now for the
 use-after-free, or to fix these first and pin v1.2.1.

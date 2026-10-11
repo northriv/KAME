@@ -97,8 +97,10 @@ with `--build-dir`.
 ### A/B of two builds (`bench_ab.sh`)
 
 `bench_ab.sh` compares allocator builds rather than allocators: by default
-kamepoolalloc `v1.1.0` against `v1.2.0`, each cloned at its tag and built
-with mimalloc-bench's recipe.  Every workload runs as ONE binary with the arm
+kamepoolalloc `v1.1.0` against this checkout's `kamepoolalloc/` (`tree`, e.g.
+master), both built with mimalloc-bench's recipe -- a tag from a clone of the
+standalone repo, the tree in place, rebuilt every run and recorded with its
+commit.  `--tags v1.1.0,v1.2.0,tree` adds the release in between.  Every workload runs as ONE binary with the arm
 switched by preload, each repetition runs every arm back to back, and the arm
 order alternates between repetitions, so drift in machine state cancels
 instead of landing on one arm.  It runs `bench_loop` (the single-thread

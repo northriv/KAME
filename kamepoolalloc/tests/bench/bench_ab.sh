@@ -2,7 +2,9 @@
 # bench_ab.sh — interleaved A/B of allocator builds: one binary per
 # workload, the arm switched by preload (LD_PRELOAD / DYLD_INSERT_LIBRARIES).
 # Made for release comparisons — by default kamepoolalloc v1.1.0 against
-# v1.2.0, each built from its tag with the recipe mimalloc-bench uses.
+# this checkout's kamepoolalloc/ ("tree", e.g. master), both built with the
+# recipe mimalloc-bench uses: a tag from a clone of the standalone repo, the
+# tree in place.
 #
 # Every repetition runs each workload under every arm back to back, and the
 # arm order alternates between repetitions, so drift in machine state
@@ -20,12 +22,15 @@
 #            live blocks — median / p99.9 / max ns, and the rate
 #
 # Usage:
-#   bench_ab.sh [--tags v1.1.0,v1.2.0] [--arm NAME=LIB]... [--reps N]
+#   bench_ab.sh [--tags v1.1.0,tree] [--arm NAME=LIB]... [--reps N]
 #               [--threads "2 4"] [--only "loop xthread ..."] [--quick]
 #               [--work DIR] [--mbench DIR] [--xlat "1024x200000 ..."]
 #               [--xlat-cpu P,C] [--jobs N] [--build-only | --run-only]
 #
-#   --tags     kamepoolalloc tags to build as arms ("" for none)
+#   --tags     kamepoolalloc tags to build as arms; "tree" is this checkout's
+#              kamepoolalloc/, rebuilt every run, its commit in provenance.txt
+#              (with "-dirty" when kamepoolalloc/ has uncommitted changes);
+#              "" for none.  E.g. --tags v1.1.0,v1.2.0,tree
 #   --arm      an extra arm; LIB empty means no preload (the system malloc),
 #              e.g. --arm sys=  --arm mi=/path/libmimalloc.so
 #   --reps     repetitions (default 5; 1 with --quick)
@@ -70,7 +75,7 @@ esac
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 KPA_DIR=$(cd -- "$SCRIPT_DIR/../.." && pwd)
 
-TAGS="v1.1.0,v1.2.0"
+TAGS="v1.1.0,tree"
 EXTRA_ARMS=()
 REPS=""
 THREADS="2 4"
@@ -150,6 +155,15 @@ NARMS=${#ARM_NAMES[@]}
 # ---- build -------------------------------------------------------------
 build_kp_tag() {
     local tag=$1 dir="$WORK/kp-$1" blog="$WORK/kp-$1.log"
+    if [ "$tag" = tree ]; then
+        # In place, every run: the tree changes, a tag does not.
+        log "kp tree: build $KPA_DIR"
+        cmake -S "$KPA_DIR" -B "$dir/out" -DCMAKE_BUILD_TYPE=Release \
+              -DKAMEPOOLALLOC_BUILD_TESTS=OFF >"$blog" 2>&1 \
+            && cmake --build "$dir/out" --parallel "$JOBS" >>"$blog" 2>&1 \
+            || die "building the tree failed, see $blog"
+        return 0
+    fi
     if [ -f "$dir/out/libkamepoolalloc.$EXT" ]; then
         log "kp $tag: already built"
         return 0
@@ -294,7 +308,11 @@ provenance() {
             echo "arm       ${ARM_NAMES[$i]}: no preload (system malloc)"
         else
             local extra=""
-            if [ -n "${ARM_TAGS[$i]}" ]; then
+            if [ "${ARM_TAGS[$i]}" = tree ]; then
+                local dirty=""
+                git -C "$KPA_DIR" diff --quiet HEAD -- . 2>/dev/null || dirty="-dirty"
+                extra=", tree $KPA_DIR at $(git -C "$KPA_DIR" rev-parse --short HEAD 2>/dev/null)$dirty, built by $(cmake_compiler "$WORK/kp-tree/out")"
+            elif [ -n "${ARM_TAGS[$i]}" ]; then
                 extra=", commit $(git -C "$WORK/kp-${ARM_TAGS[$i]}" rev-parse --short HEAD 2>/dev/null), built by $(cmake_compiler "$WORK/kp-${ARM_TAGS[$i]}/out")"
             fi
             echo "arm       ${ARM_NAMES[$i]}: $lib ($(wc -c <"$lib" | tr -d ' ') B, sha256 $(sha256 "$lib")$extra)"
