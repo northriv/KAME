@@ -621,17 +621,23 @@ int main(int argc, char *argv[]) {
     //! `KAME_RT_DEFER` stops every thread's `free()` from entering the kernel:
     //! chunk page-reclaim is skipped (the chunk stays immediately recyclable,
     //! its pages just stay warm) and a large-tier `munmap` is parked, bounded
-    //! by `kame_pool_set_rt_pending_cap`.  All of that sits on cold release
-    //! paths, so it costs nothing measurable, and it removes the spikes §30
-    //! cannot reach — the ones a live thread's own free can still produce.
-    //! Measured on the band the recycle cache cannot absorb (> 256 MiB):
-    //! free median 128 ns vs 20,480 ns, max 792 ns vs 677,917 ns.
+    //! by `kame_pool_set_rt_pending_cap` (default 1 GiB).  All of that sits on
+    //! cold release paths, so it costs nothing measurable, and it removes the
+    //! spikes §30 cannot reach — the ones a live thread's own free can still
+    //! produce.  Measured on the band the recycle cache cannot absorb
+    //! (> 256 MiB) with the backlog drained every cycle, M5 Ultra: free median
+    //! 192 ns vs 16,384 ns, max 709 ns vs 54,208 ns.
     //!
-    //! Nothing drains the parked backlog here, deliberately: KAME has no
-    //! natural "trough" like a control loop's inter-cycle gap, the cap bounds
-    //! the VA, and any non-realtime large free settles one parked block on its
-    //! way out.  A driver that wants a hard bound can call
-    //! `kame_pool_rt_drain()` between acquisitions.
+    //! Nothing drains the backlog here, deliberately: KAME has no natural
+    //! "trough" like a control loop's inter-cycle gap.  Nor does anything else
+    //! settle it -- that would be a non-realtime thread's large free, one
+    //! parked block each, and with DEFER as the process-wide default there are
+    //! no such threads.  So once 1 GiB is parked it stays parked, and every
+    //! later free of that band unmaps inline, at the default's cost, counted
+    //! by `kame_pool_rt_forced_releases()`.  A driver that needs the bound to
+    //! hold can call `kame_pool_rt_drain()` between acquisitions: it settles
+    //! the parked unmaps and leaves the recycle caches, the warm working set,
+    //! alone (`kame_pool_trim()` is what empties them).
     //!
     //! `KAME_RT_STRICT` is deliberately NOT enabled — this is not an oversight
     //! to be "completed" later.  It additionally drops the cross-thread
