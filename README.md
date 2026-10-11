@@ -90,7 +90,9 @@ this library.
   standalone dynamic library (`-DKAMEPOOLALLOC_DYLIB`) on macOS, the pool also
   interposes the full `malloc` family by default, so it works as a real
   `DYLD_INSERT_LIBRARIES=libkamepoolalloc.dylib` drop-in like mimalloc / jemalloc
-  — every `malloc`/`free`/`realloc` in the host process routes through the pool.
+  — every `malloc` / `calloc` / `realloc` / `posix_memalign` / `aligned_alloc` /
+  `free` in the host process routes through the pool.  (Up to v1.2.x `calloc`,
+  `posix_memalign` and `aligned_alloc` were left to libsystem.)
   A `malloc_size` co-interpose returns the true capacity of pool pointers, which
   is what makes this Swift- and Objective-C-safe (the Swift runtime's
   `__StringStorage` and ObjC class realization query `malloc_size`; an allocator
@@ -144,7 +146,7 @@ Alpine/musl** (the mimalloc-bench CI matrix).  Requires a host with `mmap`
 
 | Toolchain | Live pool | Notes |
 |---|---|---|
-| macOS clang (x86-64 / arm64) | ✅ default | `__DATA,__interpose` `free` redirect; dylib build also interposes the full `malloc` family + `malloc_size` by default (Swift/ObjC-safe drop-in), opt out with `-DKAMEPOOLALLOC_CONSERVATIVE_INTERCEPT`; primary target |
+| macOS clang (x86-64 / arm64) | ✅ default | `__DATA,__interpose` `free` redirect; dylib build also interposes `malloc` / `calloc` / `posix_memalign` / `aligned_alloc` + `malloc_size` by default (Swift/ObjC-safe drop-in), opt out with `-DKAMEPOOLALLOC_CONSERVATIVE_INTERCEPT`; primary target |
 | Linux gcc/clang (x86-64, 32-bit), **glibc & musl** | ✅ default | strong-symbol redirect of the full family — `free` / `malloc` / `calloc` / `realloc` / `reallocarray` and the aligned set (`memalign` / `posix_memalign` / `aligned_alloc`); on musl the aligned/teardown paths get explicit handling (musl implements `memalign` on the public `malloc`, and frees TLS during `__pthread_tsd_run_dtors`).  mimalloc-bench CI runs the full suite (incl. rptest / rocksdb) crash-free (`signal 11` = 0) on **Ubuntu, Fedora, and Alpine/musl**; primary CI target |
 | Windows **MinGW64 + lld** | ✅ default | §31 free-family IAT redirect lets the pool coexist with Qt / libc++ (PE/COFF has no cross-module `operator new` interposition); verified on-target with Qt 6.10.1 |
 | Windows **MSVC** (cl) | ✅ default | runs the full live pool — the `_MSC_VER` shim in `allocator_prv.h` bridges the GCC-isms (`_Interlocked*` atomics, `<intrin.h>` bit-scan / overflow, static-init constructor hook) and the §31 redirect handles Qt/CRT coexistence; opt OUT with `KAME_DISABLE_POOL_MSVC` |
@@ -246,7 +248,8 @@ An independent run of the contention-heavy multi-thread benches from
 [mimalloc-bench](https://github.com/daanx/mimalloc-bench) on the M5 Ultra:
 10 threads (its performance cores), median of 5 via
 `tests/bench/bench_ab.sh`, mimalloc 3.3.2 / jemalloc 5.3.0, kame at
-`2e8f940fd` (`design/README_BENCH_M5.md` §2).
+`2e8f940fd` (`design/README_BENCH_M5.md` §2); rptest re-measured once the
+dylib also interposed `calloc` / `posix_memalign` (§2.1).
 
 The suite carries kamepoolalloc upstream as **`kp`**, so nothing here has to
 be taken on trust — the same comparison is two commands on any Linux host:
@@ -260,15 +263,16 @@ be taken on trust — the same comparison is two commands on any Linux host:
 |--------------------|--------|----------|----------|-------|
 | xmalloc-test       |    249 |  **501** |      400 |   489 |
 | larson             |   26.1 |      222 |  **425** |   267 |
-| rptest             |   2.69 |     5.36 | **5.78** |  2.40 |
+| rptest             |   2.64 |     5.77 |     6.20 | **6.29** |
 
 On `xmalloc-test` — one thread allocates, another frees, the STM Snapshot
 handoff that is kame's design target — kame is level with mimalloc and ahead
 of jemalloc and system.  On `larson` it is ahead of mimalloc and ten times
 system malloc, but jemalloc leads on this machine.  On `rptest`'s mixed
-cross-thread churn the segment-based allocators lead by about 2x and kame
-sits just under system malloc — the same contention tier flagged as a weaker
-spot on x86.
+cross-thread churn kame is level with jemalloc and mimalloc, at 2.4x system
+malloc.  (rptest allocates only through `calloc` and `posix_memalign`; until
+the dylib interposed those, this row measured system malloc plus kame's
+`free` forwarding — 2.40.)
 
 **Intel Xeon E5-1630 v4 (x86-64, 4-core / 8-thread, Windows), single thread,
 M ops/s** — kame at `8f2e6980` (post hot/cold-split + 32 KiB bucket LUT +

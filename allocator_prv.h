@@ -1585,7 +1585,10 @@ public:
 	//! user pointer (= mmap_base + ALLOC_PAGE_SIZE) or nullptr if the
 	//! mmap or radix insert fails.  Caller guarantees
 	//! `size <= ALLOC_MIN_MMAP_SIZE - ALLOC_PAGE_SIZE` (one slot fit).
-	static void *allocate_large_va(std::size_t size) noexcept;
+	//! `*zeroed` (if given) is set true when the block is a fresh anonymous
+	//! mapping, i.e. already zero — `kame_calloc` then skips its memset.
+	static void *allocate_large_va(std::size_t size,
+	                               bool *zeroed = nullptr) noexcept;
 
 	//! (§19) Free a §19 large-alloc.  `p` is the user pointer; caller has
 	//! already confirmed it's a KAME_RADIX_LARGE allocation via
