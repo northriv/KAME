@@ -25,6 +25,14 @@
 // follow land on marked heads -- also on chunks inherited from an exited
 // thread, whose freelists its exit left marked.
 //
+// `--mid` draws 49..368 B instead: the FS=true classes above 48 B, whose
+// cross-thread free takes CrossDeallocBatch::push_direct (ALIGN <= 48 takes
+// the 32 B test's `push` -> `flush`), and the small FS=false classes (ALIGN
+// 32, and 256 B at ALIGN 256).  The v1.1.0 thread-exit store sat at three
+// sites; on the code before its fix the default run crashed at the FS=false
+// one only (65/2000), the 32 B test at `flush` only (12/2000), and only this
+// range reached `push_direct` (POOL_FL_AVAIL_LINUX_CHECK.md §9).
+//
 // Two checks.  An exact-address shadow table, as in the 32 B test, catches a
 // block handed out again at the same start while live.  And every block is
 // painted on allocation -- its first word carries a nonce and its size, one
@@ -41,6 +49,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -56,6 +65,8 @@ constexpr int         BURST       = 96;    // allocate-only at thread start
 constexpr int         STRAND      = 64;    // pointers freed from the TSD dtor
 constexpr std::size_t STRIDE      = 64;    // one painted word per 64 B
 
+bool g_mid = false;                        // --mid: 49..368 B
+std::size_t g_min_size = 369;
 std::atomic<std::uintptr_t> *g_shadow;
 std::atomic<void *>          g_handoff[HANDOFF];
 std::atomic<int>             g_violations{0};
@@ -75,11 +86,13 @@ std::uint64_t mix(std::uint64_t z) noexcept {     // splitmix64's finaliser
     return z ^ (z >> 31);
 }
 
-//! The size classes: every FS=false tier, the page-sized requests included.
+//! The size classes: every FS=false tier, the page-sized requests included
+//! (`--mid`: 49..368 B).
 std::size_t pick_size(unsigned &rng) noexcept {
     rng = rng * 1664525u + 1013904223u;
     unsigned r = (rng >> 8) % 100u;
     unsigned v = rng >> 4;
+    if(g_mid) return 49 + v % (368 - 49 + 1);
     if(r < 55) return 369 + v % (4352 - 369 + 1);        // borrow: ALIGN 64, 256
     if(r < 85) return 4353 + v % (17408 - 4353 + 1);     // full: ALIGN 1024
     if(r < 93) return std::size_t{4096} << (v % 3);      // ALIGN 4096, page-sized
@@ -114,7 +127,7 @@ void verify(void *p) noexcept {
     const std::uint64_t head = w[0];
     const std::size_t size = static_cast<std::size_t>(head & 0xFFFFu);
     const std::uint64_t nonce = head >> 16;
-    if(size < 369 || size > 32768) {
+    if(size < g_min_size || size > 32768) {
         // The size cannot be wrong unless word 0 was overwritten.
         fail("first word overwritten", p, size, 0, 0, head);
         return;
@@ -216,7 +229,11 @@ void worker(int seed) {
 
 } // namespace
 
-int main() {
+int main(int argc, char **argv) {
+    for(int i = 1; i < argc; ++i) {
+        if(std::string(argv[i]) == "--mid") { g_mid = true; g_min_size = 49; }
+        else { std::fprintf(stderr, "usage: %s [--mid]\n", argv[0]); return 2; }
+    }
     g_shadow = static_cast<std::atomic<std::uintptr_t> *>(
         std::calloc(SHADOW, sizeof(std::atomic<std::uintptr_t>)));
     if( !g_shadow) { std::fprintf(stderr, "FAIL: shadow calloc\n"); return 1; }
