@@ -36,7 +36,8 @@
 // Platform matrix (allocator.cpp §32 + the §31 Windows block):
 //   - Linux glibc : strong-symbol malloc/free/calloc/realloc always emitted
 //                   → plain malloc IS intercepted when the lib is linked.
-//   - macOS dylib : __DATA,__interpose, FULL by default → intercepted.
+//   - macOS dylib : __DATA,__interpose, FULL by default → intercepted
+//                   (calloc / posix_memalign / aligned_alloc since 9bb57a41f).
 //   - musl / other: NO strong-symbol malloc → plain malloc is NOT pooled
 //                   (only operator new and the kame_pool_* API are).
 //   - Windows     : USE_KAME_ALLOCATOR now defaults ON; the §31 IAT redirect
@@ -79,21 +80,26 @@ int main() {
           "oracle broken: NULL reported as pool-owned");
 
     // --- (1) Runtime probes — which libc malloc-family entries are pool-
-    //         routed on this build?  Each is independent on macOS:
+    //         routed on this build?
     //
-    //         Linux glibc strong-symbol:  malloc, calloc, realloc, free  all on
-    //         macOS dyld __interpose:     free + realloc always; malloc +
-    //                                     malloc_size under FULL_INTERCEPT only;
-    //                                     CALLOC IS DELIBERATELY NEVER INTERPOSED
-    //                                     (would break ObjC class realization —
-    //                                     see allocator.cpp §32 'calloc is
-    //                                     deliberately NOT added here' comment).
+    //         Linux glibc strong-symbol:  malloc, calloc, realloc, free and the
+    //                                     aligned set, all on
+    //         macOS dyld __interpose:     free + realloc always; malloc, calloc,
+    //                                     posix_memalign, aligned_alloc +
+    //                                     malloc_size under FULL_INTERCEPT (the
+    //                                     dylib's default).  Up to v1.2.0 calloc
+    //                                     and the aligned pair were left out --
+    //                                     a drop-in that served only malloc, so
+    //                                     rptest (calloc / posix_memalign only)
+    //                                     measured libsystem.
     //         musl-style:                 none.
-    //         Windows (§31 IAT):          free / realloc / _msize (no calloc).
+    //         Windows (§31 IAT):          free / realloc / _msize; malloc +
+    //                                     calloc with the FULL redirect, per the
+    //                                     exe's CRT linkage.
     //
-    //         So a single g_malloc_intercepted flag is wrong — each entry must
-    //         be probed independently and asserted only when its interpose
-    //         hook is actually live.
+    //         Each entry is probed and checked only where it is live -- but
+    //         outside Windows, an entry that is off while malloc is on is a
+    //         failure (step 1b).
     void *probe;
     bool malloc_intercepted, calloc_intercepted, realloc_intercepted;
     probe = malloc(64);
@@ -111,10 +117,49 @@ int main() {
     realloc_intercepted = probe && kame_pool_malloc_usable_size(probe) >= 64;
     free(probe);
 
+#if !(defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS))
+    // The aligned pair (not in the Windows CRT).
+    bool pma_intercepted, aa_intercepted;
+    probe = nullptr;
+    CHECK(posix_memalign(&probe, 64, 64) == 0 && probe != nullptr,
+          "posix_memalign(64, 64) failed");
+    pma_intercepted = probe && kame_pool_malloc_usable_size(probe) >= 64;
+    CHECK(((uintptr_t)probe & 63u) == 0, "posix_memalign result not aligned");
+    free(probe);
+
+    probe = aligned_alloc(64, 64);
+    CHECK(probe != nullptr, "aligned_alloc(64, 64) returned NULL");
+    aa_intercepted = probe && kame_pool_malloc_usable_size(probe) >= 64;
+    CHECK(((uintptr_t)probe & 63u) == 0, "aligned_alloc result not aligned");
+    free(probe);
+
+    std::printf("  [info] interception: malloc=%s calloc=%s realloc=%s "
+                "posix_memalign=%s aligned_alloc=%s\n",
+                malloc_intercepted  ? "YES" : "no",
+                calloc_intercepted  ? "YES" : "no",
+                realloc_intercepted ? "YES" : "no",
+                pma_intercepted     ? "YES" : "no",
+                aa_intercepted      ? "YES" : "no");
+
+    // --- (1b) Where malloc reaches the pool, the rest of the allocating
+    //          family must too.  Otherwise a program's malloc is the pool's
+    //          while its calloc and aligned allocations are the system
+    //          allocator's -- the macOS dylib up to v1.2.0, whose
+    //          mimalloc-bench rptest numbers measured libsystem.
+    if(malloc_intercepted) {
+        CHECK(calloc_intercepted,
+              "malloc reaches the pool but calloc does not");
+        CHECK(pma_intercepted,
+              "malloc reaches the pool but posix_memalign does not");
+        CHECK(aa_intercepted,
+              "malloc reaches the pool but aligned_alloc does not");
+    }
+#else
     std::printf("  [info] interception: malloc=%s calloc=%s realloc=%s\n",
                 malloc_intercepted  ? "YES" : "no",
-                calloc_intercepted  ? "YES" : "no  (expected on macOS — ObjC compat)",
+                calloc_intercepted  ? "YES" : "no",
                 realloc_intercepted ? "YES" : "no");
+#endif
 
     // --- (2) Pool-routed malloc-family entries: full correctness checks. --
     if(malloc_intercepted) {
