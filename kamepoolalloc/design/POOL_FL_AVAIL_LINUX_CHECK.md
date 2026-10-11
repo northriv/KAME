@@ -3,9 +3,9 @@
 > **On master:** the branch validated here landed as §revive (`39edad5a9`) and
 > §group (`bd7875d06`); §6 is the run on that head, §7 on the v1.2.0 code
 > (`8dbc7d902`) and §8 on the fix of its regressions (`2e8f940fd`, the v1.2.1
-> candidate), and §9 the thread-teardown stress test it was given.  This record
-> was brought over from `claude/great-turing-Ufao2` (`9e08cb95f`; §7 and §8
-> from `7ac5f6bc6`, §9 from `3f7f78934`).  `kamestm/tests/
+> candidate), and §9-§10 the thread-teardown stress tests it was given.  This
+> record was brought over from `claude/great-turing-Ufao2` (`9e08cb95f`; §7 and
+> §8 from `7ac5f6bc6`, §9 from `3f7f78934`, §10 from `498413dd1`).  `kamestm/tests/
 > tmin_dynnode.cpp`, cited in §4.3, belongs to the dynnode investigation and
 > stays on that branch.
 
@@ -361,8 +361,7 @@ Not changed here.
 force-walk sites are now reached by a committed test.  On the M3: HEAD 0/1000;
 the three faults injected into 2e8f940fd's new state (exit drain keeps a
 freelist, a marked head's `next` left unfixed, a marked cell aimed at) are
-caught 20/20 each in either mode.  Its run against 872d89030 on Linux, for
-the record of the `push_direct` hits, is still to do.
+caught 20/20 each in either mode.  Its Linux run, old code included, is §10.
 
 ## 10. `--mid` (`alloc_tsd_exclusivity_mid_test`, master 3d7fc84e2)
 
@@ -392,3 +391,36 @@ exited.  With §9 the three force-walk sites of the old code each have a
 committed test that reaches them on Linux: `flush` (`:878`) the 32 B test,
 the FS=false direct store (`:2010`) the var test and `--mid`, and
 `push_direct` (`:815`) `--mid` alone.  HEAD is 0 throughout.
+
+## 11. master 67731ae49 (`kame_pool_rt_drain()` keeps the prewarmed caches)
+
+67731ae49 splits the old `kame_pool_rt_drain()` in two: `rt_drain` now settles
+only the parked large-tier unmaps, and the new `kame_pool_trim()` also empties
+this thread's L1 and the global L2 — where `kame_pool_prewarm()` keeps the
+working set above the chunk pool — so a realtime section after a per-cycle
+drain no longer maps again.  `bench_rt_wcet` now drains every iteration and
+fails on forced releases and on any mapping beyond the band's expected ones.
+Same container and six trees as §9–§10, rebuilt at 67731ae49.
+
+| check | result |
+|---|---|
+| builds, six trees | all clean |
+| no-DCAS audit | 3/3 ok (`kame_pool_trim` adds no 64-bit atomic) |
+| ctest LP64 release / asserts | 45/45, 45/45 |
+| ctest i486 release / asserts | 38/38, 38/38 |
+| ctest i586 release / asserts | 44/45 each: `transaction_wait_budget_test` under `ctest -j3`; alone 6/6 PASS (3 per tree) — the §3 load artifact |
+
+The fix, A/B'd with **one** `bench_rt_wcet` binary per tree (built at
+67731ae49, which calls only `rt_drain`) against its own library and against the
+3d7fc84e2 library (`LD_LIBRARY_PATH` over its RUNPATH; `ldd` recorded in each
+log), interleaved:
+
+| run | 67731ae49 library | 3d7fc84e2 library |
+|---|---|---|
+| default, LP64 / i586 / i486, 3 each | **rt_violations=0**, PASSED ×9 | **rt_violations=1600**, FAILED ×9 ("the realtime arm made 1600 new mapping(s) despite prewarming") |
+| `--rt-os-policy 3`, LP64 | PASSED, 0 | **SIGABRT** (exit 134): "RT violation — large-tier mmap from a realtime thread (KAME_RT_OS_ABORT)" |
+| `--pressure`, LP64 | PASSED: 800 mappings, all expected (the > LRC_HI band cannot be cached); deferred_unmaps=800, forced_releases=0 | FAILED: 2400 = the 800 expected + 1600 |
+
+Every number matches the commit's (1,600 violations with the per-cycle drain;
+800 of 800 large frees deferred, none forced).  A latency comparison is not
+made here — a shared 4-vCPU VM is not a host for one.
