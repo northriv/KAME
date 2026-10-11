@@ -15,6 +15,8 @@
 #            (the single-thread hot path)
 #   xthread  bench_xthread -w N -s 1024                             M frees/s
 #   xmalloc  mimalloc-bench xmalloc-test -w N -s 64                 M frees/s
+#            (--xmalloc-sizes: other object sizes; the bench's default is 1024)
+#   mstress  mimalloc-bench mstress N 50 50 (not in the default set)  wall s
 #   larson   mimalloc-bench larson ... N                            M ops/s
 #   rptest   mimalloc-bench rptest N 0 1 2 500 1000 100 8 16000     M ops/CPU-s
 #   xlat     bench_xlatency: producer malloc latency while a consumer frees
@@ -25,7 +27,8 @@
 #   bench_ab.sh [--tags v1.1.0,tree] [--arm NAME=LIB]... [--reps N]
 #               [--threads "2 4"] [--only "loop xthread ..."] [--quick]
 #               [--work DIR] [--mbench DIR] [--xlat "1024x200000 ..."]
-#               [--xlat-cpu P,C] [--jobs N] [--build-only | --run-only]
+#               [--xlat-cpu P,C] [--xmalloc-sizes "64 ..."] [--jobs N]
+#               [--build-only | --run-only]
 #
 #   --tags     kamepoolalloc tags to build as arms; "tree" is this checkout's
 #              kamepoolalloc/, rebuilt every run, its commit in provenance.txt
@@ -42,6 +45,8 @@
 #              are used if built, else its sources (default: a fresh clone)
 #   --xlat     bench_xlatency configurations, SIZExLIVE
 #   --xlat-cpu pin bench_xlatency's producer and consumer (Linux only)
+#   --xmalloc-sizes  xmalloc-test object sizes, one config each (default 64,
+#              as mimalloc-bench's bench.sh runs it)
 #   --jobs     build parallelism (default: min(cpus, 8))
 #
 # Results land in WORK/results-HOST-TIME/: raw.tsv (every run),
@@ -85,6 +90,7 @@ WORK="$PWD/bench-ab"
 MBENCH=""
 XLAT_CONFIGS=""
 XLAT_CPU=""
+XM_SIZES="64"
 JOBS=""
 MODE=all
 KP_URL=https://github.com/northriv/kamepoolalloc
@@ -105,6 +111,7 @@ while [ $# -gt 0 ]; do
         --mbench)     MBENCH="$2"; shift 2 ;;
         --xlat)       XLAT_CONFIGS="$2"; shift 2 ;;
         --xlat-cpu)   XLAT_CPU="$2"; shift 2 ;;
+        --xmalloc-sizes) XM_SIZES="$2"; shift 2 ;;
         --jobs)       JOBS="$2"; shift 2 ;;
         --build-only) MODE=build; shift ;;
         --run-only)   MODE=run; shift ;;
@@ -193,12 +200,24 @@ build_benches() {
 
 # Sets MB_BIN (and MB_SRC for provenance).  With $1 = build, builds what is
 # missing; otherwise only locates.
+mb_progs() {   # the mimalloc-bench programs the selected workloads run
+    local p=""
+    wants xmalloc && p="$p xmalloc-test"
+    wants larson && p="$p larson"
+    wants rptest && p="$p rptest"
+    wants mstress && p="$p mstress"
+    echo $p
+}
+mb_have() {    # dir: every program mb_progs names is built there
+    local t
+    for t in $(mb_progs); do [ -x "$1/$t" ] || return 1; done
+    return 0
+}
 mbench() {
     local blog="$WORK/mbench-build.log" t
     if [ -n "$MBENCH" ]; then
         MB_SRC="$MBENCH"
-        if [ -x "$MBENCH/out/bench/xmalloc-test" ] && [ -x "$MBENCH/out/bench/larson" ] \
-           && [ -x "$MBENCH/out/bench/rptest" ]; then
+        if mb_have "$MBENCH/out/bench"; then
             MB_BIN="$MBENCH/out/bench"
             return 0
         fi
@@ -206,7 +225,7 @@ mbench() {
         MB_SRC="$WORK/mimalloc-bench"
     fi
     MB_BIN="$MB_BUILD"
-    if [ -x "$MB_BIN/xmalloc-test" ] && [ -x "$MB_BIN/larson" ] && [ -x "$MB_BIN/rptest" ]; then
+    if mb_have "$MB_BIN"; then
         return 0
     fi
     [ "$1" = build ] || return 1
@@ -215,17 +234,17 @@ mbench() {
         git clone --quiet --depth 1 "$MB_URL" "$MB_SRC" >"$blog" 2>&1 \
             || die "cloning mimalloc-bench failed, see $blog"
     fi
-    log "mimalloc-bench: build xmalloc-test, larson, rptest"
+    log "mimalloc-bench: build $(mb_progs)"
     cmake -S "$MB_SRC/bench" -B "$MB_BUILD" >>"$blog" 2>&1 \
         || die "configuring mimalloc-bench failed, see $blog"
-    for t in xmalloc-test larson rptest; do
+    for t in $(mb_progs); do
         cmake --build "$MB_BUILD" --target "$t" --parallel "$JOBS" >>"$blog" 2>&1 \
             || die "building $t failed, see $blog"
     done
 }
 
 wants() { case " $ONLY " in *" $1 "*) return 0 ;; esac; return 1; }
-need_mbench() { wants xmalloc || wants larson || wants rptest; }
+need_mbench() { wants xmalloc || wants larson || wants rptest || wants mstress; }
 
 if [ "$MODE" != run ]; then
     for i in $(seq 0 $((NARMS - 1))); do
@@ -335,9 +354,14 @@ if wants loop; then
 fi
 for n in $THREADS; do
     wants xthread && add_job xthread "w$n,1KiB" "$BENCH_BIN/bench_xthread" -w "$n" -s 1024 -t "$XT_SECS"
-    wants xmalloc && add_job xmalloc "w$n" "$MB_BIN/xmalloc-test" -w "$n" -t "$XT_SECS" -s 64
+    if wants xmalloc; then
+        for sz in $XM_SIZES; do
+            add_job xmalloc "w$n,${sz}B" "$MB_BIN/xmalloc-test" -w "$n" -t "$XT_SECS" -s "$sz"
+        done
+    fi
     wants larson  && add_job larson "t$n" "$MB_BIN/larson" "$LARSON_SECS" 8 1000 5000 100 4141 "$n"
     wants rptest  && add_job rptest "t$n" "$MB_BIN/rptest" "$n" 0 1 2 "$RPT_LOOPS" 1000 100 8 16000
+    wants mstress && add_job mstress "t$n" "$MB_BIN/mstress" "$n" 50 50
 done
 if wants xlat; then
     for c in $XLAT_CONFIGS; do
@@ -366,6 +390,18 @@ parse() {
                      | head -1 | awk '{ printf "Mops_cpu %.3f\n", $1 / 1e6 }' ;;
         xlat)    grep '^\[bench_xlatency\]' "$2" | head -1 | tr ' ' '\n' | awk -F= '
                      $1 == "med_ns" || $1 == "p999_ns" || $1 == "max_ns" || $1 == "rate_M" { print $1, $2 }' ;;
+        mstress) sed -n 's/^wall_s \([0-9.]*\)$/wall_s \1/p' "$2" | tail -1 ;;
+    esac
+}
+
+# Seconds since the epoch, sub-millisecond: bash 5's EPOCHREALTIME, GNU date,
+# or perl (macOS: bash 3.2, BSD date).
+now_s() {
+    if [ -n "${EPOCHREALTIME:-}" ]; then echo "${EPOCHREALTIME/,/.}"; return; fi
+    local t; t=$(date +%s.%N 2>/dev/null)
+    case "$t" in
+        *N*|"") perl -MTime::HiRes=time -e 'printf "%.6f\n", time' ;;
+        *) echo "$t" ;;
     esac
 }
 
@@ -390,8 +426,15 @@ for rep in $(seq 1 "$REPS"); do
         for a in $ORDER; do
             arm=${ARM_NAMES[$a]}
             logf="$RES/logs/r${rep}_${b}_${c//,/_}_${arm}.log"
+            # mstress reports nothing; it is timed, start to exit, as
+            # mimalloc-bench's /usr/bin/time does.
+            [ "$b" = mstress ] && t0=$(now_s)
             eval "run_one $a \"\$logf\" ${JOB_CMD[$j]}"
             rc=$?
+            if [ "$b" = mstress ]; then
+                t1=$(now_s)
+                awk -v a="$t0" -v b="$t1" 'BEGIN { printf "wall_s %.4f\n", b - a }' >>"$logf"
+            fi
             status=ok; [ "$rc" = 0 ] || status="exit=$rc"
             out=$(parse "$b" "$logf")
             if [ -z "$out" ]; then
@@ -460,7 +503,8 @@ for (bench, cfg, metric), per in table.items():
     ratios = []
     for m in meds[1:]:
         ratios.append('%.2f×' % (m / meds[0]) if m is not None and meds[0] else 'n/a')
-    name = metric + (' ↓' if metric.endswith('_ns') else ' ↑')
+    lower = metric.endswith('_ns') or metric.endswith('_s')
+    name = metric + (' ↓' if lower else ' ↑')
     print('| ' + ' | '.join([bench, cfg, name] + cells + ratios) + ' |')
 PY
 else
