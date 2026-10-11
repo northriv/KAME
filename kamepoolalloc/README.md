@@ -116,10 +116,11 @@ this library.
   thread's `free()` never enters the kernel, `kame_pool_prewarm()` (which
   page-touches, unlike the allocate+free idiom), an explicit
   `kame_pool_rt_drain()`, and runtime-checkable violation counters.  Measured
-  128 ns vs 20.5 µs median free (and 792 ns vs 678 µs max) on the band where
-  the recycle cache cannot help; and on a `PREEMPT_RT` host with isolated
-  cores — quiet enough for the figure to mean something — **352 ns vs 42.4 µs
-  worst case** on cross-thread small free, bought with 1.8× on the median.
+  192 ns vs 16.4 µs median free (and 709 ns vs 54.2 µs max) on the band where
+  the recycle cache cannot help, draining once per cycle (M5 Ultra); and on a
+  `PREEMPT_RT` host with isolated cores — quiet enough for the figure to mean
+  something — **352 ns vs 42.4 µs worst case** on cross-thread small free,
+  bought with 1.8× on the median.
   Preconditions and exclusions are stated in
   [The realtime contract](#the-realtime-contract) — not implied.
 
@@ -785,7 +786,7 @@ p99.9; that is why only DEFER can be a process-wide default.
 * **Blocks above 256 MiB cannot be cached** (the recycle cache is bypassed by
   construction), so each such allocation maps and each free unmaps. Realtime
   code should not size-class there; the gate defers the *free* side, which
-  measured 128 ns vs 20.5 µs median, but the alloc side still maps.
+  measured 192 ns vs 16.4 µs median, but the alloc side still maps.
 * **Radix-leaf mappings are counted, never refused**, even under
   `KAME_RT_OS_FAIL`: a region without its leaf would route later frees of
   pointers inside it to libc `free()` — corruption, not degradation. Prewarm is
