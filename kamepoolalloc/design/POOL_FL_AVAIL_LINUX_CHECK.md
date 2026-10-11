@@ -253,3 +253,38 @@ the test's CMake note rules out ("NOT sanitizer-compatible, by
 construction"); without UBSan it passes in all six trees.
 
 Nothing regressed; the TOCTOU result holds; the UBSan vptr sites are gone.
+
+## 8. master 15a1dc312 (2e8f940fd, the v1.2 regression fix)
+
+The Linux validation `V1_2_PERF_HANDOFF.md` lists as open: 2e8f940fd
+(§fl-scan / §walk, the `FL_UNTRACKED` marker) had only run on macOS, where the
+no-DCAS i486 probes skip.  The §7 set again, fresh worktree, plus the §4.4
+growth check against 8dbc7d902 (the v1.2.0 code) instead of old master.
+
+| check | result |
+|---|---|
+| builds, six trees | all clean, no undefined reference |
+| no-DCAS audit | **3/3 ok** (the open item) |
+| ctest LP64 release / asserts | 43/43, 43/43 |
+| ctest ILP32 i586 release / asserts | 43/43, 43/43 |
+| ctest ILP32 i486 release / asserts | 36/36, 36/36 |
+| `alloc_tsd_exclusivity_test`, 2000/arm | **0 / 2000** vs old master **16 / 2000** (all SIGSEGV) |
+| thread-exit soak, 4 tests × 80/arm | 0 / 320 vs old master 0 / 320 |
+| LP64 GCC UBSan (pool on), whole tree | **0** `runtime error` lines; 41/43, the same two as §7 (`wait_budget` under load, `nosyscall_highest` vs the UBSan runtime) |
+
+Growth, 15a1dc312 against 8dbc7d902, one process at a time, interleaved, 3
+reps — `bench_xthread_pool -w 2 -t 3 -s <size>`, regions added and
+`chunks_live` at the end:
+
+| size | 15a1dc312 | 8dbc7d902 |
+|---|---|---|
+| 64 B | +2 / +2 / +2; 290–296 | +2 / +2 / +2; 291–299 |
+| 256 B | +1 / +4 / +4; 104–146 | +3 / +5 / +3; 127–140 |
+| 1024 B | +1 / +1 / +3; 106–129 | +3 / +2 / +1; 102–137 |
+
+`alloc_stress_test` (defaults): PASS ×3 both; VmHWM 197 / 200 / 193 MiB
+against 194 / 213 / 191 MiB.  No growth from the fix; the 256 B region counts
+are noisy on this box in both arms alike.
+
+Not run here: the `bench_ab.sh` performance A/B.  This is a shared 4-vCPU VM,
+not a benchmark host; the handoff's x86-64 reference is Ohtaka.
