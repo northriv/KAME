@@ -244,8 +244,9 @@ void   kame_pool_set_realtime_mode(int enable) KAMEPOOLALLOC_NOEXCEPT;
  * A thread marked realtime never enters the kernel to RETURN memory
  * from its own free() calls: the chunk madvise is skipped (pages stay
  * warm, the chunk is still immediately recyclable) and a large-tier
- * munmap is parked on a pending list.  Both are settled later by
- * kame_pool_rt_drain().  Gating is per-thread because the reclaim
+ * munmap is parked on a pending list.  kame_pool_rt_drain() settles the
+ * parked unmaps; kame_pool_trim() returns the pages too.  Gating is
+ * per-thread because the reclaim
  * syscall runs on the freeing thread, so this confines the extra RSS
  * to the realtime thread's own working set.
  *
@@ -258,8 +259,9 @@ void   kame_pool_set_realtime_mode(int enable) KAMEPOOLALLOC_NOEXCEPT;
  *       (madvise) is skipped and a large-tier munmap is parked for
  *       kame_pool_rt_drain().  All of it sits on cold release paths, so the
  *       cost is nil.  Measured benefit on the band the recycle cache cannot
- *       absorb (> 256 MiB): free median 128 ns vs 20,480 ns, max 792 ns vs
- *       677,917 ns.  This is what almost every caller wants.
+ *       absorb (> 256 MiB), M5 Ultra with an rt_drain per cycle: free median
+ *       192 ns vs 16,384 ns, max 709 ns vs 54,208 ns.  This is what almost
+ *       every caller wants.
  *
  *   KAME_RT_STRICT — additionally drops this thread's cross-thread dealloc
  *       batch to per-free flushing, so no single free inherits the batch's
@@ -398,13 +400,25 @@ void   kame_pool_rt_report_violations(unsigned long long count)
                                                  KAMEPOOLALLOC_NOEXCEPT;
 
 /*
- * Perform all reclaim work the realtime paths deferred (the mi_collect /
- * malloc_trim / arena.N.purge analogue): pending large-tier unmaps, this
- * thread's L1 recycle cache, and the global L2 cache.  Call from a
- * non-critical phase — never inside the time-critical section, since
- * this is precisely the syscall batch realtime mode exists to keep out.
+ * Settle the large-tier unmaps the realtime free paths parked.  Call it in
+ * the trough of every control cycle — never inside the time-critical
+ * section, since this is precisely the syscall batch realtime mode exists
+ * to keep out.  It keeps the backlog under the pending cap, and it leaves
+ * the recycle caches — the working set kame_pool_prewarm() built — alone,
+ * so the next section maps nothing.  (Up to v1.2.x it also emptied them,
+ * which made the section after every drain map again.)
  */
 void   kame_pool_rt_drain(void) KAMEPOOLALLOC_NOEXCEPT;
+
+/*
+ * Give back everything the allocator holds without a live owner (the
+ * mi_collect / malloc_trim / arena.N.purge analogue): the parked unmaps,
+ * this thread's L1 recycle cache and the global L2 cache, which also
+ * returns the pages of chunks a realtime free released without madvise.
+ * Whoever allocates next maps and faults that memory again, so a realtime
+ * thread prewarms again afterwards.  Never inside a critical section.
+ */
+void   kame_pool_trim(void) KAMEPOOLALLOC_NOEXCEPT;
 
 /*
  * Prewarm: allocate + page-TOUCH + free `counts[i]` blocks of `sizes[i]`

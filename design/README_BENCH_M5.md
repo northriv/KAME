@@ -123,13 +123,13 @@ round, and it runs 4 rounds — 4 × 3 = 12.  The other frees were forced inline
 releases, the cap's documented trade.  Not a v1.2 change: `34799c70d`
 (v1.2.0's code) gives the same 12 and the same 14–20 µs medians.  To show the
 gate again the harness would have to drain within a round or raise the cap
-(`kame_pool_set_rt_pending_cap`) for this band.
+(`kame_pool_set_rt_pending_cap`) for this band — done in §3.1.
 
 **`--xt 2000000` ended `FAILED`: `rt_violations=2`** — the realtime arm made
 two new mappings despite prewarming.  The measurement itself completed; the
 same 2 violations appear on every build with the default / `--full`
 arguments, master included, and were noted before this run (ctest's smaller
-arguments pass).
+arguments pass).  §3.1 found their cause: a broken guarantee, not noise.
 
 `--pressure` output:
 
@@ -237,3 +237,141 @@ arguments pass).
     rt_violations=2  deferred_reclaims=0  deferred_unmaps=0  pending_bytes=0
     FAILED: the realtime arm made 2 new mapping(s) despite prewarming
     == FAILED ==
+
+### 3.1 Re-measured with the harness and `rt_drain` fixed (2026-10-11)
+
+Two changes (`RT_READINESS.md` G7 Result 1b):
+
+- **Harness:** `kame_pool_rt_drain()` in the trough of every iteration — the
+  control cycle of `kame_pool.h`'s loop — instead of once per round; FAILED
+  on `rt_forced_releases() != 0`, and under `--pressure` on any mapping beyond
+  the > LRC_HI band's expected ones (the branch used to accept any count).
+- **Library:** `kame_pool_rt_drain()` settles only the parked unmaps.  It also
+  emptied this thread's L1 and the global recycle cache — the working set
+  `kame_pool_prewarm()` built — so the section after every drain mapped
+  again.  That was §3's `rt_violations=2` (`--rt-os-policy 3` aborts in the
+  8 MiB band: "large-tier mmap"), and with a per-cycle drain the new harness
+  against the old library reports 1,600 violations.  Emptying the caches is
+  `kame_pool_trim()` now.
+
+| Path | realtime | default |
+|---|---:|---:|
+| free, > 256 MiB band — median | **192 ns** | 16,384 ns |
+| free, > 256 MiB band — max | **709 ns** | 54,208 ns |
+| free, 32 B cross-thread — p99.9 | **128 ns** | 224 ns |
+| free, 32 B cross-thread — p99.99 | **192 ns** | 7,168 ns |
+| free, 32 B cross-thread — p99.999 | **4,096 ns** | 10,240 ns |
+
+The > 256 MiB rows are the median of three `--pressure` runs (realtime p50
+224 / 128 / 192 ns, max 11,375 / 416 / 709 ns; default p50 16,384 ns in all
+three, max 73,084 / 49,042 / 54,208 ns).  In each, `deferred_unmaps=800` of
+800, `forced_releases=0`, and `rt_violations` = exactly the 800 expected band
+mappings.  The default (smoke) run and `--xt 2000000` report
+`rt_violations=0`, also under `--rt-os-policy 3`.  All PASSED.  Full-tree
+ctest 45/45 (2× Release, 2× -O2 -g with asserts).
+
+First `--pressure` run:
+
+    == bench_rt_wcet (§75 / G7) ==
+    backend: kame_pool_malloc/free (direct)
+    mode=smoke +pressure reps=4 iters=200 interferers=3
+    pressure: added the > LRC_HI band, where the recycle cache is bypassed and frees really munmap
+    clock overhead: mean=15 max=1500 ns
+    measured-thread priority: QOS_CLASS_USER_INTERACTIVE
+
+      64 B    (bucket)
+        RT  malloc             n=51200      mean=14      p50=0 p99=42 p99.9=42  MAX=11291 ns
+        OFF malloc             n=51200      mean=13      p50=0 p99=42 p99.9=42  MAX=333 ns
+        RT  1st-touch          n=51200      mean=13      p50=0 p99=42 p99.9=42  MAX=17791 ns
+        OFF 1st-touch          n=51200      mean=13      p50=0 p99=42 p99.9=42  MAX=125 ns
+        RT  free               n=51200      mean=15      p50=0 p99=96 p99.9=128  MAX=20875 ns
+        OFF free               n=51200      mean=14      p50=0 p99=42 p99.9=128  MAX=7917 ns
+
+      4 KiB   (bucket)
+        RT  malloc             n=25600      mean=14      p50=0 p99=42 p99.9=96  MAX=8375 ns
+        OFF malloc             n=25600      mean=13      p50=0 p99=42 p99.9=96  MAX=250 ns
+        RT  1st-touch          n=25600      mean=13      p50=0 p99=42 p99.9=42  MAX=750 ns
+        OFF 1st-touch          n=25600      mean=13      p50=0 p99=42 p99.9=42  MAX=125 ns
+        RT  free               n=25600      mean=16      p50=0 p99=96 p99.9=128  MAX=9416 ns
+        OFF free               n=25600      mean=14      p50=0 p99=42 p99.9=96  MAX=250 ns
+
+      256 KiB (dedicated)
+        RT  malloc             n=6400       mean=41      p50=41 p99=256  MAX=333 ns
+        OFF malloc             n=6400       mean=32      p50=41 p99=224  MAX=416 ns
+        RT  1st-touch          n=6400       mean=13      p50=0 p99=42  MAX=42 ns
+        OFF 1st-touch          n=6400       mean=12      p50=0 p99=42  MAX=83 ns
+        RT  free               n=6400       mean=18      p50=0 p99=128  MAX=292 ns
+        OFF free               n=6400       mean=18      p50=0 p99=42  MAX=250 ns
+
+      8 MiB   (large)
+        RT  malloc             n=1600       mean=133     p50=96 p99=448  MAX=12666 ns
+        OFF malloc             n=1600       mean=123     p50=96 p99=512  MAX=625 ns
+        RT  1st-touch          n=1600       mean=13      p50=0 p99=42  MAX=42 ns
+        OFF 1st-touch          n=1600       mean=13      p50=0 p99=42  MAX=42 ns
+        RT  free               n=1600       mean=125     p50=96 p99=512  MAX=667 ns
+        OFF free               n=1600       mean=121     p50=96 p99=512  MAX=625 ns
+
+      300 MiB (> LRC_HI)
+        RT  malloc             n=800        mean=3407    p50=3584  MAX=20792 ns
+        OFF malloc             n=800        mean=3244    p50=3072  MAX=43583 ns
+        RT  1st-touch          n=800        mean=627     p50=640  MAX=12667 ns
+        OFF 1st-touch          n=800        mean=604     p50=640  MAX=8333 ns
+        RT  free               n=800        mean=265     p50=224  MAX=11375 ns
+        OFF free               n=800        mean=15685   p50=16384  MAX=73084 ns
+
+      32 B cross-thread free (producer allocs, we free)
+        RT  free               n=120000     mean=22      p50=41 p99=96 p99.9=192 p99.99=224  MAX=7417 ns
+        OFF free               n=120000     mean=21      p50=0 p99=42 p99.9=224 p99.99=10240  MAX=13000 ns
+        (OFF batches CAP=1024 then one free pays for the whole buffer; RT takes push_direct)
+
+    rt_violations=800  deferred_reclaims=0  deferred_unmaps=800  forced_releases=0  pending_bytes=0
+    (pressure: 800 mapping(s) expected — the > LRC_HI band cannot be cached)
+    == PASSED ==
+
+`--xt 2000000`:
+
+    == bench_rt_wcet (§75 / G7) ==
+    backend: kame_pool_malloc/free (direct)
+    mode=smoke reps=4 iters=200 interferers=3
+    clock overhead: mean=11 max=83 ns
+    measured-thread priority: QOS_CLASS_USER_INTERACTIVE
+
+      64 B    (bucket)
+        RT  malloc             n=51200      mean=13      p50=0 p99=42 p99.9=42  MAX=38333 ns
+        OFF malloc             n=51200      mean=12      p50=0 p99=42 p99.9=42  MAX=167 ns
+        RT  1st-touch          n=51200      mean=12      p50=0 p99=42 p99.9=42  MAX=84 ns
+        OFF 1st-touch          n=51200      mean=12      p50=0 p99=42 p99.9=42  MAX=125 ns
+        RT  free               n=51200      mean=13      p50=0 p99=42 p99.9=96  MAX=292 ns
+        OFF free               n=51200      mean=13      p50=0 p99=42 p99.9=96  MAX=167 ns
+
+      4 KiB   (bucket)
+        RT  malloc             n=25600      mean=12      p50=0 p99=42 p99.9=42  MAX=208 ns
+        OFF malloc             n=25600      mean=12      p50=0 p99=42 p99.9=42  MAX=2875 ns
+        RT  1st-touch          n=25600      mean=12      p50=0 p99=42 p99.9=42  MAX=7208 ns
+        OFF 1st-touch          n=25600      mean=12      p50=0 p99=42 p99.9=42  MAX=167 ns
+        RT  free               n=25600      mean=14      p50=0 p99=42 p99.9=96  MAX=19667 ns
+        OFF free               n=25600      mean=13      p50=0 p99=42 p99.9=96  MAX=125 ns
+
+      256 KiB (dedicated)
+        RT  malloc             n=6400       mean=18      p50=0 p99=42  MAX=167 ns
+        OFF malloc             n=6400       mean=18      p50=0 p99=42  MAX=167 ns
+        RT  1st-touch          n=6400       mean=12      p50=0 p99=42  MAX=84 ns
+        OFF 1st-touch          n=6400       mean=12      p50=0 p99=42  MAX=83 ns
+        RT  free               n=6400       mean=16      p50=0 p99=42  MAX=167 ns
+        OFF free               n=6400       mean=16      p50=0 p99=42  MAX=167 ns
+
+      8 MiB   (large)
+        RT  malloc             n=1600       mean=94      p50=96 p99=384  MAX=500 ns
+        OFF malloc             n=1600       mean=80      p50=96 p99=192  MAX=209 ns
+        RT  1st-touch          n=1600       mean=12      p50=0 p99=42  MAX=42 ns
+        OFF 1st-touch          n=1600       mean=11      p50=0 p99=42  MAX=42 ns
+        RT  free               n=1600       mean=98      p50=96 p99=384  MAX=500 ns
+        OFF free               n=1600       mean=84      p50=96 p99=224  MAX=333 ns
+
+      32 B cross-thread free (producer allocs, we free)
+        RT  free               n=2000000    mean=20      p50=0 p99=42 p99.9=128 p99.99=192 p99.999=4096  MAX=11959 ns
+        OFF free               n=2000000    mean=20      p50=0 p99=42 p99.9=224 p99.99=7168 p99.999=10240  MAX=15500 ns
+        (OFF batches CAP=1024 then one free pays for the whole buffer; RT takes push_direct)
+
+    rt_violations=0  deferred_reclaims=0  deferred_unmaps=0  forced_releases=0  pending_bytes=0
+    == PASSED ==

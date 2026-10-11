@@ -41,8 +41,8 @@
 //   * `kame_pool_set_realtime_thread(1)` (or the `kame::rt_section` RAII
 //     guard) additionally stops this thread's own `free()` from entering the
 //     kernel: chunk page-reclaim is skipped and a large-tier munmap is parked
-//     until `kame_pool_rt_drain()`.  Measured on M3: 128 ns vs 20.5 us median
-//     free, 792 ns vs 678 us max, on the >256 MiB band.
+//     until `kame_pool_rt_drain()`.  Measured on the M5 Ultra: 192 ns vs
+//     16.4 us median free, 709 ns vs 54 us max, on the >256 MiB band.
 //   * Bounded chunk-claim latency in steady state.  Cold-claim is *not*
 //     formally bounded (it can mmap a 32 MiB region on first touch), so for
 //     a hard-RT loop call `kame_pool_prewarm(sizes, counts, n)` from EACH

@@ -58,10 +58,12 @@ thread's own working set instead of switching reclaim off process-wide:
 - **`munmap`** (§19 large tier): parked on a lock-free pending stack whose
   link lives in the block's own dead meta page — **no allocation on a free
   path**. `kame_pool_rt_pending_bytes()` reports the VA so held.
-- **`kame_pool_rt_drain()`** settles both (pending unmaps → this thread's L1 →
-  global L2), clearing its own RT flag for the duration so the releases
-  actually reach the kernel instead of being re-deferred by the gate that
-  queued them.
+- **`kame_pool_rt_drain()`** settles the parked unmaps, clearing its own RT
+  flag for the duration so the releases actually reach the kernel instead of
+  being re-deferred by the gate that queued them.  **`kame_pool_trim()`** also
+  empties this thread's L1 and the global L2, which is what returns the pages
+  a skipped `madvise` kept.  (Up to v1.2.x `rt_drain` did all of it — see
+  Result 1b.)
 
 **Measured while testing, worth recording:** in *steady state* the madvise
 gate is never even reached — a freed chunk is parked warm in the §34 recycle
@@ -335,7 +337,7 @@ had to take a position:
 |---|---|---|---|---|---|---|
 | **THP** | `glibc.malloc.hugetlb` tunable | `opt.thp = always/auto/never`, `metadata_thp` — explicitly *disableable* | `allow_large_os_pages` (opt-in), `reserve_huge_os_pages_N` | hugepage-aware **by design** (Temeraire, OSDI'21) — manages huge granularity itself rather than leaving it to khugepaged | n/a (fixed arena) | **`kame_pool_set_thp_policy()` — `SYSTEM`/`ALWAYS`/`NEVER`, and re-advises regions already mapped** |
 | **Don't return pages** | `M_TRIM_THRESHOLD`, `M_MMAP_MAX=0` | `dirty_decay_ms:-1`, `muzzy_decay_ms:-1`, `retain` | `purge_delay=-1` | release-rate knobs | n/a | §30 + §75 per-thread gate |
-| **Explicit purge** | `malloc_trim()` | `arena.N.purge` | `mi_collect()` | `ReleaseMemoryToSystem` | n/a | `rt_drain()` |
+| **Explicit purge** | `malloc_trim()` | `arena.N.purge` | `mi_collect()` | `ReleaseMemoryToSystem` | n/a | `trim()` (`rt_drain()` settles only the parked unmaps) |
 | **Prefault / pre-commit** | application | **no API** (application) | `reserve_os_memory(commit=true)`, `eager_commit` | prealloc paths | application touches its arena | **`prewarm()` page-touches per size class; `reserve_regions(prefault)`** |
 | **Page pinning** | application (`mlockall`) | application | application | application | application (`mlockall` + stack prefault) | **`mlock_regions()` — pool-scoped** |
 
@@ -616,6 +618,47 @@ mappings instead of reuse. The trade is explicit — a slightly worse mmap
 mean for a 160×–856× better free tail — and a real RT design would not be
 mapping 300 MiB inside the loop anyway.
 
+#### Result 1b — the drain that undid the prewarm (2026-10-11, M5 Ultra)
+
+Re-measuring for the README turned up two things, one in the harness and one
+in the library.
+
+* **The harness drained once per round**, after 200 iterations of each band.
+  Since the G5 cap (1 GiB) the > `LRC_HI` band can park three 300 MiB blocks,
+  so 12 of its 800 realtime frees were deferred and the rest forced inline —
+  that band measured the cap's fallback (median 20,480 ns in both arms), and
+  the `--pressure` branch accepted any violation count, so nothing failed.
+  It now calls `kame_pool_rt_drain()` in the trough of every iteration, as
+  `kame_pool.h`'s loop does, fails on `rt_forced_releases() != 0`, and under
+  `--pressure` fails on any mapping beyond the band's expected ones.
+* **`kame_pool_rt_drain()` emptied the recycle caches** — this thread's L1 and
+  the global L2, where `kame_pool_prewarm()` keeps the working set of every
+  size above the chunk pool.  The section after any drain therefore mapped
+  again: the default run's long-standing `rt_violations=2` was the 8 MiB band
+  in the first repetition the realtime arm ran first after a drain
+  (`--rt-os-policy 3` aborts there: "large-tier mmap").  With the documented
+  per-cycle drain it is every cycle: the new harness against the old library
+  reports **1,600** violations (4 × 200 iterations × 2 blocks).  So the
+  written contract — prewarm, then `rt_section` … `rt_drain` per cycle —
+  broke its own no-new-mapping guarantee from the second cycle.  `rt_drain`
+  now settles only the parked unmaps; emptying the caches moved to
+  `kame_pool_trim()` (the `malloc_trim` analogue), after which a realtime
+  thread prewarms again.  Every caller in the tree (`kame/main.cpp`'s note,
+  `transaction_priority_mixed_test`, `contrib/ros2_allocator.hpp`,
+  `alloc_rt_thread_test`) uses `rt_drain` for the backlog only.
+
+After both (`--pressure` × 3, `--xt 2000000`; 3 interferers, Release):
+
+| arm | > LRC_HI free p50 | free MAX | 32 B cross-thread p99.99 |
+|---|---:|---:|---:|
+| **RT** (deferred, drained per cycle) | **224 / 128 / 192 ns** | **11,375 / 416 / 709 ns** | **192 ns** |
+| OFF (inline `munmap`) | 16,384 ns (all three) | 73,084 / 49,042 / 54,208 ns | 7,168 ns |
+
+`deferred_unmaps = 800` of 800 and `forced_releases = 0` in each `--pressure`
+run; `rt_violations` = the 800 expected band mappings and none else, and 0 in
+the default and `--xt` runs (also under `--rt-os-policy 3`).  Outputs in
+`README_BENCH_M5.md` §3.1.
+
 #### Result 2 — the structural finding (more important than Result 1)
 
 For **every band at or below `LRC_HI`** the two arms are *statistically
@@ -720,7 +763,8 @@ subsequent free is forced inline — which is G5 working exactly as designed
 figure (128 ns vs 20,480 ns median free) is only reachable when the cap is
 large relative to the block size.  Anyone quoting that number should also
 quote `kame_pool_get_rt_pending_cap()`, or raise it for the block size in
-play.  In the same runs the RT arm's *malloc* was slower on the 300 MiB band
+play.  (2026-10-11: or drain once per cycle, as the API documents — the
+harness then defers every 300 MiB free at the default cap; Result 1b.)  In the same runs the RT arm's *malloc* was slower on the 300 MiB band
 (p99.9 115 µs vs 57 µs), consistent with the trade already recorded in
 Result 1: holding VA means fresh mappings instead of reuse.
 
