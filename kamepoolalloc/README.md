@@ -91,7 +91,7 @@ this library.
   interposes the full `malloc` family by default, so it works as a real
   `DYLD_INSERT_LIBRARIES=libkamepoolalloc.dylib` drop-in like mimalloc / jemalloc
   — every `malloc` / `calloc` / `realloc` / `posix_memalign` / `aligned_alloc` /
-  `free` in the host process routes through the pool.  (Up to v1.2.x `calloc`,
+  `free` in the host process routes through the pool.  (Through v1.2.0 `calloc`,
   `posix_memalign` and `aligned_alloc` were left to libsystem.)
   A `malloc_size` co-interpose returns the true capacity of pool pointers, which
   is what makes this Swift- and Objective-C-safe (the Swift runtime's

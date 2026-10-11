@@ -7,6 +7,11 @@ measures at or above v1.1.0 on every workload here, and so it does on the M3
 no-DCAS 3/3, six trees, exclusivity 0/2000, soak, UBSan, no growth).
 On Ohtaka (§7, x86-64) the fix brings larson back from 0.37–0.42x to
 1.02–1.04x and rptest from 0.59–0.84x to 0.90–1.00x.
+The macOS rptest rows (§3.1's smoke, §4.1, §5, §6) did not measure kame's
+allocation: rptest allocates only through `calloc` and `posix_memalign`,
+which the macOS dylib left to libsystem until `9bb57a41f`, so every arm
+there was libsystem's allocator plus that arm's `free` forwarding.  The
+Ohtaka rptest rows are kame's — Linux always interposed both.
 **Open:** two Ohtaka rows below v1.1.0 — rptest t16 0.90x and xthread w64
 0.70x (wide ranges; v1.2.0 0.81x) — the 0.2–0.8 ms xlat maximum there
 against ~15 us on the M5, and the pin decision at the end of §4.  Append
