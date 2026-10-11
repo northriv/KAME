@@ -1,5 +1,14 @@
 # `claude/pool-fl-avail` (416c76b5e) — Linux validation
 
+> **On master:** the branch validated here landed as §revive (`39edad5a9`) and
+> §group (`bd7875d06`); §6 is the run on that head, §7 on the v1.2.0 code
+> (`8dbc7d902`) and §8 on the fix of its regressions (`2e8f940fd`, the v1.2.1
+> candidate), and §9 the thread-teardown stress test it was given.  This record
+> was brought over from `claude/great-turing-Ufao2` (`9e08cb95f`; §7 and §8
+> from `7ac5f6bc6`, §9 from `3f7f78934`).  `kamestm/tests/
+> tmin_dynnode.cpp`, cited in §4.3, belongs to the dynnode investigation and
+> stays on that branch.
+
 Run 2026-10-09 in the cloud session (x86-64, g++ 15, 4 cores, glibc).
 The branch is compared throughout against master 872d89030, built the same
 way (`RelWithDebInfo` with `CMAKE_CXX_FLAGS_RELWITHDEBINFO="-O3 -DNDEBUG"`,
@@ -346,3 +355,40 @@ printed) is not classified.  So all three sites are live on the old code and
 closed on HEAD, but only two of them are covered by the committed tests; a
 49..368 B tier in the var test (or a third variant) would cover the third.
 Not changed here.
+
+**Since (on master):** the 49..368 B tier is in the committed test, as its
+`--mid` mode (registered as `alloc_tsd_exclusivity_mid_test`), so all three
+force-walk sites are now reached by a committed test.  On the M3: HEAD 0/1000;
+the three faults injected into 2e8f940fd's new state (exit drain keeps a
+freelist, a marked head's `next` left unfixed, a marked cell aimed at) are
+caught 20/20 each in either mode.  Its run against 872d89030 on Linux, for
+the record of the `push_direct` hits, is still to do.
+
+## 10. `--mid` (`alloc_tsd_exclusivity_mid_test`, master 3d7fc84e2)
+
+The §9 method again, for the `--mid` mode 3d7fc84e2 added (49..368 B: the
+FS=true classes above 48 B, whose cross-thread free takes `push_direct`, and
+the small FS=false classes).  Same container and trees as §9, rebuilt at
+3d7fc84e2; old master is 872d89030 with the 3d7fc84e2 test file in place of
+§9's.  All six trees rebuild clean, and `ctest -R alloc_tsd_exclusivity` runs
+3/3 in each (the 32 B, var and mid tests).
+
+| run | HEAD 3d7fc84e2 | old master 872d89030 |
+|---|---|---|
+| `--mid`, LP64 release, 2000/arm | **0 / 2000** | **32 / 2000**, all SIGSEGV (p = 4 × 10⁻¹⁰) |
+| `--mid`, i586 / i486 release, 500 each | 0 / 500, 0 / 500 | — |
+| `--mid`, asserts on (LP64 / i586 / i486), 100 each | 0 / 100 ×3 | — |
+
+Where old master falls (all 32 have a backtrace; no timeout this time):
+
+| site | count | classes |
+|---|---|---|
+| **`allocator.cpp:815`, `CrossDeallocBatch::push_direct<ALIGN>`** (inlined into FS=true `deallocate_pooled_static`) | **15** | ALIGN 80, 112, 304, 320, 336, 368: 2 each; 64, 208, 288: 1 each |
+| `allocator.cpp:2010`, FS=false `deallocate_pooled` | 17 | ALIGN 32 (FS=false): 13, ALIGN 256: 4 |
+
+Every one is the cross-thread free of a handed-off block (test line 214,
+`tracked_free(taken)`), the store landing in the TLS of an owner that may have
+exited.  With §9 the three force-walk sites of the old code each have a
+committed test that reaches them on Linux: `flush` (`:878`) the 32 B test,
+the FS=false direct store (`:2010`) the var test and `--mid`, and
+`push_direct` (`:815`) `--mid` alone.  HEAD is 0 throughout.
