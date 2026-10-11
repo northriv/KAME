@@ -3,8 +3,10 @@
 Started 2026-10-10 on a MacBook Air M3.  The regressions reproduced on the
 M5 Ultra (§4.1); their causes and the fix are in §5 (2026-10-11), which
 measures at or above v1.1.0 on every workload here, and so it does on the M3
-(§6).  **Open:** the Linux validation and Ohtaka (§4), and the pin decision
-at the end of §4.  Append results here.
+(§6).  Its Linux validation is green (`POOL_FL_AVAIL_LINUX_CHECK.md` §8:
+no-DCAS 3/3, six trees, exclusivity 0/2000, soak, UBSan, no growth).
+**Open:** Ohtaka (§4), and the pin decision at the end of §4.  Append results
+here.
 
 ## 1. Summary
 
