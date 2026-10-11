@@ -228,9 +228,9 @@ be carved out as their own subtrees for downstream embedding:
   navigation map.
 
 <p align="center">
-<a href="kamepoolalloc/README.md#benchmarks"><img src="kamepoolalloc/doc/bench/bench_loop_m3_1t.svg" width="72%" alt="kamepoolalloc bench_loop, 1 thread, Apple M3 — kame leads at 64 B and has no mmap-per-call cliff at the 1 MiB+ tier"></a><br>
+<a href="kamepoolalloc/README.md#benchmarks"><img src="kamepoolalloc/doc/bench/bench_loop_m5ultra_1t.svg" width="72%" alt="kamepoolalloc bench_loop, 1 thread, Apple M5 Ultra — kame leads at 64 B and has no mmap-per-call cliff at the 1 MiB+ tier"></a><br>
 <i>kamepoolalloc vs system / mimalloc / jemalloc — single-thread malloc/free
-sweep on Apple M3.  No size cliff; <a href="kamepoolalloc/README.md#benchmarks">full benchmarks</a>
+sweep on Apple M5 Ultra.  No size cliff; <a href="kamepoolalloc/README.md#benchmarks">full benchmarks</a>
 (x86-64 bare metal, 128-core scaling, mimalloc-bench suite).</i>
 </p>
 
