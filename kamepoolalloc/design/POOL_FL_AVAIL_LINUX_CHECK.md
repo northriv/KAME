@@ -3,11 +3,12 @@
 > **On master:** the branch validated here landed as §revive (`39edad5a9`) and
 > §group (`bd7875d06`); §6 is the run on that head, §7 on the v1.2.0 code
 > (`8dbc7d902`) and §8 on the fix of its regressions (`2e8f940fd`, the v1.2.1
-> candidate), and §9-§10 the thread-teardown stress tests it was given.  This
-> record was brought over from `claude/great-turing-Ufao2` (`9e08cb95f`; §7 and
-> §8 from `7ac5f6bc6`, §9 from `3f7f78934`, §10 from `498413dd1`).  `kamestm/tests/
-> tmin_dynnode.cpp`, cited in §4.3, belongs to the dynnode investigation and
-> stays on that branch.
+> candidate), §9-§10 the thread-teardown stress tests it was given, and §11
+> the `kame_pool_rt_drain()` change (`67731ae56`).  This record was brought
+> over from `claude/great-turing-Ufao2` (`9e08cb95f`; §7 and §8 from
+> `7ac5f6bc6`, §9 from `3f7f78934`, §10 from `498413dd1`, §11 from
+> `604d8454a`).  `kamestm/tests/tmin_dynnode.cpp`, cited in §4.3, belongs to
+> the dynnode investigation and stays on that branch.
 
 Run 2026-10-09 in the cloud session (x86-64, g++ 15, 4 cores, glibc).
 The branch is compared throughout against master 872d89030, built the same
@@ -424,3 +425,30 @@ log), interleaved:
 Every number matches the commit's (1,600 violations with the per-cycle drain;
 800 of 800 large frees deferred, none forced).  A latency comparison is not
 made here — a shared 4-vCPU VM is not a host for one.
+
+## 12. master 19b2e4758 (`alloc_calloc_zero_test`; calloc's fresh-mapping memset skip)
+
+9bb57a41f makes `kame_calloc` skip the memset of a fresh §19 mapping
+(`allocate_large_va` reports one through a new `zeroed` out-parameter); a
+recycled region still gets the memset.  On Linux, where `calloc` was always
+interposed, that is the one behavioural change.  19b2e4758 adds
+`alloc_calloc_zero_test`: every tier, fresh and recycled (fill 0xA5, free,
+calloc again), through `kame_pool_*` and through plain `calloc` / `malloc` /
+`free`, with warm reuse asserted in the cached large tier.  Same container and
+six trees as §9–§11, rebuilt at 19b2e4758.
+
+| check | result |
+|---|---|
+| builds, six trees | all clean, the new test included |
+| no-DCAS audit | 3/3 ok |
+| ctest LP64 release / asserts | 46/46, 46/46 |
+| ctest i486 release / asserts | 39/39, 39/39 |
+| ctest i586 release / asserts | 45/46 each: `transaction_wait_budget_test` under `ctest -j3`; alone 6/6 PASS (3 per tree) — the §3 load artifact |
+| `alloc_calloc_zero_test`, 50 more runs per tree (all six) | **0 / 300** failed |
+
+What the test reports here (LP64 and i486 alike): every case `[ok]`; the
+plain-libc pass reaches the pool (`libc ...` rows, as on the `kame_pool_*`
+pass); every recycled block came back in every tier up to the 100 MiB large
+case (`reused`), so the memset branch ran where it must; the 257 MiB case is
+the uncached huge tier.  `malloc_intercept_test` (calloc and the aligned pair
+following malloc) passes in all six trees within the ctest counts above.
