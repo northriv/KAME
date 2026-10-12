@@ -22,6 +22,13 @@
 #   xlat     bench_xlatency: producer malloc latency while a consumer frees
 #            at random across 1 KiB x 200 K / 1 KiB x 1 M / 3000 B x 200 K
 #            live blocks — median / p99.9 / max ns, and the rate
+#   frame    bench_frame (not in the default set): a game-style frame loop
+#            of N threads (game, render, N-2 job workers) plus asset
+#            streaming — frame time median / p99 / p99.9 / max us, the
+#            slowest malloc/free, calls of 100 us or more, peak RSS, fps
+#   frameRT  the same with --rt: kamepoolalloc configured as a game would
+#            (no free makes a syscall, kame_pool_rt_drain() once per frame);
+#            for any other allocator a second plain run, the control
 #
 # Usage:
 #   bench_ab.sh [--tags v1.1.0,tree] [--arm NAME=LIB]... [--reps N]
@@ -37,8 +44,9 @@
 #   --arm      an extra arm; LIB empty means no preload (the system malloc),
 #              e.g. --arm sys=  --arm mi=/path/libmimalloc.so
 #   --reps     repetitions (default 5; 1 with --quick)
-#   --threads  thread counts for xthread / xmalloc / larson / rptest
-#              (xthread and xmalloc run N producers + N consumers)
+#   --threads  thread counts for xthread / xmalloc / larson / rptest / frame
+#              (xthread and xmalloc run N producers + N consumers; frame
+#              runs N threads in all, N >= 2)
 #   --quick    short runs and small live sets: a smoke test of the setup
 #   --work     work directory (default ./bench-ab): clones, builds, results
 #   --mbench   an existing mimalloc-bench checkout; its out/bench binaries
@@ -124,10 +132,12 @@ if [ "$QUICK" = 1 ]; then
     : "${REPS:=1}"
     LOOP_ITERS=2000000; XT_SECS=1; LARSON_SECS=1; RPT_LOOPS=50
     XLAT_N=200000; XLAT_T=2; : "${XLAT_CONFIGS:=1024x50000 1024x200000}"
+    FRAME_FRAMES=500; FRAME_WARMUP=0.5
 else
     : "${REPS:=5}"
     LOOP_ITERS=20000000; XT_SECS=5; LARSON_SECS=5; RPT_LOOPS=500
     XLAT_N=2000000; XLAT_T=10
+    FRAME_FRAMES=5000; FRAME_WARMUP=2
     : "${XLAT_CONFIGS:=1024x200000 1024x1000000 3000x200000}"
 fi
 if [ -z "$JOBS" ]; then
@@ -192,7 +202,7 @@ build_benches() {
     log "benches: build from $KPA_DIR"
     cmake -S "$KPA_DIR" -B "$BENCH_BUILD" -DCMAKE_BUILD_TYPE=Release \
         >"$blog" 2>&1 || die "configuring the benches failed, see $blog"
-    for t in bench_loop bench_xthread bench_xlatency; do
+    for t in bench_loop bench_xthread bench_xlatency bench_frame; do
         cmake --build "$BENCH_BUILD" --target "$t" --parallel "$JOBS" \
             >>"$blog" 2>&1 || die "building $t failed, see $blog"
     done
@@ -262,7 +272,15 @@ fi
 if [ -e /home/system/bin/check_usage ] && [ -z "$SLURM_JOB_ID" ]; then
     die "this looks like an Ohtaka login node: measure under srun (see --help)"
 fi
-for t in bench_loop bench_xthread bench_xlatency; do
+# Only what the selected workloads run: a work directory built before a
+# bench existed still measures the others.
+for t in bench_loop bench_xthread bench_xlatency bench_frame; do
+    case $t in
+        bench_loop) wants loop || continue ;;
+        bench_xthread) wants xthread || continue ;;
+        bench_xlatency) wants xlat || continue ;;
+        bench_frame) wants frame || wants frameRT || continue ;;
+    esac
     [ -x "$BENCH_BIN/$t" ] || die "$BENCH_BIN/$t missing — build first (drop --run-only)"
 done
 if need_mbench; then
@@ -338,7 +356,7 @@ provenance() {
         fi
     done
     need_mbench && echo "mbench    $MB_SRC @ $(git -C "$MB_SRC" rev-parse --short HEAD 2>/dev/null || echo '?'), binaries in $MB_BIN"
-    echo "params    reps=$REPS threads=\"$THREADS\" only=\"$ONLY\" quick=$QUICK xlat=\"$XLAT_CONFIGS\" xlat_cpu=${XLAT_CPU:-none} loop_iters=$LOOP_ITERS"
+    echo "params    reps=$REPS threads=\"$THREADS\" only=\"$ONLY\" quick=$QUICK xlat=\"$XLAT_CONFIGS\" xlat_cpu=${XLAT_CPU:-none} loop_iters=$LOOP_ITERS frame_frames=$FRAME_FRAMES"
 }
 
 # ---- jobs: (bench, config, command) ---------------------------------------
@@ -362,6 +380,12 @@ for n in $THREADS; do
     wants larson  && add_job larson "t$n" "$MB_BIN/larson" "$LARSON_SECS" 8 1000 5000 100 4141 "$n"
     wants rptest  && add_job rptest "t$n" "$MB_BIN/rptest" "$n" 0 1 2 "$RPT_LOOPS" 1000 100 8 16000
     wants mstress && add_job mstress "t$n" "$MB_BIN/mstress" "$n" 50 50
+    if [ "$n" -ge 2 ]; then
+        wants frame && add_job frame "t$n" "$BENCH_BIN/bench_frame" \
+            --workers $((n - 2)) --frames "$FRAME_FRAMES" --warmup "$FRAME_WARMUP"
+        wants frameRT && add_job frameRT "t$n" "$BENCH_BIN/bench_frame" \
+            --workers $((n - 2)) --frames "$FRAME_FRAMES" --warmup "$FRAME_WARMUP" --rt
+    fi
 done
 if wants xlat; then
     for c in $XLAT_CONFIGS; do
@@ -391,6 +415,11 @@ parse() {
         xlat)    grep '^\[bench_xlatency\]' "$2" | head -1 | tr ' ' '\n' | awk -F= '
                      $1 == "med_ns" || $1 == "p999_ns" || $1 == "max_ns" || $1 == "rate_M" { print $1, $2 }' ;;
         mstress) sed -n 's/^wall_s \([0-9.]*\)$/wall_s \1/p' "$2" | tail -1 ;;
+        frame|frameRT)
+                 grep '^\[bench_frame\]' "$2" | head -1 | tr ' ' '\n' | awk -F= '
+                     $1 == "frame_med_us" || $1 == "frame_p99_us" || $1 == "frame_p999_us" ||
+                     $1 == "frame_max_us" || $1 == "call_max_ns" || $1 == "slow_calls_count" ||
+                     $1 == "rss_mib" || $1 == "fps" { print $1, $2 }' ;;
     esac
 }
 
@@ -503,7 +532,7 @@ for (bench, cfg, metric), per in table.items():
     ratios = []
     for m in meds[1:]:
         ratios.append('%.2f×' % (m / meds[0]) if m is not None and meds[0] else 'n/a')
-    lower = metric.endswith('_ns') or metric.endswith('_s')
+    lower = metric.endswith(('_ns', '_s', '_us', '_mib', '_count'))
     name = metric + (' ↓' if lower else ' ↑')
     print('| ' + ' | '.join([bench, cfg, name] + cells + ratios) + ' |')
 PY

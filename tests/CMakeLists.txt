@@ -374,6 +374,16 @@ if(USE_KAME_ALLOCATOR)
         target_link_libraries(bench_xlatency Threads::Threads ${CMAKE_DL_LIBS})
     endif()
 
+    # Allocator hitches in a game-style frame loop (game, render and job
+    # threads at a frame barrier, plus asset streaming): frame-time
+    # percentiles and the latency of every malloc / free inside a frame.
+    # Plain malloc/free like bench_xlatency, so one binary measures every
+    # LD_PRELOAD arm of bench/bench_ab.sh (`--only frame`).  POSIX only.
+    if(NOT WIN32)
+        add_executable(bench_frame bench/bench_frame.cpp)
+        target_link_libraries(bench_frame Threads::Threads ${CMAKE_DL_LIBS})
+    endif()
+
     # (§75 / RT_READINESS G6a) TLB-reach cost of the THP policy — a dependent
     # pointer chase over a pool-allocated working set.  The other benches
     # cannot see this: bench_loop keeps one block live, and bench_rt_wcet
