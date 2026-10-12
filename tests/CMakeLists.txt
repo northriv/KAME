@@ -159,6 +159,13 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_fit_test alloc_fit_test.cpp)
     target_link_libraries(alloc_fit_test kamepoolalloc Threads::Threads)
 
+    # A thread that frees one size and allocates another must not keep the
+    # first size's memory (§tl-cap: sealed segments, the oldest returned to
+    # its chunks, emptied chunks released).  Uses kame_pool_get_stats /
+    # kame_pool_trim.
+    add_executable(alloc_phase_test alloc_phase_test.cpp)
+    target_link_libraries(alloc_phase_test kamepoolalloc Threads::Threads)
+
     # Thread-churn / orphan-reuse repro for "driver start/stop -> reserved grows".
     add_executable(alloc_thread_churn_test alloc_thread_churn_test.cpp)
     target_link_libraries(alloc_thread_churn_test kamepoolalloc Threads::Threads)
@@ -410,6 +417,7 @@ if(USE_KAME_ALLOCATOR)
     add_test(NAME alloc_huge_test COMMAND alloc_huge_test)
     add_test(NAME alloc_calloc_zero_test COMMAND alloc_calloc_zero_test)
     add_test(NAME alloc_fit_test COMMAND alloc_fit_test)
+    add_test(NAME alloc_phase_test COMMAND alloc_phase_test)
     add_test(NAME atomic_intrusive_dispose_test COMMAND atomic_intrusive_dispose_test)
     add_test(NAME atomic_intrusive_chain_test COMMAND atomic_intrusive_chain_test)
     add_test(NAME atomic_serial_test COMMAND atomic_serial_test)

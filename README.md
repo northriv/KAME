@@ -239,7 +239,17 @@ on per-thread **fit lists**, filed by the largest of the tier's sizes it
 still fits; a request tries at most four of them.  The slots that
 cross-thread frees return to a fixed-size chunk's bitmap are claimed a
 whole word per CAS and handed to the thread's list in one store — the claim
-of the earlier §word-cache, without its cold-path mask.
+of the earlier §word-cache, without its cold-path mask.  A thread keeps
+about 4 MiB of its freed memory per bucket: when a list reaches 256 KiB it
+is sealed as a segment and starts again with the newest slot, and past 15
+sealed segments the oldest goes back to its chunks in one go, where a chunk
+it empties is released (`KAME_TL_SEG_BYTES`, `KAME_TL_SEGS`; a realtime
+thread returns single slots instead).  So a thread that frees one size and
+goes on to another does not keep the first — 400 MiB of 64 B freed, then
+400 MiB of 1 KiB, peaked at 1053 MiB before and 631 MiB now (581 after
+`kame_pool_trim()` empties the recycle cache; mimalloc 480) — at the price of
+the free that returns a segment: freeing 200 MiB of 64 B or 1 KiB blocks on
+the M3, the slowest free took 31–56 µs (without the cap, 4–39 µs).
 
 MacBook Air M3 against v1.2.1, interleaved (`bench_ab.sh`, median of 3;
 `tests/bench/micro`, median of 5): single-thread random-replacement churn
