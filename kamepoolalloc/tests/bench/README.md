@@ -27,6 +27,7 @@ Targets produced (all under `bench/`):
 | `bench_rt_wcet_malloc` | per-op WCET tail, cross-allocator | `malloc`/free (LD_PRELOAD) |
 | `bench_tlb`          | TLB reach of the THP policy (§75 / G6a) | `kame_pool_malloc`/free |
 | `bench_xlatency`     | producer malloc latency, random x-T frees over a large live set | `malloc`/`free` (LD_PRELOAD) |
+| `bench_frame`        | game-style frame loop: frame-time tail and per-call latency | `malloc`/`free` (LD_PRELOAD) |
 
 `bench_loop_pool` is the single-thread analog of `bench_xthread_pool`: the
 same hot loop, but calling `kame_pool_malloc`/`kame_pool_free` directly.  It
@@ -131,6 +132,28 @@ receives, and every producer malloc is timed.  An allocator that searches its
 chunks for the room those frees made shows a median that grows with LIVE.
 On Apple silicon its clock steps in 41.7 ns (`tick_ns` in the output), so
 short latencies there are multiples of that.
+
+`bench_frame` asks what a game developer asks of an allocator: does it
+ever make a frame late.  A game thread, a render thread and job workers
+meet at a barrier at the start and end of each frame, and a streaming
+thread loads 1-32 MiB assets on its own.  Per frame the game thread churns
+a 100 K-entry table of small objects, allocates temporaries and render
+commands, frees the workers' outputs and unloads assets over a budget; the
+render thread frees the previous frame's commands (all cross-thread);
+workers allocate and free job scratch, now and then a 256 KiB-4 MiB buffer.
+Every block is written when allocated, every malloc / free on the frame
+threads is timed, and the report is the frame-time distribution (median,
+p99, p99.9, max), the slowest call, the calls of 100 us or more, and peak
+RSS.  `--rt` sets kamepoolalloc up as a game would (no free makes a
+syscall; `kame_pool_rt_drain()` once per frame, in the idle time, timed on
+its own) and is a no-op for other allocators:
+
+    ./bench_frame --workers 6                       # 8 frame threads
+    LD_PRELOAD=../libkamepoolalloc.so ./bench_frame --workers 6 --rt
+    ./bench_ab.sh --tags tree --arm mi=... --only "frame frameRT" --threads 8
+
+`--threads N` in `bench_ab.sh` is the frame loop's thread count (N-2
+workers); on macOS keep it within the performance cores.
 
 ## Why these specific patterns
 
