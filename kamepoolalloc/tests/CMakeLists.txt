@@ -152,6 +152,13 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_calloc_zero_test alloc_calloc_zero_test.cpp)
     target_link_libraries(alloc_calloc_zero_test kamepoolalloc Threads::Threads)
 
+    # The fit lists (the room a variable-size chunk keeps when it cannot
+    # serve a request, §fit): each slot taken from them must hold its
+    # bucket's largest request, and a chunk must leave them before it is
+    # released.  Reads the SIZE the borrow prefix records.
+    add_executable(alloc_fit_test alloc_fit_test.cpp)
+    target_link_libraries(alloc_fit_test kamepoolalloc Threads::Threads)
+
     # Thread-churn / orphan-reuse repro for "driver start/stop -> reserved grows".
     add_executable(alloc_thread_churn_test alloc_thread_churn_test.cpp)
     target_link_libraries(alloc_thread_churn_test kamepoolalloc Threads::Threads)
@@ -204,11 +211,12 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_tsd_exclusivity_test alloc_tsd_exclusivity_test.cpp)
     target_link_libraries(alloc_tsd_exclusivity_test kamepoolalloc Threads::Threads)
 
-    # The same across every FS=false tier (369 B .. 32 KiB): freelists per
-    # local id, the slot prefix / m_sizes, the borrow tier's re-aimed
-    # shortcut, §fl-scan's FL_UNTRACKED marks an exiting thread leaves for
-    # the next owner, §walk's cursor.  Blocks are painted and verified before
-    # each free, so a partial overlap with another live block counts too.
+    # The same across every FS=false tier (369 B .. 32 KiB): the thread lists
+    # per bucket (§thread-list), the slot prefix / m_sizes they take the
+    # bucket from, the hand-back of an exiting thread's lists to the chunks
+    # the next owner takes over, and the fit lists (§fit).  Blocks are painted
+    # and verified before each free, so a partial overlap with another live
+    # block counts too.
     # `--mid` (registered as alloc_tsd_exclusivity_mid_test) draws 49..368 B,
     # the range whose cross-thread free takes push_direct.
     add_executable(alloc_tsd_exclusivity_var_test alloc_tsd_exclusivity_var_test.cpp)
@@ -401,6 +409,7 @@ if(USE_KAME_ALLOCATOR)
     add_test(NAME malloc_intercept_test COMMAND malloc_intercept_test)
     add_test(NAME alloc_huge_test COMMAND alloc_huge_test)
     add_test(NAME alloc_calloc_zero_test COMMAND alloc_calloc_zero_test)
+    add_test(NAME alloc_fit_test COMMAND alloc_fit_test)
     add_test(NAME atomic_intrusive_dispose_test COMMAND atomic_intrusive_dispose_test)
     add_test(NAME atomic_intrusive_chain_test COMMAND atomic_intrusive_chain_test)
     add_test(NAME atomic_serial_test COMMAND atomic_serial_test)

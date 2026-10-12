@@ -5,10 +5,11 @@
 // buffering `push` arm).  Both thread-exit defects the pool has shipped sat
 // in paths every size class shares -- a free from a thread past its own
 // teardown (v1.1.0), a free racing its chunk owner's exit (v1.2.0) -- but the
-// FS=false classes add their own state that outlives a thread: freelists per
-// local id, the slot prefix and m_sizes, the borrow tier's re-aimed shortcut,
-// §fl-scan's FL_UNTRACKED marks (left on an exiting thread's freelists for
-// the next owner) and §walk's cursor.  Nothing asserted exclusivity there.
+// FS=false classes add their own state that outlives a thread: the thread
+// lists per bucket (§thread-list) and the slot prefix / m_sizes they take the
+// bucket from, the slots an exiting thread hands back to its chunks'
+// freelists, and the fit lists of chunks with room left (§fit).  Nothing
+// asserted exclusivity there.
 //
 // Same shape as the 32 B test -- cross-thread frees through a shared handoff
 // array, pointers stranded in a pthread_key TSD so they are freed after the
@@ -20,10 +21,9 @@
 //   * ALIGN 4096: the page-sized requests (4096, 8192, 16384) and
 //     17409..32768 B;
 //
-// and an allocate-only burst at every thread start, so buckets go dry
-// (§fl-scan marks every freelist but the shortcut's) and the frees that
-// follow land on marked heads -- also on chunks inherited from an exited
-// thread, whose freelists its exit left marked.
+// and an allocate-only burst at every thread start, so the thread lists run
+// dry and the misses that follow go to the pins and the fit lists -- also
+// with chunks inherited from an exited thread.
 //
 // `--mid` draws 49..368 B instead: the FS=true classes above 48 B, whose
 // cross-thread free takes CrossDeallocBatch::push_direct (ALIGN <= 48 takes
