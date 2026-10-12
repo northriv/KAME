@@ -155,6 +155,11 @@ its own) and is a no-op for other allocators:
 `--threads N` in `bench_ab.sh` is the frame loop's thread count (N-2
 workers); on macOS keep it within the performance cores.
 
+`micro/` holds smaller single-file programs for the allocation miss paths --
+single-thread random replacement, allocation ahead of frees, an SPSC ring --
+with an interleaved A/B script and macOS profiling helpers; see its README.
+They are not built by CMake.
+
 ## Why these specific patterns
 
 `bench_loop` is the **best case** for any pool allocator: same-thread

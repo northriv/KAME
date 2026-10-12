@@ -77,17 +77,86 @@ v1.2.1 went back to the bounded walk.  mimalloc takes full pages out of its
 page queue and puts them back on a free, so its search never pays for
 pages without room.
 
+## Thread lists and fit lists (2026-10-12, branch claude/thread-freelist)
+
+The miss went further than a list of chunks with entries.  The per-bucket
+shortcut into one chunk's freelist is gone: a thread's own frees go onto
+its list for the bucket (`KameTlsPage::m_slots[b]`), whatever the chunk,
+and a malloc pops it, so a miss means the thread holds no free slot of the
+bucket at all and there is nothing to look for (§thread-list).  The room a
+variable-size chunk keeps when it fails a request goes on per-thread fit
+lists, by the largest of the tier's sizes it still fits (§fit), instead of
+v1.2.1's §walk over up to 64 chunks.  No walk over chunks is left on the
+allocation path.  (A first version kept the chunk freelists and queued
+the ones with entries per bucket, also walk-free; the thread lists beat it
+by 1.2-1.5x on churn, having no freelists to queue.)
+
+`bench_ab.sh --tags tree --arm tc=... --arm fit=... --arm mi=... --only
+"loop larson xthread frame xlat" --threads 4 --reps 3`, median of 3; tree
+= 9ccf1167b (v1.2.1), tc = thread lists with that room cut into freelist
+slots (the first way tried), fit = thread lists + fit lists:
+
+| metric | tree | tc | fit | mi |
+|---|---|---|---|---|
+| frame fps | 2064 | 3361 | 3206 | **4694** |
+| frame median, us | 443 | 264 | 278 | **200** |
+| frame p99, us | 657 | 635 | 613 | **385** |
+| frame p99.9, us | 1030 | 987 | 981 | **651** |
+| slowest call, us | 864 | 584 | **429** | 1752 |
+| peak RSS, MiB | 1114 | 998 | 999 | **483** |
+| loop 64 B / 1 KiB / 16 KiB, M ops/s | 702 / 525 / 536 | 747 / 533 / 576 | 747 / 532 / 576 | 512 / 482 / 207 |
+| xthread w4 1 KiB, M frees/s | 38.0 | 41.8 | 42.4 | **97.9** |
+| larson t4, M ops/s | 110 | 128 | 125 | **147** |
+| xlat 1 KiB x 200 K, M/s (p99.9 ns) | 6.77 (375) | 5.99 (500) | 6.70 (417) | 10.3 (1459) |
+| xlat 3000 B x 200 K, M/s (p99.9 ns) | 5.40 (500) | 4.10 (708) | 5.33 (500) | 6.26 (2584) |
+
+- **Frame time** 0.63x the tree's (278 vs 443 us median, fps 1.55x);
+  mimalloc's frames are still 1.4x faster.
+- **Tails**: this run followed an hour of benchmarks on the fanless Air, and
+  every arm had multi-ms frames in some rep (frame max: tree up to 41 ms,
+  fit 40 ms, mi 8.6 ms).  An earlier run on a cooler machine gave tc a frame
+  p99 / p99.9 / max of 280-294 / 358-409 / 475-487 us in its two clean
+  reps, against mimalloc's 375-454 / 511-660 / 2501-3025 us -- the hitch
+  story the first results wanted, but it has to stand on the quiet machines.
+- **Cutting the room into slots** (tc) loses on producer/consumer work:
+  slots cut out of cross-thread holes no longer merge with the frees around
+  them (xlat 0.88x and 0.76x the tree).  Fit keeps the room in the bitmap
+  and is level with the tree there, at a frame median ~5 % above tc's.
+- **Single-thread churn** (`tests/bench/micro`, interleaved, median of 5;
+  walk8 = the tree's design with the fl-scan capped at 8 chunks, its best
+  setting): replace1 M ops/s walk8 / fit, 400-1000 B 214 / 289, 16-4096 B
+  at 100 K live 55.7 / 86.0, 1500-3000 B 183 / 280; heavy (allocation
+  ahead of frees) 193 / 100 ns per allocation.  Chunks live at the end
+  match the tree's (511 / 511 at 100 K live); cutting the room into slots
+  held 4 % fewer.
+
+Later the same day: without the word cache, an FS=true miss claimed one
+slot per bitmap CAS through the cold path, which a producer whose consumer
+frees pays on every allocation -- an SPSC ring of 64 B blocks (32 in
+flight) fell to 16 M ops/s from master's 28.  A miss now claims the whole
+word in that CAS, and the thread's list takes its slots in one splice: 50
+M ops/s.  The set again on the same Air, by then hot (`--only "frame larson
+xmalloc xthread"`, median of 3):
+
+| metric | tree | thread lists | mi |
+|---|---|---|---|
+| frame fps | 2040 | 3128 | **4293** |
+| frame median, us | 450 | 276 | **213** |
+| frame p99 / p99.9, us | 699 / 876 | 672 / 865 | **519** / 1030 |
+| peak RSS, MiB | 1096 | 969 | **464** |
+| xmalloc w4 64 B, M frees/s | 184 | **207** | 206 |
+| larson t4, M ops/s | 99.4 | 119 | **134** |
+| xthread w4 1 KiB, M frees/s | 31.0 | 35.3 | **80.7** |
+
 ## Next
 
 1. The same on the M5 Ultra (quiet; tails) and on Ohtaka pinned to one NUMA
    node (Zen 2 like PS5 / Xbox Series, no NUMA like a console), with
    `--only "frame frameRT" --threads "8 16"`.
-2. A miss as cheap as v1.2.0's at v1.2.1's free cost.  One direction: the
-   free path already tests the FL_UNTRACKED marker (one tbnz) when it frees
-   onto a freelist a scan confirmed empty; on that transition, push the
-   chunk onto a bounded per-thread stack of chunks with entries, and let a
-   miss pop it before walking.  Frees onto non-empty freelists pay nothing
-   new.  Check against larson / bench_loop / replace1 (the v1.2.0
-   regressions) as well as this bench.
+2. Done on the branch: the miss without a walk (above).  Remaining loops on
+   the allocation path are within one chunk (bitmap scans, <= `m_count`
+   words), amortised (the revival stack), or over orphaned groups (the
+   FULL sweep, right before an mmap).
 3. Memory: what holds the RSS beyond the live set (chunk retention under
-   random frees, the recycle caches), on Linux where RSS is eager.
+   random frees, the recycle caches), on Linux where RSS is eager; and the
+   xthread gap to mimalloc (2.3x).
