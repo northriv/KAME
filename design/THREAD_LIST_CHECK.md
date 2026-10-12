@@ -196,3 +196,34 @@ The 8-thread row's 0.90 is noise: 12 more interleaved runs each give mean
 Items 1, 2 and 4 (ILP32, no-DCAS phase 2, Zen 2) need Linux / Ohtaka.
 `leafpc.py` read nothing from Xcode 27's export (`tagged-backtrace` in
 place of `backtrace`); fixed in the same commit.
+
+## Since the M5 run: `f9e5cb9b3` (§tl-cap) — what to re-check
+
+`f9e5cb9b3` bounds what a thread keeps of its own freed memory: about
+4 MiB per bucket, its lists sealed into 256 KiB segments
+(`KameTlsPage::m_seg`) and the oldest returned to its chunks past 15 of
+them; a realtime thread returns single slots instead.  The M5 run above
+predates it.  Re-check on the M5 and on Linux:
+
+1. **The owner free.**  It now reads the head slot's second word (the
+   bytes below it, a load that depends on the head) and stores two words
+   into the freed slot.  M3: bench_loop 64 B 1.00x, 1 KiB 0.93x, 16 KiB
+   0.93x against `727c47322`.  Re-run `loop` and the micro benches; the
+   L1-resident replace1 loss at 16..368 B noted above may grow, since the
+   extra load sits on the free that its guess already blames.
+2. **The cold paths.**  `tl_seal` / `tl_return_segment` / `owner_return`
+   and the unseal in `tc_miss`: `alloc_phase_test` (new, in ctest — 48
+   tests now), the thread-exit soaks and `alloc_rt_thread_test` again; a
+   build with `-DKAME_TL_SEG_BYTES=1024u -DKAME_TL_SEGS=1` seals and returns
+   all the time and is the harsher one.
+3. **ILP32.**  `KameTlsPage` grew by `m_seg[52]` (its packed-size
+   static_assert now counts it): the i486 / i586 trees.
+4. **Hitches.**  The free that returns a segment pays for it: freeing
+   200 MiB of 64 B or 1 KiB blocks on the M3, the slowest free took
+   31–56 µs (before: 4–39 µs).  On the M5 and Ohtaka with a probe that
+   times each free of such a loop; `bench_frame` saw 39 seals in 3000
+   frames.
+5. **Memory.**  The phase change (one thread, 400 MiB of 64 B freed, then
+   400 MiB of 1 KiB) peaked at 1053 MiB before, 631 MiB now (581 with
+   `kame_pool_trim()` between; mimalloc 480) on the M3; on Linux RSS is
+   eager, so the number there is the one that matters.
