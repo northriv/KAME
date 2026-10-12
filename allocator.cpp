@@ -1407,7 +1407,8 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 		// (§29) FS=true freelist pre-fill at chunk-claim.
 		//
 		// Non-atomically link ALL slots into the chunk-local freelist
-		// (LIFO; slot's first 8 B = next pointer) and set every m_flags
+		// (LIFO; slot's first 8 B = next pointer, its next 8 B = 0, the
+		// count a thread list reads, §tl-cap) and set every m_flags
 		// bit to 1.  Effect on the alloc paths:
 		//   * fresh-chunk first alloc (cold path through
 		//     `allocate_chunk_path` → `allocate_pooled`): the
@@ -4740,7 +4741,7 @@ void *cold_first_access(unsigned bucket, std::size_t size) noexcept {
 //
 // `g_tls_page` is:
 //   macOS: ALLOC_TLS (global-dynamic) — too large for the IE surplus
-//          budget (432 B > ~128 B typical slack); the address is cached
+//          budget (848 B > ~128 B typical slack); the address is cached
 //          in the IE pointer `tls_page_ie` by kame_tls_init_fast and
 //          kame_page_cold (paid once per thread on first alloc).
 //   Linux: ALLOC_TLS_IE (initial-exec) — inlines to mov %fs:offset for
@@ -4748,12 +4749,13 @@ void *cold_first_access(unsigned bucket, std::size_t size) noexcept {
 //
 // `g_tls_page.last_region_base` is initialised to RADIX_CACHE_EMPTY (all-ones).
 // `g_tls_page.owner_id` defaults to 0 (unassigned).
-// `g_tls_page.m_slots[]` defaults to all-zeros (nullptr freelist heads).
+// `g_tls_page.m_slots[]` and `m_seg[]` default to all-zeros (empty lists, no
+// sealed segments).
 #if KAME_FAST_TSD
-ALLOC_TLS    KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, {}};
+ALLOC_TLS    KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, {}, {}};
 ALLOC_TLS_IE KameTlsPage *tls_page_ie = nullptr;
 #else
-ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, {}};
+ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, {}, {}};
 #endif
 
 // (§hot-tls teardown sentinel) NOT thread-local: one process-global page,
