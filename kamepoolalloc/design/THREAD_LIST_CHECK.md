@@ -217,7 +217,7 @@ SIGSEGV reporter on every run.
 | `alloc_tsd_exclusivity_test` / `_var_test` / `_mid_test`, LP64 release | **0 / 2000** each |
 | the same, i586 and i486 release | **0 / 500** each (six arms) |
 | `alloc_fit_test`, LP64 release | 0 / 300 |
-| `alloc_thread_exit_free_test`, `_dynamic`, `alloc_thread_exit_unarmed_test`, `_dynamic`, LP64 release | running: 116 / 200 each so far, 0 failures |
+| `alloc_thread_exit_free_test`, `_dynamic`, `alloc_thread_exit_unarmed_test`, `_dynamic`, LP64 release | **0 / 200** each |
 
 **Item 1 (ILP32) — two findings, neither in the allocator.**
 
@@ -250,6 +250,6 @@ SIGSEGV reporter on every run.
    So the test wants its sizes chosen by `sizeof(void *)` (or derived from
    the bitmap word's width), not a fix in §fit.
 
-Items 3 (thread exit): the exclusivity soaks above cover the lists'
-hand-back at teardown; the thread-exit soaks are the row still running.
+Item 3 (thread exit): the lists' hand-back at teardown is exercised by the
+exclusivity soaks and the four thread-exit soaks above, 0 failures in all.
 Items 4–6 (Zen 2, tails, memory) are performance questions for a real host.
