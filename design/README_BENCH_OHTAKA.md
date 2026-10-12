@@ -11,7 +11,8 @@ README's tables are from June, before v1.1.0:
 | `alloc_tune_report` | `0e9413a6` | §2 |
 | mimalloc-bench suite: xmalloc-test, mstress, rptest (+ larson, new) | `9ecc613d` | §3 |
 
-Nothing in the README is replaced yet.
+The README's Ohtaka tables, charts and their text were replaced from §1–§3
+on 2026-10-12.
 
 ## Common setup
 
