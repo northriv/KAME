@@ -14,13 +14,15 @@ for ev, el in ET.iterparse(xmlf, events=('end',)):
         bid = None
         if b is not None: bid = b.get('id') or b.get('ref')
         frames[el.get('id')] = (int(el.get('addr'), 16), bid)
-    elif el.tag == 'backtrace' and el.get('id'):
+    # Newer xctrace (Xcode 27) exports `tagged-backtrace` instead of `backtrace`.
+    elif el.tag in ('backtrace', 'tagged-backtrace') and el.get('id'):
         fs = []
         for f in el.findall('frame'):
             fs.append(f.get('id') or f.get('ref'))
         bts[el.get('id')] = fs
     elif el.tag == 'row':
         b = el.find('backtrace')
+        if b is None: b = el.find('tagged-backtrace')
         if b is None: el.clear(); continue
         fs = bts.get(b.get('id') or b.get('ref'), [])
         if fs:
