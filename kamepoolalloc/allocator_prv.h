@@ -1293,6 +1293,9 @@ public:
 	//! chunk's freelists.  (§thread-list) They hold an FS=true chunk's
 	//! pre-filled slots until a miss splices them onto the thread's list,
 	//! and the slots an exiting thread hands back for the exit walk.
+	//! (§tl-cap) A chain spliced onto a thread's list must carry 0 in each
+	//! slot's second word: the pre-fill and the whole-word claim write it;
+	//! freelist_push, used only by the exit hand-back, need not.
 	inline void freelist_push(unsigned local, void *p) noexcept {
 		*reinterpret_cast<char **>(p) = m_freelist_head[local];
 		m_freelist_head[local] = static_cast<char *>(p);
@@ -2426,50 +2429,46 @@ extern bool g_sys_image_loaded;
 // ---------------------------------------------------------------------
 // Per-thread allocation functor table (hot-path dispatch).
 //
-// Each AllocSlot owns the per-thread freelist for one size bucket.  The
-// freelist is a LIFO linked list embedded in the free slots themselves:
-// each free slot's first 8 bytes hold a `char *` pointer to the next
-// free slot.
+// (§thread-list) Each AllocSlot heads the thread's own list of free slots
+// of one size bucket, whichever chunks they lie in: a LIFO list embedded in
+// the free slots themselves.  A slot on it holds the next slot in its first
+// word and, in its second (§tl-cap), the bytes the thread's frees pushed
+// from it down -- every slot is at least 16 B.
 //
-// Hot path: `new_redirected` inlines the freelist pop directly on the
-// AllocSlot.  No indirect call, and NO second TLS read, on the
-// freelist-hit path.  On miss, the slow path recovers the OWNING chunk
-// from the freelist-cell pointer via `chunk_from_freelist_ptr()` (a
-// mask+add — there is NO parallel chunk-pointer TLS array) and dispatches
-// `chunk->slow_allocate(bucket, size)` (the per-(ALIGN,FS) override runs
-// the chunk-claim / bitmap-CAS path).  If the per-bucket head is null it
-// falls through to `cold_first_access(bucket, size)`, which handles the
-// activation-flag / cleanup-flag checks and the (rare) per-bucket
-// first-access dispatch.
+// Hot path: `new_redirected` inlines the pop directly on the AllocSlot --
+// no indirect call and no second TLS read on a hit -- and the owner free
+// pushes (tl_push, allocator.cpp), reading the head's second word to
+// decide whether the list is full.  A miss goes to the cold path
+// (`new_redirected_cold` -> `cold_first_access`, which checks the
+// activation and cleanup flags) and on to `tc_miss`, which takes back the
+// newest sealed segment (KameTlsPage::m_seg) if there is one, else claims
+// from the chunks (allocate_chunk_path).
 //
-// sizeof(AllocSlot) == 8: a single `char *`, so the per-thread
-// `KameTlsPage::m_slots[bucket]` indexing is a single shifted-load
-// addressing-mode form `ldr x, [base, bucket, lsl #3]` — no separate
-// slot-address computation needed.  8 slots share a 64-B cache line, and
-// the chunk is derived from the freelist pointer (above) rather than
-// cached separately, so the freelist-hit hot path touches one cache line.
+// sizeof(AllocSlot) == one pointer, so `KameTlsPage::m_slots[bucket]` is
+// a single shifted-load addressing form, `ldr x, [base, bucket, lsl #3]`,
+// and a pop touches the head's line and the slot's own.  The list's count
+// lives in the slots rather than beside the head (§tl-cap): a pair store
+// of head and count tied every pop to the count's update.
 //
 // State machine (the per-bucket `m_slots[bucket].freelist_head`):
-//   - `nullptr`: pre-activation OR pre-first-use OR post-cleanup.
-//     Slow path goes to `cold_first_access`, which checks the
-//     activation flag (`g_sys_image_loaded`) and the cleanup flag
-//     (`s_alloc_tls_off`) and either returns `std::malloc(size)` or
-//     dispatches per-bucket to `PoolAllocator<ALIGN,FS>::allocate<SIZE>()`
-//     (which seeds `m_slots[bucket].freelist_head` from the claimed chunk).
-//   - non-null: steady state — the freelist pop, or on exhaustion a
-//     `chunk->slow_allocate(bucket, size)` that refills the head from
-//     `s_tls.my_chunk` (re-pointed if a fill advanced to a new chunk).
-//   - `AllocThreadExitCleanup::~dtor` on thread exit clears all entries back
-//     to `nullptr`, and the cleanup flag `s_alloc_tls_off` is set so
-//     subsequent allocations route to `std::malloc`.
+//   - `nullptr`: pre-activation, the list empty, or post-cleanup.  The
+//     cold path checks the activation flag (`g_sys_image_loaded`) and the
+//     cleanup flag (`s_alloc_tls_off`) and either returns
+//     `std::malloc(size)` or dispatches per bucket to `tc_miss`.
+//   - non-null: steady state -- pops; pushes, which seal the list when it
+//     fills a segment (tl_seal).
+//   - `AllocThreadExitCleanup::~dtor` on thread exit hands every list and
+//     sealed segment back to the slots' chunks and leaves the heads
+//     `nullptr`; the cleanup flag `s_alloc_tls_off` is set so later
+//     allocations route to `std::malloc`.
 // ---------------------------------------------------------------------
 
 struct AllocSlot {
 	//! Owner-thread freelist head (LIFO).  Each free slot's first 8
-	//! bytes hold the next pointer.  nullptr ⇒ empty: user data never
-	//! appears on the freelist link (push always overwrites the slot's
-	//! first 8 bytes with the previous head), so 0 unambiguously means
-	//! "end of list".  Zero-initialised at static init.
+	//! bytes hold the next pointer (and its next 8 the count below,
+	//! §tl-cap).  nullptr ⇒ empty: user data never appears on the
+	//! freelist link (push always overwrites the slot's first words), so 0
+	//! unambiguously means "end of list".  Zero-initialised at static init.
 	//! (§tl-cap) A slot on the list holds, in its second word, the bytes the
 	//! thread's frees pushed from it down -- the freed memory under it.  A
 	//! pop needs nothing: the new head carries its own.  A free reads the
@@ -2905,6 +2904,8 @@ inline unsigned int bucket_for_aligned(std::size_t alignment,
 //                       all of its chunks (it was a pointer to one chunk's
 //                       freelist cell, the g_thread_freelist_ptr[b]
 //                       shortcut).
+//   m_seg[]           — (§tl-cap) per bucket, the newest of the thread's
+//                       sealed segments of freed slots; off the hot lines.
 //
 // Size: 16 + ALLOC_NUM_BUCKETS * (sizeof(AllocSlot) + sizeof m_seg[0])
 // = 16 + 52*16 = 848 B.
@@ -3009,31 +3010,6 @@ extern ALLOC_TLS_IE KameTlsPage  g_tls_page;     // Linux: IE → mov %fs:offset
 //! modules reach the same address through the exported deallocate path).
 extern KameTlsPage g_teardown_page;
 
-//! (§12.3) Recover the chunk's PoolAllocator object from any pointer
-//! inside the chunk's first unit — in particular, from a
-//! `&kame_page()->m_slots[bucket].freelist_head` value, which points at
-//! the embed object's `m_freelist_head[local-id]` cell.  Chunks are
-//! `ALLOC_MIN_CHUNK_SIZE`-aligned (the per-region claim bitmap reserves
-//! one bit per `ALLOC_MIN_CHUNK_SIZE`-byte unit), so masking with
-//! `~(ALLOC_MIN_CHUNK_SIZE - 1)` lands on `chunk_base`; the embed object
-//! is at `chunk_base + ALLOC_CHUNK_HEADER` (= +64).  Works for both
-//! single- and multi-unit chunks because the embed object always lives
-//! in the FIRST unit, where `fp` resides.
-inline PoolAllocatorBase *
-chunk_from_freelist_ptr(char **fp) noexcept {
-    // (§15) With forward shift, fp sits in the PREVIOUS unit's last page
-    // (PoolAllocator at chunk_base + 64 = unit_boundary[U] - K_MAX + 64,
-    // so fp ∈ [unit_boundary[U] - K_MAX + 64, unit_boundary[U])).
-    // Add K_MAX before masking so the round-down hits unit_boundary[U]
-    // (the slot region start of THIS chunk), not unit U-1's boundary.
-    uintptr_t unit_boundary = (reinterpret_cast<uintptr_t>(fp)
-                                + (uintptr_t)ALLOC_CHUNK_K_MAX)
-        & ~(static_cast<uintptr_t>(ALLOC_MIN_CHUNK_SIZE) - 1u);
-    // chunk_base = unit_boundary - K_MAX;  PoolAllocator = chunk_base + 64
-    return reinterpret_cast<PoolAllocatorBase *>(
-        unit_boundary - (uintptr_t)ALLOC_CHUNK_K_MAX
-        + (uintptr_t)ALLOC_CHUNK_HEADER);
-}
 
 
 #if KAME_FAST_TSD
