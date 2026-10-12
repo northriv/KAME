@@ -1015,6 +1015,20 @@ public:
 	//!     comparison terminates without needing a count test.
 	virtual int batch_return_to_bitmap(
 	    const CrossDeallocEntry *entries) noexcept = 0;
+	//! (§tl-cap) A free of the thread's own slot on a realtime thread whose
+	//! list for the bucket is full: the slot straight back to its chunk
+	//! (owner_return).  Cold.
+	static void owner_spill(PoolAllocatorBase *chunk, void *p) noexcept;
+	//! (§tl-cap) A sealed segment of the thread's freed slots (KameTlsPage::
+	//! m_seg) back to their chunks, a run of one chunk's slots at a time.
+	static void tl_return_segment(char *seg) noexcept;
+	//! The chunk a pooled slot lies in, by its region's back-offset table.
+	static PoolAllocatorBase *chunk_of_slot(char *s) noexcept;
+	//! (§tl-cap) Owner thread, live: clear the bits of `entries` -- slots of
+	//! this chunk, sentinel-terminated as for batch_return_to_bitmap -- then
+	//! release the chunk if that emptied it, else file it where a miss looks
+	//! for room (§fit).
+	virtual void owner_return(const CrossDeallocEntry *entries) noexcept = 0;
 
 	//! Adaptive holding hint: last `batch_return_to_bitmap` call's
 	//! coalescing factor for this chunk, in fixed-point ×16
@@ -1805,6 +1819,17 @@ public:
 	//! empty: allocate_chunk_path(SIZE), and an FS=true pin's pre-filled
 	//! chain onto the (empty) list in one store.  allocator.cpp.
 	static void *tc_miss(unsigned bucket, unsigned int SIZE) noexcept;
+	//! (§fit / §tl-cap) The owner's chunk bookkeeping allocate_chunk_path and
+	//! owner_return share, on the tier's manager (PoolAllocator<ALIGN, true,
+	//! DUMMY>), whose s_tls holds the chunks.  allocator.cpp.
+	static void fit_unlink(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept;
+	static void fit_reclass(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept;
+	static void fit_file(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept;
+	//! Unlink and release `c`, whose owner_release just succeeded.
+	static void release_own(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept;
+	//! After owner_return cleared a slot of `c`: release `c` if it is empty
+	//! (not the pin, the floor and owner_release permitting), else file it.
+	static void own_after_return(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept;
 
 	//! Non-virtual static trampoline for the chunk-header fn pointer.
 	//! `allocate_chunk` stamps the chunk header (offset
@@ -1857,6 +1882,13 @@ protected:
 	//! exit drain.
 	int return_slots(const CrossDeallocEntry *entries, bool revive) noexcept;
 	void *slow_allocate(unsigned bucket, std::size_t size) noexcept override;
+	void owner_return(const CrossDeallocEntry *entries) noexcept override;
+public:
+	//! (§fit) FS=true: one size, so class 0 while allocate_pooled can still
+	//! claim a word below §94pct-gate, else 0xFF.
+	unsigned fit_class() noexcept;
+	static unsigned fit_class_of(unsigned int) noexcept { return 0; }
+protected:
 	//! Mmap a fresh chunk for the current thread.  no global
 	//! registry — the per-thread DLL is the sole source of truth for
 	//! "chunks this thread can allocate from".  Called from
@@ -2280,6 +2312,7 @@ protected:
 	//! exit drain.
 	int return_slots(const CrossDeallocEntry *entries, bool revive) noexcept;
 	void *slow_allocate(unsigned bucket, std::size_t size) noexcept override;
+	void owner_return(const CrossDeallocEntry *entries) noexcept override;
 public:
 	//! (§fit) The class of this chunk's bitmap room: the index (largest
 	//! size first) of the largest of the tier's sizes it still fits, or
@@ -2437,9 +2470,20 @@ struct AllocSlot {
 	//! appears on the freelist link (push always overwrites the slot's
 	//! first 8 bytes with the previous head), so 0 unambiguously means
 	//! "end of list".  Zero-initialised at static init.
+	//! (§tl-cap) A slot on the list holds, in its second word, the bytes the
+	//! thread's frees pushed from it down -- the freed memory under it.  A
+	//! pop needs nothing: the new head carries its own.  A free reads the
+	//! head's, and when its own would take the list past a segment
+	//! (KAME_TL_SEG_BYTES) the list is sealed instead and starts again with
+	//! the new slot (tl_push, tl_seal; m_seg below).  The chains a miss
+	//! splices onto the empty list (an FS=true pin's pre-fill or claimed
+	//! word) carry 0, so they are not counted.  (A count kept here instead,
+	//! beside the head, cost bench_loop 64 B 31 %: the pair store tied every
+	//! pop's head to the count's update.)
 	char *freelist_head;
 
 	//! Owner-thread freelist push.  Single-writer (TLS pin), no atomics.
+	//! Uncounted -- for the counted push see tl_push (allocator.cpp).
 	void push(void *p) noexcept {
 		*reinterpret_cast<char **>(p) = freelist_head;
 		freelist_head = static_cast<char *>(p);
@@ -2862,7 +2906,8 @@ inline unsigned int bucket_for_aligned(std::size_t alignment,
 //                       freelist cell, the g_thread_freelist_ptr[b]
 //                       shortcut).
 //
-// Size: 16 + ALLOC_NUM_BUCKETS * sizeof(AllocSlot) = 16 + 52*8 = 432 B.
+// Size: 16 + ALLOC_NUM_BUCKETS * (sizeof(AllocSlot) + sizeof m_seg[0])
+// = 16 + 52*16 = 848 B.
 // Fits the Linux IE static-TLS surplus (4 KiB default on glibc); on
 // macOS this struct is GD TLS (too large for the IE path) and its
 // address is cached in the IE-TLS pointer `tls_page_ie`.
@@ -2903,6 +2948,13 @@ struct KameTlsPage {
     //! alloc-side / C-shim predicate.
     uint32_t   torn_down;
     AllocSlot  m_slots[ALLOC_NUM_BUCKETS];  // replaces g_thread_slots[]
+    //! (§tl-cap) Per bucket, the newest of the thread's sealed segments of
+    //! freed slots (allocator.cpp, tl_seal): a list that reached
+    //! KAME_TL_SEG_BYTES, whose first slot's second word now links the next
+    //! older segment.  A miss takes the newest back before anything else; past
+    //! KAME_TL_SEGS of them the oldest goes back to its chunks.  Off the hot
+    //! lines: touched when a list fills a segment, and on a miss.
+    char      *m_seg[ALLOC_NUM_BUCKETS];
     // Named m_slots, NOT slots — Qt defines `slots` as an empty preprocessor
     // token in <QtCore> (the same reason RadixL2Node uses `entries` instead of
     // `slots`), which would turn `AllocSlot slots[N]` into `AllocSlot [N]` and
@@ -2923,7 +2975,7 @@ static_assert(offsetof(KameTlsPage, m_slots)
     "and nothing inserted before the hot m_slots array");
 static_assert(sizeof(KameTlsPage)
                   == offsetof(KameTlsPage, m_slots) + sizeof(AllocSlot) * ALLOC_NUM_BUCKETS
-                     ,
+                     + sizeof(char *) * ALLOC_NUM_BUCKETS,
     "KameTlsPage must stay packed — no trailing padding");
 
 // Platform split for the TLS page storage:

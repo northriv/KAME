@@ -306,10 +306,12 @@ static inline uint32_t kame_owner_id() noexcept {
 // records (N << 8) | bucket).  A slot on a list is still bit-set in its
 // chunk's bitmap, as a freelist entry was, so the chunk counts as live and
 // is never released under the list; thread exit hands every list back to
-// the slots' chunk freelists, which its walk drains to the bitmaps.  A
-// chunk's m_freelist_head[] otherwise only carries an FS=true chunk's slots
-// to a miss -- its pre-fill, or the rest of a word allocate_pooled claimed
-// -- which tc_miss moves onto the empty list whole.
+// the slots' chunk freelists, which its walk drains to the bitmaps.
+// (§tl-cap) A thread keeps about four megabytes of its freed memory per
+// bucket: past that the oldest goes back to its chunks, so memory it no
+// longer allocates is released (tl_push, tl_seal).  A chunk's m_freelist_head[] otherwise only carries
+// an FS=true chunk's slots to a miss -- its pre-fill, or the rest of a word
+// allocate_pooled claimed -- which tc_miss moves onto the empty list whole.
 constexpr bool bucket_is_var(unsigned b) noexcept {
 	return b == 6 || b == 8 || b == 10 || b == 12 || b == 14 || b == 16
 	    || (b >= 24 && b < (unsigned)ALLOC_NUM_BUCKETS);
@@ -332,11 +334,16 @@ static_assert(kTierLocalBucket.v[0][0] == 6 && kTierLocalBucket.v[3][0] == 16
 // (§thread-list) Diagnostic counters, off unless -DKAME_FL_STATS.
 #ifdef KAME_FL_STATS
 struct FlStats {
-	std::atomic<uintptr_t> miss{0}, splice{0}, fit_filed{0}, fit_taken{0};
+	std::atomic<uintptr_t> miss{0}, splice{0}, fit_filed{0}, fit_taken{0}, spill{0}, spill_release{0},
+	    sealed{0}, seg_revived{0}, seg_returned{0};
 	~FlStats() {
-		std::fprintf(stderr, "[kame fl-stats] misses=%lu splices=%lu | fit filed %lu taken %lu\n",
+		std::fprintf(stderr, "[kame fl-stats] misses=%lu splices=%lu | fit filed %lu taken %lu"
+		             " | sealed %lu revived %lu, slots returned %lu, spilled %lu, released %lu\n",
 		             (unsigned long)miss.load(), (unsigned long)splice.load(),
-		             (unsigned long)fit_filed.load(), (unsigned long)fit_taken.load());
+		             (unsigned long)fit_filed.load(), (unsigned long)fit_taken.load(),
+		             (unsigned long)sealed.load(), (unsigned long)seg_revived.load(),
+		             (unsigned long)seg_returned.load(),
+		             (unsigned long)spill.load(), (unsigned long)spill_release.load());
 	}
 };
 static FlStats g_fl_stats;
@@ -347,9 +354,49 @@ static FlStats g_fl_stats;
 #  define KAME_FLS_ADD(f, n) ((void)0)
 #endif
 //! (§thread-list) Push `p` onto this thread's list for `bucket`.
-static inline void tl_push(KameTlsPage *pg, unsigned bucket, void *p) noexcept {
+// (§tl-cap) How much of its own freed memory a thread keeps per bucket.  A
+// list holds up to a segment of it, KAME_TL_SEG_BYTES; a free that would
+// take it past that seals the list as a segment (KameTlsPage::m_seg) and
+// starts it again with the new slot -- the newest stay hot -- and past
+// KAME_TL_SEGS sealed segments the oldest, coldest one goes back to its
+// chunks in one go (tl_seal), where a chunk it empties is released and a
+// partly freed one waits on the fit lists.  A miss takes the newest segment
+// back before anything else.  Without it a thread that frees one size and
+// goes on to allocate another kept the first size's memory for good (400
+// MiB of 64 B freed, then 400 MiB of 1 KiB: 1053 MiB against mimalloc's
+// 480; now 631).  About 4 MiB in all: under random replacement the free
+// slots of a bucket wander up to a few MiB, and a 1 MiB cap spilled half as
+// often again and left 15 % more RSS (replace1, 100 K live of 16..4096 B).
+// 256 KiB segments: the free that returns one pays for it -- freeing 200 MiB
+// of 64 B or 1 KiB on the M3, the slowest free took 31..56 us with 256 KiB
+// segments (once 191), 91..120 us with 1 MiB ones; master 4..39 us.  A
+// realtime thread seals nothing: each free past a segment returns its own
+// slot, so none pays for a segment.  `bytes` is the slot's size as the
+// caller has it to hand (a bucket * 16, the borrow prefix's SIZE,
+// N << shift): any measure of it will do.
+#ifndef KAME_TL_SEG_BYTES
+#  define KAME_TL_SEG_BYTES (256u << 10)
+#endif
+#ifndef KAME_TL_SEGS
+#  define KAME_TL_SEGS 15
+#endif
+constexpr unsigned tl_slot_bytes(unsigned b) noexcept {
+	return (b <= 23u) ? (b ? b * 16u : 16u) : kBucketNewSlot[b];
+}
+static void tl_seal(KameTlsPage *pg, unsigned bucket, void *p,
+                    PoolAllocatorBase *chunk, uintptr_t bytes) noexcept;
+static inline void tl_push(KameTlsPage *pg, unsigned bucket, void *p,
+                           PoolAllocatorBase *chunk, uintptr_t bytes) noexcept {
 	char *&h = pg->m_slots[bucket].freelist_head;
-	*reinterpret_cast<char **>(p) = h;
+	char *head = h;
+	uintptr_t below = bytes;
+	if(head) {   // the head's second word; every slot is >= 16 B
+		below += reinterpret_cast<uintptr_t *>(head)[1];
+		if(__builtin_expect(below > (uintptr_t)(KAME_TL_SEG_BYTES), 0))
+			return tl_seal(pg, bucket, p, chunk, bytes);
+	}
+	reinterpret_cast<char **>(p)[0] = head;
+	reinterpret_cast<uintptr_t *>(p)[1] = below;
 	h = static_cast<char *>(p);
 }
 
@@ -667,6 +714,19 @@ struct AllocThreadExitCleanup {
                     char *next = *reinterpret_cast<char **>(s);
                     PoolAllocatorBase::tl_return_to_chunk(s);
                     s = next;
+                }
+                // (§tl-cap) And the sealed segments, each linked from its
+                // first slot's second word.
+                char *seg = pg->m_seg[b];
+                pg->m_seg[b] = nullptr;
+                while(seg) {
+                    char *older = reinterpret_cast<char **>(seg)[1];
+                    for(char *t = seg; t; ) {
+                        char *next = *reinterpret_cast<char **>(t);
+                        PoolAllocatorBase::tl_return_to_chunk(t);
+                        t = next;
+                    }
+                    seg = older;
                 }
             }
         }
@@ -1386,7 +1446,8 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 		char *prev = nullptr;
 		for(size_t i = N_slots; i-- > 0; ) {
 			char *slot = base + i * ALIGN;
-			*reinterpret_cast<char **>(slot) = prev;
+			reinterpret_cast<char **>(slot)[0] = prev;
+			reinterpret_cast<intptr_t *>(slot)[1] = 0;   // (§tl-cap) not counted
 			prev = slot;
 		}
 		m_freelist_head[0] = base;
@@ -1633,6 +1694,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 							    (unsigned long long)rest) * ALIGN;
 							*tail = s;
 							tail = reinterpret_cast<char **>(s);
+							reinterpret_cast<intptr_t *>(s)[1] = 0;   // (§tl-cap) not counted
 							rest &= rest - 1u;
 						} while(rest);
 						*tail = this->m_freelist_head[0];
@@ -2027,7 +2089,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 			else
 				bucket = (static_cast<unsigned>(*reinterpret_cast<std::uint64_t *>(p - 8)) >> 16) & 0xFFu;
 			if(bucket - 1u < (unsigned)ALLOC_NUM_BUCKETS - 1u) {
-				tl_push(kame_page(), bucket, p);
+				tl_push(kame_page(), bucket, p, this, tl_slot_bytes(bucket));
 				return false;
 			}
 		}
@@ -2376,7 +2438,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	if(static_cast<PoolAllocatorBase *>(s_tls.my_chunk) == this) {
 		// (§thread-list) Onto our list for the chunk's one bucket; the slot
 		// stays bit-set in the bitmap, as on any list.
-		tl_push(kame_page(), this->m_base_bucket, p);
+		tl_push(kame_page(), this->m_base_bucket, p, this, tl_slot_bytes(this->m_base_bucket));
 		return false;
 	}
 	// (§35) Orphan adoption DISABLED here — see the FS=false sibling in the
@@ -2471,6 +2533,17 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 void *
 PoolAllocator<ALIGN, FS, DUMMY>::tc_miss(unsigned bucket, unsigned int SIZE) noexcept {
 	KAME_FLS(miss);
+	{
+		// (§tl-cap) The newest sealed segment of our freed slots, back as the
+		// list: its first slot serves, the rest carry their own counts.
+		KameTlsPage *pg = kame_page();
+		if(char *seg = pg->m_seg[bucket]) {
+			pg->m_seg[bucket] = reinterpret_cast<char **>(seg)[1];
+			pg->m_slots[bucket].freelist_head = *reinterpret_cast<char **>(seg);
+			KAME_FLS(seg_revived);
+			return seg;
+		}
+	}
 	void *p = allocate_chunk_path(SIZE);
 	if constexpr (DUMMY) {
 		if(auto *pin = s_tls.my_chunk) {
@@ -2720,47 +2793,15 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// classed again (FIT_TRIES such per request).  Classing it at every
 	// failure cost a full bitmap pass each time a revived chunk had served
 	// its few slots (bench_xlatency 0.4x).  Its class may be stale high (the
-	// room was used since), which a failed try corrects, or stale low
-	// (cross-thread frees added room), which the revival lists cover.
+	// room was used since), which a failed try corrects, or stale low (room
+	// added since -- by cross-thread frees, which the revival lists cover, or
+	// by its owner's frees past the list cap, which release it once it is
+	// empty, §tl-cap).
 	// Owner-only, doubly linked so a chunk leaves its list in O(1) when
-	// released.  FS=true chunks never leave room behind: none.
-	auto fit_unlink = [](Chunk *c) noexcept {
-		if constexpr ( !DUMMY) {
-			if(c->m_fit_cls < 0) return;
-			Chunk *pv = static_cast<Chunk *>(c->m_fit_prev);
-			Chunk *nx = static_cast<Chunk *>(c->m_fit_next);
-			if(pv) pv->m_fit_next = nx;
-			else   s_tls.fit_head[c->m_fit_cls] = nx;
-			if(nx) nx->m_fit_prev = pv;
-			c->m_fit_prev = c->m_fit_next = nullptr;
-			c->m_fit_cls = -1;
-		}
-		else
-			(void)c;
-	};
-	auto fit_reclass = [&](Chunk *c) noexcept {
-		if constexpr ( !DUMMY) {
-			fit_unlink(c);
-			const unsigned k = c->fit_class();
-			if(k >= (unsigned)KAME_LOCAL_BUCKETS) return;
-			c->m_fit_cls = static_cast<int8_t>(k);
-			c->m_fit_prev = nullptr;
-			c->m_fit_next = s_tls.fit_head[k];
-			if(Chunk *nx = s_tls.fit_head[k]) nx->m_fit_prev = c;
-			s_tls.fit_head[k] = c;
-			KAME_FLS(fit_filed);
-		}
-		else
-			(void)c;
-	};
-	auto fit_file = [&](Chunk *c) noexcept {
-		if constexpr ( !DUMMY) {
-			if(c->m_fit_cls < 0)
-				fit_reclass(c);
-		}
-		else
-			(void)c;
-	};
+	// released.  FS=true chunks are filed too, when their owner's frees
+	// beyond the list cap return slots to them (§tl-cap).  fit_unlink /
+	// fit_reclass / fit_file / release_own are static members, shared with
+	// owner_return.
 	// Make `c` the pin.  A member of a group we took over joins our DLL the
 	// first time.  (§33) The old pin becomes "1-back", which the revival pop
 	// below skips for one pin cycle.  (§fit) A pin may stay on a fit list.
@@ -2834,10 +2875,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 			// (§fit) It cannot serve SIZE, but may smaller sizes: onto the
 			// fit lists rather than left behind.  (Ours: a revived chunk is
 			// a member of our group, joined to our DLL.)
-			if constexpr ( !DUMMY) {
-				if(atomicLoadRelaxed(&c->m_owner_id) == kame_owner_id())
-					fit_file(c);
-			}
+			if(atomicLoadRelaxed(&c->m_owner_id) == kame_owner_id())
+				fit_file(c);
 		}
 		if(skipped) {
 			skipped->m_rv_next = s_tls.rv_list;
@@ -2881,35 +2920,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 			// share the static — `m_flags_packed` lives on the
 			// FS=true base).
 			if(PoolAllocator<ALIGN, FS, DUMMY>::owner_release(nx)) {
-				fit_unlink(nx);   // (§fit)
-				// DLL unlink (single-writer = us).
-				if(nx->m_dll_prev) nx->m_dll_prev->m_dll_next = nx->m_dll_next;
-				else               s_tls.dll_head = nx->m_dll_next;
-				if(nx->m_dll_next) nx->m_dll_next->m_dll_prev = nx->m_dll_prev;
-				else               s_tls.dll_tail = nx->m_dll_prev;
-				--s_tls.dll_len;
-				// PoolAllocator object now embedded inside chunk_base +
-				// ALLOC_CHUNK_HEADER; chunk_base from `nx` directly.
-				char *cbase = reinterpret_cast<char*>(nx) - ALLOC_CHUNK_HEADER;
-				size_t csz = nx->m_chunk_size;
-				// (§thread-list) No per-bucket pointer can name it: a slot on a
-				// thread list keeps its chunk non-empty.
-#if KAME_POOL_ONEBACK_SKIP
-				// (§33) Clear dll_one_back if it pointed at the chunk
-				// we're releasing — otherwise it dangles and a chunk
-				// reused at the same address would be wrongly skipped
-				// (benign ABA, but cheap to avoid).
-				if(s_tls.dll_one_back == nx)
-					s_tls.dll_one_back = nullptr;
-#endif
-				// (1b) Clear m_owner_id BEFORE the destructor — see the
-				// FS=true batch_return_to_bitmap sibling for the rationale.
-				atomicStoreRelaxed(&nx->m_owner_id, 0u);
-				// (§group) Only anchors are refcounted, and the anchor is never
-				// a neighbour we release: destruct directly.  Its m_anc
-				// reference to our anchor drops in the destructor.
-				nx->~PoolAllocator();   // placement-new destructor
-				PoolAllocatorBase::bucket_release_chunk(cbase, csz);  // (§34) park warm
+				release_own(nx);   // (§fit, DLL, one-back, park warm)
 				++released;
 			}
 			else {
@@ -2928,12 +2939,10 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// sizes onto the fit lists.  Then the revived chunks, then the fit
 	// lists for a chunk that holds SIZE -- no walk of our chunks (v1.1.0's,
 	// bounded to 64 by v1.2.1).
-	if constexpr ( !DUMMY) {
-		if(Chunk *my = s_tls.my_chunk)
-			fit_file(my);
-	}
+	if(Chunk *my = s_tls.my_chunk)
+		fit_file(my);
 	if(void *p = take_rest(true)) return fill_check(p);
-	if constexpr ( !DUMMY) {
+	{
 		constexpr unsigned FIT_TRIES = 4;
 		const unsigned j = Chunk::fit_class_of(SIZE);
 		unsigned tries = 0;
@@ -3062,6 +3071,172 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// chunk has 16K+ slots even at ALIGN=16.
 	return fill_check(chunk->allocate_pooled(SIZE));
 }
+// (§fit) The fit lists' upkeep (see allocate_chunk_path), on the tier's
+// manager PoolAllocator<ALIGN, true, DUMMY>.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+void PoolAllocator<ALIGN, FS, DUMMY>::fit_unlink(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept {
+	typedef PoolAllocator<ALIGN, DUMMY, DUMMY> Chunk;
+	if(c->m_fit_cls < 0) return;
+	Chunk *pv = static_cast<Chunk *>(c->m_fit_prev);
+	Chunk *nx = static_cast<Chunk *>(c->m_fit_next);
+	if(pv) pv->m_fit_next = nx;
+	else   s_tls.fit_head[c->m_fit_cls] = nx;
+	if(nx) nx->m_fit_prev = pv;
+	c->m_fit_prev = c->m_fit_next = nullptr;
+	c->m_fit_cls = -1;
+}
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+void PoolAllocator<ALIGN, FS, DUMMY>::fit_reclass(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept {
+	typedef PoolAllocator<ALIGN, DUMMY, DUMMY> Chunk;
+	fit_unlink(c);
+	const unsigned k = c->fit_class();
+	if(k >= (unsigned)KAME_LOCAL_BUCKETS) return;
+	c->m_fit_cls = static_cast<int8_t>(k);
+	c->m_fit_prev = nullptr;
+	c->m_fit_next = s_tls.fit_head[k];
+	if(Chunk *nx = s_tls.fit_head[k]) nx->m_fit_prev = c;
+	s_tls.fit_head[k] = c;
+	KAME_FLS(fit_filed);
+}
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+void PoolAllocator<ALIGN, FS, DUMMY>::fit_file(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept {
+	if(c->m_fit_cls < 0)
+		fit_reclass(c);
+}
+// (§fit) FS=true: room while allocate_pooled's §94pct-gate lets it claim.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+unsigned PoolAllocator<ALIGN, FS, DUMMY>::fit_class() noexcept {
+	return (atomicLoadRelaxed(&this->m_flags_filled_cnt)
+	        < this->m_count - this->m_count / 16) ? 0u : 0xFFu;
+}
+
+// Unlink `nx` -- one of ours whose owner_release just succeeded -- from the
+// fit lists and the DLL, and release it: it is parked warm (§34).  The DLL's
+// back link is what makes this O(1) wherever `nx` sits.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+void PoolAllocator<ALIGN, FS, DUMMY>::release_own(PoolAllocator<ALIGN, DUMMY, DUMMY> *nx) noexcept {
+	fit_unlink(nx);
+	if(nx->m_dll_prev) nx->m_dll_prev->m_dll_next = nx->m_dll_next;
+	else               s_tls.dll_head = nx->m_dll_next;
+	if(nx->m_dll_next) nx->m_dll_next->m_dll_prev = nx->m_dll_prev;
+	else               s_tls.dll_tail = nx->m_dll_prev;
+	--s_tls.dll_len;
+	// PoolAllocator object embedded inside chunk_base + ALLOC_CHUNK_HEADER.
+	char *cbase = reinterpret_cast<char *>(nx) - ALLOC_CHUNK_HEADER;
+	size_t csz = nx->m_chunk_size;
+	// (§thread-list) No list can name it: a slot on a thread's list keeps
+	// its chunk non-empty.
+#if KAME_POOL_ONEBACK_SKIP
+	// (§33) Clear dll_one_back if it pointed at the chunk -- otherwise it
+	// dangles, and a chunk reused at the same address would be wrongly
+	// skipped (benign ABA, but cheap to avoid).
+	if(s_tls.dll_one_back == nx)
+		s_tls.dll_one_back = nullptr;
+#endif
+	// (1b) Clear m_owner_id BEFORE the destructor -- see the FS=true
+	// batch_return_to_bitmap sibling for the rationale.
+	atomicStoreRelaxed(&nx->m_owner_id, 0u);
+	// (§group) Only anchors are refcounted, and an anchor is never released
+	// here: destruct directly.  Its m_anc reference to our anchor drops in
+	// the destructor.
+	nx->~PoolAllocator();   // placement-new destructor
+	PoolAllocatorBase::bucket_release_chunk(cbase, csz);  // (§34) park warm
+}
+
+// (§tl-cap) A slot of `c` just went back to its bitmap from its owner.  The
+// pin keeps it: allocate_pooled finds the room.  Any other chunk is released
+// once that leaves it empty -- the floor and owner_release permitting: not
+// the anchor, not listed for revival -- so its units serve whatever size
+// comes next; else it is filed on the fit lists, where a miss of its tier
+// looks before taking a new chunk.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+void PoolAllocator<ALIGN, FS, DUMMY>::own_after_return(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept {
+	if(c == s_tls.my_chunk) return;
+	if((atomicLoadRelaxed(&c->m_flags_packed) & PoolAllocator<ALIGN, DUMMY, DUMMY>::MASK_CNT) == 0
+	   && c != s_tls.anchor && owner_release(c)) {
+		release_own(c);
+		KAME_FLS(spill_release);
+		return;
+	}
+	fit_file(c);
+}
+
+// (§tl-cap) The owner's own slots, back to the bitmap: no BIT_Q, no revival
+// push -- the owner files or releases the chunk itself.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+void PoolAllocator<ALIGN, FS, DUMMY>::owner_return(const CrossDeallocEntry *entries) noexcept {
+	this->return_slots(entries, false);
+	if constexpr (FS && DUMMY)   // a real FS=true chunk (FS=false ones override)
+		PoolAllocator<ALIGN, true, true>::own_after_return(this);
+}
+template <unsigned int ALIGN, bool DUMMY>
+void PoolAllocator<ALIGN, false, DUMMY>::owner_return(const CrossDeallocEntry *entries) noexcept {
+	this->return_slots(entries, false);
+	if constexpr ( !DUMMY)   // the real FS=false chunks (the DUMMY=false trick)
+		PoolAllocator<ALIGN, true, false>::own_after_return(this);
+}
+
+KAME_NOINLINE void
+PoolAllocatorBase::owner_spill(PoolAllocatorBase *chunk, void *p) noexcept {
+	KAME_FLS(spill);
+	CrossDeallocEntry e[2] = {{chunk, p}, {nullptr, nullptr}};
+	chunk->owner_return(e);
+}
+
+// (§tl-cap) A segment's slots in list order -- runs of one chunk's, since a
+// list fills from few chunks at a time -- handed back a run at a time.
+KAME_NOINLINE void
+PoolAllocatorBase::tl_return_segment(char *seg) noexcept {
+	constexpr int RUN = 256;
+	CrossDeallocEntry run[RUN + 1];
+	PoolAllocatorBase *cur = nullptr;
+	int n = 0;
+	for(char *s = seg; s; ) {
+		char *next = *reinterpret_cast<char **>(s);
+		PoolAllocatorBase *c = chunk_of_slot(s);
+		if(c != cur || n == RUN) {
+			if(n) {
+				run[n] = {nullptr, nullptr};
+				cur->owner_return(run);
+			}
+			cur = c;
+			n = 0;
+		}
+		run[n++] = {c, s};
+		KAME_FLS(seg_returned);
+		s = next;
+	}
+	if(n) {
+		run[n] = {nullptr, nullptr};
+		cur->owner_return(run);
+	}
+}
+
+// (§tl-cap) The list reached a segment: seal it, and start it again with `p`.
+// Past KAME_TL_SEGS sealed segments the oldest goes back to its chunks.  A
+// realtime thread returns `p` itself instead.
+static KAME_NOINLINE void
+tl_seal(KameTlsPage *pg, unsigned bucket, void *p, PoolAllocatorBase *chunk,
+        uintptr_t bytes) noexcept {
+	if(rt_defer_active())
+		return PoolAllocatorBase::owner_spill(chunk, p);
+	KAME_FLS(sealed);
+	char *&h = pg->m_slots[bucket].freelist_head;
+	char *full = h;   // non-null: a slot is far smaller than a segment
+	reinterpret_cast<char **>(full)[1] = pg->m_seg[bucket];
+	pg->m_seg[bucket] = full;
+	reinterpret_cast<char **>(p)[0] = nullptr;
+	reinterpret_cast<uintptr_t *>(p)[1] = bytes;
+	h = static_cast<char *>(p);
+	char **link = &pg->m_seg[bucket];
+	for(int k = 0; *link && k < KAME_TL_SEGS; ++k)
+		link = &reinterpret_cast<char **>(*link)[1];
+	if(char *oldest = *link) {
+		*link = nullptr;
+		PoolAllocatorBase::tl_return_segment(oldest);
+	}
+}
+
 // Chunk release is a CAS of the whole `m_flags_packed` word to 0 from exactly
 // one pattern (§group; see the BIT_* doc in allocator_prv.h), so the releaser
 // is unique and nothing is in flight:
@@ -3645,7 +3820,8 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 	                    && page_owner_id != 0, 1)) {
 		if(__builtin_expect(chunk_obj->m_fs_flag != 0, 1)) {  // FS=true — 64 B hot
 			// (§thread-list) Onto the thread's list for the chunk's bucket.
-			return tl_push(pg, chunk_obj->m_base_bucket, p);
+			return tl_push(pg, chunk_obj->m_base_bucket, p, chunk_obj,
+			               static_cast<uintptr_t>(chunk_obj->m_base_bucket) << 4);
 		}
 		// FS=false owner free.  Routed to a dedicated noinline helper —
 		// NOT inlined here, and NOT folded into the FS=true return above:
@@ -3669,7 +3845,7 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 // (§thread-list) See allocator_prv.h.  The chunk is found as deallocate
 // finds it (region, unit, back offset); the local id as each tier records
 // it.  Thread exit only, before the walk that drains these freelists.
-void PoolAllocatorBase::tl_return_to_chunk(char *s) noexcept {
+PoolAllocatorBase *PoolAllocatorBase::chunk_of_slot(char *s) noexcept {
 	const uintptr_t up = reinterpret_cast<uintptr_t>(s);
 	char *mp = reinterpret_cast<char *>(up & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u));
 	const unsigned unit_idx = static_cast<unsigned>((size_t)(s - mp) >> ALLOC_MIN_CHUNK_SHIFT);
@@ -3677,7 +3853,11 @@ void PoolAllocatorBase::tl_return_to_chunk(char *s) noexcept {
 	const unsigned base_idx = unit_idx - (back_off_raw & 0x7Fu);
 	char *chunk_base = mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE
 	                 - (size_t)ALLOC_CHUNK_K_MAX;
-	PoolAllocatorBase *ch = reinterpret_cast<PoolAllocatorBase *>(chunk_base + ALLOC_CHUNK_HEADER);
+	return reinterpret_cast<PoolAllocatorBase *>(chunk_base + ALLOC_CHUNK_HEADER);
+}
+
+void PoolAllocatorBase::tl_return_to_chunk(char *s) noexcept {
+	PoolAllocatorBase *ch = chunk_of_slot(s);
 	unsigned local = 0;
 	if( !ch->m_fs_flag) {
 		if(ch->m_sizes) {
@@ -3709,16 +3889,17 @@ PoolAllocatorBase::deallocate_fs_false_owner(char *chunk_base, void *p,
 		// in so this stays a leaf -- kame_page() can call out.
 		if(__builtin_expect(bucket - 1u >= (unsigned)ALLOC_NUM_BUCKETS - 1u, 0))
 			return deallocate_cold(p);
-		return tl_push(pg, bucket, p);
+		return tl_push(pg, bucket, p, chunk_obj, hdr >> 32);
 	}
+	const unsigned shift = chunk_obj->m_align_shift;
 	size_t bit_index =
-	    static_cast<size_t>(static_cast<char *>(p) - chunk_obj->mempool())
-	    >> chunk_obj->m_align_shift;
-	// (§thread-list) m_sizes records the bucket: 40..51 for the full tier.
-	const unsigned bucket = chunk_obj->m_sizes[bit_index] & 0xFFu;
+	    static_cast<size_t>(static_cast<char *>(p) - chunk_obj->mempool()) >> shift;
+	// (§thread-list) m_sizes records (N << 8) | bucket: 40..51 for the full tier.
+	const unsigned entry = chunk_obj->m_sizes[bit_index];
+	const unsigned bucket = entry & 0xFFu;
 	if(__builtin_expect(bucket - 40u > (unsigned)ALLOC_NUM_BUCKETS - 41u, 0))
 		return deallocate_cold(p);
-	return tl_push(pg, bucket, p);
+	return tl_push(pg, bucket, p, chunk_obj, static_cast<uintptr_t>(entry >> 8) << shift);
 }
 
 // Forward decl (real declaration with __attribute__((noinline)) sits next to
@@ -3877,16 +4058,19 @@ PoolAllocatorBase::deallocate_cold(void *p) noexcept {
 			// FS=false code on this hottest path (5 % bench_loop
 			// regression when folded together).
 			if(chunk_obj->m_fs_flag)
-				return tl_push(pg, chunk_obj->m_base_bucket, p);   // (§thread-list)
+				return tl_push(pg, chunk_obj->m_base_bucket, p, chunk_obj,   // (§thread-list)
+				               static_cast<uintptr_t>(chunk_obj->m_base_bucket) << 4);
 			// FS=false owner free -- see deallocate_fs_false_owner.
 			if(chunk_obj->m_sizes) {
 				size_t bit_index =
 				    static_cast<size_t>(static_cast<char *>(p) - chunk_obj->mempool())
 				    >> chunk_obj->m_align_shift;
-				const unsigned bucket = chunk_obj->m_sizes[bit_index] & 0xFFu;   // (§thread-list)
+				const unsigned entry = chunk_obj->m_sizes[bit_index];   // (§thread-list)
+				const unsigned bucket = entry & 0xFFu;
 				if(bucket - 40u > (unsigned)ALLOC_NUM_BUCKETS - 41u)
 					goto vtable_dispatch;
-				return tl_push(pg, bucket, p);
+				return tl_push(pg, bucket, p, chunk_obj,
+				               static_cast<uintptr_t>(entry >> 8) << chunk_obj->m_align_shift);
 			} else {
 				std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(
 				    static_cast<char *>(p) - 8);
@@ -3899,7 +4083,7 @@ PoolAllocatorBase::deallocate_cold(void *p) noexcept {
 				if(local >= (unsigned)KAME_LOCAL_BUCKETS
 				   || bucket - 1u >= (unsigned)ALLOC_NUM_BUCKETS - 1u)
 					goto vtable_dispatch;
-				return tl_push(pg, bucket, p);   // (§thread-list)
+				return tl_push(pg, bucket, p, chunk_obj, hdr >> 32);   // (§thread-list)
 			}
 		}
 		// Owner mismatch.  Either: dedicated chunk (m_owner_id == 0,
@@ -4577,7 +4761,7 @@ ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, 
 // owner_id 0 guarantees the hot owner-check never matches it; `torn_down` is SET
 // statically so `kame_thread_torn_down()` reports torn-down through this page as
 // well as through a real page whose cleanup has run.
-KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/1, {}};
+KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/1, {}, {}};
 
 // Cold off-ramp for the lean freelist-pop entries (`new_redirected` and
 // `new_redirected_large`; declared in allocator_prv.h): an empty owner
