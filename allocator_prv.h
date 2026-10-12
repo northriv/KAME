@@ -699,7 +699,8 @@ static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
 //!                                                data, no p-8 read)
 //!   FS=false borrow   0                null      `{uint32 local_id, uint32 SIZE}`
 //!   (ALIGN < 1024)                               at `p - 8`; slot 0's prefix lives
-//!                                                in hdr[56..63], every other slot
+//!                                                in the metadata's last 8 B
+//!                                                [K_MAX-8, K_MAX), every other slot
 //!                                                borrows its predecessor's last 8 B
 //!   FS=false m_sizes  0                non-null  `m_sizes[bit] = (N<<8)|local_id`,
 //!   ("full-usable",                              `bit = (p-mempool) >> m_align_shift`;
@@ -723,15 +724,24 @@ static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
 //!          │   [40..63] pad                             │      fast path)
 //!     +64  ├────────────────────────────────────────────┤
 //!          │ PoolAllocator embed object (placement-new  │
-//!          │ at +64): vptr + cold fields (m_chunk_size  │
-//!          │ …); alignas(64) pads so the hot block      │
-//!          │ starts at +128.                            │
+//!          │ at +64, 320 B): vptr, m_last_coalesce_x16; │
+//!          │ alignas(64) pads so the hot block starts   │
+//!          │ at +128.                                   │
 //!    +128  ├────────────────────────────────────────────┤
 //!          │ hot block (cache-line-isolated "1b"):      │  <- dealloc
 //!          │   m_owner_id, m_fs_flag, m_align_shift,    │     fast-path line
 //!          │   m_base_bucket, m_sizes,                  │
 //!          │   m_freelist_head[KAME_LOCAL_BUCKETS]      │
-//!          ├────────────────────────────────────────────┤
+//!    +216  │ m_chunk_size; m_flags (-> the bitmap      │
+//!          │   below), m_idx, m_count                   │
+//!    +256  ├────────────────────────────────────────────┤
+//!          │ alignas(64) m_flags_packed (MASK_CNT,      │  <- cross-thread
+//!          │   BIT_A / BIT_Q / BIT_OWNED),              │     free, revival,
+//!          │   m_flags_filled_cnt, m_dll_prev/next,     │     groups (§revive
+//!          │   refcnt, m_orphan_next, m_anc, m_rv_head, │     / §group)
+//!          │   m_rv_next, m_exit_release,               │
+//!          │   m_owner_self_ref                         │
+//!    +384  ├────────────────────────────────────────────┤
 //!          │ m_flags[] claim bitmap + padding           │
 //!          │   (all metadata fits within [0, K_MAX);     │
 //!          │    last 8 B [K_MAX-8 .. K_MAX) = FS=false-  │
@@ -789,8 +799,8 @@ static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
 //! count) fits its PoolAllocator object + m_flags array within
 //! `K_MAX - ALLOC_CHUNK_HEADER` bytes.  Verified at compile time in the
 //! per-template `create()`:
-//!   - ALIGN=16, CHUNK_UNITS=1: PoolAllocator (~200 B) + m_flags (~2 KiB)
-//!                              + padding < 4 KiB ✓
+//!   - ALIGN=16, CHUNK_UNITS=1: PoolAllocator (320 B, from +64) + m_flags
+//!                              (~2 KiB, from +384) + padding < 4 KiB ✓
 //!   - ALIGN=256, CHUNK_UNITS=2: PoolAllocator + m_flags (~256 B) ≪ 4 KiB
 //!   - Dedicated chunks: chunk_header only (~64 B) ≪ 4 KiB
 //!
