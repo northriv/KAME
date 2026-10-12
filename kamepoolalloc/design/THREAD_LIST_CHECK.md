@@ -197,6 +197,37 @@ Items 1, 2 and 4 (ILP32, no-DCAS phase 2, Zen 2) need Linux / Ohtaka.
 `leafpc.py` read nothing from Xcode 27's export (`tagged-backtrace` in
 place of `backtrace`); fixed in the same commit.
 
+## Since the M5 run: `f9e5cb9b3` (§tl-cap) — what to re-check
+
+`f9e5cb9b3` bounds what a thread keeps of its own freed memory: about
+4 MiB per bucket, its lists sealed into 256 KiB segments
+(`KameTlsPage::m_seg`) and the oldest returned to its chunks past 15 of
+them; a realtime thread returns single slots instead.  The M5 run above
+predates it.  Re-check on the M5 and on Linux:
+
+1. **The owner free.**  It now reads the head slot's second word (the
+   bytes below it, a load that depends on the head) and stores two words
+   into the freed slot.  M3: bench_loop 64 B 1.00x, 1 KiB 0.93x, 16 KiB
+   0.93x against `727c47322`.  Re-run `loop` and the micro benches; the
+   L1-resident replace1 loss at 16..368 B noted above may grow, since the
+   extra load sits on the free that its guess already blames.
+2. **The cold paths.**  `tl_seal` / `tl_return_segment` / `owner_return`
+   and the unseal in `tc_miss`: `alloc_phase_test` (new, in ctest — 48
+   tests now), the thread-exit soaks and `alloc_rt_thread_test` again; a
+   build with `-DKAME_TL_SEG_BYTES=1024u -DKAME_TL_SEGS=1` seals and returns
+   all the time and is the harsher one.
+3. **ILP32.**  `KameTlsPage` grew by `m_seg[52]` (its packed-size
+   static_assert now counts it): the i486 / i586 trees.
+4. **Hitches.**  The free that returns a segment pays for it: freeing
+   200 MiB of 64 B or 1 KiB blocks on the M3, the slowest free took
+   31–56 µs (before: 4–39 µs).  On the M5 and Ohtaka with a probe that
+   times each free of such a loop; `bench_frame` saw 39 seals in 3000
+   frames.
+5. **Memory.**  The phase change (one thread, 400 MiB of 64 B freed, then
+   400 MiB of 1 KiB) peaked at 1053 MiB before, 631 MiB now (581 with
+   `kame_pool_trim()` between; mimalloc 480) on the M3; on Linux RSS is
+   eager, so the number there is the one that matters.
+
 ## Run: Linux, 2026-10-12 (master `ac4144493`, the code of `04d904ccf`)
 
 Cloud container, x86-64, g++ 13.3, 4 vCPU, glibc; the six trees of
@@ -253,3 +284,76 @@ SIGSEGV reporter on every run.
 Item 3 (thread exit): the lists' hand-back at teardown is exercised by the
 exclusivity soaks and the four thread-exit soaks above, 0 failures in all.
 Items 4–6 (Zen 2, tails, memory) are performance questions for a real host.
+
+## Run: Linux, 2026-10-12 (master `6b61c6e4a`, the §tl-cap code of `f9e5cb9b3`)
+
+Same container and six trees as the run above, rebuilt at `6b61c6e4a`, plus
+three harsh trees built with `-DKAME_TL_SEG_BYTES=1024u -DKAME_TL_SEGS=1`
+(LP64 release, LP64 asserts, i586 asserts; the flags confirmed in their
+CMake caches).  Items 2, 3 and 5 of the list above.
+
+| check | result |
+|---|---|
+| `check_no_dcas.sh` | **3/3 ok** — §tl-cap adds no 64-bit atomic |
+| builds | clean, except `bench_frame` on i486 again (still `std::atomic<std::uint64_t>`, see the run above) |
+| ctest LP64 release / asserts | 48/48, 48/48 |
+| ctest harsh LP64 release / asserts | **48/48, 48/48** |
+| ctest i586 release / asserts, harsh i586 asserts | 45/48, 45/48, 46/48 |
+| ctest i486 release / asserts | 39/41, 38/41 |
+
+On the ILP32 trees the failures are `alloc_fit_test` (as in the run above:
+its sizes are LP64's), **`alloc_phase_test`** (below) and, on three of them,
+`transaction_wait_budget_test` under `ctest -j3`, 3/3 PASS alone each time.
+
+Soaks, by exit status, 4 at a time, each stage's tests interleaved:
+
+| tree | `alloc_phase_test` | `alloc_rt_thread_test` | `alloc_thread_exit_*` (4) | exclusivity 32 B / var / mid | `alloc_fit_test` |
+|---|---|---|---|---|---|
+| LP64 release | 0 / 200 | 0 / 200 | 0 / 200 each | 0 / 500 each | 0 / 500 |
+| harsh LP64 release | 0 / 100 | 0 / 100 | 0 / 100 each | 0 / 100 each | — |
+| harsh LP64 asserts | 0 / 100 | 0 / 100 | 0 / 100 each | 0 / 100 each | — |
+| harsh i586 asserts | 100 / 100 (threshold, below) | 0 / 100 | 0 / 100 each | 0 / 100 each | — |
+| i586 release | 100 / 100 (threshold) | 0 / 100 | 0 / 100 each | 0 / 100 each | — |
+| i486 release | 100 / 100 (threshold) | 0 / 100 | 0 / 100 each | 0 / 100 each | — |
+
+**`alloc_phase_test` on ILP32: the cap works; the test's threshold is
+LP64's.**  Every ILP32 failure (300 runs) is the one message "the second
+phase stacked on the first", with 0 blocks overwritten in all 1,200 pair
+checks and no crash.  The numbers, i586 (i486 identical):
+
+| | 64 B → 1 KiB: units after phase 1 / after free + trim / after phase 2 | 1 KiB alone (first phase of 1 KiB → 64 B) |
+|---|---|---|
+| LP64, `6b61c6e4a` | 262 / 20 / 370 — PASS | 327 |
+| ILP32, `6b61c6e4a` | 262 / 20 / **543** — FAIL (543 × 2 > 262 × 3) | 489 |
+| LP64, `ac4144493` library (before the cap) | 262 / 262 / 612 — FAIL, as it should | — |
+| ILP32, `ac4144493` library | 262 / 262 / 785 — FAIL, as it should | — |
+
+The freed phase does go (262 → 20 units, also on ILP32), and 543 ≈ 20 +
+the 1 KiB phase's own cost (489–523 units on ILP32).  What differs is that
+cost: a 1 KiB request has the same 1080 B slot on both
+(`kame_pool_malloc_usable_size`), but on ILP32 the bitmap word holds 32
+units, not 64, and the 1 KiB class packs worse into it (~1.5× the units —
+the same ratio before the cap: 523 vs 350 units for the 1 KiB phase on the
+`ac4144493` library).  The test's `u3 ≤ 1.5 × u1` assumes LP64's packing
+("1 KiB requests round up to 1280 B slots"); measured against the second
+size's own cost, or with a per-width factor, it would pass.  The harsh i586
+tree is the same (262 / 3 / 526; 1 KiB alone 520).
+
+**Item 5, memory — RSS on Linux.**  One thread, 400 MiB of the first size
+painted and freed, then 400 MiB of the second painted, plain `malloc` /
+`free` (the pool interposes them), VmHWM; LP64, the same binary against
+each library:
+
+| phase change | `6b61c6e4a` | before the cap (`ac4144493`) | glibc |
+|---|---|---|---|
+| 64 B → 1 KiB | **603 MiB** | 1005 | 552 |
+| 64 B → 1 KiB, `kame_pool_trim()` / `malloc_trim()` between | **553** | 955 | 552 |
+| 4 KiB → 64 B | **682** | 863 | 553 |
+| 4 KiB → 64 B, trim between | **466** | 863 | 553 |
+
+After the first phase is freed, RSS is 135 MiB (64 B) and 227 MiB (4 KiB)
+on `6b61c6e4a` against 460 and 407 before; the trim takes it to 15 and 11.
+The M3's 1053 → 631 (581) and 891 → 707 (587) have the same shape.
+
+Items 1 and 4 (the owner free's cost, the slowest free) are timing on a
+real host; not measured on this VM.
