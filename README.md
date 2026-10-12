@@ -209,7 +209,8 @@ mimalloc 3.3 — 1135 vs 1055 M ops/s single-thread, 4258 vs 3981 across 4
 processes — through the `deallocate` / `operator new` hot/cold splits (lean
 `always_inline` FS=true fast path, no prologue spill), the `KameTlsPage`
 fast-TSD unification (§hot-tls, a single `mrs TPIDRRO_EL0` instead of
-per-variable `_tlv_get_addr`), and the §word-cache cold path below; **1 KiB**
+per-variable `_tlv_get_addr`), and the §word-cache cold path of the time
+(its claim now feeds the thread lists below); **1 KiB**
 is 804 vs 766.  At **16 KiB** kame leads decisively — 891 vs 356
 single-thread, 3340 vs 1341 across 4 processes — helped by the void /
 tail-call FS=false free path.  At the **1 MiB** large tier kame leads at
@@ -220,27 +221,36 @@ tier (kame ~185 vs ~355 single-thread, 721 vs 1337 across 4 processes):
 there the per-free radix lookup plus recycle-cache bookkeeping cost more
 than mimalloc's segment scheme — a known weaker tier.
 
-### §word-cache — the FS=true cold path (default ON)
+### §thread-list — per-thread free lists; no walk over chunks
 
-Since `8a4d2622` the owner-side recovery of small fixed-size slots runs
-through a **claimed-word mask** instead of per-slot work: when the owner
-freelist runs dry, ONE bitmap CAS claims every zero bit of a word straight
-into the chunk's own cells `[1]` (the mask) / `[2]` (the word base) — unused
-under FS=true and on the same cache line as the freelist head the pop just
-touched — and each subsequent lean-cold alloc serves a slot with a `ctz` +
-clear-lowest + one multiply-add.  No per-slot next-pointer store, no
-dependent block-line load, CAS amortised 1/64; the only bit return is the
-thread-exit drain.  Hot paths (freelist pop/push) are byte-identical to the
-opt-out build (`-DKAME_FS_WORDCACHE=0`).
+A thread's own frees go onto its list for the slot's bucket
+(`KameTlsPage::m_slots[b]`), whichever chunk holds the slot, and its
+mallocs pop that list — a load, a dependent load and a store, and a push
+on the free.  A miss therefore means the thread holds no free slot of the
+bucket anywhere: there is nothing to look for in its other chunks, and the
+allocation path never walks them.  (Through v1.2.1 each chunk kept its own
+freelists behind a per-bucket shortcut into one of them, and a miss went
+looking for a chunk with entries — a scan of up to 64 chunks, or in v1.2.0
+a list of them kept exact at a cost on every free.)
 
-Measured deltas on M3 (default ON vs opt-out, interleaved medians of 5):
-`bench_loop` 1 KiB / 16 KiB and STM `3level_mixed` N=128 (K=10 and K=0)
-unchanged; 64 B +25 % (part of which is the known ±10 % build-to-build
-layout swing); SPSC producer/consumer ring +29 % at 4 slots in flight and
-**+74 %** at 32; `bench_xthread` free-side +10 %.  Cascade Lake-SP shows no
-STM regression.  Zen 2 (Ohtaka) numbers pending machine maintenance — by
-construction the design carries none of the per-slot stores that capped the
-earlier dependency-cut experiments at ~300 M ops/s on that core.
+The other two places a slot comes from are bounded the same way.  The
+bitmap room a variable-size chunk keeps when it cannot serve a request goes
+on per-thread **fit lists**, filed by the largest of the tier's sizes it
+still fits; a request tries at most four of them.  The slots that
+cross-thread frees return to a fixed-size chunk's bitmap are claimed a
+whole word per CAS and handed to the thread's list in one store — the claim
+of the earlier §word-cache, without its cold-path mask.
+
+MacBook Air M3 against v1.2.1, interleaved (`bench_ab.sh`, median of 3;
+`tests/bench/micro`, median of 5): single-thread random-replacement churn
+1.05–3.3×, and 100 vs 1284 ns per allocation where allocations run ahead of
+the frees (`heavy`: v1.2.1's scan went round 64 chunks for nothing); SPSC
+ring of 64 B blocks with 32 in flight 50 vs 28 M ops/s; `xmalloc-test` 64 B
+(4 pairs) 1.13×, level with mimalloc; `larson` 1.19×; `bench_xthread`
+1.14×; the game-frame bench's median frame 0.61× (frame rate 1.5×), still
+1.3× mimalloc's; `bench_loop` and STM `3level_mixed` level.  The record is
+`design/GAME_FRAME_BENCH.md`, the bounds `design/RT_READINESS.md`.  The
+tables above predate it (v1.2.1).
 
 ### Third-party suite cross-check (mimalloc-bench, M5 Ultra)
 
@@ -1203,6 +1213,7 @@ four-tier general allocator.  Selected milestones (full history in `git log`):
 | 31    | Windows free-family IAT redirect — pool coexists with Qt / libc++ on PE/COFF |
 | 36 / S7 | lock-free orphan-chunk reclaim — `atomic_shared_ptr` chain (owner-exit push, sweep-reclaim, adopt + chunk self-ref owner-ref) replaces the leak-prone ABA Treiber stack; TLA+-verified, now the default |
 | 75    | Realtime per-thread gating (deferred reclaim + capped backlog), `kame_pool_prewarm()` (page-touching), `kame_pool_rt_drain()`, `kame::rt_section`, violation counters, and the written contract |
+| thread-list / fit | owner frees onto per-thread per-bucket lists; fit lists for bitmap room; FS=true misses claim a whole bitmap word — no walk over chunks on the allocation path |
 
 ## Acknowledgements
 
