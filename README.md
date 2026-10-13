@@ -118,7 +118,7 @@ this library.
   thread's `free()` never enters the kernel, `kame_pool_prewarm()` (which
   page-touches, unlike the allocate+free idiom), an explicit
   `kame_pool_rt_drain()`, and runtime-checkable violation counters.  Measured
-  192 ns vs 16.4 µs median free (and 709 ns vs 54.2 µs max) on the band where
+  192 ns vs 14.3 µs median free (and 417 ns vs 49.2 µs max) on the band where
   the recycle cache cannot help, draining once per cycle (M5 Ultra); and on a
   `PREEMPT_RT` host with isolated cores — quiet enough for the figure to mean
   something — **352 ns vs 42.4 µs worst case** on cross-thread small free,
@@ -178,48 +178,58 @@ The four charts above are plotted from the tables that follow
 near-linear scaling to 128 cores.
 
 **Apple Mac Studio M5 Ultra (arm64, macOS), single thread, M ops/s** —
-kamepoolalloc at `2e8f940fd`, median of 7 runs via `bench_compare.sh`
-(mimalloc 3.3.2 and jemalloc 5.3.0, built from their release sources).  Both
-tables below come from one run, on a machine that was not idle (a remote-
-desktop host used about two cores); the record, with provenance, is
-`design/README_BENCH_M5.md`:
+kamepoolalloc at `e0974e402`, median of 7 runs via `bench_compare.sh`
+(mimalloc 3.3.2 and jemalloc 5.3.0, built from their release sources),
+re-measured 2026-10-13.  Both tables below come from one run, on a machine
+that was not idle (a remote-desktop host was running); the record, with
+provenance, is `design/README_BENCH_M5.md` §4:
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |     162 |     1055 |      168 | **1135** |
-| 1 KiB     |     135 |      766 |      164 |  **804** |
-| 16 KiB    |     142 |      356 |      105 |  **891** |
-| 64 KiB    |      28 |  **354** |       29 |      192 |
-| 256 KiB   |      28 |  **360** |       29 |      180 |
-| 1 MiB     |      28 |        8 |       29 |  **167** |
-| 4 MiB     |      46 |        8 |       28 |  **149** |
+| 64B       |     160 |     1054 |      166 | **1110** |
+| 1 KiB     |     133 |  **766** |      165 |      765 |
+| 16 KiB    |     136 |      353 |      103 |  **792** |
+| 64 KiB    |      28 |  **358** |       29 |      194 |
+| 256 KiB   |      28 |  **357** |       29 |      177 |
+| 1 MiB     |      28 |        8 |       29 |  **163** |
+| 4 MiB     |      47 |        8 |       29 |  **148** |
 
 **Apple Mac Studio M5 Ultra, 4 processes aggregate, M ops/s** — median of 7
 runs:
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |     641 |     3981 |      619 | **4258** |
-| 16 KiB    |     525 |     1341 |      386 | **3340** |
-| 64 KiB    |     106 | **1337** |      109 |      721 |
-| 1 MiB     |     105 |       23 |      109 |  **645** |
+| 64B       |     601 |     3989 |      613 | **4256** |
+| 16 KiB    |     527 |     1365 |      384 | **3063** |
+| 64 KiB    |     106 | **1357** |      109 |      741 |
+| 1 MiB     |     106 |       24 |      108 |  **627** |
 
-kame leads every band except 64–256 KiB.  At **64 B** it is ahead of
-mimalloc 3.3 — 1135 vs 1055 M ops/s single-thread, 4258 vs 3981 across 4
-processes — through the `deallocate` / `operator new` hot/cold splits (lean
-`always_inline` FS=true fast path, no prologue spill), the `KameTlsPage`
-fast-TSD unification (§hot-tls, a single `mrs TPIDRRO_EL0` instead of
-per-variable `_tlv_get_addr`), and the §word-cache cold path of the time
-(its claim now feeds the thread lists below); **1 KiB**
-is 804 vs 766.  At **16 KiB** kame leads decisively — 891 vs 356
-single-thread, 3340 vs 1341 across 4 processes — helped by the void /
-tail-call FS=false free path.  At the **1 MiB** large tier kame leads at
-every thread count: system is lock-serialised, mimalloc collapses to ~8 M
-single-thread / ~23 M aggregate, while kame stays memory-warm at 167 / 645 M
-ops/s.  The one band where mimalloc leads is the **64–256 KiB** §19 large
-tier (kame ~185 vs ~355 single-thread, 721 vs 1337 across 4 processes):
-there the per-free radix lookup plus recycle-cache bookkeeping cost more
-than mimalloc's segment scheme — a known weaker tier.
+kame leads every band except 64–256 KiB, and 1 KiB, where it is level with
+mimalloc.  At **64 B** it is ahead of mimalloc 3.3 — 1110 vs 1054 M ops/s
+single-thread, 4256 vs 3989 across 4 processes — through the `deallocate` /
+`operator new` hot/cold splits (lean `always_inline` FS=true fast path, no
+prologue spill), the `KameTlsPage` fast-TSD unification (§hot-tls, a single
+`mrs TPIDRRO_EL0` instead of per-variable `_tlv_get_addr`), and the
+§word-cache cold path of the time (its claim now feeds the thread lists
+below); **1 KiB** is 765 vs 766 (772 vs 777 interleaved).  At **16 KiB**
+kame leads decisively — 792 vs 353 single-thread, 3063 vs 1365 across 4
+processes — helped by the void / tail-call FS=false free path.  At the
+**1 MiB** large tier kame leads at every thread count: system is
+lock-serialised, mimalloc collapses to ~8 M single-thread / ~24 M aggregate,
+while kame stays memory-warm at 163 / 627 M ops/s.  The one band where
+mimalloc leads is the **64–256 KiB** §19 large tier (kame ~185 vs ~358
+single-thread, 741 vs 1357 across 4 processes): there the per-free radix
+lookup plus recycle-cache bookkeeping cost more than mimalloc's segment
+scheme — a known weaker tier.
+
+Against the previous tables (v1.2.1, `2e8f940fd`) mimalloc and jemalloc
+reproduce to about 2 %, and kame is 0.95× at 1 KiB and 0.89× at 16 KiB
+single thread, 0.92× at 16 KiB across 4 processes.  Interleaved against v1.2.1
+(`bench_ab.sh`, median of 9) it is 1.00× / 0.97× / 0.92× at 64 B / 1 KiB /
+16 KiB: the cost on this machine of the per-thread cap (§thread-list below),
+as `design/THREAD_LIST_CHECK.md` measured it.  The two commits that read the
+owner free's bucket off `p` (the Windows tables below) leave the M5 level,
+1.00× / 1.02× / 1.01×.
 
 ### §thread-list — per-thread free lists; no walk over chunks
 
@@ -267,7 +277,7 @@ ring of 64 B blocks with 32 in flight 50 vs 28 M ops/s; `xmalloc-test` 64 B
 1.14×; the game-frame bench's median frame 0.61× (frame rate 1.5×), still
 1.3× mimalloc's; `bench_loop` and STM `3level_mixed` level.  The record is
 `design/GAME_FRAME_BENCH.md`, the bounds `design/RT_READINESS.md`.  The
-tables above predate it (v1.2.1).
+M5 tables above include it, and the cap's 1 KiB / 16 KiB cost.
 
 ### Third-party suite cross-check (mimalloc-bench, M5 Ultra)
 
@@ -275,8 +285,7 @@ An independent run of the contention-heavy multi-thread benches from
 [mimalloc-bench](https://github.com/daanx/mimalloc-bench) on the M5 Ultra:
 10 threads (its performance cores), median of 5 via
 `tests/bench/bench_ab.sh`, mimalloc 3.3.2 / jemalloc 5.3.0, kame at
-`2e8f940fd` (`design/README_BENCH_M5.md` §2); rptest re-measured once the
-dylib also interposed `calloc` / `posix_memalign` (§2.1).
+`e0974e402`, re-measured 2026-10-13 (`design/README_BENCH_M5.md` §4.3).
 
 The suite carries kamepoolalloc upstream as **`kp`**, so nothing here has to
 be taken on trust — the same comparison is two commands on any Linux host:
@@ -288,18 +297,18 @@ be taken on trust — the same comparison is two commands on any Linux host:
 
 | bench (M ops/s, ↑) | system | mimalloc | jemalloc |  kame |
 |--------------------|--------|----------|----------|-------|
-| xmalloc-test       |    249 |  **501** |      400 |   489 |
-| larson             |   26.1 |      222 |  **425** |   267 |
-| rptest             |   2.64 |     5.77 |     6.20 | **6.29** |
+| xmalloc-test       |    257 |  **516** |      408 |   498 |
+| larson             |   26.2 |      217 |  **421** |   294 |
+| rptest             |   2.88 |     5.66 |     5.70 | **6.46** |
 
 On `xmalloc-test` — one thread allocates, another frees, the STM Snapshot
-handoff that is kame's design target — kame is level with mimalloc and ahead
-of jemalloc and system.  On `larson` it is ahead of mimalloc and ten times
-system malloc, but jemalloc leads on this machine.  On `rptest`'s mixed
-cross-thread churn kame is level with jemalloc and mimalloc, at 2.4x system
-malloc.  (rptest allocates only through `calloc` and `posix_memalign`; until
-the dylib interposed those, this row measured system malloc plus kame's
-`free` forwarding — 2.40.)
+handoff that is kame's design target — kame is within 4 % of mimalloc and
+ahead of jemalloc and system.  On `larson` it is 1.35× mimalloc and eleven
+times system malloc, but jemalloc leads on this machine.  On `rptest`'s mixed
+cross-thread churn kame leads, 6.46 against jemalloc's 5.70 and mimalloc's
+5.66, at 2.2× system malloc.  (rptest allocates only through `calloc` and
+`posix_memalign`; until the dylib interposed those, this row measured system
+malloc plus kame's `free` forwarding — 2.40.)
 
 **Intel Xeon E5-1630 v4 (x86-64, 4-core / 8-thread, Windows 11), single
 thread, M ops/s** — kame at `e0974e402`, llvm-mingw clang 17, `-O3`, median
@@ -373,7 +382,7 @@ latency (~5 cycles) per hot iteration instead.  This is the
 structural reason the Ohtaka margins over `mimalloc` / `jemalloc` are
 smaller than the Apple figures — most visible at the **64 B tier** where
 the freelist hot path dominates (Ohtaka kame 259 vs mi 327; M5 Ultra kame
-1135 vs mi 1055).  Larger tiers
+1110 vs mi 1054).  Larger tiers
 where the freelist is not the bottleneck (16 KiB, 1 MiB+) are not
 affected and kame retains its lead on both CPUs.  The 64 B gap is
 expected to narrow on Zen 3 / Zen 4 (Milan, Genoa, Bergamo) and on
@@ -882,7 +891,7 @@ p99.9; that is why only DEFER can be a process-wide default.
 * **Blocks above 256 MiB cannot be cached** (the recycle cache is bypassed by
   construction), so each such allocation maps and each free unmaps. Realtime
   code should not size-class there; the gate defers the *free* side, which
-  measured 192 ns vs 16.4 µs median, but the alloc side still maps.
+  measured 192 ns vs 14.3 µs median, but the alloc side still maps.
 * **Radix-leaf mappings are counted, never refused**, even under
   `KAME_RT_OS_FAIL`: a region without its leaf would route later frees of
   pointers inside it to libc `free()` — corruption, not degradation. Prewarm is
@@ -929,22 +938,22 @@ p99.9; that is why only DEFER can be a process-wide default.
   arena the allocator never grows (TLSF-style) plus bounded-retry with an
   emergency reserve. That is not a tuning of this allocator.
 
-**Measured** (Mac Studio M5 Ultra, Release, 3 interferer threads,
-`kame_pool_rt_drain()` once per cycle as in the loop above — see
-`tests/bench/bench_rt_wcet.cpp`, and reproduce with `--pressure` /
-`--xt 2000000`; `design/README_BENCH_M5.md` §3.1):
+**Measured** (Mac Studio M5 Ultra, Release, kamepoolalloc at `e0974e402`,
+3 interferer threads, `kame_pool_rt_drain()` once per cycle as in the loop
+above — see `tests/bench/bench_rt_wcet.cpp`, and reproduce with
+`--pressure` / `--xt 2000000`; `design/README_BENCH_M5.md` §4.4):
 
 | Path | realtime | default |
 |---|---:|---:|
-| free, > 256 MiB band — median | **192 ns** | 16,384 ns |
-| free, > 256 MiB band — max | **709 ns** | 54,208 ns |
-| free, 32 B cross-thread — p99.9 | **128 ns** | 224 ns |
+| free, > 256 MiB band — median | **192 ns** | 14,336 ns |
+| free, > 256 MiB band — max | **417 ns** | 49,208 ns |
+| free, 32 B cross-thread — p99.9 | **96 ns** | 224 ns |
 | free, 32 B cross-thread — p99.99 | **192 ns** | 7,168 ns |
 
 The > 256 MiB rows are the median of three `--pressure` runs (800 frees per
 arm each; every realtime free was parked and none was forced inline past the
-cap); one run's realtime max was 11.4 µs.  The cross-thread rows rest on 2 M
-samples.
+cap); the realtime max was 333–459 ns across them.  The cross-thread rows
+rest on 2 M samples a run, and were the same in all three `--xt` runs.
 
 For every band at or below 256 MiB the two are *statistically identical*: the
 recycle cache already absorbs those releases without a syscall, so the gating is

@@ -3,7 +3,9 @@
 Re-measurement of the tables in `kamepoolalloc/README.md` "Benchmarks"
 (Apple MacBook Air M3) on the Mac Studio M5 Ultra, to replace them.  KAME
 master `c9fa20d33` (kamepoolalloc as of `2e8f940fd`, the v1.2.0 regression
-fix; the commits since change only tests and design notes).
+fix; the commits since change only tests and design notes).  §4 measures all
+three sets again at `e0974e402` (2026-10-13), with the thread lists and the
+per-thread cap; the README quotes §4.
 
 **Comparators** — the versions the M3 tables name (mimalloc 3.3.2, jemalloc
 5.3.0, "via Homebrew").  Homebrew now ships 3.5.4 / 5.4.0, so both were built
@@ -416,6 +418,270 @@ First `--pressure` run:
       32 B cross-thread free (producer allocs, we free)
         RT  free               n=2000000    mean=20      p50=0 p99=42 p99.9=128 p99.99=192 p99.999=4096  MAX=11959 ns
         OFF free               n=2000000    mean=20      p50=0 p99=42 p99.9=224 p99.99=7168 p99.999=10240  MAX=15500 ns
+        (OFF batches CAP=1024 then one free pays for the whole buffer; RT takes push_direct)
+
+    rt_violations=0  deferred_reclaims=0  deferred_unmaps=0  forced_releases=0  pending_bytes=0
+    == PASSED ==
+
+## 4. Re-measured at `e0974e402` (2026-10-13)
+
+All three sets again, on KAME master `896bc0bec` — kamepoolalloc as of
+`e0974e402`: the thread lists (`5fc34e052`), the per-thread cap (`f9e5cb9b3`
+… `9f6370a52`) and the owner free's bucket read off `p` (`78e57424c`,
+`e0974e402`).  Same machine, OS, toolchain (Apple clang 21.0.0, CMake
+3.31.12, Release), comparator builds (sha256 as above) and commands, run
+from a worktree of that commit.  Not idle, as before: Chrome Remote
+Desktop's host was running and WindowServer used about a third of a core;
+load average 2.3–3.5 at the start of each set (the 10-thread benches took it
+to 5.7).  2026-10-13 12:13–12:28 UTC.
+
+### 4.1 `bench_compare.sh`
+
+    cmake -S kamepoolalloc/tests -B build -DCMAKE_BUILD_TYPE=Release
+    cmake --build build -j10
+    bash kamepoolalloc/tests/bench/bench_compare.sh --build-dir build --runs 7 \
+        --mimalloc ~/bench-ab/alloc/mimalloc-3.3.2/build/libmimalloc.dylib \
+        --jemalloc ~/bench-ab/alloc/jemalloc-5.3.0/lib/libjemalloc.2.dylib
+
+Run twice back to back; the README has the first.
+
+kamepoolalloc bench_compare: HEAD=896bc0bec  host=dhcp-029-018.issp.u-tokyo.ac.jp/arm64  runs=7  os=Darwin
+
+#### 1T (median of 7, M ops/s)
+
+| size      |  system | mimalloc | jemalloc |     kame |
+|-----------|---------|----------|----------|----------|
+| 64B       |     160 |     1054 |      166 |     1110 |
+| 1 KiB     |     133 |      766 |      165 |      765 |
+| 16 KiB    |     136 |      353 |      103 |      792 |
+| 64 KiB    |      28 |      358 |       29 |      194 |
+| 256 KiB   |      28 |      357 |       29 |      177 |
+| 1 MiB     |      28 |        8 |       29 |      163 |
+| 4 MiB     |      47 |        8 |       29 |      148 |
+
+#### 4 processes (aggregate, M ops/s, median of 7)
+
+| size      |  system | mimalloc | jemalloc |     kame |
+|-----------|---------|----------|----------|----------|
+| 64B       |     601 |     3989 |      613 |     4256 |
+| 16 KiB    |     527 |     1365 |      384 |     3063 |
+| 64 KiB    |     106 |     1357 |      109 |      741 |
+| 1 MiB     |     106 |       24 |      108 |      627 |
+
+The second run's kame column: single thread 64 B 1134, 1 KiB 749, 16 KiB 829,
+64 KiB 193, 256 KiB 175, 1 MiB 160, 4 MiB 149; 4 processes 64 B 4257,
+16 KiB 3043, 64 KiB 752, 1 MiB 630.  Its comparators are within 3 % of the
+first run's, except mimalloc single-thread 64 KiB (321 against 358) and
+system 4-process 64 B (646 against 601).
+
+Against §1 the comparators reproduce to within 2 %, except system
+single-thread 16 KiB (136 against 142) and 4-process 64 B (601 against 641).
+kame: 64 B 0.98×, 1 KiB 0.95×, 16 KiB 0.89× single thread, 4-process 16 KiB
+0.92×; the other rows within 3 %.  §4.2 says where the 1 KiB / 16 KiB step
+comes from.
+
+### 4.2 `loop`, interleaved against v1.2.1 and the two commits before `e0974e402`
+
+    kamepoolalloc/tests/bench/bench_ab.sh --tags tree \
+        --arm e2c9e6dde=~/bench-ab/arms/e2c9e6dde/kamepoolalloc/out/libkamepoolalloc.dylib \
+        --arm 6ae486851=~/bench-ab/arms/6ae486851/kamepoolalloc/out/libkamepoolalloc.dylib \
+        --arm v121=~/bench-ab/arms/v121/kamepoolalloc/out/libkamepoolalloc.dylib \
+        --arm mi=~/bench-ab/alloc/mimalloc-3.3.2/build/libmimalloc.dylib \
+        --only loop --reps 9 --work ~/bench-ab-readme --mbench ~/bench-ab/mimalloc-bench
+
+Arms: tree = `896bc0bec` (sha256 `398c663ba240eb36`); `e2c9e6dde`, just
+before `78e57424c` (sha256 `ead680cd7452ea6a`); `6ae486851`, after
+`78e57424c` and before `e0974e402` (sha256 `d9de8bedb858cfe4`); v121 =
+`45f1d07f9`, the v1.2.1 tag (sha256 `15903cd5c08a8c1f`).  The two new arms
+are `git archive <commit> kamepoolalloc` built as `bench_ab.sh` builds a tag
+(`cmake -DCMAKE_BUILD_TYPE=Release -DKAMEPOOLALLOC_BUILD_TESTS=OFF`).  v121
+stands in for §1's `2e8f940fd`: what lies between them is the calloc /
+`posix_memalign` interposition, the `rt_drain` change and a comment, none of
+them on `bench_loop`'s malloc / free path.  Results
+`~/bench-ab-readme/results-dhcp-029-018-20261013-211714`:
+
+| bench | config | metric | kp-tree | e2c9e6dde | 6ae486851 | v121 | mi | e2c9e6dde / kp-tree | 6ae486851 / kp-tree | v121 / kp-tree | mi / kp-tree |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| loop | 64B | Mops ↑ | 1130 (1119–1137) | 1132 (1097–1137) | 1130 (1111–1137) | 1130 (1097–1134) | 1058 (979–1081) | 1.00× | 1.00× | 1.00× | 0.94× |
+| loop | 1024B | Mops ↑ | 772 (746–787) | 754 (741–810) | 763 (740–812) | 798 (780–840) | 777 (756–794) | 0.98× | 0.99× | 1.03× | 1.01× |
+| loop | 16384B | Mops ↑ | 775 (766–800) | 771 (728–814) | 796 (753–841) | 840 (772–908) | 363 (338–374) | 0.99× | 1.03× | 1.08× | 0.47× |
+
+- `78e57424c` and `e0974e402` are level on the M5 — tree against
+  `e2c9e6dde` 1.00× / 1.02× / 1.01× — the `loop` re-run
+  `THREAD_LIST_CHECK.md` asked for after the Windows run.
+- Against v1.2.1 the tree is 1.00× at 64 B, 0.97× at 1 KiB and 0.92× at
+  16 KiB: the cost of the per-thread cap that `THREAD_LIST_CHECK.md`
+  measured on this machine (pre / tree 1.03–1.12× at 1 KiB and 1.08–1.12×
+  at 16 KiB in its M5 runs).  §4.1's step against §1 is that, not drift: the comparators
+  did not move.
+- 1 KiB is level with mimalloc here (1.01×), where §4.1's single run has
+  kame 765 against 766.
+
+### 4.3 mimalloc-bench (`bench_ab.sh`)
+
+    kamepoolalloc/tests/bench/bench_ab.sh --tags tree --arm sys= \
+        --arm mi=~/bench-ab/alloc/mimalloc-3.3.2/build/libmimalloc.dylib \
+        --arm je=~/bench-ab/alloc/jemalloc-5.3.0/lib/libjemalloc.2.dylib \
+        --only "xmalloc larson rptest" --threads 10 --reps 5 \
+        --work ~/bench-ab-readme --mbench ~/bench-ab/mimalloc-bench
+
+The §2 command with a fresh work directory (`~/bench-ab/kp-tree` was
+configured from the main checkout).  Every run produced a result; rptest now
+measures kame (§2.1).
+
+| bench | config | metric | kp-tree | sys | mi | je | sys / kp-tree | mi / kp-tree | je / kp-tree |
+|---|---|---|---|---|---|---|---|---|---|
+| xmalloc | w10,64B | Mfree ↑ | 498 (490–498) | 257 (236–264) | 516 (508–518) | 408 (407–409) | 0.52× | 1.04× | 0.82× |
+| larson | t10 | Mops ↑ | 294 (289–308) | 26.2 (25.7–26.9) | 217 (204–219) | 421 (412–425) | 0.09× | 0.74× | 1.43× |
+| rptest | t10 | Mops_cpu ↑ | 6.46 (5.86–6.58) | 2.88 (2.72–3) | 5.66 (5.47–5.89) | 5.7 (5.55–5.82) | 0.45× | 0.88× | 0.88× |
+
+Against §2 / §2.1 the comparators are within 3 % on xmalloc and larson; on
+rptest system is +9 % (2.88 against 2.64) and jemalloc −8 % (5.70 against
+6.20).  kame: xmalloc 489 → 498, larson 267 → 294, rptest 6.29 → 6.46.
+
+`provenance.txt`:
+
+    date      2026-10-13T12:17:37Z
+    host      dhcp-029-018.issp.u-tokyo.ac.jp
+    kernel    Darwin 27.0.0 arm64
+    cpu       Apple M5 Ultra, 10P + 20E, 96 GiB, Mac17,15
+    os        macOS 27.0.1 (26A434)
+    power     Now drawing from 'AC Power'
+    benches   /Users/ssp/KAME/.claude/worktrees/recursing-einstein-777aa1/kamepoolalloc @ 896bc0bec, /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ (Apple clang version 21.0.0 (clang-2100.3.34.2))
+    arm       kp-tree: /Users/ssp/bench-ab-readme/kp-tree/out/libkamepoolalloc.dylib (684232 B, sha256 398c663ba240eb36, tree /Users/ssp/KAME/.claude/worktrees/recursing-einstein-777aa1/kamepoolalloc at 896bc0bec, built by /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++)
+    arm       sys: no preload (system malloc)
+    arm       mi: /Users/ssp/bench-ab/alloc/mimalloc-3.3.2/build/libmimalloc.dylib (233072 B, sha256 5153705f94d7d8b4)
+    arm       je: /Users/ssp/bench-ab/alloc/jemalloc-5.3.0/lib/libjemalloc.2.dylib (649248 B, sha256 9290fc4e3540a8f2)
+    mbench    /Users/ssp/bench-ab/mimalloc-bench @ 69c41ed, binaries in /Users/ssp/bench-ab-readme/mbench-build
+    params    reps=5 threads="10" only="xmalloc larson rptest" quick=0 xlat="1024x200000 1024x1000000 3000x200000" xlat_cpu=none loop_iters=20000000 frame_frames=5000
+
+### 4.4 RT (`bench_rt_wcet`)
+
+    build/bench_rt_wcet --pressure        # three times
+    build/bench_rt_wcet --xt 2000000      # three times
+
+The §3.1 harness and library behaviour, from the §4.1 build.  Every run
+PASSED.  Each `--pressure` run: `deferred_unmaps=800` of 800,
+`forced_releases=0`, `rt_violations=800` (exactly the band's expected
+mappings).  Each `--xt` run: `rt_violations=0`.  The README's rows, median of
+the three runs:
+
+| Path | realtime | default |
+|---|---:|---:|
+| free, > 256 MiB band — median | **192 ns** | 14,336 ns |
+| free, > 256 MiB band — max | **417 ns** | 49,208 ns |
+| free, 32 B cross-thread — p99.9 | **96 ns** | 224 ns |
+| free, 32 B cross-thread — p99.99 | **192 ns** | 7,168 ns |
+| free, 32 B cross-thread — p99.999 | **7,168 ns** | 10,240 ns |
+
+> 256 MiB band, per run: realtime p50 128 / 192 / 192 ns, max 333 / 459 /
+417 ns; default p50 16,384 / 14,336 / 14,336 ns, max 49,208 / 44,916 /
+131,458 ns.  §3.1's realtime max of 11.4 µs in one run did not recur.
+Cross-thread: realtime p99.9 96 and p99.99 192 ns in all three, p99.999
+7,168 / 3,072 / 7,168 ns (§3.1: 4,096); default 224 / 7,168 / 10,240 ns in all
+three.
+
+First `--pressure` run:
+
+    == bench_rt_wcet (§75 / G7) ==
+    backend: kame_pool_malloc/free (direct)
+    mode=smoke +pressure reps=4 iters=200 interferers=3
+    pressure: added the > LRC_HI band, where the recycle cache is bypassed and frees really munmap
+    clock overhead: mean=14 max=84 ns
+    measured-thread priority: QOS_CLASS_USER_INTERACTIVE
+
+      64 B    (bucket)
+        RT  malloc             n=51200      mean=13      p50=0 p99=42 p99.9=42  MAX=8791 ns
+        OFF malloc             n=51200      mean=13      p50=0 p99=42 p99.9=42  MAX=125 ns
+        RT  1st-touch          n=51200      mean=13      p50=0 p99=42 p99.9=42  MAX=84 ns
+        OFF 1st-touch          n=51200      mean=12      p50=0 p99=42 p99.9=42  MAX=5375 ns
+        RT  free               n=51200      mean=14      p50=0 p99=42 p99.9=96  MAX=7333 ns
+        OFF free               n=51200      mean=14      p50=0 p99=42 p99.9=96  MAX=6541 ns
+
+      4 KiB   (bucket)
+        RT  malloc             n=25600      mean=14      p50=0 p99=42 p99.9=96  MAX=7458 ns
+        OFF malloc             n=25600      mean=13      p50=0 p99=42 p99.9=42  MAX=125 ns
+        RT  1st-touch          n=25600      mean=13      p50=0 p99=42 p99.9=42  MAX=1125 ns
+        OFF 1st-touch          n=25600      mean=12      p50=0 p99=42 p99.9=42  MAX=84 ns
+        RT  free               n=25600      mean=15      p50=0 p99=42 p99.9=128  MAX=10416 ns
+        OFF free               n=25600      mean=13      p50=0 p99=42 p99.9=42  MAX=125 ns
+
+      256 KiB (dedicated)
+        RT  malloc             n=6400       mean=19      p50=0 p99=42  MAX=208 ns
+        OFF malloc             n=6400       mean=19      p50=0 p99=42  MAX=166 ns
+        RT  1st-touch          n=6400       mean=12      p50=0 p99=42  MAX=84 ns
+        OFF 1st-touch          n=6400       mean=13      p50=0 p99=42  MAX=83 ns
+        RT  free               n=6400       mean=17      p50=0 p99=42  MAX=125 ns
+        OFF free               n=6400       mean=17      p50=0 p99=42  MAX=167 ns
+
+      8 MiB   (large)
+        RT  malloc             n=1600       mean=88      p50=96 p99=224  MAX=292 ns
+        OFF malloc             n=1600       mean=87      p50=96 p99=192  MAX=250 ns
+        RT  1st-touch          n=1600       mean=13      p50=0 p99=42  MAX=42 ns
+        OFF 1st-touch          n=1600       mean=13      p50=0 p99=42  MAX=42 ns
+        RT  free               n=1600       mean=96      p50=96 p99=224  MAX=7167 ns
+        OFF free               n=1600       mean=93      p50=96 p99=224  MAX=292 ns
+
+      300 MiB (> LRC_HI)
+        RT  malloc             n=800        mean=2948    p50=3072  MAX=12917 ns
+        OFF malloc             n=800        mean=2789    p50=3072  MAX=9375 ns
+        RT  1st-touch          n=800        mean=575     p50=512  MAX=4000 ns
+        OFF 1st-touch          n=800        mean=571     p50=512  MAX=4042 ns
+        RT  free               n=800        mean=133     p50=128  MAX=333 ns
+        OFF free               n=800        mean=14825   p50=16384  MAX=49208 ns
+
+      32 B cross-thread free (producer allocs, we free)
+        RT  free               n=120000     mean=19      p50=0 p99=42 p99.9=96 p99.99=192  MAX=7667 ns
+        OFF free               n=120000     mean=20      p50=0 p99=42 p99.9=192 p99.99=8192  MAX=10792 ns
+        (OFF batches CAP=1024 then one free pays for the whole buffer; RT takes push_direct)
+
+    rt_violations=800  deferred_reclaims=0  deferred_unmaps=800  forced_releases=0  pending_bytes=0
+    (pressure: 800 mapping(s) expected — the > LRC_HI band cannot be cached)
+    == PASSED ==
+
+First `--xt 2000000` run:
+
+    == bench_rt_wcet (§75 / G7) ==
+    backend: kame_pool_malloc/free (direct)
+    mode=smoke reps=4 iters=200 interferers=3
+    clock overhead: mean=17 max=9667 ns
+    measured-thread priority: QOS_CLASS_USER_INTERACTIVE
+
+      64 B    (bucket)
+        RT  malloc             n=51200      mean=14      p50=0 p99=42 p99.9=42  MAX=125 ns
+        OFF malloc             n=51200      mean=14      p50=0 p99=42 p99.9=42  MAX=6583 ns
+        RT  1st-touch          n=51200      mean=13      p50=0 p99=42 p99.9=42  MAX=84 ns
+        OFF 1st-touch          n=51200      mean=13      p50=0 p99=42 p99.9=42  MAX=8000 ns
+        RT  free               n=51200      mean=14      p50=0 p99=42 p99.9=96  MAX=167 ns
+        OFF free               n=51200      mean=15      p50=0 p99=42 p99.9=128  MAX=10500 ns
+
+      4 KiB   (bucket)
+        RT  malloc             n=25600      mean=14      p50=0 p99=42 p99.9=42  MAX=208 ns
+        OFF malloc             n=25600      mean=14      p50=0 p99=42 p99.9=42  MAX=625 ns
+        RT  1st-touch          n=25600      mean=13      p50=0 p99=42 p99.9=42  MAX=84 ns
+        OFF 1st-touch          n=25600      mean=13      p50=0 p99=42 p99.9=42  MAX=3792 ns
+        RT  free               n=25600      mean=14      p50=0 p99=42 p99.9=42  MAX=167 ns
+        OFF free               n=25600      mean=16      p50=0 p99=42 p99.9=128  MAX=34792 ns
+
+      256 KiB (dedicated)
+        RT  malloc             n=6400       mean=20      p50=0 p99=42  MAX=167 ns
+        OFF malloc             n=6400       mean=30      p50=41 p99=192  MAX=416 ns
+        RT  1st-touch          n=6400       mean=13      p50=0 p99=42  MAX=42 ns
+        OFF 1st-touch          n=6400       mean=13      p50=0 p99=42  MAX=42 ns
+        RT  free               n=6400       mean=18      p50=0 p99=42  MAX=208 ns
+        OFF free               n=6400       mean=18      p50=0 p99=96  MAX=250 ns
+
+      8 MiB   (large)
+        RT  malloc             n=1600       mean=87      p50=96 p99=224  MAX=334 ns
+        OFF malloc             n=1600       mean=106     p50=96 p99=448  MAX=583 ns
+        RT  1st-touch          n=1600       mean=13      p50=0 p99=42  MAX=42 ns
+        OFF 1st-touch          n=1600       mean=13      p50=0 p99=42  MAX=42 ns
+        RT  free               n=1600       mean=90      p50=96 p99=224  MAX=333 ns
+        OFF free               n=1600       mean=108     p50=96 p99=448  MAX=625 ns
+
+      32 B cross-thread free (producer allocs, we free)
+        RT  free               n=2000000    mean=19      p50=0 p99=42 p99.9=96 p99.99=192 p99.999=7168  MAX=57958 ns
+        OFF free               n=2000000    mean=20      p50=0 p99=42 p99.9=224 p99.99=7168 p99.999=10240  MAX=13542 ns
         (OFF batches CAP=1024 then one free pays for the whole buffer; RT takes push_direct)
 
     rt_violations=0  deferred_reclaims=0  deferred_unmaps=0  forced_releases=0  pending_bytes=0

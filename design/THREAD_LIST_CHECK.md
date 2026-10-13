@@ -1053,3 +1053,21 @@ builds): single thread 64 B 315, 1 KiB 247, 16 KiB 256, 64 KiB 66,
 256 KiB 65, 1 MiB 63, 4 MiB 35; 4 processes 64 B 1157, 16 KiB 902, 64 KiB
 243, 1 MiB 220.  The M5 Ultra and Linux should re-run `loop` on both
 commits; neither touches a path the M5 measured a loss on.
+
+## Run: M5 Ultra, 2026-10-13 — `loop` on `78e57424c` / `e0974e402` (master `896bc0bec`)
+
+The `loop` re-run asked for above, done with the README's re-measurement
+(`README_BENCH_M5.md` §4.2 has the command, the arms' hashes and the table).
+`bench_ab.sh --only loop --reps 9`, interleaved; tree = `896bc0bec`, against
+`e2c9e6dde` (before `78e57424c`), `6ae486851` (between the two) and v1.2.1,
+64 B / 1 KiB / 16 KiB:
+
+- tree / `e2c9e6dde` 1.00× / 1.02× / 1.01×, tree / `6ae486851` 1.00× /
+  1.01× / 0.97× (16 KiB 775 against 796, ranges 766–800 and 753–841): both
+  commits level on the M5, as expected.
+- v1.2.1 / tree 1.00× / 1.03× / 1.08×: the cap's 1 KiB / 16 KiB cost of the
+  M5 runs above stays.  It is what moved the README's M5 table at those sizes
+  (1 KiB 804 → 765, 16 KiB 891 → 792 single thread), not the machine:
+  mimalloc and jemalloc reproduced to about 2 %.
+
+Linux has not re-run `loop` on the two commits.
