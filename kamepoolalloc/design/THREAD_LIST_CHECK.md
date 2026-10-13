@@ -908,3 +908,68 @@ random order (`SHUFFLE=1`), peak RSS (VmHWM), one thread, 400 MiB a phase:
 Identical peaks for the two libraries, as on the M3 (777 / 627 there, same
 before and after).  Item 3 (`bench_loop`) is timing on a real host; not
 measured on this VM.
+
+## Run: Windows, Xeon E5-1630 v4, 2026-10-13 (master `5d2f5a726`)
+
+Intel Xeon E5-1630 v4 (Broadwell-EP, 4 cores / 8 threads, 3.7 GHz), Windows
+11 Pro 26200, Balanced power plan, a desktop in use (browser open, CPU
+8–15 % before each run).  llvm-mingw clang 17, `-O3 -DNDEBUG`, the
+`kamepoolalloc/tests` CMake tree; `bench_loop_pool` (`kame_pool_malloc`
+directly — PE/COFF has no preload) against a `libkamepoolalloc.dll` beside
+it, so each arm is its own build directory of one commit.  This is item 3
+(`bench_loop`) on a real x86 host, which the Linux runs above left open.
+
+**Correctness.**  clang x64: pool 25/25, STM 21/22.  llvm-mingw i686: pool
+24/25, STM 21/22.  cl x64: pool 17/25, STM 14/22; cl x86: pool 16/25, STM
+14/22 (cl does not compile 8 pool and 7 STM test targets, the same set
+since Aug 28; each STM count also has the wait-budget failure below, and
+x86's pool count `alloc_huge_test`).  `check_no_dcas.sh` 3/3; kame.exe and every module
+build.  The two failures are host conditions, not the allocator:
+`alloc_huge_test` on 32-bit (its MT step does not fit 2 GB; passes once
+`/LARGEADDRESSAWARE`), and `transaction_wait_budget_test`, whose 10 ms arm
+landed on the 15.6 ms timer tick (p99.99 15.6–15.8 ms in three serial runs)
+— `condition_variable::wait_for(10 ms)` took 15.6 ms on this host at the
+time, 10.2 ms under `timeBeginPeriod(1)`.
+
+**`bench_compare.sh`** at `5d2f5a726`, median of 5 — now the README's
+Windows tables.  Against them, the README's previous numbers (`8f2e6980`,
+June):
+
+| size | 1T June | 1T now | 4 proc June | 4 proc now |
+|---|---|---|---|---|
+| 64 B | 301 | 226 | 1055 | 852 |
+| 1 KiB | 223 | 228 | | |
+| 16 KiB | 191 | 124 | 687 | 473 |
+| 1 MiB | 64 | 63 | 231 | 208 |
+
+**Interleaved A/B**, same machine state, every arm at every size each rep,
+arm order alternating, median (min–max).  `8f2e6980` = the June table,
+`45f1d07f9` = the parent of `5fc34e052`.  Single thread, 7 reps:
+
+| size | `8f2e6980` | `45f1d07f9` | `5fc34e052` | `5d2f5a726` |
+|---|---|---|---|---|
+| 64 B | 275 (223–305) | 297 (211–311) | 232 (217–253) | 229 (205–241) |
+| 1 KiB | 220 (204–245) | 207 (193–221) | 272 (249–292) | 244 (236–258) |
+| 16 KiB | 177 (172–193) | 183 (177–195) | 128 (94–148) | 117 (108–128) |
+
+4 processes aggregate, 5 reps:
+
+| size | `8f2e6980` | `45f1d07f9` | `5fc34e052` | `5d2f5a726` |
+|---|---|---|---|---|
+| 64 B | 951 (921–1069) | 952 (906–1098) | 927 (856–958) | 868 (768–877) |
+| 16 KiB | 703 (613–726) | 670 (589–694) | 546 (509–597) | 463 (409–478) |
+| 1 MiB | 212 (150–219) | 211 (191–227) | 215 (198–220) | 210 (201–225) |
+
+`git bisect` (median of 5 per commit, threshold midway) names `5fc34e052`
+for the single-thread 16 KiB step (`45f1d07f9` 191, `5fc34e052` 119) and
+`9f6370a52` for the further 4-process 16 KiB step (`f53394135` 524,
+`9f6370a52` 461).  Interleaved, `9f6370a52` against `f53394135`: single
+thread 64 B 1.08×, 1 KiB 1.06×, 16 KiB 0.97×; 4 processes 64 B 1.04×,
+16 KiB 0.92×, 1 MiB 0.99×.
+
+So on this host `5fc34e052` is 64 B 0.78×, 1 KiB 1.31×, 16 KiB 0.70× single
+thread, where the M5 Ultra run above measured 0.97× / 0.94× / 1.00× against
+v1.2.1.  Not yet known: whether it is x86 or Broadwell (Ohtaka's Zen 2 item
+would say), or code placement, which moved the M3's 16 KiB loop by 7 % on
+its own.  1 MiB is unchanged throughout; the June table's 231 was the
+machine of that day.
