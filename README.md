@@ -301,9 +301,10 @@ malloc.  (rptest allocates only through `calloc` and `posix_memalign`; until
 the dylib interposed those, this row measured system malloc plus kame's
 `free` forwarding — 2.40.)
 
-**Intel Xeon E5-1630 v4 (x86-64, 4-core / 8-thread, Windows), single thread,
-M ops/s** — kame at `8f2e6980` (post hot/cold-split + 32 KiB bucket LUT +
-word-cache), llvm-mingw clang 17, median of 5 via `bench_compare.sh`.  On
+**Intel Xeon E5-1630 v4 (x86-64, 4-core / 8-thread, Windows 11), single
+thread, M ops/s** — kame at `5d2f5a726`, llvm-mingw clang 17, `-O3`, median
+of 5 via `bench_compare.sh`, re-measured 2026-10-13
+(`design/THREAD_LIST_CHECK.md`, the Windows run).  On
 Windows the `kame` column is the **direct pool route** (`bench_loop_pool` →
 `kame_pool_malloc`): PE/COFF has no `LD_PRELOAD`, and llvm-mingw resolves the
 plain `malloc` statically (no IAT entry for the §31 redirect to patch), so —
@@ -313,30 +314,36 @@ malloc-override layer.  mimalloc/jemalloc are not standard on Windows
 
 | size      |  system |     kame |
 |-----------|---------|----------|
-| 64B       |      37 |  **301** |
-| 1 KiB     |      40 |  **223** |
-| 16 KiB    |      39 |  **191** |
-| 64 KiB    |       9 |   **71** |
-| 256 KiB   |      10 |   **68** |
-| 1 MiB     |      ~0 |   **64** |
-| 4 MiB     |      ~0 |   **35** |
+| 64B       |      36 |  **226** |
+| 1 KiB     |      36 |  **228** |
+| 16 KiB    |      39 |  **124** |
+| 64 KiB    |      11 |   **72** |
+| 256 KiB   |      10 |   **63** |
+| 1 MiB     |      ~0 |   **63** |
+| 4 MiB     |      ~0 |   **34** |
 
 **Same host, 4 processes aggregate, M ops/s** — median of 5:
 
 | size      |  system |     kame |
 |-----------|---------|----------|
-| 64B       |     144 | **1055** |
-| 16 KiB    |     134 |  **687** |
-| 64 KiB    |      37 |  **238** |
-| 1 MiB     |      ~1 |  **231** |
+| 64B       |     140 |  **852** |
+| 16 KiB    |     138 |  **473** |
+| 64 KiB    |      38 |  **233** |
+| 1 MiB     |      ~0 |  **208** |
 
 The **system ~0 at ≥ 1 MiB** is the Windows UCRT per-call `VirtualAlloc` /
 `VirtualFree` cliff (the same shape mimalloc / jemalloc hit at this tier on
 Linux): a tight 1 MiB `malloc`/`free` loop drops below 0.5 M ops/s, while
-kame's two-level recycle cache stays memory-warm at 35–231 M ops/s.  The
-16 KiB jump (90 → 191 single-thread, 302 → 687 4-process vs the prior
-`84f97566` numbers) is the full-range bucket LUT + word-cache landing; no
-size regressed.
+kame's two-level recycle cache stays memory-warm at 34–208 M ops/s.
+
+Against the previous table's `8f2e6980`, run interleaved on this host with
+the same binary shape (the two tables were taken months apart, so their
+difference mixes code and machine state): single thread 64 B 0.82×,
+1 KiB 1.16×, 16 KiB 0.67×; 4 processes 64 B 0.91×, 16 KiB 0.66×, 1 MiB
+0.99×.  Nearly all of it is `5fc34e052` (thread lists and fit lists),
+bisected — 64 B 0.78×, 1 KiB 1.31×, 16 KiB 0.70× single thread on this
+Broadwell-EP, where the M5 Ultra saw 0.97× / 0.94× / 1.00×; the 4-process
+16 KiB loss is shared with `9f6370a52` (0.92×).  An open item for x86.
 
 **Ohtaka (ISSP supercomputer — AMD EPYC 7702, 128-core / 8-NUMA-node, Linux
 4 KiB pages, `THP=always`), `bench_compare.sh`, `--exclusive` jobs** —
