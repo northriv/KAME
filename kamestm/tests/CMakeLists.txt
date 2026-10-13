@@ -261,9 +261,16 @@ add_test(NAME transaction_negotiation_test COMMAND transaction_negotiation_test)
 add_test(NAME transaction_payload_integrity_test COMMAND transaction_payload_integrity_test)
 add_test(NAME transaction_payload_integrity_3level_test COMMAND transaction_payload_integrity_3level_test)
 # Asserts that a ScopedWaitBudget commit finishes within budget + slack.  The
-# slack (default 10 ms, KAME_WB_TEST_SLACK_US) covers OS scheduling and
+# slack (default 1 ms, KAME_WB_TEST_SLACK_US) covers OS scheduling and
 # post-expiry retries — everything the library deliberately does NOT model.
+# RUN_SERIAL: under `ctest -jN` on a small host the tests running beside it
+# put the budgeted p99.99 at 1.2-2.5 ms (100 us arm) and 3.8-4.4 ms (1000 us
+# arm), and it failed there while passing every time alone.  A slack wide
+# enough for that (~4 ms) would leave the 100 us and 1000 us arms without power
+# on a quiet host, whose unbudgeted p99.99 is 2-5 ms (see the test's comment),
+# so the bound stays and the test runs by itself instead.
 add_test(NAME transaction_wait_budget_test COMMAND transaction_wait_budget_test)
+set_tests_properties(transaction_wait_budget_test PROPERTIES RUN_SERIAL TRUE)
 # Starvation bound on revocable priorities.  Built at 2 ms rather than the
 # production 1000 ms so a 4 s arm reliably reaches it: measured, 20 ms fired only
 # 1 of 3 runs while 2 ms — the value the latency bench fired at consistently —
