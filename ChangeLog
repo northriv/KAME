@@ -59,6 +59,49 @@
   the next entry); the rest are the pre-existing source-level exclusions
   (pthread.h, GNU inline asm, __builtin_*, tests that reach private
   members), unchanged since the Aug 28 MSVC work.
+- kamepoolalloc: 241..256 B requests take 288 B of the pool, not 512.
+  Bucket 16 sat in the ALIGN 256 template (with 1.5..4.3 KiB) only because
+  a size that is a multiple of 256 got an ALIGN of its own, and with the
+  8 B borrow prefix a 256 B request then took two units of 256.  It is now
+  one more size of the ALIGN 32 template that holds the 96..224 B buckets,
+  nine units of 32.  64 MiB of 256 B blocks take 1.22x the bytes requested
+  instead of 2.05x (241 B: 1.29x, was 2.19x); random replacement over
+  100 K live 256 B blocks runs 1.27x as fast in 35 MiB instead of 56 (M3);
+  bench_loop level.  Every 256 B block is 32-B aligned now.  Over-aligned
+  small requests land elsewhere: 64-B aligned up to 256 B on the 384 B
+  bucket (it was 512 B), 128- or 256-B aligned on the 1536 B bucket (it was
+  512 B).  On ILP32 the 128 B bucket leaves its own ALIGN 128 template too.
+- kamepoolalloc: a thread keeps at most 4 MiB of its freed memory per
+  bucket.  The thread lists (Oct 12) kept every slot their thread freed
+  until it exited, as the chunk freelists had, so a thread that freed one
+  size and went on to another kept the first for good: 400 MiB of 64 B
+  freed, then 400 MiB of 1 KiB, peaked at 1053 MiB (mimalloc 480).  Past
+  the cap (KAME_TL_CAP_BYTES) a free returns its own slot to its chunk --
+  that chunk's bitmap word and header, both warm -- and a chunk it empties
+  is released; a slot below the full tier counts 1 KiB more than its size
+  (KAME_TL_SLOT_COST), so a list of small slots stays short too.  The cap
+  bounds bytes, not chunks: freed in a random order, the last megabytes lie
+  on every chunk.  So before a thread takes a new chunk, the buckets whose
+  lists have not moved since its last one give back up to 256 slots
+  between them (KAME_TL_RECLAIM_SLOTS), realtime threads included, and
+  kame_pool_trim() first gives back all of the calling thread's lists.  The
+  phase change above now peaks at 627 MiB (577 with kame_pool_trim()
+  between), in a random order as in allocation order (M3, M5 Ultra).  No
+  free walks old slots: freeing 200 MiB in a random order, the slowest free
+  takes 11 us at 16 B on the M3, where a first version that returned the
+  oldest 256 KiB of a list at a time took up to 4.9 ms.  For the cap, the
+  M5 Ultra's bench_loop pays 1-2 % at 64 B and 3-10 % at 1 KiB and 16 KiB.
+- kamepoolalloc: on ILP32 a 256-aligned allocation of up to 248 B could
+  come back only 128-aligned.  kBucketAlign carried LP64's alignment for
+  buckets 8 and 16, which ILP32 builds put in an ALIGN 128 template, so
+  aligned_alloc, posix_memalign and aligned operator new sent such a
+  request to slots 128 B apart -- every other one misaligned -- and that
+  template's chunks never went on the fit lists.  The table takes those
+  entries from the bucket declarations now, and a static_assert ties every
+  bucket's alignment to its template's.  LP64 is byte-identical.
+  alloc_aligned_test covers alignments 32 B .. 256 KiB, and kame_pool.h no
+  longer says alignments above 16 B go to the system allocator: the pool
+  serves them up to 256 KiB.
 - kamestm: 32-bit cl could not build the STM core -- popcount_u64() and
   ctz_u64() reached for __popcnt64 and _BitScanForward64, which x86 cl
   does not have.  On _M_IX86 they are two 32-bit halves now.  With that,
@@ -97,6 +140,71 @@
   its own.)  The object now carries rdtsc on cl x64, cl x86 and
   llvm-mingw i686; the standalone kamestm DLL still exports nothing on
   Windows, which is a CMake matter for another day.
+
+* Mon Oct 12 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamepoolalloc: no allocation looks through a thread's chunks for a free
+  slot any more.  Owner frees go onto the freeing thread's own list for
+  the slot's bucket, whichever chunk holds the slot, and mallocs pop that
+  list.  Until now each chunk kept its own freelists behind a per-bucket
+  shortcut into one of them, and a miss went looking for another chunk
+  with entries: a walk of up to 64 chunks, which goes round a large heap
+  for nothing when allocations run ahead of frees (1.3 us per allocation
+  at 100 K live).  Now a miss means the thread holds no free slot of the
+  bucket anywhere, and goes to bitmap room.  The room a variable-size
+  chunk keeps when it cannot serve a request goes on per-thread fit lists,
+  filed by the largest of the tier's sizes it still fits; a request tries
+  at most four.  An FS=true miss whose chunk cross-thread frees refilled
+  claims a whole bitmap word in one CAS and hands its slots to the list in
+  one store.  Thread exit hands the lists back to the slots' chunks.  M3,
+  against master: allocations running ahead of frees 1284 -> 100 ns each,
+  single-thread random replacement 1.05-3.3x, an SPSC ring of 64 B blocks
+  28 -> 50 M ops/s, xmalloc-test 1.13x, larson 1.19x, the game-frame
+  bench's frame rate 1.53x, bench_loop level.  M5 Ultra: larson 1.10-1.11x,
+  rptest 1.10-1.12x, the frame loop 2.0-2.1x at 0.83-0.87x the peak RSS.
+  The owner free found the slot's bucket through the chunk, which cost
+  x86 the 64 B loop, and Windows the 16 KiB one too; fixed Oct 13 (above).
+- kamepoolalloc: the macOS dylib pools calloc, posix_memalign and
+  aligned_alloc.  Its interpose table covered malloc / free / realloc /
+  malloc_size only, so a program allocating through calloc or
+  posix_memalign -- rptest does nothing else -- ran on libsystem's
+  allocator, only its frees passing through the pool; README's M5 rptest
+  row (kame 2.40, under system malloc's 2.69) measured exactly that.  The
+  reason once given for leaving calloc out, ObjC class realization checking
+  calloc'd data with malloc_size, went away with the malloc_size
+  co-interpose.  Linux was never affected.  kame_calloc also no longer
+  memsets a fresh large-tier mapping, which is zero already: calloc(1 GiB)
+  took 52 ms and 1 GiB of RSS, now 0.03 ms and 4.6 MiB (libc 0.03 ms and
+  2 MiB), on Linux too.  rptest at 10 threads on the M5 Ultra: 6.29 M
+  ops/CPU-s (system 2.64, mimalloc 5.77, jemalloc 6.20).  An ObjC program, a
+  Swift program, Python 3.12 and Perl 5.38 run clean under
+  DYLD_INSERT_LIBRARIES with the pool serving all three calls.
+
+* Sun Oct 11 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamepoolalloc: kame_pool_rt_drain() no longer empties the recycle
+  caches; the new kame_pool_trim() does.  The realtime contract -- prewarm,
+  then a drain in the trough of every control cycle -- broke its own
+  no-new-mapping promise from the second cycle on: the drain also emptied
+  this thread's L1 and the global L2 recycle cache, where
+  kame_pool_prewarm() keeps the working set of every size above the chunk
+  pool, so the section after any drain mapped again (bench_rt_wcet with the
+  documented per-cycle drain: 1,600 violations).  kame_pool_rt_drain() now
+  settles only the parked large-tier unmaps.  kame_pool_trim() also
+  releases the caches and the pages realtime frees kept, the malloc_trim
+  analogue, after which a realtime thread prewarms again.  No malloc or
+  free path changes.  M5 Ultra, 3 interferers, frees above 256 MiB: median
+  192 ns realtime against 16.4 us default, max 709 ns against 54.2 us; no
+  violations.
+- kamepoolalloc: v1.2.0's single-thread regressions are gone.  It ran
+  larson at 0.72x of v1.1.0 and bench_loop 1 KiB / 16 KiB at 0.96x / 0.92x
+  on the M5 Ultra, though none of its cross-thread machinery runs on one
+  thread: its free kept the per-bucket lists of chunks with entries exact
+  on every free, a miss took the chunk listed last, and a variable-size
+  chunk that stopped being the pin was never found again (larson's heap
+  3 regions -> 13).  Single-threaded, the free and the miss do what v1.1.0
+  did again, every walk bounded at 64 chunks: against v1.1.0, larson
+  1.06-1.07x, bench_loop 1 KiB 1.14x and 16 KiB 1.02x, and allocate-only
+  runs stay O(1) (1 KiB x 200 K live: 87 ns per allocation, 14 us in
+  v1.1.0).  The walks themselves went the next day (above).
 
 * Sat Oct 10 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - Interlock: a new module, modules/interlock, with one driver, Scalar
