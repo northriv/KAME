@@ -908,3 +908,142 @@ random order (`SHUFFLE=1`), peak RSS (VmHWM), one thread, 400 MiB a phase:
 Identical peaks for the two libraries, as on the M3 (777 / 627 there, same
 before and after).  Item 3 (`bench_loop`) is timing on a real host; not
 measured on this VM.
+
+## Run: Windows, Xeon E5-1630 v4, 2026-10-13 (master `5d2f5a726`)
+
+Intel Xeon E5-1630 v4 (Broadwell-EP, 4 cores / 8 threads, 3.7 GHz), Windows
+11 Pro 26200, Balanced power plan, a desktop in use (browser open, CPU
+8–15 % before each run).  llvm-mingw clang 17, `-O3 -DNDEBUG`, the
+`kamepoolalloc/tests` CMake tree; `bench_loop_pool` (`kame_pool_malloc`
+directly — PE/COFF has no preload) against a `libkamepoolalloc.dll` beside
+it, so each arm is its own build directory of one commit.  This is item 3
+(`bench_loop`) on a real x86 host, which the Linux runs above left open.
+
+**Correctness.**  clang x64: pool 25/25, STM 21/22.  llvm-mingw i686: pool
+24/25, STM 21/22.  cl x64: pool 17/25, STM 14/22; cl x86: pool 16/25, STM
+14/22 (cl does not compile 8 pool and 7 STM test targets, the same set
+since Aug 28; each STM count also has the wait-budget failure below, and
+x86's pool count `alloc_huge_test`).  `check_no_dcas.sh` 3/3; kame.exe and every module
+build.  The two failures are host conditions, not the allocator:
+`alloc_huge_test` on 32-bit (its MT step does not fit 2 GB; passes once
+`/LARGEADDRESSAWARE`), and `transaction_wait_budget_test`, whose 10 ms arm
+landed on the 15.6 ms timer tick (p99.99 15.6–15.8 ms in three serial runs)
+— `condition_variable::wait_for(10 ms)` took 15.6 ms on this host at the
+time, 10.2 ms under `timeBeginPeriod(1)`.
+
+**`bench_compare.sh`** at `5d2f5a726`, median of 5 — now the README's
+Windows tables.  Against them, the README's previous numbers (`8f2e6980`,
+June):
+
+| size | 1T June | 1T now | 4 proc June | 4 proc now |
+|---|---|---|---|---|
+| 64 B | 301 | 226 | 1055 | 852 |
+| 1 KiB | 223 | 228 | | |
+| 16 KiB | 191 | 124 | 687 | 473 |
+| 1 MiB | 64 | 63 | 231 | 208 |
+
+**Interleaved A/B**, same machine state, every arm at every size each rep,
+arm order alternating, median (min–max).  `8f2e6980` = the June table,
+`45f1d07f9` = the parent of `5fc34e052`.  Single thread, 7 reps:
+
+| size | `8f2e6980` | `45f1d07f9` | `5fc34e052` | `5d2f5a726` |
+|---|---|---|---|---|
+| 64 B | 275 (223–305) | 297 (211–311) | 232 (217–253) | 229 (205–241) |
+| 1 KiB | 220 (204–245) | 207 (193–221) | 272 (249–292) | 244 (236–258) |
+| 16 KiB | 177 (172–193) | 183 (177–195) | 128 (94–148) | 117 (108–128) |
+
+4 processes aggregate, 5 reps:
+
+| size | `8f2e6980` | `45f1d07f9` | `5fc34e052` | `5d2f5a726` |
+|---|---|---|---|---|
+| 64 B | 951 (921–1069) | 952 (906–1098) | 927 (856–958) | 868 (768–877) |
+| 16 KiB | 703 (613–726) | 670 (589–694) | 546 (509–597) | 463 (409–478) |
+| 1 MiB | 212 (150–219) | 211 (191–227) | 215 (198–220) | 210 (201–225) |
+
+`git bisect` (median of 5 per commit, threshold midway) names `5fc34e052`
+for the single-thread 16 KiB step (`45f1d07f9` 191, `5fc34e052` 119) and
+`9f6370a52` for the further 4-process 16 KiB step (`f53394135` 524,
+`9f6370a52` 461).  Interleaved, `9f6370a52` against `f53394135`: single
+thread 64 B 1.08×, 1 KiB 1.06×, 16 KiB 0.97×; 4 processes 64 B 1.04×,
+16 KiB 0.92×, 1 MiB 0.99×.
+
+So on this host `5fc34e052` is 64 B 0.78×, 1 KiB 1.31×, 16 KiB 0.70× single
+thread, where the M5 Ultra run above measured 0.97× / 0.94× / 1.00× against
+v1.2.1.  Not yet known: whether it is x86 or Broadwell (Ohtaka's Zen 2 item
+would say), or code placement, which moved the M3's 16 KiB loop by 7 % on
+its own.  1 MiB is unchanged throughout; the June table's 231 was the
+machine of that day.
+
+## Run: Linux, Intel Xeon @ 2.80 GHz, 2026-10-13 — the Windows regressions checked on another x86
+
+The Windows run's open question: x86, Broadwell, or code placement?  Cloud
+VM, 4 vCPU of an Intel Xeon @ 2.80 GHz (1 MiB L2 / core, 33 MiB L3 — a newer
+server core than Broadwell-EP), Linux, shared host, so absolute numbers are
+noisy and only the interleaved ratios are read.  One `bench_loop` binary
+(plain `malloc` / `free`, `gcc -O2`), the arm switched by `LD_PRELOAD` of each
+commit's `libkamepoolalloc.so` (`-O3 -DNDEBUG`, built with gcc 13.3 and with
+clang 18.1), a glibc arm as the control (the pool arms run ~2× it, so the
+preload takes); every arm at every size each rep, arm order reversed every
+other rep; 7 reps single thread, 5 reps 4 processes aggregate.  Arms as in the
+Windows run: `8f2e6980` (June), `45f1d07f9` (parent of `5fc34e052`),
+`5fc34e052`, `f53394135` → `9f6370a52`, and `e2c9e6dde` (HEAD).
+
+Median M ops/s (min–max):
+
+
+**gcc, single thread** (M ops/s)
+| size | glibc | 8f2e6980 (June) | 45f1d07f9 | 5fc34e052 | f53394135 | 9f6370a52 | e2c9e6dde (HEAD) | 5fc/45f | 9f6/f53 | HEAD/June |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 64 B | 129 (116-141) | 267 (259-285) | 273 (225-279) | 211 (199-224) | 202 (177-228) | 208 (149-223) | 222 (151-232) | 0.77x | 1.03x | 0.83x |
+| 1 KiB | 142 (95-147) | 215 (113-227) | 191 (167-215) | 200 (161-218) | 171 (146-194) | 179 (115-208) | 202 (190-211) | 1.05x | 1.04x | 0.94x |
+| 16 KiB | 49 (46-54) | 161 (132-172) | 156 (128-170) | 168 (160-175) | 139 (112-169) | 152 (132-171) | 162 (117-174) | 1.08x | 1.09x | 1.01x |
+
+**gcc, 4 processes aggregate** (M ops/s)
+| size | glibc | 8f2e6980 (June) | 45f1d07f9 | 5fc34e052 | f53394135 | 9f6370a52 | e2c9e6dde (HEAD) | 5fc/45f | 9f6/f53 | HEAD/June |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 64 B | 495 (342-526) | 1075 (762-1088) | 995 (962-1041) | 808 (770-836) | 748 (691-826) | 755 (740-811) | 739 (636-877) | 0.81x | 1.01x | 0.69x |
+| 16 KiB | 184 (168-210) | 619 (483-636) | 645 (585-652) | 645 (630-658) | 656 (514-699) | 623 (614-658) | 614 (585-692) | 1.00x | 0.95x | 0.99x |
+| 1 MiB | 210 (184-221) | 286 (244-309) | 202 (177-218) | 213 (154-229) | 215 (179-237) | 210 (179-218) | 214 (195-221) | 1.06x | 0.98x | 0.75x |
+
+**clang, single thread** (M ops/s)
+| size | glibc | 8f2e6980 (June) | 45f1d07f9 | 5fc34e052 | f53394135 | 9f6370a52 | e2c9e6dde (HEAD) | 5fc/45f | 9f6/f53 | HEAD/June |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 64 B | 139 (119-148) | 314 (284-326) | 281 (236-327) | 239 (166-253) | 226 (201-242) | 228 (211-242) | 224 (202-239) | 0.85x | 1.01x | 0.71x |
+| 1 KiB | 136 (111-146) | 208 (140-217) | 201 (160-223) | 240 (175-254) | 211 (178-230) | 204 (169-252) | 238 (204-251) | 1.19x | 0.96x | 1.14x |
+| 16 KiB | 49 (46-54) | 191 (165-194) | 191 (161-199) | 190 (165-195) | 181 (177-194) | 181 (170-191) | 180 (156-199) | 0.99x | 1.00x | 0.94x |
+
+**clang, 4 processes aggregate** (M ops/s)
+| size | glibc | 8f2e6980 (June) | 45f1d07f9 | 5fc34e052 | f53394135 | 9f6370a52 | e2c9e6dde (HEAD) | 5fc/45f | 9f6/f53 | HEAD/June |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 64 B | 526 (472-563) | 1229 (1106-1252) | 1086 (916-1178) | 913 (751-962) | 882 (816-975) | 891 (768-923) | 884 (768-915) | 0.84x | 1.01x | 0.72x |
+| 16 KiB | 184 (165-199) | 697 (658-760) | 727 (690-756) | 682 (649-747) | 678 (602-695) | 694 (674-740) | 656 (539-730) | 0.94x | 1.02x | 0.94x |
+| 1 MiB | 184 (171-225) | 230 (209-246) | 178 (171-237) | 186 (158-191) | 191 (182-218) | 173 (146-228) | 216 (155-226) | 1.04x | 0.91x | 0.94x |
+
+| step | Windows (Broadwell, clang 17) | here, gcc 13 | here, clang 18 |
+|---|---|---|---|
+| `5fc34e052` / `45f1d07f9`, 1T 64 B | 0.78× | **0.77×** | **0.85×** |
+| — 1T 1 KiB | 1.31× | 1.05× | 1.19× |
+| — 1T 16 KiB | **0.70×** | 1.08× | 0.99× |
+| — 4P 64 B | 0.97× | 0.81× | 0.84× |
+| — 4P 16 KiB | 0.81× | 1.00× | 0.94× |
+| `9f6370a52` / `f53394135`, 4P 16 KiB | 0.92× | 0.95× | 1.02× |
+
+**64 B reproduces; 16 KiB does not.**  The thread lists' 64 B single-thread
+loss is here with both compilers (0.77× / 0.85×, the gcc figure the Windows
+one to the percent), so it is not Broadwell's or Windows'.  The 16 KiB loss
+(0.70×, and 0.81× on 4 processes) does not appear on this core with either
+compiler (0.99–1.08×); with the M5's 1.00× that leaves Broadwell, Windows
+(llvm-mingw's TLS and DLL calls) or that build's code placement — not the
+algorithm on x86 as such.  `9f6370a52`'s 4-process 16 KiB step is within
+noise here (0.95× / 1.02×).
+
+**One step Windows did not show: 1 MiB, since June.**  gcc, 9 reps
+interleaved: single thread `8f2e6980` 77 (55–82), `45f1d07f9` 57 (52–60),
+HEAD 61 (32–64); 4 processes 277 (223–300), 213 (166–224), 228 (206–247).
+Windows measured 212 / 211 / 210 there.  `git bisect run` over the 48
+allocator commits between them (median of 5 single-thread runs, threshold 67)
+names **`6fe90a931`** (§75: realtime per-thread gating, prewarm, drain,
+pre-reserve); interleaved against its parent `1f6a59fd3`, 9 reps: single
+thread 74 → 63 (0.86×), 4 processes 259 → 220 (0.85×).  That is the first and
+largest identified part of the 0.74×; the rest lies later in the range and is
+not bisected.  clang's 4-process 1 MiB row is too noisy here to read.
