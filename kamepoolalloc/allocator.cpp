@@ -342,7 +342,7 @@ constexpr bool tier_local_ids_distinct() {
 	return true;
 }
 static_assert(tier_local_ids_distinct() && kTierLocalBucket.v[0][0] == 6
-              && kTierLocalBucket.v[__builtin_ctz(kBucketAlign[16]) - 5][0] == 16
+              && kTierLocalBucket.v[0][5] == 16 && kTierLocalBucket.v[3][1] == 32
               && kTierLocalBucket.v[3][8] == 39 && kTierLocalBucket.v[7][3] == 51,
               "kTierLocalBucket must match kBucketAlign / kBucketLocalId");
 
@@ -1971,7 +1971,7 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 // mixed buckets <= 23, else the slot less the borrow prefix, or the slot in
 // the full tier) -- so a class promises the run a miss would claim.  (The
 // table's slot is not that SIZE for buckets 6..16: bucket 16 serves up to
-// 256 B, which takes 2 units of 256 with its prefix, not 1.)
+// 256 B, which takes 9 units of 32 with its prefix, not 8.)
 template <unsigned int ALIGN>
 struct FitSizes {
 	static constexpr unsigned size_of(unsigned b) {
@@ -4592,17 +4592,17 @@ KAME_DECL_BUCKET( 2, ALLOC_SIZE2,                  true,  ALLOC_SIZE2 );
 KAME_DECL_BUCKET( 3, ALLOC_SIZE3,                  true,  ALLOC_SIZE3 );
 KAME_DECL_BUCKET( 4, ALLOC_SIZE4,                  true,  ALLOC_SIZE4 );
 KAME_DECL_BUCKET( 5, ALLOC_SIZE5,                  true,  ALLOC_SIZE5 );
-KAME_DECL_BUCKET( 6, ALLOC_ALIGN(ALLOC_SIZE6),    false,  ALLOC_SIZE6 );
+KAME_DECL_BUCKET( 6, ALLOC_ALIGN1,                false,  ALLOC_SIZE6 );
 KAME_DECL_BUCKET( 7, ALLOC_SIZE7,                  true,  ALLOC_SIZE7 );
-KAME_DECL_BUCKET( 8, ALLOC_ALIGN(ALLOC_SIZE8),    false,  ALLOC_SIZE8 );
+KAME_DECL_BUCKET( 8, ALLOC_ALIGN1,                false,  ALLOC_SIZE8 );
 KAME_DECL_BUCKET( 9, ALLOC_SIZE9,                  true,  ALLOC_SIZE9 );
-KAME_DECL_BUCKET(10, ALLOC_ALIGN(ALLOC_SIZE10),   false,  ALLOC_SIZE10);
+KAME_DECL_BUCKET(10, ALLOC_ALIGN1,                false,  ALLOC_SIZE10);
 KAME_DECL_BUCKET(11, ALLOC_SIZE11,                 true,  ALLOC_SIZE11);
-KAME_DECL_BUCKET(12, ALLOC_ALIGN(ALLOC_SIZE12),   false,  ALLOC_SIZE12);
+KAME_DECL_BUCKET(12, ALLOC_ALIGN1,                false,  ALLOC_SIZE12);
 KAME_DECL_BUCKET(13, ALLOC_SIZE13,                 true,  ALLOC_SIZE13);
-KAME_DECL_BUCKET(14, ALLOC_ALIGN(ALLOC_SIZE14),   false,  ALLOC_SIZE14);
+KAME_DECL_BUCKET(14, ALLOC_ALIGN1,                false,  ALLOC_SIZE14);
 KAME_DECL_BUCKET(15, ALLOC_SIZE15,                 true,  ALLOC_SIZE15);
-KAME_DECL_BUCKET(16, ALLOC_ALIGN(ALLOC_SIZE16),   false,  ALLOC_SIZE16);
+KAME_DECL_BUCKET(16, ALLOC_ALIGN1,                false,  ALLOC_SIZE16);
 // extend the FS=true 16-step ladder to buckets 17..23
 // (sizes 272..368).  Each is FS=true with ALIGN = SIZE → zero
 // internal frag (one slot per ALIGN-byte region).  Closes the
@@ -4679,15 +4679,17 @@ KAME_DECL_BUCKET(51, 4096u, false, 32768u);  // N=8, slot=32768
 // bucket's kBucketAlign is its template's ALIGN: bucket_for_aligned hands
 // its slots out as aligned to it, and the fit classes and kTierLocalBucket
 // group the buckets by it.  And each variable-size template's fit classes
-// must match its slots.  On ILP32 the table once said 32 and 256 for
-// buckets 8 and 16, which ALLOC_ALIGN makes ALIGN 128 there: a 256-aligned
-// request of up to 248 B got a slot 128 B from the next, and the ALIGN 128
-// template had no fit classes.
+// must match its slots, and MAX_N (§max-n-gate) is the largest of them.  On
+// ILP32 the table once said 32 and 256 for buckets 8 and 16, which a
+// width-dependent ALLOC_ALIGN made ALIGN 128 there: a 256-aligned request of
+// up to 248 B got a slot 128 B from the next, and the ALIGN 128 template had
+// no fit classes.
 template <int B> constexpr bool bucket_tables_match() {
 	using BT = BucketTraits<B>;
 	if(BT::ALIGN != kBucketAlign[B]) return false;
 	if constexpr (BT::FS) return true;
-	else return FitSizes<BT::ALIGN>{}.consistent();
+	else return FitSizes<BT::ALIGN>{}.consistent()
+	            && PoolAllocator<BT::ALIGN, false>::MAX_N == FitSizes<BT::ALIGN>{}.N[0];
 }
 template <int... B> constexpr bool all_bucket_tables_match(std::integer_sequence<int, B...>) {
 	return (bucket_tables_match<B + 1>() && ...);
@@ -8373,15 +8375,13 @@ unsigned PoolAllocator<ALIGN, FS, DUMMY>::group_take_head(PoolAllocator *g) noex
 
 // FS=false PoolAllocator instantiations.
 //
-// an earlier change layout uses three stages with explicit ALIGN values (64,
-// 256, 1024).  ALLOC_ALIGN1 (= 32 on 64-bit) is retained as the ALIGN
-// of the legacy FS=false buckets 6/8/10/12/14 (slot sizes 96/128/160/
-// 192/224); bucket 16 (size 256) uses ALLOC_ALIGN(256) = ALLOC_ALIGN2
-// = 256.  So we need ALIGN=32, 64, 256, 1024 — four total instantiations.
-template class PoolAllocator<32u, false>;     // buckets 6, 8, 10, 12, 14
-template class PoolAllocator<64u, false>;     // buckets 17..24
-template class PoolAllocator<256u, false>;    // bucket 16 + buckets 25..32
-template class PoolAllocator<1024u, false>;   // buckets 33..40
+// The ladder uses explicit ALIGNs (64, 256, 1024, and 4096 for the page
+// tier, instantiated through BucketTraits); ALLOC_ALIGN1 (= 32) is the ALIGN
+// of the mixed FS=false buckets 6..16 (96..256 B).
+template class PoolAllocator<32u, false>;     // buckets 6, 8, 10, 12, 14, 16
+template class PoolAllocator<64u, false>;     // buckets 24..31
+template class PoolAllocator<256u, false>;    // buckets 32..39
+template class PoolAllocator<1024u, false>;   // buckets 40..47
 
 template class PoolAllocator<ALLOC_SIZE1, true>;
 template class PoolAllocator<ALLOC_SIZE2, true>;

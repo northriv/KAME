@@ -28,7 +28,7 @@
 // `--mid` draws 49..368 B instead: the FS=true classes above 48 B, whose
 // cross-thread free takes CrossDeallocBatch::push_direct (ALIGN <= 48 takes
 // the 32 B test's `push` -> `flush`), and the small FS=false classes (ALIGN
-// 32, and 256 B at ALIGN 256).  The v1.1.0 thread-exit store sat at three
+// 32: 96..256 B).  The v1.1.0 thread-exit store sat at three
 // sites; on the code before its fix the default run crashed at the FS=false
 // one only (65/2000), the 32 B test at `flush` only (12/2000), and only this
 // range reached `push_direct` (POOL_FL_AVAIL_LINUX_CHECK.md §9).

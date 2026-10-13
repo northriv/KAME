@@ -18,17 +18,17 @@
 //     of them are filed, then take from the fit lists.
 //
 // Per tier, fill chunks with blocks that leave a run at the end of every
-// bitmap word that only the tier's smallest size fits, so every chunk that
-// stops being the pin is filed for that size; then allocate that size at its
+// bitmap word, so every chunk that stops being the pin is filed for the
+// largest of the tier's sizes that run fits; then allocate that size at its
 // largest request.  Every block is painted and checked before it is freed,
 // in a shuffled order.  A word is a uintptr_t, 64 units on LP64 and 32 on
-// ILP32, where buckets 8 and 16 also make a tier of their own (ALLOC_ALIGN2
-// is 128 there), so the sizes go by the width:
+// ILP32, so the ALIGN 32 filler goes by the width:
 //
-//   LP64   ALIGN  32: filler  160 B (bucket 10, N = 6: ten a word, 4 units left), probe  96 B (bucket 6, N = 4)
-//          ALIGN 256: filler 1528 B (bucket 32, N = 6: ten a word, 4 units left), probe 256 B (bucket 16, N = 2)
-//   ILP32  ALIGN  32: filler  192 B (bucket 12, N = 7: four a word, 4 units left), probe  96 B (bucket 6, N = 4)
-//          ALIGN 128: filler  256 B (bucket 16, N = 3: ten a word, 2 units left), probe 128 B (bucket 8, N = 2)
+//   ALIGN 32: filler 160 B (bucket 10, N = 6: ten a word, 4 units left) on LP64,
+//             192 B (bucket 12, N = 7: four a word, 4 units left) on ILP32;
+//             probe 96 B (bucket 6, N = 4), the tier's smallest
+//   ALIGN 64: filler 696 B (bucket 28, N = 11: five a word on LP64 with 9
+//             units left, two on ILP32 with 10); probe 568 B (bucket 27, N = 9)
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -131,14 +131,8 @@ int run_tier(const char *name, std::size_t filler, std::size_t probe, unsigned n
 
 int main() {
 	int rc = 0;
-	if(sizeof(std::uintptr_t) == 8) {
-		rc |= run_tier("ALIGN 32", 160, 96, 6000, 3000);
-		rc |= run_tier("ALIGN 256", 1528, 256, 3000, 3000);
-	}
-	else {
-		rc |= run_tier("ALIGN 32", 192, 96, 6000, 3000);
-		rc |= run_tier("ALIGN 128", 256, 128, 3000, 3000);
-	}
+	rc |= run_tier("ALIGN 32", sizeof(std::uintptr_t) == 8 ? 160 : 192, 96, 6000, 3000);
+	rc |= run_tier("ALIGN 64", 696, 568, 3000, 3000);
 	std::puts(rc ? "FAIL" : "PASS");
 	return rc;
 }

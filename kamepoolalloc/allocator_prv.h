@@ -1215,8 +1215,9 @@ public:
 	//! FREELIST INDEXING (§12.3 — design "alloc: bucket-id direct;
 	//! dealloc: local-id direct; no conversion-table on hot paths"):
 	//!   m_freelist_head[] is indexed by COMPACT per-chunk LOCAL id, not
-	//!   global bucket.  KAME_LOCAL_BUCKETS (= 9) covers the widest tier
-	//!   (ALIGN=256 FS=false serves buckets {16, 32..39}).  `kBucketLocalId[]`
+	//!   global bucket.  KAME_LOCAL_BUCKETS (= 9) covers the highest id
+	//!   (ALIGN=256 FS=false serves buckets 32..39 as ids 1..8; id 0 was
+	//!   bucket 16's, now in the ALIGN=32 tier).  `kBucketLocalId[]`
 	//!   maps bucket -> local id — but the alloc fast path NEVER reads it:
 	//!   instead, TLS `m_slots[bucket].freelist_head` holds a `char **`
 	//!   pointing DIRECTLY at the active chunk's m_freelist_head[local-id-
@@ -2308,7 +2309,7 @@ public:
 	//! `KAME_DECL_BUCKET` block (slot/ALIGN at the highest bucket each
 	//! ALIGN serves).
 	static constexpr unsigned int MAX_N =
-	    (ALIGN == 32u)   ? 8u  :  // bucket 14 SIZE=224 → N=ceil((224+8)/32)=8
+	    (ALIGN == 32u)   ? 9u  :  // bucket 16 SIZE=256 → N=ceil((256+8)/32)=9
 	    (ALIGN == 64u)   ? 17u :  // bucket 31 SIZE=1080 → N=ceil(1088/64)=17
 	    (ALIGN == 256u)  ? 17u :  // bucket 39 SIZE=4344 → N=ceil(4352/256)=17
 	    (ALIGN == 1024u) ? 17u :  // bucket 47 SIZE=17408 → N=17 (full-usable)
@@ -2377,25 +2378,12 @@ private:
 	// catches the all-words-filled case in O(1).
 };
 
+//! The ALIGN of the mixed FS=false buckets 6..16 (96..256 B), on every
+//! width.  A width-dependent ALLOC_ALIGN(size) once gave a size that is a
+//! multiple of 256 (on ILP32, of 128) an ALIGN of its own: with the 8 B borrow
+//! prefix a 256 B request then took two units of 256 -- 512 B; it takes nine
+//! units of 32 now, 288 B.
 #define ALLOC_ALIGN1 (ALLOC_ALIGNMENT * 2)
-#if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
-	#define ALLOC_ALIGN2 (ALLOC_ALIGNMENT * 16)
-	//! New on 64-bit: ALIGN3 = 1024 (= 16 × 64).  Used by buckets 31..36
-	//! (sizes 3072..8192 in 1024-B step) so the FS=false machinery can
-	//! cover above 2 KiB without ballooning slot-counts/chunks at the
-	//! lower-ALIGN tiers.  Max in-pool slot size:
-	//!   ALIGN3 × FUINT_BITS = 1024 × 64 = 65536 (we cap usage at 8192).
-	#define ALLOC_ALIGN3 (ALLOC_ALIGNMENT * 64)
-	#define ALLOC_ALIGN(size) (((size) % ALLOC_ALIGN2 != 0) || ((size) == ALLOC_ALIGN1 * 64) ? ALLOC_ALIGN1 : ALLOC_ALIGN2)
-//	#define ALLOC_ALIGN(size) (((size) <= ALLOC_ALIGN1 * 64) ? ALLOC_ALIGN1 : ALLOC_ALIGN2)
-#else
-	#define ALLOC_ALIGN2 (ALLOC_ALIGNMENT * 8)
-	#define ALLOC_ALIGN3 (ALLOC_ALIGNMENT * 32)
-	#define ALLOC_ALIGN(size) (((size) % ALLOC_ALIGN2 != 0) || ((size) == ALLOC_ALIGN1 * 32) ? ALLOC_ALIGN1 :\
-		(((size) % ALLOC_ALIGN3 != 0) || ((size) == ALLOC_ALIGN2 * 32) ? ALLOC_ALIGN2 : ALLOC_ALIGN3))
-//	#define ALLOC_ALIGN(size) (((size) <= ALLOC_ALIGN1 * 32) ? ALLOC_ALIGN1 :
-//		(((size) <= ALLOC_ALIGN2 * 32) ? ALLOC_ALIGN2 : ALLOC_ALIGN3))
-#endif
 
 #define ALLOC_SIZE1 (ALLOC_ALIGNMENT * 1)
 #define ALLOC_SIZE2 (ALLOC_ALIGNMENT * 2)
@@ -2617,13 +2605,11 @@ inline constexpr uint32_t kBucketNewSlot[52] = {
 //! < KAME_LOCAL_BUCKETS, grouping the buckets by kBucketAlign below,
 //! which a static_assert there ties to each bucket's template.  Tiers:
 //!   FS=true (each its own ALIGN=size, one size)        -> id 0
-//!   ALIGN=32  FS=false: buckets {6,8,10,12,14}         -> 0..4
+//!   ALIGN=32  FS=false: buckets {6,8,10,12,14,16}      -> 0..5
 //!   ALIGN=64  FS=false: buckets {24..31}               -> 0..7
-//!   ALIGN=256 FS=false: buckets {16, 32..39}           -> 0, 1..8
+//!   ALIGN=256 FS=false: buckets {32..39}               -> 1..8 (0 unused)
 //!   ALIGN=1024 FS=false: buckets {40..47}              -> 0..7
 //!   ALIGN=4096 FS=false: buckets {48..51}              -> 0..3
-//! (LP64.  On ILP32 buckets 8 and 16 are an ALIGN=128 template of their
-//! own, ids 1 and 0: distinct, which is all a chunk needs.)
 //!
 //! USED ONLY ON THE COLD PATH (slow_allocate / cold_first_access) to set
 //! the per-thread TLS `m_slots[bucket].freelist_head` shortcut so the
@@ -2637,13 +2623,13 @@ inline constexpr uint8_t kBucketLocalId[52] = {
     0, 0, 0, 0, 0,
     // 6 FS=false ALIGN=32 #0 ; 7 FS=true ; 8 ALIGN=32 #1 ; 9 FS=true ;
     // 10 #2 ; 11 FS=true ; 12 #3 ; 13 FS=true ; 14 #4 ; 15 FS=true ;
-    // 16 FS=false ALIGN=256 #0
-    0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 0,
+    // 16 ALIGN=32 #5
+    0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5,
     // 17..23 FS=true
     0, 0, 0, 0, 0, 0, 0,
     // 24..31 FS=false ALIGN=64
     0, 1, 2, 3, 4, 5, 6, 7,
-    // 32..39 FS=false ALIGN=256 (#1..8; #0 is bucket 16 above)
+    // 32..39 FS=false ALIGN=256 (#1..8; #0 was bucket 16's)
     1, 2, 3, 4, 5, 6, 7, 8,
     // 40..47 FS=false ALIGN=1024
     0, 1, 2, 3, 4, 5, 6, 7,
@@ -2669,14 +2655,12 @@ inline constexpr uint16_t kBucketAlign[52] = {
     16, 32, 48, 64, 80,
     // 6 FS=false ALIGN=32 ; 7 FS=true ALIGN=112 ; 8 FS=false ALIGN=32 ;
     // 9 FS=true ALIGN=144 ; 10 ALIGN=32 ; 11 ALIGN=176 ; 12 ALIGN=32 ;
-    // 13 ALIGN=208 ; 14 ALIGN=32 ; 15 ALIGN=240 ; 16 FS=false ALIGN=256
-    // -- on LP64.  The FS=false ones are ALLOC_ALIGN of their size, as
-    // KAME_DECL_BUCKET declares them: on ILP32 (ALLOC_ALIGN2 = 128) that
-    // makes 8 and 16 ALIGN=128, and a literal 256 for bucket 16 sent a
-    // 256-aligned request to slots 128 B apart.
-    ALLOC_ALIGN(ALLOC_SIZE6), 112, ALLOC_ALIGN(ALLOC_SIZE8), 144,
-    ALLOC_ALIGN(ALLOC_SIZE10), 176, ALLOC_ALIGN(ALLOC_SIZE12), 208,
-    ALLOC_ALIGN(ALLOC_SIZE14), 240, ALLOC_ALIGN(ALLOC_SIZE16),
+    // 13 ALIGN=208 ; 14 ALIGN=32 ; 15 ALIGN=240 ; 16 FS=false ALIGN=32.
+    // (A width-dependent entry here once disagreed with the template on
+    // ILP32 and sent a 256-aligned request to slots 128 B apart; the
+    // static_assert after KAME_DECL_BUCKET ties them now.)
+    ALLOC_ALIGN1, 112, ALLOC_ALIGN1, 144, ALLOC_ALIGN1, 176, ALLOC_ALIGN1, 208,
+    ALLOC_ALIGN1, 240, ALLOC_ALIGN1,
     // 17..23 FS=true ALIGN=SIZE (272..368)
     272, 288, 304, 320, 336, 352, 368,
     // 24..31 FS=false ALIGN=64
