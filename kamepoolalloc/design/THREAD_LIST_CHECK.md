@@ -496,3 +496,106 @@ static_asserts on the picks and the classes).  On the four ILP32 trees:
    against `75369a9a3`'s; on LP64 both pass.
 4. **Soaks.**  `alloc_phase_test` and `alloc_fit_test`, 100 runs each per
    ILP32 tree.
+
+## Run: M5 Ultra, 2026-10-13 — `tl_reclaim_idle` (master `4ae71a910`, the code of `795567059`)
+
+Same machine and toolchain as the runs above.  Arms: tree at `4ae71a910`
+(sha256 `fc5fe9777215ee47`), cap = `6b61c6e4a`'s `kamepoolalloc/` (sha256
+`b6ea3d464599bbf6`, the tree arm of the §tl-cap run above), pre =
+`727c47322`'s (sha256 `6d9157ba1b90e29d`, before the cap), mimalloc 3.3.2.
+The code since cap: `tl_reclaim_idle` and the trim of the thread's lists
+(`460730c35`), the ILP32 `kBucketAlign` fix (`75369a9a3`), test fixes.
+
+**Correctness.**  Full-tree ctest 49/49 (with `alloc_aligned_test`) in
+Release, in `-O2 -g` with asserts, and in that build with
+`-DKAME_TL_SEG_BYTES=1024u -DKAME_TL_SEGS=1`.  In all three, scored by exit
+status, 6 in parallel: `alloc_tsd_exclusivity_test` and `_var_test` 2000
+each, `alloc_fit_test` 300, `alloc_phase_test` 300 (random-order frees
+now), `alloc_rt_thread_test` 200, `alloc_aligned_test` 200, the four
+`alloc_thread_exit_*` tests 200 each — 0 failures.
+
+**`bench_ab.sh`** (`--tags tree --arm cap=… --arm pre=… --arm mi=…`, the
+same `--only` set, `--threads "4 8" --reps 5`; results
+`~/bench-ab/results-dhcp-029-018-20261013-103556`), median (min–max):
+
+| bench | config | metric | tree | cap | pre | mi | cap / tree | pre / tree | mi / tree |
+|---|---|---|---|---|---|---|---|---|---|
+| loop | 64B | Mops ↑ | 1137 (1130–1161) | 1144 (1140–1149) | 1144 (1140–1163) | 1011 (984–1083) | 1.01× | 1.01× | 0.89× |
+| loop | 1024B | Mops ↑ | 755 (729–804) | 750 (708–777) | 800 (783–857) | 792 (761–796) | 0.99× | 1.06× | 1.05× |
+| loop | 16384B | Mops ↑ | 769 (764–785) | 773 (762–807) | 861 (830–864) | 368 (360–373) | 1.01× | 1.12× | 0.48× |
+| xthread | w4,1KiB | Mfree ↑ | 83.5 (82.1–86.6) | 84.5 (83.0–86.0) | 86.6 (82.6–89.4) | 108 (106–113) | 1.01× | 1.04× | 1.29× |
+| xmalloc | w4,64B | Mfree ↑ | 396 (394–400) | 404 (400–409) | 394 (385–400) | 345 (342–349) | 1.02× | 1.00× | 0.87× |
+| larson | t4 | Mops ↑ | 169 (165–170) | 168 (165–171) | 168 (168–172) | 195 (195–196) | 0.99× | 1.00× | 1.16× |
+| rptest | t4 | Mops_cpu ↑ | 7.05 (6.65–7.74) | 7.62 (6.75–7.86) | 6.88 (6.58–7.63) | 6.69 (6.48–7.07) | 1.08× | 0.98× | 0.95× |
+| frame | t4 | fps ↑ | 5227 (5113–5244) | 5234 (5099–5260) | 5266 (5146–5284) | 5649 (5627–5663) | 1.00× | 1.01× | 1.08× |
+| frame | t4 | frame_max_us ↓ | 285 (220–410) | 399 (271–675) | 328 (242–416) | 397 (304–1347) | 1.40× | 1.15× | 1.39× |
+| frame | t4 | rss_mib ↓ | 917 (916–932) | 916 (916–931) | 916 (916–930) | 465 (462–490) | 1.00× | 1.00× | 0.51× |
+| xthread | w8,1KiB | Mfree ↑ | 123 (119–130) | 122 (118–124) | 124 (119–126) | 80.6 (77.4–83.2) | 0.99× | 1.00× | 0.65× |
+| xmalloc | w8,64B | Mfree ↑ | 510 (500–511) | 511 (495–512) | 508 (506–511) | 504 (489–505) | 1.00× | 1.00× | 0.99× |
+| larson | t8 | Mops ↑ | 256 (253–264) | 261 (259–267) | 263 (260–263) | 207 (206–210) | 1.02× | 1.03× | 0.81× |
+| rptest | t8 | Mops_cpu ↑ | 6.25 (5.9–6.38) | 6.24 (5.75–6.62) | 6.14 (6.07–6.87) | 5.7 (5.17–5.99) | 1.00× | 0.98× | 0.91× |
+| frame | t8 | fps ↑ | 4156 (4134–4175) | 4180 (4157–4198) | 4173 (4097–4204) | 3671 (3568–3697) | 1.01× | 1.00× | 0.88× |
+| frame | t8 | frame_max_us ↓ | 446 (438–500) | 458 (415–494) | 450 (400–533) | 1738 (1665–1870) | 1.03× | 1.01× | 3.89× |
+| frame | t8 | rss_mib ↓ | 1162 (1161–1162) | 1158 (1157–1158) | 1162 (1158–1163) | 585 (578–598) | 1.00× | 1.00× | 0.50× |
+| xlat | 1024Bx200000 | rate_M ↑ | 4.99 (4.89–5.15) | 4.96 (4.94–5.07) | 4.95 (4.92–5.56) | 9.19 (8.97–9.28) | 0.99× | 0.99× | 1.84× |
+| xlat | 1024Bx1000000 | max_ns ↓ | 14084 (12792–15750) | 14000 (13708–20000) | 16542 (14709–47500) | 24875 (22750–33292) | 0.99× | 1.17× | 1.77× |
+
+The rest (frameRT, the other frame percentiles, slow calls, the other xlat
+rows) is level within its spread; `summary.md` there has every row.  Tree
+and cap are level everywhere (the frame t4 max and the rptest t4 spread
+overlap).  Against pre, the §tl-cap cost on the single-thread loop stays:
+1 KiB 0.94x and 16 KiB 0.89x here, 0.89x and 0.92x in the run above (pre's
+own 1 KiB moved 842 → 800 between the runs).
+
+**Micro benches** (`ab.py . 5 pre=… cap=… tree=…`, median of 5):
+
+| config | unit | pre | cap | tree |
+|---|---|---|---|---|
+| replace1 5000 20000000 400 1000 | M ops/s | 401.7 | 391.6 | 390.1 |
+| replace1 5000 20000000 8 1000 | M ops/s | 201.6 | 199.2 | 198.6 |
+| replace1 100000 20000000 16 4096 | M ops/s | 127.4 | 122.2 | 122.2 |
+| replace1 5000 20000000 1500 3000 | M ops/s | 387.0 | 358.6 | 360.3 |
+| replace1 5000 20000000 16 368 | M ops/s | 280.8 | 277.6 | 277.4 |
+| heavy 100000 1000000 4 400 1000 | ns/alloc | 73.2 | 75.6 | 75.9 |
+| heavy 100000 1000000 32 400 1000 | ns/alloc | 64.5 | 65.1 | 64.9 |
+| heavy 100000 1000000 32 32 512 | ns/alloc | 31.6 | 31.3 | 31.1 |
+| ring 64 4 20 | M ops/s | 13.3 | 13.2 | 13.1 |
+| ring 64 32 20 | M ops/s | 21.9 | 22.7 | 22.3 |
+| ring 64 128 20 | M ops/s | 24.7 | 23.9 | 23.1 |
+
+**Hitches.**  The probe of the run above (200 MiB of one size, every free
+timed, in allocation order), 3 runs per arm:
+
+| size | metric | pre | cap | tree | mi |
+|---|---|---|---|---|---|
+| 64 B | mean | 7.3–8.3 ns | 9.6–9.7 ns | 9.6–9.7 ns | 7.3–7.4 ns |
+| 64 B | p99.99 | 84–125 ns | 10.29–10.33 µs | 10.08–10.25 µs | 125 ns |
+| 64 B | max | 14.0–21.8 µs | 33.2–35.6 µs | 25.2–33.6 µs | 11.8–17.8 µs |
+| 64 B | frees > 1 µs / > 10 µs | 14–26 / 7–14 | 805–811 / 423–448 | 804–814 / 373–420 | 18–33 / 8–15 |
+| 1 KiB | mean | 27.6–32.0 ns | 55.3–56.6 ns | 54.5–56.3 ns | 8.6–9.6 ns |
+| 1 KiB | p99.99 | 209–250 ns | 9.5–10.0 µs | 8.7–9.5 µs | 167–250 ns |
+| 1 KiB | max | 14.6–21.3 µs | 19.5–24.4 µs | 18.4–32.1 µs | 0.96–10.7 µs |
+| 1 KiB | frees > 1 µs / > 10 µs | 2–7 / 2–7 | 838–845 / 12–21 | 837–845 / 9–17 | 0–1 / 0–1 |
+
+Tree and cap alike: one slow free per returned segment.  This time the
+64 B worst free sat ~10 µs above pre's (it overlapped pre's in the run
+above).
+
+**Memory (item 6).**  The phase probe, now also freeing the first phase in
+a fixed random permutation; peak `phys_footprint`, MiB:
+
+| A → B, order of the frees | pre | cap | tree | mi |
+|---|---|---|---|---|
+| 64 B → 1 KiB, allocation order | 1053 | 631 | 627 | 481 |
+| the same, `kame_pool_trim()` between | 1003 | 581 | 577 | — |
+| 64 B → 1 KiB, random order | 1054 | 1054 | **627** | 481 |
+| the same, `kame_pool_trim()` between | 1003 | 1003 | **577** | — |
+| 4 KiB → 64 B, allocation order | 891 | 707 | 703 | 467 |
+| the same, `kame_pool_trim()` between | 890 | 588 | 588 | — |
+| 4 KiB → 64 B, random order | 891 | 891 | **703** | 467 |
+| the same, `kame_pool_trim()` between | 890 | 829 | **588** | — |
+
+Freed in a random order the cap alone held nothing back (cap = pre);
+`tl_reclaim_idle` makes the random order peak where allocation order does,
+627 / 577 MiB as on the M3.  In no arm does the footprint drop at the frees
+themselves; the trim takes 64 B's 481 MiB to 431 and leaves 4 KiB's 414.
