@@ -1001,13 +1001,76 @@ exclusivity (plain and `--mid`), fit and phase tests, churn and stress ran
 0 failures.  The M5 Ultra and Linux x86 should re-run `loop`; the M5 never
 showed the loss, and a gain there is not expected.
 
-16 KiB is untouched by it — another tier, still about 0.66× June's here.
+16 KiB is untouched by it — another tier, still about 0.66× June's here (see the 16 KiB cause below).
 
 `bench_compare.sh` at `78e57424c`, median of 5 — the README's Windows
 tables now: single thread 64 B 335, 1 KiB 242, 16 KiB 118, 64 KiB 69,
 256 KiB 63, 1 MiB 51, 4 MiB 33; 4 processes 64 B 1178, 16 KiB 498, 64 KiB
 237, 1 MiB 233.  The single-thread 1 MiB row is the noisy one: 51–65 for
 one binary, interleaved, before and after alike.
+
+**The 16 KiB cause, and `e0974e402`.**  16 KiB is the full tier (6 KiB to
+32 KiB, `m_sizes`, ALIGN 1024 / 4096).  Its loop takes the fast paths
+every time (`-DKAME_FL_STATS`: 5 misses in 1 M iterations), and its owner
+free took the bucket from `m_sizes` — `back_offset`, then the chunk's
+`m_sizes` pointer and `m_align_shift`, then the entry, three dependent
+loads before the address of the thread list it stores to.  Before
+`5fc34e052` the same chain led to the chunk's `m_freelist_head[local]`.
+Measurement-only arms, interleaved, Windows (clang 17) and Linux (WSL 2 on
+the same Xeon, gcc 13, `-O3`, perf in user mode):
+
+| arm | Windows 16 KiB, M ops/s | Linux 16 KiB, M ops/s | Linux cycles / pair |
+|---|---|---|---|
+| `45f1d07f9` (before the thread lists) | 183–185 | 166–175 | 41.7–41.9 |
+| `6ae486851` | 115–128 | 157–184 | 40.0–46.4 |
+| E1: 16 KiB bucket hard-wired | 253–265 | 247–277 | 26.4–26.7 |
+| E2: no list-cap accounting | 136 | 179 | 41.6 |
+| page table (`e0974e402`'s form) | 264 | 254 | 27.3 |
+
+So the chain is the lever on both systems, but only Windows regressed: on
+Linux the thread-list form costs what the chunk-cell form did.  Why it
+costs Windows 70 more M ops/s is not settled.  The TLS list head of the
+16 KiB bucket sat at low 12 bits `0x668` (a probe in the DLL), so it does
+not 4K-alias the 4 KiB-aligned slots, and Windows has no counters here;
+gcc on Windows hung at start-up and could not stand in for clang.
+`ld_blocks_partial.address_alias` (raw `r0107`) on Linux varies between 1
+and 4.5 a pair from run to run for the same binary, while cycles do not.
+
+`e0974e402`: one byte per 4 KiB page of a region at region + 4096, written
+beside the `m_sizes` entry in `allocate_pooled` (the only write site), read
+on the full-tier owner free.  A full-tier slot is at least 6 KiB, so a page
+holds at most one slot start (static_assert).  The cap weight became
+`tl_slot_bytes(bucket)`, the `N << shift` that `m_sizes` held; debug builds
+assert both.  Against `6ae486851`, interleaved: Windows 16 KiB 116 → 236
+single thread (2.04×), 502 → 907 on 4 processes (1.80×); Linux 40.4 →
+27.5 cycles a pair; 64 B 315 / 317 over 21 reps (its code is byte-for-byte
+the same), 64 KiB / 256 KiB / 1 MiB 0.97–1.08×, `bench_xthread -w 2` at
+64 B / 1 KiB / 16 KiB / mixed 0.99–1.02×.
+
+`bench_compare.sh` at `e0974e402`, the README's Windows tables now (the
+second of two runs; the first gave 64 KiB 48, interleaved 66–68 for both
+builds): single thread 64 B 315, 1 KiB 247, 16 KiB 256, 64 KiB 66,
+256 KiB 65, 1 MiB 63, 4 MiB 35; 4 processes 64 B 1157, 16 KiB 902, 64 KiB
+243, 1 MiB 220.  The M5 Ultra and Linux should re-run `loop` on both
+commits; neither touches a path the M5 measured a loss on.
+
+## Run: M5 Ultra, 2026-10-13 — `loop` on `78e57424c` / `e0974e402` (master `896bc0bec`)
+
+The `loop` re-run asked for above, done with the README's re-measurement
+(`README_BENCH_M5.md` §4.2 has the command, the arms' hashes and the table).
+`bench_ab.sh --only loop --reps 9`, interleaved; tree = `896bc0bec`, against
+`e2c9e6dde` (before `78e57424c`), `6ae486851` (between the two) and v1.2.1,
+64 B / 1 KiB / 16 KiB:
+
+- tree / `e2c9e6dde` 1.00× / 1.02× / 1.01×, tree / `6ae486851` 1.00× /
+  1.01× / 0.97× (16 KiB 775 against 796, ranges 766–800 and 753–841): both
+  commits level on the M5, as expected.
+- v1.2.1 / tree 1.00× / 1.03× / 1.08×: the cap's 1 KiB / 16 KiB cost of the
+  M5 runs above stays.  It is what moved the README's M5 table at those sizes
+  (1 KiB 804 → 765, 16 KiB 891 → 792 single thread), not the machine:
+  mimalloc and jemalloc reproduced to about 2 %.
+
+Linux has not re-run `loop` on the two commits.
 
 ## Run: Linux, Intel Xeon @ 2.80 GHz, 2026-10-13 — the Windows regressions checked on another x86
 
@@ -1166,3 +1229,80 @@ this core something of the 64 B cost remains beyond the bucket read.
 **1 MiB**: the June step stays — gcc 0.80× single thread, 0.84× 4 processes
 of June (`6fe90a931`'s part of it is untouched by this commit); clang's rows
 are too noisy to read.
+
+## Run: Linux, 2026-10-13 (master `896bc0bec`, the code of `e0974e402`) — the per-region page table
+
+Correctness: the nine trees of the runs above (LP64, i586, i486; release
+and asserts; three harsh), rebuilt at `896bc0bec`.
+
+- Builds clean; no-DCAS 3/3.
+- ctest **0 failures on all nine** — LP64 49/49 ×2, i586 49/49 ×2, i486
+  42/42 ×2, harsh 49/49 ×3; `transaction_wait_budget_test` passes under
+  `ctest -j3` now that it runs serially (`5d2f5a726`).
+- Every full-tier size through `bench_loop` (4096 B, then 4097..32768 B in
+  steps of 64, and 8 / 16 / 32 KiB; 20 000 pairs each) against the asserts
+  libraries — LP64, harsh LP64, i586, i486, harsh i586 — so the debug
+  asserts holding the page byte and `tl_slot_bytes` to `m_sizes` see every
+  full-tier bucket: **0 / 2260** failed.
+- Soaks, 0 failures in all: LP64 `alloc_fit_test`, `alloc_aligned_test`,
+  `alloc_phase_test`, `alloc_calloc_zero_test` and the four thread-exit tests
+  0 / 200 each, exclusivity 32 B / var / `--mid` 0 / 500 each; on the i586,
+  i486 and harsh trees the same set (var and `--mid` for exclusivity)
+  0 / 100 each.
+
+Performance: the A/B of the runs above with `e0974e402` added.  The VM came
+back on another host — Intel Xeon @ 2.10 GHz, 2 MiB L2 / core, 260 MiB L3 —
+so read the ratios, not the absolute numbers against the earlier tables.
+Median M ops/s (min–max):
+
+**gcc, single thread, 9 reps** (M ops/s, median (min–max))
+
+| size | glibc | `8f2e6980` (June) | `45f1d07f9` | `78e57424c` | `e0974e402` | e09 / 78e | e09 / 45f | e09 / June |
+|---|---|---|---|---|---|---|---|---|
+| 64 B | 194 (139–226) | 322 (297–351) | 316 (272–344) | 224 (214–240) | 227 (218–249) | 1.01× | 0.72× | 0.70× |
+| 1 KiB | 202 (150–225) | 189 (169–203) | 205 (165–211) | 235 (176–247) | 222 (198–248) | 0.94× | 1.08× | 1.17× |
+| 8 KiB | 73 (69–83) | 171 (138–181) | 169 (137–187) | 172 (157–178) | 244 (183–265) | 1.42× | 1.45× | 1.43× |
+| 16 KiB | 80 (63–85) | 175 (157–178) | 175 (161–183) | 171 (160–184) | 234 (214–248) | 1.37× | 1.34× | 1.34× |
+| 1 MiB | 87 (69–91) | 103 (83–110) | 94 (88–102) | 91 (81–103) | 87 (55–97) | 0.95× | 0.93× | 0.85× |
+
+**gcc, 4 processes aggregate, 5 reps** (M ops/s, median (min–max))
+
+| size | glibc | `8f2e6980` (June) | `45f1d07f9` | `78e57424c` | `e0974e402` | e09 / 78e | e09 / 45f | e09 / June |
+|---|---|---|---|---|---|---|---|---|
+| 64 B | 744 (686–809) | 1099 (1007–1258) | 1133 (1002–1264) | 874 (825–940) | 880 (841–913) | 1.01× | 0.78× | 0.80× |
+| 16 KiB | 254 (225–317) | 636 (602–729) | 667 (639–709) | 658 (637–715) | 857 (718–948) | 1.30× | 1.28× | 1.35× |
+| 1 MiB | 308 (228–338) | 351 (287–406) | 283 (239–320) | 296 (266–347) | 293 (262–357) | 0.99× | 1.04× | 0.84× |
+
+**clang, single thread, 9 reps** (M ops/s, median (min–max))
+
+| size | glibc | `8f2e6980` (June) | `45f1d07f9` | `78e57424c` | `e0974e402` | e09 / 78e | e09 / 45f | e09 / June |
+|---|---|---|---|---|---|---|---|---|
+| 64 B | 195 (181–223) | 312 (250–329) | 317 (283–373) | 303 (254–323) | 303 (282–313) | 1.00× | 0.96× | 0.97× |
+| 1 KiB | 203 (165–230) | 175 (165–186) | 193 (159–210) | 238 (193–260) | 246 (225–271) | 1.03× | 1.27× | 1.40× |
+| 8 KiB | 77 (58–80) | 174 (150–180) | 168 (166–186) | 173 (163–188) | 247 (208–262) | 1.43× | 1.47× | 1.42× |
+| 16 KiB | 79 (63–85) | 177 (166–187) | 178 (168–183) | 179 (174–190) | 245 (195–271) | 1.37× | 1.37× | 1.39× |
+| 1 MiB | 82 (57–89) | 104 (62–116) | 99 (63–101) | 91 (66–109) | 90 (56–112) | 0.99× | 0.91× | 0.87× |
+
+**clang, 4 processes aggregate, 5 reps** (M ops/s, median (min–max))
+
+| size | glibc | `8f2e6980` (June) | `45f1d07f9` | `78e57424c` | `e0974e402` | e09 / 78e | e09 / 45f | e09 / June |
+|---|---|---|---|---|---|---|---|---|
+| 64 B | 834 (697–868) | 1209 (1056–1350) | 1294 (1227–1354) | 1150 (1052–1216) | 1204 (951–1250) | 1.05× | 0.93× | 1.00× |
+| 16 KiB | 287 (256–325) | 704 (689–727) | 700 (667–723) | 690 (652–752) | 964 (739–984) | 1.40× | 1.38× | 1.37× |
+| 1 MiB | 298 (214–354) | 360 (254–390) | 390 (251–400) | 316 (281–398) | 365 (289–391) | 1.15× | 0.94× | 1.01× |
+
+**8 KiB and 16 KiB: the fix holds on Linux.**  `e0974e402` against
+`78e57424c`: 1.37–1.43× single thread, 1.30× / 1.40× on 4 processes (gcc /
+clang), and above June by 1.34–1.43× — the commit's 1.47× cycles a pair,
+from the other side.
+
+**64 B: recovered with clang, not with gcc, on this host.**  clang:
+0.96–1.00× of June and `45f1d07f9`.  gcc: 0.70× / 0.72× single thread,
+0.78× / 0.80× on 4 processes, ranges apart (224 (214–240) against 316
+(272–344)).  The two compilers built `45f1d07f9` alike (316 / 317) but
+`e0974e402` 227 against 303: gcc's code for the thread-list path, not the
+path itself, carries what is left — and host-dependently, for the previous
+host measured gcc at 0.93× of `45f1d07f9`.
+
+**1 MiB: the June step remains** (gcc 0.85× single thread, 0.84× on 4
+processes; clang 0.87× / 1.01×), as `6fe90a931` left it.
