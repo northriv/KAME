@@ -17,18 +17,12 @@
 #if defined USE_EURESYS_EGRABBER
 
 //! Leaked on purpose, and only the holders: what they hold is still released
-//! when the last interface closes.  \sa the comment on these in the header
-unique_ptr<Euresys::EGenTL> &
-XEGrabberInterface::s_gentl() {
-    static auto *p = new unique_ptr<Euresys::EGenTL>();
-    return *p;
+//! when the last interface of a kind closes.  \sa the comment in the header
+XEGrabberInterface::Producer &
+XEGrabberInterface::s_producer(bool grablink) {
+    static auto *p = new Producer[2];
+    return p[grablink ? 1 : 0];
 }
-unique_ptr<Euresys::EGrabberDiscovery> &
-XEGrabberInterface::s_discovery() {
-    static auto *p = new unique_ptr<Euresys::EGrabberDiscovery>();
-    return *p;
-}
-int XEGrabberInterface::s_refcnt = 0;
 XRecursiveMutex XEGrabberInterface::s_mutex;
 
 REGISTER_TYPE(XDriverList, EGrabberCamera, "Coaxpress Camera via Euresys eGrabber");
@@ -43,29 +37,20 @@ REGISTER_TYPE(XDriverList, JAICameraOverGrablink, "JAI Camera via Euresys grabli
 
 //---------------------------------------------------------------------------
 XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, bool grablink) :
-    XCustomCharInterface(name, runtime, driver) {
+    XCustomCharInterface(name, runtime, driver), m_grablink(grablink) {
     std::deque<XString> names;
+    XString errmsg;
     {
         XScopedLock<XEGrabberInterface> lock( *this);
         XScopedLock<XRecursiveMutex> slock( s_mutex);
-        if(s_refcnt++ == 0) {
-            try {
-                using namespace Euresys;
-                s_gentl().reset(grablink ?
-                            new EGenTL(Grablink()) :
-                            new EGenTL(Coaxlink()));
-                s_discovery().reset(new EGrabberDiscovery( *s_gentl()));
-            }
-            catch (const std::exception &e) {                                                 // 7
-                gErrPrint(XString("error: ") + e.what());
-            }
-        }
+        s_producer(m_grablink).refcnt++;
         try {
             using namespace Euresys;
-            s_discovery()->discover();
-            fprintf(stderr, "eGrabber count:%i; camera count:%i\n", s_discovery()->egrabberCount(), s_discovery()->cameraCount());
-            for (int i = 0; i < s_discovery()->cameraCount(); ++i) {
-                 EGrabberCameraInfo info = s_discovery()->cameras(i);
+            EGrabberDiscovery &disc = discovery();
+            disc.discover();
+            fprintf(stderr, "eGrabber count:%i; camera count:%i\n", disc.egrabberCount(), disc.cameraCount());
+            for (int i = 0; i < disc.cameraCount(); ++i) {
+                 EGrabberCameraInfo info = disc.cameras(i);
                  EGrabberInfo grabber = info.grabbers[0];
                  if(grabber.isRemoteAvailable) {
                      names.push_back(
@@ -73,14 +58,26 @@ XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const sha
                  }
             }
         }
+        catch (const Euresys::gentl_error &e) {
+            errmsg = XString("error: ") + e.what();
+#if defined __MACOSX__ || defined __APPLE__
+            //What a board without its driver answers -- seen after moving to a
+            //new Mac, before the DEXT was approved.
+            if(e.gc_err == GenTL::GC_ERR_NOT_INITIALIZED)
+                errmsg += XString(i18n(" Is the Euresys driver extension enabled? "
+                    "(System Settings > General > Login Items & Extensions > Driver Extensions)"));
+#endif
+        }
         catch (const std::exception &e) {                                                 // 7
-            gErrPrint(XString("error: ") + e.what());
+            errmsg = XString("error: ") + e.what();
         }
     }
-    //Commits happen OUTSIDE the locks: this ctor runs inside the
+    //Printed and committed OUTSIDE the locks: this ctor runs inside the
     //driver-creation transaction, and s_mutex is shared by every eGrabber
     //interface — sleeping in nested trans() negotiation while holding it
     //deadlocks a concurrent camera-driver creation (lock-vs-STM class).
+    if( !errmsg.empty())
+        gErrPrint(errmsg);
     if( !names.empty())
         device()->iterate_commit([&](Transaction &tr){
             for(auto &s: names)
@@ -90,11 +87,31 @@ XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const sha
 XEGrabberInterface::~XEGrabberInterface() {
     XScopedLock<XEGrabberInterface> lock( *this);
     XScopedLock<XRecursiveMutex> slock( s_mutex);
-    if(--s_refcnt == 0) {
-        s_discovery().reset();
-        s_gentl().reset();
+    //The interface is not necessarily closed by now, and a member is destroyed
+    //only after this body -- by which time the last interface would have
+    //deleted the EGenTL this EGrabber was opened on.
+    closeSerialPort();
+    m_camera.reset();
+    Producer &prod = s_producer(m_grablink);
+    if(--prod.refcnt == 0) {
+        prod.discovery.reset();
+        prod.gentl.reset();
     }
+}
 
+Euresys::EGrabberDiscovery &
+XEGrabberInterface::discovery() {
+    using namespace Euresys;
+    XScopedLock<XRecursiveMutex> slock( s_mutex);
+    Producer &prod = s_producer(m_grablink);
+    //reset() only after the constructor returned: a throw leaves null, to be retried.
+    if( !prod.gentl)
+        prod.gentl.reset(m_grablink ?
+                    new EGenTL(Grablink()) :
+                    new EGenTL(Coaxlink()));
+    if( !prod.discovery)
+        prod.discovery.reset(new EGrabberDiscovery( *prod.gentl));
+    return *prod.discovery;
 }
 
 void
@@ -115,14 +132,15 @@ XEGrabberInterface::open() {
     Snapshot shot( *this);
     try {
         using namespace Euresys;
-        s_discovery()->discover();
-        for (int i = 0; i < s_discovery()->cameraCount(); ++i) {
-             EGrabberCameraInfo info = s_discovery()->cameras(i);
+        EGrabberDiscovery &disc = discovery();
+        disc.discover();
+        for (int i = 0; i < disc.cameraCount(); ++i) {
+             EGrabberCameraInfo info = disc.cameras(i);
              EGrabberInfo grabber = info.grabbers[0];
              if(grabber.isRemoteAvailable) {
                  if(shot[ *device()].to_str() ==
                          formatString("%i:", grabber.deviceIndex) + grabber.deviceModelName) {
-                     m_camera = std::make_shared<Camera>(s_discovery()->cameras(i));
+                     m_camera = std::make_shared<Camera>(disc.cameras(i));
                      break;
                  }
              }
@@ -191,10 +209,18 @@ void
 XEGrabberInterface::closeSerialPort() {
     if( !m_bIsSerialPortOpened)
         return;
-    using namespace Euresys;
-    m_camera->setString<DeviceModule>("SerialOperationSelector", "Close");
-    m_camera->execute<DeviceModule>("SerialOperationExecute");
-    m_bIsSerialPortOpened = false;
+    m_bIsSerialPortOpened = false; //a failed close is not retried either way.
+    if( !m_camera)
+        return;
+    try {
+        using namespace Euresys;
+        m_camera->setString<DeviceModule>("SerialOperationSelector", "Close");
+        m_camera->execute<DeviceModule>("SerialOperationExecute");
+    }
+    catch (const std::exception &e) {
+        //Not gErrPrint(): the caller holds s_mutex.
+        fprintf(stderr, "eGrabber: closing the serial port failed: %s\n", e.what());
+    }
 }
 
 void

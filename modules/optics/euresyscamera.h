@@ -49,12 +49,30 @@ protected:
     virtual void close() override;
 
 private:
-    bool m_bIsSerialPortOpened;
+    const bool m_grablink; //!< which producer: grablink.cti, or coaxlink.cti.
+    bool m_bIsSerialPortOpened = false;
     void checkAndOpenSerialPort();
+    //! Never throws: unlock() calls it, and unlock() runs in ~XScopedLock.
     void closeSerialPort();
+
+    //! This interface's producer, opened on first use and again after an
+    //! earlier attempt failed (e.g. the driver extension was not yet enabled),
+    //! so a later interface or open() retries instead of dereferencing null.
+    //! Throws as eGrabber does.  Call with s_mutex held.
+    Euresys::EGrabberDiscovery &discovery();
 
     static XRecursiveMutex s_mutex;
     shared_ptr<Camera> m_camera;
+    //! One GenTL producer and its discovery, shared by the interfaces of its
+    //! kind.  Coaxlink and Grablink each need their own: a discovery only sees
+    //! the boards of the producer it was made on, and there used to be one for
+    //! both, made by whichever kind of camera was created first -- a Grablink
+    //! camera created after a CoaXPress one was looked for on Coaxlink boards.
+    struct Producer {
+        unique_ptr<Euresys::EGenTL> gentl;
+        unique_ptr<Euresys::EGrabberDiscovery> discovery;
+        int refcnt = 0; //!< interfaces of this kind, whether or not it opened.
+    };
     //! eGrabber's GenTL close (EGenTL::tlClose -> GenTLImpl::chk) throws when
     //! the producer is already gone, which is what it is at exit() -- and the
     //! throw comes out of ~EGrabberDiscovery(), a destructor, which C++11 made
@@ -65,17 +83,15 @@ private:
     //! reached from -[NSApplication terminate:] when Quit bypasses the orderly
     //! shutdown.
     //!
-    //! So the destructor must not run at all in that path.  These are held in
-    //! unique_ptrs that are themselves leaked -- allocated once and never
+    //! So the destructor must not run at all in that path.  The Producers
+    //! holding them are themselves leaked -- allocated once and never
     //! destroyed -- so nothing happens at exit, while closing the last
-    //! interface still reset()s them, which is the path where the library is
-    //! alive and the teardown is real.
-    static unique_ptr<Euresys::EGenTL> &s_gentl();
-    static unique_ptr<Euresys::EGrabberDiscovery> &s_discovery();
-    static int s_refcnt;
+    //! interface of a kind still reset()s its pair, which is the path where
+    //! the library is alive and the teardown is real.
+    static Producer &s_producer(bool grablink);
 
     XString m_serialTCPIPEOS;
-    unsigned int m_serialBaudRate;
+    unsigned int m_serialBaudRate = 9600;
 };
 
 template<class tDriver>
