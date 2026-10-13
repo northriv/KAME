@@ -599,3 +599,64 @@ Freed in a random order the cap alone held nothing back (cap = pre);
 `tl_reclaim_idle` makes the random order peak where allocation order does,
 627 / 577 MiB as on the M3.  In no arm does the footprint drop at the frees
 themselves; the trim takes 64 B's 481 MiB to 431 and leaves 4 KiB's 414.
+
+## Since `4ae71a910`: the freed slot goes back, idle reclaim bounded — what to re-check
+
+The sealed segments of `f9e5cb9b3` returned the oldest 256 KiB of a list in
+the one free that went past it.  Measured on the M3 with
+`tests/bench/micro/freelat.c` (200 MiB of one size freed by one thread),
+that free is a walk of slots freed long ago, a dependent miss each: in a
+random order 4.9 ms at 16 B and 1.2 ms at 64 B (786 frees over 100 µs), and
+130 ns a free on average against 7 ns with no cap.  The M5 runs above timed
+allocation order only, where the walk prefetches (8–10 µs a segment).  The
+idle reclaim returned whole lists in one malloc the same way, up to 4 MiB a
+bucket.
+
+Now, on every thread, a free that would take its list past
+`KAME_TL_CAP_BYTES` (4 MiB) returns its own slot to its chunk — the realtime
+path of before — touching only that chunk's bitmap word and header.  A slot
+below the full tier counts `KAME_TL_SLOT_COST` (1 KiB) more than its size,
+so a list of small slots stays short (4 MiB of 16 B is 262144 slots; with the
+cost about 4000): it bounds the chunks a list can hold and what the reclaim
+must walk.  Before a new chunk, the buckets whose list heads have not moved
+since the last one give back ≤ `KAME_TL_RECLAIM_SLOTS` (256) slots between
+them, off the heads, on realtime threads too; one interval, no strike bit.
+`KameTlsPage` is 432 B again (`m_seg` gone); `KAME_TL_SEG_BYTES` /
+`KAME_TL_SEGS` are an `#error`.  The harsh trees now take
+`-DKAME_TL_CAP_BYTES=2048u -DKAME_TL_RECLAIM_SLOTS=1`.
+
+M3 (MacBook Air), against master `4ae71a910`:
+
+| | master | this |
+|---|---|---|
+| freelat random 16 B: mean / max | 135 ns / 4.9 ms | 13 ns / 11 µs |
+| freelat random 64 B: mean / max | 129 ns / 1.2 ms | 14 ns / 4.5 µs |
+| freelat random 1 KiB: mean / max | 126 ns / 81 µs | 49 ns / 7.5 µs |
+| phase change 400 MiB, random order, footprint after phase 2: 16 B → 1 KiB / 64 B → 1 KiB | 777 / 627 MiB | 777 / 627 MiB (no reclaim: 1163 / 1009) |
+| bench_loop 64 B / 1 KiB / 16 KiB (9 reps) | 1 | 1.000 / 0.997 / 1.000× |
+| bench_ab t4, t8 (5 reps): xthread, xmalloc, larson, rptest, frame fps, xlat | 1 | 0.91–1.03×, every range overlapping; frame p99 / max 0.91 / 0.92× (t4) |
+| micro: replace1, heavy, ring (5–11 reps) | 1 | 0.98–1.09× |
+| replace1 100 K live 16..4096 B: chunks / max RSS | 513 / 248.8 MiB | 513 / 248.8 MiB |
+
+The slot cost is added only below the full tier: added there too it moved
+bench_loop 16 KiB to 0.93× by code placement alone (the add is off the
+dependence chain; the loop keeps one slot on the list).  ctest 49/49 in
+Release, with asserts, and in the harsh tree; `alloc_phase_test`,
+`alloc_fit_test`, `alloc_aligned_test`, `alloc_rt_thread_test`, the
+thread-exit tests and the exclusivity tests 40 runs each in Release and
+harsh, 0 failures.
+
+To re-check, on the M5 and Linux:
+
+1. **The hitches.**  `freelat 16 200`, `freelat 64 200`, `freelat 1024 200`,
+   each in order and with `SHUFFLE=1`, this branch against master: no free
+   over 100 µs is the claim.  Linux faults pages differently; `RT=1` should
+   change nothing now.
+2. **Memory.**  The phase change in a random order (the probe of item 5
+   above, freed shuffled): 64 B → 1 KiB, 16 B → 1 KiB, 4 KiB → 64 B.  The
+   reclaim is gradual — 256 slots per new chunk — so the peak, not the end,
+   is the number.
+3. **The hot path.**  `bench_loop` 64 B / 1 KiB / 16 KiB interleaved against
+   master; the 16 KiB loop is the one that moved by placement on the M3.
+4. **Correctness.**  The Linux trees and the harsh ones with the new flags:
+   ctest and the soaks of the runs above.

@@ -1,11 +1,10 @@
 // A thread that frees one size and goes on to allocate another must not keep
 // the first size's memory (allocator.cpp, §tl-cap).  Its own frees go onto
-// its list for the bucket, sealed into segments of KAME_TL_SEG_BYTES; past
-// KAME_TL_SEGS of them the oldest goes back to its chunks, and a chunk it
-// empties is released (parked in the recycle cache, which kame_pool_trim()
-// empties).  Before that every freed slot stayed on the list until the
-// thread exited: 400 MiB of 64 B freed, then 400 MiB of 1 KiB, held
-// 1053 MiB.
+// its list for the bucket, up to KAME_TL_CAP_BYTES; past that a free returns
+// its slot to its chunk, and a chunk it empties is released (parked in the
+// recycle cache, which kame_pool_trim() empties).  Before that every freed
+// slot stayed on the list until the thread exited: 400 MiB of 64 B freed,
+// then 400 MiB of 1 KiB, held 1053 MiB.
 //
 // Per pair of sizes: PHASE_MB of the second size alone, freed and trimmed,
 // for what it takes of its own; then PHASE_MB of the first size, painted; all
@@ -13,10 +12,10 @@
 // Live units (kame_pool_get_stats) must fall to a small fraction after the
 // trim, and the second phase must not stack on the first.
 //
-// Then the first size freed in a random order, which leaves the last
-// megabytes of frees -- what the cap keeps -- on every chunk.  With no trim,
-// the second size's growth must give the idle bucket's lists back
-// (tl_reclaim_idle) so the first size's chunks are released, into the
+// Then the first size freed in a random order, which leaves what the cap
+// keeps on almost every chunk.  With no trim, the second size's growth must
+// take the idle bucket's list back (tl_reclaim_idle, a bounded number of
+// slots per new chunk) so the first size's chunks are released, into the
 // recycle cache or for good, instead of held; then kame_pool_trim() must
 // leave as little as after the ordered free.
 #include <cstdint>
