@@ -1145,8 +1145,11 @@ private:
 // Portable 64-bit popcount. Visible in transaction.h so inline member
 // functions (e.g. negotiate()) can use it. GCC/Clang/MSVC intrinsics.
 static inline int popcount_u64(uint64_t x) noexcept {
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))
     return (int)__popcnt64(x);
+#elif defined(_MSC_VER)
+    // 32-bit cl has no 64-bit form of either intrinsic: two halves.
+    return (int)(__popcnt((unsigned)x) + __popcnt((unsigned)(x >> 32)));
 #else
     return __builtin_popcountll(x);
 #endif
@@ -1156,8 +1159,12 @@ static inline int popcount_u64(uint64_t x) noexcept {
 // contract as __builtin_ctzll / _BitScanForward64); all call sites mask
 // to a nonzero word first.
 static inline int ctz_u64(uint64_t x) noexcept {
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))
     unsigned long i; _BitScanForward64(&i, x); return (int)i;
+#elif defined(_MSC_VER)
+    unsigned long i;
+    if(_BitScanForward(&i, (unsigned long)(uint32_t)x)) return (int)i;
+    _BitScanForward(&i, (unsigned long)(uint32_t)(x >> 32)); return (int)i + 32;
 #else
     return __builtin_ctzll(x);
 #endif

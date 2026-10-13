@@ -15,6 +15,26 @@
   14 of 22 STM tests, all passing; the rest are the pre-existing
   source-level exclusions (pthread.h, GNU inline asm, __builtin_*, tests
   that reach private members), unchanged since the Aug 28 MSVC work.
+- kamestm: 32-bit cl could not build the STM core -- popcount_u64() and
+  ctz_u64() reached for __popcnt64 and _BitScanForward64, which x86 cl
+  does not have.  On _M_IX86 they are two 32-bit halves now.  With that,
+  and the fix above, the 32-bit builds stand where the 64-bit ones do:
+  llvm-mingw i686 passes 24/25 pool tests and 22/22 STM tests, cl x86
+  17/25 and 13/22, the rest the same exclusions as on x64.  Two things the
+  runs showed that are not fixed here.  alloc_huge_test's last step, eight
+  threads each holding up to 61 MiB while the warm cache still holds the
+  200 MiB-class spans freed before it, does not fit in a 32-bit process's
+  2 GB: 31-34 of its 64 allocations come back null on both compilers, and
+  the same binary passes once editbin marks it /LARGEADDRESSAWARE.  And
+  transaction_wait_budget_test fails on cl, x86 and x64 alike, always on
+  the 1 ms arm, p99.99 about 10.4 ms: XWaitCell's portable fallback is
+  std::condition_variable::wait_for, which MSVC's STL rounds to the system
+  timer tick, where MinGW's runtime sleeps the microseconds it was asked
+  for (722 us on the same arm).  The Aug 28 note put that failure down to
+  load; it is deterministic on cl.  Related, found reading timeStamp():
+  its __rdtsc branch sits inside a GCC-macro guard (__i386__ /
+  __x86_64__) that cl never defines, so every MSVC build has been using
+  the 1 us XTime::now() fallback.
 
 * Sat Oct 10 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - Interlock: a new module, modules/interlock, with one driver, Scalar
