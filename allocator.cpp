@@ -120,6 +120,7 @@
                             //  libstdc++ does not.  `<cstring>` is the
                             //  portable C++ way.)
 #include <type_traits>
+#include <utility>          // std::integer_sequence (the bucket-table check)
 #if defined(__linux__)
     #include <dlfcn.h>           // RTLD_NEXT resolve of libc
                                  // malloc_usable_size (strong-symbol
@@ -327,7 +328,21 @@ struct TierLocalBucket {
 	}
 };
 inline constexpr TierLocalBucket kTierLocalBucket{};
-static_assert(kTierLocalBucket.v[0][0] == 6 && kTierLocalBucket.v[3][0] == 16
+// No two buckets of one template share a local id -- it indexes the chunk's
+// m_freelist_head[] -- and every id is < KAME_LOCAL_BUCKETS (an index past
+// it does not compile here).
+constexpr bool tier_local_ids_distinct() {
+	bool seen[8][KAME_LOCAL_BUCKETS] = {};
+	for(unsigned b = 0; b < (unsigned)ALLOC_NUM_BUCKETS; ++b)
+		if(bucket_is_var(b)) {
+			bool &s = seen[__builtin_ctz(kBucketAlign[b]) - 5][kBucketLocalId[b]];
+			if(s) return false;
+			s = true;
+		}
+	return true;
+}
+static_assert(tier_local_ids_distinct() && kTierLocalBucket.v[0][0] == 6
+              && kTierLocalBucket.v[__builtin_ctz(kBucketAlign[16]) - 5][0] == 16
               && kTierLocalBucket.v[3][8] == 39 && kTierLocalBucket.v[7][3] == 51,
               "kTierLocalBucket must match kBucketAlign / kBucketLocalId");
 
@@ -2002,10 +2017,8 @@ struct FitSizes {
 		return n > 0;
 	}
 };
-static_assert(FitSizes<32>{}.consistent() && FitSizes<64>{}.consistent()
-              && FitSizes<256>{}.consistent() && FitSizes<1024>{}.consistent()
-              && FitSizes<4096>{}.consistent(),
-              "the fit classes must match allocate_pooled's slots");
+// consistent() is asserted for every variable-size template, from the
+// buckets' own declarations, after BucketTraits below.
 
 // (§fit) The class of the room in this chunk's bitmap: the index of the
 // largest of the tier's sizes some word still has a run for (runs never
@@ -4701,6 +4714,26 @@ KAME_DECL_BUCKET(49, 4096u, false,  8192u);  // N=2, slot= 8192
 KAME_DECL_BUCKET(50, 4096u, false, 16384u);  // N=4, slot=16384
 KAME_DECL_BUCKET(51, 4096u, false, 32768u);  // N=8, slot=32768
 #undef KAME_DECL_BUCKET
+
+// The tables of allocator_prv.h must say what the templates are.  A
+// bucket's kBucketAlign is its template's ALIGN: bucket_for_aligned hands
+// its slots out as aligned to it, and the fit classes and kTierLocalBucket
+// group the buckets by it.  And each variable-size template's fit classes
+// must match its slots.  On ILP32 the table once said 32 and 256 for
+// buckets 8 and 16, which ALLOC_ALIGN makes ALIGN 128 there: a 256-aligned
+// request of up to 248 B got a slot 128 B from the next, and the ALIGN 128
+// template had no fit classes.
+template <int B> constexpr bool bucket_tables_match() {
+	using BT = BucketTraits<B>;
+	if(BT::ALIGN != kBucketAlign[B]) return false;
+	if constexpr (BT::FS) return true;
+	else return FitSizes<BT::ALIGN>{}.consistent();
+}
+template <int... B> constexpr bool all_bucket_tables_match(std::integer_sequence<int, B...>) {
+	return (bucket_tables_match<B + 1>() && ...);
+}
+static_assert(all_bucket_tables_match(std::make_integer_sequence<int, ALLOC_NUM_BUCKETS - 1>{}),
+              "kBucketAlign and the fit classes must match the buckets' templates");
 
 //! First-access trampoline for bucket B.  Invoked from the
 //! `cold_first_access` switch when bucket B's per-thread freelist-ptr

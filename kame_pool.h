@@ -66,8 +66,8 @@
  * Alignment: the pool guarantees `max_align_t` alignment (16 B on every
  * supported arch) for all sizes through the standard malloc/realloc
  * path.  Use `kame_pool_aligned_alloc()` / `kame_pool_posix_memalign()`
- * for stricter alignment; alignments up to 16 B are served by the pool,
- * larger alignments fall back to the system `posix_memalign()`.
+ * for stricter alignment; the pool serves alignments up to 256 KiB (see
+ * below), larger ones fall back to the system `posix_memalign()`.
  */
 
 #ifndef KAMEPOOLALLOC_KAME_POOL_H_
@@ -101,8 +101,7 @@ void   kame_pool_free(void *p) KAMEPOOLALLOC_NOEXCEPT;
 /*
  * Aligned allocation.  `alignment` must be a power of two; for
  * kame_pool_posix_memalign() it must additionally be a multiple of
- * sizeof(void*).  Alignments <= 16 B are served by the pool;
- * larger alignments fall back to the system allocator.
+ * sizeof(void*).  Alignments <= 16 B take the ordinary malloc path.
  *
  * Alignment ceiling: the pool serves alignments up to and INCLUDING
  * `ALLOC_MIN_CHUNK_SIZE` (256 KiB) on every supported OS, including
