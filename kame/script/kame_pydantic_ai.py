@@ -33,7 +33,7 @@ when uvicorn is absent — that fallback cannot show figures.
 For an agent of your own (KAME puts this module on PYTHONPATH when it launches
 one):
     from kame_pydantic_ai import kame_mcp, kame_toolset, kame_settings
-    agent = Agent('anthropic:claude-sonnet-4-5', capabilities=[kame_mcp()])
+    agent = Agent('anthropic:claude-opus-5-5', capabilities=[kame_mcp()])
 kame_mcp() is KAME's MCP server as a capability, kame_history_budget() keeps
 the conversation under a token budget (old tool results and images are
 trimmed first), kame_toolset() the server as a toolset, kame_settings() the
@@ -419,7 +419,7 @@ def _explain_and_exit(exc):
             sys.exit(
                 "{}\n\n"
                 "The form is provider:name, for example\n"
-                "    anthropic:claude-sonnet-4-5    openai:gpt-5    "
+                "    anthropic:claude-opus-5-5    openai:gpt-6.1-sol    "
                 "google-gla:gemini-2.5-pro    sakana:fugu\n"
                 "    bionic:<model id>   ollama:<model id>   local:<model id> "
                 "(with KAME_PYAI_LOCAL_URL)\n"
@@ -890,9 +890,9 @@ def main():
             "No model given, and no API key found to pick one with.  Put a key "
             "line, or a model line, in\n"
             "  {}\n"
-            "    KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5      (needs "
+            "    KAME_PYAI_MODEL=anthropic:claude-opus-5-5        (needs "
             "ANTHROPIC_API_KEY)\n"
-            "    KAME_PYAI_MODEL=openai:gpt-5                     (needs "
+            "    KAME_PYAI_MODEL=openai:gpt-6.1-sol               (needs "
             "OPENAI_API_KEY)\n"
             "    KAME_PYAI_MODEL=google-gla:gemini-2.5-pro        (needs "
             "GOOGLE_API_KEY)\n"
@@ -928,8 +928,9 @@ def _served_models(base_url, key, timeout=5, quiet=False):
 
 
 def _anthropic_models(key, timeout=5):
-    """Newest Opus and newest Sonnet from Anthropic's model list; a static
-    pair when the list cannot be fetched."""
+    """The newest Opus, Fable and Sonnet from Anthropic's model list, in that
+    order: Opus is the default, Fable the most capable and dearest (2.5x
+    Opus).  A static list when the list cannot be fetched."""
     import urllib.request
     try:
         req = urllib.request.Request(
@@ -938,7 +939,7 @@ def _anthropic_models(key, timeout=5):
         with urllib.request.urlopen(req, timeout=timeout) as r:
             data = json.load(r).get('data', [])
         picked = []
-        for family in ('opus', 'sonnet'):
+        for family in ('opus', 'fable', 'sonnet'):
             cands = sorted((m for m in data if family in m.get('id', '')),
                            key=lambda m: m.get('created_at', ''), reverse=True)
             if cands:
@@ -948,7 +949,7 @@ def _anthropic_models(key, timeout=5):
     except Exception as e:
         print('kame_pydantic_ai: could not list Anthropic models: {}'.format(e),
               file=sys.stderr)
-    return ['claude-opus-5', 'claude-sonnet-5']
+    return ['claude-opus-5-5', 'claude-fable-5-1', 'claude-sonnet-5-5']
 
 
 def kame_models():
@@ -959,12 +960,14 @@ def kame_models():
     Each OpenAI-compatible server is asked for its list at start-up, so a
     model published after this file was written appears without an edit:
     OpenAI's two newest gpt-N families (chat variants only), every fugu /
-    namazu Sakana serves, Anthropic's newest Opus and Sonnet, and every chat
-    model of a local server that answers -- Bionic on 1234, Ollama on 11434,
+    namazu Sakana serves, Anthropic's newest Opus, Fable and Sonnet, and every
+    chat model of a local server that answers -- Bionic on 1234, Ollama on 11434,
     KAME_PYAI_LOCAL_URL -- alongside the cloud entries, since the local
     prefixes carry their own addresses and OPENAI_* stays OpenAI's.
-    A server that cannot be asked falls back to a short static list.  A model
-    named in KAME_PYAI_MODEL is put first when it is in the menu."""
+    A server that cannot be asked falls back to a short static list.  The
+    model KAME_PYAI_MODEL names first is put first, and added when no list
+    carried it -- a list that timed out must not hand the session to another
+    provider."""
     import re
     from pydantic_ai.models import infer_model
     from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
@@ -974,20 +977,25 @@ def kame_models():
         key = os.environ['OPENAI_API_KEY']
         openai = OpenAIProvider(api_key=key)
         served = _served_models('https://api.openai.com/v1', key)
-        vers = sorted({float(m.group(1)) for m in
-                       (re.match(r'gpt-(\d+(?:\.\d+)?)(?:-|$)', x) for x in served) if m},
-                      reverse=True)[:2]
-        fam = sorted((x for x in served
-                      if (mm := re.match(r'gpt-(\d+(?:\.\d+)?)(?:-|$)', x)) and float(mm.group(1)) in vers
-                      and not re.search(r'realtime|audio|transcribe|tts|image|search|codex|mini|nano', x)),
-                     key=lambda x: (-float(re.match(r'gpt-(\d+(?:\.\d+)?)', x).group(1)), x))
-        for mid in fam or ['gpt-5']:
+        def ver(x):
+            #(6, 1) for gpt-6.1-sol.  Not a float: 6.10 would read as 6.1
+            #and sort below 6.9.
+            m = re.match(r'gpt-(\d+(?:\.\d+)?)(?:-|$)', x)
+            return tuple(int(n) for n in m.group(1).split('.')) if m else None
+        vers = sorted({ver(x) for x in served} - {None}, reverse=True)[:2]
+        #Newest version first; by name within one (the sort is stable).
+        fam = sorted(sorted(x for x in served if ver(x) in vers and not re.search(
+                         r'realtime|audio|transcribe|tts|image|search|codex|mini|nano', x)),
+                     key=ver, reverse=True)
+        for mid in fam or ['gpt-6.1-sol']:
             out['OpenAI ' + mid] = OpenAIResponsesModel(mid, provider=openai, settings=_budget())
     if os.environ.get('SAKANA_API_KEY'):
         key = os.environ['SAKANA_API_KEY']
         sakana = OpenAIProvider(base_url=SAKANA_BASE_URL, api_key=key)
         served = _served_models(SAKANA_BASE_URL, key)
-        fugu = sorted(m for m in served if 'fugu' in m or 'namazu' in m) or ['fugu']
+        fugu = sorted((m for m in served if 'fugu' in m or 'namazu' in m),
+                      key=lambda m: [int(t) if t.isdigit() else t
+                                     for t in re.split(r'(\d+)', m)]) or ['fugu']
         # Newest fugu-ultra first, so it is the default when OpenAI is absent.
         ultra = [m for m in fugu if re.match(r'fugu-ultra-v', m)]
         for mid in (ultra[-1:] + [m for m in fugu if m not in ultra[-1:]]):
@@ -1020,11 +1028,18 @@ def kame_models():
             if 'embed' not in mid:
                 out[kind.capitalize() + ' ' + mid] = OpenAIChatModel(mid, provider=prov,
                                                                      settings=_budget())
-    want = (os.environ.get('KAME_PYAI_MODEL') or '').split(',')[0].strip().split(':')[-1]
-    for label in list(out):
-        if want and label.endswith(' ' + want):
-            out = {label: out.pop(label), **out}
-            break
+    spec = (os.environ.get('KAME_PYAI_MODEL') or '').split(',')[0].strip()
+    want = spec.split(':', 1)[-1]          # ollama:qwen3:32b -> qwen3:32b
+    label = next((x for x in out if want and x.endswith(' ' + want)), None)
+    if label:
+        out = {label: out.pop(label), **out}
+    elif ':' in spec:
+        try:
+            m = _resolve_model(spec)
+            out = {spec: infer_model(m) if isinstance(m, str) else m, **out}
+        except Exception as e:
+            print('kame_pydantic_ai: KAME_PYAI_MODEL={} left out of the menu: {}'
+                  .format(spec, e), file=sys.stderr)
     return out
 
 
@@ -1066,7 +1081,7 @@ def _build_app():
             "to build a menu from.  Put one line in\n  {}\n"
             "    ANTHROPIC_API_KEY=...   (or OPENAI_API_KEY / SAKANA_API_KEY; "
             "the menu is then what that key reaches)\n"
-            "or name models outright: KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5, "
+            "or name models outright: KAME_PYAI_MODEL=anthropic:claude-opus-5-5, "
             "...".format(_settings_hint()))
     first = next(iter(models.values()))
     agent = _build_agent(None)

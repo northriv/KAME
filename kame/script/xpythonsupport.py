@@ -2108,16 +2108,16 @@ PYAI_SETTINGS_TEMPLATE = """\
 # ---- Which model ------------------------------------------------------------
 # provider:name.  Several, separated by commas, fill the web UI's model menu;
 # the first is the default.
-#KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5
-#KAME_PYAI_MODEL=openai:gpt-5
+#KAME_PYAI_MODEL=anthropic:claude-opus-5-5
+#KAME_PYAI_MODEL=openai:gpt-6.1-sol
 #KAME_PYAI_MODEL=google-gla:gemini-2.5-pro
-#KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5, openai:gpt-5
+#KAME_PYAI_MODEL=anthropic:claude-opus-5-5, openai:gpt-6.1-sol
 
 # Sakana AI (fugu, namazu): sakana:<model>, with SAKANA_API_KEY below.  The
 # agent KAME ships resolves this prefix itself (pydantic-ai has no Sakana
 # provider); in the web UI it is the bound model, not a menu entry.
 #KAME_PYAI_MODEL=sakana:fugu
-#KAME_PYAI_MODEL=sakana:fugu-ultra-v1.1
+#KAME_PYAI_MODEL=sakana:fugu-ultra-v2.0
 
 # ---- Local models -----------------------------------------------------------
 # A model served on this machine needs no key and coexists with the cloud
@@ -2268,7 +2268,7 @@ def _pyai_help_file(py, script, agent, own, model, wd, system):
 		'  interpreter  delete ~/.kame_pyai_python, click the link again, pick the venv',
 		'  agent        the "agent" link in KAME (Cancel there = back to the one KAME ships)',
 		'  model        KAME_PYAI_MODEL=provider:name   in {}'.format(_prof),
-		'               e.g. anthropic:claude-sonnet-4-5 | openai:gpt-5 | sakana:fugu |',
+		'               e.g. anthropic:claude-opus-5-5 | openai:gpt-6.1-sol | sakana:fugu |',
 		'               bionic:<model id> | ollama:<model id>   (local, no key needed)',
 		'The usual messages, and the fix for each:',
 		'  "Set the XXX_API_KEY environment variable"',

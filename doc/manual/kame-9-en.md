@@ -1580,7 +1580,7 @@ One thing is needed before the first chat: an API key, in the file that
 **⚙ settings** opens — fill in a `..._API_KEY=` line, save, and click **CLI**
 or **web**. KAME's agent then asks that provider which models it serves and
 offers them: OpenAI's two newest `gpt-N` families, every `fugu` Sakana lists,
-Anthropic's newest Opus and Sonnet, or everything a local server (Bionic,
+Anthropic's newest Opus, Fable and Sonnet, or everything a local server (Bionic,
 Ollama) has loaded. The first is the default; a `KAME_PYAI_MODEL=` line names
 the models yourself instead, several comma-separated, and puts its first
 entry in front. A Claude model may write 32000 tokens per reply, thinking
@@ -1637,7 +1637,7 @@ environment by the time yours imports it:
 from pydantic_ai import Agent
 from kame_pydantic_ai import kame_mcp        # KAME's MCP server, as a capability
 
-agent = Agent('anthropic:claude-sonnet-4-5',
+agent = Agent('anthropic:claude-opus-5-5',
               capabilities=[kame_mcp()],      # plus Coder(), Memory(), WebSearch()...
               instructions='...')
 ```
@@ -1694,7 +1694,7 @@ Which model is used:
 - Your own module gets the same menu from `kame_models()` —
   `Agent.to_web(models=kame_models())` — so a model published after the file
   was written appears without an edit.
-- `sakana:<model>` (`fugu`, `fugu-ultra-v1.1`, …) reaches Sakana AI with
+- `sakana:<model>` (`fugu`, `fugu-ultra-v2.0`, …) reaches Sakana AI with
   `SAKANA_API_KEY`. pydantic-ai has no Sakana provider, so KAME's agent resolves
   the prefix itself; that makes it the bound model in the web UI rather than a
   menu entry, and it cannot be given to `clai -m` directly.
@@ -1763,7 +1763,7 @@ guessable from the message. This table is symptom-first.
 | `PermissionError: [Errno 1] Operation not permitted` | macOS privacy protection. The path is under Documents, Desktop, Downloads or iCloud Drive | Put the virtualenv and project outside those folders, or grant Terminal access to them in System Settings → Privacy & Security |
 | `KeyError` on an API-key variable | A `.env` file is not read by anything automatically | Call `load_dotenv()` in your module, or export the variable |
 | `Set the XXX_API_KEY environment variable` | The key is neither in `~/.kame_pyai.env` nor in the environment of the terminal window KAME opened (that window runs your login shell — a fresh `cmd` on Windows; KAME's own environment is not inherited, being a GUI process) | **⚙ settings**, add the line `XXX_API_KEY=…`, save, click again. `OPENAI_API_KEY` demanded although you never chose OpenAI: no model was named, so `clai`'s default `openai:gpt-5` applied — add a `KAME_PYAI_MODEL=` line |
-| `No model given` | The fallback script (no `clai` in the venv) binds no model itself | **⚙ settings** and uncomment a `KAME_PYAI_MODEL=provider:name` line, e.g. `anthropic:claude-sonnet-4-5`; a local model is `bionic:<name>` or `ollama:<name>` (see *Local models* above) |
+| `No model given` | The fallback script (no `clai` in the venv) binds no model itself | **⚙ settings** and uncomment a `KAME_PYAI_MODEL=provider:name` line, e.g. `anthropic:claude-opus-5-5`; a local model is `bionic:<name>` or `ollama:<name>` (see *Local models* above) |
 | Your own agent module fails on another machine | It hard-codes a path to KAME or to its stdio launcher, or reads a `.env` that is not there | Replace the MCP line with `kame_mcp()` from `kame_pydantic_ai` (see above); keep keys in `~/.kame_pyai.env`, which that import loads |
 | `` `clai` not found in <venv>/bin `` (`<venv>\Scripts` on Windows) — or the **web** link refuses | KAME looks for `clai` next to the interpreter it was given, not on `PATH`; that venv has `pydantic-ai` but not `clai` | `uv pip install --python <venv>/bin/python clai` (`<venv>\Scripts\python.exe`; or `uv sync` in a uv project whose pyproject lists it). A uv venv has no `pip` inside, so `python -m pip` fails there. The **CLI** link works without `clai` |
 | `This interpreter has no pydantic_ai` / `<venv> lacks pydantic_ai` | The remembered or picked interpreter is the wrong one, or the package was never installed there | The message prints the install line for that exact interpreter; or delete `~/.kame_pyai_python` (`rm`, or `del` on Windows) and click the link again to pick another venv |
