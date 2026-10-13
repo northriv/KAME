@@ -1071,3 +1071,176 @@ The `loop` re-run asked for above, done with the README's re-measurement
   mimalloc and jemalloc reproduced to about 2 %.
 
 Linux has not re-run `loop` on the two commits.
+
+## Run: Intel Mac, Xeon W-2140B, 2026-10-13 (master `896bc0bec`, the code of `e0974e402`)
+
+iMac Pro (iMacPro1,1), Intel Xeon W-2140B (Skylake-SP core, 8 cores / 16
+threads, 3.2 GHz, 1 MB L2 per core, 11 MB L3), 32 GB, macOS 15.7.9
+(24G830), AC power; Apple clang 17.0.0 (clang-1700.6.4.2), CMake 3.31.10,
+Release.  A desktop in use (load average about 3 before each run).  Like
+Broadwell and Zen 2, Skylake has no memory renaming (the README's
+architecture note).  The first x86 macOS run: Apple's toolchain and the
+preload route of the M5 tables (the `kame` column is malloc override plus
+pool), on an x86 core — so it separates "x86" from "Windows" in the run
+above.
+
+Arms, each `git archive` of its commit built with the standalone CMake,
+Release: v121 = `45f1d07f9` (sha256 `b3c9e7a33f210581`), tl = `5fc34e052`
+(`b5c7415fdcdce3f8`), cap = `f9e5cb9b3` (`4a453f03fec0552a`), idle =
+`460730c35` (`fdfa5e9d210af4db`), ret = `9f6370a52` (`3cd93c9d7a87d436`),
+prefix = `5d2f5a726` (`e775fa6bb5e19e0d`, the code of `e2c9e6dde`), ub =
+`78e57424c` (`4eec71681abb5b75`), tree = HEAD (`23b768d85a2bfbee`).
+mimalloc 3.3.2 from its `v3.3.2` tag (`cmake -DCMAKE_BUILD_TYPE=Release`,
+sha256 `bdb96c5febcf0f39`); jemalloc 5.3.0 from MacPorts (5.3.0_4,
+unprefixed, active when preloaded — `MALLOC_CONF=stats_print:true` prints
+its statistics).
+
+**Correctness.**  Full-tree ctest 49/49 in Release and in `-O2 -g` with
+asserts.  Release, scored by exit status, 6 in parallel:
+`alloc_tsd_exclusivity_test`, `_var_test` and `_var_test --mid` 2000 each,
+`alloc_fit_test` and `alloc_phase_test` 300, `alloc_rt_thread_test` and
+`alloc_aligned_test` 200, the four `alloc_thread_exit_*` tests 200 each,
+`alloc_thread_churn_test` 50, `alloc_stress_test` 20 — 0 failures.  With
+asserts, `alloc_tsd_exclusivity_test` and `_var_test` 2000 each, 0
+failures; the rest of that soak was stopped (both trees soaking at once
+held the load average near 1000, and the Release set took 45 minutes).
+
+`check_no_dcas.sh` failed here, in the check: phase 1 ok, phases 2 and 3
+`FAILED (compile)`.  Apple clang on an Intel Mac emits a genuine i386
+object for `-m32 -march=i486` on a header-free TU, so the toolchain probe
+passed, but macOS 15's `math.h` (reached through libc++'s `<atomic>`)
+declares `_Float16`, which i386 does not support — the real compiles then
+failed, and the pre-commit hook would refuse every commit that stages
+`kamepoolalloc/` on this machine.  The probe TU now includes `<atomic>`, as
+both real sources do; the two phases skip here (`cannot compile <atomic>
+for it (no i386 SDK)`), and the script exits 0.  Linux multilib compiles
+`<atomic>` for `-m32`, so it should run the phases as before — not
+re-checked from here.
+
+**Interleaved A/B, `bench_loop`** (every arm at every size each rep, the
+order reversed on odd reps; runs 5× `bench_compare.sh`'s length — 1T 64 B /
+1 KiB 50 M iterations, 16 KiB 25 M, 64 KiB / 1 MiB 10 M; 4 processes 64 B
+100 M each, 16 KiB 50 M, 1 MiB 10 M), median (min–max) of 11 reps, M ops/s:
+
+| | size | v121 | tl | prefix | ub | tree |
+|---|---|---|---|---|---|---|
+| 1T | 64 B | 391 (387–394) | 328 (321–330) | 295 (288–297) | 418 (410–423) | 418 (416–422) |
+| 1T | 1 KiB | 253 (251–256) | 284 (281–285) | 280 (257–283) | 298 (287–299) | 299 (293–302) |
+| 1T | 16 KiB | 246 (242–248) | 244 (241–248) | 240 (235–243) | 239 (231–242) | 305 (299–309) |
+| 1T | 64 KiB | 62 (61–63) | 63 (61–64) | 66 (65–68) | 69 (67–70) | 66 (65–67) |
+| 1T | 1 MiB | 54 (52–54) | 57 (55–58) | 57 (57–58) | 59 (58–59) | 57 (56–57) |
+| 4P | 64 B | 1520 (1495–1526) | 1274 (1245–1278) | 1146 (1115–1148) | 1631 (1623–1637) | 1628 (1576–1634) |
+| 4P | 16 KiB | 961 (959–962) | 959 (934–960) | 934 (932–938) | 935 (927–937) | 1183 (1177–1190) |
+| 4P | 1 MiB | 208 (206–209) | 222 (209–222) | 223 (222–224) | 230 (226–230) | 220 (219–220) |
+
+- **64 B is x86.**  The thread lists cost this Skylake 64 B as they cost
+  the Broadwell (v121 → tl 0.84× single thread, 0.84× on 4 processes), and
+  `78e57424c` recovers it here too: prefix → ub 1.42×, now 1.07× v121
+  (4 processes 1.07×).  The M5 never showed the loss, so it is the x86
+  core, not Windows.
+- **16 KiB is not.**  `5fc34e052` costs 16 KiB nothing here (246 → 244;
+  4 processes 961 → 959), as on Linux on the Broadwell, while Windows on
+  that Broadwell lost 0.70×.  Two OSes on two x86 cores did not regress and
+  one did, which points at Windows (or llvm-mingw) rather than at the core;
+  still not explained.  `e0974e402` gains here regardless: ub → tree 1.27×
+  single thread, 1.26× on 4 processes.
+- **tl → prefix**, 64 B 0.90× single thread and on 4 processes, splits
+  between two commits (9 reps, same method):
+
+  | | size | tl | cap | idle | ret | prefix |
+  |---|---|---|---|---|---|---|
+  | 1T | 64 B | 331 (312–340) | 311 (300–320) | 310 (298–319) | 299 (287–306) | 297 (288–306) |
+  | 1T | 1 KiB | 289 (277–295) | 277 (265–283) | 273 (263–280) | 285 (273–289) | 284 (272–290) |
+  | 1T | 16 KiB | 251 (240–257) | 247 (237–253) | 249 (237–254) | 247 (234–251) | 244 (234–249) |
+  | 1T | 1 MiB | 59 (56–59) | 55 (53–56) | 55 (53–56) | 60 (57–61) | 59 (56–59) |
+  | 4P | 64 B | 1282 (1276–1299) | 1204 (1200–1217) | 1200 (1191–1215) | 1154 (1144–1168) | 1153 (1144–1167) |
+  | 4P | 16 KiB | 964 (962–976) | 953 (947–966) | 953 (947–967) | 944 (940–955) | 942 (939–950) |
+
+  the cap's accounting `f9e5cb9b3` 0.94×, the freed-slot return
+  `9f6370a52` 0.96× (Windows measured `9f6370a52` at 64 B 1.08×).  Both
+  are still in tree, behind `78e57424c`'s 1.42×.
+- 1 KiB is the thread lists' gain (v121 → tree 1.18×), 64 KiB and 1 MiB
+  level to 1.07×.
+
+**`bench_compare.sh`** at HEAD, median of 5 (the README's Intel Mac
+tables), M ops/s — system / mimalloc / jemalloc / kame: single thread 64 B
+36 / 416 / 63 / 412, 1 KiB 38 / 207 / 60 / 294, 16 KiB 38 / 77 / 29 / 304,
+64 KiB 38 / 77 / 6 / 66, 256 KiB 38 / 77 / 6 / 59, 1 MiB 39 / 2 / 6 / 56,
+4 MiB 0.14 / 2 / 6 / 39; 4 processes 64 B 142 / 1618 / 247 / 1627, 16 KiB
+154 / 303 / 115 / 1177, 64 KiB 151 / 303 / 25 / 258, 1 MiB 151 / 7 / 25 /
+218.
+
+**`bench_ab.sh`** (`--tags tree --arm v121=… --arm mi=… --only "loop
+xthread xmalloc larson rptest xlat frame frameRT" --threads "4 8" --reps
+5`; results `~/bench-ab/results-iMac-Pro-20261013-230428`):
+
+| bench | config | metric | tree | v121 | mi | v121 / tree | mi / tree |
+|---|---|---|---|---|---|---|---|
+| loop | 64B | Mops ↑ | 394 (389–404) | 387 (382–391) | 428 (418–432) | 0.98× | 1.09× |
+| loop | 1024B | Mops ↑ | 306 (303–310) | 256 (252–259) | 214 (210–215) | 0.84× | 0.70× |
+| loop | 16384B | Mops ↑ | 311 (304–312) | 250 (247–252) | 79.5 (77.9–79.7) | 0.80× | 0.26× |
+| xthread | w4,1KiB | Mfree ↑ | 27.9 (26.7–28.0) | 27.4 (27.0–28.4) | 53.1 (50.1–54.8) | 0.98× | 1.90× |
+| xmalloc | w4,64B | Mfree ↑ | 136 (133–138) | 126 (124–128) | 97.8 (96.2–101) | 0.93× | 0.72× |
+| larson | t4 | Mops ↑ | 71.8 (69.2–73.2) | 62.6 (61.8–63.3) | 55.9 (53.1–56.5) | 0.87× | 0.78× |
+| rptest | t4 | Mops_cpu ↑ | 6.27 (6.07–6.45) | 5.89 (5.58–6.14) | 6.88 (6.54–7.64) | 0.94× | 1.10× |
+| frame | t4 | fps ↑ | 1739 (1709–1772) | 1323 (1322–1328) | 1781 (1716–1802) | 0.76× | 1.02× |
+| frame | t4 | frame_p999_us ↓ | 765 (691–832) | 985 (820–1038) | 984 (874–1493) | 1.29× | 1.29× |
+| frame | t4 | frame_max_us ↓ | 2092 (2026–2249) | 1181 (934–6883) | 14294 (13888–15525) | 0.56× | 6.83× |
+| frame | t4 | call_max_ns ↓ | 110217 (96986–1144115) | 125313 (65686–5495539) | 13650738 (13203712–14851009) | 1.14× | 123.85× |
+| frame | t4 | rss_mib ↓ | 1235 (1219–1241) | 1419 (1407–1419) | 524 (490–552) | 1.15× | 0.42× |
+| frameRT | t4 | frame_max_us ↓ | 2130 (1959–15801) | 1026 (970–6463) | 14627 (12247–15116) | 0.48× | 6.87× |
+| frameRT | t4 | call_max_ns ↓ | 335482 (115169–14301320) | 108019 (83947–5568261) | 13930124 (11627526–14550352) | 0.32× | 41.52× |
+| xthread | w8,1KiB | Mfree ↑ | 33.9 (33.7–34.0) | 34.1 (34.0–34.2) | 55.6 (55.2–55.9) | 1.01× | 1.64× |
+| xmalloc | w8,64B | Mfree ↑ | 196 (195–200) | 172 (161–174) | 173 (166–177) | 0.88× | 0.88× |
+| larson | t8 | Mops ↑ | 121 (121–122) | 112 (111–113) | 118 (116–119) | 0.92× | 0.98× |
+| rptest | t8 | Mops_cpu ↑ | 2.76 (2.5–3.15) | 2.75 (2.28–3.09) | 4 (3.88–4.08) | 1.00× | 1.45× |
+| frame | t8 | fps ↑ | 1556 (1504–1588) | 1180 (1117–1209) | 1564 (1486–1634) | 0.76× | 1.01× |
+| frame | t8 | frame_p999_us ↓ | 964 (896–1015) | 1388 (1168–8460) | 1304 (1148–2024) | 1.44× | 1.35× |
+| frame | t8 | frame_max_us ↓ | 2178 (2021–7361) | 2367 (2168–29679) | 16614 (14632–19375) | 1.09× | 7.63× |
+| frame | t8 | call_max_ns ↓ | 237640 (132893–5890935) | 457656 (393636–10020904) | 15834101 (14415823–18658809) | 1.93× | 66.63× |
+| frame | t8 | rss_mib ↓ | 1508 (1507–1540) | 1738 (1719–1810) | 603 (592–623) | 1.15× | 0.40× |
+| frameRT | t8 | frame_max_us ↓ | 2115 (2045–14143) | 2584 (2054–6312) | 17745 (16664–18964) | 1.22× | 8.39× |
+| frameRT | t8 | call_max_ns ↓ | 139173 (123242–5473114) | 154054 (129628–337601) | 17038016 (16440629–18188525) | 1.11× | 122.42× |
+| xlat | 1024Bx200000 | rate_M ↑ | 2.24 (2.22–2.31) | 2.14 (2.11–2.2) | 3.01 (2.98–3.18) | 0.96× | 1.35× |
+| xlat | 1024Bx200000 | med_ns ↓ | 361 (351–363) | 381 (376–386) | 43.0 (41.0–45.0) | 1.06× | 0.12× |
+| xlat | 1024Bx200000 | p999_ns ↓ | 710 (607–729) | 732 (626–750) | 9689 (7280–10576) | 1.03× | 13.65× |
+| xlat | 1024Bx1000000 | max_ns ↓ | 74691 (36089–99572) | 85867 (36639–125127) | 100686 (84809–449493) | 1.15× | 1.35× |
+| xlat | 3000Bx200000 | rate_M ↑ | 2.01 (1.98–2.06) | 1.86 (1.85–1.94) | 1.8 (1.76–1.83) | 0.93× | 0.89× |
+
+The rest is in `summary.md` there.  Against v1.2.1 tree is ahead or level
+in every throughput row — the frame loop 1.31× (1323 → 1739 fps at t4,
+1180 → 1556 at t8, now level with mimalloc), larson 1.15× / 1.08×,
+xmalloc 1.08× / 1.14× — and keeps 0.87× of its RSS; its frame p99.9 is
+lower by a fifth at t4 and by a third at t8.  mimalloc keeps its lead in
+`bench_xthread` (1.9× / 1.6×; on the M5 1.15× / 0.66×) and rptest t8, and has
+1/2.4 the frame loop's RSS; its slowest call is 13–17 ms here (the M5's
+0.2–1.1 ms), every run.
+
+One row went the wrong way: the frame loop's **worst frame at t4**.  Every
+tree run has a frame of at least 2.0 ms (2026–2249 µs; frameRT 1959 and
+up), where v121's median is 1.2 ms and its best run 0.93 ms.  The slowest
+single call in those runs is 0.1 ms, so the frame is not one slow malloc.
+At t8 both arms sit at 2.1–2.6 ms.
+
+The step is `5fc34e052` itself.  `bench_ab.sh --only frame --threads 4
+--reps 5` over every arm (results
+`~/bench-ab/results-iMac-Pro-20261013-233225`):
+
+| metric | v121 | tl | cap | idle | ret | prefix | ub | tree |
+|---|---|---|---|---|---|---|---|---|
+| fps ↑ | 1299 (1294–1314) | 1712 (1654–1734) | 1695 (1666–1709) | 1685 (1670–1696) | 1703 (1639–1728) | 1688 (1652–1722) | 1678 (1636–1723) | 1697 (1674–1733) |
+| frame_med_us ↓ | 738 (734–741) | 556 (550–577) | 564 (560–575) | 565 (563–566) | 561 (550–581) | 566 (554–579) | 568 (553–581) | 564 (550–565) |
+| frame_p999_us ↓ | 949 (870–1271) | 784 (710–797) | 724 (686–756) | 703 (687–1050) | 735 (701–899) | 766 (650–825) | 721 (699–959) | 733 (706–962) |
+| frame_max_us ↓ | 1110 (998–2712) | 2039 (1987–2506) | 2201 (2024–2574) | 2010 (1971–2221) | 2075 (1982–2648) | 2051 (1947–2160) | 2103 (2061–2442) | 1983 (1966–2522) |
+| call_max_ns ↓ | 91359 (83196–1653153) | 138131 (95865–483339) | 107043 (95692–524245) | 97015 (95612–100022) | 100861 (93335–128863) | 125068 (104409–249286) | 121667 (105020–212902) | 115642 (101040–537538) |
+| rss_mib ↓ | 1430 (1418–1431) | 1243 (1237–1273) | 1272 (1243–1272) | 1273 (1273–1273) | 1248 (1238–1276) | 1270 (1235–1271) | 1271 (1235–1274) | 1245 (1235–1271) |
+
+The thread lists took the median frame from 738 to 556 µs and p99.9 from
+949 to 784, and put a floor of about 2.0 ms under the worst frame of a
+5000-frame run, which no later commit moves.  With the slowest call at
+0.1 ms and the calls of 100 µs or more at 0–2 a run, that frame is many
+moderately slow calls, or time outside malloc / free (a first touch of
+fresh pages is counted in the frame, not in the call), in one frame —
+which one, `bench_frame` does not say; not traced.  On the M5 the same
+commit went the other way (the 2026-10-12 run above: frame_max at t4 v121
+569, tree 358 µs).
