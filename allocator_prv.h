@@ -1536,7 +1536,10 @@ public:
 	//!             │ RegionMeta — in the first page of unit 0:   │
 	//!             │   DLL `next`, per-unit claim bitmaps,       │
 	//!             │   `has_free` hints, `numa_node`  (≤ 4096 B) │
-	//!             ├────────────────────────────────────────────┤
+	//!     +4 KiB  ├────────────────────────────────────────────┤
+	//!             │ (§page-bucket) full-tier bucket per 4 KiB   │
+	//!             │   page of the region            (8 KiB)     │
+	//!    +12 KiB  ├────────────────────────────────────────────┤
 	//!             │ unit 0 tail, then units 1..127 carved into  │
 	//!             │ chunks (each chunk: see the chunk-layout    │
 	//!             │ diagram above; chunk_base = unit_bound −    │
@@ -1578,6 +1581,24 @@ public:
 	//! Recover a region's metadata block from its base pointer.  Region
 	//! base is `ALLOC_MIN_MMAP_SIZE`-aligned (= 32 MiB), so the cast is
 	//! always valid for a populated region pointer.
+	//! (§page-bucket) One byte per 4 KiB page of a pool region: the bucket
+	//! of the full-tier slot that starts in that page, written where the
+	//! slot is carved (with its m_sizes entry) and read by the full-tier
+	//! owner free.  A full-tier slot is at least 6 KiB, so no page holds
+	//! two slot starts.  The free used to take the bucket from m_sizes --
+	//! back_offset, then the chunk's m_sizes pointer and m_align_shift,
+	//! then the entry: three dependent loads before the address of the
+	//! thread list it pushes onto, which the next malloc reads.  From
+	//! here it is one load, off `p` alone.  8 KiB at region + 4096, in
+	//! unit 0 between RegionMeta (first 4 KiB) and the K_MAX tail that
+	//! holds chunk 1's metadata; only pages under full-tier slots are
+	//! ever touched.  Entries for pages with no live full-tier slot start
+	//! are stale or zero and never read.
+	static constexpr std::size_t REGION_PAGE_BUCKET_OFFSET = 4096;
+	static constexpr std::size_t REGION_PAGE_BUCKET_SHIFT = 12;
+	static inline std::uint8_t *region_page_bucket(char *mp) noexcept {
+		return reinterpret_cast<std::uint8_t *>(mp + REGION_PAGE_BUCKET_OFFSET);
+	}
 	static inline RegionMeta *region_meta(char *mp) noexcept {
 		return reinterpret_cast<RegionMeta *>(mp);
 	}
