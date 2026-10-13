@@ -94,7 +94,12 @@ regenerates results himself), no benchmark changes.
   Intel Xeon W under macOS, at v1.3.0's code; larson 1.10–1.11x and rptest
   1.10–1.12x on the M5 Ultra at the first thread-list commit, before the
   per-bucket cap, which costs larson up to 4 % there
-  (`design/THREAD_LIST_CHECK.md`).  Zen 2 has not run it yet.  It also makes
+  (`design/THREAD_LIST_CHECK.md`).  On Zen 2 (Ohtaka, v1.3.0's code) larson
+  is 1.16–1.26x of that fix on the same node, ahead of mimalloc at 4–16
+  threads, and bench_loop 1.16x / 1.26x / 1.67x at 64 B / 1 KiB / 16 KiB;
+  alloc_tune_report lost two cells there, 1 MiB at 4 threads (0.82x) and
+  8 MiB single-thread (0.87x), neither profiled yet
+  (`design/README_BENCH_OHTAKA.md` §5).  It also makes
   `kame_calloc` skip the memset of a fresh large-tier mapping (Linux and
   macOS), and pools `calloc` / `posix_memalign` / `aligned_alloc` in the
   macOS dylib, which matters to nobody running the suite on Linux.  Do not
