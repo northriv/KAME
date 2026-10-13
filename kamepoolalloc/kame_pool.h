@@ -412,9 +412,11 @@ void   kame_pool_rt_drain(void) KAMEPOOLALLOC_NOEXCEPT;
 
 /*
  * Give back everything the allocator holds without a live owner (the
- * mi_collect / malloc_trim / arena.N.purge analogue): the parked unmaps,
- * this thread's L1 recycle cache and the global L2 cache, which also
- * returns the pages of chunks a realtime free released without madvise.
+ * mi_collect / malloc_trim / arena.N.purge analogue): the calling thread's
+ * free lists (blocks it freed and kept for reuse; the chunks only they
+ * held are released), the parked unmaps, this thread's L1 recycle cache
+ * and the global L2 cache, which also returns the pages of chunks a
+ * realtime free released without madvise.
  * Whoever allocates next maps and faults that memory again, so a realtime
  * thread prewarms again afterwards.  Never inside a critical section.
  */

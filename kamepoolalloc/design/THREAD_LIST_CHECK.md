@@ -227,3 +227,11 @@ predates it.  Re-check on the M5 and on Linux:
    400 MiB of 1 KiB) peaked at 1053 MiB before, 631 MiB now (581 with
    `kame_pool_trim()` between; mimalloc 480) on the M3; on Linux RSS is
    eager, so the number there is the one that matters.
+6. **Random-order frees.**  The cap bounds the bytes a list keeps, not the
+   chunks they hold: freed in a random order, the last megabytes of frees
+   lie on every chunk, and the phase change above held 1003 MiB.  Since the
+   next commit, a thread about to take a new chunk gives back everything a
+   bucket keeps whose list has not moved over its last two new chunks
+   (`tl_reclaim_idle`; 627 MiB), and `kame_pool_trim()` gives back all of the
+   calling thread's lists.  `alloc_phase_test` now frees in a random order
+   too; re-check it, and the thread-exit soaks, on Linux.
