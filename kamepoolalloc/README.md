@@ -408,13 +408,11 @@ in the run, not yet explained.
 
 **Ohtaka (ISSP supercomputer — AMD EPYC 7702, 128-core / 8-NUMA-node, Linux
 4 KiB pages, `THP=always`), `bench_compare.sh`, `--exclusive` jobs** —
-kamepoolalloc at `19b2e4758` (the v1.2.1 allocator), clang 18.1.8,
-re-measured 2026-10-12 (`design/README_BENCH_OHTAKA.md`).  The 1T and
-128-process tables ran on `i8cpu` node `c15u01n1`, where the June tables
-were measured; the 4-process table on `c15u02n1`, which measures every
-allocator 1–7 % lower.  Against June the comparators reproduce to ±2 % and
-kame to within a few percent.  mimalloc (3.3.2) and jemalloc (5.3.1) are the
-competitive tables' builds:
+kamepoolalloc at `e0974e402`, clang 18.1.8, re-measured 2026-10-13
+(`design/README_BENCH_OHTAKA.md` §5).  All three tables ran on `i8cpu` node
+`c15u04n1`; against the v1.2.1 tables of the day before (same note, §1) the
+comparators reproduce to within 4 %.  mimalloc (3.3.2) and jemalloc (5.3.1)
+are the competitive tables' builds:
 
 **Architecture note — memory renaming**: kamepoolalloc's LIFO freelist
 creates a tight store-then-load chain on every alloc/free pair
@@ -427,7 +425,7 @@ register file, dispatch-free.  AMD Zen 2 (Ohtaka's EPYC 7702)
 latency (~5 cycles) per hot iteration instead.  This is the
 structural reason the Ohtaka margins over `mimalloc` / `jemalloc` are
 smaller than the Apple figures — most visible at the **64 B tier** where
-the freelist hot path dominates (Ohtaka kame 259 vs mi 327; M5 Ultra kame
+the freelist hot path dominates (Ohtaka kame 295 vs mi 325; M5 Ultra kame
 1110 vs mi 1054).  Larger tiers
 where the freelist is not the bottleneck (16 KiB, 1 MiB+) are not
 affected and kame retains its lead on both CPUs.  The 64 B gap is
@@ -440,74 +438,89 @@ renaming microarchitecture and behave like Zen 2 in this respect.
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |     212 |  **327** |      182 |      259 |
-| 1.0KB     |     210 |      217 |      160 |  **228** |
-| 16KB      |      69 |       95 |       45 |  **173** |
-| 64KB      |      65 |   **95** |        4 |       79 |
-| 256KB     |      71 |   **95** |        4 |       80 |
-| 1.0MB     |      71 |        5 |        4 |   **83** |
-| 4.0MB     |  **70** |        4 |        4 |       59 |
+| 64B       |     212 |  **325** |      181 |      295 |
+| 1.0KB     |     212 |      209 |      159 |  **289** |
+| 16KB      |      68 |       95 |       43 |  **286** |
+| 64KB      |      65 |   **91** |        4 |       81 |
+| 256KB     |      71 |   **94** |        4 |       87 |
+| 1.0MB     |      70 |        5 |        4 |   **84** |
+| 4.0MB     |  **69** |        4 |        4 |       58 |
 
 ## 4 parallel processes (aggregate, M ops/s, median of 5)
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |     825 | **1245** |      711 |     1014 |
-| 16KB      |     268 |      371 |      172 |  **681** |
-| 64KB      |     253 |  **370** |       16 |      308 |
-| 1.0MB     |     277 |       20 |       16 |  **326** |
+| 64B       |     844 | **1258** |      724 |     1202 |
+| 16KB      |     271 |      368 |      174 | **1061** |
+| 64KB      |     254 |  **374** |       16 |      320 |
+| 1.0MB     |     275 |       20 |       16 |  **332** |
 
 ## 128 parallel processes (aggregate, M ops/s, median of 5)
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |   22575 | **39396** |    21184 |    31006 |
-| 16KB      |    7995 |    11772 |     5263 | **22001** |
-| 64KB      |    8101 | **11864** |      469 |     9903 |
-| 1.0MB     |    8917 |      562 |      473 | **10567** |
+| 64B       |   22839 | **38244** |    21558 |    35432 |
+| 16KB      |    8105 |    11662 |     5314 | **34847** |
+| 64KB      |    8036 | **11717** |      459 |    10278 |
+| 1.0MB     |    8813 |      565 |      475 | **10627** |
 
-At **16 KiB** kame leads decisively at every thread count — 173 vs 95 M
-single-thread, 681 vs 371 at 4 processes, 22001 vs 11772 at 128 (1.9×) —
+At **16 KiB** kame leads decisively at every thread count — 286 vs 95 M
+single-thread, 1061 vs 368 at 4 processes, 34847 vs 11662 at 128 (3.0×) —
 from the `bucket_for_size` LUT extension to the full 32 KiB bucketed range
-(`9b65ce42`) plus the force-inlined size→bucket fold (`0e43ee82`).  At
-**1 MiB / 128 processes** kame reaches **10567 M ops/s** (19× ahead of
-mimalloc 562 M): the two-level recycle cache keeps all 128 cores at
-memory-warm speed while mimalloc stalls at its per-call `mmap` path.  At
-**1 KiB** single-thread kame leads mimalloc narrowly (228 vs 217 M).
-mimalloc leads at **64 B** on x86-64 — 327 vs 259 M single-thread, 39396 vs
-31006 at 128 processes: unlike arm64 (the M5 Ultra above), where the
-`deallocate` / `operator new` hot/cold splits put kame ahead at 64 B, on
-x86-64 mimalloc's thread-local bump allocator keeps the edge on the smallest
-bucket.  mimalloc also leads at **64–256 KiB**, where kame's dedicated-chunk
-tier runs at 79–80 M against its 95, and glibc at **4 MiB** single-thread
-(70 vs 59 M; see the `M_MMAP_THRESHOLD` note below).
+(`9b65ce42`), the force-inlined size→bucket fold (`0e43ee82`), and the
+per-region page table the owner free reads the slot's bucket from
+(`e0974e402`, 1.73× on this host).  At **1 MiB / 128 processes** kame
+reaches **10627 M ops/s** (19× ahead of mimalloc 565 M): the two-level
+recycle cache keeps all 128 cores at memory-warm speed while mimalloc stalls
+at its per-call `mmap` path.  At **1 KiB** single-thread kame leads mimalloc,
+289 vs 209 M (1.38×).  mimalloc leads at **64 B** on x86-64 — 325 vs 295 M
+single-thread, 1258 vs 1202 at 4 processes, 38244 vs 35432 at 128: unlike
+arm64 (the M5 Ultra above), where the `deallocate` / `operator new`
+hot/cold splits put kame ahead at 64 B, on x86-64 mimalloc's thread-local
+bump allocator keeps the edge on the smallest bucket — by 1.10× now, from
+1.26× at v1.2.1, since `78e57424c` reads a 64 B slot's bucket one load off
+`p` (1.44× on this host).  mimalloc also leads at **64–256 KiB**, where
+kame's dedicated-chunk tier runs at 81–87 M against its 91–94, and glibc at
+**4 MiB** single-thread (69 vs 58 M; see the `M_MMAP_THRESHOLD` note below).
+
+Interleaved on one node against v1.2.1 (`bench_ab.sh --only loop`, median
+of 9; `design/README_BENCH_OHTAKA.md` §5.2) the allocator is 1.16× / 1.26× /
+1.67× at 64 B / 1 KiB / 16 KiB — the per-thread lists (§thread-list) and
+the two commits above, which on this Zen 2, as on the Windows Broadwell-EP,
+turned the lists' 64 B and 16 KiB cost (0.80×, 0.95×) into gains; on the M5
+Ultra both were level.
 
 ---
 
 **Ohtaka, `--exclusive` job, single-binary self-validation via
-`tests/alloc_tune_report`** — kamepoolalloc at `19b2e4758`, node `c15u04n4`:
+`tests/alloc_tune_report`** — kamepoolalloc at `e0974e402`, node `c15u01n1`,
+median of three runs:
 
 Aggregate M ops/s (`alloc → touch byte 0 → free` loop) at 1 / 4 / 16 / 64 /
 128 concurrent threads:
 
 | size,tier                  |  1T  |  4T  |  16T |  64T | 128T |
 | -------------------------- | ---: | ---: | ---: | ---: | ---: |
-| 64 B  (bucket)             |  132 |  507 | 2097 | 7656 | **12381** |
-| 1 KiB (bucket)             |  114 |  457 | 1824 | 6641 | **11253** |
-| 64 KiB (chunk)             |   43 |   31 |   69 |  171 |   **353** |
-| 1 MiB (chunk)              |   42 |   37 |  127 |  135 |   **351** |
-| 8 MiB (large_va)           |   29 |  7.4 |  4.4 |  3.6 |     2.8 |
-| 40 MiB (large_va, cached)  |   12 |  2.6 |  3.7 |  2.2 |     2.5 |
+| 64 B  (bucket)             |  150 |  578 | 2370 | 8430 | **12441** |
+| 1 KiB (bucket)             |  149 |  588 | 2364 | 8091 | **12301** |
+| 64 KiB (chunk)             |   46 |   31 |   71 |  212 |   **267** |
+| 1 MiB (chunk)              |   42 |   26 |  214 |  238 |   **378** |
+| 8 MiB (large_va)           |   27 |  4.3 |  3.4 |  2.9 |     3.3 |
+| 40 MiB (large_va, cached)  |   13 |  4.3 |  3.9 |  2.6 |     2.9 |
 
-Each cell is one run, as in June.  The bucket rows repeat to within 10 %;
-the chunk rows from 16 threads do not — three repeats on another node gave
-64 KiB / 128T 186–283 and 1 MiB / 128T 345–431, so read those cells as
-ranges (June's single run had 1 MiB / 128T at 543).
+The bucket rows repeat to within 8 %; the chunk rows from 16 threads do
+not — over the three runs 64 KiB / 128T ran 257–355 and 1 MiB / 16T
+117–259 — so read those cells as ranges.  Against v1.2.1, interleaved on one
+node (`design/README_BENCH_OHTAKA.md` §5.3), the bucket rows are 1.16× (64 B)
+and 1.30× (1 KiB) single-thread and 1.08–1.29× up to 128 threads; two cells
+lost — 1 MiB at 4 threads (0.82×) and 8 MiB single-thread (0.87×) — not yet
+profiled.
 
 The bucket tier reaches **12.4 G ops/s aggregate for 64 B at 128 cores
-(94× linear)** — vindicating the per-thread DLL + per-thread freelist +
-per-thread `KameTlsPage` design on a heavily-NUMA host.  The 1 MiB chunk
-tier reaches **345–431 M ops/s at 128T** over four runs — the per-thread L1
+(83× its single-thread rate)** — vindicating the per-thread DLL +
+per-thread freelist + per-thread `KameTlsPage` design on a heavily-NUMA
+host.  The 1 MiB chunk
+tier reaches **338–380 M ops/s at 128T** over three runs — the per-thread L1
 recycle cache absorbs the churn, with more run-to-run spread than the bucket
 tier.  The large_va tier (8 MiB+) plateaus because the benchmark touches
 byte 0 each cycle, which serialises across cores in the Linux process-wide
@@ -517,21 +530,21 @@ fault is amortised inside the buffer write, not paid per op.
 
 The same `alloc_tune_report` run self-validated the defaults on this hardware:
 
-- **`LRC_LAZY_INTERVAL_NS = 10 ms`**: 0.63 % per-thread wallclock pressure —
-  printed "default 10 ms is fine; auto-tune kept it (raise-only)".
+- **`LRC_LAZY_INTERVAL_NS = 10 ms`**: 0.61–0.64 % per-thread wallclock
+  pressure — printed "default 10 ms is fine; auto-tune kept it (raise-only)".
 - **`LRC_K_MAX = 256`**: matched to 128 cores — printed "default is
   appropriate".
 - **`MADV_HUGEPAGE`**: ineffective on this kernel (same `µs/page` as plain
   first-touch) because `THP=always` is already auto-promoting 4 KiB pages to
   2 MiB at the kernel level.
-- **TLB shootdown**: a 32 MiB `munmap` costs 1.4–1.7 ms at 128 threads over
-  four runs (19.95× the 1-thread cost in this run; the 1-thread baseline
-  itself moves, so the ratio ranged 8.7–21.6×) — bounded, not catastrophic;
+- **TLB shootdown**: a 32 MiB `munmap` costs 1.7–2.1 ms at 128 threads over
+  the three runs (10.6–28.9× the 1-thread cost, whose own baseline moved
+  between 70 and 163 µs) — bounded, not catastrophic;
   the warm cache absorbs most syscalls in practice.
 
 The size sweep's headline is the **cliff**: jemalloc drops to 4 M ops/s from
 64 KiB and mimalloc from 1 MiB (95 → 5) — both revert to per-call
-`mmap`/`munmap` — while kame's recycle cache holds 79–83 M ops/s through
+`mmap`/`munmap` — while kame's recycle cache holds 81–87 M ops/s through
 1 MiB, 17–21× mimalloc and jemalloc there.  The system allocator (glibc
 ptmalloc) is also flat at large sizes in this particular tight-loop pattern
 because ptmalloc adaptively raises its `M_MMAP_THRESHOLD` when it observes
@@ -555,11 +568,12 @@ objects + large arrays/waveforms — KAME's own profile) never hits the
 2.28, `mi3` = mimalloc 3.3.2, `mi` = mimalloc 1.8.2, `je` = jemalloc 5.3.1,
 `tc` = gperftools 2.18 `tcmalloc_minimal` — the builds of mimalloc-bench at
 `941c265d`).  Same EPYC nodes as above (kernel `4.18.0-372.9.1.el8.x86_64`,
-clang 18.1.8); kamepoolalloc at `19b2e4758` (v1.2.1), re-measured 2026-10-12
+clang 18.1.8); kamepoolalloc at `e0974e402`, re-measured 2026-10-13/14
 with `tests/bench/bench_ab.sh` — one binary per workload, the allocator
 switched by `LD_PRELOAD`, the six arms interleaved, median of 5
-(`design/README_BENCH_OHTAKA.md` §3 has the ranges).  Bench invocations:
-`xmalloc-test -w N -t 5 -s S`; `larson 5 8 1000 5000 100 4141 N`;
+(`design/README_BENCH_OHTAKA.md` §5.4 has the ranges and the nodes).
+Bench invocations: `xmalloc-test -w N -t 5 -s S`;
+`larson 5 8 1000 5000 100 4141 N`;
 `mstress N 50 50`; `rptest N 0 1 2 500 1000 100 8 16000` (random size
 8..16000 B, cross-thread free rate 2, 500 loops, 1000 allocs, 100 ops per
 iter).  The best value in each row is bold.
@@ -572,43 +586,44 @@ a measurement thread allocates a Payload and the UI thread releases it.
 
 | workers |  sys |  mi3 |       mi |      je |    tc | **kame** |
 | ------: | ---: | ---: | -------: | ------: | ----: | -------: |
-|       1 | 5.63 | 33.9 | **34.7** |    26.8 |  8.88 |     31.9 |
-|       4 | 16.5 |  109 |     96.0 |    92.7 |  1.65 |  **127** |
-|      16 | 67.9 |  335 |      248 |     394 |   1.1 |  **494** |
-|      64 |  189 |  431 |      365 |     867 | 0.783 | **1149** |
-|     128 |  186 |  415 |      391 | **922** | 0.843 |      422 |
+|       1 | 5.68 | **34.1** |  34.0 |    29.3 |  8.83 |     32.9 |
+|       4 | 15.8 |  106 |     97.2 |    93.7 |  1.61 |  **130** |
+|      16 | 66.1 |  325 |      200 |     335 |  1.12 |  **503** |
+|      64 |  196 |  416 |      393 | **875** | 0.771 |      865 |
+|     128 |  187 |  440 |      361 | **881** | 0.844 |      368 |
 
 1024 B objects (`-s 1024`, xmalloc-test's default):
 
 | workers |  sys |      mi3 |       mi |   je |    tc | **kame** |
 | ------: | ---: | -------: | -------: | ---: | ----: | -------: |
-|       1 | 3.31 | **24.0** |     22.9 |    5 |  3.14 |     6.17 |
-|       4 | 9.46 |     54.0 | **63.5** | 15.5 |  1.13 |     18.3 |
-|      16 | 17.3 |      129 |  **188** | 55.8 | 0.796 |     71.7 |
-|      64 | 13.5 |      199 |  **258** |  173 | 0.623 |     51.1 |
-|     128 |  8.4 |  **199** |      177 |  160 | 0.604 |     76.2 |
+|       1 | 3.26 | **24.6** |     22.9 | 4.83 |  3.02 |     6.71 |
+|       4 | 9.33 |     54.1 | **63.7** | 15.1 |  1.14 |     20.3 |
+|      16 | 24.4 |      131 |  **193** | 59.4 | 0.952 |     62.3 |
+|      64 | 12.3 |      195 |  **258** |  172 | 0.619 |     53.6 |
+|     128 | 8.36 |  **205** |      172 |  158 | 0.606 |     63.0 |
 
-At 64 B kame leads from 4 to 64 worker pairs (1.2–1.3× the next best) and is
-level at 1; at 128 pairs it drops to 422, level with mi3 / mi and behind
-jemalloc (922) — that step, and kame's wide spread at 64 pairs (709–1283
-over the five runs), are open items.  At 1024 B mimalloc leads at every
-count (2.6–5.0× kame), and jemalloc passes kame from 64 pairs; kame beats
-glibc throughout (1.9–9×).  (Until v1.2.1 this README
-showed that 1024 B run under a 64 B title; kame has since become 1.6–2.1×
-faster on it, except at 64 pairs.)
+At 64 B kame leads at 4 and 16 worker pairs (1.2× and 1.5× the next best),
+is level at 1, and level with jemalloc at 64 pairs (865 vs 875); at 128
+pairs it drops to 368, behind jemalloc (881) and mi3 (440) — that step, and
+kame's wide spread at 64 pairs (720–1256 over the five runs), are open
+items.  At 1024 B mimalloc leads at every count (3.1–4.8× kame), and
+jemalloc passes kame from 64 pairs; kame beats glibc throughout (2.1–7.5×).
+(Until v1.2.1 this README showed that 1024 B run under a 64 B title; kame is
+1.3–2.3× faster on it than then, except at 64 pairs.)
 
 **larson — server simulation: worker threads exit and are replaced, their
 live blocks freed by their successors, M ops/s (higher=better):**
 
 | threads |  sys |  mi3 |       mi |   je |       tc | **kame** |
 | ------: | ---: | ---: | -------: | ---: | -------: | -------: |
-|       1 | 21.8 | 32.4 |     42.0 | 36.1 | **45.1** |     22.9 |
-|       4 | 50.4 | 63.7 |  **105** | 93.1 |     94.7 |     62.8 |
-|      16 |  170 |  228 |  **370** |  349 |      336 |      224 |
-|      64 |  589 |  878 | **1335** | 1260 |     1101 |      650 |
+|       1 | 21.7 | 33.1 |     42.0 | 36.2 | **45.1** |     28.7 |
+|       4 | 49.7 | 58.5 | **99.9** | 92.3 |     94.9 |     72.7 |
+|      16 |  168 |  231 |  **370** |  347 |      343 |      263 |
+|      64 |  588 |  875 | **1325** | 1261 |     1099 |      816 |
 
-kame is ahead of glibc only (1.05–1.32×), level with mi3 at 4–16 threads,
-and behind mimalloc, jemalloc and tcmalloc by 1.5–2.1×.  On the M5 Ultra
+kame is ahead of glibc (1.3–1.6×) and of mi3 at 4–16 threads (1.1–1.2×),
+and behind mimalloc, jemalloc and tcmalloc by 1.3–1.6× — 1.16–1.26× faster
+than v1.2.1 on the same node.  On the M5 Ultra
 kame is ahead of mimalloc on larson (above); the gap here is not profiled
 yet.  No 128-thread row: larson has `MAX_THREADS 100` and crashes beyond it
 under every allocator.
@@ -622,14 +637,15 @@ on another.
 
 | threads |    sys |       mi3 |        mi |     je |     tc | **kame** |
 | ------: | -----: | --------: | --------: | -----: | -----: | -------: |
-|       1 | 0.0691 | **0.054** |    0.0544 | 0.0596 | 0.0569 |   0.0573 |
-|       4 |  0.639 |     0.448 | **0.444** |  0.929 |  0.656 |    0.603 |
-|      16 |   2.64 |  **1.84** |      1.91 |   2.78 |   2.34 |     2.42 |
-|      64 |   7.98 |      4.03 |  **3.88** |      8 |   6.32 |      6.3 |
-|     128 |   14.4 |      5.95 |  **5.87** |   14.7 |   10.2 |     9.61 |
+|       1 | 0.0699 |    0.0553 | **0.0543** |   0.06 | 0.0575 |   0.0578 |
+|       4 |  0.548 |     0.439 | **0.424** |  0.807 |  0.568 |    0.543 |
+|      16 |   2.48 |  **1.72** |      1.83 |   2.58 |   2.04 |     2.23 |
+|      64 |   7.78 |      3.77 |  **3.61** |   8.04 |    5.7 |     6.02 |
+|     128 |   14.1 |      5.75 |  **5.04** |   14.4 |   9.85 |     8.84 |
 
-kame beats glibc and jemalloc at every thread count, is within 4 % of or
-ahead of tcmalloc, and trails mi / mi3 by 1.3–1.6× from 4 threads up.
+kame beats jemalloc at every thread count and glibc at all but 4 threads
+(level there), is within 11 % of tcmalloc either way, and trails mi / mi3 by
+1.3–1.75× from 4 threads up.
 
 **rptest — realistic mixed workload, 8..16000 B random sizes, cross-thread
 free, long-lived threads, M ops/CPU-s (higher=better):**
@@ -641,32 +657,34 @@ objects, and a fraction of frees crossing thread boundaries.
 
 | threads |   sys |  mi3 |       mi |    je |       tc | **kame** |
 | ------: | ----: | ---: | -------: | ----: | -------: | -------: |
-|       1 |  10.9 | 15.6 |     15.6 |  16.0 | **17.9** |     14.6 |
-|       4 |  2.75 | 7.88 | **9.69** |  5.84 |     6.92 |     6.93 |
-|      16 |  2.13 |  4.7 | **5.98** |   2.5 |     2.27 |     3.09 |
-|      64 |  0.56 | 1.89 | **2.51** | 0.792 |    0.222 |     1.08 |
-|     128 | 0.291 | 1.39 | **1.79** | 0.509 |    0.056 |     0.56 |
+|       1 |  10.4 | 15.2 |     15.7 |  15.4 | **18.1** |     14.5 |
+|       4 |  2.87 | 7.14 | **9.33** |  5.94 |     6.42 |     7.59 |
+|      16 |  2.22 | 4.82 | **6.18** |  3.25 |     2.96 |      3.7 |
+|      64 | 0.661 | 2.17 | **2.96** | 0.961 |    0.258 |      1.2 |
+|     128 | 0.275 | 1.44 | **2.16** | 0.672 |    0.057 |    0.578 |
 
-kame beats glibc at every count (1.3–2.5×) and jemalloc from 4 threads
-(1.1–1.4×); tcmalloc leads at 1 thread, is level at 4 and trails kame from
-16.  mimalloc leads throughout, by more as threads grow: 1.07× kame at 1
-thread, 1.4× at 4, 1.9× at 16, 2.3× at 64, 3.2× at 128.  kame also holds the
+kame beats glibc at every count (1.4–2.6×), tcmalloc from 4 threads and
+jemalloc from 4 to 64 (1.1–1.3×); tcmalloc leads at 1 thread (1.24×),
+jemalloc at 1 and — within its 0.49–0.80 spread — at 128 (1.06×, 1.16×).
+mimalloc leads throughout, by more as threads grow: 1.08× kame at 1 thread,
+1.2× at 4, 1.7× at 16, 2.5× at 64, 3.7× at 128.  kame also holds the
 most memory — peak RSS (rptest's own report, MiB, range of 5 runs):
 
 | threads |      kame |     sys |       mi3 |        mi |        je |      tc |
 | ------: | --------: | ------: | --------: | --------: | --------: | ------: |
-|      16 |   209–240 |   51–53 |    98–137 |   134–167 |   171–189 |   69–90 |
-|      64 |  941–1094 | 222–245 |   482–675 |   666–721 |   678–778 | 200–226 |
-|     128 | 1980–2234 | 483–544 | 1226–1376 | 1190–1460 | 1307–1430 | 353–372 |
+|      16 |   225–259 |   49–53 |    99–117 |   129–177 |   163–184 |   72–97 |
+|      64 |  961–1051 | 215–235 |   434–721 |   667–719 |   688–725 | 203–212 |
+|     128 | 2034–2273 | 469–553 |  919–1517 | 1253–1729 | 1250–1356 | 348–371 |
 
 — about 1.5× mimalloc / jemalloc and 4× glibc at 64–128 threads, the price
 of the per-thread caches on a workload whose blocks cross threads.
 
-On this 128-core x86 host, then, kame beats glibc on every workload at every
-thread count, beats jemalloc on mstress and (from 4 threads) rptest, and
-leads the field on 64 B handoff from 4 to 64 pairs; mimalloc leads where
-cross-thread traffic grows with the thread count — 1024 B handoff, larson,
-rptest from 16 threads — and kame pays for its per-thread caches in memory.
+On this 128-core x86 host, then, kame beats or matches glibc on every
+workload at every thread count, beats jemalloc on mstress and on rptest from
+4 to 64 threads, and leads the field on 64 B handoff at 4 and 16 pairs;
+mimalloc leads where cross-thread traffic grows with the thread count —
+1024 B handoff, larson, rptest from 16 threads — and kame pays for its
+per-thread caches in memory.
 
 ## Build
 
