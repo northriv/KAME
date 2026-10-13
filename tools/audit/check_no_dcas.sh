@@ -68,21 +68,30 @@ i486_probe() {
     # int_cas_max fallthrough leaves the typedef undefined and the phase
     # reported a failure that no real i486 toolchain would produce
     # (ATOMIC_INT_LOCK_FREE == 2 there; CMPXCHG is i486+).  One trivial TU
-    # settles the toolchain question for both phases.
+    # settles the toolchain question for both phases.  It includes <atomic>,
+    # as both real sources do: on an Intel Mac, Apple clang emits a genuine
+    # i386 object for a header-free TU, but the SDK's headers no longer
+    # compile for i386 (macOS 15's math.h, reached through libc++'s <atomic>,
+    # declares _Float16), so a bare `int` passed the probe and both phases
+    # then FAILED (compile) — every commit staging kamepoolalloc/ was refused.
     if [ -z "${NO_DCAS_ARCH_OK+x}" ]; then
-        echo 'int kame_no_dcas_arch_probe;' > "$tmp/archprobe.c"
-        if "$CXX" -m32 -march=i486 -c "$tmp/archprobe.c" \
-                -o "$tmp/archprobe.o" 2>/dev/null \
-                && file "$tmp/archprobe.o" 2>/dev/null \
-                       | grep -qiE 'Intel (80)?386|i386|80486|x86'; then
+        printf '#include <atomic>\nstd::atomic<int> kame_no_dcas_arch_probe;\n' \
+            > "$tmp/archprobe.cpp"
+        if ! "$CXX" -m32 -march=i486 -std=c++17 -c "$tmp/archprobe.cpp" \
+                -o "$tmp/archprobe.o" 2>/dev/null; then
+            NO_DCAS_ARCH_OK=0
+            no_dcas_arch_why="cannot compile <atomic> for it (no i386 SDK)"
+        elif file "$tmp/archprobe.o" 2>/dev/null \
+                | grep -qiE 'Intel (80)?386|i386|80486|x86'; then
             NO_DCAS_ARCH_OK=1
         else
             NO_DCAS_ARCH_OK=0
+            no_dcas_arch_why="targets $(file "$tmp/archprobe.o" 2>/dev/null | sed 's/.*: //')"
         fi
     fi
     if [ "$NO_DCAS_ARCH_OK" != "1" ]; then
-        echo "SKIPPED (toolchain accepted -m32 -march=i486 but targets"
-        echo "         $( (file "$tmp/archprobe.o" 2>/dev/null || echo 'nothing') | sed 's/.*: //')"
+        echo "SKIPPED (toolchain accepted -m32 -march=i486 but"
+        echo "         $no_dcas_arch_why"
         echo "         — needs a real i386 multilib toolchain, e.g. Linux g++ -m32)"
         return
     fi
