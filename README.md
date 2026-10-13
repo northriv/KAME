@@ -1262,7 +1262,7 @@ edits) and the §-chapter → subsystem → code navigation map
       paste recipe)
 - [x] Per-thread free lists (§thread-list) — no walk over chunks on the
       allocation path; a thread keeps at most 4 MiB of freed memory per
-      bucket, and `kame_pool_trim()` gives back the rest (v1.3.0)
+      bucket, and `kame_pool_trim()` gives back what it keeps (v1.3.0)
 
 ### Future / nice-to-have
 
