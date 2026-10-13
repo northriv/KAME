@@ -302,7 +302,7 @@ the dylib interposed those, this row measured system malloc plus kame's
 `free` forwarding — 2.40.)
 
 **Intel Xeon E5-1630 v4 (x86-64, 4-core / 8-thread, Windows 11), single
-thread, M ops/s** — kame at `5d2f5a726`, llvm-mingw clang 17, `-O3`, median
+thread, M ops/s** — kame at `78e57424c`, llvm-mingw clang 17, `-O3`, median
 of 5 via `bench_compare.sh`, re-measured 2026-10-13
 (`design/THREAD_LIST_CHECK.md`, the Windows run).  On
 Windows the `kame` column is the **direct pool route** (`bench_loop_pool` →
@@ -314,36 +314,39 @@ malloc-override layer.  mimalloc/jemalloc are not standard on Windows
 
 | size      |  system |     kame |
 |-----------|---------|----------|
-| 64B       |      36 |  **226** |
-| 1 KiB     |      36 |  **228** |
-| 16 KiB    |      39 |  **124** |
-| 64 KiB    |      11 |   **72** |
-| 256 KiB   |      10 |   **63** |
-| 1 MiB     |      ~0 |   **63** |
-| 4 MiB     |      ~0 |   **34** |
+| 64B       |      35 |  **335** |
+| 1 KiB     |      39 |  **242** |
+| 16 KiB    |      38 |  **118** |
+| 64 KiB    |       9 |   **69** |
+| 256 KiB   |      11 |   **63** |
+| 1 MiB     |      ~0 |   **51** |
+| 4 MiB     |      ~0 |   **33** |
 
 **Same host, 4 processes aggregate, M ops/s** — median of 5:
 
 | size      |  system |     kame |
 |-----------|---------|----------|
-| 64B       |     140 |  **852** |
-| 16 KiB    |     138 |  **473** |
-| 64 KiB    |      38 |  **233** |
-| 1 MiB     |      ~0 |  **208** |
+| 64B       |     142 | **1178** |
+| 16 KiB    |     139 |  **498** |
+| 64 KiB    |      36 |  **237** |
+| 1 MiB     |      ~0 |  **233** |
 
 The **system ~0 at ≥ 1 MiB** is the Windows UCRT per-call `VirtualAlloc` /
 `VirtualFree` cliff (the same shape mimalloc / jemalloc hit at this tier on
 Linux): a tight 1 MiB `malloc`/`free` loop drops below 0.5 M ops/s, while
-kame's two-level recycle cache stays memory-warm at 34–208 M ops/s.
+kame's two-level recycle cache stays memory-warm at 33–233 M ops/s.  The
+single-thread 1 MiB loop is the noisiest row here: 51–65 M ops/s run to run
+for the same binary.
 
-Against the previous table's `8f2e6980`, run interleaved on this host with
-the same binary shape (the two tables were taken months apart, so their
-difference mixes code and machine state): single thread 64 B 0.82×,
-1 KiB 1.16×, 16 KiB 0.67×; 4 processes 64 B 0.91×, 16 KiB 0.66×, 1 MiB
-0.99×.  Nearly all of it is `5fc34e052` (thread lists and fit lists),
-bisected — 64 B 0.78×, 1 KiB 1.31×, 16 KiB 0.70× single thread on this
-Broadwell-EP, where the M5 Ultra saw 0.97× / 0.94× / 1.00×; the 4-process
-16 KiB loss is shared with `9f6370a52` (0.92×).  An open item for x86.
+Against the previous table's `8f2e6980` (June), the thread lists
+(`5fc34e052`) had cost 64 B a fifth on this Broadwell-EP and nothing on the
+M5 Ultra: the owner free took its bucket from the chunk, so the address of
+the list it pushed onto waited for two dependent loads, and the next malloc
+reads that list.  The bucket now comes from `RegionMeta::unit_bucket`
+beside `back_offset` (`78e57424c`, 64 B 1.44× single thread, 1.28× on
+4 processes), above June's numbers.  16 KiB is still about two thirds of
+June's here (interleaved), from `5fc34e052` and `9f6370a52`, and is an open
+item for x86.
 
 **Ohtaka (ISSP supercomputer — AMD EPYC 7702, 128-core / 8-NUMA-node, Linux
 4 KiB pages, `THP=always`), `bench_compare.sh`, `--exclusive` jobs** —
