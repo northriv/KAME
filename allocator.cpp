@@ -335,15 +335,17 @@ static_assert(kTierLocalBucket.v[0][0] == 6 && kTierLocalBucket.v[3][0] == 16
 #ifdef KAME_FL_STATS
 struct FlStats {
 	std::atomic<uintptr_t> miss{0}, splice{0}, fit_filed{0}, fit_taken{0}, spill{0}, spill_release{0},
-	    sealed{0}, seg_revived{0}, seg_returned{0};
+	    sealed{0}, seg_revived{0}, seg_returned{0}, idle_reclaimed{0};
 	~FlStats() {
 		std::fprintf(stderr, "[kame fl-stats] misses=%lu splices=%lu | fit filed %lu taken %lu"
-		             " | sealed %lu revived %lu, slots returned %lu, spilled %lu, released %lu\n",
+		             " | sealed %lu revived %lu, slots returned %lu, spilled %lu, released %lu"
+		             " | idle buckets reclaimed %lu\n",
 		             (unsigned long)miss.load(), (unsigned long)splice.load(),
 		             (unsigned long)fit_filed.load(), (unsigned long)fit_taken.load(),
 		             (unsigned long)sealed.load(), (unsigned long)seg_revived.load(),
 		             (unsigned long)seg_returned.load(),
-		             (unsigned long)spill.load(), (unsigned long)spill_release.load());
+		             (unsigned long)spill.load(), (unsigned long)spill_release.load(),
+		             (unsigned long)idle_reclaimed.load());
 	}
 };
 static FlStats g_fl_stats;
@@ -385,6 +387,8 @@ constexpr unsigned tl_slot_bytes(unsigned b) noexcept {
 }
 static void tl_seal(KameTlsPage *pg, unsigned bucket, void *p,
                     PoolAllocatorBase *chunk, uintptr_t bytes) noexcept;
+static void tl_return_bucket(KameTlsPage *pg, unsigned b) noexcept;
+static void tl_reclaim_idle() noexcept;
 static inline void tl_push(KameTlsPage *pg, unsigned bucket, void *p,
                            PoolAllocatorBase *chunk, uintptr_t bytes) noexcept {
 	char *&h = pg->m_slots[bucket].freelist_head;
@@ -3037,6 +3041,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 		}
 		if(void *p = sweep()) return fill_check(p);
 	}
+	// (§tl-cap) A new chunk: first, what the thread's idle buckets keep goes
+	// back -- the chunks it held may empty and give this one its units.
+	tl_reclaim_idle();
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *chunk = create_allocator();
 	if( !chunk) {
 		// (§18) OOM — caller (operator new / C wrapper) runs the
@@ -3235,6 +3242,66 @@ tl_seal(KameTlsPage *pg, unsigned bucket, void *p, PoolAllocatorBase *chunk,
 	if(char *oldest = *link) {
 		*link = nullptr;
 		PoolAllocatorBase::tl_return_segment(oldest);
+	}
+}
+
+// (§tl-cap) Everything a bucket keeps -- its list and its sealed segments --
+// back to the chunks.
+static void
+tl_return_bucket(KameTlsPage *pg, unsigned b) noexcept {
+	char *head = pg->m_slots[b].freelist_head;
+	char *seg = pg->m_seg[b];
+	pg->m_slots[b].freelist_head = nullptr;
+	pg->m_seg[b] = nullptr;
+	if(head)
+		PoolAllocatorBase::tl_return_segment(head);
+	while(seg) {
+		char *older = reinterpret_cast<char **>(seg)[1];   // before its chunk can go
+		PoolAllocatorBase::tl_return_segment(seg);
+		seg = older;
+	}
+}
+
+// (§tl-cap) The list heads tl_reclaim_idle saw last, per bucket.
+static ALLOC_TLS char *tls_tl_mark[ALLOC_NUM_BUCKETS];
+
+// (§tl-cap) Before the thread takes a new chunk, what its idle buckets keep
+// goes back.  A bucket whose list head has not moved over the last two new
+// chunks had no free and no allocation meanwhile (or a malloc and a free of
+// the same block -- returned all the same: that bucket was not using what
+// lay below); its list and segments serve nobody, and each slot on them
+// holds a chunk that may be otherwise empty.  A random-order free of a large
+// heap leaves its last few megabytes of frees on every chunk: 400 MiB of 64 B
+// freed in random order, then 400 MiB of 1 KiB, peaked at 1003 MiB with the
+// cap alone, 627 with this.  Back to their chunks, which release what
+// empties, so the new chunk can come from those units.  Two intervals, not
+// one: with sparse frees across many buckets one interval took buckets
+// still in use (heavy, 1 free in 32 at 32..512 B: 507 takes, +5 %).  51 list
+// heads compared per new chunk, the first unmoved interval noted in the
+// mark's low bit (a slot is 16-aligned); the return is O(slots the idle
+// buckets keep), once.  A realtime thread pays for no bulk return: it skips
+// this.
+static KAME_NOINLINE void
+tl_reclaim_idle() noexcept {
+	if(rt_defer_active())
+		return;
+	KameTlsPage *pg = kame_page();
+	char **mark = tls_tl_mark;
+	for(unsigned b = 1; b < (unsigned)ALLOC_NUM_BUCKETS; ++b) {
+		char *head = pg->m_slots[b].freelist_head;
+		const uintptr_t m = reinterpret_cast<uintptr_t>(mark[b]);
+		if(reinterpret_cast<uintptr_t>(head) != (m & ~(uintptr_t)1u)
+		   || ( !head && !pg->m_seg[b])) {
+			mark[b] = head;   // moved since, or nothing kept
+			continue;
+		}
+		if( !(m & 1u)) {
+			mark[b] = reinterpret_cast<char *>(m | 1u);   // one interval unmoved
+			continue;
+		}
+		mark[b] = nullptr;
+		KAME_FLS(idle_reclaimed);
+		tl_return_bucket(pg, b);
 	}
 }
 
@@ -7845,9 +7912,10 @@ extern "C" void kame_pool_rt_drain(void) noexcept {
 }
 
 // The `mi_collect` / `malloc_trim` / `arena.N.purge` analogue: give back
-// everything the allocator holds without a live owner -- the parked unmaps,
-// this thread's L1 recycle cache and the global L2 cache, which also returns
-// the pages of chunks a realtime free released without `madvise`.  What it
+// everything the allocator holds without a live owner -- this thread's free
+// lists (the chunks only they held are released), the parked unmaps, this
+// thread's L1 recycle cache and the global L2 cache, which also returns the
+// pages of chunks a realtime free released without `madvise`.  What it
 // releases has to be mapped (and faulted) again by whoever needs it next,
 // so a realtime thread prewarms again after it.  Same flag handling as
 // kame_pool_rt_drain.
@@ -7855,6 +7923,15 @@ extern "C" void kame_pool_trim(void) noexcept {
 	const int saved_rt  = g_rt_thread;
 	const int saved_def = g_rt_default.exchange(0, std::memory_order_relaxed);
 	g_rt_thread = 0;
+
+	// (§tl-cap) This thread's own lists and sealed segments go back to their
+	// chunks first, so the chunks they held release into the caches emptied
+	// below.
+	if( !kame_thread_torn_down()) {
+		KameTlsPage *pg = kame_page();
+		for(unsigned b = 1; b < (unsigned)ALLOC_NUM_BUCKETS; ++b)
+			tl_return_bucket(pg, b);
+	}
 
 	rt_settle_pending();
 

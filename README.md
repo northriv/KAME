@@ -249,7 +249,12 @@ goes on to another does not keep the first — 400 MiB of 64 B freed, then
 400 MiB of 1 KiB, peaked at 1053 MiB before and 631 MiB now (581 after
 `kame_pool_trim()` empties the recycle cache; mimalloc 480) — at the price of
 the free that returns a segment: freeing 200 MiB of 64 B or 1 KiB blocks on
-the M3, the slowest free took 31–56 µs (without the cap, 4–39 µs).
+the M3, the slowest free took 31–56 µs (without the cap, 4–39 µs).  The cap
+bounds the bytes kept, not the chunks they hold: freed in a random order,
+the last megabytes of frees lie on every chunk.  So before a thread takes a
+new chunk, any bucket whose list has not moved since the last time gives
+back everything it keeps, and `kame_pool_trim()` gives back all of the
+calling thread's.
 
 MacBook Air M3 against v1.2.1, interleaved (`bench_ab.sh`, median of 3;
 `tests/bench/micro`, median of 5): single-thread random-replacement churn
