@@ -1297,7 +1297,7 @@ clang), and above June by 1.34–1.43× — the commit's 1.47× cycles a pair,
 from the other side.
 
 **64 B: recovered with clang, not with gcc, on this host.**  clang:
-0.96–1.00× of June and `45f1d07f9`.  gcc: 0.70× / 0.72× single thread,
+0.93–1.00× of June and `45f1d07f9`.  gcc: 0.70× / 0.72× single thread,
 0.78× / 0.80× on 4 processes, ranges apart (224 (214–240) against 316
 (272–344)).  The two compilers built `45f1d07f9` alike (316 / 317) but
 `e0974e402` 227 against 303: gcc's code for the thread-list path, not the
