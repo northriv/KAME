@@ -1886,6 +1886,12 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 				// in the chunk-header m_sizes[] array indexed by slot start bit.
 				// The slot's own bytes are 100 % user-usable — no borrow.
 				atomicStoreRelaxed(&this->m_sizes[bit_index], msize_word);
+				// (§page-bucket) and the bucket under the slot's page.
+				char *mp = reinterpret_cast<char *>(
+				    (uintptr_t)slot_start & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u));
+				PoolAllocatorBase::region_page_bucket(mp)[
+				    (size_t)(slot_start - mp) >> PoolAllocatorBase::REGION_PAGE_BUCKET_SHIFT] =
+				    static_cast<std::uint8_t>(msize_word & 0xFFu);
 				(void)hdr_word;
 			}
 			else {
@@ -3946,15 +3952,35 @@ PoolAllocatorBase::deallocate_fs_false_owner(char *chunk_base, void *p,
 			return deallocate_cold(p);
 		return tl_push(pg, bucket, p, chunk_obj, (hdr >> 32) + (uintptr_t)(KAME_TL_SLOT_COST));
 	}
-	const unsigned shift = chunk_obj->m_align_shift;
-	size_t bit_index =
-	    static_cast<size_t>(static_cast<char *>(p) - chunk_obj->mempool()) >> shift;
-	// (§thread-list) m_sizes records (N << 8) | bucket: 40..51 for the full tier.
-	const unsigned entry = chunk_obj->m_sizes[bit_index];
-	const unsigned bucket = entry & 0xFFu;
+	// (§page-bucket) The bucket from the region's page table, one load off
+	// `p`, not from m_sizes three loads deep (allocator_prv.h); the weight
+	// against the list cap is the bucket's slot size, which is the N << shift
+	// m_sizes records.
+	static_assert(REGION_PAGE_BUCKET_OFFSET >= sizeof(RegionMeta),
+	              "the page-bucket table starts past RegionMeta");
+	static_assert(REGION_PAGE_BUCKET_OFFSET
+	              + ((size_t)ALLOC_MIN_MMAP_SIZE >> REGION_PAGE_BUCKET_SHIFT)
+	              <= (size_t)ALLOC_MIN_CHUNK_SIZE - (size_t)ALLOC_CHUNK_K_MAX,
+	              "the page-bucket table ends before unit 0's K_MAX tail");
+	static_assert(kBucketNewSlot[40] > (1u << REGION_PAGE_BUCKET_SHIFT),
+	              "a full-tier slot spans more than a page: one start per page");
+	char *mp = reinterpret_cast<char *>(
+	    (uintptr_t)p & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u));
+	const unsigned bucket = region_page_bucket(mp)[
+	    (size_t)(static_cast<char *>(p) - mp) >> REGION_PAGE_BUCKET_SHIFT];
 	if(__builtin_expect(bucket - 40u > (unsigned)ALLOC_NUM_BUCKETS - 41u, 0))
 		return deallocate_cold(p);
-	return tl_push(pg, bucket, p, chunk_obj, static_cast<uintptr_t>(entry >> 8) << shift);
+#ifndef NDEBUG
+	{
+		const size_t bit_index = static_cast<size_t>(
+		    static_cast<char *>(p) - chunk_obj->mempool()) >> chunk_obj->m_align_shift;
+		const unsigned entry = chunk_obj->m_sizes[bit_index];
+		assert(bucket == (entry & 0xFFu));
+		assert(tl_slot_bytes(bucket) ==
+		       (static_cast<uintptr_t>(entry >> 8) << chunk_obj->m_align_shift));
+	}
+#endif
+	return tl_push(pg, bucket, p, chunk_obj, tl_slot_bytes(bucket));
 }
 
 // Forward decl (real declaration with __attribute__((noinline)) sits next to

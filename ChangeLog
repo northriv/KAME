@@ -1,4 +1,27 @@
 * Tue Oct 13 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamepoolalloc: the full tier's malloc/free loop (6 KiB to 32 KiB) is
+  twice as fast on the Windows Xeon and 1.47x on Linux x86.  Its owner
+  free took the slot's bucket from m_sizes: back_offset, then the chunk's
+  m_sizes pointer and m_align_shift, then the entry -- three dependent
+  loads before the address of the thread list it pushes onto, which the
+  next malloc reads.  The bucket now also lives in a per-region page
+  table, one byte per 4 KiB page at region + 4096 in unit 0 (8 KiB,
+  between RegionMeta and chunk 1's metadata), written where the slot is
+  carved -- the one place m_sizes is written -- and read off `p` in one
+  load.  A full-tier slot is at least 6 KiB, so a page holds at most one
+  slot start; static_asserts hold that and the table's bounds.  The cap's
+  weight is now the bucket's slot size, which is what m_sizes recorded;
+  asserts compare both with m_sizes in debug builds.  Isolated as with
+  64 B: a measurement-only build with the 16 KiB bucket hard-wired ran
+  265 against 115.  Interleaved, Windows bench_loop 16 KiB 116 -> 236
+  M ops/s single thread (2.04x), 502 -> 907 on 4 processes (1.80x);
+  Linux (WSL, gcc 13, perf) 40.4 -> 27.5 cycles a malloc/free pair; 64 B,
+  1 KiB, 1 MiB and bench_xthread (64 B / 1 KiB / 16 KiB / mixed) level.
+  On Linux 16 KiB had not regressed with the thread lists (before 175,
+  after 184 here): the old free pushed onto a chunk cell found through
+  the same m_sizes chain.  Why the thread-list form cost Windows more
+  (183 -> 115) is not settled -- there are no counters on Windows -- but
+  the chain was the lever on both.
 - kamepoolalloc: the 64 B malloc/free loop is a quarter faster on x86
   again, and faster than before the thread lists (user: reproduced on
   Linux x86 as well as the Windows Xeon).  Since 5fc34e052 an owner free
