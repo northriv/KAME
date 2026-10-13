@@ -1071,3 +1071,26 @@ The `loop` re-run asked for above, done with the README's re-measurement
   mimalloc and jemalloc reproduced to about 2 %.
 
 Linux has not re-run `loop` on the two commits.
+
+## Run: Ohtaka (EPYC 7702, Linux), 2026-10-14 — `loop` on `78e57424c` / `e0974e402` (master `55f125f66`)
+
+The Linux `loop` re-run, on bare metal rather than the container or WSL 2,
+done with the README's Ohtaka re-measurement (`README_BENCH_OHTAKA.md` §5.2
+has the command, the arms' hashes and the table).  `bench_ab.sh --only loop
+--reps 9`, interleaved, clang 18.1.8, node `c15u05n2`; the same arms as the
+M5 run above, with mimalloc 3.3.2:
+
+- `78e57424c`: 64 B **1.44×** (`6ae486851` 303 against `e2c9e6dde` 210 M
+  ops/s); `e0974e402`: 16 KiB **1.73×** (tree 287 against `6ae486851` 166).
+  Each leaves the other sizes level.  Zen 2 behaves like the Windows
+  Broadwell-EP (1.44×, 2.04×), not the M5 Ultra (level).
+- v1.2.1 / tree: 0.86× / 0.79× / 0.60× at 64 B / 1 KiB / 16 KiB — the tree
+  is 1.16× / 1.26× / 1.67× v1.2.1.  The thread-list commit's cost here
+  (`e2c9e6dde` / v1.2.1: 0.80× at 64 B, 0.95× at 16 KiB; 1.26× at 1 KiB) is
+  gone and turned into a gain at all three sizes.
+- mimalloc / tree 1.07× / 0.71× / 0.33×.
+
+`alloc_tune_report` interleaved against v1.2.1 on another node
+(`README_BENCH_OHTAKA.md` §5.3) carries the bucket gain to 128 threads
+(1.08–1.30×) and finds two losses outside the bucket tier, 1 MiB at
+4 threads 0.82× and 8 MiB single-thread 0.87×, not yet bisected.
