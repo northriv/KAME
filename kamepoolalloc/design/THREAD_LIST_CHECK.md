@@ -1159,7 +1159,7 @@ and 1 MiB measured single-threaded too; 9 reps single thread, 5 reps
 above June.  Here it stays below the commit before the thread lists in all
 four configurations, 0.88–0.93× of `45f1d07f9` (each range overlaps, the
 direction does not vary), and 0.77–0.86× of June (part of that predates
-`5fc34e052`: June → `45f1d07f9` was already 0.86–0.90× at 64 B here).  So on
+`5fc34e052`: June → `45f1d07f9` was already 0.85–0.97× at 64 B here).  So on
 this core something of the 64 B cost remains beyond the bucket read.
 
 **16 KiB**: level, as in the run before last (0.94–1.05× of `45f1d07f9`).
