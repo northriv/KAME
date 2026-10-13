@@ -1001,10 +1001,55 @@ exclusivity (plain and `--mid`), fit and phase tests, churn and stress ran
 0 failures.  The M5 Ultra and Linux x86 should re-run `loop`; the M5 never
 showed the loss, and a gain there is not expected.
 
-16 KiB is untouched by it — another tier, still about 0.66× June's here.
+16 KiB is untouched by it — another tier, still about 0.66× June's here (see the 16 KiB cause below).
 
 `bench_compare.sh` at `78e57424c`, median of 5 — the README's Windows
 tables now: single thread 64 B 335, 1 KiB 242, 16 KiB 118, 64 KiB 69,
 256 KiB 63, 1 MiB 51, 4 MiB 33; 4 processes 64 B 1178, 16 KiB 498, 64 KiB
 237, 1 MiB 233.  The single-thread 1 MiB row is the noisy one: 51–65 for
 one binary, interleaved, before and after alike.
+
+**The 16 KiB cause, and `e0974e402`.**  16 KiB is the full tier (6 KiB to
+32 KiB, `m_sizes`, ALIGN 1024 / 4096).  Its loop takes the fast paths
+every time (`-DKAME_FL_STATS`: 5 misses in 1 M iterations), and its owner
+free took the bucket from `m_sizes` — `back_offset`, then the chunk's
+`m_sizes` pointer and `m_align_shift`, then the entry, three dependent
+loads before the address of the thread list it stores to.  Before
+`5fc34e052` the same chain led to the chunk's `m_freelist_head[local]`.
+Measurement-only arms, interleaved, Windows (clang 17) and Linux (WSL 2 on
+the same Xeon, gcc 13, `-O3`, perf in user mode):
+
+| arm | Windows 16 KiB, M ops/s | Linux 16 KiB, M ops/s | Linux cycles / pair |
+|---|---|---|---|
+| `45f1d07f9` (before the thread lists) | 183–185 | 166–175 | 41.7–41.9 |
+| `6ae486851` | 115–128 | 157–184 | 40.0–46.4 |
+| E1: 16 KiB bucket hard-wired | 253–265 | 247–277 | 26.4–26.7 |
+| E2: no list-cap accounting | 136 | 179 | 41.6 |
+| page table (`e0974e402`'s form) | 264 | 254 | 27.3 |
+
+So the chain is the lever on both systems, but only Windows regressed: on
+Linux the thread-list form costs what the chunk-cell form did.  Why it
+costs Windows 70 more M ops/s is not settled.  The TLS list head of the
+16 KiB bucket sat at low 12 bits `0x668` (a probe in the DLL), so it does
+not 4K-alias the 4 KiB-aligned slots, and Windows has no counters here;
+gcc on Windows hung at start-up and could not stand in for clang.
+`ld_blocks_partial.address_alias` (raw `r0107`) on Linux varies between 1
+and 4.5 a pair from run to run for the same binary, while cycles do not.
+
+`e0974e402`: one byte per 4 KiB page of a region at region + 4096, written
+beside the `m_sizes` entry in `allocate_pooled` (the only write site), read
+on the full-tier owner free.  A full-tier slot is at least 6 KiB, so a page
+holds at most one slot start (static_assert).  The cap weight became
+`tl_slot_bytes(bucket)`, the `N << shift` that `m_sizes` held; debug builds
+assert both.  Against `6ae486851`, interleaved: Windows 16 KiB 116 → 236
+single thread (2.04×), 502 → 907 on 4 processes (1.80×); Linux 40.4 →
+27.5 cycles a pair; 64 B 315 / 317 over 21 reps (its code is byte-for-byte
+the same), 64 KiB / 256 KiB / 1 MiB 0.97–1.08×, `bench_xthread -w 2` at
+64 B / 1 KiB / 16 KiB / mixed 0.99–1.02×.
+
+`bench_compare.sh` at `e0974e402`, the README's Windows tables now (the
+second of two runs; the first gave 64 KiB 48, interleaved 66–68 for both
+builds): single thread 64 B 315, 1 KiB 247, 16 KiB 256, 64 KiB 66,
+256 KiB 65, 1 MiB 63, 4 MiB 35; 4 processes 64 B 1157, 16 KiB 902, 64 KiB
+243, 1 MiB 220.  The M5 Ultra and Linux should re-run `loop` on both
+commits; neither touches a path the M5 measured a loss on.
