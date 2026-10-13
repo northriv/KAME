@@ -152,6 +152,12 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_calloc_zero_test alloc_calloc_zero_test.cpp)
     target_link_libraries(alloc_calloc_zero_test kamepoolalloc Threads::Threads)
 
+    # Over-aligned allocations come back aligned, 32 B .. 256 KiB, many at a
+    # time: kBucketAlign must say what each bucket's template is (on ILP32
+    # it once sent a 256-aligned request to bucket 16's ALIGN 128 slots).
+    add_executable(alloc_aligned_test alloc_aligned_test.cpp)
+    target_link_libraries(alloc_aligned_test kamepoolalloc Threads::Threads)
+
     # The fit lists (the room a variable-size chunk keeps when it cannot
     # serve a request, §fit): each slot taken from them must hold its
     # bucket's largest request, and a chunk must leave them before it is
@@ -416,6 +422,7 @@ if(USE_KAME_ALLOCATOR)
     add_test(NAME malloc_intercept_test COMMAND malloc_intercept_test)
     add_test(NAME alloc_huge_test COMMAND alloc_huge_test)
     add_test(NAME alloc_calloc_zero_test COMMAND alloc_calloc_zero_test)
+    add_test(NAME alloc_aligned_test COMMAND alloc_aligned_test)
     add_test(NAME alloc_fit_test COMMAND alloc_fit_test)
     add_test(NAME alloc_phase_test COMMAND alloc_phase_test)
     add_test(NAME atomic_intrusive_dispose_test COMMAND atomic_intrusive_dispose_test)

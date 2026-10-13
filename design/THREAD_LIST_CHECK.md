@@ -236,6 +236,136 @@ predates it.  Re-check on the M5 and on Linux:
    calling thread's lists.  `alloc_phase_test` now frees in a random order
    too; re-check it, and the thread-exit soaks, on Linux.
 
+## Run: Linux, 2026-10-12 (master `ac4144493`, the code of `04d904ccf`)
+
+Cloud container, x86-64, g++ 13.3, 4 vCPU, glibc; the six trees of
+`POOL_FL_AVAIL_LINUX_CHECK.md` §1 (LP64, i586, i486; release `-O3 -DNDEBUG`
+and asserts on `-O2 -g -UNDEBUG`), rebuilt at `ac4144493` (only this note
+differs from `04d904ccf`).  Soaks scored by exit status, 4 processes at a
+time, the tests of one stage interleaved round by round, an `LD_PRELOAD`
+SIGSEGV reporter on every run.
+
+| check | result |
+|---|---|
+| `check_no_dcas.sh` (gcc-multilib) | **3/3 ok** — phase 1 builds the `KAME_FORCE_UINT32_BITMAP` fallback with the claim's chain loop; the i486 objects of both libraries export no `__atomic_*_8` |
+| build LP64 / i586, release and asserts | clean |
+| build i486, release and asserts | **`bench_frame` fails to link** (below); every other target builds (`-k`) |
+| ctest LP64 release / asserts | 47/47, 47/47 |
+| ctest i586 release / asserts | 45/47, 46/47: **`alloc_fit_test`** (below); release also `transaction_wait_budget_test`, 3/3 PASS alone |
+| ctest i486 release / asserts | 39/40, 39/40: **`alloc_fit_test`** |
+| `alloc_tsd_exclusivity_test` / `_var_test` / `_mid_test`, LP64 release | **0 / 2000** each |
+| the same, i586 and i486 release | **0 / 500** each (six arms) |
+| `alloc_fit_test`, LP64 release | 0 / 300 |
+| `alloc_thread_exit_free_test`, `_dynamic`, `alloc_thread_exit_unarmed_test`, `_dynamic`, LP64 release | **0 / 200** each |
+
+**Item 1 (ILP32) — two findings, neither in the allocator.**
+
+1. *`bench_frame` does not link on i486.*  `std::atomic<std::uint64_t>
+   g_loads` (`tests/bench/bench_frame.cpp:323`) lowers to
+   `__atomic_fetch_add_8` and `__atomic_load_8`, which an i486 target has
+   no instruction for.  Without `-k` the build stops there, so the rest of
+   the i486 test tree (`alloc_fit_test` included) is never built.  The
+   libraries are clean — the probe above is what guards them — and
+   `check_no_dcas.sh`'s scope note allows a bench a 64-bit tally, but this
+   one breaks the whole i486 test build.  A pointer-width counter (or
+   excluding `bench_frame` when `ATOMIC_LLONG_LOCK_FREE != 2`) would fix it.
+2. *`alloc_fit_test` fails on every ILP32 tree, deterministically (5/5
+   each); LP64 passes.*  Output: "no probe landed in the fillers' chunks --
+   no room was reused" for both tiers; 0 slots too short, 0 blocks
+   overwritten.  The test's geometry is LP64's: "a 4-unit run at the end of
+   every 64-unit bitmap word (N = 6: ten per word)".  On ILP32 `FUINT` is
+   `uintptr_t`, a 32-unit word: five 160 B fillers (N = 6) leave 2 units,
+   too few for the 96 B probe (N = 4), and the ALIGN 256 sizes do not map
+   the same way either.  The fit lists themselves work there: a scratch copy
+   taking the sizes as arguments (not committed) found reuse on ILP32 at
+   other sizes, and two such pairs pass 5/5 on all four ILP32 trees,
+   asserts on included, with the test's full checks:
+
+   | ILP32 pair (filler, probe) | probes among the fillers, round 1 / 2 | short slots | overwritten |
+   |---|---|---|---|
+   | 180 B, 96 B (6000 / 3000) | 1499 / 3000 | 0 | 0 |
+   | 1000 B, 512 B (3000 / 3000) | 2927 / 300 | 0 | 0 |
+
+   So the test wants its sizes chosen by `sizeof(void *)` (or derived from
+   the bitmap word's width), not a fix in §fit.
+
+Item 3 (thread exit): the lists' hand-back at teardown is exercised by the
+exclusivity soaks and the four thread-exit soaks above, 0 failures in all.
+Items 4–6 (Zen 2, tails, memory) are performance questions for a real host.
+
+## Run: Linux, 2026-10-12 (master `6b61c6e4a`, the §tl-cap code of `f9e5cb9b3`)
+
+Same container and six trees as the run above, rebuilt at `6b61c6e4a`, plus
+three harsh trees built with `-DKAME_TL_SEG_BYTES=1024u -DKAME_TL_SEGS=1`
+(LP64 release, LP64 asserts, i586 asserts; the flags confirmed in their
+CMake caches).  Items 2, 3 and 5 of the list above.
+
+| check | result |
+|---|---|
+| `check_no_dcas.sh` | **3/3 ok** — §tl-cap adds no 64-bit atomic |
+| builds | clean, except `bench_frame` on i486 again (still `std::atomic<std::uint64_t>`, see the run above) |
+| ctest LP64 release / asserts | 48/48, 48/48 |
+| ctest harsh LP64 release / asserts | **48/48, 48/48** |
+| ctest i586 release / asserts, harsh i586 asserts | 45/48, 45/48, 46/48 |
+| ctest i486 release / asserts | 39/41, 38/41 |
+
+On the ILP32 trees the failures are `alloc_fit_test` (as in the run above:
+its sizes are LP64's), **`alloc_phase_test`** (below) and, on three of them,
+`transaction_wait_budget_test` under `ctest -j3`, 3/3 PASS alone each time.
+
+Soaks, by exit status, 4 at a time, each stage's tests interleaved:
+
+| tree | `alloc_phase_test` | `alloc_rt_thread_test` | `alloc_thread_exit_*` (4) | exclusivity 32 B / var / mid | `alloc_fit_test` |
+|---|---|---|---|---|---|
+| LP64 release | 0 / 200 | 0 / 200 | 0 / 200 each | 0 / 500 each | 0 / 500 |
+| harsh LP64 release | 0 / 100 | 0 / 100 | 0 / 100 each | 0 / 100 each | — |
+| harsh LP64 asserts | 0 / 100 | 0 / 100 | 0 / 100 each | 0 / 100 each | — |
+| harsh i586 asserts | 100 / 100 (threshold, below) | 0 / 100 | 0 / 100 each | 0 / 100 each | — |
+| i586 release | 100 / 100 (threshold) | 0 / 100 | 0 / 100 each | 0 / 100 each | — |
+| i486 release | 100 / 100 (threshold) | 0 / 100 | 0 / 100 each | 0 / 100 each | — |
+
+**`alloc_phase_test` on ILP32: the cap works; the test's threshold is
+LP64's.**  Every ILP32 failure (300 runs) is the one message "the second
+phase stacked on the first", with 0 blocks overwritten in all 1,200 pair
+checks and no crash.  The numbers, i586 (i486 identical):
+
+| | 64 B → 1 KiB: units after phase 1 / after free + trim / after phase 2 | 1 KiB alone (first phase of 1 KiB → 64 B) |
+|---|---|---|
+| LP64, `6b61c6e4a` | 262 / 20 / 370 — PASS | 327 |
+| ILP32, `6b61c6e4a` | 262 / 20 / **543** — FAIL (543 × 2 > 262 × 3) | 489 |
+| LP64, `ac4144493` library (before the cap) | 262 / 262 / 612 — FAIL, as it should | — |
+| ILP32, `ac4144493` library | 262 / 262 / 785 — FAIL, as it should | — |
+
+The freed phase does go (262 → 20 units, also on ILP32), and 543 ≈ 20 +
+the 1 KiB phase's own cost (489–523 units on ILP32).  What differs is that
+cost: a 1 KiB request has the same 1080 B slot on both
+(`kame_pool_malloc_usable_size`), but on ILP32 the bitmap word holds 32
+units, not 64, and the 1 KiB class packs worse into it (~1.5× the units —
+the same ratio before the cap: 523 vs 350 units for the 1 KiB phase on the
+`ac4144493` library).  The test's `u3 ≤ 1.5 × u1` assumes LP64's packing
+("1 KiB requests round up to 1280 B slots"); measured against the second
+size's own cost, or with a per-width factor, it would pass.  The harsh i586
+tree is the same (262 / 3 / 526; 1 KiB alone 520).
+
+**Item 5, memory — RSS on Linux.**  One thread, 400 MiB of the first size
+painted and freed, then 400 MiB of the second painted, plain `malloc` /
+`free` (the pool interposes them), VmHWM; LP64, the same binary against
+each library:
+
+| phase change | `6b61c6e4a` | before the cap (`ac4144493`) | glibc |
+|---|---|---|---|
+| 64 B → 1 KiB | **603 MiB** | 1005 | 552 |
+| 64 B → 1 KiB, `kame_pool_trim()` / `malloc_trim()` between | **553** | 955 | 552 |
+| 4 KiB → 64 B | **682** | 863 | 553 |
+| 4 KiB → 64 B, trim between | **466** | 863 | 553 |
+
+After the first phase is freed, RSS is 135 MiB (64 B) and 227 MiB (4 KiB)
+on `6b61c6e4a` against 460 and 407 before; the trim takes it to 15 and 11.
+The M3's 1053 → 631 (581) and 891 → 707 (587) have the same shape.
+
+Items 1 and 4 (the owner free's cost, the slowest free) are timing on a
+real host; not measured on this VM.
+
 ## Run: M5 Ultra, 2026-10-13 — §tl-cap (master `6b61c6e4a`)
 
 Same machine and toolchain as the 2026-10-12 run.  Arms: tree at
@@ -334,3 +464,35 @@ freed in allocation order, then 400 MiB of B-byte blocks; peak
 | 4 KiB → 64 B | 891 MiB | 707 MiB | 588 MiB | 467 MiB |
 
 The M3's numbers to the MiB.
+
+## Since the Linux runs: `75369a9a3` and `10e5bd4bf` — what to re-run on ILP32
+
+The three ILP32 findings above were in the tests, and `10e5bd4bf` fixes
+them: `bench_frame`'s counter is pointer-width, `alloc_fit_test` takes its
+sizes by the bitmap word's width, and `alloc_phase_test` bounds what the
+second phase leaves by what the second size takes alone, not by the first
+phase's units.  Reading item 2 turned up a real ILP32 bug, fixed in
+`75369a9a3`: `kBucketAlign` carried LP64's 32 and 256 for buckets 8 and
+16, which `ALLOC_ALIGN` makes ALIGN 128 on ILP32.  A 256-aligned request
+of up to 248 B went to bucket 16 and got every other slot only 128-aligned
+(`aligned_alloc`, `posix_memalign`, aligned `operator new` on POSIX), and
+the ALIGN 128 template had no fit classes.  A static_assert now ties every
+bucket's `kBucketAlign` to its template.  LP64's `allocator.o` is
+byte-identical to before; the ILP32 side has been checked only at compile
+time (macOS clang `-target i386-apple-macos10.13 -fsyntax-only`, with
+static_asserts on the picks and the classes).  On the four ILP32 trees:
+
+1. **Build without `-k`.**  The i486 trees should build whole,
+   `bench_frame` included.
+2. **ctest.**  `alloc_fit_test`, `alloc_phase_test` and the new
+   `alloc_aligned_test` should pass.  `alloc_fit_test`'s second ILP32 tier
+   is the ALIGN 128 one (256 B fillers, 128 B probes), which had no fit
+   classes before `75369a9a3`: its "among the fillers" counts are §fit's
+   first run there.
+3. **The alignment bug at run time.**  It has only been read off the
+   tables so far.  `alloc_aligned_test` against a library built at
+   `460730c35` (swap `libkamepoolalloc.so` with `LD_LIBRARY_PATH`) should
+   fail on ILP32 with "misaligned: alignment 256, size …", and pass
+   against `75369a9a3`'s; on LP64 both pass.
+4. **Soaks.**  `alloc_phase_test` and `alloc_fit_test`, 100 runs each per
+   ILP32 tree.
