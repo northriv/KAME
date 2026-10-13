@@ -166,9 +166,9 @@ if(USE_KAME_ALLOCATOR)
     target_link_libraries(alloc_fit_test kamepoolalloc Threads::Threads)
 
     # A thread that frees one size and allocates another must not keep the
-    # first size's memory (§tl-cap: sealed segments, the oldest returned to
-    # its chunks, emptied chunks released).  Uses kame_pool_get_stats /
-    # kame_pool_trim.
+    # first size's memory (§tl-cap: past the cap a free returns its slot,
+    # emptied chunks are released, idle buckets give their lists back as the
+    # thread grows).  Uses kame_pool_get_stats / kame_pool_trim.
     add_executable(alloc_phase_test alloc_phase_test.cpp)
     target_link_libraries(alloc_phase_test kamepoolalloc Threads::Threads)
 

@@ -239,22 +239,24 @@ on per-thread **fit lists**, filed by the largest of the tier's sizes it
 still fits; a request tries at most four of them.  The slots that
 cross-thread frees return to a fixed-size chunk's bitmap are claimed a
 whole word per CAS and handed to the thread's list in one store — the claim
-of the earlier §word-cache, without its cold-path mask.  A thread keeps
-about 4 MiB of its freed memory per bucket: when a list reaches 256 KiB it
-is sealed as a segment and starts again with the newest slot, and past 15
-sealed segments the oldest goes back to its chunks in one go, where a chunk
-it empties is released (`KAME_TL_SEG_BYTES`, `KAME_TL_SEGS`; a realtime
-thread returns single slots instead).  So a thread that frees one size and
-goes on to another does not keep the first — 400 MiB of 64 B freed, then
-400 MiB of 1 KiB, peaked at 1053 MiB before and 631 MiB now (581 after
-`kame_pool_trim()` empties the recycle cache; mimalloc 480) — at the price of
-the free that returns a segment: freeing 200 MiB of 64 B or 1 KiB blocks on
-the M3, the slowest free took 31–56 µs (without the cap, 4–39 µs).  The cap
-bounds the bytes kept, not the chunks they hold: freed in a random order,
-the last megabytes of frees lie on every chunk.  So before a thread takes a
-new chunk, any bucket whose list has not moved since the last time gives
-back everything it keeps, and `kame_pool_trim()` gives back all of the
-calling thread's.
+of the earlier §word-cache, without its cold-path mask.  A thread keeps at
+most 4 MiB of its freed memory per bucket, a slot counting its size and,
+below the full tier, 1 KiB more, so that a list of small slots stays short
+too (`KAME_TL_CAP_BYTES`, `KAME_TL_SLOT_COST`); past that a free returns its
+own slot to its chunk, where a chunk it empties is released.  So a thread
+that frees one size and goes on to another does not keep the first — 400 MiB
+of 64 B freed, then 400 MiB of 1 KiB, peaked at 1053 MiB before and 631 MiB
+now (581 after `kame_pool_trim()` empties the recycle cache; mimalloc 480) —
+and no free pays for more than its own slot: the return touches that slot's
+chunk, not slots freed long ago.  (Returning the oldest instead, 256 KiB of
+the list at a time, made one free of a random-order mass free take up to
+4.9 ms at 16 B on the M3, each old slot a dependent miss; returning the
+freed slot, 11 µs at most.)  The cap bounds the bytes kept, not the chunks
+they hold: freed in a random order, a list's slots lie on almost every
+chunk.  So before a thread takes a new chunk, the buckets whose lists have
+not moved since the last time give back up to 256 slots between them
+(`KAME_TL_RECLAIM_SLOTS`, realtime threads included), and
+`kame_pool_trim()` gives back all of the calling thread's.
 
 MacBook Air M3 against v1.2.1, interleaved (`bench_ab.sh`, median of 3;
 `tests/bench/micro`, median of 5): single-thread random-replacement churn
@@ -1228,7 +1230,7 @@ four-tier general allocator.  Selected milestones (full history in `git log`):
 | 31    | Windows free-family IAT redirect — pool coexists with Qt / libc++ on PE/COFF |
 | 36 / S7 | lock-free orphan-chunk reclaim — `atomic_shared_ptr` chain (owner-exit push, sweep-reclaim, adopt + chunk self-ref owner-ref) replaces the leak-prone ABA Treiber stack; TLA+-verified, now the default |
 | 75    | Realtime per-thread gating (deferred reclaim + capped backlog), `kame_pool_prewarm()` (page-touching), `kame_pool_rt_drain()`, `kame::rt_section`, violation counters, and the written contract |
-| thread-list / fit | owner frees onto per-thread per-bucket lists; fit lists for bitmap room; FS=true misses claim a whole bitmap word — no walk over chunks on the allocation path |
+| thread-list / fit | owner frees onto per-thread per-bucket lists; fit lists for bitmap room; FS=true misses claim a whole bitmap word — no walk over chunks on the allocation path.  §tl-cap: a list holds ≤ 4 MiB, past that a free returns its own slot; idle buckets give back ≤ 256 slots per new chunk |
 
 ## Acknowledgements
 

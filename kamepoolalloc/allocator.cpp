@@ -308,9 +308,9 @@ static inline uint32_t kame_owner_id() noexcept {
 // chunk's bitmap, as a freelist entry was, so the chunk counts as live and
 // is never released under the list; thread exit hands every list back to
 // the slots' chunk freelists, which its walk drains to the bitmaps.
-// (§tl-cap) A thread keeps about four megabytes of its freed memory per
-// bucket: past that the oldest goes back to its chunks, so memory it no
-// longer allocates is released (tl_push, tl_seal).  A chunk's m_freelist_head[] otherwise only carries
+// (§tl-cap) A list holds at most KAME_TL_CAP_BYTES of freed memory: past it
+// a free goes back to its chunk, so memory a thread no longer allocates is
+// released (tl_push).  A chunk's m_freelist_head[] otherwise only carries
 // an FS=true chunk's slots to a miss -- its pre-fill, or the rest of a word
 // allocate_pooled claimed -- which tc_miss moves onto the empty list whole.
 constexpr bool bucket_is_var(unsigned b) noexcept {
@@ -350,17 +350,14 @@ static_assert(tier_local_ids_distinct() && kTierLocalBucket.v[0][0] == 6
 #ifdef KAME_FL_STATS
 struct FlStats {
 	std::atomic<uintptr_t> miss{0}, splice{0}, fit_filed{0}, fit_taken{0}, spill{0}, spill_release{0},
-	    sealed{0}, seg_revived{0}, seg_returned{0}, idle_reclaimed{0};
+	    idle_returned{0};
 	~FlStats() {
 		std::fprintf(stderr, "[kame fl-stats] misses=%lu splices=%lu | fit filed %lu taken %lu"
-		             " | sealed %lu revived %lu, slots returned %lu, spilled %lu, released %lu"
-		             " | idle buckets reclaimed %lu\n",
+		             " | spilled %lu, idle slots returned %lu, chunks released %lu\n",
 		             (unsigned long)miss.load(), (unsigned long)splice.load(),
 		             (unsigned long)fit_filed.load(), (unsigned long)fit_taken.load(),
-		             (unsigned long)sealed.load(), (unsigned long)seg_revived.load(),
-		             (unsigned long)seg_returned.load(),
-		             (unsigned long)spill.load(), (unsigned long)spill_release.load(),
-		             (unsigned long)idle_reclaimed.load());
+		             (unsigned long)spill.load(), (unsigned long)idle_returned.load(),
+		             (unsigned long)spill_release.load());
 	}
 };
 static FlStats g_fl_stats;
@@ -371,37 +368,49 @@ static FlStats g_fl_stats;
 #  define KAME_FLS_ADD(f, n) ((void)0)
 #endif
 //! (§thread-list) Push `p` onto this thread's list for `bucket`.
-// (§tl-cap) How much of its own freed memory a thread keeps per bucket.  A
-// list holds up to a segment of it, KAME_TL_SEG_BYTES; a free that would
-// take it past that seals the list as a segment (KameTlsPage::m_seg) and
-// starts it again with the new slot -- the newest stay hot -- and past
-// KAME_TL_SEGS sealed segments the oldest, coldest one goes back to its
-// chunks in one go (tl_seal), where a chunk it empties is released and a
-// partly freed one waits on the fit lists.  A miss takes the newest segment
-// back before anything else.  Without it a thread that frees one size and
-// goes on to allocate another kept the first size's memory for good (400
-// MiB of 64 B freed, then 400 MiB of 1 KiB: 1053 MiB against mimalloc's
-// 480; now 631).  About 4 MiB in all: under random replacement the free
-// slots of a bucket wander up to a few MiB, and a 1 MiB cap spilled half as
-// often again and left 15 % more RSS (replace1, 100 K live of 16..4096 B).
-// 256 KiB segments: the free that returns one pays for it -- freeing 200 MiB
-// of 64 B or 1 KiB on the M3, the slowest free took 31..56 us with 256 KiB
-// segments (once 191), 91..120 us with 1 MiB ones; master 4..39 us.  A
-// realtime thread seals nothing: each free past a segment returns its own
-// slot, so none pays for a segment.  `bytes` is the slot's size as the
-// caller has it to hand (a bucket * 16, the borrow prefix's SIZE,
-// N << shift): any measure of it will do.
-#ifndef KAME_TL_SEG_BYTES
-#  define KAME_TL_SEG_BYTES (256u << 10)
+// (§tl-cap) The cap of a bucket's list: KAME_TL_CAP_BYTES of memory its
+// owner freed onto it.  Beyond it a free goes back to its chunk's bitmap
+// itself (owner_spill), where an emptied chunk is released and a partly
+// freed one waits on the fit lists -- without it a thread that frees one size
+// and goes on to allocate another kept the first size's memory for good (400
+// MiB of 64 B freed, then 400 MiB of 1 KiB: 1053 MiB against mimalloc's 480;
+// with it 631).  The freed slot goes, not the oldest: its return touches only
+// its chunk's bitmap word and header, which stay warm, while an old slot's
+// way back runs through memory freed long ago, a dependent miss a slot.
+// f9e5cb9b3 returned the oldest -- a list sealed at 256 KiB, past 15 of those
+// the oldest returned in one free -- and freeing 200 MiB in a random order on
+// the M3 then took up to 4.9 ms in one free at 16 B (1.2 ms at 64 B), 130 ns
+// a free on average; returning the freed slot, 11 us at most and 13 ns a free
+// (7 ns with no cap at all).  4 MiB: under random replacement the free slots
+// of a bucket wander up to a few MiB, and 1 MiB spilled half as often again
+// and left 15 % more RSS (replace1, 100 K live of 16..4096 B).  A slot below
+// the full tier counts KAME_TL_SLOT_COST more than its size, so that a list of
+// small slots is short too: the chunks a list can hold, and what
+// tl_reclaim_idle walks to give them back, go by its slots, not its bytes --
+// 4 MiB of 16 B slots is 262144 of them, with the cost about 4000 (400 MiB of
+// 16 B freed in a random order, then 400 MiB of 1 KiB: 899 MiB without it,
+// 777 with it, as with the oldest returned).  The full tier's slots are 4 KiB
+// and up, few enough already, and there the add alone moved bench_loop 16 KiB
+// to 0.93x, by code placement.  `bytes` is that weight as the caller has it to
+// hand (a bucket * 16, the borrow prefix's SIZE, N << shift; plus the cost):
+// any measure of it will do.
+#ifndef KAME_TL_CAP_BYTES
+#  define KAME_TL_CAP_BYTES (4u << 20)
 #endif
-#ifndef KAME_TL_SEGS
-#  define KAME_TL_SEGS 15
+#ifndef KAME_TL_SLOT_COST
+#  define KAME_TL_SLOT_COST 1024u
+#endif
+#if defined(KAME_TL_SEG_BYTES) || defined(KAME_TL_SEGS)
+#  error "KAME_TL_SEG_BYTES / KAME_TL_SEGS went with the sealed segments: past KAME_TL_CAP_BYTES a list returns the freed slot"
 #endif
 constexpr unsigned tl_slot_bytes(unsigned b) noexcept {
 	return (b <= 23u) ? (b ? b * 16u : 16u) : kBucketNewSlot[b];
 }
-static void tl_seal(KameTlsPage *pg, unsigned bucket, void *p,
-                    PoolAllocatorBase *chunk, uintptr_t bytes) noexcept;
+// What a slot counts for against the cap: its size, and below the full tier
+// KAME_TL_SLOT_COST more, so that a list of small slots is short too.
+constexpr unsigned tl_slot_weight(unsigned b) noexcept {
+	return tl_slot_bytes(b) + ((b < 40u) ? (unsigned)(KAME_TL_SLOT_COST) : 0u);
+}
 static void tl_return_bucket(KameTlsPage *pg, unsigned b) noexcept;
 static void tl_reclaim_idle() noexcept;
 static inline void tl_push(KameTlsPage *pg, unsigned bucket, void *p,
@@ -411,8 +420,8 @@ static inline void tl_push(KameTlsPage *pg, unsigned bucket, void *p,
 	uintptr_t below = bytes;
 	if(head) {   // the head's second word; every slot is >= 16 B
 		below += reinterpret_cast<uintptr_t *>(head)[1];
-		if(__builtin_expect(below > (uintptr_t)(KAME_TL_SEG_BYTES), 0))
-			return tl_seal(pg, bucket, p, chunk, bytes);
+		if(__builtin_expect(below > (uintptr_t)(KAME_TL_CAP_BYTES), 0))
+			return PoolAllocatorBase::owner_spill(chunk, p);
 	}
 	reinterpret_cast<char **>(p)[0] = head;
 	reinterpret_cast<uintptr_t *>(p)[1] = below;
@@ -733,19 +742,6 @@ struct AllocThreadExitCleanup {
                     char *next = *reinterpret_cast<char **>(s);
                     PoolAllocatorBase::tl_return_to_chunk(s);
                     s = next;
-                }
-                // (§tl-cap) And the sealed segments, each linked from its
-                // first slot's second word.
-                char *seg = pg->m_seg[b];
-                pg->m_seg[b] = nullptr;
-                while(seg) {
-                    char *older = reinterpret_cast<char **>(seg)[1];
-                    for(char *t = seg; t; ) {
-                        char *next = *reinterpret_cast<char **>(t);
-                        PoolAllocatorBase::tl_return_to_chunk(t);
-                        t = next;
-                    }
-                    seg = older;
                 }
             }
         }
@@ -2107,7 +2103,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 			else
 				bucket = (static_cast<unsigned>(*reinterpret_cast<std::uint64_t *>(p - 8)) >> 16) & 0xFFu;
 			if(bucket - 1u < (unsigned)ALLOC_NUM_BUCKETS - 1u) {
-				tl_push(kame_page(), bucket, p, this, tl_slot_bytes(bucket));
+				tl_push(kame_page(), bucket, p, this, tl_slot_weight(bucket));
 				return false;
 			}
 		}
@@ -2456,7 +2452,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	if(static_cast<PoolAllocatorBase *>(s_tls.my_chunk) == this) {
 		// (§thread-list) Onto our list for the chunk's one bucket; the slot
 		// stays bit-set in the bitmap, as on any list.
-		tl_push(kame_page(), this->m_base_bucket, p, this, tl_slot_bytes(this->m_base_bucket));
+		tl_push(kame_page(), this->m_base_bucket, p, this, tl_slot_weight(this->m_base_bucket));
 		return false;
 	}
 	// (§35) Orphan adoption DISABLED here — see the FS=false sibling in the
@@ -2551,17 +2547,6 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 void *
 PoolAllocator<ALIGN, FS, DUMMY>::tc_miss(unsigned bucket, unsigned int SIZE) noexcept {
 	KAME_FLS(miss);
-	{
-		// (§tl-cap) The newest sealed segment of our freed slots, back as the
-		// list: its first slot serves, the rest carry their own counts.
-		KameTlsPage *pg = kame_page();
-		if(char *seg = pg->m_seg[bucket]) {
-			pg->m_seg[bucket] = reinterpret_cast<char **>(seg)[1];
-			pg->m_slots[bucket].freelist_head = *reinterpret_cast<char **>(seg);
-			KAME_FLS(seg_revived);
-			return seg;
-		}
-	}
 	void *p = allocate_chunk_path(SIZE);
 	if constexpr (DUMMY) {
 		if(auto *pin = s_tls.my_chunk) {
@@ -3054,8 +3039,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 		}
 		if(void *p = sweep()) return fill_check(p);
 	}
-	// (§tl-cap) A new chunk: first, what the thread's idle buckets keep goes
-	// back -- the chunks it held may empty and give this one its units.
+	// (§tl-cap) A new chunk: first, some of what the thread's idle buckets
+	// keep goes back -- the chunks it held may empty and give this one its
+	// units.
 	tl_reclaim_idle();
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *chunk = create_allocator();
 	if( !chunk) {
@@ -3204,15 +3190,16 @@ PoolAllocatorBase::owner_spill(PoolAllocatorBase *chunk, void *p) noexcept {
 	chunk->owner_return(e);
 }
 
-// (§tl-cap) A segment's slots in list order -- runs of one chunk's, since a
-// list fills from few chunks at a time -- handed back a run at a time.
+// (§tl-cap) A null-terminated list of the thread's slots, in list order --
+// runs of one chunk's, since a list fills from few chunks at a time --
+// handed back to their chunks a run at a time.
 KAME_NOINLINE void
-PoolAllocatorBase::tl_return_segment(char *seg) noexcept {
+PoolAllocatorBase::tl_return_list(char *head) noexcept {
 	constexpr int RUN = 256;
 	CrossDeallocEntry run[RUN + 1];
 	PoolAllocatorBase *cur = nullptr;
 	int n = 0;
-	for(char *s = seg; s; ) {
+	for(char *s = head; s; ) {
 		char *next = *reinterpret_cast<char **>(s);
 		PoolAllocatorBase *c = chunk_of_slot(s);
 		if(c != cur || n == RUN) {
@@ -3224,7 +3211,6 @@ PoolAllocatorBase::tl_return_segment(char *seg) noexcept {
 			n = 0;
 		}
 		run[n++] = {c, s};
-		KAME_FLS(seg_returned);
 		s = next;
 	}
 	if(n) {
@@ -3233,88 +3219,59 @@ PoolAllocatorBase::tl_return_segment(char *seg) noexcept {
 	}
 }
 
-// (§tl-cap) The list reached a segment: seal it, and start it again with `p`.
-// Past KAME_TL_SEGS sealed segments the oldest goes back to its chunks.  A
-// realtime thread returns `p` itself instead.
-static KAME_NOINLINE void
-tl_seal(KameTlsPage *pg, unsigned bucket, void *p, PoolAllocatorBase *chunk,
-        uintptr_t bytes) noexcept {
-	if(rt_defer_active())
-		return PoolAllocatorBase::owner_spill(chunk, p);
-	KAME_FLS(sealed);
-	char *&h = pg->m_slots[bucket].freelist_head;
-	char *full = h;   // non-null: a slot is far smaller than a segment
-	reinterpret_cast<char **>(full)[1] = pg->m_seg[bucket];
-	pg->m_seg[bucket] = full;
-	reinterpret_cast<char **>(p)[0] = nullptr;
-	reinterpret_cast<uintptr_t *>(p)[1] = bytes;
-	h = static_cast<char *>(p);
-	char **link = &pg->m_seg[bucket];
-	for(int k = 0; *link && k < KAME_TL_SEGS; ++k)
-		link = &reinterpret_cast<char **>(*link)[1];
-	if(char *oldest = *link) {
-		*link = nullptr;
-		PoolAllocatorBase::tl_return_segment(oldest);
-	}
-}
-
-// (§tl-cap) Everything a bucket keeps -- its list and its sealed segments --
-// back to the chunks.
+// (§tl-cap) A bucket's whole list back to the chunks.
 static void
 tl_return_bucket(KameTlsPage *pg, unsigned b) noexcept {
 	char *head = pg->m_slots[b].freelist_head;
-	char *seg = pg->m_seg[b];
 	pg->m_slots[b].freelist_head = nullptr;
-	pg->m_seg[b] = nullptr;
 	if(head)
-		PoolAllocatorBase::tl_return_segment(head);
-	while(seg) {
-		char *older = reinterpret_cast<char **>(seg)[1];   // before its chunk can go
-		PoolAllocatorBase::tl_return_segment(seg);
-		seg = older;
-	}
+		PoolAllocatorBase::tl_return_list(head);
 }
 
 // (§tl-cap) The list heads tl_reclaim_idle saw last, per bucket.
 static ALLOC_TLS char *tls_tl_mark[ALLOC_NUM_BUCKETS];
 
-// (§tl-cap) Before the thread takes a new chunk, what its idle buckets keep
-// goes back.  A bucket whose list head has not moved over the last two new
-// chunks had no free and no allocation meanwhile (or a malloc and a free of
-// the same block -- returned all the same: that bucket was not using what
-// lay below); its list and segments serve nobody, and each slot on them
-// holds a chunk that may be otherwise empty.  A random-order free of a large
-// heap leaves its last few megabytes of frees on every chunk: 400 MiB of 64 B
-// freed in random order, then 400 MiB of 1 KiB, peaked at 1003 MiB with the
-// cap alone, 627 with this.  Back to their chunks, which release what
-// empties, so the new chunk can come from those units.  Two intervals, not
-// one: with sparse frees across many buckets one interval took buckets
-// still in use (heavy, 1 free in 32 at 32..512 B: 507 takes, +5 %).  51 list
-// heads compared per new chunk, the first unmoved interval noted in the
-// mark's low bit (a slot is 16-aligned); the return is O(slots the idle
-// buckets keep), once.  A realtime thread pays for no bulk return: it skips
-// this.
+#ifndef KAME_TL_RECLAIM_SLOTS
+#  define KAME_TL_RECLAIM_SLOTS 256
+#endif
+// (§tl-cap) Before the thread takes a new chunk, some of what its idle
+// buckets keep goes back.  A bucket whose list head has not moved since the
+// last new chunk had no free and no allocation meanwhile (or a malloc and a
+// free of the same block -- returned all the same: that bucket was not using
+// what lay below), and its list serves nobody.  The cap bounds the bytes a
+// list keeps, not the chunks they hold: freed in a random order, a heap's last
+// frees lie on almost every chunk, each keeping a chunk that may be otherwise
+// empty -- 400 MiB of 64 B freed in random order, then 400 MiB of 1 KiB, held
+// 1009 MiB without this, 627 with it.  At most KAME_TL_RECLAIM_SLOTS slots go per new
+// chunk, off the list heads, the rest at the next ones: the return walks
+// slots freed long ago, a dependent miss each in a random order, so a whole
+// list (once returned at a stroke) could hold one malloc for milliseconds.
+// Bounded, it runs on realtime threads too.  One interval: a bucket judged
+// idle while still in use loses at most the slots taken, and claims them
+// again from the bitmaps.  51 list heads compared per new chunk.
 static KAME_NOINLINE void
 tl_reclaim_idle() noexcept {
-	if(rt_defer_active())
-		return;
 	KameTlsPage *pg = kame_page();
 	char **mark = tls_tl_mark;
+	unsigned budget = KAME_TL_RECLAIM_SLOTS;
 	for(unsigned b = 1; b < (unsigned)ALLOC_NUM_BUCKETS; ++b) {
 		char *head = pg->m_slots[b].freelist_head;
-		const uintptr_t m = reinterpret_cast<uintptr_t>(mark[b]);
-		if(reinterpret_cast<uintptr_t>(head) != (m & ~(uintptr_t)1u)
-		   || ( !head && !pg->m_seg[b])) {
-			mark[b] = head;   // moved since, or nothing kept
+		if(head != mark[b] || !head || !budget) {
+			mark[b] = head;   // moved since, nothing kept, or no budget left
 			continue;
 		}
-		if( !(m & 1u)) {
-			mark[b] = reinterpret_cast<char *>(m | 1u);   // one interval unmoved
-			continue;
+		char *last = head, *rest = *reinterpret_cast<char **>(head);
+		unsigned k = 1;
+		for(; rest && k < budget; ++k) {
+			last = rest;
+			rest = *reinterpret_cast<char **>(rest);
 		}
-		mark[b] = nullptr;
-		KAME_FLS(idle_reclaimed);
-		tl_return_bucket(pg, b);
+		*reinterpret_cast<char **>(last) = nullptr;
+		pg->m_slots[b].freelist_head = rest;   // carries its own count
+		mark[b] = rest;
+		budget -= k;
+		KAME_FLS_ADD(idle_returned, k);
+		PoolAllocatorBase::tl_return_list(head);
 	}
 }
 
@@ -3902,7 +3859,8 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 		if(__builtin_expect(chunk_obj->m_fs_flag != 0, 1)) {  // FS=true — 64 B hot
 			// (§thread-list) Onto the thread's list for the chunk's bucket.
 			return tl_push(pg, chunk_obj->m_base_bucket, p, chunk_obj,
-			               static_cast<uintptr_t>(chunk_obj->m_base_bucket) << 4);
+			               (static_cast<uintptr_t>(chunk_obj->m_base_bucket) << 4)
+			               + (uintptr_t)(KAME_TL_SLOT_COST));
 		}
 		// FS=false owner free.  Routed to a dedicated noinline helper —
 		// NOT inlined here, and NOT folded into the FS=true return above:
@@ -3970,7 +3928,7 @@ PoolAllocatorBase::deallocate_fs_false_owner(char *chunk_base, void *p,
 		// in so this stays a leaf -- kame_page() can call out.
 		if(__builtin_expect(bucket - 1u >= (unsigned)ALLOC_NUM_BUCKETS - 1u, 0))
 			return deallocate_cold(p);
-		return tl_push(pg, bucket, p, chunk_obj, hdr >> 32);
+		return tl_push(pg, bucket, p, chunk_obj, (hdr >> 32) + (uintptr_t)(KAME_TL_SLOT_COST));
 	}
 	const unsigned shift = chunk_obj->m_align_shift;
 	size_t bit_index =
@@ -4140,7 +4098,8 @@ PoolAllocatorBase::deallocate_cold(void *p) noexcept {
 			// regression when folded together).
 			if(chunk_obj->m_fs_flag)
 				return tl_push(pg, chunk_obj->m_base_bucket, p, chunk_obj,   // (§thread-list)
-				               static_cast<uintptr_t>(chunk_obj->m_base_bucket) << 4);
+				               (static_cast<uintptr_t>(chunk_obj->m_base_bucket) << 4)
+				               + (uintptr_t)(KAME_TL_SLOT_COST));
 			// FS=false owner free -- see deallocate_fs_false_owner.
 			if(chunk_obj->m_sizes) {
 				size_t bit_index =
@@ -4164,7 +4123,8 @@ PoolAllocatorBase::deallocate_cold(void *p) noexcept {
 				if(local >= (unsigned)KAME_LOCAL_BUCKETS
 				   || bucket - 1u >= (unsigned)ALLOC_NUM_BUCKETS - 1u)
 					goto vtable_dispatch;
-				return tl_push(pg, bucket, p, chunk_obj, hdr >> 32);   // (§thread-list)
+				return tl_push(pg, bucket, p, chunk_obj,   // (§thread-list)
+				               (hdr >> 32) + (uintptr_t)(KAME_TL_SLOT_COST));
 			}
 		}
 		// Owner mismatch.  Either: dedicated chunk (m_owner_id == 0,
@@ -4841,7 +4801,7 @@ void *cold_first_access(unsigned bucket, std::size_t size) noexcept {
 //
 // `g_tls_page` is:
 //   macOS: ALLOC_TLS (global-dynamic) — too large for the IE surplus
-//          budget (848 B > ~128 B typical slack); the address is cached
+//          budget (432 B > ~128 B typical slack); the address is cached
 //          in the IE pointer `tls_page_ie` by kame_tls_init_fast and
 //          kame_page_cold (paid once per thread on first alloc).
 //   Linux: ALLOC_TLS_IE (initial-exec) — inlines to mov %fs:offset for
@@ -4849,13 +4809,12 @@ void *cold_first_access(unsigned bucket, std::size_t size) noexcept {
 //
 // `g_tls_page.last_region_base` is initialised to RADIX_CACHE_EMPTY (all-ones).
 // `g_tls_page.owner_id` defaults to 0 (unassigned).
-// `g_tls_page.m_slots[]` and `m_seg[]` default to all-zeros (empty lists, no
-// sealed segments).
+// `g_tls_page.m_slots[]` defaults to all-zeros (empty lists).
 #if KAME_FAST_TSD
-ALLOC_TLS    KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, {}, {}};
+ALLOC_TLS    KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, {}};
 ALLOC_TLS_IE KameTlsPage *tls_page_ie = nullptr;
 #else
-ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, {}, {}};
+ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, {}};
 #endif
 
 // (§hot-tls teardown sentinel) NOT thread-local: one process-global page,
@@ -4863,7 +4822,7 @@ ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, 
 // owner_id 0 guarantees the hot owner-check never matches it; `torn_down` is SET
 // statically so `kame_thread_torn_down()` reports torn-down through this page as
 // well as through a real page whose cleanup has run.
-KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/1, {}, {}};
+KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/1, {}};
 
 // Cold off-ramp for the lean freelist-pop entries (`new_redirected` and
 // `new_redirected_large`; declared in allocator_prv.h): an empty owner
@@ -7957,9 +7916,8 @@ extern "C" void kame_pool_trim(void) noexcept {
 	const int saved_def = g_rt_default.exchange(0, std::memory_order_relaxed);
 	g_rt_thread = 0;
 
-	// (§tl-cap) This thread's own lists and sealed segments go back to their
-	// chunks first, so the chunks they held release into the caches emptied
-	// below.
+	// (§tl-cap) This thread's own lists go back to their chunks first, so the
+	// chunks they held release into the caches emptied below.
 	if( !kame_thread_torn_down()) {
 		KameTlsPage *pg = kame_page();
 		for(unsigned b = 1; b < (unsigned)ALLOC_NUM_BUCKETS; ++b)
