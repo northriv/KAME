@@ -7,10 +7,11 @@
 // thread exited: 400 MiB of 64 B freed, then 400 MiB of 1 KiB, held
 // 1053 MiB.
 //
-// Per pair of sizes: PHASE_MB of the first size, painted; all freed;
-// kame_pool_trim(); PHASE_MB of the second size, painted and checked.  Live
-// units (kame_pool_get_stats) must fall to a small fraction after the trim,
-// and the second phase must not stack on the first.
+// Per pair of sizes: PHASE_MB of the second size alone, freed and trimmed,
+// for what it takes of its own; then PHASE_MB of the first size, painted; all
+// freed; kame_pool_trim(); PHASE_MB of the second size, painted and checked.
+// Live units (kame_pool_get_stats) must fall to a small fraction after the
+// trim, and the second phase must not stack on the first.
 //
 // Then the first size freed in a random order, which leaves the last
 // megabytes of frees -- what the cap keeps -- on every chunk.  With no trim,
@@ -66,34 +67,47 @@ std::uint64_t rng = 88172645463325252ull;
 std::uint64_t rnd() { rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17; return rng; }
 
 int run(std::size_t a, std::size_t b) {
-	// Against the units live before this pair: what the last pair left on
-	// the thread's lists (up to the cap per bucket) may go during this one,
-	// so a difference can be negative.
+	// Against the units live before this pair: what the last pair left may
+	// go during this one, so a difference can be negative.
 	const long long u0 = units_live();
-	std::vector<unsigned char *> v = fill(a);
-	const long long u1 = units_live() - u0;
-	unsigned broken = broken_of(v, a);
+	std::vector<unsigned char *> v = fill(b);
+	const long long own = units_live() - u0;     // the second size alone
+	unsigned broken = broken_of(v, b);
 	for(auto *p : v) kame_pool_free(p);
 	v.clear(); v.shrink_to_fit();
 	kame_pool_trim();
-	const long long u2 = units_live() - u0;
+	const long long ua = units_live();
+	v = fill(a);
+	const long long u1 = units_live() - ua;
+	broken += broken_of(v, a);
+	for(auto *p : v) kame_pool_free(p);
+	v.clear(); v.shrink_to_fit();
+	kame_pool_trim();
+	const long long u2 = units_live() - ua;
 	v = fill(b);
 	const long long u3 = units_live() - u0;
 	broken += broken_of(v, b);
 	for(auto *p : v) kame_pool_free(p);
 	kame_pool_trim();
 	std::printf("%zu B -> %zu B, %zu MiB each: live units %lld after the first phase, "
-	            "%lld once it is freed and trimmed, %lld after the second; %u blocks overwritten\n",
-	            a, b, PHASE_MB, u1, u2, u3, broken);
+	            "%lld once it is freed and trimmed, %lld after the second (%lld for the second "
+	            "alone); %u blocks overwritten\n",
+	            a, b, PHASE_MB, u1, u2, u3, own, broken);
 	int rc = 0;
 	if(u2 * 4 > u1) {
 		std::fprintf(stderr, "  the freed phase still holds %lld of its %lld units\n", u2, u1);
 		rc = 1;
 	}
-	// The second phase alone takes about what the first did (1 KiB requests
-	// round up to 1280 B slots; 64 B and 48 B fill theirs): not their sum.
-	if(u3 * 2 > u1 * 3) {
-		std::fprintf(stderr, "  the second phase stacked on the first: %lld units against %lld\n", u3, u1);
+	// What is live after the second phase, less what the second size takes
+	// alone, is what the first left: a little, not the first phase.  (Bound
+	// against the first phase's units instead, the second phase's own cost
+	// hangs on how its size packs into a bitmap word: a 1 KiB request has a
+	// 1088 B slot, three to a 64-unit word on LP64 but one to a 32-unit word
+	// on ILP32, where the 1 KiB phase alone took 489 units to 64 B's 262.)
+	if((u3 - own) * 2 > u1) {
+		std::fprintf(stderr, "  the second phase stacked on the first: %lld units, %lld of them "
+		             "what the second size takes alone, against the first phase's %lld\n",
+		             u3, own, u1);
 		rc = 1;
 	}
 	return (rc || broken) ? 1 : 0;

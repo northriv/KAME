@@ -320,7 +320,9 @@ struct StreamRing {
 	alignas(64) Asset slot[SRING];
 };
 StreamRing g_sring;
-std::atomic<std::uint64_t> g_loads{0};
+// Pointer-width: a 64-bit atomic is a libatomic call on i486 (no CMPXCHG8B),
+// which kept the whole test tree from linking there.
+std::atomic<std::size_t> g_loads{0};
 std::atomic<bool> g_stream_failed{false};
 
 // RT (kamepoolalloc) entry points, if the preloaded allocator has them.
