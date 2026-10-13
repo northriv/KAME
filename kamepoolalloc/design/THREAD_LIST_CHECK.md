@@ -893,7 +893,8 @@ of 13 M frees still exceed it with the new library, and the maxima (to
 a profiler they are not attributed.  `RT=1` with `SHUFFLE=1` now matches
 `SHUFFLE=1` alone in every size (16 B mean 159–168 vs 140–178 ns), as
 claimed; the old library's RT path differed (16 B 151–177 vs 350–405 ns).
-The in-order mean rose at 16 B (50–60 vs 38–39 ns) and is level at 64 B.
+The in-order mean rose at 16 B (50–60 vs 38–39 ns) and a little at 64 B
+(50–58 vs 46–50 ns); at 1 KiB it fell (304–317 vs 427–473 ns).
 
 **Item 2 (memory).**  The phase-change probe of the runs above, freed in a
 random order (`SHUFFLE=1`), peak RSS (VmHWM), one thread, 400 MiB a phase:
