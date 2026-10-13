@@ -1,3 +1,21 @@
+* Tue Oct 13 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamepoolalloc: MSVC could not build the allocator since Oct 10.  The
+  by-offset m_owner_id access introduced then named the offset as a number,
+  chunk header + 64, and pinned it with a static_assert against
+  offsetof(PoolAllocatorBase, m_owner_id).  64 is where GCC and Clang put
+  it: vptr, the one-byte m_last_coalesce_x16, then the alignas(64) member.
+  MSVC pads the vfptr out to the class alignment instead, so there the
+  first data member starts at 64 and m_owner_id at 128
+  (/d1reportSingleClassLayout shows it), and the assert refused every
+  translation unit that includes allocator_prv.h -- the pool, every test
+  and kame itself.  chunk_owner_id() now goes by owner_id_offset(), a
+  constexpr member that asks offsetof from inside the class, where the
+  class is complete; the number stays as documentation, asserted on GCC and
+  Clang only.  With it, cl builds the pool and runs 17 of 25 pool tests and
+  14 of 22 STM tests, all passing; the rest are the pre-existing
+  source-level exclusions (pthread.h, GNU inline asm, __builtin_*, tests
+  that reach private members), unchanged since the Aug 28 MSVC work.
+
 * Sat Oct 10 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - Interlock: a new module, modules/interlock, with one driver, Scalar
   Interlock.  Up to four conditions watch scalar entries, each "trip if

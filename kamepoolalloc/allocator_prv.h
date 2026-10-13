@@ -833,11 +833,15 @@ static_assert(ALLOC_CHUNK_HEADER >= ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET + 8 + 8,
               "chunk header must have >= 8 B of pad between SizeOfFn "
               "and the slot-0 reservation at chunk_header[-8..-1].");
 //! `PoolAllocatorBase::m_owner_id`, from chunk_base: past the chunk header,
-//! the hot block's first word.  Unlike the header fields it belongs to the
-//! embedded object, but every chunk -- dedicated ones included -- carries it
-//! here, and `PoolAllocatorBase::chunk_owner_id()` reaches it by this
-//! offset.  Checked against the class after its definition.
-#define ALLOC_CHUNK_OWNER_ID_OFFSET (ALLOC_CHUNK_HEADER + 64)
+//! the hot block's first word on GCC and Clang (ALLOC_CHUNK_HEADER + 64).
+//! Unlike the header fields it belongs to the embedded object, but every
+//! chunk -- dedicated ones included -- carries it there, and
+//! `PoolAllocatorBase::chunk_owner_id()` reaches it by
+//! `PoolAllocatorBase::owner_id_offset()`, which asks the compiler rather
+//! than naming a number: MSVC pads the vfptr out to the class alignment
+//! (64, from `alignas(64) m_owner_id`), so there the hot block starts at
+//! +64 and `m_owner_id` sits at +128.  See the static_assert after the
+//! class.
 
 #define ALLOC_ALIGNMENT 16 //bytes, not 8 but 16 for compatibility
 #define ALLOC_MAX_CHUNKS_OF_TYPE \
@@ -1241,13 +1245,29 @@ public:
 	//! Relaxed is enough because owner ids are never reused and a non-zero
 	//! id is only ever stored by the thread it names, so a thread can match
 	//! only its own store.
+	//!
+	//! `m_owner_id` from chunk_base.  A member function body is a
+	//! complete-class context, so offsetof is usable here although the
+	//! class is still open; it is conditionally-supported on a polymorphic
+	//! class, which GCC, Clang and MSVC all support for one without virtual
+	//! bases, GCC and Clang with a warning.
+#if defined(__GNUC__)
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Winvalid-offsetof"
+#endif
+	static constexpr std::size_t owner_id_offset() noexcept {
+		return ALLOC_CHUNK_HEADER + offsetof(PoolAllocatorBase, m_owner_id);
+	}
+#if defined(__GNUC__)
+  #pragma GCC diagnostic pop
+#endif
 	static uint32_t chunk_owner_id(const char *chunk_base) noexcept {
 		return atomicLoadRelaxed(reinterpret_cast<const uint32_t *>(
-		    chunk_base + ALLOC_CHUNK_OWNER_ID_OFFSET));
+		    chunk_base + owner_id_offset()));
 	}
 	static void set_chunk_owner_id(char *chunk_base, uint32_t id) noexcept {
 		atomicStoreRelaxed(reinterpret_cast<uint32_t *>(
-		    chunk_base + ALLOC_CHUNK_OWNER_ID_OFFSET), id);
+		    chunk_base + owner_id_offset()), id);
 	}
 	bool      m_fs_flag;
 	//! (§16) m_sizes mode discriminator/shift for the dealloc fast path.
@@ -1717,19 +1737,17 @@ public:
 	//! CHUNK_UNITS).
 };
 
-//! `chunk_owner_id()` and `m_owner_id` must name the same word.  offsetof on
-//! a polymorphic class is conditionally-supported; GCC, Clang and MSVC all
-//! support it for a class without virtual bases, but GCC and Clang warn.
-#if defined(__GNUC__)
-  #pragma GCC diagnostic push
-  #pragma GCC diagnostic ignored "-Winvalid-offsetof"
-#endif
-static_assert(ALLOC_CHUNK_HEADER + offsetof(PoolAllocatorBase, m_owner_id)
-                  == ALLOC_CHUNK_OWNER_ID_OFFSET,
-              "ALLOC_CHUNK_OWNER_ID_OFFSET must locate "
-              "PoolAllocatorBase::m_owner_id");
-#if defined(__GNUC__)
-  #pragma GCC diagnostic pop
+//! `m_owner_id` is the hot block's first word, 64 past the embedded object's
+//! vptr, on the Itanium-ABI compilers.  Documentation, not a requirement:
+//! `chunk_owner_id()` goes by `owner_id_offset()`, so a compiler that lays
+//! the class out differently -- MSVC puts the first data member at the
+//! class alignment, 64, and so `m_owner_id` at 128 -- is correct too, just
+//! not checked against the number here.
+#if !defined(_MSC_VER)
+static_assert(PoolAllocatorBase::owner_id_offset() == ALLOC_CHUNK_HEADER + 64,
+              "m_owner_id is expected 64 bytes into the embedded object on "
+              "GCC and Clang; if the layout moved on purpose, update the "
+              "comment at owner_id_offset() and this check");
 #endif
 static_assert(std::is_same<decltype(PoolAllocatorBase::m_owner_id),
                            uint32_t>::value,
