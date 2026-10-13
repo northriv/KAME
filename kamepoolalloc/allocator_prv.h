@@ -1434,9 +1434,10 @@ public:
 	//! scale without growing fixed BSS, paving the way to retire
 	//! ALLOC_MAX_REGIONS entirely (HPC scaling step 3).
 	//!
-	//! Layout (144 B total on both 64- and 32-bit):
+	//! Layout (272 B of arrays on both 64- and 32-bit):
 	//!   claim_bitmap[BITMAP_WORDS_PER_REGION]  // 16 B
 	//!   back_offset [NUM_ALLOCATORS_IN_SPACE]  // 128 B
+	//!   unit_bucket [NUM_ALLOCATORS_IN_SPACE]  // 128 B
 	//!
 	//! Lives in unit 0 of the region (256 KiB virtual; only the first
 	//! page = 4 KiB is touched and committed by the kernel).  Unit 0 is
@@ -1449,7 +1450,11 @@ public:
 	//! Concurrency: claim_bitmap entries use atomic CAS (same as the
 	//! retired global s_claim_bitmap).  back_offset bytes are plain
 	//! (written by the claim path BEFORE the claim-bit CAS publishes
-	//! the chunk; the bit's release semantics carries them).  At region
+	//! the chunk; the bit's release semantics carries them).
+	//! unit_bucket bytes are plain too, written by the constructing
+	//! thread before the chunk is handed out and read only on the owner
+	//! free; a group adopted by another thread arrives through the group
+	//! chains' release/acquire, which carries them.  At region
 	//! init, mmap zero-fills the page, then `init_region_meta` sets bit
 	//! 0 of claim_bitmap before publishing the region to other threads
 	//! via the s_mmapped_spaces[ccnt] release-CAS — readers' acquire on
@@ -1457,6 +1462,16 @@ public:
 	struct RegionMeta {
 		std::atomic<BitmapWord> claim_bitmap[BITMAP_WORDS_PER_REGION];  // 16 B
 		std::uint8_t            back_offset[NUM_ALLOCATORS_IN_SPACE];   // 128 B
+		//! The m_base_bucket of the chunk each unit belongs to, written
+		//! with it in construct_chunk_at (0 for FS=false chunks; never
+		//! written for dedicated ones, whose owner id matches no thread).
+		//! The FS=true owner free reads its bucket here, in parallel with
+		//! back_offset, rather than from the chunk it finds through
+		//! back_offset: the address of the list it pushes onto then waits
+		//! for one load instead of two, and the next malloc reads that
+		//! list.  On a Broadwell-EP that second load cost the 64 B
+		//! malloc/free loop 30 % (bench_loop 218 -> 313 M ops/s).
+		std::uint8_t            unit_bucket[NUM_ALLOCATORS_IN_SPACE];   // 128 B
 		//! (§13.3) Per-NUMA-node region list — singly-linked, PUSH-ONLY at
 		//! head of `s_region_dll_heads[numa_node]`.  Regions are never
 		//! unmapped in the current design, so the list needs no removal /

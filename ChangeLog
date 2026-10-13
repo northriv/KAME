@@ -1,4 +1,24 @@
 * Tue Oct 13 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamepoolalloc: the 64 B malloc/free loop is a quarter faster on x86
+  again, and faster than before the thread lists (user: reproduced on
+  Linux x86 as well as the Windows Xeon).  Since 5fc34e052 an owner free
+  pushes onto the thread's list for the slot's bucket, and it read that
+  bucket from the chunk -- which it finds through back_offset, so the
+  address it stores to waited for two dependent loads, and the next
+  malloc reads exactly that list.  A tight loop runs on that chain: on the
+  Broadwell-EP a build with the bucket hard-wired to 4 ran at 337 M ops/s
+  against 227, interleaved.  The bucket now also lives in
+  RegionMeta::unit_bucket, one byte
+  per 256 KiB unit beside back_offset, written with m_base_bucket when the
+  chunk is built, and the FS=true owner free reads it there, in parallel
+  with back_offset.  Interleaved on the Xeon: single thread 64 B
+  218 -> 313 M ops/s (1.44x), 4 processes 876 -> 1122 (1.28x); 1 KiB,
+  16 KiB, 1 MiB and bench_xthread level.  The M5 Ultra never showed the
+  loss (0.97x at 5fc34e052) and should show little gain.  An assert holds
+  unit_bucket to m_base_bucket; the thread-exit, exclusivity (--mid too),
+  fit, phase, churn and stress tests ran 0 failures with it enabled.
+  16 KiB, also lower since 5fc34e052 on this host, is another path and
+  still open.
 - kamepoolalloc: MSVC could not build the allocator since Oct 10.  The
   by-offset m_owner_id access introduced then named the offset as a number,
   chunk header + 64, and pinned it with a static_assert against
