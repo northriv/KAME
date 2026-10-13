@@ -931,9 +931,9 @@ landed on the 15.6 ms timer tick (p99.99 15.6–15.8 ms in three serial runs)
 — `condition_variable::wait_for(10 ms)` took 15.6 ms on this host at the
 time, 10.2 ms under `timeBeginPeriod(1)`.
 
-**`bench_compare.sh`** at `5d2f5a726`, median of 5 — now the README's
-Windows tables.  Against them, the README's previous numbers (`8f2e6980`,
-June):
+**`bench_compare.sh`** at `5d2f5a726`, median of 5 (the README's Windows
+tables are re-run at `78e57424c`, below).  Against them, the README's
+previous numbers (`8f2e6980`, June):
 
 | size | 1T June | 1T now | 4 proc June | 4 proc now |
 |---|---|---|---|---|
@@ -973,3 +973,38 @@ v1.2.1.  Not yet known: whether it is x86 or Broadwell (Ohtaka's Zen 2 item
 would say), or code placement, which moved the M3's 16 KiB loop by 7 % on
 its own.  1 MiB is unchanged throughout; the June table's 231 was the
 machine of that day.
+
+**The 64 B cause, and `78e57424c`** (reproduced by the user on Linux x86
+too).  In this loop one slot goes round: malloc pops it off
+`m_slots[bucket]`, free pushes it back on.  Before `5fc34e052` the free's
+store went to the chunk's `m_freelist_head[0]`, an address one load away
+from `p` (`back_offset`); after it, to `pg->m_slots[m_base_bucket]`, and
+`m_base_bucket` is read from the chunk that `back_offset` finds — two
+dependent loads before the store's address is known, with the next malloc
+waiting on that store.  Measurement-only builds, interleaved, 9 reps:
+
+| arm | 64 B single thread |
+|---|---|
+| `e2c9e6dde` | 227 (220–242) |
+| bucket hard-wired to 4 (correct for 64 B only) | 337 (307–364) |
+| bucket from `RegionMeta::unit_bucket` | 317 (286–342) |
+
+`78e57424c` is the third: `unit_bucket[128]`, one byte per unit beside
+`back_offset`, written with `m_base_bucket` in `construct_chunk_at`, read on
+the FS=true owner free with the same index as `back_offset`, so the two
+loads are side by side.  Against `e2c9e6dde`, interleaved: single thread
+64 B 218 → 313 (1.44×), 1 KiB 1.07×, 16 KiB 0.99×; 4 processes 64 B
+876 → 1122 (1.28×), 16 KiB 1.03×, 1 MiB 1.03×; `bench_xthread -w 2` at
+64 B / 1 KiB / mixed 0.99–1.01×.  With asserts on (`unit_bucket ==
+m_base_bucket`) the pool suite and 20 runs each of the thread-exit,
+exclusivity (plain and `--mid`), fit and phase tests, churn and stress ran
+0 failures.  The M5 Ultra and Linux x86 should re-run `loop`; the M5 never
+showed the loss, and a gain there is not expected.
+
+16 KiB is untouched by it — another tier, still about 0.66× June's here.
+
+`bench_compare.sh` at `78e57424c`, median of 5 — the README's Windows
+tables now: single thread 64 B 335, 1 KiB 242, 16 KiB 118, 64 KiB 69,
+256 KiB 63, 1 MiB 51, 4 MiB 33; 4 processes 64 B 1178, 16 KiB 498, 64 KiB
+237, 1 MiB 233.  The single-thread 1 MiB row is the noisy one: 51–65 for
+one binary, interleaved, before and after alike.
