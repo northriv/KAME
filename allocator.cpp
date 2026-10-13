@@ -2656,6 +2656,19 @@ PoolAllocatorBase::allocate_chunk() {
 		ALLOC *palloc = ALLOC::create(CHUNK_SIZE - ALLOC_CHUNK_HEADER,
 		                              addr + ALLOC_CHUNK_HEADER);
 		palloc->m_chunk_size = CHUNK_SIZE;
+		{
+			// RegionMeta::unit_bucket for every unit the slots occupy:
+			// from the unit boundary ALLOC_CHUNK_K_MAX past chunk_base.
+			char *boundary = addr + ALLOC_CHUNK_K_MAX;
+			char *mp = reinterpret_cast<char *>(
+			    (uintptr_t)boundary & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u));
+			unsigned base_idx = static_cast<unsigned>(
+			    (size_t)(boundary - mp) >> ALLOC_MIN_CHUNK_SHIFT);
+			RegionMeta *rm = region_meta(mp);
+			for(unsigned u = 0; u < CHUNK_UNITS; ++u)
+				rm->unit_bucket[base_idx + u] =
+				    static_cast<std::uint8_t>(palloc->m_base_bucket);
+		}
 		*reinterpret_cast<std::uint64_t *>(
 		    addr + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET) =
 		    ALLOC::chunk_header_size_info();
@@ -3857,9 +3870,12 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 	if(__builtin_expect(chunk_owner_id(chunk_base) == page_owner_id
 	                    && page_owner_id != 0, 1)) {
 		if(__builtin_expect(chunk_obj->m_fs_flag != 0, 1)) {  // FS=true — 64 B hot
-			// (§thread-list) Onto the thread's list for the chunk's bucket.
-			return tl_push(pg, chunk_obj->m_base_bucket, p, chunk_obj,
-			               (static_cast<uintptr_t>(chunk_obj->m_base_bucket) << 4)
+			// (§thread-list) Onto the thread's list for the chunk's bucket,
+			// read from the region's unit_bucket -- see RegionMeta.
+			const unsigned bkt = rmeta->unit_bucket[unit_idx];
+			assert(bkt == chunk_obj->m_base_bucket);
+			return tl_push(pg, bkt, p, chunk_obj,
+			               (static_cast<uintptr_t>(bkt) << 4)
 			               + (uintptr_t)(KAME_TL_SLOT_COST));
 		}
 		// FS=false owner free.  Routed to a dedicated noinline helper —
