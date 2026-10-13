@@ -660,3 +660,173 @@ To re-check, on the M5 and Linux:
    master; the 16 KiB loop is the one that moved by placement on the M3.
 4. **Correctness.**  The Linux trees and the harsh ones with the new flags:
    ctest and the soaks of the runs above.
+
+## Run: M5 Ultra, 2026-10-13 — the freed slot goes back (master `9f6370a52`)
+
+Same machine and toolchain as the runs above.  Arms: tree at `9f6370a52`
+(sha256 `83f4b793f1402ed8`), prev = `4ae71a910`'s `kamepoolalloc/` (sha256
+`fc5fe9777215ee47`, the tree arm of the run above), pre = `727c47322`'s
+(sha256 `6d9157ba1b90e29d`, before the cap), mimalloc 3.3.2.
+
+**Correctness (item 4).**  Full-tree ctest 49/49 in Release, in `-O2 -g`
+with asserts, and in that build with `-DKAME_TL_CAP_BYTES=2048u
+-DKAME_TL_RECLAIM_SLOTS=1`.  In all three, scored by exit status, 6 in
+parallel: `alloc_tsd_exclusivity_test` and `_var_test` 2000 each,
+`alloc_fit_test` 300, `alloc_phase_test` 300, `alloc_rt_thread_test` 200,
+`alloc_aligned_test` 200, the four `alloc_thread_exit_*` tests 200 each —
+0 failures.
+
+**The hitches (item 1).**  `freelat SIZE 200` (`tests/bench/micro/freelat.c`,
+`cc -O2`), in allocation order, with `SHUFFLE=1`, with `RT=1`, and with
+both; 3 runs per arm (mimalloc has no RT mode):
+
+| size | order | arm | mean ns | p99.99 µs | max µs | > 1 / 10 / 100 µs |
+|---|---|---|---|---|---|---|
+| 16 B | in order | pre | 4.4–4.5 | 0.08 | 39.8–40.3 | 183–249 / 27–46 / 0 |
+| 16 B | in order | prev | 6.0–6.3 | 0.08–0.12 | 57.2–79.8 | 959–1002 / 806–840 / 0 |
+| 16 B | in order | tree | 8.8–9.2 | 0.17–0.21 | 39.9–47.7 | 825–877 / 50–91 / 0 |
+| 16 B | in order | mi | 4.2–4.5 | 0.08 | 16.9–40.2 | 87–198 / 18–37 / 0 |
+| 16 B | random | pre | 4.8–5.0 | 0.12 | 18.6–21.0 | 49–182 / 7–29 / 0 |
+| 16 B | random | prev | 120.1–120.4 | 0.17 | 2059.3–2089.5 | 896–919 / 792–812 / 784 |
+| 16 B | random | tree | 10.1–11.1 | 0.17 | 18.5–27.8 | 227–312 / 14–60 / 0 |
+| 16 B | random | mi | 4.2–4.3 | 0.12 | 18.5–72.0 | 69–125 / 8–38 / 0 |
+| 16 B | in order RT | pre | 4.2–4.5 | 0.08 | 25.8–37.3 | 101–288 / 8–11 / 0 |
+| 16 B | in order RT | prev | 9.0–9.7 | 0.17–0.33 | 15.6–38.2 | 194–513 / 10–17 / 0 |
+| 16 B | in order RT | tree | 8.5–9.2 | 0.17–0.33 | 14.7–39.5 | 201–867 / 12–14 / 0 |
+| 16 B | random RT | pre | 4.9–5.0 | 0.08–0.12 | 19.8–24.0 | 73–131 / 7–30 / 0 |
+| 16 B | random RT | prev | 10.3–11.2 | 0.17 | 16.2–22.0 | 111–311 / 12–70 / 0 |
+| 16 B | random RT | tree | 10.2–10.8 | 0.17–0.25 | 18.3–26.5 | 122–245 / 11–57 / 0 |
+| 64 B | in order | pre | 4.2 | 0.08–0.12 | 9.0–22.9 | 23–35 / 0–3 / 0 |
+| 64 B | in order | prev | 6.7 | 10.71–10.96 | 20.2–29.3 | 802–831 / 496–517 / 0 |
+| 64 B | in order | tree | 9.2 | 3.21–3.38 | 14.1–17.7 | 622–625 / 5–8 / 0 |
+| 64 B | in order | mi | 4.2–4.3 | 0.08–0.12 | 7.2–15.1 | 16–42 / 0–2 / 0 |
+| 64 B | random | pre | 5.0–5.2 | 0.08–0.12 | 7.8–20.2 | 15–40 / 0–4 / 0 |
+| 64 B | random | prev | 100.5–104.1 | 423.46–436.00 | 491.1–658.0 | 813–828 / 784–788 / 784 |
+| 64 B | random | tree | 10.2–11.0 | 0.17 | 14.1–23.8 | 48–112 / 2–5 / 0 |
+| 64 B | random | mi | 4.3 | 0.17 | 14.7–16.8 | 13–39 / 1–3 / 0 |
+| 64 B | in order RT | pre | 4.2 | 0.08–0.12 | 8.0–18.5 | 18–40 / 0–6 / 0 |
+| 64 B | in order RT | prev | 9.1–9.2 | 0.71 | 10.2–15.9 | 34–96 / 1–10 / 0 |
+| 64 B | in order RT | tree | 8.7 | 0.71 | 15.5–16.5 | 52–83 / 4–15 / 0 |
+| 64 B | random RT | pre | 4.9–5.2 | 0.08–0.12 | 15.8–23.0 | 33–44 / 4–10 / 0 |
+| 64 B | random RT | prev | 10.0–11.3 | 0.17–0.21 | 17.7–20.6 | 92–172 / 12–22 / 0 |
+| 64 B | random RT | tree | 10.6–11.3 | 0.17–0.25 | 16.3–30.0 | 41–154 / 11–22 / 0 |
+| 1024 B | in order | pre | 11.1–12.2 | 0.21–0.29 | 10.1–15.8 | 2–12 / 1–3 / 0 |
+| 1024 B | in order | prev | 35.2–37.3 | 10.00–13.04 | 15.7–26.4 | 833–842 / 20–46 / 0 |
+| 1024 B | in order | tree | 37.8–40.5 | 3.88–9.12 | 15.9–44.6 | 847–867 / 6–15 / 0 |
+| 1024 B | in order | mi | 6.1–6.6 | 0.21–0.29 | 9.1–11.0 | 4–12 / 0–2 / 0 |
+| 1024 B | random | pre | 17.9–18.4 | 0.21–0.29 | 0.4–15.2 | 0–15 / 0–3 / 0 |
+| 1024 B | random | prev | 69.9–72.4 | 19.62–22.12 | 30.7–36.1 | 835–837 / 570–737 / 0 |
+| 1024 B | random | tree | 34.0–34.6 | 0.33–0.42 | 11.2–11.7 | 5–15 / 2–4 / 0 |
+| 1024 B | random | mi | 6.7–7.0 | 0.25–0.29 | 1.1–5.6 | 1–2 / 0 / 0 |
+| 1024 B | in order RT | pre | 10.9–11.5 | 0.21 | 1.9–24.7 | 1–3 / 0–1 / 0 |
+| 1024 B | in order RT | prev | 30.6–34.5 | 0.71–7.29 | 10.3–16.9 | 12–816 / 3–7 / 0 |
+| 1024 B | in order RT | tree | 28.8–29.0 | 0.71–2.21 | 11.0–17.8 | 7–21 / 1–5 / 0 |
+| 1024 B | random RT | pre | 17.7–18.1 | 0.21–0.25 | 11.3–13.7 | 1–13 / 1–3 / 0 |
+| 1024 B | random RT | prev | 39.3–39.4 | 0.62–0.79 | 15.2–19.8 | 6–16 / 3–8 / 0 |
+| 1024 B | random RT | tree | 34.1–34.7 | 0.29–0.42 | 0.8–12.5 | 0–11 / 0–3 / 0 |
+
+The claim holds on the M5: tree has no free over 100 µs in any size, order
+or mode (worst 48 µs, 16 B in allocation order; pre's worst there is 40 µs).
+prev, freed in a random order, has 784 frees over 100 µs at 16 B and at
+64 B, up to 2.09 ms and 0.66 ms (the M3's 4.9 ms and 1.2 ms), and a mean of
+120 / 100 ns; tree's random-order mean is 10–11 ns at 16 and 64 B and 34 ns
+at 1 KiB.  The mean is still about twice pre's (in order 9 vs 4.4 ns at
+16 B, 38–40 vs 11–12 ns at 1 KiB): past the cap every one of these frees
+returns its slot.  `RT=1` changes nothing in a random order.  In
+allocation order it does at 64 B and 1 KiB: without it 622–625 and 847–867
+frees take over 1 µs (p99.99 3.2–3.4 and 3.9–9.1 µs), with it 52–83 and
+7–21 (p99.99 0.71 and 0.71–2.2 µs).  At 16 B both have hundreds (825–877
+without, 201–867 with; p99.99 ≤ 0.33 µs either way).  The counts are near
+200 MiB / 256 KiB = 800, one per chunk unit, so these are likely the frees
+that empty a chunk and release it, which a realtime thread leaves for
+later; not traced.
+
+**Memory (item 2).**  The phase probe of the runs above (one thread, 400 MiB
+of A-byte blocks, freed in allocation order or a fixed random permutation,
+`kame_pool_trim()` between where marked, then 400 MiB of B-byte blocks);
+peak `phys_footprint`, MiB:
+
+| A → B, order of the frees | pre | prev | tree | mi |
+|---|---|---|---|---|
+| 64 B → 1 KiB, allocation order | 1053 | 627 | 627 | 481 |
+| the same, trim between | 1003 | 577 | 577 | — |
+| 64 B → 1 KiB, random order | 1053 | 627 | 627 | 481 |
+| the same, trim between | 1003 | 577 | 577 | — |
+| 16 B → 1 KiB, allocation order | 1204 | 777 | 777 | 641 |
+| the same, trim between | 1003 | 663 | 663 | — |
+| 16 B → 1 KiB, random order | 1204 | 777 | 777 | 641 |
+| the same, trim between | 1003 | 663 | 663 | — |
+| 4 KiB → 64 B, allocation order | 891 | 703 | 703 | 467 |
+| the same, trim between | 890 | 588 | 588 | — |
+| 4 KiB → 64 B, random order | 891 | 703 | 703 | 467 |
+| the same, trim between | 890 | 588 | 588 | — |
+
+tree = prev in every row, and random order = allocation order; 777 / 627 MiB
+as on the M3.  With the trim, 16 B → 1 KiB ends at 577 MiB but peaks at 663
+before it (prev the same).
+
+**The hot path (item 3).**  `bench_ab.sh --only loop --reps 9` (results
+`~/bench-ab/results-dhcp-029-018-20261013-131218`):
+
+| bench | config | metric | tree | prev | pre | prev / tree | pre / tree |
+|---|---|---|---|---|---|---|---|
+| loop | 64B | Mops ↑ | 1124 (1092–1136) | 1143 (1123–1152) | 1147 (1125–1204) | 1.02× | 1.02× |
+| loop | 1024B | Mops ↑ | 748 (705–783) | 731 (711–796) | 826 (785–855) | 0.98× | 1.11× |
+| loop | 16384B | Mops ↑ | 773 (756–856) | 775 (764–805) | 834 (812–901) | 1.00× | 1.08× |
+
+Level with prev (16 KiB included); against pre the cap's 1 KiB / 16 KiB
+cost of the runs above stays.
+
+**`bench_ab.sh`** (the set of the runs above, `--threads "4 8" --reps 5`;
+results `~/bench-ab/results-dhcp-029-018-20261013-124512`):
+
+| bench | config | metric | tree | prev | pre | mi | prev / tree | pre / tree | mi / tree |
+|---|---|---|---|---|---|---|---|---|---|
+| loop | 64B | Mops ↑ | 1134 (1100–1137) | 1141 (1114–1153) | 1148 (1128–1163) | 1048 (999–1074) | 1.01× | 1.01× | 0.92× |
+| loop | 1024B | Mops ↑ | 769 (725–831) | 760 (718–776) | 791 (766–835) | 774 (731–799) | 0.99× | 1.03× | 1.01× |
+| loop | 16384B | Mops ↑ | 768 (761–836) | 788 (763–816) | 847 (823–863) | 363 (358–369) | 1.03× | 1.10× | 0.47× |
+| xthread | w4,1KiB | Mfree ↑ | 88.4 (85.3–88.9) | 86.5 (84.7–88.3) | 87.4 (85.2–89.7) | 102 (98.8–108) | 0.98× | 0.99× | 1.15× |
+| xmalloc | w4,64B | Mfree ↑ | 393 (382–399) | 393 (391–402) | 386 (298–393) | 346 (343–349) | 1.00× | 0.98× | 0.88× |
+| larson | t4 | Mops ↑ | 164 (164–165) | 168 (167–172) | 166 (161–167) | 194 (193–195) | 1.03× | 1.01× | 1.18× |
+| rptest | t4 | Mops_cpu ↑ | 7.37 (7.26–7.93) | 7.14 (6.77–7.73) | 7.75 (7.37–8.43) | 7.04 (6.81–7.75) | 0.97× | 1.05× | 0.96× |
+| frame | t4 | fps ↑ | 4859 (4617–4894) | 4851 (4720–4894) | 4906 (4892–4994) | 5327 (5317–5357) | 1.00× | 1.01× | 1.10× |
+| frame | t4 | frame_max_us ↓ | 365 (325–401) | 399 (345–434) | 338 (324–389) | 425 (342–1009) | 1.09× | 0.92× | 1.16× |
+| frame | t4 | call_max_ns ↓ | 80219 (61326–93093) | 64950 (50826–77409) | 77576 (48285–91676) | 192062 (114112–825324) | 0.81× | 0.97× | 2.39× |
+| frameRT | t4 | call_max_ns ↓ | 80176 (68034–91344) | 55993 (54642–71093) | 73326 (57159–99510) | 216205 (139403–726379) | 0.70× | 0.91× | 2.70× |
+| frame | t4 | rss_mib ↓ | 934 (931–943) | 935 (932–943) | 930 (930–931) | 485 (466–497) | 1.00× | 1.00× | 0.52× |
+| xthread | w8,1KiB | Mfree ↑ | 128 (123–129) | 125 (123–140) | 128 (123–130) | 84.7 (81.5–88.3) | 0.97× | 0.99× | 0.66× |
+| xmalloc | w8,64B | Mfree ↑ | 500 (495–503) | 498 (497–501) | 499 (494–502) | 497 (472–500) | 1.00× | 1.00× | 1.00× |
+| larson | t8 | Mops ↑ | 247 (242–252) | 254 (246–256) | 256 (252–259) | 204 (194–206) | 1.03× | 1.03× | 0.82× |
+| rptest | t8 | Mops_cpu ↑ | 6.45 (5.92–6.74) | 6.58 (6.48–7.16) | 6.28 (6.06–6.41) | 5.52 (5.31–5.99) | 1.02× | 0.97× | 0.86× |
+| frame | t8 | fps ↑ | 3864 (3806–3884) | 3888 (3866–3948) | 3885 (3629–3922) | 3518 (3384–3561) | 1.01× | 1.01× | 0.91× |
+| frame | t8 | frame_max_us ↓ | 493 (480–498) | 486 (465–508) | 497 (481–505) | 1171 (1063–1726) | 0.99× | 1.01× | 2.37× |
+| frame | t8 | call_max_ns ↓ | 115303 (99009–159337) | 96177 (89302–150087) | 105445 (68577–128194) | 1075989 (936336–1481361) | 0.83× | 0.91× | 9.33× |
+| frameRT | t8 | call_max_ns ↓ | 95886 (78468–133778) | 106426 (74492–298382) | 102653 (73052–140087) | 1057406 (1012579–1583455) | 1.11× | 1.07× | 11.03× |
+| frame | t8 | rss_mib ↓ | 1166 (1162–1180) | 1166 (1162–1166) | 1163 (1159–1176) | 593 (584–614) | 1.00× | 1.00× | 0.51× |
+| xlat | 1024Bx200000 | rate_M ↑ | 4.92 (4.85–5.11) | 4.99 (4.84–5.08) | 4.96 (4.89–5.27) | 9.31 (8.88–9.36) | 1.01× | 1.01× | 1.89× |
+| xlat | 1024Bx1000000 | max_ns ↓ | 32125 (14792–37667) | 16750 (15166–37916) | 17209 (14875–48458) | 35833 (26708–45792) | 0.52× | 0.54× | 1.12× |
+
+The rest is level within its spread (`summary.md` there).  Every arm,
+mimalloc included, ran frame ~7 % below the run above (machine state); the
+comparison is within the run.  Tree against prev overlaps everywhere but
+larson t4 (164 vs 168, 0.97x; at t8 the ranges overlap).  frame / frameRT
+`call_max_ns` at t4 has the higher median (80 vs 56–65 µs) but overlapping
+ranges, and at t8 it goes both ways.
+
+**Micro benches** (`ab.py . 5 pre=… prev=… tree=…`, median of 5):
+
+| config | unit | pre | prev | tree |
+|---|---|---|---|---|
+| replace1 5000 20000000 400 1000 | M ops/s | 398.4 | 389.3 | 385.5 |
+| replace1 5000 20000000 8 1000 | M ops/s | 200.6 | 197.5 | 199.5 |
+| replace1 100000 20000000 16 4096 | M ops/s | 118.3 | 113.5 | 114.5 |
+| replace1 5000 20000000 1500 3000 | M ops/s | 379.7 | 352.8 | 360.3 |
+| replace1 5000 20000000 16 368 | M ops/s | 277.3 | 265.2 | 263.1 |
+| heavy 100000 1000000 4 400 1000 | ns/alloc | 80.7 | 82.7 | 82.1 |
+| heavy 100000 1000000 32 400 1000 | ns/alloc | 68.3 | 69.7 | 68.1 |
+| heavy 100000 1000000 32 32 512 | ns/alloc | 33.1 | 33.2 | 33.3 |
+| ring 64 4 20 | M ops/s | 13.4 | 13.2 | 13.0 |
+| ring 64 32 20 | M ops/s | 21.9 | 22.4 | 22.3 |
+| ring 64 128 20 | M ops/s | 24.0 | 23.9 | 24.1 |
+
+tree within 1–2 % of prev throughout.
