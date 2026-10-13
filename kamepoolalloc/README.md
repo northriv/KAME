@@ -360,6 +360,45 @@ The bucket now comes one load off `p`: `RegionMeta::unit_bucket` beside
 per-region page table for the full tier (`e0974e402`, 16 KiB 2.04× single
 thread, 1.80× on 4 processes).  Both sizes are now above June's numbers.
 
+**Intel Xeon W-2140B (iMac Pro — x86-64, Skylake-SP core, 8-core /
+16-thread, macOS 15.7), single thread, M ops/s** — kame at `e0974e402`,
+Apple clang 17, Release, median of 5 via `bench_compare.sh`, 2026-10-13
+(`design/THREAD_LIST_CHECK.md`, the Intel Mac run); mimalloc 3.3.2 built
+from its release tag, jemalloc 5.3.0 from MacPorts.  As on the M5 the
+`kame` column is the preload route (malloc override plus pool):
+
+| size      |  system | mimalloc | jemalloc |     kame |
+|-----------|---------|----------|----------|----------|
+| 64B       |      36 |  **416** |       63 |      412 |
+| 1 KiB     |      38 |      207 |       60 |  **294** |
+| 16 KiB    |      38 |       77 |       29 |  **304** |
+| 64 KiB    |      38 |   **77** |        6 |       66 |
+| 256 KiB   |      38 |   **77** |        6 |       59 |
+| 1 MiB     |      39 |        2 |        6 |   **56** |
+| 4 MiB     |      ~0 |        2 |        6 |   **39** |
+
+**Same host, 4 processes aggregate, M ops/s** — median of 5:
+
+| size      |  system | mimalloc | jemalloc |     kame |
+|-----------|---------|----------|----------|----------|
+| 64B       |     142 |     1618 |      247 | **1627** |
+| 16 KiB    |     154 |      303 |      115 | **1177** |
+| 64 KiB    |     151 |  **303** |       25 |      258 |
+| 1 MiB     |     151 |        7 |       25 |  **218** |
+
+64 B is level with mimalloc (interleaved over `bench_ab.sh`'s shorter
+runs, mimalloc 428 vs 394): Skylake has no memory renaming, the case of
+the architecture note below.  This host settles part of the Windows question
+above: the thread lists cost Skylake's 64 B as they cost Broadwell's
+(0.84×), and `78e57424c` recovers it (1.42×, now 1.07× v1.2.1), so that
+loss is x86; 16 KiB did **not** regress here (v1.2.1 246, thread lists
+244), as on Linux on the Broadwell, and `e0974e402` still gains 1.27×.
+The system's 4 MiB is 0.14 M ops/s (not traced; the shape of the Windows
+cliff above).  In `bench_ab.sh`'s frame loop the thread lists raised the frame
+rate 1.3× here, but also put a floor of about 2 ms under the worst frame
+of a run at 4 threads (v1.2.1 1.1 ms; the M5 improved instead) — recorded
+in the run, not yet explained.
+
 **Ohtaka (ISSP supercomputer — AMD EPYC 7702, 128-core / 8-NUMA-node, Linux
 4 KiB pages, `THP=always`), `bench_compare.sh`, `--exclusive` jobs** —
 kamepoolalloc at `19b2e4758` (the v1.2.1 allocator), clang 18.1.8,
