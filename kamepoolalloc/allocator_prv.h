@@ -2597,16 +2597,18 @@ inline constexpr uint32_t kBucketNewSlot[52] = {
 //! that set (0-based), used to index the dense
 //! `PoolAllocatorBase::m_freelist_head[KAME_LOCAL_BUCKETS]` and stored in
 //! the FS=false slot prefix.  A BucketTraits-derived static_assert in
-//! allocator.cpp VERIFIES, at compile time, that every id here equals
-//! "#lower buckets sharing my (ALIGN,FS)", which guarantees (a) two
+//! allocator.cpp (kTierLocalBucket) verifies at compile time that (a) two
 //! sizes in one chunk never share a freelist head and (b) every id
-//! < KAME_LOCAL_BUCKETS.  Tiers:
+//! < KAME_LOCAL_BUCKETS, grouping the buckets by kBucketAlign below,
+//! which a static_assert there ties to each bucket's template.  Tiers:
 //!   FS=true (each its own ALIGN=size, one size)        -> id 0
 //!   ALIGN=32  FS=false: buckets {6,8,10,12,14}         -> 0..4
 //!   ALIGN=64  FS=false: buckets {24..31}               -> 0..7
 //!   ALIGN=256 FS=false: buckets {16, 32..39}           -> 0, 1..8
 //!   ALIGN=1024 FS=false: buckets {40..47}              -> 0..7
 //!   ALIGN=4096 FS=false: buckets {48..51}              -> 0..3
+//! (LP64.  On ILP32 buckets 8 and 16 are an ALIGN=128 template of their
+//! own, ids 1 and 0: distinct, which is all a chunk needs.)
 //!
 //! USED ONLY ON THE COLD PATH (slow_allocate / cold_first_access) to set
 //! the per-thread TLS `m_slots[bucket].freelist_head` shortcut so the
@@ -2653,7 +2655,13 @@ inline constexpr uint16_t kBucketAlign[52] = {
     // 6 FS=false ALIGN=32 ; 7 FS=true ALIGN=112 ; 8 FS=false ALIGN=32 ;
     // 9 FS=true ALIGN=144 ; 10 ALIGN=32 ; 11 ALIGN=176 ; 12 ALIGN=32 ;
     // 13 ALIGN=208 ; 14 ALIGN=32 ; 15 ALIGN=240 ; 16 FS=false ALIGN=256
-    32, 112, 32, 144, 32, 176, 32, 208, 32, 240, 256,
+    // -- on LP64.  The FS=false ones are ALLOC_ALIGN of their size, as
+    // KAME_DECL_BUCKET declares them: on ILP32 (ALLOC_ALIGN2 = 128) that
+    // makes 8 and 16 ALIGN=128, and a literal 256 for bucket 16 sent a
+    // 256-aligned request to slots 128 B apart.
+    ALLOC_ALIGN(ALLOC_SIZE6), 112, ALLOC_ALIGN(ALLOC_SIZE8), 144,
+    ALLOC_ALIGN(ALLOC_SIZE10), 176, ALLOC_ALIGN(ALLOC_SIZE12), 208,
+    ALLOC_ALIGN(ALLOC_SIZE14), 240, ALLOC_ALIGN(ALLOC_SIZE16),
     // 17..23 FS=true ALIGN=SIZE (272..368)
     272, 288, 304, 320, 336, 352, 368,
     // 24..31 FS=false ALIGN=64
