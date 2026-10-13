@@ -365,3 +365,35 @@ The M3's 1053 → 631 (581) and 891 → 707 (587) have the same shape.
 
 Items 1 and 4 (the owner free's cost, the slowest free) are timing on a
 real host; not measured on this VM.
+
+## Since the Linux runs: `75369a9a3` and `10e5bd4bf` — what to re-run on ILP32
+
+The three ILP32 findings above were in the tests, and `10e5bd4bf` fixes
+them: `bench_frame`'s counter is pointer-width, `alloc_fit_test` takes its
+sizes by the bitmap word's width, and `alloc_phase_test` bounds what the
+second phase leaves by what the second size takes alone, not by the first
+phase's units.  Reading item 2 turned up a real ILP32 bug, fixed in
+`75369a9a3`: `kBucketAlign` carried LP64's 32 and 256 for buckets 8 and
+16, which `ALLOC_ALIGN` makes ALIGN 128 on ILP32.  A 256-aligned request
+of up to 248 B went to bucket 16 and got every other slot only 128-aligned
+(`aligned_alloc`, `posix_memalign`, aligned `operator new` on POSIX), and
+the ALIGN 128 template had no fit classes.  A static_assert now ties every
+bucket's `kBucketAlign` to its template.  LP64's `allocator.o` is
+byte-identical to before; the ILP32 side has been checked only at compile
+time (macOS clang `-target i386-apple-macos10.13 -fsyntax-only`, with
+static_asserts on the picks and the classes).  On the four ILP32 trees:
+
+1. **Build without `-k`.**  The i486 trees should build whole,
+   `bench_frame` included.
+2. **ctest.**  `alloc_fit_test`, `alloc_phase_test` and the new
+   `alloc_aligned_test` should pass.  `alloc_fit_test`'s second ILP32 tier
+   is the ALIGN 128 one (256 B fillers, 128 B probes), which had no fit
+   classes before `75369a9a3`: its "among the fillers" counts are §fit's
+   first run there.
+3. **The alignment bug at run time.**  It has only been read off the
+   tables so far.  `alloc_aligned_test` against a library built at
+   `460730c35` (swap `libkamepoolalloc.so` with `LD_LIBRARY_PATH`) should
+   fail on ILP32 with "misaligned: alignment 256, size …", and pass
+   against `75369a9a3`'s; on LP64 both pass.
+4. **Soaks.**  `alloc_phase_test` and `alloc_fit_test`, 100 runs each per
+   ILP32 tree.
