@@ -309,8 +309,9 @@ inline void atomicStoreRelaxed(T *target, T value) noexcept {
 	// process start (LD_PRELOAD or normal -l link) — NOT `dlopen`'d
 	// after startup, since dlopen has limited surplus static-TLS
 	// budget.  We restrict the IE marking to the small hot variables
-	// (g_thread_freelist_ptr 384 B + s_tls_owner_id 4 B + s_alloc_tls_off
-	// 1 B ≈ 400 B); the larger cold TLS (tls_cross_dealloc_batch 16 KiB)
+	// (on Linux `g_tls_page`, 432 B -- the per-bucket list heads, owner id
+	// and radix cache -- plus a few scalars, under 0.5 KiB); the larger
+	// cold TLS (tls_cross_dealloc_batch 16 KiB, the L1 recycle array)
 	// stays on global-dynamic.  Total static-TLS demand of the IE
 	// variables fits in the default Linux surplus budget (~4 KiB).
 	//
@@ -791,9 +792,10 @@ static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
 //! bytes; one chunk's tail K_MAX is always next-chunk's metadata slot.
 //!
 //! The first chunk in a region (base_unit = 1) has its metadata in
-//! unit 0 (the RegionMeta unit) — unit 0's RegionMeta lives at the
-//! start (~150 B), and only the last K_MAX bytes are reserved for
-//! chunk 1's metadata, so no collision.
+//! unit 0 (the RegionMeta unit): RegionMeta lives at the start (288 B
+//! on LP64), the §page-bucket table at [+4 KiB, +12 KiB), and the last
+//! K_MAX bytes hold chunk 1's metadata, so no collision (static_asserts
+//! in `deallocate_fs_false_owner` keep the table between the two).
 //!
 //! K_MAX is sized so that the largest template (smallest ALIGN, biggest
 //! count) fits its PoolAllocator object + m_flags array within
@@ -823,15 +825,15 @@ static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
 //! SIZE_INFO low-32 sentinel marking a dedicated single-slot large chunk.
 //! Distinct from any real ALIGN (≤ 1024) and from 0 (the FS=false marker).
 #define ALLOC_CHUNK_DEDICATED_SIZEINFO 0xFFFFFFFFu
-// [32..55] free (was recycle epoch, retired — DLL/lookup safety comes
-//           from BIT_OWNED gating + live-slot invariant, not an epoch)
-// [56..63] = slot-0 header (= ALLOC_CHUNK_HEADER - 8).  No constant
-// needed — `allocate_pooled` reaches it via the uniform
-// `slot_start - 8` math (slot 0's slot_start == m_mempool ==
-// chunk_base + ALLOC_CHUNK_HEADER).
+// [40..63] free, and [32..39] outside dedicated chunks (the retired
+//           recycle epoch's field — DLL/lookup safety comes from BIT_OWNED
+//           gating + the live-slot invariant, not an epoch).  The FS=false
+//           borrow slot-0 prefix is not here: since §15 it is the last 8 B
+//           of the metadata, [K_MAX-8, K_MAX), reached by the uniform
+//           `slot_start - 8` (see above).
 static_assert(ALLOC_CHUNK_HEADER >= ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET + 8 + 8,
-              "chunk header must have >= 8 B of pad between SizeOfFn "
-              "and the slot-0 reservation at chunk_header[-8..-1].");
+              "chunk header must hold SizeOfFn and the dedicated-size word "
+              "after it ([24..39]).");
 //! `PoolAllocatorBase::m_owner_id`, from chunk_base: past the chunk header,
 //! the hot block's first word on GCC and Clang (ALLOC_CHUNK_HEADER + 64).
 //! Unlike the header fields it belongs to the embedded object, but every
@@ -850,9 +852,10 @@ static_assert(ALLOC_CHUNK_HEADER >= ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET + 8 + 8,
 //! Max distinct sizes a single chunk hands out — depth of its (ALIGN,FS)
 //! template's size set; sizes the compact per-chunk freelist
 //! `PoolAllocatorBase::m_freelist_head[]` (follow-up "(1b)" §12.3).
-//! FS=true chunks serve exactly 1 size (local id 0); the widest FS=false
-//! tier is ALIGN=256, which serves buckets {16, 32..39} = 9 sizes
-//! (id 0..8).  Defined here (before PoolAllocatorBase) since the class
+//! FS=true chunks serve exactly 1 size (local id 0).  The highest id is
+//! 8: ALIGN=256 FS=false serves buckets 32..39 as ids 1..8 (id 0 was
+//! bucket 16's until it joined the ALIGN=32 tier, whose six buckets take
+//! ids 0..5), so 9 heads.  Defined here (before PoolAllocatorBase) since the class
 //! needs it for the array bound; `kBucketLocalId[]` (below) and a
 //! BucketTraits-derived static_assert (allocator.cpp) verify no
 //! (ALIGN,FS) tier exceeds this and that ids are collision-free.
@@ -1202,31 +1205,30 @@ public:
 	//! would need moving ALLOC_CHUNK_HEADER — out of scope.)
 	//!
 	//!   m_owner_id    : owner-thread id; freeing thread matches its
-	//!                   `s_tls_owner_id` (0 = unassigned/released, never
-	//!                   matches a live thread).  Also the released signal:
+	//!                   `KameTlsPage::owner_id` (0 = unassigned/released,
+	//!                   never matches a live thread).  Also the released signal:
 	//!                   `deallocate_chunk` clears it to 0 so the fast path
 	//!                   rejects a released chunk WITHOUT reading palloc.
 	//!   m_fs_flag     : redundant copy of chunk_header.size_info's
 	//!                   FS=true/false discriminator (true => FS=true).
-	//!                   On dealloc fast path it picks the local-id source:
-	//!                   FS=true => local id 0 (chunk serves 1 size);
-	//!                   FS=false => the slot prefix at p-8 carries it.
+	//!                   On the owner-free fast path it picks where the
+	//!                   slot's bucket comes from: FS=true =>
+	//!                   RegionMeta::unit_bucket (the chunk serves one size);
+	//!                   FS=false => the slot prefix at p-8 (borrow) or the
+	//!                   §page-bucket table (full-usable).
 	//!
-	//! FREELIST INDEXING (§12.3 — design "alloc: bucket-id direct;
-	//! dealloc: local-id direct; no conversion-table on hot paths"):
+	//! FREELIST INDEXING (§12.3):
 	//!   m_freelist_head[] is indexed by COMPACT per-chunk LOCAL id, not
 	//!   global bucket.  KAME_LOCAL_BUCKETS (= 9) covers the highest id
 	//!   (ALIGN=256 FS=false serves buckets 32..39 as ids 1..8; id 0 was
 	//!   bucket 16's, now in the ALIGN=32 tier).  `kBucketLocalId[]`
-	//!   maps bucket -> local id — but the alloc fast path NEVER reads it:
-	//!   instead, TLS `m_slots[bucket].freelist_head` holds a `char **`
-	//!   pointing DIRECTLY at the active chunk's m_freelist_head[local-id-
-	//!   for-this-bucket], updated at chunk-switch (slow_allocate) where
-	//!   kBucketLocalId IS read.  So alloc is `*tls[bucket]` (zero remap,
-	//!   zero chunk-pointer-deref on hit), and dealloc gets local-id from
-	//!   the chunk's m_fs_flag (FS=true) or the slot prefix (FS=false).
-	//!   Both routes converge on chunk->m_freelist_head[local], single
-	//!   storage; no consistency problem.
+	//!   maps bucket -> local id.  (§thread-list) The hot paths use
+	//!   neither: a malloc pops the thread's own list for the bucket,
+	//!   `KameTlsPage::m_slots[bucket]`, and an owner free pushes onto it,
+	//!   whichever chunk holds the slot.  A chunk's heads hold only an
+	//!   FS=true chunk's pre-filled or word-claimed slots until a miss
+	//!   splices them onto that list (tc_miss), and the slots an exiting
+	//!   thread hands back for the exit walk (tl_return_to_chunk).
 	alignas(64) uint32_t m_owner_id;
 	//! `m_owner_id` of the chunk at `chunk_base`, read or stamped as a
 	//! uint32_t -- for code that may not yet know a PoolAllocator object
@@ -1439,13 +1441,15 @@ public:
 	//!   back_offset [NUM_ALLOCATORS_IN_SPACE]  // 128 B
 	//!   unit_bucket [NUM_ALLOCATORS_IN_SPACE]  // 128 B
 	//!
-	//! Lives in unit 0 of the region (256 KiB virtual; only the first
-	//! page = 4 KiB is touched and committed by the kernel).  Unit 0 is
+	//! Lives in the first page of unit 0 of the region (256 KiB virtual).
+	//! The rest of unit 0 is touched only by the §page-bucket table at
+	//! +4 KiB (8 KiB; just the pages under full-tier slots) and by chunk
+	//! 1's metadata in its last 4 KiB.  Unit 0 is
 	//! permanently marked claimed (bit 0 of claim_bitmap set at region
 	//! init), so allocate_chunk's bitmap scan naturally skips it.  Cost:
-	//! 1/128 = 0.78 % of region VA, ~4 KiB committed RSS per region —
-	//! both negligible vs the BSS savings (3200 × 144 B = 450 KiB BSS
-	//! returned to the rodata-free pool).
+	//! 1/128 = 0.78 % of region VA, ~4 KiB committed RSS per region for
+	//! RegionMeta — both negligible vs the BSS savings (3200 × 144 B =
+	//! 450 KiB BSS returned to the rodata-free pool).
 	//!
 	//! Concurrency: claim_bitmap entries use atomic CAS (same as the
 	//! retired global s_claim_bitmap).  back_offset bytes are plain
@@ -1491,8 +1495,9 @@ public:
 		std::uint16_t numa_node;
 	};
 	// RegionMeta lives in the first page (4 KiB) of unit 0; it only needs
-	// to FIT, not hit an exact size.  144 B of arrays + the list/hint
-	// fields, well under a page.
+	// to FIT, not hit an exact size.  272 B of arrays + the list/hint
+	// fields (288 B on LP64), well under a page — the §page-bucket table
+	// starts at +4096 right after it.
 	static_assert(sizeof(RegionMeta) <= 4096,
 	              "RegionMeta must fit in the first page of region unit 0");
 
@@ -1534,8 +1539,9 @@ public:
 	//!   KAME_RADIX_POOL  — a pool region of 128 × 256 KiB units:
 	//!     +0      ┌────────────────────────────────────────────┐
 	//!             │ RegionMeta — in the first page of unit 0:   │
-	//!             │   DLL `next`, per-unit claim bitmaps,       │
-	//!             │   `has_free` hints, `numa_node`  (≤ 4096 B) │
+	//!             │   unit claim bitmap, back_offset[128],      │
+	//!             │   unit_bucket[128], DLL `next`, `has_free`, │
+	//!             │   `numa_node`            (288 B on LP64)    │
 	//!     +4 KiB  ├────────────────────────────────────────────┤
 	//!             │ (§page-bucket) full-tier bucket per 4 KiB   │
 	//!             │   page of the region            (8 KiB)     │
@@ -1578,9 +1584,6 @@ public:
 	//! `radix_lookup`.  Clears the radix slot then munmap's the region.
 	static void deallocate_large_va(void *p) noexcept;
 
-	//! Recover a region's metadata block from its base pointer.  Region
-	//! base is `ALLOC_MIN_MMAP_SIZE`-aligned (= 32 MiB), so the cast is
-	//! always valid for a populated region pointer.
 	//! (§page-bucket) One byte per 4 KiB page of a pool region: the bucket
 	//! of the full-tier slot that starts in that page, written where the
 	//! slot is carved (with its m_sizes entry) and read by the full-tier
@@ -1599,6 +1602,9 @@ public:
 	static inline std::uint8_t *region_page_bucket(char *mp) noexcept {
 		return reinterpret_cast<std::uint8_t *>(mp + REGION_PAGE_BUCKET_OFFSET);
 	}
+	//! Recover a region's metadata block from its base pointer.  Region
+	//! base is `ALLOC_MIN_MMAP_SIZE`-aligned (= 32 MiB), so the cast is
+	//! always valid for a populated region pointer.
 	static inline RegionMeta *region_meta(char *mp) noexcept {
 		return reinterpret_cast<RegionMeta *>(mp);
 	}
@@ -2593,7 +2599,7 @@ static_assert(ALLOC_NUM_BUCKETS == 52,
 
 //! Size → bucket-index.  FS=true/mixed range (1..368) uses the 16-byte
 //! step formula.  FS=false range
-//! (369..17400) uses the an earlier change N+1-shifted 4-way exponential ladder
+//! (369..17408) uses the N+1-shifted 4-way exponential ladder
 //! with bucket indices shifted +7.  (§16) Sizes 17409..32768 route to the
 //! ALIGN=4096 N=8 bucket 51 (slot 32768), now FULL-usable so the bucket
 //! serves the entire 32768-byte slot (was 32760 under the borrow scheme).
@@ -2647,11 +2653,12 @@ inline constexpr uint32_t kBucketNewSlot[52] = {
 //!   ALIGN=1024 FS=false: buckets {40..47}              -> 0..7
 //!   ALIGN=4096 FS=false: buckets {48..51}              -> 0..3
 //!
-//! USED ONLY ON THE COLD PATH (slow_allocate / cold_first_access) to set
-//! the per-thread TLS `m_slots[bucket].freelist_head` shortcut so the
-//! alloc HOT path needs no table lookup; dealloc HOT path reads the
-//! local-id directly from chunk.m_fs_flag (FS=true) or the slot prefix
-//! (FS=false).  See §12.3.
+//! Read off the hot paths only: allocate_pooled writes a borrow slot's id
+//! into its prefix, and at thread exit tl_return_to_chunk maps a full-tier
+//! slot's bucket to the head it goes back to.  (§thread-list) The hot
+//! paths go by bucket -- the thread's list `KameTlsPage::m_slots[bucket]`
+//! -- and read it from RegionMeta::unit_bucket (FS=true), the slot prefix
+//! (borrow) or the §page-bucket table (full-usable).  See §12.3.
 inline constexpr uint8_t kBucketLocalId[52] = {
     // 0      (size 0 reuses bucket 1's allocator; never an FS=false slot)
     0,

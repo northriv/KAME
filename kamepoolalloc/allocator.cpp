@@ -276,9 +276,9 @@ extern "C" void kame_pool_win_install_redirect() noexcept;
 ALLOC_TLS_IE bool s_alloc_tls_off = false;
 
 // Per-thread owner id for the deallocate owner-check fast path.  A
-// chunk stamps `m_owner_id = s_tls_owner_id` at allocate_chunk; a
-// freeing thread compares its own id to decide owner-side
-// (chunk-local freelist push, no atomics) vs cross-thread (batch).
+// chunk stamps `m_owner_id = kame_owner_id()` at allocate_chunk; a
+// freeing thread compares its own id to decide owner-side (a push onto
+// its own list, §thread-list, no atomics) vs cross-thread (batch).
 // Assigned once per thread from a global counter on first use; 0 is
 // reserved for "unassigned" so a never-allocated thread's frees never
 // spuriously match a chunk (chunks always carry a non-zero id).
@@ -711,18 +711,12 @@ struct AllocThreadExitCleanup {
         // freelist right before clearing its BIT_OWNED.  Call kept for
         // call-site / ABI stability.
         drain_thread_slot_freelists();
-        // Clear every per-thread bucket chunk pointer BEFORE the DLL
-        // teardown walk.  Otherwise a later TLS destructor that
-        // allocates could route through a chunk that's about to be
-        // released.  After this loop the slow path's per-bucket
-        // freelist-ptr slot reads as cleared, so
-        // `new_redirected` falls to `cold_first_access`, which
-        // observes `s_alloc_tls_off == true` (set a few lines below)
-        // and returns `std::malloc(size)`.
-        // (§12.3 / §hot-tls) Clear all per-bucket freelist-ptr slots in
-        // the TLS page.  A null entry makes new_redirected take the cold
-        // path on next access (which observes s_alloc_tls_off == true
-        // and routes to std::malloc).
+        // Empty every per-bucket list BEFORE the DLL teardown walk.
+        // Otherwise a later TLS destructor that allocates could pop a
+        // slot of a chunk that's about to be released.  After this loop
+        // `new_redirected` finds each list empty and falls to
+        // `cold_first_access`, which observes `s_alloc_tls_off == true`
+        // (set a few lines below) and returns `std::malloc(size)`.
         // Use tls_page_ie for the drain path (TSD slot may already be
         // cleared at thread-exit; IE fallback is safe here).
         {
@@ -1365,7 +1359,7 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	// chunk this thread's anchor or points it at the existing one.
 	// Owner id + chunk-local freelists for the dealloc fast path.
 	// `kame_owner_id()` is non-zero, so a foreign / never-allocated
-	// thread's `s_tls_owner_id == 0` never matches.  All heads start
+	// thread's `KameTlsPage::owner_id == 0` never matches.  All heads start
 	// empty (no slot handed out yet).
 	atomicStoreRelaxed(&this->m_owner_id, kame_owner_id());
 	// Cache-line-1 copies of the chunk_header fast-path discriminators
@@ -1429,10 +1423,10 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 		//     `allocate_chunk_path` → `allocate_pooled`): the
 		//     freelist_pop check at the head of allocate_pooled (§29)
 		//     pops slot 0 in O(1) — no bitmap-CAS find-zero scan.
-		//   * steady-state hot path (`new_redirected`): pops directly
-		//     from `g_thread_freelist_ptr[bucket] = &m_freelist_head[0]`,
-		//     same as the previous design (which populated the freelist
-		//     incrementally as slots were dealloc'd).
+		//   * steady state: that same miss then moves the rest of the
+		//     chain onto the thread's empty list in one store (tc_miss,
+		//     §thread-list), and the hot path (`new_redirected`) pops it
+		//     from there.
 		//
 		// Lifecycle invariants (INV-6, INV-7, INV-15..18) preserved:
 		// every pre-filled slot's m_flags bit IS set, so "bit set ⇔ slot
@@ -1816,19 +1810,19 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	}
 	else {
 		// (FS=false borrow) Also stash the bucket index in the slot prefix's
-		// upper-low-32 bits so the dealloc fast path can re-aim
-		// `g_thread_freelist_ptr[bucket]` at this chunk's freelist head
-		// without a `bucket_for_size` lookup (12 % Ir on FS=false churn).
-		// One `bucket_for_size` call here, on the cold alloc path.
+		// upper-low-32 bits so the owner free can push onto the thread's
+		// list for it (`m_slots[bucket]`, §thread-list) without a
+		// `bucket_for_size` lookup.  One `bucket_for_size` call here, on
+		// the cold alloc path.
 		bucket_for_prefix = bucket_for_size(SIZE);
 		local_id = kBucketLocalId[bucket_for_prefix];
 	}
 	// Slot prefix layout (FS=false borrow): bits 0..7 = local_id (max 8),
 	// bits 16..23 = bucket (max 51), bits 32..63 = SIZE.  Bucket lives in
 	// the upper byte of the low-32 half so the dealloc fast path can
-	// extract it from the same `hdr` load already done for local_id, for
-	// §freelist-follow.  For full-usable mode (ALIGN>=1024)
-	// `bucket_for_prefix` stays 0: that tier does not follow.
+	// extract it from the same `hdr` load already done for local_id, the
+	// list's index (§thread-list).  For full-usable mode (ALIGN>=1024)
+	// `bucket_for_prefix` stays 0: that tier has no prefix.
 	const std::uint64_t hdr_word =
 	    static_cast<std::uint64_t>(local_id)
 	  | (static_cast<std::uint64_t>(bucket_for_prefix) << 16)
@@ -2068,15 +2062,14 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 		return false;
 	}
 	// (§12.3) Per-slot prefix { uint32_t local_id, uint32_t SIZE } at
-	// `p - 8` (LAST 8 bytes of the prefix bit's ALIGN area).  One 64-bit
-	// load recovers the local-id directly — no bucket_for_size, no
-	// kBucketLocalId remap on the hot path.
+	// `p - 8` (LAST 8 bytes of the prefix bit's ALIGN area), the bucket in
+	// bits 16..23; the full tier keeps (N << 8) | bucket in m_sizes.
 	//
-	// Owner-side dealloc: push to this chunk's
-	// `m_freelist_head[local_id]` — exactly the cell `new_redirected`
-	// pops from via `g_thread_freelist_ptr[bucket]` on the next
-	// allocation of that size.  Non-owner routes to the cross-thread
-	// path which uses slot_start for batch dispatch.
+	// Owner-side dealloc: push onto this thread's list for the slot's
+	// bucket (`m_slots[bucket]`, §thread-list), which `new_redirected` pops
+	// on the next allocation of that size; the local id only validates
+	// the slot.  Non-owner routes to the cross-thread path which uses
+	// slot_start for batch dispatch.
 	//
 	// `s_tls.my_chunk` has declared type `PoolAllocator<ALIGN, false, false>*`
 	// (from the base's `PoolAllocator<ALIGN, DUMMY, DUMMY>*` with
@@ -2536,12 +2529,10 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled_static(
 }
 
 
-// FS=true slow_allocate override.  Called from `new_redirected`'s cold
-// path through this chunk's vtable.  ALIGN comes from the template
-// instantiation (compile-time).  FS=true buckets are single-size
-// (ALIGN == slot size), so `SIZE = ALIGN`; `bucket` selects the
-// per-bucket fast-path freelist pointer to repoint at the newly-claimed
-// chunk.
+// The miss path of every bucket: `bucket_first_access` (from
+// `cold_first_access`) and the chunk-vtable `slow_allocate` below both
+// land here.  ALIGN comes from the template instantiation (compile-time);
+// an FS=true bucket is single-size (ALIGN == slot size, SIZE = ALIGN).
 // (§thread-list) A miss of `bucket`: the thread's list for it is empty, so
 // bitmap room (the pin, the revival lists, orphaned groups, fresh room).
 // An FS=true pin whose pre-filled chain (its m_freelist_head[0], filled at
@@ -4739,14 +4730,10 @@ template <int... B> constexpr bool all_bucket_tables_match(std::integer_sequence
 static_assert(all_bucket_tables_match(std::make_integer_sequence<int, ALLOC_NUM_BUCKETS - 1>{}),
               "kBucketAlign and the fit classes must match the buckets' templates");
 
-//! First-access trampoline for bucket B.  Invoked from the
-//! `cold_first_access` switch when bucket B's per-thread freelist-ptr
-//! slot (`m_slots[B].freelist_head`) is unset.  Claims a chunk via the
-//! existing `allocate<>()` slow path (which registers
-//! AllocThreadExitCleanup) and wires that slot to the chunk's
-//! `m_freelist_head[]` so subsequent freelist-miss calls go straight to
-//! the chunk vtable path (`PoolAllocatorBase::slow_allocate`) and never
-//! come back through `cold_first_access`.
+//! Miss trampoline for bucket B.  Invoked from the `cold_first_access`
+//! switch whenever the thread's list for B (`m_slots[B].freelist_head`)
+//! is empty -- not only on the bucket's first access (§thread-list) --
+//! with SIZE compile-time-const for the bucket's template.
 template <int B>
 __attribute__((noinline))
 void *bucket_first_access(std::size_t /*size*/) noexcept {
@@ -4759,9 +4746,9 @@ void *bucket_first_access(std::size_t /*size*/) noexcept {
 
 } // anon namespace
 
-// Cold path entry point used by `new_redirected` when bucket's
-// per-thread freelist-ptr slot (`m_slots[bucket].freelist_head`) is
-// unset.  Handles three states:
+// Cold path entry point used by `new_redirected` when the thread's list
+// for the bucket (`m_slots[bucket].freelist_head`) is empty.  Handles
+// three states:
 //
 //   1. Pre-activation (`g_sys_image_loaded == false`): return
 //      std::malloc(size), don't claim a chunk.  Retried on every call
@@ -4769,11 +4756,10 @@ void *bucket_first_access(std::size_t /*size*/) noexcept {
 //   2. Post-cleanup (`s_alloc_tls_off == true`): same — return
 //      std::malloc(size).  Set by AllocThreadExitCleanup::~dtor on thread
 //      exit; later TLS destructors that still allocate land here.
-//   3. First access: switch on bucket to invoke the per-bucket
-//      `bucket_first_access<B>`, which calls
-//      `PA::allocate<BT::SIZE>()` with SIZE compile-time-const,
-//      registers AllocThreadExitCleanup, and wires
-//      `m_slots[B].freelist_head`.
+//   3. A miss (the bucket's first access, or any later one -- the list
+//      is empty, §thread-list): switch on bucket to invoke the
+//      per-bucket `bucket_first_access<B>`, which calls `PA::tc_miss`
+//      with SIZE compile-time-const.
 //
 // `__attribute__((cold))`: clang places this out-of-line so the
 // freelist-miss path in `new_redirected` doesn't bloat its branch
@@ -4912,9 +4898,9 @@ static void *new_redirected_large_tail(std::size_t size) noexcept {
 void *new_redirected_large(std::size_t size) noexcept {
     if(__builtin_expect(size > ALLOC_MAX_BUCKETED_SIZE, 0))
         return new_redirected_large_tail(size);
-    // (§12.3 / §hot-tls) Mirror new_redirected's direct-jump fast path
-    // via the KameTlsPage slot.  m_slots[bucket].freelist_head stores the
-    // char ** pointer (cast to char *) to the active chunk's freelist cell.
+    // (§hot-tls) Mirror new_redirected's fast path: pop the thread's list
+    // for the bucket, `m_slots[bucket].freelist_head` (§thread-list) --
+    // each free slot's first word links the next.
     unsigned int bucket = bucket_for_size(size);
     KameTlsPage *pg = kame_page_or_null();
     if(__builtin_expect(pg != nullptr, 1)) {
@@ -5179,7 +5165,8 @@ static void kame_free(void *p) noexcept {
 // Shared body for the C `malloc` strong-symbol interpose and the
 // `kame_pool_malloc` C-API entry — single source of truth for the
 // pool-or-ENOMEM logic.  `new_redirected` self-gates for pre-activation /
-// post-teardown via the null `g_thread_freelist_ptr[bucket]` path, so no
+// post-teardown via the empty `m_slots[bucket]` list (its miss reaches
+// `cold_first_access`, which checks both), so no
 // `!g_sys_image_loaded || kame_thread_torn_down()` pre-filter is needed here (same
 // as `operator new`).  `always_inline` so BOTH callers expand it directly:
 // the hot `malloc` keeps its inlined freelist pop with NO extra call/PLT
