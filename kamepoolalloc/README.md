@@ -151,6 +151,13 @@ Alpine/musl** (the mimalloc-bench CI matrix).  Requires a host with `mmap`
 | Windows **MinGW64 + lld** | ✅ default | §31 free-family IAT redirect lets the pool coexist with Qt / libc++ (PE/COFF has no cross-module `operator new` interposition); verified on-target with Qt 6.10.1 |
 | Windows **MSVC** (cl) | ✅ default | runs the full live pool — the `_MSC_VER` shim in `allocator_prv.h` bridges the GCC-isms (`_Interlocked*` atomics, `<intrin.h>` bit-scan / overflow, static-init constructor hook) and the §31 redirect handles Qt/CRT coexistence; opt OUT with `KAME_DISABLE_POOL_MSVC` |
 
+**Releases** are the standalone repository's tags; v1.3.0 is the current
+one.  Where the text below compares against "v1.2.1", that is the
+allocator of KAME master `45f1d07f9`, which was never tagged: its changes
+(v1.2.0's single-thread regressions fixed, `kame_pool_trim()`, the macOS
+dylib pooling `calloc` / `posix_memalign` / `aligned_alloc`) are in v1.3.0,
+with the thread lists below.
+
 ## Benchmarks
 
 Tight alloc/free loop, one slot at a time (`tests/bench/bench_loop.c` —
@@ -1253,6 +1260,9 @@ edits) and the §-chapter → subsystem → code navigation map
       header-only, all concept-conformance tested via `ctest`.  See
       [`contrib/`](contrib/) (also includes an OpenCV `cv::MatAllocator`
       paste recipe)
+- [x] Per-thread free lists (§thread-list) — no walk over chunks on the
+      allocation path; a thread keeps at most 4 MiB of freed memory per
+      bucket, and `kame_pool_trim()` gives back the rest (v1.3.0)
 
 ### Future / nice-to-have
 
@@ -1261,7 +1271,8 @@ edits) and the §-chapter → subsystem → code navigation map
 - [ ] Multiple heap instances (per-subsystem isolation)
 - [ ] Unified `KAME_POOL_*` env / config surface (hugepages, prewarm, caps)
 - [ ] `fork()` safety (`malloc_disable` / `_enable`)
-- [ ] musl / uclibc, RISC-V verification
+- [ ] uclibc, RISC-V verification (musl is covered by the mimalloc-bench CI,
+      see Status)
 
 ## Design timeline
 
@@ -1292,6 +1303,7 @@ four-tier general allocator.  Selected milestones (full history in `git log`):
 | 36 / S7 | lock-free orphan-chunk reclaim — `atomic_shared_ptr` chain (owner-exit push, sweep-reclaim, adopt + chunk self-ref owner-ref) replaces the leak-prone ABA Treiber stack; TLA+-verified, now the default |
 | 75    | Realtime per-thread gating (deferred reclaim + capped backlog), `kame_pool_prewarm()` (page-touching), `kame_pool_rt_drain()`, `kame::rt_section`, violation counters, and the written contract |
 | thread-list / fit | owner frees onto per-thread per-bucket lists; fit lists for bitmap room; FS=true misses claim a whole bitmap word — no walk over chunks on the allocation path.  §tl-cap: a list holds ≤ 4 MiB, past that a free returns its own slot; idle buckets give back ≤ 256 slots per new chunk |
+| page-bucket | the owner free reads the slot's bucket one load off `p` — `RegionMeta::unit_bucket` (FS=true), a per-region page table (full tier) — recovering what the thread lists cost x86 at 64 B and Windows at 16 KiB |
 
 ## Acknowledgements
 
