@@ -235,3 +235,102 @@ predates it.  Re-check on the M5 and on Linux:
    (`tl_reclaim_idle`; 627 MiB), and `kame_pool_trim()` gives back all of the
    calling thread's lists.  `alloc_phase_test` now frees in a random order
    too; re-check it, and the thread-exit soaks, on Linux.
+
+## Run: M5 Ultra, 2026-10-13 — §tl-cap (master `6b61c6e4a`)
+
+Same machine and toolchain as the 2026-10-12 run.  Arms: tree at
+`6b61c6e4a` (sha256 `b6ea3d464599bbf6`), pre = `727c47322`'s
+`kamepoolalloc/` from the archive (sha256 `6d9157ba1b90e29d`, the tree arm
+of the run above), mimalloc 3.3.2.  `23ddbbd7a` and `460730c35`
+(`tl_reclaim_idle`) landed after this run and are not covered.
+
+**Correctness (items 2, 3).**  Full-tree ctest 48/48 in Release, in `-O2
+-g` with asserts, and in that build with `-DKAME_TL_SEG_BYTES=1024u
+-DKAME_TL_SEGS=1`.  In all three, scored by exit status, 6 in parallel:
+`alloc_tsd_exclusivity_test` and `_var_test` 2000 each, `alloc_fit_test`
+300, `alloc_phase_test` 300, `alloc_rt_thread_test` 200, the four
+`alloc_thread_exit_*` tests 200 each — 0 failures.
+
+**`bench_ab.sh`** (`--tags tree --arm pre=… --arm mi=…`, the same `--only`
+set, `--threads "4 8" --reps 5`; results
+`~/bench-ab/results-dhcp-029-018-20261013-012520`), the rows that moved
+and the headline ones, median (min–max):
+
+| bench | config | metric | tree | pre | mi | pre / tree | mi / tree |
+|---|---|---|---|---|---|---|---|
+| loop | 64B | Mops ↑ | 1139 (1133–1162) | 1171 (1137–1180) | 1071 (1013–1078) | 1.03× | 0.94× |
+| loop | 1024B | Mops ↑ | 750 (717–769) | 842 (761–914) | 781 (767–794) | 1.12× | 1.04× |
+| loop | 16384B | Mops ↑ | 778 (724–800) | 846 (828–876) | 361 (342–371) | 1.09× | 0.46× |
+| xthread | w4,1KiB | Mfree ↑ | 84.6 (84.2–86.9) | 89.6 (83.2–89.7) | 111 (103–113) | 1.06× | 1.32× |
+| xmalloc | w4,64B | Mfree ↑ | 404 (386–409) | 392 (381–405) | 346 (344–346) | 0.97× | 0.86× |
+| larson | t4 | Mops ↑ | 166 (164–169) | 169 (167–170) | 199 (199–201) | 1.02× | 1.20× |
+| rptest | t4 | Mops_cpu ↑ | 7.06 (6.83–7.25) | 7.4 (6.48–7.78) | 7.15 (6.73–7.28) | 1.05× | 1.01× |
+| frame | t4 | fps ↑ | 5213 (5092–5270) | 5277 (5011–5296) | 5601 (5496–5680) | 1.01× | 1.07× |
+| frame | t4 | frame_max_us ↓ | 311 (225–365) | 350 (232–487) | 425 (275–1384) | 1.13× | 1.37× |
+| frame | t4 | rss_mib ↓ | 916 (916–931) | 916 (916–931) | 483 (464–491) | 1.00× | 0.53× |
+| xthread | w8,1KiB | Mfree ↑ | 125 (119–127) | 123 (119–125) | 80.0 (76.2–85.6) | 0.98× | 0.64× |
+| xmalloc | w8,64B | Mfree ↑ | 511 (506–514) | 509 (504–512) | 505 (503–507) | 1.00× | 0.99× |
+| larson | t8 | Mops ↑ | 256 (254–258) | 260 (259–262) | 211 (204–213) | 1.01× | 0.82× |
+| rptest | t8 | Mops_cpu ↑ | 6.48 (6.08–7.27) | 6.51 (5.83–6.98) | 5.36 (5.16–5.61) | 1.00× | 0.83× |
+| frame | t8 | fps ↑ | 4159 (4128–4173) | 4176 (4138–4207) | 3692 (3553–3709) | 1.00× | 0.89× |
+| frame | t8 | frame_max_us ↓ | 482 (440–503) | 432 (402–662) | 1655 (1260–1700) | 0.90× | 3.43× |
+| frame | t8 | rss_mib ↓ | 1158 (1158–1162) | 1158 (1158–1162) | 564 (562–608) | 1.00× | 0.49× |
+| xlat | 1024Bx200000 | rate_M ↑ | 4.98 (4.92–5.12) | 5.07 (4.94–5.2) | 9.29 (9.2–9.35) | 1.02× | 1.87× |
+| xlat | 1024Bx1000000 | max_ns ↓ | 14791 (13083–16958) | 13500 (13416–14208) | 22000 (20250–33250) | 0.91× | 1.49× |
+
+The rest — frameRT, the other frame percentiles, slow calls, the other
+xlat rows — are level within their spread (`summary.md` there has them
+all).  Item 1: the loss is on the single-thread loop above 64 B, 1 KiB
+0.89x (now below mimalloc) and 16 KiB 0.92x, against the M3's 0.93x /
+0.93x; the multi-thread benches are level.
+
+**Micro benches** (`ab.py . 5 pre=… tree=…`, median of 5):
+
+| config | unit | pre | tree |
+|---|---|---|---|
+| replace1 5000 20000000 400 1000 | M ops/s | 401.9 | 391.9 |
+| replace1 5000 20000000 8 1000 | M ops/s | 200.5 | 197.9 |
+| replace1 100000 20000000 16 4096 | M ops/s | 127.0 | 121.5 |
+| replace1 5000 20000000 1500 3000 | M ops/s | 386.4 | 356.8 |
+| replace1 5000 20000000 16 368 | M ops/s | 279.1 | 275.0 |
+| heavy 100000 1000000 4 400 1000 | ns/alloc | 73.6 | 74.9 |
+| heavy 100000 1000000 32 400 1000 | ns/alloc | 63.6 | 63.9 |
+| heavy 100000 1000000 32 32 512 | ns/alloc | 31.6 | 31.1 |
+| ring 64 4 20 | M ops/s | 13.5 | 13.3 |
+| ring 64 32 20 | M ops/s | 22.7 | 22.5 |
+| ring 64 128 20 | M ops/s | 23.5 | 23.2 |
+
+The L1-resident replace1 loss at 16..368 B did not grow (0.985); the
+larger FS=false sizes lost more: 1500..3000 B 0.92x, 16..4096 B 0.96x.
+
+**Hitches (item 4).**  A probe that mallocs 200 MiB of one size and times
+every free in allocation order (`clock_gettime_nsec_np(CLOCK_UPTIME_RAW)`
+around each `free`), 3 runs per arm:
+
+| size | metric | pre | tree | mi |
+|---|---|---|---|---|
+| 64 B | mean | 7.3–8.3 ns | 9.6–9.8 ns | 7.3–7.4 ns |
+| 64 B | p99.99 | 84–125 ns | 10.3–10.9 µs | 125 ns |
+| 64 B | max | 17.8–29.3 µs | 21.6–26.3 µs | 18.1–21.7 µs |
+| 64 B | frees > 1 µs / > 10 µs | 18–26 / 12–17 | 801–816 / 444–527 | 19–30 / 8–14 |
+| 1 KiB | mean | 26.1–28.3 ns | 55.3–57.8 ns | 8.9–9.2 ns |
+| 1 KiB | p99.99 | 250 ns | 8.4–17.1 µs | 209–250 ns |
+| 1 KiB | max | 17.8–22.8 µs | 29.3–39.5 µs | 10.6–12.0 µs |
+| 1 KiB | frees > 1 µs / > 10 µs | 7–14 / 1–6 | 835–840 / 11–43 | 1–7 / 1–2 |
+
+The worst free moves little; what changes is one slow free per sealed
+segment returned — 200 MiB / 256 KiB = 800, the > 1 µs count — at
+roughly 8–9 µs each, which pushes p99.99 from ~100 ns to ~10 µs.  At
+1 KiB the returns also double the mean free (≈ 30 ns a returned slot
+amortized, against ≈ 2 ns at 64 B).
+
+**Memory (item 5).**  One thread, 400 MiB of A-byte blocks malloc'd,
+freed in allocation order, then 400 MiB of B-byte blocks; peak
+`phys_footprint` (`ledger_phys_footprint_peak`):
+
+| A → B | pre | tree | tree, `kame_pool_trim()` between | mi |
+|---|---|---|---|---|
+| 64 B → 1 KiB | 1053 MiB | 631 MiB | 581 MiB | 481 MiB |
+| 4 KiB → 64 B | 891 MiB | 707 MiB | 588 MiB | 467 MiB |
+
+The M3's numbers to the MiB.
