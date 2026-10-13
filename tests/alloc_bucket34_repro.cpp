@@ -6,8 +6,8 @@
 //    状態で trampoline call → 不正アドレスへジャンプ"
 //
 // Strategy: many threads, each allocates random-size mix from buckets
-// 31..36 (which all share `PoolAllocator<ALLOC_ALIGN3, false>` chunks
-// — ALLOC_ALIGN3=1024 on 64-bit / 512 on 32-bit).  Cross-thread free
+// 31..36 (which then all shared one FS=false ALIGN 1024 template -- the
+// ALLOC_ALIGN3 of the time, 512 on 32-bit).  Cross-thread free
 // every iteration (slot allocated by thread A, freed by thread B's
 // drain).  Sentinel paint + verify exposes any slot-overrun corruption
 // before SEGV.
@@ -39,7 +39,7 @@
 namespace {
 
 constexpr int kAlive = 1024;
-// Sizes covering buckets 31..36 — all FS=false ALIGN=ALLOC_ALIGN3 = 1024.
+// Sizes covering what were buckets 31..36 — FS=false ALIGN 1024 then.
 // The reported SEGV is at bucket 34 (size 6144) specifically.
 constexpr std::size_t kSizes[] = {3072, 4096, 5120, 6144, 7168, 8192};
 constexpr int kNumSizes = sizeof(kSizes) / sizeof(kSizes[0]);
