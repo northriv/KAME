@@ -31,10 +31,21 @@
   std::condition_variable::wait_for, which MSVC's STL rounds to the system
   timer tick, where MinGW's runtime sleeps the microseconds it was asked
   for (722 us on the same arm).  The Aug 28 note put that failure down to
-  load; it is deterministic on cl.  Related, found reading timeStamp():
-  its __rdtsc branch sits inside a GCC-macro guard (__i386__ /
-  __x86_64__) that cl never defines, so every MSVC build has been using
-  the 1 us XTime::now() fallback.
+  load; it is deterministic on cl.
+- kamestm/xtime.cpp builds under cl and under 32-bit MinGW, and its
+  timeStamp() reads the TSC there.  The __rdtsc branch sat inside a guard
+  of GCC spellings (__i386__ / __x86_64__) that cl never defines, so any
+  MSVC build of the library took the 1 us XTime::now() fallback -- though
+  none had got that far: XTime::now() called gettimeofday, which the UCRT
+  does not have, and a std::min collided with windows.h's macro.  now() is
+  system_clock on cl, the min is parenthesised, and the guard lists
+  _M_IX86 / _M_X64.  The ctime / localtime guard said __MINGW64__, which
+  left i686 mingw-w64 to ctime_r and localtime_r that its CRT lacks; it
+  says __MINGW32__, defined at both widths.  (The tests were never
+  affected: support_standalone.h carries a steady_clock timeStamp() of
+  its own.)  The object now carries rdtsc on cl x64, cl x86 and
+  llvm-mingw i686; the standalone kamestm DLL still exports nothing on
+  Windows, which is a CMake matter for another day.
 
 * Sat Oct 10 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - Interlock: a new module, modules/interlock, with one driver, Scalar

@@ -29,6 +29,7 @@
 
 #ifdef _MSC_VER
     #include <windows.h>
+    #include <intrin.h>   // __rdtsc
     #include <time.h>
 #else
     #include <sys/time.h>
@@ -74,7 +75,11 @@ void msecsleep(unsigned int ms) noexcept {
 }
 
 timestamp_t timeStamp() noexcept {
-#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
+// cl defines _M_IX86 / _M_X64, never the GCC spellings; until they were
+// listed here every MSVC build fell through to the XTime::now() fallback
+// below (1 us) while the __rdtsc branch sat unreachable.
+#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__ \
+    || defined _M_IX86 || defined _M_X64
     memoryBarrier();
     uint64_t r;
     #ifdef _MSC_VER
@@ -176,16 +181,22 @@ XTime::operator system_clock::time_point() const {
 
 XTime
 XTime::now() noexcept {
+#ifdef _MSC_VER
+    // No gettimeofday in the UCRT; system_clock is FILETIME-backed and
+    // carries the same microsecond resolution into the constructor above.
+    return XTime(system_clock::now());
+#else
     timeval tv;
     gettimeofday(&tv, NULL);
     return XTime(tv.tv_sec, tv.tv_usec);
+#endif
 };
 
 XString
 XTime::getTimeStr(bool subsecond) const {
     if(isSet()) {
         char str[100] = {};
-#if defined _MSC_VER || defined(__MINGW64__)
+#if defined _MSC_VER || defined(__MINGW32__) // __MINGW32__: both widths of mingw-w64; __MINGW64__ left i686 to ctime_r, which its CRT lacks
         __time32_t t32 = tv_sec;
         __time64_t t64 = tv_sec;
         if(sizeof(tv_sec) == 4)
@@ -195,7 +206,7 @@ XTime::getTimeStr(bool subsecond) const {
 #else
         ctime_r( &tv_sec, str);
 #endif
-        str[std::min(strlen(str), sizeof(str)) - 1] = '\0'; //erases \n
+        str[(std::min)(strlen(str), sizeof(str)) - 1] = '\0'; //erases \n (parenthesised: windows.h's min macro)
         if(subsecond)
 			sprintf(str + strlen(str), " +%.3dms", (int)tv_usec/1000);
         return {str};
@@ -208,7 +219,7 @@ XString
 XTime::getTimeFmtStr(const char *fmt, bool subsecond) const {
     if(isSet()) {
         struct tm time;
-#if defined _MSC_VER || defined(__MINGW64__)
+#if defined _MSC_VER || defined(__MINGW32__) // __MINGW32__: both widths of mingw-w64; __MINGW64__ left i686 to ctime_r, which its CRT lacks
         __time32_t t32 = tv_sec;
         __time64_t t64 = tv_sec;
         if(sizeof(tv_sec) == 4)
