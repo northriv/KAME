@@ -931,9 +931,9 @@ landed on the 15.6 ms timer tick (p99.99 15.6–15.8 ms in three serial runs)
 — `condition_variable::wait_for(10 ms)` took 15.6 ms on this host at the
 time, 10.2 ms under `timeBeginPeriod(1)`.
 
-**`bench_compare.sh`** at `5d2f5a726`, median of 5 — now the README's
-Windows tables.  Against them, the README's previous numbers (`8f2e6980`,
-June):
+**`bench_compare.sh`** at `5d2f5a726`, median of 5 (the README's Windows
+tables are re-run at `78e57424c`, below).  Against them, the README's
+previous numbers (`8f2e6980`, June):
 
 | size | 1T June | 1T now | 4 proc June | 4 proc now |
 |---|---|---|---|---|
@@ -973,6 +973,41 @@ v1.2.1.  Not yet known: whether it is x86 or Broadwell (Ohtaka's Zen 2 item
 would say), or code placement, which moved the M3's 16 KiB loop by 7 % on
 its own.  1 MiB is unchanged throughout; the June table's 231 was the
 machine of that day.
+
+**The 64 B cause, and `78e57424c`** (reproduced by the user on Linux x86
+too).  In this loop one slot goes round: malloc pops it off
+`m_slots[bucket]`, free pushes it back on.  Before `5fc34e052` the free's
+store went to the chunk's `m_freelist_head[0]`, an address one load away
+from `p` (`back_offset`); after it, to `pg->m_slots[m_base_bucket]`, and
+`m_base_bucket` is read from the chunk that `back_offset` finds — two
+dependent loads before the store's address is known, with the next malloc
+waiting on that store.  Measurement-only builds, interleaved, 9 reps:
+
+| arm | 64 B single thread |
+|---|---|
+| `e2c9e6dde` | 227 (220–242) |
+| bucket hard-wired to 4 (correct for 64 B only) | 337 (307–364) |
+| bucket from `RegionMeta::unit_bucket` | 317 (286–342) |
+
+`78e57424c` is the third: `unit_bucket[128]`, one byte per unit beside
+`back_offset`, written with `m_base_bucket` in `construct_chunk_at`, read on
+the FS=true owner free with the same index as `back_offset`, so the two
+loads are side by side.  Against `e2c9e6dde`, interleaved: single thread
+64 B 218 → 313 (1.44×), 1 KiB 1.07×, 16 KiB 0.99×; 4 processes 64 B
+876 → 1122 (1.28×), 16 KiB 1.03×, 1 MiB 1.03×; `bench_xthread -w 2` at
+64 B / 1 KiB / mixed 0.99–1.01×.  With asserts on (`unit_bucket ==
+m_base_bucket`) the pool suite and 20 runs each of the thread-exit,
+exclusivity (plain and `--mid`), fit and phase tests, churn and stress ran
+0 failures.  The M5 Ultra and Linux x86 should re-run `loop`; the M5 never
+showed the loss, and a gain there is not expected.
+
+16 KiB is untouched by it — another tier, still about 0.66× June's here.
+
+`bench_compare.sh` at `78e57424c`, median of 5 — the README's Windows
+tables now: single thread 64 B 335, 1 KiB 242, 16 KiB 118, 64 KiB 69,
+256 KiB 63, 1 MiB 51, 4 MiB 33; 4 processes 64 B 1178, 16 KiB 498, 64 KiB
+237, 1 MiB 233.  The single-thread 1 MiB row is the noisy one: 51–65 for
+one binary, interleaved, before and after alike.
 
 ## Run: Linux, Intel Xeon @ 2.80 GHz, 2026-10-13 — the Windows regressions checked on another x86
 
@@ -1047,3 +1082,87 @@ pre-reserve); interleaved against its parent `1f6a59fd3`, 9 reps: single
 thread 74 → 63 (0.86×), 4 processes 259 → 220 (0.85×).  That is the first and
 largest identified part of the 0.74×; the rest lies later in the range and is
 not bisected.  clang's 4-process 1 MiB row is too noisy here to read.
+
+## Run: Linux, 2026-10-13 (master `5acd9215c`) — the 241..256 B move and the ILP32 ALIGN 128 template's removal
+
+The container, nine trees and harsh flags of the `9f6370a52` Linux run,
+rebuilt at `5acd9215c` (the i386 side had been checked only at compile time).
+
+- Builds: all nine whole.  No-DCAS 3/3.
+- ctest: LP64 49/49 ×2, harsh LP64 asserts 49/49; every other tree 48/49 or
+  41/42 with only `transaction_wait_budget_test` failing under `ctest -j3`,
+  3/3 PASS alone each time (the `RUN_SERIAL` of `5d2f5a726` now keeps it
+  alone).  `alloc_fit_test`'s new ALIGN 64 tier (696 B fillers, 568 B probes):
+  599 / 2999 probes among the fillers on LP64, 1499 / 2999 on ILP32; 0 short,
+  0 overwritten.
+- Soaks, by exit status: LP64 release `alloc_fit_test`, `alloc_aligned_test`,
+  `alloc_phase_test` and the four thread-exit tests 0 / 200 each, the
+  exclusivity tests (32 B, var, `--mid`) 0 / 500 each; on i586 and i486
+  (release and asserts) and the three harsh trees, fit, aligned, phase, var,
+  `--mid` and the four thread-exit tests 0 / 100 each — 0 failures in all.
+- Units for 64 MiB of one size (`kame_pool_get_stats().units_live`), the
+  same probe against `9f6370a52`'s library and `5acd9215c`'s:
+
+  | size | LP64 before → after | ILP32 (i586 = i486) before → after |
+  |---|---|---|
+  | 241 / 248 / 256 B | 562 / 542 / 526 → **315 / 306 / 297** (0.56×) | 440 / 429 / 416 → **367 / 357 / 346** (0.83×) |
+  | 128 B | 345 → 345 | 530 → **354** (0.67×; bucket 8 left the ALIGN 128 template) |
+  | 96, 200, 224, 240, 257, 288 B | unchanged | unchanged |
+
+  Usable size of 241–256 B stays 256; every such block 32-B aligned, 57 %
+  also 64-B on LP64 (the commit's 4 of 7), 67 % on ILP32.
+
+## Run: Linux, Intel Xeon @ 2.80 GHz, 2026-10-13 — after `78e57424c` (the 64 B cause)
+
+The A/B of the run before last, the same host and method (one `bench_loop`,
+`LD_PRELOAD` per arm, interleaved, glibc as control), with `78e57424c` added
+and 1 MiB measured single-threaded too; 9 reps single thread, 5 reps
+4 processes.  Median M ops/s (min–max):
+
+**gcc, single thread, 9 reps** (M ops/s, median (min–max))
+
+| size | glibc | `8f2e6980` (June) | `45f1d07f9` | `e2c9e6dde` | `78e57424c` | 78e / e2c | 78e / 45f | 78e / June |
+|---|---|---|---|---|---|---|---|---|
+| 64 B | 119 (92–143) | 267 (173–284) | 239 (176–269) | 197 (150–210) | 223 (186–253) | 1.13× | 0.93× | 0.84× |
+| 1 KiB | 130 (95–151) | 180 (135–226) | 199 (138–214) | 196 (117–212) | 187 (114–211) | 0.95× | 0.94× | 1.04× |
+| 16 KiB | 47 (46–55) | 161 (140–174) | 150 (131–173) | 158 (112–182) | 156 (138–185) | 0.99× | 1.04× | 0.97× |
+| 1 MiB | 45 (25–58) | 76 (47–84) | 52 (35–60) | 60 (50–65) | 60 (36–66) | 1.00× | 1.16× | 0.80× |
+
+**gcc, 4 processes aggregate, 5 reps** (M ops/s, median (min–max))
+
+| size | glibc | `8f2e6980` (June) | `45f1d07f9` | `e2c9e6dde` | `78e57424c` | 78e / e2c | 78e / 45f | 78e / June |
+|---|---|---|---|---|---|---|---|---|
+| 64 B | 516 (502–531) | 1051 (987–1063) | 894 (795–1088) | 725 (586–806) | 822 (673–980) | 1.13× | 0.92× | 0.78× |
+| 16 KiB | 193 (186–198) | 602 (536–681) | 603 (519–620) | 581 (543–671) | 631 (588–644) | 1.09× | 1.05× | 1.05× |
+| 1 MiB | 202 (180–211) | 278 (255–323) | 200 (189–223) | 222 (154–252) | 233 (224–246) | 1.05× | 1.17× | 0.84× |
+
+**clang, single thread, 9 reps** (M ops/s, median (min–max))
+
+| size | glibc | `8f2e6980` (June) | `45f1d07f9` | `e2c9e6dde` | `78e57424c` | 78e / e2c | 78e / 45f | 78e / June |
+|---|---|---|---|---|---|---|---|---|
+| 64 B | 132 (81–147) | 281 (238–322) | 273 (210–305) | 204 (168–250) | 241 (171–284) | 1.18× | 0.88× | 0.86× |
+| 1 KiB | 120 (104–139) | 175 (114–212) | 213 (204–226) | 203 (172–237) | 210 (180–269) | 1.04× | 0.99× | 1.20× |
+| 16 KiB | 46 (39–54) | 179 (148–193) | 174 (156–188) | 181 (147–197) | 178 (136–197) | 0.98× | 1.02× | 0.99× |
+| 1 MiB | 51 (37–59) | 59 (39–63) | 51 (34–62) | 50 (42–59) | 43 (26–57) | 0.85× | 0.84× | 0.72× |
+
+**clang, 4 processes aggregate, 5 reps** (M ops/s, median (min–max))
+
+| size | glibc | `8f2e6980` (June) | `45f1d07f9` | `e2c9e6dde` | `78e57424c` | 78e / e2c | 78e / 45f | 78e / June |
+|---|---|---|---|---|---|---|---|---|
+| 64 B | 401 (327–504) | 1091 (974–1194) | 938 (803–1086) | 693 (578–784) | 845 (733–937) | 1.22× | 0.90× | 0.77× |
+| 16 KiB | 178 (160–195) | 671 (650–703) | 645 (551–692) | 570 (504–687) | 603 (521–629) | 1.06× | 0.94× | 0.90× |
+| 1 MiB | 178 (133–211) | 200 (188–237) | 186 (173–222) | 178 (155–199) | 183 (160–219) | 1.03× | 0.98× | 0.91× |
+
+**64 B: `78e57424c` helps here too, but not all the way.**  Against
+`e2c9e6dde` it is 1.13× / 1.18× single thread (gcc / clang) and 1.13× /
+1.22× on 4 processes — where the Windows Xeon gained 1.44× / 1.28× and ended
+above June.  Here it stays below the commit before the thread lists in all
+four configurations, 0.88–0.93× of `45f1d07f9` (each range overlaps, the
+direction does not vary), and 0.77–0.86× of June (part of that predates
+`5fc34e052`: June → `45f1d07f9` was already 0.86–0.90× at 64 B here).  So on
+this core something of the 64 B cost remains beyond the bucket read.
+
+**16 KiB**: level, as in the run before last (0.94–1.05× of `45f1d07f9`).
+**1 MiB**: the June step stays — gcc 0.80× single thread, 0.84× 4 processes
+of June (`6fe90a931`'s part of it is untouched by this commit); clang's rows
+are too noisy to read.
