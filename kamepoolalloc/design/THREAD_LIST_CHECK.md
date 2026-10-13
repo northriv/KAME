@@ -830,3 +830,81 @@ ranges, and at t8 it goes both ways.
 | ring 64 128 20 | M ops/s | 24.0 | 23.9 | 24.1 |
 
 tree within 1–2 % of prev throughout.
+
+## Run: Linux, 2026-10-13 (master `9f6370a52`; the ILP32 re-run of `75369a9a3` / `10e5bd4bf` and the re-check of the freed-slot return)
+
+Same container (x86-64, g++ 13.3, 4 vCPU) and six trees as the Linux runs
+above, rebuilt at `9f6370a52`, plus harsh trees with the new flags
+`-DKAME_TL_CAP_BYTES=2048u -DKAME_TL_RECLAIM_SLOTS=1` (LP64 release, LP64
+asserts, i586 asserts; flags confirmed in their caches).  Library-only builds
+at `460730c35` (LP64, i586, i486) for the alignment bug and at `4ae71a910`
+(LP64) for the freed-slot comparison.
+
+**ILP32, items 1–4 of "Since the Linux runs".**
+
+1. *Build without `-k`*: all nine trees build whole, `bench_frame` included
+   on i486.
+2. *ctest*: LP64 49/49 ×2, harsh LP64 49/49 ×2, i586 asserts 49/49, i486
+   asserts 42/42; i586 release 48/49, i486 release 41/42 and harsh i586
+   48/49 — `transaction_wait_budget_test` under `ctest -j3` each time, 3/3
+   PASS alone.  `alloc_fit_test`, `alloc_phase_test` and `alloc_aligned_test`
+   pass on every tree.  `alloc_fit_test`'s ALIGN 128 tier on ILP32 (256 B
+   fillers, 128 B probes) — §fit's first run there: **299 / 3000 probes
+   among the fillers** (rounds 1 / 2), 0 short, 0 overwritten; its ALIGN 32
+   tier 1499 / 3000.  No-DCAS 3/3.
+3. *The alignment bug at run time*, `alloc_aligned_test` (built at
+   `9f6370a52`) against each library by `LD_LIBRARY_PATH`, 3 runs each:
+
+   | | own library (`9f6370a52`) | `460730c35` library |
+   |---|---|---|
+   | LP64 | PASS ×3 | PASS ×3 |
+   | i586 | PASS ×3 | **FAIL ×3**: "misaligned: alignment 256, size 1 -> 0xf410e180" |
+   | i486 | PASS ×3 | **FAIL ×3**: the same |
+
+   The failing addresses are 128-aligned, not 256 — the every-other-slot
+   misalignment `75369a9a3` read off the tables, now seen.
+4. *Soaks*: `alloc_phase_test`, `alloc_fit_test` and `alloc_aligned_test`,
+   **0 / 100** each on all four ILP32 trees.
+
+**Item 4 of "Since `4ae71a910`" (correctness).**  Soaks by exit status, 4 at
+a time, a stage's tests interleaved, a SIGSEGV reporter on every run:
+
+| tree | phase / rt_thread / aligned / 4 thread-exit | exclusivity 32 B / var / mid | fit |
+|---|---|---|---|
+| LP64 release | 0 / 200 each | 0 / 500 each | 0 / 500 |
+| harsh LP64 release, harsh LP64 asserts, harsh i586 asserts | 0 / 100 each (phase, rt, 4 thread-exit) | 0 / 100 each | 0 / 100 |
+
+**Item 1 (hitches).**  `freelat SIZE 200`, LP64, `LD_PRELOAD` of each
+library, interleaved, 3 runs each; frees over 100 µs (and p99.99):
+
+| | `9f6370a52` | `4ae71a910` |
+|---|---|---|
+| 16 B in order | 21–45 (17–22 µs) | 724–761 (21–23 µs) |
+| 16 B `SHUFFLE=1` | 47–67 (26–31 µs) | 830–899 (39–46 µs) |
+| 64 B in order | 0–19 (23–25 µs) | 90–201 (82–90 µs) |
+| 64 B `SHUFFLE=1` | 3–23 (21–36 µs) | 799–822 (**934–1095 µs**) |
+| 1 KiB in order | 0–1 (44–49 µs) | 41–131 (111–143 µs) |
+| 1 KiB `SHUFFLE=1` | 0–12 (35–50 µs) | 11–82 (91–137 µs) |
+
+Frees over 100 µs drop 10–200×, and the 64 B random-order p99.99 from ~1 ms
+to ~25 µs.  "No free over 100 µs" does not hold literally here: a few dozen
+of 13 M frees still exceed it with the new library, and the maxima (to
+9.9 ms, in both arms) are what a shared VM's preemption looks like; without
+a profiler they are not attributed.  `RT=1` with `SHUFFLE=1` now matches
+`SHUFFLE=1` alone in every size (16 B mean 159–168 vs 140–178 ns), as
+claimed; the old library's RT path differed (16 B 151–177 vs 350–405 ns).
+The in-order mean rose at 16 B (50–60 vs 38–39 ns) and a little at 64 B
+(50–58 vs 46–50 ns); at 1 KiB it fell (304–317 vs 427–473 ns).
+
+**Item 2 (memory).**  The phase-change probe of the runs above, freed in a
+random order (`SHUFFLE=1`), peak RSS (VmHWM), one thread, 400 MiB a phase:
+
+| phase change | `9f6370a52` | `4ae71a910` | glibc |
+|---|---|---|---|
+| 64 B → 1 KiB | 600 MiB | 600 | 553 |
+| 16 B → 1 KiB | 750 | 750 | 1003 |
+| 4 KiB → 64 B | 679 | 679 | 553 |
+
+Identical peaks for the two libraries, as on the M3 (777 / 627 there, same
+before and after).  Item 3 (`bench_loop`) is timing on a real host; not
+measured on this VM.
