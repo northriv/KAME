@@ -1629,5 +1629,8 @@ Arm 5 plants a foreign HIGHEST Reserved stamp only 50 ms in the future
 within 80 ms; a committer whose transaction starts more than 50 ms after the
 stamp is made is no longer older than it, so being held is then correct and
 the check fails.  That window is the arm's one timing assumption the other
-"not held" arms (stamps in the past) do not have.  Repeated `ctest -j3` runs
-(LP64 asserts ×5, release ×3) to catch it again: running.
+"not held" arms (stamps in the past) do not have.  Eight more full `ctest -j3`
+runs (LP64 asserts ×5, release ×3) passed it every time: 1 failure in 9
+full runs and none in 170 others — rare, load-shaped, unproven.  If it
+recurs, a wider future margin for arm 5's stamp (seconds rather than 50 ms)
+or `RUN_SERIAL` would tell the window from a real fault.
