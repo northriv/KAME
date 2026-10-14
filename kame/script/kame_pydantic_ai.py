@@ -662,13 +662,46 @@ def kame_history_budget(max_tokens=None, keep_recent=6):
     start of a run, and then every earlier thinking block is dropped: a
     provider that signs thinking against the preceding content (Anthropic)
     rejects a block whose prefix changed, so the two go together.
+
+    It also undoes the one change the web UI's round trip makes to a history
+    that can be undone.  The browser holds the conversation in the Vercel AI
+    format, which has no retry part: a RetryPromptPart (a tool call that
+    failed validation, or a tool that asked to be retried) comes back as a
+    failed ToolReturnPart holding the text the model was shown, which a
+    provider encodes differently (Anthropic: a list of text blocks, not a
+    string).  The replayed history then no longer matches what was sent: the
+    prompt cache misses from there on, every turn, and Claude refuses the
+    thinking blocks after it.  That text ends with the suffix RetryPromptPart
+    appends, which no tool result does, and a RetryPromptPart holding what
+    precedes it renders the same bytes again.  (Parallel tool calls come back
+    split into one call per round trip; that needs pydantic-ai's loader to
+    keep a step's results together, and is not undone here.)
     `capabilities=[*kame_history_budget()]`."""
     import dataclasses
     from pydantic_ai.capabilities import ProcessHistory
     from pydantic_ai.messages import (ModelRequest, ModelResponse, ToolReturnPart,
                                       UserPromptPart, SystemPromptPart, ThinkingPart,
-                                      BinaryContent)
+                                      BinaryContent, RetryPromptPart)
     budget = int(max_tokens or os.environ.get('KAME_PYAI_HISTORY_TOKENS') or 150000)
+    retry_suffix = '\n\nFix the errors and try again.'   # RetryPromptPart.model_response()
+
+    def _restore_retries(messages):
+        out = None
+        for i, m in enumerate(messages):
+            if not isinstance(m, ModelRequest):
+                continue
+            parts = [RetryPromptPart(content=p.content[:-len(retry_suffix)],
+                                     tool_name=p.tool_name, tool_call_id=p.tool_call_id,
+                                     timestamp=p.timestamp)
+                     if (isinstance(p, ToolReturnPart)
+                         and getattr(p, 'outcome', None) == 'failed'
+                         and isinstance(p.content, str)
+                         and p.content.endswith(retry_suffix)) else p
+                     for p in m.parts]
+            if any(a is not b for a, b in zip(parts, m.parts)):
+                out = out or list(messages)
+                out[i] = dataclasses.replace(m, parts=parts)
+        return out or messages
 
     def _size(content):
         if isinstance(content, str):
@@ -696,6 +729,7 @@ def kame_history_budget(max_tokens=None, keep_recent=6):
         return dataclasses.replace(part, content=note)
 
     def processor(messages):
+        messages = _restore_retries(messages)
         total = sum(_est(m) for m in messages)
         if total <= budget:
             return messages
