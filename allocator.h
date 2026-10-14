@@ -58,8 +58,9 @@
 //  to stderr (from `allocate_chunk` after the first mmap).  No such
 //  message ⇒ pool is inactive ⇒ check your activator wiring.
 //  NOTE: the standalone dylib (KAMEPOOLALLOC_DYLIB) is silent by
-//  default — set KAME_POOL_VERBOSE=1 to see the banner there.  Inline
-//  builds (kame.app, Windows inline-compiled tests) always print.
+//  default — set KAME_POOL_VERBOSE=1 to see the banner there.  So are
+//  the Windows tests that compile allocator.cpp in (they define
+//  KAMEPOOLALLOC_DYLIB too).  Inline kame.app / kame.exe always print.
 //
 // =====================================================================
 
