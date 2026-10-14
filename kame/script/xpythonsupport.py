@@ -2129,7 +2129,7 @@ PYAI_SETTINGS_TEMPLATE = """\
 # Bionic (or LM Studio): download a chat model in the app, start its server
 # (Developer tab > Start Server, or `lms server start`; port 1234), and use
 # the model id that `lms ls` prints:
-#KAME_PYAI_MODEL=bionic:qwen3.8-27b
+#KAME_PYAI_MODEL=bionic:qwen/qwen3.8-27b
 # Ollama (`ollama pull qwen3:32b`; it serves on 11434):
 #KAME_PYAI_MODEL=ollama:qwen3:32b
 # Any other OpenAI-compatible server (llama.cpp, vLLM, ...):

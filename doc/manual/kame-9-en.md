@@ -1581,9 +1581,10 @@ One thing is needed before the first chat: an API key, in the file that
 or **web**. KAME's agent then asks that provider which models it serves and
 offers them: OpenAI's two newest `gpt-N` families, every `fugu` Sakana lists,
 Anthropic's newest Opus, Fable and Sonnet, or everything a local server (Bionic,
-Ollama) has loaded. The first is the default; a `KAME_PYAI_MODEL=` line names
-the models yourself instead, several comma-separated, and puts its first
-entry in front. A Claude model may write 32000 tokens per reply, thinking
+Ollama) has loaded. The first is the default. A `KAME_PYAI_MODEL=` line
+puts the models it names (several, comma-separated) at the top of the menu,
+the first of them becoming the default; the rest of the menu stays, local
+models included. A Claude model may write 32000 tokens per reply, thinking
 included; other providers keep their own limit. `KAME_PYAI_MAX_TOKENS=` in
 the same file sets one limit for every model. Nothing has to be exported in a shell profile:
 neither pydantic-ai nor `clai` reads a `.env` by itself, and a GUI application
@@ -1663,13 +1664,19 @@ server works, and Bionic has two roles here: as an MCP *client* it opens the
 notebook workspace as a project and needs nothing (above); as a model
 *server* it feeds Pydantic AI. For the latter, download a chat model in
 Bionic and start its local server (Developer tab → Start Server, or
-`lms server start`; the default port is 1234). A running server is already
-offered in the web UI's menu, next to the cloud models; to make one of its
-models the default, one line in the settings file, with the model id as
-`lms ls` prints it:
+`lms server start`; the default port is 1234). Its models are listed only
+while that server runs, and Bionic starts it only when asked: its server
+settings can start it whenever Bionic launches, and KAME's agent says so in
+its window when Bionic is installed but not serving. A running server's chat
+models are all in the web UI's menu, next to the cloud models; Bionic loads
+the one you pick on first use, which takes a while for a large model. KAME's
+agent sends some 7k tokens (its instructions and tool list) before your first
+word, so if the first message fails on the context length, raise that model's
+context length in Bionic. To make one of its models the default, one line in
+the settings file, with the model id as `lms ls` prints it:
 
 ```
-KAME_PYAI_MODEL=bionic:qwen3.8-27b
+KAME_PYAI_MODEL=bionic:qwen/qwen3.8-27b
 ```
 
 `ollama:<id>` is the same for Ollama (port 11434), and `local:<id>` with

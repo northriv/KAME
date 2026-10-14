@@ -78,6 +78,13 @@ LOCAL_SERVERS = {
 KAME_PREFIXES = ('sakana:',) + tuple(k + ':' for k in LOCAL_SERVERS)
 
 
+def _bionic_cli():
+    """Path of the `lms` command Bionic installs (LM Studio's CLI), or None."""
+    import shutil
+    p = os.path.join(os.path.expanduser('~'), '.lmstudio', 'bin', 'lms')
+    return shutil.which('lms') or (p if os.path.isfile(p) else None)
+
+
 def _local_server(kind):
     """(base_url, key) of a local server kind, or None when it has no address."""
     var, default = LOCAL_SERVERS[kind]
@@ -1079,6 +1086,15 @@ def kame_models():
             continue
         prov = OpenAIProvider(base_url=srv[0], api_key=srv[1])
         served = _served_models(srv[0], srv[1], timeout=1.5, quiet=True)
+        if kind == 'bionic' and not served and _bionic_cli():
+            #Bionic (LM Studio's engine and CLI) is installed, but its server
+            #-- not the app -- is what lists the models, and it starts only
+            #when asked.  Bionic's own setting starts it with the app.
+            print('kame_pydantic_ai: Bionic is installed, but its server is not '
+                  'answering at {}, so its models are not in the menu.  Start it '
+                  'in Bionic (its server settings can also start it whenever '
+                  'Bionic launches), or: {} server start'.format(
+                      srv[0], _tilde(_bionic_cli())), file=sys.stderr)
         if kind == 'ollama' and not served:
             # Ollama lists pulled models on its OpenAI-compatible /v1/models;
             # older builds only on the native /api/tags (name = "qwen3:32b").
@@ -1114,14 +1130,21 @@ def kame_default_model():
     return next(iter(kame_models().values()), None)
 
 
-def _web_models():
-    """The web UI's model menu, as {label: Model}.
+def _model_key(m):
+    """What makes two menu entries the same model, whatever their labels."""
+    return (getattr(m, 'system', None), getattr(m, 'model_name', None),
+            getattr(m, 'base_url', None))
 
-    KAME_PYAI_MODEL, when set, is the menu exactly as written (resolved here
-    rather than handed to the UI as strings so that `sakana:` works and a
-    listed model whose key is missing fails at start-up with the API-key
-    explanation).  Unset, the menu is whatever the present keys reach --
-    kame_models() -- so a key alone is enough to start chatting."""
+
+def _web_models():
+    """The web UI's model menu, as {label: Model}: the models KAME_PYAI_MODEL
+    names, in its order and first, then everything else the present keys and
+    the local servers reach (kame_models()) -- so a Bionic or Ollama model is
+    in the menu even when a cloud model is the default.  The named ones are
+    resolved here rather than handed to the UI as strings, so that `sakana:`
+    works and a named model whose key is missing fails at start-up with the
+    API-key explanation.  Unset, the menu is kame_models() alone, so a key is
+    enough to start chatting."""
     import re
     from pydantic_ai.models import infer_model
     spec = os.environ.get('KAME_PYAI_MODEL') or os.environ.get('PYDANTIC_AI_MODEL') or ''
@@ -1129,7 +1152,11 @@ def _web_models():
     for name in [x for x in re.split(r'[,\s]+', spec) if x]:
         m = _resolve_model(name)
         out[name] = m if not isinstance(m, str) else infer_model(m)
-    return out or kame_models()
+    named = {_model_key(m) for m in out.values()}
+    for label, m in kame_models().items():
+        if _model_key(m) not in named:
+            out[label] = m
+    return out
 
 
 def _build_app():
