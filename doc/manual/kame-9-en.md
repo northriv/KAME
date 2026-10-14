@@ -1580,7 +1580,8 @@ One thing is needed before the first chat: an API key, in the file that
 **⚙ settings** opens — fill in a `..._API_KEY=` line, save, and click **CLI**
 or **web**. KAME's agent then asks that provider which models it serves and
 offers them: OpenAI's two newest `gpt-N` families, every `fugu` Sakana lists,
-Anthropic's newest Opus, Fable and Sonnet, or everything a local server (Bionic,
+Anthropic's newest Opus, Fable and Sonnet, Google's two newest Gemini versions
+(`GOOGLE_API_KEY`), or everything a local server (Bionic,
 Ollama) has loaded. The first is the default. A `KAME_PYAI_MODEL=` line
 puts the models it names (several, comma-separated) at the top of the menu,
 the first of them becoming the default; the rest of the menu stays, local

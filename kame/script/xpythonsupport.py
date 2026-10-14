@@ -2122,7 +2122,7 @@ PYAI_SETTINGS_TEMPLATE = """\
 # the first is the default.
 #KAME_PYAI_MODEL=anthropic:claude-opus-5-5
 #KAME_PYAI_MODEL=openai:gpt-6.1-sol
-#KAME_PYAI_MODEL=google-gla:gemini-2.5-pro
+#KAME_PYAI_MODEL=google:gemini-4-argon
 #KAME_PYAI_MODEL=anthropic:claude-opus-5-5, openai:gpt-6.1-sol
 
 # Sakana AI (fugu, namazu): sakana:<model>, with SAKANA_API_KEY below.  The

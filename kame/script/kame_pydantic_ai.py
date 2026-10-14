@@ -446,7 +446,7 @@ def _explain_and_exit(exc):
                 "{}\n\n"
                 "The form is provider:name, for example\n"
                 "    anthropic:claude-opus-5-5    openai:gpt-6.1-sol    "
-                "google-gla:gemini-2.5-pro    sakana:fugu\n"
+                "google:gemini-4-argon    sakana:fugu\n"
                 "    bionic:<model id>   ollama:<model id>   local:<model id> "
                 "(with KAME_PYAI_LOCAL_URL)\n"
                 "It came from --model, else KAME_PYAI_MODEL, else "
@@ -1032,7 +1032,7 @@ def main():
             "ANTHROPIC_API_KEY)\n"
             "    KAME_PYAI_MODEL=openai:gpt-6.1-sol               (needs "
             "OPENAI_API_KEY)\n"
-            "    KAME_PYAI_MODEL=google-gla:gemini-2.5-pro        (needs "
+            "    KAME_PYAI_MODEL=google:gemini-4-argon            (needs "
             "GOOGLE_API_KEY)\n"
             "    KAME_PYAI_MODEL=sakana:fugu                      (needs "
             "SAKANA_API_KEY)\n"
@@ -1090,6 +1090,38 @@ def _anthropic_models(key, timeout=5):
     return ['claude-opus-5-5', 'claude-fable-5-1', 'claude-sonnet-5-5']
 
 
+def _google_models(key, timeout=5):
+    """The chat models of Google's two newest Gemini versions (gemini-4-argon
+    and the 3.8 line, as of 2026-10), from the Gemini API's own list; a static
+    entry when the list cannot be fetched."""
+    import re
+    import urllib.request
+    try:
+        req = urllib.request.Request(
+            'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000',
+            headers={'x-goog-api-key': key})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            data = json.load(r).get('models', [])
+        names = [m.get('name', '').split('/', 1)[-1] for m in data
+                 if 'generateContent' in (m.get('supportedGenerationMethods') or [])]
+
+        def ver(x):
+            m = re.match(r'gemini-(\d+(?:\.\d+)?)(?:-|$)', x)
+            return tuple(int(n) for n in m.group(1).split('.')) if m else None
+        #Chat models only, and no dated snapshot of a model already listed.
+        chat = [x for x in names if ver(x) and not re.search(
+            r'image|tts|live|audio|embedding|aqa|robotics|computer-use|lite|nano'
+            r'|-\d\d-\d\d', x)]
+        vers = sorted({ver(x) for x in chat}, reverse=True)[:2]
+        picked = sorted(sorted(x for x in chat if ver(x) in vers), key=ver, reverse=True)
+        if picked:
+            return picked
+    except Exception as e:
+        print('kame_pydantic_ai: could not list Google models: {}'.format(e),
+              file=sys.stderr)
+    return ['gemini-4-argon']
+
+
 def kame_models():
     """{label: Model} for every provider whose key is present -- the menu a
     web UI offers and the pool a CLI picks its default from.  First entry is
@@ -1098,7 +1130,8 @@ def kame_models():
     Each OpenAI-compatible server is asked for its list at start-up, so a
     model published after this file was written appears without an edit:
     OpenAI's two newest gpt-N families (chat variants only), every fugu /
-    namazu Sakana serves, Anthropic's newest Opus, Fable and Sonnet, and every
+    namazu Sakana serves, Anthropic's newest Opus, Fable and Sonnet, Google's
+    two newest Gemini versions (GOOGLE_API_KEY or GEMINI_API_KEY), and every
     chat model of a local server that answers -- Bionic on 1234, Ollama on 11434,
     KAME_PYAI_LOCAL_URL -- alongside the cloud entries, since the local
     prefixes carry their own addresses and OPENAI_* stays OpenAI's.
@@ -1143,6 +1176,13 @@ def kame_models():
         # Opus and the newest Sonnet are taken, whatever their numbers are.
         for mid in _anthropic_models(os.environ['ANTHROPIC_API_KEY']):
             out['Anthropic ' + mid] = _resolve_model('anthropic:' + mid)
+    google_key = os.environ.get('GOOGLE_API_KEY') or os.environ.get('GEMINI_API_KEY')
+    if google_key:
+        from pydantic_ai.models.google import GoogleModel
+        from pydantic_ai.providers.google import GoogleProvider
+        google = GoogleProvider(api_key=google_key)
+        for mid in _google_models(google_key):
+            out['Google ' + mid] = GoogleModel(mid, provider=google, settings=_budget())
     # Local servers: Bionic and Ollama at their default ports, plus whatever
     # KAME_PYAI_LOCAL_URL names.  Probed briefly; one that is not running
     # simply contributes nothing, so this costs a refused connection at most.
