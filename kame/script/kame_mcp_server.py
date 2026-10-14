@@ -94,8 +94,9 @@ MANUAL_DOC_PATHS = [
 # real token usage — those live entirely in the client. What is recorded is
 # the tool name, its arguments (the executed code is the provenance gold),
 # the result, timing, a lightweight KAME-state tag captured passively
-# from the activity watcher (no kernel round-trip), and the name and version
-# the client gave for itself when it connected.
+# from the activity watcher (no kernel round-trip), the name and version
+# the client gave for itself when it connected, and -- from KAME's own agent,
+# which sends them with each call -- the model and the run behind the call.
 #
 # The `est_tokens_*` figures are a bytes/4 heuristic of the TOOL PAYLOAD
 # ONLY — a relative "how heavy was this call" gauge, NOT the LLM's real
@@ -204,6 +205,26 @@ def _client_info(ctx=None):
         return None
 
 
+def _request_meta(ctx):
+    """The calling request's MCP `_meta`, as a dict ({} when there is none).
+    KAME's own agent puts the model and run behind each call there
+    (kame/model, kame/run_id), which the server cannot otherwise see."""
+    try:
+        meta = ctx.request_context.meta
+    except Exception:
+        return {}
+    if meta is None:
+        return {}
+    if isinstance(meta, dict):
+        return meta
+    out = dict(getattr(meta, "model_extra", None) or {})
+    try:
+        out.update(meta.model_dump(by_alias=True, exclude_none=True))
+    except Exception:
+        pass
+    return out
+
+
 def _write_log(tool, arg_dict, result, t0, t1, error, ctx=None):
     global _LOG_SEQ
     text, n_images = _summarize_result(result)
@@ -211,6 +232,7 @@ def _write_log(tool, arg_dict, result, t0, t1, error, ctx=None):
     chars_out = len(text)
     with _LOG_LOCK:
         _LOG_SEQ += 1
+        meta = _request_meta(ctx) if ctx is not None else {}
         rec = {
             "ts": datetime.now().astimezone().isoformat(timespec="milliseconds"),
             "session_id": _SESSION_ID,
@@ -230,6 +252,10 @@ def _write_log(tool, arg_dict, result, t0, t1, error, ctx=None):
             "est_tokens_out": chars_out // 4,
             "kame": _kame_context(),
         }
+        # Only a client that says (KAME's agent does): no model is a guess.
+        for key in ("model", "run_id"):
+            if meta.get("kame/" + key):
+                rec[key] = str(meta["kame/" + key])
         try:
             _LOG_DIR.mkdir(parents=True, exist_ok=True)
             path = _LOG_DIR / f"mcp-{datetime.now().strftime('%Y-%m-%d')}.jsonl"

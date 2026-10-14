@@ -1755,7 +1755,9 @@ section; the second gives cost and local-inference figures that providers do
 not always report. Each line of the first names the client that made the
 call, by the name and version it gave when it connected (KAME's own agent
 says `pydantic-ai`), so the work of several assistants sharing one KAME can
-be told apart. Set `KAME_MCP_NO_LOG` to switch the tool log off,
+be told apart; KAME's own agent also sends, with each call, the model and
+the run behind it, so its lines say which model ran that code. Set
+`KAME_MCP_NO_LOG` to switch the tool log off,
 `KAME_USAGE_NO_LOG` for the model log.
 
 ## Troubleshooting
