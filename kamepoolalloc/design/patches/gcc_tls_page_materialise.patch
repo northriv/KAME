@@ -1,0 +1,33 @@
+--- a/kamepoolalloc/allocator_prv.h	2026-10-14 02:29:49.595207449 +0000
++++ b/kamepoolalloc/allocator_prv.h	2026-10-14 02:29:49.614519876 +0000
+@@ -3159,12 +3159,28 @@
+ //! Hot accessor: returns this thread's KameTlsPage.
+ //! Linux: inlines to address-of IE-TLS struct (mov %fs:offset — optimal).
+ inline KameTlsPage *kame_page() noexcept {
+-    return &g_tls_page;   // initial-exec: inlines to mov %fs:(offset)
++    KameTlsPage *p = &g_tls_page;   // initial-exec: %fs:0 + offset
++#if defined(__GNUC__) && !defined(__clang__)
++    // GCC folds every field access through `&g_tls_page` into an
++    // %fs:disp(base,index,8) operand, the thread-list head's load and store
++    // included -- the store a free makes and the next malloc's load, the chain
++    // bench_loop's 64 B loop is bound by.  On x86 Linux (Intel Xeon, LP64 and
++    // i586) that cost 64 B a quarter against clang, which takes %fs:0 + off
++    // into a register once.  Making GCC do the same is the barrier below;
++    // clang already does, and the barrier only moves its code (0.89-0.95x
++    // at 1 KiB / 16 KiB), so it stays GCC-only.
++    __asm__("" : "+r"(p));
++#endif
++    return p;
+ }
+ //! Sibling of the macOS variant above; an IE-TLS struct address is always
+ //! valid, so this never returns null and the caller's null-bail folds away.
+ inline KameTlsPage *kame_page_or_null() noexcept {
+-    return &g_tls_page;
++    KameTlsPage *p = &g_tls_page;
++#if defined(__GNUC__) && !defined(__clang__)
++    __asm__("" : "+r"(p));          // see kame_page()
++#endif
++    return p;
+ }
+ #endif  // KAME_FAST_TSD
+ 
