@@ -12,7 +12,9 @@ If you reach this doc through MCP, the relevant tools are:
   **Use this for anything that loops, sleeps, samples over time, or
   polls hardware.** Call `mcp_checkpoint("i/N ...")` at every loop
   iteration: it publishes progress (returned by `get_result`) and is
-  the only point where a `stop_job` request can terminate the job.
+  where a `stop_job` request terminates the job.  KAME's `sleep()`
+  checks for one too, about once a second, so a loop that waits with
+  `sleep()` stops even between checkpoints (`time.sleep` does not).
   KAME STM is thread-safe; read the job's result variables only after
   status is "done" or "stopped".
 - **`notebook_status` / `notebook_read` / `notebook_edit`** — read and
@@ -41,7 +43,7 @@ job = execute_code_async(code)         # -> {"job_id": ...}
 get_result(job["job_id"])              # -> {"status": "running", "progress": "3/60 ..."}
                                        #    "done" | "stopped" | "error" ends it
 # read the job's variables with execute_code only after status is done/stopped
-stop_job(job["job_id"])                # honoured at the next mcp_checkpoint
+stop_job(job["job_id"])                # honoured at the next mcp_checkpoint, or within ~1 s in sleep()
 ```
 
 The job runs on a plain worker thread, not a KAME script thread. Node

@@ -328,5 +328,39 @@ class ClientName(unittest.TestCase):
         self.assertEqual(sorted(schema.get("properties", {})), ["topic"])
 
 
+class CallOrigin(unittest.TestCase):
+    """KAME's own agent sends the model and run behind each call in the
+    request's _meta; the log line carries them, and nothing when a client
+    sends none -- an absent model is never guessed."""
+
+    def _ctx(self, meta):
+        return types.SimpleNamespace(
+            request_context=types.SimpleNamespace(meta=meta),
+            session=types.SimpleNamespace(client_params=None))
+
+    def test_meta_from_either_mcp_line(self):
+        want = {"kame/model": "qwen@127.0.0.1:1234", "kame/run_id": "ab12"}
+        one = types.SimpleNamespace(model_extra=dict(want),          # 1.x: pydantic extras
+                                    model_dump=lambda **kw: {})
+        self.assertEqual(m._request_meta(self._ctx(one)), want)
+        self.assertEqual(m._request_meta(self._ctx(dict(want))), want)  # a plain mapping
+        self.assertEqual(m._request_meta(self._ctx(None)), {})
+        self.assertEqual(m._request_meta(types.SimpleNamespace()), {})
+
+    def _last_line(self, meta):
+        m._write_log("kame_api", {}, "x", 0.0, 0.1, None, self._ctx(meta))
+        files = sorted(Path(_TMP).glob("mcp-*.jsonl"))
+        return json.loads(files[-1].read_text(encoding="utf-8").splitlines()[-1])
+
+    def test_line_names_the_model_and_run(self):
+        rec = self._last_line({"kame/model": "gpt-6.1-sol@api.openai.com", "kame/run_id": "e24b"})
+        self.assertEqual((rec["model"], rec["run_id"]), ("gpt-6.1-sol@api.openai.com", "e24b"))
+
+    def test_no_meta_no_model(self):
+        rec = self._last_line(None)
+        self.assertNotIn("model", rec)
+        self.assertNotIn("run_id", rec)
+
+
 if __name__ == "__main__":
     unittest.main()

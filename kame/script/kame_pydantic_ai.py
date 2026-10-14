@@ -36,7 +36,8 @@ one):
     agent = Agent('anthropic:claude-opus-5-5', capabilities=[kame_mcp()])
 kame_mcp() is KAME's MCP server as a capability, kame_history_budget() keeps
 the conversation under a token budget (old tool results and images are
-trimmed first), kame_toolset() the server as a toolset, kame_settings() the
+trimmed first), kame_model_identity() tells the model which model it is,
+kame_toolset() the server as a toolset, kame_settings() the
 dict read from the files above — importing this
 module has already put them into os.environ.  kame_models() is the menu the
 present keys reach, asked of each provider at start-up (kame_default_model()
@@ -76,6 +77,20 @@ LOCAL_SERVERS = {
 }
 #Prefixes only this module understands; never handed to clai's -m.
 KAME_PREFIXES = ('sakana:',) + tuple(k + ':' for k in LOCAL_SERVERS)
+
+
+def _model_where(model):
+    """(name, host[:port] it is served from, or None) of a pydantic-ai model:
+    what the tool log records against each call, and what the model is told
+    about itself."""
+    from urllib.parse import urlparse
+    name = getattr(model, 'model_name', None) or str(model)
+    try:
+        u = urlparse(str(getattr(model, 'base_url', '') or ''))
+        host = u.hostname and u.hostname + (':%d' % u.port if u.port else '')
+    except ValueError:
+        host = None
+    return name, host or None
 
 
 def _bionic_cli():
@@ -223,7 +238,6 @@ def _install_usage_logging(model_spec):
         return [Instrumentation()]
 
     tag = os.environ.get('KAME_USAGE_TAG') or model_spec
-    base_url = os.environ.get('OPENAI_BASE_URL') or None
 
     class _UsageExporter(SpanExporter):
         #Simple, not Batch: a batch processor can still be holding the last
@@ -249,7 +263,12 @@ def _install_usage_logging(model_spec):
                 'model_id': (a.get('gen_ai.response.model')
                              or a.get('gen_ai.request.model')
                              or a.get('model_name') or model_spec),
-                'base_url': base_url,
+                #Where the request went, from the span itself: host[:port].
+                #(This was OPENAI_BASE_URL, which a bionic:/ollama: model --
+                #and every other provider -- leaves unset.)
+                'server': (str(a['server.address'])
+                           + (':%s' % a['server.port'] if a.get('server.port') else '')
+                           if a.get('server.address') else None),
                 'run_id': format(s.context.trace_id, '032x') if s.context else None,
             }
             if op == 'chat':
@@ -479,6 +498,32 @@ def _server_url():
     return url, token
 
 
+async def _tag_tool_call(ctx, call_tool, name, args):
+    """Send each KAME tool call with the model and run behind it, in the
+    request's MCP `_meta`: the server cannot see the model, and its tool log
+    otherwise cannot say which model issued, say, a motor write."""
+    import inspect
+    model, host = _model_where(ctx.model)
+    #The run id usage.jsonl records -- the OpenTelemetry trace id, when usage
+    #logging has instrumentation on -- so the two logs join on it.
+    run = ''
+    try:
+        from opentelemetry import trace
+        sc = trace.get_current_span().get_span_context()
+        run = format(sc.trace_id, '032x') if sc.is_valid else ''
+    except Exception:
+        pass
+    meta = {'kame/model': model + ('@' + host if host else ''),
+            'kame/run_id': run or str(getattr(ctx, 'run_id', '') or '')}
+    try:
+        takes = 'metadata' in inspect.signature(call_tool).parameters
+    except (TypeError, ValueError):
+        takes = False
+    #Never retried on a TypeError: that could run the tool twice.
+    return await (call_tool(name, args, metadata=meta) if takes
+                  else call_tool(name, args))
+
+
 def _toolset(url, token):
     """KAME's MCP server as a toolset, set up the way KAME needs it.
 
@@ -516,6 +561,8 @@ def _toolset(url, token):
         kw['headers'] = {'Authorization': 'Bearer ' + token}
     elif token:
         kw['auth'] = token
+    if 'process_tool_call' in params:
+        kw['process_tool_call'] = _tag_tool_call
     if 'client_info' in params:
         #KAME's tool log names each client by what it says when it connects;
         #left alone, pydantic-ai says what the mcp library defaults to,
@@ -624,7 +671,8 @@ def _build_agent(model):
     #hand the agent to someone else's loop (to_cli_sync, and `clai web`, which
     #imports the module-level `agent` after this process has been replaced), so
     #only something attached to the agent itself sees every call.
-    caps = _install_usage_logging(str(getattr(model, 'model_name', model))) + kame_history_budget()
+    caps = (_install_usage_logging(str(getattr(model, 'model_name', model)))
+            + kame_history_budget() + kame_model_identity())
     kwargs = {'capabilities': caps} if caps else {}
     if _max_tokens_setting():
         #Agent level, so it reaches whatever model the menu or clai puts in.
@@ -651,6 +699,24 @@ def kame_usage_logging(tag=None):
     rows (`model_key`); KAME_USAGE_TAG overrides.  [] when OpenTelemetry is
     absent, so `capabilities=[*kame_usage_logging(), ...]` is always valid."""
     return _install_usage_logging(tag or 'agent')
+
+
+def kame_model_identity():
+    """One line of instructions naming the model actually answering, as Agent
+    capabilities: `capabilities=[*kame_model_identity()]`.
+
+    A model asked what it is answers from its training, and a local one
+    trained on other models' output names those: a Qwen served by Bionic
+    called itself Claude in a KAME session, where who issued a motor write
+    matters.  The line changes only with the model, so it costs no cache."""
+    from pydantic_ai.capabilities import Capability
+
+    def _who(ctx):
+        name, host = _model_where(ctx.model)
+        return ('The model answering in this conversation is `{}`{}.  If asked '
+                'which model you are, say that; do not name another model or '
+                'vendor.'.format(name, ', served from ' + host if host else ''))
+    return [Capability(instructions=[_who])]
 
 
 def kame_history_budget(max_tokens=None, keep_recent=6):
