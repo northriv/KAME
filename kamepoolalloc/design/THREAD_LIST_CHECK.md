@@ -1545,10 +1545,89 @@ is gcc-only.  V1's full gcc tree: ctest 49/49; exclusivity (32 B, var,
 `--mid`), fit, phase, aligned, calloc, two thread-exit tests and churn 0 / 52
 each.
 
-**Proposal** — `patches/gcc_tls_page_materialise.patch` (against master's
-`allocator_prv.h`, v1.3.0): the barrier in the Linux / Windows branch of
+**Applied** on master 2026-10-14 (it was proposed as
+`patches/gcc_tls_page_materialise.patch` against v1.3.0's `allocator_prv.h`
+on `claude/great-turing-Ufao2`): the barrier in the Linux / Windows branch of
 `kame_page()` and `kame_page_or_null()`, under `defined(__GNUC__) &&
 !defined(__clang__)` (MSVC and clang unchanged).  It applies cleanly and
 compiles with gcc, clang and gcc `-m32 -march=i486`; measured as V1 above.
-Not measured: gcc on Windows (llvm-mingw is clang, so the Windows Xeon's
-numbers do not move) or on AMD.
+Not measured here: gcc on Windows (llvm-mingw is clang, so the Windows Xeon's
+numbers do not move) or on AMD.  On a Broadwell-EP it goes the other way —
+next section.
+
+## Run: Broadwell-EP under gcc, 2026-10-14 — the TLS patch costs here
+
+The Windows box's Xeon E5-1630 v4 (Broadwell-EP, 4 cores / 8 threads),
+Linux under WSL 2 (kernel 6.18, Ubuntu 24.04, gcc 13.3), the library built
+by hand with the CMake test build's flags (`-O3 -DNDEBUG -fPIC -shared
+-fvisibility-inlines-hidden -fno-semantic-interposition`), `bench_loop_pool`
+against it, perf in user mode (raw `r0107` = 4K address alias).  Arms:
+`8b9981caa` (before) and the same with the patch (after); a third adds
+`if( !p) __builtin_unreachable();` behind the barrier (nn), which gives back
+the null test the barrier costs gcc (`kame_page_or_null()` no longer
+provably non-null: `add %fs:0x0` + `test` / `je` in malloc and in free).
+Interleaved, 7 reps, two runs (the box was carrying another session's
+builds during the second, hence the drift):
+
+| | 64 B M ops/s | 64 B cycles / pair | 64 B instr / pair | 4K alias / pair | 16 KiB M ops/s | 16 KiB cycles / pair |
+|---|---|---|---|---|---|---|
+| before | 280–319 | 22.6–32.6 | 70.1 | 0.000 | 177–261 | 29.3–41.8 |
+| after | 199–221 | 31.4–39.4 | 76.1 | 2.0–2.7 | 163–227 | 32.5–43.9 |
+| nn | 149–213 | 34.3–41.3 | 72.1 | 1.9–5.2 | 160–179 | 39.0–43.0 |
+
+On this core gcc's `%fs:disp(base,index,8)` operands were never the cost —
+gcc's 64 B before the patch is already clang's (the Windows table's 315) —
+and taking `%fs:0` into a register adds a dependent `%fs:0x0` load, the null
+test, and 4K-alias stalls that were not there.  So the patch is a
+microarchitecture trade: 1.35× on the Linux Xeon @ 2.10 GHz above, 0.70–0.85×
+at 64 B and 0.92–0.94× at 16 KiB here.  It was applied because the Linux
+hosts KAME runs gcc builds on are the former kind (the user reproduced the
+64 B loss there); this box's KAME is a clang build, where the patch is inert.
+Correctness on gcc with asserts (`-O2 -g`): C API, thread-exit,
+exclusivity (plain and `--mid`), fit and phase tests 0 / 20 each, churn
+0 / 3; clang x64 pool 25/25 and STM 22/22; MinGW gcc compiles it.
+
+## Run: Linux, Intel Xeon @ 2.80 GHz, 2026-10-14 — the TLS patch on a third core
+
+The VM was back on the 2.80 GHz host of the 2026-10-13 runs (4 vCPU, 1 MiB
+L2 / core, 33 MiB L3, AVX-512, no AMX).  Arms: master `44e8cd4ca` with
+`c21a07f00`'s patch (gcc), the same with the patch reverted (gcc), master
+under clang, and `45f1d07f9` under both; one `bench_loop`, `LD_PRELOAD` per
+arm, interleaved, 9 reps single thread, 5 reps 4 processes.  Median M ops/s
+(min–max):
+
+| | `45f1d07f9` gcc | `45f1d07f9` clang | master gcc, patch reverted | master gcc | master clang | patch | gcc / clang |
+|---|---|---|---|---|---|---|---|
+| 64 B 1T | 306 (275–312) | 301 (269–325) | 291 (222–320) | 303 (171–330) | 334 (302–356) | 1.04× | 0.91× |
+| 1 KiB 1T | 223 (180–241) | 210 (182–220) | 229 (208–266) | 250 (189–260) | 238 (188–273) | 1.09× | 1.05× |
+| 16 KiB 1T | 171 (167–183) | 190 (179–197) | 256 (217–274) | 242 (213–261) | 260 (217–285) | 0.95× | 0.93× |
+| 64 B 4P | 1181 (1041–1259) | 1219 (1034–1260) | 1163 (965–1226) | 1115 (883–1132) | 1205 (1198–1270) | 0.96× | 0.93× |
+| 16 KiB 4P | 662 (627–684) | 713 (688–755) | 995 (961–1045) | 975 (938–1026) | 1025 (974–1091) | 0.98× | 0.95× |
+
+On this core the patch is neither a win nor a loss — 0.95–1.09×, every range
+overlapping — and gcc without it was already at 0.95× of `45f1d07f9` at
+64 B.  With the Broadwell run above, the three Intel cores span it: the
+Xeon @ 2.10 GHz (2 MiB L2 / core, 260 MiB L3) 1.35×, this one ~1.0×,
+Broadwell-EP 0.70–0.85×.  Where gcc's `%fs:disp(base,index,8)` list-head
+operands are slow, materialising the page pays; where they are not, the
+dependent `%fs:0x0` load the Broadwell run measured is the whole cost.  The
+16 KiB gain of `e0974e402` holds here as on the other hosts (1.41× / 1.47×
+of `45f1d07f9`, gcc).
+
+Master's six trees at `44e8cd4ca` (the wait-budget test's Windows tick
+allowance, the STM tests on the pool on Windows): builds clean, no-DCAS 3/3,
+ctest 49/49 on LP64 release, i586 release and asserts; 42/42 on both i486;
+LP64 asserts 48/49 with `transaction_highest_older_wins_test` failing once
+under `ctest -j3` (below).
+
+**`transaction_highest_older_wins_test`, arm 5** ("an OLDER HIGHEST passes a
+younger HIGHEST Reserved"): failed once in LP64 asserts' `ctest -j3`; the
+other arms passed.  Not reproduced since: 0 / 20 alone on LP64 asserts and
+on LP64 release, 0 / 30 each beside 4, 16 and 32 CPU-burning processes.
+Arm 5 plants a foreign HIGHEST Reserved stamp only 50 ms in the future
+(`fake_stamp(..., -50'000, ...)`) and requires the committer to finish
+within 80 ms; a committer whose transaction starts more than 50 ms after the
+stamp is made is no longer older than it, so being held is then correct and
+the check fails.  That window is the arm's one timing assumption the other
+"not held" arms (stamps in the past) do not have.  Repeated `ctest -j3` runs
+(LP64 asserts ×5, release ×3) to catch it again: running.
