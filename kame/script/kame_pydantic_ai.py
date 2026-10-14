@@ -33,7 +33,7 @@ when uvicorn is absent — that fallback cannot show figures.
 For an agent of your own (KAME puts this module on PYTHONPATH when it launches
 one):
     from kame_pydantic_ai import kame_mcp, kame_toolset, kame_settings
-    agent = Agent('anthropic:claude-sonnet-4-5', capabilities=[kame_mcp()])
+    agent = Agent('anthropic:claude-opus-5-5', capabilities=[kame_mcp()])
 kame_mcp() is KAME's MCP server as a capability, kame_history_budget() keeps
 the conversation under a token budget (old tool results and images are
 trimmed first), kame_toolset() the server as a toolset, kame_settings() the
@@ -76,6 +76,13 @@ LOCAL_SERVERS = {
 }
 #Prefixes only this module understands; never handed to clai's -m.
 KAME_PREFIXES = ('sakana:',) + tuple(k + ':' for k in LOCAL_SERVERS)
+
+
+def _bionic_cli():
+    """Path of the `lms` command Bionic installs (LM Studio's CLI), or None."""
+    import shutil
+    p = os.path.join(os.path.expanduser('~'), '.lmstudio', 'bin', 'lms')
+    return shutil.which('lms') or (p if os.path.isfile(p) else None)
 
 
 def _local_server(kind):
@@ -419,7 +426,7 @@ def _explain_and_exit(exc):
             sys.exit(
                 "{}\n\n"
                 "The form is provider:name, for example\n"
-                "    anthropic:claude-sonnet-4-5    openai:gpt-5    "
+                "    anthropic:claude-opus-5-5    openai:gpt-6.1-sol    "
                 "google-gla:gemini-2.5-pro    sakana:fugu\n"
                 "    bionic:<model id>   ollama:<model id>   local:<model id> "
                 "(with KAME_PYAI_LOCAL_URL)\n"
@@ -509,6 +516,17 @@ def _toolset(url, token):
         kw['headers'] = {'Authorization': 'Bearer ' + token}
     elif token:
         kw['auth'] = token
+    if 'client_info' in params:
+        #KAME's tool log names each client by what it says when it connects;
+        #left alone, pydantic-ai says what the mcp library defaults to,
+        #"mcp 0.1.0", which tells nobody which assistant ran the code.
+        try:
+            import pydantic_ai
+            from mcp.types import Implementation
+            kw['client_info'] = Implementation(name='pydantic-ai',
+                                               version=pydantic_ai.__version__)
+        except Exception:
+            pass
     return MCPToolset(url, **kw)
 
 
@@ -520,6 +538,23 @@ def _toolset(url, token):
 #Claude model from the 4 series on.  KAME_PYAI_MAX_TOKENS overrides it, and
 #sets a budget for every other provider too, which otherwise keeps its own.
 ANTHROPIC_MAX_TOKENS = 32000
+
+#Claude models whose thinking is on when the request names none, so asking
+#for adaptive thinking explicitly changes nothing about them.  Only these get
+#_THINKING_DROP_BLOCK: on Opus 4.8/4.7 an explicit `thinking` would switch
+#thinking ON, and Sonnet 4.5 and older reject the adaptive type outright.
+_ALWAYS_THINKING_CLAUDE = ('claude-opus-5', 'claude-sonnet-5', 'claude-fable-5',
+                           'claude-mythos-5')
+#Anthropic binds each thinking block to the exact history before it, and an
+#account created on or after 2026-08-31 gets a 400 ("Invalid `signature` in
+#`thinking` block. The block is bound to a different conversation") when a
+#replayed history differs at all.  The web UI rebuilds the history from the
+#browser's copy on every message, so a tool result can come back not
+#byte-identical -- it did, first at messages.2.  "drop_block" makes the API
+#drop the stale blocks (and every later one, for that request) and answer.
+_THINKING_BINDING_BETA = 'thinking-binding-controls-2026-08-01'
+_THINKING_DROP_BLOCK = {'type': 'adaptive',
+                        'block_binding': {'prefix_mismatch_behavior': 'drop_block'}}
 
 
 def _max_tokens_setting():
@@ -547,9 +582,12 @@ def _resolve_model(spec):
         #output budget -- on the model, not the agent, so it follows the
         #model through the web UI's menu and survives clai's `agent.model =`.
         from pydantic_ai.models.anthropic import AnthropicModel
-        return AnthropicModel(spec[len('anthropic:'):],
-                              settings={'max_tokens': _max_tokens_setting()
-                                        or ANTHROPIC_MAX_TOKENS})
+        name = spec[len('anthropic:'):]
+        settings = {'max_tokens': _max_tokens_setting() or ANTHROPIC_MAX_TOKENS}
+        if name.startswith(_ALWAYS_THINKING_CLAUDE):
+            settings['anthropic_thinking'] = _THINKING_DROP_BLOCK
+            settings['anthropic_betas'] = [_THINKING_BINDING_BETA]
+        return AnthropicModel(name, settings=settings)
     if not isinstance(spec, str) or not spec.startswith(KAME_PREFIXES):
         return spec          # None, a plain provider:name, or an already-built Model
     from pydantic_ai.exceptions import UserError
@@ -631,13 +669,46 @@ def kame_history_budget(max_tokens=None, keep_recent=6):
     start of a run, and then every earlier thinking block is dropped: a
     provider that signs thinking against the preceding content (Anthropic)
     rejects a block whose prefix changed, so the two go together.
+
+    It also undoes the one change the web UI's round trip makes to a history
+    that can be undone.  The browser holds the conversation in the Vercel AI
+    format, which has no retry part: a RetryPromptPart (a tool call that
+    failed validation, or a tool that asked to be retried) comes back as a
+    failed ToolReturnPart holding the text the model was shown, which a
+    provider encodes differently (Anthropic: a list of text blocks, not a
+    string).  The replayed history then no longer matches what was sent: the
+    prompt cache misses from there on, every turn, and Claude refuses the
+    thinking blocks after it.  That text ends with the suffix RetryPromptPart
+    appends, which no tool result does, and a RetryPromptPart holding what
+    precedes it renders the same bytes again.  (Parallel tool calls come back
+    split into one call per round trip; that needs pydantic-ai's loader to
+    keep a step's results together, and is not undone here.)
     `capabilities=[*kame_history_budget()]`."""
     import dataclasses
     from pydantic_ai.capabilities import ProcessHistory
     from pydantic_ai.messages import (ModelRequest, ModelResponse, ToolReturnPart,
                                       UserPromptPart, SystemPromptPart, ThinkingPart,
-                                      BinaryContent)
+                                      BinaryContent, RetryPromptPart)
     budget = int(max_tokens or os.environ.get('KAME_PYAI_HISTORY_TOKENS') or 150000)
+    retry_suffix = '\n\nFix the errors and try again.'   # RetryPromptPart.model_response()
+
+    def _restore_retries(messages):
+        out = None
+        for i, m in enumerate(messages):
+            if not isinstance(m, ModelRequest):
+                continue
+            parts = [RetryPromptPart(content=p.content[:-len(retry_suffix)],
+                                     tool_name=p.tool_name, tool_call_id=p.tool_call_id,
+                                     timestamp=p.timestamp)
+                     if (isinstance(p, ToolReturnPart)
+                         and getattr(p, 'outcome', None) == 'failed'
+                         and isinstance(p.content, str)
+                         and p.content.endswith(retry_suffix)) else p
+                     for p in m.parts]
+            if any(a is not b for a, b in zip(parts, m.parts)):
+                out = out or list(messages)
+                out[i] = dataclasses.replace(m, parts=parts)
+        return out or messages
 
     def _size(content):
         if isinstance(content, str):
@@ -665,6 +736,7 @@ def kame_history_budget(max_tokens=None, keep_recent=6):
         return dataclasses.replace(part, content=note)
 
     def processor(messages):
+        messages = _restore_retries(messages)
         total = sum(_est(m) for m in messages)
         if total <= budget:
             return messages
@@ -890,9 +962,9 @@ def main():
             "No model given, and no API key found to pick one with.  Put a key "
             "line, or a model line, in\n"
             "  {}\n"
-            "    KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5      (needs "
+            "    KAME_PYAI_MODEL=anthropic:claude-opus-5-5        (needs "
             "ANTHROPIC_API_KEY)\n"
-            "    KAME_PYAI_MODEL=openai:gpt-5                     (needs "
+            "    KAME_PYAI_MODEL=openai:gpt-6.1-sol               (needs "
             "OPENAI_API_KEY)\n"
             "    KAME_PYAI_MODEL=google-gla:gemini-2.5-pro        (needs "
             "GOOGLE_API_KEY)\n"
@@ -928,8 +1000,9 @@ def _served_models(base_url, key, timeout=5, quiet=False):
 
 
 def _anthropic_models(key, timeout=5):
-    """Newest Opus and newest Sonnet from Anthropic's model list; a static
-    pair when the list cannot be fetched."""
+    """The newest Opus, Fable and Sonnet from Anthropic's model list, in that
+    order: Opus is the default, Fable the most capable and dearest (2.5x
+    Opus).  A static list when the list cannot be fetched."""
     import urllib.request
     try:
         req = urllib.request.Request(
@@ -938,7 +1011,7 @@ def _anthropic_models(key, timeout=5):
         with urllib.request.urlopen(req, timeout=timeout) as r:
             data = json.load(r).get('data', [])
         picked = []
-        for family in ('opus', 'sonnet'):
+        for family in ('opus', 'fable', 'sonnet'):
             cands = sorted((m for m in data if family in m.get('id', '')),
                            key=lambda m: m.get('created_at', ''), reverse=True)
             if cands:
@@ -948,7 +1021,7 @@ def _anthropic_models(key, timeout=5):
     except Exception as e:
         print('kame_pydantic_ai: could not list Anthropic models: {}'.format(e),
               file=sys.stderr)
-    return ['claude-opus-5', 'claude-sonnet-5']
+    return ['claude-opus-5-5', 'claude-fable-5-1', 'claude-sonnet-5-5']
 
 
 def kame_models():
@@ -959,12 +1032,14 @@ def kame_models():
     Each OpenAI-compatible server is asked for its list at start-up, so a
     model published after this file was written appears without an edit:
     OpenAI's two newest gpt-N families (chat variants only), every fugu /
-    namazu Sakana serves, Anthropic's newest Opus and Sonnet, and every chat
-    model of a local server that answers -- Bionic on 1234, Ollama on 11434,
+    namazu Sakana serves, Anthropic's newest Opus, Fable and Sonnet, and every
+    chat model of a local server that answers -- Bionic on 1234, Ollama on 11434,
     KAME_PYAI_LOCAL_URL -- alongside the cloud entries, since the local
     prefixes carry their own addresses and OPENAI_* stays OpenAI's.
-    A server that cannot be asked falls back to a short static list.  A model
-    named in KAME_PYAI_MODEL is put first when it is in the menu."""
+    A server that cannot be asked falls back to a short static list.  The
+    model KAME_PYAI_MODEL names first is put first, and added when no list
+    carried it -- a list that timed out must not hand the session to another
+    provider."""
     import re
     from pydantic_ai.models import infer_model
     from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
@@ -974,20 +1049,25 @@ def kame_models():
         key = os.environ['OPENAI_API_KEY']
         openai = OpenAIProvider(api_key=key)
         served = _served_models('https://api.openai.com/v1', key)
-        vers = sorted({float(m.group(1)) for m in
-                       (re.match(r'gpt-(\d+(?:\.\d+)?)(?:-|$)', x) for x in served) if m},
-                      reverse=True)[:2]
-        fam = sorted((x for x in served
-                      if (mm := re.match(r'gpt-(\d+(?:\.\d+)?)(?:-|$)', x)) and float(mm.group(1)) in vers
-                      and not re.search(r'realtime|audio|transcribe|tts|image|search|codex|mini|nano', x)),
-                     key=lambda x: (-float(re.match(r'gpt-(\d+(?:\.\d+)?)', x).group(1)), x))
-        for mid in fam or ['gpt-5']:
+        def ver(x):
+            #(6, 1) for gpt-6.1-sol.  Not a float: 6.10 would read as 6.1
+            #and sort below 6.9.
+            m = re.match(r'gpt-(\d+(?:\.\d+)?)(?:-|$)', x)
+            return tuple(int(n) for n in m.group(1).split('.')) if m else None
+        vers = sorted({ver(x) for x in served} - {None}, reverse=True)[:2]
+        #Newest version first; by name within one (the sort is stable).
+        fam = sorted(sorted(x for x in served if ver(x) in vers and not re.search(
+                         r'realtime|audio|transcribe|tts|image|search|codex|mini|nano', x)),
+                     key=ver, reverse=True)
+        for mid in fam or ['gpt-6.1-sol']:
             out['OpenAI ' + mid] = OpenAIResponsesModel(mid, provider=openai, settings=_budget())
     if os.environ.get('SAKANA_API_KEY'):
         key = os.environ['SAKANA_API_KEY']
         sakana = OpenAIProvider(base_url=SAKANA_BASE_URL, api_key=key)
         served = _served_models(SAKANA_BASE_URL, key)
-        fugu = sorted(m for m in served if 'fugu' in m or 'namazu' in m) or ['fugu']
+        fugu = sorted((m for m in served if 'fugu' in m or 'namazu' in m),
+                      key=lambda m: [int(t) if t.isdigit() else t
+                                     for t in re.split(r'(\d+)', m)]) or ['fugu']
         # Newest fugu-ultra first, so it is the default when OpenAI is absent.
         ultra = [m for m in fugu if re.match(r'fugu-ultra-v', m)]
         for mid in (ultra[-1:] + [m for m in fugu if m not in ultra[-1:]]):
@@ -1006,6 +1086,15 @@ def kame_models():
             continue
         prov = OpenAIProvider(base_url=srv[0], api_key=srv[1])
         served = _served_models(srv[0], srv[1], timeout=1.5, quiet=True)
+        if kind == 'bionic' and not served and _bionic_cli():
+            #Bionic (LM Studio's engine and CLI) is installed, but its server
+            #-- not the app -- is what lists the models, and it starts only
+            #when asked.  Bionic's own setting starts it with the app.
+            print('kame_pydantic_ai: Bionic is installed, but its server is not '
+                  'answering at {}, so its models are not in the menu.  Start it '
+                  'in Bionic (its server settings can also start it whenever '
+                  'Bionic launches), or: {} server start'.format(
+                      srv[0], _tilde(_bionic_cli())), file=sys.stderr)
         if kind == 'ollama' and not served:
             # Ollama lists pulled models on its OpenAI-compatible /v1/models;
             # older builds only on the native /api/tags (name = "qwen3:32b").
@@ -1020,11 +1109,18 @@ def kame_models():
             if 'embed' not in mid:
                 out[kind.capitalize() + ' ' + mid] = OpenAIChatModel(mid, provider=prov,
                                                                      settings=_budget())
-    want = (os.environ.get('KAME_PYAI_MODEL') or '').split(',')[0].strip().split(':')[-1]
-    for label in list(out):
-        if want and label.endswith(' ' + want):
-            out = {label: out.pop(label), **out}
-            break
+    spec = (os.environ.get('KAME_PYAI_MODEL') or '').split(',')[0].strip()
+    want = spec.split(':', 1)[-1]          # ollama:qwen3:32b -> qwen3:32b
+    label = next((x for x in out if want and x.endswith(' ' + want)), None)
+    if label:
+        out = {label: out.pop(label), **out}
+    elif ':' in spec:
+        try:
+            m = _resolve_model(spec)
+            out = {spec: infer_model(m) if isinstance(m, str) else m, **out}
+        except Exception as e:
+            print('kame_pydantic_ai: KAME_PYAI_MODEL={} left out of the menu: {}'
+                  .format(spec, e), file=sys.stderr)
     return out
 
 
@@ -1034,14 +1130,21 @@ def kame_default_model():
     return next(iter(kame_models().values()), None)
 
 
-def _web_models():
-    """The web UI's model menu, as {label: Model}.
+def _model_key(m):
+    """What makes two menu entries the same model, whatever their labels."""
+    return (getattr(m, 'system', None), getattr(m, 'model_name', None),
+            getattr(m, 'base_url', None))
 
-    KAME_PYAI_MODEL, when set, is the menu exactly as written (resolved here
-    rather than handed to the UI as strings so that `sakana:` works and a
-    listed model whose key is missing fails at start-up with the API-key
-    explanation).  Unset, the menu is whatever the present keys reach --
-    kame_models() -- so a key alone is enough to start chatting."""
+
+def _web_models():
+    """The web UI's model menu, as {label: Model}: the models KAME_PYAI_MODEL
+    names, in its order and first, then everything else the present keys and
+    the local servers reach (kame_models()) -- so a Bionic or Ollama model is
+    in the menu even when a cloud model is the default.  The named ones are
+    resolved here rather than handed to the UI as strings, so that `sakana:`
+    works and a named model whose key is missing fails at start-up with the
+    API-key explanation.  Unset, the menu is kame_models() alone, so a key is
+    enough to start chatting."""
     import re
     from pydantic_ai.models import infer_model
     spec = os.environ.get('KAME_PYAI_MODEL') or os.environ.get('PYDANTIC_AI_MODEL') or ''
@@ -1049,7 +1152,11 @@ def _web_models():
     for name in [x for x in re.split(r'[,\s]+', spec) if x]:
         m = _resolve_model(name)
         out[name] = m if not isinstance(m, str) else infer_model(m)
-    return out or kame_models()
+    named = {_model_key(m) for m in out.values()}
+    for label, m in kame_models().items():
+        if _model_key(m) not in named:
+            out[label] = m
+    return out
 
 
 def _build_app():
@@ -1066,7 +1173,7 @@ def _build_app():
             "to build a menu from.  Put one line in\n  {}\n"
             "    ANTHROPIC_API_KEY=...   (or OPENAI_API_KEY / SAKANA_API_KEY; "
             "the menu is then what that key reaches)\n"
-            "or name models outright: KAME_PYAI_MODEL=anthropic:claude-sonnet-4-5, "
+            "or name models outright: KAME_PYAI_MODEL=anthropic:claude-opus-5-5, "
             "...".format(_settings_hint()))
     first = next(iter(models.values()))
     agent = _build_agent(None)

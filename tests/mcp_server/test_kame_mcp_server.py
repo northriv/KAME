@@ -287,5 +287,46 @@ class NotebookStatus(unittest.TestCase):
         self.assertNotIn("state above", out)
 
 
+class ClientName(unittest.TestCase):
+    """Every log row names the client from its MCP initialize.  mcp 2.x hands
+    a tool the request only as a Context argument, so _logged declares one; it
+    must reach the log, and stay out of the schema and out of the tool."""
+
+    def test_context_parameter_is_declared_and_kept_from_the_tool(self):
+        if m._MCPContext is None:
+            self.skipTest("this mcp has no Context type")
+        import typing
+        seen = {}
+
+        @m._logged
+        def probe(x: int = 0) -> str:
+            seen["x"] = x
+            return "ok"
+        self.assertIs(typing.get_type_hints(probe)[m._CTX_ARG], m._MCPContext)
+        self.assertEqual(probe(x=3, **{m._CTX_ARG: None}), "ok")
+        self.assertEqual(seen, {"x": 3})
+
+    def test_name_and_version_from_either_mcp_line(self):
+        info = lambda n, v: types.SimpleNamespace(name=n, version=v)
+        one = types.SimpleNamespace(clientInfo=info("claude-code", "2.1"))   # 1.x
+        two = types.SimpleNamespace(client_info=info("codex", "0.9"))        # 2.x
+        for params, want in ((one, {"name": "claude-code", "version": "2.1"}),
+                             (two, {"name": "codex", "version": "0.9"})):
+            ctx = types.SimpleNamespace(session=types.SimpleNamespace(client_params=params))
+            self.assertEqual(m._client_info(ctx), want)
+
+    def test_outside_a_request_there_is_no_client(self):
+        self.assertIsNone(m._client_info())
+
+    def test_the_schema_does_not_offer_the_context(self):
+        import asyncio
+        lister = getattr(m.server, "list_tools", None)
+        if lister is None:
+            self.skipTest("this mcp has no server.list_tools()")
+        tools = {t.name: t for t in asyncio.run(lister())}
+        schema = getattr(tools["kame_api"], "inputSchema", None) or tools["kame_api"].input_schema
+        self.assertEqual(sorted(schema.get("properties", {})), ["topic"])
+
+
 if __name__ == "__main__":
     unittest.main()
