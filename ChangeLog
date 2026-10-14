@@ -1,4 +1,71 @@
 * Wed Oct 14 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamestm: a program could crash or hang on its way out on 32-bit Windows
+  -- SIGILL, SIGSEGV or a hang in LdrShutdownProcess after its checks had
+  passed (user: transaction_priv_expiry_test in the i686 build, up to a
+  third of the runs in some stretches, none in others; never on x64).  The
+  STM wrote into freed memory at exit.  A static destructor,
+  RunnerEntriesTeardown, deleted every RunnerCounterEntry for leak-checker
+  hygiene, on the belief that no thread would touch its entry again.  The
+  thread calling exit() still would: on Windows its XThreadLocal
+  destructors run after static destruction, from the FLS callback
+  ExitProcess invokes, and its RunnerEntryReleaseGuard stored v = 0 and
+  claimed = false into the freed entry.  In between, exit() loads
+  kernel.appcore.dll (UCRT asks AppPolicyGetProcessTerminationMethod), and
+  the loader may take the freed block for that DLL's LDR_DATA_TABLE_ENTRY.
+  A vectored exception handler linked into the test caught it: entry at
+  0x0151da80, kernel.appcore's loader entry at 0x0151da78, so `claimed`
+  is its InInitializationOrderLinks.Blink, which read 0x0151dc00 where
+  msvcrt's links sit at 0x0151dc38, and ntdll faulted walking that list.
+  The SIGILL reported at kernel.appcore+0x4a00 is the same byte landing on
+  EntryPoint, 0x75124a10.  The entries are still all freed at exit, now in
+  whichever order the two sides come (user: statics are released at exit,
+  whatever the order).  That order differs by build: the exiting thread's
+  guard runs after static destruction in a Windows executable, before it
+  in a DLL (libkame.dll's statics go at DLL_PROCESS_DETACH, after the FLS
+  callback), and never on POSIX.  `claimed` became `ownership` -- FREE,
+  OWNED, or ORPHANED once the teardown has passed it while still owned --
+  and each side exchanges its state in: the teardown frees what is FREE
+  and orphans the rest, a guard that finds ORPHANED frees its own entry, so
+  exactly one of them frees each.  The teardown touches no thread-local,
+  which the DLL order has already destroyed.  A probe wrapping aligned
+  operator delete in the i686 executable saw the main thread's entry freed
+  after the teardown had emptied the list, i.e. by its own guard.  Left as
+  before: on POSIX the calling thread's own entry, whose guard never runs
+  (like every thread-local of that thread there; LSan sees it reachable
+  from TLS), and a thread still walking the list during static
+  destruction.  NegSite's aggregate, which AutoMergeStats
+  (KAME_ADAPT_INSTRUMENT only) merges into from a thread-exit destructor,
+  has the same exposure.  It now records its lifetime in a trivially
+  destructible flag, and a merge or dump() after its destruction skips:
+  re-entering a destroyed function-local static is undefined behaviour.
+  It was not the pool, and not its §31 free redirect: lld drops the
+  import of libkamepoolalloc.dll from a binary that uses none of its
+  symbols, and 24 of the 25 STM tests on Windows use none (only
+  transaction_priority_mixed_test loads it, on x64 and i686 alike), which
+  is why lldb found no libkamepoolalloc.dll in the hung process.  What
+  decided a run is whether the freed block was reused, which depends on the
+  heap layout, which depends on the size of the environment and of the
+  program's path.  A given shell therefore failed nearly every time or
+  never, and KAME_POOL_WIN_REDIRECT=0 mattered only as one more environment
+  variable.  The "time windows" were most likely changes of directory or
+  environment between them.  Under a debugger it never failed (0 of 150),
+  probably for the same reason: _NO_DEBUG_HEAP=1 is one more environment
+  variable.  Swept over 101 environment sizes, at identical path lengths
+  and from the same directory: 50 of 202 runs failed before, 0 of 202
+  after; every size from 0 to 300: 0 of 301.  At ten sizes that had failed
+  every time: 0 of 150.  The old binary was not rerun there, because a
+  hung run cannot be killed (Windows reports it as already terminating)
+  and spins on a core until reboot.  200 plain runs: 0.  The
+  KAME_ADAPT_INSTRUMENT build: 0 of 30.  Linux (WSL, gcc 13, ASan + UBSan +
+  LSan, no pool): transaction_priv_expiry_test and transaction_test with
+  no diagnostic.  ctest: i686 STM 22/22, x64 STM 22/22, i686 pool 24/25.
+  alloc_huge_test fails its "MT 8x8 huge allocs" step the same way without
+  this change (8 threads of 33-61 MiB spans, most likely more than a 32-bit
+  address space holds).  The redirect was checked on the way.  It neither
+  restores patched IATs nor unregisters its DLL notification at detach,
+  which would matter only if libkamepoolalloc.dll were ever FreeLibrary'd
+  (no consumer does).  A free that reaches the pool after the thread's own
+  pool teardown takes the torn-down path.
 - kamepoolalloc: on gcc, kame_page() takes the TLS page's address into a
   register behind an empty asm (user: merged from
   claude/great-turing-Ufao2).  gcc folded every field access through

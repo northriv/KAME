@@ -615,7 +615,7 @@ namespace detail {
     //!
     //! Entries persist until process exit.  Bounded by **max-ever-
     //! concurrent thread count** (not max-ever-total) via slot reuse:
-    //! when a thread exits, its TLS dtor sets `claimed=false`, leaving
+    //! when a thread exits, its TLS dtor sets `ownership=FREE`, leaving
     //! the entry available for the next first-time thread to CAS-
     //! claim.  This handles long-running processes with worker
     //! spawn/destroy churn without unbounded leak.
@@ -630,8 +630,9 @@ namespace detail {
     //! blind reuse — no penalty on uniform-memory single-socket
     //! systems where the ARM64 production target lives.
     //!
-    //! A process-exit teardown sentinel walks and deletes the list
-    //! for leak-detector hygiene.
+    //! Freed at process exit by whichever runs last of the static
+    //! teardown and the owning thread's `RunnerEntryReleaseGuard` — their
+    //! order differs by platform and build (see `RunnerEntriesTeardown`).
     //!
     //! Replaces the heap-vector+atomic_shared_ptr design (eliminated
     //! the 27.8% hotspot on x86_64 NUMA and the TLS-teardown race) AND the
@@ -651,7 +652,7 @@ namespace detail {
 #if KAME_ENABLE_RUNNER_DIGEST
         //! Placed immediately after `v` (both uint64_t, no implicit
         //! alignment padding) so the _pad formula stays correct on
-        //! 32-bit and 64-bit alike.  If declared after `next`/`claimed`/
+        //! 32-bit and 64-bit alike.  If declared after `next`/`ownership`/
         //! `allocated_node`, the compiler inserts hidden padding to
         //! bring digest to an 8-byte boundary, causing the struct to
         //! overflow one cache line.
@@ -666,13 +667,15 @@ namespace detail {
         //! Declared `std::atomic<>` for ABI/lint cleanliness; loads
         //! in the traversal hot path are `relaxed`.
         std::atomic<RunnerCounterEntry*> next{nullptr};
-        //! `true` while an owning thread holds this entry; `false`
-        //! when the entry is free for the next first-time-registering
-        //! thread to CAS-claim.  Newly-constructed entries have
-        //! `claimed=true` (the allocator is the first owner); the
-        //! TLS dtor `RunnerEntryReleaseGuard` flips this back to
-        //! `false` on thread exit.
-        std::atomic<bool> claimed{true};
+        //! Who holds the entry.  OWNED while a thread does (a new entry
+        //! starts OWNED by the thread that allocated it), FREE once its
+        //! TLS dtor `RunnerEntryReleaseGuard` has given it back for the
+        //! next first-time-registering thread to CAS-claim, ORPHANED once
+        //! the process-exit teardown has passed it while still OWNED.
+        //! The teardown and the guard each `exchange` their state in, so
+        //! exactly one of them sees the other's and frees the entry.
+        enum : uint8_t { FREE = 0, OWNED = 1, ORPHANED = 2 };
+        std::atomic<uint8_t> ownership{OWNED};
         //! Immutable after construction: the NUMA node id (from
         //! `getcpu(2)` on Linux, else -1) of the thread that
         //! originally allocated this entry's memory.  Used by the
@@ -685,12 +688,12 @@ namespace detail {
         char _pad[KAME_CACHE_LINE - sizeof(decltype(v))
                                   - sizeof(std::atomic<uint64_t>)
                                   - sizeof(std::atomic<RunnerCounterEntry*>)
-                                  - sizeof(std::atomic<bool>)
+                                  - sizeof(std::atomic<uint8_t>)
                                   - sizeof(int8_t)];
 #else
         char _pad[KAME_CACHE_LINE - sizeof(decltype(v))
                                   - sizeof(std::atomic<RunnerCounterEntry*>)
-                                  - sizeof(std::atomic<bool>)
+                                  - sizeof(std::atomic<uint8_t>)
                                   - sizeof(int8_t)];
 #endif
     };
