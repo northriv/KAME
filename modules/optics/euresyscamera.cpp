@@ -1023,6 +1023,9 @@ XHamamatsuCameraOverGrablink::checkSerialError(const char *file, unsigned int li
 }
 
 
+//! The TI= value of each triggerSrc() item, in the order the constructor adds them.
+static constexpr std::array<unsigned int, 10> s_jaiTriggerSources{0,1,2,8,10,11,12,13,14,15};
+
 XJAICameraOverGrablink::XJAICameraOverGrablink(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XEGrabberCamera(name, runtime, ref(tr_meas), meas, true) {
@@ -1068,9 +1071,8 @@ XJAICameraOverGrablink::setTriggerModeViaSerial(TriggerMode mode) {
     XScopedLock<XEGrabberInterface> lock( *interface());
     unsigned int em = 1/*TIMED*/, act = 0, tm = 1 /*ON*/;
     int ts;
-    constexpr std::array<unsigned int, 10> ts_map{0,1,2,8,10,11,12,13,14,15};
     try {
-        ts = ts_map.at(***triggerSrc());
+        ts = s_jaiTriggerSources.at(***triggerSrc());
     }
     catch(std::out_of_range &) {
         ts = -1;
@@ -1164,23 +1166,97 @@ XJAICameraOverGrablink::setGain(unsigned int g, unsigned int emgain) {
 }
 void
 XJAICameraOverGrablink::afterOpen() {
-    XScopedLock<XEGrabberInterface> lock( *interface()); //for serial opening.
-    interface()->query("DVN?");
-    checkSerialError(__FILE__, __LINE__);
-    fprintf(stderr, "%s\n", interface()->toStr().c_str());
-    interface()->query("MD?");
-    checkSerialError(__FILE__, __LINE__);
-    if(interface()->toStrSimplified().find("GO-24") != std::string::npos) {
-        m_sensorWidth = 1936;
-        m_sensorHeight = 1216;
+    bool has_ba = false, has_pe = false, has_fga = false, has_bl = false, has_trig = false, has_ti = false;
+    unsigned int ba = 0, pe = 0, fga = 0, tm = 0, em = 0, ta = 0, ti = 0;
+    int bl = 0;
+    {
+        XScopedLock<XEGrabberInterface> lock( *interface()); //for serial opening.
+        interface()->query("DVN?");
+        checkSerialError(__FILE__, __LINE__);
+        fprintf(stderr, "%s\n", interface()->toStr().c_str());
+        interface()->query("MD?");
+        checkSerialError(__FILE__, __LINE__);
+        if(interface()->toStrSimplified().find("GO-24") != std::string::npos) {
+            m_sensorWidth = 1936;
+            m_sensorHeight = 1216;
+        }
+        fprintf(stderr, "%s\n", interface()->toStr().c_str());
+        interface()->query("DV?");
+        checkSerialError(__FILE__, __LINE__);
+        fprintf(stderr, "%s\n", interface()->toStr().c_str());
+        interface()->query("VN?");
+        checkSerialError(__FILE__, __LINE__);
+        fprintf(stderr, "%s\n", interface()->toStr().c_str());
+
+        //What the camera holds now.  XEGrabberCamera::open() reads these from
+        //the remote GenICam module, which a CameraLink camera does not have, so
+        //here they are asked over the serial line.  A query this model does
+        //not answer is skipped, not fatal.
+        auto ask = [this](const char *cmd, const char *fmt, auto *v) -> bool {
+            try {
+                interface()->query(cmd);
+                checkSerialError(__FILE__, __LINE__);
+                if(interface()->scanf(fmt, v) == 1)
+                    return true;
+            }
+            catch(XInterface::XInterfaceError &) {
+            }
+            fprintf(stderr, "%s skipped: %s\n", cmd, interface()->toStr().c_str());
+            return false;
+        };
+        has_ba = ask("BA?", "BA=%u", &ba);
+        has_pe = ask("PE?", "PE=%u", &pe);
+        has_fga = ask("FGA?", "FGA=%u", &fga) && (fga >= 100);
+        has_bl = ask("BL?", "BL=%d", &bl) && (bl >= 0);
+        has_trig = ask("TM?", "TM=%u", &tm) && ask("EM?", "EM=%u", &em) && ask("TA?", "TA=%u", &ta);
+        has_ti = ask("TI?", "TI=%u", &ti);
     }
-    fprintf(stderr, "%s\n", interface()->toStr().c_str());
-    interface()->query("DV?");
-    checkSerialError(__FILE__, __LINE__);
-    fprintf(stderr, "%s\n", interface()->toStr().c_str());
-    interface()->query("VN?");
-    checkSerialError(__FILE__, __LINE__);
-    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    //Each converted back by the inverse of its setter above, and committed
+    //outside the lock: s_mutex is shared by every eGrabber interface, and a
+    //camera being created takes it inside the driver-creation transaction
+    //(lock-vs-STM, as in the XEGrabberInterface constructor).  The setting
+    //listeners are connected only after afterOpen() returns, so nothing here
+    //is written back to the camera.
+    //Single-shot is TM=0 too, and indistinguishable from Continuous here.
+    TriggerMode mode = TriggerMode::CONTINUEOUS;
+    if(tm) {
+        bool neg = ta % 2; //Rising/Falling edge, Level high/low.
+        if(em == 2) //TriggerWidth
+            mode = neg ? TriggerMode::EXT_NEG_EXPOSURE : TriggerMode::EXT_POS_EXPOSURE;
+        else
+            mode = neg ? TriggerMode::EXT_NEG_EDGE : TriggerMode::EXT_POS_EDGE;
+    }
+    auto srcit = std::find(s_jaiTriggerSources.begin(), s_jaiTriggerSources.end(), ti);
+    has_ti = has_ti && (srcit != s_jaiTriggerSources.end());
+    unsigned int src = srcit - s_jaiTriggerSources.begin();
+    iterate_commit([=](Transaction &tr){
+        //BA= is the videoMode() index, as setVideoModeViaSerial() writes it; out
+        //of range leaves it unselected.
+        if(has_ba)
+            tr[ *videoMode()] = (int)ba;
+        if(has_pe)
+            tr[ *exposureTime()] = pe * 1e-6; //[us]
+        if(has_fga)
+            tr[ *cameraGain()] = (double)lrint((fga - 100) * 256.0 / 1500);
+        if(has_bl)
+            tr[ *blackLvlOffset()] = (unsigned int)bl;
+        if(has_trig)
+            tr[ *triggerMode()] = (unsigned int)mode;
+        if(has_ti)
+            tr[ *triggerSrc()] = src;
+    });
+    //Apply the mode as choosing it does, so the transmission starts with what
+    //the camera holds -- showing it alone left the camera idle until the same
+    //item was chosen again.  The listeners are not connected yet, so this call
+    //is the only one.  A failure is printed, and choosing the item retries.
+    if(has_ba && ((int)Snapshot( *this)[ *videoMode()] == (int)ba)) {
+        try {
+            setVideoMode(ba);
+        }
+        catch (XKameError &e) {
+            e.print(getLabel() + " " + i18n(" Error"));
+        }
+    }
 }
 void
 XJAICameraOverGrablink::checkSerialError(const char *file, unsigned int line) {
