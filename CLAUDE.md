@@ -96,7 +96,20 @@ Tests live in `kamestm/tests/` and cover the core STM framework: `atomic_shared_
 `std::allocator`) **defaults ON everywhere**, including Windows — production
 runs the pool on every platform (`kame.pri` clears `USE_STD_ALLOCATOR`; the
 comment there claiming otherwise was stale), so the tests exercise the path
-that ships. Only pre-GCC-10 opts out. A POSIX-only test must be guarded:
+that ships. On Windows, linking `libkamepoolalloc.dll` is not enough for
+that: PE/COFF has no interposition, lld will not export the DLL's
+`operator new` (it skips a symbol whose `__imp_` twin libc++'s import library
+defines), and the linker drops the import of a DLL whose symbols nothing
+references. Until 2026-10-14, 24 of the 25 kamestm test binaries therefore
+never loaded the pool and ran the STM on the CRT heap. On Windows kamestm's
+tests now compile `allocator.cpp` in (the `kamestm_tests_pool` OBJECT
+library), as kame.exe does; kamepoolalloc's own tests either call
+`kame_pool_*` (so they import the DLL) or compile it in. Before trusting that
+a Windows test binary is on the pool, run `llvm-objdump -p <exe>`: it must
+import `libkamepoolalloc.dll`, or else import no `_Znw*` from `libc++.dll`.
+With `KAME_POOL_VERBOSE=1` it then prints `[kamepool] Windows free-redirect`
+at start-up and `Reserve swap space` when the pool maps its first region.
+Only pre-GCC-10 opts out. A POSIX-only test must be guarded:
 `alloc_madvise_straddle_repro` uses `sysconf(_SC_PAGESIZE)` and is excluded
 with `if(NOT WIN32)`.
 

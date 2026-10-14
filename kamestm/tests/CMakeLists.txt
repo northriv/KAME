@@ -38,23 +38,49 @@ if(NOT DEFINED USE_KAME_ALLOCATOR)
     message(STATUS "kamestm/tests: USE_KAME_ALLOCATOR = ${USE_KAME_ALLOCATOR}")
 endif()
 
-# kamepoolalloc library target.  If the parent already provided it
-# (via kamepoolalloc/tests/CMakeLists.txt), reuse.  Otherwise build
-# our own copy so this directory is independently buildable.
-if(USE_KAME_ALLOCATOR AND NOT TARGET kamepoolalloc)
+# Windows: the pool is compiled INTO each test, as kame.exe compiles it in.
+#
+# The shared library cannot carry it there.  PE/COFF has no interposition,
+# so libkamepoolalloc.dll replaces nobody's `operator new` (lld does not even
+# auto-export the DLL's own: libc++'s import library defines `__imp__Znw*`,
+# and lld skips a symbol whose `__imp_` twin exists), and the linker emits an
+# import descriptor only for a DLL whose symbols are referenced.  A test that
+# called no kame_pool_* therefore had no import of the DLL at all: until
+# 2026-10-14 24 of the 25 executables (x86_64 and i686 alike) never loaded the
+# pool, and ran the STM on the CRT heap while USE_KAME_ALLOCATOR said ON.
+#
+# Compiled in, allocator.cpp's `operator new` / `operator delete` are the
+# executable's own and the STM shares one image with the pool -- kame.exe's
+# layout, where kamestm's sources and allocator.cpp are both SOURCES of the
+# app.  KAMEPOOLALLOC_DYLIB here means only "activate at image load" (the
+# static-init activator, which also installs the §31 redirect for every other
+# module's CRT calls; banner behind KAME_POOL_VERBOSE=1); the alloc_thread_exit
+# tests' static variants in kamepoolalloc/tests are built the same way.  An
+# OBJECT library compiles the TU once for all the tests, and is created before
+# the force-include below so support_standalone.h stays out of it.
+if(USE_KAME_ALLOCATOR AND WIN32)
+    set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+    find_package(Threads REQUIRED)
+    add_library(kamestm_tests_pool OBJECT
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../kamepoolalloc/allocator.cpp)
+    target_include_directories(kamestm_tests_pool PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../kamepoolalloc)
+    target_compile_definitions(kamestm_tests_pool PUBLIC KAMEPOOLALLOC_DYLIB)
+    target_link_libraries(kamestm_tests_pool PUBLIC Threads::Threads)
+endif()
+
+# kamepoolalloc library target (elsewhere).  If the parent already provided
+# it (via kamepoolalloc/tests/CMakeLists.txt), reuse.  Otherwise build our
+# own copy so this directory is independently buildable.
+if(USE_KAME_ALLOCATOR AND NOT WIN32 AND NOT TARGET kamepoolalloc)
     add_library(kamepoolalloc SHARED
         ${CMAKE_CURRENT_SOURCE_DIR}/../../kamepoolalloc/allocator.cpp)
     target_include_directories(kamepoolalloc PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/../../kamepoolalloc)
     target_compile_definitions(kamepoolalloc PUBLIC KAMEPOOLALLOC_DYLIB)
-    # MSVC emits no import library for a DLL that exports nothing, so every
-    # consumer fails with `LNK1181: cannot open input file kamepoolalloc.lib`.
-    # The pool's public surface is annotated with DECLSPEC_KAMEPOOLALLOC, which
-    # only kamepoolalloc.pro defines; rather than duplicate that here, take the
-    # CMake equivalent of the `-Wl,--export-all-symbols` the .pro already uses
-    # for MinGW.  No effect off Windows.
+    # (No WINDOWS_EXPORT_ALL_SYMBOLS here, unlike kamepoolalloc/tests: this
+    # copy is never built on Windows -- see above.)
     set_target_properties(kamepoolalloc PROPERTIES
-        WINDOWS_EXPORT_ALL_SYMBOLS TRUE
         INSTALL_NAME_DIR "@rpath"
         BUILD_WITH_INSTALL_RPATH TRUE)
     # CMAKE_DL_LIBS: empty on glibc >= 2.34 (dlsym in libc); -ldl on
@@ -115,7 +141,9 @@ set(support_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/../threadlocal.cpp)
 
 set(test_link_libs Threads::Threads)
-if(USE_KAME_ALLOCATOR)
+if(USE_KAME_ALLOCATOR AND WIN32)
+    list(APPEND test_link_libs kamestm_tests_pool)
+elseif(USE_KAME_ALLOCATOR)
     list(APPEND test_link_libs kamepoolalloc)
 endif()
 

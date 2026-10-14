@@ -1,4 +1,27 @@
 * Wed Oct 14 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamestm/tests: on Windows the STM tests run on the pool (user).  They
+  were linked to libkamepoolalloc.dll, and 24 of the 25 never loaded it:
+  PE/COFF has no interposition, so the DLL replaces nobody's operator new
+  -- lld does not even export it, skipping a symbol whose __imp_ twin
+  libc++'s import library defines -- and the linker writes an import only
+  for a DLL whose symbols are referenced.  Only
+  transaction_priority_mixed_test calls kame_pool_*; every other test, on
+  x86_64 and i686 alike, ran the STM on the CRT heap through libc++'s
+  operator new while USE_KAME_ALLOCATOR said ON and CLAUDE.md said the
+  tests exercise the path that ships.  On Windows they now compile
+  allocator.cpp in, once, as an OBJECT library: operator new and delete
+  are the executable's own and share its image with the STM, which is
+  kame.exe's layout; KAMEPOOLALLOC_DYLIB keeps the load-time activator,
+  which installs the §31 redirect for libc++'s and the CRT's calls.  None
+  of the 25 imports new or delete from libc++.dll any more, and with
+  KAME_POOL_VERBOSE=1 each of the 22 ctests reports the redirect and at
+  least one pool region.  On the pool they pass: 22/22 on x86_64 and on
+  i686, five repeats each (110 runs per architecture, no failure), and
+  22/22 on both in Debug, library assertions live.  So the first run of the
+  STM on the pool under Windows found nothing; the CRT-heap baseline had
+  passed 22/22 on both as well.  CLAUDE.md now says how to tell whether
+  a Windows test binary is on the pool (an import of the DLL, or no
+  operator new imported from libc++.dll).
 - kamepoolalloc: on gcc, kame_page() takes the TLS page's address into a
   register behind an empty asm (user: merged from
   claude/great-turing-Ufao2).  gcc folded every field access through

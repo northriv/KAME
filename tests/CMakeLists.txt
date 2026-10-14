@@ -29,7 +29,10 @@ if(NOT DEFINED USE_KAME_ALLOCATOR)
     # (Windows included).  Keeping the test default ON exercises the pool on
     # the same platform it ships on.  Windows pool support (§31 IAT
     # free-redirect + operator-new override) is verified by the full
-    # kamepoolalloc/kamestm test suites under llvm-mingw/clang.
+    # kamepoolalloc/kamestm test suites under llvm-mingw/clang -- kamestm's
+    # only since 2026-10-14, when its tests began compiling allocator.cpp in
+    # on Windows: linked to the DLL, all but one of them never loaded it
+    # (see kamestm/tests/CMakeLists.txt).
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
         set(USE_KAME_ALLOCATOR OFF)   # pre-GCC-10 lacks the pool's C++17 atomics
     else()

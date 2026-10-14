@@ -6923,11 +6923,12 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 	             old, rm, std::memory_order_release,
 	             std::memory_order_relaxed));
 	// Activation banner (the allocator.h "sanity check").  Inline builds
-	// (kame.app & the Windows inline-compiled tests) always print — KAME
-	// developers rely on it to confirm the pool is live.  The standalone
-	// drop-in dylib stays SILENT by default: LD_PRELOAD consumers
-	// (mimalloc-bench, scripted A/Bs) expect allocator silence on stderr.
-	// KAME_POOL_VERBOSE=1 re-enables it there.
+	// (kame.app / kame.exe) always print — KAME developers rely on it to
+	// confirm the pool is live.  The standalone drop-in dylib stays SILENT
+	// by default: LD_PRELOAD consumers (mimalloc-bench, scripted A/Bs)
+	// expect allocator silence on stderr.  So do the Windows tests that
+	// compile this file in, since they define KAMEPOOLALLOC_DYLIB for its
+	// load-time activation.  KAME_POOL_VERBOSE=1 re-enables it there.
 #ifdef KAMEPOOLALLOC_DYLIB
 	static const bool s_banner = [] {
 		const char *e = getenv("KAME_POOL_VERBOSE");
