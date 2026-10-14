@@ -61,11 +61,23 @@ XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const sha
         catch (const Euresys::gentl_error &e) {
             errmsg = XString("error: ") + e.what();
 #if defined __MACOSX__ || defined __APPLE__
-            //What a board without its driver answers -- seen after moving to a
-            //new Mac, before the DEXT was approved.
-            if(e.gc_err == GenTL::GC_ERR_NOT_INITIALIZED)
-                errmsg += XString(i18n(" Is the Euresys driver extension enabled? "
-                    "(System Settings > General > Login Items & Extensions > Driver Extensions)"));
+            //Two causes, both met on moving to a new Mac.  One is MacPorts' GNU
+            //libiconv standing in for /usr/lib's, under which eGrabber's GenApi
+            //never initializes: Qt Creator's "Add build library search path..."
+            //run option, on by default in a fresh install, puts kame.pri's
+            //-L/opt/local/lib on DYLD_LIBRARY_PATH.  The other is a board whose
+            //DEXT has not been approved yet.
+            if(e.gc_err == GenTL::GC_ERR_NOT_INITIALIZED) {
+                const char *dyld = getenv("DYLD_LIBRARY_PATH");
+                if(dyld && strstr(dyld, "/opt/local/lib"))
+                    errmsg += XString(i18n(" DYLD_LIBRARY_PATH contains /opt/local/lib, "
+                        "so MacPorts' libiconv replaces the system one and eGrabber cannot initialize. "
+                        "In Qt Creator's Run settings, uncheck "
+                        "\"Add build library search path to DYLD_LIBRARY_PATH and DYLD_FRAMEWORK_PATH\"."));
+                else
+                    errmsg += XString(i18n(" Is the Euresys driver extension enabled? "
+                        "(System Settings > General > Login Items & Extensions > Driver Extensions)"));
+            }
 #endif
         }
         catch (const std::exception &e) {                                                 // 7
