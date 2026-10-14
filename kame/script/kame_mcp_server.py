@@ -56,6 +56,16 @@ except ImportError:
               file=sys.stderr)
         sys.exit(1)
 from mcp.types import ToolAnnotations
+#The per-request Context, which both lines hand to a tool that declares a
+#parameter of this type.  mcp 2.x has no other way to reach the request (1.x
+#also had server.get_context()); _logged asks for it to name the client.
+try:
+    if MCP_MAJOR == 1:
+        from mcp.server.fastmcp import Context as _MCPContext
+    else:
+        from mcp.server.mcpserver import Context as _MCPContext
+except ImportError:
+    _MCPContext = None
 try:
     import jupyter_client
 except ImportError:
@@ -83,8 +93,9 @@ MANUAL_DOC_PATHS = [
 # a rough cost estimate. It CANNOT see the LLM's prompt, response, model, or
 # real token usage — those live entirely in the client. What is recorded is
 # the tool name, its arguments (the executed code is the provenance gold),
-# the result, timing, and a lightweight KAME-state tag captured passively
-# from the activity watcher (no kernel round-trip).
+# the result, timing, a lightweight KAME-state tag captured passively
+# from the activity watcher (no kernel round-trip), and the name and version
+# the client gave for itself when it connected.
 #
 # The `est_tokens_*` figures are a bytes/4 heuristic of the TOOL PAYLOAD
 # ONLY — a relative "how heavy was this call" gauge, NOT the LLM's real
@@ -176,7 +187,24 @@ def _kame_context() -> dict:
     }
 
 
-def _write_log(tool, arg_dict, result, t0, t1, error):
+def _client_info(ctx=None):
+    """{name, version} the client sent in its MCP `initialize` (Claude Code,
+    Codex, KAME's Pydantic AI agent ...), or None outside a request or when it
+    sent none.  Self-reported, so a label rather than an identity -- but it is what
+    tells several assistants apart in one log: the notebook's HTTP server is
+    shared by every client that connects to it, all under one session_id."""
+    try:
+        if ctx is None:
+            ctx = server.get_context()          # 1.x only
+        params = ctx.session.client_params
+        info = params and (getattr(params, "clientInfo", None)       # 1.x
+                           or getattr(params, "client_info", None))  # 2.x
+        return {"name": info.name, "version": info.version} if info else None
+    except Exception:
+        return None
+
+
+def _write_log(tool, arg_dict, result, t0, t1, error, ctx=None):
     global _LOG_SEQ
     text, n_images = _summarize_result(result)
     chars_in = sum(len(v) for v in arg_dict.values() if isinstance(v, str))
@@ -187,6 +215,7 @@ def _write_log(tool, arg_dict, result, t0, t1, error):
             "ts": datetime.now().astimezone().isoformat(timespec="milliseconds"),
             "session_id": _SESSION_ID,
             "seq": _LOG_SEQ,
+            "client": _client_info(ctx),
             "tool": tool,
             "args": arg_dict,
             "ok": error is None,
@@ -210,10 +239,18 @@ def _write_log(tool, arg_dict, result, t0, t1, error):
             pass  # a full disk / bad path must not break the tool call
 
 
+_CTX_ARG = "kame_mcp_ctx"    # FastMCP refuses parameter names that start with "_"
+
+
 def _logged(fn):
-    """Wrap a tool so every call is journaled to JSONL (never raises)."""
+    """Wrap a tool so every call is journaled to JSONL (never raises).
+
+    The wrapper also declares a Context parameter, so the server fills it in
+    on every call; it is left out of the tool's schema, as context parameters
+    are, and fn never sees it."""
     @functools.wraps(fn)  # preserves signature so FastMCP builds the schema
     def wrapper(*args, **kwargs):
+        ctx = kwargs.pop(_CTX_ARG, None)
         t0 = time.time()
         result = None
         error = None
@@ -227,9 +264,20 @@ def _logged(fn):
             if _LOG_ENABLED:
                 try:
                     _write_log(fn.__name__, _bound_args(fn, args, kwargs),
-                               result, t0, time.time(), error)
+                               result, t0, time.time(), error, ctx)
                 except Exception:
                     pass  # logging must never break a tool call
+    sig = inspect.signature(fn)
+    if _MCPContext is not None and not any(
+            p.kind is p.VAR_KEYWORD for p in sig.parameters.values()):
+        # Both lines find the context parameter through get_type_hints, and
+        # build the schema from the signature, minus that parameter.
+        wrapper.__signature__ = sig.replace(parameters=[
+            *sig.parameters.values(),
+            inspect.Parameter(_CTX_ARG, inspect.Parameter.KEYWORD_ONLY,
+                              default=None, annotation=_MCPContext)])
+        wrapper.__annotations__ = {**getattr(fn, "__annotations__", {}),
+                                   _CTX_ARG: _MCPContext}
     return wrapper
 
 

@@ -274,7 +274,12 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
     settings, 2.x takes them as `run()` kwargs and no longer has them in
     settings. `mcp.types.ToolAnnotations` and the `annotations=` keyword are
     unchanged. The probe in `xpythonsupport.py` accepts either line; a bare
-    `import mcp` is still not enough to prove an interpreter usable.
+    `import mcp` is still not enough to prove an interpreter usable. A tool
+    reaches its request (the client's name, for the tool log) only through
+    an injected `Context` parameter on 2.x, which has no `get_context()`:
+    `_logged` declares one, `kame_mcp_ctx`, which both lines drop from the
+    schema -- not `_kame_mcp_ctx`, since FastMCP refuses a parameter whose
+    name starts with `_`.
   - **`kame-mcp-venv`** is the convention. The probe walks up from
     `KAME_ResourceDir` (depths 1..6 — 1 matters on Windows, where `resources` is
     only one level inside the release folder) and prefers it over `python3` and

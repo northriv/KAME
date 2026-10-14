@@ -1745,7 +1745,10 @@ client appends one line per model request beside it: calls, tokens and
 inference time — never the text of a prompt or a reply. The first is a record
 of what an assistant actually did, useful when reconstructing a Methods
 section; the second gives cost and local-inference figures that providers do
-not always report. Set `KAME_MCP_NO_LOG` to switch the tool log off,
+not always report. Each line of the first names the client that made the
+call, by the name and version it gave when it connected (KAME's own agent
+says `pydantic-ai`), so the work of several assistants sharing one KAME can
+be told apart. Set `KAME_MCP_NO_LOG` to switch the tool log off,
 `KAME_USAGE_NO_LOG` for the model log.
 
 ## Troubleshooting

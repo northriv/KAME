@@ -509,6 +509,17 @@ def _toolset(url, token):
         kw['headers'] = {'Authorization': 'Bearer ' + token}
     elif token:
         kw['auth'] = token
+    if 'client_info' in params:
+        #KAME's tool log names each client by what it says when it connects;
+        #left alone, pydantic-ai says what the mcp library defaults to,
+        #"mcp 0.1.0", which tells nobody which assistant ran the code.
+        try:
+            import pydantic_ai
+            from mcp.types import Implementation
+            kw['client_info'] = Implementation(name='pydantic-ai',
+                                               version=pydantic_ai.__version__)
+        except Exception:
+            pass
     return MCPToolset(url, **kw)
 
 
