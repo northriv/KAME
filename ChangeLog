@@ -1,4 +1,19 @@
 * Wed Oct 14 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamepoolalloc: on gcc, kame_page() takes the TLS page's address into a
+  register behind an empty asm (user: merged from
+  claude/great-turing-Ufao2).  gcc folded every field access through
+  &g_tls_page into a %fs:disp(base,index,8) operand -- among them the
+  thread-list head's load and store, the free -> malloc chain the 64 B
+  loop is bound by -- where clang takes %fs:0 + offset into a register
+  once.  Measured there on a Linux Xeon @ 2.10 GHz: gcc 64 B 226 -> 305
+  M ops/s (1.35x, clang's 309), 4 processes 1.33x, i586 1.31x; gcc-only,
+  since on clang the barrier only moves code (1 KiB 0.95x, 16 KiB 0.89x).
+  It is a trade between cores, not a free win: on the Windows box's
+  Broadwell-EP Xeon under WSL 2 the same gcc build ran 64 B 0.70-0.85x and
+  16 KiB 0.92-0.94x with it, gcc there having been as fast as clang
+  without it (THREAD_LIST_CHECK.md has both).  KAME on that box is a clang
+  build, where the patch is inert.  The branch's Linux records for 9.0's
+  allocator work come with it into THREAD_LIST_CHECK.md.
 - kamestm/tests: transaction_wait_budget_test allows one timer tick on
   Windows (user).  It failed on every Windows build, deterministically, and
   not because of the negotiator: the timed wait under it
