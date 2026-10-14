@@ -1,3 +1,21 @@
+* Wed Oct 14 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamestm/tests: transaction_wait_budget_test allows one timer tick on
+  Windows (user).  It failed on every Windows build, deterministically, and
+  not because of the negotiator: the timed wait under it
+  (std::condition_variable::wait_for, XWaitCell's fallback) ends on a tick
+  of the system timer, 15.625 ms unless something holds it finer, so the
+  10 ms arm's p99.99 came out 15.6-15.8 ms under clang and the 1 ms arm's
+  15.9 ms under cl, where 1 ms of slack was allowed.  On Windows the
+  default slack is now 1 ms plus the coarsest timer resolution the OS
+  reports (NtQueryTimerResolution), 16.6 ms here; KAME_WB_TEST_SLACK_US
+  still overrides.  The unbudgeted p99.99 there is 60-90 ms, so every arm
+  keeps its power and the test still fails if the budget stops bounding the
+  wait.  It now passes on clang x64 and i686 and cl x64 and x86.  What it
+  had been reporting is real for KAME on Windows and not addressed here:
+  a budgeted wait overshoots by up to a tick (drivers carry 20 ms), and
+  below 1 ms cl's runtime rounds a wait up to a whole tick while
+  llvm-mingw's libc++ rounds it to nothing and spins.
+
 * Tue Oct 13 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - kamepoolalloc: the full tier's malloc/free loop (6 KiB to 32 KiB) is
   twice as fast on the Windows Xeon and 1.47x on Linux x86.  Its owner

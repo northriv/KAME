@@ -63,6 +63,20 @@
 //! the control run did not itself breach that arm's limit.  A 10 ms slack
 //! marks every arm no-power on this host.
 //!
+//! **Windows adds one timer tick.**  There the negotiator's timed wait
+//! (`XWaitCell`'s condition-variable fallback) ends on a tick of the system
+//! timer, 15.625 ms unless some process holds it finer, and the two runtimes
+//! round differently below 1 ms: MSVC's STL rounds a 500 µs wait up to a
+//! whole tick, llvm-mingw's libc++ down to no wait at all.  Measured on a
+//! Xeon E5-1630 v4 at the default tick, the 10 ms arm's p99.99 was 15.6-15.8 ms
+//! under clang and the 1 ms arm's 15.9 ms under cl; with `timeBeginPeriod(1)`
+//! a 10 ms wait took 10.2-10.5 ms.  That is the platform's granularity, real
+//! for KAME on Windows too (drivers carry a 20 ms budget), and not what this
+//! test asserts, so on Windows the default slack is 1 ms plus the coarsest
+//! timer resolution the OS reports (`NtQueryTimerResolution`): about 16.6 ms.
+//! The unbudgeted p99.99 there was 60-90 ms, so every arm keeps its power.
+//! `KAME_WB_TEST_SLACK_US` still overrides.
+//!
 //! **One thread carries a budget by default — the intended deployment.**  Pass
 //! `KAME_WB_TEST_NBUDGET=<threads>` for the hostile all-budgeted shape.
 //!
@@ -115,6 +129,32 @@
 #include <memory>
 #include <thread>
 #include <vector>
+#if defined(_WIN32)
+#  ifndef NOMINMAX
+#    define NOMINMAX
+#  endif
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  include <windows.h>
+#endif
+
+//! The slack's platform part, in µs: on Windows the coarsest system-timer
+//! resolution (see the header), 0 elsewhere.
+static int platform_tick_us() {
+#if defined(_WIN32)
+    using QueryFn = LONG (WINAPI *)(PULONG, PULONG, PULONG);
+    ULONG coarsest = 0, finest = 0, current = 0;   // 100 ns units
+    if(HMODULE ntdll = GetModuleHandleA("ntdll.dll"))
+        if(auto q = reinterpret_cast<QueryFn>(reinterpret_cast<void *>(
+               GetProcAddress(ntdll, "NtQueryTimerResolution"))))
+            if(q( &coarsest, &finest, &current) >= 0 && coarsest > 0)
+                return (int)((coarsest + 9u) / 10u);
+    return 15625;   // the documented default tick
+#else
+    return 0;
+#endif
+}
 
 class MyNode : public Transactional::Node<MyNode> {
 public:
@@ -271,12 +311,15 @@ int main(int argc, char **argv) {
     // fails for a true reason that is not the property under test).
     int n_budget = env_int("KAME_WB_TEST_NBUDGET", 1);
     if(n_budget > threads) n_budget = threads;
+    const int tick_us = platform_tick_us();
     const std::int64_t slack_ns =
-        (std::int64_t)env_int("KAME_WB_TEST_SLACK_US", 1000) * 1000;
+        (std::int64_t)env_int("KAME_WB_TEST_SLACK_US", 1000 + tick_us) * 1000;
 
     std::printf("wait-budget test: %d threads (%d budgeted), %.1f s per arm, "
-                "slack %lld us\n",
-                threads, n_budget, secs, (long long)(slack_ns / 1000));
+                "slack %lld us%s\n",
+                threads, n_budget, secs, (long long)(slack_ns / 1000),
+                (tick_us && !std::getenv("KAME_WB_TEST_SLACK_US"))
+                    ? " (1 ms + the OS timer tick)" : "");
 
     // Control arm: no budget.  Not asserted — it exists to show that the
     // workload really does produce a tail far above the slack, so a pass in
