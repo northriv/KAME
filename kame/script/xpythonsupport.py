@@ -285,8 +285,20 @@ def sleep(sec):
 	# worker threads); there sleep() degrades to a plain interruptible
 	# wait instead of raising AttributeError on a missing TLS.xscrthread.
 	xthr = getattr(TLS, 'xscrthread', None)
+	# A job from KAME's MCP server (execute_code_async) runs on such a thread,
+	# and stop_job reaches it only through mcp_checkpoint(), which the job's
+	# own code may never call.  A measurement loop does call sleep(), so
+	# sleep() calls it, at most once a second per thread however short the
+	# sleeps: it raises to end the job once a stop is asked for, and refreshes
+	# the job's heartbeat meanwhile.  The server defines it in this namespace
+	# (the kernel's) on its first job; on a thread running no job it returns
+	# at once.
+	mcp_ck = None if xthr else globals().get('mcp_checkpoint')
 	while True:
 		remain = sec - (time.time() - start)
+		if mcp_ck and time.time() - getattr(TLS, 'mcp_ck_at', 0.0) >= 1.0:
+			TLS.mcp_ck_at = time.time()
+			mcp_ck()
 		if xthr:
 			xpythread = xthr
 			if str(xpythread["Action"]) == "kill":

@@ -817,8 +817,9 @@ def stop_job(job_id: str) -> str:
     """Request a cooperative stop of an async job.
 
     Sets the job's stop flag; the job terminates (status "stopped") at
-    its next mcp_checkpoint() call. Code that never calls
-    mcp_checkpoint cannot be stopped this way.
+    its next mcp_checkpoint() call, or within about a second while it is
+    in KAME's sleep(), which checks for it too. Code that does neither
+    (a busy loop, time.sleep) cannot be stopped this way.
 
     Args:
         job_id: The job ID returned by execute_code_async.
