@@ -1267,3 +1267,322 @@ M5 run above, with mimalloc 3.3.2:
 (`README_BENCH_OHTAKA.md` §5.3) carries the bucket gain to 128 threads
 (1.08–1.30×) and finds two losses outside the bucket tier, 1 MiB at
 4 threads 0.82× and 8 MiB single-thread 0.87×, not yet bisected.
+
+## Run: Linux, Intel Xeon @ 2.80 GHz, 2026-10-13 — the Windows regressions checked on another x86
+
+The Windows run's open question: x86, Broadwell, or code placement?  Cloud
+VM, 4 vCPU of an Intel Xeon @ 2.80 GHz (1 MiB L2 / core, 33 MiB L3 — a newer
+server core than Broadwell-EP), Linux, shared host, so absolute numbers are
+noisy and only the interleaved ratios are read.  One `bench_loop` binary
+(plain `malloc` / `free`, `gcc -O2`), the arm switched by `LD_PRELOAD` of each
+commit's `libkamepoolalloc.so` (`-O3 -DNDEBUG`, built with gcc 13.3 and with
+clang 18.1), a glibc arm as the control (the pool arms run ~2× it, so the
+preload takes); every arm at every size each rep, arm order reversed every
+other rep; 7 reps single thread, 5 reps 4 processes aggregate.  Arms as in the
+Windows run: `8f2e6980` (June), `45f1d07f9` (parent of `5fc34e052`),
+`5fc34e052`, `f53394135` → `9f6370a52`, and `e2c9e6dde` (HEAD).
+
+Median M ops/s (min–max):
+
+
+**gcc, single thread** (M ops/s)
+| size | glibc | 8f2e6980 (June) | 45f1d07f9 | 5fc34e052 | f53394135 | 9f6370a52 | e2c9e6dde (HEAD) | 5fc/45f | 9f6/f53 | HEAD/June |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 64 B | 129 (116-141) | 267 (259-285) | 273 (225-279) | 211 (199-224) | 202 (177-228) | 208 (149-223) | 222 (151-232) | 0.77x | 1.03x | 0.83x |
+| 1 KiB | 142 (95-147) | 215 (113-227) | 191 (167-215) | 200 (161-218) | 171 (146-194) | 179 (115-208) | 202 (190-211) | 1.05x | 1.04x | 0.94x |
+| 16 KiB | 49 (46-54) | 161 (132-172) | 156 (128-170) | 168 (160-175) | 139 (112-169) | 152 (132-171) | 162 (117-174) | 1.08x | 1.09x | 1.01x |
+
+**gcc, 4 processes aggregate** (M ops/s)
+| size | glibc | 8f2e6980 (June) | 45f1d07f9 | 5fc34e052 | f53394135 | 9f6370a52 | e2c9e6dde (HEAD) | 5fc/45f | 9f6/f53 | HEAD/June |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 64 B | 495 (342-526) | 1075 (762-1088) | 995 (962-1041) | 808 (770-836) | 748 (691-826) | 755 (740-811) | 739 (636-877) | 0.81x | 1.01x | 0.69x |
+| 16 KiB | 184 (168-210) | 619 (483-636) | 645 (585-652) | 645 (630-658) | 656 (514-699) | 623 (614-658) | 614 (585-692) | 1.00x | 0.95x | 0.99x |
+| 1 MiB | 210 (184-221) | 286 (244-309) | 202 (177-218) | 213 (154-229) | 215 (179-237) | 210 (179-218) | 214 (195-221) | 1.06x | 0.98x | 0.75x |
+
+**clang, single thread** (M ops/s)
+| size | glibc | 8f2e6980 (June) | 45f1d07f9 | 5fc34e052 | f53394135 | 9f6370a52 | e2c9e6dde (HEAD) | 5fc/45f | 9f6/f53 | HEAD/June |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 64 B | 139 (119-148) | 314 (284-326) | 281 (236-327) | 239 (166-253) | 226 (201-242) | 228 (211-242) | 224 (202-239) | 0.85x | 1.01x | 0.71x |
+| 1 KiB | 136 (111-146) | 208 (140-217) | 201 (160-223) | 240 (175-254) | 211 (178-230) | 204 (169-252) | 238 (204-251) | 1.19x | 0.96x | 1.14x |
+| 16 KiB | 49 (46-54) | 191 (165-194) | 191 (161-199) | 190 (165-195) | 181 (177-194) | 181 (170-191) | 180 (156-199) | 0.99x | 1.00x | 0.94x |
+
+**clang, 4 processes aggregate** (M ops/s)
+| size | glibc | 8f2e6980 (June) | 45f1d07f9 | 5fc34e052 | f53394135 | 9f6370a52 | e2c9e6dde (HEAD) | 5fc/45f | 9f6/f53 | HEAD/June |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 64 B | 526 (472-563) | 1229 (1106-1252) | 1086 (916-1178) | 913 (751-962) | 882 (816-975) | 891 (768-923) | 884 (768-915) | 0.84x | 1.01x | 0.72x |
+| 16 KiB | 184 (165-199) | 697 (658-760) | 727 (690-756) | 682 (649-747) | 678 (602-695) | 694 (674-740) | 656 (539-730) | 0.94x | 1.02x | 0.94x |
+| 1 MiB | 184 (171-225) | 230 (209-246) | 178 (171-237) | 186 (158-191) | 191 (182-218) | 173 (146-228) | 216 (155-226) | 1.04x | 0.91x | 0.94x |
+
+| step | Windows (Broadwell, clang 17) | here, gcc 13 | here, clang 18 |
+|---|---|---|---|
+| `5fc34e052` / `45f1d07f9`, 1T 64 B | 0.78× | **0.77×** | **0.85×** |
+| — 1T 1 KiB | 1.31× | 1.05× | 1.19× |
+| — 1T 16 KiB | **0.70×** | 1.08× | 0.99× |
+| — 4P 64 B | 0.97× | 0.81× | 0.84× |
+| — 4P 16 KiB | 0.81× | 1.00× | 0.94× |
+| `9f6370a52` / `f53394135`, 4P 16 KiB | 0.92× | 0.95× | 1.02× |
+
+**64 B reproduces; 16 KiB does not.**  The thread lists' 64 B single-thread
+loss is here with both compilers (0.77× / 0.85×, the gcc figure the Windows
+one to the percent), so it is not Broadwell's or Windows'.  The 16 KiB loss
+(0.70×, and 0.81× on 4 processes) does not appear on this core with either
+compiler (0.99–1.08×); with the M5's 1.00× that leaves Broadwell, Windows
+(llvm-mingw's TLS and DLL calls) or that build's code placement — not the
+algorithm on x86 as such.  `9f6370a52`'s 4-process 16 KiB step is within
+noise here (0.95× / 1.02×).
+
+**One step Windows did not show: 1 MiB, since June.**  gcc, 9 reps
+interleaved: single thread `8f2e6980` 77 (55–82), `45f1d07f9` 57 (52–60),
+HEAD 61 (32–64); 4 processes 277 (223–300), 213 (166–224), 228 (206–247).
+Windows measured 212 / 211 / 210 there.  `git bisect run` over the 48
+allocator commits between them (median of 5 single-thread runs, threshold 67)
+names **`6fe90a931`** (§75: realtime per-thread gating, prewarm, drain,
+pre-reserve); interleaved against its parent `1f6a59fd3`, 9 reps: single
+thread 74 → 63 (0.86×), 4 processes 259 → 220 (0.85×).  That is the first and
+largest identified part of the 0.74×; the rest lies later in the range and is
+not bisected.  clang's 4-process 1 MiB row is too noisy here to read.
+
+## Run: Linux, 2026-10-13 (master `5acd9215c`) — the 241..256 B move and the ILP32 ALIGN 128 template's removal
+
+The container, nine trees and harsh flags of the `9f6370a52` Linux run,
+rebuilt at `5acd9215c` (the i386 side had been checked only at compile time).
+
+- Builds: all nine whole.  No-DCAS 3/3.
+- ctest: LP64 49/49 ×2, harsh LP64 asserts 49/49; every other tree 48/49 or
+  41/42 with only `transaction_wait_budget_test` failing under `ctest -j3`,
+  3/3 PASS alone each time (the `RUN_SERIAL` of `5d2f5a726` now keeps it
+  alone).  `alloc_fit_test`'s new ALIGN 64 tier (696 B fillers, 568 B probes):
+  599 / 2999 probes among the fillers on LP64, 1499 / 2999 on ILP32; 0 short,
+  0 overwritten.
+- Soaks, by exit status: LP64 release `alloc_fit_test`, `alloc_aligned_test`,
+  `alloc_phase_test` and the four thread-exit tests 0 / 200 each, the
+  exclusivity tests (32 B, var, `--mid`) 0 / 500 each; on i586 and i486
+  (release and asserts) and the three harsh trees, fit, aligned, phase, var,
+  `--mid` and the four thread-exit tests 0 / 100 each — 0 failures in all.
+- Units for 64 MiB of one size (`kame_pool_get_stats().units_live`), the
+  same probe against `9f6370a52`'s library and `5acd9215c`'s:
+
+  | size | LP64 before → after | ILP32 (i586 = i486) before → after |
+  |---|---|---|
+  | 241 / 248 / 256 B | 562 / 542 / 526 → **315 / 306 / 297** (0.56×) | 440 / 429 / 416 → **367 / 357 / 346** (0.83×) |
+  | 128 B | 345 → 345 | 530 → **354** (0.67×; bucket 8 left the ALIGN 128 template) |
+  | 96, 200, 224, 240, 257, 288 B | unchanged | unchanged |
+
+  Usable size of 241–256 B stays 256; every such block 32-B aligned, 57 %
+  also 64-B on LP64 (the commit's 4 of 7), 67 % on ILP32.
+
+## Run: Linux, Intel Xeon @ 2.80 GHz, 2026-10-13 — after `78e57424c` (the 64 B cause)
+
+The A/B of the run before last, the same host and method (one `bench_loop`,
+`LD_PRELOAD` per arm, interleaved, glibc as control), with `78e57424c` added
+and 1 MiB measured single-threaded too; 9 reps single thread, 5 reps
+4 processes.  Median M ops/s (min–max):
+
+**gcc, single thread, 9 reps** (M ops/s, median (min–max))
+
+| size | glibc | `8f2e6980` (June) | `45f1d07f9` | `e2c9e6dde` | `78e57424c` | 78e / e2c | 78e / 45f | 78e / June |
+|---|---|---|---|---|---|---|---|---|
+| 64 B | 119 (92–143) | 267 (173–284) | 239 (176–269) | 197 (150–210) | 223 (186–253) | 1.13× | 0.93× | 0.84× |
+| 1 KiB | 130 (95–151) | 180 (135–226) | 199 (138–214) | 196 (117–212) | 187 (114–211) | 0.95× | 0.94× | 1.04× |
+| 16 KiB | 47 (46–55) | 161 (140–174) | 150 (131–173) | 158 (112–182) | 156 (138–185) | 0.99× | 1.04× | 0.97× |
+| 1 MiB | 45 (25–58) | 76 (47–84) | 52 (35–60) | 60 (50–65) | 60 (36–66) | 1.00× | 1.16× | 0.80× |
+
+**gcc, 4 processes aggregate, 5 reps** (M ops/s, median (min–max))
+
+| size | glibc | `8f2e6980` (June) | `45f1d07f9` | `e2c9e6dde` | `78e57424c` | 78e / e2c | 78e / 45f | 78e / June |
+|---|---|---|---|---|---|---|---|---|
+| 64 B | 516 (502–531) | 1051 (987–1063) | 894 (795–1088) | 725 (586–806) | 822 (673–980) | 1.13× | 0.92× | 0.78× |
+| 16 KiB | 193 (186–198) | 602 (536–681) | 603 (519–620) | 581 (543–671) | 631 (588–644) | 1.09× | 1.05× | 1.05× |
+| 1 MiB | 202 (180–211) | 278 (255–323) | 200 (189–223) | 222 (154–252) | 233 (224–246) | 1.05× | 1.17× | 0.84× |
+
+**clang, single thread, 9 reps** (M ops/s, median (min–max))
+
+| size | glibc | `8f2e6980` (June) | `45f1d07f9` | `e2c9e6dde` | `78e57424c` | 78e / e2c | 78e / 45f | 78e / June |
+|---|---|---|---|---|---|---|---|---|
+| 64 B | 132 (81–147) | 281 (238–322) | 273 (210–305) | 204 (168–250) | 241 (171–284) | 1.18× | 0.88× | 0.86× |
+| 1 KiB | 120 (104–139) | 175 (114–212) | 213 (204–226) | 203 (172–237) | 210 (180–269) | 1.04× | 0.99× | 1.20× |
+| 16 KiB | 46 (39–54) | 179 (148–193) | 174 (156–188) | 181 (147–197) | 178 (136–197) | 0.98× | 1.02× | 0.99× |
+| 1 MiB | 51 (37–59) | 59 (39–63) | 51 (34–62) | 50 (42–59) | 43 (26–57) | 0.85× | 0.84× | 0.72× |
+
+**clang, 4 processes aggregate, 5 reps** (M ops/s, median (min–max))
+
+| size | glibc | `8f2e6980` (June) | `45f1d07f9` | `e2c9e6dde` | `78e57424c` | 78e / e2c | 78e / 45f | 78e / June |
+|---|---|---|---|---|---|---|---|---|
+| 64 B | 401 (327–504) | 1091 (974–1194) | 938 (803–1086) | 693 (578–784) | 845 (733–937) | 1.22× | 0.90× | 0.77× |
+| 16 KiB | 178 (160–195) | 671 (650–703) | 645 (551–692) | 570 (504–687) | 603 (521–629) | 1.06× | 0.94× | 0.90× |
+| 1 MiB | 178 (133–211) | 200 (188–237) | 186 (173–222) | 178 (155–199) | 183 (160–219) | 1.03× | 0.98× | 0.91× |
+
+**64 B: `78e57424c` helps here too, but not all the way.**  Against
+`e2c9e6dde` it is 1.13× / 1.18× single thread (gcc / clang) and 1.13× /
+1.22× on 4 processes — where the Windows Xeon gained 1.44× / 1.28× and ended
+above June.  Here it stays below the commit before the thread lists in all
+four configurations, 0.88–0.93× of `45f1d07f9` (each range overlaps, the
+direction does not vary), and 0.77–0.86× of June (part of that predates
+`5fc34e052`: June → `45f1d07f9` was already 0.85–0.97× at 64 B here).  So on
+this core something of the 64 B cost remains beyond the bucket read.
+
+**16 KiB**: level, as in the run before last (0.94–1.05× of `45f1d07f9`).
+**1 MiB**: the June step stays — gcc 0.80× single thread, 0.84× 4 processes
+of June (`6fe90a931`'s part of it is untouched by this commit); clang's rows
+are too noisy to read.
+
+## Run: Linux, 2026-10-13 (master `896bc0bec`, the code of `e0974e402`) — the per-region page table
+
+Correctness: the nine trees of the runs above (LP64, i586, i486; release
+and asserts; three harsh), rebuilt at `896bc0bec`.
+
+- Builds clean; no-DCAS 3/3.
+- ctest **0 failures on all nine** — LP64 49/49 ×2, i586 49/49 ×2, i486
+  42/42 ×2, harsh 49/49 ×3; `transaction_wait_budget_test` passes under
+  `ctest -j3` now that it runs serially (`5d2f5a726`).
+- Every full-tier size through `bench_loop` (4096 B, then 4097..32768 B in
+  steps of 64, and 8 / 16 / 32 KiB; 20 000 pairs each) against the asserts
+  libraries — LP64, harsh LP64, i586, i486, harsh i586 — so the debug
+  asserts holding the page byte and `tl_slot_bytes` to `m_sizes` see every
+  full-tier bucket: **0 / 2260** failed.
+- Soaks, 0 failures in all: LP64 `alloc_fit_test`, `alloc_aligned_test`,
+  `alloc_phase_test`, `alloc_calloc_zero_test` and the four thread-exit tests
+  0 / 200 each, exclusivity 32 B / var / `--mid` 0 / 500 each; on the i586,
+  i486 and harsh trees the same set (var and `--mid` for exclusivity)
+  0 / 100 each.
+
+Performance: the A/B of the runs above with `e0974e402` added.  The VM came
+back on another host — Intel Xeon @ 2.10 GHz, 2 MiB L2 / core, 260 MiB L3 —
+so read the ratios, not the absolute numbers against the earlier tables.
+Median M ops/s (min–max):
+
+**gcc, single thread, 9 reps** (M ops/s, median (min–max))
+
+| size | glibc | `8f2e6980` (June) | `45f1d07f9` | `78e57424c` | `e0974e402` | e09 / 78e | e09 / 45f | e09 / June |
+|---|---|---|---|---|---|---|---|---|
+| 64 B | 194 (139–226) | 322 (297–351) | 316 (272–344) | 224 (214–240) | 227 (218–249) | 1.01× | 0.72× | 0.70× |
+| 1 KiB | 202 (150–225) | 189 (169–203) | 205 (165–211) | 235 (176–247) | 222 (198–248) | 0.94× | 1.08× | 1.17× |
+| 8 KiB | 73 (69–83) | 171 (138–181) | 169 (137–187) | 172 (157–178) | 244 (183–265) | 1.42× | 1.45× | 1.43× |
+| 16 KiB | 80 (63–85) | 175 (157–178) | 175 (161–183) | 171 (160–184) | 234 (214–248) | 1.37× | 1.34× | 1.34× |
+| 1 MiB | 87 (69–91) | 103 (83–110) | 94 (88–102) | 91 (81–103) | 87 (55–97) | 0.95× | 0.93× | 0.85× |
+
+**gcc, 4 processes aggregate, 5 reps** (M ops/s, median (min–max))
+
+| size | glibc | `8f2e6980` (June) | `45f1d07f9` | `78e57424c` | `e0974e402` | e09 / 78e | e09 / 45f | e09 / June |
+|---|---|---|---|---|---|---|---|---|
+| 64 B | 744 (686–809) | 1099 (1007–1258) | 1133 (1002–1264) | 874 (825–940) | 880 (841–913) | 1.01× | 0.78× | 0.80× |
+| 16 KiB | 254 (225–317) | 636 (602–729) | 667 (639–709) | 658 (637–715) | 857 (718–948) | 1.30× | 1.28× | 1.35× |
+| 1 MiB | 308 (228–338) | 351 (287–406) | 283 (239–320) | 296 (266–347) | 293 (262–357) | 0.99× | 1.04× | 0.84× |
+
+**clang, single thread, 9 reps** (M ops/s, median (min–max))
+
+| size | glibc | `8f2e6980` (June) | `45f1d07f9` | `78e57424c` | `e0974e402` | e09 / 78e | e09 / 45f | e09 / June |
+|---|---|---|---|---|---|---|---|---|
+| 64 B | 195 (181–223) | 312 (250–329) | 317 (283–373) | 303 (254–323) | 303 (282–313) | 1.00× | 0.96× | 0.97× |
+| 1 KiB | 203 (165–230) | 175 (165–186) | 193 (159–210) | 238 (193–260) | 246 (225–271) | 1.03× | 1.27× | 1.40× |
+| 8 KiB | 77 (58–80) | 174 (150–180) | 168 (166–186) | 173 (163–188) | 247 (208–262) | 1.43× | 1.47× | 1.42× |
+| 16 KiB | 79 (63–85) | 177 (166–187) | 178 (168–183) | 179 (174–190) | 245 (195–271) | 1.37× | 1.37× | 1.39× |
+| 1 MiB | 82 (57–89) | 104 (62–116) | 99 (63–101) | 91 (66–109) | 90 (56–112) | 0.99× | 0.91× | 0.87× |
+
+**clang, 4 processes aggregate, 5 reps** (M ops/s, median (min–max))
+
+| size | glibc | `8f2e6980` (June) | `45f1d07f9` | `78e57424c` | `e0974e402` | e09 / 78e | e09 / 45f | e09 / June |
+|---|---|---|---|---|---|---|---|---|
+| 64 B | 834 (697–868) | 1209 (1056–1350) | 1294 (1227–1354) | 1150 (1052–1216) | 1204 (951–1250) | 1.05× | 0.93× | 1.00× |
+| 16 KiB | 287 (256–325) | 704 (689–727) | 700 (667–723) | 690 (652–752) | 964 (739–984) | 1.40× | 1.38× | 1.37× |
+| 1 MiB | 298 (214–354) | 360 (254–390) | 390 (251–400) | 316 (281–398) | 365 (289–391) | 1.15× | 0.94× | 1.01× |
+
+**8 KiB and 16 KiB: the fix holds on Linux.**  `e0974e402` against
+`78e57424c`: 1.37–1.43× single thread, 1.30× / 1.40× on 4 processes (gcc /
+clang), and above June by 1.34–1.43× — the commit's 1.47× cycles a pair,
+from the other side.
+
+**64 B: recovered with clang, not with gcc, on this host.**  clang:
+0.93–1.00× of June and `45f1d07f9`.  gcc: 0.70× / 0.72× single thread,
+0.78× / 0.80× on 4 processes, ranges apart (224 (214–240) against 316
+(272–344)).  The two compilers built `45f1d07f9` alike (316 / 317) but
+`e0974e402` 227 against 303: gcc's code for the thread-list path, not the
+path itself, carries what is left — and host-dependently, for the previous
+host measured gcc at 0.93× of `45f1d07f9`.
+
+**1 MiB: the June step remains** (gcc 0.85× single thread, 0.84× on 4
+processes; clang 0.87× / 1.01×), as `6fe90a931` left it.
+
+## Linux, 2026-10-14 — what is left of 64 B on gcc: the TLS addressing, and a GCC-only fix
+
+At v1.3.0 (`e0974e402`'s code) gcc's 64 B was 0.70–0.80× of June on the
+Xeon @ 2.10 GHz while clang's was 0.93–1.00×, and the two had built
+`45f1d07f9` alike.  Not the instruction count: callgrind, per malloc/free pair,
+
+| | gcc | clang |
+|---|---|---|
+| `45f1d07f9` | 66.9 (`kame_free` 35, `malloc` 16) | 58.7 (30, 14) |
+| `e0974e402` | 73.0 (43, 14) | 65.9 (39, 12) |
+
+— gcc carries ~8 more in both, but loses speed only in the second.  The
+traced hot paths (gdb, one warm `malloc` and `kame_free`) do the same work;
+two differences remain:
+
+- gcc saves and restores `rbx` / `rbp` / `r12` around the fast path (6
+  push / pop); clang uses scratch registers only.
+- gcc lowers every field access through `&g_tls_page` (initial-exec) to an
+  `%fs:`-segment operand with base and index — the thread-list head's load
+  `mov %fs:0x10(%r12,%rcx,8),%rdx` and store `mov %rbx,%fs:0x10(%r12,%rcx,8)`
+  in `kame_free`, and `malloc`'s store of the new head — while clang takes
+  `%fs:0 + off` into a register once and addresses plain
+  (`0x10(%rdx,%rdi,8)`).  That head is the free → malloc chain the 64 B loop
+  is bound by.
+
+Scratch gcc builds of `e0974e402`, interleaved, 9 reps (M ops/s):
+
+| | gcc | V1: `kame_page()` / `kame_page_or_null()` = `p = &g_tls_page; asm("" : "+r"(p))` | V2: `-fcf-protection=none` | V1 + V2 | clang |
+|---|---|---|---|---|---|
+| 64 B single thread | 226 | **305 (1.35×)** | 219 (0.97×) | 309 (1.37×) | 309 |
+| 64 B 4 processes | 881 | **1167 (1.33×)** | 884 (1.00×) | 1168 (1.33×) | 1196 |
+| 1 KiB / 16 KiB single thread | 226 / 239 | 1.00× / 1.05× | 1.00× / 1.03× | 1.02× / 1.03× | 1.07× / 1.06× |
+
+V1 traces to one `%fs:` access per call, the push / pop still in place: the
+segment-addressed list head is the cost, not the frame (and not `endbr64`).
+On i586 gcc (`%gs:`) V1 is 64 B 207 → 271 (1.31×), 1 KiB / 16 KiB 1.02× /
+0.96×.  On clang it is 64 B 1.05× but 1 KiB 0.95×, 16 KiB 0.89× — clang
+already addresses this way, and the barrier only moves its code — so the fix
+is gcc-only.  V1's full gcc tree: ctest 49/49; exclusivity (32 B, var,
+`--mid`), fit, phase, aligned, calloc, two thread-exit tests and churn 0 / 52
+each.
+
+**Applied** on master 2026-10-14 (it was proposed as
+`patches/gcc_tls_page_materialise.patch` against v1.3.0's `allocator_prv.h`
+on `claude/great-turing-Ufao2`): the barrier in the Linux / Windows branch of
+`kame_page()` and `kame_page_or_null()`, under `defined(__GNUC__) &&
+!defined(__clang__)` (MSVC and clang unchanged).  It applies cleanly and
+compiles with gcc, clang and gcc `-m32 -march=i486`; measured as V1 above.
+Not measured here: gcc on Windows (llvm-mingw is clang, so the Windows Xeon's
+numbers do not move) or on AMD.  On a Broadwell-EP it goes the other way —
+next section.
+
+## Run: Broadwell-EP under gcc, 2026-10-14 — the TLS patch costs here
+
+The Windows box's Xeon E5-1630 v4 (Broadwell-EP, 4 cores / 8 threads),
+Linux under WSL 2 (kernel 6.18, Ubuntu 24.04, gcc 13.3), the library built
+by hand with the CMake test build's flags (`-O3 -DNDEBUG -fPIC -shared
+-fvisibility-inlines-hidden -fno-semantic-interposition`), `bench_loop_pool`
+against it, perf in user mode (raw `r0107` = 4K address alias).  Arms:
+`8b9981caa` (before) and the same with the patch (after); a third adds
+`if( !p) __builtin_unreachable();` behind the barrier (nn), which gives back
+the null test the barrier costs gcc (`kame_page_or_null()` no longer
+provably non-null: `add %fs:0x0` + `test` / `je` in malloc and in free).
+Interleaved, 7 reps, two runs (the box was carrying another session's
+builds during the second, hence the drift):
+
+| | 64 B M ops/s | 64 B cycles / pair | 64 B instr / pair | 4K alias / pair | 16 KiB M ops/s | 16 KiB cycles / pair |
+|---|---|---|---|---|---|---|
+| before | 280–319 | 22.6–32.6 | 70.1 | 0.000 | 177–261 | 29.3–41.8 |
+| after | 199–221 | 31.4–39.4 | 76.1 | 2.0–2.7 | 163–227 | 32.5–43.9 |
+| nn | 149–213 | 34.3–41.3 | 72.1 | 1.9–5.2 | 160–179 | 39.0–43.0 |
+
+On this core gcc's `%fs:disp(base,index,8)` operands were never the cost —
+gcc's 64 B before the patch is already clang's (the Windows table's 315) —
+and taking `%fs:0` into a register adds a dependent `%fs:0x0` load, the null
+test, and 4K-alias stalls that were not there.  So the patch is a
+microarchitecture trade: 1.35× on the Linux Xeon @ 2.10 GHz above, 0.70–0.85×
+at 64 B and 0.92–0.94× at 16 KiB here.  It was applied because the Linux
+hosts KAME runs gcc builds on are the former kind (the user reproduced the
+64 B loss there); this box's KAME is a clang build, where the patch is inert.
+Correctness on gcc with asserts (`-O2 -g`): C API, thread-exit,
+exclusivity (plain and `--mid`), fit and phase tests 0 / 20 each, churn
+0 / 3; clang x64 pool 25/25 and STM 22/22; MinGW gcc compiles it.
