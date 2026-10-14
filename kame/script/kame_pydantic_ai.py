@@ -36,7 +36,8 @@ one):
     agent = Agent('anthropic:claude-opus-5-5', capabilities=[kame_mcp()])
 kame_mcp() is KAME's MCP server as a capability, kame_history_budget() keeps
 the conversation under a token budget (old tool results and images are
-trimmed first), kame_toolset() the server as a toolset, kame_settings() the
+trimmed first), kame_model_identity() tells the model which model it is,
+kame_toolset() the server as a toolset, kame_settings() the
 dict read from the files above — importing this
 module has already put them into os.environ.  kame_models() is the menu the
 present keys reach, asked of each provider at start-up (kame_default_model()
@@ -670,7 +671,8 @@ def _build_agent(model):
     #hand the agent to someone else's loop (to_cli_sync, and `clai web`, which
     #imports the module-level `agent` after this process has been replaced), so
     #only something attached to the agent itself sees every call.
-    caps = _install_usage_logging(str(getattr(model, 'model_name', model))) + kame_history_budget()
+    caps = (_install_usage_logging(str(getattr(model, 'model_name', model)))
+            + kame_history_budget() + kame_model_identity())
     kwargs = {'capabilities': caps} if caps else {}
     if _max_tokens_setting():
         #Agent level, so it reaches whatever model the menu or clai puts in.
@@ -697,6 +699,24 @@ def kame_usage_logging(tag=None):
     rows (`model_key`); KAME_USAGE_TAG overrides.  [] when OpenTelemetry is
     absent, so `capabilities=[*kame_usage_logging(), ...]` is always valid."""
     return _install_usage_logging(tag or 'agent')
+
+
+def kame_model_identity():
+    """One line of instructions naming the model actually answering, as Agent
+    capabilities: `capabilities=[*kame_model_identity()]`.
+
+    A model asked what it is answers from its training, and a local one
+    trained on other models' output names those: a Qwen served by Bionic
+    called itself Claude in a KAME session, where who issued a motor write
+    matters.  The line changes only with the model, so it costs no cache."""
+    from pydantic_ai.capabilities import Capability
+
+    def _who(ctx):
+        name, host = _model_where(ctx.model)
+        return ('The model answering in this conversation is `{}`{}.  If asked '
+                'which model you are, say that; do not name another model or '
+                'vendor.'.format(name, ', served from ' + host if host else ''))
+    return [Capability(instructions=[_who])]
 
 
 def kame_history_budget(max_tokens=None, keep_recent=6):
