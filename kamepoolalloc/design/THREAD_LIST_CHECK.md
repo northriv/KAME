@@ -1631,6 +1631,7 @@ stamp is made is no longer older than it, so being held is then correct and
 the check fails.  That window is the arm's one timing assumption the other
 "not held" arms (stamps in the past) do not have.  Eight more full `ctest -j3`
 runs (LP64 asserts ×5, release ×3) passed it every time: 1 failure in 9
-full runs and none in 170 others — rare, load-shaped, unproven.  If it
+full runs and none in 160 runs of it alone (70 on an idle box, 90 beside
+CPU hogs) — rare, load-shaped, unproven.  If it
 recurs, a wider future margin for arm 5's stamp (seconds rather than 50 ms)
 or `RUN_SERIAL` would tell the window from a real fault.
