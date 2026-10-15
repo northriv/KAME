@@ -1,3 +1,21 @@
+* Thu Oct 15 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- UI: the four placed windows are remembered relative to the screen's edges,
+  and put back after the screen changes (user).  They were saved as screen
+  pixels, which is the same place only on the same screen: East, saved
+  hugging the right edge of a screen 1710 wide, came back 350 px short of the
+  edge of one 2056 wide and stayed there; a menu bar of another height put
+  West that much too low; and Chrome Remote Desktop, which now flips the
+  resolution for a moment whether or not it needs to, had the window server
+  push every window inside the smaller screen and leave it, after which KAME
+  saved the pushed place as the user's.  A layout is now saved with the area
+  it was placed on, and restored onto another screen by keeping each
+  window's distance from its nearer edge, or from the middle.  A screen that
+  changes while KAME runs starts a settle -- nothing is recorded or folded
+  meanwhile, and where each window was is taken from before the change --
+  and once the screen has kept still for a second every window goes back:
+  exactly when the screen came back as it was, relative to its edges when
+  not.  A layout saved before this restores as it did.
+
 * Wed Oct 14 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - kamestm/tests: on Windows the STM tests run on the pool (user).  They
   were linked to libkamepoolalloc.dll, and 24 of the 25 never loaded it:
