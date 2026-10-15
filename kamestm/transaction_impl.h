@@ -214,10 +214,10 @@ DECLSPEC_KAME XThreadLocal<RunnerDigest>        tls_runner_digest;
 // entry's `v` is a *local* atomic (~10 ns intra-socket on x86_64, ~5 ns on ARM64),
 // not a cross-socket atomic (~1 µs across NUMA sockets).
 //
-// Slot reuse via `claimed` flag: when a thread exits, its TLS dtor
-// (`RunnerEntryReleaseGuard`) sets `claimed=false`, leaving the
-// entry in the list available for the next first-time-registering
-// thread to CAS-claim.  This bounds memory by **max-ever-concurrent
+// Slot reuse via `ownership`: when a thread exits, its TLS dtor
+// (`RunnerEntryReleaseGuard`) sets it FREE, leaving the entry in the
+// list available for the next first-time-registering thread to
+// CAS-claim.  At process exit `RunnerEntriesTeardown` frees the list.  This bounds memory by **max-ever-concurrent
 // thread count** (not max-ever-total), handling long-running
 // processes with worker spawn/destroy churn.
 //
@@ -278,19 +278,48 @@ static inline int8_t kame_current_numa_node() noexcept { return -1; }
 DECLSPEC_KAME std::atomic<RunnerCounterEntry*> s_runner_entries_head{nullptr};
 
 namespace {
-// Process-exit cleanup: walk the entry list and delete every entry.
-// Runs after main() returns, after all threads have joined; no
-// concurrent access at this point.  Purely a hygiene measure so leak
-// detectors (ASan, valgrind) don't complain — runtime behavior is
-// unaffected because entries never shrink during operation.
+// Process-exit release of the entry list, safe in either order against the
+// threads' own release (`RunnerEntryReleaseGuard`, below).  The order really
+// does differ: a thread's guard runs when its thread-locals are destroyed,
+// which for the thread calling exit() is
+//   * after static destruction when this header is compiled into the
+//     executable on Windows -- from the FLS callback ExitProcess invokes;
+//   * before it when it is compiled into a DLL (libkame.dll), whose static
+//     destructors run at DLL_PROCESS_DETACH, after that same FLS callback;
+//   * never on POSIX, whose exit() skips the calling thread's key
+//     destructors.
+// This used to delete every entry outright, on the belief that no thread
+// would touch its entry again.  The exiting thread's guard then stored
+// `v = 0` / `claimed = false` into freed memory -- and on i686 Windows the
+// loader had by then taken that block for kernel.appcore.dll's
+// LDR_DATA_TABLE_ENTRY (UCRT's exit() loads the DLL), so the one-byte store
+// zeroed the low byte of EntryPoint or of an InInitializationOrderLinks
+// pointer, and LdrShutdownProcess executed kernel.appcore+0x4a00 (SIGILL),
+// walked a broken list (SIGSEGV) or spun (hang), depending on the heap
+// layout, i.e. on the sizes of the environment and the program path.
+//
+// Now each side `exchange`s its state into `ownership` and frees the entry
+// only if the other side had already been there: the teardown frees what is
+// FREE and marks what is still OWNED as ORPHANED; a guard that finds
+// ORPHANED frees its entry itself.  Exactly one of the two frees.  The
+// teardown touches no thread-local -- in the DLL build the exiting thread's
+// have already been destroyed.  Not covered, as before: a thread that still
+// walks the list while static destruction runs (the teardown unlinks the
+// head first, but a walk already under way can reach a freed entry), and on
+// POSIX the calling thread's own entry, left ORPHANED because its guard
+// never runs -- like every thread-local of that thread there.
 struct RunnerEntriesTeardown {
     ~RunnerEntriesTeardown() noexcept {
         RunnerCounterEntry *e = s_runner_entries_head.exchange(
             nullptr, std::memory_order_acq_rel);
         while(e) {
+            // Read `next` first: once ORPHANED, the owner may free `e`.
             RunnerCounterEntry *nx =
                 e->next.load(std::memory_order_relaxed);
-            delete e;
+            if(e->ownership.exchange(RunnerCounterEntry::ORPHANED,
+                                     std::memory_order_acq_rel)
+               == RunnerCounterEntry::FREE)
+                delete e;
             e = nx;
         }
     }
@@ -305,17 +334,22 @@ RunnerEntriesTeardown s_runner_entries_teardown;
 // exiting mid-transaction with v=1 — the next claimer needs a
 // clean slate.
 //
-// Single relaxed-release atomic store, no allocator interaction,
-// no atomic_shared_ptr, no CAS retry — safe under any TLS-
-// destruction order (the issue that produced ~2-5/100 crashes in
-// the prior atomic_shared_ptr<vec> design).
+// A release store and one exchange, no atomic_shared_ptr, no CAS
+// retry — safe under any TLS-destruction order (the issue that
+// produced ~2-5/100 crashes in the prior atomic_shared_ptr<vec>
+// design), and on either side of `RunnerEntriesTeardown`: if the
+// teardown got there first (ORPHANED), the entry is this guard's to
+// free.  Nothing may touch `entry` after the exchange.
 struct RunnerEntryReleaseGuard {
     RunnerCounterEntry *entry;
     RunnerEntryReleaseGuard() noexcept : entry(nullptr) {}
     ~RunnerEntryReleaseGuard() noexcept {
         if(entry) {
             entry->v.store(0, std::memory_order_release);
-            entry->claimed.store(false, std::memory_order_release);
+            if(entry->ownership.exchange(RunnerCounterEntry::FREE,
+                                         std::memory_order_acq_rel)
+               == RunnerCounterEntry::ORPHANED)
+                delete entry;
         }
     }
     RunnerEntryReleaseGuard(const RunnerEntryReleaseGuard &) = delete;
@@ -339,10 +373,11 @@ static RunnerCounterEntry* try_claim_existing_entry(int8_t my_node) noexcept {
             if(e->allocated_node != my_node) continue;
             // Relaxed read first to avoid wasted CAS attempts on
             // entries that are visibly claimed.
-            if(e->claimed.load(std::memory_order_relaxed)) continue;
-            bool exp = false;
-            if(e->claimed.compare_exchange_strong(
-                   exp, true,
+            if(e->ownership.load(std::memory_order_relaxed)
+               != RunnerCounterEntry::FREE) continue;
+            uint8_t exp = RunnerCounterEntry::FREE;
+            if(e->ownership.compare_exchange_strong(
+                   exp, RunnerCounterEntry::OWNED,
                    std::memory_order_acq_rel,
                    std::memory_order_relaxed))
                 return e;
@@ -351,10 +386,11 @@ static RunnerCounterEntry* try_claim_existing_entry(int8_t my_node) noexcept {
     for(RunnerCounterEntry *e = s_runner_entries_head.load(
             std::memory_order_acquire);
         e; e = e->next.load(std::memory_order_relaxed)) {
-        if(e->claimed.load(std::memory_order_relaxed)) continue;
-        bool exp = false;
-        if(e->claimed.compare_exchange_strong(
-               exp, true,
+        if(e->ownership.load(std::memory_order_relaxed)
+           != RunnerCounterEntry::FREE) continue;
+        uint8_t exp = RunnerCounterEntry::FREE;
+        if(e->ownership.compare_exchange_strong(
+               exp, RunnerCounterEntry::OWNED,
                std::memory_order_acq_rel,
                std::memory_order_relaxed))
             return e;
@@ -379,7 +415,7 @@ DECLSPEC_KAME RunnerCounterEntry& runner_counter_register() {
         e = new RunnerCounterEntry(my_node);
         // CAS-prepend onto the global list.  Set `next` BEFORE
         // the CAS; the CAS's `acq_rel` on success publishes `e`'s
-        // initial state (v=0, claimed=true) and its `next` pointer
+        // initial state (v=0, ownership=OWNED) and its `next` pointer
         // to any reader that subsequently does
         // `s_runner_entries_head.load(acquire)`.
         RunnerCounterEntry *head = s_runner_entries_head.load(
@@ -465,9 +501,19 @@ DECLSPEC_KAME XThreadLocal<bool, NegSite::LastWasGateReturnTag>
 //! via mergeStatsToGlobal() / dump().  Always exists; mutex-guarded;
 //! merges are rare so contention is negligible.
 namespace {
+//! Lifetime of the aggregator, readable at any time: trivially destructible,
+//! so it outlives every static destructor.  AutoMergeStats merges from a
+//! thread-exit destructor, which can run after the aggregator's own
+//! destruction (see RunnerEntriesTeardown for when); it must then skip, and
+//! must not even call globalNegStats(), whose static would be re-entered after
+//! destruction -- undefined behaviour.
+enum : uint8_t { NEG_STATS_UNBORN = 0, NEG_STATS_LIVE = 1, NEG_STATS_DEAD = 2 };
+std::atomic<uint8_t> s_neg_stats_life{NEG_STATS_UNBORN};
 struct GlobalNegStats {
     std::mutex mu;
     std::unordered_map<int, NegSite::SiteState> agg;
+    GlobalNegStats() { s_neg_stats_life.store(NEG_STATS_LIVE); }
+    ~GlobalNegStats() { s_neg_stats_life.store(NEG_STATS_DEAD); }
 };
 inline GlobalNegStats& globalNegStats() noexcept {
     static GlobalNegStats g;
@@ -621,6 +667,10 @@ DECLSPEC_KAME void NegSite::record_spin_event(SpinOutcome o,
 #endif
 
 DECLSPEC_KAME void NegSite::mergeStatsToGlobal() noexcept {
+    if(s_neg_stats_life.load() == NEG_STATS_DEAD) {
+        state_map().clear();   // nobody can read the aggregate any more
+        return;
+    }
     auto &g = globalNegStats();
     std::lock_guard<std::mutex> _lk(g.mu);
     auto &my = state_map();
@@ -649,6 +699,7 @@ DECLSPEC_KAME void NegSite::mergeStatsToGlobal() noexcept {
 
 DECLSPEC_KAME void NegSite::dump(std::FILE *fp) noexcept {
     if( !fp) fp = stderr;
+    if(s_neg_stats_life.load() == NEG_STATS_DEAD) return;  // past static destruction
     mergeStatsToGlobal();   // pull in this thread's state first
     auto &g = globalNegStats();
     std::lock_guard<std::mutex> _lk(g.mu);
