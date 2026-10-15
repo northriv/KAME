@@ -111,14 +111,76 @@ kameStoreLastDir(const char *key, const QString &path) {
     if(dir.length())
         KameSettings().setValue(QString("lastdir/") + key, dir);
 }
-static void saveWindowGeometry(const char *key, const QRect &geom) {
-    if(geom.isValid())
-        KameSettings().setValue(QString("geometry/") + key, geom);
+//! Where \a geom, placed on the available area \a from, belongs on \a to.
+//! Along each axis it keeps its distance from whichever edge it is nearer --
+//! or, sitting about midway, from the middle -- so a toolbox against the right
+//! edge stays against the right edge of a wider screen, one under the menu bar
+//! stays under a menu bar of another height, and a window in the middle stays
+//! there.  Shrunk where it no longer fits, and kept inside.
+static QRect relocateRect(const QRect &geom, const QRect &from, const QRect &to) {
+    auto axis = [](int pos, int len, int fromLo, int fromLen, int toLo, int toLen, int &outLen) {
+        int lo = pos - fromLo, hi = fromLen - (lo + len); //!< the gaps before and after it
+        int n = std::min(len, toLen);
+        int p;
+        if(std::abs(lo - hi) <= 64)
+            p = toLo + (toLen - n) / 2 + (lo - hi) / 2;
+        else if(lo < hi)
+            p = toLo + lo;
+        else
+            p = toLo + toLen - n - hi;
+        outLen = n;
+        return std::max(toLo, std::min(p, toLo + toLen - n));
+    };
+    int w, h;
+    int x = axis(geom.x(), geom.width(), from.x(), from.width(), to.x(), to.width(), w);
+    int y = axis(geom.y(), geom.height(), from.y(), from.height(), to.y(), to.height(), h);
+    return QRect(x, y, w, h);
+}
+//! The available area of the screen \a w is on, or of the primary.
+static QRect screenAreaOf(const QWidget *w) {
+    const QScreen *scr = w ? w->screen() : nullptr;
+    if( !scr)
+        scr = QGuiApplication::primaryScreen();
+    return scr ? scr->availableGeometry() : QRect();
+}
+static void saveWindowGeometry(const char *key, const QRect &geom, const QRect &area) {
+    if( !geom.isValid())
+        return;
+    KameSettings settings;
+    settings.setValue(QString("geometry/") + key, geom);
+    //And what it was placed on: a pixel means nothing on a screen of another
+    //size, and the next one may well be.  \sa restoreWindowGeometry()
+    if(area.isValid())
+        settings.setValue(QString("geometry/") + key + "_area", area);
 }
 //! \return false if nothing usable was stored, leaving \a win untouched.
 static bool restoreWindowGeometry(const char *key, QWidget *win) {
-    QRect geom = KameSettings().value(QString("geometry/") + key).toRect();
+    KameSettings settings;
+    QRect geom = settings.value(QString("geometry/") + key).toRect();
     if( !geom.isValid()) return false;
+    //The same pixel on a screen of another size is not the same place.  East
+    //was saved hugging the right edge of a screen 1710 wide and came back 350
+    //px short of the edge of one 2056 wide, and every save after kept it
+    //there; a menu bar of another height left West that much too low (user).
+    //A layout saved with the area it was placed on is put back relative to
+    //that area's edges instead.  An older one, without, as before.
+    QRect from = settings.value(QString("geometry/") + key + "_area").toRect();
+    if(from.isValid()) {
+        QRect to;
+        long best = 0;
+        for(const QScreen *scr: QGuiApplication::screens()) {
+            QRect v = geom.intersected(scr->availableGeometry());
+            long a = (long)v.width() * v.height();
+            if(a > best) {
+                best = a;
+                to = scr->availableGeometry();
+            }
+        }
+        if( !to.isValid() && QGuiApplication::primaryScreen())
+            to = QGuiApplication::primaryScreen()->availableGeometry();
+        if(to.isValid() && (to != from))
+            geom = relocateRect(geom, from, to);
+    }
     //The screen it was saved on does not have to still be there -- a laptop
     //away from its desk is the everyday case -- and a window restored onto a
     //screen that is gone is invisible with nothing left to grab it by.  Less
@@ -373,6 +435,24 @@ FrmKameMain::FrmKameMain()
     if(can_place_windows)
         move((rect.width() - frameSize().width()) / 2, rect.top());
     restoreWindowGeometry("main", this);
+    if(can_place_windows) {
+        //A screen that changes under the windows has them pushed about by the
+        //window server and left where they were pushed.  \sa onScreensChanged()
+        m_pScreenSettle = new QTimer(this);
+        m_pScreenSettle->setSingleShot(true);
+        connect(m_pScreenSettle, &QTimer::timeout, this, &FrmKameMain::settleScreens);
+        auto watch = [this](QScreen *scr){
+            connect(scr, &QScreen::availableGeometryChanged, this, &FrmKameMain::onScreensChanged);
+            connect(scr, &QScreen::geometryChanged, this, &FrmKameMain::onScreensChanged);
+        };
+        for(QScreen *scr: QGuiApplication::screens())
+            watch(scr);
+        connect(qApp, &QGuiApplication::screenAdded, this, [this, watch](QScreen *scr){
+            watch(scr);
+            onScreensChanged();
+        });
+        connect(qApp, &QGuiApplication::screenRemoved, this, &FrmKameMain::onScreensChanged);
+    }
 
     updateWindowTitle();   //nothing had ever set one, so there was none at all
     updateToolboxStrips(); //initial check marks, after the panes are laid out.
@@ -1128,6 +1208,14 @@ FrmKameMain::pollEdgeAutoHide() {
     bool typing = focus &&
         (qobject_cast<QLineEdit *>(focus) || qobject_cast<QAbstractSpinBox *>(focus)
          || focus->inherits("QTextEdit") || focus->inherits("QPlainTextEdit"));
+    //Where the message window is, as of the last two polls.  \sa onScreensChanged()
+    if( !m_screenSettling)
+        if(QWidget *msg = XMessageBox::form()) {
+            m_msgLagGeom[1] = m_msgLagGeom[0];
+            m_msgLagScreen[1] = m_msgLagScreen[0];
+            m_msgLagGeom[0] = msg->geometry();
+            m_msgLagScreen[0] = screenAreaOf(msg);
+        }
     for(auto &&s: m_edgeSliders) {
         //Sampled for every window, pinned or not: it is what keeps a toolbox
         //open while text is being typed into it, below.
@@ -1150,6 +1238,17 @@ FrmKameMain::pollEdgeAutoHide() {
                 //Its tabs run along the top, so the accent goes underneath.
                 tabs->setStyleSheet(flatTabStyleSheet(Qt::BottomEdge));
             }
+        //Where it means to be, and on what, as of the last two polls: what a
+        //change of screen is undone from.  \sa onScreensChanged()
+        if( !m_screenSettling && (s.anim->state() != QAbstractAnimation::Running)) {
+            s.lagGeom[1] = s.lagGeom[0];
+            s.lagScreen[1] = s.lagScreen[0];
+            s.lagGeom[0] = s.collapsed ? s.expanded : s.win->geometry();
+            s.lagScreen[0] = screenAreaOf(s.win);
+        }
+        //The window server is moving things about: nothing seen now is where
+        //the user wants it, and nothing is to be folded across it.
+        if(m_screenSettling) continue;
         if( !m_edgeAutoHideArmed) continue;  //!< before the modules are up, or after Quit
         if( !s.autoHide) continue;
         if(s.anim->state() == QAbstractAnimation::Running) continue;
@@ -1191,6 +1290,72 @@ FrmKameMain::pollEdgeAutoHide() {
         else if(++s.idleTicks >= 4) //~0.6 s with the pointer elsewhere
             setToolboxCollapsed(s, true);
     }
+}
+//! A screen changed: another resolution, a display come or gone, or Chrome
+//! Remote Desktop flipping the resolution for a moment, as it now does on
+//! connecting whether or not it needs to (user).  The window server pushes
+//! every window inside the new area and leaves it where it pushed it, so a
+//! moment's smaller screen left the toolboxes off their edges for good -- and
+//! the poll, taking what it sees for where the user wants them, then saved
+//! that.  So nothing is taken while screens change, and where each window was
+//! is kept from before it: from TWO polls before, since the one just past may
+//! already have seen it being pushed.  settleScreens() puts them back once the
+//! screens have kept still for a second.
+void
+FrmKameMain::onScreensChanged() {
+    if( !m_screenSettling) {
+        m_screenSettling = true;
+        for(auto &&s: m_edgeSliders) {
+            s.preGeom = s.lagGeom[1].isValid() ? s.lagGeom[1]
+                : (s.collapsed ? s.expanded : s.win->geometry());
+            s.preScreen = s.lagScreen[1].isValid() ? s.lagScreen[1] : screenAreaOf(s.win);
+        }
+        QWidget *msg = XMessageBox::form();
+        m_msgPreGeom = m_msgLagGeom[1].isValid() ? m_msgLagGeom[1] : (msg ? msg->geometry() : QRect());
+        m_msgPreScreen = m_msgLagScreen[1].isValid() ? m_msgLagScreen[1] : screenAreaOf(msg);
+    }
+    if(m_pScreenSettle)
+        m_pScreenSettle->start(1000); //!< every further change starts the second again
+}
+//! The area a window that was at \a geom is to go back on: the screen now
+//! under its middle, else the one it is on, else the primary.
+static QRect settleAreaFor(const QRect &geom, const QWidget *w) {
+    if(QScreen *scr = QGuiApplication::screenAt(geom.center()))
+        return scr->availableGeometry();
+    return screenAreaOf(w);
+}
+//! The screens have kept still: each window goes back to where it was before
+//! they changed -- exactly, when they changed back, as a resolution flipped for
+//! a moment does; relative to the edges, when they did not.  \sa relocateRect()
+void
+FrmKameMain::settleScreens() {
+    for(auto &&s: m_edgeSliders) {
+        if( !s.preGeom.isValid() || s.win->isMaximized() || s.win->isFullScreen())
+            continue;
+        if(auto *dock = qobject_cast<QDockWidget *>(s.win))
+            if( !dock->isFloating())
+                continue; //!< docked: part of the main window, not ours to place
+        QRect to = settleAreaFor(s.preGeom, s.win);
+        QRect g = (to == s.preScreen) ? s.preGeom : relocateRect(s.preGeom, s.preScreen, to);
+        s.anim->stop();
+        s.expanded = g;
+        pinFold(s, false);
+        s.win->setGeometry(s.collapsed ? collapsedGeometryOf(s) : g);
+        if(s.collapsed)
+            pinFold(s, true); //!< as the animation would have, had it finished
+        s.lagGeom[0] = s.lagGeom[1] = g;
+        s.lagScreen[0] = s.lagScreen[1] = to;
+    }
+    if(QWidget *msg = XMessageBox::form())
+        if(m_msgPreGeom.isValid()) {
+            QRect to = settleAreaFor(m_msgPreGeom, msg);
+            QRect g = (to == m_msgPreScreen) ? m_msgPreGeom
+                : relocateRect(m_msgPreGeom, m_msgPreScreen, to);
+            msg->setGeometry(g);
+            m_msgLagGeom[0] = m_msgLagGeom[1] = g;
+            m_msgLagScreen[0] = m_msgLagScreen[1] = to;
+        }
+    m_screenSettling = false;
 }
 QRect
 FrmKameMain::collapsedGeometryOf(const EdgeSlider &s) const {
@@ -1755,15 +1920,17 @@ FrmKameMain::saveWindowLayout() {
     //and the message log.  Driver forms are not saved -- there are dozens of
     //them, they come and go with the measurement, and the .kam file is where
     //what belongs to a measurement is kept.
-    saveWindowGeometry("main", layoutGeometryOf(this));
+    saveWindowGeometry("main", layoutGeometryOf(this), layoutAreaOf(this));
     //Docked, i.e. on Wayland, they are part of the main window and have no
     //geometry of their own to save.
     if(m_pDockLeft->isFloating())
-        saveWindowGeometry("west", layoutGeometryOf(m_pDockLeft));
+        saveWindowGeometry("west", layoutGeometryOf(m_pDockLeft), layoutAreaOf(m_pDockLeft));
     if(m_pDockRight->isFloating())
-        saveWindowGeometry("east", layoutGeometryOf(m_pDockRight));
+        saveWindowGeometry("east", layoutGeometryOf(m_pDockRight), layoutAreaOf(m_pDockRight));
     if(QWidget *msg = XMessageBox::form())
-        saveWindowGeometry("messages", msg->geometry());
+        saveWindowGeometry("messages",
+            (m_screenSettling && m_msgPreGeom.isValid()) ? m_msgPreGeom : msg->geometry(),
+            (m_screenSettling && m_msgPreScreen.isValid()) ? m_msgPreScreen : screenAreaOf(msg));
 }
 QRect
 FrmKameMain::layoutGeometryOf(QWidget *win) const {
@@ -1771,9 +1938,22 @@ FrmKameMain::layoutGeometryOf(QWidget *win) const {
     //edge is 30 px wide, and coming back to that on the next run would look
     //like damage rather than like where it was left.
     for(auto &&s: m_edgeSliders)
-        if((s.win == win) && s.collapsed)
-            return s.expanded;
+        if(s.win == win) {
+            //Mid-change, the window is wherever it was pushed.  \sa onScreensChanged()
+            if(m_screenSettling && s.preGeom.isValid())
+                return s.preGeom;
+            if(s.collapsed)
+                return s.expanded;
+        }
     return win->geometry();
+}
+QRect
+FrmKameMain::layoutAreaOf(QWidget *win) const {
+    if(m_screenSettling)
+        for(auto &&s: m_edgeSliders)
+            if((s.win == win) && s.preScreen.isValid())
+                return s.preScreen;
+    return screenAreaOf(win);
 }
 void
 FrmKameMain::closeEvent( QCloseEvent* ce ) {

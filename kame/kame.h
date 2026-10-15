@@ -214,9 +214,23 @@ private:
 		//! Folded on purpose, and not to be reopened by the pointer that is
 		//! still sitting on it -- until that pointer leaves and comes back.
 		bool dismissed = false;
+		//! Where it means to be, with the available area of the screen it means
+		//! it on: as of the last two polls, and as of just before a change of
+		//! screen.  \sa FrmKameMain::onScreensChanged()
+		QRect lagGeom[2], lagScreen[2];
+		QRect preGeom, preScreen;
 	};
 	std::deque<EdgeSlider> m_edgeSliders;
 	QTimer *m_pEdgeHoverTimer = nullptr;
+	//! A screen is changing -- another resolution, a display come or gone,
+	//! Chrome Remote Desktop flipping the resolution for a moment -- and the
+	//! window server is pushing windows inside it.  Nothing is recorded
+	//! meanwhile, and settleScreens() puts them back.
+	bool m_screenSettling = false;
+	QTimer *m_pScreenSettle = nullptr;
+	QRect m_msgLagGeom[2], m_msgLagScreen[2], m_msgPreGeom, m_msgPreScreen;
+	void onScreensChanged();
+	void settleScreens();
 	//! Magnifying the tab under the pointer.  The icon is redrawn larger, not
 	//! the tab: the icon rect is fixed, so the strip never re-lays out and
 	//! nothing jumps.  Style sheets cannot animate, and a tab that changed
@@ -296,6 +310,8 @@ private:
     //! The geometry \a win would have open, which for a folded toolbox is not
     //! the one it has.
     QRect layoutGeometryOf(QWidget *win) const;
+    //! The available area of the screen \a win is laid out on.  \sa layoutGeometryOf()
+    QRect layoutAreaOf(QWidget *win) const;
     //! Where folding puts a toolbox: its resting bar, at the edge it clings to.
     QRect collapsedGeometryOf(const struct EdgeSlider &s) const;
     //! Holds a folded toolbox at the size folding left it, against a minimum
