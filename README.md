@@ -42,7 +42,7 @@ orchestration across compatible instruments.
 Source: [kame-9.0.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.0.zip) (Oct. 2026).
 [All other source archives](https://kitag.issp.u-tokyo.ac.jp/web/kame/src).
 Windows 64-bit binaries: [9.0](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-9.0.zip) (22.1MB) · [8.6.1](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.1.zip) (21.8MB) · [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.zip) (21.8MB) · [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.5.zip) (20.4MB) · [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.4.zip). At least Qt is additionally needed, follow instructions below to install.
-Builds before 8.6.1 carry the double-allocation defect described under *What's New in 8.6.1* on Windows and Linux.
+Builds before 8.6.1 carry the double-allocation defect described under 8.6.1 in *Earlier releases* on Windows and Linux.
 
 ### Supported instruments
 
@@ -140,60 +140,47 @@ Builds before 8.6.1 carry the double-allocation defect described under *What's N
   appears is selected and scrolled to. On macOS, choosing KAME in the Dock
   brings the main window forward.
 
-## What's New in 8.6.1
-
-- **A block of memory could be handed out twice — Windows and Linux.** Frees
-  arriving from a thread that had already finished its own allocator teardown
-  went into an object that no longer existed, and a slot went back to the pool
-  after its owner had already reissued it, so two live users held the same
-  memory. It surfaced far from its cause and never the same way twice: garbage
-  inside a value still being referenced, a node that reported the wrong
-  identity, or the transaction watchdog firing on a stall that was not one.
-  macOS was never affected — the guard that was supposed to prevent this
-  compiled to a constant *false* everywhere else. **8.5 and 8.6 carry the
-  defect on Windows and Linux; update.**
-- **The MCP pre-check no longer cries wolf.** On Windows, KAME could announce
-  that no Python with `mcp` and `jupyter_client` was found — and then start the
-  server anyway, on the next line. The startup pre-check probed candidates with
-  KAME's own `PYTHONHOME` still set, which under `kame-msyspython.bat` points a
-  real CPython at MSYS2's standard library and kills it on `_socket`; it now
-  strips that environment, as the other probe already did. The same fix cures
-  the Pydantic AI interpreter search.
-- **The test suites build under MSVC**, not only clang/MinGW, and every test
-  that builds there passes.
-
-## What's New in 8.6
-
-- **Windows: MCP works — and the release zip now actually contains it.** Nothing deployed `scriptfile.files` on Windows (they sat in `DISTFILES`, which copies nothing), and `mkzip.bat` packaged the build tree's `resources\` wholesale, so whether `kame_mcp_server.py` reached a release depended on whether someone had once hand-copied it there. **The 8.4 and 8.5 Windows binaries could therefore be missing it**, and the resulting `can't open file …\Resources\kame_mcp_server.py` gave no hint that the fix was to fetch the file from the source archive. Both a build and a release now run `tools/deploy_scripts.bat`, so they get an identical, complete set. Three further faults each hid the next: `pip install mcp` now serves 2.x without the `mcp.server.fastmcp` the server imports, the MSYS2 launcher's `PYTHONHOME` was inherited by a real CPython that cannot load mingw extensions, and `FastMCP.run(host=…)` is a `TypeError` in mcp 1.x.
-- **Permanent client registration.** One Script-pane action registers KAME with Codex, Antigravity CLI (`agy`) and Claude Desktop, each through the mechanism that client provides, and reports every change before it writes. LM Studio / Bionic need nothing — a project opened on the notebook workspace reads the `.mcp.json` KAME already writes there.
-- **The model stays yours.** The Pydantic AI links hand KAME's agent to your own `clai` (`clai -a kame_pydantic_ai:agent`), so provider, keys and default come from the setup you already have and KAME never asks which model to use.
-- Agent plugin: the MCP server and a `kame-measurement` skill as one directory, both a Claude Code plugin and an [Agent Plugins 1.0.0](https://agent-plugins.org/) one.
-- Usage records: one JSONL line per MCP tool call and per model request — counts and timings only, never prompt or response text.
-- Windows: the Claude and Codex desktop links open the apps, which ship as MSIX and are reachable only by AppUserModelID.
-- macOS: idle CPU back to a few percent — the main loop never asked to wait, so it could not sleep.
-- The Jupyter server exits with KAME instead of orphaning itself; a second click reopens the running one.
-- MCP async jobs can read their own thread context, and tracebacks arrive without IPython's colour escapes.
-
 ---
 
-## What's New in 8.5
+## Earlier releases
 
-- **Linux is a supported platform** — Qt 6 / qmake, verified on Ubuntu 26.04 including `PREEMPT_RT`. Two paths have real hardware behind them: the Thamway FX2/FX3 USB path, whose first Linux run found and fixed four crashes, and the usermode NI USB-GPIB driver. See `INSTALL.linux`.
-- **Crash audit with automated checkers** — `tools/audit/run_audits.sh` mechanically enforces the driver-authoring rules (node-name collisions, side effects in `iterate_commit` closures, pybind GIL discipline, UI-touching listeners, non-const Payload pointees), as a pre-commit hook and in CI.
-- **Pulser correctness** — overlapping RF pulses are refused rather than played, two operator-precedence bugs that left the amplifier gate open are fixed, and the `ASWSetup` clamp that recursed on itself is gone.
-- **One-click Codex launch** — Codex and codex-fugu join Claude Code in the Script pane, each started already pointed at this KAME's MCP server.
+### 8.6.1
+- **Update from 8.5 or 8.6 on Windows and Linux:** a block of memory could be
+  handed out twice, corrupting values far from the cause. macOS was not
+  affected.
+- Windows: the MCP pre-check no longer reports a missing Python and then
+  starts the server anyway.
+- The test suites build and pass under MSVC.
 
----
+### 8.6
+- Windows: MCP works, and a release zip always contains `kame_mcp_server.py`
+  (the 8.4 and 8.5 zips could lack it).
+- One Script-pane action registers KAME with Codex, Antigravity CLI and
+  Claude Desktop.
+- The Pydantic AI links run KAME's agent in your own `clai`.
+- Agent plugin: the MCP server and a `kame-measurement` skill, for Claude Code
+  and Agent Plugins clients.
+- Usage records: one JSONL line per MCP tool call and per model request.
+- Fixes: macOS idle CPU is back to a few percent; the Claude and Codex desktop
+  links open on Windows; the Jupyter server exits with KAME.
 
-## What's New in 8.0
+### 8.5
+- Linux is supported (Qt 6, Ubuntu 26.04 including `PREEMPT_RT`); see
+  `INSTALL.linux`.
+- `tools/audit/run_audits.sh` checks the driver-authoring rules automatically,
+  as a pre-commit hook and in CI.
+- Pulser: overlapping RF pulses are refused, and two bugs that left the
+  amplifier gate open are fixed.
+- Codex joins Claude Code as a one-click launch in the Script pane.
 
-- **MCP server for AI-assisted experiment automation** — built-in [Model Context Protocol](https://modelcontextprotocol.io/) server lets AI assistants (Claude Code, Claude Desktop, etc.) execute Python code in the running KAME process, read instrument values, and control measurements through natural language. Matplotlib plots are returned inline. Long-running experiments (sweeps, scans) run asynchronously.
-- **Calibrated scalar entries** — `XCalibratedEntry` applies a calibration curve to any scalar entry; the result appears in graphs, charts, and data recording like a native scalar.
-- **Usermode NI USB-GPIB on Apple Silicon** — the embedded userspace linux-gpib port now works reliably on macOS ARM64 without any kernel module.
-- **Window cascade placement** — instrument windows are automatically arranged on show.
-- **Comprehensive bug audit** — 20 bug fixes across 12 source files (GIL safety, buffer bounds, null-pointer guards, logic errors).
-- **Arbitrary masks for 2D math tools** — Rectangle, Ellipse, or a binary mask set from Python; highlights render as GPU textures.
-- **Math tool API cleanup** — ROI endpoints renamed `Begin/End` to `First/Last` (inclusive); old `.kam` files still load.
+### 8.0
+- Built-in MCP server: AI assistants run Python in KAME, read instruments and
+  run sweeps; plots come back inline.
+- Calibrated scalar entries: a calibration curve applied to any scalar entry.
+- Usermode NI USB-GPIB on Apple Silicon, with no kernel module.
+- Arbitrary masks for 2D math tools; ROI endpoints renamed `First`/`Last` (old
+  `.kam` files still load).
+- Instrument windows cascade when shown; 20 bug fixes.
 
 ---
 
