@@ -26,7 +26,23 @@ public:
 	void presetSingleResistor(uint16_t res_addr, uint16_t data);
 	void presetMultipleResistors(uint16_t res_no, int count, const std::vector<uint16_t> &data);
 	void diagnostics();
+	//! Function code 0x01. \a data gets one entry per coil, from \a coil_addr on.
+	void readCoils(uint16_t coil_addr, int count, std::vector<bool> &data);
+	//! Function code 0x04.
+	void readInputResistors(uint16_t res_addr, int count, std::vector<uint16_t> &data);
+	//! Function code 0x05.
+	void writeSingleCoil(uint16_t coil_addr, bool on);
 
+	bool readSingleCoil(uint16_t coil_addr) {
+		std::vector<bool> data(1);
+		readCoils(coil_addr, 1, data);
+		return data[0];
+	}
+	uint16_t readInputSingleResistor(uint16_t res_addr) {
+		std::vector<uint16_t> data(1);
+		readInputResistors(res_addr, 1, data);
+		return data[0];
+	}
 	uint16_t readHoldingSingleResistor(uint16_t res_addr) {
 		std::vector<uint16_t> data(1);
 		readHoldingResistors(res_addr, 1, data);
@@ -49,6 +65,8 @@ public:
 protected:
 	void query_unicast(unsigned int func_code, const std::vector<unsigned char> &bytes, std::vector<unsigned char> &buf);
 private:
+	//! Function codes 0x03 and 0x04 differ only in the code.
+	void read_resistors(unsigned int func_code, uint16_t res_addr, int count, std::vector<uint16_t> &data);
 	//Modbus utilizes Big endian.
 	static void set_word(unsigned char *ptr, uint16_t word) {
 		ptr[0] = static_cast<unsigned char>(word / 0x100u);

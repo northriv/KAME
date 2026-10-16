@@ -177,4 +177,49 @@ private:
     double m_pulsesTotal;
 };
 
+//! Kamoer M1-STP smart peristaltic pump, via RS485 (Modbus RTU).
+//! One revolution of the pump head is 360 deg.; volume = Position / 360 * (ml per rev.),
+//! e.g. by a calibrated entry on Position. Speed is in pulses/s of StepMotor pulses per rev.,
+//! 60 by default, so that Speed reads in rpm.
+//! Open loop like XSigmaPAMC104: the pump cannot report how far it has turned,
+//! so Position is what was commanded, interpolated by time while running.
+class XKamoerM1STP : public XModbusRTUDriver<XMotorDriver>  {
+public:
+    XKamoerM1STP(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XKamoerM1STP() {}
+protected:
+    virtual void getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) override;
+    virtual void changeConditions(const Snapshot &shot) override;
+    virtual void getConditions() override;
+    virtual void setTarget(const Snapshot &shot, double target) override;
+    virtual void setActive(bool active) override {}
+    virtual void setAUXBits(unsigned int bits) override {}
+    virtual void setForward() override; //!< continuous rotation.
+    virtual void setReverse() override;//!< continuous rotation.
+    virtual void stopRotation() override;
+    virtual void toHomePosition() override; //!< throws: the pump has no home sensor.
+    virtual void storeToROM() override {}
+    virtual void clearPosition() override;
+private:
+    double rpm(const Snapshot &shot) const;
+    //! [deg.] turned since m_moveStarted, as estimated from the speed.
+    double estimatedMove(const XTime &now) const;
+    //! Folds the move so far into m_posBase and restarts the clock.
+    void rebase(const XTime &now);
+    void stopRun();
+    //! \arg r: [rpm]. \arg degrees: +inf for continuous rotation.
+    void startRun(double r, int dir, double degrees);
+
+    //! The open-loop state, guarded by the interface lock: getStatus() runs on
+    //! the poll thread, the others on whichever thread touched the node.
+    double m_posBase = 0.0; //!< [deg.] at m_moveStarted.
+    double m_moveRemain = 0.0; //!< [deg.] left in this run, +inf when continuous.
+    double m_degPerSec = 0.0;
+    int m_dir = 0; //!< +1 forward, -1 reverse, 0 stopped.
+    XTime m_moveStarted;
+    //! \sa XFlexCRK::m_alarmReported
+    uint16_t m_abnormalReported = 0;
+};
+
 #endif /* USERMOTOR_H_ */

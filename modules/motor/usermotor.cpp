@@ -13,6 +13,8 @@
 ***************************************************************************/
 
 #include "usermotor.h"
+#include <cmath>
+#include <cstring>
 //---------------------------------------------------------------------------
 
 REGISTER_TYPE(XDriverList, FlexCRK, "OrientalMotor FLEX CRK motor controller");
@@ -21,6 +23,7 @@ REGISTER_TYPE(XDriverList, OrientalMotorCVD5B, "OrientalMotor CVD5B motor contro
 REGISTER_TYPE(XDriverList, FlexAR, "OrientalMotor FLEX AR/DG2 motor controller");
 REGISTER_TYPE(XDriverList, EMP401, "OrientalMotor EMP401 motor controller");
 REGISTER_TYPE(XDriverList, SigmaPAMC104, "SigmaOptics PAMC-104 piezo-assited motor controller");
+REGISTER_TYPE(XDriverList, KamoerM1STP, "Kamoer M1-STP peristaltic pump");
 
 const std::vector<uint32_t> XOrientalMotorCVD2B::s_resolutions_2B = {200,400,800,1000,1600,2000,3200,5000,6400,10000,12800,20000,25000,25600,50000,51200};
 const std::vector<uint32_t> XOrientalMotorCVD2B::s_resolutions_5B = {500,1000,1250,2000,2500,4000,5000,10000,12500,20000,25000,40000,50000,62500, 100000, 125000};
@@ -1032,4 +1035,221 @@ XSigmaPAMC104::setTarget(const Snapshot &, double target) {
     interface()->receive(); //expecting "OK"
     if(interface()->toStrSimplified() != "OK")
         throw XInterface::XConvError(__FILE__, __LINE__);
+}
+
+//---------------------------------------------------------------------------
+//Kamoer M1-STP.
+//The register map is Kamoer's one-page "485 serial port" sheet (initial version
+//2022-11-25). What the sheet leaves open is marked HW-CHECK; none of this has
+//met the hardware yet.
+//HW-CHECK: the pump presumably obeys RS485 only after "485 mode" is chosen in
+//its system menu, where its slave address and line settings are set too
+//(assumed here: address 1, 9600 8N1 as on the sheet). RS485 is on pins 3 and 4
+//of the GX16-4 socket shared with the foot switch; which of them is A is not
+//documented.
+namespace {
+//! Added to every address on the sheet. HW-CHECK: 0 if the sheet's addresses
+//! go on the wire as written; -1 if they are 1-based Modbus numbering, which
+//! shows up as "Modbus RTU Wrong Data Address" on the first poll.
+constexpr int M1STP_ADDR_OFFSET = 0;
+constexpr uint16_t M1STP_COIL_RUN = 0x0001 + M1STP_ADDR_OFFSET; //!< 0 off, 1 on.
+constexpr uint16_t M1STP_COIL_DIR = 0x0002 + M1STP_ADDR_OFFSET; //!< 0 forward, 1 reverse.
+constexpr uint16_t M1STP_COIL_BY_LAPS = 0x0003 + M1STP_ADDR_OFFSET; //!< 0 runs by time, 1 by laps.
+constexpr uint16_t M1STP_REG_RPM = 0x4001 + M1STP_ADDR_OFFSET; //!< rpm * 100, uint32 high word first.
+constexpr uint16_t M1STP_REG_LAPS = 0x4003 + M1STP_ADDR_OFFSET; //!< float.
+constexpr uint16_t M1STP_REG_TIME = 0x4005 + M1STP_ADDR_OFFSET; //!< ms, uint32 high word first.
+constexpr uint16_t M1STP_INREG_SW_VERSION = 0x3001 + M1STP_ADDR_OFFSET; //!< the hardware version follows.
+constexpr uint16_t M1STP_INREG_ABNORMAL = 0x3003 + M1STP_ADDR_OFFSET; //!< 0 normal.
+//! HW-CHECK: the sheet does not say which half of the lap-count float comes
+//! first; high first is assumed, as for the integer pairs.
+constexpr bool M1STP_FLOAT_LOW_WORD_FIRST = false;
+//! The sheet has no continuous mode, so continuous rotation is a run by time
+//! this long (~24.8 days). HW-CHECK: that the firmware takes it. Not 0xffffffff
+//! in case the firmware keeps it signed; 0 might mean "forever" or "nothing".
+constexpr uint32_t M1STP_CONTINUOUS_MS = 0x7fffffffu;
+constexpr double M1STP_MAX_RPM = 350.0; //!< product manual.
+}
+
+XKamoerM1STP::XKamoerM1STP(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XModbusRTUDriver<XMotorDriver>(name, runtime, ref(tr_meas), meas) {
+    interface()->setSerialBaudRate(9600);
+    interface()->setSerialStopBits(1);
+    interface()->setSerialParity(XCharInterface::PARITY_NONE);
+    trans( *interface()->address()) = 1;
+    iterate_commit([=](Transaction &tr){
+        tr[ *stepMotor()] = 60; //Speed reads in rpm.
+        tr[ *speed()] = 100;
+    });
+
+    currentRunning()->disable();
+    currentStopping()->disable();
+    stepEncoder()->disable();
+    timeAcc()->disable();
+    timeDec()->disable();
+    active()->disable();
+    microStep()->disable();
+    hasEncoder()->disable();
+    pushing()->disable();
+    store()->disable();
+    roundBy()->disable();
+    round()->disable();
+    goHomeMotor()->disable();
+    auxBits()->disable();
+}
+double
+XKamoerM1STP::rpm(const Snapshot &shot) const {
+    double r = shot[ *speed()] * 60.0 / std::max(1u, (unsigned int)shot[ *stepMotor()]);
+    if((r <= 0) || (r > M1STP_MAX_RPM))
+        throw XInterface::XInterfaceError(getLabel() +
+            i18n(": speed must be within 0 to %1 rpm.").arg(M1STP_MAX_RPM), __FILE__, __LINE__);
+    return r;
+}
+double
+XKamoerM1STP::estimatedMove(const XTime &now) const {
+    if( !m_dir)
+        return 0.0;
+    return std::min(std::max(0.0, now - m_moveStarted) * m_degPerSec, m_moveRemain);
+}
+void
+XKamoerM1STP::rebase(const XTime &now) {
+    double d = estimatedMove(now);
+    m_posBase += m_dir * d;
+    m_moveRemain -= d;
+    m_moveStarted = now;
+}
+void
+XKamoerM1STP::stopRun() {
+    XScopedLock<XInterface> lock( *interface());
+    interface()->writeSingleCoil(M1STP_COIL_RUN, false);
+    rebase(XTime::now());
+    m_dir = 0;
+}
+//! The caller has stopped the pump: the RUN coil is written 0 then 1, so that
+//! the start is an edge. HW-CHECK: whether writing 1 over a 1 would start a run.
+void
+XKamoerM1STP::startRun(double r, int dir, double degrees) {
+    bool by_laps = std::isfinite(degrees);
+    XScopedLock<XInterface> lock( *interface());
+    interface()->writeSingleCoil(M1STP_COIL_DIR, dir < 0);
+    interface()->writeSingleCoil(M1STP_COIL_BY_LAPS, by_laps);
+    if(by_laps) {
+        float laps = static_cast<float>(degrees / 360.0);
+        uint32_t u;
+        std::memcpy( &u, &laps, sizeof(u));
+        if(M1STP_FLOAT_LOW_WORD_FIRST)
+            u = (u << 16) | (u >> 16);
+        interface()->presetTwoResistors(M1STP_REG_LAPS, u);
+    }
+    else
+        interface()->presetTwoResistors(M1STP_REG_TIME, M1STP_CONTINUOUS_MS);
+    interface()->presetTwoResistors(M1STP_REG_RPM, lrint(r * 100));
+    interface()->writeSingleCoil(M1STP_COIL_RUN, true);
+    m_moveStarted = XTime::now();
+    m_degPerSec = r * 6.0;
+    m_moveRemain = by_laps ? degrees : HUGE_VAL;
+    m_dir = dir;
+}
+void
+XKamoerM1STP::getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) {
+    XScopedLock<XInterface> lock( *interface());
+    //HW-CHECK: that the coil can be read back, and drops to 0 by itself when a
+    //run by laps or by time ends. If it stays at 1, Ready never returns.
+    bool running = interface()->readSingleCoil(M1STP_COIL_RUN);
+    uint16_t abnormal = interface()->readInputSingleResistor(M1STP_INREG_ABNORMAL);
+    XTime now = XTime::now();
+    if(abnormal != m_abnormalReported) {
+        if(abnormal)
+            gErrPrint(getLabel() + i18n(" reports abnormal state %1.").arg((int)abnormal));
+        m_abnormalReported = abnormal;
+    }
+    if(running && !m_dir) {
+        //Started from the front panel or the foot switch, before this session,
+        //or by a start whose reply was lost: followed as continuous rotation.
+        m_dir = interface()->readSingleCoil(M1STP_COIL_DIR) ? -1 : 1;
+        m_moveRemain = HUGE_VAL;
+        m_moveStarted = now;
+    }
+    if( !running && m_dir) {
+        //Ended by itself, or stopped from the panel. A run by laps that has
+        //run out is credited in full by the clamp in estimatedMove(), as long
+        //as the pump turns no faster than commanded.
+        rebase(now);
+        m_dir = 0;
+    }
+    *position = m_posBase + m_dir * estimatedMove(now);
+    *slipping = (abnormal != 0);
+    *ready = !running;
+}
+void
+XKamoerM1STP::changeConditions(const Snapshot &shot) {
+    double r = rpm(shot);
+    XScopedLock<XInterface> lock( *interface());
+    //HW-CHECK: whether a running pump takes the new speed at once, and which
+    //wins between this register and the speed knob on the back. Position is
+    //off by their ratio while the knob rules.
+    interface()->presetTwoResistors(M1STP_REG_RPM, lrint(r * 100));
+    rebase(XTime::now());
+    m_degPerSec = r * 6.0;
+}
+void
+XKamoerM1STP::getConditions() {
+    std::vector<uint16_t> versions;
+    double r;
+    {
+        XScopedLock<XInterface> lock( *interface());
+        interface()->readInputResistors(M1STP_INREG_SW_VERSION, 2, versions);
+        r = interface()->readHoldingTwoResistors(M1STP_REG_RPM) * 0.01;
+        m_posBase = 0.0;
+        m_dir = 0; //a run already going is picked up by getStatus().
+        m_degPerSec = r * 6.0;
+    }
+    //"3+5+8": major, minor and revision in 3, 5 and 8 bits.
+    //HW-CHECK: that the major one is in the top bits.
+    auto version = [](unsigned int v) {
+        return formatString("%u.%u.%u", v >> 13, (v >> 8) & 0x1fu, v & 0xffu);
+    };
+    gMessagePrint(getLabel() + formatString(": firmware %s, hardware %s.",
+        version(versions[0]).c_str(), version(versions[1]).c_str()));
+    iterate_commit([=](Transaction &tr){
+        tr[ *speed()] = r * std::max(1u, (unsigned int)tr[ *stepMotor()]) / 60.0;
+    });
+}
+void
+XKamoerM1STP::setTarget(const Snapshot &shot, double target) {
+    double r = rpm(shot);
+    XScopedLock<XInterface> lock( *interface());
+    stopRun();
+    double dx = target - m_posBase;
+    if(fabs(dx) < 1e-3)
+        return;
+    startRun(r, (dx > 0) ? 1 : -1, fabs(dx));
+}
+void
+XKamoerM1STP::setForward() {
+    double r = rpm(Snapshot( *this));
+    XScopedLock<XInterface> lock( *interface());
+    stopRun();
+    startRun(r, 1, HUGE_VAL);
+}
+void
+XKamoerM1STP::setReverse() {
+    double r = rpm(Snapshot( *this));
+    XScopedLock<XInterface> lock( *interface());
+    stopRun();
+    startRun(r, -1, HUGE_VAL);
+}
+void
+XKamoerM1STP::stopRotation() {
+    stopRun();
+}
+void
+XKamoerM1STP::toHomePosition() {
+    throw XInterface::XInterfaceError(getLabel() + i18n(": the pump has no home sensor."), __FILE__, __LINE__);
+}
+void
+XKamoerM1STP::clearPosition() {
+    XScopedLock<XInterface> lock( *interface());
+    rebase(XTime::now());
+    m_posBase = 0.0;
 }

@@ -128,18 +128,51 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
     port->m_lastTimeStamp = XTime::now();
 }
 void
-XModbusRTUInterface::readHoldingResistors(uint16_t res_addr, int count, std::vector<uint16_t> &data) {
+XModbusRTUInterface::read_resistors(unsigned int func_code, uint16_t res_addr, int count, std::vector<uint16_t> &data) {
 	std::vector<unsigned char> wrbuf(4);
 	set_word( &wrbuf[0], res_addr);
 	set_word( &wrbuf[2], count);
 	std::vector<unsigned char> rdbuf(2 * count + 1);
-	query_unicast(0x03, wrbuf, rdbuf);
+	query_unicast(func_code, wrbuf, rdbuf);
 	data.resize(count);
 	if(rdbuf[0] != 2 * count)
 		throw XInterfaceError("Modbus RTU Format Error.", __FILE__, __LINE__);
 	for(unsigned int i = 0; i < count; ++i) {
 		data[i] = get_word( &rdbuf[2 * i + 1]);
 	}
+}
+void
+XModbusRTUInterface::readHoldingResistors(uint16_t res_addr, int count, std::vector<uint16_t> &data) {
+	read_resistors(0x03, res_addr, count, data);
+}
+void
+XModbusRTUInterface::readInputResistors(uint16_t res_addr, int count, std::vector<uint16_t> &data) {
+	read_resistors(0x04, res_addr, count, data);
+}
+void
+XModbusRTUInterface::readCoils(uint16_t coil_addr, int count, std::vector<bool> &data) {
+	std::vector<unsigned char> wrbuf(4);
+	set_word( &wrbuf[0], coil_addr);
+	set_word( &wrbuf[2], count);
+	unsigned int nbytes = (count + 7) / 8;
+	std::vector<unsigned char> rdbuf(nbytes + 1);
+	query_unicast(0x01, wrbuf, rdbuf);
+	if(rdbuf[0] != nbytes)
+		throw XInterfaceError("Modbus RTU Format Error.", __FILE__, __LINE__);
+	data.resize(count);
+	for(int i = 0; i < count; ++i) {
+		data[i] = (rdbuf[1 + i / 8] >> (i % 8)) & 1u; //LSB first.
+	}
+}
+void
+XModbusRTUInterface::writeSingleCoil(uint16_t coil_addr, bool on) {
+	std::vector<unsigned char> wrbuf(4);
+	set_word( &wrbuf[0], coil_addr);
+	set_word( &wrbuf[2], on ? 0xff00u : 0x0000u);
+	std::vector<unsigned char> rdbuf(4);
+	query_unicast(0x05, wrbuf, rdbuf);
+	if(rdbuf != wrbuf) //echoes the request.
+		throw XInterfaceError("Modbus Format Error.", __FILE__, __LINE__);
 }
 void
 XModbusRTUInterface::presetSingleResistor(uint16_t res_addr, uint16_t data) {

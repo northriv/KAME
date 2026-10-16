@@ -969,6 +969,8 @@ OrientalMotor EMP401 motor controller (Serial Port)
 
 SigmaOptics PAMC-104 piezo-assisted positioner (Serial Port)
 
+Kamoer M1-STP peristaltic pump (Serial Port Modbus RTU 9600bps, RS485)
+
 Micro CAM z/x/ϕ positioner
 
 Two-axis sample rotator
@@ -986,6 +988,8 @@ Scripting nodes: `Target` (target position), `Active` (excitation on/off), `Spee
 To move from a script: make sure `Active` is true (excitation on), then **set `Target` — writing it starts the move** to that absolute position. Poll `Ready` (true once settled; `Slipping` flags a step-out fault) before reading the position from the Scalar Entry. `StopMotor` halts immediately (and resets `Target` to the current position); `GoHomeMotor` returns to the origin.
 
 **Safety — read before moving a motor from a script or AI.** The reported `Position` is not always a true measured position. When `HasEncoder` is false the position is an **open-loop estimate** dead-reckoned from the step count, and some stages (e.g. the SigmaOptics PAMC-104 piezo positioner) **do not report a meaningful position at all**. A motor may also have a limited safe range, and moving it can be **irreversible** — there may be no way to recover the original, known-good position (a probe/coil can collide, a sample can be lost, an LC capacitor can run past its usable band). Therefore an automated agent must **not** jump a motor to an arbitrary `Target`. Instead: (1) confirm carefully with the user — the intended axis, direction, magnitude, and the safe range — before any motion; (2) move in **small increments**, watching another driver’s response (the tuning reflection, a signal amplitude, an optical reading, …) as feedback after each step, and stop the moment it diverges from the expectation; (3) never assume the move can be undone. For LC tuning specifically, prefer the Auto LC Tuner driver (which closes the loop on a network analyzer) over commanding the motors directly.
+
+**Kamoer M1-STP peristaltic pump.** The pump is driven as a motor whose pump head turns 360° per revolution, so `Target` is the amount to pump in degrees: volume = `Position` / 360 × (ml per revolution, which you calibrate for the tube), e.g. through a calibrated entry on `Position`. `StepMotor` defaults to 60 so that `Speed` reads in rpm (up to 350). `ForwardMotor`/`ReverseMotor` pump continuously until `StopMotor`. The pump cannot report how far it has turned: `Position` is an open-loop estimate from the commanded revolutions and the elapsed time, and it drifts if the speed knob on the back overrides the speed KAME sets. `Slipping` shows the pump's abnormal-state flag; `GoHomeMotor` is not supported (there is no home sensor). Select "485 mode" in the pump's system menu so that it obeys RS485; the default address is 1. This driver has not yet been tested on the hardware.
 
 **`GoHomeMotor` is especially dangerous.** Homing drives the motor until a home sensor is reached — but if no home sensor is installed, **it never stops and the motor runs forever** (until something is damaged or the user intervenes). Crucially, **neither KAME nor the hardware can tell whether a home sensor exists** — only the user knows. So `GoHomeMotor` must be treated as unsafe by default: an automated agent must **never** issue `GoHomeMotor` without first explicitly asking the user to confirm that a home sensor is present on that specific axis.
 
