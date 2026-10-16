@@ -1088,11 +1088,10 @@ def launchJupyterConsole(prog, argv):
 			if os.path.isfile(_venv_py):
 				_candidates.insert(0, _venv_py)  # prefer an explicit venv
 				break
-		# 3b. The interpreter the Pydantic AI links use (~/.kame_pyai_python),
-		#     before the generic names: a uv venv is reachable no other way.
-		_pyai_py = _remembered_pyai_python()
-		if _pyai_py:
-			_candidates.append(_pyai_py)
+		# 3b. The interpreters the Pydantic AI links use (the remembered one,
+		#     the chosen agent's project venv, this workspace's .venv), before
+		#     the generic names: a uv venv is reachable no other way.
+		_candidates += _pyai_pythons(console[1])
 		# 4. System python3
 		_sys_py = _sh.which('python3')
 		if _sys_py:
@@ -2037,7 +2036,53 @@ def _remembered_pyai_python():
 	except OSError:
 		return None
 	return _p if _p and os.path.isfile(_p) else None
+
+
 PYAI_AGENT_FILE = os.path.join(os.path.expanduser('~'), '.kame_pyai_agent')
+
+
+def _project_venv_python(path, levels=4):
+	"""The interpreter of the `.venv` at or above `path` -- where `uv sync`
+	(or `python -m venv .venv`) puts a project's environment -- or None when
+	none is within `levels` directories."""
+	if not path:
+		return None
+	_d = path if os.path.isdir(path) else os.path.dirname(path)
+	_sub = ('Scripts', 'python.exe') if os.name == 'nt' else ('bin', 'python')
+	for _ in range(levels):
+		_c = os.path.join(_d, '.venv', *_sub)
+		if os.path.isfile(_c):
+			return _c
+		_up = os.path.dirname(_d)
+		if _up == _d:
+			break
+		_d = _up
+	return None
+
+
+def _picked_agent_path():
+	"""The agent module or spec chosen with the agent link, or None."""
+	try:
+		with open(PYAI_AGENT_FILE) as _f:
+			_p = _f.readline().strip().split('|')[0]
+	except OSError:
+		return None
+	return _p or None
+
+
+def _pyai_pythons(workspace=None):
+	"""Interpreters that may carry pydantic-ai, and so `mcp`: the one the
+	Pydantic AI links remember, the project venv of the agent chosen with the
+	agent link, and the notebook workspace's .venv.  The MCP server's
+	searches try these too; a uv venv is on no PATH they walk."""
+	_c = [_remembered_pyai_python(), _project_venv_python(_picked_agent_path())]
+	if workspace:
+		_c.append(_project_venv_python(workspace, levels=1))
+	_out = []
+	for _p in _c:
+		if _p and _p not in _out:
+			_out.append(_p)
+	return _out
 
 
 def _warn_if_mcp_unavailable():
@@ -2052,8 +2097,8 @@ def _warn_if_mcp_unavailable():
 	setup would be worse than silence -- so the candidate list mirrors the real
 	search: the interpreter that runs Jupyter (whose environment is almost
 	always where `mcp` was installed), then a kame-mcp-venv beside the
-	installation, then the Pydantic AI interpreter (~/.kame_pyai_python),
-	before the generic python3 names."""
+	installation, then the Pydantic AI interpreters (_pyai_pythons), before
+	the generic python3 names."""
 	def _run():
 		_extra = []
 		try:
@@ -2083,7 +2128,7 @@ def _warn_if_mcp_unavailable():
 			if os.path.isfile(_v):
 				_extra.append(_v)
 				break
-		_extra.append(_remembered_pyai_python())
+		_extra += _pyai_pythons(_kame_workspace_dir())
 		if _find_python_with(('mcp', 'jupyter_client'), 'KAME_MCP_PYTHON', _extra):
 			return
 		_kame_gui_html('<font color="#996600">No Python with <tt>mcp</tt> and '
@@ -2399,17 +2444,41 @@ def _pyai_pick_agent(py, path):
 				  'print(("agent" if "agent" in ns else (ns[0] if ns else "")))\n'
 				  'print(("app" if "app" in apps else (apps[0] if apps else "")))\n'
 				  % path)
-		try:
-			_r = _sp3.run([py, '-c', _probe], capture_output=True, text=True,
-						  timeout=120, cwd=os.path.dirname(path) or None)
-		except Exception:
+		#The interpreter in hand first, then the agent's own project venv
+		#(where `uv sync` put its dependencies): an agent written against
+		#packages only that venv has must load there, and the links then
+		#run on it.
+		_tries = [py]
+		_pv = _project_venv_python(path)
+		if _pv and _pv != py:
+			_tries.append(_pv)
+		_r, _var, _app, _used = None, '', '', None
+		for _try in _tries:
+			try:
+				_r = _sp3.run([_try, '-c', _probe], capture_output=True, text=True,
+							  timeout=120, cwd=os.path.dirname(path) or None)
+			except Exception:
+				continue
+			_lines = [_l.strip() for _l in (_r.stdout or '').strip().splitlines()]
+			_var = _lines[0] if _lines else ''
+			_app = _lines[1] if len(_lines) > 1 else ''
+			if _r.returncode == 0 and _var:
+				_used = _try
+				break
+		if _r is None:
 			_kame_gui_html('<font color="#cc0000">Could not run {} to check '
 				'{}.</font>'.format(html.escape(py), html.escape(path)))
 			return
-		_lines = [_l.strip() for _l in (_r.stdout or '').strip().splitlines()]
-		_var = _lines[0] if _lines else ''
-		_app = _lines[1] if len(_lines) > 1 else ''
-		if _r.returncode != 0 or not _var:
+		if _used and _used != py:
+			try:
+				with open(PYAI_PYTHON_FILE, 'w') as _f:
+					_f.write(_used + '\n')
+			except OSError:
+				pass
+			_kame_gui_log('#Pydantic AI will run on ' + _used
+						  + " (the agent's project venv; it loads the agent, "
+						  + py + ' did not).')
+		if not _used:
 			_kame_gui_html('<font color="#cc0000">{} defines no '
 				'<tt>pydantic_ai.Agent</tt>, so clai has nothing to run.'
 				'{}</font>'.format(html.escape(os.path.basename(path)),
@@ -2713,6 +2782,9 @@ def kame_handle_link(action):
 				except OSError:
 					pass
 				_extra = [_saved,
+						  #The venv `uv sync` made for the agent chosen (or being
+						  #chosen): the environment that agent was written for.
+						  _project_venv_python(_agentfile or _picked_agent_path()),
 						  os.path.join(os.environ.get('VIRTUAL_ENV', ''), 'bin', 'python')
 						  if os.environ.get('VIRTUAL_ENV') else None,
 						  os.path.join(_wd, '.venv', 'bin', 'python')]
@@ -2772,6 +2844,15 @@ def kame_handle_link(action):
 						'Need one?&nbsp; Either line makes it:<br/>{}</font>'.format(
 						'; '.join(_looked), _mk))
 					return
+			#Remember whatever the link resolved, by any route, so the MCP
+			#server's searches (notebook launch, start-up check, both plugin
+			#launchers) find the same interpreter.
+			if _py and _py != _remembered_pyai_python():
+				try:
+					with open(PYAI_PYTHON_FILE, 'w') as _f:
+						_f.write(_py + '\n')
+				except OSError:
+					pass
 			if action in ('pyai-cli', 'pyai-web'):
 				# Checked only now, after the interpreter is chosen and
 				# remembered: that venv is also where the MCP server's Python

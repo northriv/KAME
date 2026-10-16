@@ -302,7 +302,10 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
     pre-check, both launchers) then try the Pydantic AI interpreter recorded in
     `~/.kame_pyai_python`, before the generic names: a uv venv is on no PATH
     they walk, and a second Mac had `mcp` + `jupyter_client` only there, so the
-    HTTP server could not start beside a ready venv. On Windows it must be a real Windows CPython ≥ 3.10:
+    HTTP server could not start beside a ready venv. The two Python-side
+    searches also try the chosen agent's project `.venv` and the notebook
+    workspace's (`_pyai_pythons()`), and the Pydantic AI link records whatever
+    interpreter it resolved, so the launchers converge on it too. On Windows it must be a real Windows CPython ≥ 3.10:
     `py`/`python`/`python3` are usually the Microsoft Store App-Execution-Alias
     stub, and MSYS2's python cannot host `mcp` at all (no `pip` module, and
     PyPI's `win_amd64` wheels do not match its `mingw_x86_64_msvcrt_gnu` ABI —
