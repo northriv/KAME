@@ -2629,35 +2629,6 @@ def kame_handle_link(action):
 			action, _, _venvdir = action.partition('?venv=')
 			_venvdir = _venvdir.strip()
 			_wd = _kame_workspace_dir()
-			if action in ('pyai-cli', 'pyai-web'):
-				# The client speaks HTTP to KAME's MCP server, and this KAME
-				# starts that server only inside launchJupyterConsole -- so a
-				# Pydantic AI link clicked before the notebook opened a terminal
-				# whose first line was "~/.kame_mcp_url is missing".  Say it
-				# here, with the link that fixes it, and tell "never started"
-				# apart from "started, but the HTTP server died and stdio was
-				# written instead", which needs its log rather than a click.
-				_proc = globals().get('NOTEBOOK_MCP_HTTP_PROC')
-				_up = (bool(globals().get('NOTEBOOK_MCP_URL_FILE'))
-					   and _proc is not None and _proc.poll() is None)
-				if not _up:
-					if globals().get('NOTEBOOK_MCP_JSON'):
-						_log = globals().get('NOTEBOOK_MCP_HTTP_LOG') or ''
-						_why = ('The notebook is up, but KAME\'s MCP <b>HTTP</b> server is '
-							'not, and Pydantic AI has no stdio fallback.  Either it '
-							'failed to start (its output is in <tt>{}</tt>; the message '
-							'above the notebook link said why) or KAME_MCP_TRANSPORT=stdio '
-							'is set.  Fix that, then relaunch the notebook '
-							'(<a href="kame:notebook">&#9654; Jupyter notebook</a>) and '
-							'click here again.'.format(html.escape(_log)))
-					else:
-						_why = ('KAME\'s MCP server has not been started in this '
-							'session.  It lives in the embedded kernel and comes up '
-							'with <a href="kame:notebook">&#9654; Jupyter notebook</a> '
-							'&mdash; click that first (the browser tab it opens can be '
-							'closed), then this link again.')
-					_kame_gui_html('<font color="#cc0000">' + _why + '</font>')
-					return
 			_script = os.path.join(KAME_ResourceDir, 'kame_pydantic_ai.py')
 			if not os.path.isfile(_script):
 				_kame_gui_html('<font color="#cc0000">kame_pydantic_ai.py not '
@@ -2800,6 +2771,41 @@ def kame_handle_link(action):
 						'or set KAME_PYAI_PYTHON to the interpreter.<br/>'
 						'Need one?&nbsp; Either line makes it:<br/>{}</font>'.format(
 						'; '.join(_looked), _mk))
+					return
+			if action in ('pyai-cli', 'pyai-web'):
+				# Checked only now, after the interpreter is chosen and
+				# remembered: that venv is also where the MCP server's Python
+				# may live (the notebook launch tries it), so returning before
+				# saving it left a fresh machine in a loop -- the dialog asked,
+				# the server was down, the answer was dropped, and it asked again.
+				# The client speaks HTTP to KAME's MCP server, and this KAME
+				# starts that server only inside launchJupyterConsole -- so a
+				# Pydantic AI link clicked before the notebook opened a terminal
+				# whose first line was "~/.kame_mcp_url is missing".  Say it
+				# here, with the link that fixes it, and tell "never started"
+				# apart from "started, but the HTTP server died and stdio was
+				# written instead", which needs its log rather than a click.
+				_proc = globals().get('NOTEBOOK_MCP_HTTP_PROC')
+				_up = (bool(globals().get('NOTEBOOK_MCP_URL_FILE'))
+					   and _proc is not None and _proc.poll() is None)
+				if not _up:
+					if globals().get('NOTEBOOK_MCP_JSON'):
+						_log = globals().get('NOTEBOOK_MCP_HTTP_LOG') or ''
+						_why = ('The notebook is up, but KAME\'s MCP <b>HTTP</b> server is '
+							'not, and Pydantic AI has no stdio fallback.  Either it '
+							'failed to start (its output is in <tt>{}</tt>; the message '
+							'above the notebook link said why) or KAME_MCP_TRANSPORT=stdio '
+							'is set.  Fix that, then quit and restart KAME, open the '
+							'notebook (<a href="kame:notebook">&#9654; Jupyter notebook</a>) '
+							'and click here again &mdash; clicking the notebook link while '
+							'its server runs only reopens the browser.'.format(html.escape(_log)))
+					else:
+						_why = ('KAME\'s MCP server has not been started in this '
+							'session.  It lives in the embedded kernel and comes up '
+							'with <a href="kame:notebook">&#9654; Jupyter notebook</a> '
+							'&mdash; click that first (the browser tab it opens can be '
+							'closed), then this link again.')
+					_kame_gui_html('<font color="#cc0000">' + _why + '</font>')
 					return
 			if action == 'pyai-agent':
 				#Picking is its own action: it needs the interpreter (to check
