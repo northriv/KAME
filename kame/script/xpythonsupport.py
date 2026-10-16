@@ -2788,17 +2788,57 @@ def kame_handle_link(action):
 				_proc = globals().get('NOTEBOOK_MCP_HTTP_PROC')
 				_up = (bool(globals().get('NOTEBOOK_MCP_URL_FILE'))
 					   and _proc is not None and _proc.poll() is None)
+				if not _up and os.environ.get('KAME_MCP_TRANSPORT', '').lower() != 'stdio':
+					#Launching the notebook is what starts the MCP server, so do it
+					#here instead of sending the user to that link: never launched
+					#-> launch it; launched but its server failed -> launch it
+					#again, if the venv just chosen can run that server (it is
+					#among the candidates now).  A click on the notebook link
+					#itself would only reopen the browser.  The kernel is KAME's
+					#own and keeps its state; open notebook tabs need a reload.
+					_nb_up = bool(globals().get('NOTEBOOK_MCP_JSON'))
+					_retry = not _nb_up
+					if _nb_up:
+						_env = dict(os.environ)
+						for _v in ('PYTHONHOME', 'PYTHONPATH', 'VIRTUAL_ENV', 'PYTHONSTARTUP'):
+							_env.pop(_v, None)
+						try:
+							_retry = _sp2.run([_py, '-c', 'import mcp, jupyter_client'],
+											  capture_output=True, timeout=15,
+											  env=_env).returncode == 0
+						except Exception:
+							_retry = False
+					_progs = listOfJupyterPrograms() if _retry else []
+					if _progs:
+						try:
+							if _nb_up:
+								_kame_gui_log("#Restarting the notebook server to start KAME's "
+											  "MCP server on " + _py + " ...")
+								stopNotebookServer()
+							else:
+								_kame_gui_log("#Launching the notebook, which starts KAME's "
+											  "MCP server ...")
+							launchJupyterConsole(_progs[0], 'notebook ' + _wd)
+						except Exception as _e:
+							_kame_gui_html('<font color="#cc0000">{}</font>'.format(
+								html.escape(str(_e))))
+						_proc = globals().get('NOTEBOOK_MCP_HTTP_PROC')
+						_up = (bool(globals().get('NOTEBOOK_MCP_URL_FILE'))
+							   and _proc is not None and _proc.poll() is None)
 				if not _up:
 					if globals().get('NOTEBOOK_MCP_JSON'):
 						_log = globals().get('NOTEBOOK_MCP_HTTP_LOG') or ''
+						_pyq = html.escape(_py)
 						_why = ('The notebook is up, but KAME\'s MCP <b>HTTP</b> server is '
 							'not, and Pydantic AI has no stdio fallback.  Either it '
-							'failed to start (its output is in <tt>{}</tt>; the message '
+							'failed to start (its output is in <tt>{0}</tt>; the message '
 							'above the notebook link said why) or KAME_MCP_TRANSPORT=stdio '
-							'is set.  Fix that, then quit and restart KAME, open the '
-							'notebook (<a href="kame:notebook">&#9654; Jupyter notebook</a>) '
-							'and click here again &mdash; clicking the notebook link while '
-							'its server runs only reopens the browser.'.format(html.escape(_log)))
+							'is set.<br/>This link relaunches the notebook, and the server '
+							'with it, once the venv it uses for Pydantic AI can run that '
+							'server too:<br/>'
+							'&nbsp;&nbsp;<tt>uv pip install --python {1} mcp jupyter_client</tt><br/>'
+							'then click here again.  To use another interpreter instead, '
+							'restart KAME after setting it up.'.format(html.escape(_log), _pyq))
 					else:
 						_why = ('KAME\'s MCP server has not been started in this '
 							'session.  It lives in the embedded kernel and comes up '
