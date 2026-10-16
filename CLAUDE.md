@@ -298,7 +298,11 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
     only one level inside the release folder) and prefers it over `python3` and
     the versioned names. The plugin launchers (`bin/kame-mcp-server[.cmd]`) do
     the same walk, or they report "no Python with 'mcp'..." while KAME itself is
-    using the venv. On Windows it must be a real Windows CPython ≥ 3.10:
+    using the venv. All four searches (the notebook launch, the start-up
+    pre-check, both launchers) then try the Pydantic AI interpreter recorded in
+    `~/.kame_pyai_python`, before the generic names: a uv venv is on no PATH
+    they walk, and a second Mac had `mcp` + `jupyter_client` only there, so the
+    HTTP server could not start beside a ready venv. On Windows it must be a real Windows CPython ≥ 3.10:
     `py`/`python`/`python3` are usually the Microsoft Store App-Execution-Alias
     stub, and MSYS2's python cannot host `mcp` at all (no `pip` module, and
     PyPI's `win_amd64` wheels do not match its `mingw_x86_64_msvcrt_gnu` ABI —

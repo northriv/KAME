@@ -5,8 +5,9 @@ rem set but wrong FAIL rather than fall through, diagnostics go to stderr
 rem (stdout belongs to the MCP stdio stream), and the search order is
 rem   KAME_MCP_SERVER > plugin dir > ../ (dev tree) > resource_dir recorded
 rem   by KAME in %USERPROFILE%\.kame_kernel_connection.json.
-rem Interpreter: KAME_MCP_PYTHON > py -3 > python > python3, first one that
-rem imports mcp + jupyter_client.
+rem Interpreter: KAME_MCP_PYTHON > kame-mcp-venv > the Pydantic AI interpreter
+rem (%USERPROFILE%\.kame_pyai_python) > py -3 > python > python3, first one
+rem that imports mcp + jupyter_client.
 setlocal enabledelayedexpansion
 
 set "PLUGIN_ROOT=%~dp0.."
@@ -57,6 +58,14 @@ for %%P in ("." ".." "..\.." "..\..\.." "..\..\..\.." "..\..\..\..\..") do (
             call :try "!SRVDIR!%%~P\kame-mcp-venv\Scripts\python.exe" ""
         )
     )
+)
+rem Then the interpreter KAME's Pydantic AI links were pointed at, as KAME's own
+rem search does: a venv made for pydantic-ai carries mcp and often
+rem jupyter_client, and a uv venv is on no path searched below.
+if not defined PYEXE if exist "%USERPROFILE%\.kame_pyai_python" (
+    set "PYAI="
+    set /p PYAI=<"%USERPROFILE%\.kame_pyai_python"
+    if defined PYAI if exist "!PYAI!" call :try "!PYAI!" ""
 )
 if not defined PYEXE call :try "py" "-3"
 if not defined PYEXE call :try "python" ""

@@ -1088,6 +1088,11 @@ def launchJupyterConsole(prog, argv):
 			if os.path.isfile(_venv_py):
 				_candidates.insert(0, _venv_py)  # prefer an explicit venv
 				break
+		# 3b. The interpreter the Pydantic AI links use (~/.kame_pyai_python),
+		#     before the generic names: a uv venv is reachable no other way.
+		_pyai_py = _remembered_pyai_python()
+		if _pyai_py:
+			_candidates.append(_pyai_py)
 		# 4. System python3
 		_sys_py = _sh.which('python3')
 		if _sys_py:
@@ -2016,6 +2021,22 @@ def _kame_gui_log(msg, color='#008800'):
 
 
 PYAI_PYTHON_FILE = os.path.join(os.path.expanduser('~'), '.kame_pyai_python')
+
+
+def _remembered_pyai_python():
+	"""The interpreter the Pydantic AI links were pointed at, or None.
+
+	A candidate for the MCP server too: a venv made for pydantic-ai already
+	carries `mcp` (its [mcp] extra) and often jupyter_client, and a uv venv is
+	found by no other route here -- uv puts neither it nor its Python on any
+	path the searches walk.  A second Mac had mcp and jupyter_client only
+	there, so the server could not start while the venv sat ready."""
+	try:
+		with open(PYAI_PYTHON_FILE) as _f:
+			_p = _f.readline().strip()
+	except OSError:
+		return None
+	return _p if _p and os.path.isfile(_p) else None
 PYAI_AGENT_FILE = os.path.join(os.path.expanduser('~'), '.kame_pyai_agent')
 
 
@@ -2031,7 +2052,8 @@ def _warn_if_mcp_unavailable():
 	setup would be worse than silence -- so the candidate list mirrors the real
 	search: the interpreter that runs Jupyter (whose environment is almost
 	always where `mcp` was installed), then a kame-mcp-venv beside the
-	installation, before the generic python3 names."""
+	installation, then the Pydantic AI interpreter (~/.kame_pyai_python),
+	before the generic python3 names."""
 	def _run():
 		_extra = []
 		try:
@@ -2061,6 +2083,7 @@ def _warn_if_mcp_unavailable():
 			if os.path.isfile(_v):
 				_extra.append(_v)
 				break
+		_extra.append(_remembered_pyai_python())
 		if _find_python_with(('mcp', 'jupyter_client'), 'KAME_MCP_PYTHON', _extra):
 			return
 		_kame_gui_html('<font color="#996600">No Python with <tt>mcp</tt> and '

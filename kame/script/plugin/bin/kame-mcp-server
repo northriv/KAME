@@ -87,11 +87,18 @@ _venv_candidates=""
 for _up in . .. ../.. ../../.. ../../../.. ../../../../..; do
     _venv_candidates="$_venv_candidates $_srvdir/$_up/kame-mcp-venv/bin/python3"
 done
+# Then the interpreter KAME's Pydantic AI links were pointed at (the first line
+# of ~/.kame_pyai_python), as KAME's own search does: a venv made for
+# pydantic-ai carries mcp and often jupyter_client, and a uv venv is on no
+# path searched below.
+_pyai=""
+[ -r "$HOME/.kame_pyai_python" ] && _pyai=$(head -n 1 "$HOME/.kame_pyai_python")
 
 python=""
 for candidate in \
     "${KAME_MCP_PYTHON:-}" \
     $_venv_candidates \
+    "$_pyai" \
     python3 \
     python \
     /opt/local/bin/python3 \

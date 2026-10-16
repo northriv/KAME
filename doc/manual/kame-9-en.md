@@ -1535,7 +1535,8 @@ Instruct the assistant in natural language:
    This need not be the Python embedded in KAME. The MCP server is a separate
    process, and KAME looks for an interpreter that can import both packages:
    Jupyter's own, then a folder named `kame-mcp-venv` beside the installation,
-   then `python3` and versioned `python3.X` names. Creating `kame-mcp-venv` is
+   then the venv you picked for the Pydantic AI links (which already has
+   `mcp`), then `python3` and versioned `python3.X` names. Creating `kame-mcp-venv` is
    the recommended way to keep these packages away from your system Python.
 
    **On Windows it is the only way.** None of the interpreters KAME can

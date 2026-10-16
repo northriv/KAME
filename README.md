@@ -748,7 +748,8 @@ earlier, pin it — `pip install "mcp<2"`** — those builds import
 imports yet cannot start the server. The server
 runs as its **own process**, so this need not be the interpreter embedded in
 KAME: KAME probes candidates — Jupyter's own interpreter, a `kame-mcp-venv`
-(preferred, searched upward from the resource directory), `python3`, and
+(preferred, searched upward from the resource directory), the venv the
+Pydantic AI links were pointed at, `python3`, and
 versioned `python3.X` names — and picks the first that can actually import
 `jupyter_client` and either of the two mcp entry points.
 
