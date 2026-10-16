@@ -127,8 +127,8 @@ private:
 
 //! Acts when watched scalar entries leave their range -- for instance a
 //! Correlation math tool aimed at a pattern a stage hides when it goes too
-//! far: stops motors, switches off lasers, RF and outputs, closes valves,
-//! sets relays.  Trips latch: the actions stay in force, re-asserted while
+//! far: stops motors, draws a Micro CAM's cutter back, switches off lasers,
+//! RF and outputs, closes valves, sets relays.  Trips latch: the actions stay in force, re-asserted while
 //! something undoes them, until Reset is pressed with every condition
 //! healthy.  A source that goes silent or turns NaN trips it too.  Not a last
 //! line of defence: KAME itself can fail, so hardware limits stay in place.

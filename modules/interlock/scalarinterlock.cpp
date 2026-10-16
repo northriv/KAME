@@ -151,11 +151,16 @@ struct XInterlockAction::Operation {
 //! writes; images go to numbered files).  Left out on purpose: a magnet
 //! supply (its own SafeCond entries ramp it down slowly; cutting it is the
 //! danger), a turbo pump (stopping it vents the vacuum), heater ranges.
+//! "Escape to home" is the one that moves something: the Micro CAM stops
+//! every axis and draws the cutter back to its home Z, which is its safe
+//! state. It is touched once; a "Stop motor" row on that CAM's motors would
+//! halt the retreat on its next re-assertion.
 const std::vector<XInterlockAction::Operation> &
 XInterlockAction::operations() {
     static const std::vector<Operation> ops = [] {
         std::vector<Operation> v = {
             {"Stop motor", "", "StopMotor", Operation::Kind::Touch, true},
+            {"Escape to home", "", "EscapeToHome", Operation::Kind::Touch, false},
             {"Laser off", "Laser", "Enabled", Operation::Kind::SetFalse, false},
             {"RF off", "", "RFON", Operation::Kind::SetFalse, false},
             {"Output off", "", "Output", Operation::Kind::SetFalse, false},
