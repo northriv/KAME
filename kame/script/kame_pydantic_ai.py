@@ -277,8 +277,15 @@ def _install_usage_logging(model_spec):
                     'requests': 1,
                     'input_tokens': int(a.get('gen_ai.usage.input_tokens') or 0),
                     'output_tokens': int(a.get('gen_ai.usage.output_tokens') or 0),
-                    'cache_read_tokens': int(a.get('gen_ai.usage.cache_read_tokens') or 0),
-                    'cache_write_tokens': int(a.get('gen_ai.usage.cache_write_tokens') or 0),
+                    #pydantic-ai's names (the GenAI conventions, and its own
+                    #details.*); the gen_ai.usage.cache_*_tokens read here
+                    #before are not among them, so every row said 0.
+                    'cache_read_tokens': int(a.get('gen_ai.usage.cache_read.input_tokens')
+                                             or a.get('gen_ai.usage.details.cache_read_tokens')
+                                             or 0),
+                    'cache_write_tokens': int(a.get('gen_ai.usage.cache_creation.input_tokens')
+                                              or a.get('gen_ai.usage.details.cache_write_tokens')
+                                              or 0),
                 })
                 if s.status is not None and getattr(s.status, 'is_ok', True) is False:
                     #A failed call is still billed, so it has to be recorded.
@@ -630,7 +637,20 @@ def _resolve_model(spec):
         #model through the web UI's menu and survives clai's `agent.model =`.
         from pydantic_ai.models.anthropic import AnthropicModel
         name = spec[len('anthropic:'):]
-        settings = {'max_tokens': _max_tokens_setting() or ANTHROPIC_MAX_TOKENS}
+        settings = {'max_tokens': _max_tokens_setting() or ANTHROPIC_MAX_TOKENS,
+                    #Prompt caching, which Anthropic applies only where a
+                    #request asks for it: the tool definitions, the
+                    #instructions, and the conversation, whose breakpoint the
+                    #server moves forward as it grows.  The ~7k tokens KAME's
+                    #tools and rules take are resent with every step of a tool
+                    #loop and every turn, and a read costs a tenth of fresh
+                    #input.  Anthropic's console reported KAME's direct API
+                    #traffic at a low hit rate, "up to 31%" of spend saved.
+                    #(These keys exist in older pydantic-ai too, and outrank
+                    #the newer unified `cache` setting.)
+                    'anthropic_cache_tool_definitions': True,
+                    'anthropic_cache_instructions': True,
+                    'anthropic_cache': True}
         if name.startswith(_ALWAYS_THINKING_CLAUDE):
             settings['anthropic_thinking'] = _THINKING_DROP_BLOCK
             settings['anthropic_betas'] = [_THINKING_BINDING_BETA]
