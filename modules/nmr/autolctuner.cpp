@@ -86,6 +86,20 @@ public:
         v += std::norm(lcr.rl(omega) - rl(omega));
         return sqrt(v);
     }
+    //! Error of the dip depth, |RL| at the model's own resonance.  Not
+    //! rlerr(2 pi f0()): at a fixed frequency a C error mostly moves the
+    //! resonance, which for a sharp dip changes |RL| far more than the depth.
+    double rlminerr() const {
+        double rl0 = std::abs(rl(2.0 * M_PI * f0()));
+        double v = 0.0;
+        LCRFit lcr( *this);
+        lcr.m_c1 += c1err();
+        v += std::norm(std::abs(lcr.rl(2.0 * M_PI * lcr.f0())) - rl0);
+        lcr.m_c1 = m_c1;
+        lcr.m_c2 += c2err();
+        v += std::norm(std::abs(lcr.rl(2.0 * M_PI * lcr.f0())) - rl0);
+        return sqrt(v);
+    }
     //! Obtains expected C1 and C2.
     std::pair<double, double> tuneCaps(double target_freq) const {
         return tuneCapsInternal(target_freq, 0.0, isCouplingTight());
@@ -580,6 +594,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 
         tr[ *this].resetToFirstStage();
         tr[ *this].smallestRLAtF0 = 1.0;
+        tr[ *this].smallestRLMin = 1.0;
         tr[ *this].iterationCount = 0;
         tr[ *this].timeSTMChanged = XTime::now();
         tr[ *this].started = XTime::now();
@@ -703,6 +718,7 @@ XAutoLCTuner::rollBack(Transaction &tr, XString &&message) {
     tr[ *this].timeSTMChanged = XTime::now();
     tr[ *this].targetSTMValues = tr[ *this].bestSTMValues;
     tr[ *this].smallestRLAtF0 = 1; //resets the memory.
+    tr[ *this].smallestRLMin = 1;
     tr[ *this].resetToFirstStage();
     tr[ *this].sor = std::max(0.1, tr[ *this].sor * 0.7);
     tr[ *m_status] = message + formatString("Rolls back, SOR=%.2f.", (double)tr[ *this].sor);
@@ -826,6 +842,7 @@ XAutoLCTuner::abortTuningFromAnalyze(Transaction &tr, double rl_at_f0, XString &
         message += "Softens target value.\n";
         tr[ *this].resetToFirstStage();
         tr[ *this].smallestRLAtF0 = 1.0;
+        tr[ *this].smallestRLMin = 1.0;
         tr[ *this].iterationCount = 0;
         tr[ *this].timeSTMChanged = XTime::now();
         tr[ *this].started = XTime::now();
@@ -1006,6 +1023,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     double rlmin = 1e10;
     double rl_at_f0 = 0.0;
     double rl_at_f0_sigma;
+    double rlmin_sigma = -1.0; //< 0: no fitted dip to judge progress by.
     shared_ptr<LCRFit> lcrfit;
     //analyzes trace.
     {
@@ -1104,6 +1122,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             fmin = fmin_fit;
             fmin_err = fmin_fit_err;
             rlmin = rlmin_fit;
+            rlmin_sigma = lcrfit->rlminerr();
         }
     }
 
@@ -1116,12 +1135,34 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         return;
     }
 
-    if(shot_this[ *this].smallestRLAtF0 > rl_at_f0 + rl_at_f0_sigma) {
-        tr[ *this].iterationCount = 0;
-        tr[ *this].noImprovement = 0;
+    //Progress is the reflection at f0 OR the depth of the dip getting better.
+    //|RL| at f0 alone counted a deeper dip that landed a little off f0 as a step
+    //backwards (user): for a resonance of Q, a detuning of only f0/(10Q) leaves
+    //|RL| at f0 near -20 dB however deep the dip, and the frequency is exactly
+    //what each step lands least accurately.  Rolling back from there threw the
+    //better match away and shrank SOR for nothing.  Only while the dip has not
+    //yet reached the targeted reflection, though (user): below it the match is
+    //good enough and only the frequency is left, so deepening further off f0 is
+    //no progress.  A step that crosses the target still counts.  Where a
+    //rollback returns TO is unchanged: bestSTMValues stays the best at f0,
+    //which is what the tune is finally judged by.
+    bool better_at_f0 = (shot_this[ *this].smallestRLAtF0 > rl_at_f0 + rl_at_f0_sigma);
+    bool deeper_dip = (rlmin_sigma >= 0.0) && (shot_this[ *this].smallestRLMin > tune_approach_goal)
+        && (shot_this[ *this].smallestRLMin > rlmin + rlmin_sigma);
+    if(better_at_f0) {
         //remembers good positions.
         tr[ *this].bestSTMValues = tr[ *this].targetSTMValues;
         tr[ *this].smallestRLAtF0 = rl_at_f0 + rl_at_f0_sigma;
+    }
+    if(deeper_dip) {
+        tr[ *this].smallestRLMin = rlmin + rlmin_sigma;
+        if( !better_at_f0)
+            message += formatString("Dip deepened to %.2f dB off f0: progress, though not the best at f0.\n",
+                20.0 * log10(rlmin));
+    }
+    if(better_at_f0 || deeper_dip) {
+        tr[ *this].iterationCount = 0;
+        tr[ *this].noImprovement = 0;
     }
     else
         tr[ *this].noImprovement++;

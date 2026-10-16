@@ -117,6 +117,10 @@ public:
         XTime timeSTMChanged; //STM positions will move to \a targetSTMValues.
         std::array<double, 2> targetSTMValues; //[deg]
         double smallestRLAtF0; //0 < RL < 1
+        //! Deepest fitted dip (|RL| at the fitted resonance, plus its error)
+        //! since the last reset.  Progress on its own, but never a place to
+        //! roll back to: that stays bestSTMValues, the best at f0.
+        double smallestRLMin = 1.0;
         std::array<double, 2> bestSTMValues; //[deg]
         static constexpr double TestDeltaFirst = 10; //[deg]
         static constexpr double TestDeltaMax = 720; //[deg]
