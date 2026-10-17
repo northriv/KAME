@@ -1672,10 +1672,12 @@ server works, and Bionic has two roles here: as an MCP *client* it opens the
 notebook workspace as a project and needs nothing (above); as a model
 *server* it feeds Pydantic AI. For the latter, download a chat model in
 Bionic and start its local server (Developer tab → Start Server, or
-`lms server start`; the default port is 1234). Its models are listed only
-while that server runs, and Bionic starts it only when asked: its server
-settings can start it whenever Bionic launches, and KAME's agent says so in
-its window when Bionic is installed but not serving. A running server's chat
+`lms server start`). KAME asks Bionic which port its server is on, so a port
+changed in Bionic's settings (1234 is the default) needs no setting in KAME;
+`KAME_PYAI_BIONIC_URL` in the settings file overrides it. Bionic's models are
+listed only while that server runs, and Bionic starts it only when asked: its
+server settings can start it whenever Bionic launches, and KAME's agent says
+so in its window when Bionic is installed but not serving. A running server's chat
 models are all in the web UI's menu, next to the cloud models; Bionic loads
 the one you pick on first use, which takes a while for a large model. KAME's
 agent sends some 7k tokens (its instructions and tool list) before your first

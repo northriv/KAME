@@ -100,10 +100,35 @@ def _bionic_cli():
     return shutil.which('lms') or (p if os.path.isfile(p) else None)
 
 
+def _bionic_reported_url():
+    """Where Bionic says its server is, or None when it cannot say.
+
+    The port is a Bionic setting, and 1234 is only its default: a server
+    found answering on 1235 was simply missing from the menu.  `lms server
+    status --json` reports the port in a fraction of a second, so ask rather
+    than scan.  Bounded, since `lms server start` has been seen to hang."""
+    cli = _bionic_cli()
+    if not cli:
+        return None
+    import subprocess
+    try:
+        st = json.loads(subprocess.run([cli, 'server', 'status', '--json'],
+                                       capture_output=True, text=True,
+                                       timeout=3).stdout)
+    except Exception:
+        return None
+    port = st.get('port') if isinstance(st, dict) and st.get('running') else None
+    return 'http://127.0.0.1:{}/v1'.format(port) if isinstance(port, int) else None
+
+
 def _local_server(kind):
-    """(base_url, key) of a local server kind, or None when it has no address."""
+    """(base_url, key) of a local server kind, or None when it has no address.
+
+    An address in the settings wins; Bionic is otherwise asked for its port."""
     var, default = LOCAL_SERVERS[kind]
-    url = os.environ.get(var) or default
+    url = (os.environ.get(var)
+           or (kind == 'bionic' and _bionic_reported_url())
+           or default)
     return (url, os.environ.get('KAME_PYAI_LOCAL_KEY') or kind) if url else None
 
 
@@ -1057,7 +1082,7 @@ def main():
             "    KAME_PYAI_MODEL=sakana:fugu                      (needs "
             "SAKANA_API_KEY)\n"
             "    KAME_PYAI_MODEL=bionic:<model id>                (a model Bionic "
-            "serves on 1234; ollama: likewise on 11434)\n"
+            "serves, on the port it reports; ollama: on 11434)\n"
             "and the key on its own line in the same file; or pass --model.\n"
             "With `clai` installed next to this interpreter, KAME launches that "
             "instead and\nits default (openai:gpt-5) applies when nothing is "
@@ -1152,7 +1177,8 @@ def kame_models():
     OpenAI's two newest gpt-N families (chat variants only), every fugu /
     namazu Sakana serves, Anthropic's newest Opus, Fable and Sonnet, Google's
     two newest Gemini versions (GOOGLE_API_KEY or GEMINI_API_KEY), and every
-    chat model of a local server that answers -- Bionic on 1234, Ollama on 11434,
+    chat model of a local server that answers -- Bionic on the port it reports
+    (1234 by default), Ollama on 11434,
     KAME_PYAI_LOCAL_URL -- alongside the cloud entries, since the local
     prefixes carry their own addresses and OPENAI_* stays OpenAI's.
     A server that cannot be asked falls back to a short static list.  The
