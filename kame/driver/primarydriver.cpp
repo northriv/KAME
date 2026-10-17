@@ -84,10 +84,16 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
         skipped = false;
         time_recorded = time_recorded_org;
         err = XKameError();
+        //Every record carries its own raw data, the timeless ones too (a pulser
+        //or a DC source switched off commits an empty one).  Set only for timed
+        //records, the payload kept the previous record's bytes -- or nullptr if
+        //there had been none since start-up, and rawData() dereferenced that in
+        //XRawStreamRecorder::onRecord() the moment Control turned a pulser off
+        //with the journal's raw stream recording (2026-10-17 crash).
+        tr[ *this].m_rawData = rawdata;
         if(time_recorded.isSet()) {
 			try {
 				RawDataReader reader( *rawdata);
-				tr[ *this].m_rawData = rawdata;
                 analyzeRaw(reader, tr);
 			}
 #ifdef USE_PYBIND11
