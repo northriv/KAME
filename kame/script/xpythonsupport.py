@@ -794,6 +794,13 @@ def _jupyterLabSchemasPresent(prog):
 				return True
 	return True         #wording not recognised
 
+#For a link that found no jupyterProgramFor('notebook'); the notebook link in
+#kame.cpp says the same.
+_NO_USABLE_JUPYTER_HTML = ('<font color="#cc0000">No usable Jupyter found.  A '
+	'jupyter is skipped when the notebook package is missing, and also when its '
+	'JupyterLab data files are (that one serves a page showing nothing but the '
+	'logo).  Try: <tt>pip install notebook jupyterlab</tt></font>')
+
 
 NOTEBOOK_TOKEN = None
 NOTEBOOK_PROC = None
@@ -2614,14 +2621,13 @@ def kame_handle_link(action):
 	import subprocess as _sp, shlex as _shlex, platform as _pf
 	try:
 		if action == 'notebook':
-			_progs = listOfJupyterPrograms()
-			if not _progs:
-				_kame_gui_html('<font color="#cc0000">No Jupyter program found '
-					'(install jupyter, or use the Script menu).</font>')
+			_prog = jupyterProgramFor('notebook')
+			if not _prog:
+				_kame_gui_html(_NO_USABLE_JUPYTER_HTML)
 				return
 			_wd = _kame_workspace_dir()
-			_kame_gui_log("#Launching Jupyter notebook ({}) in {} ...".format(_progs[0], _wd))
-			launchJupyterConsole(_progs[0], 'notebook ' + _wd)
+			_kame_gui_log("#Launching Jupyter notebook ({}) in {} ...".format(_prog, _wd))
+			launchJupyterConsole(_prog, 'notebook ' + _wd)
 		elif action == 'claude-app':
 			_sys = _pf.system()
 			if _sys == 'Darwin':
@@ -2897,8 +2903,18 @@ def kame_handle_link(action):
 											  env=_env).returncode == 0
 						except Exception:
 							_retry = False
-					_progs = listOfJupyterPrograms() if _retry else []
-					if _progs:
+					#The checked program, as the notebook link takes in kame.cpp --
+					#not the first on PATH, which on a Mac with Homebrew's Python
+					#is a Notebook 7 without its JupyterLab files: a page with
+					#nothing but the logo.
+					_prog = ''
+					if _retry:
+						_kame_gui_log("#Looking for a usable Jupyter ...")
+						_prog = jupyterProgramFor('notebook')
+						if not _prog:
+							_kame_gui_html(_NO_USABLE_JUPYTER_HTML)
+							return
+					if _prog:
 						try:
 							if _nb_up:
 								_kame_gui_log("#Restarting the notebook server to start KAME's "
@@ -2907,7 +2923,7 @@ def kame_handle_link(action):
 							else:
 								_kame_gui_log("#Launching the notebook, which starts KAME's "
 											  "MCP server ...")
-							launchJupyterConsole(_progs[0], 'notebook ' + _wd)
+							launchJupyterConsole(_prog, 'notebook ' + _wd)
 						except Exception as _e:
 							_kame_gui_html('<font color="#cc0000">{}</font>'.format(
 								html.escape(str(_e))))
