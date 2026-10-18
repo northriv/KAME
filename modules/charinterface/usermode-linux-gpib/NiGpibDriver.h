@@ -49,6 +49,11 @@ public:
      * and attach.  Returns false (with a message to stderr) on any failure. */
     bool open();
 
+    /* Why the last open() failed, in one line, for the caller's error
+     * message (stderr alone is not where a KAME user looks); empty after a
+     * success. */
+    const std::string &lastError() const { return last_error_; }
+
     /* Test-only initialiser: skip all USB/hardware init and use iface
      * directly.  Sets up board_ exactly as open() does (mutexes, waitqueues,
      * etc.) so that query(), serialPoll(), and close() work against a mock
@@ -120,7 +125,17 @@ private:
     bool probed_        = false;
     bool attached_      = false;
 
+    std::string last_error_;
+
     bool findAndOpenDevice(int adapter_index);
+
+    /* Records why open() failed (lastError()), prints it to stderr as this
+     * class always has, and returns false. */
+    bool fail(const char *fmt, ...);
+
+    /* Clears every endpoint's halt and data toggle on the claimed interface
+     * and discards whatever the adapter still has queued to send. */
+    void restartEndpoints(libusb_device_handle *h, libusb_device *dev);
 
     /* Send a sequence of GPIB command bytes with ATN asserted. */
     void cmd(std::initializer_list<int> bytes);

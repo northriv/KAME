@@ -14,6 +14,7 @@
 
 #include "NiGpibDriver.h"
 
+#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 #include <cerrno>
@@ -57,46 +58,53 @@ NiGpibDriver::NiGpibDriver(int board_pad, unsigned int timeout_usec,
 
 NiGpibDriver::~NiGpibDriver() { close(); }
 
+bool NiGpibDriver::fail(const char *fmt, ...)
+{
+    char buf[256];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    last_error_ = buf;
+    fprintf(stderr, "%s\n", buf);
+    return false;
+}
+
 bool NiGpibDriver::open()
 {
-    if (libusb_init(&ctx_) != 0) {
-        fprintf(stderr, "libusb_init failed\n");
-        return false;
-    }
+    last_error_.clear();
+    if (libusb_init(&ctx_) != 0)
+        return fail("libusb_init failed");
     libusb_set_option(ctx_, LIBUSB_OPTION_LOG_LEVEL, LIBUSB_LOG_LEVEL_NONE);
 
     if (!findAndOpenDevice(adapter_index_)) {
-        fprintf(stderr, "No supported NI USB-GPIB adapter found at index %d.\n",
-                adapter_index_);
+        /* An adapter that was found but would not open has said why. */
+        if (last_error_.empty())
+            fail("No supported NI USB-GPIB adapter found at index %d.", adapter_index_);
         return false;
     }
 
     {
         std::lock_guard<std::mutex> lock(g_module_mutex);
         if (g_module_refcount == 0) {
-            if (ni_module_init() != 0) {
-                fprintf(stderr, "ni_module_init failed\n");
-                return false;
-            }
+            if (ni_module_init() != 0)
+                return fail("ni_module_init failed");
         }
         g_module_refcount++;
     }
     module_inited_ = true;
 
-    if (!g_ni_usb_driver || !g_ni_gpib_interface) {
-        fprintf(stderr, "Driver did not register properly\n");
-        return false;
-    }
+    if (!g_ni_usb_driver || !g_ni_gpib_interface)
+        return fail("Driver did not register properly");
 
     struct usb_device_id fake_id = {
         .idVendor         = usb_dev_.descriptor.idVendor,
         .idProduct        = usb_dev_.descriptor.idProduct,
         .bInterfaceNumber = -1,
     };
-    if (g_ni_usb_driver->probe(&usb_intf_, &fake_id) != 0) {
-        fprintf(stderr, "USB probe failed\n");
-        return false;
-    }
+    int r = g_ni_usb_driver->probe(&usb_intf_, &fake_id);
+    if (r != 0)
+        return fail("USB probe failed (%s)", strerror(-r));
     probed_ = true;
 
     memset(&board_, 0, sizeof(board_));
@@ -116,10 +124,9 @@ bool NiGpibDriver::open()
     init_gpib_pseudo_irq(&board_.pseudo_irq);
 
     struct gpib_board_config cfg = {};
-    if (g_ni_gpib_interface->attach(&board_, &cfg) != 0) {
-        fprintf(stderr, "Driver attach failed\n");
-        return false;
-    }
+    r = g_ni_gpib_interface->attach(&board_, &cfg);
+    if (r != 0)
+        return fail("Driver attach failed (%s)", strerror(-r));
     attached_ = true;
     printf("Driver attached successfully.\n");
 
@@ -193,11 +200,8 @@ bool NiGpibDriver::findAndOpenDevice(int adapter_index)
 {
     libusb_device **list = nullptr;
     ssize_t n = libusb_get_device_list(ctx_, &list);
-    if (n < 0) {
-        fprintf(stderr, "libusb_get_device_list failed: %s\n",
-                libusb_error_name((int)n));
-        return false;
-    }
+    if (n < 0)
+        return fail("libusb_get_device_list failed: %s", libusb_error_name((int)n));
 
     /* Enumerate NI USB-GPIB adapters in USB-bus order; pick the
      * adapter_index'th one.  Each NiGpibDriver instance must pass a
@@ -220,15 +224,26 @@ bool NiGpibDriver::findAndOpenDevice(int adapter_index)
         libusb_device_handle *h = nullptr;
         int r = libusb_open(list[i], &h);
         if (r != 0) {
-            fprintf(stderr, "libusb_open failed (%s): %s\n",
-                    name, libusb_error_name(r));
+            fail("libusb_open failed (%s): %s", name, libusb_error_name(r));
             break;
         }
         libusb_set_auto_detach_kernel_driver(h, 1);
+        /* KAME: SET_CONFIGURATION with the configuration the adapter already
+         * has, which is what upstream's usb_reset_configuration() in
+         * ni_usb_attach() sends and what libusb documents as a lightweight
+         * reset (halts cleared, data toggles reset).  That call is a no-op
+         * in our shims, and has to be: libusb refuses to touch the
+         * configuration while an interface is claimed, so it is done here,
+         * before the claim.  Best effort -- a backend that refuses it, or a
+         * device another process holds open, is covered by
+         * restartEndpoints() below.  An unconfigured adapter (0) gets its
+         * configuration from the claim, which is as fresh a start. */
+        int config = 0;
+        if (libusb_get_configuration(h, &config) == 0 && config > 0)
+            libusb_set_configuration(h, config);
         int rc = libusb_claim_interface(h, 0);
         if (rc != 0) {
-            fprintf(stderr, "libusb_claim_interface(0) failed: %s\n",
-                    libusb_error_name(rc));
+            fail("libusb_claim_interface(0) failed (%s): %s", name, libusb_error_name(rc));
             if (rc == LIBUSB_ERROR_ACCESS)
                 fprintf(stderr,
                     "  Hint: another driver (e.g. NI-488.2) owns the interface.\n"
@@ -236,6 +251,7 @@ bool NiGpibDriver::findAndOpenDevice(int adapter_index)
             libusb_close(h);
             break;
         }
+        restartEndpoints(h, list[i]);
 
         printf("Opened %s [#%d] (VID=%04x PID=%04x bus=%d dev=%d)\n",
                name, adapter_index, desc.idVendor, desc.idProduct,
@@ -260,6 +276,55 @@ bool NiGpibDriver::findAndOpenDevice(int adapter_index)
     }
     libusb_free_device_list(list, 1);
     return found;
+}
+
+/* KAME: the adapter as a fresh plug-in leaves it.  In the kernel the driver
+ * outlives any process using it, so a client dying never leaves the adapter
+ * in the middle of a transfer.  Here the driver dies with KAME -- a crash, a
+ * kill, the STM hang watchdog -- and whatever it was in the middle of stays
+ * in the adapter for the next open: a reply still queued on an IN endpoint,
+ * a data toggle out of step.  After a crash during a LakeShore exchange the
+ * adapter would not open again until it was unplugged (2026-10-17).
+ *
+ * clear_halt resets the halt and the toggle at both ends, endpoint by
+ * endpoint -- again if SET_CONFIGURATION already did, which costs a control
+ * transfer each.  The drain is needed either way: whether a device empties
+ * its FIFOs on SET_CONFIGURATION is up to its firmware.  It runs before
+ * probe() and attach(), so nothing of the new session's can be thrown away. */
+void NiGpibDriver::restartEndpoints(libusb_device_handle *h, libusb_device *dev)
+{
+    struct libusb_config_descriptor *cfg = nullptr;
+    if (libusb_get_active_config_descriptor(dev, &cfg) != 0)
+        return;
+    if (cfg->bNumInterfaces > 0 && cfg->interface[0].num_altsetting > 0) {
+        const struct libusb_interface_descriptor *alt = &cfg->interface[0].altsetting[0];
+        for (int e = 0; e < alt->bNumEndpoints; e++) {
+            const struct libusb_endpoint_descriptor *ep = &alt->endpoint[e];
+            unsigned char addr = ep->bEndpointAddress;
+            libusb_clear_halt(h, addr);
+            if (!(addr & LIBUSB_ENDPOINT_IN))
+                continue;
+            bool intr = (ep->bmAttributes & LIBUSB_TRANSFER_TYPE_MASK)
+                == LIBUSB_TRANSFER_TYPE_INTERRUPT;
+            /* Bounded: a little over a second at most, should the adapter
+             * still be relaying an instrument that is talking. */
+            unsigned char buf[4096];
+            long stale = 0;
+            for (int tries = 0; tries < 64; tries++) {
+                int got = 0;
+                int r = intr
+                    ? libusb_interrupt_transfer(h, addr, buf, sizeof(buf), &got, 20)
+                    : libusb_bulk_transfer(h, addr, buf, sizeof(buf), &got, 20);
+                stale += got;
+                if (r != 0 || got == 0)
+                    break; /* a timeout: nothing more queued */
+            }
+            if (stale)
+                fprintf(stderr, "Discarded %ld stale byte(s) queued on endpoint 0x%02x.\n",
+                        stale, addr);
+        }
+    }
+    libusb_free_config_descriptor(cfg);
 }
 
 void NiGpibDriver::cmd(std::initializer_list<int> bytes)

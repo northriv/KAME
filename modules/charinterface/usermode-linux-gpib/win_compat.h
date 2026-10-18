@@ -545,6 +545,8 @@ static inline void  usb_set_intfdata(struct usb_interface *i, void *d) { i->dev.
 static inline void *usb_get_intfdata(struct usb_interface *i)           { return i->dev.driver_data; }
 static inline void  usb_get_dev(struct usb_device *d) { (void)d; }
 static inline void  usb_put_dev(struct usb_device *d) { (void)d; }
+/* A no-op because it has to be: see osx_compat.h.  The reset is done before
+ * the claim instead -- NiGpibDriver::findAndOpenDevice(). */
 static inline int   usb_reset_configuration(struct usb_device *d) { (void)d; return 0; }
 static inline void  usb_make_path(struct usb_device *d, char *buf, size_t len) {
     snprintf(buf, len, "/dev/usb/%d/%d", d->bus ? d->bus->busnum : 0, d->devnum);

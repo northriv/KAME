@@ -14,6 +14,7 @@
 // Include NiGpibDriver first — osx_compat.h must not see C++ keywords.
 #include "nigpibport.h"
 #include "usermode-linux-gpib/NiGpibDriver.h"
+#include <cerrno>
 
 /* -----------------------------------------------------------------------
  * XNIUsermodeGPIBBoardPort
@@ -46,9 +47,15 @@ XNIUsermodeGPIBBoardPort::open(const XCharInterface *intf) {
         3000000 /*3 s timeout*/,
         atoi(shot[ *intf->port()].to_str().c_str())
             /*adapter index: 0 = first NI USB-GPIB, 1 = second, …*/);
-    if(!m_drv->open())
-        throw XInterface::XCommError(
-            i18n("NI USB-GPIB: no supported adapter found or open failed"), __FILE__, __LINE__);
+    if(!m_drv->open()) {
+        //The driver's own reason, which used to reach stderr only.  errno is
+        //cleared because XKameError appends it, and the driver never sets it:
+        //what it held was an unrelated call's ("Invalid argument", 2026-10-17).
+        XString msg = i18n("NI USB-GPIB: ");
+        msg += m_drv->lastError();
+        errno = 0;
+        throw XInterface::XCommError(msg, __FILE__, __LINE__);
+    }
     try {
         m_drv->interfaceClear();
     }
