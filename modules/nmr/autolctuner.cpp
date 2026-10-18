@@ -100,6 +100,33 @@ public:
         v += std::norm(std::abs(lcr.rl(2.0 * M_PI * lcr.f0())) - rl0);
         return sqrt(v);
     }
+    //! |RL| at the resonance with a sign: positive while the coupling is
+    //! loose (the resonance circle leaves the origin outside), negative once
+    //! it is tight, zero exactly at critical coupling -- so the match is a
+    //! root to find, like the frequency, not a minimum.  RL projected on the
+    //! reflection with the LCR branch open, i.e. far off resonance.  Not
+    //! coupling(): Im RL(f0) changes sign elsewhere than at the match (by
+    //! 2.4% of C2 in a Q=50 model, where the match itself is at |RL| 0.001).
+    double signedMatch() const {
+        double omega = 2.0 * M_PI * f0();
+        auto g = rl(omega), goff = rl(omega, 0.0);
+        return std::real(g * std::conj(goff)) / std::abs(goff);
+    }
+    //! d(f0, signedMatch)/d(C1, C2) of this model, by finite differences:
+    //! [0][j] for the resonant frequency [Hz/F], [1][j] for the match [1/F].
+    std::array<std::array<double, 2>, 2> sensitivities() const {
+        std::array<std::array<double, 2>, 2> s;
+        double f = f0(), m = signedMatch();
+        for(int j: {0, 1}) {
+            LCRFit lcr( *this);
+            double &c = j ? lcr.m_c2 : lcr.m_c1;
+            double dc = c * 1e-5;
+            c += dc;
+            s[0][j] = (lcr.f0() - f) / dc;
+            s[1][j] = (lcr.signedMatch() - m) / dc;
+        }
+        return s;
+    }
     //! The C1 and C2 that make RL exactly 0 at \a target_freq.
     std::pair<double, double> tuneCaps(double target_freq) const {
         double c1, c2;
@@ -469,6 +496,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         m_backlushPlusTh(create<XDoubleNode>("BacklushPlusTh", false)),
         m_timeMax(create<XIntNode>("TimeMax", false)),
         m_scanAssist(create<XBoolNode>("ScanAssist", false)),
+        m_searchMode(create<XComboNode>("SearchMode", false, true)),
         m_origBackMax(create<XIntNode>("OrigBackMax", false)),
         m_fitFunc(create<XComboNode>("FitFunc", false, true)),
         m_backlashRecoveryFactor(create<XDoubleNode>("BacklashRecoveryFactor", false)),
@@ -508,6 +536,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         xqcon_create<XQLineEditConnector>(backlushPlusTh(), m_form->m_edBacklushPlusTh),
         xqcon_create<XQLineEditConnector>(timeMax(), m_form->m_edTimeMax),
         xqcon_create<XQToggleButtonConnector>(scanAssist(), m_form->m_ckbScanAssist),
+        xqcon_create<XQComboBoxConnector>(searchMode(), m_form->m_cmbSearchMode, Snapshot( *m_searchMode)),
         xqcon_create<XQLineEditConnector>(relaySettleTime(), m_form->m_edRelaySettleTime),
         xqcon_create<XQLineEditConnector>(origBackMax(), m_form->m_edOrigBackMax),
         xqcon_create<XQComboBoxConnector>(fitFunc(), m_form->m_cmbFitFunc, Snapshot( *m_fitFunc)),
@@ -534,6 +563,8 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         tr[ *m_backlushPlusTh] = 0.6;
         tr[ *m_timeMax] = 600; //10 min.
         tr[ *m_scanAssist] = false; //rotates an axis through; opt in.
+        tr[ *m_searchMode].add({"Newton, both STMs", "Alternate STMs"});
+        tr[ *m_searchMode] = 0;
         tr[ *m_origBackMax] = 2;
         tr[ *fitFunc()].add({"Abs.&Gaussian", "Abs.&Lorentzian", "Smith&Gaussian", "Smith&Lorentzian"});
         tr[ *m_fitFunc] = 3;
@@ -618,9 +649,11 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
         tr[ *m_useSTM2].setUIEnabled(false);
         tr[ *stm1()].setUIEnabled(false);
         tr[ *stm2()].setUIEnabled(false);
+        tr[ *m_searchMode].setUIEnabled(false);
         tr[ *abortTuning()].setUIEnabled(true);
 
         tr[ *this].resetToFirstStage();
+        tr[ *this].altSlack.fill(0.0);
         tr[ *this].smallestRLAtF0 = 1.0;
         tr[ *this].smallestRLMin = 1.0;
         tr[ *this].iterationCount = 0;
@@ -758,6 +791,7 @@ XAutoLCTuner::clearUIAndPlot(Transaction &tr) {
     tr[ *m_useSTM2].setUIEnabled(true);
     tr[ *stm1()].setUIEnabled(true);
     tr[ *stm2()].setUIEnabled(true);
+    tr[ *m_searchMode].setUIEnabled(true);
     tr[ *abortTuning()].setUIEnabled(false);
 
     const shared_ptr<XNetworkAnalyzer> na__ = tr[ *netana()];
@@ -860,6 +894,96 @@ XAutoLCTuner::scanContinue(Transaction &tr, const Snapshot &shot_this,
     tr[ *this].noImprovement = 0;
     tr[ *m_status] = message + formatString("Minimum %.2f dB at %.1f deg.",
         20.0 * log10(std::max(pts[imin].second, 1e-10)), best);
+    throw XSkippedRecordError(__FILE__, __LINE__);
+}
+//The search as it is done by hand (user): one STM puts the resonance on f0,
+//the other the match on critical coupling, in turn, a few times over.  The
+//STMs' derivatives come from the same test rotations the Newton search
+//makes, but with a backlash their magnitudes are not to be trusted (user),
+//so only two things are taken from them.  The pairing of STMs to quantities,
+//which a slack cannot spoil: it shortens an STM's test, scaling both entries
+//of its column alike, and the test compares products holding one entry of
+//each column.  And a first step size, which every same-direction step then
+//re-measures from the capacitances the fits give -- the capacitors' own
+//positions, whatever the motors' angles say.  A reversal teaches the slack
+//instead.  Simulated with the circuit model, a backlash and fit noise: -20 dB
+//in 1 to 11 moves after the test rotations, for Q 50 to 1000, a backlash up
+//to 60 deg. and STMs disturbing each other's capacitor by 30%.
+void
+XAutoLCTuner::alternateStep(Transaction &tr, const shared_ptr<LCRFit> &fit,
+    double f0, XString &&message) {
+    const Snapshot &shot_this(tr);
+    int last = shot_this[ *this].altLastAxis;
+    if((last >= 0) && shot_this[ *this].fitBeforeStep) {
+        const LCRFit &before = *shot_this[ *this].fitBeforeStep;
+        double move = shot_this[ *this].altLastMove;
+        double d1 = fit->c1() - before.c1(), d2 = fit->c2() - before.c2();
+        bool seen = (fabs(d1) > 3.0 * hypot(fit->c1err(), before.c1err()))
+            || (fabs(d2) > 3.0 * hypot(fit->c2err(), before.c2err()));
+        if( !shot_this[ *this].altLastReversed) {
+            if(seen) {
+                tr[ *this].deltaC1perDeltaSTM[last] = d1 / move;
+                tr[ *this].deltaC2perDeltaSTM[last] = d2 / move;
+            }
+        }
+        else {
+            //How much of the move did not arrive, read along the capacitance
+            //this STM changes the most (relatively).
+            double dc1 = shot_this[ *this].deltaC1perDeltaSTM[last];
+            double dc2 = shot_this[ *this].deltaC2perDeltaSTM[last];
+            bool alongc1 = fabs(dc1) * fit->c2() > fabs(dc2) * fit->c1();
+            double arrived = seen ? fabs(alongc1 ? d1 / dc1 : d2 / dc2) : 0.0;
+            double lost = std::min(fabs(move), std::max(0.0, fabs(move) - arrived));
+            tr[ *this].altSlack[last] = std::max(shot_this[ *this].altSlack[last], lost);
+        }
+    }
+    auto s = fit->sensitivities(); //the circuit's part, fresh from this fit
+    auto jac = [&](int e, int i) { //d(f0 or match)/d(STM i)
+        return s[e][0] * shot_this[ *this].deltaC1perDeltaSTM[i]
+            + s[e][1] * shot_this[ *this].deltaC2perDeltaSTM[i];
+    };
+    //|J(f,a) J(m,b)| > |J(f,b) J(m,a)| is what makes alternate steps
+    //converge; every round then shrinks the errors by k.
+    if(shot_this[ *this].altFreqAxis < 0)
+        tr[ *this].altFreqAxis = (fabs(jac(0, 0) * jac(1, 1)) >= fabs(jac(0, 1) * jac(1, 0))) ? 0 : 1;
+    int fa = shot_this[ *this].altFreqAxis;
+    double k = fabs(jac(0, 1 - fa) * jac(1, fa) / (jac(0, fa) * jac(1, 1 - fa)));
+    int axis = (last < 0) ? fa : 1 - last; //the frequency first, then in turn
+    bool freq = (axis == fa);
+    double err = freq ? (fit->f0() - f0 * 1e6) : fit->signedMatch();
+    double gain = jac(freq ? 0 : 1, axis);
+    message += formatString("Alternate: STM%d sets the frequency, STM%d the match, k=%.2f.\n",
+        fa + 1, 2 - fa, k);
+    if( !std::isfinite(gain) || (gain == 0.0)) {
+        tr[ *this].resetToFirstStage();
+        tr[ *m_status] = message + "No sensitivity to steer by; measuring the STMs again.";
+        throw XSkippedRecordError(__FILE__, __LINE__);
+    }
+    double move = -shot_this[ *this].sor * err / gain;
+    double trust = shot_this[ *this].stmTrustArea[axis];
+    if((trust > 0.0) && (fabs(move) > trust))
+        move = (move > 0) ? trust : -trust;
+    bool reversed = (move * shot_this[ *this].lastDirection(axis) < 0);
+    double slack = reversed ? shot_this[ *this].altSlack[axis] : 0.0;
+    move += (move > 0) ? slack : -slack;
+    if(freq)
+        message += formatString("STM%d: resonance %+.1f kHz off", axis + 1, err * 1e-3);
+    else
+        message += formatString("STM%d: match %+.3f", axis + 1, err);
+    message += formatString(" -> %+.1f deg.", move);
+    if(slack > 0.0)
+        message += formatString(" (%.1f deg. of it for the slack)", slack);
+
+    tr[ *this].fitBeforeStep = fit;
+    tr[ *this].altLastAxis = axis;
+    tr[ *this].altLastMove = move;
+    tr[ *this].altLastReversed = reversed;
+    tr[ *this].stmDelta[axis] = move;
+    tr[ *this].targetSTMValues[axis] += move;
+    tr[ *this].timeSTMChanged = XTime::now();
+    tr[ *this].fitOrig.reset(); //no test rotation pending
+    tr[ *this].fitRotated.reset();
+    tr[ *m_status] = message;
     throw XSkippedRecordError(__FILE__, __LINE__);
 }
 void
@@ -1203,6 +1327,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     }
 
     int target_stm = ((shot_this[ *this].deltaC1perDeltaSTM[0] == 0.0) && stm1__) ? 0 : 1;
+    //One STM leaves nothing to alternate: both modes are then the same search.
+    bool alternating = ((int)shot_this[ *searchMode()] == 1) && stm1__ && stm2__;
 
     if( !shot_this[ *this].fitOrig) {
     //The stage just before +Delta rotation.
@@ -1237,6 +1363,17 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         if((shot_this[ *this].iterationCount > shot_this[ *origBackMax()]) && (rl_at_f0 - rl_at_f0_sigma > shot_this[ *this].smallestRLAtF0)) {
             message += formatString("The last %d iterations made situation worse.\n", shot_this[ *this].iterationCount - 1);
             rollBack(tr, std::move(message));
+        }
+        if(alternating && (shot_this[ *this].deltaC1perDeltaSTM[0] != 0.0)
+                && (shot_this[ *this].deltaC1perDeltaSTM[1] != 0.0)) {
+            //Both STMs measured: the search goes on without a test rotation.
+            //A fit too poor to steer by moves nothing, and iterationCount
+            //above bounds how long that is waited out.
+            if(rlmin_sigma < 0.0) {
+                tr[ *m_status] = message + "Alternate: waiting for a fit to steer by.";
+                throw XSkippedRecordError(__FILE__, __LINE__);
+            }
+            alternateStep(tr, lcrfit, f0, std::move(message));
         }
         tr[ *this].fitOrig = lcrfit;
         //follows the last rotation direction.
@@ -1388,6 +1525,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         }
     }
     //Final stage.
+    if(alternating)
+        alternateStep(tr, lcrfit, f0, std::move(message)); //the STMs were just measured
     std::array<double, 2> drot{{0.0, 0.0}}; //rotations.
     double c1, c2;
     std::tie(c1, c2) = lcrfit->tuneCaps(f0 * 1e6); //suggests capacitances.

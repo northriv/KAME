@@ -701,6 +701,36 @@
       </layout>
     </item>
     <item>
+     <layout class="QHBoxLayout" name="horizontalLayoutSearchMode">
+      <item>
+       <widget class="QLabel" name="labelSearchMode">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Search</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QComboBox" name="m_cmbSearchMode">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>1</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Newton: both STMs at once, from the fitted circuit. Alternate STMs: one at a time, as by hand -- the STM the resonant frequency is relatively more sensitive to sets the frequency, the other the match. Robust against backlash.</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item>
        <widget class="QCheckBox" name="m_ckbScanAssist">
         <property name="toolTip">
          <string>When the step-by-step search stops improving but the capacitance derivatives are already known, rotate one axis through and read the minimum off the trajectory.</string>
@@ -847,6 +877,7 @@
   <tabstop>m_edBacklushPlusTh</tabstop>
   <tabstop>m_edOrigBackMax</tabstop>
   <tabstop>m_edTimeMax</tabstop>
+  <tabstop>m_cmbSearchMode</tabstop>
   <tabstop>m_ckbScanAssist</tabstop>
   <tabstop>m_edRelaySettleTime</tabstop>
   <tabstop>m_cmbFitFunc</tabstop>
