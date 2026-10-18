@@ -100,9 +100,37 @@ public:
         v += std::norm(std::abs(lcr.rl(2.0 * M_PI * lcr.f0())) - rl0);
         return sqrt(v);
     }
-    //! Obtains expected C1 and C2.
+    //! The C1 and C2 that make RL exactly 0 at \a target_freq.
     std::pair<double, double> tuneCaps(double target_freq) const {
+        double c1, c2;
+        if(matchingCaps(target_freq, c1, c2))
+            return {c1, c2};
+        //No physical match in this circuit: the nearest the iteration gets.
         return tuneCapsInternal(target_freq, 0.0, isCouplingTight());
+    }
+    //! RL = 0 at \a f, in closed form.  zL = 50 means
+    //!   j w C2 + 1/(R1 + j X) = G := 1/(50 - R2), real, X = w L1 - 1/(w C1);
+    //! the real part fixes X, the imaginary part then C2:
+    //!   X = sqrt(R1/G - R1^2),  w C2 = X G / R1,  C1 = 1/(w (w L1 - X)).
+    //! The other root, X < 0, would need C2 < 0, so the match is unique and
+    //! tight/loose coupling has no say in it.  False when there is none: R1
+    //! not below 50 - R2, or w L1 not above X.  This replaced 100 rounds of
+    //! the fixed-point iteration below, which at high Q stopped short of the
+    //! match (perfect motors would still have needed a second step at Q 1000)
+    //! and, converged, plateaued between -34 and -44 dB in a model, its C1
+    //! equation being the resonance rather than the match.
+    bool matchingCaps(double f, double &c1, double &c2) const {
+        double omega = 2.0 * M_PI * f;
+        double g = 1.0 / (50.0 - r2());
+        double xsq = r1() / g - r1() * r1();
+        if( !(g > 0.0) || !(xsq > 0.0))
+            return false;
+        double x = sqrt(xsq);
+        if( !(omega * l1() > x))
+            return false;
+        c1 = 1.0 / (omega * (omega * l1() - x));
+        c2 = x * g / (r1() * omega);
+        return true;
     }
     void setTunedCaps(double target_freq, double target_rl, bool tight_couple) {
         std::tie(m_c1, m_c2) = tuneCapsInternal(target_freq, target_rl, tight_couple);
