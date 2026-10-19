@@ -224,10 +224,12 @@ processes — helped by the void / tail-call FS=false free path.  At the
 **1 MiB** large tier kame leads at every thread count: system is
 lock-serialised, mimalloc collapses to ~8 M single-thread / ~24 M aggregate,
 while kame stays memory-warm at 163 / 627 M ops/s.  The one band where
-mimalloc leads is the **64–256 KiB** §19 large tier (kame ~185 vs ~358
-single-thread, 741 vs 1357 across 4 processes): there the per-free radix
-lookup plus recycle-cache bookkeeping cost more than mimalloc's segment
-scheme — a known weaker tier.
+mimalloc leads is the **64–256 KiB** §15 dedicated-chunk tier (kame ~185
+vs ~358 single-thread, 741 vs 1357 across 4 processes): there the per-free
+radix lookup plus recycle-cache bookkeeping cost more than mimalloc's
+segment scheme — a known weaker tier, which §ded-fast (below) has since
+cut to under half the instructions; these M5 rows predate it and are yet to
+be re-measured.
 
 Against the previous tables (v1.2.1, `2e8f940fd`) mimalloc and jemalloc
 reproduce to about 2 %, and kame is 0.95× at 1 KiB and 0.89× at 16 KiB
@@ -286,6 +288,36 @@ ring of 64 B blocks with 32 in flight 50 vs 28 M ops/s; `xmalloc-test` 64 B
 `design/GAME_FRAME_BENCH.md`, the bounds `design/RT_READINESS.md`.  The
 M5 tables above include it, and the cap's 1 KiB / 16 KiB cost.
 
+### §ded-fast — the dedicated tier off the thread's page
+
+A request above the bucketed range (32 KiB) up to 4 MiB − 4 KiB takes a
+whole chunk of 256 KiB units (§15), recycled through the thread's L1 cache
+(§26/§28).  A loop that mallocs and frees such a block uses one L1 slot
+over and over, yet it reached that slot through the general machinery: six
+calls to `allocate_dedicated_chunk`, the L1's own thread_locals (a
+`_tlv_get_addr` call each on macOS, a `_tls_index` walk each on Windows),
+and on every reuse a re-stamp of the back-offset bytes and four header
+words the block already held; on free the lean path declined (a dedicated
+chunk's owner slot is 0) and `deallocate_cold` derived the chunk again.  A
+64 KiB pair was 292 instructions against 94 at 16 KiB (gcc, x86-64,
+`perf stat`).
+
+`KameTlsPage` now carries a copy of the L1's base and index limit (set when
+the L1 is armed, zeroed by its thread-exit drain).  `malloc` and `operator
+new` reach a leaf that pops the L1 off that page and hands a block that was
+a dedicated chunk back as it is; the lean free sends a chunk whose
+back-offset byte has bit 7 set to a leaf that pushes it onto the L1, or past
+a full row to the global L2.  Anything else — a block of bucket origin
+(§34), an empty or unarmed L1, a torn-down thread — goes the way it went.
+The pair is now 135 instructions (42–52 cycles against 82–96 at 64 KiB –
+1 MiB, `perf` under WSL on the Windows host below).  There, interleaved
+(median of 9), 64 KiB / 256 KiB / 1 MiB run 2.24× / 2.51× / 2.61×
+single-thread, and a producer → consumer pair of threads
+(`bench_xthread_pool -w 2`) 1.18× at 64 KiB and 1.22× at 256 KiB.  64 B to
+16 KiB run the same machine code as before; their interleaved medians stayed
+within this desktop's ±5 % layout jitter.  The M5 Ultra, Intel Mac and
+Ohtaka tables in this section predate it.
+
 ### Third-party suite cross-check (mimalloc-bench, M5 Ultra)
 
 An independent run of the contention-heavy multi-thread benches from
@@ -318,9 +350,10 @@ cross-thread churn kame leads, 6.46 against jemalloc's 5.70 and mimalloc's
 malloc plus kame's `free` forwarding — 2.40.)
 
 **Intel Xeon E5-1630 v4 (x86-64, 4-core / 8-thread, Windows 11), single
-thread, M ops/s** — kame at `e0974e402`, llvm-mingw clang 17, `-O3`, median
-of 5 via `bench_compare.sh`, re-measured 2026-10-13
-(`design/THREAD_LIST_CHECK.md`, the Windows run).  On
+thread, M ops/s** — kame at `17a30aaae` (§ded-fast), llvm-mingw clang 17,
+`-O3`, median of 5 via `bench_compare.sh`, re-measured 2026-10-20 (the
+2026-10-13 run of `e0974e402` is `design/THREAD_LIST_CHECK.md`'s Windows
+run).  On
 Windows the `kame` column is the **direct pool route** (`bench_loop_pool` →
 `kame_pool_malloc`): PE/COFF has no `LD_PRELOAD`, and llvm-mingw resolves the
 plain `malloc` statically (no IAT entry for the §31 redirect to patch), so —
@@ -330,31 +363,35 @@ malloc-override layer.  mimalloc/jemalloc are not standard on Windows
 
 | size      |  system |     kame |
 |-----------|---------|----------|
-| 64B       |      35 |  **315** |
-| 1 KiB     |      36 |  **247** |
-| 16 KiB    |      36 |  **256** |
-| 64 KiB    |      10 |   **66** |
-| 256 KiB   |      10 |   **65** |
-| 1 MiB     |      ~0 |   **63** |
-| 4 MiB     |      ~0 |   **35** |
+| 64B       |      41 |  **325** |
+| 1 KiB     |      39 |  **242** |
+| 16 KiB    |      39 |  **245** |
+| 64 KiB    |      11 |  **159** |
+| 256 KiB   |      11 |  **159** |
+| 1 MiB     |      ~0 |  **158** |
+| 4 MiB     |      ~0 |   **36** |
 
 **Same host, 4 processes aggregate, M ops/s** — median of 5:
 
 | size      |  system |     kame |
 |-----------|---------|----------|
-| 64B       |     130 | **1157** |
-| 16 KiB    |     136 |  **902** |
-| 64 KiB    |      37 |  **243** |
-| 1 MiB     |      ~0 |  **220** |
+| 64B       |     137 | **1185** |
+| 16 KiB    |     139 |  **863** |
+| 64 KiB    |      38 |  **638** |
+| 1 MiB     |      ~0 |  **670** |
 
 The **system ~0 at ≥ 1 MiB** is the Windows UCRT per-call `VirtualAlloc` /
 `VirtualFree` cliff (the same shape mimalloc / jemalloc hit at this tier on
 Linux): a tight 1 MiB `malloc`/`free` loop drops below 0.5 M ops/s, while
-kame's two-level recycle cache stays memory-warm at 35–220 M ops/s.  Single
+kame's two-level recycle cache stays memory-warm at 36–670 M ops/s.  Single
 rows of one `bench_compare.sh` run can be off by a quarter on this desktop
-(64 KiB came out 48 in the run before this one; interleaved, 66–68 for both
+(64 KiB came out 48 in a run of `e0974e402`; interleaved, 66–68 for both
 builds), so a change in one row wants an interleaved A/B before it is
-believed.
+believed.  The 32 KiB – 4 MiB rows are §ded-fast's (above): against
+`e0974e402` 64 KiB / 256 KiB / 1 MiB went 66 / 65 / 63 → 159 / 159 / 158
+single-thread and 64 KiB / 1 MiB 243 / 220 → 638 / 670 on 4 processes; the
+4 MiB row is the §19 mmap tier, which it does not touch, and the bucketed
+rows run the same machine code as before.
 
 Against the previous table's `8f2e6980` (June), the thread lists
 (`5fc34e052`) had cost this Broadwell-EP 64 B a fifth and 16 KiB a third,
@@ -480,8 +517,9 @@ hot/cold splits put kame ahead at 64 B, on x86-64 mimalloc's thread-local
 bump allocator keeps the edge on the smallest bucket — by 1.10× now, from
 1.26× at v1.2.1, since `78e57424c` reads a 64 B slot's bucket one load off
 `p` (1.44× on this host).  mimalloc also leads at **64–256 KiB**, where
-kame's dedicated-chunk tier runs at 81–87 M against its 91–94, and glibc at
-**4 MiB** single-thread (69 vs 58 M; see the `M_MMAP_THRESHOLD` note below).
+kame's dedicated-chunk tier runs at 81–87 M against its 91–94 (measured
+before §ded-fast, above), and glibc at **4 MiB** single-thread (69 vs 58 M;
+see the `M_MMAP_THRESHOLD` note below).
 
 Interleaved on one node against v1.2.1 (`bench_ab.sh --only loop`, median
 of 9; `design/README_BENCH_OHTAKA.md` §5.2) the allocator is 1.16× / 1.26× /
@@ -1322,6 +1360,7 @@ four-tier general allocator.  Selected milestones (full history in `git log`):
 | 75    | Realtime per-thread gating (deferred reclaim + capped backlog), `kame_pool_prewarm()` (page-touching), `kame_pool_rt_drain()`, `kame::rt_section`, violation counters, and the written contract |
 | thread-list / fit | owner frees onto per-thread per-bucket lists; fit lists for bitmap room; FS=true misses claim a whole bitmap word — no walk over chunks on the allocation path.  §tl-cap: a list holds ≤ 4 MiB, past that a free returns its own slot; idle buckets give back ≤ 256 slots per new chunk |
 | page-bucket | the owner free reads the slot's bucket one load off `p` — `RegionMeta::unit_bucket` (FS=true), a per-region page table (full tier) — recovering what the thread lists cost x86 at 64 B and Windows at 16 KiB |
+| ded-fast | the dedicated tier (32 KiB – 4 MiB) pops and pushes the thread's L1 off `KameTlsPage`, and hands a recycled dedicated chunk back without re-stamping it — 292 → 135 instructions per 64 KiB pair, 2.2–2.6× on x86 |
 
 ## Acknowledgements
 
