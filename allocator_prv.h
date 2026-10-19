@@ -3001,6 +3001,19 @@ struct KameTlsPage {
     // `slots`), which would turn `AllocSlot slots[N]` into `AllocSlot [N]` and
     // produce a "decomposition declaration not permitted" error when this header
     // is included from a Qt TU (e.g. kame/main.cpp → kame/allocator.h → here).
+    //! (§ded-fast) This thread's large-recycle L1 (allocator.cpp §28), copied
+    //! here so the dedicated-chunk fast paths (32 KiB < size ≤ 4 MiB − K_MAX)
+    //! reach it off the page the free path already holds: the L1's own
+    //! thread_locals are a `_tlv_get_addr` call each on macOS and a
+    //! `_tls_index` walk each on Windows.  `lrc_l1` is the L1 array,
+    //! `lrc_l1_idx_end` one past the largest index the thread's byte budget
+    //! admits; both are zero until `l1_base()` arms the L1, and `l1_drain()`
+    //! zeroes them again, so `idx < lrc_l1_idx_end` alone means "armed, not
+    //! drained, and slots[idx] in bounds".  `tls_l1` stays the record the
+    //! drain and `kame_pool_trim` read.  Last, so the hot block above keeps
+    //! its offsets.
+    void      *lrc_l1;
+    uintptr_t  lrc_l1_idx_end;
 };
 // `torn_down` reuses what used to be alignment padding, so the layout above is now
 // load-bearing twice over: it must stay 16 B of header (or the hot `m_slots` cache
@@ -3015,7 +3028,8 @@ static_assert(offsetof(KameTlsPage, m_slots)
     "KameTlsPage header must be exactly its three declared fields — no padding, "
     "and nothing inserted before the hot m_slots array");
 static_assert(sizeof(KameTlsPage)
-                  == offsetof(KameTlsPage, m_slots) + sizeof(AllocSlot) * ALLOC_NUM_BUCKETS,
+                  == offsetof(KameTlsPage, m_slots) + sizeof(AllocSlot) * ALLOC_NUM_BUCKETS
+                     + sizeof(void *) + sizeof(uintptr_t),
     "KameTlsPage must stay packed — no trailing padding");
 
 // Platform split for the TLS page storage:
