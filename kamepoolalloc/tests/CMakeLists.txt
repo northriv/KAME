@@ -256,6 +256,21 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_thread_exit_unarmed_test_dynamic alloc_thread_exit_unarmed_test.cpp)
     target_link_libraries(alloc_thread_exit_unarmed_test_dynamic kamepoolalloc Threads::Threads)
 
+    # (§ded-fast) The dedicated tier's fast paths: every unit count, L1
+    # overflow, bucket-origin blocks in the shared cache, calloc / realloc /
+    # aligned, cross-thread frees, and an allocation after the thread's L1
+    # drain.  Both linkages, as the thread-exit tests above.
+    add_executable(alloc_dedicated_fast_test
+        alloc_dedicated_fast_test.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../allocator.cpp)
+    target_compile_definitions(alloc_dedicated_fast_test PRIVATE KAMEPOOLALLOC_DYLIB)
+    target_include_directories(alloc_dedicated_fast_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/..)
+    target_link_libraries(alloc_dedicated_fast_test Threads::Threads ${CMAKE_DL_LIBS})
+
+    add_executable(alloc_dedicated_fast_test_dynamic alloc_dedicated_fast_test.cpp)
+    target_link_libraries(alloc_dedicated_fast_test_dynamic kamepoolalloc Threads::Threads)
+
     # (§28) Cap-eviction (kame_pool_set_large_cache_cap synchronous shrink) test.
     # Verifies the two-phase K-then-N reduction, MT race-safety, and round-trip
     # behaviour.  Pool-only (uses the kame_pool_* C API directly).
@@ -452,6 +467,8 @@ if(USE_KAME_ALLOCATOR)
     add_test(NAME alloc_tsd_exclusivity_mid_test COMMAND alloc_tsd_exclusivity_var_test --mid)
     add_test(NAME alloc_thread_exit_unarmed_test COMMAND alloc_thread_exit_unarmed_test)
     add_test(NAME alloc_thread_exit_unarmed_test_dynamic COMMAND alloc_thread_exit_unarmed_test_dynamic)
+    add_test(NAME alloc_dedicated_fast_test COMMAND alloc_dedicated_fast_test)
+    add_test(NAME alloc_dedicated_fast_test_dynamic COMMAND alloc_dedicated_fast_test_dynamic)
     add_test(NAME alloc_evict_test COMMAND alloc_evict_test)
     add_test(NAME alloc_stats_test COMMAND alloc_stats_test)
     add_test(NAME alloc_realtime_mode_test COMMAND alloc_realtime_mode_test)

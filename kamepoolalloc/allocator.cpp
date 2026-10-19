@@ -675,6 +675,10 @@ namespace {
 enum { LRC_MMAP = 0, LRC_CHUNK = 1 };
 char *large_recycle_pop(std::size_t need, unsigned kind) noexcept;
 bool  large_recycle_push(char *base, std::size_t size, unsigned kind) noexcept;
+// (§ded-fast) The dedicated-chunk fast paths, defined with the L1 below.
+KAME_NOINLINE void deallocate_dedicated(void *p, KameTlsPage *pg) noexcept;
+KAME_NOINLINE void *new_redirected_dedicated(std::size_t size) noexcept;
+KAME_NOINLINE void *kame_malloc_dedicated(std::size_t size) noexcept;
 }
 
 // Per-thread cleanup at thread exit.  chunks are no longer
@@ -3885,7 +3889,19 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 		// full pg/region/chunk_base re-derivation (≈ the 1 KiB churn win).
 		return deallocate_fs_false_owner(chunk_base, p, pg);
 	}
-	return deallocate_cold(p);  // owner-mismatch / dedicated / cross / released
+	// (§ded-fast) A dedicated chunk (32 KiB – 4 MiB): bit 7 of the back_off
+	// byte.  Only this side of the owner compare, so the owner frees above
+	// pay nothing for it; its helper puts the chunk on this thread's L1 or
+	// hands `p` to deallocate_cold as before.  The byte is READ AGAIN, and
+	// the helper derives chunk_base again, rather than holding either across
+	// the compare: that took an eighth and ninth register, and Win64 has
+	// seven volatile ones, so every free -- the 64 B owner free included --
+	// pushed and popped rsi/rdi for them.  The volatile read keeps the
+	// compiler from reusing the earlier load.
+	if((*reinterpret_cast<volatile const std::uint8_t *>(
+	        &rmeta->back_offset[unit_idx]) & 0x80u) != 0u)
+		return deallocate_dedicated(p, pg);
+	return deallocate_cold(p);  // owner-mismatch / cross / released
 }
 
 // FS=false owner-free helper — split out of the lean `deallocate` so the
@@ -4459,6 +4475,17 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 	// window means the cached chunk's actual size (kept in DEDICATED_SIZE)
 	// is ≥ this request — size_of stays truthful via that field.
 	if(char *cached = large_recycle_pop(chunk_size, LRC_CHUNK)) {
+		// (§ded-fast) A DEDICATED-origin block -- size_info still the
+		// DEDICATED sentinel -- is the complete dedicated chunk it was when
+		// freed: back_off tagged 0x80, palloc == the chunk, DEDICATED_SIZE
+		// its actual size, the owner slot 0.  Nothing below would change it,
+		// so hand it back as it is.  The test fails safe: a size_info that
+		// lost the sentinel (reserve_regions' prefault writes byte 0 of every
+		// page of a published region) takes the full re-stamp below.
+		if(static_cast<std::uint32_t>(*reinterpret_cast<std::uint64_t *>(
+		       cached + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET))
+		   == ALLOC_CHUNK_DEDICATED_SIZEINFO)
+			return cached + ALLOC_CHUNK_K_MAX;
 		// (§34) The shared LRC_CHUNK slot may now hand back a BUCKET-origin
 		// block (units claimed, but back_off tagged plain `u` and the
 		// header holding a stale PoolAllocator size_info/palloc instead of
@@ -4841,10 +4868,10 @@ void *cold_first_access(unsigned bucket, std::size_t size) noexcept {
 // `g_tls_page.owner_id` defaults to 0 (unassigned).
 // `g_tls_page.m_slots[]` defaults to all-zeros (empty lists).
 #if KAME_FAST_TSD
-ALLOC_TLS    KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, {}};
+ALLOC_TLS    KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, {}, nullptr, 0};
 ALLOC_TLS_IE KameTlsPage *tls_page_ie = nullptr;
 #else
-ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, {}};
+ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, {}, nullptr, 0};
 #endif
 
 // (§hot-tls teardown sentinel) NOT thread-local: one process-global page,
@@ -4852,7 +4879,7 @@ ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/0, 
 // owner_id 0 guarantees the hot owner-check never matches it; `torn_down` is SET
 // statically so `kame_thread_torn_down()` reports torn-down through this page as
 // well as through a real page whose cleanup has run.
-KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/1, {}};
+KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, /*torn_down=*/1, {}, nullptr, 0};
 
 // Cold off-ramp for the lean freelist-pop entries (`new_redirected` and
 // `new_redirected_large`; declared in allocator_prv.h): an empty owner
@@ -4896,8 +4923,10 @@ static void *new_redirected_large_tail(std::size_t size) noexcept {
 //     runs the full kame_page() init, the activation-gated
 //     cold_first_access, or the chunk-vtable slow_allocate.
 void *new_redirected_large(std::size_t size) noexcept {
+    // (§ded-fast) Above the buckets: the dedicated tier's L1 pop, whose miss
+    // (and every size above that tier) tail-calls new_redirected_large_tail.
     if(__builtin_expect(size > ALLOC_MAX_BUCKETED_SIZE, 0))
-        return new_redirected_large_tail(size);
+        return new_redirected_dedicated(size);
     // (§hot-tls) Mirror new_redirected's fast path: pop the thread's list
     // for the bucket, `m_slots[bucket].freelist_head` (§thread-list) --
     // each free slot's first word links the next.
@@ -5180,7 +5209,11 @@ static void kame_free(void *p) noexcept {
 // stayed on the hot side — ~2-3 of the ~10 glue insns/pair behind the
 // 64 B gap vs mimalloc).
 KAME_NOINLINE static void *kame_malloc_cold(std::size_t n) noexcept {
-	void *p = (n > (std::size_t)ALLOC_SIZE23)
+	// (§ded-fast) Above the buckets kame_malloc_slow has already probed the
+	// dedicated tier's L1, so go past new_redirected_large's second probe.
+	void *p = (n > (std::size_t)ALLOC_MAX_BUCKETED_SIZE)
+	              ? new_redirected_large_tail(n)
+	          : (n > (std::size_t)ALLOC_SIZE23)
 	              ? new_redirected_large(n)
 	              : new_redirected_cold(
 	                    static_cast<unsigned int>((n + 15u) >> 4), n);
@@ -5193,6 +5226,10 @@ KAME_NOINLINE static void *kame_malloc_cold(std::size_t n) noexcept {
 // else tail-calls the cold continuation.  With the errno store after
 // new_redirected_large in one function, its call kept a frame on the hit
 // too -- 3 of the instructions a 1 KiB / 16 KiB malloc runs.
+// (§ded-fast) The dedicated tier above them (32 KiB – 4 MiB) tail-calls its
+// own L1 pop, kame_malloc_dedicated, whose miss comes back to the cold
+// continuation; a jump target changed, not an instruction added, on the
+// bucketed hit.
 KAME_NOINLINE KAME_HOT_ALIGN static void *kame_malloc_slow(std::size_t n) noexcept {
 	if(n > (std::size_t)ALLOC_SIZE23 && n <= (std::size_t)ALLOC_MAX_BUCKETED_SIZE) {
 		unsigned int bucket = bucket_for_size(n);
@@ -5204,6 +5241,9 @@ if(char *head = pg->m_slots[bucket].freelist_head) {
 			}
 		}
 	}
+	else if(n > (std::size_t)ALLOC_MAX_BUCKETED_SIZE
+	        && n <= (std::size_t)ALLOC_MAX_CHUNK_SIZE - (std::size_t)ALLOC_CHUNK_K_MAX)
+		return kame_malloc_dedicated(n);
 	return kame_malloc_cold(n);
 }
 
@@ -7346,6 +7386,12 @@ inline L1KArray *l1_base() noexcept {
         int cut_idx = lrc_idx_natural(cut_size);
         if(cut_idx > LRC_N_MAX_L1) cut_idx = LRC_N_MAX_L1;
         tls_l1_max_idx = cut_idx;
+        // (§ded-fast) The page's copy for the fast paths, in the thread's own
+        // page by name, where l1_drain() zeroes it.  Both callers have just
+        // seen the thread live (kame_thread_torn_down() false), so that is
+        // also the page kame_page() answers, and the fast paths read.
+        g_tls_page.lrc_l1 = l1;
+        g_tls_page.lrc_l1_idx_end = (uintptr_t)cut_idx + 1u;
         tls_l1_drain.touch();                                          // arm thread-exit drain
     }
     return l1;
@@ -7359,7 +7405,12 @@ inline char *l1_pop_fit(std::size_t need, unsigned kind) noexcept {
     // L1 here either — l1_base() would bump g_lrc_l1_threads again (live-thread
     // counter drift → undersized L1 cuts for the threads that remain).  Fall to
     // the global L2 / fresh claim instead.
-    if(__builtin_expect(kame_thread_torn_down(), 0)) return nullptr;
+    // Nor may a DRAINED thread re-arm it, torn down or not: a thread_local
+    // destructor that runs after ~L1Drain and allocates above 32 KiB would arm
+    // a second L1 that nothing drains, and count the thread twice in
+    // g_lrc_l1_threads.  `kame_thread_torn_down()` first: on macOS
+    // `s_l1_drained` is a TLV access, unsafe once the thread is torn down.
+    if(__builtin_expect(kame_thread_torn_down() || s_l1_drained, 0)) return nullptr;
     L1KArray *l1 = l1_base();
     int idx = lrc_idx(need, kind);
     if(idx > tls_l1_max_idx) return nullptr;
@@ -7391,8 +7442,10 @@ inline bool l1_push(char *base, std::size_t size, unsigned kind) noexcept {
     // permanent stranding (a narrow re-opening of the 30ea1daa leak class).
     // kame_thread_torn_down() catches it for ALL threads, armed or not, and
     // mirrors the bucket-tier sentinel guard; recycle_push then falls to
-    // global_push (L2, no allocator TLS) — safe at teardown.
-    if(__builtin_expect(s_l1_drained || kame_thread_torn_down(), 0)) return false;
+    // global_push (L2, no allocator TLS) — safe at teardown.  Torn down is
+    // tested first: on macOS `s_l1_drained` is a TLV access, which the page
+    // flag keeps us from making once the thread's TLV storage may be gone.
+    if(__builtin_expect(kame_thread_torn_down() || s_l1_drained, 0)) return false;
     L1KArray *l1 = l1_base();
     int idx = lrc_idx(size, kind);
     if(idx > tls_l1_max_idx) return false;
@@ -7611,6 +7664,15 @@ inline bool recycle_push(char *base, std::size_t size, unsigned kind) noexcept {
 void l1_drain() noexcept {
     L1KArray *l1 = tls_l1;
     if( !l1) return;                                                   // L1 never used on this thread
+    // (§ded-fast) Disarm the page's copy first, so no fast path pushes into
+    // or pops from an L1 that is being, or has been, flushed.  The thread's
+    // OWN page by name, where l1_base() put the copy -- not kame_page(),
+    // which on macOS answers whatever the fast-TSD slot holds (the shared
+    // teardown sentinel once the allocator cleanup ran, null if the slot was
+    // cleared), so the disarm cannot depend on the order of thread exit.
+    // The page lives in the same thread storage as `tls_l1`, read above.
+    g_tls_page.lrc_l1 = nullptr;
+    g_tls_page.lrc_l1_idx_end = 0;
     for(int k = 0; k < LRC_K_L1; k++) {
         for(int idx = 0; idx <= LRC_N_MAX_L1; idx++) {
             char *b = l1[k].slots[idx];
@@ -7643,6 +7705,178 @@ char *large_recycle_pop(std::size_t need, unsigned kind) noexcept {
 bool large_recycle_push(char *base, std::size_t size, unsigned kind) noexcept {
 	return recycle_push(base, size, kind);
 }
+
+// =====================================================================
+// (§ded-fast) Fast paths of the dedicated tier (32 KiB < size ≤ 4 MiB − K_MAX)
+// =====================================================================
+// A thread that mallocs and frees a dedicated-tier block in a loop uses one
+// L1 slot over and over, but reached it through the general machinery: a
+// 64 KiB malloc + free ran ~290 instructions (gcc, x86-64; a 16 KiB pair
+// runs ~94) -- six calls deep to allocate_dedicated_chunk, then
+// recycle_pop_fit, then a re-stamp of the back_offset bytes and four header
+// words the block already held; on free the lean `deallocate` declined
+// (a dedicated chunk's owner slot is 0) and deallocate_cold re-derived the
+// chunk before recycle_push.  The L1's thread_locals cost a
+// `_tlv_get_addr` call each on macOS and a `_tls_index` walk each on
+// Windows, where recycle_pop_fit also saved and restored eight xmm
+// registers (the Win64 ABI's callee-saved six to fifteen) for the
+// vectorised L2 loop inlined into it.
+//
+// These paths read the L1 off the page the caller already holds
+// (KameTlsPage::lrc_l1 / lrc_l1_idx_end) and touch nothing else: an L1
+// that is unarmed or drained reads idx_end 0, a torn-down thread is turned
+// away first, and anything they cannot do -- an empty or full L1, a block
+// of bucket origin -- goes to the general path, which is unchanged.  They
+// keep the L1's layout and semantics exactly (chunk_base stored, same
+// index, same order of slots from the thread's start), so l1_pop_fit,
+// l1_push, l1_drain and kame_pool_trim see the same cache.
+
+// The slot scans below stay loops: unrolled, as clang does the free's, the
+// 32 probes are a kilobyte of code for a hit that, in a steady loop, is the
+// first.
+#if defined(__clang__)
+#  define KAME_LRC_NO_UNROLL _Pragma("clang loop unroll(disable)")
+#elif defined(__GNUC__)
+#  define KAME_LRC_NO_UNROLL _Pragma("GCC unroll 1")
+#else
+#  define KAME_LRC_NO_UNROLL
+#endif
+
+// L1 index of an N-unit dedicated chunk -- lrc_idx(N << ALLOC_MIN_CHUNK_SHIFT,
+// LRC_CHUNK) -- for N = 1..ALLOC_MAX_CHUNK_UNITS: a load where lrc_idx is a
+// count of leading zeros and a dozen operations (a software one on MSVC).
+constexpr int lrc_chunk_idx_of_units(unsigned units) noexcept {
+    const std::size_t s = (std::size_t)units << LRC_LO_LOG2;
+    if(s <= LRC_LO) return 0;
+    int msb = LRC_LO_LOG2;
+    while(((std::size_t)1 << (msb + 1)) <= s) ++msb;
+    const int i = 4 * (msb - LRC_LO_LOG2) + (int)((s >> (msb - 2)) & 0x3u);
+    return (i > LRC_CHUNK_BND) ? LRC_CHUNK_BND : i;
+}
+struct LrcChunkIdxTable { std::uint8_t of_units[ALLOC_MAX_CHUNK_UNITS + 1]; };
+constexpr LrcChunkIdxTable make_lrc_chunk_idx_table() noexcept {
+    LrcChunkIdxTable t{};
+    for(unsigned u = 1; u <= (unsigned)ALLOC_MAX_CHUNK_UNITS; ++u)
+        t.of_units[u] = (std::uint8_t)lrc_chunk_idx_of_units(u);
+    return t;
+}
+constexpr LrcChunkIdxTable kLrcChunkIdx = make_lrc_chunk_idx_table();
+static_assert(kLrcChunkIdx.of_units[1] == 0 && kLrcChunkIdx.of_units[2] == 4
+              && kLrcChunkIdx.of_units[3] == 6 && kLrcChunkIdx.of_units[8] == 12
+              && kLrcChunkIdx.of_units[9] == 12
+              && kLrcChunkIdx.of_units[ALLOC_MAX_CHUNK_UNITS] == LRC_CHUNK_BND,
+              "the units -> L1 index table must follow lrc_idx_natural");
+
+// A dedicated-origin block: size_info still holds the DEDICATED sentinel
+// (see allocate_dedicated_chunk's recycled branch for what that implies).
+inline bool lrc_dedicated_origin(const char *chunk_base) noexcept {
+    return static_cast<std::uint32_t>(*reinterpret_cast<const std::uint64_t *>(
+               chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET))
+           == ALLOC_CHUNK_DEDICATED_SIZEINFO;
+}
+
+// The hit: a dedicated-origin block of `size`'s class in this thread's L1,
+// returned as the payload; nullptr for everything else.  The caller
+// guarantees ALLOC_MAX_BUCKETED_SIZE < size ≤ ALLOC_MAX_CHUNK_SIZE − K_MAX,
+// so 1 ≤ units ≤ ALLOC_MAX_CHUNK_UNITS.  No g_sys_image_loaded test: an armed
+// L1 means the pool was active, and the flag is never cleared.
+KAME_ALWAYS_INLINE char *dedicated_l1_pop(std::size_t size) noexcept {
+    KameTlsPage *pg = kame_page_or_null();
+    if(__builtin_expect(pg == nullptr || pg->torn_down != 0u, 0))
+        return nullptr;
+    const unsigned units = static_cast<unsigned>(
+        (size + (std::size_t)ALLOC_CHUNK_K_MAX + (std::size_t)ALLOC_MIN_CHUNK_SIZE - 1u)
+        >> ALLOC_MIN_CHUNK_SHIFT);
+    const unsigned idx = kLrcChunkIdx.of_units[units];
+    assert(units >= 1u && units <= (unsigned)ALLOC_MAX_CHUNK_UNITS);
+    assert((int)idx == lrc_idx((std::size_t)units << ALLOC_MIN_CHUNK_SHIFT, LRC_CHUNK));
+    if(idx >= pg->lrc_l1_idx_end)                       // unarmed / drained / over the cut
+        return nullptr;
+    L1KArray *l1 = static_cast<L1KArray *>(pg->lrc_l1);
+    const std::size_t need = (std::size_t)units << ALLOC_MIN_CHUNK_SHIFT;
+    const unsigned kstart = pg->owner_id;                // lrc_kstart_l1()'s start
+    KAME_LRC_NO_UNROLL
+    for(unsigned kk = 0; kk < (unsigned)LRC_K_L1; ++kk) {
+        char *&slot = l1[(kstart + kk) & (LRC_K_L1 - 1u)].slots[idx];
+        char *b = slot;
+        if(b && lrc_dedicated_origin(b)
+           && *reinterpret_cast<const std::uint64_t *>(
+                  b + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET) >= need) {
+            slot = nullptr;
+            return b + ALLOC_CHUNK_K_MAX;
+        }
+    }
+    return nullptr;
+}
+
+// From new_redirected_large (operator new, calloc, realloc, the small
+// aligned allocs): a miss, or a size above the tier, continues where it did.
+KAME_NOINLINE KAME_HOT_ALIGN void *new_redirected_dedicated(std::size_t size) noexcept {
+    if(size <= (std::size_t)ALLOC_MAX_CHUNK_SIZE - (std::size_t)ALLOC_CHUNK_K_MAX)
+        if(char *p = dedicated_l1_pop(size))
+            return p;
+    return new_redirected_large_tail(size);
+}
+
+// From kame_malloc_slow (malloc, kame_pool_malloc), which checked the tier:
+// a miss goes to the cold continuation, which keeps the ENOMEM contract.
+KAME_NOINLINE KAME_HOT_ALIGN void *kame_malloc_dedicated(std::size_t size) noexcept {
+    if(char *p = dedicated_l1_pop(size))
+        return p;
+    return kame_malloc_cold(size);
+}
+
+// The free's L1 row is full: where l1_push's refusal leads -- the global L2
+// (recycle_push), and when that refuses too, the release deallocate_cold's
+// bit-7 branch makes -- without deallocate_cold deriving the chunk again and
+// l1_push scanning the full row a second time.  A thread that frees blocks
+// another thread allocates fills its row and stays there.
+KAME_NOINLINE void deallocate_dedicated_l2(char *chunk_base, std::size_t bytes) noexcept {
+    if( !global_push(chunk_base, bytes, LRC_CHUNK))
+        PoolAllocatorBase::recycle_release_chunk(chunk_base, bytes);
+}
+
+// From the lean `deallocate`, for a pool pointer whose back_off byte has bit
+// 7 set.  `pg` is the caller's (non-null) page.  The chunk goes to the
+// first free slot of its index as l1_push would put it, or past a full row
+// to the L2; anything else -- torn down, L1 unarmed or drained or over the
+// cut, a DEDICATED_SIZE out of range -- to deallocate_cold, whose bit-7
+// branch does what it did.
+// chunk_base is derived here, as `deallocate` derives it, not passed in (see
+// the call site).
+KAME_NOINLINE KAME_HOT_ALIGN void deallocate_dedicated(void *p, KameTlsPage *pg) noexcept {
+    if(__builtin_expect(pg->torn_down == 0u, 1)) {
+        const uintptr_t up = (uintptr_t)p;
+        char *mp = reinterpret_cast<char *>(up & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u));
+        const unsigned unit_idx = static_cast<unsigned>(
+            (up - (uintptr_t)mp) >> ALLOC_MIN_CHUNK_SHIFT);
+        const unsigned base_idx = unit_idx
+            - (PoolAllocatorBase::region_meta(mp)->back_offset[unit_idx] & 0x7Fu);
+        char *chunk_base = mp + (std::size_t)base_idx * (std::size_t)ALLOC_MIN_CHUNK_SIZE
+                         - (std::size_t)ALLOC_CHUNK_K_MAX;
+        const std::uint64_t bytes = *reinterpret_cast<const std::uint64_t *>(
+            chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
+        const std::uint64_t units = bytes >> ALLOC_MIN_CHUNK_SHIFT;
+        if(units - 1u < (std::uint64_t)ALLOC_MAX_CHUNK_UNITS) {
+            const unsigned idx = kLrcChunkIdx.of_units[units];
+            if(idx < pg->lrc_l1_idx_end) {
+                L1KArray *l1 = static_cast<L1KArray *>(pg->lrc_l1);
+                const unsigned kstart = pg->owner_id;
+                KAME_LRC_NO_UNROLL
+                for(unsigned kk = 0; kk < (unsigned)LRC_K_L1; ++kk) {
+                    char *&slot = l1[(kstart + kk) & (LRC_K_L1 - 1u)].slots[idx];
+                    if( !slot) {
+                        slot = chunk_base;
+                        return;
+                    }
+                }
+                return deallocate_dedicated_l2(chunk_base, (std::size_t)bytes);   // row full
+            }
+        }
+    }
+    return PoolAllocatorBase::deallocate_cold(p);
+}
+#undef KAME_LRC_NO_UNROLL
 } // namespace
 
 // (§26 / §28) Large-recycle cache RSS cap API.  `total_bytes` is the cache's
