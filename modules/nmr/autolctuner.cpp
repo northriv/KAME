@@ -15,6 +15,7 @@
 #include "analyzer.h"
 #include "graph.h"
 #include "autolctuner.h"
+#include "relaydriver.h"
 #include "ui_autolctunerform.h"
 
 REGISTER_TYPE(XDriverList, AutoLCTuner, "NMR LC autotuner");
@@ -482,7 +483,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         m_stm1(create<XItemNode<XDriverList, XMotorDriver> >("STM1", false, ref(tr_meas), meas->drivers(), false)),
         m_stm2(create<XItemNode<XDriverList, XMotorDriver> >("STM2", false, ref(tr_meas), meas->drivers(), false)),
         m_netana(create<XItemNode<XDriverList, XNetworkAnalyzer> >("NetworkAnalyzer", false, ref(tr_meas), meas->drivers(), true)),
-        m_relayDriver(create<XItemNode<XDriverList, XMotorDriver> >("RelayDriver", false, ref(tr_meas), meas->drivers(), false)),
+        m_relayDriver(create<XItemNode<XDriverList, XMotorDriver, XRelayDriver> >("RelayDriver", false, ref(tr_meas), meas->drivers(), false)),
         m_tuning(create<XBoolNode>("Tuning", true)),
         m_succeeded(create<XBoolNode>("Succeeded", true)),
         m_target(create<XDoubleNode>("Target", true)),
@@ -607,9 +608,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
     Snapshot shot_this( *this);
     shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
     shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
-    shared_ptr<XMotorDriver> relay = shot_this [*relayDriver()];
     const shared_ptr<XMotorDriver> stms[] = {stm1__, stm2__};
-    const unsigned int tunebits = 0x1u;
     //Entry-side settle, symmetric with the exit-side wait in visualize().
     //Every caller turns the pulser off just before writing Target, but that
     //stops the pattern at a boundary: emission can continue for up to one
@@ -633,10 +632,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
         }
     }
 
-    if(relay)
-        relay->iterate_commit([=](Transaction &tr){
-            tr[ *relay->auxBits()] = tunebits; //For external RF relays.
-        });
+    routeRFRelays(shot_this, true);
 
     iterate_commit([=](Transaction &tr){
         clearUIAndPlot(tr);
@@ -804,6 +800,24 @@ XAutoLCTuner::clearUIAndPlot(Transaction &tr) {
         }
     }
     m_lcrPlot.reset();
+}
+//Bit 0 of an STM's AUX output, as it always was, or channel 1 of a relay
+//driver.  Either is written by an immediate listener (XMotorDriver's AUX,
+//XRelayDriver::onOutputChanged), so the hardware has been told by the time
+//the commit returns; what relaySettleTime() waits for is the relays' throw.
+void
+XAutoLCTuner::routeRFRelays(const Snapshot &shot_this, bool to_vna) {
+    if(shared_ptr<XMotorDriver> stm = shot_this[ *relayDriver()]) {
+        stm->iterate_commit([=](Transaction &tr){
+            tr[ *stm->auxBits()] = to_vna ? 0x1u : 0x0u;
+        });
+    }
+    else if(shared_ptr<XRelayDriver> relay = shot_this[ *relayDriver()]) {
+        if(relay->numChannels())
+            relay->iterate_commit([=](Transaction &tr){
+                tr[ *relay->channelOutput(0)] = to_vna;
+            });
+    }
 }
 void
 XAutoLCTuner::scanContinue(Transaction &tr, const Snapshot &shot_this,
@@ -1603,11 +1617,9 @@ void
 XAutoLCTuner::visualize(const Snapshot &shot_this) {
     const shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
     const shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
-    const shared_ptr<XMotorDriver> relay = shot_this[ *relayDriver()];
     const shared_ptr<XMotorDriver> stms[] = {stm1__, stm2__};
     if(shot_this[ *tuning()]) {
         if(shot_this[ *succeeded()]){
-            const unsigned int tunebits = 0;
             for(auto &&stm: stms) {
                 if(stm) {
                     stm->iterate_commit([=](Transaction &tr){
@@ -1615,17 +1627,13 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
                     });
                 }
             }
-            if(relay)
-                relay->iterate_commit([=](Transaction &tr){
-                    tr[ *relay->auxBits()] = tunebits; //For external RF relays.
-                });
-            //XMotorDriver::onAUXChanged is an immediate (non-main-thread) listener,
-            //so setAUXBits() has already blocked until the bits were written by the
-            //time the commit above returns: this wait is purely for the external
-            //relays to physically throw.  A sweep switches the pulser back on the
-            //instant tuning() goes false (XNMRFSpectrum::onTuningChanged), so if
-            //this is too short the first pulse goes into the still-selected VNA
-            //path -- which reads back as a bogus FWD/BWD spike, not as a mismatch.
+            routeRFRelays(shot_this, false);
+            //The relays have been told by now (see routeRFRelays()): this
+            //wait is purely for them to physically throw.  A sweep switches
+            //the pulser back on the instant tuning() goes false
+            //(XNMRFSpectrum::onTuningChanged), so if this is too short the
+            //first pulse goes into the still-selected VNA path -- which reads
+            //back as a bogus FWD/BWD spike, not as a mismatch.
             {
                 int settle_ms = shot_this[ *m_relaySettleTime];
                 msecsleep((settle_ms > 0) ? settle_ms : 0);

@@ -80,6 +80,11 @@ win32:LIBS += -lmotorcore
 INCLUDEPATH += $$PWD/../motor/core
 DEPENDPATH += $$PWD/../motor/core
 
+win32:LIBS += -lrelaycore
+
+INCLUDEPATH += $$PWD/../relay/core
+DEPENDPATH += $$PWD/../relay/core
+
 win32:LIBS += -lnetworkanalyzercore
 
 INCLUDEPATH += $$PWD/../networkanalyzer/core

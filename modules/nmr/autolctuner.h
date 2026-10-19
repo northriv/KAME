@@ -26,6 +26,7 @@ typedef QForm<QMainWindow, Ui_FrmAutoLCTuner> FrmAutoLCTuner;
 
 class LCRFit;
 class XLCRPlot;
+class XRelayDriver;
 /*
 * Tunes the reflection at the target frequency to zero.
 */
@@ -61,7 +62,9 @@ public:
 	const shared_ptr<XItemNode<XDriverList, XMotorDriver> > &stm1() const {return m_stm1;}
 	const shared_ptr<XItemNode<XDriverList, XMotorDriver> > &stm2() const {return m_stm2;}
 	const shared_ptr<XItemNode<XDriverList, XNetworkAnalyzer> > &netana() const {return m_netana;}
-    const shared_ptr<XItemNode<XDriverList, XMotorDriver> > &relayDriver() const {return m_relayDriver;}
+    //! Switches the external RF relays to the network analyzer while tuning:
+    //! an STM by bit 0 of its AUX output, or a relay driver by its channel 1.
+    const shared_ptr<XItemNode<XDriverList, XMotorDriver, XRelayDriver> > &relayDriver() const {return m_relayDriver;}
 
 	/// Target frequency [MHz]
 	const shared_ptr<XBoolNode> &tuning() const {return m_tuning;}
@@ -173,7 +176,7 @@ public:
 private:
 	const shared_ptr<XItemNode<XDriverList, XMotorDriver> > m_stm1, m_stm2;
 	const shared_ptr<XItemNode<XDriverList, XNetworkAnalyzer> > m_netana;
-    const shared_ptr<XItemNode<XDriverList, XMotorDriver> > m_relayDriver;
+    const shared_ptr<XItemNode<XDriverList, XMotorDriver, XRelayDriver> > m_relayDriver;
 
 	const shared_ptr<XBoolNode> m_tuning;
 	const shared_ptr<XBoolNode> m_succeeded;
@@ -231,6 +234,8 @@ private:
         double f0, XString &&message);
     [[noreturn]] void rollBack(Transaction &tr, XString &&message);
     void clearUIAndPlot(Transaction &tr);
+    //! The external RF relays to the network analyzer (true) or back.
+    void routeRFRelays(const Snapshot &shot_this, bool to_vna);
 };
 
 
