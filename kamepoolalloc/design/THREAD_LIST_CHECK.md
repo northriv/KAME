@@ -1635,3 +1635,107 @@ full runs and none in 160 runs of it alone (70 on an idle box, 90 beside
 CPU hogs) — rare, load-shaped, unproven.  If it
 recurs, a wider future margin for arm 5's stamp (seconds rather than 50 ms)
 or `RUN_SERIAL` would tell the window from a real fault.
+
+## Run: Linux, Emerald Rapids @ 2.10 GHz, 2026-10-19 — `17a30aaae` §ded-fast (master `3b325f8dd`)
+
+Host: "Intel Xeon Processor @ 2.10 GHz", family 6 model 207 (Emerald
+Rapids), 4 vCPU, 2 MiB L2 / core, 260 MiB L3, AMX.
+
+**Correctness — all clean.**
+- no-DCAS audit: the uint32_t BitmapWord fallback, the kamepoolalloc i486
+  probe and the kamestm i486 probe all ok.
+- ctest on the nine trees: release, asserts, i586, i486, i586 + asserts,
+  i486 + asserts, and the three harsh-cap trees (`KAME_TL_CAP_BYTES=2048u
+  KAME_TL_RECLAIM_SLOTS=1`; LP64, LP64 + asserts, i586 + asserts).  All
+  passed: 51/51 each, 44/44 on the two i486 trees.
+- Dedicated-size sweep with asserts on (`bench_loop <size> 20000` against the
+  asserts libraries of LP64, harsh LP64, i586, i486 and harsh i586).  77
+  sizes: 32768, 32769, every 61440 B from 36864 to 4186112, and the powers
+  of two 64 KiB … 2 MiB plus 4 MiB − 8 KiB.  0/77 failed on every tree.
+- Soaks, 4 concurrent copies per round:
+  - LP64 release, 200 runs each: `alloc_dedicated_fast_test` (static and
+    `_dynamic`), `alloc_phase_test`, `alloc_rt_thread_test`,
+    `alloc_calloc_zero_test`, `alloc_aligned_test`,
+    `alloc_thread_churn_test`, `alloc_stress_test`, `alloc_huge_test`, and
+    the four thread-exit tests.  0 nonzero.
+  - The other eight trees, 100 runs each: `dedicated_fast` (static and
+    `_dynamic`), `phase`, `calloc_zero`, `tsd_exclusivity_var` and the
+    four thread-exit tests.  0 nonzero.
+
+**Instructions per malloc + free pair** (callgrind, difference between 2×10^5
+and 10^5 iterations of `bench_loop`):
+
+| | 64 B | 16 KiB | 64 KiB | 1 MiB |
+|---|---|---|---|---|
+| gcc, before (`44e8cd4ca`) | 76 | 93 | 292 | 346 |
+| gcc, `17a30aaae` | 76 | 93 | **135** | **135** |
+| clang, before | 63 | 80 | 276 | 323 |
+| clang, `17a30aaae` | 63 | 80 | **114** | **114** |
+
+gcc's 292 at 64 KiB is the commit's perf-stat figure to the instruction.  The
+dedicated tier now costs the same at every size, and the bucketed sizes are
+untouched.
+
+**Throughput.**  Method:
+- One `bench_loop`, `LD_PRELOAD` per arm.  Arms: June `8f2e69809`, before
+  `44e8cd4ca` (= `defa6157a` code, with `c21a07f00`'s TLS patch), after
+  `17a30aaae`.
+- Arm order reversed on every other rep.  Single thread 9 reps; 4 processes
+  5 reps (the sum of the four rates).
+- Median M ops/s (min–max).
+
+| gcc | June | before | after | after / before | after / June |
+|---|---|---|---|---|---|
+| 64 B 1T | 723 (575–953) | 344 (307–413) | 354 (318–461) | 1.03× | (see below) |
+| 1 KiB 1T | 221 (214–286) | 331 (311–353) | 321 (259–349) | 0.97× | 1.45× |
+| 16 KiB 1T | 193 (184–226) | 340 (112–444) | 334 (283–359) | 0.98× | 1.73× |
+| 64 KiB 1T | 147 (125–185) | 113 (90–145) | 186 (168–229) | **1.65×** | 1.27× |
+| 256 KiB 1T | 147 (129–193) | 108 (92–123) | 182 (163–243) | **1.68×** | 1.23× |
+| 1 MiB 1T | 139 (108–157) | 113 (105–143) | 185 (125–236) | **1.64×** | 1.33× |
+| 4 MiB − 8 KiB 1T | 130 (111–171) | 112 (105–143) | 183 (155–232) | **1.63×** | 1.40× |
+| 64 KiB 4P | 619 (398–654) | 434 (362–491) | 733 (723–772) | **1.69×** | 1.19× |
+| 1 MiB 4P | 514 (509–653) | 440 (410–456) | 784 (594–842) | **1.78×** | 1.53× |
+
+| clang | June | before | after | after / before | after / June |
+|---|---|---|---|---|---|
+| 64 B 1T | 766 (589–780) | 384 (329–464) | 385 (298–500) | 1.00× | (see below) |
+| 1 KiB 1T | 196 (162–213) | 338 (276–355) | 342 (267–423) | 1.01× | 1.75× |
+| 16 KiB 1T | 196 (188–223) | 342 (292–456) | 350 (299–448) | 1.02× | 1.79× |
+| 64 KiB 1T | 125 (113–161) | 116 (79–161) | 204 (177–252) | **1.75×** | 1.63× |
+| 256 KiB 1T | 118 (92–143) | 119 (101–129) | 199 (196–231) | **1.67×** | 1.68× |
+| 1 MiB 1T | 119 (112–142) | 125 (81–139) | 197 (181–251) | **1.57×** | 1.65× |
+| 4 MiB − 8 KiB 1T | 111 (104–140) | 114 (91–150) | 194 (172–211) | **1.71×** | 1.75× |
+| 64 KiB 4P | 509 (486–517) | 504 (454–519) | 821 (708–854) | **1.63×** | 1.61× |
+| 1 MiB 4P | 475 (427–514) | 496 (449–515) | 780 (758–820) | **1.57×** | 1.64× |
+
+**The dedicated tier: 1.57–1.78× of before, and past June.**
+- On gcc and clang alike, single thread and 4 processes, every dedicated
+  size gains.  Each after-minimum clears the before-maximum, except one gcc
+  1 MiB single-thread run (125 against 143).  64 B, 1 KiB and 16 KiB
+  are level (0.97–1.03×; the median spread is noise, the instruction counts
+  are identical).
+- Smaller than Windows' 2.2–2.6×.  That fits the commit: the Windows path
+  also lost `_tls_index` walks and an xmm spill that ELF initial-exec TLS
+  never had.
+- This closes the 1 MiB step since June that these sections kept open
+  (`6fe90a931` ~0.86×, the rest unbisected).  After / June is now 1.33× on
+  gcc and 1.65× on clang at 1 MiB, and 1.19–1.75× over 64 KiB … 4 MiB.
+
+**64 B against June: an address-placement effect on this core, not code.**
+June's 64 B median here is ~2× of before (gcc 723 vs 344, clang 766 vs 384),
+where on the earlier hosts June ran 260–350 M ops/s at 64 B.  The libraries are the same files
+as the 2026-10-13 runs, and June's spread is wide (575–953) while before
+stays inside 307–464.  With ASLR off (`setarch -R`, 5 runs each, gcc) the two
+are level:
+
+| gcc 64 B 1T | ASLR off | ASLR on |
+|---|---|---|
+| June | 374 (338–382) | 611 (406–818) |
+| before | 380 (345–428) | 326 (286–362) |
+
+So on Emerald Rapids some randomised layouts let June's 64 B loop run up
+to 2.5× its ASLR-off speed (953 vs 374).  Master's layouts never did in
+any run here.  One guess, not
+tested: the relative 4 KiB offset of the TLS page and the block, the 4K
+aliasing already counted per pair in the TLS-patch section.  It does not
+bear on §ded-fast, which leaves 64 B where it was to the instruction.
