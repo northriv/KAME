@@ -3853,6 +3853,7 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 	PoolAllocatorBase *chunk_obj = reinterpret_cast<PoolAllocatorBase *>(
 	    chunk_base + ALLOC_CHUNK_HEADER);
 	uint32_t page_owner_id = pg->owner_id;
+	const uint32_t chunk_owner = chunk_owner_id(chunk_base);
 	// Owner-free fast path: a live chunk THIS thread owns.  A released
 	// chunk (m_owner_id==0), a foreign / post-teardown thread
 	// (page_owner_id==0) and a dedicated chunk (m_owner_id zeroed → never
@@ -3868,7 +3869,7 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 	// The owner id is read by offset, not through chunk_obj: until it
 	// matches, no PoolAllocator object need live there (a dedicated or
 	// released chunk).
-	if(__builtin_expect(chunk_owner_id(chunk_base) == page_owner_id
+	if(__builtin_expect(chunk_owner == page_owner_id
 	                    && page_owner_id != 0, 1)) {
 		if(__builtin_expect(chunk_obj->m_fs_flag != 0, 1)) {  // FS=true — 64 B hot
 			// (§thread-list) Onto the thread's list for the chunk's bucket,
@@ -3898,8 +3899,15 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 	// seven volatile ones, so every free -- the 64 B owner free included --
 	// pushed and popped rsi/rdi for them.  The volatile read keeps the
 	// compiler from reusing the earlier load.
-	if((*reinterpret_cast<volatile const std::uint8_t *>(
-	        &rmeta->back_offset[unit_idx]) & 0x80u) != 0u)
+	// Only a chunk whose m_owner_id is 0 reads the byte: a dedicated one
+	// (allocate_dedicated_chunk stamps 0) or a released one.  A cross-thread
+	// free into a live chunk -- its owner's id -- goes straight to
+	// deallocate_cold as before §ded-fast; with the reload and its branch on
+	// that path, the SPSC ring of 64 B blocks lost 9 % at 32 in flight
+	// (M5 Ultra).
+	if(__builtin_expect(chunk_owner == 0u, 0)
+	   && (*reinterpret_cast<volatile const std::uint8_t *>(
+	           &rmeta->back_offset[unit_idx]) & 0x80u) != 0u)
 		return deallocate_dedicated(p, pg);
 	return deallocate_cold(p);  // owner-mismatch / cross / released
 }
