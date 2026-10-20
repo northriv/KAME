@@ -261,7 +261,16 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def("__repr__", [](Snapshot &self)->std::string{
             return formatString("<Snapshot@%p>", &self);
         })
-        .def("size", [](Snapshot &self, const shared_ptr<XNode>&node){return self.size(node);})
+        .def("size", [](Snapshot &self, const shared_ptr<XNode>&node){
+            //size(node) and list(node) are noexcept, and their lookup throws for a
+            //node outside the snapshot: std::terminate.  shot.list(Root()) on
+            //Snapshot(Root()["Drivers"]) aborted KAME.  at() raises instead
+            //(KAMENodeNotFoundError, as shot[node] does for a node outside it).
+            if( !node)
+                throw std::runtime_error("Error: not a node.");
+            self.at( *node);
+            return self.size(node);
+        })
         .def("list", [](Snapshot &self)->std::vector<shared_ptr<XNode>>{
             std::vector<shared_ptr<XNode>> v;
             if(self.size())
@@ -269,6 +278,9 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
             return v;
         })
         .def("list", [](Snapshot &self, shared_ptr<XNode>&node){
+            if( !node)
+                throw std::runtime_error("Error: not a node.");
+            self.at( *node); //as in size(node): raises, where size(node)/list(node) would terminate
             std::vector<shared_ptr<XNode>> v;
             if(self.size(node))
                 v.insert(v.begin(), self.list(node)->begin(), self.list(node)->end());
