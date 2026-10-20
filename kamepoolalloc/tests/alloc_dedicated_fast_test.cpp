@@ -35,7 +35,9 @@
 //              between them; l1_pop_fit refuses to re-arm a drained L1 all
 //              the same -- re-arming it would now also re-arm the page's copy
 //              the fast free trusts.  Either order: after kame_pool_trim()
-//              every dedicated byte must be gone.
+//              every dedicated byte the scenarios claimed must be gone
+//              (counted from what was live before them -- stdout's buffer
+//              can be a dedicated block; see g_base_bytes).
 //
 // Pool-only (kame_pool_* C API).  Built static (allocator.cpp compiled in,
 // as kame.exe / kame.app ship it) and dynamic.
@@ -260,6 +262,13 @@ struct DtorUser {
 };
 static thread_local DtorUser t_user;
 
+// Dedicated bytes live before the scenarios: stdout's buffer is st_blksize
+// bytes, allocated on the first printf, and macOS's /dev/null reports 64 KiB,
+// so in the dynamic build (malloc goes to the pool) a run with stdout on
+// /dev/null holds one dedicated block to the end.  The checks after
+// kame_pool_trim() count from here.
+static std::size_t g_base_bytes = 0;
+
 static void scenario_late() {
     std::printf("[late] dedicated alloc/free in thread_local dtors, both orders\n");
     for(int round = 0; round < 60; ++round) {
@@ -274,13 +283,18 @@ static void scenario_late() {
     }
     kame_pool_trim();
     const kame_pool_stats_t s = stats();
-    CHECK(s.dedicated_chunk_bytes == 0,
-          "late: %zu dedicated bytes still claimed after trim "
+    CHECK(s.dedicated_chunk_bytes <= g_base_bytes,
+          "late: %zu dedicated bytes still claimed after trim, %zu live before "
           "(a block stranded in an L1 no drain will reach)",
-          s.dedicated_chunk_bytes);
+          s.dedicated_chunk_bytes, g_base_bytes);
 }
 
 int main() {
+    std::printf("alloc_dedicated_fast_test\n");
+    std::fflush(stdout);
+    kame_pool_trim();
+    g_base_bytes = stats().dedicated_chunk_bytes;
+
     scenario_sizes();
     scenario_overflow();
     scenario_buckets();
@@ -290,9 +304,9 @@ int main() {
 
     kame_pool_trim();
     const kame_pool_stats_t s0 = stats();
-    CHECK(s0.dedicated_chunk_bytes == 0,
-          "%zu dedicated bytes still claimed after trim with nothing live",
-          s0.dedicated_chunk_bytes);
+    CHECK(s0.dedicated_chunk_bytes <= g_base_bytes,
+          "%zu dedicated bytes still claimed after trim, %zu live before",
+          s0.dedicated_chunk_bytes, g_base_bytes);
 
     scenario_late();
 
