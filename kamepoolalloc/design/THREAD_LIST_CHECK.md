@@ -1739,3 +1739,104 @@ any run here.  One guess, not
 tested: the relative 4 KiB offset of the TLS page and the block, the 4K
 aliasing already counted per pair in the TLS-patch section.  It does not
 bear on §ded-fast, which leaves 64 B where it was to the instruction.
+
+## Run: Linux, Intel Xeon @ 2.80 GHz, 2026-10-20 — `deb2931e2` (the cross-thread free reads the dedicated bit only for an ownerless chunk)
+
+The VM was back on the 2.80 GHz host of the 2026-10-13/14 runs (family 6
+model 85, 4 vCPU on four cores, 1 MiB L2 / core, 33 MiB L3).  Arms: v1.3.0
+(the `44e8cd4ca` libraries; their allocator sources are identical to
+`17a30aaae^`'s), `17a30aaae`, `deb2931e2`.
+
+**Correctness.**
+- no-DCAS audit: all three phases ok.
+- ctest on the nine trees of the `17a30aaae` run: all passed (51/51; 44/44 on
+  the two i486 trees).
+- Dedicated-size sweep with asserts on, the same 77 sizes on five trees: 0
+  failed.
+- Soaks, 4 concurrent copies per round, 15 tests:
+  - The cross-thread free path: `alloc_tsd_exclusivity_test`, `_var`,
+    `_var --mid`, `alloc_fit_test`, `alloc_stress_test`,
+    `alloc_thread_churn_test`.
+  - Also: `alloc_phase_test`, `alloc_dedicated_fast_test` (static and
+    `_dynamic`, each also with stdout on `/dev/null`), and the four
+    thread-exit tests.
+  - Results: LP64 release 200 runs each, 0 nonzero; i586 100 each, 0
+    nonzero.  The other seven trees (100 each) were still running when this
+    was written; their tally is appended when done.
+
+**The test fix, reproduced on Linux.**  Linux reports `st_blksize` 4096 for
+`/dev/null`, so stdout's buffer stays far below the dedicated tier and the
+macOS failure cannot happen by itself.  To make it happen, a preload whose
+constructor runs `setvbuf(stdout, malloc(65536), _IOFBF, 65536)` gives stdout
+the 64 KiB block macOS's `/dev/null` does:
+- `17a30aaae`'s `alloc_dedicated_fast_test_dynamic` fails exactly as on
+  macOS: "262144 dedicated bytes still claimed", at both after-trim checks
+  (`:277` late, `:293`).
+- `deb2931e2`'s test passes 50/50 under the preload on each of LP64,
+  LP64 + asserts, harsh LP64 + asserts, i586 + asserts, i486 + asserts and
+  harsh i586 + asserts.
+
+**The cross-thread free, by instruction.**  Method: a thread mallocs N 64 B
+blocks and stays parked, so its chunks keep their owner; main frees them
+all.  callgrind with `--toggle-collect=free`, (2N − N) / N:
+
+| instructions per cross-thread free | 64 B | 1 KiB | 16 KiB |
+|---|---|---|---|
+| gcc: v1.3.0 / `17a30aaae` / `deb2931e2` | 317 / 321 / **317** | 271 / 275 / **271** | 264 / 268 / **264** |
+| clang: v1.3.0 / `17a30aaae` / `deb2931e2` | 298 / 300 / 300 | 255 / 257 / 257 | 244 / 246 / 246 |
+
+The traced path (gdb `stepi`, one free at 64 B) shows what each count is:
+- **gcc.**
+  - `17a30aaae` adds `movzbl 0x10(%r12,%rcx,1),%eax; test %al,%al; jns;
+    jmp` after the failed owner compare.
+  - `deb2931e2` has v1.3.0's length.  The new test reuses a
+    `test`/branch gcc already emitted (`test %eax,%eax; je` becomes
+    `test %edx,%edx; jne`).
+- **clang.**
+  - `17a30aaae`: `cmpb $0x0,0x10(%rax,%rdi,1); jns` loads the
+    back_offset byte from memory.
+  - `deb2931e2`: `test %r8d,%r8d; je` tests the owner word the compare
+    has just loaded, in its register.
+  - The count stays at +2 because x86 has no `cbz`.  The memory read on
+    the cross-thread path is gone, which is what the commit set out to
+    remove.
+
+**The ring, by time: not resolvable on this VM.**  Arms interleaved, gcc and
+clang:
+- Free-running: 11 reps.  Pinned (`taskset -c 2,3`): 21 reps.
+- `ring 64 32` and `ring 64 128` run 5.7–7.8 M ops/s at the median (the M5
+  Ultra: 22).  Single runs range 4.2–16.6.
+- Paired per rep (the arms of one rep run back to back), deb2931e2 / v1.3.0
+  is:
+  - free-running: 0.86 / 0.89 (gcc, 32 / 128 in flight) and 0.92 / 1.00
+    (clang), with 8, 8, 9 and 5 of 11 reps below 1;
+  - pinned: 1.08 / 0.98 (gcc) and 0.99 / 1.02 (clang), with 8, 11, 11 and
+    9 of 21 reps below 1.
+- No comparison is significant: sign-test p ≥ 0.07 for every pair, the
+  17a30aaae arm included (0.89–1.09).  The free-running lean below 1 did
+  not survive pinning, with twice the reps.
+- At ~170 ns per hand-off the cross-core line transfers dominate, and a
+  2–4 instruction difference, or one L1 load, cannot show.  The M5 Ultra's
+  9% is neither confirmed nor contradicted here; the instruction counts
+  above are the Linux evidence.
+
+**Other configurations** (11 reps, free-running, median after / v1.3.0 and
+after / `17a30aaae`):
+
+| | gcc deb/v1.3.0 | gcc deb/17a | clang deb/v1.3.0 | clang deb/17a |
+|---|---|---|---|---|
+| `bench_xthread -w 2 -s 64` | 0.99× | 1.01× | 1.03× | 0.97× |
+| `bench_xthread -w 2 -s 65536` | 0.95× | 1.00× | 1.00× | 0.97× |
+| `bench_loop` 64 B | 1.11× | 1.00× | 1.01× | 0.94× |
+| `bench_loop` 16 KiB | 0.89× | 1.06× | 0.96× | 0.94× |
+| `bench_loop` 64 KiB | 1.71× | 0.94× | 1.99× | 0.95× |
+| `bench_loop` 1 MiB | 2.44× | 1.04× | 2.79× | 1.02× |
+
+Wide spreads (the 64 B and 16 KiB loops range ±30% between runs on this
+host), but nothing beyond them.  The dedicated tier keeps §ded-fast's gain:
+1.7–2.8× of v1.3.0, deb / 17a 0.94–1.04×.  The owner free (gdb trace of one
+64 B free, all three arms) is 40 instructions on clang and 48 on gcc in each:
+- clang: the same sequence, branch targets aside.
+- gcc: the same instructions, with one `test`/`je` pair moved two places.
+- malloc + free pairs by callgrind: 76/76/76 (gcc) and 63/63/64 (clang) at
+  64 B, equal within the ±1 these counts move between runs.
