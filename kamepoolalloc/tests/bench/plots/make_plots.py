@@ -62,24 +62,25 @@ sweep("bench_loop_m5ultra_1t.svg",
       kame=[1138, 763, 804, 613, 643, 649, 141],
       note="mmap-per-call cliff", note_xy=(5.0, 12.5))
 
-# Ohtaka (AMD EPYC 7702, Linux bare metal), kame @ e0974e402,
-# median of 5, node c15u04n1 (design/README_BENCH_OHTAKA.md §5.1).
+# Ohtaka (AMD EPYC 7702, Linux bare metal), kame @ deb2931e2, median of
+# three bench_compare runs, each a median of 5, node c15u04n4
+# (design/README_BENCH_OHTAKA.md §6.1).
 sweep("bench_loop_ohtaka_1t.svg",
       "bench_loop, 1 thread — AMD EPYC 7702 (Linux)",
-      sys_=[212, 212, 68, 65, 71, 70, 69],
-      mi=[325, 209, 95, 91, 94, 5, 4],
-      je=[181, 159, 43, 4, 4, 4, 4],
-      kame=[295, 289, 286, 81, 87, 84, 58],
+      sys_=[209, 211, 68, 64, 70, 70, 69],
+      mi=[321, 209, 94, 92, 94, 5, 4],
+      je=[180, 158, 44, 4, 4, 4, 4],
+      kame=[314, 274, 286, 174, 174, 174, 60],
       note="mmap-per-call cliff", note_xy=(4.8, 7.5))
 
 # ── Ohtaka 128-process aggregate (grouped bars) ────────────────────────
 fig, ax = plt.subplots(figsize=(6.4, 3.8), dpi=100)
 sizes4 = ["64 B", "16 KiB", "64 KiB", "1 MiB"]
 data = {  # G ops/s aggregate
-    "system":   ([22839, 8105, 8036, 8813], C_SYS),
-    "mimalloc": ([38244, 11662, 11717, 565], C_MI),
-    "jemalloc": ([21558, 5314, 459, 475], C_JE),
-    "kame":     ([35432, 34847, 10278, 10627], C_KAME),
+    "system":   ([22443, 7981, 8053, 8850], C_SYS),
+    "mimalloc": ([38208, 11761, 11801, 563], C_MI),
+    "jemalloc": ([21411, 5231, 457, 467], C_JE),
+    "kame":     ([36118, 35918, 22152, 22163], C_KAME),
 }
 w = 0.2
 for i, (label, (vals, color)) in enumerate(data.items()):
@@ -88,7 +89,7 @@ for i, (label, (vals, color)) in enumerate(data.items()):
 ax.set_xticks(range(4), sizes4)
 style(ax, "bench_loop, 128 parallel processes — EPYC 7702", ylabel="G ops/s (log)")
 ax.legend(frameon=False, fontsize=9, ncols=4, loc="upper right")
-ax.annotate("19×", xy=(3 + 0.5 * w, 10.6), xytext=(3 + 0.5 * w, 20),
+ax.annotate("39×", xy=(3 + 0.3 * w, 3.0),
             fontsize=10, color=C_KAME, ha="center", weight="bold")
 fig.tight_layout()
 fig.savefig(os.path.join(OUT, "bench_loop_ohtaka_128p.svg"))
@@ -97,18 +98,18 @@ plt.close(fig)
 # ── thread scaling (alloc_tune_report, Ohtaka) ─────────────────────────
 fig, ax = plt.subplots(figsize=(6.4, 3.8), dpi=100)
 threads = [1, 4, 16, 64, 128]
-ax.plot(threads, [t * 150 for t in threads], "--", color="#bbbbbb", lw=1.2,
-        label="linear (×150)")
-ax.plot(threads, [150, 578, 2370, 8430, 12441], "o-", color=C_KAME,
+ax.plot(threads, [t * 147 for t in threads], "--", color="#bbbbbb", lw=1.2,
+        label="linear (×147)")
+ax.plot(threads, [147, 572, 2339, 8348, 12440], "o-", color=C_KAME,
         lw=LW_KAME, ms=6, label="64 B bucket")
-ax.plot(threads, [149, 588, 2364, 8091, 12301], "s-", color="#ff7f0e",
+ax.plot(threads, [148, 587, 2363, 7894, 12327], "s-", color="#ff7f0e",
         lw=2.2, ms=5, label="1 KiB bucket")
 ax.set_xscale("log", base=2)
 ax.xaxis.set_major_locator(FixedLocator(threads))
 ax.set_xticks(threads, [str(t) for t in threads])
 ax.set_xlabel("threads")
 style(ax, "kame thread scaling — EPYC 7702, 8 NUMA nodes", ylabel="M ops/s aggregate (log)")
-ax.annotate("12.4 G ops/s\n(83× 1 thread)", xy=(128, 12441),
+ax.annotate("12.4 G ops/s\n(85× 1 thread)", xy=(128, 12440),
             xytext=(22, 9500), fontsize=9, color=C_KAME, weight="bold")
 ax.legend(frameon=False, fontsize=9, loc="lower right")
 fig.tight_layout()

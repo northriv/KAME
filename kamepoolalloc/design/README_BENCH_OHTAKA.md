@@ -790,3 +790,286 @@ their text, from §5.1–§5.4:
   8 MiB / 1T) stated.
 - **xmalloc / larson / mstress / rptest**: replace; larson is the one that
   moved (1.16–1.26×, same node); rptest t128 now has jemalloc ahead of kame.
+
+## 6. Re-measured at `deb2931e2` (2026-10-20)
+
+Every table again, on KAME master `ba40008d5` — kamepoolalloc as of
+`deb2931e2`.  Against §5 (`e0974e402`) the allocator adds §ded-fast
+(`17a30aaae`, the dedicated tier, 32 KiB – 4 MiB, off the thread's page)
+and its cross-thread follow-up (`deb2931e2`); the other allocator commits
+in between are comments (`bead047a0`) and a gcc-only change (`c21a07f00`)
+that this clang build does not see.  v1.3.0 (`433abfdf0`) carries the same
+allocator as `e0974e402`: its `bench_ab.sh` arm is byte-identical to §5.4's
+kame arm (sha256 `58cc226d0a4bdd26`), so §6.2's tree against v1.3.0 is
+§ded-fast alone.  Same partition, kernel, compiler, comparator builds and
+commands as §5; the job script is `~/kame-claude/readme-deb29/job.sbatch`
+(`loopab.sbatch` for §6.2), the jobs submitted by `feeder.sh` as the
+submit limit freed slots — they ran one after another, never two at once.
+
+| job | SLURM | node | JST | what |
+|---|---|---|---|---|
+| bc128 | 3124314 | c15u04n4 | 10-20 19:55–20:05 | `bench_compare.sh --threads 128`, three runs |
+| bc4 | 3124315 | c15u01n1 | 20:05–20:09 | `bench_compare.sh --threads 4`, three runs |
+| loopab | 3124316 | c15u01n1 | 20:09–20:10 | `bench_ab.sh --only loop`, tree against v1.3.0 and v1.2.1 (§6.2) |
+| tune | 3124317 | c15u01n3 | 20:10–20:13 | `alloc_tune_report` × 3 |
+| xm64 | 3124318 | c15u01n1 | 20:13–20:26 | `bench_ab.sh --only xmalloc --xmalloc-sizes 64` |
+| xm1024 | 3124323 | c15u03n3 | 20:26–20:39 | `bench_ab.sh --only xmalloc --xmalloc-sizes 1024` |
+| larson | 3124324 | c15u01n1 | 20:39–20:53 | `bench_ab.sh --only larson --threads "1 4 16 64"` |
+| mstress | 3124325 | c15u01n1 | 20:53–21:03 | `bench_ab.sh --only mstress` |
+| rpt-1-4 | 3124336 | c15u01n4 | 21:03–21:19 | `bench_ab.sh --only rptest --threads "1 4"` |
+| rpt-128 | 3124357 | c15u03n2 | 21:19–21:28 | `bench_ab.sh --only rptest --threads 128` |
+| rpt-16-64 | 3124349 | c15u01n4 | 21:28–21:44 | `bench_ab.sh --only rptest --threads "16 64"` |
+
+Every job exited 0, every run reported `ok`, and every job saw a clean tree
+(`git status` empty under `kamepoolalloc/`).  rpt-128 completed all five
+repetitions, mi included, in 8½ minutes: §5's mimalloc 1.8.2 hang did not
+recur.  No cpufreq governor or boost control is exposed on these nodes;
+`THP=always` throughout.
+
+### 6.1 `bench_compare.sh`
+
+Build tree `~/kame/build/tests` as in §5.1, rebuilt at `ba40008d5`:
+`libkamepoolalloc.so` 821664 B, sha256 `3f64bb318398e539…`, `-O3 -DNDEBUG`.
+Each job ran the script three times; **each cell is the median of the three
+runs (each itself a median of 5)**, as the M5 and Windows tables now are.
+Most cells agree to within 2 % over the three runs.  The exceptions:
+kame 16 KiB single-thread in bc128's third run (220 against 286 / 286);
+bc128's first run, which put the 128-process 64 B cells of system,
+mimalloc and kame 3–7 % above the other two (kame 38592 against 36057 /
+36118); and in bc4's second run
+mimalloc 1 KiB single-thread (196 against 212 / 216) and kame 16 KiB on
+4 processes (1090 against 1153 / 1152).
+
+#### 1T (M ops/s) — bc128, `c15u04n4`; §5.1 (`e0974e402`, `c15u04n1`) in brackets
+
+| size   | system    | mimalloc      | jemalloc  | kame              |
+|--------|-----------|---------------|-----------|-------------------|
+| 64B    | 209 (212) | **321** (325) | 180 (181) | 314 (295)         |
+| 1.0KB  | 211 (212) | 209 (209)     | 158 (159) | **274** (289)     |
+| 16KB   | 68 (68)   | 94 (95)       | 44 (43)   | **286** (286)     |
+| 64KB   | 64 (65)   | 92 (91)       | 4 (4)     | **174** (81)      |
+| 256KB  | 70 (71)   | 94 (94)       | 4 (4)     | **174** (87)      |
+| 1.0MB  | 70 (70)   | 5 (5)         | 4 (4)     | **174** (84)      |
+| 4.0MB  | **69** (69) | 4 (4)       | 4 (4)     | 60 (58)           |
+
+bc4's 1T table, `c15u01n1`: kame 317 / 277 / 289 / 176 / 176 / 176 / 61;
+the comparators within 2.2 % of bc128's but mimalloc 64 KiB (95 vs 92).
+
+#### 4 processes (aggregate, M ops/s) — bc4, `c15u01n1`; §5.1 (`c15u04n1`) in brackets
+
+| size   | system    | mimalloc        | jemalloc  | kame            |
+|--------|-----------|-----------------|-----------|-----------------|
+| 64B    | 850 (844) | **1320** (1258) | 728 (724) | 1264 (1202)     |
+| 16KB   | 274 (271) | 370 (368)       | 176 (174) | **1152** (1061) |
+| 64KB   | 258 (254) | 371 (374)       | 17 (16)   | **704** (320)   |
+| 1.0MB  | 281 (275) | 20 (20)         | 17 (16)   | **703** (332)   |
+
+#### 128 processes (aggregate, M ops/s) — bc128, `c15u04n4`; §5.1 (`c15u04n1`) in brackets
+
+| size   | system        | mimalloc          | jemalloc      | kame              |
+|--------|---------------|-------------------|---------------|-------------------|
+| 64B    | 22443 (22839) | **38208** (38244) | 21411 (21558) | 36118 (35432)     |
+| 16KB   | 7981 (8105)   | 11761 (11662)     | 5231 (5314)   | **35918** (34847) |
+| 64KB   | 8053 (8036)   | 11801 (11717)     | 457 (459)     | **22152** (10278) |
+| 1.0MB  | 8850 (8813)   | 563 (565)         | 467 (475)     | **22163** (10627) |
+
+The comparators reproduce §5.1 to within 2.3 %, except mimalloc 64 B on
+4 processes (+4.9 %, a different node) and jemalloc's 17 against 16 at
+64 KiB / 1 MiB there (one unit).  kame moved where the code did:
+
+- **The dedicated tier, 2.0–2.2×**: single thread 64 KiB / 256 KiB / 1 MiB
+  2.15× / 2.00× / 2.07×; 4 processes 2.20× / 2.12× at 64 KiB / 1 MiB;
+  128 processes 2.16× / 2.09×.  kame now leads mimalloc at 64–256 KiB too —
+  174 vs 92–94 single-thread (1.9×), 704 vs 371 on 4 processes, 22152 vs
+  11801 on 128 (1.88×) — and at 1 MiB / 128 processes by 39× (22163 vs
+  563; jemalloc 47×).  4 MiB, above the tier, is level (1.03×); glibc
+  still leads there single-thread (69 vs 60).
+- **1 KiB single-thread 0.95×** (274 in all three runs against 289; bc4
+  277), confirmed interleaved in §6.2 (0.96×).  The M5 Ultra (0.97×) and the
+  Windows desktop (0.95×) showed the same cell; not profiled.
+- 64 B 1.06× single-thread and 1.05× on 4 processes, 16 KiB 1.09× on
+  4 processes; §6.2 has 64 B at 1.05× interleaved.  The rest is level.
+
+The orderings: kame leads every size from 1 KiB to 1 MiB at every process
+count; mimalloc leads only 64 B, by 1.02× single-thread (from 1.10×), 1.04×
+on 4 processes and 1.06× on 128; glibc 4 MiB single-thread.
+
+### 6.2 `loop`, interleaved against v1.3.0 and v1.2.1
+
+loopab, `c15u01n1`, `results-c15u01n1-20261020-200941`: `bench_ab.sh
+--run-only --tags v1.3.0,tree --arm v121=… --arm mi3=… --only loop --reps
+9` (`loopab.sbatch`).  The tree arm is `kp-tree` of §6.4 (sha256
+`7e381b562d72a04c`), v1.3.0 the `kp-v1.3.0` arm (`58cc226d0a4bdd26`, see
+above), v121 §5.2's (`e4603b3a2426fc38`).
+
+| bench | config | metric | kp-v1.3.0 | kp-tree | v121 | mi3 | kp-tree / kp-v1.3.0 | v121 / kp-v1.3.0 | mi3 / kp-v1.3.0 |
+|---|---|---|---|---|---|---|---|---|---|
+| loop | 64B | Mops ↑ | 301 (229–314) | 317 (265–327) | 262 (256–262) | 331 (321–334) | 1.05× | 0.87× | 1.10× |
+| loop | 1024B | Mops ↑ | 289 (196–290) | 277 (266–278) | 229 (228–229) | 213 (189–220) | 0.96× | 0.79× | 0.74× |
+| loop | 16384B | Mops ↑ | 286 (202–293) | 290 (222–290) | 174 (170–176) | 96.0 (80.8–96.2) | 1.01× | 0.61× | 0.33× |
+
+- The v1.3.0 arm reproduces §5.2's tree (305 / 289 / 287) to 1.3 %, and
+  v121 its own §5.2 row to 1.2 %: the node is comparable.
+- **§ded-fast on the bucket sizes: 1.05× at 64 B, 0.96× at 1 KiB, level at
+  16 KiB.**  At 1 KiB six of v1.3.0's nine repetitions ran 289 and none of
+  the tree's passed 278 (266–278; v1.3.0's other three 196, 272, 277);
+  §6.1's 0.95× is this.
+- Against v1.2.1 the tree is 1.21× / 1.21× / 1.67× (§5.2: 1.16× / 1.26× /
+  1.67×).  mi3 / tree 1.04× at 64 B, 0.77× at 1 KiB, 0.33× at 16 KiB.
+
+### 6.3 `alloc_tune_report`
+
+tune, `c15u01n3`, `TUNE_REPS=3` (`alloc_tune_report` sha256
+`eb75bc31774ad8cc…`, unchanged, loading §6.1's library through its RPATH).
+Aggregate M ops/s, median of the three runs (range); §5.3's median in
+brackets:
+
+| size,tier                  | 1T              | 4T                | 16T                  | 64T                  | 128T                    |
+| -------------------------- | --------------: | ----------------: | -------------------: | -------------------: | ----------------------: |
+| 64 B  (bucket)             | 147 (146–148) [150] | 572 (569–592) [578] | 2339 (2329–2379) [2370] | 8348 (8149–8686) [8430] | 12440 (12420–15317) [12441] |
+| 1 KiB (bucket)             | 148 (147–148) [149] | 587 (568–588) [588] | 2363 (2327–2379) [2364] | 7894 (7746–8169) [8091] | 12327 (11016–12572) [12301] |
+| 64 KiB (chunk)             | **86 (86–86) [46]** | **344 (334–345) [31]** | **1376 (1368–1386) [71]** | **4814 (4664–4880) [212]** | **7798 (7539–8029) [267]** |
+| 1 MiB (chunk)              | **86 (86–86) [42]** | **346 (343–346) [26]** | **1388 (1378–1389) [214]** | **2008 (1993–2089) [238]** | **1514 (1452–1625) [378]** |
+| 8 MiB (large_va)           | 27.5 (25.3–28.0) [27] | 4.7 (3.6–5.4) [4.3] | 3.4 (3.0–3.9) [3.4] | 3.5 (2.9–3.6) [2.9] | 3.9 (2.5–4.0) [3.3] |
+| 40 MiB (large_va, cached)  | 12.4 (12.3–12.4) [12.5] | 3.5 (1.9–5.3) [4.3] | 2.9 (2.5–3.1) [3.9] | 2.1 (2.0–2.6) [2.6] | 2.8 (2.7–3.1) [2.9] |
+
+- **The chunk tier is §ded-fast's**: 1.9–2.1× single-thread, and from
+  4 threads it scales instead of collapsing — 64 KiB 344 → 1376 → 4814 →
+  7798 (11×, 19×, 23×, 29× §5.3), 1 MiB 346 → 1388 at 4–16 threads (13×,
+  6.5×).  The three runs now agree to within 7 % in every chunk cell but
+  1 MiB / 128T (1452–1625, 12 %); §5.3 had to read those cells as ranges.
+- **1 MiB stops scaling past 16 threads**: 2008 at 64 and 1514 at 128,
+  while 64 KiB keeps climbing — not profiled.
+- **§5.3's 1 MiB / 4T loss is gone** (346 against v1.2.1's ~35, about
+  10×).  **8 MiB single-thread is not** (27.5 against v1.2.1's 30.8 in
+  §5.3's tuneab): large_va is above the tier §ded-fast changed.
+- The bucket rows are level with §5.3 (0.98–1.00× at every count; 64 B /
+  128T's range takes one run at 15317).  `alloc_tune_report`'s loop does
+  not show §6.2's 1 KiB 0.96× (148 vs 149).
+- Self-validation as before: `LRC_LAZY_INTERVAL_NS` 0.71 / 0.68 / 0.69 %
+  ("default 10 ms is fine…", all three); `LRC_K_MAX` "128 cores: K_MAX=256
+  (default) is appropriate"; `MADV_HUGEPAGE` 0.33–0.35 µs/page, as plain
+  first-touch in the same run; TLB shootdown, 32 MiB `munmap` at 128
+  threads 1716 / 1521 / 2072 µs = 27.2× / 22.3× / 31.8× the 1-thread cost
+  (63 / 68 / 65 µs).
+
+### 6.4 mimalloc-bench suite (`bench_ab.sh`)
+
+As §5.4, `--run-only` on the same comparator arms; the kame arm rebuilt at
+`ba40008d5`: `libkamepoolalloc.so` 821664 B, sha256 `7e381b562d72a04c`.
+Result directories under `~/kame-claude/bench-ab/`: xm64
+`results-c15u01n1-20261020-201333`, xm1024 `…-c15u03n3-20261020-202623`,
+larson `…-c15u01n1-20261020-203927`, mstress `…-c15u01n1-20261020-205357`,
+rptest `…-c15u01n4-20261020-210326` (t1, t4), `…-c15u01n4-20261020-212826`
+(t16, t64), `…-c15u03n2-20261020-211944` (t128).
+
+**Summary: kame is level with §5.4 in every bench** — within its own
+run-to-run spread or within what the comparators moved on the other nodes —
+as it should be for workloads whose blocks are almost all below the
+dedicated tier's 32 KiB.  The rows are below for the README; nothing in
+this section is claimed as a change.
+
+#### xmalloc-test, 64 B (xm64, `c15u01n1`; §5.4's kame in the last column)
+
+| bench | config | metric | kp-tree | sys | mi3 | mi | je | tc | sys / kp-tree | mi3 / kp-tree | mi / kp-tree | je / kp-tree | tc / kp-tree | §5.4 kame |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| xmalloc | w1,64B | Mfree ↑ | 32.9 (32.5–35.1) | 4.91 (4.32–5.72) | 34.7 (33.8–35.1) | 34.6 (34.0–34.8) | 28.7 (27.9–29.7) | 8.52 (6.75–9.01) | 0.15× | 1.06× | 1.05× | 0.87× | 0.26× | 32.9 |
+| xmalloc | w4,64B | Mfree ↑ | 131 (129–133) | 15.8 (14.7–16.6) | 108 (105–109) | 99.9 (94.5–104) | 91.8 (88.9–100) | 1.57 (1.52–1.86) | 0.12× | 0.82× | 0.76× | 0.70× | 0.01× | 130 |
+| xmalloc | w16,64B | Mfree ↑ | 509 (506–516) | 60.9 (53.6–65.1) | 316 (215–371) | 196 (169–336) | 367 (326–396) | 1.13 (1.11–1.16) | 0.12× | 0.62× | 0.38× | 0.72× | 0.00× | 503 |
+| xmalloc | w64,64B | Mfree ↑ | 790 (736–961) | 195 (168–197) | 423 (277–452) | 392 (342–425) | 884 (858–906) | 0.778 (0.766–0.79) | 0.25× | 0.54× | 0.50× | 1.12× | 0.00× | 865 |
+| xmalloc | w128,64B | Mfree ↑ | 411 (376–542) | 184 (183–187) | 417 (380–467) | 360 (289–411) | 901 (805–936) | 0.864 (0.823–0.864) | 0.45× | 1.02× | 0.87× | 2.19× | 0.00× | 368 |
+
+kame leads at 4 and 16 pairs (1.21× mi3, 1.39× je), is within 6 % of mi3 /
+mi at 1 pair, and behind je at 64 (1.12×) and 128 (2.19×, mi3 level there).
+w64 and w128 are inside §5.4's ranges (720–1256, 346–449); the w64 spread
+and the w128 step remain the open items.
+
+#### xmalloc-test, 1024 B (xm1024, `c15u03n3`)
+
+| bench | config | metric | kp-tree | sys | mi3 | mi | je | tc | sys / kp-tree | mi3 / kp-tree | mi / kp-tree | je / kp-tree | tc / kp-tree | §5.4 kame |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| xmalloc | w1,1024B | Mfree ↑ | 6.48 (5.92–6.95) | 3.03 (2.96–3.52) | 23.9 (23.1–26.2) | 22.6 (19.7–23.0) | 5.07 (4.76–5.12) | 3.14 (2.67–3.22) | 0.47× | 3.69× | 3.48× | 0.78× | 0.48× | 6.71 |
+| xmalloc | w4,1024B | Mfree ↑ | 20.2 (19.7–20.6) | 9.35 (8.26–9.5) | 55.7 (51.2–59.0) | 61.8 (61.5–62.5) | 15.5 (13.2–16.0) | 1.15 (1.13–1.16) | 0.46× | 2.75× | 3.05× | 0.77× | 0.06× | 20.3 |
+| xmalloc | w16,1024B | Mfree ↑ | 67.2 (56.3–79.2) | 18.9 (17.5–26.7) | 140 (137–144) | 188 (185–203) | 61.4 (53.7–63.7) | 0.969 (0.833–0.987) | 0.28× | 2.08× | 2.80× | 0.91× | 0.01× | 62.3 |
+| xmalloc | w64,1024B | Mfree ↑ | 51.2 (43.2–72.3) | 12.7 (11.6–14.8) | 205 (184–209) | 256 (238–266) | 165 (146–181) | 0.622 (0.613–0.639) | 0.25× | 4.01× | 5.00× | 3.22× | 0.01× | 53.6 |
+| xmalloc | w128,1024B | Mfree ↑ | 65.6 (63.6–86.8) | 8.11 (7.32–9.34) | 204 (195–207) | 169 (151–176) | 160 (153–161) | 0.602 (0.597–0.605) | 0.12× | 3.11× | 2.58× | 2.44× | 0.01× | 63.0 |
+
+mimalloc leads at every count, by 2.8–5.0× (the better of mi3 / mi over
+kame); jemalloc passes kame from 64 pairs (3.2×, 2.4×) and trails it at 16
+(0.91×); kame beats glibc 2.1–8.1×.
+
+#### larson (`c15u01n1`; §5.4 ran on `c15u01n2`)
+
+| bench | config | metric | kp-tree | sys | mi3 | mi | je | tc | sys / kp-tree | mi3 / kp-tree | mi / kp-tree | je / kp-tree | tc / kp-tree | §5.4 kame |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| larson | t1 | Mops ↑ | 28.6 (28.4–28.8) | 21.7 (21.5–21.8) | 32.9 (32.6–33.0) | 41.4 (41.1–41.5) | 36.1 (35.9–36.4) | 44.9 (44.8–45.3) | 0.76× | 1.15× | 1.45× | 1.26× | 1.57× | 28.7 |
+| larson | t4 | Mops ↑ | 74.8 (65.0–83.8) | 50.9 (44.8–58.8) | 64.8 (63.2–76.1) | 113 (87.9–115) | 95.6 (78.6–102) | 99.3 (88.4–119) | 0.68× | 0.87× | 1.51× | 1.28× | 1.33× | 72.7 |
+| larson | t16 | Mops ↑ | 269 (259–273) | 170 (168–172) | 229 (227–234) | 385 (366–401) | 350 (337–360) | 339 (334–350) | 0.63× | 0.85× | 1.43× | 1.30× | 1.26× | 263 |
+| larson | t64 | Mops ↑ | 818 (812–823) | 592 (588–598) | 886 (878–892) | 1337 (1329–1351) | 1255 (1246–1269) | 1104 (1094–1108) | 0.72× | 1.08× | 1.63× | 1.53× | 1.35× | 816 |
+
+kame ahead of glibc (1.32–1.58×) and of mi3 at 4–16 threads (1.15×,
+1.17×); behind mi / je / tc by 1.26–1.63×.  The comparators are within 5 %
+of §5.4 at 1, 16 and 64 threads; at 4, the noisiest row (kame 65.0–83.8),
+mi3 / mi came out 11 % / 13 % higher.
+
+#### mstress (`c15u01n1`; §5.4 `c15u02n1`)
+
+| bench | config | metric | kp-tree | sys | mi3 | mi | je | tc | sys / kp-tree | mi3 / kp-tree | mi / kp-tree | je / kp-tree | tc / kp-tree |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| mstress | t1 | wall_s ↓ | 0.0574 (0.057–0.0809) | 0.0701 (0.0688–0.0736) | 0.0543 (0.0535–0.0549) | 0.0542 (0.0539–0.0543) | 0.0596 (0.0591–0.0603) | 0.0574 (0.057–0.081) | 1.22× | 0.95× | 0.94× | 1.04× | 1.00× |
+| mstress | t4 | wall_s ↓ | 0.55 (0.525–0.566) | 0.567 (0.534–0.626) | 0.435 (0.43–0.453) | 0.423 (0.421–0.46) | 0.84 (0.805–0.926) | 0.607 (0.585–0.628) | 1.03× | 0.79× | 0.77× | 1.53× | 1.10× |
+| mstress | t16 | wall_s ↓ | 2.24 (2.21–2.32) | 2.41 (2.37–2.52) | 1.83 (1.69–1.84) | 1.85 (1.73–1.92) | 2.6 (2.52–2.71) | 2.11 (2.04–2.2) | 1.07× | 0.82× | 0.82× | 1.16× | 0.94× |
+| mstress | t64 | wall_s ↓ | 6.12 (5.74–6.46) | 7.74 (7.6–7.85) | 3.82 (3.59–4.05) | 3.67 (3.56–3.7) | 8.29 (8.14–8.44) | 5.59 (5.44–6.23) | 1.26× | 0.62× | 0.60× | 1.36× | 0.91× |
+| mstress | t128 | wall_s ↓ | 9.19 (8.18–10.6) | 13.9 (13.5–14.3) | 5.66 (5.18–6.03) | 5.11 (4.99–5.4) | 14.5 (14.3–15.1) | 10.4 (9.79–10.5) | 1.51× | 0.62× | 0.56× | 1.57× | 1.13× |
+
+As §5.4: kame beats jemalloc everywhere and glibc everywhere (4 threads
+1.03×, about level), is within 13 % of tcmalloc either way, and trails
+mi / mi3 by 1.2–1.8× from 4 threads up.
+
+#### rptest (t1–t64 `c15u01n4`, t128 `c15u03n2`)
+
+| bench | config | metric | kp-tree | sys | mi3 | mi | je | tc | sys / kp-tree | mi3 / kp-tree | mi / kp-tree | je / kp-tree | tc / kp-tree |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| rptest | t1 | Mops_cpu ↑ | 15.0 (14.3–15.6) | 10.8 (10.6–11.3) | 15.2 (14.6–15.8) | 15.8 (15.1–15.9) | 16.4 (15.7–17.0) | 17.9 (16.7–19.1) | 0.72× | 1.01× | 1.05× | 1.09× | 1.19× |
+| rptest | t4 | Mops_cpu ↑ | 7.23 (6.96–7.62) | 2.9 (2.84–3.27) | 7.87 (7.13–8.34) | 9.71 (9.29–10.6) | 6.17 (5.64–6.64) | 6.4 (5.6–6.67) | 0.40× | 1.09× | 1.34× | 0.85× | 0.88× |
+| rptest | t16 | Mops_cpu ↑ | 3.5 (3.46–3.88) | 2.29 (1.97–2.37) | 4.62 (4.39–4.65) | 5.88 (5.08–6.42) | 2.6 (2.48–2.99) | 2.33 (2.01–2.8) | 0.66× | 1.32× | 1.68× | 0.74× | 0.67× |
+| rptest | t64 | Mops_cpu ↑ | 1.1 (1.03–1.21) | 0.597 (0.572–0.691) | 1.96 (1.64–2.06) | 2.78 (2.46–2.92) | 0.815 (0.725–0.911) | 0.237 (0.191–0.266) | 0.54× | 1.78× | 2.52× | 0.74× | 0.21× |
+| rptest | t128 | Mops_cpu ↑ | 0.556 (0.417–0.642) | 0.326 (0.314–0.438) | 1.33 (1.25–1.46) | 2.27 (1.65–2.54) | 0.62 (0.56–0.752) | 0.054 (0.054–0.057) | 0.59× | 2.40× | 4.08× | 1.12× | 0.10× |
+
+kame 1.03× / 0.95× / 0.95× / 0.92× / 0.96× §5.4's at 1 / 4 / 16 / 64 /
+128 threads, with mi 1.01× / 1.04× / 0.95× / 0.94× / 1.05× on the other
+nodes: node-sized from 16 threads, and at 4 kame's range overlaps §5.4's
+(6.96–7.62 against 6.96–7.67).  kame beats glibc at every count (1.4–2.5×), tcmalloc
+from 4 threads, jemalloc at 4–64 (1.18–1.35×); je leads at 1 (1.09×) and
+128 (1.12×, inside its 0.56–0.75 spread), tc at 1 (1.19×).  mi3 now leads
+at 4 threads too (1.09×; §5.4 0.94×, inside both ranges).  mimalloc leads
+by more as threads grow: mi 1.05× kame at 1, 1.34× at 4, 1.68× at 16,
+2.52× at 64, 4.08× at 128.
+
+**Peak RSS** (rptest's own report, MiB, min–max of 5):
+
+| threads | kame | sys | mi3 | mi | je | tc |
+| ------: | ---: | --: | --: | -: | -: | -: |
+| 16 | 217–265 | 51–60 | 100–123 | 130–162 | 177–202 | 68–89 |
+| 64 | 973–1138 | 217–230 | 490–590 | 649–708 | 721–766 | 191–210 |
+| 128 | 1991–2173 | 427–522 | 1266–1508 | 1127–1365 | 1260–1331 | 349–383 |
+
+kame's as §5.4 to within 9 %; 1.4–1.7× mi / je at 64–128 threads and
+4–5× glibc.
+
+### 6.5 What changes in the README
+
+All Ohtaka tables, their text, and the three Ohtaka charts
+(`make_plots.py`; matplotlib 3.7.5, as the committed SVGs, in a scratch venv
+on the login node's Python 3.8):
+
+- **bench_compare**: medians of three runs; kame leads 64 KiB – 1 MiB at
+  every process count (1.9× mimalloc at 64–256 KiB, 39× at 1 MiB / 128
+  processes); the 64 B gap is 1.02× single-thread; the 1 KiB 0.95× is
+  stated.  The architecture note's 64 B pair becomes 314 vs 321.
+- **loop**: tree against v1.3.0 (§ded-fast alone) and v1.2.1.
+- **alloc_tune_report**: the chunk rows replace the ranges with medians;
+  the 1 MiB / 4T loss is struck, the 8 MiB / 1T one kept, the 1 MiB
+  plateau past 16 threads added.
+- **xmalloc / larson / mstress / rptest**: replace; nothing moved.
+- §ded-fast's closing sentence: the Ohtaka tables are re-measured.
