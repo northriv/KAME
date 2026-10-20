@@ -1,3 +1,79 @@
+* Tue Oct 20 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamepoolalloc: blocks above 32 KiB, up to 4 MiB, are allocated and freed
+  2.2-2.6x faster in a loop (user).  The README had called this the
+  allocator's weak tier on every host -- mimalloc ran it twice as fast on
+  the M5 Ultra.  Such a block takes a whole chunk of 256 KiB units and is
+  recycled through the thread's L1 cache, yet a 64 KiB malloc + free ran
+  292 instructions against 94 at 16 KiB (gcc, x86-64, perf): six calls deep
+  to allocate_dedicated_chunk; the L1 reached through thread_locals that
+  cost a _tlv_get_addr call each on macOS and a _tls_index walk each on
+  Windows, where the pop also saved and restored eight xmm registers for a
+  vectorised loop of the global cache inlined into it; and on every reuse
+  a re-stamp of the back_offset bytes and four header words the block
+  already held.  The free declined the lean path, a dedicated chunk's owner
+  slot being 0, and deallocate_cold derived the chunk again.  Now
+  KameTlsPage carries a copy of the L1's base and index limit, set when
+  the L1 is armed and zeroed by its thread-exit drain; malloc and operator
+  new reach a leaf that pops the L1 off that page and hands a block that
+  was a dedicated chunk back as it is; and the lean free sends a dedicated
+  chunk (bit 7 of its back_offset byte) to a leaf that pushes it onto the
+  L1, or past a full row to the global cache.  Anything else -- a block of
+  bucket origin, an empty or unarmed L1, a torn-down thread -- goes the way
+  it went.  The pair is now 135 instructions.  On the Windows desktop
+  (Xeon E5-1630 v4, llvm-mingw clang 17) 64 KiB, 256 KiB and 1 MiB run at
+  159, 159 and 158 M ops/s single-thread (66, 65 and 63 before), and 64 KiB
+  and 1 MiB at 638 and 670 on 4 processes (243 and 220); a producer and a
+  consumer thread pass 64 KiB blocks 1.18x as fast, 256 KiB 1.22x.  64 B to
+  16 KiB run the same machine code as before.  Keeping the bit-7 test from
+  costing them took one detail: holding the back_offset byte and the chunk
+  address across the owner compare needs registers Win64 does not have
+  spare (seven volatile), and pushed and popped rsi/rdi on every free, so
+  the byte is read again and the helper derives the address itself.  The
+  M5 Ultra numbers are below.  New test: alloc_dedicated_fast_test.
+  Verified with clang x86_64 (also with assertions) and i686, MSVC x64 and
+  x86, and gcc 13 on Linux.
+- kamepoolalloc: l1_pop_fit no longer re-arms a thread's L1 after the
+  thread-exit drain.  It counted the thread in g_lrc_l1_threads a second
+  time, and with the fast free trusting the page's copy, would have let a
+  block into an L1 that nothing drains.  No user destructor gets there
+  with clang or gcc, which register a translation unit's thread_local
+  destructors together, so the allocator's drain and its torn-down flag go
+  out back to back; the refusal makes that an invariant rather than an
+  accident of registration.  l1_push now tests the torn-down flag before
+  s_l1_drained, as l1_pop_fit does, so a torn-down thread is turned away on
+  the page flag before a thread_local is read (on macOS a _tlv_get_addr
+  call, which the teardown code elsewhere avoids).
+- kamepoolalloc: a free that crosses threads no longer reads a block's
+  back_offset byte a second time for the dedicated-chunk test above.  On the
+  M5 Ultra that test cost an SPSC ring of 64 B blocks 9-11 % at 32 in
+  flight and 7-9 % at 128 (tests/bench/micro/ring.c against v1.3.0,
+  interleaved, three runs of 11): the consumer frees the producer's blocks,
+  each such free fails the owner compare, and the re-read and its branch
+  stood on that path in front of deallocate_cold.  A dedicated chunk's
+  owner slot is 0 (allocate_dedicated_chunk stamps it), so the owner value
+  the compare has just loaded decides first, and only an ownerless chunk --
+  a dedicated or a released one -- reads the byte; a free into another
+  thread's live chunk goes to deallocate_cold as in v1.3.0.  The ring is
+  back to 0.98x and 1.02x of v1.3.0, the owner free is the same machine
+  code, and the dedicated tier's loop and producer-consumer pass measure
+  0.97-1.00x of before, within their spread.  On the M5 Ultra the
+  dedicated tier now runs 64 KiB, 256 KiB, 1 MiB and 3 MiB single-thread
+  at 596, 603, 603 and 601 M ops/s (v1.3.0: 203, 187, 174, 162; mimalloc:
+  369, 364, 8.5, 8.1), 64 KiB and 1 MiB on 4 processes at 2397 and 2392
+  (751 and 618), and passes 64 KiB and 256 KiB blocks between two threads
+  1.21x and 1.22x as fast as v1.3.0; the rest of bench_ab is level with
+  it.  The value now held past the compare is the compare's own operand;
+  on Win64 (llvm-mingw clang 17) kame_pool_free still saves no register,
+  the owner free differing from §ded-fast's only in register names, and
+  the pool tests pass.
+- kamepoolalloc/tests: alloc_dedicated_fast_test counts the dedicated bytes
+  left after kame_pool_trim() from what was live before its scenarios.  Its
+  dynamic build failed whenever stdout was /dev/null, "262144 dedicated
+  bytes still claimed": macOS gives /dev/null a 64 KiB block size, so
+  stdio's buffer, allocated on the first printf through the interposed
+  malloc, was itself a dedicated block living to the end.  A file or a pipe
+  (ctest's) gets a smaller buffer, which is why ctest passed.
+
 * Thu Oct 15 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - UI: the four placed windows are remembered relative to the screen's edges,
   and put back after the screen changes (user).  They were saved as screen
