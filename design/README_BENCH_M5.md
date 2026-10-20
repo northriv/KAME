@@ -686,3 +686,159 @@ First `--xt 2000000` run:
 
     rt_violations=0  deferred_reclaims=0  deferred_unmaps=0  forced_releases=0  pending_bytes=0
     == PASSED ==
+
+## 5. Re-measured at `deb2931e2` (2026-10-20)
+
+All four sets again, on KAME master `8a7a9f35a` — kamepoolalloc as of
+`deb2931e2`: §ded-fast (`17a30aaae`, the dedicated tier served off the
+thread's page) and its cross-thread follow-up (`deb2931e2`).  Same machine,
+OS, toolchain, comparator builds (sha256 as above) and commands as §4, built
+from the main checkout.  `bench_compare.sh` ran three times and each cell
+below is the median of the three, as the Windows tables now are.  Not idle,
+as before: load average 3.5 when the build started and 4.4–5.2 at the start
+of each set after it (the 10-thread set left the 5-minute average at 6.0).
+2026-10-20 09:53–10:06 UTC.
+
+### 5.1 `bench_compare.sh`
+
+    cmake -S kamepoolalloc/tests -B build -DCMAKE_BUILD_TYPE=Release
+    cmake --build build -j10
+    bash kamepoolalloc/tests/bench/bench_compare.sh --build-dir build --runs 7 \
+        --mimalloc ~/bench-ab/alloc/mimalloc-3.3.2/build/libmimalloc.dylib \
+        --jemalloc ~/bench-ab/alloc/jemalloc-5.3.0/lib/libjemalloc.2.dylib
+
+Three times, back to back.
+
+kamepoolalloc bench_compare: HEAD=8a7a9f35a  host=dhcp-029-018.issp.u-tokyo.ac.jp/arm64  runs=7  os=Darwin
+
+#### 1T (median of the three runs, each a median of 7, M ops/s)
+
+| size      |  system | mimalloc | jemalloc |     kame |
+|-----------|---------|----------|----------|----------|
+| 64B       |     161 |     1069 |      156 |     1138 |
+| 1 KiB     |     131 |      783 |      158 |      763 |
+| 16 KiB    |     143 |      360 |      104 |      804 |
+| 64 KiB    |      29 |      357 |       29 |      613 |
+| 256 KiB   |      29 |      358 |       29 |      643 |
+| 1 MiB     |      29 |        8 |       29 |      649 |
+| 4 MiB     |      48 |        8 |       29 |      141 |
+
+#### 4 processes (aggregate, median of the three runs, each a median of 7, M ops/s)
+
+| size      |  system | mimalloc | jemalloc |     kame |
+|-----------|---------|----------|----------|----------|
+| 64B       |     648 |     4003 |      602 |     4266 |
+| 16 KiB    |     540 |     1352 |      378 |     3073 |
+| 64 KiB    |     108 |     1350 |      109 |     2261 |
+| 1 MiB     |     108 |       23 |      108 |     2351 |
+
+The three runs' kame column: single thread 64 B 1118 / 1138 / 1143, 1 KiB
+763 / 786 / 739, 16 KiB 802 / 806 / 804, 64 KiB 612 / 614 / 613, 256 KiB
+646 / 610 / 643, 1 MiB 654 / 646 / 649, 4 MiB 140 / 141 / 143; 4 processes
+64 B 4268 / 4263 / 4266, 16 KiB 3078 / 3073 / 3038, 64 KiB 2276 / 2260 /
+2261, 1 MiB 2313 / 2370 / 2351.
+
+Against §4.1 the comparators are within 3 % (or one unit, where they are
+8–29), except system single-thread 16 KiB (+5 %) and 4-process 64 B (+8 %),
+and jemalloc single-thread 64 B and 1 KiB (−6 %, −4 %).  kame: 64 KiB 3.16×, 256 KiB 3.63×, 1 MiB 3.98× single
+thread and 3.05× / 3.75× at 64 KiB / 1 MiB on 4 processes — §ded-fast; 64 B
+1.03×, 1 KiB 1.00×, 16 KiB 1.02×, 4-process 64 B and 16 KiB 1.00×.  4 MiB,
+above the dedicated tier and on a path neither commit touches, came out
+0.95× (148 / 149 in §4.1's two runs, 140–143 in these three).
+
+### 5.2 `loop`, interleaved against v1.3.0 and v1.2.1
+
+    kamepoolalloc/tests/bench/bench_ab.sh --tags v1.3.0,tree \
+        --arm v121=~/bench-ab/arms/v121/kamepoolalloc/out/libkamepoolalloc.dylib \
+        --arm mi=~/bench-ab/alloc/mimalloc-3.3.2/build/libmimalloc.dylib \
+        --only loop --reps 9 --work ~/bench-ab --mbench ~/bench-ab/mimalloc-bench
+
+Arms: tree = `8a7a9f35a` (sha256 `43a5876cb02099cc`); v1.3.0 = the
+standalone repository's tag (`433abfd`), built by `bench_ab.sh` (sha256
+`398c663ba240eb36`, the same bytes as §4.2's tree arm at `896bc0bec`); v121
+and mi as in §4.2.  Results
+`~/bench-ab/results-dhcp-029-018-20261020-185606`:
+
+| bench | config | metric | kp-v1.3.0 | kp-tree | v121 | mi | kp-tree / kp-v1.3.0 | v121 / kp-v1.3.0 | mi / kp-v1.3.0 |
+|---|---|---|---|---|---|---|---|---|---|
+| loop | 64B | Mops ↑ | 1141 (1132–1143) | 1139 (1104–1146) | 1141 (1127–1145) | 1066 (929–1074) | 1.00× | 1.00× | 0.93× |
+| loop | 1024B | Mops ↑ | 793 (740–845) | 772 (730–803) | 834 (797–916) | 772 (757–807) | 0.97× | 1.05× | 0.97× |
+| loop | 16384B | Mops ↑ | 787 (772–834) | 788 (773–859) | 860 (841–878) | 365 (341–368) | 1.00× | 1.09× | 0.46× |
+
+- tree against v1.3.0: 1.00× / 0.97× / 1.00×, the 1 KiB step inside both
+  arms' ranges; neither commit is on these sizes' hit paths.
+- Against v1.2.1 the tree is 1.00× / 0.93× / 0.92×: the per-thread cap's
+  cost of §4.2, unchanged.
+- 1 KiB is level with mimalloc interleaved (772 against 772); §5.1's 763
+  against 783 is three single runs.
+
+### 5.3 mimalloc-bench (`bench_ab.sh`)
+
+    kamepoolalloc/tests/bench/bench_ab.sh --tags tree --arm sys= \
+        --arm mi=~/bench-ab/alloc/mimalloc-3.3.2/build/libmimalloc.dylib \
+        --arm je=~/bench-ab/alloc/jemalloc-5.3.0/lib/libjemalloc.2.dylib \
+        --only "xmalloc larson rptest" --threads 10 --reps 5 \
+        --work ~/bench-ab --mbench ~/bench-ab/mimalloc-bench
+
+§4.3's command with `~/bench-ab` as the work directory (its `kp-tree` is
+configured from the main checkout; `~/bench-ab-readme`'s from §4's
+worktree).  Every run produced a result.
+
+| bench | config | metric | kp-tree | sys | mi | je | sys / kp-tree | mi / kp-tree | je / kp-tree |
+|---|---|---|---|---|---|---|---|---|---|
+| xmalloc | w10,64B | Mfree ↑ | 485 (470–497) | 240 (231–263) | 516 (506–518) | 408 (398–410) | 0.50× | 1.06× | 0.84× |
+| larson | t10 | Mops ↑ | 286 (285–304) | 25.8 (25.8–26.1) | 210 (209–216) | 423 (404–434) | 0.09× | 0.73× | 1.48× |
+| rptest | t10 | Mops_cpu ↑ | 5.67 (5.26–6.04) | 2.45 (2.31–2.65) | 5.03 (4.54–5.4) | 5.11 (4.96–5.47) | 0.43× | 0.89× | 0.90× |
+
+Every arm's rptest came out 10–15 % below §4.3 (system 2.45 against 2.88,
+mimalloc 5.03 against 5.66, jemalloc 5.11 against 5.70, kame 5.67 against
+6.46), and system's xmalloc 7 %: the machine was busier.  The ratios held —
+kame / mimalloc xmalloc 0.94× (§4.3 0.97×), larson 1.36× (1.35×), rptest
+1.13× (1.14×).  These benches stay below 16 KiB, off §ded-fast's sizes, but
+every xmalloc free crosses threads, where `deb2931e2` left one `cbz` that
+v1.3.0 did not have (the 64 B SPSC ring measured 0.98× of v1.3.0 with it);
+kame's xmalloc, 485 against 498 while mimalloc and jemalloc repeated their
+§4.3 medians to the unit, is within its spread (470–497) and may be that.
+
+`provenance.txt`:
+
+    date      2026-10-20T09:56:15Z
+    host      dhcp-029-018.issp.u-tokyo.ac.jp
+    kernel    Darwin 27.0.0 arm64
+    cpu       Apple M5 Ultra, 10P + 20E, 96 GiB, Mac17,15
+    os        macOS 27.0.1 (26A434)
+    power     Now drawing from 'AC Power'
+    benches   /Users/ssp/KAME/kamepoolalloc @ 8a7a9f35a, Apple clang version 21.0.0 (clang-2100.3.34.2)
+    arm       kp-tree: /Users/ssp/bench-ab/kp-tree/out/libkamepoolalloc.dylib (684584 B, sha256 43a5876cb02099cc, tree at 8a7a9f35a)
+    arm       sys: no preload (system malloc)
+    arm       mi: /Users/ssp/bench-ab/alloc/mimalloc-3.3.2/build/libmimalloc.dylib (233072 B, sha256 5153705f94d7d8b4)
+    arm       je: /Users/ssp/bench-ab/alloc/jemalloc-5.3.0/lib/libjemalloc.2.dylib (649248 B, sha256 9290fc4e3540a8f2)
+    mbench    /Users/ssp/bench-ab/mimalloc-bench @ 69c41ed, binaries in /Users/ssp/bench-ab/mbench-build
+    params    reps=5 threads="10" only="xmalloc larson rptest" quick=0
+
+Results `~/bench-ab/results-dhcp-029-018-20261020-185615`.
+
+### 5.4 RT (`bench_rt_wcet`)
+
+    build/bench_rt_wcet --pressure        # three times
+    build/bench_rt_wcet --xt 2000000      # three times
+
+From the §5.1 build.  Every run PASSED.  Each `--pressure` run:
+`deferred_unmaps=800` of 800, `forced_releases=0`, `rt_violations=800`
+(exactly the band's expected mappings).  Each `--xt` run: `rt_violations=0`.
+Median of the three runs:
+
+| Path | realtime | default |
+|---|---:|---:|
+| free, > 256 MiB band — median | **192 ns** | 14,336 ns |
+| free, > 256 MiB band — max | **666 ns** | 27,333 ns |
+| free, 32 B cross-thread — p99.9 | **96 ns** | 224 ns |
+| free, 32 B cross-thread — p99.99 | **192 ns** | 7,168 ns |
+| free, 32 B cross-thread — p99.999 | **384 ns** | 10,240 ns |
+
+> 256 MiB band, per run: realtime p50 224 / 128 / 192 ns, max 666 / 375 /
+3,792 ns; default p50 20,480 / 14,336 / 14,336 ns, max 39,625 / 27,333 /
+25,875 ns.  The 3.8 µs is one realtime free in 800, as §3.1's 11.4 µs was.
+Cross-thread: realtime p99.9 96 and p99.99 192 ns in all three, p99.999
+384 / 448 / 256 ns (§4.4: 7,168 / 3,072 / 7,168); default p99.9 224 / 224 /
+192 ns, p99.99 7,168 and p99.999 10,240 ns in all three.
