@@ -199,7 +199,8 @@ def _first_model(spec):
 # do not always report this back -- seat-billed plans need not itemise tokens,
 # and a model you run yourself has no provider at all -- so for cost tracking
 # and for any usage a funder wants evidenced, the client is the only place the
-# numbers exist.  Counts only: no prompt or response text is ever written.
+# numbers exist.  Counts only: no prompt or response text is written there.
+# KAME_USAGE_CONTENT opts in to a second file holding the text (below).
 #
 # One row per MODEL REQUEST, not per agent run, because `elapsed_s` is meant to
 # stand in for inference time.  A KAME agent run blocks for minutes inside
@@ -215,8 +216,16 @@ def _first_model(spec):
 #                      usage evidence, which cannot be reconstructed later.
 #   KAME_USAGE_TAG     label for `model_key`, for keying an external ledger;
 #                      defaults to the model spec string.
+#   KAME_USAGE_CONTENT also write what each row's span carried -- the
+#                      instructions, tool definitions, messages sent and
+#                      reply of every model request, and each run's whole
+#                      history -- to content-<date>.jsonl beside usage.jsonl,
+#                      so a run can be replayed later.  Off by default: rows
+#                      run to megabytes, and hold whatever the conversation
+#                      held.  Needs the usage log on (no KAME_USAGE_NO_LOG).
 # ---------------------------------------------------------------------------
 USAGE_ENABLED = os.environ.get('KAME_USAGE_NO_LOG') is None
+USAGE_CONTENT = os.environ.get('KAME_USAGE_CONTENT') is not None
 USAGE_LOG_DIR = os.environ.get(
     'KAME_MCP_LOG_DIR', os.path.join(os.path.expanduser('~'), '.kame_mcp_log'))
 USAGE_LOG_PATH = os.path.join(USAGE_LOG_DIR, 'usage.jsonl')
@@ -236,6 +245,59 @@ def _usage_write(row):
                 f.write(json.dumps(row, ensure_ascii=False) + '\n')
     except Exception:
         pass
+
+
+def _content_write(row):
+    """Append one row to content-<date>.jsonl.  Never raises, as _usage_write."""
+    try:
+        path = os.path.join(USAGE_LOG_DIR,
+                            'content-%s.jsonl' % datetime.now().strftime('%Y-%m-%d'))
+        with _USAGE_LOCK:
+            os.makedirs(USAGE_LOG_DIR, exist_ok=True)
+            with open(path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(row, ensure_ascii=False) + '\n')
+    except Exception:
+        pass
+
+
+def _span_content(span, attrs, op):
+    """The conversation a model-request ('chat') or run ('invoke_agent') span
+    carries.  pydantic-ai keeps it in the span's attributes as JSON text
+    (Instrumentation's include_content, on by default); parsed here so a row
+    is one nested object, and kept as text when it will not parse."""
+    def parsed(key):
+        v = attrs.get(key)
+        if v is None:
+            return None
+        try:
+            return json.loads(v)
+        except Exception:
+            return v
+    out = {
+        'span_id': format(span.context.span_id, '016x') if span.context else None,
+        'started': datetime.fromtimestamp(span.start_time / 1e9, timezone.utc).isoformat(),
+    }
+    if op == 'chat':
+        #What the model was sent -- after kame_history_budget() trimmed it, so
+        #the input a replay has to reproduce -- and what it answered.
+        out.update({
+            'request': {k[len('gen_ai.request.'):]: v for k, v in attrs.items()
+                        if k.startswith('gen_ai.request.')},
+            'system_instructions': parsed('gen_ai.system_instructions'),
+            'tools': parsed('gen_ai.tool.definitions'),
+            'input_messages': parsed('gen_ai.input.messages'),
+            'output_messages': parsed('gen_ai.output.messages'),
+        })
+    else:
+        #The run's whole history, untrimmed, and what it returned (text as
+        #is: a str output is stored unencoded, so it is not parsed).
+        out.update({
+            'agent': attrs.get('gen_ai.agent.name'),
+            'conversation_id': attrs.get('gen_ai.conversation.id') or None,
+            'all_messages': parsed('pydantic_ai.all_messages'),
+            'final_result': attrs.get('final_result'),
+        })
+    return out
 
 
 def _install_usage_logging(model_spec):
@@ -324,6 +386,8 @@ def _install_usage_logging(model_spec):
                     'record': 'run', 'wall_s': round(secs, 3),
                 })
             _usage_write(row)
+            if USAGE_CONTENT:
+                _content_write(dict(row, **_span_content(s, a, op)))
 
         def shutdown(self):
             pass
@@ -741,8 +805,10 @@ def kame_usage_logging(tag=None):
     One row per model request in ~/.kame_mcp_log/usage.jsonl -- calls,
     tokens, inference time, never text -- the same ledger the agent KAME
     ships writes, so a module of your own lands in it too.  `tag` keys the
-    rows (`model_key`); KAME_USAGE_TAG overrides.  [] when OpenTelemetry is
-    absent, so `capabilities=[*kame_usage_logging(), ...]` is always valid."""
+    rows (`model_key`); KAME_USAGE_TAG overrides.  With KAME_USAGE_CONTENT
+    set, each row's conversation also goes to content-<date>.jsonl.  [] when
+    OpenTelemetry is absent, so `capabilities=[*kame_usage_logging(), ...]`
+    is always valid."""
     return _install_usage_logging(tag or 'agent')
 
 

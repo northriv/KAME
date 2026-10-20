@@ -12,6 +12,7 @@ DEPENDPATH += $$OUT_PWD/../../kame
 
 HEADERS += \
     autolctuner.h \
+    lctunersearch.h \
     nmrfspectrum.h \
     nmrpulse.h \
     nmrrelax.h \

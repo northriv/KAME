@@ -724,7 +724,7 @@
          </sizepolicy>
         </property>
         <property name="toolTip">
-         <string>Newton: both STMs at once, from the fitted circuit. Alternate STMs: one at a time, as by hand -- the STM the resonant frequency is relatively more sensitive to sets the frequency, the other the match. Robust against backlash.</string>
+         <string>Newton: both STMs at once, measuring them by test rotations before every step. Alternate STMs: one at a time, as by hand -- the STM the resonant frequency is relatively more sensitive to sets the frequency, the other the match. Servo: both STMs at once, steering by the fitted capacitances. Alternate and Servo learn each gear's play and need both STMs.</string>
         </property>
        </widget>
       </item>

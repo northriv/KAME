@@ -17,6 +17,7 @@
 #include "secondarydriver.h"
 #include "motor.h"
 #include "networkanalyzer.h"
+#include "lctunersearch.h"
 #include <vector>
 #include <array>
 #include <utility>
@@ -83,9 +84,9 @@ public:
     //! default: it rotates an axis through in one run, which is a motion the
     //! stepwise search never makes.
     const shared_ptr<XBoolNode> &scanAssist() const {return m_scanAssist;}
-    //! 0: Newton, both STMs at once from the fitted model.  1: one STM at a
-    //! time, as by hand -- the STM the resonant frequency is relatively more
-    //! sensitive to sets the frequency, the other the match.
+    //! 0: Newton, both STMs at once, measuring them afresh before every step.
+    //! 1: Alternate, one STM at a time, as by hand.  2: Servo, both STMs at
+    //! once.  1 and 2 see through backlash (lctunersearch.h) and need both STMs.
     const shared_ptr<XComboNode> &searchMode() const {return m_searchMode;}
     const shared_ptr<XIntNode> &origBackMax() const {return m_origBackMax;}
     const shared_ptr<XComboNode> &fitFunc() const {return m_fitFunc;}
@@ -113,9 +114,8 @@ public:
             clearSTMDelta();
             deltaC1perDeltaSTM.fill(0.0);
             deltaC2perDeltaSTM.fill(0.0);
-            altFreqAxis = -1;
-            altLastAxis = -1;
-            fitBeforeStep.reset();
+            searchLog.reset();
+            fitLast.reset();
         }
         void clearSTMDelta() {
             for(int i: {0,1})
@@ -127,6 +127,11 @@ public:
         std::array<double, 2> stmTrustArea; //[deg]
         XTime timeSTMChanged; //STM positions will move to \a targetSTMValues.
         std::array<double, 2> targetSTMValues; //[deg]
+        //! Where analyze() read the STMs, this record.  visualize() drives an
+        //! STM by its target's difference from this, never from a fresh
+        //! readout: one still turning has moved on from where analyze() saw
+        //! it, and that difference went out as a move back to there.
+        std::array<double, 2> positionsSeen = {{0.0, 0.0}}; //[deg]
         double smallestRLAtF0; //0 < RL < 1
         //! Deepest fitted dip (|RL| at the fitted resonance, plus its error)
         //! since the last reset.  Progress on its own, but never a place to
@@ -141,18 +146,18 @@ public:
         std::array<double, 2> deltaC1perDeltaSTM; //[F/deg.]
         std::array<double, 2> deltaC2perDeltaSTM; //[F/deg.]
 
-        //! The alternating search (searchMode() 1), on top of the derivatives
-        //! above.  The STM serving the resonant frequency (-1: undecided), the
-        //! one the last step moved (-1: none yet), by how much as commanded,
-        //! whether that was a reversal, and the fit it started from.
-        int altFreqAxis = -1;
-        int altLastAxis = -1;
-        double altLastMove = 0.0; //[deg]
-        bool altLastReversed = false;
-        shared_ptr<const LCRFit> fitBeforeStep; //pointer-to-const: shared with live Snapshots.
-        //! [deg] lost on a reversal, as seen so far; mechanical, so it outlives
-        //! resetToFirstStage() and is cleared when a tune starts.
-        std::array<double, 2> altSlack = {{0.0, 0.0}};
+        //! The Alternate and Servo searches (searchMode() 1, 2): all they have
+        //! seen and done, which is all they keep (lctuner::next()).  Empty,
+        //! not null, once the search has begun: the preset angles are then
+        //! behind it.  Pointer-to-const: a fresh log is published every step.
+        shared_ptr<const lctuner::Log> searchLog;
+        //! The last fit fed to a search.  The next fit starts from it and so
+        //! keeps its L1: a fresh LCRFit takes L1 = 50 Ohm/(2 pi f) at the dip,
+        //! and C1s fitted against two different L1 do not compare.
+        shared_ptr<const LCRFit> fitLast;
+        //! This record's targets are a search step's, which drives an STM by
+        //! however little (visualize()).
+        bool searchMoved = false;
 
         //! The continuous-scan phase.  -1 when it is not running; otherwise
         //! the axis being rotated through, with the traces taken DURING the
@@ -228,10 +233,9 @@ private:
 		double dxdC1, double dxdC2,
 		double dydC1, double dydC2);
     [[noreturn]] void abortTuningFromAnalyze(Transaction &tr, double rl_at_f0, XString &&message);
-    //! One step of the alternating search: the frequency's STM or the
-    //! match's, in turn.  Needs both STMs' derivatives.  Always throws.
-    [[noreturn]] void alternateStep(Transaction &tr, const shared_ptr<LCRFit> &fit,
-        double f0, XString &&message);
+    //! One step of the Alternate or Servo search, from \a fit.  Always throws.
+    [[noreturn]] void searchStep(Transaction &tr, const shared_ptr<LCRFit> &fit,
+        bool reliable, double f0, double rl_at_f0, XString &&message);
     [[noreturn]] void rollBack(Transaction &tr, XString &&message);
     void clearUIAndPlot(Transaction &tr);
     //! The external RF relays to the network analyzer (true) or back.
