@@ -63,7 +63,9 @@
   (751 and 618), and passes 64 KiB and 256 KiB blocks between two threads
   1.21x and 1.22x as fast as v1.3.0; the rest of bench_ab is level with
   it.  The value now held past the compare is the compare's own operand;
-  not checked on Win64.
+  on Win64 (llvm-mingw clang 17) kame_pool_free still saves no register,
+  the owner free differing from §ded-fast's only in register names, and
+  the pool tests pass.
 - kamepoolalloc/tests: alloc_dedicated_fast_test counts the dedicated bytes
   left after kame_pool_trim() from what was live before its scenarios.  Its
   dynamic build failed whenever stdout was /dev/null, "262144 dedicated
