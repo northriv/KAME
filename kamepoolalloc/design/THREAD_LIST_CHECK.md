@@ -1761,8 +1761,9 @@ model 85, 4 vCPU on four cores, 1 MiB L2 / core, 33 MiB L3).  Arms: v1.3.0
     `_dynamic`, each also with stdout on `/dev/null`), and the four
     thread-exit tests.
   - Results: LP64 release 200 runs each, 0 nonzero; i586 100 each, 0
-    nonzero.  The other seven trees (100 each) were still running when this
-    was written; their tally is appended when done.
+    nonzero.  The other seven trees (i486, i586/i486 + asserts, and the
+    three harsh trees), 100 each: 0 nonzero.  In all, 15 tests on nine
+    trees, 15 000 runs, none nonzero.
 
 **The test fix, reproduced on Linux.**  Linux reports `st_blksize` 4096 for
 `/dev/null`, so stdout's buffer stays far below the dedicated tier and the
