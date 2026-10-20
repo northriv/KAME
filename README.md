@@ -227,9 +227,9 @@ while kame stays memory-warm at 163 / 627 M ops/s.  The one band where
 mimalloc leads is the **64–256 KiB** §15 dedicated-chunk tier (kame ~185
 vs ~358 single-thread, 741 vs 1357 across 4 processes): there the per-free
 radix lookup plus recycle-cache bookkeeping cost more than mimalloc's
-segment scheme — a known weaker tier, which §ded-fast (below) has since
-cut to under half the instructions; these M5 rows predate it and are yet to
-be re-measured.
+segment scheme — a known weaker tier until §ded-fast (below), after which
+the M5 runs it at ~600 M single-thread, ahead of mimalloc; the rows above
+predate it.
 
 Against the previous tables (v1.2.1, `2e8f940fd`) mimalloc and jemalloc
 reproduce to about 2 %, and kame is 0.95× at 1 KiB and 0.89× at 16 KiB
@@ -315,8 +315,14 @@ The pair is now 135 instructions (42–52 cycles against 82–96 at 64 KiB –
 single-thread, and a producer → consumer pair of threads
 (`bench_xthread_pool -w 2`) 1.18× at 64 KiB and 1.22× at 256 KiB.  64 B to
 16 KiB run the same machine code as before; their interleaved medians stayed
-within this desktop's ±5 % layout jitter.  The M5 Ultra, Intel Mac and
-Ohtaka tables in this section predate it.
+within this desktop's ±5 % layout jitter.  `deb2931e2` then took the bit-7
+test off the free of a live chunk's slot by another thread (an SPSC ring of
+64 B blocks had lost 9 % to it on the M5 Ultra); only an ownerless chunk
+reads the byte.  On the M5 Ultra the tier then ran 64 KiB / 256 KiB / 1 MiB
+at 596 / 603 / 603 M ops/s single-thread (v1.3.0 203 / 187 / 174; mimalloc
+369 / 364 / 8.5) and 64 KiB / 1 MiB at 2397 / 2392 on 4 processes
+(ChangeLog, 2026-10-20) — ahead of mimalloc in the band where it led.  The
+M5 Ultra, Intel Mac and Ohtaka tables in this section predate it.
 
 ### Third-party suite cross-check (mimalloc-bench, M5 Ultra)
 
@@ -350,10 +356,10 @@ cross-thread churn kame leads, 6.46 against jemalloc's 5.70 and mimalloc's
 malloc plus kame's `free` forwarding — 2.40.)
 
 **Intel Xeon E5-1630 v4 (x86-64, 4-core / 8-thread, Windows 11), single
-thread, M ops/s** — kame at `17a30aaae` (§ded-fast), llvm-mingw clang 17,
-`-O3`, median of 5 via `bench_compare.sh`, re-measured 2026-10-20 (the
-2026-10-13 run of `e0974e402` is `design/THREAD_LIST_CHECK.md`'s Windows
-run).  On
+thread, M ops/s** — kame at `deb2931e2` (§ded-fast), llvm-mingw clang 17,
+`-O3`, re-measured 2026-10-20: each row the median of three
+`bench_compare.sh` runs, each itself a median of 5 (the 2026-10-13 run of
+`e0974e402` is `design/THREAD_LIST_CHECK.md`'s Windows run).  On
 Windows the `kame` column is the **direct pool route** (`bench_loop_pool` →
 `kame_pool_malloc`): PE/COFF has no `LD_PRELOAD`, and llvm-mingw resolves the
 plain `malloc` statically (no IAT entry for the §31 redirect to patch), so —
@@ -363,35 +369,38 @@ malloc-override layer.  mimalloc/jemalloc are not standard on Windows
 
 | size      |  system |     kame |
 |-----------|---------|----------|
-| 64B       |      41 |  **325** |
-| 1 KiB     |      39 |  **242** |
-| 16 KiB    |      39 |  **245** |
-| 64 KiB    |      11 |  **159** |
-| 256 KiB   |      11 |  **159** |
-| 1 MiB     |      ~0 |  **158** |
+| 64B       |      41 |  **324** |
+| 1 KiB     |      40 |  **227** |
+| 16 KiB    |      38 |  **257** |
+| 64 KiB    |      11 |  **160** |
+| 256 KiB   |      11 |  **161** |
+| 1 MiB     |      ~0 |  **164** |
 | 4 MiB     |      ~0 |   **36** |
 
-**Same host, 4 processes aggregate, M ops/s** — median of 5:
+**Same host, 4 processes aggregate, M ops/s** — the same three runs:
 
 | size      |  system |     kame |
 |-----------|---------|----------|
-| 64B       |     137 | **1185** |
-| 16 KiB    |     139 |  **863** |
-| 64 KiB    |      38 |  **638** |
-| 1 MiB     |      ~0 |  **670** |
+| 64B       |     139 | **1185** |
+| 16 KiB    |     136 |  **915** |
+| 64 KiB    |      39 |  **612** |
+| 1 MiB     |      ~0 |  **657** |
 
 The **system ~0 at ≥ 1 MiB** is the Windows UCRT per-call `VirtualAlloc` /
 `VirtualFree` cliff (the same shape mimalloc / jemalloc hit at this tier on
 Linux): a tight 1 MiB `malloc`/`free` loop drops below 0.5 M ops/s, while
-kame's two-level recycle cache stays memory-warm at 36–670 M ops/s.  Single
+kame's two-level recycle cache stays memory-warm at 36–657 M ops/s.  Single
 rows of one `bench_compare.sh` run can be off by a quarter on this desktop
-(64 KiB came out 48 in a run of `e0974e402`; interleaved, 66–68 for both
-builds), so a change in one row wants an interleaved A/B before it is
-believed.  The 32 KiB – 4 MiB rows are §ded-fast's (above): against
-`e0974e402` 64 KiB / 256 KiB / 1 MiB went 66 / 65 / 63 → 159 / 159 / 158
-single-thread and 64 KiB / 1 MiB 243 / 220 → 638 / 670 on 4 processes; the
+(64 KiB came out 48 in a run of `e0974e402`, interleaved 66–68 for both
+builds; in the first of the three runs above 256 KiB came out 141 and
+1 KiB 212, against 161 / 161 and 231 / 227 in the other two), hence the
+median of three, and a change in one row wants an interleaved A/B before
+it is believed.  The 32 KiB – 4 MiB rows are §ded-fast's (above): against
+`e0974e402` 64 KiB / 256 KiB / 1 MiB went 66 / 65 / 63 → 160 / 161 / 164
+single-thread and 64 KiB / 1 MiB 243 / 220 → 612 / 657 on 4 processes; the
 4 MiB row is the §19 mmap tier, which it does not touch, and the bucketed
-rows run the same machine code as before.
+rows run the same machine code as before (1 KiB interleaved against the
+parent: 0.94×, inside this desktop's layout jitter).
 
 Against the previous table's `8f2e6980` (June), the thread lists
 (`5fc34e052`) had cost this Broadwell-EP 64 B a fifth and 16 KiB a third,
