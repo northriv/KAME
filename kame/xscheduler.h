@@ -16,6 +16,7 @@
 #include "transaction_signal.h"
 #include "atomic_queue.h"
 #include <queue>
+#include <deque>
 
 namespace Transactional {
 
@@ -46,6 +47,11 @@ private:
     std::unique_ptr<BufferedEvent> popOldest();
 	Queue m_queue;
 	SkippedQueue m_skippedQueue;
+    //! What arrived while m_queue was full, oldest first; moved back by the
+    //! main thread as room appears.  \sa register_event()
+    std::deque<BufferedEvent*> m_overflow;
+    atomic<bool> m_overflowed; //!< m_overflow is not empty: a lock-free hint.
+    void refillFromOverflow();
     atomic<XTime> m_oldest_timestamp;
     atomic<unsigned int> m_adaptiveDelay; //!< ms.
 

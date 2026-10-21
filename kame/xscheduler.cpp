@@ -60,7 +60,21 @@ SignalBuffer::adaptiveDelay() {
 XMutex mutex;
 
 SignalBuffer::SignalBuffer()
-    : m_oldest_timestamp(XTime::now()), m_adaptiveDelay(ADAPTIVE_DELAY_MIN) {
+    : m_overflowed(false), m_oldest_timestamp(XTime::now()), m_adaptiveDelay(ADAPTIVE_DELAY_MIN) {
+}
+void
+SignalBuffer::refillFromOverflow() {
+    XScopedLock<XMutex> lock(mutex);
+    while( !m_overflow.empty()) {
+        try {
+            m_queue.push(m_overflow.front());
+        }
+        catch (Queue::nospace_error &) {
+            break;
+        }
+        m_overflow.pop_front();
+    }
+    m_overflowed = !m_overflow.empty();
 }
 std::unique_ptr<BufferedEvent> SignalBuffer::popOldest() {
     std::unique_ptr<BufferedEvent> item;
@@ -94,34 +108,37 @@ SignalBuffer::registerEvent(std::unique_ptr<Transactional::BufferedEvent> event)
 
 void 
 SignalBuffer::register_event(std::unique_ptr<Transactional::BufferedEvent> event) {
-    for(;;) {
-        unsigned long cost = 0;
-        if( !m_queue.empty()) {
-            cost = XTime::now().diff_msec(m_oldest_timestamp);
-        }
-        unsigned long new_delay = cost / 2;
-        new_delay = std::min((unsigned long)ADAPTIVE_DELAY_MAX, new_delay);
-        new_delay = std::max((unsigned long)ADAPTIVE_DELAY_MIN, new_delay);
-        m_adaptiveDelay = new_delay;
+    unsigned long cost = 0;
+    if( !m_queue.empty()) {
+        cost = XTime::now().diff_msec(m_oldest_timestamp);
+    }
+    unsigned long new_delay = cost / 2;
+    new_delay = std::min((unsigned long)ADAPTIVE_DELAY_MAX, new_delay);
+    new_delay = std::max((unsigned long)ADAPTIVE_DELAY_MIN, new_delay);
+    m_adaptiveDelay = new_delay;
+    if(m_queue.empty()) m_oldest_timestamp = event->registered_time;
+    XScopedLock<XMutex> lock(mutex);
+    //In order: once anything waits in the overflow, so does what follows.
+    if(m_overflow.empty()) {
         try {
-            if(m_queue.empty()) m_oldest_timestamp = event->registered_time;
-            auto *e = event.get();
-            event.release();
-            {
-            XScopedLock<XMutex> lock(mutex);
-            m_queue.push(e);
-            }
-//        if(m_queue.size() > 4000) {
+            m_queue.push(event.get());
+            event.release(); //!< the queue owns it now
+            return;
         }
         catch (Queue::nospace_error &) {
             fprintf(stderr, "Queue size exceeded to %d.\n", (int)m_queue.size());
-            if(isMainThread())
-                synchronize();
-            else
-                msecsleep(10);
         }
-        break;
     }
+    //Full: the main thread has not drained it for a while.  The event used to
+    //be dropped -- after its ownership was released, so it leaked -- and a
+    //dropped FLAG_AVOID_DUP event is worse than one lost update: its listener
+    //keeps the pending event, every later talk() merges into it, and nothing
+    //is registered for it again.  Waiting for room instead could deadlock
+    //against a main thread waiting for this one.  Held here, it goes out in
+    //order once synchronize__() makes room.
+    m_overflow.push_back(event.get());
+    event.release();
+    m_overflowed = true;
 }
 bool
 SignalBuffer::synchronize() {
@@ -142,6 +159,8 @@ SignalBuffer::synchronize__() {
     unsigned int skipped_cnt = 0;
 
 	for(;;) {
+        if(m_overflowed)
+            refillFromOverflow();
 		if(m_queue.empty() && (m_skippedQueue.size() <= skipped_cnt)) {
 			dotalk = !m_skippedQueue.empty();
 			break;
