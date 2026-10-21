@@ -811,6 +811,9 @@ NOTEBOOK_MCP_HTTP_LOG = None
 NOTEBOOK_LOG_TAIL = None	#last lines of the server's output, for diagnostics
 NOTEBOOK_DEATH_REPORTED = True	#nothing to report until a server is launched
 NOTEBOOK_ATEXIT_DONE = False
+#Windows only: the name of the event the embedded kernel waits on for an
+#interrupt, handed to the notebook server.  \sa notebook_kame_kernel_manager.py
+KAME_INTERRUPT_EVENT = None
 
 
 def runningNotebookURL():
@@ -937,6 +940,8 @@ def launchJupyterConsole(prog, argv):
 		env['KAME_PID'] = str(os.getpid())
 		env['KAME_NOTEBOOK_SERVER_TOKEN'] = token
 		env['KAME_IPYTHON_CONNECTION_FILE'] = connection_file
+		if KAME_INTERRUPT_EVENT:
+			env['KAME_INTERRUPT_EVENT'] = KAME_INTERRUPT_EVENT
 		args = [prog, console[0], '--config=' + os.path.join(KAME_ResourceDir, 'jupyter_notebook_config.py')]
 		print("Launching jupyter notebook: ", *args)
 		proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, cwd=console[1])
@@ -3378,6 +3383,31 @@ else:
 	c.InteractiveShellApp.exec_lines = [
 	    '%gui kamepybind11'
 	]
+	#Jupyter's stop button on Windows.  The notebook server cannot signal this
+	#process there: os.kill() with anything but CTRL_C/CTRL_BREAK_EVENT is
+	#TerminateProcess, so the SIGINT that interrupts a cell on macOS and Linux
+	#killed KAME instead.  ipykernel's own Windows interrupt is an event the kernel
+	#waits on (IPKernelApp.interrupt, served by ParentPollerWindows, which raises
+	#KeyboardInterrupt in a running cell); jupyter_client normally creates it for
+	#a kernel it launches.  Here KAME is the parent, so the event is created here,
+	#named, and the server opens it by name.  \sa notebook_kame_kernel_manager.py
+	if os.name == 'nt':
+		try:
+			import ctypes
+			from ctypes import wintypes
+			_k32 = ctypes.WinDLL('kernel32', use_last_error=True)
+			_k32.CreateEventW.restype = wintypes.HANDLE
+			_k32.CreateEventW.argtypes = (wintypes.LPVOID, wintypes.BOOL, wintypes.BOOL, wintypes.LPCWSTR)
+			_name = 'Local\\kame-ipykernel-interrupt-{}'.format(os.getpid())
+			_h = _k32.CreateEventW(None, False, False, _name) #auto-reset, unsignalled
+			if _h:
+				c.IPKernelApp.interrupt = _h
+				KAME_INTERRUPT_EVENT = _name
+			else:
+				sys.stderr.write('KAME: no interrupt event (error {}); Jupyter\'s stop '
+				                 'button will do nothing.\n'.format(ctypes.get_last_error()))
+		except Exception:
+			sys.stderr.write(str(traceback.format_exc()))
 #	c.InteractiveShell.colors = 'LightBG'
 #	c.TerminalIPythonApp.display_banner = False
     #c.InteractiveShellApp.gui = 'kamepybind11' #does not work

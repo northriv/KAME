@@ -51,6 +51,36 @@ def parent_alive(pid):
     return True
 
 
+def interrupt_kame_on_windows(event_name):
+    """Interrupts KAME's embedded kernel on Windows, by setting the event it
+    waits on.  False when there is no such event to set.
+
+    Never os.kill(pid, SIGINT) there: SIGINT is neither CTRL_C_EVENT nor
+    CTRL_BREAK_EVENT, so Python hands it to TerminateProcess and KAME dies --
+    which is what Jupyter's stop button used to do.  KAME creates the event
+    (xpythonsupport.py, IPKernelApp.interrupt) and passes its name in
+    KAME_INTERRUPT_EVENT; ipykernel's ParentPollerWindows turns it into a
+    KeyboardInterrupt in the running cell.
+    """
+    if not event_name:
+        return False
+    import ctypes
+    from ctypes import wintypes
+    EVENT_MODIFY_STATE = 0x0002
+    k32 = ctypes.WinDLL('kernel32', use_last_error=True)
+    k32.OpenEventW.restype = wintypes.HANDLE
+    k32.OpenEventW.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.LPCWSTR)
+    k32.SetEvent.argtypes = (wintypes.HANDLE,)
+    k32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    h = k32.OpenEventW(EVENT_MODIFY_STATE, False, event_name)
+    if not h:
+        return False
+    try:
+        return bool(k32.SetEvent(h))
+    finally:
+        k32.CloseHandle(h)
+
+
 def start_kame_parent_watchdog(pid, interval=2.0, grace=10.0):
     """Shut this notebook server down when the KAME that launched it goes away.
 
@@ -136,8 +166,14 @@ class KAMENotebookKernelManager(MappingKernelManager):
         """Overrides ``MappingKernelManager.interrupt_kernel``.
         Sends SIGINT to the KAME process (not the dummy subprocess) so that
         Jupyter's stop button actually interrupts the embedded IPython kernel.
+        On Windows, sets KAME's interrupt event instead (see
+        interrupt_kame_on_windows()).
         """
-        import os, signal
+        if os.name == 'nt':
+            if not interrupt_kame_on_windows(os.environ.get('KAME_INTERRUPT_EVENT')):
+                self.log.warning("KAME: no interrupt event to set; use Kill in "
+                                 "KAME's Script pane to stop the cell.")
+            return
         os.kill(self.kame_pid, signal.SIGINT)
 
     async def restart_kernel(self, kernel_id, **kwargs):
