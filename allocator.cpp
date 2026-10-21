@@ -8178,13 +8178,13 @@ extern "C" void kame_pool_rt_drain(void) noexcept {
 }
 
 // The `mi_collect` / `malloc_trim` / `arena.N.purge` analogue: give back
-// everything the allocator holds without a live owner -- this thread's free
-// lists (the chunks only they held are released), the parked unmaps, this
-// thread's L1 recycle cache and the global L2 cache, which also returns the
-// pages of chunks a realtime free released without `madvise`.  What it
-// releases has to be mapped (and faulted) again by whoever needs it next,
-// so a realtime thread prewarms again after it.  Same flag handling as
-// kame_pool_rt_drain.
+// everything the allocator holds without a live owner -- the cross-thread
+// frees this thread still holds in its batch, its free lists (the chunks only
+// they held are released), the parked unmaps, this thread's L1 recycle cache
+// and the global L2 cache, which also returns the pages of chunks a realtime
+// free released without `madvise`.  What it releases has to be mapped (and
+// faulted) again by whoever needs it next, so a realtime thread prewarms
+// again after it.  Same flag handling as kame_pool_rt_drain.
 extern "C" void kame_pool_trim(void) noexcept {
 	const int saved_rt  = g_rt_thread;
 	const int saved_def = g_rt_default.exchange(0, std::memory_order_relaxed);
@@ -8193,6 +8193,12 @@ extern "C" void kame_pool_trim(void) noexcept {
 	// (§tl-cap) This thread's own lists go back to their chunks first, so the
 	// chunks they held release into the caches emptied below.
 	if( !kame_thread_torn_down()) {
+		// Before them, the batch: up to CAP slots this thread freed into other
+		// threads' chunks keep their bits set -- those chunks cannot empty, nor
+		// their owners hear of the room -- until a flush, which otherwise waits
+		// for the batch to fill, for one of this thread's chunks to fill, or
+		// for its exit.  (Alive here: its destructor arms the torn-down flag.)
+		tls_cross_dealloc_batch.flush();
 		KameTlsPage *pg = kame_page();
 		for(unsigned b = 1; b < (unsigned)ALLOC_NUM_BUCKETS; ++b)
 			tl_return_bucket(pg, b);
