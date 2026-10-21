@@ -698,10 +698,16 @@ struct task_struct { int pid; };
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
+/* C only, as in osx_compat.h, which says why: as function-like macros they
+ * break std::numeric_limits<T>::min() and std::min in every C++ unit that
+ * includes this ahead of a standard header.  The #undefs stay for both,
+ * which also keeps <windows.h>'s own min/max out of C++. */
 #undef min
 #undef max
+#ifndef __cplusplus
 #define min(x, y) ((x) < (y) ? (x) : (y))
 #define max(x, y) ((x) > (y) ? (x) : (y))
+#endif
 
 #define DUMP_PREFIX_NONE 0
 static inline void print_hex_dump(const char *level, const char *prefix_str,

@@ -963,6 +963,10 @@ int ni_usb_command(gpib_board_t *board, uint8_t *buffer, size_t length, size_t *
 		retval = ni_usb_command_chunk(board, buffer + *bytes_written, length - *bytes_written, &count);
 		*bytes_written += count;
 		if(retval < 0) return retval;
+		/* KAME: a chunk can return 0 having written nothing -- a short status
+		 * packet is returned as retval, i.e. 0 -- and this loop then repeated
+		 * it for ever.  Upstream spins the same way, in the kernel. */
+		if(count == 0) return -EIO;
 	}
 	return 0;
 }
