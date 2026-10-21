@@ -3192,7 +3192,13 @@ else:
 								#detected connection to notebook.
 								XScriptingThreads()[0]["Filename"] = s
 								XScriptingThreads()[0]["Status"] = ''
-								TLS.logfile.close()
+								#Possibly None already: MyDefIO._log() drops it after a failed
+								#write.  Unguarded, the AttributeError skipped the switch below.
+								if TLS.logfile:
+									try:
+										TLS.logfile.close()
+									except Exception:
+										pass
 								from ipykernel.kernelapp import IPKernelApp
 								app = IPKernelApp.instance()
 								json = app.connection_file
@@ -3300,8 +3306,11 @@ else:
 				# from ipykernel.kernelapp import IPKernelApp
 				# app = IPKernelApp.instance()
 				# app.close()
-				task = asyncio.create_task(self.func())
-				task.cancel()
+				#None on ipykernel >= 7, which has no do_one_iteration (see Timer()):
+				#calling it raised TypeError, and sys.exit() below was never reached.
+				if self.func is not None:
+					task = asyncio.create_task(self.func())
+					task.cancel()
 				sys.stderr.write("sys.exit(0) from python.\n")
 				sys.exit(0) #I could not find better way to exit normally.
 				# raise IPython.terminal.embed.KillEmbedded('') #exits loop, magic %exit_raise no more exists.
@@ -3464,9 +3473,12 @@ else:
 #Reached either through Timer.finish() (hook path) or after the watchdog above
 #stopped the event loop.  The MCP hand-off files are removed here as well as in
 #finish(), because a stale ~/.kame_kernel_connection.json left by a previous run
-#points the MCP bridge at a dead kernel; removal is idempotent.
+#points the MCP bridge at a dead kernel; removal is idempotent.  The
+#notebook's .mcp.json and the HTTP server's log go too, as in finish(): this
+#path is the one taken when finish() never runs.  (The notebook server itself
+#is stopped by the atexit hook and by its own parent watchdog.)
 try:
-	for _f in (NOTEBOOK_MCP_URL_FILE,
+	for _f in (NOTEBOOK_MCP_URL_FILE, NOTEBOOK_MCP_JSON,
 			   os.path.join(os.path.expanduser('~'), '.kame_kernel_connection.json')):
 		if _f:
 			try:
@@ -3480,6 +3492,12 @@ try:
 		except Exception:
 			try: NOTEBOOK_MCP_HTTP_PROC.kill()
 			except Exception: pass
+	#After the server: Windows will not delete a file a live process holds open.
+	if NOTEBOOK_MCP_HTTP_LOG:
+		try:
+			os.remove(NOTEBOOK_MCP_HTTP_LOG)
+		except OSError:
+			pass
 except Exception:
 	sys.stderr.write(str(traceback.format_exc()))
 
