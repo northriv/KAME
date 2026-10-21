@@ -7421,9 +7421,14 @@ inline int lrc_kstart_l1() noexcept {
 struct L1KArray {
     char *slots[LRC_N_MAX_L1 + 1];     // 25 char* = 200 B (no alignas — TLS)
 };
-ALLOC_TLS    L1KArray  tls_l1_array[LRC_K_L1];   // 32 × 200 = 6.4 KiB / thread, GD
-ALLOC_TLS_IE L1KArray *tls_l1         = nullptr; // cached &tls_l1_array[0] (IE)
-ALLOC_TLS_IE int       tls_l1_max_idx = -1;      // per-thread idx ceiling (set lazily)
+struct L1Storage {
+    L1KArray rows[LRC_K_L1];           // 32 × 200 = 6.4 KiB / thread
+    unsigned k_eff;                    // per-thread effective K depth in [1, LRC_K_L1]
+};
+ALLOC_TLS    L1Storage tls_l1_storage;            // GD TLS (too big for IE surplus)
+ALLOC_TLS_IE L1KArray *tls_l1         = nullptr;  // cached &tls_l1_storage.rows[0] (IE)
+ALLOC_TLS_IE int       tls_l1_max_idx = -1;       // per-thread idx ceiling (set lazily)
+ALLOC_TLS_IE unsigned  tls_l1_k_eff   = LRC_K_L1; // per-thread effective K depth (IE)
 // (teardown) Set true by `l1_drain()` once this thread's L1 has been flushed
 // to the global L2 at thread exit.  A large/dedicated free arriving AFTER the
 // drain — e.g. from a pthread_key destructor freeing an XThreadLocal buffer,
@@ -7448,38 +7453,57 @@ struct L1Drain { void touch() noexcept {} ~L1Drain() noexcept { l1_drain(); } };
 thread_local L1Drain tls_l1_drain;
 
 // Materialise the L1 base (one-time per thread: cache the GD array address
-// into the IE-TLS pointer, compute the per-thread index cut, arm drain).
+// into the IE-TLS pointer, compute the per-thread effective K depth and
+// index cut, arm drain).
 //
-// Cut derivation:
+// Two-phase budget derivation (mirrors §28's two-phase eviction: reduce K
+// depth before dropping size classes so the chunk tier [0, LRC_CHUNK_BND]
+// stays in L1 at high thread counts while strictly bounding aggregate L1 RSS
+// by g_lrc_cap):
 //   per_thread     = g_lrc_cap / live_threads
-//   cut_size       = per_thread / LRC_K_L1   // K slots per idx; geom-sum dominated by top
-//   tls_l1_max_idx = min(lrc_idx_natural(cut_size), LRC_N_MAX_L1)
-// This bounds each thread's L1 RSS to ≈ per_thread, so the aggregate stays
-// inside g_lrc_cap.  Kind-agnostic — both LRC_CHUNK and LRC_MMAP fight for
-// the same idx budget.
+//   k_eff          = clamp(per_thread / ALLOC_MAX_CHUNK_SIZE, 1, LRC_K_L1)
+//   cut_size       = per_thread / k_eff
+//   tls_l1_max_idx = (cut_size < LRC_LO) ? -1
+//                    : min(lrc_idx_natural(cut_size), LRC_N_MAX_L1)
+// Since k_eff * cut_size <= per_thread for every live_threads >= 1 and every
+// g_lrc_cap >= 0, each thread's L1 holds at most per_thread bytes in its top
+// admitted class (and geometric-sum dominated across smaller classes), keeping
+// the aggregate L1 footprint within g_lrc_cap.  At the 1 GiB default cap:
+//   - n = 1..8   : k_eff = 32, cut_size = 32..4 MiB (unchanged).
+//   - n = 9..256 : k_eff scales down from 28 to 1 so cut_size >= 4 MiB and
+//                  every chunk-tier class (<= 4 MiB, idx <= 16, including
+//                  1 MiB at idx 9) remains L1-eligible; excess blocks past
+//                  k_eff spill to the byte-capped global L2.
+//   - per_thread < 4 MiB : k_eff = 1 and cut_idx drops larger classes first
+//                          (or disables L1 with cut_idx = -1 when < 256 KiB).
 inline L1KArray *l1_base() noexcept {
     L1KArray *l1 = tls_l1;
     if(__builtin_expect(l1 == nullptr, 0)) {
-        l1 = tls_l1 = &tls_l1_array[0];
+        l1 = tls_l1 = &tls_l1_storage.rows[0];
         int n = g_lrc_l1_threads.fetch_add(1, std::memory_order_relaxed) + 1;
         size_t per_thread = g_lrc_cap.load(std::memory_order_relaxed) / (size_t)n;
-        std::size_t cut_size = per_thread / LRC_K_L1;
-        int cut_idx = lrc_idx_natural(cut_size);
+        unsigned k_eff = (unsigned)(per_thread / (size_t)ALLOC_MAX_CHUNK_SIZE);
+        if(k_eff < 1u) k_eff = 1u;
+        else if(k_eff > (unsigned)LRC_K_L1) k_eff = (unsigned)LRC_K_L1;
+        std::size_t cut_size = per_thread / k_eff;
+        int cut_idx = (cut_size < LRC_LO) ? -1 : lrc_idx_natural(cut_size);
         if(cut_idx > LRC_N_MAX_L1) cut_idx = LRC_N_MAX_L1;
         tls_l1_max_idx = cut_idx;
+        tls_l1_k_eff = k_eff;
+        tls_l1_storage.k_eff = k_eff;
         // (§ded-fast) The page's copy for the fast paths, in the thread's own
         // page by name, where l1_drain() zeroes it.  Both callers have just
         // seen the thread live (kame_thread_torn_down() false), so that is
         // also the page kame_page() answers, and the fast paths read.
         g_tls_page.lrc_l1 = l1;
-        g_tls_page.lrc_l1_idx_end = (uintptr_t)cut_idx + 1u;
+        g_tls_page.lrc_l1_idx_end = (uintptr_t)(cut_idx + 1);
         tls_l1_drain.touch();                                          // arm thread-exit drain
     }
     return l1;
 }
 
 // ---- L1 (per-thread, no atomics) ----
-// Pop a fitting block from this thread's L1 at (kstart…kstart+K), or
+// Pop a fitting block from this thread's L1 at (kstart…kstart+k_eff), or
 // nullptr.  Single owner ⇒ plain loads/stores, no CAS.
 inline char *l1_pop_fit(std::size_t need, unsigned kind) noexcept {
     // (teardown) Symmetric with l1_push: a torn-down thread must not re-arm its
@@ -7496,8 +7520,10 @@ inline char *l1_pop_fit(std::size_t need, unsigned kind) noexcept {
     int idx = lrc_idx(need, kind);
     if(idx > tls_l1_max_idx) return nullptr;
     int kstart = lrc_kstart_l1();
-    for(int kk = 0; kk < LRC_K_L1; kk++) {
-        int k = (kstart + kk) & (LRC_K_L1 - 1);
+    unsigned k_eff = tls_l1_k_eff;
+    unsigned kk = 0;
+    do {
+        int k = (kstart + (int)kk) & (LRC_K_L1 - 1);
         char *b = l1[k].slots[idx];
         if( !b) continue;
         std::size_t sz = lrc_block_size(b, kind);
@@ -7506,12 +7532,12 @@ inline char *l1_pop_fit(std::size_t need, unsigned kind) noexcept {
             return b;
         }
         // too small for this need — leave it; a smaller request reuses it.
-    }
+    } while(++kk < k_eff);
     return nullptr;
 }
 // Cache a block in this thread's L1 at the first empty (k, idx) starting
-// from kstart.  Refused when idx > cut (→ global) or all K slots occupied
-// (→ global).
+// from kstart across the thread's effective k_eff slots.  Refused when
+// idx > cut (→ global) or all k_eff slots occupied (→ global).
 inline bool l1_push(char *base, std::size_t size, unsigned kind) noexcept {
     // (teardown) Post-drain frees must not refill the L1 — see s_l1_drained.
     // ALSO refuse once this thread is torn down: a thread that NEVER armed its
@@ -7531,13 +7557,15 @@ inline bool l1_push(char *base, std::size_t size, unsigned kind) noexcept {
     int idx = lrc_idx(size, kind);
     if(idx > tls_l1_max_idx) return false;
     int kstart = lrc_kstart_l1();
-    for(int kk = 0; kk < LRC_K_L1; kk++) {
-        int k = (kstart + kk) & (LRC_K_L1 - 1);
+    unsigned k_eff = tls_l1_k_eff;
+    unsigned kk = 0;
+    do {
+        int k = (kstart + (int)kk) & (LRC_K_L1 - 1);
         if( !l1[k].slots[idx]) {
             l1[k].slots[idx] = base;
             return true;
         }
-    }
+    } while(++kk < k_eff);
     return false;
 }
 
@@ -7876,8 +7904,10 @@ KAME_ALWAYS_INLINE char *dedicated_l1_pop(std::size_t size) noexcept {
     L1KArray *l1 = static_cast<L1KArray *>(pg->lrc_l1);
     const std::size_t need = (std::size_t)units << ALLOC_MIN_CHUNK_SHIFT;
     const unsigned kstart = pg->owner_id;                // lrc_kstart_l1()'s start
+    const unsigned k_eff = reinterpret_cast<const L1Storage *>(l1)->k_eff;
+    unsigned kk = 0;
     KAME_LRC_NO_UNROLL
-    for(unsigned kk = 0; kk < (unsigned)LRC_K_L1; ++kk) {
+    do {
         char *&slot = l1[(kstart + kk) & (LRC_K_L1 - 1u)].slots[idx];
         char *b = slot;
         if(b && lrc_dedicated_origin(b)
@@ -7886,7 +7916,7 @@ KAME_ALWAYS_INLINE char *dedicated_l1_pop(std::size_t size) noexcept {
             slot = nullptr;
             return b + ALLOC_CHUNK_K_MAX;
         }
-    }
+    } while(++kk < k_eff);
     return nullptr;
 }
 
@@ -7943,14 +7973,16 @@ KAME_NOINLINE KAME_HOT_ALIGN void deallocate_dedicated(void *p, KameTlsPage *pg)
             if(idx < pg->lrc_l1_idx_end) {
                 L1KArray *l1 = static_cast<L1KArray *>(pg->lrc_l1);
                 const unsigned kstart = pg->owner_id;
+                const unsigned k_eff = reinterpret_cast<const L1Storage *>(l1)->k_eff;
+                unsigned kk = 0;
                 KAME_LRC_NO_UNROLL
-                for(unsigned kk = 0; kk < (unsigned)LRC_K_L1; ++kk) {
+                do {
                     char *&slot = l1[(kstart + kk) & (LRC_K_L1 - 1u)].slots[idx];
                     if( !slot) {
                         slot = chunk_base;
                         return;
                     }
-                }
+                } while(++kk < k_eff);
                 return deallocate_dedicated_l2(chunk_base, (std::size_t)bytes);   // row full
             }
         }
