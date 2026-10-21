@@ -218,7 +218,15 @@ private:
     std::deque<xqcon_ptr> m_conUIs;
 
     shared_ptr<Listener> m_lsnOnTargetChanged, m_lsnOnAbortTouched, m_lsnOnStatusOut, m_lsnOnAddPresetAngles;
+    //! Set by onTargetChanged(), drawn into by analyze() and taken away by
+    //! clearUIAndPlot(), each on its own thread: only ever touched under
+    //! m_lcrPlotMutex.
     shared_ptr<XLCRPlot> m_lcrPlot;
+    XMutex m_lcrPlotMutex;
+    shared_ptr<XLCRPlot> lcrPlot() {
+        XScopedLock<XMutex> lock(m_lcrPlotMutex);
+        return m_lcrPlot;
+    }
 
 	const qshared_ptr<FrmAutoLCTuner> m_form;
 
