@@ -203,6 +203,28 @@ export_xqcon() {
     return std::move(pyc);
 }
 
+//! A payload handed to Python, tied to a copy of the Snapshot it came from.
+//! The wrapper cast_to_pyobject() makes is a bare pointer, valid while some
+//! packet holds the payload, and nothing tied it to its Snapshot:
+//! reference_internal does nothing for a py::object return.  Kept past its
+//! Snapshot, a payload then read freed memory once the node committed again
+//! (heap-use-after-free; `p = Snapshot(n)[n]`, or a one-liner losing the race).
+//! Keeping it is the script's business, but it must not cost the process; it
+//! now reads as of the Snapshot it came from.
+//! A copy, never the Transaction itself: a live uncommitted Transaction makes
+//! newer ones wait for it, up to the HANG watchdog.  A Snapshot holds no tags
+//! (its constructor drops them, ~Snapshot has none to drop), so a copy of a
+//! Transaction's view is inert -- and keeps that retry's copies alive too.
+//! Only for a wrapper made just now: pybind11 hands out the one it already has
+//! for the same payload, which its first copy keeps, and tying each Snapshot
+//! to it again piled them up for as long as it was held (a polling loop).
+static py::object
+tiedToSnapshot(py::object payload, const Snapshot &source) {
+    if(payload.ref_count() == 1) //created by this cast
+        py::detail::keep_alive_impl(payload, py::cast(Snapshot(source)));
+    return payload;
+}
+
 void
 KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
     auto bound_xnode = py::class_<XNode, shared_ptr<XNode>>(m, "XNode")
@@ -294,8 +316,8 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def("__getitem__", [](Snapshot &self, shared_ptr<XNode> &node)->py::object{
             if( !node)
                 throw std::runtime_error("Error: not a node.");
-            return XPython::bind.cast_to_pyobject( &self.at( *node));
-        }, py::return_value_policy::reference_internal)
+            return tiedToSnapshot(XPython::bind.cast_to_pyobject( &self.at( *node)), self);
+        })
         .def("isUpperOf", &Snapshot::isUpperOf);
     py::class_<Transaction, Snapshot>(m, "Transaction")
         //Construction and commit/commitOrNext enter STM negotiation — release the
@@ -328,8 +350,9 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def("__getitem__", [](Transaction &self, shared_ptr<XNode> &node)->py::object{
             if( !node)
                 throw std::runtime_error("Error: not a node.");
-            return XPython::bind.cast_to_pyobject( &self[ *node]); //Transaction has no at().
-        }, py::return_value_policy::reference_internal)
+            //Transaction has no at().  Tied to a Snapshot copy, not to self.
+            return tiedToSnapshot(XPython::bind.cast_to_pyobject( &self[ *node]), self);
+        })
         .def("__setitem__", [](Transaction &self, const shared_ptr<XNode> &y, int v){
             if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
                 if(auto x = dynamic_pointer_cast<XIntNode>(y))
