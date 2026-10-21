@@ -119,18 +119,29 @@ X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
 
 void
 X2DImage::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, const std::string &ext) {
+    //Dump is enabled as soon as a file name is set, and there is no image
+    //until the first one arrives.
+    const shared_ptr<const QImage> image_org = shot[ *plot()].image();
+    if( !image_org) {
+        gErrPrint(i18n("No image to dump yet."));
+        return;
+    }
     if((ext == "DAT") || (ext == "dat")) {
-        auto image = shot[ *plot()].image();
+        //16-bit R, G and B of every pixel, whatever the image holds.  It was
+        //read as RGBA64 regardless: a camera's live image is Grayscale16 and
+        //the image trigger's can be Grayscale8, 2 and 1 bytes a pixel, so
+        //that ran four and eight times past the pixels.
+        const QImage image = image_org->convertToFormat(QImage::Format_RGBA64);
         stream << "#at " << (XTime::now()).getTimeFmtStr(
             "%Y/%m/%d %H:%M:%S") << std::endl;
-        stream << image->width() << KAME_DATAFILE_DELIMITER
-            << image->height() << std::endl
-            << image->depth() << std::endl;
+        stream << image.width() << KAME_DATAFILE_DELIMITER
+            << image.height() << std::endl
+            << image.depth() << std::endl;
 
-        const uint16_t* p = reinterpret_cast<const uint16_t*>(image->constBits());
-        const uint16_t* p_start = p;
-        for(unsigned int i = 0; i < image->height(); ++i) {
-            for(unsigned int j = 0; j < image->width(); ++j) {
+        long words = 0;
+        for(int i = 0; i < image.height(); ++i) {
+            const uint16_t* p = reinterpret_cast<const uint16_t*>(image.constScanLine(i));
+            for(int j = 0; j < image.width(); ++j) {
                 stream << *p++;
                 stream << KAME_DATAFILE_DELIMITER;
                 stream << *p++;
@@ -138,10 +149,11 @@ X2DImage::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, const s
                 stream << *p++;
                 stream << KAME_DATAFILE_DELIMITER;
                 p++; //alpha channel
+                words += 4;
             }
             stream << std::endl;
         }
-        gMessagePrint(formatString_tr(I18N_NOOP("Succesfully %ld words written into %s."), (long)(p - p_start), shot[ *filename()].to_str().c_str()));
+        gMessagePrint(formatString_tr(I18N_NOOP("Succesfully %ld words written into %s."), words, shot[ *filename()].to_str().c_str()));
     }
     else {
         QByteArray ba;
@@ -153,11 +165,10 @@ X2DImage::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, const s
             return;
         }
         {
-            const auto &image_org = shot[ *plot()].image();
             QImage image;
             if(m_colorbarplot) {
                 const auto &barimage_org = shot[ *m_colorbarplot].image();
-                if(image_org->bytesPerLine() == barimage_org->bytesPerLine()) {
+                if(barimage_org && (image_org->bytesPerLine() == barimage_org->bytesPerLine())) {
                     int blanks = 6, barwidth = 32;
                     QImage barimage = barimage_org->scaled(image_org->width(), barwidth);
                     image = QImage(image_org->width(),
