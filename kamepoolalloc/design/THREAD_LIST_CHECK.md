@@ -1841,3 +1841,107 @@ host), but nothing beyond them.  The dedicated tier keeps §ded-fast's gain:
 - gcc: the same instructions, with one `test`/`je` pair moved two places.
 - malloc + free pairs by callgrind: 76/76/76 (gcc) and 63/63/64 (clang) at
   64 B, equal within the ±1 these counts move between runs.
+
+## Run: Linux, Intel Xeon @ 2.80 GHz, 2026-10-21 — `06b902f58` (branch `perf/mt-scaling-and-rss`)
+
+One commit on master `12214c166`, `allocator.cpp` only.  Its base
+allocator is byte-identical to `deb2931e2`'s, so the base arm is the
+`deb2931e2` libraries.  Host: family 6 model 85, 4 vCPU on four cores.
+
+**Correctness — clean.**
+- no-DCAS audit: 3/3 ok.
+- ctest on the nine trees: all passed (51/51; 44/44 on the two i486 trees).
+- Dedicated-size sweep with asserts on, 77 sizes on five trees: 0 failed.
+- Soaks, 4 concurrent copies, 15 tests: LP64 release 100 runs each; the
+  other eight trees (asserts, i586, i486, harsh caps) 52 each; 7 740 runs,
+  0 nonzero.
+  - The tests: `alloc_tsd_exclusivity_test`, `_var`, `_var --mid`,
+    `alloc_fit_test`, `alloc_stress_test`, `alloc_thread_churn_test`,
+    `alloc_phase_test`, `alloc_evict_test`, `alloc_aligned_test`,
+    `alloc_dedicated_fast_test` (static and `_dynamic`), and the four
+    thread-exit tests.
+  - A first attempt ran nothing (a wrong script path, exit 127); it is not
+    counted.
+
+**The claims, measured.**  Method: one binary per probe, `LD_PRELOAD` per
+arm, arms alternated per rep, 9 reps, paired per rep, sign test.
+- `mt_loop`: T threads each looping malloc / free of one size; rate = total
+  ops / (earliest thread start to latest thread end).
+- `mt_rss`: T threads each allocate 4 MB of 64..1024 B blocks; each frees
+  the next thread's blocks; RSS read with all threads alive, and after the
+  join.
+
+| gcc / clang | base | `06b902f58` | paired ratio | reps up |
+|---|---|---|---|---|
+| `mt_loop` 1 MiB, 64 threads | 26 / 31 M ops/s | 608 / 700 | **23.6× / 22.8×** | 9/9, 9/9 (p 0.004) |
+| `mt_loop` 1 MiB, 128 threads | 20 / 23 | 586 / 663 | **30.4× / 28.4×** | 9/9, 9/9 |
+| `mt_loop` 1 MiB, 4 / 16 threads | 603–721 | 605–729 | 0.95–1.02× | — |
+| `mt_loop` 1 KiB, 16 / 64 threads | 868–957 | 896–952 | 1.01–1.05× | — |
+| ring 1 KiB, 32 in flight (pinned) | 2.6 / 2.8 | 4.8 / 4.8 | **1.74× / 1.66×** | 9/9, 9/9 (p 0.004) |
+| ring 64 B, 32 in flight | 7.1 / 8.7 | 7.0 / 8.9 | 1.04× / 1.02× | — |
+| `bench_xthread -w 2`, 1 KiB | 14.9 / 15.2 | 17.3 / 18.4 | 1.18× / 1.23× | 7/9, 7/9 (p 0.18) |
+| `bench_xthread -w 2`, 64 B / 64 KiB | — | — | 0.99–1.04× | — |
+| `bench_loop` 64 B … 1 MiB | — | — | 0.98–1.09× | — |
+| `mt_rss` after join, 64 threads | 155 / 156 MiB | 85 / 92 MiB | −45% / −41% | — |
+| `mt_rss` after join, 32 / 16 / 8 threads | 76 / 33 / 14 (gcc) | 50 / 30 / 12 | −34% / −9% / −12% | — |
+
+- RSS with every thread still alive is unchanged (e.g. 641 vs 638 MiB at
+  64 threads).  The reclaim shows once threads exit.
+- The `bench_loop` 1 KiB gcc 1.09× (8/9, p 0.04) is the only single-thread
+  shift; the rest are inside their spread.
+
+**The 1 MiB collapse is old, not §ded-fast's.**  `mt_loop` 1 MiB, quiet
+machine, 3 runs each (M ops/s):
+
+| | June `8f2e69809` | v1.3.0 | `17a30aaae` | `deb2931e2` | `06b902f58` |
+|---|---|---|---|---|---|
+| gcc 16 threads | 91–101 | 69–79 | 509–625 | 557–620 | 532–642 |
+| gcc 32 threads | 34–38 | 33–38 | 59–70 | 59–93 | 554–590 |
+| gcc 64 threads | 21–22 | 19–20 | 25–28 | 23–26 | 493–623 |
+| clang 64 threads | 26–29 | 25–30 | 29–31 | 27–30 | 665–684 |
+
+The per-thread L1 limit is `g_lrc_cap / threads`.  From 32 threads it
+drops below the 1 MiB class, so every 1 MiB malloc goes to the shared L2.
+§ded-fast moved the 16-thread point; `06b902f58`'s floor at
+`LRC_CHUNK_BND` removes it.
+
+**Instructions** (callgrind, deterministic):
+
+| | owner pair 64 B / 128 B / 1 KiB / 16 KiB / 1 MiB | cross-thread free 64 B / 128 B / 1 KiB |
+|---|---|---|
+| gcc base → `06b902f58` | 77 / 87 / 93 / 93 / 135 → 77 / **90** / **96** / 93 / 135 | 317 / 260 / 271 → **292** / **306** / **325** |
+| clang base → `06b902f58` | 63 / 76 / 81 / 79 / 116 → 64 / **79** / **84** / 79 / 116 | 300 / 248 / 257 → **292** / **307** / **332** |
+
+- **Owner pair +3 at 128 B / 1 KiB:** the same machine code
+  (`deallocate_fs_false_owner`, traced).  The thread's list now holds the
+  extra slots `tc_miss` spliced from the chunk, so the free also runs the
+  cap check (`add 0x8(%rdi)` / `cmp $0x400000` / `ja`) that an empty list
+  skips.
+- **Cross-thread free +46..+75 at 128 B / 1 KiB:** the batch's push and
+  its sort at flush, in place of one direct bitmap return.  It costs
+  instructions and saves cross-core CAS traffic; the ring and
+  `bench_xthread` rows above are the net.
+
+**Review notes** (not failures):
+1. **FS=false ALIGN 32/64 now joins the cross-thread batch.**
+   - This reverses §35's stated reason for keeping FS=false out: a
+     long-lived thread that frees but never allocates parks the slots
+     with their bits set.  The comment block above the new
+     `if constexpr` still says FS=false never participates.
+   - Measured, the cost is bounded.  A producer thread mallocs 20 000
+     1 KiB blocks and exits; main frees them without allocating; 120
+     cycles.  RSS ends 0.8–1.1 MB above base (60.5 vs 59.7 MB), the size
+     of the 1024-entry batch, flat from cycle 5 on.  128 B and 64 B
+     (100 000 blocks) are level.
+   - Base's own ~60 MB plateau at 1 KiB, where glibc ends at 2 MB, is
+     not this commit's.
+2. **`extra_sidx[sizeof(FUINT) * 8 / 2]` holds 32 entries.**  Overflow
+   would need N = 1, i.e. SIZE ≤ 24 at ALIGN 32 or ≤ 56 at ALIGN 64.
+   - `tc_miss` passes the bucket's constant `BT::SIZE`, so N ≥ 3.
+   - `bucket_for_aligned` sends small aligned requests to FS=true buckets.
+   - Unreachable today, but nothing asserts it.
+3. **The §tl-cap comment is stale.**  Lines 313–315 still say a chunk's
+   `m_freelist_head[]` only carries FS=true slots.  The extra FS=false
+   slots now go there and are spliced onto the thread list.  They return
+   at thread exit (the DLL walk drains every local id); while the thread
+   lives, only if it allocates from that chunk again.
