@@ -1601,6 +1601,10 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
     const shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
     const shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
     const shared_ptr<XMotorDriver> stms[] = {stm1__, stm2__};
+    //Only after a success.  A failed or aborted tune leaves the RF relays on the
+    //VNA path and the STMs energized on purpose: the user then finishes the
+    //tuning by hand, and the frequency sweep waits for that.
+    //\sa XNMRFSpectrum::onTuningChanged() ("awaiting manual tuning").
     if(shot_this[ *tuning()]) {
         if(shot_this[ *succeeded()]){
             for(auto &&stm: stms) {
