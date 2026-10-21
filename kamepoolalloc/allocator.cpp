@@ -689,6 +689,8 @@ KAME_NOINLINE void *kame_malloc_dedicated(std::size_t size) noexcept;
 // it.  Capacity covers the count of distinct PoolAllocator
 // template instantiations actually in use by this thread.
 namespace {
+std::atomic<int> s_live_pool_threads{0};
+
 struct AllocThreadExitCleanup {
     static constexpr int MAX = 32;
     // `noexcept` is part of the function-pointer type since C++17 — the
@@ -705,9 +707,13 @@ struct AllocThreadExitCleanup {
     void add(ReleaseDllFn fn) noexcept {
         for(int i = 0; i < count; ++i)
             if(release_fns[i] == fn) return;
+        if(count == 0)
+            s_live_pool_threads.fetch_add(1, std::memory_order_relaxed);
         if(count < MAX) release_fns[count++] = fn;
     }
     ~AllocThreadExitCleanup() noexcept {
+        if(count > 0)
+            s_live_pool_threads.fetch_sub(1, std::memory_order_relaxed);
         // `drain_thread_slot_freelists()` is a retained no-op stub now
         // (see its definition); the per-chunk freelist drain has been
         // folded into the per-template DLL walk below
@@ -1821,6 +1827,12 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 		bucket_for_prefix = bucket_for_size(SIZE);
 		local_id = kBucketLocalId[bucket_for_prefix];
 	}
+#ifndef GUARDIAN
+	if constexpr (ALIGN <= 64u) {
+		if(void *p = this->freelist_pop(local_id))
+			return p;
+	}
+#endif
 	// Slot prefix layout (FS=false borrow): bits 0..7 = local_id (max 8),
 	// bits 16..23 = bucket (max 51), bits 32..63 = SIZE.  Bucket lives in
 	// the upper byte of the low-32 half so the dealloc fast path can
@@ -1867,14 +1879,16 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 		oldv = atomicLoadRelaxed(pflag);
 		cand = find_training_zeros(N, oldv);
 		if(cand) {
-			ones = cand *
-				(2u * (((FUINT)1u << (N - 1u)) - 1u) + 1u); //N ones, not to overflow.
+			const FUINT one_run =
+				2u * (((FUINT)1u << (N - 1u)) - 1u) + 1u; //N ones, not to overflow.
+			ones = cand * one_run;
 //			assert(count_bits(ones) == N);
 //			assert( !(ones & oldv));
 			sidx = count_zeros_forward(cand);
 			int idx_cand = pflag - this->m_flags;
 			size_t bit_index = size_t(idx_cand) * sizeof(FUINT) * 8 + sidx;
-			slot_start = &this->mempool()[bit_index * ALIGN];
+			char *wbase = &this->mempool()[size_t(idx_cand) * sizeof(FUINT) * 8 * ALIGN];
+			slot_start = wbase + (size_t)sidx * ALIGN;
 			// Write the per-slot metadata BEFORE the CAS publishes the bit
 			// (the CAS is the release that publishes it to a freeing
 			// thread; the freer's acquire on the bitmap word synchronises
@@ -1928,6 +1942,30 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			// fast path removes the bit0-lock around chunk access, so
 			// a non-atomic store would torn-write under contention.
 			FUINT newv = oldv | ones; //filling with N ones (all user bits).
+#ifndef GUARDIAN
+			unsigned extra_n = 0;
+			std::uint8_t extra_sidx[sizeof(FUINT) * 8 / 2];
+			if constexpr (ALIGN <= 64u) {
+				for(FUINT c2; (c2 = find_training_zeros(N, newv)) != 0; ) {
+					unsigned s2 = static_cast<unsigned>(count_zeros_forward(c2));
+					extra_sidx[extra_n++] = static_cast<std::uint8_t>(s2);
+					char *s2_start = wbase + (size_t)s2 * ALIGN;
+					if constexpr (sizeof(void *) >= 8) {
+						atomicStoreRelaxed(
+						    reinterpret_cast<std::uint64_t *>(s2_start - 8), hdr_word);
+					}
+					else {
+						atomicStoreRelaxed(
+						    reinterpret_cast<std::uint32_t *>(s2_start - 8),
+						    static_cast<std::uint32_t>(hdr_word));
+						atomicStoreRelaxed(
+						    reinterpret_cast<std::uint32_t *>(s2_start - 4),
+						    static_cast<std::uint32_t>(hdr_word >> 32));
+					}
+					newv |= c2 * one_run;
+				}
+			}
+#endif
 			if(atomicCompareAndSet(oldv, newv, pflag)) {
 				if(oldv == 0)
 					atomicInc( &this->m_flags_packed);
@@ -1942,8 +1980,28 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 				constexpr unsigned int MAX_N_HERE =
 				    PoolAllocator<ALIGN, false, DUMMY>::MAX_N;
 				if(find_training_zeros(MAX_N_HERE, newv) == 0 &&
-				   find_training_zeros(MAX_N_HERE, oldv) != 0)
+				   find_training_zeros(MAX_N_HERE, oldv) != 0) {
 					atomicInc( &this->m_flags_filled_cnt);
+					if(atomicLoadRelaxed(&this->m_flags_filled_cnt) * 5
+					        >= this->m_count * 4)
+						tls_cross_dealloc_batch.flush();
+				}
+#ifndef GUARDIAN
+				if constexpr (ALIGN <= 64u) {
+					if(extra_n != 0) {
+						char *chain = nullptr;
+						char **tail = &chain;
+						for(unsigned i = 0; i < extra_n; ++i) {
+							char *s = wbase + (size_t)extra_sidx[i] * ALIGN;
+							*tail = s;
+							tail = reinterpret_cast<char **>(s);
+							reinterpret_cast<intptr_t *>(s)[1] = 0;   // (§tl-cap) not counted
+						}
+						*tail = this->m_freelist_head[local_id];
+						this->m_freelist_head[local_id] = chain;
+					}
+				}
+#endif
 				break;
 			}
 			continue;  // CAS race, retry same word
@@ -2153,6 +2211,10 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// (§revive) The owner -- this thread or another -- learns of the room
 	// through its anchor's revival stack, pushed from inside
 	// batch_return_to_bitmap.
+	if constexpr (ALIGN <= 64u) {
+		tls_cross_dealloc_batch.push(this, p);
+		return false;
+	}
 	CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
 	this->batch_return_to_bitmap(tmp);
 	return false;
@@ -2509,7 +2571,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// thread, released on another), so that spike is reachable, not
 	// hypothetical.  The decision lives in the batch (see `cap`) precisely so
 	// this hot path needs no realtime test of its own.
-	if constexpr (ALIGN <= 48) {
+	if constexpr (ALIGN <= 64) {
 		tls_cross_dealloc_batch.push(this, p);
 	} else {
 		tls_cross_dealloc_batch.template push_direct<ALIGN>(this, p);
@@ -2549,12 +2611,13 @@ void *
 PoolAllocator<ALIGN, FS, DUMMY>::tc_miss(unsigned bucket, unsigned int SIZE) noexcept {
 	KAME_FLS(miss);
 	void *p = allocate_chunk_path(SIZE);
-	if constexpr (DUMMY) {
+	if constexpr (DUMMY || ALIGN <= 64u) {
 		if(auto *pin = s_tls.my_chunk) {
-			if(char *chain = pin->m_freelist_head[0]) {
+			const unsigned local = DUMMY ? 0u : kBucketLocalId[bucket];
+			if(char *chain = pin->m_freelist_head[local]) {
 				KameTlsPage *pg = kame_page();
 				if( !pg->m_slots[bucket].freelist_head) {
-					pin->m_freelist_head[0] = nullptr;
+					pin->m_freelist_head[local] = nullptr;
 					pg->m_slots[bucket].freelist_head = chain;
 					KAME_FLS(splice);
 				}
@@ -2911,6 +2974,11 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// chunk-fill event.
 	if(tls_cross_dealloc_batch.count != 0)
 		tls_cross_dealloc_batch.flush();
+	if(__builtin_expect(s_live_pool_threads.load(std::memory_order_relaxed) >= 8, 0)) {
+		static ALLOC_TLS_IE unsigned tls_reclaim_tick = 0;
+		if((++tls_reclaim_tick & 31u) == 0u)
+			tl_reclaim_idle();
+	}
 	// Own-empty-neighbour release.  Walk forward from `s_tls.my_chunk`
 	// along the DLL: release the next chunk if it is empty, and its
 	// successor too -- capped at two per trigger so the cost stays bounded.
@@ -3268,9 +3336,15 @@ tl_reclaim_idle() noexcept {
 	KameTlsPage *pg = kame_page();
 	char **mark = tls_tl_mark;
 	unsigned budget = KAME_TL_RECLAIM_SLOTS;
+	int n_threads = s_live_pool_threads.load(std::memory_order_relaxed);
+	unsigned scale = (n_threads > 1) ? static_cast<unsigned>(n_threads) : 1u;
+	if(scale > 16u) scale = 16u;
+	const uintptr_t eff_cap = (uintptr_t)(KAME_TL_CAP_BYTES) / scale;
 	for(unsigned b = 1; b < (unsigned)ALLOC_NUM_BUCKETS; ++b) {
 		char *head = pg->m_slots[b].freelist_head;
-		if(head != mark[b] || !head || !budget) {
+		const bool over_cap = head && (scale > 1u)
+		    && (reinterpret_cast<uintptr_t *>(head)[1] > eff_cap);
+		if((head != mark[b] && !over_cap) || !head || !budget) {
 			mark[b] = head;   // moved since, nothing kept, or no budget left
 			continue;
 		}
@@ -3326,7 +3400,11 @@ PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
 	// Per-thread floor: skip release below LEAVE_VACANT_CHUNKS_PER_THREAD
 	// chunks, so bursty workloads don't thrash release-then-mmap.
 	// (§revive) `s_tls.dll_len` replaces the O(DLL) count walk.
-	if(s_tls.dll_len <= LEAVE_VACANT_CHUNKS_PER_THREAD) return false;
+	const int vacant_floor =
+	    (s_live_pool_threads.load(std::memory_order_relaxed) >= 16)
+	        ? 1
+	        : LEAVE_VACANT_CHUNKS_PER_THREAD;
+	if(s_tls.dll_len <= vacant_floor) return false;
 
 	if( !atomicCompareAndSet(static_cast<uint32_t>(BIT_OWNED), 0u,
 	                         &palloc->m_flags_packed))
@@ -7391,7 +7469,8 @@ inline L1KArray *l1_base() noexcept {
         int n = g_lrc_l1_threads.fetch_add(1, std::memory_order_relaxed) + 1;
         size_t per_thread = g_lrc_cap.load(std::memory_order_relaxed) / (size_t)n;
         std::size_t cut_size = per_thread / LRC_K_L1;
-        int cut_idx = lrc_idx_natural(cut_size);
+        int cut_idx = (per_thread < LRC_LO) ? -1 : lrc_idx_natural(cut_size);
+        if(cut_idx >= 0 && cut_idx < LRC_CHUNK_BND) cut_idx = LRC_CHUNK_BND;
         if(cut_idx > LRC_N_MAX_L1) cut_idx = LRC_N_MAX_L1;
         tls_l1_max_idx = cut_idx;
         // (§ded-fast) The page's copy for the fast paths, in the thread's own
@@ -7399,7 +7478,7 @@ inline L1KArray *l1_base() noexcept {
         // seen the thread live (kame_thread_torn_down() false), so that is
         // also the page kame_page() answers, and the fast paths read.
         g_tls_page.lrc_l1 = l1;
-        g_tls_page.lrc_l1_idx_end = (uintptr_t)cut_idx + 1u;
+        g_tls_page.lrc_l1_idx_end = (uintptr_t)(cut_idx + 1);
         tls_l1_drain.touch();                                          // arm thread-exit drain
     }
     return l1;
