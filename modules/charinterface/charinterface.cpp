@@ -264,7 +264,9 @@ XCharInterface::send(const char *str) {
 }
 void
 XCharInterface::write(const char *sendbuf, int size) {
-    Snapshot shot( *this);
+    //As send() and receive(): close() resets m_xport, and copying the pointer
+    //while it does so is a race.
+    XScopedLock<XCharInterface> lock(*this);
     try {
         auto port = m_xport;
         if( !port)

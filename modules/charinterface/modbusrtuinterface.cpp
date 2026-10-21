@@ -55,9 +55,12 @@ XModbusRTUInterface::crc16(const unsigned char *bytes, uint32_t count) {
 void
 XModbusRTUInterface::query_unicast(unsigned int func_code,
 		const std::vector<unsigned char> &bytes, std::vector<unsigned char> &ret_buf) {
-    auto port = static_pointer_cast<XModbusRTUPort>(openedPort());
-
     XScopedLock<XInterface> lock( *this);
+    //Null once the interface is closed: report it as XCharInterface::send()
+    //does, rather than dereference it below.
+    auto port = static_pointer_cast<XModbusRTUPort>(openedPort());
+    if( !port)
+        throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
     // Multidrop: hold the port mutex across the whole transaction so
     // other masters on the same physical RS485 bus can't interleave.
     // The port mutex is shared via XAddressedPort::s_openedPorts and

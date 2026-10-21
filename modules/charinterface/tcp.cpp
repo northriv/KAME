@@ -219,6 +219,17 @@ XTCPSocketPort::write(const char *sendbuf, int size) {
         sendbuf += ret;
 	} while (wlen < size);
 }
+//! recv() returning 0 for a non-empty read is the peer's FIN.  It is not "no
+//! data yet": a closed socket stays readable, so select() returns at once and
+//! recv() returns 0 again -- added to the length as nothing, that spun the
+//! reader for ever at full CPU with the port held.  An instrument closing an
+//! idle connection, or rebooting, is enough to cause it.
+void
+XTCPSocketPort::closedByPeer() {
+    gErrPrint(i18n("connection closed by peer, trying to reopen the socket"));
+    reopen_socket();
+    throw XInterface::XCommError(i18n("tcp connection closed by peer"), __FILE__, __LINE__);
+}
 unsigned int
 XTCPSocketPort::rearrangeBufferForNextReceive() {
     buffer().resize(m_remainingBytes.size());
@@ -270,7 +281,8 @@ XTCPSocketPort::receive() {
             throw XInterface::XCommError(i18n("read time-out, buf=;") + &buffer().at(0), __FILE__, __LINE__);
         }
         ret = ::recv(m_socket, bpos , MIN_RECV_SIZE, 0);//MIN_RECV_SIZE bytes reading.
-        //allows the case ret == 0.
+        if(ret == 0)
+            closedByPeer();
         if(ret < 0) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();
@@ -316,11 +328,15 @@ XTCPSocketPort::receive(unsigned int length) {
         if(ret < 0)
             throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
         if(ret == 0) {
-            //timeout during select().
+            //timeout during select().  Only the first len bytes have arrived,
+            //and nothing terminates them.
+            buffer().resize(len);
+            buffer().push_back('\0');
             throw XInterface::XCommError(i18n("read time-out, buf=;") + &buffer().at(0), __FILE__, __LINE__);
         }
         ret = ::recv(m_socket, &buffer().at(len) , length - len, 0); //reads remaining bytes.
-        //allows the case ret == 0.
+        if(ret == 0)
+            closedByPeer();
         if(ret < 0) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();

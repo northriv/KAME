@@ -28,6 +28,7 @@ public:
     virtual void receive(unsigned int length) override;
 private:
     void reopen_socket();
+    [[noreturn]] void closedByPeer();
 	int m_socket;
     int m_timeout_sec = 5;
     unsigned int rearrangeBufferForNextReceive();
