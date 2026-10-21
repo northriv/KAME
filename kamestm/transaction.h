@@ -239,7 +239,6 @@ private:
     template <class P>
     struct PayloadWrapper : public P::Payload {
         virtual typename PayloadWrapper::rettype_clone clone(Transaction<XN> &tr, int64_t serial) {
-//            auto p = allocate_local_shared<PayloadWrapper>(this->m_node->m_allocatorPayload, *this);
             auto p = make_local_shared<PayloadWrapper>( *this);
             p->m_tr = &tr;
             p->m_serial = serial;

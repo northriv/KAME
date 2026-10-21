@@ -64,6 +64,14 @@ struct SNode : atomic_countable {
 
 static_assert(atomic_serial_on<SNode<true> > && !atomic_serial_on<SNode<false> >, "");
 
+// A local_shared_ptr with the serial it carries made readable.
+template <class L>
+struct Seen : L {
+    using L::L;
+    using L::operator=;
+    uintptr_t serial() const { return this->m_seen_serial; }
+};
+
 template <bool SERIAL>
 static void run(const char *tag) {
     using N = SNode<SERIAL>;
@@ -147,6 +155,25 @@ static void run(const char *tag) {
             CHECK(h);
         }
 
+        // A move empties the source and leaves the pointer in the destination,
+        // by construction and by assignment; a self-move keeps it.  The words
+        // are encoded, and each node is still disposed once (below).
+        {
+            atomic_shared_ptr<N> s1;
+            s1 = a;
+            atomic_shared_ptr<N> s2(std::move(s1));
+            CHECK( !s1);
+            CHECK(L(s2) == a);
+            atomic_shared_ptr<N> s3;
+            s3 = b;
+            s3 = std::move(s2);                // b dropped
+            CHECK( !s2);
+            CHECK(L(s3) == a);
+            atomic_shared_ptr<N> &same = s3;
+            s3 = std::move(same);
+            CHECK(L(s3) == a);
+        }
+
         // A word keeps its serial at rest, so destroying a non-null one must
         // decode it: a head that goes out of scope after several stores, and
         // (below) a node disposed while its link still points at the next.
@@ -165,9 +192,55 @@ static void run(const char *tag) {
     CHECK(g_disposed - disposed0 == 3);        // every node disposed exactly once
 }
 
+// A node of a second serial type, derived from SNode<true> with the same
+// fixed low bits, for the conversions between two serial types: to a base,
+// as nothing else converts (an intrusive T has no const counterpart -- its
+// refcount would be const).  A converted local carries the serial it was
+// loaded at, as a copy does; no CAS of either word takes it, so it is read
+// back through Seen.
+struct DNode : SNode<true> {
+    explicit DNode(int i) : SNode<true>(i) {}
+};
+template <> struct force_intrusive_ref<DNode> : std::true_type {};
+template <> struct atomic_serial_traits<DNode> {
+    static constexpr unsigned LOW_BITS = 12;
+    static constexpr uintptr_t LOW_VALUE = 0x40;
+};
+alignas(4096) static unsigned char g_dblock[4096];
+
+static void conversions() {
+    const char *tag = "conversions";
+    using DL = local_shared_ptr<DNode>;
+    using BL = local_shared_ptr<SNode<true> >;
+    const long disposed0 = g_disposed;
+    {
+        DL d(new(&g_dblock[0x40]) DNode(100));
+        atomic_shared_ptr<DNode> w;
+        w = d;
+        w = d;                                 // written twice: serial 2
+        Seen<DL> o(w);
+        CHECK(o.serial() != 0);                // else the checks below prove nothing
+        DL o2(o);
+        Seen<BL> k1(o2), k2(std::move(o2)), k3(w);
+        Seen<BL> k4;
+        k4 = w;
+        CHECK(k1.serial() == o.serial() && k1.get() == d.get());
+        CHECK(k2.serial() == o.serial() && k2.get() == d.get());
+        CHECK(k3.serial() == o.serial() && k3.get() == d.get());
+        CHECK(k4.serial() == o.serial() && k4.get() == d.get());
+
+        // A move into the base's word, which empties the source.
+        atomic_shared_ptr<SNode<true> > bw(std::move(w));
+        CHECK( !w);
+        CHECK(BL(bw) == d);
+    }
+    CHECK(g_disposed - disposed0 == 1);
+}
+
 int main() {
     run<false>("no serial");
     run<true>("serial");
+    conversions();
     if(g_failures) {
         std::fprintf(stderr, "atomic_serial_test: %d failure(s)\n", g_failures);
         return 1;

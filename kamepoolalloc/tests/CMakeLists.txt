@@ -172,6 +172,12 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_phase_test alloc_phase_test.cpp)
     target_link_libraries(alloc_phase_test kamepoolalloc Threads::Threads)
 
+    # kame_pool_trim() gives back the cross-thread frees the calling thread
+    # holds in its batch: the chunk they kept claimed is released by its
+    # owner's exit.
+    add_executable(alloc_trim_cross_test alloc_trim_cross_test.cpp)
+    target_link_libraries(alloc_trim_cross_test kamepoolalloc Threads::Threads)
+
     # Thread-churn / orphan-reuse repro for "driver start/stop -> reserved grows".
     add_executable(alloc_thread_churn_test alloc_thread_churn_test.cpp)
     target_link_libraries(alloc_thread_churn_test kamepoolalloc Threads::Threads)
@@ -440,6 +446,7 @@ if(USE_KAME_ALLOCATOR)
     add_test(NAME alloc_aligned_test COMMAND alloc_aligned_test)
     add_test(NAME alloc_fit_test COMMAND alloc_fit_test)
     add_test(NAME alloc_phase_test COMMAND alloc_phase_test)
+    add_test(NAME alloc_trim_cross_test COMMAND alloc_trim_cross_test)
     add_test(NAME atomic_intrusive_dispose_test COMMAND atomic_intrusive_dispose_test)
     add_test(NAME atomic_intrusive_chain_test COMMAND atomic_intrusive_chain_test)
     add_test(NAME atomic_serial_test COMMAND atomic_serial_test)

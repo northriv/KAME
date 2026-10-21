@@ -1,3 +1,31 @@
+* Thu Oct 22 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamepoolalloc: kame_pool_trim() now flushes the calling thread's batch of
+  cross-thread frees as well.  A free of a small slot in another thread's
+  chunk -- every one below 64 B, and from 64 B the ones held to measure how
+  they coalesce -- waits in the freeing thread's batch, its bit still set,
+  until 1024 have gathered, one of that thread's own chunks fills, or it
+  exits; meanwhile the chunk cannot empty, nor its owner hear of the room.
+  The trim, which gives back everything held without a live owner, left
+  the batch alone: a worker that allocated 1000 blocks, had this thread
+  free them and trim, and exited, left its chunk claimed and orphaned
+  (16-200 B, one chunk each; now none).  New test: alloc_trim_cross_test.
+- atomic_smart_ptr.h: moving an atomic_shared_ptr empties the source -- an
+  atomic swap out of it, then a store -- and a move assignment now does
+  the same.  The move constructors called operator=(std::move(t)), which
+  bound to the copy assignment: the source kept its pointer, at a refcount
+  round trip, and from atomic_shared_ptr<Y> the call was ambiguous and did
+  not compile.  Nothing in the tree moves one: made a compile error, every
+  move site would have shown in the test tree and the app build.
+- atomic_smart_ptr.h: a local_shared_ptr of a serial type converted from
+  another -- copied, moved, or loaded or assigned from an
+  atomic_shared_ptr<Y> -- carries the serial it was loaded at, as the
+  same-type copy does; it carried 0, which fails a CAS from it.  Only two
+  serial types convert (an intrusive T has no const counterpart, its
+  refcount would be const), and none do today.  The converting move checks
+  the pointer conversion, as the converting copy does; it took any
+  local_shared_ptr.  allocate_local_shared, which called a constructor that
+  does not exist and had no caller, is gone.
+
 * Tue Oct 20 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - kamepoolalloc: blocks above 32 KiB, up to 4 MiB, are allocated and freed
   2.2-2.6x faster in a loop (user).  The README had called this the

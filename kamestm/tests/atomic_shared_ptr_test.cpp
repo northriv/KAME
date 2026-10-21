@@ -258,6 +258,31 @@ static void test_local_weak_ptr_default_race() {
     assert(objcnt == objcnt_before);
 }
 
+//! A move of an atomic_shared_ptr empties the source and leaves the pointer
+//! in the destination, by construction and by assignment, to the same type,
+//! a base and a const one.  It used to copy (the source kept its pointer),
+//! and the converting move did not compile.
+static void test_atomic_move() {
+    printf("test_atomic_move\n");
+    int objcnt_before = objcnt;
+    {
+        local_shared_ptr<B> b(new B(5));
+        atomic_shared_ptr<B> s1(b);
+        atomic_shared_ptr<B> s2(std::move(s1));
+        assert( !s1 && local_shared_ptr<B>(s2) == b);
+        atomic_shared_ptr<B> s3(new B(6));
+        s3 = std::move(s2);                             //!< B(6) dropped
+        assert( !s2 && local_shared_ptr<B>(s3) == b);
+        atomic_shared_ptr<A> s4(std::move(s3));
+        assert( !s3 && local_shared_ptr<A>(s4) == b);
+        atomic_shared_ptr<const A> s5(std::move(s4));
+        assert( !s4 && local_shared_ptr<const A>(s5) == b);
+        assert(b.use_count() == 2);                     //!< b and s5: nothing left behind
+        assert(objcnt == objcnt_before + 2);            //!< b alone (a B counts twice)
+    }
+    assert(objcnt == objcnt_before);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -265,6 +290,7 @@ main(int argc, char **argv)
     test_local_weak_ptr_race();
     test_local_weak_ptr_default();
     test_local_weak_ptr_default_race();
+    test_atomic_move();
 
     std::thread threads[NUM_THREADS];
 

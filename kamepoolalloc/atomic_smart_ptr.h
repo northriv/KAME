@@ -756,7 +756,7 @@ public:
     explicit local_shared_ptr(const atomic_shared_ptr<T> &t) noexcept { this->m_ref = reinterpret_cast<TaggedPtr>(t.load_shared_(seen_serial_ptr_())); }
     template<typename Y> local_shared_ptr(const atomic_shared_ptr<Y> &y) {
         static_assert(sizeof(static_cast<const T*>(y.get())), "");
-        this->m_ref = reinterpret_cast<TaggedPtr>(y.load_shared_());
+        this->m_ref = reinterpret_cast<TaggedPtr>(y.load_shared_(seen_serial_ptr_()));
     }
     inline local_shared_ptr(const local_shared_ptr<T, reflocal_var_t> &t) noexcept;
     template<typename Y, typename Z> inline local_shared_ptr(const local_shared_ptr<Y, Z> &y) noexcept;
@@ -766,8 +766,11 @@ public:
         if constexpr (CARRIES_SERIAL) this->m_seen_serial = t.m_seen_serial;
     }
     template<typename Y, typename Z> local_shared_ptr(local_shared_ptr<Y, Z> &&y) noexcept {
+        static_assert(sizeof(static_cast<const T*>(y.get())), "");
         this->m_ref = y.m_ref;
         y.m_ref = (TaggedPtr)nullptr;
+        if constexpr (CARRIES_SERIAL && local_shared_ptr<Y, Z>::CARRIES_SERIAL)
+            this->m_seen_serial = y.m_seen_serial;
     }
     inline ~local_shared_ptr();
 
@@ -801,10 +804,10 @@ public:
         return *this;
     }
     //! \param[in] y The pointer held by this instance is replaced with that of \a y.
+    //! Through a temporary, so a serial type left with no serial to take from
+    //! \a y does not keep the one it had.
     template<typename Y> local_shared_ptr &operator=(const atomic_shared_ptr<Y> &y) noexcept {
-        static_assert(sizeof(static_cast<const T*>(y.get())), "");
-        this->reset();
-        this->m_ref = reinterpret_cast<TaggedPtr>(y.load_shared_());
+        local_shared_ptr(y).swap( *this);
         return *this;
     }
 
@@ -1036,11 +1039,20 @@ public:
     template<typename Y> atomic_shared_ptr(const atomic_shared_ptr<Y> &y) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(y) { encode_installed_(); } //!< source already shared
     atomic_shared_ptr(const local_shared_ptr<T> &t) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(t) { publish_clear_priv_(); encode_installed_(); }
     template<typename Y> atomic_shared_ptr(const local_shared_ptr<Y> &y) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(y) { publish_clear_priv_(); encode_installed_(); }
+    //! A move empties the source.  It may still be read by other threads, so
+    //! its pointer comes out by an atomic swap, then is stored here.  (These
+    //! once called operator=(std::move(t)), which bound to the copy
+    //! assignment: the source kept its pointer, at a refcount round trip; and
+    //! with Y != T the call was ambiguous.)
     atomic_shared_ptr(atomic_shared_ptr<T> &&t) noexcept {
-        operator=(std::move(t));
+        local_shared_ptr<T> x;
+        x.swap(t);
+        x.swap( *this);
     }
     template<typename Y> atomic_shared_ptr(atomic_shared_ptr<Y> &&y) noexcept {
-        operator=(std::move(y));
+        local_shared_ptr<Y> x;
+        x.swap(y);
+        local_shared_ptr<T>(std::move(x)).swap( *this);
     }
 
     ~atomic_shared_ptr() {}
@@ -1048,6 +1060,14 @@ public:
     //! \param[in] t The pointer held by this instance is atomically replaced with that of \a t.
     atomic_shared_ptr &operator=(const atomic_shared_ptr &t) noexcept {
         local_shared_ptr<T>(t).swap( *this);
+        return *this;
+    }
+    //! \param[in] t The pointer held by \a t is atomically moved into this
+    //! instance, as the move constructor does; \a t is left null.
+    atomic_shared_ptr &operator=(atomic_shared_ptr &&t) noexcept {
+        local_shared_ptr<T> x;
+        x.swap(t);
+        x.swap( *this);   // x takes the old pointer and drops it
         return *this;
     }
     //! \param[in] y The pointer held by this instance is atomically replaced with that of \a y.
@@ -1677,18 +1697,6 @@ local_shared_ptr<T> make_local_shared(Args&&... args) {
     }
 }
 
-template <typename T, class Alloc, class... Args>
-local_shared_ptr<T> allocate_local_shared(Alloc &base_alloc, Args&&... args) {
-    typename Alloc::template rebind<T>::other alloc(base_alloc);
-    auto p = alloc.allocate(1);
-    alloc.construct(p, std::forward<Args>(args)...);
-    auto deleter = [alloc, p]() mutable {
-        alloc.destroy(p);
-        alloc.deallocate(p, 1);
-    };
-    return local_shared_ptr<T>(p, deleter);
-}
-
 template <typename T, typename reflocal_var_t>
 inline local_shared_ptr<T, reflocal_var_t>::local_shared_ptr(const local_shared_ptr &y) noexcept {
     static_assert(sizeof(static_cast<const T*>(y.get())), "");
@@ -1705,6 +1713,8 @@ template<typename Y, typename Z>
 inline local_shared_ptr<T, reflocal_var_t>::local_shared_ptr(const local_shared_ptr<Y, Z> &y) noexcept {
     static_assert(sizeof(static_cast<const T*>(y.get())), "");
     this->m_ref = (TaggedPtr)y.m_ref;
+    if constexpr (CARRIES_SERIAL && local_shared_ptr<Y, Z>::CARRIES_SERIAL)
+        this->m_seen_serial = y.m_seen_serial;
     if(Ref *p = ref_ptr_()) {
         if constexpr (is_biased_directpublish<T>::value) biased_inc_(p->refcnt); //!< §biased — skippable
         else p->refcnt.fetch_add(1, std::memory_order_relaxed);
