@@ -54,9 +54,12 @@ SoftwareTriggerManager::unregister(const shared_ptr<SoftwareTrigger> &p) {
     onListChanged().talk(p);
 }
 
+//! m_blankTerm included: start() keeps it when nonzero, so heap garbage there
+//! became a blanking interval that could reject every stamp after the first.
 SoftwareTrigger::SoftwareTrigger(const char *label, unsigned int bits)
     : m_label(label), m_bits(bits),
-      m_risingEdgeMask(0u), m_fallingEdgeMask(0u) {
+      m_risingEdgeMask(0u), m_fallingEdgeMask(0u),
+      m_blankTerm(0u), m_lastThresholdRequested(0u), m_endOfBlank(0u), m_freq(0.0) {
     clear_();
     m_isPersistentCoherent = false;
 }
