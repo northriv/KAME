@@ -188,6 +188,40 @@ start_routine(void) {
     return;
 }
 
+//! Releasing a node that is not a child throws NodeNotFoundError -- also from
+//! a node with no children, whose packet has no subpacket list (release()
+//! dereferenced the missing list: SIGSEGV, or the assert in a debug build).
+//! Two threads releasing one last child get there through the loser's retry.
+static int
+test_release_non_child() {
+	shared_ptr<LongNode> parent(LongNode::create<LongNode>());
+	shared_ptr<LongNode> child(LongNode::create<LongNode>());
+	parent->insert(child);
+	parent->release(child);
+	try {
+		parent->release(child);
+		printf("failed: releasing from an empty list did not throw\n");
+		return -1;
+	}
+	catch(LongNode::NodeNotFoundError &) {}
+	for(int i = 0; i < 100; i++) {
+		parent->insert(child);
+		atomic<int> losers = 0;
+		auto rel = [&]{
+			try { parent->release(child); }
+			catch(LongNode::NodeNotFoundError &) { ++losers; }
+		};
+		std::thread t1(rel), t2(rel);
+		t1.join();
+		t2.join();
+		if(losers != 1) {
+			printf("failed: two releases of one child, %d threw\n", (int)losers);
+			return -1;
+		}
+	}
+	return 0;
+}
+
 //! Overridable from the build (-DNUM_THREADS=16): the failure this test hunts
 //! needs MORE CONCURRENT READERS ON ONE SLOT than the tagged pointer's local
 //! refcount can hold (LOCAL_REF_CAPACITY), so the thread count -- not the
@@ -200,6 +234,8 @@ start_routine(void) {
 int
 main(int argc, char **argv) {
     Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
+    if(test_release_non_child())
+        return -1;
     for(int k = 0; k < 100; k++) {
         gn1.reset(LongNode::create<LongNode>());
         gn2.reset(LongNode::create<LongNode>());

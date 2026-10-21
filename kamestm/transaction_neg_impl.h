@@ -1647,9 +1647,9 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     if(ps.tid) {
         tid_bitset.observe((unsigned)ps.tid);
     }
-    typename NegotiationCounter::cnt_t transaction_started_time =
+    typename NegotiationCounter::cnt_t entry_stamp =
         self->m_transaction_started_time.load(std::memory_order_relaxed);
-    if( !transaction_started_time)
+    if( !entry_stamp)
         return; //collision has not been detected.
     // Self-tagged short-circuit (KAME_STM_OPTIONAL_OPTIMIZATION).
     // If the slot's TID matches ours, this thread tagged the linkage
@@ -1657,7 +1657,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     // backoff init, and the `dt <= 0` loop bail-out below are all
     // wasted work on a self-encounter.  Skip them all here.
 #if defined(KAME_STM_OPTIONAL_OPTIMIZATION) && KAME_STM_OPTIONAL_OPTIMIZATION
-    if(NegotiationCounter::stamp_tid(transaction_started_time)
+    if(NegotiationCounter::stamp_tid(entry_stamp)
        == NegotiationCounter::stamp_tid(started_time))
         return;
 #endif
@@ -1687,7 +1687,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     // the skip would actually have fired.  fair_mode_blocks_me then re-reads
     // a line this function loaded two statements ago and does three bit
     // tests on it.
-    if(_neg_apply_lease(ps, transaction_started_time, sig_C,
+    if(_neg_apply_lease(ps, entry_stamp, sig_C,
                         now_us_entry, entry_pr)
             && !NegotiationCounter::fair_mode_blocks_me(started_time, self))
         return;
@@ -1890,8 +1890,20 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // Both stamps are tid+kind+us-packed; signed_diff_us_packed
         // returns (my_us - other_us) interpreted as a signed wrap-safe
         // delta.  dt <= 0  ⇒  I am oldest (or equal) → break.
+        //
+        // Against the stamp seen at ENTRY, for the whole call -- not the
+        // slot's current stamp, read below -- by design (user), and it pays:
+        // a verdict re-taken every round (A/B on the M5 Ultra, 2026-10-21,
+        // payload_integrity_mixed / 3level_mixed) let an older waiter break
+        // out whenever a younger peer re-tagged the slot, and the retried
+        // CASes cost 0.31-0.59x at N=128 with K=2 or K=10 (0.50-0.71x at
+        // N=64, 0.93-1.06x at N <= 8).  What it would buy is fairness: the
+        // ll-probe's LIVELOCK verdicts (a Tx ~200 ms old; 50 in 17 runs at
+        // N >= 30) went away.  The CV-sleep re-check below lets a long waiter
+        // out from ms >= 30.  (The two stamps once shared a name, the second
+        // declaration shadowing this one, which read as a bug.)
         int64_t dt = NegotiationCounter::signed_diff_us_packed(
-            started_time, transaction_started_time);
+            started_time, entry_stamp);
         if(dt <= 0)
             break; //This thread is the oldest.
         auto transaction_started_time =

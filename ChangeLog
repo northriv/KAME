@@ -25,6 +25,24 @@
   the pointer conversion, as the converting copy does; it took any
   local_shared_ptr.  allocate_local_shared, which called a constructor that
   does not exist and had no caller, is gone.
+- kamestm: Node::release() of a node that is not a child throws
+  NodeNotFoundError also when the parent has no children at all; it
+  dereferenced the missing subpacket list (SIGSEGV, the assert in a debug
+  build).  Python's XNode.release() got there on a second release of the
+  same child, and two threads releasing one last child got there through
+  the loser's retry.  transaction_dynamic_node_test now checks both.
+- kamestm: the negotiation loop's "I am the oldest" test now reads as what it
+  is -- a verdict against the blocking stamp seen at entry, kept for the
+  whole call (by design) -- under a name of its own; the slot's current
+  stamp, read each round below it, had been a second declaration of the
+  same name shadowing it, which read as a bug.  The machine code is the
+  same.  A verdict re-taken every round, tried and measured on the M5 Ultra
+  (payload_integrity_mixed / 3level_mixed, three interleaved runs), let an
+  older waiter break out whenever a younger peer re-tagged the slot:
+  0.31-0.59x at 128 threads with K=2 or K=10, 0.50-0.71x at 64, 0.93-1.06x
+  at 8 or fewer.  What it bought was fairness -- the livelock probe's
+  verdicts on a transaction ~200 ms old, 50 in 17 runs at 30 threads and
+  up, went away -- and the comment at the test records both.
 
 * Tue Oct 20 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - kamepoolalloc: blocks above 32 KiB, up to 4 MiB, are allocated and freed

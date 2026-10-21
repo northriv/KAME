@@ -1568,7 +1568,8 @@ bool
 Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
     ScopedLookupMemoInvalidate<XN> _memo_guard(tr);
     local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
-    assert(packet->size());
+    if( !packet->size())
+        lookupFailure(); //\a var is no child of ours, and an empty list has no subpackets to copy.
     packet->subpackets().reset(new PacketList( *packet->subpackets()));
     packet->subpackets()->m_serial = tr.m_serial;
     packet->subnodes().reset(new NodeList( *packet->subnodes()));
