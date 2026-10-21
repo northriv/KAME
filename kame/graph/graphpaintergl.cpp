@@ -338,18 +338,25 @@ XQGraphPainter::pickObjectGL(int x, int y, int dx, int dy, GLint list) {
     glPopClientAttrib();
 
     glFlush(); //probably not needed.
-    std::vector<GLfloat> zbuf(2 * dx * m_pixel_ratio * 2 * dy * m_pixel_ratio);
-    glReadPixels((double)(x - dx) * m_pixel_ratio, (double)m_viewport[3] - (y + dy) * m_pixel_ratio,
-        2 * dx * m_pixel_ratio, 2 * dy * m_pixel_ratio, GL_DEPTH_COMPONENT, GL_FLOAT, &zbuf[0]);
-    std::vector<GLuint> pixels(2 * dx * m_pixel_ratio * 2 * dy * m_pixel_ratio);
-    glReadPixels(x * m_pixel_ratio, (double)m_viewport[3] - y * m_pixel_ratio, 1, 1, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, &pixels[0]);
+    //One window, read from both buffers: a pixel's colour has to be paired with
+    //that pixel's depth.  The colour was read at (x, y) alone, so only
+    //pixels[0] could be an object, and it was paired with the depth at the
+    //window's corner; the index also strode by the height, not the row width.
+    const int w = (int)(2 * dx * m_pixel_ratio), h = (int)(2 * dy * m_pixel_ratio);
+    const GLint x0 = (double)(x - dx) * m_pixel_ratio, y0 = (double)m_viewport[3] - (y + dy) * m_pixel_ratio;
+    std::vector<GLfloat> zbuf(std::max(w * h, 1));
+    std::vector<GLuint> pixels(std::max(w * h, 1)); //zero: "no object"
+    if(w * h) {
+        glReadPixels(x0, y0, w, h, GL_DEPTH_COMPONENT, GL_FLOAT, &zbuf[0]);
+        glReadPixels(x0, y0, w, h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, &pixels[0]);
+    }
 
     double zmin = 1.1;
     auto objcls = ObjClassColorR::None;
     int objidx = 0;
-    for(int x1 = 0; x1 < 2 * dx * m_pixel_ratio; ++x1)
-        for(int y1 = 0; y1 < 2 * dy * m_pixel_ratio; ++y1) {
-            unsigned int idx = 2 * dy * m_pixel_ratio * y1 + x1;
+    for(int x1 = 0; x1 < w; ++x1)
+        for(int y1 = 0; y1 < h; ++y1) {
+            unsigned int idx = w * y1 + x1;
             if(pixels[idx] && (zbuf[idx] < zmin)) {
                 zmin = zbuf[idx];
                 if(pixels[idx] / 0x1000000u < (unsigned int)ObjClassColorR::Point) {

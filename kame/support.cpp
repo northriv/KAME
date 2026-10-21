@@ -311,6 +311,7 @@ void formatDoubleValidator(XString &fmt) {
 		if(pos == std::string::npos) break;
 		pos++;
 		if(buf[pos] == '%') {
+			pos++; //past the escaped one too, or it opens a conversion of its own
 			continue;
 		}
 		arg_cnt++;
