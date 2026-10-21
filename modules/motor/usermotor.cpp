@@ -1040,32 +1040,32 @@ XSigmaPAMC104::setTarget(const Snapshot &, double target) {
 //---------------------------------------------------------------------------
 //Kamoer M1-STP.
 //The register map is Kamoer's one-page "485 serial port" sheet (initial version
-//2022-11-25). What the sheet leaves open is marked HW-CHECK; none of this has
-//met the hardware yet.
-//HW-CHECK: the pump presumably obeys RS485 only after "485 mode" is chosen in
-//its system menu, where its slave address and line settings are set too
-//(assumed here: address 1, 9600 8N1 as on the sheet). RS485 is on pins 3 and 4
-//of the GX16-4 socket shared with the foot switch; which of them is A is not
-//documented.
+//2022-11-25). Checked on a pump (firmware 0x1007, hardware 0x1000) on
+//2026-10-21: every register read, and continuous rotation by FWD/RVS/STOP.
+//What has not met the hardware yet is marked HW-CHECK.
+//The pump was run with "485 mode" on in its system menu, where its address (1)
+//and line settings (9600 8N1) are set. RS485 is on the GX16-4 socket shared
+//with the foot switch: pin 4 "A", pin 3 "B", named as in TIA-485, where A is
+//the inverting line -- so pin 4 goes to an adapter's Data- and pin 3 to its
+//Data+, the reverse of adapters that call Data+ "A". Swapped, the pump still
+//answers, but only to address 127 (0x7f, inverted and a bit late, reads as its
+//own 0x01), and the reply is garbage.
 namespace {
-//! Added to every address on the sheet. HW-CHECK: 0 if the sheet's addresses
-//! go on the wire as written; -1 if they are 1-based Modbus numbering, which
-//! shows up as "Modbus RTU Wrong Data Address" on the first poll.
-constexpr int M1STP_ADDR_OFFSET = 0;
-constexpr uint16_t M1STP_COIL_RUN = 0x0001 + M1STP_ADDR_OFFSET; //!< 0 off, 1 on.
-constexpr uint16_t M1STP_COIL_DIR = 0x0002 + M1STP_ADDR_OFFSET; //!< 0 forward, 1 reverse.
-constexpr uint16_t M1STP_COIL_BY_LAPS = 0x0003 + M1STP_ADDR_OFFSET; //!< 0 runs by time, 1 by laps.
-constexpr uint16_t M1STP_REG_RPM = 0x4001 + M1STP_ADDR_OFFSET; //!< rpm * 100, uint32 high word first.
-constexpr uint16_t M1STP_REG_LAPS = 0x4003 + M1STP_ADDR_OFFSET; //!< float.
-constexpr uint16_t M1STP_REG_TIME = 0x4005 + M1STP_ADDR_OFFSET; //!< ms, uint32 high word first.
-constexpr uint16_t M1STP_INREG_SW_VERSION = 0x3001 + M1STP_ADDR_OFFSET; //!< the hardware version follows.
-constexpr uint16_t M1STP_INREG_ABNORMAL = 0x3003 + M1STP_ADDR_OFFSET; //!< 0 normal.
-//! HW-CHECK: the sheet does not say which half of the lap-count float comes
-//! first; high first is assumed, as for the integer pairs.
-constexpr bool M1STP_FLOAT_LOW_WORD_FIRST = false;
+//The addresses on the sheet go on the wire as written: 0x3000 and 0x4000
+//answer "illegal data address".
+constexpr uint16_t M1STP_COIL_RUN = 0x0001; //!< 0 off, 1 on.
+constexpr uint16_t M1STP_COIL_DIR = 0x0002; //!< 0 forward, 1 reverse.
+constexpr uint16_t M1STP_COIL_BY_LAPS = 0x0003; //!< 0 runs by time, 1 by laps.
+constexpr uint16_t M1STP_REG_RPM = 0x4001; //!< rpm * 100, uint32 high word first.
+//! float, high word first, like the integer pairs: a fresh pump reads
+//! 0x42c8 0x0000, i.e. 100 laps.
+constexpr uint16_t M1STP_REG_LAPS = 0x4003;
+constexpr uint16_t M1STP_REG_TIME = 0x4005; //!< ms, uint32 high word first.
+constexpr uint16_t M1STP_INREG_SW_VERSION = 0x3001; //!< the hardware version follows.
+constexpr uint16_t M1STP_INREG_ABNORMAL = 0x3003; //!< 0 normal.
 //! The sheet has no continuous mode, so continuous rotation is a run by time
-//! this long (~24.8 days). HW-CHECK: that the firmware takes it. Not 0xffffffff
-//! in case the firmware keeps it signed; 0 might mean "forever" or "nothing".
+//! this long (~24.8 days), which the firmware takes. Not 0xffffffff in case it
+//! keeps the time signed.
 constexpr uint32_t M1STP_CONTINUOUS_MS = 0x7fffffffu;
 constexpr double M1STP_MAX_RPM = 350.0; //!< product manual.
 }
@@ -1126,7 +1126,8 @@ XKamoerM1STP::stopRun() {
     m_dir = 0;
 }
 //! The caller has stopped the pump: the RUN coil is written 0 then 1, so that
-//! the start is an edge. HW-CHECK: whether writing 1 over a 1 would start a run.
+//! the start is an edge. Whether writing 1 over a 1 would start a run is not
+//! known, and not relied on.
 void
 XKamoerM1STP::startRun(double r, int dir, double degrees) {
     bool by_laps = std::isfinite(degrees);
@@ -1137,8 +1138,6 @@ XKamoerM1STP::startRun(double r, int dir, double degrees) {
         float laps = static_cast<float>(degrees / 360.0);
         uint32_t u;
         std::memcpy( &u, &laps, sizeof(u));
-        if(M1STP_FLOAT_LOW_WORD_FIRST)
-            u = (u << 16) | (u >> 16);
         interface()->presetTwoResistors(M1STP_REG_LAPS, u);
     }
     else
@@ -1153,8 +1152,8 @@ XKamoerM1STP::startRun(double r, int dir, double degrees) {
 void
 XKamoerM1STP::getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) {
     XScopedLock<XInterface> lock( *interface());
-    //HW-CHECK: that the coil can be read back, and drops to 0 by itself when a
-    //run by laps or by time ends. If it stays at 1, Ready never returns.
+    //The coil reads back, and reads 0 after STOP. HW-CHECK: that it drops to 0
+    //by itself when a run by laps ends. If it stays at 1, Ready never returns.
     bool running = interface()->readSingleCoil(M1STP_COIL_RUN);
     uint16_t abnormal = interface()->readInputSingleResistor(M1STP_INREG_ABNORMAL);
     XTime now = XTime::now();
@@ -1204,13 +1203,11 @@ XKamoerM1STP::getConditions() {
         m_dir = 0; //a run already going is picked up by getStatus().
         m_degPerSec = r * 6.0;
     }
-    //"3+5+8": major, minor and revision in 3, 5 and 8 bits.
-    //HW-CHECK: that the major one is in the top bits.
-    auto version = [](unsigned int v) {
-        return formatString("%u.%u.%u", v >> 13, (v >> 8) & 0x1fu, v & 0xffu);
-    };
-    gMessagePrint(getLabel() + formatString(": firmware %s, hardware %s.",
-        version(versions[0]).c_str(), version(versions[1]).c_str()));
+    //Shown as they come: the sheet says "3+5+8" bits of major, minor and
+    //revision, which turns a pump's 0x1007 into 0.16.7, while its nibbles
+    //read 1.0.7.
+    gMessagePrint(getLabel() + formatString(": firmware 0x%04x, hardware 0x%04x.",
+        (unsigned int)versions[0], (unsigned int)versions[1]));
     iterate_commit([=](Transaction &tr){
         tr[ *speed()] = r * std::max(1u, (unsigned int)tr[ *stepMotor()]) / 60.0;
     });
