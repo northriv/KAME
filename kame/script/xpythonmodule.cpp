@@ -771,7 +771,7 @@ public:
             pybind11::object obj = cls(name, runtime, ref(tr), entries, driver, plot, parentList, entrynames); //createOrphan in python side.
             auto pytool = dynamic_pointer_cast<XPythonGraphMathTool>
                 (obj.cast<shared_ptr<XNode>>());
-            if( !driver)
+            if( !pytool)
                 throw std::runtime_error("Tool creation failed.");
             pytool->m_self_creating = obj; //pybind11::cast(driver); //for persistence of python-side class.
             return pytool;
@@ -864,6 +864,36 @@ void export_mathtool(const char *name) {
         });
 }
 
+//! Whether \a self may write through Payload::tr(), the Transaction it was
+//! copied in.  That pointer is valid only while the transaction is: a payload
+//! a Snapshot hands out keeps the pointer of whichever transaction committed
+//! it, long gone, and dereferencing it was a use-after-free.  Comparing \a self
+//! with the committed payload by identity alone let any Snapshot older than
+//! the last commit through.  Serials settle it without touching that pointer:
+//! a transaction's copies take its serial, which is past everything it read,
+//! so only a copy newer than the committed payload can be in a live one.
+//! \return false for a live transaction's copy that a commit has landed behind.
+//! Its own commit fails and its loop comes round again with a fresh copy, so it
+//! is left alone -- as is any older payload, which no transaction owns.
+//! \throw std::runtime_error for the committed payload itself.
+static bool
+isWritableThroughTr(XWaveNGraph::Payload &self, const char *func) {
+    auto &node = static_cast<XWaveNGraph &>(self.node());
+    bool is_committed;
+    int64_t newer;
+    {
+        py::gil_scoped_release rel; //STM negotiation; see CLAUDE.md rule 4.
+        Snapshot shot(node);
+        const auto &committed = shot[node];
+        is_committed = ( &committed == &self);
+        newer = (int64_t)((uint64_t)self.serial() - (uint64_t)committed.serial());
+    }
+    if(is_committed)
+        throw std::runtime_error(std::string(func) + "() needs a Transaction payload: "
+            "use `for tr in Transaction(node): tr[node]." + func + "(...)`.");
+    return newer > 0;
+}
+
 void
 KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
     {   auto [node, payload] = XPython::bind.export_xnode<XGraph, XNode>();
@@ -911,26 +941,26 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
         .def("clearPlots", &XWaveNGraph::clearPlots);
     (*payload)
         .def("clearPoints", [](XWaveNGraph::Payload &self){
-            //Payload::tr() is null/dangling unless this payload came from a live
-            //Transaction (clearPoints/setRowCount write through it). Best-effort
-            //guard: the committed payload (what Snapshot[node] hands out) is
-            //rejected with a clean error instead of a use-after-free.
-            auto &node = static_cast<XWaveNGraph &>(self.node());
-            bool is_committed = [&]{
-                py::gil_scoped_release rel;
-                return &Snapshot(node)[node] == &self;
-            }();
-            if(is_committed)
-                throw std::runtime_error("clearPoints() needs a Transaction payload: "
-                    "use `for tr in Transaction(node): tr[node].clearPoints()`.");
-            self.clearPoints();
+            if(isWritableThroughTr(self, "clearPoints"))
+                self.clearPoints();
+        })
+        //setColumn() requires a column as long as rowCount(), which nothing
+        //on the Python side could set: a graph could not be filled from there.
+        .def("setRowCount", [](XWaveNGraph::Payload &self, unsigned int rows){
+            if(isWritableThroughTr(self, "setRowCount"))
+                self.setRowCount(rows);
         })
         .def("insertPlot", [](XWaveNGraph::Payload &self,
              Transaction &tr, const std::string &label, int colx, int coly1, int coly2, int colw, int colz){
             return self.insertPlot(tr, label, colx, coly1, coly2, colw, colz);
         })
-        .def("setCols", [](XWaveNGraph::Payload &self, std::initializer_list<std::string> &labels){
-            self.setCols(labels);
+        //A list of labels.  It took std::initializer_list, which pybind11 has no
+        //caster for, so every call from Python raised TypeError.
+        .def("setCols", [](XWaveNGraph::Payload &self, const std::vector<std::string> &labels){
+            std::vector<const char *> cstrs;
+            for(auto &&l: labels)
+                cstrs.push_back(l.c_str());
+            self.setColCount(labels.size(), cstrs.data());
         })
         .def("colCount", &XWaveNGraph::Payload::colCount)
         .def("rowCount", &XWaveNGraph::Payload::rowCount)

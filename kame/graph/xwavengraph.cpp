@@ -69,19 +69,32 @@ XWaveNGraph::Payload::XPlotWrapper::snapshot(const Snapshot &shot_graph) {
     const XGraph::VFloat *pcolx = nullptr, *pcoly = nullptr,
             *pcolz = nullptr, *pcolweight = nullptr;
 
+    //A column slot is null from setCols()/setColCount() until setColumn()
+    //fills it, and rowCount() is set apart from the columns: draw the rows
+    //every used column has, and nothing while one is missing.
+    size_t rows = rowcnt;
+    bool missing = false;
     auto prepare_column_data =
         [&](int colidx, std::vector<XGraph::VFloat>&buf, const XGraph::VFloat *&pcolumn) {
-        if(colidx >= 0) {
-            pcolumn = &shot_waves->m_cols[colidx]->fillOrPointToGraphPoints(buf)[0];
+        if(colidx < 0)
+            return;
+        if((colidx >= (int)shot_waves->m_cols.size()) || !shot_waves->m_cols[colidx]) {
+            missing = true;
+            return;
         }
+        auto &v = shot_waves->m_cols[colidx]->fillOrPointToGraphPoints(buf);
+        rows = std::min(rows, v.size());
+        pcolumn = v.data();
     };
     prepare_column_data(m_colx, cols[0], pcolx);
     prepare_column_data(m_coly1, cols[1], pcoly);
     prepare_column_data(m_coly2, cols[1], pcoly);
     prepare_column_data(m_colz, cols[2], pcolz);
     prepare_column_data(m_colweight, cols[3], pcolweight);
+    if(missing || !pcolx || !pcoly)
+        return;
 
-    for(int i = 0; i < rowcnt; ++i) {
+    for(int i = 0; i < (int)rows; ++i) {
         double z = 0.0;
         if(pcolz)
             z = pcolz[i];
@@ -307,13 +320,15 @@ XWaveNGraph::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, cons
 
     auto &p(shot[ *this]);
     shared_ptr<const Payload::ColumnBase> colw;
-    if(p.m_colw >= 0) colw = p.m_cols[p.m_colw];
+    if((p.m_colw >= 0) && (p.m_colw < colcnt)) colw = p.m_cols[p.m_colw];
     int written_rows = 0;
     for(unsigned int i = 0; i < rowcnt; i++) {
         if( !colw || (colw->moreThanZero(i))) {
             for(unsigned int j = 0; j < colcnt; j++) {
-                stream << std::setprecision(p.m_cols[j]->precision);
-                p.m_cols[j]->toOFStream(stream, i);
+                if(auto &col = p.m_cols[j]) { //null until setColumn() fills it
+                    stream << std::setprecision(col->precision);
+                    col->toOFStream(stream, i);
+                }
                 stream << KAME_DATAFILE_DELIMITER;
             }
             stream << std::endl;
@@ -325,8 +340,16 @@ XWaveNGraph::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, cons
 }
 void XWaveNGraph::drawGraph(Transaction &tr) {
 	const Snapshot &shot(tr);
-    if(shot[ *this].m_colw >= 0) {
-        XGraph::VFloat weight_max = shot[ *this].m_cols[shot[ *this].m_colw]->max();
+    //Null between setCols()/setColCount() and setColumn(), out of range for an
+    //index never set: both reachable, since Python can call this at any point
+    //(\sa Payload::getColumn()).  -1 is the "unused" sentinel: column 0 is a
+    //column like any other, as XPlotWrapper::snapshot() has it.
+    auto column = [&](int idx) -> const Payload::ColumnBase * {
+        auto &cols = shot[ *this].m_cols;
+        return ((idx >= 0) && (idx < (int)cols.size())) ? cols[idx].get() : nullptr;
+    };
+    if(auto colw = column(shot[ *this].m_colw)) {
+        XGraph::VFloat weight_max = colw->max();
         tr[ *shot[ *this].axisw()->maxValue()] = weight_max;
         tr[ *shot[ *this].axisw()->minValue()] =  -0.4 * weight_max;
     }
@@ -336,26 +359,32 @@ void XWaveNGraph::drawGraph(Transaction &tr) {
     cnt = std::min(cnt, (int)shot[ *this].m_toolLists.size());
     for(unsigned int j = 0; j < cnt; j++) {
         auto plot = shot[ *this].m_plots[j];
+        auto colx_ = column(plot->m_colx);
+        auto coly_ = column((plot->m_coly1 >= 0) ? plot->m_coly1 : plot->m_coly2);
+        if( !colx_ || !coly_)
+            continue;
         std::vector<XGraph::VFloat> colx, coly, colw;
-        auto colxcref = shot[ *this].m_cols[plot->m_colx]->fillOrPointToGraphPoints(colx); //copy
-        if(std::max(plot->m_coly1, plot->m_coly2) > 0) {
-            auto colycref =
-                shot[ *this].m_cols[(plot->m_coly1 > 0) ? plot->m_coly1 : plot->m_coly2]->fillOrPointToGraphPoints(coly); //copy
-            if(plot->m_colweight > 0) {
-                //prepares xy vectors only for weight > 0.
-                auto colwcref = shot[ *this].m_cols[plot->m_colweight]->fillOrPointToGraphPoints(colw);
-                unsigned int idx = 0;
-                for(unsigned int j = 0; j < colxcref.size(); ++j) {
-                    if(colwcref[j] > 0.0) {
-                        colxcref[idx] = colxcref[j];
-                        colycref[idx] = colycref[j];
-                        ++idx;
-                    }
+        auto colxcref = colx_->fillOrPointToGraphPoints(colx); //copy
+        auto colycref = coly_->fillOrPointToGraphPoints(coly); //copy
+        //As many rows as every column has: the weight loop below writes
+        //colycref[] up to colxcref's length.
+        size_t rows = std::min({(size_t)shot[ *this].rowCount(), colxcref.size(), colycref.size()});
+        if(auto colw_ = column(plot->m_colweight)) {
+            //prepares xy vectors only for weight > 0.
+            auto colwcref = colw_->fillOrPointToGraphPoints(colw);
+            rows = std::min(rows, colwcref.size());
+            unsigned int idx = 0;
+            for(unsigned int i = 0; i < rows; ++i) {
+                if(colwcref[i] > 0.0) {
+                    colxcref[idx] = colxcref[i];
+                    colycref[idx] = colycref[i];
+                    ++idx;
                 }
-                colxcref.resize(idx);
-                colycref.resize(idx);
             }
-            shot[ *this].m_toolLists[j]->update(tr, m_graphwidget->painter().lock(), colxcref.begin(), colxcref.end(), colycref.begin(), colycref.end());
+            rows = idx;
         }
+        colxcref.resize(rows);
+        colycref.resize(rows);
+        shot[ *this].m_toolLists[j]->update(tr, m_graphwidget->painter().lock(), colxcref.begin(), colxcref.end(), colycref.begin(), colycref.end());
     }
 }
