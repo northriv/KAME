@@ -324,7 +324,9 @@ XJournalReader::parseOne(void *_fd, XMutex &mutex) {
     auto rawdata = std::make_shared<XPrimaryDriver::RawData>();
 	try {
 		rawdata->resize(size);
-		if(gzread(fd, &rawdata->at(0), size) != (int)size)
+		//An empty payload has no at(0): that threw std::out_of_range, which no
+		//handler here catches, with the file mutex still held.
+		if(size && (gzread(fd, &rawdata->at(0), size) != (int)size))
 			throw XIOError(__FILE__, __LINE__);
 		std::vector<char> buf(sizeof(uint32_t));
 		if(gzread(fd, &buf[0], sizeof(uint32_t)) != (int)sizeof(uint32_t))
@@ -334,9 +336,11 @@ XJournalReader::parseOne(void *_fd, XMutex &mutex) {
 		if(footer_allsize != m_allsize)
 			throw XBrokenRecordError(__FILE__, __LINE__);
 	}
-	catch (XRecordError &e) {
-		driver->finishWritingRaw(rawdata, XTime(), XTime());
-		throw e;
+	catch (XRecordError &) {
+		//Under the mutex that serializes every other finishWritingRaw() here.
+		{ XScopedLock<XMutex> lock(m_drivermutex);
+		driver->finishWritingRaw(rawdata, XTime(), XTime()); }
+		throw; //!< as thrown: XIOError, XBrokenRecordError
 	}
 	//The settings this record was taken with, gathered while the file is still
 	//ours and applied once it is not: applying is a transaction per node, and
@@ -468,9 +472,13 @@ XJournalReader::seek_(void *_fd, int permille) {
 				//The record says what it is.  Magic and check together are
 				//2^-64 against arbitrary bytes, so this is the answer, not a
 				//candidate -- and it holds without reading anything else.
+				//No 4-byte alignment test, for the reason readHeader() gives:
+				//the header is KAMB_FIXED_SIZE + strlen(name) + 1, aligned
+				//only when the name is 3 mod 4.  Kept here after it went
+				//there, it passed over every other driver's records, and a
+				//file holding only those always fell back to its first.
 				uint32_t hdrsize = le32(i + 4);
-				if((hdrsize < KAMB_FIXED_SIZE) || (hdrsize > KAMB_HEADER_SIZE_MAX)
-					|| (hdrsize % sizeof(uint32_t)))
+				if((hdrsize < KAMB_FIXED_SIZE) || (hdrsize > KAMB_HEADER_SIZE_MAX))
 					continue;
 				allsize = le32(i + 12);
 				if((allsize < hdrsize + 5) || (allsize > MAX_RAW_RECORD_SIZE))

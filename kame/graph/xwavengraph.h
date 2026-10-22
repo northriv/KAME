@@ -118,14 +118,17 @@ public:
                 if(vector.empty()) return 0.0;
                 return *std::max_element(vector.cbegin(), vector.cend());
             }
+            //Bounds-checked, as is toOFStream(): rowCount() is set apart from
+            //the columns (from Python too), so it can outrun one.
             virtual bool moreThanZero(size_t i) const {
-                return vector[i] > 0;
+                return (i < vector.size()) && (vector[i] > 0);
             }
             virtual const std::vector<XGraph::VFloat> &fillOrPointToGraphPoints(std::vector<XGraph::VFloat>& buf) const {
                 return fillOrPointToGraphPointsBasic(buf, vector);
             }
             virtual void toOFStream(std::fstream &s, size_t idx) const {
-                s << vector[idx];
+                if(idx < vector.size())
+                    s << vector[idx];
             }
             std::vector<VALUE> vector;
         };

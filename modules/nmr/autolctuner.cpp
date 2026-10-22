@@ -205,10 +205,19 @@ LCRFit::inferTXLength(const std::complex<double> *s11, unsigned int length,
     a = std::max(0L, std::min((long)length - 1L, a));
     long b = lrint((f0 * std::max(1.2, (1 + d)) - fstart) / fstep);
     b = std::max(0L, std::min((long)length - 1L, b));
+    if(b <= a) {
+        //Both ends clamped onto one point: f0 is off the sweep, and there is no
+        //span to read a phase slope over (it divided by f2 - f1 == 0).
+        m_txLen = 0.0;
+        return;
+    }
     double phase_chg = std::arg(s11[b] / s11[a]);
     double f1 = a * fstep + fstart;
     double f2 = b * fstep + fstart;
-    phase_chg -= std::abs(rl(2.0 * M_PI * f2) / rl(2.0 * M_PI * f1));
+    //The circuit's own phase change between the two points, which the cable's
+    //is what remains after.  It was the magnitude ratio, subtracted from a
+    //phase.  \sa computeResidualError() for the model this inverts.
+    phase_chg -= std::arg(rl(2.0 * M_PI * f2) / rl(2.0 * M_PI * f1));
     m_txLen = std::max(0.0, phase_chg / phase_change_per_meter_freq) / (f2 - f1);
 }
 
@@ -414,19 +423,30 @@ public:
     XLCRPlot(const char *name, bool runtime, Transaction &tr, const shared_ptr<XGraph> &graph)
         : XFuncPlot(name, runtime, tr, graph), m_graph(graph)
     {}
-    void setLCR(const shared_ptr<LCRFit> &lcr) {
-        m_lcr = lcr;
+    void setLCR(const shared_ptr<const LCRFit> &lcr) {
+        {
+            XScopedLock<XMutex> lock(m_lcrMutex);
+            m_lcr = lcr;
+        }
         if(auto graph = m_graph.lock()) {
             Snapshot shot( *graph);
             shot.talk(shot[ *graph].onUpdate(), graph.get());
         }
     }
     virtual double func(double mhz) const {
-        if( !m_lcr) return 0.0;
-        return 20.0 * log10(std::abs(m_lcr->rl(2.0 * M_PI * mhz * 1e6)));
+        shared_ptr<const LCRFit> lcr;
+        {
+            XScopedLock<XMutex> lock(m_lcrMutex);
+            lcr = m_lcr;
+        }
+        if( !lcr) return 0.0;
+        return 20.0 * log10(std::abs(lcr->rl(2.0 * M_PI * mhz * 1e6)));
     }
 private:
-    shared_ptr<LCRFit> m_lcr;
+    //Written by the analysis thread, read by the painter's: the pointer
+    //itself is shared, so it is copied under a lock, never read in place.
+    shared_ptr<const LCRFit> m_lcr;
+    mutable XMutex m_lcrMutex;
     weak_ptr<XGraph> m_graph;
 };
 //---------------------------------------------------------------------------
@@ -587,6 +607,15 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 
     routeRFRelays(shot_this, true);
 
+    //Where this tune starts is the first place it can roll back to.  Until
+    //something better was found, bestSTMValues still held the previous tune's
+    //angles -- another frequency's -- or zeros on the first, and a rollback
+    //before the first improvement drove the STMs there.
+    std::array<double, 2> start_positions{{0.0, 0.0}};
+    for(int i: {0, 1})
+        if(stms[i])
+            start_positions[i] = Snapshot( *stms[i])[ *stms[i]->position()->value()];
+
     iterate_commit([=](Transaction &tr){
         clearUIAndPlot(tr);
 
@@ -604,6 +633,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
         tr[ *this].resetToFirstStage();
         tr[ *this].smallestRLAtF0 = 1.0;
         tr[ *this].smallestRLMin = 1.0;
+        tr[ *this].bestSTMValues = start_positions;
         tr[ *this].iterationCount = 0;
         tr[ *this].timeSTMChanged = XTime::now();
         tr[ *this].started = XTime::now();
@@ -617,19 +647,23 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
     });
 
     shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
-    if(na__)
-        na__->graph()->iterate_commit_if([=](Transaction &tr){
-            m_lcrPlot = na__->graph()->plots()->create<XLCRPlot>(
+    if(na__) {
+        shared_ptr<XLCRPlot> plot;
+        na__->graph()->iterate_commit_if([&](Transaction &tr){
+            plot = na__->graph()->plots()->create<XLCRPlot>(
                 tr, "FittedCurve", true, tr, na__->graph());
-            if( !m_lcrPlot)
+            if( !plot)
                 return false;
-            tr[ *m_lcrPlot->label()] = i18n("Fitted Curve");
-            tr[ *m_lcrPlot->axisX()] = tr.list(na__->graph()->axes())->at(0);
-            tr[ *m_lcrPlot->axisY()] = tr.list(na__->graph()->axes())->at(1);
-            tr[ *m_lcrPlot->lineColor()] = (unsigned int)tr[ *na__->graph()->titleColor()];
-            tr[ *m_lcrPlot->intensity()] = 2.0;
+            tr[ *plot->label()] = i18n("Fitted Curve");
+            tr[ *plot->axisX()] = tr.list(na__->graph()->axes())->at(0);
+            tr[ *plot->axisY()] = tr.list(na__->graph()->axes())->at(1);
+            tr[ *plot->lineColor()] = (unsigned int)tr[ *na__->graph()->titleColor()];
+            tr[ *plot->intensity()] = 2.0;
             return true;
         });
+        XScopedLock<XMutex> lock(m_lcrPlotMutex);
+        m_lcrPlot = plot;
+    }
 }
 void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) {
     iterate_commit_while([=](Transaction &tr)->bool{
@@ -701,15 +735,20 @@ XAutoLCTuner::updatePresetAngleTable(const XString &table, double freq,
 }
 void XAutoLCTuner::onAddPresetAnglesTouched(const Snapshot &shot, XTouchableNode *) {
     // Freq[MHz] STM1[deg] STM2[deg]
+    //Where the STMs are, read from them: targetSTMValues follows them only
+    //once a trace has been analysed, and before that it is zero.
+    Snapshot shot_this( *this);
+    const shared_ptr<XMotorDriver> stms[] = {shot_this[ *stm1()], shot_this[ *stm2()]};
+    double positions[2] = {0.0, 0.0};
+    for(int i: {0, 1})
+        if(stms[i])
+            positions[i] = Snapshot( *stms[i])[ *stms[i]->position()->value()];
     iterate_commit([=](Transaction &tr){
-        const Snapshot &shot_this(tr);
-        shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
-        shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
-        XString str = tr[ *m_descPresetAngles].to_str() + formatString(" %.4f", (double)shot_this[ *target()]);
-        if(stm1__)
-            str += formatString(" %.3f", shot_this[ *this].targetSTMValues[0]);
-        if(stm2__)
-            str += formatString(" %.3f", shot_this[ *this].targetSTMValues[1]);
+        XString str = tr[ *m_descPresetAngles].to_str() + formatString(" %.4f", (double)tr[ *target()]);
+        if(stms[0])
+            str += formatString(" %.3f", positions[0]);
+        if(stms[1])
+            str += formatString(" %.3f", positions[1]);
         tr[ *m_descPresetAngles] = str + "\n";
     });
 }
@@ -743,7 +782,13 @@ XAutoLCTuner::clearUIAndPlot(Transaction &tr) {
     tr[ *abortTuning()].setUIEnabled(false);
 
     const shared_ptr<XNetworkAnalyzer> na__ = tr[ *netana()];
-    auto plot = m_lcrPlot;
+    //Taken under the lock: the analysis thread reads it, and a closure run
+    //again finds nothing left to release.
+    shared_ptr<XLCRPlot> plot;
+    {
+        XScopedLock<XMutex> lock(m_lcrPlotMutex);
+        plot.swap(m_lcrPlot);
+    }
     if(na__ && plot) {
         try {
             na__->graph()->plots()->release(plot);
@@ -751,7 +796,6 @@ XAutoLCTuner::clearUIAndPlot(Transaction &tr) {
         catch (NodeNotFoundError &) {
         }
     }
-    m_lcrPlot.reset();
 }
 //Bit 0 of an STM's AUX output, as it always was, or channel 1 of a relay
 //driver.  Either is written by an immediate listener (XMotorDriver's AUX,
@@ -1198,7 +1242,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 //        auto newcaps = lcrfit->tuneCaps(f0 * 1e6);
 //        message +=
 //            formatString("Fit suggests: C1=%.2f pF, C2=%.2f pF\n", newcaps.first * 1e12, newcaps.second * 1e12);
-        if(auto plot = m_lcrPlot)
+        if(auto plot = lcrPlot())
             plot->setLCR(lcrfit);
 
         if((lcrfit->residualError() > 0.1) || std::isnan(fmin_fit_err) ||
@@ -1210,6 +1254,14 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                 rollBack(tr, std::move(message));
             message += "Continues anyway.";
             fmin_err = fabs(fmin - fmin_fit);
+            //Nor is its reflection at f0, which decides success below and which
+            //angles are kept as the best: measure it instead.  (Only a deeper
+            //dip already waited for a reliable fit.)
+            long idx = lrint((f0 - trace_start) / trace_dfreq);
+            if((idx >= 0) && (idx < trace_len)) {
+                rl_at_f0 = std::abs(trace[idx]);
+                rl_at_f0_sigma = 0.0;
+            }
         }
         else {
             fmin = fmin_fit;
@@ -1366,12 +1418,23 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                 (lcrfit->c2() - shot_this[ *this].fitRotated->c2()) / (-testdelta);
             double backlash1 = testdelta - dc1dtest_minus_backlash / dc1dtest * testdelta;
             double backlash2 = testdelta - dc2dtest_minus_backlash / dc2dtest * testdelta;
-            backlash = w1 * w1 * backlash1 + w2 * w2 * backlash2;
-            backlash /= w1 * w1 + w2 * w2;
+            //A derivative of exactly zero (a capacitor that did not move, or a
+            //fit that came back unchanged) leaves its own estimate undefined
+            //and its weight infinite: the other one alone, not the Inf/Inf this
+            //was, whose NaN went on into stmTrustArea.
+            if(dc1dtest == 0.0)
+                backlash = backlash2;
+            else if(dc2dtest == 0.0)
+                backlash = backlash1;
+            else {
+                backlash = w1 * w1 * backlash1 + w2 * w2 * backlash2;
+                backlash /= w1 * w1 + w2 * w2;
+            }
             message +=
                 formatString("STM%d: dC1/dx = %.2g+-%.2g pF/deg., dC2/dx = %.2g+-%.2g pF/deg., backlash = %.1f deg.\n",
                     target_stm + 1, dc1dtest * 1e12, dc1dtest_err * 1e12, dc2dtest * 1e12, dc2dtest_err * 1e12, backlash);
-            further_test = further_test || (backlash / fabs(testdelta) < -shot_this[ *backlushMinusTh()])
+            further_test = further_test || !std::isfinite(backlash)
+                    || (backlash / fabs(testdelta) < -shot_this[ *backlushMinusTh()])
                     || (fabs(backlash / testdelta) > shot_this[ *backlushPlusTh()]);
         }
         double multiplier_to_reach_f0 = (f0 * 1e6 - shot_this[ *this].fitRotated->f0()) / (shot_this[ *this].fitRotated->f0() - shot_this[ *this].fitOrig->f0());
@@ -1505,8 +1568,13 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     //Limits rotations.
     for(int i: {0, 1})
         drot[i] *= shot_this[ *this].sor;
-    double rotpertrust = fabs(std::max(fabs(drot[0]) / shot_this[*this].stmTrustArea[0],
-            fabs(drot[1]) / shot_this[*this].stmTrustArea[1]));
+    //Only an axis that turns has a trust area to exceed.  One never tested has
+    //none, and its 0/0 made this NaN -- which "rotpertrust > 1.0" below then
+    //waved through: with STM2 alone, no step was ever limited.
+    double rotpertrust = 0.0;
+    for(int i: {0, 1})
+        if(drot[i] != 0.0)
+            rotpertrust = std::max(rotpertrust, fabs(drot[i]) / shot_this[ *this].stmTrustArea[i]);
     if(shot_this[ *this].smallestRLAtF0 > rl_at_f0 + rl_at_f0_sigma) {
         //Limit with respect to the best fit values.
         for(int i: {0, 1}) {
@@ -1533,6 +1601,10 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
     const shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
     const shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
     const shared_ptr<XMotorDriver> stms[] = {stm1__, stm2__};
+    //Only after a success.  A failed or aborted tune leaves the RF relays on the
+    //VNA path and the STMs energized on purpose: the user then finishes the
+    //tuning by hand, and the frequency sweep waits for that.
+    //\sa XNMRFSpectrum::onTuningChanged() ("awaiting manual tuning").
     if(shot_this[ *tuning()]) {
         if(shot_this[ *succeeded()]){
             for(auto &&stm: stms) {

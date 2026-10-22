@@ -151,7 +151,12 @@ XOrientalMotorCVD2B::changeConditions(const Snapshot &shot) {
     if(interface()->readHoldingTwoResistors(0x39c) >= 2)
         phase2 = isPresetTo2Phase();
     auto &resolutions = phase2 ? s_resolutions_2B : s_resolutions_5B;
-    auto it = std::lower_bound(resolutions.begin(), resolutions.end(), lrint((double)shot[ *stepMotor()] * 1.02));
+    //The first entry not below what was asked, less 2%: a tolerance on the
+    //low side.  Asking 1.02 times as much made an exact entry select the one
+    //after it (1000 -> 1600), and the largest one ran off the table (index 16).
+    auto it = std::lower_bound(resolutions.begin(), resolutions.end(), lrint((double)shot[ *stepMotor()] * 0.98));
+    if(it == resolutions.end())
+        --it;
     interface()->presetTwoResistors(0x39e,  it - resolutions.begin());
     interface()->presetTwoResistors(0x1804,  lrint(shot[ *speed()]));
     unsigned int microstep = shot[ *microStep()] ? 1 : 0;
@@ -199,7 +204,9 @@ XOrientalMotorCVD2B::getConditions() {
             smotor = 0;
         }
         spd = interface()->readHoldingTwoResistors(0x1804);
-        tgt = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x1802)) * 360.0 / smotor;
+        //smotor is 0 for an index outside the table, as the 1.02 lookup in
+        //changeConditions() used to store.
+        tgt = smotor ? static_cast<int32_t>(interface()->readHoldingTwoResistors(0x1802)) * 360.0 / smotor : 0.0;
         atv = (interface()->readHoldingSingleResistor(0x7d) & 0x40u) == 0; //not AWC
     }
     iterate_commit([=](Transaction &tr){
@@ -249,7 +256,7 @@ XOrientalMotorCVD2B::toHomePosition() {
     XScopedLock<XInterface> lock( *interface());
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
     interface()->presetTwoResistors(0x7c, (netin & ~0xc000u) | 0x0010u); //HOME
-    interface()->presetTwoResistors(0x7c, netin & ~0xc0010u);
+    interface()->presetTwoResistors(0x7c, netin & ~0xc010u); //HOME, FW-POS and RV-POS off (was 0xc0010)
 }
 void
 XOrientalMotorCVD2B::setForward() {
@@ -386,7 +393,7 @@ XFlexCRK::getConditions() {
         smotor = interface()->readHoldingTwoResistors(0x314);
         spd = interface()->readHoldingTwoResistors(0x502);
         tgt = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x402)) * 360.0 / smotor;
-        atv = (interface()->readHoldingSingleResistor(0x1e) & 0x2000u) == 1; //CON
+        atv = (interface()->readHoldingSingleResistor(0x1e) & 0x2000u) != 0; //CON (== 1 was never true)
         interface()->presetSingleResistor(0x203, 0); //STOP I/O normally open.
         interface()->presetSingleResistor(0x200, 0); //START by RS485.
         interface()->presetSingleResistor(0x20b, 0); //C-ON by RS485.
@@ -660,6 +667,11 @@ XFlexAR::prepairSequence(const std::vector<double> &points, const std::vector<do
         throw XInterface::XInterfaceError(getLabel() +
             i18n(": Too many points."), __FILE__, __LINE__);
     }
+    //Empty, the last entry below was at points.size() - 1, i.e. register 0x580.
+    if(points.empty() || (speeds.size() != points.size())) {
+        throw XInterface::XInterfaceError(getLabel() +
+            i18n(": Each point needs a speed, and there must be one."), __FILE__, __LINE__);
+    }
     uint32_t acc, dec;
     acc = interface()->readHoldingTwoResistors(0x600);
     dec = interface()->readHoldingTwoResistors(0x680);
@@ -682,6 +694,10 @@ XFlexAR::runSequentially(const std::vector<std::vector<double>> &points,
     if( !interface()->isOpened())
         throw XInterface::XInterfaceError(getLabel() +
             i18n(": not opened."), __FILE__, __LINE__);
+    //Bound to Python as it is: every index below is checked here first.
+    if((points.size() < slaves.size() + 1) || (speeds.size() != points.size()))
+        throw XInterface::XInterfaceError(getLabel() +
+            i18n(": Points and speeds are needed for the master and each slave."), __FILE__, __LINE__);
     Snapshot shot( *this);
     prepairSequence(points[0], speeds[0]);
     int addr_master = shot[ *interface()->address()];

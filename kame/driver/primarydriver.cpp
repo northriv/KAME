@@ -108,8 +108,14 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
                     err = XRecordError(e.what(), __FILE__, __LINE__);
                 }
                 else {
-                    gErrPrint(i18n("Python error: ") + e.what());
-                    return;
+                    //Any other Python error is a bug in the driver, not a state
+                    //of the instrument, but it leaves the payload half analysed
+                    //all the same.  Returning committed that half without
+                    //record(), and onVisualization() then reported a recorded
+                    //record.  Invalid, as for a ValueError; printed once, after
+                    //the commit, instead of on every retry.
+                    time_recorded = XTime(); //record is invalid
+                    err = XRecordError(i18n("Python error: ") + e.what(), __FILE__, __LINE__);
                 }
             }
 #endif
