@@ -137,6 +137,10 @@ XFujikinInterface::communicate_once(uint8_t classid, uint8_t instanceid, uint8_t
     // whole transaction (recursive — inner per-I/O XScopedLock<XPort>
     // nests harmlessly).
     auto port = openedPort();
+    //Null once the interface is closed: report it as XCharInterface::send()
+    //does, rather than dereference it (as the Modbus interface now does).
+    if( !port)
+        throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
     XScopedLock<XPort> portlock( *port);
     msecsleep(10);
     this->write(reinterpret_cast<char*>( &buf[0]), buf.size());
