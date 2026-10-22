@@ -917,6 +917,22 @@ isWritableThroughTr(XWaveNGraph::Payload &self, const char *func) {
     return newer > 0;
 }
 
+//! For the forms that name their transaction: `self` must be `tr`'s copy of
+//! its node, so that self.tr() is `tr`, which the caller keeps alive.
+//! 	hrow std::runtime_error otherwise.
+static void
+requireCopyOf(XWaveNGraph::Payload &self, Transaction &tr, const char *func) {
+    auto &node = static_cast<XWaveNGraph &>(self.node());
+    bool same;
+    {
+        py::gil_scoped_release rel; //tr[node] may copy the payload; see CLAUDE.md rule 4.
+        same = ( &tr[node] == &self);
+    }
+    if( !same)
+        throw std::runtime_error(std::string(func) + "(tr, ...) needs tr[node] itself: "
+            "use `tr[node]." + func + "(tr, ...)` with the same `tr`.");
+}
+
 void
 KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
     {   auto [node, payload] = XPython::bind.export_xnode<XGraph, XNode>();
@@ -967,11 +983,24 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
             if(isWritableThroughTr(self, "clearPoints"))
                 self.clearPoints();
         })
+        //With the transaction named, nothing is guessed: the payload must be
+        //this transaction's copy of the node, and the transaction is alive
+        //because the caller holds it.  The forms without `tr` cannot tell a
+        //live transaction's copy from one an abandoned transaction left
+        //behind, whose tr() points at the destroyed transaction.
+        .def("clearPoints", [](XWaveNGraph::Payload &self, Transaction &tr){
+            requireCopyOf(self, tr, "clearPoints");
+            self.clearPoints();
+        })
         //setColumn() requires a column as long as rowCount(), which nothing
         //on the Python side could set: a graph could not be filled from there.
         .def("setRowCount", [](XWaveNGraph::Payload &self, unsigned int rows){
             if(isWritableThroughTr(self, "setRowCount"))
                 self.setRowCount(rows);
+        })
+        .def("setRowCount", [](XWaveNGraph::Payload &self, Transaction &tr, unsigned int rows){
+            requireCopyOf(self, tr, "setRowCount");
+            self.setRowCount(rows);
         })
         .def("insertPlot", [](XWaveNGraph::Payload &self,
              Transaction &tr, const std::string &label, int colx, int coly1, int coly2, int colw, int colz){
@@ -979,7 +1008,13 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
         })
         //A list of labels.  It took std::initializer_list, which pybind11 has no
         //caster for, so every call from Python raised TypeError.
+        //setCols(), setLabel() and setColumn() write only the payload, but a
+        //committed payload (Snapshot(node)[node]) is shared with every live
+        //Snapshot and with the drawing and dump threads, which index m_cols:
+        //resizing it under them reads freed memory.  Same guard as clearPoints().
         .def("setCols", [](XWaveNGraph::Payload &self, const std::vector<std::string> &labels){
+            if( !isWritableThroughTr(self, "setCols"))
+                return;
             std::vector<const char *> cstrs;
             for(auto &&l: labels)
                 cstrs.push_back(l.c_str());
@@ -988,7 +1023,10 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
         .def("colCount", &XWaveNGraph::Payload::colCount)
         .def("rowCount", &XWaveNGraph::Payload::rowCount)
         .def("numPlots", &XWaveNGraph::Payload::numPlots)
-        .def("setLabel", &XWaveNGraph::Payload::setLabel)
+        .def("setLabel", [](XWaveNGraph::Payload &self, unsigned int col, const std::string &label){
+            if(isWritableThroughTr(self, "setLabel"))
+                self.setLabel(col, label.c_str());
+        })
         .def("labels", [](XWaveNGraph::Payload &self){
             std::vector<std::string> list;
             for(auto &x: self.labels())
@@ -996,7 +1034,8 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
             return list;
         })
         .def("setColumn", [](XWaveNGraph::Payload &self, unsigned int n, std::vector<double> &&data, unsigned int prec){
-            self.setColumn(n, std::move(data), prec);
+            if(isWritableThroughTr(self, "setColumn"))
+                self.setColumn(n, std::move(data), prec);
         })
         .def("getColumn", [](XWaveNGraph::Payload &self, unsigned int n){
             std::vector<XGraph::VFloat> buf;
