@@ -124,6 +124,11 @@ X2DImage::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, const s
     const shared_ptr<const QImage> image_org = shot[ *plot()].image();
     if( !image_org) {
         gErrPrint(i18n("No image to dump yet."));
+        //A file of its own per shot: fail the stream, so that the empty file
+        //is removed rather than renamed into place under the next number.
+        //Not on the .dat path, which appends to a stream kept open for good.
+        if(dumpsOneFilePerShot(ext))
+            stream.setstate(std::ios::failbit);
         return;
     }
     if((ext == "DAT") || (ext == "dat")) {
@@ -162,6 +167,7 @@ X2DImage::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, const s
         // would silently produce an empty image file rather than an error.
         if( !buffer.open(QIODevice::WriteOnly)) {
             gErrPrint(i18n("Failed to open the image buffer."));
+            stream.setstate(std::ios::failbit); //see above: no empty file
             return;
         }
         {
@@ -192,7 +198,12 @@ X2DImage::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, const s
                 image.convertToColorSpace(QColorSpace::SRgbLinear);
             else
                 image.convertToColorSpace(QColorSpace{QColorSpace::Primaries::SRgb, (float)(double)shot[ *m_gamma]});
-            image.save( &buffer, ext.c_str(), 100); //uncompressed full quality.
+            if( !image.save( &buffer, ext.c_str(), 100)) { //uncompressed full quality.
+                //An extension Qt cannot write wrote nothing: no empty file.
+                gErrPrint(formatString_tr(I18N_NOOP("Failed to encode the image as %s."), ext.c_str()));
+                stream.setstate(std::ios::failbit);
+                return;
+            }
         }
         try {
             stream.write(ba.constData(), ba.size()); //XGraphNToolBox::dumpOneShot() reports the file it became.
