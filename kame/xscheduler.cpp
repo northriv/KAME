@@ -117,28 +117,37 @@ SignalBuffer::register_event(std::unique_ptr<Transactional::BufferedEvent> event
     new_delay = std::max((unsigned long)ADAPTIVE_DELAY_MIN, new_delay);
     m_adaptiveDelay = new_delay;
     if(m_queue.empty()) m_oldest_timestamp = event->registered_time;
-    XScopedLock<XMutex> lock(mutex);
-    //In order: once anything waits in the overflow, so does what follows.
-    if(m_overflow.empty()) {
-        try {
-            m_queue.push(event.get());
-            event.release(); //!< the queue owns it now
-            return;
+    {
+        XScopedLock<XMutex> lock(mutex);
+        //In order: once anything waits in the overflow, so does what follows.
+        if(m_overflow.empty()) {
+            try {
+                m_queue.push(event.get());
+                event.release(); //!< the queue owns it now
+                return;
+            }
+            catch (Queue::nospace_error &) {
+                fprintf(stderr, "Queue size exceeded to %d.\n", (int)m_queue.size());
+            }
         }
-        catch (Queue::nospace_error &) {
-            fprintf(stderr, "Queue size exceeded to %d.\n", (int)m_queue.size());
-        }
+        //Full: the main thread has not drained it for a while.  The event used to
+        //be dropped -- after its ownership was released, so it leaked -- and a
+        //dropped FLAG_AVOID_DUP event is worse than one lost update: its listener
+        //keeps the pending event, every later talk() merges into it, and nothing
+        //is registered for it again.  Waiting for room instead could deadlock
+        //against a main thread waiting for this one.  Held here, it goes out in
+        //order once synchronize__() makes room.
+        m_overflow.push_back(event.get());
+        event.release();
+        m_overflowed = true;
     }
-    //Full: the main thread has not drained it for a while.  The event used to
-    //be dropped -- after its ownership was released, so it leaked -- and a
-    //dropped FLAG_AVOID_DUP event is worse than one lost update: its listener
-    //keeps the pending event, every later talk() merges into it, and nothing
-    //is registered for it again.  Waiting for room instead could deadlock
-    //against a main thread waiting for this one.  Held here, it goes out in
-    //order once synchronize__() makes room.
-    m_overflow.push_back(event.get());
-    event.release();
-    m_overflowed = true;
+    //Back-pressure, as before the overflow existed: a thread that talks faster
+    //than the main thread drains (a script printing in a loop, a gErrPrint
+    //storm) is slowed toward the drain rate, instead of growing the overflow
+    //without bound -- each plain FLAG_MAIN_THREAD_CALL event holds a Snapshot.
+    //A bounded sleep, outside the lock, waits for nobody, so it cannot deadlock.
+    if( !isMainThread())
+        msecsleep(10);
 }
 bool
 SignalBuffer::synchronize() {
