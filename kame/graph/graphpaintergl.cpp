@@ -342,8 +342,13 @@ XQGraphPainter::pickObjectGL(int x, int y, int dx, int dy, GLint list) {
     //that pixel's depth.  The colour was read at (x, y) alone, so only
     //pixels[0] could be an object, and it was paired with the depth at the
     //window's corner; the index also strode by the height, not the row width.
-    const int w = (int)(2 * dx * m_pixel_ratio), h = (int)(2 * dy * m_pixel_ratio);
-    const GLint x0 = (double)(x - dx) * m_pixel_ratio, y0 = (double)m_viewport[3] - (y + dy) * m_pixel_ratio;
+    //The window is clipped to the viewport: glReadPixels leaves pixels outside
+    //the framebuffer undefined, which near the widget's edge read as objects.
+    int x0 = lrint((x - dx) * m_pixel_ratio), y0 = lrint(m_viewport[3] - (y + dy) * m_pixel_ratio);
+    int x1 = x0 + lrint(2 * dx * m_pixel_ratio), y1 = y0 + lrint(2 * dy * m_pixel_ratio);
+    x0 = std::max(x0, 0); y0 = std::max(y0, 0);
+    x1 = std::min(x1, (int)m_viewport[2]); y1 = std::min(y1, (int)m_viewport[3]);
+    const int w = std::max(x1 - x0, 0), h = std::max(y1 - y0, 0);
     std::vector<GLfloat> zbuf(std::max(w * h, 1));
     std::vector<GLuint> pixels(std::max(w * h, 1)); //zero: "no object"
     if(w * h) {
@@ -351,22 +356,34 @@ XQGraphPainter::pickObjectGL(int x, int y, int dx, int dy, GLint list) {
         glReadPixels(x0, y0, w, h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, &pixels[0]);
     }
 
-    double zmin = 1.1;
+    //The object under the cursor; failing that, the one nearest to it in the
+    //window, the nearer in depth on a tie.  Not the nearest in depth over the
+    //window: on a 2D graph the objects share a depth, so that picked whichever
+    //the scan met first -- the image beside a math tool's rectangle near the
+    //window's bottom-left, not the rectangle under the cursor.
+    const double cx = x * m_pixel_ratio - x0, cy = (m_viewport[3] - y * m_pixel_ratio) - y0;
+    double zmin = 1.1, d2min = 0.0;
+    bool found = false;
     auto objcls = ObjClassColorR::None;
     int objidx = 0;
-    for(int x1 = 0; x1 < w; ++x1)
-        for(int y1 = 0; y1 < h; ++y1) {
-            unsigned int idx = w * y1 + x1;
-            if(pixels[idx] && (zbuf[idx] < zmin)) {
-                zmin = zbuf[idx];
-                if(pixels[idx] / 0x1000000u < (unsigned int)ObjClassColorR::Point) {
-                    objcls = (ObjClassColorR)(pixels[idx] / 0x1000000u);
-                    objidx = (pixels[idx] % 0x1000000u) / 0x100u; //No alpha
-                }
-                else {
-                    objcls = ObjClassColorR::Point;
-                    objidx = (pixels[idx] % 0x80000000u) / 0x100u; //No alpha
-                }
+    for(int iy = 0; iy < h; ++iy)
+        for(int ix = 0; ix < w; ++ix) {
+            unsigned int idx = w * iy + ix;
+            if( !pixels[idx])
+                continue;
+            double d2 = (ix + 0.5 - cx) * (ix + 0.5 - cx) + (iy + 0.5 - cy) * (iy + 0.5 - cy);
+            if(found && ((d2 > d2min) || ((d2 == d2min) && (zbuf[idx] >= zmin))))
+                continue;
+            found = true;
+            zmin = zbuf[idx];
+            d2min = d2;
+            if(pixels[idx] / 0x1000000u < (unsigned int)ObjClassColorR::Point) {
+                objcls = (ObjClassColorR)(pixels[idx] / 0x1000000u);
+                objidx = (pixels[idx] % 0x1000000u) / 0x100u; //No alpha
+            }
+            else {
+                objcls = ObjClassColorR::Point;
+                objidx = (pixels[idx] % 0x80000000u) / 0x100u; //No alpha
             }
         }
     XGraph::ScrPoint scr, sdx, sdy;
