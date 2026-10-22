@@ -28,6 +28,9 @@ public:
     virtual void receive(unsigned int length) override;
 private:
     void reopen_socket();
+    void close_socket();
+    void ensure_socket();
+    void connect_socket(unsigned int port, const std::string &ipaddr);
     [[noreturn]] void closedByPeer();
 	int m_socket;
     int m_timeout_sec = 5;
