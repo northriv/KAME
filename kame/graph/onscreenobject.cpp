@@ -21,8 +21,34 @@ std::deque<GLuint> OnScreenTexture::unusedIDs;
 
 #if defined(WIN32)
     #include <windows.h>
-    PFNGLACTIVETEXTUREPROC glActiveTexture = (PFNGLACTIVETEXTUREPROC)wglGetProcAddress("glActiveTexture");
-    PFNGLMULTITEXCOORD2FPROC glMultiTexCoord2f = (PFNGLMULTITEXCOORD2FPROC)wglGetProcAddress("glMultiTexCoord2f");
+//GL 1.3 entry points, which opengl32.dll does not export.  They were looked
+//up during static initialization, where no GL context is current, so
+//wglGetProcAddress() returned null both times, and the first texture drawn
+//(an X2DImage on Windows) called address 0.  Looked up now on first use,
+//inside drawing, where the graph's context is current; a driver without
+//them falls back to texture unit 0, which is what GL 1.1 has.
+namespace {
+template <typename F>
+F glProc(const char *name) {
+    PROC p = wglGetProcAddress(name);
+    //Some drivers answer 1, 2, 3 or -1 for "absent" instead of null.
+    if((reinterpret_cast<intptr_t>(p) >= -1) && (reinterpret_cast<intptr_t>(p) <= 3))
+        return nullptr;
+    return reinterpret_cast<F>(p);
+}
+void glActiveTexture(GLenum texture) {
+    static const PFNGLACTIVETEXTUREPROC f = glProc<PFNGLACTIVETEXTUREPROC>("glActiveTexture");
+    if(f)
+        f(texture);
+}
+void glMultiTexCoord2f(GLenum target, GLfloat s, GLfloat t) {
+    static const PFNGLMULTITEXCOORD2FPROC f = glProc<PFNGLMULTITEXCOORD2FPROC>("glMultiTexCoord2f");
+    if(f)
+        f(target, s, t);
+    else
+        glTexCoord2f(s, t); //unit 0, where glActiveTexture() left the texture
+}
+} //namespace
 #endif
 
 using std::min;
