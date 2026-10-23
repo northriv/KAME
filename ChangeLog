@@ -1,4 +1,5 @@
 * Fri Oct 23 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Release 9.1.
 - Optics: the webcam driver runs on Windows, over Media Foundation (user).
   It needed Qt Multimedia there, an optional Qt component this machine, like
   most, did not have, so Windows had no camera driver at all; and its Qt
