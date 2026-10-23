@@ -51,6 +51,8 @@ XPfeifferProtocolInterface::action(unsigned int addr, bool iscontrol,
     // whole send + receive transaction (recursive — inner per-I/O
     // XScopedLock<XPort> nests harmlessly).
     auto port = openedPort();
+    if( !port)
+        throw XInterface::XOpenInterfaceError(__FILE__, __LINE__); //closed
     XScopedLock<XPort> portlock( *port);
     XString buf;
     buf = formatString("%03u%02u%03u%02u", addr,

@@ -125,8 +125,14 @@ bool NiGpibDriver::open()
 
     struct gpib_board_config cfg = {};
     r = g_ni_gpib_interface->attach(&board_, &cfg);
-    if (r != 0)
+    if (r != 0) {
+        /* Detached, as the kernel's ibonline() does after a failed attach:
+         * ni_usb_attach() returns without undoing what it got as far as --
+         * ni_priv, and the interrupt URB already submitted -- and close()
+         * detaches only what attached_ says was attached. */
+        g_ni_gpib_interface->detach(&board_);
         return fail("Driver attach failed (%s)", strerror(-r));
+    }
     attached_ = true;
     printf("Driver attached successfully.\n");
 

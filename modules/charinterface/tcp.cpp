@@ -55,6 +55,10 @@ XTCPSocketPort::XTCPSocketPort(XCharInterface *intf)
 
 }
 XTCPSocketPort::~XTCPSocketPort() {
+    close_socket();
+}
+void
+XTCPSocketPort::close_socket() {
     if(m_socket >= 0) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
         closesocket(m_socket);
@@ -62,17 +66,24 @@ XTCPSocketPort::~XTCPSocketPort() {
         close(m_socket);
 #endif
     }
+    m_socket = -1;
 }
 void
 XTCPSocketPort::reopen_socket() {
-    if(m_socket >= 0) {
-#if defined WINDOWS || defined __WIN32__ || defined _WIN32
-        closesocket(m_socket);
-#else
-        close(m_socket);
-#endif
-    }
+    close_socket();
     open(0);
+}
+//! A failed open() leaves no socket (m_socket < 0) rather than a half-made
+//! one, and the next I/O tries again from here.  A reopen after the peer
+//! closed usually runs while the instrument is still rebooting; it used to
+//! leave the socket non-blocking and unconnected, and on Windows, which
+//! reports a failed connect only in exceptfds, every select() for writing or
+//! reading after it timed out without reopening: the port stayed dead until
+//! the interface was stopped and started.
+void
+XTCPSocketPort::ensure_socket() {
+    if(m_socket < 0)
+        open(0);
 }
 
 shared_ptr<XPort>
@@ -86,10 +97,25 @@ XTCPSocketPort::open(const XCharInterface *pInterface) {
         throw XInterface::XCommError(i18n("tcp socket creation failed"), __FILE__, __LINE__);
 	ipaddr = ipaddr.substr(0, colpos);
 
+    close_socket();
 	m_socket = socket(AF_INET, SOCK_STREAM, 0);
 	if(m_socket < 0) {
+        m_socket = -1; //INVALID_SOCKET on Windows
         throw XInterface::XCommError(i18n("tcp socket creation failed"), __FILE__, __LINE__);
 	}
+    try {
+        connect_socket(port, ipaddr);
+    }
+    catch(...) {
+        close_socket(); //no half-made socket: see ensure_socket()
+        throw;
+    }
+    m_remainingBytes.clear();
+
+    return shared_from_this();
+}
+void
+XTCPSocketPort::connect_socket(unsigned int port, const std::string &ipaddr) {
 
     timeval timeout = {};
     timeout.tv_sec  = m_timeout_sec;
@@ -140,14 +166,27 @@ XTCPSocketPort::open(const XCharInterface *pInterface) {
         if(errno == EINPROGRESS) {
 #endif
             errno = 0;
-            fd_set fs;
+            fd_set fs, fe;
             FD_ZERO(&fs);
             FD_SET(m_socket, &fs);
-            int ret = ::select(m_socket + 1, NULL, &fs, NULL, &timeout); //awaiting.
+            FD_ZERO(&fe);
+            FD_SET(m_socket, &fe);
+            //exceptfds: where Windows reports a connect that failed.
+            int ret = ::select(m_socket + 1, NULL, &fs, &fe, &timeout); //awaiting.
             if(ret < 0)
                 throw XInterface::XCommError(i18n("tcp open failed"), __FILE__, __LINE__);
             if(ret == 0)
                 throw XInterface::XCommError(i18n("tcp time-out during connection."), __FILE__, __LINE__);
+            //Writable also when the connect failed (POSIX): its error says.
+            int soerr = 0;
+#if defined WINDOWS || defined __WIN32__ || defined _WIN32
+            int soerr_len = sizeof(soerr);
+#else
+            socklen_t soerr_len = sizeof(soerr);
+#endif
+            if(FD_ISSET(m_socket, &fe) ||
+                getsockopt(m_socket, SOL_SOCKET, SO_ERROR, (char*)&soerr, &soerr_len) || soerr)
+                throw XInterface::XCommError(formatString_tr(I18N_NOOP("tcp open failed %u"), (unsigned int)soerr).c_str(), __FILE__, __LINE__);
             break;
         }
         throw XInterface::XCommError(formatString_tr(I18N_NOOP("tcp open failed %u"), errno).c_str(), __FILE__, __LINE__);
@@ -163,10 +202,6 @@ XTCPSocketPort::open(const XCharInterface *pInterface) {
         throw XInterface::XCommError(i18n("tcp open failed"), __FILE__, __LINE__);
     }
 #endif
-
-    m_remainingBytes.clear();
-
-    return shared_from_this();
 }
 void
 XTCPSocketPort::send(const char *str) {
@@ -176,6 +211,7 @@ XTCPSocketPort::send(const char *str) {
 }
 void
 XTCPSocketPort::write(const char *sendbuf, int size) {
+    ensure_socket();
     fd_set fs_org;
     FD_ZERO(&fs_org);
     FD_SET(m_socket , &fs_org);
@@ -219,6 +255,17 @@ XTCPSocketPort::write(const char *sendbuf, int size) {
         sendbuf += ret;
 	} while (wlen < size);
 }
+//! recv() returning 0 for a non-empty read is the peer's FIN.  It is not "no
+//! data yet": a closed socket stays readable, so select() returns at once and
+//! recv() returns 0 again -- added to the length as nothing, that spun the
+//! reader for ever at full CPU with the port held.  An instrument closing an
+//! idle connection, or rebooting, is enough to cause it.
+void
+XTCPSocketPort::closedByPeer() {
+    gErrPrint(i18n("connection closed by peer, trying to reopen the socket"));
+    reopen_socket();
+    throw XInterface::XCommError(i18n("tcp connection closed by peer"), __FILE__, __LINE__);
+}
 unsigned int
 XTCPSocketPort::rearrangeBufferForNextReceive() {
     buffer().resize(m_remainingBytes.size());
@@ -229,6 +276,7 @@ XTCPSocketPort::rearrangeBufferForNextReceive() {
 
 void
 XTCPSocketPort::receive() {
+    ensure_socket();
     fd_set fs_org;
     FD_ZERO(&fs_org);
     FD_SET(m_socket , &fs_org);
@@ -270,7 +318,8 @@ XTCPSocketPort::receive() {
             throw XInterface::XCommError(i18n("read time-out, buf=;") + &buffer().at(0), __FILE__, __LINE__);
         }
         ret = ::recv(m_socket, bpos , MIN_RECV_SIZE, 0);//MIN_RECV_SIZE bytes reading.
-        //allows the case ret == 0.
+        if(ret == 0)
+            closedByPeer();
         if(ret < 0) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();
@@ -293,6 +342,7 @@ XTCPSocketPort::receive() {
 }
 void
 XTCPSocketPort::receive(unsigned int length) {
+    ensure_socket();
     fd_set fs_org;
     FD_ZERO(&fs_org);
     FD_SET(m_socket , &fs_org);
@@ -316,11 +366,15 @@ XTCPSocketPort::receive(unsigned int length) {
         if(ret < 0)
             throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
         if(ret == 0) {
-            //timeout during select().
+            //timeout during select().  Only the first len bytes have arrived,
+            //and nothing terminates them.
+            buffer().resize(len);
+            buffer().push_back('\0');
             throw XInterface::XCommError(i18n("read time-out, buf=;") + &buffer().at(0), __FILE__, __LINE__);
         }
         ret = ::recv(m_socket, &buffer().at(len) , length - len, 0); //reads remaining bytes.
-        //allows the case ret == 0.
+        if(ret == 0)
+            closedByPeer();
         if(ret < 0) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();

@@ -170,12 +170,15 @@ XNMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
         case TuneCycleStrategy::AUTOTUNE:
             {
                 shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
+                //Reported, not returned from: performTuning() says the same and
+                //carries on.  The commit below dereferenced the null pointer.
                 if( !pulser__)
                     gErrPrint(i18n("Pulser should be selected."));
-                pulser__->iterate_commit([=](Transaction &tr){
-                    tr[ *pulser__->firstPhase()] = 0;
-                    tr[ *pulser__->invertPhase()] = false;
-                });
+                else
+                    pulser__->iterate_commit([=](Transaction &tr){
+                        tr[ *pulser__->firstPhase()] = 0;
+                        tr[ *pulser__->invertPhase()] = false;
+                    });
             }
             if(shot_this[ *tuneCycleStep()]  <= 0.0)
                 gErrPrint(i18n("Invalid tuning/cyclic step."));

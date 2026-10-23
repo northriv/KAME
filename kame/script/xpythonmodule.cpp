@@ -203,6 +203,28 @@ export_xqcon() {
     return std::move(pyc);
 }
 
+//! A payload handed to Python, tied to a copy of the Snapshot it came from.
+//! The wrapper cast_to_pyobject() makes is a bare pointer, valid while some
+//! packet holds the payload, and nothing tied it to its Snapshot:
+//! reference_internal does nothing for a py::object return.  Kept past its
+//! Snapshot, a payload then read freed memory once the node committed again
+//! (heap-use-after-free; `p = Snapshot(n)[n]`, or a one-liner losing the race).
+//! Keeping it is the script's business, but it must not cost the process; it
+//! now reads as of the Snapshot it came from.
+//! A copy, never the Transaction itself: a live uncommitted Transaction makes
+//! newer ones wait for it, up to the HANG watchdog.  A Snapshot holds no tags
+//! (its constructor drops them, ~Snapshot has none to drop), so a copy of a
+//! Transaction's view is inert -- and keeps that retry's copies alive too.
+//! Only for a wrapper made just now: pybind11 hands out the one it already has
+//! for the same payload, which its first copy keeps, and tying each Snapshot
+//! to it again piled them up for as long as it was held (a polling loop).
+static py::object
+tiedToSnapshot(py::object payload, const Snapshot &source) {
+    if(payload.ref_count() == 1) //created by this cast
+        py::detail::keep_alive_impl(payload, py::cast(Snapshot(source)));
+    return payload;
+}
+
 void
 KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
     auto bound_xnode = py::class_<XNode, shared_ptr<XNode>>(m, "XNode")
@@ -294,8 +316,8 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def("__getitem__", [](Snapshot &self, shared_ptr<XNode> &node)->py::object{
             if( !node)
                 throw std::runtime_error("Error: not a node.");
-            return XPython::bind.cast_to_pyobject( &self.at( *node));
-        }, py::return_value_policy::reference_internal)
+            return tiedToSnapshot(XPython::bind.cast_to_pyobject( &self.at( *node)), self);
+        })
         .def("isUpperOf", &Snapshot::isUpperOf);
     py::class_<Transaction, Snapshot>(m, "Transaction")
         //Construction and commit/commitOrNext enter STM negotiation — release the
@@ -328,8 +350,9 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def("__getitem__", [](Transaction &self, shared_ptr<XNode> &node)->py::object{
             if( !node)
                 throw std::runtime_error("Error: not a node.");
-            return XPython::bind.cast_to_pyobject( &self[ *node]); //Transaction has no at().
-        }, py::return_value_policy::reference_internal)
+            //Transaction has no at().  Tied to a Snapshot copy, not to self.
+            return tiedToSnapshot(XPython::bind.cast_to_pyobject( &self[ *node]), self);
+        })
         .def("__setitem__", [](Transaction &self, const shared_ptr<XNode> &y, int v){
             if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
                 if(auto x = dynamic_pointer_cast<XIntNode>(y))
@@ -771,7 +794,7 @@ public:
             pybind11::object obj = cls(name, runtime, ref(tr), entries, driver, plot, parentList, entrynames); //createOrphan in python side.
             auto pytool = dynamic_pointer_cast<XPythonGraphMathTool>
                 (obj.cast<shared_ptr<XNode>>());
-            if( !driver)
+            if( !pytool)
                 throw std::runtime_error("Tool creation failed.");
             pytool->m_self_creating = obj; //pybind11::cast(driver); //for persistence of python-side class.
             return pytool;
@@ -864,6 +887,52 @@ void export_mathtool(const char *name) {
         });
 }
 
+//! Whether \a self may write through Payload::tr(), the Transaction it was
+//! copied in.  That pointer is valid only while the transaction is: a payload
+//! a Snapshot hands out keeps the pointer of whichever transaction committed
+//! it, long gone, and dereferencing it was a use-after-free.  Comparing \a self
+//! with the committed payload by identity alone let any Snapshot older than
+//! the last commit through.  Serials settle it without touching that pointer:
+//! a transaction's copies take its serial, which is past everything it read,
+//! so only a copy newer than the committed payload can be in a live one.
+//! \return false for a live transaction's copy that a commit has landed behind.
+//! Its own commit fails and its loop comes round again with a fresh copy, so it
+//! is left alone -- as is any older payload, which no transaction owns.
+//! \throw std::runtime_error for the committed payload itself.
+static bool
+isWritableThroughTr(XWaveNGraph::Payload &self, const char *func) {
+    auto &node = static_cast<XWaveNGraph &>(self.node());
+    bool is_committed;
+    int64_t newer;
+    {
+        py::gil_scoped_release rel; //STM negotiation; see CLAUDE.md rule 4.
+        Snapshot shot(node);
+        const auto &committed = shot[node];
+        is_committed = ( &committed == &self);
+        newer = (int64_t)((uint64_t)self.serial() - (uint64_t)committed.serial());
+    }
+    if(is_committed)
+        throw std::runtime_error(std::string(func) + "() needs a Transaction payload: "
+            "use `for tr in Transaction(node): tr[node]." + func + "(...)`.");
+    return newer > 0;
+}
+
+//! For the forms that name their transaction: `self` must be `tr`'s copy of
+//! its node, so that self.tr() is `tr`, which the caller keeps alive.
+//! 	hrow std::runtime_error otherwise.
+static void
+requireCopyOf(XWaveNGraph::Payload &self, Transaction &tr, const char *func) {
+    auto &node = static_cast<XWaveNGraph &>(self.node());
+    bool same;
+    {
+        py::gil_scoped_release rel; //tr[node] may copy the payload; see CLAUDE.md rule 4.
+        same = ( &tr[node] == &self);
+    }
+    if( !same)
+        throw std::runtime_error(std::string(func) + "(tr, ...) needs tr[node] itself: "
+            "use `tr[node]." + func + "(tr, ...)` with the same `tr`.");
+}
+
 void
 KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
     {   auto [node, payload] = XPython::bind.export_xnode<XGraph, XNode>();
@@ -911,31 +980,53 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
         .def("clearPlots", &XWaveNGraph::clearPlots);
     (*payload)
         .def("clearPoints", [](XWaveNGraph::Payload &self){
-            //Payload::tr() is null/dangling unless this payload came from a live
-            //Transaction (clearPoints/setRowCount write through it). Best-effort
-            //guard: the committed payload (what Snapshot[node] hands out) is
-            //rejected with a clean error instead of a use-after-free.
-            auto &node = static_cast<XWaveNGraph &>(self.node());
-            bool is_committed = [&]{
-                py::gil_scoped_release rel;
-                return &Snapshot(node)[node] == &self;
-            }();
-            if(is_committed)
-                throw std::runtime_error("clearPoints() needs a Transaction payload: "
-                    "use `for tr in Transaction(node): tr[node].clearPoints()`.");
+            if(isWritableThroughTr(self, "clearPoints"))
+                self.clearPoints();
+        })
+        //With the transaction named, nothing is guessed: the payload must be
+        //this transaction's copy of the node, and the transaction is alive
+        //because the caller holds it.  The forms without `tr` cannot tell a
+        //live transaction's copy from one an abandoned transaction left
+        //behind, whose tr() points at the destroyed transaction.
+        .def("clearPoints", [](XWaveNGraph::Payload &self, Transaction &tr){
+            requireCopyOf(self, tr, "clearPoints");
             self.clearPoints();
+        })
+        //setColumn() requires a column as long as rowCount(), which nothing
+        //on the Python side could set: a graph could not be filled from there.
+        .def("setRowCount", [](XWaveNGraph::Payload &self, unsigned int rows){
+            if(isWritableThroughTr(self, "setRowCount"))
+                self.setRowCount(rows);
+        })
+        .def("setRowCount", [](XWaveNGraph::Payload &self, Transaction &tr, unsigned int rows){
+            requireCopyOf(self, tr, "setRowCount");
+            self.setRowCount(rows);
         })
         .def("insertPlot", [](XWaveNGraph::Payload &self,
              Transaction &tr, const std::string &label, int colx, int coly1, int coly2, int colw, int colz){
             return self.insertPlot(tr, label, colx, coly1, coly2, colw, colz);
         })
-        .def("setCols", [](XWaveNGraph::Payload &self, std::initializer_list<std::string> &labels){
-            self.setCols(labels);
+        //A list of labels.  It took std::initializer_list, which pybind11 has no
+        //caster for, so every call from Python raised TypeError.
+        //setCols(), setLabel() and setColumn() write only the payload, but a
+        //committed payload (Snapshot(node)[node]) is shared with every live
+        //Snapshot and with the drawing and dump threads, which index m_cols:
+        //resizing it under them reads freed memory.  Same guard as clearPoints().
+        .def("setCols", [](XWaveNGraph::Payload &self, const std::vector<std::string> &labels){
+            if( !isWritableThroughTr(self, "setCols"))
+                return;
+            std::vector<const char *> cstrs;
+            for(auto &&l: labels)
+                cstrs.push_back(l.c_str());
+            self.setColCount(labels.size(), cstrs.data());
         })
         .def("colCount", &XWaveNGraph::Payload::colCount)
         .def("rowCount", &XWaveNGraph::Payload::rowCount)
         .def("numPlots", &XWaveNGraph::Payload::numPlots)
-        .def("setLabel", &XWaveNGraph::Payload::setLabel)
+        .def("setLabel", [](XWaveNGraph::Payload &self, unsigned int col, const std::string &label){
+            if(isWritableThroughTr(self, "setLabel"))
+                self.setLabel(col, label.c_str());
+        })
         .def("labels", [](XWaveNGraph::Payload &self){
             std::vector<std::string> list;
             for(auto &x: self.labels())
@@ -943,7 +1034,8 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
             return list;
         })
         .def("setColumn", [](XWaveNGraph::Payload &self, unsigned int n, std::vector<double> &&data, unsigned int prec){
-            self.setColumn(n, std::move(data), prec);
+            if(isWritableThroughTr(self, "setColumn"))
+                self.setColumn(n, std::move(data), prec);
         })
         .def("getColumn", [](XWaveNGraph::Payload &self, unsigned int n){
             std::vector<XGraph::VFloat> buf;

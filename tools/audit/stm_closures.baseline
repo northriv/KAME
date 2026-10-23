@@ -19,7 +19,7 @@
 # This is NOT a general licence for gErrPrint inside a closure.  If the mutex
 # were ever held across the talk(), or that listener lost
 # FLAG_MAIN_THREAD_CALL, these become the hazard the rest of rule 1 is about.
-2	kame/driver/primarydriver.cpp	gErrPrint
+1	kame/driver/primarydriver.cpp	gErrPrint
 1	kame/xnodeconnector.cpp	gErrPrint
 2	modules/nmr/nmrrelax.cpp	gErrPrint
 1	modules/nmr/pulseanalyzer.cpp	gErrPrint
