@@ -2,7 +2,7 @@
 
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![GitHub](https://img.shields.io/badge/GitHub-northriv%2FKAME-181717?logo=github)](https://github.com/northriv/KAME)
-[![Version](https://img.shields.io/badge/version-9.0-green)]()
+[![Version](https://img.shields.io/badge/version-9.1-green)]()
 [![arXiv](https://img.shields.io/badge/arXiv-2608.12024-b31b1b.svg)](https://arxiv.org/abs/2608.12024)
 
 KAME is an open-source, multi-threaded program for automated physical property measurements,
@@ -13,7 +13,7 @@ orchestration across compatible instruments.
 **License:** GPL v2 or later (prior to 8.0: LGPL v2 or later)
 **Authors:** Kentaro Kitagawa, Shota Suetsugu
 **Platforms:** macOS, Windows (64-bit), Linux (x86-64, **supported from 8.5** — see `INSTALL.linux`)
-**Manual:** [日本語](https://kitag.issp.u-tokyo.ac.jp/%e8%87%aa%e5%8b%95%e5%8c%96%e5%af%be%e5%bf%9c%e6%b8%ac%e5%ae%9a%e3%83%97%e3%83%ad%e3%82%b0%e3%83%a9%e3%83%a0kame/) · [English](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.0.zip) (`doc/manual/kame-9-en.md` in the source archive)
+**Manual:** [日本語](https://kitag.issp.u-tokyo.ac.jp/%e8%87%aa%e5%8b%95%e5%8c%96%e5%af%be%e5%bf%9c%e6%b8%ac%e5%ae%9a%e3%83%97%e3%83%ad%e3%82%b0%e3%83%a9%e3%83%a0kame/) · [English](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.1.zip) (`doc/manual/kame-9-en.md` in the source archive)
 **Paper:** K. Kitagawa, *Formally Verified Lock-Free Software Transactional Memory for Scientific Measurement*, [arXiv:2608.12024](https://arxiv.org/abs/2608.12024) (2026)
 
 ![KAME screenshot](https://kitag.issp.u-tokyo.ac.jp/wordpress/wp-content/uploads/2025/01/dd21dff192ba7bde3beb0830a80d886c-930x620.png)
@@ -39,9 +39,9 @@ orchestration across compatible instruments.
 - Calibration curves (cspline, Chebyshev, polynomial) for resistance thermometers and generic sensors; calibrated entries feed into graphs, charts, and data recording like any native scalar
 
 ### Released versions/Binaries
-Source: [kame-9.0.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.0.zip) (Oct. 2026).
+Source: [kame-9.1.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.1.zip) (4.4MB, Oct. 2026).
 [All other source archives](https://kitag.issp.u-tokyo.ac.jp/web/kame/src).
-Windows 64-bit binaries: [9.0](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-9.0.zip) (22.1MB) · [8.6.1](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.1.zip) (21.8MB) · [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.zip) (21.8MB) · [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.5.zip) (20.4MB) · [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.4.zip). At least Qt is additionally needed, follow instructions below to install.
+Windows 64-bit binaries: [9.1](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-9.1.zip) (22.5MB) · [9.0](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-9.0.zip) (22.1MB) · [8.6.1](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.1.zip) (21.8MB) · [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.zip) (21.8MB) · [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.5.zip) (20.4MB) · [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.4.zip). At least Qt is additionally needed, follow instructions below to install.
 Builds before 8.6.1 carry the double-allocation defect described under 8.6.1 in *Earlier releases* on Windows and Linux.
 
 ### Supported instruments
@@ -59,7 +59,7 @@ Builds before 8.6.1 carry the double-allocation defect described under 8.6.1 in 
 | **Magnet power supplies** | Oxford PS-120, Oxford IPS-120, Cryogenic SMS10/30/120C |
 | **NMR pulsers** | Thamway N210-1026 PG32U40 (USB), PG027QAM (USB), N210-1026S/T (GPIB/TCP); NI-DAQ analog+digital output, digital output only, M+S Series; handmade H8, handmade SH2 |
 | **NMR / RF measurement** | Thamway PROT NMR (USB/TCP), NMR FID/echo analyser, T1/T2 relaxation, field-swept spectrum, frequency-swept spectrum, NMR built-in network analyser, NMR LC autotuner |
-| **Cameras / imaging** | USB/built-in webcams (AVFoundation on macOS, Qt Multimedia elsewhere), IEEE 1394 IIDC, Euresys eGrabber (CoaXPress), Euresys Grablink (CameraLink), Hamamatsu via Grablink, JAI via Grablink, OceanOptics/Insight USB/HR2000+/4000 spectrometer |
+| **Cameras / imaging** | USB/built-in webcams (AVFoundation on macOS, Media Foundation on Windows, Qt Multimedia on Linux), IEEE 1394 IIDC, Euresys eGrabber (CoaXPress), Euresys Grablink (CameraLink), Hamamatsu via Grablink, JAI via Grablink, OceanOptics/Insight USB/HR2000+/4000 spectrometer |
 | **Laser modules** | Coherent Stingray, Newport/ILX LDX-3200, Newport/ILX LDC-3700(C) |
 | **ODMR** | Frequency-swept spectrum, FM peak tracker, 2-D image analysis, filter wheel (STM-driven) |
 | **Motors / positioners** | OrientalMotor FLEX CRK, CVD2B, CVD5B, FLEX AR/DG2, EMP401; SigmaOptics PAMC-104 piezo-assisted; Kamoer M1-STP peristaltic pump; Micro CAM z/x/φ; Two-axis rotator |
@@ -76,73 +76,69 @@ Builds before 8.6.1 carry the double-allocation defect described under 8.6.1 in 
 
 ---
 
-## What's New in 9.0
+## What's New in 9.1
 
-- **KAME records what it was set to and what it did, without being asked.** A
-  run is one name and two files. The `.kamj` holds the settings the run started
-  with, and every change made afterwards, yours and the instruments'. The
-  `.kamb` holds the raw records behind those readings. You choose whether
-  the second file is written at all: settings alone cost about 11 MB/hour at 144
-  readings a second, settings plus records about 10 GB/hour. Both files are
-  gzip, and `.kamj` is JSON Lines inside, so `zgrep` and `zdiff` read one with
-  no special tool. Numbers are stored twice, as the text you would read and as
-  the exact eight bytes they were.
-- **The session is recorded even when you are not recording a run.** It goes to
-  a directory of its own and stays at a few tens of KB. Everything you did is
-  kept in full; an instrument's readings are kept only once they settle. A
-  session you forgot to save now has something to show.
-- **Replay, in the Journal Reader.** Open either file and the other is found.
-  Open the `.kamj` and the settings of each moment come back as playback reaches
-  them. Open the `.kamb` and the same records are re-analysed with the settings
-  you have now, which is what you want after changing one parameter. Drivers
-  named in the journal are created if this KAME does not have them. Only what a
-  person set is restored, never into a running driver, and KAME reports how much
-  it held back.
-- **The frequency-swept NMR spectrum draws a T2 map along the sweep.** A CPMG
-  train carries a decay at every frequency it visits; each echo now goes into a
-  time bin of its own and is inverted, frequency by frequency, into a
-  distribution of T2 — the density map the T1 measurement draws against P1,
-  drawn here against frequency, with a window function of its own. The phase is
-  settled at each frequency rather than once for the sweep, so the real part no
-  longer shrinks or changes sign where the probe and the cable have turned the
-  phase away from the centre. The relaxation map's T grid reaches past both ends
-  of the echo train, and both graphs state what it would take to repeat them:
-  the inversion and its λ on the density map, the echo spacing and binning on
-  the raw curves.
-- **LibreVNA works with GUI 1.6 and later.** From 1.6.0 the GUI answers a
-  setting with silence where it used to answer an empty line, so every setting
-  timed out; KAME now reads the GUI version at open and speaks the protocol that
-  version expects. From 1.6.5 the sweep is started once and read as it runs,
-  one record per completed sweep, instead of restarting the device for every
-  record — faster, and gentler on the instrument; older GUIs keep single
-  sweeps. The LibreVNA signal generator now drives the generator, not the
-  spectrum analyser it used to switch the device to.
-- **Pydantic AI needs one file and a key.** The model and the API key are two
-  lines in `~/.kame_pyai.env` (**⚙ settings** opens it), read on every launch,
-  so nothing has to be exported in a shell profile a GUI never sees. With a key
-  present, the web UI's model menu is asked of the provider itself — OpenAI,
-  Anthropic, Sakana — and a running Ollama or Bionic appears beside them with no
-  line at all (`ollama:<id>`, `bionic:<id>`, no key). KAME's own agent now
-  receives the server's motion, temperature and RF safety rules, which
-  pydantic-ai withholds by default; a tool error is shown to the model instead
-  of ending the run; and a long chat is trimmed under a token budget, so
-  switching from a local model to a cloud one mid-conversation no longer fails
-  with "prompt is too long".
-- **The toolboxes and the main window get out of the way by themselves.** A
-  toolbox at a screen edge shrinks to its tab column, and grows back when the
-  pointer touches it. The main window keeps its top edge and rests at half
-  height, so the menu bar and the pane tabs never move. Hovering a tab picks
-  that pane, which makes a resting toolbox a menu of its panes. Click the front
-  tab to pin a window open. Both are switches in the View menu.
-- **Smaller UI changes.** The New Driver dialog has a live search box. A driver
-  you create opens its own window, and one with an interface brings up the
-  Interface pane. The pane tabs are flat and move faster. An interface that
-  appears is selected and scrolled to. On macOS, choosing KAME in the Dock
-  brings the main window forward.
+- **USB and built-in webcams, on every platform.** One driver, *USB/Built-in
+  Video Camera (Webcam)*, over AVFoundation on macOS, Media Foundation on
+  Windows (nothing to install) and Qt Multimedia on Linux. It records 8-bit
+  luminance as a monitor of a sample or a cryostat window, with ROI cropping,
+  a frame rate below the camera's own, and single shots. Images now show on
+  Windows at all: drawing one crashed KAME there.
+- **Interlocks.** *Scalar Interlock* brings instruments to a safe state —
+  motors stopped; lasers, RF, outputs and valves off — and latches, when a
+  reading (a driver's, a calibrated entry, a math tool's) crosses a threshold
+  for a number of consecutive samples, goes NaN or stops updating. It is
+  fail-safe, and AI agents are told never to reset it. *Image Trigger* saves a
+  camera's frames from just before and after such an event, unattended. A
+  Micro CAM can be sent back to its home Z when one trips. The new
+  *Correlation* 2D math tool gives a reading of how well an image matches a
+  pattern, for an interlock to watch.
+- **The automatic LC tuner copes with gears that have play.** Beside Newton,
+  *Search* offers *Alternate STMs*, which tunes as one does by hand, and
+  *Servo*, which moves both capacitors to the match the fitted circuit
+  predicts; both learn each motor's gain and backlash as they go. Each step
+  aims at the exact match, solved in closed form. The external RF relays can
+  be switched by a relay driver as well as by an STM. Rollbacks no longer go
+  to another tune's angles, and an STM no longer stops short of its target.
+- **Fixes that kept a measurement from running.** An instrument closing its
+  TCP connection froze its driver at full CPU; a port that failed to reopen
+  stayed dead on Windows. A closed Modbus, Pfeiffer or Fujikin port crashed
+  KAME. Jupyter's stop button killed KAME on Windows. Switching a pulser off
+  while the journal recorded crashed the recorder. Events to the main thread
+  past 4000 were lost, and could silence a window for good. Replay skipped the
+  records of most drivers when seeking. A 2D math tool could not be picked by
+  hovering.
+- **New and fixed drivers.** The Kamoer M1-STP peristaltic pump, as a motor.
+  Oriental Motor CVD2B, FlexCRK and FlexAR fixes. A JAI camera on a Euresys
+  Grablink board opens with the settings it holds; eGrabber interfaces reopen
+  after a failed open. An NI USB-GPIB adapter left mid-transfer by a crashed
+  KAME opens again.
+- **AI agents.** The Pydantic AI menu offers Claude Fable 5.1 and Google's
+  newest Gemini models, Claude requests use prompt caching, and a local
+  Bionic model can always be picked. The MCP tool log names the client and the
+  model behind every call, joined to the usage records. `stop_job` stops a job
+  waiting in `sleep()`.
+- **Windows stay where you put them**, relative to the screen's edges, and go
+  back after a resolution change or a remote-desktop session.
+- **Under the hood.** The pool allocator keeps per-thread free lists, so no
+  allocation walks a thread's chunks, and serves 64 KiB – 4 MiB blocks 2–3x
+  faster; Python scripts and MCP jobs can no longer read freed memory through
+  a payload kept past its Snapshot.
 
 ---
 
 ## Earlier releases
+
+### 9.0
+- The measurement journal: settings and every change to them in `.kamj`, raw
+  records in `.kamb`, recorded without being asked, the session included;
+  replay either file in the Journal Reader.
+- Frequency-swept NMR spectrum: a T2 map along the sweep, the phase settled
+  at each frequency.
+- LibreVNA GUI 1.6 and later; continuous sweeps from 1.6.5.
+- Pydantic AI: model and key in `~/.kame_pyai.env`; provider model menus;
+  the server's safety rules reach KAME's own agent.
+- Toolboxes and the main window retract to the screen edge by themselves.
 
 ### 8.6.1
 - **Update from 8.5 or 8.6 on Windows and Linux:** a block of memory could be
@@ -477,7 +473,7 @@ A C++11-capable compiler is required (the build uses `CONFIG += c++11` via qmake
 
 Optional: IPython / Jupyter notebook, linux-gpib or NI 488.2, NI DAQmx,
 libdc1394 (IIDC cameras, macOS/Linux), Euresys eGrabber SDK (frame grabbers),
-Qt Multimedia (webcams on Windows/Linux; macOS uses AVFoundation).
+Qt Multimedia (webcams on Linux; macOS uses AVFoundation, Windows Media Foundation).
 
 ---
 

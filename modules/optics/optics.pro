@@ -97,14 +97,20 @@ unix {
 
 # ---- Webcams (built-in / USB video class cameras) --------------------------
 # One driver type, WebCamera, over whichever platform API is found, so a .kam
-# names the same type on every OS.  macOS: AVFoundation, which is always
-# there.  Elsewhere: Qt Multimedia when the module is installed (it is an
-# optional component in the Qt installer).  CONFIG+=webcam_qtmultimedia takes
-# the Qt route on macOS too, to try the code path Windows and Linux run.
+# names the same type on every OS.  macOS: AVFoundation, and Windows: Media
+# Foundation -- both always there.  Elsewhere (Linux): Qt Multimedia when the
+# module is installed (it is an optional component in the Qt installer).
+# CONFIG+=webcam_qtmultimedia takes the Qt route on macOS and Windows too, to
+# try the code path Linux runs.
 macx:!webcam_qtmultimedia {
     OBJECTIVE_SOURCES += webcambackend_avf.mm
     LIBS += -framework AVFoundation -framework CoreMedia -framework CoreVideo -framework Foundation
     WEBCAM_BACKEND = AVFoundation
+}
+else:win32:!webcam_qtmultimedia {
+    SOURCES += webcambackend_mf.cpp
+    LIBS += -lmfplat -lmf -lmfreadwrite -lmfuuid -lstrmiids -lole32
+    WEBCAM_BACKEND = Media Foundation
 }
 else:qtHaveModule(multimedia) {
     QT += multimedia

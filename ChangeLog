@@ -1,4 +1,4 @@
-* Thu Oct 22 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+* Fri Oct 23 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - kamepoolalloc: kame_pool_trim() now flushes the calling thread's batch of
   cross-thread frees as well.  A free of a small slot in another thread's
   chunk -- every one below 64 B, and from 64 B the ones held to measure how
@@ -43,6 +43,230 @@
   at 8 or fewer.  What it bought was fairness -- the livelock probe's
   verdicts on a transaction ~200 ms old, 50 in 17 runs at 30 threads and
   up, went away -- and the comment at the test records both.
+
+* Fri Oct 23 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Release 9.1.
+- Optics: the webcam driver runs on Windows, over Media Foundation (user).
+  It needed Qt Multimedia there, an optional Qt component this machine, like
+  most, did not have, so Windows had no camera driver at all; and its Qt
+  backend had never been run on Windows.  Media Foundation is in every
+  Windows 10/11 and reads a YUV frame's luma plane as it comes, the way
+  AVFoundation does on macOS: nothing to install, no FFmpeg to ship.  Each
+  camera has one worker thread that alone drives its source reader, between
+  frames running the format, exposure and gain changes the other threads
+  queue.  Compressed formats (MJPEG, H.264) are decoded to NV12 by Windows'
+  own decoders.  Exposure and gain are the UVC controls (IAMCameraControl,
+  IAMVideoProcAmp); the exposure unit there is log2 seconds, so a manual
+  time is rounded to a power of two.  A camera another application holds, or
+  one the privacy settings refuse, fails the interface's start with that
+  reason.  Shutting a media source down from another thread hangs a waiting
+  synchronous ReadSample() for good, so closing waits for the frame in
+  flight instead, and lets a thread whose camera has stalled go with the
+  state it shares.  Tried on a Logitech C920: YUY2, NV12, MJPEG and H.264 up
+  to 1920x1080 at 21-31 fps, 5 fps by format, exposure 1/64 and 1/1024 s,
+  gain, reopening, a camera in use; and in KAME.  CONFIG+=webcam_qtmultimedia
+  still selects the Qt backend.
+- Graph: drawing an image crashed KAME on Windows (user, with the webcam
+  above: the first time an X2DImage showed on Windows).  The GL 1.3 calls
+  glActiveTexture and glMultiTexCoord2f, which opengl32.dll does not export,
+  were looked up with wglGetProcAddress during static initialization, where
+  no GL context is current, so both were null and the first texture drawn
+  called address 0.  They are looked up on first use now, while drawing; a
+  driver without them falls back to texture unit 0.
+
+* Thu Oct 22 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Python: an XWaveNGraph's table can be filled from a script.  setCols()
+  raised TypeError on every call (pybind11 has no caster for the
+  initializer_list it took; it takes a list now), and setRowCount(), which
+  setColumn() needs, was not bound.  setCols(), setLabel() and setColumn()
+  now refuse the committed payload as clearPoints() does: resizing its
+  columns under every live Snapshot and the drawing and dump threads read
+  freed memory.  A copy a commit has landed behind is left alone for the
+  retry to redo.  clearPoints()'s own check had let any payload older than
+  the last commit through to its long-gone transaction; it compares serials
+  now.  clearPoints(tr) and setRowCount(tr, n) name their transaction, the
+  only forms that cannot meet an abandoned one.  Drawing, the plot snapshot
+  and the text dump skip a column still null or out of range and use the
+  rows every used column has.  Built; not yet run in KAME.
+- Graph: Dump on an image graph crashed KAME before the first image, and a
+  .dat dump read past the pixels of every camera image.  Dump is enabled
+  once a file name is set, and the dump dereferenced the still-null image;
+  it now reports there is nothing to dump yet.  The .dat branch read 8
+  bytes a pixel whatever the format, four and eight times past a
+  Grayscale16 or Grayscale8 image; it converts to RGBA64 and writes the
+  same R, G and B triples as before (Qt puts a Grayscale16 value in all
+  three, Grayscale8 scaled by 257).  An image-file dump that wrote nothing
+  -- no image yet, a buffer that would not open, an extension Qt cannot
+  write -- kept a 0-byte numbered file and reported it written; it now
+  fails and removes the file.  Compiled; not run on screen.
+- Graph: hovering over a 2D math tool highlights it, and a pick takes the
+  object under the cursor.  pickObjectGL() read the depth over the pick
+  window but the colour at the cursor's pixel alone, paired that with the
+  depth at the window's corner, and strode the window by its height
+  instead of its row width.  Colour and depth are read over the same
+  window now, clipped to the viewport (glReadPixels leaves pixels outside
+  the framebuffer undefined).  The cursor's pixel wins when it is an
+  object, else the object nearest to it, the nearer in depth on a tie:
+  least depth alone, on a 2D graph whose objects share one, took what the
+  scan met first -- the image beside a tool when hovering near the tool's
+  left or bottom edge.  The user confirmed on screen that 2D math tools
+  are picked now.
+- Scheduler: events past the main-thread queue's 4000 were lost, and could
+  silence a listener for good.  On a full queue register_event() waited,
+  gave up and leaked the event undelivered; a FLAG_AVOID_DUP listener then
+  kept it as its pending event, merged every later talk() into it, and was
+  never registered again.  Waiting for room could deadlock against a main
+  thread waiting on the registering one, so what does not fit now waits in
+  an overflow deque, in order, and moves into the queue as room appears.
+  A non-main thread that overflows still sleeps 10 ms, outside the lock and
+  waiting for nobody, so a script printing in a loop or a gErrPrint storm
+  cannot grow the backlog without bound.  A standalone test registering
+  10000 events, then 3000 more after a partial drain, gets all 13000 once
+  each, in order (7000, out of order, before).
+- TCP: on Windows a port whose instrument had rebooted stayed dead until
+  the interface was stopped and started.  Since Oct 21 the socket is
+  reopened when the peer closes it, usually while the instrument is still
+  booting, so the reopen fails, and open() left it unconnected.  POSIX
+  recovered at the next send; Windows reports a failed connect only among
+  the exceptional descriptors, so every later wait timed out without
+  reopening.  A failed open now closes the socket, the next write or read
+  connects again, and the connect wait watches the exceptional set and
+  SO_ERROR.  Built (llvm-mingw clang 17); not run against an instrument.
+
+* Wed Oct 21 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Notebook: Jupyter's stop button killed KAME on Windows, measurement and
+  all.  Interrupting the kernel sent SIGINT to KAME's pid, and on Windows
+  Python hands any signal but CTRL_C_EVENT / CTRL_BREAK_EVENT to
+  TerminateProcess.  There the server now sets an event instead --
+  ipykernel's own Windows interrupt, which raises KeyboardInterrupt in the
+  running cell.  KAME creates it, named after its pid, and passes it to
+  the embedded kernel through the config and to the notebook server
+  through KAME_INTERRUPT_EVENT.  Without one (an older KAME, or a failed
+  CreateEventW) the server logs where to stop the cell and leaves the
+  process alone.  macOS and Linux are unchanged.  ipykernel 6.29.5 and
+  7.4.0 both have the interrupt as used here; the Windows path itself has
+  not been run yet.
+- Python: three faults on the way out.  Timer.finish() scheduled
+  self.func(), which is None on ipykernel 7 and later (no
+  do_one_iteration), and the TypeError skipped sys.exit(0); it is guarded.
+  on_timer() closed TLS.logfile unguarded when a notebook connected, so a
+  log already dropped after a failed write raised there and the switch to
+  the notebook's log never happened; guarded as finish() was on Oct 17.
+  When finish() never runs, the cleanup after embed_kernel() returns now
+  removes the notebook's .mcp.json and the HTTP server's log as finish()
+  does, the log once the server has stopped.  Byte-compiled; not yet run
+  through a KAME shutdown.
+- Python: a payload kept past its Snapshot read freed memory.
+  `p = Snapshot(n)[n]` used after n's next commit could read a freed
+  payload, and so could float(Snapshot(n)[n]), since CPython drops the
+  temporary Snapshot before float() runs: the bindings' reference_internal
+  does nothing for an object they return themselves, so nothing tied the
+  payload to its Snapshot.  Each payload wrapper now keeps a copy of the
+  Snapshot it came from and reads as of it.  From a Transaction it keeps a
+  Snapshot copy, never the Transaction, whose live state would make newer
+  transactions wait, up to the HANG watchdog.  A polling loop holding one
+  payload keeps one Snapshot alive, not one per poll.  Under ASan against
+  stand-ins of KAME's ownership: heap-use-after-free before, clean after a
+  commit, a retried transaction and a C++-owned Snapshot; not yet run in a
+  rebuilt KAME.
+- Number formats: "%.1f%%" and other formats with a literal percent sign
+  were refused with "too many %s", for an XDoubleNode and a graph's tic
+  label format alike.  The validator, skipping "%%", resumed at its second
+  '%' and took it for another conversion.  "%.1f%%", "%.3e%%" and
+  "%5.1f%% done" are accepted now; "%d", two conversions and a bare "%%"
+  are still refused.  Run on these formats before and after.
+- Soft trigger: a blanking interval could start as garbage and reject every
+  stamp after the first, until the next start().  m_blankTerm,
+  m_lastThresholdRequested, m_endOfBlank and m_freq had no initializer, and
+  start() keeps m_blankTerm when it is nonzero.  They start at zero.
+- Python drivers: an unexpected exception in analyzeRaw() committed a
+  half-analysed record, reported as recorded.  finishWritingRaw() turns
+  InterruptedError into a skipped record and ValueError into an invalid
+  one, but any other exception was printed and returned from the commit
+  closure, committing what analyzeRaw() had written without record();
+  onVisualization() then said afterRecorded, and the message went out once
+  per CAS retry.  Such a record is invalid now, as for a ValueError, and
+  the message printed once after the commit.  Secondary drivers were not
+  affected: their loop leaves the transaction uncommitted.
+- Journal: Replay's seek skipped every record whose header was not 4-byte
+  aligned -- those of any driver whose name length is not 3 mod 4 -- so a
+  file holding only those went back to its first record whatever position
+  was asked for.  readHeader() had dropped that test, the header being
+  KAMB_FIXED_SIZE + strlen(name) + 1 bytes; seek_() had kept it.  In
+  parseOne(), an empty payload, which only a damaged .kamb has, threw
+  std::out_of_range that nothing caught (std::terminate on the reader
+  thread, file mutex held); and its XRecordError path called
+  finishWritingRaw() without m_drivermutex and rethrew a sliced copy.
+  Compiled; not yet run against a .kamb.
+- TCP: an instrument closing its connection froze its driver, with one
+  core at full load.  recv() returning 0 was taken for "no data yet"; on a
+  stream socket it is the peer closing, the socket stays readable, and the
+  reader went round for ever holding the port.  An instrument dropping an
+  idle connection, or rebooting, was enough.  It is now a communication
+  error, after the socket is reopened, as a failed write already was.  A
+  read time-out with part of the reply in hand also printed past the end
+  of the buffer in its message.  Compiled (Linux, GCC 13); not run against
+  an instrument.
+- Modbus, Pfeiffer, Fujikin: talking to an instrument whose port was
+  closed crashed KAME instead of reporting the port not opened.  The
+  Modbus RTU, Pfeiffer and Fujikin interfaces used the opened port without
+  checking it; they now raise the same error send() does, and the Modbus
+  interface takes its lock first.  write(), the one I/O call that took no
+  interface lock, could read the port while close() was resetting it; it
+  takes the lock now.  Compiled; not run against an instrument.
+- Motor: four faults in the Oriental Motor drivers.  FlexCRK never read
+  C-ON as on (a mask compared with 1), so Active came up off and the next
+  condition change switched the excitation off.  CVD2B set the next
+  resolution up from the one chosen (1000 gave 1600), and the largest ran
+  off the table; it now maps every entry onto itself, and reading back an
+  out-of-table index no longer divides by zero.  CVD2B's HOME left the
+  FW-POS and RV-POS bits as they were, and cleared two others, through a
+  mistyped mask.  FlexAR refuses an empty sequence, and runSequentially(),
+  bound to Python, checks its points and speeds before indexing them.
+  Compiled, and the CVD2B lookup checked for every entry of both tables;
+  not run on a CVD2B, a FlexCRK or a FlexAR.
+- GPIB: the usermode NI USB-GPIB driver could hang in a command that wrote
+  nothing.  ni_usb_command() repeated a chunk that came back empty, as one
+  answered by a short status packet does, for ever; it now fails with an
+  I/O error, a deviation from upstream marked as such.  A failed attach is
+  also undone now: the adapter's private data and the interrupt URB it had
+  submitted were left behind, upstream counting on the kernel's ibonline()
+  to detach.  win_compat.h no longer defines min() and max() for C++.
+  Compiled on Linux; not run on an adapter.
+- Motor: the Kamoer M1-STP driver is checked on a real pump (firmware
+  0x1007), first with read-only requests, then from KAME: every register,
+  and continuous pumping by FWD/RVS until STOP.  The sheet's addresses go
+  on the wire as written and the lap-count float is high word first, so
+  the switches for both are gone.  The versions are printed in hex, as
+  the sheet's bit split gave 0.16.7 for 0x1007.  The pump calls the
+  inverting RS485 line "A", so its pin 4 goes to an adapter's Data- and
+  pin 3 to Data+; swapped, it still answers, but only to address 127 and
+  with garbage.  The manual gives the wiring and the 485-mode settings.
+  Not yet checked: a dose by Target, Ready at its end, and how the speed
+  knob and Speed interact.
+- AutoLCTuner: a rollback early in a tune no longer drives the STMs to the
+  previous tune's angles, another frequency's, or to zero on the first
+  tune.  The best angles were never reset when a tune began, and a rollback
+  before the first improvement (an unreliable fit at the +Delta test after
+  an off-resonance first sweep) went to them; they now start as the
+  positions the tune starts from.  Also fixed: a step of STM2 alone escaped
+  the trust-area limit (0/0 from the untested axis, and "NaN > 1.0"), and
+  a zero derivative sent a NaN into the trust area; an unreliable fit no
+  longer decides success or the best angles, which read the trace at f0
+  instead; the cable length inferred from a sweep came out 0, a magnitude
+  subtracted from a phase (now arg(), recovering a 0.73 m cable exactly in
+  a numerical check, at moderate f0 and span); "Add Current Pos" recorded
+  zeros before a trace had been analysed; and the fit and its plot crossed
+  threads unlocked.  None of this has been run on a probe.  A failed or
+  aborted tune still leaves the relays and STMs as they are, on purpose:
+  the user finishes the tuning by hand, and the frequency sweep waits for
+  that.
+- NMR frequency-swept spectrometer: turning Active on with no pulser
+  selected crashed KAME under the Auto Tune, Await Manual Tune and cyclic
+  strategies.  onActiveChanged() reported "Pulser should be selected." and
+  then reset the phase of the null pulser it had just found.  It now
+  reports and skips the reset, as performTuning() already did.  Checked
+  only that it compiles.
 
 * Tue Oct 20 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - kamepoolalloc: blocks above 32 KiB, up to 4 MiB, are allocated and freed
@@ -119,6 +343,182 @@
   stdio's buffer, allocated on the first printf through the interposed
   malloc, was itself a dedicated block living to the end.  A file or a pipe
   (ctest's) gets a smaller buffer, which is why ctest passed.
+- Python: shot.list(node) or shot.size(node) for a node the Snapshot does
+  not reach aborted KAME, where it should have cost the script one
+  exception (an agent's shot.list(Root()) with shot =
+  Snapshot(Root()["Drivers"]): SIGABRT, std::terminate in the binding).
+  kamestm's size(node) and list(node) are noexcept and their lookup throws
+  for such a node.  Both bindings now call at() first, as itemStrings(shot)
+  does, so Python gets KAMENodeNotFoundError, as from shot[node]; None is
+  refused with "Error: not a node.".  A kamestm test of the same shape
+  aborts through size/list and raises through at(); not yet run in a
+  rebuilt KAME.
+- AutoLCTuner: "Search" offers two searches beside Newton, which stays the
+  default (user): Alternate STMs tunes as one does by hand, each STM setting
+  in turn the quantity it moves relatively more, the frequency or the
+  match; Servo moves both STMs at once to the match the fitted circuit
+  predicts.  Both are made for gears with play, whose measured derivatives
+  are not to be trusted: they read the fitted capacitances as the
+  capacitors' own positions, test with no return leg, and learn each STM's
+  gain and play from what did and did not arrive.  In simulation (Q 50 to
+  1000, play up to 60 deg., cross-coupled and curved capacitors, fit noise;
+  384 runs on each of two grids, the second with other gear ratios and 5x
+  the fit noise) neither failed, taking 5.1 (Servo) and 6.0 (Alternate)
+  moves on average, against 14.8 and one failure for Newton, which failed
+  61 times on the second grid.  The searches are in lctunersearch.h, free
+  of KAME so that the simulator runs the very code; the tuner replays their
+  log of fits and moves, matching the simulator to the bit on all 768 runs.
+  Not yet run on the hardware.
+- AutoLCTuner: an STM turning faster than about 5 deg./s no longer stops
+  short of its target, in every search mode; it looked like sticking or
+  backlash.  While an STM turned, analyze() set its target to the position
+  it read, meaning "no move", and when the motor driver's readout (every
+  100 ms) changed before visualize() read it again, the difference, over
+  the 0.5 deg. threshold, went out as a move back to the older position.
+  visualize() now drives an STM by its target's difference from the
+  position analyze() read.  An Alternate or Servo step goes out however
+  small; the rest keep the 0.5 deg. threshold.  Not yet run on the
+  hardware.
+
+* Mon Oct 19 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- AutoLCTuner: "Relay" takes a relay driver (an LCUS module, Relays using
+  AUX bits of motor driver, ...), whose channel 1 switches the external RF
+  relays to the network analyzer during a tune, as well as an STM, whose
+  AUX bit 0 does so as before.  The selection predated modules/relay and
+  listed motor drivers only.  The node name is unchanged, so a .kam that
+  names an STM there loads as it did.  Either output reaches the hardware
+  before the commit returns, so Relay Settle Time still waits only for the
+  relays to throw.  A relay driver must be running: its outputs connect
+  when it starts.
+
+* Sun Oct 18 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- GPIB: an NI GPIB-USB-HS left in the middle of a transfer by a KAME that
+  died opens again without being unplugged.  After the 2026-10-17 crash,
+  which came during a LakeShore exchange, the usermode driver could not
+  open it again.  The kernel linux-gpib driver outlives its clients; the
+  usermode one dies with KAME and leaves whatever it was doing in the
+  adapter, a reply queued on an IN endpoint or a data toggle out of step,
+  and usb_reset_configuration(), which would clear that, is a no-op in the
+  shims.  Opening now sends SET_CONFIGURATION with the current
+  configuration before claiming the interface (libusb's lightweight
+  reset), then clears every endpoint's halt and toggle and discards what
+  the IN endpoints still hold, before the new session sends anything.  The
+  reason an open fails now reaches KAME's message, without the unrelated
+  errno ("Invalid argument") it used to carry.  Checked against libusb
+  1.0.29's source; not yet run on the hardware.
+- AutoLCTuner: each step aims at the exact match of the fitted circuit.  Its
+  target came from 100 rounds of a fixed-point iteration, slow at high Q: in
+  a model with perfect motors a Q=1000 tune from a moderate detuning
+  reached only -19 dB after its first step and needed a second, and even
+  converged the iteration stopped between -34 and -44 dB, its C1 equation
+  being the resonance rather than the match.  tuneCaps() now solves RL = 0
+  in closed form; the match is unique, so tight or loose coupling has no
+  say in it.  Where the circuit has no match it falls back to the
+  iteration.  Checked on the function extracted from the source: |RL| <=
+  1e-13 for Q 10 to 5000 and R2 -2 to 5 Ohm.  Not yet run on the hardware.
+
+* Sat Oct 17 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Driver: switching a pulser off while the journal recorded its .kamb
+  crashed KAME (2026-10-17: Control on an NMR frequency sweep resets the
+  pulser's phase with its output off; SIGSEGV at 0x8 in onRecord).
+  finishWritingRaw() set a record's raw data only for a timed record, so
+  the timeless, empty record of a pulser or DC source switched off kept
+  the previous record's bytes, or nullptr if none since start-up, and
+  XRawStreamRecorder::onRecord() dereferenced it.  The code is as old as
+  8.6.1; the 9.0 journal, recording the .kamb, made it reachable.  Every
+  commit now assigns its raw data; the switched-off record's is empty and
+  onRecord() skips it, so a pulser that had recorded before no longer
+  writes its previous bytes into the .kamb again, stamped with time 0.
+- Script: a script that failed left a .log ending at "started." with no
+  sign of the failure.  loadSequence caught the exception outside the
+  `with` holding the log open, so the traceback met a closed file and the
+  guarded write dropped it; the script now runs in a try inside the
+  `with`, which writes the traceback there, and the outer handler stays
+  for failures before the log is open.  Timer.finish() closed TLS.logfile
+  unguarded, so once a failed write had dropped it the close raised and
+  skipped the MCP and notebook cleanup after it.  Both are loose ends of
+  the Oct 7 fix for the stderr cascade; the first was checked on the same
+  control flow in plain Python.
+- Lock-in: a FilterSlope edit on a stopped driver still went to the closed
+  interface.  The roll-off listener added on Oct 7 was connected in
+  execute() with those of Output, Freq, Sens and TimeConst, but only those
+  four were released on the way out; the member was the listener's only
+  owner (talkers hold listeners weakly), and kept it alive.  It is
+  released with them now.
+- AutoLCTuner: a step that deepens the dip but lands a little off the target
+  frequency counts as progress, so the tuner no longer rolls back to a
+  shallower dip and shrinks its SOR factor over and over.  Progress was
+  judged by the fitted reflection at f0 alone, and for a resonance of Q a
+  detuning of only f0/(10Q) leaves that near -20 dB however deep the dip,
+  while frequency is what a step lands least accurately; after "Iterations
+  for One Seq." such steps the tuner went back.  The dip depth improving
+  beyond its fit error now also counts, until the deepest dip so far has
+  reached the targeted reflection (below it only the frequency is left).
+  That error is a new LCRFit::rlminerr(), taken at each perturbed model's
+  own resonance.  A rollback still goes to the best position at f0.
+- Pydantic AI: a running Bionic's models are in the web menu whatever
+  KAME_PYAI_MODEL says.  The menu was exactly the models that line named,
+  so with a cloud default no local model could be picked; those come first
+  now, the first of them the default, then everything the keys and the
+  local servers reach.  Bionic's server port is a setting of its own and
+  was found at 1235 while KAME looked at 1234, so KAME asks `lms server
+  status --json` for it, falling back to 1234 when lms is absent, reports
+  the server stopped or hangs for 3 s; KAME_PYAI_BIONIC_URL overrides.
+  Bionic lists models only while its server runs, so when lms is installed
+  and the server does not answer the agent says how to start it.  Checked
+  with Bionic's server started and stopped, and with a stand-in lms and
+  server on 1235.
+- Pydantic AI: the link works where mcp and jupyter_client live only in
+  the venv made for pydantic-ai.  On a second Mac no search for the MCP
+  server's interpreter looked there (uv puts it on no PATH), so the HTTP
+  server never started and the link stopped with "the notebook is up, but
+  KAME's MCP HTTP server is not" -- before saving the venv just picked, so
+  it asked again on every click.  The interpreter the link resolves is now
+  remembered first, in ~/.kame_pyai_python, and all four searches (the
+  notebook launch, the start-up pre-check, both plugin launchers) try it
+  after kame-mcp-venv; the chosen agent's uv .venv is a candidate too,
+  taken when the remembered Python cannot load the agent.  The link also
+  launches the notebook itself, or relaunches it when its server is down,
+  with the Jupyter the notebook link checks: the first on PATH, from Qt
+  Creator Homebrew's, was a Notebook 7 that served only the logo.  Open
+  tabs need a reload; neither the relaunch in a running KAME nor the
+  Windows launcher was tried.
+
+* Fri Oct 16 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Motor: a driver for the Kamoer M1-STP peristaltic pump, driven as an
+  open-loop motor over RS485 (Modbus RTU).  Target is the amount to pump
+  in degrees of the pump head (360 per revolution), run as a count of
+  laps; FWD/RVS pump continuously until STOP; StepMotor defaults to 60 so
+  that Speed reads in rpm.  The pump cannot tell how far it has turned, so
+  Position is the commanded laps, interpolated by time while running.
+  Slipping shows the pump's abnormal-state flag, and HOME is disabled (no
+  home sensor).  The Modbus RTU interface gains read coils, read input
+  registers and write single coil (FC01, FC04, FC05).  Written from
+  Kamoer's one-page register sheet; not yet run on a pump.
+- Interlock: a new action, "Escape to home", trips a Micro CAM back to its
+  home Z, so a camera can pull the cutter out of the work (a Correlation
+  tool on the image, a Scalar Interlock condition on it, and this row).  It
+  does what the CAM's Escape button does: stops the program and every
+  axis, then draws Z back to HOME_Z at full speed, once, at the trip.  It
+  is the only interlock operation that moves something, and is offered
+  only for a driver that has EscapeToHome.  The manual warns that nothing
+  may stand at the home Z, and that a "Stop motor" row on the CAM's own
+  motors in the same interlock would halt the retreat.  Not yet run in the
+  app.
+- Pydantic AI: Claude requests ask for prompt caching.  Anthropic caches
+  only what a request marks, and KAME's agent marked nothing, so the ~5.5k
+  tokens of KAME's tools and rules were billed in full on every step of
+  every tool loop.  The tool definitions, the static instructions and the
+  conversation now carry cache_control: of two real requests to Opus 5.5
+  the first wrote 5,522 tokens to the cache and the second read them back,
+  at about a third of the uncached price.  The cache also missed after any
+  retried tool call: the web UI rebuilds the conversation from the browser
+  every turn, in a format with no retry part, so a retry prompt came back
+  as a failed result encoded differently, and Claude then refused the
+  thinking blocks after it.  kame_history_budget() restores such parts,
+  byte-identical against a recording fake server.  usage.jsonl's cache
+  columns read names pydantic-ai never emits and always said 0; they read
+  gen_ai.usage.cache_read.input_tokens and cache_creation.input_tokens now.
 
 * Thu Oct 15 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - UI: the four placed windows are remembered relative to the screen's edges,
@@ -260,6 +660,70 @@
   a budgeted wait overshoots by up to a tick (drivers carry 20 ms), and
   below 1 ms cl's runtime rounds a wait up to a whole tick while
   llvm-mingw's libc++ rounds it to nothing and spins.
+- Pydantic AI: the web menu offers Claude Fable 5.1 and Google's newest
+  Gemini models.  Anthropic's entries are the newest Opus, Fable and Sonnet,
+  Opus still the default (Fable is the most capable and costs 2.5x Opus).
+  With GOOGLE_API_KEY or GEMINI_API_KEY set, the chat models of the two
+  newest Gemini versions come from Google's own list, gemini-4-argon alone
+  when it cannot be fetched; google:gemini-4-argon replaces the google-gla:
+  prefix the docs gave, which pydantic-ai 2.55 answers "Unknown model".
+  OpenAI and Sakana versions compare as integers, where gpt-6.10 had sorted
+  below 6.9.  The model KAME_PYAI_MODEL names comes first even when its
+  provider's list fails: a Sakana list that timed out at 5 s had handed the
+  session to OpenAI without a word.  Checked on pydantic-ai 2.32.1 and
+  2.55.0; Gemini only against a fake endpoint, there being no Google key.
+- MCP server: the tool log says which client, and which model, made each
+  call.  The notebook's HTTP server is shared by every client under one
+  session_id, so a motor write could not be traced to its issuer.  Each
+  line now carries the name and version the client gave in its MCP
+  initialize -- KAME's own agent said "mcp 0.1.0" and now says pydantic-ai
+  -- and KAME's agent also sends its model (name@host:port) and run id in
+  the call's _meta; a client that sends none gets no model field, never a
+  guess.  The run id is the one usage.jsonl records, so the two logs join
+  on it, and usage.jsonl rows gain `server`: base_url came from
+  OPENAI_BASE_URL, which bionic: and ollama: leave unset, so all 94 rows
+  said null.  The model is also told which model it is, in one line of
+  instructions: a Qwen served by Bionic said it was Claude in a KAME
+  session.  Checked over stdio and HTTP with mcp 1.27, 1.29 and 2.3 and
+  pydantic-ai 2.32.1 and 2.55.0; tests/mcp_server 31/31.
+- MCP: stop_job stops an execute_code_async job that waits in sleep().  It
+  reached a job only through mcp_checkpoint(), so a job whose code never
+  called it ran to the end, however long that was.  KAME's sleep(), which a
+  measurement loop calls between steps, now calls mcp_checkpoint() on the
+  job's thread, at most once a second, ending the job once a stop was asked
+  for and refreshing its heartbeat meanwhile; on other threads it returns
+  at once.  time.sleep still cannot be interrupted, and stop_job and the
+  API reference say so.  Checked outside KAME with the server's job
+  prelude: 0.5 s sleeps, one sleep(60) and 1 ms sleeps each stopped within
+  1.2 s; a time.sleep loop did not.
+- Optics: a JAI camera on a Euresys Grablink board opens showing the
+  exposure, gain, black level, trigger and Video Mode the camera holds, and
+  transmitting.  These were filled from the GenICam remote module, which a
+  Camera Link camera does not have, so they opened at whatever the nodes
+  last held, with the Video Mode blank, and the camera stayed idle until the
+  same mode was chosen again.  Opening now asks the camera over its serial
+  line (BA?, PE?, FGA?, BL?, TM?/EM?/TA?, TI?) and converts each reply by
+  the inverse of its setter; a query a model does not answer is logged and
+  skipped.  The mode read back is then applied as choosing it would, the
+  ROI going to full frame.  The replies are committed after the interface
+  lock is released, which every eGrabber interface shares.  Single-shot
+  cannot be read back: the camera holds nothing that tells it from
+  Continuous.  Verified on the Grablink Duo with the JAI camera: the values
+  and the mode come up from the camera and transmission starts on open.
+- Optics: on macOS, an eGrabber camera that fails with GenTL error -1002
+  ("Module or resource is not initialized") now says why.  Two causes were
+  met on a new Mac.  One is the Euresys driver extension still waiting for
+  approval.  The other is DYLD_LIBRARY_PATH holding /opt/local/lib, which
+  Qt Creator's run option "Add build library search path to
+  DYLD_LIBRARY_PATH and DYLD_FRAMEWORK_PATH", on by default in a fresh
+  install, puts there from kame.pri: MacPorts' GNU libiconv then replaces
+  /usr/lib's, and eGrabber's GenApi fails every GenapiGetInteger.  The
+  message names that option to uncheck when DYLD_LIBRARY_PATH contains
+  /opt/local/lib, and points to the Driver Extensions pane of System
+  Settings otherwise.  Bisected outside KAME with a probe against eGrabber
+  26.09: a clean environment finds the Grablink Duo and both cameras, KAME's
+  DYLD_LIBRARY_PATH reproduces the error, and of the eleven /usr/lib dylibs
+  MacPorts shadows, libiconv alone breaks it.
 
 * Tue Oct 13 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - kamepoolalloc: the full tier's malloc/free loop (6 KiB to 32 KiB) is
@@ -403,6 +867,20 @@
   its own.)  The object now carries rdtsc on cl x64, cl x86 and
   llvm-mingw i686; the standalone kamestm DLL still exports nothing on
   Windows, which is a CMake matter for another day.
+- Optics: an eGrabber interface whose first open failed can be opened
+  again, and a Grablink camera created after a CoaXPress one finds its
+  board.  The GenTL producer was made only by the first interface, and a
+  failure there was logged and forgotten, so every later interface and
+  open() dereferenced null; it is now made on demand and retried after a
+  failure.  One producer served both board kinds, made by whichever camera
+  came first, so a Grablink camera was looked for on the Coaxlink boards;
+  each kind now has its own.  Device strings are unchanged, so .kam files
+  load as before.  Three more crash paths are closed.  An uninitialized
+  serial-port flag could make the constructor close a serial port on a null
+  camera (the baud rate, uninitialized too, now defaults to 9600).  An
+  interface torn down while open deleted its camera after the producer.
+  closeSerialPort() could throw from a lock's destructor, which is
+  std::terminate.  Compiled and linked on macOS; not run against a board.
 
 * Mon Oct 12 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - kamepoolalloc: no allocation looks through a thread's chunks for a free
@@ -470,7 +948,7 @@
   v1.1.0).  The walks themselves went the next day (above).
 
 * Sat Oct 10 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
-- Interlock: a new module, modules/interlock, with one driver, Scalar
+- Interlock: a new module, modules/interlock, its first driver Scalar
   Interlock.  Up to four conditions watch scalar entries, each "trip if
   below" or "trip if above" a threshold.  The entry can be a driver's
   reading, a calibrated entry, or a math tool such as Correlation 2D aimed
@@ -671,6 +1149,22 @@
   No data race is left in the pool or the STM.  On macOS, TSan and the
   pool's malloc interposition collide, and 9 pool tests stop early under
   TSan (see kamepoolalloc/README).
+- Interlock: Image Trigger, a second driver in modules/interlock, saves a
+  camera's frames around events, for watching a room or an experiment
+  overnight.  It takes the Scalar Interlock's conditions (two entries, a
+  threshold, Consecutive samples) but is a recorder, not a safety device:
+  an event saves FramesBefore frames from just before and FramesAfter from
+  just after, one every Interval, and after HoldOff it watches again by
+  itself.  A silent or NaN source never fires it and only shows in the
+  status.  FileName's extension picks the format: JPEG (8-bit, about 1/13
+  of the PNG, for watching) or PNG (the counts losslessly, 8 or 16 bits,
+  for data).  Files are a numbered series named with each frame's capture
+  time, and MaxFiles, unless 0, deletes the oldest of that series beyond
+  it.  The window shows the last frame saved, with its event and time; an
+  Events entry counts events.  Checked over MCP on the webcam: 2 + 6
+  frames 0.5 s apart, a repeat after the hold-off, MaxFiles 5 leaving
+  another series alone, and a stopped camera reported with no event.
+
 * Wed Oct 7 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - Release 9.0.
 - Network analyzer: the VNWA3E over TCP/IP timed out on every read (reported
