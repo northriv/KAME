@@ -1023,7 +1023,7 @@ Hamamatsu camera via Euresys Grablink CameraLink (PCIe)
 
 JAI camera via Euresys Grablink CameraLink (PCIe)
 
-USB / built-in video camera (webcam): AVFoundation on macOS; Qt Multimedia on Windows and Linux (built only when the Qt Multimedia module is installed)
+USB / built-in video camera (webcam): AVFoundation on macOS; Media Foundation on Windows; Qt Multimedia on Linux (built only when the Qt Multimedia module is installed)
 
 OceanOptics/Insight USB spectrometer HR2000+/4000 (USB)
 
@@ -1031,7 +1031,7 @@ The Correlation 2D math tool compares a region of a camera image with a referenc
 
 Image dumps (the Dump button under a camera image, or any 2D image) write one file per press: the FileName is a template, so `cam.png` becomes `cam_0001_20261010-021530.png`, `cam_0002_...` and so on, numbered on from the highest number already in the folder (a restart never overwrites) and written under a temporary name first, so a synced folder such as iCloud Drive never receives half a file. A `.dat` file name keeps the old behaviour of appending every dump as text to one file.
 
-The webcam driver records 8-bit luminance. A webcam's output is gamma-encoded and auto-exposed, so treat it as a monitor (sample position, the view into a cryostat) rather than as a quantitative detector. The ROI tool crops in software, and a `FrameRate` below the camera's own rate thins frames out. Only the Continuous and Single-shot trigger modes exist. On macOS, exposure and gain are automatic only (`ExposureTime` 0 selects auto exposure). The first time the interface is turned on, macOS asks for camera permission; if it was refused, allow KAME in System Settings > Privacy & Security > Camera.
+The webcam driver records 8-bit luminance. A webcam's output is gamma-encoded and auto-exposed, so treat it as a monitor (sample position, the view into a cryostat) rather than as a quantitative detector. The ROI tool crops in software, and a `FrameRate` below the camera's own rate thins frames out. Only the Continuous and Single-shot trigger modes exist. On macOS, exposure and gain are automatic only (`ExposureTime` 0 selects auto exposure). The first time the interface is turned on, macOS asks for camera permission; if it was refused, allow KAME in System Settings > Privacy & Security > Camera. On Windows, a manual `ExposureTime` is rounded to a power of two seconds (1/1024, 1/512, ... s), the unit of the UVC exposure control there, and `CameraGain` takes the camera's own gain scale (0 returns it to the default); a camera another application holds, or one refused under Windows Settings > Privacy & security > Camera ("Let desktop apps access your camera"), makes turning the interface on fail with that reason.
 
 Camera scripting nodes: `CameraGain` (analog gain), `EMGain`, `BlackLevelOffset`, `ExposureTime`, `FrameRate`, `VideoMode`, `TriggerMode`, `TriggerSrc`; dark-frame handling `StoreDark`, `SubtractDark`, `AntiShakePixels`; display-only `AutoGainForDisp`, `GainForDisp` (these affect the displayed image, not the raw counts read by 2D math tools). Quantitative pixel data is obtained through 2D math tools, not `to_png()` — see Graph Math Tools / the API reference.
 

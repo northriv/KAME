@@ -1,3 +1,32 @@
+* Fri Oct 23 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Optics: the webcam driver runs on Windows, over Media Foundation (user).
+  It needed Qt Multimedia there, an optional Qt component this machine, like
+  most, did not have, so Windows had no camera driver at all; and its Qt
+  backend had never been run on Windows.  Media Foundation is in every
+  Windows 10/11 and reads a YUV frame's luma plane as it comes, the way
+  AVFoundation does on macOS: nothing to install, no FFmpeg to ship.  Each
+  camera has one worker thread that alone drives its source reader, between
+  frames running the format, exposure and gain changes the other threads
+  queue.  Compressed formats (MJPEG, H.264) are decoded to NV12 by Windows'
+  own decoders.  Exposure and gain are the UVC controls (IAMCameraControl,
+  IAMVideoProcAmp); the exposure unit there is log2 seconds, so a manual
+  time is rounded to a power of two.  A camera another application holds, or
+  one the privacy settings refuse, fails the interface's start with that
+  reason.  Shutting a media source down from another thread hangs a waiting
+  synchronous ReadSample() for good, so closing waits for the frame in
+  flight instead, and lets a thread whose camera has stalled go with the
+  state it shares.  Tried on a Logitech C920: YUY2, NV12, MJPEG and H.264 up
+  to 1920x1080 at 21-31 fps, 5 fps by format, exposure 1/64 and 1/1024 s,
+  gain, reopening, a camera in use; and in KAME.  CONFIG+=webcam_qtmultimedia
+  still selects the Qt backend.
+- Graph: drawing an image crashed KAME on Windows (user, with the webcam
+  above: the first time an X2DImage showed on Windows).  The GL 1.3 calls
+  glActiveTexture and glMultiTexCoord2f, which opengl32.dll does not export,
+  were looked up with wglGetProcAddress during static initialization, where
+  no GL context is current, so both were null and the first texture drawn
+  called address 0.  They are looked up on first use now, while drawing; a
+  driver without them falls back to texture unit 0.
+
 * Tue Oct 20 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - kamepoolalloc: blocks above 32 KiB, up to 4 MiB, are allocated and freed
   2.2-2.6x faster in a loop (user).  The README had called this the

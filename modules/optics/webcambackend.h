@@ -19,7 +19,8 @@
 // Platform face of a webcam (built-in or USB video class) for XWebCamera.
 // Exactly one implementation is linked, chosen by optics.pro:
 //   webcambackend_avf.mm  AVFoundation (macOS)
-//   webcambackend_qt.cpp  Qt Multimedia (elsewhere, or CONFIG+=webcam_qtmultimedia)
+//   webcambackend_mf.cpp  Media Foundation (Windows)
+//   webcambackend_qt.cpp  Qt Multimedia (Linux, or CONFIG+=webcam_qtmultimedia)
 // Deliberately std-only: the AVFoundation side is Objective-C++, and keeping
 // KAME and Qt headers out of it avoids their macros (slots, signals, emit)
 // meeting Objective-C's keywords.
@@ -106,7 +107,8 @@ private:
 
 //! An opened camera. Methods may be called from any thread; each
 //! implementation serializes them itself (a dispatch queue for AVFoundation,
-//! the main thread for Qt Multimedia), so callers need not hold a lock.
+//! a worker thread per camera for Media Foundation, the main thread for Qt
+//! Multimedia), so callers need not hold a lock.
 class Camera {
 public:
     virtual ~Camera() = default;
