@@ -13,7 +13,7 @@ orchestration across compatible instruments.
 **License:** GPL v2 or later (prior to 8.0: LGPL v2 or later)
 **Authors:** Kentaro Kitagawa, Shota Suetsugu
 **Platforms:** macOS, Windows (64-bit), Linux (x86-64, **supported from 8.5** — see `INSTALL.linux`)
-**Manual:** [日本語](https://kitag.issp.u-tokyo.ac.jp/%e8%87%aa%e5%8b%95%e5%8c%96%e5%af%be%e5%bf%9c%e6%b8%ac%e5%ae%9a%e3%83%97%e3%83%ad%e3%82%b0%e3%83%a9%e3%83%a0kame/) · [English](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.1.zip) (`doc/manual/kame-9-en.md` in the source archive)
+**Manual:** [日本語](https://kitag.issp.u-tokyo.ac.jp/%e8%87%aa%e5%8b%95%e5%8c%96%e5%af%be%e5%bf%9c%e6%b8%ac%e5%ae%9a%e3%83%97%e3%83%ad%e3%82%b0%e3%83%a9%e3%83%a0kame/) · [English](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.0.zip) (`doc/manual/kame-9-en.md` in the source archive)
 **Paper:** K. Kitagawa, *Formally Verified Lock-Free Software Transactional Memory for Scientific Measurement*, [arXiv:2608.12024](https://arxiv.org/abs/2608.12024) (2026)
 
 ![KAME screenshot](https://kitag.issp.u-tokyo.ac.jp/wordpress/wp-content/uploads/2025/01/dd21dff192ba7bde3beb0830a80d886c-930x620.png)
@@ -39,9 +39,9 @@ orchestration across compatible instruments.
 - Calibration curves (cspline, Chebyshev, polynomial) for resistance thermometers and generic sensors; calibrated entries feed into graphs, charts, and data recording like any native scalar
 
 ### Released versions/Binaries
-Source: [kame-9.1.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.1.zip) (Oct. 2026).
+Source: [kame-9.0.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-9.0.zip) (Oct. 2026).
 [All other source archives](https://kitag.issp.u-tokyo.ac.jp/web/kame/src).
-Windows 64-bit binaries: [9.1](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-9.1.zip) · [9.0](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-9.0.zip) (22.1MB) · [8.6.1](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.1.zip) (21.8MB) · [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.zip) (21.8MB) · [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.5.zip) (20.4MB) · [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.4.zip). At least Qt is additionally needed, follow instructions below to install.
+Windows 64-bit binaries: [9.0](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-9.0.zip) (22.1MB) · [8.6.1](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.1.zip) (21.8MB) · [8.6](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.6.zip) (21.8MB) · [8.5](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.5.zip) (20.4MB) · [8.4](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.4.zip). At least Qt is additionally needed, follow instructions below to install.
 Builds before 8.6.1 carry the double-allocation defect described under 8.6.1 in *Earlier releases* on Windows and Linux.
 
 ### Supported instruments
