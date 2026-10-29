@@ -52,6 +52,7 @@ Requires: pydantic-ai (and `clai` for --web) in THIS interpreter --
                                                     uv venvs carry no pip)
 """
 import argparse
+import contextvars
 import json
 import os
 import sys
@@ -715,6 +716,66 @@ def _budget():
     return {'max_tokens': n} if n else None
 
 
+#The chat UI's "Effort" menu (ai-chat-ui) sends its choice as `effort` in each
+#chat request, but pydantic-ai's web backend reads only `model` and
+#`builtinTools` from the request (2.55 to 2.63), so the choice never reached a
+#model.  kame_web_plots() reads it into _UI_EFFORT for that request's run, and
+#a local model takes it as its thinking level where nothing else set one.
+_UI_EFFORT = contextvars.ContextVar('kame_ui_effort', default=None)
+_UI_EFFORTS = ('minimal', 'low', 'medium', 'high', 'xhigh')
+_LOCAL_MODEL_CLASS = []
+
+
+def _local_model_class():
+    """OpenAIChatModel taking the chat UI's effort as its thinking level where
+    the request's settings name none."""
+    if not _LOCAL_MODEL_CLASS:
+        from pydantic_ai.models.openai import OpenAIChatModel
+
+        class LocalChatModel(OpenAIChatModel):
+            def prepare_request(self, model_settings, *args, **kwargs):
+                effort = _UI_EFFORT.get()
+                if effort and 'thinking' not in (model_settings or {}):
+                    model_settings = {**(model_settings or {}), 'thinking': effort}
+                return super().prepare_request(model_settings, *args, **kwargs)
+
+        _LOCAL_MODEL_CLASS.append(LocalChatModel)
+    return _LOCAL_MODEL_CLASS[0]
+
+
+class _UiEffortMiddleware:
+    """ASGI: a chat request's `effort` (the chat UI's menu) in _UI_EFFORT while
+    the request runs; the request goes on with its body as it came."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if (scope.get('type') != 'http' or scope.get('method') != 'POST'
+                or not scope.get('path', '').endswith('/chat')):
+            return await self.app(scope, receive, send)
+        messages, body = [], b''
+        while True:
+            message = await receive()
+            messages.append(message)
+            body += message.get('body', b'')
+            if message.get('type') != 'http.request' or not message.get('more_body'):
+                break
+        try:
+            effort = json.loads(body or b'{}').get('effort')
+        except (ValueError, AttributeError):
+            effort = None
+
+        async def replay():
+            return messages.pop(0) if messages else await receive()
+
+        token = _UI_EFFORT.set(effort if effort in _UI_EFFORTS else None)
+        try:
+            await self.app(scope, replay, send)
+        finally:
+            _UI_EFFORT.reset(token)
+
+
 def _local_chat_model(kind, name, provider):
     """A local server's chat model.
 
@@ -725,8 +786,8 @@ def _local_chat_model(kind, name, provider):
     chat template's default -- Qwen's deepest -- whatever the menu said.
 
     Here that profile says the model does take one, so the level goes out as
-    reasoning_effort.  Only for 'local': Ollama refuses a thinking request to
-    a model without thinking."""
+    reasoning_effort, and the chat UI's menu sets it (_UI_EFFORT).  Only for
+    'local': Ollama refuses a thinking request to a model without thinking."""
     from pydantic_ai.models.openai import OpenAIChatModel
     profile = None
     if kind == 'local':
@@ -739,7 +800,8 @@ def _local_chat_model(kind, name, provider):
                 profile = dataclasses.replace(guess, supports_thinking=True)
         except Exception:                          # a pydantic-ai without the field: as before
             profile = None
-    return OpenAIChatModel(name, provider=provider, profile=profile, settings=_budget())
+    cls = _local_model_class() if kind == 'local' else OpenAIChatModel
+    return cls(name, provider=provider, profile=profile, settings=_budget())
 
 
 def _resolve_model(spec):
@@ -998,9 +1060,13 @@ def kame_web_plots(app, url_path='/plots'):
     KAME's server also writes each one under kame_plot_dir() and names it in
     the tool output; mounted here, `![figure](/plots/<name>.png)` in a reply
     shows it inline -- a relative URL, so the port the UI happens to be on
-    does not matter.  FIGURE_INSTRUCTIONS tells the model to write that."""
+    does not matter.  FIGURE_INSTRUCTIONS tells the model to write that.
+
+    It also reads the chat UI's Effort menu from each chat request, for a
+    local model's thinking level (_UiEffortMiddleware)."""
     from starlette.staticfiles import StaticFiles
     app.mount(url_path, StaticFiles(directory=kame_plot_dir()), name='kame-plots')
+    app.add_middleware(_UiEffortMiddleware)
     return app
 
 
