@@ -715,6 +715,33 @@ def _budget():
     return {'max_tokens': n} if n else None
 
 
+def _local_chat_model(kind, name, provider):
+    """A local server's chat model.
+
+    pydantic-ai guesses a profile from the model's name.  Its guess for a name
+    that is not OpenAI's says the model takes no reasoning effort, so the web
+    UI's thinking level was dropped without a word.  A model served by
+    KAME_PYAI_LOCAL_URL (an mlx-vlm server, moe-dreams) then thought at its
+    chat template's default -- Qwen's deepest -- whatever the menu said.
+
+    Here that profile says the model does take one, so the level goes out as
+    reasoning_effort.  Only for 'local': Ollama refuses a thinking request to
+    a model without thinking."""
+    from pydantic_ai.models.openai import OpenAIChatModel
+    profile = None
+    if kind == 'local':
+        try:
+            guess = provider.model_profile(name)
+            if isinstance(guess, dict):            # pydantic-ai 2: a TypedDict
+                profile = {**guess, 'supports_thinking': True}
+            elif guess is not None:                # 1.x: a dataclass
+                import dataclasses
+                profile = dataclasses.replace(guess, supports_thinking=True)
+        except Exception:                          # a pydantic-ai without the field: as before
+            profile = None
+    return OpenAIChatModel(name, provider=provider, profile=profile, settings=_budget())
+
+
 def _resolve_model(spec):
     """A model string pydantic-ai can infer, or a Model object for the
     providers it cannot: `sakana:<name>` -> Sakana AI with SAKANA_API_KEY;
@@ -756,9 +783,7 @@ def _resolve_model(spec):
             raise UserError('Set the `{}` environment variable to the server '
                             'address (e.g. http://127.0.0.1:8080/v1) to use '
                             'model {}.'.format(LOCAL_SERVERS[kind][0], spec))
-        return OpenAIChatModel(name, provider=OpenAIProvider(base_url=srv[0],
-                                                             api_key=srv[1]),
-                               settings=_budget())
+        return _local_chat_model(kind, name, OpenAIProvider(base_url=srv[0], api_key=srv[1]))
     key = os.environ.get('SAKANA_API_KEY')
     if not key:
         #Worded like pydantic-ai's own, so _explain_and_exit's API-key branch
@@ -1325,8 +1350,7 @@ def kame_models():
                 served = []
         for mid in served:
             if 'embed' not in mid:
-                out[kind.capitalize() + ' ' + mid] = OpenAIChatModel(mid, provider=prov,
-                                                                     settings=_budget())
+                out[kind.capitalize() + ' ' + mid] = _local_chat_model(kind, mid, prov)
     spec = (os.environ.get('KAME_PYAI_MODEL') or '').split(',')[0].strip()
     want = spec.split(':', 1)[-1]          # ollama:qwen3:32b -> qwen3:32b
     label = next((x for x in out if want and x.endswith(' ' + want)), None)
