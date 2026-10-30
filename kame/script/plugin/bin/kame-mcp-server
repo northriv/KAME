@@ -31,12 +31,17 @@ fi
 # The resource dir KAME itself recorded on notebook launch: an INSTALLED
 # plugin's cache holds only the plugin directory, so ../ finds nothing, and
 # the fixed /Applications-style candidates below miss dev build trees.  KAME
-# knows where it deployed the server; trust that first among the guesses.
+# knows where it deployed the server; trust that first among the guesses.  The
+# KAME that started this client, when one did (KAME_KERNEL_CONNECTION, its own
+# copy of the file), before the one that launched its notebook last.
 kame_resdir=""
-if [ -f "$HOME/.kame_kernel_connection.json" ]; then
-    kame_resdir=$(sed -n 's/.*"resource_dir": *"\([^"]*\)".*/\1/p' \
-        "$HOME/.kame_kernel_connection.json" | head -n 1)
-fi
+for _info in "${KAME_KERNEL_CONNECTION:-}" "$HOME/.kame_kernel_connection.json"; do
+    if [ -n "$_info" ] && [ -f "$_info" ]; then
+        kame_resdir=$(sed -n 's/.*"resource_dir": *"\([^"]*\)".*/\1/p' \
+            "$_info" | head -n 1)
+        [ -n "$kame_resdir" ] && break
+    fi
+done
 
 server=""
 for candidate in \

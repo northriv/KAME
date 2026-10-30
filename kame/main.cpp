@@ -47,6 +47,12 @@
 #include <set>
 #include <deque>
 #include <QFileInfo>
+#include <QDir>
+#include <QDateTime>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QSysInfo>
+#include <cstdlib>
 
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
     #define NOMINMAX
@@ -79,6 +85,69 @@ int load_module(const char *filename, lt_ptr data) {
 //! call in main() for why RTLD_GLOBAL is required rather than merely nice.
 static lt_dladvise g_dl_advise;
 #endif
+
+//! ~/.kame.lock: which KAME owns the per-user files -- the session journal,
+//! kame.log, the MCP connection files in the home directory.  Two KAMEs at once
+//! is ordinary (a second one opened to read a journal while the first
+//! measures), and when both wrote those files each took the other's.  A lock
+//! left by a KAME that crashed looks exactly like a live one, so it is the user
+//! who says which it is.  \sa g_bLockMode
+static QString s_lockPath, s_lockText;
+static void releaseInstanceLock() {
+    //Only while it is still ours: after "Recreate" in another KAME it is that one's.
+    QFile f(s_lockPath);
+    if( !f.open(QIODevice::ReadOnly) || (f.readAll() != s_lockText.toUtf8()))
+        return;
+    f.close();
+    QFile::remove(s_lockPath);
+}
+//! \return false for lock mode.
+static bool takeInstanceLock() {
+    QString path = QDir::homePath() + "/.kame.lock";
+    QString text = QString("pid %1 on %2, started %3\n")
+        .arg(QCoreApplication::applicationPid())
+        .arg(QSysInfo::machineHostName())
+        .arg(QDateTime::currentDateTime().toString(Qt::ISODate));
+    for(;;) {
+        QFile f(path);
+        if(f.open(QIODevice::WriteOnly | QIODevice::NewOnly)) {
+            bool ok = (f.write(text.toUtf8()) == text.toUtf8().size());
+            f.close();
+            if(ok) {
+                s_lockPath = path;
+                s_lockText = text;
+                //Not at the end of main(): Cmd-Q ends in exit() from AppKit.
+                std::atexit( &releaseInstanceLock);
+            }
+            return true;
+        }
+        if( !QFileInfo::exists(path))
+            return true; //!< nowhere to put it: as before there was one
+        QString owner;
+        if(f.open(QIODevice::ReadOnly))
+            owner = QString::fromUtf8(f.readAll()).trimmed();
+        f.close();
+        QMessageBox box(QMessageBox::Question, "KAME",
+            QCoreApplication::translate("main",
+                "Another KAME holds the lock file %1 (%2).\n\n"
+                "If it is running, start this one in lock mode: it leaves the "
+                "session journal, kame.log and the MCP connection files to the "
+                "other, and is the way to read a journal beside a measurement.\n\n"
+                "If no other KAME is running, the last one did not exit "
+                "normally: recreate the lock file.")
+                .arg(QDir::toNativeSeparators(path), owner));
+        QPushButton *lockmode = box.addButton(
+            QCoreApplication::translate("main", "Lock Mode"), QMessageBox::AcceptRole);
+        QPushButton *recreate = box.addButton(
+            QCoreApplication::translate("main", "Recreate Lock File"), QMessageBox::DestructiveRole);
+        box.setDefaultButton(lockmode);
+        box.setEscapeButton(lockmode);
+        box.exec();
+        if(box.clickedButton() != recreate)
+            return false;
+        QFile::remove(path);
+    }
+}
 
 int main(int argc, char *argv[]) {
     char dummy_for_mlock[8192];
@@ -264,6 +333,10 @@ int main(int argc, char *argv[]) {
     }
     app.installTranslator(&appTranslator); //translations for KAME.
 #endif
+
+    //Before anything writes a per-user file: the log is the first.
+    g_bLockMode = !takeInstanceLock();
+    openDebugLog(g_bLockMode);
 
 //#if defined __WIN32__ || defined WINDOWS || defined _WIN32
 //    if(AllocConsole()) {

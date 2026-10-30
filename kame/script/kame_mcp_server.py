@@ -77,7 +77,61 @@ except ImportError:
 #narrow pattern cannot eat anything from the user's own output.
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
-CONN_INFO_PATH = Path.home() / ".kame_kernel_connection.json"
+# Which KAME this server serves.  ~/.kame_kernel_connection.json names the
+# KAME that launched its notebook last, and a client started any other way (a
+# desktop app's registered launcher) has only that.  But two KAMEs running at
+# once is ordinary -- a second opened to read a journal -- so a KAME points
+# every client it starts at its own copy through KAME_KERNEL_CONNECTION, and a
+# server it started never reaches the other one, not even once the other takes
+# over the shared file.  Bound while that KAME runs; after it has gone the
+# shared file again, as before there were copies: a client session outlives a
+# KAME restart and has to find the new one.
+_SHARED_CONN_INFO = Path.home() / ".kame_kernel_connection.json"
+_OWN_CONN_INFO = os.environ.get("KAME_KERNEL_CONNECTION")
+
+
+def _pid_running(pid: int) -> bool:
+    if os.name == "nt":
+        # A private WinDLL, so these prototypes (a HANDLE is not an int on
+        # 64-bit) are not imposed on anything else in the process.
+        import ctypes
+        from ctypes import wintypes
+        k32 = ctypes.WinDLL("kernel32")
+        k32.OpenProcess.restype = wintypes.HANDLE
+        k32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+        k32.GetExitCodeProcess.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
+        k32.CloseHandle.argtypes = (wintypes.HANDLE,)
+        h = k32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return False
+        code = wintypes.DWORD()
+        ok = k32.GetExitCodeProcess(h, ctypes.byref(code))
+        k32.CloseHandle(h)
+        return bool(ok) and code.value == 259  # STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        pass
+    return True
+
+
+def _conn_info_path() -> Path:
+    if _OWN_CONN_INFO:
+        own = Path(_OWN_CONN_INFO)
+        # Gone, not merely missing its copy: a KAME without a notebook yet is
+        # still the one to wait for, and a crashed one leaves its copy behind.
+        m = re.fullmatch(r"kame-(\d+)\.json", own.name)
+        if not m or _pid_running(int(m.group(1))):
+            return own
+    return _SHARED_CONN_INFO
+
+
+def _shown(path: Path) -> str:
+    return str(path).replace(str(Path.home()), "~", 1)
+
+
 API_DOC_PATH = Path(__file__).parent / "kame_python_api.md"
 MANUAL_DOC_PATHS = [
     Path(__file__).parent / "kame-9-en.md",  # deployed (e.g. Contents/Resources)
@@ -405,14 +459,15 @@ def _get_client() -> jupyter_client.BlockingKernelClient:
     global _client
     if _client is not None and _client.is_alive():
         return _client
-    if not CONN_INFO_PATH.exists():
+    conn_info = _conn_info_path()
+    if not conn_info.exists():
         raise RuntimeError(
-            "KAME is not connected (no ~/.kame_kernel_connection.json). "
+            f"KAME is not connected (no {_shown(conn_info)}). "
             "The file is written when KAME launches its Jupyter notebook: "
             "ask the user to start KAME and click 'Jupyter notebook' in the "
             "Script pane, then retry."
         )
-    with open(CONN_INFO_PATH) as f:
+    with open(conn_info) as f:
         info = json.load(f)
     cf = info["connection_file"]
     if not os.path.exists(cf):
@@ -997,8 +1052,9 @@ def kame_status() -> str:
     # appears when KAME launches its Jupyter notebook, so a plain "not
     # running" sent an assistant speculating about ports and build options
     # when the fix was one menu action away.
-    if not CONN_INFO_PATH.exists():
-        return ("KAME is not connected: ~/.kame_kernel_connection.json does "
+    conn_info = _conn_info_path()
+    if not conn_info.exists():
+        return (f"KAME is not connected: {_shown(conn_info)} does "
                 "not exist. It is written when KAME launches its Jupyter "
                 "notebook — ask the user to start KAME and click 'Jupyter "
                 "notebook' in the Script pane (or Script menu), then retry. "
@@ -1029,11 +1085,12 @@ _nb_server_cache = None
 
 
 def _conn_info() -> dict:
-    if not CONN_INFO_PATH.exists():
+    conn_info = _conn_info_path()
+    if not conn_info.exists():
         raise RuntimeError(
-            "KAME is not running (no ~/.kame_kernel_connection.json). "
+            f"KAME is not running (no {_shown(conn_info)}). "
             "Start KAME and use Script → Launch Jupyter notebook.")
-    with open(CONN_INFO_PATH) as f:
+    with open(conn_info) as f:
         return json.load(f)
 
 

@@ -856,6 +856,12 @@ report back. Both default on; disable with `KAME_MCP_NO_LOG` and
    plugin's launcher uses.
 4. The server ships `kame_python_api.md` and the user's manual, which the
    assistant reads a topic at a time before writing code.
+5. With two KAMEs running (a second one to read a journal, say), the files in
+   `~` and the workspace `.mcp.json` belong to the one holding `~/.kame.lock`;
+   the other starts in lock mode and leaves them alone. Each KAME also keeps
+   its own copy, `kame-<pid>.json` in Jupyter's runtime directory, and every
+   client it launches is given that copy in `KAME_KERNEL_CONNECTION`, so it
+   reaches that KAME and no other.
 
 ---
 

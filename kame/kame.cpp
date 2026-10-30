@@ -890,8 +890,8 @@ void
 FrmKameMain::updateWindowTitle() {
     //What is loaded, then whose window it is: the order every document-shaped
     //application uses, since the file is what differs between two of them.
-    QString t = m_titleDoc.isEmpty() ? QString("KAME " VERSION)
-        : m_titleDoc + QString::fromUtf8(" \u2014 KAME " VERSION);
+    QString kame = QString("KAME " VERSION) + (g_bLockMode ? tr(" (lock mode)") : QString());
+    QString t = m_titleDoc.isEmpty() ? kame : m_titleDoc + QString::fromUtf8(" \u2014 ") + kame;
     for(auto &&s: m_edgeSliders)
         if(s.vertical && !s.autoHide)
             t += QString::fromUtf8(" \u2731");

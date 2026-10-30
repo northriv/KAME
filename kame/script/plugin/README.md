@@ -59,6 +59,9 @@ KAME does **not** have to be running for the plugin to load; the tools report
 that it is not running until you start it and launch a Jupyter notebook from
 **Script → Launch Jupyter notebook** (which writes
 `~/.kame_kernel_connection.json`, the file the server connects through).
+With two KAMEs running, that file names the one holding `~/.kame.lock`; the
+other runs in lock mode and leaves it alone. A session either KAME launched
+is pointed at that KAME instead, through `KAME_KERNEL_CONNECTION`.
 
 ## Requirements
 

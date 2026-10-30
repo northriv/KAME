@@ -186,6 +186,7 @@ XPython::execute(const atomic<bool> &terminated) {
         kame_module.def("my_defout", [=](shared_ptr<XNode> scrthread, const std::string &str){this->my_defout(scrthread, str);});
         kame_module.def("my_defin", [=](shared_ptr<XNode> scrthread)->std::string{return this->my_defin(scrthread);});
         kame_module.def("is_main_terminated", [=](){return this->m_thread->isTerminated();});
+        kame_module.def("is_lock_mode", [](){return g_bLockMode;});
         //Every .kam load, .kamj dump and script runs on a THREAD OF ITS OWN
         //(xpythonsupport.py starts one per file), and a write's class is read
         //off the committing thread.  Undeclared, everything a .kam restores

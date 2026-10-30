@@ -682,10 +682,25 @@ Playback stops when it reaches the end. It does not start over — with a
 journal attached that would put the whole tree back to the beginning of the
 recording without saying so.
 
+### Reading beside a measurement
+
+A second KAME can read a journal while the first one measures. As it starts,
+it finds the first one's lock file, `~/.kame.lock`, and asks what to do:
+choose **Lock Mode**. A KAME in lock mode keeps no session journal, writes its
+log under a name of its own, and leaves the MCP connection files to the other
+KAME. Its title bar says "lock mode". (On macOS, start the second one with
+`open -n` followed by the path to the application. Double-clicking the
+application brings forward the KAME that is already running.)
+
+Replay does not touch the instruments, but a measurement file opened in the
+second KAME would, so leave the instruments to the first.
+
 ## Recovering from a crash
 
 Both files are flushed once a minute, so a KAME that is killed loses at most
-the last minute of either. A raw stream can also be read from the middle: each
+the last minute of either. A KAME that crashed also leaves its lock file
+behind, and the next one to start asks about it as if another KAME were
+running: with none running, choose **Recreate Lock File**. A raw stream can also be read from the middle: each
 record begins with a marker and a check word, so a reader can find where
 records start without reading the file from the beginning.
 
@@ -1805,6 +1820,14 @@ guessable from the message. This table is symptom-first.
   (`jupyter_client`), and speaks either stdio or HTTP to the client.
 - `kame_python_api.md` is read by the assistant before it writes code, which
   removes most trial and error.
+- With two KAMEs running, the connection files in your home directory
+  (`~/.kame_kernel_connection.json`, `~/.kame_mcp_url`) and the notebook
+  workspace's `.mcp.json` belong to the one holding the lock file; one in
+  lock mode (see [Reading beside a measurement](#reading-beside-a-measurement))
+  neither writes nor removes them. A client a KAME launches itself — Claude
+  Code, Codex or Pydantic AI from the Script pane — reaches that KAME in
+  either mode. Anything else, such as a desktop app's registered entry or
+  your own script reading `~/.kame_mcp_url`, reaches the lock holder.
 - The server and a `kame-measurement` skill are also packaged as one plugin
   directory, in both the Claude Code format and the cross-vendor
   [Agent Plugins 1.0.0](https://agent-plugins.org/) format.

@@ -28,6 +28,7 @@
 bool g_bLogDbgPrint;
 bool g_bUseOverpaint;
 bool g_bUseMLock;
+bool g_bLockMode;
 
 bool isMemLockAvailable() noexcept {
     if( !g_bUseMLock) return false;
@@ -80,28 +81,39 @@ bool isMemLockAvailable() noexcept {
 
 #include "xthread.h"
 
+#include <string>
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
-	#define KAME_LOG_FILENAME "kame.log"
-	static std::ofstream g_debugofs(KAME_LOG_FILENAME, std::ios::out);
+	#include <process.h>
+	static std::string kameLogFilename(bool lockmode) {
+		return lockmode ? "kame-" + std::to_string((unsigned long)_getpid()) + ".log"
+			: std::string("kame.log");
+	}
 #else
 	#include <unistd.h>
-	#include <string>
 	// Was a fixed "/tmp/kame.log".  In a world-writable sticky directory that
 	// is one shared name for every user on the machine: the second user
 	// cannot truncate the first user's file, the ofstream silently enters
 	// failbit, and every --logging write after that is discarded with no
 	// diagnostic.  (It is also a classic symlink-in-/tmp target.)  Qualify by
 	// uid — not by pid, so the path stays predictable for someone who just
-	// wants to tail it — and honour $TMPDIR.  This runs during static
-	// initialization, so it must not touch Qt.
-	static std::string kameLogFilename() {
+	// wants to tail it — and honour $TMPDIR.
+	static std::string kameLogFilename(bool lockmode) {
 		const char *tmp = getenv("TMPDIR");
 		if( !tmp || !tmp[0]) tmp = "/tmp";
-		return std::string(tmp) + "/kame-" + std::to_string((unsigned long)getuid()) + ".log";
+		std::string base = std::string(tmp) + "/kame-" + std::to_string((unsigned long)getuid());
+		return lockmode ? base + "-" + std::to_string((unsigned long)getpid()) + ".log"
+			: base + ".log";
 	}
-	static std::ofstream g_debugofs(kameLogFilename().c_str(), std::ios::out);
 #endif
 static XMutex g_debug_mutex;
+//! Opened by main() once it knows whether this KAME holds the lock: opening
+//! the plain name truncates it, and in lock mode it is the other KAME's log.
+static std::ofstream g_debugofs;
+void
+openDebugLog(bool lockmode) {
+	XScopedLock<XMutex> lock(g_debug_mutex);
+	g_debugofs.open(kameLogFilename(lockmode).c_str(), std::ios::out);
+}
 
 #include "xtime.h"
 #include "measure.h"

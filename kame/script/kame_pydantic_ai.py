@@ -60,6 +60,12 @@ import threading
 from datetime import datetime, timezone
 
 URL_FILE = os.path.join(os.path.expanduser('~'), '.kame_mcp_url')
+#A KAME starting this names its own copy of the hand-off file here; its
+#'mcp_url' is what URL_FILE holds for the KAME that launched its notebook last,
+#which with two running need not be this one.  Read once, at start, and the
+#link that starts this brings the server up first -- so a copy that is missing
+#belongs to a KAME that has gone, and URL_FILE is the one to follow.
+OWN_INFO_FILE = os.environ.get('KAME_KERNEL_CONNECTION')
 SETTINGS_FILE = os.path.join(os.path.expanduser('~'), '.kame_pyai.env')
 #Sakana AI (fugu, namazu) serves an OpenAI-compatible API but is not a
 #provider pydantic-ai knows, so `sakana:<model>` is resolved here rather than
@@ -551,12 +557,8 @@ def _explain_and_exit(exc):
         sys.exit(msg + tail)
     if isinstance(exc, (RuntimeError, OSError, ConnectionError)) and (
             'connect' in msg.lower() or 'refused' in msg.lower()):
-        url = ''
-        try:
-            with open(URL_FILE) as f:
-                url = json.load(f).get('url', '')
-        except (OSError, ValueError):
-            pass
+        rec, path = _url_record()
+        url = rec.get('url', '')
         sys.exit(
             "Could not reach KAME's MCP server{}.\n"
             "    {}\n"
@@ -565,7 +567,7 @@ def _explain_and_exit(exc):
             "been clicked in THIS KAME session --\n{} is rewritten each time "
             "and removed when KAME exits, so a stale one\nmeans KAME was "
             "restarted without the notebook.{}".format(
-                ' at ' + url if url else '', msg, _tilde(URL_FILE),
+                ' at ' + url if url else '', msg, _tilde(path),
                 '' if '--check' in sys.argv else
                 "  Then verify with:\n    {} {} --check".format(
                     _tilde(sys.executable), _tilde(os.path.abspath(__file__))))
@@ -573,14 +575,29 @@ def _explain_and_exit(exc):
     raise exc
 
 
+def _url_record():
+    """(the server's record -- url, token, ..., the file it was read from)."""
+    if OWN_INFO_FILE and os.path.exists(OWN_INFO_FILE):
+        path = OWN_INFO_FILE
+        try:
+            with open(path) as f:
+                d = json.load(f).get('mcp_url')
+        except (OSError, ValueError, AttributeError):
+            d = None
+    else:
+        path = URL_FILE
+        try:
+            with open(path) as f:
+                d = json.load(f)
+        except (OSError, ValueError):
+            d = None
+    return (d if isinstance(d, dict) else {}), path
+
+
 def _server_url():
     """(url, token) of the running KAME MCP HTTP server."""
-    try:
-        with open(URL_FILE) as f:
-            d = json.load(f)
-        url, token = d.get('url'), d.get('token', '')
-    except (OSError, ValueError):
-        url, token = None, ''
+    d, path = _url_record()
+    url, token = d.get('url'), d.get('token', '')
     if not url:
         sys.exit(
             "KAME's MCP server address is not known: {} is missing or has no "
@@ -591,7 +608,7 @@ def _server_url():
             "  2. 'Jupyter notebook' in its Script pane must have been clicked "
             "in this session\n     (the MCP server runs inside that kernel).\n"
             "Then click the Pydantic AI link again, or verify with --check."
-            .format(_tilde(URL_FILE)))
+            .format(_tilde(path)))
     return url, token
 
 
