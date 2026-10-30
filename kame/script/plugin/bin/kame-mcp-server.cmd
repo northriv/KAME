@@ -4,7 +4,8 @@ rem the POSIX launcher next to this file.  Same contract: overrides that are
 rem set but wrong FAIL rather than fall through, diagnostics go to stderr
 rem (stdout belongs to the MCP stdio stream), and the search order is
 rem   KAME_MCP_SERVER > plugin dir > ../ (dev tree) > resource_dir recorded
-rem   by KAME in %USERPROFILE%\.kame_kernel_connection.json.
+rem   by KAME in %KAME_KERNEL_CONNECTION% (the copy of the KAME that started
+rem   this client, when one did), else %USERPROFILE%\.kame_kernel_connection.json.
 rem Interpreter: KAME_MCP_PYTHON > kame-mcp-venv > the Pydantic AI interpreter
 rem (%USERPROFILE%\.kame_pyai_python) > py -3 > python > python3, first one
 rem that imports mcp + jupyter_client.
@@ -24,8 +25,10 @@ if defined KAME_MCP_SERVER (
 )
 if not defined SERVER if exist "%PLUGIN_ROOT%\kame_mcp_server.py" set "SERVER=%PLUGIN_ROOT%\kame_mcp_server.py"
 if not defined SERVER if exist "%PLUGIN_ROOT%\..\kame_mcp_server.py" set "SERVER=%PLUGIN_ROOT%\..\kame_mcp_server.py"
-if not defined SERVER if exist "%USERPROFILE%\.kame_kernel_connection.json" (
-    for /f "usebackq delims=" %%I in (`powershell -NoProfile -Command "(Get-Content -Raw \"$env:USERPROFILE\.kame_kernel_connection.json\" | ConvertFrom-Json).resource_dir" 2^>nul`) do set "RESDIR=%%I"
+set "CONNINFO=%USERPROFILE%\.kame_kernel_connection.json"
+if defined KAME_KERNEL_CONNECTION if exist "%KAME_KERNEL_CONNECTION%" set "CONNINFO=%KAME_KERNEL_CONNECTION%"
+if not defined SERVER if exist "%CONNINFO%" (
+    for /f "usebackq delims=" %%I in (`powershell -NoProfile -Command "(Get-Content -Raw \"%CONNINFO%\" | ConvertFrom-Json).resource_dir" 2^>nul`) do set "RESDIR=%%I"
     if defined RESDIR if exist "!RESDIR!\kame_mcp_server.py" set "SERVER=!RESDIR!\kame_mcp_server.py"
 )
 if not defined SERVER (

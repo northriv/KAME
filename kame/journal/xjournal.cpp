@@ -759,7 +759,9 @@ XJournalWriter::syncRun() {
     //The always-on journal is refusable.  A dump is not free -- an ODMR tree
     //is 3000 nodes, 600 KB before compression -- and a background writer
     //nobody can switch off is impolite whatever its size.
-    bool wantSession = shot[ *rec->sessionJournal()];
+    //Not in lock mode: the KAME holding the lock is the one journaling this
+    //user's sessions, and a reader's replay is not a session worth keeping.
+    bool wantSession = shot[ *rec->sessionJournal()] && !g_bLockMode;
     if(wantSession && !m_sessionOut.isOpen())
         openSession();
     else if( !wantSession && m_sessionOut.isOpen()) {

@@ -186,6 +186,12 @@ private:
 DECLSPEC_KAME extern bool g_bLogDbgPrint;
 //! If true, use mlock.
 DECLSPEC_KAME extern bool g_bUseMLock;
+//! If true, another KAME holds ~/.kame.lock, and the per-user files -- the
+//! session journal, kame.log, the MCP connection files -- are its, not ours.
+//! \sa main.cpp
+DECLSPEC_KAME extern bool g_bLockMode;
+//! Opens kame.log: the plain name, or one by pid in lock mode.
+DECLSPEC_KAME void openDebugLog(bool lockmode);
 
 DECLSPEC_KAME bool isMemLockAvailable() noexcept;
 

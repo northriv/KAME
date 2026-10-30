@@ -805,8 +805,10 @@ _NO_USABLE_JUPYTER_HTML = ('<font color="#cc0000">No usable Jupyter found.  A '
 NOTEBOOK_TOKEN = None
 NOTEBOOK_PROC = None
 NOTEBOOK_MCP_JSON = None
+NOTEBOOK_MCP_JSON_TEXT = None	#the .mcp.json config, kept here too: in lock mode it is written nowhere
 NOTEBOOK_MCP_HTTP_PROC = None
 NOTEBOOK_MCP_URL_FILE = None
+NOTEBOOK_MCP_URL_INFO = None	#the server this KAME published: url, token, port, pids
 NOTEBOOK_MCP_HTTP_LOG = None
 NOTEBOOK_LOG_TAIL = None	#last lines of the server's output, for diagnostics
 NOTEBOOK_DEATH_REPORTED = True	#nothing to report until a server is launched
@@ -857,6 +859,85 @@ def stopNotebookServer():
 			proc.wait(timeout=5)
 		except Exception:
 			pass
+
+
+#The MCP hand-off files.  ~/.kame_kernel_connection.json (the kernel, the
+#notebook server, the install), ~/.kame_mcp_url (the HTTP server) and the
+#workspace .mcp.json are what a client KAME did not start reaches, and they
+#can name only one KAME: the one holding ~/.kame.lock.  A KAME in lock mode --
+#a second one, opened to read a journal as the first measures -- neither
+#writes nor removes them.  Each KAME also keeps its own copy, INSTANCE_INFO,
+#and points every client it starts at it through KAME_KERNEL_CONNECTION, which
+#kame_mcp_server.py and kame_pydantic_ai.py read before the shared files: a
+#session started from one KAME does not land on the other.  \sa main.cpp
+MCP_CONN_SHARED = os.path.join(os.path.expanduser('~'), '.kame_kernel_connection.json')
+MCP_URL_SHARED = os.path.join(os.path.expanduser('~'), '.kame_mcp_url')
+try:
+	KAME_LOCK_MODE = bool(is_lock_mode())
+except NameError:
+	KAME_LOCK_MODE = False
+
+def _instance_info_dir():
+	"""Jupyter's runtime directory, beside the kernel's connection file and the
+	notebook server's: per user, and kept for exactly this -- what is running."""
+	try:
+		from jupyter_core.paths import jupyter_runtime_dir
+		return jupyter_runtime_dir()
+	except Exception:
+		import tempfile
+		return tempfile.gettempdir()
+
+#Named now rather than at the notebook launch: a client started before it (a
+#terminal from the Claude link) must still wait for THIS KAME, not find another.
+INSTANCE_INFO = os.path.join(_instance_info_dir(), 'kame-{}.json'.format(os.getpid()))
+os.environ['KAME_KERNEL_CONNECTION'] = INSTANCE_INFO
+
+def _read_json(path):
+	"""The dict in `path`; {} when it is absent or is not one."""
+	import json as _j
+	try:
+		with open(path) as _f:
+			_d = _j.load(_f)
+	except (OSError, ValueError):
+		return {}
+	return _d if isinstance(_d, dict) else {}
+
+def _write_json(path, d):
+	import json as _j
+	try:
+		os.makedirs(os.path.dirname(path), exist_ok=True)
+		with open(path, 'w') as _f:
+			_j.dump(d, _f)
+	except OSError:
+		pass
+
+_LOCK_MODE_MCP_NOTE = ("#  Lock mode: the shared connection files and .mcp.json are left to\n"
+					   "#  the KAME holding the lock; what this KAME starts is pointed here.")
+
+def _publish_mcp_files(conn, url=None):
+	"""This KAME's hand-off information: its own copy, and the shared files
+	unless in lock mode."""
+	_mine = dict(conn)
+	if url:
+		_mine['mcp_url'] = url
+	_write_json(INSTANCE_INFO, _mine)
+	if not KAME_LOCK_MODE:
+		_write_json(MCP_CONN_SHARED, conn)
+		if url:
+			_write_json(MCP_URL_SHARED, url)
+
+def _retire_mcp_files():
+	"""This KAME is leaving: its own copy goes, and the shared files with it
+	unless in lock mode.  Idempotent: finish() and the kernel's end both call it."""
+	_files = [INSTANCE_INFO]
+	if not KAME_LOCK_MODE:
+		_files += [MCP_CONN_SHARED, MCP_URL_SHARED, NOTEBOOK_MCP_JSON]
+	for _p in _files:
+		if _p:
+			try:
+				os.remove(_p)
+			except OSError:
+				pass
 
 
 def _drainNotebookOutput(proc):
@@ -1031,27 +1112,23 @@ def launchJupyterConsole(prog, argv):
 
 	# Write MCP config for Claude Code in the notebook workspace.
 	if console[0] == 'notebook':
-		global NOTEBOOK_MCP_JSON
+		global NOTEBOOK_MCP_JSON, NOTEBOOK_MCP_JSON_TEXT, NOTEBOOK_MCP_URL_INFO
 		import json as _json
 		# Write kernel connection info for the MCP server.
 		import ipykernel
 		_conn_file = ipykernel.connect.get_connection_file()
-		_kame_conn_info = os.path.join(os.path.expanduser('~'), '.kame_kernel_connection.json')
-		try:
-			with open(_kame_conn_info, 'w') as _f:
-				# notebook_token / notebook_dir let the MCP server locate the
-				# notebook server (contents API) among Jupyter runtime files.
-				# resource_dir lets an installed agent plugin (whose cache
-				# holds only the plugin directory) find kame_mcp_server.py on
-				# ANY layout, dev build trees included — the fixed
-				# /Applications-style candidates in bin/kame-mcp-server miss
-				# those.
-				_json.dump({'connection_file': _conn_file, 'pid': os.getpid(),
-							'notebook_token': token,
-							'notebook_dir': os.path.abspath(console[1]),
-							'resource_dir': KAME_ResourceDir}, _f)
-		except OSError:
-			pass
+		# notebook_token / notebook_dir let the MCP server locate the
+		# notebook server (contents API) among Jupyter runtime files.
+		# resource_dir lets an installed agent plugin (whose cache
+		# holds only the plugin directory) find kame_mcp_server.py on
+		# ANY layout, dev build trees included — the fixed
+		# /Applications-style candidates in bin/kame-mcp-server miss
+		# those.
+		_conn_info = {'connection_file': _conn_file, 'pid': os.getpid(),
+					  'notebook_token': token,
+					  'notebook_dir': os.path.abspath(console[1]),
+					  'resource_dir': KAME_ResourceDir}
+		_publish_mcp_files(_conn_info)
 		# Write .mcp.json pointing to the MCP server script.
 		mcp_server_script = os.path.join(KAME_ResourceDir, 'kame_mcp_server.py')
 		# Find a Python that can run the MCP server (needs mcp & jupyter_client).
@@ -1227,13 +1304,11 @@ def launchJupyterConsole(prog, argv):
 				# when the port is reclaimable, so .mcp.json does not change
 				# on every launch — a client that connected once keeps working
 				# after a KAME restart without a manual MCP reconnect.
-				_url_file = os.path.join(os.path.expanduser('~'), '.kame_mcp_url')
-				_prev = {}
-				try:
-					with open(_url_file) as _pf2:
-						_prev = _json.load(_pf2)
-				except (OSError, ValueError):
-					_prev = {}
+				# In lock mode only this KAME's own previous server (a
+				# relaunch): the shared file names the lock holder's, whose
+				# process, port and token are not ours to take.
+				_prev = dict(NOTEBOOK_MCP_URL_INFO or {}) \
+					or ({} if KAME_LOCK_MODE else _read_json(MCP_URL_SHARED))
 				_env_port = os.environ.get('KAME_MCP_PORT', '').strip()
 				_port = None
 				_token = None
@@ -1313,6 +1388,8 @@ def launchJupyterConsole(prog, argv):
 				# (see the probe above -- on MSYS2 they break it outright).
 				_mcp_env = dict(_child_env)
 				_mcp_env['KAME_MCP_TOKEN'] = _token
+				# Bound to this KAME, not to whichever the shared files name.
+				_mcp_env['KAME_KERNEL_CONNECTION'] = INSTANCE_INFO
 				NOTEBOOK_MCP_HTTP_PROC = _sp.Popen(
 					[python_cmd, mcp_server_script,
 					 '--transport=http',
@@ -1408,38 +1485,48 @@ def launchJupyterConsole(prog, argv):
 
 			if _use_http:
 				_url = f'http://127.0.0.1:{_port}/mcp'
-				with open(mcp_json_path, 'w') as _f:
-					_json.dump({'mcpServers': {'kame': {
-						'type': 'http',
-						'url': _url,
-						'headers': {'Authorization': f'Bearer {_token}'}
-					}}}, _f, indent=2)
-				# Also publish to ~/.kame_mcp_url so external Claude
-				# Code sessions outside the notebook dir can find it.
-				NOTEBOOK_MCP_URL_FILE = os.path.join(
-					os.path.expanduser('~'), '.kame_mcp_url')
-				with open(NOTEBOOK_MCP_URL_FILE, 'w') as _f:
-					_json.dump({'url': _url, 'token': _token,
-								'port': _port, 'pid': os.getpid(), 'server_pid': NOTEBOOK_MCP_HTTP_PROC.pid}, _f)
+				NOTEBOOK_MCP_JSON_TEXT = _json.dumps({'mcpServers': {'kame': {
+					'type': 'http',
+					'url': _url,
+					'headers': {'Authorization': f'Bearer {_token}'}
+				}}}, indent=2)
+				if not KAME_LOCK_MODE:
+					with open(mcp_json_path, 'w') as _f:
+						_f.write(NOTEBOOK_MCP_JSON_TEXT)
+					# Also publish to ~/.kame_mcp_url so external Claude
+					# Code sessions outside the notebook dir can find it.
+					NOTEBOOK_MCP_URL_FILE = MCP_URL_SHARED
+				NOTEBOOK_MCP_URL_INFO = {'url': _url, 'token': _token,
+					'port': _port, 'pid': os.getpid(),
+					'server_pid': NOTEBOOK_MCP_HTTP_PROC.pid}
+				_publish_mcp_files(_conn_info, NOTEBOOK_MCP_URL_INFO)
 				_gui_log(
 					f"#MCP HTTP server started.\n"
 					f"#  URL  : {_url}\n"
 					f"#  Port : {_port}\n"
 					f"#  PID  : {NOTEBOOK_MCP_HTTP_PROC.pid}\n"
-					f"#  Token: {_token[:8]}\u2026 (full token in {mcp_json_path})\n"
-					f"#  URL file: {NOTEBOOK_MCP_URL_FILE}\n"
-					f"#  Notebook .mcp.json: {mcp_json_path}")
+					f"#  Token: {_token[:8]}\u2026 (full token in "
+					f"{INSTANCE_INFO if KAME_LOCK_MODE else mcp_json_path})\n"
+					+ (_LOCK_MODE_MCP_NOTE if KAME_LOCK_MODE else
+					   f"#  URL file: {NOTEBOOK_MCP_URL_FILE}\n"
+					   f"#  Notebook .mcp.json: {mcp_json_path}"))
 			else:
-				with open(mcp_json_path, 'w') as _f:
-					_json.dump({'mcpServers': {'kame': {
-						'command': python_cmd,
-						'args': [mcp_server_script]
-					}}}, _f, indent=2)
+				# The env binds the server the client spawns to this KAME, as
+				# the HTTP server is bound.
+				NOTEBOOK_MCP_JSON_TEXT = _json.dumps({'mcpServers': {'kame': {
+					'command': python_cmd,
+					'args': [mcp_server_script],
+					'env': {'KAME_KERNEL_CONNECTION': INSTANCE_INFO}
+				}}}, indent=2)
+				if not KAME_LOCK_MODE:
+					with open(mcp_json_path, 'w') as _f:
+						_f.write(NOTEBOOK_MCP_JSON_TEXT)
 				_gui_log(
-					f"#MCP stdio config written.\n"
+					f"#MCP stdio config{'' if KAME_LOCK_MODE else ' written'}.\n"
 					f"#  Server script: {mcp_server_script}\n"
 					f"#  Python      : {python_cmd}\n"
-					f"#  .mcp.json   : {mcp_json_path}")
+					+ (_LOCK_MODE_MCP_NOTE if KAME_LOCK_MODE else
+					   f"#  .mcp.json   : {mcp_json_path}"))
 			NOTEBOOK_MCP_JSON = mcp_json_path
 		except OSError:
 			pass
@@ -1449,12 +1536,10 @@ def _kame_workspace_dir():
 	_m = globals().get('NOTEBOOK_MCP_JSON')
 	if _m:
 		return os.path.dirname(_m)
-	try:
-		import json as _j
-		with open(os.path.join(os.path.expanduser('~'), '.kame_kernel_connection.json')) as _f:
-			return _j.load(_f).get('notebook_dir') or os.path.expanduser('~')
-	except Exception:
-		return os.path.expanduser('~')
+	#This KAME's own record, not the shared one: that may be another KAME's,
+	#and a notebook or an agent started in its workspace would take over its
+	#.mcp.json.
+	return _read_json(INSTANCE_INFO).get('notebook_dir') or os.path.expanduser('~')
 
 def _open_linux_terminal(inner):
     """Run `inner` (a `bash -lc` string) in the first available terminal emulator.
@@ -1487,21 +1572,21 @@ def _kame_codex_spec():
     """The MCP server KAME wired up this session, as a launch spec, or None.
 
     Single source of truth: the same `.mcp.json` / `~/.kame_mcp_url` KAME already
-    wrote, so Codex is pointed at exactly the server this KAME started.  Returns
-    {'type':'stdio','command','args'} or {'type':'http','url','token'}.
+    wrote, so Codex is pointed at exactly the server this KAME started -- as it
+    wrote them, kept in memory, since another KAME may have written over either
+    file since.  Returns {'type':'stdio','command','args'} or
+    {'type':'http','url','token'}.
     """
     import json as _json
-    _paths = []
-    _m = globals().get('NOTEBOOK_MCP_JSON')
-    if _m:
-        _paths.append(_m)
-    _paths.append(os.path.join(os.path.expanduser('~'), '.kame_mcp_url'))
-    for _p in _paths:
+    _srcs = []
+    if globals().get('NOTEBOOK_MCP_JSON_TEXT'):
         try:
-            with open(_p) as _f:
-                _d = _json.load(_f)
-        except Exception:
-            continue
+            _srcs.append(_json.loads(NOTEBOOK_MCP_JSON_TEXT))
+        except ValueError:
+            pass
+    if globals().get('NOTEBOOK_MCP_URL_INFO'):
+        _srcs.append(NOTEBOOK_MCP_URL_INFO)
+    for _d in _srcs:
         if not isinstance(_d, dict):
             continue
         _srv = (_d.get('mcpServers') or {}).get('kame')
@@ -1969,7 +2054,10 @@ def _codex_launch(binary):
             _bat.close()
             _sp.Popen(['cmd', '/c', 'start', '', _bat.name])
         else:
-            _env, _ov = {}, []
+            # Terminal.app starts a fresh shell, which does not inherit
+            # KAME's environment: say which KAME this is, or a server Codex
+            # starts (a stdio entry, the plugin) would find the shared files.
+            _env, _ov = {'KAME_KERNEL_CONNECTION': INSTANCE_INFO}, []
             if _spec and _spec['type'] == 'stdio':
                 _ov += ['-c', 'mcp_servers.kame.command=' + _toml_quote(_spec['command'])]
                 _arr = '[' + ', '.join(_toml_quote(a) for a in _spec['args']) + ']'
@@ -2669,6 +2757,10 @@ def kame_handle_link(action):
 			# would greet every session with an MCP startup error.
 			_pd = _kame_plugin_dir() if _sys != 'Windows' else None
 			_claude = 'claude --plugin-dir {}'.format(_shlex.quote(_pd)) if _pd else 'claude'
+			# A fresh Terminal shell inherits nothing from KAME: name this KAME,
+			# or with two running the plugin's server finds the shared files.
+			_claude = 'KAME_KERNEL_CONNECTION={} {}'.format(
+				_shlex.quote(INSTANCE_INFO), _claude)
 			if _sys == 'Darwin':
 				_osa = 'tell application "Terminal" to do script "cd {} && {}"'.format(
 					_shlex.quote(_wd), _claude)
@@ -2886,7 +2978,7 @@ def kame_handle_link(action):
 				# apart from "started, but the HTTP server died and stdio was
 				# written instead", which needs its log rather than a click.
 				_proc = globals().get('NOTEBOOK_MCP_HTTP_PROC')
-				_up = (bool(globals().get('NOTEBOOK_MCP_URL_FILE'))
+				_up = (bool(globals().get('NOTEBOOK_MCP_URL_INFO'))
 					   and _proc is not None and _proc.poll() is None)
 				if not _up and os.environ.get('KAME_MCP_TRANSPORT', '').lower() != 'stdio':
 					#Launching the notebook is what starts the MCP server, so do it
@@ -2933,7 +3025,7 @@ def kame_handle_link(action):
 							_kame_gui_html('<font color="#cc0000">{}</font>'.format(
 								html.escape(str(_e))))
 						_proc = globals().get('NOTEBOOK_MCP_HTTP_PROC')
-						_up = (bool(globals().get('NOTEBOOK_MCP_URL_FILE'))
+						_up = (bool(globals().get('NOTEBOOK_MCP_URL_INFO'))
 							   and _proc is not None and _proc.poll() is None)
 				if not _up:
 					if globals().get('NOTEBOOK_MCP_JSON'):
@@ -3064,8 +3156,12 @@ def kame_handle_link(action):
 						   + _webargs
 			else:
 				_cmd = [_py, _script] + (['--web'] if action == 'pyai-web' else [])
-			# The agent module ships with KAME, not in the user's venv.
-			_cmdline = ('PYTHONPATH={} '.format(_shlex.quote(KAME_ResourceDir))
+			# The agent module ships with KAME, not in the user's venv.  And
+			# which KAME this is: a fresh Terminal shell inherits nothing from
+			# it, and with two running the agent must reach this one's server.
+			# (Windows' `start` passes KAME's environment on.)
+			_cmdline = 'KAME_KERNEL_CONNECTION={} '.format(_shlex.quote(INSTANCE_INFO)) \
+					   + ('PYTHONPATH={} '.format(_shlex.quote(KAME_ResourceDir))
 						if _via_clai else '') \
 					   + ' '.join(_shlex.quote(a) for a in _cmd)
 			# Whatever fails in that window -- a missing key, clai's default
@@ -3259,15 +3355,7 @@ else:
 				TLS.logfile = None
 
 				# Remove MCP files created for Claude Code.
-				if NOTEBOOK_MCP_JSON:
-					try:
-						os.remove(NOTEBOOK_MCP_JSON)
-					except OSError:
-						pass
-					try:
-						os.remove(os.path.join(os.path.expanduser('~'), '.kame_kernel_connection.json'))
-					except OSError:
-						pass
+				_retire_mcp_files()
 				# Tear down background HTTP MCP server (Windows path).
 				if NOTEBOOK_MCP_HTTP_PROC is not None:
 					try:
@@ -3276,11 +3364,6 @@ else:
 					except Exception:
 						try: NOTEBOOK_MCP_HTTP_PROC.kill()
 						except Exception: pass
-				if NOTEBOOK_MCP_URL_FILE:
-					try:
-						os.remove(NOTEBOOK_MCP_URL_FILE)
-					except OSError:
-						pass
 				if NOTEBOOK_MCP_HTTP_LOG:
 					try:
 						os.remove(NOTEBOOK_MCP_HTTP_LOG)
@@ -3478,13 +3561,7 @@ else:
 #path is the one taken when finish() never runs.  (The notebook server itself
 #is stopped by the atexit hook and by its own parent watchdog.)
 try:
-	for _f in (NOTEBOOK_MCP_URL_FILE, NOTEBOOK_MCP_JSON,
-			   os.path.join(os.path.expanduser('~'), '.kame_kernel_connection.json')):
-		if _f:
-			try:
-				os.remove(_f)
-			except OSError:
-				pass
+	_retire_mcp_files()
 	if NOTEBOOK_MCP_HTTP_PROC is not None:
 		try:
 			NOTEBOOK_MCP_HTTP_PROC.terminate()
