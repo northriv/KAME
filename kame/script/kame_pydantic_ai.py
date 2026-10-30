@@ -723,6 +723,12 @@ def _budget():
 #a local model takes it as its thinking level where nothing else set one.
 _UI_EFFORT = contextvars.ContextVar('kame_ui_effort', default=None)
 _UI_EFFORTS = ('minimal', 'low', 'medium', 'high', 'xhigh')
+#The browser holds each model response as a step of its assistant message (a
+#'step-start' part before each), and pydantic-ai's loader drops those marks:
+#two tool calls one response made come back as two responses, a call and its
+#return each (see kame_history_budget()).  kame_web_plots() reads which step
+#each tool call was in, {tool call id: step}, into _UI_STEPS for the run.
+_UI_STEPS = contextvars.ContextVar('kame_ui_steps', default=None)
 _LOCAL_MODEL_CLASS = []
 
 
@@ -743,9 +749,31 @@ def _local_model_class():
     return _LOCAL_MODEL_CLASS[0]
 
 
-class _UiEffortMiddleware:
-    """ASGI: a chat request's `effort` (the chat UI's menu) in _UI_EFFORT while
-    the request runs; the request goes on with its body as it came."""
+def _ui_steps(body):
+    """{tool call id: step} of a chat request's history as the browser holds
+    it: a step per 'step-start' part of an assistant message, or a step per
+    call in a message with none (nothing then to put back together)."""
+    steps, n = {}, 0
+    for message in body.get('messages') or []:
+        if not isinstance(message, dict) or message.get('role') != 'assistant':
+            continue
+        parts = [p for p in message.get('parts') or [] if isinstance(p, dict)]
+        marked = any(p.get('type') == 'step-start' for p in parts)
+        for part in parts:
+            if part.get('type') == 'step-start':
+                n += 1
+            elif part.get('toolCallId'):
+                if not marked:
+                    n += 1
+                steps[part['toolCallId']] = n
+    return steps
+
+
+class _ChatUiMiddleware:
+    """ASGI: what pydantic-ai's web backend leaves out of a chat request --
+    the chat UI's `effort` (_UI_EFFORT) and which step each tool call of the
+    history was in (_UI_STEPS) -- kept while the request runs; the request
+    goes on with its body as it came."""
 
     def __init__(self, app):
         self.app = app
@@ -762,18 +790,20 @@ class _UiEffortMiddleware:
             if message.get('type') != 'http.request' or not message.get('more_body'):
                 break
         try:
-            effort = json.loads(body or b'{}').get('effort')
+            data = json.loads(body or b'{}')
+            effort, steps = data.get('effort'), _ui_steps(data)
         except (ValueError, AttributeError):
-            effort = None
+            effort, steps = None, None
 
         async def replay():
             return messages.pop(0) if messages else await receive()
 
-        token = _UI_EFFORT.set(effort if effort in _UI_EFFORTS else None)
+        tokens = (_UI_EFFORT.set(effort if effort in _UI_EFFORTS else None), _UI_STEPS.set(steps or None))
         try:
             await self.app(scope, replay, send)
         finally:
-            _UI_EFFORT.reset(token)
+            _UI_EFFORT.reset(tokens[0])
+            _UI_STEPS.reset(tokens[1])
 
 
 def _local_chat_model(kind, name, provider):
@@ -944,15 +974,19 @@ def kame_history_budget(max_tokens=None, keep_recent=6):
     prompt cache misses from there on, every turn, and Claude refuses the
     thinking blocks after it.  That text ends with the suffix RetryPromptPart
     appends, which no tool result does, and a RetryPromptPart holding what
-    precedes it renders the same bytes again.  (Parallel tool calls come back
-    split into one call per round trip; that needs pydantic-ai's loader to
-    keep a step's results together, and is not undone here.)
+    precedes it renders the same bytes again.  Parallel tool calls come back
+    split too: pydantic-ai's loader makes each call its own response with its
+    return after it.  The browser marks each response as a step, which
+    kame_web_plots() reads (_UI_STEPS), so the calls of one step go back into
+    one response and their returns into one request.  A local server's prompt
+    cache resumes only where the history is what it was sent, so a new message
+    reread the whole conversation without this (80-100 s at 85k tokens).
     `capabilities=[*kame_history_budget()]`."""
     import dataclasses
     from pydantic_ai.capabilities import ProcessHistory
     from pydantic_ai.messages import (ModelRequest, ModelResponse, ToolReturnPart,
                                       UserPromptPart, SystemPromptPart, ThinkingPart,
-                                      BinaryContent, RetryPromptPart)
+                                      BinaryContent, RetryPromptPart, ToolCallPart)
     budget = int(max_tokens or os.environ.get('KAME_PYAI_HISTORY_TOKENS') or 150000)
     retry_suffix = '\n\nFix the errors and try again.'   # RetryPromptPart.model_response()
 
@@ -973,6 +1007,29 @@ def kame_history_budget(max_tokens=None, keep_recent=6):
                 out = out or list(messages)
                 out[i] = dataclasses.replace(m, parts=parts)
         return out or messages
+
+    def _restore_steps(messages):
+        steps = _UI_STEPS.get()
+        if not steps:
+            return messages
+        returns = (ToolReturnPart, RetryPromptPart)
+        out, i = list(messages), 0
+        while i + 3 < len(out):
+            call, back, more, more_back = out[i:i + 4]
+            ids = [p.tool_call_id for p in getattr(call, 'parts', ()) if isinstance(p, ToolCallPart)]
+            step = steps.get(ids[-1]) if ids else None
+            if (step is not None and isinstance(call, ModelResponse)
+                    and isinstance(back, ModelRequest) and isinstance(more, ModelResponse)
+                    and isinstance(more_back, ModelRequest)
+                    and more.parts and all(isinstance(p, ToolCallPart) and steps.get(p.tool_call_id) == step
+                                           for p in more.parts)
+                    and all(isinstance(p, returns) for p in back.parts + more_back.parts)):
+                out[i] = dataclasses.replace(call, parts=[*call.parts, *more.parts])
+                out[i + 1] = dataclasses.replace(back, parts=[*back.parts, *more_back.parts])
+                del out[i + 2:i + 4]
+                continue                                   # the step may hold a third call
+            i += 1
+        return out
 
     def _size(content):
         if isinstance(content, str):
@@ -1000,7 +1057,7 @@ def kame_history_budget(max_tokens=None, keep_recent=6):
         return dataclasses.replace(part, content=note)
 
     def processor(messages):
-        messages = _restore_retries(messages)
+        messages = _restore_retries(_restore_steps(messages))
         total = sum(_est(m) for m in messages)
         if total <= budget:
             return messages
@@ -1062,11 +1119,13 @@ def kame_web_plots(app, url_path='/plots'):
     shows it inline -- a relative URL, so the port the UI happens to be on
     does not matter.  FIGURE_INSTRUCTIONS tells the model to write that.
 
-    It also reads the chat UI's Effort menu from each chat request, for a
-    local model's thinking level (_UiEffortMiddleware)."""
+    It also reads what pydantic-ai's backend leaves out of each chat request
+    (_ChatUiMiddleware): the chat UI's Effort menu, for a local model's
+    thinking level, and the steps of the history, so kame_history_budget()
+    puts a response's tool calls back together."""
     from starlette.staticfiles import StaticFiles
     app.mount(url_path, StaticFiles(directory=kame_plot_dir()), name='kame-plots')
-    app.add_middleware(_UiEffortMiddleware)
+    app.add_middleware(_ChatUiMiddleware)
     return app
 
 
