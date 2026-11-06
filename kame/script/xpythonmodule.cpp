@@ -499,10 +499,23 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
             // via kame_mainthread(), mirroring the .kam loader's _KamNode.create() in
             // xpythonsupport.py — so every python caller (interactive cells, MCP
             // execute_code, asyncio tasks) is protected, not just the .kam path.
-            if(self->isThreadSafeDuringCreationByTypename() || isMainThread())
+            //
+            // Either way createByTypename runs without the GIL: it commits, and
+            // the list's listeners start transactions of their own within that
+            // commit (XChartList makes a chart for each new scalar entry). With
+            // the GIL held, a driver thread taking it inside its transaction --
+            // a Python math tool's functor, or that functor's destructor when a
+            // bundle drops an old payload -- waits on us while we negotiate
+            // against it, until the HANG watchdog aborts (2026-11-02, on the
+            // main thread via kame_mainthread). Python-defined types take the
+            // GIL back in their creators.
+            if(self->isThreadSafeDuringCreationByTypename() || isMainThread()) {
+                py::gil_scoped_release rel;
                 return self->createByTypename(type, name);
+            }
             py::object child = XPython::bind.kame_module().attr("kame_mainthread")(
                 py::cpp_function([self, type, name]() -> shared_ptr<XNode> {
+                    py::gil_scoped_release rel;
                     return self->createByTypename(type, name);
                 }));
             if(child.is_none())

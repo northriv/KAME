@@ -133,7 +133,12 @@ STM_ENTRY_RE = re.compile(
     # insert(child) commits; insert(tr, child) does not unless it goes online
     # (a trailing `true`), which is what create<>(tr, ...) does.
     r'|->insert\s*\(\s*[\w*]+\s*\)|->insert\s*\([^;]*?,\s*true\s*\)'
-    r'|->create\s*<|->getChild\s*\(')
+    r'|->create\s*<|->getChild\s*\('
+    # createByTypename and a list's release() commit, and run the list's
+    # listeners in that commit: a binding calling them with the GIL held
+    # deadlocked against a driver thread taking the GIL inside a transaction
+    # (2026-11-02, the createByTypename binding run by kame_mainthread).
+    r'|->createByTypename\s*\(|->release\s*\(')
 # NOT py::init: an init inside .def(py::init(...), py::call_guard<...>())
 # would be scanned without its sibling call_guard argument and misreported;
 # the .def( span already covers the whole argument list.

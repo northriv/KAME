@@ -492,6 +492,12 @@ must say so in a comment and accept that it cannot build on a no-DCAS host.
    overrides and math-tool functors acquire the GIL from *inside* in-flight
    transactions, so GIL-held negotiation deadlocks the STM (HANG watchdog abort) —
    the GIL is just another "plain mutex" for the rule above (`d5aefdc46`).
+   So do calls that commit inside — `createByTypename()`, a list's
+   `release()`, `insert(child)` — whose listeners start transactions of their
+   own; and a closure run through `kame_mainthread` is no exemption, since the
+   main thread holds the GIL while it runs it (the 2026-11-02 abort: a chart
+   made for a new 2D math tool's entry negotiated against a driver thread
+   waiting for the GIL in `~PyFunc2DMathTool`).
    Exception to the call_guard form: a `py::init` factory returning a holder
    (`shared_ptr<N>`) must release inside the lambda instead, because pybind11
    registers the returned holder within the guarded call and that registration
