@@ -19,6 +19,12 @@
 #include <QMainWindow>
 #include <QPointer>
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 5, 0)
+namespace Qt {
+enum class ColorScheme { Unknown, Light, Dark };
+}
+#endif
+
 //! What the command line asked the appearance to be, so the View menu can say
 //! which one is in force: QStyleHints::colorScheme() reports the EFFECTIVE
 //! scheme and cannot tell a forced Dark from a system that happens to be dark.
